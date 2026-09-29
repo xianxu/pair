@@ -255,3 +255,11 @@ proof; record the surprising case so the next change starts from evidence.
 - A multiplexer's outer alternate-screen mode is not evidence of inner-pane focus. Route lifecycle shortcuts from positive pane-role evidence; missing best-effort registry entries mean unknown, not permission to relaunch. (#333)
 
 - Shortcut scope changes also affect generated key help. Verify both hosting and current presenter: reattaching a Couch-owned session outside Couch does not remove its restart restriction. (#333 BR-1)
+
+- A non-draft title does not identify the agent: right terminals satisfy that
+  predicate too. For pane return/poke operations, select positive command or
+  recorded role identity and test with unrelated panes before the agent. (#340)
+
+- When acceptance changes a return destination, retain separate assertions for
+  submission routing: a reordered fixture alone proves nothing unless the host
+  checks the target of both body delivery and submit. (#340 BR-1)

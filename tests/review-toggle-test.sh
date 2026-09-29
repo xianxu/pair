@@ -33,6 +33,10 @@ mkdir -p "$RT/bin"
 cat > "$RT/bin/zellij" <<EOF
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >> "$ZLOG"
+if [ "\$1" = action ] && [ "\$2" = list-panes ]; then
+  printf '%s\n' '{"panes":[{"id":7,"terminal_command":"/bin/pair wrap"},{"id":3,"terminal_command":"nvim -u /pair/nvim/init.lua"}]}'
+  exit 0
+fi
 if [ "\$1" = action ] && [ "\$2" = are-floating-panes-visible ]; then
   cat "$FLOATVIS" 2>/dev/null || echo false
 fi
@@ -80,7 +84,8 @@ if [ "${1:-}" = session-inventory ]; then
   fi
   exit 0
 fi
-exit 1
+# Only inventory is faked; editor retention and other services use the real CLI.
+exec "$PAIR_HOME/bin/pair" "$@"
 EOF
 chmod +x "$RT/bin/pair"
 
@@ -192,7 +197,7 @@ vim.fn.writefile({ '{"file":"/stale/prev.md","status":"ready","session":"oldsid"
 vim.fn.writefile({ tostring(vim.fn.getpid()) }, sf); setfloat('true')
 local n = #read_zlog(); _G.PairReviewToggle()
 local d = new_since(n)
-OUT:write((has(d, 'action are-floating-panes-visible') and has(d, 'action hide-floating-panes'))
+OUT:write((has(d, 'action are-floating-panes-visible') and has(d, 'action hide-floating-panes') and has(d, 'action focus-pane-id 3'))
   and 'hide ok\n' or 'hide FAIL\n')
 
 -- live + hidden → show

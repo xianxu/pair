@@ -35,6 +35,7 @@ do
   local here = debug.getinfo(1, 'S').source:sub(2):match('(.*/)') or './'
   local workbench_route = dofile(here .. 'workbench_route.lua')
   workbench_route.install_global_maps(false)
+  workbench_route.install_viewer_return()
 end
 
 -- See init.lua for the full rationale: this writes the embed nvim's pid to

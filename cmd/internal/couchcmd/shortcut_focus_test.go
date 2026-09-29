@@ -37,10 +37,10 @@ func TestFocusProbeDoesNotInferRoleFromMissingRegistration(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			probe := rightTerminalFocusProbe(f, func(context.Context, string) ([]byte, error) {
+			probe := shortcutFocusProbe(f, func(context.Context, string) ([]byte, error) {
 				return []byte("CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n1 terminal_4 pair term\n"), nil
 			})
-			if right, err := probe(context.Background(), a); err == nil || right {
+			if right, err := probe(context.Background(), a); err == nil || right != workbenchshortcut.PaneRoleOther {
 				t.Fatalf("missing proof: right=%v err=%v", right, err)
 			}
 		})
@@ -61,7 +61,7 @@ func TestFocusProbeFollowsInnerPaneWithUnchangingOuterScreen(t *testing.T) {
 	// Stateful external double: focus changes while the same client stays
 	// attached. Commands/titles do not define the right terminal; its registry does.
 	row := "1 terminal_2 nvim -u /pair/nvim/init.lua draft.md"
-	probe := rightTerminalFocusProbe(f, func(ctx context.Context, session string) ([]byte, error) {
+	probe := shortcutFocusProbe(f, func(ctx context.Context, session string) ([]byte, error) {
 		if session != "exact-session" {
 			t.Fatalf("session = %q", session)
 		}
@@ -83,7 +83,7 @@ func TestFocusProbeFollowsInnerPaneWithUnchangingOuterScreen(t *testing.T) {
 	} {
 		row = step.row
 		right, err := probe(context.Background(), address)
-		if (err != nil) != step.failure || right != step.right {
+		if (err != nil) != step.failure || (right == workbenchshortcut.PaneRoleRightTerminal) != step.right {
 			t.Fatalf("%q: right=%v err=%v", row, right, err)
 		}
 	}
@@ -91,5 +91,30 @@ func TestFocusProbeFollowsInnerPaneWithUnchangingOuterScreen(t *testing.T) {
 	cancel()
 	if _, err := probe(ctx, address); !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancellation: %v", err)
+	}
+}
+
+func TestFocusProbeRecognizesReviewCommand(t *testing.T) {
+	f := focusArtifacts{t.TempDir()}
+	row := ""
+	probe := shortcutFocusProbe(f, func(context.Context, string) ([]byte, error) {
+		return []byte("CLIENT_ID ZELLIJ_PANE_ID RUNNING_COMMAND\n" + row + "\n"), nil
+	})
+	address := couchcore.ThreadAddress{RepoScope: "0123456789abcdef", Tag: "work"}
+	for _, step := range []struct {
+		command string
+		role    workbenchshortcut.PaneRole
+		failure bool
+	}{
+		{"nvim -u /pair/nvim/review.lua /tmp/review.md", workbenchshortcut.PaneRoleReview, false},
+		{"nvim /tmp/review.md", workbenchshortcut.PaneRoleOther, true},
+		{"nvim -u /pair/nvim/init.lua draft.md", workbenchshortcut.PaneRoleLeftDraft, false},
+		{"pair wrap --agent codex", workbenchshortcut.PaneRoleLeftAgent, false},
+	} {
+		row = "1 terminal_9 " + step.command
+		role, err := probe(context.Background(), address)
+		if role != step.role || (err != nil) != step.failure {
+			t.Fatalf("%q: role=%v err=%v", step.command, role, err)
+		}
 	}
 }

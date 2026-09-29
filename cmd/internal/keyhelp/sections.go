@@ -107,7 +107,15 @@ func sections(src SourceReader, hosted bool) ([]Section, error) {
 		sort.SliceStable(rows, func(i, j int) bool { return rows[i].Order < rows[j].Order })
 		out = append(out, Section{Title: g, Bindings: rows})
 	}
-	return out, nil
+	reviewLua, err := src.Read("nvim/review.lua")
+	if err != nil {
+		return nil, fmt.Errorf("read nvim/review.lua: %w", err)
+	}
+	review, err := reviewSections(string(reviewLua))
+	if err != nil {
+		return nil, err
+	}
+	return append(out, review...), nil
 }
 
 // descFor resolves a row's wording from the source it names — and only that source.

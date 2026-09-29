@@ -31,18 +31,19 @@ local function collect_panes(node, out)
 end
 
 local function list_panes()
-  local res = zellij_trace.action('review.poke.list-panes', { 'zellij', 'action', 'list-panes', '--json' }).stdout
+  local res = zellij_trace.action('review.poke.list-panes', { 'zellij', 'action', 'list-panes', '--json', '--command' }).stdout
   local ok, decoded = pcall(vim.json.decode, res)
   if not ok or type(decoded) ~= 'table' then return {} end
   return collect_panes(decoded, {})
 end
 
--- The agent pane: a real terminal (not plugin), tiled (not floating), not the
--- draft — the same predicate `pair scrollback open` uses to find it.
+-- Positive agent identity: right terminals also have non-draft titles, so
+-- names and inventory ordering cannot identify the agent.
 local function find_agent(panes)
   for _, p in ipairs(panes) do
     if p.is_plugin == false and p.is_floating == false
-        and p.title ~= nil and p.title ~= '' and p.title ~= 'draft' then
+        and type(p.terminal_command) == 'string'
+        and p.terminal_command:find('pair wrap', 1, true) then
       return p.id
     end
   end

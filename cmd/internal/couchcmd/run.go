@@ -597,7 +597,7 @@ func dispatchInitialAttach(console *couchtty.Console, start couchcore.StartResul
 // matching for keystrokes is intentionally in-memory inside the pure menu.
 func wireResolver(console *couchtty.Console, c *couchcore.Couch) {
 	artifacts, _ := c.Artifacts.(shortcutFocusArtifacts)
-	console.SetRightTerminalFocusProbe(rightTerminalFocusProbe(artifacts, queryShortcutClients))
+	console.SetShortcutFocusProbe(shortcutFocusProbe(artifacts, queryShortcutClients))
 	console.SetContinuationProvider(c.ContinuationRequests)
 	console.SetActionableProvider(func(ctx context.Context, observations []couchcore.LiveTTYObservation) ([]couchcore.ActionableThreadSummary, error) {
 		select {

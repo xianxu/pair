@@ -31,7 +31,7 @@ fail() { printf '  FAIL %s\n' "$1"; fails=$((fails + 1)); }
 mkdir -p "$RT/bin"
 cat > "$RT/panes.json" <<'JSON'
 {"t":{"panes":[
-  {"id":7,"is_plugin":false,"is_floating":false,"is_focused":false,"title":"claude"},
+  {"id":7,"is_plugin":false,"is_floating":false,"is_focused":false,"title":"claude","terminal_command":"/bin/pair wrap --agent claude"},
   {"id":3,"is_plugin":false,"is_floating":false,"is_focused":false,"title":"draft"},
   {"id":9,"is_plugin":false,"is_floating":true,"is_focused":true,"title":"review"}
 ]}}
@@ -156,8 +156,7 @@ local function check()
   local cs_miss = vim.fn.search('Foo', 'nW')  -- uppercase query, smartcase → case-sensitive, no match on 'foo'
   OUT:write((ci_hit == 2 and cs_miss == 0 and 'review-smartcase-search\n') or ('NO-review-smartcase-search ci=' .. ci_hit .. ' cs=' .. cs_miss .. '\n'))
   local status = vim.o.statusline
-  local compact_status = status:find('🪄 Edit • %t%m', 1, true) and status:find('L%l/%L', 1, true)
-    and not status:find('Alt+', 1, true)
+  local compact_status = status:find('🪄 Edit • Alt+Return review · Alt+c/Esc draft · Alt+a/r accept/reject • %<%t%m', 1, true) and status:find('L%l/%L', 1, true)
   OUT:write((compact_status and 'compact-mode-statusline\n') or ('NO-compact-mode-statusline ' .. status .. '\n'))
   local function link_of(name)
     local ok, hl = pcall(vim.api.nvim_get_hl, 0, { name = name, link = true })
@@ -350,7 +349,7 @@ local function check()
   OUT2:write((#post_submit_marks == 0 and #post_submit_diags == 0 and 'human-submit-clears-style\n')
     or ('NO-human-submit-clears-style marks=' .. #post_submit_marks .. ' diags=' .. #post_submit_diags .. '\n'))
   OUT2:write((waiting_status:find('⣾ %{v:lua._pair_review_elapsed()}', 1, true)
-      and waiting_status:find(' Edit • %t%m', 1, true)
+      and waiting_status:find(' Edit • Alt+Return review · Alt+c/Esc draft · Alt+a/r accept/reject • %<%t%m', 1, true)
       and not waiting_status:find('🪄', 1, true)
       and 'awaiting-statusline\n')
     or ('NO-awaiting-statusline ' .. waiting_status .. '\n'))

@@ -137,6 +137,13 @@ one-line description can't carry.
 | **Shift+Alt+←** / **Shift+Alt+→** | any pane | Switch the right terminal's tabs from wherever you are, **without moving focus** — check another tab while you keep typing in the draft. |
 | **Shift+Alt+t** | any pane | Create a new right-terminal tab from wherever you are, without moving focus — works even while a full-screen app (nvim) owns the right pane. |
 | **Alt+c** | non-agent panes | Open/show/hide the review collaboration pane. If no review target exists, starts `:PairReview`. |
+| **Esc** / **Alt+c** | review buffer (normal) | Hide review and return to the draft. Insert/visual Esc leaves that mode; a diagnostic or definition float closes first. |
+| **Alt+a** / **Alt+r** (or **Leader+a** / **Leader+r**) | review buffer (normal) | Accept / reject the 🤖 suggestion at the cursor. |
+| **Alt+Shift+A** / **Alt+Shift+R** | review buffer (normal) | Accept / reject paragraph suggestions through the cursor. |
+| **Alt+q** | review buffer | Insert a human comment marker in normal/insert mode; quote the selection in visual mode. |
+| **Alt+Return** | review buffer (normal/insert) | Finish the human turn; apply agent results when a round is pending. |
+| **Alt+n** / **Alt+Shift+N** (or **]m** / **[m**) | review buffer (normal) | Next / previous 🤖 marker, wrapping, including human comments. These local actions override restart behavior while reviewing, including under Couch. |
+| **gl** / **Ctrl+w d**, **]d** / **[d** | review buffer (normal) | Open the diagnostic explanation, or move to the next / previous diagnostic. |
 | **Shift+Alt+d** | review pane (visual) | Define the selected term inline. The pair agent answers through `pair review definition`, and the pane stores the result as a durable footnote. |
 | **Ctrl+C** | nvim (normal/insert) | Send ESC (0x1b) to the agent pane — interrupts claude's in-flight stream without leaving the draft |
 | **Alt+←** / **Alt+→** | nvim (normal/insert) | Walk through prompt history (`-N`) and queued prompts (`+N`) one slot at a time. |
@@ -157,7 +164,7 @@ one-line description can't carry.
 | **Alt+d** | non-agent panes | Detach from the current session (re-attach later via `pair`). Under Couch this detaches only the Zellij client; Couch's own detach is in the switcher. |
 | **Alt+x** | non-agent panes | Full quit — kill the session and everything in it. The agent's session id is saved, so it's resumable via `pair resume <tag>`; before discarding the scrollback pair offers to **park** it for a later `pair continue`. |
 | **Alt+n** (or **Ctrl+Alt+n**) | draft nvim / right terminal | Reload from draft nvim (Couch relaunch confirmation when hosted). Alt+n passes through from the right terminal; Ctrl+Alt+n passes through to its full-screen TUI but retains reload handling at a shell. |
-| **Shift+Alt+N** | non-agent panes | Restart only the coding agent, with a new conversation. Pair, Zellij, the draft, and terminal tabs stay alive. |
+| **Shift+Alt+N** | non-agent panes | Restart only the coding agent, with a new conversation. Pair, Zellij, the draft, and terminal tabs stay alive. In the review buffer's normal mode, this key instead moves to the previous marker. |
 | **Alt+Shift+C** (or **Ctrl+Alt+c**) | non-agent panes | Compact in place: distill this session into a `continuation` doc (folding in the parked draft), then reincarnate the tag with a clean conversation seeded from it. Scrollback is parked first as a recovery net. |
 
 The focused agent receives all workbench shortcuts except **Shift+Alt+T**,
@@ -165,7 +172,7 @@ The focused agent receives all workbench shortcuts except **Shift+Alt+T**,
 right-terminal tabs or toggle right-terminal fullscreen. Under
 Couch, **Ctrl+Space**, **Ctrl+Backspace** (the Mac Delete key), and
 **Ctrl+Return** remain Couch navigation shortcuts. Couch owns Alt+n/Ctrl+Alt+n
-outside the right terminal. In a right-terminal full-screen TUI, Pair retains
+outside the right terminal, except Alt+n in the review pane (next marker in normal mode). In a right-terminal full-screen TUI, Pair retains
 only Alt+k, Alt+Shift+Enter, Alt+Shift+t and Alt+Shift+Left/Right; other program
 chords pass through. Couch forwards the restart chords based on the actual
 focused inner pane and lets Pair apply that policy. Alt+n also passes through

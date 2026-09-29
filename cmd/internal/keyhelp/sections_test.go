@@ -114,7 +114,9 @@ func TestReservedShortcutHelpMatchesPolicy(t *testing.T) {
 	byDisplay := map[string]Binding{}
 	for _, section := range sections {
 		for _, binding := range section.Bindings {
-			byDisplay[binding.Key] = binding
+			if binding.Chord != 0 {
+				byDisplay[binding.Key] = binding
+			}
 		}
 	}
 	for _, global := range workbenchshortcut.GlobalBindings() {

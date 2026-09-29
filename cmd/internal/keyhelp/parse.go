@@ -33,6 +33,13 @@ const keymapCall = "vim.keymap.set("
 // ParseNvimKeymaps extracts every `vim.keymap.set` call whose desc begins
 // "pair: ". Pure: takes source text, returns a classification.
 func ParseNvimKeymaps(src string) KeymapScan {
+	return parseKeymaps(src, "pair")
+}
+
+// ParseReviewKeymaps reads the review buffer's own mapping descriptions.
+func ParseReviewKeymaps(src string) KeymapScan { return parseKeymaps(src, "review") }
+
+func parseKeymaps(src, prefix string) KeymapScan {
 	var scan KeymapScan
 	for idx := 0; ; {
 		i := strings.Index(src[idx:], keymapCall)
@@ -43,7 +50,7 @@ func ParseNvimKeymaps(src string) KeymapScan {
 		body, next := callBody(src, start)
 		idx = next
 
-		desc, ok := pairDesc(body)
+		desc, ok := prefixedDesc(body, prefix)
 		if !ok {
 			continue
 		}
@@ -138,11 +145,9 @@ func argAt(body string, n int) string {
 	return ""
 }
 
-const descMarker = "desc = 'pair: "
-
-// pairDesc pulls the `pair:` description out of a call body, stripping the prefix
-// and trimming. Several real descs carry a trailing space ('pair: autopair ').
-func pairDesc(body string) (string, bool) {
+// prefixedDesc strips the owning pane's prefix and surrounding whitespace.
+func prefixedDesc(body, prefix string) (string, bool) {
+	descMarker := "desc = '" + prefix + ": "
 	i := strings.Index(body, descMarker)
 	if i < 0 {
 		return "", false

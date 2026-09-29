@@ -92,14 +92,21 @@ end
 local function open_review_diagnostic_float()
   local d = active_diagnostic(vim.api.nvim_get_current_buf())
   render_active_diagnostic(vim.api.nvim_get_current_buf())
+  local buf, win
   if not d or not d.message or d.message == '' then
-    return vim.diagnostic.open_float(nil, { scope = 'cursor', focus = false })
+    buf, win = vim.diagnostic.open_float(nil, { scope = 'cursor', focus = false })
+  else
+    buf, win = vim.lsp.util.open_floating_preview(vim.split(d.message, '\n', { plain = true }), 'markdown', {
+      border = 'rounded', focus = false,
+      close_events = { 'CursorMoved', 'CursorMovedI', 'BufHidden', 'InsertCharPre', 'WinLeave' },
+    })
   end
-  return vim.lsp.util.open_floating_preview(vim.split(d.message, '\n', { plain = true }), 'markdown', {
-    border = 'rounded',
-    focus = false,
-    close_events = { 'CursorMoved', 'CursorMovedI', 'BufHidden', 'InsertCharPre', 'WinLeave' },
-  })
+  if buf and win then
+    vim.keymap.set('n', '<Esc>', function()
+      if vim.api.nvim_win_is_valid(win) then vim.api.nvim_win_close(win, true) end
+    end, { buffer = buf, silent = true, desc = 'review: close diagnostic float' })
+  end
+  return buf, win
 end
 
 -- Diagnosis display — review/apply.lua sets each record's `explain` as an INFO
@@ -215,6 +222,7 @@ end
 local here = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
 local review = dofile(here .. 'review/init.lua')
 local poke = dofile(here .. 'pair_poke.lua')
+local workbench_route = dofile(here .. 'workbench_route.lua')
 local markers = dofile(here .. 'review/markers.lua')
 local seam = dofile(here .. 'review/seam.lua')
 local poke_bodies = dofile(here .. 'review/poke_bodies.lua')
@@ -401,11 +409,12 @@ local function mode_label()
 end
 
 local function statusline_text()
+  local hints = 'Alt+Return review · Alt+c/Esc draft · Alt+a/r accept/reject'
   if awaiting_since then
     local frame = spinner.frames[((spinner_tick or 0) % #spinner.frames) + 1]
-    return ' ' .. frame .. ' %{v:lua._pair_review_elapsed()} ' .. mode_label() .. ' • %t%m %= L%l/%L '
+    return ' ' .. frame .. ' %{v:lua._pair_review_elapsed()} ' .. mode_label() .. ' • ' .. hints .. ' • %<%t%m %= L%l/%L '
   end
-  return ' 🪄 ' .. mode_label() .. ' • %t%m %= L%l/%L '
+  return ' 🪄 ' .. mode_label() .. ' • ' .. hints .. ' • %<%t%m %= L%l/%L '
 end
 
 local function refresh_statusline()
@@ -694,6 +703,17 @@ local function open_mode_menu(buf, file)
   })
 end
 
+local function escape_review()
+  local dismissed = false
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if vim.api.nvim_win_get_config(win).relative ~= '' then
+      vim.api.nvim_win_close(win, true)
+      dismissed = true
+    end
+  end
+  if not dismissed then workbench_route.return_to_draft() end
+end
+
 local function start_review(buf, file)
   local tag = vim.env.PAIR_TAG
   review.start({ buf = buf, file = file, tag = (tag and tag ~= '') and tag or nil })
@@ -702,10 +722,19 @@ local function start_review(buf, file)
   -- to commit it and continue in the default Edit posture.
   for _, mode in ipairs({ 'n', 'i' }) do
     vim.keymap.set(mode, '<M-CR>', function() finish_human_turn(buf, file) end,
-      { buffer = buf, silent = true })
+      { buffer = buf, silent = true, desc = 'review: finish human turn (normal/insert)' })
   end
   pcall(vim.api.nvim_del_user_command, 'PairReviewShip')
   vim.api.nvim_create_user_command('PairReviewShip', function() request_ship(file) end, {})
+
+  vim.keymap.set('n', '<Esc>', escape_review,
+    { buffer = buf, silent = true, desc = 'review: dismiss float or return to draft (normal mode)' })
+  vim.keymap.set({ 'n', 'i' }, '<M-c>', workbench_route.return_to_draft,
+    { buffer = buf, silent = true, desc = 'review: return to draft (normal/insert)' })
+  vim.keymap.set('n', '<M-n>', function() jump_marker(buf, 1) end,
+    { buffer = buf, silent = true, desc = 'review: next 🤖 marker (normal mode)' })
+  vim.keymap.set('n', '<M-N>', function() jump_marker(buf, -1) end,
+    { buffer = buf, silent = true, desc = 'review: previous 🤖 marker (normal mode; overrides agent restart)' })
 
   -- Accept/reject the 🤖 suggestion on the cursor line (M4b, §5), insert human
   -- comment markers, and jump between markers. Leader maps stay as a fallback;
