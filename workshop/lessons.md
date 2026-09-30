@@ -322,3 +322,9 @@ proof; record the surprising case so the next change starts from evidence.
   historical source identity and validate the new target against its own binding.
   A durable registration marker from the previous launch does not prove that the
   replacement terminal started. (#355)
+
+- Independent terminal lifetimes require exact incarnation authority in admission,
+  registration, and cleanup; a conversation's old index cannot authorize any of
+  those for its replacement. Test the composed launcher, not only a fake runner.
+  Revalidate live ownership after blocking preparation, immediately before the
+  attach or destructive effect. (#355 M1 BR-1/BR-2)

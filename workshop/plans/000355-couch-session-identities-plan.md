@@ -360,3 +360,16 @@ regressions. Recovery also probes a proposed terminal before trusting a historic
 Pair-address registration marker, which survives previous launches and cannot
 prove a newly allocated terminal committed. Both changes complete the approved
 terminal-lifetime contract rather than changing the product scope.
+
+### 2026-09-30 — M1 boundary review: terminal authority
+
+The first boundary review returned REWORK (BR-1/BR-2). Sweep exact proposed
+terminal authority through cold admission, registration, and failed-launch
+cleanup: an attached existing terminal cannot authorize a new M, and the old
+address index cannot establish or retire the proposed terminal. Add composed
+regressions proving no duplicate agent, no registration from the old terminal,
+and no deletion of that terminal during failed replacement cleanup. Carry warm
+ownership proof through retention/cmux preparation and revalidate immediately
+before attachment; replace the server during preparation in the regression.
+M2 remains pending this boundary. ARCH-ORDER and ARCH-PURPOSE require these
+checks across all consumers of the independent terminal lifetime.
