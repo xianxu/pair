@@ -90,6 +90,7 @@ together; whichever lands second reuses the first's routing.
 ## Log
 
 ### 2026-09-30
+- 2026-09-30: closed — bang-tag-nvim-test: !! and !! sentence publish via stub couch with zero zellij executor calls and no log append (describe/describe-standalone/describe-nonzero cases); bang_tag_test pins one_line on multi-line, bang-tagged, 120-char cap, UTF-8; #337 cases unchanged and green; full make test green (review-window under default TMPDIR); go artifactpath classification failure is pre-existing on base; review verdict: SHIP
 
 - Filed at the operator's request, to recover from forgetting the `!` prefix.
   History source verified: `read_history()` n=1 is the -1 entry.
