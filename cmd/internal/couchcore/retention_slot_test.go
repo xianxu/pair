@@ -29,9 +29,10 @@ func slotRetentionFixture(t *testing.T) (*ThreadStore, *ThreadStore, *storagegc.
 	}); err != nil {
 		t.Fatal(err)
 	}
-	r := actionableTestThread("couch-0000000000000001", c.Now())
-	r.StartingPath = local.slot.WorktreeRoot
-	r.WorkingPath = r.StartingPath
+	r := recordAtCheckout(t, local.slot.WorktreeRoot, local.slot.WorktreeRoot, "couch-0000000000000001")
+	r.Reservation = false
+	r.CreatedAt = c.Now()
+	r.LastActiveAt = c.Now()
 	created, err := local.CreateThread(r)
 	if err != nil {
 		t.Fatal(err)

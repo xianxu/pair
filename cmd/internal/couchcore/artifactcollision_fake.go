@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"sync"
@@ -157,10 +158,12 @@ func (f *FakeThreadArtifactCollisionChecker) SetDetachedSession(address ThreadAd
 	defer f.mu.Unlock()
 	if sessionName == "" {
 		delete(f.detachedSessions, address)
+		delete(f.pairSessions, address)
 		delete(f.sessionPresence, address)
 		return
 	}
 	f.detachedSessions[address] = sessionName
+	f.pairSessions[address] = PairSessionBinding{Name: sessionName, Present: true}
 	if f.sessionPresence == nil {
 		f.sessionPresence = map[ThreadAddress]SessionObservation{}
 	}
@@ -198,7 +201,7 @@ func (f *FakeThreadArtifactCollisionChecker) DetachedSessions(ctx context.Contex
 	sessions := make([]launcher.Session, 0, len(candidates))
 	for _, candidate := range candidates {
 		name := f.detachedSessions[candidate.Address]
-		if name == "" {
+		if name == "" || (candidate.SessionName != "" && candidate.SessionName != name) {
 			continue
 		}
 		bindings = append(bindings, SessionNameBinding{
@@ -453,6 +456,20 @@ func (f *FakeThreadArtifactCollisionChecker) Quiesces() []ThreadAddress {
 	return append([]ThreadAddress{}, f.quiesced...)
 }
 
+func (f *FakeThreadArtifactCollisionChecker) QuiesceNamed(ctx context.Context, address ThreadAddress, name string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	binding, err := f.PairSessionContext(ctx, address)
+	if err != nil && !errors.Is(err, ErrPairSessionBindingAbsent) {
+		return err
+	}
+	if err == nil && binding.Name != name {
+		return nil
+	}
+	return f.Quiesce(address)
+}
+
 func (f *FakeThreadArtifactCollisionChecker) Releases() []ThreadAddress {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -495,3 +512,19 @@ func (f *FakeThreadArtifactCollisionChecker) Calls() []ThreadAddress {
 // The fake must satisfy the same seams production does, or a test can pass
 // against a double that production could not substitute.
 var _ DetachedSessionResolver = (*FakeThreadArtifactCollisionChecker)(nil)
+
+// NamedPairSessionContext models querying a proposed terminal even before an
+// index association has been published. An uncreated name is provably absent.
+func (f *FakeThreadArtifactCollisionChecker) NamedPairSessionContext(ctx context.Context, address ThreadAddress, name string) (PairSessionBinding, error) {
+	binding, err := f.PairSessionContext(ctx, address)
+	if errors.Is(err, ErrPairSessionBindingAbsent) {
+		return PairSessionBinding{Name: name}, nil
+	}
+	if err != nil {
+		return PairSessionBinding{}, err
+	}
+	if binding.Name != name {
+		return PairSessionBinding{Name: name}, nil
+	}
+	return binding, nil
+}

@@ -52,6 +52,8 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 	expectedDigest := os.Getenv(checkpoint.DigestEnv)
 	_ = os.Unsetenv(checkpoint.DigestEnv)
 	useRepoDefault := consumeRepoDefaultPolicy(os.Getenv, os.Unsetenv)
+	couchIntent := os.Getenv(CouchSessionIntentEnv)
+	_ = os.Unsetenv(CouchSessionIntentEnv)
 	couchProfile := os.Getenv(CouchLaunchProfileEnv)
 	_ = os.Unsetenv(CouchLaunchProfileEnv)
 	args, err := ParseArgs(launchArgs)
@@ -60,6 +62,15 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 		// arg). The shell no longer exists to defer to (#99 M5c) — print it +
 		// exit 2.
 		_, _ = io.WriteString(stderr, err.Error()+"\n")
+		return 2, nil
+	}
+	args, err = applyCouchSessionIntent(args, couchIntent)
+	if err != nil {
+		fmt.Fprintln(stderr, "pair: "+err.Error())
+		return 2, nil
+	}
+	if args.CouchSession != nil && args.CouchSession.Disposition == "attach" && couchProfile != "" {
+		fmt.Fprintln(stderr, "pair: couch session attach cannot carry a native launch profile")
 		return 2, nil
 	}
 	if couchProfile != "" {

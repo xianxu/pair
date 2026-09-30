@@ -239,6 +239,9 @@ func (c *Couch) ObserveSlotSessions(ctx context.Context, slot SlotIdentity) (Slo
 					if err := addRecord(partial); err != nil {
 						return err
 					}
+					if recordSessionName(partial) != "" {
+						return errors.New("damaged slot record has unresolved terminal binding; inspect before recovery")
+					}
 					candidates[partial.Address].Record = nil
 				} else if len(partial.Incarnations) != 0 || partial.Continuation != nil {
 					return errors.New("damaged slot record has unresolved process ownership; inspect before recovery")
@@ -301,7 +304,18 @@ func (c *Couch) ObserveSlotSessions(ctx context.Context, slot SlotIdentity) (Slo
 	}
 	actors := append(c.reg.Records(), durable.Records()...)
 	for _, actor := range actors {
-		if actor.Args.WorkingDir() != slot.WorktreeRoot && actor.Thread.RepoScope != scope.Key {
+		// Missing provenance is unresolved, not a foreign repository. Containment
+		// may veto absence for this legacy owner, but cannot establish membership.
+		if actor.Thread.RepoScope == "" {
+			if _, err := RelativeFamilyPath(slot.WorktreeRoot, actor.Args.WorkingDir()); err == nil {
+				return out, errors.New("slot hosted actor has unresolved repository scope")
+			}
+		}
+		_, belongs, err := CheckoutMembership(slot.RepoIdentity, slot.WorktreeRoot, actor.Args.WorkingDir(), actor.Thread.RepoScope, "")
+		if err != nil {
+			return out, fmt.Errorf("slot hosted actor checkout identity: %w", err)
+		}
+		if !belongs {
 			continue
 		}
 		candidate, err := add(actor.Thread)
@@ -309,8 +323,8 @@ func (c *Couch) ObserveSlotSessions(ctx context.Context, slot SlotIdentity) (Slo
 			return out, err
 		}
 		candidate.Processes = append(candidate.Processes, ProcessIdentity{PID: actor.PID, Identity: actor.Identity})
-		if candidate.Record == nil && actor.Args.WorkingDir() == slot.WorktreeRoot && launcher.IsSupportedAgent(actor.Args.Stack) {
-			record := ThreadRecord{SchemaVersion: ThreadSchemaVersion, Address: actor.Thread, StartingPath: slot.WorktreeRoot, WorkingPath: slot.WorktreeRoot, CreatedAt: actor.StartedAt, Revision: 1, LatestLaunchProfile: &LaunchProfile{Agent: actor.Args.Stack, Argv: cloneArgv(actor.Args.ExtraArgs)}}
+		if candidate.Record == nil && launcher.IsSupportedAgent(actor.Args.Stack) {
+			record := ThreadRecord{SchemaVersion: ThreadSchemaVersion, Address: actor.Thread, StartingPath: actor.Args.WorkingDir(), WorkingPath: actor.Args.WorkingDir(), CreatedAt: actor.StartedAt, Revision: 1, LatestLaunchProfile: &LaunchProfile{Agent: actor.Args.Stack, Argv: cloneArgv(actor.Args.ExtraArgs)}}
 			candidate.Record = &record
 		}
 	}
@@ -330,6 +344,38 @@ func (c *Couch) ObserveSlotSessions(ctx context.Context, slot SlotIdentity) (Slo
 	for _, address := range addresses {
 		candidate := candidates[address]
 		candidate.Presence = observed[address].State
+		// This is an action admission boundary, unlike periodic inventory. An
+		// indexed live name can actually belong to another scope; prove its
+		// runtime owner before it can veto replacement or authorize recovery.
+		if candidate.Record != nil && recordSessionName(*candidate.Record) != "" {
+			records := []ThreadRecord{*candidate.Record}
+			// A proposed replacement does not retire the previous terminal.
+			// Fresh-slot admission must prove both retained names absent.
+			if current := candidate.Record.SessionBinding; current != nil && current.Name != recordSessionName(*candidate.Record) {
+				previous := *candidate.Record
+				previous.Incarnations = nil
+				records = append(records, previous)
+			}
+			candidate.Presence = SessionAbsent
+			for _, record := range records {
+				binding, observeErr := observeRecordSession(ctx, c.Artifacts, record)
+				if observeErr != nil {
+					return out, observeErr
+				}
+				if binding.Present {
+					candidate.Presence = SessionPresent
+				}
+			}
+		} else if observer, ok := c.Artifacts.(contextPairSessionObserver); ok && candidate.Presence != SessionAbsent {
+			binding, observeErr := observer.PairSessionContext(ctx, address)
+			if observeErr != nil {
+				return out, observeErr
+			}
+			candidate.Presence = SessionAbsent
+			if binding.Present {
+				candidate.Presence = SessionPresent
+			}
+		}
 		if candidate.Presence == SessionUnresolved {
 			return out, fmt.Errorf("session ownership unresolved for %s", address.Tag)
 		}

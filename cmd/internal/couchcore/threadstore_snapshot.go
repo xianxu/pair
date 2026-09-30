@@ -2,21 +2,25 @@ package couchcore
 
 import "fmt"
 
-func (s *ThreadStore) appendSlotSnapshots(snapshot ThreadSnapshot) (ThreadSnapshot, error) {
-	backends, err := s.discoveredBackends()
+func (s *ThreadStore) appendSlotSnapshots(snapshot ThreadSnapshot, manifest threadManifest) (ThreadSnapshot, error) {
+	backends, err := s.discoveredBackendsFromManifest(manifest)
 	if err != nil {
 		return snapshot, err
 	}
-	localPaths := map[string]bool{}
-	for _, backend := range backends {
-		localPaths[backend.slot.WorktreeRoot] = true
-	}
 	kept := snapshot.Records[:0]
 	for _, record := range snapshot.Records {
-		if !localPaths[record.StartingPath] {
+		local := false
+		for _, backend := range backends {
+			if _, belongs, _ := RecordCheckoutMembership(record, backend.slot.RepoIdentity, backend.slot.WorktreeRoot); belongs {
+				local = true
+				break
+			}
+		}
+		if !local {
 			kept = append(kept, record)
 		}
 	}
+
 	snapshot.Records = kept
 	seen := map[ThreadAddress]bool{}
 	for _, record := range kept {
@@ -25,6 +29,15 @@ func (s *ThreadStore) appendSlotSnapshots(snapshot ThreadSnapshot) (ThreadSnapsh
 	for _, backend := range backends {
 		local, err := backend.Snapshot()
 		observation := SlotInventoryObservation{Identity: *backend.slot, Err: err}
+		for _, family := range manifest.RepositoryFamilies {
+			if family.PrimaryRoot == backend.slot.PrimaryRoot && family.RepoIdentity == backend.slot.RepoIdentity {
+				observation.StartingPath, err = ProjectFamilyPath(backend.slot.WorktreeRoot, family.RelativeStart)
+				if err != nil {
+					return snapshot, err
+				}
+				break
+			}
+		}
 		if len(local.Unreadable) != 0 {
 			observation.Address = local.Unreadable[0]
 			observation.Err = fmt.Errorf("slot current record unreadable: %s", backend.root)

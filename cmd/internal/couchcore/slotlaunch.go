@@ -95,5 +95,12 @@ func (c *Couch) prepareTrackedWorkspace(ctx context.Context, thread ThreadRecord
 	if repoIdentity != claim.RepoIdentity {
 		return errors.New("workspace readiness changed repository identity")
 	}
+	relative, err := RelativeFamilyPath(slot.WorktreeRoot, thread.WorkingPath)
+	if err != nil {
+		return err
+	}
+	if _, err := ValidateFamilyPath(slot.WorktreeRoot, relative); err != nil {
+		return err
+	}
 	return recheck()
 }

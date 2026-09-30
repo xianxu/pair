@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
+	"github.com/xianxu/pair/cmd/internal/couchidentity"
 )
 
 type ProcessIdentity struct {
@@ -22,6 +23,7 @@ type StartTransaction struct {
 type StartEventKind string
 
 const (
+	StartSessionBound     StartEventKind = "session-bound"
 	StartClaimed          StartEventKind = "claimed"
 	StartHelperRecorded   StartEventKind = "helper-recorded"
 	StartRegistered       StartEventKind = "registered"
@@ -29,6 +31,7 @@ const (
 )
 
 type StartEvent struct {
+	Binding *couchidentity.SessionBinding
 	Shape   StartShape
 	Kind    StartEventKind
 	Nonce   string
@@ -67,6 +70,15 @@ func AdvanceStartTransaction(record ThreadRecord, event StartEvent) (ThreadRecor
 			profile := cloneLaunchProfile(*event.Profile)
 			incarnation.Start.LaunchProfile = &profile
 		}
+	case StartSessionBound:
+		incarnation, err := exactStartIncarnation(&next, event.Nonce)
+		if err != nil {
+			return ThreadRecord{}, err
+		}
+		if incarnation.PID != 0 || incarnation.Start.SessionBinding != nil || event.Binding == nil {
+			return ThreadRecord{}, errors.New("session binding requires unbound start before helper")
+		}
+		incarnation.Start.SessionBinding = cloneSessionBinding(event.Binding)
 	case StartHelperRecorded:
 		incarnation, err := exactStartIncarnation(&next, event.Nonce)
 		if err != nil {
@@ -113,6 +125,9 @@ func AdvanceStartTransaction(record ThreadRecord, event StartEvent) (ThreadRecor
 				next.LatestLaunchProfile = &latest
 			}
 		}
+		if incarnation.Start.SessionBinding != nil {
+			next.SessionBinding = cloneSessionBinding(incarnation.Start.SessionBinding)
+		}
 		incarnation.Start = nil
 	default:
 		return ThreadRecord{}, fmt.Errorf("unknown start event %q", event.Kind)
@@ -156,6 +171,7 @@ const (
 )
 
 type StartObservation struct {
+	Session      SessionPresence
 	Owner        Liveness
 	Helper       Liveness
 	Registration RegistrationEvidence
@@ -203,6 +219,10 @@ func ReconcileStart(record ThreadRecord, observation StartObservation) (StartRec
 		return decision, nil
 	case RegistrationAbsent:
 		if observation.Helper == Dead {
+			pending := record.Incarnations[0].Start.SessionBinding
+			if pending != nil && observation.Session != PresenceAbsent {
+				return decision, nil
+			}
 			decision.Action = StartRollback
 		}
 		return decision, nil
@@ -248,7 +268,7 @@ type RegisteredTargetProof struct {
 // receipt can explain its finished start without making its dead process Live.
 func ReconcileRegisteredTarget(record ThreadRecord, proof RegisteredTargetProof) (ThreadRecord, error) {
 	request := record.Continuation
-	if request == nil || (request.Phase != checkpoint.Running && request.Phase != checkpoint.Failed) || request.ID != proof.RequestID || proof.Attempt == "" || request.Attempt != proof.Attempt || request.Source.Agent != proof.Agent || request.Source.Session != proof.Session {
+	if request == nil || (request.Phase != checkpoint.Running && request.Phase != checkpoint.Failed) || request.ID != proof.RequestID || proof.Attempt == "" || request.Attempt != proof.Attempt || request.Source.Agent != proof.Agent || continuationTargetSession(record) != proof.Session {
 		return ThreadRecord{}, errors.New("registered target proof does not match the current continuation")
 	}
 	if record.Park != nil || len(record.Incarnations) != 1 {
@@ -264,4 +284,16 @@ func ReconcileRegisteredTarget(record ThreadRecord, proof RegisteredTargetProof)
 		return ThreadRecord{}, err
 	}
 	return next, nil
+}
+
+// continuationTargetSession names the terminal hosting the replacement. Legacy
+// records reused the source name; managed launches promote a new terminal binding.
+func continuationTargetSession(record ThreadRecord) string {
+	if record.SessionBinding != nil {
+		return record.SessionBinding.Name
+	}
+	if record.Continuation != nil {
+		return record.Continuation.Source.Session
+	}
+	return ""
 }

@@ -52,7 +52,7 @@ func runSwitchAgentTransportAcceptance(t *testing.T, liveSource bool) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		rt.artifacts.SetPairSession(source.Address, "pair-live-source", true)
+		rt.artifacts.SetPairSession(source.Address, managedChildSession(t, rt.runner, handle.ID()), true)
 	}
 
 	data := t.TempDir()
@@ -91,7 +91,7 @@ func runSwitchAgentTransportAcceptance(t *testing.T, liveSource bool) {
 		}
 		c.PairLifecycle = &couchcore.PairLifecycleController{Threads: c.Threads, DataDir: data, Lifecycle: couchcore.PairLifecycleStoreIO{Store: pairlifecycle.Store{Runtime: pairlifecycle.OSRuntime{}}}, Sessions: rt.artifacts, Proc: rt.proc, Clock: couchcore.FixedClock{T: time.Now().UTC()}, Nonce: func() (string, error) { return "live-acceptance-park", nil }}
 		rt.artifacts.TriggerQuitHook = func(session string, intent launcher.QuitIntent) error {
-			if session != "pair-live-source" || intent.Request == nil || intent.Request.Tag != string(source.Address.Tag) || intent.Request.RepoScope != source.Address.RepoScope {
+			if session != source.SessionBinding.Name || intent.Request == nil || intent.Request.Tag != string(source.Address.Tag) || intent.Request.RepoScope != source.Address.RepoScope {
 				return fmt.Errorf("quit targeted another source: %s %+v", session, intent)
 			}
 			if !sourceHandle.Alive() || rt.proc.Exists(sourceHandle.PID()) != couchcore.Live {
@@ -133,7 +133,10 @@ func runSwitchAgentTransportAcceptance(t *testing.T, liveSource bool) {
 			}
 		}
 	}
-	rt.runner.AfterAcknowledge = func(string) error { rt.artifacts.SetPairSession(source.Address, "pair-switched", true); return nil }
+	rt.runner.AfterAcknowledge = func(id string) error {
+		rt.artifacts.SetPairSession(source.Address, managedChildSession(t, rt.runner, id), true)
+		return nil
+	}
 	args := []string{"--model", "test model"}
 	prepared, err := c.PrepareAgentSwitch(context.Background(), source.Address, "codex", &args)
 	if err != nil {

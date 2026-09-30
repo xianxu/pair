@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
+	"github.com/xianxu/pair/cmd/internal/couchidentity"
 	"io"
 	"os"
 	"path/filepath"
@@ -23,6 +24,7 @@ import (
 // method on it. The terminal UI and (later) the advisor's tools are both
 // clients of these methods -- never of two separate implementations.
 type Couch struct {
+	Identities             IdentityAllocator
 	Slots                  SlotCatalog
 	Workspaces             WorkspaceReadiness
 	WorkspaceProgress      io.Writer
@@ -291,11 +293,15 @@ func (c *Couch) resolveOrdinaryStartResolution(ctx context.Context, args StartAr
 }
 
 func (c *Couch) resolveStartProfile(args StartArgs, canonicalPath string, tree Worktree, repoIdentity, defaultRoot string) (StartResolution, error) {
-	readPreference := c.Threads.GetPathLaunchPreference
+	scope, err := launcher.ResolveRepoScope(string(tree))
+	if err != nil {
+		return StartResolution{}, err
+	}
+	readPreference := c.Threads.getPathLaunchPreference
 	if c.Slots != nil {
 		readPreference = c.Threads.PreviewPathLaunchPreference
 	}
-	preference, found, err := readPreference(repoIdentity, canonicalPath)
+	preference, found, err := readPreference(repoIdentity, canonicalPath, scope.Key)
 	if err != nil {
 		return StartResolution{}, fmt.Errorf("read launch preference: %w", err)
 	}
@@ -318,7 +324,7 @@ func (c *Couch) resolveStartProfile(args StartArgs, canonicalPath string, tree W
 	}
 	var repoDefault *LaunchProfile
 	if c.RepoAgentDefault != nil {
-		value, ok, defaultErr := c.repoLaunchDefault(canonicalPath, defaultRoot, selected.Profile.Agent)
+		value, ok, defaultErr := c.repoLaunchDefault(canonicalPath, defaultRoot, selected.Profile.Agent, repoIdentity, scope.Key)
 		if defaultErr != nil {
 			return StartResolution{}, fmt.Errorf("read %s repository default: %w", selected.Profile.Agent, defaultErr)
 		}
@@ -482,7 +488,9 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 			resolution.CanonicalPath, held.Tag, held.Tag)
 	}
 	startedAt := c.Clock.Now()
-	thread, err := c.Threads.AllocateThreadTag(scope.Key, resolution.CanonicalPath, startedAt, c.Entropy, c.Artifacts)
+	thread, err := c.Threads.AllocateThreadTag(scope.Key, resolution.CanonicalPath, startedAt, func() (string, error) {
+		return c.allocateConversationTag(ctx, filepath.Base(string(resolution.Worktree)))
+	}, c.Artifacts)
 	if err != nil {
 		return ActorRecord{}, nil, err
 	}
@@ -610,9 +618,8 @@ func (c *Couch) applyStartCleanup(shape StartShape, address ThreadAddress, nonce
 	// state the record's disposition reasons about is the one left behind.
 	//
 	// Asked ONLY where the decision actually reads it -- a cold resume's claim
-	// phase and a warm live record. A spawn reconciles regardless, so asking on
-	// its behalf would add a zellij round trip to a path that never had one and
-	// surface a session-binding error in cases that never produced one.
+	// phase and a warm live record. A spawn takes the separate reconciliation
+	// path, which probes its proposed terminal binding before retiring a claim.
 	presence := PresenceUnobserved
 	if startCleanupReadsPresence(shape, liveRecord) {
 		observed, presenceErr := c.observeSessionPresence(address)
@@ -791,7 +798,7 @@ func (c *Couch) quiescePostAckStart(address ThreadAddress, h Handle, shape Start
 		if !shape.OwnsSession() {
 			return firstErr
 		}
-		if err := c.Artifacts.Quiesce(address); err != nil {
+		if err := c.quiesceThreadSession(context.Background(), address); err != nil {
 			if firstErr == nil {
 				firstErr = fmt.Errorf("quiesce durable Pair session %+v: %w", address, err)
 			}
@@ -948,6 +955,21 @@ func (c *Couch) reconcileInterruptedStarts() error {
 			return fmt.Errorf("read Pair registration for %+v: %w", record.Address, registrationErr)
 		}
 		observation.Registration = registration
+		if recordSessionBinding(record) != nil {
+			session, probeErr := observeRecordSession(context.Background(), c.Artifacts, record)
+			if probeErr != nil {
+				observation.Registration = RegistrationUnknown
+			} else if session.Present {
+				observation.Session = PresencePresent
+			} else {
+				observation.Session = PresenceAbsent
+				// Only an exclusive first launch has no older registration marker.
+				// A resumed conversation must prove its proposed terminal exists.
+				if registration != RegistrationEstablished || record.LatestLaunchProfile != nil || record.SessionBinding != nil {
+					observation.Registration = RegistrationAbsent
+				}
+			}
+		}
 		decision, err := ReconcileStart(record, observation)
 		if err != nil {
 			return err
@@ -1187,4 +1209,17 @@ func (c *Couch) Stop(a ActorRecord) (signalled bool, err error) {
 // over anything the operator typed.
 func (c *Couch) PublishDescription(w Worktree, text string) error {
 	return c.Store.WriteDescription(w, text)
+}
+
+// IdentityAllocator is the sole authority for managed conversation and terminal IDs.
+type IdentityAllocator interface {
+	Allocate(context.Context, couchidentity.AllocationRequest) (couchidentity.AllocationResult, error)
+}
+
+func (c *Couch) allocateConversationTag(ctx context.Context, repo string) (string, error) {
+	if c.Identities == nil {
+		return "", errors.New("Couch identity allocator is unavailable")
+	}
+	result, err := c.Identities.Allocate(ctx, couchidentity.AllocationRequest{Conversation: true, RepositoryToken: repo})
+	return result.PairTag, err
 }

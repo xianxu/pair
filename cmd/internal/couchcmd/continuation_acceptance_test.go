@@ -196,6 +196,7 @@ func runContinuationPublicationAcceptance(t *testing.T, pair, helper, assetRoot,
 		t.Fatalf("source setup: %v", err)
 	}
 	rt.proc.Set(handle.PID(), handle.Identity())
+	session = managedChildSession(t, rt.runner, handle.ID())
 	rt.artifacts.SetPairSession(actor.Thread, session, true)
 	t.Cleanup(func() { rt.runner.SetExited(handle.ID(), 0) })
 	source, err = c.Threads.GetThread(actor.Thread)
@@ -405,8 +406,9 @@ func completeContinuationAcceptance(t *testing.T, rt testRT, c *couchcore.Couch,
 		}
 		inc := record.Incarnations[0]
 		rt.proc.Set(inc.PID, inc.Identity)
-		rt.artifacts.SetPairSession(source.Address, source.Continuation.Source.Session, true)
-		ready = readiness.ReadyRecord{Tag: string(source.Address.Tag), Agent: "claude", Nonce: record.Continuation.Attempt, Session: source.Continuation.Source.Session, PID: inc.PID, Orientation: &orientation.DeliveryState{Phase: orientation.DeliveryWaiting}}
+		targetSession := managedChildSession(t, rt.runner, id)
+		rt.artifacts.SetPairSession(source.Address, targetSession, true)
+		ready = readiness.ReadyRecord{Tag: string(source.Address.Tag), Agent: "claude", Nonce: record.Continuation.Attempt, Session: targetSession, PID: inc.PID, Orientation: &orientation.DeliveryState{Phase: orientation.DeliveryWaiting}}
 		raw, err := readiness.Encode(ready)
 		if err != nil {
 			return err

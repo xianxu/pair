@@ -21,6 +21,12 @@ var ErrPairSessionBindingAbsent = errors.New("exact Pair session binding is abse
 type PairSessionBinding struct {
 	Name    string
 	Present bool
+	Owner   *launcher.SessionOwnerObservation
+}
+
+type SessionOwnerProber interface {
+	Probe(context.Context, string, string, string, string) (launcher.SessionOwnerObservation, error)
+	Revalidate(context.Context, launcher.SessionOwnerObservation) error
 }
 
 type PairSessionIO interface {
@@ -76,6 +82,7 @@ func (NoThreadArtifactCollisions) Quiesce(ThreadAddress) error { return nil }
 type ScopedThreadArtifactCollisionChecker struct {
 	GlobalDataDir string
 	Sessions      launcher.SessionDeleter
+	OwnerProbe    SessionOwnerProber
 	// Zellij is how the checker observes sessions. The zero value is the real
 	// zellij on PATH; tests point Path at a stub and count the calls, because
 	// "a reattach asks two sessions for their clients" is a count, not a timing
@@ -136,7 +143,40 @@ func (c ScopedThreadArtifactCollisionChecker) Quiesce(address ThreadAddress) err
 	if c.GlobalDataDir == "" {
 		return errors.New("artifact claimer has no Pair data directory")
 	}
-	return launcher.QuiesceThreadSession(c.GlobalDataDir, address.RepoScope, string(address.Tag), c.Sessions)
+	binding, err := c.PairSession(address)
+	if errors.Is(err, ErrPairSessionBindingAbsent) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !binding.Present {
+		return nil
+	}
+	if err := c.RevalidatePairSession(context.Background(), binding); err != nil {
+		return err
+	}
+	if c.Sessions == nil {
+		return errors.New("quiesce Pair session: nil session deleter")
+	}
+	return c.Sessions.DeleteSession(binding.Name)
+}
+
+func (c ScopedThreadArtifactCollisionChecker) QuiesceNamed(ctx context.Context, address ThreadAddress, name string) error {
+	binding, err := c.NamedPairSessionContext(ctx, address, name)
+	if err != nil {
+		return err
+	}
+	if !binding.Present {
+		return nil
+	}
+	if err := c.RevalidatePairSession(ctx, binding); err != nil {
+		return err
+	}
+	if c.Sessions == nil {
+		return errors.New("quiesce Pair session: nil session deleter")
+	}
+	return c.Sessions.DeleteSession(name)
 }
 
 // scopedIndexRead is one ReadSessionNameIndex result: the shared legacy file's
@@ -224,21 +264,42 @@ func (c ScopedThreadArtifactCollisionChecker) PairSessionContext(ctx context.Con
 	if name == "" {
 		return PairSessionBinding{}, fmt.Errorf("%w for %+v", ErrPairSessionBindingAbsent, address)
 	}
-	// Liveness, not a full snapshot: Present is "listed and not exited", so no
-	// session needs asking for its clients. This is couch's registration poll on
-	// every reattach, and detach and park call it too (pair#228).
-	sessions, err := c.Zellij.LivenessContext(ctx)
+	return c.NamedPairSessionContext(ctx, address, name)
+}
+
+func (c ScopedThreadArtifactCollisionChecker) ownerProbe() SessionOwnerProber {
+	if c.OwnerProbe != nil {
+		return c.OwnerProbe
+	}
+	return launcher.SessionOwnerProbe{}
+}
+
+// NamedPairSessionContext observes the binding supplied by a current or pending
+// thread record. Name equality alone never confers ownership of a live server.
+func (c ScopedThreadArtifactCollisionChecker) NamedPairSessionContext(ctx context.Context, address ThreadAddress, name string) (PairSessionBinding, error) {
+	if err := validateThreadAddress(address); err != nil {
+		return PairSessionBinding{}, err
+	}
+	owner, err := c.ownerProbe().Probe(ctx, name, c.GlobalDataDir, address.RepoScope, string(address.Tag))
+	binding := PairSessionBinding{Name: name, Owner: &owner}
 	if err != nil {
-		return PairSessionBinding{}, fmt.Errorf("observe exact Pair session: %w", err)
+		return binding, err
 	}
-	present := false
-	for _, session := range sessions {
-		if session.Name == name && session.State != launcher.SessionExited {
-			present = true
-			break
-		}
+	switch owner.State {
+	case launcher.SessionOwnerOwned:
+		binding.Present = true
+	case launcher.SessionOwnerAbsent, launcher.SessionOwnerForeign:
+	default:
+		return binding, fmt.Errorf("session %q ownership unresolved: %s", name, owner.Diagnostic)
 	}
-	return PairSessionBinding{Name: name, Present: present}, nil
+	return binding, nil
+}
+
+func (c ScopedThreadArtifactCollisionChecker) RevalidatePairSession(ctx context.Context, binding PairSessionBinding) error {
+	if !binding.Present || binding.Owner == nil || binding.Owner.Name != binding.Name {
+		return errors.New("Pair session lacks live ownership proof")
+	}
+	return c.ownerProbe().Revalidate(ctx, *binding.Owner)
 }
 
 // PaneSidecars observes the thread's agent pane sidecars in its own scope
@@ -296,8 +357,9 @@ type DetachedSessionResolver interface {
 // DetachedCandidate names a thread and its saved agent profile. Its session
 // ownership is resolved independently of native conversation evidence.
 type DetachedCandidate struct {
-	Address ThreadAddress
-	Agent   string
+	Address     ThreadAddress
+	Agent       string
+	SessionName string
 }
 
 func (c ScopedThreadArtifactCollisionChecker) resolveScopedBindings(ctx context.Context, addresses []ThreadAddress, agentOf func(ThreadAddress) string) ([]SessionNameBinding, map[ThreadAddress]string, map[string]bool, error) {
@@ -444,23 +506,29 @@ func (c ScopedThreadArtifactCollisionChecker) SessionPresence(ctx context.Contex
 // TestDetachedSessionsBindsNothingForAnUnreadableScope.
 func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Context, candidates []DetachedCandidate) ([]DetachedSessionObservation, error) {
 	addresses := make([]ThreadAddress, 0, len(candidates))
+	var exact []SessionNameBinding
 	proof := make(map[ThreadAddress]DetachedCandidate, len(candidates))
 	for _, candidate := range candidates {
-		addresses = append(addresses, candidate.Address)
+		if candidate.SessionName != "" {
+			exact = append(exact, SessionNameBinding{Address: candidate.Address, Agent: candidate.Agent, SessionName: candidate.SessionName})
+		} else {
+			addresses = append(addresses, candidate.Address)
+		}
 		proof[candidate.Address] = candidate
 	}
-	if len(addresses) == 0 {
+	if len(candidates) == 0 {
 		return nil, nil
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	bindings, current, _, err := c.resolveScopedBindings(ctx, addresses, func(address ThreadAddress) string {
+	bindings, _, _, err := c.resolveScopedBindings(ctx, addresses, func(address ThreadAddress) string {
 		return proof[address].Agent
 	})
 	if err != nil {
 		return nil, err
 	}
+	bindings = append(bindings, exact...)
 	if len(bindings) == 0 {
 		return nil, nil
 	}
@@ -478,16 +546,58 @@ func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Conte
 	if err != nil {
 		return nil, fmt.Errorf("observe zellij sessions: %w", err)
 	}
-	return ProjectDetachedSessions(bindings, sessions, claimsFromBindings(current))
+	// Unlike passive inventory this is a selected action. Positive runtime
+	// ownership supersedes stale index claim counts, while a foreign server
+	// cannot select the warm path for this conversation.
+	live := indexSessionsByName(sessions)
+	var owned []SessionNameBinding
+	claims := map[string]int{}
+	for _, binding := range bindings {
+		if !live.live[binding.SessionName] || live.ambiguous[binding.SessionName] {
+			continue
+		}
+		observed, err := c.NamedPairSessionContext(ctx, binding.Address, binding.SessionName)
+		if err != nil {
+			return nil, err
+		}
+		if !observed.Present {
+			continue
+		}
+		owned = append(owned, binding)
+		claims[binding.SessionName]++
+	}
+	return ProjectDetachedSessions(owned, sessions, claims)
 }
 
 func (c ScopedThreadArtifactCollisionChecker) TriggerQuit(session string, intent launcher.QuitIntent) error {
+	if intent.Request == nil || intent.Request.DataDir != c.GlobalDataDir {
+		return errors.New("trigger Pair quit requires exact Couch address")
+	}
+	address := ThreadAddress{RepoScope: intent.Request.RepoScope, Tag: ThreadTag(intent.Request.Tag)}
+	binding, err := c.NamedPairSessionContext(context.Background(), address, session)
+	if err != nil {
+		return err
+	}
+	return c.TriggerBoundQuit(context.Background(), binding, intent)
+}
+
+func (c ScopedThreadArtifactCollisionChecker) TriggerBoundQuit(ctx context.Context, binding PairSessionBinding, intent launcher.QuitIntent) error {
+	if intent.Request == nil || binding.Owner == nil || intent.Request.DataDir != c.GlobalDataDir || binding.Owner.Owner.DataDir != intent.Request.DataDir || binding.Owner.Owner.RepoScope != intent.Request.RepoScope || binding.Owner.Owner.Tag != intent.Request.Tag {
+		return errors.New("quit intent does not match observed session owner")
+	}
+	if err := c.RevalidatePairSession(ctx, binding); err != nil {
+		return err
+	}
+	session := binding.Name
 	runtime := launcher.NewScopedOSRuntime(c.GlobalDataDir, c.GlobalDataDir, "")
 	if err := runtime.WriteQuitIntent(session, intent); err != nil {
 		return err
 	}
 	if c.Sessions == nil {
 		return errors.New("trigger Pair quit: nil session deleter")
+	}
+	if err := c.RevalidatePairSession(ctx, binding); err != nil {
+		return err
 	}
 	// Pair consumes the typed intent only after its blocking Zellij handoff
 	// returns. Couch intercepts Alt+x, so writing the intent alone cannot make

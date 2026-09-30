@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/couchidentity"
 	"io"
 	"os"
 	"path/filepath"
@@ -102,6 +104,7 @@ func (t testRT) NewCouchWith(couchcore.Runner, couchcore.CouchNamespace) (*couch
 	if err != nil {
 		return nil, err
 	}
+	c.Identities = couchidentity.IdentityStore{HostDir: filepath.Join(t.dir, "host-test"), StoreDir: t.dir}
 	c.RootAgent = t.env["PAIR_AGENT"]
 	c.RepoAgentDefault = func(repoRoot, agent string) (couchcore.LaunchProfile, bool, error) {
 		value, ok := t.agentDefaults[repoRoot+"\x00"+agent]
@@ -262,6 +265,7 @@ func seedVerifiedPark(t *testing.T, rt testRT, path string) couchcore.ThreadReco
 	if err != nil {
 		t.Fatal(err)
 	}
+	rt.artifacts.SetPairSession(parked.Address, "pair-"+string(parked.Address.Tag), false)
 	return parked
 }
 
@@ -288,8 +292,8 @@ func TestResumeRunsAsTheNewLiveOwner(t *testing.T) {
 	rt := newRT(t, "/repo")
 	parked := seedVerifiedPark(t, rt, "/repo")
 	rt.artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
-	rt.runner.AfterAcknowledge = func(string) error {
-		rt.artifacts.SetPairSession(parked.Address, "pair-"+string(parked.Address.Tag), true)
+	rt.runner.AfterAcknowledge = func(id string) error {
+		rt.artifacts.SetPairSession(parked.Address, managedChildSession(t, rt.runner, id), true)
 		return nil
 	}
 
@@ -300,7 +304,7 @@ func TestResumeRunsAsTheNewLiveOwner(t *testing.T) {
 	if rt.supervisor.acquired != 1 || rt.supervisor.released != 1 {
 		t.Fatalf("supervisor acquire/release = %d/%d, want 1/1", rt.supervisor.acquired, rt.supervisor.released)
 	}
-	if len(rt.runner.Ops) == 0 || !strings.Contains(rt.runner.Ops[0], "pair resume "+string(parked.Address.Tag)+" --layout3") {
+	if len(rt.runner.Ops) == 0 || !strings.Contains(rt.runner.Ops[0], "pair "+launcher.CouchSessionFlag+" resume "+string(parked.Address.Tag)+" --layout3") {
 		t.Fatalf("resume child operations = %v", rt.runner.Ops)
 	}
 }
@@ -382,7 +386,7 @@ func TestInteractiveLaunchReattachesUniqueDetachedRoot(t *testing.T) {
 	// that offers to delete the live session (#179). Asserted against any
 	// `--layout`, not just `--layout2` -- since #198 couch has a layout of its
 	// own to leak here, and pinning only the old literal would miss it.
-	if len(rt.runner.Ops) == 0 || !strings.Contains(rt.runner.Ops[0], "pair resume "+string(detached.Address.Tag)) {
+	if len(rt.runner.Ops) == 0 || !strings.Contains(rt.runner.Ops[0], "pair "+launcher.CouchSessionFlag+" resume "+string(detached.Address.Tag)) {
 		t.Fatalf("child operations = %v, want the detached thread reattached", rt.runner.Ops)
 	}
 	if strings.Contains(rt.runner.Ops[0], "--layout") {
@@ -438,8 +442,8 @@ func TestInteractiveLaunchResumesUniqueParkedRoot(t *testing.T) {
 	parked := seedVerifiedPark(t, rt, "/repo")
 	rt.artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
 	rt.runner = couchcore.NewFakeRunner()
-	rt.runner.AfterAcknowledge = func(string) error {
-		rt.artifacts.SetPairSession(parked.Address, "pair-"+string(parked.Address.Tag), true)
+	rt.runner.AfterAcknowledge = func(id string) error {
+		rt.artifacts.SetPairSession(parked.Address, managedChildSession(t, rt.runner, id), true)
 		return nil
 	}
 	master, slave, err := pty.Open()
@@ -471,7 +475,7 @@ func TestInteractiveLaunchResumesUniqueParkedRoot(t *testing.T) {
 	if attached.Record.Thread != parked.Address {
 		t.Fatalf("interactive root = %+v, want %+v", attached.Record.Thread, parked.Address)
 	}
-	if len(rt.runner.Ops) == 0 || !strings.Contains(rt.runner.Ops[0], "pair resume "+string(parked.Address.Tag)+" --layout3") {
+	if len(rt.runner.Ops) == 0 || !strings.Contains(rt.runner.Ops[0], "pair "+launcher.CouchSessionFlag+" resume "+string(parked.Address.Tag)+" --layout3") {
 		t.Fatalf("interactive child operations = %v, want resumed parked root", rt.runner.Ops)
 	}
 	child := rt.runner.Child(attached.Handle.ID())
@@ -1746,4 +1750,18 @@ func TestRecoveryAndArchiveEntrypointsAcquireOwnerScope(t *testing.T) {
 			t.Errorf("%s has wrong terminal policy", name)
 		}
 	}
+}
+
+func managedChildSession(t *testing.T, runner *couchcore.FakeRunner, id string) string {
+	t.Helper()
+	child := runner.Child(id)
+	raw := envValue(child.Env, launcher.CouchSessionIntentEnv)
+	var intent launcher.CouchSessionIntent
+	if err := json.Unmarshal([]byte(raw), &intent); err != nil {
+		t.Fatal(err)
+	}
+	if err := intent.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	return intent.Name
 }

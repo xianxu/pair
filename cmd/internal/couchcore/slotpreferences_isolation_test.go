@@ -54,7 +54,7 @@ func TestSlotPreferencesIndependentAcrossRestartResumeAndFresh(t *testing.T) {
 	preferenceFiles := make([]string, 3)
 	before := make([][]byte, 3)
 	for i, path := range paths {
-		store, err := env.Couch.Threads.storeForPath(path)
+		store, err := env.Couch.Threads.storeForPath(path, "", identity)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -78,6 +78,7 @@ func TestSlotPreferencesIndependentAcrossRestartResumeAndFresh(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	reopened.Identities = env.Couch.Identities
 	env.Couch = reopened
 	env.Couch.Slots, env.Couch.Workspaces = NewOSSlotCatalog(f), NewWorkspaceProvisioner(f)
 	env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return true, nil }
@@ -102,10 +103,10 @@ func TestSlotPreferencesIndependentAcrossRestartResumeAndFresh(t *testing.T) {
 		if err := env.Couch.Forget(actor.Args.Worktree, actor.ID); err != nil {
 			t.Fatal(err)
 		}
-		env.Artifacts.SetPairSession(actor.Thread, "", false)
+		env.Artifacts.SetPairSession(actor.Thread, record.SessionBinding.Name, false)
 		env.Artifacts.SetNativeBinding(actor.Thread, profiles[i].Agent, sessioninventory.BindingEstablished, fmt.Sprintf("native-preferences-%d", i))
-		env.Runner.AfterAcknowledge = func(string) error {
-			env.Artifacts.SetPairSession(actor.Thread, "pair-"+string(actor.Thread.Tag), true)
+		env.Runner.AfterAcknowledge = func(id string) error {
+			env.Artifacts.SetPairSession(actor.Thread, continuationChildSession(t, env.Runner, id), true)
 			return nil
 		}
 		resumed, _, err := env.Couch.Resume(actor.Thread)
@@ -131,7 +132,15 @@ func TestSlotPreferencesIndependentAcrossRestartResumeAndFresh(t *testing.T) {
 	if err := env.Couch.Forget(source.Args.Worktree, source.ID); err != nil {
 		t.Fatal(err)
 	}
-	env.Artifacts.SetPairSession(source.Thread, "", false)
+	current, err := env.Couch.Threads.GetThread(source.Thread)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env.Artifacts.SetPairSession(source.Thread, current.SessionBinding.Name, false)
+	env.Runner.AfterAcknowledge = func(id string) error {
+		env.Artifacts.SetPairSession(source.Thread, continuationChildSession(t, env.Runner, id), true)
+		return nil
+	}
 	edited := []string{"--verbose", "--debug"}
 	preview, err := env.Couch.PrepareAgentSwitch(ctx, source.Thread, "claude", &edited)
 	if err != nil {
@@ -148,7 +157,12 @@ func TestSlotPreferencesIndependentAcrossRestartResumeAndFresh(t *testing.T) {
 		t.Fatalf("lost previous agent: %+v %v", preference, err)
 	}
 	env.Proc.Kill(switched.Record.PID)
-	env.Artifacts.SetPairSession(source.Thread, "", false)
+	current, err = env.Couch.Threads.GetThread(source.Thread)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env.Artifacts.SetPairSession(source.Thread, current.SessionBinding.Name, false)
+	env.Runner.AfterAcknowledge = nil
 	fresh, err := env.Couch.StartFreshSlot(ctx, paths[1], "")
 	if err != nil {
 		t.Fatal(err)

@@ -14,13 +14,28 @@ type SlotIdentity struct {
 }
 
 func (s SlotIdentity) Validate() error {
+	if err := s.validateLocation(); err != nil {
+		return err
+	}
+	if !workspaceAbsolute(s.RepoIdentity) {
+		return fmt.Errorf("slot repository identity is unverified")
+	}
+	return nil
+}
+
+// validateLocation accepts passive addresses with unknown common-directory
+// identity. Operations still require Validate after resolving the Git catalog.
+func (s SlotIdentity) validateLocation() error {
 	if !workspaceRepoName(s.Repo) || s.Number <= 0 || filepath.Base(s.PrimaryRoot) != s.Repo {
 		return fmt.Errorf("invalid slot name or number")
 	}
-	for _, p := range []string{s.RepoIdentity, s.PrimaryRoot, s.EnvironmentRoot, s.WorktreeRoot} {
+	for _, p := range []string{s.PrimaryRoot, s.EnvironmentRoot, s.WorktreeRoot} {
 		if !workspaceAbsolute(p) {
 			return fmt.Errorf("invalid slot path %q", p)
 		}
+	}
+	if s.RepoIdentity != "" && !workspaceAbsolute(s.RepoIdentity) {
+		return fmt.Errorf("invalid slot repository identity")
 	}
 	expected := filepath.Join(filepath.Dir(s.PrimaryRoot), "worktree", s.Repo+"-slot"+strconv.Itoa(s.Number))
 	if s.EnvironmentRoot != expected || s.WorktreeRoot != filepath.Join(expected, s.Repo) {

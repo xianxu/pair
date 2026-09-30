@@ -94,7 +94,7 @@ func (c *Couch) ensureContinuationAttached(ctx context.Context, record ThreadRec
 			if err != nil {
 				return record, ActorRecord{}, nil, err
 			}
-			if !registered || evidence.Session != r.Source.Session {
+			if !registered || evidence.Session != continuationTargetSession(record) {
 				return record, ActorRecord{}, nil, errors.New("exact continuation target receipt is no longer proved")
 			}
 			if err := ctx.Err(); err != nil {

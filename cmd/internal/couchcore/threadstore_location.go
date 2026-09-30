@@ -7,44 +7,42 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 )
 
-// discoveredBackends rebuilds locations from enrolled repository roots, never
-// from cached conversation addresses. Git/process proof belongs to the operation
-// opening a slot; enumerating metadata here cannot grant launch authority.
-func (s *ThreadStore) discoveredBackends() ([]*ThreadStore, error) {
-	if s.layout.Local {
-		return nil, nil
-	}
-	roots, err := s.slotRepositoryRoots()
-	if err != nil {
-		return nil, err
-	}
-	return s.discoveredBackendsFromRoots(roots)
+// slotRepositoryManifest retains locations and their independently verified
+// common-directory authority in one snapshot. Older stores may lack authority.
+func (s *ThreadStore) slotRepositoryManifest() (threadManifest, error) {
+	var snapshot threadManifest
+	err := s.withLock(func() error { manifest, _, _, err := s.loadManifestLocked(); snapshot = manifest; return err })
+	return snapshot, err
 }
 
-func (s *ThreadStore) slotRepositoryRoots() ([]string, error) {
-	var roots []string
-	if err := s.withLock(func() error {
-		manifest, _, _, err := s.loadManifestLocked()
-		roots = append(roots, manifest.SlotRepositories...)
-		return err
-	}); err != nil {
-		return nil, err
+func retainedSlotCommonGit(manifest threadManifest, root string) string {
+	if identity := manifest.SlotRepositoryIdentities[root]; identity != "" {
+		return identity
 	}
-	return roots, nil
+	for _, family := range manifest.RepositoryFamilies {
+		if family.PrimaryRoot == root {
+			return family.RepoIdentity
+		}
+	}
+	return ""
 }
 
-// discoveredBackendsFromRoots performs no locking or mutation. Retention uses
+// discoveredBackendsFromManifest performs no locking or mutation. Retention uses
 // this after reading enrollment while already holding its coordinator lock.
-func (s *ThreadStore) discoveredBackendsFromRoots(roots []string) ([]*ThreadStore, error) {
+// Git/process proof belongs to the operation opening a slot; enumeration does
+// not grant launch authority.
+func (s *ThreadStore) discoveredBackendsFromManifest(manifest threadManifest) ([]*ThreadStore, error) {
 	var stores []*ThreadStore
-	for _, root := range roots {
+	for _, root := range manifest.SlotRepositories {
 		candidates, err := EnumerateSlotCandidates(root)
 		if err != nil {
 			return nil, fmt.Errorf("enumerate enrolled repository %s: %w", root, err)
 		}
 		for _, candidate := range candidates {
+			candidate.Identity.RepoIdentity = retainedSlotCommonGit(manifest, root)
 			local := newSlotThreadStore(s.namespace, candidate.Identity)
 			local.coordinator = s.coordinator
 			local.readOnly = s.readOnly
@@ -55,23 +53,118 @@ func (s *ThreadStore) discoveredBackendsFromRoots(roots []string) ([]*ThreadStor
 	return stores, nil
 }
 
-func (s *ThreadStore) storeForPath(physicalPath string) (*ThreadStore, error) {
+// slotForContainedPath recognizes a conventional checkout without requiring it
+// to exist yet. Component boundaries keep sibling repository names distinct.
+func slotForContainedPath(root, path, commonGit string) (SlotIdentity, bool) {
+	worktrees := filepath.Join(filepath.Dir(root), "worktree")
+	rel, err := filepath.Rel(worktrees, path)
+	if err != nil || filepath.IsAbs(rel) {
+		return SlotIdentity{}, false
+	}
+	parts := strings.Split(rel, string(filepath.Separator))
+	if len(parts) < 2 || parts[1] != filepath.Base(root) {
+		return SlotIdentity{}, false
+	}
+	n, ok := slotDirectoryNumber(root, parts[0])
+	if !ok {
+		return SlotIdentity{}, false
+	}
+	slot := conventionalSlot(root, n)
+	slot.RepoIdentity = commonGit
+	if _, err := RelativeFamilyPath(slot.WorktreeRoot, path); err != nil {
+		return SlotIdentity{}, false
+	}
+	return slot, true
+}
+
+// retainedPhysicalPath resolves existing ancestors while retaining a missing
+// suffix. Missing CWDs must stay visible, but an existing symlink cannot redirect
+// a retained record or preference into another checkout's storage.
+func retainedPhysicalPath(path string) (string, error) {
+	missing := []string{}
+	for {
+		resolved, err := filepath.EvalSymlinks(path)
+		if err == nil {
+			for i := len(missing) - 1; i >= 0; i-- {
+				resolved = filepath.Join(resolved, missing[i])
+			}
+			return resolved, nil
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return "", err
+		}
+		if _, linkErr := os.Lstat(path); linkErr == nil {
+			return "", err
+		}
+		parent := filepath.Dir(path)
+		if parent == path {
+			return "", err
+		}
+		missing = append(missing, filepath.Base(path))
+		path = parent
+	}
+}
+
+func retainedPathWithinCheckout(root, path string) error {
+	if _, err := RelativeFamilyPath(root, path); err != nil {
+		return err
+	}
+	physicalRoot, err := retainedPhysicalPath(root)
+	if err != nil {
+		return err
+	}
+	physicalPath, err := retainedPhysicalPath(path)
+	if err != nil {
+		return err
+	}
+	if _, err := RelativeFamilyPath(physicalRoot, physicalPath); err != nil {
+		return fmt.Errorf("path escapes its host checkout: %s", path)
+	}
+	return nil
+}
+
+func (s *ThreadStore) storeForPath(physicalPath, scope, commonGit string) (*ThreadStore, error) {
 	if s.layout.Local {
+		if s.slot == nil {
+			return nil, errors.New("local store has no slot identity")
+		}
+		if _, belongs, err := CheckoutMembership(s.slot.RepoIdentity, s.slot.WorktreeRoot, physicalPath, scope, commonGit); err != nil || !belongs {
+			return nil, fmt.Errorf("path identity does not belong to local checkout: %s (%v)", physicalPath, err)
+		}
+		if err := retainedPathWithinCheckout(s.slot.WorktreeRoot, physicalPath); err != nil {
+			return nil, err
+		}
 		return s, nil
 	}
-	roots, err := s.slotRepositoryRoots()
+	manifest, err := s.slotRepositoryManifest()
 	if err != nil {
 		return nil, err
 	}
-	for _, root := range roots {
-		env := filepath.Dir(physicalPath)
-		n, numbered := slotDirectoryNumber(root, filepath.Base(env))
-		if numbered && filepath.Dir(env) == filepath.Join(filepath.Dir(root), "worktree") && filepath.Base(physicalPath) == filepath.Base(root) {
-			local := newSlotThreadStore(s.namespace, conventionalSlot(root, n))
-			local.coordinator = s.coordinator
-			local.readOnly = s.readOnly
-			return local, nil
+	for _, root := range manifest.SlotRepositories {
+		slot, ok := slotForContainedPath(root, physicalPath, retainedSlotCommonGit(manifest, root))
+		if !ok {
+			continue
 		}
+		if slot.RepoIdentity == "" && scope == "" {
+			return nil, fmt.Errorf("slot repository identity is unavailable; open %s in Couch to verify its enrollment before reading path preferences", root)
+		}
+		if _, belongs, err := CheckoutMembership(slot.RepoIdentity, slot.WorktreeRoot, physicalPath, scope, commonGit); err != nil {
+			return nil, err
+		} else if !belongs {
+			continue
+		}
+		// Exact checkout scope supplied by the verified operation can carry its
+		// common directory through preview without changing retained metadata.
+		if slot.RepoIdentity == "" && scope != "" {
+			slot.RepoIdentity = commonGit
+		}
+		if err := retainedPathWithinCheckout(slot.WorktreeRoot, physicalPath); err != nil {
+			return nil, err
+		}
+		local := newSlotThreadStore(s.namespace, slot)
+		local.coordinator = s.coordinator
+		local.readOnly = s.readOnly
+		return local, nil
 	}
 	return s, nil
 }
@@ -83,11 +176,11 @@ func (s *ThreadStore) storeForAddress(address ThreadAddress) (*ThreadStore, erro
 	if s.layout.Local {
 		return s, nil
 	}
-	roots, err := s.slotRepositoryRoots()
+	manifest, err := s.slotRepositoryManifest()
 	if err != nil {
 		return nil, err
 	}
-	if len(roots) == 0 {
+	if len(manifest.SlotRepositories) == 0 {
 		return s, nil
 	}
 	// A valid ordinary record proves its own global storage origin, independent
@@ -104,10 +197,10 @@ func (s *ThreadStore) storeForAddress(address ThreadAddress) (*ThreadStore, erro
 		legacy, err = s.decodeThreadRaw(address, raw)
 		return err
 	})
-	if legacyErr == nil && !pathInSlotRepositories(legacy.StartingPath, roots) {
+	if legacyErr == nil && !recordInSlotRepositories(legacy, manifest) {
 		return s, nil
 	}
-	stores, err := s.discoveredBackendsFromRoots(roots)
+	stores, err := s.discoveredBackendsFromManifest(manifest)
 	if err != nil {
 		return nil, err
 	}
@@ -177,17 +270,19 @@ func (s *ThreadStore) storeForAddress(address ThreadAddress) (*ThreadStore, erro
 	if legacyErr != nil {
 		return nil, legacyErr
 	}
-	if pathInSlotRepositories(legacy.StartingPath, roots) {
+	if recordInSlotRepositories(legacy, manifest) {
 		return nil, fmt.Errorf("slot %s has no local current conversation %+v", legacy.StartingPath, address)
 	}
 	return s, nil
 }
 
-func pathInSlotRepositories(path string, roots []string) bool {
-	for _, root := range roots {
-		env := filepath.Dir(path)
-		_, numbered := slotDirectoryNumber(root, filepath.Base(env))
-		if numbered && filepath.Dir(env) == filepath.Join(filepath.Dir(root), "worktree") && filepath.Base(path) == filepath.Base(root) {
+func recordInSlotRepositories(record ThreadRecord, manifest threadManifest) bool {
+	for _, root := range manifest.SlotRepositories {
+		slot, ok := slotForContainedPath(root, record.StartingPath, retainedSlotCommonGit(manifest, root))
+		if !ok {
+			continue
+		}
+		if _, belongs, _ := RecordCheckoutMembership(record, slot.RepoIdentity, slot.WorktreeRoot); belongs {
 			return true
 		}
 	}
@@ -197,10 +292,10 @@ func pathInSlotRepositories(path string, roots []string) bool {
 // repoLaunchDefault reads the primary repository's defaults for a numbered
 // workspace. fallback preserves the caller's ordinary-path behavior and the
 // known primary root during first creation, before the slot is enrolled.
-func (c *Couch) repoLaunchDefault(path, fallback, agent string) (LaunchProfile, bool, error) {
+func (c *Couch) repoLaunchDefault(path, fallback, agent, commonGit, scope string) (LaunchProfile, bool, error) {
 	view := *c.Threads
 	view.readOnly = true // Default lookup must not turn a start preview into a write.
-	backend, err := view.storeForPath(path)
+	backend, err := view.storeForPath(path, scope, commonGit)
 	if err != nil {
 		return LaunchProfile{}, false, err
 	}

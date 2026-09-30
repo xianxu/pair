@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/launcher"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -41,7 +43,7 @@ func newContinuationFixture(t *testing.T) *continuationFixture {
 	env.Artifacts.TriggerQuitHook = func(session string, intent launcher.QuitIntent) error {
 		err := priorQuit(session, intent)
 		if err == nil {
-			env.Artifacts.SetPairSession(source.Address, "pair-exact", false)
+			env.Artifacts.SetPairSession(source.Address, session, false)
 		}
 		return err
 	}
@@ -59,7 +61,7 @@ func newContinuationFixture(t *testing.T) *continuationFixture {
 		}
 		inc := record.Incarnations[0]
 		env.Proc.Set(inc.PID, inc.Identity)
-		env.Artifacts.SetPairSession(source.Address, "pair-exact", true)
+		env.Artifacts.SetPairSession(source.Address, continuationChildSession(t, env.Runner, id), true)
 		if inc.Start != nil && inc.Start.Nonce == record.Continuation.Attempt {
 			f.registered[record.Continuation.Attempt] = true
 		}
@@ -90,7 +92,7 @@ func TestContinuationRetryAfterProvedTargetDeath(t *testing.T) {
 	f.registered[first.Status.Attempt] = false
 	f.env.Proc.Kill(first.Record.PID)
 	f.env.Runner.SetExited(first.Handle.ID(), 0)
-	f.env.Artifacts.SetPairSession(f.source.Address, "pair-exact", false)
+	f.env.Artifacts.SetPairSession(f.source.Address, f.sessionName(t), false)
 	f.delivery = orientation.DeliveryState{}
 	second, err := c.RetryContinuation(context.Background(), f.source.Address, f.status.RequestID)
 	if err != nil {
@@ -160,7 +162,7 @@ func TestContinuationWarmTargetRecoveryAfterOwnerDeath(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	f.env.Artifacts.SetDetachedSession(record.Address, "pair-exact")
+	f.env.Artifacts.SetDetachedSession(record.Address, record.SessionBinding.Name)
 	f.delivery = orientation.DeliveryState{Phase: orientation.DeliverySubmitted}
 	recovered, err := c.Continue(context.Background(), record.Address, f.status.RequestID)
 	if err != nil {
@@ -306,7 +308,7 @@ func TestContinuationRetrySessionObservationHonorsCancellation(t *testing.T) {
 	f.registered[first.Status.Attempt] = false
 	f.env.Proc.Kill(first.Record.PID)
 	f.env.Runner.SetExited(first.Handle.ID(), 0)
-	f.env.Artifacts.SetPairSession(f.source.Address, "pair-exact", false)
+	f.env.Artifacts.SetPairSession(f.source.Address, f.sessionName(t), false)
 	before, _ := c.Threads.GetThread(f.source.Address)
 	observed := false
 	c.Artifacts = recoveryContextArtifacts{FakeThreadArtifactCollisionChecker: f.env.Artifacts, observe: func(ctx context.Context, _ ThreadAddress) (PairSessionBinding, error) {
@@ -347,7 +349,7 @@ func TestRegisteredUnknownTargetRecoveryInterruptionAndProofRefusals(t *testing.
 			if err != nil {
 				t.Fatal(err)
 			}
-			f.env.Artifacts.SetDetachedSession(record.Address, "pair-exact")
+			f.env.Artifacts.SetDetachedSession(record.Address, record.SessionBinding.Name)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			originalStore := c.Threads
@@ -412,5 +414,70 @@ func TestRegisteredUnknownTargetRecoveryInterruptionAndProofRefusals(t *testing.
 				t.Fatalf("retry changed conversation: %+v", again)
 			}
 		})
+	}
+}
+
+// Observe the actual terminal identity emitted by the launch transaction. The
+// source fixture is legacy, but each replacement gets a separately allocated M.
+func continuationChildSession(t *testing.T, runner *FakeRunner, id string) string {
+	t.Helper()
+	child := runner.Child(id)
+	for _, entry := range child.Env {
+		if raw, ok := strings.CutPrefix(entry, launcher.CouchSessionIntentEnv+"="); ok {
+			var intent launcher.CouchSessionIntent
+			if err := json.Unmarshal([]byte(raw), &intent); err != nil {
+				t.Fatal(err)
+			}
+			if err := intent.Validate(); err != nil {
+				t.Fatal(err)
+			}
+			return intent.Name
+		}
+	}
+	t.Fatal("continuation child has no managed terminal intent")
+	return ""
+}
+func (f *continuationFixture) sessionName(t *testing.T) string {
+	t.Helper()
+	record, err := f.env.Couch.Threads.GetThread(f.source.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if record.SessionBinding != nil {
+		return record.SessionBinding.Name
+	}
+	return "pair-exact"
+}
+
+func TestContinuationRegisteredTargetUsesNewTerminalBinding(t *testing.T) {
+	f := newContinuationFixture(t)
+	first, err := f.env.Couch.Continue(context.Background(), f.source.Address, f.status.RequestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, err := f.env.Couch.Threads.GetThread(f.source.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if record.SessionBinding == nil || record.SessionBinding.Name == record.Continuation.Source.Session {
+		t.Fatal("fixture did not allocate a distinct target terminal")
+	}
+	record.Incarnations[0].State = IncarnationUnknown
+	proof := RegisteredTargetProof{RequestID: record.Continuation.ID, Agent: record.Continuation.Source.Agent, Session: record.Continuation.Source.Session, Attempt: first.Status.Attempt, Helper: ProcessIdentity{PID: first.Record.PID, Identity: first.Record.Identity}}
+	if _, err := ReconcileRegisteredTarget(record, proof); err == nil {
+		t.Fatal("previous source session authorized target retirement")
+	}
+	proof.Session = record.SessionBinding.Name
+	if _, err := ReconcileRegisteredTarget(record, proof); err != nil {
+		t.Fatalf("exact promoted target refused: %v", err)
+	}
+	for _, session := range []string{record.Continuation.Source.Session, "📁999-999", record.SessionBinding.Name} {
+		f.env.Couch.ContinuationGeneration = func(context.Context, ThreadAddress, string, string) (*checkpoint.TargetGeneration, error) {
+			return &checkpoint.TargetGeneration{Agent: proof.Agent, Session: session, Attempt: proof.Attempt, LaunchOrdinal: record.Continuation.Source.LaunchOrdinal + 1}, nil
+		}
+		_, err := f.env.Couch.continuationTargetGeneration(context.Background(), record)
+		if (err == nil) != (session == record.SessionBinding.Name) {
+			t.Fatalf("target generation session=%q err=%v", session, err)
+		}
 	}
 }

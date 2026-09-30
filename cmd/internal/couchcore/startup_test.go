@@ -90,7 +90,7 @@ func TestStartInteractiveResumesUniqueExactParkedRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 	env.Artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
-	env.Artifacts.SetPairSession(parked.Address, "pair-"+string(parked.Address.Tag), true)
+	seedStartupColdLaunch(t, env, parked.Address)
 
 	start, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: "/repo/sub"})
 	if err != nil {
@@ -133,8 +133,8 @@ func TestStartInteractiveResumesTheNewestOfSeveralParkedCandidates(t *testing.T)
 	second := seedStartupParked(t, env, "couch-0000000000000002", "/repo", time.Unix(9000, 0).UTC())
 	// Both must be genuinely resumable, or "it picked one" would be indistinguishable
 	// from "the one it picked happened to work".
-	env.Artifacts.SetPairSession(first.Address, "pair-"+string(first.Address.Tag), true)
-	env.Artifacts.SetPairSession(second.Address, "pair-"+string(second.Address.Tag), true)
+	env.Artifacts.SetPairSession(first.Address, "pair-"+string(first.Address.Tag), false)
+	seedStartupColdLaunch(t, env, second.Address)
 
 	start, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: "/repo"})
 	if err != nil {
@@ -391,10 +391,7 @@ func TestStartInteractiveAdoptsAThreadWhoseConversationStillResolves(t *testing.
 	// proves nothing about the entry point it is named for.
 	// The relaunched agent publishes its session, as a real one does; the hook
 	// fires during the launch, so it cannot disturb the classification above.
-	env.Runner.AfterAcknowledge = func(string) error {
-		env.Artifacts.SetPairSession(stale.Address, "pair-"+string(stale.Address.Tag), true)
-		return nil
-	}
+	seedStartupColdLaunch(t, env, stale.Address)
 	start, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: "/repo/sub"})
 	if err != nil {
 		t.Fatalf("StartInteractive: %v", err)
@@ -402,5 +399,16 @@ func TestStartInteractiveAdoptsAThreadWhoseConversationStillResolves(t *testing.
 	if start.Record.Thread != stale.Address {
 		t.Fatalf("startup started %+v, want it to ADOPT %+v rather than mint a second thread in the tree",
 			start.Record.Thread, stale.Address)
+	}
+}
+
+// A parked conversation retains its historical terminal association, but the
+// server is absent. Only releasing its new helper publishes the new incarnation.
+func seedStartupColdLaunch(t *testing.T, env *testEnv, address ThreadAddress) {
+	t.Helper()
+	env.Artifacts.SetPairSession(address, "pair-"+string(address.Tag), false)
+	env.Runner.AfterAcknowledge = func(id string) error {
+		env.Artifacts.SetPairSession(address, continuationChildSession(t, env.Runner, id), true)
+		return nil
 	}
 }

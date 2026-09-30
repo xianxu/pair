@@ -25,7 +25,7 @@ to the global namespace.
 ### Durable numbered slots (#306)
 
 The thread action menu's **Add slot** entry (#313) opens the existing start form
-with the exact primary repository path prefilled and agent focus. `menuRepositoryRoot`
+with the family's starting directory projected into the primary checkout and agent focus. `menuRepositoryRoot`
 uses the validated slot primary root or scope-matched ordinary root; unknown
 roots do not offer the shortcut. The same StartCreate preview/fingerprint and
 repository admission checks apply as when entering a path manually, so Add slot
@@ -38,12 +38,32 @@ or damaged. Explicit fresh conversation replaces the current reference and retai
 old evidence without retiring the directory or preferences. Unknown process/session
 ownership still refuses launch.
 
-Global manifest schema 2 stores enrolled primary roots, not slot lifecycle facts.
+Global manifest schema 2 stores enrolled primary roots and their verified common
+Git directories, not slot lifecycle facts.
 Catalog enumeration rebuilds the slot inventory. Enrollment stages local metadata
 before publishing the root and retiring global copies; interrupted journals replay
 idempotently. Retention independently enumerates local stores and preserves native
 owners referenced by current or archived records. Missing/corrupt ownership blocks
 GC. Archive deletion receipts carry the backing slot location.
+
+Repository families (#355) reserve one relative starting directory per physical
+Git common directory in the root manifest. `repository_family.go` owns conflict
+resolution and safe checkout projection; `repository_family_store.go` previews
+read-only and reserves under the existing journal before provisioning or launch.
+Park/archive retain the descriptor. Legacy records infer a coherent directory;
+conflicting legacy directories preserve existing conversations but refuse new
+admission. Checkout roots remain separate from starting/working directories in
+launches, local-store routing, inventory, and menu actions. Missing directories
+and paths escaping the checkout refuse before the agent starts.
+Storage membership also requires matching checkout scope/common Git identity,
+so nested independent repositories keep their own conversations and preferences.
+Enrollment retains common-directory identity independently of the family's
+starting-directory reservation, including separate Git directories. Older
+metadata without that authority remains readable by exact checkout scope;
+identity-dependent routing requires verified re-enrollment. Conventional paths
+locate slots but never supply repository identity.
+Each store admits at most 4096 families; existing families remain usable at the
+limit. Reservations are retained on park/archive and are not silently recycled.
 
 Key seams: `slotcatalog.go`, `threadstore_layout.go`, `threadstore_location.go`,
 `slotmigration.go`, `threadstore_preview.go`, `slotinventory.go`, and the shared

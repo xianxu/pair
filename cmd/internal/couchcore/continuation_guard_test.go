@@ -204,7 +204,7 @@ func TestEveryRefusalARetainedRequestCausesNamesBothExits(t *testing.T) {
 				t.Fatal(err)
 			}
 			f.env.Proc.Kill(f.source.Incarnations[0].PID)
-			f.env.Artifacts.SetPairSession(f.source.Address, "pair-exact", false)
+			f.env.Artifacts.SetPairSession(f.source.Address, f.sessionName(t), false)
 			// The source generation advanced with no ownership proof: the retained
 			// request's admission refuses inside the retained branch.
 			c.ContinuationSource = func(context.Context, ThreadAddress) (ContinuationSource, error) {

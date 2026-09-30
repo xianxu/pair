@@ -114,8 +114,8 @@ func TestEveryParkedProducerIsAcceptedByResumeSwitchAndArchive(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			env.Runner.AfterAcknowledge = func(string) error {
-				env.Artifacts.SetPairSession(record.Address, "pair-switched", true)
+			env.Runner.AfterAcknowledge = func(id string) error {
+				env.Artifacts.SetPairSession(record.Address, continuationChildSession(t, env.Runner, id), true)
 				return nil
 			}
 			result, err := env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{
@@ -131,8 +131,8 @@ func TestEveryParkedProducerIsAcceptedByResumeSwitchAndArchive(t *testing.T) {
 			return nil
 		},
 		"resume": func(t *testing.T, env *testEnv, record ThreadRecord) error {
-			env.Runner.AfterAcknowledge = func(string) error {
-				env.Artifacts.SetPairSession(record.Address, "pair-resumed", true)
+			env.Runner.AfterAcknowledge = func(id string) error {
+				env.Artifacts.SetPairSession(record.Address, continuationChildSession(t, env.Runner, id), true)
 				return nil
 			}
 			_, _, err := env.Couch.ResumeContext(context.Background(), record.Address)
@@ -151,6 +151,7 @@ func TestEveryParkedProducerIsAcceptedByResumeSwitchAndArchive(t *testing.T) {
 				env := newTestEnv(t, "/repo")
 				env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return true, nil }
 				record := build(t, env)
+				env.Artifacts.SetPairSession(record.Address, "pair-"+string(record.Address.Tag), false)
 				env.Artifacts.SetNativeBinding(record.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
 				env.Artifacts.SetSessionPresence(record.Address, SessionObservation{State: SessionAbsent})
 
@@ -341,6 +342,7 @@ func TestSwitchAgentCommitAcceptsWhatItsPreviewAccepted(t *testing.T) {
 	}
 	env.Artifacts.SetNativeBinding(created.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
 	env.Artifacts.SetSessionPresence(created.Address, SessionObservation{State: SessionAbsent})
+	env.Artifacts.SetPairSession(created.Address, "pair-legacy", false)
 
 	if state, reason, err := env.Couch.classifyForAction(context.Background(), created.Address); err != nil || state != ThreadParked {
 		t.Fatalf("fixture classified %q/%q (%v), not parked -- it no longer exercises the driverless claim", state, reason, err)
@@ -349,8 +351,8 @@ func TestSwitchAgentCommitAcceptsWhatItsPreviewAccepted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("preview refused: %v", err)
 	}
-	env.Runner.AfterAcknowledge = func(string) error {
-		env.Artifacts.SetPairSession(created.Address, "pair-switched", true)
+	env.Runner.AfterAcknowledge = func(id string) error {
+		env.Artifacts.SetPairSession(created.Address, continuationChildSession(t, env.Runner, id), true)
 		return nil
 	}
 	result, err := env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{
@@ -408,6 +410,7 @@ func TestSwitchAgentOnTheUnusableStatesItPermits(t *testing.T) {
 			}
 			// No SetNativeBinding: the ledger resolves nothing either way.
 			env.Artifacts.SetSessionPresence(created.Address, SessionObservation{State: SessionAbsent})
+			env.Artifacts.SetPairSession(created.Address, "pair-legacy", false)
 
 			state, reason, err := env.Couch.classifyForAction(context.Background(), created.Address)
 			if err != nil {
@@ -424,8 +427,8 @@ func TestSwitchAgentOnTheUnusableStatesItPermits(t *testing.T) {
 			if err != nil {
 				t.Fatalf("the guard refuses a state its own predicate permits: %v", err)
 			}
-			env.Runner.AfterAcknowledge = func(string) error {
-				env.Artifacts.SetPairSession(created.Address, "pair-switched", true)
+			env.Runner.AfterAcknowledge = func(id string) error {
+				env.Artifacts.SetPairSession(created.Address, continuationChildSession(t, env.Runner, id), true)
 				return nil
 			}
 			result, err := env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{

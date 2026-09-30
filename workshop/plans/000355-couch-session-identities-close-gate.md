@@ -1,0 +1,224 @@
+---
+gate: boundary-review
+issue: 355
+id_prefix: BR
+rounds:
+    - "n": 1
+      timestamp: "2026-09-30T10:37:08-07:00"
+      agent: codex
+      findings:
+        - id: BR-1
+          severity: Critical
+          title: Cold launch, registration, and cleanup do not consistently use the terminal incarnation
+          detail: launch_existing.go:463 allocates a new M for an attached-live conversation, while createflow.go:427 filters out its existing terminal, permitting a duplicate agent. Registration and cleanup still resolve the old address index; require proven absence before creation and use the proposed binding for registration and teardown, with composed regressions (ARCH-ORDER, ARCH-PURPOSE).
+          family: terminal-binding-authority
+          round: 1
+        - id: BR-2
+          severity: Critical
+          title: Warm attach revalidates ownership before blocking preparation rather than at handoff
+          detail: createflow.go:397 checks the generation before lifecycle.go:43-110 performs retention and cmux preparation. Replacement during that interval reaches AttachSession unchecked; retain the original proof and revalidate immediately before attachment, testing replacement during preparation (ARCH-ORDER, ARCH-SECURE).
+          family: owner-proof-at-effect-boundary
+          round: 1
+      boundary: M1
+      recipe: milestone-review
+      blocked: true
+    - "n": 2
+      timestamp: "2026-09-30T10:59:00-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Cold admission requires absence; registration and cleanup select the pending/current terminal binding. Passing terminal_incarnation_test.go regressions cover attached-terminal refusal, stale registration, wrong-terminal cleanup, and interrupted recovery; launcher tests cover late terminal appearance.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: lifecycle.go:134-145 revalidates the original ownership proof immediately before AttachSession, after blocking preparation. TestCouchSessionWarmGenerationRevalidatedAtAttachEffect injects replacement during retention/cmux through both entrypoints and asserts refusal and poller cleanup.
+          round: 2
+      findings:
+        - id: BR-3
+          severity: Critical
+          title: Unicode-only repository names now prevent conversation creation
+          detail: cmd/internal/couchidentity/identity.go:41-60 discards every non-ASCII character and rejects the resulting empty token. Both couch.go:488 and slotrecovery.go:320 pass the repository basename, so supported names such as 项目 now fail allocation. Use a deterministic safe fallback when normalization yields nothing; C/N already provide uniqueness. Add pure formatter tests and composed new/fresh launch regressions for Unicode-only and punctuation-only names. ARCH-PURPOSE.
+          family: descriptive-label-must-not-gate-identity
+          round: 2
+      boundary: M1
+      recipe: milestone-review
+      blocked: true
+    - "n": 3
+      timestamp: "2026-09-30T11:06:56-07:00"
+      agent: codex
+      dispose:
+        - id: BR-3
+          disposition: addressed
+          note: The shared formatter supplies a safe fallback and bounds descriptive tokens. Pure formatter and composed new/fresh launch tests pass at HEAD and fail with the previous formatter substituted through a temporary Go overlay. Unicode-only, punctuation-only, and long repository names are exercised.
+          round: 3
+      boundary: M1
+      recipe: milestone-review
+      blocked: false
+    - "n": 4
+      timestamp: "2026-09-30T11:25:49-07:00"
+      agent: codex
+      findings:
+        - id: BR-4
+          severity: Critical
+          title: Nested independent repositories are routed into the enclosing slot's storage
+          detail: slotmigration.go:72 selects destinations by containment alone; threadstore_location.go:131, local-origin validation, and threadstore_snapshot.go:14 repeat that assumption. A nested independent repository's conversation is migrated into the outer slot's single-current store, blocks enrollment when both have current records, or is filtered from global inventory. Enforce one scope/common-Git-identity membership rule across migration, preferences, routing, and snapshots; test outer and nested conversations together. ARCH-DRY, ARCH-PURPOSE, ARCH-SECURE.
+          family: checkout-membership-requires-repository-identity
+          round: 4
+        - id: BR-5
+          severity: Important
+          title: Permanent repository-family descriptors have no removal path or admission bound
+          detail: repository_family_store.go:95 appends permanent descriptors without a capacity check, and no consumer removes them. The plan defers removal without bounding retained growth. Add and test an explicit admission bound with actionable refusal, or implement a deliberate removal lifecycle that preserves parked reservations; document the policy. ARCH-FUNERAL.
+          family: durable-family-reservations-need-bounds
+          round: 4
+      boundary: M2
+      recipe: milestone-review
+      blocked: true
+    - "n": 5
+      timestamp: "2026-09-30T11:42:12-07:00"
+      agent: codex
+      dispose:
+        - id: BR-4
+          disposition: not-addressed
+          note: Storage consumers now share repository-aware membership, but cmd/internal/couchcore/slotsessions.go:307-313 still admits actors by containment alone. A nested independent actor reaches add(), which rejects its foreign scope and aborts outer-slot open/fresh. A scratch regression fails on HEAD and passes when foreign-scope actors are excluded. Complete the checkout-membership-requires-repository-identity sweep through hosted-session observation. ARCH-DRY, ARCH-PURPOSE, ARCH-SECURE.
+          round: 5
+        - id: BR-5
+          disposition: addressed
+          note: repository_family_store.go:67 enforces the 4096-family admission bound under the existing lock; existing families remain usable. Capacity, concurrent-final-entry, and persisted-overflow tests cover the policy. Removing the admission guard makes TestFamilyCapacityExistingReuseAndRefusal fail. atlas/couch.md:59 documents permanent bounded reservations.
+          round: 5
+      boundary: M2
+      recipe: milestone-review
+      blocked: true
+    - "n": 6
+      timestamp: "2026-09-30T11:51:04-07:00"
+      agent: codex
+      dispose:
+        - id: BR-4
+          disposition: not-addressed
+          note: 'Nested storage and hosted-actor regressions pass; removing actor membership checking makes all four open/fresh registry cases fail. However, threadstore_location.go:37 and :63 reconstruct slots through conventionalSlot, which assumes RepoIdentity is primary/.git. The new RecordCheckoutMembership check rejects records carrying the actual separate Git directory. A temporary real-Git regression successfully enrolled a record, then GetThread failed with “slot record identity does not match its host checkout”. This repeats family checkout-membership-requires-repository-identity: derive identity from verified or retained authority throughout discovery, routing, validation, and inventory instead of treating conventional paths as identity.'
+          round: 6
+        - id: BR-5
+          disposition: addressed
+          note: The 4096-family admission bound remains enforced; focused capacity, concurrent admission, existing-family reuse, and persisted-overflow tests passed.
+          round: 6
+      boundary: M2
+      recipe: milestone-review
+      blocked: true
+    - "n": 7
+      timestamp: "2026-09-30T12:09:30-07:00"
+      agent: codex
+      dispose:
+        - id: BR-4
+          disposition: addressed
+          note: Shared checkout membership covers migration, routing, preferences, local-origin validation, inventory, and hosted actors. Enrollment retains verified common-Git identity across reconstruction and restart. Focused regressions pass; restoring the primary/.git assumption through a temporary Go overlay makes TestSeparateGitDirectoryEnrollmentPreservesStorageAuthority fail at record readback.
+          round: 7
+        - id: BR-5
+          disposition: addressed
+          note: Prior disposition retained. The 4096-family admission bound, existing-family reuse, and persisted-overflow checks remain covered.
+          round: 7
+      boundary: M2
+      recipe: milestone-review
+      blocked: false
+    - "n": 8
+      timestamp: "2026-09-30T12:13:26-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Pending/current bindings govern admission, registration, recovery and cleanup. Passing regressions cover stale indexes, old registration, interrupted starts and preservation of the previous terminal.
+          round: 8
+        - id: BR-2
+          disposition: addressed
+          note: lifecycle.go revalidates the original server proof immediately before attach, after blocking preparation. Generation-replacement regressions exercise this boundary.
+          round: 8
+        - id: BR-3
+          disposition: addressed
+          note: Repository labels have a bounded ASCII normalization and fallback. Allocator and real-Git conversation tests cover Unicode, punctuation-only and maximum-length basenames.
+          round: 8
+        - id: BR-4
+          disposition: addressed
+          note: Shared checkout membership reaches routing, migration, preferences, inventory and hosted actors. Passing real-Git regressions cover nested repositories and retained separate-Git-directory authority.
+          round: 8
+        - id: BR-5
+          disposition: addressed
+          note: Family admission and persisted-state validation enforce the 4096-family bound. Tests cover concurrent final admission, refusal without writes and reuse of existing families.
+          round: 8
+      recipe: milestone-review
+      blocked: false
+---
+
+# Gate ledger — pair#355 (boundary-review)
+
+Findings this gate raised, the stable ids the binary assigned them, and how
+later rounds disposed of them. Generated — edit the gate, not this file.
+
+## Round 1 — 2026-09-30T10:37:08-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **BR-1** [Critical] `terminal-binding-authority` Cold launch, registration, and cleanup do not consistently use the terminal incarnation
+  launch_existing.go:463 allocates a new M for an attached-live conversation, while createflow.go:427 filters out its existing terminal, permitting a duplicate agent. Registration and cleanup still resolve the old address index; require proven absence before creation and use the proposed binding for registration and teardown, with composed regressions (ARCH-ORDER, ARCH-PURPOSE).
+- **BR-2** [Critical] `owner-proof-at-effect-boundary` Warm attach revalidates ownership before blocking preparation rather than at handoff
+  createflow.go:397 checks the generation before lifecycle.go:43-110 performs retention and cmux preparation. Replacement during that interval reaches AttachSession unchecked; retain the original proof and revalidate immediately before attachment, testing replacement during preparation (ARCH-ORDER, ARCH-SECURE).
+
+## Round 2 — 2026-09-30T10:59:00-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Cold admission requires absence; registration and cleanup select the pending/current terminal binding. Passing terminal_incarnation_test.go regressions cover attached-terminal refusal, stale registration, wrong-terminal cleanup, and interrupted recovery; launcher tests cover late terminal appearance.
+- BR-2 — addressed — lifecycle.go:134-145 revalidates the original ownership proof immediately before AttachSession, after blocking preparation. TestCouchSessionWarmGenerationRevalidatedAtAttachEffect injects replacement during retention/cmux through both entrypoints and asserts refusal and poller cleanup.
+
+### Raised
+
+- **BR-3** [Critical] `descriptive-label-must-not-gate-identity` Unicode-only repository names now prevent conversation creation
+  cmd/internal/couchidentity/identity.go:41-60 discards every non-ASCII character and rejects the resulting empty token. Both couch.go:488 and slotrecovery.go:320 pass the repository basename, so supported names such as 项目 now fail allocation. Use a deterministic safe fallback when normalization yields nothing; C/N already provide uniqueness. Add pure formatter tests and composed new/fresh launch regressions for Unicode-only and punctuation-only names. ARCH-PURPOSE.
+
+## Round 3 — 2026-09-30T11:06:56-07:00 (codex) — passed
+
+### Disposed
+
+- BR-3 — addressed — The shared formatter supplies a safe fallback and bounds descriptive tokens. Pure formatter and composed new/fresh launch tests pass at HEAD and fail with the previous formatter substituted through a temporary Go overlay. Unicode-only, punctuation-only, and long repository names are exercised.
+
+## Round 4 — 2026-09-30T11:25:49-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **BR-4** [Critical] `checkout-membership-requires-repository-identity` Nested independent repositories are routed into the enclosing slot's storage
+  slotmigration.go:72 selects destinations by containment alone; threadstore_location.go:131, local-origin validation, and threadstore_snapshot.go:14 repeat that assumption. A nested independent repository's conversation is migrated into the outer slot's single-current store, blocks enrollment when both have current records, or is filtered from global inventory. Enforce one scope/common-Git-identity membership rule across migration, preferences, routing, and snapshots; test outer and nested conversations together. ARCH-DRY, ARCH-PURPOSE, ARCH-SECURE.
+- **BR-5** [Important] `durable-family-reservations-need-bounds` Permanent repository-family descriptors have no removal path or admission bound
+  repository_family_store.go:95 appends permanent descriptors without a capacity check, and no consumer removes them. The plan defers removal without bounding retained growth. Add and test an explicit admission bound with actionable refusal, or implement a deliberate removal lifecycle that preserves parked reservations; document the policy. ARCH-FUNERAL.
+
+## Round 5 — 2026-09-30T11:42:12-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-4 — not-addressed — Storage consumers now share repository-aware membership, but cmd/internal/couchcore/slotsessions.go:307-313 still admits actors by containment alone. A nested independent actor reaches add(), which rejects its foreign scope and aborts outer-slot open/fresh. A scratch regression fails on HEAD and passes when foreign-scope actors are excluded. Complete the checkout-membership-requires-repository-identity sweep through hosted-session observation. ARCH-DRY, ARCH-PURPOSE, ARCH-SECURE.
+- BR-5 — addressed — repository_family_store.go:67 enforces the 4096-family admission bound under the existing lock; existing families remain usable. Capacity, concurrent-final-entry, and persisted-overflow tests cover the policy. Removing the admission guard makes TestFamilyCapacityExistingReuseAndRefusal fail. atlas/couch.md:59 documents permanent bounded reservations.
+
+## Round 6 — 2026-09-30T11:51:04-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-4 — not-addressed — Nested storage and hosted-actor regressions pass; removing actor membership checking makes all four open/fresh registry cases fail. However, threadstore_location.go:37 and :63 reconstruct slots through conventionalSlot, which assumes RepoIdentity is primary/.git. The new RecordCheckoutMembership check rejects records carrying the actual separate Git directory. A temporary real-Git regression successfully enrolled a record, then GetThread failed with “slot record identity does not match its host checkout”. This repeats family checkout-membership-requires-repository-identity: derive identity from verified or retained authority throughout discovery, routing, validation, and inventory instead of treating conventional paths as identity.
+- BR-5 — addressed — The 4096-family admission bound remains enforced; focused capacity, concurrent admission, existing-family reuse, and persisted-overflow tests passed.
+
+## Round 7 — 2026-09-30T12:09:30-07:00 (codex) — passed
+
+### Disposed
+
+- BR-4 — addressed — Shared checkout membership covers migration, routing, preferences, local-origin validation, inventory, and hosted actors. Enrollment retains verified common-Git identity across reconstruction and restart. Focused regressions pass; restoring the primary/.git assumption through a temporary Go overlay makes TestSeparateGitDirectoryEnrollmentPreservesStorageAuthority fail at record readback.
+- BR-5 — addressed — Prior disposition retained. The 4096-family admission bound, existing-family reuse, and persisted-overflow checks remain covered.
+
+## Round 8 — 2026-09-30T12:13:26-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Pending/current bindings govern admission, registration, recovery and cleanup. Passing regressions cover stale indexes, old registration, interrupted starts and preservation of the previous terminal.
+- BR-2 — addressed — lifecycle.go revalidates the original server proof immediately before attach, after blocking preparation. Generation-replacement regressions exercise this boundary.
+- BR-3 — addressed — Repository labels have a bounded ASCII normalization and fallback. Allocator and real-Git conversation tests cover Unicode, punctuation-only and maximum-length basenames.
+- BR-4 — addressed — Shared checkout membership reaches routing, migration, preferences, inventory and hosted actors. Passing real-Git regressions cover nested repositories and retained separate-Git-directory authority.
+- BR-5 — addressed — Family admission and persisted-state validation enforce the 4096-family bound. Tests cover concurrent final admission, refusal without writes and reuse of existing families.
+
+## Open findings
+
+(none — every finding has been disposed)

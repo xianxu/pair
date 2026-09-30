@@ -63,7 +63,7 @@ func TestStartInteractiveProceedsWhenOnlyParkedThreadsDisagree(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	env.Couch.Layout = Layout3
 	parked := seedStartupParked(t, env, "couch-0000000000000001", "/repo")
-	env.Artifacts.SetPairSession(parked.Address, "pair-"+string(parked.Address.Tag), true)
+	seedStartupColdLaunch(t, env, parked.Address)
 
 	start, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: "/repo"})
 	if err != nil {

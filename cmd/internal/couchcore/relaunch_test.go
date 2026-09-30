@@ -59,9 +59,17 @@ func envWithLiveThread(t *testing.T) (*relaunchEnv, ThreadRecord) {
 		completion := successCompletion(lifecycle.lastRequest, now)
 		lifecycle.completion = &completion
 		env.Proc.Kill(42)
-		return model.CommitCompletion(lifecycle.lastRequest, pairlifecycle.CleanupResult{
+		if err := model.CommitCompletion(lifecycle.lastRequest, pairlifecycle.CleanupResult{
 			Outcome: pairlifecycle.CompletionSuccess, CompletedAt: now,
-		})
+		}); err != nil {
+			return err
+		}
+		env.Artifacts.SetPairSession(live.Address, lifecycle.lastRequest.Session, false)
+		return nil
+	}
+	env.Runner.AfterAcknowledge = func(id string) error {
+		env.Artifacts.SetPairSession(live.Address, continuationChildSession(t, env.Runner, id), true)
+		return nil
 	}
 	env.Couch.PairLifecycle = &PairLifecycleController{
 		Threads: env.Couch.Threads, DataDir: t.TempDir(), Lifecycle: lifecycle,

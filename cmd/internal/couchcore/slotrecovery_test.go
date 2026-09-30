@@ -15,9 +15,7 @@ import (
 
 func TestSlotFreshTransactionPreservesHistoryAndRefusesConcurrentChange(t *testing.T) {
 	s := testLocalThreadStore(t)
-	old := validThreadRecord(t)
-	old.StartingPath = s.slot.WorktreeRoot
-	old.WorkingPath = old.StartingPath
+	old := recordAtCheckout(t, s.slot.WorktreeRoot, s.slot.WorktreeRoot, "couch-0123456789abcdef")
 	old.Name = "keep"
 	old.Description = "context"
 	old, err := s.CreateThread(old)
@@ -71,9 +69,7 @@ func TestSlotFreshTransactionPreservesCorruptBytesAndRejectsFuture(t *testing.T)
 			if err != nil {
 				t.Fatal(err)
 			}
-			next := validThreadRecord(t)
-			next.StartingPath = s.slot.WorktreeRoot
-			next.WorkingPath = next.StartingPath
+			next := recordAtCheckout(t, s.slot.WorktreeRoot, s.slot.WorktreeRoot, "couch-0123456789abcdef")
 			err = s.replaceSlotCurrent(observed, next)
 			if raw == `{"schema_version":999}` {
 				if err == nil {
@@ -103,6 +99,7 @@ func TestObserveSlotSessionsIncludesLostRecordArtifacts(t *testing.T) {
 	scope, _ := launcher.ResolveRepoScope(s.slot.WorktreeRoot)
 	address := ThreadAddress{RepoScope: scope.Key, Tag: "couch-0000000000000001"}
 	env.Artifacts.SetSessionPresence(address, SessionObservation{State: SessionPresent})
+	env.Artifacts.SetPairSession(address, "📁lost-slot", true)
 	observed, err := env.Couch.ObserveSlotSessions(context.Background(), *s.slot)
 	if err != nil {
 		t.Fatal(err)
@@ -233,8 +230,8 @@ func TestSlotOpenReconstructsSingleDetachedSurvivor(t *testing.T) {
 	scope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
 	address := ThreadAddress{RepoScope: scope.Key, Tag: "couch-1111111111111111"}
 	env.Artifacts.SetSessionPresence(address, SessionObservation{State: SessionPresent})
-	env.Artifacts.SetPairSession(address, "survivor", true)
-	env.Artifacts.SetDetachedSession(address, "survivor")
+	env.Artifacts.SetPairSession(address, "pair-survivor", true)
+	env.Artifacts.SetDetachedSession(address, "pair-survivor")
 	result, err := env.Couch.OpenSlot(context.Background(), local.slot.WorktreeRoot, "claude")
 	if err != nil {
 		t.Fatal(err)
@@ -250,6 +247,11 @@ func TestSlotOpenReconstructsSingleDetachedSurvivor(t *testing.T) {
 
 func TestSlotFreshFailedLaunchRetainsDamagedEvidence(t *testing.T) {
 	env, local := slotRecoveryOperationFixture(t)
+	// Establish family authority before damage so fresh tests launch rollback,
+	// rather than refusing to infer a family from unreadable legacy evidence.
+	if _, err := env.Couch.slotFamily(t.Context(), *local.slot, true); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.MkdirAll(local.root, 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -289,9 +291,7 @@ func TestSlotFreshBackupCapAndJournalRecovery(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		next := validThreadRecord(t)
-		next.StartingPath = s.slot.WorktreeRoot
-		next.WorkingPath = next.StartingPath
+		next := recordAtCheckout(t, s.slot.WorktreeRoot, s.slot.WorktreeRoot, "couch-0123456789abcdef")
 		if err := s.replaceSlotCurrent(old, next); err == nil {
 			t.Fatal("recovery exceeded bound")
 		}
@@ -302,9 +302,7 @@ func TestSlotFreshBackupCapAndJournalRecovery(t *testing.T) {
 	})
 	t.Run("journal", func(t *testing.T) {
 		s := testLocalThreadStore(t)
-		old := validThreadRecord(t)
-		old.StartingPath = s.slot.WorktreeRoot
-		old.WorkingPath = old.StartingPath
+		old := recordAtCheckout(t, s.slot.WorktreeRoot, s.slot.WorktreeRoot, "couch-0123456789abcdef")
 		old, err := s.CreateThread(old)
 		if err != nil {
 			t.Fatal(err)
@@ -378,9 +376,7 @@ func TestSlotFreshRefusesReplacedHost(t *testing.T) {
 	if err := os.Mkdir(s.slot.WorktreeRoot, 0700); err != nil {
 		t.Fatal(err)
 	}
-	next := validThreadRecord(t)
-	next.StartingPath = s.slot.WorktreeRoot
-	next.WorkingPath = next.StartingPath
+	next := recordAtCheckout(t, s.slot.WorktreeRoot, s.slot.WorktreeRoot, "couch-0123456789abcdef")
 	if err := s.replaceSlotCurrent(old, next); err == nil {
 		t.Fatal("fresh accepted replaced physical host")
 	}
@@ -428,9 +424,7 @@ func TestSlotNativeScopeScannerIncludesClaimsAndHistory(t *testing.T) {
 
 func TestSlotFreshPreservesExistingArchiveWhenRecoveredCurrentRetires(t *testing.T) {
 	s := testLocalThreadStore(t)
-	old := validThreadRecord(t)
-	old.StartingPath = s.slot.WorktreeRoot
-	old.WorkingPath = old.StartingPath
+	old := recordAtCheckout(t, s.slot.WorktreeRoot, s.slot.WorktreeRoot, "couch-0123456789abcdef")
 	old, err := s.CreateThread(old)
 	if err != nil {
 		t.Fatal(err)

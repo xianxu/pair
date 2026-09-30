@@ -47,3 +47,13 @@ func TestSlotInventoryUsesOneStableRowAcrossConversations(t *testing.T) {
 		t.Fatalf("ordinary: %+v", ordinary)
 	}
 }
+
+func TestSlotInventoryPreservesRecordedCWD(t *testing.T) {
+	slot := allocationCandidate(1).Identity
+	address := ThreadAddress{RepoScope: "scope", Tag: "current"}
+	path := slot.WorktreeRoot + "/competition/arc-agi-3"
+	rows := projectSlotRows([]ActionableThreadSummary{{Address: address, StartingPath: path, WorkingPath: path + "/scratch"}}, []SlotInventoryObservation{{Identity: slot, Address: address}})
+	if len(rows) != 1 || rows[0].StartingPath != path || rows[0].WorkingPath != path+"/scratch" {
+		t.Fatalf("checkout root replaced CWD: %+v", rows)
+	}
+}

@@ -1,10 +1,8 @@
 package couchcore
 
 import (
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
@@ -12,32 +10,32 @@ import (
 
 const threadTagAttempts = 8
 
-// AllocateThreadTag draws a 64-bit opaque suffix and returns only after the
+// AllocateThreadTag reserves a monotonic conversation identity and returns only after the
 // corresponding composite record has been durably claimed without replacement.
-func (s *ThreadStore) AllocateThreadTag(repoScope, workingPath string, createdAt time.Time, entropy io.Reader, artifacts ThreadArtifactClaimer) (ThreadRecord, error) {
-	if entropy == nil {
-		return ThreadRecord{}, errors.New("allocate thread tag: nil entropy reader")
+func (s *ThreadStore) AllocateThreadTag(repoScope, workingPath string, createdAt time.Time, nextTag func() (string, error), artifacts ThreadArtifactClaimer) (ThreadRecord, error) {
+	if nextTag == nil {
+		return ThreadRecord{}, errors.New("allocate thread tag: nil identity allocator")
 	}
 	if artifacts == nil {
 		return ThreadRecord{}, errors.New("allocate thread tag: nil artifact collision checker")
 	}
-	backend, err := s.storeForPath(workingPath)
+	backend, err := s.storeForPath(workingPath, repoScope, "")
 	if err != nil {
 		return ThreadRecord{}, err
 	}
 	if backend != s {
-		return backend.AllocateThreadTag(repoScope, workingPath, createdAt, entropy, artifacts)
+		return backend.AllocateThreadTag(repoScope, workingPath, createdAt, nextTag, artifacts)
 	}
 	for attempt := 0; attempt < threadTagAttempts; attempt++ {
-		var random [8]byte
-		if _, err := io.ReadFull(entropy, random[:]); err != nil {
+		tag, err := nextTag()
+		if err != nil {
 			return ThreadRecord{}, fmt.Errorf("allocate thread tag: %w", err)
 		}
 		record := ThreadRecord{
 			SchemaVersion: ThreadSchemaVersion,
 			Address: ThreadAddress{
 				RepoScope: repoScope,
-				Tag:       ThreadTag("couch-" + hex.EncodeToString(random[:])),
+				Tag:       ThreadTag(tag),
 			},
 			StartingPath: workingPath,
 			WorkingPath:  workingPath,

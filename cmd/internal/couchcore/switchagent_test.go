@@ -26,8 +26,8 @@ func TestSwitchAgentPreviewAndCommitKeepExistingAddress(t *testing.T) {
 	if !reflect.DeepEqual(prepared.Profile.Argv, []string{"--model", "spark"}) {
 		t.Fatal(prepared)
 	}
-	env.Runner.AfterAcknowledge = func(string) error {
-		env.Artifacts.SetPairSession(source.Address, "pair-switched", true)
+	env.Runner.AfterAcknowledge = func(id string) error {
+		env.Artifacts.SetPairSession(source.Address, continuationChildSession(t, env.Runner, id), true)
 		return nil
 	}
 	result, err := env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{
@@ -217,7 +217,9 @@ func TestSwitchAgentFailedRegistrationPreservesForeignSessionAndDefaults(t *test
 		t.Fatal("killed foreign session")
 	}
 	after, _ := env.Couch.Threads.GetThread(source.Address)
-	if after.LatestLaunchProfile.Agent != "claude" || after.VerifiedPark == nil || !hasOccupiedIncarnation(after) {
+	// The foreign indexed terminal is not the proposed target. Exact absence
+	// of the proposed terminal and a dead helper allow rollback without touching it.
+	if after.LatestLaunchProfile.Agent != "claude" || after.VerifiedPark == nil || hasOccupiedIncarnation(after) {
 		t.Fatal(after)
 	}
 }
@@ -245,6 +247,10 @@ func TestSwitchAgentUsesSharedStartingPathPreferenceAndPreservesOtherAgents(t *t
 			env := newTestEnv(t, "/repo")
 			source := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
 			env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return true, nil }
+			env.Runner.AfterAcknowledge = func(id string) error {
+				env.Artifacts.SetPairSession(source.Address, continuationChildSession(t, env.Runner, id), true)
+				return nil
+			}
 			identity, err := env.Couch.resolveRepoIdentity(context.Background(), source.StartingPath)
 			if err != nil {
 				t.Fatal(err)

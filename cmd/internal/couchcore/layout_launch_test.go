@@ -18,7 +18,7 @@ func TestDefaultCouchIsLayout3(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"pair", "resume", string(record.Thread.Tag), "--layout3"}
+	want := []string{"pair", "--couch-session-v1", "resume", string(record.Thread.Tag), "--layout3"}
 	if got := env.Runner.Child(handle.ID()).Argv; !slices.Equal(got, want) {
 		t.Fatalf("argv = %q; want %q", got, want)
 	}
@@ -84,7 +84,7 @@ func TestWarmReattachSendsNoLayoutEvenInLayout3(t *testing.T) {
 		t.Fatalf("warm reattach refused: %v", err)
 	}
 	child := env.Runner.Child(handle.ID())
-	if !slices.Equal(child.Argv, []string{"pair", "resume", string(created.Address.Tag)}) {
+	if !slices.Equal(child.Argv, []string{"pair", "--couch-session-v1", "resume", string(created.Address.Tag)}) {
 		t.Fatalf("warm argv = %q; want a bare `pair resume <tag>` even under a layout3 couch", child.Argv)
 	}
 
@@ -116,8 +116,8 @@ func TestColdResumeMigratesTheWitnessToCouchLayout(t *testing.T) {
 		t.Fatalf("fixture already carries a layout %q; the migration case needs none", parked.Layout)
 	}
 	env.Artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
-	env.Runner.AfterAcknowledge = func(string) error {
-		env.Artifacts.SetPairSession(parked.Address, "pair-"+string(parked.Address.Tag), true)
+	env.Runner.AfterAcknowledge = func(id string) error {
+		env.Artifacts.SetPairSession(parked.Address, continuationChildSession(t, env.Runner, id), true)
 		return nil
 	}
 
@@ -126,7 +126,7 @@ func TestColdResumeMigratesTheWitnessToCouchLayout(t *testing.T) {
 		t.Fatalf("Resume: %v", err)
 	}
 	child := env.Runner.Child(handle.ID())
-	if !slices.Equal(child.Argv, []string{"pair", "resume", string(parked.Address.Tag), "--layout3"}) {
+	if !slices.Equal(child.Argv, []string{"pair", "--couch-session-v1", "resume", string(parked.Address.Tag), "--layout3"}) {
 		t.Fatalf("cold resume argv = %q; want --layout3", child.Argv)
 	}
 	thread, err := env.Couch.Threads.GetThread(parked.Address)

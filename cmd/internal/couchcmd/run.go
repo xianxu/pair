@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/couchidentity"
 	"io"
 	"os"
 	"os/exec"
@@ -101,6 +102,10 @@ func (r OSRuntime) AcquireSupervisor(namespace couchcore.CouchNamespace) (io.Clo
 }
 
 func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.CouchNamespace) (*couchcore.Couch, error) {
+	if !filepath.IsAbs(r.Getenv("HOME")) {
+		return nil, errors.New("Couch identity authority requires an absolute HOME")
+	}
+
 	dataDir := launcher.ResolveDataDir(r.Getenv("HOME"), r.Getenv("XDG_DATA_HOME"))
 	c, err := couchcore.New(
 		namespace, runner, couchcore.OSPathOps{}, couchcore.ExecGit{},
@@ -111,6 +116,7 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.Cou
 	if err != nil {
 		return nil, err
 	}
+	c.Identities = couchidentity.IdentityStore{HostDir: filepath.Join(r.Getenv("HOME"), ".local", "share", "pair-host"), StoreDir: namespace.Dir()}
 	c.Workspaces = couchcore.NewWorkspaceProvisioner(couchcore.OSProvisionIO{})
 	c.Slots = couchcore.NewOSSlotCatalog(couchcore.OSProvisionIO{})
 	c.RootAgent = r.Getenv("PAIR_AGENT")

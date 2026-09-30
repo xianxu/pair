@@ -316,3 +316,35 @@ proof; record the surprising case so the next change starts from evidence.
 - Recovery and live observation must call one binding decision function, not separately combine matching candidates. Exercise per-message candidate intersections in parity tests. (#346 M2 BR-6)
 - Every dispatcher family is either documented for operators or explicitly classified internal; enforce this across the family registry to prevent recurring recovery-command README omissions. (#346 M2 BR-7)
 - Identity policy changes must sweep ledger-to-legacy projections as well as direct query callers. Test actual parsed ledger data through restart-marker construction; a fake already carrying a UUID hides a dropped provisional target. (#346 M2)
+
+- When a terminal can be recreated independently of its conversation, sweep
+  target-generation and receipt validators as well as launcher naming. Preserve
+  historical source identity and validate the new target against its own binding.
+  A durable registration marker from the previous launch does not prove that the
+  replacement terminal started. (#355)
+
+- Independent terminal lifetimes require exact incarnation authority in admission,
+  registration, and cleanup; a conversation's old index cannot authorize any of
+  those for its replacement. Test the composed launcher, not only a fake runner.
+  Revalidate live ownership after blocking preparation, immediately before the
+  attach or destructive effect. (#355 M1 BR-1/BR-2)
+
+- A descriptive label must not constrain resource identity. Generated internal
+  names need a safe fallback for Unicode/punctuation-only repository names and
+  bounded label length; allocating counters carry uniqueness. (#355 M1 BR-3)
+
+- Checkout containment is not repository membership: nested independent Git
+  repositories need their own storage. Carry scope/common-dir identity through
+  routing, migration, preferences, and inventory, not only admission inference.
+  Permanent reservations need an explicit admission bound when removal is
+  deferred. (#355 M2 BR-4/BR-5)
+
+- Repository membership sweeps must include hosted-session observers, not just
+  persisted records: a foreign nested actor must neither authorize nor veto
+  enclosing-slot actions. Exercise in-memory and durable registries, preserving
+  conservative handling of unresolved same-scope actors. (#355 M2 BR-4 round 2)
+
+- A stronger identity validator must audit the provenance of every supplied
+  identity. Conventional slot paths locate storage but do not prove that Git's
+  common directory is `primary/.git`; exercise separate-Git-directory enrollment
+  and restart through production storage readers. (#355 M2 BR-4 round 3)

@@ -331,7 +331,7 @@ func (c *PairLifecycleController) parkExpected(ctx context.Context, address Thre
 	if err != nil {
 		return ParkResult{}, err
 	}
-	binding, err := c.Sessions.PairSession(address)
+	binding, err := observeRecordSession(ctx, c.Sessions, current)
 	if err != nil {
 		return ParkResult{}, err
 	}
@@ -380,7 +380,7 @@ func (c *PairLifecycleController) retry(ctx context.Context, address ThreadAddre
 	if current.Park == nil {
 		return ParkResult{}, errors.New("thread has no active park transaction")
 	}
-	binding, err := c.Sessions.PairSession(address)
+	binding, err := observeRecordSession(ctx, c.Sessions, current)
 	if err != nil {
 		return ParkResult{Thread: current}, err
 	}
@@ -429,7 +429,7 @@ func (c *PairLifecycleController) recover(ctx context.Context, address ThreadAdd
 	if current.Park == nil {
 		return ParkResult{}, errors.New("thread has no active park transaction")
 	}
-	binding, err := c.Sessions.PairSession(address)
+	binding, err := observeRecordSession(ctx, c.Sessions, current)
 	if err != nil {
 		return ParkResult{Thread: current}, err
 	}
@@ -520,7 +520,7 @@ func (c *PairLifecycleController) reconcileActive(ctx context.Context, address T
 	if record.Park == nil {
 		return ParkResult{Thread: record}, nil
 	}
-	binding, bindingErr := c.Sessions.PairSession(record.Address)
+	binding, bindingErr := observeRecordSession(ctx, c.Sessions, record)
 	if bindingErr != nil {
 		return ParkResult{Thread: record}, bindingErr
 	}
@@ -555,6 +555,15 @@ func (c *PairLifecycleController) submitFuture(ctx context.Context, address Thre
 func (c *PairLifecycleController) runActiveAttempt(ctx context.Context, result ParkResult, current ThreadRecord, binding PairSessionBinding, await bool) (ParkResult, error) {
 	if err := ctx.Err(); err != nil {
 		return result, err
+	}
+	if binding.Present {
+		if verifier, ok := c.Sessions.(interface {
+			RevalidatePairSession(context.Context, PairSessionBinding) error
+		}); ok {
+			if err := verifier.RevalidatePairSession(ctx, binding); err != nil {
+				return result, err
+			}
+		}
 	}
 	request, paths, err := c.requestFor(current, binding.Name)
 	if err != nil {
@@ -595,14 +604,23 @@ func (c *PairLifecycleController) runActiveAttempt(ctx context.Context, result P
 		return next, err
 	}
 	if binding.Present {
-		if err := c.Sessions.TriggerQuit(binding.Name, launcher.QuitIntent{
+		intent := launcher.QuitIntent{
 			Version: launcher.QuitIntentVersion, Kind: launcher.QuitIntentCouch,
 			Request: &launcher.QuitRequestReference{
 				DataDir: c.DataDir, RepoScope: current.Address.RepoScope, Tag: string(current.Address.Tag),
 				Nonce: current.Park.Identity.Nonce, Attempt: request.Attempt,
 			},
-		}); err != nil {
-			return result, err
+		}
+		var triggerErr error
+		if bound, ok := c.Sessions.(interface {
+			TriggerBoundQuit(context.Context, PairSessionBinding, launcher.QuitIntent) error
+		}); ok {
+			triggerErr = bound.TriggerBoundQuit(ctx, binding, intent)
+		} else {
+			triggerErr = c.Sessions.TriggerQuit(binding.Name, intent)
+		}
+		if triggerErr != nil {
+			return result, triggerErr
 		}
 	}
 	return c.awaitCompletionAndChildDeath(ctx, result, current, paths, request)

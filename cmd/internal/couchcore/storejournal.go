@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/xianxu/pair/cmd/internal/durablefile"
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
 
@@ -129,44 +130,9 @@ func writeAtomicBytes(path string, raw []byte) error {
 }
 
 func writeAtomicBytesWithPattern(path string, raw []byte, pattern string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return err
-	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), pattern)
-	if err != nil {
-		return err
-	}
-	tmpName := tmp.Name()
-	defer os.Remove(tmpName)
-	if err := tmp.Chmod(0o600); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if _, err := tmp.Write(raw); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if err := tmp.Sync(); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	if err := os.Rename(tmpName, path); err != nil {
-		return err
-	}
-	return syncDirectory(filepath.Dir(path))
+	return durablefile.WriteAtomic(path, raw, pattern)
 }
-
-func syncDirectory(path string) error {
-	dir, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer dir.Close()
-	return dir.Sync()
-}
+func syncDirectory(path string) error { return durablefile.SyncDirectory(path) }
 
 func strictThreadStoreJSON(raw []byte, target any) error {
 	return strictjson.Decode(raw, target)

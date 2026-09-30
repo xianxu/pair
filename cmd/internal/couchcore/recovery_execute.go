@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
+	"github.com/xianxu/pair/cmd/internal/couchidentity"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 )
 
@@ -18,13 +19,57 @@ type contextPairSessionObserver interface {
 }
 
 func (c *Couch) recoverySession(ctx context.Context, address ThreadAddress) (PairSessionBinding, error) {
-	if observer, ok := c.Artifacts.(contextPairSessionObserver); ok {
+	if c.Threads != nil {
+		record, err := c.Threads.GetThread(address)
+		if err == nil {
+			return observeRecordSession(ctx, c.Artifacts, record)
+		}
+		if !errors.Is(err, ErrThreadNotFound) {
+			return PairSessionBinding{}, err
+		}
+	}
+	return observeAddressSession(ctx, c.Artifacts, address)
+}
+
+// recordSessionBinding selects terminal-incarnation authority. During a start,
+// the proposed binding supersedes the old current binding, even before Pair
+// has replaced its compatibility index row.
+func recordSessionBinding(record ThreadRecord) *couchidentity.SessionBinding {
+	for _, inc := range record.Incarnations {
+		if inc.Start != nil && inc.Start.SessionBinding != nil {
+			return inc.Start.SessionBinding
+		}
+	}
+	return record.SessionBinding
+}
+
+func recordSessionName(record ThreadRecord) string {
+	if binding := recordSessionBinding(record); binding != nil {
+		return binding.Name
+	}
+	return ""
+}
+
+func observeRecordSession(ctx context.Context, observer any, record ThreadRecord) (PairSessionBinding, error) {
+	if binding := recordSessionBinding(record); binding != nil {
+		if named, ok := observer.(interface {
+			NamedPairSessionContext(context.Context, ThreadAddress, string) (PairSessionBinding, error)
+		}); ok {
+			return named.NamedPairSessionContext(ctx, record.Address, binding.Name)
+		}
+		return PairSessionBinding{}, errors.New("exact terminal-incarnation observer unavailable")
+	}
+	return observeAddressSession(ctx, observer, record.Address)
+}
+
+func observeAddressSession(ctx context.Context, artifacts any, address ThreadAddress) (PairSessionBinding, error) {
+	if observer, ok := artifacts.(contextPairSessionObserver); ok {
 		return observer.PairSessionContext(ctx, address)
 	}
 	if err := ctx.Err(); err != nil {
 		return PairSessionBinding{}, err
 	}
-	observer, ok := c.Artifacts.(PairSessionIO)
+	observer, ok := artifacts.(PairSessionIO)
 	if !ok {
 		return PairSessionBinding{}, errors.New("exact Pair session observer unavailable")
 	}
@@ -33,6 +78,22 @@ func (c *Couch) recoverySession(ctx context.Context, address ThreadAddress) (Pai
 		err = ctx.Err()
 	}
 	return binding, err
+}
+
+func (c *Couch) quiesceThreadSession(ctx context.Context, address ThreadAddress) error {
+	record, err := c.Threads.GetThread(address)
+	if err != nil {
+		return err
+	}
+	if binding := recordSessionBinding(record); binding != nil {
+		if named, ok := c.Artifacts.(interface {
+			QuiesceNamed(context.Context, ThreadAddress, string) error
+		}); ok {
+			return named.QuiesceNamed(ctx, address, binding.Name)
+		}
+		return errors.New("exact terminal-incarnation quiescence unavailable")
+	}
+	return c.Artifacts.Quiesce(address)
 }
 
 // observeRecovery is read-only. Session presence and detached ownership are
@@ -69,7 +130,7 @@ func (c *Couch) observeRecovery(ctx context.Context, record ThreadRecord) (Recov
 func (c *Couch) observeRecoverySession(ctx context.Context, record ThreadRecord, in RecoveryEvidence) (RecoveryEvidence, error) {
 	ctx, cancel := context.WithTimeout(ctx, recoveryObservationTimeout)
 	defer cancel()
-	binding, err := c.recoverySession(ctx, record.Address)
+	binding, err := observeRecordSession(ctx, c.Artifacts, record)
 	if err != nil {
 		return in, fmt.Errorf("recovery session state could not be checked; retry: %w", err)
 	}
@@ -85,7 +146,7 @@ func (c *Couch) observeRecoverySession(ctx context.Context, record ThreadRecord,
 		if record.LatestLaunchProfile != nil {
 			agent = record.LatestLaunchProfile.Agent
 		}
-		proof, err := resolver.DetachedSessions(ctx, []DetachedCandidate{{Address: record.Address, Agent: agent}})
+		proof, err := resolver.DetachedSessions(ctx, []DetachedCandidate{{Address: record.Address, Agent: agent, SessionName: recordSessionName(record)}})
 		if err != nil {
 			return in, fmt.Errorf("recovery detached state could not be checked; retry: %w", err)
 		}
@@ -352,30 +413,44 @@ func (c *Couch) prepareAbsentContinuation(ctx context.Context, address ThreadAdd
 func (c *Couch) verifyAbsentContinuation(ctx context.Context, record ThreadRecord) error {
 	ctx, cancel := context.WithTimeout(ctx, recoveryObservationTimeout)
 	defer cancel()
-	binding, err := c.recoverySession(ctx, record.Address)
+	binding, err := observeRecordSession(ctx, c.Artifacts, record)
 	if err != nil {
 		return err
 	}
-	if binding.Present || binding.Name != record.Continuation.Source.Session {
+	if binding.Present {
 		return errors.New("continuation source session is no longer exactly absent")
 	}
-	return c.verifyContinuationGeneration(ctx, record)
+	current, err := c.admittedContinuationGeneration(ctx, record)
+	if err != nil {
+		return err
+	}
+	// SourceAbsence remains the original historical witness. On a retry the
+	// currently absent terminal may instead belong to a retained exact target.
+	if binding.Name != current.Session {
+		return errors.New("continuation source session is no longer exactly absent")
+	}
+	return nil
 }
 
 func (c *Couch) verifyContinuationGeneration(ctx context.Context, record ThreadRecord) error {
+	_, err := c.admittedContinuationGeneration(ctx, record)
+	return err
+}
+
+func (c *Couch) admittedContinuationGeneration(ctx context.Context, record ThreadRecord) (ContinuationSource, error) {
 	ctx, cancel := context.WithTimeout(ctx, recoveryObservationTimeout)
 	defer cancel()
 	if c.ContinuationSource == nil {
-		return errors.New("continuation generation observer unavailable")
+		return ContinuationSource{}, errors.New("continuation generation observer unavailable")
 	}
 	source, err := c.ContinuationSource(ctx, record.Address)
 	if err != nil {
-		return err
+		return source, err
 	}
 	if err := AdmitRecoveryGeneration(*record.Continuation, source); err != nil {
-		return err
+		return source, err
 	}
-	return ctx.Err()
+	return source, ctx.Err()
 }
 
 func (c *Couch) continuationTargetGeneration(ctx context.Context, record ThreadRecord) (*checkpoint.TargetGeneration, error) {
@@ -389,7 +464,7 @@ func (c *Couch) continuationTargetGeneration(ctx context.Context, record ThreadR
 	if err != nil || generation == nil {
 		return generation, err
 	}
-	if generation.Agent != request.Source.Agent || generation.Session != request.Source.Session || generation.Attempt != request.Attempt || generation.LaunchOrdinal <= request.Source.LaunchOrdinal {
+	if generation.Agent != request.Source.Agent || generation.Session != continuationTargetSession(record) || generation.Attempt != request.Attempt || generation.LaunchOrdinal <= request.Source.LaunchOrdinal {
 		return nil, errors.New("continuation receipt generation does not match exact request target")
 	}
 	if err := ctx.Err(); err != nil {

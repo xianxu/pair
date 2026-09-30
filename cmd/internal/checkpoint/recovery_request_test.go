@@ -104,7 +104,7 @@ func TestRecoveryTargetGenerationSurvivesSuccessiveRetries(t *testing.T) {
 	}
 	r = next
 	for i, attempt := range []string{"a", "b"} {
-		generation := TargetGeneration{Agent: "codex", Session: "pair-source", Attempt: attempt, LaunchOrdinal: uint64(4 + i)}
+		generation := TargetGeneration{Agent: "codex", Session: "📁1-" + attempt, Attempt: attempt, LaunchOrdinal: uint64(4 + i)}
 		target := Process{PID: 43 + i, Identity: attempt}
 		r, err = Advance(r, Event{Kind: Registered, RequestID: r.ID, Attempt: attempt, At: time.Unix(20+int64(i), 0), Target: &target, TargetGeneration: &generation})
 		if err != nil {
@@ -115,7 +115,7 @@ func TestRecoveryTargetGenerationSurvivesSuccessiveRetries(t *testing.T) {
 		}
 		clone := r.Clone()
 		clone.Target.Generation.Session = "other"
-		if r.Target.Generation.Session != "pair-source" {
+		if r.Target.Generation.Session != generation.Session {
 			t.Fatal("target generation alias")
 		}
 		r, err = Advance(r, Event{Kind: Fail, RequestID: r.ID, Attempt: attempt, Failure: "target dead"})
@@ -131,7 +131,7 @@ func TestRecoveryTargetGenerationSurvivesSuccessiveRetries(t *testing.T) {
 		}
 		clone = r.Clone()
 		clone.PreviousTargetGeneration.Session = "other"
-		if r.PreviousTargetGeneration.Session != "pair-source" {
+		if r.PreviousTargetGeneration.Session != generation.Session {
 			t.Fatal("previous generation alias")
 		}
 	}
@@ -143,7 +143,7 @@ func TestRecoveryTargetGenerationRejectsForeignWitness(t *testing.T) {
 	r.Attempt = "a"
 	target := Process{PID: 43, Identity: "target"}
 	for name, mutate := range map[string]func(*TargetGeneration){
-		"agent": func(g *TargetGeneration) { g.Agent = "claude" }, "session": func(g *TargetGeneration) { g.Session = "other" }, "attempt": func(g *TargetGeneration) { g.Attempt = "other" }, "ordinal": func(g *TargetGeneration) { g.LaunchOrdinal = 3 },
+		"agent": func(g *TargetGeneration) { g.Agent = "claude" }, "session": func(g *TargetGeneration) { g.Session = "" }, "attempt": func(g *TargetGeneration) { g.Attempt = "other" }, "ordinal": func(g *TargetGeneration) { g.LaunchOrdinal = 3 },
 	} {
 		t.Run(name, func(t *testing.T) {
 			g := TargetGeneration{Agent: "codex", Session: "pair-source", Attempt: "a", LaunchOrdinal: 4}

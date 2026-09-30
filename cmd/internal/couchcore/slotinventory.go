@@ -3,9 +3,10 @@ package couchcore
 // SlotInventoryObservation is filesystem inventory, never proof permitting a
 // process launch. Empty Address means there is no readable current conversation.
 type SlotInventoryObservation struct {
-	Identity SlotIdentity
-	Address  ThreadAddress
-	Err      error
+	Identity     SlotIdentity
+	StartingPath string
+	Address      ThreadAddress
+	Err          error
 }
 
 func projectSlotRows(rows []ActionableThreadSummary, slots []SlotInventoryObservation) []ActionableThreadSummary {
@@ -37,8 +38,15 @@ func projectSlotRows(rows []ActionableThreadSummary, slots []SlotInventoryObserv
 			index = len(rows) - 1
 		}
 		rows[index].Target, rows[index].RowKey = target, key
-		rows[index].StartingPath = slot.Identity.WorktreeRoot
-		rows[index].WorkingPath = slot.Identity.WorktreeRoot
+		if rows[index].StartingPath == "" {
+			rows[index].StartingPath = slot.StartingPath
+			if rows[index].StartingPath == "" {
+				rows[index].StartingPath = slot.Identity.WorktreeRoot
+			}
+		}
+		if rows[index].WorkingPath == "" {
+			rows[index].WorkingPath = rows[index].StartingPath
+		}
 	}
 	return rows
 }

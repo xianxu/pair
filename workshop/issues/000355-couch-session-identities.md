@@ -1,12 +1,14 @@
 ---
 id: 000355
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-30
 updated: 2026-09-30
-estimate_hours:
-card_mirror: 'e4dac46a1da140c95caeae12e5641c7affeca15e' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 4.193
+card_mirror: '0b4898ebd3943ade4e8aeffda3154d810a780b03' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-09-30T09:37:39-07:00
+flow: {kind: full, provenance: inferred}
 ---
 
 # Allocate Couch session identities and enforce repository families
@@ -118,15 +120,186 @@ retired session associations while preserving monotonic counter high-water marks
 
 ## Plan
 
-- [ ] Develop and review the implementation plan, including registry placement,
-  migration, counter recovery, and repository-family identity; then implement and
-  verify the acceptance criteria above. Task is filed, not claimed for implementation.
+- [x] Review and approve the durable [implementation plan](../plans/000355-couch-session-identities-plan.md).
+- [x] M1 — Allocate C/N/M identities, carry terminal bindings through launch,
+  and verify ownership with compatible live/parked migration.
+- [x] M2 — Persist repository-family admission and carry its relative starting
+  directory through every slot launch, storage, inventory, and menu path.
+
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*
+
+Four bounded Go concerns: durable allocator, binding transitions, managed launch
+protocol, and repository-family authority. Ownership probing is one external API
+integration; slot consumer propagation is one cross-cutting refactor. Existing
+flock/journal/process/parser seams are reused. The approved detailed plan applies
+the ×0.2 design discount; implementation values are 40% of v2 table upper bounds.
+Familiarity is 1.0. Includes documentation and two milestone reviews. The shared
+calibration is provisional/stale, so this is a planning estimate, not a deadline.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module design=0.2 impl=0.32
+item: greenfield-go-module design=0.2 impl=0.32
+item: greenfield-go-module design=0.2 impl=0.32
+item: greenfield-go-module design=0.2 impl=0.32
+item: api-integration design=0.4 impl=0.6
+item: cross-cutting-refactor design=0.1 impl=0.2
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.04 impl=0.2
+item: milestone-review design=0.04 impl=0.2
+design-buffer: 0.15
+total: 4.193
+```
 
 ## Log
 
+- M1 boundary review round 1 returned REWORK: BR-1 requires exact terminal
+  incarnation authority across cold admission, registration, and failed-launch
+  cleanup; BR-2 requires revalidation after blocking attach preparation.
+  Addressing both classes with composed lifecycle regressions before M2.
+- BR-1/BR-2 corrections complete: durable pending/current terminal authority
+  now reaches admission, registration, recovery, park, detach, slot checks,
+  and cleanup; missing legacy association refuses cold creation. Launcher
+  independently rejects an observed same-conversation terminal and revalidates
+  the original warm owner after retention/cmux preparation. Added regressions
+  for stale registration, wrong-terminal cleanup, pre-helper recovery, damaged
+  bindings, and server replacement during preparation. Fixtures publish actual
+  managed intent names rather than reusing historical terminal names.
+  Exhaustive core partitions passed (99.151s/104.418s/165.217s), full command
+  and UI suites passed, launcher suite and focused core/launcher race checks
+  passed, live owner conformance passed, and build/diff checks passed. The
+  artifact inventory still has exactly the same 32 baseline #348 findings.
+  Submitting M1 review round 2.
+- M1 review round 2 accepted BR-1/BR-2 and raised BR-3: descriptive
+  repository-token normalization rejected Unicode-only names. Adding a safe
+  fallback and bounded descriptive token, with real-allocation regressions for
+  both new and fresh conversations; C/N remain the unique identity.
+- BR-3 reproduced and fixed centrally: Unicode/punctuation-only labels now
+  normalize to `repo`, and descriptive tokens cap at 64 ASCII bytes. A real
+  255-byte repository basename previously caused an artifact rename failure;
+  it now launches successfully. Real-Git new/fresh allocation regressions,
+  allocator/durablefile suites, focused lifecycle/slot tests, build and diff
+  checks pass. Submitting M1 review round 3.
+- M1 closed with SHIP in round 3; BR-1/BR-2/BR-3 are addressed.
+  M2 implementation started: root-manifest family authority, shared containment
+  and projection, launch admission, local storage/inventory routing, and menu
+  propagation. Empty requested relative path means inherit; explicit `.` remains
+  a root request and can conflict. Existing legacy conversations stay openable
+  when inference is ambiguous; new/fresh/provisioning admission refuses ambiguity.
+- M2 implemented and verified. Families persist in the root journal, reserve by
+  common Git directory, and retain relative starts through new/add/open/resume/
+  fresh, local metadata, migration, inventory, and menu paths. Explicit conflicts
+  refuse after park/restart before resources; legacy ambiguity preserves existing
+  opens. Real-Git missing/symlink escape, nested-repo, external-worktree, and
+  dependency cases have regressions. Full core partitions passed
+  (87.243s/144.148s/213.358s), command/UI passed (57.456s/11.721s), family race
+  passed (20.466s), path fuzz passed 35,551 executions, broader slot/admission
+  suite passed (129.365s), final dependency/relative-path tests passed (4.027s).
+  Build/diff checks pass; artifact inventory matches the same 32 #348 baseline
+  findings. M2 boundary review is next.
+- M2 review round 1 returned REWORK: BR-4 found that storage routing/migration
+  still used containment rather than scope/common-Git repository membership;
+  BR-5 requires a bound on permanently retained family rows. Applying one
+  membership rule across all storage consumers and a 4096-family admission cap
+  with existing-family reuse preserved.
+- BR-4/BR-5 fixes: shared checkout scope/common-Git membership now covers
+  migration, routing, preferences, local-origin validation, snapshot filtering,
+  and archive aggregation. A real nested-repository regression retains both
+  repositories and their current/archive records and preferences. Family
+  capacity tests demonstrated failures before the 4096 cap; concurrent final
+  admission, existing-family reuse, persisted overflow, and no-write refusal
+  now pass. Focused fixture and family suites, command/UI suites, race checks,
+  build and diff checks pass. Exhaustive core partitions passed (136.146s,
+  173.205s, 254.963s); command/UI passed (61.783s/12.336s), focused races
+  passed (39.096s), and concurrent capacity race passed (10.668s).
+
 ### 2026-09-30
+- 2026-09-30: closed — Both milestones reviewed SHIP. Full core partitions, command/UI and launcher/allocator/storage suites passed; focused race/fuzz checks, real Git nested and separate-dir regressions, live Zellij owner/socket conformance, build and diff checks passed. New/fresh N+M, warm same N/M, cold same N/new M, independent repository families and subdirectory slot propagation are covered. Artifact ownership inventory matches 32 pre-existing #348 findings.; review verdict: SHIP
+- 2026-09-30: closed M2 — Full core A-H/I-Q/R-Z partitions pass 172.827s/196.021s/316.141s; command/UI suites and focused races pass. Real separate-Git-directory enrollment/restart/readback/preferences/inventory and legacy preview/open backfill regressions pass; preview remains read-only. Nested repository storage and actors remain isolated, unresolved owners still veto absence. Atomic enrollment conflict/backfill and family capacity tests pass. Final scoped-preview tests, build and diff checks pass.; review verdict: SHIP
+- 2026-09-30: closed M1 — Full core partitions, command/UI and launcher suites passed after BR-1/BR-2; focused races, live owner conformance and build passed. BR-3 real-Git new/fresh Unicode and punctuation launches plus 255-byte repository regression pass, allocator/durablefile and focused core suites pass, build and diff check pass. Artifact inventory has only the same 32 baseline #348 findings.; review verdict: SHIP
 
 - Captured the operator's agreed C/N/M allocation model and repository-family
   restriction. Separate N and M reflect distinct Pair and Zellij lifetimes;
   a host counter replaces hashing the Couch store path. Parked families retain
   their repository reservation. No implementation changes made in this task.
+- Claimed at operator request to implement. Entered planning on
+  `000355-couch-session-identities`; inspected both tag allocation sites, the
+  shared tracked-launch boundary, name assignment and ownership readers, and
+  slot-family storage/routing consumers. Durable implementation plan drafted;
+  fresh-context review in progress. No production code changed yet.
+- Fresh-context plan review completed: initial findings about old-launcher
+  protocol rejection and counter-restore safety were addressed, and re-review
+  approved both chunks with no blocking findings. Issue schema validation and
+  diff whitespace checks pass. Awaiting durable-plan approval required by
+  AGENTS.md §2 before `sdlc change-code`; implementation has not started.
+
+- Operator approved the durable plan. Initial implementation gate requested explicit
+  pending-binding recovery and function-level test strategies; refined both and
+  plan quality accepted all findings in round two. Focused launcher/threadrecord/couchcore baseline passed.
+
+- Implementation gate passed. M1 allocator and launcher protocol are implemented;
+  counter subprocess/race/fuzz tests, full launcher tests, and the managed cold →
+  warm → park/reopen identity test pass. Read-only live Zellij ownership probe
+  and socket-budget conformance pass. Broader integration testing is in progress.
+- Integration exposed continuation target-session comparisons that assumed the
+  old terminal name survived recreation. Updating those consumers to use the
+  promoted terminal binding while preserving historical source checks (ARCH-PURPOSE).
+
+- M1 implementation checkpoint: managed launcher, allocator, checkpoint,
+  threadrecord, Zellij parser, Couch command and TTY suites pass; targeted Couch
+  binding/recovery/ownership race tests pass. Name-handoff and foreign-owner
+  guard mutations fail the intended boundary regressions and were restored.
+  Clean baseline archive with generated runtime assets reproduces all 32
+  artifact inventory findings (existing #348); this branch adds none.
+  Final complete Couch core partitions are running before milestone review.
+
+- M1 final verification: all Couch core tests passed in three exhaustive name
+  partitions (94.948s, 124.102s, 166.635s); Couch command suite passed (44.613s),
+  TTY, launcher, allocator, durablefile, checkpoint, threadrecord and zellijpane
+  suites passed. Core boundary race tests and allocator/launcher race tests pass.
+  Owner-command fuzz: 25,932 executions; pane-evidence fuzz: 270,652 executions;
+  allocation fuzz: 176,771 executions. `make build` rebuilt Pair/Couch/helper;
+  its secondary workflow target skipped a duplicate pair-go build via sentinel.
+  `git diff --check` passes. Submitting M1 for its mandatory review.
+
+- M2 review round 2 accepted BR-5 but retained BR-4: hosted actor observation
+  still admitted foreign nested scopes by containment. Extending the shared
+  membership rule to the observer and its open/fresh/recovery callers, with
+  in-memory and durable registry regressions.
+
+- BR-4 hosted observer follow-up passed: real nested-repository open/fresh
+  regressions failed before the fix in both actor registries, then passed while
+  preserving the nested live incarnation. Same-scope inconsistent and contained
+  unaddressed actors still refuse absence. Observer/recovery suite passed
+  (29.250s), strengthened boundary tests (6.929s), race suite (8.742s), build
+  and diff checks passed. Remaining containment consumers were audited and
+  already carry caller scope/common-Git proof. Submitting M2 round 3.
+
+- M2 round 3 accepted nested hosted-actor isolation but found reconstructed
+  storage identities assume `primary/.git`, breaking separate-Git-directory
+  repositories after enrollment. Extending retained identity propagation and
+  adding real-Git enrollment/restart coverage for reads, preferences and inventory.
+
+- Reconstructed-backend fix: enrollment now atomically retains/backfills verified
+  common Git directories independently of family-directory reservations. All
+  reconstructed storage consumers use the same manifest authority; legacy
+  exact-scope records remain readable with unknown common identity. Operations
+  carry verified scope through read-only preference/default preview before
+  normal enrollment backfills metadata. Real separate-Git-directory readback
+  and legacy preview deadlock regressions demonstrated red then green; expanded
+  enrollment/backfill/conflict/migration tests passed (9.476s). Broad regression
+  suites passed: exhaustive core partitions 172.827s/196.021s/316.141s,
+  command/UI 87.366s/14.766s, focused race 48.058s. Final scoped-preview
+  regressions passed 4.467s; final build and diff checks passed.
+
+## Revisions
+
+### 2026-09-30 — Implementation requested
+
+Replaced the filing-only placeholder with a durable plan and two actual review
+boundaries: identity/terminal lifecycle, then family/subdirectory behavior.
+The agreed product model and Done-when contract are unchanged. The plan records
+storage, compatibility, crash/retry, and migration choices for review.

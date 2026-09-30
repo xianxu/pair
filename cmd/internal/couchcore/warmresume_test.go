@@ -106,7 +106,7 @@ func TestWarmReattachSendsNoResumeProfileAndNoLayout(t *testing.T) {
 	}
 	child := env.Runner.Child(handle.ID())
 
-	if !slices.Equal(child.Argv, []string{"pair", "resume", string(created.Address.Tag)}) {
+	if !slices.Equal(child.Argv, []string{"pair", "--couch-session-v1", "resume", string(created.Address.Tag)}) {
 		t.Fatalf("warm argv = %q, want a bare `pair resume <tag>`", child.Argv)
 	}
 	for _, entry := range child.Env {
@@ -373,4 +373,10 @@ func TestWarmRecheckRefusesSessionReplacementAfterClaim(t *testing.T) {
 	if err != nil || len(after.Incarnations) != 0 || len(env.Runner.Ops) != 0 {
 		t.Fatalf("failed recheck left effects: record=%+v ops=%v err=%v", after, env.Runner.Ops, err)
 	}
+}
+
+func (a warmSessionArtifacts) NamedPairSessionContext(ctx context.Context, address ThreadAddress, name string) (PairSessionBinding, error) {
+	return a.PairSessionIO.(interface {
+		NamedPairSessionContext(context.Context, ThreadAddress, string) (PairSessionBinding, error)
+	}).NamedPairSessionContext(ctx, address, name)
 }

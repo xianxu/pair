@@ -20,11 +20,13 @@ func slotReadyResult(s *ThreadStore) ProvisionResult {
 	return ProvisionResult{SchemaVersion: 1, Address: fmt.Sprintf("%s:%d", s.slot.Repo, s.slot.Number), Path: s.slot.WorktreeRoot, RestingBranch: fmt.Sprintf("main-slot%d", s.slot.Number), Disposition: "ready"}
 }
 
-func slotLaunchFixture(t *testing.T) (*Couch, ThreadRecord) {
+func slotLaunchFixture(t *testing.T, identities ...string) (*Couch, ThreadRecord) {
 	t.Helper()
 	s := testLocalThreadStore(t)
-	record := validThreadRecord(t)
-	record.StartingPath, record.WorkingPath = s.slot.WorktreeRoot, s.slot.WorktreeRoot
+	if len(identities) > 0 {
+		s.slot.RepoIdentity = identities[0]
+	}
+	record := recordAtCheckout(t, s.slot.WorktreeRoot, s.slot.WorktreeRoot, "couch-0123456789abcdef")
 	created, err := s.CreateThread(record)
 	if err != nil {
 		t.Fatal(err)
@@ -119,13 +121,8 @@ func TestPrepareTrackedWorkspaceWarmAndPrimaryBypass(t *testing.T) {
 }
 
 func TestPrepareTrackedWorkspaceUsesProvedGitIdentity(t *testing.T) {
-	c, claimed := slotLaunchFixture(t)
-	actual := "/custom/git-common-dir"
-	claimed, err := c.Threads.updateExistingThread(claimed.Address, claimed.Revision, func(r *ThreadRecord) error { r.Incarnations[0].RepoIdentity = actual; return nil })
-	if err != nil {
-		t.Fatal(err)
-	}
-	c.Git.(*FakeGit).replies[GitCall{Dir: claimed.WorkingPath, Args: "rev-parse --git-common-dir"}] = actual
+	// Catalog and claim carry the same proved nonconventional Git directory.
+	c, claimed := slotLaunchFixture(t, "/custom/git-common-dir")
 	c.Workspaces = slotReadinessFunc(func(context.Context, ProvisionRequest) (ProvisionResult, error) {
 		return slotReadyResult(c.Threads), nil
 	})
@@ -139,8 +136,10 @@ func TestSlotColdResumeRechecksBindingAfterReadiness(t *testing.T) {
 	env := newTestEnv(t, local.slot.WorktreeRoot)
 	env.Couch.Threads = local
 	env.Git.replies[GitCall{Dir: local.slot.WorktreeRoot, Args: "rev-parse --git-common-dir"}] = local.slot.RepoIdentity
-	record := actionableTestThread("couch-1111111111111111", env.Now)
-	record.StartingPath, record.WorkingPath = local.slot.WorktreeRoot, local.slot.WorktreeRoot
+	record := recordAtCheckout(t, local.slot.WorktreeRoot, local.slot.WorktreeRoot, "couch-1111111111111111")
+	record.Reservation = false
+	record.CreatedAt = env.Now
+	record.LastActiveAt = env.Now
 	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
 	markActionableParked(&record, env.Now)
 	created, err := local.CreateThread(record)
@@ -179,8 +178,7 @@ func TestSlotWarmResumeSkipsWorkspaceReadiness(t *testing.T) {
 	env := newTestEnv(t, local.slot.WorktreeRoot)
 	env.Couch.Threads = local
 	env.Git.replies[GitCall{Dir: local.slot.WorktreeRoot, Args: "rev-parse --git-common-dir"}] = local.slot.RepoIdentity
-	record := validThreadRecord(t)
-	record.StartingPath, record.WorkingPath = local.slot.WorktreeRoot, local.slot.WorktreeRoot
+	record := recordAtCheckout(t, local.slot.WorktreeRoot, local.slot.WorktreeRoot, "couch-0123456789abcdef")
 	record.Reservation = false
 	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
 	created, err := local.CreateThread(record)

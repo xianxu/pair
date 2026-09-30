@@ -34,7 +34,7 @@ func TestAllocateThreadTagAtomicallyClaimsAgainstArtifactProducers(t *testing.T)
 	t.Cleanup(func() { _ = producer.Release() })
 	store, ns := newTestThreadStore(t)
 	entropy := append(make([]byte, 8), []byte{1, 2, 3, 4, 5, 6, 7, 8}...)
-	got, err := store.AllocateThreadTag(scope.Key, ns.Dir(), time.Now(), bytes.NewReader(entropy), NewScopedThreadArtifactCollisionChecker(dataDir))
+	got, err := store.AllocateThreadTag(scope.Key, ns.Dir(), time.Now(), readerTagAllocator(bytes.NewReader(entropy)), NewScopedThreadArtifactCollisionChecker(dataDir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,6 +165,7 @@ func TestScopedArtifactCheckerQuiescesExactIndexedSession(t *testing.T) {
 	deleter := &fakeSessionDeleter{}
 	checker := NewScopedThreadArtifactCollisionChecker(global)
 	checker.Sessions = deleter
+	checker.OwnerProbe = testOwnerProbe(global, entry.SessionName, address)
 	if err := checker.Quiesce(address); err != nil {
 		t.Fatal(err)
 	}
@@ -251,6 +252,7 @@ func TestTriggerQuitCommitsIntentBeforeQuiescingExactSession(t *testing.T) {
 			Nonce: "park-trigger-quit", Attempt: 1,
 		},
 	}
+	checker.OwnerProbe = testOwnerProbe(checker.GlobalDataDir, "📁repo-couch", ThreadAddress{RepoScope: intent.Request.RepoScope, Tag: ThreadTag(intent.Request.Tag)})
 
 	if err := checker.TriggerQuit("📁repo-couch", intent); err != nil {
 		t.Fatal(err)

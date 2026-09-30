@@ -34,8 +34,10 @@ func TestColdResumeMakesNoSessionProbeBeforeThePaneIsBorn(t *testing.T) {
 	env.Artifacts.SetPaneSidecar(address, "claude")
 	env.Artifacts.SetPaneSidecar(address, "codex")
 
+	proposed := ""
 	baselines := -1 // pane observations made before the helper was released
-	env.Runner.AfterAcknowledge = func(string) error {
+	env.Runner.AfterAcknowledge = func(id string) error {
+		proposed = continuationChildSession(t, env.Runner, id)
 		baselines = env.Artifacts.PaneQueries()
 		env.Artifacts.ClearPaneSidecar(address, "claude") // Pair's create path
 		return nil
@@ -49,7 +51,7 @@ func TestColdResumeMakesNoSessionProbeBeforeThePaneIsBorn(t *testing.T) {
 		if waits == 3 { // the new pane writes its sidecar: the session is up
 			born = true
 			env.Artifacts.SetPaneSidecar(address, "claude")
-			env.Artifacts.SetPairSession(address, "pair-"+string(address.Tag), true)
+			env.Artifacts.SetPairSession(address, proposed, true)
 		}
 		return nil
 	}
@@ -140,12 +142,8 @@ func TestColdResumeTimesOutWhenThePaneIsNeverBorn(t *testing.T) {
 	}
 }
 
-// A session that is live but ATTACHED fails the detached proof, so it reaches
-// the cold path. Pair refuses that resume (it isn't a create boundary) and no
-// pane is ever written. Waiting for one would run out the registration
-// deadline, and the cold-resume cleanup owns the session: it would delete a
-// live agent. So a session that is live before the helper is released means
-// no birth is coming, and there is nothing to wait for (#287 close review).
+// An attached terminal cannot authorize a cold create. Refuse before releasing
+// the helper so neither a second agent nor destructive cleanup can occur.
 func TestColdResumeAgainstALiveSessionNeitherWaitsNorDeletesIt(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	env.Couch.resumeRegistrationTimeout = 150 * time.Millisecond
@@ -154,8 +152,8 @@ func TestColdResumeAgainstALiveSessionNeitherWaitsNorDeletesIt(t *testing.T) {
 	env.Artifacts.SetNativeBinding(address, "claude", sessioninventory.BindingEstablished, "native-root-1")
 	env.Artifacts.SetPairSession(address, "pair-"+string(address.Tag), true) // live, not detached
 
-	if _, _, err := env.Couch.Resume(address); err != nil {
-		t.Fatalf("Resume: %v", err)
+	if _, _, err := env.Couch.Resume(address); err == nil {
+		t.Fatal("cold resume accepted an attached live terminal")
 	}
 	if containsAddress(env.Artifacts.Quiesces(), address) {
 		t.Fatalf("a cold resume deleted the live session of %+v", address)
@@ -197,8 +195,10 @@ func TestColdResumeWaitsThroughAFailedPaneObservation(t *testing.T) {
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
 	address := parked.Address
 	env.Artifacts.SetNativeBinding(address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+	proposed := ""
 	released := false
-	env.Runner.AfterAcknowledge = func(string) error {
+	env.Runner.AfterAcknowledge = func(id string) error {
+		proposed = continuationChildSession(t, env.Runner, id)
 		released = true
 		return nil
 	}
@@ -212,7 +212,7 @@ func TestColdResumeWaitsThroughAFailedPaneObservation(t *testing.T) {
 		case 1:
 			return errors.New("transient stat failure")
 		case 2:
-			env.Artifacts.SetPairSession(address, "pair-"+string(address.Tag), true) // up: pane born
+			env.Artifacts.SetPairSession(address, proposed, true) // up: pane born
 		}
 		return nil
 	}
