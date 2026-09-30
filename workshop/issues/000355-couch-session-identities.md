@@ -263,6 +263,11 @@ total: 4.193
   its secondary workflow target skipped a duplicate pair-go build via sentinel.
   `git diff --check` passes. Submitting M1 for its mandatory review.
 
+- M2 review round 2 accepted BR-5 but retained BR-4: hosted actor observation
+  still admitted foreign nested scopes by containment. Extending the shared
+  membership rule to the observer and its open/fresh/recovery callers, with
+  in-memory and durable registry regressions.
+
 ## Revisions
 
 ### 2026-09-30 — Implementation requested
