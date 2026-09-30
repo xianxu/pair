@@ -55,6 +55,28 @@ rounds:
           round: 2
       recipe: milestone-review
       blocked: false
+    - "n": 3
+      timestamp: "2026-09-30T13:19:54-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: README.md now says no draft syntax sends a literal leading bang, consistent with bang_tag.parse and the preceding documentation of both !! forms.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: nvim/init.lua shares one publish_argv builder and one normalization load across both consumers; focused integration tests pass.
+          round: 3
+        - id: BR-3
+          disposition: not-addressed
+          note: describe-missing covers ENOENT, but the five-second synchronous timeout still has no integration case. Retain the existing Minor advisory.
+          round: 3
+        - id: BR-4
+          disposition: addressed
+          note: Truncation retains the byte prefix and trims whitespace before the ellipsis. Both regression assertions independently fail against the pre-fix implementation and pass at the pinned head.
+          round: 3
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#358 (boundary-review)
@@ -83,6 +105,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-2 — addressed — nvim/init.lua now has one publish_argv helper and one normalization load shared by both consumers; focused integration tests pass.
 - BR-3 — not-addressed — describe-missing now exercises ENOENT successfully, but no describe timeout case exists. The five-second bound remains untested; retain this Minor finding.
 - BR-4 — addressed — Truncation preserves the retained byte prefix and trims whitespace before the ellipsis. Both added regression assertions pass on HEAD and independently fail against the previous implementation.
+
+## Round 3 — 2026-09-30T13:19:54-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — README.md now says no draft syntax sends a literal leading bang, consistent with bang_tag.parse and the preceding documentation of both !! forms.
+- BR-2 — addressed — nvim/init.lua shares one publish_argv builder and one normalization load across both consumers; focused integration tests pass.
+- BR-3 — not-addressed — describe-missing covers ENOENT, but the five-second synchronous timeout still has no integration case. Retain the existing Minor advisory.
+- BR-4 — addressed — Truncation retains the byte prefix and trims whitespace before the ellipsis. Both regression assertions independently fail against the pre-fix implementation and pass at the pinned head.
 
 ## Open findings
 

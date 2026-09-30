@@ -90,6 +90,7 @@ together; whichever lands second reuses the first's routing.
 ## Log
 
 ### 2026-09-30
+- 2026-09-30: closed — Operator confirmed live smoke test passes 2026-09-30; fresh nvim -l nvim/bang_tag_test.lua and bash tests/bang-tag-nvim-test.sh passed all cases. Prior fresh review SHIP, no blocking findings. Reconnected patch-identical original close ancestry after rebase; merge tree unchanged (git diff HEAD^ HEAD empty). BR-3 timeout regression remains a minor advisory.; review verdict: SHIP
 - 2026-09-30: closed — Operator confirmed live smoke test passes on 2026-09-30. Fresh nvim -l nvim/bang_tag_test.lua and bash tests/bang-tag-nvim-test.sh pass, including both !! forms, no agent traffic/history append, standalone and failed/missing publisher cases. Re-review post-close fixes at e5e35550; prior full-suite evidence remains in issue Log.; review verdict: SHIP
 - 2026-09-30: flow upgraded quick → full — 104 added lines in code files (limit 100)
 - 2026-09-30: closed — bang-tag-nvim-test: !! and !! sentence publish via stub couch with zero zellij executor calls and no log append (describe/describe-standalone/describe-nonzero cases); bang_tag_test pins one_line on multi-line, bang-tagged, 120-char cap, UTF-8; #337 cases unchanged and green; full make test green (review-window under default TMPDIR); go artifactpath classification failure is pre-existing on base; review verdict: SHIP

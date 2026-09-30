@@ -176,3 +176,80 @@ dispose:
     note: |
       Truncation preserves the retained byte prefix and trims whitespace before the ellipsis. Both added regression assertions pass on HEAD and independently fail against the previous implementation.
 ```
+
+---
+
+## Re-review — 2026-09-30T13:19:54-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 358 — !! in the draft publishes the previous prompt as the slot's description |
+| repo | pair |
+| issue file | workshop/issues/000358-in-the-draft-publishes-the-previous-prompt-as-the-slot-s-description.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | f0b3b78ba4c24d6048040c341b5fdc8efc8e719f..4900c15912e3005c17aa0d0fbedc9aebdefced49 |
+| command | sdlc close --issue 358 |
+| reviewer | codex |
+| timestamp | 2026-09-30T13:19:54-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range delivers both `!!` forms without agent traffic or history appends. Pure tests and all ten integration cases pass. No blocking findings; BR-3 remains partially unresolved as a Minor testing gap.
+
+1. **Strengths**
+   - Description parsing and normalization remain pure in `nvim/bang_tag.lua`.
+   - `nvim/init.lua:851` routes description actions before agent submission.
+   - Integration tests persist history and count every agent executor call.
+   - README and atlas document the new syntax consistently.
+
+2. **Critical findings:** none.
+
+3. **Important findings:** none.
+
+4. **Minor findings**
+   - **BR-3:** `nvim/init.lua:841` implements the five-second timeout, but no integration case exercises it. ENOENT is now covered at `nvim/bang_tag_integration_test.lua:77`. Add a blocked-publisher case asserting bounded return, error notification, and no agent/history effects.
+
+5. **Test coverage**
+   - Passed `nvim -l nvim/bang_tag_test.lua` and `bash tests/bang-tag-nvim-test.sh`.
+   - Independently confirmed both BR-4 regression assertions fail against the pre-fix implementation and pass now.
+   - Draft retention verified through caller guards; focused tests do not exercise actual draft keybindings.
+   - No full-suite or live Couch verification performed. Working tree remains clean.
+
+6. **Architecture**
+   - **ARCH-DRY — pass:** shared argv builder and normalization load.
+   - **ARCH-PURE — pass:** deterministic text processing separated from publication IO.
+   - **ARCH-PURPOSE — pass:** both requested forms use the specified history source.
+   - **ARCH-MOCK — pass:** controllable subprocess fixture and persisted history exercise the production boundary.
+   - **ARCH-CONSTRAINTS — pass with BR-3 caveat:** description cap and subprocess timeout implemented; timeout lacks regression coverage.
+   - **ARCH-SECURE — pass:** argv arrays avoid shell interpolation; publication errors are surfaced.
+   - **ARCH-ORDER — pass:** synchronous completion gates draft clearing; unsuccessful outcomes preserve input.
+   - **ARCH-FUNERAL — pass:** existing description storage reused; no new durable artifact family.
+
+7. **Plan revisions:** none required.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      README.md now says no draft syntax sends a literal leading bang, consistent with bang_tag.parse and the preceding documentation of both !! forms.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      nvim/init.lua shares one publish_argv builder and one normalization load across both consumers; focused integration tests pass.
+  - id: BR-3
+    disposition: not-addressed
+    note: |
+      describe-missing covers ENOENT, but the five-second synchronous timeout still has no integration case. Retain the existing Minor advisory.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Truncation retains the byte prefix and trims whitespace before the ellipsis. Both regression assertions independently fail against the pre-fix implementation and pass at the pinned head.
+```
