@@ -304,10 +304,12 @@ slotmigration,slotrecovery,slotlaunch,slotinventory}.go`,
 - [x] Run `go test -count=1 ./cmd/internal/couchcore ./cmd/internal/couchtty
   ./cmd/internal/couchcmd`, then the relevant race suites and `make build`.
   Run `git diff --check`. Document any skipped runtime build sentinel explicitly.
-- [ ] Update README/atlas and issue checkboxes/Log. Run
+- [x] Update README/atlas and issue checkboxes/Log. Run
   `sdlc milestone-close --issue 355 --milestone M2 --verified '<actual evidence>'`;
   resolve blocking findings. Close with `sdlc close --issue 355 --verified
-  '<actual evidence>'`, then publish through `sdlc pr` and `sdlc merge --yes`.
+  '<actual evidence>'`.
+
+Publication follows through `sdlc pr` and `sdlc merge --yes`.
 
 ## Review and approval
 
@@ -431,3 +433,10 @@ an existing matching family descriptor; absent legacy authority is explicitly
 unknown. Passive location validation supports exact-scope legacy reads while
 action validation still requires common-directory identity. Common-identity-only
 routing refuses until verified re-enrollment. No Git subprocesses under locks.
+
+### 2026-09-30 — Acceptance complete
+
+Both milestones and the whole-issue integration review returned SHIP, with all
+findings addressed. Checked the final acceptance task and separated its already
+approved publication commands from that checklist; publication is now underway.
+No scope or implementation changes.
