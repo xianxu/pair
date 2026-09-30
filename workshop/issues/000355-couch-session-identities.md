@@ -185,6 +185,14 @@ total: 4.193
   old terminal name survived recreation. Updating those consumers to use the
   promoted terminal binding while preserving historical source checks (ARCH-PURPOSE).
 
+- M1 implementation checkpoint: managed launcher, allocator, checkpoint,
+  threadrecord, Zellij parser, Couch command and TTY suites pass; targeted Couch
+  binding/recovery/ownership race tests pass. Name-handoff and foreign-owner
+  guard mutations fail the intended boundary regressions and were restored.
+  Clean baseline archive with generated runtime assets reproduces all 32
+  artifact inventory findings (existing #348); this branch adds none.
+  Final complete Couch core partitions are running before milestone review.
+
 ## Revisions
 
 ### 2026-09-30 — Implementation requested
