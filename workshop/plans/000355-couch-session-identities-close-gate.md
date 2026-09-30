@@ -44,6 +44,17 @@ rounds:
       boundary: M1
       recipe: milestone-review
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-30T11:06:56-07:00"
+      agent: codex
+      dispose:
+        - id: BR-3
+          disposition: addressed
+          note: The shared formatter supplies a safe fallback and bounds descriptive tokens. Pure formatter and composed new/fresh launch tests pass at HEAD and fail with the previous formatter substituted through a temporary Go overlay. Unicode-only, punctuation-only, and long repository names are exercised.
+          round: 3
+      boundary: M1
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#355 (boundary-review)
@@ -72,6 +83,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Critical] `descriptive-label-must-not-gate-identity` Unicode-only repository names now prevent conversation creation
   cmd/internal/couchidentity/identity.go:41-60 discards every non-ASCII character and rejects the resulting empty token. Both couch.go:488 and slotrecovery.go:320 pass the repository basename, so supported names such as 项目 now fail allocation. Use a deterministic safe fallback when normalization yields nothing; C/N already provide uniqueness. Add pure formatter tests and composed new/fresh launch regressions for Unicode-only and punctuation-only names. ARCH-PURPOSE.
 
+## Round 3 — 2026-09-30T11:06:56-07:00 (codex) — passed
+
+### Disposed
+
+- BR-3 — addressed — The shared formatter supplies a safe fallback and bounds descriptive tokens. Pure formatter and composed new/fresh launch tests pass at HEAD and fail with the previous formatter substituted through a temporary Go overlay. Unicode-only, punctuation-only, and long repository names are exercised.
+
 ## Open findings
 
-- **BR-3** [Critical] `descriptive-label-must-not-gate-identity` Unicode-only repository names now prevent conversation creation
+(none — every finding has been disposed)

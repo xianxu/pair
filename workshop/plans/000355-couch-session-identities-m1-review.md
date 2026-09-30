@@ -159,3 +159,72 @@ findings:
 7. **Plan revision recommendation**
 
    Append a `## Revisions` entry specifying a nonempty safe fallback for descriptive repository tokens and regression coverage through both conversation-allocation entrypoints. M2 remains outside this boundary.
+
+---
+
+## Re-review — 2026-09-30T11:06:56-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 355 — Allocate Couch session identities and enforce repository families |
+| repo | pair |
+| issue file | workshop/issues/000355-couch-session-identities.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | bd55cd41d429b8118774d08eb42fe9c6c92230f4..9cc1374798433fe3fe00b66988904fed63cde90a |
+| command | sdlc milestone-close --issue 355 --milestone M1 |
+| reviewer | codex |
+| timestamp | 2026-09-30T11:06:56-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned M1 implementation satisfies the identity-allocation and terminal-binding scope. BR-3 is addressed with verified regression evidence; no new blocking findings emerged. Repository-family work remains explicitly scheduled for M2.
+
+```findings
+dispose:
+  - id: BR-3
+    disposition: addressed
+    note: |
+      The shared formatter supplies a safe fallback and bounds descriptive tokens. Pure formatter and composed new/fresh launch tests pass at HEAD and fail with the previous formatter substituted through a temporary Go overlay. Unicode-only, punctuation-only, and long repository names are exercised.
+```
+
+1. **Strengths**
+
+   - Both conversation-allocation paths use the shared formatter and allocator.
+   - Host-first durable counter publication preserves monotonicity across interrupted writes and local rollback.
+   - Pending/current terminal bindings reach registration, recovery, cleanup, and slot admission.
+   - Warm attachment revalidates the original server generation immediately before handoff.
+   - README and atlas changes document naming, compatibility, ownership, and restore restrictions.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed allocator, durablefile, launcher, threadrecord, checkpoint, zellijpane, Couch command, and focused Couch core suites. BR-3 mutation checks failed at the intended formatter and launch boundaries. Diff whitespace checks passed.
+
+   The artifact inventory test reports the same 32 failures at HEAD and in a scratch copy of the pinned base with matching generated assets; these are pre-existing. The complete Couch core suite and opt-in live Zellij conformance were not rerun during this review. Repository files remain unchanged.
+
+6. **Architectural notes**
+
+   | Principle | Assessment |
+   |---|---|
+   | ARCH-DRY | Pass — shared allocation, ownership classification, and durable publication. |
+   | ARCH-PURE | Pass — formatting and transitions separate from filesystem/process effects. |
+   | ARCH-PURPOSE | Pass — M1 covers independent conversation/terminal lifetimes and both allocation entry points. |
+   | ARCH-MOCK | Pass — injected stateful ownership fixtures and portable storage; live conformance check exists. |
+   | ARCH-CONSTRAINTS | Pass — bounded storage, registry capacity, and ownership-query deadlines. |
+   | ARCH-SECURE | Pass — strict persisted-input validation and exact scoped artifact evidence. |
+   | ARCH-ORDER | Pass — explicit binding transitions preserve unresolved starts and revalidate ownership at effects. |
+   | ARCH-FUNERAL | Pass — bounded allocation metadata, replacement index entries, and existing binding retention. |
+
+7. **Plan revision recommendations:** None. The appended BR-3 revision matches the implementation; M2 remains unclaimed.

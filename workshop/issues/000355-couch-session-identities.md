@@ -121,7 +121,7 @@ retired session associations while preserving monotonic counter high-water marks
 ## Plan
 
 - [x] Review and approve the durable [implementation plan](../plans/000355-couch-session-identities-plan.md).
-- [ ] M1 — Allocate C/N/M identities, carry terminal bindings through launch,
+- [x] M1 — Allocate C/N/M identities, carry terminal bindings through launch,
   and verify ownership with compatible live/parked migration.
 - [ ] M2 — Persist repository-family admission and carry its relative starting
   directory through every slot launch, storage, inventory, and menu path.
@@ -185,6 +185,7 @@ total: 4.193
   checks pass. Submitting M1 review round 3.
 
 ### 2026-09-30
+- 2026-09-30: closed M1 — Full core partitions, command/UI and launcher suites passed after BR-1/BR-2; focused races, live owner conformance and build passed. BR-3 real-Git new/fresh Unicode and punctuation launches plus 255-byte repository regression pass, allocator/durablefile and focused core suites pass, build and diff check pass. Artifact inventory has only the same 32 baseline #348 findings.; review verdict: SHIP
 
 - Captured the operator's agreed C/N/M allocation model and repository-family
   restriction. Separate N and M reflect distinct Pair and Zellij lifetimes;

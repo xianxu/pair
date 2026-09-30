@@ -261,7 +261,7 @@ and `checkpoint/request.go`; extend affected colocated tests and
   ./cmd/internal/threadrecord ./cmd/internal/couchcore ./cmd/internal/couchcmd`.
   Run isolated Zellij conformance tests for socket budget and owner snapshot.
   Mutate name handoff/owner guard to prove the boundary regressions fail.
-- [ ] Update README and relevant atlas map; commit, then run
+- [x] Update README and relevant atlas map; commit, then run
   `sdlc milestone-close --issue 355 --milestone M1 --verified '<actual evidence>'`.
   Fix all blocking gate findings and record the verdict in the issue Log.
 
