@@ -338,3 +338,8 @@ proof; record the surprising case so the next change starts from evidence.
   routing, migration, preferences, and inventory, not only admission inference.
   Permanent reservations need an explicit admission bound when removal is
   deferred. (#355 M2 BR-4/BR-5)
+
+- Repository membership sweeps must include hosted-session observers, not just
+  persisted records: a foreign nested actor must neither authorize nor veto
+  enclosing-slot actions. Exercise in-memory and durable registries, preserving
+  conservative handling of unresolved same-scope actors. (#355 M2 BR-4 round 2)

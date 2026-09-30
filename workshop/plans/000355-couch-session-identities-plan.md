@@ -404,3 +404,12 @@ repository conversations together. BR-5 bounds permanent family descriptors at
 4096 per store, refusing new families at capacity while preserving existing
 family use. Park/archive do not reclaim reservations; removal remains a future
 explicit operation. ARCH-DRY, ARCH-SECURE, and ARCH-FUNERAL shape these fixes.
+
+### 2026-09-30 — M2 re-review: hosted actor membership
+
+BR-5 is addressed. BR-4 also reaches hosted-session observation: an actor from
+a nested independent repository must not block the enclosing slot. Extend the
+shared membership sweep to in-memory/durable actors and open/fresh/recovery
+callers, preserving conservative vetoes for unresolved same-scope owners. Add
+production-boundary regressions for both registries. ARCH-PURPOSE requires
+enumerating runtime observers alongside storage consumers.

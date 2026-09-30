@@ -74,6 +74,21 @@ rounds:
       boundary: M2
       recipe: milestone-review
       blocked: true
+    - "n": 5
+      timestamp: "2026-09-30T11:42:12-07:00"
+      agent: codex
+      dispose:
+        - id: BR-4
+          disposition: not-addressed
+          note: Storage consumers now share repository-aware membership, but cmd/internal/couchcore/slotsessions.go:307-313 still admits actors by containment alone. A nested independent actor reaches add(), which rejects its foreign scope and aborts outer-slot open/fresh. A scratch regression fails on HEAD and passes when foreign-scope actors are excluded. Complete the checkout-membership-requires-repository-identity sweep through hosted-session observation. ARCH-DRY, ARCH-PURPOSE, ARCH-SECURE.
+          round: 5
+        - id: BR-5
+          disposition: addressed
+          note: repository_family_store.go:67 enforces the 4096-family admission bound under the existing lock; existing families remain usable. Capacity, concurrent-final-entry, and persisted-overflow tests cover the policy. Removing the admission guard makes TestFamilyCapacityExistingReuseAndRefusal fail. atlas/couch.md:59 documents permanent bounded reservations.
+          round: 5
+      boundary: M2
+      recipe: milestone-review
+      blocked: true
 ---
 
 # Gate ledger — pair#355 (boundary-review)
@@ -117,7 +132,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-5** [Important] `durable-family-reservations-need-bounds` Permanent repository-family descriptors have no removal path or admission bound
   repository_family_store.go:95 appends permanent descriptors without a capacity check, and no consumer removes them. The plan defers removal without bounding retained growth. Add and test an explicit admission bound with actionable refusal, or implement a deliberate removal lifecycle that preserves parked reservations; document the policy. ARCH-FUNERAL.
 
+## Round 5 — 2026-09-30T11:42:12-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-4 — not-addressed — Storage consumers now share repository-aware membership, but cmd/internal/couchcore/slotsessions.go:307-313 still admits actors by containment alone. A nested independent actor reaches add(), which rejects its foreign scope and aborts outer-slot open/fresh. A scratch regression fails on HEAD and passes when foreign-scope actors are excluded. Complete the checkout-membership-requires-repository-identity sweep through hosted-session observation. ARCH-DRY, ARCH-PURPOSE, ARCH-SECURE.
+- BR-5 — addressed — repository_family_store.go:67 enforces the 4096-family admission bound under the existing lock; existing families remain usable. Capacity, concurrent-final-entry, and persisted-overflow tests cover the policy. Removing the admission guard makes TestFamilyCapacityExistingReuseAndRefusal fail. atlas/couch.md:59 documents permanent bounded reservations.
+
 ## Open findings
 
 - **BR-4** [Critical] `checkout-membership-requires-repository-identity` Nested independent repositories are routed into the enclosing slot's storage
-- **BR-5** [Important] `durable-family-reservations-need-bounds` Permanent repository-family descriptors have no removal path or admission bound
