@@ -205,6 +205,14 @@ total: 4.193
   BR-5 requires a bound on permanently retained family rows. Applying one
   membership rule across all storage consumers and a 4096-family admission cap
   with existing-family reuse preserved.
+- BR-4/BR-5 fixes: shared checkout scope/common-Git membership now covers
+  migration, routing, preferences, local-origin validation, snapshot filtering,
+  and archive aggregation. A real nested-repository regression retains both
+  repositories and their current/archive records and preferences. Family
+  capacity tests demonstrated failures before the 4096 cap; concurrent final
+  admission, existing-family reuse, persisted overflow, and no-write refusal
+  now pass. Focused fixture and family suites, command/UI suites, race checks,
+  build and diff checks pass; exhaustive core partitions are completing.
 
 ### 2026-09-30
 - 2026-09-30: closed M1 — Full core partitions, command/UI and launcher suites passed after BR-1/BR-2; focused races, live owner conformance and build passed. BR-3 real-Git new/fresh Unicode and punctuation launches plus 255-byte repository regression pass, allocator/durablefile and focused core suites pass, build and diff check pass. Artifact inventory has only the same 32 baseline #348 findings.; review verdict: SHIP
