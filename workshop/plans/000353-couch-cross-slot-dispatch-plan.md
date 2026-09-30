@@ -1,0 +1,283 @@
+# Live Couch messages implementation plan
+
+> **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to
+> determine execution approach. Use superpowers-executing-plans for the coupled
+> input/lifecycle integration; delegate bounded pure-model tasks where useful.
+> Steps use checkboxes for tracking.
+
+**Goal:** Send a bounded peer request and optional reply between existing live
+Couch slots without creating a durable scheduling system or disturbing human input.
+
+**Architecture:** A supervisor-owned broker resolves live slots and reserves one
+pending delivery per slot actor. Pair's wrapper connects as the exact delivery
+endpoint and its existing input owner sequences safe paste/submit. The CLI and
+Couch skill expose discovery, availability, requests, replies, and receipts;
+Ariadne retains all work/acceptance authority.
+
+**Tech Stack:** Existing Go packages, local Unix stream sockets, strict framed
+JSON, existing PTY/terminal model and captured Claude/Codex fixtures. No service,
+database, extra process manager, or third-party dependency.
+
+**Status:** Proposed; implementation awaits operator approval. Full flow: this
+cross-process feature exceeds the quick-flow code limit. Run `sdlc change-code
+--issue 353 --flow full --worktree=no` after approval; derive the estimate only
+after its plan-quality gate passes. One atomic issue-close boundary, no Mx tags.
+
+## Core concepts
+
+### Pure entities
+
+| Name | Lives in | Status |
+|------|----------|--------|
+| `Message`, `Receipt`, `ActorState`, `Event`, `Effect`, `Advance` | `cmd/internal/couchmessage/model.go` | new |
+| `ResolveRecipient` | `cmd/internal/couchmessage/routing.go` | new |
+| `Request`, `Response`, `ValidateRequest` | `cmd/internal/couchmessage/protocol.go` | new |
+| `PeerComposerState`, `peerComposerState` | `cmd/internal/wrapcmd/peer_composer.go` | new |
+| `PeerDeliveryState`, `AdvancePeerDelivery` | `cmd/internal/couchmessage/delivery.go` | new |
+| `cliInvocation`, `ParseCLI` | `cmd/internal/couchcmd/cli.go` | modified |
+
+Reuse `couchcore.ThreadAddress`, `ProcessIdentity`, `WorkspaceReference` and
+`ParseWorkspaceReference` at the integration boundary; do not create another
+repository identity parser. Protocol identities carry canonical scope/tag plus
+wrapper PID/start identity and launch nonce. Pure routing receives validated
+candidate values rather than reading disk, Git, or the console.
+
+Each actor holds one pending envelope and its remaining inbound allowance.
+Receipts identify source and destination incarnations, outcome, and optional
+parent request. One delivered request permits one reply from its destination to
+its original source; reply envelopes confer no further reply right. Broker
+admission reserves reply rights and receipt capacity atomically. Body validation
+rejects invalid UTF-8, empty or >8 KiB payloads, terminal controls other than
+newline/tab, unknown fields, and incompatible CLI/protocol shapes.
+
+`peerComposerState` distinguishes unavailable/unknown, occupied, and empty;
+existing recognizers remain the single source of composer location/style, with
+new content/attachment qualification layered over them. `AdvancePeerDelivery`
+owns the delivery transition table; the wrapper executes effects and returns
+write outcomes. Do not add a general actor framework or change the existing
+notification mailbox's collapse/drop behavior.
+
+### Integration points
+
+| Name | Lives in | Status | Wraps |
+|------|----------|--------|-------|
+| `Broker`, `SlotActor` | `cmd/internal/couchmessage/broker.go` | new | synchronized registry, bounded mailboxes and workers |
+| `Server`, `Client` | `cmd/internal/couchmessage/transport.go` | new | private Unix stream connection, framing and deadlines |
+| `Console` messaging projection | `cmd/internal/couchtty/console_messages.go` | new | committed live pane observations and notices |
+| supervisor service setup | `cmd/internal/couchcmd/run.go` | modified | supervisor lease and Console lifetime |
+| messaging CLI | `cmd/internal/couchcmd/messages.go` | new | request/response, caller context and formatting |
+| `peerDelivery` | `cmd/internal/wrapcmd/peer_delivery.go` | new | endpoint registration and existing stdin owner |
+| wrapper input/capture admission | `cmd/internal/wrapcmd/wrap.go` | modified | PTY input, operator submission, image signals |
+| shared automatic-input arbitration | `cmd/internal/wrapcmd/input_admission.go` | new | extract existing orientation arbitration, preserve behavior |
+| `orientationDelivery` | `cmd/internal/wrapcmd/orientation.go` | modified | uses shared arbitration, stays startup-only |
+| Couch skill | `cmd/internal/couchcmd/skills/couch/SKILL.md`, `skill.go` | new | embedded instructions, `couch --skill` |
+
+`couchmessage` must not import `couchtty`, `wrapcmd`, or `launcher`; adapters own
+those dependencies. Keep wire identity values independent of IO owners.
+`Broker` consumes immutable verified actor projections, not concurrent calls to
+unsynchronized `couchcore.Couch` methods. The receiver connection is associated
+with the exact wrapper; CLI requests cannot impersonate receiver lifecycle events.
+
+Reuse `FakeRunner`, `SlotCatalogFake`, `FakeThreadArtifactCollisionChecker`,
+Console attachment transaction fixtures, `orientationProxy`,
+`shortOrientationWriter`, and the stateful harness terminal test fixture.
+Add `FakeDeliveryEndpoint` in `couchmessage/broker_test.go`: stores registration,
+pending write, outcomes, reconnect/replacement and cancellation state; tests
+control each completion instead of sleeping or mocking call counts alone.
+
+## Runtime contract and ordering
+
+The issue's dated Spec is the public contract. Initial limits: one pending
+message per actor, 8 KiB body, 128 actors, 256 receipts, receipt/reply retention
+one hour, 30-second delivery deadline, 2-second admission deadline. No disk
+messages. Receipt pressure refuses new admissions instead of dropping state.
+The workload is a local fleet of tens of sessions and occasional instructions,
+not a high-throughput bus. Broker work stays off keystroke/render paths.
+
+| State/event | Transition and effect |
+|-------------|-----------------------|
+| unknown or disconnected binding / register | Verify live conversation + wrapper identity; unavailable, allowance 8 |
+| connected / available on or off | Set declaration; never reset allowance; reject on while a delivery is pending |
+| connected / genuine operator submit | Clear availability; reset allowance to 8 |
+| vacant mailbox / valid send | Reserve target and receipt; clear availability for ordinary request; decrement allowance; queue |
+| reserved mailbox / another send | Refuse; preserve existing envelope and reply right |
+| queued / safely empty composer | Enter delivering; bracket-paste once through input owner |
+| queued / busy, menu, image, unknown | Wait within original deadline |
+| queued / deadline or lost exact binding | Expire or cancel without writing |
+| pasted / own text rendered, no operator interference | Submit once using harness profile |
+| pasted / operator input or overlay | Cancel automatic submit; preserve visible contents; notice |
+| writing / partial write or unknown result | Indeterminate; no retry and no silent reassignment |
+| submitted request / first valid reply admission | Consume reply right atomically and admit terminal reply |
+| reply / further reply attempt | Refuse |
+| allowance zero / any peer send | Refuse with visible breaker reason |
+| peer/orientation/idle/availability event | Never replenish allowance |
+| replacement or supervisor stop | Cancel workers; old messages/availability do not transfer |
+
+Acceptance must not depend on the receiver becoming input-ready. The broker
+reserves the target before returning the receipt. A client timeout is uncertain:
+create a caller request UUID, return it even on timeout, and use the same ID for
+status lookup. Duplicate submission of that ID returns the existing receipt;
+conflicting content refuses. No blind reconnect/resend. An expired receipt is
+unknown, not evidence of a failed original send.
+
+Sender disappearance cancels undelivered requests; a submitted request remains
+observable until retention expiry, but cannot reply to a replaced sender. A
+receiver disconnect while delivering is indeterminate. Reconnection does not
+replay. Restored connections begin unavailable; only the same live wrapper's
+ordinary connection refresh may retain actor allowance within one supervisor.
+A new supervisor has fresh ephemeral state, as the issue explicitly permits.
+
+After paste, test the exact generated envelope against the rendered composer
+(including harness paste markers where necessary); merely seeing some text is
+not enough to submit. Operator input admitted during this window always prevents
+automatic submit. Serialize image-capture admission with peer input before its
+first PTY effect, and retain pending attachment state until submission. Unknown
+image/clipboard input declines subsequent auto-insertion until a proven reset.
+
+## Architecture checks
+
+- **ARCH-DRY:** existing slot identity, namespace lease, harness profiles, input
+  writer, automatic-input arbitration and notice rendering remain authoritative.
+  Do not reuse lossy notification queues or startup-only emptiness assumptions.
+- **ARCH-PURE:** transitions, validation, routing, envelope rendering and composer
+  classification are pure; clock/socket/PTY effects return typed observations.
+- **ARCH-PURPOSE:** one vertical path delivers a referenced issue to a live agent,
+  supports a reply and leaves human acceptance intact. No worksheet scheduler.
+- **ARCH-MOCK:** stateful delivery fake plus actual isolated Unix sockets and
+  existing PTY/terminal fixture cover the real seams; real Claude/Codex smoke
+  qualifies composer/image/paste behavior before enabling each profile.
+- **ARCH-CONSTRAINTS:** limits above bound work, memory and time. One actor worker
+  per connected slot, bounded connection handlers; no broadcast or per-retry
+  goroutine spawning. Document failures when limits are reached.
+- **ARCH-SECURE:** private per-UID socket directory, exact namespace and launch
+  validation, bounded strict JSON. No `--from` override. Same-user processes and
+  installed coding agents are cooperating principals, not mutually sandboxed;
+  environment values alone are not proof of liveness. Never treat message text
+  as terminal control or operator permission. Transcript prefixes alone prove
+  nothing: receipt verification is the skill's required admission step.
+- **ARCH-ORDER:** the tables and controlled event-sequence tests cover reservation,
+  typing, image capture, replacement, socket loss, late completion and shutdown.
+- **ARCH-FUNERAL:** receipts/allowances/mailboxes exist only in memory and expire
+  or die with their owner. Socket cleanup only removes the owned generation;
+  startup cleans proved-stale handles under the supervisor lease. Existing
+  transcript/notice retention owns ordinary displayed message text; no new log.
+
+## Chunk 1: one complete request/reply path
+
+### Task 1: Pure admission and delivery contracts
+
+**Create:** `cmd/internal/couchmessage/{model,routing,protocol,delivery}.go` and
+colocated `_test.go` files.
+
+- [ ] Write table/sequence tests for exact and family addressing, `:0`, ambiguous
+  families, unavailable/busy/unsupported recipients, one reservation, reply
+  authorization, duplicate request IDs, capacity and expiry, and fresh-ID cycles.
+- [ ] Run `go test ./cmd/internal/couchmessage -count=1`; confirm red against
+  missing production definitions before implementing the reducers.
+- [ ] Implement the closed models and reducers. Inputs contain explicit time,
+  immutable identities and events; effects describe delivery/notice outcomes.
+- [ ] Test an A/B/C loop exhausts allowance; only genuine operator submission
+  replenishes it. Duplicate requests do not spend another allowance or reply.
+- [ ] Re-run package tests; commit under `#353: ...` with model coauthor trailer.
+
+### Task 2: Supervisor broker and live endpoint transport
+
+**Create:** `couchmessage/{broker,transport}.go`, respective tests and
+`couchtty/console_messages.go`/tests.
+**Modify:** `couchcmd/run.go`, `couchtty/console.go`, `console_reattach.go`,
+`console_menu.go` only at existing attachment/exit/lifetime integration points.
+
+- [ ] Test two simultaneous family sends with a deterministic barrier: reserve
+  distinct available recipients or return not-dispatched; never double assign.
+- [ ] Test malformed/truncated/oversized frames, wrong namespace, stale identities,
+  Darwin socket pathname length, occupied/symlink paths, and deadline outcomes
+  using private temporary roots and actual sockets. Never touch real sessions.
+- [ ] Start server only under the supervisor lease. Use a short hashed socket
+  address in a UID-private runtime directory derived from canonical store path.
+  Bound handlers and frames; reuse notifytransport's ownership design rather
+  than its datagram/no-ack semantics. Keep IPC separate from unrelated operations.
+- [ ] Register only committed live pane + wrapper bindings; unregister by exact
+  generation. Warm Couch reattach must work with surviving agents' existing
+  `COUCH_STORE_DIR` and scope/tag environment, without a new inherited secret.
+- [ ] Exercise cancel/exit/replacement/reconnect and delayed endpoint completion;
+  shutdown joins all actors/handlers before releasing supervisor ownership.
+- [ ] Run `go test ./cmd/internal/couchmessage ./cmd/internal/couchtty ./cmd/internal/couchcmd -count=1`;
+  run the same packages with `-race`; commit once passing.
+
+### Task 3: Safe Pair delivery and genuine-human accounting
+
+**Create:** `wrapcmd/{peer_composer,peer_delivery,input_admission}.go` and tests.
+**Modify:** `wrapcmd/wrap.go`, `orientation.go`, `orientation_replies.go`,
+`harness_tty.go`; `nvim/init.lua` only if capture admission needs an acknowledged
+reservation to close the draft-image race discovered by tests.
+
+- [ ] Add failing captured-screen tests for Claude and Codex: empty composer,
+  occupied and multiline composer, cursor moved before existing text, slash menu,
+  permission prompt, shell mode, startup transition, generation state, pending
+  image placeholder, and capture finished while attachment remains unsubmitted.
+- [ ] Extract shared automatic-input/operator arbitration from orientation without
+  broadening startup semantics. Add a distinct peer-input origin so automatic
+  orientation/peer submits cannot replenish allowance or impersonate human input.
+- [ ] Register wrapper connection using current exact launch identity. Its reader
+  publishes bounded events only; `translateStdinFrom` remains the only PTY writer.
+  Disconnect cancels pending delivery; reconnect performs new broker admission.
+- [ ] Implement conservative Claude/Codex composer qualification, including exact
+  post-paste observation; unsupported profiles explicitly refuse delivery. Pair
+  must know idle from positive lifecycle/qualified fresh readiness, not silence.
+- [ ] Integrate capture and clipboard admission with the same input owner. Tests
+  must cover the nvim placeholder → signal → paste sequence, not only capture
+  completion. If that cannot be proved safe, stop and revise before enabling.
+- [ ] Add controlled interleaving tests for human-before-paste, human-after-paste,
+  image admission, queued terminal replies, overlay, expiry, child exit, partial
+  paste/submit, and late broker results. Assert exact bytes and no second write.
+- [ ] Run `go test ./cmd/internal/wrapcmd ./cmd/internal/couchmessage -count=1`
+  and then `-race`; preserve orientation regressions. Run `make test-lua` if
+  nvim changes. Commit passing behavior and qualifying fixtures together.
+
+### Task 4: CLI, skill, operator feedback and acceptance
+
+**Create:** `couchcmd/messages.go`, `messages_test.go`, `skill.go`,
+`skills/couch/SKILL.md` under that package and `couchtty/console_messages_test.go`.
+**Modify:** `couchcmd/{cli,cli_test,run_test}.go`, `README.md`, `atlas/couch.md`.
+
+- [ ] Add CLI tests for every public shape and invalid combination. Route live
+  messaging to broker RPC; do not construct a second mutable Couch supervisor.
+  Plain output names sender, recipient, ID, queue state/refusal; `--actors` and
+  `--message-status` support JSON for the skill. No LLM calls for these queries.
+- [ ] Embed one canonical SKILL.md directly in couchcmd and expose `--skill` even
+  outside Couch. Use skill-creator/writing-skills when authoring it. Document
+  loading its output in an existing session and installation into the agent's
+  normal skill directory for automatic discovery, without modifying user
+  configuration at runtime or duplicating skill prose.
+- [ ] Teach live-only addressing, explicit availability, reference durable work,
+  claim through Ariadne after receipt, respect dependency/acceptance gates,
+  verify incoming receipt, one terminal reply, no courtesy loops, no evading
+  breaker, and query uncertain sends before any resend. Human acceptance remains
+  outstanding work. An arrival does not authorize bypassing local permissions.
+- [ ] Render a bounded normal Couch/Pair notice through the existing safe output
+  path when a request is submitted/cancelled/expired/blocked. Keep native harness
+  transcript text plain; no invented native message role or arbitrary SGR.
+- [ ] Add an end-to-end test with CLI + broker + two stateful wrapper endpoints:
+  advertise pair:1 → send from brain:0 to pair → verify queued receipt → safely
+  submit → one reply → refuse duplicate reply. Repeat with `pair:0`, no capacity,
+  nonempty/image composer, sender/recipient replacement and supervisor restart.
+- [ ] Run `go test ./cmd/internal/couchmessage ./cmd/internal/couchcmd ./cmd/internal/couchtty ./cmd/internal/wrapcmd -count=1`
+  and `go test -race` for those packages, then `make build` and `git diff --check`.
+- [ ] Capture a live isolated smoke in two new Claude/Codex Pair sessions:
+  load `couch --skill`, advertise the recipient, send a harmless message, verify
+  source/receipt, reply once; repeat while a draft/image/picker is pending and
+  check it stays intact. Use disposable work references, never a real unclaimed
+  issue. Do not send messages to existing operator/peer sessions for testing.
+- [ ] Present operator smoke steps: inspect both slots, dispatch a real authorized
+  issue, see the receiver claim it, and verify it stays occupied awaiting human
+  acceptance. Operator acceptance is required evidence, not agent self-report.
+- [ ] Update atlas and issue Log with tested behavior and actual supported versions;
+  `atlas/index.md` already links couch.md. Close through `sdlc close --issue 353
+  --verified 'exact evidence'` only after acceptance; the binary owns boundary
+  review. Derive actual hours through the binary, never type guessed values.
+
+## Revisions
+
+- 2026-09-30: initial proposal from the operator's live-slot/ephemeral-runtime
+  contour. Receiver support starts with Claude/Codex to keep qualification
+  bounded. No implementation, estimate, or acceptance claim yet.
