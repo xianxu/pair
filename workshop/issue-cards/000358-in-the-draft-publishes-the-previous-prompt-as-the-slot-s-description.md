@@ -1,6 +1,6 @@
 ---
 id: 000358
-status: codecomplete
+status: done
 created: 2026-09-30
 updated: 2026-09-30
 estimate_hours:
@@ -24,6 +24,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 4900c15912e3005c17aa0d0fbedc9aebdefced49
         evidence_commit: 0cf6be12bf97b64cd3e49ecb8c0245f05dcce085
+        landed_commit: d7054fa4656b7bd982d98f70f78280b98b487dbf
 ---
 
 # !! in the draft publishes the previous prompt as the slot's description
