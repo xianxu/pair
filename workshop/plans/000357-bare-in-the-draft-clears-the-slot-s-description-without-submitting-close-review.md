@@ -137,3 +137,67 @@ findings:
    - **ARCH-PURPOSE — flag:** implementation supports the intended behavior, but verification omits one expressly required outcome.
 
 7. **Plan revisions:** No design revision needed; extend verification to both fallback states.
+
+---
+
+## Re-review — 2026-09-30T15:27:01-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 357 — Bare ! in the draft clears the slot's description without submitting |
+| repo | pair |
+| issue file | workshop/issues/000357-bare-in-the-draft-clears-the-slot-s-description-without-submitting.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 91d843c373c5be00f838bec31c3c1cb2ed8b98f9..30c331c05e2f0b01c3472f7104a636210cca0fc4 |
+| command | sdlc close --issue 357 |
+| reviewer | codex |
+| timestamp | 2026-09-30T15:27:01-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range fulfills the issue’s scope. Both open findings are addressed, and focused tests pass. No new blocking findings.
+
+```findings
+dispose:
+  - id: BR-2
+    disposition: addressed
+    note: |
+      atlas/couch.md:284 includes the comma after (#337); nvim/bang_tag.lua:3–6 wraps the header comment while accurately describing the implemented routing.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      cmd/internal/couchcmd/run_test.go:653 now tests populated and empty Description values, seeds PublishedSummary in both, clears through --description=, and asserts persisted fields and displayed results. Both cases pass.
+```
+
+1. **Strengths**
+   - `nvim/init.lua:853` routes clearing before agent submission and logging.
+   - `nvim/init.lua:825` reuses synchronous publication, reports failures, and returns success only after publication succeeds.
+   - CLI coverage verifies both fallback outcomes through real command binding and storage.
+   - README and atlas document the new syntax and semantics.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage**
+   - Passed Lua parser unit suite.
+   - Passed all ten bang-tag integration scenarios.
+   - Passed `go test ./cmd/internal/couchcmd -run '^TestPublishDescription' -count=1`.
+   - Passed pinned-range `git diff --check`.
+   - Draft preservation on failure was additionally verified through caller inspection; the integration tests exercise the submission boundary.
+
+6. **Architecture**
+   - **ARCH-DRY — pass:** Reuses the command builder, publication path, and existing metadata operation.
+   - **ARCH-PURE — pass:** Parsing remains pure; subprocess execution stays at the editor boundary.
+   - **ARCH-PURPOSE — pass:** Delivers clearing, both fallback outcomes, no agent traffic, standalone notification, and preserved `! text` behavior.
+
+7. **Plan revision recommendations:** None.

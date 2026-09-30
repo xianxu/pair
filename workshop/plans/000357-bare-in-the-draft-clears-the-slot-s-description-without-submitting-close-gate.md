@@ -42,6 +42,20 @@ rounds:
           round: 2
       recipe: small-diff-review
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-30T15:27:01-07:00"
+      agent: codex
+      dispose:
+        - id: BR-2
+          disposition: addressed
+          note: atlas/couch.md:284 includes the comma after (#337); nvim/bang_tag.lua:3–6 wraps the header comment while accurately describing the implemented routing.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: cmd/internal/couchcmd/run_test.go:653 now tests populated and empty Description values, seeds PublishedSummary in both, clears through --description=, and asserts persisted fields and displayed results. Both cases pass.
+          round: 3
+      recipe: small-diff-review
+      blocked: false
 ---
 
 # Gate ledger — pair#357 (boundary-review)
@@ -70,7 +84,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Important] `behavior-change-needs-pinning-test` Clear-description coverage omits the explicitly promised no-fallback state
   cmd/internal/couchcmd/run_test.go:653 exercises only a populated operator Description. Done when promises fallback description “or none”; no test exercises clearing with Description empty. This is the 2nd finding in family behavior-change-needs-pinning-test. Apply the rule “exercise every explicitly named outcome”: parameterize the CLI test over populated and empty Description, seed PublishedSummary in both, clear through --description=, and assert both persisted and displayed results. Enumeration: fallback present is covered; fallback absent is the sole missing state in this clause.
 
+## Round 3 — 2026-09-30T15:27:01-07:00 (codex) — passed
+
+### Disposed
+
+- BR-2 — addressed — atlas/couch.md:284 includes the comma after (#337); nvim/bang_tag.lua:3–6 wraps the header comment while accurately describing the implemented routing.
+- BR-3 — addressed — cmd/internal/couchcmd/run_test.go:653 now tests populated and empty Description values, seeds PublishedSummary in both, clears through --description=, and asserts persisted fields and displayed results. Both cases pass.
+
 ## Open findings
 
-- **BR-2** [Minor] `doc-prose-typo` atlas/couch.md list missing a comma after "(#337)"
-- **BR-3** [Important] `behavior-change-needs-pinning-test` Clear-description coverage omits the explicitly promised no-fallback state
+(none — every finding has been disposed)

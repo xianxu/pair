@@ -83,6 +83,7 @@ the "draft action that doesn't submit" routing, so design them together.
 ## Log
 
 ### 2026-09-30
+- 2026-09-30: closed — Operator live smoke passed. Lua bang_tag unit and all ten draft integration cases passed. Expanded TestPublishDescriptionEmptyFlagFallsBackToOperatorDescription passes with both present and absent fallback, asserting persisted and displayed values; git diff --check passes. BR-2 comment wrapped; BR-3 coverage completed.; review verdict: SHIP
 - 2026-09-30: closed — bang-tag-nvim-test: bare ! publishes --description= via stub couch with zero zellij executor calls and no log append; standalone and failing-couch cases notify and keep the draft; bang_tag_test pins bare ! as a clear; new couchcmd test runs the exact --description= argv and shows the row falling back to the operator description; make test green; go failures (artifactpath classification, TestBareCouchInstalledCommand, TestCouchReferencesLocalArchiveLocatorRoundTrip) fail identically on origin/main; review verdict: SHIP
 
 - Filed at the operator's request. Current bare-`!` no-op behavior verified in
