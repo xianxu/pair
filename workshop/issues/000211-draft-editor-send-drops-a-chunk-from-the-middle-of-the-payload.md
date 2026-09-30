@@ -8,7 +8,7 @@ updated: 2026-09-29
 estimate_hours:
 card_mirror: '47c326aa91c6f47df207ae6537e3724cc7470d8b' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-09-29T20:06:42-07:00
-flow: {kind: quick, provenance: inferred, spec: "bfed1bc6", done: "a17d9c41"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # Draft-editor send drops a chunk from the middle of the payload
@@ -119,6 +119,8 @@ Suspects to work through, cheapest first:
   `perf-capture-latest.txt`, which was complete on disk.
 
 ### 2026-09-29
+- 2026-09-29: closed — Pair path byte-exact: probes/zellijwritechars 512B-180KB, fast+saturated readers, direct and via pair wrap, zellij 0.44.3 + 0.45.1. Root cause via scripts/send-audit.py over 3,334 matched sends: Claude drops whole ~1KiB middle tty reads of unbracketed sends (3-read 8/11, 2-read 0/34, codex 0/1163). Fix: body framed as one bracketed paste (draft_send.frame, review pokes share it); BR-1: pair-wrap drops the markers for a child without DECSET 2004 (childAcceptsPaste, both translators) so agent-agnostic delivery is unchanged. Tests mutation-checked (framing, marker strip, 3 guard points). Live probe real Claude 2.1.285 on rebuilt binary: 6/6 whole (drop not reproducible on idle Claude; post-ship audit is #354). make test + go test ./...: green except review-window-test (7, passes standalone) and artifactpath classification (32), both failing identically on clean origin/main.; review verdict: SHIP
+- 2026-09-29: flow upgraded quick → full — 860 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 - **Root cause located: the receiving agent, not pair.** `probes/zellijwritechars`
   sends numbered-line payloads through `zellij action write-chars` into a
