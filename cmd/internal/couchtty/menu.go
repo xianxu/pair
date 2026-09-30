@@ -353,7 +353,7 @@ func visibleRootThreads(inventory []couchcore.ActionableThreadSummary, frame Men
 	ordinary := make([]couchcore.ThreadReferenceFields, 0, len(inventory))
 	for _, row := range inventory {
 		if row.Target.Kind != couchcore.ThreadTargetSlot {
-			ordinary = append(ordinary, couchcore.ThreadReferenceFields{Address: row.Address, Name: row.Name, WorkingPath: row.WorkingPath})
+			ordinary = append(ordinary, couchcore.ThreadReferenceFields{Address: row.Address, Name: row.Name, WorkingPath: row.WorkingPath, Description: menuFocusSummary(row)})
 		}
 	}
 	addresses, _ := couchcore.MatchThreadReferenceFields(ordinary, frame.Filter)
@@ -376,13 +376,19 @@ func visibleRootThreads(inventory []couchcore.ActionableThreadSummary, frame Men
 			accept = refErr == nil && ref.Number == slot.Number && (ref.Repo == "" || ref.Repo == slot.Repo)
 		} else {
 			needle := strings.ToLower(frame.Filter)
-			accept = strings.Contains(strings.ToLower(row.Label()), needle) || strings.Contains(strings.ToLower(row.WorkingPath), needle) || (row.Address.Tag != "" && strings.Contains(strings.ToLower(string(row.Address.Tag)), needle))
+			accept = strings.Contains(strings.ToLower(row.Label()), needle) || strings.Contains(strings.ToLower(row.WorkingPath), needle) || (row.Address.Tag != "" && strings.Contains(strings.ToLower(string(row.Address.Tag)), needle)) || menuDescriptionMatches(row, frame.Filter)
 		}
 		if accept {
 			visible = append(visible, row)
 		}
 	}
 	return visible
+}
+
+// menuDescriptionMatches uses the same displayed text in either root view.
+func menuDescriptionMatches(row couchcore.ActionableThreadSummary, query string) bool {
+	query = strings.TrimSpace(query)
+	return query != "" && strings.Contains(strings.ToLower(menuFocusSummary(row)), strings.ToLower(query))
 }
 
 // clearsPreviousNotice reports whether an event retires the message on screen.

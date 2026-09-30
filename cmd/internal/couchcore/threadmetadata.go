@@ -91,6 +91,7 @@ type ThreadReferenceFields struct {
 	Address     ThreadAddress
 	Name        string
 	WorkingPath string
+	Description string // Optional display text supplied by in-memory menu callers.
 }
 
 // ThreadReferenceMatch orders match strength. Zero is deliberately no match.
@@ -107,7 +108,7 @@ func (e *AmbiguousThreadReferenceError) Error() string {
 }
 
 // ClassifyThreadReferenceFields applies the shared per-row rule. Exact opaque
-// tag equality is stronger than case-insensitive name/path containment.
+// tag equality is stronger than case-insensitive name/path/description containment.
 func ClassifyThreadReferenceFields(fields ThreadReferenceFields, ref string) (ThreadReferenceMatch, error) {
 	normalized, err := normalizeThreadReference(ref)
 	if err != nil {
@@ -166,7 +167,8 @@ func classifyNormalizedThreadReferenceFields(fields ThreadReferenceFields, norma
 	}
 	needle := strings.ToLower(normalized)
 	if strings.Contains(strings.ToLower(fields.Name), needle) ||
-		strings.Contains(strings.ToLower(fields.WorkingPath), needle) {
+		strings.Contains(strings.ToLower(fields.WorkingPath), needle) ||
+		strings.Contains(strings.ToLower(fields.Description), needle) {
 		return ThreadReferenceFuzzy
 	}
 	return ThreadReferenceNone

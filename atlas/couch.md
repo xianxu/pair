@@ -215,7 +215,11 @@ refresh supplies new descriptions; no additional storage or polling is added.
 
 Both CLI resolution and in-memory menu filtering derive from
 `ClassifyThreadReferenceFields`/`MatchThreadReferenceFields`: exact opaque tags
-win set-wide over case-insensitive name/path containment, with no store read on
+win set-wide over case-insensitive name/path containment. The menu also supplies
+the sanitized displayed description as an optional fuzzy field for both root
+views; CLI callers leave it empty. Slot rows search that same display text unless
+the filter is an explicit slot reference. Default description matches add a
+shared-row detail line; focus keeps its inline summary. No store read occurs on
 the keystroke path. `RenderMenu` consumes only state, terminal dimensions,
 clock input, and the 256-color capability. It keeps the selected row inside a
 bounded viewport, anchors wide children beside the selected parent row and

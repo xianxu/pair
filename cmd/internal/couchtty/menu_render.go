@@ -579,6 +579,9 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 			selectedStart = len(rows)
 		}
 		rows = append(rows, rootLine{text: plain, selected: selectedRow, actorStart: true, thread: thread.Address, key: menuRowKey(thread)})
+		if frame.View == MenuViewNormal && menuDescriptionMatches(thread, frame.Filter) {
+			rows = append(rows, rootLine{text: clipMenuLine("    "+menuFocusSummary(thread), width), thread: thread.Address, key: menuRowKey(thread)})
+		}
 		for _, message := range state.Attention[thread.Address] {
 			if message.Text != "" {
 				rows = append(rows, rootLine{text: clipMenuLine("    "+message.Text, width), thread: thread.Address, key: menuRowKey(thread)})
