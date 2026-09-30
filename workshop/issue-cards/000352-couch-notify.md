@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000352-couch-notify.md
         source_blob: 0fb08a5612a78ec4be55f8b115b1b8f36e7b11d1
         destination: workshop/issues/000352-couch-notify.md
+        main_commit: 3a2f3f5d2c6213384f6c98d9f7fdbbff5d3482a6
 ---
 
 # couch --notify: stateful operator notifications
