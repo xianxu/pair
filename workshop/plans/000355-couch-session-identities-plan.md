@@ -111,9 +111,19 @@ Allocate N through one injected authority at both `AllocateThreadTag` and
 `startFreshSlot`. Preserve artifact O_EXCL claims and exact-address validation.
 Allocate M in `launchTrackedThread` before releasing the blocked helper whenever
 a new terminal will be created. Record the pending binding via a new start
-transition; registration promotes it to the thread's current binding. Failure
-retains the previous binding and the failed claim's evidence until existing
-rollback/reconciliation proves it safe to retire. Start nonces remain independent
+transition; registration promotes it to the thread's current binding. `StartRecoveredUnknown`
+also promotes the proposed binding before clearing Start: established registration
+proves the terminal handoff committed even when the helper died; it does not prove
+that terminal is currently live. Keep the incarnation Unknown and require independent
+owner observation before attach or retirement. `ReconcileStart` keeps an unresolved
+claim and its pending binding occupied when registration is unknown. Rollback drops
+only the pending binding when the helper/owner is proven dead and the proposed
+terminal is proven absent (foreign also proves absence for this address); retain
+the previous current binding and VerifiedPark. Warm rollback retains its current
+binding regardless. Retry may allocate a new M only after this occupied claim has
+been retired, and after probing the current binding for cold-vs-warm selection.
+An established-registration recovery uses the promoted binding for this probe,
+never the previous name. Unknown owner evidence never permits another cold launch. Start nonces remain independent
 transaction identifiers, not another resource-name allocator.
 
 Pass an explicit structured managed-session intent, including address, name,
@@ -126,7 +136,8 @@ and a matching structured intent, refusing either on its own. Consume/unset the
 intent environment variable at launcher entry. Both
 launcher assignment functions bypass the candidate ladder for this intent.
 Creation probes the actual socket-path budget, refuses an occupied proposed
-name, appends the compatibility index association at the existing commit point,
+name, replaces the compatibility index association for the exact scope/tag at
+its existing commit point (atomic rewrite, preserving unrelated addresses),
 and never shortens/deduplicates the supplied name. Warm attach cannot fall back
 to creation if its session disappeared.
 
@@ -190,6 +201,8 @@ exact path before spawn; a newly provisioned worktree may remain for retry.
   in production and tests, including prefix-overlapping tags such as N=1/N=10.
 - ARCH-MOCK: stateful Zellij server generations/owners and real temporary Git;
   conformance checks validate emitted names and actual ownership query fields.
+  Run these live checks before each release supporting a changed Zellij version;
+  fixture-based owner-query parsing runs in the ordinary test suite.
 - ARCH-ORDER/SECURE: allocation before spawn, pending/current binding transitions,
   no native binding invented on failure, strict JSON and exact command evidence.
 - ARCH-CONSTRAINTS: only explicit start/resume/park paths incur allocation or
@@ -206,10 +219,11 @@ Files: create `cmd/internal/couchidentity/{identity,store,store_unix,session}.go
 and colocated tests; wire `cmd/internal/couchcmd/run.go`,
 `cmd/internal/couchcore/{couch,threadtag,slotrecovery}.go`.
 
-- [ ] Write pure allocation/format tests and subprocess file-store tests: two
-  stores, same store via alias, concurrent reservations, interrupted host/local
-  writes, missing authority, rollback floors, moved store, overflow, malformed
-  JSON, bounds, and cancellation. Demonstrate failures before implementation.
+- [ ] Test `AdvanceAllocation` and `FormatPairTag`/`FormatSessionName` with
+  fuzzed snapshots and overflow inputs, asserting monotonic independent counters.
+  Test `IdentityStore.Allocate` with subprocess contention and injected publication
+  failures, asserting no returned identity repeats and malformed/missing authority
+  refuses. Demonstrate red before implementation.
 - [ ] Implement validated snapshots and durable store; wire both N allocation
   sites using the same namespace-owned allocator, preserving artifact claims.
 - [ ] Run `go test -count=1 ./cmd/internal/couchidentity ./cmd/internal/couchcore
@@ -226,19 +240,21 @@ session_index,zellij}.go`; extend affected colocated tests and
 `cmd/internal/zellijpane/zellijpane.go` parser and its tests with optional actual
 `pane_command`/`pane_cwd` evidence, distinct from the `terminal_command` template.
 
-- [ ] Add the original two-scope/one-name regression at start/attach/park
-  boundaries with a stateful live owner, then all six lifecycle rows from the
-  issue. Verify old code fails for the intended routing/ownership reason.
-- [ ] Add pending binding transition and persisted mirror/validation; pass the
-  consumed managed-session intent through the real launcher. Keep native resume
-  options separate and include explicit warm-loss and cancellation tests.
-- [ ] Implement one owner observer and guard every action reaching a foreign
-  session. Test server replacement during query, missing fields, quoted paths,
-  overlapping numeric tags, partial startup, and query errors.
-- [ ] Preserve legacy live bindings and cold-migrate terminal names without
-  touching Pair tags/transcripts; run both managed create and warm argv against
-  the immutable pre-change launcher and assert rejection before any terminal
-  effect. Also test flag-without-intent and intent-without-flag in the new parser.
+- [ ] Test `AdvanceStartTransaction`/`ReconcileStart` via controllable event
+  sequences asserting pending/current binding preservation, no new allocation
+  while occupied, and promotion before Start clears on recovered-unknown.
+- [ ] Test `ClassifySessionOwner` with adversarial pane evidence and generation
+  changes, using exact decoded arguments as the guard; fuzz `zellijpane.Parse`
+  and owner command parsing against malformed/quoted/overlapping-address inputs.
+- [ ] Exercise `launchTrackedThread`, `PairSessionContext`, and park through a
+  stateful Zellij owner world. Preserve the original two-scope/one-name incident
+  regression and assert identity lifetimes from the issue's lifecycle table.
+- [ ] Test `ParseArgs` and managed intent validation with missing/mismatched
+  authority; execute managed create and warm argv against immutable pre-change
+  Pair and assert rejection before effects. Test both assignment functions with
+  a fail-on-fallback terminal fake to enforce exact naming and warm-loss refusal.
+- [ ] Implement pending binding persistence, managed intent, shared owner proof,
+  and live/parked legacy compatibility through these production boundaries.
 - [ ] Run focused suites with `go test -count=1 ./cmd/internal/launcher
   ./cmd/internal/threadrecord ./cmd/internal/couchcore ./cmd/internal/couchcmd`.
   Run isolated Zellij conformance tests for socket budget and owner snapshot.
@@ -255,9 +271,12 @@ Files: create `cmd/internal/couchcore/repository_family{,_store,_test}.go`;
 modify `threadstore.go`, `slotmigration.go`, `startresolution.go`, `slotstart.go`,
 `slotcontext.go`, `couch.go`; extend `slotstart_test.go`, `slotmigration_test.go`.
 
-- [ ] Add failing family tests: root/subdir conflicts, parked and archived
-  retention, same-relative-directory reuse, aliases/common Git dir, ambiguous
-  legacy records, read-only preview, and conflicting commit after preview.
+- [ ] Test `ResolveFamilyStart` with canonical aliases and conflicting relative
+  directories, asserting one retained choice per common Git directory. Test
+  `ReserveRepositoryFamily` with concurrent and stale-preview requests against
+  a real journal, asserting admission losers create no external resources.
+  Test `InferRepositoryFamily` against inconsistent retained records, asserting
+  ambiguity preserves conversations and refuses admission.
 - [ ] Implement manifest descriptors and journaled reservation, with preview
   and commit using the same resolver and canonical identity. Preserve all
   existing conversations on legacy ambiguity and show actionable diagnostics.
@@ -271,14 +290,15 @@ slotmigration,slotrecovery,slotlaunch,slotinventory}.go`,
 `cmd/internal/couchtty/{menu,menu_switchagent}.go`; tests in corresponding files,
 `cmd/internal/couchtty/menu_add_slot_test.go`, and existing real-Git acceptance.
 
-- [ ] Add failing tests for initial start, add-slot from primary/numbered row,
-  warm open, cold resume, fresh, profile lookup, backend routing, and inventory
-  projection with `competition/arc-agi-3`. Include missing dir and symlink escape.
-- [ ] Use the shared containment/projection helper throughout; distinguish
-  explicit path requests from slot actions that inherit the saved directory.
-- [ ] Run real-Git fixture creating the tracked subdirectory in a new worktree
-  and assert the actual spawned CWD. Test `arc-agi-2` rejection while the existing
-  family is parked and after Couch restart.
+- [ ] Test `ProjectFamilyPath` with fuzzed relative paths and filesystem aliases,
+  asserting canonical containment. Exercise `resolveManagedStart`, `OpenSlot`,
+  `startFreshSlot`, `storeForPath`, `validateLocalOrigin`, `projectSlotRows`, and
+  the menu add-slot handler through real Git fixtures, asserting every consumer
+  preserves the family's relative directory and refuses escaping/missing paths.
+- [ ] Use the shared projection helper throughout; distinguish explicit paths
+  from slot actions that inherit the saved directory. Keep the production-boundary
+  regression: spawn at `competition/arc-agi-3` in an added worktree and reject
+  `arc-agi-2` after parking and Couch restart.
 - [ ] Run `go test -count=1 ./cmd/internal/couchcore ./cmd/internal/couchtty
   ./cmd/internal/couchcmd`, then the relevant race suites and `make build`.
   Run `git diff --check`. Document any skipped runtime build sentinel explicitly.
@@ -290,8 +310,8 @@ slotmigration,slotrecovery,slotlaunch,slotinventory}.go`,
 ## Review and approval
 
 Fresh-context plan review approved both chunks after round 1 fixes. The issue
-and plan are checkpointed locally. Operator approval of this durable plan is the
-next gate before `sdlc change-code`. Derive the estimate only after that command's
+and plan are checkpointed locally. The operator approved this durable plan on 2026-09-30.
+`sdlc change-code` is the remaining implementation gate. Derive the estimate only after that command's
 plan-quality gate accepts the plan. No production code has changed.
 
 ## Revisions
@@ -317,3 +337,12 @@ regression of the recovery policy. No new name allocator or recovery bypass.
 Fresh-context re-review approved the revised plan with no residual blocking
 findings. A read-only invocation of the installed pre-change Pair confirms that
 the proposed leading flag is rejected as a flag rather than treated as an agent.
+
+### 2026-09-30 — Implementation gate review
+
+PQ-1: specified promotion on established-registration recovered-unknown before
+Start clears, occupied retention for uncertain registration, and proven-absence
+rollback/retry. PQ-2: replaced test-case inventories with named functions and
+adversarial strategies. Also bounded compatibility index growth to one entry
+per scope/tag and named the Zellij-version release conformance trigger. These
+refinements preserve the operator-approved scope.
