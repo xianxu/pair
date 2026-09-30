@@ -8,6 +8,7 @@ updated: 2026-09-30
 estimate_hours:
 card_mirror: '06e2ccb5a65cbaf666dad4e8605edbf457f3fdee' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-09-30T12:34:02-07:00
+flow: {kind: quick, provenance: inferred, spec: "23d90379", done: "b414c346"}
 ---
 
 # Match and show actor descriptions in Couch switcher
