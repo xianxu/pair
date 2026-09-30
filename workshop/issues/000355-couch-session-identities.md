@@ -200,6 +200,11 @@ total: 4.193
   suite passed (129.365s), final dependency/relative-path tests passed (4.027s).
   Build/diff checks pass; artifact inventory matches the same 32 #348 baseline
   findings. M2 boundary review is next.
+- M2 review round 1 returned REWORK: BR-4 found that storage routing/migration
+  still used containment rather than scope/common-Git repository membership;
+  BR-5 requires a bound on permanently retained family rows. Applying one
+  membership rule across all storage consumers and a 4096-family admission cap
+  with existing-family reuse preserved.
 
 ### 2026-09-30
 - 2026-09-30: closed M1 — Full core partitions, command/UI and launcher suites passed after BR-1/BR-2; focused races, live owner conformance and build passed. BR-3 real-Git new/fresh Unicode and punctuation launches plus 255-byte repository regression pass, allocator/durablefile and focused core suites pass, build and diff check pass. Artifact inventory has only the same 32 baseline #348 findings.; review verdict: SHIP
