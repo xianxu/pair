@@ -8,7 +8,7 @@ updated: 2026-09-30
 estimate_hours:
 card_mirror: '576a97ceba953728cd941ba00b2211c9ad516a3a' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-09-30T11:33:55-07:00
-flow: {kind: quick, provenance: inferred, spec: "b18212a4", done: "6e8b6d5b"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # !! in the draft publishes the previous prompt as the slot's description
@@ -90,6 +90,8 @@ together; whichever lands second reuses the first's routing.
 ## Log
 
 ### 2026-09-30
+- 2026-09-30: closed — Operator confirmed live smoke test passes on 2026-09-30. Fresh nvim -l nvim/bang_tag_test.lua and bash tests/bang-tag-nvim-test.sh pass, including both !! forms, no agent traffic/history append, standalone and failed/missing publisher cases. Re-review post-close fixes at e5e35550; prior full-suite evidence remains in issue Log.; review verdict: SHIP
+- 2026-09-30: flow upgraded quick → full — 104 added lines in code files (limit 100)
 - 2026-09-30: closed — bang-tag-nvim-test: !! and !! sentence publish via stub couch with zero zellij executor calls and no log append (describe/describe-standalone/describe-nonzero cases); bang_tag_test pins one_line on multi-line, bang-tagged, 120-char cap, UTF-8; #337 cases unchanged and green; full make test green (review-window under default TMPDIR); go artifactpath classification failure is pre-existing on base; review verdict: SHIP
 
 - Filed at the operator's request, to recover from forgetting the `!` prefix.
@@ -112,9 +114,11 @@ together; whichever lands second reuses the first's routing.
   `TestProductionArtifactReferencesAreExactlyClassified` (reviewcmd and review
   lua files), and it fails identically on the base commit.
 
-- Close review (SHIP, 4 minor advisories), all fixed in one follow-up commit:
+- Close review (SHIP, 4 minor advisories), three fixed and BR-3 partially addressed in one follow-up commit:
   the README's "no `!!` escape" sentence reworded; one `publish_argv` builder
   and one `strip_comments` (hoisted above the bang block) instead of two of
   each; `one_line` keeps invalid bytes and leaves no space before `…`; a
   `describe-missing` case covers the ENOENT path. The 5 s timeout stays
   untested; a case for it would add 5 s to every run.
+
+- 2026-09-30: operator confirmed the live smoke test passes. Fresh unit and all ten integration cases pass. Re-close review returned SHIP with no blocking findings; BR-3 retains the advisory timeout-test gap. Finalization refused because the earlier rebase copied the four original commits unchanged but left the tracker bound to the original close. `git range-diff 06973c5d..70ce0c43 f0b3b78b..e39ed125` confirms all four patches identical. Reconnect the original close ancestry while preserving the current tree, then rerun close to bind fresh evidence.
