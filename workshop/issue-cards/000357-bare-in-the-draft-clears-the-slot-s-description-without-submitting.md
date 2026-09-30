@@ -1,6 +1,6 @@
 ---
 id: 000357
-status: codecomplete
+status: done
 created: 2026-09-30
 updated: 2026-09-30
 estimate_hours:
@@ -24,6 +24,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 30c331c05e2f0b01c3472f7104a636210cca0fc4
         evidence_commit: f8ac66e064f290f68d6fac2a22273cd4e2fc389a
+        landed_commit: 50893b12161793ca4275fcb3de3cc85ecd42334f
 ---
 
 # Bare ! in the draft clears the slot's description without submitting
