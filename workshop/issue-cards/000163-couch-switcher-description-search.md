@@ -1,11 +1,19 @@
 ---
 id: 000163
-status: working
+status: codecomplete
 created: 2026-09-01
 updated: 2026-09-30
 estimate_hours:
 github_issue:
 started: 2026-09-30T12:34:02-07:00
+actual_hours: 0.18
+tracker:
+    version: 1
+    completion:
+        token: close-861e36cdde66
+        repository: github.com/xianxu/pair
+        reviewed_head: 5e585cac82a1fdb23fca060dca3829f0a272a7f3
+        evidence_commit: 7e093879334e43f8ffdfadf2410ad938cab29ee2
 ---
 
 # Match and show actor descriptions in Couch switcher
