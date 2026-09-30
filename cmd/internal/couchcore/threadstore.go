@@ -57,11 +57,12 @@ func (e *ThreadRevisionError) Error() string {
 }
 
 type threadManifest struct {
-	RepositoryFamilies []RepositoryFamily `json:"repository_families,omitempty"`
-	SlotRepositories   []string           `json:"slot_repositories,omitempty"`
-	SchemaVersion      int                `json:"schema_version"`
-	Generation         uint64             `json:"generation"`
-	Threads            []ThreadAddress    `json:"threads"`
+	SlotRepositoryIdentities map[string]string  `json:"slot_repository_identities,omitempty"`
+	RepositoryFamilies       []RepositoryFamily `json:"repository_families,omitempty"`
+	SlotRepositories         []string           `json:"slot_repositories,omitempty"`
+	SchemaVersion            int                `json:"schema_version"`
+	Generation               uint64             `json:"generation"`
+	Threads                  []ThreadAddress    `json:"threads"`
 	// DeprecatedLegacyCutover and DeprecatedLegacyMigrationVersion are
 	// TOMBSTONES, not fields. The one-time import of the old tree-keyed
 	// registry went with pair#170 M4, but these keys are in the operator's
@@ -301,18 +302,24 @@ func (s *ThreadStore) GetThread(address ThreadAddress) (ThreadRecord, error) {
 }
 
 func (s *ThreadStore) GetPathLaunchPreference(repoIdentity, physicalPath string) (PathLaunchPreference, bool, error) {
+	return s.getPathLaunchPreference(repoIdentity, physicalPath, "")
+}
+
+// getPathLaunchPreference accepts checkout scope already proved by an operation's
+// catalog, so a read-only preview can inspect legacy enrollment before backfill.
+func (s *ThreadStore) getPathLaunchPreference(repoIdentity, physicalPath, scope string) (PathLaunchPreference, bool, error) {
 	if repoIdentity == "" {
 		return PathLaunchPreference{}, false, errors.New("path launch preference has no repository identity")
 	}
 	if !filepath.IsAbs(physicalPath) {
 		return PathLaunchPreference{}, false, errors.New("path launch preference path must be absolute")
 	}
-	backend, routeErr := s.storeForPath(physicalPath, "", repoIdentity)
+	backend, routeErr := s.storeForPath(physicalPath, scope, repoIdentity)
 	if routeErr != nil {
 		return PathLaunchPreference{}, false, routeErr
 	}
 	if backend != s {
-		return backend.GetPathLaunchPreference(repoIdentity, physicalPath)
+		return backend.getPathLaunchPreference(repoIdentity, physicalPath, scope)
 	}
 	var result PathLaunchPreference
 	var found bool
@@ -1117,6 +1124,11 @@ func (s *ThreadStore) loadManifestLocked() (threadManifest, []byte, bool, error)
 		}
 		roots[root] = true
 	}
+	for root, identity := range manifest.SlotRepositoryIdentities {
+		if manifest.SchemaVersion != 2 || !roots[root] || !workspaceAbsolute(identity) {
+			return threadManifest{}, nil, true, errors.New("invalid slot repository identity enrollment")
+		}
+	}
 	if len(manifest.RepositoryFamilies) > MaxRepositoryFamilies {
 		return threadManifest{}, nil, true, fmt.Errorf("repository family metadata in %s exceeds the supported capacity of %d; preserve this store and restore valid metadata before admission", s.manifestPath(), MaxRepositoryFamilies)
 	}
@@ -1127,6 +1139,9 @@ func (s *ThreadStore) loadManifestLocked() (threadManifest, []byte, bool, error)
 		}
 		if manifest.SchemaVersion != 2 || identities[family.RepoIdentity] || familyRoots[family.PrimaryRoot] {
 			return threadManifest{}, nil, true, errors.New("invalid or duplicate repository family")
+		}
+		if identity := manifest.SlotRepositoryIdentities[family.PrimaryRoot]; identity != "" && identity != family.RepoIdentity {
+			return threadManifest{}, nil, true, errors.New("repository family conflicts with enrolled repository identity")
 		}
 		identities[family.RepoIdentity], familyRoots[family.PrimaryRoot] = true, true
 	}
@@ -1409,17 +1424,17 @@ func (s *ThreadStore) ArchivedThreads() ([]ThreadRecord, error) {
 		return nil, err
 	}
 	if !s.layout.Local {
-		roots, err := s.slotRepositoryRoots()
+		manifest, err := s.slotRepositoryManifest()
 		if err != nil {
 			return nil, err
 		}
-		backends, err := s.discoveredBackendsFromRoots(roots)
+		backends, err := s.discoveredBackendsFromManifest(manifest)
 		if err != nil {
 			return nil, err
 		}
 		kept := records[:0]
 		for _, record := range records {
-			if !recordInSlotRepositories(record, roots) {
+			if !recordInSlotRepositories(record, manifest) {
 				kept = append(kept, record)
 			}
 		}

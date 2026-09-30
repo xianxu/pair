@@ -15,13 +15,13 @@ func (s *ThreadStore) PreviewSnapshot() (ThreadSnapshot, error) {
 	view.readOnly = true
 	return view.Snapshot()
 }
-func (s *ThreadStore) PreviewPathLaunchPreference(repoIdentity, path string) (PathLaunchPreference, bool, error) {
+func (s *ThreadStore) PreviewPathLaunchPreference(repoIdentity, path, scope string) (PathLaunchPreference, bool, error) {
 	if s == nil {
 		return PathLaunchPreference{}, false, errors.New("thread store unavailable")
 	}
 	view := *s
 	view.readOnly = true
-	return view.GetPathLaunchPreference(repoIdentity, path)
+	return view.getPathLaunchPreference(repoIdentity, path, scope)
 }
 func (s *ThreadStore) withPreviewLock(fn func() error) (err error) {
 	if err := provisionSafePath(s.root); err != nil {

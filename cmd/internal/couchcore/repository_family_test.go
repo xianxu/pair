@@ -469,3 +469,123 @@ func TestRecordCheckoutMembershipRejectsConflictingIncarnations(t *testing.T) {
 		t.Fatalf("conflicting record claimed: %v %v", belongs, err)
 	}
 }
+
+func TestEnrollmentRetainsIdentityWithoutReservingFamily(t *testing.T) {
+	s, repo, _ := familyStoreFixture(t)
+	var records []ThreadRecord
+	for i := 0; i < 2; i++ {
+		record := recordAtCheckout(t, repo.Identity.PrimaryRoot, filepath.Join(repo.Identity.PrimaryRoot, fmt.Sprintf("sub%d", i)), fmt.Sprintf("couch-%016x", i+1))
+		if _, err := s.CreateThread(record); err != nil {
+			t.Fatal(err)
+		}
+		records = append(records, record)
+	}
+	if _, _, err := InferRepositoryFamily(repo, records); err == nil {
+		t.Fatal("fixture must have ambiguous retained directories")
+	}
+	if err := s.EnrollSlotRepository(context.Background(), repo); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(s.manifestPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest struct {
+		Identities map[string]string  `json:"slot_repository_identities"`
+		Families   []RepositoryFamily `json:"repository_families"`
+	}
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if manifest.Identities[repo.Identity.PrimaryRoot] != repo.Identity.RepoIdentity || len(manifest.Families) != 0 {
+		t.Fatalf("enrollment authority: %+v", manifest)
+	}
+	if err := s.EnrollSlotRepository(context.Background(), repo); err != nil {
+		t.Fatal(err)
+	}
+	assertFamilyManifestUnchanged(t, s, raw)
+}
+
+func TestEnrollmentBackfillsLegacyIdentityAtomically(t *testing.T) {
+	s, repo, _ := familyStoreFixture(t)
+	before, _ := json.Marshal(threadManifest{SchemaVersion: 2, Generation: 12, Threads: []ThreadAddress{}, SlotRepositories: []string{repo.Identity.PrimaryRoot}})
+	if err := s.withLock(func() error { return writeAtomicBytes(s.manifestPath(), before) }); err != nil {
+		t.Fatal(err)
+	}
+	interrupted := errors.New("interrupted identity publication")
+	s.hooks.AfterJournal = func() error { return interrupted }
+	if err := s.EnrollSlotRepository(context.Background(), repo); !errors.Is(err, interrupted) {
+		t.Fatalf("backfill failed to journal: %v", err)
+	}
+	raw, _ := os.ReadFile(s.manifestPath())
+	if string(raw) != string(before) {
+		t.Fatal("manifest changed before publication")
+	}
+	s.hooks = threadStoreHooks{}
+	if err := s.EnrollSlotRepository(context.Background(), repo); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ = os.ReadFile(s.manifestPath())
+	var manifest struct {
+		Identities map[string]string  `json:"slot_repository_identities"`
+		Generation uint64             `json:"generation"`
+		Families   []RepositoryFamily `json:"repository_families"`
+	}
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if manifest.Identities[repo.Identity.PrimaryRoot] != repo.Identity.RepoIdentity || manifest.Generation != 13 || len(manifest.Families) != 0 {
+		t.Fatalf("bad recovered enrollment: %+v", manifest)
+	}
+}
+
+func TestEnrollmentRejectsRetainedIdentityConflict(t *testing.T) {
+	for _, source := range []string{"family", "enrollment"} {
+		t.Run(source, func(t *testing.T) {
+			s, repo, family := familyStoreFixture(t)
+			if source == "family" {
+				if _, err := s.ReserveRepositoryFamily(context.Background(), repo, family); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				if err := s.EnrollSlotRepository(context.Background(), repo); err != nil {
+					t.Fatal(err)
+				}
+			}
+			before, _ := os.ReadFile(s.manifestPath())
+			repo.Identity.RepoIdentity = filepath.Join(t.TempDir(), "different.git")
+			if err := s.EnrollSlotRepository(context.Background(), repo); err == nil {
+				t.Fatal("changed retained repository identity")
+			}
+			assertFamilyManifestUnchanged(t, s, before)
+		})
+	}
+}
+
+func TestEnrollmentManifestRejectsInvalidIdentityMap(t *testing.T) {
+	for _, identityMap := range []map[string]string{{"/other": "/git"}, {"/repo": "relative"}, {"/repo": ""}, {"/repo": "/other.git"}} {
+		s, _ := newTestThreadStore(t)
+		manifest := map[string]any{"schema_version": 2, "generation": 1, "threads": []ThreadAddress{}, "slot_repositories": []string{"/repo"}, "slot_repository_identities": identityMap, "repository_families": []RepositoryFamily{{PrimaryRoot: "/repo", RepoIdentity: "/repo.git", RelativeStart: "."}}}
+		raw, _ := json.Marshal(manifest)
+		if err := s.withLock(func() error { return writeAtomicBytes(s.manifestPath(), raw) }); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := savedRepositoryFamiliesForTest(s); err == nil {
+			t.Fatalf("accepted invalid identities: %+v", identityMap)
+		}
+	}
+}
+
+func TestFamilyReservationRejectsEnrollmentIdentityConflict(t *testing.T) {
+	s, repo, family := familyStoreFixture(t)
+	if err := s.EnrollSlotRepository(context.Background(), repo); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := os.ReadFile(s.manifestPath())
+	repo.Identity.RepoIdentity = filepath.Join(t.TempDir(), "other.git")
+	family.RepoIdentity = repo.Identity.RepoIdentity
+	if _, err := s.ReserveRepositoryFamily(context.Background(), repo, family); err == nil {
+		t.Fatal("family changed enrolled identity")
+	}
+	assertFamilyManifestUnchanged(t, s, before)
+}

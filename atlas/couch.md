@@ -38,7 +38,8 @@ or damaged. Explicit fresh conversation replaces the current reference and retai
 old evidence without retiring the directory or preferences. Unknown process/session
 ownership still refuses launch.
 
-Global manifest schema 2 stores enrolled primary roots, not slot lifecycle facts.
+Global manifest schema 2 stores enrolled primary roots and their verified common
+Git directories, not slot lifecycle facts.
 Catalog enumeration rebuilds the slot inventory. Enrollment stages local metadata
 before publishing the root and retiring global copies; interrupted journals replay
 idempotently. Retention independently enumerates local stores and preserves native
@@ -56,6 +57,11 @@ launches, local-store routing, inventory, and menu actions. Missing directories
 and paths escaping the checkout refuse before the agent starts.
 Storage membership also requires matching checkout scope/common Git identity,
 so nested independent repositories keep their own conversations and preferences.
+Enrollment retains common-directory identity independently of the family's
+starting-directory reservation, including separate Git directories. Older
+metadata without that authority remains readable by exact checkout scope;
+identity-dependent routing requires verified re-enrollment. Conventional paths
+locate slots but never supply repository identity.
 Each store admits at most 4096 families; existing families remain usable at the
 limit. Reservations are retained on park/archive and are not silently recycled.
 

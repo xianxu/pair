@@ -98,7 +98,7 @@ func CheckoutMembership(commonGit, checkoutRoot, path, scope, observedCommonGit 
 	if err != nil {
 		return "", false, err
 	}
-	if scope != "" && scope != expected.Key || observedCommonGit != "" && observedCommonGit != commonGit || scope == "" && observedCommonGit == "" {
+	if scope != "" && scope != expected.Key || commonGit != "" && observedCommonGit != "" && observedCommonGit != commonGit || scope == "" && (observedCommonGit == "" || commonGit == "") {
 		return "", false, nil
 	}
 	relative, err := RelativeFamilyPath(checkoutRoot, path)
@@ -116,7 +116,7 @@ func RecordCheckoutMembership(record ThreadRecord, commonGit, checkoutRoot strin
 	observed := ""
 	for _, incarnation := range record.Incarnations {
 		if incarnation.RepoIdentity != "" {
-			if incarnation.RepoIdentity != commonGit {
+			if commonGit != "" && incarnation.RepoIdentity != commonGit {
 				return "", false, nil
 			}
 			observed = incarnation.RepoIdentity

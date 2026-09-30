@@ -293,11 +293,15 @@ func (c *Couch) resolveOrdinaryStartResolution(ctx context.Context, args StartAr
 }
 
 func (c *Couch) resolveStartProfile(args StartArgs, canonicalPath string, tree Worktree, repoIdentity, defaultRoot string) (StartResolution, error) {
-	readPreference := c.Threads.GetPathLaunchPreference
+	scope, err := launcher.ResolveRepoScope(string(tree))
+	if err != nil {
+		return StartResolution{}, err
+	}
+	readPreference := c.Threads.getPathLaunchPreference
 	if c.Slots != nil {
 		readPreference = c.Threads.PreviewPathLaunchPreference
 	}
-	preference, found, err := readPreference(repoIdentity, canonicalPath)
+	preference, found, err := readPreference(repoIdentity, canonicalPath, scope.Key)
 	if err != nil {
 		return StartResolution{}, fmt.Errorf("read launch preference: %w", err)
 	}
@@ -320,7 +324,7 @@ func (c *Couch) resolveStartProfile(args StartArgs, canonicalPath string, tree W
 	}
 	var repoDefault *LaunchProfile
 	if c.RepoAgentDefault != nil {
-		value, ok, defaultErr := c.repoLaunchDefault(canonicalPath, defaultRoot, selected.Profile.Agent, repoIdentity)
+		value, ok, defaultErr := c.repoLaunchDefault(canonicalPath, defaultRoot, selected.Profile.Agent, repoIdentity, scope.Key)
 		if defaultErr != nil {
 			return StartResolution{}, fmt.Errorf("read %s repository default: %w", selected.Profile.Agent, defaultErr)
 		}

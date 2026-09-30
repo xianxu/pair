@@ -12,7 +12,7 @@ func TestThreadStorePreviewDoesNotInitialize(t *testing.T) {
 	if err != nil || len(snapshot.Records) != 0 {
 		t.Fatalf("preview=%+v %v", snapshot, err)
 	}
-	_, found, err := s.PreviewPathLaunchPreference("repo", "/repo")
+	_, found, err := s.PreviewPathLaunchPreference("repo", "/repo", "")
 	if err != nil || found {
 		t.Fatalf("preference=%v %v", found, err)
 	}

@@ -35,7 +35,7 @@ func (t ThreadTarget) Validate() error {
 		if t.Address != (ThreadAddress{}) {
 			return fmt.Errorf("slot target also contains a native address")
 		}
-		return t.Slot.Validate()
+		return t.Slot.validateLocation()
 	default:
 		return fmt.Errorf("unknown thread target kind %q", t.Kind)
 	}

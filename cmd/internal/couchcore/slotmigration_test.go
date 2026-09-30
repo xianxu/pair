@@ -130,11 +130,11 @@ func TestSlotRoutingRebuildsAndMissingCurrentDoesNotInventAddress(t *testing.T) 
 		t.Fatal(err)
 	}
 	reopened := NewThreadStore(s.namespace)
-	roots, err := reopened.slotRepositoryRoots()
+	manifest, err := reopened.slotRepositoryManifest()
 	if err != nil {
 		t.Fatal(err)
 	}
-	stores, err := reopened.discoveredBackendsFromRoots(roots)
+	stores, err := reopened.discoveredBackendsFromManifest(manifest)
 	if err != nil || len(stores) != 1 {
 		t.Fatalf("discovery %d %v", len(stores), err)
 	}
@@ -321,7 +321,7 @@ func TestSlotRoutingIncludesContainedAndUnprovisionedCWD(t *testing.T) {
 		if err != nil || local.slot == nil || local.slot.WorktreeRoot != root {
 			t.Fatalf("route %s = %+v %v", path, local.slot, err)
 		}
-		if !recordInSlotRepositories(recordAtCheckout(t, root, path, "member"), []string{repository.Identity.PrimaryRoot}) {
+		if !recordInSlotRepositories(recordAtCheckout(t, root, path, "member"), threadManifest{SlotRepositories: []string{repository.Identity.PrimaryRoot}, SlotRepositoryIdentities: map[string]string{repository.Identity.PrimaryRoot: repository.Identity.RepoIdentity}}) {
 			t.Fatalf("subdirectory escaped slot membership: %s", path)
 		}
 	}

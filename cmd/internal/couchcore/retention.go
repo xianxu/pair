@@ -484,7 +484,7 @@ func (s *ThreadStore) retentionBackends(held *storagegc.Locked) (backends []*Thr
 	} else if err != nil {
 		return nil, err
 	}
-	var roots []string
+	var snapshot threadManifest
 	err = func() (err error) {
 		lock, err := s.retentionReadLock()
 		if err != nil {
@@ -506,13 +506,13 @@ func (s *ThreadStore) retentionBackends(held *storagegc.Locked) (backends []*Thr
 		if !exists {
 			return errors.New("missing initialized store manifest")
 		}
-		roots = append([]string(nil), manifest.SlotRepositories...)
+		snapshot = manifest
 		return nil
 	}()
 	if err != nil {
 		return nil, err
 	}
-	locals, err := s.discoveredBackendsFromRoots(roots)
+	locals, err := s.discoveredBackendsFromManifest(snapshot)
 	if err != nil {
 		return nil, err
 	}

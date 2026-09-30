@@ -87,7 +87,7 @@ func (f *ProvisionFixture) Run(ctx context.Context, c ProvisionCommand) ([]byte,
 				return nil, errors.New("unknown fixture worktree")
 			}
 		}
-		common := filepath.Join(f.Primary, ".git")
+		common := f.git(top, "rev-parse", "--path-format=absolute", "--git-common-dir")
 		addr := fmt.Sprintf("%s:%d", filepath.Base(f.Primary), slot)
 		head := f.git(top, "rev-parse", "HEAD")
 		branch := f.git(top, "branch", "--show-current")

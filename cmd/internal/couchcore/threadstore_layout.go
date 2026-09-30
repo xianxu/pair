@@ -80,7 +80,7 @@ func (s *ThreadStore) validateBackendPath() error {
 	if s.slot == nil {
 		return errors.New("local store has no slot identity")
 	}
-	if err := s.slot.Validate(); err != nil {
+	if err := s.slot.validateLocation(); err != nil {
 		return err
 	}
 	for _, path := range []string{s.slot.EnvironmentRoot, s.slot.WorktreeRoot, s.root} {

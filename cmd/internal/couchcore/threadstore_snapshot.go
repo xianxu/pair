@@ -3,7 +3,7 @@ package couchcore
 import "fmt"
 
 func (s *ThreadStore) appendSlotSnapshots(snapshot ThreadSnapshot, manifest threadManifest) (ThreadSnapshot, error) {
-	backends, err := s.discoveredBackendsFromRoots(manifest.SlotRepositories)
+	backends, err := s.discoveredBackendsFromManifest(manifest)
 	if err != nil {
 		return snapshot, err
 	}

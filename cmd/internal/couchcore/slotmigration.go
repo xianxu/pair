@@ -89,8 +89,41 @@ func (s *ThreadStore) EnrollSlotRepository(ctx context.Context, repository SlotR
 		if err != nil {
 			return err
 		}
-		if slices.Contains(manifest.SlotRepositories, repository.Identity.PrimaryRoot) {
-			return nil
+		primary, common := repository.Identity.PrimaryRoot, repository.Identity.RepoIdentity
+		if saved := manifest.SlotRepositoryIdentities[primary]; saved != "" && saved != common {
+			return errors.New("verified repository identity conflicts with retained enrollment")
+		}
+		for _, family := range manifest.RepositoryFamilies {
+			if (family.PrimaryRoot == primary || family.RepoIdentity == common) && (family.PrimaryRoot != primary || family.RepoIdentity != common) {
+				return errors.New("verified repository identity conflicts with retained family")
+			}
+		}
+		publish := func(next threadManifest, removals []storeJournalEntry) error {
+			next.SchemaVersion = 2
+			next.Generation++
+			next.SlotRepositoryIdentities = make(map[string]string, len(manifest.SlotRepositoryIdentities)+1)
+			for root, identity := range manifest.SlotRepositoryIdentities {
+				next.SlotRepositoryIdentities[root] = identity
+			}
+			next.SlotRepositoryIdentities[primary] = common
+			after, err := json.MarshalIndent(next, "", "  ")
+			if err != nil {
+				return err
+			}
+			after = append(after, '\n')
+			var expected *[]byte
+			if exists {
+				expected = &manifestRaw
+			}
+			entries := []storeJournalEntry{{Path: relativeStorePath(s.root, s.manifestPath()), Expected: expected, After: &after}}
+			entries = append(entries, removals...)
+			return s.commitJournalLockedChecked(storeJournal{SchemaVersion: 1, Entries: entries}, ctx.Err)
+		}
+		if slices.Contains(manifest.SlotRepositories, primary) {
+			if manifest.SlotRepositoryIdentities[primary] == common {
+				return nil
+			}
+			return publish(manifest, nil)
 		}
 		observed, err := EnumerateSlotCandidates(repository.Identity.PrimaryRoot)
 		if err != nil {
@@ -329,8 +362,6 @@ func (s *ThreadStore) EnrollSlotRepository(ctx context.Context, repository SlotR
 			}
 		}
 		next := manifest
-		next.SchemaVersion = 2
-		next.Generation++
 		next.SlotRepositories = append(append([]string(nil), manifest.SlotRepositories...), repository.Identity.PrimaryRoot)
 		sort.Strings(next.SlotRepositories)
 		next.Threads = make([]ThreadAddress, 0, len(manifest.Threads))
@@ -339,22 +370,13 @@ func (s *ThreadStore) EnrollSlotRepository(ctx context.Context, repository SlotR
 				next.Threads = append(next.Threads, address)
 			}
 		}
-		after, err := json.MarshalIndent(next, "", "  ")
-		if err != nil {
-			return err
-		}
-		after = append(after, '\n')
-		var expected *[]byte
-		if exists {
-			expected = &manifestRaw
-		}
-		entries := []storeJournalEntry{{Path: relativeStorePath(s.root, s.manifestPath()), Expected: expected, After: &after}}
+		var entries []storeJournalEntry
 		for _, batch := range batches {
 			for _, payload := range batch.payloads {
 				before := append([]byte(nil), payload.raw...)
 				entries = append(entries, storeJournalEntry{Path: relativeStorePath(s.root, payload.source), Expected: &before})
 			}
 		}
-		return s.commitJournalLockedChecked(storeJournal{SchemaVersion: 1, Entries: entries}, ctx.Err)
+		return publish(next, entries)
 	})
 }

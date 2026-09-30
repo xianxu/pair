@@ -55,6 +55,9 @@ func (s *ThreadStore) repositoryFamily(ctx context.Context, repository SlotRepos
 		if err != nil {
 			return err
 		}
+		if identity := manifest.SlotRepositoryIdentities[requested.PrimaryRoot]; identity != "" && identity != requested.RepoIdentity {
+			return errors.New("requested family conflicts with enrolled repository identity")
+		}
 		var saved *RepositoryFamily
 		for _, family := range manifest.RepositoryFamilies {
 			if family.RepoIdentity == requested.RepoIdentity || family.PrimaryRoot == requested.PrimaryRoot {

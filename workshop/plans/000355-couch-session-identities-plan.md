@@ -423,3 +423,11 @@ verified common-directory identity through discovery, routing, preferences,
 local-origin validation and inventory, including enrollment/restart. Add real
 Git layout coverage while retaining nested-repository isolation. Conventional
 paths locate checkouts; they do not establish repository identity.
+
+Implementation refinement: retain an optional primary-root/common-directory map
+alongside enrollment roots, atomically publishing/backfilling verified catalog
+identity without reserving a family directory. Discovery consumes that map or
+an existing matching family descriptor; absent legacy authority is explicitly
+unknown. Passive location validation supports exact-scope legacy reads while
+action validation still requires common-directory identity. Common-identity-only
+routing refuses until verified re-enrollment. No Git subprocesses under locks.
