@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000356-audit-hotkeys-couch-pair-intercept-per-pane-against-the-draft-pane-first-principle.md
         source_blob: 42d4224cd44082d0707470c73e4ac586455cd05c
         destination: workshop/issues/000356-audit-hotkeys-couch-pair-intercept-per-pane-against-the-draft-pane-first-principle.md
+        main_commit: 21d86771874c4cd3d4a0b008e6986c90082ed1c1
 ---
 
 # Audit hotkeys couch/pair intercept, per pane, against the draft-pane-first principle
