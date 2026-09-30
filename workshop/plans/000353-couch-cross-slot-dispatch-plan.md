@@ -198,6 +198,64 @@ image/clipboard input declines subsequent auto-insertion until a proven reset.
 
 ## Architecture checks
 
+### Admission observation contract (PQ-1)
+
+`Console` records operator input against the focused live slot before forwarding
+it to Pair/Zellij, including draft typing. This in-memory timestamp and sequence
+are updated under the same mutex used by its messaging projection. No editor
+content inspection is needed. The wrapper records raw agent PTY output at the
+`masterPump` read boundary, before buffering/rendering; notification output does
+not pass through that boundary. Its input owner records direct agent-pane human
+input too. These producers supply monotonic activity sequences, never inferred
+file mtimes or display-only activity caches.
+
+Family admission has one two-second context for all probes and reservation.
+Under the broker lock reserve a tentative candidate/mailbox, capturing its exact
+binding and the Console input sequence. Outside that lock, probe the verified
+checkout using `couchcore.ProbeSlotGit` and ask the exact wrapper for a fresh
+activity snapshot. Both replies must belong to this admission attempt, be no
+older than the two-second deadline, and prove 30 seconds of quiet. The wrapper
+conditionally reserves delivery under its input-admission mutex only if its
+activity sequence is unchanged since that snapshot. Recheck Console's input
+sequence, live binding, and broker reservation before committing admission.
+Any intervening input/output, stale reply, failed probe or timeout cancels the
+tentative reservation and refuses the attempt; no message is delivered until
+the broker commits it. A late successful probe cannot revive it. Do not loop
+through slow candidates beyond the original admission deadline.
+
+This is observational scheduling, not a Git lock: another process can switch
+branches after the fresh Git probe. That admitted approximation does not bypass
+the later safe-composer gate. Activity after committed admission similarly
+does not retract a message; the recipient actor waits for safe insertion within
+its delivery deadline. Status listings may show cached observations explicitly;
+they never authorize admission. Controlled barrier tests delay the Git result,
+wrapper snapshot and conditional reservation independently, insert activity or
+binding replacement at each boundary, and assert no admission from stale proof.
+
+### Function-level test strategies (PQ-2)
+
+| Function | Strategy and independent oracle |
+|----------|---------------------------------|
+| `Advance` | Generate event sequences over registration, reservation, completion, replacement, expiry and operator submission. Assert independently: at most one pending message per slot, no allowance outside 0..8, only human submission replenishes an existing allowance, duplicates never spend twice, and terminal outcomes never replay. Seed exact failure interleavings as deterministic regressions. |
+| `ResolveRecipient` | Permute candidate order and identity collisions; assert every family result satisfies resting/quiet/mailbox predicates and exact routing preserves the requested incarnation. Boundary clocks cover just before/at/after 30 seconds; unknown observations never qualify. |
+| `ValidateRequest` | Fuzz strict decoding with malformed UTF-8, truncated/oversized JSON, unknown/duplicate fields, controls and incompatible command shapes. Assert no panic and accepted values satisfy independently checked byte/identity limits. |
+| `AdvancePeerDelivery` | Generated bounded event sequences plus a recording effect runner assert no submit before complete owned paste and matching render, no second paste/submit, and no automatic effects after interference, deadline or unknown write result. Inject late render and partial writes explicitly. |
+| `peerComposerState` | Replay real qualified captures; mutate cursor positions, content below/above cursor, styles, menus and images. Only known empty agent composers qualify; separate unchanged draft contents never enter this predicate. Use exact byte assertions through the existing terminal fake to catch wiring errors. |
+| `ParseCLI` | Grammar tables and fuzzed argv assert only documented forms parse, free-text bodies survive unchanged, incompatible flags refuse, and no reply/availability form is accepted. |
+
+Use controlled clocks and barriers at broker/wrapper boundaries. Stateful fakes
+retain pending writes, registration generations and unresolved outcomes so tests
+can choose event order rather than only inspect mock call counts.
+
+### Harness conformance cadence (PQ-3)
+
+Re-run captured fixtures on every change and isolated live conformance whenever
+upgrading a supported Claude/Codex version or changing a composer recognizer,
+paste qualification, or input arbitration. Record qualified versions with the
+fixtures. A version without qualification or a failed qualification must decline
+automatic peer delivery until its captures/live smoke pass; ordinary manual use
+remains available. Qualification is receiver behavior evidence, not task acceptance.
+
 - **ARCH-DRY:** existing slot identity, namespace lease, harness profiles, input
   writer, automatic-input arbitration and notice rendering remain authoritative.
   Do not reuse lossy notification queues or startup-only emptiness assumptions.
@@ -357,3 +415,8 @@ reservation to close the draft-image race discovered by tests.
   draft-pane text from unsafe agent-composer contents. Retain the eight-message
   breaker; update model, integration, CLI/skill and acceptance tests accordingly.
   Earlier review approval predates these amendments; no new gate result claimed.
+
+- 2026-09-30: plan gate PQ-1/PQ-2 required explicit observation freshness and
+  function-level test strategies. Added producer/sequence ownership, bounded
+  conditional reservation and controlled-order tests. Also addressed PQ-3 with
+  version/change-triggered receiver conformance. No product-scope change.
