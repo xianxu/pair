@@ -276,6 +276,11 @@ total: 4.193
   and diff checks passed. Remaining containment consumers were audited and
   already carry caller scope/common-Git proof. Submitting M2 round 3.
 
+- M2 round 3 accepted nested hosted-actor isolation but found reconstructed
+  storage identities assume `primary/.git`, breaking separate-Git-directory
+  repositories after enrollment. Extending retained identity propagation and
+  adding real-Git enrollment/restart coverage for reads, preferences and inventory.
+
 ## Revisions
 
 ### 2026-09-30 — Implementation requested
