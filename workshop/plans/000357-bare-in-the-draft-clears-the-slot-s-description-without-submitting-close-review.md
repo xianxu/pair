@@ -71,3 +71,69 @@ findings:
     detail: |
       "a `!` tag line (#337) a `!!` describe line (#358), and a bare `!` clear line" needs a comma after (#337). Also, the header comment line at nvim/bang_tag.lua:4 is much longer than the lines around it.
 ```
+
+---
+
+## Re-review — 2026-09-30T15:24:36-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 357 — Bare ! in the draft clears the slot's description without submitting |
+| repo | pair |
+| issue file | workshop/issues/000357-bare-in-the-draft-clears-the-slot-s-description-without-submitting.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 91d843c373c5be00f838bec31c3c1cb2ed8b98f9..c9787f701ae9122006fcb894c3ff6350098129b4 |
+| command | sdlc close --issue 357 |
+| reviewer | codex |
+| timestamp | 2026-09-30T15:24:36-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The implementation correctly reuses the no-send description path, and targeted tests pass. One explicit Done-when state remains untested: clearing when no operator description exists. BR-1 is addressed; BR-2 is partially addressed.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      nvim/bang_tag_test.lua now covers logged !! and !! text. Both expect nil; evaluating the prior implementation confirms both assertions would fail.
+  - id: BR-2
+    disposition: not-addressed
+    note: |
+      atlas/couch.md:284 now has the missing comma. The long header comment at nvim/bang_tag.lua:4 remains; wrap it to finish this Minor advisory.
+findings:
+  - id: new
+    severity: Important
+    family: behavior-change-needs-pinning-test
+    title: |
+      Clear-description coverage omits the explicitly promised no-fallback state
+    detail: |
+      cmd/internal/couchcmd/run_test.go:653 exercises only a populated operator Description. Done when promises fallback description “or none”; no test exercises clearing with Description empty. This is the 2nd finding in family behavior-change-needs-pinning-test. Apply the rule “exercise every explicitly named outcome”: parameterize the CLI test over populated and empty Description, seed PublishedSummary in both, clear through --description=, and assert both persisted and displayed results. Enumeration: fallback present is covered; fallback absent is the sole missing state in this clause.
+```
+
+1. **Strengths**
+   - Clear actions reuse the synchronous publisher and shared argument builder.
+   - Stateful integration tests assert zero agent calls and zero history appends.
+   - README and both relevant atlas pages document the new syntax.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** Missing no-fallback coverage detailed above.
+
+4. **Minor findings:** BR-2’s comment wrapping remains.
+
+5. **Test coverage:** Bang-tag unit tests, all ten integration scenarios, targeted publish-description tests, and Couch metadata/summary tests passed. BR-1’s old behavior was checked in memory and rejected by both new expectations.
+
+6. **Architecture**
+   - **ARCH-DRY — pass:** shared publisher and argument construction.
+   - **ARCH-PURE — pass:** pure parsing remains separate from subprocess IO.
+   - **ARCH-PURPOSE — flag:** implementation supports the intended behavior, but verification omits one expressly required outcome.
+
+7. **Plan revisions:** No design revision needed; extend verification to both fallback states.

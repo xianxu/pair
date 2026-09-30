@@ -651,40 +651,51 @@ func TestPublishDescriptionUsesCompositeThreadEnvironment(t *testing.T) {
 // clear only the published summary, so the row falls back to the operator's
 // description.
 func TestPublishDescriptionEmptyFlagFallsBackToOperatorDescription(t *testing.T) {
-	rt := newRT(t)
-	c, err := rt.NewCouch()
-	if err != nil {
-		t.Fatal(err)
-	}
-	created, err := c.Threads.CreateThread(couchcore.ThreadRecord{
-		SchemaVersion: couchcore.ThreadSchemaVersion,
-		Address:       couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"},
-		StartingPath:  "/repo/task", WorkingPath: "/repo/task",
-		CreatedAt: time.Unix(1, 0).UTC(), Revision: 1,
-		Description: "operator description", PublishedSummary: "agent summary",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	rt.env["COUCH_THREAD_SCOPE"] = created.Address.RepoScope
-	rt.env["COUCH_THREAD_TAG"] = string(created.Address.Tag)
-
-	if _, errw, code := runPublicRT(rt, "--internal", "publish-description", "--description="); code != 0 {
-		t.Fatalf("clear via --description=: code=%d stderr=%q", code, errw)
-	}
-	rows, err := c.ThreadInventory()
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, row := range rows {
-		if row.Address == created.Address {
-			if row.PublishedSummary != "" || row.DisplaySummary() != "operator description" {
-				t.Fatalf("row after clear = published %q, display %q", row.PublishedSummary, row.DisplaySummary())
+	for name, description := range map[string]string{"with fallback": "operator description", "without fallback": ""} {
+		t.Run(name, func(t *testing.T) {
+			rt := newRT(t)
+			c, err := rt.NewCouch()
+			if err != nil {
+				t.Fatal(err)
 			}
-			return
-		}
+			created, err := c.Threads.CreateThread(couchcore.ThreadRecord{
+				SchemaVersion: couchcore.ThreadSchemaVersion,
+				Address:       couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"},
+				StartingPath:  "/repo/task", WorkingPath: "/repo/task",
+				CreatedAt: time.Unix(1, 0).UTC(), Revision: 1,
+				Description: description, PublishedSummary: "agent summary",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			rt.env["COUCH_THREAD_SCOPE"] = created.Address.RepoScope
+			rt.env["COUCH_THREAD_TAG"] = string(created.Address.Tag)
+
+			if _, errw, code := runPublicRT(rt, "--internal", "publish-description", "--description="); code != 0 {
+				t.Fatalf("clear via --description=: code=%d stderr=%q", code, errw)
+			}
+			stored, err := c.Threads.GetThread(created.Address)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if stored.PublishedSummary != "" || stored.Description != description {
+				t.Fatalf("stored thread after clear = %+v", stored)
+			}
+			rows, err := c.ThreadInventory()
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, row := range rows {
+				if row.Address == created.Address {
+					if row.PublishedSummary != "" || row.DisplaySummary() != description {
+						t.Fatalf("row after clear = published %q, display %q", row.PublishedSummary, row.DisplaySummary())
+					}
+					return
+				}
+			}
+			t.Fatalf("thread %v missing from inventory %+v", created.Address, rows)
+		})
 	}
-	t.Fatalf("thread %v missing from inventory %+v", created.Address, rows)
 }
 
 func TestListOnEmptyThreadStore(t *testing.T) {

@@ -1,8 +1,9 @@
 -- A single-line draft starting with `!` tags the hosting couch thread (#337):
 -- the text after the `!` goes to the agent AND becomes the thread's
 -- description. `!!` sets the description after the fact and a bare `!` clears
--- it, both without sending (#358, #357). The draft owns a leading `!` outright; agents' own `!` modes
--- (Claude Code's bash mode) stay reachable by typing in the agent pane.
+-- it, both without sending (#358, #357). The draft owns a leading `!` outright;
+-- agents' own `!` modes (Claude Code's bash mode) stay reachable by typing in
+-- the agent pane.
 local M = {}
 
 -- Couch clips descriptions to its terminal width when it renders them; the cap

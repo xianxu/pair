@@ -98,3 +98,5 @@ the "draft action that doesn't submit" routing, so design them together.
 - Close review (SHIP, 2 minor advisories), both fixed in one follow-up commit:
   unit cases pin `previous_description` returning nil for logged `!!` and
   `!! text` lines, and a missing comma in `atlas/couch.md`.
+
+- 2026-09-30: operator smoke test passed. Reconnected the original close ancestry after range-diff confirmed identical rebased patches. Re-close BR-3 requested coverage of both promised clear outcomes: parameterized the CLI test over present/absent operator description and asserted stored fields plus displayed summary. Both cases pass. Wrapped the remaining BR-2 header comment. Fresh Lua unit and ten draft integration cases also passed before these test/comment-only changes.
