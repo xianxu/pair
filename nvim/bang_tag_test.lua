@@ -19,8 +19,11 @@ check('\n  ! wrapped in blank lines\n\n', 'wrapped in blank lines', 'wrapped in 
 check('! -starts with a dash', '-starts with a dash', '-starts with a dash', 'leading dash is text')
 check('!\t tab after bang', 'tab after bang', 'tab after bang', 'tab after bang')
 
-check('!', '', nil, 'bare bang sends nothing')
-check('!   ', '', nil, 'bang with only spaces sends nothing')
+-- Bare `!` (#357) clears the description and sends nothing.
+for _, input in ipairs({ '!', '!   ', '  !\t\n' }) do
+  local got = bang_tag.parse(input)
+  assert(vim.deep_equal(got, { clear = true }), vim.inspect(input) .. ': expected a clear, got ' .. vim.inspect(got))
+end
 
 check('! first line\nsecond line', nil, nil, 'multi-line draft is not a tag')
 check('first line\n! second line', nil, nil, 'bang on a later line is not a tag')
@@ -65,6 +68,9 @@ end
 check_previous('refactor the\nsubmission path', 'refactor the', 'multi-line prompt keeps its first line')
 check_previous('! start working on #358', 'start working on #358', 'bang prompt drops its !')
 check_previous('!', nil, 'bare ! prompt has nothing to describe')
+-- `!!` is never logged now; a legacy logged one sent nothing describable.
+check_previous('!!', nil, 'a logged !! has nothing to describe')
+check_previous('!! old sentence', nil, 'a logged !! sentence has nothing to describe')
 check_previous('', nil, 'empty entry has nothing to describe')
 check_previous('! first\nsecond', '! first', 'multi-line ! reached the agent verbatim')
 

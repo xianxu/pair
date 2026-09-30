@@ -819,15 +819,17 @@ do
     pcall(vim.fn.jobstart, publish_argv(description), { detach = true })
   end
 
-  -- `!!` sets the description after the fact and sends nothing (#358), so the
-  -- publish runs synchronously: there is no prompt for couch to delay, and the
-  -- result decides whether the draft clears. Returns true only on success.
+  -- `!!` sets the description after the fact and a bare `!` clears it; neither
+  -- sends anything (#358, #357). An empty description clears only the
+  -- published one, so couch falls back to the operator's. The publish runs
+  -- synchronously: there is no prompt for couch to delay, and the result
+  -- decides whether the draft clears. Returns true only on success.
   local function describe_couch_thread(tag)
     if not in_couch_thread() then
-      vim.notify('pair: !! sets a couch thread description, and this draft is not in a couch thread', vim.log.levels.WARN)
+      vim.notify('pair: ! and !! change a couch thread description, and this draft is not in a couch thread', vim.log.levels.WARN)
       return false
     end
-    local description = tag.description
+    local description = tag.clear and '' or tag.description
     if tag.describe_previous then
       local entries = read_history()
       description = entries[#entries] and bang_tag.previous_description(strip_comments(entries[#entries]))
@@ -841,17 +843,16 @@ do
     end)
     if not ok or result.code ~= 0 then
       local why = not ok and tostring(result) or vim.trim((result.stderr or '') .. ' exit ' .. tostring(result.code))
-      vim.notify('pair: could not set the description: ' .. why, vim.log.levels.ERROR)
+      vim.notify('pair: could not ' .. (tag.clear and 'clear' or 'set') .. ' the description: ' .. why, vim.log.levels.ERROR)
       return false
     end
-    vim.notify('pair: description set: ' .. description, vim.log.levels.INFO)
+    vim.notify(tag.clear and 'pair: description cleared' or ('pair: description set: ' .. description), vim.log.levels.INFO)
     return true
   end
 
   function _G.submit_operator_text(authored_body, agent_text)
     local tag = bang_tag.parse(agent_text)
     if tag and not tag.agent_text then return describe_couch_thread(tag) end
-    if tag and tag.agent_text == '' then return false end
     local ok = _G.PairSubmission.submit_operator_text(authored_body, tag and tag.agent_text or agent_text)
     if ok and tag and tag.description then publish_couch_description(tag.description) end
     return ok

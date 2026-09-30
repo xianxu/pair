@@ -281,7 +281,7 @@ proves the public test target generates it before every consumer.
 argument/result family, effect, confirmation, execution owner, and presentation.
 `list`, `show` and `archived` project as public `--list`, `--show` and
 `--archived`; the hosted-agent hook `publish-description` projects only through
-hidden `couch --internal publish-description <text>`, which pair's draft calls for a `!` tag line (#337) and a `!!` describe line (#358). `prepare-start`, `start`,
+hidden `couch --internal publish-description <text>`, which pair's draft calls for a `!` tag line (#337), a `!!` describe line (#358), and a bare `!` clear line (#357), which publishes an empty summary. `prepare-start`, `start`,
 `attach`, `switch`, `park`, `resume`, `open-slot`, `fresh-slot`, `relaunch`, `prepare-switch-agent`,
 `switch-agent`, `leave`, `stop`, `name`,
 `describe`, `archive`, `recover-thread` and `recover-checkpoint` are TUI/in-process operations. `orientation-status` is
