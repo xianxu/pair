@@ -57,6 +57,8 @@ making the match difficult to understand.
 
 ## Log
 
+
+- 2026-09-30: closed — Full couchtty suite passes 8.614s after red-to-green both-view cross-kind precedence regressions. Description-only matches cover ordinary/slot and operator/published summaries, rendering and row hit targets. Core reference tests passed 0.778s. Exact tags and explicit slot references now suppress description matches across the entire inventory. Build and diff checks pass.; review verdict: SHIP
 ### 2026-09-01
 
 Captured during Couch dogfood testing. Intended layout: when a description is
