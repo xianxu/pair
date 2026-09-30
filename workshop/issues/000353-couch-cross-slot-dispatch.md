@@ -148,6 +148,72 @@ Sockets and their ownership metadata are runtime handles, not durable messages.
 Actor/supervisor shutdown cancels pending attempts and removes owned handles;
 restart revalidates live wrappers and retains no old messages or availability.
 
+### Approved spec amendments — 2026-09-30
+
+The operator approved the spec with the following simplifications. These
+amendments supersede conflicting original/proposed text above and the older
+Done when / Plan wording below; the earlier text remains as design history.
+
+- **One free-text send API.** Use `couch --send-to SLOT_OR_FAMILY --message TEXT`
+  for instructions, updates, and responses alike. Remove `--reply-to`, parent
+  message IDs, reply rights, and runtime enforcement of one terminal reply.
+  Agents correlate conversations from sender identity and their own context.
+  Couch supplies the sender identity; agents need not supply message IDs to
+  converse. IDs remain delivery receipts/deduplication details, not conversation
+  threading requirements. Discovery, status, skill, and provenance behavior
+  otherwise remain as proposed.
+- **Derived availability.** Remove `--available` and its declaration state.
+  A family dispatch may select a live supported slot when its checkout is on
+  its verified resting branch, there has been no operator input or agent TTY
+  output for at least 30 seconds, and there is no pending message/reservation.
+  Use operator input (including draft typing without submission) and agent TTY
+  traffic, not screen-diff analysis. Couch's own notices/status updates and
+  background status queries do not count as activity. Unknown branch/activity
+  observations do not establish eligibility; registration starts observation
+  rather than assuming the preceding interval was quiet.
+- **Deliberate approximation.** Do not require separate proof that no model
+  request or tool command is running. Current agents generally animate while
+  working; the non-resting branch already excludes ongoing issue work, leaving
+  mainly the initial pre-claim/branch-switch window. Accept a silent action as
+  a limitation of this first iteration. TTY quiet selects a candidate; it does
+  not replace safe agent-composer checks at delivery. An exact-slot send can
+  still coordinate with an occupied slot.
+- **Draft pane versus agent composer.** Text left in the separate draft pane
+  neither makes the slot busy nor blocks delivery. Active typing resets the
+  quiet interval; existing draft contents do not. Pair must still preserve human
+  input and require a recognized empty, safe agent composer, without menus or
+  pending images. Remove the requirement for separate positive execution-idle
+  evidence; retain safe insertion, deadline, and post-paste ownership checks.
+- **One pending delivery.** A second send to a slot with a queued/delivering
+  message is refused immediately as recipient-busy; preserve the first message.
+  The reservation lasts until submitted or another terminal delivery outcome.
+  An empty mailbox alone does not establish availability. Family selection and
+  reservation remain atomic.
+- **Breaker and convention.** Every accepted inbound peer message, including a
+  response sent with `--send-to`, consumes one of eight allowances per slot.
+  Only a genuine operator submission resets the budget; typing, peer input,
+  idle time, status queries, and duplicate admission of the same transport ID
+  do not replenish it or spend another allowance. No separate reply budget.
+  The skill teaches actionable instructions/useful updates, responses when
+  needed, and no courtesy acknowledgment loops. It does not impose a one-reply
+  protocol. Existing restart/reconnect rules remain unchanged.
+- **Human grounding remains.** Required human acceptance is outstanding work;
+  keep its issue branch until that work is accepted and returned to rest. Couch
+  does not infer acceptance from a completed model turn or implement a second
+  work ledger. Durable work and acceptance evidence remain in repository artifacts.
+- **Receipt retention.** Remove reply-right retention and parent-receipt release
+  rules. Keep bounded receipts for delivery status/provenance/deduplication and
+  their existing lifetime; reject admissions at capacity without dropping a
+  pending delivery.
+
+Acceptance must cover resting versus issue branches; the 30-second boundary;
+draft typing versus an unchanged draft; agent output versus Couch notices;
+silent execution without a separate idle signal; exact-slot coordination;
+immediate rejection of a second pending message; safe composer/image handling;
+responses via ordinary sends; and an A/B/C loop exhausting the finite breaker.
+No `--available` or `--reply-to` command is required. The spec is approved;
+implementation has not started.
+
 ## Done when
 
 - From one slot, an agent dispatches an issue to an idle slot (explicit
@@ -218,6 +284,18 @@ marker is not proof of the payload. Preserve complete-write and uninterrupted
 input-ownership evidence, or decline automatic submission. Awaiting operator
 approval of the concrete first-iteration plan before the full change-code gate.
 
+### 2026-09-30 — operator approved simplified spec
+
+The operator accepted TTY traffic as the first-iteration activity approximation,
+with resting-branch eligibility and one pending delivery per slot. Clarified that
+an unchanged separate draft pane does not block assignment or safe delivery.
+Removed explicit availability and reply-ID APIs: all agent conversation uses
+free-text `--send-to`, with the eight-message inbound breaker and skill convention
+preventing runaway exchanges. Appended controlling spec amendments and aligned
+the durable plan's implementation/test deltas (ARCH-DRY, ARCH-PURPOSE). This is
+spec approval and a documentation checkpoint, not implementation or acceptance
+evidence.
+
 ## Revisions
 
 ### 2026-09-30 — first-iteration proposal
@@ -238,3 +316,11 @@ merely checking a copied ID, and enforcing the delivery deadline after paste as
 well as before it. Both are added to the proposal and deterministic test plan.
 Ordinary reconnect of the same wrapper within one supervisor retains its spent
 allowance; only genuinely new incarnation/supervisor state starts fresh.
+
+### 2026-09-30 — approved simplification
+
+Reason: operator feedback favors a small free-text API and observed TTY activity
+over agent-maintained availability or reply bookkeeping. The approved amendments
+in Spec replace those earlier proposals and their conflicting acceptance/plan
+requirements. Historical proposal and review entries remain intact. Plan updated
+with corresponding model, CLI, lifecycle, and regression-test changes.
