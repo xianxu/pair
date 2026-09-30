@@ -138,6 +138,11 @@ retired session associations while preserving monotonic counter high-water marks
   shared tracked-launch boundary, name assignment and ownership readers, and
   slot-family storage/routing consumers. Durable implementation plan drafted;
   fresh-context review in progress. No production code changed yet.
+- Fresh-context plan review completed: initial findings about old-launcher
+  protocol rejection and counter-restore safety were addressed, and re-review
+  approved both chunks with no blocking findings. Issue schema validation and
+  diff whitespace checks pass. Awaiting durable-plan approval required by
+  AGENTS.md §2 before `sdlc change-code`; implementation has not started.
 
 ## Revisions
 

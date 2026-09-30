@@ -26,6 +26,7 @@ native UUID migration, and no new slot-removal UI are included.
 | `StoreRegistration`, `AllocationState`, `AllocationRequest`, `AllocationResult` | `cmd/internal/couchidentity/identity.go` | new |
 | `SessionBinding` | `cmd/internal/couchidentity/session.go` | new |
 | `SessionOwnerObservation` | `cmd/internal/launcher/session_owner.go` | new |
+| `Pane` | `cmd/internal/zellijpane/zellijpane.go` | modified |
 | `ThreadRecord`, `ThreadStartClaim`, `StartEvent` | `cmd/internal/couchcore/thread.go`, `starttransaction.go`; persisted mirror in `cmd/internal/threadrecord/record.go` | modified |
 | `RepositoryFamily`, `ResolveFamilyStart` | `cmd/internal/couchcore/repository_family.go` | new |
 | `threadManifest`, `StartResolution` | `cmd/internal/couchcore/threadstore.go`, `startresolution.go` | modified |
@@ -90,7 +91,11 @@ temporary-repository fixture.
   store path gets a new C for future allocations; already stored tags and live
   bindings remain as recorded. Simultaneously restoring both authorities to an
   older point is not automatically detectable: document that coordinated restore
-  requires re-enrollment under a new store identity before new allocations.
+  is unsupported unless a non-regressed host authority or independently proven
+  C/N/M high-water floors can be restored. Merely choosing another store path
+  is not recovery: a rolled-back next C could reuse a retired store number.
+  Do not provide an automatic reset/re-enrollment fallback. Document this limit
+  and test that the recovery path refuses without that evidence.
 - Use strict JSON, bounded reads (registry 4 MiB; local state 4 KiB), regular-file
   checks, fsync of file and parent directory, and context-aware lock acquisition.
   Extract/reuse existing durable publication behavior rather than the weaker
@@ -114,7 +119,11 @@ transaction identifiers, not another resource-name allocator.
 Pass an explicit structured managed-session intent, including address, name,
 nonce, and create/attach disposition. Validate it separately from native resume
 options: warm attach must not accidentally acquire a cold resume profile or a
-layout flag. Consume/unset its environment variable at launcher entry. Both
+layout flag. Every managed invocation begins with the mandatory leading CLI
+flag `--couch-session-v1`, before `resume <tag>`; the pre-change parser rejects
+that leading option before launch effects. New parsing requires both this flag
+and a matching structured intent, refusing either on its own. Consume/unset the
+intent environment variable at launcher entry. Both
 launcher assignment functions bypass the candidate ladder for this intent.
 Creation probes the actual socket-path budget, refuses an occupied proposed
 name, appends the compatibility index association at the existing commit point,
@@ -185,7 +194,7 @@ exact path before spawn; a newly provisioned worktree may remain for retry.
   no native binding invented on failure, strict JSON and exact command evidence.
 - ARCH-CONSTRAINTS: only explicit start/resume/park paths incur allocation or
   owner probes; no keystroke/refresh-path IO. At most one selected-session pane
-  query per ownership check, bounded five seconds; no transcript scans for IDs.
+query per ownership check, bounded five seconds; no transcript scans for IDs.
 - ARCH-FUNERAL: fixed counter state, bounded permanent host assignments, existing
   retention for bindings. Family rows persist while their family exists.
 
@@ -211,9 +220,11 @@ and colocated tests; wire `cmd/internal/couchcmd/run.go`,
 Files: create `cmd/internal/launcher/session_owner{,_os,_test}.go`; modify
 `cmd/internal/couchcore/{thread,starttransaction,launch_existing,artifactcollision,
 slotsessions,resume,park}.go`, `cmd/internal/threadrecord/record.go`,
-`cmd/internal/launcher/{runcli,launch_args_policy,createflow,session_quiescence,
+`cmd/internal/launcher/{args,runcli,launch_args_policy,createflow,session_quiescence,
 session_index,zellij}.go`; extend affected colocated tests and
-`cmd/internal/couchcore/artifactcollision_zellij_test.go`.
+`cmd/internal/couchcore/artifactcollision_zellij_test.go`; extend the shared
+`cmd/internal/zellijpane/zellijpane.go` parser and its tests with optional actual
+`pane_command`/`pane_cwd` evidence, distinct from the `terminal_command` template.
 
 - [ ] Add the original two-scope/one-name regression at start/attach/park
   boundaries with a stateful live owner, then all six lifecycle rows from the
@@ -225,7 +236,9 @@ session_index,zellij}.go`; extend affected colocated tests and
   session. Test server replacement during query, missing fields, quoted paths,
   overlapping numeric tags, partial startup, and query errors.
 - [ ] Preserve legacy live bindings and cold-migrate terminal names without
-  touching Pair tags/transcripts; verify old runtime refuses managed intent.
+  touching Pair tags/transcripts; run both managed create and warm argv against
+  the immutable pre-change launcher and assert rejection before any terminal
+  effect. Also test flag-without-intent and intent-without-flag in the new parser.
 - [ ] Run focused suites with `go test -count=1 ./cmd/internal/launcher
   ./cmd/internal/threadrecord ./cmd/internal/couchcore ./cmd/internal/couchcmd`.
   Run isolated Zellij conformance tests for socket budget and owner snapshot.
@@ -276,7 +289,31 @@ slotmigration,slotrecovery,slotlaunch,slotinventory}.go`,
 
 ## Review and approval
 
-Plan authoring only so far. Obtain fresh-context plan review, checkpoint the
-issue and plan, and obtain operator approval of this durable plan before entering
-`sdlc change-code`. Derive the estimate only after the plan-quality gate accepts
-the plan. No implementation has been authorized by a passed code gate yet.
+Fresh-context plan review approved both chunks after round 1 fixes. The issue
+and plan are checkpointed locally. Operator approval of this durable plan is the
+next gate before `sdlc change-code`. Derive the estimate only after that command's
+plan-quality gate accepts the plan. No production code has changed.
+
+## Revisions
+
+### 2026-09-30 — Verify the live ownership query shape
+
+A read-only query of the incident's live Zellij session confirmed that
+`terminal_command` contains the layout shell template while `pane_command`
+contains the actual Pair wrapper/draft command and `pane_cwd` the checkout path.
+Added the shared pane parser to the entity/task tables rather than introducing
+another JSON walker. Missing actual-command fields remain unknown evidence.
+
+### 2026-09-30 — Fresh-context review round 1
+
+The reviewer found two blocking gaps: old launchers ignore unknown environment
+variables, and re-enrollment cannot repair a rolled-back host counter. Added a
+mandatory leading CLI protocol flag rejected by the previous parser, with
+create/warm skew tests. Replaced reset guidance with refusal unless independent
+non-regressed allocation authority is available; include the restore scenario
+(snapshot next C=2, consume C=2, restore snapshot, attempt re-enrollment) as a
+regression of the recovery policy. No new name allocator or recovery bypass.
+
+Fresh-context re-review approved the revised plan with no residual blocking
+findings. A read-only invocation of the installed pre-change Pair confirms that
+the proposed leading flag is rejected as a flag rather than treated as an agent.
