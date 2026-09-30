@@ -19,8 +19,11 @@ check('\n  ! wrapped in blank lines\n\n', 'wrapped in blank lines', 'wrapped in 
 check('! -starts with a dash', '-starts with a dash', '-starts with a dash', 'leading dash is text')
 check('!\t tab after bang', 'tab after bang', 'tab after bang', 'tab after bang')
 
-check('!', '', nil, 'bare bang sends nothing')
-check('!   ', '', nil, 'bang with only spaces sends nothing')
+-- Bare `!` (#357) clears the description and sends nothing.
+for _, input in ipairs({ '!', '!   ', '  !\t\n' }) do
+  local got = bang_tag.parse(input)
+  assert(vim.deep_equal(got, { clear = true }), vim.inspect(input) .. ': expected a clear, got ' .. vim.inspect(got))
+end
 
 check('! first line\nsecond line', nil, nil, 'multi-line draft is not a tag')
 check('first line\n! second line', nil, nil, 'bang on a later line is not a tag')

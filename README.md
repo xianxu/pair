@@ -258,16 +258,21 @@ Couch command does not fail the prompt. Standalone Pair strips the bang and
 sends normally without publishing a description.
 
 Only a single line qualifies, after draft comments and surrounding whitespace
-are removed. A multiline prompt is sent unchanged; a bare `!` or a bang
-followed only by whitespace sends nothing and leaves the description alone.
-The Pair log keeps the authored text, including the bang.
+are removed. A multiline prompt is sent unchanged. The Pair log keeps the
+authored text, including the bang.
 
 Forgot the `!`? Submit `!!` to make the previous prompt (history `-1`) the
 description, or `!! sentence` to use `sentence`. Neither sends anything to the
 agent or enters the Pair log. The description is one line: the first non-blank
-line, whitespace collapsed, at most 120 characters. `!!` publishes before the
-draft clears, so outside Couch, with no previous prompt, or when the Couch
-command fails, the draft stays and a notification says why.
+line, whitespace collapsed, at most 120 characters.
+
+A bare `!` (only whitespace after it) clears the published description, so the
+Couch row falls back to the description you typed in Couch, if any. It sends
+nothing to the agent and does not enter the Pair log.
+
+`!!` and a bare `!` publish before the draft clears, so outside Couch, with no
+previous prompt, or when the Couch command fails, the draft stays and a
+notification says why.
 
 The draft owns a leading `!`, so Claude Code's bash-mode syntax is available
 only by typing directly in the agent pane; no draft syntax sends a literal

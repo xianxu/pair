@@ -1,7 +1,7 @@
 -- A single-line draft starting with `!` tags the hosting couch thread (#337):
 -- the text after the `!` goes to the agent AND becomes the thread's
--- description. `!!` sets the description after the fact and sends nothing
--- (#358). The draft owns a leading `!` outright; agents' own `!` modes
+-- description. `!!` sets the description after the fact and a bare `!` clears
+-- it, both without sending (#358, #357). The draft owns a leading `!` outright; agents' own `!` modes
 -- (Claude Code's bash mode) stay reachable by typing in the agent pane.
 local M = {}
 
@@ -36,7 +36,7 @@ end
 -- parse takes the comment-stripped agent text. It returns nil when the text is
 -- not a bang line, otherwise one of:
 --   { agent_text, description }  `! text`: send text, describe the thread
---   { agent_text = '' }          bare `!`: send nothing, change nothing
+--   { clear = true }             bare `!`: clear the description, send nothing
 --   { describe_previous = true } bare `!!`: describe with the previous prompt
 --   { description }              `!! text`: describe with text, send nothing
 function M.parse(text)
@@ -48,16 +48,17 @@ function M.parse(text)
     return { description = description }
   end
   local rest = line:sub(2):gsub('^%s+', '')
-  if rest == '' then return { agent_text = '' } end
+  if rest == '' then return { clear = true } end
   return { agent_text = rest, description = rest }
 end
 
 -- previous_description derives a description from a logged prompt's
 -- comment-stripped text: what the agent received, so a `! text` prompt
--- contributes text. Nil when nothing describable remains.
+-- contributes text and a line that sent nothing contributes nothing. Nil when
+-- nothing describable remains.
 function M.previous_description(text)
   local tag = M.parse(text)
-  if tag and tag.agent_text then text = tag.agent_text end
+  if tag then text = tag.agent_text or '' end
   return M.one_line(text)
 end
 

@@ -54,7 +54,8 @@ local function wait_for_calls(count)
 end
 
 if case:match('^describe') then
-  -- `!!` (#358): describes the thread and never reaches the agent or the log.
+  -- `!!` (#358) and bare `!` (#357) set or clear the description and never
+  -- reach the agent or the log.
   local notes = {}
   vim.notify = function(msg, level) notes[#notes + 1] = { msg = msg, level = level } end
   local function silent(input, want_ok, name)
@@ -73,6 +74,8 @@ if case:match('^describe') then
     silent('!!', false, 'standalone !!')
     last_note('not in a couch thread', vim.log.levels.WARN, 'standalone !!')
     silent('!! a sentence', false, 'standalone !! sentence')
+    silent('!', false, 'standalone bare !')
+    last_note('not in a couch thread', vim.log.levels.WARN, 'standalone bare !')
     assert(#publishes() == 0, 'outside couch nothing publishes')
   elseif case == 'describe-missing' then
     assert(send('an earlier prompt'), 'seed history')
@@ -83,7 +86,9 @@ if case:match('^describe') then
     assert(send('an earlier prompt'), 'seed history')
     silent('!!', false, 'failed publish')
     last_note('could not set', vim.log.levels.ERROR, 'failed publish')
-    assert(#publishes() == 1, 'the publish was attempted once')
+    silent('!', false, 'failed clear')
+    last_note('could not clear', vim.log.levels.ERROR, 'failed clear')
+    assert(#publishes() == 2, 'each publish was attempted once')
   else
     silent('!!', false, 'no history')
     last_note('no previous prompt', vim.log.levels.WARN, 'no history')
@@ -94,11 +99,14 @@ if case:match('^describe') then
     wait_for_calls(2) -- `! text` publishes detached; keep the order deterministic
     silent('  !!  ', true, 'bare !! after a bang prompt')
     silent('!!set after the fact', true, '!! sentence')
+    silent('  !\t', true, 'bare ! clears the description')
+    last_note('description cleared', vim.log.levels.INFO, 'clear is reported')
     assert(vim.deep_equal(publishes(), {
       'scope=S1 tag=T1 --internal publish-description --description=refactor the submission',
       'scope=S1 tag=T1 --internal publish-description --description=start working on #358',
       'scope=S1 tag=T1 --internal publish-description --description=start working on #358',
       'scope=S1 tag=T1 --internal publish-description --description=set after the fact',
+      'scope=S1 tag=T1 --internal publish-description --description=',
     }), 'publishes = ' .. vim.inspect(publishes()))
   end
   print('bang tag ' .. case .. ': ok')
@@ -153,9 +161,6 @@ end
 assert(send('! start working on #337'), 'bang line sends')
 assert(dispatches[1] == 'start working on #337', 'agent gets the text after !: ' .. vim.inspect(dispatches))
 assert(appended[1] == '! start working on #337', 'Pair log keeps the authored body')
-
-assert(not send('!'), 'bare ! sends nothing')
-assert(#dispatches == 1 and #appended == 1, 'bare ! neither dispatches nor logs')
 
 assert(send('! first\nsecond'), 'multi-line bang draft sends')
 assert(dispatches[2] == '! first\nsecond', 'multi-line draft is sent unchanged')
