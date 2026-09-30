@@ -64,6 +64,9 @@ func (s *ThreadStore) repositoryFamily(ctx context.Context, repository SlotRepos
 			}
 		}
 		if saved == nil {
+			if len(manifest.RepositoryFamilies) >= MaxRepositoryFamilies {
+				return fmt.Errorf("repository family capacity of %d reached in %s; choose an existing family or use a separate Couch store", MaxRepositoryFamilies, s.manifestPath())
+			}
 			records, err := s.repositoryFamilyRecordsLocked(ctx, manifest, repository)
 			if err != nil {
 				return err

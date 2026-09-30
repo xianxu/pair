@@ -217,7 +217,7 @@ func (s *ThreadStore) CreateThread(record ThreadRecord) (ThreadRecord, error) {
 	if err := validateThreadAddress(record.Address); err != nil {
 		return ThreadRecord{}, err
 	}
-	backend, err := s.storeForPath(record.StartingPath)
+	backend, err := s.storeForPath(record.StartingPath, record.Address.RepoScope, "")
 	if err != nil {
 		return ThreadRecord{}, err
 	}
@@ -307,7 +307,7 @@ func (s *ThreadStore) GetPathLaunchPreference(repoIdentity, physicalPath string)
 	if !filepath.IsAbs(physicalPath) {
 		return PathLaunchPreference{}, false, errors.New("path launch preference path must be absolute")
 	}
-	backend, routeErr := s.storeForPath(physicalPath)
+	backend, routeErr := s.storeForPath(physicalPath, "", repoIdentity)
 	if routeErr != nil {
 		return PathLaunchPreference{}, false, routeErr
 	}
@@ -1117,6 +1117,9 @@ func (s *ThreadStore) loadManifestLocked() (threadManifest, []byte, bool, error)
 		}
 		roots[root] = true
 	}
+	if len(manifest.RepositoryFamilies) > MaxRepositoryFamilies {
+		return threadManifest{}, nil, true, fmt.Errorf("repository family metadata in %s exceeds the supported capacity of %d; preserve this store and restore valid metadata before admission", s.manifestPath(), MaxRepositoryFamilies)
+	}
 	identities, familyRoots := map[string]bool{}, map[string]bool{}
 	for _, family := range manifest.RepositoryFamilies {
 		if err := family.Validate(); err != nil {
@@ -1416,7 +1419,7 @@ func (s *ThreadStore) ArchivedThreads() ([]ThreadRecord, error) {
 		}
 		kept := records[:0]
 		for _, record := range records {
-			if !pathInSlotRepositories(record.StartingPath, roots) {
+			if !recordInSlotRepositories(record, roots) {
 				kept = append(kept, record)
 			}
 		}

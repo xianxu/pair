@@ -19,7 +19,7 @@ func (s *ThreadStore) AllocateThreadTag(repoScope, workingPath string, createdAt
 	if artifacts == nil {
 		return ThreadRecord{}, errors.New("allocate thread tag: nil artifact collision checker")
 	}
-	backend, err := s.storeForPath(workingPath)
+	backend, err := s.storeForPath(workingPath, repoScope, "")
 	if err != nil {
 		return ThreadRecord{}, err
 	}

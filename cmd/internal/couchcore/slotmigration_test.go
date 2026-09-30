@@ -17,8 +17,7 @@ func migrationFixture(t *testing.T) (*ThreadStore, SlotRepository, ThreadRecord)
 		t.Fatal(err)
 	}
 	s, _ := newTestThreadStore(t)
-	r := validThreadRecord(t)
-	r.StartingPath, r.WorkingPath = f.host(1), f.host(1)
+	r := recordAtCheckout(t, f.host(1), f.host(1), "couch-0123456789abcdef")
 	r, err = s.CreateThread(r)
 	if err != nil {
 		t.Fatal(err)
@@ -114,7 +113,7 @@ func TestSlotMigrationRejectsAmbiguousAndConflictingRecords(t *testing.T) {
 			if _, err := os.Stat(s.recordPath(r.Address)); err != nil {
 				t.Fatal("lost global source", err)
 			}
-			if local, err := s.storeForPath(r.StartingPath); err != nil || local != s {
+			if local, err := s.storeForPath(r.StartingPath, r.Address.RepoScope, ""); err != nil || local != s {
 				t.Fatalf("failed enrollment cut over: %v", err)
 			}
 		})
@@ -139,7 +138,7 @@ func TestSlotRoutingRebuildsAndMissingCurrentDoesNotInventAddress(t *testing.T) 
 	if err != nil || len(stores) != 1 {
 		t.Fatalf("discovery %d %v", len(stores), err)
 	}
-	got, err := reopened.storeForPath(r.StartingPath)
+	got, err := reopened.storeForPath(r.StartingPath, r.Address.RepoScope, "")
 	if err != nil || got.root != local.root {
 		t.Fatalf("missing-current slot lost: %v", err)
 	}
@@ -184,7 +183,7 @@ func TestSlotMigrationLeavesPrimaryArchiveRoutable(t *testing.T) {
 	s, repository, r := migrationFixture(t)
 	primary := r
 	primary.Address.Tag = "couch-2222222222222222"
-	primary.StartingPath, primary.WorkingPath = repository.Identity.PrimaryRoot, repository.Identity.PrimaryRoot
+	primary = recordAtCheckout(t, repository.Identity.PrimaryRoot, repository.Identity.PrimaryRoot, string(primary.Address.Tag))
 	if _, err := s.CreateThread(primary); err != nil {
 		t.Fatal(err)
 	}
@@ -236,11 +235,11 @@ func TestSlotMigrationEmptyRepositoryCanEnrollBeforeCreation(t *testing.T) {
 	if err := s.EnrollSlotRepository(context.Background(), repository); err != nil {
 		t.Fatal(err)
 	}
-	local, err := s.storeForPath(f.host(1))
+	local, err := s.storeForPath(f.host(1), "", repository.Identity.RepoIdentity)
 	if err != nil || local == s || local.slot.Number != 1 {
 		t.Fatalf("uncreated slot routed global: %v", err)
 	}
-	primary, err := s.storeForPath(f.Primary)
+	primary, err := s.storeForPath(f.Primary, "", repository.Identity.RepoIdentity)
 	if err != nil || primary != s {
 		t.Fatalf("primary moved: %v", err)
 	}
@@ -250,7 +249,7 @@ func TestSlotRoutingCorruptSlotLeavesPrimaryAvailable(t *testing.T) {
 	s, repository, r := migrationFixture(t)
 	primary := r
 	primary.Address.Tag = "couch-3333333333333333"
-	primary.StartingPath, primary.WorkingPath = repository.Identity.PrimaryRoot, repository.Identity.PrimaryRoot
+	primary = recordAtCheckout(t, repository.Identity.PrimaryRoot, repository.Identity.PrimaryRoot, string(primary.Address.Tag))
 	if _, err := s.CreateThread(primary); err != nil {
 		t.Fatal(err)
 	}
@@ -318,11 +317,11 @@ func TestSlotRoutingIncludesContainedAndUnprovisionedCWD(t *testing.T) {
 	}
 	for _, root := range []string{r.StartingPath, conventionalSlot(repository.Identity.PrimaryRoot, 7).WorktreeRoot} {
 		path := filepath.Join(root, "competition", "arc-agi-3")
-		local, err := s.storeForPath(path)
+		local, err := s.storeForPath(path, "", repository.Identity.RepoIdentity)
 		if err != nil || local.slot == nil || local.slot.WorktreeRoot != root {
 			t.Fatalf("route %s = %+v %v", path, local.slot, err)
 		}
-		if !pathInSlotRepositories(path, []string{repository.Identity.PrimaryRoot}) {
+		if !recordInSlotRepositories(recordAtCheckout(t, root, path, "member"), []string{repository.Identity.PrimaryRoot}) {
 			t.Fatalf("subdirectory escaped slot membership: %s", path)
 		}
 	}
@@ -331,10 +330,10 @@ func TestSlotRoutingIncludesContainedAndUnprovisionedCWD(t *testing.T) {
 	if err := os.Symlink(outside, link); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.storeForPath(filepath.Join(link, "missing")); err == nil {
+	if _, err := s.storeForPath(filepath.Join(link, "missing"), r.Address.RepoScope, ""); err == nil {
 		t.Fatal("routed escaping symlink")
 	}
-	sibling, err := s.storeForPath(r.StartingPath + "-other/sub")
+	sibling, err := s.storeForPath(r.StartingPath+"-other/sub", r.Address.RepoScope, "")
 	if err != nil || sibling != s {
 		t.Fatalf("sibling prefix stole slot storage: %v", err)
 	}

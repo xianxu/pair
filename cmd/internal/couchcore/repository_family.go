@@ -11,6 +11,9 @@ import (
 	"unicode/utf8"
 )
 
+// MaxRepositoryFamilies bounds permanently retained family descriptors per store.
+const MaxRepositoryFamilies = 4096
+
 // RepositoryFamily retains one starting directory across a Git repository's checkouts.
 type RepositoryFamily struct {
 	RepoIdentity  string `json:"repo_identity"`
@@ -88,6 +91,40 @@ func RelativeFamilyPath(root, path string) (string, error) {
 	return relative, nil
 }
 
+// CheckoutMembership requires repository authority as well as path containment.
+// A common directory alone can span several checkouts; an exact scope names one.
+func CheckoutMembership(commonGit, checkoutRoot, path, scope, observedCommonGit string) (string, bool, error) {
+	expected, err := launcher.ResolveRepoScope(checkoutRoot)
+	if err != nil {
+		return "", false, err
+	}
+	if scope != "" && scope != expected.Key || observedCommonGit != "" && observedCommonGit != commonGit || scope == "" && observedCommonGit == "" {
+		return "", false, nil
+	}
+	relative, err := RelativeFamilyPath(checkoutRoot, path)
+	if err != nil {
+		if scope == "" {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	return relative, true, nil
+}
+
+// RecordCheckoutMembership shares the storage and inference ownership rule.
+func RecordCheckoutMembership(record ThreadRecord, commonGit, checkoutRoot string) (string, bool, error) {
+	observed := ""
+	for _, incarnation := range record.Incarnations {
+		if incarnation.RepoIdentity != "" {
+			if incarnation.RepoIdentity != commonGit {
+				return "", false, nil
+			}
+			observed = incarnation.RepoIdentity
+		}
+	}
+	return CheckoutMembership(commonGit, checkoutRoot, record.StartingPath, record.Address.RepoScope, observed)
+}
+
 // ValidateFamilyPath resolves physical aliases and requires an existing directory
 // inside the actual checkout, catching symlink escapes before a child can spawn.
 func ValidateFamilyPath(root, relative string) (string, error) {
@@ -126,30 +163,24 @@ func InferRepositoryFamily(repository SlotRepository, records []ThreadRecord) (R
 	}
 	relativePaths := map[string][]string{}
 	for _, record := range records {
-		sameRepository, foreignRepository := false, false
+		sameRepository := false
 		for _, incarnation := range record.Incarnations {
 			if incarnation.RepoIdentity == family.RepoIdentity {
 				sameRepository = true
 			}
-			if incarnation.RepoIdentity != "" && incarnation.RepoIdentity != family.RepoIdentity {
-				foreignRepository = true
-			}
 		}
 		matched := false
-		if !foreignRepository {
-			for _, root := range roots {
-				scope, err := launcher.ResolveRepoScope(root)
-				if err != nil || scope.Key != record.Address.RepoScope {
-					continue
-				}
-				relative, err := RelativeFamilyPath(root, record.StartingPath)
-				if err != nil {
-					return RepositoryFamily{}, false, fmt.Errorf("repository family %s has retained path %s outside its recorded checkout %s; resolve its checkout identity before creating another conversation", family.PrimaryRoot, record.StartingPath, root)
-				}
-				relativePaths[relative] = append(relativePaths[relative], record.StartingPath)
-				matched = true
-				break
+		for _, root := range roots {
+			relative, belongs, err := RecordCheckoutMembership(record, family.RepoIdentity, root)
+			if err != nil {
+				return RepositoryFamily{}, false, fmt.Errorf("repository family %s has retained path %s outside its recorded checkout %s; resolve its checkout identity before creating another conversation: %w", family.PrimaryRoot, record.StartingPath, root, err)
 			}
+			if !belongs {
+				continue
+			}
+			relativePaths[relative] = append(relativePaths[relative], record.StartingPath)
+			matched = true
+			break
 		}
 		if sameRepository && !matched {
 			return RepositoryFamily{}, false, fmt.Errorf("repository family %s has retained starting path %s in an unprojectable checkout; resolve its checkout identity before creating another conversation", family.PrimaryRoot, record.StartingPath)

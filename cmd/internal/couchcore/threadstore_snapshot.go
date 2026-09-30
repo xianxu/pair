@@ -11,7 +11,7 @@ func (s *ThreadStore) appendSlotSnapshots(snapshot ThreadSnapshot, manifest thre
 	for _, record := range snapshot.Records {
 		local := false
 		for _, backend := range backends {
-			if _, err := RelativeFamilyPath(backend.slot.WorktreeRoot, record.StartingPath); err == nil {
+			if _, belongs, _ := RecordCheckoutMembership(record, backend.slot.RepoIdentity, backend.slot.WorktreeRoot); belongs {
 				local = true
 				break
 			}

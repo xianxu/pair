@@ -25,7 +25,7 @@ func testLocalThreadStore(t *testing.T) *ThreadStore {
 
 func TestLocalThreadStoreSingleCurrentAndSharedMutation(t *testing.T) {
 	s := testLocalThreadStore(t)
-	r := validThreadRecord(t)
+	r := recordAtCheckout(t, s.slot.WorktreeRoot, s.slot.WorktreeRoot, "couch-0123456789abcdef")
 	r.StartingPath = s.slot.WorktreeRoot
 	r.WorkingPath = r.StartingPath
 	created, err := s.CreateThread(r)
@@ -71,7 +71,7 @@ func TestLocalThreadStoreRejectsCorruptMembership(t *testing.T) {
 	if _, err := s.Snapshot(); err == nil {
 		t.Fatal("corruption treated as empty membership")
 	}
-	r := validThreadRecord(t)
+	r := recordAtCheckout(t, s.slot.WorktreeRoot, s.slot.WorktreeRoot, "couch-0123456789abcdef")
 	r.StartingPath = s.slot.WorktreeRoot
 	r.WorkingPath = r.StartingPath
 	if _, err := s.CreateThread(r); err == nil {
@@ -93,7 +93,7 @@ func TestLocalThreadStoreRejectsForeignPath(t *testing.T) {
 
 func TestLocalThreadStoreArchiveRejectsOtherCurrentTag(t *testing.T) {
 	s := testLocalThreadStore(t)
-	r := validThreadRecord(t)
+	r := recordAtCheckout(t, s.slot.WorktreeRoot, s.slot.WorktreeRoot, "couch-0123456789abcdef")
 	r.StartingPath = s.slot.WorktreeRoot
 	r.WorkingPath = r.StartingPath
 	if _, err := s.CreateThread(r); err != nil {
@@ -128,7 +128,7 @@ func TestLocalThreadStoreRefusesSymlinkBackend(t *testing.T) {
 	if err := os.Symlink(outside, s.root); err != nil {
 		t.Fatal(err)
 	}
-	r := validThreadRecord(t)
+	r := recordAtCheckout(t, s.slot.WorktreeRoot, s.slot.WorktreeRoot, "couch-0123456789abcdef")
 	r.StartingPath = s.slot.WorktreeRoot
 	r.WorkingPath = r.StartingPath
 	if _, err := s.CreateThread(r); err == nil {
@@ -177,7 +177,7 @@ func TestLocalSnapshotDoesNotInitializeAbsentState(t *testing.T) {
 
 func TestLocalSuccessfulStartRecoversRecordAndPreferencesTogether(t *testing.T) {
 	s := testLocalThreadStore(t)
-	r := validThreadRecord(t)
+	r := recordAtCheckout(t, s.slot.WorktreeRoot, s.slot.WorktreeRoot, "couch-0123456789abcdef")
 	r.StartingPath = s.slot.WorktreeRoot
 	r.WorkingPath = r.StartingPath
 	profile := LaunchProfile{Agent: "codex", Argv: []string{"--sandbox", "workspace-write"}}
@@ -219,7 +219,7 @@ func TestLocalSuccessfulStartRecoversRecordAndPreferencesTogether(t *testing.T) 
 
 func TestLocalThreadStoreRetainsSubdirectoryAndMissingCWD(t *testing.T) {
 	s := testLocalThreadStore(t)
-	r := validThreadRecord(t)
+	r := recordAtCheckout(t, s.slot.WorktreeRoot, s.slot.WorktreeRoot, "couch-0123456789abcdef")
 	r.StartingPath = filepath.Join(s.slot.WorktreeRoot, "competition", "arc-agi-3")
 	r.WorkingPath = r.StartingPath
 	if err := os.MkdirAll(r.StartingPath, 0700); err != nil {
@@ -249,7 +249,7 @@ func TestLocalThreadStoreRejectsSymlinkEscapeAndSiblingPrefix(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, path := range []string{link, filepath.Join(link, "missing"), dangling, filepath.Join(dangling, "missing"), s.slot.WorktreeRoot + "-other"} {
-		r := validThreadRecord(t)
+		r := recordAtCheckout(t, s.slot.WorktreeRoot, path, "couch-0123456789abcdef")
 		r.StartingPath = path
 		r.WorkingPath = path
 		if _, err := s.CreateThread(r); err == nil {

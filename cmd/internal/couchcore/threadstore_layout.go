@@ -62,6 +62,9 @@ func (s *ThreadStore) validateLocalOrigin(record ThreadRecord) error {
 	if s.slot == nil {
 		return nil
 	}
+	if _, belongs, err := RecordCheckoutMembership(record, s.slot.RepoIdentity, s.slot.WorktreeRoot); err != nil || !belongs {
+		return fmt.Errorf("slot record identity does not match its host checkout: %v", err)
+	}
 	for _, path := range []string{record.StartingPath, record.WorkingPath} {
 		if err := retainedPathWithinCheckout(s.slot.WorktreeRoot, path); err != nil {
 			return fmt.Errorf("slot record path does not match its host checkout: %w", err)

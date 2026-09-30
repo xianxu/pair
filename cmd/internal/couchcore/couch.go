@@ -320,7 +320,7 @@ func (c *Couch) resolveStartProfile(args StartArgs, canonicalPath string, tree W
 	}
 	var repoDefault *LaunchProfile
 	if c.RepoAgentDefault != nil {
-		value, ok, defaultErr := c.repoLaunchDefault(canonicalPath, defaultRoot, selected.Profile.Agent)
+		value, ok, defaultErr := c.repoLaunchDefault(canonicalPath, defaultRoot, selected.Profile.Agent, repoIdentity)
 		if defaultErr != nil {
 			return StartResolution{}, fmt.Errorf("read %s repository default: %w", selected.Profile.Agent, defaultErr)
 		}

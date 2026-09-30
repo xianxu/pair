@@ -400,7 +400,7 @@ func (c *Couch) slotLaunchProfile(local *ThreadStore, slot SlotIdentity, cwd, ag
 		return selected, errors.New("unsupported slot launch agent")
 	}
 	if c.RepoAgentDefault != nil {
-		value, ok, err := c.repoLaunchDefault(cwd, slot.PrimaryRoot, selected.Profile.Agent)
+		value, ok, err := c.repoLaunchDefault(cwd, slot.PrimaryRoot, selected.Profile.Agent, slot.RepoIdentity)
 		if err != nil {
 			return selected, err
 		}

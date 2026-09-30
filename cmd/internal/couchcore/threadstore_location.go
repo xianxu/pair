@@ -113,10 +113,13 @@ func retainedPathWithinCheckout(root, path string) error {
 	return nil
 }
 
-func (s *ThreadStore) storeForPath(physicalPath string) (*ThreadStore, error) {
+func (s *ThreadStore) storeForPath(physicalPath, scope, commonGit string) (*ThreadStore, error) {
 	if s.layout.Local {
 		if s.slot == nil {
 			return nil, errors.New("local store has no slot identity")
+		}
+		if _, belongs, err := CheckoutMembership(s.slot.RepoIdentity, s.slot.WorktreeRoot, physicalPath, scope, commonGit); err != nil || !belongs {
+			return nil, fmt.Errorf("path identity does not belong to local checkout: %s (%v)", physicalPath, err)
 		}
 		if err := retainedPathWithinCheckout(s.slot.WorktreeRoot, physicalPath); err != nil {
 			return nil, err
@@ -130,6 +133,11 @@ func (s *ThreadStore) storeForPath(physicalPath string) (*ThreadStore, error) {
 	for _, root := range roots {
 		slot, ok := slotForContainedPath(root, physicalPath)
 		if !ok {
+			continue
+		}
+		if _, belongs, err := CheckoutMembership(slot.RepoIdentity, slot.WorktreeRoot, physicalPath, scope, commonGit); err != nil {
+			return nil, err
+		} else if !belongs {
 			continue
 		}
 		if err := retainedPathWithinCheckout(slot.WorktreeRoot, physicalPath); err != nil {
@@ -171,7 +179,7 @@ func (s *ThreadStore) storeForAddress(address ThreadAddress) (*ThreadStore, erro
 		legacy, err = s.decodeThreadRaw(address, raw)
 		return err
 	})
-	if legacyErr == nil && !pathInSlotRepositories(legacy.StartingPath, roots) {
+	if legacyErr == nil && !recordInSlotRepositories(legacy, roots) {
 		return s, nil
 	}
 	stores, err := s.discoveredBackendsFromRoots(roots)
@@ -244,15 +252,19 @@ func (s *ThreadStore) storeForAddress(address ThreadAddress) (*ThreadStore, erro
 	if legacyErr != nil {
 		return nil, legacyErr
 	}
-	if pathInSlotRepositories(legacy.StartingPath, roots) {
+	if recordInSlotRepositories(legacy, roots) {
 		return nil, fmt.Errorf("slot %s has no local current conversation %+v", legacy.StartingPath, address)
 	}
 	return s, nil
 }
 
-func pathInSlotRepositories(path string, roots []string) bool {
+func recordInSlotRepositories(record ThreadRecord, roots []string) bool {
 	for _, root := range roots {
-		if _, ok := slotForContainedPath(root, path); ok {
+		slot, ok := slotForContainedPath(root, record.StartingPath)
+		if !ok {
+			continue
+		}
+		if _, belongs, _ := RecordCheckoutMembership(record, slot.RepoIdentity, slot.WorktreeRoot); belongs {
 			return true
 		}
 	}
@@ -262,10 +274,10 @@ func pathInSlotRepositories(path string, roots []string) bool {
 // repoLaunchDefault reads the primary repository's defaults for a numbered
 // workspace. fallback preserves the caller's ordinary-path behavior and the
 // known primary root during first creation, before the slot is enrolled.
-func (c *Couch) repoLaunchDefault(path, fallback, agent string) (LaunchProfile, bool, error) {
+func (c *Couch) repoLaunchDefault(path, fallback, agent, commonGit string) (LaunchProfile, bool, error) {
 	view := *c.Threads
 	view.readOnly = true // Default lookup must not turn a start preview into a write.
-	backend, err := view.storeForPath(path)
+	backend, err := view.storeForPath(path, "", commonGit)
 	if err != nil {
 		return LaunchProfile{}, false, err
 	}

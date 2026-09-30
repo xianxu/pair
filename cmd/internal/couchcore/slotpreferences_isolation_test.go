@@ -54,7 +54,7 @@ func TestSlotPreferencesIndependentAcrossRestartResumeAndFresh(t *testing.T) {
 	preferenceFiles := make([]string, 3)
 	before := make([][]byte, 3)
 	for i, path := range paths {
-		store, err := env.Couch.Threads.storeForPath(path)
+		store, err := env.Couch.Threads.storeForPath(path, "", identity)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -69,13 +69,17 @@ func (s *ThreadStore) EnrollSlotRepository(ctx context.Context, repository SlotR
 		byPath[id.WorktreeRoot] = batch
 		batches = append(batches, batch)
 	}
-	batchForPath := func(path string) *slotMigrationBatch {
+	batchForRecord := func(record ThreadRecord) (*slotMigrationBatch, error) {
 		for _, batch := range batches {
-			if _, err := RelativeFamilyPath(batch.local.slot.WorktreeRoot, path); err == nil {
-				return batch
+			_, belongs, err := RecordCheckoutMembership(record, batch.local.slot.RepoIdentity, batch.local.slot.WorktreeRoot)
+			if err != nil {
+				return nil, err
+			}
+			if belongs {
+				return batch, nil
 			}
 		}
-		return nil
+		return nil, nil
 	}
 	return s.withLock(func() error {
 		if err := ctx.Err(); err != nil {
@@ -123,7 +127,10 @@ func (s *ThreadStore) EnrollSlotRepository(ctx context.Context, repository SlotR
 			if err != nil {
 				return err
 			}
-			batch := batchForPath(record.StartingPath)
+			batch, err := batchForRecord(record)
+			if err != nil {
+				return err
+			}
 			if batch == nil {
 				continue
 			}
@@ -175,7 +182,10 @@ func (s *ThreadStore) EnrollSlotRepository(ctx context.Context, repository SlotR
 			if err != nil {
 				return fmt.Errorf("unreadable migration archive %s: %w", path, err)
 			}
-			batch := batchForPath(record.StartingPath)
+			batch, err := batchForRecord(record)
+			if err != nil {
+				return err
+			}
 			if batch == nil {
 				return nil
 			}
@@ -218,7 +228,17 @@ func (s *ThreadStore) EnrollSlotRepository(ctx context.Context, repository SlotR
 			if err := validatePathLaunchPreference(preference); err != nil {
 				return err
 			}
-			batch := batchForPath(preference.PhysicalPath)
+			var batch *slotMigrationBatch
+			for _, candidate := range batches {
+				_, belongs, err := CheckoutMembership(candidate.local.slot.RepoIdentity, candidate.local.slot.WorktreeRoot, preference.PhysicalPath, "", preference.RepoIdentity)
+				if err != nil {
+					return err
+				}
+				if belongs {
+					batch = candidate
+					break
+				}
+			}
 			if batch == nil {
 				continue
 			}

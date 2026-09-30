@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"os"
 	"path/filepath"
@@ -322,5 +323,149 @@ func TestFamilyInferenceExcludesNestedIndependentRepository(t *testing.T) {
 	r.Incarnations = []ThreadIncarnation{{State: IncarnationUnknown, RepoIdentity: filepath.Join(nested, ".git")}}
 	if family, found, err := InferRepositoryFamily(repo, []ThreadRecord{r}); err != nil || found {
 		t.Fatalf("nested independent repository became family evidence: %+v %v %v", family, found, err)
+	}
+}
+
+func TestCheckoutMembershipRequiresIdentityAndContainment(t *testing.T) {
+	scope, _ := launcher.ResolveRepoScope("/repo")
+	for _, tc := range []struct {
+		name, path, scope, common string
+		belongs, bad              bool
+	}{
+		{"scope", "/repo/sub", scope.Key, "", true, false},
+		{"common", "/repo/sub", "", "/repo/.git", true, false},
+		{"no identity", "/repo/sub", "", "", false, false},
+		{"nested scope", "/repo/nested/sub", "nested", "/repo/.git", false, false},
+		{"foreign common", "/repo/nested/sub", scope.Key, "/repo/nested/.git", false, false},
+		{"escape", "/elsewhere", scope.Key, "", false, true},
+		{"different checkout", "/elsewhere", "", "/repo/.git", false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			relative, belongs, err := CheckoutMembership("/repo/.git", "/repo", tc.path, tc.scope, tc.common)
+			if belongs != tc.belongs || (err != nil) != tc.bad || (belongs && relative != "sub") {
+				t.Fatalf("got %q %v %v", relative, belongs, err)
+			}
+		})
+	}
+}
+
+func seedFamilyCapacity(t *testing.T, s *ThreadStore, count int, existing *RepositoryFamily) []byte {
+	t.Helper()
+	families := make([]RepositoryFamily, count)
+	for i := range families {
+		root := fmt.Sprintf("/retained/family-%04d", i)
+		families[i] = RepositoryFamily{RepoIdentity: root + "/.git", PrimaryRoot: root, RelativeStart: "."}
+	}
+	if existing != nil {
+		families[0] = *existing
+	}
+	raw, err := json.Marshal(threadManifest{SchemaVersion: 2, Generation: 37, Threads: []ThreadAddress{}, RepositoryFamilies: families})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = s.withLock(func() error { return writeAtomicBytes(s.manifestPath(), raw) }); err != nil {
+		t.Fatal(err)
+	}
+	return raw
+}
+
+func assertFamilyManifestUnchanged(t *testing.T, s *ThreadStore, before []byte) {
+	t.Helper()
+	after, err := os.ReadFile(s.manifestPath())
+	if err != nil || string(before) != string(after) {
+		t.Fatalf("manifest mutated: %v", err)
+	}
+	if _, err := os.Stat(s.journalPath()); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("unexpected journal: %v", err)
+	}
+}
+
+func TestFamilyCapacityExistingReuseAndRefusal(t *testing.T) {
+	if MaxRepositoryFamilies != 4096 {
+		t.Fatalf("capacity contract changed: %d", MaxRepositoryFamilies)
+	}
+	s, repo, family := familyStoreFixture(t)
+	_, otherRepo, other := familyStoreFixture(t)
+	before := seedFamilyCapacity(t, s, 4096, &family)
+	for _, reserve := range []bool{false, true} {
+		inherited := family
+		inherited.RelativeStart = ""
+		got, err := s.repositoryFamily(context.Background(), repo, inherited, reserve)
+		if err != nil || got != family {
+			t.Fatalf("existing family unavailable at capacity: %+v %v", got, err)
+		}
+		_, err = s.repositoryFamily(context.Background(), otherRepo, other, reserve)
+		if err == nil || !strings.Contains(err.Error(), "4096") || !strings.Contains(err.Error(), "existing family") {
+			t.Fatalf("missing actionable capacity refusal: %v", err)
+		}
+		assertFamilyManifestUnchanged(t, s, before)
+	}
+}
+
+func TestFamilyCapacityConcurrentLastEntry(t *testing.T) {
+	s, repo, family := familyStoreFixture(t)
+	_, otherRepo, other := familyStoreFixture(t)
+	seedFamilyCapacity(t, s, 4095, nil)
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	for _, request := range []struct {
+		repo   SlotRepository
+		family RepositoryFamily
+	}{{repo, family}, {otherRepo, other}} {
+		go func(repo SlotRepository, family RepositoryFamily) {
+			<-start
+			_, err := s.ReserveRepositoryFamily(context.Background(), repo, family)
+			results <- err
+		}(request.repo, request.family)
+	}
+	close(start)
+	successes := 0
+	for i := 0; i < 2; i++ {
+		err := <-results
+		if err == nil {
+			successes++
+		} else if !strings.Contains(err.Error(), "4096") {
+			t.Fatal(err)
+		}
+	}
+	if successes != 1 {
+		t.Fatalf("last entry admitted %d families", successes)
+	}
+	if err := s.withPreviewLock(func() error {
+		manifest, _, _, err := s.loadManifestLocked()
+		if err == nil && (len(manifest.RepositoryFamilies) != 4096 || manifest.Generation != 38) {
+			t.Fatalf("count=%d generation=%d", len(manifest.RepositoryFamilies), manifest.Generation)
+		}
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestFamilyCapacityRejectsPersistedOverflow(t *testing.T) {
+	s, repo, family := familyStoreFixture(t)
+	before := seedFamilyCapacity(t, s, 4097, &family)
+	if _, err := savedRepositoryFamiliesForTest(s); err == nil || !strings.Contains(err.Error(), "4096") {
+		t.Fatalf("persisted overflow accepted: %v", err)
+	}
+	if _, err := s.ReserveRepositoryFamily(context.Background(), repo, family); err == nil {
+		t.Fatal("reused invalid overcapacity authority")
+	}
+	assertFamilyManifestUnchanged(t, s, before)
+}
+
+func TestRecordCheckoutMembershipRejectsConflictingIncarnations(t *testing.T) {
+	scope, _ := launcher.ResolveRepoScope("/repo")
+	record := ThreadRecord{Address: ThreadAddress{RepoScope: scope.Key}, StartingPath: "/repo/sub"}
+	for _, common := range []string{"", "/repo/.git"} {
+		record.Incarnations = []ThreadIncarnation{{RepoIdentity: common}}
+		relative, belongs, err := RecordCheckoutMembership(record, "/repo/.git", "/repo")
+		if err != nil || !belongs || relative != "sub" {
+			t.Fatalf("valid record lost: %q %v %v", relative, belongs, err)
+		}
+	}
+	record.Incarnations = append(record.Incarnations, ThreadIncarnation{RepoIdentity: "/repo/nested/.git"})
+	if _, belongs, err := RecordCheckoutMembership(record, "/repo/.git", "/repo"); err != nil || belongs {
+		t.Fatalf("conflicting record claimed: %v %v", belongs, err)
 	}
 }

@@ -14,9 +14,7 @@ func TestLocalCurrentReadersRejectSymlink(t *testing.T) {
 	for _, operation := range []string{"get", "metadata", "snapshot", "locked", "start", "park"} {
 		t.Run(operation, func(t *testing.T) {
 			s := testLocalThreadStore(t)
-			r := validThreadRecord(t)
-			r.StartingPath = s.slot.WorktreeRoot
-			r.WorkingPath = r.StartingPath
+			r := recordAtCheckout(t, s.slot.WorktreeRoot, s.slot.WorktreeRoot, "couch-0123456789abcdef")
 			if operation == "park" {
 				profile := LaunchProfile{Agent: "codex", Argv: []string{"--sandbox", "workspace-write"}}
 				r.Reservation = false
