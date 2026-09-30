@@ -33,6 +33,28 @@ rounds:
           round: 1
       recipe: small-diff-review
       blocked: false
+    - "n": 2
+      timestamp: "2026-09-30T13:16:00-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: README.md:272 replaces the ambiguous escape claim; the preceding paragraph documents both description forms, consistent with bang_tag.parse.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: nvim/init.lua now has one publish_argv helper and one normalization load shared by both consumers; focused integration tests pass.
+          round: 2
+        - id: BR-3
+          disposition: not-addressed
+          note: describe-missing now exercises ENOENT successfully, but no describe timeout case exists. The five-second bound remains untested; retain this Minor finding.
+          round: 2
+        - id: BR-4
+          disposition: addressed
+          note: Truncation preserves the retained byte prefix and trims whitespace before the ellipsis. Both added regression assertions pass on HEAD and independently fail against the previous implementation.
+          round: 2
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#358 (boundary-review)
@@ -53,9 +75,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-4** [Minor] `utf8-truncation-edges` one_line drops invalid UTF-8 bytes when it cuts, and can leave a trailing space before the ellipsis
   nvim/bang_tag.lua:20. The char pattern skips 0xC0/0xC1/0xF5-0xFF lead bytes and stray continuation bytes. A cut at a space yields "word …". Cosmetic.
 
+## Round 2 — 2026-09-30T13:16:00-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — README.md:272 replaces the ambiguous escape claim; the preceding paragraph documents both description forms, consistent with bang_tag.parse.
+- BR-2 — addressed — nvim/init.lua now has one publish_argv helper and one normalization load shared by both consumers; focused integration tests pass.
+- BR-3 — not-addressed — describe-missing now exercises ENOENT successfully, but no describe timeout case exists. The five-second bound remains untested; retain this Minor finding.
+- BR-4 — addressed — Truncation preserves the retained byte prefix and trims whitespace before the ellipsis. Both added regression assertions pass on HEAD and independently fail against the previous implementation.
+
 ## Open findings
 
-- **BR-1** [Minor] `doc-claim-stale-after-change` README still says "There is no `!!` escape" right after documenting `!!`
-- **BR-2** [Minor] `shared-helper-not-extracted` Couch publish argv built twice and normalization.lua loaded with dofile twice in init.lua (ARCH-DRY)
 - **BR-3** [Minor] `failure-path-untested` The `!!` publish's ENOENT and timeout paths have no integration case
-- **BR-4** [Minor] `utf8-truncation-edges` one_line drops invalid UTF-8 bytes when it cuts, and can leave a trailing space before the ellipsis

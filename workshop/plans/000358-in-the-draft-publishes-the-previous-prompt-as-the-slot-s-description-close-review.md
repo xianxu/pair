@@ -99,3 +99,80 @@ findings:
     detail: |
       nvim/bang_tag.lua:20. The char pattern skips 0xC0/0xC1/0xF5-0xFF lead bytes and stray continuation bytes. A cut at a space yields "word …". Cosmetic.
 ```
+
+---
+
+## Re-review — 2026-09-30T13:16:00-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 358 — !! in the draft publishes the previous prompt as the slot's description |
+| repo | pair |
+| issue file | workshop/issues/000358-in-the-draft-publishes-the-previous-prompt-as-the-slot-s-description.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | f0b3b78ba4c24d6048040c341b5fdc8efc8e719f..e5e35550d534ee2e4af3b19599bea0389ed9313b |
+| command | sdlc close --issue 358 |
+| reviewer | codex |
+| timestamp | 2026-09-30T13:16:00-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range implements both `!!` forms without agent traffic or history append. Focused tests pass, and the truncation regression tests fail against the previous implementation. Three prior findings are addressed; BR-3 remains partially open as a Minor testing gap. No blocking findings.
+
+1. **Strengths**
+   - Pure parsing and description normalization remain isolated in `nvim/bang_tag.lua`.
+   - `nvim/init.lua:851` routes description actions before agent submission.
+   - Integration tests use persisted history and count every agent executor call.
+   - README and atlas document the new syntax in the same range.
+
+2. **Critical findings:** none.
+
+3. **Important findings:** none.
+
+4. **Minor findings**
+   - **BR-3 remains open:** `describe-missing` covers ENOENT, but the synchronous timeout at `nvim/init.lua:841` still lacks a regression case. Add a blocked publisher case asserting bounded return, failure notification, and no agent/history effects.
+
+5. **Test coverage**
+   - Passed `make test-bang-tag` and `nvim/bang_tag_test.lua`.
+   - Independently confirmed both new truncation assertions fail against the pre-fix implementation.
+   - Draft retention follows the existing callers’ false-result guards; focused tests exercise the submission boundary rather than actual draft keybindings.
+   - No full-suite or live Couch verification performed.
+
+6. **Architecture**
+   - **ARCH-DRY — pass:** shared publication argv and normalization load.
+   - **ARCH-PURE — pass:** deterministic text processing separated from publication IO.
+   - **ARCH-PURPOSE — pass:** both requested forms and history sourcing delivered.
+   - **ARCH-MOCK — pass:** production subprocess seam exercised with a controllable executable; history fake persists state.
+   - **ARCH-CONSTRAINTS — pass with BR-3 caveat:** 120-character cap and five-second subprocess timeout implemented.
+   - **ARCH-SECURE — pass:** argv arrays avoid shell interpolation; failures notify instead of claiming success.
+   - **ARCH-ORDER — pass:** synchronous publication determines the return value; no new asynchronous state machinery.
+   - **ARCH-FUNERAL — pass:** reuses existing description storage and creates no new runtime artifact family.
+
+7. **Plan revisions:** none required. Correct the Log’s “all fixed” summary to acknowledge BR-3 remains partially unresolved.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      README.md:272 replaces the ambiguous escape claim; the preceding paragraph documents both description forms, consistent with bang_tag.parse.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      nvim/init.lua now has one publish_argv helper and one normalization load shared by both consumers; focused integration tests pass.
+  - id: BR-3
+    disposition: not-addressed
+    note: |
+      describe-missing now exercises ENOENT successfully, but no describe timeout case exists. The five-second bound remains untested; retain this Minor finding.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Truncation preserves the retained byte prefix and trims whitespace before the ellipsis. Both added regression assertions pass on HEAD and independently fail against the previous implementation.
+```
