@@ -1,12 +1,14 @@
 ---
 id: 000358
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-30
 updated: 2026-09-30
 estimate_hours:
-card_mirror: 'a0445d01eb9b66e9fc01aee93221b1acb4bbcf4c' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '576a97ceba953728cd941ba00b2211c9ad516a3a' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-09-30T11:33:55-07:00
+flow: {kind: full, provenance: inferred}
 ---
 
 # !! in the draft publishes the previous prompt as the slot's description
@@ -70,19 +72,54 @@ together; whichever lands second reuses the first's routing.
 
 ## Plan
 
-- [ ] Decide the one-line rule
-- [ ] `bang_tag.parse`: recognize `!!` and `!! sentence` ahead of `!`
-- [ ] `submit_operator_text`: route bare `!!` to history -1 → normalize →
+- [x] Decide the one-line rule: first non-blank line, runs of whitespace
+      collapsed to one space, trimmed, capped at 120 characters (UTF-8 aware,
+      `…` marks a cut). Couch clips to its terminal width at render time
+      (`couchtty/menu_render.go` `clipMenuLine`), so the cap only bounds what
+      is stored; it is not a display width.
+- [x] Publish synchronously for `!!` (unlike `!`'s detached publish): nothing
+      is sent to the agent, so there is no prompt to delay, and a sync result
+      lets a failure keep the draft and notify instead of claiming success.
+      Bounded by a 5 s `vim.system` timeout.
+- [x] `bang_tag.parse`: recognize `!!` and `!! sentence` ahead of `!`
+- [x] `submit_operator_text`: route bare `!!` to history -1 → normalize →
       publish, and `!! sentence` to normalize → publish, both without the send
-- [ ] Tests: `bang_tag` unit + `bang_tag_integration_test` (no agent traffic,
+- [x] Tests: `bang_tag` unit + `bang_tag_integration_test` (no agent traffic,
       history not appended)
 
 ## Log
 
 ### 2026-09-30
+- 2026-09-30: closed — Operator confirmed live smoke test passes 2026-09-30; fresh nvim -l nvim/bang_tag_test.lua and bash tests/bang-tag-nvim-test.sh passed all cases. Prior fresh review SHIP, no blocking findings. Reconnected patch-identical original close ancestry after rebase; merge tree unchanged (git diff HEAD^ HEAD empty). BR-3 timeout regression remains a minor advisory.; review verdict: SHIP
+- 2026-09-30: closed — Operator confirmed live smoke test passes on 2026-09-30. Fresh nvim -l nvim/bang_tag_test.lua and bash tests/bang-tag-nvim-test.sh pass, including both !! forms, no agent traffic/history append, standalone and failed/missing publisher cases. Re-review post-close fixes at e5e35550; prior full-suite evidence remains in issue Log.; review verdict: SHIP
+- 2026-09-30: flow upgraded quick → full — 104 added lines in code files (limit 100)
+- 2026-09-30: closed — bang-tag-nvim-test: !! and !! sentence publish via stub couch with zero zellij executor calls and no log append (describe/describe-standalone/describe-nonzero cases); bang_tag_test pins one_line on multi-line, bang-tagged, 120-char cap, UTF-8; #337 cases unchanged and green; full make test green (review-window under default TMPDIR); go artifactpath classification failure is pre-existing on base; review verdict: SHIP
 
 - Filed at the operator's request, to recover from forgetting the `!` prefix.
   History source verified: `read_history()` n=1 is the -1 entry.
 - `!! sentence` added at the operator's request: it sets the description
   without submitting, so `!!` in both forms is the after-the-fact fix for a
   forgotten `!`. It supersedes the open "`!! text` needs a decision" point.
+- Implemented: `bang_tag.parse` returns `{ describe_previous }` / `{ description }`
+  for `!!`; `one_line` and `previous_description` are pure and unit-tested.
+  `submit_operator_text` routes both to `describe_couch_thread` before any
+  send. `strip_comments` is defined later in `init.lua`, so the block loads
+  `normalization.lua` directly, as it does `bang_tag.lua`.
+- Integration: the Pair-log fake now appends to `PAIR_LOG_PATH`, so `!!` reads
+  real history; every zellij executor call is counted, and `!!` must leave the
+  count and the log unchanged. Mutation check: letting `!!` fall through to the
+  send fails the driver.
+- Test env: `review-window-test` needs the default TMPDIR and
+  `test-changelog` a short one (both known); every `make test` target passes
+  under the right TMPDIR. `go test` fails only
+  `TestProductionArtifactReferencesAreExactlyClassified` (reviewcmd and review
+  lua files), and it fails identically on the base commit.
+
+- Close review (SHIP, 4 minor advisories), three fixed and BR-3 partially addressed in one follow-up commit:
+  the README's "no `!!` escape" sentence reworded; one `publish_argv` builder
+  and one `strip_comments` (hoisted above the bang block) instead of two of
+  each; `one_line` keeps invalid bytes and leaves no space before `…`; a
+  `describe-missing` case covers the ENOENT path. The 5 s timeout stays
+  untested; a case for it would add 5 s to every run.
+
+- 2026-09-30: operator confirmed the live smoke test passes. Fresh unit and all ten integration cases pass. Re-close review returned SHIP with no blocking findings; BR-3 retains the advisory timeout-test gap. Finalization refused because the earlier rebase copied the four original commits unchanged but left the tracker bound to the original close. `git range-diff 06973c5d..70ce0c43 f0b3b78b..e39ed125` confirms all four patches identical. Reconnect the original close ancestry while preserving the current tree, then rerun close to bind fresh evidence.

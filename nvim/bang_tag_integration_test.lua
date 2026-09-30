@@ -8,6 +8,10 @@ local calls_path = assert(os.getenv('PAIR_TEST_COUCH_CALLS'))
 local appended = {}
 _G.PairTestSessionLogAppend = function(body)
   appended[#appended + 1] = body
+  -- Stateful: history navigation (and `!!`, #358) reads what was appended.
+  local f = assert(io.open(assert(os.getenv('PAIR_LOG_PATH')), 'a'))
+  f:write('## 2026-09-30 00:00:00\n\n' .. body .. '\n\n---\n\n')
+  f:close()
   return true
 end
 _G.PairTestSessionLogCommit = function() return true end
@@ -15,7 +19,9 @@ _G.PairTestSessionLogCommit = function() return true end
 local dispatches = {}
 local composer = ''
 local failed_submit = false
+local agent_calls = 0
 _G.PairTestZellijExecutor = function(label, argv)
+  agent_calls = agent_calls + 1
   local kind = assert(label:match('draft%.send%.(.+)$'))
   if case == 'retry' and kind == 'submit' and not failed_submit then
     failed_submit = true
@@ -45,6 +51,59 @@ end
 local function wait_for_calls(count)
   assert(vim.wait(5000, function() return #publishes() >= count end, 20),
     'publishes never arrived: ' .. vim.inspect(publishes()))
+end
+
+if case:match('^describe') then
+  -- `!!` (#358): describes the thread and never reaches the agent or the log.
+  local notes = {}
+  vim.notify = function(msg, level) notes[#notes + 1] = { msg = msg, level = level } end
+  local function silent(input, want_ok, name)
+    local calls, logged = agent_calls, #appended
+    assert(send(input) == want_ok, name .. ': submit result')
+    assert(agent_calls == calls, name .. ': no bytes reach the agent pane')
+    assert(#appended == logged, name .. ': nothing is appended to the history')
+  end
+  local function last_note(pattern, level, name)
+    local note = notes[#notes]
+    assert(note and note.msg:find(pattern) and note.level == level, name .. ': note = ' .. vim.inspect(note))
+  end
+
+  if case == 'describe-standalone' then
+    assert(send('an earlier prompt'), 'seed history')
+    silent('!!', false, 'standalone !!')
+    last_note('not in a couch thread', vim.log.levels.WARN, 'standalone !!')
+    silent('!! a sentence', false, 'standalone !! sentence')
+    assert(#publishes() == 0, 'outside couch nothing publishes')
+  elseif case == 'describe-missing' then
+    assert(send('an earlier prompt'), 'seed history')
+    vim.env.PATH = assert(os.getenv('PAIR_TEST_EMPTY_PATH'))
+    silent('!!', false, 'missing publisher')
+    last_note('could not set', vim.log.levels.ERROR, 'missing publisher')
+  elseif case == 'describe-nonzero' then
+    assert(send('an earlier prompt'), 'seed history')
+    silent('!!', false, 'failed publish')
+    last_note('could not set', vim.log.levels.ERROR, 'failed publish')
+    assert(#publishes() == 1, 'the publish was attempted once')
+  else
+    silent('!!', false, 'no history')
+    last_note('no previous prompt', vim.log.levels.WARN, 'no history')
+    assert(send('=== sticky note\nrefactor the   submission\npath next'), 'seed multi-line history')
+    silent('!!', true, 'bare !! after a multi-line prompt')
+    last_note('refactor the submission', vim.log.levels.INFO, 'success is reported')
+    assert(send('! start working on #358'), 'seed bang history')
+    wait_for_calls(2) -- `! text` publishes detached; keep the order deterministic
+    silent('  !!  ', true, 'bare !! after a bang prompt')
+    silent('!!set after the fact', true, '!! sentence')
+    assert(vim.deep_equal(publishes(), {
+      'scope=S1 tag=T1 --internal publish-description --description=refactor the submission',
+      'scope=S1 tag=T1 --internal publish-description --description=start working on #358',
+      'scope=S1 tag=T1 --internal publish-description --description=start working on #358',
+      'scope=S1 tag=T1 --internal publish-description --description=set after the fact',
+    }), 'publishes = ' .. vim.inspect(publishes()))
+  end
+  print('bang tag ' .. case .. ': ok')
+  vim.cmd('qa!')
+  return
 end
 
 if case == 'missing' or case == 'nonzero' or case == 'slow' or case == 'retry' then

@@ -262,8 +262,16 @@ are removed. A multiline prompt is sent unchanged; a bare `!` or a bang
 followed only by whitespace sends nothing and leaves the description alone.
 The Pair log keeps the authored text, including the bang.
 
+Forgot the `!`? Submit `!!` to make the previous prompt (history `-1`) the
+description, or `!! sentence` to use `sentence`. Neither sends anything to the
+agent or enters the Pair log. The description is one line: the first non-blank
+line, whitespace collapsed, at most 120 characters. `!!` publishes before the
+draft clears, so outside Couch, with no previous prompt, or when the Couch
+command fails, the draft stays and a notification says why.
+
 The draft owns a leading `!`, so Claude Code's bash-mode syntax is available
-only by typing directly in the agent pane. There is no `!!` escape.
+only by typing directly in the agent pane; no draft syntax sends a literal
+leading `!`.
 
 ## Mouse
 
