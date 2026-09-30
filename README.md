@@ -608,7 +608,10 @@ how to tag a thread. The switcher remembers the last view used until Couch
 exits. Reopening clears search text but keeps the view. With text in the filter,
 Space is a literal search character; it does not toggle views.
 
-Printable input filters the current list from memory (typeahead). Use `↑↓` and `Enter` to
+Printable input filters the current list from memory (typeahead), including the
+displayed description in both default and focus views. Description matching is
+case-insensitive; default results show the matching description beneath the row.
+Exact thread tags and slot references keep their usual precedence. Use `↑↓` and `Enter` to
 select and switch/resume; `Tab` or `Right` opens the selected thread's actions,
 while `Left` or `Escape` restores its parent. Rows expose only proven `live`, resumable
 `parked`, and proved `detached` states — and a row is offered only when

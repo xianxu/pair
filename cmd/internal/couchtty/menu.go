@@ -350,39 +350,48 @@ func visibleRootThreads(inventory []couchcore.ActionableThreadSummary, frame Men
 	if frame.Filter == "" {
 		return append([]couchcore.ActionableThreadSummary(nil), inventory...)
 	}
-	ordinary := make([]couchcore.ThreadReferenceFields, 0, len(inventory))
+	ref, workspaceRef, refErr := couchcore.ParseWorkspaceReference(frame.Filter)
+	var exact, fuzzy []couchcore.ActionableThreadSummary
 	for _, row := range inventory {
-		if row.Target.Kind != couchcore.ThreadTargetSlot {
-			ordinary = append(ordinary, couchcore.ThreadReferenceFields{Address: row.Address, Name: row.Name, WorkingPath: row.WorkingPath})
-		}
-	}
-	addresses, _ := couchcore.MatchThreadReferenceFields(ordinary, frame.Filter)
-	wanted := make(map[couchcore.ThreadAddress]bool, len(addresses))
-	for _, address := range addresses {
-		wanted[address] = true
-	}
-	visible := make([]couchcore.ActionableThreadSummary, 0, len(inventory))
-	ref, matched, refErr := couchcore.ParseWorkspaceReference(frame.Filter)
-	for _, row := range inventory {
-		if row.Target.Kind != couchcore.ThreadTargetSlot {
-			if wanted[row.Address] {
-				visible = append(visible, row)
+		slotRow := row.Target.Kind == couchcore.ThreadTargetSlot
+		if workspaceRef {
+			slot := row.Target.Slot
+			if slotRow && refErr == nil && ref.Number == slot.Number && (ref.Repo == "" || ref.Repo == slot.Repo) {
+				exact = append(exact, row)
 			}
 			continue
 		}
-		slot := row.Target.Slot
-		accept := false
-		if matched {
-			accept = refErr == nil && ref.Number == slot.Number && (ref.Repo == "" || ref.Repo == slot.Repo)
-		} else {
-			needle := strings.ToLower(frame.Filter)
-			accept = strings.Contains(strings.ToLower(row.Label()), needle) || strings.Contains(strings.ToLower(row.WorkingPath), needle) || (row.Address.Tag != "" && strings.Contains(strings.ToLower(string(row.Address.Tag)), needle))
+		name := row.Name
+		if slotRow {
+			name = row.Label()
 		}
-		if accept {
-			visible = append(visible, row)
+		match, err := couchcore.ClassifyThreadReferenceFields(couchcore.ThreadReferenceFields{
+			Address: row.Address, Name: name, WorkingPath: row.WorkingPath, Description: menuFocusSummary(row),
+		}, frame.Filter)
+		if err != nil {
+			continue
+		}
+		// Slot rows also accept partial tag text; exact tags still win across all rows.
+		if slotRow && match == couchcore.ThreadReferenceNone && row.Address.Tag != "" && strings.Contains(strings.ToLower(string(row.Address.Tag)), strings.ToLower(frame.Filter)) {
+			match = couchcore.ThreadReferenceFuzzy
+		}
+		switch match {
+		case couchcore.ThreadReferenceExact:
+			exact = append(exact, row)
+		case couchcore.ThreadReferenceFuzzy:
+			fuzzy = append(fuzzy, row)
 		}
 	}
-	return visible
+	if len(exact) > 0 || workspaceRef {
+		return exact
+	}
+	return fuzzy
+}
+
+// menuDescriptionMatches uses the same displayed text in either root view.
+func menuDescriptionMatches(row couchcore.ActionableThreadSummary, query string) bool {
+	query = strings.TrimSpace(query)
+	return query != "" && strings.Contains(strings.ToLower(menuFocusSummary(row)), strings.ToLower(query))
 }
 
 // clearsPreviousNotice reports whether an event retires the message on screen.

@@ -348,3 +348,7 @@ proof; record the surprising case so the next change starts from evidence.
   identity. Conventional slot paths locate storage but do not prove that Git's
   common directory is `primary/.git`; exercise separate-Git-directory enrollment
   and restart through production storage readers. (#355 M2 BR-4 round 3)
+
+- Search precedence must be applied across the complete displayed inventory,
+  not separately per row kind. Test exact references against descriptive matches
+  in every competing kind and UI view. (#163 BR-1)
