@@ -193,6 +193,15 @@ total: 4.193
   artifact inventory findings (existing #348); this branch adds none.
   Final complete Couch core partitions are running before milestone review.
 
+- M1 final verification: all Couch core tests passed in three exhaustive name
+  partitions (94.948s, 124.102s, 166.635s); Couch command suite passed (44.613s),
+  TTY, launcher, allocator, durablefile, checkpoint, threadrecord and zellijpane
+  suites passed. Core boundary race tests and allocator/launcher race tests pass.
+  Owner-command fuzz: 25,932 executions; pane-evidence fuzz: 270,652 executions;
+  allocation fuzz: 176,771 executions. `make build` rebuilt Pair/Couch/helper;
+  its secondary workflow target skipped a duplicate pair-go build via sentinel.
+  `git diff --check` passes. Submitting M1 for its mandatory review.
+
 ## Revisions
 
 ### 2026-09-30 — Implementation requested
