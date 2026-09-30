@@ -156,6 +156,11 @@ total: 4.193
 
 ## Log
 
+- M1 boundary review round 1 returned REWORK: BR-1 requires exact terminal
+  incarnation authority across cold admission, registration, and failed-launch
+  cleanup; BR-2 requires revalidation after blocking attach preparation.
+  Addressing both classes with composed lifecycle regressions before M2.
+
 ### 2026-09-30
 
 - Captured the operator's agreed C/N/M allocation model and repository-family
