@@ -212,7 +212,9 @@ total: 4.193
   capacity tests demonstrated failures before the 4096 cap; concurrent final
   admission, existing-family reuse, persisted overflow, and no-write refusal
   now pass. Focused fixture and family suites, command/UI suites, race checks,
-  build and diff checks pass; exhaustive core partitions are completing.
+  build and diff checks pass. Exhaustive core partitions passed (136.146s,
+  173.205s, 254.963s); command/UI passed (61.783s/12.336s), focused races
+  passed (39.096s), and concurrent capacity race passed (10.668s).
 
 ### 2026-09-30
 - 2026-09-30: closed M1 — Full core partitions, command/UI and launcher suites passed after BR-1/BR-2; focused races, live owner conformance and build passed. BR-3 real-Git new/fresh Unicode and punctuation launches plus 255-byte repository regression pass, allocator/durablefile and focused core suites pass, build and diff check pass. Artifact inventory has only the same 32 baseline #348 findings.; review verdict: SHIP
