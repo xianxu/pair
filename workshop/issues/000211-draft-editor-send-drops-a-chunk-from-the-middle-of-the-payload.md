@@ -159,6 +159,15 @@ Suspects to work through, cheapest first:
   full `make test` fails `review-window-test` (7, passes when the target runs
   alone) and `artifactpath` `TestProductionArtifactReferencesAreExactlyClassified`
   (32 identical complaints). Every other target and `go test ./...` pass.
+- **Close review BR-1 (Important), fixed at the root:** framing would have made
+  DECSET 2004 a requirement for every agent pair drives. pair-wrap now asks its
+  terminal model (`childAcceptsPaste`): markers pass when the child enabled 2004
+  (or there is no model), and are dropped otherwise, in both the profiled and
+  the pass-through translator, so an agent without bracketed paste gets typed
+  input exactly as before. Mutation-checked at all three points. Minors: the
+  orientation prompt uses the shared Go paste constants; atlas and the harness
+  bring-up guide state the contract. Live probe re-run on the rebuilt binary:
+  6/6 whole.
 
 ## Revisions
 

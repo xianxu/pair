@@ -255,6 +255,17 @@ func (o *terminalControlObserver) handleESC(command xansi.Cmd) {
 	}
 }
 
+// BracketedPaste reports whether the child has enabled bracketed paste (DECSET
+// 2004) and not since disabled it. A closed model reports false.
+func (m *terminalModel) BracketedPaste() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closed {
+		return false
+	}
+	return m.emulator.Mode(xansi.DECMode(2004)).IsSet()
+}
+
 func (m *terminalModel) Snapshot() terminalSnapshot {
 	m.mu.Lock()
 	defer m.mu.Unlock()

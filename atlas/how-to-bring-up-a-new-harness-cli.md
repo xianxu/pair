@@ -61,6 +61,8 @@ By default, the bottom Neovim draft pane maps **Enter** to insert a newline, and
 
 **Telemetry Signal** (aspect `1`, see §3): `return-remap` — `fired` each time a plain Enter is remapped to the agent's newline; `bypass` each time it passes through as a bare `\r` while an overlay is active or the composer is not positively detected. Emitted from `emitPlainCR`. The `fired:bypass` ratio is the health signal; an all-`bypass` or zero-`fired` session means the remap stopped engaging or composer detection drifted.
 
+**Draft bodies arrive as a bracketed paste (#211).** The draft send and review pokes frame the body as `ESC[200~ … ESC[201~`, so an agent that enables DECSET 2004 receives one paste it collects whole — Return remapping never touches a CR inside it — and the submit is the Alt+Enter that follows. An agent that never enables 2004 needs nothing: pair-wrap strips the markers and the body arrives as typed input. When capturing a new harness, note whether it writes `ESC[?2004h`; test fixtures that exercise paste markers must emit it (`bracketedPasteOn` in `wrapcmd` tests).
+
 ---
 
 ### Aspect 2: Overlay-Aware Return Suspension

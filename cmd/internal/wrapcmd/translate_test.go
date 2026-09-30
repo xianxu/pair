@@ -220,7 +220,7 @@ func TestTranslateChunk(t *testing.T) {
 	t.Run("codex keymap", func(t *testing.T) {
 		f := newHarnessSessionFake(t, "codex", true)
 		t.Cleanup(f.close)
-		f.output(codexLiveComposerPaint())
+		f.output(bracketedPasteOn + codexLiveComposerPaint())
 		cases := []struct{ in, want []byte }{
 			{[]byte("hi\r"), []byte("hi\n")},         // Enter → newline
 			{[]byte("hi\x1b\r"), []byte("hi\r")},     // legacy Alt+Enter → CR submit

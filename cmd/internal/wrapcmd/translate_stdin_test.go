@@ -55,6 +55,12 @@ func waitFor(timeout time.Duration, cond func() bool) bool {
 	return cond()
 }
 
+// bracketedPasteOn is what every profiled harness writes at startup (DECSET
+// 2004). Fixtures that model a live agent and exercise paste markers must
+// emit it: pair-wrap drops the markers for a child that never enabled paste
+// (pair#211), so a fixture without it models a different agent.
+const bracketedPasteOn = "\x1b[?2004h"
+
 func proxyForHarness(harness string) *proxy {
 	profile, ok := profileForHarness(harness, true)
 	if !ok {
@@ -76,7 +82,7 @@ func claudeProxy() *proxy {
 		panic("configure claude test proxy: " + err.Error())
 	}
 	var rolling []byte
-	p.handleChunk([]byte(claudeLiveComposerPaint()), &rolling)
+	p.handleChunk([]byte(bracketedPasteOn+claudeLiveComposerPaint()), &rolling)
 	return p
 }
 

@@ -1252,7 +1252,7 @@ Two launch modes resolve this:
 - **Asymmetric panes by design.** Most chat UIs cram input and output into the same constrained box. The split makes the asymmetry explicit — agent owns *output*, nvim owns *input* — and lets each side specialize.
 - **Selection is the gesture.** Click-and-drag in the agent pane, mouse up — the quote is in nvim, ready for your reaction. No keystroke between.
 - **Self-contained.** Uses `--config-dir` and `nvim -u` to fully isolate from the user's normal configs. No invasive install.
-- **Agent-agnostic.** Same plumbing works for any TUI agent that accepts typed input. Switching is one keystroke.
+- **Agent-agnostic.** Same plumbing works for any TUI agent that accepts typed input. Switching is one keystroke. Sends are framed as one bracketed paste (#211), but pair-wrap drops the markers for a child that has not enabled DECSET 2004, so an agent without bracketed paste still gets typed input (`childAcceptsPaste` in `wrapcmd/wrap.go`).
 - **Prompt history is just a markdown file.** Aligns with the "data into central location, shell-ed agent runs free" pattern: every send appends to a grep-able log.
 
 ## Future work

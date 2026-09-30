@@ -48,7 +48,7 @@ import (
 
 func main() { os.Exit(run()) }
 
-const trialsPerMode = 6
+const trialsPerMode = 3
 
 // payload is size bytes of numbered lines between per-trial markers, behind a
 // one-line instruction that keeps the reply (and the cost) to a word.
