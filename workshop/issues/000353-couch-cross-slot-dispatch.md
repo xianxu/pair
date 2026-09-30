@@ -53,18 +53,125 @@ dispatch is cheap.
   run inside Couch and how to address `repo:N` or `repo` (any free slot).
 - Provenance UI is secondary; the operator can ask the slot's agent.
 
+### First iteration — proposed 2026-09-30
+
+This proposal refines the original bullets above. Work and acceptance evidence
+stay in Ariadne/repository artifacts. Couch messages are transient delivery
+attempts, never another task tracker. No automatic provisioning, replay after
+restart, cross-instance routing, broadcast, or worksheet scheduler in this issue.
+
+**Public interface.** `couch --actors` lists live, message-capable slots in this
+Couch namespace, including each slot's availability and pending message.
+`couch --available on|off` declares the calling slot's willingness to take new
+work. New/reconnected actors default off. `couch --send-to pair:1 --message TEXT`
+addresses an exact live slot; `--send-to pair` atomically selects and reserves
+one available live slot in that family. Explicit addressing can send a
+clarification to an occupied slot. Work instructions name a durable issue or
+other repository artifact; free-form coordination text is allowed. Couch does
+not parse issue contents or run SDLC verbs. The skill owns that convention.
+
+`couch --reply-to ID --message TEXT` permits one terminal reply to a delivered
+request, addressed back to its original live sender. Replies cannot themselves
+be replied to. `couch --message-status ID` returns the canonical envelope and
+current outcome to its participants, and `couch --skill` prints the shipped
+skill. These CLI shapes are tentative until plan approval.
+
+**Availability and human grounding.** Availability is an explicit declaration,
+not inferred from silence, Git cleanliness, or a completed model turn. A new
+human submission or accepted ordinary peer request clears it. Receiving a
+reply does not release unfinished work. The skill prohibits advertising
+availability while implementation, required review, or human acceptance is
+outstanding. After acceptance the agent can advertise again. Runtime input
+readiness is a separate Pair observation, never evidence of completed work.
+
+**Runtime.** One broker belongs to the live Couch supervisor lease. It maintains
+one actor per live registered slot and one pending delivery per actor. Routing
+uses the existing verified family/slot identities, including `:0`; ambiguous
+family names refuse. Selection/reservation occurs atomically. The recipient's
+actor owns delivery sequencing; Pair's existing single input writer performs
+all writes. Status queries are answered by the runtime without an LLM turn.
+Sender/recipient bindings include the exact conversation and wrapper launch
+identity. A reused slot name cannot inherit a pending message or reply right.
+
+**Admission.** Acceptance returns a message ID and resolved recipient immediately
+after reserving the recipient's pending slot, not after model completion.
+No free family member returns `not-dispatched` with an explanation and exit 0;
+invalid destination, dead explicit recipient, unsupported receiver, queue full,
+and malformed input return a typed refusal and nonzero exit. A normal accepted
+message clears availability. Delivery status is queued, delivering, submitted,
+expired, cancelled, or indeterminate; submitted means bytes submitted, not task
+started. Query status instead of automatically retrying an uncertain send.
+
+**Delivery.** Initial receivers are Claude Code and Codex, qualified against
+captured fixtures and a live smoke; other agents remain usable normally but
+refuse peer delivery. Require a recognized, empty coding composer, a completed
+turn or positively qualified fresh-session ready state, no menu/permission
+prompt, no image attachment/capture, and no operator input in flight. Unknown
+state waits and expires after 30 seconds. There is no inactivity heuristic or
+force-send fallback. Once paste begins, operator interference cancels automatic
+submit and preserves the visible text; partial writes are indeterminate and
+never automatically retried. The CLI/status tells the sender when intervention
+is needed. Pair must arbitrate paste, image admission, typing, and submit under
+one input owner; an image remains pending after capture completes.
+
+**Loop control.** The skill teaches one useful reply at most, no courtesy
+acknowledgments, and no opening a fresh request to continue an exhausted reply.
+The runtime additionally permits eight accepted inbound peer messages per slot
+between genuine operator submissions. Requests and replies both consume this
+allowance; peer input, orientation, idle transitions, and availability changes
+never replenish it. Exhaustion refuses further messages visibly until an
+operator submits input to that slot. This bounds fresh-ID and multi-agent cycles
+within the existing live actor set without tracking a conversation graph.
+A new supervisor/wrapper binding starts a new ephemeral allowance; agents must
+not restart or manufacture operator input to evade the limit.
+
+**Provenance and visibility.** Pair creates the sender/ID envelope from the
+broker's record and displays a small delivery notice. The skill verifies the
+ID through `--message-status` before treating pasted text as a peer request;
+ordinary text containing a Couch-looking prefix creates no broker record.
+Native harness transcript roles cannot be changed through TTY paste: this is
+verified peer provenance, not a new native system-message role. Messages never
+confer operator approval. Existing Couch navigation remains the inspection UI;
+`--actors`/receipts expose coordination state. No dashboard or TTY restyling.
+
+**Bounds.** Start with one pending message per slot, an 8 KiB UTF-8 body limit,
+128 registered actors, a 2-second CLI admission deadline, a 30-second delivery
+deadline, and 256 retained receipts with a one-hour lifetime. Reject new
+admissions at capacity; never evict a pending request or live reply right to make
+room. Finished replies can release their parent receipt; expiry ends reply
+rights. These are conservative initial engineering choices, not measurements.
+Sockets and their ownership metadata are runtime handles, not durable messages.
+Actor/supervisor shutdown cancels pending attempts and removes owned handles;
+restart revalidates live wrappers and retains no old messages or availability.
+
 ## Done when
 
 - From one slot, an agent dispatches an issue to an idle slot (explicit
   `repo:N` or any free slot of `repo`); the target starts work on it.
 - Injection never happens while the target's input box is hidden or
   non-empty; tests cover a menu state and a pending image placeholder.
-- A line not injected by pair is never treated as a peer message.
+- A line not injected by Pair never creates authenticated peer provenance;
+  the skill verifies its receipt before acting as a peer request.
 - No free slot leaves the filed issue unclaimed, with a clear message.
+
+- Explicit and family sends work between two live qualified slots, including
+  `:0`; simultaneous family requests cannot reserve the same slot.
+- Awaiting human acceptance does not advertise availability. Status queries
+  do not invoke an LLM. One reply and the eight-message breaker are enforced.
+- Restart, replacement, timeout, queue full, and partial writes cause no silent
+  retargeting, replay, message loss masquerading as success, or forced submit.
+- The Couch skill is shipped and usable by agents in any repository through
+  `couch --skill`; setup and an operator acceptance scenario are documented.
 
 ## Plan
 
-- [ ] Design the queue, the safe-insertion detector, and the message marker.
+- [ ] Approve the first-iteration contract and implementation plan.
+- [ ] Implement and test bounded actor admission and request/reply rules.
+- [ ] Integrate supervisor transport and exact live wrapper registration.
+- [ ] Qualify safe Claude/Codex delivery through Pair's input owner.
+- [ ] Ship CLI, skill, operator notices, and end-to-end acceptance evidence.
+
+Durable plan: [implementation](../plans/000353-couch-cross-slot-dispatch-plan.md).
 
 ## Log
 
@@ -96,3 +203,16 @@ autonomous staffing/merge system to this issue.
 The initial ticket read used `sdlc issue show`, which intentionally prints only
 frontmatter and section headings. The full details were subsequently read from
 the file; design work must use the file body.
+
+## Revisions
+
+### 2026-09-30 — first-iteration proposal
+
+The operator expanded issue-only dispatch to live peer communication while
+keeping all durable work in repository artifacts. Proposed deltas: permit
+coordination text with artifact references for work; explicitly advertise
+availability; one pending delivery and one reply; a finite per-slot breaker;
+Claude/Codex receiver qualification first. Remove the unsafe inactivity fallback.
+Clarify the provenance criterion as broker verification because terminal paste
+cannot create a native harness message role. Original Spec bullets are retained
+above as history; the dated first-iteration proposal is the contract to review.
