@@ -54,6 +54,10 @@ conflicting legacy directories preserve existing conversations but refuse new
 admission. Checkout roots remain separate from starting/working directories in
 launches, local-store routing, inventory, and menu actions. Missing directories
 and paths escaping the checkout refuse before the agent starts.
+Storage membership also requires matching checkout scope/common Git identity,
+so nested independent repositories keep their own conversations and preferences.
+Each store admits at most 4096 families; existing families remain usable at the
+limit. Reservations are retained on park/archive and are not silently recycled.
 
 Key seams: `slotcatalog.go`, `threadstore_layout.go`, `threadstore_location.go`,
 `slotmigration.go`, `threadstore_preview.go`, `slotinventory.go`, and the shared

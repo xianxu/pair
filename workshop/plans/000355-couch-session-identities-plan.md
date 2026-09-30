@@ -393,3 +393,14 @@ paths that cannot be projected. Existing ambiguous conversations remain openable
 through both direct and prepared slot actions. Dependency checkouts reserve their
 own family without gaining numbered-slot enrollment. Snapshot filtering uses
 discovered backends so a missing legacy checkout cannot hide retained records.
+
+### 2026-09-30 — M2 boundary review: membership and retention
+
+BR-4 requires repository membership, not containment alone, across routing,
+current/archive migration, preference migration, local-origin validation, and
+snapshot filtering. Pass existing checkout-scope/common-Git identity evidence
+through one shared membership rule; test outer-slot and nested independent
+repository conversations together. BR-5 bounds permanent family descriptors at
+4096 per store, refusing new families at capacity while preserving existing
+family use. Park/archive do not reclaim reservations; removal remains a future
+explicit operation. ARCH-DRY, ARCH-SECURE, and ARCH-FUNERAL shape these fixes.

@@ -332,3 +332,9 @@ proof; record the surprising case so the next change starts from evidence.
 - A descriptive label must not constrain resource identity. Generated internal
   names need a safe fallback for Unicode/punctuation-only repository names and
   bounded label length; allocating counters carry uniqueness. (#355 M1 BR-3)
+
+- Checkout containment is not repository membership: nested independent Git
+  repositories need their own storage. Carry scope/common-dir identity through
+  routing, migration, preferences, and inventory, not only admission inference.
+  Permanent reservations need an explicit admission bound when removal is
+  deferred. (#355 M2 BR-4/BR-5)

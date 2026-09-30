@@ -55,6 +55,25 @@ rounds:
       boundary: M1
       recipe: milestone-review
       blocked: false
+    - "n": 4
+      timestamp: "2026-09-30T11:25:49-07:00"
+      agent: codex
+      findings:
+        - id: BR-4
+          severity: Critical
+          title: Nested independent repositories are routed into the enclosing slot's storage
+          detail: slotmigration.go:72 selects destinations by containment alone; threadstore_location.go:131, local-origin validation, and threadstore_snapshot.go:14 repeat that assumption. A nested independent repository's conversation is migrated into the outer slot's single-current store, blocks enrollment when both have current records, or is filtered from global inventory. Enforce one scope/common-Git-identity membership rule across migration, preferences, routing, and snapshots; test outer and nested conversations together. ARCH-DRY, ARCH-PURPOSE, ARCH-SECURE.
+          family: checkout-membership-requires-repository-identity
+          round: 4
+        - id: BR-5
+          severity: Important
+          title: Permanent repository-family descriptors have no removal path or admission bound
+          detail: repository_family_store.go:95 appends permanent descriptors without a capacity check, and no consumer removes them. The plan defers removal without bounding retained growth. Add and test an explicit admission bound with actionable refusal, or implement a deliberate removal lifecycle that preserves parked reservations; document the policy. ARCH-FUNERAL.
+          family: durable-family-reservations-need-bounds
+          round: 4
+      boundary: M2
+      recipe: milestone-review
+      blocked: true
 ---
 
 # Gate ledger — pair#355 (boundary-review)
@@ -89,6 +108,16 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - BR-3 — addressed — The shared formatter supplies a safe fallback and bounds descriptive tokens. Pure formatter and composed new/fresh launch tests pass at HEAD and fail with the previous formatter substituted through a temporary Go overlay. Unicode-only, punctuation-only, and long repository names are exercised.
 
+## Round 4 — 2026-09-30T11:25:49-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **BR-4** [Critical] `checkout-membership-requires-repository-identity` Nested independent repositories are routed into the enclosing slot's storage
+  slotmigration.go:72 selects destinations by containment alone; threadstore_location.go:131, local-origin validation, and threadstore_snapshot.go:14 repeat that assumption. A nested independent repository's conversation is migrated into the outer slot's single-current store, blocks enrollment when both have current records, or is filtered from global inventory. Enforce one scope/common-Git-identity membership rule across migration, preferences, routing, and snapshots; test outer and nested conversations together. ARCH-DRY, ARCH-PURPOSE, ARCH-SECURE.
+- **BR-5** [Important] `durable-family-reservations-need-bounds` Permanent repository-family descriptors have no removal path or admission bound
+  repository_family_store.go:95 appends permanent descriptors without a capacity check, and no consumer removes them. The plan defers removal without bounding retained growth. Add and test an explicit admission bound with actionable refusal, or implement a deliberate removal lifecycle that preserves parked reservations; document the policy. ARCH-FUNERAL.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-4** [Critical] `checkout-membership-requires-repository-identity` Nested independent repositories are routed into the enclosing slot's storage
+- **BR-5** [Important] `durable-family-reservations-need-bounds` Permanent repository-family descriptors have no removal path or admission bound
