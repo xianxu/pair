@@ -794,7 +794,7 @@ func (c *Couch) quiescePostAckStart(address ThreadAddress, h Handle, shape Start
 		if !shape.OwnsSession() {
 			return firstErr
 		}
-		if err := c.Artifacts.Quiesce(address); err != nil {
+		if err := c.quiesceThreadSession(context.Background(), address); err != nil {
 			if firstErr == nil {
 				firstErr = fmt.Errorf("quiesce durable Pair session %+v: %w", address, err)
 			}
@@ -951,35 +951,18 @@ func (c *Couch) reconcileInterruptedStarts() error {
 			return fmt.Errorf("read Pair registration for %+v: %w", record.Address, registrationErr)
 		}
 		observation.Registration = registration
-		if transaction.Helper != nil {
-			for _, inc := range record.Incarnations {
-				if inc.Start == nil || inc.Start.SessionBinding == nil {
-					continue
-				}
-				binding := inc.Start.SessionBinding
-				var session PairSessionBinding
-				var probeErr error
-				if named, ok := c.Artifacts.(interface {
-					NamedPairSessionContext(context.Context, ThreadAddress, string) (PairSessionBinding, error)
-				}); ok {
-					session, probeErr = named.NamedPairSessionContext(context.Background(), record.Address, binding.Name)
-				} else {
-					session, probeErr = c.recoverySession(context.Background(), record.Address)
-				}
-				if probeErr != nil {
-					observation.Registration = RegistrationUnknown
-				} else {
-					observation.Session = PresenceAbsent
-					// A brand-new exclusive address has no historical registration;
-					// an established marker proves this first launch ran, even if cleanup
-					// has since removed its terminal. Resumes can carry an old marker.
-					if registration != RegistrationEstablished || record.LatestLaunchProfile != nil || record.SessionBinding != nil {
-						observation.Registration = RegistrationAbsent
-					}
-					if session.Present {
-						observation.Session = PresencePresent
-						observation.Registration = registration
-					}
+		if recordSessionBinding(record) != nil {
+			session, probeErr := observeRecordSession(context.Background(), c.Artifacts, record)
+			if probeErr != nil {
+				observation.Registration = RegistrationUnknown
+			} else if session.Present {
+				observation.Session = PresencePresent
+			} else {
+				observation.Session = PresenceAbsent
+				// Only an exclusive first launch has no older registration marker.
+				// A resumed conversation must prove its proposed terminal exists.
+				if registration != RegistrationEstablished || record.LatestLaunchProfile != nil || record.SessionBinding != nil {
+					observation.Registration = RegistrationAbsent
 				}
 			}
 		}

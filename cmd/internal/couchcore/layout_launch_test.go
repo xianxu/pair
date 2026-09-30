@@ -116,8 +116,8 @@ func TestColdResumeMigratesTheWitnessToCouchLayout(t *testing.T) {
 		t.Fatalf("fixture already carries a layout %q; the migration case needs none", parked.Layout)
 	}
 	env.Artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
-	env.Runner.AfterAcknowledge = func(string) error {
-		env.Artifacts.SetPairSession(parked.Address, "pair-"+string(parked.Address.Tag), true)
+	env.Runner.AfterAcknowledge = func(id string) error {
+		env.Artifacts.SetPairSession(parked.Address, continuationChildSession(t, env.Runner, id), true)
 		return nil
 	}
 

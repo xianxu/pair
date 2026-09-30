@@ -214,6 +214,9 @@ type couchSessionRuntime struct {
 	observed, revalidated int
 	changed               bool
 	changeDuringLayout    bool
+	changeDuringCmux      bool
+	changeDuringRetention bool
+	appearDuringRetention bool
 }
 
 func (f *couchSessionRuntime) ObserveSessionOwner(ctx context.Context, name, root, scope, tag string) (SessionOwnerObservation, error) {
@@ -323,5 +326,82 @@ func TestCouchSessionWarmGenerationRevalidatedAfterLayoutProbe(t *testing.T) {
 	}
 	if rt.observed != 1 {
 		t.Fatalf("replaced original observation instead of revalidating: %d", rt.observed)
+	}
+}
+
+func (f *couchSessionRuntime) CmuxRename(tag, session string) {
+	f.fakeRuntime.CmuxRename(tag, session)
+	if f.changeDuringCmux {
+		f.changed = true
+	}
+}
+func (f *couchSessionRuntime) BeginRetention(dataDir, tag string, create bool) (RetentionUse, error) {
+	if f.appearDuringRetention {
+		f.sessions = []Session{{Name: "📁1-1", State: SessionAttached}}
+	}
+	if f.changeDuringRetention {
+		f.changed = true
+	}
+	return &fakeRetentionUse{id: "managed-test", events: new([]string)}, nil
+}
+func TestCouchSessionWarmGenerationRevalidatedAtAttachEffect(t *testing.T) {
+	for _, boundary := range []string{"cmux", "retention"} {
+		for _, exported := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/exported=%v", boundary, exported), func(t *testing.T) {
+				opts := managedSessionOptions("attach")
+				rt := &couchSessionRuntime{fakeRuntime: newFakeRuntime(), ownerState: SessionOwnerOwned, changeDuringCmux: boundary == "cmux", changeDuringRetention: boundary == "retention"}
+				rt.sessions = []Session{{Name: opts.Args.CouchSession.Name, State: SessionDetached}}
+				var code int
+				var err error
+				var stderr bytes.Buffer
+				if exported {
+					code, err = AttachExistingSession(opts, opts.Env, rt, opts.Args.ForcedTag, opts.Args.CouchSession.Name, "codex")
+				} else {
+					code, err = RunLaunch(opts, rt, &stderr)
+				}
+				if code == 0 || len(rt.attached) != 0 || rt.launchCount != 0 {
+					t.Fatalf("replacement attached: code=%d err=%v attached=%v stderr=%s", code, err, rt.attached, &stderr)
+				}
+				if rt.observed != 1 {
+					t.Fatalf("original observation not retained: %d", rt.observed)
+				}
+				if len(rt.killedPollers) != 1 || rt.killedPollers[0] != opts.Args.ForcedTag {
+					t.Fatalf("failed attach left poller running: %v", rt.killedPollers)
+				}
+			})
+		}
+	}
+}
+
+func TestCouchSessionCreateRefusesExistingConversationTerminal(t *testing.T) {
+	for _, late := range []bool{false, true} {
+		for _, state := range []SessionOwnerState{SessionOwnerOwned, SessionOwnerUnknown, SessionOwnerForeign} {
+			t.Run(fmt.Sprintf("late=%v/state=%v", late, state), func(t *testing.T) {
+				opts := managedSessionOptions("create")
+				rt := &couchSessionRuntime{fakeRuntime: newFakeRuntime(), ownerState: state, appearDuringRetention: late}
+				old := SessionNameEntry{ScopeKey: opts.Args.CouchSession.Scope, Tag: opts.Args.ForcedTag, SessionName: "📁1-1"}
+				rt.sessionIndex.Entries = []SessionNameEntry{old}
+				if !late {
+					rt.sessions = []Session{{Name: old.SessionName, State: SessionAttached}}
+				}
+				var stderr bytes.Buffer
+				code, err := RunLaunch(opts, rt, &stderr)
+				if state == SessionOwnerForeign {
+					if code != 0 || err != nil || rt.launched != opts.Args.CouchSession.Name {
+						t.Fatalf("foreign name blocked creation: code=%d err=%v stderr=%s", code, err, &stderr)
+					}
+				} else {
+					if code == 0 || rt.launchCount != 0 || len(rt.attached) != 0 {
+						t.Fatalf("duplicate conversation launch: code=%d err=%v stderr=%s", code, err, &stderr)
+					}
+					if len(rt.sessionIndex.Entries) != 1 || rt.sessionIndex.Entries[0] != old {
+						t.Fatalf("old association replaced: %+v", rt.sessionIndex.Entries)
+					}
+				}
+				if len(rt.deleted) != 0 {
+					t.Fatalf("existing terminal deleted: %v", rt.deleted)
+				}
+			})
+		}
 	}
 }

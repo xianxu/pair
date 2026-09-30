@@ -452,7 +452,7 @@ func (c *Couch) OpenSlot(ctx context.Context, path, agent string) (StartResult, 
 				if !ok {
 					return StartResult{}, errors.New("detached survivor observer unavailable")
 				}
-				proof, err := resolver.DetachedSessions(ctx, []DetachedCandidate{{Address: next.Address, Agent: next.LatestLaunchProfile.Agent}})
+				proof, err := resolver.DetachedSessions(ctx, []DetachedCandidate{{Address: next.Address, Agent: next.LatestLaunchProfile.Agent, SessionName: recordSessionName(next)}})
 				if err != nil {
 					return StartResult{}, err
 				}

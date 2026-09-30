@@ -43,6 +43,13 @@ conversation, unknown refuses, and mutations revalidate the server generation.
 Passive inventory avoids per-row pane queries. Compatibility index publication
 replaces one exact scope/tag association, retaining unrelated addresses.
 
+Durable current/pending bindings select the exact terminal for registration,
+recovery, park, detach, and failed-launch cleanup; the compatibility index is
+only a fallback for legacy records without a binding. Cold creation requires
+absence of the previous terminal, including attached sessions. Warm attachment
+carries the original server proof through retention and title preparation and
+revalidates it immediately before the attach handoff.
+
 The owner parser fixtures run in ordinary tests; live Zellij ownership and socket
 budget conformance runs before releases supporting a changed Zellij version.
 

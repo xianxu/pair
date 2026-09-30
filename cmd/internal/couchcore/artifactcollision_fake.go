@@ -201,7 +201,7 @@ func (f *FakeThreadArtifactCollisionChecker) DetachedSessions(ctx context.Contex
 	sessions := make([]launcher.Session, 0, len(candidates))
 	for _, candidate := range candidates {
 		name := f.detachedSessions[candidate.Address]
-		if name == "" {
+		if name == "" || (candidate.SessionName != "" && candidate.SessionName != name) {
 			continue
 		}
 		bindings = append(bindings, SessionNameBinding{
@@ -454,6 +454,20 @@ func (f *FakeThreadArtifactCollisionChecker) Quiesces() []ThreadAddress {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]ThreadAddress{}, f.quiesced...)
+}
+
+func (f *FakeThreadArtifactCollisionChecker) QuiesceNamed(ctx context.Context, address ThreadAddress, name string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	binding, err := f.PairSessionContext(ctx, address)
+	if err != nil && !errors.Is(err, ErrPairSessionBindingAbsent) {
+		return err
+	}
+	if err == nil && binding.Name != name {
+		return nil
+	}
+	return f.Quiesce(address)
 }
 
 func (f *FakeThreadArtifactCollisionChecker) Releases() []ThreadAddress {

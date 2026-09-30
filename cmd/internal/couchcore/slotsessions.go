@@ -239,6 +239,9 @@ func (c *Couch) ObserveSlotSessions(ctx context.Context, slot SlotIdentity) (Slo
 					if err := addRecord(partial); err != nil {
 						return err
 					}
+					if recordSessionName(partial) != "" {
+						return errors.New("damaged slot record has unresolved terminal binding; inspect before recovery")
+					}
 					candidates[partial.Address].Record = nil
 				} else if len(partial.Incarnations) != 0 || partial.Continuation != nil {
 					return errors.New("damaged slot record has unresolved process ownership; inspect before recovery")
@@ -333,7 +336,26 @@ func (c *Couch) ObserveSlotSessions(ctx context.Context, slot SlotIdentity) (Slo
 		// This is an action admission boundary, unlike periodic inventory. An
 		// indexed live name can actually belong to another scope; prove its
 		// runtime owner before it can veto replacement or authorize recovery.
-		if observer, ok := c.Artifacts.(contextPairSessionObserver); ok && candidate.Presence != SessionAbsent {
+		if candidate.Record != nil && recordSessionName(*candidate.Record) != "" {
+			records := []ThreadRecord{*candidate.Record}
+			// A proposed replacement does not retire the previous terminal.
+			// Fresh-slot admission must prove both retained names absent.
+			if current := candidate.Record.SessionBinding; current != nil && current.Name != recordSessionName(*candidate.Record) {
+				previous := *candidate.Record
+				previous.Incarnations = nil
+				records = append(records, previous)
+			}
+			candidate.Presence = SessionAbsent
+			for _, record := range records {
+				binding, observeErr := observeRecordSession(ctx, c.Artifacts, record)
+				if observeErr != nil {
+					return out, observeErr
+				}
+				if binding.Present {
+					candidate.Presence = SessionPresent
+				}
+			}
+		} else if observer, ok := c.Artifacts.(contextPairSessionObserver); ok && candidate.Presence != SessionAbsent {
 			binding, observeErr := observer.PairSessionContext(ctx, address)
 			if observeErr != nil {
 				return out, observeErr

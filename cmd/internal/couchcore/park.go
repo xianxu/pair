@@ -331,7 +331,7 @@ func (c *PairLifecycleController) parkExpected(ctx context.Context, address Thre
 	if err != nil {
 		return ParkResult{}, err
 	}
-	binding, err := c.Sessions.PairSession(address)
+	binding, err := observeRecordSession(ctx, c.Sessions, current)
 	if err != nil {
 		return ParkResult{}, err
 	}
@@ -380,7 +380,7 @@ func (c *PairLifecycleController) retry(ctx context.Context, address ThreadAddre
 	if current.Park == nil {
 		return ParkResult{}, errors.New("thread has no active park transaction")
 	}
-	binding, err := c.Sessions.PairSession(address)
+	binding, err := observeRecordSession(ctx, c.Sessions, current)
 	if err != nil {
 		return ParkResult{Thread: current}, err
 	}
@@ -429,7 +429,7 @@ func (c *PairLifecycleController) recover(ctx context.Context, address ThreadAdd
 	if current.Park == nil {
 		return ParkResult{}, errors.New("thread has no active park transaction")
 	}
-	binding, err := c.Sessions.PairSession(address)
+	binding, err := observeRecordSession(ctx, c.Sessions, current)
 	if err != nil {
 		return ParkResult{Thread: current}, err
 	}
@@ -520,7 +520,7 @@ func (c *PairLifecycleController) reconcileActive(ctx context.Context, address T
 	if record.Park == nil {
 		return ParkResult{Thread: record}, nil
 	}
-	binding, bindingErr := c.Sessions.PairSession(record.Address)
+	binding, bindingErr := observeRecordSession(ctx, c.Sessions, record)
 	if bindingErr != nil {
 		return ParkResult{Thread: record}, bindingErr
 	}

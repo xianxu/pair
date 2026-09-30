@@ -81,7 +81,7 @@ func (c *Couch) Detach(ctx context.Context, address ThreadAddress) (ThreadRecord
 
 	// Observe the session BEFORE signalling: if it is not there now, detaching
 	// would leave a thread with no view and nothing to reattach to.
-	before, err := sessions.PairSession(address)
+	before, err := observeRecordSession(ctx, sessions, record)
 	if err != nil {
 		return ThreadRecord{}, fmt.Errorf("observe Pair session before detach: %w", err)
 	}
@@ -128,13 +128,6 @@ func (c *Couch) retireDetachedIncarnation(
 	if !ok {
 		return ThreadRecord{}, errors.New("retiring a detached incarnation requires Pair session observation")
 	}
-	after, err := sessions.PairSession(address)
-	if err != nil {
-		return ThreadRecord{}, fmt.Errorf("observe Pair session before retiring its incarnation: %w", err)
-	}
-	if !after.Present {
-		return ThreadRecord{}, fmt.Errorf("thread %+v has no live Pair session to retire onto", address)
-	}
 
 	// Retry on a revision conflict rather than giving up. The revision was read
 	// BEFORE a SIGTERM, a bounded wait and two zellij observations, so anything
@@ -167,6 +160,13 @@ func (c *Couch) retireDetachedIncarnation(
 		current, err := c.Threads.GetThread(address)
 		if err != nil {
 			return ThreadRecord{}, fmt.Errorf("retire detached incarnation for %+v: %w", address, err)
+		}
+		after, err := observeRecordSession(ctx, sessions, current)
+		if err != nil {
+			return ThreadRecord{}, fmt.Errorf("observe Pair session before retiring its incarnation: %w", err)
+		}
+		if !after.Present {
+			return ThreadRecord{}, fmt.Errorf("thread %+v has no live Pair session to retire onto", address)
 		}
 		detached, err := c.Threads.RetireIncarnation(address, current.Revision, identity, detachedAt)
 		var conflict *ThreadRevisionError
@@ -367,7 +367,7 @@ func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (Archi
 		if err := ctx.Err(); err != nil {
 			return ArchiveResult{}, err
 		}
-		if err := c.Artifacts.Quiesce(address); err != nil {
+		if err := c.quiesceThreadSession(ctx, address); err != nil {
 			return ArchiveResult{}, fmt.Errorf("archive %s: its session could not be stopped: %w", address.Tag, err)
 		}
 		// Quiesce may cross an external failure/retry boundary. Refuse if a

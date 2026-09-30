@@ -162,6 +162,23 @@ func (c ScopedThreadArtifactCollisionChecker) Quiesce(address ThreadAddress) err
 	return c.Sessions.DeleteSession(binding.Name)
 }
 
+func (c ScopedThreadArtifactCollisionChecker) QuiesceNamed(ctx context.Context, address ThreadAddress, name string) error {
+	binding, err := c.NamedPairSessionContext(ctx, address, name)
+	if err != nil {
+		return err
+	}
+	if !binding.Present {
+		return nil
+	}
+	if err := c.RevalidatePairSession(ctx, binding); err != nil {
+		return err
+	}
+	if c.Sessions == nil {
+		return errors.New("quiesce Pair session: nil session deleter")
+	}
+	return c.Sessions.DeleteSession(name)
+}
+
 // scopedIndexRead is one ReadSessionNameIndex result: the shared legacy file's
 // rows, then one scope's own rows.
 type scopedIndexRead struct {
@@ -340,8 +357,9 @@ type DetachedSessionResolver interface {
 // DetachedCandidate names a thread and its saved agent profile. Its session
 // ownership is resolved independently of native conversation evidence.
 type DetachedCandidate struct {
-	Address ThreadAddress
-	Agent   string
+	Address     ThreadAddress
+	Agent       string
+	SessionName string
 }
 
 func (c ScopedThreadArtifactCollisionChecker) resolveScopedBindings(ctx context.Context, addresses []ThreadAddress, agentOf func(ThreadAddress) string) ([]SessionNameBinding, map[ThreadAddress]string, map[string]bool, error) {
@@ -488,12 +506,17 @@ func (c ScopedThreadArtifactCollisionChecker) SessionPresence(ctx context.Contex
 // TestDetachedSessionsBindsNothingForAnUnreadableScope.
 func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Context, candidates []DetachedCandidate) ([]DetachedSessionObservation, error) {
 	addresses := make([]ThreadAddress, 0, len(candidates))
+	var exact []SessionNameBinding
 	proof := make(map[ThreadAddress]DetachedCandidate, len(candidates))
 	for _, candidate := range candidates {
-		addresses = append(addresses, candidate.Address)
+		if candidate.SessionName != "" {
+			exact = append(exact, SessionNameBinding{Address: candidate.Address, Agent: candidate.Agent, SessionName: candidate.SessionName})
+		} else {
+			addresses = append(addresses, candidate.Address)
+		}
 		proof[candidate.Address] = candidate
 	}
-	if len(addresses) == 0 {
+	if len(candidates) == 0 {
 		return nil, nil
 	}
 	if err := ctx.Err(); err != nil {
@@ -505,6 +528,7 @@ func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Conte
 	if err != nil {
 		return nil, err
 	}
+	bindings = append(bindings, exact...)
 	if len(bindings) == 0 {
 		return nil, nil
 	}

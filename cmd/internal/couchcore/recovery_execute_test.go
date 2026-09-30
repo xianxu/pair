@@ -418,6 +418,14 @@ func (a recoveryContextArtifacts) PairSessionContext(ctx context.Context, addres
 	return a.observe(ctx, address)
 }
 
+func (a recoveryContextArtifacts) NamedPairSessionContext(ctx context.Context, address ThreadAddress, name string) (PairSessionBinding, error) {
+	binding, err := a.observe(ctx, address)
+	if err == nil && binding.Name != name {
+		return PairSessionBinding{}, fmt.Errorf("observer returned %q for selected terminal %q", binding.Name, name)
+	}
+	return binding, err
+}
+
 func TestRecoveryObservationDeadlineCancelsBlockingObserver(t *testing.T) {
 	for _, parentBudget := range []time.Duration{30 * time.Second, 30 * time.Millisecond} {
 		t.Run(parentBudget.String(), func(t *testing.T) {

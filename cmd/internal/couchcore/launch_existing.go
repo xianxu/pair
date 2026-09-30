@@ -184,6 +184,9 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	registrationContext, cancelRegistration := context.WithTimeout(ctx, registrationTimeout)
 	if in.Fresh {
 		err = c.awaitFreshRegistration(registrationContext, thread.Address, in.Args.Stack, in.Nonce)
+		if err == nil {
+			err = c.awaitResumeRegistration(registrationContext, thread.Address, nil)
+		}
 	} else if in.Resume {
 		err = c.awaitResumeRegistration(registrationContext, thread.Address, birth)
 	} else {
@@ -295,7 +298,7 @@ func (c *Couch) diagnoseRegistrationFailure(err error, address ThreadAddress, bu
 	if !errors.Is(err, context.DeadlineExceeded) {
 		return ""
 	}
-	sessions, ok := c.Artifacts.(PairSessionIO)
+	_, ok := c.Artifacts.(PairSessionIO)
 	if !ok {
 		return fmt.Sprintf(" (waited %s; no session observer, so whether Pair started is unknown)", budget)
 	}
@@ -304,7 +307,7 @@ func (c *Couch) diagnoseRegistrationFailure(err error, address ThreadAddress, bu
 	// which is the "Pair never got as far as recording a name" case, the most
 	// diagnostic one there is. Branching on the error first would have swallowed
 	// it into "could not observe" and said nothing useful.
-	binding, observeErr := sessions.PairSession(address)
+	binding, observeErr := c.recoverySession(context.Background(), address)
 	if observeErr == nil && binding.Present {
 		return fmt.Sprintf(" (waited %s; session %q IS live, so Pair STARTED and did not finish "+
 			"registering -- look at Pair's startup, not the launch)", budget, binding.Name)
@@ -329,7 +332,7 @@ func (c *Couch) diagnoseRegistrationFailure(err error, address ThreadAddress, bu
 // killed every cold launch it overlapped (probes/zellijbirthrace: 10/10).
 // A warm reattach passes nil, because its session is already live.
 func (c *Couch) awaitResumeRegistration(ctx context.Context, address ThreadAddress, birth *PaneMarks) error {
-	sessions, ok := c.Artifacts.(PairSessionIO)
+	_, ok := c.Artifacts.(PairSessionIO)
 	if !ok {
 		return errors.New("exact Pair session observer is unavailable")
 	}
@@ -341,7 +344,7 @@ func (c *Couch) awaitResumeRegistration(ctx context.Context, address ThreadAddre
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		binding, err := sessions.PairSession(address)
+		binding, err := c.recoverySession(ctx, address)
 		if err == nil && binding.Present {
 			return nil
 		}
@@ -353,29 +356,14 @@ func (c *Couch) awaitResumeRegistration(ctx context.Context, address ThreadAddre
 	}
 }
 
-// coldResumeBirthBaseline is what a cold resume's registration must wait for:
-// the thread's pane sidecars as they stand before the helper is released, or
-// nil when no birth is coming.
-//
-// No birth is coming when the thread's session is already live. A thread whose
-// session is live but ATTACHED fails the detached proof and so reaches the cold
-// path. Pair then refuses the resume (it is no create boundary), and no pane is
-// written. Waiting for one would run out the registration deadline, and the
-// cold-resume cleanup that follows owns the session, so it would DELETE the
-// live one: somebody's agent (#287 close review). Asking zellij now is safe,
-// because nothing of this thread is being born while the helper is blocked. A
-// session that cannot be observed fails the start here, before release: an
-// unanswered question must not become either a skipped wait or a destructive
-// timeout.
+// coldResumeBirthBaseline captures the proposed terminal pane marks while the
+// helper is blocked. Only an absent proposed terminal may proceed; unreadable
+// or live ownership must not become a birth wait followed by destructive cleanup.
 func (c *Couch) coldResumeBirthBaseline(address ThreadAddress) (*PaneMarks, error) {
-	sessions, ok := c.Artifacts.(PairSessionIO)
-	if !ok {
-		return nil, errors.New("exact Pair session observer is unavailable")
-	}
-	binding, err := sessions.PairSession(address)
+	binding, err := c.recoverySession(context.Background(), address)
 	switch {
 	case err == nil && binding.Present:
-		return nil, nil
+		return nil, errors.New("proposed terminal is already live before cold launch")
 	case err != nil && !errors.Is(err, ErrPairSessionBindingAbsent):
 		return nil, fmt.Errorf("observe session before cold resume %+v: %w", address, err)
 	}
@@ -456,6 +444,19 @@ func (c *Couch) sessionBindingForLaunch(ctx context.Context, thread ThreadRecord
 			return *thread.SessionBinding, nil
 		}
 		return couchidentity.SessionBinding{Legacy: true, Name: observed.Name, ScopeKey: thread.Address.RepoScope, Tag: string(thread.Address.Tag), StartNonce: nonce}, nil
+	}
+	// A failed detached proof does not establish absence: an attached session
+	// is still the conversation's running agent. Cold creation needs its own
+	// positive absence observation before allocating another terminal.
+	observed, observeErr := observeRecordSession(ctx, c.Artifacts, thread)
+	if observeErr != nil && !errors.Is(observeErr, ErrPairSessionBindingAbsent) {
+		return couchidentity.SessionBinding{}, fmt.Errorf("observe session before cold resume: %w", observeErr)
+	}
+	if observeErr == nil && observed.Present {
+		return couchidentity.SessionBinding{}, errors.New("conversation terminal is still live; detach or park it before cold creation")
+	}
+	if errors.Is(observeErr, ErrPairSessionBindingAbsent) && (thread.SessionBinding != nil || thread.LatestLaunchProfile != nil) {
+		return couchidentity.SessionBinding{}, observeErr
 	}
 	if c.Identities == nil {
 		return couchidentity.SessionBinding{}, errors.New("Couch identity allocator is unavailable")

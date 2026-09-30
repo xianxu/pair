@@ -450,7 +450,7 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 	warmSession := ""
 	if resolver, ok := c.Artifacts.(DetachedSessionResolver); ok {
 		observed, observeErr := resolver.DetachedSessions(ctx, []DetachedCandidate{{
-			Address: address, Agent: agent,
+			Address: address, Agent: agent, SessionName: recordSessionName(thread),
 		}})
 		if observeErr != nil {
 			return ActorRecord{}, nil, fmt.Errorf("observe detached session for %+v: %w", address, observeErr)
@@ -615,7 +615,7 @@ func (c *Couch) confirmStillDetached(ctx context.Context, thread ThreadRecord, s
 	if !ok {
 		return refuseResume(ResumeUnknown, "detached sessions cannot be observed")
 	}
-	observed, err := resolver.DetachedSessions(ctx, []DetachedCandidate{{Address: thread.Address, Agent: thread.LatestLaunchProfile.Agent}})
+	observed, err := resolver.DetachedSessions(ctx, []DetachedCandidate{{Address: thread.Address, Agent: thread.LatestLaunchProfile.Agent, SessionName: recordSessionName(thread)}})
 	if err != nil {
 		return err
 	}

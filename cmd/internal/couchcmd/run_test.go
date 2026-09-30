@@ -265,6 +265,7 @@ func seedVerifiedPark(t *testing.T, rt testRT, path string) couchcore.ThreadReco
 	if err != nil {
 		t.Fatal(err)
 	}
+	rt.artifacts.SetPairSession(parked.Address, "pair-"+string(parked.Address.Tag), false)
 	return parked
 }
 

@@ -406,8 +406,9 @@ func completeContinuationAcceptance(t *testing.T, rt testRT, c *couchcore.Couch,
 		}
 		inc := record.Incarnations[0]
 		rt.proc.Set(inc.PID, inc.Identity)
-		rt.artifacts.SetPairSession(source.Address, source.Continuation.Source.Session, true)
-		ready = readiness.ReadyRecord{Tag: string(source.Address.Tag), Agent: "claude", Nonce: record.Continuation.Attempt, Session: source.Continuation.Source.Session, PID: inc.PID, Orientation: &orientation.DeliveryState{Phase: orientation.DeliveryWaiting}}
+		targetSession := managedChildSession(t, rt.runner, id)
+		rt.artifacts.SetPairSession(source.Address, targetSession, true)
+		ready = readiness.ReadyRecord{Tag: string(source.Address.Tag), Agent: "claude", Nonce: record.Continuation.Attempt, Session: targetSession, PID: inc.PID, Orientation: &orientation.DeliveryState{Phase: orientation.DeliveryWaiting}}
 		raw, err := readiness.Encode(ready)
 		if err != nil {
 			return err

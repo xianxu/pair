@@ -1083,6 +1083,13 @@ func TestPostAckHandleRetriesReuseOneWaiterUntilReap(t *testing.T) {
 	h := newDelayedQuiescenceHandle()
 	address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
 
+	record := validThreadRecord(t)
+	record.Address = address
+	record.StartingPath, record.WorkingPath = "/repo", "/repo"
+	if _, err := env.Couch.Threads.CreateThread(record); err != nil {
+		t.Fatal(err)
+	}
+
 	if err := env.Couch.quiescePostAckStart(address, h, StartSpawn); err == nil {
 		t.Fatal("transient handle cleanup errors were not retained")
 	}

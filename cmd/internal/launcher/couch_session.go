@@ -166,3 +166,46 @@ func publishLaunchSessionName(rt Runtime, entry SessionNameEntry, managed bool) 
 	}
 	return publisher.ReplaceSessionNameIndex(entry)
 }
+
+// verifyCouchSessionCreate checks the conversation's current association before
+// replacing it. The index identifies candidates; live pane ownership decides
+// whether a candidate still belongs to this conversation.
+func verifyCouchSessionCreate(rt Runtime, globalDataDir string, intent CouchSessionIntent) error {
+	if intent.Disposition != "create" {
+		return nil
+	}
+	index, err := rt.ReadSessionNameIndex()
+	if err != nil {
+		return fmt.Errorf("couch session current association: %w", err)
+	}
+	live, err := rt.SessionLiveness()
+	if err != nil {
+		return fmt.Errorf("couch session current liveness: %w", err)
+	}
+	candidates := map[string]bool{legacySessionPrefix + intent.Tag: true}
+	for _, entry := range index.Entries {
+		if entry.ScopeKey == intent.Scope && entry.Tag == intent.Tag {
+			candidates[entry.SessionName] = true
+		}
+	}
+	for _, session := range live {
+		if session.State == SessionExited || !candidates[session.Name] {
+			continue
+		}
+		observer, ok := rt.(couchSessionOwnerRuntime)
+		if !ok {
+			return errors.New("couch session owner observer unavailable")
+		}
+		observed, err := observer.ObserveSessionOwner(context.Background(), session.Name, globalDataDir, intent.Scope, intent.Tag)
+		if err != nil {
+			return err
+		}
+		switch observed.State {
+		case SessionOwnerForeign, SessionOwnerAbsent:
+			continue
+		default:
+			return fmt.Errorf("couch conversation terminal %q is live or unresolved; refusing another terminal", session.Name)
+		}
+	}
+	return nil
+}

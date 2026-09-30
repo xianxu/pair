@@ -1,7 +1,6 @@
 package launcher
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -394,15 +393,8 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 			rt.KillTitlePoller(decision.Tag)
 			return launchStep{code: 0, session: decision.SessionName, tag: decision.Tag, agent: agent, relaunch: true}, nil
 		}
-		if opts.Args.CouchSession != nil {
-			// Layout observation may block. Keep the original generation proof
-			// and revalidate it at the handoff; never adopt a replacement server.
-			if err := rt.(couchSessionOwnerRuntime).RevalidateSessionOwner(context.Background(), ownerProof); err != nil {
-				fmt.Fprintf(stderr, "pair: %v\n", err)
-				return launchStep{code: 1}, nil
-			}
-		}
-		code, err, retained := runAttach(opts, env, rt, decision.Tag, decision.SessionName, agent)
+
+		code, err, retained := runAttach(opts, env, rt, decision.Tag, decision.SessionName, agent, &ownerProof)
 		if err != nil {
 			fmt.Fprintf(stderr, "pair: failed to attach session '%s': %v\n", decision.SessionName, err)
 			return launchStep{code: 1}, nil
@@ -425,6 +417,10 @@ func oppositeLayout(mode LayoutMode) LayoutMode {
 
 func assignLaunchSessionNames(rt Runtime, live []Session, repoRoot, globalDataDir string, args LaunchArgs, base string, stderr io.Writer) ([]Session, map[string]string, map[string]SessionNameEntry, bool) {
 	if args.CouchSession != nil {
+		if err := verifyCouchSessionCreate(rt, globalDataDir, *args.CouchSession); err != nil {
+			fmt.Fprintf(stderr, "pair: %v\n", err)
+			return nil, nil, nil, false
+		}
 		name, entry, err := assignCouchSessionName(rt, live, repoRoot, args.ForcedTag, args.CouchSession)
 		if err != nil {
 			fmt.Fprintf(stderr, "pair: %v\n", err)
@@ -683,6 +679,12 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	persistedArgs := persistedConfigArgs(agent, agentArgs)
 	repoRoot := envScopeRoot(env)
 	repoName := DefaultTag(repoRoot)
+	if intent := opts.Args.CouchSession; intent != nil {
+		if err := verifyCouchSessionCreate(rt, opts.GlobalDataDir, *intent); err != nil {
+			fmt.Fprintf(stderr, "pair: %v\n", err)
+			return launchStep{code: 1}, nil
+		}
+	}
 	if sessionEntry.SessionName != "" {
 		if err := publishLaunchSessionName(rt, sessionEntry, opts.Args.CouchSession != nil); err != nil {
 			fmt.Fprintf(stderr, "pair: failed to append session-name index for '%s': %v\n", sessionEntry.SessionName, err)

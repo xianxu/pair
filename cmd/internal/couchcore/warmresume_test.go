@@ -374,3 +374,9 @@ func TestWarmRecheckRefusesSessionReplacementAfterClaim(t *testing.T) {
 		t.Fatalf("failed recheck left effects: record=%+v ops=%v err=%v", after, env.Runner.Ops, err)
 	}
 }
+
+func (a warmSessionArtifacts) NamedPairSessionContext(ctx context.Context, address ThreadAddress, name string) (PairSessionBinding, error) {
+	return a.PairSessionIO.(interface {
+		NamedPairSessionContext(context.Context, ThreadAddress, string) (PairSessionBinding, error)
+	}).NamedPairSessionContext(ctx, address, name)
+}

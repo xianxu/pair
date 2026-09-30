@@ -55,6 +55,7 @@ func createParkedThreadInCouch(t *testing.T, env *testEnv, profile LaunchProfile
 	if err != nil {
 		t.Fatal(err)
 	}
+	env.Artifacts.SetPairSession(parked.Address, "pair-"+string(parked.Address.Tag), false)
 	return parked
 }
 
@@ -78,8 +79,8 @@ func TestResumeLaunchExactProfileMatrix(t *testing.T) {
 				}
 				parked := createParkedThreadInCouch(t, env, profile)
 				env.Artifacts.SetNativeBinding(parked.Address, agent, sessioninventory.BindingEstablished, "native-root-1")
-				env.Runner.AfterAcknowledge = func(string) error {
-					env.Artifacts.SetPairSession(parked.Address, "pair-"+string(parked.Address.Tag), true)
+				env.Runner.AfterAcknowledge = func(id string) error {
+					env.Artifacts.SetPairSession(parked.Address, continuationChildSession(t, env.Runner, id), true)
 					return nil
 				}
 				env.Couch.RepoAgentDefault = func(_, _ string) (LaunchProfile, bool, error) {
@@ -152,8 +153,8 @@ func TestResumeAmbiguousAckRollsBackOnceItsSessionIsGone(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "codex", Argv: []string{"--saved"}})
 	env.Artifacts.SetNativeBinding(parked.Address, "codex", sessioninventory.BindingEstablished, "native-root-1")
-	env.Runner.AfterAcknowledge = func(string) error {
-		env.Artifacts.SetPairSession(parked.Address, "pair-"+string(parked.Address.Tag), true)
+	env.Runner.AfterAcknowledge = func(id string) error {
+		env.Artifacts.SetPairSession(parked.Address, continuationChildSession(t, env.Runner, id), true)
 		return errors.New("ack transport closed")
 	}
 
@@ -172,7 +173,8 @@ func TestResumeUnobservableSessionKeepsUnknownOccupied(t *testing.T) {
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "codex", Argv: []string{"--saved"}})
 	env.Artifacts.SetNativeBinding(parked.Address, "codex", sessioninventory.BindingEstablished, "native-root-1")
 	acked := false
-	env.Runner.AfterAcknowledge = func(string) error {
+	env.Runner.AfterAcknowledge = func(id string) error {
+		env.Artifacts.SetPairSession(parked.Address, continuationChildSession(t, env.Runner, id), true)
 		acked = true
 		return errors.New("ack transport closed")
 	}
@@ -181,7 +183,7 @@ func TestResumeUnobservableSessionKeepsUnknownOccupied(t *testing.T) {
 	// session", as for any parked thread. Its own unobservable arm is
 	// TestColdResumeRefusesToReleasePairWhenLivenessIsUnknown.
 	env.Artifacts.BeforePairSession = func(ThreadAddress) error {
-		if !acked {
+		if !acked || len(env.Artifacts.Quiesces()) == 0 {
 			return nil
 		}
 		return errors.New("zellij unreachable")

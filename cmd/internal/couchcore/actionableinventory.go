@@ -636,7 +636,8 @@ func detachedResumeProofMatches(record ThreadRecord, observations []DetachedSess
 	}
 	observation := observations[0]
 	return observation.Address == record.Address && observation.SessionName != "" &&
-		observation.Agent == record.LatestLaunchProfile.Agent
+		observation.Agent == record.LatestLaunchProfile.Agent &&
+		(recordSessionName(record) == "" || observation.SessionName == recordSessionName(record))
 }
 
 func parkedResumeProofMatches(record ThreadRecord, observations []ParkedResumeObservation) bool {
