@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000355-couch-session-identities.md
         source_blob: a170c7fb960bf895acbb3f4f89ae3c49b09fecb5
         destination: workshop/issues/000355-couch-session-identities.md
+        main_commit: bd55cd41d429b8118774d08eb42fe9c6c92230f4
 ---
 
 # Allocate Couch session identities and enforce repository families
