@@ -787,6 +787,11 @@ end, function()
 end)
 do
   local bang_tag = dofile((debug.getinfo(1, 'S').source:match('@?(.*/)') or './') .. 'bang_tag.lua')
+  local normalization = dofile((debug.getinfo(1, 'S').source:match('@?(.*/)') or './') .. 'normalization.lua')
+
+  local function in_couch_thread()
+    return (vim.env.COUCH_THREAD_SCOPE or '') ~= '' and (vim.env.COUCH_THREAD_TAG or '') ~= ''
+  end
 
   -- Inside a couch thread (couch sets both variables on every thread it
   -- hosts), a `!` line also becomes the thread's description (#337). Detached
@@ -794,14 +799,45 @@ do
   -- the prompt. The `--description=` form keeps a tag that starts with `-`
   -- from reading as a flag.
   local function publish_couch_description(description)
-    if (vim.env.COUCH_THREAD_SCOPE or '') == '' or (vim.env.COUCH_THREAD_TAG or '') == '' then return end
+    if not in_couch_thread() then return end
     pcall(vim.fn.jobstart,
       { 'couch', '--internal', 'publish-description', '--description=' .. description },
       { detach = true })
   end
 
+  -- `!!` sets the description after the fact and sends nothing (#358), so the
+  -- publish runs synchronously: there is no prompt for couch to delay, and the
+  -- result decides whether the draft clears. Returns true only on success.
+  local function describe_couch_thread(tag)
+    if not in_couch_thread() then
+      vim.notify('pair: !! sets a couch thread description, and this draft is not in a couch thread', vim.log.levels.WARN)
+      return false
+    end
+    local description = tag.description
+    if tag.describe_previous then
+      local entries = read_history()
+      description = entries[#entries] and bang_tag.previous_description(normalization.normalize_pair_text(entries[#entries]))
+      if not description then
+        vim.notify('pair: !! found no previous prompt to use as the description', vim.log.levels.WARN)
+        return false
+      end
+    end
+    local ok, result = pcall(function()
+      return vim.system({ 'couch', '--internal', 'publish-description', '--description=' .. description },
+        { text = true, timeout = 5000 }):wait()
+    end)
+    if not ok or result.code ~= 0 then
+      local why = not ok and tostring(result) or vim.trim((result.stderr or '') .. ' exit ' .. tostring(result.code))
+      vim.notify('pair: could not set the description: ' .. why, vim.log.levels.ERROR)
+      return false
+    end
+    vim.notify('pair: description set: ' .. description, vim.log.levels.INFO)
+    return true
+  end
+
   function _G.submit_operator_text(authored_body, agent_text)
     local tag = bang_tag.parse(agent_text)
+    if tag and not tag.agent_text then return describe_couch_thread(tag) end
     if tag and tag.agent_text == '' then return false end
     local ok = _G.PairSubmission.submit_operator_text(authored_body, tag and tag.agent_text or agent_text)
     if ok and tag and tag.description then publish_couch_description(tag.description) end
