@@ -1,12 +1,13 @@
 ---
 id: 000353
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-29
-updated: 2026-09-29
+updated: 2026-09-30
 estimate_hours:
-card_mirror: '43b82c291057168cd309e010eda1ee731df5ae6b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '8aad5da495291a2921bcf06e9c1c3a21cf40f3ae' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-09-30T13:47:42-07:00
 ---
 
 # Live cross-slot dispatch between couch slots
@@ -70,3 +71,28 @@ dispatch is cheap.
 ### 2026-09-29
 
 Filed from ariadne#272's brainstorm. Companion to pair#352 (`couch --notify`).
+
+### 2026-09-30 — operator design direction
+
+Claimed and entered planning in pair:2. The repository is the durable source
+of work, including future worksheets for multiple agents; Couch owns only
+ephemeral scheduling and communication between live slots. Messages may address
+an exact slot (`pair:1`) or a family (`pair`). The operator wants a Couch skill,
+slot-owned delivery sequencing, immediate admission feedback, a bounded reply
+convention, and clearly identified peer input. Human acceptance remains part of
+completion: a quiet agent awaiting acceptance is not thereby free for more work.
+Automated acceptance may replace selected human checks later without changing
+this separation. Keep the first iteration small and revisable.
+
+Research compared Gas Town's assignment/nudge/mail separation, Claude Code's
+cross-session messaging, and orchestrator/worker systems. Relevant references:
+[Gas Town messaging](https://github.com/gastownhall/gastown/blob/main/docs/design/mail-protocol.md),
+[Gas Town input delivery](https://github.com/gastownhall/gastown/blob/main/internal/cmd/nudge.go),
+[Claude cross-session messaging](https://code.claude.com/docs/en/cross-session-messaging),
+and [AutoGen termination](https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/tutorial/termination.html).
+These inform the design; they do not add a durable runtime queue or an
+autonomous staffing/merge system to this issue.
+
+The initial ticket read used `sdlc issue show`, which intentionally prints only
+frontmatter and section headings. The full details were subsequently read from
+the file; design work must use the file body.
