@@ -177,6 +177,14 @@ total: 4.193
   pending-binding recovery and function-level test strategies; refined both and
   plan quality accepted all findings in round two. Focused launcher/threadrecord/couchcore baseline passed.
 
+- Implementation gate passed. M1 allocator and launcher protocol are implemented;
+  counter subprocess/race/fuzz tests, full launcher tests, and the managed cold →
+  warm → park/reopen identity test pass. Read-only live Zellij ownership probe
+  and socket-budget conformance pass. Broader integration testing is in progress.
+- Integration exposed continuation target-session comparisons that assumed the
+  old terminal name survived recreation. Updating those consumers to use the
+  promoted terminal binding while preserving historical source checks (ARCH-PURPOSE).
+
 ## Revisions
 
 ### 2026-09-30 — Implementation requested
