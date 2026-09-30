@@ -112,3 +112,9 @@ together; whichever lands second reuses the first's routing.
   `TestProductionArtifactReferencesAreExactlyClassified` (reviewcmd and review
   lua files), and it fails identically on the base commit.
 
+- Close review (SHIP, 4 minor advisories), all fixed in one follow-up commit:
+  the README's "no `!!` escape" sentence reworded; one `publish_argv` builder
+  and one `strip_comments` (hoisted above the bang block) instead of two of
+  each; `one_line` keeps invalid bytes and leaves no space before `…`; a
+  `describe-missing` case covers the ENOENT path. The 5 s timeout stays
+  untested; a case for it would add 5 s to every run.

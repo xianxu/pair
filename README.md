@@ -270,7 +270,8 @@ draft clears, so outside Couch, with no previous prompt, or when the Couch
 command fails, the draft stays and a notification says why.
 
 The draft owns a leading `!`, so Claude Code's bash-mode syntax is available
-only by typing directly in the agent pane. There is no `!!` escape.
+only by typing directly in the agent pane; no draft syntax sends a literal
+leading `!`.
 
 ## Mouse
 

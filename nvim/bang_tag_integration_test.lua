@@ -74,6 +74,11 @@ if case:match('^describe') then
     last_note('not in a couch thread', vim.log.levels.WARN, 'standalone !!')
     silent('!! a sentence', false, 'standalone !! sentence')
     assert(#publishes() == 0, 'outside couch nothing publishes')
+  elseif case == 'describe-missing' then
+    assert(send('an earlier prompt'), 'seed history')
+    vim.env.PATH = assert(os.getenv('PAIR_TEST_EMPTY_PATH'))
+    silent('!!', false, 'missing publisher')
+    last_note('could not set', vim.log.levels.ERROR, 'missing publisher')
   elseif case == 'describe-nonzero' then
     assert(send('an earlier prompt'), 'seed history')
     silent('!!', false, 'failed publish')

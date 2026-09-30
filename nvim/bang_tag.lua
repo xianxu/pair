@@ -16,10 +16,18 @@ function M.one_line(text)
   for line in ((text or '') .. '\n'):gmatch('([^\n]*)\n') do
     line = line:gsub('%s+', ' '):gsub('^ ', ''):gsub(' $', '')
     if line ~= '' then
-      local chars = {}
-      for ch in line:gmatch('[%z\1-\127\194-\244][\128-\191]*') do chars[#chars + 1] = ch end
-      if #chars <= MAX_DESCRIPTION_CHARS then return line end
-      return table.concat(chars, '', 1, MAX_DESCRIPTION_CHARS - 1) .. '…'
+      -- Count every byte that is not a UTF-8 continuation byte as a character,
+      -- so invalid bytes are kept rather than dropped at the cut.
+      local chars, cut = 0, nil
+      for i = 1, #line do
+        local b = line:byte(i)
+        if i == 1 or b < 128 or b >= 192 then
+          chars = chars + 1
+          if chars == MAX_DESCRIPTION_CHARS then cut = i end
+        end
+      end
+      if chars <= MAX_DESCRIPTION_CHARS then return line end
+      return line:sub(1, cut - 1):gsub(' $', '') .. '…'
     end
   end
   return nil

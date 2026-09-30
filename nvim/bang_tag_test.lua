@@ -54,6 +54,8 @@ check_line('  \n \t\n', nil, 'blank text has no line')
 check_line(string.rep('a', 120), string.rep('a', 120), 'exactly the cap is kept')
 check_line(string.rep('a', 121), string.rep('a', 119) .. '…', 'over the cap is cut with an ellipsis')
 check_line(string.rep('é', 121), string.rep('é', 119) .. '…', 'cap counts characters, not bytes')
+check_line(string.rep('a', 118) .. ' bcd', string.rep('a', 118) .. '…', 'no space is left before the ellipsis')
+check_line('\255' .. string.rep('a', 120), '\255' .. string.rep('a', 118) .. '…', 'an invalid byte counts as a character and is kept')
 
 local function check_previous(entry, want, name)
   local got = bang_tag.previous_description(entry)

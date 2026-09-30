@@ -785,24 +785,38 @@ end, function()
   local uv = vim.uv or vim.loop
   return vim.fn.sha256(table.concat({ tostring(uv.hrtime()), tostring(vim.fn.getpid()), tostring({}) }, ':'))
 end)
+
+-- Strip whole-line comments (^%s*===) before sending. Comments are stored
+-- intact in draft/queue/log so they survive history navigation — only what
+-- reaches the agent is cleaned. Leading and trailing blank lines left behind
+-- by the strip are also dropped so the agent doesn't see a dangling head or
+-- tail. (Leading matters because comment_lines preserves blanks between
+-- sticky comments, which sit at the top of the next draft.)
+local pair_normalization = dofile((debug.getinfo(1, 'S').source:match('@?(.*/)') or './') .. 'normalization.lua')
+local function strip_comments(body)
+  return pair_normalization.normalize_pair_text(body)
+end
+
 do
   local bang_tag = dofile((debug.getinfo(1, 'S').source:match('@?(.*/)') or './') .. 'bang_tag.lua')
-  local normalization = dofile((debug.getinfo(1, 'S').source:match('@?(.*/)') or './') .. 'normalization.lua')
 
   local function in_couch_thread()
     return (vim.env.COUCH_THREAD_SCOPE or '') ~= '' and (vim.env.COUCH_THREAD_TAG or '') ~= ''
   end
 
+  -- The `--description=` form keeps a description that starts with `-` from
+  -- reading as a flag.
+  local function publish_argv(description)
+    return { 'couch', '--internal', 'publish-description', '--description=' .. description }
+  end
+
   -- Inside a couch thread (couch sets both variables on every thread it
   -- hosts), a `!` line also becomes the thread's description (#337). Detached
   -- and after the send, so couch being slow or absent never delays or fails
-  -- the prompt. The `--description=` form keeps a tag that starts with `-`
-  -- from reading as a flag.
+  -- the prompt.
   local function publish_couch_description(description)
     if not in_couch_thread() then return end
-    pcall(vim.fn.jobstart,
-      { 'couch', '--internal', 'publish-description', '--description=' .. description },
-      { detach = true })
+    pcall(vim.fn.jobstart, publish_argv(description), { detach = true })
   end
 
   -- `!!` sets the description after the fact and sends nothing (#358), so the
@@ -816,15 +830,14 @@ do
     local description = tag.description
     if tag.describe_previous then
       local entries = read_history()
-      description = entries[#entries] and bang_tag.previous_description(normalization.normalize_pair_text(entries[#entries]))
+      description = entries[#entries] and bang_tag.previous_description(strip_comments(entries[#entries]))
       if not description then
         vim.notify('pair: !! found no previous prompt to use as the description', vim.log.levels.WARN)
         return false
       end
     end
     local ok, result = pcall(function()
-      return vim.system({ 'couch', '--internal', 'publish-description', '--description=' .. description },
-        { text = true, timeout = 5000 }):wait()
+      return vim.system(publish_argv(description), { text = true, timeout = 5000 }):wait()
     end)
     if not ok or result.code ~= 0 then
       local why = not ok and tostring(result) or vim.trim((result.stderr or '') .. ' exit ' .. tostring(result.code))
@@ -997,17 +1010,6 @@ do
   })
   _G._pair_review.client = client
   function _G.PairReviewToggle() client:toggle() end
-end
-
--- Strip whole-line comments (^%s*===) before sending. Comments are stored
--- intact in draft/queue/log so they survive history navigation — only what
--- reaches the agent is cleaned. Leading and trailing blank lines left behind
--- by the strip are also dropped so the agent doesn't see a dangling head or
--- tail. (Leading matters because comment_lines preserves blanks between
--- sticky comments, which sit at the top of the next draft.)
-local pair_normalization = dofile((debug.getinfo(1, 'S').source:match('@?(.*/)') or './') .. 'normalization.lua')
-local function strip_comments(body)
-  return pair_normalization.normalize_pair_text(body)
 end
 
 -- Inverse of strip_comments: returns the comment lines (in order), preserving

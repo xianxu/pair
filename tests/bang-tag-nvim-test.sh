@@ -33,7 +33,7 @@ esac
 EOF
 chmod +x "$RT/bin/couch"
 
-for bang_case in couch standalone missing nonzero slow retry describe describe-standalone describe-nonzero; do
+for bang_case in couch standalone missing nonzero slow retry describe describe-standalone describe-nonzero describe-missing; do
   if [ "$bang_case" = standalone ] || [ "$bang_case" = describe-standalone ]; then scope='' tag=''; else scope=S1 tag=T1; fi
   run_headless --timeout 30 -- \
     env PAIR_DATA_DIR='' PAIR_TAG='' PAIR_SCOPE_KEY='' PAIR_RETENTION_PROTOCOL='' \
