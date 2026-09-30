@@ -1,12 +1,13 @@
 ---
 id: 000358
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-30
 updated: 2026-09-30
 estimate_hours:
-card_mirror: 'a0445d01eb9b66e9fc01aee93221b1acb4bbcf4c' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '576a97ceba953728cd941ba00b2211c9ad516a3a' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-09-30T11:33:55-07:00
 ---
 
 # !! in the draft publishes the previous prompt as the slot's description
@@ -70,7 +71,15 @@ together; whichever lands second reuses the first's routing.
 
 ## Plan
 
-- [ ] Decide the one-line rule
+- [ ] Decide the one-line rule: first non-blank line, runs of whitespace
+      collapsed to one space, trimmed, capped at 120 characters (UTF-8 aware,
+      `…` marks a cut). Couch clips to its terminal width at render time
+      (`couchtty/menu_render.go` `clipMenuLine`), so the cap only bounds what
+      is stored; it is not a display width.
+- [ ] Publish synchronously for `!!` (unlike `!`'s detached publish): nothing
+      is sent to the agent, so there is no prompt to delay, and a sync result
+      lets a failure keep the draft and notify instead of claiming success.
+      Bounded by a 5 s `vim.system` timeout.
 - [ ] `bang_tag.parse`: recognize `!!` and `!! sentence` ahead of `!`
 - [ ] `submit_operator_text`: route bare `!!` to history -1 → normalize →
       publish, and `!! sentence` to normalize → publish, both without the send
