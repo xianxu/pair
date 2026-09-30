@@ -110,8 +110,10 @@ prompt, no image attachment/capture, and no operator input in flight. Unknown
 state waits and expires after 30 seconds. There is no inactivity heuristic or
 force-send fallback. Once paste begins, operator interference cancels automatic
 submit and preserves the visible text; partial writes are indeterminate and
-never automatically retried. The CLI/status tells the sender when intervention
-is needed. Pair must arbitrate paste, image admission, typing, and submit under
+never automatically retried. The original deadline also applies after paste:
+if the matching render does not arrive in time, cancel automatic submit,
+preserve the visible text, report intervention needed, and ignore late render
+events. The CLI/status tells the sender when intervention is needed. Pair must arbitrate paste, image admission, typing, and submit under
 one input owner; an image remains pending after capture completes.
 
 **Loop control.** The skill teaches one useful reply at most, no courtesy
@@ -126,9 +128,11 @@ A new supervisor/wrapper binding starts a new ephemeral allowance; agents must
 not restart or manufacture operator input to evade the limit.
 
 **Provenance and visibility.** Pair creates the sender/ID envelope from the
-broker's record and displays a small delivery notice. The skill verifies the
-ID through `--message-status` before treating pasted text as a peer request;
-ordinary text containing a Couch-looking prefix creates no broker record.
+broker's record and displays a small delivery notice. The skill reads the
+canonical envelope through `--message-status` and uses that returned content,
+checking current recipient incarnation, sender, body and submitted outcome
+before acting. A copied ID with altered text, unknown record or mismatch
+confers no peer provenance; a Couch-looking prefix creates no broker record.
 Native harness transcript roles cannot be changed through TTY paste: this is
 verified peer provenance, not a new native system-message role. Messages never
 confer operator approval. Existing Couch navigation remains the inspection UI;
@@ -216,3 +220,11 @@ Claude/Codex receiver qualification first. Remove the unsafe inactivity fallback
 Clarify the provenance criterion as broker verification because terminal paste
 cannot create a native harness message role. Original Spec bullets are retained
 above as history; the dated first-iteration proposal is the contract to review.
+
+### 2026-09-30 — review clarifications
+
+Fresh-context document review required using the canonical receipt content, not
+merely checking a copied ID, and enforcing the delivery deadline after paste as
+well as before it. Both are added to the proposal and deterministic test plan.
+Ordinary reconnect of the same wrapper within one supervisor retains its spent
+allowance; only genuinely new incarnation/supervisor state starts fresh.
