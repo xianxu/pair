@@ -68,6 +68,9 @@ end
 check_previous('refactor the\nsubmission path', 'refactor the', 'multi-line prompt keeps its first line')
 check_previous('! start working on #358', 'start working on #358', 'bang prompt drops its !')
 check_previous('!', nil, 'bare ! prompt has nothing to describe')
+-- `!!` is never logged now; a legacy logged one sent nothing describable.
+check_previous('!!', nil, 'a logged !! has nothing to describe')
+check_previous('!! old sentence', nil, 'a logged !! sentence has nothing to describe')
 check_previous('', nil, 'empty entry has nothing to describe')
 check_previous('! first\nsecond', '! first', 'multi-line ! reached the agent verbatim')
 

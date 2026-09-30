@@ -95,3 +95,6 @@ the "draft action that doesn't submit" routing, so design them together.
 - `previous_description` treats any line that sent nothing (bare `!`, `!!`)
   as having no description.
 
+- Close review (SHIP, 2 minor advisories), both fixed in one follow-up commit:
+  unit cases pin `previous_description` returning nil for logged `!!` and
+  `!! text` lines, and a missing comma in `atlas/couch.md`.
