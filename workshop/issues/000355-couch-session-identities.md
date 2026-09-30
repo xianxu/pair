@@ -173,6 +173,10 @@ total: 4.193
   passed, live owner conformance passed, and build/diff checks passed. The
   artifact inventory still has exactly the same 32 baseline #348 findings.
   Submitting M1 review round 2.
+- M1 review round 2 accepted BR-1/BR-2 and raised BR-3: descriptive
+  repository-token normalization rejected Unicode-only names. Adding a safe
+  fallback and bounded descriptive token, with real-allocation regressions for
+  both new and fresh conversations; C/N remain the unique identity.
 
 ### 2026-09-30
 
