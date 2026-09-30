@@ -1,12 +1,13 @@
 ---
 id: 000163
-status: open
+status: working
 deps: [pair#173]
 github_issue:
 created: 2026-09-01
-updated: 2026-09-01
+updated: 2026-09-30
 estimate_hours:
-card_mirror: '78cd09dc57b8b62e38b9433f34851168301dd8d0' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '06e2ccb5a65cbaf666dad4e8605edbf457f3fdee' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-09-30T12:34:02-07:00
 ---
 
 # Match and show actor descriptions in Couch switcher
@@ -26,16 +27,22 @@ making the match difficult to understand.
 
 ## Spec
 
-- Include a non-empty actor description in switcher typeahead matching.
+- Both default and focus switcher views match the sanitized displayed description
+  (published summary takes precedence over operator description), case-insensitively.
+- Preserve exact opaque-tag precedence and explicit repo:N slot selection; CLI
+  references retain their current matching fields. Reuse the shared pure matcher
+  with an optional description field populated by the menu (ARCH-DRY).
 - When an actor matches by description, show the description directly below
   the actor's primary line in the switcher result.
 - Preserve the existing presentation for actors without descriptions.
 
 ## Done when
 
-- Typing text found only in an actor's description returns that actor.
-- A description-matched result renders the matching description beneath the
-  actor line.
+- Typing text found only in the displayed description returns the ordinary or
+  numbered-slot row in both default and focus views, case-insensitively.
+- Default-view description matches render the description beneath the row;
+  focus results keep their existing inline description. Exact tags/slot references
+  retain precedence and focus still excludes parked or undescribed rows.
 - Actors with no description continue to search and render as before.
 - Automated tests cover description matching, display, and the no-description
   case.
@@ -54,3 +61,14 @@ making the match difficult to understand.
 Captured during Couch dogfood testing. Intended layout: when a description is
 assigned and matches the query, display it immediately below the actor's main
 line.
+
+## Revisions
+
+### 2026-09-30 — Requested in both switcher views
+
+Descriptions now have a source and focus view already renders them inline, so
+the old source-blocker note is historical. User requested description matching
+in both default and focus views. Match the existing sanitized DisplaySummary
+projection, preserve exact-reference behavior, and show matching descriptions
+in default results using existing row rendering/extents. This fits the quick
+flow; no durable plan or new IO is needed.
