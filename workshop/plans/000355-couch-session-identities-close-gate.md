@@ -119,6 +119,32 @@ rounds:
       boundary: M2
       recipe: milestone-review
       blocked: false
+    - "n": 8
+      timestamp: "2026-09-30T12:13:26-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Pending/current bindings govern admission, registration, recovery and cleanup. Passing regressions cover stale indexes, old registration, interrupted starts and preservation of the previous terminal.
+          round: 8
+        - id: BR-2
+          disposition: addressed
+          note: lifecycle.go revalidates the original server proof immediately before attach, after blocking preparation. Generation-replacement regressions exercise this boundary.
+          round: 8
+        - id: BR-3
+          disposition: addressed
+          note: Repository labels have a bounded ASCII normalization and fallback. Allocator and real-Git conversation tests cover Unicode, punctuation-only and maximum-length basenames.
+          round: 8
+        - id: BR-4
+          disposition: addressed
+          note: Shared checkout membership reaches routing, migration, preferences, inventory and hosted actors. Passing real-Git regressions cover nested repositories and retained separate-Git-directory authority.
+          round: 8
+        - id: BR-5
+          disposition: addressed
+          note: Family admission and persisted-state validation enforce the 4096-family bound. Tests cover concurrent final admission, refusal without writes and reuse of existing families.
+          round: 8
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#355 (boundary-review)
@@ -182,6 +208,16 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - BR-4 — addressed — Shared checkout membership covers migration, routing, preferences, local-origin validation, inventory, and hosted actors. Enrollment retains verified common-Git identity across reconstruction and restart. Focused regressions pass; restoring the primary/.git assumption through a temporary Go overlay makes TestSeparateGitDirectoryEnrollmentPreservesStorageAuthority fail at record readback.
 - BR-5 — addressed — Prior disposition retained. The 4096-family admission bound, existing-family reuse, and persisted-overflow checks remain covered.
+
+## Round 8 — 2026-09-30T12:13:26-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Pending/current bindings govern admission, registration, recovery and cleanup. Passing regressions cover stale indexes, old registration, interrupted starts and preservation of the previous terminal.
+- BR-2 — addressed — lifecycle.go revalidates the original server proof immediately before attach, after blocking preparation. Generation-replacement regressions exercise this boundary.
+- BR-3 — addressed — Repository labels have a bounded ASCII normalization and fallback. Allocator and real-Git conversation tests cover Unicode, punctuation-only and maximum-length basenames.
+- BR-4 — addressed — Shared checkout membership reaches routing, migration, preferences, inventory and hosted actors. Passing real-Git regressions cover nested repositories and retained separate-Git-directory authority.
+- BR-5 — addressed — Family admission and persisted-state validation enforce the 4096-family bound. Tests cover concurrent final admission, refusal without writes and reuse of existing families.
 
 ## Open findings
 

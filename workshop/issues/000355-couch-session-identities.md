@@ -217,6 +217,7 @@ total: 4.193
   passed (39.096s), and concurrent capacity race passed (10.668s).
 
 ### 2026-09-30
+- 2026-09-30: closed — Both milestones reviewed SHIP. Full core partitions, command/UI and launcher/allocator/storage suites passed; focused race/fuzz checks, real Git nested and separate-dir regressions, live Zellij owner/socket conformance, build and diff checks passed. New/fresh N+M, warm same N/M, cold same N/new M, independent repository families and subdirectory slot propagation are covered. Artifact ownership inventory matches 32 pre-existing #348 findings.; review verdict: SHIP
 - 2026-09-30: closed M2 — Full core A-H/I-Q/R-Z partitions pass 172.827s/196.021s/316.141s; command/UI suites and focused races pass. Real separate-Git-directory enrollment/restart/readback/preferences/inventory and legacy preview/open backfill regressions pass; preview remains read-only. Nested repository storage and actors remain isolated, unresolved owners still veto absence. Atomic enrollment conflict/backfill and family capacity tests pass. Final scoped-preview tests, build and diff checks pass.; review verdict: SHIP
 - 2026-09-30: closed M1 — Full core partitions, command/UI and launcher suites passed after BR-1/BR-2; focused races, live owner conformance and build passed. BR-3 real-Git new/fresh Unicode and punctuation launches plus 255-byte repository regression pass, allocator/durablefile and focused core suites pass, build and diff check pass. Artifact inventory has only the same 32 baseline #348 findings.; review verdict: SHIP
 
