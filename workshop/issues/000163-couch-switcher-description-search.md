@@ -83,3 +83,14 @@ precedence; published summaries hide superseded operator descriptions. Default
 results show sanitized matching descriptions with the same row hit target.
 Spec wording now explicitly distinguishes existing focus rendering from the
 new default detail line, and acceptance names the regression matrix.
+
+### 2026-09-30 — Close review BR-1
+
+Review reproduced cross-kind exact-reference leaks: the old filter ranked
+ordinary rows separately from slot rows. Apply the shared classifier to the
+whole inventory, retaining one exact/fuzzy result decision; explicit slot
+references select only slots. Add both-view regressions for ordinary-tag/slot
+description, slot-tag/ordinary description, slot-tag/slot description, and
+qualified/bare slot-reference/ordinary description combinations. These failed
+before the correction. This completes the promised precedence rule (ARCH-DRY,
+ARCH-PURPOSE), with no IO or new matching authority.
