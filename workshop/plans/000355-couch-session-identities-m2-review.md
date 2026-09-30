@@ -246,3 +246,73 @@ dispose:
 7. **Plan revision recommendations**
 
    Append a `## Revisions` entry requiring authoritative common-directory identity across backend reconstruction, routing, and inventory, with separate-Git-directory enrollment/restart regressions. Preserve the existing nested-repository isolation tests.
+
+---
+
+## Re-review — 2026-09-30T12:09:30-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 355 — Allocate Couch session identities and enforce repository families |
+| repo | pair |
+| issue file | workshop/issues/000355-couch-session-identities.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | c6f3419a64e970d948ffe8bc9da8b1015b9ce052..879a8573786e843e25a500e58e1b345982c5d7c9 |
+| command | sdlc milestone-close --issue 355 --milestone M2 |
+| reviewer | codex |
+| timestamp | 2026-09-30T12:09:30-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+M2 implements persistent family admission and relative-directory propagation across launch, storage, inventory, and menu paths. BR-4 is addressed, including nested hosted actors and separate-Git-directory storage reconstruction. No blocking findings remain.
+
+```findings
+dispose:
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Shared checkout membership covers migration, routing, preferences, local-origin validation, inventory, and hosted actors. Enrollment retains verified common-Git identity across reconstruction and restart. Focused regressions pass; restoring the primary/.git assumption through a temporary Go overlay makes TestSeparateGitDirectoryEnrollmentPreservesStorageAuthority fail at record readback.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Prior disposition retained. The 4096-family admission bound, existing-family reuse, and persisted-overflow checks remain covered.
+```
+
+1. **Strengths**
+   - One membership rule serves storage and runtime observers: `repository_family.go:96`, `slotsessions.go:314`.
+   - Enrollment journals identity backfill independently of family-directory reservation: `slotmigration.go:92`.
+   - Real-Git regressions cover nested repositories, separate Git directories, missing directories, and symlink escapes.
+   - README and atlas describe the new behavior and compatibility policy.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage**
+   - Focused family/membership/storage suite passed: 39.668s.
+   - Hosted-actor/enrollment/launch suite passed: 31.075s.
+   - Menu tests passed: 0.627s.
+   - Targeted race tests passed: 4.600s.
+   - Mutation check failed as expected; pinned-range whitespace check passed.
+   - Full suites and live Zellij conformance were not rerun during this review. Checkout remains unchanged.
+
+6. **Architecture**
+   - **ARCH-DRY — pass:** shared membership and projection helpers.
+   - **ARCH-PURE — pass:** deterministic family resolution separated from persistence and physical-path validation.
+   - **ARCH-PURPOSE — pass:** consumer sweep includes persisted records, preferences, hosted actors, and reconstructed backends.
+   - **ARCH-MOCK — pass:** existing injected boundaries, stateful doubles, and temporary Git repositories exercise integration.
+   - **ARCH-CONSTRAINTS — pass:** bounded inference and admission; no new passive inventory subprocess probes.
+   - **ARCH-SECURE — pass:** identity provenance, malformed metadata, and physical containment are checked.
+   - **ARCH-ORDER — pass:** serialized reservation, journal recovery, stale-preview revalidation, and interrupted backfill have coverage.
+   - **ARCH-FUNERAL — pass:** permanent family reservations have an explicit admission bound.
+
+7. **Plan revisions:** None required; appended revisions describe the implemented corrections.

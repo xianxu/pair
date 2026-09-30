@@ -104,6 +104,21 @@ rounds:
       boundary: M2
       recipe: milestone-review
       blocked: true
+    - "n": 7
+      timestamp: "2026-09-30T12:09:30-07:00"
+      agent: codex
+      dispose:
+        - id: BR-4
+          disposition: addressed
+          note: Shared checkout membership covers migration, routing, preferences, local-origin validation, inventory, and hosted actors. Enrollment retains verified common-Git identity across reconstruction and restart. Focused regressions pass; restoring the primary/.git assumption through a temporary Go overlay makes TestSeparateGitDirectoryEnrollmentPreservesStorageAuthority fail at record readback.
+          round: 7
+        - id: BR-5
+          disposition: addressed
+          note: Prior disposition retained. The 4096-family admission bound, existing-family reuse, and persisted-overflow checks remain covered.
+          round: 7
+      boundary: M2
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#355 (boundary-review)
@@ -161,6 +176,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-4 — not-addressed — Nested storage and hosted-actor regressions pass; removing actor membership checking makes all four open/fresh registry cases fail. However, threadstore_location.go:37 and :63 reconstruct slots through conventionalSlot, which assumes RepoIdentity is primary/.git. The new RecordCheckoutMembership check rejects records carrying the actual separate Git directory. A temporary real-Git regression successfully enrolled a record, then GetThread failed with “slot record identity does not match its host checkout”. This repeats family checkout-membership-requires-repository-identity: derive identity from verified or retained authority throughout discovery, routing, validation, and inventory instead of treating conventional paths as identity.
 - BR-5 — addressed — The 4096-family admission bound remains enforced; focused capacity, concurrent admission, existing-family reuse, and persisted-overflow tests passed.
 
+## Round 7 — 2026-09-30T12:09:30-07:00 (codex) — passed
+
+### Disposed
+
+- BR-4 — addressed — Shared checkout membership covers migration, routing, preferences, local-origin validation, inventory, and hosted actors. Enrollment retains verified common-Git identity across reconstruction and restart. Focused regressions pass; restoring the primary/.git assumption through a temporary Go overlay makes TestSeparateGitDirectoryEnrollmentPreservesStorageAuthority fail at record readback.
+- BR-5 — addressed — Prior disposition retained. The 4096-family admission bound, existing-family reuse, and persisted-overflow checks remain covered.
+
 ## Open findings
 
-- **BR-4** [Critical] `checkout-membership-requires-repository-identity` Nested independent repositories are routed into the enclosing slot's storage
+(none — every finding has been disposed)
