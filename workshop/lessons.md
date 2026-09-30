@@ -353,3 +353,5 @@ proof; record the surprising case so the next change starts from evidence.
   not separately per row kind. Test exact references against descriptive matches
   in every competing kind and UI view. (#163 BR-1)
 - When a new syntax extends an existing one, sweep that feature's docs for sentences that denied the new form: "There is no `!!` escape" sat right under the new `!!` paragraph. Also reuse the command builder a sibling path already has instead of rebuilding the argv. (#358 close review)
+
+- Tracker close bindings name exact commit IDs. Rebasing a closed branch can leave its card pointing to unreachable review/evidence commits even when every patch is unchanged; preserve close ancestry when integrating main. Read current status through SDLC, since details on main retain stale card mirrors until branch publication. (#358)
