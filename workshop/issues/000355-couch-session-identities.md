@@ -183,6 +183,12 @@ total: 4.193
   it now launches successfully. Real-Git new/fresh allocation regressions,
   allocator/durablefile suites, focused lifecycle/slot tests, build and diff
   checks pass. Submitting M1 review round 3.
+- M1 closed with SHIP in round 3; BR-1/BR-2/BR-3 are addressed.
+  M2 implementation started: root-manifest family authority, shared containment
+  and projection, launch admission, local storage/inventory routing, and menu
+  propagation. Empty requested relative path means inherit; explicit `.` remains
+  a root request and can conflict. Existing legacy conversations stay openable
+  when inference is ambiguous; new/fresh/provisioning admission refuses ambiguity.
 
 ### 2026-09-30
 - 2026-09-30: closed M1 — Full core partitions, command/UI and launcher suites passed after BR-1/BR-2; focused races, live owner conformance and build passed. BR-3 real-Git new/fresh Unicode and punctuation launches plus 255-byte repository regression pass, allocator/durablefile and focused core suites pass, build and diff check pass. Artifact inventory has only the same 32 baseline #348 findings.; review verdict: SHIP
