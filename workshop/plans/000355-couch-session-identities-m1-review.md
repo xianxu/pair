@@ -77,3 +77,85 @@ findings:
     detail: |
       createflow.go:397 checks the generation before lifecycle.go:43-110 performs retention and cmux preparation. Replacement during that interval reaches AttachSession unchecked; retain the original proof and revalidate immediately before attachment, testing replacement during preparation (ARCH-ORDER, ARCH-SECURE).
 ```
+
+---
+
+## Re-review — 2026-09-30T10:59:00-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 355 — Allocate Couch session identities and enforce repository families |
+| repo | pair |
+| issue file | workshop/issues/000355-couch-session-identities.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | bd55cd41d429b8118774d08eb42fe9c6c92230f4..bce1bcd3884d4b58fc8252ba1546abd35fe48e80 |
+| command | sdlc milestone-close --issue 355 --milestone M1 |
+| reviewer | codex |
+| timestamp | 2026-09-30T10:59:00-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+Both prior findings are addressed with meaningful regression tests. M1’s allocation, terminal-binding, and ownership changes are otherwise coherent, but the new repository-token formatter rejects previously supported repository names, blocking new conversations.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Cold admission requires absence; registration and cleanup select the pending/current terminal binding. Passing terminal_incarnation_test.go regressions cover attached-terminal refusal, stale registration, wrong-terminal cleanup, and interrupted recovery; launcher tests cover late terminal appearance.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      lifecycle.go:134-145 revalidates the original ownership proof immediately before AttachSession, after blocking preparation. TestCouchSessionWarmGenerationRevalidatedAtAttachEffect injects replacement during retention/cmux through both entrypoints and asserts refusal and poller cleanup.
+findings:
+  - id: new
+    severity: Critical
+    family: descriptive-label-must-not-gate-identity
+    title: |
+      Unicode-only repository names now prevent conversation creation
+    detail: |
+      cmd/internal/couchidentity/identity.go:41-60 discards every non-ASCII character and rejects the resulting empty token. Both couch.go:488 and slotrecovery.go:320 pass the repository basename, so supported names such as 项目 now fail allocation. Use a deterministic safe fallback when normalization yields nothing; C/N already provide uniqueness. Add pure formatter tests and composed new/fresh launch regressions for Unicode-only and punctuation-only names. ARCH-PURPOSE.
+```
+
+1. **Strengths**
+
+   - Host-first counter publication and recovery floors prevent identity reuse after interrupted writes or local rollback.
+   - Registration and teardown now follow terminal-incarnation authority rather than a stale compatibility index.
+   - Warm attachment preserves and revalidates its original server proof.
+   - README and atlas document allocation, migration, and restore limitations.
+
+2. **Critical findings**
+
+   - [identity.go:57](/Users/xianxu/workspace/pair/cmd/internal/couchidentity/identity.go:57): descriptive repository text must not prevent identity allocation. Existing workspace tests explicitly accept `项目:1`; the previous generated tags did not depend on repository spelling. Apply the fallback at the shared formatter so both creation paths inherit it.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage**
+
+   Passed allocator, durablefile, threadrecord, checkpoint, zellijpane, focused artifact-owner and launcher tests, focused terminal-authority regressions, and broader core identity/ownership/continuation/recovery tests. Diff whitespace checks passed.
+
+   Current tests miss repository names that normalize to empty. Live conformance and old-binary skew checks were not rerun. The full artifactpath suite reports inventory failures involving unchanged review-editor sources.
+
+6. **Architecture**
+
+   - **ARCH-DRY — pass:** shared allocation and binding-selection authorities.
+   - **ARCH-PURE — pass:** allocation and transition logic remain independently testable.
+   - **ARCH-PURPOSE — flag:** descriptive labels impose an unintended repository restriction.
+   - **ARCH-MOCK — pass:** stateful ownership/generation seams exercise replacement ordering.
+   - **ARCH-CONSTRAINTS — pass:** bounded authority storage and ownership queries.
+   - **ARCH-SECURE — pass:** strict parsing, exact address evidence, generation revalidation.
+   - **ARCH-ORDER — pass:** pending/current bindings preserve uncertain outcomes.
+   - **ARCH-FUNERAL — pass:** bounded permanent registrations and existing binding retention.
+
+7. **Plan revision recommendation**
+
+   Append a `## Revisions` entry specifying a nonempty safe fallback for descriptive repository tokens and regression coverage through both conversation-allocation entrypoints. M2 remains outside this boundary.

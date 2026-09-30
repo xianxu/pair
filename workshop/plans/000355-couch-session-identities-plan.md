@@ -373,3 +373,12 @@ ownership proof through retention/cmux preparation and revalidate immediately
 before attachment; replace the server during preparation in the regression.
 M2 remains pending this boundary. ARCH-ORDER and ARCH-PURPOSE require these
 checks across all consumers of the independent terminal lifetime.
+
+### 2026-09-30 — M1 boundary review: descriptive repository tokens
+
+Round 2 accepted BR-1/BR-2 and identified BR-3: ASCII normalization must not
+reject repositories whose names contain only Unicode or punctuation. Use a
+deterministic safe `repo` fallback in the shared formatter and bound the
+descriptive token so long repository basenames cannot exceed artifact filename
+limits. C/N remain the identity; repository text is only a label. Cover both
+new and fresh conversation allocation with the real allocator.
