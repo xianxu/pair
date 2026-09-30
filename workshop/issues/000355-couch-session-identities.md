@@ -289,7 +289,9 @@ total: 4.193
   normal enrollment backfills metadata. Real separate-Git-directory readback
   and legacy preview deadlock regressions demonstrated red then green; expanded
   enrollment/backfill/conflict/migration tests passed (9.476s). Broad regression
-  suites are running.
+  suites passed: exhaustive core partitions 172.827s/196.021s/316.141s,
+  command/UI 87.366s/14.766s, focused race 48.058s. Final scoped-preview
+  regressions passed 4.467s; final build and diff checks passed.
 
 ## Revisions
 
