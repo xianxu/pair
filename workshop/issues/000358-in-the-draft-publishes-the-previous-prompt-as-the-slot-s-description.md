@@ -8,6 +8,7 @@ updated: 2026-09-30
 estimate_hours:
 card_mirror: '576a97ceba953728cd941ba00b2211c9ad516a3a' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-09-30T11:33:55-07:00
+flow: {kind: quick, provenance: inferred, spec: "b18212a4", done: "6e8b6d5b"}
 ---
 
 # !! in the draft publishes the previous prompt as the slot's description
