@@ -102,7 +102,13 @@ Suspects to work through, cheapest first:
 
 ## Done when
 
-- A send of arbitrary size arrives byte-exact, with a test pinning it
+- Pair's own send path (zellij `write-chars`, `pair wrap`'s translator) is shown
+  byte-exact across the ~1 KiB boundary up to 180 KB, by a re-runnable probe
+- The draft body and review pokes reach the agent pane as ONE bracketed paste,
+  with any paste markers in the text stripped, pinned by tests that fail when
+  the framing or the strip is removed
+- The agent-side effect is verifiable from real use: `scripts/send-audit.py`
+  reports lossy sends per agent and read count, and #354 owns the post-ship run
 - The #208 headline-plus-path workaround is re-evaluated: kept because it is
   independently good (it keeps the prompt small), not because it is load-bearing
 
@@ -161,3 +167,6 @@ Suspects to work through, cheapest first:
   unbracketed burst; measured, see Log. Plan rows re-scoped accordingly; the
   post-ship audit, needed because an on-demand live repro was not achieved,
   is #354.
+- 2026-09-29 — `## Done when` restated with the Spec's move: "a send of
+  arbitrary size arrives byte-exact" is split into pair's path (proven here)
+  and the agent's (framing pinned here, real-use proof in #354).
