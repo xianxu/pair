@@ -268,6 +268,14 @@ total: 4.193
   membership rule to the observer and its open/fresh/recovery callers, with
   in-memory and durable registry regressions.
 
+- BR-4 hosted observer follow-up passed: real nested-repository open/fresh
+  regressions failed before the fix in both actor registries, then passed while
+  preserving the nested live incarnation. Same-scope inconsistent and contained
+  unaddressed actors still refuse absence. Observer/recovery suite passed
+  (29.250s), strengthened boundary tests (6.929s), race suite (8.742s), build
+  and diff checks passed. Remaining containment consumers were audited and
+  already carry caller scope/common-Git proof. Submitting M2 round 3.
+
 ## Revisions
 
 ### 2026-09-30 — Implementation requested
