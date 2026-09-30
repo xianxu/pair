@@ -219,14 +219,14 @@ Files: create `cmd/internal/couchidentity/{identity,store,store_unix,session}.go
 and colocated tests; wire `cmd/internal/couchcmd/run.go`,
 `cmd/internal/couchcore/{couch,threadtag,slotrecovery}.go`.
 
-- [ ] Test `AdvanceAllocation` and `FormatPairTag`/`FormatSessionName` with
+- [x] Test `AdvanceAllocation` and `FormatPairTag`/`FormatSessionName` with
   fuzzed snapshots and overflow inputs, asserting monotonic independent counters.
   Test `IdentityStore.Allocate` with subprocess contention and injected publication
   failures, asserting no returned identity repeats and malformed/missing authority
   refuses. Demonstrate red before implementation.
-- [ ] Implement validated snapshots and durable store; wire both N allocation
+- [x] Implement validated snapshots and durable store; wire both N allocation
   sites using the same namespace-owned allocator, preserving artifact claims.
-- [ ] Run `go test -count=1 ./cmd/internal/couchidentity ./cmd/internal/couchcore
+- [x] Run `go test -count=1 ./cmd/internal/couchidentity ./cmd/internal/couchcore
   ./cmd/internal/couchcmd`; expected all pass. Commit with #355 M1 reference.
 
 ### Task 2 — Explicit terminal binding and shared ownership proof
@@ -242,22 +242,22 @@ and `checkpoint/request.go`; extend affected colocated tests and
 `cmd/internal/zellijpane/zellijpane.go` parser and its tests with optional actual
 `pane_command`/`pane_cwd` evidence, distinct from the `terminal_command` template.
 
-- [ ] Test `AdvanceStartTransaction`/`ReconcileStart` via controllable event
+- [x] Test `AdvanceStartTransaction`/`ReconcileStart` via controllable event
   sequences asserting pending/current binding preservation, no new allocation
   while occupied, and promotion before Start clears on recovered-unknown.
-- [ ] Test `ClassifySessionOwner` with adversarial pane evidence and generation
+- [x] Test `ClassifySessionOwner` with adversarial pane evidence and generation
   changes, using exact decoded arguments as the guard; fuzz `zellijpane.Parse`
   and owner command parsing against malformed/quoted/overlapping-address inputs.
-- [ ] Exercise `launchTrackedThread`, `PairSessionContext`, and park through a
+- [x] Exercise `launchTrackedThread`, `PairSessionContext`, and park through a
   stateful Zellij owner world. Preserve the original two-scope/one-name incident
   regression and assert identity lifetimes from the issue's lifecycle table.
-- [ ] Test `ParseArgs` and managed intent validation with missing/mismatched
+- [x] Test `ParseArgs` and managed intent validation with missing/mismatched
   authority; execute managed create and warm argv against immutable pre-change
   Pair and assert rejection before effects. Test both assignment functions with
   a fail-on-fallback terminal fake to enforce exact naming and warm-loss refusal.
-- [ ] Implement pending binding persistence, managed intent, shared owner proof,
+- [x] Implement pending binding persistence, managed intent, shared owner proof,
   and live/parked legacy compatibility through these production boundaries.
-- [ ] Run focused suites with `go test -count=1 ./cmd/internal/launcher
+- [x] Run focused suites with `go test -count=1 ./cmd/internal/launcher
   ./cmd/internal/threadrecord ./cmd/internal/couchcore ./cmd/internal/couchcmd`.
   Run isolated Zellij conformance tests for socket budget and owner snapshot.
   Mutate name handoff/owner guard to prove the boundary regressions fail.
@@ -314,7 +314,8 @@ slotmigration,slotrecovery,slotlaunch,slotinventory}.go`,
 Fresh-context plan review approved both chunks after round 1 fixes. The issue
 and plan are checkpointed locally. The operator approved this durable plan on 2026-09-30.
 `sdlc change-code` is the remaining implementation gate. Derive the estimate only after that command's
-plan-quality gate accepts the plan. No production code has changed.
+plan-quality gate accepts the plan. The gate accepted and M1 implementation is
+complete; its mandatory milestone review is next.
 
 ## Revisions
 
