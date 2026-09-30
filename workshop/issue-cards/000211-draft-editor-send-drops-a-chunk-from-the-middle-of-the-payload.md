@@ -1,10 +1,11 @@
 ---
 id: 000211
-status: open
+status: working
 created: 2026-09-07
-updated: 2026-09-07
+updated: 2026-09-29
 estimate_hours:
 github_issue:
+started: 2026-09-29T20:06:42-07:00
 ---
 
 # Draft-editor send drops a chunk from the middle of the payload
