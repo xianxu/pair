@@ -304,8 +304,18 @@ func (c *Couch) ObserveSlotSessions(ctx context.Context, slot SlotIdentity) (Slo
 	}
 	actors := append(c.reg.Records(), durable.Records()...)
 	for _, actor := range actors {
-		_, pathErr := RelativeFamilyPath(slot.WorktreeRoot, actor.Args.WorkingDir())
-		if pathErr != nil && actor.Thread.RepoScope != scope.Key {
+		// Missing provenance is unresolved, not a foreign repository. Containment
+		// may veto absence for this legacy owner, but cannot establish membership.
+		if actor.Thread.RepoScope == "" {
+			if _, err := RelativeFamilyPath(slot.WorktreeRoot, actor.Args.WorkingDir()); err == nil {
+				return out, errors.New("slot hosted actor has unresolved repository scope")
+			}
+		}
+		_, belongs, err := CheckoutMembership(slot.RepoIdentity, slot.WorktreeRoot, actor.Args.WorkingDir(), actor.Thread.RepoScope, "")
+		if err != nil {
+			return out, fmt.Errorf("slot hosted actor checkout identity: %w", err)
+		}
+		if !belongs {
 			continue
 		}
 		candidate, err := add(actor.Thread)
@@ -313,7 +323,7 @@ func (c *Couch) ObserveSlotSessions(ctx context.Context, slot SlotIdentity) (Slo
 			return out, err
 		}
 		candidate.Processes = append(candidate.Processes, ProcessIdentity{PID: actor.PID, Identity: actor.Identity})
-		if candidate.Record == nil && pathErr == nil && launcher.IsSupportedAgent(actor.Args.Stack) {
+		if candidate.Record == nil && launcher.IsSupportedAgent(actor.Args.Stack) {
 			record := ThreadRecord{SchemaVersion: ThreadSchemaVersion, Address: actor.Thread, StartingPath: actor.Args.WorkingDir(), WorkingPath: actor.Args.WorkingDir(), CreatedAt: actor.StartedAt, Revision: 1, LatestLaunchProfile: &LaunchProfile{Agent: actor.Args.Stack, Argv: cloneArgv(actor.Args.ExtraArgs)}}
 			candidate.Record = &record
 		}
