@@ -189,6 +189,17 @@ total: 4.193
   propagation. Empty requested relative path means inherit; explicit `.` remains
   a root request and can conflict. Existing legacy conversations stay openable
   when inference is ambiguous; new/fresh/provisioning admission refuses ambiguity.
+- M2 implemented and verified. Families persist in the root journal, reserve by
+  common Git directory, and retain relative starts through new/add/open/resume/
+  fresh, local metadata, migration, inventory, and menu paths. Explicit conflicts
+  refuse after park/restart before resources; legacy ambiguity preserves existing
+  opens. Real-Git missing/symlink escape, nested-repo, external-worktree, and
+  dependency cases have regressions. Full core partitions passed
+  (87.243s/144.148s/213.358s), command/UI passed (57.456s/11.721s), family race
+  passed (20.466s), path fuzz passed 35,551 executions, broader slot/admission
+  suite passed (129.365s), final dependency/relative-path tests passed (4.027s).
+  Build/diff checks pass; artifact inventory matches the same 32 #348 baseline
+  findings. M2 boundary review is next.
 
 ### 2026-09-30
 - 2026-09-30: closed M1 — Full core partitions, command/UI and launcher suites passed after BR-1/BR-2; focused races, live owner conformance and build passed. BR-3 real-Git new/fresh Unicode and punctuation launches plus 255-byte repository regression pass, allocator/durablefile and focused core suites pass, build and diff check pass. Artifact inventory has only the same 32 baseline #348 findings.; review verdict: SHIP
