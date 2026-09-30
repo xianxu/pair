@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-09-30
 updated: 2026-09-30
-estimate_hours:
-card_mirror: 'c852e236ccf80deda6db6e032d29fef8754eb9e4' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 4.193
+card_mirror: '0b4898ebd3943ade4e8aeffda3154d810a780b03' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-09-30T09:37:39-07:00
 ---
 
@@ -125,6 +125,34 @@ retired session associations while preserving monotonic counter high-water marks
 - [ ] M2 — Persist repository-family admission and carry its relative starting
   directory through every slot launch, storage, inventory, and menu path.
 
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*
+
+Four bounded Go concerns: durable allocator, binding transitions, managed launch
+protocol, and repository-family authority. Ownership probing is one external API
+integration; slot consumer propagation is one cross-cutting refactor. Existing
+flock/journal/process/parser seams are reused. The approved detailed plan applies
+the ×0.2 design discount; implementation values are 40% of v2 table upper bounds.
+Familiarity is 1.0. Includes documentation and two milestone reviews. The shared
+calibration is provisional/stale, so this is a planning estimate, not a deadline.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module design=0.2 impl=0.32
+item: greenfield-go-module design=0.2 impl=0.32
+item: greenfield-go-module design=0.2 impl=0.32
+item: greenfield-go-module design=0.2 impl=0.32
+item: api-integration design=0.4 impl=0.6
+item: cross-cutting-refactor design=0.1 impl=0.2
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.04 impl=0.2
+item: milestone-review design=0.04 impl=0.2
+design-buffer: 0.15
+total: 4.193
+```
+
 ## Log
 
 ### 2026-09-30
@@ -146,7 +174,7 @@ retired session associations while preserving monotonic counter high-water marks
 
 - Operator approved the durable plan. Initial implementation gate requested explicit
   pending-binding recovery and function-level test strategies; refined both and
-  retrying plan quality. Focused launcher/threadrecord/couchcore baseline passed.
+  plan quality accepted all findings in round two. Focused launcher/threadrecord/couchcore baseline passed.
 
 ## Revisions
 
