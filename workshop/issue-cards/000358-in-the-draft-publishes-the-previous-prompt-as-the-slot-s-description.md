@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000358-in-the-draft-publishes-the-previous-prompt-as-the-slot-s-description.md
         source_blob: 3f3dd918484cc8fabb0d2b5f146d015657391e74
         destination: workshop/issues/000358-in-the-draft-publishes-the-previous-prompt-as-the-slot-s-description.md
+        main_commit: e90ccf1f503a49c2d5047810e68c4f0446d9dbd1
 ---
 
 # !! in the draft publishes the previous prompt as the slot's description
