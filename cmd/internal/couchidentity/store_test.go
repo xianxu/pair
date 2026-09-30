@@ -268,3 +268,19 @@ func TestHostAndStoreMayShareDirectory(t *testing.T) {
 		t.Fatal(result, err)
 	}
 }
+
+func TestDescriptiveRepositoryNamesNeverGateIdentityAllocation(t *testing.T) {
+	s := fixture(t)
+	for i, name := range []string{"项目", "!!!", strings.Repeat("a", 255)} {
+		r, err := s.Allocate(context.Background(), AllocationRequest{Conversation: true, RepositoryToken: name})
+		if err != nil {
+			t.Fatalf("name=%q: %v", name, err)
+		}
+		if r.C != 1 || r.N != uint64(i+1) || len(r.PairTag) > 106 {
+			t.Fatalf("allocation=%+v", r)
+		}
+		if i < 2 && !strings.HasPrefix(r.PairTag, "1-repo-") {
+			t.Fatal(r)
+		}
+	}
+}

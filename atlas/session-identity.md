@@ -27,6 +27,8 @@ counters live in the canonical Couch namespace. Host floors commit before local
 counters under ordered locks, so interrupted launches burn numbers. Strict bounded
 storage refuses missing/corrupt authority. Local rollback recovers above host
 floors; rollback of both authorities is unsupported without proven floors.
+The descriptive repository token is capped at 64 ASCII characters and falls
+back to `repo` when normalization is empty; C/N carry uniqueness.
 
 `couchcore.launchTrackedThread` persists a pending `SessionBinding` before its
 blocked helper runs. Registration, including established-registration recovery

@@ -52,12 +52,22 @@ func NormalizeRepositoryToken(raw string) string {
 			dash = true
 		}
 	}
-	return b.String()
+	// The repository token is descriptive; C/N provide identity. Keep labels
+	// usable for every repository spelling and comfortably within artifact
+	// filename budgets even when counters reach their full uint64 width.
+	token := b.String()
+	if len(token) > 64 {
+		token = strings.TrimRight(token[:64], "-")
+	}
+	if token == "" {
+		return "repo"
+	}
+	return token
 }
 func FormatPairTag(c uint64, repository string, n uint64) (string, error) {
 	token := NormalizeRepositoryToken(repository)
-	if c == 0 || n == 0 || token == "" {
-		return "", errors.New("pair tag requires positive C/N and a repository token")
+	if c == 0 || n == 0 {
+		return "", errors.New("pair tag requires positive C/N")
 	}
 	return fmt.Sprintf("%d-%s-%d", c, token, n), nil
 }

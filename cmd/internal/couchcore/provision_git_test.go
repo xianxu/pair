@@ -24,13 +24,17 @@ type ProvisionFixture struct {
 	AfterGit              func(ProvisionCommand, []byte) error
 }
 
-func newProvisionFixture(t *testing.T) *ProvisionFixture {
+func newProvisionFixture(t *testing.T, repositoryNames ...string) *ProvisionFixture {
 	t.Helper()
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	f := &ProvisionFixture{t: t, Primary: filepath.Join(root, "fleet space", "repo-name"), Remote: filepath.Join(root, "remote.git")}
+	repo := "repo-name"
+	if len(repositoryNames) > 0 {
+		repo = repositoryNames[0]
+	}
+	f := &ProvisionFixture{t: t, Primary: filepath.Join(root, "fleet space", repo), Remote: filepath.Join(root, "remote.git")}
 	f.IO.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_AUTHOR_NAME=Fixture", "GIT_AUTHOR_EMAIL=fixture@example.com", "GIT_COMMITTER_NAME=Fixture", "GIT_COMMITTER_EMAIL=fixture@example.com", "GIT_TERMINAL_PROMPT=0")
 	if err := os.MkdirAll(f.Primary, 0700); err != nil {
 		t.Fatal(err)
@@ -54,7 +58,7 @@ func (f *ProvisionFixture) git(dir string, args ...string) string {
 	return strings.TrimSpace(string(out))
 }
 func (f *ProvisionFixture) host(n int) string {
-	return filepath.Join(filepath.Dir(f.Primary), "worktree", fmt.Sprintf("repo-name-slot%d", n), "repo-name")
+	return filepath.Join(filepath.Dir(f.Primary), "worktree", fmt.Sprintf("%s-slot%d", filepath.Base(f.Primary), n), filepath.Base(f.Primary))
 }
 func (f *ProvisionFixture) Run(ctx context.Context, c ProvisionCommand) ([]byte, error) {
 	switch c.Program {
@@ -84,10 +88,10 @@ func (f *ProvisionFixture) Run(ctx context.Context, c ProvisionCommand) ([]byte,
 			}
 		}
 		common := filepath.Join(f.Primary, ".git")
-		addr := fmt.Sprintf("repo-name:%d", slot)
+		addr := fmt.Sprintf("%s:%d", filepath.Base(f.Primary), slot)
 		head := f.git(top, "rev-parse", "HEAD")
 		branch := f.git(top, "branch", "--show-current")
-		id := WorkspaceIdentity{SchemaVersion: 2, Repo: "repo-name", RepoIdentity: common, PrimaryRoot: f.Primary, FleetRoot: filepath.Dir(f.Primary), EnvironmentRoot: env, WorktreeRoot: top, Kind: kind, Address: &addr, Slot: &slot, Branch: &branch, Head: &head, RestingBranch: &rest}
+		id := WorkspaceIdentity{SchemaVersion: 2, Repo: filepath.Base(f.Primary), RepoIdentity: common, PrimaryRoot: f.Primary, FleetRoot: filepath.Dir(f.Primary), EnvironmentRoot: env, WorktreeRoot: top, Kind: kind, Address: &addr, Slot: &slot, Branch: &branch, Head: &head, RestingBranch: &rest}
 		if slot > 0 {
 			id.EnvironmentHost = &EnvironmentHost{Repo: id.Repo, Slot: slot, RepoIdentity: common, PrimaryRoot: f.Primary, WorktreeRoot: top}
 		}

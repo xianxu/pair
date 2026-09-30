@@ -119,3 +119,35 @@ func TestBindingRejectsMalformedPersistedNamesAndNonces(t *testing.T) {
 		}
 	}
 }
+
+func TestRepositoryTokenFallbackAndBound(t *testing.T) {
+	for _, raw := range []string{"项目", "東京", "!!!", "---", "", "   "} {
+		t.Run(raw, func(t *testing.T) {
+			if token := NormalizeRepositoryToken(raw); token != "repo" {
+				t.Fatalf("token=%q", token)
+			}
+			tag, err := FormatPairTag(7, raw, 8)
+			if err != nil || tag != "7-repo-8" {
+				t.Fatalf("tag=%q err=%v", tag, err)
+			}
+			if _, _, _, err = ParsePairTag(tag); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+	for _, raw := range []string{strings.Repeat("a", 255), strings.Repeat("a", 63) + "-rest"} {
+		token := NormalizeRepositoryToken(raw)
+		if len(token) > 64 || strings.HasSuffix(token, "-") {
+			t.Fatalf("unbounded or trailing delimiter: %q", token)
+		}
+		tag, err := FormatPairTag(math.MaxUint64, raw, math.MaxUint64)
+		if err != nil || len(tag) > 106 {
+			t.Fatalf("tag size=%d err=%v", len(tag), err)
+		}
+	}
+	for _, numbers := range [][2]uint64{{0, 1}, {1, 0}} {
+		if _, err := FormatPairTag(numbers[0], "项目", numbers[1]); err == nil {
+			t.Fatal("fallback accepted invalid counter")
+		}
+	}
+}
