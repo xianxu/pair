@@ -1,12 +1,13 @@
 ---
 id: 000355
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-30
 updated: 2026-09-30
 estimate_hours:
-card_mirror: 'e4dac46a1da140c95caeae12e5641c7affeca15e' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'c852e236ccf80deda6db6e032d29fef8754eb9e4' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-09-30T09:37:39-07:00
 ---
 
 # Allocate Couch session identities and enforce repository families
@@ -118,9 +119,11 @@ retired session associations while preserving monotonic counter high-water marks
 
 ## Plan
 
-- [ ] Develop and review the implementation plan, including registry placement,
-  migration, counter recovery, and repository-family identity; then implement and
-  verify the acceptance criteria above. Task is filed, not claimed for implementation.
+- [ ] Review and approve the durable [implementation plan](../plans/000355-couch-session-identities-plan.md).
+- [ ] M1 — Allocate C/N/M identities, carry terminal bindings through launch,
+  and verify ownership with compatible live/parked migration.
+- [ ] M2 — Persist repository-family admission and carry its relative starting
+  directory through every slot launch, storage, inventory, and menu path.
 
 ## Log
 
@@ -130,3 +133,17 @@ retired session associations while preserving monotonic counter high-water marks
   restriction. Separate N and M reflect distinct Pair and Zellij lifetimes;
   a host counter replaces hashing the Couch store path. Parked families retain
   their repository reservation. No implementation changes made in this task.
+- Claimed at operator request to implement. Entered planning on
+  `000355-couch-session-identities`; inspected both tag allocation sites, the
+  shared tracked-launch boundary, name assignment and ownership readers, and
+  slot-family storage/routing consumers. Durable implementation plan drafted;
+  fresh-context review in progress. No production code changed yet.
+
+## Revisions
+
+### 2026-09-30 — Implementation requested
+
+Replaced the filing-only placeholder with a durable plan and two actual review
+boundaries: identity/terminal lifecycle, then family/subdirectory behavior.
+The agreed product model and Done-when contract are unchanged. The plan records
+storage, compatibility, crash/retry, and migration choices for review.
