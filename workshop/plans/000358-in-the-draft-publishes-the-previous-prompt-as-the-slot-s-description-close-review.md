@@ -1,0 +1,101 @@
+# Boundary Review — pair#358 (whole-issue close)
+
+| field | value |
+|-------|-------|
+| issue | 358 — !! in the draft publishes the previous prompt as the slot's description |
+| repo | pair |
+| issue file | workshop/issues/000358-in-the-draft-publishes-the-previous-prompt-as-the-slot-s-description.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 06973c5da7f85fbcc4108c80cf88da657290e32a..ad9cced960426ab5faa1aed4659c874f2039cef8 |
+| command | sdlc close --issue 358 |
+| reviewer | claude |
+| timestamp | 2026-09-30T11:56:31-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+This change delivers the whole issue. `bang_tag.parse` checks `!!` before the `!` rule, so the forgotten-`!` fix works in both forms: bare `!!` and `!! sentence`. `one_line` and `previous_description` are pure and unit-tested. `submit_operator_text` sends both forms to a synchronous publish that runs before anything is sent to the agent. A false result keeps the draft through the existing `send_and_clear` / `ship_buffer_and_reset` gate. I ran `nvim/bang_tag_test.lua` and `tests/bang-tag-nvim-test.sh` on head and both pass, including the three new `describe*` cases. The suite is wired into `make test` through `test-bang-tag`. Nothing blocks shipping. The four findings are Minor.
+
+**1. Strengths**
+- The integration test's history fake now stores what it receives. It appends to `PAIR_LOG_PATH` (`nvim/bang_tag_integration_test.lua:11-14`), so `!!` reads real history. Every zellij executor call is counted, so any agent write or submit fails the test. This is the stateful fake the Done-when asks for.
+- `bang_tag.lua` stays pure: `one_line` and `previous_description` have no IO. Their unit tests cover the cap at exactly 120 characters and at 121, counting in characters rather than bytes, and a multi-line `!` prompt that the agent received verbatim.
+- The publish is synchronous, and its result decides whether the draft clears (`nvim/init.lua:808-836`). A failure or a missing `couch` binary is caught by the `pcall` and reported with an ERROR notification. It is never reported as success.
+- Extracting `in_couch_thread()` removed a guard that had been written twice.
+- The README and both atlas files are updated in the same range.
+
+**2. Critical findings:** none.
+
+**3. Important findings:** none.
+
+**4. Minor findings**
+- **README wording is now ambiguous.** `README.md:273` still says "There is no `!!` escape." The paragraph just above it now gives `!!` a meaning, so a reader could take the two as contradicting each other. Rephrase it, for example: "there is no way to send a literal leading `!` from the draft."
+- **Duplicated code (ARCH-DRY).**
+  - The couch argv `{'couch','--internal','publish-description','--description='..d}` is built twice, at `init.lua:803` and `init.lua:826`.
+  - `normalization.lua` is loaded with `dofile` twice, at `init.lua:790` and `init.lua:1008`.
+  - Fix: one argv helper, and hoist a single normalization load above both users.
+- **Two failure paths of the `!!` publish are untested.** The ENOENT path (no `couch` on PATH) and the 5 s timeout path have no test. The `missing` and `slow` cases exist only for `!`.
+- **Edge cases in `one_line`'s UTF-8 truncation.**
+  - An invalid lead byte or a stray continuation byte doesn't match the pattern, so it is silently dropped when the text is cut.
+  - A cut can leave a space right before `…`.
+
+**5. Test coverage notes**
+Every Done-when clause is covered:
+
+| Done-when clause | Covered by |
+|---|---|
+| Bare `!!` and `!! sentence` publish | `describe` case, including `!!sentence` with no space |
+| Multi-line and bang-tagged previous prompts | Both seeded in `describe` |
+| No agent traffic and no history append | `silent()`, asserted for every form |
+| Outside couch | `describe-standalone`, both forms |
+| No previous prompt | `describe` (first call) |
+| Failed publish | `describe-nonzero` |
+| `!` behavior unchanged | Existing `couch` / `standalone` / `missing` / `nonzero` / `slow` / `retry` cases still pass |
+
+- The "empty -1 after stripping" edge is covered by `check_previous('!', nil)` at unit level. That is enough, because a bare `!` can never be logged.
+
+**6. Architectural notes**
+- **ARCH-DRY: pass.** Only the minor duplication above.
+- **ARCH-PURE: pass.** Parsing, the one-line rule and deriving the previous description are pure. `describe_couch_thread` is a thin IO shell.
+- **ARCH-PURPOSE: pass.** Both forms and every Done-when clause are delivered, with no deferral.
+- **For #357:** `if tag and not tag.agent_text` (`init.lua:840`) is the "draft action that doesn't submit" route. #357 should extend that route rather than add a parallel branch.
+- **Old logs:** an entry written before this change as `!! foo` would describe as `!! foo`. That is harmless.
+
+**7. Plan revision recommendations:** none. The plan matches the code.
+
+```findings
+findings:
+  - id: new
+    severity: Minor
+    family: doc-claim-stale-after-change
+    title: |
+      README still says "There is no `!!` escape" right after documenting `!!`
+    detail: |
+      README.md:273. The sentence meant "no way to send a literal leading `!`". Next to the new `!!` paragraph it reads as a contradiction. Reword it. This is the only instance in the window: the atlas bullets are consistent.
+  - id: new
+    severity: Minor
+    family: shared-helper-not-extracted
+    title: |
+      Couch publish argv built twice and normalization.lua loaded with dofile twice in init.lua (ARCH-DRY)
+    detail: |
+      init.lua:803 and init.lua:826 build the same publish-description argv. init.lua:790 and init.lua:1008 each dofile normalization.lua. Extract one argv helper and hoist a single normalization load above both users.
+  - id: new
+    severity: Minor
+    family: failure-path-untested
+    title: |
+      The `!!` publish's ENOENT and timeout paths have no integration case
+    detail: |
+      Only describe-nonzero exercises a failure. A describe-missing case (PATH without couch) and a timeout case would pin the pcall branch and the 5 s bound. The missing and slow cases exist only for `!`.
+  - id: new
+    severity: Minor
+    family: utf8-truncation-edges
+    title: |
+      one_line drops invalid UTF-8 bytes when it cuts, and can leave a trailing space before the ellipsis
+    detail: |
+      nvim/bang_tag.lua:20. The char pattern skips 0xC0/0xC1/0xF5-0xFF lead bytes and stray continuation bytes. A cut at a space yields "word …". Cosmetic.
+```
