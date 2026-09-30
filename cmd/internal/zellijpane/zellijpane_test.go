@@ -1,6 +1,9 @@
 package zellijpane
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 func TestParseActualCommandSeparateFromTemplate(t *testing.T) {
 	panes := Parse([]byte(`[{"id":1,"terminal_command":"sh -c template", "pane_command":"pair wrap --scrollback-log /tmp/path codex", "pane_cwd":"/tmp/repo"}]`))
@@ -99,4 +102,28 @@ func TestParseInvalidJSON(t *testing.T) {
 	if got := Parse(nil); got != nil {
 		t.Fatalf("nil → nil, got %+v", got)
 	}
+}
+
+func FuzzActualCommandEvidence(f *testing.F) {
+	for _, value := range []string{`"nvim /tmp/draft-x.md"`, `null`, `false`, `123`, `{}`, `[]`, `{"id":2,"is_plugin":false}`} {
+		f.Add(value)
+	}
+	f.Fuzz(func(t *testing.T, value string) {
+		var command any
+		if json.Unmarshal([]byte(value), &command) != nil {
+			return
+		}
+		raw, err := json.Marshal([]map[string]any{{"id": 1, "is_plugin": false, "terminal_command": "nvim /tmp/draft-wrong.md", "pane_command": command}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		panes := Parse(raw)
+		if len(panes) == 0 {
+			t.Fatalf("lost pane %s", raw)
+		}
+		expected, _ := command.(string)
+		if panes[0].PaneCommand != expected {
+			t.Fatalf("template or malformed value became actual evidence: %+v", panes)
+		}
+	})
 }

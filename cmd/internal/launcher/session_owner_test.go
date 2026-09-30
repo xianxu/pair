@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
@@ -98,4 +99,20 @@ func TestSessionOwnerPresenceIgnoresExitedRecord(t *testing.T) {
 	if err != nil || present {
 		t.Fatalf("exited record is live: %v %v", present, err)
 	}
+}
+
+func FuzzObservedCommandQuotedArguments(f *testing.F) {
+	for _, arg := range []string{"", "/tmp/Pair data/draft-1-repo-1.md", "one'two", "a\\b", "$HOME; echo other", "\"quoted\"", "line\nnext"} {
+		f.Add(arg)
+	}
+	f.Fuzz(func(t *testing.T, arg string) {
+		if !utf8.ValidString(arg) || strings.ContainsRune(arg, 0) {
+			return
+		}
+		quoted := "'" + strings.ReplaceAll(arg, "'", "'\\''") + "'"
+		got, err := splitObservedCommand("nvim " + quoted)
+		if err != nil || len(got) != 2 || got[0] != "nvim" || got[1] != arg {
+			t.Fatalf("quoted roundtrip %q: %q %v", arg, got, err)
+		}
+	})
 }
