@@ -1,10 +1,11 @@
 ---
 id: 000163
-status: open
+status: working
 created: 2026-09-01
-updated: 2026-09-01
+updated: 2026-09-30
 estimate_hours:
 github_issue:
+started: 2026-09-30T12:34:02-07:00
 ---
 
 # Match and show actor descriptions in Couch switcher
