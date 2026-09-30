@@ -1,11 +1,19 @@
 ---
 id: 000211
-status: working
+status: codecomplete
 created: 2026-09-07
 updated: 2026-09-29
 estimate_hours:
 github_issue:
 started: 2026-09-29T20:06:42-07:00
+actual_hours: 1.10
+tracker:
+    version: 1
+    completion:
+        token: close-3eb6560c8542
+        repository: github.com/xianxu/pair
+        reviewed_head: 15ab0c79cc6ef1e5abca46b5d77963f6a1fbb2d1
+        evidence_commit: 94b7517827bc683d962ad086b6541bac44d86119
 ---
 
 # Draft-editor send drops a chunk from the middle of the payload
