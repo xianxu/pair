@@ -462,11 +462,13 @@ grep -q 'round --side human' "$RT/doclog" && fail "nvim ran a human docflow roun
 grep -q '^ship$' "$RT/doclog" && fail "nvim ran docflow ship (invariant #1: agent owns git)" || pass "nvim writes no git on :PairReviewShip"
 grep -q '^awaiting-statusline$' "$RT/r3" && pass "human submit switches statusline to awaiting spinner" || fail "awaiting statusline"
 grep -q '^spinner-100ms$' "$RT/r3" && pass "awaiting spinner redraws at 100ms" || fail "spinner redraw cadence"
-grep -q 'write-chars --pane-id .* finished my edits .*Edit posture' "$RT/zlog" && pass "Alt+Return pokes human_finished with posture" || fail "no direct human_finished posture poke"
+# Pokes arrive as one bracketed paste (pair#211): the start marker leads the body.
+PASTE=$'\e\\[200~'
+grep -q "write-chars --pane-id [0-9]* ${PASTE}finished my edits .*Edit posture" "$RT/zlog" && pass "Alt+Return pokes human_finished with posture" || fail "no direct human_finished posture poke"
 grep -q 'minimal 🤖<old>{new}/🤖{new}' "$RT/zlog" && fail "human_finished repeats standing Edit marker rule" || pass "human_finished omits standing Edit marker rule"
 grep -q 'resolve 🤖\\[\\] comments' "$RT/zlog" && fail "human_finished repeats standing comment-resolution rule" || pass "human_finished omits standing comment-resolution rule"
-grep -q 'write-chars --pane-id .* ship .*doc.md.*agent owns git' "$RT/zlog" && pass ":PairReviewShip pokes the agent ship request" || fail "no ship-request poke"
-grep -q 'write-chars --pane-id .* finished my edits .*Proofread posture.*keep the title' "$RT/zlog" && pass "menu send pokes human_finished with mode and instruction" || fail "no mode/instruction human_finished poke"
+grep -q "write-chars --pane-id [0-9]* ${PASTE}ship .*doc.md.*agent owns git" "$RT/zlog" && pass ":PairReviewShip pokes the agent ship request" || fail "no ship-request poke"
+grep -q "write-chars --pane-id [0-9]* ${PASTE}finished my edits .*Proofread posture.*keep the title" "$RT/zlog" && pass "menu send pokes human_finished with mode and instruction" || fail "no mode/instruction human_finished poke"
 grep -q '^proofread-mode-persisted$' "$RT/r3" && pass "menu send persists selected review mode" || fail "selected review mode not persisted"
 grep -q 'menu submit edit' "$REPO/doc.md" && pass "send menu submit saves the reviewed document buffer" || fail "send menu submit did not save reviewed document"
 grep -q 'Review workbench open on' "$RT/zlog" && fail "review pane still sends redundant open handshake" || pass "review pane does not send redundant open handshake"

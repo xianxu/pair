@@ -1,0 +1,7 @@
+layout {
+    // `pair wrap claude --model haiku` in a throwaway cwd, exactly the agent
+    // pane's process shape. zellijprobe.WriteLayout substitutes the paths.
+    pane command="PROBE_PAIR" cwd="PROBE_CWD" {
+        args "wrap" "PROBE_CLAUDE" "--model" "haiku"
+    }
+}

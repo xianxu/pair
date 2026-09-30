@@ -1,14 +1,39 @@
 -- Production authored-text delivery transaction over Zellij actions.
 local M = {}
 
+M.PASTE_START = '\27[200~'
+M.PASTE_END = '\27[201~'
+
+-- The body goes as ONE bracketed paste (pair#211). Unbracketed, the agent sees
+-- a burst of typed input that macOS hands it in ~1 KiB tty reads and must
+-- guess is a paste; Claude Code measurably dropped whole middle reads of
+-- 3+-read sends (8 of 11 in the 2026-09 audit). Inside the markers the agent
+-- collects until the end marker however the bytes are chunked. Every profiled
+-- harness already takes bracketed pastes (wrapcmd/orientation.go sends one).
+-- Paste markers are stripped from the body first, so no text can close the
+-- paste early or open a nested one.
+function M.frame(body)
+  local clean = body:gsub('\27%[20[01]~', '')
+  return M.PASTE_START .. clean .. M.PASTE_END
+end
+
+-- The inverse, for the stateful agent fakes that model a paste-aware composer:
+-- the pasted content, or nil when the wire is not exactly one bracketed paste.
+function M.unframe(wire)
+  local s, f = M.PASTE_START, M.PASTE_END
+  if #wire < #s + #f or wire:sub(1, #s) ~= s or wire:sub(-#f) ~= f then return nil end
+  return wire:sub(#s + 1, -#f - 1)
+end
+
 function M.commands(body)
+  local wire = M.frame(body)
   local cmds = {
     { kind = 'focus-agent', label = 'draft.send.focus-agent', argv = { 'zellij', 'action', 'move-focus', 'up' } },
     {
       kind = 'write',
       label = 'draft.send.write-body',
-      argv = { 'zellij', 'action', 'write-chars', body },
-      opts = { redact = { [4] = body } },
+      argv = { 'zellij', 'action', 'write-chars', wire },
+      opts = { redact = { [4] = wire } },
     },
   }
   cmds[#cmds + 1] = { kind = 'submit', label = 'draft.send.submit', argv = { 'zellij', 'action', 'send-keys', 'Alt Enter' } }

@@ -21,7 +21,7 @@ _G.PairTestZellijExecutor = function(label, argv)
     failed_submit = true
     return { code = 17 }
   end
-  if kind == 'write-body' then composer = composer .. argv[4] end
+  if kind == 'write-body' then composer = composer .. assert(_G.PairDraftSend.unframe(argv[4]), 'body write must be one bracketed paste') end
   if kind == 'submit' then
     dispatches[#dispatches + 1] = composer
     composer = ''
