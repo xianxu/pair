@@ -33,8 +33,8 @@ making the match difficult to understand.
 - Preserve exact opaque-tag precedence and explicit repo:N slot selection; CLI
   references retain their current matching fields. Reuse the shared pure matcher
   with an optional description field populated by the menu (ARCH-DRY).
-- When an actor matches by description, show the description directly below
-  the actor's primary line in the switcher result.
+- In default view, description matches show the description directly below the
+  primary line; focus view keeps its existing inline summary.
 - Preserve the existing presentation for actors without descriptions.
 
 ## Done when
@@ -45,15 +45,15 @@ making the match difficult to understand.
   focus results keep their existing inline description. Exact tags/slot references
   retain precedence and focus still excludes parked or undescribed rows.
 - Actors with no description continue to search and render as before.
-- Automated tests cover description matching, display, and the no-description
-  case.
+- Automated tests cover both views and row kinds, description-source precedence,
+  case-insensitive matching, rendered row hit targets, and existing empty-description behavior.
 
 ## Plan
 
-- [ ] Add failing tests for description typeahead matching and result display.
-- [ ] Include assigned descriptions in the switcher's matching data.
-- [ ] Render matched descriptions beneath actor rows.
-- [ ] Verify existing actor matching and description-free rows do not regress.
+- [x] Add failing tests for description typeahead matching and result display.
+- [x] Include assigned descriptions in the switcher's matching data.
+- [x] Render matched descriptions beneath actor rows.
+- [x] Verify existing actor matching and description-free rows do not regress.
 
 ## Log
 
@@ -73,3 +73,13 @@ in both default and focus views. Match the existing sanitized DisplaySummary
 projection, preserve exact-reference behavior, and show matching descriptions
 in default results using existing row rendering/extents. This fits the quick
 flow; no durable plan or new IO is needed.
+
+### 2026-09-30 — Verification
+
+Description-only queries failed for all eight view/row/source combinations
+before implementation, then passed. Full couchtty suite passed (8.105s);
+core reference-resolution tests passed (0.778s). Exact tag/slot references keep
+precedence; published summaries hide superseded operator descriptions. Default
+results show sanitized matching descriptions with the same row hit target.
+Spec wording now explicitly distinguishes existing focus rendering from the
+new default detail line, and acceptance names the regression matrix.
