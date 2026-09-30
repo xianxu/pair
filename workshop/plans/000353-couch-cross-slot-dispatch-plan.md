@@ -96,7 +96,8 @@ not a high-throughput bus. Broker work stays off keystroke/render paths.
 
 | State/event | Transition and effect |
 |-------------|-----------------------|
-| unknown or disconnected binding / register | Verify live conversation + wrapper identity; unavailable, allowance 8 |
+| new incarnation / register | Verify live conversation + wrapper identity; unavailable, allowance 8 |
+| same wrapper reconnect / register | Verify exact identity; unavailable, retain spent allowance |
 | connected / available on or off | Set declaration; never reset allowance; reject on while a delivery is pending |
 | connected / genuine operator submit | Clear availability; reset allowance to 8 |
 | vacant mailbox / valid send | Reserve target and receipt; clear availability for ordinary request; decrement allowance; queue |
@@ -106,6 +107,7 @@ not a high-throughput bus. Broker work stays off keystroke/render paths.
 | queued / deadline or lost exact binding | Expire or cancel without writing |
 | pasted / own text rendered, no operator interference | Submit once using harness profile |
 | pasted / operator input or overlay | Cancel automatic submit; preserve visible contents; notice |
+| pasted / original deadline expires before matching render | Cancel automatic submit; preserve visible contents; intervention notice; ignore late render |
 | writing / partial write or unknown result | Indeterminate; no retry and no silent reassignment |
 | submitted request / first valid reply admission | Consume reply right atomically and admit terminal reply |
 | reply / further reply attempt | Refuse |
@@ -129,8 +131,10 @@ A new supervisor has fresh ephemeral state, as the issue explicitly permits.
 
 After paste, test the exact generated envelope against the rendered composer
 (including harness paste markers where necessary); merely seeing some text is
-not enough to submit. Operator input admitted during this window always prevents
-automatic submit. Serialize image-capture admission with peer input before its
+not enough to submit. The original delivery deadline travels with the admitted request and is checked
+before every automatic PTY effect. Missing post-paste render expires the attempt;
+late render/completion events cannot revive it. Operator input admitted during
+this window always prevents automatic submit. Serialize image-capture admission with peer input before its
 first PTY effect, and retain pending attachment state until submission. Unknown
 image/clipboard input declines subsequent auto-insertion until a proven reset.
 
@@ -229,7 +233,8 @@ reservation to close the draft-image race discovered by tests.
   completion. If that cannot be proved safe, stop and revise before enabling.
 - [ ] Add controlled interleaving tests for human-before-paste, human-after-paste,
   image admission, queued terminal replies, overlay, expiry, child exit, partial
-  paste/submit, and late broker results. Assert exact bytes and no second write.
+  paste/submit, missing post-paste render followed by a late matching render,
+  and late broker results. Assert exact bytes and no second write.
 - [ ] Run `go test ./cmd/internal/wrapcmd ./cmd/internal/couchmessage -count=1`
   and then `-race`; preserve orientation regressions. Run `make test-lua` if
   nvim changes. Commit passing behavior and qualifying fixtures together.
@@ -251,7 +256,9 @@ reservation to close the draft-image race discovered by tests.
   configuration at runtime or duplicating skill prose.
 - [ ] Teach live-only addressing, explicit availability, reference durable work,
   claim through Ariadne after receipt, respect dependency/acceptance gates,
-  verify incoming receipt, one terminal reply, no courtesy loops, no evading
+  use the canonical returned receipt content and verify recipient incarnation,
+  sender, body and submitted outcome (including a forged body with a valid ID),
+  one terminal reply, no courtesy loops, no evading
   breaker, and query uncertain sends before any resend. Human acceptance remains
   outstanding work. An arrival does not authorize bypassing local permissions.
 - [ ] Render a bounded normal Couch/Pair notice through the existing safe output
@@ -281,3 +288,7 @@ reservation to close the draft-image race discovered by tests.
 - 2026-09-30: initial proposal from the operator's live-slot/ephemeral-runtime
   contour. Receiver support starts with Claude/Codex to keep qualification
   bounded. No implementation, estimate, or acceptance claim yet.
+
+- 2026-09-30: fresh-context review clarified canonical-content provenance and
+  post-paste deadline/late-event handling; both have explicit regression cases.
+  Same-wrapper reconnect retains allowance; it cannot replenish the breaker.

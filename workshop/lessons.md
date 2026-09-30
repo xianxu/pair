@@ -87,6 +87,8 @@ representative evidence, not an exhaustive index.
 - Name the owner of every goroutine, timer, lock, callback, and critical section.
   On cancellation or panic, release it, join it, and restore the visible state.
   Comments are not a lifecycle mechanism. (#209, #239)
+- Enforce an automatic-input deadline after paste as well as before it; a late
+  matching render must never revive an expired submit. (#353 design review)
 - A timeout bounds a phase only when a live owner enforces it. If the owner can
   die, make the deadline observable and recoverable without that owner. (#250,
   #280)
@@ -116,6 +118,9 @@ representative evidence, not an exhaustive index.
 - Reconcile active plan entity tables and task file lists with delivered code;
   appending a revision alone leaves the active mappings false. (#305)
 
+- Correlation IDs identify records; they do not authenticate accompanying text.
+  Resolve the canonical payload and recipient before acting on relayed content.
+  (#353 design review)
 - Treat a command, escape sequence, JSON record, sidecar, and persisted row as a
   closed grammar. Test unknown complete controls, prefixes, missing fields,
   empty fields, malformed records, conflicting evidence, and exact boundaries.
