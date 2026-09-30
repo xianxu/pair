@@ -82,3 +82,38 @@ func TestMenuDescriptionKeepsExactReferences(t *testing.T) {
 		}
 	}
 }
+
+func TestMenuDescriptionKeepsExactReferencesAcrossRowKinds(t *testing.T) {
+	for name, view := range map[string]MenuRootView{"normal": MenuViewNormal, "focus": MenuViewFocus} {
+		for _, tc := range []struct {
+			name                  string
+			targetSlot, otherSlot bool
+			query                 string
+		}{
+			{"ordinary-tag-slot-description", false, true, "exact-owner"},
+			{"slot-tag-ordinary-description", true, false, "exact-owner"},
+			{"slot-tag-slot-description", true, true, "exact-owner"},
+			{"qualified-slot-ordinary-description", true, false, "pair:1"},
+			{"numbered-slot-ordinary-description", true, false, ":1"},
+		} {
+			t.Run(name+"/"+tc.name, func(t *testing.T) {
+				first, other := menuThreads()[0], menuThreads()[1]
+				if tc.targetSlot {
+					first = menuSlotRow(1, "exact-owner")
+				} else {
+					first.Address = menuAddress("exact-owner")
+				}
+				if tc.otherSlot {
+					other = menuSlotRow(2, "other-owner")
+				}
+				first.State, other.State = couchcore.ThreadLive, couchcore.ThreadLive
+				first.Description, other.Description = "target work", "mentions "+tc.query
+				state := NewMenuState([]couchcore.ActionableThreadSummary{first, other}, first.Address)
+				state.Frames[0].View, state.Frames[0].Filter = view, tc.query
+				if got := VisibleMenuThreads(state); len(got) != 1 || menuRowKey(got[0]) != menuRowKey(first) {
+					t.Fatalf("mixed exact reference lost precedence: %+v", got)
+				}
+			})
+		}
+	}
+}
