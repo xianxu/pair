@@ -160,6 +160,19 @@ total: 4.193
   incarnation authority across cold admission, registration, and failed-launch
   cleanup; BR-2 requires revalidation after blocking attach preparation.
   Addressing both classes with composed lifecycle regressions before M2.
+- BR-1/BR-2 corrections complete: durable pending/current terminal authority
+  now reaches admission, registration, recovery, park, detach, slot checks,
+  and cleanup; missing legacy association refuses cold creation. Launcher
+  independently rejects an observed same-conversation terminal and revalidates
+  the original warm owner after retention/cmux preparation. Added regressions
+  for stale registration, wrong-terminal cleanup, pre-helper recovery, damaged
+  bindings, and server replacement during preparation. Fixtures publish actual
+  managed intent names rather than reusing historical terminal names.
+  Exhaustive core partitions passed (99.151s/104.418s/165.217s), full command
+  and UI suites passed, launcher suite and focused core/launcher race checks
+  passed, live owner conformance passed, and build/diff checks passed. The
+  artifact inventory still has exactly the same 32 baseline #348 findings.
+  Submitting M1 review round 2.
 
 ### 2026-09-30
 
