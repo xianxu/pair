@@ -26,6 +26,23 @@ rounds:
           family: external-conformance-cadence
           round: 1
       blocked: true
+    - "n": 2
+      timestamp: "2026-09-30T16:59:34-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Named producers, sequence checks, bounded fresh probes, conditional reservation, and controlled-order tests address admission observation freshness.
+          round: 2
+        - id: PQ-2
+          disposition: not-addressed
+          note: The six function-level strategies are present, but Tasks 1–3 retain the rejected prose case inventories. Make the strategy table authoritative and explicitly supersede those inventory bullets in a controlling amendment; this is the unresolved portion of PQ-2, not a new finding.
+          round: 2
+        - id: PQ-3
+          disposition: addressed
+          note: Version/change-triggered live conformance and refusal of automatic delivery for unqualified or failing versions now define recurring qualification.
+          round: 2
+      blocked: true
 ---
 
 # Gate ledger — pair#353 (plan-quality)
@@ -44,8 +61,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-3** [Minor] `external-conformance-cadence` Name when supported harness behavior is requalified.
   ARCH-MOCK: Captured fixtures and an initial live smoke establish initial qualification, but the plan names no recurring or version-triggered conformance check. State when Claude/Codex composer and paste behavior must be rechecked and how failed qualification affects delivery support.
 
+## Round 2 — 2026-09-30T16:59:34-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- PQ-1 — addressed — Named producers, sequence checks, bounded fresh probes, conditional reservation, and controlled-order tests address admission observation freshness.
+- PQ-2 — not-addressed — The six function-level strategies are present, but Tasks 1–3 retain the rejected prose case inventories. Make the strategy table authoritative and explicitly supersede those inventory bullets in a controlling amendment; this is the unresolved portion of PQ-2, not a new finding.
+- PQ-3 — addressed — Version/change-triggered live conformance and refusal of automatic delivery for unqualified or failing versions now define recurring qualification.
+
 ## Open findings
 
-- **PQ-1** [Important] `admission-observation-freshness` Define eligibility observation freshness and reservation ordering.
 - **PQ-2** [Important] `function-level-test-strategy` Replace prose test-case inventories with function-level strategies.
-- **PQ-3** [Minor] `external-conformance-cadence` Name when supported harness behavior is requalified.

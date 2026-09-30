@@ -234,6 +234,11 @@ binding replacement at each boundary, and assert no admission from stale proof.
 
 ### Function-level test strategies (PQ-2)
 
+This table is the authoritative test strategy. It replaces the prose test-case
+inventory bullets in Tasks 1–3: execute their test steps by reference to the
+relevant function row below and the admission-order contract above. The older
+inventories are retained solely as revision history, not additional task lists.
+
 | Function | Strategy and independent oracle |
 |----------|---------------------------------|
 | `Advance` | Generate event sequences over registration, reservation, completion, replacement, expiry and operator submission. Assert independently: at most one pending message per slot, no allowance outside 0..8, only human submission replenishes an existing allowance, duplicates never spend twice, and terminal outcomes never replay. Seed exact failure interleavings as deterministic regressions. |
@@ -420,3 +425,8 @@ reservation to close the draft-image race discovered by tests.
   function-level test strategies. Added producer/sequence ownership, bounded
   conditional reservation and controlled-order tests. Also addressed PQ-3 with
   version/change-triggered receiver conformance. No product-scope change.
+
+- 2026-09-30: second gate pass accepted PQ-1/PQ-3 and requested explicit
+  supersession of the old test inventories. The function strategy table now
+  replaces those Task 1–3 bullets; retained prose is historical, not a parallel
+  testing contract.
