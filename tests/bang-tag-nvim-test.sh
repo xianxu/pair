@@ -14,7 +14,7 @@ cat >"$RT/bin/couch" <<'EOF'
 #!/bin/sh
 printf 'scope=%s tag=%s %s\n' "${COUCH_THREAD_SCOPE:-}" "${COUCH_THREAD_TAG:-}" "$*" >>"$PAIR_TEST_COUCH_CALLS"
 case "$PAIR_TEST_BANG_CASE" in
-  nonzero) exit 17 ;;
+  nonzero|describe-nonzero) exit 17 ;;
   slow)
     # Only the test driver can release us, after submit returns. A bounded
     # fallback makes a synchronous-publisher regression fail without leaking.
@@ -33,8 +33,8 @@ esac
 EOF
 chmod +x "$RT/bin/couch"
 
-for bang_case in couch standalone missing nonzero slow retry; do
-  if [ "$bang_case" = standalone ]; then scope='' tag=''; else scope=S1 tag=T1; fi
+for bang_case in couch standalone missing nonzero slow retry describe describe-standalone describe-nonzero; do
+  if [ "$bang_case" = standalone ] || [ "$bang_case" = describe-standalone ]; then scope='' tag=''; else scope=S1 tag=T1; fi
   run_headless --timeout 30 -- \
     env PAIR_DATA_DIR='' PAIR_TAG='' PAIR_SCOPE_KEY='' PAIR_RETENTION_PROTOCOL='' \
     PATH="$RT/bin:$PATH" COUCH_THREAD_SCOPE="$scope" COUCH_THREAD_TAG="$tag" \

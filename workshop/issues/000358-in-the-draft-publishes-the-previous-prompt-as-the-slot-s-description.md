@@ -72,19 +72,19 @@ together; whichever lands second reuses the first's routing.
 
 ## Plan
 
-- [ ] Decide the one-line rule: first non-blank line, runs of whitespace
+- [x] Decide the one-line rule: first non-blank line, runs of whitespace
       collapsed to one space, trimmed, capped at 120 characters (UTF-8 aware,
       `…` marks a cut). Couch clips to its terminal width at render time
       (`couchtty/menu_render.go` `clipMenuLine`), so the cap only bounds what
       is stored; it is not a display width.
-- [ ] Publish synchronously for `!!` (unlike `!`'s detached publish): nothing
+- [x] Publish synchronously for `!!` (unlike `!`'s detached publish): nothing
       is sent to the agent, so there is no prompt to delay, and a sync result
       lets a failure keep the draft and notify instead of claiming success.
       Bounded by a 5 s `vim.system` timeout.
-- [ ] `bang_tag.parse`: recognize `!!` and `!! sentence` ahead of `!`
-- [ ] `submit_operator_text`: route bare `!!` to history -1 → normalize →
+- [x] `bang_tag.parse`: recognize `!!` and `!! sentence` ahead of `!`
+- [x] `submit_operator_text`: route bare `!!` to history -1 → normalize →
       publish, and `!! sentence` to normalize → publish, both without the send
-- [ ] Tests: `bang_tag` unit + `bang_tag_integration_test` (no agent traffic,
+- [x] Tests: `bang_tag` unit + `bang_tag_integration_test` (no agent traffic,
       history not appended)
 
 ## Log
@@ -96,3 +96,18 @@ together; whichever lands second reuses the first's routing.
 - `!! sentence` added at the operator's request: it sets the description
   without submitting, so `!!` in both forms is the after-the-fact fix for a
   forgotten `!`. It supersedes the open "`!! text` needs a decision" point.
+- Implemented: `bang_tag.parse` returns `{ describe_previous }` / `{ description }`
+  for `!!`; `one_line` and `previous_description` are pure and unit-tested.
+  `submit_operator_text` routes both to `describe_couch_thread` before any
+  send. `strip_comments` is defined later in `init.lua`, so the block loads
+  `normalization.lua` directly, as it does `bang_tag.lua`.
+- Integration: the Pair-log fake now appends to `PAIR_LOG_PATH`, so `!!` reads
+  real history; every zellij executor call is counted, and `!!` must leave the
+  count and the log unchanged. Mutation check: letting `!!` fall through to the
+  send fails the driver.
+- Test env: `review-window-test` needs the default TMPDIR and
+  `test-changelog` a short one (both known); every `make test` target passes
+  under the right TMPDIR. `go test` fails only
+  `TestProductionArtifactReferencesAreExactlyClassified` (reviewcmd and review
+  lua files), and it fails identically on the base commit.
+
