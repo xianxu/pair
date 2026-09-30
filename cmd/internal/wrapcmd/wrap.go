@@ -1330,6 +1330,25 @@ var (
 	bpEnd   = []byte(workbenchshortcut.PasteEnd)
 )
 
+// childAcceptsPaste reports whether paste markers may reach the child. pair's
+// own senders frame every body as a bracketed paste (pair#211) — the draft send,
+// review pokes — and that must not require the agent to support one: a child
+// that has not enabled DECSET 2004 gets the body as typed input instead, which
+// is what it got before the framing. With no terminal model to ask, the markers
+// pass, as they always have.
+func (p *proxy) childAcceptsPaste() bool {
+	return p.terminal == nil || p.terminal.BracketedPaste()
+}
+
+// stripPasteMarkers drops every ESC[200~ and ESC[201~ from data. Pure.
+func stripPasteMarkers(data []byte) []byte {
+	if !bytes.Contains(data, bpStart) && !bytes.Contains(data, bpEnd) {
+		return data
+	}
+	out := bytes.ReplaceAll(data, bpStart, nil)
+	return bytes.ReplaceAll(out, bpEnd, nil)
+}
+
 // Enter / Alt+Enter byte sequences across the two protocols modern
 // terminals use:
 //
@@ -1695,6 +1714,9 @@ func (p *proxy) passThroughChunk(data []byte, inPaste bool) ([]byte, []byte, boo
 	held := workbenchshortcut.PendingInputSuffix(data)
 	pending := append([]byte(nil), data[len(data)-held:]...)
 	data = data[:len(data)-held]
+	if !p.childAcceptsPaste() {
+		data = stripPasteMarkers(data)
+	}
 	// These bytes reach the agent verbatim, so a CR here IS a submission — and
 	// it is the only turn-opening signal this configuration has. Without it the
 	// floor never arms under PAIR_WRAP_REMAP_RETURN=0, nor for any agent
@@ -2078,6 +2100,18 @@ func (p *proxy) translateChunk(data []byte, inPaste bool) ([]byte, []byte, bool)
 		// 7-byte \x1b[13;3u doesn't get partially matched as the
 		// 5-byte \x1b[13u.
 		if b == 0x1b {
+			// A child without bracketed paste gets the framed body as typed
+			// input: drop the markers and stay out of paste mode.
+			if !p.childAcceptsPaste() {
+				if startsWith(data[i:], bpStart) {
+					i += len(bpStart)
+					continue
+				}
+				if startsWith(data[i:], bpEnd) {
+					i += len(bpEnd)
+					continue
+				}
+			}
 			if startsWith(data[i:], bpStart) {
 				out = append(out, bpStart...)
 				i += len(bpStart)

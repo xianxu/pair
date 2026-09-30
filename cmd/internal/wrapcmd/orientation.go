@@ -10,6 +10,7 @@ import (
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/strictjson"
+	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
 // orientationDelivery transfers terminal observations to the existing stdin
@@ -143,7 +144,7 @@ func (p *proxy) advanceOrientation(event orientation.DeliveryEvent, out io.Write
 	d.state = state
 	switch effect {
 	case orientation.PastePrompt:
-		data := []byte("\x1b[200~" + d.request.Body + "\x1b[201~")
+		data := []byte(workbenchshortcut.PasteStart + d.request.Body + workbenchshortcut.PasteEnd)
 		n, err := out.Write(data)
 		p.advanceOrientation(orientation.DeliveryEvent{Kind: orientation.PasteCompleted, Written: n, Expected: len(data), Failed: err != nil}, out, settle)
 	case orientation.StartSettle:

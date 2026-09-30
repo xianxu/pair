@@ -9,12 +9,14 @@ local M = {}
 
 local pair_nvim_dir = vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h')
 local zellij_trace = dofile(pair_nvim_dir .. '/zellij_trace.lua')
+local draft_send = dofile(pair_nvim_dir .. '/draft_send.lua')
 
--- Pure: the ordered zellij argv list for one poke. Submit is a semantic
+-- Pure: the ordered zellij argv list for one poke. The body is one bracketed
+-- paste, framed by the draft send's own rule (pair#211). Submit is a semantic
 -- Alt+Enter key event so zellij delivers one modified chord to pair-wrap.
 function M._cmds(body, agent_id, review_id)
   return {
-    { 'zellij', 'action', 'write-chars', '--pane-id', tostring(agent_id), body },
+    { 'zellij', 'action', 'write-chars', '--pane-id', tostring(agent_id), draft_send.frame(body) },
     { 'zellij', 'action', 'send-keys', '--pane-id', tostring(agent_id), 'Alt Enter' },
   }
 end
@@ -60,7 +62,7 @@ function M.send(body)
   end
   local cmds = M._cmds(body, agent)
   zellij_trace.action('review.poke.write-body', cmds[1], {
-    redact = { [6] = body },
+    redact = { [6] = cmds[1][6] },
   })
   zellij_trace.action('review.poke.submit', cmds[2])
   return true

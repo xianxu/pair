@@ -14,7 +14,7 @@ import (
 func TestTranslateChunk_AgyKeymap(t *testing.T) {
 	f := newHarnessSessionFake(t, "agy", true)
 	t.Cleanup(f.close)
-	f.output(agyLiveComposerPaint())
+	f.output(bracketedPasteOn + agyLiveComposerPaint())
 	cases := []struct{ in, want []byte }{
 		{[]byte("hi\r"), []byte("hi\n")},                                                 // Enter → newline
 		{[]byte("hi\x1b\r"), []byte("hi\r")},                                             // Alt+Enter → send

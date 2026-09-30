@@ -44,6 +44,15 @@ representative evidence, not an exhaustive index.
 - Run the whole relevant suite, including race and acceptance boundaries. A
   package pass, `make -k`, or a hidden pipeline failure is not a green release.
   Verify the verification command itself. (#139, #262)
+- A loss oracle must first normalize every benign transform between sender and
+  receiver — the sender's own stripping, the receiver's re-wrapping and
+  boundary insertions — and its comparator needs a unit test on exactly those
+  transforms. Otherwise the probe reports a loss that is its own misreading.
+  (#211: a paste-boundary blank line split a numbered line, and `===` comment
+  stripping read as 37 holes.)
+- Locate a loss by hop before fixing it: probe each hop of the path in
+  isolation, then diff sender logs against the receiver's own record at scale.
+  The theory that survives elimination is not yet the cause. (#211)
 
 ## Authority, ownership, and identity
 

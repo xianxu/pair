@@ -70,7 +70,7 @@ func TestMuseDraftBodyPasteStaysLiteral(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newHarnessSessionFake(t, "muse", true)
 			defer f.close()
-			f.output(musePaintedComposer("⟩"))
+			f.output(bracketedPasteOn + musePaintedComposer("⟩"))
 			out, leftover, inPaste := f.proxy.translateChunk(tc.in, false)
 			if !bytes.Equal(out, tc.in) {
 				t.Fatalf("paste window rewritten: got %q, want %q", out, tc.in)

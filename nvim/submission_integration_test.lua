@@ -26,7 +26,8 @@ _G.PairTestZellijExecutor = function(label, argv)
     state.focus = 'draft'
   elseif kind == 'write-body' then
     assert(state.focus == 'agent')
-    state.composer = state.composer .. argv[4]
+    -- The agent receives one bracketed paste (pair#211) and keeps its content.
+    state.composer = state.composer .. assert(_G.PairDraftSend.unframe(argv[4]), 'body write must be one bracketed paste')
   elseif kind == 'submit' then
     assert(state.focus == 'agent')
     state.dispatches[#state.dispatches + 1] = state.composer

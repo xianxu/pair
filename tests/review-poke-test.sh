@@ -38,7 +38,7 @@ local OUT = io.open(os.getenv('RESULT'), 'w')
 -- unit: pure _cmds shape
 local c = poke._cmds('hello', 7, 9)
 local ok_cmds = c[1][3] == 'write-chars' and c[1][4] == '--pane-id'
-  and c[1][5] == '7' and c[1][6] == 'hello'
+  and c[1][5] == '7' and c[1][6] == '\27[200~hello\27[201~'
   and c[2][3] == 'send-keys' and c[2][4] == '--pane-id'
   and c[2][5] == '7' and c[2][6] == 'Alt Enter'
 OUT:write(ok_cmds and 'cmds ok\n' or 'cmds FAIL\n')
@@ -55,7 +55,8 @@ fails=0
 pass() { printf '  ok   %s\n' "$1"; }
 fail() { printf '  FAIL %s\n' "$1"; fails=$((fails + 1)); }
 grep -q 'cmds ok' "$RESULT" && pass "_cmds builds the id-based argv" || fail "_cmds shape"
-grep -q '^action write-chars --pane-id 7 updated, please review foo.md$' "$ZLOG" && pass "writes the please-review body to agent pane" || fail "no pane-id write-chars body"
+# One bracketed paste (pair#211): the markers frame the body on the wire.
+grep -q $'^action write-chars --pane-id 7 \e\\[200~updated, please review foo.md\e\\[201~$' "$ZLOG" && pass "writes the please-review body to agent pane as one paste" || fail "no pane-id write-chars body"
 grep -q '^action send-keys --pane-id 7 Alt Enter$' "$ZLOG" && pass "submits with semantic Alt+Enter to agent pane" || fail "no pane-id submit"
 grep -q 'focus-pane-id' "$ZLOG" && fail "changed focus while poking agent" || pass "does not change focus"
 grep -q 'move-focus' "$ZLOG" && fail "used relative move-focus (must be id-based)" || pass "no relative move-focus"
@@ -63,7 +64,7 @@ TRACE="$RT/zellij-actions-poke.jsonl"
 test -s "$TRACE" && pass "writes zellij action trace" || fail "missing zellij action trace"
 grep -q '"label":"review.poke.list-panes"' "$TRACE" && pass "traces pane lookup" || fail "missing list-panes trace"
 grep -q '"label":"review.poke.write-body"' "$TRACE" && pass "traces body write" || fail "missing write-body trace"
-grep -q '"body_len":29' "$TRACE" && pass "records redacted body length" || fail "missing body length"
+grep -q '"body_len":41' "$TRACE" && pass "records redacted body length (29 + 12 marker bytes)" || fail "missing body length"
 if grep -q 'updated, please review foo.md' "$TRACE"; then
   fail "trace leaked review poke body"
 else

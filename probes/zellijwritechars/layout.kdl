@@ -1,0 +1,8 @@
+layout {
+    // The probe's pane process: either this binary re-executed as a raw-mode
+    // byte recorder, or `pair wrap` in front of it. zellijprobe.WriteLayout
+    // substitutes the absolute argv at run time -- see probes/zellijprobe.
+    pane command="PROBE_BIN" {
+        args "PROBE_A1" "PROBE_A2" "PROBE_A3"
+    }
+}
