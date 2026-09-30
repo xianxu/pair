@@ -177,6 +177,12 @@ total: 4.193
   repository-token normalization rejected Unicode-only names. Adding a safe
   fallback and bounded descriptive token, with real-allocation regressions for
   both new and fresh conversations; C/N remain the unique identity.
+- BR-3 reproduced and fixed centrally: Unicode/punctuation-only labels now
+  normalize to `repo`, and descriptive tokens cap at 64 ASCII bytes. A real
+  255-byte repository basename previously caused an artifact rename failure;
+  it now launches successfully. Real-Git new/fresh allocation regressions,
+  allocator/durablefile suites, focused lifecycle/slot tests, build and diff
+  checks pass. Submitting M1 review round 3.
 
 ### 2026-09-30
 
