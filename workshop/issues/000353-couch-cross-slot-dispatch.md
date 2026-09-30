@@ -298,6 +298,15 @@ evidence.
 
 ## Revisions
 
+### 2026-09-30 — implementation entry and plan gate
+
+Operator instructed continuation after spec approval. The first change-code
+plan review requested admission-observation freshness and function-level test
+strategies (PQ-1/PQ-2); the plan now names input/output producers, a bounded
+conditional reservation, and independent sequence/grammar oracles. PQ-3's minor
+conformance-cadence finding is also addressed. No implementation gate pass or
+runtime behavior is claimed yet.
+
 ### 2026-09-30 — first-iteration proposal
 
 The operator expanded issue-only dispatch to live peer communication while
