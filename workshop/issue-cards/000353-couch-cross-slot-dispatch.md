@@ -1,8 +1,8 @@
 ---
 id: 000353
-status: open
+status: working
 created: 2026-09-29
-updated: 2026-09-29
+updated: 2026-09-30
 estimate_hours:
 github_issue:
 tracker:
@@ -17,6 +17,7 @@ tracker:
         source_blob: 51644fed62557dbf05edfa864e3a8645e4471491
         destination: workshop/issues/000353-couch-cross-slot-dispatch.md
         main_commit: 76db90172b0d80ffc14875b9ee5a3fcaef2825f7
+started: 2026-09-30T13:47:42-07:00
 ---
 
 # Live cross-slot dispatch between couch slots
