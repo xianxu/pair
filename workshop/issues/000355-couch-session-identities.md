@@ -281,6 +281,16 @@ total: 4.193
   repositories after enrollment. Extending retained identity propagation and
   adding real-Git enrollment/restart coverage for reads, preferences and inventory.
 
+- Reconstructed-backend fix: enrollment now atomically retains/backfills verified
+  common Git directories independently of family-directory reservations. All
+  reconstructed storage consumers use the same manifest authority; legacy
+  exact-scope records remain readable with unknown common identity. Operations
+  carry verified scope through read-only preference/default preview before
+  normal enrollment backfills metadata. Real separate-Git-directory readback
+  and legacy preview deadlock regressions demonstrated red then green; expanded
+  enrollment/backfill/conflict/migration tests passed (9.476s). Broad regression
+  suites are running.
+
 ## Revisions
 
 ### 2026-09-30 — Implementation requested
