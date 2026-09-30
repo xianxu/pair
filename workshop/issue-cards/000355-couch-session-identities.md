@@ -1,6 +1,6 @@
 ---
 id: 000355
-status: codecomplete
+status: done
 created: 2026-09-30
 updated: 2026-09-30
 estimate_hours: 4.193
@@ -24,6 +24,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: bb50b642453b453e3e165f9bee422cdaf3e7137f
         evidence_commit: 56a1bb68783daef8a073304aa25f7ef918033924
+        landed_commit: 11562ab0b4b71a9c763261997fb94a184430cea7
 ---
 
 # Allocate Couch session identities and enforce repository families
