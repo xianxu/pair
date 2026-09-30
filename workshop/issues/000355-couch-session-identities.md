@@ -119,7 +119,7 @@ retired session associations while preserving monotonic counter high-water marks
 
 ## Plan
 
-- [ ] Review and approve the durable [implementation plan](../plans/000355-couch-session-identities-plan.md).
+- [x] Review and approve the durable [implementation plan](../plans/000355-couch-session-identities-plan.md).
 - [ ] M1 — Allocate C/N/M identities, carry terminal bindings through launch,
   and verify ownership with compatible live/parked migration.
 - [ ] M2 — Persist repository-family admission and carry its relative starting
@@ -143,6 +143,10 @@ retired session associations while preserving monotonic counter high-water marks
   approved both chunks with no blocking findings. Issue schema validation and
   diff whitespace checks pass. Awaiting durable-plan approval required by
   AGENTS.md §2 before `sdlc change-code`; implementation has not started.
+
+- Operator approved the durable plan. Initial implementation gate requested explicit
+  pending-binding recovery and function-level test strategies; refined both and
+  retrying plan quality. Focused launcher/threadrecord/couchcore baseline passed.
 
 ## Revisions
 
