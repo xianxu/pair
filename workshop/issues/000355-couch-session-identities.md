@@ -8,6 +8,7 @@ updated: 2026-09-30
 estimate_hours: 4.193
 card_mirror: '0b4898ebd3943ade4e8aeffda3154d810a780b03' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-09-30T09:37:39-07:00
+flow: {kind: full, provenance: inferred}
 ---
 
 # Allocate Couch session identities and enforce repository families
