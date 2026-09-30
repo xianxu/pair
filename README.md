@@ -465,6 +465,14 @@ choose **add slot**. The launch form opens with its repository filled in and
 the agent selected; press Enter to use the defaults, or choose an agent first.
 The action also works from numbered slot rows.
 
+A repository family keeps the starting directory chosen for its first thread.
+Starting at `kbench/competition/arc-agi-3` makes added slots start at
+`competition/arc-agi-3` inside their worktrees. A new start at `arc-agi-2` or the
+repository root is refused while that family remains in Couch, including when
+its threads are parked. Opening a slot, starting fresh in it, and **add slot**
+reuse the saved directory. If that directory is missing in a checkout, restore
+it before launching; an already provisioned worktree remains available for retry.
+
 The switcher groups repositories alphabetically, with the primary first and
 numbered slots in numeric order (`:2` before `:10`). It shows full workspace
 names and actual checkout paths:

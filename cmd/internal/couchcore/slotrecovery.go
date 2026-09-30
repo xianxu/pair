@@ -231,6 +231,9 @@ func (c *Couch) selectedSlot(ctx context.Context, path string) (*ThreadStore, Sl
 		return nil, slot, errors.New("slot directory is not an existing conventional candidate")
 	}
 	if !candidate.Verified || candidate.Err != nil {
+		if _, err := c.Threads.ReserveRepositoryFamily(ctx, repository, RepositoryFamily{RepoIdentity: repository.Identity.RepoIdentity, PrimaryRoot: slot.PrimaryRoot}); err != nil {
+			return nil, slot, err
+		}
 		if c.Workspaces == nil {
 			return nil, slot, errors.New("incomplete slot needs workspace readiness")
 		}
@@ -267,6 +270,14 @@ func (c *Couch) startFreshSlot(ctx context.Context, path, agent string, requireE
 	if err != nil {
 		return StartResult{}, err
 	}
+	family, err := c.slotFamily(ctx, slot, true)
+	if err != nil {
+		return StartResult{}, err
+	}
+	cwd, err := ValidateFamilyPath(slot.WorktreeRoot, family.RelativeStart)
+	if err != nil {
+		return StartResult{}, err
+	}
 	old, err := local.observeSlotCurrent()
 	if err != nil {
 		return StartResult{}, err
@@ -292,7 +303,7 @@ func (c *Couch) startFreshSlot(ctx context.Context, path, agent string, requireE
 			ArgvSource:  accepted.ArgvSource,
 		}
 	} else {
-		profile, err = c.slotLaunchProfile(local, slot, agent)
+		profile, err = c.slotLaunchProfile(local, slot, cwd, agent)
 		if err != nil {
 			return StartResult{}, err
 		}
@@ -321,7 +332,7 @@ func (c *Couch) startFreshSlot(ctx context.Context, path, agent string, requireE
 		if err != nil {
 			return StartResult{}, err
 		}
-		record := ThreadRecord{SchemaVersion: ThreadSchemaVersion, Address: ThreadAddress{RepoScope: scope.Key, Tag: ThreadTag(tag)}, StartingPath: slot.WorktreeRoot, WorkingPath: slot.WorktreeRoot, CreatedAt: c.Clock.Now(), Revision: 1}
+		record := ThreadRecord{SchemaVersion: ThreadSchemaVersion, Address: ThreadAddress{RepoScope: scope.Key, Tag: ThreadTag(tag)}, StartingPath: cwd, WorkingPath: cwd, CreatedAt: c.Clock.Now(), Revision: 1}
 		if used[record.Address] {
 			continue
 		}
@@ -361,14 +372,14 @@ func (c *Couch) startFreshSlot(ctx context.Context, path, agent string, requireE
 		if err != nil {
 			return StartResult{}, errors.Join(err, c.rollbackTrackedStart(record, nonce))
 		}
-		actor, handle, err := c.launchTrackedThread(trackedThreadLaunch{Context: ctx, Thread: record, Nonce: nonce, Args: StartArgs{Worktree: Worktree(slot.WorktreeRoot), Cwd: slot.WorktreeRoot, Stack: profile.Profile.Agent, ExtraArgs: cloneArgv(profile.Profile.Argv)}, StartedAt: c.Clock.Now(), ProfileRaw: raw, UseRepoDefault: profile.ArgvSource == ArgvSourceRepoDefault})
+		actor, handle, err := c.launchTrackedThread(trackedThreadLaunch{Context: ctx, Thread: record, Nonce: nonce, Args: StartArgs{Worktree: Worktree(slot.WorktreeRoot), Cwd: cwd, Stack: profile.Profile.Agent, ExtraArgs: cloneArgv(profile.Profile.Argv)}, StartedAt: c.Clock.Now(), ProfileRaw: raw, UseRepoDefault: profile.ArgvSource == ArgvSourceRepoDefault})
 		return StartResult{Record: actor, Handle: handle}, err
 	}
 	return StartResult{}, errors.New("fresh slot exhausted native address collision attempts")
 }
 
-func (c *Couch) slotLaunchProfile(local *ThreadStore, slot SlotIdentity, agent string) (LaunchProfileResolution, error) {
-	preference, found, err := local.GetPathLaunchPreference(slot.RepoIdentity, slot.WorktreeRoot)
+func (c *Couch) slotLaunchProfile(local *ThreadStore, slot SlotIdentity, cwd, agent string) (LaunchProfileResolution, error) {
+	preference, found, err := local.GetPathLaunchPreference(slot.RepoIdentity, cwd)
 	if err != nil {
 		return LaunchProfileResolution{}, err
 	}
@@ -389,7 +400,7 @@ func (c *Couch) slotLaunchProfile(local *ThreadStore, slot SlotIdentity, agent s
 		return selected, errors.New("unsupported slot launch agent")
 	}
 	if c.RepoAgentDefault != nil {
-		value, ok, err := c.repoLaunchDefault(slot.WorktreeRoot, slot.PrimaryRoot, selected.Profile.Agent)
+		value, ok, err := c.repoLaunchDefault(cwd, slot.PrimaryRoot, selected.Profile.Agent)
 		if err != nil {
 			return selected, err
 		}
@@ -432,7 +443,15 @@ func (c *Couch) OpenSlot(ctx context.Context, path, agent string) (StartResult, 
 				if agent == "" {
 					continue
 				}
-				recovered = &ThreadRecord{SchemaVersion: ThreadSchemaVersion, Address: candidate.Address, StartingPath: slot.WorktreeRoot, WorkingPath: slot.WorktreeRoot, CreatedAt: c.Clock.Now(), Revision: 1, LatestLaunchProfile: &LaunchProfile{Agent: agent, Argv: []string{}}}
+				family, err := c.slotFamily(ctx, slot, false)
+				if err != nil {
+					return StartResult{}, err
+				}
+				cwd, err := ValidateFamilyPath(slot.WorktreeRoot, family.RelativeStart)
+				if err != nil {
+					return StartResult{}, err
+				}
+				recovered = &ThreadRecord{SchemaVersion: ThreadSchemaVersion, Address: candidate.Address, StartingPath: cwd, WorkingPath: cwd, CreatedAt: c.Clock.Now(), Revision: 1, LatestLaunchProfile: &LaunchProfile{Agent: agent, Argv: []string{}}}
 			}
 			next := cloneThreadRecord(*recovered)
 			next.Incarnations = nil
@@ -458,7 +477,7 @@ func (c *Couch) OpenSlot(ctx context.Context, path, agent string) (StartResult, 
 				}
 				proven = detachedResumeProofMatches(next, proof)
 				for _, actor := range c.reg.Records() {
-					if actor.Thread == next.Address && actor.Args.WorkingDir() == slot.WorktreeRoot && observeExactProcess(c.Proc, ProcessIdentity{PID: actor.PID, Identity: actor.Identity}) == Live {
+					if actor.Thread == next.Address && actor.Args.WorkingDir() == next.WorkingPath && observeExactProcess(c.Proc, ProcessIdentity{PID: actor.PID, Identity: actor.Identity}) == Live {
 						next.Incarnations = []ThreadIncarnation{{PID: actor.PID, Identity: actor.Identity, State: IncarnationLive, StartedAt: actor.StartedAt, RepoIdentity: slot.RepoIdentity, LaunchProfile: next.LatestLaunchProfile}}
 						proven = true
 					}
@@ -503,7 +522,7 @@ func (c *Couch) OpenSlot(ctx context.Context, path, agent string) (StartResult, 
 		record = &survivors[0]
 	}
 	for _, actor := range c.reg.Records() {
-		if actor.Thread == record.Address && actor.Args.WorkingDir() == slot.WorktreeRoot && observeExactProcess(c.Proc, ProcessIdentity{PID: actor.PID, Identity: actor.Identity}) == Live {
+		if actor.Thread == record.Address && actor.Args.WorkingDir() == record.WorkingPath && observeExactProcess(c.Proc, ProcessIdentity{PID: actor.PID, Identity: actor.Identity}) == Live {
 			return StartResult{Record: actor}, nil
 		}
 	}
@@ -574,4 +593,16 @@ func conventionalSlotFromPath(path string) (SlotIdentity, bool) {
 	}
 	slot := conventionalSlot(primary, number)
 	return slot, slot.WorktreeRoot == path && slot.Validate() == nil
+}
+
+func (c *Couch) slotFamily(ctx context.Context, slot SlotIdentity, reserve bool) (RepositoryFamily, error) {
+	repository, err := c.Slots.Discover(ctx, slot.PrimaryRoot)
+	if err != nil {
+		return RepositoryFamily{}, err
+	}
+	requested := RepositoryFamily{RepoIdentity: repository.Identity.RepoIdentity, PrimaryRoot: slot.PrimaryRoot}
+	if reserve {
+		return c.Threads.ReserveRepositoryFamily(ctx, repository, requested)
+	}
+	return c.Threads.PreviewRepositoryFamily(ctx, repository, requested)
 }

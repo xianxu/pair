@@ -200,7 +200,7 @@ func renderSwitchAgentMenu(frame MenuFrame, width, height int) []string {
 
 func menuActionsFor(state MenuState, thread couchcore.ActionableThreadSummary) []string {
 	items := menuActionItems(thread)
-	if menuRepositoryRoot(thread) != "" {
+	if menuAddSlotPath(thread) != "" {
 		items = append(items, "add-slot")
 	}
 	if _, ok := state.Orientation[thread.Address]; ok {
@@ -238,4 +238,27 @@ func menuRepositoryRoot(thread couchcore.ActionableThreadSummary) string {
 		return thread.Target.Slot.PrimaryRoot
 	}
 	return presentationRoot(thread.StartingPath, thread.Address.RepoScope)
+}
+
+// menuAddSlotPath projects the selected family's starting directory into the
+// primary checkout. The create form carries that explicit choice through preview.
+func menuAddSlotPath(thread couchcore.ActionableThreadSummary) string {
+	thread = presentationRow(thread)
+	primary := menuRepositoryRoot(thread)
+	if primary == "" {
+		return ""
+	}
+	root := primary
+	if thread.Target.Kind == couchcore.ThreadTargetSlot {
+		root = thread.Target.Slot.WorktreeRoot
+	}
+	relative, err := couchcore.RelativeFamilyPath(root, thread.StartingPath)
+	if err != nil {
+		return ""
+	}
+	path, err := couchcore.ProjectFamilyPath(primary, relative)
+	if err != nil {
+		return ""
+	}
+	return path
 }

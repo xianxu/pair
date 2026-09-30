@@ -57,10 +57,11 @@ func (e *ThreadRevisionError) Error() string {
 }
 
 type threadManifest struct {
-	SlotRepositories []string        `json:"slot_repositories,omitempty"`
-	SchemaVersion    int             `json:"schema_version"`
-	Generation       uint64          `json:"generation"`
-	Threads          []ThreadAddress `json:"threads"`
+	RepositoryFamilies []RepositoryFamily `json:"repository_families,omitempty"`
+	SlotRepositories   []string           `json:"slot_repositories,omitempty"`
+	SchemaVersion      int                `json:"schema_version"`
+	Generation         uint64             `json:"generation"`
+	Threads            []ThreadAddress    `json:"threads"`
 	// DeprecatedLegacyCutover and DeprecatedLegacyMigrationVersion are
 	// TOMBSTONES, not fields. The one-time import of the old tree-keyed
 	// registry went with pair#170 M4, but these keys are in the operator's
@@ -718,11 +719,13 @@ func (s *ThreadStore) Snapshot() (ThreadSnapshot, error) {
 		return ThreadSnapshot{}, err
 	}
 	var snapshot ThreadSnapshot
+	var rootManifest threadManifest
 	err := s.withLock(func() error {
 		manifest, _, _, err := s.loadManifestLocked()
 		if err != nil {
 			return err
 		}
+		rootManifest = manifest
 		snapshot = ThreadSnapshot{Generation: manifest.Generation}
 		for _, address := range manifest.Threads {
 			// A record that cannot be read or decoded is REPORTED, not raised.
@@ -747,7 +750,7 @@ func (s *ThreadStore) Snapshot() (ThreadSnapshot, error) {
 		return nil
 	})
 	if err == nil && !s.layout.Local {
-		return s.appendSlotSnapshots(snapshot)
+		return s.appendSlotSnapshots(snapshot, rootManifest)
 	}
 	return snapshot, err
 }
@@ -1113,6 +1116,16 @@ func (s *ThreadStore) loadManifestLocked() (threadManifest, []byte, bool, error)
 			return threadManifest{}, nil, true, errors.New("invalid or duplicate slot repository root")
 		}
 		roots[root] = true
+	}
+	identities, familyRoots := map[string]bool{}, map[string]bool{}
+	for _, family := range manifest.RepositoryFamilies {
+		if err := family.Validate(); err != nil {
+			return threadManifest{}, nil, true, err
+		}
+		if manifest.SchemaVersion != 2 || identities[family.RepoIdentity] || familyRoots[family.PrimaryRoot] {
+			return threadManifest{}, nil, true, errors.New("invalid or duplicate repository family")
+		}
+		identities[family.RepoIdentity], familyRoots[family.PrimaryRoot] = true, true
 	}
 	seen := map[ThreadAddress]bool{}
 	for _, address := range manifest.Threads {

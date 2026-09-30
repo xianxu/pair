@@ -7,21 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 )
-
-// discoveredBackends rebuilds locations from enrolled repository roots, never
-// from cached conversation addresses. Git/process proof belongs to the operation
-// opening a slot; enumerating metadata here cannot grant launch authority.
-func (s *ThreadStore) discoveredBackends() ([]*ThreadStore, error) {
-	if s.layout.Local {
-		return nil, nil
-	}
-	roots, err := s.slotRepositoryRoots()
-	if err != nil {
-		return nil, err
-	}
-	return s.discoveredBackendsFromRoots(roots)
-}
 
 func (s *ThreadStore) slotRepositoryRoots() ([]string, error) {
 	var roots []string
@@ -37,6 +24,8 @@ func (s *ThreadStore) slotRepositoryRoots() ([]string, error) {
 
 // discoveredBackendsFromRoots performs no locking or mutation. Retention uses
 // this after reading enrollment while already holding its coordinator lock.
+// Git/process proof belongs to the operation opening a slot; enumeration does
+// not grant launch authority.
 func (s *ThreadStore) discoveredBackendsFromRoots(roots []string) ([]*ThreadStore, error) {
 	var stores []*ThreadStore
 	for _, root := range roots {
@@ -55,8 +44,83 @@ func (s *ThreadStore) discoveredBackendsFromRoots(roots []string) ([]*ThreadStor
 	return stores, nil
 }
 
+// slotForContainedPath recognizes a conventional checkout without requiring it
+// to exist yet. Component boundaries keep sibling repository names distinct.
+func slotForContainedPath(root, path string) (SlotIdentity, bool) {
+	worktrees := filepath.Join(filepath.Dir(root), "worktree")
+	rel, err := filepath.Rel(worktrees, path)
+	if err != nil || filepath.IsAbs(rel) {
+		return SlotIdentity{}, false
+	}
+	parts := strings.Split(rel, string(filepath.Separator))
+	if len(parts) < 2 || parts[1] != filepath.Base(root) {
+		return SlotIdentity{}, false
+	}
+	n, ok := slotDirectoryNumber(root, parts[0])
+	if !ok {
+		return SlotIdentity{}, false
+	}
+	slot := conventionalSlot(root, n)
+	if _, err := RelativeFamilyPath(slot.WorktreeRoot, path); err != nil {
+		return SlotIdentity{}, false
+	}
+	return slot, true
+}
+
+// retainedPhysicalPath resolves existing ancestors while retaining a missing
+// suffix. Missing CWDs must stay visible, but an existing symlink cannot redirect
+// a retained record or preference into another checkout's storage.
+func retainedPhysicalPath(path string) (string, error) {
+	missing := []string{}
+	for {
+		resolved, err := filepath.EvalSymlinks(path)
+		if err == nil {
+			for i := len(missing) - 1; i >= 0; i-- {
+				resolved = filepath.Join(resolved, missing[i])
+			}
+			return resolved, nil
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return "", err
+		}
+		if _, linkErr := os.Lstat(path); linkErr == nil {
+			return "", err
+		}
+		parent := filepath.Dir(path)
+		if parent == path {
+			return "", err
+		}
+		missing = append(missing, filepath.Base(path))
+		path = parent
+	}
+}
+
+func retainedPathWithinCheckout(root, path string) error {
+	if _, err := RelativeFamilyPath(root, path); err != nil {
+		return err
+	}
+	physicalRoot, err := retainedPhysicalPath(root)
+	if err != nil {
+		return err
+	}
+	physicalPath, err := retainedPhysicalPath(path)
+	if err != nil {
+		return err
+	}
+	if _, err := RelativeFamilyPath(physicalRoot, physicalPath); err != nil {
+		return fmt.Errorf("path escapes its host checkout: %s", path)
+	}
+	return nil
+}
+
 func (s *ThreadStore) storeForPath(physicalPath string) (*ThreadStore, error) {
 	if s.layout.Local {
+		if s.slot == nil {
+			return nil, errors.New("local store has no slot identity")
+		}
+		if err := retainedPathWithinCheckout(s.slot.WorktreeRoot, physicalPath); err != nil {
+			return nil, err
+		}
 		return s, nil
 	}
 	roots, err := s.slotRepositoryRoots()
@@ -64,14 +128,17 @@ func (s *ThreadStore) storeForPath(physicalPath string) (*ThreadStore, error) {
 		return nil, err
 	}
 	for _, root := range roots {
-		env := filepath.Dir(physicalPath)
-		n, numbered := slotDirectoryNumber(root, filepath.Base(env))
-		if numbered && filepath.Dir(env) == filepath.Join(filepath.Dir(root), "worktree") && filepath.Base(physicalPath) == filepath.Base(root) {
-			local := newSlotThreadStore(s.namespace, conventionalSlot(root, n))
-			local.coordinator = s.coordinator
-			local.readOnly = s.readOnly
-			return local, nil
+		slot, ok := slotForContainedPath(root, physicalPath)
+		if !ok {
+			continue
 		}
+		if err := retainedPathWithinCheckout(slot.WorktreeRoot, physicalPath); err != nil {
+			return nil, err
+		}
+		local := newSlotThreadStore(s.namespace, slot)
+		local.coordinator = s.coordinator
+		local.readOnly = s.readOnly
+		return local, nil
 	}
 	return s, nil
 }
@@ -185,9 +252,7 @@ func (s *ThreadStore) storeForAddress(address ThreadAddress) (*ThreadStore, erro
 
 func pathInSlotRepositories(path string, roots []string) bool {
 	for _, root := range roots {
-		env := filepath.Dir(path)
-		_, numbered := slotDirectoryNumber(root, filepath.Base(env))
-		if numbered && filepath.Dir(env) == filepath.Join(filepath.Dir(root), "worktree") && filepath.Base(path) == filepath.Base(root) {
+		if _, ok := slotForContainedPath(root, path); ok {
 			return true
 		}
 	}

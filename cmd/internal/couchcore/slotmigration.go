@@ -69,6 +69,14 @@ func (s *ThreadStore) EnrollSlotRepository(ctx context.Context, repository SlotR
 		byPath[id.WorktreeRoot] = batch
 		batches = append(batches, batch)
 	}
+	batchForPath := func(path string) *slotMigrationBatch {
+		for _, batch := range batches {
+			if _, err := RelativeFamilyPath(batch.local.slot.WorktreeRoot, path); err == nil {
+				return batch
+			}
+		}
+		return nil
+	}
 	return s.withLock(func() error {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -115,14 +123,14 @@ func (s *ThreadStore) EnrollSlotRepository(ctx context.Context, repository SlotR
 			if err != nil {
 				return err
 			}
-			batch := byPath[record.StartingPath]
+			batch := batchForPath(record.StartingPath)
 			if batch == nil {
 				continue
 			}
-			if currentPaths[record.StartingPath] {
+			if currentPaths[batch.local.slot.WorktreeRoot] {
 				return fmt.Errorf("multiple legacy current records for slot %s", record.StartingPath)
 			}
-			currentPaths[record.StartingPath] = true
+			currentPaths[batch.local.slot.WorktreeRoot] = true
 			if err := batch.local.validateLocalOrigin(record); err != nil {
 				return err
 			}
@@ -167,7 +175,7 @@ func (s *ThreadStore) EnrollSlotRepository(ctx context.Context, repository SlotR
 			if err != nil {
 				return fmt.Errorf("unreadable migration archive %s: %w", path, err)
 			}
-			batch := byPath[record.StartingPath]
+			batch := batchForPath(record.StartingPath)
 			if batch == nil {
 				return nil
 			}
@@ -186,26 +194,50 @@ func (s *ThreadStore) EnrollSlotRepository(ctx context.Context, repository SlotR
 		if err != nil {
 			return err
 		}
-		for i, batch := range batches {
-			id := batch.local.slot
-			preferencePath := s.pathLaunchPreferencePath(id.RepoIdentity, id.WorktreeRoot)
-			if raw, err := read(preferencePath); err == nil {
-				var preference PathLaunchPreference
-				if err := strictThreadStoreJSON(raw, &preference); err != nil {
-					return err
-				}
-				if err := validatePathLaunchPreference(preference); err != nil {
-					return err
-				}
-				if preference.RepoIdentity != id.RepoIdentity || preference.PhysicalPath != id.WorktreeRoot {
-					return errors.New("migration preference identity mismatch")
-				}
-				batch.payloads = append(batch.payloads, slotMigrationPayload{preferencePath, batch.local.pathLaunchPreferencePath(id.RepoIdentity, id.WorktreeRoot), raw})
-			} else if !errors.Is(err, os.ErrNotExist) {
+		// Preferences belong to the recorded working directory, which can be
+		// below the checkout root. Inspect the bounded global preference inventory
+		// before cutover so the local singleton never silently drops a saved choice.
+		preferenceEntries, err := os.ReadDir(filepath.Join(s.root, "path-preferences"))
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		preferences := map[*slotMigrationBatch]bool{}
+		for _, entry := range preferenceEntries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+				continue
+			}
+			preferencePath := filepath.Join(s.root, "path-preferences", entry.Name())
+			raw, err := read(preferencePath)
+			if err != nil {
 				return err
 			}
+			var preference PathLaunchPreference
+			if err := strictThreadStoreJSON(raw, &preference); err != nil {
+				return err
+			}
+			if err := validatePathLaunchPreference(preference); err != nil {
+				return err
+			}
+			batch := batchForPath(preference.PhysicalPath)
+			if batch == nil {
+				continue
+			}
+			id := batch.local.slot
+			if preference.RepoIdentity != id.RepoIdentity || preferencePath != s.pathLaunchPreferencePath(preference.RepoIdentity, preference.PhysicalPath) {
+				return errors.New("migration preference identity mismatch")
+			}
+			if err := retainedPathWithinCheckout(id.WorktreeRoot, preference.PhysicalPath); err != nil {
+				return err
+			}
+			if preferences[batch] {
+				return fmt.Errorf("multiple legacy path preferences for slot %s require recovery", id.WorktreeRoot)
+			}
+			preferences[batch] = true
+			batch.payloads = append(batch.payloads, slotMigrationPayload{preferencePath, batch.local.pathLaunchPreferencePath(preference.RepoIdentity, preference.PhysicalPath), raw})
+		}
+		for i, batch := range batches {
 			if len(batch.payloads) > 0 && (!slots[i].Verified || slots[i].Err != nil) {
-				return fmt.Errorf("slot %s requires verified Git identity before migration", id.WorktreeRoot)
+				return fmt.Errorf("slot %s requires verified Git identity before migration", batch.local.slot.WorktreeRoot)
 			}
 		}
 		// Bound and validate the complete source set before writing any local bytes.

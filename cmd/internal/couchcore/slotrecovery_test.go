@@ -251,6 +251,11 @@ func TestSlotOpenReconstructsSingleDetachedSurvivor(t *testing.T) {
 
 func TestSlotFreshFailedLaunchRetainsDamagedEvidence(t *testing.T) {
 	env, local := slotRecoveryOperationFixture(t)
+	// Establish family authority before damage so fresh tests launch rollback,
+	// rather than refusing to infer a family from unreadable legacy evidence.
+	if _, err := env.Couch.slotFamily(t.Context(), *local.slot, true); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.MkdirAll(local.root, 0700); err != nil {
 		t.Fatal(err)
 	}

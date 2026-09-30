@@ -784,13 +784,13 @@ func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			request := state.Orientation[thread.Address]
 			return state, []MenuEffect{{CopyOrientation: &request}}
 		case "add-slot":
-			root := menuRepositoryRoot(thread)
+			path := menuAddSlotPath(thread)
 			state, _ = openStartForm(state)
 			if state.CurrentFrame().Kind != MenuFrameStart {
 				return state, nil
 			}
 			form := &state.Frames[len(state.Frames)-1]
-			form.Path, form.FormField = root, MenuFieldAgent
+			form.Path, form.FormField = path, MenuFieldAgent
 			return requestStartPreview(state)
 		case "switch-agent":
 			return openSwitchAgent(state, thread.Address)

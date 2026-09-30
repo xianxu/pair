@@ -304,7 +304,8 @@ func (c *Couch) ObserveSlotSessions(ctx context.Context, slot SlotIdentity) (Slo
 	}
 	actors := append(c.reg.Records(), durable.Records()...)
 	for _, actor := range actors {
-		if actor.Args.WorkingDir() != slot.WorktreeRoot && actor.Thread.RepoScope != scope.Key {
+		_, pathErr := RelativeFamilyPath(slot.WorktreeRoot, actor.Args.WorkingDir())
+		if pathErr != nil && actor.Thread.RepoScope != scope.Key {
 			continue
 		}
 		candidate, err := add(actor.Thread)
@@ -312,8 +313,8 @@ func (c *Couch) ObserveSlotSessions(ctx context.Context, slot SlotIdentity) (Slo
 			return out, err
 		}
 		candidate.Processes = append(candidate.Processes, ProcessIdentity{PID: actor.PID, Identity: actor.Identity})
-		if candidate.Record == nil && actor.Args.WorkingDir() == slot.WorktreeRoot && launcher.IsSupportedAgent(actor.Args.Stack) {
-			record := ThreadRecord{SchemaVersion: ThreadSchemaVersion, Address: actor.Thread, StartingPath: slot.WorktreeRoot, WorkingPath: slot.WorktreeRoot, CreatedAt: actor.StartedAt, Revision: 1, LatestLaunchProfile: &LaunchProfile{Agent: actor.Args.Stack, Argv: cloneArgv(actor.Args.ExtraArgs)}}
+		if candidate.Record == nil && pathErr == nil && launcher.IsSupportedAgent(actor.Args.Stack) {
+			record := ThreadRecord{SchemaVersion: ThreadSchemaVersion, Address: actor.Thread, StartingPath: actor.Args.WorkingDir(), WorkingPath: actor.Args.WorkingDir(), CreatedAt: actor.StartedAt, Revision: 1, LatestLaunchProfile: &LaunchProfile{Agent: actor.Args.Stack, Argv: cloneArgv(actor.Args.ExtraArgs)}}
 			candidate.Record = &record
 		}
 	}

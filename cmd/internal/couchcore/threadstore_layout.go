@@ -59,8 +59,13 @@ func (s *ThreadStore) localMembership() (threadManifest, []byte, bool, error) {
 }
 
 func (s *ThreadStore) validateLocalOrigin(record ThreadRecord) error {
-	if s.slot != nil && (record.StartingPath != s.slot.WorktreeRoot || record.WorkingPath != s.slot.WorktreeRoot) {
-		return errors.New("slot record path does not match its host checkout")
+	if s.slot == nil {
+		return nil
+	}
+	for _, path := range []string{record.StartingPath, record.WorkingPath} {
+		if err := retainedPathWithinCheckout(s.slot.WorktreeRoot, path); err != nil {
+			return fmt.Errorf("slot record path does not match its host checkout: %w", err)
+		}
 	}
 	return nil
 }

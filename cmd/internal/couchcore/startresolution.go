@@ -45,6 +45,7 @@ type StartResolutionInput struct {
 
 // StartResolution is the immutable authority shared by preview and launch.
 type StartResolution struct {
+	Family             *RepositoryFamily          `json:"family,omitempty"`
 	OriginalInput      string                     `json:"original_input,omitempty"`
 	Action             StartAction                `json:"action,omitempty"`
 	Target             ThreadTarget               `json:"target"`
@@ -117,6 +118,10 @@ func ResolveStartResolution(input StartResolutionInput) (StartResolution, error)
 }
 
 func cloneStartResolution(resolution StartResolution) StartResolution {
+	if resolution.Family != nil {
+		family := *resolution.Family
+		resolution.Family = &family
+	}
 	resolution.Profile = cloneLaunchProfile(resolution.Profile)
 	resolution.ReuseNotices = append([]StartReuseNotice(nil), resolution.ReuseNotices...)
 	return resolution
@@ -136,6 +141,11 @@ func launchProfileDigest(profile LaunchProfile) string {
 func fingerprintStartResolution(resolution StartResolution) StartResolutionFingerprint {
 	digest := sha256.New()
 	writeFingerprintField(digest, "pair-start-resolution-v1")
+	if family := resolution.Family; family != nil {
+		writeFingerprintField(digest, family.RepoIdentity)
+		writeFingerprintField(digest, family.PrimaryRoot)
+		writeFingerprintField(digest, family.RelativeStart)
+	}
 	writeFingerprintField(digest, resolution.OriginalInput)
 	writeFingerprintField(digest, string(resolution.Action))
 	writeFingerprintField(digest, string(resolution.Target.Kind))

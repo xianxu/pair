@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
 )
@@ -30,10 +30,59 @@ func (c *Couch) resolveManagedStart(ctx context.Context, args StartArgs) (StartR
 	if _, explicit, _ := ParseWorkspaceReference(original); explicit && action == StartCreate {
 		action = StartOpen
 	}
-	if id.Kind != "primary" && id.Kind != "slot" {
-		return c.resolveOrdinaryStartResolution(ctx, args)
+	if target != nil && action == StartOpen {
+		local := newSlotThreadStore(c.Namespace, target.Slot)
+		local.readOnly = true
+		var current slotCurrentObservation
+		err := local.withPreviewLock(func() error { var e error; current, e = local.readSlotCurrentLocked(); return e })
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return StartResolution{}, err
+		}
+		if current.Record != nil {
+			resolution, err := c.resolveStartProfile(args, current.Record.WorkingPath, Worktree(target.Slot.WorktreeRoot), target.Slot.RepoIdentity, target.Slot.PrimaryRoot)
+			if err != nil {
+				return StartResolution{}, err
+			}
+			resolution.OriginalInput, resolution.Action, resolution.Target = original, action, *target
+			resolution.Fingerprint = fingerprintStartResolution(resolution)
+			return resolution, nil
+		}
 	}
 	primary := id.PrimaryRoot
+	repository := SlotRepository{Identity: id}
+	if id.Kind != "dependency" {
+		repository, err = c.Slots.Discover(ctx, primary)
+		if err != nil {
+			return StartResolution{}, err
+		}
+	}
+	requested := RepositoryFamily{RepoIdentity: id.RepoIdentity, PrimaryRoot: primary}
+	_, reference, _ := ParseWorkspaceReference(original)
+	if (target == nil || action == StartCreate) && !reference {
+		physical, pathErr := c.Path.Physical(NormalizePath(original))
+		if pathErr == nil {
+			requested.RelativeStart, err = RelativeFamilyPath(id.WorktreeRoot, physical)
+			if err != nil {
+				return StartResolution{}, err
+			}
+		} else if !workspaceRepoName(original) {
+			return StartResolution{}, pathErr
+		}
+	}
+	family, err := c.Threads.PreviewRepositoryFamily(ctx, repository, requested)
+	if err != nil {
+		return StartResolution{}, err
+	}
+	if id.Kind == "worktree" || id.Kind == "dependency" {
+		resolution, err := c.resolveOrdinaryStartResolution(ctx, args)
+		if err != nil {
+			return StartResolution{}, err
+		}
+		resolution.Family = &family
+		resolution.OriginalInput, resolution.Action = original, action
+		resolution.Fingerprint = fingerprintStartResolution(resolution)
+		return resolution, nil
+	}
 	var reuseNotices []StartReuseNotice
 	reuse := false
 	if action == StartCreate {
@@ -89,15 +138,15 @@ func (c *Couch) resolveManagedStart(ctx context.Context, args StartArgs) (StartR
 	if target != nil {
 		path = target.Slot.WorktreeRoot
 	}
-	var resolution StartResolution
-	if target == nil && (strings.ContainsAny(original, `/\`) || original == ".") {
-		resolution, err = c.resolveOrdinaryStartResolution(ctx, args)
-	} else {
-		resolution, err = c.resolveStartProfile(args, path, Worktree(path), id.RepoIdentity, primary)
-	}
+	cwd, err := ProjectFamilyPath(path, family.RelativeStart)
 	if err != nil {
 		return StartResolution{}, err
 	}
+	resolution, err := c.resolveStartProfile(args, cwd, Worktree(path), id.RepoIdentity, primary)
+	if err != nil {
+		return StartResolution{}, err
+	}
+	resolution.Family = &family
 	resolution.OriginalInput, resolution.Action = original, action
 	resolution.ReuseSlot, resolution.ReuseNotices = reuse, reuseNotices
 	if target != nil {
@@ -231,6 +280,9 @@ func (c *Couch) spawnManagedResolution(ctx context.Context, resolution StartReso
 			return StartResult{}, ErrStartResolutionChanged
 		}
 	}
+	if err := c.reserveResolutionFamily(ctx, repository, resolution); err != nil {
+		return StartResult{}, err
+	}
 	if err := c.Threads.EnrollSlotRepository(ctx, repository); err != nil {
 		return StartResult{}, err
 	}
@@ -251,6 +303,11 @@ func (c *Couch) spawnManagedResolution(ctx context.Context, resolution StartReso
 	// our new slot or silently increment the number.
 	if result.Disposition != "created" {
 		return StartResult{}, fmt.Errorf("slot appeared during creation; open %s explicitly", result.Address)
+	}
+	if resolution.Family != nil {
+		if _, err := ValidateFamilyPath(slot.WorktreeRoot, resolution.Family.RelativeStart); err != nil {
+			return StartResult{}, err
+		}
 	}
 	repository, err = c.Slots.Discover(ctx, slot.PrimaryRoot)
 	if err != nil {
@@ -285,12 +342,13 @@ func (c *Couch) revalidateCreatedSlot(ctx context.Context, accepted StartResolut
 	if currentSlot != slot {
 		return ErrStartResolutionChanged
 	}
-	current, err := c.resolveStartProfile(StartArgs{Stack: accepted.RequestedAgent, Issue: accepted.Issue}, slot.WorktreeRoot, Worktree(slot.WorktreeRoot), slot.RepoIdentity, slot.PrimaryRoot)
+	current, err := c.resolveStartProfile(StartArgs{Stack: accepted.RequestedAgent, Issue: accepted.Issue}, accepted.CanonicalPath, Worktree(slot.WorktreeRoot), slot.RepoIdentity, slot.PrimaryRoot)
 	if err != nil {
 		return err
 	}
 	current.Action, current.OriginalInput, current.Target = accepted.Action, accepted.OriginalInput, accepted.Target
 	current.ReuseSlot = accepted.ReuseSlot
+	current.Family = accepted.Family
 	if fingerprintStartResolution(current) != accepted.Fingerprint {
 		return ErrStartResolutionChanged
 	}
@@ -305,12 +363,40 @@ func (c *Couch) enrollPrimaryResolution(ctx context.Context, resolution StartRes
 	if c.Slots == nil || resolution.Action == "" || resolution.Target.Kind == ThreadTargetSlot {
 		return nil
 	}
-	repository, err := c.Slots.Discover(ctx, string(resolution.Worktree))
+	primary := string(resolution.Worktree)
+	if resolution.Family != nil {
+		primary = resolution.Family.PrimaryRoot
+	}
+	repository, err := c.Slots.Discover(ctx, primary)
 	if err != nil {
-		return err
+		identity, contextErr := c.slotWorkspace(ctx, primary)
+		if contextErr != nil || identity.Kind != "dependency" {
+			return err
+		}
+		repository = SlotRepository{Identity: identity}
 	}
 	if repository.Identity.RepoIdentity != resolution.RepoIdentity {
 		return ErrStartResolutionChanged
 	}
+	if err := c.reserveResolutionFamily(ctx, repository, resolution); err != nil {
+		return err
+	}
+	if repository.Identity.Kind == "dependency" {
+		return nil
+	}
 	return c.Threads.EnrollSlotRepository(ctx, repository)
+}
+
+func (c *Couch) reserveResolutionFamily(ctx context.Context, repository SlotRepository, resolution StartResolution) error {
+	if resolution.Family == nil {
+		return nil
+	}
+	family, err := c.Threads.ReserveRepositoryFamily(ctx, repository, *resolution.Family)
+	if err != nil {
+		return err
+	}
+	if family != *resolution.Family {
+		return ErrStartResolutionChanged
+	}
+	return nil
 }

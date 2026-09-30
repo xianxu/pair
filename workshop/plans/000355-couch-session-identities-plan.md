@@ -273,16 +273,16 @@ Files: create `cmd/internal/couchcore/repository_family{,_store,_test}.go`;
 modify `threadstore.go`, `slotmigration.go`, `startresolution.go`, `slotstart.go`,
 `slotcontext.go`, `couch.go`; extend `slotstart_test.go`, `slotmigration_test.go`.
 
-- [ ] Test `ResolveFamilyStart` with canonical aliases and conflicting relative
+- [x] Test `ResolveFamilyStart` with canonical aliases and conflicting relative
   directories, asserting one retained choice per common Git directory. Test
   `ReserveRepositoryFamily` with concurrent and stale-preview requests against
   a real journal, asserting admission losers create no external resources.
   Test `InferRepositoryFamily` against inconsistent retained records, asserting
   ambiguity preserves conversations and refuses admission.
-- [ ] Implement manifest descriptors and journaled reservation, with preview
+- [x] Implement manifest descriptors and journaled reservation, with preview
   and commit using the same resolver and canonical identity. Preserve all
   existing conversations on legacy ambiguity and show actionable diagnostics.
-- [ ] Run `go test -count=1 ./cmd/internal/couchcore`; expected pass, including
+- [x] Run `go test -count=1 ./cmd/internal/couchcore`; expected pass, including
   no new child/worktree/record on admission refusal. Commit with #355 M2.
 
 ### Task 4 — Every slot consumer inherits the starting directory
@@ -292,16 +292,16 @@ slotmigration,slotrecovery,slotlaunch,slotinventory}.go`,
 `cmd/internal/couchtty/{menu,menu_switchagent}.go`; tests in corresponding files,
 `cmd/internal/couchtty/menu_add_slot_test.go`, and existing real-Git acceptance.
 
-- [ ] Test `ProjectFamilyPath` with fuzzed relative paths and filesystem aliases,
+- [x] Test `ProjectFamilyPath` with fuzzed relative paths and filesystem aliases,
   asserting canonical containment. Exercise `resolveManagedStart`, `OpenSlot`,
   `startFreshSlot`, `storeForPath`, `validateLocalOrigin`, `projectSlotRows`, and
   the menu add-slot handler through real Git fixtures, asserting every consumer
   preserves the family's relative directory and refuses escaping/missing paths.
-- [ ] Use the shared projection helper throughout; distinguish explicit paths
+- [x] Use the shared projection helper throughout; distinguish explicit paths
   from slot actions that inherit the saved directory. Keep the production-boundary
   regression: spawn at `competition/arc-agi-3` in an added worktree and reject
   `arc-agi-2` after parking and Couch restart.
-- [ ] Run `go test -count=1 ./cmd/internal/couchcore ./cmd/internal/couchtty
+- [x] Run `go test -count=1 ./cmd/internal/couchcore ./cmd/internal/couchtty
   ./cmd/internal/couchcmd`, then the relevant race suites and `make build`.
   Run `git diff --check`. Document any skipped runtime build sentinel explicitly.
 - [ ] Update README/atlas and issue checkboxes/Log. Run
@@ -382,3 +382,14 @@ deterministic safe `repo` fallback in the shared formatter and bound the
 descriptive token so long repository basenames cannot exceed artifact filename
 limits. C/N remain the identity; repository text is only a label. Cover both
 new and fresh conversation allocation with the real allocator.
+
+### 2026-09-30 — M2 integration refinements
+
+Explicit root and bare relative paths retain their requested meaning; only
+actual slot/repository references inherit. Add-slot projects the saved directory
+into the primary checkout. Legacy inference matches checkout scope/common Git
+identity, excluding nested independent repositories and refusing known same-repo
+paths that cannot be projected. Existing ambiguous conversations remain openable
+through both direct and prepared slot actions. Dependency checkouts reserve their
+own family without gaining numbered-slot enrollment. Snapshot filtering uses
+discovered backends so a missing legacy checkout cannot hide retained records.

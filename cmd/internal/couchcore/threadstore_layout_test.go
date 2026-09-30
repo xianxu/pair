@@ -216,3 +216,44 @@ func TestLocalSuccessfulStartRecoversRecordAndPreferencesTogether(t *testing.T) 
 		t.Fatalf("synthetic manifest persisted: %v", err)
 	}
 }
+
+func TestLocalThreadStoreRetainsSubdirectoryAndMissingCWD(t *testing.T) {
+	s := testLocalThreadStore(t)
+	r := validThreadRecord(t)
+	r.StartingPath = filepath.Join(s.slot.WorktreeRoot, "competition", "arc-agi-3")
+	r.WorkingPath = r.StartingPath
+	if err := os.MkdirAll(r.StartingPath, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateThread(r); err != nil {
+		t.Fatalf("contained CWD rejected: %v", err)
+	}
+	if err := os.Remove(r.StartingPath); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.GetThread(r.Address)
+	if err != nil || got.StartingPath != r.StartingPath {
+		t.Fatalf("missing retained CWD lost: %+v %v", got, err)
+	}
+}
+
+func TestLocalThreadStoreRejectsSymlinkEscapeAndSiblingPrefix(t *testing.T) {
+	s := testLocalThreadStore(t)
+	outside := t.TempDir()
+	link := filepath.Join(s.slot.WorktreeRoot, "escape")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Fatal(err)
+	}
+	dangling := filepath.Join(s.slot.WorktreeRoot, "dangling")
+	if err := os.Symlink(filepath.Join(outside, "absent"), dangling); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{link, filepath.Join(link, "missing"), dangling, filepath.Join(dangling, "missing"), s.slot.WorktreeRoot + "-other"} {
+		r := validThreadRecord(t)
+		r.StartingPath = path
+		r.WorkingPath = path
+		if _, err := s.CreateThread(r); err == nil {
+			t.Fatalf("unsafe CWD accepted: %s", path)
+		}
+	}
+}

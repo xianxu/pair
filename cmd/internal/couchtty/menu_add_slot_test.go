@@ -23,24 +23,23 @@ func TestAddSlotPrefillsExactRepositoryAndUsesCreatePreview(t *testing.T) {
 	for _, root := range []string{"/workspace/pair", "/other/pair"} {
 		for _, number := range []int{0, 2} {
 			row := groupedRow(root, number, "current")
-			if number == 0 {
-				row.StartingPath = root + "/cmd/internal"
-			}
+			row.StartingPath += "/cmd/internal"
+			wantPath := root + "/cmd/internal"
 			state, effects := addSlotMenu(t, row)
 			frame := state.CurrentFrame()
-			if frame.Kind != MenuFrameStart || frame.Path != root || frame.FormField != MenuFieldAgent || frame.AgentSticky {
+			if frame.Kind != MenuFrameStart || frame.Path != wantPath || frame.FormField != MenuFieldAgent || frame.AgentSticky {
 				t.Fatalf("form %+v", frame)
 			}
-			if len(effects) != 1 || effects[0].Preview == nil || effects[0].Preview.Path != root || effects[0].Preview.Action != couchcore.StartCreate || effects[0].Preview.Agent != "" {
+			if len(effects) != 1 || effects[0].Preview == nil || effects[0].Preview.Path != wantPath || effects[0].Preview.Action != couchcore.StartCreate || effects[0].Preview.Agent != "" {
 				t.Fatalf("preview %+v", effects)
 			}
-			prepared := couchcore.PreparedStart{Resolution: couchcore.StartResolution{OriginalInput: root, CanonicalPath: root + "-slot", Action: couchcore.StartCreate, Profile: couchcore.LaunchProfile{Agent: "codex", Argv: []string{}}, Fingerprint: "reviewed"}}
+			prepared := couchcore.PreparedStart{Resolution: couchcore.StartResolution{OriginalInput: wantPath, CanonicalPath: root + "-slot", Action: couchcore.StartCreate, Profile: couchcore.LaunchProfile{Agent: "codex", Argv: []string{}}, Fingerprint: "reviewed"}}
 			state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: effects[0].Preview.Generation, Prepared: &prepared})
 			if len(effects) != 0 {
 				t.Fatal("preview launched without Enter")
 			}
 			state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
-			if len(effects) != 1 || effects[0].Operation != "start" || effects[0].Args["path"] != root || effects[0].Args["action"] != "create" || effects[0].Args["fingerprint"] != "reviewed" {
+			if len(effects) != 1 || effects[0].Operation != "start" || effects[0].Args["path"] != wantPath || effects[0].Args["action"] != "create" || effects[0].Args["fingerprint"] != "reviewed" {
 				t.Fatalf("commit %+v", effects)
 			}
 		}

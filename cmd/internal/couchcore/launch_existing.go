@@ -39,6 +39,30 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		ctx = context.Background()
 	}
 	thread := in.Thread
+	if c.Slots != nil {
+		cwd, err := c.Path.Physical(in.Args.WorkingDir())
+		var tree Worktree
+		if err == nil {
+			tree, err = c.ResolveTree(cwd)
+		}
+		if err == nil {
+			_, err = RelativeFamilyPath(string(tree), cwd)
+		}
+		if err == nil {
+			scope, scopeErr := launcher.ResolveRepoScope(string(tree))
+			if scopeErr != nil {
+				err = scopeErr
+			} else if scope.Key != thread.Address.RepoScope {
+				err = errors.New("launch checkout does not match thread scope")
+			}
+		}
+		if err != nil {
+			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, in.Nonce))
+		}
+		in.Args.Cwd = cwd
+		in.Args.Worktree = tree
+	}
+
 	// A warm reattach sends NEITHER a layout flag NOR a trusted resume profile,
 	// and both omissions are the fix rather than an oversight (#179).
 	//

@@ -131,7 +131,11 @@ func TestSlotRoutingRebuildsAndMissingCurrentDoesNotInventAddress(t *testing.T) 
 		t.Fatal(err)
 	}
 	reopened := NewThreadStore(s.namespace)
-	stores, err := reopened.discoveredBackends()
+	roots, err := reopened.slotRepositoryRoots()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stores, err := reopened.discoveredBackendsFromRoots(roots)
 	if err != nil || len(stores) != 1 {
 		t.Fatalf("discovery %d %v", len(stores), err)
 	}
@@ -304,5 +308,141 @@ func TestSlotEnrollmentRebuildsLostRootDiscoveryFromLocalAuthority(t *testing.T)
 	after, err := os.ReadFile(local.recordPath(r.Address))
 	if err != nil || string(after) != string(before) {
 		t.Fatalf("local authority changed: %v", err)
+	}
+}
+
+func TestSlotRoutingIncludesContainedAndUnprovisionedCWD(t *testing.T) {
+	s, repository, r := migrationFixture(t)
+	if err := s.EnrollSlotRepository(context.Background(), repository); err != nil {
+		t.Fatal(err)
+	}
+	for _, root := range []string{r.StartingPath, conventionalSlot(repository.Identity.PrimaryRoot, 7).WorktreeRoot} {
+		path := filepath.Join(root, "competition", "arc-agi-3")
+		local, err := s.storeForPath(path)
+		if err != nil || local.slot == nil || local.slot.WorktreeRoot != root {
+			t.Fatalf("route %s = %+v %v", path, local.slot, err)
+		}
+		if !pathInSlotRepositories(path, []string{repository.Identity.PrimaryRoot}) {
+			t.Fatalf("subdirectory escaped slot membership: %s", path)
+		}
+	}
+	outside := t.TempDir()
+	link := filepath.Join(r.StartingPath, "escape")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.storeForPath(filepath.Join(link, "missing")); err == nil {
+		t.Fatal("routed escaping symlink")
+	}
+	sibling, err := s.storeForPath(r.StartingPath + "-other/sub")
+	if err != nil || sibling != s {
+		t.Fatalf("sibling prefix stole slot storage: %v", err)
+	}
+}
+
+func TestSlotMigrationMovesSubdirectoryRecordAndPreference(t *testing.T) {
+	s, repository, r := migrationFixture(t)
+	sub := filepath.Join(r.StartingPath, "competition", "arc-agi-3")
+	if err := os.MkdirAll(sub, 0700); err != nil {
+		t.Fatal(err)
+	}
+	s, _ = newTestThreadStore(t)
+	r.StartingPath, r.WorkingPath = sub, sub
+	var err error
+	r, err = s.CreateThread(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pref := PathLaunchPreference{SchemaVersion: PathLaunchPreferenceSchemaVersion, RepoIdentity: repository.Identity.RepoIdentity, PhysicalPath: sub, LastAgent: "codex", ArgvByAgent: map[string][]string{"codex": {"--saved"}}, Revision: 1}
+	if err := writePathLaunchPreferenceForTest(s, pref); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.EnrollSlotRepository(context.Background(), repository); err != nil {
+		t.Fatal(err)
+	}
+	local, err := s.storeForAddress(r.Address)
+	if err != nil || local == s {
+		t.Fatalf("subdirectory remained global: %v", err)
+	}
+	got, err := local.GetThread(r.Address)
+	if err != nil || got.StartingPath != sub || got.WorkingPath != sub {
+		t.Fatalf("CWD lost: %+v %v", got, err)
+	}
+	actual, found, err := s.GetPathLaunchPreference(pref.RepoIdentity, sub)
+	if err != nil || !found || actual.PhysicalPath != sub {
+		t.Fatalf("preference lost: %+v %v %v", actual, found, err)
+	}
+	snap, err := s.Snapshot()
+	if err != nil || len(snap.Records) != 1 || snap.Records[0].StartingPath != sub {
+		t.Fatalf("snapshot lost/duplicated CWD: %+v %v", snap, err)
+	}
+}
+
+func TestAddresslessSlotSnapshotUsesSavedFamilyCWD(t *testing.T) {
+	f := newProvisionFixture(t)
+	f.git(f.Primary, "worktree", "add", "-b", "main-slot1", f.host(1), "main")
+	repository, err := NewOSSlotCatalog(f).Discover(context.Background(), f.Primary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, _ := newTestThreadStore(t)
+	family := RepositoryFamily{RepoIdentity: repository.Identity.RepoIdentity, PrimaryRoot: repository.Identity.PrimaryRoot, RelativeStart: "competition/arc-agi-3"}
+	if _, err := s.ReserveRepositoryFamily(context.Background(), repository, family); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.EnrollSlotRepository(context.Background(), repository); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := s.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows := ProjectActionableThreads(ThreadProjectionInput{Slots: snapshot.Slots})
+	want := filepath.Join(f.host(1), family.RelativeStart)
+	if len(rows) != 1 || rows[0].StartingPath != want || rows[0].WorkingPath != want {
+		t.Fatalf("empty slot lost family CWD: %+v", rows)
+	}
+}
+
+func TestSlotMigrationRetainsConflictingPreferenceSources(t *testing.T) {
+	s, repository, r := migrationFixture(t)
+	for _, path := range []string{r.StartingPath, filepath.Join(r.StartingPath, "sub")} {
+		pref := PathLaunchPreference{SchemaVersion: PathLaunchPreferenceSchemaVersion, RepoIdentity: repository.Identity.RepoIdentity, PhysicalPath: path, LastAgent: "codex", ArgvByAgent: map[string][]string{"codex": {}}, Revision: 1}
+		if err := writePathLaunchPreferenceForTest(s, pref); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.EnrollSlotRepository(context.Background(), repository); err == nil {
+		t.Fatal("ambiguous preference paths silently collapsed")
+	}
+	if _, err := os.Stat(s.recordPath(r.Address)); err != nil {
+		t.Fatal("refusal lost current conversation", err)
+	}
+	for _, path := range []string{r.StartingPath, filepath.Join(r.StartingPath, "sub")} {
+		if _, found, err := s.GetPathLaunchPreference(repository.Identity.RepoIdentity, path); err != nil || !found {
+			t.Fatalf("refusal lost preference %s: %v", path, err)
+		}
+	}
+}
+
+func TestSlotSnapshotKeepsGlobalEvidenceForMissingCheckout(t *testing.T) {
+	f := newProvisionFixture(t)
+	repository, err := NewOSSlotCatalog(f).Discover(context.Background(), f.Primary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, _ := newTestThreadStore(t)
+	r := validThreadRecord(t)
+	r.StartingPath = filepath.Join(f.host(1), "competition", "arc-agi-3")
+	r.WorkingPath = r.StartingPath
+	if _, err := s.CreateThread(r); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.EnrollSlotRepository(context.Background(), repository); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := s.Snapshot()
+	if err != nil || len(snapshot.Records) != 1 || snapshot.Records[0].Address != r.Address {
+		t.Fatalf("missing checkout hid retained global evidence: %+v %v", snapshot, err)
 	}
 }
