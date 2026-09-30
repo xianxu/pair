@@ -8,6 +8,8 @@ import (
 
 // LaunchArgs is the pure parse result for the guarded pair-go launch prototype.
 type LaunchArgs struct {
+	CouchSessionV1    bool
+	CouchSession      *CouchSessionIntent
 	Command           string // "" = launch; "list" (#99 M5a); "rename"/"continue" (#99 M5b)
 	Agent             string
 	AgentExplicit     bool
@@ -60,6 +62,18 @@ func (e UsageError) Error() string {
 // decision-phase subset for #75; unsupported shell-owned launcher verbs fail
 // explicitly.
 func ParseArgs(argv []string) (LaunchArgs, error) {
+	managed := len(argv) > 0 && argv[0] == CouchSessionFlag
+	if managed {
+		argv = argv[1:]
+	}
+	for _, arg := range argv {
+		if arg == "--" {
+			break
+		}
+		if arg == CouchSessionFlag {
+			return LaunchArgs{}, UsageError{Message: "pair: couch session protocol flag must be first"}
+		}
+	}
 	clean, layout, err := extractLayoutRequest(argv)
 	if err != nil {
 		return LaunchArgs{}, err
@@ -71,6 +85,10 @@ func ParseArgs(argv []string) (LaunchArgs, error) {
 	if layout.Explicit && !launchArgsAcceptLayout(out) {
 		return LaunchArgs{}, UsageError{Message: fmt.Sprintf("pair: layout flags do not apply to %q", firstNonEmpty(out.Command, "this command"))}
 	}
+	if managed && (len(clean) != 2 || clean[0] != "resume" || strings.HasPrefix(out.ForcedTag, sessionPrefix)) {
+		return LaunchArgs{}, UsageError{Message: "pair: couch session protocol requires resume with an exact Pair tag"}
+	}
+	out.CouchSessionV1 = managed
 	out.Layout = layout
 	return out, nil
 }

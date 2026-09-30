@@ -162,9 +162,24 @@ func runRecoveryMenuAcceptance(t *testing.T, mode string) {
 			return err
 		}
 		inc := current.Incarnations[0]
+		targetSession := managedChildSession(t, rt.runner, id)
+		if mode == "warm" && targetSession != session {
+			return fmt.Errorf("warm attach changed the surviving terminal")
+		}
+		if mode != "warm" {
+			if targetSession == session {
+				return fmt.Errorf("cold recovery reused the retired source terminal")
+			}
+			// Model the launcher's committed association before publishing its
+			// ready receipt. The source reader consumes this real index.
+			runtime := launcher.NewScopedOSRuntime(data, paths.ScopeDir(), "")
+			if err := runtime.ReplaceSessionNameIndex(launcher.SessionNameEntry{SessionName: targetSession, ScopeKey: source.Address.RepoScope, Tag: string(source.Address.Tag), RepoRoot: repo, RepoName: "repo"}); err != nil {
+				return err
+			}
+		}
 		rt.proc.Set(inc.PID, inc.Identity)
 		rt.artifacts.SetDetachedSession(source.Address, "")
-		rt.artifacts.SetPairSession(source.Address, session, true)
+		rt.artifacts.SetPairSession(source.Address, targetSession, true)
 		if mode == "warm" {
 			return nil
 		}
@@ -189,7 +204,7 @@ func runRecoveryMenuAcceptance(t *testing.T, mode string) {
 		if err != nil {
 			return err
 		}
-		ready := readiness.ReadyRecord{Tag: string(source.Address.Tag), Agent: "claude", Session: session, Nonce: profile.Orientation.Attempt, PID: inc.PID, LaunchOrdinal: target.Ordinal, Orientation: &orientation.DeliveryState{Phase: orientation.DeliverySubmitted, BodyWritten: true}}
+		ready := readiness.ReadyRecord{Tag: string(source.Address.Tag), Agent: "claude", Session: targetSession, Nonce: profile.Orientation.Attempt, PID: inc.PID, LaunchOrdinal: target.Ordinal, Orientation: &orientation.DeliveryState{Phase: orientation.DeliverySubmitted, BodyWritten: true}}
 		raw, err := readiness.Encode(ready)
 		if err != nil {
 			return err
@@ -348,6 +363,12 @@ func runRecoveryMenuAcceptance(t *testing.T, mode string) {
 	current, err := c.Threads.GetThread(source.Address)
 	if err != nil || current.Address != source.Address {
 		t.Fatalf("address changed: %+v %v", current, err)
+	}
+	if current.SessionBinding == nil || current.SessionBinding.Name != managedChildSession(t, rt.runner, start.Handle.ID()) {
+		t.Fatalf("promoted terminal differs from launched intent: %+v", current.SessionBinding)
+	}
+	if mode != "warm" && (current.Continuation.Source.Session != session || current.Continuation.SourceAbsence == nil || current.Continuation.SourceAbsence.Session != session || current.Continuation.Target == nil || current.Continuation.Target.Generation == nil || current.Continuation.Target.Generation.Session != current.SessionBinding.Name) {
+		t.Fatalf("recovery conflated source and target identities: %+v", current.Continuation)
 	}
 	if len(rt.artifacts.Quiesces()) != 0 {
 		t.Fatalf("recovery stopped sessions: %v", rt.artifacts.Quiesces())

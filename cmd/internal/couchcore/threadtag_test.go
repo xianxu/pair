@@ -14,7 +14,7 @@ func TestAllocateThreadTagClaimsCryptographicOpaqueAddress(t *testing.T) {
 	store, ns := newTestThreadStore(t)
 	record, err := store.AllocateThreadTag(
 		"0123456789abcdef", ns.Dir(), time.Date(2026, 8, 26, 13, 0, 0, 0, time.UTC),
-		bytes.NewReader([]byte{0, 1, 2, 3, 4, 5, 6, 7}),
+		readerTagAllocator(bytes.NewReader([]byte{0, 1, 2, 3, 4, 5, 6, 7})),
 		NoThreadArtifactCollisions{},
 	)
 	if err != nil {
@@ -40,7 +40,7 @@ func TestAllocateThreadTagRetriesCollisionWithoutReplacingExistingThread(t *test
 	}
 
 	entropy := append(make([]byte, 8), []byte{1, 1, 1, 1, 1, 1, 1, 1}...)
-	allocated, err := store.AllocateThreadTag(existing.Address.RepoScope, ns.Dir(), existing.CreatedAt.Add(time.Second), bytes.NewReader(entropy), NoThreadArtifactCollisions{})
+	allocated, err := store.AllocateThreadTag(existing.Address.RepoScope, ns.Dir(), existing.CreatedAt.Add(time.Second), readerTagAllocator(bytes.NewReader(entropy)), NoThreadArtifactCollisions{})
 	if err != nil {
 		t.Fatalf("AllocateThreadTag: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestAllocateThreadTagRetriesScopedArtifactCollision(t *testing.T) {
 	first := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0000000000000000"}
 	checker.Set(first, true, nil)
 	entropy := append(make([]byte, 8), bytes.Repeat([]byte{1}, 8)...)
-	allocated, err := store.AllocateThreadTag(first.RepoScope, ns.Dir(), time.Now(), bytes.NewReader(entropy), checker)
+	allocated, err := store.AllocateThreadTag(first.RepoScope, ns.Dir(), time.Now(), readerTagAllocator(bytes.NewReader(entropy)), checker)
 	if err != nil {
 		t.Fatalf("AllocateThreadTag: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestAllocateThreadTagReleasesMarkerWhenThreadStoreClaimLoses(t *testing.T) 
 	}
 	dataDir := t.TempDir()
 	entropy := append(make([]byte, 8), bytes.Repeat([]byte{1}, 8)...)
-	got, err := store.AllocateThreadTag(first.Address.RepoScope, ns.Dir(), time.Now(), bytes.NewReader(entropy), NewScopedThreadArtifactCollisionChecker(dataDir))
+	got, err := store.AllocateThreadTag(first.Address.RepoScope, ns.Dir(), time.Now(), readerTagAllocator(bytes.NewReader(entropy)), NewScopedThreadArtifactCollisionChecker(dataDir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,12 +109,12 @@ func TestAllocateThreadTagFailsAfterEightCollisionsAndOnEntropyError(t *testing.
 	if _, err := store.CreateThread(existing); err != nil {
 		t.Fatalf("CreateThread: %v", err)
 	}
-	if _, err := store.AllocateThreadTag(existing.Address.RepoScope, ns.Dir(), existing.CreatedAt, bytes.NewReader(make([]byte, 8*8)), NoThreadArtifactCollisions{}); err == nil {
+	if _, err := store.AllocateThreadTag(existing.Address.RepoScope, ns.Dir(), existing.CreatedAt, readerTagAllocator(bytes.NewReader(make([]byte, 8*8))), NoThreadArtifactCollisions{}); err == nil {
 		t.Fatal("eight collisions must fail, not reuse an existing tag")
 	}
 
 	broken := errorReader{err: errors.New("entropy unavailable")}
-	if _, err := store.AllocateThreadTag("fedcba9876543210", ns.Dir(), existing.CreatedAt, broken, NoThreadArtifactCollisions{}); !errors.Is(err, broken.err) {
+	if _, err := store.AllocateThreadTag("fedcba9876543210", ns.Dir(), existing.CreatedAt, readerTagAllocator(broken), NoThreadArtifactCollisions{}); !errors.Is(err, broken.err) {
 		t.Fatalf("entropy failure err = %v", err)
 	}
 }

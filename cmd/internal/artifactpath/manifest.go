@@ -269,6 +269,7 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/storagegc/policy.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/storagegc/capture_metadata.go", Kind: ResolvedConsumer, Families: []string{"parked"}, BindingNames: []string{"parsed-parked-capture"}},
 	{Path: "cmd/internal/artifactpath/gc.go", Kind: Constructor, Families: []string{"agent", "lifecycle", "parked", "scrollback"}},
+	{Path: "cmd/internal/artifactpath/session_owner.go", Kind: Constructor, Families: []string{"draft", "scrollback"}},
 	{Path: "cmd/internal/artifactpath/paths.go", Kind: Constructor, Families: []string{
 		"fullscreen-return", "fullscreen-lock", "fullscreen-diagnostics",
 		"adapt", "agent", "agent-default", "agent-pid", "agent-ready", "changelog", "config",
@@ -321,6 +322,7 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/launcher/layoutflow.go", Kind: ResolvedConsumer,
 		Families: []string{"draft", "layout"}, BindingNames: []string{"direct-draft-command", "scoped-layout"}},
 	{Path: "cmd/internal/launcher/readiness.go", Kind: ResolvedConsumer, Families: []string{"agent-ready"}, BindingNames: []string{"scoped-agent-ready-path"}},
+	{Path: "cmd/internal/launcher/session_owner.go", Kind: ResolvedConsumer, Families: []string{"draft"}, BindingNames: []string{"scoped-draft"}},
 	{Path: "cmd/internal/launcher/rename.go", Kind: ResolvedConsumer,
 		Families: []string{
 			"agent", "agent-pid", "config", "draft", "image-capture", "layout", "layout-mode", "ledger", "log",
@@ -344,6 +346,7 @@ var SourceClassifications = []SourceClassification{
 			"composite-outer-tty", "composite-pane", "composite-queue", "composite-scrollback",
 			"composite-session-binding", "composite-thread-claim",
 		}},
+	{Path: "cmd/internal/launcher/session_index_replace.go", Kind: ResolvedConsumer, Families: []string{"session-binding"}, BindingNames: []string{"selected-session-binding"}},
 	{Path: "cmd/internal/launcher/session_index.go", Kind: ResolvedConsumer,
 		Families: []string{"session-binding"}, BindingNames: []string{"legacy-session-binding", "selected-session-binding"}},
 	{Path: "cmd/internal/opener/run.go", Kind: ResolvedConsumer,
@@ -587,6 +590,13 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	"cmd/internal/couchidentity/identity.go",
+	"cmd/internal/couchidentity/session.go",
+	"cmd/internal/couchidentity/store.go",
+	"cmd/internal/couchidentity/store_unix.go",
+	"cmd/internal/durablefile/write.go",
+	"cmd/internal/launcher/couch_session.go",
+	"cmd/internal/launcher/session_owner_os.go",
 	"cmd/internal/terminalqualify/resource_cases.go",
 	"cmd/internal/terminal/presenter.go",
 	"cmd/internal/terminal/destination.go",

@@ -235,7 +235,9 @@ Files: create `cmd/internal/launcher/session_owner{,_os,_test}.go`; modify
 `cmd/internal/couchcore/{thread,starttransaction,launch_existing,artifactcollision,
 slotsessions,resume,park}.go`, `cmd/internal/threadrecord/record.go`,
 `cmd/internal/launcher/{args,runcli,launch_args_policy,createflow,session_quiescence,
-session_index,zellij}.go`; extend affected colocated tests and
+session_index,zellij}.go`; continuation target consumers in
+`couchcore/{continuation,continuation_recovery,recovery,recovery_execute}.go`
+and `checkpoint/request.go`; extend affected colocated tests and
 `cmd/internal/couchcore/artifactcollision_zellij_test.go`; extend the shared
 `cmd/internal/zellijpane/zellijpane.go` parser and its tests with optional actual
 `pane_command`/`pane_cwd` evidence, distinct from the `terminal_command` template.
@@ -346,3 +348,14 @@ rollback/retry. PQ-2: replaced test-case inventories with named functions and
 adversarial strategies. Also bounded compatibility index growth to one entry
 per scope/tag and named the Zellij-version release conformance trigger. These
 refinements preserve the operator-approved scope.
+
+### 2026-09-30 — M1 integration discoveries
+
+The independent terminal lifetime reaches continuation target-generation validation,
+recovery admission, and the post-launch receipt reader. Those consumers now use
+the promoted terminal binding/exact retained target witness; historical source
+identity remains unchanged. Added corresponding different-M and wrong-receipt
+regressions. Recovery also probes a proposed terminal before trusting a historical
+Pair-address registration marker, which survives previous launches and cannot
+prove a newly allocated terminal committed. Both changes complete the approved
+terminal-lifetime contract rather than changing the product scope.

@@ -2,6 +2,13 @@ package zellijpane
 
 import "testing"
 
+func TestParseActualCommandSeparateFromTemplate(t *testing.T) {
+	panes := Parse([]byte(`[{"id":1,"terminal_command":"sh -c template", "pane_command":"pair wrap --scrollback-log /tmp/path codex", "pane_cwd":"/tmp/repo"}]`))
+	if len(panes) != 1 || panes[0].PaneCommand != "pair wrap --scrollback-log /tmp/path codex" || panes[0].PaneCwd != "/tmp/repo" || panes[0].TerminalCommand != "sh -c template" {
+		t.Fatalf("%+v", panes)
+	}
+}
+
 // realShape mirrors an actual `zellij action list-panes --json --command` body:
 // a tab-position-keyed map whose values are arrays of pane manifests. The pane
 // objects are what Parse must surface; the "0"/"1" tab keys and any wrapper are

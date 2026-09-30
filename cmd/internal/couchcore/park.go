@@ -556,6 +556,15 @@ func (c *PairLifecycleController) runActiveAttempt(ctx context.Context, result P
 	if err := ctx.Err(); err != nil {
 		return result, err
 	}
+	if binding.Present {
+		if verifier, ok := c.Sessions.(interface {
+			RevalidatePairSession(context.Context, PairSessionBinding) error
+		}); ok {
+			if err := verifier.RevalidatePairSession(ctx, binding); err != nil {
+				return result, err
+			}
+		}
+	}
 	request, paths, err := c.requestFor(current, binding.Name)
 	if err != nil {
 		return result, err
@@ -595,14 +604,23 @@ func (c *PairLifecycleController) runActiveAttempt(ctx context.Context, result P
 		return next, err
 	}
 	if binding.Present {
-		if err := c.Sessions.TriggerQuit(binding.Name, launcher.QuitIntent{
+		intent := launcher.QuitIntent{
 			Version: launcher.QuitIntentVersion, Kind: launcher.QuitIntentCouch,
 			Request: &launcher.QuitRequestReference{
 				DataDir: c.DataDir, RepoScope: current.Address.RepoScope, Tag: string(current.Address.Tag),
 				Nonce: current.Park.Identity.Nonce, Attempt: request.Attempt,
 			},
-		}); err != nil {
-			return result, err
+		}
+		var triggerErr error
+		if bound, ok := c.Sessions.(interface {
+			TriggerBoundQuit(context.Context, PairSessionBinding, launcher.QuitIntent) error
+		}); ok {
+			triggerErr = bound.TriggerBoundQuit(ctx, binding, intent)
+		} else {
+			triggerErr = c.Sessions.TriggerQuit(binding.Name, intent)
+		}
+		if triggerErr != nil {
+			return result, triggerErr
 		}
 	}
 	return c.awaitCompletionAndChildDeath(ctx, result, current, paths, request)

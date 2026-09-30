@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/couchidentity"
 	"strings"
 	"time"
 
@@ -108,6 +109,25 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	case in.Resume:
 		shape = StartColdResume
 	}
+	binding, err := c.sessionBindingForLaunch(ctx, thread, in.Nonce, in.Warm)
+	if err != nil {
+		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, in.Nonce))
+	}
+	bound, err := c.Threads.AdvanceStart(thread.Address, thread.Revision, StartEvent{Kind: StartSessionBound, Nonce: in.Nonce, Binding: &binding})
+	if err != nil {
+		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, in.Nonce))
+	}
+	thread = bound
+	disposition := "create"
+	if in.Warm {
+		disposition = "attach"
+	}
+	intent, err := json.Marshal(launcher.CouchSessionIntent{Scope: thread.Address.RepoScope, Tag: string(thread.Address.Tag), Name: binding.Name, Nonce: in.Nonce, Disposition: disposition})
+	if err != nil {
+		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, in.Nonce))
+	}
+	argv = append([]string{argv[0], launcher.CouchSessionFlag}, argv[1:]...)
+	env = append(env, launcher.CouchSessionIntentEnv+"="+string(intent))
 	h, err := c.Runner.StartBlocked(ctx, in.Args.WorkingDir(), argv, env, 10*time.Second)
 	if err != nil {
 		return ActorRecord{}, nil, errors.Join(
@@ -418,4 +438,31 @@ func (c *Couch) awaitFreshRegistration(ctx context.Context, address ThreadAddres
 		case <-ticker.C:
 		}
 	}
+}
+
+func (c *Couch) sessionBindingForLaunch(ctx context.Context, thread ThreadRecord, nonce string, warm bool) (couchidentity.SessionBinding, error) {
+	if warm {
+		observed, err := c.recoverySession(ctx, thread.Address)
+		if err != nil {
+			return couchidentity.SessionBinding{}, err
+		}
+		if !observed.Present || observed.Name == "" {
+			return couchidentity.SessionBinding{}, errors.New("managed attach session disappeared; retry open-slot")
+		}
+		if thread.SessionBinding != nil {
+			if thread.SessionBinding.Name != observed.Name {
+				return couchidentity.SessionBinding{}, errors.New("managed attach binding differs from observed session")
+			}
+			return *thread.SessionBinding, nil
+		}
+		return couchidentity.SessionBinding{Legacy: true, Name: observed.Name, ScopeKey: thread.Address.RepoScope, Tag: string(thread.Address.Tag), StartNonce: nonce}, nil
+	}
+	if c.Identities == nil {
+		return couchidentity.SessionBinding{}, errors.New("Couch identity allocator is unavailable")
+	}
+	allocated, err := c.Identities.Allocate(ctx, couchidentity.AllocationRequest{Terminal: true})
+	if err != nil {
+		return couchidentity.SessionBinding{}, err
+	}
+	return couchidentity.SessionBinding{C: allocated.C, M: allocated.M, Name: allocated.SessionName, ScopeKey: thread.Address.RepoScope, Tag: string(thread.Address.Tag), StartNonce: nonce}, nil
 }

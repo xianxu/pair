@@ -17,10 +17,14 @@ import (
 type Pane struct {
 	ID              string
 	TerminalCommand string
-	Title           string
-	IsFocused       bool
-	IsPlugin        bool
-	IsFloating      bool
+	// PaneCommand is the observed running command; TerminalCommand is only the
+	// original layout template and cannot prove the live pane's owner.
+	PaneCommand string
+	PaneCwd     string
+	Title       string
+	IsFocused   bool
+	IsPlugin    bool
+	IsFloating  bool
 	// Nil means the report did not supply a boolean; absence is not tiled.
 	IsFullscreen *bool
 	X            int
@@ -79,10 +83,12 @@ func paneFrom(m map[string]interface{}) (Pane, bool) {
 		return Pane{}, false
 	}
 	tc, hasTC := m["terminal_command"].(string)
+	pc, hasPC := m["pane_command"].(string)
+	cwd, _ := m["pane_cwd"].(string)
 	focused, hasFocused := m["is_focused"].(bool)
 	plugin, hasPlugin := m["is_plugin"].(bool)
 	floating, hasFloating := m["is_floating"].(bool)
-	if !hasTC && !hasFocused && !hasPlugin && !hasFloating {
+	if !hasTC && !hasPC && !hasFocused && !hasPlugin && !hasFloating {
 		return Pane{}, false
 	}
 	title, _ := m["title"].(string)
@@ -93,6 +99,8 @@ func paneFrom(m map[string]interface{}) (Pane, bool) {
 	return Pane{
 		ID:              id,
 		TerminalCommand: tc,
+		PaneCommand:     pc,
+		PaneCwd:         cwd,
 		Title:           title,
 		IsFocused:       focused,
 		IsPlugin:        plugin,

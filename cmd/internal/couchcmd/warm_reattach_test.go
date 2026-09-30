@@ -118,7 +118,7 @@ attached:
 		t.Fatalf("attached wrong thread: %+v", start)
 	}
 	child := rt.runner.Child(start.Handle.ID())
-	if !slices.Equal(child.Argv, []string{"pair", "resume", string(thread.Address.Tag)}) || child.ExecCount != 1 {
+	if !slices.Equal(child.Argv, []string{"pair", launcher.CouchSessionFlag, "resume", string(thread.Address.Tag)}) || child.ExecCount != 1 {
 		t.Fatalf("warm helper = %+v", child)
 	}
 	for _, entry := range child.Env {

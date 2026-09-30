@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
+	"github.com/xianxu/pair/cmd/internal/couchidentity"
 	"io"
 	"os"
 	"path/filepath"
@@ -23,6 +24,7 @@ import (
 // method on it. The terminal UI and (later) the advisor's tools are both
 // clients of these methods -- never of two separate implementations.
 type Couch struct {
+	Identities             IdentityAllocator
 	Slots                  SlotCatalog
 	Workspaces             WorkspaceReadiness
 	WorkspaceProgress      io.Writer
@@ -482,7 +484,9 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 			resolution.CanonicalPath, held.Tag, held.Tag)
 	}
 	startedAt := c.Clock.Now()
-	thread, err := c.Threads.AllocateThreadTag(scope.Key, resolution.CanonicalPath, startedAt, c.Entropy, c.Artifacts)
+	thread, err := c.Threads.AllocateThreadTag(scope.Key, resolution.CanonicalPath, startedAt, func() (string, error) {
+		return c.allocateConversationTag(ctx, filepath.Base(string(resolution.Worktree)))
+	}, c.Artifacts)
 	if err != nil {
 		return ActorRecord{}, nil, err
 	}
@@ -610,9 +614,8 @@ func (c *Couch) applyStartCleanup(shape StartShape, address ThreadAddress, nonce
 	// state the record's disposition reasons about is the one left behind.
 	//
 	// Asked ONLY where the decision actually reads it -- a cold resume's claim
-	// phase and a warm live record. A spawn reconciles regardless, so asking on
-	// its behalf would add a zellij round trip to a path that never had one and
-	// surface a session-binding error in cases that never produced one.
+	// phase and a warm live record. A spawn takes the separate reconciliation
+	// path, which probes its proposed terminal binding before retiring a claim.
 	presence := PresenceUnobserved
 	if startCleanupReadsPresence(shape, liveRecord) {
 		observed, presenceErr := c.observeSessionPresence(address)
@@ -948,6 +951,38 @@ func (c *Couch) reconcileInterruptedStarts() error {
 			return fmt.Errorf("read Pair registration for %+v: %w", record.Address, registrationErr)
 		}
 		observation.Registration = registration
+		if transaction.Helper != nil {
+			for _, inc := range record.Incarnations {
+				if inc.Start == nil || inc.Start.SessionBinding == nil {
+					continue
+				}
+				binding := inc.Start.SessionBinding
+				var session PairSessionBinding
+				var probeErr error
+				if named, ok := c.Artifacts.(interface {
+					NamedPairSessionContext(context.Context, ThreadAddress, string) (PairSessionBinding, error)
+				}); ok {
+					session, probeErr = named.NamedPairSessionContext(context.Background(), record.Address, binding.Name)
+				} else {
+					session, probeErr = c.recoverySession(context.Background(), record.Address)
+				}
+				if probeErr != nil {
+					observation.Registration = RegistrationUnknown
+				} else {
+					observation.Session = PresenceAbsent
+					// A brand-new exclusive address has no historical registration;
+					// an established marker proves this first launch ran, even if cleanup
+					// has since removed its terminal. Resumes can carry an old marker.
+					if registration != RegistrationEstablished || record.LatestLaunchProfile != nil || record.SessionBinding != nil {
+						observation.Registration = RegistrationAbsent
+					}
+					if session.Present {
+						observation.Session = PresencePresent
+						observation.Registration = registration
+					}
+				}
+			}
+		}
 		decision, err := ReconcileStart(record, observation)
 		if err != nil {
 			return err
@@ -1187,4 +1222,17 @@ func (c *Couch) Stop(a ActorRecord) (signalled bool, err error) {
 // over anything the operator typed.
 func (c *Couch) PublishDescription(w Worktree, text string) error {
 	return c.Store.WriteDescription(w, text)
+}
+
+// IdentityAllocator is the sole authority for managed conversation and terminal IDs.
+type IdentityAllocator interface {
+	Allocate(context.Context, couchidentity.AllocationRequest) (couchidentity.AllocationResult, error)
+}
+
+func (c *Couch) allocateConversationTag(ctx context.Context, repo string) (string, error) {
+	if c.Identities == nil {
+		return "", errors.New("Couch identity allocator is unavailable")
+	}
+	result, err := c.Identities.Allocate(ctx, couchidentity.AllocationRequest{Conversation: true, RepositoryToken: repo})
+	return result.PairTag, err
 }

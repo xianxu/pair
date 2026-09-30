@@ -444,8 +444,12 @@ func TestManagedLaunchThenParkNamesParkedWorkAndAllowsExistingOpen(t *testing.T)
 	env.Couch.Slots = NewOSSlotCatalog(f)
 	env.Artifacts.SetNativeBinding(created.Thread, "claude", sessioninventory.BindingEstablished, "native-existing-slot")
 	env.Artifacts.SetSessionPresence(created.Thread, SessionObservation{State: SessionPresent})
-	env.Artifacts.SetPairSession(created.Thread, "existing-slot", true)
-	env.Artifacts.SetDetachedSession(created.Thread, "existing-slot")
+	current, err := env.Couch.Threads.GetThread(created.Thread)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env.Artifacts.SetPairSession(created.Thread, current.SessionBinding.Name, true)
+	env.Artifacts.SetDetachedSession(created.Thread, current.SessionBinding.Name)
 	opened, err := env.Couch.OpenSlot(context.Background(), f.host(1), "")
 	if err != nil || opened.Record.Thread != created.Thread {
 		t.Fatalf("existing open blocked: %+v %v", opened, err)

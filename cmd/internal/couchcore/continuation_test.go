@@ -32,9 +32,9 @@ func TestContinuationPublishExecuteAndReceipt(t *testing.T) {
 	}
 	registered := false
 	env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return registered, nil }
-	env.Runner.AfterAcknowledge = func(string) error {
+	env.Runner.AfterAcknowledge = func(id string) error {
 		registered = true
-		env.Artifacts.SetPairSession(source.Address, "pair-exact", true)
+		env.Artifacts.SetPairSession(source.Address, continuationChildSession(t, env.Runner, id), true)
 		return nil
 	}
 	result, err := env.Couch.Continue(context.Background(), source.Address, status.RequestID)

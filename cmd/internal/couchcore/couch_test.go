@@ -194,6 +194,7 @@ func newTestEnv(t *testing.T, trees ...string) *testEnv {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
+	c.Identities = &legacyFixtureAllocator{c: c}
 	c.postAckQuiesceTimeout = 5 * time.Millisecond
 	return &testEnv{Couch: c, Runner: r, Git: g, Proc: proc, Artifacts: artifacts, Dir: dir, Now: now}
 }
@@ -280,7 +281,7 @@ func TestSpawnStartsPairAndRecordsTheActor(t *testing.T) {
 	}
 	// couch spawns pair, not claude: pair owns zellij, the layout, and the
 	// agent's resume/session-id knowledge.
-	if got := env.Runner.Ops[0]; got != "start /repo: pair resume couch-0102030405060708 --layout3" {
+	if got := env.Runner.Ops[0]; got != "start /repo: pair --couch-session-v1 resume couch-0102030405060708 --layout3" {
 		t.Fatalf("Ops[0] = %q", got)
 	}
 	child := env.Runner.Child(env.Runner.order[0])
@@ -299,6 +300,7 @@ func TestSpawnStartsPairAndRecordsTheActor(t *testing.T) {
 		launcher.CouchLaunchProfileEnv + "=" + strings.TrimSpace(profileRaw),
 		"PAIR_USE_REPO_DEFAULT=1",
 	}
+	wantEnv = append(wantEnv, managedIntentEnvForTest(t, child.Env))
 	if !slices.Equal(child.Env, wantEnv) {
 		t.Fatalf("child env = %q, want %q", child.Env, wantEnv)
 	}
@@ -448,6 +450,7 @@ exit 0
 		t.Fatal(err)
 	}
 
+	couch.Identities = &legacyFixtureAllocator{c: couch}
 	if freshSlot {
 		zero, primaryAddress, resting := 0, "pair:0", "main"
 		primary := WorkspaceIdentity{SchemaVersion: 2, Repo: slot.Repo, RepoIdentity: slot.RepoIdentity,
@@ -598,7 +601,7 @@ exit 0
 		t.Fatalf("Couch observed Pair before its own promotion = %+v, %v", duringPair, err)
 	}
 	child := runner.Child("couch-fake-1")
-	wantArgv := []string{"pair", "resume", string(address.Tag), "--layout3"}
+	wantArgv := []string{"pair", "--couch-session-v1", "resume", string(address.Tag), "--layout3"}
 	if !slices.Equal(child.Argv, wantArgv) {
 		t.Fatalf("argv = %q, want %q", child.Argv, wantArgv)
 	}
@@ -1752,7 +1755,7 @@ func TestSpawnResumesAnOpaqueThreadTag(t *testing.T) {
 	}
 
 	got := env.Runner.Ops[0]
-	if !strings.Contains(got, "pair resume ") {
+	if !strings.Contains(got, "pair --couch-session-v1 resume ") {
 		t.Fatalf("argv = %q, want `pair resume <tag>`", got)
 	}
 	// A cold start sends couch's OWN layout, and this env is a default couch,
@@ -1776,7 +1779,7 @@ func TestSpawnUsesRepoScopeButKeepsRequestedSubdirectoryAsWorkingPath(t *testing
 		t.Fatalf("Spawn: %v", err)
 	}
 	got := env.Runner.Ops[0]
-	if !strings.Contains(got, "pair resume couch-0102030405060708") {
+	if !strings.Contains(got, "pair --couch-session-v1 resume couch-0102030405060708") {
 		t.Fatalf("argv = %q, want opaque thread tag", got)
 	}
 	snapshot, err := env.Couch.Threads.Snapshot()

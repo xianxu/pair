@@ -5,6 +5,7 @@ package threadrecord
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/couchidentity"
 	"path/filepath"
 	"regexp"
 	"time"
@@ -26,10 +27,11 @@ type Address struct {
 }
 
 type StartClaim struct {
-	Nonce         string         `json:"nonce"`
-	OwnerPID      int            `json:"owner_pid"`
-	OwnerIdentity string         `json:"owner_identity"`
-	LaunchProfile *LaunchProfile `json:"launch_profile,omitempty"`
+	SessionBinding *couchidentity.SessionBinding `json:"session_binding,omitempty"`
+	Nonce          string                        `json:"nonce"`
+	OwnerPID       int                           `json:"owner_pid"`
+	OwnerIdentity  string                        `json:"owner_identity"`
+	LaunchProfile  *LaunchProfile                `json:"launch_profile,omitempty"`
 }
 
 type LaunchProfile struct {
@@ -64,13 +66,14 @@ type Incarnation struct {
 }
 
 type Record struct {
-	Continuation  *checkpoint.Request `json:"continuation,omitempty"`
-	SchemaVersion int                 `json:"schema_version"`
-	Address       Address             `json:"address"`
-	StartingPath  string              `json:"starting_path"`
-	WorkingPath   string              `json:"working_path"`
-	CreatedAt     time.Time           `json:"created_at"`
-	Revision      uint64              `json:"revision"`
+	SessionBinding *couchidentity.SessionBinding `json:"session_binding,omitempty"`
+	Continuation   *checkpoint.Request           `json:"continuation,omitempty"`
+	SchemaVersion  int                           `json:"schema_version"`
+	Address        Address                       `json:"address"`
+	StartingPath   string                        `json:"starting_path"`
+	WorkingPath    string                        `json:"working_path"`
+	CreatedAt      time.Time                     `json:"created_at"`
+	Revision       uint64                        `json:"revision"`
 	// DeprecatedClaimGeneration is a TOMBSTONE for the same reason as
 	// Incarnation.DeprecatedPolicy -- and a more urgent one: it appeared in
 	// EVERY record in the operator's store, so deleting it would have made the
@@ -133,6 +136,9 @@ func Validate(record Record, validators Validators) error {
 			}
 		}
 	}
+	if err := validateSessionBinding(record.SessionBinding, record.Address); err != nil {
+		return err
+	}
 	if record.SchemaVersion != SchemaVersion {
 		return fmt.Errorf("unsupported thread schema version %d", record.SchemaVersion)
 	}
@@ -168,6 +174,9 @@ func Validate(record Record, validators Validators) error {
 		}
 		if incarnation.Start != nil {
 			trackedStarts++
+			if err := validateSessionBinding(incarnation.Start.SessionBinding, record.Address); err != nil {
+				return err
+			}
 			if incarnation.State != "creating" {
 				return fmt.Errorf("incarnation %d has start claim outside creating state", i)
 			}
@@ -264,4 +273,17 @@ func migrateV1(legacy recordV1) Record {
 		Name:        legacy.Name, Description: legacy.Description,
 		PublishedSummary: legacy.PublishedSummary, Incarnations: legacy.Incarnations,
 	}
+}
+
+func validateSessionBinding(binding *couchidentity.SessionBinding, address Address) error {
+	if binding == nil {
+		return nil
+	}
+	if err := binding.Validate(); err != nil {
+		return fmt.Errorf("session binding: %w", err)
+	}
+	if binding.ScopeKey != address.RepoScope || binding.Tag != address.Tag {
+		return fmt.Errorf("session binding belongs to another address")
+	}
+	return nil
 }

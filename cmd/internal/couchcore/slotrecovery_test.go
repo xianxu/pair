@@ -103,6 +103,7 @@ func TestObserveSlotSessionsIncludesLostRecordArtifacts(t *testing.T) {
 	scope, _ := launcher.ResolveRepoScope(s.slot.WorktreeRoot)
 	address := ThreadAddress{RepoScope: scope.Key, Tag: "couch-0000000000000001"}
 	env.Artifacts.SetSessionPresence(address, SessionObservation{State: SessionPresent})
+	env.Artifacts.SetPairSession(address, "📁lost-slot", true)
 	observed, err := env.Couch.ObserveSlotSessions(context.Background(), *s.slot)
 	if err != nil {
 		t.Fatal(err)
@@ -233,8 +234,8 @@ func TestSlotOpenReconstructsSingleDetachedSurvivor(t *testing.T) {
 	scope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
 	address := ThreadAddress{RepoScope: scope.Key, Tag: "couch-1111111111111111"}
 	env.Artifacts.SetSessionPresence(address, SessionObservation{State: SessionPresent})
-	env.Artifacts.SetPairSession(address, "survivor", true)
-	env.Artifacts.SetDetachedSession(address, "survivor")
+	env.Artifacts.SetPairSession(address, "pair-survivor", true)
+	env.Artifacts.SetDetachedSession(address, "pair-survivor")
 	result, err := env.Couch.OpenSlot(context.Background(), local.slot.WorktreeRoot, "claude")
 	if err != nil {
 		t.Fatal(err)

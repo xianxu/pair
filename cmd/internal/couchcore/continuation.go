@@ -353,7 +353,17 @@ func (c *Couch) executeContinuation(ctx context.Context, record ThreadRecord) (C
 	if err != nil {
 		return c.failContinuation(record, err)
 	}
-	generation, generationErr := c.continuationTargetGeneration(ctx, record)
+	// Launch committed a new terminal binding. Read that promoted authority
+	// before validating the target receipt; the pre-launch record names source.
+	promoted, generationErr := c.Threads.GetThread(record.Address)
+	var generation *checkpoint.TargetGeneration
+	if generationErr == nil {
+		if promoted.Continuation == nil || promoted.Continuation.ID != request.ID || promoted.Continuation.Attempt != request.Attempt {
+			generationErr = errors.New("continuation changed during target launch")
+		} else {
+			generation, generationErr = c.continuationTargetGeneration(ctx, promoted)
+		}
+	}
 	if generationErr != nil {
 		cleanupErr := c.AbortStarted(StartResult{Record: actor, Handle: handle}, generationErr)
 		return c.failContinuation(record, errors.Join(generationErr, cleanupErr))

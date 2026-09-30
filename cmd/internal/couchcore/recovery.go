@@ -119,8 +119,8 @@ func ProjectRecoveryChoices(record ThreadRecord, evidence ThreadEvidence, state 
 // AdmitRecoveryGeneration keeps original source identity immutable. Only an
 // exact target witness owned by this request can authorize a later generation.
 func AdmitRecoveryGeneration(request checkpoint.Request, current ContinuationSource) error {
-	if current.Agent == request.Source.Agent && current.Session == request.Source.Session {
-		if current.LaunchOrdinal == request.Source.LaunchOrdinal {
+	if current.Agent == request.Source.Agent {
+		if current.Session == request.Source.Session && current.LaunchOrdinal == request.Source.LaunchOrdinal {
 			return nil
 		}
 		matches := func(g *checkpoint.TargetGeneration) bool {

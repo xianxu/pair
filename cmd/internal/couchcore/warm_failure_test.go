@@ -332,10 +332,13 @@ func TestAFailedRetireStillLeavesTheRecordRecoverable(t *testing.T) {
 	// cleanup decide mark-unknown and never attempt a retire at all, so it
 	// passed without exercising anything.
 	reads := 0
-	env.Artifacts.BeforePairSession = func(ThreadAddress) error {
-		reads++
-		if reads >= 3 {
-			env.Artifacts.SetPairSession(address, name, false)
+	env.Runner.AfterAcknowledge = func(string) error {
+		env.Artifacts.BeforePairSession = func(ThreadAddress) error {
+			reads++
+			if reads >= 3 {
+				env.Artifacts.SetPairSession(address, name, false)
+			}
+			return nil
 		}
 		return nil
 	}
@@ -367,15 +370,10 @@ func TestAFailedRetireStillLeavesTheRecordRecoverable(t *testing.T) {
 	}
 }
 
-// A spawn's cleanup asks zellij nothing about the session.
-//
-// Its disposition is reconcile-and-mark whatever the session is doing, so an
-// observation on its behalf is a round trip nobody reads -- and, when the
-// observer refuses, an error surfaced on a path that never produced one. The
-// predicate test next to the decider pins the RULE; this pins the shell's use
-// of it, which is the half a "read presence everywhere" change would break
-// silently (pair#230 close review).
-func TestASpawnsCleanupNeverAsksAboutTheSession(t *testing.T) {
+// A failed managed spawn reconciles its proposed terminal before retiring the
+// pending binding. The address registration may belong to an earlier launch;
+// only this selected name's absence proves that the new terminal did not commit.
+func TestSpawnRecoveryProbesTheProposedTerminal(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	reads := 0
 	env.Artifacts.BeforePairSession = func(ThreadAddress) error {
@@ -387,7 +385,7 @@ func TestASpawnsCleanupNeverAsksAboutTheSession(t *testing.T) {
 	if _, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"}); err == nil {
 		t.Fatal("the spawn did not fail")
 	}
-	if reads != 0 {
-		t.Fatalf("a spawn's cleanup made %d Pair session observation(s); its disposition reads none", reads)
+	if reads != 1 {
+		t.Fatalf("spawn recovery made %d observations; want one proposed-terminal proof", reads)
 	}
 }

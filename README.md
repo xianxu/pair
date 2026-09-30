@@ -776,12 +776,27 @@ Sessions are scoped **per repo**: the tag you type (`work`, `bugfix`) is
 repo-local, so the same name in two checkouts stays independent.
 
 Pair gives Zellij a separate public session name because Zellij's session
-namespace is global. Public names use `📁{repo}[-{residual tag tokens}]`: tag
+namespace is global. Standalone Pair names use `📁{repo}[-{residual tag tokens}]`: tag
 `pair` in the `pair` repo appears as `📁pair`, tag `pair-1` as `📁pair-1`, and
 tag `parley_nvim` in `parley.nvim` as `📁parley-nvim`. The folder glyph is
 Pair's ownership marker; the repo/tag ledger is the source of truth because the
 public name intentionally drops redundant tag tokens and is not always
 invertible.
+
+Couch allocates its internal names independently: Pair tags are `C-repo-N`,
+Zellij sessions are `📁C-M`. `C` identifies the Couch store on this host; `N`
+counts conversations and `M` counts terminal creations. Attaching keeps both;
+parking and reopening keeps the conversation and allocates a new terminal.
+Existing conversations keep their tags and native application UUIDs. Live
+legacy sessions keep their names when their actual pane commands prove ownership.
+
+Couch keeps its host allocation authority at
+`~/.local/share/pair-host/couch-identities.json` and local counters in
+`<couch-store>/identities.json`. Keep both in backups. Restoring an older local
+counter is safe with the current host authority; restoring both to an older
+point is unsupported without independently proven high-water marks. Missing or
+corrupt authority refuses allocation with the affected path; do not delete these
+files to reset numbering. Moving a store assigns a new C for future allocations.
 
 Most commands take the repo-local tag. When Pair itself pre-fills or shows a
 public `📁...` name, `pair resume <public-name>` and `pair rename <public-name>

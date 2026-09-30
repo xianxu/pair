@@ -330,6 +330,19 @@ func (c *Couch) ObserveSlotSessions(ctx context.Context, slot SlotIdentity) (Slo
 	for _, address := range addresses {
 		candidate := candidates[address]
 		candidate.Presence = observed[address].State
+		// This is an action admission boundary, unlike periodic inventory. An
+		// indexed live name can actually belong to another scope; prove its
+		// runtime owner before it can veto replacement or authorize recovery.
+		if observer, ok := c.Artifacts.(contextPairSessionObserver); ok && candidate.Presence != SessionAbsent {
+			binding, observeErr := observer.PairSessionContext(ctx, address)
+			if observeErr != nil {
+				return out, observeErr
+			}
+			candidate.Presence = SessionAbsent
+			if binding.Present {
+				candidate.Presence = SessionPresent
+			}
+		}
 		if candidate.Presence == SessionUnresolved {
 			return out, fmt.Errorf("session ownership unresolved for %s", address.Tag)
 		}

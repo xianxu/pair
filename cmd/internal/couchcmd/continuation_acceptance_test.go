@@ -196,6 +196,7 @@ func runContinuationPublicationAcceptance(t *testing.T, pair, helper, assetRoot,
 		t.Fatalf("source setup: %v", err)
 	}
 	rt.proc.Set(handle.PID(), handle.Identity())
+	session = managedChildSession(t, rt.runner, handle.ID())
 	rt.artifacts.SetPairSession(actor.Thread, session, true)
 	t.Cleanup(func() { rt.runner.SetExited(handle.ID(), 0) })
 	source, err = c.Threads.GetThread(actor.Thread)

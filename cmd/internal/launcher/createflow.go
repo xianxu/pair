@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -32,6 +33,10 @@ import (
 // user-facing messages are on the writer, the int is the exit code, the returned
 // error is always nil.
 func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
+	if err := validateCouchSessionLaunch(opts.Args, opts.Env); err != nil {
+		fmt.Fprintf(stderr, "pair: %v\n", err)
+		return 1, nil
+	}
 	rt.SetEnv(orientation.Env, "")
 	if request := opts.Args.Orientation; request != nil {
 		if !opts.Args.FreshRequired || !request.Matches(opts.Args.ForcedTag, opts.Args.Agent, request.Attempt) {
@@ -346,8 +351,23 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 		return launchStep{code: 1}, nil
 	}
 
+	if intent := opts.Args.CouchSession; intent != nil {
+		if (intent.Disposition == "attach" && decision.Action != ActionAttach) || (intent.Disposition == "create" && decision.Action != ActionCreate) || decision.SessionName != intent.Name || decision.Tag != intent.Tag {
+			fmt.Fprintln(stderr, "pair: couch session disposition changed; refusing fallback")
+			return launchStep{code: 1}, nil
+		}
+	}
 	switch decision.Action {
 	case ActionAttach:
+		var ownerProof SessionOwnerObservation
+		if intent := opts.Args.CouchSession; intent != nil {
+			var err error
+			ownerProof, err = verifyCouchSessionAttach(rt, opts.GlobalDataDir, *intent)
+			if err != nil {
+				fmt.Fprintf(stderr, "pair: %v\n", err)
+				return launchStep{code: 1}, nil
+			}
+		}
 		layoutResolution, err := resolveLiveLayout(rt, env.DataDir, decision.Tag, decision.SessionName, opts.Args.Layout)
 		if err != nil {
 			fmt.Fprintf(stderr, "pair: %v\n", err)
@@ -374,6 +394,14 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 			rt.KillTitlePoller(decision.Tag)
 			return launchStep{code: 0, session: decision.SessionName, tag: decision.Tag, agent: agent, relaunch: true}, nil
 		}
+		if opts.Args.CouchSession != nil {
+			// Layout observation may block. Keep the original generation proof
+			// and revalidate it at the handoff; never adopt a replacement server.
+			if err := rt.(couchSessionOwnerRuntime).RevalidateSessionOwner(context.Background(), ownerProof); err != nil {
+				fmt.Fprintf(stderr, "pair: %v\n", err)
+				return launchStep{code: 1}, nil
+			}
+		}
 		code, err, retained := runAttach(opts, env, rt, decision.Tag, decision.SessionName, agent)
 		if err != nil {
 			fmt.Fprintf(stderr, "pair: failed to attach session '%s': %v\n", decision.SessionName, err)
@@ -396,6 +424,21 @@ func oppositeLayout(mode LayoutMode) LayoutMode {
 }
 
 func assignLaunchSessionNames(rt Runtime, live []Session, repoRoot, globalDataDir string, args LaunchArgs, base string, stderr io.Writer) ([]Session, map[string]string, map[string]SessionNameEntry, bool) {
+	if args.CouchSession != nil {
+		name, entry, err := assignCouchSessionName(rt, live, repoRoot, args.ForcedTag, args.CouchSession)
+		if err != nil {
+			fmt.Fprintf(stderr, "pair: %v\n", err)
+			return nil, nil, nil, false
+		}
+		var selected []Session
+		for _, session := range live {
+			if session.Name == name {
+				session.Tag = args.ForcedTag
+				selected = append(selected, session)
+			}
+		}
+		return selected, map[string]string{args.ForcedTag: name}, map[string]SessionNameEntry{args.ForcedTag: entry}, true
+	}
 	scope, err := ResolveRepoScope(repoRoot)
 	if err != nil {
 		return live, nil, nil, true
@@ -474,7 +517,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 
 	session := decision.SessionName
 	if session == "" || decision.PromptName || chosenTag != decision.Tag {
-		name, entry, ok := assignSingleSessionName(rt, live, envScopeRoot(env), chosenTag, stderr)
+		name, entry, ok := assignSingleSessionName(rt, live, envScopeRoot(env), chosenTag, stderr, opts.Args.CouchSession)
 		if !ok {
 			return launchStep{code: 1}, nil
 		}
@@ -531,7 +574,13 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	}
 	// Free the name (clear a stale EXITED resurrect record) and guard against a
 	// live session unexpectedly occupying it before any source-of-truth writes.
-	if rt.SessionBlocksReuse(session) {
+	if opts.Args.CouchSession != nil {
+		current, err := rt.SessionLiveness()
+		if err != nil || sessionNamePresent(current, session) {
+			fmt.Fprintf(stderr, "pair: couch session name %q is occupied or unavailable: %v\n", session, err)
+			return launchStep{code: 1}, nil
+		}
+	} else if rt.SessionBlocksReuse(session) {
 		fmt.Fprintf(stderr, "pair: session '%s' already exists.\n", session)
 		return launchStep{code: 1}, nil
 	}
@@ -635,7 +684,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	repoRoot := envScopeRoot(env)
 	repoName := DefaultTag(repoRoot)
 	if sessionEntry.SessionName != "" {
-		if err := rt.AppendSessionNameIndex(sessionEntry); err != nil {
+		if err := publishLaunchSessionName(rt, sessionEntry, opts.Args.CouchSession != nil); err != nil {
 			fmt.Fprintf(stderr, "pair: failed to append session-name index for '%s': %v\n", sessionEntry.SessionName, err)
 			return launchStep{code: 1}, nil
 		}
@@ -883,7 +932,15 @@ Create a continuation-quality summary from the available local state before maki
 `, tag, targetAgent, sourceAgent, tag, tag, tag, tag, tag)
 }
 
-func assignSingleSessionName(rt Runtime, live []Session, cwd, tag string, stderr io.Writer) (string, SessionNameEntry, bool) {
+func assignSingleSessionName(rt Runtime, live []Session, cwd, tag string, stderr io.Writer, intents ...*CouchSessionIntent) (string, SessionNameEntry, bool) {
+	if len(intents) > 0 && intents[0] != nil {
+		name, entry, err := assignCouchSessionName(rt, live, cwd, tag, intents[0])
+		if err != nil {
+			fmt.Fprintf(stderr, "pair: %v\n", err)
+			return "", SessionNameEntry{}, false
+		}
+		return name, entry, true
+	}
 	scope, err := ResolveRepoScope(cwd)
 	if err != nil {
 		return sessionName(tag), SessionNameEntry{}, true

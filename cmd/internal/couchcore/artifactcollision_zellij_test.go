@@ -43,6 +43,20 @@ func sandboxedChecker(t *testing.T, dataDir string, sessions map[string]string) 
 	checker := NewScopedThreadArtifactCollisionChecker(dataDir)
 	checker.Sessions = deleter
 	checker.Zellij = launcher.ZellijSource{Path: path}
+	// Runtime ownership is independent evidence, initialized from this fixture's
+	// registrations once. Subsequent index changes cannot change its live owner.
+	world := &sessionOwnerWorld{root: dataDir, owners: map[string]ThreadAddress{}, generation: "test-server"}
+	indexes, _ := filepath.Glob(filepath.Join(dataDir, "repos", "*", "session-names.jsonl"))
+	indexes = append([]string{filepath.Join(dataDir, "session-names.jsonl")}, indexes...)
+	for _, index := range indexes {
+		raw, _ := os.ReadFile(index)
+		for _, entry := range launcher.ParseSessionNameIndex(string(raw)).Entries {
+			if state := sessions[entry.SessionName]; state != "" && state != "exited" {
+				world.owners[entry.SessionName] = ThreadAddress{RepoScope: entry.ScopeKey, Tag: ThreadTag(entry.Tag)}
+			}
+		}
+	}
+	checker.OwnerProbe = launcher.SessionOwnerProbe{IO: world}
 
 	t.Cleanup(func() {
 		if len(deleter.deleted) > 0 {
@@ -153,9 +167,8 @@ func TestDetachedSessionsKeepsItsMeaningForTheNamedSession(t *testing.T) {
 	}
 }
 
-// Site 3: PairSession reads only "not exited", so it asks no session for
-// clients -- and still reports presence correctly.
-func TestPairSessionReadsLivenessOnly(t *testing.T) {
+// Selected PairSession probes runtime ownership but does not query clients.
+func TestPairSessionProvesOwnerWithoutClientQueries(t *testing.T) {
 	for _, c := range []struct {
 		state   string
 		present bool
@@ -212,8 +225,8 @@ func TestWarmResumeAsksTwoSessionsForClientsWhateverTheHostHas(t *testing.T) {
 			}
 			lc := pairlifecycletest.CountCalls(t, log, "list-clients")
 			ls := pairlifecycletest.CountCalls(t, log, "list-sessions")
-			if lc != 2 || ls != 6 {
-				t.Fatalf("list-clients = %d, list-sessions = %d; want 2 and 6 at every S (the proof twice, then registration's liveness)", lc, ls)
+			if lc != 2 || ls != 4 {
+				t.Fatalf("list-clients = %d, list-sessions = %d; want 2 and 4 at every S (attach-state proof twice; registration uses the independent owner probe)", lc, ls)
 			}
 		})
 	}

@@ -3,6 +3,7 @@ package couchcore
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/couchidentity"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
@@ -33,10 +34,11 @@ const (
 // the transaction; ThreadIncarnation PID/Identity is empty before fork and
 // names the blocked helper after fork. Exec preserves that PID/start token.
 type ThreadStartClaim struct {
-	Nonce         string         `json:"nonce"`
-	OwnerPID      int            `json:"owner_pid"`
-	OwnerIdentity string         `json:"owner_identity"`
-	LaunchProfile *LaunchProfile `json:"launch_profile,omitempty"`
+	SessionBinding *couchidentity.SessionBinding `json:"session_binding,omitempty"`
+	Nonce          string                        `json:"nonce"`
+	OwnerPID       int                           `json:"owner_pid"`
+	OwnerIdentity  string                        `json:"owner_identity"`
+	LaunchProfile  *LaunchProfile                `json:"launch_profile,omitempty"`
 }
 
 type ThreadIncarnation struct {
@@ -53,20 +55,21 @@ type ThreadIncarnation struct {
 }
 
 type ThreadRecord struct {
-	Continuation        *checkpoint.Request `json:"continuation,omitempty"`
-	SchemaVersion       int                 `json:"schema_version"`
-	Address             ThreadAddress       `json:"address"`
-	StartingPath        string              `json:"starting_path"`
-	WorkingPath         string              `json:"working_path"`
-	CreatedAt           time.Time           `json:"created_at"`
-	Revision            uint64              `json:"revision"`
-	Reservation         bool                `json:"reservation,omitempty"`
-	Name                string              `json:"name,omitempty"`
-	Description         string              `json:"description,omitempty"`
-	PublishedSummary    string              `json:"published_summary,omitempty"`
-	Incarnations        []ThreadIncarnation `json:"incarnations,omitempty"`
-	LatestLaunchProfile *LaunchProfile      `json:"latest_launch_profile,omitempty"`
-	LastActiveAt        time.Time           `json:"last_active_at,omitempty"`
+	SessionBinding      *couchidentity.SessionBinding `json:"session_binding,omitempty"`
+	Continuation        *checkpoint.Request           `json:"continuation,omitempty"`
+	SchemaVersion       int                           `json:"schema_version"`
+	Address             ThreadAddress                 `json:"address"`
+	StartingPath        string                        `json:"starting_path"`
+	WorkingPath         string                        `json:"working_path"`
+	CreatedAt           time.Time                     `json:"created_at"`
+	Revision            uint64                        `json:"revision"`
+	Reservation         bool                          `json:"reservation,omitempty"`
+	Name                string                        `json:"name,omitempty"`
+	Description         string                        `json:"description,omitempty"`
+	PublishedSummary    string                        `json:"published_summary,omitempty"`
+	Incarnations        []ThreadIncarnation           `json:"incarnations,omitempty"`
+	LatestLaunchProfile *LaunchProfile                `json:"latest_launch_profile,omitempty"`
+	LastActiveAt        time.Time                     `json:"last_active_at,omitempty"`
 	// Layout witnesses what this thread's pair session actually is, so the
 	// startup guard can refuse a couch layout that would mix with it. Absent on
 	// every record written before #198, and those are layout2: couch pinned
@@ -104,7 +107,8 @@ func toPersistedThreadAddress(address ThreadAddress) threadrecord.Address {
 
 func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
 	out := threadrecord.Record{
-		SchemaVersion: record.SchemaVersion, Address: toPersistedThreadAddress(record.Address),
+		SessionBinding: cloneSessionBinding(record.SessionBinding),
+		SchemaVersion:  record.SchemaVersion, Address: toPersistedThreadAddress(record.Address),
 		StartingPath: record.StartingPath, WorkingPath: record.WorkingPath, CreatedAt: record.CreatedAt,
 		Revision: record.Revision, Reservation: record.Reservation,
 		Name: record.Name, Description: record.Description, PublishedSummary: record.PublishedSummary,
@@ -144,7 +148,8 @@ func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
 		}
 		if incarnation.Start != nil {
 			out.Incarnations[i].Start = &threadrecord.StartClaim{
-				Nonce: incarnation.Start.Nonce, OwnerPID: incarnation.Start.OwnerPID, OwnerIdentity: incarnation.Start.OwnerIdentity,
+				SessionBinding: cloneSessionBinding(incarnation.Start.SessionBinding),
+				Nonce:          incarnation.Start.Nonce, OwnerPID: incarnation.Start.OwnerPID, OwnerIdentity: incarnation.Start.OwnerIdentity,
 			}
 			if incarnation.Start.LaunchProfile != nil {
 				profile := cloneLaunchProfile(*incarnation.Start.LaunchProfile)
@@ -162,9 +167,10 @@ func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
 
 func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 	out := ThreadRecord{
-		SchemaVersion: record.SchemaVersion,
-		Address:       ThreadAddress{RepoScope: record.Address.RepoScope, Tag: ThreadTag(record.Address.Tag)},
-		StartingPath:  record.StartingPath, WorkingPath: record.WorkingPath, CreatedAt: record.CreatedAt,
+		SessionBinding: cloneSessionBinding(record.SessionBinding),
+		SchemaVersion:  record.SchemaVersion,
+		Address:        ThreadAddress{RepoScope: record.Address.RepoScope, Tag: ThreadTag(record.Address.Tag)},
+		StartingPath:   record.StartingPath, WorkingPath: record.WorkingPath, CreatedAt: record.CreatedAt,
 		Revision: record.Revision, Reservation: record.Reservation,
 		Name: record.Name, Description: record.Description, PublishedSummary: record.PublishedSummary,
 		Layout:       Layout(record.Layout),
@@ -203,7 +209,8 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 		}
 		if incarnation.Start != nil {
 			out.Incarnations[i].Start = &ThreadStartClaim{
-				Nonce: incarnation.Start.Nonce, OwnerPID: incarnation.Start.OwnerPID, OwnerIdentity: incarnation.Start.OwnerIdentity,
+				SessionBinding: cloneSessionBinding(incarnation.Start.SessionBinding),
+				Nonce:          incarnation.Start.Nonce, OwnerPID: incarnation.Start.OwnerPID, OwnerIdentity: incarnation.Start.OwnerIdentity,
 			}
 			if incarnation.Start.LaunchProfile != nil {
 				profile := LaunchProfile{Agent: incarnation.Start.LaunchProfile.Agent, Argv: cloneArgv(incarnation.Start.LaunchProfile.Argv)}
@@ -233,6 +240,7 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 
 func cloneThreadRecord(record ThreadRecord) ThreadRecord {
 	copy := record
+	copy.SessionBinding = cloneSessionBinding(record.SessionBinding)
 	if record.Continuation != nil {
 		request := record.Continuation.Clone()
 		copy.Continuation = &request
@@ -241,6 +249,7 @@ func cloneThreadRecord(record ThreadRecord) ThreadRecord {
 	for i := range copy.Incarnations {
 		if record.Incarnations[i].Start != nil {
 			start := *record.Incarnations[i].Start
+			start.SessionBinding = cloneSessionBinding(start.SessionBinding)
 			if start.LaunchProfile != nil {
 				profile := cloneLaunchProfile(*start.LaunchProfile)
 				start.LaunchProfile = &profile
@@ -387,4 +396,12 @@ func hasOccupiedIncarnation(record ThreadRecord) bool {
 		}
 	}
 	return false
+}
+
+func cloneSessionBinding(binding *couchidentity.SessionBinding) *couchidentity.SessionBinding {
+	if binding == nil {
+		return nil
+	}
+	out := *binding
+	return &out
 }

@@ -106,7 +106,7 @@ func TestWarmReattachSendsNoResumeProfileAndNoLayout(t *testing.T) {
 	}
 	child := env.Runner.Child(handle.ID())
 
-	if !slices.Equal(child.Argv, []string{"pair", "resume", string(created.Address.Tag)}) {
+	if !slices.Equal(child.Argv, []string{"pair", "--couch-session-v1", "resume", string(created.Address.Tag)}) {
 		t.Fatalf("warm argv = %q, want a bare `pair resume <tag>`", child.Argv)
 	}
 	for _, entry := range child.Env {

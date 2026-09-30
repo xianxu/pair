@@ -4,11 +4,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 
@@ -319,11 +317,11 @@ func (c *Couch) startFreshSlot(ctx context.Context, path, agent string, requireE
 		used[candidate.Address] = true
 	}
 	for attempt := 0; attempt < threadTagAttempts; attempt++ {
-		var random [8]byte
-		if _, err := io.ReadFull(c.Entropy, random[:]); err != nil {
+		tag, err := c.allocateConversationTag(ctx, filepath.Base(slot.PrimaryRoot))
+		if err != nil {
 			return StartResult{}, err
 		}
-		record := ThreadRecord{SchemaVersion: ThreadSchemaVersion, Address: ThreadAddress{RepoScope: scope.Key, Tag: ThreadTag("couch-" + hex.EncodeToString(random[:]))}, StartingPath: slot.WorktreeRoot, WorkingPath: slot.WorktreeRoot, CreatedAt: c.Clock.Now(), Revision: 1}
+		record := ThreadRecord{SchemaVersion: ThreadSchemaVersion, Address: ThreadAddress{RepoScope: scope.Key, Tag: ThreadTag(tag)}, StartingPath: slot.WorktreeRoot, WorkingPath: slot.WorktreeRoot, CreatedAt: c.Clock.Now(), Revision: 1}
 		if used[record.Address] {
 			continue
 		}

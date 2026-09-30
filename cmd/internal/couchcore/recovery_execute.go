@@ -356,26 +356,40 @@ func (c *Couch) verifyAbsentContinuation(ctx context.Context, record ThreadRecor
 	if err != nil {
 		return err
 	}
-	if binding.Present || binding.Name != record.Continuation.Source.Session {
+	if binding.Present {
 		return errors.New("continuation source session is no longer exactly absent")
 	}
-	return c.verifyContinuationGeneration(ctx, record)
-}
-
-func (c *Couch) verifyContinuationGeneration(ctx context.Context, record ThreadRecord) error {
-	ctx, cancel := context.WithTimeout(ctx, recoveryObservationTimeout)
-	defer cancel()
-	if c.ContinuationSource == nil {
-		return errors.New("continuation generation observer unavailable")
-	}
-	source, err := c.ContinuationSource(ctx, record.Address)
+	current, err := c.admittedContinuationGeneration(ctx, record)
 	if err != nil {
 		return err
 	}
-	if err := AdmitRecoveryGeneration(*record.Continuation, source); err != nil {
-		return err
+	// SourceAbsence remains the original historical witness. On a retry the
+	// currently absent terminal may instead belong to a retained exact target.
+	if binding.Name != current.Session {
+		return errors.New("continuation source session is no longer exactly absent")
 	}
-	return ctx.Err()
+	return nil
+}
+
+func (c *Couch) verifyContinuationGeneration(ctx context.Context, record ThreadRecord) error {
+	_, err := c.admittedContinuationGeneration(ctx, record)
+	return err
+}
+
+func (c *Couch) admittedContinuationGeneration(ctx context.Context, record ThreadRecord) (ContinuationSource, error) {
+	ctx, cancel := context.WithTimeout(ctx, recoveryObservationTimeout)
+	defer cancel()
+	if c.ContinuationSource == nil {
+		return ContinuationSource{}, errors.New("continuation generation observer unavailable")
+	}
+	source, err := c.ContinuationSource(ctx, record.Address)
+	if err != nil {
+		return source, err
+	}
+	if err := AdmitRecoveryGeneration(*record.Continuation, source); err != nil {
+		return source, err
+	}
+	return source, ctx.Err()
 }
 
 func (c *Couch) continuationTargetGeneration(ctx context.Context, record ThreadRecord) (*checkpoint.TargetGeneration, error) {
@@ -389,7 +403,7 @@ func (c *Couch) continuationTargetGeneration(ctx context.Context, record ThreadR
 	if err != nil || generation == nil {
 		return generation, err
 	}
-	if generation.Agent != request.Source.Agent || generation.Session != request.Source.Session || generation.Attempt != request.Attempt || generation.LaunchOrdinal <= request.Source.LaunchOrdinal {
+	if generation.Agent != request.Source.Agent || generation.Session != continuationTargetSession(record) || generation.Attempt != request.Attempt || generation.LaunchOrdinal <= request.Source.LaunchOrdinal {
 		return nil, errors.New("continuation receipt generation does not match exact request target")
 	}
 	if err := ctx.Err(); err != nil {

@@ -219,7 +219,7 @@ func (r Request) Validate() error {
 }
 
 func (r Request) validTargetGeneration(g TargetGeneration) bool {
-	return g.Agent == r.Source.Agent && g.Session == r.Source.Session && boundedIdentity(g.Attempt) && g.LaunchOrdinal > r.Source.LaunchOrdinal
+	return g.Agent == r.Source.Agent && boundedIdentity(g.Session) && boundedIdentity(g.Attempt) && g.LaunchOrdinal > r.Source.LaunchOrdinal
 }
 
 type EventKind string

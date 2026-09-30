@@ -5,11 +5,11 @@ Pair separates identities that used to be partly conflated:
 - **Repo scope** — a hidden, stable key derived from the cleaned repo root. It
   owns the scoped data directory and is not shown in user-facing labels.
 - **Thread tag** — the immutable repo-local storage key. Direct Pair keeps the
-  user-chosen form (`work`, `bugfix`); Couch creates opaque
-  `couch-<16 lowercase hex>` tags.
+  user-chosen form (`work`, `bugfix`); Couch allocates `C-repo-N` tags; existing
+  `couch-<16 lowercase hex>` tags remain valid.
 - **Human thread name** — optional mutable metadata on the durable ThreadStore
   record. It is neither a filename nor a zellij socket name.
-- **Public session name** — the stable zellij socket binding recorded in
+- **Public session name** — the current zellij socket binding recorded in
   `session-names.jsonl` for one `{scope, tag}`.
 - **Agent** — the resource running under a tag, such as `claude`, `codex`,
   `agy`, `muse`, or `qoder`. A tag can have sessions from more than one agent
@@ -18,6 +18,33 @@ Pair separates identities that used to be partly conflated:
   launches expose it as recovery state only after Pair establishes a completed
   causal round; an explicit scanner-authorized resume may establish it at the
   launch boundary.
+
+## Couch allocation and terminal bindings
+
+`cmd/internal/couchidentity` owns the host C and independent per-store N/M
+allocation. Host authority is fixed under `~/.local/share/pair-host/`; store
+counters live in the canonical Couch namespace. Host floors commit before local
+counters under ordered locks, so interrupted launches burn numbers. Strict bounded
+storage refuses missing/corrupt authority. Local rollback recovers above host
+floors; rollback of both authorities is unsupported without proven floors.
+
+`couchcore.launchTrackedThread` persists a pending `SessionBinding` before its
+blocked helper runs. Registration, including established-registration recovery
+with a dead helper, promotes the binding before clearing Start. Unknown evidence
+keeps capacity occupied. Warm attach keeps M; cold creation gets a new M.
+`--couch-session-v1` and the consumed structured intent carry exact scope/tag,
+name, start nonce and create/attach disposition independently of native resume.
+Older launchers reject the leading flag; they cannot silently choose a name.
+
+`launcher.SessionOwnerProbe` reads actual live pane commands between exact
+server-generation observations. Complete scoped artifact paths prove ownership;
+name/index presence alone does not. Foreign proof means absence for the selected
+conversation, unknown refuses, and mutations revalidate the server generation.
+Passive inventory avoids per-row pane queries. Compatibility index publication
+replaces one exact scope/tag association, retaining unrelated addresses.
+
+The owner parser fixtures run in ordinary tests; live Zellij ownership and socket
+budget conformance runs before releases supporting a changed Zellij version.
 
 ## Native-session forest inventory
 

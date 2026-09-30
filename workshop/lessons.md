@@ -316,3 +316,9 @@ proof; record the surprising case so the next change starts from evidence.
 - Recovery and live observation must call one binding decision function, not separately combine matching candidates. Exercise per-message candidate intersections in parity tests. (#346 M2 BR-6)
 - Every dispatcher family is either documented for operators or explicitly classified internal; enforce this across the family registry to prevent recurring recovery-command README omissions. (#346 M2 BR-7)
 - Identity policy changes must sweep ledger-to-legacy projections as well as direct query callers. Test actual parsed ledger data through restart-marker construction; a fake already carrying a UUID hides a dropped provisional target. (#346 M2)
+
+- When a terminal can be recreated independently of its conversation, sweep
+  target-generation and receipt validators as well as launcher naming. Preserve
+  historical source identity and validate the new target against its own binding.
+  A durable registration marker from the previous launch does not prove that the
+  replacement terminal started. (#355)
