@@ -97,8 +97,8 @@ Suspects to work through, cheapest first:
 - [x] Fix at the root: the draft body (and review pokes) go as ONE bracketed
       paste (`nvim/draft_send.lua` `frame`); tests pin the framing, the marker
       strip, and the stateful fakes now refuse an unframed write
-- [ ] After a week of normal use: `scripts/send-audit.py --since <merge date>`
-      shows 0 lossy Claude sends in the 3+-read rows
+- [x] Post-ship verification (`scripts/send-audit.py --since <merge date>`
+      after a week of use) handed to #354
 
 ## Done when
 
@@ -158,5 +158,6 @@ Suspects to work through, cheapest first:
 
 - 2026-09-29 — root cause moved from "zellij write-chars chunk loss" (the only
   surviving theory at filing) to Claude Code dropping middle tty reads of an
-  unbracketed burst; measured, see Log. Plan rows re-scoped accordingly and a
-  post-ship audit row added, since an on-demand live repro was not achieved.
+  unbracketed burst; measured, see Log. Plan rows re-scoped accordingly; the
+  post-ship audit, needed because an on-demand live repro was not achieved,
+  is #354.
