@@ -413,3 +413,13 @@ shared membership sweep to in-memory/durable actors and open/fresh/recovery
 callers, preserving conservative vetoes for unresolved same-scope owners. Add
 production-boundary regressions for both registries. ARCH-PURPOSE requires
 enumerating runtime observers alongside storage consumers.
+
+### 2026-09-30 — M2 re-review: reconstructed backend authority
+
+The actor correction passes. BR-4 also exposes a pre-existing conventional
+path assumption now consumed as authority: reconstructed storage backends use
+`primary/.git`, which is false for `git init --separate-git-dir`. Preserve the
+verified common-directory identity through discovery, routing, preferences,
+local-origin validation and inventory, including enrollment/restart. Add real
+Git layout coverage while retaining nested-repository isolation. Conventional
+paths locate checkouts; they do not establish repository identity.

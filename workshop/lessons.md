@@ -343,3 +343,8 @@ proof; record the surprising case so the next change starts from evidence.
   persisted records: a foreign nested actor must neither authorize nor veto
   enclosing-slot actions. Exercise in-memory and durable registries, preserving
   conservative handling of unresolved same-scope actors. (#355 M2 BR-4 round 2)
+
+- A stronger identity validator must audit the provenance of every supplied
+  identity. Conventional slot paths locate storage but do not prove that Git's
+  common directory is `primary/.git`; exercise separate-Git-directory enrollment
+  and restart through production storage readers. (#355 M2 BR-4 round 3)

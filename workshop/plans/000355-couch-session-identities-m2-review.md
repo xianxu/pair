@@ -162,3 +162,87 @@ dispose:
 **Plan revision recommendation**
 
 Append a `## Revisions` entry extending BR-4’s membership sweep to hosted actor observation and its open/fresh/recovery callers. Record the nested-actor regression and update the affected task’s verification evidence before re-running this boundary.
+
+---
+
+## Re-review — 2026-09-30T11:51:04-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 355 — Allocate Couch session identities and enforce repository families |
+| repo | pair |
+| issue file | workshop/issues/000355-couch-session-identities.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | c6f3419a64e970d948ffe8bc9da8b1015b9ce052..972675c789af92f2a159a32b21c5dd92bb5ba7d5 |
+| command | sdlc milestone-close --issue 355 --milestone M2 |
+| reviewer | codex |
+| timestamp | 2026-09-30T11:51:04-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The nested-repository actor correction works, but BR-4’s membership rule still receives fabricated repository identity from storage discovery. A real repository using `git init --separate-git-dir` can successfully migrate a conversation into slot storage and then fail to read it. The checkout remained unchanged.
+
+```findings
+dispose:
+  - id: BR-4
+    disposition: not-addressed
+    note: |
+      Nested storage and hosted-actor regressions pass; removing actor membership checking makes all four open/fresh registry cases fail. However, threadstore_location.go:37 and :63 reconstruct slots through conventionalSlot, which assumes RepoIdentity is primary/.git. The new RecordCheckoutMembership check rejects records carrying the actual separate Git directory. A temporary real-Git regression successfully enrolled a record, then GetThread failed with “slot record identity does not match its host checkout”. This repeats family checkout-membership-requires-repository-identity: derive identity from verified or retained authority throughout discovery, routing, validation, and inventory instead of treating conventional paths as identity.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      The 4096-family admission bound remains enforced; focused capacity, concurrent admission, existing-family reuse, and persisted-overflow tests passed.
+```
+
+1. **Strengths**
+
+   - Shared membership checks now distinguish nested repositories across migration, preferences, snapshots, and hosted actors.
+   - The actor regression exercises both in-memory and durable registries through actual open/fresh operations. The mutation check confirms it detects the removed fix.
+   - Family reservation uses the existing journal; tests cover interrupted publication, conflicting admissions, and retention after archive.
+   - README and atlas explain starting-directory inheritance, conflicts, and missing-directory recovery.
+
+2. **Critical findings**
+
+   **BR-4 remains open — reconstructed storage identity rejects valid conversations.** At `threadstore_location.go:37`, discovered backends inherit `conventionalSlot`’s assumed `<primary>/.git` identity; line 63 makes the same assumption for routing. `repository_family.go:119` now compares this against persisted incarnation identity, and `threadstore_layout.go:65` rejects mismatches.
+
+   Reproduction used a real separate Git directory and numbered worktree, supplied the correct catalog identity, created a conversation, and successfully enrolled it. Subsequent `GetThread` failed with a metadata-recovery error.
+
+   **This is a repeat in family `checkout-membership-requires-repository-identity`.** Fix the rule across all reconstructed-backend consumers: conventional paths establish location, while verified or retained common-directory identity establishes membership. Add regression coverage for readback, preferences, and inventory after enrollment and restart.
+
+3. **Important findings**
+
+   None separate from BR-4.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   - Focused family, migration, nested-repository, actor, and local-storage tests passed: **94.768s**.
+   - Focused menu tests passed.
+   - Containment-only actor mutation failed all four intended regression cases.
+   - Additional separate-Git-directory regression failed against HEAD.
+   - Pinned-range whitespace check passed. Full-suite and live conformance checks were not rerun.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — flag:** shared membership logic still consumes independently reconstructed identity.
+   - **ARCH-PURE — pass:** family conflict resolution and lexical projection remain directly testable without IO.
+   - **ARCH-PURPOSE — flag:** repository identity propagation remains incomplete.
+   - **ARCH-MOCK — pass:** integration tests use temporary Git repositories and existing stateful runtime seams; extend their layout coverage.
+   - **ARCH-CONSTRAINTS — pass:** inference and family admission have explicit limits.
+   - **ARCH-SECURE — flag:** a conventional filesystem location is substituted for authoritative common-directory identity.
+   - **ARCH-ORDER — pass:** reservation precedes provisioning; journal interruption and concurrent admission are exercised.
+   - **ARCH-FUNERAL — pass:** permanent family reservations have an enforced admission bound.
+
+7. **Plan revision recommendations**
+
+   Append a `## Revisions` entry requiring authoritative common-directory identity across backend reconstruction, routing, and inventory, with separate-Git-directory enrollment/restart regressions. Preserve the existing nested-repository isolation tests.

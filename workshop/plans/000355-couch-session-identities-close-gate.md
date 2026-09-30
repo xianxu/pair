@@ -89,6 +89,21 @@ rounds:
       boundary: M2
       recipe: milestone-review
       blocked: true
+    - "n": 6
+      timestamp: "2026-09-30T11:51:04-07:00"
+      agent: codex
+      dispose:
+        - id: BR-4
+          disposition: not-addressed
+          note: 'Nested storage and hosted-actor regressions pass; removing actor membership checking makes all four open/fresh registry cases fail. However, threadstore_location.go:37 and :63 reconstruct slots through conventionalSlot, which assumes RepoIdentity is primary/.git. The new RecordCheckoutMembership check rejects records carrying the actual separate Git directory. A temporary real-Git regression successfully enrolled a record, then GetThread failed with “slot record identity does not match its host checkout”. This repeats family checkout-membership-requires-repository-identity: derive identity from verified or retained authority throughout discovery, routing, validation, and inventory instead of treating conventional paths as identity.'
+          round: 6
+        - id: BR-5
+          disposition: addressed
+          note: The 4096-family admission bound remains enforced; focused capacity, concurrent admission, existing-family reuse, and persisted-overflow tests passed.
+          round: 6
+      boundary: M2
+      recipe: milestone-review
+      blocked: true
 ---
 
 # Gate ledger — pair#355 (boundary-review)
@@ -138,6 +153,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - BR-4 — not-addressed — Storage consumers now share repository-aware membership, but cmd/internal/couchcore/slotsessions.go:307-313 still admits actors by containment alone. A nested independent actor reaches add(), which rejects its foreign scope and aborts outer-slot open/fresh. A scratch regression fails on HEAD and passes when foreign-scope actors are excluded. Complete the checkout-membership-requires-repository-identity sweep through hosted-session observation. ARCH-DRY, ARCH-PURPOSE, ARCH-SECURE.
 - BR-5 — addressed — repository_family_store.go:67 enforces the 4096-family admission bound under the existing lock; existing families remain usable. Capacity, concurrent-final-entry, and persisted-overflow tests cover the policy. Removing the admission guard makes TestFamilyCapacityExistingReuseAndRefusal fail. atlas/couch.md:59 documents permanent bounded reservations.
+
+## Round 6 — 2026-09-30T11:51:04-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-4 — not-addressed — Nested storage and hosted-actor regressions pass; removing actor membership checking makes all four open/fresh registry cases fail. However, threadstore_location.go:37 and :63 reconstruct slots through conventionalSlot, which assumes RepoIdentity is primary/.git. The new RecordCheckoutMembership check rejects records carrying the actual separate Git directory. A temporary real-Git regression successfully enrolled a record, then GetThread failed with “slot record identity does not match its host checkout”. This repeats family checkout-membership-requires-repository-identity: derive identity from verified or retained authority throughout discovery, routing, validation, and inventory instead of treating conventional paths as identity.
+- BR-5 — addressed — The 4096-family admission bound remains enforced; focused capacity, concurrent admission, existing-family reuse, and persisted-overflow tests passed.
 
 ## Open findings
 
