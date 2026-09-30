@@ -1,10 +1,12 @@
 ---
 id: 000355
-status: working
+status: codecomplete
 created: 2026-09-30
 updated: 2026-09-30
 estimate_hours: 4.193
 github_issue:
+started: 2026-09-30T09:37:39-07:00
+actual_hours: 9.12
 tracker:
     version: 1
     handoff:
@@ -17,7 +19,11 @@ tracker:
         source_blob: a170c7fb960bf895acbb3f4f89ae3c49b09fecb5
         destination: workshop/issues/000355-couch-session-identities.md
         main_commit: bd55cd41d429b8118774d08eb42fe9c6c92230f4
-started: 2026-09-30T09:37:39-07:00
+    completion:
+        token: close-edd7f40ab6c4
+        repository: github.com/xianxu/pair
+        reviewed_head: bb50b642453b453e3e165f9bee422cdaf3e7137f
+        evidence_commit: 56a1bb68783daef8a073304aa25f7ef918033924
 ---
 
 # Allocate Couch session identities and enforce repository families
