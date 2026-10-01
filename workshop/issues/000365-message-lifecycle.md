@@ -66,7 +66,7 @@ Items in order: spec/plan; Registry reducer; session transport + client + peer P
 
 Durable plan: `workshop/plans/000365-message-lifecycle-plan.md` (awaiting operator approval).
 
-- [x] M1 — Baseline: idle probe-count acceptance test (skipped red) + live idle measurement (`probes/messageidle`)
+- [ ] M1 — Baseline: idle probe-count acceptance test (skipped red) + live idle measurement (`probes/messageidle`)
 - [ ] M2 — Lifecycle protocol: pure Registry reducer, registry socket sessions, Console pane hooks, wrapper session client; delete heartbeat/reconcile/verification window
 - [ ] M3 — Failure semantics: crash/interleaving suite, wrapper duplicate-ID guard, broker tombstone removal, after-measurement, atlas docs
 

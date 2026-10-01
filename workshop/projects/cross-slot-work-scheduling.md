@@ -89,6 +89,15 @@ The first issue removes the measured regression without waiting for the entire o
 
 Owns the immediate performance regression and local lifecycle/delivery contract. Requires a measured before/after profile, counted idle-probe invariants and failure/interleaving tests. Existing composer safeguards remain part of acceptance.
 
+<a id="pair-365-m1"></a>
+### pair#365 M1 — idle messaging baseline
+
+**est:** 6.91
+**actual:** 1.24h
+**closed:** 2026-10-01
+
+M1 added an in-tree acceptance test that counts the authority probes. It is skipped until M2, and its skip message records the baseline: one healthy wrapper costs 24 ownership probes and 6 `git status` per idle minute. M1 also added `probes/messageidle`, a shim that counts only couch-parented calls. The live baseline was taken read-only from the running Couch (11 wrappers) after the operator found relaunching under a shim too heavy. Couch used 101.6 CPU-seconds in 120 s, with 639 `ps`, 179 `zellij` and 141 `sdlc workspace` children. The unexpected part was the `sdlc` count: wrappers whose registration keeps failing re-run the full check and the workspace resolve every second. Under polling, a failing registration costs more than a healthy one, and lifecycle events remove that cost along with the idle polling.
+
 <a id="ariadne-277"></a>
 ### ariadne#277 — claimant ownership
 
@@ -171,3 +180,4 @@ Preserved the operator's requirement that observation tools be fast, and recorde
 [pair#366]: #pair-366
 [pair#367]: #pair-367
 [pair#362]: #pair-362
+[pair#365 M1]: #pair-365-m1
