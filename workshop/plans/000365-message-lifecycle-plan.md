@@ -27,9 +27,10 @@ Every check that survives names the user-visible failure it prevents and when it
 | `process` (kill + sysctl start time) | message to a dead/reused PID | every full check | at admission; death itself arrives as session EOF |
 | peer credential (`LOCAL_PEERPID`/`SO_PEERCRED` == `Binding.PID`) | a process registering someone else's binding | — (new) | once at session hello |
 | `wrapperPID` file | an old wrapper still alive after replacement receiving | every full check | at admission + at Reserve/Deliver (one file read) |
-| `launch` (ready file + 2 ownership probes: ps×4, zellij×2) | wrong conversation/launch nonce for the thread | ~3/s per wrapper (pre-#360), ~0.2/s after #360 | **once per admission** (lifecycle event only) |
+| `launch` file evidence (ready file nonce, session-name index) | wrong conversation/launch nonce for the thread (index rewritten while the old wrapper survives headless) | every full check | at admission + at Reserve/Deliver (file reads only, new `launchRecorded`) |
+| `launch` ownership probe (ps×4, zellij×2) | a session name owned by a different Zellij server | ~3/s per wrapper (pre-#360), ~0.2/s after #360 | **once per admission** (lifecycle event only) |
 | resting branch (`git status`) | family send to a slot off its resting branch | per reconcile + per family send | per family send only (request path); listings read Console's slot-git cache |
-| endpoint `observe` RPC | stale activity/allowance in listings | 1/s per wrapper | pushed by the wrapper on change (≤1 frame/s while active, 0 idle) |
+| endpoint `observe` RPC | stale activity/allowance in listings | 1/s per wrapper | pushed by the wrapper on change (≤1 frame/s while active, 0 idle); an observation stays current while its session is open and admitted (`ObservationStaleAfter`/`RestingStaleAfter` removed) |
 
 ## Core concepts
 
@@ -46,7 +47,14 @@ Every check that survives names the user-visible failure it prevents and when it
 | `Broker` actors table | `cmd/internal/couchmessage/broker.go` | modified (tombstone removal) |
 | `messageVerificationWindow`, `recentlyVerified`, `refresh`, `reconcile` | `cmd/internal/couchcmd/message_service.go` | deleted |
 
-- **Registry** — the single authority on "which binding may receive right now". State per session token: `binding`, `admission` ∈ {`Admitting`, `Admitted`, `Rejected{reason, attempt}`, `Dormant{reason}`}; per thread (scope, tag): current pane handle or none. A binding is *connected* iff its session is `Admitted` and its thread has a pane. Tests in `registry_test.go` drive event sequences with no IO.
+- **Registry** — the single authority on "which binding may receive right now". State per session token: `binding`, `admission` ∈ {`AwaitingPane`, `Admitting{pane}`, `Admitted{pane}`, `Rejected{reason, attempt}`, `Dormant{reason}`, `Displaced`}; per thread (scope, tag): current pane handle or none. A binding is *connected* iff its session is `Admitted{pane}` with `pane` equal to its thread's current handle; `Admitting` is never connected. Rules:
+  - `Admit` is emitted only when the thread has a pane (a hello before its pane waits in `AwaitingPane`, no retries burned).
+  - `Admit`/`AdmissionDone` carry `(token, pane handle)`; a result whose token closed or whose pane is no longer current is discarded, and a still-open session on a new pane is re-admitted.
+  - The Registry owns slot displacement (ARCH-DRY): admitting a session for slot S marks every other session for S `Displaced` and emits their `Disconnect` before the new `Connect`. A displaced session is never re-admitted except by a new hello. The broker's own same-slot displacement in `Register` stays as a backstop, but the Registry never relies on it.
+  - A new token for an identical binding (SIGUSR2 exec keeps PID, start time, nonce and session) always emits `Disconnect(binding)` then `Connect(binding)`, so an in-flight delivery at the old incarnation reaches `Indeterminate`; the old token's late EOF is then ignored.
+  - The event loop publishes an immutable snapshot (`atomic.Pointer`) of connected bindings after each `Advance`; request goroutines (`cheapLive`, caller checks) read only that snapshot.
+  
+  Tests in `registry_test.go` drive event sequences with no IO.
   - **Relationships:** 1 Registry : N sessions (≤ `MaxActors`); session 1:1 Binding at a time but one Binding may appear in two tokens transiently (exec re-registration) — the newest token wins; a close of an older token is ignored (ARCH-ORDER).
   - **DRY rationale:** replaces three overlapping freshness mechanisms (heartbeat refresh, verification window, reconcile) with one state model; lifecycle producers (connection, Console) own the facts.
   - **Future extensions:** remote sessions or broker-side pokes become new event kinds, not new loops.
@@ -69,7 +77,7 @@ Every check that survives names the user-visible failure it prevents and when it
 
 - **SessionServer** — separate socket `SocketPath(namespace, "registry")`, prepared under the supervisor lease like the broker socket. Accepts ≤ `MaxActors` concurrent sessions (extra connections are closed with `ack{refused}`); reads frames until EOF; no idle timeout (unix sockets do not drop silently; death closes the fd). Each connection gets a monotonically increasing token. Emits `SessionOpened/Activity/Submit/SessionClosed` to the service's single event loop. *Injected into:* `messageService` (tests use the real socket in a temp dir, as current transport tests do).
 - **SessionClient** — runs for the wrapper lifetime: dial, hello, wait ack, then send activity/submit frames; on any error close and sleep `ReconnectBackoff`. The fd is CLOEXEC, so a SIGUSR2 `syscall.Exec` closes it and the re-exec'd wrapper opens a new session — no special case.
-- **Console hooks** — `Console.SetMessageLifecycle(func(PaneEvent))`; called after pane install commits (PaneAttached{thread, handle}) and in `onExit` after deletion (PaneExited{thread, handle}). Called outside `c.mu` via a non-blocking buffered channel owned by the service; on overflow the service marks every thread "needs check" once (bounded, logged), never blocks the Console.
+- **Console hooks** — `Console.SubscribeMessageLifecycle(mailbox)`: under one `c.mu` hold it installs the subscriber and replays `PaneAttached{thread, handle}` for every live pane (the startup pane and the reattach pass attach *before* `startMessageService` runs — `couchcmd/run.go:570-576`). Afterwards pane install posts `PaneAttached` and `onExit` posts `PaneExited{thread, handle}`. The mailbox is a per-thread coalescing map (latest pane state per thread, bounded by the number of panes) plus a size-1 wake channel, so the Console never blocks and no fact is dropped.
 - **Service event loop** — one goroutine owns the Registry; sessions, Console hooks, admission results and retry timers all feed one channel, so ordering is the arrival order and every interleaving is reproducible by feeding events in tests. Admissions run on workers with concurrency ≤ 4 (broker-restart burst of N wrappers costs N checks, 4 at a time).
 - **Legacy wrappers** — a running wrapper from an older binary still sends `register` on the broker socket. The new broker answers `unsupported` with no probes; such slots become reachable after relaunch. (Operator decision point — see Open questions.)
 
@@ -87,7 +95,7 @@ Every check that survives names the user-visible failure it prevents and when it
 | Broker (Couch) crash/restart | wrappers see EOF, reconnect with backoff ≤5 s | fresh registry; each hello admitted once; in-flight receipts lost at broker, retained at wrapper |
 | Zellij crash | wrapper dies (EOF) and Couch pane child exits (hook) | both paths Disconnect; whichever arrives second is a no-op |
 | In-flight delivery during replacement | delivery already committed to the old wrapper | completes or ends Indeterminate there; never re-sent to the new one |
-| Sender retries an ID after broker restart | broker has no receipt | wrapper `RecentDeliveries` returns the retained receipt; no second paste |
+| Sender retries an ID after broker restart | broker has no receipt | exact target: that wrapper's `RecentDeliveries` returns the retained receipt; family target: before routing an ID it does not know, the broker asks every family candidate's `status(id)` and returns any retained receipt instead of dispatching. Residual uncertainty (a wrapper exec'd since, losing its ring) is documented; the CLI already tells senders not to retry |
 
 ### Operating envelope (ARCH-CONSTRAINTS)
 
@@ -105,7 +113,7 @@ Registry socket lives in the existing private 0700 per-uid dir. Hello bindings a
 ### Lifetimes (ARCH-FUNERAL)
 
 - Sessions/tokens: in memory; removed on EOF.
-- Broker actor tombstones (today never deleted, cap 128): a disconnected actor is deleted when a different binding registers for the same slot (state carried first) and lazily in `sweep()` once disconnected for longer than the receipt TTL (1 h).
+- Broker actor tombstones (today never deleted, cap 128): a disconnected actor is deleted when a different binding registers for the same slot (its receipts are kept; its allowance state is *not* carried — a new launch starts fresh, as today) and lazily in `sweep()` once disconnected for longer than the receipt TTL (1 h).
 - Wrapper `RecentDeliveries`: 64 entries, in-memory.
 - Measurement archive: a few KB of text in `workshop/plans/000365-message-lifecycle-measurements.md`, permanent, archived with the issue.
 
@@ -124,7 +132,7 @@ Registry socket lives in the existing private 0700 per-uid dir. Hello bindings a
 
 **Files:** Create `probes/messageidle/run.sh`, `probes/messageidle/SKILL.md`; reuse `probes/zellijcalls/` (extend its shim to also wrap `ps`, keyed by parent PID).
 
-- [ ] Script: given a Couch PID and a duration (default 120 s), arm shims, record per-command invocation counts whose ancestor is Couch, sample Couch CPU (`ps -o time= -p PID` start/end → CPU-seconds), record Zellij output bytes via the existing isolated query experiment config, disarm. Output a TSV + summary.
+- [ ] Script: given a Couch PID and a duration (default 120 s), arm shims, record per-command invocation counts whose ancestor is Couch, sample Couch CPU (`ps -o time= -p PID` start/end → CPU-seconds), run the same 10 s `/usr/bin/sample` recipe as the project-log profile (and print the `sudo spindump` command for the operator to run), record Zellij output bytes via the existing isolated query experiment config, disarm. Output a TSV + summary; the script itself is the archived reproducible command.
 - [ ] Run against the live Couch on current `main` build with the operator's usual slot count, idle 120 s. Record commands, slot count, counts and CPU-seconds in `workshop/plans/000365-message-lifecycle-measurements.md` under `## Before`.
 - [ ] Commit `#365 M1: live idle messaging baseline`.
 - [ ] `sdlc milestone-close --issue 365 --milestone M1`.
@@ -137,7 +145,10 @@ Registry socket lives in the existing private 0700 per-uid dir. Hello bindings a
 
 - [ ] Write tests first, each feeding events and asserting effects/state:
   - `TestRegistryHelloWithPaneAdmitsThenConnects`
-  - `TestRegistryHelloBeforePaneConnectsOnAttach` (attach race)
+  - `TestRegistryHelloBeforePaneConnectsOnAttach` (attach race; no `Admit`/retry before the pane)
+  - `TestRegistryAdmissionResultForReplacedPaneDiscarded` (attach h1 → Admit(h1) → exit h1 → attach h2 → late Done(h1) ignored, Admit(h2) issued)
+  - `TestRegistryDisplacementCannotResurrectOldBinding` (two sessions on slot S, both re-admission orders)
+  - `TestRegistryIdenticalBindingNewTokenDisconnectsThenConnects` (hello-before-old-EOF and EOF-before-hello)
   - `TestRegistryPaneExitDisconnectsButKeepsSession`; `TestRegistryReattachReadmitsOnce`
   - `TestRegistryStaleCloseDoesNotEraseNewerToken` (exec with identical binding, both orders of close vs hello)
   - `TestRegistryStalePaneExitIgnored` (exit for handle h1 after attach of h2)
@@ -169,7 +180,9 @@ Registry socket lives in the existing private 0700 per-uid dir. Hello bindings a
 - [ ] `messageEndpoint.Observe/Reserve/Deliver` use `cheapLive` = `thread` + `wrapperPID` + registry says connected; no `launch`.
 - [ ] Delete `messageVerificationWindow`, `verified`, `recentlyVerified`, `refresh`, `reconcile`, the reconcile ticker, background `ObserveResting`; legacy `register`/`operator-submit` ops answer `unsupported` without probes.
 - [ ] Caller checks for CLI requests (`send` etc.) use the registry's admitted binding for (scope, tag, session, nonce) + `cheapLive`.
-- [ ] Update/replace tests that asserted the window (`TestMessageHeartbeatSkipsFullCheckWithinWindow`, `TestMessageEndpointObserveReusesRecentCheckButReserveNever`, `TestMessageReconcileForgetsDeadBindings`) with registry-driven equivalents. Remove the skip from `TestMessageIdleMultiSlotRunsNoProbes`; run — PASS.
+- [ ] Update/replace tests that asserted the window (`TestMessageHeartbeatSkipsFullCheckWithinWindow`, `TestMessageEndpointObserveReusesRecentCheckButReserveNever`, `TestMessageReconcileForgetsDeadBindings`) with registry-driven equivalents. Rewrite `TestMessageIdleMultiSlotRunsNoProbes` to register through sessions (the heartbeat op it used is now `unsupported`), keeping its assertions; remove the skip; run — PASS.
+- [ ] Split `launch` into `launchRecorded` (ready file + session-name index reads, no process spawn; used by `cheapLive`) and the ownership probe (admission only). Test that `cheapLive` spawns nothing (counting `SessionOwnerIO` fake).
+- [ ] Remove `ObservationStaleAfter`/`RestingStaleAfter` freshness; `TestActorsIdleSessionStaysKnown` (60 s idle, admitted → Known).
 - [ ] Commit.
 
 ### Task 2.5: Console lifecycle hooks and listing sources
@@ -177,7 +190,8 @@ Registry socket lives in the existing private 0700 per-uid dir. Hello bindings a
 **Files:** Modify `couchtty/console.go` (install + `onExit`), `couchtty/console_messages.go`, `couchtty/console_slotgit.go` (read accessor), `couchmessage/broker.go` (listing resting source).
 
 - [ ] Tests: `TestConsoleEmitsPaneAttachedAfterInstall`, `TestConsoleEmitsPaneExitedAfterRemoval`, hook never blocks with a full channel; broker `--actors` resting branch comes from the injected slot-git reader (no git call — extend `broker_actors_test.go`'s counting probe).
-- [ ] Implement `SetMessageLifecycle`, `SlotGitStatus(root)`. Commit.
+- [ ] Also `TestConsoleSubscribeReplaysExistingPanes` (pane installed before subscribe) and `TestMessageLifecycleMailboxCoalescesWithoutLoss`.
+- [ ] Implement `SubscribeMessageLifecycle`, the mailbox, `SlotGitStatus(root)`. Commit.
 
 ### Task 2.6: Wrapper session client
 
@@ -207,6 +221,7 @@ Registry socket lives in the existing private 0700 per-uid dir. Hello bindings a
 **Files:** `couchmessage/recent.go` (+test), `wrapcmd/peer_delivery.go`, `couchmessage/broker.go` (map retained receipt to the sender's response).
 
 - [ ] Wrapper retains last 64 receipts; `reserve` of a retained ID answers `already-committed` with the receipt; broker records and returns it. Test both terminal and in-flight retained receipts.
+- [ ] Family send with an unknown ID first queries `status(id)` on every candidate; `TestFamilyRetryAfterBrokerRestartDispatchesNothing`.
 
 ### Task 3.3: Broker tombstone funeral
 
@@ -226,3 +241,7 @@ Registry socket lives in the existing private 0700 per-uid dir. Hello bindings a
 1. **Legacy wrappers** — refuse old `register` heartbeats (slots reachable only after relaunch), or keep a legacy path that still polls until every wrapper is new? Plan assumes refuse.
 2. **Detached slots** — keep #353's rule that a slot with no live Couch pane cannot receive (plan keeps it, now via pane events)?
 3. **Activity push** — acceptable to have wrappers push ≤1 small frame/s while their agent is producing output, to keep `--actors` quiet-time current without polling?
+
+## Revisions
+
+- 2026-10-01 — fresh-eyes plan review (pre-approval). Delta: Console subscription replays existing panes (startup pane attaches before the service starts); coalescing per-thread mailbox instead of a lossy channel with global fallback; admission results tagged by pane handle; Registry owns same-slot displacement; identical-binding re-registration forces Disconnect→Connect; `launch` split so file evidence stays at use and only the ownership probe moves to admission; listing freshness = open admitted session; family retry checks candidates' retained receipts; tombstone removal does not carry allowance; snapshot publication for request goroutines; M1 test rewritten (not just un-skipped) in M2; live profile recipe added to the measurement.
