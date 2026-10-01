@@ -244,3 +244,97 @@ dispose:
    - **ARCH-FUNERAL — pass:** bounded ephemeral receipts, joined workers, graceful socket removal, and dead-owner collection.
 
 7. **Plan revision recommendations:** None. The appended BR-4 revision supplies the requested final source mapping.
+
+---
+
+## Re-review — 2026-09-30T22:28:49-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 353 — Live cross-slot dispatch between couch slots |
+| repo | pair |
+| issue file | workshop/issues/000353-couch-cross-slot-dispatch.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 834078cedee432acecd4fac073e37768a171887d..db6a3ed04dfd04bca0131b2b8d84f65432197ad0 |
+| command | sdlc close --issue 353 |
+| reviewer | codex |
+| timestamp | 2026-09-30T22:28:49-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The implementation has strong delivery, lifecycle, and transport coverage, and the four prior findings remain addressed. One reproducible routing defect blocks shipping: excluding the sender before checking family ambiguity can dispatch work to a different repository sharing its name.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Shared automatic-input ownership spans paste/render/submit. Passing regressions exercise both writer arrival orders, cancellation, and fresh-empty-repaint release.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Derived frame bounds and passing real-socket tests cover escaped maximum bodies, bindings, receipts, and 128-actor discovery.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Startup cleanup has passing killed-process regressions and preserves live, uncertain, and replacement socket owners.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      The final plan revision explicitly supersedes Server/Client with Server/Call and names the implemented automaticInputTransaction location; the referenced symbols exist.
+findings:
+  - id: new
+    severity: Critical
+    family: routing-ambiguity-before-eligibility-filtering
+    title: |
+      Sender exclusion hides repository-family ambiguity
+    detail: |
+      cmd/internal/couchmessage/broker.go:435 removes the sender before ResolveRecipient checks repository identities. With sender pair:0 in repository A and recipient pair:1 in repository B, sending to pair succeeds into B instead of returning ErrAmbiguous. An isolated regression reproduces this against the pinned HEAD. Preserve all connected actors for ambiguity detection, then exclude the sender only from recipient eligibility. Add a broker regression asserting refusal without reservation or delivery. ARCH-PURPOSE, ARCH-SECURE.
+```
+
+1. **Strengths**
+
+   - Actor reducers centralize mailbox, allowance, and terminal-outcome transitions.
+   - Monotonic human-submission observations prevent duplicate notifications from replenishing spent allowance.
+   - Delivery commits once; subsequent polling verifies the exact envelope without replaying input.
+   - README and atlas cover the new commands, qualification limits, receipt semantics, and cleanup.
+
+2. **Critical findings**
+
+   - [broker.go:435](/Users/xianxu/workspace/worktree/pair-slot2/pair/cmd/internal/couchmessage/broker.go:435): check ambiguity against the complete connected inventory before applying sender exclusion. The scratch regression returned `recipient=pair:1 repo=/other/.git err=<nil>` where `ErrAmbiguous` was required.
+
+3. **Important findings**
+
+   None.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   All five affected packages passed: `couchmessage`, `couchcmd`, `couchtty`, `wrapcmd`, and `launcher`. The full `couchmessage` race suite and focused automatic-input/peer race tests also passed.
+
+   The added scratch-overlay routing regression fails against HEAD; repository files remain unchanged. Live harness conformance was not rerun. Whitespace checking passes excluding raw terminal captures, whose preserved bytes trigger trailing-whitespace diagnostics.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared identity parsing, composer recognition, and automatic-input ownership.
+   - **ARCH-PURE — pass:** routing, validation, and delivery transitions have deterministic cores.
+   - **ARCH-PURPOSE — flag:** ambiguous family addressing does not consistently refuse.
+   - **ARCH-MOCK — pass:** stateful endpoints, real isolated sockets, and captured harness fixtures exercise production seams.
+   - **ARCH-CONSTRAINTS — pass:** admission, delivery, handler, receipt, and wire bounds are explicit and tested.
+   - **ARCH-SECURE — flag:** sender eligibility filtering can conceal conflicting repository identity.
+   - **ARCH-ORDER — pass:** inspected paths preserve uncertain outcomes and reject late automatic submission.
+   - **ARCH-FUNERAL — pass:** runtime sockets have crash cleanup; receipts and actor tombstones have bounded owner lifetimes.
+
+7. **Plan revision recommendation**
+
+   Append a dated `## Revisions` entry establishing the invariant: family ambiguity uses every connected actor; sender exclusion affects selection only. Record the broker-level regression proving refusal before any delivery effect.

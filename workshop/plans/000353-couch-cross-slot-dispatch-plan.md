@@ -504,3 +504,9 @@ inventories remain historical where the amendments superseded their semantics.
   alongside the admission mutex in `wrap.go`. `peerDelivery` owns the input
   adapter in `peer_delivery.go`; registration is in `peer_runtime.go`.
   These are source-map corrections, with no runtime change.
+
+- 2026-09-30: integration review BR-5 requires family ambiguity checks to use
+  all connected actors. Excluding the sender affects only recipient eligibility,
+  not repository identity evidence. A broker regression reproduces cross-repo
+  misrouting and asserts refusal before any reservation or delivery; same-repo
+  routing and sender-only no-recipient behavior remain covered (ARCH-PURPOSE).

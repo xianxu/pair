@@ -74,6 +74,35 @@ rounds:
           round: 3
       recipe: milestone-review
       blocked: false
+    - "n": 4
+      timestamp: "2026-09-30T22:28:49-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Shared automatic-input ownership spans paste/render/submit. Passing regressions exercise both writer arrival orders, cancellation, and fresh-empty-repaint release.
+          round: 4
+        - id: BR-2
+          disposition: addressed
+          note: Derived frame bounds and passing real-socket tests cover escaped maximum bodies, bindings, receipts, and 128-actor discovery.
+          round: 4
+        - id: BR-3
+          disposition: addressed
+          note: Startup cleanup has passing killed-process regressions and preserves live, uncertain, and replacement socket owners.
+          round: 4
+        - id: BR-4
+          disposition: addressed
+          note: The final plan revision explicitly supersedes Server/Client with Server/Call and names the implemented automaticInputTransaction location; the referenced symbols exist.
+          round: 4
+      findings:
+        - id: BR-5
+          severity: Critical
+          title: Sender exclusion hides repository-family ambiguity
+          detail: cmd/internal/couchmessage/broker.go:435 removes the sender before ResolveRecipient checks repository identities. With sender pair:0 in repository A and recipient pair:1 in repository B, sending to pair succeeds into B instead of returning ErrAmbiguous. An isolated regression reproduces this against the pinned HEAD. Preserve all connected actors for ambiguity detection, then exclude the sender only from recipient eligibility. Add a broker regression asserting refusal without reservation or delivery. ARCH-PURPOSE, ARCH-SECURE.
+          family: routing-ambiguity-before-eligibility-filtering
+          round: 4
+      recipe: milestone-review
+      blocked: true
 ---
 
 # Gate ledger — pair#353 (boundary-review)
@@ -114,6 +143,20 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-2 — addressed — Passing socket regressions exercise maximum escaped message bodies, endpoint commits, receipts, and complete 128-actor responses against derived frame bounds.
 - BR-3 — addressed — Startup collection removes proven-dead socket owners while preserving live or uncertain owners and replacement inodes; crash-cleanup regressions pass.
 
+## Round 4 — 2026-09-30T22:28:49-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Shared automatic-input ownership spans paste/render/submit. Passing regressions exercise both writer arrival orders, cancellation, and fresh-empty-repaint release.
+- BR-2 — addressed — Derived frame bounds and passing real-socket tests cover escaped maximum bodies, bindings, receipts, and 128-actor discovery.
+- BR-3 — addressed — Startup cleanup has passing killed-process regressions and preserves live, uncertain, and replacement socket owners.
+- BR-4 — addressed — The final plan revision explicitly supersedes Server/Client with Server/Call and names the implemented automaticInputTransaction location; the referenced symbols exist.
+
+### Raised
+
+- **BR-5** [Critical] `routing-ambiguity-before-eligibility-filtering` Sender exclusion hides repository-family ambiguity
+  cmd/internal/couchmessage/broker.go:435 removes the sender before ResolveRecipient checks repository identities. With sender pair:0 in repository A and recipient pair:1 in repository B, sending to pair succeeds into B instead of returning ErrAmbiguous. An isolated regression reproduces this against the pinned HEAD. Preserve all connected actors for ambiguity detection, then exclude the sender only from recipient eligibility. Add a broker regression asserting refusal without reservation or delivery. ARCH-PURPOSE, ARCH-SECURE.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-5** [Critical] `routing-ambiguity-before-eligibility-filtering` Sender exclusion hides repository-family ambiguity

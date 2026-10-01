@@ -432,7 +432,7 @@ func (b *Broker) admit(ctx context.Context, from Binding, id, target, body strin
 		}
 		var candidates []Candidate
 		for binding, a := range b.actors {
-			if !a.state.Connected() || (family && binding == from) {
+			if !a.state.Connected() {
 				continue
 			}
 			c := actorCandidate(a)
@@ -441,7 +441,9 @@ func (b *Broker) admit(ctx context.Context, from Binding, id, target, body strin
 			c.Remaining = InboundAllowance
 			c.Known = true
 			c.Resting = true
-			if tried[binding] {
+			// Keep the sender in family identity checks, but never select it.
+			// As with tried candidates, it is ineligible for a fresh observation.
+			if tried[binding] || (family && binding == from) {
 				c.Known = false
 			}
 			candidates = append(candidates, c)
