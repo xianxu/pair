@@ -79,3 +79,9 @@ is distinct from #370's agent-wrapper CPU work: the symptom affects sibling pane
 Spec review identified two validity requirements, now in Plan: independently
 observe child receipt versus displayed output, and predefine the intervention,
 latency criterion, repetitions and recovery bounds before running trials.
+
+Spec re-review accepted those changes. Preliminary controls pass: publication
+queue bounds/cancellation tests and the existing real-PTY Couch soak (eight
+iterations, maximum input-visible latency 1.79ms). The live host measures
+191 columns by 54 rows; use that geometry for the pressure trials so a small
+fixture cannot hide whole-screen processing costs. Go version: 1.27.1 darwin/arm64.
