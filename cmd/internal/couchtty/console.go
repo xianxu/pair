@@ -12,6 +12,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchkeys"
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
@@ -49,6 +50,7 @@ type pane struct {
 // transitions as it drives hostty.Host. It never calls x/term or os/signal
 // directly, which keeps resize and teardown testable without a terminal.
 type Console struct {
+	messageBroker    *couchmessage.Broker
 	host             hostty.Host
 	stdin            io.Reader
 	stderr           io.Writer

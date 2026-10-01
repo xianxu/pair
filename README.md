@@ -382,7 +382,48 @@ couch --layout3          threads also get pair's right-hand terminal (the defaul
 couch --list             every durable work thread across all repositories
 couch --show <ref>       one current-repository thread by tag, path, or name
 couch --archived         threads removed from couch, with their records kept
+couch --actors [--json]  live peer-message receivers in this Couch namespace
+couch --send-to repo:N --message TEXT   send to an exact live slot
+couch --send-to repo --message TEXT     select an eligible slot in that family
+couch --message-status ID [--json]      inspect a message receipt
+couch --skill            print the bundled agent coordination skill
 ```
+
+Peer messages connect existing live Couch slots, including `:0`. Family sends
+require a resting branch, 30 seconds without operator input or agent output,
+and delivery capacity. Exact sends can clarify work in an occupied slot. Pair
+inserts input only at a qualified empty agent composer; existing composer text,
+images, menus and unknown states prevent automatic submission. Unchanged text
+in the separate draft pane does not block delivery. Qualified versions are
+Claude Code 2.1.286 and Codex CLI 0.159.2; other versions
+remain manual until their fixture and live checks pass. Short messages submit
+automatically. A collapsed paste summary cannot prove the complete message, so
+that attempt expires without submission and leaves the text for inspection.
+Prefer short coordination messages pointing to repository artifacts. Human
+Couch acceptance is separate from these receiver checks.
+
+Admission prints a receipt ID and resolved destination immediately. `queued`
+means a mailbox reservation; `submitted` means bytes submitted, not completed
+work. No eligible family slot returns `not-dispatched` with exit status zero.
+Other refusals return nonzero. If a send times out, query the printed ID with
+`--message-status` and inspect the recipient before sending again. Couch never
+retries uncertain input or keeps a durable message queue across restart.
+
+For agent setup, run `couch --skill` in an existing conversation and have the
+agent read the output. For discovery in future sessions, save the output as
+`couch/SKILL.md` under that agent's configured skill directory. This is an
+explicit setup step; Couch does not modify agent configuration. The shipped
+skill covers receipt verification, correlated follow-ups, the eight-message
+inbound allowance, and repository work/acceptance boundaries.
+
+To accept the feature, use two freshly launched, qualified Pair sessions in an
+isolated Couch namespace: load the skill, inspect `--actors`, send a harmless
+message, verify its receipt, and send one useful answer back. Repeat while a
+draft, image, or picker is pending and verify the existing input stays intact.
+Then dispatch a real authorized independent issue and inspect its repository
+claim. Human acceptance of completed work remains required; runtime quietness
+does not discharge that obligation. Keep work in repository artifacts rather
+than relying on the message transcript.
 
 The layout belongs to the couch **process**, not to individual threads: every
 thread it starts or revives uses it. couch will not mix the two: it

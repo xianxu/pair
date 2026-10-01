@@ -71,3 +71,39 @@ func FuzzParseCLIIsClosed(f *testing.F) {
 		}
 	})
 }
+
+func TestParseMessageCLI(t *testing.T) {
+	for _, tc := range []struct {
+		args          []string
+		kind          cliKind
+		op, ref, body string
+		json          bool
+	}{
+		{args: []string{"--actors"}, kind: cliMessage, op: "actors"},
+		{args: []string{"--actors", "--json"}, kind: cliMessage, op: "actors", json: true},
+		{args: []string{"--message-status", "id", "--json"}, kind: cliMessage, op: "status", ref: "id", json: true},
+		{args: []string{"--send-to", "pair:1", "--message", "hello"}, kind: cliMessage, op: "send", ref: "pair:1", body: "hello"},
+		{args: []string{"--send-to", "pair", "--message", "--layout2"}, kind: cliMessage, op: "send", ref: "pair", body: "--layout2"},
+		{args: []string{"--send-to", "pair", "--message", "--actors\n--layout3"}, kind: cliMessage, op: "send", ref: "pair", body: "--actors\n--layout3"},
+		{args: []string{"--skill"}, kind: cliSkill},
+	} {
+		got, err := ParseCLI(tc.args, couchcore.Operations())
+		if err != nil || got.kind != tc.kind || got.messageOp != tc.op || got.ref != tc.ref || got.messageBody != tc.body || got.jsonOutput != tc.json {
+			t.Errorf("%q: %#v %v", tc.args, got, err)
+		}
+	}
+}
+
+func TestParseMessageCLIRejectsMixedShapes(t *testing.T) {
+	for _, args := range [][]string{
+		{"--actors", "--json", "--json"}, {"--actors", "--send-to", "pair"}, {"--actors", "--layout2"},
+		{"--layout2", "--actors"}, {"--message-status"}, {"--message-status", "id", "--send-to", "pair"},
+		{"--send-to", "pair"}, {"--send-to", "pair", "--message", ""}, {"--send-to", "", "--message", "hello"},
+		{"--send-to", "pair", "--message", "hello", "--json"}, {"--send-to", "pair", "--message", "hello", "--layout2"},
+		{"--skill", "--json"}, {"--skill", "--layout2"}, {"--available", "on"}, {"--reply-to", "id", "--message", "hello"},
+	} {
+		if got, err := ParseCLI(args, couchcore.Operations()); err == nil || got.kind != cliInvalid {
+			t.Errorf("accepted %q: %#v %v", args, got, err)
+		}
+	}
+}

@@ -91,6 +91,16 @@ func orientationEscape(data []byte) (int, ansi.Status) {
 	return ansi.Frame(data)
 }
 func (t *orientationReplies) operatorData(data []byte) bool {
+	return t.operatorDataWithFocus(data, false)
+}
+
+// Focus reports do not edit a composer. Peer ownership ignores them while
+// orientation retains its existing conservative input-interruption policy.
+func (t *orientationReplies) operatorDataWithoutFocus(data []byte) bool {
+	return t.operatorDataWithFocus(data, true)
+}
+
+func (t *orientationReplies) operatorDataWithFocus(data []byte, ignoreFocus bool) bool {
 	t.input = append(t.input, data...)
 	for len(t.input) > 0 {
 		if t.input[0] != 0x1b {
@@ -109,7 +119,12 @@ func (t *orientationReplies) operatorData(data []byte) bool {
 			t.input = nil
 			return true
 		}
-		key := orientationReplyKind(string(t.input[:n]))
+		frame := string(t.input[:n])
+		if ignoreFocus && (frame == "\x1b[I" || frame == "\x1b[O") {
+			t.input = t.input[n:]
+			continue
+		}
+		key := orientationReplyKind(frame)
 		if key == "" || t.queries[key] == 0 {
 			t.input = nil
 			return true

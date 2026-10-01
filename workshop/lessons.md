@@ -87,6 +87,8 @@ representative evidence, not an exhaustive index.
 - Name the owner of every goroutine, timer, lock, callback, and critical section.
   On cancellation or panic, release it, join it, and restore the visible state.
   Comments are not a lifecycle mechanism. (#209, #239)
+- Enforce an automatic-input deadline after paste as well as before it; a late
+  matching render must never revive an expired submit. (#353 design review)
 - A timeout bounds a phase only when a live owner enforces it. If the owner can
   die, make the deadline observable and recoverable without that owner. (#250,
   #280)
@@ -116,6 +118,9 @@ representative evidence, not an exhaustive index.
 - Reconcile active plan entity tables and task file lists with delivered code;
   appending a revision alone leaves the active mappings false. (#305)
 
+- Correlation IDs identify records; they do not authenticate accompanying text.
+  Resolve the canonical payload and recipient before acting on relayed content.
+  (#353 design review)
 - Treat a command, escape sequence, JSON record, sidecar, and persisted row as a
   closed grammar. Test unknown complete controls, prefixes, missing fields,
   empty fields, malformed records, conflicting evidence, and exact boundaries.
@@ -356,4 +361,36 @@ proof; record the surprising case so the next change starts from evidence.
 
 - Tracker close bindings name exact commit IDs. Rebasing a closed branch can leave its card pointing to unreachable review/evidence commits even when every patch is unchanged; preserve close ancestry when integrating main. Read current status through SDLC, since details on main retain stale card mirrors until branch publication. (#358)
 
+- An empty terminal snapshot can predate operator input, and whitespace drafts
+  can look empty even after repaint. Automatic input needs ownership evidence
+  at input admission, retained until genuine submission, then a fresh-render
+  fence. A visual empty check alone is insufficient. (#353 integration review)
+
+- Terminal focus notifications do not create human drafts, and a menu-confirming
+  Enter is not a model submission. Distinguish both before assigning persistent
+  input ownership or replenishing a peer-message allowance. (#353)
+
+- For terminal-delivery failures, retain the guard that blocked progress in the
+  expiry receipt; a generic timeout cannot distinguish layout recognition from
+  input bookkeeping. The final #353 contract supersedes persistent human-draft
+  ownership above: inspect current composer state after input settles, protect
+  incomplete input, and poll only while delivery is pending.
+
+- A mutex around automatic input callbacks does not own the composer between
+  paste and submission. Share a transaction lease across all automatic writers,
+  test both arrival orders, and require a fresh empty repaint before releasing
+  abandoned or submitted input to the next writer. (#353 BR-1)
+- Derive transport limits from encoded worst-case domain bounds, including JSON
+  escaping and aggregate discovery responses; test every request/response family
+  at its limits through actual sockets. (#353 BR-2)
+- Incarnation-specific runtime handles need dead-owner collection after crashes,
+  not only graceful teardown. Preserve unknown/live owners and replacement inodes
+  in tests, and make fixtures name the actual listener process. (#353 BR-3)
+- Before close, reconcile proposed entity names and file paths with implemented
+  symbols, including stateless functions that replaced planned objects. Record
+  the final mapping as an explicit plan revision. (#353 BR-4)
 - When acceptance promises a fallback “or none,” exercise both populated and empty fallback states through the public command and assert stored as well as displayed values. (#357 BR-3)
+
+- Validate family identity against the full inventory before eligibility filters;
+  excluding the caller or a busy candidate must not hide an ambiguous repository.
+  Test the broker effects, not only the pure resolver. (#353 BR-5)

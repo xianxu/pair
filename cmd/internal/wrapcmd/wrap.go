@@ -194,8 +194,13 @@ var (
 // loop don't need locking; the few touched from signal goroutines (capture
 // window, notify-mode flags) are guarded explicitly.
 type proxy struct {
-	notificationBroker *notifytransport.Broker
-	orientation        *orientationDelivery
+	inputAdmission       sync.Mutex
+	automaticInput       automaticInputTransaction
+	automaticRenderEpoch atomic.Uint64
+	peer                 *peerDelivery
+	peerHumanSubmit      bool // owned by the stdin writer; consumed after a full write
+	notificationBroker   *notifytransport.Broker
+	orientation          *orientationDelivery
 	// Real stdio, injected by Run so the proxy is testable without touching
 	// the process globals. In production stdin/stdout ARE os.Stdin/os.Stdout,
 	// so stdinFile/stdoutFile (the *os.File view needed for raw-mode, winsize
@@ -1231,6 +1236,9 @@ func bytesEqual(a, b []byte) bool {
 // repeated signals into a single window by extending the deadline.
 // Clears any stale .done sentinel so nvim doesn't read a previous result.
 func (p *proxy) armCapture() {
+	if p.peer != nil {
+		p.peer.admitImage()
+	}
 	if p.captureOutPath == "" {
 		return
 	}
@@ -1435,8 +1443,9 @@ func (p *proxy) translateStdin() {
 // thin wrapper above.
 func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter time.Duration) {
 	type readEv struct {
-		data []byte
-		err  error
+		data  []byte
+		err   error
+		human bool
 	}
 	ch := make(chan readEv, 4)
 	go func() {
@@ -1444,12 +1453,18 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 		for {
 			n, err := stdin.Read(buf)
 			if n > 0 {
+				human := false
+				p.inputAdmission.Lock()
+				if p.peer != nil {
+					human = p.peer.admitInput(buf[:n])
+				}
 				if p.orientation != nil {
 					p.orientation.admitOperatorInput(buf[:n])
 				}
+				p.inputAdmission.Unlock()
 				cp := make([]byte, n)
 				copy(cp, buf[:n])
-				ch <- readEv{data: cp}
+				ch <- readEv{data: cp, human: human}
 			}
 			if err != nil {
 				ch <- readEv{err: err}
@@ -1461,6 +1476,13 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 
 	var pending []byte
 	inPaste := false
+	var peerWake <-chan struct{}
+	var peerPoll peerDeliveryPoll
+	defer peerPoll.stop()
+	if p.peer != nil {
+		peerWake = p.peer.wake
+		defer func() { p.peer.mu.Lock(); p.peer.exited = true; p.peer.mu.Unlock(); p.dispatchPeer(out) }()
+	}
 	var orientationWake <-chan struct{}
 	var orientationDeadline <-chan time.Time
 	var deadlineTimer *time.Timer
@@ -1522,6 +1544,13 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 			"mode":             "pending-flush",
 		})
 		pending = nil
+		if p.peer != nil {
+			p.peer.mu.Lock()
+			p.peer.inputBuffered = inPaste
+			p.peer.lastInput = p.peer.now()
+			p.peer.mu.Unlock()
+			p.peer.signal()
+		}
 		disarmTimer()
 	}
 
@@ -1529,6 +1558,7 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 	// priority must not discard the consumed deadline (BR-1, ARCH-ORDER).
 	settleDue := false
 	for {
+		peerTick := peerPoll.update(p.peer)
 		var ev readEv
 		var ok bool
 		if settleDue {
@@ -1542,6 +1572,12 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 			continue
 		}
 		select {
+		case <-peerWake:
+			p.dispatchPeer(out)
+			continue
+		case <-peerTick:
+			p.dispatchPeer(out)
+			continue
 		case <-orientationWake:
 			// An admitted operator chunk wins over a composer observation.
 			select {
@@ -1604,6 +1640,7 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 				segment = before
 			}
 			var outBytes, leftover []byte
+			p.peerHumanSubmit = false
 			if p.hasReturnRemap() {
 				outBytes, leftover, inPaste = p.translateChunk(segment, inPaste)
 			} else {
@@ -1620,6 +1657,9 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 			}
 			if len(outBytes) > 0 {
 				wn, werr := out.Write(outBytes)
+				if p.peer != nil && p.peerHumanSubmit && werr == nil && wn == len(outBytes) {
+					p.peer.humanSubmit()
+				}
 				p.traceWrap("stdin-write-pty", map[string]any{
 					"write_len":        wn,
 					"translated_len":   len(outBytes),
@@ -1649,6 +1689,9 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 			data = rest
 		}
 		orientationPending := false
+		if p.peer != nil {
+			p.peer.inputForwarded(ev.human, len(pending) > 0 || inPaste)
+		}
 		if p.orientation != nil {
 			orientationPending = p.orientation.inputForwarded()
 		}
@@ -2120,6 +2163,7 @@ func (p *proxy) translateChunk(data []byte, inPaste bool) ([]byte, []byte, bool)
 			}
 			// KKP Alt+Enter: \x1b[13;3u → send.
 			if startsWith(data[i:], enterKKPAlt) {
+				p.peerHumanSubmit = p.peerHumanSubmit || p.peerComposerSubmission()
 				out = append(out, p.ttyProfile.keymap.altCR...)
 				p.publishLifecycleObservation(TurnObservation{Kind: ObservationUserSubmission})
 				i += len(enterKKPAlt)
@@ -2139,6 +2183,7 @@ func (p *proxy) translateChunk(data []byte, inPaste bool) ([]byte, []byte, bool)
 			}
 			// Legacy Alt+Enter: \x1b\r.
 			if startsWith(data[i:], enterLegacyAlt) {
+				p.peerHumanSubmit = p.peerHumanSubmit || p.peerComposerSubmission()
 				out = append(out, p.ttyProfile.keymap.altCR...)
 				p.publishLifecycleObservation(TurnObservation{Kind: ObservationUserSubmission})
 				i += len(enterLegacyAlt)
@@ -2783,6 +2828,11 @@ argsDone:
 		}
 	}
 	maintenance, readyErr := gcruntime.StartAfterReady(context.Background(), os.Getenv("PAIR_DATA_DIR"), func() error { return p.publishAgentReady(cmd.Process.Pid) })
+	if peerRuntime, peerErr := p.startPeerRuntime(argv[0]); peerErr != nil {
+		p.debug("PEER-start-fail", peerErr.Error())
+	} else if peerRuntime != nil {
+		defer peerRuntime.Close()
+	}
 	if readyErr != nil {
 		p.debug("AGENT-READY-write-fail", readyErr.Error())
 	}
@@ -2951,6 +3001,9 @@ func (p *proxy) masterPump() {
 		for {
 			n, err := p.ptmx.Read(buf)
 			if n > 0 {
+				if p.peer != nil {
+					p.peer.observeOutput(buf[:n])
+				}
 				cp := make([]byte, n)
 				copy(cp, buf[:n])
 				select {
@@ -3016,6 +3069,10 @@ func (p *proxy) masterPump() {
 		p.flushStdout("eof")
 	}()
 	var brokerMessages <-chan string
+	var peerNotices <-chan string
+	if p.peer != nil {
+		peerNotices = p.peer.notices
+	}
 	var brokerDiagnostics <-chan error
 	if p.notificationBroker != nil {
 		brokerMessages = p.notificationBroker.Messages()
@@ -3039,6 +3096,8 @@ func (p *proxy) masterPump() {
 				p.debug("NOTIFY-broker", "message channel closed")
 				continue
 			}
+			p.emitNotification(message)
+		case message := <-peerNotices:
 			p.emitNotification(message)
 		case err, ok := <-brokerDiagnostics:
 			if !ok {
@@ -3121,6 +3180,9 @@ func (p *proxy) masterPump() {
 // Each step is wrapped so a single failure can't take down the proxy —
 // matches the Python's try/except pattern.
 func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
+	if p.peer != nil {
+		defer p.peer.outputForwarded()
+	}
 	if p.orientation != nil {
 		p.orientation.mu.Lock()
 		p.orientation.replies.observeQueries(data)
