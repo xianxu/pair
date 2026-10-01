@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000372-couch-focus-view-inline-pair-slug.md
         source_blob: 9b86e6d68d71833a494807031c446b6ecee36737
         destination: workshop/issues/000372-couch-focus-view-inline-pair-slug.md
+        main_commit: 23f311fb48d5a3bc9e5909a05669c2d9d241bbe0
 ---
 
 # couch focus view: show pair-slug inline
