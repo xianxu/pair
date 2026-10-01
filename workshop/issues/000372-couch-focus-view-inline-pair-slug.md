@@ -6,10 +6,10 @@ github_issue:
 created: 2026-10-01
 updated: 2026-10-01
 estimate_hours:
-card_mirror: '24019c04c2f5a83618c7145be04cbec009848e7e' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'ca5c7f5b71cf33d59f0e61c21709afc528ffb2aa' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-01T15:09:24-07:00
 flow: {kind: full, provenance: inferred}
-actual_hours: 0.85
+actual_hours: 0.88
 ---
 
 # couch focus view: show pair-slug inline
