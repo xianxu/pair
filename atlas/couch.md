@@ -92,9 +92,12 @@ then accepts one delivery commit. The broker polls outcome receipts; it never
 retries PTY input after uncertainty. Pair's input owner arbitrates ordinary
 typing, image admission and automatic paste/submit. Unknown or occupied
 composers wait within the delivery deadline. Interference cancels automatic
-submission and leaves visible text for inspection. Initial Claude/Codex
-profiles require fixture and live qualification; live smoke and human
-acceptance remain separate evidence, not a claim made by this map.
+submission and leaves visible text for inspection. Qualified versions are
+Claude Code 2.1.286 and Codex CLI 0.159.2, backed by fixtures under
+`wrapcmd/testdata/peer/` and `TestPeerLiveConformance`. Short-message submission
+has live evidence for both; deterministic wrapping is matched conservatively.
+Collapsed paste summaries remain unsubmitted and expire. Human Couch acceptance
+remains a separate step.
 
 Key files: `couchmessage/{model,routing,broker,transport,protocol,endpoint}.go`,
 `couchcmd/{messages,skill}.go`, and the wrapper delivery adapter. The canonical

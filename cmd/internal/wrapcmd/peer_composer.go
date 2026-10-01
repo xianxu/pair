@@ -4,6 +4,7 @@ import (
 	uv "github.com/charmbracelet/ultraviolet"
 	ansi "github.com/charmbracelet/x/ansi"
 	"strings"
+	"unicode"
 )
 
 type PeerComposerState uint8
@@ -38,7 +39,7 @@ func peerComposerText(agent string, s terminalSnapshot) (string, bool) {
 			return "", false
 		}
 	case "codex":
-		if card, pending := codexOrientationStartupStatus(s); card && pending {
+		if card, pending := codexOrientationStartupStatus(s); card && pending && !peerCodexModernStartup(s) {
 			return "", false
 		}
 		if !codexComposerActive(s) {
@@ -97,11 +98,21 @@ func peerComposerText(agent string, s terminalSnapshot) (string, bool) {
 	return text, true
 }
 
-// Only literal captured ghost signatures qualify. Different suggestions remain
-// occupied until backed by a fixture; faint arbitrary text is not a placeholder.
+// Claude's captured ghost wording rotates. Its invariant is a single quoted
+// Try suggestion in faint styling, at the empty input origin of the ruled box.
+// The wrapper separately retains human draft ownership even if text looks blank.
 func peerPlaceholder(agent string, s terminalSnapshot, row int, text string) bool {
-	expected := map[string]string{"claude": `Try "refactor Makefile.local"`, "codex": "Ask Codex to do anything"}[agent]
-	if text != expected || s.Cursor.X != 2 || s.Cursor.Y != row {
+	expected := false
+	switch agent {
+	case "codex":
+		expected = text == "Ask Codex to do anything"
+	case "claude":
+		if strings.HasPrefix(text, `Try "`) && strings.HasSuffix(text, `"`) && len(text) > 6 {
+			hint := text[5 : len(text)-1]
+			expected = !strings.ContainsAny(hint, "\"\r\n") && strings.TrimSpace(hint) != ""
+		}
+	}
+	if !expected || s.Cursor.X != 2 || s.Cursor.Y != row {
 		return false
 	}
 	for x := 2; x < s.Width; x++ {
@@ -129,7 +140,7 @@ func peerCodexFooter(s terminalSnapshot, row int) bool {
 		}
 	}
 	line := strings.TrimSpace(b.String())
-	if !strings.HasPrefix(line, "gpt-") || !strings.Contains(line, " · ") {
+	if !strings.HasPrefix(strings.ToLower(line), "gpt-") || !strings.Contains(line, " · ") {
 		return false
 	}
 	for y := row + 1; y < s.Height; y++ {
@@ -140,9 +151,10 @@ func peerCodexFooter(s terminalSnapshot, row int) bool {
 	return true
 }
 
-// peerComposerMatches accounts only for hard wrapping at the known composer
-// width. It never collapses whitespace or accepts a summarized paste marker.
-// Layouts that wrap differently remain pending until the delivery deadline.
+// peerComposerMatches projects the known composer width without collapsing
+// arbitrary whitespace or accepting a summarized paste marker. Captured harness
+// word wrapping additionally permits a single separating space to become a line
+// break. Ambiguous whitespace and other layouts remain unsupported.
 func peerComposerMatches(agent string, s terminalSnapshot, expected string) bool {
 	actual, ok := peerComposerText(agent, s)
 	if !ok || expected == "" {
@@ -154,6 +166,13 @@ func peerComposerMatches(agent string, s terminalSnapshot, expected string) bool
 	width := s.Width - 2
 	if width < 1 {
 		return false
+	}
+	wordWidth := width
+	if agent == "claude" {
+		wordWidth = s.Width - 4
+	}
+	if (agent == "codex" || agent == "claude") && wordWidth > 0 && peerWordwrapSafe(expected) && actual == ansi.Wordwrap(expected, wordWidth, "") {
+		return true
 	}
 	var b strings.Builder
 	column := 0
@@ -180,4 +199,48 @@ func peerComposerMatches(agent string, s terminalSnapshot, expected string) bool
 		expected = expected[len(cluster):]
 	}
 	return actual == b.String()
+}
+
+// Newer Codex paints a bare startup title and working path instead of the old
+// boxed model/directory fields. A resolved model footer remains mandatory;
+// merely seeing a prompt while startup is loading does not authorize input.
+func peerCodexModernStartup(s terminalSnapshot) bool {
+	title, path := false, false
+	for y := 0; y < s.Cursor.Y; y++ {
+		line := strings.TrimSpace(orientationRowText(s, y))
+		if strings.HasPrefix(line, ">_ OpenAI Codex (v") {
+			title = true
+			continue
+		}
+		if title && line != "" {
+			path = strings.HasPrefix(line, "/") || strings.HasPrefix(line, "~/")
+			break
+		}
+	}
+	if !title || !path {
+		return false
+	}
+	for y := s.Cursor.Y + 1; y < s.Height; y++ {
+		if peerCodexFooter(s, y) {
+			return true
+		}
+	}
+	return false
+}
+
+// Word wrapping hides boundary spaces. Only a single ordinary inter-word space
+// is eligible; indentation, trailing spaces, tabs and repeated whitespace must
+// instead match literally, so projecting them cannot erase semantic content.
+func peerWordwrapSafe(text string) bool {
+	for _, line := range strings.Split(text, "\n") {
+		if strings.TrimSpace(line) != line || strings.Contains(line, "  ") {
+			return false
+		}
+		for _, r := range line {
+			if unicode.IsSpace(r) && r != ' ' {
+				return false
+			}
+		}
+	}
+	return true
 }

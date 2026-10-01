@@ -2153,7 +2153,7 @@ func (p *proxy) translateChunk(data []byte, inPaste bool) ([]byte, []byte, bool)
 			}
 			// KKP Alt+Enter: \x1b[13;3u → send.
 			if startsWith(data[i:], enterKKPAlt) {
-				p.peerHumanSubmit = true
+				p.peerHumanSubmit = p.peerHumanSubmit || p.peerComposerSubmission()
 				out = append(out, p.ttyProfile.keymap.altCR...)
 				p.publishLifecycleObservation(TurnObservation{Kind: ObservationUserSubmission})
 				i += len(enterKKPAlt)
@@ -2173,7 +2173,7 @@ func (p *proxy) translateChunk(data []byte, inPaste bool) ([]byte, []byte, bool)
 			}
 			// Legacy Alt+Enter: \x1b\r.
 			if startsWith(data[i:], enterLegacyAlt) {
-				p.peerHumanSubmit = true
+				p.peerHumanSubmit = p.peerHumanSubmit || p.peerComposerSubmission()
 				out = append(out, p.ttyProfile.keymap.altCR...)
 				p.publishLifecycleObservation(TurnObservation{Kind: ObservationUserSubmission})
 				i += len(enterLegacyAlt)

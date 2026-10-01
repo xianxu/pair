@@ -23,6 +23,7 @@ type peerDelivery struct {
 	sequence         uint64
 	outputSequence   uint64
 	submitSequence   uint64
+	submissions      uint64
 	pasteSequence    uint64
 	outputPending    int
 	reservation      string
@@ -70,7 +71,7 @@ func (d *peerDelivery) admitInput(data []byte) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.replies.inFlight++
-	if d.replies.operatorData(data) {
+	if d.replies.operatorDataWithoutFocus(data) {
 		d.operatorDraft = true
 		d.sequence++
 		d.lastActivity = d.now()
@@ -98,6 +99,7 @@ func (d *peerDelivery) humanSubmit() {
 	d.operatorDraft = false
 	d.sequence++
 	d.submitSequence = d.sequence
+	d.submissions++
 	d.lastActivity = d.now()
 	d.mu.Unlock()
 	select {
@@ -143,6 +145,14 @@ func (d *peerDelivery) receipt() couchmessage.Receipt {
 }
 func peerEnvelope(m couchmessage.Message) string {
 	return fmt.Sprintf("[Couch peer from %s; delivery %s]\n%s", m.From.Slot, m.ID, m.Body)
+}
+
+func (p *proxy) peerComposerSubmission() bool {
+	if p.peer == nil || p.terminal == nil || p.pickerActive.Load() {
+		return false
+	}
+	_, known := peerComposerText(p.agentBasename, p.terminal.Snapshot())
+	return known
 }
 
 // dispatchPeer is called only by the existing PTY input writer. It checks the

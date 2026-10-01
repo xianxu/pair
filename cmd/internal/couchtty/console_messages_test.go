@@ -15,7 +15,7 @@ import (
 func messageBinding() couchmessage.Binding {
 	return couchmessage.Binding{Slot: "pair:1", Repository: "/repo/.git", Scope: "scope", Tag: "thread", Session: "session", Nonce: "nonce", Agent: "codex", Version: "test", PID: 23, Start: "wrapper-start"}
 }
-func TestMessageThreadsOnlyExposeLiveCommittedPanes(t *testing.T) {
+func TestMessageBindingOnlyAcceptsLiveCommittedPanes(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	b := messageBinding()
 	f.con.mu.Lock()
@@ -24,10 +24,6 @@ func TestMessageThreadsOnlyExposeLiveCommittedPanes(t *testing.T) {
 	p.tree = "/repo"
 	p.process = couchcore.ProcessIdentity{PID: 42, Identity: "client-start"}
 	f.con.mu.Unlock()
-	rows := f.con.MessageThreads()
-	if len(rows) != 1 || rows[0].Scope != b.Scope || rows[0].Tree != "/repo" || rows[0].Process.PID != 42 {
-		t.Fatalf("snapshot %+v", rows)
-	}
 	root, err := f.con.MessageBinding(context.Background(), b)
 	if err != nil || root != "/repo" {
 		t.Fatalf("binding %q %v", root, err)
@@ -42,7 +38,7 @@ func TestMessageThreadsOnlyExposeLiveCommittedPanes(t *testing.T) {
 		t.Fatalf("cancel %v", err)
 	}
 	f.child.Exit(0)
-	waitFor(t, "dead pane absent from message registry", func() bool { return len(f.con.MessageThreads()) == 0 })
+	waitFor(t, "dead pane absent from message registry", func() bool { _, err := f.con.MessageBinding(context.Background(), messageBinding()); return err != nil })
 }
 func TestMessageActivityCountsKeysAndPasteButNotFocus(t *testing.T) {
 	base := time.Unix(1000, 0)

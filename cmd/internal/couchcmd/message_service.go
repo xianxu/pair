@@ -250,7 +250,8 @@ func (s *messageService) register(ctx context.Context, b couchmessage.Binding) e
 	if endpoint == nil {
 		return couchmessage.ErrUnsupported
 	}
-	if _, err = endpoint.Observe(ctx); err != nil {
+	observation, err := endpoint.Observe(ctx)
+	if err != nil {
 		return err
 	}
 	if _, err = s.authority.live(ctx, b); err != nil {
@@ -268,7 +269,7 @@ func (s *messageService) register(ctx context.Context, b couchmessage.Binding) e
 		return err
 	}
 	s.workspaces[b] = identity
-	return nil
+	return s.broker.ReconcileObservation(b, observation)
 }
 func (s *messageService) handle(ctx context.Context, request couchmessage.Request) couchmessage.Response {
 	if request.Binding == nil && couchmessage.ValidateRequest(request) == nil {

@@ -3,18 +3,9 @@ package couchtty
 import (
 	"context"
 	"errors"
-	"sort"
 
-	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 )
-
-// MessageThread is an immutable snapshot of a committed, input-capable Pair
-// client. Process identifies the Pair client, not its separate agent wrapper.
-type MessageThread struct {
-	Scope, Tag, Tree string
-	Process          couchcore.ProcessIdentity
-}
 
 func (c *Console) SetMessageBroker(broker *couchmessage.Broker) {
 	c.mu.Lock()
@@ -31,26 +22,6 @@ func messagePaneLive(p *pane) bool {
 	default:
 		return true
 	}
-}
-func (c *Console) MessageThreads() []MessageThread {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	var rows []MessageThread
-	if c.lifetime.Err() != nil {
-		return rows
-	}
-	for _, p := range c.panes {
-		if messagePaneLive(p) {
-			rows = append(rows, MessageThread{Scope: p.thread.RepoScope, Tag: string(p.thread.Tag), Tree: string(p.tree), Process: p.process})
-		}
-	}
-	sort.Slice(rows, func(i, j int) bool {
-		if rows[i].Scope == rows[j].Scope {
-			return rows[i].Tag < rows[j].Tag
-		}
-		return rows[i].Scope < rows[j].Scope
-	})
-	return rows
 }
 
 // MessageBinding verifies only the Console-owned client evidence. The caller

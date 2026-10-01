@@ -154,11 +154,27 @@ func TestPeerIntegrationOnlyFullyWrittenHumanSendResetsAllowance(t *testing.T) {
 			}
 			d.mu.Lock()
 			owned := d.operatorDraft
+			submissions := d.submissions
 			d.mu.Unlock()
+			if (tc.reset && submissions != 1) || (!tc.reset && submissions != 0) {
+				t.Fatalf("human submission generation=%d reset=%t", submissions, tc.reset)
+			}
 			if owned == tc.reset {
 				t.Fatalf("operator draft ownership=%t after full send=%t", owned, tc.reset)
 			}
 		})
+	}
+}
+
+func TestPeerIntegrationMenuConfirmationDoesNotResetAllowance(t *testing.T) {
+	f, d := peerIntegrationFixture(t)
+	f.proxy.pickerActive.Store(true)
+	var out bytes.Buffer
+	f.proxy.translateStdinFrom(strings.NewReader("\x1b\r"), &out, time.Millisecond)
+	select {
+	case <-d.submit:
+		t.Fatal("menu confirmation reset peer allowance")
+	default:
 	}
 }
 
@@ -178,5 +194,40 @@ func TestPeerIntegrationHumanSubmitNeedsFreshComposerEvidence(t *testing.T) {
 	}
 	if d.receipt().Status != couchmessage.Queued {
 		t.Fatal("submission must wait for new safe composer evidence")
+	}
+}
+
+func TestPeerIntegrationFocusReportsDoNotOwnDraft(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		chunks []string
+		owned  bool
+	}{
+		{"focus in", []string{"\x1b[I"}, false},
+		{"focus out", []string{"\x1b[O"}, false},
+		{"split focus in", []string{"\x1b", "[", "I"}, false},
+		{"split focus out", []string{"\x1b[", "O"}, false},
+		{"focus pair", []string{"\x1b[I\x1b[O"}, false},
+		{"focus then text", []string{"\x1b[Ihuman"}, true},
+		{"text then focus", []string{"human\x1b[O"}, true},
+		{"split focus then text", []string{"\x1b[", "Ihuman"}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d := newPeerDelivery(peerTestMessage(time.Now()).To, time.Now)
+			for _, chunk := range tc.chunks {
+				d.admitInput([]byte(chunk))
+				d.inputForwarded()
+			}
+			d.mu.Lock()
+			owned := d.operatorDraft
+			pending := len(d.replies.input)
+			d.mu.Unlock()
+			if owned != tc.owned {
+				t.Fatalf("operator draft ownership=%t want=%t", owned, tc.owned)
+			}
+			if pending != 0 {
+				t.Fatalf("complete input retained %d framing bytes", pending)
+			}
+		})
 	}
 }

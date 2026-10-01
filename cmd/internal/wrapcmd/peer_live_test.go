@@ -3,7 +3,6 @@ package wrapcmd
 import (
 	"bytes"
 	"crypto/sha256"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -21,14 +20,14 @@ var (
 	peerLiveScenarioFlag = flag.String("peer-live-scenario", "", "startup, paste-short, paste-multiline, paste-wrapped, draft, menu, or image-admission")
 	peerLiveSubmitFlag   = flag.Bool("peer-live-submit", false, "permit one harmless no-tools prompt submission in a new isolated PTY")
 	peerLiveCaptureFlag  = flag.String("peer-live-capture-dir", "", "absolute directory for successful live captures")
-	peerLiveAuthFlag     = flag.Bool("peer-live-use-local-auth", false, "copy only existing login credentials into the disposable harness home")
+	peerLiveAuthFlag     = flag.Bool("peer-live-use-local-auth", false, "use existing login in a fresh session (Claude uses native keychain; Codex copies login into a disposable home)")
 )
 
-// peerLiveEnvironment isolates all writable harness state. It deliberately
-// neither reads nor copies login files. Existing API-key environment values may
+// peerLiveEnvironment defaults to isolated writable harness state. The explicit
+// local-auth mode below opts into native credentials. Existing API-key values may
 // authenticate the child; they are never logged or written into fixtures.
 func peerLiveEnvironment(inherited []string, root string) []string {
-	allowed := map[string]bool{"PATH": true, "LANG": true, "LC_ALL": true, "COLORTERM": true, "ANTHROPIC_API_KEY": true, "OPENAI_API_KEY": true, "HTTPS_PROXY": true, "HTTP_PROXY": true, "NO_PROXY": true, "SSL_CERT_FILE": true, "NODE_EXTRA_CA_CERTS": true}
+	allowed := map[string]bool{"PATH": true, "USER": true, "LANG": true, "LC_ALL": true, "COLORTERM": true, "ANTHROPIC_API_KEY": true, "OPENAI_API_KEY": true, "HTTPS_PROXY": true, "HTTP_PROXY": true, "NO_PROXY": true, "SSL_CERT_FILE": true, "NODE_EXTRA_CA_CERTS": true}
 	var env []string
 	for _, entry := range inherited {
 		key, _, _ := strings.Cut(entry, "=")
@@ -62,7 +61,8 @@ func TestPeerLiveEnvironmentIsolated(t *testing.T) {
 // tests skip it. Set PAIR_LIVE_PEER_SCENARIO to startup, paste-short,
 // paste-multiline, paste-wrapped, draft, menu, image-admission, or submit.
 // Default startup performs no input. Submit requires an explicit scenario and
-// a harmless no-tools body; no permission, login or trust dialog is answered.
+// a harmless no-tools body. Local-auth mode may trust only the empty repository
+// this test creates; login and tool-permission dialogs remain blockers.
 func TestPeerLiveConformance(t *testing.T) {
 	agent := os.Getenv("PAIR_LIVE_PEER_HARNESS")
 	if *peerLiveHarnessFlag != "" {
@@ -110,9 +110,10 @@ func TestPeerLiveConformance(t *testing.T) {
 	if err := git.Run(); err != nil {
 		t.Fatalf("initialize isolated repository: %v", err)
 	}
+
 	env := peerLiveEnvironment(os.Environ(), root)
 	if *peerLiveAuthFlag {
-		peerLiveLocalAuth(t, agent, root, cwd)
+		env = peerLiveLocalAuth(t, agent, root, cwd, env)
 	}
 	versionCmd := exec.Command(executable, "--version")
 	versionCmd.Env = env
@@ -138,11 +139,13 @@ func TestPeerLiveConformance(t *testing.T) {
 	case "paste-multiline":
 		m.Body = "Reply PEER_SMOKE_OK only.\nDo not use tools.\nThis is harmless test text.\nFourth line.\nFifth line."
 	case "paste-wrapped":
-		m.Body = "Do not use tools. " + strings.Repeat("harmless wrapped text ", 14)
+		m.Body = "Do not use tools. " + strings.TrimSuffix(strings.Repeat("harmless wrapped text ", 14), " ")
 	}
 	d := newPeerDelivery(m.To, time.Now)
 	ready, sent, finished := false, false, false
 	seeded := false
+	trustStep := 0
+	var trustInput []byte
 	var failure error
 	renderClass := "unobserved"
 	var rendered string
@@ -161,8 +164,30 @@ func TestPeerLiveConformance(t *testing.T) {
 	}
 	raw, state, captureErr := captureHarnessTTYClassified(harnessTTYCaptureRequest{Executable: executable, Args: args, Env: env, Dir: cwd, StartupTimeout: 15 * time.Second,
 		Classify: func(chunk, retained []byte) harnessTTYConformanceState {
+			if p.peer != nil {
+				p.peer.observeOutput(chunk)
+			}
 			observed := classifier.Observe(chunk, retained)
-			if observed == harnessTTYUnauthenticated || observed == harnessTTYWorkspaceTrust {
+			if agent == "claude" && *peerLiveAuthFlag {
+				s := p.terminal.Snapshot()
+				var screen strings.Builder
+				for y := 0; y < s.Height; y++ {
+					screen.WriteString(orientationRowText(s, y))
+				}
+				v := strings.ReplaceAll(screen.String(), " ", "")
+				if strings.Contains(v, "Accessingworkspace:"+cwd) {
+					if trustStep == 0 && strings.Contains(v, "❯No,exit") {
+						trustInput = []byte("\x1b[B")
+						trustStep = 1
+					}
+					if trustStep == 1 && strings.Contains(v, "❯Yes,Itrustthisfolder") {
+						trustInput = []byte("\r")
+						trustStep = 2
+					}
+					return harnessTTYWaiting
+				}
+			}
+			if observed == harnessTTYUnauthenticated || (observed == harnessTTYWorkspaceTrust && trustStep == 0) {
 				return observed
 			}
 			snapshot := p.terminal.Snapshot()
@@ -186,6 +211,9 @@ func TestPeerLiveConformance(t *testing.T) {
 			}
 			if sent && !finished {
 				text, known := peerComposerText(agent, snapshot)
+				if scenario == "submit" && expectedWrites == 2 && known && text == "" {
+					finished = true
+				}
 				if known && strings.TrimSpace(text) == strings.TrimSpace(peerEnvelope(m)) {
 					renderClass = "exact"
 					rendered = text
@@ -200,7 +228,7 @@ func TestPeerLiveConformance(t *testing.T) {
 						finished = true
 					}
 				}
-				if known && renderClass == "unobserved" && strings.ReplaceAll(strings.TrimSpace(text), "\n", "") == strings.ReplaceAll(strings.TrimSpace(peerEnvelope(m)), "\n", "") {
+				if known && renderClass == "unobserved" && peerComposerMatches(agent, snapshot, peerEnvelope(m)) {
 					renderClass = "wrapped"
 					rendered = text
 					if scenario != "submit" {
@@ -227,6 +255,14 @@ func TestPeerLiveConformance(t *testing.T) {
 		},
 		Startup: func([]byte) bool { return finished },
 		Input: func([]byte) []byte {
+			if trustInput != nil {
+				input := trustInput
+				trustInput = nil
+				// Test setup only: initial painting precedes the picker's
+				// mount effects, which otherwise reset an immediate selection.
+				time.Sleep(time.Second)
+				return input
+			}
 			if failure != nil {
 				finished = true
 				return nil
@@ -268,7 +304,6 @@ func TestPeerLiveConformance(t *testing.T) {
 					if d.receipt().Status != couchmessage.Submitted {
 						failure = fmt.Errorf("unexpected post-paste write")
 					}
-					finished = true
 					return writes.Bytes()
 				}
 			}
@@ -276,6 +311,17 @@ func TestPeerLiveConformance(t *testing.T) {
 		},
 	})
 	if captureErr != nil {
+		if *peerLiveCaptureFlag != "" && state != harnessTTYUnauthenticated && p.ttyProfile.recognize(p.terminal.Snapshot()) {
+			if !filepath.IsAbs(*peerLiveCaptureFlag) {
+				t.Fatal("capture directory must be absolute")
+			}
+			if err := os.MkdirAll(*peerLiveCaptureFlag, 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(*peerLiveCaptureFlag, agent+"-"+scenario+"-drift.raw"), raw, 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
 		if *peerLiveAuthFlag && state != harnessTTYUnauthenticated {
 			s := p.terminal.Snapshot()
 			composer, known := peerComposerText(agent, s)
@@ -323,7 +369,7 @@ func TestPeerLiveConformance(t *testing.T) {
 	}
 }
 
-func peerLiveLocalAuth(t *testing.T, agent, root, cwd string) {
+func peerLiveLocalAuth(t *testing.T, agent, root, cwd string, env []string) []string {
 	t.Helper()
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -348,19 +394,24 @@ func peerLiveLocalAuth(t *testing.T, agent, root, cwd string) {
 		if err := os.WriteFile(filepath.Join(root, "codex", "config.toml"), []byte(config), 0600); err != nil {
 			t.Fatal(err)
 		}
-		return
+		return env
 	}
-	from := os.Getenv("CLAUDE_CONFIG_DIR")
-	if from == "" {
-		from = filepath.Join(home, ".claude")
+	// macOS credentials belong to the native config's keychain service.
+	// Let the CLI authenticate normally; safe mode disables customizations,
+	// and the fresh cwd/no-resume arguments never attach an existing thread.
+	var native []string
+	for _, entry := range env {
+		if strings.HasPrefix(entry, "HOME=") {
+			entry = "HOME=" + home
+		}
+		if strings.HasPrefix(entry, "CLAUDE_CONFIG_DIR=") {
+			from := os.Getenv("CLAUDE_CONFIG_DIR")
+			if from == "" {
+				continue
+			}
+			entry = "CLAUDE_CONFIG_DIR=" + from
+		}
+		native = append(native, entry)
 	}
-	copyPrivate(filepath.Join(from, ".credentials.json"), filepath.Join(root, "claude", ".credentials.json"))
-	config := map[string]any{"hasCompletedOnboarding": true, "theme": "dark", "projects": map[string]any{cwd: map[string]any{"hasTrustDialogAccepted": true, "hasCompletedProjectOnboarding": true}}}
-	b, err := json.Marshal(config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "claude", ".claude.json"), b, 0600); err != nil {
-		t.Fatal(err)
-	}
+	return native
 }

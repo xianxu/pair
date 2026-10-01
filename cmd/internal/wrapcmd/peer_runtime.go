@@ -18,7 +18,10 @@ import (
 
 // Only versions with captured composer and live peer-delivery conformance may
 // receive automatic input. Manual operation remains independent of this map.
-var peerQualifiedVersions = map[string]map[string]bool{}
+var peerQualifiedVersions = map[string]map[string]bool{
+	"codex":  {"codex-cli 0.159.2": true},
+	"claude": {"2.1.286 (Claude Code)": true},
+}
 
 type peerRuntime struct {
 	cancel   context.CancelFunc
@@ -53,7 +56,7 @@ func (d *peerDelivery) handleEndpoint(_ context.Context, raw []byte) ([]byte, er
 	switch request.Op {
 	case "observe":
 		d.mu.Lock()
-		response.Observation = couchmessage.Observation{LastActivity: d.lastActivity, Sequence: d.sequence}
+		response.Observation = couchmessage.Observation{LastActivity: d.lastActivity, Sequence: d.sequence, Submission: d.submissions}
 		d.mu.Unlock()
 	case "reserve":
 		err = d.reserve(request.ID, request.Sequence)
@@ -155,8 +158,8 @@ func (p *proxy) startPeerRuntime(executable string) (*peerRuntime, error) {
 				return
 			case <-ticker.C:
 			case <-d.submit:
-				// One attempt per genuine submission. A lost acknowledgment cannot cause
-				// a delayed retry to refill a budget consumed by intervening peer messages.
+				// A wakeup only: the broker observes the wrapper's monotonic
+				// submission count and never replenishes the same generation twice.
 				submitCtx, c := context.WithTimeout(lifetime, couchmessage.AdmissionTimeout)
 				_ = couchmessage.Call(submitCtx, brokerSocket, couchmessage.Request{Op: "operator-submit", Binding: &binding}, &response)
 				c()

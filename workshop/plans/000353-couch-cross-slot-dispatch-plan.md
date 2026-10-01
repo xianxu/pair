@@ -404,6 +404,27 @@ reservation to close the draft-image race discovered by tests.
   --verified 'exact evidence'` only after acceptance; the binary owns boundary
   review. Derive actual hours through the binary, never type guessed values.
 
+## Execution ledger — 2026-09-30
+
+This ledger records the implemented approved amendments; earlier proposed task
+inventories remain historical where the amendments superseded their semantics.
+
+- [x] Pure actor/routing/delivery models and bounded supervisor broker, with
+  deterministic concurrency, replacement, deadlines and breaker tests.
+- [x] Private socket protocol, exact live registration, CLI shapes and canonical
+  receipt queries; real CLI-to-broker-to-wrapper integration test.
+- [x] Shared single-writer input arbitration, complete-write accounting,
+  human-draft/render fences, focus filtering and image/menu interruption tests.
+- [x] Monotonic human-submission reconciliation prevents delayed/duplicate reset
+  notifications from replenishing a consumed generation.
+- [x] Claude Code 2.1.286 and Codex CLI 0.159.2 captured/live receiver qualification;
+  unknown versions and collapsed paste summaries remain unsubmitted.
+- [x] Embedded Couch skill, notices, README/atlas, full affected package tests,
+  focused race checks and rebuilt binaries.
+- [ ] Operator accepts the real Couch send/reply and issue-dispatch workflow in
+  fresh sessions, preserving outstanding human acceptance of repository work.
+- [ ] Close through SDLC with the human evidence and its mandatory boundary review.
+
 ## Revisions
 
 - 2026-09-30: initial proposal from the operator's live-slot/ephemeral-runtime
@@ -440,3 +461,20 @@ reservation to close the draft-image race discovered by tests.
   above. Regression evidence requires sticky human-composer ownership until a
   complete genuine submission, followed by a fresh rendered observation.
   Live version qualification and operator acceptance remain outstanding.
+
+- 2026-09-30: live conformance exposed Codex's unboxed startup card and
+  word-boundary wrapping. Captured both and constrain matching to deterministic
+  layout; ambiguous whitespace remains unsupported. Focus reports are terminal
+  notifications, not draft ownership. Claude's randomized placeholder wording
+  is not an invariant: use the captured single-line quoted `Try` hint shape,
+  faint styling, input-origin cursor and qualified ruled composer, alongside
+  wrapper ownership. This replaces the exploratory literal-only hint whitelist;
+  ordinary or arbitrary faint text still does not qualify as empty.
+
+- 2026-09-30: final breaker audit found an ordering issue in asynchronous human
+  notifications. The wrapper now exposes a monotonic genuine-submission count;
+  fresh receiver observations and notification wakeups reconcile each count
+  once before allowance checks. Late or duplicate notifications cannot refill
+  allowance consumed after that human event. Reconnection preserves the observed
+  count alongside the exact wrapper's allowance. This is an implementation
+  correction of the agreed eight-inbound-message contract, not a new API.

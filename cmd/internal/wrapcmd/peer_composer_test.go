@@ -54,7 +54,11 @@ func TestPeerComposerConservativeText(t *testing.T) {
 func TestPeerComposerCapturedFrames(t *testing.T) {
 	for _, tc := range []struct{ agent, path string }{
 		{"claude", "testdata/tty/claude/2.1.237/composer.raw"},
+		{"claude", "testdata/peer/claude/2.1.286/startup-fix-lint.raw"},
+		{"claude", "testdata/peer/claude/2.1.286/startup-write-test.raw"},
+		{"claude", "testdata/peer/claude/2.1.286/startup-create-util.raw"},
 		{"codex", "testdata/orientation/codex/0.154.0/ready.raw"},
+		{"codex", "testdata/peer/codex/0.159.2/startup.raw"},
 	} {
 		raw, err := os.ReadFile(tc.path)
 		if err != nil {
@@ -95,6 +99,136 @@ func TestPeerComposerDeclinesCapturedStartupAndMenus(t *testing.T) {
 		}
 		if got := peerComposerState("codex", peerSnapshot(t, string(raw))); got == PeerComposerEmpty {
 			t.Fatalf("unsafe frame %s accepted", path)
+		}
+	}
+}
+
+func TestPeerComposerModernCodexStartup(t *testing.T) {
+	// v0.159.2 replaces boxed model:/directory: fields with title + bare path.
+	paint := "\x1b[1;1H>_ OpenAI Codex (v0.159.2)\x1b[3;1H/private/tmp/project\x1b[10;1H\x1b[1m›\x1b[22m \x1b[2mAsk Codex to do anything\x1b[22m\x1b[12;3HGPT-6.1-Sol default · /private/tmp/project\x1b[?25h\x1b[10;3H"
+	if got := peerComposerState("codex", peerSnapshot(t, paint)); got != PeerComposerEmpty {
+		t.Fatalf("resolved modern startup = %v", got)
+	}
+	for _, unsafe := range []string{
+		strings.Replace(paint, "/private/tmp/project", "loading", 1),
+		strings.Replace(paint, "GPT-6.1-Sol default · /private/tmp/project", "loading", 1),
+	} {
+		if got := peerComposerState("codex", peerSnapshot(t, unsafe)); got == PeerComposerEmpty {
+			t.Fatal("unresolved startup accepted")
+		}
+	}
+}
+
+func TestPeerComposerModernCodexCapturedPasteMatches(t *testing.T) {
+	raw, err := os.ReadFile("testdata/peer/codex/0.159.2/paste-short.raw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := peerSnapshot(t, string(raw))
+	expected := "[Couch peer from peer:0; delivery peer-live-conformance]\nReply PEER_SMOKE_OK only. Do not use tools."
+	if !peerComposerMatches("codex", s, expected) {
+		text, known := peerComposerText("codex", s)
+		t.Fatalf("captured paste mismatch known=%t text=%q", known, text)
+	}
+	if peerComposerMatches("codex", s, expected+" ") {
+		t.Fatal("changed content matched")
+	}
+}
+
+func TestPeerComposerModernCodexCapturedWordwrap(t *testing.T) {
+	raw, err := os.ReadFile("testdata/peer/codex/0.159.2/paste-wrapped.raw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := peerSnapshot(t, string(raw))
+	expected := "[Couch peer from peer:0; delivery peer-live-conformance]\nDo not use tools. " + strings.TrimSuffix(strings.Repeat("harmless wrapped text ", 14), " ")
+	if !peerComposerMatches("codex", s, expected) {
+		actual, known := peerComposerText("codex", s)
+		t.Fatalf("wordwrap match failed known=%t actual=%q expected=%q", known, actual, expected)
+	}
+	for _, changed := range []string{expected + " ", " " + expected, strings.Replace(expected, "harmless wrapped", "harmless  wrapped", 1), strings.Replace(expected, "harmless wrapped", "harmless\twrapped", 1)} {
+		if peerComposerMatches("codex", s, changed) {
+			t.Fatalf("ambiguous altered whitespace matched: %q", changed)
+		}
+	}
+}
+
+func TestPeerComposerClaudeGhostShape(t *testing.T) {
+	for _, tc := range []struct {
+		name, text string
+		faint      bool
+		cursor     string
+		empty      bool
+	}{
+		{"rotating hint", `Try "explain this code"`, true, "\x1b[7;3H", true},
+		{"ordinary style", `Try "explain this code"`, false, "\x1b[7;3H", false},
+		{"unquoted faint", `Try explain this code`, true, "\x1b[7;3H", false},
+		{"arbitrary faint", `operator text`, true, "\x1b[7;3H", false},
+		{"extra suffix", `Try "explain this code" extra`, true, "\x1b[7;3H", false},
+		{"embedded quote", `Try "explain "this" code"`, true, "\x1b[7;3H", false},
+		{"wrong cursor", `Try "explain this code"`, true, "\x1b[7;4H", false},
+		{"empty quote", `Try ""`, true, "\x1b[7;3H", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			body := tc.text
+			if tc.faint {
+				body = "\x1b[2m" + body + "\x1b[22m"
+			}
+			s := peerSnapshot(t, claudeBox(5, "❯", "136;136;136", body)+"\x1b[?25h"+tc.cursor)
+			if empty := peerComposerState("claude", s) == PeerComposerEmpty; empty != tc.empty {
+				t.Fatalf("empty=%t want=%t", empty, tc.empty)
+			}
+		})
+	}
+	s := peerSnapshot(t, claudeBox(5, "❯", "136;136;136", "\x1b[2mTry \"one\"\x1b[22m", "\x1b[2mextra\x1b[22m")+"\x1b[?25h\x1b[7;3H")
+	if peerComposerState("claude", s) == PeerComposerEmpty {
+		t.Fatal("multiline faint text accepted as ghost")
+	}
+}
+
+func TestPeerComposerClaudeCapturedPasteMatches(t *testing.T) {
+	raw, err := os.ReadFile("testdata/peer/claude/2.1.286/paste-short.raw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := peerSnapshot(t, string(raw))
+	expected := "[Couch peer from peer:0; delivery peer-live-conformance]\nReply PEER_SMOKE_OK only. Do not use tools."
+	if !peerComposerMatches("claude", s, expected) {
+		text, known := peerComposerText("claude", s)
+		t.Fatalf("captured paste mismatch known=%t text=%q", known, text)
+	}
+}
+
+func TestPeerComposerClaudeCollapsedPasteRemainsUnsupported(t *testing.T) {
+	raw, err := os.ReadFile("testdata/peer/claude/2.1.286/paste-multiline.raw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := peerSnapshot(t, string(raw))
+	expected := "[Couch peer from peer:0; delivery peer-live-conformance]\nReply PEER_SMOKE_OK only.\nDo not use tools.\nThis is harmless test text.\nFourth line.\nFifth line."
+	text, known := peerComposerText("claude", s)
+	if !known || !strings.Contains(text, "[Pasted") {
+		t.Fatalf("expected captured collapsed marker, known=%t text=%q", known, text)
+	}
+	if peerComposerMatches("claude", s, expected) {
+		t.Fatal("collapsed marker falsely proves complete body")
+	}
+}
+
+func TestPeerComposerClaudeCapturedWordwrap(t *testing.T) {
+	raw, err := os.ReadFile("testdata/peer/claude/2.1.286/paste-wrapped.raw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := peerSnapshot(t, string(raw))
+	expected := "[Couch peer from peer:0; delivery peer-live-conformance]\nDo not use tools. " + strings.TrimSuffix(strings.Repeat("harmless wrapped text ", 14), " ")
+	if !peerComposerMatches("claude", s, expected) {
+		actual, known := peerComposerText("claude", s)
+		t.Fatalf("Claude wordwrap mismatch known=%t actual=%q", known, actual)
+	}
+	for _, changed := range []string{expected + " ", " " + expected, strings.Replace(expected, "harmless wrapped", "harmless  wrapped", 1)} {
+		if peerComposerMatches("claude", s, changed) {
+			t.Fatalf("changed whitespace accepted: %q", changed)
 		}
 	}
 }

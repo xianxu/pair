@@ -81,7 +81,9 @@ func Handle(ctx context.Context, b *Broker, r Request, verifyRegister func(conte
 			return protocolError(err, false)
 		}
 		if r.Op == "operator-submit" {
-			b.OperatorSubmission(*r.Binding)
+			if err := b.RefreshSubmission(ctx, *r.Binding); err != nil {
+				return protocolError(err, false)
+			}
 		}
 		return Response{Code: "ok"}
 	}

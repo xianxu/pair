@@ -365,3 +365,7 @@ proof; record the surprising case so the next change starts from evidence.
   can look empty even after repaint. Automatic input needs ownership evidence
   at input admission, retained until genuine submission, then a fresh-render
   fence. A visual empty check alone is insufficient. (#353 integration review)
+
+- Terminal focus notifications do not create human drafts, and a menu-confirming
+  Enter is not a model submission. Distinguish both before assigning persistent
+  input ownership or replenishing a peer-message allowance. (#353)

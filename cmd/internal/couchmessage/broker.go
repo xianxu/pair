@@ -18,6 +18,8 @@ const MaxReceipts = 256
 type Observation struct {
 	LastActivity time.Time
 	Sequence     uint64
+	// Submission is the monotonic count of fully written genuine operator submissions.
+	Submission uint64
 }
 
 // DeliveryEndpoint must honor cancellation and bind every operation to the
@@ -33,6 +35,7 @@ type SlotActor struct {
 	state       ActorState
 	endpoint    DeliveryEndpoint
 	sequence    uint64
+	submission  uint64
 	reservation string
 	inbox       chan Message
 	cancel      context.CancelFunc
@@ -120,6 +123,9 @@ func (b *Broker) Register(binding Binding, endpoint DeliveryEndpoint) error {
 	}
 	ctx, cancel := context.WithCancel(b.ctx)
 	a := &SlotActor{binding: binding, state: next, endpoint: endpoint, inbox: make(chan Message, 1), cancel: cancel}
+	if old != nil {
+		a.submission = old.submission
+	}
 	b.actors[binding] = a
 	b.workers.Add(1)
 	go b.runActor(ctx, a)
@@ -163,8 +169,61 @@ func (b *Broker) operatorEvent(binding Binding, kind EventKind) {
 		_ = b.apply(a, Event{Kind: kind, Binding: binding, At: b.now()})
 	}
 }
-func (b *Broker) OperatorInput(binding Binding)      { b.operatorEvent(binding, OperatorInput) }
-func (b *Broker) OperatorSubmission(binding Binding) { b.operatorEvent(binding, OperatorSubmit) }
+func (b *Broker) OperatorInput(binding Binding) { b.operatorEvent(binding, OperatorInput) }
+
+// ReconcileObservation consumes trusted wrapper evidence once per submission
+// generation. A delayed notification cannot replenish an already-spent epoch.
+// Registration adapters may supply their just-verified handshake observation.
+func (b *Broker) ReconcileObservation(binding Binding, observed Observation) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	a := b.actors[binding]
+	if a == nil || !b.caller(binding) {
+		return ErrUnavailable
+	}
+	return b.reconcileObservation(a, observed)
+}
+func (b *Broker) reconcileObservation(a *SlotActor, observed Observation) error {
+	if observed.Submission <= a.submission {
+		return nil
+	}
+	at := observed.LastActivity
+	if at.IsZero() {
+		return errors.New("submission observation has no activity timestamp")
+	}
+	if err := b.apply(a, Event{Kind: OperatorSubmit, Binding: a.binding, At: at}); err != nil {
+		return err
+	}
+	a.submission = observed.Submission
+	return nil
+}
+
+// RefreshSubmission treats an operator notification as a wakeup, not authority
+// to reset a counter. The receiver supplies its latest monotonic generation.
+func (b *Broker) RefreshSubmission(parent context.Context, binding Binding) error {
+	ctx, cancel := context.WithTimeout(parent, AdmissionTimeout)
+	defer cancel()
+	b.mu.Lock()
+	a := b.actors[binding]
+	valid := a != nil && b.caller(binding)
+	b.mu.Unlock()
+	if !valid {
+		return ErrUnavailable
+	}
+	if a.endpoint == nil {
+		return ErrUnsupported
+	}
+	observed, err := a.endpoint.Observe(ctx)
+	if err != nil {
+		return err
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.actors[binding] != a || !b.caller(binding) {
+		return ErrUnavailable
+	}
+	return b.reconcileObservation(a, observed)
+}
 
 // ObserveInputThread is called before Console forwards real operator input.
 func (b *Broker) ObserveInputThread(scope, tag string) {
@@ -252,6 +311,9 @@ func (b *Broker) observe(ctx context.Context, a *SlotActor) (Candidate, Observat
 	defer b.mu.Unlock()
 	if !b.caller(c.Binding) || b.actors[c.Binding] != a || a.sequence != sequence {
 		return c, obs, ErrUnavailable
+	}
+	if err := b.reconcileObservation(a, obs); err != nil {
+		return c, obs, err
 	}
 	c = actorCandidate(a)
 	c.Resting = resting
@@ -374,6 +436,9 @@ func (b *Broker) admit(ctx context.Context, from Binding, id, target, body strin
 				continue
 			}
 			c := actorCandidate(a)
+			// A fresh wrapper observation may contain an unseen human submission.
+			// Probe exhausted actors before applying the authoritative budget check.
+			c.Remaining = InboundAllowance
 			c.Known = true
 			c.Resting = true
 			if tried[binding] {
@@ -436,6 +501,9 @@ func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, fro
 	}
 	if b.actors[to] != a || a.reservation != id || !b.caller(to) || a.sequence != seq || !b.caller(from) {
 		return Receipt{}, ErrUnavailable
+	}
+	if err = b.reconcileObservation(a, obs); err != nil {
+		return Receipt{}, err
 	}
 	if len(a.inbox) != 0 {
 		return Receipt{}, ErrRecipientBusy

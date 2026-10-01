@@ -396,3 +396,102 @@ func TestReceiptCapacityIncludesInflightAdmission(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestSubmissionGenerationIsReconciledBeforeAdmissionAndOnlyOnce(t *testing.T) {
+	now := time.Unix(1000, 0)
+	b := NewBroker(context.Background(), func() time.Time { return now }, nil)
+	defer b.Close()
+	from, to := brokerBinding("brain:0"), brokerBinding("pair:1")
+	ep := newFakeEndpoint(now)
+	_ = b.Register(from, newFakeEndpoint(now))
+	_ = b.Register(to, ep)
+	send := func(id string) {
+		t.Helper()
+		ep.outcomes <- Receipt{Status: Submitted}
+		r, err := b.Send(context.Background(), from, id, to.Slot, "work")
+		if err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case <-ep.delivered:
+		case <-time.After(time.Second):
+			t.Fatal("delivery missing")
+		}
+		deadline := time.Now().Add(time.Second)
+		for {
+			r, err = b.Status(from, r.Message.ID)
+			if err == nil && r.Status == Submitted {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("receipt %+v %v", r, err)
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}
+	for i := 0; i < InboundAllowance; i++ {
+		send(fmt.Sprintf("before-%d", i))
+	}
+	ep.mu.Lock()
+	ep.observation.Submission = 1
+	ep.observation.Sequence++
+	ep.mu.Unlock()
+	// No notification was received: the next admission must observe the unseen
+	// human generation even though the cached allowance is exhausted.
+	send("after-0")
+	for i := 1; i < 4; i++ {
+		send(fmt.Sprintf("after-%d", i))
+	}
+	// A delayed notification and its duplicates must not reset the four spent
+	// admissions belonging to the same human submission.
+	for i := 0; i < 3; i++ {
+		response := Handle(context.Background(), b, Request{Op: "operator-submit", Binding: &to}, func(context.Context, Binding) error { return nil })
+		if response.Code != "ok" {
+			t.Fatalf("notification %+v", response)
+		}
+	}
+	b.Disconnect(to)
+	if err := b.Register(to, ep); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.RefreshSubmission(context.Background(), to); err != nil {
+		t.Fatal(err)
+	}
+	for i := 4; i < InboundAllowance; i++ {
+		send(fmt.Sprintf("after-%d", i))
+	}
+	if _, err := b.Send(context.Background(), from, "ninth-after-human", to.Slot, "work"); !errors.Is(err, ErrBudgetExhausted) {
+		t.Fatalf("ninth admission after one human submission: %v", err)
+	}
+}
+
+func TestFamilyObservesHumanGenerationWithoutInventingRecentActivity(t *testing.T) {
+	base := time.Unix(1000, 0)
+	var nanos atomic.Int64
+	nanos.Store(base.UnixNano())
+	b := NewBroker(context.Background(), func() time.Time { return time.Unix(0, nanos.Load()) }, func(context.Context, Binding) (bool, error) { return true, nil })
+	defer b.Close()
+	from, to := brokerBinding("brain:0"), brokerBinding("pair:1")
+	ep := newFakeEndpoint(base)
+	_ = b.Register(from, newFakeEndpoint(base))
+	_ = b.Register(to, ep)
+	// Exhaust through the same pure admission transition without starting a
+	// receiver worker: these are retained historical, already-cancelled attempts.
+	b.mu.Lock()
+	a := b.actors[to]
+	for i := 0; i < InboundAllowance; i++ {
+		m := Message{ID: fmt.Sprint("old-", i), From: from, To: to, Body: "work", Deadline: base.Add(time.Second)}
+		_ = b.apply(a, Event{Kind: Admit, Binding: to, Message: m, At: base})
+		_ = b.apply(a, Event{Kind: DeliveryFinished, Binding: to, Message: m, Status: Cancelled, At: base})
+	}
+	b.mu.Unlock()
+	ep.mu.Lock()
+	ep.observation.Submission = 1
+	ep.observation.Sequence++
+	ep.mu.Unlock()
+	nanos.Store(base.Add(QuietInterval).UnixNano())
+	r, err := b.Send(context.Background(), from, "fresh-family", "pair", "work")
+	if err != nil || r.Message.To != to {
+		t.Fatalf("fresh human generation excluded from family routing: %+v %v", r, err)
+	}
+}
