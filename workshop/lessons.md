@@ -360,3 +360,8 @@ proof; record the surprising case so the next change starts from evidence.
 - When a new syntax extends an existing one, sweep that feature's docs for sentences that denied the new form: "There is no `!!` escape" sat right under the new `!!` paragraph. Also reuse the command builder a sibling path already has instead of rebuilding the argv. (#358 close review)
 
 - Tracker close bindings name exact commit IDs. Rebasing a closed branch can leave its card pointing to unreachable review/evidence commits even when every patch is unchanged; preserve close ancestry when integrating main. Read current status through SDLC, since details on main retain stale card mirrors until branch publication. (#358)
+
+- An empty terminal snapshot can predate operator input, and whitespace drafts
+  can look empty even after repaint. Automatic input needs ownership evidence
+  at input admission, retained until genuine submission, then a fresh-render
+  fence. A visual empty check alone is insufficient. (#353 integration review)

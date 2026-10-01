@@ -108,6 +108,8 @@ func (d *orientationDelivery) admitOperatorInput(data []byte) {
 // the boundary exact: input/overlay admitted before submit cancels it; an event
 // admitted after the completed write is later input.
 func (p *proxy) dispatchOrientationObservation(out io.Writer, settle *time.Timer, settled bool) {
+	p.inputAdmission.Lock()
+	defer p.inputAdmission.Unlock()
 	d := p.orientation
 	d.mu.Lock()
 	defer d.mu.Unlock()

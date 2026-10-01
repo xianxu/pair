@@ -204,6 +204,13 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		usage(stdout)
 		return 0
 	}
+	if invocation.kind == cliSkill {
+		fmt.Fprint(stdout, couchSkill)
+		return 0
+	}
+	if invocation.kind == cliMessage {
+		return runMessageCLI(invocation, rt, stdout, stderr)
+	}
 	if invocation.kind == cliLaunch {
 		inFile, outFile, ok := terminalFiles(stdin, stdout)
 		if !ok {
@@ -566,6 +573,14 @@ func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.S
 		return 1
 	}
 	defer func() { maintenance.Stop(); _ = maintenance.Wait() }()
+	messages, messageErr := startMessageService(console, c)
+	if messageErr != nil {
+		renderError(stdout, messageErr)
+		return 1
+	}
+	if messages != nil {
+		defer messages.Close()
+	}
 	return console.Run()
 }
 
@@ -870,6 +885,10 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "       couch --list")
 	fmt.Fprintln(w, "       couch --show <thread>")
 	fmt.Fprintln(w, "       couch --archived")
+	fmt.Fprintln(w, "       couch --actors [--json]")
+	fmt.Fprintln(w, "       couch --send-to repo[:N] --message TEXT")
+	fmt.Fprintln(w, "       couch --message-status ID [--json]")
+	fmt.Fprintln(w, "       couch --skill")
 	fmt.Fprintln(w, "       couch --help")
 	fmt.Fprintln(w)
 	// Deliberately free of the words the public-surface test forbids: they are

@@ -151,10 +151,15 @@ type ruledBoxComposerSpec struct {
 // This is the only function that owns the ruled-box scan: a harness with a
 // ruled box registers a spec, however its prompt column and glyphs differ.
 func ruledBoxComposerActive(snapshot terminalSnapshot, spec ruledBoxComposerSpec) bool {
+	_, _, ok := ruledBoxComposerBounds(snapshot, spec)
+	return ok
+}
+
+func ruledBoxComposerBounds(snapshot terminalSnapshot, spec ruledBoxComposerSpec) (int, int, bool) {
 	if !snapshotCoordinatesValid(snapshot) ||
 		snapshot.Cursor.X < spec.minCursorX ||
 		(!spec.allowHiddenCursor && !snapshot.CursorVisible) {
-		return false
+		return 0, 0, false
 	}
 
 	for promptY := snapshot.Cursor.Y + 1; promptY >= 0; promptY-- {
@@ -178,9 +183,9 @@ func ruledBoxComposerActive(snapshot terminalSnapshot, spec ruledBoxComposerSpec
 				continue
 			}
 		}
-		return true
+		return promptY, bottom, true
 	}
-	return false
+	return 0, 0, false
 }
 
 // ruledBoxBottomRule finds the first row below the prompt that paints column 0
@@ -250,7 +255,11 @@ const claudeComposerMaxRows = 0
 // expensive direction here. Requiring the box's two rules to share a foreground
 // is what keeps unrelated chrome from pairing into a composer.
 func claudeComposerActive(snapshot terminalSnapshot) bool {
-	return ruledBoxComposerActive(snapshot, ruledBoxComposerSpec{
+	return ruledBoxComposerActive(snapshot, claudeComposerSpec())
+}
+
+func claudeComposerSpec() ruledBoxComposerSpec {
+	return ruledBoxComposerSpec{
 		promptOK: func(c uv.Cell) bool {
 			return strings.TrimSpace(c.Content) != "" && c.Content != claudeComposerRule
 		},
@@ -264,7 +273,7 @@ func claudeComposerActive(snapshot terminalSnapshot) bool {
 		maxRows: claudeComposerMaxRows,
 		// Column 0 is the prompt and column 1 its trailing space.
 		minCursorX: 2,
-	})
+	}
 }
 
 // sameForeground reports whether two cells carry the same foreground, treating

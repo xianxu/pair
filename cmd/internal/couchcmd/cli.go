@@ -16,15 +16,20 @@ const (
 	cliArchived
 	cliShow
 	cliInternal
+	cliMessage
+	cliSkill
 	cliHelp
 )
 
 type cliInvocation struct {
-	kind      cliKind
-	path      string
-	ref       string
-	operation string
-	args      []string
+	kind        cliKind
+	path        string
+	ref         string
+	operation   string
+	args        []string
+	messageOp   string
+	messageBody string
+	jsonOutput  bool
 	// layout is the couch-wide pair layout to launch threads in. Set only on
 	// cliLaunch -- it is a property of the session being started, so the
 	// read-only forms reject the flag rather than carrying a meaningless value.
@@ -60,6 +65,14 @@ func extractLayoutFlag(args []string) (rest []string, layout couchcore.Layout, g
 // ParseCLI classifies the complete public argv vector without performing IO.
 // Registry presentation is the only authority for the hidden process boundary.
 func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, error) {
+	// Message bodies are opaque argv values. Parse these closed forms before
+	// scanning layout flags, which could otherwise consume a literal body.
+	if len(args) > 0 {
+		switch args[0] {
+		case "--actors", "--send-to", "--message-status", "--skill":
+			return parseMessageCLI(args)
+		}
+	}
 	invalid := func(format string, values ...any) (cliInvocation, error) {
 		return cliInvocation{}, fmt.Errorf(format, values...)
 	}
@@ -148,4 +161,33 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 		}
 		return cliInvocation{kind: cliLaunch, path: args[0], layout: layout}, nil
 	}
+}
+
+func parseMessageCLI(args []string) (cliInvocation, error) {
+	bad := func() (cliInvocation, error) {
+		return cliInvocation{}, fmt.Errorf("invalid %s form; use couch --help", args[0])
+	}
+	switch args[0] {
+	case "--skill":
+		if len(args) != 1 {
+			return bad()
+		}
+		return cliInvocation{kind: cliSkill}, nil
+	case "--actors":
+		if len(args) != 1 && !(len(args) == 2 && args[1] == "--json") {
+			return bad()
+		}
+		return cliInvocation{kind: cliMessage, messageOp: "actors", jsonOutput: len(args) == 2}, nil
+	case "--message-status":
+		if (len(args) != 2 && !(len(args) == 3 && args[2] == "--json")) || args[1] == "" || strings.HasPrefix(args[1], "-") {
+			return bad()
+		}
+		return cliInvocation{kind: cliMessage, messageOp: "status", ref: args[1], jsonOutput: len(args) == 3}, nil
+	case "--send-to":
+		if len(args) != 4 || args[1] == "" || strings.HasPrefix(args[1], "-") || args[2] != "--message" || strings.TrimSpace(args[3]) == "" {
+			return bad()
+		}
+		return cliInvocation{kind: cliMessage, messageOp: "send", ref: args[1], messageBody: args[3]}, nil
+	}
+	return bad()
 }

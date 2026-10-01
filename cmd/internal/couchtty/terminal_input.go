@@ -39,10 +39,21 @@ func (c *Console) deliverPresenterInput(event uv.Event) {
 func (c *Console) deliverChildInput(event uv.Event) {
 	c.mu.Lock()
 	panel := c.focus.IsPanel()
+	broker := c.messageBroker
+	var scope, tag string
+	if p := c.panes[c.focus.Actor()]; p != nil {
+		scope, tag = p.thread.RepoScope, string(p.thread.Tag)
+	}
 	c.mu.Unlock()
 	if panel {
 		c.traceDropped("panel", nil)
 		return
+	}
+	if broker != nil && scope != "" && tag != "" {
+		switch event.(type) {
+		case uv.KeyPressEvent, uv.PasteEvent:
+			broker.ObserveInputThread(scope, tag)
+		}
 	}
 	c.deliverPresenterInput(event)
 }

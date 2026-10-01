@@ -71,6 +71,38 @@ retention adapters. Slot row keys use host paths; process/terminal maps retain
 native addresses. Creation admission and launch recovery are described in
 [workspace provisioning](workspace-provisioning.md).
 
+### Live peer messages (#353)
+
+The supervisor owns an ephemeral `couchmessage.Broker` under its existing
+namespace lease. Committed live pane observations validate exact wrapper
+bindings: repository, scope/tag, native session, launch nonce and PID/start
+identity. A slot label is an address, not authority to reuse a replaced wrapper.
+No message body, mailbox or receipt is persisted across supervisor restart.
+
+`couch --actors`, `--send-to repo[:N] --message TEXT` and `--message-status ID`
+use bounded Unix stream RPC, without constructing another mutable supervisor.
+`--actors` and `--message-status` support JSON. One pending delivery per actor,
+eight inbound admissions between genuine operator submissions, and bounded
+receipt retention limit the runtime. Family selection requires fresh resting
+branch and quiet-wrapper observations; exact sends allow occupied-slot
+coordination. Quietness is never acceptance of repository work.
+
+Each wrapper endpoint conditionally reserves its observed input generation,
+then accepts one delivery commit. The broker polls outcome receipts; it never
+retries PTY input after uncertainty. Pair's input owner arbitrates ordinary
+typing, image admission and automatic paste/submit. Unknown or occupied
+composers wait within the delivery deadline. Interference cancels automatic
+submission and leaves visible text for inspection. Initial Claude/Codex
+profiles require fixture and live qualification; live smoke and human
+acceptance remain separate evidence, not a claim made by this map.
+
+Key files: `couchmessage/{model,routing,broker,transport,protocol,endpoint}.go`,
+`couchcmd/{messages,skill}.go`, and the wrapper delivery adapter. The canonical
+skill is `couchcmd/skills/couch/SKILL.md`, embedded for `couch --skill` even
+outside Couch. Loading or installing it is explicit; runtime does not change
+agent configuration. Ordinary messages carry follow-up context in their body;
+there is no reply protocol or availability toggle.
+
 ### Grouped workspace display (#307)
 
 `couchtty.PresentThreads` derives repository grouping, numeric slot order, full

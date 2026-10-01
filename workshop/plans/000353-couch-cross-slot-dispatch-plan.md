@@ -430,3 +430,13 @@ reservation to close the draft-image race discovered by tests.
   supersession of the old test inventories. The function strategy table now
   replaces those Task 1–3 bullets; retained prose is historical, not a parallel
   testing contract.
+
+- 2026-09-30: implementation checkpoint. Actual shared input admission is a
+  mutex on `proxy` in `wrap.go`, used by both orientation and peer delivery;
+  no separate `input_admission.go` is needed. Receiver implementation lives in
+  `peer_delivery.go`, `peer_runtime.go`, and `peer_composer.go`; live binding
+  integration is `couchcmd/message_service.go` and
+  `couchtty/console_messages.go`. These names supersede tentative file mappings
+  above. Regression evidence requires sticky human-composer ownership until a
+  complete genuine submission, followed by a fresh rendered observation.
+  Live version qualification and operator acceptance remain outstanding.
