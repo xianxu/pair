@@ -236,9 +236,9 @@ implementation has not started.
 
 ## Plan
 
-- [ ] Approve the first-iteration contract and implementation plan.
-- [ ] Implement and test bounded actor admission and request/reply rules.
-- [ ] Integrate supervisor transport and exact live wrapper registration.
+- [x] Approve the first-iteration contract and implementation plan.
+- [x] Implement and test bounded actor admission and free-text messaging (approved amendment).
+- [x] Integrate supervisor transport and exact live wrapper registration.
 - [ ] Qualify safe Claude/Codex delivery through Pair's input owner.
 - [ ] Ship CLI, skill, operator notices, and end-to-end acceptance evidence.
 
@@ -354,6 +354,22 @@ Live receiver qualification is unfinished: isolated startup runs exposed auth
 and composer-layout barriers. The supported-version map remains empty until
 live evidence qualifies receivers. This is a work checkpoint, not a usable
 release, acceptance, or completion claim.
+
+### 2026-09-30 — Codex qualification and composed integration
+
+Codex CLI 0.159.2 passed fresh-session startup, short and multiline paste,
+word-wrapped paste, draft/menu preservation, and exactly one submission followed
+by the native composer clearing. Its version is enabled. Captures and replay
+regressions are under `cmd/internal/wrapcmd/testdata/peer/codex/0.159.2/`.
+The broker → private Unix endpoint → wrapper → rendered envelope → single submit
+→ canonical receipt test passes normally and under the race detector.
+
+Focus reports must not acquire human draft ownership; exact, fragmented and
+mixed-input regressions now pass. All four affected package suites and focused
+messaging/orientation race tests pass; `make build` passed before the latest
+receiver qualification changes. Claude live setup needed the native keychain's
+USER identity and a settled temporary-workspace trust picker; receiver checks
+are underway. Human Couch acceptance and close review remain outstanding.
 
 ## Revisions
 
