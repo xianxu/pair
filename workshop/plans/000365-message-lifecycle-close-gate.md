@@ -84,6 +84,42 @@ rounds:
       boundary: M1
       recipe: milestone-review
       blocked: false
+    - "n": 4
+      timestamp: "2026-10-01T15:28:47-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: registry_test.go:151 TestRegistryInterleavingsKeepInvariants drives 400 random event orders through Advance and asserts the stated invariants (no Admit on a stale pane, effects-driven broker equals registry, one connected binding per slot, an older session is never connected once a newer one is admitted) plus coverage floors.
+          round: 4
+      findings:
+        - id: BR-7
+          severity: Important
+          title: EffectConnect drops a broker.Register failure; registry snapshot says connected, broker has no actor, nothing retries
+          detail: 'message_service.go:453 returns silently on Register error (also :459/:470 drop ReconcileObservation errors). Broker tombstones are never deleted, so after 128 distinct bindings per Couch lifetime Register fails "actor capacity reached" and the slot is silently unreachable with no retry (the old heartbeat retried). Rule (ARCH-ORDER): every IO effect''s outcome returns to the reducer as an event; feed Register failure back as a failed admission (backoff, then dormant), log it, and add a service test with a failing Register.'
+          family: effect-outcome-not-returned
+          round: 4
+        - id: BR-8
+          severity: Minor
+          title: newerSessionForSlot lets a never-admitted newer session permanently displace a working older one
+          detail: registry.go:191 counts AwaitingPane/Rejected/Dormant newer sessions; re-admitting an older working session after a pane flicker marks it Displaced (final) while the newer session never connects. The invariant test checks only safety, not liveness. Restrict to Admitting/Admitted newer sessions, or document the choice.
+          family: registry-liveness-unpinned
+          round: 4
+        - id: BR-9
+          severity: Minor
+          title: M2 revision does not reconcile all Core-concepts rows and Task test bullets with the tree
+          detail: '2nd instance of plan-revision-drift. Rule: at each milestone close the Revisions entry sweeps every Core-concepts row and every Task test bullet of that milestone against the tree. Instances: ReconnectBackoff lives in session_protocol.go, not backoff.go; Task 2.3''s helper-subprocess kill test was not written; Task 2.6''s wrapper-level real-broker idle/restart test was delivered at SessionClient level only, so the startPeerRuntime registry-socket wiring is untested.'
+          family: plan-revision-drift
+          round: 4
+        - id: BR-10
+          severity: Minor
+          title: Exact-send SendTargeted posts from an untracked goroutine and matches the target by raw slot string
+          detail: message_service.go:542; a send addressed by family alias would not wake a dormant session. Each send also spawns a goroutine that s.workers does not track; it ends at shutdown.
+          family: send-target-slot-match
+          round: 4
+      boundary: M2
+      recipe: milestone-review
+      blocked: true
 ---
 
 # Gate ledger — pair#365 (boundary-review)
@@ -123,7 +159,27 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-5 — addressed — Renamed TestParentNameReadsAKnownProcess with a comment; name now matches the own-pid assertion.
 - BR-6 — not-addressed — run.sh unchanged; disarm could rm the trace since window writes its summary separately (Minor).
 
+## Round 4 — 2026-10-01T15:28:47-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — registry_test.go:151 TestRegistryInterleavingsKeepInvariants drives 400 random event orders through Advance and asserts the stated invariants (no Admit on a stale pane, effects-driven broker equals registry, one connected binding per slot, an older session is never connected once a newer one is admitted) plus coverage floors.
+
+### Raised
+
+- **BR-7** [Important] `effect-outcome-not-returned` EffectConnect drops a broker.Register failure; registry snapshot says connected, broker has no actor, nothing retries
+  message_service.go:453 returns silently on Register error (also :459/:470 drop ReconcileObservation errors). Broker tombstones are never deleted, so after 128 distinct bindings per Couch lifetime Register fails "actor capacity reached" and the slot is silently unreachable with no retry (the old heartbeat retried). Rule (ARCH-ORDER): every IO effect's outcome returns to the reducer as an event; feed Register failure back as a failed admission (backoff, then dormant), log it, and add a service test with a failing Register.
+- **BR-8** [Minor] `registry-liveness-unpinned` newerSessionForSlot lets a never-admitted newer session permanently displace a working older one
+  registry.go:191 counts AwaitingPane/Rejected/Dormant newer sessions; re-admitting an older working session after a pane flicker marks it Displaced (final) while the newer session never connects. The invariant test checks only safety, not liveness. Restrict to Admitting/Admitted newer sessions, or document the choice.
+- **BR-9** [Minor] `plan-revision-drift` M2 revision does not reconcile all Core-concepts rows and Task test bullets with the tree
+  2nd instance of plan-revision-drift. Rule: at each milestone close the Revisions entry sweeps every Core-concepts row and every Task test bullet of that milestone against the tree. Instances: ReconnectBackoff lives in session_protocol.go, not backoff.go; Task 2.3's helper-subprocess kill test was not written; Task 2.6's wrapper-level real-broker idle/restart test was delivered at SessionClient level only, so the startPeerRuntime registry-socket wiring is untested.
+- **BR-10** [Minor] `send-target-slot-match` Exact-send SendTargeted posts from an untracked goroutine and matches the target by raw slot string
+  message_service.go:542; a send addressed by family alias would not wake a dormant session. Each send also spawns a goroutine that s.workers does not track; it ends at shutdown.
+
 ## Open findings
 
-- **BR-1** [Minor] `plan-enumerates-test-cases` Task 2.1 enumerates 13 test cases in prose; compress to a strategy line
 - **BR-6** [Minor] `artifact-removal-path` messageidle trace TSV grows unbounded while armed; only arm truncates it
+- **BR-7** [Important] `effect-outcome-not-returned` EffectConnect drops a broker.Register failure; registry snapshot says connected, broker has no actor, nothing retries
+- **BR-8** [Minor] `registry-liveness-unpinned` newerSessionForSlot lets a never-admitted newer session permanently displace a working older one
+- **BR-9** [Minor] `plan-revision-drift` M2 revision does not reconcile all Core-concepts rows and Task test bullets with the tree
+- **BR-10** [Minor] `send-target-slot-match` Exact-send SendTargeted posts from an untracked goroutine and matches the target by raw slot string

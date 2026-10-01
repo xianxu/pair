@@ -418,3 +418,11 @@ proof; record the surprising case so the next change starts from evidence.
   prefix-routed to brainstorm. Include known-but-offline names so an exact name
   resolves to itself and misses, and pin it with a test whose control case
   shows the narrowed namespace rerouting.
+
+- A pure reducer's effects are only as true as their execution. Any effect the
+  shell can fail to apply must come back as an event, or the reducer runs ahead
+  of the world it models. #365 BR-7: `EffectConnect` dropped a broker
+  `Register` refusal, so the registry reported a binding connected that the
+  broker never held, and nothing retried. Enumerate the effects, and for each
+  say whether it can fail and which event reports that. Test one refusal through
+  the real executor.

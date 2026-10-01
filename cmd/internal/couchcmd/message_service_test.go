@@ -518,3 +518,34 @@ func TestMessageSocketCleanupPreservesRegularFile(t *testing.T) {
 		t.Fatalf("destroyed unrelated file %q %v", raw, err)
 	}
 }
+
+// BR-7: a broker that refuses the actor must not leave the registry believing
+// the binding is connected; the refusal retries on the bounded ladder.
+func TestMessageBrokerRefusalIsNotConnectedAndRetries(t *testing.T) {
+	r := newServiceRig(t)
+	// Fill the broker's actor table with disconnected tombstones of other
+	// slots, so Register refuses for capacity.
+	for i := 0; i < couchmessage.MaxActors; i++ {
+		b := couchmessage.Binding{Slot: fmt.Sprintf("other:%d", i), Repository: "/other/.git", Scope: "s", Tag: fmt.Sprintf("x%d", i), Session: "s", Nonce: "n", Agent: "codex", Version: "1", PID: 1, Start: "s"}
+		if err := r.s.broker.Register(b, serviceEndpointFake{}); err != nil {
+			t.Fatal(err)
+		}
+		r.s.broker.Disconnect(b)
+	}
+	b := r.world.add(1)
+	r.attach(b, "h1")
+	r.wrapper(b)
+	deadline := time.Now().Add(3 * time.Second)
+	for r.fireRetries() == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("broker refusal scheduled no retry")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if r.s.isConnected(b) {
+		t.Fatal("registry reports a binding the broker refused")
+	}
+	if _, err := r.s.broker.Caller(b.Scope, b.Tag, b.Session, b.Nonce); err == nil {
+		t.Fatal("broker holds the refused binding")
+	}
+}

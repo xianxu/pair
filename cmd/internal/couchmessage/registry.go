@@ -66,6 +66,10 @@ const (
 	SessionActivity
 	SessionSubmit
 	SendTargeted
+	// ConnectFailed reports that executing EffectConnect failed (the broker
+	// refused the actor): an effect that can fail reports back as an event,
+	// or the registry would believe a binding the broker never registered.
+	ConnectFailed
 )
 
 type RegistryEvent struct {
@@ -74,8 +78,8 @@ type RegistryEvent struct {
 	Binding     Binding // SessionOpened
 	Slot        string  // SendTargeted: a send names a slot, not a binding
 	Thread      ThreadKey
-	Pane        PaneHandle // PaneChanged, AdmissionDone
-	Err         error      // AdmissionDone
+	Pane        PaneHandle // PaneChanged, AdmissionDone, ConnectFailed
+	Err         error      // AdmissionDone, ConnectFailed
 	Attempt     int        // RetryDue
 	Observation Observation
 }
@@ -179,13 +183,7 @@ func (r *Registry) Advance(e RegistryEvent) ([]RegistryEffect, error) {
 			break
 		}
 		if e.Err != nil {
-			s.attempt++
-			if s.attempt > len(RetryDelays) {
-				s.phase = Dormant
-				break
-			}
-			s.phase = Rejected
-			fx = append(fx, RegistryEffect{Kind: EffectScheduleRetry, Token: e.Token, Binding: s.binding, Attempt: s.attempt, Delay: RetryDelays[s.attempt-1]})
+			fx = r.fail(e.Token, s, fx)
 			break
 		}
 		if r.newerSessionForSlot(e.Token, s.binding) {
@@ -199,6 +197,12 @@ func (r *Registry) Advance(e RegistryEvent) ([]RegistryEffect, error) {
 		}
 		s.phase, s.attempt = Admitted, 0
 		fx = append(fx, RegistryEffect{Kind: EffectConnect, Token: e.Token, Binding: s.binding, Pane: s.pane})
+	case ConnectFailed:
+		s := r.sessions[e.Token]
+		if s == nil || s.phase != Admitted || s.pane != e.Pane {
+			return nil, nil
+		}
+		fx = r.fail(e.Token, s, fx)
 	case RetryDue:
 		if s := r.sessions[e.Token]; s != nil && s.phase == Rejected && s.attempt == e.Attempt {
 			fx = r.readmit(e.Token, s, fx)
@@ -237,6 +241,18 @@ func (r *Registry) readmit(t SessionToken, s *registrySession, fx []RegistryEffe
 	}
 	s.phase, s.pane = Admitting, pane
 	return append(fx, RegistryEffect{Kind: EffectAdmit, Token: t, Binding: s.binding, Pane: pane})
+}
+
+// fail records a failed attempt and schedules the next one on the bounded
+// ladder, or leaves the session dormant once the ladder is spent.
+func (r *Registry) fail(t SessionToken, s *registrySession, fx []RegistryEffect) []RegistryEffect {
+	s.attempt++
+	if s.attempt > len(RetryDelays) {
+		s.phase = Dormant
+		return fx
+	}
+	s.phase = Rejected
+	return append(fx, RegistryEffect{Kind: EffectScheduleRetry, Token: t, Binding: s.binding, Attempt: s.attempt, Delay: RetryDelays[s.attempt-1]})
 }
 
 func (r *Registry) displace(t SessionToken, s *registrySession, fx []RegistryEffect) []RegistryEffect {

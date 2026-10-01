@@ -400,19 +400,28 @@ func (s *messageService) post(e couchmessage.RegistryEvent, wait bool) error {
 func (s *messageService) loop() {
 	defer s.workers.Done()
 	registry := couchmessage.NewRegistry()
-	step := func(e couchmessage.RegistryEvent) error {
+	var step func(e couchmessage.RegistryEvent) error
+	step = func(e couchmessage.RegistryEvent) error {
 		fx, err := registry.Advance(e)
 		// Publish first: endpoint checks then never admit a binding the broker
 		// is about to drop, nor refuse one it is about to register.
 		connected := registry.Connected()
 		s.connected.Store(&connected)
+		var followUps []couchmessage.RegistryEvent
 		for _, effect := range fx {
-			s.execute(effect)
+			if next := s.execute(effect); next != nil {
+				followUps = append(followUps, *next)
+			}
 		}
 		if e.Kind == couchmessage.AdmissionDone {
 			s.mu.Lock()
 			delete(s.prepared, preparedKey{e.Token, e.Pane})
 			s.mu.Unlock()
+		}
+		// An effect that failed reports back before any other event, so the
+		// registry never runs ahead of what the broker holds.
+		for _, next := range followUps {
+			_ = step(next)
 		}
 		return err
 	}
@@ -433,8 +442,12 @@ func (s *messageService) loop() {
 	}
 }
 
-// execute runs on the loop goroutine; anything slow goes to a worker.
-func (s *messageService) execute(e couchmessage.RegistryEffect) {
+// execute runs on the loop goroutine; anything slow goes to a worker. An
+// effect that fails synchronously returns the event reporting it (ARCH-ORDER):
+// Admit reports through AdmissionDone, Connect through ConnectFailed;
+// Disconnect and ScheduleRetry cannot fail, and a refused Observe only drops a
+// stale observation.
+func (s *messageService) execute(e couchmessage.RegistryEffect) *couchmessage.RegistryEvent {
 	switch e.Kind {
 	case couchmessage.EffectAdmit:
 		s.workers.Add(1)
@@ -448,10 +461,11 @@ func (s *messageService) execute(e couchmessage.RegistryEffect) {
 		p, ok := s.prepared[preparedKey{e.Token, e.Pane}]
 		s.mu.Unlock()
 		if !ok {
-			return // unreachable: Connect follows the AdmissionDone the worker prepared
+			// Unreachable: Connect follows the AdmissionDone the worker prepared.
+			return &couchmessage.RegistryEvent{Kind: couchmessage.ConnectFailed, Token: e.Token, Pane: e.Pane, Err: errors.New("admission evidence missing")}
 		}
-		if s.broker.Register(e.Binding, messageEndpoint{service: s, binding: e.Binding, endpoint: p.endpoint}) != nil {
-			return
+		if err := s.broker.Register(e.Binding, messageEndpoint{service: s, binding: e.Binding, endpoint: p.endpoint}); err != nil {
+			return &couchmessage.RegistryEvent{Kind: couchmessage.ConnectFailed, Token: e.Token, Pane: e.Pane, Err: err}
 		}
 		s.mu.Lock()
 		s.workspaces[e.Binding] = p.identity
@@ -469,6 +483,7 @@ func (s *messageService) execute(e couchmessage.RegistryEffect) {
 	case couchmessage.EffectObserve:
 		_ = s.broker.ReconcileObservation(e.Binding, e.Observation)
 	}
+	return nil
 }
 
 // admit is one full authority check plus the workspace and a first

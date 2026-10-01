@@ -134,6 +134,24 @@ func TestRegistryAdmissionFailureBacksOffThenDormantUntilTargeted(t *testing.T) 
 	}
 }
 
+func TestRegistryConnectFailureRetriesAndDisconnectsNothing(t *testing.T) {
+	r := NewRegistry()
+	b := registryBinding("pair:1", "a", 10)
+	step(t, r, RegistryEvent{Kind: PaneChanged, Thread: b.Thread(), Pane: "h1"})
+	step(t, r, RegistryEvent{Kind: SessionOpened, Token: 1, Binding: b})
+	step(t, r, RegistryEvent{Kind: AdmissionDone, Token: 1, Pane: "h1"})
+	if fx := step(t, r, RegistryEvent{Kind: ConnectFailed, Token: 1, Pane: "h0", Err: errors.New("stale")}); len(fx) != 0 || !r.Connected()[b] {
+		t.Fatalf("a failure for another pane applied: %+v", fx)
+	}
+	fx := step(t, r, RegistryEvent{Kind: ConnectFailed, Token: 1, Pane: "h1", Err: errors.New("actor capacity reached")})
+	if len(fx) != 1 || fx[0].Kind != EffectScheduleRetry || r.Connected()[b] {
+		t.Fatalf("connect failure effects %+v connected=%v", fx, r.Connected()[b])
+	}
+	if fx := step(t, r, RegistryEvent{Kind: RetryDue, Token: 1, Attempt: 1}); len(fx) != 1 || fx[0].Kind != EffectAdmit {
+		t.Fatalf("retry %+v", fx)
+	}
+}
+
 func TestRegistryCapacity(t *testing.T) {
 	r := NewRegistry()
 	for i := 0; i < MaxActors; i++ {
@@ -228,6 +246,20 @@ func TestRegistryInterleavingsKeepInvariants(t *testing.T) {
 					}
 					pendingRetries = append(pendingRetries, f)
 				case EffectConnect:
+					if rng.Intn(5) == 0 {
+						// The broker refuses: the failure comes back as an
+						// event and the broker never held the actor.
+						fx2, err := r.Advance(RegistryEvent{Kind: ConnectFailed, Token: f.Token, Pane: f.Pane, Err: errors.New("refused")})
+						if err != nil {
+							t.Fatal(err)
+						}
+						for _, g := range fx2 {
+							if g.Kind == EffectScheduleRetry {
+								pendingRetries = append(pendingRetries, g)
+							}
+						}
+						continue
+					}
 					// The broker displaces same-slot actors on Register; the
 					// registry must already have disconnected them.
 					for other := range broker {
