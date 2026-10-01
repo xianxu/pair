@@ -1877,7 +1877,7 @@ func endsItsOwnChild(operation string) bool {
 // terminal focus; leave terminates the console and has no next frame to update.
 func operationNeedsProjectionRefresh(operation string) bool {
 	switch operation {
-	case "open-slot", "fresh-slot", "start", "park", "detach", "resume", "name", "describe", "archive", "relaunch", "switch-agent", "retry-continuation", "dismiss-continuation", "continue-thread":
+	case "open-slot", "fresh-slot", "start", "park", "detach", "resume", "name", "describe", "alias", "archive", "relaunch", "switch-agent", "retry-continuation", "dismiss-continuation", "continue-thread":
 		return true
 	case "switch", "leave":
 		return false

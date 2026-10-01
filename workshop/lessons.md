@@ -394,3 +394,10 @@ proof; record the surprising case so the next change starts from evidence.
 - Validate family identity against the full inventory before eligibility filters;
   excluding the caller or a busy candidate must not hide an ambiguous repository.
   Test the broker effects, not only the pure resolver. (#353 BR-5)
+
+- A display override must be tested in every label source it competes with,
+  in a fixture without the structure the feature usually rides on. #360's
+  alias passed with a repository that had slots (group name) but lost to the
+  thread's operator name in the switcher and to the pane label on the tab for
+  a repository with only `:0`. Enumerate the label inputs (row name, pane
+  label, group name) and assert the override against each. (#360 smoke)

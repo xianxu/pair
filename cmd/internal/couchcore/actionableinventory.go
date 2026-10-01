@@ -211,13 +211,19 @@ func (s ActionableThreadSummary) Resumable() bool {
 	return s.State == ThreadParked || s.State == ThreadDetached
 }
 
+// Label is the row's display name. A repository alias outranks a thread's
+// operator name and an attached pane's label: the alias names the slot's
+// repository, which is what the operator addresses (#360).
 func (s ActionableThreadSummary) Label() string {
-	if s.Target.Kind == ThreadTargetSlot && s.Name == "" {
-		repo := s.Target.Slot.Repo
-		if s.RepositoryAlias != "" {
-			repo = s.RepositoryAlias
+	if s.Target.Kind == ThreadTargetSlot {
+		switch {
+		case s.RepositoryAlias != "":
+			return (WorkspaceReference{Repo: s.RepositoryAlias, Number: s.Target.Slot.Number}).String()
+		case s.Name == "":
+			return (WorkspaceReference{Repo: s.Target.Slot.Repo, Number: s.Target.Slot.Number}).String()
 		}
-		return (WorkspaceReference{Repo: repo, Number: s.Target.Slot.Number}).String()
+	} else if s.RepositoryAlias != "" {
+		return s.RepositoryAlias
 	}
 	return threadLabel(s.Name, s.WorkingPath, s.Address.Tag)
 }

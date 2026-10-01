@@ -107,6 +107,17 @@ inside couch; no model is involved.
   live `:0` row. The switcher action cleanup moved to #363, slot removal to
   #364.
 
+### 2026-10-01
+
+- Implemented per the plan (commits `#360: …`). Operator smoke on pair:0:
+  alias `xianxu.dev` → `blog` was stored, but the switcher kept the thread's
+  old operator name and the tab kept the pane label `xianxu.dev`: xianxu.dev
+  has only `:0`, and the alias only renamed slot groups. Fixed by letting
+  `RepositoryAlias` outrank the thread name and pane label in
+  `ActionableThreadSummary.Label`, with a regression test through the tab-bar
+  model. `couch actors` (no `--`) is the launch form, not `--actors`, hence the
+  supervisor-lease error.
+
 ## Revisions
 
 ### 2026-09-30 — rescoped after design talk

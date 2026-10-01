@@ -2,10 +2,14 @@ package couchtty
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
+	"github.com/xianxu/pair/cmd/internal/ansi"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
 
 // livePrimaryMenuRow is a live :0 row whose scope proves its repository root.
@@ -78,5 +82,40 @@ func TestPresentThreadsLabelsAliasedRepository(t *testing.T) {
 	}
 	if got := slotRow.Label(); got != "blog:1" {
 		t.Fatalf("slot row label %q", got)
+	}
+}
+
+// The live-smoke shape: a repository with only :0, whose thread carries an old
+// operator name, attached under its directory-name pane label. The alias must
+// win in the switcher, the tab bar and the row's own label.
+func TestAliasBeatsThreadNameAndPaneLabelWithoutSlots(t *testing.T) {
+	row := groupedRow("/workspace/xianxu.dev", 0, "primary")
+	row.Name = "personal blog"
+	row.RepositoryAlias = "blog"
+	if got := row.Label(); got != "blog" {
+		t.Fatalf("row label %q", got)
+	}
+	for _, p := range PresentThreads([]couchcore.ActionableThreadSummary{row}, nil) {
+		if p.Label != "blog" {
+			t.Fatalf("switcher label %q", p.Label)
+		}
+	}
+	con := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 120}), strings.NewReader(""))
+	con.menu = NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
+	con.order = []string{"primary"}
+	con.panes = map[string]*pane{"primary": {tree: couchcore.Worktree(row.StartingPath), thread: row.Address, label: "xianxu.dev"}}
+	con.active = "primary"
+	plain := string(ansi.Strip([]byte(RenderStatusRow(120, con.statusModelLocked()).Body)))
+	if !strings.Contains(plain, "blog") || strings.Contains(plain, "xianxu.dev") || strings.Contains(plain, "personal") {
+		t.Fatalf("tab bar %q", plain)
+	}
+}
+
+func TestAliasBeatsThreadNameOnSlotRow(t *testing.T) {
+	slot := groupedRow("/workspace/xianxu.dev", 1, "one")
+	slot.Name = "draft"
+	slot.RepositoryAlias = "blog"
+	if got := slot.Label(); got != "blog:1" {
+		t.Fatalf("slot label %q", got)
 	}
 }
