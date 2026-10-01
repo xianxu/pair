@@ -1,6 +1,6 @@
 ---
 id: 000372
-status: open
+status: working
 created: 2026-10-01
 updated: 2026-10-01
 estimate_hours:
@@ -17,6 +17,7 @@ tracker:
         source_blob: 9b86e6d68d71833a494807031c446b6ecee36737
         destination: workshop/issues/000372-couch-focus-view-inline-pair-slug.md
         main_commit: 23f311fb48d5a3bc9e5909a05669c2d9d241bbe0
+started: 2026-10-01T15:09:24-07:00
 ---
 
 # couch focus view: show pair-slug inline
