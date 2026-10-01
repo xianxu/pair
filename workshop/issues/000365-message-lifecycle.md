@@ -34,6 +34,33 @@ ARCH-PURPOSE: state the user-visible failure each retained check prevents. ARCH-
 - Repeat the live CPU profile and idle/query experiment before/after on the same workload; archive reproducible commands and results and quantify improvement.
 - Existing composer/input safety and receipt tests pass; docs state remaining delivery uncertainty rather than promising exactly-once task execution.
 
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* Calibration doc flagged stale (provisional numbers).
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec                design=0.8 impl=0.04
+item: greenfield-go-module      design=1.0 impl=0.24
+item: greenfield-go-module      design=0.6 impl=0.24
+item: smaller-go-module         design=0.3 impl=0.2
+item: smaller-go-module         design=0.2 impl=0.16
+item: smaller-go-module         design=0.2 impl=0.16
+item: smaller-go-module         design=0.3 impl=0.2
+item: smaller-go-module         design=0.1 impl=0.12
+item: cross-cutting-refactor    design=0.3 impl=0.2
+item: atlas-docs                design=0.1 impl=0.06
+item: real-api-discovery        design=0.0 impl=0.2
+item: milestone-review          design=0.0 impl=0.2
+item: milestone-review          design=0.0 impl=0.2
+item: milestone-review          design=0.0 impl=0.2
+design-buffer: 0.15
+total: 6.91
+```
+
+Items in order: spec/plan; Registry reducer; session transport + client + peer PID; service rewire; Console hooks + mailbox; wrapper session client + activity coalescing; duplicate guard + family status + tombstones; live measurement probe; test rewrite + crash suite; atlas; live Zellij/process measurement; M1–M3 reviews.
+
 ## Plan
 
 Durable plan: `workshop/plans/000365-message-lifecycle-plan.md` (awaiting operator approval).
