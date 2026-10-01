@@ -6,7 +6,7 @@ updated: 2026-09-30
 estimate_hours: 8.19
 github_issue:
 started: 2026-09-30T13:47:42-07:00
-actual_hours: 6.22
+actual_hours: 4.96
 tracker:
     version: 1
     handoff:
@@ -20,10 +20,10 @@ tracker:
         destination: workshop/issues/000353-couch-cross-slot-dispatch.md
         main_commit: 76db90172b0d80ffc14875b9ee5a3fcaef2825f7
     completion:
-        token: close-cbbac013746f
+        token: close-c01587ddc4fe
         repository: github.com/xianxu/pair
-        reviewed_head: 51fb8e66e2d207fff4678c7e5254e798e0e12421
-        evidence_commit: fdcce393b11c4936c877d8027f642d85ecd4ce27
+        reviewed_head: 20a45dc8a58ca51221c31d1628829e74b1293c09
+        evidence_commit: 1e5ed6355306726c02211b258c7a7ad3b8b13b42
 ---
 
 # Live cross-slot dispatch between couch slots
