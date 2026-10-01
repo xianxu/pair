@@ -45,11 +45,12 @@ prefix (ARCH-DRY). Preserve message order and existing navigation/click ownershi
 - Zero, one, and multiple notifications render correctly, ignoring empty messages.
 - Keyboard navigation skips notification rows; clicking one targets its owning slot.
 - Rendering tests cover the grouping, narrow-width clipping, and viewport behavior.
+- A selected group taller than the viewport keeps its owning slot label visible.
 
 ## Plan
 
-- [ ] Add rendering regressions for both slot depths, empty messages, clipping, and ownership.
-- [ ] Render tree connectors using the row's existing presentation indent; update atlas.
+- [x] Add rendering regressions for both slot depths, empty messages, clipping, and ownership.
+- [x] Render tree connectors using the row's existing presentation indent; update atlas.
 - [ ] Run couchtty tests including race checks and close with the SDLC review.
 
 ## Log
@@ -69,3 +70,26 @@ Spec review: no blockers. Connectors include the existing two-cell selection
 gutter and align at column `2 + entry.Indent`. Keep matching-description rows
 before notifications. Determine the last nonempty message before viewport
 clipping; test normal and focus views. These clarify the proposed layout.
+
+Rendering regressions failed on the old fixed prefix, then passed with tree
+connectors. An oversized selected-group regression also failed before bounding
+the scroll start by the owner row. Full couchtty tests and `make build` passed.
+The full race check exposed a pre-existing grouped-tab fixture race: it mutates
+pane identity after Console.Run starts. Move configuration before startup and
+rerun the race suite; production pane identity remains unchanged.
+
+## Revisions
+
+### 2026-10-01 — Preserve ownership for oversized groups
+
+Regression exploration reproduced an existing scroll-window bug: anchoring the
+window at the selected group's end can hide the selected slot label when its
+messages exceed the viewport. Bound the start by the selected row's start so
+grouping remains intelligible; add a regression and retain the existing
+viewport budget. This extends the viewport acceptance criterion.
+
+### 2026-10-01 — Repair verification fixture startup ordering
+
+The race-suite failure is in the grouped-tab test setup, which writes pane
+identity concurrently with console startup. Configure the fixture before
+starting its goroutine to make the required race verification reliable.
