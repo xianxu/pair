@@ -288,6 +288,16 @@ total: 8.19
 
 ## Log
 
+### 2026-09-30 — shared suggestion style
+
+Operator requested SGR 2 as the default across terminals after the local Codex
+capture also showed faint styling. Removed the Codex literal placeholder match;
+all recognized composer layouts now share the single-line faint-style rule,
+with input-origin cursor and human ownership guards unchanged. Agent-specific
+layout recognition and receiver qualification still apply. Regression coverage
+uses arbitrary wording for Claude and Codex, rejecting ordinary and gray-only
+text. No color learning or additional exceptions in this iteration.
+
 ### 2026-09-30 — human smoke: Claude suggested prompts
 
 Operator confirmed parley.nvim:1 to :0 delivered and was verified by Codex.

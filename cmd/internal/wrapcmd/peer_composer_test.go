@@ -78,6 +78,22 @@ func TestPeerComposerCapturedFrames(t *testing.T) {
 	}
 }
 
+func TestPeerComposerSharedFaintSuggestion(t *testing.T) {
+	for _, agent := range []string{"claude", "codex"} {
+		for _, style := range []string{"2", "0", "38;2;136;136;136"} {
+			body := "\x1b[" + style + "many suggestion wording\x1b[0m"
+			paint := claudeBox(5, "❯", "136;136;136", body) + "\x1b[?25h\x1b[7;3H"
+			if agent == "codex" {
+				paint = "\x1b[20;1H\x1b[1m›\x1b[22m " + body + "\x1b[?25h\x1b[20;3H"
+			}
+			s := peerSnapshot(t, paint)
+			if empty := peerComposerState(agent, s) == PeerComposerEmpty; empty != (style == "2") {
+				t.Errorf("%s style=%s empty=%v", agent, style, empty)
+			}
+		}
+	}
+}
+
 func TestPeerComposerMatchesWrapAndWhitespace(t *testing.T) {
 	body := "[Couch peer]\n" + strings.Repeat("x", 118) + "tail"
 	s := peerSnapshot(t, claudeBox(5, "❯", "136;136;136", "[Couch peer]", strings.Repeat("x", 118), "tail")+"\x1b[?25h\x1b[9;7H")

@@ -89,7 +89,7 @@ func peerComposerText(agent string, s terminalSnapshot) (string, bool) {
 		lines = lines[:len(lines)-1]
 	}
 	text := strings.Join(lines, "\n")
-	if peerPlaceholder(agent, s, top, text) {
+	if peerPlaceholder(s, top, text) {
 		return "", true
 	}
 	if strings.HasPrefix(strings.TrimSpace(text), "/") || strings.HasPrefix(strings.TrimSpace(text), "!") {
@@ -98,18 +98,11 @@ func peerComposerText(agent string, s terminalSnapshot) (string, bool) {
 	return text, true
 }
 
-// Claude paints both startup hints and generated next-prompt suggestions in
-// faint styling at the empty input origin of the ruled box. Wording is free text.
+// Recognized composers share a default suggestion convention: single-line
+// ANSI faint text at the empty input origin, independent of wording or color.
 // The wrapper separately retains human draft ownership even if text looks blank.
-func peerPlaceholder(agent string, s terminalSnapshot, row int, text string) bool {
-	expected := false
-	switch agent {
-	case "codex":
-		expected = text == "Ask Codex to do anything"
-	case "claude":
-		expected = strings.TrimSpace(text) != "" && !strings.ContainsAny(text, "\r\n")
-	}
-	if !expected || s.Cursor.X != 2 || s.Cursor.Y != row {
+func peerPlaceholder(s terminalSnapshot, row int, text string) bool {
+	if strings.TrimSpace(text) == "" || strings.ContainsAny(text, "\r\n") || s.Cursor.X != 2 || s.Cursor.Y != row {
 		return false
 	}
 	for x := 2; x < s.Width; x++ {
