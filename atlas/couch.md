@@ -106,8 +106,12 @@ Collapsed paste summaries remain unsubmitted and expire. Human Couch acceptance
 remains a separate step.
 
 Single-line suggested prompts in recognized agent composers use shared ANSI faint styling
-and the cursor at the input origin, independent of wording or RGB color. Human
-input ownership still blocks delivery even if the screen resembles a suggestion.
+and the cursor at the input origin, independent of wording or RGB color.
+Delivery reads the current composer, not a sticky human-draft flag. Buffered
+input/output blocks inspection; newly forwarded human input gets one second to
+settle before inspecting the screen. Visible draft text still blocks delivery,
+while an erased draft can become eligible without submitting it. A one-second
+polling timer exists only while a message is pending; events also wake checks.
 After the input deadline, the broker allows two seconds for read-only receipt
 collection; this never extends the wrapper's paste/submit deadline.
 

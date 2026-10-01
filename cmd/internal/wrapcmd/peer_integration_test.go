@@ -24,7 +24,8 @@ func peerIntegrationEnqueue(t *testing.T, d *peerDelivery) {
 	d.mu.Lock()
 	sequence := d.sequence
 	d.mu.Unlock()
-	m := peerTestMessage(time.Now())
+	m := peerTestMessage(d.now())
+	m.Deadline = d.now().Add(couchmessage.DeliveryTimeout)
 	if err := d.reserve(m.ID, sequence); err != nil {
 		t.Fatal(err)
 	}
@@ -33,16 +34,40 @@ func peerIntegrationEnqueue(t *testing.T, d *peerDelivery) {
 	}
 }
 
-func TestPeerIntegrationClaudeSuggestionPreservesHumanOwnership(t *testing.T) {
+func TestPeerIntegrationErasedDraftAllowsDelivery(t *testing.T) {
+	f, d := peerIntegrationFixture(t)
+	now := time.Now()
+	d.now = func() time.Time { return now }
+	d.admitInput([]byte("human"))
+	d.inputForwarded(true, false)
+	f.output("\x1b[21;3Hhuman\x1b[21;8H")
+	peerIntegrationEnqueue(t, d)
+	now = now.Add(time.Second)
+	var out bytes.Buffer
+	f.proxy.dispatchPeer(&out)
+	if out.Len() != 0 {
+		t.Fatal("delivered into human text")
+	}
+	d.admitInput([]byte("\x7f\x7f\x7f\x7f\x7f"))
+	d.inputForwarded(true, false)
+	f.output("\x1b[21;3H\x1b[K\x1b[21;3H")
+	now = now.Add(time.Second)
+	f.proxy.dispatchPeer(&out)
+	if !strings.Contains(out.String(), "[Couch peer from ") {
+		t.Fatal("erased draft still blocks delivery")
+	}
+}
+
+func TestPeerIntegrationClaudeSuggestionWaitsForRecentHumanInput(t *testing.T) {
 	for _, human := range []bool{false, true} {
 		t.Run(fmt.Sprint(human), func(t *testing.T) {
 			f, d := peerIntegrationFixture(t)
 			if human {
 				d.admitInput([]byte("human\x01"))
-				d.inputForwarded()
+				d.inputForwarded(true, false)
 			}
 			// Same faint composer and origin cursor as the operator's 2.1.286
-			// capture. Even this paint cannot release admitted human input.
+			// capture. Even this paint cannot bypass the input settling interval.
 			f.output("\x1b[21;3H\x1b[2mcheck if parley.nvim:0 replied\x1b[22m\x1b[21;3H")
 			peerIntegrationEnqueue(t, d)
 			var out bytes.Buffer
@@ -63,7 +88,7 @@ func TestPeerIntegrationClaudeSuggestionPreservesHumanOwnership(t *testing.T) {
 func TestPeerIntegrationUnrenderedOperatorInputBlocksPaste(t *testing.T) {
 	f, d := peerIntegrationFixture(t)
 	d.admitInput([]byte("human"))
-	d.inputForwarded()
+	d.inputForwarded(true, false)
 	peerIntegrationEnqueue(t, d)
 	var out bytes.Buffer
 	f.proxy.dispatchPeer(&out)
@@ -75,12 +100,11 @@ func TestPeerIntegrationUnrenderedOperatorInputBlocksPaste(t *testing.T) {
 	}
 }
 
-// Blank spaces remain operator-owned composer content even when Home places
-// the cursor back at the prompt and the visible screen appears empty.
-func TestPeerIntegrationSpacesThenHomeBlocksPaste(t *testing.T) {
+// An apparently blank composer cannot bypass just-forwarded input settling.
+func TestPeerIntegrationSpacesThenHomeWaitsForSettling(t *testing.T) {
 	f, d := peerIntegrationFixture(t)
 	d.admitInput([]byte("   \x01"))
-	d.inputForwarded()
+	d.inputForwarded(true, false)
 	repaint := []byte("\x1b[21;3H   \x1b[21;3H")
 	d.observeOutput(repaint)
 	f.output(string(repaint))
@@ -179,14 +203,10 @@ func TestPeerIntegrationOnlyFullyWrittenHumanSendResetsAllowance(t *testing.T) {
 				t.Fatalf("budget reset=%t want %t", reset, tc.reset)
 			}
 			d.mu.Lock()
-			owned := d.operatorDraft
 			submissions := d.submissions
 			d.mu.Unlock()
 			if (tc.reset && submissions != 1) || (!tc.reset && submissions != 0) {
 				t.Fatalf("human submission generation=%d reset=%t", submissions, tc.reset)
-			}
-			if owned == tc.reset {
-				t.Fatalf("operator draft ownership=%t after full send=%t", owned, tc.reset)
 			}
 		})
 	}
@@ -211,7 +231,7 @@ func TestPeerIntegrationHumanSubmitNeedsFreshComposerEvidence(t *testing.T) {
 	d.admitInput([]byte("human\x1b\r"))
 	// Exercise the same full-write accounting order as translateStdinFrom.
 	d.humanSubmit()
-	d.inputForwarded()
+	d.inputForwarded(true, false)
 	peerIntegrationEnqueue(t, d)
 	var out bytes.Buffer
 	f.proxy.dispatchPeer(&out)
@@ -241,11 +261,11 @@ func TestPeerIntegrationFocusReportsDoNotOwnDraft(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			d := newPeerDelivery(peerTestMessage(time.Now()).To, time.Now)
 			for _, chunk := range tc.chunks {
-				d.admitInput([]byte(chunk))
-				d.inputForwarded()
+				human := d.admitInput([]byte(chunk))
+				d.inputForwarded(human, false)
 			}
 			d.mu.Lock()
-			owned := d.operatorDraft
+			owned := !d.lastInput.IsZero()
 			pending := len(d.replies.input)
 			d.mu.Unlock()
 			if owned != tc.owned {

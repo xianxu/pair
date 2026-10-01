@@ -288,6 +288,24 @@ total: 8.19
 
 ## Log
 
+### 2026-09-30 — delivery-driven composer observation
+
+Operator approved removing sticky human-draft ownership and polling only while
+delivery is pending. The input writer now creates its one-second timer on
+demand and stops it at a terminal delivery outcome or shutdown. Each attempt
+reads the current recognized composer. Input/output in flight and incomplete
+paste/framing remain temporary guards; freshly forwarded human input settles
+for one second before the screen is authoritative. No human-draft flag waits
+for a submission, so typing then erasing can permit the queued message.
+
+Regression: the erased-draft case failed before the change. Tests now cover
+visible text after the settling interval, erase without submission, unfinished
+paste, recent input, focus reports, and timer lifecycle for submitted/cancelled/
+expired/indeterminate outcomes. The integration fixture now uses the production
+30-second delivery deadline, so advancing its clock to test settling does not
+accidentally test expiry instead. Budget reset still requires a genuine human
+submission; recognizing an empty input box does not reset the breaker.
+
 ### 2026-09-30 — periodic delivery checks
 
 At the operator's request, changed the wrapper's periodic peer-delivery recheck

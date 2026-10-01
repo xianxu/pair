@@ -21,8 +21,8 @@ type peerDelivery struct {
 	now              func() time.Time
 	lastActivity     time.Time
 	sequence         uint64
-	outputSequence   uint64
-	submitSequence   uint64
+	lastInput        time.Time
+	inputBuffered    bool
 	submissions      uint64
 	pasteSequence    uint64
 	outputPending    int
@@ -31,7 +31,6 @@ type peerDelivery struct {
 	current          couchmessage.Receipt
 	state            couchmessage.PeerDeliveryState
 	image            bool
-	operatorDraft    bool
 	interrupted      bool
 	exited           bool
 	replies          orientationReplies
@@ -43,6 +42,33 @@ type peerDelivery struct {
 func newPeerDelivery(binding couchmessage.Binding, now func() time.Time) *peerDelivery {
 	return &peerDelivery{binding: binding, now: now, lastActivity: now(), wake: make(chan struct{}, 1), submit: make(chan struct{}, 1), notices: make(chan string, 1)}
 }
+
+// Owned by the input writer. Idle wrappers allocate no polling timer.
+type peerDeliveryPoll struct{ ticker *time.Ticker }
+
+func (p *peerDeliveryPoll) stop() {
+	if p.ticker != nil {
+		p.ticker.Stop()
+		p.ticker = nil
+	}
+}
+
+func (p *peerDeliveryPoll) update(d *peerDelivery) <-chan time.Time {
+	active := false
+	if d != nil {
+		d.mu.Lock()
+		active = d.current.Message.ID != "" && !d.current.Status.Terminal()
+		d.mu.Unlock()
+	}
+	if !active {
+		p.stop()
+		return nil
+	}
+	if p.ticker == nil {
+		p.ticker = time.NewTicker(time.Second)
+	}
+	return p.ticker.C
+}
 func (d *peerDelivery) signal() {
 	select {
 	case d.wake <- struct{}{}:
@@ -52,7 +78,6 @@ func (d *peerDelivery) signal() {
 func (d *peerDelivery) observeOutput(data []byte) {
 	d.mu.Lock()
 	d.sequence++
-	d.outputSequence = d.sequence
 	d.outputPending++
 	d.lastActivity = d.now()
 	d.replies.observeQueries(data)
@@ -67,12 +92,13 @@ func (d *peerDelivery) outputForwarded() {
 	d.mu.Unlock()
 	d.signal()
 }
-func (d *peerDelivery) admitInput(data []byte) {
+func (d *peerDelivery) admitInput(data []byte) bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.replies.inFlight++
-	if d.replies.operatorDataWithoutFocus(data) {
-		d.operatorDraft = true
+	human := d.replies.operatorDataWithoutFocus(data)
+	if human {
+		d.lastInput = d.now()
 		d.sequence++
 		d.lastActivity = d.now()
 		d.interrupted = d.interrupted || d.current.Status == couchmessage.Delivering
@@ -82,8 +108,18 @@ func (d *peerDelivery) admitInput(data []byte) {
 		d.interrupted = d.interrupted || d.current.Status == couchmessage.Delivering
 	}
 	d.signal()
+	return human
 }
-func (d *peerDelivery) inputForwarded() { d.mu.Lock(); d.replies.inFlight--; d.mu.Unlock(); d.signal() }
+func (d *peerDelivery) inputForwarded(human, buffered bool) {
+	d.mu.Lock()
+	d.replies.inFlight--
+	d.inputBuffered = buffered
+	if human {
+		d.lastInput = d.now()
+	}
+	d.mu.Unlock()
+	d.signal()
+}
 func (d *peerDelivery) admitImage() {
 	d.mu.Lock()
 	d.image = true
@@ -96,9 +132,7 @@ func (d *peerDelivery) admitImage() {
 func (d *peerDelivery) humanSubmit() {
 	d.mu.Lock()
 	d.image = false
-	d.operatorDraft = false
 	d.sequence++
-	d.submitSequence = d.sequence
 	d.submissions++
 	d.lastActivity = d.now()
 	d.mu.Unlock()
@@ -181,7 +215,7 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 		event.Kind = couchmessage.PeerOperatorInput
 	case p.pickerActive.Load() && d.current.Status == couchmessage.Delivering:
 		event.Kind = couchmessage.PeerOverlayObserved
-	case d.replies.inFlight > 0 || len(d.replies.input) > 0 || d.outputPending > 0:
+	case d.replies.inFlight > 0 || len(d.replies.input) > 0 || d.outputPending > 0 || d.inputBuffered:
 		return
 	default:
 		if d.image || p.pickerActive.Load() {
@@ -192,9 +226,9 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 		}
 		snapshot := p.terminal.Snapshot()
 		if d.current.Status == couchmessage.Queued {
-			// Rendered blanks cannot prove that a human-owned composer is
-			// empty: input may not have rendered yet, or may be whitespace.
-			if d.operatorDraft || (d.submitSequence > 0 && d.outputSequence <= d.submitSequence) {
+			// Let just-forwarded keystrokes repaint before reading the source.
+			// This bounded settle interval cannot retain stale draft ownership.
+			if !d.lastInput.IsZero() && d.now().Before(d.lastInput.Add(time.Second)) {
 				return
 			}
 			event.Ready = p.childAcceptsPaste() && peerComposerState(p.agentBasename, snapshot) == PeerComposerEmpty

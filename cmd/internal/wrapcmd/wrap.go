@@ -1441,8 +1441,9 @@ func (p *proxy) translateStdin() {
 // thin wrapper above.
 func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter time.Duration) {
 	type readEv struct {
-		data []byte
-		err  error
+		data  []byte
+		err   error
+		human bool
 	}
 	ch := make(chan readEv, 4)
 	go func() {
@@ -1450,9 +1451,10 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 		for {
 			n, err := stdin.Read(buf)
 			if n > 0 {
+				human := false
 				p.inputAdmission.Lock()
 				if p.peer != nil {
-					p.peer.admitInput(buf[:n])
+					human = p.peer.admitInput(buf[:n])
 				}
 				if p.orientation != nil {
 					p.orientation.admitOperatorInput(buf[:n])
@@ -1460,7 +1462,7 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 				p.inputAdmission.Unlock()
 				cp := make([]byte, n)
 				copy(cp, buf[:n])
-				ch <- readEv{data: cp}
+				ch <- readEv{data: cp, human: human}
 			}
 			if err != nil {
 				ch <- readEv{err: err}
@@ -1473,12 +1475,10 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 	var pending []byte
 	inPaste := false
 	var peerWake <-chan struct{}
-	var peerTick <-chan time.Time
+	var peerPoll peerDeliveryPoll
+	defer peerPoll.stop()
 	if p.peer != nil {
 		peerWake = p.peer.wake
-		ticker := time.NewTicker(time.Second)
-		defer ticker.Stop()
-		peerTick = ticker.C
 		defer func() { p.peer.mu.Lock(); p.peer.exited = true; p.peer.mu.Unlock(); p.dispatchPeer(out) }()
 	}
 	var orientationWake <-chan struct{}
@@ -1542,6 +1542,13 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 			"mode":             "pending-flush",
 		})
 		pending = nil
+		if p.peer != nil {
+			p.peer.mu.Lock()
+			p.peer.inputBuffered = inPaste
+			p.peer.lastInput = p.peer.now()
+			p.peer.mu.Unlock()
+			p.peer.signal()
+		}
 		disarmTimer()
 	}
 
@@ -1549,6 +1556,7 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 	// priority must not discard the consumed deadline (BR-1, ARCH-ORDER).
 	settleDue := false
 	for {
+		peerTick := peerPoll.update(p.peer)
 		var ev readEv
 		var ok bool
 		if settleDue {
@@ -1680,7 +1688,7 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 		}
 		orientationPending := false
 		if p.peer != nil {
-			p.peer.inputForwarded()
+			p.peer.inputForwarded(ev.human, len(pending) > 0 || inPaste)
 		}
 		if p.orientation != nil {
 			orientationPending = p.orientation.inputForwarded()
