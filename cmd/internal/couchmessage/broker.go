@@ -45,6 +45,8 @@ type SlotActor struct {
 	// while the actor is connected: the wrapper pushes every change.
 	observed   Observation
 	observedAt time.Time
+	// disconnectedAt orders tombstones for eviction.
+	disconnectedAt time.Time
 }
 type admission struct {
 	from    Binding
@@ -139,15 +141,21 @@ func (b *Broker) Register(binding Binding, endpoint DeliveryEndpoint) error {
 	if old != nil && old.state.Connected() {
 		return nil
 	}
-	if old == nil && len(b.actors) >= MaxActors {
-		return errors.New("actor capacity reached")
-	}
-	// Preserve disconnected incarnations as bounded tombstones so reattachment
-	// cannot replenish their allowance. Different repository identities coexist.
+	// A disconnected incarnation stays as a tombstone so the same binding
+	// reconnecting (an exec, a reattach) cannot replenish its allowance. A
+	// different binding for the slot is a new launch that starts fresh, so it
+	// retires the slot's other incarnations outright; their receipts live on
+	// in b.receipts. Different repository identities coexist (#365 BR-11).
 	for identity, a := range b.actors {
-		if identity != binding && identity.Repository == binding.Repository && identity.Slot == binding.Slot && a.state.Connected() {
-			b.disconnectLocked(a)
+		if identity != binding && identity.Repository == binding.Repository && identity.Slot == binding.Slot {
+			if a.state.Connected() {
+				b.disconnectLocked(a)
+			}
+			delete(b.actors, identity)
 		}
+	}
+	if old == nil && len(b.actors) >= MaxActors && !b.evictOldestTombstoneLocked() {
+		return errors.New("actor capacity reached")
 	}
 	var state ActorState
 	if old != nil {
@@ -167,7 +175,27 @@ func (b *Broker) Register(binding Binding, endpoint DeliveryEndpoint) error {
 	go b.runActor(ctx, a)
 	return nil
 }
+// evictOldestTombstoneLocked bounds tombstones by capacity rather than by
+// time: when the table is full, the longest-disconnected actor goes. Only a
+// table of connected actors refuses a new registration.
+func (b *Broker) evictOldestTombstoneLocked() bool {
+	var oldest Binding
+	var at time.Time
+	found := false
+	for identity, a := range b.actors {
+		if !a.state.Connected() && (!found || a.disconnectedAt.Before(at)) {
+			oldest, at, found = identity, a.disconnectedAt, true
+		}
+	}
+	if !found {
+		return false
+	}
+	delete(b.actors, oldest)
+	return true
+}
+
 func (b *Broker) disconnectLocked(a *SlotActor) {
+	a.disconnectedAt = b.now()
 	a.cancel()
 	a.sequence++
 	a.reservation = ""

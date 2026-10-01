@@ -523,14 +523,13 @@ func TestMessageSocketCleanupPreservesRegularFile(t *testing.T) {
 // the binding is connected; the refusal retries on the bounded ladder.
 func TestMessageBrokerRefusalIsNotConnectedAndRetries(t *testing.T) {
 	r := newServiceRig(t)
-	// Fill the broker's actor table with disconnected tombstones of other
-	// slots, so Register refuses for capacity.
+	// Fill the broker's actor table with connected actors of other slots, so
+	// Register refuses for capacity (tombstones alone would be evicted).
 	for i := 0; i < couchmessage.MaxActors; i++ {
 		b := couchmessage.Binding{Slot: fmt.Sprintf("other:%d", i), Repository: "/other/.git", Scope: "s", Tag: fmt.Sprintf("x%d", i), Session: "s", Nonce: "n", Agent: "codex", Version: "1", PID: 1, Start: "s"}
 		if err := r.s.broker.Register(b, serviceEndpointFake{}); err != nil {
 			t.Fatal(err)
 		}
-		r.s.broker.Disconnect(b)
 	}
 	b := r.world.add(1)
 	r.attach(b, "h1")

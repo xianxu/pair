@@ -299,23 +299,55 @@ func TestBrokerActorsRecordedObservationsAndInputInvalidation(t *testing.T) {
 		t.Fatalf("caller %v %v", got, err)
 	}
 }
+// BR-11: tombstones are bounded by eviction, not by refusing new launches.
+// Only a table of connected actors refuses; a full table of tombstones gives
+// up its longest-disconnected entry, and a new launch of a slot retires that
+// slot's old incarnations at once.
 func TestBrokerBoundsDisconnectedActors(t *testing.T) {
-	now := time.Unix(1000, 0)
-	b := NewBroker(context.Background(), func() time.Time { return now }, nil)
+	var nanos atomic.Int64
+	nanos.Store(time.Unix(1000, 0).UnixNano())
+	now := func() time.Time { return time.Unix(0, nanos.Add(1)) }
+	b := NewBroker(context.Background(), now, nil)
 	defer b.Close()
 	for i := 0; i < MaxActors; i++ {
 		v := brokerBinding(fmt.Sprintf("pair:%d", i))
-		if err := b.Register(v, newFakeEndpoint(now)); err != nil {
+		if err := b.Register(v, newFakeEndpoint(now())); err != nil {
 			t.Fatal(err)
 		}
 		b.Disconnect(v)
 	}
-	v := brokerBinding("pair:999")
-	if err := b.Register(v, newFakeEndpoint(now)); err == nil {
-		t.Fatal("unbounded disconnected actors")
+	if err := b.Register(brokerBinding("pair:999"), newFakeEndpoint(now())); err != nil {
+		t.Fatalf("full table of tombstones refused a new launch: %v", err)
 	}
-	if err := b.Register(brokerBinding("pair:0"), newFakeEndpoint(now)); err != nil {
-		t.Fatalf("same actor reconnect at capacity: %v", err)
+	b.mu.Lock()
+	_, oldest := b.actors[brokerBinding("pair:0")]
+	size := len(b.actors)
+	b.mu.Unlock()
+	if oldest || size != MaxActors {
+		t.Fatalf("evicted the wrong tombstone: pair:0 kept=%v size=%d", oldest, size)
+	}
+	// A new launch in a slot retires that slot's tombstone.
+	relaunch := brokerBinding("pair:5")
+	relaunch.Nonce = "next-launch"
+	if err := b.Register(relaunch, newFakeEndpoint(now())); err != nil {
+		t.Fatal(err)
+	}
+	b.mu.Lock()
+	_, stale := b.actors[brokerBinding("pair:5")]
+	b.mu.Unlock()
+	if stale {
+		t.Fatal("relaunched slot kept its old incarnation")
+	}
+	// A table of connected actors still refuses.
+	full := NewBroker(context.Background(), now, nil)
+	defer full.Close()
+	for i := 0; i < MaxActors; i++ {
+		if err := full.Register(brokerBinding(fmt.Sprintf("pair:%d", i)), newFakeEndpoint(now())); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := full.Register(brokerBinding("pair:999"), newFakeEndpoint(now())); err == nil {
+		t.Fatal("registered past a table of connected actors")
 	}
 }
 func TestBrokerSimultaneousFamilyReservationsChooseDistinctSlots(t *testing.T) {
