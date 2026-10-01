@@ -39,4 +39,17 @@ sample $pid 10 -file couch.sample.txt
 
 ## After
 
-_(Pending: `sdlc move :0`, `make build`, operator relaunches Couch and every slot, then the same commands with the same slot count.)_
+Couch build `e0a8c053` (this branch, `sdlc move :0` + `make build`), restarted by the operator. The 11 slots' wrappers kept running the old binary, so they still send the legacy 1 s `register`, now answered `unsupported` with no checks. Same commands, operator idle.
+
+| window | Couch CPU-s / 120 s | ps | zellij | sdlc | git |
+|---|---|---|---|---|---|
+| before, main `6a64e5d2` (pid 97616) | 101.56 | 639 | 179 | 141 | 94 |
+| before, main `60bb0490` (pid 76438, same workload as after) | 60.93 | 536 | 107 | 155 | 68 |
+| after, Couch age 1 min (pid 22471) | 25.05 | 0 | 0 | 0 | 40 |
+| after, Couch age 3.5 min | 22.52 | 0 | 0 | 0 | 38 |
+
+- Messaging-attributable process spawns went from ≈800 per 2 min (`ps`, `zellij list-panes`/`list-sessions`, `sdlc workspace`) to **0**.
+- Couch CPU fell **63%** against the same-workload baseline (60.9 → 22.5 CPU-s per 120 s, ≈51% → ≈19% of a core). Against the first capture it fell 78%.
+- The remaining `git` (≈19/min) is the Console's own slot-git glyph pass (10 s per checkout), not messaging.
+- The `sample` after the switch has no VT-emulation or fork/wait4 hot frames. The heaviest Couch frames are `ttyio` waits and JSON decoding, consistent with the legacy wrappers' 11 `register` requests per second.
+- Still pending: the same window once every slot is relaunched on the new wrapper, when the legacy requests stop too.
