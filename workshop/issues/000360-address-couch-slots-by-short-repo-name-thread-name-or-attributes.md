@@ -8,7 +8,7 @@ updated: 2026-09-30
 estimate_hours:
 card_mirror: 'f8508a15751ae82456bde5da7314b3ac2c5a5d2f' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-09-30T22:55:02-07:00
-flow: {kind: quick, provenance: inferred, spec: "8b97fb72", done: "a2a7c388"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # Address couch slots by repository prefix, alias, or agent
@@ -108,6 +108,8 @@ inside couch; no model is involved.
   #364.
 
 ### 2026-10-01
+- 2026-10-01: closed — Operator smoke on pair:0 at b8ca068c: alias xianxu.dev->blog shows blog in tab+switcher; couch --actors instant, lists xianxu.dev:0 (blog); --send-to parley:1 delivered to parley.nvim:1, pong receipt 0c516971 verified parley.nvim:1->pair:1 submitted. Round-1 review fixes (5f6efb17) unit-tested with mutation checks: offline enrolled exact name refuses instead of prefix-routing (control case shows old reroute), :0-only alias labels, fleet-root shadow anchor, shared bounded list. couchmessage/couchcmd/couchcore/couchtty/wrapcmd pass; artifactpath violation list byte-identical to merge base; full suite at b8ca068c: make -k test green except test-changelog (green under scratchpad TMPDIR), go test ./... 77 ok with 3 failures identical on merge base.; review verdict: SHIP
+- 2026-10-01: flow upgraded quick → full — 918 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 - Implemented per the plan (commits `#360: …`). Operator smoke on pair:0:
   alias `xianxu.dev` → `blog` was stored, but the switcher kept the thread's
