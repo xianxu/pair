@@ -27,6 +27,31 @@ rounds:
           round: 1
       recipe: milestone-review
       blocked: true
+    - "n": 2
+      timestamp: "2026-09-30T21:36:44-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Shared transaction ownership and both automatic-input regression tests cover competing arrival orders, cancellation, submission, and fresh-empty-repaint release.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: Derived frame bounds and transport_bounds_test.go exercise maximum messages, commits, receipts, and actor inventories through sockets; overflow now reports uncertainty explicitly.
+          round: 2
+        - id: BR-3
+          disposition: addressed
+          note: Startup collects proven-dead PID-owned sockets; real process-crash and controlled replacement tests verify cleanup while preserving live, uncertain, and replacement owners.
+          round: 2
+      findings:
+        - id: BR-4
+          severity: Critical
+          title: Core concepts names a transport Client that does not exist
+          detail: workshop/plans/000353-couch-cross-slot-dispatch-plan.md:123 lists Client, but transport.go:212 implements Call instead. Append a revision superseding the mapping with Server/Call. This documentation-only discrepancy is Critical under the explicitly requested Core concepts consistency rule.
+          family: core-concept-mappings-match-implementation
+          round: 2
+      recipe: milestone-review
+      blocked: true
 ---
 
 # Gate ledger — pair#353 (boundary-review)
@@ -45,8 +70,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Important] `runtime-artifact-crash-cleanup` Incarnation-specific wrapper sockets have no cleanup after process crashes
   cmd/internal/wrapcmd/peer_runtime.go:128-138 creates a new socket per incarnation; couchmessage/transport.go:152 removes it only during graceful teardown. Supervisor startup cleans only the broker socket, and reconciliation merely disconnects actors. Add proven-dead-owner cleanup and crash regressions preserving live and replacement handles. ARCH-FUNERAL.
 
+## Round 2 — 2026-09-30T21:36:44-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Shared transaction ownership and both automatic-input regression tests cover competing arrival orders, cancellation, submission, and fresh-empty-repaint release.
+- BR-2 — addressed — Derived frame bounds and transport_bounds_test.go exercise maximum messages, commits, receipts, and actor inventories through sockets; overflow now reports uncertainty explicitly.
+- BR-3 — addressed — Startup collects proven-dead PID-owned sockets; real process-crash and controlled replacement tests verify cleanup while preserving live, uncertain, and replacement owners.
+
+### Raised
+
+- **BR-4** [Critical] `core-concept-mappings-match-implementation` Core concepts names a transport Client that does not exist
+  workshop/plans/000353-couch-cross-slot-dispatch-plan.md:123 lists Client, but transport.go:212 implements Call instead. Append a revision superseding the mapping with Server/Call. This documentation-only discrepancy is Critical under the explicitly requested Core concepts consistency rule.
+
 ## Open findings
 
-- **BR-1** [Critical] `automatic-input-transaction-ownership` Orientation and peer delivery can paste into the same composer and submit combined text
-- **BR-2** [Critical] `wire-capacity-matches-domain-bounds` The frame limit rejects valid message bodies and supported actor inventories
-- **BR-3** [Important] `runtime-artifact-crash-cleanup` Incarnation-specific wrapper sockets have no cleanup after process crashes
+- **BR-4** [Critical] `core-concept-mappings-match-implementation` Core concepts names a transport Client that does not exist

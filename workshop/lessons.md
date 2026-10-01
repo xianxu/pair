@@ -386,3 +386,6 @@ proof; record the surprising case so the next change starts from evidence.
 - Incarnation-specific runtime handles need dead-owner collection after crashes,
   not only graceful teardown. Preserve unknown/live owners and replacement inodes
   in tests, and make fixtures name the actual listener process. (#353 BR-3)
+- Before close, reconcile proposed entity names and file paths with implemented
+  symbols, including stateless functions that replaced planned objects. Record
+  the final mapping as an explicit plan revision. (#353 BR-4)

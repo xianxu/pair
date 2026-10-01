@@ -84,3 +84,87 @@ findings:
     detail: |
       cmd/internal/wrapcmd/peer_runtime.go:128-138 creates a new socket per incarnation; couchmessage/transport.go:152 removes it only during graceful teardown. Supervisor startup cleans only the broker socket, and reconciliation merely disconnects actors. Add proven-dead-owner cleanup and crash regressions preserving live and replacement handles. ARCH-FUNERAL.
 ```
+
+---
+
+## Re-review — 2026-09-30T21:36:44-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 353 — Live cross-slot dispatch between couch slots |
+| repo | pair |
+| issue file | workshop/issues/000353-couch-cross-slot-dispatch.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 91d843c373c5be00f838bec31c3c1cb2ed8b98f9..cbfaa080d71250a5c792cb9c0f824c3f5562fbf5 |
+| command | sdlc close --issue 353 |
+| reviewer | codex |
+| timestamp | 2026-09-30T21:36:44-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+All three prior findings are addressed, and all five affected package suites passed. I found no additional runtime defect. One Core concepts mapping remains inaccurate; your explicit table-consistency rule makes this blocking, although the correction is documentation-only.
+
+1. **Strengths**
+
+   - Shared automatic-input ownership protects both orientation-first and peer-first delivery, including cancellation and repaint.
+   - Socket tests exercise maximum escaped messages, commits, receipts, and 128-actor discovery.
+   - Crash-cleanup tests kill a real listener process and verify preservation of live owners and replacement sockets.
+   - README and atlas document the commands, qualification limits, uncertainty, and lifecycle.
+
+2. **Critical findings**
+
+   - `workshop/plans/000353-couch-cross-slot-dispatch-plan.md:123` names a new transport `Client`, but no such entity exists. The implemented integration boundary is `Call` at `cmd/internal/couchmessage/transport.go:212`. Append a `## Revisions` entry explicitly superseding this mapping with `Server`/`Call`; no runtime change is needed. Classified Critical solely under the requested Core concepts consistency rule.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Uncached tests passed for `couchmessage`, `couchcmd`, `couchtty`, `wrapcmd`, and `launcher`. Prior-finding regressions exercise the corrected production paths and contain assertions that the previous implementations violate. No rollback mutation or live-agent smoke was performed during this read-only review. Raw terminal captures produce expected whitespace-check diagnostics.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared automatic-input arbitration.
+   - **ARCH-PURE — pass:** deterministic routing, validation, composer classification, and reducers.
+   - **ARCH-PURPOSE — pass:** delivery implements the amended free-text coordination contract.
+   - **ARCH-MOCK — pass:** stateful endpoints, controlled terminal fixtures, and isolated socket tests.
+   - **ARCH-CONSTRAINTS — pass:** bounded admission, inventory, receipts, frames, and deadlines.
+   - **ARCH-SECURE — pass:** strict framing, exact incarnation checks, and conservative ownership cleanup.
+   - **ARCH-ORDER — pass:** transaction ownership and controlled interleaving regressions.
+   - **ARCH-FUNERAL — pass:** bounded ephemeral state and proven-dead socket collection.
+
+7. **Plan revision recommendation**
+
+   Append: “Transport integration uses `Server` and the stateless `Call` function in `transport.go`; this supersedes the proposed `Client` entity in the Core concepts table.”
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Shared transaction ownership and both automatic-input regression tests cover competing arrival orders, cancellation, submission, and fresh-empty-repaint release.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Derived frame bounds and transport_bounds_test.go exercise maximum messages, commits, receipts, and actor inventories through sockets; overflow now reports uncertainty explicitly.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Startup collects proven-dead PID-owned sockets; real process-crash and controlled replacement tests verify cleanup while preserving live, uncertain, and replacement owners.
+findings:
+  - id: new
+    severity: Critical
+    family: core-concept-mappings-match-implementation
+    title: |
+      Core concepts names a transport Client that does not exist
+    detail: |
+      workshop/plans/000353-couch-cross-slot-dispatch-plan.md:123 lists Client, but transport.go:212 implements Call instead. Append a revision superseding the mapping with Server/Call. This documentation-only discrepancy is Critical under the explicitly requested Core concepts consistency rule.
+```

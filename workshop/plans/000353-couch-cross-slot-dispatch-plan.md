@@ -495,3 +495,12 @@ inventories remain historical where the amendments superseded their semantics.
   crashed socket collection preserving live/replacement sockets. This corrects
   implementation gaps in the existing contract (ARCH-ORDER, ARCH-CONSTRAINTS,
   ARCH-FUNERAL), without adding another task protocol or persistence layer.
+
+- 2026-09-30: BR-4 corrects the integration table's proposed transport name:
+  transport integration uses `Server` and the stateless `Call` function in
+  `cmd/internal/couchmessage/transport.go`; this supersedes `Server`/`Client`.
+  The earlier input-arbitration mapping is also now concretely
+  `automaticInputTransaction` in `cmd/internal/wrapcmd/automatic_input.go`,
+  alongside the admission mutex in `wrap.go`. `peerDelivery` owns the input
+  adapter in `peer_delivery.go`; registration is in `peer_runtime.go`.
+  These are source-map corrections, with no runtime change.
