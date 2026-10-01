@@ -246,6 +246,17 @@ Registry socket lives in the existing private 0700 per-uid dir. Hello bindings a
 
 ## Revisions
 
+- 2026-10-01 — M2 execution. Entity mapping (plan → code):
+  - Registry events: the pane edges `PaneAttached`/`PaneExited` became one `PaneChanged{thread, pane|""}`. It is a state, so the coalescing mailbox can drop intermediate panes safely.
+  - Effects are `EffectAdmit/Connect/Disconnect/ScheduleRetry/Observe` (prefixed to avoid clashing with the message model's event kinds).
+  - `SendTargeted` carries a slot, since a send names a slot.
+  - The Console hook is `SubscribeMessageLifecycle(*PaneMailbox)`. Each install gets a fresh `messageHandle`, and slot git is read through `MessageSlotGit`.
+  - The wrapper's submit channel became a `peerSessionSink` (`SessionClient` in production, a recorder in tests).
+  - `launchRecorded` is `messageAuthority.recorded`, built on the new `PairSessionName` and `RecordedSession`. The use-time check is `messageAuthority.current`.
+  - `Broker.ObserveResting`, `RefreshSubmission` and both stale-after constants are deleted. Listings use `SetRestingView`.
+  - Process identity (kill+sysctl; `ps` on non-darwin) moved to admission only. Death arrives as session close.
+  - `-race` on couchcmd shows a timing flake in `TestRecoveryMenuReachesTerminalAfterActualHelperDeath`. The test drives the Console with fakes and never starts the message service, and it passes in the normal run.
+
 - 2026-10-01 — M1 boundary review: the M1 idle test covers one wrapper driven by the old heartbeat, because the fake authority models one binding. The multi-slot, no-traffic form named in Done-when 1 is Task 2.4's session-based rewrite. `probes/messageidle` is a separate shim, not an extension of `zellijcalls`: it filters by parent and counts without timing, and its `realBinary` PATH lookup mirrors `realZellij` (two small probe binaries; no shared probe library exists). The probes' `bin/` dirs are now ignored by one root rule.
 
 - 2026-10-01 — M1 execution: the ticker seam in Task 1.1 was unnecessary (the test drives `reconcile` directly with the fake clock). The live baseline was taken read-only from the already-running Couch: CPU-seconds + 10 Hz child poll + `sample`. The operator found relaunching under a PATH shim too heavy. `probes/messageidle` stays as the optional exact-count instrument.
