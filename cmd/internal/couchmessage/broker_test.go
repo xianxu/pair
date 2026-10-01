@@ -74,7 +74,7 @@ func TestBrokerAdmissionIsImmediateAndMailboxIsBounded(t *testing.T) {
 	if err := b.Register(z, fz); err != nil {
 		t.Fatal(err)
 	}
-	r, err := b.Send(context.Background(), a, "id-1", "pair:1", "hello")
+	r, err := b.Send(context.Background(), a, "id-1", Route{Target: "pair:1"}, "hello")
 	if err != nil || r.Status != Queued {
 		t.Fatalf("admission: %+v %v", r, err)
 	}
@@ -86,14 +86,14 @@ func TestBrokerAdmissionIsImmediateAndMailboxIsBounded(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("worker did not deliver")
 	}
-	if _, err = b.Send(context.Background(), a, "id-2", "pair:1", "second"); !errors.Is(err, ErrRecipientBusy) {
+	if _, err = b.Send(context.Background(), a, "id-2", Route{Target: "pair:1"}, "second"); !errors.Is(err, ErrRecipientBusy) {
 		t.Fatalf("second send: %v", err)
 	}
-	duplicate, err := b.Send(context.Background(), a, "id-1", "pair:1", "hello")
+	duplicate, err := b.Send(context.Background(), a, "id-1", Route{Target: "pair:1"}, "hello")
 	if err != nil || duplicate.Message.ID != r.Message.ID {
 		t.Fatalf("dedupe: %+v %v", duplicate, err)
 	}
-	if _, err = b.Send(context.Background(), a, "id-1", "pair:1", "changed"); err == nil {
+	if _, err = b.Send(context.Background(), a, "id-1", Route{Target: "pair:1"}, "changed"); err == nil {
 		t.Fatal("conflicting duplicate accepted")
 	}
 	if _, err = b.Status(brokerBinding("other:0"), r.Message.ID); err == nil {
@@ -117,7 +117,7 @@ func TestBrokerFamilyObservationInvalidatedByOperatorInput(t *testing.T) {
 	}
 	nanos.Store(now.Add(time.Minute).UnixNano())
 	result := make(chan error, 1)
-	go func() { _, err := b.Send(context.Background(), a, "id", "pair", "hello"); result <- err }()
+	go func() { _, err := b.Send(context.Background(), a, "id", Route{Target: "pair"}, "hello"); result <- err }()
 	<-entered
 	b.OperatorInput(z)
 	close(release)
@@ -139,7 +139,7 @@ func TestBrokerFamilySkipsUnavailableFirstCandidate(t *testing.T) {
 		}
 	}
 	nanos.Store(base.Add(time.Minute).UnixNano())
-	r, err := b.Send(context.Background(), from, "fallback", "pair", "work")
+	r, err := b.Send(context.Background(), from, "fallback", Route{Target: "pair"}, "work")
 	if err != nil || r.Message.To.Slot != "pair:1" {
 		t.Fatalf("fallback %+v %v", r, err)
 	}
@@ -157,7 +157,7 @@ func TestBrokerPreservesAmbiguousFamilies(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := b.Send(context.Background(), from, "ambiguous", "pair:1", "work"); !errors.Is(err, ErrAmbiguous) {
+	if _, err := b.Send(context.Background(), from, "ambiguous", Route{Target: "pair:1"}, "work"); !errors.Is(err, ErrAmbiguous) {
 		t.Fatalf("ambiguity: %v", err)
 	}
 }
@@ -172,7 +172,11 @@ func TestBrokerSimultaneousIDAdmittedOnce(t *testing.T) {
 	_ = b.Register(to, ep)
 	results := make(chan Receipt, 2)
 	errs := make(chan error, 2)
-	send := func() { r, e := b.Send(context.Background(), from, "same", "pair:1", "work"); results <- r; errs <- e }
+	send := func() {
+		r, e := b.Send(context.Background(), from, "same", Route{Target: "pair:1"}, "work")
+		results <- r
+		errs <- e
+	}
 	go send()
 	<-entered
 	go send()
@@ -222,7 +226,7 @@ func TestBrokerDisconnectCancelsSenderWorkAndReconnectRetainsBudget(t *testing.T
 	endpoint := newFakeEndpoint(now)
 	_ = b.Register(from, newFakeEndpoint(now))
 	_ = b.Register(to, endpoint)
-	if _, err := b.Send(context.Background(), from, "disconnect", "pair:1", "work"); err != nil {
+	if _, err := b.Send(context.Background(), from, "disconnect", Route{Target: "pair:1"}, "work"); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -250,7 +254,7 @@ func TestBrokerDisconnectCancelsSenderWorkAndReconnectRetainsBudget(t *testing.T
 		t.Fatal("disconnected caller read receipt")
 	}
 }
-func TestBrokerActorsFreshObservationsAndInputInvalidation(t *testing.T) {
+func TestBrokerActorsRecordedObservationsAndInputInvalidation(t *testing.T) {
 	base := time.Unix(1000, 0)
 	var nanos atomic.Int64
 	nanos.Store(base.UnixNano())
@@ -266,6 +270,13 @@ func TestBrokerActorsFreshObservationsAndInputInvalidation(t *testing.T) {
 		_ = b.Register(v, newFakeEndpoint(base))
 	}
 	nanos.Store(base.Add(time.Minute).UnixNano())
+	// The listing reports what heartbeats and resting probes recorded.
+	for _, v := range []Binding{to, unknown} {
+		if err := b.ReconcileObservation(v, Observation{LastActivity: base, Sequence: 1}); err != nil {
+			t.Fatal(err)
+		}
+		_ = b.ObserveResting(context.Background(), v)
+	}
 	b.ObserveInputThread(to.Scope, to.Tag)
 	rows, err := b.Actors(context.Background(), from)
 	if err != nil {
@@ -322,7 +333,7 @@ func TestBrokerSimultaneousFamilyReservationsChooseDistinctSlots(t *testing.T) {
 	errs := make(chan error, 2)
 	for i := 0; i < 2; i++ {
 		go func(i int) {
-			r, e := b.Send(context.Background(), from, fmt.Sprint(i), "pair", "work")
+			r, e := b.Send(context.Background(), from, fmt.Sprint(i), Route{Target: "pair"}, "work")
 			result <- r
 			errs <- e
 		}(i)
@@ -346,7 +357,7 @@ func TestBrokerCloseReleasesAcceptedReservations(t *testing.T) {
 		ep := newFakeEndpoint(now)
 		_ = b.Register(from, newFakeEndpoint(now))
 		_ = b.Register(to, ep)
-		if _, err := b.Send(context.Background(), from, "close", "pair:1", "work"); err != nil {
+		if _, err := b.Send(context.Background(), from, "close", Route{Target: "pair:1"}, "work"); err != nil {
 			t.Fatal(err)
 		}
 		_ = b.Close()
@@ -385,9 +396,12 @@ func TestReceiptCapacityIncludesInflightAdmission(t *testing.T) {
 	}
 	b.mu.Unlock()
 	first := make(chan error, 1)
-	go func() { _, err := b.Send(context.Background(), from, "last-capacity", "pair:1", "work"); first <- err }()
+	go func() {
+		_, err := b.Send(context.Background(), from, "last-capacity", Route{Target: "pair:1"}, "work")
+		first <- err
+	}()
 	<-entered
-	_, err := b.Send(context.Background(), from, "over-capacity", "pair:2", "work")
+	_, err := b.Send(context.Background(), from, "over-capacity", Route{Target: "pair:2"}, "work")
 	close(release)
 	if err == nil {
 		t.Fatal("inflight admission did not reserve receipt capacity")
@@ -408,7 +422,7 @@ func TestSubmissionGenerationIsReconciledBeforeAdmissionAndOnlyOnce(t *testing.T
 	send := func(id string) {
 		t.Helper()
 		ep.outcomes <- Receipt{Status: Submitted}
-		r, err := b.Send(context.Background(), from, id, to.Slot, "work")
+		r, err := b.Send(context.Background(), from, id, Route{Target: to.Slot}, "work")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -460,7 +474,7 @@ func TestSubmissionGenerationIsReconciledBeforeAdmissionAndOnlyOnce(t *testing.T
 	for i := 4; i < InboundAllowance; i++ {
 		send(fmt.Sprintf("after-%d", i))
 	}
-	if _, err := b.Send(context.Background(), from, "ninth-after-human", to.Slot, "work"); !errors.Is(err, ErrBudgetExhausted) {
+	if _, err := b.Send(context.Background(), from, "ninth-after-human", Route{Target: to.Slot}, "work"); !errors.Is(err, ErrBudgetExhausted) {
 		t.Fatalf("ninth admission after one human submission: %v", err)
 	}
 }
@@ -490,7 +504,7 @@ func TestFamilyObservesHumanGenerationWithoutInventingRecentActivity(t *testing.
 	ep.observation.Sequence++
 	ep.mu.Unlock()
 	nanos.Store(base.Add(QuietInterval).UnixNano())
-	r, err := b.Send(context.Background(), from, "fresh-family", "pair", "work")
+	r, err := b.Send(context.Background(), from, "fresh-family", Route{Target: "pair"}, "work")
 	if err != nil || r.Message.To != to {
 		t.Fatalf("fresh human generation excluded from family routing: %+v %v", r, err)
 	}

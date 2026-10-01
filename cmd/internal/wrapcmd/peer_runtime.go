@@ -16,12 +16,12 @@ import (
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
 
-// Only versions with captured composer and live peer-delivery conformance may
-// receive automatic input. Manual operation remains independent of this map.
-var peerQualifiedVersions = map[string]map[string]bool{
-	"codex":  {"codex-cli 0.159.2": true},
-	"claude": {"2.1.286 (Claude Code)": true},
-}
+// peerReceiverAgents are the agents with a peer-delivery receiver profile
+// (composer recognition and submit). Any installed version may receive: an
+// exact-version allowlist silently dropped every slot after each agent
+// auto-update. Upgrade safety is to come from evidence gathered in daily use
+// (#368); until then the composer checks still refuse unknown input states.
+var peerReceiverAgents = map[string]bool{"codex": true, "claude": true}
 
 type peerRuntime struct {
 	cancel   context.CancelFunc
@@ -95,8 +95,7 @@ func (p *proxy) startPeerRuntime(executable string) (*peerRuntime, error) {
 	if namespace == "" || os.Getenv("COUCH_THREAD_SCOPE") == "" || p.ttyProfile == nil {
 		return nil, nil
 	}
-	versions := peerQualifiedVersions[p.agentBasename]
-	if len(versions) == 0 {
+	if !peerReceiverAgents[p.agentBasename] {
 		return nil, nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), couchmessage.AdmissionTimeout)
@@ -105,9 +104,11 @@ func (p *proxy) startPeerRuntime(executable string) (*peerRuntime, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Recorded in the binding so receipts and listings name the version that
+	// received; it no longer gates delivery.
 	version := strings.TrimSpace(string(raw))
-	if !versions[version] {
-		return nil, fmt.Errorf("peer delivery is unqualified for %s", version)
+	if version == "" {
+		return nil, fmt.Errorf("%s --version printed nothing", p.agentBasename)
 	}
 	cwd, err := os.Getwd()
 	if err != nil {

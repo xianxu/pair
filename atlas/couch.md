@@ -71,6 +71,37 @@ retention adapters. Slot row keys use host paths; process/terminal maps retain
 native addresses. Creation admission and launch recovery are described in
 [workspace provisioning](workspace-provisioning.md).
 
+### Slot references and repository aliases (#360)
+
+Every `repo:N` reference — operation refs, the switcher filter, and
+`--send-to` — resolves its repository part with `ResolveRepositoryName`
+(`couchcore/repositoryname.go`): exact directory name or alias, then a unique
+prefix of either, counted per repository so two repositories sharing a name
+are refused rather than picked. Misses and ambiguity list bounded candidates
+(`FormatRepositoryCandidates`, ≤12 entries / 1 KiB). Operations
+(`Couch.repositoryPrimary`, `slotcontext.go`) resolve over enrolled
+repositories, after giving an existing sibling directory precedence (an
+un-enrolled sibling opens as before; one whose existence is undecidable keeps
+its own error). Messaging (`couchmessage.ResolveRecipient`) resolves over the enrolled
+families (`Broker.SetFamilies`) plus live bindings' families, so an offline
+repository's exact name misses rather than prefix-routing to a live one; it
+applies `--agent` only after the family identity check, and keeps its response
+codes on a miss, listing live slots when the repository has none. The switcher
+filter matches by prefix without the uniqueness rule, since it lists every
+candidate.
+
+Aliases live in the root store's `repository-aliases.json`, not the strictly
+decoded manifest, so older couch builds can still read the store. One entry per
+enrolled repository; clearing removes it; entries for un-enrolled roots are
+ignored and dropped on the next write; a stored alias that would shadow a
+directory is withheld on read. `ApplyRepositoryAliases` labels slot rows (by
+primary root) and the `:0` row (repository scope, starting at the primary root);
+subdirectory threads keep their labels, and `PresentThreads` names the
+group by its alias, so the tabs and switcher show `alias:N`. The `alias`
+operation is a switcher action on live `:0` rows only; it refuses an alias that
+an existing sibling directory would shadow. `couch --actors` shows each slot's
+alias and agent.
+
 ### Live peer messages (#353)
 
 The supervisor owns an ephemeral `couchmessage.Broker` under its existing
@@ -85,7 +116,7 @@ Couch-launched Codex disables shell snapshots for that process so tool shells
 inherit the current slot environment instead of restoring an older slot's
 identity. The override is not persisted into saved agent arguments.
 
-`couch --actors`, `--send-to repo[:N] --message TEXT` and `--message-status ID`
+`couch --actors`, `--send-to repo[:N] [--agent NAME] --message TEXT` and `--message-status ID`
 use bounded Unix stream RPC, without constructing another mutable supervisor.
 `--actors` and `--message-status` support JSON. One pending delivery per actor,
 eight inbound admissions between genuine operator submissions, and bounded
@@ -93,14 +124,27 @@ receipt retention limit the runtime. Family selection requires fresh resting
 branch and quiet-wrapper observations; exact sends allow occupied-slot
 coordination. Quietness is never acceptance of repository work.
 
+`--actors` reads broker memory only (#360): each slot's last heartbeat
+observation and resting-branch probe, reported `unknown` once older than
+`ObservationStaleAfter` (5s) / `RestingStaleAfter` (15s). The resting branch is
+probed on every full authority check. A full check vouches for a binding for
+`messageVerificationWindow` (10s) on the paths that only observe: the
+wrappers' one-second registration heartbeat, read-only callers, admission
+observation, and reconciliation. Sends, operator-submit, Reserve and Deliver
+always re-check. Reconciliation drops dead bindings from the service's maps,
+which previously grew with every relaunch and were re-probed every second.
+
 Each wrapper endpoint conditionally reserves its observed input generation,
 then accepts one delivery commit. The broker polls outcome receipts; it never
 retries PTY input after uncertainty. Pair's input owner arbitrates ordinary
 typing, image admission and automatic paste/submit. Unknown or occupied
 composers wait within the delivery deadline. Interference cancels automatic
-submission and leaves visible text for inspection. Qualified versions are
-Claude Code 2.1.286 and Codex CLI 0.159.2, backed by fixtures under
-`wrapcmd/testdata/peer/` and `TestPeerLiveConformance`. Short-message submission
+submission and leaves visible text for inspection. Receiver profiles exist for
+Claude Code and Codex CLI at any installed version (`peerReceiverAgents`; the
+exact-version allowlist was removed in #360 after auto-updates silently dropped
+slots). Fixtures under `wrapcmd/testdata/peer/` and `TestPeerLiveConformance`
+were captured on Claude Code 2.1.286 and Codex CLI 0.159.2; per-version
+evidence from daily use is #368. Short-message submission
 has live evidence for both; deterministic wrapping is matched conservatively.
 Collapsed paste summaries remain unsubmitted and expire. Human Couch acceptance
 remains a separate step.

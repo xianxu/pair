@@ -886,7 +886,7 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "       couch --show <thread>")
 	fmt.Fprintln(w, "       couch --archived")
 	fmt.Fprintln(w, "       couch --actors [--json]")
-	fmt.Fprintln(w, "       couch --send-to repo[:N] --message TEXT")
+	fmt.Fprintln(w, "       couch --send-to repo[:N] [--agent NAME] --message TEXT")
 	fmt.Fprintln(w, "       couch --message-status ID [--json]")
 	fmt.Fprintln(w, "       couch --skill")
 	fmt.Fprintln(w, "       couch --help")

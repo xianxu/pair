@@ -93,6 +93,7 @@ func TestContinuationRefusesMatchesTheGuardForEveryRowAction(t *testing.T) {
 		"retry-continuation":   "an exit from the failed request, not an operation it gates",
 		"dismiss-continuation": "an exit from the failed request, not an operation it gates",
 		"archive":              "never offered on a live row; its own admission is archiveContinuationVacant",
+		"alias":                "repository metadata keyed by primary root; it addresses no thread, so no thread's continuation gates it",
 		"recover-thread":       "offered only on recovery rows, never composed",
 		"recover-checkpoint":   "offered only on recovery rows, never composed",
 		"open-slot":            "path-based dispatcher tested by TestSlotOpenColdUsesContinuationGuard; hosted/warm open preserves the existing conversation",

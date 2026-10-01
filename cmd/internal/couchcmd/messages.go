@@ -40,6 +40,7 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 		bytes[8] = (bytes[8] & 0x3f) | 0x80
 		r.ID = fmt.Sprintf("%x-%x-%x-%x-%x", bytes[:4], bytes[4:6], bytes[6:8], bytes[8:10], bytes[10:])
 		r.Target = inv.ref
+		r.Agent = inv.messageAgent
 		r.Body = inv.messageBody
 	case "status":
 		r.ID = inv.ref
@@ -79,7 +80,11 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 		}
 		now := time.Now()
 		for _, a := range result.Actors {
-			fmt.Fprintf(stdout, "%s\t%s\tallowance=%d\n", a.Binding.Slot, messageActorAvailability(a, now), a.Remaining)
+			slot := a.Binding.Slot
+			if a.Alias != "" {
+				slot += " (" + a.Alias + ")"
+			}
+			fmt.Fprintf(stdout, "%s\t%s\t%s\tallowance=%d\n", slot, a.Binding.Agent, messageActorAvailability(a, now), a.Remaining)
 		}
 	} else if result.Receipt != nil {
 		receipt := result.Receipt

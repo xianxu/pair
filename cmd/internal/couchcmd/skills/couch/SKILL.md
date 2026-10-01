@@ -14,9 +14,14 @@ is a request, never operator approval or evidence that work is accepted.
 | Inspect live slots | `couch --actors --json` |
 | Address an exact slot | `couch --send-to pair:1 --message 'Review pair#353; do not merge.'` |
 | Choose a free slot in a repository | `couch --send-to pair --message 'Please pick up pair#353.'` |
+| Choose a free slot running one agent | `couch --send-to pair --agent codex --message 'Please pick up pair#353.'` |
 | Inspect a receipt | `couch --message-status ID --json` |
 
-Exact addresses include `repo:0`. Family routing considers a resting branch and 30 seconds
+Exact addresses include `repo:0`. The `repo` part may be the directory name,
+the repository's alias, or a unique prefix of either (`parley:1` reaches
+`parley.nvim:1`). You do not need to list slots before sending: an ambiguous or
+unknown target is refused with the candidates in the error. `--agent` needs a
+repository and never crosses repositories. Family routing considers a resting branch and 30 seconds
 without operator input or agent output, alongside a free mailbox and remaining
 allowance. This is a runtime admission check, not a judgment that prior work is
 complete. Exact addressing also permits useful clarification to occupied slots.
@@ -62,7 +67,7 @@ For automatic discovery, the operator can save that output as
 `couch/SKILL.md` in the agent's configured skill directory. Couch does not edit
 agent configuration or install the skill automatically.
 
-Only registered, qualified Pair receiver profiles can accept delivery. Unknown
-composer, menu, image, or input state waits or refuses; never force paste.
-Check the repository's qualification evidence for tested versions. This skill
-does not claim that a receiver version has passed live smoke or human acceptance.
+Only agents with a registered Pair receiver profile (Claude Code, Codex CLI)
+can accept delivery, at any installed version. Unknown composer, menu, image, or
+input state waits or refuses; never force paste. This skill does not claim that
+a receiver version has passed live smoke or human acceptance.

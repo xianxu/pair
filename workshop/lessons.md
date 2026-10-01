@@ -394,3 +394,27 @@ proof; record the surprising case so the next change starts from evidence.
 - Validate family identity against the full inventory before eligibility filters;
   excluding the caller or a busy candidate must not hide an ambiguous repository.
   Test the broker effects, not only the pure resolver. (#353 BR-5)
+
+- A display override must be tested in every label source it competes with,
+  in a fixture without the structure the feature usually rides on. #360's
+  alias passed with a repository that had slots (group name) but lost to the
+  thread's operator name in the switcher and to the pane label on the tab for
+  a repository with only `:0`. Enumerate the label inputs (row name, pane
+  label, group name) and assert the override against each. (#360 smoke)
+
+- A read-only listing must not re-establish global state on the request path,
+  and periodic verification must name its cost per unit per second. #353's
+  `--actors` re-probed every slot serially (zellij and process probes) under a
+  2s transport cap equal to the client's, while one-second heartbeats and
+  reconciliation ran ~3 full checks per wrapper per second over a binding map
+  that never shrank, so the server saturated as slots accumulated. Serve
+  listings from what the heartbeat already observed, bound a verification's
+  reuse window, give the server a budget inside the client's, and remove dead
+  entries. (#360 smoke)
+
+- Prefix resolution must run over the complete namespace a name can belong to,
+  not the subset that is currently reachable. #360 BR-1: messaging resolved
+  against live slots only, so `brain:0` with brain offline and brainstorm live
+  prefix-routed to brainstorm. Include known-but-offline names so an exact name
+  resolves to itself and misses, and pin it with a test whose control case
+  shows the narrowed namespace rerouting.

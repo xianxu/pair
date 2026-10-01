@@ -3,6 +3,7 @@ package couchmessage
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 	"sync"
@@ -39,13 +40,20 @@ type SlotActor struct {
 	reservation string
 	inbox       chan Message
 	cancel      context.CancelFunc
+	// The latest heartbeat observation and resting-branch probe, kept so an
+	// actor listing reads memory instead of probing every slot.
+	observed   Observation
+	observedAt time.Time
+	resting    bool
+	restingAt  time.Time
 }
 type admission struct {
-	from         Binding
-	target, body string
-	done         chan struct{}
-	receipt      Receipt
-	err          error
+	from    Binding
+	route   Route
+	body    string
+	done    chan struct{}
+	receipt Receipt
+	err     error
 }
 type deliveryJob struct{ cancel context.CancelFunc }
 type Broker struct {
@@ -54,12 +62,33 @@ type Broker struct {
 	cancel       context.CancelFunc
 	now          func() time.Time
 	resting      func(context.Context, Binding) (bool, error)
+	families     func(context.Context) (map[string]string, error)
 	actors       map[Binding]*SlotActor
 	receipts     map[string]Receipt
-	destinations map[string]string
+	destinations map[string]Route
 	admissions   map[string]*admission
 	jobs         map[string]*deliveryJob
 	workers      sync.WaitGroup
+}
+
+// SetFamilies installs the enrolled-repository source: every enrolled family
+// (directory name) mapped to its alias, "" when none. Routing resolves names
+// against it as well as live bindings. It must be called before the broker
+// serves requests; nil means live bindings only.
+func (b *Broker) SetFamilies(families func(context.Context) (map[string]string, error)) {
+	b.families = families
+}
+
+// readFamilies runs outside the broker lock: the source may do store IO.
+func (b *Broker) readFamilies(ctx context.Context) (map[string]string, error) {
+	if b.families == nil {
+		return nil, nil
+	}
+	families, err := b.families(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("read enrolled repositories for routing (retry; if it persists, check the couch store and its repository-aliases.json, which can be removed to reset aliases): %w", err)
+	}
+	return families, nil
 }
 
 func NewBroker(parent context.Context, now func() time.Time, resting func(context.Context, Binding) (bool, error)) *Broker {
@@ -70,7 +99,7 @@ func NewBroker(parent context.Context, now func() time.Time, resting func(contex
 		now = time.Now
 	}
 	ctx, cancel := context.WithCancel(parent)
-	return &Broker{ctx: ctx, cancel: cancel, now: now, resting: resting, actors: map[Binding]*SlotActor{}, receipts: map[string]Receipt{}, destinations: map[string]string{}, admissions: map[string]*admission{}, jobs: map[string]*deliveryJob{}}
+	return &Broker{ctx: ctx, cancel: cancel, now: now, resting: resting, actors: map[Binding]*SlotActor{}, receipts: map[string]Receipt{}, destinations: map[string]Route{}, admissions: map[string]*admission{}, jobs: map[string]*deliveryJob{}}
 }
 
 // apply is called only under mu. Terminal receipts cannot be rewritten by late
@@ -184,6 +213,7 @@ func (b *Broker) ReconcileObservation(binding Binding, observed Observation) err
 	return b.reconcileObservation(a, observed)
 }
 func (b *Broker) reconcileObservation(a *SlotActor, observed Observation) error {
+	a.observed, a.observedAt = observed, b.now()
 	if observed.Submission <= a.submission {
 		return nil
 	}
@@ -324,48 +354,79 @@ func (b *Broker) observe(ctx context.Context, a *SlotActor) (Candidate, Observat
 	return c, obs, nil
 }
 
-// Actors uses fresh branch/wrapper observations outside the broker lock. Failed
-// observations are visible as Known=false, never as an available recipient.
+// Staleness bounds for the in-memory actor listing. Wrappers report every
+// second; the resting branch is probed on each full authority check, which
+// the service repeats at least every verification window (10s).
+const (
+	ObservationStaleAfter = 5 * time.Second
+	RestingStaleAfter     = 15 * time.Second
+)
+
+// ObserveResting probes the binding's resting branch outside the broker lock
+// and records it for listings. A failed probe leaves the old value to age out.
+func (b *Broker) ObserveResting(ctx context.Context, binding Binding) error {
+	if b.resting == nil {
+		return errors.New("branch observation unavailable")
+	}
+	resting, err := b.resting(ctx, binding)
+	if err != nil {
+		return err
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	a := b.actors[binding]
+	if a == nil || !b.caller(binding) {
+		return ErrUnavailable
+	}
+	a.resting, a.restingAt = resting, b.now()
+	return nil
+}
+
+// Actors reports the broker's memory: each connected actor's last heartbeat
+// observation and resting probe. It does no IO, so its cost does not grow with
+// slot count or probe latency. A missing or stale observation is Known=false,
+// never an available recipient; admission still observes fresh before it
+// reserves.
 func (b *Broker) Actors(parent context.Context, caller Binding) ([]Candidate, error) {
-	ctx, cancel := context.WithTimeout(parent, AdmissionTimeout)
-	defer cancel()
 	b.mu.Lock()
 	if !b.caller(caller) {
 		b.mu.Unlock()
 		return nil, ErrUnavailable
 	}
-	var actors []*SlotActor
-	for _, a := range b.actors {
-		if a.state.Connected() {
-			actors = append(actors, a)
-		}
-	}
-	b.mu.Unlock()
-	sort.Slice(actors, func(i, j int) bool { return actors[i].binding.Slot < actors[j].binding.Slot })
+	now := b.now()
 	var rows []Candidate
-	for _, a := range actors {
-		c, _, err := b.observe(ctx, a)
-		if err != nil {
-			c.Known = false
+	for _, a := range b.actors {
+		if !a.state.Connected() {
+			continue
 		}
-		b.mu.Lock()
-		live := b.caller(c.Binding) && b.actors[c.Binding] == a
-		b.mu.Unlock()
-		if live {
-			rows = append(rows, c)
+		c := actorCandidate(a)
+		if a.observed.LastActivity.After(c.LastActivity) {
+			c.LastActivity = a.observed.LastActivity
 		}
+		c.Resting = a.resting
+		c.Known = !c.LastActivity.IsZero() &&
+			!a.observedAt.IsZero() && now.Sub(a.observedAt) < ObservationStaleAfter &&
+			!a.restingAt.IsZero() && now.Sub(a.restingAt) < RestingStaleAfter
+		rows = append(rows, c)
 	}
-	b.mu.Lock()
-	valid := b.caller(caller)
 	b.mu.Unlock()
-	if !valid {
-		return nil, ErrUnavailable
+	sort.Slice(rows, func(i, j int) bool { return rows[i].Binding.Slot < rows[j].Binding.Slot })
+	// Aliases are display-only here: a store that stays busy leaves them out
+	// rather than failing the listing.
+	ctx, cancel := context.WithTimeout(parent, 250*time.Millisecond)
+	defer cancel()
+	if families, err := b.readFamilies(ctx); err == nil {
+		for i := range rows {
+			if family, _, err := parseSlot(rows[i].Binding.Slot); err == nil {
+				rows[i].Alias = families[family]
+			}
+		}
 	}
 	return rows, nil
 }
 
 // Send acknowledges mailbox admission, never model or task completion.
-func (b *Broker) Send(parent context.Context, from Binding, id, target, body string) (Receipt, error) {
+func (b *Broker) Send(parent context.Context, from Binding, id string, route Route, body string) (Receipt, error) {
 	ctx, cancel := context.WithTimeout(parent, AdmissionTimeout)
 	defer cancel()
 	stop := context.AfterFunc(b.ctx, cancel)
@@ -383,7 +444,7 @@ func (b *Broker) Send(parent context.Context, from Binding, id, target, body str
 		return Receipt{}, ErrUnavailable
 	}
 	if old, ok := b.receipts[id]; ok {
-		same := old.Message.From == from && old.Message.Body == body && b.destinations[id] == target
+		same := old.Message.From == from && old.Message.Body == body && b.destinations[id] == route
 		b.mu.Unlock()
 		if !same {
 			return Receipt{}, errors.New("conflicting message ID")
@@ -391,7 +452,7 @@ func (b *Broker) Send(parent context.Context, from Binding, id, target, body str
 		return old, nil
 	}
 	if existing := b.admissions[id]; existing != nil {
-		same := existing.from == from && existing.body == body && existing.target == target
+		same := existing.from == from && existing.body == body && existing.route == route
 		b.mu.Unlock()
 		if !same {
 			return Receipt{}, errors.New("conflicting message ID")
@@ -407,10 +468,10 @@ func (b *Broker) Send(parent context.Context, from Binding, id, target, body str
 		b.mu.Unlock()
 		return Receipt{}, errors.New("receipt capacity reached")
 	}
-	pending := &admission{from: from, target: target, body: body, done: make(chan struct{})}
+	pending := &admission{from: from, route: route, body: body, done: make(chan struct{})}
 	b.admissions[id] = pending
 	b.mu.Unlock()
-	receipt, err := b.admit(ctx, from, id, target, body)
+	receipt, err := b.admit(ctx, from, id, route, body)
 	b.mu.Lock()
 	pending.receipt, pending.err = receipt, err
 	delete(b.admissions, id)
@@ -418,8 +479,12 @@ func (b *Broker) Send(parent context.Context, from Binding, id, target, body str
 	b.mu.Unlock()
 	return receipt, err
 }
-func (b *Broker) admit(ctx context.Context, from Binding, id, target, body string) (Receipt, error) {
-	family := !strings.Contains(target, ":")
+func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route, body string) (Receipt, error) {
+	family := !strings.Contains(route.Target, ":")
+	families, err := b.readFamilies(ctx)
+	if err != nil {
+		return Receipt{}, err
+	}
 	tried := map[Binding]bool{}
 	for {
 		if err := ctx.Err(); err != nil {
@@ -448,7 +513,7 @@ func (b *Broker) admit(ctx context.Context, from Binding, id, target, body strin
 			}
 			candidates = append(candidates, c)
 		}
-		to, err := ResolveRecipient(target, candidates, b.now())
+		to, err := ResolveRecipient(route, candidates, families, b.now())
 		if err != nil {
 			b.mu.Unlock()
 			return Receipt{}, err
@@ -457,7 +522,7 @@ func (b *Broker) admit(ctx context.Context, from Binding, id, target, body strin
 		a.reservation = id
 		seq := a.sequence
 		b.mu.Unlock()
-		receipt, err := b.tryAdmission(ctx, a, seq, from, id, target, body, family)
+		receipt, err := b.tryAdmission(ctx, a, seq, from, id, route, body, family)
 		if err == nil {
 			return receipt, nil
 		}
@@ -475,7 +540,7 @@ func (b *Broker) admit(ctx context.Context, from Binding, id, target, body strin
 		tried[to] = true
 	}
 }
-func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, from Binding, id, target, body string, family bool) (Receipt, error) {
+func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, from Binding, id string, route Route, body string, family bool) (Receipt, error) {
 	// The binding itself never changes on a SlotActor; reconnect installs a new
 	// actor retaining the old actor's model state.
 	to := a.binding
@@ -515,7 +580,7 @@ func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, fro
 	if err = b.apply(a, Event{Kind: Admit, Binding: to, Message: m, At: now}); err != nil {
 		return Receipt{}, err
 	}
-	b.destinations[id] = target
+	b.destinations[id] = route
 	a.reservation = ""
 	a.inbox <- m
 	return b.receipts[id], nil

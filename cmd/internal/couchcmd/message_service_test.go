@@ -109,6 +109,12 @@ func TestMessageServiceKnownBindingRechecksLaunch(t *testing.T) {
 	if err := s.register(context.Background(), f.binding); err == nil {
 		t.Fatal("cached workspace bypassed changed launch")
 	}
+	// Within the verification window delivery still re-checks at use.
+	guarded := s.guard(f.binding, serviceEndpointFake{})
+	if err := guarded.Reserve(context.Background(), "id", 1); err == nil {
+		t.Fatal("stale launch reserved within the verification window")
+	}
+	advanceMessageClock(s, messageVerificationWindow)
 	s.reconcile(context.Background())
 	if _, err := s.broker.Caller(f.binding.Scope, f.binding.Tag, f.binding.Session, f.binding.Nonce); err == nil {
 		t.Fatal("stale registered launch survived reconciliation")
@@ -183,9 +189,16 @@ func TestMessageServiceCallerMustRemainCurrent(t *testing.T) {
 	f.mu.Lock()
 	f.pid = f.binding.PID + 1
 	f.mu.Unlock()
-	request := couchmessage.Request{Op: "actors", Scope: f.binding.Scope, Tag: f.binding.Tag, Session: f.binding.Session, Nonce: f.binding.Nonce}
-	response := s.handle(context.Background(), request)
-	if response.Code == "ok" {
+	caller := couchmessage.Request{Scope: f.binding.Scope, Tag: f.binding.Tag, Session: f.binding.Session, Nonce: f.binding.Nonce}
+	send := caller
+	send.Op, send.ID, send.Target, send.Body = "send", "id", "pair", "work"
+	if response := s.handle(context.Background(), send); response.Code != "unavailable" {
+		t.Fatalf("stale caller sent within the verification window: %+v", response)
+	}
+	advanceMessageClock(s, messageVerificationWindow)
+	actors := caller
+	actors.Op = "actors"
+	if response := s.handle(context.Background(), actors); response.Code == "ok" {
 		t.Fatal("stale caller queried broker")
 	}
 }
@@ -249,5 +262,138 @@ func TestMessageSocketCleanupPreservesRegularFile(t *testing.T) {
 	raw, err := os.ReadFile(socket)
 	if err != nil || string(raw) != "unrelated" {
 		t.Fatalf("destroyed unrelated file %q %v", raw, err)
+	}
+}
+
+// advanceMessageClock moves the service's clock forward from real time.
+func advanceMessageClock(s *messageService, d time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	base := s.now()
+	s.now = func() time.Time { return base.Add(d) }
+}
+
+func (f *messageAuthorityFake) countingLaunch(calls *int) messageAuthority {
+	a := f.authority()
+	launch := a.launch
+	a.launch = func(ctx context.Context, b couchmessage.Binding) error {
+		f.mu.Lock()
+		*calls++
+		f.mu.Unlock()
+		return launch(ctx, b)
+	}
+	return a
+}
+
+func TestMessageHeartbeatSkipsFullCheckWithinWindow(t *testing.T) {
+	f := newMessageAuthorityFake()
+	calls := 0
+	dir, err := os.MkdirTemp("/tmp", "pair-message-service-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	s, err := newMessageService(context.Background(), filepath.Join(dir, "broker.sock"), f.countingLaunch(&calls))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(s.Close)
+	heartbeat := couchmessage.Request{Op: "register", Binding: &f.binding}
+	count := func() int { f.mu.Lock(); defer f.mu.Unlock(); return calls }
+	if r := s.handle(context.Background(), heartbeat); r.Code != "ok" {
+		t.Fatalf("first registration %+v", r)
+	}
+	first := count()
+	if first == 0 {
+		t.Fatal("first registration skipped the full check")
+	}
+	for i := 0; i < 5; i++ {
+		if r := s.handle(context.Background(), heartbeat); r.Code != "ok" {
+			t.Fatalf("heartbeat %+v", r)
+		}
+	}
+	s.reconcile(context.Background())
+	if got := count(); got != first {
+		t.Fatalf("heartbeats and reconcile ran %d full checks within the window", got-first)
+	}
+	submit := couchmessage.Request{Op: "operator-submit", Binding: &f.binding}
+	if r := s.handle(context.Background(), submit); r.Code != "ok" || count() == first {
+		t.Fatalf("operator-submit skipped the full check: %+v", r)
+	}
+	afterSubmit := count()
+	advanceMessageClock(s, messageVerificationWindow)
+	if r := s.handle(context.Background(), heartbeat); r.Code != "ok" || count() == afterSubmit {
+		t.Fatalf("heartbeat after the window skipped the full check: %+v", r)
+	}
+}
+
+func TestMessageReconcileForgetsDeadBindings(t *testing.T) {
+	s, f := serviceFixture(t)
+	if err := s.register(context.Background(), f.binding); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	f.live = false
+	f.mu.Unlock()
+	advanceMessageClock(s, messageVerificationWindow)
+	s.reconcile(context.Background())
+	s.mu.Lock()
+	_, workspace := s.workspaces[f.binding]
+	_, verified := s.verified[f.binding]
+	s.mu.Unlock()
+	if workspace || verified {
+		t.Fatalf("dead binding retained: workspace %v verified %v", workspace, verified)
+	}
+}
+
+func TestMessageEndpointObserveReusesRecentCheckButReserveNever(t *testing.T) {
+	f := newMessageAuthorityFake()
+	fresh := true
+	endpoint := messageEndpoint{authority: f.authority(), binding: f.binding, endpoint: serviceEndpointFake{}, fresh: func() bool { return fresh }}
+	f.mu.Lock()
+	f.pid++
+	f.mu.Unlock()
+	if _, err := endpoint.Observe(context.Background()); err != nil {
+		t.Fatalf("fresh observation re-checked: %v", err)
+	}
+	if err := endpoint.Reserve(context.Background(), "id", 1); err == nil {
+		t.Fatal("reserve trusted a recent check")
+	}
+	fresh = false
+	if _, err := endpoint.Observe(context.Background()); err == nil {
+		t.Fatal("stale observation skipped the check")
+	}
+}
+
+func TestMessageActorsListingIsMemoryOnly(t *testing.T) {
+	f := newMessageAuthorityFake()
+	calls := 0
+	dir, err := os.MkdirTemp("/tmp", "pair-message-service-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	s, err := newMessageService(context.Background(), filepath.Join(dir, "broker.sock"), f.countingLaunch(&calls))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(s.Close)
+	if r := s.handle(context.Background(), couchmessage.Request{Op: "register", Binding: &f.binding}); r.Code != "ok" {
+		t.Fatalf("register %+v", r)
+	}
+	f.mu.Lock()
+	before := calls
+	f.mu.Unlock()
+	actors := couchmessage.Request{Op: "actors", Scope: f.binding.Scope, Tag: f.binding.Tag, Session: f.binding.Session, Nonce: f.binding.Nonce}
+	for i := 0; i < 3; i++ {
+		r := s.handle(context.Background(), actors)
+		if r.Code != "ok" || len(r.Actors) != 1 || !r.Actors[0].Known || !r.Actors[0].Resting {
+			t.Fatalf("listing %+v", r)
+		}
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if calls != before {
+		t.Fatalf("listing ran %d full checks", calls-before)
 	}
 }

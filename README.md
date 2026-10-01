@@ -385,18 +385,30 @@ couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
 couch --send-to repo:N --message TEXT   send to an exact live slot
 couch --send-to repo --message TEXT     select an eligible slot in that family
+couch --send-to repo --agent NAME --message TEXT   ...running that agent
 couch --message-status ID [--json]      inspect a message receipt
 couch --skill            print the bundled agent coordination skill
 ```
+
+A slot is a repository plus its Nth checkout, written `repo:N` (`:0` is the
+primary checkout). The `repo` part accepts the directory name, the repository's
+alias, or a unique prefix of either: `parley:1` reaches `parley.nvim:1`. An
+ambiguous prefix is refused with the matches listed, and a reference that
+matches nothing lists the candidates. Set an alias from the switcher with the
+live `:0` row's **alias** action (`xianxu.dev` → `blog`); the tabs and switcher
+then show `blog:1`, and `blog:1` and `--send-to blog` work everywhere
+`xianxu.dev` does. An existing directory beside the repository wins over a
+prefix, and an alias may not shadow one.
 
 Peer messages connect existing live Couch slots, including `:0`. Family sends
 require a resting branch, 30 seconds without operator input or agent output,
 and delivery capacity. Exact sends can clarify work in an occupied slot. Pair
 inserts input only at a qualified empty agent composer; existing composer text,
 images, menus and unknown states prevent automatic submission. Unchanged text
-in the separate draft pane does not block delivery. Qualified versions are
-Claude Code 2.1.286 and Codex CLI 0.159.2; other versions
-remain manual until their fixture and live checks pass. Short messages submit
+in the separate draft pane does not block delivery. Claude Code and Codex CLI
+receive at any installed version; fixtures and live checks were captured on
+Claude Code 2.1.286 and Codex CLI 0.159.2, and evidence for newer versions is
+tracked in #368. Short messages submit
 automatically. A collapsed paste summary cannot prove the complete message, so
 that attempt expires without submission and leaves the text for inspection.
 Prefer short coordination messages pointing to repository artifacts. Human

@@ -176,6 +176,9 @@ type ActionableThreadSummary struct {
 	Name             string              `json:"name,omitempty"`
 	Description      string              `json:"description,omitempty"`
 	PublishedSummary string              `json:"published_summary,omitempty"`
+	// RepositoryAlias is the operator's short name for this row's enrolled
+	// repository, display-only (ApplyRepositoryAliases).
+	RepositoryAlias string `json:"repository_alias,omitempty"`
 	// Agent is the agent this thread would launch, read from its saved launch
 	// profile. Empty when there is no profile to read one from, which is the
 	// `never-started` and `profile-missing` shapes.
@@ -208,9 +211,19 @@ func (s ActionableThreadSummary) Resumable() bool {
 	return s.State == ThreadParked || s.State == ThreadDetached
 }
 
+// Label is the row's display name. A repository alias outranks a thread's
+// operator name and an attached pane's label: the alias names the slot's
+// repository, which is what the operator addresses (#360).
 func (s ActionableThreadSummary) Label() string {
-	if s.Target.Kind == ThreadTargetSlot && s.Name == "" {
-		return (WorkspaceReference{Repo: s.Target.Slot.Repo, Number: s.Target.Slot.Number}).String()
+	if s.Target.Kind == ThreadTargetSlot {
+		switch {
+		case s.RepositoryAlias != "":
+			return (WorkspaceReference{Repo: s.RepositoryAlias, Number: s.Target.Slot.Number}).String()
+		case s.Name == "":
+			return (WorkspaceReference{Repo: s.Target.Slot.Repo, Number: s.Target.Slot.Number}).String()
+		}
+	} else if s.RepositoryAlias != "" {
+		return s.RepositoryAlias
 	}
 	return threadLabel(s.Name, s.WorkingPath, s.Address.Tag)
 }
@@ -662,7 +675,41 @@ func (c *Couch) ActionableThreadInventoryContext(ctx context.Context, observatio
 	if err != nil {
 		return nil, err
 	}
-	return ProjectActionableThreads(FromSnapshot(snapshot, evidence)), nil
+	rows := ProjectActionableThreads(FromSnapshot(snapshot, evidence))
+	// Aliases are display-only: an unreadable alias file must not take the
+	// switcher down, and reference resolution reports it on its own path.
+	if names, err := c.repositoryNames(); err == nil {
+		rows = ApplyRepositoryAliases(rows, names)
+	}
+	return rows, nil
+}
+
+// ApplyRepositoryAliases labels the rows that stand for a slot with their
+// repository's alias: slot rows by primary root, and the :0 row, the thread
+// whose scope is the repository's and which starts at its primary root. Other
+// threads in the primary checkout (subdirectories) and nested repositories keep
+// their own labels.
+func ApplyRepositoryAliases(rows []ActionableThreadSummary, names []RepositoryName) []ActionableThreadSummary {
+	byRoot := map[string]string{}
+	byScope := map[string]RepositoryName{}
+	for _, name := range names {
+		if name.Alias == "" {
+			continue
+		}
+		byRoot[name.Key] = name.Alias
+		if scope, err := launcher.ResolveRepoScope(name.Key); err == nil {
+			byScope[scope.Key] = name
+		}
+	}
+	for i := range rows {
+		rows[i].RepositoryAlias = ""
+		if rows[i].Target.Kind == ThreadTargetSlot {
+			rows[i].RepositoryAlias = byRoot[rows[i].Target.Slot.PrimaryRoot]
+		} else if name, ok := byScope[rows[i].Address.RepoScope]; ok && filepath.Clean(rows[i].StartingPath) == filepath.Clean(name.Key) {
+			rows[i].RepositoryAlias = name.Alias
+		}
+	}
+	return rows
 }
 
 // gatherThreadEvidence resolves what is knowable about every record and decides

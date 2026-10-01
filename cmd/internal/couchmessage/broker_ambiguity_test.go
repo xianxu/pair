@@ -53,7 +53,7 @@ func TestBrokerFamilyAmbiguityIncludesSender(t *testing.T) {
 				}
 			}
 			nanos.Store(base.Add(time.Minute).UnixNano())
-			r, err := b.Send(context.Background(), from, "family-id", "pair", "work")
+			r, err := b.Send(context.Background(), from, "family-id", Route{Target: "pair"}, "work")
 			if !errors.Is(err, tc.want) {
 				t.Errorf("family admission: recipient=%+v err=%v want=%v", r.Message.To, err, tc.want)
 			}

@@ -29,7 +29,7 @@ func TestRouting(t *testing.T) {
 			if tc.change != nil {
 				tc.change(&c)
 			}
-			_, err := ResolveRecipient(tc.target, []Candidate{c}, now)
+			_, err := ResolveRecipient(Route{Target: tc.target}, []Candidate{c}, nil, now)
 			if !errors.Is(err, tc.want) {
 				t.Fatalf("%v want %v", err, tc.want)
 			}
@@ -37,13 +37,13 @@ func TestRouting(t *testing.T) {
 	}
 	zero := ready
 	zero.Binding = binding("pair:0")
-	got, err := ResolveRecipient("pair", []Candidate{ready, zero}, now)
+	got, err := ResolveRecipient(Route{Target: "pair"}, []Candidate{ready, zero}, nil, now)
 	if err != nil || got.Slot != "pair:0" {
 		t.Fatalf("lowest slot %v %v", got, err)
 	}
 	duplicate := ready
 	duplicate.Binding.Repository = "/other/.git"
-	if _, err := ResolveRecipient("pair", []Candidate{ready, duplicate}, now); !errors.Is(err, ErrAmbiguous) {
+	if _, err := ResolveRecipient(Route{Target: "pair"}, []Candidate{ready, duplicate}, nil, now); !errors.Is(err, ErrAmbiguous) {
 		t.Fatalf("ambiguous %v", err)
 	}
 }

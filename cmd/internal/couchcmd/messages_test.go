@@ -145,3 +145,30 @@ func TestMessageSkillRunsOutsideCouch(t *testing.T) {
 		t.Fatalf("code %d out %q err %q", code, out.String(), errout.String())
 	}
 }
+
+func TestMessageCLIForwardsAgentAndPrintsAlias(t *testing.T) {
+	var out, errout bytes.Buffer
+	var sent couchmessage.Request
+	call := func(_ context.Context, _ string, request, response any) error {
+		r := request.(couchmessage.Request)
+		res := response.(*couchmessage.Response)
+		switch r.Op {
+		case "send":
+			sent = r
+			res.Code = "accepted"
+			res.Receipt = &couchmessage.Receipt{Message: couchmessage.Message{ID: r.ID}, Status: couchmessage.Queued}
+		case "actors":
+			res.Code = "ok"
+			b := couchmessage.Binding{Slot: "xianxu.dev:1", Agent: "claude"}
+			res.Actors = []couchmessage.Candidate{{Binding: b, Alias: "blog", Supported: true, Remaining: 8}}
+		}
+		return nil
+	}
+	if code := runMessageCLIWithCall(cliInvocation{kind: cliMessage, messageOp: "send", ref: "blog", messageAgent: "codex", messageBody: "work"}, messageRuntime(), &out, &errout, call); code != 0 || sent.Agent != "codex" || sent.Target != "blog" {
+		t.Fatalf("send %d %+v %q", code, sent, errout.String())
+	}
+	out.Reset()
+	if code := runMessageCLIWithCall(cliInvocation{kind: cliMessage, messageOp: "actors"}, messageRuntime(), &out, &errout, call); code != 0 || !strings.HasPrefix(out.String(), "xianxu.dev:1 (blog)\tclaude\t") {
+		t.Fatalf("actors %d %q", code, out.String())
+	}
+}

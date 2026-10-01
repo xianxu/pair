@@ -358,6 +358,9 @@ func renderMenuFrame(state MenuState, frame MenuFrame, width, height int, now ti
 		if frame.Action == "recover-checkpoint" {
 			hint = "Absolute checkpoint path · starts a new conversation"
 		}
+		if frame.Action == "alias" {
+			hint = "Short repository name for repo:N and --send-to · empty clears"
+		}
 		return []string{clipMenuLine(menuItemLabel(frame.Action), width), clipMenuLine(hint, width), clipMenuLine("> "+frame.Input, width)}, nil
 	case MenuFrameStart:
 		return renderStartMenuFrame(state, frame, width, height), nil
