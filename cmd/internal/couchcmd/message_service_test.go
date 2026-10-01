@@ -23,6 +23,9 @@ type messageWorld struct {
 	slots                    map[couchmessage.ThreadKey]*worldSlot
 	launches, procs, branchs int
 	recordeds                int
+	// endpoints overrides a binding's delivery endpoint (default: one that
+	// submits at once).
+	endpoints map[couchmessage.Binding]couchmessage.DeliveryEndpoint
 }
 
 type worldSlot struct {
@@ -37,7 +40,7 @@ type worldSlot struct {
 }
 
 func newMessageWorld() *messageWorld {
-	return &messageWorld{slots: map[couchmessage.ThreadKey]*worldSlot{}}
+	return &messageWorld{slots: map[couchmessage.ThreadKey]*worldSlot{}, endpoints: map[couchmessage.Binding]couchmessage.DeliveryEndpoint{}}
 }
 
 // add creates slot pair:n whose wrapper is this test process, as the session
@@ -119,7 +122,14 @@ func (w *messageWorld) authority() messageAuthority {
 			}
 			return ctx.Err()
 		},
-		endpoint: func(couchmessage.Binding) couchmessage.DeliveryEndpoint { return serviceEndpointFake{} },
+		endpoint: func(b couchmessage.Binding) couchmessage.DeliveryEndpoint {
+			w.mu.Lock()
+			defer w.mu.Unlock()
+			if e, ok := w.endpoints[b]; ok {
+				return e
+			}
+			return serviceEndpointFake{}
+		},
 		branch: func(_ context.Context, root string) (couchcore.SlotGitStatus, error) {
 			w.mu.Lock()
 			defer w.mu.Unlock()
@@ -165,7 +175,25 @@ func newServiceRig(t *testing.T) *serviceRig {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
-	r := &serviceRig{t: t, world: newMessageWorld(), panes: couchmessage.NewPaneMailbox(), brokerSock: filepath.Join(dir, "broker.sock"), regSock: filepath.Join(dir, "registry.sock"), slotGit: map[string]couchcore.SlotGitStatus{}}
+	r := &serviceRig{t: t, world: newMessageWorld(), brokerSock: filepath.Join(dir, "broker.sock"), regSock: filepath.Join(dir, "registry.sock"), slotGit: map[string]couchcore.SlotGitStatus{}}
+	r.start()
+	return r
+}
+
+// restart is a Couch restart: the old service goes, a new one takes the same
+// sockets, and the Console replays its panes into the new mailbox.
+func (r *serviceRig) restart(panes map[couchmessage.ThreadKey]couchmessage.PaneHandle) {
+	r.s.Close()
+	r.start()
+	for thread, pane := range panes {
+		r.panes.Post(thread, pane)
+	}
+}
+
+func (r *serviceRig) start() {
+	t := r.t
+	var err error
+	r.panes = couchmessage.NewPaneMailbox()
 	r.s, err = newMessageService(context.Background(), r.brokerSock, r.regSock, r.world.authority(), r.panes, func(root string) (couchcore.SlotGitStatus, bool) {
 		r.mu.Lock()
 		defer r.mu.Unlock()
@@ -178,7 +206,6 @@ func newServiceRig(t *testing.T) *serviceRig {
 	// Retries fire only when a test says so.
 	r.s.after = func(_ time.Duration, f func()) { r.mu.Lock(); r.retries = append(r.retries, f); r.mu.Unlock() }
 	t.Cleanup(r.s.Close)
-	return r
 }
 
 func (r *serviceRig) attach(b couchmessage.Binding, pane couchmessage.PaneHandle) {
