@@ -1,14 +1,15 @@
 ---
 id: 000353
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-29
 updated: 2026-09-30
 estimate_hours: 8.19
-card_mirror: '6b0fa566496540576a7fe48a4819a7486ef8262e' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '96b06565c152211669e2cd580b9a0ce8c74f38f1' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-09-30T13:47:42-07:00
 flow: {kind: full, provenance: operator}
+actual_hours: 6.22
 ---
 
 # Live cross-slot dispatch between couch slots
