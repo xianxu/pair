@@ -113,7 +113,9 @@ settle before inspecting the screen. Visible draft text still blocks delivery,
 while an erased draft can become eligible without submitting it. A one-second
 polling timer exists only while a message is pending; events also wake checks.
 After the input deadline, the broker allows two seconds for read-only receipt
-collection; this never extends the wrapper's paste/submit deadline.
+collection; this never extends the wrapper's paste/submit deadline. Waiting
+receipts report the blocking guard and retain that reason on expiry. Senders
+query `--message-status` for final outcomes; admission returns before delivery.
 
 Key files: `couchmessage/{model,routing,broker,transport,protocol,endpoint}.go`,
 `couchcmd/{messages,skill}.go`, and the wrapper delivery adapter. The canonical

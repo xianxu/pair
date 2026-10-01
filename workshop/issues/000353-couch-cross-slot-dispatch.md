@@ -240,7 +240,7 @@ implementation has not started.
 - [x] Implement and test bounded actor admission and free-text messaging (approved amendment).
 - [x] Integrate supervisor transport and exact live wrapper registration.
 - [x] Qualify safe Claude/Codex delivery through Pair's input owner.
-- [ ] Ship CLI, skill, operator notices, and end-to-end acceptance evidence.
+- [x] Ship CLI, skill, operator notices, and end-to-end acceptance evidence.
 
 Durable plan: [implementation](../plans/000353-couch-cross-slot-dispatch-plan.md).
 
@@ -287,6 +287,31 @@ total: 8.19
 ```
 
 ## Log
+
+### 2026-09-30 — close verification and follow-up
+
+Fresh uncached suites passed for couchmessage, couchcmd, couchtty, wrapcmd and
+launcher; make build and make pair passed. Full race verification passed
+couchmessage and couchcmd but found an existing status-click fixture race in
+couchtty (console_presentation_test.go:92 versus terminal.go:130); those files
+and console_mouse_test.go are unchanged against main. Targeted Couch messaging
+race tests pass. The complete wrapcmd race run also detected the existing
+Codex status-rendering fixture racing vt.Emulator.Close against Read
+(codex_working_test.go:228/231); both that fixture and emulator are unchanged
+against main. These broad-suite failures are not claimed as passing.
+Ariadne #276 now tracks the thin managed prelude delegating to `couch --skill`;
+its details are published on Ariadne main and it depends on pair#353.
+
+### 2026-09-30 — operator smoke accepted
+
+Operator explicitly accepted smoke testing and requested closing #353. Live
+parley.nvim slots demonstrated exact Codex-to-Claude delivery, a useful answer
+back to Codex, and family selection/delivery after restarting with staged
+binaries. The family smoke used an arithmetic request, not an actual issue
+claim; this is the operator-accepted first-iteration runtime acceptance scope.
+The earlier family expiry remains unexplained, not claimed fixed. Waiting-guard
+reasons now survive expiry to support a future reproduction. No message replay,
+forced delivery, or automatic resend was used to recover it.
 
 ### 2026-09-30 — family smoke needs receiver diagnostics
 
@@ -525,3 +550,13 @@ over agent-maintained availability or reply bookkeeping. The approved amendments
 in Spec replace those earlier proposals and their conflicting acceptance/plan
 requirements. Historical proposal and review entries remain intact. Plan updated
 with corresponding model, CLI, lifecycle, and regression-test changes.
+
+### 2026-09-30 — final acceptance scope and input observation
+
+Operator accepted direct send/reply and family dispatch smoke and authorized
+close. This acceptance replaces the proposed real-issue smoke requirement;
+no live issue-claim or human-acceptance automation is claimed. The approved
+free-text API supersedes the historical one-reply requirement in Done when.
+Later operator direction also replaces sticky composer ownership with current
+screen observation after input settles, shared ANSI faint suggestion detection,
+and one-second polling only during pending delivery (ARCH-PURPOSE).

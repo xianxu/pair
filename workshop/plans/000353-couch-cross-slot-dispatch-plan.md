@@ -421,8 +421,8 @@ inventories remain historical where the amendments superseded their semantics.
   unknown versions and collapsed paste summaries remain unsubmitted.
 - [x] Embedded Couch skill, notices, README/atlas, full affected package tests,
   focused race checks and rebuilt binaries.
-- [ ] Operator accepts the real Couch send/reply and issue-dispatch workflow in
-  fresh sessions, preserving outstanding human acceptance of repository work.
+- [x] Operator accepts live Couch send/reply and family dispatch using arithmetic
+  requests; actual issue claiming was not exercised (accepted smoke scope).
 - [ ] Close through SDLC with the human evidence and its mandatory boundary review.
 
 ## Revisions
@@ -478,3 +478,10 @@ inventories remain historical where the amendments superseded their semantics.
   allowance consumed after that human event. Reconnection preserves the observed
   count alongside the exact wrapper's allowance. This is an implementation
   correction of the agreed eight-inbound-message contract, not a new API.
+
+- 2026-09-30: operator accepted live exact send/reply and family dispatch and
+  requested close. Arithmetic requests qualify the runtime smoke; no actual
+  issue claim is asserted. Earlier sticky-draft and placeholder-wording rules
+  are superseded by the approved current-composer observation, shared faint
+  style, one-second input settling and pending-only polling. An earlier family
+  expiry is unresolved; guard diagnostics were added and the next smoke passed.

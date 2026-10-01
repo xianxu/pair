@@ -369,3 +369,9 @@ proof; record the surprising case so the next change starts from evidence.
 - Terminal focus notifications do not create human drafts, and a menu-confirming
   Enter is not a model submission. Distinguish both before assigning persistent
   input ownership or replenishing a peer-message allowance. (#353)
+
+- For terminal-delivery failures, retain the guard that blocked progress in the
+  expiry receipt; a generic timeout cannot distinguish layout recognition from
+  input bookkeeping. The final #353 contract supersedes persistent human-draft
+  ownership above: inspect current composer state after input settles, protect
+  incomplete input, and poll only while delivery is pending.
