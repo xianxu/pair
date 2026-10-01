@@ -49,7 +49,7 @@ runtime storage or external services (ARCH-CONSTRAINTS, ARCH-SECURE, ARCH-FUNERA
 
 - [x] Implement bounded fake and real-PTY experiments using existing test seams.
 - [x] Run baseline and single-factor pressure trials; inspect profiles only where needed.
-- [ ] Record findings, limitations and justified next steps; verify and close investigation.
+- [x] Record findings, limitations and justified next steps; verify and close investigation.
 
 Experiment controls: use the same 12 children and geometry in paired trials,
 three repetitions, bounded two-second pressure windows and five-second recovery
@@ -136,3 +136,8 @@ kernel/process pressure. Limiting Go CPUs does not simulate those pressures.
 A justified next discriminator is an isolated Zellij-backed workload with
 representative screen changes, followed by scheduler/write observations during
 a real recurrence. No production fix is justified by this experiment.
+
+Verification: `go test -race ./cmd/internal/couchtty -count=1` passed in
+23.827s, including the ordinary real-PTY pressure control and joined cleanup.
+Publication bounds, sticky failure and child-exit/final-publication focused tests
+also passed. `git diff --check` passed. No production behavior was changed.

@@ -2203,3 +2203,16 @@ registry/collection recovery: `storagegc/stale_store_test.go`. Smoke invocations
 must isolate HOME, XDG_DATA_HOME, PAIR_DATA_DIR and COUCH_STORE_DIR together and
 clear inherited explicit artifact overrides. The original scratchpad producer
 has not been identified.
+
+### Isolated terminal pressure experiment (#373)
+
+`cmd/internal/couchtty/terminal_pressure_test.go` exercises production Console
+input, endpoint ingestion, publication and presentation using bounded fake and
+real-PTY children. `TestCouchPressureControl` runs in ordinary tests; opt in to
+24 paired trials with `PAIR_COUCH_PRESSURE=1 go test ./cmd/internal/couchtty
+-run '^TestCouchOutputPressure$' -count=1 -v -timeout=180s`.
+It separates child receipt, endpoint ACK, displayed ACK and rendered switcher
+latency under bursts, one Go CPU and delayed host writes. Two-second trials
+have bounded output and joined teardown. It does not emulate Zellij, Ghostty,
+system-wide scheduler pressure or sustained full-screen redraws; a negative
+result cannot rule out those causes of selective pane freezing.
