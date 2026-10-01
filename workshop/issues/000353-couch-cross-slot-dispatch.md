@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-09-29
 updated: 2026-09-30
-estimate_hours:
-card_mirror: '8aad5da495291a2921bcf06e9c1c3a21cf40f3ae' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 8.19
+card_mirror: '6b0fa566496540576a7fe48a4819a7486ef8262e' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-09-30T13:47:42-07:00
 ---
 
@@ -242,6 +242,48 @@ implementation has not started.
 - [ ] Ship CLI, skill, operator notices, and end-to-end acceptance evidence.
 
 Durable plan: [implementation](../plans/000353-couch-cross-slot-dispatch-plan.md).
+
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. Calibration is flagged stale/provisional.*
+
+Derived after plan-quality passed. In block order: issue/spec brainstorm;
+pure actor model; bounded broker; Unix transport; composer/delivery state;
+shared input arbitration; supervisor/wrapper integration; image admission Lua
+seam; CLI; Couch skill; docs; one close review; Claude and Codex conformance.
+Implementation uses upper table values scaled by 0.4 for coupled runtime/harness
+work, familiarity 1.0 (existing Go/TTY stack). Implementation-primitive design
+uses the thorough-spec 0.2 discount; issue/spec retains 1.5h because it owns the
+brainstorm decisions. Transport uses Go net/context and existing strictjson:
+base design 2h is halved for library availability then multiplied by 0.2.
+New policy models use base 1.5h ×0.2; no library removes their product decisions.
+TUI uses 2h ×0.2, refactor 1h ×0.2, integration 2h ×0.2, Lua 1h ×0.2,
+CLI 0.3h ×0.2, skill 0.7h ×0.2, docs/review 0.2h ×0.2.
+Each harness discovery uses 0.6h ×0.4. Design 3.78h ×1.15 = 4.347h;
+implementation 3.84h; total 8.187h, rounded to 8.19h.
+Includes verification and acceptance work, excluding idle operator wait.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=1.5 impl=0.12
+item: greenfield-go-module design=0.3 impl=0.32
+item: greenfield-go-module design=0.3 impl=0.32
+item: greenfield-go-module design=0.2 impl=0.32
+item: tui-screen design=0.4 impl=0.4
+item: cross-cutting-refactor design=0.2 impl=0.2
+item: api-integration design=0.4 impl=0.6
+item: lua-neovim design=0.2 impl=0.4
+item: smaller-go-module design=0.06 impl=0.2
+item: skill-or-dispatcher design=0.14 impl=0.2
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.04 impl=0.2
+item: real-api-discovery design=0 impl=0.24
+item: real-api-discovery design=0 impl=0.24
+design-buffer: 0.15
+total: 8.19
+```
 
 ## Log
 
