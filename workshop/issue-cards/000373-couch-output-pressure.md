@@ -1,6 +1,6 @@
 ---
 id: 000373
-status: open
+status: working
 created: 2026-10-01
 updated: 2026-10-01
 estimate_hours:
@@ -17,6 +17,7 @@ tracker:
         source_blob: 39cb07c1deff181cf0b97c1baf02a2ab10609b1b
         destination: workshop/issues/000373-couch-output-pressure.md
         main_commit: 31bc6185faeb880f24040063da1f2114ff2a5dde
+started: 2026-10-01T15:41:41-07:00
 ---
 
 # Isolate Couch pane latency under output pressure
