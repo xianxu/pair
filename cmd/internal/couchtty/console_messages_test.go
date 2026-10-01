@@ -101,6 +101,12 @@ func drainPanes(t *testing.T, m *couchmessage.PaneMailbox, want func(map[couchme
 func TestConsoleSubscribeReplaysExistingPanesThenTracksChanges(t *testing.T) {
 	f := newFixture(t, 24, 80)
 	brain := couchmessage.ThreadKey{Scope: "legacy", Tag: "c1"} // Attach(id, label, child) uses id as the tag
+	// A second pane keeps the console alive when c1 exits: the final child
+	// ending an actor-focused console ends the console itself.
+	keep := ptychild.NewFakeChild(nil)
+	defer keep.Close()
+	keep.SetSink(func(ctx context.Context, batch ptychild.OutputBatch) error { return f.con.Deliver(ctx, "c2", batch) })
+	f.con.Attach("c2", "keep", keep)
 	m := couchmessage.NewPaneMailbox()
 	f.con.SubscribeMessageLifecycle(m)
 	first := drainPanes(t, m, func(s map[couchmessage.ThreadKey]couchmessage.PaneHandle) bool { return s[brain] != "" })[brain]
