@@ -122,3 +122,9 @@ mirrors any edits back into `slug-<tag>`. Couch never reads either file.
   failures that also fail on main (`TestBareCouchInstalledCommand`,
   `TestProductionArtifactReferencesAreExactlyClassified`,
   `TestCouchReferencesLocalArchiveLocatorRoundTrip`).
+- Operator smoke test on :0 (60bb0490): passed. Focus rows render
+  `name ◆ description ◆ <branch> | <focus>` and update after a turn without
+  notification. Observation: the slug's branch segment (`#000277
+  claim-ownership`) often repeats the operator description (`#277 record
+  claimant …`). Accepted as-is; the operator expects to shape the description
+  for their own recall. A follow-up could drop the branch segment.
