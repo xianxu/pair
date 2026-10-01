@@ -121,6 +121,16 @@ receipt retention limit the runtime. Family selection requires fresh resting
 branch and quiet-wrapper observations; exact sends allow occupied-slot
 coordination. Quietness is never acceptance of repository work.
 
+`--actors` reads broker memory only (#360): each slot's last heartbeat
+observation and resting-branch probe, reported `unknown` once older than
+`ObservationStaleAfter` (5s) / `RestingStaleAfter` (15s). The resting branch is
+probed on every full authority check. A full check vouches for a binding for
+`messageVerificationWindow` (10s) on the paths that only observe: the
+wrappers' one-second registration heartbeat, read-only callers, admission
+observation, and reconciliation. Sends, operator-submit, Reserve and Deliver
+always re-check. Reconciliation drops dead bindings from the service's maps,
+which previously grew with every relaunch and were re-probed every second.
+
 Each wrapper endpoint conditionally reserves its observed input generation,
 then accepts one delivery commit. The broker polls outcome receipts; it never
 retries PTY input after uncertainty. Pair's input owner arbitrates ordinary

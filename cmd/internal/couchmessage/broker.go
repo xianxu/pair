@@ -40,6 +40,12 @@ type SlotActor struct {
 	reservation string
 	inbox       chan Message
 	cancel      context.CancelFunc
+	// The latest heartbeat observation and resting-branch probe, kept so an
+	// actor listing reads memory instead of probing every slot.
+	observed   Observation
+	observedAt time.Time
+	resting    bool
+	restingAt  time.Time
 }
 type admission struct {
 	from    Binding
@@ -205,6 +211,7 @@ func (b *Broker) ReconcileObservation(binding Binding, observed Observation) err
 	return b.reconcileObservation(a, observed)
 }
 func (b *Broker) reconcileObservation(a *SlotActor, observed Observation) error {
+	a.observed, a.observedAt = observed, b.now()
 	if observed.Submission <= a.submission {
 		return nil
 	}
@@ -345,50 +352,72 @@ func (b *Broker) observe(ctx context.Context, a *SlotActor) (Candidate, Observat
 	return c, obs, nil
 }
 
-// Actors uses fresh branch/wrapper observations outside the broker lock. Failed
-// observations are visible as Known=false, never as an available recipient.
+// Staleness bounds for the in-memory actor listing. Wrappers report every
+// second; the resting branch is probed on each full authority check, which
+// the service repeats at least every verification window (10s).
+const (
+	ObservationStaleAfter = 5 * time.Second
+	RestingStaleAfter     = 15 * time.Second
+)
+
+// ObserveResting probes the binding's resting branch outside the broker lock
+// and records it for listings. A failed probe leaves the old value to age out.
+func (b *Broker) ObserveResting(ctx context.Context, binding Binding) error {
+	if b.resting == nil {
+		return errors.New("branch observation unavailable")
+	}
+	resting, err := b.resting(ctx, binding)
+	if err != nil {
+		return err
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	a := b.actors[binding]
+	if a == nil || !b.caller(binding) {
+		return ErrUnavailable
+	}
+	a.resting, a.restingAt = resting, b.now()
+	return nil
+}
+
+// Actors reports the broker's memory: each connected actor's last heartbeat
+// observation and resting probe. It does no IO, so its cost does not grow with
+// slot count or probe latency. A missing or stale observation is Known=false,
+// never an available recipient; admission still observes fresh before it
+// reserves.
 func (b *Broker) Actors(parent context.Context, caller Binding) ([]Candidate, error) {
-	ctx, cancel := context.WithTimeout(parent, AdmissionTimeout)
-	defer cancel()
 	b.mu.Lock()
 	if !b.caller(caller) {
 		b.mu.Unlock()
 		return nil, ErrUnavailable
 	}
-	var actors []*SlotActor
-	for _, a := range b.actors {
-		if a.state.Connected() {
-			actors = append(actors, a)
-		}
-	}
-	b.mu.Unlock()
-	sort.Slice(actors, func(i, j int) bool { return actors[i].binding.Slot < actors[j].binding.Slot })
+	now := b.now()
 	var rows []Candidate
-	for _, a := range actors {
-		c, _, err := b.observe(ctx, a)
-		if err != nil {
-			c.Known = false
+	for _, a := range b.actors {
+		if !a.state.Connected() {
+			continue
 		}
-		b.mu.Lock()
-		live := b.caller(c.Binding) && b.actors[c.Binding] == a
-		b.mu.Unlock()
-		if live {
-			rows = append(rows, c)
+		c := actorCandidate(a)
+		if a.observed.LastActivity.After(c.LastActivity) {
+			c.LastActivity = a.observed.LastActivity
 		}
+		c.Resting = a.resting
+		c.Known = !c.LastActivity.IsZero() &&
+			!a.observedAt.IsZero() && now.Sub(a.observedAt) < ObservationStaleAfter &&
+			!a.restingAt.IsZero() && now.Sub(a.restingAt) < RestingStaleAfter
+		rows = append(rows, c)
 	}
-	b.mu.Lock()
-	valid := b.caller(caller)
 	b.mu.Unlock()
-	if !valid {
-		return nil, ErrUnavailable
-	}
-	aliases, err := b.readAliases(ctx)
-	if err != nil {
-		return nil, err
-	}
-	for i := range rows {
-		if family, _, err := parseSlot(rows[i].Binding.Slot); err == nil {
-			rows[i].Alias = aliases[family]
+	sort.Slice(rows, func(i, j int) bool { return rows[i].Binding.Slot < rows[j].Binding.Slot })
+	// Aliases are display-only here: a store that stays busy leaves them out
+	// rather than failing the listing.
+	ctx, cancel := context.WithTimeout(parent, 250*time.Millisecond)
+	defer cancel()
+	if aliases, err := b.readAliases(ctx); err == nil {
+		for i := range rows {
+			if family, _, err := parseSlot(rows[i].Binding.Slot); err == nil {
+				rows[i].Alias = aliases[family]
+			}
 		}
 	}
 	return rows, nil

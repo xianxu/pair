@@ -401,3 +401,13 @@ proof; record the surprising case so the next change starts from evidence.
   thread's operator name in the switcher and to the pane label on the tab for
   a repository with only `:0`. Enumerate the label inputs (row name, pane
   label, group name) and assert the override against each. (#360 smoke)
+
+- A read-only listing must not re-establish global state on the request path,
+  and periodic verification must name its cost per unit per second. #353's
+  `--actors` re-probed every slot serially (zellij and process probes) under a
+  2s transport cap equal to the client's, while one-second heartbeats and
+  reconciliation ran ~3 full checks per wrapper per second over a binding map
+  that never shrank, so the server saturated as slots accumulated. Serve
+  listings from what the heartbeat already observed, bound a verification's
+  reuse window, give the server a budget inside the client's, and remove dead
+  entries. (#360 smoke)

@@ -254,7 +254,7 @@ func TestBrokerDisconnectCancelsSenderWorkAndReconnectRetainsBudget(t *testing.T
 		t.Fatal("disconnected caller read receipt")
 	}
 }
-func TestBrokerActorsFreshObservationsAndInputInvalidation(t *testing.T) {
+func TestBrokerActorsRecordedObservationsAndInputInvalidation(t *testing.T) {
 	base := time.Unix(1000, 0)
 	var nanos atomic.Int64
 	nanos.Store(base.UnixNano())
@@ -270,6 +270,13 @@ func TestBrokerActorsFreshObservationsAndInputInvalidation(t *testing.T) {
 		_ = b.Register(v, newFakeEndpoint(base))
 	}
 	nanos.Store(base.Add(time.Minute).UnixNano())
+	// The listing reports what heartbeats and resting probes recorded.
+	for _, v := range []Binding{to, unknown} {
+		if err := b.ReconcileObservation(v, Observation{LastActivity: base, Sequence: 1}); err != nil {
+			t.Fatal(err)
+		}
+		_ = b.ObserveResting(context.Background(), v)
+	}
 	b.ObserveInputThread(to.Scope, to.Tag)
 	rows, err := b.Actors(context.Background(), from)
 	if err != nil {
