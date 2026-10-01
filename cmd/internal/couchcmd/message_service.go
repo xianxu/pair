@@ -31,8 +31,9 @@ type messageAuthority struct {
 	launch     func(context.Context, couchmessage.Binding) error
 	endpoint   func(couchmessage.Binding) couchmessage.DeliveryEndpoint
 	branch     func(context.Context, string) (couchcore.SlotGitStatus, error)
-	// aliases maps message families to repository aliases; nil means none.
-	aliases func(context.Context) (map[string]string, error)
+	// families lists every enrolled message family with its alias ("" when
+	// none); nil means routing sees live bindings only.
+	families func(context.Context) (map[string]string, error)
 }
 
 func (a messageAuthority) live(ctx context.Context, b couchmessage.Binding) (string, error) {
@@ -138,7 +139,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 		session = source.PairSessionContext
 	}
 	authority := messageAuthority{
-		aliases: func(ctx context.Context) (map[string]string, error) {
+		families: func(ctx context.Context) (map[string]string, error) {
 			if c.Threads == nil {
 				return nil, nil
 			}
@@ -146,7 +147,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 			if err != nil {
 				return nil, err
 			}
-			return messageFamilyAliases(names), nil
+			return messageFamilies(names), nil
 		},
 		thread: console.MessageBinding, workspace: resolver.ResolveWorkspace,
 		process: func(b couchmessage.Binding) error {
@@ -226,7 +227,7 @@ func newMessageService(parent context.Context, socket string, authority messageA
 		status, err := authority.branch(ctx, root)
 		return err == nil && !status.Detached && status.Branch == *identity.RestingBranch, err
 	})
-	s.broker.SetAliases(authority.aliases)
+	s.broker.SetFamilies(authority.families)
 	server, err := couchmessage.StartServer(lifetime, socket, func(ctx context.Context, raw []byte) ([]byte, error) {
 		var request couchmessage.Request
 		if err := strictjson.Decode(raw, &request); err != nil {
@@ -502,23 +503,20 @@ func prepareMessageSocket(socket string) error {
 	return os.Remove(socket)
 }
 
-// messageFamilyAliases keys aliases by message family (directory name). Two
-// enrolled repositories sharing a directory name are one ambiguous family, so
-// neither alias is published for it.
-func messageFamilyAliases(names []couchcore.RepositoryName) map[string]string {
-	aliases, shared := map[string]string{}, map[string]bool{}
+// messageFamilies keys every enrolled repository by message family
+// (directory name). Two enrolled repositories sharing a directory name are one
+// ambiguous family: it stays known, so its name never prefix-routes elsewhere,
+// but neither alias is published for it.
+func messageFamilies(names []couchcore.RepositoryName) map[string]string {
+	families, shared := map[string]string{}, map[string]bool{}
 	for _, name := range names {
-		if _, seen := aliases[name.Dir]; seen || shared[name.Dir] {
+		if _, seen := families[name.Dir]; seen {
 			shared[name.Dir] = true
-			delete(aliases, name.Dir)
-			continue
 		}
-		aliases[name.Dir] = name.Alias
+		families[name.Dir] = name.Alias
 	}
-	for family, alias := range aliases {
-		if alias == "" {
-			delete(aliases, family)
-		}
+	for family := range shared {
+		families[family] = ""
 	}
-	return aliases
+	return families
 }

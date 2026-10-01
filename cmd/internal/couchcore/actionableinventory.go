@@ -684,25 +684,29 @@ func (c *Couch) ActionableThreadInventoryContext(ctx context.Context, observatio
 	return rows, nil
 }
 
-// ApplyRepositoryAliases labels rows with their repository's alias. Slot rows
-// match by primary root; other rows by exact repository scope, so a nested
-// repository inside a primary checkout never inherits its parent's alias.
+// ApplyRepositoryAliases labels the rows that stand for a slot with their
+// repository's alias: slot rows by primary root, and the :0 row, the thread
+// whose scope is the repository's and which starts at its primary root. Other
+// threads in the primary checkout (subdirectories) and nested repositories keep
+// their own labels.
 func ApplyRepositoryAliases(rows []ActionableThreadSummary, names []RepositoryName) []ActionableThreadSummary {
-	byRoot, byScope := map[string]string{}, map[string]string{}
+	byRoot := map[string]string{}
+	byScope := map[string]RepositoryName{}
 	for _, name := range names {
 		if name.Alias == "" {
 			continue
 		}
 		byRoot[name.Key] = name.Alias
 		if scope, err := launcher.ResolveRepoScope(name.Key); err == nil {
-			byScope[scope.Key] = name.Alias
+			byScope[scope.Key] = name
 		}
 	}
 	for i := range rows {
+		rows[i].RepositoryAlias = ""
 		if rows[i].Target.Kind == ThreadTargetSlot {
 			rows[i].RepositoryAlias = byRoot[rows[i].Target.Slot.PrimaryRoot]
-		} else {
-			rows[i].RepositoryAlias = byScope[rows[i].Address.RepoScope]
+		} else if name, ok := byScope[rows[i].Address.RepoScope]; ok && filepath.Clean(rows[i].StartingPath) == filepath.Clean(name.Key) {
+			rows[i].RepositoryAlias = name.Alias
 		}
 	}
 	return rows

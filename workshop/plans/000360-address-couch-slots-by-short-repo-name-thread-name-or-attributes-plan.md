@@ -266,3 +266,18 @@ usage, `README.md`, `atlas/couch.md`.
   (`couchtty/menu_switchagent.go`), `messageFamilyAliases`
   (`couchcmd/message_service.go`), `Couch.repositoryPrimary` /
   `repositoryNames` (`couchcore/slotcontext.go`; `enrolledPrimary` removed).
+
+### 2026-10-01 — close review round 1 (REWORK)
+
+- BR-1: message-side name resolution covers the enrolled families plus the
+  live ones (`Broker.SetFamilies`, `messageFamilies`), so an offline exact
+  repository refuses instead of prefix-routing to another; a prefix shared by
+  an offline and a live repository is ambiguous.
+- Routing errors when the enrolled set cannot be read name the store, the
+  alias file and the reset.
+- Aliases label only the slot rows and the `:0` row (scope match and starting
+  at the primary root); subdirectory threads keep their labels.
+- The alias shadow check uses the repository's fleet root, the anchor
+  `repositoryPrimary` resolves against.
+- One bounded-list renderer (`FormatBoundedList`) serves repository and
+  live-slot candidates.

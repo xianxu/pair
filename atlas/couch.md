@@ -82,9 +82,11 @@ are refused rather than picked. Misses and ambiguity list bounded candidates
 (`Couch.repositoryPrimary`, `slotcontext.go`) resolve over enrolled
 repositories, after giving an existing sibling directory precedence (an
 un-enrolled sibling opens as before; one whose existence is undecidable keeps
-its own error). Messaging (`couchmessage.ResolveRecipient`) resolves over live
-bindings' families, applies `--agent` only after the family identity check, and
-keeps its response codes on a miss while listing live slots. The switcher
+its own error). Messaging (`couchmessage.ResolveRecipient`) resolves over the enrolled
+families (`Broker.SetFamilies`) plus live bindings' families, so an offline
+repository's exact name misses rather than prefix-routing to a live one; it
+applies `--agent` only after the family identity check, and keeps its response
+codes on a miss, listing live slots when the repository has none. The switcher
 filter matches by prefix without the uniqueness rule, since it lists every
 candidate.
 
@@ -92,8 +94,9 @@ Aliases live in the root store's `repository-aliases.json`, not the strictly
 decoded manifest, so older couch builds can still read the store. One entry per
 enrolled repository; clearing removes it; entries for un-enrolled roots are
 ignored and dropped on the next write; a stored alias that would shadow a
-directory is withheld on read. `ApplyRepositoryAliases` labels inventory rows
-by repository scope (slot rows by primary root), and `PresentThreads` names the
+directory is withheld on read. `ApplyRepositoryAliases` labels slot rows (by
+primary root) and the `:0` row (repository scope, starting at the primary root);
+subdirectory threads keep their labels, and `PresentThreads` names the
 group by its alias, so the tabs and switcher show `alias:N`. The `alias`
 operation is a switcher action on live `:0` rows only; it refuses an alias that
 an existing sibling directory would shadow. `couch --actors` shows each slot's

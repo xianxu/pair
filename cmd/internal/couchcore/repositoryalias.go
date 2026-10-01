@@ -36,11 +36,15 @@ func (c *Couch) RepositoryAlias(ctx context.Context, ref string, alias *string) 
 		return RepositoryAliasResult{}, fmt.Errorf("%s is not inside a Git repository", ref)
 	}
 	if alias != nil {
-		// An existing directory of that name beside the repository would win
-		// over the alias in every reference, so the alias could never work.
+		// repositoryPrimary gives an existing directory of that name in the
+		// fleet root precedence over every alias, so check the same place.
+		fleet := identity.FleetRoot
+		if fleet == "" {
+			fleet = filepath.Dir(primary)
+		}
 		if *alias != "" && workspaceRepoName(*alias) {
-			if _, err := os.Lstat(filepath.Join(filepath.Dir(primary), *alias)); !errors.Is(err, fs.ErrNotExist) {
-				return RepositoryAliasResult{}, fmt.Errorf("alias %q would be shadowed by %s", *alias, filepath.Join(filepath.Dir(primary), *alias))
+			if _, err := os.Lstat(filepath.Join(fleet, *alias)); !errors.Is(err, fs.ErrNotExist) {
+				return RepositoryAliasResult{}, fmt.Errorf("alias %q would be shadowed by %s", *alias, filepath.Join(fleet, *alias))
 			}
 		}
 		if err := c.Threads.SetRepositoryAlias(primary, *alias); err != nil {

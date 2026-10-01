@@ -62,7 +62,7 @@ type Broker struct {
 	cancel       context.CancelFunc
 	now          func() time.Time
 	resting      func(context.Context, Binding) (bool, error)
-	aliases      func(context.Context) (map[string]string, error)
+	families     func(context.Context) (map[string]string, error)
 	actors       map[Binding]*SlotActor
 	receipts     map[string]Receipt
 	destinations map[string]Route
@@ -71,22 +71,24 @@ type Broker struct {
 	workers      sync.WaitGroup
 }
 
-// SetAliases installs the repository alias source (family -> alias). It must be
-// called before the broker serves requests; nil means no aliases.
-func (b *Broker) SetAliases(aliases func(context.Context) (map[string]string, error)) {
-	b.aliases = aliases
+// SetFamilies installs the enrolled-repository source: every enrolled family
+// (directory name) mapped to its alias, "" when none. Routing resolves names
+// against it as well as live bindings. It must be called before the broker
+// serves requests; nil means live bindings only.
+func (b *Broker) SetFamilies(families func(context.Context) (map[string]string, error)) {
+	b.families = families
 }
 
-// readAliases runs outside the broker lock: the source may do store IO.
-func (b *Broker) readAliases(ctx context.Context) (map[string]string, error) {
-	if b.aliases == nil {
+// readFamilies runs outside the broker lock: the source may do store IO.
+func (b *Broker) readFamilies(ctx context.Context) (map[string]string, error) {
+	if b.families == nil {
 		return nil, nil
 	}
-	aliases, err := b.aliases(ctx)
+	families, err := b.families(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("read repository aliases: %w", err)
+		return nil, fmt.Errorf("read enrolled repositories for routing (retry; if it persists, check the couch store and its repository-aliases.json, which can be removed to reset aliases): %w", err)
 	}
-	return aliases, nil
+	return families, nil
 }
 
 func NewBroker(parent context.Context, now func() time.Time, resting func(context.Context, Binding) (bool, error)) *Broker {
@@ -413,10 +415,10 @@ func (b *Broker) Actors(parent context.Context, caller Binding) ([]Candidate, er
 	// rather than failing the listing.
 	ctx, cancel := context.WithTimeout(parent, 250*time.Millisecond)
 	defer cancel()
-	if aliases, err := b.readAliases(ctx); err == nil {
+	if families, err := b.readFamilies(ctx); err == nil {
 		for i := range rows {
 			if family, _, err := parseSlot(rows[i].Binding.Slot); err == nil {
-				rows[i].Alias = aliases[family]
+				rows[i].Alias = families[family]
 			}
 		}
 	}
@@ -479,7 +481,7 @@ func (b *Broker) Send(parent context.Context, from Binding, id string, route Rou
 }
 func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route, body string) (Receipt, error) {
 	family := !strings.Contains(route.Target, ":")
-	aliases, err := b.readAliases(ctx)
+	families, err := b.readFamilies(ctx)
 	if err != nil {
 		return Receipt{}, err
 	}
@@ -511,7 +513,7 @@ func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route
 			}
 			candidates = append(candidates, c)
 		}
-		to, err := ResolveRecipient(route, candidates, aliases, b.now())
+		to, err := ResolveRecipient(route, candidates, families, b.now())
 		if err != nil {
 			b.mu.Unlock()
 			return Receipt{}, err

@@ -411,3 +411,10 @@ proof; record the surprising case so the next change starts from evidence.
   listings from what the heartbeat already observed, bound a verification's
   reuse window, give the server a budget inside the client's, and remove dead
   entries. (#360 smoke)
+
+- Prefix resolution must run over the complete namespace a name can belong to,
+  not the subset that is currently reachable. #360 BR-1: messaging resolved
+  against live slots only, so `brain:0` with brain offline and brainstorm live
+  prefix-routed to brainstorm. Include known-but-offline names so an exact name
+  resolves to itself and misses, and pin it with a test whose control case
+  shows the narrowed namespace rerouting.

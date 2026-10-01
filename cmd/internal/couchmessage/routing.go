@@ -29,8 +29,6 @@ type Candidate struct {
 // slots running one agent.
 type Route struct{ Target, Agent string }
 
-const maxRouteCandidates = 12
-
 func validFamily(s string) bool {
 	return s != "" && s != "." && s != ".." && utf8.ValidString(s) && !strings.ContainsAny(s, "/\\:") && strings.IndexFunc(s, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }) < 0
 }
@@ -45,38 +43,17 @@ func parseSlot(s string) (string, int, error) {
 // liveCandidates lists live slots for a miss, bounded like repository
 // candidates so the response stays small.
 func liveCandidates(candidates []Candidate) string {
-	var rows []string
-	seen := map[string]bool{}
+	rows := make([]string, 0, len(candidates))
 	for _, c := range candidates {
-		row := c.Binding.Slot + " " + c.Binding.Agent
-		if !seen[row] {
-			seen[row] = true
-			rows = append(rows, row)
-		}
+		rows = append(rows, c.Binding.Slot+" "+c.Binding.Agent)
 	}
-	if len(rows) == 0 {
-		return "none"
-	}
-	sort.Strings(rows)
-	var b strings.Builder
-	for i, row := range rows {
-		rest := fmt.Sprintf(" and %d more", len(rows)-i)
-		if i == maxRouteCandidates || b.Len()+len(row)+2+len(rest) > couchcore.MaxRepositoryCandidateBytes {
-			b.WriteString(rest)
-			break
-		}
-		if i > 0 {
-			b.WriteString(", ")
-		}
-		b.WriteString(row)
-	}
-	return b.String()
+	return couchcore.FormatBoundedList(rows)
 }
 
 // canonicalTarget rewrites the route's repository part to a live family. The
 // candidate set is every live binding's family plus its alias; ambiguity is
 // refused, and a miss keeps the original target so the caller reports it.
-func canonicalTarget(target string, candidates []Candidate, aliases map[string]string) (string, bool, error) {
+func canonicalTarget(target string, candidates []Candidate, families map[string]string) (string, bool, error) {
 	family, number, exact := target, 0, strings.Contains(target, ":")
 	if exact {
 		var err error
@@ -86,10 +63,15 @@ func canonicalTarget(target string, candidates []Candidate, aliases map[string]s
 	} else if !validFamily(family) {
 		return "", false, ErrInvalidTarget
 	}
+	// Enrolled families join the live ones: an offline repository's exact name
+	// must resolve to itself and miss, never prefix-route to a longer live name.
 	var names []couchcore.RepositoryName
+	for f, alias := range families {
+		names = append(names, couchcore.RepositoryName{Key: f, Dir: f, Alias: alias})
+	}
 	for _, c := range candidates {
 		if f, _, err := parseSlot(c.Binding.Slot); err == nil {
-			names = append(names, couchcore.RepositoryName{Key: f, Dir: f, Alias: aliases[f]})
+			names = append(names, couchcore.RepositoryName{Key: f, Dir: f, Alias: families[f]})
 		}
 	}
 	found, _, err := couchcore.ResolveRepositoryName(family, names)
@@ -106,9 +88,10 @@ func canonicalTarget(target string, candidates []Candidate, aliases map[string]s
 
 // ResolveRecipient does no IO or reservation. Its caller must perform selection
 // and pending-slot reservation under one lock against unchanged observations.
-// aliases maps a live family (directory name) to its operator alias.
-func ResolveRecipient(route Route, candidates []Candidate, aliases map[string]string, now time.Time) (Binding, error) {
-	target, known, err := canonicalTarget(route.Target, candidates, aliases)
+// families maps every enrolled family (directory name) to its operator alias,
+// "" when it has none.
+func ResolveRecipient(route Route, candidates []Candidate, families map[string]string, now time.Time) (Binding, error) {
+	target, _, err := canonicalTarget(route.Target, candidates, families)
 	if err != nil {
 		return Binding{}, err
 	}
@@ -117,8 +100,16 @@ func ResolveRecipient(route Route, candidates []Candidate, aliases map[string]st
 	if exact {
 		family, _, _ = parseSlot(target)
 	}
+	familyLive := false
+	for _, c := range candidates {
+		if f, _, err := parseSlot(c.Binding.Slot); err == nil && f == family {
+			familyLive = true
+		}
+	}
+	// An unknown or offline repository names the live slots, so the sender can
+	// correct in one step; a live repository's busy or missing slot does not.
 	miss := func(err error) error {
-		if known {
+		if familyLive {
 			return err
 		}
 		return fmt.Errorf("%w: no live slot matches %q; live: %s", err, route.Target, liveCandidates(candidates))

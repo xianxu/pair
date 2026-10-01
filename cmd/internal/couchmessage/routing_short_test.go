@@ -100,7 +100,7 @@ func TestBrokerDeliversToResolvedShortTarget(t *testing.T) {
 	nanos.Store(base.UnixNano())
 	b := NewBroker(context.Background(), func() time.Time { return time.Unix(0, nanos.Load()) }, func(context.Context, Binding) (bool, error) { return true, nil })
 	defer b.Close()
-	b.SetAliases(func(context.Context) (map[string]string, error) { return map[string]string{"pair": "p"}, nil })
+	b.SetFamilies(func(context.Context) (map[string]string, error) { return map[string]string{"pair": "p"}, nil })
 	from := brokerBinding("brain:0")
 	parley := brokerBinding("parley.nvim:1")
 	claude, codex := brokerBinding("pair:1"), brokerBinding("pair:2")
@@ -163,5 +163,33 @@ func TestValidateRequestAgentFilter(t *testing.T) {
 		if ValidateRequest(r) == nil {
 			t.Errorf("%s accepted an agent filter", r.Op)
 		}
+	}
+}
+
+// BR-1: an enrolled repository with no live slot must not lend its exact name
+// to a longer live repository's prefix.
+func TestRoutingOfflineEnrolledNameNeverPrefixRoutes(t *testing.T) {
+	now := time.Unix(1000, 0)
+	live := []Candidate{shortCandidate("brainstorm:0", "/w/brainstorm/.git", "claude", now)}
+	families := map[string]string{"brain": "", "brainstorm": ""}
+	for _, target := range []string{"brain:0", "brain"} {
+		_, err := ResolveRecipient(Route{Target: target}, live, families, now)
+		if err == nil || !strings.Contains(err.Error(), "live: brainstorm:0 claude") {
+			t.Fatalf("%s: %v", target, err)
+		}
+	}
+	if _, err := ResolveRecipient(Route{Target: "brain:0"}, live, families, now); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("exact offline: %v", err)
+	}
+	if _, err := ResolveRecipient(Route{Target: "brain"}, live, families, now); !errors.Is(err, ErrNoRecipient) {
+		t.Fatalf("family offline: %v", err)
+	}
+	// A prefix shared by an offline and a live repository is ambiguous, not live-first.
+	if _, err := ResolveRecipient(Route{Target: "bra"}, live, families, now); !errors.Is(err, ErrAmbiguous) {
+		t.Fatalf("shared prefix: %v", err)
+	}
+	// Without the enrolled set the same send reroutes: the guard is the family source.
+	if got, err := ResolveRecipient(Route{Target: "brain:0"}, live, nil, now); err != nil || got.Slot != "brainstorm:0" {
+		t.Fatalf("control: %+v %v", got, err)
 	}
 }

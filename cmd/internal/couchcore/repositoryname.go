@@ -90,12 +90,23 @@ func ResolveRepositoryName(raw string, repos []RepositoryName) (RepositoryName, 
 // FormatRepositoryCandidates lists repositories once each, sorted, bounded in
 // both count and bytes.
 func FormatRepositoryCandidates(repos []RepositoryName) string {
+	names := make([]string, 0, len(repos))
+	for _, r := range repos {
+		names = append(names, r.display())
+	}
+	return FormatBoundedList(names)
+}
+
+// FormatBoundedList is the one rendering of a candidate list in an error or
+// response: deduplicated, sorted, at most maxRepositoryCandidates entries and
+// MaxRepositoryCandidateBytes, then "and N more".
+func FormatBoundedList(items []string) string {
 	seen := map[string]bool{}
 	var names []string
-	for _, r := range repos {
-		if label := r.display(); !seen[label] {
-			seen[label] = true
-			names = append(names, label)
+	for _, item := range items {
+		if !seen[item] {
+			seen[item] = true
+			names = append(names, item)
 		}
 	}
 	if len(names) == 0 {

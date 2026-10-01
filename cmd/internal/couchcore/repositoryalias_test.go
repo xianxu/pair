@@ -71,17 +71,36 @@ func TestApplyRepositoryAliasesMatchesScopeNotPath(t *testing.T) {
 	}
 	slot := ThreadTarget{Kind: ThreadTargetSlot, Slot: conventionalSlot("/w/xianxu.dev", 1)}
 	rows := ApplyRepositoryAliases([]ActionableThreadSummary{
-		{Address: ThreadAddress{RepoScope: scope("/w/xianxu.dev"), Tag: "primary"}, StartingPath: "/w/xianxu.dev/sub"},
+		{Address: ThreadAddress{RepoScope: scope("/w/xianxu.dev"), Tag: "primary"}, StartingPath: "/w/xianxu.dev"},
 		{Address: ThreadAddress{RepoScope: scope("/w/xianxu.dev/nested"), Tag: "nested"}, StartingPath: "/w/xianxu.dev/nested"},
 		{Target: slot, Address: ThreadAddress{RepoScope: "slot", Tag: "slot"}},
 		{Address: ThreadAddress{RepoScope: scope("/w/pair"), Tag: "pair"}},
+		{Address: ThreadAddress{RepoScope: scope("/w/xianxu.dev"), Tag: "subdir"}, StartingPath: "/w/xianxu.dev/sub"},
 	}, []RepositoryName{{Key: "/w/xianxu.dev", Dir: "xianxu.dev", Alias: "blog"}, {Key: "/w/pair", Dir: "pair"}})
-	for i, want := range []string{"blog", "", "blog", ""} {
+	for i, want := range []string{"blog", "", "blog", "", ""} {
 		if rows[i].RepositoryAlias != want {
 			t.Errorf("row %s: %q want %q", rows[i].Address.Tag, rows[i].RepositoryAlias, want)
 		}
 	}
 	if got := rows[2].Label(); got != "blog:1" {
 		t.Fatalf("slot label %q", got)
+	}
+}
+
+// The shadow check looks where resolution looks: the repository's fleet root,
+// even when that is not its primary root's parent directory.
+func TestAliasShadowCheckUsesFleetRoot(t *testing.T) {
+	c, _, fleet := shortNameFixture(t)
+	elsewhere := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(elsewhere, "web"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	catalog := c.Slots.(*SlotCatalogFake)
+	root := filepath.Join(fleet, "xianxu.dev")
+	repo := catalog.Repositories[root]
+	repo.Identity.FleetRoot = elsewhere
+	catalog.Repositories[root] = repo
+	if _, err := aliasCall(t, c, map[string]string{"ref": "xianxu.dev", "alias": "web"}); err == nil || !strings.Contains(err.Error(), "shadowed") {
+		t.Fatalf("fleet-root sibling not checked: %v", err)
 	}
 }
