@@ -33,6 +33,28 @@ rounds:
           round: 1
       recipe: small-diff-review
       blocked: true
+    - "n": 2
+      timestamp: "2026-10-01T16:06:11-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: terminal_pressure_test.go:230–251 closes the reply pipe and joins readers/writers before Emulator.Close. Focused race tests passed three repetitions; a scratch mutation restoring early Emulator.Close triggered race failures.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: Operations use pressureAwait, recovery shares window-end-plus-five-second cancellation, and cleanup closes resources before joining workers. The stalled-operation regression passed; removing pressureAwait's cancellation branch made it time out.
+          round: 2
+        - id: BR-3
+          disposition: not-addressed
+          note: terminal_pressure_test.go:489–498 checks marker absence and releases trailing output before invoking recovery checks. Removing lines 500–524 in a scratch Go overlay left TestCouchPressureTrailingPTYOutput passing three repetitions, including one reporting ingested_raw=2061 instead of the required 2087 bytes. The implementation adds completion checks, but the required fail-without-fix regression is missing. Exercise the actual recovery operation while trailing output remains withheld and assert it cannot report success.
+          round: 2
+        - id: BR-4
+          disposition: addressed
+          note: README.md:1090–1101 now documents the opt-in command and limitations. The invocation matches TestCouchOutputPressure's environment guard and 2×4×3 matrix; atlas/couch.md:2207–2218 documents the same surface.
+          round: 2
+      recipe: small-diff-review
+      blocked: true
 ---
 
 # Gate ledger — pair#373 (boundary-review)
@@ -53,9 +75,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-4** [Important] `readme-surface-discovery` README omits the new pressure experiment invocation
   atlas/couch.md documents PAIR_COUCH_PRESSURE=1 and TestCouchOutputPressure, but README.md is unchanged despite its existing terminal-testing section at 1076. Add the command and scope limitations there. This is the sole new operator-facing invocation family; PAIR_COUCH_PRESSURE_CHILD is an internal helper.
 
+## Round 2 — 2026-10-01T16:06:11-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — terminal_pressure_test.go:230–251 closes the reply pipe and joins readers/writers before Emulator.Close. Focused race tests passed three repetitions; a scratch mutation restoring early Emulator.Close triggered race failures.
+- BR-2 — addressed — Operations use pressureAwait, recovery shares window-end-plus-five-second cancellation, and cleanup closes resources before joining workers. The stalled-operation regression passed; removing pressureAwait's cancellation branch made it time out.
+- BR-3 — not-addressed — terminal_pressure_test.go:489–498 checks marker absence and releases trailing output before invoking recovery checks. Removing lines 500–524 in a scratch Go overlay left TestCouchPressureTrailingPTYOutput passing three repetitions, including one reporting ingested_raw=2061 instead of the required 2087 bytes. The implementation adds completion checks, but the required fail-without-fix regression is missing. Exercise the actual recovery operation while trailing output remains withheld and assert it cannot report success.
+- BR-4 — addressed — README.md:1090–1101 now documents the opt-in command and limitations. The invocation matches TestCouchOutputPressure's environment guard and 2×4×3 matrix; atlas/couch.md:2207–2218 documents the same surface.
+
 ## Open findings
 
-- **BR-1** [Critical] `concurrent-resource-shutdown` Emulator teardown races with the reply drain
-- **BR-2** [Important] `experiment-deadline-enforcement` Blocking trial operations escape the promised deadlines
 - **BR-3** [Important] `completion-evidence-before-success` Recovery is reported without proving all PTY output arrived
-- **BR-4** [Important] `readme-surface-discovery` README omits the new pressure experiment invocation

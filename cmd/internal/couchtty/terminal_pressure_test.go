@@ -486,42 +486,72 @@ func runPressureTrial(t *testing.T, mode, trial string) {
 		}
 		return true
 	})
-	if releaseTrailing != nil {
-		// D arrived, but the helper has deliberately withheld its last PTY write.
-		do("flush before trailing write", func() error { return children[0].FlushOutput(ctx) })
-		do("no premature completion", func() error {
-			if strings.Contains(endpointText(0), "COMPLETE") {
-				return fmt.Errorf("completion accepted before trailing PTY write")
-			}
-			return nil
-		})
-		releaseTrailing()
-	}
-	wait("all terminal completion markers", func() bool {
-		for i := range children {
-			if !strings.Contains(endpointText(i), strings.TrimPrefix(pressureCompletion(expected[i].Load()), "\x1b[4;1H")) {
-				return false
+	// The regression invokes this same recovery operation before releasing the
+	// final PTY bytes; removing completion checks must make that test fail.
+	recoverOutput := func(recoveryCtx context.Context) error {
+		until := func(predicate func() bool) error {
+			for {
+				var matched bool
+				if err := pressureAwait(recoveryCtx, &operations, func() error { matched = predicate(); return nil }); err != nil {
+					return err
+				}
+				if matched {
+					return nil
+				}
+				select {
+				case <-recoveryCtx.Done():
+					return recoveryCtx.Err()
+				case <-time.After(time.Millisecond):
+				}
 			}
 		}
-		return true
-	})
-	// A snapshot can see the final marker just before publication enqueue.
-	// Wait for every raw byte at the sink as well before flushing that queue.
-	wantBytes := emitted.Load() + uint64(n*len("\x1b[2J\x1b[HREADY"))
-	for i := range children {
-		wantBytes += uint64(len(pressureCompletion(expected[i].Load())))
+		if err := until(func() bool {
+			for i := range children {
+				if !strings.Contains(endpointText(i), strings.TrimPrefix(pressureCompletion(expected[i].Load()), "\x1b[4;1H")) {
+					return false
+				}
+			}
+			return true
+		}); err != nil {
+			return err
+		}
+		// Snapshot may see the marker just before publication enqueue.
+		wantBytes := emitted.Load() + uint64(n*len("\x1b[2J\x1b[HREADY"))
+		for i := range children {
+			wantBytes += uint64(len(pressureCompletion(expected[i].Load())))
+		}
+		if err := until(func() bool { return bytesIn.Load() >= wantBytes }); err != nil {
+			return err
+		}
+		for _, c := range children {
+			if err := c.FlushOutput(recoveryCtx); err != nil {
+				return err
+			}
+		}
+		if err := con.presenter.Flush(recoveryCtx); err != nil {
+			return err
+		}
+		if err := until(func() bool {
+			return strings.Contains(host.text(), strings.TrimPrefix(pressureCompletion(expected[0].Load()), "\x1b[4;1H"))
+		}); err != nil {
+			return err
+		}
+		if bytesIn.Load() != wantBytes {
+			return fmt.Errorf("ingested %d bytes, want emitted+framing %d", bytesIn.Load(), wantBytes)
+		}
+		return nil
 	}
-	wait("all emitted bytes at publication sink", func() bool { return bytesIn.Load() >= wantBytes })
-	for _, c := range children {
-		do("final publication", func() error { return c.FlushOutput(ctx) })
+	if releaseTrailing != nil {
+		do("flush before trailing write", func() error { return children[0].FlushOutput(ctx) })
+		heldCtx, heldCancel := context.WithTimeout(ctx, 30*time.Millisecond)
+		err := recoverOutput(heldCtx)
+		heldCancel()
+		if err != context.DeadlineExceeded {
+			t.Fatalf("recovery while trailing PTY output withheld: got %v, want deadline exceeded", err)
+		}
+		releaseTrailing()
 	}
-	do("final presentation", func() error { return con.presenter.Flush(ctx) })
-	wait("physical terminal completion", func() bool {
-		return strings.Contains(host.text(), strings.TrimPrefix(pressureCompletion(expected[0].Load()), "\x1b[4;1H"))
-	})
-	if bytesIn.Load() != wantBytes {
-		t.Fatalf("ingested %d bytes, want emitted+framing %d", bytesIn.Load(), wantBytes)
-	}
+	do("terminal recovery", func() error { return recoverOutput(ctx) })
 
 	recovery := time.Since(startAt.Add(pressureWindow))
 	if recovery < 0 {

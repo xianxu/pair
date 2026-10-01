@@ -190,3 +190,13 @@ BR-4: README documents the sole public opt-in command and its limits.
 -timeout=60s` passed in 5.45s. The prior full package race suite passed before
 these fixture corrections; the focused rerun covers the corrected lifecycle.
 `git diff --check` passes. Conclusions and scope limitations are unchanged.
+
+### BR-3 regression strengthened after round 2
+
+Recovery checks are now one shared operation. The trailing-PTY regression invokes
+that operation while the final bytes remain withheld and requires deadline
+expiration; it then releases output and requires successful recovery. Focused
+race controls passed in 5.537s. A scratch Go overlay replacing the recovery
+operation with immediate success made the trailing-PTY regression fail in 2.216s
+with `got <nil>, want deadline exceeded`, proving it detects the missing fix.
+No workload or latency probe changed; the previous 24-trial measurements stand.
