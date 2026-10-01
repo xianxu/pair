@@ -84,7 +84,7 @@ inside couch; no model is involved.
 
 ## Plan
 
-- [ ] Durable plan: `workshop/plans/000360-address-couch-slots-by-short-repo-name-thread-name-or-attributes-plan.md`.
+- [x] Durable plan: `workshop/plans/000360-address-couch-slots-by-short-repo-name-thread-name-or-attributes-plan.md`.
 
 ## Log
 
@@ -117,6 +117,30 @@ inside couch; no model is involved.
   `ActionableThreadSummary.Label`, with a regression test through the tab-bar
   model. `couch actors` (no `--`) is the launch form, not `--actors`, hence the
   supervisor-lease error.
+- Second smoke: `couch --actors` timed out on every call. Cause (#353 code):
+  each listing re-probed every slot serially (zellij, process, git, wrapper
+  RPC) inside the same 2s the client waits, while one-second heartbeats and
+  reconciliation ran ~3 full liveness checks per wrapper per second over a
+  binding map that never shrank. Fixed here at the operator's request:
+  `--actors` reads broker memory (last heartbeat + resting probe, stale →
+  unknown); a full check is reused for 10s on observe-only paths (sends,
+  operator-submit, Reserve, Deliver still re-check); dead bindings are
+  dropped. Also fixed: alias reads failed outright on a busy store lock (now
+  retried within the caller's deadline).
+- `parley:1` resolved correctly but parley.nvim:1 never registered: Claude Code
+  auto-updated to 2.1.287 and #353's exact-version allowlist silently skipped
+  it. Allowlist removed at the operator's direction (`peerReceiverAgents`);
+  evidence-based upgrade validation filed as #368.
+- Final smoke (operator): alias shows `blog` in tab and switcher; `--actors`
+  instant and lists `xianxu.dev:0 (blog)`; ping to `parley:1` delivered to
+  parley.nvim:1, and its pong receipt `0c516971` verified `parley.nvim:1 ->
+  pair:1 submitted` with matching body.
+- Full suite on pair:0 at `b8ca068c`: `make -k test` green except
+  `test-changelog` (green under scratchpad TMPDIR); `go test ./...` 77 ok, three
+  failures identical on the merge base (`TestBareCouchInstalledCommand`,
+  `TestCouchReferencesLocalArchiveLocatorRoundTrip`,
+  `TestProductionArtifactReferencesAreExactlyClassified`, violation list
+  byte-identical to base).
 
 ## Revisions
 
