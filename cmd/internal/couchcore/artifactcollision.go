@@ -243,28 +243,38 @@ func (c ScopedThreadArtifactCollisionChecker) PairSession(address ThreadAddress)
 }
 
 func (c ScopedThreadArtifactCollisionChecker) PairSessionContext(ctx context.Context, address ThreadAddress) (PairSessionBinding, error) {
-	if err := ctx.Err(); err != nil {
+	name, err := c.PairSessionName(ctx, address)
+	if err != nil {
 		return PairSessionBinding{}, err
 	}
+	return c.NamedPairSessionContext(ctx, address, name)
+}
+
+// PairSessionName reads the thread's recorded session name from the session
+// index alone: no ownership probe, so no ps or zellij (#365).
+func (c ScopedThreadArtifactCollisionChecker) PairSessionName(ctx context.Context, address ThreadAddress) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	if err := validateThreadAddress(address); err != nil {
-		return PairSessionBinding{}, err
+		return "", err
 	}
 	paths, err := artifactpath.Resolve(artifactpath.Address{
 		DataDir: c.GlobalDataDir, RepoScope: address.RepoScope, Tag: string(address.Tag),
 	})
 	if err != nil {
-		return PairSessionBinding{}, err
+		return "", err
 	}
 	runtime := launcher.NewScopedOSRuntime(c.GlobalDataDir, paths.ScopeDir(), "")
 	index, err := runtime.ReadSessionNameIndex()
 	if err != nil {
-		return PairSessionBinding{}, fmt.Errorf("read exact Pair session index: %w", err)
+		return "", fmt.Errorf("read exact Pair session index: %w", err)
 	}
 	name := effectiveBindings([]scopedIndexRead{{scope: address.RepoScope, index: index}})[address]
 	if name == "" {
-		return PairSessionBinding{}, fmt.Errorf("%w for %+v", ErrPairSessionBindingAbsent, address)
+		return "", fmt.Errorf("%w for %+v", ErrPairSessionBindingAbsent, address)
 	}
-	return c.NamedPairSessionContext(ctx, address, name)
+	return name, nil
 }
 
 func (c ScopedThreadArtifactCollisionChecker) ownerProbe() SessionOwnerProber {

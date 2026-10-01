@@ -346,6 +346,20 @@ func (r OSOrientationStatusReader) Read(ctx context.Context, address ThreadAddre
 	return *ready.Orientation, nil
 }
 
+// RecordedSession is the session named by the launch's ready file, read from
+// the file alone: it proves the launch nonce is the recorded one without an
+// ownership probe (#365). ok is false when no current ready file exists.
+func (r OSOrientationStatusReader) RecordedSession(ctx context.Context, address ThreadAddress, agent, attempt string) (session string, ok bool, err error) {
+	ready, err := r.readReadyFile(ctx, address, agent, attempt)
+	if errors.Is(err, errObsoleteOrientationReady) || (err == nil && ready == nil) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return ready.Session, true, nil
+}
+
 func (r OSOrientationStatusReader) Registered(ctx context.Context, address ThreadAddress, agent, attempt string) (bool, error) {
 	ready, err := r.readReady(ctx, address, agent, attempt)
 	if errors.Is(err, errObsoleteOrientationReady) {
