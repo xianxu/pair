@@ -1476,7 +1476,7 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 	var peerTick <-chan time.Time
 	if p.peer != nil {
 		peerWake = p.peer.wake
-		ticker := time.NewTicker(50 * time.Millisecond)
+		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
 		peerTick = ticker.C
 		defer func() { p.peer.mu.Lock(); p.peer.exited = true; p.peer.mu.Unlock(); p.dispatchPeer(out) }()

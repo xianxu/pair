@@ -288,6 +288,13 @@ total: 8.19
 
 ## Log
 
+### 2026-09-30 — periodic delivery checks
+
+At the operator's request, changed the wrapper's periodic peer-delivery recheck
+from 50 milliseconds to one second. Input/output events still wake delivery
+immediately. This changes the fallback cadence only; clearing human-input
+ownership after deleting a draft remains separate, unfinished work.
+
 ### 2026-09-30 — shared suggestion style
 
 Operator requested SGR 2 as the default across terminals after the local Codex
