@@ -5,7 +5,8 @@ import (
 	"testing"
 )
 
-func TestParentNameReadsThisTestsParent(t *testing.T) {
+func TestParentNameReadsAKnownProcess(t *testing.T) {
+	// The shim asks about its parent; any live pid exercises the same lookup.
 	if got := parentName(os.Getpid()); got == "" {
 		t.Fatal("could not read this process's own command name")
 	}

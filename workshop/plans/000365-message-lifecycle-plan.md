@@ -246,6 +246,8 @@ Registry socket lives in the existing private 0700 per-uid dir. Hello bindings a
 
 ## Revisions
 
+- 2026-10-01 — M1 boundary review: the M1 idle test covers one wrapper driven by the old heartbeat, because the fake authority models one binding. The multi-slot, no-traffic form named in Done-when 1 is Task 2.4's session-based rewrite. `probes/messageidle` is a separate shim, not an extension of `zellijcalls`: it filters by parent and counts without timing, and its `realBinary` PATH lookup mirrors `realZellij` (two small probe binaries; no shared probe library exists). The probes' `bin/` dirs are now ignored by one root rule.
+
 - 2026-10-01 — M1 execution: the ticker seam in Task 1.1 was unnecessary (the test drives `reconcile` directly with the fake clock). The live baseline was taken read-only from the already-running Couch: CPU-seconds + 10 Hz child poll + `sample`. The operator found relaunching under a PATH shim too heavy. `probes/messageidle` stays as the optional exact-count instrument.
 
 - 2026-10-01 — plan-quality gate advisories: Dormant sessions re-admit on a targeted send; family status fan-out budget; thread-entry removal on PaneExited.

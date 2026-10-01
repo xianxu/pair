@@ -157,3 +157,7 @@ cache/
 /claudedraftsend
 
 /terminalqualify
+
+# Operator-driven probes build their shims into probes/<name>/bin (#215, #365).
+# One rule for the class, so a new probe cannot forget its own .gitignore.
+/probes/*/bin/
