@@ -120,6 +120,36 @@ rounds:
       boundary: M2
       recipe: milestone-review
       blocked: true
+    - "n": 5
+      timestamp: "2026-10-01T15:32:04-07:00"
+      agent: claude
+      dispose:
+        - id: BR-7
+          disposition: addressed
+          note: ConnectFailed is fed back via execute's return and stepped before new input; registry and service tests go red without it. Still no log line for a refused Connect.
+          round: 5
+        - id: BR-8
+          disposition: not-addressed
+          note: registry.go:266 newerSessionForSlot still counts any non-Displaced newer session.
+          round: 5
+        - id: BR-9
+          disposition: not-addressed
+          note: No new plan Revisions entry this round; backoff.go still named, 2.3/2.6 gaps unrecorded.
+          round: 5
+        - id: BR-10
+          disposition: not-addressed
+          note: message_service.go:542 unchanged.
+          round: 5
+      findings:
+        - id: BR-11
+          severity: Minor
+          title: Broker actor tombstones are never evicted, so after 128 bindings per Couch lifetime new sessions go dormant
+          detail: '2nd finding in family artifact-removal-path. Rule: every bounded table a component writes must name its removal path at the writer, not just a cap. Here, a tombstone whose slot and repository have re-registered under a newer binding is superseded (the registry marks it Displaced, which is final), so evict it on that Register. Pre-existing at base broker.go:136, but M2 turns the failure into silent permanent dormancy where the old heartbeat kept retrying.'
+          family: artifact-removal-path
+          round: 5
+      boundary: M2
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#365 (boundary-review)
@@ -176,10 +206,24 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-10** [Minor] `send-target-slot-match` Exact-send SendTargeted posts from an untracked goroutine and matches the target by raw slot string
   message_service.go:542; a send addressed by family alias would not wake a dormant session. Each send also spawns a goroutine that s.workers does not track; it ends at shutdown.
 
+## Round 5 — 2026-10-01T15:32:04-07:00 (claude) — passed
+
+### Disposed
+
+- BR-7 — addressed — ConnectFailed is fed back via execute's return and stepped before new input; registry and service tests go red without it. Still no log line for a refused Connect.
+- BR-8 — not-addressed — registry.go:266 newerSessionForSlot still counts any non-Displaced newer session.
+- BR-9 — not-addressed — No new plan Revisions entry this round; backoff.go still named, 2.3/2.6 gaps unrecorded.
+- BR-10 — not-addressed — message_service.go:542 unchanged.
+
+### Raised
+
+- **BR-11** [Minor] `artifact-removal-path` Broker actor tombstones are never evicted, so after 128 bindings per Couch lifetime new sessions go dormant
+  2nd finding in family artifact-removal-path. Rule: every bounded table a component writes must name its removal path at the writer, not just a cap. Here, a tombstone whose slot and repository have re-registered under a newer binding is superseded (the registry marks it Displaced, which is final), so evict it on that Register. Pre-existing at base broker.go:136, but M2 turns the failure into silent permanent dormancy where the old heartbeat kept retrying.
+
 ## Open findings
 
 - **BR-6** [Minor] `artifact-removal-path` messageidle trace TSV grows unbounded while armed; only arm truncates it
-- **BR-7** [Important] `effect-outcome-not-returned` EffectConnect drops a broker.Register failure; registry snapshot says connected, broker has no actor, nothing retries
 - **BR-8** [Minor] `registry-liveness-unpinned` newerSessionForSlot lets a never-admitted newer session permanently displace a working older one
 - **BR-9** [Minor] `plan-revision-drift` M2 revision does not reconcile all Core-concepts rows and Task test bullets with the tree
 - **BR-10** [Minor] `send-target-slot-match` Exact-send SendTargeted posts from an untracked goroutine and matches the target by raw slot string
+- **BR-11** [Minor] `artifact-removal-path` Broker actor tombstones are never evicted, so after 128 bindings per Couch lifetime new sessions go dormant

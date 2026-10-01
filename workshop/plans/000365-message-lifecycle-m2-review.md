@@ -110,3 +110,102 @@ findings:
     detail: |
       message_service.go:542; a send addressed by family alias would not wake a dormant session. Each send also spawns a goroutine that s.workers does not track; it ends at shutdown.
 ```
+
+---
+
+## Re-review — 2026-10-01T15:32:03-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 365 — Replace messaging liveness polling with lifecycle events |
+| repo | pair |
+| issue file | workshop/issues/000365-message-lifecycle.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | b36fac3d2229037e71362a9c837c1915dea2d0a6..74ad84c127aca3b25b801b9e077c8b359f70224e |
+| command | sdlc milestone-close --issue 365 --milestone M2 |
+| reviewer | claude |
+| timestamp | 2026-10-01T15:32:03-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+**Verdict: SHIP.** The one Important finding still open, BR-7, is fixed and covered by tests that fail without the fix. The other open findings (BR-8, BR-9, BR-10) are Minor and this round's commit didn't touch them, so they stay open. They don't block the gate. I found one new Minor issue: a capacity limit on retained disconnected actors that this boundary leaves in place. `go test ./cmd/internal/couchmessage/ ./cmd/internal/couchcmd/ -count=1` passes. I had to run it outside the sandbox, because inside it `mkdir /tmp/...` fails with "operation not permitted".
+
+**How BR-7 was fixed (`74ad84c1`)**
+- **The loop:** `execute` now returns a follow-up event when an effect fails (`cmd/internal/couchcmd/message_service.go:445-487`). `step` processes those events before reading any new input (`message_service.go:421-425`), so the registry can't get ahead of what the broker holds.
+- **The registry:** a new `ConnectFailed` event is handled in `cmd/internal/couchmessage/registry.go:200-205`. It ignores a stale failure whose phase or pane doesn't match. Otherwise it goes through the shared `fail` helper (`registry.go:246-256`), which the old `AdmissionDone` error branch now also uses (ARCH-DRY).
+- **Tests:**
+  - `registry_test.go:137` checks that a failure for the wrong pane is ignored and a matching one schedules a retry.
+  - The randomized interleaving test now injects broker refusals (`registry_test.go:249`).
+  - `TestMessageBrokerRefusalIsNotConnectedAndRetries` fills the broker's 128 actor slots for real. Without the fix, Register's error would be dropped, the registry would show the binding as connected, and no retry would be scheduled, so the test would fail at "scheduled no retry". The fix is reachable and the test exercises it.
+
+**Strengths**
+- The rule BR-7 stated was fixed as a class, not just at one call site. Every effect that can fail now reports back, and the comment at `message_service.go:445-449` lists each effect kind and why it can or can't fail (ARCH-PURPOSE).
+- The interleaving test now covers a failed external effect, not only successful orderings (ARCH-ORDER).
+- `fail` consolidates the backoff ladder in one place.
+
+**Critical:** none.
+
+**Important:** none.
+
+**Minor**
+- **BR-7 leftover:** a refused Connect still isn't logged anywhere, so an operator never sees why a slot went dormant.
+- **BR-8 (still open):** `registry.go:266` still counts never-admitted newer sessions when deciding to displace an older one.
+- **BR-9 (still open):**
+  - The plan revision still doesn't say `ReconnectBackoff` lives in `session_protocol.go`; there is no `backoff.go`.
+  - Task 2.3's helper-subprocess kill test still isn't written.
+  - Task 2.6's real-broker test still runs only at the session-client level.
+- **BR-10 (still open):** `message_service.go:542` still sends from an untracked goroutine and matches the target by the raw slot string.
+- **New (ARCH-FUNERAL):** the broker keeps every disconnected actor as a tombstone and never removes it. Every wrapper launch produces a new binding, so once 128 have accumulated in one Couch run, every new session for a new binding fails Register, works through the retry ladder, and goes dormant with nothing logged. This predates M2 (the capacity check is at base `broker.go:136`), but M2 now ends in permanent dormancy where the old heartbeat kept retrying.
+
+**Test coverage notes**
+- BR-7 is pinned at both the pure-registry level and the service level, against a real broker.
+- Still missing, from BR-9: the real-broker test through the wrapper's registry-socket wiring.
+
+**Architecture**
+| Principle | Result |
+|---|---|
+| ARCH-DRY | pass |
+| ARCH-PURE | pass. The registry is a pure reducer; the service runs its effects. |
+| ARCH-PURPOSE | pass for BR-7 |
+| ARCH-MOCK | pass. The service test uses the real in-process broker. |
+| ARCH-CONSTRAINTS | pass |
+| ARCH-SECURE | pass. No new untrusted input. |
+| ARCH-ORDER | pass for BR-7. BR-8 is a remaining liveness gap. |
+| ARCH-FUNERAL | flag: the tombstone growth above |
+
+**Plan revisions needed:** BR-9's entries are still owed: correct the `ReconnectBackoff` location, and record the Task 2.3 kill test and Task 2.6 wrapper-level test as either not delivered or deferred.
+
+```findings
+dispose:
+  - id: BR-7
+    disposition: addressed
+    note: |
+      ConnectFailed is fed back via execute's return and stepped before new input; registry and service tests go red without it. Still no log line for a refused Connect.
+  - id: BR-8
+    disposition: not-addressed
+    note: |
+      registry.go:266 newerSessionForSlot still counts any non-Displaced newer session.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      No new plan Revisions entry this round; backoff.go still named, 2.3/2.6 gaps unrecorded.
+  - id: BR-10
+    disposition: not-addressed
+    note: |
+      message_service.go:542 unchanged.
+findings:
+  - id: new
+    severity: Minor
+    family: artifact-removal-path
+    title: |
+      Broker actor tombstones are never evicted, so after 128 bindings per Couch lifetime new sessions go dormant
+    detail: |
+      2nd finding in family artifact-removal-path. Rule: every bounded table a component writes must name its removal path at the writer, not just a cap. Here, a tombstone whose slot and repository have re-registered under a newer binding is superseded (the registry marks it Displaced, which is final), so evict it on that Register. Pre-existing at base broker.go:136, but M2 turns the failure into silent permanent dormancy where the old heartbeat kept retrying.
+```
