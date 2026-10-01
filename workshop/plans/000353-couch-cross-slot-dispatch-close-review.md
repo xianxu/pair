@@ -168,3 +168,79 @@ findings:
     detail: |
       workshop/plans/000353-couch-cross-slot-dispatch-plan.md:123 lists Client, but transport.go:212 implements Call instead. Append a revision superseding the mapping with Server/Call. This documentation-only discrepancy is Critical under the explicitly requested Core concepts consistency rule.
 ```
+
+---
+
+## Re-review — 2026-09-30T21:59:35-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 353 — Live cross-slot dispatch between couch slots |
+| repo | pair |
+| issue file | workshop/issues/000353-couch-cross-slot-dispatch.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 91d843c373c5be00f838bec31c3c1cb2ed8b98f9..51fb8e66e2d207fff4678c7e5254e798e0e12421 |
+| command | sdlc close --issue 353 |
+| reviewer | codex |
+| timestamp | 2026-09-30T21:59:35-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range matches the approved, amended contract. BR-4 is addressed by an explicit plan revision backed by the implemented symbols. No new blocking findings emerged. All five affected package suites passed.
+
+```findings
+dispose:
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Plan lines 499–506 explicitly supersede Server/Client with Server/Call and reconcile wrapper adapter mappings. transport.go:46 defines Server; transport.go:212 defines Call. This is a documentation-only correction.
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Shared automatic-input ownership remains enforced; passing regressions cover both arrival orders, cancellation before repaint, and fresh empty repaint after submission.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Passing socket regressions exercise maximum escaped message bodies, endpoint commits, receipts, and complete 128-actor responses against derived frame bounds.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Startup collection removes proven-dead socket owners while preserving live or uncertain owners and replacement inodes; crash-cleanup regressions pass.
+```
+
+1. **Strengths**
+
+   - Admission separates routing from synchronized reservation and checks observation generations before committing.
+   - Delivery preserves uncertainty and never automatically retries potentially completed PTY writes.
+   - Stateful endpoint tests, actual Unix sockets, and captured composer fixtures exercise meaningful production boundaries.
+   - README and atlas document commands, qualification limits, receipt semantics, and runtime cleanup.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed `go test -count=1` for `couchmessage`, `couchcmd`, `couchtty`, `wrapcmd`, and `launcher`. Diff whitespace checks pass excluding raw terminal captures; those captures retain terminal whitespace. Live harness conformance and human acceptance were not rerun during this read-only review. The plan explicitly records the accepted arithmetic smoke scope without claiming an actual issue dispatch.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared identity parsing, composer recognition, and automatic-input arbitration.
+   - **ARCH-PURE — pass:** routing, validation, and delivery transitions remain separate from socket and PTY effects.
+   - **ARCH-PURPOSE — pass:** the CLI-to-broker-to-wrapper path delivers the amended live coordination contract.
+   - **ARCH-MOCK — pass:** stateful doubles share production seams; socket tests and version-specific conformance cover external boundaries.
+   - **ARCH-CONSTRAINTS — pass:** bounded actors, receipts, frames, handlers, deadlines, and pending-only polling.
+   - **ARCH-SECURE — pass:** private sockets, strict decoding, exact incarnation checks, and canonical receipt verification.
+   - **ARCH-ORDER — pass:** explicit delivery transitions, generation checks, and controlled interference tests.
+   - **ARCH-FUNERAL — pass:** bounded ephemeral receipts, joined workers, graceful socket removal, and dead-owner collection.
+
+7. **Plan revision recommendations:** None. The appended BR-4 revision supplies the requested final source mapping.

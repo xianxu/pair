@@ -289,6 +289,7 @@ total: 8.19
 ## Log
 
 ### 2026-09-30 — boundary review round one corrections
+- 2026-09-30: closed — Operator accepted exact send/reply and family dispatch smoke. Second boundary review cleared BR-1/2/3 and reran all five affected suites successfully; remaining BR-4 source-map discrepancy corrected in plan revisions, no runtime change. Full couchmessage and focused messaging/automatic-input race tests pass; builds and whitespace checks pass. Three unchanged broad-suite fixture races and earlier unexplained expiry documented; Ariadne prelude is ariadne#276.; review verdict: SHIP
 
 Close returned REWORK: BR-1 automatic writers overlapped across callbacks;
 BR-2 the wire frame could not hold valid domain payloads; BR-3 wrapper sockets
