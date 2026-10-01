@@ -208,7 +208,7 @@ func TestRenderMenuProtectsStateAgeAndBellSuffixAtMinimumWidth(t *testing.T) {
 	}
 	plain := string(ansi.Strip([]byte(RenderMenu(state, 40, 10, now, false))))
 	lines := strings.Split(plain, "\r\n")
-	if len(lines) < 6 || !strings.HasSuffix(lines[2], "live") || strings.TrimSpace(lines[3]) != "ready" || !strings.HasSuffix(lines[4], "parked · 2d ago") || strings.TrimSpace(lines[5]) != "approval" {
+	if len(lines) < 6 || !strings.HasSuffix(lines[2], "live") || strings.TrimSpace(lines[3]) != "└─ ready" || !strings.HasSuffix(lines[4], "parked · 2d ago") || strings.TrimSpace(lines[5]) != "└─ approval" {
 		t.Fatalf("minimum-width semantic suffixes were clipped: %q", plain)
 	}
 	assertRenderedBounds(t, plain, 40, 10)
@@ -221,7 +221,7 @@ func TestRenderMenuAttentionChildrenAreIndentedAndDisplayOnly(t *testing.T) {
 		threads[0].Address: {{Sequence: 1, Text: "review ready"}, {Sequence: 2, Text: "tests need approval"}},
 	}
 	plain := string(ansi.Strip([]byte(RenderMenu(state, 80, 12, time.Time{}, false))))
-	if !strings.Contains(plain, "\r\n    review ready\r\n    tests need approval") {
+	if !strings.Contains(plain, "\r\n  ├─ review ready\r\n  └─ tests need approval") {
 		t.Fatalf("notification children are not vertical and indented: %q", plain)
 	}
 	next, _ := reduceKey(state, PanelKey{Kind: KeyDown})

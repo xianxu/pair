@@ -1,12 +1,15 @@
 ---
 id: 000371
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-01
 updated: 2026-10-01
 estimate_hours:
-card_mirror: 'd4cad4f0ba6bb871f77fe6621792fa53755c59f0' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '7e3195385c59ca1e478dad7836df6be4c5a89860' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-01T13:27:30-07:00
+flow: {kind: quick, provenance: inferred, spec: "70635be1", done: "698d336d"}
+actual_hours: 0.20
 ---
 
 # Group switcher notifications under their originating slot
@@ -43,13 +46,61 @@ prefix (ARCH-DRY). Preserve message order and existing navigation/click ownershi
 - Zero, one, and multiple notifications render correctly, ignoring empty messages.
 - Keyboard navigation skips notification rows; clicking one targets its owning slot.
 - Rendering tests cover the grouping, narrow-width clipping, and viewport behavior.
+- A selected group taller than the viewport keeps its owning slot label visible.
 
 ## Plan
 
+- [x] Add rendering regressions for both slot depths, empty messages, clipping, and ownership.
+- [x] Render tree connectors using the row's existing presentation indent; update atlas.
+- [x] Run couchtty tests including race checks; submit to the SDLC close review.
 
 ## Log
 
 ### 2026-10-01
+- 2026-10-01: closed — Notification grouping regressions failed before the fix and pass after; full go test ./cmd/internal/couchtty -count=1 and go test -race ./cmd/internal/couchtty -count=1 pass, including ownership and clipping; grouped-click race regression passes ten runs; make build and git diff --check pass.; review verdict: SHIP
 
 Captured the operator's proposed notification grouping. Operator requested task
 creation followed by claiming; implementation has not started.
+
+Operator authorized implementation. This is a pure rendering change (ARCH-PURE)
+using existing row identity and indentation (ARCH-DRY, ARCH-PURPOSE). Existing
+terminal bounds and sanitization remain authoritative (ARCH-CONSTRAINTS,
+ARCH-SECURE); the change holds no new state between events (ARCH-ORDER) and
+creates no durable runtime artifacts (ARCH-FUNERAL).
+
+Spec review: no blockers. Connectors include the existing two-cell selection
+gutter and align at column `2 + entry.Indent`. Keep matching-description rows
+before notifications. Determine the last nonempty message before viewport
+clipping; test normal and focus views. These clarify the proposed layout.
+
+Rendering regressions failed on the old fixed prefix, then passed with tree
+connectors. An oversized selected-group regression also failed before bounding
+the scroll start by the owner row. Full couchtty tests and `make build` passed.
+The full race check exposed a pre-existing grouped-tab fixture race: it mutates
+pane identity after Console.Run starts. Move configuration before startup and
+rerun the race suite; production pane identity remains unchanged.
+
+Verification after fixture repair: full couchtty tests and race suite pass;
+focused grouped-click race regression passes ten runs. `make build` and
+`git diff --check` pass. Updated grouped-rendering fixtures and atlas. The
+SDLC close gate owns the final review.
+
+Operator smoke-tested the rebuilt branch at pair:0 and confirmed it works.
+Moved the unchanged reviewed branch back to pair:2 at the operator's request
+for publication and merge. The existing close verdict is SHIP.
+
+## Revisions
+
+### 2026-10-01 — Preserve ownership for oversized groups
+
+Regression exploration reproduced an existing scroll-window bug: anchoring the
+window at the selected group's end can hide the selected slot label when its
+messages exceed the viewport. Bound the start by the selected row's start so
+grouping remains intelligible; add a regression and retain the existing
+viewport budget. This extends the viewport acceptance criterion.
+
+### 2026-10-01 — Repair verification fixture startup ordering
+
+The race-suite failure is in the grouped-tab test setup, which writes pane
+identity concurrently with console startup. Configure the fixture before
+starting its goroutine to make the required race verification reliable.
