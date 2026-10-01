@@ -1,12 +1,13 @@
 ---
 id: 000372
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-01
 updated: 2026-10-01
 estimate_hours:
-card_mirror: 'b5628768b5a3da54f2e9518e41f79a86ea4c90ee' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '109a5eaa3268f3e535b754d5366a7da9c4af50ff' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-01T15:09:24-07:00
 ---
 
 # couch focus view: show pair-slug inline
@@ -46,10 +47,12 @@ mirrors any edits back into `slug-<tag>`. Couch never reads either file.
 - **Focus membership is unchanged:** a row must be `Live()` and have a
   non-empty `DisplaySummary()`. A row that has a slug but no description stays
   out of focus view.
-- **Kept current, read from memory:** couch reads the slug files during the
-  inventory refresh it already runs, and re-reads one only when its
-  mtime/size changes. Nothing is read while drawing or on a keystroke. The
-  renderer gets the slug as state, like the description.
+- **Kept current, read from memory:** couch reads each live row's slug file
+  (bounded, ≤ 1 KiB) during the inventory refresh it already runs. That refresh
+  is off the render path and fires when the switcher opens and after every
+  operation. Nothing is read while drawing or on a keystroke. The renderer gets
+  the slug as a row field (`ActionableThreadSummary.Slug`), like the
+  description.
 - **Not a notification:** a slug change only redraws the row. It never creates
   attention, paging, a bell, or idle-fade activity. Attention lines keep
   rendering below the row as they do today.
@@ -67,21 +70,38 @@ mirrors any edits back into `slug-<tag>`. Couch never reads either file.
   - control characters in the slug are stripped;
   - a slug change produces no attention or notice;
   - the slug is read from `SlugProposed`, never from `Slug`.
-- Test showing the refresh re-reads a slug file only when it changed.
+- Inventory test: a live row carries its slug from the injected reader; a
+  non-live row gets none, and the reader is not called for it; a reader error
+  leaves the slug empty without failing the inventory.
 - Operator smoke test in a live couch (after `make build`): the focus view
   shows each live agent's current slug, and it updates after the agent's next
   turn without any notification.
 
 ## Plan
 
-- [ ] Add a pure parser `=== L | R ===` → `L | R` (next to slugcmd's
-      `slugRE`, sharing that one format definition per ARCH-DRY)
-- [ ] Couch: resolve each live thread's `Paths` (data dir + tag), read
-      `SlugProposed` on refresh with an mtime/size check, carry the slug on the
-      menu's thread state
-- [ ] `menu_render.go`: focus rendering appends `◆ slug` when present
+- [ ] New pure package `cmd/internal/slugline`: `Format(left, focus)`,
+      `Valid`, `Focus`, `Unfence`. slugcmd switches to it, so the
+      `=== L | R ===` format has one definition (ARCH-DRY)
+- [ ] couchcore: `ActionableThreadSummary.Slug`; a `Couch.Slug` seam (like
+      `OrientationStatus`); `ApplySlugs` runs after the projection, in the same
+      place as `ApplyRepositoryAliases`, for live rows only. Display-only:
+      errors leave the slug empty
+- [ ] `OSSlugReader{DataDir}`: `artifactpath.Resolve` → `SlugProposed`, a
+      bounded regular-file read, then `slugline.Unfence`. Wired in
+      `couchcmd/run.go` next to `OrientationStatus`
+- [ ] `menu_render.go`: focus rendering appends ` ◆ slug` when present
+      (sanitized)
 - [ ] Tests from Done when; `make test`
 - [ ] Update the focus-view paragraph in `atlas/couch.md` (#338 section)
+
+## Revisions
+
+- 2026-10-01 — design pass. Dropped the mtime/size change check: one bounded
+  read of a ≤ 1 KiB file per live row costs about the same as the stat, and the
+  inventory refresh already runs off the render path. The slug is a row field
+  filled in after the projection (the `ApplyRepositoryAliases` precedent), not a
+  third probe pipeline beside activity and slot-git. Done-when's
+  "re-read only on change" test became the inventory seam test.
 
 ## Log
 
