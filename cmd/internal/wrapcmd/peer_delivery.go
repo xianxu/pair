@@ -215,13 +215,29 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 		event.Kind = couchmessage.PeerOperatorInput
 	case p.pickerActive.Load() && d.current.Status == couchmessage.Delivering:
 		event.Kind = couchmessage.PeerOverlayObserved
-	case d.replies.inFlight > 0 || len(d.replies.input) > 0 || d.outputPending > 0 || d.inputBuffered:
+	case d.replies.inFlight > 0:
+		d.current.Detail = "waiting for forwarded input"
+		return
+	case len(d.replies.input) > 0:
+		d.current.Detail = "waiting for incomplete terminal input"
+		return
+	case d.outputPending > 0:
+		d.current.Detail = "waiting for rendered output"
+		return
+	case d.inputBuffered:
+		d.current.Detail = "waiting for buffered input or unfinished paste"
 		return
 	default:
-		if d.image || p.pickerActive.Load() {
+		if d.image {
+			d.current.Detail = "waiting for image input to clear"
+			return
+		}
+		if p.pickerActive.Load() {
+			d.current.Detail = "waiting for picker to close"
 			return
 		}
 		if p.terminal == nil {
+			d.current.Detail = "waiting for terminal state"
 			return
 		}
 		snapshot := p.terminal.Snapshot()
@@ -229,14 +245,28 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 			// Let just-forwarded keystrokes repaint before reading the source.
 			// This bounded settle interval cannot retain stale draft ownership.
 			if !d.lastInput.IsZero() && d.now().Before(d.lastInput.Add(time.Second)) {
+				d.current.Detail = "waiting for input to settle"
 				return
 			}
-			event.Ready = p.childAcceptsPaste() && peerComposerState(p.agentBasename, snapshot) == PeerComposerEmpty
+			pasteReady := p.childAcceptsPaste()
+			composer := peerComposerState(p.agentBasename, snapshot)
+			event.Ready = pasteReady && composer == PeerComposerEmpty
+			switch {
+			case !pasteReady:
+				d.current.Detail = "waiting for paste mode"
+			case composer == PeerComposerUnknown:
+				d.current.Detail = "waiting for recognized composer"
+			case !event.Ready:
+				d.current.Detail = "waiting for empty composer"
+			default:
+				d.current.Detail = ""
+			}
 		} else {
 			event.Kind = couchmessage.PeerRenderObserved
 			_, known := peerComposerText(p.agentBasename, snapshot)
 			event.Ready = known && d.sequence > d.pasteSequence
 			event.Matches = known && peerComposerMatches(p.agentBasename, snapshot, peerEnvelope(d.current.Message))
+			d.current.Detail = "waiting for pasted envelope to render"
 		}
 	}
 	p.advancePeer(event, out)
@@ -269,7 +299,11 @@ func (p *proxy) advancePeer(event couchmessage.PeerDeliveryEvent, out io.Writer)
 		p.advancePeer(couchmessage.PeerDeliveryEvent{Kind: couchmessage.PeerSubmitCompleted, Written: n, Expected: len(data), Failed: err != nil}, out)
 	case couchmessage.PeerPublish:
 		d.current.Status = state.Outcome()
-		d.current.Detail = state.Reason
+		if event.Kind == couchmessage.PeerDeadlineElapsed && d.current.Detail != "" {
+			d.current.Detail = state.Reason + ": " + d.current.Detail
+		} else {
+			d.current.Detail = state.Reason
+		}
 		select {
 		case d.notices <- fmt.Sprintf("Couch message from %s: %s", d.current.Message.From.Slot, d.current.Status):
 		default:

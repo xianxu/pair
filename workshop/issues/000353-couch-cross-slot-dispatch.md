@@ -288,6 +288,22 @@ total: 8.19
 
 ## Log
 
+### 2026-09-30 — family smoke needs receiver diagnostics
+
+Operator verified an exact-address Codex→Claude→Codex arithmetic round trip.
+Family dispatch then selected parley.nvim:1 correctly but receipt
+c2322e00-b903-4e0c-aaa3-a14876affbbe expired without submission. All actors had
+no pending delivery afterward; the previous attempt on :2 did not retain a
+mailbox reservation. The operator left :1 untouched after its successful reply.
+Its wrapper executable matches the staged build. Replaying the full 94x39
+capture recognizes an empty/faint-suggestion composer, paste enabled, no picker.
+The remaining input-bookkeeping guard is not observable from the old receipt.
+
+Added non-content waiting reasons to wrapper receipts, retained on expiry, so
+the next reproduction identifies the exact guard instead of guessing. This is
+diagnostic coverage, not a claimed fix for the family smoke. Regression proves
+the blocking reason survives expiry without writing any input.
+
 ### 2026-09-30 — delivery-driven composer observation
 
 Operator approved removing sticky human-draft ownership and polling only while
