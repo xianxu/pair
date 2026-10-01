@@ -211,3 +211,47 @@ func TestMenuFocusPreservesNormalExactSearchAndLabels(t *testing.T) {
 		t.Fatalf("focus changed full inventory label: %q", got)
 	}
 }
+
+// pair#372: the focus row is `name ◆ description ◆ slug` on one line.
+func TestMenuFocusRendersSlugInline(t *testing.T) {
+	render := func(row couchcore.ActionableThreadSummary, width int) string {
+		state := focusSpace(NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address))
+		return string(ansi.Strip([]byte(RenderMenu(state, width, 12, time.Time{}, false))))
+	}
+	row := menuThreads()[0]
+	row.Description = "task"
+	row.Slug = "main-slot3 | couch \x1b[2Jswitcher\n click-select"
+	if got := render(row, 100); !strings.Contains(got, "compiler ◆ task ◆ main-slot3 | couch switcher click-select") || strings.Contains(got, "\x1b[2J") {
+		t.Fatalf("slug render = %q", got)
+	}
+	row.Slug = " \t "
+	if got := render(row, 100); !strings.Contains(got, "compiler ◆ task") || strings.Contains(got, "task ◆") {
+		t.Fatalf("blank slug left a trailing diamond: %q", got)
+	}
+	row.Slug = strings.Repeat("界", 100)
+	for _, line := range strings.Split(render(row, 40), "\r\n") {
+		if textwidth.Width(line) > 40 {
+			t.Fatalf("long slug wrapped or overflowed: %q", line)
+		}
+	}
+	row.Description, row.Slug = "", "main | busy"
+	state := focusSpace(NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address))
+	if len(VisibleMenuThreads(state)) != 0 {
+		t.Fatal("a slug without a description joined the focus view")
+	}
+}
+
+// A slug change is display only: it is not a notification.
+func TestMenuFocusSlugChangeIsNotAttention(t *testing.T) {
+	rows := menuThreads()
+	rows[0].Description, rows[0].Slug = "task", "main | one"
+	state := focusSpace(NewMenuState(rows, rows[0].Address))
+	rows[0].Slug = "main | two"
+	state, effects := ReduceMenu(state, MenuEvent{Kind: MenuEventInventory, Inventory: rows})
+	if len(effects) != 0 || len(state.Attention) != 0 || state.Notice.Text != "" {
+		t.Fatalf("slug change produced effects=%+v attention=%+v notice=%+v", effects, state.Attention, state.Notice)
+	}
+	if got := RenderMenu(state, 100, 12, time.Time{}, false); !strings.Contains(got, "main | two") {
+		t.Fatalf("refreshed slug not rendered: %q", got)
+	}
+}

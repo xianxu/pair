@@ -32,32 +32,6 @@ func TestNormalizeBranch(t *testing.T) {
 	}
 }
 
-func TestValidateSlug(t *testing.T) {
-	good := []string{
-		"=== pair | doing tests ===",
-		"=== #42 winbar-recap | testing slug gate ===",
-	}
-	bad := []string{
-		"KEEP",
-		"=== pair ===",           // no pipe
-		"=== | right ===",        // empty left
-		"=== left | ===",         // empty right
-		"pair | doing tests",     // no fence
-		"Sandbox restriction...", // hijack garbage
-		"",
-	}
-	for _, s := range good {
-		if !validateSlug(s) {
-			t.Errorf("validateSlug(%q) = false, want true", s)
-		}
-	}
-	for _, s := range bad {
-		if validateSlug(s) {
-			t.Errorf("validateSlug(%q) = true, want false", s)
-		}
-	}
-}
-
 func TestExtractTurns(t *testing.T) {
 	turns := windowTurns([]turn{
 		{Role: "user", Text: "first prompt"},
@@ -246,10 +220,4 @@ func TestDecide(t *testing.T) {
 			t.Error("focus with === must be rejected")
 		}
 	})
-}
-
-func TestRightOf(t *testing.T) {
-	if got := rightOf("=== a | b c d ==="); got != "b c d" {
-		t.Errorf("rightOf = %q", got)
-	}
 }

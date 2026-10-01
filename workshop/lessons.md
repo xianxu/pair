@@ -423,3 +423,9 @@ proof; record the surprising case so the next change starts from evidence.
   prefix-routed to brainstorm. Include known-but-offline names so an exact name
   resolves to itself and misses, and pin it with a test whose control case
   shows the narrowed namespace rerouting.
+- When a format moves into a shared package, say where else it is mirrored.
+  #372: `slugline` called itself "the one definition" of `=== L | R ===` while
+  `nvim/slug.lua` re-implements the same recognition, and a package const
+  named `close` shadowed Go's builtin. A cross-language format has one
+  definition per language; the doc names the mirror so a change touches both.
+  Never name an identifier after a Go builtin (`close`, `len`, `new`, `copy`).
