@@ -8,6 +8,7 @@ updated: 2026-09-30
 estimate_hours:
 card_mirror: 'f8508a15751ae82456bde5da7314b3ac2c5a5d2f' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-09-30T22:55:02-07:00
+flow: {kind: quick, provenance: inferred, spec: "8b97fb72", done: "a2a7c388"}
 ---
 
 # Address couch slots by repository prefix, alias, or agent
