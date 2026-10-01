@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000365-message-lifecycle.md
         source_blob: 17a70d1ccf95de2451873d79dbf5f3a2fe580c5c
         destination: workshop/issues/000365-message-lifecycle.md
+        main_commit: ac48a27fba4699393507e92e1670aaac66a0d9a2
 ---
 
 # Replace messaging liveness polling with lifecycle events
