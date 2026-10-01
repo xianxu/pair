@@ -239,7 +239,7 @@ implementation has not started.
 - [x] Approve the first-iteration contract and implementation plan.
 - [x] Implement and test bounded actor admission and free-text messaging (approved amendment).
 - [x] Integrate supervisor transport and exact live wrapper registration.
-- [ ] Qualify safe Claude/Codex delivery through Pair's input owner.
+- [x] Qualify safe Claude/Codex delivery through Pair's input owner.
 - [ ] Ship CLI, skill, operator notices, and end-to-end acceptance evidence.
 
 Durable plan: [implementation](../plans/000353-couch-cross-slot-dispatch-plan.md).
@@ -361,8 +361,8 @@ Codex CLI 0.159.2 passed fresh-session startup, short and multiline paste,
 word-wrapped paste, draft/menu preservation, and exactly one submission followed
 by the native composer clearing. Its version is enabled. Captures and replay
 regressions are under `cmd/internal/wrapcmd/testdata/peer/codex/0.159.2/`.
-The broker → private Unix endpoint → wrapper → rendered envelope → single submit
-→ canonical receipt test passes normally and under the race detector.
+The public CLI → broker → private Unix endpoint → wrapper → rendered envelope
+→ single submit → canonical CLI receipt test passes normally and under the race detector.
 
 Focus reports must not acquire human draft ownership; exact, fragmented and
 mixed-input regressions now pass. All four affected package suites and focused
@@ -370,6 +370,35 @@ messaging/orientation race tests pass; `make build` passed before the latest
 receiver qualification changes. Claude live setup needed the native keychain's
 USER identity and a settled temporary-workspace trust picker; receiver checks
 are underway. Human Couch acceptance and close review remain outstanding.
+
+### 2026-09-30 — receiver qualification and acceptance preparation
+
+Enabled exact receiver versions Codex CLI 0.159.2 and Claude Code 2.1.286 after
+captured replay and live short-message submission, including native composer
+clearing. Wrapped text passed both receivers; Claude collapsed multiline text
+remains unsubmitted and expires visibly. Tests reject altered whitespace and
+ordinary text styled differently from native ghost hints. Genuine human-send
+accounting now excludes menu confirmation as well as partial writes and pasted
+returns. The shared image/input admission still runs before the first agent PTY
+input effect; no editor-placeholder IPC or Lua changes were required.
+
+Final verification: all four affected Go package suites passed uncached;
+`make build` passed with both version gates enabled. Focused messaging/orientation race verification passed. CLI/skill, actor admission, exact live
+registration, delivery guards and operator notices are implemented. Monotonic submission reconciliation prevents late/duplicate notifications from
+replenishing the same allowance twice, including after reconnect. The ninth
+post-human admission refuses in regression tests. Full package suites, focused
+race tests and the rebuilt binaries passed after this correction. Human
+acceptance and the SDLC close review are not yet done; the issue stays working.
+
+Operator smoke: restart Couch and the participating Pair wrappers using this
+branch's built binaries (existing processes retain old code). Load
+`couch --skill`, inspect `couch --actors`, send a short authorized message to an
+exact live slot, inspect its receipt and send a useful answer back. Exercise
+family dispatch with a resting slot quiet for 30 seconds; observe one pending
+message and the allowance without abandoning unfinished repository work. A
+separate unchanged draft may remain; occupied agent input must be preserved.
+Then dispatch an authorized independent issue and inspect its claim and human
+acceptance boundary. The agent must not self-certify that last grounding step.
 
 ## Revisions
 
