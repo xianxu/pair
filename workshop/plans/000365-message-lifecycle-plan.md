@@ -246,6 +246,21 @@ Registry socket lives in the existing private 0700 per-uid dir. Hello bindings a
 
 ## Revisions
 
+- 2026-10-01 — M3 execution (BR-9 reconciliation):
+  - **Core-concepts table vs code:**
+    - `Registry`, `RegistryEvent`, `RegistryEffect`, `SessionFrame`, `ReconnectBackoff`, `RecentDeliveries`, `SessionServer`/`SessionClient` and `PeerPID` exist as named, plus `PaneMailbox` (new).
+    - `messageVerificationWindow`, `recentlyVerified`, `refresh` and `reconcile` are deleted.
+    - The `messageidle` probe exists. It is a separate shim, not a `zellijcalls` extension.
+    - The Console hook is `SubscribeMessageLifecycle`.
+  - **Events added during review:** `ConnectFailed` (BR-7) reports a refused broker `Register`.
+  - **Displacement (BR-8):** newest *admitted* wins. A newer session that is never admitted displaces nothing.
+  - **Tombstones (BR-11):** bounded by eviction. A relaunch retires the slot's old incarnations, and a full table evicts the oldest.
+  - **Task 3.2 changed:** the CLI mints a fresh ID per send, so the planned per-send family `status(id)` fan-out guarded a path the CLI cannot take, at a cost on every family send.
+    - Instead, `--message-status` for an ID the broker does not know asks the connected recipients (`Broker.StatusContext`: concurrency 4, half the admission budget, silence means `uncertain`).
+    - A reused ID that reaches a remembering wrapper is adopted (`AlreadyCommittedError`), not pasted again.
+    - Residual: a programmatic sender that reuses an ID across a Couch restart, against a family whose remembering wrapper is not chosen, could be dispatched again. No Pair caller does this, and the atlas states it under retries.
+  - **Task 3.1 test names** became `TestLifecycle*` in `couchcmd/message_lifecycle_test.go`. Partial input stays covered by `TestPeerDeliveryPartialWritesNeverRetry`.
+
 - 2026-10-01 — M2 execution. Entity mapping (plan → code):
   - Registry events: the pane edges `PaneAttached`/`PaneExited` became one `PaneChanged{thread, pane|""}`. It is a state, so the coalescing mailbox can drop intermediate panes safely.
   - Effects are `EffectAdmit/Connect/Disconnect/ScheduleRetry/Observe` (prefixed to avoid clashing with the message model's event kinds).

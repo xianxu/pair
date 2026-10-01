@@ -164,6 +164,28 @@ verification window are gone. Wrappers from older binaries still send
 `register` and are answered `unsupported` at no cost; their slots receive again
 after a relaunch.
 
+**What delivery does and does not promise (#365).** Messaging promises
+at-most-once input to the wrapper's PTY, not exactly-once task execution. The
+remaining uncertainty is stated, never papered over:
+- **Wrapper receipt.** A wrapper's receipt says the envelope was pasted and
+  submitted to the agent's composer. It says nothing about whether the agent
+  read or acted on it. Check the transcript or the issue state for that.
+- **Death mid-delivery.** A wrapper, broker or Zellij crash during delivery
+  ends the receipt `Indeterminate`. The paste may or may not have landed, and
+  it is never retried.
+- **Replacement mid-delivery.** If a wrapper is replaced while delivering, the
+  message completes at the old incarnation or ends `Indeterminate`. It is never
+  redirected to the replacement.
+- **Couch restart.** Receipts are memory-only. After a restart,
+  `--message-status` asks the connected recipients for their retained receipts:
+  each wrapper keeps its last 64. A recipient that does not answer makes the
+  answer `uncertain`, not absent. One that has since exited or exec'd has
+  forgotten. A receipt recovered while still in flight is reported
+  `Indeterminate`, because no broker job watches it any more.
+- **Retries.** The CLI mints a fresh ID per send and tells the sender not to
+  retry an uncertain one. A reused ID that reaches a wrapper that remembers it
+  adopts the recorded outcome and is not pasted again.
+
 Each wrapper endpoint conditionally reserves its observed input generation,
 then accepts one delivery commit. The broker polls outcome receipts; it never
 retries PTY input after uncertainty. Pair's input owner arbitrates ordinary
