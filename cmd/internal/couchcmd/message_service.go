@@ -553,11 +553,13 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 			return couchmessage.Response{Code: "unavailable", Error: err.Error()}
 		}
 		// An exact target whose session went dormant after failed admissions
-		// gets one more bounded attempt; this send does not wait for it.
+		// gets one more bounded attempt; this send does not wait for its
+		// result. Posting only waits for the loop to take the event (the loop
+		// never waits on a request), so nothing outlives this request. A target
+		// spelled by repository alias names no binding's Slot and wakes
+		// nothing; the slot's own pane, submit or reconnect still does.
 		if request.Op == "send" && strings.Contains(request.Target, ":") {
-			go func() {
-				_ = s.post(couchmessage.RegistryEvent{Kind: couchmessage.SendTargeted, Slot: request.Target}, false)
-			}()
+			_ = s.post(couchmessage.RegistryEvent{Kind: couchmessage.SendTargeted, Slot: request.Target}, false)
 		}
 	}
 	return couchmessage.Handle(ctx, s.broker, request)

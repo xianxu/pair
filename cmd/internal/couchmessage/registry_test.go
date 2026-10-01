@@ -152,6 +152,34 @@ func TestRegistryConnectFailureRetriesAndDisconnectsNothing(t *testing.T) {
 	}
 }
 
+// BR-8: a newer wrapper for the slot that never passes admission must not
+// strand the older, working one.
+func TestRegistryUnadmittedNewerSessionDisplacesNothing(t *testing.T) {
+	r := NewRegistry()
+	old, ghost := registryBinding("pair:1", "a", 10), registryBinding("pair:1", "a", 11)
+	step(t, r, RegistryEvent{Kind: PaneChanged, Thread: old.Thread(), Pane: "h1"})
+	step(t, r, RegistryEvent{Kind: SessionOpened, Token: 1, Binding: old})
+	step(t, r, RegistryEvent{Kind: SessionOpened, Token: 2, Binding: ghost})
+	// The older admission completes while the newer is still being checked.
+	step(t, r, RegistryEvent{Kind: AdmissionDone, Token: 1, Pane: "h1"})
+	if !r.Connected()[old] {
+		t.Fatal("older session stranded by an unadmitted newer one")
+	}
+	for i := 0; i <= len(RetryDelays); i++ {
+		step(t, r, RegistryEvent{Kind: AdmissionDone, Token: 2, Pane: "h1", Err: errors.New("ghost")})
+		step(t, r, RegistryEvent{Kind: RetryDue, Token: 2, Attempt: i + 1})
+	}
+	if p, _ := r.Phase(2); p != Dormant || !r.Connected()[old] {
+		t.Fatalf("ghost %v, old connected %v", p, r.Connected()[old])
+	}
+	// A newer session that is admitted does take over.
+	step(t, r, RegistryEvent{Kind: SendTargeted, Slot: "pair:1"})
+	fx := step(t, r, RegistryEvent{Kind: AdmissionDone, Token: 2, Pane: "h1"})
+	if want := []RegistryEffectKind{EffectDisconnect, EffectConnect}; fmt.Sprint(kinds(fx)) != fmt.Sprint(want) || r.Connected()[old] || !r.Connected()[ghost] {
+		t.Fatalf("takeover %v", kinds(fx))
+	}
+}
+
 func TestRegistryCapacity(t *testing.T) {
 	r := NewRegistry()
 	for i := 0; i < MaxActors; i++ {

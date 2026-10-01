@@ -31,6 +31,7 @@ func (b Binding) Thread() ThreadKey { return ThreadKey{Scope: b.Scope, Tag: b.Ta
 //	Admitting --fail--> Rejected --retry due--> Admitting   (≤ MaxAdmissionAttempts)
 //	Rejected (last attempt) --> Dormant --attach/submit/send--> Admitting
 //	any open phase --a newer session for the slot is admitted--> Displaced (final)
+//	(a newer session that is never admitted displaces nothing)
 type AdmissionPhase int
 
 const (
@@ -186,12 +187,15 @@ func (r *Registry) Advance(e RegistryEvent) ([]RegistryEffect, error) {
 			fx = r.fail(e.Token, s, fx)
 			break
 		}
-		if r.newerSessionForSlot(e.Token, s.binding) {
+		if r.newerAdmittedForSlot(e.Token, s.binding) {
 			s.phase = Displaced
 			break
 		}
+		// Newest admitted wins: admitting displaces only older sessions. A
+		// newer one still being checked (or failing) does not strand this
+		// working one; it displaces this one if and when it is admitted.
 		for t, other := range r.sessions {
-			if t != e.Token && sameSlot(other.binding, s.binding) && other.phase != Displaced {
+			if t < e.Token && sameSlot(other.binding, s.binding) && other.phase != Displaced {
 				fx = r.displace(t, other, fx)
 			}
 		}
@@ -263,9 +267,9 @@ func (r *Registry) displace(t SessionToken, s *registrySession, fx []RegistryEff
 	return fx
 }
 
-func (r *Registry) newerSessionForSlot(t SessionToken, b Binding) bool {
+func (r *Registry) newerAdmittedForSlot(t SessionToken, b Binding) bool {
 	for other, s := range r.sessions {
-		if other > t && sameSlot(s.binding, b) && s.phase != Displaced {
+		if other > t && sameSlot(s.binding, b) && s.phase == Admitted {
 			return true
 		}
 	}
