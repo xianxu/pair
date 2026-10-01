@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000367-recover-owned-slots.md
         source_blob: ff13bce5c72c3d67d4d0c4506afff57913c2f947
         destination: workshop/issues/000367-recover-owned-slots.md
+        main_commit: a4289e04eeb318c6a45c51d37e0b7cea8ce769cc
 ---
 
 # Recover local slots from durable issue ownership
