@@ -1,14 +1,15 @@
 ---
 id: 000371
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-01
 updated: 2026-10-01
 estimate_hours:
-card_mirror: 'b12c48bdd8d39bceeb6e1e464abb4b5ed89d8023' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '7e3195385c59ca1e478dad7836df6be4c5a89860' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-01T13:27:30-07:00
 flow: {kind: quick, provenance: inferred, spec: "70635be1", done: "698d336d"}
+actual_hours: 0.20
 ---
 
 # Group switcher notifications under their originating slot
