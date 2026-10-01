@@ -47,8 +47,8 @@ runtime storage or external services (ARCH-CONSTRAINTS, ARCH-SECURE, ARCH-FUNERA
 
 ## Plan
 
-- [ ] Implement bounded fake and real-PTY experiments using existing test seams.
-- [ ] Run baseline and single-factor pressure trials; inspect profiles only where needed.
+- [x] Implement bounded fake and real-PTY experiments using existing test seams.
+- [x] Run baseline and single-factor pressure trials; inspect profiles only where needed.
 - [ ] Record findings, limitations and justified next steps; verify and close investigation.
 
 Experiment controls: use the same 12 children and geometry in paired trials,
@@ -91,3 +91,48 @@ only after displayed ACK could place the control probe after pressure ended.
 Use fixed-time menu input while pressure is active, record whether pane ACK was
 visible before the overlay, and never infer delay from a deliberately hidden
 pane. Limit snapshot observation cadence to avoid making the observer the load.
+
+### Isolated results (2026-10-01)
+
+Final command: `PAIR_COUCH_PRESSURE=1 go test ./cmd/internal/couchtty -run
+'^TestCouchOutputPressure$' -count=1 -v -timeout=180s`. All 24 trials passed
+in 49.739s (two transports × four conditions × three repetitions). Log:
+`/tmp/pair-373-pressure-final.log`. No selective stall and no censored ACKs.
+All trials ingested exactly the emitted bytes plus 144 bytes of readiness output.
+The fixture uses an actual 12-entry switcher and routes both Ctrl+Space and Escape
+through production input/operation dispatch. An earlier fixture lacked that
+operation dispatcher; it was corrected before these final measurements.
+
+Maximum latency across three repetitions, milliseconds:
+
+| Transport | Condition | Child receipt | Displayed ACK | Rendered menu |
+| --- | --- | ---: | ---: | ---: |
+| Fake | Baseline | 1.1 | 21.6 | 3.7 |
+| Fake | Burst | 1.8 | 12.4 | 5.1 |
+| Fake | Burst, one Go CPU | 4.8 | 15.6 | 10.7 |
+| Fake | Slow host | 19.9 | 94.1 | 54.8 |
+| Real PTY | Baseline | 1.4 | 24.4 | 5.8 |
+| Real PTY | Burst | 1.5 | 45.4 | 8.6 |
+| Real PTY | Burst, one Go CPU | 0.7 | 43.9 | 18.4 |
+| Real PTY | Slow host | 20.6 | 99.9 | 67.4 |
+
+Baseline emits about 24.5KB across 12 children in two seconds (100ms ticks).
+Burst uses 10ms ticks with about 4KB per child per tick, capped below 9.375MiB;
+observed totals were 9.2–9.73MB. Missed ticks are skipped, not accumulated.
+Normal parent GOMAXPROCS was 3; reduced capacity was 1. Children and host use
+191-column geometry; the 54-row host reserves one row outside the child.
+Independent PTY side pipes timestamp receipt before output ACK. Display and
+endpoint ACK observation has a 10ms polling cadence; menu is probed at 1.5s,
+while the two-second output window is still active. Recovery completed within
+66ms after the window in this matrix. Helpers and console are joined on teardown.
+
+Conclusion: these controls did not reproduce the incident. Burst throughput
+through Couch alone is insufficient evidence for the claimed root cause; the
+slow-host control delays the switcher too. This is a bounded negative result,
+not proof that Couch cannot stall. The workload repeatedly rewrites a small
+screen region: it stresses parsing more than changed-screen rendering. It omits
+Zellij, wrappers, Ghostty, long sustained load, and the observed system-wide
+kernel/process pressure. Limiting Go CPUs does not simulate those pressures.
+A justified next discriminator is an isolated Zellij-backed workload with
+representative screen changes, followed by scheduler/write observations during
+a real recurrence. No production fix is justified by this experiment.
