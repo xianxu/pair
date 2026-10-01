@@ -2,8 +2,12 @@ package couchcore
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 	"path/filepath"
+	"strings"
 )
 
 // SlotWorkspaceResolver supplies explicit-operation SDLC context. Listing never
@@ -60,7 +64,7 @@ func (c *Couch) resolveSlotInput(ctx context.Context, input string) (*ThreadTarg
 			if ref.Repo == "" {
 				return nil, id, err
 			}
-			primary, e := c.enrolledPrimary(ref.Repo)
+			primary, e := c.repositoryPrimary(ref.Repo, "")
 			if e != nil {
 				return nil, id, e
 			}
@@ -75,7 +79,9 @@ func (c *Couch) resolveSlotInput(ctx context.Context, input string) (*ThreadTarg
 		}
 		primary := id.PrimaryRoot
 		if ref.Repo != "" {
-			primary = filepath.Join(id.FleetRoot, ref.Repo)
+			if primary, err = c.repositoryPrimary(ref.Repo, id.FleetRoot); err != nil {
+				return nil, id, err
+			}
 		}
 		repository, e := c.Slots.Discover(ctx, primary)
 		if e != nil {
@@ -91,7 +97,11 @@ func (c *Couch) resolveSlotInput(ctx context.Context, input string) (*ThreadTarg
 				return &target, id, nil
 			}
 		}
-		return nil, id, fmt.Errorf("slot %s does not exist; create another slot explicitly", ref.String())
+		existing := []string{WorkspaceReference{Repo: repository.Identity.Repo}.String()}
+		for _, candidate := range repository.Slots {
+			existing = append(existing, WorkspaceReference{Repo: repository.Identity.Repo, Number: candidate.Identity.Number}.String())
+		}
+		return nil, id, fmt.Errorf("slot %s does not exist (existing: %s); create another slot explicitly", WorkspaceReference{Repo: repository.Identity.Repo, Number: ref.Number}, strings.Join(existing, ", "))
 	}
 	id, err = c.slotWorkspace(ctx, path)
 	if err != nil {
@@ -111,9 +121,11 @@ func (c *Couch) resolveSlotInput(ctx context.Context, input string) (*ThreadTarg
 	if err != nil && workspaceRepoName(input) && input != "." {
 		contextID, contextErr := c.slotWorkspace(ctx, ".")
 		if contextErr == nil {
-			path = filepath.Join(contextID.FleetRoot, input)
-			id, err = c.slotWorkspace(ctx, path)
-		} else if primary, e := c.enrolledPrimary(input); e == nil {
+			if primary, e := c.repositoryPrimary(input, contextID.FleetRoot); e == nil {
+				path = primary
+				id, err = c.slotWorkspace(ctx, path)
+			}
+		} else if primary, e := c.repositoryPrimary(input, ""); e == nil {
 			id, err = c.slotWorkspace(ctx, primary)
 		}
 	}
@@ -131,36 +143,37 @@ func (c *Couch) resolveSlotInput(ctx context.Context, input string) (*ThreadTarg
 	return nil, id, nil
 }
 
-// enrolledPrimary resolves a human repository name from retained locations only.
-// No lifecycle facts or directory-wide machine scan are involved.
-func (c *Couch) enrolledPrimary(repo string) (string, error) {
-	if c.Threads == nil {
-		return "", fmt.Errorf("no enrolled repository named %q", repo)
+// repositoryPrimary resolves the repository part of a reference to a primary
+// root. An existing directory of exactly that name beside the caller's
+// repository keeps precedence, so an un-enrolled sibling still opens as it
+// always did; otherwise enrolled names and aliases resolve exactly, then by
+// unique prefix. A sibling whose existence cannot be decided is returned too,
+// so its own error surfaces instead of a silent reroute.
+func (c *Couch) repositoryPrimary(repo, fleetRoot string) (string, error) {
+	if fleetRoot != "" && workspaceRepoName(repo) {
+		sibling := filepath.Join(fleetRoot, repo)
+		if _, err := os.Lstat(sibling); !errors.Is(err, fs.ErrNotExist) {
+			return sibling, nil
+		}
 	}
-	view := *c.Threads
-	view.readOnly = true
-	var roots []string
-	err := view.withPreviewLock(func() error {
-		manifest, _, _, err := view.loadManifestLocked()
-		roots = append(roots, manifest.SlotRepositories...)
-		return err
-	})
+	names, err := c.repositoryNames()
 	if err != nil {
 		return "", err
 	}
-	found := ""
-	for _, root := range roots {
-		if filepath.Base(root) == repo {
-			if found != "" && found != root {
-				return "", fmt.Errorf("repository %q is ambiguous; use an absolute path", repo)
-			}
-			found = root
-		}
+	found, _, err := ResolveRepositoryName(repo, names)
+	if err != nil {
+		return "", fmt.Errorf("%w; open a repository's absolute path to enroll it", err)
 	}
-	if found == "" {
-		return "", fmt.Errorf("no enrolled repository named %q; open its absolute path first", repo)
+	return found.Key, nil
+}
+
+// repositoryNames reads retained enrollment and aliases only. No lifecycle
+// facts or directory-wide machine scan are involved.
+func (c *Couch) repositoryNames() ([]RepositoryName, error) {
+	if c.Threads == nil {
+		return nil, nil
 	}
-	return found, nil
+	return c.Threads.RepositoryNames()
 }
 
 // WorkspaceReferencePath resolves canonical references to physical workspace
