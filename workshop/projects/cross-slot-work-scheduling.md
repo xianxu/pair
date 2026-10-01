@@ -98,6 +98,24 @@ Owns the immediate performance regression and local lifecycle/delivery contract.
 
 M1 added an in-tree acceptance test that counts the authority probes. It is skipped until M2, and its skip message records the baseline: one healthy wrapper costs 24 ownership probes and 6 `git status` per idle minute. M1 also added `probes/messageidle`, a shim that counts only couch-parented calls. The live baseline was taken read-only from the running Couch (11 wrappers) after the operator found relaunching under a shim too heavy. Couch used 101.6 CPU-seconds in 120 s, with 639 `ps`, 179 `zellij` and 141 `sdlc workspace` children. The unexpected part was the `sdlc` count: wrappers whose registration keeps failing re-run the full check and the workspace resolve every second. Under polling, a failing registration costs more than a healthy one, and lifecycle events remove that cost along with the idle polling.
 
+<a id="pair-365-m2"></a>
+### pair#365 M2 — lifecycle protocol replaces polling
+
+**est:** 6.91
+**actual:** 0.59h
+**closed:** 2026-10-01
+
+M2 replaces polling with lifecycle events:
+- **Session:** each wrapper holds one session on a registry socket. The hello is checked against the kernel's peer PID, and EOF means death or exec.
+- **Console:** it posts each thread's pane state to a coalescing mailbox, replaying panes that were attached before the service started.
+- **Registry:** a pure registry decides which bindings may receive, and the service executes its effects. The full ps/zellij check runs once per admission. Use-time checks only read files and memory.
+- **Deleted:** the heartbeat, the reconcile ticker, the verification window and messaging's background git.
+
+Testing:
+- **Randomized interleavings:** a broker driven only by the registry's effects has to agree with the registry after every step. The test caught one invariant stated too strongly. While a newer wrapper is still being checked, the older one legitimately stays connected; the spec accepts completion at the old incarnation.
+- **Mutation check:** a reintroduced 1 s poll fails the idle test, moving launch checks from 3 to 9 in 2.5 s.
+- **Event model:** pane changes are modelled as states rather than attach/exit edges, so coalescing is safe.
+
 <a id="ariadne-277"></a>
 ### ariadne#277 — claimant ownership
 
@@ -181,3 +199,4 @@ Preserved the operator's requirement that observation tools be fast, and recorde
 [pair#367]: #pair-367
 [pair#362]: #pair-362
 [pair#365 M1]: #pair-365-m1
+[pair#365 M2]: #pair-365-m2
