@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000361-native-zellij-conformance-launch.md
         source_blob: ef6ff002321f700f843bd86684abf7b887d8f410
         destination: workshop/issues/000361-native-zellij-conformance-launch.md
+        main_commit: b0c942c9c1230e9b3ff73e04ff282c28a5c4a64b
 ---
 
 # Restore native Zellij conformance fixture launch
