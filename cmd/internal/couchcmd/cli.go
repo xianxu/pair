@@ -29,7 +29,9 @@ type cliInvocation struct {
 	args        []string
 	messageOp   string
 	messageBody string
-	jsonOutput  bool
+	// messageAgent narrows --send-to to slots running that agent.
+	messageAgent string
+	jsonOutput   bool
 	// layout is the couch-wide pair layout to launch threads in. Set only on
 	// cliLaunch -- it is a property of the session being started, so the
 	// read-only forms reject the flag rather than carrying a meaningless value.
@@ -184,10 +186,18 @@ func parseMessageCLI(args []string) (cliInvocation, error) {
 		}
 		return cliInvocation{kind: cliMessage, messageOp: "status", ref: args[1], jsonOutput: len(args) == 3}, nil
 	case "--send-to":
+		agent := ""
+		if len(args) == 6 && args[2] == "--agent" {
+			agent = args[3]
+			if agent == "" || strings.HasPrefix(agent, "-") {
+				return bad()
+			}
+			args = append(args[:2:2], args[4:]...)
+		}
 		if len(args) != 4 || args[1] == "" || strings.HasPrefix(args[1], "-") || args[2] != "--message" || strings.TrimSpace(args[3]) == "" {
 			return bad()
 		}
-		return cliInvocation{kind: cliMessage, messageOp: "send", ref: args[1], messageBody: args[3]}, nil
+		return cliInvocation{kind: cliMessage, messageOp: "send", ref: args[1], messageAgent: agent, messageBody: args[3]}, nil
 	}
 	return bad()
 }

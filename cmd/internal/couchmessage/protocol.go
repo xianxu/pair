@@ -13,7 +13,9 @@ import (
 // full binding and must pass the supervisor adapter's live identity check.
 type Request struct {
 	Op, Scope, Tag, Session, Nonce, ID, Target, Body string
-	Binding                                          *Binding
+	// Agent narrows a send to slots running that agent; send only.
+	Agent   string `json:",omitempty"`
+	Binding *Binding
 }
 
 type Response struct {
@@ -28,20 +30,23 @@ func validMessageID(id string) bool {
 
 func ValidateRequest(r Request) error {
 	// Caller identity and target fields cannot exceed a complete binding's budget.
-	for _, field := range []string{r.Op, r.Scope, r.Tag, r.Session, r.Nonce, r.Target} {
+	for _, field := range []string{r.Op, r.Scope, r.Tag, r.Session, r.Nonce, r.Target, r.Agent} {
 		if len(field) > MaxBindingBytes {
 			return errors.New("request identity exceeds limit")
 		}
 	}
 
 	if r.Op == "register" || r.Op == "operator-submit" {
-		if r.Binding == nil || r.Scope != "" || r.Tag != "" || r.Session != "" || r.Nonce != "" || r.ID != "" || r.Target != "" || r.Body != "" {
+		if r.Binding == nil || r.Scope != "" || r.Tag != "" || r.Session != "" || r.Nonce != "" || r.ID != "" || r.Target != "" || r.Body != "" || r.Agent != "" {
 			return errors.New("wrapper operation requires only an exact binding")
 		}
 		return r.Binding.Validate()
 	}
 	if r.Binding != nil || r.Scope == "" || r.Tag == "" || r.Session == "" || r.Nonce == "" {
 		return errors.New("operation requires the calling conversation identity")
+	}
+	if r.Agent != "" && (r.Op != "send" || !validFamily(r.Agent)) {
+		return errors.New("an agent filter applies only to send and must be a plain agent name")
 	}
 	switch r.Op {
 	case "actors":
@@ -112,7 +117,7 @@ func Handle(ctx context.Context, b *Broker, r Request, verifyRegister func(conte
 		}
 		return Response{Code: "ok", Receipt: &receipt}
 	case "send":
-		receipt, err := b.Send(ctx, caller, r.ID, r.Target, r.Body)
+		receipt, err := b.Send(ctx, caller, r.ID, Route{Target: r.Target, Agent: r.Agent}, r.Body)
 		if err != nil {
 			return protocolError(err, !strings.Contains(r.Target, ":"))
 		}

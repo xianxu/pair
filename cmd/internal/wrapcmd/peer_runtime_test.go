@@ -82,7 +82,7 @@ func TestPeerRuntimeBrokerToWrapperSubmitsOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("admission %+v %v", accepted, err)
 	}
-	if _, err := broker.Send(lifetime, from, "runtime-second", to.Slot, "Another instruction"); !errors.Is(err, couchmessage.ErrRecipientBusy) {
+	if _, err := broker.Send(lifetime, from, "runtime-second", couchmessage.Route{Target: to.Slot}, "Another instruction"); !errors.Is(err, couchmessage.ErrRecipientBusy) {
 		t.Fatalf("pending message not preserved: %v", err)
 	}
 	if !waitFor(time.Second, func() bool { return receiver.receipt().Message.ID == accepted.Message.ID }) {

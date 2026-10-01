@@ -3,6 +3,7 @@ package couchmessage
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 	"sync"
@@ -41,11 +42,12 @@ type SlotActor struct {
 	cancel      context.CancelFunc
 }
 type admission struct {
-	from         Binding
-	target, body string
-	done         chan struct{}
-	receipt      Receipt
-	err          error
+	from    Binding
+	route   Route
+	body    string
+	done    chan struct{}
+	receipt Receipt
+	err     error
 }
 type deliveryJob struct{ cancel context.CancelFunc }
 type Broker struct {
@@ -54,12 +56,31 @@ type Broker struct {
 	cancel       context.CancelFunc
 	now          func() time.Time
 	resting      func(context.Context, Binding) (bool, error)
+	aliases      func(context.Context) (map[string]string, error)
 	actors       map[Binding]*SlotActor
 	receipts     map[string]Receipt
-	destinations map[string]string
+	destinations map[string]Route
 	admissions   map[string]*admission
 	jobs         map[string]*deliveryJob
 	workers      sync.WaitGroup
+}
+
+// SetAliases installs the repository alias source (family -> alias). It must be
+// called before the broker serves requests; nil means no aliases.
+func (b *Broker) SetAliases(aliases func(context.Context) (map[string]string, error)) {
+	b.aliases = aliases
+}
+
+// readAliases runs outside the broker lock: the source may do store IO.
+func (b *Broker) readAliases(ctx context.Context) (map[string]string, error) {
+	if b.aliases == nil {
+		return nil, nil
+	}
+	aliases, err := b.aliases(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("read repository aliases: %w", err)
+	}
+	return aliases, nil
 }
 
 func NewBroker(parent context.Context, now func() time.Time, resting func(context.Context, Binding) (bool, error)) *Broker {
@@ -70,7 +91,7 @@ func NewBroker(parent context.Context, now func() time.Time, resting func(contex
 		now = time.Now
 	}
 	ctx, cancel := context.WithCancel(parent)
-	return &Broker{ctx: ctx, cancel: cancel, now: now, resting: resting, actors: map[Binding]*SlotActor{}, receipts: map[string]Receipt{}, destinations: map[string]string{}, admissions: map[string]*admission{}, jobs: map[string]*deliveryJob{}}
+	return &Broker{ctx: ctx, cancel: cancel, now: now, resting: resting, actors: map[Binding]*SlotActor{}, receipts: map[string]Receipt{}, destinations: map[string]Route{}, admissions: map[string]*admission{}, jobs: map[string]*deliveryJob{}}
 }
 
 // apply is called only under mu. Terminal receipts cannot be rewritten by late
@@ -361,11 +382,20 @@ func (b *Broker) Actors(parent context.Context, caller Binding) ([]Candidate, er
 	if !valid {
 		return nil, ErrUnavailable
 	}
+	aliases, err := b.readAliases(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range rows {
+		if family, _, err := parseSlot(rows[i].Binding.Slot); err == nil {
+			rows[i].Alias = aliases[family]
+		}
+	}
 	return rows, nil
 }
 
 // Send acknowledges mailbox admission, never model or task completion.
-func (b *Broker) Send(parent context.Context, from Binding, id, target, body string) (Receipt, error) {
+func (b *Broker) Send(parent context.Context, from Binding, id string, route Route, body string) (Receipt, error) {
 	ctx, cancel := context.WithTimeout(parent, AdmissionTimeout)
 	defer cancel()
 	stop := context.AfterFunc(b.ctx, cancel)
@@ -383,7 +413,7 @@ func (b *Broker) Send(parent context.Context, from Binding, id, target, body str
 		return Receipt{}, ErrUnavailable
 	}
 	if old, ok := b.receipts[id]; ok {
-		same := old.Message.From == from && old.Message.Body == body && b.destinations[id] == target
+		same := old.Message.From == from && old.Message.Body == body && b.destinations[id] == route
 		b.mu.Unlock()
 		if !same {
 			return Receipt{}, errors.New("conflicting message ID")
@@ -391,7 +421,7 @@ func (b *Broker) Send(parent context.Context, from Binding, id, target, body str
 		return old, nil
 	}
 	if existing := b.admissions[id]; existing != nil {
-		same := existing.from == from && existing.body == body && existing.target == target
+		same := existing.from == from && existing.body == body && existing.route == route
 		b.mu.Unlock()
 		if !same {
 			return Receipt{}, errors.New("conflicting message ID")
@@ -407,10 +437,10 @@ func (b *Broker) Send(parent context.Context, from Binding, id, target, body str
 		b.mu.Unlock()
 		return Receipt{}, errors.New("receipt capacity reached")
 	}
-	pending := &admission{from: from, target: target, body: body, done: make(chan struct{})}
+	pending := &admission{from: from, route: route, body: body, done: make(chan struct{})}
 	b.admissions[id] = pending
 	b.mu.Unlock()
-	receipt, err := b.admit(ctx, from, id, target, body)
+	receipt, err := b.admit(ctx, from, id, route, body)
 	b.mu.Lock()
 	pending.receipt, pending.err = receipt, err
 	delete(b.admissions, id)
@@ -418,8 +448,12 @@ func (b *Broker) Send(parent context.Context, from Binding, id, target, body str
 	b.mu.Unlock()
 	return receipt, err
 }
-func (b *Broker) admit(ctx context.Context, from Binding, id, target, body string) (Receipt, error) {
-	family := !strings.Contains(target, ":")
+func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route, body string) (Receipt, error) {
+	family := !strings.Contains(route.Target, ":")
+	aliases, err := b.readAliases(ctx)
+	if err != nil {
+		return Receipt{}, err
+	}
 	tried := map[Binding]bool{}
 	for {
 		if err := ctx.Err(); err != nil {
@@ -448,7 +482,7 @@ func (b *Broker) admit(ctx context.Context, from Binding, id, target, body strin
 			}
 			candidates = append(candidates, c)
 		}
-		to, err := ResolveRecipient(target, candidates, b.now())
+		to, err := ResolveRecipient(route, candidates, aliases, b.now())
 		if err != nil {
 			b.mu.Unlock()
 			return Receipt{}, err
@@ -457,7 +491,7 @@ func (b *Broker) admit(ctx context.Context, from Binding, id, target, body strin
 		a.reservation = id
 		seq := a.sequence
 		b.mu.Unlock()
-		receipt, err := b.tryAdmission(ctx, a, seq, from, id, target, body, family)
+		receipt, err := b.tryAdmission(ctx, a, seq, from, id, route, body, family)
 		if err == nil {
 			return receipt, nil
 		}
@@ -475,7 +509,7 @@ func (b *Broker) admit(ctx context.Context, from Binding, id, target, body strin
 		tried[to] = true
 	}
 }
-func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, from Binding, id, target, body string, family bool) (Receipt, error) {
+func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, from Binding, id string, route Route, body string, family bool) (Receipt, error) {
 	// The binding itself never changes on a SlotActor; reconnect installs a new
 	// actor retaining the old actor's model state.
 	to := a.binding
@@ -515,7 +549,7 @@ func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, fro
 	if err = b.apply(a, Event{Kind: Admit, Binding: to, Message: m, At: now}); err != nil {
 		return Receipt{}, err
 	}
-	b.destinations[id] = target
+	b.destinations[id] = route
 	a.reservation = ""
 	a.inbox <- m
 	return b.receipts[id], nil
