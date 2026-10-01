@@ -85,3 +85,9 @@ queue bounds/cancellation tests and the existing real-PTY Couch soak (eight
 iterations, maximum input-visible latency 1.79ms). The live host measures
 191 columns by 54 rows; use that geometry for the pressure trials so a small
 fixture cannot hide whole-screen processing costs. Go version: 1.27.1 darwin/arm64.
+
+Harness inspection identified a confound before full trials: measuring the menu
+only after displayed ACK could place the control probe after pressure ended.
+Use fixed-time menu input while pressure is active, record whether pane ACK was
+visible before the overlay, and never infer delay from a deliberately hidden
+pane. Limit snapshot observation cadence to avoid making the observer the load.
