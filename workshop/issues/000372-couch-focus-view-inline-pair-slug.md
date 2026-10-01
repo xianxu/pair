@@ -1,14 +1,15 @@
 ---
 id: 000372
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-01
 updated: 2026-10-01
 estimate_hours:
-card_mirror: '109a5eaa3268f3e535b754d5366a7da9c4af50ff' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '24019c04c2f5a83618c7145be04cbec009848e7e' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-01T15:09:24-07:00
 flow: {kind: full, provenance: inferred}
+actual_hours: 0.85
 ---
 
 # couch focus view: show pair-slug inline
