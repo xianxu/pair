@@ -8,6 +8,7 @@ updated: 2026-10-01
 estimate_hours:
 card_mirror: '2ae76a809058ce46db3ac65d30c641cd6664eea7' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-01T15:41:41-07:00
+flow: {kind: quick, provenance: inferred, spec: "41f4a89d", done: "ee6e183f"}
 ---
 
 # Isolate Couch pane latency under output pressure
