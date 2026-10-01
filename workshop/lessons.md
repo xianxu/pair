@@ -389,3 +389,4 @@ proof; record the surprising case so the next change starts from evidence.
 - Before close, reconcile proposed entity names and file paths with implemented
   symbols, including stateless functions that replaced planned objects. Record
   the final mapping as an explicit plan revision. (#353 BR-4)
+- When acceptance promises a fallback “or none,” exercise both populated and empty fallback states through the public command and assert stored as well as displayed values. (#357 BR-3)
