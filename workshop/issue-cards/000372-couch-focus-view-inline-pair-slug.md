@@ -1,6 +1,6 @@
 ---
 id: 000372
-status: codecomplete
+status: done
 created: 2026-10-01
 updated: 2026-10-01
 estimate_hours:
@@ -24,6 +24,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: a7772a0c1cf3b2c3d75bc890da35b7a33d86ceb6
         evidence_commit: 6f4d666042fb094e24c2a454ee06ab3ffa11f57e
+        landed_commit: 18cd9a3aba2e4fdbfb7074601b51914bc41f9256
 ---
 
 # couch focus view: show pair-slug inline
