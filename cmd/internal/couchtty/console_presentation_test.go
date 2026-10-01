@@ -86,16 +86,16 @@ func TestGroupedStatusSubdirectoryFallbackSurvivesInventory(t *testing.T) {
 }
 
 func TestGroupedStatusClickActivatesExactNativePane(t *testing.T) {
-	con, writer, _, _ := newMouseFixture(t)
 	one, two := groupedRow("/workspace/pair", 1, "one"), groupedRow("/workspace/pair", 2, "two")
-	con.mu.Lock()
-	con.panes["c1"].thread, con.panes["c1"].tree = one.Address, couchcore.Worktree(one.StartingPath)
-	con.panes["c2"].thread, con.panes["c2"].tree = two.Address, couchcore.Worktree(two.StartingPath)
-	con.order = []string{"c2", "c1"}
-	con.menu = NewMenuState([]couchcore.ActionableThreadSummary{two, one}, one.Address)
-	con.mu.Unlock()
-	con.SetOperationDispatcher(con.ExecuteConsoleOperation)
-	con.repaint()
+	con, writer, _, _ := newMouseFixture(t, func(con *Console) {
+		con.mu.Lock()
+		con.panes["c1"].thread, con.panes["c1"].tree = one.Address, couchcore.Worktree(one.StartingPath)
+		con.panes["c2"].thread, con.panes["c2"].tree = two.Address, couchcore.Worktree(two.StartingPath)
+		con.order = []string{"c2", "c1"}
+		con.menu = NewMenuState([]couchcore.ActionableThreadSummary{two, one}, one.Address)
+		con.mu.Unlock()
+		con.SetOperationDispatcher(con.ExecuteConsoleOperation)
+	})
 	var column int
 	waitFor(t, "grouped tab spans", func() bool {
 		con.mu.Lock()

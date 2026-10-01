@@ -51,7 +51,7 @@ prefix (ARCH-DRY). Preserve message order and existing navigation/click ownershi
 
 - [x] Add rendering regressions for both slot depths, empty messages, clipping, and ownership.
 - [x] Render tree connectors using the row's existing presentation indent; update atlas.
-- [ ] Run couchtty tests including race checks and close with the SDLC review.
+- [x] Run couchtty tests including race checks; submit to the SDLC close review.
 
 ## Log
 
@@ -77,6 +77,11 @@ the scroll start by the owner row. Full couchtty tests and `make build` passed.
 The full race check exposed a pre-existing grouped-tab fixture race: it mutates
 pane identity after Console.Run starts. Move configuration before startup and
 rerun the race suite; production pane identity remains unchanged.
+
+Verification after fixture repair: full couchtty tests and race suite pass;
+focused grouped-click race regression passes ten runs. `make build` and
+`git diff --check` pass. Updated grouped-rendering fixtures and atlas. The
+SDLC close gate owns the final review.
 
 ## Revisions
 

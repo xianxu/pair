@@ -847,7 +847,11 @@ comfortable widths and disagree at exactly the narrow ones, which is where a
 mis-mapped click is least catchable by eye.
 
 In the switcher the unit is the ACTOR, never the line: an actor occupies its own
-row plus one per pending attention message, so `RenderMenuView` returns
+row plus one per pending attention message. Notifications have `├─`/`└─`
+connectors aligned to the owning row's label,
+including numbered slots' indentation. Empty messages draw no row; the final
+nonempty message gets `└─` before clipping. An oversized selected group keeps
+its owner visible and clips trailing messages. `RenderMenuView` returns
 `ActorExtent` runs derived from the `actorStart` boundary the scroll window
 already uses. They are re-based there rather than in `renderRootMenuFrame`,
 because the notice is inserted at index 1 and shifts every actor row down — an
