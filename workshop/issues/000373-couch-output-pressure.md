@@ -141,3 +141,15 @@ Verification: `go test -race ./cmd/internal/couchtty -count=1` passed in
 23.827s, including the ordinary real-PTY pressure control and joined cleanup.
 Publication bounds, sticky failure and child-exit/final-publication focused tests
 also passed. `git diff --check` passed. No production behavior was changed.
+
+## Revisions
+
+### 2026-10-01 15:58 PDT — boundary review requires stronger fixture guarantees
+
+The review reproduced an intermittent emulator teardown race despite the earlier
+passing suite. It also identified that blocking observations could escape the
+trial timeout and a side-channel completion report does not prove the PTY stream
+has drained. Preserve the measured latency table as preliminary evidence; rerun
+after adding bounded execution and per-child terminal completion checks. The
+previous recovery timing is provisional. README now documents the opt-in command.
+These are fixture corrections within the original investigation, not a runtime fix.
