@@ -8,7 +8,7 @@ updated: 2026-10-01
 estimate_hours:
 card_mirror: '109a5eaa3268f3e535b754d5366a7da9c4af50ff' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-01T15:09:24-07:00
-flow: {kind: quick, provenance: inferred, spec: "127580d7", done: "1f629565"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # couch focus view: show pair-slug inline
@@ -107,6 +107,8 @@ mirrors any edits back into `slug-<tag>`. Couch never reads either file.
 ## Log
 
 ### 2026-10-01
+- 2026-10-01: closed — operator smoke test on :0 (60bb0490) passed: focus rows show name ◆ description ◆ slug, slug refreshes after a turn with no notification; new slugline/couchcore/couchtty tests pass (mutation-checked); go test ./... fails only the 3 known main-base failures; artifactpath violations identical to origin/main; review verdict: SHIP
+- 2026-10-01: flow upgraded quick → full — 135 added lines in code files (limit 100)
 
 - Built per Plan (6e20f14d). `slugline` owns the `=== L | R ===` format;
   slugcmd's `validateSlug`/`rightOf` and their tests moved there (ARCH-DRY).
