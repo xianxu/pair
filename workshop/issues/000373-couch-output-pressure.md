@@ -51,6 +51,23 @@ runtime storage or external services (ARCH-CONSTRAINTS, ARCH-SECURE, ARCH-FUNERA
 - [ ] Run baseline and single-factor pressure trials; inspect profiles only where needed.
 - [ ] Record findings, limitations and justified next steps; verify and close investigation.
 
+Experiment controls: use the same 12 children and geometry in paired trials,
+three repetitions, bounded two-second pressure windows and five-second recovery
+deadlines. Compare baseline output with a bounded burst, the same burst with
+GOMAXPROCS=1, and baseline output with a 50ms host-write delay. GOMAXPROCS limits
+only Couch's Go execution capacity, not PTY subprocess CPU. Define a selective
+stall as pane latency exceeding one second while rendered switcher response
+stays below 100ms; report all raw latencies even if neither threshold is crossed.
+These diagnostic thresholds distinguish visible freezing from ordinary jitter;
+they do not equate a one-second reproduction with the reported minute-long stalls.
+
+Measure input receipt through an independent bounded child side channel, output
+ingestion separately from the final host screen, and switcher latency by sending
+the real shortcut through host input and observing the rendered menu. A forced
+host delay is a backpressure control, not proof of the incident's cause. Workload
+rates, byte budgets and exact commands must accompany results. Join every helper
+on completion or cancellation (ARCH-ORDER); make no production behavior change.
+
 
 ## Log
 
@@ -59,3 +76,6 @@ runtime storage or external services (ARCH-CONSTRAINTS, ARCH-SECURE, ARCH-FUNERA
 Operator requested testing the throughput hypothesis in isolation. This investigation
 is distinct from #370's agent-wrapper CPU work: the symptom affects sibling panes.
 
+Spec review identified two validity requirements, now in Plan: independently
+observe child receipt versus displayed output, and predefine the intervention,
+latency criterion, repetitions and recovery bounds before running trials.
