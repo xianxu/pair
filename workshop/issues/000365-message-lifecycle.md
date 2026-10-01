@@ -66,7 +66,7 @@ Items in order: spec/plan; Registry reducer; session transport + client + peer P
 
 Durable plan: `workshop/plans/000365-message-lifecycle-plan.md` (awaiting operator approval).
 
-- [ ] M1 — Baseline: idle probe-count acceptance test (skipped red) + live idle measurement (`probes/messageidle`)
+- [x] M1 — Baseline: idle probe-count acceptance test (skipped red) + live idle measurement (`probes/messageidle`)
 - [ ] M2 — Lifecycle protocol: pure Registry reducer, registry socket sessions, Console pane hooks, wrapper session client; delete heartbeat/reconcile/verification window
 - [ ] M3 — Failure semantics: crash/interleaving suite, wrapper duplicate-ID guard, broker tombstone removal, after-measurement, atlas docs
 
@@ -77,3 +77,5 @@ Durable plan: `workshop/plans/000365-message-lifecycle-plan.md` (awaiting operat
 Captured from the performance → messaging guarantees → SDLC ownership/observability → recovery discussion. No implementation started.
 
 Claimed; mapped the messaging path. Root cost: 1 s wrapper heartbeat + 1 s reconcile + full checks at Reserve/Deliver, each full check = 2 ownership probes (4× ps, 2× zellij list-panes); #360 bounded it with a 10 s window. Console already owns pane install/exit but never tells messaging. Plan replaces polling with a pure Registry reducer fed by persistent wrapper sessions (EOF = death/exec) and Console pane events (ARCH-DRY, ARCH-ORDER).
+
+M1: in-tree idle baseline = 24 ownership probes + 6 git status per wrapper per idle minute. Live (read-only, 11 wrappers): Couch 101.6 CPU-s / 120 s; 639 ps, 179 zellij, 141 `sdlc workspace` children. The `sdlc` count points to failing registrations being re-admitted every second. See `workshop/plans/000365-message-lifecycle-measurements.md`.

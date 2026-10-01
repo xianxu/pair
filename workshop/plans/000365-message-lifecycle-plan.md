@@ -246,5 +246,7 @@ Registry socket lives in the existing private 0700 per-uid dir. Hello bindings a
 
 ## Revisions
 
+- 2026-10-01 — M1 execution: the ticker seam in Task 1.1 was unnecessary (the test drives `reconcile` directly with the fake clock). The live baseline was taken read-only from the already-running Couch: CPU-seconds + 10 Hz child poll + `sample`. The operator found relaunching under a PATH shim too heavy. `probes/messageidle` stays as the optional exact-count instrument.
+
 - 2026-10-01 — plan-quality gate advisories: Dormant sessions re-admit on a targeted send; family status fan-out budget; thread-entry removal on PaneExited.
 - 2026-10-01 — fresh-eyes plan review (pre-approval). Delta: Console subscription replays existing panes (startup pane attaches before the service starts); coalescing per-thread mailbox instead of a lossy channel with global fallback; admission results tagged by pane handle; Registry owns same-slot displacement; identical-binding re-registration forces Disconnect→Connect; `launch` split so file evidence stays at use and only the ownership probe moves to admission; listing freshness = open admitted session; family retry checks candidates' retained receipts; tombstone removal does not carry allowance; snapshot publication for request goroutines; M1 test rewritten (not just un-skipped) in M2; live profile recipe added to the measurement.
