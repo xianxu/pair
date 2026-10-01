@@ -136,9 +136,12 @@ then accepts one delivery commit. The broker polls outcome receipts; it never
 retries PTY input after uncertainty. Pair's input owner arbitrates ordinary
 typing, image admission and automatic paste/submit. Unknown or occupied
 composers wait within the delivery deadline. Interference cancels automatic
-submission and leaves visible text for inspection. Qualified versions are
-Claude Code 2.1.286 and Codex CLI 0.159.2, backed by fixtures under
-`wrapcmd/testdata/peer/` and `TestPeerLiveConformance`. Short-message submission
+submission and leaves visible text for inspection. Receiver profiles exist for
+Claude Code and Codex CLI at any installed version (`peerReceiverAgents`; the
+exact-version allowlist was removed in #360 after auto-updates silently dropped
+slots). Fixtures under `wrapcmd/testdata/peer/` and `TestPeerLiveConformance`
+were captured on Claude Code 2.1.286 and Codex CLI 0.159.2; per-version
+evidence from daily use is #368. Short-message submission
 has live evidence for both; deterministic wrapping is matched conservatively.
 Collapsed paste summaries remain unsubmitted and expire. Human Couch acceptance
 remains a separate step.

@@ -405,9 +405,10 @@ require a resting branch, 30 seconds without operator input or agent output,
 and delivery capacity. Exact sends can clarify work in an occupied slot. Pair
 inserts input only at a qualified empty agent composer; existing composer text,
 images, menus and unknown states prevent automatic submission. Unchanged text
-in the separate draft pane does not block delivery. Qualified versions are
-Claude Code 2.1.286 and Codex CLI 0.159.2; other versions
-remain manual until their fixture and live checks pass. Short messages submit
+in the separate draft pane does not block delivery. Claude Code and Codex CLI
+receive at any installed version; fixtures and live checks were captured on
+Claude Code 2.1.286 and Codex CLI 0.159.2, and evidence for newer versions is
+tracked in #368. Short messages submit
 automatically. A collapsed paste summary cannot prove the complete message, so
 that attempt expires without submission and leaves the text for inspection.
 Prefer short coordination messages pointing to repository artifacts. Human

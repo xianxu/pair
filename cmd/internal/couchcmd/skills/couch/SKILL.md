@@ -67,7 +67,7 @@ For automatic discovery, the operator can save that output as
 `couch/SKILL.md` in the agent's configured skill directory. Couch does not edit
 agent configuration or install the skill automatically.
 
-Only registered, qualified Pair receiver profiles can accept delivery. Unknown
-composer, menu, image, or input state waits or refuses; never force paste.
-Check the repository's qualification evidence for tested versions. This skill
-does not claim that a receiver version has passed live smoke or human acceptance.
+Only agents with a registered Pair receiver profile (Claude Code, Codex CLI)
+can accept delivery, at any installed version. Unknown composer, menu, image, or
+input state waits or refuses; never force paste. This skill does not claim that
+a receiver version has passed live smoke or human acceptance.
