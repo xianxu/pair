@@ -236,11 +236,11 @@ Registry socket lives in the existing private 0700 per-uid dir. Hello bindings a
 - [ ] Operator smoke test (live): two slots, send, detach/reattach, relaunch one slot, restart Couch, send again.
 - [ ] `sdlc close --issue 365 --verified '…'`.
 
-## Open questions for the operator
+## Operator decisions (2026-10-01)
 
-1. **Legacy wrappers** — refuse old `register` heartbeats (slots reachable only after relaunch), or keep a legacy path that still polls until every wrapper is new? Plan assumes refuse.
-2. **Detached slots** — keep #353's rule that a slot with no live Couch pane cannot receive (plan keeps it, now via pane events)?
-3. **Activity push** — acceptable to have wrappers push ≤1 small frame/s while their agent is producing output, to keep `--actors` quiet-time current without polling?
+1. **Legacy wrappers** — refuse old `register` heartbeats with `unsupported` (no probes); those slots become reachable after relaunch.
+2. **Detached slots** — keep #353's rule: no live Couch pane, no delivery (now enforced via pane events).
+3. **Activity push** — accepted: ≤1 frame/s per wrapper while its agent is producing output, none idle. Constraint (#370): the PTY output path only sets a dirty flag; a separate timer-driven sender coalesces, so no per-chunk work is added to the wrapper's hot path. Test: `TestPeerActivityPushCoalesces` (1,000 output chunks in 1 s → ≤1 frame).
 
 ## Revisions
 
