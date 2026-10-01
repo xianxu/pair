@@ -423,7 +423,7 @@ inventories remain historical where the amendments superseded their semantics.
   focused race checks and rebuilt binaries.
 - [x] Operator accepts live Couch send/reply and family dispatch using arithmetic
   requests; actual issue claiming was not exercised (accepted smoke scope).
-- [ ] Close through SDLC with the human evidence and its mandatory boundary review.
+- [x] Close through SDLC with the human evidence and its mandatory boundary review.
 
 ## Revisions
 
