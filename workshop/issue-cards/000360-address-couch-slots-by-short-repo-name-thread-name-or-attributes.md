@@ -20,6 +20,6 @@ tracker:
 started: 2026-09-30T22:55:02-07:00
 ---
 
-# Address couch slots by short repo name, thread name, or attributes
+# Address couch slots by repository prefix, alias, or agent
 
 ## Problem
