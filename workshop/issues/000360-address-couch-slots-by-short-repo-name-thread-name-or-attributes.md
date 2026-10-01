@@ -1,12 +1,13 @@
 ---
 id: 000360
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-30
 updated: 2026-09-30
 estimate_hours:
-card_mirror: '235b6ad905e67326fca23fd66829bbf7b95076cb' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'bf10c6d2a0300e5bfd1aec15b37b6df18eafe524' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-09-30T22:55:02-07:00
 ---
 
 # Address couch slots by short repo name, thread name, or attributes
@@ -26,79 +27,62 @@ will want.
 
 ## Spec
 
-Two layers, deterministic first.
+A slot is a repository plus its Nth checkout, addressed `repo:N` and shown that
+way on the tab bar. Every surface that takes a slot reference — operation refs
+(`couch resume parley:1`), the switcher filter, and `couch --send-to` — resolves
+the repository part with one shared rule. Resolution stays deterministic and
+inside couch; no model is involved.
 
-1. **Names that resolve (the cheap part).**
-   - After a thread or slot is renamed (`couch name`), both its name and its
-     repository name address it. Renaming parley.nvim's slot to `parley`
-     makes `parley:1` work, and `parley.nvim:1` keeps working.
-   - A repository reference that matches no directory falls back to a unique
-     prefix of an enrolled repository's name: `parley:1` resolves to
-     `parley.nvim:1` without a rename. A prefix matching several repositories
-     is refused, listing them.
-   - A miss lists the candidates (repos, slot numbers, names) so the caller can
-     correct itself in one step.
-2. **Attribute selection.** Slot attributes (agent, repository, name, free or
-   busy) are selectable without naming a slot, e.g. "any free slot of `pair`
-   running claude". Proposed surface: a few explicit filters, such as
-   `--agent`, on the commands that take a slot, resolved inside couch so the
-   caller never reads the inventory to route. A machine-readable live-slot
-   inventory (`couch list --json` or equivalent) exists for inspection and
-   for the miss case.
-
-### Alternative to settle at design: an LLM resolver inside couch
-
-Proposed by the operator: couch builds a prompt from the live-slot inventory,
-the request and the couch skill, asks a small fast model for the command with
-an output schema, and runs it. It covers short names, attributes and any
-future attribute with no new code.
-
-Recommendation: don't put the model inside couch's routing; keep resolution
-deterministic and give the model the data instead.
-
-- **Keep operational state out of the sender's context.** The operator's
-  reason for a resolver inside couch: an agent should not have the latest
-  slot inventory dumped into its context on every route. Deterministic
-  resolution meets that too. The sender passes a short reference or filter
-  (`parley:1`, `--agent claude`), couch resolves it locally, and the sender
-  sees a short candidate list only on a miss. The full inventory is for
-  inspection, not something every dispatch reads.
-- **Wrong routing is costly and silent.** A dispatch injects text into another
-  agent's session. A deterministic resolver either finds one match or says
-  why not. A model can confidently pick the wrong slot, and an output schema
-  constrains the shape of the answer, not its truth.
-- **Couch must work offline and fast.** A network model on every resolution
-  adds latency, cost and a failure mode to a path that is local today
-  (couch must not degrade pair).
-- **Testability.** Deterministic resolution is unit-testable; model output
-  needs evals.
-
-The model approach could still serve free-form operator text typed into the
-couch switcher, as a fallback that only proposes a resolved command and runs
-it after the operator confirms. Decide at design whether that is in scope.
+1. **Repository name resolution** (one pure function, used by both the
+   operation resolver `couchcore.resolveSlotInput`/`enrolledPrimary` and the
+   message resolver `couchmessage.ResolveRecipient`):
+   - exact directory name or exact alias wins;
+   - otherwise a unique prefix of a directory name or alias resolves
+     (`parley:1` → `parley.nvim:1`);
+   - a prefix matching several repositories is refused, listing them;
+   - no match is refused with a bounded candidate list (repositories, and for
+     a slot miss the existing slot numbers), so the caller corrects in one step.
+   For operations the candidate set is the enrolled repositories; an exact
+   sibling directory under the fleet root keeps working as today, and the
+   prefix fallback applies only when that directory does not exist. For
+   messaging the candidate set is the live bindings' repositories.
+2. **Repository alias.** One optional alias per enrolled repository
+   (`xianxu.dev` → `blog`), set from the live `:0` row's "alias" action (the
+   slot-world replacement for rename, #363) and by a CLI form. It is a valid
+   repository token, unique across enrolled repositories and their directory
+   names; empty clears it. It works anywhere the repository name does
+   (`blog:1`, `--send-to blog`), and the tab bar and switcher label slots
+   `alias:N`.
+3. **Agent filter for messaging.** `couch --send-to REPO --agent NAME` picks a
+   free slot of that repository running that agent. Repository identity is
+   checked against all live bindings before the agent filter (#353 BR-5). With
+   an exact `repo:N` target, a mismatched agent refuses. An agent filter
+   requires a repository; there is no cross-repository "any slot".
+4. **Inventory.** `couch --actors --json` already lists live slots with their
+   agent; it gains the alias. Senders never need it to route: only a miss
+   returns candidates.
+5. **Out of scope.** Thread names as addresses (the operator decided slots,
+   not threads, are the addressing unit; rename itself retires in #363), an
+   LLM resolver, the switcher's action model (#363), and slot removal (#364).
 
 ## Done when
 
-- `parley:1` resolves to `parley.nvim:1` when `parley` is a unique prefix, and
-  an ambiguous prefix is refused with the candidates listed.
-- After renaming a slot's thread, both the new name and the repository name
-  address it.
-- A reference that resolves to nothing lists the candidates.
-- A free slot can be selected by agent (and repository) without naming it,
-  with a test where two free slots run different agents.
-- Routing never requires the sender to read the slot inventory: a reference or
-  filter resolves inside couch, and only a miss returns candidates.
-- The couch skill tells agents the short forms and filters.
+- `parley:1` resolves to `parley.nvim:1` for operations and for `--send-to`,
+  with a test that delivers to the resolved slot; an ambiguous prefix is
+  refused with the candidates listed.
+- After aliasing `xianxu.dev` to `blog`, `blog:1` and `--send-to blog` reach
+  xianxu.dev's slots, `xianxu.dev:1` still works, and the tab bar and switcher
+  show `blog:1`.
+- An alias colliding with another repository's name or alias is refused.
+- A reference that resolves to nothing lists bounded candidates.
+- `--send-to pair --agent codex` picks the free codex slot when two free slots
+  run different agents, and refuses when none runs it.
+- The couch skill, `couch --help`, README and atlas describe prefixes, aliases
+  and `--agent`.
 
 ## Plan
 
-- [ ] Settle the LLM-resolver alternative (recommendation: out of routing; at
-      most a confirm-first switcher fallback).
-- [ ] Name resolution: thread name and repository name, unique-prefix fallback,
-      candidate list on a miss.
-- [ ] Machine-readable live-slot inventory with attributes.
-- [ ] Attribute filters, starting with agent.
-- [ ] Couch skill update.
+- [ ] Durable plan: `workshop/plans/000360-address-couch-slots-by-short-repo-name-thread-name-or-attributes-plan.md`.
 
 ## Log
 
@@ -115,4 +99,18 @@ it after the operator confirms. Decide at design whether that is in scope.
   inventory out of the sending agent's context on every route. Folded in as
   a requirement; deterministic filters resolved inside couch meet it, with
   candidates returned only on a miss.
+- Design talk with the operator: `parley:1` failed in `--send-to` too (exact
+  family compare in `ResolveRecipient`). Thread names are not the addressing
+  unit: a slot is repo + Nth checkout. Rename becomes a repository alias on the
+  live `:0` row. The switcher action cleanup moved to #363, slot removal to
+  #364.
 
+## Revisions
+
+### 2026-09-30 — rescoped after design talk
+
+- Dropped: thread names addressing slots (`name:N`), and the LLM resolver
+  alternative (decided: out of routing; no switcher fallback planned).
+- Added: per-repository alias, shared by addressing and the tab bar label.
+- Kept: unique-prefix fallback, candidates on miss, `--agent` filter, live
+  inventory (already `couch --actors --json`).
