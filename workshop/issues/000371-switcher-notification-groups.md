@@ -8,6 +8,7 @@ updated: 2026-10-01
 estimate_hours:
 card_mirror: 'b12c48bdd8d39bceeb6e1e464abb4b5ed89d8023' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-01T13:27:30-07:00
+flow: {kind: quick, provenance: inferred, spec: "70635be1", done: "698d336d"}
 ---
 
 # Group switcher notifications under their originating slot
@@ -63,3 +64,8 @@ using existing row identity and indentation (ARCH-DRY, ARCH-PURPOSE). Existing
 terminal bounds and sanitization remain authoritative (ARCH-CONSTRAINTS,
 ARCH-SECURE); the change holds no new state between events (ARCH-ORDER) and
 creates no durable runtime artifacts (ARCH-FUNERAL).
+
+Spec review: no blockers. Connectors include the existing two-cell selection
+gutter and align at column `2 + entry.Indent`. Keep matching-description rows
+before notifications. Determine the last nonempty message before viewport
+clipping; test normal and focus views. These clarify the proposed layout.
