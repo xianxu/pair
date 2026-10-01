@@ -36,10 +36,16 @@ ARCH-PURPOSE: state the user-visible failure each retained check prevents. ARCH-
 
 ## Plan
 
-Implementation plan to be designed after issue claim and start-plan; these are requirements, not an approved implementation plan.
+Durable plan: `workshop/plans/000365-message-lifecycle-plan.md` (awaiting operator approval).
+
+- [ ] M1 — Baseline: idle probe-count acceptance test (skipped red) + live idle measurement (`probes/messageidle`)
+- [ ] M2 — Lifecycle protocol: pure Registry reducer, registry socket sessions, Console pane hooks, wrapper session client; delete heartbeat/reconcile/verification window
+- [ ] M3 — Failure semantics: crash/interleaving suite, wrapper duplicate-ID guard, broker tombstone removal, after-measurement, atlas docs
 
 ## Log
 
 ### 2026-10-01
 
 Captured from the performance → messaging guarantees → SDLC ownership/observability → recovery discussion. No implementation started.
+
+Claimed; mapped the messaging path. Root cost: 1 s wrapper heartbeat + 1 s reconcile + full checks at Reserve/Deliver, each full check = 2 ownership probes (4× ps, 2× zellij list-panes); #360 bounded it with a 10 s window. Console already owns pane install/exit but never tells messaging. Plan replaces polling with a pure Registry reducer fed by persistent wrapper sessions (EOF = death/exec) and Console pane events (ARCH-DRY, ARCH-ORDER).
