@@ -55,6 +55,28 @@ rounds:
           round: 2
       recipe: small-diff-review
       blocked: true
+    - "n": 3
+      timestamp: "2026-10-01T16:10:09-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: terminal_pressure_test.go:230–250 joins emulator readers and writers before closing emulator state. The full package race suite passed.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: Blocking trial operations use tracked cancellation; recovery shares the window deadline. The stalled-operation regression passed in the full race suite.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: terminal_pressure_test.go:491–554 shares recovery checks between trials and the withheld-output regression. It checks every child's completion marker, exact byte accounting, publication flush and selected final presentation. A scratch overlay replacing recovery with immediate success failed with “got <nil>, want deadline exceeded”; the unchanged regression passed.
+          round: 3
+        - id: BR-4
+          disposition: addressed
+          note: README.md:1090–1101 documents the opt-in invocation and limitations, matching the environment guard and 24-trial matrix. atlas/couch.md documents the experiment.
+          round: 3
+      recipe: small-diff-review
+      blocked: false
 ---
 
 # Gate ledger — pair#373 (boundary-review)
@@ -84,6 +106,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-3 — not-addressed — terminal_pressure_test.go:489–498 checks marker absence and releases trailing output before invoking recovery checks. Removing lines 500–524 in a scratch Go overlay left TestCouchPressureTrailingPTYOutput passing three repetitions, including one reporting ingested_raw=2061 instead of the required 2087 bytes. The implementation adds completion checks, but the required fail-without-fix regression is missing. Exercise the actual recovery operation while trailing output remains withheld and assert it cannot report success.
 - BR-4 — addressed — README.md:1090–1101 now documents the opt-in command and limitations. The invocation matches TestCouchOutputPressure's environment guard and 2×4×3 matrix; atlas/couch.md:2207–2218 documents the same surface.
 
+## Round 3 — 2026-10-01T16:10:09-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — terminal_pressure_test.go:230–250 joins emulator readers and writers before closing emulator state. The full package race suite passed.
+- BR-2 — addressed — Blocking trial operations use tracked cancellation; recovery shares the window deadline. The stalled-operation regression passed in the full race suite.
+- BR-3 — addressed — terminal_pressure_test.go:491–554 shares recovery checks between trials and the withheld-output regression. It checks every child's completion marker, exact byte accounting, publication flush and selected final presentation. A scratch overlay replacing recovery with immediate success failed with “got <nil>, want deadline exceeded”; the unchanged regression passed.
+- BR-4 — addressed — README.md:1090–1101 documents the opt-in invocation and limitations, matching the environment guard and 24-trial matrix. atlas/couch.md documents the experiment.
+
 ## Open findings
 
-- **BR-3** [Important] `completion-evidence-before-success` Recovery is reported without proving all PTY output arrived
+(none — every finding has been disposed)

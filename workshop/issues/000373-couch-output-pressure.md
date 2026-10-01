@@ -76,6 +76,7 @@ on completion or cancellation (ARCH-ORDER); make no production behavior change.
 ## Log
 
 ### 2026-10-01
+- 2026-10-01: closed — 24-trial matrix passed: no selective stall, real-PTY burst display max 41.91ms, exact stream completion and physical final marker verified. Focused race controls passed 5.537s after shared recovery extraction; scratch mutation removing recovery checks correctly failed the trailing-PTY regression. README/atlas/issue preserve command, results and limits. No production fix claimed.; review verdict: SHIP
 
 Operator requested testing the throughput hypothesis in isolation. This investigation
 is distinct from #370's agent-wrapper CPU work: the symptom affects sibling panes.
