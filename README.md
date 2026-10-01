@@ -1087,7 +1087,20 @@ env -u PAIR_TAG -u PAIR_SESSION_ID -u PAIR_DATA_DIR \
   -count=1 -timeout=35m -v
 ```
 
-The harnesses keep bounded current-screen evidence and log progress at most once
+For an isolated two-second output-pressure matrix (24 trials), run:
+
+```sh
+PAIR_COUCH_PRESSURE=1 go test ./cmd/internal/couchtty \
+  -run '^TestCouchOutputPressure$' -count=1 -v -timeout=180s
+```
+
+This compares fake and real-PTY children under baseline traffic, bursts, one Go
+CPU and delayed host writes. It measures child receipt, visible ACK and switcher
+latency separately. It does not include Zellij, Ghostty, sustained full-screen
+redraws or system-wide CPU pressure; passing does not rule out live pane stalls.
+See [the experiment map](atlas/couch.md#isolated-terminal-pressure-experiment-373).
+
+The soak harnesses keep bounded current-screen evidence and log progress at most once
 per minute. Native Zellij reattachment/selection and nvim conformance are separate:
 
 ```sh

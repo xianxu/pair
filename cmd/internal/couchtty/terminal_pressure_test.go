@@ -63,6 +63,12 @@ func TestCouchPressurePTYChild(t *testing.T) {
 	burst := command[0] == 'B'
 	emitted := pressureProduce(context.Background(), burst, func(p []byte) { _, _ = os.Stdout.Write(p) }, ack)
 	fmt.Fprintf(receipt, "D %d\n", emitted)
+	if os.Getenv("PAIR_COUCH_PRESSURE_TRAILING") == "true" {
+		if _, err := io.ReadFull(start, command[:]); err != nil {
+			return
+		}
+	}
+	fmt.Print(pressureCompletion(emitted))
 	// Stay alive until the parent closes the control pipe, avoiding an exit paint
 	// in the recovery window. Process teardown joins the stdin reader too.
 	_, _ = start.Read(command[:])
@@ -138,9 +144,52 @@ func TestCouchOutputPressure(t *testing.T) {
 // channel without the twelve-child pressure matrix.
 func TestCouchPressureControl(t *testing.T) { runPressureTrial(t, "pty", "control") }
 
+// pressureAwait gives even context-free observations a deadline. The caller
+// owns cancellation of the resources used by work and joins every worker.
+func pressureAwait(ctx context.Context, workers *sync.WaitGroup, work func() error) error {
+	done := make(chan error, 1)
+	workers.Add(1)
+	go func() { defer workers.Done(); done <- work() }()
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func pressureCompletion(emitted uint64) string { return fmt.Sprintf("\x1b[4;1HCOMPLETE%012d", emitted) }
+
+func TestCouchPressureStalledOperation(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+	reader, writer := io.Pipe()
+	defer reader.Close()
+	defer writer.Close()
+	var workers sync.WaitGroup
+	start := time.Now()
+	err := pressureAwait(ctx, &workers, func() error { _, err := writer.Write([]byte("blocked")); return err })
+	if err != context.DeadlineExceeded {
+		t.Fatalf("stalled write returned %v, want deadline", err)
+	}
+	reader.CloseWithError(ctx.Err())
+	joined := make(chan struct{})
+	go func() { workers.Wait(); close(joined) }()
+	select {
+	case <-joined:
+	case <-time.After(time.Second):
+		t.Fatal("stalled operation did not join")
+	}
+	if time.Since(start) > time.Second {
+		t.Fatal("deadline did not bound stalled operation")
+	}
+}
+
+func TestCouchPressureTrailingPTYOutput(t *testing.T) { runPressureTrial(t, "pty", "trailing-control") }
+
 func runPressureTrial(t *testing.T, mode, trial string) {
 	n := 12
-	if trial == "control" {
+	if strings.HasSuffix(trial, "control") {
 		n = 1
 	}
 	burst := strings.HasPrefix(trial, "burst")
@@ -149,7 +198,7 @@ func runPressureTrial(t *testing.T, mode, trial string) {
 		runtime.GOMAXPROCS(1)
 		defer runtime.GOMAXPROCS(cpus)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 	host := &pressureHost{couchSoakHost: &couchSoakHost{FakeHost: hostty.NewFakeHost(ptychild.Size{Rows: 54, Cols: 191}), em: vt.NewEmulator(191, 54)}}
 	if trial == "slow-host" {
 		host.delay = 50 * time.Millisecond
@@ -164,11 +213,13 @@ func runPressureTrial(t *testing.T, mode, trial string) {
 	var children []*ptychild.Child
 	var inventory []couchcore.ActionableThreadSummary
 	var files []*os.File
-	var workers sync.WaitGroup
+	var workers, operations sync.WaitGroup
 	var bytesIn, publications, emitted atomic.Uint64
 	receipts := make([]atomic.Int64, n)
 	ready := make([]atomic.Bool, n)
 	finished := make([]atomic.Bool, n)
+	expected := make([]atomic.Uint64, n)
+	var releaseTrailing func()
 	starts := make([]func(), n)
 	var runStarted bool
 	t.Cleanup(func() {
@@ -176,37 +227,42 @@ func runPressureTrial(t *testing.T, mode, trial string) {
 		con.Stop()
 		input.Close()
 		reader.Close()
+		// Close the pipe, not Emulator.closed, while Read is still running.
+		_ = host.em.InputPipe().(io.Closer).Close()
 		for _, f := range files {
 			f.Close()
 		}
 		joined := make(chan struct{})
 		go func() {
+			var closes sync.WaitGroup
 			for _, child := range children {
-				child.Close()
-				child.Wait()
+				closes.Add(1)
+				go func(c *ptychild.Child) { defer closes.Done(); c.Close(); c.Wait() }(child)
 			}
+			closes.Wait()
 			workers.Wait()
+			operations.Wait()
+			if runStarted {
+				<-done
+			}
+			<-drain
+			// All writers and the reader are joined before touching Emulator.closed.
+			host.em.Close()
 			close(joined)
 		}()
 		select {
 		case <-joined:
 		case <-time.After(5 * time.Second):
-			t.Error("pressure children/workers did not join")
-		}
-		if runStarted {
-			select {
-			case <-done:
-			case <-time.After(5 * time.Second):
-				t.Error("pressure console did not join")
-			}
-		}
-		host.em.Close()
-		select {
-		case <-drain:
-		case <-time.After(time.Second):
-			t.Error("host drain did not join")
+			t.Error("pressure teardown exceeded shared five-second deadline")
 		}
 	})
+	do := func(label string, work func() error) {
+		t.Helper()
+		if err := pressureAwait(ctx, &operations, work); err != nil {
+			t.Fatalf("%s: %v", label, err)
+		}
+	}
+
 	binary, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
@@ -237,7 +293,7 @@ func runPressureTrial(t *testing.T, mode, trial string) {
 				t.Fatal(e)
 			}
 			files = append(files, cw, rr)
-			child, err = ptychild.Start(ptychild.Options{Argv: []string{binary, "-test.run=^TestCouchPressurePTYChild$"}, Env: []string{"PAIR_COUCH_PRESSURE_CHILD=1"}, Size: ptychild.Size{Rows: 53, Cols: 191}, ExtraFiles: []*os.File{cr, rw}, Sink: sink})
+			child, err = ptychild.Start(ptychild.Options{Argv: []string{binary, "-test.run=^TestCouchPressurePTYChild$"}, Env: []string{"PAIR_COUCH_PRESSURE_CHILD=1", fmt.Sprintf("PAIR_COUCH_PRESSURE_TRAILING=%t", trial == "trailing-control")}, Size: ptychild.Size{Rows: 53, Cols: 191}, ExtraFiles: []*os.File{cr, rw}, Sink: sink})
 			cr.Close()
 			rw.Close()
 			if err != nil {
@@ -262,10 +318,16 @@ func runPressureTrial(t *testing.T, mode, trial string) {
 					case "D":
 						count, _ := strconv.ParseUint(fields[1], 10, 64)
 						emitted.Add(count)
+						expected[index].Store(count)
 						finished[index].Store(true)
 					}
 				}
 			}(i)
+			if trial == "trailing-control" {
+				releaseTrailing = func() {
+					do("release trailing PTY output", func() error { _, err := cw.Write([]byte("T")); return err })
+				}
+			}
 			starts[i] = func() {
 				command := "N"
 				if burst {
@@ -289,7 +351,10 @@ func runPressureTrial(t *testing.T, mode, trial string) {
 				case <-ctx.Done():
 					return
 				}
-				emitted.Add(pressureProduce(ctx, burst, c.Feed, ack))
+				count := pressureProduce(ctx, burst, c.Feed, ack)
+				emitted.Add(count)
+				expected[index].Store(count)
+				c.Feed([]byte(pressureCompletion(count)))
 				finished[index].Store(true)
 			}(i, child)
 			go func(index int, c *ptychild.Child) {
@@ -313,14 +378,14 @@ func runPressureTrial(t *testing.T, mode, trial string) {
 			}(i, child)
 		}
 		children = append(children, child)
-		con.Attach(id, id, child)
+		do("attach child", func() error { con.Attach(id, id, child); return nil })
 		inventory = append(inventory, couchcore.ActionableThreadSummary{
 			Address: couchcore.ThreadAddress{RepoScope: "legacy", Tag: couchcore.ThreadTag(id)},
 			Name:    id, WorkingPath: id, State: couchcore.ThreadLive,
 		})
 		close(attached)
 		if mode == "fake" {
-			child.Feed([]byte("\x1b[2J\x1b[HREADY"))
+			do("fake readiness", func() error { child.Feed([]byte("\x1b[2J\x1b[HREADY")); return nil })
 			ready[i].Store(true)
 		}
 	}
@@ -332,18 +397,19 @@ func runPressureTrial(t *testing.T, mode, trial string) {
 	runStarted = true
 	wait := func(label string, predicate func() bool) time.Time {
 		t.Helper()
-		deadline := time.Now().Add(5 * time.Second)
-		for time.Now().Before(deadline) {
-			if predicate() {
+		for ctx.Err() == nil {
+			var matched bool
+			do(label, func() error { matched = predicate(); return nil })
+			if matched {
 				return time.Now()
 			}
 			time.Sleep(time.Millisecond)
 		}
-		t.Fatalf("timeout %s; bounded screen=%q", label, host.text())
+		t.Fatalf("timeout %s: %v", label, ctx.Err())
 		return time.Time{}
 	}
-	endpointText := func() string {
-		f, e := children[0].Endpoint().Snapshot(time.Now())
+	endpointText := func(index int) string {
+		f, e := children[index].Endpoint().Snapshot(time.Now())
 		if e != nil {
 			return ""
 		}
@@ -363,14 +429,14 @@ func runPressureTrial(t *testing.T, mode, trial string) {
 	})
 	host.delayed.Store(true)
 	startAt := time.Now()
+	recoveryTimer := time.AfterFunc(pressureWindow+5*time.Second, cancel)
+	defer recoveryTimer.Stop()
 	for _, start := range starts {
-		start()
+		do("start child", func() error { start(); return nil })
 	}
 	time.Sleep(250 * time.Millisecond)
 	sent := time.Now()
-	if _, err := input.Write([]byte("p")); err != nil {
-		t.Fatal(err)
-	}
+	do("pane input", func() error { _, err := input.Write([]byte("p")); return err })
 	// Observe the three paths together: sequential waits would inflate later
 	// measurements and can misclassify a fast endpoint behind slow delivery.
 	var receiptAt, endpointAt, displayAt time.Time
@@ -379,7 +445,7 @@ func runPressureTrial(t *testing.T, mode, trial string) {
 		if stamp := receipts[0].Load(); stamp != 0 && receiptAt.IsZero() {
 			receiptAt = time.Unix(0, stamp)
 		}
-		if endpointAt.IsZero() && strings.Contains(endpointText(), "ACK") {
+		if endpointAt.IsZero() && strings.Contains(endpointText(0), "ACK") {
 			endpointAt = now
 		}
 		if displayAt.IsZero() && strings.Contains(host.text(), "ACK") {
@@ -390,10 +456,10 @@ func runPressureTrial(t *testing.T, mode, trial string) {
 	// stalls. Missing ACKs are right-censored before the menu covers the pane.
 	probeDeadline := startAt.Add(1500 * time.Millisecond)
 	for time.Now().Before(probeDeadline) {
-		probe()
+		do("ACK observation", func() error { probe(); return nil })
 		time.Sleep(10 * time.Millisecond)
 	}
-	probe()
+	do("ACK observation", func() error { probe(); return nil })
 	receiptCensored, endpointCensored, displayCensored := receiptAt.IsZero(), endpointAt.IsZero(), displayAt.IsZero()
 	if receiptAt.IsZero() {
 		receiptAt = probeDeadline
@@ -408,13 +474,9 @@ func runPressureTrial(t *testing.T, mode, trial string) {
 	if menuSent.Sub(startAt) >= pressureWindow {
 		t.Fatal("menu probe missed pressure window; trial invalid")
 	}
-	if _, err := input.Write([]byte{0}); err != nil {
-		t.Fatal(err)
-	}
+	do("menu input", func() error { _, err := input.Write([]byte{0}); return err })
 	menuAt := wait("rendered menu", func() bool { return strings.Contains(host.text(), "threads") })
-	if _, err := input.Write([]byte{27}); err != nil {
-		t.Fatal(err)
-	}
+	do("restore input", func() error { _, err := input.Write([]byte{27}); return err })
 	restoredAt := wait("pane restored after menu", func() bool { return strings.Contains(host.text(), "ACK") && !strings.Contains(host.text(), "threads") })
 	wait("finite output windows", func() bool {
 		for i := range finished {
@@ -424,21 +486,49 @@ func runPressureTrial(t *testing.T, mode, trial string) {
 		}
 		return true
 	})
-	flushCtx, flushCancel := context.WithTimeout(ctx, 5*time.Second)
-	defer flushCancel()
-	for _, c := range children {
-		if e := c.FlushOutput(flushCtx); e != nil {
-			t.Fatal(e)
+	if releaseTrailing != nil {
+		// D arrived, but the helper has deliberately withheld its last PTY write.
+		do("flush before trailing write", func() error { return children[0].FlushOutput(ctx) })
+		do("no premature completion", func() error {
+			if strings.Contains(endpointText(0), "COMPLETE") {
+				return fmt.Errorf("completion accepted before trailing PTY write")
+			}
+			return nil
+		})
+		releaseTrailing()
+	}
+	wait("all terminal completion markers", func() bool {
+		for i := range children {
+			if !strings.Contains(endpointText(i), strings.TrimPrefix(pressureCompletion(expected[i].Load()), "\x1b[4;1H")) {
+				return false
+			}
 		}
+		return true
+	})
+	// A snapshot can see the final marker just before publication enqueue.
+	// Wait for every raw byte at the sink as well before flushing that queue.
+	wantBytes := emitted.Load() + uint64(n*len("\x1b[2J\x1b[HREADY"))
+	for i := range children {
+		wantBytes += uint64(len(pressureCompletion(expected[i].Load())))
 	}
-	if e := con.presenter.Flush(flushCtx); e != nil {
-		t.Fatal(e)
+	wait("all emitted bytes at publication sink", func() bool { return bytesIn.Load() >= wantBytes })
+	for _, c := range children {
+		do("final publication", func() error { return c.FlushOutput(ctx) })
 	}
+	do("final presentation", func() error { return con.presenter.Flush(ctx) })
+	wait("physical terminal completion", func() bool {
+		return strings.Contains(host.text(), strings.TrimPrefix(pressureCompletion(expected[0].Load()), "\x1b[4;1H"))
+	})
+	if bytesIn.Load() != wantBytes {
+		t.Fatalf("ingested %d bytes, want emitted+framing %d", bytesIn.Load(), wantBytes)
+	}
+
 	recovery := time.Since(startAt.Add(pressureWindow))
 	if recovery < 0 {
 		recovery = 0
 	}
-	frame := endpointText()
+	var frame string
+	do("final endpoint", func() error { frame = endpointText(0); return nil })
 	progress := "missing"
 	if at := strings.Index(frame, "PROGRESS"); at >= 0 && at+14 <= len(frame) {
 		progress = frame[at : at+14]
@@ -446,9 +536,13 @@ func runPressureTrial(t *testing.T, mode, trial string) {
 	if progress == "missing" {
 		t.Fatal("child output did not reach endpoint")
 	}
-	host.mu.Lock()
-	hostBytes, hostWrites := host.bytes, host.writes
-	host.mu.Unlock()
+	var hostBytes, hostWrites uint64
+	do("host counters", func() error {
+		host.mu.Lock()
+		defer host.mu.Unlock()
+		hostBytes, hostWrites = host.bytes, host.writes
+		return nil
+	})
 	selective := (displayAt.Sub(sent) > time.Second || receiptAt.Sub(sent) > time.Second) && menuAt.Sub(menuSent) < 100*time.Millisecond
 	t.Logf("mode=%s trial=%s children=%d geometry=191x54 cpus=%d window=%s elapsed=%s byte_cap=9830400 emitted_window_bytes=%d ingested_raw=%d publications=%d host_bytes=%d host_writes=%d receipt=%s endpoint_ack=%s displayed_ack=%s menu=%s final=%s receipt_censored=%t endpoint_censored=%t display_censored=%t restored_after_menu=%s recovery=%s ack_poll=10ms selective_stall=%t", mode, trial, n, runtime.GOMAXPROCS(0), pressureWindow, time.Since(startAt), emitted.Load(), bytesIn.Load(), publications.Load(), hostBytes, hostWrites, receiptAt.Sub(sent), endpointAt.Sub(sent), displayAt.Sub(sent), menuAt.Sub(menuSent), progress, receiptCensored, endpointCensored, displayCensored, restoredAt.Sub(menuAt), recovery, selective)
 }

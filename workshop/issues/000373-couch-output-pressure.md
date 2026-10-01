@@ -153,3 +153,36 @@ has drained. Preserve the measured latency table as preliminary evidence; rerun
 after adding bounded execution and per-child terminal completion checks. The
 previous recovery timing is provisional. README now documents the opt-in command.
 These are fixture corrections within the original investigation, not a runtime fix.
+
+### Verified rerun after BR-1–4 corrections
+
+The same 24-trial command passed in 50.037s; log
+`/tmp/pair-373-pressure-verified.log`. Still no selective stall or censored ACK.
+This rerun supersedes the preliminary table for final measurements:
+
+| Transport | Condition | Receipt max ms | Display max ms | Menu max ms | Recovery max ms |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Fake | Baseline | 0.86 | 21.58 | 3.63 | 7.76 |
+| Fake | Burst | 2.07 | 12.89 | 4.64 | 8.89 |
+| Fake | Burst, one Go CPU | 6.11 | 25.59 | 13.66 | 17.97 |
+| Fake | Slow host | 19.52 | 93.44 | 53.50 | 57.99 |
+| Real PTY | Baseline | 1.08 | 26.14 | 3.96 | 9.11 |
+| Real PTY | Burst | 1.26 | 33.10 | 3.54 | 13.65 |
+| Real PTY | Burst, one Go CPU | 0.97 | 41.91 | 3.30 | 20.53 |
+| Real PTY | Slow host | 19.96 | 100.74 | 61.31 | 64.18 |
+
+BR-1: close emulator input pipe, join reader/writers, then close emulator state.
+BR-2: tracked cancellable operations bound input and observation waits; a shared
+window-end+5s deadline covers recovery, with joined cleanup and a stalled-write
+regression. Pipe creation/process launch remain synchronous OS setup operations.
+BR-3: every child must show its final in-band byte-count marker; assert exact
+emitted-plus-framing bytes and selected physical completion. The trailing-PTY
+regression withholds the final marker until producer completion plus publication
+flush have demonstrably failed to establish terminal completion.
+BR-4: README documents the sole public opt-in command and its limits.
+
+`go test -race ./cmd/internal/couchtty -run
+'^TestCouchPressure(StalledOperation|TrailingPTYOutput|Control)$' -count=1 -v
+-timeout=60s` passed in 5.45s. The prior full package race suite passed before
+these fixture corrections; the focused rerun covers the corrected lifecycle.
+`git diff --check` passes. Conclusions and scope limitations are unchanged.

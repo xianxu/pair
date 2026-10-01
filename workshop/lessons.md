@@ -428,3 +428,9 @@ proof; record the surprising case so the next change starts from evidence.
   of displayed output and probe the control UI while pressure is still active.
   Use a populated menu and real input dispatch for dismissal; an empty menu or
   direct state switch can conceal a broken fixture. (#373 spec/fixture review)
+
+- PTY producer completion on a side pipe and publication Flush do not prove that
+  the PTY reader has consumed the final bytes. Require terminal-stream completion
+  evidence for every child before reporting recovery. A test deadline must also
+  interrupt blocking observations and input writes, not just its polling loop.
+  Join emulator readers before closing unsynchronized emulator state. (#373 BR-1–3)
