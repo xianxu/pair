@@ -265,17 +265,17 @@ func TestBrokerActorsRecordedObservationsAndInputInvalidation(t *testing.T) {
 		return true, nil
 	})
 	defer b.Close()
+	b.SetRestingView(func(v Binding) (bool, bool) { return true, v.Slot != "pair:2" })
 	from, to, unknown := brokerBinding("brain:0"), brokerBinding("pair:1"), brokerBinding("pair:2")
 	for _, v := range []Binding{from, to, unknown} {
 		_ = b.Register(v, newFakeEndpoint(base))
 	}
 	nanos.Store(base.Add(time.Minute).UnixNano())
-	// The listing reports what heartbeats and resting probes recorded.
+	// The listing reports what the wrappers pushed and the resting view.
 	for _, v := range []Binding{to, unknown} {
 		if err := b.ReconcileObservation(v, Observation{LastActivity: base, Sequence: 1}); err != nil {
 			t.Fatal(err)
 		}
-		_ = b.ObserveResting(context.Background(), v)
 	}
 	b.ObserveInputThread(to.Scope, to.Tag)
 	rows, err := b.Actors(context.Background(), from)
@@ -456,19 +456,22 @@ func TestSubmissionGenerationIsReconciledBeforeAdmissionAndOnlyOnce(t *testing.T
 	for i := 1; i < 4; i++ {
 		send(fmt.Sprintf("after-%d", i))
 	}
-	// A delayed notification and its duplicates must not reset the four spent
+	// A delayed submit frame and its duplicates must not reset the four spent
 	// admissions belonging to the same human submission.
+	ep.mu.Lock()
+	seen := ep.observation
+	ep.mu.Unlock()
 	for i := 0; i < 3; i++ {
-		response := Handle(context.Background(), b, Request{Op: "operator-submit", Binding: &to}, func(context.Context, Binding) error { return nil })
-		if response.Code != "ok" {
-			t.Fatalf("notification %+v", response)
+		if err := b.ReconcileObservation(to, seen); err != nil {
+			t.Fatalf("notification %v", err)
 		}
 	}
+	// Nor may a reconnect, which resends the latest observation.
 	b.Disconnect(to)
 	if err := b.Register(to, ep); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.RefreshSubmission(context.Background(), to); err != nil {
+	if err := b.ReconcileObservation(to, seen); err != nil {
 		t.Fatal(err)
 	}
 	for i := 4; i < InboundAllowance; i++ {

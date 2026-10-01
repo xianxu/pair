@@ -43,6 +43,15 @@ func (c *Console) postMessagePaneLocked(thread couchcore.ThreadAddress) {
 	c.messagePanes.Post(couchmessage.ThreadKey{Scope: thread.RepoScope, Tag: string(thread.Tag)}, current)
 }
 
+// MessageSlotGit is the Console's last slot-git observation of a checkout.
+// Message listings read it so messaging never runs git of its own (#365).
+func (c *Console) MessageSlotGit(root string) (couchcore.SlotGitStatus, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	status, ok := c.menu.SlotGit[root]
+	return status, ok
+}
+
 func messagePaneLive(p *pane) bool {
 	if p == nil || p.child == nil || p.thread.RepoScope == "" || p.thread.Tag == "" || p.tree == "" || p.process.PID <= 0 || p.process.Identity == "" || p.child.Endpoint().InputEnded() {
 		return false

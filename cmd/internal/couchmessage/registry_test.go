@@ -129,7 +129,7 @@ func TestRegistryAdmissionFailureBacksOffThenDormantUntilTargeted(t *testing.T) 
 	if fx := step(t, r, RegistryEvent{Kind: SessionActivity, Token: 1}); len(fx) != 0 {
 		t.Fatalf("activity woke a dormant session: %+v", fx)
 	}
-	if fx := step(t, r, RegistryEvent{Kind: SendTargeted, Binding: b}); len(fx) != 1 || fx[0].Kind != EffectAdmit {
+	if fx := step(t, r, RegistryEvent{Kind: SendTargeted, Slot: b.Slot}); len(fx) != 1 || fx[0].Kind != EffectAdmit {
 		t.Fatalf("targeted send did not re-admit: %+v", fx)
 	}
 }
@@ -201,7 +201,7 @@ func TestRegistryInterleavingsKeepInvariants(t *testing.T) {
 				}
 			case 6:
 				tag := threads[rng.Intn(len(threads))]
-				e = RegistryEvent{Kind: SendTargeted, Binding: registryBinding(slotOf[tag], tag, 10+rng.Intn(2))}
+				e = RegistryEvent{Kind: SendTargeted, Slot: slotOf[tag]}
 			}
 			if e == (RegistryEvent{}) {
 				continue

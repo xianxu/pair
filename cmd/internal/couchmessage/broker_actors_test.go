@@ -27,8 +27,11 @@ func TestActorsReadsMemoryWithoutProbing(t *testing.T) {
 		return v.Slot != "pair:2", nil
 	})
 	defer b.Close()
+	// The listing's resting state comes from an in-memory view (Couch's
+	// slot-git cache), never from the git probe.
+	b.SetRestingView(func(v Binding) (bool, bool) { return v.Slot != "pair:2", v.Slot != "pair:4" })
 	from := brokerBinding("brain:0")
-	slots := []Binding{brokerBinding("pair:1"), brokerBinding("pair:2"), brokerBinding("pair:3")}
+	slots := []Binding{brokerBinding("pair:1"), brokerBinding("pair:2"), brokerBinding("pair:3"), brokerBinding("pair:4")}
 	if err := b.Register(from, newFakeEndpoint(base)); err != nil {
 		t.Fatal(err)
 	}
@@ -37,12 +40,9 @@ func TestActorsReadsMemoryWithoutProbing(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	// Heartbeats for pair:1 and pair:2; pair:3 has never been observed.
-	for _, v := range slots[:2] {
+	// Pushed observations for pair:1, pair:2 and pair:4; pair:3 has none.
+	for _, v := range []Binding{slots[0], slots[1], slots[3]} {
 		if err := b.ReconcileObservation(v, Observation{LastActivity: base, Sequence: 1}); err != nil {
-			t.Fatal(err)
-		}
-		if err := b.ObserveResting(context.Background(), v); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -64,22 +64,16 @@ func TestActorsReadsMemoryWithoutProbing(t *testing.T) {
 		return out
 	}
 	rows := listing()
-	if !rows["pair:1"].Known || !rows["pair:1"].Resting || !rows["pair:2"].Known || rows["pair:2"].Resting || rows["pair:3"].Known {
+	if !rows["pair:1"].Known || !rows["pair:1"].Resting || !rows["pair:2"].Known || rows["pair:2"].Resting || rows["pair:3"].Known || rows["pair:4"].Known {
 		t.Fatalf("rows %+v", rows)
 	}
 	if restingProbes.Load() != probesBefore {
 		t.Fatal("listing ran resting probes")
 	}
-	nanos.Store(base.Add(ObservationStaleAfter).UnixNano())
-	if rows = listing(); rows["pair:1"].Known {
-		t.Fatal("stale heartbeat reported known")
-	}
-	// A fresh heartbeat with an aged resting probe is still unknown.
-	nanos.Store(base.Add(RestingStaleAfter).UnixNano())
-	if err := b.ReconcileObservation(slots[0], Observation{LastActivity: base, Sequence: 2}); err != nil {
-		t.Fatal(err)
-	}
-	if rows = listing(); rows["pair:1"].Known {
-		t.Fatal("stale resting probe reported known")
+	// An idle wrapper pushes nothing; its connected observation stays current
+	// (#365), where the heartbeat design aged it out after five seconds.
+	nanos.Store(base.Add(time.Hour).UnixNano())
+	if rows = listing(); !rows["pair:1"].Known {
+		t.Fatal("idle connected actor became unknown")
 	}
 }

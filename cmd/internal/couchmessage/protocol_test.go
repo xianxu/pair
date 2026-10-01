@@ -53,28 +53,20 @@ func TestValidateRequestClosedShapes(t *testing.T) {
 	}
 }
 
-func TestProtocolHandleRegistrationAndCaller(t *testing.T) {
+// Legacy wrappers still send register/operator-submit every second; both are
+// answered unsupported and register nothing (#365).
+func TestProtocolHandleRefusesLegacyRegistration(t *testing.T) {
 	b := NewBroker(context.Background(), time.Now, func(context.Context, Binding) (bool, error) { return true, nil })
 	defer b.Close()
 	binding := protocolBinding("pair:0")
-	called := false
-	r := Handle(context.Background(), b, Request{Op: "register", Binding: &binding}, func(_ context.Context, got Binding) error {
-		called = true
-		if got != binding {
-			t.Fatal("binding changed")
+	for _, op := range []string{"register", "operator-submit"} {
+		if r := Handle(context.Background(), b, Request{Op: op, Binding: &binding}); r.Code != "unsupported" {
+			t.Fatalf("%s: %#v", op, r)
 		}
-		return nil
-	})
-	if r.Code != "ok" || !called {
-		t.Fatalf("register: %#v", r)
 	}
-	r = Handle(context.Background(), b, Request{Op: "actors", Scope: binding.Scope, Tag: binding.Tag, Session: binding.Session, Nonce: binding.Nonce}, nil)
+	r := Handle(context.Background(), b, Request{Op: "actors", Scope: binding.Scope, Tag: binding.Tag, Session: binding.Session, Nonce: binding.Nonce})
 	if r.Code != "unavailable" {
-		t.Fatalf("unregistered caller accepted: %#v", r)
-	}
-	r = Handle(context.Background(), b, Request{Op: "operator-submit", Binding: &binding}, nil)
-	if r.Code == "ok" {
-		t.Fatal("unverified wrapper event accepted")
+		t.Fatalf("legacy registration made a caller: %#v", r)
 	}
 }
 
@@ -88,14 +80,14 @@ func TestProtocolHandleSendStatusAndNoFree(t *testing.T) {
 		}
 	}
 	request := Request{Op: "send", Scope: from.Scope, Tag: from.Tag, Session: from.Session, Nonce: from.Nonce, ID: "id", Target: to.Slot, Body: "work"}
-	result := Handle(context.Background(), b, request, nil)
+	result := Handle(context.Background(), b, request)
 	if result.Code != "accepted" || result.Receipt == nil || result.Receipt.Message.To != to {
 		t.Fatalf("send: %#v", result)
 	}
 	request.Op = "status"
 	request.Target = ""
 	request.Body = ""
-	result = Handle(context.Background(), b, request, nil)
+	result = Handle(context.Background(), b, request)
 	if result.Code != "ok" || result.Receipt == nil || result.Receipt.Message.Body != "work" {
 		t.Fatalf("status: %#v", result)
 	}
@@ -103,15 +95,15 @@ func TestProtocolHandleSendStatusAndNoFree(t *testing.T) {
 	request.ID = "second"
 	request.Target = to.Slot
 	request.Body = "work"
-	if result := Handle(context.Background(), b, request, nil); result.Code != "busy" {
+	if result := Handle(context.Background(), b, request); result.Code != "busy" {
 		t.Fatalf("busy: %#v", result)
 	}
 	request.Target = "missing"
-	if result := Handle(context.Background(), b, request, nil); result.Code != "not-dispatched" {
+	if result := Handle(context.Background(), b, request); result.Code != "not-dispatched" {
 		t.Fatalf("no-free: %#v", result)
 	}
 	request.Nonce = "replacement"
-	if result := Handle(context.Background(), b, request, nil); result.Code != "unavailable" {
+	if result := Handle(context.Background(), b, request); result.Code != "unavailable" {
 		t.Fatalf("stale caller: %#v", result)
 	}
 }

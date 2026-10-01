@@ -71,7 +71,8 @@ const (
 type RegistryEvent struct {
 	Kind        RegistryEventKind
 	Token       SessionToken
-	Binding     Binding // SessionOpened, SendTargeted
+	Binding     Binding // SessionOpened
+	Slot        string  // SendTargeted: a send names a slot, not a binding
 	Thread      ThreadKey
 	Pane        PaneHandle // PaneChanged, AdmissionDone
 	Err         error      // AdmissionDone
@@ -215,7 +216,7 @@ func (r *Registry) Advance(e RegistryEvent) ([]RegistryEffect, error) {
 		}
 	case SendTargeted:
 		for _, t := range r.tokens() {
-			if s := r.sessions[t]; s.binding == e.Binding && s.phase == Dormant {
+			if s := r.sessions[t]; s.binding.Slot == e.Slot && s.phase == Dormant {
 				s.attempt = 0
 				fx = r.readmit(t, s, fx)
 			}

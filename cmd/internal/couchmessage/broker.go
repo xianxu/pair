@@ -40,12 +40,11 @@ type SlotActor struct {
 	reservation string
 	inbox       chan Message
 	cancel      context.CancelFunc
-	// The latest heartbeat observation and resting-branch probe, kept so an
-	// actor listing reads memory instead of probing every slot.
+	// The latest observation the wrapper pushed (#365), kept so an actor
+	// listing reads memory instead of probing every slot. It stays current
+	// while the actor is connected: the wrapper pushes every change.
 	observed   Observation
 	observedAt time.Time
-	resting    bool
-	restingAt  time.Time
 }
 type admission struct {
 	from    Binding
@@ -62,6 +61,7 @@ type Broker struct {
 	cancel       context.CancelFunc
 	now          func() time.Time
 	resting      func(context.Context, Binding) (bool, error)
+	restingView  func(Binding) (resting, known bool)
 	families     func(context.Context) (map[string]string, error)
 	actors       map[Binding]*SlotActor
 	receipts     map[string]Receipt
@@ -77,6 +77,13 @@ type Broker struct {
 // serves requests; nil means live bindings only.
 func (b *Broker) SetFamilies(families func(context.Context) (map[string]string, error)) {
 	b.families = families
+}
+
+// SetRestingView installs the listing's in-memory resting-branch source (the
+// Console's slot-git cache). Listings never run git; nil leaves every row's
+// resting state unknown. Call before the broker serves requests.
+func (b *Broker) SetRestingView(view func(Binding) (resting, known bool)) {
+	b.restingView = view
 }
 
 // readFamilies runs outside the broker lock: the source may do store IO.
@@ -228,33 +235,6 @@ func (b *Broker) reconcileObservation(a *SlotActor, observed Observation) error 
 	return nil
 }
 
-// RefreshSubmission treats an operator notification as a wakeup, not authority
-// to reset a counter. The receiver supplies its latest monotonic generation.
-func (b *Broker) RefreshSubmission(parent context.Context, binding Binding) error {
-	ctx, cancel := context.WithTimeout(parent, AdmissionTimeout)
-	defer cancel()
-	b.mu.Lock()
-	a := b.actors[binding]
-	valid := a != nil && b.caller(binding)
-	b.mu.Unlock()
-	if !valid {
-		return ErrUnavailable
-	}
-	if a.endpoint == nil {
-		return ErrUnsupported
-	}
-	observed, err := a.endpoint.Observe(ctx)
-	if err != nil {
-		return err
-	}
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.actors[binding] != a || !b.caller(binding) {
-		return ErrUnavailable
-	}
-	return b.reconcileObservation(a, observed)
-}
-
 // ObserveInputThread is called before Console forwards real operator input.
 func (b *Broker) ObserveInputThread(scope, tag string) {
 	b.mu.Lock()
@@ -354,46 +334,17 @@ func (b *Broker) observe(ctx context.Context, a *SlotActor) (Candidate, Observat
 	return c, obs, nil
 }
 
-// Staleness bounds for the in-memory actor listing. Wrappers report every
-// second; the resting branch is probed on each full authority check, which
-// the service repeats at least every verification window (10s).
-const (
-	ObservationStaleAfter = 5 * time.Second
-	RestingStaleAfter     = 15 * time.Second
-)
-
-// ObserveResting probes the binding's resting branch outside the broker lock
-// and records it for listings. A failed probe leaves the old value to age out.
-func (b *Broker) ObserveResting(ctx context.Context, binding Binding) error {
-	if b.resting == nil {
-		return errors.New("branch observation unavailable")
-	}
-	resting, err := b.resting(ctx, binding)
-	if err != nil {
-		return err
-	}
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	a := b.actors[binding]
-	if a == nil || !b.caller(binding) {
-		return ErrUnavailable
-	}
-	a.resting, a.restingAt = resting, b.now()
-	return nil
-}
-
-// Actors reports the broker's memory: each connected actor's last heartbeat
-// observation and resting probe. It does no IO, so its cost does not grow with
-// slot count or probe latency. A missing or stale observation is Known=false,
-// never an available recipient; admission still observes fresh before it
-// reserves.
+// Actors reports the broker's memory: each connected actor's last pushed
+// observation and the resting view. It does no IO, so its cost does not grow
+// with slot count or probe latency. A missing observation or unknown resting
+// state is Known=false, never an available recipient; admission still
+// observes fresh before it reserves.
 func (b *Broker) Actors(parent context.Context, caller Binding) ([]Candidate, error) {
 	b.mu.Lock()
 	if !b.caller(caller) {
 		b.mu.Unlock()
 		return nil, ErrUnavailable
 	}
-	now := b.now()
 	var rows []Candidate
 	for _, a := range b.actors {
 		if !a.state.Connected() {
@@ -403,10 +354,11 @@ func (b *Broker) Actors(parent context.Context, caller Binding) ([]Candidate, er
 		if a.observed.LastActivity.After(c.LastActivity) {
 			c.LastActivity = a.observed.LastActivity
 		}
-		c.Resting = a.resting
-		c.Known = !c.LastActivity.IsZero() &&
-			!a.observedAt.IsZero() && now.Sub(a.observedAt) < ObservationStaleAfter &&
-			!a.restingAt.IsZero() && now.Sub(a.restingAt) < RestingStaleAfter
+		restingKnown := false
+		if b.restingView != nil {
+			c.Resting, restingKnown = b.restingView(a.binding)
+		}
+		c.Known = !c.LastActivity.IsZero() && !a.observedAt.IsZero() && restingKnown
 		rows = append(rows, c)
 	}
 	b.mu.Unlock()
