@@ -363,6 +363,15 @@ func menuFocusSummary(row couchcore.ActionableThreadSummary) string {
 	return strings.TrimSpace(rowtext.Sanitize(row.DisplaySummary()))
 }
 
+// menuFocusSlug is the focus view's trailing ` ◆ <slug>` (pair#372), or ""
+// when the row has none, so a slug-less row ends at its description.
+func menuFocusSlug(row couchcore.ActionableThreadSummary) string {
+	if slug := strings.TrimSpace(rowtext.Sanitize(row.Slug)); slug != "" {
+		return " ◆ " + slug
+	}
+	return ""
+}
+
 // menuRowSelectable: a row the pass has not finished with is not ready, so the
 // cursor, auto-select and a click all skip it.
 func menuRowSelectable(state MenuState, address couchcore.ThreadAddress) bool {

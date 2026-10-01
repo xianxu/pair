@@ -7,14 +7,9 @@ package slugcmd
 import (
 	"regexp"
 	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/slugline"
 )
-
-// slugRE is the contract a candidate must satisfy before it may be written.
-// Two non-empty segments separated by " | ", fenced by "=== " / " ===".
-var slugRE = regexp.MustCompile(`^=== .+ \| .+ ===$`)
-
-// validateSlug reports whether s is a well-formed two-segment slug.
-func validateSlug(s string) bool { return slugRE.MatchString(s) }
 
 // embeddedNumRE matches a leading "<digits><sep>" so a branch like
 // "42-winbar-recap" surfaces its issue number as "#42 winbar-recap".
@@ -164,15 +159,6 @@ func modelLine(raw string) string {
 	return ""
 }
 
-// rightOf extracts the <focus> segment from a valid slug line.
-func rightOf(slug string) string {
-	inner := strings.TrimSuffix(strings.TrimPrefix(slug, "=== "), " ===")
-	if i := strings.Index(inner, " | "); i >= 0 {
-		return inner[i+len(" | "):]
-	}
-	return inner
-}
-
 // decide applies the gate. The left is always the authoritative branch; the
 // right (focus) is the model's, or — on KEEP — the prev slug's right carried
 // forward. The value is always assembled fresh so a branch switch refreshes
@@ -190,22 +176,22 @@ func decide(branchLeft, prev, raw string) (write bool, value string) {
 	}
 	var focus string
 	if line == "KEEP" {
-		focus = rightOf(prev)
+		focus = slugline.Focus(prev)
 		if focus == "" {
 			return false, "" // cold start: no prior focus to keep
 		}
 	} else {
-		if !validateSlug(line) {
+		if !slugline.Valid(line) {
 			return false, ""
 		}
-		focus = rightOf(line)
+		focus = slugline.Focus(line)
 	}
 	// A focus carrying the structural delimiters could round-trip into the
 	// written slug and confuse nvim's line-1 parse in M2. Reject it.
 	if strings.Contains(focus, "|") || strings.Contains(focus, "===") {
 		return false, ""
 	}
-	value = "=== " + branchLeft + " | " + focus + " ==="
+	value = slugline.Format(branchLeft, focus)
 	if value == prev {
 		return false, "" // same branch + same focus → nothing changed
 	}
