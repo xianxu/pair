@@ -5,9 +5,10 @@ deps: []
 github_issue:
 created: 2026-10-01
 updated: 2026-10-01
-estimate_hours:
-card_mirror: '75dd28f056ac1d05e0a9d09c527be80324002515' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 6.91
+card_mirror: '267c9c74b3424f3014661caae335845b1140cd3d' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-01T13:09:21-07:00
+flow: {kind: full, provenance: inferred}
 ---
 
 # Replace messaging liveness polling with lifecycle events
