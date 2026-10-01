@@ -339,6 +339,22 @@ the durable plan's implementation/test deltas (ARCH-DRY, ARCH-PURPOSE). This is
 spec approval and a documentation checkpoint, not implementation or acceptance
 evidence.
 
+### 2026-09-30 — implementation checkpoint
+
+The change-code plan gate passed and implementation is underway. Added the
+in-memory actor broker, bounded local protocol, live Console binding checks,
+free-text CLI and skill, and single-writer Pair delivery integration. Tests
+reproduced and now prevent insertion over unrendered human input, invisible
+whitespace drafts, and the stale screen immediately after human submission.
+The unchanged separate draft pane remains independent of composer ownership.
+
+All four affected package suites passed; focused messaging race tests passed.
+The additional submission/render-fence regressions pass in the wrapper suite.
+Live receiver qualification is unfinished: isolated startup runs exposed auth
+and composer-layout barriers. The supported-version map remains empty until
+live evidence qualifies receivers. This is a work checkpoint, not a usable
+release, acceptance, or completion claim.
+
 ## Revisions
 
 ### 2026-09-30 — implementation entry and plan gate
