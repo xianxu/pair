@@ -10,6 +10,7 @@ import (
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
 
 func messageBinding() couchmessage.Binding {
@@ -75,5 +76,48 @@ func TestMessageActivityCountsKeysAndPasteButNotFocus(t *testing.T) {
 	f.con.deliverChildInput(uv.PasteEvent{Content: "draft"})
 	if !last().Equal(base.Add(2 * time.Minute)) {
 		t.Fatal("paste did not reset quiet")
+	}
+}
+
+func drainPanes(t *testing.T, m *couchmessage.PaneMailbox, want func(map[couchmessage.ThreadKey]couchmessage.PaneHandle) bool) map[couchmessage.ThreadKey]couchmessage.PaneHandle {
+	t.Helper()
+	seen := map[couchmessage.ThreadKey]couchmessage.PaneHandle{}
+	deadline := time.After(3 * time.Second)
+	for !want(seen) {
+		select {
+		case <-m.Wake():
+			for k, v := range m.Drain() {
+				seen[k] = v
+			}
+		case <-deadline:
+			t.Fatalf("pane state never matched; saw %v", seen)
+		}
+	}
+	return seen
+}
+
+// The startup pane attaches before the message service exists; subscribing
+// must replay it, and later exits and attaches must follow (#365).
+func TestConsoleSubscribeReplaysExistingPanesThenTracksChanges(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	brain := couchmessage.ThreadKey{Scope: "legacy", Tag: "c1"} // Attach(id, label, child) uses id as the tag
+	m := couchmessage.NewPaneMailbox()
+	f.con.SubscribeMessageLifecycle(m)
+	first := drainPanes(t, m, func(s map[couchmessage.ThreadKey]couchmessage.PaneHandle) bool { return s[brain] != "" })[brain]
+
+	f.child.Exit(0)
+	drainPanes(t, m, func(s map[couchmessage.ThreadKey]couchmessage.PaneHandle) bool {
+		v, ok := s[brain]
+		return ok && v == ""
+	})
+
+	// The same handle ID and thread attached again is a new pane incarnation.
+	again := ptychild.NewFakeChild(nil)
+	defer again.Close()
+	again.SetSink(func(ctx context.Context, batch ptychild.OutputBatch) error { return f.con.Deliver(ctx, "c1", batch) })
+	f.con.Attach("c1", "brain", again)
+	second := drainPanes(t, m, func(s map[couchmessage.ThreadKey]couchmessage.PaneHandle) bool { return s[brain] != "" })[brain]
+	if second == first {
+		t.Fatalf("reattached pane reused handle %q", first)
 	}
 }
