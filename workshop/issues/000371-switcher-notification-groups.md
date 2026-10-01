@@ -56,6 +56,7 @@ prefix (ARCH-DRY). Preserve message order and existing navigation/click ownershi
 ## Log
 
 ### 2026-10-01
+- 2026-10-01: closed — Notification grouping regressions failed before the fix and pass after; full go test ./cmd/internal/couchtty -count=1 and go test -race ./cmd/internal/couchtty -count=1 pass, including ownership and clipping; grouped-click race regression passes ten runs; make build and git diff --check pass.; review verdict: SHIP
 
 Captured the operator's proposed notification grouping. Operator requested task
 creation followed by claiming; implementation has not started.
