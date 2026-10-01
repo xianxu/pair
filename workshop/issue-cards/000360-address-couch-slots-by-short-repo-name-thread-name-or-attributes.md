@@ -1,6 +1,6 @@
 ---
 id: 000360
-status: open
+status: working
 created: 2026-09-30
 updated: 2026-09-30
 estimate_hours:
@@ -17,6 +17,7 @@ tracker:
         source_blob: dfe20eebf9aae7973b6cb74b8f36b952d9fe4994
         destination: workshop/issues/000360-address-couch-slots-by-short-repo-name-thread-name-or-attributes.md
         main_commit: 834078cedee432acecd4fac073e37768a171887d
+started: 2026-09-30T22:55:02-07:00
 ---
 
 # Address couch slots by short repo name, thread name, or attributes
