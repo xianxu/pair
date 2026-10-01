@@ -660,7 +660,9 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	}
 
 	var defaultReady <-chan error
-	if opts.Args.FreshRequired {
+	// Every new Couch wrapper needs readiness evidence, including cold resume.
+	// The native conversation survives resume; the wrapper incarnation does not.
+	if opts.Args.FreshRequired || couchOwned {
 		nonce := ""
 		if opts.Args.Orientation != nil {
 			nonce = opts.Args.Orientation.Attempt
@@ -799,7 +801,14 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		rt.Remove(configPath)
 	}
 
-	command, commandErr := EncodeAgentCommand(AgentCommand{Executable: agent, Argv: append([]string{}, agentArgs...)})
+	commandArgs := append([]string{}, agentArgs...)
+	if agent == "codex" && couchOwned {
+		// A resumed Codex shell snapshot can restore the previous slot's env.
+		// Keep current launch identity in tool shells. This is runtime policy,
+		// not a saved user argument; prepend before any prompt/-- delimiter.
+		commandArgs = append([]string{"--disable", "shell_snapshot"}, commandArgs...)
+	}
+	command, commandErr := EncodeAgentCommand(AgentCommand{Executable: agent, Argv: commandArgs})
 	if commandErr != nil {
 		fmt.Fprintf(stderr, "pair: %v\n", commandErr)
 		return launchStep{code: 1}, nil

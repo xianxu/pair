@@ -79,6 +79,12 @@ bindings: repository, scope/tag, native session, launch nonce and PID/start
 identity. A slot label is an address, not authority to reuse a replaced wrapper.
 No message body, mailbox or receipt is persisted across supervisor restart.
 
+Cold resumes mint a new wrapper launch nonce just like fresh conversations;
+the resumed native conversation ID does not identify a wrapper incarnation.
+Couch-launched Codex disables shell snapshots for that process so tool shells
+inherit the current slot environment instead of restoring an older slot's
+identity. The override is not persisted into saved agent arguments.
+
 `couch --actors`, `--send-to repo[:N] --message TEXT` and `--message-status ID`
 use bounded Unix stream RPC, without constructing another mutable supervisor.
 `--actors` and `--message-status` support JSON. One pending delivery per actor,

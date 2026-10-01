@@ -288,6 +288,24 @@ total: 8.19
 
 ## Log
 
+### 2026-09-30 — human smoke: resumed-slot identity
+
+The Parley smoke exposed two launch integration gaps. Claude in parley.nvim:1
+failed caller validation because the cold-resume launcher cleared
+PAIR_LAUNCH_NONCE; Codex in :0 had correct Couch variables in the live process
+but a shell snapshot exporting a prior Brain identity without COUCH_STORE_DIR.
+Neither failure reached target-name parsing. Every Couch-owned cold launch now
+prepares fresh wrapper readiness evidence, while keeping the native session ID.
+Couch-launched Codex gets a runtime-only `--disable shell_snapshot`; saved agent
+arguments and global Codex settings remain unchanged (ARCH-PURPOSE).
+
+Regression tests first reproduced missing resume identity for Claude and Codex
+and the absent runtime shell policy. Those tests now pass, as do the complete
+launcher, wrapcmd, couchcmd, couchmessage and couchtty suites. Codex 0.159.2's
+feature command confirms the override is accepted and disables shell snapshots.
+Live hello/pong acceptance still requires restarting the participating wrappers
+with the corrected build; no successful human smoke is claimed here.
+
 ### 2026-09-29
 
 Filed from ariadne#272's brainstorm. Companion to pair#352 (`couch --notify`).

@@ -567,7 +567,7 @@ func TestRequiredNativeResumeBindingLaunchesExactRootWithoutDefaults(t *testing.
 			if len(rt.preparedOrigins) != 1 || rt.preparedOrigins[0] != sessionledger.RequestOriginResume {
 				t.Fatalf("request origin = %v", rt.preparedOrigins)
 			}
-			if rt.env["PAIR_SESSION_ID"] != "native-root-1" || launchArgsText(t, rt.env) != "resume native-root-1 --sandbox workspace-write --no-alt-screen" {
+			if rt.env["PAIR_SESSION_ID"] != "native-root-1" || launchArgsText(t, rt.env) != "--disable shell_snapshot resume native-root-1 --sandbox workspace-write --no-alt-screen" {
 				t.Fatalf("resume env: id=%q args=%q", rt.env["PAIR_SESSION_ID"], launchArgsText(t, rt.env))
 			}
 		})
