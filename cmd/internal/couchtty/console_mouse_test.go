@@ -27,13 +27,13 @@ type dispatched struct {
 	manual  bool
 }
 
-func newMouseFixture(t *testing.T) (*Console, *io.PipeWriter, *hostty.FakeHost, chan dispatched) {
+func newMouseFixture(t *testing.T, setup ...func(*Console)) (*Console, *io.PipeWriter, *hostty.FakeHost, chan dispatched) {
 	t.Helper()
-	con, input, host, calls, _ := newMouseFixtureWithDone(t)
+	con, input, host, calls, _ := newMouseFixtureWithDone(t, setup...)
 	return con, input, host, calls
 }
 
-func newMouseFixtureWithDone(t *testing.T) (*Console, *io.PipeWriter, *hostty.FakeHost, chan dispatched, <-chan struct{}) {
+func newMouseFixtureWithDone(t *testing.T, setup ...func(*Console)) (*Console, *io.PipeWriter, *hostty.FakeHost, chan dispatched, <-chan struct{}) {
 	t.Helper()
 	host := hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80})
 	reader, writer := io.Pipe()
@@ -70,6 +70,10 @@ func newMouseFixtureWithDone(t *testing.T) (*Console, *io.PipeWriter, *hostty.Fa
 	}, one)
 	con.menuReady = true
 	con.mu.Unlock()
+	// Configure immutable pane identity before Run can read it concurrently.
+	for _, configure := range setup {
+		configure(con)
+	}
 	done := make(chan struct{})
 	go func() { con.Run(); close(done) }()
 	t.Cleanup(func() {

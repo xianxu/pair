@@ -156,6 +156,11 @@ representative evidence, not an exhaustive index.
 
 ## Terminal, input, and UI boundaries
 
+- When scrolling grouped rows, test a selected group taller than the viewport;
+  anchoring to its final child must not hide the owning row. (#371)
+- Configure immutable pane identity in fixtures before starting the console;
+  locking only the test's later writes cannot synchronize unlocked readers. (#371)
+
 - Route input according to the currently focused, active surface. A key's bytes,
   pane role, screen, and owner all matter; test every encoding and every layer
   that can intercept it. (#245, #284)
