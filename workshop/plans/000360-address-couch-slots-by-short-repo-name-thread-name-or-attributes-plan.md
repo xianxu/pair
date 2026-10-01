@@ -237,3 +237,32 @@ usage, `README.md`, `atlas/couch.md`.
       close). Live smoke (operator): in couch, `couch --send-to parley:1
       --message …` from another slot, and alias `xianxu.dev` → `blog` shows
       `blog:1` on the tab bar.
+
+## Revisions
+
+### 2026-10-01 — implementation reconciliation
+
+- **No CLI form for `alias`.** Couch's public argv exposes only `--list`,
+  `--show`, `--archived` and the message forms; switcher operations (rename,
+  describe) are not argv-reachable, so `alias` is a switcher action on live
+  `:0` rows like them. Task 5's `ref` argument is the primary root the switcher
+  supplies; `clear` is set by an empty entry. The planned CLI rendering of
+  `RepositoryAliasResult` was removed as unreachable.
+- **Alias source on `messageAuthority`.** The broker is built in
+  `newMessageService`, which has no couch handle, so the alias hook is a
+  read-only probe on `messageAuthority` (`couchcmd/message_service.go`), set via
+  `Broker.SetAliases` instead of a `NewBroker` parameter.
+- **Message misses keep their codes.** An unknown repository returns the same
+  `not-dispatched` / `unavailable` codes as a repository with no live slot,
+  with the live slots appended, rather than `invalid-target`: from live
+  bindings alone a typo and an offline repository are indistinguishable.
+- **Alias validation is stricter than a directory name** (no whitespace), so
+  every alias is also a valid message family.
+- **Switcher filter** matches `repo:N` by directory or alias prefix without
+  the uniqueness rule, since a filter lists every candidate.
+- Entity mapping as delivered: `RepositoryAliasResult`, `Couch.RepositoryAlias`
+  (`couchcore/repositoryalias.go`), `ApplyRepositoryAliases`
+  (`couchcore/actionableinventory.go`), `menuAliasOffered`
+  (`couchtty/menu_switchagent.go`), `messageFamilyAliases`
+  (`couchcmd/message_service.go`), `Couch.repositoryPrimary` /
+  `repositoryNames` (`couchcore/slotcontext.go`; `enrolledPrimary` removed).

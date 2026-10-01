@@ -49,7 +49,8 @@ inside couch; no model is involved.
    messaging the candidate set is the live bindings' repositories.
 2. **Repository alias.** One optional alias per enrolled repository
    (`xianxu.dev` → `blog`), set from the live `:0` row's "alias" action (the
-   slot-world replacement for rename, #363) and by a CLI form. It is a valid
+   slot-world replacement for rename, #363). (No CLI form: switcher operations
+   are not argv-reachable; see the plan's Revisions.) It is a valid
    repository token, unique across enrolled repositories and their directory
    names; empty clears it. It works anywhere the repository name does
    (`blog:1`, `--send-to blog`), and the tab bar and switcher label slots
@@ -78,8 +79,8 @@ inside couch; no model is involved.
 - A reference that resolves to nothing lists bounded candidates.
 - `--send-to pair --agent codex` picks the free codex slot when two free slots
   run different agents, and refuses when none runs it.
-- The couch skill, `couch --help`, README and atlas describe prefixes, aliases
-  and `--agent`.
+- The couch skill, README and atlas describe prefixes, aliases and `--agent`;
+  `couch --help` shows `--agent`.
 
 ## Plan
 

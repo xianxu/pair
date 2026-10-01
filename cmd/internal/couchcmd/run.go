@@ -769,12 +769,6 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 		} else {
 			fmt.Fprintf(w, "forgot %s on %s -- it was not running\n", v.Record.ID, v.Record.Args.Worktree)
 		}
-	case couchcore.RepositoryAliasResult:
-		if v.Alias == "" {
-			fmt.Fprintf(w, "%s: (no alias)\n", v.Repository)
-		} else {
-			fmt.Fprintf(w, "%s: %s\n", v.Repository, v.Alias)
-		}
 	case string:
 		if v == "" {
 			fmt.Fprintln(w, "(no description)")

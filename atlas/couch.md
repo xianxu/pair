@@ -71,6 +71,34 @@ retention adapters. Slot row keys use host paths; process/terminal maps retain
 native addresses. Creation admission and launch recovery are described in
 [workspace provisioning](workspace-provisioning.md).
 
+### Slot references and repository aliases (#360)
+
+Every `repo:N` reference — operation refs, the switcher filter, and
+`--send-to` — resolves its repository part with `ResolveRepositoryName`
+(`couchcore/repositoryname.go`): exact directory name or alias, then a unique
+prefix of either, counted per repository so two repositories sharing a name
+are refused rather than picked. Misses and ambiguity list bounded candidates
+(`FormatRepositoryCandidates`, ≤12 entries / 1 KiB). Operations
+(`Couch.repositoryPrimary`, `slotcontext.go`) resolve over enrolled
+repositories, after giving an existing sibling directory precedence (an
+un-enrolled sibling opens as before; one whose existence is undecidable keeps
+its own error). Messaging (`couchmessage.ResolveRecipient`) resolves over live
+bindings' families, applies `--agent` only after the family identity check, and
+keeps its response codes on a miss while listing live slots. The switcher
+filter matches by prefix without the uniqueness rule, since it lists every
+candidate.
+
+Aliases live in the root store's `repository-aliases.json`, not the strictly
+decoded manifest, so older couch builds can still read the store. One entry per
+enrolled repository; clearing removes it; entries for un-enrolled roots are
+ignored and dropped on the next write; a stored alias that would shadow a
+directory is withheld on read. `ApplyRepositoryAliases` labels inventory rows
+by repository scope (slot rows by primary root), and `PresentThreads` names the
+group by its alias, so the tabs and switcher show `alias:N`. The `alias`
+operation is a switcher action on live `:0` rows only; it refuses an alias that
+an existing sibling directory would shadow. `couch --actors` shows each slot's
+alias and agent.
+
 ### Live peer messages (#353)
 
 The supervisor owns an ephemeral `couchmessage.Broker` under its existing
@@ -85,7 +113,7 @@ Couch-launched Codex disables shell snapshots for that process so tool shells
 inherit the current slot environment instead of restoring an older slot's
 identity. The override is not persisted into saved agent arguments.
 
-`couch --actors`, `--send-to repo[:N] --message TEXT` and `--message-status ID`
+`couch --actors`, `--send-to repo[:N] [--agent NAME] --message TEXT` and `--message-status ID`
 use bounded Unix stream RPC, without constructing another mutable supervisor.
 `--actors` and `--message-status` support JSON. One pending delivery per actor,
 eight inbound admissions between genuine operator submissions, and bounded
