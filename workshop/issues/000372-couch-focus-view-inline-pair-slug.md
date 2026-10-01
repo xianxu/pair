@@ -8,6 +8,7 @@ updated: 2026-10-01
 estimate_hours:
 card_mirror: '109a5eaa3268f3e535b754d5366a7da9c4af50ff' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-01T15:09:24-07:00
+flow: {kind: quick, provenance: inferred, spec: "127580d7", done: "1f629565"}
 ---
 
 # couch focus view: show pair-slug inline
