@@ -1,12 +1,13 @@
 ---
 id: 000365
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-01
 updated: 2026-10-01
 estimate_hours:
-card_mirror: 'f06b486a3aca425153aaea221d5b070b37d80b3c' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '75dd28f056ac1d05e0a9d09c527be80324002515' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-01T13:09:21-07:00
 ---
 
 # Replace messaging liveness polling with lifecycle events
