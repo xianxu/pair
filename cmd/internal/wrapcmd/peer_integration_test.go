@@ -2,6 +2,7 @@ package wrapcmd
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"io"
 	"strings"
@@ -29,6 +30,31 @@ func peerIntegrationEnqueue(t *testing.T, d *peerDelivery) {
 	}
 	if err := d.enqueue(m); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestPeerIntegrationClaudeSuggestionPreservesHumanOwnership(t *testing.T) {
+	for _, human := range []bool{false, true} {
+		t.Run(fmt.Sprint(human), func(t *testing.T) {
+			f, d := peerIntegrationFixture(t)
+			if human {
+				d.admitInput([]byte("human\x01"))
+				d.inputForwarded()
+			}
+			// Same faint composer and origin cursor as the operator's 2.1.286
+			// capture. Even this paint cannot release admitted human input.
+			f.output("\x1b[21;3H\x1b[2mcheck if parley.nvim:0 replied\x1b[22m\x1b[21;3H")
+			peerIntegrationEnqueue(t, d)
+			var out bytes.Buffer
+			f.proxy.dispatchPeer(&out)
+			if human {
+				if out.Len() != 0 {
+					t.Fatalf("overwrote human draft: %q", out.String())
+				}
+			} else if !strings.Contains(out.String(), "[Couch peer from ") {
+				t.Fatalf("suggestion blocked peer paste: %q", out.String())
+			}
+		})
 	}
 }
 

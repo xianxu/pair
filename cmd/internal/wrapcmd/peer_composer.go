@@ -98,8 +98,8 @@ func peerComposerText(agent string, s terminalSnapshot) (string, bool) {
 	return text, true
 }
 
-// Claude's captured ghost wording rotates. Its invariant is a single quoted
-// Try suggestion in faint styling, at the empty input origin of the ruled box.
+// Claude paints both startup hints and generated next-prompt suggestions in
+// faint styling at the empty input origin of the ruled box. Wording is free text.
 // The wrapper separately retains human draft ownership even if text looks blank.
 func peerPlaceholder(agent string, s terminalSnapshot, row int, text string) bool {
 	expected := false
@@ -107,10 +107,7 @@ func peerPlaceholder(agent string, s terminalSnapshot, row int, text string) boo
 	case "codex":
 		expected = text == "Ask Codex to do anything"
 	case "claude":
-		if strings.HasPrefix(text, `Try "`) && strings.HasSuffix(text, `"`) && len(text) > 6 {
-			hint := text[5 : len(text)-1]
-			expected = !strings.ContainsAny(hint, "\"\r\n") && strings.TrimSpace(hint) != ""
-		}
+		expected = strings.TrimSpace(text) != "" && !strings.ContainsAny(text, "\r\n")
 	}
 	if !expected || s.Cursor.X != 2 || s.Cursor.Y != row {
 		return false

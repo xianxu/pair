@@ -537,7 +537,7 @@ func (b *Broker) runActor(ctx context.Context, a *SlotActor) {
 		case <-ctx.Done():
 			return
 		case m := <-a.inbox:
-			deliveryCtx, cancel := context.WithTimeout(ctx, DeliveryTimeout)
+			deliveryCtx, cancel := context.WithTimeout(ctx, DeliveryTimeout+ReceiptTimeout)
 			job := &deliveryJob{cancel: cancel}
 			b.mu.Lock()
 			pending, ok := a.state.Pending()

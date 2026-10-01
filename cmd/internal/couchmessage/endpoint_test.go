@@ -213,3 +213,42 @@ func TestRemoteEndpointPollingStopsAtContextDeadline(t *testing.T) {
 		t.Fatalf("commit attempts: %d", commits)
 	}
 }
+
+func TestRemoteEndpointCollectsOutcomeAfterInputDeadline(t *testing.T) {
+	for _, outcome := range []Status{Expired, Submitted} {
+		t.Run(string(outcome), func(t *testing.T) {
+			m := endpointMessage()
+			m.Deadline = time.Now().Add(100 * time.Millisecond)
+			socket := transportSocket(t)
+			commits := 0
+			s, err := StartServer(context.Background(), socket, func(_ context.Context, raw []byte) ([]byte, error) {
+				var req EndpointRequest
+				if err := strictjson.Decode(raw, &req); err != nil {
+					return nil, err
+				}
+				status := Queued
+				if req.Op == "commit" {
+					commits++
+				} else if req.Op == "status" && !time.Now().Before(m.Deadline) {
+					// The wrapper learns expiry at the input deadline, or reports
+					// a submission completed before it. Only read the outcome.
+					status = outcome
+				}
+				return json.Marshal(EndpointResponse{Receipt: &Receipt{Message: m, Status: status}})
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer s.Close()
+			e := RemoteEndpoint{Binding: m.To, socket: socket}
+			r, err := e.Deliver(context.Background(), m)
+			s.Close()
+			if err != nil || r.Status != outcome {
+				t.Fatalf("outcome=%s err=%v", r.Status, err)
+			}
+			if commits != 1 {
+				t.Fatalf("replayed input: %d commits", commits)
+			}
+		})
+	}
+}

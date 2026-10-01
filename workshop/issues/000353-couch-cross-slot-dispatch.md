@@ -288,6 +288,25 @@ total: 8.19
 
 ## Log
 
+### 2026-09-30 — human smoke: Claude suggested prompts
+
+Operator confirmed parley.nvim:1 to :0 delivered and was verified by Codex.
+The opposite direction queued but the wrapper expired without submitting.
+Replaying the 94x39 Claude 2.1.286 terminal capture showed a generated next-prompt
+suggestion, entirely ANSI faint, at cursor column 2. The old literal `Try "…"`
+shape missed it; the operator confirmed it was a suggestion, not a human draft.
+Recognition now uses the single-line faint style and input-origin cursor rather
+than wording or learned colors. Human input ownership continues to block paste.
+Regression tests cover the observed suggestion, ordinary text at the same cursor,
+human-owned input with identical faint paint, and color-independent recognition.
+Live light-theme conformance is not yet established.
+
+The broker's input-deadline polling race also hid the wrapper's `expired` receipt
+behind `indeterminate`. Outcome collection now has a bounded two-second read-only
+window after the unchanged input deadline (ARCH-ORDER). Stateful socket tests
+cover expired/submitted outcomes arriving after the deadline, one commit only,
+and earlier caller cancellation. No automatic resend or extra input is permitted.
+
 ### 2026-09-30 — human smoke: resumed-slot identity
 
 The Parley smoke exposed two launch integration gaps. Claude in parley.nvim:1

@@ -105,6 +105,12 @@ has live evidence for both; deterministic wrapping is matched conservatively.
 Collapsed paste summaries remain unsubmitted and expire. Human Couch acceptance
 remains a separate step.
 
+Claude's single-line suggested prompts are recognized by faint terminal styling
+and the cursor at the input origin, independent of wording or RGB color. Human
+input ownership still blocks delivery even if the screen resembles a suggestion.
+After the input deadline, the broker allows two seconds for read-only receipt
+collection; this never extends the wrapper's paste/submit deadline.
+
 Key files: `couchmessage/{model,routing,broker,transport,protocol,endpoint}.go`,
 `couchcmd/{messages,skill}.go`, and the wrapper delivery adapter. The canonical
 skill is `couchcmd/skills/couch/SKILL.md`, embedded for `couch --skill` even

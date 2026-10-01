@@ -162,12 +162,11 @@ func TestPeerComposerClaudeGhostShape(t *testing.T) {
 	}{
 		{"rotating hint", `Try "explain this code"`, true, "\x1b[7;3H", true},
 		{"ordinary style", `Try "explain this code"`, false, "\x1b[7;3H", false},
-		{"unquoted faint", `Try explain this code`, true, "\x1b[7;3H", false},
-		{"arbitrary faint", `operator text`, true, "\x1b[7;3H", false},
-		{"extra suffix", `Try "explain this code" extra`, true, "\x1b[7;3H", false},
-		{"embedded quote", `Try "explain "this" code"`, true, "\x1b[7;3H", false},
+		{"suggested next prompt", `check if parley.nvim:0 replied`, true, "\x1b[7;3H", true},
+		{"suggestion with quotes", `explain "this" code`, true, "\x1b[7;3H", true},
+		{"ordinary draft at origin", `check if parley.nvim:0 replied`, false, "\x1b[7;3H", false},
 		{"wrong cursor", `Try "explain this code"`, true, "\x1b[7;4H", false},
-		{"empty quote", `Try ""`, true, "\x1b[7;3H", false},
+		{"empty quote", `Try ""`, true, "\x1b[7;3H", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			body := tc.text
@@ -183,6 +182,22 @@ func TestPeerComposerClaudeGhostShape(t *testing.T) {
 	s := peerSnapshot(t, claudeBox(5, "❯", "136;136;136", "\x1b[2mTry \"one\"\x1b[22m", "\x1b[2mextra\x1b[22m")+"\x1b[?25h\x1b[7;3H")
 	if peerComposerState("claude", s) == PeerComposerEmpty {
 		t.Fatal("multiline faint text accepted as ghost")
+	}
+}
+
+func TestPeerComposerClaudeSuggestionDoesNotDependOnColor(t *testing.T) {
+	for _, color := range []string{"39", "38;2;220;220;220", "38;2;40;40;40"} {
+		for _, faint := range []bool{false, true} {
+			body := "\x1b[" + color + "m"
+			if faint {
+				body += "\x1b[2m"
+			}
+			body += "suggested next prompt\x1b[0m"
+			s := peerSnapshot(t, claudeBox(5, "❯", "136;136;136", body)+"\x1b[?25h\x1b[7;3H")
+			if empty := peerComposerState("claude", s) == PeerComposerEmpty; empty != faint {
+				t.Fatalf("color=%s faint=%v empty=%v", color, faint, empty)
+			}
+		}
 	}
 }
 
