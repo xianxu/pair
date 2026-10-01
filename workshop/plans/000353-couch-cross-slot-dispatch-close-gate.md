@@ -103,6 +103,32 @@ rounds:
           round: 4
       recipe: milestone-review
       blocked: true
+    - "n": 5
+      timestamp: "2026-09-30T22:43:14-07:00"
+      agent: codex
+      dispose:
+        - id: BR-5
+          disposition: addressed
+          note: broker.go:434 retains sender identity for ambiguity detection; broker_ambiguity_test.go:26 passes at HEAD and fails under an overlay restoring sender exclusion, exposing cross-repository admission and reservation.
+          round: 5
+        - id: BR-1
+          disposition: addressed
+          note: Shared automatic-input transactions cover both writer arrival orders and fresh-empty repaint release; wrapper regression and focused race tests pass.
+          round: 5
+        - id: BR-2
+          disposition: addressed
+          note: Encoded domain bounds are exercised through transport tests for maximum messages and actor inventories; couchmessage tests pass.
+          round: 5
+        - id: BR-3
+          disposition: addressed
+          note: Dead-owner socket collection has crash, live-owner and replacement-preservation regressions; couchmessage tests pass.
+          round: 5
+        - id: BR-4
+          disposition: addressed
+          note: The plan revision at line 499 correctly supersedes Client with Server/Call in transport.go and identifies automaticInputTransaction in automatic_input.go.
+          round: 5
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#353 (boundary-review)
@@ -157,6 +183,16 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-5** [Critical] `routing-ambiguity-before-eligibility-filtering` Sender exclusion hides repository-family ambiguity
   cmd/internal/couchmessage/broker.go:435 removes the sender before ResolveRecipient checks repository identities. With sender pair:0 in repository A and recipient pair:1 in repository B, sending to pair succeeds into B instead of returning ErrAmbiguous. An isolated regression reproduces this against the pinned HEAD. Preserve all connected actors for ambiguity detection, then exclude the sender only from recipient eligibility. Add a broker regression asserting refusal without reservation or delivery. ARCH-PURPOSE, ARCH-SECURE.
 
+## Round 5 — 2026-09-30T22:43:14-07:00 (codex) — passed
+
+### Disposed
+
+- BR-5 — addressed — broker.go:434 retains sender identity for ambiguity detection; broker_ambiguity_test.go:26 passes at HEAD and fails under an overlay restoring sender exclusion, exposing cross-repository admission and reservation.
+- BR-1 — addressed — Shared automatic-input transactions cover both writer arrival orders and fresh-empty repaint release; wrapper regression and focused race tests pass.
+- BR-2 — addressed — Encoded domain bounds are exercised through transport tests for maximum messages and actor inventories; couchmessage tests pass.
+- BR-3 — addressed — Dead-owner socket collection has crash, live-owner and replacement-preservation regressions; couchmessage tests pass.
+- BR-4 — addressed — The plan revision at line 499 correctly supersedes Client with Server/Call in transport.go and identifies automaticInputTransaction in automatic_input.go.
+
 ## Open findings
 
-- **BR-5** [Critical] `routing-ambiguity-before-eligibility-filtering` Sender exclusion hides repository-family ambiguity
+(none — every finding has been disposed)

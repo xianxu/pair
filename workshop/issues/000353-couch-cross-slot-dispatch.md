@@ -290,6 +290,7 @@ total: 8.19
 ## Log
 
 ### 2026-09-30 — integration review and independent CI failure
+- 2026-09-30: closed — BR-5 full-inventory family ambiguity regression failed before fix and passes; refusal has zero reservation/admission/delivery effects, same-repo and sender-only cases pass. Uncached couchmessage/couchcmd and full couchmessage race pass; make build pair and diff check pass. Earlier full five-package suites and operator send/reply/family smoke accepted. Pre-existing native Zellij CI failure confirmed on main, separately filed as #361 per operator; Ariadne prelude tracked #276. Known broad-suite fixture races remain documented.; review verdict: SHIP
 
 The pre-merge main integration preserved close ancestry and resolved only a
 lessons conflict. The publish gate required reclose; that review found BR-5:

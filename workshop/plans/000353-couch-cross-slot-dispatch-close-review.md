@@ -338,3 +338,87 @@ findings:
 7. **Plan revision recommendation**
 
    Append a dated `## Revisions` entry establishing the invariant: family ambiguity uses every connected actor; sender exclusion affects selection only. Record the broker-level regression proving refusal before any delivery effect.
+
+---
+
+## Re-review — 2026-09-30T22:43:14-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 353 — Live cross-slot dispatch between couch slots |
+| repo | pair |
+| issue file | workshop/issues/000353-couch-cross-slot-dispatch.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 834078cedee432acecd4fac073e37768a171887d..20a45dc8a58ca51221c31d1628829e74b1293c09 |
+| command | sdlc close --issue 353 |
+| reviewer | codex |
+| timestamp | 2026-09-30T22:43:14-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range satisfies the amended Spec/Plan. BR-5 is addressed with a regression that demonstrably fails when the old sender-filtering behavior is restored. No new blocking findings emerged. All five affected package suites passed; live harness conformance was not rerun.
+
+1. **Strengths**
+
+   - Repository ambiguity is checked before recipient eligibility, including sender identity (`cmd/internal/couchmessage/broker.go:434`).
+   - BR-5’s regression verifies refusal without reservation or admission, plus successful same-repository routing and sender-only refusal (`broker_ambiguity_test.go:26`).
+   - Shared automatic-input ownership protects the complete paste/render/submit transaction.
+   - README and atlas document commands, setup, supported receivers, uncertainty, and lifecycle limits.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Passed all five suites: `couchmessage`, `couchcmd`, `couchtty`, `wrapcmd`, and `launcher`.
+   - Passed full `couchmessage` race tests and focused wrapper peer/automatic-input race tests.
+   - A temporary Go overlay restoring BR-5’s bug made its regression fail: cross-repository admission succeeded and created a reservation.
+   - Whitespace checks passed excluding byte-preserved raw terminal captures; those captures contain expected trailing control/space bytes.
+   - Repository files remained unchanged.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared identity parsing, input arbitration, and transport helpers.
+   - **ARCH-PURE — pass:** routing and transition logic remain separate from socket/PTY effects.
+   - **ARCH-PURPOSE — pass:** complete live dispatch path; ambiguity uses the full connected inventory.
+   - **ARCH-MOCK — pass:** stateful endpoints and isolated socket/terminal fixtures exercise production seams.
+   - **ARCH-CONSTRAINTS — pass:** explicit actor, receipt, payload, handler, and deadline bounds.
+   - **ARCH-SECURE — pass:** exact incarnation checks, private sockets, strict decoding, and canonical receipt verification.
+   - **ARCH-ORDER — pass:** controlled interruption/replacement tests and shared automatic-input transaction ownership.
+   - **ARCH-FUNERAL — pass:** bounded ephemeral state, owned shutdown, and dead-owner socket collection.
+
+7. **Plan revision recommendations:** None. Existing revisions reconcile approved semantics and implemented entity mappings.
+
+```findings
+dispose:
+  - id: BR-5
+    disposition: addressed
+    note: |
+      broker.go:434 retains sender identity for ambiguity detection; broker_ambiguity_test.go:26 passes at HEAD and fails under an overlay restoring sender exclusion, exposing cross-repository admission and reservation.
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Shared automatic-input transactions cover both writer arrival orders and fresh-empty repaint release; wrapper regression and focused race tests pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Encoded domain bounds are exercised through transport tests for maximum messages and actor inventories; couchmessage tests pass.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Dead-owner socket collection has crash, live-owner and replacement-preservation regressions; couchmessage tests pass.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      The plan revision at line 499 correctly supersedes Client with Server/Call in transport.go and identifies automaticInputTransaction in automatic_input.go.
+```
