@@ -112,6 +112,7 @@ mirrors any edits back into `slug-<tag>`. Couch never reads either file.
 ## Log
 
 ### 2026-10-01
+- 2026-10-01: closed — advisory follow-up a7772a0c: renamed slugline fence consts off the close builtin, doc names nvim/slug.lua mirror; slugline/slugcmd/couchcore tests pass; earlier evidence: operator smoke test on :0 passed, go test ./... only the 3 known main-base failures; review verdict: SHIP
 - 2026-10-01: closed — operator smoke test on :0 (60bb0490) passed: focus rows show name ◆ description ◆ slug, slug refreshes after a turn with no notification; new slugline/couchcore/couchtty tests pass (mutation-checked); go test ./... fails only the 3 known main-base failures; artifactpath violations identical to origin/main; review verdict: SHIP
 - 2026-10-01: flow upgraded quick → full — 135 added lines in code files (limit 100)
 

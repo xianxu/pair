@@ -100,3 +100,72 @@ findings:
     detail: |
       couch.go:206,265 and slotstart.go:179,322 now do one bounded read per live row; negligible cost, but the work is unused there.
 ```
+
+---
+
+## Re-review — 2026-10-01T16:21:26-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 372 — couch focus view: show pair-slug inline |
+| repo | pair |
+| issue file | workshop/issues/000372-couch-focus-view-inline-pair-slug.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 23f311fb48d5a3bc9e5909a05669c2d9d241bbe0..a7772a0c1cf3b2c3d75bc890da35b7a33d86ceb6 |
+| command | sdlc close --issue 372 |
+| reviewer | claude |
+| timestamp | 2026-10-01T16:21:26-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+This round only needed to check four Minor advisories from round 1, and all of them are disposed. In `a7772a0c`:
+- The `slugline` package doc now calls itself "the Go definition" of the format and names `nvim/slug.lua` as a mirror, which is true.
+- The const that shadowed Go's built-in `close` is renamed to `fenceOpen`/`fenceClose`.
+- The plan's Revisions section records that the plan's `Unfence` shipped as `Unfenced`.
+- The extra slug reads on the start/slot paths are kept on purpose, and that choice is written into the Revisions entry.
+
+I found nothing new. The code under review is the same as round 1 apart from those renames and doc edits.
+
+Test runs at HEAD `a7772a0c`:
+- `slugline` and `slugcmd` pass.
+- The targeted couchcore run (`-run 'Slug|ActionableThreadInventory'`) passes. The full couchcore package was red after a 333s run, but the failing test wasn't identified.
+- The `MenuFocus` tests in couchtty pass. The full couchtty run fails only on the soak test, because the sandbox blocks starting the pty child process.
+- `artifactpath`'s `TestProductionArtifactReferencesAreExactlyClassified` fails. Every unclassified reference it lists is in the review/couchmessage area (`nvim/review/*`, `reviewcmd`). None involve slug files, so it looks like it was already failing before this work, though I didn't run the base to confirm. The new `slug.go` and `slugline.go` entries in the classification list are not among the failures.
+
+1. **Strengths**
+   - `couchcore/slug.go` reads only the agent's suggestion file (`SlugProposed`), never the draft mirror the operator edits. It caps the read at 1 KiB and returns an empty slug for a malformed line. The tests check each of these cases.
+   - The new `slugline` package puts the format in one place: `slugcmd` and couchcore both call it instead of each parsing the line.
+   - `menuFocusSlug` cleans the slug before rendering, and a test checks that escape sequences and newlines are stripped and that the line doesn't wrap at width 40.
+2. **Critical:** none.
+3. **Important:** none.
+4. **Minor:** none new.
+5. **Test coverage:** the reader, `ApplySlugs` (live rows only, a failing read, no reader at all), rendering, and "a slug change is not an attention event" are each tested.
+6. **Architecture:** the round-1 pass on all eight ARCH principles still applies, since nothing changed since then except renames and doc text. ARCH-DRY: the doc now names the Lua mirror instead of claiming a single source. ARCH-FUNERAL: no new files are written; couch only reads.
+7. **Plan revisions:** none needed; the Revisions entry already matches the code.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      slugline.go:1-4 now says "the Go definition" and names nvim/slug.lua as the mirror (verified nvim/slug.lua exists); lessons.md adds the rule.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Issue Revisions entry (2026-10-01) records that Unfence shipped as Unfenced; slugline.go:37 confirms the name.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      consts renamed to fenceOpen/fenceClose (slugline.go:13-15); no other built-in names in the new files; slugline and slugcmd tests pass.
+  - id: BR-4
+    disposition: withdrawn
+    note: |
+      Kept on purpose and recorded in the issue Revisions; one capped read per live row on paths that are not hot.
+```
