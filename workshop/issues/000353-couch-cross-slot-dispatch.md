@@ -8,6 +8,7 @@ updated: 2026-09-30
 estimate_hours: 8.19
 card_mirror: '6b0fa566496540576a7fe48a4819a7486ef8262e' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-09-30T13:47:42-07:00
+flow: {kind: full, provenance: operator}
 ---
 
 # Live cross-slot dispatch between couch slots

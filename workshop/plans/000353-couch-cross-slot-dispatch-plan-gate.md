@@ -43,6 +43,33 @@ rounds:
           note: Version/change-triggered live conformance and refusal of automatic delivery for unqualified or failing versions now define recurring qualification.
           round: 2
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-30T17:03:12-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-2
+          disposition: addressed
+          note: The authoritative table supersedes Tasks 1–3's historical inventories and defines adversarial strategies and mechanical guards for Advance, ResolveRecipient, ValidateRequest, AdvancePeerDelivery, peerComposerState, and ParseCLI.
+          round: 3
+      blocked: false
+    - "n": 4
+      timestamp: "2026-09-30T17:07:10-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Fresh observations, conditional reservation, binding rechecks, and deadline handling are explicit.
+          round: 4
+        - id: PQ-2
+          disposition: addressed
+          note: The authoritative function-level strategy table explicitly supersedes historical Task 1–3 test inventories.
+          round: 4
+        - id: PQ-3
+          disposition: addressed
+          note: Version and receiver-behavior changes trigger requalification; unqualified receivers decline automatic delivery.
+          round: 4
+      blocked: false
+content_hash: 4a19ca1329f1abe7f939dcc4135f9ef1a3ef2d04b6ad50740fe210454bcdfbb0
 ---
 
 # Gate ledger — pair#353 (plan-quality)
@@ -69,6 +96,20 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-2 — not-addressed — The six function-level strategies are present, but Tasks 1–3 retain the rejected prose case inventories. Make the strategy table authoritative and explicitly supersede those inventory bullets in a controlling amendment; this is the unresolved portion of PQ-2, not a new finding.
 - PQ-3 — addressed — Version/change-triggered live conformance and refusal of automatic delivery for unqualified or failing versions now define recurring qualification.
 
+## Round 3 — 2026-09-30T17:03:12-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-2 — addressed — The authoritative table supersedes Tasks 1–3's historical inventories and defines adversarial strategies and mechanical guards for Advance, ResolveRecipient, ValidateRequest, AdvancePeerDelivery, peerComposerState, and ParseCLI.
+
+## Round 4 — 2026-09-30T17:07:10-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Fresh observations, conditional reservation, binding rechecks, and deadline handling are explicit.
+- PQ-2 — addressed — The authoritative function-level strategy table explicitly supersedes historical Task 1–3 test inventories.
+- PQ-3 — addressed — Version and receiver-behavior changes trigger requalification; unqualified receivers decline automatic delivery.
+
 ## Open findings
 
-- **PQ-2** [Important] `function-level-test-strategy` Replace prose test-case inventories with function-level strategies.
+(none — every finding has been disposed)
