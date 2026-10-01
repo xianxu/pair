@@ -80,20 +80,20 @@ mirrors any edits back into `slug-<tag>`. Couch never reads either file.
 
 ## Plan
 
-- [ ] New pure package `cmd/internal/slugline`: `Format(left, focus)`,
+- [x] New pure package `cmd/internal/slugline`: `Format(left, focus)`,
       `Valid`, `Focus`, `Unfence`. slugcmd switches to it, so the
       `=== L | R ===` format has one definition (ARCH-DRY)
-- [ ] couchcore: `ActionableThreadSummary.Slug`; a `Couch.Slug` seam (like
+- [x] couchcore: `ActionableThreadSummary.Slug`; a `Couch.Slug` seam (like
       `OrientationStatus`); `ApplySlugs` runs after the projection, in the same
       place as `ApplyRepositoryAliases`, for live rows only. Display-only:
       errors leave the slug empty
-- [ ] `OSSlugReader{DataDir}`: `artifactpath.Resolve` → `SlugProposed`, a
+- [x] `OSSlugReader{DataDir}`: `artifactpath.Resolve` → `SlugProposed`, a
       bounded regular-file read, then `slugline.Unfence`. Wired in
       `couchcmd/run.go` next to `OrientationStatus`
-- [ ] `menu_render.go`: focus rendering appends ` ◆ slug` when present
+- [x] `menu_render.go`: focus rendering appends ` ◆ slug` when present
       (sanitized)
-- [ ] Tests from Done when; `make test`
-- [ ] Update the focus-view paragraph in `atlas/couch.md` (#338 section)
+- [x] Tests from Done when; `make test`
+- [x] Update the focus-view paragraph in `atlas/couch.md` (#338 section)
 
 ## Revisions
 
@@ -107,3 +107,18 @@ mirrors any edits back into `slug-<tag>`. Couch never reads either file.
 ## Log
 
 ### 2026-10-01
+
+- Built per Plan (6e20f14d). `slugline` owns the `=== L | R ===` format;
+  slugcmd's `validateSlug`/`rightOf` and their tests moved there (ARCH-DRY).
+- `couchcore/slug.go` registered in the artifactpath inventory as a
+  ResolvedConsumer (binding `composite-slug-proposed`), `slugline.go` as a
+  non-artifact source. The suite's `TestProductionArtifactReferencesAreExactlyClassified`
+  still fails, with the 54 violations byte-identical to an `origin/main` worktree.
+- Mutation check: dropping `menuFocusSlug` from the focus render fails the two
+  new slug tests (5 assertions).
+- Verification (five-var scrub, sandbox off): `make -k test` → only
+  `test-changelog` (known, default TMPDIR); `TMPDIR=<scratchpad> make
+  test-changelog` → pass; `go test ./... -count=1` → only the three known
+  failures that also fail on main (`TestBareCouchInstalledCommand`,
+  `TestProductionArtifactReferencesAreExactlyClassified`,
+  `TestCouchReferencesLocalArchiveLocatorRoundTrip`).
