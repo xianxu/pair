@@ -1,6 +1,6 @@
 ---
 id: 000371
-status: codecomplete
+status: done
 created: 2026-10-01
 updated: 2026-10-01
 estimate_hours:
@@ -24,6 +24,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 2e374410a462b58796f34fd211febae9738c689a
         evidence_commit: 00a2115dea3defabb32cdb6926ea7b3d1179febf
+        landed_commit: af1334f78d20622e01097cba28c949d8700ba602
 ---
 
 # Group switcher notifications under their originating slot
