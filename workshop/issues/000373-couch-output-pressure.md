@@ -1,12 +1,13 @@
 ---
 id: 000373
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-01
 updated: 2026-10-01
 estimate_hours:
-card_mirror: 'ffb20960a525e78220c88f6c0c30d225b7d9ac0b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '2ae76a809058ce46db3ac65d30c641cd6664eea7' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-01T15:41:41-07:00
 ---
 
 # Isolate Couch pane latency under output pressure
