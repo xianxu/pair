@@ -83,15 +83,21 @@ func (serviceEndpointFake) Release(context.Context, string) error               
 func (serviceEndpointFake) Deliver(ctx context.Context, _ couchmessage.Message) (couchmessage.Receipt, error) {
 	return couchmessage.Receipt{Status: couchmessage.Submitted}, ctx.Err()
 }
-func serviceFixture(t *testing.T) (*messageService, *messageAuthorityFake) {
+
+// messageSocketForTest is a broker socket path short enough for sun_path.
+func messageSocketForTest(t *testing.T) string {
 	t.Helper()
-	f := newMessageAuthorityFake()
 	dir, err := os.MkdirTemp("/tmp", "pair-message-service-")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
-	s, err := newMessageService(context.Background(), filepath.Join(dir, "broker.sock"), f.authority())
+	return filepath.Join(dir, "broker.sock")
+}
+func serviceFixture(t *testing.T) (*messageService, *messageAuthorityFake) {
+	t.Helper()
+	f := newMessageAuthorityFake()
+	s, err := newMessageService(context.Background(), messageSocketForTest(t), f.authority())
 	if err != nil {
 		t.Fatal(err)
 	}
