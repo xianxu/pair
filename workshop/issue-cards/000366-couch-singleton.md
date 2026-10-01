@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000366-couch-singleton.md
         source_blob: b86321a7947f894a927a4aba1d800a94a0070084
         destination: workshop/issues/000366-couch-singleton.md
+        main_commit: fc9e0b50719f3718c48a3406be84a46eb89ead40
 ---
 
 # Make Couch a local singleton
