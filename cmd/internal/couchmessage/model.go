@@ -2,6 +2,7 @@
 package couchmessage
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -15,6 +16,9 @@ const (
 	QuietInterval    = 30 * time.Second
 	ReceiptLifetime  = time.Hour
 	MaxBodyBytes     = 8 * 1024
+	// MaxBindingBytes bounds the complete JSON-encoded identity, including escaping.
+	MaxBindingBytes       = 4 * 1024
+	MaxReceiptDetailBytes = 1024
 )
 
 // Binding identifies one wrapper incarnation in one verified checkout. Slot is
@@ -31,6 +35,10 @@ func (b Binding) Validate() error {
 	}
 	if b.Repository == "" || b.Scope == "" || b.Tag == "" || b.Session == "" || b.Nonce == "" || b.Agent == "" || b.Version == "" || b.PID <= 0 || b.Start == "" {
 		return errors.New("incomplete wrapper binding")
+	}
+	raw, err := json.Marshal(b)
+	if err != nil || len(raw) > MaxBindingBytes {
+		return errors.New("wrapper binding exceeds encoded identity limit")
 	}
 	return nil
 }
@@ -132,7 +140,7 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 	}
 	var effects []Effect
 	emit := func(status Status, detail string) {
-		effects = append(effects, Effect{Receipt: Receipt{Message: s.pending, Status: status, Detail: detail, RetainUntil: e.At.Add(ReceiptLifetime)}})
+		effects = append(effects, Effect{Receipt: Receipt{Message: s.pending, Status: status, Detail: boundedReceiptDetail(detail), RetainUntil: e.At.Add(ReceiptLifetime)}})
 	}
 	finish := func(status Status, detail string) {
 		if s.pending.ID != "" {
@@ -200,7 +208,7 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 		activity()
 	case Admit:
 		m := e.Message
-		if m.ID == "" || m.To != s.binding || m.From.Validate() != nil || ValidateBody(m.Body) != nil || !m.Deadline.After(e.At) {
+		if !validMessageID(m.ID) || m.To != s.binding || m.From.Validate() != nil || ValidateBody(m.Body) != nil || !m.Deadline.After(e.At) {
 			return fail(errors.New("invalid message admission"))
 		}
 		if s.pending.ID != "" {
@@ -247,4 +255,17 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 		return fail(fmt.Errorf("unknown actor event %q", e.Kind))
 	}
 	return s, effects, nil
+}
+
+// Keep diagnostic text bounded without changing delivery status or message bytes.
+func boundedReceiptDetail(detail string) string {
+	detail = strings.ToValidUTF8(detail, "�")
+	if len(detail) <= MaxReceiptDetailBytes {
+		return detail
+	}
+	end := MaxReceiptDetailBytes - len("…")
+	for !utf8.RuneStart(detail[end]) {
+		end--
+	}
+	return detail[:end] + "…"
 }

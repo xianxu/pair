@@ -485,3 +485,13 @@ inventories remain historical where the amendments superseded their semantics.
   are superseded by the approved current-composer observation, shared faint
   style, one-second input settling and pending-only polling. An earlier family
   expiry is unresolved; guard diagnostics were added and the next smoke passed.
+
+- 2026-09-30: boundary review BR-1/2/3 requires transaction ownership across
+  automatic paste/render/submit (orientation and peer delivery), encoded wire
+  budgets matching every bounded message/discovery shape, and safe dead-owner
+  cleanup for incarnation socket residue. Add regressions for both automatic
+  writer arrival orders, terminal failure before repaint and subsequent empty
+  repaint; maximum encoded requests/commits/receipts/128-actor discovery; and
+  crashed socket collection preserving live/replacement sockets. This corrects
+  implementation gaps in the existing contract (ARCH-ORDER, ARCH-CONSTRAINTS,
+  ARCH-FUNERAL), without adding another task protocol or persistence layer.

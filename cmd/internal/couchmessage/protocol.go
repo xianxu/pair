@@ -27,6 +27,13 @@ func validMessageID(id string) bool {
 }
 
 func ValidateRequest(r Request) error {
+	// Caller identity and target fields cannot exceed a complete binding's budget.
+	for _, field := range []string{r.Op, r.Scope, r.Tag, r.Session, r.Nonce, r.Target} {
+		if len(field) > MaxBindingBytes {
+			return errors.New("request identity exceeds limit")
+		}
+	}
+
 	if r.Op == "register" || r.Op == "operator-submit" {
 		if r.Binding == nil || r.Scope != "" || r.Tag != "" || r.Session != "" || r.Nonce != "" || r.ID != "" || r.Target != "" || r.Body != "" {
 			return errors.New("wrapper operation requires only an exact binding")

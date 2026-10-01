@@ -194,11 +194,13 @@ var (
 // loop don't need locking; the few touched from signal goroutines (capture
 // window, notify-mode flags) are guarded explicitly.
 type proxy struct {
-	inputAdmission     sync.Mutex
-	peer               *peerDelivery
-	peerHumanSubmit    bool // owned by the stdin writer; consumed after a full write
-	notificationBroker *notifytransport.Broker
-	orientation        *orientationDelivery
+	inputAdmission       sync.Mutex
+	automaticInput       automaticInputTransaction
+	automaticRenderEpoch atomic.Uint64
+	peer                 *peerDelivery
+	peerHumanSubmit      bool // owned by the stdin writer; consumed after a full write
+	notificationBroker   *notifytransport.Broker
+	orientation          *orientationDelivery
 	// Real stdio, injected by Run so the proxy is testable without touching
 	// the process globals. In production stdin/stdout ARE os.Stdin/os.Stdout,
 	// so stdinFile/stdoutFile (the *os.File view needed for raw-mode, winsize

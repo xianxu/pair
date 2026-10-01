@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -25,10 +26,10 @@ func (r peerCLIRuntime) Getenv(key string) string { return r.env[key] }
 // parser and input writer. Only the child application's painted screen is fake.
 func TestPeerRuntimeBrokerToWrapperSubmitsOnce(t *testing.T) {
 	namespace := t.TempDir()
-	binding := func(slot, tag string, pid int) couchmessage.Binding {
-		return couchmessage.Binding{Slot: slot, Repository: "/fixture/.git", Scope: "fixture-scope", Tag: tag, Session: "fixture-" + tag, Nonce: "launch-" + tag, Agent: "claude", Version: "test-fixture", PID: pid, Start: "fixture-start"}
+	binding := func(slot, tag string) couchmessage.Binding {
+		return couchmessage.Binding{Slot: slot, Repository: "/fixture/.git", Scope: "fixture-scope", Tag: tag, Session: "fixture-" + tag, Nonce: "launch-" + tag, Agent: "claude", Version: "test-fixture", PID: os.Getpid(), Start: "fixture-start"}
 	}
-	from, to := binding("brain:0", "sender", 101), binding("pair:1", "receiver", 102)
+	from, to := binding("brain:0", "sender"), binding("pair:1", "receiver")
 	f, _ := peerIntegrationFixture(t)
 	receiver := newPeerDelivery(to, time.Now)
 	sender := newPeerDelivery(from, time.Now)

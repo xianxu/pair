@@ -116,6 +116,15 @@ After the input deadline, the broker allows two seconds for read-only receipt
 collection; this never extends the wrapper's paste/submit deadline. Waiting
 receipts report the blocking guard and retain that reason on expiry. Senders
 query `--message-status` for final outcomes; admission returns before delivery.
+Orientation and peer delivery share automatic-input ownership across the entire
+paste/render/submit transaction. The next automatic writer waits for a fresh,
+empty composer after that transaction terminates, including cancellation.
+
+Transport frames are bounded at 577 KiB to carry all 128 actors with bounded
+4 KiB encoded bindings, or a fully escaped 8 KiB message. Receipt diagnostics
+are capped at 1 KiB. Wrapper socket names retain the incarnation hash and name
+the owner PID; runtime server startup collects only sockets with proven-dead
+owners, preserving live/uncertain owners and replaced inodes.
 
 Key files: `couchmessage/{model,routing,broker,transport,protocol,endpoint}.go`,
 `couchcmd/{messages,skill}.go`, and the wrapper delivery adapter. The canonical

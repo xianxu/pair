@@ -77,6 +77,7 @@ func (d *orientationDelivery) observe(ready, overlay, exited bool) {
 	}
 }
 func (p *proxy) observeOrientationTerminal() {
+	p.automaticRenderEpoch.Add(1)
 	d := p.orientation
 	if d == nil {
 		return
@@ -142,10 +143,15 @@ func (p *proxy) advanceOrientation(event orientation.DeliveryEvent, out io.Write
 	if d == nil {
 		return
 	}
+	if (event.Kind == orientation.ComposerObserved || event.Kind == orientation.SettleElapsed) &&
+		!p.automaticInputAvailable(automaticInputOrientation) {
+		return
+	}
 	state, effect := orientation.AdvanceDelivery(d.state, event)
 	d.state = state
 	switch effect {
 	case orientation.PastePrompt:
+		p.automaticInput.phase = automaticInputOrientation
 		data := []byte(workbenchshortcut.PasteStart + d.request.Body + workbenchshortcut.PasteEnd)
 		n, err := out.Write(data)
 		p.advanceOrientation(orientation.DeliveryEvent{Kind: orientation.PasteCompleted, Written: n, Expected: len(data), Failed: err != nil}, out, settle)
@@ -159,6 +165,7 @@ func (p *proxy) advanceOrientation(event orientation.DeliveryEvent, out io.Write
 		}
 		p.advanceOrientation(orientation.DeliveryEvent{Kind: orientation.SubmitCompleted, Written: n, Expected: len(data), Failed: err != nil}, out, settle)
 	case orientation.PublishStatus:
+		p.finishAutomaticInput(automaticInputOrientation)
 		if d.publish != nil {
 			d.publish(state)
 		}

@@ -19,9 +19,15 @@ import (
 )
 
 const (
-	MaxFrameBytes        = 32 * 1024
-	MaxTransportHandlers = 128
-	TransportTimeout     = 2 * time.Second
+	// A discovery response contains at most MaxActors encoded bindings, each
+	// with at most 512 bytes of candidate metadata, plus a 1024-byte envelope.
+	// This also covers commit (3 bindings + 6*MaxBodyBytes + IDs/metadata)
+	// and receipt (2 bindings + 6*(MaxBodyBytes+MaxReceiptDetailBytes) + metadata).
+	MaxFrameBytes = MaxActors*(MaxBindingBytes+512) + 1024
+	// Reserved framing code: response encoding failed before any payload write.
+	transportResponseTooLarge = ^uint32(0)
+	MaxTransportHandlers      = 128
+	TransportTimeout          = 2 * time.Second
 )
 
 // SocketPath only derives an address; it does not create runtime files. The
@@ -51,8 +57,8 @@ type Server struct {
 	closeErr    error
 }
 
-// StartServer refuses every existing socket, including stale ones. Only the
-// supervisor's lease owner may decide whether an old generation can be removed.
+// StartServer collects wrapper sockets with proven-dead owners. Existing broker
+// sockets remain under the supervisor lease owner's cleanup authority.
 func StartServer(ctx context.Context, socket string, handler func(context.Context, []byte) ([]byte, error)) (*Server, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -64,6 +70,9 @@ func StartServer(ctx context.Context, socket string, handler func(context.Contex
 		return nil, errors.New("message socket must be a clean absolute path of at most 103 bytes")
 	}
 	if err := transportPrivateDirectory(filepath.Dir(socket)); err != nil {
+		return nil, err
+	}
+	if err := collectDeadEndpointSockets(filepath.Dir(socket), func(pid int) error { return syscall.Kill(pid, 0) }); err != nil {
 		return nil, err
 	}
 	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: socket, Net: "unix"})
@@ -177,7 +186,17 @@ func (s *Server) serve(conn net.Conn) {
 	if strictjson.Decode(response, &value) != nil {
 		return
 	}
-	_ = transportWriteFrame(conn, response)
+	if len(response) > MaxFrameBytes {
+		// No response bytes have been sent. Report overflow explicitly; the
+		// handler may already have admitted a send, so its outcome is uncertain.
+		var header [4]byte
+		binary.BigEndian.PutUint32(header[:], transportResponseTooLarge)
+		_, _ = conn.Write(header[:])
+		return
+	}
+	if err := transportWriteFrame(conn, response); err != nil {
+		return // Partial writes cannot be replaced by another frame.
+	}
 }
 
 // Close is idempotent. It cancels handlers, closes blocked socket reads, joins
@@ -247,6 +266,9 @@ func transportReadFrame(in io.Reader) ([]byte, error) {
 		return nil, err
 	}
 	size := binary.BigEndian.Uint32(header[:])
+	if size == transportResponseTooLarge {
+		return nil, errors.New("message response exceeds frame limit; request outcome uncertain")
+	}
 	if size == 0 || size > MaxFrameBytes {
 		return nil, errors.New("invalid message frame length")
 	}

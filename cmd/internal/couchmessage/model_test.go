@@ -3,6 +3,7 @@ package couchmessage
 import (
 	"errors"
 	"math/rand"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -108,7 +109,7 @@ func TestGeneratedBudgetAndPendingInvariants(t *testing.T) {
 		kind := []EventKind{Admit, OperatorInput, AgentOutput, OperatorSubmit, Tick, DeliveryFinished}[rng.Intn(6)]
 		m, ok := s.Pending()
 		if !ok {
-			m = Message{ID: time.Unix(int64(i), 0).String(), From: binding("brain:0"), To: b, Body: "work", Deadline: now.Add(time.Second)}
+			m = Message{ID: strconv.Itoa(i), From: binding("brain:0"), To: b, Body: "work", Deadline: now.Add(time.Second)}
 		}
 		next, _, err := Advance(s, Event{Kind: kind, Binding: b, Message: m, At: now, Status: Submitted})
 		if err == nil {
@@ -129,7 +130,7 @@ func TestBudgetCannotBeResetByReconnectOrTraffic(t *testing.T) {
 	b := binding("pair:1")
 	s := registered(t, b, now)
 	for i := 0; i < InboundAllowance; i++ {
-		m := Message{ID: time.Unix(int64(i), 0).String(), From: binding("brain:0"), To: b, Body: "work", Deadline: now.Add(time.Minute)}
+		m := Message{ID: strconv.Itoa(i), From: binding("brain:0"), To: b, Body: "work", Deadline: now.Add(time.Minute)}
 		s, _ = advance(t, s, Event{Kind: Admit, Binding: b, Message: m, At: now})
 		s, _ = advance(t, s, Event{Kind: DeliveryFinished, Binding: b, Message: m, Status: Cancelled, At: now})
 	}

@@ -215,6 +215,9 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 		event.Kind = couchmessage.PeerOperatorInput
 	case p.pickerActive.Load() && d.current.Status == couchmessage.Delivering:
 		event.Kind = couchmessage.PeerOverlayObserved
+	case !p.automaticInputAvailable(automaticInputPeer):
+		d.current.Detail = "waiting for previous automatic input to clear"
+		return
 	case d.replies.inFlight > 0:
 		d.current.Detail = "waiting for forwarded input"
 		return
@@ -281,6 +284,7 @@ func (p *proxy) advancePeer(event couchmessage.PeerDeliveryEvent, out io.Writer)
 	}
 	switch effect {
 	case couchmessage.PeerPaste:
+		p.automaticInput.phase = automaticInputPeer
 		if !p.childAcceptsPaste() {
 			p.advancePeer(couchmessage.PeerDeliveryEvent{Kind: couchmessage.PeerOverlayObserved}, out)
 			return
@@ -298,6 +302,7 @@ func (p *proxy) advancePeer(event couchmessage.PeerDeliveryEvent, out io.Writer)
 		n, err := out.Write(data)
 		p.advancePeer(couchmessage.PeerDeliveryEvent{Kind: couchmessage.PeerSubmitCompleted, Written: n, Expected: len(data), Failed: err != nil}, out)
 	case couchmessage.PeerPublish:
+		p.finishAutomaticInput(automaticInputPeer)
 		d.current.Status = state.Outcome()
 		if event.Kind == couchmessage.PeerDeadlineElapsed && d.current.Detail != "" {
 			d.current.Detail = state.Reason + ": " + d.current.Detail

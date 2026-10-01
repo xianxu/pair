@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"time"
 )
 
@@ -67,7 +68,12 @@ func EndpointSocket(namespace string, binding Binding) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return SocketPath(namespace, "wrapper:"+string(raw))
+	socket, err := SocketPath(namespace, "wrapper:"+string(raw))
+	if err != nil {
+		return "", err
+	}
+	// Retain the exact-incarnation hash while making dead owners discoverable.
+	return filepath.Join(filepath.Dir(socket), fmt.Sprintf("wrapper-%d-%s", binding.PID, filepath.Base(socket))), nil
 }
 
 // RemoteEndpoint sends commit exactly once. Subsequent RPCs only observe the

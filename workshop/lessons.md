@@ -375,3 +375,14 @@ proof; record the surprising case so the next change starts from evidence.
   input bookkeeping. The final #353 contract supersedes persistent human-draft
   ownership above: inspect current composer state after input settles, protect
   incomplete input, and poll only while delivery is pending.
+
+- A mutex around automatic input callbacks does not own the composer between
+  paste and submission. Share a transaction lease across all automatic writers,
+  test both arrival orders, and require a fresh empty repaint before releasing
+  abandoned or submitted input to the next writer. (#353 BR-1)
+- Derive transport limits from encoded worst-case domain bounds, including JSON
+  escaping and aggregate discovery responses; test every request/response family
+  at its limits through actual sockets. (#353 BR-2)
+- Incarnation-specific runtime handles need dead-owner collection after crashes,
+  not only graceful teardown. Preserve unknown/live owners and replacement inodes
+  in tests, and make fixtures name the actual listener process. (#353 BR-3)

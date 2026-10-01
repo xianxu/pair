@@ -288,6 +288,31 @@ total: 8.19
 
 ## Log
 
+### 2026-09-30 — boundary review round one corrections
+
+Close returned REWORK: BR-1 automatic writers overlapped across callbacks;
+BR-2 the wire frame could not hold valid domain payloads; BR-3 wrapper sockets
+survived crashes. No close status was published. Regressions reproduced both
+automatic writer arrival orders, escaped maximum messages and full actor
+inventories, and real child-process crash residue before the fixes.
+
+Orientation and peer delivery now share an input transaction through final
+outcome; the next writer waits for fresh empty paint, preserving late paste
+and cancelled payloads. Wire bounds derive from encoded identity/inventory
+limits and preserve explicit uncertainty on oversized responses. Wrapper socket
+names include owner PID beside the incarnation hash; startup collects only
+proven-dead owners with inode revalidation. Old opaque pre-release socket names
+are left untouched because ownership cannot be proven. Relevant lessons and
+atlas are updated (ARCH-ORDER, ARCH-CONSTRAINTS, ARCH-FUNERAL).
+
+Combined verification: all five affected package suites pass uncached;
+make build pair and whitespace checks pass. Full couchmessage race passes;
+focused wrapper automatic-input/peer/orientation race checks pass. A repeated
+full couchcmd race run additionally exposed an unchanged FakeGit recovery
+fixture race (git_fake.go versus recovery_acceptance_test.go); together with
+the two earlier fixture races, broad race verification is not clean. These
+failures are retained as limitations, not concealed by the focused checks.
+
 ### 2026-09-30 — close verification and follow-up
 
 Fresh uncached suites passed for couchmessage, couchcmd, couchtty, wrapcmd and

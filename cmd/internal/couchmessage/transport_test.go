@@ -71,7 +71,7 @@ func TestTransportRejectsBadFrames(t *testing.T) {
 		size uint32
 		body string
 	}{
-		{"oversize", 32769, ""}, {"zero", 0, ""}, {"truncated", 10, "{}"},
+		{"oversize", MaxFrameBytes + 1, ""}, {"zero", 0, ""}, {"truncated", 10, "{}"},
 		{"invalid-json", 1, "x"}, {"duplicate", 13, `{"x":1,"x":2}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
