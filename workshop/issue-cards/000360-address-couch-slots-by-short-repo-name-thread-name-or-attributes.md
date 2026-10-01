@@ -1,6 +1,6 @@
 ---
 id: 000360
-status: codecomplete
+status: done
 created: 2026-09-30
 updated: 2026-10-01
 estimate_hours:
@@ -24,6 +24,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 5f6efb1759a41d62d7bc3c0611404b446393bc5e
         evidence_commit: 5eb6684f84dc5904f708d89797164a1ba9b36fd6
+        landed_commit: 2159b24b6385b3f7beddaaf22b216366ff2fddec
 ---
 
 # Address couch slots by repository prefix, alias, or agent
