@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000359-slot-actor-fast-forwards-its-idle-resting-branch-via-a-self-sent-message.md
         source_blob: 7265c77a65ece34a99ad470f2fe6e66d04ceacd2
         destination: workshop/issues/000359-slot-actor-fast-forwards-its-idle-resting-branch-via-a-self-sent-message.md
+        main_commit: 720e2635190362e99991697a4608dbbc3fb96e17
 ---
 
 # Slot actor fast-forwards its idle resting branch via a self-sent message
