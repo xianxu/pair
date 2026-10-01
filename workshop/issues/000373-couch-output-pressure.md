@@ -42,7 +42,11 @@ runtime storage or external services (ARCH-CONSTRAINTS, ARCH-SECURE, ARCH-FUNERA
 - Paired trials report separate output, pane latency and Couch-control measurements.
 - Results explicitly say whether the selective stall reproduced and which hypotheses remain.
 - Real PTYs check the relevant fake-path findings; no live sessions are mutated.
-- Evidence and commands are recorded durably; focused tests and cleanup checks pass.
+- Evidence and commands are recorded durably; focused race and cleanup checks pass.
+- Recovery requires every child's in-band completion and exact byte accounting;
+  a delayed trailing-PTY regression rejects premature completion.
+- Blocking trial operations share bounded cancellation and joined teardown,
+  exercised by a stalled-operation regression.
 
 
 ## Plan
