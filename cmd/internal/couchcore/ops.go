@@ -75,6 +75,7 @@ const (
 	ResultConsole
 	ResultOrientationStatus
 	ResultWorkspace
+	ResultRepositoryAlias
 )
 
 // OperationPresentation assigns every typed operation exactly one UI/process
@@ -231,6 +232,16 @@ func Operations() []Operation {
 				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
 				{Name: "name", Summary: "the new short name", Required: true},
 				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
+			},
+		},
+		{
+			Name: "alias", Summary: "Read or set a repository's short name for slot references",
+			Execution: ExecuteDirectStore, Effect: EffectMetadata, Confirmation: ConfirmNone, Result: ResultRepositoryAlias,
+			Presentation: PresentationTUI, RowAction: true,
+			Args: []ArgSpec{
+				{Name: "ref", Summary: "repository name, alias, repo:N, or path", Required: true},
+				{Name: "alias", Summary: "the new short name; omit to read it", Required: false},
+				{Name: "clear", Summary: "remove the alias", FlagOnly: true},
 			},
 		},
 		{

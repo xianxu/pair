@@ -262,3 +262,9 @@ func menuAddSlotPath(thread couchcore.ActionableThreadSummary) string {
 	}
 	return path
 }
+
+// menuAliasOffered puts the repository alias on a live primary (:0) row only:
+// the alias names the repository, and :0 is the row that stands for it.
+func menuAliasOffered(thread couchcore.ActionableThreadSummary) bool {
+	return thread.Live() && thread.Target.Kind != couchcore.ThreadTargetSlot && menuRepositoryRoot(thread) != ""
+}

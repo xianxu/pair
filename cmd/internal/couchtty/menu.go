@@ -356,7 +356,9 @@ func visibleRootThreads(inventory []couchcore.ActionableThreadSummary, frame Men
 		slotRow := row.Target.Kind == couchcore.ThreadTargetSlot
 		if workspaceRef {
 			slot := row.Target.Slot
-			if slotRow && refErr == nil && ref.Number == slot.Number && (ref.Repo == "" || ref.Repo == slot.Repo) {
+			// A filter lists every candidate, so a repository prefix or alias
+			// prefix narrows without the uniqueness a resolved reference needs.
+			if slotRow && refErr == nil && ref.Number == slot.Number && (ref.Repo == "" || strings.HasPrefix(slot.Repo, ref.Repo) || (row.RepositoryAlias != "" && strings.HasPrefix(row.RepositoryAlias, ref.Repo))) {
 				exact = append(exact, row)
 			}
 			continue
@@ -803,7 +805,7 @@ func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			return requestStartPreview(state)
 		case "switch-agent":
 			return openSwitchAgent(state, thread.Address)
-		case "name", "describe", "recover-checkpoint":
+		case "name", "describe", "recover-checkpoint", "alias":
 			// The genuine special case: these collect text before they can run,
 			// which no declaration expresses.
 			appendMenuFrame(&state, MenuFrame{
@@ -898,7 +900,7 @@ func reduceTextKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 		return discardThreadFrames(state, frame.Thread, "thread is no longer actionable"), nil
 	}
 	limit := menuTextLimit
-	if frame.Action == "name" {
+	if frame.Action == "name" || frame.Action == "alias" {
 		limit = menuNameLimit
 	}
 	switch key.Kind {
@@ -919,6 +921,17 @@ func reduceTextKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 		if frame.Action == "name" {
 			args["name"] = frame.Input
 			return dispatchMenuOperation(state, MenuEffect{Operation: "name", Args: args}, thread.Address)
+		}
+		if frame.Action == "alias" {
+			// The alias belongs to the repository, not the thread: address it by
+			// primary root. An empty entry clears it.
+			args = map[string]string{"ref": menuRepositoryRoot(thread)}
+			if frame.Input == "" {
+				args["clear"] = "true"
+			} else {
+				args["alias"] = frame.Input
+			}
+			return dispatchMenuOperation(state, MenuEffect{Operation: "alias", Args: args}, thread.Address)
 		}
 		if frame.Action == "describe" {
 			args["description"] = frame.Input
@@ -1320,7 +1333,7 @@ func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
 		}
 		if thread.Address != (couchcore.ThreadAddress{}) {
 			for _, item := range menuActionItems(ordinary) {
-				if item != "archive" && item != "resume" && item != "recover-thread" {
+				if item != "archive" && item != "resume" && item != "recover-thread" && item != "alias" {
 					items = append(items, item)
 				}
 			}
@@ -1404,7 +1417,11 @@ func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
 		return []string{"archive", "name", "describe"}
 	}
 	if thread.Live() {
-		return append([]string(nil), menuLiveActions...)
+		items := append([]string(nil), menuLiveActions...)
+		if menuAliasOffered(thread) {
+			items = append(items, "alias")
+		}
+		return items
 	}
 	// Archive is offered wherever couch is not hosting the thread, which is
 	// ArchivableState's rule stated a second time on purpose: the guard that

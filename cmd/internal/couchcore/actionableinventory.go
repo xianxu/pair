@@ -176,6 +176,9 @@ type ActionableThreadSummary struct {
 	Name             string              `json:"name,omitempty"`
 	Description      string              `json:"description,omitempty"`
 	PublishedSummary string              `json:"published_summary,omitempty"`
+	// RepositoryAlias is the operator's short name for this row's enrolled
+	// repository, display-only (ApplyRepositoryAliases).
+	RepositoryAlias string `json:"repository_alias,omitempty"`
 	// Agent is the agent this thread would launch, read from its saved launch
 	// profile. Empty when there is no profile to read one from, which is the
 	// `never-started` and `profile-missing` shapes.
@@ -210,7 +213,11 @@ func (s ActionableThreadSummary) Resumable() bool {
 
 func (s ActionableThreadSummary) Label() string {
 	if s.Target.Kind == ThreadTargetSlot && s.Name == "" {
-		return (WorkspaceReference{Repo: s.Target.Slot.Repo, Number: s.Target.Slot.Number}).String()
+		repo := s.Target.Slot.Repo
+		if s.RepositoryAlias != "" {
+			repo = s.RepositoryAlias
+		}
+		return (WorkspaceReference{Repo: repo, Number: s.Target.Slot.Number}).String()
 	}
 	return threadLabel(s.Name, s.WorkingPath, s.Address.Tag)
 }
@@ -662,7 +669,37 @@ func (c *Couch) ActionableThreadInventoryContext(ctx context.Context, observatio
 	if err != nil {
 		return nil, err
 	}
-	return ProjectActionableThreads(FromSnapshot(snapshot, evidence)), nil
+	rows := ProjectActionableThreads(FromSnapshot(snapshot, evidence))
+	// Aliases are display-only: an unreadable alias file must not take the
+	// switcher down, and reference resolution reports it on its own path.
+	if names, err := c.repositoryNames(); err == nil {
+		rows = ApplyRepositoryAliases(rows, names)
+	}
+	return rows, nil
+}
+
+// ApplyRepositoryAliases labels rows with their repository's alias. Slot rows
+// match by primary root; other rows by exact repository scope, so a nested
+// repository inside a primary checkout never inherits its parent's alias.
+func ApplyRepositoryAliases(rows []ActionableThreadSummary, names []RepositoryName) []ActionableThreadSummary {
+	byRoot, byScope := map[string]string{}, map[string]string{}
+	for _, name := range names {
+		if name.Alias == "" {
+			continue
+		}
+		byRoot[name.Key] = name.Alias
+		if scope, err := launcher.ResolveRepoScope(name.Key); err == nil {
+			byScope[scope.Key] = name.Alias
+		}
+	}
+	for i := range rows {
+		if rows[i].Target.Kind == ThreadTargetSlot {
+			rows[i].RepositoryAlias = byRoot[rows[i].Target.Slot.PrimaryRoot]
+		} else {
+			rows[i].RepositoryAlias = byScope[rows[i].Address.RepoScope]
+		}
+	}
+	return rows
 }
 
 // gatherThreadEvidence resolves what is knowable about every record and decides

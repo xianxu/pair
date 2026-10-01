@@ -28,8 +28,10 @@ type ThreadPresentation struct {
 
 type threadPresentationGroup struct {
 	key, root, name string
-	hasSlots        bool
-	rows            []ThreadPresentation
+	// alias is the repository's operator short name, when any row carries it.
+	alias    string
+	hasSlots bool
+	rows     []ThreadPresentation
 }
 
 // PresentThreads groups and orders inventory rows without filesystem discovery or
@@ -67,6 +69,9 @@ func PresentThreads(rows []couchcore.ActionableThreadSummary, git map[string]cou
 			g.root = root
 		}
 		g.hasSlots = g.hasSlots || validSlot
+		if row.RepositoryAlias != "" {
+			g.alias = row.RepositoryAlias
+		}
 		g.rows = append(g.rows, p)
 	}
 	ordered := make([]*threadPresentationGroup, 0, len(groups))
@@ -75,6 +80,9 @@ func PresentThreads(rows []couchcore.ActionableThreadSummary, git map[string]cou
 		g.name = g.key
 		if g.root != "" {
 			g.name = filepath.Base(g.root)
+		}
+		if g.alias != "" {
+			g.name = g.alias
 		}
 		names[strings.ToLower(g.name)]++
 		ordered = append(ordered, g)

@@ -196,6 +196,19 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 			}
 			name := a["name"]
 			return c.ApplyThreadMetadata(address, ThreadMetadataPatch{Name: &name})
+		case "alias":
+			var alias *string
+			if v, supplied := a["alias"]; supplied {
+				alias = &v
+			}
+			if a["clear"] == "true" {
+				if alias != nil {
+					return nil, fmt.Errorf("alias: give a new alias or --clear, not both")
+				}
+				empty := ""
+				alias = &empty
+			}
+			return c.RepositoryAlias(call.Context, a["ref"], alias)
 		case "describe":
 			address, err := resolveOperationThread(c, a)
 			if err != nil {
