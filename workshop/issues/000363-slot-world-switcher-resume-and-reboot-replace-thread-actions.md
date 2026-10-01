@@ -77,7 +77,12 @@ Action sets per row (operator decisions, 2026-09-30, from #360's design talk):
 
 ## Plan
 
-- [ ]
+- [ ] Design: the per-row action table as one pure function over row kind and state (live/parked/detached/busy x :0/:1+/non-Git), replacing `menuActionItems`' branches; durable plan if past the quick-flow shell.
+- [ ] Resume: one operation that tries warm reattach, cold resume, adoption of a still-running agent, and continuation retry in order, and reports "use reboot" when none can work.
+- [ ] Reboot: archive the old record with its evidence and start a fresh thread with a new tag in the same slot or path, as one operation for :0 and :1+.
+- [ ] One primary per repository: a second start in a repository with a :0 switches to it or refuses.
+- [ ] Remove rename and describe from the switcher, help, README and atlas; slot labels always `repo:N` (or `alias:N`).
+- [ ] Tests per row kind, including a resume that cannot succeed followed by reboot.
 
 ## Log
 

@@ -41,7 +41,10 @@ switcher.
 
 ## Plan
 
-- [ ]
+- [ ] Design the guards (not live, clean tree, no untracked files, branch resting or merged) and how a parked or detached slot is handled; record the decision in the Spec.
+- [ ] Implement removal of the highest-numbered slot through the slot provisioning seam, archiving its thread record.
+- [ ] Offer "remove last slot" on the live :0 row only, confirmed.
+- [ ] Tests: removal of :2 from :0..:2, one refusal test per guard leaving the slot intact, :0 never removable.
 
 ## Log
 

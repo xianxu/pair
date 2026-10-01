@@ -63,7 +63,11 @@ Assume an upgrade works, and prove it from evidence gathered in normal daily use
 
 ## Plan
 
-- [ ]
+- [ ] Inventory the harness-dependent signals in `atlas/how-to-bring-up-a-new-harness-cli.md` that daily use exercises, plus peer-delivery composer/submit and faint-text SGR 2, each with a deterministic pass condition.
+- [ ] Emit each as a flight-recorder signal carrying agent and version (`cmd/internal/adapt`).
+- [ ] Durable per-agent-version aggregate with a size bound and removal policy.
+- [ ] Report evidenced / missing / near-miss per installed version in `doctor/doctor.sh` and `:PairDoctor`, with a test per state; an unevidenced new version reads as unevidenced, not broken.
+- [ ] Decide operator notification after evidence accumulates (separate follow-up).
 
 ## Log
 
