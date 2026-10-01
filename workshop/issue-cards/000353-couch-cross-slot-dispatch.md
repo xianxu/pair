@@ -1,6 +1,6 @@
 ---
 id: 000353
-status: codecomplete
+status: done
 created: 2026-09-29
 updated: 2026-09-30
 estimate_hours: 8.19
@@ -24,6 +24,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 20a45dc8a58ca51221c31d1628829e74b1293c09
         evidence_commit: 1e5ed6355306726c02211b258c7a7ad3b8b13b42
+        landed_commit: 558b20d7f1babfac44b999aa2851a375b195f951
 ---
 
 # Live cross-slot dispatch between couch slots
