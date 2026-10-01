@@ -6,11 +6,11 @@ github_issue:
 created: 2026-09-30
 updated: 2026-09-30
 estimate_hours:
-card_mirror: 'bf10c6d2a0300e5bfd1aec15b37b6df18eafe524' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f8508a15751ae82456bde5da7314b3ac2c5a5d2f' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-09-30T22:55:02-07:00
 ---
 
-# Address couch slots by short repo name, thread name, or attributes
+# Address couch slots by repository prefix, alias, or agent
 
 ## Problem
 
