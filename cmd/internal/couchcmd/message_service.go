@@ -124,11 +124,11 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 		session = source.PairSessionContext
 	}
 	authority := messageAuthority{
-		aliases: func(context.Context) (map[string]string, error) {
+		aliases: func(ctx context.Context) (map[string]string, error) {
 			if c.Threads == nil {
 				return nil, nil
 			}
-			names, err := c.Threads.RepositoryNames()
+			names, err := c.Threads.RepositoryNamesContext(ctx)
 			if err != nil {
 				return nil, err
 			}

@@ -2,11 +2,13 @@ package couchcore
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 func aliasTestStore(t *testing.T, roots ...string) *ThreadStore {
@@ -125,5 +127,35 @@ func TestRepositoryAliasStoreSlotLocalWritesRoot(t *testing.T) {
 	}
 	if _, err := os.Stat(local.repositoryAliasPath()); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("slot-local alias file written: %v", err)
+	}
+}
+
+func TestRepositoryNamesWaitsOutABusyStore(t *testing.T) {
+	store := aliasTestStore(t, "/w/xianxu.dev")
+	if err := store.SetRepositoryAlias("/w/xianxu.dev", "blog"); err != nil {
+		t.Fatal(err)
+	}
+	hold := func(d time.Duration) chan struct{} {
+		locked, done := make(chan struct{}), make(chan struct{})
+		go func() {
+			defer close(done)
+			_ = store.withLock(func() error { close(locked); time.Sleep(d); return nil })
+		}()
+		<-locked
+		return done
+	}
+	done := hold(100 * time.Millisecond)
+	names, err := store.RepositoryNamesContext(context.Background())
+	<-done
+	if err != nil || len(names) != 1 || names[0].Alias != "blog" {
+		t.Fatalf("brief writer: %+v %v", names, err)
+	}
+	done = hold(300 * time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	_, err = store.RepositoryNamesContext(ctx)
+	<-done
+	if err == nil || !strings.Contains(err.Error(), "busy") {
+		t.Fatalf("caller deadline not honored: %v", err)
 	}
 }
