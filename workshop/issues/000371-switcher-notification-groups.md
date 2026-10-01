@@ -85,6 +85,10 @@ focused grouped-click race regression passes ten runs. `make build` and
 `git diff --check` pass. Updated grouped-rendering fixtures and atlas. The
 SDLC close gate owns the final review.
 
+Operator smoke-tested the rebuilt branch at pair:0 and confirmed it works.
+Moved the unchanged reviewed branch back to pair:2 at the operator's request
+for publication and merge. The existing close verdict is SHIP.
+
 ## Revisions
 
 ### 2026-10-01 — Preserve ownership for oversized groups
