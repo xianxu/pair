@@ -3,7 +3,7 @@ id: 000353
 status: working
 created: 2026-09-29
 updated: 2026-09-30
-estimate_hours:
+estimate_hours: 8.19
 github_issue:
 tracker:
     version: 1
