@@ -24,6 +24,8 @@ arm)
   echo "echo 'messageidle armed -> $LOG'" ;;
 
 disarm)
+  # The trace only feeds `window`, which keeps its own summary; nothing reads it after disarm.
+  rm -f "$LOG"
   echo "unset PAIR_MESSAGEIDLE_TRACE"
   echo "export PATH=\$(printf '%s' \"\$PATH\" | tr ':' '\\n' | while IFS= read -r p; do [ \"\$p\" = '$BIN' ] || printf '%s:' \"\$p\"; done | sed 's/:\$//')"
   echo "echo 'messageidle disarmed'" ;;
