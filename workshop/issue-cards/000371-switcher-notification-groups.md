@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000371-switcher-notification-groups.md
         source_blob: 72feab41c5b7ac7180aad28766f6196d766ab111
         destination: workshop/issues/000371-switcher-notification-groups.md
+        main_commit: 18947ac05354133cec9828e4b8a34a5c46988f33
 ---
 
 # Group switcher notifications under their originating slot
