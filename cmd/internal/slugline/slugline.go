@@ -1,6 +1,7 @@
-// Package slugline is the one definition of the orientation slug's line format,
-// `=== <left> | <focus> ===`. pair-slug writes it, nvim shows it as the draft's
-// first line, and couch's focus view shows it unfenced (pair#372).
+// Package slugline is the Go definition of the orientation slug's line format,
+// `=== <left> | <focus> ===`. pair-slug writes it and couch's focus view shows
+// it unfenced (pair#372); nvim/slug.lua mirrors the recognition for the
+// draft's first line, so a format change touches both.
 package slugline
 
 import (
@@ -9,9 +10,9 @@ import (
 )
 
 const (
-	open  = "=== "
-	close = " ==="
-	sep   = " | "
+	fenceOpen  = "=== "
+	fenceClose = " ==="
+	sep        = " | "
 )
 
 // lineRE: two non-empty segments separated by " | ", fenced by "=== " / " ===".
@@ -21,7 +22,7 @@ var lineRE = regexp.MustCompile(`^=== .+ \| .+ ===$`)
 func Valid(s string) bool { return lineRE.MatchString(s) }
 
 // Format assembles a slug line from its two segments.
-func Format(left, focus string) string { return open + left + sep + focus + close }
+func Format(left, focus string) string { return fenceOpen + left + sep + focus + fenceClose }
 
 // Focus extracts the <focus> segment from a valid slug line.
 func Focus(line string) string {
@@ -34,5 +35,5 @@ func Focus(line string) string {
 
 // Unfenced is the line without its "=== " / " ===" fence: `<left> | <focus>`.
 func Unfenced(line string) string {
-	return strings.TrimSuffix(strings.TrimPrefix(line, open), close)
+	return strings.TrimSuffix(strings.TrimPrefix(line, fenceOpen), fenceClose)
 }

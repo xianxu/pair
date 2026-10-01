@@ -104,6 +104,10 @@ mirrors any edits back into `slug-<tag>`. Couch never reads either file.
   filled in after the projection (the `ApplyRepositoryAliases` precedent), not a
   third probe pipeline beside activity and slot-git. Done-when's
   "re-read only on change" test became the inventory seam test.
+- 2026-10-01 — close review (advisory): the plan's `slugline.Unfence` shipped
+  as `Unfenced`. `ApplySlugs` also runs on the start/slot inventory paths
+  that never render slugs (one bounded read per live row); left as is.
+
 
 ## Log
 
