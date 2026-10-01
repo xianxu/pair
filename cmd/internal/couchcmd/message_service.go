@@ -593,6 +593,19 @@ func (e messageEndpoint) Reserve(ctx context.Context, id string, seq uint64) err
 	}
 	return e.endpoint.Reserve(ctx, id, seq)
 }
+
+// Retained is read-only, so it needs only the registry's connection, not
+// the use-time check.
+func (e messageEndpoint) Retained(ctx context.Context, id string) (couchmessage.Receipt, error) {
+	if !e.service.isConnected(e.binding) {
+		return couchmessage.Receipt{}, couchmessage.ErrUnavailable
+	}
+	h, ok := e.endpoint.(couchmessage.ReceiptHolder)
+	if !ok {
+		return couchmessage.Receipt{}, couchmessage.ErrUnknownDelivery
+	}
+	return h.Retained(ctx, id)
+}
 func (e messageEndpoint) Release(ctx context.Context, id string) error {
 	return e.endpoint.Release(ctx, id)
 }

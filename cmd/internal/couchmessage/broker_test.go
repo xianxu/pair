@@ -18,6 +18,25 @@ type FakeDeliveryEndpoint struct {
 	reserved    string
 	delivered   chan Message
 	outcomes    chan Receipt
+	// retained models the wrapper's memory of past deliveries; silent makes
+	// it never answer a status query.
+	retained RecentDeliveries
+	silent   bool
+}
+
+func (f *FakeDeliveryEndpoint) Retained(ctx context.Context, id string) (Receipt, error) {
+	f.mu.Lock()
+	silent := f.silent
+	r, ok := f.retained.Get(id)
+	f.mu.Unlock()
+	if silent {
+		<-ctx.Done()
+		return Receipt{}, ctx.Err()
+	}
+	if !ok {
+		return Receipt{}, ErrUnknownDelivery
+	}
+	return r, nil
 }
 
 func newFakeEndpoint(at time.Time) *FakeDeliveryEndpoint {
@@ -31,6 +50,9 @@ func (f *FakeDeliveryEndpoint) Observe(context.Context) (Observation, error) {
 func (f *FakeDeliveryEndpoint) Reserve(_ context.Context, id string, seq uint64) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if r, ok := f.retained.Get(id); ok {
+		return &AlreadyCommittedError{Receipt: r}
+	}
 	if f.reserved != "" || f.observation.Sequence != seq {
 		return errors.New("changed or reserved")
 	}
@@ -299,6 +321,7 @@ func TestBrokerActorsRecordedObservationsAndInputInvalidation(t *testing.T) {
 		t.Fatalf("caller %v %v", got, err)
 	}
 }
+
 // BR-11: tombstones are bounded by eviction, not by refusing new launches.
 // Only a table of connected actors refuses; a full table of tombstones gives
 // up its longest-disconnected entry, and a new launch of a slot retires that

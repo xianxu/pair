@@ -175,6 +175,7 @@ func (b *Broker) Register(binding Binding, endpoint DeliveryEndpoint) error {
 	go b.runActor(ctx, a)
 	return nil
 }
+
 // evictOldestTombstoneLocked bounds tombstones by capacity rather than by
 // time: when the table is full, the longest-disconnected actor goes. Only a
 // table of connected actors refuses a new registration.
@@ -539,6 +540,10 @@ func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, fro
 		return Receipt{}, err
 	}
 	if err = a.endpoint.Reserve(ctx, id, obs.Sequence); err != nil {
+		var committed *AlreadyCommittedError
+		if errors.As(err, &committed) {
+			return b.adoptRetained(a, from, id, route, body, committed.Receipt)
+		}
 		return Receipt{}, err
 	}
 	b.mu.Lock()
@@ -565,6 +570,103 @@ func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, fro
 	a.inbox <- m
 	return b.receipts[id], nil
 }
+
+// adoptRetained answers a reused ID with the recipient's own outcome instead
+// of delivering again: the wrapper already holds this delivery. Only the same
+// sender and body may adopt it; anything else is a conflicting ID.
+func (b *Broker) adoptRetained(a *SlotActor, from Binding, id string, route Route, body string, r Receipt) (Receipt, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if a.reservation == id {
+		a.reservation = ""
+	}
+	if r.Message.ID != id || r.Message.From != from || r.Message.To != a.binding || r.Message.Body != body {
+		return Receipt{}, errors.New("conflicting message ID")
+	}
+	return b.recordRecoveredLocked(r, route), nil
+}
+
+// recordRecoveredLocked keeps a receipt learned from a recipient. One still
+// in flight there has no broker job watching it any more, so it is recorded
+// as Indeterminate rather than left Delivering forever.
+func (b *Broker) recordRecoveredLocked(r Receipt, route Route) Receipt {
+	if old, ok := b.receipts[r.Message.ID]; ok {
+		return old
+	}
+	if !r.Status.Terminal() {
+		r.Status, r.Detail = Indeterminate, "delivery was in flight at the recipient when this broker learned of it; check the recipient's transcript"
+	}
+	r.RetainUntil = b.now().Add(ReceiptLifetime)
+	b.receipts[r.Message.ID] = r
+	b.destinations[r.Message.ID] = route
+	return r
+}
+
+// StatusContext is Status, plus — for an ID this broker does not remember,
+// as after a Couch restart — a query of every connected recipient's retained
+// receipts. A recipient that does not answer makes the result uncertain, not
+// absent. It runs only on this request path, never in the background.
+func (b *Broker) StatusContext(parent context.Context, caller Binding, id string) (Receipt, error) {
+	if r, err := b.Status(caller, id); err == nil {
+		return r, nil
+	}
+	b.mu.Lock()
+	if !b.caller(caller) {
+		b.mu.Unlock()
+		return Receipt{}, ErrUnavailable
+	}
+	if _, known := b.receipts[id]; known {
+		b.mu.Unlock()
+		return Receipt{}, errors.New("receipt unavailable for this actor")
+	}
+	var holders []ReceiptHolder
+	for _, a := range b.actors {
+		if h, ok := a.endpoint.(ReceiptHolder); ok && a.state.Connected() {
+			holders = append(holders, h)
+		}
+	}
+	b.mu.Unlock()
+	ctx, cancel := context.WithTimeout(parent, AdmissionTimeout/2)
+	defer cancel()
+	type answer struct {
+		r   Receipt
+		err error
+	}
+	answers := make(chan answer, len(holders))
+	limit := make(chan struct{}, 4)
+	for _, h := range holders {
+		go func(h ReceiptHolder) {
+			limit <- struct{}{}
+			defer func() { <-limit }()
+			r, err := h.Retained(ctx, id)
+			answers <- answer{r, err}
+		}(h)
+	}
+	var found *Receipt
+	unanswered := 0
+	for range holders {
+		a := <-answers
+		switch {
+		case a.err == nil:
+			if a.r.Message.From == caller || a.r.Message.To == caller {
+				r := a.r
+				found = &r
+			}
+		case !errors.Is(a.err, ErrUnknownDelivery):
+			unanswered++
+		}
+	}
+	if found != nil {
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		return b.recordRecoveredLocked(*found, Route{Target: found.Message.To.Slot}), nil
+	}
+	if unanswered > 0 {
+		return Receipt{}, fmt.Errorf("%w: %d connected recipient(s) did not answer for message %s", ErrUncertain, unanswered, id)
+	}
+	return Receipt{}, errors.New("receipt unavailable: no connected recipient retains this message")
+}
+
 func (b *Broker) runActor(ctx context.Context, a *SlotActor) {
 	defer b.workers.Done()
 	defer func() {

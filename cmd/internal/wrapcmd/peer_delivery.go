@@ -39,6 +39,10 @@ type peerDelivery struct {
 	// session receives every observation change (#365); nil outside Couch.
 	// Both methods only record state and wake a sender: no IO on these paths.
 	session peerSessionSink
+	// recent remembers the last deliveries after current moves on, so a
+	// status query after a broker restart still has an answer and a reused
+	// ID is refused rather than pasted again (#365).
+	recent couchmessage.RecentDeliveries
 }
 
 type peerSessionSink interface {
@@ -175,9 +179,26 @@ func (d *peerDelivery) humanSubmit() {
 	d.mu.Unlock()
 	d.publish(sink, o, true)
 }
+
+// retained is the receipt this wrapper holds for id: current or recent.
+func (d *peerDelivery) retained(id string) (couchmessage.Receipt, bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.retainedLocked(id)
+}
+func (d *peerDelivery) retainedLocked(id string) (couchmessage.Receipt, bool) {
+	if d.current.Message.ID == id && id != "" {
+		return d.current, true
+	}
+	return d.recent.Get(id)
+}
+
 func (d *peerDelivery) reserve(id string, sequence uint64) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	if r, ok := d.retainedLocked(id); ok {
+		return &couchmessage.AlreadyCommittedError{Receipt: r}
+	}
 	if d.reservation != "" && !d.now().Before(d.reservationUntil) && (d.current.Message.ID == "" || d.current.Status.Terminal()) {
 		d.reservation = ""
 	}
@@ -197,9 +218,10 @@ func (d *peerDelivery) enqueue(m couchmessage.Message) error {
 	if err := couchmessage.ValidateBody(m.Body); err != nil {
 		return err
 	}
-	if d.current.Message.ID == m.ID {
+	if _, ok := d.retainedLocked(m.ID); ok {
 		return errors.New("delivery already committed")
 	}
+	d.recent.Add(d.current)
 	d.current = couchmessage.Receipt{Message: m, Status: couchmessage.Queued}
 	d.state = couchmessage.PeerDeliveryState{}
 	d.interrupted = false

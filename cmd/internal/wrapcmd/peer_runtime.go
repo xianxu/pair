@@ -64,6 +64,11 @@ func (d *peerDelivery) handleEndpoint(_ context.Context, raw []byte) ([]byte, er
 		d.mu.Unlock()
 	case "reserve":
 		err = d.reserve(request.ID, request.Sequence)
+		var committed *couchmessage.AlreadyCommittedError
+		if errors.As(err, &committed) {
+			response.Receipt = &committed.Receipt
+			err = couchmessage.ErrAlreadyCommitted
+		}
 	case "commit":
 		err = d.enqueue(*request.Message)
 		if err == nil {
@@ -71,11 +76,10 @@ func (d *peerDelivery) handleEndpoint(_ context.Context, raw []byte) ([]byte, er
 			response.Receipt = &r
 		}
 	case "status":
-		r := d.receipt()
-		if r.Message.ID != request.ID {
-			err = errors.New("unknown delivery")
-		} else {
+		if r, ok := d.retained(request.ID); ok {
 			response.Receipt = &r
+		} else {
+			err = couchmessage.ErrUnknownDelivery
 		}
 	case "release":
 		d.mu.Lock()

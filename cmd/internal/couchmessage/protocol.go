@@ -101,7 +101,7 @@ func Handle(ctx context.Context, b *Broker, r Request) Response {
 		}
 		return Response{Code: "ok", Actors: actors}
 	case "status":
-		receipt, err := b.Status(caller, r.ID)
+		receipt, err := b.StatusContext(ctx, caller, r.ID)
 		if err != nil {
 			return protocolError(err, false)
 		}
@@ -133,7 +133,7 @@ func protocolError(err error, family bool) Response {
 		code = "ambiguous"
 	case errors.Is(err, ErrInvalidTarget):
 		code = "invalid-target"
-	case errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded):
+	case errors.Is(err, ErrUncertain) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded):
 		code = "uncertain"
 	}
 	return Response{Code: code, Error: err.Error()}
