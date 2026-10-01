@@ -31,6 +31,12 @@ sample $pid 10 -file couch.sample.txt
 
 `probes/messageidle` gives exact spawn counts when Couch is launched from an armed shell (optional).
 
+### Before, re-taken right before the switch (same workload as After)
+
+- Couch pid 76438, build `60bb0490` (main, includes #360), 11 `pair wrap` processes, operator idle.
+- **Couch CPU: 60.93 CPU-seconds in 120 s (≈51% of one core).**
+- Children over 120 s (10 Hz poll, distinct PIDs): ps 536, sdlc 155, zellij 107, git 68.
+
 ## After
 
-_(M3, same commands, same slot count.)_
+_(Pending: `sdlc move :0`, `make build`, operator relaunches Couch and every slot, then the same commands with the same slot count.)_
