@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000360-address-couch-slots-by-short-repo-name-thread-name-or-attributes.md
         source_blob: dfe20eebf9aae7973b6cb74b8f36b952d9fe4994
         destination: workshop/issues/000360-address-couch-slots-by-short-repo-name-thread-name-or-attributes.md
+        main_commit: 834078cedee432acecd4fac073e37768a171887d
 ---
 
 # Address couch slots by short repo name, thread name, or attributes
