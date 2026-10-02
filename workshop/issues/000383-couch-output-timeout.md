@@ -1,12 +1,12 @@
 ---
 id: 000383
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-02
 updated: 2026-10-02
 estimate_hours:
-card_mirror: '4edd31cb6908d70a3239413b0df7d4386a259e75' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'a829c78fcd770ff088f3c3c5cf4b8b230d3a6fa9' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-02T08:35:52-07:00
 claimant:
     operator: T
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "f5a3f7ef", done: "e06b4628"}
+actual_hours: 0.41
 ---
 
 # Couch exits on stalled terminal output and fails to restore keyboard modes
