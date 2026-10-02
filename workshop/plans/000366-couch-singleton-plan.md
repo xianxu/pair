@@ -274,3 +274,13 @@ BR-1 through BR-4 are addressed. `sdlc close` recorded codecomplete with measure
 https://github.com/xianxu/pair/pull/196, then it was explicitly converted to draft.
 The project status/actual and task checkboxes are current. No live Couch cutover or
 merge was performed; the documented baseline test exceptions remain visible in the PR.
+
+### 2026-10-02 — integration review derived-root containment
+
+BR-5 identified a remaining isolation boundary: derived fallback HOME and TMPDIR
+were exported without physical containment checks. Sweep all derived child roots,
+including XDG_DATA_HOME when an explicit Pair root bypasses its default. Canonicalize
+and validate before selection publication or directory creation; preserve the validated
+paths for both runner entry points. Refuse unresolved/dangling symlinks, accept confined
+physical targets, and prove outside temporary sentinels remain untouched. This corrects
+the existing isolation contract without expanding scope.

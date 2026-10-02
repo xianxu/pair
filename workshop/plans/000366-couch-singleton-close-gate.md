@@ -74,6 +74,35 @@ rounds:
           round: 3
       recipe: milestone-review
       blocked: false
+    - "n": 4
+      timestamp: "2026-10-02T09:00:06-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: StoreInspection fences numbered-slot sources; unreadable-slot, changed-evidence, and publication-lock regressions pass.
+          round: 4
+        - id: BR-2
+          disposition: addressed
+          note: ObserveMigrationProcesses covers incarnations and creating owners; live/unknown exclusion and publication recheck regressions pass.
+          round: 4
+        - id: BR-3
+          disposition: addressed
+          note: encodeSelection shares the reader's size limit; exact-boundary round trips and overflow rejection regressions pass.
+          round: 4
+        - id: BR-4
+          disposition: addressed
+          note: Selected global roots reach scoped launcher storage and embedded extraction; real create/list/resume and parent runner regressions pass.
+          round: 4
+      findings:
+        - id: BR-5
+          severity: Critical
+          title: Derived child HOME and TMPDIR can escape explicit isolation through symlinks.
+          detail: 'cmd/internal/couchcmd/singleton.go:184-192 substitutes isolated/home without validating its physical destination and creates isolated/tmp without containment validation; line 252 exports both to children. Preexisting symlinks to an outside directory are followed by MkdirAll and descendant writes. A production-path overlay regression fails for both cases. ARCH-SECURE and ARCH-PURPOSE: validate physical containment of every derived runtime root before publication or child effects, and export only validated paths. Add permanent tests using outside temporary sentinels for fallback HOME and TMPDIR through both runner entry points.'
+          family: isolation-derived-root-containment
+          round: 4
+      recipe: milestone-review
+      blocked: true
 ---
 
 # Gate ledger — pair#366 (boundary-review)
@@ -114,6 +143,20 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-3 — addressed — Serialization and reading share maxSelectionBytes; boundary round-trip and pre-publication overflow regressions pass.
 - BR-4 — addressed — Couch clears PAIR_DATA_DIR and passes COUCH_PAIR_DATA_DIR; launcher and embedded extraction consume the selected global root. The real create/list/resume regression fails when an isolated Go overlay disables selected-root consumption, then passes against unchanged HEAD.
 
+## Round 4 — 2026-10-02T09:00:06-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — StoreInspection fences numbered-slot sources; unreadable-slot, changed-evidence, and publication-lock regressions pass.
+- BR-2 — addressed — ObserveMigrationProcesses covers incarnations and creating owners; live/unknown exclusion and publication recheck regressions pass.
+- BR-3 — addressed — encodeSelection shares the reader's size limit; exact-boundary round trips and overflow rejection regressions pass.
+- BR-4 — addressed — Selected global roots reach scoped launcher storage and embedded extraction; real create/list/resume and parent runner regressions pass.
+
+### Raised
+
+- **BR-5** [Critical] `isolation-derived-root-containment` Derived child HOME and TMPDIR can escape explicit isolation through symlinks.
+  cmd/internal/couchcmd/singleton.go:184-192 substitutes isolated/home without validating its physical destination and creates isolated/tmp without containment validation; line 252 exports both to children. Preexisting symlinks to an outside directory are followed by MkdirAll and descendant writes. A production-path overlay regression fails for both cases. ARCH-SECURE and ARCH-PURPOSE: validate physical containment of every derived runtime root before publication or child effects, and export only validated paths. Add permanent tests using outside temporary sentinels for fallback HOME and TMPDIR through both runner entry points.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-5** [Critical] `isolation-derived-root-containment` Derived child HOME and TMPDIR can escape explicit isolation through symlinks.

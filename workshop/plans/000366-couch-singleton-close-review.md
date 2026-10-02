@@ -250,3 +250,87 @@ dispose:
    - **ARCH-FUNERAL — pass:** Selection and lease metadata have fixed bounds; publication staging is cleaned or reused; ownership releases on close or process death.
 
 7. **Plan revision recommendations:** None. Existing revisions describe the delivered root-contract correction.
+
+---
+
+## Re-review — 2026-10-02T09:00:06-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 366 — Make Couch a local singleton |
+| repo | pair |
+| issue file | workshop/issues/000366-couch-singleton.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | b1de974ba1610ff32d633b536b482af13271d8f2..3869582df43b6dc02659df1210bb790488f5d384 |
+| command | sdlc close --issue 366 |
+| reviewer | codex |
+| timestamp | 2026-10-02T09:00:06-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The singleton ownership, adoption safeguards, and prior four corrections hold up under inspection and focused tests. One isolation defect blocks shipping: existing symlinks at the derived child HOME or TMPDIR let an explicitly isolated runtime write outside its root. A temporary overlay regression reproduced both escapes through the production runner without editing repository files.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      StoreInspection fences numbered-slot sources; unreadable-slot, changed-evidence, and publication-lock regressions pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      ObserveMigrationProcesses covers incarnations and creating owners; live/unknown exclusion and publication recheck regressions pass.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      encodeSelection shares the reader's size limit; exact-boundary round trips and overflow rejection regressions pass.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Selected global roots reach scoped launcher storage and embedded extraction; real create/list/resume and parent runner regressions pass.
+findings:
+  - id: new
+    severity: Critical
+    family: isolation-derived-root-containment
+    title: |
+      Derived child HOME and TMPDIR can escape explicit isolation through symlinks.
+    detail: |
+      cmd/internal/couchcmd/singleton.go:184-192 substitutes isolated/home without validating its physical destination and creates isolated/tmp without containment validation; line 252 exports both to children. Preexisting symlinks to an outside directory are followed by MkdirAll and descendant writes. A production-path overlay regression fails for both cases. ARCH-SECURE and ARCH-PURPOSE: validate physical containment of every derived runtime root before publication or child effects, and export only validated paths. Add permanent tests using outside temporary sentinels for fallback HOME and TMPDIR through both runner entry points.
+```
+
+1. **Strengths**
+   - Host ownership and immutable selection remain separate; contention, crash recovery, and exec descriptor release have real-process coverage.
+   - Adoption retains source transaction locks through publication and preserves unknown ownership as refusal.
+   - README and atlas document adoption, exclusions, compatibility limits, and isolation.
+
+2. **Critical findings**
+   - The isolation escape above occurs at [singleton.go:184](/Users/xianxu/workspace/worktree/pair-slot2/pair/cmd/internal/couchcmd/singleton.go:184), with child propagation at line 252. Canonicalize and validate fallback HOME and derived TMPDIR before accepting them.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage**
+   - Singleton and identity suites pass normally and under `-race`.
+   - Focused core observation/inspection and runtime/launcher/embedded tests pass; pinned diff whitespace checks pass.
+   - The added overlay regression fails for both `home` and `tmp`, confirming actual outside writes. Full repository tests were not rerun.
+
+6. **Architecture**
+   - **ARCH-DRY — pass:** existing identity decoders, leases, and transaction seams reused.
+   - **ARCH-PURE — pass:** adoption policy separated from filesystem orchestration.
+   - **ARCH-PURPOSE — flag:** descendant isolation remains incomplete.
+   - **ARCH-MOCK — pass:** portable storage, stateful process/terminal doubles, and real subprocess checks.
+   - **ARCH-CONSTRAINTS — pass:** bounded adoption scanning; no recurring discovery added.
+   - **ARCH-SECURE — flag:** derived roots bypass physical containment checks.
+   - **ARCH-ORDER — pass:** controlled contention, source changes, publication failures, and retry coverage.
+   - **ARCH-FUNERAL — pass:** bounded selection metadata and scoped lease cleanup.
+
+7. **Plan revisions**
+   - Append a `## Revisions` entry covering containment of every derived child root, explicitly including fallback HOME and TMPDIR, with real descendant-write regression tests.

@@ -484,3 +484,7 @@ proof; record the surprising case so the next change starts from evidence.
 - A fixture that "is live" because nothing checked liveness proves the bug,
   not the guard. #378: two hosted-actor tests never marked their pid alive and
   passed only through the defect. Set the state a test's name claims.
+- Isolation validates derived defaults as well as explicit overrides. A contained
+  root does not contain a child path whose existing symlink points elsewhere;
+  validate the fallback HOME, temporary and XDG roots before publishing selection
+  or creating directories, and export only the validated physical paths (#366 BR-5).
