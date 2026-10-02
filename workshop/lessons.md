@@ -460,3 +460,8 @@ proof; record the surprising case so the next change starts from evidence.
   answer. #365 BR-13: status recovery accepted a receipt from whichever wrapper
   replied. Bind each answer to its source (`receipt.To == answering binding`),
   and test a forged answer.
+
+- Pin the supporting roots with an adopted store: its registration alone cannot
+  prove which Pair artifact root belongs to it. Keep selected inventory identity
+  separate from a held runtime lease, and revoke shared ownership handles on close.
+  Exercise both distinctions through the production command boundary. (#366)

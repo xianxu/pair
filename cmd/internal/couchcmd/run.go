@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/couchidentity"
+	"github.com/xianxu/pair/cmd/internal/couchsingleton"
 	"io"
 	"os"
 	"os/exec"
@@ -53,13 +54,43 @@ type Runtime interface {
 	NewCouchWith(couchcore.Runner, couchcore.CouchNamespace) (*couchcore.Couch, error)
 }
 
-type OSRuntime struct{}
+type OSRuntime struct {
+	ownership                  *runtimeOwnership
+	accountHome                func() (string, error)
+	env                        func(string) string
+	selection                  *couchsingleton.Selection
+	isolatedRoot, isolatedHome string
+}
 
 var _ Runtime = OSRuntime{}
 
-func (OSRuntime) Getenv(k string) string { return os.Getenv(k) }
+func (r OSRuntime) Getenv(k string) string {
+	if r.selection != nil {
+		switch k {
+		case "COUCH_STORE_DIR":
+			return r.selection.Roots.StoreDir
+		case "COUCH_PAIR_DATA_DIR":
+			return r.selection.Roots.PairDataDir
+		case "COUCH_IDENTITY_DIR":
+			return r.selection.Roots.IdentityDir
+		case "COUCH_ISOLATED_ROOT":
+			return r.isolatedRoot
+		case "HOME":
+			if r.isolatedHome != "" {
+				return r.isolatedHome
+			}
+		}
+	}
+	if r.env != nil {
+		return r.env(k)
+	}
+	return os.Getenv(k)
+}
 
 func (r OSRuntime) StoreDir() string {
+	if r.selection != nil {
+		return r.selection.Roots.StoreDir
+	}
 	if dir := r.Getenv("COUCH_STORE_DIR"); dir != "" {
 		return dir
 	}
@@ -90,6 +121,9 @@ func resolveCurrentRepoScope(cwd string, git couchcore.GitRunner, paths couchcor
 }
 
 func (r OSRuntime) ResolveNamespace() (couchcore.CouchNamespace, error) {
+	if r.selection != nil {
+		return couchcore.ExistingCouchNamespace(r.selection.Roots.StoreDir)
+	}
 	cwd, err := os.Getwd()
 	if err != nil {
 		return couchcore.CouchNamespace{}, fmt.Errorf("get startup cwd: %w", err)
@@ -98,17 +132,23 @@ func (r OSRuntime) ResolveNamespace() (couchcore.CouchNamespace, error) {
 }
 
 func (r OSRuntime) AcquireSupervisor(namespace couchcore.CouchNamespace) (io.Closer, error) {
-	return couchcore.AcquireSupervisorLease(namespace, couchcore.OSProcOps{})
+	if r.selection != nil && r.ownership.held() && namespace.Dir() == r.selection.Roots.StoreDir {
+		return emptyLease{}, nil
+	}
+	return nil, errors.New("Couch runtime does not hold singleton supervisor ownership")
 }
 
 func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.CouchNamespace) (*couchcore.Couch, error) {
+	if r.selection == nil {
+		return nil, errors.New("Couch runtime must resolve singleton selection before composition")
+	}
 	if !filepath.IsAbs(r.Getenv("HOME")) {
-		return nil, errors.New("Couch identity authority requires an absolute HOME")
+		return nil, errors.New("Couch runtime requires an absolute application HOME")
 	}
 
-	dataDir := launcher.ResolveDataDir(r.Getenv("HOME"), r.Getenv("XDG_DATA_HOME"))
+	dataDir := runtimePairDataDir(r)
 	c, err := couchcore.New(
-		namespace, runner, couchcore.OSPathOps{}, couchcore.ExecGit{},
+		namespace, r.runtimeRunner(runner), couchcore.OSPathOps{}, couchcore.ExecGit{},
 		couchcore.OSProcOps{}, couchcore.NewStore(namespace.Dir()),
 		couchcore.SystemClock{}, couchcore.NewRandomIDGen(), rand.Reader,
 		couchcore.NewScopedThreadArtifactCollisionChecker(dataDir),
@@ -116,7 +156,7 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.Cou
 	if err != nil {
 		return nil, err
 	}
-	c.Identities = couchidentity.IdentityStore{HostDir: filepath.Join(r.Getenv("HOME"), ".local", "share", "pair-host"), StoreDir: namespace.Dir()}
+	c.Identities = couchidentity.IdentityStore{HostDir: r.selection.Roots.IdentityDir, StoreDir: namespace.Dir()}
 	c.Workspaces = couchcore.NewWorkspaceProvisioner(couchcore.OSProvisionIO{})
 	c.Slots = couchcore.NewOSSlotCatalog(couchcore.OSProvisionIO{})
 	c.RootAgent = r.Getenv("PAIR_AGENT")
@@ -209,7 +249,17 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		fmt.Fprint(stdout, couchSkill)
 		return 0
 	}
+	if invocation.kind == cliAdopt {
+		return runAdoptionCLI(invocation, rt, stdout, stderr)
+	}
 	if invocation.kind == cliMessage {
+		prepared, lease, err := prepareRuntime(rt, false)
+		if err != nil {
+			fmt.Fprintln(stderr, "couch:", err)
+			return 1
+		}
+		defer lease.Close()
+		rt = prepared
 		return runMessageCLI(invocation, rt, stdout, stderr)
 	}
 	if invocation.kind == cliLaunch {
@@ -284,6 +334,13 @@ func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs ma
 		renderError(stderr, referenceErr)
 		return 1
 	}
+	prepared, lifetime, err := prepareRuntime(rt, operationOwnsLive(op.Name))
+	if err != nil {
+		renderError(stderr, err)
+		return 1
+	}
+	defer lifetime.Close()
+	rt = prepared
 	if operationUsesCurrentRepoScope(op.Name) && !workspaceRef {
 		scope, err := rt.CurrentRepoScope()
 		if err != nil {
@@ -533,7 +590,7 @@ type consoleTraceConfig struct {
 }
 
 func tracesForRuntime(rt Runtime) consoleTraceConfig {
-	return consoleTraceConfig{getenv: rt.Getenv, root: launcher.ResolveDataDir(rt.Getenv("HOME"), rt.Getenv("XDG_DATA_HOME"))}
+	return consoleTraceConfig{getenv: rt.Getenv, root: runtimePairDataDir(rt)}
 }
 
 // processStartedAt is when this couch process began: package initialisation,
@@ -887,6 +944,12 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "       couch --show <thread>")
 	fmt.Fprintln(w, "       couch --archived")
 	fmt.Fprintln(w, "       couch --actors [--json]")
+	fmt.Fprintln(w, "       couch --adopt-store <absolute-path> [--pair-data <path>] [--identity-dir <path>]")
+	fmt.Fprintln(w, "             [--legacy-store <path>]... [--exclude-store <path>]... [--apply <digest>]")
+	fmt.Fprintln(w, "             Preview legacy stores as JSON; apply the current digest to select in place.")
+	fmt.Fprintln(w, "             Stop and upgrade old Couch supervisors first. Exclusions preserve data.")
+	fmt.Fprintln(w, "             One supervisor per OS account on local storage; a second launch refuses.")
+	fmt.Fprintln(w, "             COUCH_ISOLATED_ROOT explicitly separates diagnostic/test runtimes.")
 	fmt.Fprintln(w, "       couch --send-to repo[:N] [--agent NAME] --message TEXT")
 	fmt.Fprintln(w, "       couch --message-status ID [--json]")
 	fmt.Fprintln(w, "       couch --skill")
@@ -919,7 +982,10 @@ func wireIdleFading(console *couchtty.Console, getenv func(string) string) {
 	colorTerm := strings.ToLower(getenv("COLORTERM"))
 	console.SetColorModes(colorTerm == "truecolor" || colorTerm == "24bit", getenv("NO_COLOR") != "")
 	home := getenv("HOME")
-	dataDir := launcher.ResolveDataDir(home, getenv("XDG_DATA_HOME"))
+	dataDir := getenv("COUCH_PAIR_DATA_DIR")
+	if dataDir == "" {
+		dataDir = launcher.ResolveDataDir(home, getenv("XDG_DATA_HOME"))
+	}
 	runtime := threadactivity.NewOSRuntime(home)
 	console.SetActivityProbe(func(ctx context.Context, row couchcore.ActionableThreadSummary) (time.Time, error) {
 		thread, err := threadactivity.InScope(dataDir, row.Address.RepoScope, string(row.Address.Tag), row.Agent)
