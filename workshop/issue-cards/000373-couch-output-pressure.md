@@ -1,6 +1,6 @@
 ---
 id: 000373
-status: codecomplete
+status: done
 created: 2026-10-01
 updated: 2026-10-01
 estimate_hours:
@@ -24,6 +24,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 94aeda6842d79595f75b63c2700605027e631059
         evidence_commit: 459bd1b8d6ab5bd3b2bcac77901ce183201845be
+        landed_commit: b8eec1f18a08dd5f46778413bfa4d9ef84718dbb
 ---
 
 # Isolate Couch pane latency under output pressure
