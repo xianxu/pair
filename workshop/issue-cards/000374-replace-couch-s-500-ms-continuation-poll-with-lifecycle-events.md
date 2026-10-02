@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000374-replace-couch-s-500-ms-continuation-poll-with-lifecycle-events.md
         source_blob: 115dbf7444ba64f28074c5730d00f97d96fc41b9
         destination: workshop/issues/000374-replace-couch-s-500-ms-continuation-poll-with-lifecycle-events.md
+        main_commit: e797bd0334c631f41e769988bb0c939342828db7
 ---
 
 # Replace Couch's 500 ms continuation poll with lifecycle events
