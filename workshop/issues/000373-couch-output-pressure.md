@@ -77,6 +77,7 @@ on completion or cancellation (ARCH-ORDER); make no production behavior change.
 ## Log
 
 ### 2026-10-01
+- 2026-10-01: closed — Revalidated after merging origin/main: only manual conflict was workshop/lessons.md, both independent sets preserved; focused Couch pressure control, stalled-operation and trailing-PTY tests passed 4.361s. Prior 24-trial matrix passed with no selective stall and focused race plus mutation verification passed. Runbook smoke and shell syntax/link checks passed. This remains diagnostic tooling with documented limits, no production stall fix claimed.; review verdict: SHIP
 - 2026-10-01: closed — 24-trial matrix passed: no selective stall, real-PTY burst display max 41.91ms, exact stream completion and physical final marker verified. Focused race controls passed 5.537s after shared recovery extraction; scratch mutation removing recovery checks correctly failed the trailing-PTY regression. README/atlas/issue preserve command, results and limits. No production fix claimed.; review verdict: SHIP
 
 Operator requested testing the throughput hypothesis in isolation. This investigation

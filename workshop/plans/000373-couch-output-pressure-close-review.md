@@ -227,3 +227,74 @@ dispose:
    - **ARCH-PURPOSE — pass:** Delivers the bounded investigation, real-PTY corroboration, completion evidence and documented limitations.
 
 7. **Plan revisions:** None required. Existing revisions match the implemented corrections.
+
+---
+
+## Re-review — 2026-10-01T17:53:23-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 373 — Isolate Couch pane latency under output pressure |
+| repo | pair |
+| issue file | workshop/issues/000373-couch-output-pressure.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | d6237354db4794f6ebbcd5c639de5bd906701196..94aeda6842d79595f75b63c2700605027e631059 |
+| command | sdlc close --issue 373 |
+| reviewer | codex |
+| timestamp | 2026-10-01T17:53:23-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range satisfies the issue’s investigation contract. All 24 pressure trials and focused race regressions passed. No selective stall or censored ACK reproduced. Prior corrections remain supported by the code and tests; no new findings.
+
+1. **Strengths**
+   - Independent receipt, endpoint, display and switcher measurements distinguish the relevant latency paths.
+   - Fake and real-PTY trials share workload and recovery logic.
+   - Recovery verifies every child’s completion marker, exact byte accounting and final presentation.
+   - README, atlas and the debugging runbook document reproducible commands and appropriately limit the negative result.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+   - Full 24-trial matrix passed: **50.130s**.
+   - Focused control, stalled-operation and trailing-output tests passed under `-race`: **5.534s**.
+   - Runbook shell examples passed `sh -n`; pinned-range `git diff --check` passed.
+   - Repository files remained unchanged. No new mutation experiments were performed during this read-only review.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** Existing host/PTY seams and shared producer/recovery functions avoid duplicated implementations.
+   - **ARCH-PURE — pass:** Integration behavior stays in the test harness with injected host and transport behavior.
+   - **ARCH-PURPOSE — pass:** Delivers bounded experiments, independent measurements, real-PTY corroboration and durable conclusions without speculative production changes.
+
+7. **Plan revision recommendations:** None.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      terminal_pressure_test.go:225–258 closes the emulator input pipe and joins readers/writers before closing emulator state. Focused race regressions passed.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      terminal_pressure_test.go:149–185 provides tracked deadline-aware operations and a stalled-write regression; trial recovery shares an absolute cancellation deadline. The regression passed under race detection.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      terminal_pressure_test.go:491–554 invokes the shared recovery operation while trailing PTY output is withheld, requires deadline expiration, then releases output and requires recovery. Immediate success would fail the explicit error assertion. The regression and all matrix trials passed.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      README.md:1090–1103 documents the opt-in invocation, limitations and runbook. The command matches the environment guard and 24-trial matrix in terminal_pressure_test.go:131–142.
+```

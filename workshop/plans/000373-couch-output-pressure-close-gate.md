@@ -77,6 +77,28 @@ rounds:
           round: 3
       recipe: small-diff-review
       blocked: false
+    - "n": 4
+      timestamp: "2026-10-01T17:53:23-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: terminal_pressure_test.go:225–258 closes the emulator input pipe and joins readers/writers before closing emulator state. Focused race regressions passed.
+          round: 4
+        - id: BR-2
+          disposition: addressed
+          note: terminal_pressure_test.go:149–185 provides tracked deadline-aware operations and a stalled-write regression; trial recovery shares an absolute cancellation deadline. The regression passed under race detection.
+          round: 4
+        - id: BR-3
+          disposition: addressed
+          note: terminal_pressure_test.go:491–554 invokes the shared recovery operation while trailing PTY output is withheld, requires deadline expiration, then releases output and requires recovery. Immediate success would fail the explicit error assertion. The regression and all matrix trials passed.
+          round: 4
+        - id: BR-4
+          disposition: addressed
+          note: README.md:1090–1103 documents the opt-in invocation, limitations and runbook. The command matches the environment guard and 24-trial matrix in terminal_pressure_test.go:131–142.
+          round: 4
+      recipe: small-diff-review
+      blocked: false
 ---
 
 # Gate ledger — pair#373 (boundary-review)
@@ -114,6 +136,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-2 — addressed — Blocking trial operations use tracked cancellation; recovery shares the window deadline. The stalled-operation regression passed in the full race suite.
 - BR-3 — addressed — terminal_pressure_test.go:491–554 shares recovery checks between trials and the withheld-output regression. It checks every child's completion marker, exact byte accounting, publication flush and selected final presentation. A scratch overlay replacing recovery with immediate success failed with “got <nil>, want deadline exceeded”; the unchanged regression passed.
 - BR-4 — addressed — README.md:1090–1101 documents the opt-in invocation and limitations, matching the environment guard and 24-trial matrix. atlas/couch.md documents the experiment.
+
+## Round 4 — 2026-10-01T17:53:23-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — terminal_pressure_test.go:225–258 closes the emulator input pipe and joins readers/writers before closing emulator state. Focused race regressions passed.
+- BR-2 — addressed — terminal_pressure_test.go:149–185 provides tracked deadline-aware operations and a stalled-write regression; trial recovery shares an absolute cancellation deadline. The regression passed under race detection.
+- BR-3 — addressed — terminal_pressure_test.go:491–554 invokes the shared recovery operation while trailing PTY output is withheld, requires deadline expiration, then releases output and requires recovery. Immediate success would fail the explicit error assertion. The regression and all matrix trials passed.
+- BR-4 — addressed — README.md:1090–1103 documents the opt-in invocation, limitations and runbook. The command matches the environment guard and 24-trial matrix in terminal_pressure_test.go:131–142.
 
 ## Open findings
 
