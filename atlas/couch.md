@@ -80,6 +80,9 @@ with authority at `singleton` and defaults at `data/pair`, `data/pair/couch`, an
 `pair-host` beneath it. Every effective root must remain inside it, including
 after symlink resolution. This mode needs no account lookup. Production ignores
 HOME as an authority selector; alternate store/XDG roots alone do not isolate.
+Derived child HOME, XDG data and temporary directories are also resolved and
+checked before selection publication or directory creation. Escaping or unresolved
+symlinks refuse; children receive only validated physical paths.
 The resolved runtime propagates selected Pair/Couch/identity/isolation roots to
 children and feeds the same roots to listing, messaging and artifact readers.
 Existing socket addressing remains derived from the selected namespace.

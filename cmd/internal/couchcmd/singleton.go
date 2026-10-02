@@ -41,6 +41,9 @@ func canonicalFuture(path string) (string, error) {
 	if !errors.Is(err, os.ErrNotExist) {
 		return "", err
 	}
+	if info, statErr := os.Lstat(path); statErr == nil && info.Mode()&os.ModeSymlink != 0 {
+		return "", fmt.Errorf("unresolved Couch root symlink %q: %w", path, err)
+	}
 	parent := filepath.Dir(path)
 	if parent == path {
 		return "", err
@@ -57,6 +60,50 @@ func confined(root, path string) bool {
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel)
 }
 
+// isolatedChildRoots retains the physical destinations validated before any
+// selection or child effects. Fallbacks obey the same rule as explicit roots.
+type isolatedChildRoots struct{ home, data, temporary string }
+
+func confinedDirectory(root, path, name string) (string, error) {
+	physical, err := canonicalFuture(path)
+	if err != nil {
+		return "", fmt.Errorf("%s isolation root: %w", name, err)
+	}
+	if !confined(root, physical) {
+		return "", fmt.Errorf("%s must remain inside COUCH_ISOLATED_ROOT: %q", name, physical)
+	}
+	if info, err := os.Stat(physical); err == nil {
+		if !info.IsDir() {
+			return "", fmt.Errorf("%s isolation root is not a directory: %q", name, physical)
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+	return physical, nil
+}
+
+func resolveIsolatedChildRoots(root, requestedHome string) (isolatedChildRoots, error) {
+	var paths isolatedChildRoots
+	home, err := canonicalFuture(requestedHome)
+	if err != nil || !confined(root, home) {
+		home = filepath.Join(root, "home")
+	}
+	for _, field := range []struct {
+		name, path string
+		result     *string
+	}{
+		{"HOME", home, &paths.home},
+		{"XDG_DATA_HOME", filepath.Join(root, "data"), &paths.data},
+		{"TMPDIR", filepath.Join(root, "tmp"), &paths.temporary},
+	} {
+		*field.result, err = confinedDirectory(root, field.path, field.name)
+		if err != nil {
+			return paths, err
+		}
+	}
+	return paths, nil
+}
+
 func (r OSRuntime) singletonManager() (couchsingleton.Manager, couchsingleton.Request, string, error) {
 	var m couchsingleton.Manager
 	var q couchsingleton.Request
@@ -68,10 +115,20 @@ func (r OSRuntime) singletonManager() (couchsingleton.Manager, couchsingleton.Re
 		if err != nil {
 			return m, q, "", err
 		}
-		home = filepath.Join(isolated, "home")
+		childRoots, e := resolveIsolatedChildRoots(isolated, r.Getenv("HOME"))
+		if e != nil {
+			return m, q, "", e
+		}
+		home = childRoots.home
 		m.AuthorityDir = filepath.Join(isolated, "singleton")
 		m.IsolationRoot = isolated
-		m.Defaults = couchsingleton.Roots{StoreDir: filepath.Join(isolated, "data", "pair", "couch"), PairDataDir: filepath.Join(isolated, "data", "pair"), IdentityDir: filepath.Join(isolated, "pair-host")}
+		m.Defaults = couchsingleton.Roots{StoreDir: filepath.Join(childRoots.data, "pair", "couch"), PairDataDir: filepath.Join(childRoots.data, "pair"), IdentityDir: filepath.Join(isolated, "pair-host")}
+		for _, field := range []*string{&m.AuthorityDir, &m.Defaults.StoreDir, &m.Defaults.PairDataDir, &m.Defaults.IdentityDir} {
+			*field, e = confinedDirectory(isolated, *field, "Couch")
+			if e != nil {
+				return m, q, "", e
+			}
+		}
 	} else {
 		lookup := r.accountHome
 		if lookup == nil {
@@ -163,6 +220,12 @@ func (r OSRuntime) prepareSingleton(owner bool) (OSRuntime, io.Closer, error) {
 	if err != nil {
 		return r, nil, err
 	}
+	if isolated != "" {
+		r.isolatedPaths, err = resolveIsolatedChildRoots(isolated, r.Getenv("HOME"))
+		if err != nil {
+			return r, nil, err
+		}
+	}
 	var selection couchsingleton.Selection
 	var lease io.Closer = emptyLease{}
 	if owner {
@@ -180,19 +243,11 @@ func (r OSRuntime) prepareSingleton(owner bool) (OSRuntime, io.Closer, error) {
 		lease = r.ownership
 	}
 	r.isolatedRoot = isolated
-	if isolated != "" {
-		home := r.Getenv("HOME")
-		physical, e := canonicalFuture(home)
-		if e != nil || !confined(isolated, physical) {
-			physical = filepath.Join(isolated, "home")
-		}
-		r.isolatedHome = physical
-		if owner {
-			for _, path := range []string{physical, filepath.Join(isolated, "tmp")} {
-				if err := os.MkdirAll(path, 0700); err != nil {
-					lease.Close()
-					return r, nil, err
-				}
+	if isolated != "" && owner {
+		for _, path := range []string{r.isolatedPaths.home, r.isolatedPaths.temporary} {
+			if err := os.MkdirAll(path, 0700); err != nil {
+				lease.Close()
+				return r, nil, err
 			}
 		}
 	}
@@ -249,7 +304,7 @@ func (r OSRuntime) runtimeRunner(runner couchcore.Runner) couchcore.Runner {
 	// launcher computes this actor's scope once, from its own checkout.
 	env := []string{"PAIR_DATA_DIR=", "COUCH_PAIR_DATA_DIR=" + roots.PairDataDir, "COUCH_STORE_DIR=" + roots.StoreDir, "COUCH_IDENTITY_DIR=" + roots.IdentityDir, "COUCH_ISOLATED_ROOT=" + r.isolatedRoot}
 	if r.isolatedRoot != "" {
-		env = append(env, "HOME="+r.isolatedHome, "XDG_DATA_HOME="+filepath.Join(r.isolatedRoot, "data"), "TMPDIR="+filepath.Join(r.isolatedRoot, "tmp"))
+		env = append(env, "HOME="+r.isolatedPaths.home, "XDG_DATA_HOME="+r.isolatedPaths.data, "TMPDIR="+r.isolatedPaths.temporary)
 	}
 	return configuredRunner{underlying: runner, environment: env}
 }

@@ -55,11 +55,12 @@ type Runtime interface {
 }
 
 type OSRuntime struct {
-	ownership                  *runtimeOwnership
-	accountHome                func() (string, error)
-	env                        func(string) string
-	selection                  *couchsingleton.Selection
-	isolatedRoot, isolatedHome string
+	ownership     *runtimeOwnership
+	accountHome   func() (string, error)
+	env           func(string) string
+	selection     *couchsingleton.Selection
+	isolatedRoot  string
+	isolatedPaths isolatedChildRoots
 }
 
 var _ Runtime = OSRuntime{}
@@ -76,8 +77,16 @@ func (r OSRuntime) Getenv(k string) string {
 		case "COUCH_ISOLATED_ROOT":
 			return r.isolatedRoot
 		case "HOME":
-			if r.isolatedHome != "" {
-				return r.isolatedHome
+			if r.isolatedRoot != "" {
+				return r.isolatedPaths.home
+			}
+		case "XDG_DATA_HOME":
+			if r.isolatedRoot != "" {
+				return r.isolatedPaths.data
+			}
+		case "TMPDIR":
+			if r.isolatedRoot != "" {
+				return r.isolatedPaths.temporary
 			}
 		}
 	}
