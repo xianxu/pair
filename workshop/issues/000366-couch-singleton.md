@@ -318,3 +318,29 @@ reader's 64 KiB bound. Confirmed the code paths and extended the durable plan wi
 class-wide rework and regressions. Issue remains working; no PR or cutover yet.
 The gate also required `sdlc claim --issue 366 --adopt` to record this pre-#277
 claim's current workspace ownership; adoption succeeded without changing scope.
+
+### 2026-10-01 — boundary findings implemented
+
+BR-1/2: `StoreInspection` now retains existing global and discovered slot transaction
+locks through publication, reuses read-only strict decoders and refuses changed or
+expired handles. The digest includes slot-local payloads and topology. Every slot
+error and every nonselected recorded incarnation/start owner is checked; live and
+unknown ownership blocks exclusion, while the selected store can reconnect survivors.
+Checks cover corrupt data, pending journals, symlinks, missing checkouts, post-preview
+changes, lock contention, unknown/recycled PIDs, and liveness changes before publish.
+Context cancellation also reaches backend discovery and process observation.
+
+BR-3: one 64 KiB encoded selection limit governs decision, publication and reading.
+Exact-boundary records round-trip; oversize normal/escaped paths refuse before
+creating selected roots or invoking the publisher. Applies to Adopt and Acquire.
+
+Verification: singleton full -race passes (6.583s); core new inspection/process tests
+-race pass (1.834s), broader targeted core layout/preview/lease tests pass (3.212s).
+Post-fix full couchcmd/identity/messaging/retention race suites pass (56.151s,
+6.388s, 4.880s, 31.701s). Installed Couch and full termcmd tests pass. Public-command
+liveness regression uses the actual current PID/start token and verifies immutable
+preview bytes and selected-store reconnect; its restored race rerun passes (1.610s).
+Removing the slot error check, slot evidence hash or incarnation predicate fails the
+corresponding regression; restoring all guards passes. Artifact inventory remains
+exactly the same 49 baseline diagnostics with the new inspection file classified.
+Full post-fix core race run is still in progress; no second verdict requested yet.
