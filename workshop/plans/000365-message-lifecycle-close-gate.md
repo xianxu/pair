@@ -175,6 +175,32 @@ rounds:
       boundary: M3
       recipe: milestone-review
       blocked: true
+    - "n": 7
+      timestamp: "2026-10-01T17:23:40-07:00"
+      agent: claude
+      dispose:
+        - id: BR-12
+          disposition: addressed
+          note: Fresh-broker re-send reaches reserve then wire already-committed then adoptRetained; reverting the peer_runtime.go conversion or the endpoint.go rebuild turns the test red (verified in a scratch copy). In-flight is covered only through the shared recordRecoveredLocked via the StatusContext test.
+          round: 7
+        - id: BR-13
+          disposition: addressed
+          note: broker.go:658 requires ID == id and To == the answering binding; the forged-answer case in broker_recovery_test.go fails when that check is removed (verified).
+          round: 7
+        - id: BR-14
+          disposition: not-addressed
+          note: Plan file untouched in c0cf69af; all Chunk 3 lines still unticked; no Revisions disposition for TestLifecycleLostReceiptAfterBrokerRestartNoDuplicate or the redraw-bytes rerun. Only the lesson item is now delivered.
+          round: 7
+      findings:
+        - id: BR-15
+          severity: Minor
+          title: TestPeerLostReceiptRecoveredAfterBrokerRestart final check (current ID == m.ID) can never fail
+          detail: '3rd in family. A duplicate delivery with the same ID leaves current.Message.ID == m.ID, so the assertion cannot catch it; the test catches the bug only through Send''s error. Rule (already in lessons.md): every assertion must go red when the mechanism its message names is removed. Assert an enqueue or commit counter instead, or delete the line.'
+          family: test-name-matches-assertion
+          round: 7
+      boundary: M3
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#365 (boundary-review)
@@ -256,6 +282,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-14** [Minor] `plan-revision-drift` Chunk 3 plan lines are unticked; lost-receipt service test, redraw-bytes experiment and lesson are neither delivered nor revised
   3rd in family. Rule: before milestone-close, every Plan line in the closing milestone is ticked or has a Revisions disposition. Sweep all of Chunk 3, not only the named items.
 
+## Round 7 — 2026-10-01T17:23:40-07:00 (claude) — passed
+
+### Disposed
+
+- BR-12 — addressed — Fresh-broker re-send reaches reserve then wire already-committed then adoptRetained; reverting the peer_runtime.go conversion or the endpoint.go rebuild turns the test red (verified in a scratch copy). In-flight is covered only through the shared recordRecoveredLocked via the StatusContext test.
+- BR-13 — addressed — broker.go:658 requires ID == id and To == the answering binding; the forged-answer case in broker_recovery_test.go fails when that check is removed (verified).
+- BR-14 — not-addressed — Plan file untouched in c0cf69af; all Chunk 3 lines still unticked; no Revisions disposition for TestLifecycleLostReceiptAfterBrokerRestartNoDuplicate or the redraw-bytes rerun. Only the lesson item is now delivered.
+
+### Raised
+
+- **BR-15** [Minor] `test-name-matches-assertion` TestPeerLostReceiptRecoveredAfterBrokerRestart final check (current ID == m.ID) can never fail
+  3rd in family. A duplicate delivery with the same ID leaves current.Message.ID == m.ID, so the assertion cannot catch it; the test catches the bug only through Send's error. Rule (already in lessons.md): every assertion must go red when the mechanism its message names is removed. Assert an enqueue or commit counter instead, or delete the line.
+
 ## Open findings
 
 - **BR-6** [Minor] `artifact-removal-path` messageidle trace TSV grows unbounded while armed; only arm truncates it
@@ -263,6 +302,5 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-9** [Minor] `plan-revision-drift` M2 revision does not reconcile all Core-concepts rows and Task test bullets with the tree
 - **BR-10** [Minor] `send-target-slot-match` Exact-send SendTargeted posts from an untracked goroutine and matches the target by raw slot string
 - **BR-11** [Minor] `artifact-removal-path` Broker actor tombstones are never evicted, so after 128 bindings per Couch lifetime new sessions go dormant
-- **BR-12** [Important] `test-name-matches-assertion` Lost-receipt recovery test re-sends via the b.receipts short-circuit; the wire reserve→AlreadyCommitted adoption path is unpinned
-- **BR-13** [Important] `untrusted-receipt-provenance` StatusContext records a wrapper-supplied receipt without checking the answering holder is its recipient
 - **BR-14** [Minor] `plan-revision-drift` Chunk 3 plan lines are unticked; lost-receipt service test, redraw-bytes experiment and lesson are neither delivered nor revised
+- **BR-15** [Minor] `test-name-matches-assertion` TestPeerLostReceiptRecoveredAfterBrokerRestart final check (current ID == m.ID) can never fail

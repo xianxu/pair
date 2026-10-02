@@ -68,11 +68,12 @@ Durable plan: `workshop/plans/000365-message-lifecycle-plan.md` (awaiting operat
 
 - [x] M1 — Baseline: idle probe-count acceptance test (skipped red) + live idle measurement (`probes/messageidle`)
 - [x] M2 — Lifecycle protocol: pure Registry reducer, registry socket sessions, Console pane hooks, wrapper session client; delete heartbeat/reconcile/verification window
-- [ ] M3 — Failure semantics: crash/interleaving suite, wrapper duplicate-ID guard, broker tombstone removal, after-measurement, atlas docs
+- [x] M3 — Failure semantics: crash/interleaving suite, wrapper duplicate-ID guard, broker tombstone removal, after-measurement, atlas docs
 
 ## Log
 
 ### 2026-10-01
+- 2026-10-01: closed M3 — TestLifecycle* crash/interleaving suite (exec-identical frames mutation-checked); broker recovery + wrapper retained-receipt tests (BR-12 wire adoption and BR-13 recipient binding, both mutation-checked); BR-8/10/11 fixed with tests; live: couch 60.9 -> 22.5 CPU-s/120s and messaging spawns ~800 -> 0 per 2 min on the operator 11-slot setup; full sweep: only documented pre-existing failures; atlas states delivery uncertainty. Live send smoke test not run.; review verdict: FIX-THEN-SHIP
 - 2026-10-01: closed M2 — go test couchmessage/couchcmd/couchtty/couchcore/wrapcmd all ok; TestMessageIdleMultiSlotRunsNoProbes: 3 slots, 2.5s idle, zero launch/process/branch/recorded calls (mutation: a 1s poll fails it 3->9); TestRegistryInterleavingsKeepInvariants 400 seeds incl. connect refusals, mutation-checked; BR-7 TestMessageBrokerRefusalIsNotConnectedAndRetries mutation-checked; -race clean; review verdict: SHIP
 - 2026-10-01: closed M1 — TestMessageIdleRunsNoProbes records baseline 12 full checks/6 git per wrapper-minute (skipped until M2); probes/messageidle go test + couch-parent record verified with a fake couch; live baseline 101.6 CPU-s/120s archived in measurements file; probe bin/ dirs verified ignored via git check-ignore; review verdict: SHIP
 

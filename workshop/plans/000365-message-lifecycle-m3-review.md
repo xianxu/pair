@@ -91,3 +91,101 @@ findings:
     detail: |
       3rd in family. Rule: before milestone-close, every Plan line in the closing milestone is ticked or has a Revisions disposition. Sweep all of Chunk 3, not only the named items.
 ```
+
+---
+
+## Re-review — 2026-10-01T17:23:39-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 365 — Replace messaging liveness polling with lifecycle events |
+| repo | pair |
+| issue file | workshop/issues/000365-message-lifecycle.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | b392bd58957f3b1638b9f20c878c9490b127c084..c0cf69af95eceb7b39feb3e8e7a3fe498a605c88 |
+| command | sdlc milestone-close --issue 365 --milestone M3 |
+| reviewer | claude |
+| timestamp | 2026-10-01T17:23:39-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+Of the three open findings, the two Important ones are fixed and I checked the evidence by reverting each fix; the Minor one is still open.
+
+- **BR-13 (receipt provenance):** fixed. `StatusContext` now records which wrapper sent each answer. It accepts a receipt only when `Message.ID == id` and `Message.To` is that answering wrapper. A new forged-answer case fails when this check is removed.
+- **BR-12 (wire adoption path):** fixed. The lost-receipt test now re-sends on a fresh broker before any status query. That forces the send through the wrapper's reserve over the real socket, the `already-committed` reply, and `adoptRetained`. The test fails if either the wrapper-side conversion (`peer_runtime.go`) or the endpoint-side rebuild (`endpoint.go`) is reverted.
+- **BR-14 (plan drift):** still open. Commit c0cf69af did not touch the plan file. Every Chunk 3 line is still `[ ]`. The service-level `TestLifecycleLostReceiptAfterBrokerRestartNoDuplicate` and the redraw-bytes experiment are neither delivered nor given a Revisions disposition. The lesson item is now delivered. This is Minor and does not block the gate, but it is the third round this family has been raised.
+
+Nothing is Critical.
+
+1. **Strengths**
+   - `broker.go:622-661`: each holder now travels with its binding, so the answer is tied to its source structurally rather than by a string check. Concurrency stays capped at 4 and the timeout is unchanged.
+   - `peer_recovery_test.go:80-101`: one fresh broker per path (re-send, then status) removes the cache short-circuit outright, instead of reordering calls and hoping.
+   - `lessons.md` gained two rules that cover these classes in general: "a test that warms a cache tests the cache" and "a component answering for others must prove entitlement".
+   - Mutation checks I ran myself in a scratch copy:
+     - removing the provenance check makes `TestBrokerStatusAsksRecipientsForForgottenIDs` fail;
+     - disabling `peer_runtime.go`'s `AlreadyCommitted` conversion makes `TestPeerLostReceiptRecoveredAfterBrokerRestart` fail;
+     - removing `endpoint.go`'s `AlreadyCommittedError` rebuild makes the same test fail.
+   - The `couchmessage`, `wrapcmd` and `couchcmd` packages pass. I ran them outside the sandbox because the test writes under `/tmp`.
+
+2. **Critical:** none.
+
+3. **Important:** none new.
+
+4. **Minor**
+   - **BR-14, not addressed.** The plan needs a `## Revisions` entry that ticks or disposes every line in Tasks 3.1–3.4:
+     - lost-receipt coverage moved to `wrapcmd/peer_recovery_test.go` and `couchmessage/broker_recovery_test.go`;
+     - the redraw-bytes experiment is N/A because Zellij queries dropped to 0;
+     - the lesson is added;
+     - the operator smoke test and the close step stay open.
+   - **Vacuous assertion.** `peer_recovery_test.go:102-108` claims to check "the wrapper accepted a second delivery" by testing `current.Message.ID != m.ID`. A duplicate with the same ID would leave `current.Message.ID == m.ID`, so this assertion can never fail. The test still catches the bug through `Send`'s error, but this line is misleading.
+   - **Two places check provenance.** `StatusContext` (`To == a.from`) and `adoptRetained` (`To == a.binding`) each check it separately. A shared `vouchedBy(r, id, binding)` helper would keep the two from drifting apart.
+
+5. **Test coverage notes**
+   - Over the wire, only a finished ("terminal") retained receipt is exercised. A receipt still in flight is covered only through the fake-endpoint `StatusContext` test.
+   - It still guards the shared `recordRecoveredLocked` conversion to `Indeterminate`, so this is acceptable. Task 3.2's "test both terminal and in-flight" line should say so in the plan revision (part of BR-14).
+
+6. **Architecture, per principle**
+
+   | Principle | Result | Note |
+   |---|---|---|
+   | ARCH-DRY | pass | The duplicated provenance check is noted under Minor. |
+   | ARCH-PURE | pass | |
+   | ARCH-PURPOSE | pass | |
+   | ARCH-MOCK | pass | The real socket path is now exercised end to end. |
+   | ARCH-CONSTRAINTS | pass | Fan-out and timeout are unchanged. |
+   | ARCH-SECURE | pass | Answers from other processes are now tied to the answering wrapper; this closes BR-13. |
+   | ARCH-ORDER | pass | The test controls ordering with a fresh instance per path. |
+   | ARCH-FUNERAL | pass | Nothing new is persisted. |
+
+7. **Plan revision recommendations:** the BR-14 Revisions entry described under Minor.
+
+```findings
+dispose:
+  - id: BR-12
+    disposition: addressed
+    note: |
+      Fresh-broker re-send reaches reserve then wire already-committed then adoptRetained; reverting the peer_runtime.go conversion or the endpoint.go rebuild turns the test red (verified in a scratch copy). In-flight is covered only through the shared recordRecoveredLocked via the StatusContext test.
+  - id: BR-13
+    disposition: addressed
+    note: |
+      broker.go:658 requires ID == id and To == the answering binding; the forged-answer case in broker_recovery_test.go fails when that check is removed (verified).
+  - id: BR-14
+    disposition: not-addressed
+    note: |
+      Plan file untouched in c0cf69af; all Chunk 3 lines still unticked; no Revisions disposition for TestLifecycleLostReceiptAfterBrokerRestartNoDuplicate or the redraw-bytes rerun. Only the lesson item is now delivered.
+findings:
+  - id: new
+    severity: Minor
+    family: test-name-matches-assertion
+    title: |
+      TestPeerLostReceiptRecoveredAfterBrokerRestart final check (current ID == m.ID) can never fail
+    detail: |
+      3rd in family. A duplicate delivery with the same ID leaves current.Message.ID == m.ID, so the assertion cannot catch it; the test catches the bug only through Send's error. Rule (already in lessons.md): every assertion must go red when the mechanism its message names is removed. Assert an enqueue or commit counter instead, or delete the line.
+```
