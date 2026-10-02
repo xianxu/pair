@@ -592,6 +592,14 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #366 singleton ownership/configuration, not Pair artifact filenames.
+	"cmd/internal/couchcmd/singleton.go",
+	"cmd/internal/couchcmd/singleton_cli.go",
+	"cmd/internal/couchcore/supervisor_observe.go",
+	"cmd/internal/couchidentity/inspect.go",
+	"cmd/internal/couchsingleton/model.go",
+	"cmd/internal/couchsingleton/manager.go",
+	"cmd/internal/couchsingleton/inspect.go",
 	// #365 lifecycle messaging; the rest of couchmessage predates the inventory.
 	"cmd/internal/couchmessage/pane_mailbox.go",
 	"cmd/internal/couchmessage/peercred_darwin.go",

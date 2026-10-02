@@ -165,6 +165,14 @@ Depends on ariadne#277, ariadne#278 and ariadne#279. Declare and test operation-
 
 Settle production singleton scope and migration from existing stores while retaining supported isolated test environments. No dependency on claim implementation is needed to design local ownership.
 
+**estimate:** 2.66h. Implementation is on `000366-couch-singleton`, awaiting final
+verification and SDLC boundary review. Production ownership is per OS account on
+machine-local storage; second launches refuse with owner/store context. Selection
+preserves the adopted store, Pair data and identity roots in place. Ambiguous legacy
+installations remain explicitly UNMIGRATED until operator reconciliation; automatic
+inventory consolidation is outside the approved scope. Tests and diagnostics use an
+explicit isolated root. No running installation has been cut over by this work.
+
 <a id="pair-367"></a>
 ### pair#367 — local recovery
 
@@ -213,6 +221,12 @@ The operator approved publishing the project and all eight tasks. Initial issue 
 ### 2026-10-01 — operator review and publication
 
 Preserved the operator's requirement that observation tools be fast, and recorded approval to publish this definition and all eight issue details. No implementation scope or issue status changed.
+
+### 2026-10-01 — #366 implementation scope
+
+Recorded the operator-approved singleton/refusal and in-place adoption scope, its
+2.66h estimate and current verification stage. Preserved the multi-store migration
+limitation and downstream dependencies; no project baseline or completion claim changed.
 
 [pair#365]: #pair-365
 [ariadne#277]: #ariadne-277
