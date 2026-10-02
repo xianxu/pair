@@ -255,3 +255,13 @@ continuation, watcher, context/title, review and retention consumers use scoped
 PAIR_DATA_DIR or explicit artifact bindings exported by the launcher; native agent
 HOME stores remain intentionally separate. Verification will include actual embedded
 asset extraction, not just the helper's returned string.
+
+### 2026-10-01 — BR-4 implemented and mutation-checked
+
+The parent/consumer boundary now has one selected-global resolver shared by LaunchNative
+and installed embedded-runtime extraction. The real-binary regression verifies actual
+scoped artifacts and global claim/index reads across create/list/continue-list/warm
+resume, with a stateful fake terminal service. Ignoring the global selection fails at
+the real consumer; restored tests pass. Parent Start/StartBlocked and embedded extraction
+regressions also pass. The issue Log records exact commands/results and final restored
+integration reruns. No acceptance or migration scope changed.
