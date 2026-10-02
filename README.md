@@ -1099,6 +1099,8 @@ CPU and delayed host writes. It measures child receipt, visible ACK and switcher
 latency separately. It does not include Zellij, Ghostty, sustained full-screen
 redraws or system-wide CPU pressure; passing does not rule out live pane stalls.
 See [the experiment map](atlas/couch.md#isolated-terminal-pressure-experiment-373).
+The [debugging runbook](doctor/terminal-pressure.md) covers saved evidence,
+single-condition runs, metric definitions and interpretation.
 
 The soak harnesses keep bounded current-screen evidence and log progress at most once
 per minute. Native Zellij reattachment/selection and nvim conformance are separate:

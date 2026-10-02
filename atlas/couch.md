@@ -2206,6 +2206,9 @@ has not been identified.
 
 ### Isolated terminal pressure experiment (#373)
 
+The [debugging runbook](../doctor/terminal-pressure.md) owns repeatable commands,
+evidence capture, prerequisites, metric interpretation and extension checks.
+
 `cmd/internal/couchtty/terminal_pressure_test.go` exercises production Console
 input, endpoint ingestion, publication and presentation using bounded fake and
 real-PTY children. `TestCouchPressureControl` runs in ordinary tests; opt in to

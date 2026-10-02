@@ -151,5 +151,11 @@ baselines. A single row answers "what is happening now"; the series answers
 
 **Re-running standalone:** `sh $PAIR_HOME/doctor/perf.sh`. It needs no editor.
 
+**Testing a Couch output-pressure hypothesis:** after preserving live evidence,
+use [the isolated terminal-pressure runbook](terminal-pressure.md) for repeatable
+fake/real-PTY trials, provenance and log capture, metric interpretation and scope
+limitations. It tests the checkout, not the running session. A passing test is
+fixture success, not proof that the incident is absent; inspect the measurements.
+
 **Known gap:** no stage is time-bounded, so a hanging collector can exceed the
 budget (`#210`).

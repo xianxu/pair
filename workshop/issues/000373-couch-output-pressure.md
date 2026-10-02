@@ -202,3 +202,14 @@ race controls passed in 5.537s. A scratch Go overlay replacing the recovery
 operation with immediate success made the trailing-PTY regression fail in 2.216s
 with `got <nil>, want deadline exceeded`, proving it detects the missing fix.
 No workload or latency probe changed; the previous 24-trial measurements stand.
+
+### 2026-10-01 — future debugging usability
+
+At operator request, added doctor/terminal-pressure.md as the reusable runbook:
+prerequisites, full matrix with provenance/exit-code-preserving evidence capture,
+focused subtest command, metric/censoring definitions, interpretation limits and
+extension checks. Linked from README, atlas and doctor/SKILL.md so a future
+:PairDoctor agent can discover it without this conversation. No harness behavior
+changed. The documented focused real-PTY burst command selected exactly one
+trial and passed in 2.328s; all shell examples parse with sh -n, relative runbook
+links resolve, and git diff --check passes.

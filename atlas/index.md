@@ -66,6 +66,8 @@
   a target, since the runbook is the interface.
 
 - `doctor/README.md` — `pair-doctor`: read the adaptation flight recorder to diagnose harness integration drift (see the bring-up guide §3 for the signal registry). Primary entry is the agent-agnostic `:PairDoctor` nvim command (`nvim/doctor.lua`); the procedure is single-sourced in `doctor/SKILL.md`, optionally registerable as a Claude skill.
+- `doctor/terminal-pressure.md` — isolated Couch pressure experiments: full matrix
+  and focused runs, evidence capture, metric interpretation and limits (#373).
 - `doctor/perf.sh` — the performance half of the same entry (`#208`): a snapshot
   of load, per-process resource **rates**, the render path (WindowServer), and
   three latency probes, taken at the moment slowness is felt. Two rules give it
