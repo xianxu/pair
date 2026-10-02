@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000377-session-watch-full-reparse.md
         source_blob: 3d69a482f257f53fb8886ea493cd34022fcc38c8
         destination: workshop/issues/000377-session-watch-full-reparse.md
+        main_commit: cb4161eb16c3c5547eb77f74c62fe6e3d5af8bc4
 ---
 
 # session-watch re-parses whole codex rollout every poll
