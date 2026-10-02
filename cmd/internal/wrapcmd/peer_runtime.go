@@ -23,6 +23,10 @@ import (
 // (#368); until then the composer checks still refuse unknown input states.
 var peerReceiverAgents = map[string]bool{"codex": true, "claude": true}
 
+// peerActivityInterval bounds activity frames to one per second while the
+// agent produces output; an idle wrapper sends none (#365).
+const peerActivityInterval = time.Second
+
 type peerRuntime struct {
 	cancel   context.CancelFunc
 	server   *couchmessage.Server
@@ -56,10 +60,15 @@ func (d *peerDelivery) handleEndpoint(_ context.Context, raw []byte) ([]byte, er
 	switch request.Op {
 	case "observe":
 		d.mu.Lock()
-		response.Observation = couchmessage.Observation{LastActivity: d.lastActivity, Sequence: d.sequence, Submission: d.submissions}
+		response.Observation = d.observationLocked()
 		d.mu.Unlock()
 	case "reserve":
 		err = d.reserve(request.ID, request.Sequence)
+		var committed *couchmessage.AlreadyCommittedError
+		if errors.As(err, &committed) {
+			response.Receipt = &committed.Receipt
+			err = couchmessage.ErrAlreadyCommitted
+		}
 	case "commit":
 		err = d.enqueue(*request.Message)
 		if err == nil {
@@ -67,11 +76,10 @@ func (d *peerDelivery) handleEndpoint(_ context.Context, raw []byte) ([]byte, er
 			response.Receipt = &r
 		}
 	case "status":
-		r := d.receipt()
-		if r.Message.ID != request.ID {
-			err = errors.New("unknown delivery")
-		} else {
+		if r, ok := d.retained(request.ID); ok {
 			response.Receipt = &r
+		} else {
+			err = couchmessage.ErrUnknownDelivery
 		}
 	case "release":
 		d.mu.Lock()
@@ -130,7 +138,7 @@ func (p *proxy) startPeerRuntime(executable string) (*peerRuntime, error) {
 	if err != nil {
 		return nil, err
 	}
-	brokerSocket, err := couchmessage.SocketPath(namespace, "broker")
+	registrySocket, err := couchmessage.SocketPath(namespace, "registry")
 	if err != nil {
 		return nil, err
 	}
@@ -141,31 +149,21 @@ func (p *proxy) startPeerRuntime(executable string) (*peerRuntime, error) {
 		stop()
 		return nil, err
 	}
+	// One session for the wrapper's life (#365): the broker learns this
+	// wrapper exists from the hello and that it is gone from the close —
+	// including the close-on-exec of a SIGUSR2 re-exec. Idle, it sends nothing.
+	session := couchmessage.NewSessionClient()
+	d.mu.Lock()
+	d.session = session
+	initial := d.observationLocked()
+	d.mu.Unlock()
+	session.Update(initial)
 	r := &peerRuntime{cancel: stop, server: server, delivery: d}
 	p.peer = d
 	r.workers.Add(1)
 	go func() {
 		defer r.workers.Done()
-		ticker := time.NewTicker(time.Second)
-		defer ticker.Stop()
-		for {
-			request := couchmessage.Request{Op: "register", Binding: &binding}
-			callCtx, c := context.WithTimeout(lifetime, couchmessage.AdmissionTimeout)
-			var response couchmessage.Response
-			_ = couchmessage.Call(callCtx, brokerSocket, request, &response)
-			c()
-			select {
-			case <-lifetime.Done():
-				return
-			case <-ticker.C:
-			case <-d.submit:
-				// A wakeup only: the broker observes the wrapper's monotonic
-				// submission count and never replenishes the same generation twice.
-				submitCtx, c := context.WithTimeout(lifetime, couchmessage.AdmissionTimeout)
-				_ = couchmessage.Call(submitCtx, brokerSocket, couchmessage.Request{Op: "operator-submit", Binding: &binding}, &response)
-				c()
-			}
-		}
+		session.Run(lifetime, registrySocket, binding, couchmessage.DefaultReconnectBackoff, peerActivityInterval)
 	}()
 	return r, nil
 }

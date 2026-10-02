@@ -197,6 +197,23 @@ func TestPairSessionProvesOwnerWithoutClientQueries(t *testing.T) {
 	}
 }
 
+// PairSessionName is the probe-free half of PairSession: the recorded name
+// from the index, with no zellij call at all (#365).
+func TestPairSessionNameRunsNoZellij(t *testing.T) {
+	dataDir := t.TempDir()
+	indexSession(t, dataDir, addressA, "📁repo-a")
+	checker, log := sandboxedChecker(t, dataDir, withOthers(map[string]string{"📁repo-a": "detached"}, 3))
+	name, err := checker.PairSessionName(context.Background(), addressA)
+	if err != nil || name != "📁repo-a" {
+		t.Fatalf("name %q %v", name, err)
+	}
+	for _, sub := range []string{"list-sessions", "list-panes", "list-clients"} {
+		if n := pairlifecycletest.CountCalls(t, log, sub); n != 0 {
+			t.Fatalf("%s = %d, want 0", sub, n)
+		}
+	}
+}
+
 // The whole couchcore side of a warm reattach, counted at the seam: the path,
 // not the functions. This is the test that would have caught the first draft's
 // miss -- it counted DetachedSessions, and awaitResumeRegistration's PairSession

@@ -6,6 +6,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"io"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -16,8 +17,38 @@ func peerIntegrationFixture(t *testing.T) (*harnessSessionFake, *peerDelivery) {
 	t.Cleanup(f.close)
 	f.output("\x1b[?2004h" + strings.Replace(claudeLiveComposerPaint(), "alpha", "", 1) + "\x1b[21;3H")
 	d := newPeerDelivery(peerTestMessage(time.Now()).To, time.Now)
+	d.session = &recordingPeerSink{}
 	f.proxy.peer = d
 	return f, d
+}
+
+// recordingPeerSink stands in for the wrapper's broker session.
+type recordingPeerSink struct {
+	mu               sync.Mutex
+	updates, submits int
+	last             couchmessage.Observation
+}
+
+func (s *recordingPeerSink) Update(o couchmessage.Observation) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.updates++
+	s.last = o
+}
+func (s *recordingPeerSink) Submit(o couchmessage.Observation) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.submits++
+	s.last = o
+}
+func (s *recordingPeerSink) counts() (updates, submits int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.updates, s.submits
+}
+func peerSubmits(d *peerDelivery) int {
+	_, n := d.session.(*recordingPeerSink).counts()
+	return n
 }
 func peerIntegrationEnqueue(t *testing.T, d *peerDelivery) {
 	t.Helper()
@@ -193,13 +224,8 @@ func TestPeerIntegrationOnlyFullyWrittenHumanSendResetsAllowance(t *testing.T) {
 				out = peerIntegrationShortWriter{}
 			}
 			f.proxy.translateStdinFrom(strings.NewReader(tc.input), out, time.Millisecond)
-			reset := false
-			select {
-			case <-d.submit:
-				reset = true
-			default:
-			}
-			if reset != tc.reset {
+			reset := peerSubmits(d) == 1
+			if n := peerSubmits(d); n > 1 || reset != tc.reset {
 				t.Fatalf("budget reset=%t want %t", reset, tc.reset)
 			}
 			d.mu.Lock()
@@ -217,10 +243,8 @@ func TestPeerIntegrationMenuConfirmationDoesNotResetAllowance(t *testing.T) {
 	f.proxy.pickerActive.Store(true)
 	var out bytes.Buffer
 	f.proxy.translateStdinFrom(strings.NewReader("\x1b\r"), &out, time.Millisecond)
-	select {
-	case <-d.submit:
+	if peerSubmits(d) != 0 {
 		t.Fatal("menu confirmation reset peer allowance")
-	default:
 	}
 }
 
@@ -275,5 +299,30 @@ func TestPeerIntegrationFocusReportsDoNotOwnDraft(t *testing.T) {
 				t.Fatalf("complete input retained %d framing bytes", pending)
 			}
 		})
+	}
+}
+
+// The session sees every activity change and each genuine submission once;
+// coalescing to ≤1 frame/s is the session client's job (couchmessage), so the
+// PTY output path only records (#365).
+func TestPeerOutputAndSubmitReachTheSession(t *testing.T) {
+	f, d := peerIntegrationFixture(t)
+	sink := d.session.(*recordingPeerSink)
+	for i := 0; i < 1000; i++ {
+		d.observeOutput([]byte("x"))
+	}
+	updates, submits := sink.counts()
+	if updates != 1000 || submits != 0 {
+		t.Fatalf("output: updates=%d submits=%d", updates, submits)
+	}
+	f.proxy.translateStdinFrom(strings.NewReader("human\x1b\r"), &bytes.Buffer{}, time.Millisecond)
+	if _, submits = sink.counts(); submits != 1 {
+		t.Fatalf("human send: submits=%d", submits)
+	}
+	sink.mu.Lock()
+	last := sink.last
+	sink.mu.Unlock()
+	if last.Submission != 1 {
+		t.Fatalf("submit carried %+v", last)
 	}
 }

@@ -41,6 +41,9 @@ type pane struct {
 	label   string
 	desc    string
 	child   *ptychild.Child
+	// messageHandle names this pane incarnation to the message service; a
+	// reused handleID still gets a new one (#365).
+	messageHandle couchmessage.PaneHandle
 }
 
 // Console routes the operator's terminal to one child at a time.
@@ -51,6 +54,8 @@ type pane struct {
 // directly, which keeps resize and teardown testable without a terminal.
 type Console struct {
 	messageBroker    *couchmessage.Broker
+	messagePanes     *couchmessage.PaneMailbox
+	messagePaneGen   uint64
 	host             hostty.Host
 	stdin            io.Reader
 	stderr           io.Writer
@@ -437,11 +442,14 @@ func (c *Console) installObservedThreadActor(ctx context.Context, handleID strin
 	}
 	c.ownedChildren[child] = struct{}{}
 	c.workers.Add(1)
+	c.messagePaneGen++
 	c.panes[handleID] = &pane{
 		tree: tree, thread: thread, process: process, actorID: actorID,
 		label: label, child: child,
+		messageHandle: couchmessage.PaneHandle(fmt.Sprintf("%s#%d", handleID, c.messagePaneGen)),
 	}
 	c.order = append(c.order, handleID)
+	c.postMessagePaneLocked(thread)
 	if c.active == "" {
 		c.active = handleID
 		// A BACKGROUND attach -- the reattach pass (pair#206) -- never moves focus
@@ -976,6 +984,7 @@ func (c *Console) onExit(event childExit) bool {
 			break
 		}
 	}
+	c.postMessagePaneLocked(p.thread)
 	if wasActive {
 		// Panel actions address the active actor, not merely the highlighted
 		// durable row, so the active slot has to keep naming a live actor after

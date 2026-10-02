@@ -91,6 +91,7 @@ var ResolvedBindings = append([]ResolvedBinding{
 	{Name: "composite-switch-log", Family: "log", Resolver: "Resolve", Member: "Log"},
 	{Name: "composite-switch-ready", Family: "agent-ready", Resolver: "Resolve", Member: "AgentReadyChecked"},
 	{Name: "composite-switch-archive", Family: "parked-scrollback", Resolver: "Resolve", Member: "ParkedScrollbackArtifacts"},
+	{Name: "composite-slug-proposed", Family: "slug", Resolver: "Resolve", Member: "SlugProposed"},
 	{Name: "scoped-log", Family: "log", Resolver: "ResolveScoped", Member: "Log"},
 	{Name: "scoped-nvim-pid", Family: "nvim-pid", Resolver: "ResolveScoped", Member: "NvimPID"},
 	{Name: "scoped-outer-tty", Family: "outer-tty", Resolver: "ResolveScoped", Member: "OuterTTY"},
@@ -443,6 +444,7 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/couchcore/slotsessions.go", Kind: ResolvedConsumer,
 		Families: []string{"session-binding", "thread-claim"}, BindingNames: []string{"selected-session-binding", "composite-thread-claim", "direct-thread-claim-recognition"}},
 	{Path: "cmd/internal/couchcore/switchcontext.go", Kind: ResolvedConsumer, Families: []string{"log", "agent-ready", "parked-scrollback"}, BindingNames: []string{"composite-switch-log", "composite-switch-ready", "composite-switch-archive"}},
+	{Path: "cmd/internal/couchcore/slug.go", Kind: ResolvedConsumer, Families: []string{"slug"}, BindingNames: []string{"composite-slug-proposed"}},
 	{Path: "cmd/internal/couchcore/park.go", Kind: ResolvedConsumer,
 		Families: []string{"lifecycle-completion", "lifecycle-request"}, BindingNames: []string{"composite-lifecycle-completion", "composite-lifecycle-request"}},
 	{Path: "cmd/internal/opener/opener.go", Kind: ResolvedConsumer, Families: []string{"changelog"}, BindingNames: []string{"scoped-changelog"}},
@@ -590,6 +592,14 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #365 lifecycle messaging; the rest of couchmessage predates the inventory.
+	"cmd/internal/couchmessage/pane_mailbox.go",
+	"cmd/internal/couchmessage/peercred_darwin.go",
+	"cmd/internal/couchmessage/peercred_linux.go",
+	"cmd/internal/couchmessage/recent.go",
+	"cmd/internal/couchmessage/registry.go",
+	"cmd/internal/couchmessage/session_protocol.go",
+	"cmd/internal/couchmessage/session_transport.go",
 	"cmd/internal/couchidentity/identity.go",
 	"cmd/internal/couchidentity/session.go",
 	"cmd/internal/couchidentity/store.go",
@@ -941,6 +951,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/sessionwatch/runtime.go",
 	"cmd/internal/sessionwatch/transcript_lifecycle.go",
 	"cmd/internal/slugcmd/slug.go",
+	"cmd/internal/slugline/slugline.go",
 	"cmd/internal/strictjson/decode.go",
 	"cmd/internal/termcmd/rename.go",
 	"cmd/internal/termcmd/rename_input.go",

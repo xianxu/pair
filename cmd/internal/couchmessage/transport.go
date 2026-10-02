@@ -66,29 +66,8 @@ func StartServer(ctx context.Context, socket string, handler func(context.Contex
 	if handler == nil {
 		return nil, errors.New("message handler is required")
 	}
-	if !filepath.IsAbs(socket) || socket != filepath.Clean(socket) || len(socket) > 103 {
-		return nil, errors.New("message socket must be a clean absolute path of at most 103 bytes")
-	}
-	if err := transportPrivateDirectory(filepath.Dir(socket)); err != nil {
-		return nil, err
-	}
-	if err := collectDeadEndpointSockets(filepath.Dir(socket), func(pid int) error { return syscall.Kill(pid, 0) }); err != nil {
-		return nil, err
-	}
-	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: socket, Net: "unix"})
+	listener, info, err := transportListen(socket)
 	if err != nil {
-		return nil, err
-	}
-	// Go's default unlink-on-close would remove a replacement generation.
-	listener.SetUnlinkOnClose(false)
-	info, err := os.Lstat(socket)
-	if err != nil {
-		listener.Close()
-		return nil, err
-	}
-	if err := os.Chmod(socket, 0600); err != nil {
-		listener.Close()
-		_ = transportRemoveOwned(socket, info)
 		return nil, err
 	}
 	serverCtx, cancel := context.WithCancel(ctx)
@@ -96,6 +75,37 @@ func StartServer(ctx context.Context, socket string, handler func(context.Contex
 		handler: handler, connections: make(map[net.Conn]struct{}), done: make(chan struct{})}
 	go s.run()
 	return s, nil
+}
+
+// transportListen binds a private, owner-only socket in the private message
+// directory. The caller removes it with transportRemoveOwned(socket, info).
+func transportListen(socket string) (*net.UnixListener, os.FileInfo, error) {
+	if !filepath.IsAbs(socket) || socket != filepath.Clean(socket) || len(socket) > 103 {
+		return nil, nil, errors.New("message socket must be a clean absolute path of at most 103 bytes")
+	}
+	if err := transportPrivateDirectory(filepath.Dir(socket)); err != nil {
+		return nil, nil, err
+	}
+	if err := collectDeadEndpointSockets(filepath.Dir(socket), func(pid int) error { return syscall.Kill(pid, 0) }); err != nil {
+		return nil, nil, err
+	}
+	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: socket, Net: "unix"})
+	if err != nil {
+		return nil, nil, err
+	}
+	// Go's default unlink-on-close would remove a replacement generation.
+	listener.SetUnlinkOnClose(false)
+	info, err := os.Lstat(socket)
+	if err != nil {
+		listener.Close()
+		return nil, nil, err
+	}
+	if err := os.Chmod(socket, 0600); err != nil {
+		listener.Close()
+		_ = transportRemoveOwned(socket, info)
+		return nil, nil, err
+	}
+	return listener, info, nil
 }
 
 func transportPrivateDirectory(path string) error {
@@ -261,6 +271,10 @@ func transportContextError(ctx context.Context, err error) error {
 }
 
 func transportReadFrame(in io.Reader) ([]byte, error) {
+	return transportReadFrameLimit(in, MaxFrameBytes)
+}
+
+func transportReadFrameLimit(in io.Reader, limit int) ([]byte, error) {
 	var header [4]byte
 	if _, err := io.ReadFull(in, header[:]); err != nil {
 		return nil, err
@@ -269,7 +283,7 @@ func transportReadFrame(in io.Reader) ([]byte, error) {
 	if size == transportResponseTooLarge {
 		return nil, errors.New("message response exceeds frame limit; request outcome uncertain")
 	}
-	if size == 0 || size > MaxFrameBytes {
+	if size == 0 || int64(size) > int64(limit) {
 		return nil, errors.New("invalid message frame length")
 	}
 	body := make([]byte, int(size))

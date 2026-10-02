@@ -9,7 +9,9 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -28,14 +30,22 @@ type messageAuthority struct {
 	workspace  func(context.Context, string) (couchcore.WorkspaceIdentity, error)
 	process    func(couchmessage.Binding) error
 	wrapperPID func(couchmessage.Binding) (int, error)
-	launch     func(context.Context, couchmessage.Binding) error
-	endpoint   func(couchmessage.Binding) couchmessage.DeliveryEndpoint
-	branch     func(context.Context, string) (couchcore.SlotGitStatus, error)
+	// launch proves the launch registration and live session ownership; its
+	// production form runs the ps/zellij ownership probe, so it runs only at
+	// admission (#365).
+	launch func(context.Context, couchmessage.Binding) error
+	// recorded is launch's file evidence alone — the ready file's nonce and
+	// the session index's name — for use-time checks. It spawns nothing.
+	recorded func(context.Context, couchmessage.Binding) error
+	endpoint func(couchmessage.Binding) couchmessage.DeliveryEndpoint
+	branch   func(context.Context, string) (couchcore.SlotGitStatus, error)
 	// families lists every enrolled message family with its alias ("" when
 	// none); nil means routing sees live bindings only.
 	families func(context.Context) (map[string]string, error)
 }
 
+// live is the full check, run once per admission: a lifecycle event, never a
+// timer.
 func (a messageAuthority) live(ctx context.Context, b couchmessage.Binding) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
@@ -43,19 +53,12 @@ func (a messageAuthority) live(ctx context.Context, b couchmessage.Binding) (str
 	if err := b.Validate(); err != nil {
 		return "", err
 	}
-	root, err := a.thread(ctx, b)
+	root, err := a.current(ctx, b)
 	if err != nil {
 		return "", err
 	}
 	if err = a.process(b); err != nil {
 		return "", err
-	}
-	pid, err := a.wrapperPID(b)
-	if err != nil {
-		return "", err
-	}
-	if pid != b.PID {
-		return "", errors.New("wrapper does not own the current binding")
 	}
 	if err = a.launch(ctx, b); err != nil {
 		return "", err
@@ -74,33 +77,85 @@ func (a messageAuthority) live(ctx context.Context, b couchmessage.Binding) (str
 	return root, nil
 }
 
-// messageVerificationWindow is how long a full authority check vouches for a
-// registered binding on the paths that only observe: the wrappers' one-second
-// registration heartbeat, the caller check, actor listing, and background
-// reconciliation. Reserve and Deliver always re-run the full check, so a stale
-// wrapper still cannot receive. Without this, every wrapper cost about three
-// full checks (each spawning zellij and process probes) per second, which
-// saturated the service as slots accumulated.
-const messageVerificationWindow = 10 * time.Second
+// current is the use-time check at Observe/Reserve/Deliver and for a sending
+// caller: the Couch pane is still live (in memory), the PID file still names
+// this wrapper (a surviving old wrapper after replacement), and the launch's
+// recorded files still name this nonce and session (an index rewritten while
+// the old wrapper survives headless). Death and exec arrive as session close.
+func (a messageAuthority) current(ctx context.Context, b couchmessage.Binding) (string, error) {
+	root, err := a.thread(ctx, b)
+	if err != nil {
+		return "", err
+	}
+	pid, err := a.wrapperPID(b)
+	if err != nil {
+		return "", err
+	}
+	if pid != b.PID {
+		return "", errors.New("wrapper does not own the current binding")
+	}
+	if err = a.recorded(ctx, b); err != nil {
+		return "", err
+	}
+	return root, ctx.Err()
+}
 
+// Admissions run concurrently up to this bound, so a broker restart with N
+// surviving wrappers costs N full checks, a few at a time.
+const (
+	messageAdmissionWorkers = 4
+	messageAdmissionTimeout = 10 * time.Second
+)
+
+// messageService turns registry effects into IO (#365). One goroutine owns
+// the Registry and applies events in arrival order: wrapper sessions, Console
+// pane state, admission results and retry timers. Request goroutines read
+// only the published snapshot of connected bindings.
 type messageService struct {
-	server     *couchmessage.Server
-	broker     *couchmessage.Broker
-	cancel     context.CancelFunc
-	workers    sync.WaitGroup
-	authority  messageAuthority
-	now        func() time.Time
-	mu         sync.Mutex
+	server    *couchmessage.Server
+	sessions  *couchmessage.SessionServer
+	broker    *couchmessage.Broker
+	cancel    context.CancelFunc
+	lifetime  context.Context
+	workers   sync.WaitGroup
+	authority messageAuthority
+	panes     *couchmessage.PaneMailbox
+	inbox     chan messageInput
+	admitting chan struct{}
+	connected atomic.Pointer[map[couchmessage.Binding]bool]
+	// after schedules a retry; tests replace it to fire retries on demand.
+	after func(time.Duration, func())
+
+	mu sync.Mutex
+	// workspaces holds each connected binding's verified workspace, for the
+	// resting check; it shrinks with Disconnect, so it is bounded by MaxActors.
 	workspaces map[couchmessage.Binding]couchcore.WorkspaceIdentity
-	// verified records the last full authority check per registered binding.
-	// Entries leave with their workspace when reconciliation finds the binding
-	// dead, so both maps stay bounded by live registrations (MaxActors).
-	verified map[couchmessage.Binding]time.Time
+	// prepared carries a passed admission's evidence to its Connect effect.
+	// The loop drops each entry when it processes that admission's result, so
+	// a superseded check leaves nothing behind.
+	prepared map[preparedKey]preparedAdmission
+}
+
+type preparedKey struct {
+	token couchmessage.SessionToken
+	pane  couchmessage.PaneHandle
+}
+
+type messageInput struct {
+	event couchmessage.RegistryEvent
+	reply chan error
+}
+
+type preparedAdmission struct {
+	identity    couchcore.WorkspaceIdentity
+	endpoint    couchmessage.DeliveryEndpoint
+	observation couchmessage.Observation
 }
 
 func (s *messageService) Close() {
 	s.cancel()
 	_ = s.server.Close()
+	_ = s.sessions.Close()
 	_ = s.broker.Close()
 	s.workers.Wait()
 }
@@ -117,7 +172,11 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 		return nil, nil
 	}
 	namespace := c.Namespace.Dir()
-	socket, err := couchmessage.SocketPath(namespace, "broker")
+	brokerSocket, err := couchmessage.SocketPath(namespace, "broker")
+	if err != nil {
+		return nil, err
+	}
+	registrySocket, err := couchmessage.SocketPath(namespace, "registry")
 	if err != nil {
 		return nil, err
 	}
@@ -137,6 +196,14 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	}); ok {
 		reader.SessionContext = source.PairSessionContext
 		session = source.PairSessionContext
+	}
+	sessionName := func(ctx context.Context, address couchcore.ThreadAddress) (string, error) {
+		return "", errors.New("recorded Pair session name unavailable")
+	}
+	if source, ok := c.Artifacts.(interface {
+		PairSessionName(context.Context, couchcore.ThreadAddress) (string, error)
+	}); ok {
+		sessionName = source.PairSessionName
 	}
 	authority := messageAuthority{
 		families: func(ctx context.Context) (map[string]string, error) {
@@ -188,6 +255,24 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 			}
 			return nil
 		},
+		recorded: func(ctx context.Context, b couchmessage.Binding) error {
+			address := couchcore.ThreadAddress{RepoScope: b.Scope, Tag: couchcore.ThreadTag(b.Tag)}
+			ready, ok, e := reader.RecordedSession(ctx, address, b.Agent, b.Nonce)
+			if e != nil {
+				return fmt.Errorf("wrapper launch registration: %w", e)
+			}
+			if !ok || ready != b.Session {
+				return errors.New("wrapper launch registration unavailable")
+			}
+			name, e := sessionName(ctx, address)
+			if e != nil {
+				return e
+			}
+			if name != b.Session {
+				return errors.New("wrapper conversation changed")
+			}
+			return nil
+		},
 		endpoint: func(b couchmessage.Binding) couchmessage.DeliveryEndpoint {
 			return couchmessage.RemoteEndpoint{Namespace: namespace, Binding: b}
 		},
@@ -195,40 +280,61 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 			return couchcore.ProbeSlotGit(ctx, c.Git, root)
 		},
 	}
-	service, err := newMessageService(context.Background(), socket, authority)
-	if err == nil {
-		console.SetMessageBroker(service.broker)
+	panes := couchmessage.NewPaneMailbox()
+	service, err := newMessageService(context.Background(), brokerSocket, registrySocket, authority, panes, console.MessageSlotGit)
+	if err != nil {
+		return nil, err
 	}
-	return service, err
+	console.SetMessageBroker(service.broker)
+	// After the loop runs: the replay of already-attached panes lands in the
+	// mailbox the loop drains.
+	console.SubscribeMessageLifecycle(panes)
+	return service, nil
 }
-func newMessageService(parent context.Context, socket string, authority messageAuthority) (*messageService, error) {
-	if authority.thread == nil || authority.workspace == nil || authority.process == nil || authority.wrapperPID == nil || authority.launch == nil || authority.endpoint == nil || authority.branch == nil {
+
+func newMessageService(parent context.Context, brokerSocket, registrySocket string, authority messageAuthority, panes *couchmessage.PaneMailbox, slotGit func(string) (couchcore.SlotGitStatus, bool)) (*messageService, error) {
+	if authority.thread == nil || authority.workspace == nil || authority.process == nil || authority.wrapperPID == nil || authority.launch == nil || authority.recorded == nil || authority.endpoint == nil || authority.branch == nil || panes == nil || slotGit == nil {
 		return nil, errors.New("message authority is incomplete")
 	}
 	if err := parent.Err(); err != nil {
 		return nil, err
 	}
-	if err := prepareMessageSocket(socket); err != nil {
-		return nil, err
+	for _, socket := range []string{brokerSocket, registrySocket} {
+		if err := prepareMessageSocket(socket); err != nil {
+			return nil, err
+		}
 	}
 	lifetime, cancel := context.WithCancel(parent)
-	s := &messageService{cancel: cancel, authority: authority, now: time.Now, workspaces: map[couchmessage.Binding]couchcore.WorkspaceIdentity{}, verified: map[couchmessage.Binding]time.Time{}}
+	s := &messageService{cancel: cancel, lifetime: lifetime, authority: authority, panes: panes,
+		inbox: make(chan messageInput), admitting: make(chan struct{}, messageAdmissionWorkers),
+		after:      func(d time.Duration, f func()) { time.AfterFunc(d, f) },
+		workspaces: map[couchmessage.Binding]couchcore.WorkspaceIdentity{},
+		prepared:   map[preparedKey]preparedAdmission{}}
+	s.connected.Store(&map[couchmessage.Binding]bool{})
+	// Family admission's resting check is on the request path (one git status
+	// per candidate per send); listings read the Console's slot-git cache.
 	s.broker = couchmessage.NewBroker(lifetime, time.Now, func(ctx context.Context, b couchmessage.Binding) (bool, error) {
-		root, err := authority.thread(ctx, b)
+		identity, err := s.connectedWorkspace(ctx, b)
 		if err != nil {
 			return false, err
 		}
-		s.mu.Lock()
-		identity, ok := s.workspaces[b]
-		s.mu.Unlock()
-		if !ok || identity.WorktreeRoot != root || identity.RestingBranch == nil {
-			return false, errors.New("unknown message workspace")
-		}
-		status, err := authority.branch(ctx, root)
+		status, err := authority.branch(ctx, identity.WorktreeRoot)
 		return err == nil && !status.Detached && status.Branch == *identity.RestingBranch, err
 	})
 	s.broker.SetFamilies(authority.families)
-	server, err := couchmessage.StartServer(lifetime, socket, func(ctx context.Context, raw []byte) ([]byte, error) {
+	s.broker.SetRestingView(func(b couchmessage.Binding) (bool, bool) {
+		s.mu.Lock()
+		identity, ok := s.workspaces[b]
+		s.mu.Unlock()
+		if !ok || identity.RestingBranch == nil {
+			return false, false
+		}
+		status, ok := slotGit(identity.WorktreeRoot)
+		return ok && !status.Detached && status.Branch == *identity.RestingBranch, ok
+	})
+	s.workers.Add(1)
+	go s.loop()
+	server, err := couchmessage.StartServer(lifetime, brokerSocket, func(ctx context.Context, raw []byte) ([]byte, error) {
 		var request couchmessage.Request
 		if err := strictjson.Decode(raw, &request); err != nil {
 			return json.Marshal(couchmessage.Response{Code: "invalid-request", Error: err.Error()})
@@ -238,98 +344,167 @@ func newMessageService(parent context.Context, socket string, authority messageA
 	if err != nil {
 		cancel()
 		_ = s.broker.Close()
+		s.workers.Wait()
 		return nil, err
 	}
 	s.server = server
-	s.workers.Add(1)
-	go func() {
-		defer s.workers.Done()
-		ticker := time.NewTicker(time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-lifetime.Done():
-				return
-			case <-ticker.C:
-				s.reconcile(lifetime)
+	sessions, err := couchmessage.StartSessionServer(lifetime, registrySocket, couchmessage.SessionHandler{
+		Open: func(t couchmessage.SessionToken, b couchmessage.Binding) error {
+			return s.post(couchmessage.RegistryEvent{Kind: couchmessage.SessionOpened, Token: t, Binding: b}, true)
+		},
+		Frame: func(t couchmessage.SessionToken, f couchmessage.SessionFrame) {
+			kind := couchmessage.SessionActivity
+			if f.Op == couchmessage.FrameSubmit {
+				kind = couchmessage.SessionSubmit
 			}
-		}
-	}()
+			_ = s.post(couchmessage.RegistryEvent{Kind: kind, Token: t, Observation: *f.Observation}, false)
+		},
+		Closed: func(t couchmessage.SessionToken) {
+			_ = s.post(couchmessage.RegistryEvent{Kind: couchmessage.SessionClosed, Token: t}, false)
+		},
+	})
+	if err != nil {
+		cancel()
+		_ = server.Close()
+		_ = s.broker.Close()
+		s.workers.Wait()
+		return nil, err
+	}
+	s.sessions = sessions
 	return s, nil
 }
 
-// verify runs the full authority check and records when it passed.
-func (s *messageService) verify(ctx context.Context, b couchmessage.Binding) (string, error) {
-	root, err := s.authority.live(ctx, b)
-	if err == nil {
+// post hands an event to the loop; wait returns the registry's verdict. After
+// shutdown it drops the event: nothing is left to act on it.
+func (s *messageService) post(e couchmessage.RegistryEvent, wait bool) error {
+	in := messageInput{event: e}
+	if wait {
+		in.reply = make(chan error, 1)
+	}
+	select {
+	case s.inbox <- in:
+	case <-s.lifetime.Done():
+		return s.lifetime.Err()
+	}
+	if !wait {
+		return nil
+	}
+	select {
+	case err := <-in.reply:
+		return err
+	case <-s.lifetime.Done():
+		return s.lifetime.Err()
+	}
+}
+
+func (s *messageService) loop() {
+	defer s.workers.Done()
+	registry := couchmessage.NewRegistry()
+	var step func(e couchmessage.RegistryEvent) error
+	step = func(e couchmessage.RegistryEvent) error {
+		fx, err := registry.Advance(e)
+		// Publish first: endpoint checks then never admit a binding the broker
+		// is about to drop, nor refuse one it is about to register.
+		connected := registry.Connected()
+		s.connected.Store(&connected)
+		var followUps []couchmessage.RegistryEvent
+		for _, effect := range fx {
+			if next := s.execute(effect); next != nil {
+				followUps = append(followUps, *next)
+			}
+		}
+		if e.Kind == couchmessage.AdmissionDone {
+			s.mu.Lock()
+			delete(s.prepared, preparedKey{e.Token, e.Pane})
+			s.mu.Unlock()
+		}
+		// An effect that failed reports back before any other event, so the
+		// registry never runs ahead of what the broker holds.
+		for _, next := range followUps {
+			_ = step(next)
+		}
+		return err
+	}
+	for {
+		select {
+		case <-s.lifetime.Done():
+			return
+		case in := <-s.inbox:
+			err := step(in.event)
+			if in.reply != nil {
+				in.reply <- err
+			}
+		case <-s.panes.Wake():
+			for thread, pane := range s.panes.Drain() {
+				_ = step(couchmessage.RegistryEvent{Kind: couchmessage.PaneChanged, Thread: thread, Pane: pane})
+			}
+		}
+	}
+}
+
+// execute runs on the loop goroutine; anything slow goes to a worker. An
+// effect that fails synchronously returns the event reporting it (ARCH-ORDER):
+// Admit reports through AdmissionDone, Connect through ConnectFailed;
+// Disconnect and ScheduleRetry cannot fail, and a refused Observe only drops a
+// stale observation.
+func (s *messageService) execute(e couchmessage.RegistryEffect) *couchmessage.RegistryEvent {
+	switch e.Kind {
+	case couchmessage.EffectAdmit:
+		s.workers.Add(1)
+		go func() {
+			defer s.workers.Done()
+			err := s.admit(e)
+			_ = s.post(couchmessage.RegistryEvent{Kind: couchmessage.AdmissionDone, Token: e.Token, Pane: e.Pane, Err: err}, false)
+		}()
+	case couchmessage.EffectConnect:
 		s.mu.Lock()
-		s.verified[b] = s.now()
+		p, ok := s.prepared[preparedKey{e.Token, e.Pane}]
 		s.mu.Unlock()
+		if !ok {
+			// Unreachable: Connect follows the AdmissionDone the worker prepared.
+			return &couchmessage.RegistryEvent{Kind: couchmessage.ConnectFailed, Token: e.Token, Pane: e.Pane, Err: errors.New("admission evidence missing")}
+		}
+		if err := s.broker.Register(e.Binding, messageEndpoint{service: s, binding: e.Binding, endpoint: p.endpoint}); err != nil {
+			return &couchmessage.RegistryEvent{Kind: couchmessage.ConnectFailed, Token: e.Token, Pane: e.Pane, Err: err}
+		}
+		s.mu.Lock()
+		s.workspaces[e.Binding] = p.identity
+		s.mu.Unlock()
+		_ = s.broker.ReconcileObservation(e.Binding, p.observation)
+	case couchmessage.EffectDisconnect:
+		s.broker.Disconnect(e.Binding)
+		s.mu.Lock()
+		delete(s.workspaces, e.Binding)
+		s.mu.Unlock()
+	case couchmessage.EffectScheduleRetry:
+		s.after(e.Delay, func() {
+			_ = s.post(couchmessage.RegistryEvent{Kind: couchmessage.RetryDue, Token: e.Token, Attempt: e.Attempt}, false)
+		})
+	case couchmessage.EffectObserve:
+		_ = s.broker.ReconcileObservation(e.Binding, e.Observation)
 	}
-	return root, err
-}
-
-// recentlyVerified reports a registered binding whose full check passed
-// within messageVerificationWindow.
-func (s *messageService) recentlyVerified(b couchmessage.Binding) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	at, ok := s.verified[b]
-	_, registered := s.workspaces[b]
-	return ok && registered && s.now().Sub(at) < messageVerificationWindow
-}
-
-// refresh is a recently verified wrapper's heartbeat: observe and reconnect
-// without repeating the full authority check.
-func (s *messageService) refresh(ctx context.Context, b couchmessage.Binding) error {
-	endpoint := s.authority.endpoint(b)
-	if endpoint == nil {
-		return couchmessage.ErrUnsupported
-	}
-	observation, err := endpoint.Observe(ctx)
-	if err != nil {
-		return err
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, ok := s.workspaces[b]; !ok {
-		return errors.New("message binding is no longer registered")
-	}
-	if err = s.broker.Register(b, s.guard(b, endpoint)); err != nil {
-		return err
-	}
-	return s.broker.ReconcileObservation(b, observation)
-}
-
-func (s *messageService) guard(b couchmessage.Binding, endpoint couchmessage.DeliveryEndpoint) messageEndpoint {
-	return messageEndpoint{authority: s.authority, binding: b, endpoint: endpoint, fresh: func() bool { return s.recentlyVerified(b) }}
-}
-
-// register fully verifies and registers a wrapper, then records its resting
-// branch for the broker's in-memory actor listing.
-func (s *messageService) register(ctx context.Context, b couchmessage.Binding) error {
-	if err := s.admitRegistration(ctx, b); err != nil {
-		return err
-	}
-	// A failed probe leaves the listing's resting state to age out as unknown;
-	// registration itself succeeded.
-	_ = s.broker.ObserveResting(ctx, b)
 	return nil
 }
 
-func (s *messageService) admitRegistration(ctx context.Context, b couchmessage.Binding) error {
-	root, err := s.verify(ctx, b)
+// admit is one full authority check plus the workspace and a first
+// observation. It records its evidence for the Connect effect only on success.
+func (s *messageService) admit(e couchmessage.RegistryEffect) error {
+	select {
+	case s.admitting <- struct{}{}:
+		defer func() { <-s.admitting }()
+	case <-s.lifetime.Done():
+		return s.lifetime.Err()
+	}
+	ctx, cancel := context.WithTimeout(s.lifetime, messageAdmissionTimeout)
+	defer cancel()
+	b := e.Binding
+	root, err := s.authority.live(ctx, b)
 	if err != nil {
 		return err
 	}
-	s.mu.Lock()
-	identity, known := s.workspaces[b]
-	s.mu.Unlock()
-	if !known {
-		identity, err = s.authority.workspace(ctx, root)
-		if err != nil {
-			return err
-		}
+	identity, err := s.authority.workspace(ctx, root)
+	if err != nil {
+		return err
 	}
 	if identity.Address == nil || *identity.Address != b.Slot || identity.RepoIdentity != b.Repository || identity.WorktreeRoot != root || identity.RestingBranch == nil {
 		return errors.New("message slot does not match verified workspace")
@@ -342,105 +517,100 @@ func (s *messageService) admitRegistration(ctx context.Context, b couchmessage.B
 	if err != nil {
 		return err
 	}
-	if _, err = s.verify(ctx, b); err != nil {
-		return err
-	}
-	// Serialize publication with registration; failed probes never consume cache
-	// capacity, and concurrent registration of the same binding consumes one row.
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, exists := s.workspaces[b]; !exists && len(s.workspaces) >= couchmessage.MaxActors {
-		return errors.New("message workspace capacity reached")
-	}
-	if err = s.broker.Register(b, s.guard(b, endpoint)); err != nil {
-		return err
-	}
-	s.workspaces[b] = identity
-	return s.broker.ReconcileObservation(b, observation)
+	s.prepared[preparedKey{e.Token, e.Pane}] = preparedAdmission{identity: identity, endpoint: endpoint, observation: observation}
+	s.mu.Unlock()
+	return nil
 }
-func (s *messageService) handle(ctx context.Context, request couchmessage.Request) couchmessage.Response {
-	// Only the plain heartbeat takes the shortcut: operator-submit replenishes
-	// an allowance and keeps the full check.
-	if request.Op == "register" && request.Binding != nil && couchmessage.ValidateRequest(request) == nil && s.recentlyVerified(*request.Binding) {
-		if err := s.refresh(ctx, *request.Binding); err == nil {
-			return couchmessage.Response{Code: "ok"}
-		}
+
+func (s *messageService) isConnected(b couchmessage.Binding) bool {
+	return (*s.connected.Load())[b]
+}
+
+func (s *messageService) connectedWorkspace(ctx context.Context, b couchmessage.Binding) (couchcore.WorkspaceIdentity, error) {
+	root, err := s.authority.thread(ctx, b)
+	if err != nil {
+		return couchcore.WorkspaceIdentity{}, err
 	}
+	s.mu.Lock()
+	identity, ok := s.workspaces[b]
+	s.mu.Unlock()
+	if !ok || identity.WorktreeRoot != root || identity.RestingBranch == nil {
+		return couchcore.WorkspaceIdentity{}, errors.New("unknown message workspace")
+	}
+	return identity, nil
+}
+
+func (s *messageService) handle(ctx context.Context, request couchmessage.Request) couchmessage.Response {
 	if request.Binding == nil && couchmessage.ValidateRequest(request) == nil {
 		binding, err := s.broker.Caller(request.Scope, request.Tag, request.Session, request.Nonce)
-		// A send acts as this caller, so it always proves the caller current;
-		// read-only requests may lean on a recent check.
-		if err == nil && (request.Op == "send" || !s.recentlyVerified(binding)) {
-			_, err = s.verify(ctx, binding)
+		// A send acts as this caller, so it proves the caller current; the
+		// cheap check spawns nothing.
+		if err == nil && request.Op == "send" {
+			_, err = s.authority.current(ctx, binding)
 		}
 		if err != nil {
 			return couchmessage.Response{Code: "unavailable", Error: err.Error()}
 		}
-	}
-	return couchmessage.Handle(ctx, s.broker, request, s.register)
-}
-func (s *messageService) reconcile(ctx context.Context) {
-	s.mu.Lock()
-	bindings := make([]couchmessage.Binding, 0, len(s.workspaces))
-	for binding := range s.workspaces {
-		bindings = append(bindings, binding)
-	}
-	s.mu.Unlock()
-	for _, binding := range bindings {
-		if ctx.Err() != nil {
-			return
-		}
-		if s.recentlyVerified(binding) {
-			continue
-		}
-		probe, cancel := context.WithTimeout(ctx, couchmessage.AdmissionTimeout)
-		_, err := s.verify(probe, binding)
-		if err == nil {
-			_ = s.broker.ObserveResting(probe, binding)
-		}
-		cancel()
-		if err != nil {
-			// A dead incarnation leaves the service's maps for good; a live
-			// wrapper that only failed a probe re-registers on its next heartbeat.
-			s.broker.Disconnect(binding)
-			s.mu.Lock()
-			delete(s.workspaces, binding)
-			delete(s.verified, binding)
-			s.mu.Unlock()
+		// An exact target whose session went dormant after failed admissions
+		// gets one more bounded attempt; this send does not wait for its
+		// result. Posting only waits for the loop to take the event (the loop
+		// never waits on a request), so nothing outlives this request. A target
+		// spelled by repository alias names no binding's Slot and wakes
+		// nothing; the slot's own pane, submit or reconnect still does.
+		if request.Op == "send" && strings.Contains(request.Target, ":") {
+			_ = s.post(couchmessage.RegistryEvent{Kind: couchmessage.SendTargeted, Slot: request.Target}, false)
 		}
 	}
+	return couchmessage.Handle(ctx, s.broker, request)
 }
 
-// messageEndpoint repeats authority checks at use, so a still-running obsolete
-// wrapper cannot receive during the background reconciliation interval.
+// messageEndpoint repeats the use-time check, so a wrapper the registry no
+// longer connects — or whose pane, PID file or recorded launch has moved on —
+// cannot receive.
 type messageEndpoint struct {
-	authority messageAuthority
-	binding   couchmessage.Binding
-	endpoint  couchmessage.DeliveryEndpoint
-	// fresh lets observation reuse a recent full check; Reserve and Deliver
-	// never do. nil means always check.
-	fresh func() bool
+	service  *messageService
+	binding  couchmessage.Binding
+	endpoint couchmessage.DeliveryEndpoint
 }
 
+func (e messageEndpoint) check(ctx context.Context) error {
+	if !e.service.isConnected(e.binding) {
+		return couchmessage.ErrUnavailable
+	}
+	_, err := e.service.authority.current(ctx, e.binding)
+	return err
+}
 func (e messageEndpoint) Observe(ctx context.Context) (couchmessage.Observation, error) {
-	if e.fresh == nil || !e.fresh() {
-		if _, err := e.authority.live(ctx, e.binding); err != nil {
-			return couchmessage.Observation{}, err
-		}
+	if err := e.check(ctx); err != nil {
+		return couchmessage.Observation{}, err
 	}
 	return e.endpoint.Observe(ctx)
 }
 func (e messageEndpoint) Reserve(ctx context.Context, id string, seq uint64) error {
-	if _, err := e.authority.live(ctx, e.binding); err != nil {
+	if err := e.check(ctx); err != nil {
 		return err
 	}
 	return e.endpoint.Reserve(ctx, id, seq)
+}
+
+// Retained is read-only, so it needs only the registry's connection, not
+// the use-time check.
+func (e messageEndpoint) Retained(ctx context.Context, id string) (couchmessage.Receipt, error) {
+	if !e.service.isConnected(e.binding) {
+		return couchmessage.Receipt{}, couchmessage.ErrUnavailable
+	}
+	h, ok := e.endpoint.(couchmessage.ReceiptHolder)
+	if !ok {
+		return couchmessage.Receipt{}, couchmessage.ErrUnknownDelivery
+	}
+	return h.Retained(ctx, id)
 }
 func (e messageEndpoint) Release(ctx context.Context, id string) error {
 	return e.endpoint.Release(ctx, id)
 }
 func (e messageEndpoint) Deliver(ctx context.Context, m couchmessage.Message) (couchmessage.Receipt, error) {
-	if _, err := e.authority.live(ctx, e.binding); err != nil {
+	if err := e.check(ctx); err != nil {
 		return couchmessage.Receipt{Status: couchmessage.Cancelled, Detail: err.Error()}, nil
 	}
 	return e.endpoint.Deliver(ctx, m)

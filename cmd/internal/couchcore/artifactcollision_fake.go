@@ -319,6 +319,21 @@ func (f *FakeThreadArtifactCollisionChecker) PairSessionContext(ctx context.Cont
 	return binding, err
 }
 
+// PairSessionName is the recorded name without an ownership observation; the
+// fake records names and presence together, so it reads the same entry.
+func (f *FakeThreadArtifactCollisionChecker) PairSessionName(ctx context.Context, address ThreadAddress) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	binding, ok := f.pairSessions[address]
+	if !ok || binding.Name == "" {
+		return "", fmt.Errorf("%w for %+v", ErrPairSessionBindingAbsent, address)
+	}
+	return binding.Name, nil
+}
+
 func (f *FakeThreadArtifactCollisionChecker) PairSession(address ThreadAddress) (PairSessionBinding, error) {
 	f.mu.Lock()
 	hook := f.BeforePairSession

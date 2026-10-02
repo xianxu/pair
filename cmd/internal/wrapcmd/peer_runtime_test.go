@@ -32,6 +32,7 @@ func TestPeerRuntimeBrokerToWrapperSubmitsOnce(t *testing.T) {
 	from, to := binding("brain:0", "sender"), binding("pair:1", "receiver")
 	f, _ := peerIntegrationFixture(t)
 	receiver := newPeerDelivery(to, time.Now)
+	receiver.session = &recordingPeerSink{}
 	sender := newPeerDelivery(from, time.Now)
 	f.proxy.peer = receiver
 	lifetime, cancel := context.WithCancel(context.Background())
@@ -63,7 +64,7 @@ func TestPeerRuntimeBrokerToWrapperSubmitsOnce(t *testing.T) {
 		if err := strictjson.Decode(raw, &request); err != nil {
 			return nil, err
 		}
-		return json.Marshal(couchmessage.Handle(ctx, broker, request, nil))
+		return json.Marshal(couchmessage.Handle(ctx, broker, request))
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -141,9 +142,7 @@ func TestPeerRuntimeBrokerToWrapperSubmitsOnce(t *testing.T) {
 	if message != accepted.Message {
 		t.Fatal("CLI changed canonical envelope")
 	}
-	select {
-	case <-receiver.submit:
+	if peerSubmits(receiver) != 0 {
 		t.Fatal("peer submission falsely reset operator-only breaker")
-	default:
 	}
 }

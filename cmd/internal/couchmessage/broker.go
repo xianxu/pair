@@ -40,12 +40,13 @@ type SlotActor struct {
 	reservation string
 	inbox       chan Message
 	cancel      context.CancelFunc
-	// The latest heartbeat observation and resting-branch probe, kept so an
-	// actor listing reads memory instead of probing every slot.
+	// The latest observation the wrapper pushed (#365), kept so an actor
+	// listing reads memory instead of probing every slot. It stays current
+	// while the actor is connected: the wrapper pushes every change.
 	observed   Observation
 	observedAt time.Time
-	resting    bool
-	restingAt  time.Time
+	// disconnectedAt orders tombstones for eviction.
+	disconnectedAt time.Time
 }
 type admission struct {
 	from    Binding
@@ -62,6 +63,7 @@ type Broker struct {
 	cancel       context.CancelFunc
 	now          func() time.Time
 	resting      func(context.Context, Binding) (bool, error)
+	restingView  func(Binding) (resting, known bool)
 	families     func(context.Context) (map[string]string, error)
 	actors       map[Binding]*SlotActor
 	receipts     map[string]Receipt
@@ -77,6 +79,13 @@ type Broker struct {
 // serves requests; nil means live bindings only.
 func (b *Broker) SetFamilies(families func(context.Context) (map[string]string, error)) {
 	b.families = families
+}
+
+// SetRestingView installs the listing's in-memory resting-branch source (the
+// Console's slot-git cache). Listings never run git; nil leaves every row's
+// resting state unknown. Call before the broker serves requests.
+func (b *Broker) SetRestingView(view func(Binding) (resting, known bool)) {
+	b.restingView = view
 }
 
 // readFamilies runs outside the broker lock: the source may do store IO.
@@ -132,15 +141,21 @@ func (b *Broker) Register(binding Binding, endpoint DeliveryEndpoint) error {
 	if old != nil && old.state.Connected() {
 		return nil
 	}
-	if old == nil && len(b.actors) >= MaxActors {
-		return errors.New("actor capacity reached")
-	}
-	// Preserve disconnected incarnations as bounded tombstones so reattachment
-	// cannot replenish their allowance. Different repository identities coexist.
+	// A disconnected incarnation stays as a tombstone so the same binding
+	// reconnecting (an exec, a reattach) cannot replenish its allowance. A
+	// different binding for the slot is a new launch that starts fresh, so it
+	// retires the slot's other incarnations outright; their receipts live on
+	// in b.receipts. Different repository identities coexist (#365 BR-11).
 	for identity, a := range b.actors {
-		if identity != binding && identity.Repository == binding.Repository && identity.Slot == binding.Slot && a.state.Connected() {
-			b.disconnectLocked(a)
+		if identity != binding && identity.Repository == binding.Repository && identity.Slot == binding.Slot {
+			if a.state.Connected() {
+				b.disconnectLocked(a)
+			}
+			delete(b.actors, identity)
 		}
+	}
+	if old == nil && len(b.actors) >= MaxActors && !b.evictOldestTombstoneLocked() {
+		return errors.New("actor capacity reached")
 	}
 	var state ActorState
 	if old != nil {
@@ -160,7 +175,28 @@ func (b *Broker) Register(binding Binding, endpoint DeliveryEndpoint) error {
 	go b.runActor(ctx, a)
 	return nil
 }
+
+// evictOldestTombstoneLocked bounds tombstones by capacity rather than by
+// time: when the table is full, the longest-disconnected actor goes. Only a
+// table of connected actors refuses a new registration.
+func (b *Broker) evictOldestTombstoneLocked() bool {
+	var oldest Binding
+	var at time.Time
+	found := false
+	for identity, a := range b.actors {
+		if !a.state.Connected() && (!found || a.disconnectedAt.Before(at)) {
+			oldest, at, found = identity, a.disconnectedAt, true
+		}
+	}
+	if !found {
+		return false
+	}
+	delete(b.actors, oldest)
+	return true
+}
+
 func (b *Broker) disconnectLocked(a *SlotActor) {
+	a.disconnectedAt = b.now()
 	a.cancel()
 	a.sequence++
 	a.reservation = ""
@@ -226,33 +262,6 @@ func (b *Broker) reconcileObservation(a *SlotActor, observed Observation) error 
 	}
 	a.submission = observed.Submission
 	return nil
-}
-
-// RefreshSubmission treats an operator notification as a wakeup, not authority
-// to reset a counter. The receiver supplies its latest monotonic generation.
-func (b *Broker) RefreshSubmission(parent context.Context, binding Binding) error {
-	ctx, cancel := context.WithTimeout(parent, AdmissionTimeout)
-	defer cancel()
-	b.mu.Lock()
-	a := b.actors[binding]
-	valid := a != nil && b.caller(binding)
-	b.mu.Unlock()
-	if !valid {
-		return ErrUnavailable
-	}
-	if a.endpoint == nil {
-		return ErrUnsupported
-	}
-	observed, err := a.endpoint.Observe(ctx)
-	if err != nil {
-		return err
-	}
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.actors[binding] != a || !b.caller(binding) {
-		return ErrUnavailable
-	}
-	return b.reconcileObservation(a, observed)
 }
 
 // ObserveInputThread is called before Console forwards real operator input.
@@ -354,46 +363,17 @@ func (b *Broker) observe(ctx context.Context, a *SlotActor) (Candidate, Observat
 	return c, obs, nil
 }
 
-// Staleness bounds for the in-memory actor listing. Wrappers report every
-// second; the resting branch is probed on each full authority check, which
-// the service repeats at least every verification window (10s).
-const (
-	ObservationStaleAfter = 5 * time.Second
-	RestingStaleAfter     = 15 * time.Second
-)
-
-// ObserveResting probes the binding's resting branch outside the broker lock
-// and records it for listings. A failed probe leaves the old value to age out.
-func (b *Broker) ObserveResting(ctx context.Context, binding Binding) error {
-	if b.resting == nil {
-		return errors.New("branch observation unavailable")
-	}
-	resting, err := b.resting(ctx, binding)
-	if err != nil {
-		return err
-	}
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	a := b.actors[binding]
-	if a == nil || !b.caller(binding) {
-		return ErrUnavailable
-	}
-	a.resting, a.restingAt = resting, b.now()
-	return nil
-}
-
-// Actors reports the broker's memory: each connected actor's last heartbeat
-// observation and resting probe. It does no IO, so its cost does not grow with
-// slot count or probe latency. A missing or stale observation is Known=false,
-// never an available recipient; admission still observes fresh before it
-// reserves.
+// Actors reports the broker's memory: each connected actor's last pushed
+// observation and the resting view. It does no IO, so its cost does not grow
+// with slot count or probe latency. A missing observation or unknown resting
+// state is Known=false, never an available recipient; admission still
+// observes fresh before it reserves.
 func (b *Broker) Actors(parent context.Context, caller Binding) ([]Candidate, error) {
 	b.mu.Lock()
 	if !b.caller(caller) {
 		b.mu.Unlock()
 		return nil, ErrUnavailable
 	}
-	now := b.now()
 	var rows []Candidate
 	for _, a := range b.actors {
 		if !a.state.Connected() {
@@ -403,10 +383,11 @@ func (b *Broker) Actors(parent context.Context, caller Binding) ([]Candidate, er
 		if a.observed.LastActivity.After(c.LastActivity) {
 			c.LastActivity = a.observed.LastActivity
 		}
-		c.Resting = a.resting
-		c.Known = !c.LastActivity.IsZero() &&
-			!a.observedAt.IsZero() && now.Sub(a.observedAt) < ObservationStaleAfter &&
-			!a.restingAt.IsZero() && now.Sub(a.restingAt) < RestingStaleAfter
+		restingKnown := false
+		if b.restingView != nil {
+			c.Resting, restingKnown = b.restingView(a.binding)
+		}
+		c.Known = !c.LastActivity.IsZero() && !a.observedAt.IsZero() && restingKnown
 		rows = append(rows, c)
 	}
 	b.mu.Unlock()
@@ -559,6 +540,10 @@ func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, fro
 		return Receipt{}, err
 	}
 	if err = a.endpoint.Reserve(ctx, id, obs.Sequence); err != nil {
+		var committed *AlreadyCommittedError
+		if errors.As(err, &committed) {
+			return b.adoptRetained(a, from, id, route, body, committed.Receipt)
+		}
 		return Receipt{}, err
 	}
 	b.mu.Lock()
@@ -585,6 +570,110 @@ func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, fro
 	a.inbox <- m
 	return b.receipts[id], nil
 }
+
+// adoptRetained answers a reused ID with the recipient's own outcome instead
+// of delivering again: the wrapper already holds this delivery. Only the same
+// sender and body may adopt it; anything else is a conflicting ID.
+func (b *Broker) adoptRetained(a *SlotActor, from Binding, id string, route Route, body string, r Receipt) (Receipt, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if a.reservation == id {
+		a.reservation = ""
+	}
+	if r.Message.ID != id || r.Message.From != from || r.Message.To != a.binding || r.Message.Body != body {
+		return Receipt{}, errors.New("conflicting message ID")
+	}
+	return b.recordRecoveredLocked(r, route), nil
+}
+
+// recordRecoveredLocked keeps a receipt learned from a recipient. One still
+// in flight there has no broker job watching it any more, so it is recorded
+// as Indeterminate rather than left Delivering forever.
+func (b *Broker) recordRecoveredLocked(r Receipt, route Route) Receipt {
+	if old, ok := b.receipts[r.Message.ID]; ok {
+		return old
+	}
+	if !r.Status.Terminal() {
+		r.Status, r.Detail = Indeterminate, "delivery was in flight at the recipient when this broker learned of it; check the recipient's transcript"
+	}
+	r.RetainUntil = b.now().Add(ReceiptLifetime)
+	b.receipts[r.Message.ID] = r
+	b.destinations[r.Message.ID] = route
+	return r
+}
+
+// StatusContext is Status, plus — for an ID this broker does not remember,
+// as after a Couch restart — a query of every connected recipient's retained
+// receipts. A recipient that does not answer makes the result uncertain, not
+// absent. It runs only on this request path, never in the background.
+func (b *Broker) StatusContext(parent context.Context, caller Binding, id string) (Receipt, error) {
+	if r, err := b.Status(caller, id); err == nil {
+		return r, nil
+	}
+	b.mu.Lock()
+	if !b.caller(caller) {
+		b.mu.Unlock()
+		return Receipt{}, ErrUnavailable
+	}
+	if _, known := b.receipts[id]; known {
+		b.mu.Unlock()
+		return Receipt{}, errors.New("receipt unavailable for this actor")
+	}
+	type holder struct {
+		binding Binding
+		h       ReceiptHolder
+	}
+	var holders []holder
+	for binding, a := range b.actors {
+		if h, ok := a.endpoint.(ReceiptHolder); ok && a.state.Connected() {
+			holders = append(holders, holder{binding, h})
+		}
+	}
+	b.mu.Unlock()
+	ctx, cancel := context.WithTimeout(parent, AdmissionTimeout/2)
+	defer cancel()
+	type answer struct {
+		from Binding
+		r    Receipt
+		err  error
+	}
+	answers := make(chan answer, len(holders))
+	limit := make(chan struct{}, 4)
+	for _, h := range holders {
+		go func(h holder) {
+			limit <- struct{}{}
+			defer func() { <-limit }()
+			r, err := h.h.Retained(ctx, id)
+			answers <- answer{h.binding, r, err}
+		}(h)
+	}
+	var found *Receipt
+	unanswered := 0
+	for range holders {
+		a := <-answers
+		switch {
+		case a.err == nil:
+			// A wrapper vouches only for deliveries addressed to itself; a
+			// receipt naming another recipient is untrusted input (#365 BR-13).
+			if a.r.Message.ID == id && a.r.Message.To == a.from && (a.r.Message.From == caller || a.r.Message.To == caller) {
+				r := a.r
+				found = &r
+			}
+		case !errors.Is(a.err, ErrUnknownDelivery):
+			unanswered++
+		}
+	}
+	if found != nil {
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		return b.recordRecoveredLocked(*found, Route{Target: found.Message.To.Slot}), nil
+	}
+	if unanswered > 0 {
+		return Receipt{}, fmt.Errorf("%w: %d connected recipient(s) did not answer for message %s", ErrUncertain, unanswered, id)
+	}
+	return Receipt{}, errors.New("receipt unavailable: no connected recipient retains this message")
+}
+
 func (b *Broker) runActor(ctx context.Context, a *SlotActor) {
 	defer b.workers.Done()
 	defer func() {

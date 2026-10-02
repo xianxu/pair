@@ -552,7 +552,7 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		head := marker + strings.Repeat(" ", entry.Indent) + entry.Label
 		plain := clipMenuLine(head+entry.Glyph+"  "+detail, prefixWidth) + suffix
 		if frame.View == MenuViewFocus {
-			plain = clipMenuLine(head+" ◆ "+menuFocusSummary(thread), width)
+			plain = clipMenuLine(head+" ◆ "+menuFocusSummary(thread)+menuFocusSlug(thread), width)
 		}
 		if selectedRow {
 			plain = selectedMenuLine(plain, true, width)

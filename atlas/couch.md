@@ -124,15 +124,67 @@ receipt retention limit the runtime. Family selection requires fresh resting
 branch and quiet-wrapper observations; exact sends allow occupied-slot
 coordination. Quietness is never acceptance of repository work.
 
-`--actors` reads broker memory only (#360): each slot's last heartbeat
-observation and resting-branch probe, reported `unknown` once older than
-`ObservationStaleAfter` (5s) / `RestingStaleAfter` (15s). The resting branch is
-probed on every full authority check. A full check vouches for a binding for
-`messageVerificationWindow` (10s) on the paths that only observe: the
-wrappers' one-second registration heartbeat, read-only callers, admission
-observation, and reconciliation. Sends, operator-submit, Reserve and Deliver
-always re-check. Reconciliation drops dead bindings from the service's maps,
-which previously grew with every relaunch and were re-probed every second.
+**Registration follows lifecycle events, not polling (#365).** Each wrapper
+holds one long-lived session on the namespace's `registry` socket
+(`couchmessage.SessionClient` / `SessionServer`). The hello carries the binding,
+and the kernel's peer PID must equal `Binding.PID`. The connection closing *is*
+the death or exec event: Go sockets are close-on-exec, so a SIGUSR2 re-exec
+reconnects as a new session even when its binding is byte-identical. The
+Console posts each thread's current pane to a coalescing
+`couchmessage.PaneMailbox`. `SubscribeMessageLifecycle` replays the panes
+attached before the service started (the startup pane and the reattach pass).
+
+One pure `couchmessage.Registry` decides which bindings may receive:
+- **Admission:** a binding is connected when its newest session is admitted
+  against the thread's current pane. `messageService` executes the registry's
+  effects: one full authority check per admission, then broker
+  `Register`/`Disconnect`.
+- **Ordering:** the registry owns same-slot displacement, the newest session
+  wins, and late admission results for a closed session or a replaced pane are
+  discarded.
+- **Failed checks:** retry on a bounded ladder (0.5–8 s), then the session goes
+  dormant until something touches it: an attach, a submit, a reconnect, or a
+  send that targets its slot.
+- **Exact recipient:** the newest admitted session wins. A request already
+  committed to the old incarnation may still finish there, or end
+  `Indeterminate`; it is never redirected to the new one.
+
+A full check (`messageAuthority.live`) runs the ps/zellij ownership probe, so it
+runs only at admission. Observe, Reserve, Deliver and a sending caller use
+`messageAuthority.current` instead, which spawns nothing. It checks the pane is
+live, the PID file still names the wrapper, and the launch's recorded ready file
+and session index still name its nonce and session.
+
+The wrapper pushes observation changes coalesced to at most one frame a second,
+submissions at once, and nothing while idle. `--actors` reads that memory. An
+admitted idle actor stays known. The resting branch comes from the Console's
+slot-git cache (`MessageSlotGit`), and only family admission runs git, per
+candidate per send. The pre-#365 1 s heartbeat, 1 s reconcile and 10 s
+verification window are gone. Wrappers from older binaries still send
+`register` and are answered `unsupported` at no cost; their slots receive again
+after a relaunch.
+
+**What delivery does and does not promise (#365).** Messaging promises
+at-most-once input to the wrapper's PTY, not exactly-once task execution. The
+remaining uncertainty is stated, never papered over:
+- **Wrapper receipt.** A wrapper's receipt says the envelope was pasted and
+  submitted to the agent's composer. It says nothing about whether the agent
+  read or acted on it. Check the transcript or the issue state for that.
+- **Death mid-delivery.** A wrapper, broker or Zellij crash during delivery
+  ends the receipt `Indeterminate`. The paste may or may not have landed, and
+  it is never retried.
+- **Replacement mid-delivery.** If a wrapper is replaced while delivering, the
+  message completes at the old incarnation or ends `Indeterminate`. It is never
+  redirected to the replacement.
+- **Couch restart.** Receipts are memory-only. After a restart,
+  `--message-status` asks the connected recipients for their retained receipts:
+  each wrapper keeps its last 64. A recipient that does not answer makes the
+  answer `uncertain`, not absent. One that has since exited or exec'd has
+  forgotten. A receipt recovered while still in flight is reported
+  `Indeterminate`, because no broker job watches it any more.
+- **Retries.** The CLI mints a fresh ID per send and tells the sender not to
+  retry an uncertain one. A reused ID that reaches a wrapper that remembers it
+  adopts the recorded outcome and is not pasted again.
 
 Each wrapper endpoint conditionally reserves its observed input generation,
 then accepts one delivery commit. The broker polls outcome receipts; it never
@@ -316,8 +368,16 @@ for the console lifetime. `visibleMenuRows` applies focus membership after the
 existing inventory overlay and typeahead: `Live()` plus a nonempty sanitized
 `DisplaySummary()`. This keeps keyboard selection, mouse extents, and rendering
 on the same rows. Focus rendering uses the full-inventory labels and presents
-`name ◆ description`, clipped to terminal-cell width. The existing inventory
-refresh supplies new descriptions; no additional storage or polling is added.
+`name ◆ description ◆ slug` on one line, clipped to terminal-cell width; a row
+with no slug ends at its description. The slug (#372) is the thread's latest
+pair-slug suggestion (`slug-proposed-<tag>`, never the draft-mirrored
+`slug-<tag>`), unfenced to `<branch> | <focus>` by `cmd/internal/slugline`,
+the one definition of that line format. `ApplySlugs` fills
+`ActionableThreadSummary.Slug` for live rows after the projection, through the
+`Couch.Slug` seam (`OSSlugReader`: bounded, no-follow, display-only, so errors
+read as no slug). The existing inventory refresh supplies new descriptions and
+slugs, which is why a slug change redraws without ever becoming attention; no
+additional storage or polling is added.
 
 Both CLI resolution and in-memory menu filtering derive from
 `ClassifyThreadReferenceFields`/`MatchThreadReferenceFields`: exact opaque tags

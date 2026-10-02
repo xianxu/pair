@@ -123,6 +123,7 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.Cou
 	c.ContinuationSource = (couchcore.OSContinuationSourceReader{DataDir: dataDir}).Read
 	renderer, _ := exec.LookPath("pair")
 	c.SwitchContext = couchcore.OSSwitchContextResolver{DataDir: dataDir, HomeDir: r.Getenv("HOME"), Renderer: renderer}
+	c.Slug = couchcore.OSSlugReader{DataDir: dataDir}.Read
 	c.SwitchLaunchCheck = func(agent string) error {
 		if !launcher.IsSupportedAgent(agent) {
 			return fmt.Errorf("switch-agent: unsupported agent %q", agent)
