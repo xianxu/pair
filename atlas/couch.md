@@ -308,7 +308,12 @@ that arrived before the menu was built. Measured cost: ~114ms per thread
 change is not re-queried.
 
 `registry.json` remains as a transitional live-handle cache for the shipped
-console. It is not a metadata or display authority. The one-time journal import
+console. It is not a metadata or display authority, and its records are claims,
+not liveness: nothing removes one when its child exits. A reader that treats a
+record as hosting proof (`classifyForAction`, behind archive and switch-agent)
+probes `Couch.Liveness` first, so a dead record is residue and an unknown one
+joins the evidence's Unproven side. Every launch reaps the known-dead records
+before inserting its own (`withoutDead`, pair#378). The one-time journal import
 of its actors into ThreadStore went with `pair#170` M4: every store that needed
 it was cut over years of commits ago, and the manifest keys that recorded the
 cutover survive only as decode tombstones. CLI diagnostics read the raw
@@ -2263,3 +2268,19 @@ registry/collection recovery: `storagegc/stale_store_test.go`. Smoke invocations
 must isolate HOME, XDG_DATA_HOME, PAIR_DATA_DIR and COUCH_STORE_DIR together and
 clear inherited explicit artifact overrides. The original scratchpad producer
 has not been identified.
+
+### Isolated terminal pressure experiment (#373)
+
+The [debugging runbook](../doctor/terminal-pressure.md) owns repeatable commands,
+evidence capture, prerequisites, metric interpretation and extension checks.
+
+`cmd/internal/couchtty/terminal_pressure_test.go` exercises production Console
+input, endpoint ingestion, publication and presentation using bounded fake and
+real-PTY children. `TestCouchPressureControl` runs in ordinary tests; opt in to
+24 paired trials with `PAIR_COUCH_PRESSURE=1 go test ./cmd/internal/couchtty
+-run '^TestCouchOutputPressure$' -count=1 -v -timeout=180s`.
+It separates child receipt, endpoint ACK, displayed ACK and rendered switcher
+latency under bursts, one Go CPU and delayed host writes. Two-second trials
+have bounded output and joined teardown. It does not emulate Zellij, Ghostty,
+system-wide scheduler pressure or sustained full-screen redraws; a negative
+result cannot rule out those causes of selective pane freezing.

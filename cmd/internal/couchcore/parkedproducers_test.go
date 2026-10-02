@@ -270,25 +270,11 @@ var errTestSessionUnanswerable = errors.New("zellij is not answering")
 // The classification says `live`; the guard consumes it and then demands
 // something to park.
 func TestSwitchAgentRefusesAThreadCouchHostsWithNoIncarnation(t *testing.T) {
-	env := newTestEnv(t, "/repo")
-	record := validThreadRecord(t)
-	record.StartingPath, record.WorkingPath = "/repo", "/repo/sub"
-	env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --git-common-dir"}] = ".git"
-	record.Reservation = false
-	profile := LaunchProfile{Agent: "claude", Argv: []string{}}
-	record.LatestLaunchProfile = &profile
-	created, err := env.Couch.Threads.CreateThread(record)
-	if err != nil {
-		t.Fatal(err)
-	}
 	// Couch hosts a pty child for it; the record names no incarnation. The
-	// registry is what classifyForAction reads as live proof, so this is the
-	// production shape rather than an injected observation.
-	env.Couch.reg = env.Couch.reg.Insert(ActorRecord{
-		ID: ActorID("hosted-actor"), Thread: created.Address,
-		Args: StartArgs{Worktree: Worktree(created.StartingPath), Cwd: created.WorkingPath},
-		PID:  4242, Identity: "hosted",
-	})
+	// registry, probed live, is what classifyForAction reads as live proof, so
+	// this is the production shape rather than an injected observation.
+	env, created := registeredActorFixture(t)
+	env.Proc.Set(4242, "hosted")
 
 	state, reason, err := env.Couch.classifyForAction(context.Background(), created.Address)
 	if err != nil {
