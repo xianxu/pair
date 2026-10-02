@@ -89,11 +89,12 @@ Changes:
 
 - [x] Write failing tests: dead actor → archive admits; unknown actor → refuses as unknown; resume prunes the dead record
 - [x] Filter by liveness in `classifyForAction`; prune in `launchTrackedThread`
-- [ ] `go test ./cmd/internal/couchcore/` passes, then the full `make test`
+- [x] `go test ./cmd/internal/couchcore/` passes, then the full `make test`
 
 ## Log
 
 ### 2026-10-01
+- 2026-10-01: closed — TDD: 4 couchcore tests (parked thread + dead actor classifies parked and archives; unknown actor refused as unusable/unknown; live+unknown actors classify live; resume reaps dead prior record) fail before, pass after; couchcore/couchtty/couchcmd green; deadsymbols green; test-changelog green (scratchpad TMPDIR); remaining go failures (TestBareCouchInstalledCommand, TestProductionArtifactReferencesAreExactlyClassified, TestCouchReferencesLocalArchiveLocatorRoundTrip) reproduce on origin/main; review verdict: SHIP
 
 - Observed live on brain. Before this, the row showed `binding lost — repairable`.
   The ledger had a launch with no binding, ever (the codex root was
@@ -120,3 +121,14 @@ Changes:
   Failures present on `origin/main` as well, checked in a main worktree:
   `TestBareCouchInstalledCommand`, `TestProductionArtifactReferencesAreExactlyClassified`,
   `TestCouchReferencesLocalArchiveLocatorRoundTrip`.
+- Close review round 1 (FIX-THEN-SHIP). BR-1: the early `unknown` return
+  skipped `ClassifyThread`'s precedence, under which live and busy outrank
+  Unproven. Unknown registry actors now join `evidence.Unproven`, so precedence
+  lives in one place, and `TestALiveRegistryActorOutranksAnUnprovableOne` pins
+  it. BR-2: the dead-actor test now uses the real parked fixture
+  (`createParkedThreadInCouch` plus an established binding) and asserts
+  `ThreadParked`. BR-3: the atlas now limits its claim to readers that take a
+  record as hosting proof, and the `withoutDead` comment states the bound holds
+  per launch.
+  Out of scope: `Couch.Liveness` and `observeExactProcess` overlap, which
+  predates this issue.
