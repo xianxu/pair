@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000379-stray-turn-end-text.md
         source_blob: 9b7494eb103f984bc090c715109b80492bc661c4
         destination: workshop/issues/000379-stray-turn-end-text.md
+        main_commit: f0c1e56689469666b1aaaac708538cbf95f06f1d
 ---
 
 # Turn-end text flashes at focused pane cursor
