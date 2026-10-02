@@ -13,8 +13,8 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 ## What exists today
 
 Couch has one production supervisor and one selected inventory per local OS
-account. `couchsingleton` resolves the real UID's account home independently of
-`HOME`/XDG overrides and owns `.local/share/pair-host/singleton` there. A durable
+account. `couchcmd` resolves the real UID's account home independently of
+`HOME`/XDG overrides; `couchsingleton` owns `.local/share/pair-host/singleton` there. A durable
 selection fixes the physical Couch store, Pair data root and identity authority.
 The host lifetime lease is acquired before the selected store's existing
 non-inherited advisory lease. A second launch refuses with owner/store evidence;
@@ -47,6 +47,13 @@ the bounded identity/retention registry union. Repeat the complete request with
 publish the selection under host then store leases. Preview never initializes
 source directories or repairs journals. The source remains in place: C/N/M,
 conversation keys, preferences and worktrees are preserved.
+
+Retention evidence or an explicit store/Pair-data tuple establishes the companion
+artifact root; identity registration alone does not. `COUCH_PAIR_DATA_DIR` carries
+the selected Pair root to hosted children independently of repo-scoped
+`PAIR_DATA_DIR`. Inspection has a five-second context and limits of 4096 stores,
+65536 filesystem entries, 64 MiB total source payload and 4 MiB per file; exceeding
+a limit leaves unresolved evidence and refuses adoption.
 
 Multiple populated stores or unavailable evidence report **UNMIGRATED**. This
 release does not merge inventories. Repeated `--exclude-store /absolute/path`

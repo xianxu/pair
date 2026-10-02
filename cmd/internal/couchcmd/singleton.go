@@ -134,9 +134,10 @@ func (r OSRuntime) singletonManager() (couchsingleton.Manager, couchsingleton.Re
 	return m, q, isolated, nil
 }
 
+type leaseResource struct{ io.Closer }
+
 // runtimeOwnership has two states: a live acquired resource, or released (nil).
 // Copies of a prepared runtime share this handle, so Close revokes all copies.
-type leaseResource struct{ io.Closer }
 type runtimeOwnership struct{ active atomic.Pointer[leaseResource] }
 
 func (o *runtimeOwnership) Close() error {
