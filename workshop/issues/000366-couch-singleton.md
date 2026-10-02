@@ -427,3 +427,18 @@ Confirmed that fallback HOME and TMPDIR were created after selection without a
 physical containment check. Reworking all derived child roots, including XDG data,
 before effects; permanent outside-sentinel tests will cover both runner entry points.
 Merge remains pending; no review bypass is used.
+
+### 2026-10-02 — BR-5 fixed and verified
+
+Derived child HOME/XDG/TMP roots now share canonical directory/containment validation
+before manager publication, including adoption preview/apply. Runtime getters and both
+runner entry points export those retained physical paths. Defaults derive from the
+validated data root; unresolved symlinks and non-directory destinations refuse.
+Regression matrix: home/tmp/data × escaping symlink/dangling symlink/regular file ×
+Start/StartBlocked, with no runner reach, no selection and unchanged source/outside
+sentinel trees. Valid fallback HOME, explicit confined HOME and internal aliases pass.
+Original code failed the escape tests; all expanded tests pass under race (2.001s).
+
+Post-fix full couchcmd race suite passed (49.077s); installed Couch, launcher, pair-go
+and termcmd passed (2.701s,13.046s,17.542s,0.504s). Diff check clean. No further code
+changes after these runs. Resubmitting the final isolation finding before merge.
