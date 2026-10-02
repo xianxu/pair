@@ -52,6 +52,28 @@ rounds:
           round: 2
       recipe: milestone-review
       blocked: true
+    - "n": 3
+      timestamp: "2026-10-02T00:01:01-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Slot inspection retains transaction locks and includes unreadable state, topology and payload evidence; corresponding regressions pass.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: Excluded inventories require confirmed absence of recorded incarnations and creating owners; live, unknown and revalidation regressions pass.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: Serialization and reading share maxSelectionBytes; boundary round-trip and pre-publication overflow regressions pass.
+          round: 3
+        - id: BR-4
+          disposition: addressed
+          note: Couch clears PAIR_DATA_DIR and passes COUCH_PAIR_DATA_DIR; launcher and embedded extraction consume the selected global root. The real create/list/resume regression fails when an isolated Go overlay disables selected-root consumption, then passes against unchanged HEAD.
+          round: 3
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#366 (boundary-review)
@@ -83,6 +105,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-4** [Critical] `resolved-runtime-root-propagation` Pair children interpret the selected global root as a repository-scoped artifact directory.
   cmd/internal/couchcmd/singleton.go:247 exports roots.PairDataDir as PAIR_DATA_DIR, but cmd/internal/launcher/runcli.go:102–118 treats that variable as an already-scoped directory and derives its global root from HOME/XDG without consuming COUCH_PAIR_DATA_DIR. Hosted artifacts therefore use the flat root; custom selected roots also leave global claim readers pointed at ambient storage. Fix the complete parent/launcher root contract and add actual launcher artifact/read/resume coverage. ARCH-PURPOSE, ARCH-DRY.
 
+## Round 3 — 2026-10-02T00:01:01-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Slot inspection retains transaction locks and includes unreadable state, topology and payload evidence; corresponding regressions pass.
+- BR-2 — addressed — Excluded inventories require confirmed absence of recorded incarnations and creating owners; live, unknown and revalidation regressions pass.
+- BR-3 — addressed — Serialization and reading share maxSelectionBytes; boundary round-trip and pre-publication overflow regressions pass.
+- BR-4 — addressed — Couch clears PAIR_DATA_DIR and passes COUCH_PAIR_DATA_DIR; launcher and embedded extraction consume the selected global root. The real create/list/resume regression fails when an isolated Go overlay disables selected-root consumption, then passes against unchanged HEAD.
+
 ## Open findings
 
-- **BR-4** [Critical] `resolved-runtime-root-propagation` Pair children interpret the selected global root as a repository-scoped artifact directory.
+(none — every finding has been disposed)

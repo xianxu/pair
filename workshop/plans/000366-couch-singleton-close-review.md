@@ -173,3 +173,80 @@ findings:
 7. **Plan revision recommendations**
 
    Append a `## Revisions` entry reopening Task 3’s child-root integration and Task 4’s acceptance coverage. Name the actual Pair launcher as a consumer and require artifact creation/read/resume tests with selected roots differing from HOME/XDG.
+
+---
+
+## Re-review — 2026-10-02T00:01:01-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 366 — Make Couch a local singleton |
+| repo | pair |
+| issue file | workshop/issues/000366-couch-singleton.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | f0c1e56689469666b1aaaac708538cbf95f06f1d..acc6a8f30216f114cba64931cdf8e06f5859dc8c |
+| command | sdlc close --issue 366 |
+| reviewer | codex |
+| timestamp | 2026-10-02T00:01:01-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation satisfies the issue’s revised singleton and preservation contract. BR-4 is addressed through the parent, launcher and embedded-runtime consumers, with meaningful regression coverage. No new blocking findings were identified.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Slot inspection retains transaction locks and includes unreadable state, topology and payload evidence; corresponding regressions pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Excluded inventories require confirmed absence of recorded incarnations and creating owners; live, unknown and revalidation regressions pass.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Serialization and reading share maxSelectionBytes; boundary round-trip and pre-publication overflow regressions pass.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Couch clears PAIR_DATA_DIR and passes COUCH_PAIR_DATA_DIR; launcher and embedded extraction consume the selected global root. The real create/list/resume regression fails when an isolated Go overlay disables selected-root consumption, then passes against unchanged HEAD.
+```
+
+1. **Strengths**
+   - Global and scoped roots are distinguished at the actual consumer: `cmd/internal/launcher/runcli.go:102`.
+   - Adoption revalidates evidence while retaining identity and store transaction locks through publication: `cmd/internal/couchsingleton/manager.go:190`.
+   - Tests exercise crash recovery, lost publication acknowledgments, competing owners and changed source evidence.
+   - README and atlas document adoption, exclusions, isolation and old-binary limitations.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+   - Full normal suites passed for `couchsingleton`, `couchidentity`, `launcher`, `pair-go` and `couchcmd`.
+   - Focused race tests passed for singleton, identity, Couch core and storage GC.
+   - BR-4 mutation failed at the expected ambient-root claim lookup; the unmodified regression passed afterward.
+   - Pinned-range `git diff --check` passed. Repository remained unchanged.
+   - Full-repository tests were not rerun during this review.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** Existing identity decoders, leases and durable publication are reused; launch and embedded extraction share root resolution.
+   - **ARCH-PURE — pass:** Adoption policy is IO-free; filesystem and process observations remain in integration boundaries.
+   - **ARCH-PURPOSE — pass:** Stable selection reaches runtime readers and hosted children.
+   - **ARCH-MOCK — pass:** Injected process state and a stateful terminal fake exercise production boundaries.
+   - **ARCH-CONSTRAINTS — pass:** Inspection has explicit limits; selected reads avoid recurring discovery.
+   - **ARCH-SECURE — pass:** Bounded parsing, canonical-root validation and isolation checks reject malformed or escaping state.
+   - **ARCH-ORDER — pass:** Ownership precedes effects; retained locks protect publication; failure and retry orderings have controllable tests.
+   - **ARCH-FUNERAL — pass:** Selection and lease metadata have fixed bounds; publication staging is cleaned or reused; ownership releases on close or process death.
+
+7. **Plan revision recommendations:** None. Existing revisions describe the delivered root-contract correction.

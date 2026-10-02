@@ -81,6 +81,7 @@ total: 2.66
 ## Log
 
 ### 2026-10-01
+- 2026-10-01: closed — BR-4 fixed end-to-end: parent clears stale scoped dir; launcher and embedded extraction share validated selected global root. Real Pair binary create/list/continuation-list/warm-resume checks scoped artifacts and global claim/index records; ignoring selected root mutation fails, restored passes. Full launcher race11.386s; fresh restored couchcmd race43.000s and pair-go race14.976s; installed Couch2.168s and termcmd0.453s pass. Prior post-fix singleton/core/identity/messaging/retention race suites pass, including core385.636s; BR-1/2/3 disposed addressed round2. Diff check clean. Remaining full-repo failures independently match original base: artifact inventory #348 (49 identical diagnostics) and GC archive fixture scope. No live cutover.; review verdict: SHIP
 
 Captured from the performance → messaging guarantees → SDLC ownership/observability → recovery discussion. No implementation started.
 

@@ -80,7 +80,7 @@ The first issue removes the measured regression without waiting for the entire o
 - [ ] Add operator-directed reclaim [ariadne#278]
 - [ ] Expose workflow observations [ariadne#279]
 - [ ] Publish operation recovery contracts [ariadne#280]
-- [ ] Establish local Couch singleton behavior [pair#366]
+- [x] Establish local Couch singleton behavior [pair#366]
 - [ ] Recover locally assigned work [pair#367]
 - [ ] Schedule work and verify effects [pair#362]
 
