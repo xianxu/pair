@@ -6,7 +6,7 @@ github_issue:
 created: 2026-10-01
 updated: 2026-10-02
 estimate_hours: 2.66
-card_mirror: '2ffcf44660c682ebb422080d6477a15c256fa8a7' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '6183ed6b91704e9e1019c49d063671d3dedb9823' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-01T22:14:48-07:00
 flow: {kind: full, provenance: operator}
 claimant:
@@ -16,7 +16,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
-actual_hours: 4.45
+actual_hours: 6.12
 ---
 
 # Make Couch a local singleton
