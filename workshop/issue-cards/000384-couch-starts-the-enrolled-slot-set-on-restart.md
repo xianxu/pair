@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000384-couch-starts-the-enrolled-slot-set-on-restart.md
         source_blob: 0256632ac47dfc53d8b8d6ebcffb4d165e508302
         destination: workshop/issues/000384-couch-starts-the-enrolled-slot-set-on-restart.md
+        main_commit: 89d8f72887fa700532a9f708ca6d50c5a034a157
 ---
 
 # Couch starts the enrolled slot set on restart
