@@ -396,3 +396,11 @@ After source restoration, `go test -race ./cmd/internal/couchcmd ./cmd/pair-go
 (2.168s and 0.453s). Artifact inventory still reports exactly the same 49 original-base
 diagnostics; `git diff --check` passes. No further code changes after these tests.
 Submitting BR-4 for disposition by the binary-owned boundary review.
+
+### 2026-10-02 — review accepted and draft PR
+
+Third close review: SHIP, no open findings; BR-1/2/3/4 all addressed. Gate recorded
+codecomplete and measured 4.45h actual. Draft PR: https://github.com/xianxu/pair/pull/196.
+Project and durable plan completion notes updated. No merge or live installation
+cutover was performed. Remaining full-repository failures are the disclosed,
+independently reproduced baseline cases, not passing-suite claims.
