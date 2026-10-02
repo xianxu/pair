@@ -1,7 +1,7 @@
 ---
 id: 000367
 status: working
-deps: [pair#366, ariadne#277, ariadne#278, ariadne#279, ariadne#280, pair#384, ariadne#288]
+deps: [pair#366, ariadne#277, ariadne#278, ariadne#279, ariadne#280, ariadne#288, ariadne#289, pair#363]
 github_issue:
 created: 2026-10-01
 updated: 2026-10-02
@@ -114,3 +114,19 @@ revision unmet. Operator decisions, delta:
 - **The report is a deterministic `couch` subcommand** that owns the join
   (Couch slot inventory × claims × slot worktree state); the skill explains its
   rows and drives the operator-approved assignment, and reimplements no scan.
+
+### 2026-10-02 — slot view absorbed from pair#384; pair#384 closed
+
+Reason: operator design review of pair#384 (closed wontfix). Delta:
+
+- **No automatic slot start.** Couch startup stays reattach-only; parked slots
+  may be ready, stale or corrupted, so nothing resumes them unasked. The
+  earlier revision's "slots are live at recovery time" no longer holds.
+- **This issue owns the Couch slot view:** one row per slot joining ariadne#289's
+  per-slot readiness verdict (from `sdlc fleet inventory`) with Couch's thread
+  state (live / detached / parked / unusable) and ariadne#288's claims. Couch
+  reimplements no git scan.
+- **Recovery actions are pair#363's.** Bulk resume of slots holding work and
+  bulk reboot of N ready slots fold into #363; this issue adds the claim join,
+  the report, and the operator-approved "continue #N" step on top.
+- deps: pair#384 dropped; ariadne#289 and pair#363 added.
