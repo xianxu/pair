@@ -244,7 +244,10 @@ func (r OSRuntime) runtimeRunner(runner couchcore.Runner) couchcore.Runner {
 		return runner
 	}
 	roots := r.selection.Roots
-	env := []string{"PAIR_DATA_DIR=" + roots.PairDataDir, "COUCH_PAIR_DATA_DIR=" + roots.PairDataDir, "COUCH_STORE_DIR=" + roots.StoreDir, "COUCH_IDENTITY_DIR=" + roots.IdentityDir, "COUCH_ISOLATED_ROOT=" + r.isolatedRoot}
+	// Pair's PAIR_DATA_DIR is already repository-scoped. Clear the inherited
+	// actor destination and pass the selected global root separately so the
+	// launcher computes this actor's scope once, from its own checkout.
+	env := []string{"PAIR_DATA_DIR=", "COUCH_PAIR_DATA_DIR=" + roots.PairDataDir, "COUCH_STORE_DIR=" + roots.StoreDir, "COUCH_IDENTITY_DIR=" + roots.IdentityDir, "COUCH_ISOLATED_ROOT=" + r.isolatedRoot}
 	if r.isolatedRoot != "" {
 		env = append(env, "HOME="+r.isolatedHome, "XDG_DATA_HOME="+filepath.Join(r.isolatedRoot, "data"), "TMPDIR="+filepath.Join(r.isolatedRoot, "tmp"))
 	}

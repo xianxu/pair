@@ -140,7 +140,7 @@ func TestSingletonChildUsesSelectedRoots(t *testing.T) {
 	}
 	defer lease.Close()
 	output := filepath.Join(root, "child-env")
-	h, err := rt.runtimeRunner(couchcore.ExecRunner{}).Start(root, []string{"/bin/sh", "-c", `printf '%s\n' "$PAIR_DATA_DIR" "$COUCH_STORE_DIR" "$COUCH_IDENTITY_DIR" "$COUCH_ISOLATED_ROOT" "$PAIR_LOG_PATH" > "$1"`, "sh", output}, nil)
+	h, err := rt.runtimeRunner(couchcore.ExecRunner{}).Start(root, []string{"/bin/sh", "-c", `printf '%s\n' "$PAIR_DATA_DIR" "$COUCH_STORE_DIR" "$COUCH_IDENTITY_DIR" "$COUCH_ISOLATED_ROOT" "$PAIR_LOG_PATH" "$COUCH_PAIR_DATA_DIR" > "$1"`, "sh", output}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +152,7 @@ func TestSingletonChildUsesSelectedRoots(t *testing.T) {
 		t.Fatal(err)
 	}
 	lines := strings.Split(strings.TrimSuffix(string(raw), "\n"), "\n")
-	if len(lines) != 5 || lines[0] != rt.selection.Roots.PairDataDir || lines[1] != rt.StoreDir() || lines[2] != rt.selection.Roots.IdentityDir || lines[3] != root || lines[4] != "" {
+	if len(lines) != 6 || lines[0] != "" || lines[1] != rt.StoreDir() || lines[2] != rt.selection.Roots.IdentityDir || lines[3] != root || lines[4] != "" || lines[5] != rt.selection.Roots.PairDataDir {
 		t.Fatalf("wrong descendant environment: %q", raw)
 	}
 }
@@ -235,7 +235,7 @@ func TestSingletonBlockedChildRetainsActorPathsAndSelectedRoots(t *testing.T) {
 		key, value, _ := strings.Cut(entry, "=")
 		env[key] = value
 	}
-	if env["PAIR_DATA_DIR"] != rt.selection.Roots.PairDataDir || env["PAIR_LOG_PATH"] != actorPath || env["COUCH_STORE_DIR"] != rt.StoreDir() {
+	if env["PAIR_DATA_DIR"] != "" || env["COUCH_PAIR_DATA_DIR"] != rt.selection.Roots.PairDataDir || env["PAIR_LOG_PATH"] != actorPath || env["COUCH_STORE_DIR"] != rt.StoreDir() {
 		t.Fatalf("blocked child environment: %v", env)
 	}
 	if runner.Child(child.ID()).ExecCount != 0 {
