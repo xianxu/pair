@@ -1,12 +1,20 @@
 ---
 id: 000363
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-30
-updated: 2026-09-30
+updated: 2026-10-02
 estimate_hours:
-card_mirror: '05060d6273a6f8af12b16c6e4ab716907e50608d' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '47f8ae0b4867c752fe36cd171053ebd4f4cbff66' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-02T13:26:48-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Slot-world switcher: resume and reboot replace thread actions
@@ -91,3 +99,31 @@ Action sets per row (operator decisions, 2026-09-30, from #360's design talk):
 - Filed from #360's design conversation with the operator. #360 keeps the
   addressing work (prefix, alias, candidates, `--agent`); this issue owns the
   switcher's action model; #364 owns slot removal.
+
+## Revisions
+
+### 2026-10-02 — bulk resume/reboot folded in from pair#384
+
+Reason: operator design review of pair#384 (closed wontfix). Couch startup
+stays reattach-only; slot recovery is an explicit state plus two bulk
+recoveries, and those reuse this issue's per-slot operations instead of
+reimplementing them. Delta:
+
+- **Reboot reuses the workspace, not only the thread.** Besides archiving the
+  old record with its evidence and starting a fresh thread, reboot of a slot
+  with no pending work puts every checkout of the slot on its resting branch
+  and runs `weave refresh`. It re-checks readiness at action time and refuses,
+  naming the reason, when any checkout is dirty, has untracked files, has an
+  active Git operation, or holds unlanded work. It never stashes, resets or
+  discards.
+- **Bulk forms.** A CLI resume over every slot that holds work (attach live,
+  restart parked on their transcript) and a reboot of N ready slots for new
+  capacity (names TBD, e.g. `couch --resume-slots` / `couch --reboot-slots N`).
+  Each applies the per-row operation and reports per slot; slots that cannot be
+  reused say why and are left for LLM or manual recovery.
+- **Readiness comes from sdlc.** The per-slot verdict (ready / holds-work /
+  needs-recovery / missing / unknown over the slot's product and substrate
+  checkouts) is ariadne#289's `sdlc fleet inventory` observation; Couch does
+  not rescan git. The bulk forms depend on ariadne#289 (which follows
+  ariadne#288); the per-row action model does not.
+- Sending "continue #N" to resumed slots is pair#367's step, not this issue's.
