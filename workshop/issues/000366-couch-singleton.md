@@ -352,3 +352,12 @@ the post-fix singleton, command, identity, messaging and retention runs above, e
 affected runtime package has passing race coverage. Installed-command and termcmd
 checks also pass; `git diff --check` is clean. Resubmitting BR-1/2/3 to the boundary
 gate with the two original-base repository failures still explicitly disclosed.
+
+### 2026-10-01 — boundary review round 2
+
+BR-1/2/3 explicitly addressed. REWORK for BR-4: the parent's global Pair root was
+passed in the launcher's already-scoped PAIR_DATA_DIR variable, while its global
+readers still derived HOME/XDG. Confirmed both sides and revised the durable plan.
+Parent tests now fail on the old export and require cleared PAIR_DATA_DIR plus
+COUCH_PAIR_DATA_DIR carrying the selected global root; launcher-level artifact and
+resume regressions will verify the complete contract before another review.
