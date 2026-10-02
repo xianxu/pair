@@ -87,8 +87,8 @@ Changes:
 
 ## Plan
 
-- [ ] Write failing tests: dead actor → archive admits; unknown actor → refuses as unknown; resume prunes the dead record
-- [ ] Filter by liveness in `classifyForAction`; prune in `launchTrackedThread`
+- [x] Write failing tests: dead actor → archive admits; unknown actor → refuses as unknown; resume prunes the dead record
+- [x] Filter by liveness in `classifyForAction`; prune in `launchTrackedThread`
 - [ ] `go test ./cmd/internal/couchcore/` passes, then the full `make test`
 
 ## Log
@@ -106,3 +106,11 @@ Changes:
   data dir from the caller's `PAIR_DATA_DIR`, not `--scope-key`, so running it
   inside another pair session looks in the wrong repo.
 - Workaround: start any new thread, so that `spawnResolved` runs `PruneDead`, then archive.
+- Implemented. The three new tests failed before the fix (dead actor read as
+  `live`, unknown actor read as `live`, and resume left `[previous-launch,
+  couch-ah8d]`), and pass after it. ARCH-DRY: `withoutDead` is the single prune
+  rule. `PruneDead` and `launchTrackedThread` share it, and the separate prune
+  in `spawnResolved` is gone, because spawn launches through
+  `launchTrackedThread`. The two existing hosted-actor fixtures (archive and
+  switch-agent) were "live" only because of this bug, since their pid was never
+  marked alive. They now share `registeredActorFixture` and set the pid live.

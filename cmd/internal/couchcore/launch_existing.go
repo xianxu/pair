@@ -244,7 +244,8 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		StartedAt: in.StartedAt, PID: h.PID(), Identity: h.Identity(),
 		Shape: shape,
 	}
-	c.reg = c.reg.Insert(record)
+	pruned, _ := c.withoutDead(c.reg)
+	c.reg = pruned.Insert(record)
 	if err := c.Store.Save(c.reg, c.names); err != nil {
 		c.reg = c.reg.RemoveActor(in.Args.Worktree, record.ID)
 		return record, h, c.failPostAckStart(thread.Address, h, shape, fmt.Errorf("persist registry: %w", err))

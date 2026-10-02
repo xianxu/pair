@@ -17,21 +17,8 @@ import (
 // the agent is running in. The guard has to ask the classification, because the
 // record has nothing to say about it.
 func TestArchiveRefusesAThreadCouchHostsWithNoIncarnation(t *testing.T) {
-	env := newTestEnv(t, "/repo")
-	record := validThreadRecord(t)
-	record.StartingPath, record.WorkingPath = "/repo", "/repo/sub"
-	env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --git-common-dir"}] = ".git"
-	record.Reservation = false
-	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
-	created, err := env.Couch.Threads.CreateThread(record)
-	if err != nil {
-		t.Fatal(err)
-	}
-	env.Couch.reg = env.Couch.reg.Insert(ActorRecord{
-		ID: ActorID("hosted-actor"), Thread: created.Address,
-		Args: StartArgs{Worktree: Worktree(created.StartingPath), Cwd: created.WorkingPath},
-		PID:  4242, Identity: "hosted",
-	})
+	env, created := registeredActorFixture(t)
+	env.Proc.Set(4242, "hosted")
 
 	state, reason, err := env.Couch.classifyForAction(context.Background(), created.Address)
 	if err != nil {
@@ -47,6 +34,67 @@ func TestArchiveRefusesAThreadCouchHostsWithNoIncarnation(t *testing.T) {
 		// record-shaped guards below would produce one for an unrelated reason.
 		// The classification is what must refuse here, so it must be named.
 		t.Fatalf("refusal does not name the classification that produced it: %v", err)
+	}
+}
+
+// registeredActorFixture is a thread with one registry actor (pid 4242) whose
+// liveness each test sets: the registry is liveness-recomputed, so the same
+// record is hosting, residue, or unprovable depending only on the probe.
+func registeredActorFixture(t *testing.T) (*testEnv, ThreadRecord) {
+	t.Helper()
+	env := newTestEnv(t, "/repo")
+	record := validThreadRecord(t)
+	record.StartingPath, record.WorkingPath = "/repo", "/repo/sub"
+	env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --git-common-dir"}] = ".git"
+	record.Reservation = false
+	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
+	created, err := env.Couch.Threads.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env.Couch.reg = env.Couch.reg.Insert(ActorRecord{
+		ID: ActorID("hosted-actor"), Thread: created.Address,
+		Args: StartArgs{Worktree: Worktree(created.StartingPath), Cwd: created.WorkingPath},
+		PID:  4242, Identity: "hosted",
+	})
+	return env, created
+}
+
+// pair#378: nothing removes an actor record when its child exits normally, so a
+// registry record is residue until something probes it. The switcher's archive
+// action took one as hosting proof and refused a parked thread as "live" -- a
+// row the operator could neither archive nor start over, while `couch --list`
+// called the same thread parked.
+func TestArchiveIgnoresADeadRegistryActor(t *testing.T) {
+	env, created := registeredActorFixture(t) // pid 4242 never Set: dead
+
+	state, reason, err := env.Couch.classifyForAction(context.Background(), created.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state == ThreadLive {
+		t.Fatalf("a dead registry actor classified the thread live (%q/%q)", state, reason)
+	}
+	if _, err := env.Couch.ArchiveThread(context.Background(), created.Address); err != nil {
+		t.Fatalf("archive refused a thread whose only actor is dead: %v", err)
+	}
+}
+
+// A probe that cannot answer is not a dead actor: the agent may be running, so
+// the action must refuse as unknown rather than act on the absence of proof.
+func TestArchiveRefusesAnUnprovableRegistryActor(t *testing.T) {
+	env, created := registeredActorFixture(t)
+	env.Proc.SetUnknown(4242)
+
+	state, reason, err := env.Couch.classifyForAction(context.Background(), created.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state != ThreadUnusable || reason != ReasonUnknown {
+		t.Fatalf("an unprovable actor classified %q/%q, want %q/%q", state, reason, ThreadUnusable, ReasonUnknown)
+	}
+	if _, err := env.Couch.ArchiveThread(context.Background(), created.Address); err == nil {
+		t.Fatal("archived a thread whose actor could not be probed")
 	}
 }
 

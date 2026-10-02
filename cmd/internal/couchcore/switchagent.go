@@ -77,14 +77,25 @@ func (r SwitchAgentResult) Started() (StartResult, bool) {
 // pty child records, so a thread couch is hosting reads `live` here exactly as
 // it does in the switcher. The evidence pass is one round for the single thread
 // the operator acted on -- the strict half of optimistic inventory.
+//
+// A registry record is a claim, not proof: nothing removes one when its child
+// exits, so each is probed (pair#378). Dead is residue and proves nothing;
+// Unknown may be a running agent, so it fails closed as `unusable/unknown`
+// rather than letting an action through on the absence of an answer.
 func (c *Couch) classifyForAction(ctx context.Context, address ThreadAddress) (ActionableThreadState, ThreadReason, error) {
 	hosted := make([]LiveTTYObservation, 0, 4)
 	for _, actor := range c.reg.Records() {
-		if actor.PID > 0 && actor.Identity != "" {
+		if actor.Thread != address {
+			continue
+		}
+		switch c.Liveness(actor) {
+		case Live:
 			hosted = append(hosted, LiveTTYObservation{
 				Address: actor.Thread,
 				Process: ProcessIdentity{PID: actor.PID, Identity: actor.Identity},
 			})
+		case Unknown:
+			return ThreadUnusable, ReasonUnknown, nil
 		}
 	}
 	snapshot, evidence, err := c.gatherThreadEvidence(ctx, hosted, func(record ThreadRecord) bool {

@@ -289,3 +289,37 @@ func TestResumeContextDerivesTheDetachedProofItself(t *testing.T) {
 		})
 	}
 }
+
+// pair#378: every launch inserts an actor record and nothing removes one when
+// its child exits, so a console that only resumes grew the registry by one
+// record per resume -- brain carried two dead warm-reattach records for one
+// thread. The launch that inserts the new record reaps the dead ones.
+func TestResumeReapsTheThreadsDeadActorRecord(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	profile := LaunchProfile{Agent: "claude", Argv: []string{}}
+	parked := createParkedThreadInCouch(t, env, profile)
+	env.Couch.reg = env.Couch.reg.Insert(ActorRecord{
+		ID: ActorID("previous-launch"), Thread: parked.Address,
+		Args: StartArgs{Worktree: "/repo", Cwd: "/repo/sub"},
+		PID:  4242, Identity: "exited", // never Set: dead
+	})
+	env.Artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+	env.Runner.AfterAcknowledge = func(id string) error {
+		env.Artifacts.SetPairSession(parked.Address, continuationChildSession(t, env.Runner, id), true)
+		return nil
+	}
+
+	resumed, _, err := env.Couch.Resume(parked.Address)
+	if err != nil {
+		t.Fatalf("Resume: %v", err)
+	}
+	var ids []ActorID
+	for _, actor := range env.Couch.reg.Records() {
+		if actor.Thread == parked.Address {
+			ids = append(ids, actor.ID)
+		}
+	}
+	if !slices.Equal(ids, []ActorID{resumed.ID}) {
+		t.Fatalf("registry for the thread = %v, want only the resumed actor %q", ids, resumed.ID)
+	}
+}

@@ -432,9 +432,6 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 		Worktree: resolution.Worktree, Cwd: resolution.CanonicalPath,
 		Stack: resolution.Profile.Agent, ExtraArgs: cloneArgv(resolution.Profile.Argv), Issue: resolution.Issue,
 	}
-	if err := c.PruneDead(); err != nil {
-		return ActorRecord{}, nil, err
-	}
 	scope, err := launcher.ResolveRepoScope(string(resolution.Worktree))
 	if err != nil {
 		return ActorRecord{}, nil, err
@@ -1165,23 +1162,31 @@ func (c *Couch) Describe(w Worktree) string {
 // one-agent-per-tree guard meaningful: without it the guard protects a tree
 // against a process that no longer exists.
 func (c *Couch) PruneDead() error {
-	var dead []ActorRecord
-	for _, r := range c.reg.Records() {
+	pruned, removed := c.withoutDead(c.reg)
+	if removed == 0 {
+		return nil
+	}
+	c.reg = pruned
+	return c.Store.Save(c.reg, c.names)
+}
+
+// withoutDead is the registry minus every KNOWN-dead record, and how many that
+// was. It is the registry's funeral: actor records are never removed when their
+// child exits, so each launch reaps the dead before inserting its own record
+// (pair#378), which bounds the registry to live and unprovable actors.
+func (c *Couch) withoutDead(reg Registry) (Registry, int) {
+	removed := 0
+	for _, r := range reg.Records() {
 		// Only a KNOWN-dead record is pruned. Pruning on Unknown deletes a
 		// live actor's registration whenever the probe fails, and then lets a
 		// second agent onto its tree -- observed in smoke testing, where a
 		// sandboxed probe destroyed a running session's record.
 		if c.Liveness(r) == Dead {
-			dead = append(dead, r)
+			reg = reg.RemoveActor(r.Args.Worktree, r.ID)
+			removed++
 		}
 	}
-	if len(dead) == 0 {
-		return nil
-	}
-	for _, r := range dead {
-		c.reg = c.reg.RemoveActor(r.Args.Worktree, r.ID)
-	}
-	return c.Store.Save(c.reg, c.names)
+	return reg, removed
 }
 
 // Stop signals an actor's child and then forgets it.
