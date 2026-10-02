@@ -142,6 +142,10 @@ and /tmp/pair-373-pressure-verified.log are local, ephemeral supporting evidence
 
 Implementation design and sequencing are deferred until this follow-up is claimed.
 
+- [ ] Design default telemetry, bounded retention and standalone capture; resolve #210 overlap.
+- [ ] Implement measurements and incident evidence with overhead and failure-path verification.
+- [ ] Update and verify agent guidance, handoff and user documentation against the session evidence.
+
 ## Log
 
 ### 2026-10-01
