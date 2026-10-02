@@ -3,6 +3,7 @@ package couchcore
 import (
 	"context"
 	"fmt"
+	"sync"
 )
 
 // GitCall is the fake's canned-reply key. It includes Dir deliberately:
@@ -15,8 +16,10 @@ type GitCall struct {
 }
 
 type FakeGit struct {
+	mu      sync.Mutex
 	replies map[GitCall]string
-	Ops     []string
+	// Inspect Ops only after all Run/RunContext callers have returned.
+	Ops []string
 }
 
 var _ GitRunner = (*FakeGit)(nil)
@@ -39,6 +42,8 @@ func (f *FakeGit) RunContext(ctx context.Context, dir string, args ...string) (s
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	key := GitCall{Dir: dir, Args: joinArgs(args)}
 	f.Ops = append(f.Ops, dir+": "+key.Args)
 	out, ok := f.replies[key]
