@@ -199,3 +199,20 @@ post-FakeGit-fix full couchcmd rerun. Normal Couch core passed in 444.029s and r
 in 482.823s; the time is advancing real-filesystem fixture work, not a deadlock.
 The issue Log contains commands and exact outcomes for the review. No full-suite
 pass or live installation migration is claimed.
+
+### 2026-10-01 — boundary review rework
+
+Round 1 returned REWORK with BR-1/2/3. The implementation's adoption evidence must
+cover every backend represented by the inventory: global records, numbered-slot
+errors and files, and recorded live/unknown incarnations in stores outside the
+chosen inventory. Hashing only the global namespace and checking only its lease
+is insufficient. Add regressions for corrupt external slot records, changed slot
+evidence before publication, and free-supervisor/live-wrapper exclusion; extend
+existing read-only/transaction seams to cover those cases. Selected-store surviving
+wrappers remain eligible for the existing reconnect protocol.
+
+The persisted selection has one size contract shared by serialization and bounded
+reading. Add exact-boundary/round-trip tests and reject oversize exclusions before
+publication. This applies to both explicit adoption and first launch. No source
+state is discarded or migrated to address any finding. Re-run affected package and
+race coverage, then the binary-owned close review; acceptance scope is unchanged.

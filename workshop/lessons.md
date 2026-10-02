@@ -465,3 +465,10 @@ proof; record the surprising case so the next change starts from evidence.
   prove which Pair artifact root belongs to it. Keep selected inventory identity
   separate from a held runtime lease, and revoke shared ownership handles on close.
   Exercise both distinctions through the production command boundary. (#366)
+
+- Adoption evidence must cover every inventory backend and every ownership kind:
+  global-store success does not resolve per-slot errors, and a free supervisor
+  lease does not prove recorded wrappers absent. Hash external slot state under
+  its transaction locks and preserve unknown liveness as a refusal (#366 BR-1/2).
+- Share persisted payload limits between writer and reader; a successful publish
+  must always produce a readable record, including large valid lists (#366 BR-3).
