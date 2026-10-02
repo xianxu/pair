@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000369-couch-switcher-click-select-double-click-jump.md
         source_blob: 6411b2319ca7f3485ec2a30f25022f3cbb64ffd8
         destination: workshop/issues/000369-couch-switcher-click-select-double-click-jump.md
+        main_commit: e705d65b0f7e77fe00756dea01aa8c35a913bf78
 ---
 
 # couch switcher: click selects row, double-click jumps
