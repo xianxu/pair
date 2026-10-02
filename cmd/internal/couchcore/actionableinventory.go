@@ -176,6 +176,9 @@ type ActionableThreadSummary struct {
 	Name             string              `json:"name,omitempty"`
 	Description      string              `json:"description,omitempty"`
 	PublishedSummary string              `json:"published_summary,omitempty"`
+	// Slug is a live thread's latest pair-slug orientation line, unfenced
+	// (`<branch> | <focus>`). Display-only (ApplySlugs); "" when there is none.
+	Slug string `json:"slug,omitempty"`
 	// RepositoryAlias is the operator's short name for this row's enrolled
 	// repository, display-only (ApplyRepositoryAliases).
 	RepositoryAlias string `json:"repository_alias,omitempty"`
@@ -681,7 +684,24 @@ func (c *Couch) ActionableThreadInventoryContext(ctx context.Context, observatio
 	if names, err := c.repositoryNames(); err == nil {
 		rows = ApplyRepositoryAliases(rows, names)
 	}
-	return rows, nil
+	return ApplySlugs(ctx, rows, c.Slug), nil
+}
+
+// ApplySlugs gives each live row its orientation slug (pair#372). Only live
+// threads have an agent updating one, so nothing else is read. Like aliases it
+// is display-only: a reader error leaves the slug empty rather than failing
+// the inventory.
+func ApplySlugs(ctx context.Context, rows []ActionableThreadSummary, read func(context.Context, ThreadAddress) (string, error)) []ActionableThreadSummary {
+	for i := range rows {
+		rows[i].Slug = ""
+		if read == nil || !rows[i].Live() || rows[i].Address == (ThreadAddress{}) {
+			continue
+		}
+		if slug, err := read(ctx, rows[i].Address); err == nil {
+			rows[i].Slug = slug
+		}
+	}
+	return rows
 }
 
 // ApplyRepositoryAliases labels the rows that stand for a slot with their

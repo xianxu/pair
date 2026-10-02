@@ -368,8 +368,16 @@ for the console lifetime. `visibleMenuRows` applies focus membership after the
 existing inventory overlay and typeahead: `Live()` plus a nonempty sanitized
 `DisplaySummary()`. This keeps keyboard selection, mouse extents, and rendering
 on the same rows. Focus rendering uses the full-inventory labels and presents
-`name ◆ description`, clipped to terminal-cell width. The existing inventory
-refresh supplies new descriptions; no additional storage or polling is added.
+`name ◆ description ◆ slug` on one line, clipped to terminal-cell width; a row
+with no slug ends at its description. The slug (#372) is the thread's latest
+pair-slug suggestion (`slug-proposed-<tag>`, never the draft-mirrored
+`slug-<tag>`), unfenced to `<branch> | <focus>` by `cmd/internal/slugline`,
+the one definition of that line format. `ApplySlugs` fills
+`ActionableThreadSummary.Slug` for live rows after the projection, through the
+`Couch.Slug` seam (`OSSlugReader`: bounded, no-follow, display-only, so errors
+read as no slug). The existing inventory refresh supplies new descriptions and
+slugs, which is why a slug change redraws without ever becoming attention; no
+additional storage or polling is added.
 
 Both CLI resolution and in-memory menu filtering derive from
 `ClassifyThreadReferenceFields`/`MatchThreadReferenceFields`: exact opaque tags
@@ -899,7 +907,11 @@ comfortable widths and disagree at exactly the narrow ones, which is where a
 mis-mapped click is least catchable by eye.
 
 In the switcher the unit is the ACTOR, never the line: an actor occupies its own
-row plus one per pending attention message, so `RenderMenuView` returns
+row plus one per pending attention message. Notifications have `├─`/`└─`
+connectors aligned to the owning row's label,
+including numbered slots' indentation. Empty messages draw no row; the final
+nonempty message gets `└─` before clipping. An oversized selected group keeps
+its owner visible and clips trailing messages. `RenderMenuView` returns
 `ActorExtent` runs derived from the `actorStart` boundary the scroll window
 already uses. They are re-based there rather than in `renderRootMenuFrame`,
 because the notice is inserted at index 1 and shifts every actor row down — an

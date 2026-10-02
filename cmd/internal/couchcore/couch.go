@@ -48,6 +48,9 @@ type Couch struct {
 	OrientationStatus      func(context.Context, ThreadAddress, string, string) (orientation.DeliveryState, error)
 	SwitchContext          SwitchContextResolver
 	SwitchLaunchCheck      func(agent string) error
+	// Slug reads a thread's latest pair-slug suggestion for the switcher's
+	// focus view (pair#372); nil shows none. Production wires OSSlugReader.
+	Slug func(context.Context, ThreadAddress) (string, error)
 	// Layout is which pair layout this couch launches its threads in, chosen
 	// once at construction and IMMUTABLE for the process lifetime -- there is
 	// no mid-session layout change, which is what keeps the mixed-state

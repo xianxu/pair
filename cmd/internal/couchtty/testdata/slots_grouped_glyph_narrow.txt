@@ -2,7 +2,7 @@ threads
 
 ▸ pair+  /workspace/pair  live
     pair:1  /workspace/worktree/p  live
-    review ready
+    └─ review ready
     pair:2*  /workspace/worktree/p  live
 TAB BAR
 pair+  [:1]  :2*

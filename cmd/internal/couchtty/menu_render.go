@@ -552,7 +552,7 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		head := marker + strings.Repeat(" ", entry.Indent) + entry.Label
 		plain := clipMenuLine(head+entry.Glyph+"  "+detail, prefixWidth) + suffix
 		if frame.View == MenuViewFocus {
-			plain = clipMenuLine(head+" ◆ "+menuFocusSummary(thread), width)
+			plain = clipMenuLine(head+" ◆ "+menuFocusSummary(thread)+menuFocusSlug(thread), width)
 		}
 		if selectedRow {
 			plain = selectedMenuLine(plain, true, width)
@@ -585,16 +585,28 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		if frame.View == MenuViewNormal && menuDescriptionMatches(thread, frame.Filter) {
 			rows = append(rows, rootLine{text: clipMenuLine("    "+menuFocusSummary(thread), width), thread: thread.Address, key: menuRowKey(thread)})
 		}
-		for _, message := range state.Attention[thread.Address] {
+		messages := state.Attention[thread.Address]
+		last := len(messages) - 1
+		for last >= 0 && messages[last].Text == "" {
+			last--
+		}
+		messageIndent := "  " + strings.Repeat(" ", entry.Indent)
+		for i, message := range messages {
 			if message.Text != "" {
-				rows = append(rows, rootLine{text: clipMenuLine("    "+message.Text, width), thread: thread.Address, key: menuRowKey(thread)})
+				connector := "├─ "
+				if i == last {
+					connector = "└─ "
+				}
+				rows = append(rows, rootLine{text: clipMenuLine(messageIndent+connector+message.Text, width), thread: thread.Address, key: menuRowKey(thread)})
 			}
 		}
 		if selectedRow {
 			selectedEnd = len(rows)
 		}
 	}
-	start := selectedEnd - rowBudget
+	// An oversized selected group must keep its owner visible, even when its
+	// final messages cannot fit in the viewport.
+	start := min(selectedEnd-rowBudget, selectedStart)
 	if start < 0 {
 		start = 0
 	}

@@ -156,6 +156,11 @@ representative evidence, not an exhaustive index.
 
 ## Terminal, input, and UI boundaries
 
+- When scrolling grouped rows, test a selected group taller than the viewport;
+  anchoring to its final child must not hide the owning row. (#371)
+- Configure immutable pane identity in fixtures before starting the console;
+  locking only the test's later writes cannot synchronize unlocked readers. (#371)
+
 - Route input according to the currently focused, active surface. A key's bytes,
   pane role, screen, and owner all matter; test every encoding and every layer
   that can intercept it. (#245, #284)
@@ -418,6 +423,12 @@ proof; record the surprising case so the next change starts from evidence.
   prefix-routed to brainstorm. Include known-but-offline names so an exact name
   resolves to itself and misses, and pin it with a test whose control case
   shows the narrowed namespace rerouting.
+- When a format moves into a shared package, say where else it is mirrored.
+  #372: `slugline` called itself "the one definition" of `=== L | R ===` while
+  `nvim/slug.lua` re-implements the same recognition, and a package const
+  named `close` shadowed Go's builtin. A cross-language format has one
+  definition per language; the doc names the mirror so a change touches both.
+  Never name an identifier after a Go builtin (`close`, `len`, `new`, `copy`).
 
 - A pure reducer's effects are only as true as their execution. Any effect the
   shell can fail to apply must come back as an event, or the reducer runs ahead
