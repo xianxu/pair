@@ -2,7 +2,6 @@ package couchsingleton
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
@@ -34,7 +33,7 @@ func (m Manager) Read(q Request) (Selection, error) {
 	if e := m.validateRequest(q); e != nil {
 		return s, e
 	}
-	raw, e := readBounded(m.selectionPath(), 64<<10)
+	raw, e := readBounded(m.selectionPath(), maxSelectionBytes)
 	if e != nil {
 		if errors.Is(e, os.ErrNotExist) {
 			return s, fmt.Errorf("Couch is UNMIGRATED; preview with couch --adopt-store %q, then repeat with --apply <digest>: %w", resolved(m.Defaults, q).StoreDir, e)
@@ -201,7 +200,7 @@ func (m Manager) acquire(q Request, expect string, explicit bool) (s Selection, 
 					if fresh.Digest != report.Digest || !reflect.DeepEqual(s, fresh.Selection) {
 						return errors.New("adoption source changed before publication; preview again")
 					}
-					raw, e := json.Marshal(s)
+					raw, e := encodeSelection(s)
 					if e != nil {
 						return e
 					}

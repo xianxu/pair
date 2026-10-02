@@ -2,11 +2,27 @@
 package couchsingleton
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
 	"slices"
 )
+
+// The persisted selection has one encoded-byte budget for preview, publication,
+// and reading. Measure JSON bytes, including escaped path characters.
+const maxSelectionBytes = 64 << 10
+
+func encodeSelection(s Selection) ([]byte, error) {
+	raw, err := json.Marshal(s)
+	if err != nil {
+		return nil, err
+	}
+	if len(raw) > maxSelectionBytes {
+		return nil, fmt.Errorf("selection exceeds %d encoded bytes; reduce the excluded inventory before adoption", maxSelectionBytes)
+	}
+	return raw, nil
+}
 
 type Roots struct {
 	StoreDir    string `json:"store_dir"`
@@ -120,5 +136,9 @@ func DecideAdoption(q Request, defaults Roots, candidates []Candidate) (Selectio
 	if slices.Contains(excluded, r.StoreDir) {
 		return Selection{}, errors.New("selected store cannot be excluded")
 	}
-	return Selection{Version: 1, Roots: r, Excluded: excluded}, nil
+	selection := Selection{Version: 1, Roots: r, Excluded: excluded}
+	if _, err := encodeSelection(selection); err != nil {
+		return Selection{}, err
+	}
+	return selection, nil
 }
