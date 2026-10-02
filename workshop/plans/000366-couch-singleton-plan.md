@@ -104,3 +104,56 @@ Files: `tests/with-isolated-pair.sh`, actual-process fixtures found by `rg 'HOME
 ## Review boundaries
 
 One atomic feature, one close boundary; no Mx tags. Full-flow plan review and estimate precede implementation. The user authorized proceeding after the reviewed design; routine implementation choices do not need another confirmation.
+
+## Revisions
+
+### 2026-10-01 — plan review PQ-1/PQ-2 and fixture ordering
+
+This revision supersedes ordering/observation details above; scope is unchanged.
+
+**PQ-1: observation-effect separation.** Add a read-only lease observation helper
+in couchcore beside supervisorlease.go: open an existing lock without O_CREATE,
+reject symlink/nonregular files, attempt nonblocking flock and release immediately;
+missing lock means no established lease. Read owner metadata only when held, using
+bounded strict decoding, keeping held/unknown separate from free. Preview must not
+call VerifiedOwner/ResolveCouchNamespace/Snapshot or another initializing path.
+Reuse ThreadStore.PreviewSnapshot for source decoding where appropriate; inspect
+identity state through the new read-only API. Missing paths are observations, never
+created during preview. Hash source records/config/identity/registry observations
+and request roots/exclusions, but exclude supervisor.lock and supervisor-owner.json
+from the preservation digest. Owner contention is a separate admission predicate.
+Apply acquires the host lease, checks digest from a fresh non-mutating inspection,
+then acquires the selected-store lease; its own lease is explicitly supplied as
+owned authority for the final source revalidation so it cannot veto itself. Source
+bytes/revisions are rechecked under existing short transaction locks before publish.
+Nothing attributes an observed PID to this process without the owned lease handle.
+
+**Fixture ordering.** Before Task 3 enables production preparation, execute Task 4's
+complete actual-process fixture audit/migration, including cmd/couch/main_test.go,
+couchcmd/stale_store_test.go, direct OSRuntime tests and shell entrypoints. Do not
+run any broad production-path suite between enabling the resolver and finishing
+this isolation conversion. Fake-runtime tests do not require a new isolation root.
+
+**PQ-2: function-level strategies.** These strategies replace the task-level case
+inventories as the governing verification method:
+
+| Function/boundary | Adversarial class | Mechanical strategy / oracle |
+|---|---|---|
+| DecideAdoption | permutations of candidate knowledge, exclusions, existing selection | table plus generated candidate-order permutations; same decision independent of order; unknown never auto-admits |
+| IdentityStore.Inspect | malformed/truncated/regressed or missing consumed authority | real byte fixtures through existing decoder; compare all source bytes before/after; allocation counters never advance |
+| read-only owner probe / Inspect | missing, nonregular, alias-changing and held/unverifiable state | temporary files + real flock; full directory snapshot remains byte-identical, including file set |
+| Manager.Preview | concurrent source mutations and transient lease metadata | repeatable evidence digest, source mutation changes it while own lock metadata does not; bounded reads reject oversized input |
+| Manager.Adopt / Acquire | race at absent selection, after observation and at publication | injected optional synchronous test hooks after inspection and before publish plus an injected atomic publisher; barriers coordinate two real processes/Managers; changed source refuses, failed pre-rename write leaves absent selection, post-rename error recovers by Read/identical retry |
+| Manager.Read | persisted config drift or incompatible overrides | strict fixture matrices, no process probe seam invoked on selected reads; matching optional overrides converge |
+| production prepare / child environment | ambient roots and inherited artifact overrides disagree with selected roots | fake account directory + real temp Manager and executable env helper; assert resolved readers and actual descendant writes use selected paths |
+| adoption CLI | invalid argv and stale/apply receipts | table parser tests plus real temporary Manager command execution; rejected requests produce no stored selection |
+| explicit isolation | root escape and omitted environment handoff | wrapper subprocess with sentinel files at consumed paths; mutate isolation wiring against injected account root, never real account state |
+
+Test hooks belong to Manager's IO shell, are nil in production, and report failures
+through the same functions that production executes. They do not replace the pure
+policy or establish authority. Use the existing durable atomic writer by default.
+The two-contender mutation test holds the first contender after observing absent
+selection: with the host lock, the second refuses before reaching that hook; with
+the lock removed both reach it and can attempt publication. Assert the forbidden
+second admitted owner/effect, not merely a generic later configuration error.
+Fresh-context plan review also confirmed no additional operator approval is needed.
