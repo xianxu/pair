@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000382-session-repair-scope-data-dir.md
         source_blob: 8a628b691d8d6720ecfb710cb1c062f5b011e0a9
         destination: workshop/issues/000382-session-repair-scope-data-dir.md
+        main_commit: 03a4d3e2362934e2cb4c9c2e11dc14fafd7a495f
 ---
 
 # pair session-repair resolves data dir from caller env, not --scope-key
