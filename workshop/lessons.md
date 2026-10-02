@@ -423,6 +423,18 @@ proof; record the surprising case so the next change starts from evidence.
   prefix-routed to brainstorm. Include known-but-offline names so an exact name
   resolves to itself and misses, and pin it with a test whose control case
   shows the narrowed namespace rerouting.
+
+- A selective-stall experiment must timestamp child input receipt independently
+  of displayed output and probe the control UI while pressure is still active.
+  Use a populated menu and real input dispatch for dismissal; an empty menu or
+  direct state switch can conceal a broken fixture. (#373 spec/fixture review)
+
+- PTY producer completion on a side pipe and publication Flush do not prove that
+  the PTY reader has consumed the final bytes. Require terminal-stream completion
+  evidence for every child before reporting recovery. A test deadline must also
+  interrupt blocking observations and input writes, not just its polling loop.
+  Join emulator readers before closing unsynchronized emulator state. (#373 BR-1–3)
+
 - When a format moves into a shared package, say where else it is mirrored.
   #372: `slugline` called itself "the one definition" of `=== L | R ===` while
   `nvim/slug.lua` re-implements the same recognition, and a package const
