@@ -460,3 +460,11 @@ proof; record the surprising case so the next change starts from evidence.
   answer. #365 BR-13: status recovery accepted a receipt from whichever wrapper
   replied. Bind each answer to its source (`receipt.To == answering binding`),
   and test a forged answer.
+- A record that outlives what it describes is a claim, not proof. #378: the
+  actor registry is never forgotten on child exit, and archive read its rows as
+  "hosting", so a dead agent bricked a parked thread. Probe before trusting, and
+  feed unknown answers into the classifier's existing Unproven side rather than
+  short-circuiting ahead of its precedence (#378 BR-1).
+- A fixture that "is live" because nothing checked liveness proves the bug,
+  not the guard. #378: two hosted-actor tests never marked their pid alive and
+  passed only through the defect. Set the state a test's name claims.
