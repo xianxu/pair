@@ -597,7 +597,9 @@ func (c *Console) Run() (code int) {
 	}()
 	// Before any frame: ask the terminal for its colours (pair#247). A write
 	// failure only leaves the palette unknown, which fading already handles.
-	_, _ = c.host.WriteContext(c.lifetime, []byte(paletteQuery))
+	paletteCtx, cancelPalette := context.WithTimeout(c.lifetime, terminal.WriteTimeout)
+	_, _ = c.host.WriteContext(paletteCtx, []byte(paletteQuery))
+	cancelPalette()
 	c.mu.Lock()
 	c.started = true
 	c.mu.Unlock()
@@ -1040,10 +1042,10 @@ func (c *Console) onExit(event childExit) bool {
 }
 
 // release restores the parent terminal modes before raw state is restored.
+// Presenter owns the release budget (terminal.WriteTimeout); a shorter one
+// here would cut off a host that resumes within it (#383).
 func (c *Console) release() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	err := c.presenter.Release(ctx)
+	err := c.presenter.Release(context.Background())
 	c.traceTerminal("release", err)
 	// Accepted children remain owned after their panes disappear. In particular,
 	// the final selected endpoint stays readable until its presenter releases.

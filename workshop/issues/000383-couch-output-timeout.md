@@ -94,17 +94,17 @@ only the caller's context; `terminal.WriteTimeout` is the single terminal write
 budget, applied by its consumers (Presenter, InputWriter); Presenter owns its
 release budget instead of each caller wrapping it.
 
-- [ ] `ttyio.File.WriteContext`: drop the hidden 2s cap; the caller's context is
+- [x] `ttyio.File.WriteContext`: drop the hidden 2s cap; the caller's context is
       the sole deadline (documented on `Writer`).
-- [ ] Presenter release bounds its drag cancellation with `WriteTimeout`
+- [x] Presenter release bounds its drag cancellation with `WriteTimeout`
       (the reset write already gets its own via `write`); an incomplete reset
       write is reported as `ErrModesNotRestored` (wrapping the WriteFailure and
       its accepted count) — never as success.
-- [ ] `Console.release` stops imposing its own 2s; the start-up palette query
+- [x] `Console.release` stops imposing its own 2s; the start-up palette query
       gets `terminal.WriteTimeout` (it was implicitly bounded only by ttyio's cap).
-- [ ] `WriteFailure` names its direction (parent output vs child input) so the
+- [x] `WriteFailure` names its direction (parent output vs child input) so the
       diagnostic stops saying "input write" for presenter output.
-- [ ] Tests (real PTY, master left unread to stall):
+- [x] Tests (real PTY, master left unread to stall):
   - ttyio: stall 2.5s then drain → full write, no duplicated bytes, >2s elapsed.
   - ttyio: persistent stall under a 3s caller deadline → DeadlineExceeded no
     earlier than 3s; accepted count equals the bytes the master drains.
@@ -141,3 +141,41 @@ go test ./cmd/internal/ttyio ./cmd/internal/terminal ./cmd/internal/couchtty -ru
 
 Those tests do not exercise real transport recovery between two and five
 seconds. Filed at the operator's request; implementation has not started.
+
+### 2026-10-02 — implementation
+
+Budget ownership after the fix (ARCH-DRY):
+
+- `ttyio.File.WriteContext` adds no deadline; the caller's context is the only
+  one. Production callers that previously relied on the hidden cap were
+  enumerated: child input (all via `InputWriter`, `WriteTimeout`), Presenter
+  paint/release (`WriteTimeout`), and Couch's start-up palette query, which
+  passed the deadline-less `c.lifetime` and now gets `terminal.WriteTimeout`.
+- Presenter release bounds drag cancellation with `WriteTimeout` and its reset
+  write with `WriteTimeout` (via `write`), so `Console.release` and
+  `termcmd`'s `Release(context.Background())` both get the full budget with
+  no competing caller timeout. Worst-case release is therefore bounded at
+  2 × `WriteTimeout`.
+- An incomplete reset write returns `ErrModesNotRestored` wrapping the
+  `WriteFailure`; teardown prints it, so the operator sees
+  "parent modes not restored (run `reset`)" instead of an implied restore.
+- `WriteFailure.Op` names the direction: the incident's message now reads
+  "parent output write accepted …", not "input write".
+
+Red → green evidence: before the fix, the transient-stall PTY test failed with
+`write accepted 1024/262144 after 2.001s: context deadline exceeded` (the
+incident signature); the persistent-stall test failed at 2.0s against a 3s
+caller deadline; the Console release write saw 1.99s of budget. Mutation
+checks: restoring the 2s cap fails the transient Presenter test, and dropping
+the `ErrModesNotRestored` wrap fails the persistent one.
+
+**Original stall trigger: still unknown.** Nothing new was established about
+why Ghostty stopped draining overnight. Behavior past the budget is
+deliberate: a stall longer than `WriteTimeout` still fails the presenter and
+exits Couch; release then retries the reset with a fresh budget, so a host
+that comes back restores its modes, and one that doesn't is reported. Evidence
+still needed to identify the trigger: a recurrence with `COUCH_TRACE` set (the
+terminal trace records the failing write and release), the wall-clock time of
+the failure against the macOS power/display log (`pmset -g log`, display
+sleep and App Nap rather than system sleep alone), and Ghostty's own log for
+the same window.

@@ -134,3 +134,130 @@ func TestFakeModelsPartialErrorAndCancellation(t *testing.T) {
 		t.Fatal("cancelled write changed state")
 	}
 }
+
+// stalledOutput wraps a raw PTY slave as the output a presenter writes to. Its
+// master is the host terminal: until the test reads it, output backs up exactly
+// as it does when the host stops draining (#383).
+func stalledOutput(t *testing.T) (host, *File) {
+	t.Helper()
+	master, slave, err := pty.Open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { master.Close(); slave.Close() })
+	raw, err := term.MakeRaw(int(slave.Fd()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { term.Restore(int(slave.Fd()), raw) })
+	out, err := NewFile(nil, slave, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { out.Close() })
+	reader, err := NewFile(master, master, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { reader.Close() })
+	return host{reader}, out
+}
+
+// patterned bytes make a duplicated or replayed span visible in a comparison.
+func patterned(n int) []byte {
+	p := make([]byte, n)
+	for i := range p {
+		p[i] = byte('a' + i%23)
+	}
+	return p
+}
+
+// host reads the master side through its own File: Darwin PTY masters do not
+// support os.File read deadlines.
+type host struct{ f *File }
+
+// drainUntilQuiet reads the host side until it has been silent for quiet. It
+// reports with t.Error, so it is safe on a goroutine.
+func (h host) drainUntilQuiet(t *testing.T, quiet time.Duration) []byte {
+	var got []byte
+	buf := make([]byte, 64<<10)
+	for {
+		ctx, cancel := context.WithTimeout(context.Background(), quiet)
+		n, err := h.f.ReadContext(ctx, buf)
+		cancel()
+		got = append(got, buf[:n]...)
+		if err != nil {
+			if !errors.Is(err, context.DeadlineExceeded) {
+				t.Error(err)
+			}
+			return got
+		}
+	}
+}
+
+// The caller's deadline is the only one: a host that stalls past two seconds
+// and resumes inside the caller's budget receives the whole write once.
+func TestFileWriteSurvivesTransientHostStallWithinCallerDeadline(t *testing.T) {
+	master, out := stalledOutput(t)
+	payload := patterned(256 << 10)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	drained := make(chan []byte, 1)
+	go func() {
+		time.Sleep(2500 * time.Millisecond)
+		drained <- master.drainUntilQuiet(t, 300*time.Millisecond)
+	}()
+	start := time.Now()
+	n, err := out.WriteContext(ctx, payload)
+	elapsed := time.Since(start)
+	got := <-drained
+	if err != nil || n != len(payload) {
+		t.Fatalf("write accepted %d/%d after %s: %v", n, len(payload), elapsed, err)
+	}
+	if elapsed < 2500*time.Millisecond {
+		t.Fatalf("write finished in %s, before the host resumed: stall not exercised", elapsed)
+	}
+	if !bytes.Equal(got, payload) {
+		t.Fatalf("host received %d bytes, want the %d written exactly once", len(got), len(payload))
+	}
+}
+
+// A stall that outlasts the caller's deadline fails at that deadline, not
+// earlier, and the accepted count is exactly what reached the host.
+func TestFilePersistentStallFailsAtCallerDeadlineWithExactPrefix(t *testing.T) {
+	master, out := stalledOutput(t)
+	payload := patterned(256 << 10)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	start := time.Now()
+	n, err := out.WriteContext(ctx, payload)
+	elapsed := time.Since(start)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want deadline", err)
+	}
+	if elapsed < 2900*time.Millisecond || elapsed > 4*time.Second {
+		t.Fatalf("failed after %s, want the caller's 3s deadline", elapsed)
+	}
+	if n <= 0 || n >= len(payload) {
+		t.Fatalf("accepted %d/%d, want a partial prefix", n, len(payload))
+	}
+	if got := master.drainUntilQuiet(t, 300*time.Millisecond); !bytes.Equal(got, payload[:n]) {
+		t.Fatalf("host received %d bytes, write reported %d", len(got), n)
+	}
+}
+
+// Cancellation stays responsive mid-stall and keeps the same accounting.
+func TestFileCancelDuringHostStallReturnsPromptlyWithExactPrefix(t *testing.T) {
+	master, out := stalledOutput(t)
+	payload := patterned(256 << 10)
+	ctx, cancel := context.WithCancel(context.Background())
+	time.AfterFunc(200*time.Millisecond, cancel)
+	start := time.Now()
+	n, err := out.WriteContext(ctx, payload)
+	if elapsed := time.Since(start); !errors.Is(err, context.Canceled) || elapsed > time.Second {
+		t.Fatalf("err = %v after %s, want prompt cancellation", err, elapsed)
+	}
+	if got := master.drainUntilQuiet(t, 300*time.Millisecond); !bytes.Equal(got, payload[:n]) {
+		t.Fatalf("host received %d bytes, write reported %d", len(got), n)
+	}
+}

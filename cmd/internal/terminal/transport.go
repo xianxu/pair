@@ -14,13 +14,18 @@ import (
 var ErrBackpressure = errors.New("terminal: input queue full")
 
 type WriteFailure struct {
+	Op              string // "parent output" or "child input"
 	Accepted, Total int
 	Err             error
 }
 
 func (e *WriteFailure) Error() string {
-	return fmt.Sprintf("terminal: input write accepted %d/%d bytes: %v", e.Accepted, e.Total, e.Err)
+	return fmt.Sprintf("terminal: %s write accepted %d/%d bytes: %v", e.Op, e.Accepted, e.Total, e.Err)
 }
+
+// ErrModesNotRestored marks a release whose reset controls did not fully reach
+// the parent: mouse, paste and keyboard modes may remain enabled in the host.
+var ErrModesNotRestored = errors.New("terminal: parent modes not restored (run `reset`)")
 func (e *WriteFailure) Unwrap() error { return e.Err }
 
 // InputWriter is the sole FIFO between one endpoint and its child. Admission is
@@ -127,7 +132,7 @@ func (w *InputWriter) run() {
 		cancel()
 		w.mu.Lock()
 		if err != nil {
-			w.failure = &WriteFailure{accepted, len(p), err}
+			w.failure = &WriteFailure{"child input", accepted, len(p), err}
 			w.packets = nil
 			w.bytes = 0
 			w.signalLocked()
