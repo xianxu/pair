@@ -1,12 +1,20 @@
 ---
 id: 000384
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-02
 updated: 2026-10-02
 estimate_hours:
-card_mirror: 'b834da4b7088898783108fb63604183b1c1e62ac' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '1a9813d3cfc761dae0be49aa14190247b98eb351' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-02T12:13:22-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Couch starts the enrolled slot set on restart
