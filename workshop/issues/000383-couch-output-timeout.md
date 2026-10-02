@@ -15,6 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "f5a3f7ef", done: "e06b4628"}
 ---
 
 # Couch exits on stalled terminal output and fails to restore keyboard modes
