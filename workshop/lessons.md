@@ -89,6 +89,10 @@ representative evidence, not an exhaustive index.
   Comments are not a lifecycle mechanism. (#209, #239)
 - Enforce an automatic-input deadline after paste as well as before it; a late
   matching render must never revive an expired submit. (#353 design review)
+- A budget has one owner. Nested deadlines take the minimum, so a transport
+  or wrapper that adds its own shorter timeout silently overrides the owner's.
+  Test the deadline the I/O actually sees through the production path, not the
+  constant that names it. (#383)
 - A timeout bounds a phase only when a live owner enforces it. If the owner can
   die, make the deadline observable and recoverable without that owner. (#250,
   #280)
@@ -460,6 +464,22 @@ proof; record the surprising case so the next change starts from evidence.
   answer. #365 BR-13: status recovery accepted a receipt from whichever wrapper
   replied. Bind each answer to its source (`receipt.To == answering binding`),
   and test a forged answer.
+
+- Pin the supporting roots with an adopted store: its registration alone cannot
+  prove which Pair artifact root belongs to it. Keep selected inventory identity
+  separate from a held runtime lease, and revoke shared ownership handles on close.
+  Exercise both distinctions through the production command boundary. (#366)
+
+- Adoption evidence must cover every inventory backend and every ownership kind:
+  global-store success does not resolve per-slot errors, and a free supervisor
+  lease does not prove recorded wrappers absent. Hash external slot state under
+  its transaction locks and preserve unknown liveness as a refusal (#366 BR-1/2).
+- Share persisted payload limits between writer and reader; a successful publish
+  must always produce a readable record, including large valid lists (#366 BR-3).
+- Verify environment handoff at its consumer, including artifact creation and
+  subsequent reads/resumes. A global data root and a repository-scoped artifact
+  directory are different contracts even when both variables say data dir; an
+  env-dump test alone cannot establish correct storage behavior (#366 BR-4).
 - A record that outlives what it describes is a claim, not proof. #378: the
   actor registry is never forgotten on child exit, and archive read its rows as
   "hosting", so a dead agent bricked a parked thread. Probe before trusting, and
@@ -468,3 +488,7 @@ proof; record the surprising case so the next change starts from evidence.
 - A fixture that "is live" because nothing checked liveness proves the bug,
   not the guard. #378: two hosted-actor tests never marked their pid alive and
   passed only through the defect. Set the state a test's name claims.
+- Isolation validates derived defaults as well as explicit overrides. A contained
+  root does not contain a child path whose existing symlink points elsewhere;
+  validate the fallback HOME, temporary and XDG roots before publishing selection
+  or creating directories, and export only the validated physical paths (#366 BR-5).

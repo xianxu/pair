@@ -22,13 +22,26 @@ Pair separates identities that used to be partly conflated:
 ## Couch allocation and terminal bindings
 
 `cmd/internal/couchidentity` owns the host C and independent per-store N/M
-allocation. Host authority is fixed under `~/.local/share/pair-host/`; store
-counters live in the canonical Couch namespace. Host floors commit before local
+allocation. C is a permanent store identity, not a running supervisor ID. The
+singleton selection fixes the allocation-authority directory, defaulting to the
+real UID account home's `.local/share/pair-host/`; `COUCH_IDENTITY_DIR` or adoption's
+`--identity-dir` can name an existing legacy authority. Store counters live in the
+selected canonical Couch namespace. Host floors commit before local
 counters under ordered locks, so interrupted launches burn numbers. Strict bounded
 storage refuses missing/corrupt authority. Local rollback recovers above host
 floors; rollback of both authorities is unsupported without proven floors.
 The descriptive repository token is capped at 64 ASCII characters and falls
 back to `repo` when normalization is empty; C/N carry uniqueness.
+
+Singleton adoption keeps the store and its allocation authority in place and
+leaves existing C/N/M, tags and terminal bindings unchanged. Durable assignment
+can name machine + slot without a Couch process ID; retained conversation names
+still carry their original C. Copying or moving a store is not adoption: the
+allocator treats a different canonical store path as a new enrollment. Preserve
+both the local snapshot and its non-regressed host authority during recovery.
+Explicit `COUCH_ISOLATED_ROOT` scopes independent authority and storage beneath
+one test/diagnostic directory; changing HOME or XDG alone cannot move production
+singleton ownership. See [Couch adoption](couch.md#singleton-adoption-and-isolation-366).
 
 `couchcore.launchTrackedThread` persists a pending `SessionBinding` before its
 blocked helper runs. Registration, including established-registration recovery

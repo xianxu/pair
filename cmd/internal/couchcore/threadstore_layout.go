@@ -126,6 +126,13 @@ func (s *ThreadStore) localBackendMissing() (bool, error) {
 // uses the same physical-path and size checks as discovery and retention.
 func (s *ThreadStore) readOptionalPayload(path string) ([]byte, bool, error) {
 	if !s.layout.Local {
+		if s.inspection != nil {
+			raw, e := s.readInspectionPayload(path)
+			if errors.Is(e, os.ErrNotExist) {
+				return nil, false, nil
+			}
+			return raw, e == nil, e
+		}
 		return readOptionalFile(path)
 	}
 	raw, err := s.readPayload(path)
@@ -150,6 +157,9 @@ func (s *ThreadStore) payloadLimit(path string) int64 {
 
 func (s *ThreadStore) readPayload(path string) ([]byte, error) {
 	if !s.layout.Local {
+		if s.inspection != nil {
+			return s.readInspectionPayload(path)
+		}
 		return os.ReadFile(path)
 	}
 	return s.readLocalPayload(path, s.payloadLimit(path))

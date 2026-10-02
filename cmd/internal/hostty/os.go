@@ -74,6 +74,8 @@ func (h *OSHost) watch() {
 	}
 }
 
+// Write has no deadline (see ttyio.File.Write); the presenter and other bounded
+// paths use WriteContext.
 func (h *OSHost) Write(p []byte) (int, error) { return h.WriteContext(context.Background(), p) }
 func (h *OSHost) WriteContext(ctx context.Context, p []byte) (int, error) {
 	if h.initErr != nil {

@@ -37,15 +37,29 @@ func retainedSlotCommonGit(manifest threadManifest, root string) string {
 func (s *ThreadStore) discoveredBackendsFromManifest(manifest threadManifest) ([]*ThreadStore, error) {
 	var stores []*ThreadStore
 	for _, root := range manifest.SlotRepositories {
+		if s.inspection != nil {
+			if e := s.inspection.ctx.Err(); e != nil {
+				return nil, e
+			}
+		}
 		candidates, err := EnumerateSlotCandidates(root)
 		if err != nil {
 			return nil, fmt.Errorf("enumerate enrolled repository %s: %w", root, err)
 		}
 		for _, candidate := range candidates {
+			if s.inspection != nil {
+				if e := s.inspection.ctx.Err(); e != nil {
+					return nil, e
+				}
+				if len(stores) >= 65536 {
+					return nil, errors.New("too many adoption storage backends")
+				}
+			}
 			candidate.Identity.RepoIdentity = retainedSlotCommonGit(manifest, root)
 			local := newSlotThreadStore(s.namespace, candidate.Identity)
 			local.coordinator = s.coordinator
 			local.readOnly = s.readOnly
+			local.inspection = s.inspection
 			stores = append(stores, local)
 		}
 	}
@@ -164,6 +178,7 @@ func (s *ThreadStore) storeForPath(physicalPath, scope, commonGit string) (*Thre
 		local := newSlotThreadStore(s.namespace, slot)
 		local.coordinator = s.coordinator
 		local.readOnly = s.readOnly
+		local.inspection = s.inspection
 		return local, nil
 	}
 	return s, nil

@@ -388,7 +388,50 @@ couch --send-to repo --message TEXT     select an eligible slot in that family
 couch --send-to repo --agent NAME --message TEXT   ...running that agent
 couch --message-status ID [--json]      inspect a message receipt
 couch --skill            print the bundled agent coordination skill
+couch --adopt-store /absolute/store     preview adoption of an existing store
 ```
+
+Couch runs one production supervisor per local OS account. Its authority lives
+under the account home's `.local/share/pair-host/singleton`, found by the real
+UID; changing `HOME`, `XDG_DATA_HOME`, or `COUCH_STORE_DIR` does not create another
+production supervisor. A second launch refuses with the owner/store diagnostic.
+After a crash, rerun Couch: the kernel releases the lease, and the selected store
+and existing slots remain available. Use machine-local filesystems; shared homes
+across machines are unsupported.
+
+**Adopt existing state before cutover.** Stop and upgrade all old Couch binaries
+first. Couch keeps the chosen store in place, along with its Pair data directory
+and identity authority; it does not rename conversations, reset worktrees, or
+merge inventories. Preview the complete selection, then apply its report digest:
+
+```sh
+couch --adopt-store /absolute/store --pair-data /absolute/pair-data --identity-dir /absolute/pair-host
+# Inspect the JSON report, then repeat the same command with:
+couch --adopt-store /absolute/store --pair-data /absolute/pair-data --identity-dir /absolute/pair-host --apply '<digest>'
+```
+
+`--apply` takes the report's 64-character lowercase hexadecimal digest and
+rechecks the evidence before publishing. Add `--legacy-store /absolute/path`
+for each custom old store not already registered. Multiple populated stores or
+unavailable evidence leave the account **UNMIGRATED**. After deciding that an
+extra store is retired from the active inventory, explicitly acknowledge it with
+`--exclude-store /absolute/path` in both preview and apply. Exclusion retains its
+data and retention registrations; it never overrides a live or unknown owner.
+There is no automatic consolidation. Missing or corrupt selected state requires
+recovery, not fresh enrollment.
+
+The selected roots stay stable across later launches, reads, messages and child
+processes. Unset overrides use the selection; incompatible explicit overrides
+refuse. `COUCH_IDENTITY_DIR` supplies a legacy allocation-authority directory at
+initial adoption. A fresh unambiguous launch can adopt its roots automatically;
+read-only commands before adoption print the required adoption command.
+
+For tests or diagnostics, set `COUCH_ISOLATED_ROOT` to an absolute canonical
+directory. It scopes separate singleton authority and defaults to `data/pair`,
+`data/pair/couch`, and `pair-host` beneath that directory. Every selected root
+must remain beneath it, including through symlinks, and children inherit the
+isolation. Use `tests/with-isolated-pair.sh` to isolate the remaining Pair
+environment as well. Changing only `COUCH_STORE_DIR` is not isolation.
 
 A slot is a repository plus its Nth checkout, written `repo:N` (`:0` is the
 primary checkout). The `repo` part accepts the directory name, the repository's

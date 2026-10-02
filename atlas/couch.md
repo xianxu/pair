@@ -12,14 +12,80 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 
 ## What exists today
 
-The absolute physical `COUCH_STORE_DIR` is one durable namespace. One Couch
-supervisor owns it through a non-inherited advisory lease; another supervisor
-refuses with verified PID/process-start identity. `couchcore.ThreadStore` is
+Couch has one production supervisor and one selected inventory per local OS
+account. `couchcmd` resolves the real UID's account home independently of
+`HOME`/XDG overrides; `couchsingleton` owns `.local/share/pair-host/singleton` there. A durable
+selection fixes the physical Couch store, Pair data root and identity authority.
+The host lifetime lease is acquired before the selected store's existing
+non-inherited advisory lease. A second launch refuses with owner/store evidence;
+the kernel releases both leases after a crash. The store lease continues to
+protect against older binaries using that namespace, but cannot fence older
+binaries on other stores: stop and upgrade them before cutover. This contract
+requires machine-local filesystems; distributed/shared homes are unsupported.
+
+`couchcore.ThreadStore` is
 the shared lifecycle interface. Primary and arbitrary-path records use the global
 store; numbered slots use `<environment>/.couch/` with one current conversation
 record, separate preferences, and retained history. Each backend uses the existing
 lock, revision checks and recoverable journal. The supervisor lease still belongs
-to the global namespace.
+to the selected global namespace beneath the account lease.
+
+### Singleton adoption and isolation (#366)
+
+`couchsingleton.Manager` separates read, preview, adoption and lifetime ownership.
+Normal selected reads validate the selection without a global ownership scan.
+Absent selection permits an unambiguous fresh launch to adopt; read-only commands
+instead print the explicit adoption command. Existing selection is never silently
+replaced, and missing selected resources refuse rather than recreating identity.
+
+`couch --adopt-store /absolute/store` emits a JSON preservation report. Optional
+`--pair-data /absolute/path` and `--identity-dir /absolute/path` identify the
+store's existing companions; `COUCH_IDENTITY_DIR` also supplies legacy identity
+authority. Repeated `--legacy-store /absolute/path` adds custom sources beyond
+the bounded identity/retention registry union. Repeat the complete request with
+`--apply <digest>` to revalidate the report's 64 lowercase hexadecimal digest and
+publish the selection under host then store leases. Preview never initializes
+source directories or repairs journals. The source remains in place: C/N/M,
+conversation keys, preferences and worktrees are preserved.
+
+Retention evidence or an explicit store/Pair-data tuple establishes the companion
+artifact root; identity registration alone does not. `COUCH_PAIR_DATA_DIR` carries
+the selected Pair root to hosted children independently of repo-scoped
+`PAIR_DATA_DIR`. Couch clears the previous actor's scoped directory before launch;
+Pair derives the new scope from its checkout under the selected global root. Global
+claim/read paths and installed runtime extraction use that same selection. Existing
+hosted helpers may retain the matching scoped directory. Inspection has a five-second context and limits of 4096 stores,
+65536 filesystem entries, 64 MiB total source payload and 4 MiB per file; exceeding
+a limit leaves unresolved evidence and refuses adoption.
+
+Multiple populated stores or unavailable evidence report **UNMIGRATED**. This
+release does not merge inventories. Repeated `--exclude-store /absolute/path`
+records an operator's decision to retire another inventory from
+active use; it preserves files and registry entries and cannot exclude live or
+unknown owners. Unregistered custom stores require explicit disclosure. Digest
+validation excludes transient supervisor metadata; owner observation remains a
+separate admission predicate. Changed source evidence requires a new preview.
+
+Adoption evidence includes numbered-slot `.couch` metadata as well as the global
+namespace. The final inspection holds their existing transaction locks through
+selection publication; unreadable slots, pending recovery and changed payloads
+refuse. A free supervisor lease does not establish that recorded wrappers are
+gone: live or unknown incarnations in other stores also block exclusion. Surviving
+wrappers in the selected store keep their namespace and reconnect normally.
+Selection serialization and reading share a 64 KiB encoded-payload limit, checked
+at preview and again before publication.
+
+`COUCH_ISOLATED_ROOT` names an explicit absolute canonical test/diagnostic root,
+with authority at `singleton` and defaults at `data/pair`, `data/pair/couch`, and
+`pair-host` beneath it. Every effective root must remain inside it, including
+after symlink resolution. This mode needs no account lookup. Production ignores
+HOME as an authority selector; alternate store/XDG roots alone do not isolate.
+Derived child HOME, XDG data and temporary directories are also resolved and
+checked before selection publication or directory creation. Escaping or unresolved
+symlinks refuse; children receive only validated physical paths.
+The resolved runtime propagates selected Pair/Couch/identity/isolation roots to
+children and feeds the same roots to listing, messaging and artifact readers.
+Existing socket addressing remains derived from the selected namespace.
 
 
 ### Durable numbered slots (#306)

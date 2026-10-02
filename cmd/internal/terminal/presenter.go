@@ -135,10 +135,15 @@ func (p *Presenter) run() {
 	for {
 		select {
 		case ctx := <-p.stop:
+			// Release needs no caller deadline: the child's InputWriter bounds
+			// drag-cancellation delivery and write bounds the reset, each by
+			// WriteTimeout.
 			cancelErr := p.cancelDrag(ctx)
 			p.releaseErr = cancelErr
 			if p.parentTouched {
-				p.releaseErr = errors.Join(cancelErr, p.write(ctx, append(p.releaseAlt(), parentReleaseControls(p.keyboardOwned)...), false))
+				if err := p.write(ctx, append(p.releaseAlt(), parentReleaseControls(p.keyboardOwned)...), false); err != nil {
+					p.releaseErr = errors.Join(cancelErr, fmt.Errorf("%w: %w", ErrModesNotRestored, err))
+				}
 			}
 			p.transition(ViewEvent{Kind: ReleaseView})
 			return
@@ -203,7 +208,7 @@ func (p *Presenter) write(ctx context.Context, data []byte, normal bool) error {
 	}
 	accepted, err := writeComplete(ctx, p.writer, data)
 	if err != nil {
-		return &WriteFailure{Accepted: accepted, Total: len(data), Err: err}
+		return &WriteFailure{Op: "parent output", Accepted: accepted, Total: len(data), Err: err}
 	}
 	return nil
 }

@@ -21,10 +21,14 @@ type releaseFailureHost struct {
 	*hostty.FakeHost
 	fail   atomic.Bool
 	closed atomic.Bool
+	budget atomic.Int64 // deadline remaining at the failed write, in ns
 }
 
 func (h *releaseFailureHost) WriteContext(ctx context.Context, b []byte) (int, error) {
 	if h.fail.Load() {
+		if deadline, ok := ctx.Deadline(); ok {
+			h.budget.Store(int64(time.Until(deadline)))
+		}
 		return 0, errors.New("release write failed")
 	}
 	return h.FakeHost.WriteContext(ctx, b)
@@ -90,6 +94,16 @@ func TestConsoleReleaseFailureIsReportedAfterRestoreAndFailsRun(t *testing.T) {
 			}
 			if !strings.Contains(diagnostic.text.String(), want) {
 				t.Errorf("diagnostic %q lacks %q", diagnostic.text.String(), want)
+			}
+			if !duringRun {
+				// The release write carries Presenter's whole budget; the
+				// console imposes no shorter deadline of its own (#383).
+				if budget := time.Duration(host.budget.Load()); budget < terminal.WriteTimeout-time.Second {
+					t.Errorf("release write had %s of budget, want about %s", budget, terminal.WriteTimeout)
+				}
+				if !strings.Contains(diagnostic.text.String(), "parent modes not restored") {
+					t.Errorf("diagnostic %q does not say the modes stayed enabled", diagnostic.text.String())
+				}
 			}
 		})
 	}

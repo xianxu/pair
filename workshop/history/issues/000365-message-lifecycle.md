@@ -1,14 +1,15 @@
 ---
 id: 000365
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-01
 updated: 2026-10-01
 estimate_hours: 6.91
-card_mirror: '267c9c74b3424f3014661caae335845b1140cd3d' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '063c81664465a03852b530f983548523d67be3bf' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-01T13:09:21-07:00
 flow: {kind: full, provenance: inferred}
+actual_hours: 1.60
 ---
 
 # Replace messaging liveness polling with lifecycle events
@@ -83,3 +84,7 @@ Captured from the performance → messaging guarantees → SDLC ownership/observ
 Claimed; mapped the messaging path. Root cost: 1 s wrapper heartbeat + 1 s reconcile + full checks at Reserve/Deliver, each full check = 2 ownership probes (4× ps, 2× zellij list-panes); #360 bounded it with a 10 s window. Console already owns pane install/exit but never tells messaging. Plan replaces polling with a pure Registry reducer fed by persistent wrapper sessions (EOF = death/exec) and Console pane events (ARCH-DRY, ARCH-ORDER).
 
 M1: in-tree idle baseline = 24 ownership probes + 6 git status per wrapper per idle minute. Live (read-only, 11 wrappers): Couch 101.6 CPU-s / 120 s; 639 ps, 179 zellij, 141 `sdlc workspace` children. The `sdlc` count points to failing registrations being re-admitted every second. See `workshop/plans/000365-message-lifecycle-measurements.md`.
+
+### 2026-10-02
+
+Landed by hand. PR #193 merged at 17:28:09 before the second close (FIX-THEN-SHIP, `64666d92`) and its mirror commit finished; those ran on a hand-made `000365-message-lifecycle-close` branch. `sdlc pr` refused it (the transfer guard keys on the owner branch name), and the owner branch name already had a merged PR (#148). `reclaim`/`claim --adopt` don't apply: the issue has no recorded owner and is codecomplete. Merged with `--no-ff` so `evidence_commit 64666d92` is on main, then archived by hand. The tracker card stays `codecomplete`: only `sdlc merge`/`push` may write `done`. Flip it once sdlc covers a close that finishes after its PR merged.

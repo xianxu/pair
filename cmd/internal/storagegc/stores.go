@@ -51,9 +51,9 @@ func canonicalStore(path string) (string, error) {
 	return canonical, nil
 }
 
-// validateStructure checks persisted inventory without assuming all namespaces
+// ValidateStructure checks persisted inventory without assuming all namespaces
 // are mounted. Availability is required by collection, not registration.
-func (r StoreRegistry) validateStructure() error {
+func (r StoreRegistry) ValidateStructure() error {
 	if r.Version != 1 || r.Stores == nil {
 		return errors.New("invalid store registry schema")
 	}
@@ -69,7 +69,7 @@ func (r StoreRegistry) validateStructure() error {
 }
 
 func (r StoreRegistry) validate() error {
-	if err := r.validateStructure(); err != nil {
+	if err := r.ValidateStructure(); err != nil {
 		return err
 	}
 	for _, path := range r.Stores {
@@ -113,7 +113,7 @@ func (l *Locked) loadRegistry() (StoreRegistry, error) {
 	if err != nil {
 		return r, err
 	}
-	return r, r.validateStructure()
+	return r, r.ValidateStructure()
 }
 
 // RegisterStore resolves user-configured aliases once, stores the canonical
@@ -287,7 +287,7 @@ func (c *Coordinator) InspectRegistry() ([]RegistryEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := r.validateStructure(); err != nil {
+	if err := r.ValidateStructure(); err != nil {
 		return nil, err
 	}
 	entries := make([]RegistryEntry, 0, len(r.Stores))

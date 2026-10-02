@@ -194,6 +194,13 @@ func (osLegacyRuntime) Stat(path string) error {
 
 func (osLegacyRuntime) EmbeddedAssetRoot() (string, error) {
 	dataDir := runtimeDataDir(os.Getenv("PAIR_DATA_DIR"), os.Getenv("HOME"), os.Getenv("XDG_DATA_HOME"))
+	if selected := os.Getenv("COUCH_PAIR_DATA_DIR"); selected != "" {
+		global, err := launcher.ResolveGlobalDataDir(os.Getenv("HOME"), os.Getenv("XDG_DATA_HOME"), selected)
+		if err != nil {
+			return "", err
+		}
+		dataDir = global
+	}
 	res, err := runtimebundle.Extract(runtimebundle.StoreInput{
 		StoreRoot: filepath.Join(dataDir, "runtime"),
 		Manifest:  runtimebundle.EmbeddedManifest(),
