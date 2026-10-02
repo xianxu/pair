@@ -1,7 +1,7 @@
 ---
 id: 000367
 status: working
-deps: [pair#366, ariadne#277, ariadne#278, ariadne#279, ariadne#280]
+deps: [pair#366, ariadne#277, ariadne#278, ariadne#279, ariadne#280, pair#384, ariadne#288]
 github_issue:
 created: 2026-10-01
 updated: 2026-10-02
@@ -95,3 +95,22 @@ Reason: operator review of the captured spec. Delta (still requirements, not a p
 - **Slot-side self-check.** Before working, an assigned slot checks branch → issue → "the claim names me". On a mismatch it reports and does not work. This is a local deterministic guard, not a messaging protocol.
 - **Scan scope.** Slots are the repo's `:0` checkout plus `worktree/<repo>-slotN` worktrees; other worktrees (e.g. scratchpad detached-HEAD ones) are not slots. Sources: Couch inventory (switcher view minus archived), claims assigned to this machine, and `git worktree list` filtered by that rule. No filesystem crawl.
 - **Lost-slot evidence.** Claim with no slot (no Couch row, or worktree gone) and worktree with no Couch row are both inspected and reported as evidence, naming which source is missing. Neither triggers an automatic reclaim or adoption.
+
+### 2026-10-02 — scope settled after the surface survey
+
+Reason: the survey (Log, same date) found three assumptions of the previous
+revision unmet. Operator decisions, delta:
+
+- **Slot-set start is pair#384.** Couch starting the enrolled slots (idle) on
+  restart is its own issue; #367 depends on it and does not start slots.
+- **Delivery is ordinary Couch peer messaging from a live coordinator slot.**
+  A project-management thread (typically `:0`) is always live. After the report,
+  the operator decides: "schedule #N", or ask that thread to schedule
+  everything by dependency and free slots (the latter is pair#362's ground).
+  No new Couch sender identity. Effects are verified through `sdlc issue show
+  --json`, per #280, not through message receipts.
+- **Bulk claim observation is ariadne#288.** The report consumes one read-only
+  bulk claim query instead of a per-issue `issue show` loop; #367 depends on it.
+- **The report is a deterministic `couch` subcommand** that owns the join
+  (Couch slot inventory × claims × slot worktree state); the skill explains its
+  rows and drives the operator-approved assignment, and reimplements no scan.
