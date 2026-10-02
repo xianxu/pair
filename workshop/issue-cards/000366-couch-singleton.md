@@ -1,6 +1,6 @@
 ---
 id: 000366
-status: open
+status: working
 created: 2026-10-01
 updated: 2026-10-01
 estimate_hours:
@@ -17,6 +17,7 @@ tracker:
         source_blob: b86321a7947f894a927a4aba1d800a94a0070084
         destination: workshop/issues/000366-couch-singleton.md
         main_commit: fc9e0b50719f3718c48a3406be84a46eb89ead40
+started: 2026-10-01T22:14:48-07:00
 ---
 
 # Make Couch a local singleton
