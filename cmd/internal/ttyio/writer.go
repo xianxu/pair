@@ -163,6 +163,9 @@ func (f *File) ReadContext(ctx context.Context, p []byte) (int, error) {
 		}
 	}
 }
+
+// Write has no deadline and blocks while the peer stops draining; it exists for
+// io.Writer. Bounded paths call WriteContext with their own budget.
 func (f *File) Write(p []byte) (int, error) { return f.WriteContext(context.Background(), p) }
 func (f *File) WriteContext(ctx context.Context, p []byte) (int, error) {
 	if err := f.begin(); err != nil {

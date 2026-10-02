@@ -66,7 +66,8 @@ none, `terminal.WriteTimeout` (5s) is the one terminal write budget applied by
 Presenter and `InputWriter`, and Presenter's release gives drag cancellation and
 the mode reset each a budget of their own, so callers pass no competing timeout.
 A reset that does not fully reach the host returns `ErrModesNotRestored`; the
-host may keep mouse, paste and keyboard modes until `reset` (#383). `InputWriter` preserves packet order and accepted-prefix
+host may keep mouse, paste and keyboard modes until `reset` (#383).
+`InputWriter` preserves packet order and accepted-prefix
 failures, with 128 packets / 1MiB including the packet currently being written.
 
 The child contract is `pair-vt-256color`, derived from the explicit capability table

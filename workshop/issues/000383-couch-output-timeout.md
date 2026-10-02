@@ -179,3 +179,20 @@ terminal trace records the failing write and release), the wall-clock time of
 the failure against the macOS power/display log (`pmset -g log`, display
 sleep and App Nap rather than system sleep alone), and Ghostty's own log for
 the same window.
+
+### 2026-10-02 — close review round 1 (SHIP, 4 Minor)
+
+- `ErrModesNotRestored` split the WriteFailure method set → moved below `Unwrap`.
+- Bare `ttyio.File.Write` / `OSHost.Write` are now deadline-less → documented
+  on both; no production caller uses them (enumerated in the implementation
+  entry), and the bounded paths use `WriteContext`.
+- atlas/terminal.md line run-on → line break.
+- PTY stall harness duplicated in ttyio and terminal tests → kept. ttyio's
+  in-package tests cannot import a `ttyiotest` helper that imports ttyio
+  (import cycle), so consolidating means moving those tests to an external
+  package for about 40 lines of fixture; not worth it for two sites.
+- The first close attempt was not finalized: HEAD went detached at the same
+  commit (b2424cb4) 31s into the review, while sdlc had the lock released and
+  no command from this session was running. Reattached to the branch and
+  re-ran the close.
+- Lesson added: a budget has one owner; test the effective deadline.

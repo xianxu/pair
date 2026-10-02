@@ -22,11 +22,11 @@ type WriteFailure struct {
 func (e *WriteFailure) Error() string {
 	return fmt.Sprintf("terminal: %s write accepted %d/%d bytes: %v", e.Op, e.Accepted, e.Total, e.Err)
 }
+func (e *WriteFailure) Unwrap() error { return e.Err }
 
 // ErrModesNotRestored marks a release whose reset controls did not fully reach
 // the parent: mouse, paste and keyboard modes may remain enabled in the host.
 var ErrModesNotRestored = errors.New("terminal: parent modes not restored (run `reset`)")
-func (e *WriteFailure) Unwrap() error { return e.Err }
 
 // InputWriter is the sole FIFO between one endpoint and its child. Admission is
 // synchronous; Flush observes delivery. Bounds include the in-flight packet.
