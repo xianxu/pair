@@ -208,12 +208,25 @@ func waitInstalled(t *testing.T, cmd *exec.Cmd, cancel context.CancelFunc, waitR
 
 func installedEnv(t *testing.T, binDir string) []string {
 	t.Helper()
-	home := t.TempDir()
-	return append(os.Environ(),
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var env []string
+	for _, entry := range os.Environ() {
+		key, _, _ := strings.Cut(entry, "=")
+		if !strings.HasPrefix(key, "PAIR_") && !strings.HasPrefix(key, "COUCH_") && !strings.HasPrefix(key, "XDG_") {
+			env = append(env, entry)
+		}
+	}
+	return append(env,
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
-		"HOME="+home,
-		"XDG_DATA_HOME="+filepath.Join(home, "data"),
-		"COUCH_STORE_DIR="+filepath.Join(home, "store"),
+		"COUCH_ISOLATED_ROOT="+root,
+		"HOME="+filepath.Join(root, "home"),
+		"XDG_DATA_HOME="+filepath.Join(root, "data"),
+		"PAIR_DATA_DIR="+filepath.Join(root, "data", "pair"),
+		"COUCH_STORE_DIR="+filepath.Join(root, "store"),
+		"COUCH_IDENTITY_DIR="+filepath.Join(root, "identity"),
 	)
 }
 

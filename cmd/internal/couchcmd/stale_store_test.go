@@ -15,27 +15,18 @@ import (
 )
 
 func TestListWithMissingAuxiliaryStoreUsesIsolatedRoots(t *testing.T) {
-	for _, entry := range os.Environ() {
-		key, _, _ := strings.Cut(entry, "=")
-		if strings.HasPrefix(key, "PAIR_") || strings.HasPrefix(key, "COUCH_") {
-			t.Setenv(key, "")
-		}
-	}
-	home, data := t.TempDir(), t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_DATA_HOME", data)
-	t.Chdir(t.TempDir())
-	root := launcher.ResolveDataDir(home, data)
-	if err := os.MkdirAll(root, 0700); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("PAIR_DATA_DIR", root)
-	t.Setenv("COUCH_STORE_DIR", filepath.Join(root, "couch"))
+	fixture := isolatedCouchTestEnvironment(t)
+	t.Chdir(fixture)
+	root := os.Getenv("PAIR_DATA_DIR")
+	seedIsolatedCouchSelection(t)
 	c, err := storagegc.NewCoordinator(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	auxiliary := t.TempDir()
+	auxiliary := filepath.Join(fixture, "auxiliary")
+	if err := os.Mkdir(auxiliary, 0700); err != nil {
+		t.Fatal(err)
+	}
 	if err := c.RegisterStore(context.Background(), auxiliary); err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +43,14 @@ func TestListWithMissingAuxiliaryStoreUsesIsolatedRoots(t *testing.T) {
 }
 
 func TestIsolatedSmokeEnvironmentProtectsAmbientRegistry(t *testing.T) {
-	operatorHome, operatorData := t.TempDir(), t.TempDir()
+	operatorFixture, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	operatorHome, operatorData := filepath.Join(operatorFixture, "home"), filepath.Join(operatorFixture, "data")
+	if err := os.MkdirAll(operatorHome, 0700); err != nil {
+		t.Fatal(err)
+	}
 	operatorRoot := launcher.ResolveDataDir(operatorHome, operatorData)
 	if err := os.MkdirAll(operatorRoot, 0700); err != nil {
 		t.Fatal(err)
@@ -69,10 +67,19 @@ func TestIsolatedSmokeEnvironmentProtectsAmbientRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	identityDir := filepath.Join(operatorFixture, "identity")
+	if err := os.Mkdir(identityDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	sentinel := filepath.Join(identityDir, "couch-identities.json")
+	poison := []byte("ambient identity must remain untouched\n")
+	if err := os.WriteFile(sentinel, poison, 0600); err != nil {
+		t.Fatal(err)
+	}
 	_, source, _, _ := runtime.Caller(0)
 	script := filepath.Join(filepath.Dir(source), "..", "..", "..", "tests", "with-isolated-pair.sh")
 	cmd := exec.Command("sh", script, "env", "PAIR346_ISOLATION_CHILD=1", os.Args[0], "-test.run=^TestIsolatedSmokeListChild$", "-test.v")
-	cmd.Env = append(os.Environ(), "HOME="+operatorHome, "TMPDIR="+operatorHome+"/", "XDG_DATA_HOME="+operatorData, "PAIR_DATA_DIR="+operatorRoot, "COUCH_STORE_DIR="+filepath.Join(operatorRoot, "couch"), "PAIR_LOG_PATH="+filepath.Join(operatorRoot, "poison-log"))
+	cmd.Env = append(os.Environ(), "COUCH_ISOLATED_ROOT="+operatorFixture, "COUCH_IDENTITY_DIR="+identityDir, "HOME="+operatorHome, "TMPDIR="+operatorHome+"/", "XDG_DATA_HOME="+operatorData, "PAIR_DATA_DIR="+operatorRoot, "COUCH_STORE_DIR="+filepath.Join(operatorRoot, "couch"), "PAIR_LOG_PATH="+filepath.Join(operatorRoot, "poison-log"))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("isolated child: %v\n%s", err, output)
@@ -84,6 +91,10 @@ func TestIsolatedSmokeEnvironmentProtectsAmbientRegistry(t *testing.T) {
 	if err != nil || !bytes.Equal(before, after) {
 		t.Fatalf("ambient operator registry changed: %s %v", after, err)
 	}
+	identityAfter, err := os.ReadFile(sentinel)
+	if err != nil || !bytes.Equal(poison, identityAfter) {
+		t.Fatalf("ambient identity changed: %q %v", identityAfter, err)
+	}
 }
 
 func TestIsolatedSmokeListChild(t *testing.T) {
@@ -93,6 +104,18 @@ func TestIsolatedSmokeListChild(t *testing.T) {
 	if temp := os.Getenv("TMPDIR"); temp != filepath.Clean(temp) || !strings.HasPrefix(temp, filepath.Dir(os.Getenv("HOME"))+string(filepath.Separator)) {
 		t.Fatalf("temporary storage is not canonical and isolated: %q", temp)
 	}
+	isolated := os.Getenv("COUCH_ISOLATED_ROOT")
+	if !filepath.IsAbs(isolated) || isolated != filepath.Dir(os.Getenv("HOME")) {
+		t.Fatalf("missing or inherited isolated root: %q", isolated)
+	}
+	for _, key := range []string{"HOME", "TMPDIR", "XDG_DATA_HOME", "PAIR_DATA_DIR", "COUCH_STORE_DIR"} {
+		if !strings.HasPrefix(os.Getenv(key), isolated+string(filepath.Separator)) {
+			t.Fatalf("%s escaped isolated root: %q", key, os.Getenv(key))
+		}
+	}
+	if os.Getenv("COUCH_IDENTITY_DIR") != "" {
+		t.Fatal("inherited identity override escaped isolation")
+	}
 	if os.Getenv("PAIR_LOG_PATH") != "" {
 		t.Fatal("inherited artifact override escaped isolation")
 	}
@@ -101,6 +124,7 @@ func TestIsolatedSmokeListChild(t *testing.T) {
 	if root != os.Getenv("PAIR_DATA_DIR") || filepath.Join(root, "couch") != os.Getenv("COUCH_STORE_DIR") {
 		t.Fatal("roots do not agree")
 	}
+	seedIsolatedCouchSelection(t)
 	var out, stderr bytes.Buffer
 	if code := Run([]string{"--list"}, strings.NewReader(""), &out, &stderr); code != 0 {
 		t.Fatalf("list: %d %s", code, stderr.String())
@@ -114,4 +138,42 @@ func TestIsolatedSmokeListChild(t *testing.T) {
 		t.Fatalf("isolated store not registered: %+v %v", registry, err)
 	}
 	t.Log("isolated registration verified")
+}
+
+// Actual-process fixtures must opt into a confined authority; HOME alone does
+// not redirect production singleton ownership or durable identity selection.
+func isolatedCouchTestEnvironment(t *testing.T) string {
+	t.Helper()
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range os.Environ() {
+		key, _, _ := strings.Cut(entry, "=")
+		if strings.HasPrefix(key, "PAIR_") || strings.HasPrefix(key, "COUCH_") || strings.HasPrefix(key, "XDG_") {
+			t.Setenv(key, "")
+		}
+	}
+	for key, value := range map[string]string{
+		"COUCH_ISOLATED_ROOT": root,
+		"HOME":                filepath.Join(root, "home"),
+		"XDG_DATA_HOME":       filepath.Join(root, "data"),
+		"PAIR_DATA_DIR":       filepath.Join(root, "data", "pair"),
+		"COUCH_STORE_DIR":     filepath.Join(root, "data", "pair", "couch"),
+		"COUCH_IDENTITY_DIR":  filepath.Join(root, "identity"),
+	} {
+		t.Setenv(key, value)
+	}
+	return root
+}
+
+func seedIsolatedCouchSelection(t *testing.T) {
+	t.Helper()
+	_, lease, err := (OSRuntime{}).prepareSingleton(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := lease.Close(); err != nil {
+		t.Fatal(err)
+	}
 }
