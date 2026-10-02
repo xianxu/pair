@@ -1,8 +1,8 @@
 ---
 id: 000365
-status: codecomplete
+status: done
 created: 2026-10-01
-updated: 2026-10-01
+updated: 2026-10-02
 estimate_hours: 6.91
 github_issue:
 started: 2026-10-01T13:09:21-07:00
@@ -24,6 +24,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: c44c786ef19a798509d47c58e7cbab714f58cff2
         evidence_commit: 64666d92b8a0c8f885f8d13586d45adf592db954
+        landed_commit: 45b1f60c02418796020143dfaf02e745f50b6905
 ---
 
 # Replace messaging liveness polling with lifecycle events
