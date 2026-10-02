@@ -1,12 +1,12 @@
 ---
 id: 000378
-status: codecomplete
+status: done
 deps: []
 github_issue:
 created: 2026-10-01
 updated: 2026-10-01
 estimate_hours:
-card_mirror: '079674489bb48de4beddde4a75a27829291f9cfb' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '546ea35817a6ff5338a1b2cbcfce0a829255641b' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-01T21:44:28-07:00
 flow: {kind: quick, provenance: inferred, spec: "14fe2079", done: "fb2b11fe"}
 actual_hours: 0.68
