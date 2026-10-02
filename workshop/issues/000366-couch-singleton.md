@@ -344,3 +344,11 @@ Removing the slot error check, slot evidence hash or incarnation predicate fails
 corresponding regression; restoring all guards passes. Artifact inventory remains
 exactly the same 49 baseline diagnostics with the new inspection file classified.
 Full post-fix core race run is still in progress; no second verdict requested yet.
+
+### 2026-10-01 — post-rework broad verification complete
+
+`go test -race ./cmd/internal/couchcore -count=1` passed (385.636s). Together with
+the post-fix singleton, command, identity, messaging and retention runs above, every
+affected runtime package has passing race coverage. Installed-command and termcmd
+checks also pass; `git diff --check` is clean. Resubmitting BR-1/2/3 to the boundary
+gate with the two original-base repository failures still explicitly disclosed.
