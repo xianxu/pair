@@ -77,7 +77,7 @@ The first issue removes the measured regression without waiting for the entire o
 
 - [x] Replace idle messaging discovery with lifecycle events [pair#365]
 - [x] Record claimant ownership atomically [ariadne#277]
-- [ ] Add operator-directed reclaim [ariadne#278]
+- [x] Add operator-directed reclaim [ariadne#278]
 - [ ] Expose workflow observations [ariadne#279]
 - [ ] Publish operation recovery contracts [ariadne#280]
 - [x] Establish local Couch singleton behavior [pair#366]

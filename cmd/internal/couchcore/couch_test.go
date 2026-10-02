@@ -1614,10 +1614,8 @@ func TestPruneKeepsRecordsWhoseLivenessIsUnknown(t *testing.T) {
 	if got := env.Couch.Liveness(rec); got != Unknown {
 		t.Fatalf("Liveness = %v, want Unknown", got)
 	}
-	if err := env.Couch.PruneDead(); err != nil {
-		t.Fatalf("PruneDead: %v", err)
-	}
-	if len(env.treeRecords(t, "/repo")) != 1 {
+	pruned, removed := env.Couch.withoutDead(env.Couch.reg)
+	if removed != 0 || len(pruned.Records()) != 1 {
 		t.Fatal("an unknown-liveness record was pruned; the guard now protects nothing")
 	}
 	// The second half of this test used to assert that ADMISSION refused a
