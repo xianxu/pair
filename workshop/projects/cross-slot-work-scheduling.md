@@ -75,7 +75,7 @@ Not estimated or scheduled yet. This definition spans Pair transport/lifecycle a
 
 The first issue removes the measured regression without waiting for the entire ownership project. Ownership is the foundation for reclaim and owner-aware observations. Recovery contracts consume those guarantees; singleton and messaging lifecycle work can be designed independently. The recovery and scheduling skills consume the landed binary contracts. Dependencies below are recorded on the issue details; implementation must obey one issue per branch from main.
 
-- [ ] Replace idle messaging discovery with lifecycle events [pair#365]
+- [x] Replace idle messaging discovery with lifecycle events [pair#365]
 - [ ] Record claimant ownership atomically [ariadne#277]
 - [ ] Add operator-directed reclaim [ariadne#278]
 - [ ] Expose workflow observations [ariadne#279]

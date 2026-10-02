@@ -201,6 +201,40 @@ rounds:
       boundary: M3
       recipe: milestone-review
       blocked: false
+    - "n": 8
+      timestamp: "2026-10-01T17:25:51-07:00"
+      agent: claude
+      dispose:
+        - id: BR-6
+          disposition: addressed
+          note: run.sh disarm now rm -f the trace; window keeps its own summary, so the armed-only growth has a removal path.
+          round: 8
+        - id: BR-8
+          disposition: addressed
+          note: registry.go:190 newerAdmittedForSlot; TestRegistryUnadmittedNewerSessionDisplacesNothing asserts liveness of the older session and ghost goes Dormant.
+          round: 8
+        - id: BR-9
+          disposition: not-addressed
+          note: M3 Revisions says ReconnectBackoff "exists as named" but the Core-concepts row (plan line 45) still names nonexistent backoff.go; Task 2.3 subprocess-kill test and Task 2.6 startPeerRuntime wiring test are still absent and unrecorded.
+          round: 8
+        - id: BR-10
+          disposition: addressed
+          note: message_service.go:562 posts without a goroutine (post waits only for inbox acceptance); alias-target limitation is documented in place.
+          round: 8
+        - id: BR-11
+          disposition: addressed
+          note: broker.go:149-156 retires the slot's other incarnations on Register, and evictOldestTombstoneLocked bounds the table; broker_test.go:325 pins it.
+          round: 8
+        - id: BR-14
+          disposition: not-addressed
+          note: Plan unchanged since 311937fb; every Chunk 3 checkbox still unticked; no disposition for TestLifecycleLostReceiptAfterBrokerRestartNoDuplicate (absent), the redraw-bytes rerun (not in measurements), or the Task 3.3 test names. Fix by the one-sweep rule, not per item.
+          round: 8
+        - id: BR-15
+          disposition: not-addressed
+          note: peer_recovery_test.go:102-107 still asserts current ID == m.ID, which a duplicate delivery of the same ID also satisfies; replace it with an enqueue or commit counter, or delete it.
+          round: 8
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#365 (boundary-review)
@@ -295,12 +329,20 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-15** [Minor] `test-name-matches-assertion` TestPeerLostReceiptRecoveredAfterBrokerRestart final check (current ID == m.ID) can never fail
   3rd in family. A duplicate delivery with the same ID leaves current.Message.ID == m.ID, so the assertion cannot catch it; the test catches the bug only through Send's error. Rule (already in lessons.md): every assertion must go red when the mechanism its message names is removed. Assert an enqueue or commit counter instead, or delete the line.
 
+## Round 8 — 2026-10-01T17:25:51-07:00 (claude) — passed
+
+### Disposed
+
+- BR-6 — addressed — run.sh disarm now rm -f the trace; window keeps its own summary, so the armed-only growth has a removal path.
+- BR-8 — addressed — registry.go:190 newerAdmittedForSlot; TestRegistryUnadmittedNewerSessionDisplacesNothing asserts liveness of the older session and ghost goes Dormant.
+- BR-9 — not-addressed — M3 Revisions says ReconnectBackoff "exists as named" but the Core-concepts row (plan line 45) still names nonexistent backoff.go; Task 2.3 subprocess-kill test and Task 2.6 startPeerRuntime wiring test are still absent and unrecorded.
+- BR-10 — addressed — message_service.go:562 posts without a goroutine (post waits only for inbox acceptance); alias-target limitation is documented in place.
+- BR-11 — addressed — broker.go:149-156 retires the slot's other incarnations on Register, and evictOldestTombstoneLocked bounds the table; broker_test.go:325 pins it.
+- BR-14 — not-addressed — Plan unchanged since 311937fb; every Chunk 3 checkbox still unticked; no disposition for TestLifecycleLostReceiptAfterBrokerRestartNoDuplicate (absent), the redraw-bytes rerun (not in measurements), or the Task 3.3 test names. Fix by the one-sweep rule, not per item.
+- BR-15 — not-addressed — peer_recovery_test.go:102-107 still asserts current ID == m.ID, which a duplicate delivery of the same ID also satisfies; replace it with an enqueue or commit counter, or delete it.
+
 ## Open findings
 
-- **BR-6** [Minor] `artifact-removal-path` messageidle trace TSV grows unbounded while armed; only arm truncates it
-- **BR-8** [Minor] `registry-liveness-unpinned` newerSessionForSlot lets a never-admitted newer session permanently displace a working older one
 - **BR-9** [Minor] `plan-revision-drift` M2 revision does not reconcile all Core-concepts rows and Task test bullets with the tree
-- **BR-10** [Minor] `send-target-slot-match` Exact-send SendTargeted posts from an untracked goroutine and matches the target by raw slot string
-- **BR-11** [Minor] `artifact-removal-path` Broker actor tombstones are never evicted, so after 128 bindings per Couch lifetime new sessions go dormant
 - **BR-14** [Minor] `plan-revision-drift` Chunk 3 plan lines are unticked; lost-receipt service test, redraw-bytes experiment and lesson are neither delivered nor revised
 - **BR-15** [Minor] `test-name-matches-assertion` TestPeerLostReceiptRecoveredAfterBrokerRestart final check (current ID == m.ID) can never fail
