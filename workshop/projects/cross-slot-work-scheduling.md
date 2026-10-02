@@ -165,9 +165,9 @@ Depends on ariadne#277, ariadne#278 and ariadne#279. Declare and test operation-
 
 Settle production singleton scope and migration from existing stores while retaining supported isolated test environments. No dependency on claim implementation is needed to design local ownership.
 
-**estimate:** 2.66h. **actual:** 4.45h (SDLC measured). **closed:** 2026-10-02
+**estimate:** 2.66h. **actual:** 6.12h (SDLC measured). **closed:** 2026-10-02
 (local codecomplete). Implementation on `000366-couch-singleton` passed the SDLC
-boundary review with SHIP and no open findings; [draft PR #196](https://github.com/xianxu/pair/pull/196) awaits integration. Production ownership is per OS account on
+boundary review with SHIP and no open findings; published as [PR #196](https://github.com/xianxu/pair/pull/196). Production ownership is per OS account on
 machine-local storage; second launches refuse with owner/store context. Selection
 preserves the adopted store, Pair data and identity roots in place. Ambiguous legacy
 installations remain explicitly UNMIGRATED until operator reconciliation; automatic
@@ -236,6 +236,14 @@ verdict, measured 4.45h actual and draft PR #196. The gate marked #366 codecompl
 and ticked its task; it is not merged or deployed. The adoption limits and downstream
 dependencies remain unchanged. All four review findings were resolved with regression
 and mutation coverage; the two disclosed full-repository failures reproduce on base.
+
+### 2026-10-02 — #366 integration acceptance
+
+The operator requested merge. Main was integrated with a lessons-only conflict;
+renewed review found and resolved derived isolation-root containment (BR-5). Final
+review returned SHIP with all five findings addressed. Updated measured actual from
+the initial 4.45h close to 6.12h and removed the stale draft-PR description. Regression
+and full command/launcher verification passed; SDLC owns merge and archive completion.
 
 [pair#365]: #pair-365
 [ariadne#277]: #ariadne-277
