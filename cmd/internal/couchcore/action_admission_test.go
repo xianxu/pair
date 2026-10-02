@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 // TestArchiveRefusesAThreadCouchHostsWithNoIncarnation is the archive half of
@@ -66,17 +68,46 @@ func registeredActorFixture(t *testing.T) (*testEnv, ThreadRecord) {
 // row the operator could neither archive nor start over, while `couch --list`
 // called the same thread parked.
 func TestArchiveIgnoresADeadRegistryActor(t *testing.T) {
-	env, created := registeredActorFixture(t) // pid 4242 never Set: dead
+	env := newTestEnv(t, "/repo")
+	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
+	env.Artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+	env.Couch.reg = env.Couch.reg.Insert(ActorRecord{
+		ID: ActorID("exited-actor"), Thread: parked.Address,
+		Args: StartArgs{Worktree: "/repo", Cwd: "/repo/sub"},
+		PID:  4242, Identity: "exited", // never Set: dead
+	})
+
+	state, reason, err := env.Couch.classifyForAction(context.Background(), parked.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state != ThreadParked {
+		t.Fatalf("a parked thread with a dead registry actor classified %q/%q, want %q", state, reason, ThreadParked)
+	}
+	if _, err := env.Couch.ArchiveThread(context.Background(), parked.Address); err != nil {
+		t.Fatalf("archive refused a parked thread whose only actor is dead: %v", err)
+	}
+}
+
+// Unknown is ignorance about ONE actor, not a verdict on the thread: a second
+// actor the OS vouches for is still live proof, through ClassifyThread's own
+// precedence rather than a short-circuit ahead of it.
+func TestALiveRegistryActorOutranksAnUnprovableOne(t *testing.T) {
+	env, created := registeredActorFixture(t)
+	env.Proc.SetUnknown(4242)
+	env.Couch.reg = env.Couch.reg.Insert(ActorRecord{
+		ID: ActorID("second-actor"), Thread: created.Address,
+		Args: StartArgs{Worktree: Worktree(created.StartingPath), Cwd: created.WorkingPath},
+		PID:  4343, Identity: "running",
+	})
+	env.Proc.Set(4343, "running")
 
 	state, reason, err := env.Couch.classifyForAction(context.Background(), created.Address)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if state == ThreadLive {
-		t.Fatalf("a dead registry actor classified the thread live (%q/%q)", state, reason)
-	}
-	if _, err := env.Couch.ArchiveThread(context.Background(), created.Address); err != nil {
-		t.Fatalf("archive refused a thread whose only actor is dead: %v", err)
+	if state != ThreadLive {
+		t.Fatalf("live + unprovable actors classified %q/%q, want %q", state, reason, ThreadLive)
 	}
 }
 

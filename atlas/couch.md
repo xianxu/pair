@@ -309,9 +309,11 @@ change is not re-queried.
 
 `registry.json` remains as a transitional live-handle cache for the shipped
 console. It is not a metadata or display authority, and its records are claims,
-not liveness: nothing removes one when its child exits, so every reader probes
-`Couch.Liveness` (dead is residue, unknown fails closed), and every launch reaps
-the known-dead records before inserting its own (`withoutDead`, pair#378). The one-time journal import
+not liveness: nothing removes one when its child exits. A reader that treats a
+record as hosting proof (`classifyForAction`, behind archive and switch-agent)
+probes `Couch.Liveness` first, so a dead record is residue and an unknown one
+joins the evidence's Unproven side. Every launch reaps the known-dead records
+before inserting its own (`withoutDead`, pair#378). The one-time journal import
 of its actors into ThreadStore went with `pair#170` M4: every store that needed
 it was cut over years of commits ago, and the manifest keys that recorded the
 cutover survive only as decode tombstones. CLI diagnostics read the raw

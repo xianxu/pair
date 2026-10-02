@@ -1158,7 +1158,8 @@ func (c *Couch) Describe(w Worktree) string {
 // withoutDead is the registry minus every KNOWN-dead record, and how many that
 // was. It is the registry's funeral: actor records are never removed when their
 // child exits, so each launch reaps the dead before inserting its own record
-// (pair#378), which bounds the registry to live and unprovable actors.
+// (pair#378): after each launch the registry holds only live and unprovable
+// actors, and between launches it grows only by children that have exited.
 func (c *Couch) withoutDead(reg Registry) (Registry, int) {
 	removed := 0
 	for _, r := range reg.Records() {

@@ -79,23 +79,23 @@ func (r SwitchAgentResult) Started() (StartResult, bool) {
 // the operator acted on -- the strict half of optimistic inventory.
 //
 // A registry record is a claim, not proof: nothing removes one when its child
-// exits, so each is probed (pair#378). Dead is residue and proves nothing;
-// Unknown may be a running agent, so it fails closed as `unusable/unknown`
-// rather than letting an action through on the absence of an answer.
+// exits, so each is probed (pair#378). Live joins the hosted proof; Dead is
+// residue and proves nothing; Unknown joins the evidence's Unproven side, so
+// ClassifyThread's own precedence decides it -- live and busy outrank it, and
+// otherwise it fails closed as `unusable/unknown`.
 func (c *Couch) classifyForAction(ctx context.Context, address ThreadAddress) (ActionableThreadState, ThreadReason, error) {
 	hosted := make([]LiveTTYObservation, 0, 4)
+	var unproven []ProcessIdentity
 	for _, actor := range c.reg.Records() {
 		if actor.Thread != address {
 			continue
 		}
+		process := ProcessIdentity{PID: actor.PID, Identity: actor.Identity}
 		switch c.Liveness(actor) {
 		case Live:
-			hosted = append(hosted, LiveTTYObservation{
-				Address: actor.Thread,
-				Process: ProcessIdentity{PID: actor.PID, Identity: actor.Identity},
-			})
+			hosted = append(hosted, LiveTTYObservation{Address: actor.Thread, Process: process})
 		case Unknown:
-			return ThreadUnusable, ReasonUnknown, nil
+			unproven = append(unproven, process)
 		}
 	}
 	snapshot, evidence, err := c.gatherThreadEvidence(ctx, hosted, func(record ThreadRecord) bool {
@@ -108,7 +108,9 @@ func (c *Couch) classifyForAction(ctx context.Context, address ThreadAddress) (A
 		if snapshot.Records[i].Address != address {
 			continue
 		}
-		state, reason := ClassifyThread(snapshot.Records[i], evidence[address])
+		threadEvidence := evidence[address]
+		threadEvidence.Unproven = append(threadEvidence.Unproven, unproven...)
+		state, reason := ClassifyThread(snapshot.Records[i], threadEvidence)
 		return state, reason, nil
 	}
 	return "", "", fmt.Errorf("%w: %+v", ErrThreadNotFound, address)
