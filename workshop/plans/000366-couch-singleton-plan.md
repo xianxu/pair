@@ -284,3 +284,12 @@ and validate before selection publication or directory creation; preserve the va
 paths for both runner entry points. Refuse unresolved/dangling symlinks, accept confined
 physical targets, and prove outside temporary sentinels remain untouched. This corrects
 the existing isolation contract without expanding scope.
+
+### 2026-10-02 — derived-root containment verified
+
+BR-5 is implemented with one resolver used before publication and retained physical
+child paths. All derived destinations, including data defaults, follow the same
+containment rule; invalid directory types/dangling links refuse. The permanent
+regressions cover both runner entry points and adoption preview/apply with outside
+sentinel snapshots. Expanded race and full command/launcher integration suites pass;
+exact evidence is in the issue Log. No change to accepted product scope.
