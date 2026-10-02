@@ -68,7 +68,7 @@ total: 2.66
 ## Plan
 
 - [ ] Implement and verify the reviewed singleton/adoption plan in `workshop/plans/000366-couch-singleton-plan.md`.
-- [ ] Complete production composition, isolated fixtures and migration acceptance.
+- [x] Complete production composition, isolated fixtures and migration acceptance.
 - [ ] Update docs/project and pass the SDLC close review.
 
 ## Log
@@ -261,3 +261,24 @@ refusal and the recommended refusal-only ambiguous-store migration scope. Update
 the migration Done when bullet accordingly, preserving the prior wording and
 rationale in the revisions above. Implementation plan is now recorded at
 `workshop/plans/000366-couch-singleton-plan.md`; routine plan execution is authorized.
+
+### 2026-10-01 — implementation and verification checkpoint
+
+Implemented the approved ownership manager, read-only inspections, adoption CLI,
+production runtime resolution and isolated child environment. Added filesystem,
+subprocess and public-command acceptance coverage; documented adoption and operating
+limits in README and atlas. Durable plan records the final symbol mapping and two
+fixture corrections discovered in verification. Host-lock removal, ambient Pair-root
+fallback and omitted isolation mutations each failed their targeted regression, then
+passed after restoration. Selected/readable state cannot substitute for a live lease.
+
+Focused singleton/identity suites and command acceptance pass under the race detector.
+The installed Couch and full couchcmd normal suites passed. Broad race verification
+found a preexisting concurrent FakeGit Ops append; a dedicated regression reproduced
+lost calls and the race, and the fix plus exact recovery acceptance pass under -race.
+The broad suites and post-fix couchcmd race rerun are still in progress at this checkpoint.
+
+Classified all seven new production source files in the artifact inventory. Its
+remaining 49 diagnostics exactly match original base f0c1e566 after regenerating the
+runtime mirror in an isolated source export; existing drift belongs to #348. This is
+an explicit baseline failure, not a passing full-repository test claim.
