@@ -67,9 +67,9 @@ total: 2.66
 
 ## Plan
 
-- [ ] Implement and verify the reviewed singleton/adoption plan in `workshop/plans/000366-couch-singleton-plan.md`.
+- [x] Implement and verify the reviewed singleton/adoption plan in `workshop/plans/000366-couch-singleton-plan.md`.
 - [x] Complete production composition, isolated fixtures and migration acceptance.
-- [ ] Update docs/project and pass the SDLC close review.
+- [x] Update docs/project and prepare verification evidence for the SDLC close review.
 
 ## Log
 
@@ -282,3 +282,22 @@ Classified all seven new production source files in the artifact inventory. Its
 remaining 49 diagnostics exactly match original base f0c1e566 after regenerating the
 runtime mirror in an isolated source export; existing drift belongs to #348. This is
 an explicit baseline failure, not a passing full-repository test claim.
+
+### 2026-10-01 — final verification before boundary review
+
+`go test ./... -count=1` completed: Couch core passed (444.029s), and all changed
+behavior packages passed. Three failing checks were investigated: artifact inventory
+has the baseline-identical diagnostics above; gcruntime's
+TestCouchReferencesLocalArchiveLocatorRoundTrip fails with the identical “missing
+slot Couch metadata” at line 350 on both this branch and original base; the new
+runtimeOwnership comment had attached to leaseResource and is now corrected, with
+`go test ./cmd/internal/termcmd -count=1` passing. No blanket full-suite pass claimed.
+
+`go test -race ./cmd/internal/couchsingleton ./cmd/internal/couchidentity
+./cmd/internal/couchcmd ./cmd/internal/couchcore ./cmd/internal/couchmessage
+./cmd/internal/storagegc -count=1` passed every package except the discovered
+FakeGit fixture race. After its fix, the entire couchcmd race suite passed
+(53.232s), as did the dedicated concurrent FakeGit regression and exact recovery
+acceptance. Couch core race passed (482.823s). This covers every requested package
+under the race detector. `git diff --check` passes. The issue Plan's final checkbox
+now describes preparation for this gate; review completion is owned by sdlc close.
