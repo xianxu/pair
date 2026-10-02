@@ -63,6 +63,15 @@ unknown owners. Unregistered custom stores require explicit disclosure. Digest
 validation excludes transient supervisor metadata; owner observation remains a
 separate admission predicate. Changed source evidence requires a new preview.
 
+Adoption evidence includes numbered-slot `.couch` metadata as well as the global
+namespace. The final inspection holds their existing transaction locks through
+selection publication; unreadable slots, pending recovery and changed payloads
+refuse. A free supervisor lease does not establish that recorded wrappers are
+gone: live or unknown incarnations in other stores also block exclusion. Surviving
+wrappers in the selected store keep their namespace and reconnect normally.
+Selection serialization and reading share a 64 KiB encoded-payload limit, checked
+at preview and again before publication.
+
 `COUCH_ISOLATED_ROOT` names an explicit absolute canonical test/diagnostic root,
 with authority at `singleton` and defaults at `data/pair`, `data/pair/couch`, and
 `pair-host` beneath it. Every effective root must remain inside it, including

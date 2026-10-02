@@ -596,6 +596,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/singleton.go",
 	"cmd/internal/couchcmd/singleton_cli.go",
 	"cmd/internal/couchcore/supervisor_observe.go",
+	"cmd/internal/couchcore/storeinspection.go",
 	"cmd/internal/couchidentity/inspect.go",
 	"cmd/internal/couchsingleton/model.go",
 	"cmd/internal/couchsingleton/manager.go",
