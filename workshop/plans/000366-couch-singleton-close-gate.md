@@ -103,6 +103,32 @@ rounds:
           round: 4
       recipe: milestone-review
       blocked: true
+    - "n": 5
+      timestamp: "2026-10-02T09:10:51-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Slot inspection preserves unreadable-state errors and includes slot payloads in adoption evidence.
+          round: 5
+        - id: BR-2
+          disposition: addressed
+          note: Nonselected stores retain live and unknown incarnation evidence, preventing unsafe exclusion.
+          round: 5
+        - id: BR-3
+          disposition: addressed
+          note: Selection encoding and reading share the encoded-size limit, with boundary regression coverage.
+          round: 5
+        - id: BR-4
+          disposition: addressed
+          note: Launcher and embedded runtime extraction consume the selected global root; launcher integration tests pass.
+          round: 5
+        - id: BR-5
+          disposition: addressed
+          note: Derived HOME, TMPDIR and XDG roots are validated before publication and exported as physical paths. Tests pass normally and under race detection; disabling validation in a temporary overlay makes HOME/TMPDIR escape tests fail through both runner entry points.
+          round: 5
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#366 (boundary-review)
@@ -157,6 +183,16 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-5** [Critical] `isolation-derived-root-containment` Derived child HOME and TMPDIR can escape explicit isolation through symlinks.
   cmd/internal/couchcmd/singleton.go:184-192 substitutes isolated/home without validating its physical destination and creates isolated/tmp without containment validation; line 252 exports both to children. Preexisting symlinks to an outside directory are followed by MkdirAll and descendant writes. A production-path overlay regression fails for both cases. ARCH-SECURE and ARCH-PURPOSE: validate physical containment of every derived runtime root before publication or child effects, and export only validated paths. Add permanent tests using outside temporary sentinels for fallback HOME and TMPDIR through both runner entry points.
 
+## Round 5 — 2026-10-02T09:10:51-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Slot inspection preserves unreadable-state errors and includes slot payloads in adoption evidence.
+- BR-2 — addressed — Nonselected stores retain live and unknown incarnation evidence, preventing unsafe exclusion.
+- BR-3 — addressed — Selection encoding and reading share the encoded-size limit, with boundary regression coverage.
+- BR-4 — addressed — Launcher and embedded runtime extraction consume the selected global root; launcher integration tests pass.
+- BR-5 — addressed — Derived HOME, TMPDIR and XDG roots are validated before publication and exported as physical paths. Tests pass normally and under race detection; disabling validation in a temporary overlay makes HOME/TMPDIR escape tests fail through both runner entry points.
+
 ## Open findings
 
-- **BR-5** [Critical] `isolation-derived-root-containment` Derived child HOME and TMPDIR can escape explicit isolation through symlinks.
+(none — every finding has been disposed)

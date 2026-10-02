@@ -334,3 +334,84 @@ findings:
 
 7. **Plan revisions**
    - Append a `## Revisions` entry covering containment of every derived child root, explicitly including fallback HOME and TMPDIR, with real descendant-write regression tests.
+
+---
+
+## Re-review — 2026-10-02T09:10:51-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 366 — Make Couch a local singleton |
+| repo | pair |
+| issue file | workshop/issues/000366-couch-singleton.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | b1de974ba1610ff32d633b536b482af13271d8f2..fd511ef9eeec9fd421f87c827416186900ba61fa |
+| command | sdlc close --issue 366 |
+| reviewer | codex |
+| timestamp | 2026-10-02T09:10:51-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation matches the revised Spec/Plan. BR-5 is addressed with production-path validation and regression tests that fail when the validation is disabled. No new blocking findings were identified. README and atlas cover the new adoption, singleton, and isolation behavior.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Slot inspection preserves unreadable-state errors and includes slot payloads in adoption evidence.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Nonselected stores retain live and unknown incarnation evidence, preventing unsafe exclusion.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Selection encoding and reading share the encoded-size limit, with boundary regression coverage.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Launcher and embedded runtime extraction consume the selected global root; launcher integration tests pass.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Derived HOME, TMPDIR and XDG roots are validated before publication and exported as physical paths. Tests pass normally and under race detection; disabling validation in a temporary overlay makes HOME/TMPDIR escape tests fail through both runner entry points.
+```
+
+1. **Strengths**
+   - `singleton.go:66–103` centralizes derived-directory containment and type validation.
+   - `singleton_derived_roots_test.go:17` covers escaping/dangling symlinks, regular files, adoption paths, and unchanged outside sentinels.
+   - `manager.go:190–211` holds inspection locks through evidence revalidation and publication.
+   - Selected global roots reach actual launcher consumers, with integration coverage.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage**
+   - Passed full `couchsingleton`, `couchidentity`, `launcher`, and `couchcmd` suites.
+   - Passed derived-root regressions under `-race` and targeted core inspection/observation tests.
+   - Mutation overlay produced the expected regression failures.
+   - `git diff --check` passed; repository remains unchanged.
+   - Full repository suite was not rerun during this review.
+
+6. **Architecture**
+   - **ARCH-DRY — pass:** shared validation and existing lease/identity primitives.
+   - **ARCH-PURE — pass:** adoption policy is IO-free; Manager owns filesystem effects.
+   - **ARCH-PURPOSE — pass:** stable inventory, singleton ownership, preservation, and isolation are implemented.
+   - **ARCH-MOCK — pass:** temporary backends, stateful doubles, and real subprocess checks exercise shared boundaries.
+   - **ARCH-CONSTRAINTS — pass:** bounded inspection and nonblocking lifetime acquisition.
+   - **ARCH-SECURE — pass:** strict persisted-state reads and validated derived roots.
+   - **ARCH-ORDER — pass:** lock ordering, revalidation, publication recovery, and controllable failure tests.
+   - **ARCH-FUNERAL — pass:** fixed selection/staging artifacts and scoped lease release avoid per-launch accumulation.
+
+7. **Plan revisions:** None required.

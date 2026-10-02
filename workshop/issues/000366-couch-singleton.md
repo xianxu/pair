@@ -81,6 +81,8 @@ total: 2.66
 
 ## Log
 
+
+- 2026-10-02: closed — BR-5 fixed: all derived HOME/XDG/TMP paths and defaults validated before publication/effects; both runner modes export validated physical roots. Escape/dangling/file matrix plus adoption preview/apply proves no source/sentinel mutation or selection; valid confined aliases/fallbacks work. Red old behavior, green expanded race2.001s. Full couchcmd race49.077s; installed Couch2.701s, launcher13.046s, pair-go17.542s, termcmd0.504s pass. Main integration archive/admission/singleton race tests also passed; code merges cleanly and only lessons conflict was resolved retaining both sides. Diff check clean. Earlier BR1-4 disposed. Existing baseline suite exceptions documented. User requested merge.; review verdict: SHIP
 ### 2026-10-01
 - 2026-10-01: closed — BR-4 fixed end-to-end: parent clears stale scoped dir; launcher and embedded extraction share validated selected global root. Real Pair binary create/list/continuation-list/warm-resume checks scoped artifacts and global claim/index records; ignoring selected root mutation fails, restored passes. Full launcher race11.386s; fresh restored couchcmd race43.000s and pair-go race14.976s; installed Couch2.168s and termcmd0.453s pass. Prior post-fix singleton/core/identity/messaging/retention race suites pass, including core385.636s; BR-1/2/3 disposed addressed round2. Diff check clean. Remaining full-repo failures independently match original base: artifact inventory #348 (49 identical diagnostics) and GC archive fixture scope. No live cutover.; review verdict: SHIP
 
