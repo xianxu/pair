@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000383-couch-output-timeout.md
         source_blob: 5f52e71b59e1d0a5ba82b0a7f99834b4db8a4ed3
         destination: workshop/issues/000383-couch-output-timeout.md
+        main_commit: b1de974ba1610ff32d633b536b482af13271d8f2
 ---
 
 # Couch exits on stalled terminal output and fails to restore keyboard modes
