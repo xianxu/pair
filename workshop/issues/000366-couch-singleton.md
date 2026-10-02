@@ -419,3 +419,11 @@ is newer than the close anchor; no review bypass is used.
 -count=1` passed (1.959s, 73.944s, 5.700s). This covers the incoming archive/admission
 changes with singleton/adoption/hosted integration. PR head is 9e5dfd23 before this
 bookkeeping checkpoint; working tree and diff checks are clean.
+
+### 2026-10-02 — integration review BR-5
+
+Re-review reaffirmed BR-1/2/3/4 and found derived isolated HOME/TMPDIR symlink escapes.
+Confirmed that fallback HOME and TMPDIR were created after selection without a
+physical containment check. Reworking all derived child roots, including XDG data,
+before effects; permanent outside-sentinel tests will cover both runner entry points.
+Merge remains pending; no review bypass is used.
