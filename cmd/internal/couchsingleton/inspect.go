@@ -134,17 +134,17 @@ func (m Manager) inspectSources(q Request, owned *couchcore.SupervisorLease, dec
 		if len(registry.Stores) > 4096 {
 			return report, errors.New("too many registered Couch stores")
 		}
-		// Establish containment before InspectRegistry probes any registered path.
+		// Validate and enumerate the same captured bytes that enter the digest.
+		// A filesystem reread here could probe a different registry version.
+		if err := registry.ValidateStructure(); err != nil {
+			return report, err
+		}
 		if err := m.validatePaths(r, registry.Stores); err != nil {
 			return report, err
 		}
-		entries, e := (&storagegc.Coordinator{Root: r.PairDataDir}).InspectRegistry()
-		if e != nil {
-			report.Blockers = append(report.Blockers, e.Error())
-		}
-		for _, entry := range entries {
-			paths[entry.Path] = true
-			associated[entry.Path] = true
+		for _, path := range registry.Stores {
+			paths[path] = true
+			associated[path] = true
 		}
 	} else if !errors.Is(e, os.ErrNotExist) {
 		report.Blockers = append(report.Blockers, e.Error())
