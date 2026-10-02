@@ -1,6 +1,6 @@
 ---
 id: 000383
-status: codecomplete
+status: done
 created: 2026-10-02
 updated: 2026-10-02
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 885ee9f0e036d656cd7c4d580e85cf51a3b733f7
         evidence_commit: b4c3b56b6a6ea6cba62c5b5dc6cc936104ca17d6
+        landed_commit: 45b1f60c02418796020143dfaf02e745f50b6905
 ---
 
 # Couch exits on stalled terminal output and fails to restore keyboard modes
