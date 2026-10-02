@@ -361,3 +361,28 @@ readers still derived HOME/XDG. Confirmed both sides and revised the durable pla
 Parent tests now fail on the old export and require cleared PAIR_DATA_DIR plus
 COUCH_PAIR_DATA_DIR carrying the selected global root; launcher-level artifact and
 resume regressions will verify the complete contract before another review.
+
+### 2026-10-01 — BR-4 implementation and consumer verification
+
+Couch now clears PAIR_DATA_DIR when launching a new actor and exports the immutable
+global root as COUCH_PAIR_DATA_DIR. Launcher `ResolveGlobalDataDir` validates that
+selected root, feeds global claims/readers and derives the repository-scoped artifact
+directory. A matching hosted scoped override works; a conflicting override refuses;
+standalone explicit PAIR_DATA_DIR behavior remains supported. Installed Pair uses the
+same resolver before embedded runtime extraction, preventing pre-launch ambient writes.
+
+Real Pair-binary acceptance with a stateful fake terminal service now verifies create,
+list, continuation listing and warm resume from a custom root distinct from HOME/XDG.
+It checks actual scoped artifacts, claim/index records, child environment and
+create→attach effects. The old behavior failed with a missing claim in ambient storage;
+ignoring the selected global root as a mutation reproduces that failure. Source was
+restored and the focused consumer suite passed (1.903s); full launcher race suite passed
+(11.386s). Real embedded extraction tests fail before the fix and pass normally and
+under race (1.494s); invalid selection produces no ambient writes. Parent ordinary and
+blocked launch tests also passed under race (1.378s).
+
+The targeted consumer sweep covers wrappers, continuation reinvocation, session
+watchers, context/title, review and retention; these use the launcher's scoped variable
+or explicit artifact bindings. Native agent HOME stores are separate by design.
+Fresh full command/installed-binary reruns started after mutation restoration so their
+recorded results cannot include the temporarily mutated source.
