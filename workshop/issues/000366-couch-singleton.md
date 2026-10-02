@@ -28,12 +28,14 @@ Define existing-namespace migration/adoption, second-launch behavior, crash rest
 
 - The singleton boundary is explicit; concurrent starts cannot establish two production supervisors inside it.
 - A second invocation attaches/routes to the existing supervisor or gives a concrete diagnostic.
-- Existing stores and stopped/live slots migrate or are reconciled without losing conversations, preferences or dirty work.
+- A sole legacy store adopts in place with supporting roots and identities preserved; ambiguous multiple-store installations receive an actionable preservation report, remain explicitly unmigrated, and require operator reconciliation before adoption.
 - Restart and isolated-test behavior are verified; durable issue ownership requires no Couch ID.
 
 ## Plan
 
-Implementation plan to be designed after issue claim and start-plan; these are requirements, not an approved implementation plan.
+- [ ] Implement and verify the reviewed singleton/adoption plan in `workshop/plans/000366-couch-singleton-plan.md`.
+- [ ] Complete production composition, isolated fixtures and migration acceptance.
+- [ ] Update docs/project and pass the SDLC close review.
 
 ## Log
 
@@ -217,3 +219,11 @@ installations receive an actionable preservation report, remain explicitly
 unmigrated, and require operator reconciliation before adoption.” All remaining
 Done when bullets remain applicable. This is a scope revision awaiting approval,
 not a claim that refusing a conflicting installation completes its migration.
+
+### 2026-10-01 — operator approved proceeding
+
+Operator said “go ahead” after the reviewed draft. This approves second-launch
+refusal and the recommended refusal-only ambiguous-store migration scope. Updated
+the migration Done when bullet accordingly, preserving the prior wording and
+rationale in the revisions above. Implementation plan is now recorded at
+`workshop/plans/000366-couch-singleton-plan.md`; routine plan execution is authorized.
