@@ -163,3 +163,57 @@ Existing focused supervisor/namespace/CLI lease tests passed:
 The identity package had no tests matching that filter; this is baseline evidence
 for existing lease behavior only, not verification of #366. A fresh-context spec
 review is in progress before implementation planning.
+
+### 2026-10-01 — spec review revisions (supersede matching proposal paragraphs)
+
+Fresh-context review identified supporting-root drift, incomplete legacy recovery
+semantics, and a mismatch between refusal-only migration and the captured acceptance.
+
+- Persist the adopted runtime's canonical Couch store, Pair data root and existing
+  allocation-authority root together as one bounded, versioned configuration. The
+  production singleton lease still belongs to the real OS account, independent of
+  those paths. Preserve a valid legacy authority in place even if it is under an
+  older HOME; never create substitute counters to make adoption pass. All Couch
+  readers, launch configuration, continuation/slug/history/session readers, traces,
+  inherited child paths and messaging consume this resolved configuration. Explicit
+  conflicting ambient paths refuse with the configured path and corrective action.
+  A fresh installation uses the real account's default local data roots. Adoption
+  previews the associated paths and accepts explicit legacy paths when discovery
+  cannot establish them; missing/regressed authority requires restoring the valid
+  existing authority, not re-enrollment. Standalone Pair's configuration is outside
+  this change; hosted Pair receives the selected configuration explicitly.
+- Authority and adopted state must reside on machine-local storage. Shared/network
+  home/state directories are outside this first version's supported envelope; the
+  per-machine guarantee assumes local storage and does not introduce a distributed
+  filesystem lock protocol.
+- The adoption preview is ephemeral. Apply reacquires host and selected-store leases,
+  re-reads configuration and relevant source revisions under existing transaction
+  locks, then publishes one atomic configuration file. Failure before publication
+  leaves selection absent and sources untouched; lost acknowledgment is recovered
+  by reading the selection, with an identical retry converging on that configuration.
+  A different existing selection refuses. No source-copy or migration journal.
+- Known obsolete/missing registrations stay visible in the report. An operator can
+  explicitly acknowledge one as retired/outside the adopted production inventory;
+  that acknowledgment neither deletes its data/identity reservation nor proves a
+  process absent. Potentially live or unreadable stores remain unresolved unless
+  the operator completes the stop/upgrade and disposition steps. No automatic
+  inference from a failed probe. Unregistered legacy paths must be supplied.
+- For ambiguous populated stores, guidance is: stop/upgrade all legacy supervisors,
+  retain backups of each store and its identity authority, inspect the report and
+  explicitly choose which stores remain outside the production inventory. If the
+  operator needs their inventories combined, adoption stays refused until a reviewed
+  consolidation is performed; #366's recommended scope includes no manual JSON
+  editing recipe or automatic merge. The report labels these installations
+  UNMIGRATED and identifies the paths and unresolved decisions. No work is discarded.
+- Sweep every actual-process test that currently relies on HOME/XDG isolation,
+  including continuation/stale-store/host-identity tests. Inject account lookup when
+  testing production resolution so the tests cannot take the real account's lease.
+  Clear inherited session-artifact variables and verify descendant sentinel safety.
+
+Proposed acceptance revision, contingent on approving refusal-only migration:
+replace the captured migration bullet with “A sole legacy store adopts in place
+with its supporting roots and identities preserved; ambiguous multiple-store
+installations receive an actionable preservation report, remain explicitly
+unmigrated, and require operator reconciliation before adoption.” All remaining
+Done when bullets remain applicable. This is a scope revision awaiting approval,
+not a claim that refusing a conflicting installation completes its migration.
