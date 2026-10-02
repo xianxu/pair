@@ -118,6 +118,7 @@ release budget instead of each caller wrapping it.
 ## Log
 
 ### 2026-10-02 — incident investigation
+- 2026-10-02: closed — Real-PTY regressions (ttyio x3, Presenter x3, Console release budget) red on main with incident signature 1024/262144 at 2.001s, green after; mutation checks confirm reverting the 2s cap or the ErrModesNotRestored wrap fails tests. make -k test: only known test-changelog fails (passes with scratchpad TMPDIR); go test ./...: only the 3 known pre-existing failures (TestBareCouchInstalledCommand, TestProductionArtifactReferencesAreExactlyClassified on console_messages.go, TestCouchReferencesLocalArchiveLocatorRoundTrip); go test -race on ttyio/terminal/couchtty green; post-review minors re-tested (ttyio/terminal/hostty/couchtty green).; review verdict: SHIP
 
 Read-only investigation plus a temporary Darwin PTY probe reproduced the exact
 screenshot counts. Open a PTY, leave its master unread, wrap the slave with
