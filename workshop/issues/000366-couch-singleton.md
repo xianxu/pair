@@ -6,9 +6,16 @@ github_issue:
 created: 2026-10-01
 updated: 2026-10-01
 estimate_hours: 2.66
-card_mirror: 'cab06c2781943bbbe5b67b82f9e1e2eb05527b91' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '7bdd41ae1ed80c365559369c46252a8ee1933ef6' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-01T22:14:48-07:00
 flow: {kind: full, provenance: operator}
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Make Couch a local singleton
@@ -301,3 +308,13 @@ FakeGit fixture race. After its fix, the entire couchcmd race suite passed
 acceptance. Couch core race passed (482.823s). This covers every requested package
 under the race detector. `git diff --check` passes. The issue Plan's final checkbox
 now describes preparation for this gate; review completion is owned by sdlc close.
+
+### 2026-10-01 — boundary review round 1
+
+REWORK: BR-1 found numbered-slot errors and bytes missing from adoption evidence;
+BR-2 found excluded stores with surviving live wrappers were admitted when their
+supervisor lease was free; BR-3 found serialized selections could exceed the
+reader's 64 KiB bound. Confirmed the code paths and extended the durable plan with
+class-wide rework and regressions. Issue remains working; no PR or cutover yet.
+The gate also required `sdlc claim --issue 366 --adopt` to record this pre-#277
+claim's current workspace ownership; adoption succeeded without changing scope.
