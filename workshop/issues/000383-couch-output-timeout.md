@@ -1,12 +1,20 @@
 ---
 id: 000383
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-02
 updated: 2026-10-02
 estimate_hours:
-card_mirror: 'a58338eb01c1475b76d0140b2b0eccdbf6ff028b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '4edd31cb6908d70a3239413b0df7d4386a259e75' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-02T08:35:52-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Couch exits on stalled terminal output and fails to restore keyboard modes
@@ -79,6 +87,32 @@ the reproduced timeout defect.
   that uncertainty and identifies the diagnostic evidence still needed.
 
 ## Plan
+
+Quick flow. One owner per budget (ARCH-DRY): ttyio is policy-free and honors
+only the caller's context; `terminal.WriteTimeout` is the single terminal write
+budget, applied by its consumers (Presenter, InputWriter); Presenter owns its
+release budget instead of each caller wrapping it.
+
+- [ ] `ttyio.File.WriteContext`: drop the hidden 2s cap; the caller's context is
+      the sole deadline (documented on `Writer`).
+- [ ] Presenter release bounds its drag cancellation with `WriteTimeout`
+      (the reset write already gets its own via `write`); an incomplete reset
+      write is reported as `ErrModesNotRestored` (wrapping the WriteFailure and
+      its accepted count) — never as success.
+- [ ] `Console.release` stops imposing its own 2s; the start-up palette query
+      gets `terminal.WriteTimeout` (it was implicitly bounded only by ttyio's cap).
+- [ ] `WriteFailure` names its direction (parent output vs child input) so the
+      diagnostic stops saying "input write" for presenter output.
+- [ ] Tests (real PTY, master left unread to stall):
+  - ttyio: stall 2.5s then drain → full write, no duplicated bytes, >2s elapsed.
+  - ttyio: persistent stall under a 3s caller deadline → DeadlineExceeded no
+    earlier than 3s; accepted count equals the bytes the master drains.
+  - ttyio: cancel mid-stall returns promptly with accurate accounting.
+  - Presenter: stalled paint resumes within budget; Release delivers reset
+    controls exactly once.
+  - Presenter: persistent stall → Release reports `ErrModesNotRestored`.
+  - Console: release write sees the full `WriteTimeout` budget; diagnostic
+    names unrestored modes.
 
 ## Log
 
