@@ -98,7 +98,7 @@ Files: `tests/with-isolated-pair.sh`, actual-process fixtures found by `rg 'HOME
 - [x] Add end-to-end preservation fixture with populated legacy identity/store/preferences and dirty checkout; preview/refusal and successful sole adoption preserve byte snapshots and slot identity. Competing live legacy lease refuses; message reconnect uses unchanged namespace. Add production-root sentinels and descendant writes in the isolation wrapper test.
 - [x] Mutation-check: remove host lease → two distinct stores acquire; restore old ambient Pair-root derivation → selected-root test fails; drop isolated mode → sentinel/production-boundary test fails without accessing actual production.
 - [x] Update operator docs with singleton, adoption commands, exclusions, unsupported shared home/old-binary concurrency, crash retry, and isolation. Keep existing C/N/M identity descriptions. Add review lessons about root provenance and migration refusal claims.
-- [ ] Run `go test ./cmd/internal/couchsingleton ./cmd/internal/couchidentity ./cmd/internal/couchcmd ./cmd/internal/couchcore ./cmd/internal/couchmessage -count=1`, the same relevant packages under `-race`, and `git diff --check`. Run required repository checks discovered in Makefile/CI. Record exact results.
+- [x] Run `go test ./cmd/internal/couchsingleton ./cmd/internal/couchidentity ./cmd/internal/couchcmd ./cmd/internal/couchcore ./cmd/internal/couchmessage -count=1`, the same relevant packages under `-race`, and `git diff --check`. Run required repository checks discovered in Makefile/CI. Record exact results.
 - [ ] Update issue and project, commit, then `sdlc close --issue 366 --verified '<evidence>'` (binary owns fresh review). Fix blocking findings and rerun affected checks. Open draft PR via `sdlc pr` with its required flags; no deployment or running-session cutover is implied.
 
 ## Review boundaries
@@ -187,3 +187,15 @@ The exhaustive artifact inventory still fails on 49 diagnostics already present 
 base f0c1e56689469666b1aaaac708538cbf95f06f1d after generating identical runtime mirrors.
 The diagnostic lists are byte-for-byte equal after classifying all seven new #366
 production sources. Existing inventory drift remains tracked by #348.
+
+### 2026-10-01 — repository verification results
+
+Full Go suite completed. In addition to baseline artifact inventory drift,
+TestCouchReferencesLocalArchiveLocatorRoundTrip fails identically on original base
+and this branch (“missing slot Couch metadata”, references_test.go:350). The sole
+new documentation guard failure was corrected and the full termcmd suite passed.
+All requested runtime packages pass under -race, combining the broad run with the
+post-FakeGit-fix full couchcmd rerun. Normal Couch core passed in 444.029s and race
+in 482.823s; the time is advancing real-filesystem fixture work, not a deadlock.
+The issue Log contains commands and exact outcomes for the review. No full-suite
+pass or live installation migration is claimed.
