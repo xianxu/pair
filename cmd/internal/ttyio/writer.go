@@ -16,6 +16,8 @@ import (
 
 // Writer reports the accepted prefix even when writing fails. Implementations
 // must honor cancellation; launching an uncancellable Write goroutine is not one.
+// The caller's context is the only deadline: a transport that imposes its own
+// shorter one cuts off a caller whose budget is still live (#383).
 type Writer interface {
 	WriteContext(context.Context, []byte) (int, error)
 }
@@ -161,10 +163,11 @@ func (f *File) ReadContext(ctx context.Context, p []byte) (int, error) {
 		}
 	}
 }
+
+// Write has no deadline and blocks while the peer stops draining; it exists for
+// io.Writer. Bounded paths call WriteContext with their own budget.
 func (f *File) Write(p []byte) (int, error) { return f.WriteContext(context.Background(), p) }
 func (f *File) WriteContext(ctx context.Context, p []byte) (int, error) {
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
 	if err := f.begin(); err != nil {
 		return 0, err
 	}

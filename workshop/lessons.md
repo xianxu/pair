@@ -89,6 +89,10 @@ representative evidence, not an exhaustive index.
   Comments are not a lifecycle mechanism. (#209, #239)
 - Enforce an automatic-input deadline after paste as well as before it; a late
   matching render must never revive an expired submit. (#353 design review)
+- A budget has one owner. Nested deadlines take the minimum, so a transport
+  or wrapper that adds its own shorter timeout silently overrides the owner's.
+  Test the deadline the I/O actually sees through the production path, not the
+  constant that names it. (#383)
 - A timeout bounds a phase only when a live owner enforces it. If the owner can
   die, make the deadline observable and recoverable without that owner. (#250,
   #280)
