@@ -18,6 +18,13 @@ tracker:
         destination: workshop/issues/000366-couch-singleton.md
         main_commit: fc9e0b50719f3718c48a3406be84a46eb89ead40
 started: 2026-10-01T22:14:48-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Make Couch a local singleton
