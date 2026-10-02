@@ -404,3 +404,18 @@ codecomplete and measured 4.45h actual. Draft PR: https://github.com/xianxu/pair
 Project and durable plan completion notes updated. No merge or live installation
 cutover was performed. Remaining full-repository failures are the disclosed,
 independently reproduced baseline cases, not passing-suite claims.
+
+### 2026-10-02 — integration refresh for requested merge
+
+Operator requested merging PR #196. Main advanced after close; GitHub reported a
+conflict only in workshop/lessons.md. Merged origin/main and retained both independent
+lesson sections; code merged cleanly. The initially misapplied conformance failure
+on untouched #378 disappeared after the refresh: the normal gate now passes both
+changed instances. The normal publish gate requires re-review because upstream code
+is newer than the close anchor; no review bypass is used.
+
+`go test -race ./cmd/internal/couchsingleton ./cmd/internal/couchcore
+./cmd/internal/couchcmd -run 'Test(.*Adoption.*|.*Singleton.*|.*Archive.*|.*Parked.*|.*Hosted.*|.*Admission.*)'
+-count=1` passed (1.959s, 73.944s, 5.700s). This covers the incoming archive/admission
+changes with singleton/adoption/hosted integration. PR head is 9e5dfd23 before this
+bookkeeping checkpoint; working tree and diff checks are clean.
