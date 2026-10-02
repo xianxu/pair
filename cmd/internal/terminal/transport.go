@@ -132,7 +132,7 @@ func (w *InputWriter) run() {
 		cancel()
 		w.mu.Lock()
 		if err != nil {
-			w.failure = &WriteFailure{"child input", accepted, len(p), err}
+			w.failure = &WriteFailure{Op: "child input", Accepted: accepted, Total: len(p), Err: err}
 			w.packets = nil
 			w.bytes = 0
 			w.signalLocked()

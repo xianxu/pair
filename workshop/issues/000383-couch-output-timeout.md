@@ -198,3 +198,22 @@ the same window.
   no command from this session was running. Reattached to the branch and
   re-ran the close.
 - Lesson added: a budget has one owner; test the effective deadline.
+
+### 2026-10-02 — close review round 2 follow-up (SHIP, 2 advisory)
+
+- "Release's drag-cancellation bound has no test" → added
+  `TestPresenterReleaseBoundsDragCancellationWhenChildStalls`. The mutation
+  disproved the finding's premise: with the `WithTimeout` wrap removed,
+  Release still returned at 5.0s, because the child's `InputWriter` already
+  bounds every delivery with `WriteTimeout` (a failure drops the queue and
+  ends Flush). The wrap was a second, redundant budget, the pattern this issue
+  removes, so it is gone. The test stays and guards the real owner. Corrects
+  the implementation entry: drag cancellation is bounded by `InputWriter`,
+  not by a Presenter wrap; the worst case is still 2 × `WriteTimeout`.
+- Positional `WriteFailure` literal → keyed, matching presenter.go.
+
+## Revisions
+
+- 2026-10-02 — Plan item "Presenter release bounds its drag cancellation with
+  `WriteTimeout`" is superseded: a mutation showed `InputWriter` already owns
+  that bound, so the extra wrap was removed (see round 2 follow-up in the Log).

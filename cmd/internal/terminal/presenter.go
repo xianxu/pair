@@ -135,11 +135,10 @@ func (p *Presenter) run() {
 	for {
 		select {
 		case ctx := <-p.stop:
-			// Release owns its budget: drag cancellation and the reset write
-			// each get WriteTimeout, so no caller needs a competing deadline.
-			cancelCtx, cancel := context.WithTimeout(ctx, WriteTimeout)
-			cancelErr := p.cancelDrag(cancelCtx)
-			cancel()
+			// Release needs no caller deadline: the child's InputWriter bounds
+			// drag-cancellation delivery and write bounds the reset, each by
+			// WriteTimeout.
+			cancelErr := p.cancelDrag(ctx)
 			p.releaseErr = cancelErr
 			if p.parentTouched {
 				if err := p.write(ctx, append(p.releaseAlt(), parentReleaseControls(p.keyboardOwned)...), false); err != nil {

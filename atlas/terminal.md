@@ -63,8 +63,8 @@ write adapters share that lifetime, use nonblocking syscalls and bounded polling
 and restore flags after operations join. Duplicating a descriptor would not isolate
 its nonblocking flag. The caller's context is a write's only deadline: ttyio adds
 none, `terminal.WriteTimeout` (5s) is the one terminal write budget applied by
-Presenter and `InputWriter`, and Presenter's release gives drag cancellation and
-the mode reset each a budget of their own, so callers pass no competing timeout.
+Presenter and `InputWriter`. Release therefore needs no caller deadline: drag
+cancellation is bounded by the child's `InputWriter`, the mode reset by Presenter.
 A reset that does not fully reach the host returns `ErrModesNotRestored`; the
 host may keep mouse, paste and keyboard modes until `reset` (#383).
 `InputWriter` preserves packet order and accepted-prefix

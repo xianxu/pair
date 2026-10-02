@@ -178,3 +178,32 @@ func TestPresenterReleaseReportsModesNotRestoredWhenHostStaysStalled(t *testing.
 		t.Fatalf("release write accepted %d/%d, want 0/%d", failure.Accepted, failure.Total, len(parentReleaseControls(false)))
 	}
 }
+
+// Release's drag cancellation stays bounded when the caller passes no deadline
+// and the child stops reading: the child's InputWriter owns that budget.
+func TestPresenterReleaseBoundsDragCancellationWhenChildStalls(t *testing.T) {
+	p, _, a, aw := presenterFixture(t, AnyMotion)
+	a.Feed([]byte("\x1b[?1002h\x1b[?1006h"), time.Now())
+	selectPresenter(t, p, a)
+	if err := p.Input(context.Background(), uv.MouseClickEvent{X: 2, Y: 1, Button: uv.MouseLeft}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Flush(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	aw.Enqueue(ttyio.WriteStep{Block: make(chan struct{})})
+	done := make(chan error, 1)
+	start := time.Now()
+	go func() { done <- p.Release(context.Background()) }()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("release reported a drag cancellation the child never received")
+		}
+		if elapsed := time.Since(start); elapsed > WriteTimeout+time.Second {
+			t.Fatalf("release took %s", elapsed)
+		}
+	case <-time.After(WriteTimeout + 2*time.Second):
+		t.Fatal("release did not bound drag cancellation")
+	}
+}
