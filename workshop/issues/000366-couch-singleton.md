@@ -151,3 +151,15 @@ Claimed #366 and entered planning on its own branch from fresh main. Expanded th
 project requirements into the proposed design above without replacing the captured
 Spec. Second-launch refusal is a recommendation pending the operator's answer;
 legacy multi-store reconciliation remains an explicit scope decision. No code changed.
+
+### 2026-10-01 — second-launch decision and baseline
+
+Operator selected immediate refusal with a clear running-owner diagnostic for a
+second launch. This settles that part of the proposal; attaching another terminal
+is excluded. Multi-store migration scope is still awaiting an answer.
+
+Existing focused supervisor/namespace/CLI lease tests passed:
+`go test ./cmd/internal/couchcore ./cmd/internal/couchidentity ./cmd/internal/couchcmd -run 'Test(Supervisor|AcquireSupervisor|ResolveCouchNamespace|StartAcquires|ResumeAcquires|HeldSupervisor|OSRuntimeRefuses)' -count=1`.
+The identity package had no tests matching that filter; this is baseline evidence
+for existing lease behavior only, not verification of #366. A fresh-context spec
+review is in progress before implementation planning.
