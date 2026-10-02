@@ -592,6 +592,14 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	// #365 lifecycle messaging; the rest of couchmessage predates the inventory.
+	"cmd/internal/couchmessage/pane_mailbox.go",
+	"cmd/internal/couchmessage/peercred_darwin.go",
+	"cmd/internal/couchmessage/peercred_linux.go",
+	"cmd/internal/couchmessage/recent.go",
+	"cmd/internal/couchmessage/registry.go",
+	"cmd/internal/couchmessage/session_protocol.go",
+	"cmd/internal/couchmessage/session_transport.go",
 	"cmd/internal/couchidentity/identity.go",
 	"cmd/internal/couchidentity/session.go",
 	"cmd/internal/couchidentity/store.go",

@@ -75,7 +75,7 @@ Not estimated or scheduled yet. This definition spans Pair transport/lifecycle a
 
 The first issue removes the measured regression without waiting for the entire ownership project. Ownership is the foundation for reclaim and owner-aware observations. Recovery contracts consume those guarantees; singleton and messaging lifecycle work can be designed independently. The recovery and scheduling skills consume the landed binary contracts. Dependencies below are recorded on the issue details; implementation must obey one issue per branch from main.
 
-- [ ] Replace idle messaging discovery with lifecycle events [pair#365]
+- [x] Replace idle messaging discovery with lifecycle events [pair#365]
 - [x] Record claimant ownership atomically [ariadne#277]
 - [ ] Add operator-directed reclaim [ariadne#278]
 - [ ] Expose workflow observations [ariadne#279]
@@ -88,6 +88,57 @@ The first issue removes the measured regression without waiting for the entire o
 ### pair#365 — messaging lifecycle and performance
 
 Owns the immediate performance regression and local lifecycle/delivery contract. Requires a measured before/after profile, counted idle-probe invariants and failure/interleaving tests. Existing composer safeguards remain part of acceptance.
+
+<a id="pair-365-m1"></a>
+### pair#365 M1 — idle messaging baseline
+
+**est:** 6.91
+**actual:** 1.24h
+**closed:** 2026-10-01
+
+M1 added an in-tree acceptance test that counts the authority probes. It is skipped until M2, and its skip message records the baseline: one healthy wrapper costs 24 ownership probes and 6 `git status` per idle minute. M1 also added `probes/messageidle`, a shim that counts only couch-parented calls. The live baseline was taken read-only from the running Couch (11 wrappers) after the operator found relaunching under a shim too heavy. Couch used 101.6 CPU-seconds in 120 s, with 639 `ps`, 179 `zellij` and 141 `sdlc workspace` children. The unexpected part was the `sdlc` count: wrappers whose registration keeps failing re-run the full check and the workspace resolve every second. Under polling, a failing registration costs more than a healthy one, and lifecycle events remove that cost along with the idle polling.
+
+<a id="pair-365-m2"></a>
+### pair#365 M2 — lifecycle protocol replaces polling
+
+**est:** 6.91
+**actual:** 0.59h
+**closed:** 2026-10-01
+
+M2 replaces polling with lifecycle events:
+- **Session:** each wrapper holds one session on a registry socket. The hello is checked against the kernel's peer PID, and EOF means death or exec.
+- **Console:** it posts each thread's pane state to a coalescing mailbox, replaying panes that were attached before the service started.
+- **Registry:** a pure registry decides which bindings may receive, and the service executes its effects. The full ps/zellij check runs once per admission. Use-time checks only read files and memory.
+- **Deleted:** the heartbeat, the reconcile ticker, the verification window and messaging's background git.
+
+Testing:
+- **Randomized interleavings:** a broker driven only by the registry's effects has to agree with the registry after every step. The test caught one invariant stated too strongly. While a newer wrapper is still being checked, the older one legitimately stays connected; the spec accepts completion at the old incarnation.
+- **Mutation check:** a reintroduced 1 s poll fails the idle test, moving launch checks from 3 to 9 in 2.5 s.
+- **Event model:** pane changes are modelled as states rather than attach/exit edges, so coalescing is safe.
+
+<a id="pair-365-m3"></a>
+### pair#365 M3 — failure semantics, measurement, docs
+
+**est:** 6.91
+**actual:** 1.22h
+**closed:** 2026-10-01
+
+What M3 added:
+- **Crash and interleaving suite:**
+  - an absent endpoint;
+  - wrapper death mid-delivery: Indeterminate, never resent;
+  - replacement during an in-flight delivery: it completes or goes Indeterminate at the old incarnation, never redirected;
+  - delayed frames from a displaced session, including an exec's identical binding;
+  - one full start/detach/reattach/exec/Couch-restart sequence.
+- **Retained receipts:** each wrapper keeps its last 64. After a Couch restart, `--message-status` recovers outcomes from connected recipients and answers *uncertain* when one is silent.
+- **Planned fan-out dropped:** the per-send family fan-out was dropped because the CLI mints a fresh ID per send.
+- **Review fixes:** M2-review findings were fixed as a class: newest *admitted* wins, failed effects report back, and broker tombstones are evicted.
+
+Live measurement on the operator's 11-slot setup:
+- **Messaging spawns:** about 800 `ps`/`zellij`/`sdlc` per 2 min fell to 0.
+- **Couch CPU:** 60.9 fell to 22.5 CPU-s per 120 s, down 63%.
+- **A hypothesis that didn't hold:** I thought the old wrappers' legacy `register` requests explained the remainder. Relaunching 6 slots didn't lower it. The remainder is mostly system time from non-messaging file-system polling, notably the Console's 500 ms continuation scan, and goes to a follow-up.
+- **Not done:** a live send smoke test between relaunched slots.
 
 <a id="ariadne-277"></a>
 ### ariadne#277 — claimant ownership
@@ -171,3 +222,6 @@ Preserved the operator's requirement that observation tools be fast, and recorde
 [pair#366]: #pair-366
 [pair#367]: #pair-367
 [pair#362]: #pair-362
+[pair#365 M1]: #pair-365-m1
+[pair#365 M2]: #pair-365-m2
+[pair#365 M3]: #pair-365-m3

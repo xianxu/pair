@@ -75,10 +75,11 @@ func ValidateRequest(r Request) error {
 	return nil
 }
 
-// Handle is the broker protocol adapter. verifyRegister must validate a wrapper
-// against committed live panes/workspace identity and register its endpoint;
-// the transport's private socket or claimed Binding alone is not that proof.
-func Handle(ctx context.Context, b *Broker, r Request, verifyRegister func(context.Context, Binding) error) Response {
+// Handle is the broker protocol adapter for sender requests. Wrappers
+// register through their lifecycle session (#365); the old per-second
+// register and operator-submit requests are answered unsupported without any
+// verification work, so a wrapper from an older binary costs nothing.
+func Handle(ctx context.Context, b *Broker, r Request) Response {
 	if err := ValidateRequest(r); err != nil {
 		return Response{Code: "invalid-request", Error: err.Error()}
 	}
@@ -86,18 +87,7 @@ func Handle(ctx context.Context, b *Broker, r Request, verifyRegister func(conte
 		return protocolError(err, false)
 	}
 	if r.Op == "register" || r.Op == "operator-submit" {
-		if verifyRegister == nil {
-			return Response{Code: "unavailable", Error: "wrapper verification is unavailable"}
-		}
-		if err := verifyRegister(ctx, *r.Binding); err != nil {
-			return protocolError(err, false)
-		}
-		if r.Op == "operator-submit" {
-			if err := b.RefreshSubmission(ctx, *r.Binding); err != nil {
-				return protocolError(err, false)
-			}
-		}
-		return Response{Code: "ok"}
+		return Response{Code: "unsupported", Error: "this wrapper predates lifecycle sessions; relaunch the slot to receive messages"}
 	}
 	caller, err := b.Caller(r.Scope, r.Tag, r.Session, r.Nonce)
 	if err != nil {
@@ -111,7 +101,7 @@ func Handle(ctx context.Context, b *Broker, r Request, verifyRegister func(conte
 		}
 		return Response{Code: "ok", Actors: actors}
 	case "status":
-		receipt, err := b.Status(caller, r.ID)
+		receipt, err := b.StatusContext(ctx, caller, r.ID)
 		if err != nil {
 			return protocolError(err, false)
 		}
@@ -143,7 +133,7 @@ func protocolError(err error, family bool) Response {
 		code = "ambiguous"
 	case errors.Is(err, ErrInvalidTarget):
 		code = "invalid-target"
-	case errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded):
+	case errors.Is(err, ErrUncertain) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded):
 		code = "uncertain"
 	}
 	return Response{Code: code, Error: err.Error()}

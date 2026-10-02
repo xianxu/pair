@@ -1,12 +1,14 @@
 ---
 id: 000365
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-01
 updated: 2026-10-01
-estimate_hours:
-card_mirror: 'f06b486a3aca425153aaea221d5b070b37d80b3c' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 6.91
+card_mirror: '267c9c74b3424f3014661caae335845b1140cd3d' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-01T13:09:21-07:00
+flow: {kind: full, provenance: inferred}
 ---
 
 # Replace messaging liveness polling with lifecycle events
@@ -33,12 +35,51 @@ ARCH-PURPOSE: state the user-visible failure each retained check prevents. ARCH-
 - Repeat the live CPU profile and idle/query experiment before/after on the same workload; archive reproducible commands and results and quantify improvement.
 - Existing composer/input safety and receipt tests pass; docs state remaining delivery uncertainty rather than promising exactly-once task execution.
 
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* Calibration doc flagged stale (provisional numbers).
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec                design=0.8 impl=0.04
+item: greenfield-go-module      design=1.0 impl=0.24
+item: greenfield-go-module      design=0.6 impl=0.24
+item: smaller-go-module         design=0.3 impl=0.2
+item: smaller-go-module         design=0.2 impl=0.16
+item: smaller-go-module         design=0.2 impl=0.16
+item: smaller-go-module         design=0.3 impl=0.2
+item: smaller-go-module         design=0.1 impl=0.12
+item: cross-cutting-refactor    design=0.3 impl=0.2
+item: atlas-docs                design=0.1 impl=0.06
+item: real-api-discovery        design=0.0 impl=0.2
+item: milestone-review          design=0.0 impl=0.2
+item: milestone-review          design=0.0 impl=0.2
+item: milestone-review          design=0.0 impl=0.2
+design-buffer: 0.15
+total: 6.91
+```
+
+Items in order: spec/plan; Registry reducer; session transport + client + peer PID; service rewire; Console hooks + mailbox; wrapper session client + activity coalescing; duplicate guard + family status + tombstones; live measurement probe; test rewrite + crash suite; atlas; live Zellij/process measurement; M1–M3 reviews.
+
 ## Plan
 
-Implementation plan to be designed after issue claim and start-plan; these are requirements, not an approved implementation plan.
+Durable plan: `workshop/plans/000365-message-lifecycle-plan.md` (awaiting operator approval).
+
+- [x] M1 — Baseline: idle probe-count acceptance test (skipped red) + live idle measurement (`probes/messageidle`)
+- [x] M2 — Lifecycle protocol: pure Registry reducer, registry socket sessions, Console pane hooks, wrapper session client; delete heartbeat/reconcile/verification window
+- [x] M3 — Failure semantics: crash/interleaving suite, wrapper duplicate-ID guard, broker tombstone removal, after-measurement, atlas docs
 
 ## Log
 
 ### 2026-10-01
+- 2026-10-01: closed — Done-when 1: TestMessageIdleMultiSlotRunsNoProbes (3 slots, 0 probes idle; mutation-checked). DW2: TestLifecycleStartDetachReattachReplaceRestart + registry interleaving test (400 seeds). DW3: TestLifecycle* crash/interleaving suite, TestPeerLostReceiptRecoveredAfterBrokerRestart (wire adoption), TestPeerDeliveryPartialWritesNeverRetry. DW4: live same-workload before/after archived in measurements file: couch 60.9 -> 22.5 CPU-s/120s, messaging spawns ~800 -> 0 per 2 min (ps/zellij/sdlc). DW5: composer/receipt tests pass; atlas states delivery uncertainty. make -k test: only known test-changelog (passes with scratchpad TMPDIR); go test ./...: only the 3 documented pre-existing failures. Live: operator ran the build, 6 slots relaunched on new wrapper; live send smoke test not run. Remaining idle Couch load filed as #374.; review verdict: FIX-THEN-SHIP
+- 2026-10-01: closed M3 — TestLifecycle* crash/interleaving suite (exec-identical frames mutation-checked); broker recovery + wrapper retained-receipt tests (BR-12 wire adoption and BR-13 recipient binding, both mutation-checked); BR-8/10/11 fixed with tests; live: couch 60.9 -> 22.5 CPU-s/120s and messaging spawns ~800 -> 0 per 2 min on the operator 11-slot setup; full sweep: only documented pre-existing failures; atlas states delivery uncertainty. Live send smoke test not run.; review verdict: FIX-THEN-SHIP
+- 2026-10-01: closed M2 — go test couchmessage/couchcmd/couchtty/couchcore/wrapcmd all ok; TestMessageIdleMultiSlotRunsNoProbes: 3 slots, 2.5s idle, zero launch/process/branch/recorded calls (mutation: a 1s poll fails it 3->9); TestRegistryInterleavingsKeepInvariants 400 seeds incl. connect refusals, mutation-checked; BR-7 TestMessageBrokerRefusalIsNotConnectedAndRetries mutation-checked; -race clean; review verdict: SHIP
+- 2026-10-01: closed M1 — TestMessageIdleRunsNoProbes records baseline 12 full checks/6 git per wrapper-minute (skipped until M2); probes/messageidle go test + couch-parent record verified with a fake couch; live baseline 101.6 CPU-s/120s archived in measurements file; probe bin/ dirs verified ignored via git check-ignore; review verdict: SHIP
 
 Captured from the performance → messaging guarantees → SDLC ownership/observability → recovery discussion. No implementation started.
+
+Claimed; mapped the messaging path. Root cost: 1 s wrapper heartbeat + 1 s reconcile + full checks at Reserve/Deliver, each full check = 2 ownership probes (4× ps, 2× zellij list-panes); #360 bounded it with a 10 s window. Console already owns pane install/exit but never tells messaging. Plan replaces polling with a pure Registry reducer fed by persistent wrapper sessions (EOF = death/exec) and Console pane events (ARCH-DRY, ARCH-ORDER).
+
+M1: in-tree idle baseline = 24 ownership probes + 6 git status per wrapper per idle minute. Live (read-only, 11 wrappers): Couch 101.6 CPU-s / 120 s; 639 ps, 179 zellij, 141 `sdlc workspace` children. The `sdlc` count points to failing registrations being re-admitted every second. See `workshop/plans/000365-message-lifecycle-measurements.md`.

@@ -52,7 +52,8 @@
   also `probes/zellijbirthrace`, `#287`, which counts new sessions that die at
   birth, and since `#288` whether Pair's launcher then exits or hangs. It must
   not run unattended: its modes kill zellij servers and start real Pair
-  sessions).
+  sessions; and `probes/messageidle`, `#365`, a `zellij`+`ps` shim that records
+  only couch-parented calls and measures an idle Couch window).
   It measures a workload only a human can start — a real couch thread — so it
   takes a verb (`arm` / `report` / `disarm` / `overhead`) and needs an
   interactive shell whose `PATH` it modifies. It cannot be auto-run, so neither

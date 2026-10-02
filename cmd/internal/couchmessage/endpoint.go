@@ -103,10 +103,27 @@ func (e RemoteEndpoint) call(ctx context.Context, r EndpointRequest) (EndpointRe
 	if err := Call(ctx, socket, r, &response); err != nil {
 		return EndpointResponse{}, err
 	}
-	if response.Error != "" {
+	switch {
+	case response.Error == ErrAlreadyCommitted.Error() && response.Receipt != nil:
+		return EndpointResponse{}, &AlreadyCommittedError{Receipt: *response.Receipt}
+	case response.Error == ErrUnknownDelivery.Error():
+		return EndpointResponse{}, ErrUnknownDelivery
+	case response.Error != "":
 		return EndpointResponse{}, errors.New(response.Error)
 	}
 	return response, nil
+}
+
+// Retained reads the wrapper's receipt for id without any effect.
+func (e RemoteEndpoint) Retained(ctx context.Context, id string) (Receipt, error) {
+	r, err := e.call(ctx, EndpointRequest{Op: "status", ID: id})
+	if err != nil {
+		return Receipt{}, err
+	}
+	if r.Receipt == nil || r.Receipt.Message.ID != id {
+		return Receipt{}, errors.New("wrapper returned a receipt for another message")
+	}
+	return *r.Receipt, nil
 }
 
 func (e RemoteEndpoint) Observe(ctx context.Context) (Observation, error) {

@@ -369,3 +369,35 @@ func TestOrientationSessionObservationHonorsCallerDeadline(t *testing.T) {
 		})
 	}
 }
+
+// RecordedSession reads only the ready file: it never asks the session
+// observer, whose production form runs the ps/zellij ownership probe (#365).
+func TestRecordedSessionReadsReadyFileWithoutSessionObservation(t *testing.T) {
+	address := verifiedResumeThread(t).Address
+	dataDir := t.TempDir()
+	paths, _ := artifactpath.Resolve(artifactpath.Address{DataDir: dataDir, RepoScope: address.RepoScope, Tag: string(address.Tag)})
+	readyPath, _ := paths.AgentReadyChecked("codex")
+	if err := os.MkdirAll(filepath.Dir(readyPath), 0700); err != nil {
+		t.Fatal(err)
+	}
+	reader := OSOrientationStatusReader{DataDir: dataDir, Session: func(ThreadAddress) (PairSessionBinding, error) {
+		t.Fatal("RecordedSession observed the Pair session")
+		return PairSessionBinding{}, nil
+	}, Proc: OSProcOps{}}
+	if _, ok, err := reader.RecordedSession(context.Background(), address, "codex", "attempt-1"); ok || err != nil {
+		t.Fatalf("missing ready file: ok=%v err=%v", ok, err)
+	}
+	raw, err := readiness.Encode(readiness.ReadyRecord{Tag: string(address.Tag), Agent: "codex", Session: "pair-exact", Nonce: "attempt-1", PID: os.Getpid()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(readyPath, []byte(raw), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if session, ok, err := reader.RecordedSession(context.Background(), address, "codex", "attempt-1"); !ok || err != nil || session != "pair-exact" {
+		t.Fatalf("recorded = %q %v %v", session, ok, err)
+	}
+	if _, ok, err := reader.RecordedSession(context.Background(), address, "codex", "attempt-2"); ok || err != nil {
+		t.Fatalf("another nonce's ready file vouched: ok=%v err=%v", ok, err)
+	}
+}

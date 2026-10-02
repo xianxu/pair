@@ -429,3 +429,22 @@ proof; record the surprising case so the next change starts from evidence.
   named `close` shadowed Go's builtin. A cross-language format has one
   definition per language; the doc names the mirror so a change touches both.
   Never name an identifier after a Go builtin (`close`, `len`, `new`, `copy`).
+
+- A pure reducer's effects are only as true as their execution. Any effect the
+  shell can fail to apply must come back as an event, or the reducer runs ahead
+  of the world it models. #365 BR-7: `EffectConnect` dropped a broker
+  `Register` refusal, so the registry reported a binding connected that the
+  broker never held, and nothing retried. Enumerate the effects, and for each
+  say whether it can fail and which event reports that. Test one refusal through
+  the real executor.
+
+- A test that warms a cache before exercising the path it names tests the
+  cache. #365 BR-12: the lost-receipt test queried status first, which
+  recorded the receipt, so the re-send short-circuited in the broker and the
+  wire `already-committed` path went unexercised. Order the claimed path first,
+  or use a fresh instance per path, and mutation-check by reverting the guard
+  the test's comment names.
+- A component that answers for others must prove it is entitled to the
+  answer. #365 BR-13: status recovery accepted a receipt from whichever wrapper
+  replied. Bind each answer to its source (`receipt.To == answering binding`),
+  and test a forged answer.

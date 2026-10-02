@@ -18,6 +18,25 @@ type FakeDeliveryEndpoint struct {
 	reserved    string
 	delivered   chan Message
 	outcomes    chan Receipt
+	// retained models the wrapper's memory of past deliveries; silent makes
+	// it never answer a status query.
+	retained RecentDeliveries
+	silent   bool
+}
+
+func (f *FakeDeliveryEndpoint) Retained(ctx context.Context, id string) (Receipt, error) {
+	f.mu.Lock()
+	silent := f.silent
+	r, ok := f.retained.Get(id)
+	f.mu.Unlock()
+	if silent {
+		<-ctx.Done()
+		return Receipt{}, ctx.Err()
+	}
+	if !ok {
+		return Receipt{}, ErrUnknownDelivery
+	}
+	return r, nil
 }
 
 func newFakeEndpoint(at time.Time) *FakeDeliveryEndpoint {
@@ -31,6 +50,9 @@ func (f *FakeDeliveryEndpoint) Observe(context.Context) (Observation, error) {
 func (f *FakeDeliveryEndpoint) Reserve(_ context.Context, id string, seq uint64) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if r, ok := f.retained.Get(id); ok {
+		return &AlreadyCommittedError{Receipt: r}
+	}
 	if f.reserved != "" || f.observation.Sequence != seq {
 		return errors.New("changed or reserved")
 	}
@@ -265,17 +287,17 @@ func TestBrokerActorsRecordedObservationsAndInputInvalidation(t *testing.T) {
 		return true, nil
 	})
 	defer b.Close()
+	b.SetRestingView(func(v Binding) (bool, bool) { return true, v.Slot != "pair:2" })
 	from, to, unknown := brokerBinding("brain:0"), brokerBinding("pair:1"), brokerBinding("pair:2")
 	for _, v := range []Binding{from, to, unknown} {
 		_ = b.Register(v, newFakeEndpoint(base))
 	}
 	nanos.Store(base.Add(time.Minute).UnixNano())
-	// The listing reports what heartbeats and resting probes recorded.
+	// The listing reports what the wrappers pushed and the resting view.
 	for _, v := range []Binding{to, unknown} {
 		if err := b.ReconcileObservation(v, Observation{LastActivity: base, Sequence: 1}); err != nil {
 			t.Fatal(err)
 		}
-		_ = b.ObserveResting(context.Background(), v)
 	}
 	b.ObserveInputThread(to.Scope, to.Tag)
 	rows, err := b.Actors(context.Background(), from)
@@ -299,23 +321,56 @@ func TestBrokerActorsRecordedObservationsAndInputInvalidation(t *testing.T) {
 		t.Fatalf("caller %v %v", got, err)
 	}
 }
+
+// BR-11: tombstones are bounded by eviction, not by refusing new launches.
+// Only a table of connected actors refuses; a full table of tombstones gives
+// up its longest-disconnected entry, and a new launch of a slot retires that
+// slot's old incarnations at once.
 func TestBrokerBoundsDisconnectedActors(t *testing.T) {
-	now := time.Unix(1000, 0)
-	b := NewBroker(context.Background(), func() time.Time { return now }, nil)
+	var nanos atomic.Int64
+	nanos.Store(time.Unix(1000, 0).UnixNano())
+	now := func() time.Time { return time.Unix(0, nanos.Add(1)) }
+	b := NewBroker(context.Background(), now, nil)
 	defer b.Close()
 	for i := 0; i < MaxActors; i++ {
 		v := brokerBinding(fmt.Sprintf("pair:%d", i))
-		if err := b.Register(v, newFakeEndpoint(now)); err != nil {
+		if err := b.Register(v, newFakeEndpoint(now())); err != nil {
 			t.Fatal(err)
 		}
 		b.Disconnect(v)
 	}
-	v := brokerBinding("pair:999")
-	if err := b.Register(v, newFakeEndpoint(now)); err == nil {
-		t.Fatal("unbounded disconnected actors")
+	if err := b.Register(brokerBinding("pair:999"), newFakeEndpoint(now())); err != nil {
+		t.Fatalf("full table of tombstones refused a new launch: %v", err)
 	}
-	if err := b.Register(brokerBinding("pair:0"), newFakeEndpoint(now)); err != nil {
-		t.Fatalf("same actor reconnect at capacity: %v", err)
+	b.mu.Lock()
+	_, oldest := b.actors[brokerBinding("pair:0")]
+	size := len(b.actors)
+	b.mu.Unlock()
+	if oldest || size != MaxActors {
+		t.Fatalf("evicted the wrong tombstone: pair:0 kept=%v size=%d", oldest, size)
+	}
+	// A new launch in a slot retires that slot's tombstone.
+	relaunch := brokerBinding("pair:5")
+	relaunch.Nonce = "next-launch"
+	if err := b.Register(relaunch, newFakeEndpoint(now())); err != nil {
+		t.Fatal(err)
+	}
+	b.mu.Lock()
+	_, stale := b.actors[brokerBinding("pair:5")]
+	b.mu.Unlock()
+	if stale {
+		t.Fatal("relaunched slot kept its old incarnation")
+	}
+	// A table of connected actors still refuses.
+	full := NewBroker(context.Background(), now, nil)
+	defer full.Close()
+	for i := 0; i < MaxActors; i++ {
+		if err := full.Register(brokerBinding(fmt.Sprintf("pair:%d", i)), newFakeEndpoint(now())); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := full.Register(brokerBinding("pair:999"), newFakeEndpoint(now())); err == nil {
+		t.Fatal("registered past a table of connected actors")
 	}
 }
 func TestBrokerSimultaneousFamilyReservationsChooseDistinctSlots(t *testing.T) {
@@ -456,19 +511,22 @@ func TestSubmissionGenerationIsReconciledBeforeAdmissionAndOnlyOnce(t *testing.T
 	for i := 1; i < 4; i++ {
 		send(fmt.Sprintf("after-%d", i))
 	}
-	// A delayed notification and its duplicates must not reset the four spent
+	// A delayed submit frame and its duplicates must not reset the four spent
 	// admissions belonging to the same human submission.
+	ep.mu.Lock()
+	seen := ep.observation
+	ep.mu.Unlock()
 	for i := 0; i < 3; i++ {
-		response := Handle(context.Background(), b, Request{Op: "operator-submit", Binding: &to}, func(context.Context, Binding) error { return nil })
-		if response.Code != "ok" {
-			t.Fatalf("notification %+v", response)
+		if err := b.ReconcileObservation(to, seen); err != nil {
+			t.Fatalf("notification %v", err)
 		}
 	}
+	// Nor may a reconnect, which resends the latest observation.
 	b.Disconnect(to)
 	if err := b.Register(to, ep); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.RefreshSubmission(context.Background(), to); err != nil {
+	if err := b.ReconcileObservation(to, seen); err != nil {
 		t.Fatal(err)
 	}
 	for i := 4; i < InboundAllowance; i++ {

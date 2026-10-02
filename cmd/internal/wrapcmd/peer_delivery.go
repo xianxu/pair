@@ -35,12 +35,39 @@ type peerDelivery struct {
 	exited           bool
 	replies          orientationReplies
 	wake             chan struct{}
-	submit           chan struct{}
 	notices          chan string
+	// session receives every observation change (#365); nil outside Couch.
+	// Both methods only record state and wake a sender: no IO on these paths.
+	session peerSessionSink
+	// recent remembers the last deliveries after current moves on, so a
+	// status query after a broker restart still has an answer and a reused
+	// ID is refused rather than pasted again (#365).
+	recent couchmessage.RecentDeliveries
+}
+
+type peerSessionSink interface {
+	Update(couchmessage.Observation)
+	Submit(couchmessage.Observation)
+}
+
+// observationLocked is the wrapper's current evidence; d.mu must be held.
+func (d *peerDelivery) observationLocked() couchmessage.Observation {
+	return couchmessage.Observation{LastActivity: d.lastActivity, Sequence: d.sequence, Submission: d.submissions}
+}
+
+// publish hands the session an observation taken under d.mu, after release.
+func (d *peerDelivery) publish(sink peerSessionSink, o couchmessage.Observation, submit bool) {
+	switch {
+	case sink == nil:
+	case submit:
+		sink.Submit(o)
+	default:
+		sink.Update(o)
+	}
 }
 
 func newPeerDelivery(binding couchmessage.Binding, now func() time.Time) *peerDelivery {
-	return &peerDelivery{binding: binding, now: now, lastActivity: now(), wake: make(chan struct{}, 1), submit: make(chan struct{}, 1), notices: make(chan string, 1)}
+	return &peerDelivery{binding: binding, now: now, lastActivity: now(), wake: make(chan struct{}, 1), notices: make(chan string, 1)}
 }
 
 // Owned by the input writer. Idle wrappers allocate no polling timer.
@@ -81,7 +108,9 @@ func (d *peerDelivery) observeOutput(data []byte) {
 	d.outputPending++
 	d.lastActivity = d.now()
 	d.replies.observeQueries(data)
+	o, sink := d.observationLocked(), d.session
 	d.mu.Unlock()
+	d.publish(sink, o, false)
 	d.signal()
 }
 func (d *peerDelivery) outputForwarded() {
@@ -94,7 +123,12 @@ func (d *peerDelivery) outputForwarded() {
 }
 func (d *peerDelivery) admitInput(data []byte) bool {
 	d.mu.Lock()
-	defer d.mu.Unlock()
+	var sink peerSessionSink
+	var o couchmessage.Observation
+	defer func() {
+		d.mu.Unlock()
+		d.publish(sink, o, false)
+	}()
 	d.replies.inFlight++
 	human := d.replies.operatorDataWithoutFocus(data)
 	if human {
@@ -102,6 +136,7 @@ func (d *peerDelivery) admitInput(data []byte) bool {
 		d.sequence++
 		d.lastActivity = d.now()
 		d.interrupted = d.interrupted || d.current.Status == couchmessage.Delivering
+		o, sink = d.observationLocked(), d.session
 	}
 	if bytes.Contains(data, []byte{0x16}) {
 		d.image = true
@@ -126,24 +161,44 @@ func (d *peerDelivery) admitImage() {
 	d.interrupted = d.interrupted || d.current.Status == couchmessage.Delivering
 	d.sequence++
 	d.lastActivity = d.now()
+	o, sink := d.observationLocked(), d.session
 	d.mu.Unlock()
+	d.publish(sink, o, false)
 	d.signal()
 }
+
+// humanSubmit is a genuine operator submission: the broker replenishes the
+// inbound allowance once per submission generation.
 func (d *peerDelivery) humanSubmit() {
 	d.mu.Lock()
 	d.image = false
 	d.sequence++
 	d.submissions++
 	d.lastActivity = d.now()
+	o, sink := d.observationLocked(), d.session
 	d.mu.Unlock()
-	select {
-	case d.submit <- struct{}{}:
-	default:
-	}
+	d.publish(sink, o, true)
 }
+
+// retained is the receipt this wrapper holds for id: current or recent.
+func (d *peerDelivery) retained(id string) (couchmessage.Receipt, bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.retainedLocked(id)
+}
+func (d *peerDelivery) retainedLocked(id string) (couchmessage.Receipt, bool) {
+	if d.current.Message.ID == id && id != "" {
+		return d.current, true
+	}
+	return d.recent.Get(id)
+}
+
 func (d *peerDelivery) reserve(id string, sequence uint64) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	if r, ok := d.retainedLocked(id); ok {
+		return &couchmessage.AlreadyCommittedError{Receipt: r}
+	}
 	if d.reservation != "" && !d.now().Before(d.reservationUntil) && (d.current.Message.ID == "" || d.current.Status.Terminal()) {
 		d.reservation = ""
 	}
@@ -163,9 +218,10 @@ func (d *peerDelivery) enqueue(m couchmessage.Message) error {
 	if err := couchmessage.ValidateBody(m.Body); err != nil {
 		return err
 	}
-	if d.current.Message.ID == m.ID {
+	if _, ok := d.retainedLocked(m.ID); ok {
 		return errors.New("delivery already committed")
 	}
+	d.recent.Add(d.current)
 	d.current = couchmessage.Receipt{Message: m, Status: couchmessage.Queued}
 	d.state = couchmessage.PeerDeliveryState{}
 	d.interrupted = false

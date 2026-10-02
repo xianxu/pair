@@ -85,9 +85,11 @@ var (
 	ErrBudgetExhausted = errors.New("recipient peer-message allowance exhausted")
 	ErrUnavailable     = errors.New("recipient is not live")
 	ErrUnsupported     = errors.New("recipient does not support peer delivery")
-	ErrAmbiguous       = errors.New("recipient repository is ambiguous")
-	ErrInvalidTarget   = errors.New("invalid recipient target")
-	ErrNoRecipient     = errors.New("no available live recipient")
+	// ErrUncertain: an outcome may exist that this request could not observe.
+	ErrUncertain     = errors.New("outcome uncertain")
+	ErrAmbiguous     = errors.New("recipient repository is ambiguous")
+	ErrInvalidTarget = errors.New("invalid recipient target")
+	ErrNoRecipient   = errors.New("no available live recipient")
 )
 
 type ActorState struct {
