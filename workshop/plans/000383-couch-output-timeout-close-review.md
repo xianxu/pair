@@ -68,3 +68,59 @@ findings:
     detail: |
       transport.go:135 uses WriteFailure{"child input", accepted, len(p), err} and presenter.go:212 uses keyed fields. Op is a free-form string with no zero-value guard, so keyed literals at both sites would keep a future field reorder or omission from silently printing "terminal:  write accepted".
 ```
+
+---
+
+## Re-review — 2026-10-02T09:01:53-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 383 — Couch exits on stalled terminal output and fails to restore keyboard modes |
+| repo | pair |
+| issue file | workshop/issues/000383-couch-output-timeout.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | b1de974ba1610ff32d633b536b482af13271d8f2..885ee9f0e036d656cd7c4d580e85cf51a3b733f7 |
+| command | sdlc close --issue 383 |
+| reviewer | claude |
+| timestamp | 2026-10-02T09:01:53-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+**Verdict: SHIP.** Both findings from the last round are fixed, and I found nothing new. ttyio no longer adds its own 2s limit, so the caller's context is the only deadline. `terminal.WriteTimeout` is now the single terminal write budget: Presenter and `InputWriter` apply it, and the start-up palette query uses it too. `Console.release` no longer wraps Release in its own 2s timeout. When the reset write doesn't fully reach the host, release returns `ErrModesNotRestored` instead of reporting success. The new tests go through a real PTY and pass: `go test ./cmd/internal/terminal ./cmd/internal/ttyio` reports `ok`. I had to run them outside the sandbox, because the sandbox refuses `pty.Open` ("operation not permitted"). The couchtty package failures I saw were the same sandbox denials on PTY child processes and `/tmp`, not regressions.
+
+1. **Strengths**
+   - `ttyio/writer.go:169`: the hidden `WithTimeout(ctx, 2*time.Second)` is gone, and the `Writer` interface comment now states that the caller's context is the only deadline. That fixes the root cause, not just the symptom.
+   - `presenter.go:143-146`: a reset write that fails comes back as `ErrModesNotRestored` wrapping the `WriteFailure`, so the accepted-byte count survives. `TestPresenterReleaseReportsModesNotRestoredWhenHostStaysStalled` checks it with `errors.Is`, `errors.As` and the exact 0/N count.
+   - The ttyio stall tests check that the right bytes arrived, not just a count. The payload is a repeating pattern, and the test compares the host's bytes against `payload[:n]`. That covers both "no duplicated bytes" and "accurate partial accounting" from the Done-when list.
+   - The Console test now reads the deadline the release write actually sees (`terminal_exit_test.go:28-31`) instead of checking the constant, which is the lesson this issue recorded.
+   - Round 2 tested the premise of BR-1 by deliberately breaking the code, found the Presenter wrap was a second budget on top of `InputWriter`'s, and removed it. The Revisions entry records why.
+2. **Critical:** none.
+3. **Important:** none.
+4. **Minor:** none new.
+5. **Test coverage**
+   - Done-when: transient stall checked at the ttyio and Presenter levels. Persistent stall and cancellation checked at the ttyio level. Mode cleanup checked both when the host resumes and when it stays stalled. The Console release budget and its diagnostic are checked.
+   - The stall tests depend on timing (thresholds of 2.5s, 2.9–4s and similar). The margins look adequate, but they could be flaky on a heavily loaded CI machine.
+6. **Architecture**
+   - **ARCH-DRY: pass.** Each budget has one owner. I swept the window for every `WriteFailure{` literal: there are exactly two, at `transport.go:135` and `presenter.go:211`, and both now use field names.
+   - **ARCH-PURE: pass.** The changes stay in the I/O layer, and the policy is just a context deadline.
+   - **ARCH-PURPOSE: pass.** All three competing limits named in the Problem section are gone. I checked every caller that used to rely on ttyio's hidden limit: termcmd, Console, terminalqualify and the palette query all now have a bound or pass their own context. The Log keeps the original stall trigger marked as unknown and lists the evidence still needed to find it.
+7. **Plan revisions:** none beyond the existing Revisions entry, which already matches the code.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The redundant WithTimeout wrap was removed, and TestPresenterReleaseBoundsDragCancellationWhenChildStalls guards the real owner (InputWriter); it passes when run outside the sandbox.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Both WriteFailure literals in the tree (transport.go:135, presenter.go:211) now use field names.
+```

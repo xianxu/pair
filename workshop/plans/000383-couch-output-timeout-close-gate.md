@@ -21,6 +21,20 @@ rounds:
           round: 1
       recipe: small-diff-review
       blocked: false
+    - "n": 2
+      timestamp: "2026-10-02T09:01:53-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The redundant WithTimeout wrap was removed, and TestPresenterReleaseBoundsDragCancellationWhenChildStalls guards the real owner (InputWriter); it passes when run outside the sandbox.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: Both WriteFailure literals in the tree (transport.go:135, presenter.go:211) now use field names.
+          round: 2
+      recipe: small-diff-review
+      blocked: false
 ---
 
 # Gate ledger — pair#383 (boundary-review)
@@ -37,7 +51,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-2** [Minor] `struct-literal-style` WriteFailure is built positionally in transport.go and keyed in presenter.go
   transport.go:135 uses WriteFailure{"child input", accepted, len(p), err} and presenter.go:212 uses keyed fields. Op is a free-form string with no zero-value guard, so keyed literals at both sites would keep a future field reorder or omission from silently printing "terminal:  write accepted".
 
+## Round 2 — 2026-10-02T09:01:53-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — addressed — The redundant WithTimeout wrap was removed, and TestPresenterReleaseBoundsDragCancellationWhenChildStalls guards the real owner (InputWriter); it passes when run outside the sandbox.
+- BR-2 — addressed — Both WriteFailure literals in the tree (transport.go:135, presenter.go:211) now use field names.
+
 ## Open findings
 
-- **BR-1** [Minor] `budget-owner-untested-branch` Release's drag-cancellation WriteTimeout bound has no regression test
-- **BR-2** [Minor] `struct-literal-style` WriteFailure is built positionally in transport.go and keyed in presenter.go
+(none — every finding has been disposed)

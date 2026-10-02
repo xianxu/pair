@@ -119,6 +119,7 @@ release budget instead of each caller wrapping it.
 ## Log
 
 ### 2026-10-02 — incident investigation
+- 2026-10-02: closed — Follow-up after codecomplete: removed redundant drag-cancel WithTimeout (mutation proved InputWriter owns the bound); new TestPresenterReleaseBoundsDragCancellationWhenChildStalls passes with and without the wrap, returning at 5.0s. Keyed WriteFailure literal. go test -race on ttyio/terminal/hostty/couchtty/termcmd/terminalqualify/ptychild green. Earlier full-suite evidence: make -k test only known test-changelog; go test ./... only the 3 known pre-existing failures. --no-done-when-fresh: the Revisions entry records an implementation detail (which layer bounds drag cancellation); the Done-when acceptance criteria are unchanged and still met.; review verdict: SHIP
 - 2026-10-02: closed — Real-PTY regressions (ttyio x3, Presenter x3, Console release budget) red on main with incident signature 1024/262144 at 2.001s, green after; mutation checks confirm reverting the 2s cap or the ErrModesNotRestored wrap fails tests. make -k test: only known test-changelog fails (passes with scratchpad TMPDIR); go test ./...: only the 3 known pre-existing failures (TestBareCouchInstalledCommand, TestProductionArtifactReferencesAreExactlyClassified on console_messages.go, TestCouchReferencesLocalArchiveLocatorRoundTrip); go test -race on ttyio/terminal/couchtty green; post-review minors re-tested (ttyio/terminal/hostty/couchtty green).; review verdict: SHIP
 
 Read-only investigation plus a temporary Darwin PTY probe reproduced the exact
