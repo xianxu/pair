@@ -1758,20 +1758,27 @@ func TestTheConsoleRunnerOpensTheTimingTraceFromTheEnvironment(t *testing.T) {
 }
 
 func TestOSCompositionChecksSwitchExecutablesAndWiresExactStatus(t *testing.T) {
-	home, data, bin := t.TempDir(), t.TempDir(), t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_DATA_HOME", data)
+	fixture := isolatedCouchTestEnvironment(t)
+	bin := filepath.Join(fixture, "bin")
+	if err := os.Mkdir(bin, 0700); err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("PATH", bin)
 	for _, name := range []string{"pair", "codex"} {
 		if err := os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\nexit 0\n"), 0700); err != nil {
 			t.Fatal(err)
 		}
 	}
-	ns, err := couchcore.ResolveCouchNamespace(t.TempDir(), home)
+	rt, lease, err := (OSRuntime{}).prepareSingleton(true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	c, err := (OSRuntime{}).NewCouchWith(couchcore.NewFakeRunner(), ns)
+	defer lease.Close()
+	ns, err := rt.ResolveNamespace()
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := rt.NewCouchWith(couchcore.NewFakeRunner(), ns)
 	if err != nil {
 		t.Fatal(err)
 	}

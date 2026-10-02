@@ -99,9 +99,18 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 		return 1, nil
 	}
 	repoRoot := gitRootOrCwd(cwd)
-	dataDir := ResolveDataDir(home, xdg)
+	selectedGlobal := os.Getenv("COUCH_PAIR_DATA_DIR")
+	dataDir, err := ResolveGlobalDataDir(home, xdg, selectedGlobal)
+	if err != nil {
+		fmt.Fprintln(stderr, "pair:", err)
+		return 1, nil
+	}
 	launchDataDir := ScopedLaunchDataDir(dataDir, repoRoot)
 	if explicit := os.Getenv("PAIR_DATA_DIR"); explicit != "" {
+		if selectedGlobal != "" && explicit != launchDataDir {
+			fmt.Fprintf(stderr, "pair: PAIR_DATA_DIR %q conflicts with selected repository scope %q; clear the inherited override\n", explicit, launchDataDir)
+			return 1, nil
+		}
 		launchDataDir = explicit
 	}
 	env := Env{

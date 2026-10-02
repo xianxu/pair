@@ -9,6 +9,6 @@ mkdir -p "$fixture/home" "$fixture/data/pair/couch" "$fixture/tmp"
 go_cache=$(go env GOCACHE)
 go_modules=$(go env GOMODCACHE)
 env -i PATH="$PATH" TERM="${TERM:-xterm-256color}" TMPDIR="$fixture/tmp" \
- HOME="$fixture/home" XDG_DATA_HOME="$fixture/data" \
+ COUCH_ISOLATED_ROOT="$fixture" HOME="$fixture/home" XDG_DATA_HOME="$fixture/data" \
  PAIR_DATA_DIR="$fixture/data/pair" COUCH_STORE_DIR="$fixture/data/pair/couch" \
  GOCACHE="$go_cache" GOMODCACHE="$go_modules" "$@"

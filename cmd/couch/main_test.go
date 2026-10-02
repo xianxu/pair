@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -101,7 +100,7 @@ sleep 2
 					return
 				case <-ticker.C:
 					calls, _ := os.ReadFile(callLog)
-					if bytes.Contains(calls, []byte("pair resume ")) {
+					if bytes.Contains(calls, []byte("pair --couch-session-v1 resume ")) {
 						pairCalled <- struct{}{}
 						return
 					}
@@ -161,7 +160,8 @@ sleep 2
 // The exact shape of the one pair call couch makes. The trailing --layout3 is
 // couch's DEFAULT layout since #198, not a pinned constant: a `couch --layout3`
 // makes the same call with --layout3. What stays exact is the arity and the
-// generated tag -- a stray positional here would be the regression.
+// durable tag in this fresh isolated authority -- a stray positional here would
+// be the regression. The first store/thread in repository alpha is 1-alpha-1.
 func assertExactPairResumeCall(t *testing.T, calls []byte) {
 	t.Helper()
 	var pairCalls [][]string
@@ -175,13 +175,11 @@ func assertExactPairResumeCall(t *testing.T, calls []byte) {
 		t.Fatalf("pair calls = %q, want exactly one", pairCalls)
 	}
 	call := pairCalls[0]
-	if len(call) != 4 {
-		t.Fatalf("pair call = %q, want exactly pair resume <generated-couch-tag> <couch default layout>", call)
+	if len(call) != 5 {
+		t.Fatalf("pair call = %q, want exactly pair --couch-session-v1 resume 1-alpha-1 --layout3", call)
 	}
-	tagHex := strings.TrimPrefix(call[2], "couch-")
-	_, tagErr := hex.DecodeString(tagHex)
-	if call[1] != "resume" || !strings.HasPrefix(call[2], "couch-") || len(tagHex) != 16 || tagErr != nil || call[3] != "--layout3" {
-		t.Fatalf("pair call = %q, want exactly pair resume <generated-couch-tag> <couch default layout>", call)
+	if call[1] != "--couch-session-v1" || call[2] != "resume" || call[3] != "1-alpha-1" || call[4] != "--layout3" {
+		t.Fatalf("pair call = %q, want exactly pair --couch-session-v1 resume 1-alpha-1 --layout3", call)
 	}
 }
 
@@ -208,12 +206,25 @@ func waitInstalled(t *testing.T, cmd *exec.Cmd, cancel context.CancelFunc, waitR
 
 func installedEnv(t *testing.T, binDir string) []string {
 	t.Helper()
-	home := t.TempDir()
-	return append(os.Environ(),
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var env []string
+	for _, entry := range os.Environ() {
+		key, _, _ := strings.Cut(entry, "=")
+		if !strings.HasPrefix(key, "PAIR_") && !strings.HasPrefix(key, "COUCH_") && !strings.HasPrefix(key, "XDG_") {
+			env = append(env, entry)
+		}
+	}
+	return append(env,
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
-		"HOME="+home,
-		"XDG_DATA_HOME="+filepath.Join(home, "data"),
-		"COUCH_STORE_DIR="+filepath.Join(home, "store"),
+		"COUCH_ISOLATED_ROOT="+root,
+		"HOME="+filepath.Join(root, "home"),
+		"XDG_DATA_HOME="+filepath.Join(root, "data"),
+		"PAIR_DATA_DIR="+filepath.Join(root, "data", "pair"),
+		"COUCH_STORE_DIR="+filepath.Join(root, "store"),
+		"COUCH_IDENTITY_DIR="+filepath.Join(root, "identity"),
 	)
 }
 

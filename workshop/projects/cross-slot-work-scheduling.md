@@ -80,7 +80,7 @@ The first issue removes the measured regression without waiting for the entire o
 - [x] Add operator-directed reclaim [ariadne#278]
 - [ ] Expose workflow observations [ariadne#279]
 - [ ] Publish operation recovery contracts [ariadne#280]
-- [ ] Establish local Couch singleton behavior [pair#366]
+- [x] Establish local Couch singleton behavior [pair#366]
 - [ ] Recover locally assigned work [pair#367]
 - [ ] Schedule work and verify effects [pair#362]
 
@@ -165,6 +165,15 @@ Depends on ariadne#277, ariadne#278 and ariadne#279. Declare and test operation-
 
 Settle production singleton scope and migration from existing stores while retaining supported isolated test environments. No dependency on claim implementation is needed to design local ownership.
 
+**estimate:** 2.66h. **actual:** 6.12h (SDLC measured). **closed:** 2026-10-02
+(local codecomplete). Implementation on `000366-couch-singleton` passed the SDLC
+boundary review with SHIP and no open findings; published as [PR #196](https://github.com/xianxu/pair/pull/196). Production ownership is per OS account on
+machine-local storage; second launches refuse with owner/store context. Selection
+preserves the adopted store, Pair data and identity roots in place. Ambiguous legacy
+installations remain explicitly UNMIGRATED until operator reconciliation; automatic
+inventory consolidation is outside the approved scope. Tests and diagnostics use an
+explicit isolated root. No running installation has been cut over by this work.
+
 <a id="pair-367"></a>
 ### pair#367 — local recovery
 
@@ -213,6 +222,28 @@ The operator approved publishing the project and all eight tasks. Initial issue 
 ### 2026-10-01 — operator review and publication
 
 Preserved the operator's requirement that observation tools be fast, and recorded approval to publish this definition and all eight issue details. No implementation scope or issue status changed.
+
+### 2026-10-01 — #366 implementation scope
+
+Recorded the operator-approved singleton/refusal and in-place adoption scope, its
+2.66h estimate and current verification stage. Preserved the multi-store migration
+limitation and downstream dependencies; no project baseline or completion claim changed.
+
+### 2026-10-02 — #366 accepted locally
+
+Replaced the earlier “awaiting verification/review” checkpoint with the final SHIP
+verdict, measured 4.45h actual and draft PR #196. The gate marked #366 codecomplete
+and ticked its task; it is not merged or deployed. The adoption limits and downstream
+dependencies remain unchanged. All four review findings were resolved with regression
+and mutation coverage; the two disclosed full-repository failures reproduce on base.
+
+### 2026-10-02 — #366 integration acceptance
+
+The operator requested merge. Main was integrated with a lessons-only conflict;
+renewed review found and resolved derived isolation-root containment (BR-5). Final
+review returned SHIP with all five findings addressed. Updated measured actual from
+the initial 4.45h close to 6.12h and removed the stale draft-PR description. Regression
+and full command/launcher verification passed; SDLC owns merge and archive completion.
 
 [pair#365]: #pair-365
 [ariadne#277]: #ariadne-277

@@ -1,19 +1,23 @@
 package couchcmd
 
 import (
-	"github.com/xianxu/pair/cmd/internal/couchcore"
-	"strings"
+	"errors"
 	"testing"
 )
 
-func TestOSRuntimeRefusesRelativeHostIdentityAuthority(t *testing.T) {
-	t.Setenv("HOME", "")
-	namespace, err := couchcore.ResolveCouchNamespace(t.TempDir(), "/unused")
+func TestIsolatedAuthorityDoesNotLookUpAccountHome(t *testing.T) {
+	isolatedCouchTestEnvironment(t)
+	called := false
+	rt := OSRuntime{accountHome: func() (string, error) {
+		called = true
+		return "", errors.New("account-home lookup must not run in isolation")
+	}}
+	_, lease, err := rt.prepareSingleton(true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = (OSRuntime{}).NewCouchWith(nil, namespace)
-	if err == nil || !strings.Contains(err.Error(), "absolute HOME") {
-		t.Fatalf("err=%v", err)
+	defer lease.Close()
+	if called {
+		t.Fatal("isolated authority consulted the real account home")
 	}
 }
