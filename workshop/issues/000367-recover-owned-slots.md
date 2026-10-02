@@ -1,12 +1,20 @@
 ---
 id: 000367
-status: open
+status: working
 deps: [pair#366, ariadne#277, ariadne#278, ariadne#279, ariadne#280]
 github_issue:
 created: 2026-10-01
-updated: 2026-10-01
+updated: 2026-10-02
 estimate_hours:
-card_mirror: 'cd654ed7c2bb20f18114d375092b6994454cfdb6' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'eb186c2373aeebbe7a59503fb223d080066f8af6' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-02T11:50:33-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Recover local slots from durable issue ownership
@@ -39,6 +47,42 @@ Implementation plan to be designed after issue claim and start-plan; these are r
 ### 2026-10-01
 
 Captured from the performance → messaging guarantees → SDLC ownership/observability → recovery discussion. No implementation started.
+
+### 2026-10-02 — surface survey after claim (sdlc 3516e1bf, ariadne#277–280 landed)
+
+What exists:
+- `sdlc issue show N --json` (schema v1) is the per-issue observation: claimant
+  {operator, machine (hashed), machine_name, workspace "pair:N", worktree,
+  repository}, `relation` (this-workspace / other-workspace / unattributed /
+  unknown, judged from the cwd checkout), `claimant_worktree` (holds-branch /
+  elsewhere / missing / other-machine / unknown), `workspaces.holding[]` with
+  dirty/ahead counts and `is_claimant`, and card status/revision. Foreign
+  machine = other-workspace + other-machine; legacy = unattributed (5 such
+  working issues today: #121, #207, #253, #278, #292).
+- `sdlc fleet inventory --json`: every worktree's git facts plus the issue its
+  branch prefix names; no claimant, no slot address.
+- `sdlc workspace [addr] --json`: resolves `:0` / `pair:N` to kind, path, branch.
+- `sdlc help recovery` (#280): claim/reclaim convergent-retry, issue show
+  read-only; verify effects via `issue show --json`, never via message receipts.
+- `sdlc reclaim`: inspect-then-`--expect REV` CAS, operator-directed only.
+- Couch: per-slot `.couch/thread.json` + global records; states live, detached,
+  parked, busy, unusable(reason), archived. `OSSlotCatalog.Discover` already
+  enumerates slots by the `worktree/<repo>-slotN/<repo>` rule joined with
+  `git worktree list`, each verified through `sdlc workspace --json`.
+
+Gaps against the Revisions' assumptions:
+1. Couch does not start a preallocated slot set on restart; it only reattaches
+   detached/unknown agents. Parked slots stay parked.
+2. No operator/Couch-originated delivery: `couch` peer messaging requires a
+   live registered slot as sender; there is no way to inject "continue #N"
+   from outside a slot.
+3. No machine-readable Couch inventory outside a slot (`--list` is text;
+   `--actors --json` is live-only, in-slot only).
+4. No bulk "claims naming this machine" query; `issue list` has no `--json`.
+   Per-issue `issue show --json` costs a tracker read each.
+5. Deliberate park vs crash-park is only implied by `verified_park`.
+
+Scope decisions requested from the operator before the durable plan.
 
 ## Revisions
 
