@@ -6,7 +6,7 @@ updated: 2026-10-01
 estimate_hours:
 github_issue:
 started: 2026-10-01T15:41:41-07:00
-actual_hours: 0.84
+actual_hours: 1.54
 tracker:
     version: 1
     handoff:
@@ -20,10 +20,10 @@ tracker:
         destination: workshop/issues/000373-couch-output-pressure.md
         main_commit: 31bc6185faeb880f24040063da1f2114ff2a5dde
     completion:
-        token: close-56a0cb61e303
+        token: close-19fbcb1d76ac
         repository: github.com/xianxu/pair
-        reviewed_head: 5dccaa0004fc177dd6f4636a01be5d2855186d41
-        evidence_commit: 1ce02b564be7e7ce0dd6cd3cdc1c596d088a6117
+        reviewed_head: 94aeda6842d79595f75b63c2700605027e631059
+        evidence_commit: 459bd1b8d6ab5bd3b2bcac77901ce183201845be
 ---
 
 # Isolate Couch pane latency under output pressure
