@@ -114,3 +114,9 @@ Changes:
   `launchTrackedThread`. The two existing hosted-actor fixtures (archive and
   switch-agent) were "live" only because of this bug, since their pid was never
   marked alive. They now share `registeredActorFixture` and set the pid live.
+- The full suite caught `PruneDead` left with no production caller
+  (`TestNoProductionSymbolIsReferencedOnlyByTests`). I deleted it. `withoutDead`
+  is the only prune, and the unknown-fails-closed test now targets it.
+  Failures present on `origin/main` as well, checked in a main worktree:
+  `TestBareCouchInstalledCommand`, `TestProductionArtifactReferencesAreExactlyClassified`,
+  `TestCouchReferencesLocalArchiveLocatorRoundTrip`.

@@ -1155,21 +1155,6 @@ func (c *Couch) Describe(w Worktree) string {
 	return c.names.Entry(w).Description
 }
 
-// PruneDead removes records whose process is gone and persists the result.
-//
-// Liveness is recomputed rather than stored, so the registry accumulates
-// records for children that have exited. Pruning is what keeps the
-// one-agent-per-tree guard meaningful: without it the guard protects a tree
-// against a process that no longer exists.
-func (c *Couch) PruneDead() error {
-	pruned, removed := c.withoutDead(c.reg)
-	if removed == 0 {
-		return nil
-	}
-	c.reg = pruned
-	return c.Store.Save(c.reg, c.names)
-}
-
 // withoutDead is the registry minus every KNOWN-dead record, and how many that
 // was. It is the registry's funeral: actor records are never removed when their
 // child exits, so each launch reaps the dead before inserting its own record
