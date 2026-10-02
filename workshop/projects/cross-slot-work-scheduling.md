@@ -116,6 +116,30 @@ Testing:
 - **Mutation check:** a reintroduced 1 s poll fails the idle test, moving launch checks from 3 to 9 in 2.5 s.
 - **Event model:** pane changes are modelled as states rather than attach/exit edges, so coalescing is safe.
 
+<a id="pair-365-m3"></a>
+### pair#365 M3 — failure semantics, measurement, docs
+
+**est:** 6.91
+**actual:** 1.22h
+**closed:** 2026-10-01
+
+What M3 added:
+- **Crash and interleaving suite:**
+  - an absent endpoint;
+  - wrapper death mid-delivery: Indeterminate, never resent;
+  - replacement during an in-flight delivery: it completes or goes Indeterminate at the old incarnation, never redirected;
+  - delayed frames from a displaced session, including an exec's identical binding;
+  - one full start/detach/reattach/exec/Couch-restart sequence.
+- **Retained receipts:** each wrapper keeps its last 64. After a Couch restart, `--message-status` recovers outcomes from connected recipients and answers *uncertain* when one is silent.
+- **Planned fan-out dropped:** the per-send family fan-out was dropped because the CLI mints a fresh ID per send.
+- **Review fixes:** M2-review findings were fixed as a class: newest *admitted* wins, failed effects report back, and broker tombstones are evicted.
+
+Live measurement on the operator's 11-slot setup:
+- **Messaging spawns:** about 800 `ps`/`zellij`/`sdlc` per 2 min fell to 0.
+- **Couch CPU:** 60.9 fell to 22.5 CPU-s per 120 s, down 63%.
+- **A hypothesis that didn't hold:** I thought the old wrappers' legacy `register` requests explained the remainder. Relaunching 6 slots didn't lower it. The remainder is mostly system time from non-messaging file-system polling, notably the Console's 500 ms continuation scan, and goes to a follow-up.
+- **Not done:** a live send smoke test between relaunched slots.
+
 <a id="ariadne-277"></a>
 ### ariadne#277 — claimant ownership
 
@@ -200,3 +224,4 @@ Preserved the operator's requirement that observation tools be fast, and recorde
 [pair#362]: #pair-362
 [pair#365 M1]: #pair-365-m1
 [pair#365 M2]: #pair-365-m2
+[pair#365 M3]: #pair-365-m3
