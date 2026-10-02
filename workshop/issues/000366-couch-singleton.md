@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-01
 updated: 2026-10-01
-estimate_hours:
-card_mirror: '9cf6ed18768e9f6d5b3217514d3e97cc8e1642c4' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 2.66
+card_mirror: 'cab06c2781943bbbe5b67b82f9e1e2eb05527b91' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-01T22:14:48-07:00
 ---
 
@@ -30,6 +30,39 @@ Define existing-namespace migration/adoption, second-launch behavior, crash rest
 - A second invocation attaches/routes to the existing supervisor or gives a concrete diagnostic.
 - A sole legacy store adopts in place with supporting roots and identities preserved; ambiguous multiple-store installations receive an actionable preservation report, remain explicitly unmigrated, and require operator reconciliation before adoption.
 - Restart and isolated-test behavior are verified; durable issue ownership requires no Couch ID.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. Calibration is marked stale by estimate-source,
+so these hours are provisional ship wall-clock, not a deadline.
+
+Eight primitives: issue/spec dialogue (0.5 design, 0.2 raw impl), pure selection
+and Manager IO (two greenfield modules, each 1.0 raw design, 0.8 raw impl), identity
+inspection and CLI/runtime composition (two smaller modules, each 0.3 raw design,
+0.5 raw impl), fixture/root sweep (cross-cutting, 0.3 raw design, 0.5 raw impl),
+docs (0.1 raw design, 0.2 raw impl), and one review (0.1 raw design, 0.5 raw impl).
+Existing flock/durablefile/strictjson supply the library shortcut for the two
+new modules: design ×0.5, then thorough-spec ×0.2. All other implementation design
+uses ×0.2; the already-incurred issue/spec dialogue is undiscounted. Every impl
+value below is raw ×0.4 exactly once. Familiar Unix/Go work uses ×1.0 familiarity;
+thorough plan uses +15% design buffer. Design subtotal 0.92; implementation 1.60;
+0.92 × 1.15 + 1.60 = 2.658, rounded 2.66 hours.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.50 impl=0.08
+item: greenfield-go-module design=0.10 impl=0.32
+item: greenfield-go-module design=0.10 impl=0.32
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: cross-cutting-refactor design=0.06 impl=0.20
+item: atlas-docs design=0.02 impl=0.08
+item: milestone-review design=0.02 impl=0.20
+design-buffer: 0.15
+total: 2.66
+```
 
 ## Plan
 
