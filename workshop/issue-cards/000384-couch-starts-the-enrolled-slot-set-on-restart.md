@@ -1,6 +1,6 @@
 ---
 id: 000384
-status: working
+status: wontfix
 created: 2026-10-02
 updated: 2026-10-02
 estimate_hours:
