@@ -133,3 +133,4 @@ Changes:
   per launch.
   Out of scope: `Couch.Liveness` and `observeExactProcess` overlap, which
   predates this issue.
+- Operator smoke test on pair:0 (bin/couch at 17f0341e): archive of the stuck `brain` row succeeded after restarting couch. Works.
