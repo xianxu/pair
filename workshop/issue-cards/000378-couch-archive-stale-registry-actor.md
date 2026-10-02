@@ -1,6 +1,6 @@
 ---
 id: 000378
-status: codecomplete
+status: done
 created: 2026-10-01
 updated: 2026-10-01
 estimate_hours:
@@ -24,6 +24,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 88818fd579e0d24ec39e9f14b401af658e2f5e28
         evidence_commit: 0c820f37da18332ec8dddf29dc674be7bfb53351
+        landed_commit: fa4507e72f81f9305fec6c8e4103db69d5eb4bcc
 ---
 
 # couch archive refuses thread whose registered agent is dead
