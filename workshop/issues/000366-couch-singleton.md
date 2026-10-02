@@ -386,3 +386,11 @@ watchers, context/title, review and retention; these use the launcher's scoped v
 or explicit artifact bindings. Native agent HOME stores are separate by design.
 Fresh full command/installed-binary reruns started after mutation restoration so their
 recorded results cannot include the temporarily mutated source.
+
+### 2026-10-01 — BR-4 restored integration verification complete
+
+After source restoration, `go test -race ./cmd/internal/couchcmd ./cmd/pair-go
+-count=1` passed (43.000s and 14.976s). Installed Couch and full termcmd tests passed
+(2.168s and 0.453s). Artifact inventory still reports exactly the same 49 original-base
+diagnostics; `git diff --check` passes. No further code changes after these tests.
+Submitting BR-4 for disposition by the binary-owned boundary review.
