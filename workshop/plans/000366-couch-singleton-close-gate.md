@@ -27,6 +27,31 @@ rounds:
           round: 1
       recipe: milestone-review
       blocked: true
+    - "n": 2
+      timestamp: "2026-10-01T23:46:32-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Slot errors, payloads, and topology now participate in locked inspection and publication revalidation. Disabling the slot-error guard makes TestAdoptionRejectsUnreadableSlotEvidence/corrupt fail.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: Exclusion checks recorded incarnations and creating owners, preserving unknown liveness and rechecking before publication. Disabling the liveness guard makes live, unknown, and identity-error regression cases fail.
+          round: 2
+        - id: BR-3
+          disposition: addressed
+          note: Preview, publication, and reading share maxSelectionBytes. Exact-boundary round trips pass; disabling the encoding limit makes oversize-publication regressions fail.
+          round: 2
+      findings:
+        - id: BR-4
+          severity: Critical
+          title: Pair children interpret the selected global root as a repository-scoped artifact directory.
+          detail: cmd/internal/couchcmd/singleton.go:247 exports roots.PairDataDir as PAIR_DATA_DIR, but cmd/internal/launcher/runcli.go:102–118 treats that variable as an already-scoped directory and derives its global root from HOME/XDG without consuming COUCH_PAIR_DATA_DIR. Hosted artifacts therefore use the flat root; custom selected roots also leave global claim readers pointed at ambient storage. Fix the complete parent/launcher root contract and add actual launcher artifact/read/resume coverage. ARCH-PURPOSE, ARCH-DRY.
+          family: resolved-runtime-root-propagation
+          round: 2
+      recipe: milestone-review
+      blocked: true
 ---
 
 # Gate ledger — pair#366 (boundary-review)
@@ -45,8 +70,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Critical] `persisted-writer-reader-contract` Successful adoption can publish an unreadable selection.
   cmd/internal/couchsingleton/manager.go:204–212 publishes serialized Selection without enforcing Read's 65,536-byte limit at line 37. Requests permit up to 4096 exclusions. A valid 600-exclusion request successfully published 139,628 bytes, after which Read refused with "file exceeds 65536 bytes"; TestReviewSelectionWriterReadLimit reproduces this. Share the size contract between writer and reader, reject oversized selections before publication, and test the boundary plus successful round trips. ARCH-CONSTRAINTS, ARCH-SECURE.
 
+## Round 2 — 2026-10-01T23:46:32-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Slot errors, payloads, and topology now participate in locked inspection and publication revalidation. Disabling the slot-error guard makes TestAdoptionRejectsUnreadableSlotEvidence/corrupt fail.
+- BR-2 — addressed — Exclusion checks recorded incarnations and creating owners, preserving unknown liveness and rechecking before publication. Disabling the liveness guard makes live, unknown, and identity-error regression cases fail.
+- BR-3 — addressed — Preview, publication, and reading share maxSelectionBytes. Exact-boundary round trips pass; disabling the encoding limit makes oversize-publication regressions fail.
+
+### Raised
+
+- **BR-4** [Critical] `resolved-runtime-root-propagation` Pair children interpret the selected global root as a repository-scoped artifact directory.
+  cmd/internal/couchcmd/singleton.go:247 exports roots.PairDataDir as PAIR_DATA_DIR, but cmd/internal/launcher/runcli.go:102–118 treats that variable as an already-scoped directory and derives its global root from HOME/XDG without consuming COUCH_PAIR_DATA_DIR. Hosted artifacts therefore use the flat root; custom selected roots also leave global claim readers pointed at ambient storage. Fix the complete parent/launcher root contract and add actual launcher artifact/read/resume coverage. ARCH-PURPOSE, ARCH-DRY.
+
 ## Open findings
 
-- **BR-1** [Critical] `adoption-evidence-completeness` Adoption ignores unreadable numbered-slot state.
-- **BR-2** [Critical] `migration-liveness-evidence` Exclusion admits stores with surviving live incarnations.
-- **BR-3** [Critical] `persisted-writer-reader-contract` Successful adoption can publish an unreadable selection.
+- **BR-4** [Critical] `resolved-runtime-root-propagation` Pair children interpret the selected global root as a repository-scoped artifact directory.

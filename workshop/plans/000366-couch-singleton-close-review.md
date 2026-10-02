@@ -79,3 +79,97 @@ findings:
 7. **Plan revision recommendations**
 
    Append a timestamped `## Revisions` entry covering complete slot evidence and revalidation, surviving-incarnation admission rules, and the shared selection-size limit. Add the three regressions to the verification contract before marking those implementation items complete again.
+
+---
+
+## Re-review — 2026-10-01T23:46:32-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 366 — Make Couch a local singleton |
+| repo | pair |
+| issue file | workshop/issues/000366-couch-singleton.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | f0c1e56689469666b1aaaac708538cbf95f06f1d..32ead2591590380be4673f40472d3d14a6e583fd |
+| command | sdlc close --issue 366 |
+| reviewer | codex |
+| timestamp | 2026-10-01T23:46:32-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+All three prior findings are addressed, with regression tests that fail when their fixes are disabled. One separate correctness bug blocks shipping: Couch passes its global Pair data root to children as a repository-scoped directory, so the actual Pair launcher reads and writes the wrong artifact locations.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Slot errors, payloads, and topology now participate in locked inspection and publication revalidation. Disabling the slot-error guard makes TestAdoptionRejectsUnreadableSlotEvidence/corrupt fail.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Exclusion checks recorded incarnations and creating owners, preserving unknown liveness and rechecking before publication. Disabling the liveness guard makes live, unknown, and identity-error regression cases fail.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Preview, publication, and reading share maxSelectionBytes. Exact-boundary round trips pass; disabling the encoding limit makes oversize-publication regressions fail.
+findings:
+  - id: new
+    severity: Critical
+    family: resolved-runtime-root-propagation
+    title: |
+      Pair children interpret the selected global root as a repository-scoped artifact directory.
+    detail: |
+      cmd/internal/couchcmd/singleton.go:247 exports roots.PairDataDir as PAIR_DATA_DIR, but cmd/internal/launcher/runcli.go:102–118 treats that variable as an already-scoped directory and derives its global root from HOME/XDG without consuming COUCH_PAIR_DATA_DIR. Hosted artifacts therefore use the flat root; custom selected roots also leave global claim readers pointed at ambient storage. Fix the complete parent/launcher root contract and add actual launcher artifact/read/resume coverage. ARCH-PURPOSE, ARCH-DRY.
+```
+
+1. **Strengths**
+
+   - Adoption holds global and numbered-slot transaction locks through publication; inspection authority expires when its callback returns.
+   - Process observations preserve uncertainty and distinguish recycled PIDs from surviving incarnations.
+   - Selection size tests cover exact 64 KiB payloads, JSON escaping, overflow refusal, and successful readback.
+   - README and atlas document adoption, exclusions, isolation, and legacy-binary prerequisites.
+
+2. **Critical findings**
+
+   The root-contract finding above originates at [singleton.go:247](/Users/xianxu/workspace/worktree/pair-slot2/pair/cmd/internal/couchcmd/singleton.go:247). Its consumer at [runcli.go:102](/Users/xianxu/workspace/worktree/pair-slot2/pair/cmd/internal/launcher/runcli.go:102) interprets the value differently.
+
+   A temporary overlay test invoking real `LaunchNative(["list"])` reproduced this: the correctly scoped control read `codex`, while Couch’s environment read `wrong-flat-agent` from the global directory. Make the launcher consume the selected global root and derive the appropriate repository scope. Sweep artifact writers, claim readers, and resume paths together.
+
+3. **Important findings**
+
+   None additional.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Passed normal singleton, identity, and couchcmd suites; singleton and identity race suites; focused core inspection, process, and supervisor tests; and pinned-range whitespace checks. Each prior fix was independently mutation-tested using temporary overlays.
+
+   Existing child tests assert environment strings—including the incorrect global-as-scoped value—without exercising Pair’s consumption. The launcher reproduction exposes that gap. A subsequent repeat encountered sandbox Go-cache permissions. Repository files remain unchanged.
+
+6. **Architectural notes**
+
+   | Marker | Result |
+   |---|---|
+   | ARCH-DRY | **Flag:** parent and launcher apply incompatible root-resolution rules. |
+   | ARCH-PURE | Pass: deterministic selection policy and explicit IO boundaries. |
+   | ARCH-PURPOSE | **Flag:** selected-root propagation stops before the actual Pair consumer. |
+   | ARCH-MOCK | Pass: injected process state, portable storage fixtures, and real subprocess checks. |
+   | ARCH-CONSTRAINTS | Pass: explicit inspection and serialization bounds; no recurring discovery added. |
+   | ARCH-SECURE | Pass: bounded parsing, path validation, and conservative unknown-state handling. |
+   | ARCH-ORDER | Pass: ordered leases, publication revalidation, and lost-acknowledgment recovery tests. |
+   | ARCH-FUNERAL | Pass: fixed metadata filenames, bounded exclusions, and owned lease lifetimes. |
+
+7. **Plan revision recommendations**
+
+   Append a `## Revisions` entry reopening Task 3’s child-root integration and Task 4’s acceptance coverage. Name the actual Pair launcher as a consumer and require artifact creation/read/resume tests with selected roots differing from HOME/XDG.

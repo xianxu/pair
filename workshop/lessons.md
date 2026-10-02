@@ -472,3 +472,7 @@ proof; record the surprising case so the next change starts from evidence.
   its transaction locks and preserve unknown liveness as a refusal (#366 BR-1/2).
 - Share persisted payload limits between writer and reader; a successful publish
   must always produce a readable record, including large valid lists (#366 BR-3).
+- Verify environment handoff at its consumer, including artifact creation and
+  subsequent reads/resumes. A global data root and a repository-scoped artifact
+  directory are different contracts even when both variables say data dir; an
+  env-dump test alone cannot establish correct storage behavior (#366 BR-4).

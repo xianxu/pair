@@ -233,3 +233,15 @@ BR-3 shares `maxSelectionBytes` and `encodeSelection` across policy and IO. Exac
 and selected-root creation. Red/green tests plus mutations validate each review
 finding's class. Commands/results are appended to the issue Log; the full core race
 suite is the final pending verification before resubmitting the binary-owned gate.
+
+### 2026-10-01 — boundary round 2 root-contract correction
+
+Round 2 disposed BR-1/2/3 as addressed and raised BR-4. The parent incorrectly
+exported its global selected Pair root as `PAIR_DATA_DIR`, whose launcher contract
+is an already-scoped artifact directory. Revise the child boundary: Couch clears
+that inherited actor destination and passes only `COUCH_PAIR_DATA_DIR` as the global
+root; the launcher consumes it for global claims/readers and derives the new actor's
+repository scope. Valid hosted helper scope and standalone explicit-root behavior
+remain supported. Add actual launcher artifact creation/read/resume coverage at a
+custom selected root with differing HOME/XDG, plus parent Start/StartBlocked tests.
+The same selection must govern both global ownership and scoped session artifacts.
