@@ -1,6 +1,6 @@
 ---
 id: 000378
-status: open
+status: working
 created: 2026-10-01
 updated: 2026-10-01
 estimate_hours:
@@ -17,6 +17,7 @@ tracker:
         source_blob: f8a200a55f988e7580ba04ce8bfbfa21eb3971d8
         destination: workshop/issues/000378-couch-archive-stale-registry-actor.md
         main_commit: 562c8f53f231d9f0b2e7b633609961bab313b1d3
+started: 2026-10-01T21:44:28-07:00
 ---
 
 # couch archive refuses thread whose registered agent is dead
