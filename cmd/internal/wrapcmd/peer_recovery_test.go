@@ -77,20 +77,27 @@ func TestPeerLostReceiptRecoveredAfterBrokerRestart(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = server.Close() })
 
-	// The new broker never saw m.
-	broker := couchmessage.NewBroker(context.Background(), time.Now, func(context.Context, couchmessage.Binding) (bool, error) { return true, nil })
-	t.Cleanup(func() { _ = broker.Close() })
-	for _, b := range []couchmessage.Binding{from, to} {
-		if err := broker.Register(b, couchmessage.RemoteEndpoint{Namespace: namespace, Binding: b}); err != nil {
-			t.Fatal(err)
+	// A broker that never saw m (a Couch restart). The re-send comes first, so
+	// nothing is cached: it must travel reserve -> wire already-committed ->
+	// adoption, not a broker short-circuit (#365 BR-12).
+	newBroker := func() *couchmessage.Broker {
+		b := couchmessage.NewBroker(context.Background(), time.Now, func(context.Context, couchmessage.Binding) (bool, error) { return true, nil })
+		t.Cleanup(func() { _ = b.Close() })
+		for _, v := range []couchmessage.Binding{from, to} {
+			if err := b.Register(v, couchmessage.RemoteEndpoint{Namespace: namespace, Binding: v}); err != nil {
+				t.Fatal(err)
+			}
 		}
+		return b
 	}
-	r, err := broker.StatusContext(context.Background(), from, m.ID)
+	resend := newBroker()
+	if r, err := resend.Send(context.Background(), from, m.ID, couchmessage.Route{Target: to.Slot}, m.Body); err != nil || r.Status != couchmessage.Submitted {
+		t.Fatalf("re-send of a known ID %+v %v", r, err)
+	}
+	status := newBroker()
+	r, err := status.StatusContext(context.Background(), from, m.ID)
 	if err != nil || r.Status != couchmessage.Submitted || r.Message.Body != m.Body {
 		t.Fatalf("recovered status %+v %v", r, err)
-	}
-	if r, err := broker.Send(context.Background(), from, m.ID, couchmessage.Route{Target: to.Slot}, m.Body); err != nil || r.Status != couchmessage.Submitted {
-		t.Fatalf("re-send of a known ID %+v %v", r, err)
 	}
 	d.mu.Lock()
 	current := d.current.Message.ID

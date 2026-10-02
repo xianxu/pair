@@ -62,6 +62,11 @@ func TestBrokerStatusAsksRecipientsForForgottenIDs(t *testing.T) {
 	if _, err := b.StatusContext(context.Background(), from, "never"); err == nil || errors.Is(err, ErrUncertain) {
 		t.Fatalf("unknown everywhere: %v", err)
 	}
+	// A wrapper cannot vouch for a delivery addressed to someone else.
+	quiet.retained.Add(Receipt{Message: Message{ID: "forged", From: from, To: to, Body: "work"}, Status: Submitted})
+	if r, err := b.StatusContext(context.Background(), from, "forged"); err == nil {
+		t.Fatalf("accepted a receipt from a holder that is not its recipient: %+v", r)
+	}
 	quiet.mu.Lock()
 	quiet.silent = true
 	quiet.mu.Unlock()

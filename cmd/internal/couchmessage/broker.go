@@ -619,27 +619,32 @@ func (b *Broker) StatusContext(parent context.Context, caller Binding, id string
 		b.mu.Unlock()
 		return Receipt{}, errors.New("receipt unavailable for this actor")
 	}
-	var holders []ReceiptHolder
-	for _, a := range b.actors {
+	type holder struct {
+		binding Binding
+		h       ReceiptHolder
+	}
+	var holders []holder
+	for binding, a := range b.actors {
 		if h, ok := a.endpoint.(ReceiptHolder); ok && a.state.Connected() {
-			holders = append(holders, h)
+			holders = append(holders, holder{binding, h})
 		}
 	}
 	b.mu.Unlock()
 	ctx, cancel := context.WithTimeout(parent, AdmissionTimeout/2)
 	defer cancel()
 	type answer struct {
-		r   Receipt
-		err error
+		from Binding
+		r    Receipt
+		err  error
 	}
 	answers := make(chan answer, len(holders))
 	limit := make(chan struct{}, 4)
 	for _, h := range holders {
-		go func(h ReceiptHolder) {
+		go func(h holder) {
 			limit <- struct{}{}
 			defer func() { <-limit }()
-			r, err := h.Retained(ctx, id)
-			answers <- answer{r, err}
+			r, err := h.h.Retained(ctx, id)
+			answers <- answer{h.binding, r, err}
 		}(h)
 	}
 	var found *Receipt
@@ -648,7 +653,9 @@ func (b *Broker) StatusContext(parent context.Context, caller Binding, id string
 		a := <-answers
 		switch {
 		case a.err == nil:
-			if a.r.Message.From == caller || a.r.Message.To == caller {
+			// A wrapper vouches only for deliveries addressed to itself; a
+			// receipt naming another recipient is untrusted input (#365 BR-13).
+			if a.r.Message.ID == id && a.r.Message.To == a.from && (a.r.Message.From == caller || a.r.Message.To == caller) {
 				r := a.r
 				found = &r
 			}

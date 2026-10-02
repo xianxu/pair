@@ -150,6 +150,31 @@ rounds:
       boundary: M2
       recipe: milestone-review
       blocked: false
+    - "n": 6
+      timestamp: "2026-10-01T17:20:04-07:00"
+      agent: claude
+      findings:
+        - id: BR-12
+          severity: Important
+          title: Lost-receipt recovery test re-sends via the b.receipts short-circuit; the wire reserve→AlreadyCommitted adoption path is unpinned
+          detail: 'TestPeerLostReceiptRecoveredAfterBrokerRestart calls StatusContext first, which records the receipt, so the re-send returns early at broker.go:427 and never reaches the wrapper''s reserve; peer_runtime.go:67-71, endpoint.go:456-457 and adoptRetained over RemoteEndpoint can be reverted with the test green. 2nd in family. Rule: each test added at this boundary needs an assertion that goes red when its named mechanism is removed. Mutation-check all new M3 tests, and add a fresh-broker reused-ID send plus an in-flight retained receipt case.'
+          family: test-name-matches-assertion
+          round: 6
+        - id: BR-13
+          severity: Important
+          title: StatusContext records a wrapper-supplied receipt without checking the answering holder is its recipient
+          detail: broker.go:239 accepts a receipt if From or To equals the caller; it never checks r.Message.To equals the answering actor's binding (or ID == id for non-Remote holders). Any connected wrapper can plant an outcome for another slot's message. adoptRetained already checks To == a.binding. Carry the binding with each holder, require To == binding and ID == id, and test a forged answer.
+          family: untrusted-receipt-provenance
+          round: 6
+        - id: BR-14
+          severity: Minor
+          title: Chunk 3 plan lines are unticked; lost-receipt service test, redraw-bytes experiment and lesson are neither delivered nor revised
+          detail: '3rd in family. Rule: before milestone-close, every Plan line in the closing milestone is ticked or has a Revisions disposition. Sweep all of Chunk 3, not only the named items.'
+          family: plan-revision-drift
+          round: 6
+      boundary: M3
+      recipe: milestone-review
+      blocked: true
 ---
 
 # Gate ledger — pair#365 (boundary-review)
@@ -220,6 +245,17 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-11** [Minor] `artifact-removal-path` Broker actor tombstones are never evicted, so after 128 bindings per Couch lifetime new sessions go dormant
   2nd finding in family artifact-removal-path. Rule: every bounded table a component writes must name its removal path at the writer, not just a cap. Here, a tombstone whose slot and repository have re-registered under a newer binding is superseded (the registry marks it Displaced, which is final), so evict it on that Register. Pre-existing at base broker.go:136, but M2 turns the failure into silent permanent dormancy where the old heartbeat kept retrying.
 
+## Round 6 — 2026-10-01T17:20:04-07:00 (claude) — BLOCKED
+
+### Raised
+
+- **BR-12** [Important] `test-name-matches-assertion` Lost-receipt recovery test re-sends via the b.receipts short-circuit; the wire reserve→AlreadyCommitted adoption path is unpinned
+  TestPeerLostReceiptRecoveredAfterBrokerRestart calls StatusContext first, which records the receipt, so the re-send returns early at broker.go:427 and never reaches the wrapper's reserve; peer_runtime.go:67-71, endpoint.go:456-457 and adoptRetained over RemoteEndpoint can be reverted with the test green. 2nd in family. Rule: each test added at this boundary needs an assertion that goes red when its named mechanism is removed. Mutation-check all new M3 tests, and add a fresh-broker reused-ID send plus an in-flight retained receipt case.
+- **BR-13** [Important] `untrusted-receipt-provenance` StatusContext records a wrapper-supplied receipt without checking the answering holder is its recipient
+  broker.go:239 accepts a receipt if From or To equals the caller; it never checks r.Message.To equals the answering actor's binding (or ID == id for non-Remote holders). Any connected wrapper can plant an outcome for another slot's message. adoptRetained already checks To == a.binding. Carry the binding with each holder, require To == binding and ID == id, and test a forged answer.
+- **BR-14** [Minor] `plan-revision-drift` Chunk 3 plan lines are unticked; lost-receipt service test, redraw-bytes experiment and lesson are neither delivered nor revised
+  3rd in family. Rule: before milestone-close, every Plan line in the closing milestone is ticked or has a Revisions disposition. Sweep all of Chunk 3, not only the named items.
+
 ## Open findings
 
 - **BR-6** [Minor] `artifact-removal-path` messageidle trace TSV grows unbounded while armed; only arm truncates it
@@ -227,3 +263,6 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-9** [Minor] `plan-revision-drift` M2 revision does not reconcile all Core-concepts rows and Task test bullets with the tree
 - **BR-10** [Minor] `send-target-slot-match` Exact-send SendTargeted posts from an untracked goroutine and matches the target by raw slot string
 - **BR-11** [Minor] `artifact-removal-path` Broker actor tombstones are never evicted, so after 128 bindings per Couch lifetime new sessions go dormant
+- **BR-12** [Important] `test-name-matches-assertion` Lost-receipt recovery test re-sends via the b.receipts short-circuit; the wire reserve→AlreadyCommitted adoption path is unpinned
+- **BR-13** [Important] `untrusted-receipt-provenance` StatusContext records a wrapper-supplied receipt without checking the answering holder is its recipient
+- **BR-14** [Minor] `plan-revision-drift` Chunk 3 plan lines are unticked; lost-receipt service test, redraw-bytes experiment and lesson are neither delivered nor revised
