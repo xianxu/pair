@@ -13,7 +13,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
-actual_hours: 0.41
+actual_hours: 0.48
 tracker:
     version: 1
     handoff:
@@ -27,10 +27,10 @@ tracker:
         destination: workshop/issues/000383-couch-output-timeout.md
         main_commit: b1de974ba1610ff32d633b536b482af13271d8f2
     completion:
-        token: close-08e78b865ded
+        token: close-d14659056265
         repository: github.com/xianxu/pair
-        reviewed_head: bbf2fdda4c005fb3439d49820e70040a58705bbd
-        evidence_commit: 73a47d630cde818b2bda0bdf5fd373380d865364
+        reviewed_head: 885ee9f0e036d656cd7c4d580e85cf51a3b733f7
+        evidence_commit: b4c3b56b6a6ea6cba62c5b5dc6cc936104ca17d6
 ---
 
 # Couch exits on stalled terminal output and fails to restore keyboard modes
