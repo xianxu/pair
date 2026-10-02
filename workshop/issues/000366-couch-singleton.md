@@ -8,6 +8,7 @@ updated: 2026-10-01
 estimate_hours: 2.66
 card_mirror: 'cab06c2781943bbbe5b67b82f9e1e2eb05527b91' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-01T22:14:48-07:00
+flow: {kind: full, provenance: operator}
 ---
 
 # Make Couch a local singleton
