@@ -13,7 +13,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
-actual_hours: 4.45
+actual_hours: 6.12
 tracker:
     version: 1
     handoff:
@@ -27,10 +27,10 @@ tracker:
         destination: workshop/issues/000366-couch-singleton.md
         main_commit: fc9e0b50719f3718c48a3406be84a46eb89ead40
     completion:
-        token: close-935dae82fc66
+        token: close-b29efb465b8e
         repository: github.com/xianxu/pair
-        reviewed_head: acc6a8f30216f114cba64931cdf8e06f5859dc8c
-        evidence_commit: c83d4566bc8e6fcf2f8ede80864aaf1af11cafb4
+        reviewed_head: fd511ef9eeec9fd421f87c827416186900ba61fa
+        evidence_commit: e5980c32cf4e8391597b7f79190dff3d8fbd9383
 ---
 
 # Make Couch a local singleton
