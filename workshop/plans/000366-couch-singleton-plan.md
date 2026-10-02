@@ -216,3 +216,20 @@ reading. Add exact-boundary/round-trip tests and reject oversize exclusions befo
 publication. This applies to both explicit adoption and first launch. No source
 state is discarded or migrated to address any finding. Re-run affected package and
 race coverage, then the binary-owned close review; acceptance scope is unchanged.
+
+### 2026-10-01 — review corrections implemented
+
+BR-1/2 implementation uses `WithStoreInspectionLocks(ctx, namespaces, check, fn)`
+and an expiring `StoreInspection.Snapshot` handle. Global and slot decoders reuse
+that held authority without reacquiring locks; source identity checks reject changed
+roots/locks and pending journals. Slot payloads/topology enter the same bounded
+digest as global state. `ObserveMigrationProcesses` covers every incarnation and
+in-flight creator; unknown is preserved, reused PID identities prove the original
+process absent, and selected-store reconnect remains allowed. Isolation validation
+precedes external slot discovery. Context checks bound discovery and process loops.
+
+BR-3 shares `maxSelectionBytes` and `encodeSelection` across policy and IO. Exact
+64 KiB and JSON-escaped boundary cases round-trip; overflow refuses before publication
+and selected-root creation. Red/green tests plus mutations validate each review
+finding's class. Commands/results are appended to the issue Log; the full core race
+suite is the final pending verification before resubmitting the binary-owned gate.
