@@ -79,7 +79,7 @@ The first issue removes the measured regression without waiting for the entire o
 - [x] Record claimant ownership atomically [ariadne#277]
 - [x] Add operator-directed reclaim [ariadne#278]
 - [x] Expose workflow observations [ariadne#279]
-- [ ] Publish operation recovery contracts [ariadne#280]
+- [x] Publish operation recovery contracts [ariadne#280]
 - [x] Establish local Couch singleton behavior [pair#366]
 - [ ] Recover locally assigned work [pair#367]
 - [ ] Schedule work and verify effects [pair#362]
