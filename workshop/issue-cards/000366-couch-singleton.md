@@ -1,6 +1,6 @@
 ---
 id: 000366
-status: codecomplete
+status: done
 created: 2026-10-01
 updated: 2026-10-02
 estimate_hours: 2.66
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: fd511ef9eeec9fd421f87c827416186900ba61fa
         evidence_commit: e5980c32cf4e8391597b7f79190dff3d8fbd9383
+        landed_commit: 9fe61a6f942217e2f4776a60bee097d8a9931e8d
 ---
 
 # Make Couch a local singleton
