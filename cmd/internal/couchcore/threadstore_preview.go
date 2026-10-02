@@ -24,6 +24,9 @@ func (s *ThreadStore) PreviewPathLaunchPreference(repoIdentity, path, scope stri
 	return view.getPathLaunchPreference(repoIdentity, path, scope)
 }
 func (s *ThreadStore) withPreviewLock(fn func() error) (err error) {
+	if s.inspection != nil {
+		return s.inspection.withRoot(s, fn)
+	}
 	if err := provisionSafePath(s.root); err != nil {
 		return err
 	}

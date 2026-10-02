@@ -189,8 +189,8 @@ func (m Manager) acquire(q Request, expect string, explicit bool) (s Selection, 
 		}
 		e = (&storagegc.Coordinator{Root: s.Roots.PairDataDir}).TryWithLock(ctx, func(_ *storagegc.Locked) error {
 			return (couchidentity.IdentityStore{HostDir: s.Roots.IdentityDir}).WithInspectionLocks(ctx, paths, func() error {
-				return couchcore.WithStoreInspectionLocks(namespaces, func() error {
-					fresh, e := m.inspectSources(q, l.store, false)
+				return couchcore.WithStoreInspectionLocks(ctx, namespaces, func(path string) error { return m.validatePaths(s.Roots, []string{path}) }, func(inspection *couchcore.StoreInspection) error {
+					fresh, e := m.inspectSources(q, l.store, inspection)
 					if e != nil {
 						return e
 					}

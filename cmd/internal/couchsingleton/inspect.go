@@ -92,9 +92,9 @@ func canonicalMissing(p string) error {
 	}
 }
 func (m Manager) inspect(q Request, owned *couchcore.SupervisorLease) (Report, error) {
-	return m.inspectSources(q, owned, true)
+	return m.inspectSources(q, owned, nil)
 }
-func (m Manager) inspectSources(q Request, owned *couchcore.SupervisorLease, decode bool) (Report, error) {
+func (m Manager) inspectSources(q Request, owned *couchcore.SupervisorLease, inspection *couchcore.StoreInspection) (Report, error) {
 	report := Report{Status: "READY"}
 	r := resolved(m.Defaults, q)
 	if e := validateRoots(r); e != nil {
@@ -166,6 +166,7 @@ func (m Manager) inspectSources(q Request, owned *couchcore.SupervisorLease, dec
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	budget := &inspectionBudget{ctx: ctx}
+	processes := map[string][]couchcore.RecordedProcessObservation{}
 	for _, p := range ordered {
 		if e := ctx.Err(); e != nil {
 			return report, e
@@ -202,20 +203,58 @@ func (m Manager) inspectSources(q Request, owned *couchcore.SupervisorLease, dec
 				if id.LocalExists {
 					c.State = "populated"
 				}
-				n, e := hashTree(p, evidence, budget)
-				if e != nil {
-					return report, e
-				}
-				if decode {
-					if snapshot, err := couchcore.NewThreadStore(ns).PreviewSnapshot(); err != nil {
-						c.Problem = err.Error()
-					} else if len(snapshot.Unreadable) > 0 {
-						c.Problem = "unreadable thread records"
-					}
-				}
 
-				if n > 0 {
-					c.State = "populated"
+				observe := func(held *couchcore.StoreInspection) error {
+					n, e := hashTree(p, evidence, budget)
+					if e != nil {
+						return e
+					}
+					if n > 0 {
+						c.State = "populated"
+					}
+					snapshot, e := held.Snapshot(ns)
+					if e != nil {
+						return e
+					}
+					if len(snapshot.Unreadable) > 0 {
+						return fmt.Errorf("unreadable thread records in %s", p)
+					}
+					for _, slot := range snapshot.Slots {
+						root := filepath.Join(slot.Identity.EnvironmentRoot, ".couch")
+						if slot.Err != nil {
+							return fmt.Errorf("unresolved slot %s: %w", root, slot.Err)
+						}
+						if e := m.validatePaths(r, []string{root}); e != nil {
+							return e
+						}
+						raw, e := json.Marshal(slot.Identity)
+						if e != nil {
+							return e
+						}
+						evidence["slot:"+root] = string(raw)
+						if _, e := os.Lstat(root); errors.Is(e, os.ErrNotExist) {
+							evidence["slot-state:"+root] = "missing"
+							continue
+						} else if e != nil {
+							return e
+						}
+						evidence["slot-state:"+root] = "present"
+						if _, e := hashTree(root, evidence, budget); e != nil {
+							return e
+						}
+					}
+					var processErr error
+					processes[p], processErr = couchcore.ObserveMigrationProcesses(ctx, m.Proc, snapshot.Records)
+					return processErr
+				}
+				var inspectErr error
+				if inspection != nil {
+					inspectErr = observe(inspection)
+				} else {
+					inspectErr = couchcore.WithStoreInspectionLocks(ctx, []couchcore.CouchNamespace{ns}, func(path string) error { return m.validatePaths(r, []string{path}) }, observe)
+				}
+				if inspectErr != nil {
+					c.Problem = fmt.Sprintf("inspect store %s: %v", p, inspectErr)
 				}
 			}
 		}
@@ -223,6 +262,20 @@ func (m Manager) inspectSources(q Request, owned *couchcore.SupervisorLease, dec
 	}
 	selection, e := DecideAdoption(q, r, report.Candidates)
 	report.Selection = selection
+	if e == nil {
+		for _, path := range ordered {
+			observations := processes[path]
+			if path == selection.Roots.StoreDir {
+				continue
+			}
+			for _, observation := range observations {
+				if observation.Liveness != couchcore.Dead {
+					report.Blockers = append(report.Blockers, fmt.Sprintf("UNMIGRATED: store %q has %s incarnation pid %d identity %q; stop it or establish absence before exclusion", path, observation.Liveness, observation.Process.PID, observation.Process.Identity))
+				}
+			}
+		}
+	}
+
 	if e == nil && !associated[selection.Roots.StoreDir] {
 		for _, c := range report.Candidates {
 			if c.Roots.StoreDir == selection.Roots.StoreDir && c.State == "populated" {

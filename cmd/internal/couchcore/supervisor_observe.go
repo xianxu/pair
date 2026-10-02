@@ -103,28 +103,3 @@ func openSupervisorObservation(path string) (*os.File, error) {
 	}
 	return f, nil
 }
-
-// WithStoreInspectionLocks fences existing thread stores during an adoption
-// recheck. It never initializes an absent store or recovers its journal.
-func WithStoreInspectionLocks(namespaces []CouchNamespace, fn func() error) (err error) {
-	var locks []*threadStoreLock
-	defer func() {
-		for i := len(locks) - 1; i >= 0; i-- {
-			err = errors.Join(err, locks[i].Close())
-		}
-	}()
-	for _, ns := range namespaces {
-		root := filepath.Join(ns.Dir(), "threadstore")
-		if _, e := os.Lstat(root); errors.Is(e, os.ErrNotExist) {
-			continue
-		} else if e != nil {
-			return e
-		}
-		l, e := NewThreadStore(ns).retentionReadLock()
-		if e != nil {
-			return e
-		}
-		locks = append(locks, l)
-	}
-	return fn()
-}

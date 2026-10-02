@@ -85,6 +85,7 @@ type threadManifest struct {
 // pair:m5-concept integration
 type ThreadStore struct {
 	readOnly    bool
+	inspection  *StoreInspection
 	layout      StoreLayout
 	slot        *SlotIdentity
 	namespace   CouchNamespace
