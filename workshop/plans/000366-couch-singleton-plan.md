@@ -1,0 +1,106 @@
+# Couch local singleton implementation plan
+
+> **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy). Use bounded subagents for the new ownership package and fixture audit; keep composition wiring in the main session. Steps use checkbox syntax.
+
+**Goal:** One production supervisor and one stable inventory per local OS account, with lossless in-place adoption and explicit isolated runtimes.
+
+**Architecture:** A small `couchsingleton` package owns resolved roots, adoption evidence and host/store lease composition. The CLI resolves it once, then feeds the resulting roots into every Couch consumer and child environment. Existing store identities, transaction locks and messaging lifecycle remain authorities for their existing concerns.
+
+**Tech Stack:** Go, existing Unix flock lease, strict JSON/durablefile, temporary-filesystem and subprocess tests.
+
+## Contract and approval
+
+The operator's “go ahead” approves the reviewed issue design and recommended refusal-only multi-store scope, including its final spec-review revisions. No inventory consolidation or second-terminal attachment. Adopt one unambiguous store in place; ambiguous installations remain explicitly UNMIGRATED until the operator disposes other stores. The account home and state must be machine-local; old Couch binaries must be stopped/upgraded before cutover.
+
+## Core concepts
+
+| Name | Lives in | Status |
+|---|---|---|
+| Roots, Selection | cmd/internal/couchsingleton/model.go | new |
+| Candidate, Report, Request | cmd/internal/couchsingleton/model.go | new |
+| DecideAdoption | cmd/internal/couchsingleton/model.go | new |
+
+Roots names the Couch store, Pair data directory and allocation-authority directory. Selection is a versioned immutable configuration, including explicitly excluded legacy paths. One account selects one Roots; an isolated root selects its own. Candidate records observed legacy state (empty, populated, unavailable, live/unknown owner), never a boolean absence inference. DecideAdoption maps observations plus explicit exclusions to a selection or refusal, without IO (ARCH-PURE, ARCH-ORDER). Future changes widen this policy here rather than adding CLI predicates.
+
+| Name | Lives in | Status | Wraps |
+|---|---|---|---|
+| Manager | cmd/internal/couchsingleton/manager.go | new | selection IO + host/store leases |
+| Inspect | cmd/internal/couchsingleton/inspect.go | new | bounded registry/store observation |
+| IdentityStore.Inspect | cmd/internal/couchidentity/inspect.go | new | existing identity schema/read/validation |
+| OSRuntime | cmd/internal/couchcmd/run.go, singleton.go | modified | account lookup, resolved runtime, child environment |
+| adoption CLI | cmd/internal/couchcmd/singleton_cli.go | new | Manager preview/apply |
+| isolated smoke wrapper | tests/with-isolated-pair.sh | modified | explicit isolated production composition |
+
+Manager receives explicit authority directory, default Roots and ProcOps; tests inject a temporary authority and use real files and locks. OS account lookup is an injected function at the composition boundary; test subprocesses use a helper with injected account home, never an environment override of production authority. Reuse couchcore.ResolveCouchNamespace/ExistingCouchNamespace, AcquireSupervisorLease, durablefile and strictjson. Do not copy identity schemas into the singleton package (ARCH-DRY).
+
+## Operating and trust boundary
+
+- Production authority: real UID account home from os/user.LookupId, under `.local/share/pair-host/singleton`; HOME/XDG/COUCH_STORE_DIR do not move it. Local filesystems only; no distributed home support.
+- `COUCH_ISOLATED_ROOT` explicitly creates a separate test/diagnostic runtime. It must be an absolute canonical directory. Defaults below it: `data/pair`, `data/pair/couch`, `pair-host`, `singleton`. All effective roots must remain inside it; reject escaping overrides/symlinks. Socket names derive from its unique store as today. Account lookup is unnecessary in this mode.
+- Default production Roots use actual account home. Initial explicit legacy roots come from COUCH_STORE_DIR, PAIR_DATA_DIR or XDG_DATA_HOME, and `COUCH_IDENTITY_DIR` for legacy allocation authority. Once selected, explicit incompatible overrides refuse; ordinary unset overrides use the selection. HOME still belongs to the application/user and is never rewritten globally. Couch data consumers must use the explicit resolved Pair root, not infer it from HOME.
+- Strict selection parsing: bounded regular file, schema/version/path/duplicate validation, reject symlink metadata and changed physical paths. Missing selected roots refuse; no reset/re-enrollment. A missing selection permits adoption, never implies existing counters are empty.
+- Adoption enumerates at most 4096 registered stores plus explicit paths. Registry inputs bounded at 4 MiB; selection/report inputs bounded; regular files only. Unknown/truncated/unreadable state refuses. Enumeration occurs only at adoption. Normal selected reads do no ownership/global subprocess discovery.
+- Host/store locks are nonblocking, close-on-exec and held until Console/services/children are torn down. One failed acquisition returns immediately. No new background loops. Existing #365 admission timing remains unchanged.
+- Order: host lease → inspect/select → selected store lease → revalidate sources → atomic selection publication → construct Couch/start effects. Close reverses leases. Adoption cannot fence old binaries, so stop/upgrade is a documented precondition, checked where ownership is observable.
+- State table: absent + unambiguous evidence → publish; absent + conflict/unknown → refuse; existing + matching request → reuse; existing + conflicting request → refuse; malformed/missing selected resources → recovery refusal. Publication failure preserves source data. Lost response + matching persisted selection → convergent retry. Existing selection never gets silently replaced.
+
+## Chunk 1: ownership, adoption and production composition
+
+### Task 1 — pure selection and identity observations
+
+Files: new `couchsingleton/model.go`, `model_test.go`, `couchidentity/inspect.go`, `inspect_test.go`.
+
+- [ ] Write table tests for empty/sole populated/multiple populated/unknown/live candidates, explicit excluded candidates, path collisions and invalid configuration. Use real AllocationState/host registry fixtures for identity consistency, missing consumed authority and regressed counters.
+- [ ] Run `go test ./cmd/internal/couchsingleton ./cmd/internal/couchidentity -count=1`; confirm missing behavior fails.
+- [ ] Implement `Roots{StoreDir, PairDataDir, IdentityDir string}`, versioned `Selection`, `Request{Roots Roots; Stores, Exclude []string}`, `Candidate`, `Report` and `DecideAdoption` as pure values/decisions. No persisted state mutation outside Manager.
+- [ ] Expose read-only identity inspection through couchidentity using its existing strict readers/schema validation, checking the same local/host counter relationship as allocation without allocating IDs. Return known registrations and validity evidence.
+- [ ] Re-run tables and identity suite; commit tested unit.
+
+### Task 2 — Manager IO and leases
+
+Files: new `couchsingleton/manager.go`, `inspect.go`, corresponding tests and subprocess tests.
+
+Manager API planned:
+
+```go
+// All roots and authority are injected; zero Proc uses OSProcOps.
+type Manager struct { AuthorityDir string; Defaults Roots; Proc couchcore.ProcOps }
+func (m Manager) Read(request Request) (Selection, error)
+func (m Manager) Preview(request Request) (Report, error)
+func (m Manager) Adopt(request Request, expect string) (Selection, error)
+func (m Manager) Acquire(request Request) (Selection, io.Closer, error)
+```
+
+- [ ] Write failing real-filesystem tests for selection publication, absent/read refusal, digest mismatch, ambiguous store report, identity preservation, explicit retired-store exclusion, unavailable/corrupt state, symlink changes and failed writes.
+- [ ] Implement bounded registry union (identity registrations + Pair retention registry + requested/default/explicit stores), typed candidate inspection, deterministic report digest over relevant file bytes/observations and request. Candidate live/unknown owners refuse even when excluded; retired missing paths require explicit exclusion. Non-selected populated stores require explicit exclusion. Exclusion is retained in selection/report, never removal from identity/retention registries.
+- [ ] Read never adopts or takes the host lifetime lock. Preview never creates source directories or mutates source files. Acquire handles a fresh installation by creating only selected roots after deciding admission; it must not create unknown source paths to make them look empty.
+- [ ] Acquire takes host then selected-store lease, inspects/revalidates while protected and publishes only after both locks. Existing selection path takes no legacy scan. Adopt verifies current report digest under the same leases and returns after releasing; identical already-published retry succeeds. Reuse bounded context-aware existing transaction locks when reading source revisions; no waiting on lifetime owner.
+- [ ] Add subprocess winner/loser, owner kill/restart and exec lock-release tests. Verify owner diagnostic names selected store when known and preserves unreadable owner as unknown.
+- [ ] Run `go test -race ./cmd/internal/couchsingleton ./cmd/internal/couchidentity -count=1`; commit.
+
+### Task 3 — CLI and resolved production runtime
+
+Files: `couchcmd/run.go`, `cli.go`, new `singleton.go`, `singleton_cli.go`, tests; existing root consumers found by rg.
+
+- [ ] Add failing parser/runtime tests: new adoption form, refusal before actor construction, listing/message resolution consistency, overrides and isolation, injected account-home production race.
+- [ ] Add `couch --adopt-store <absolute-path> [--pair-data <path>] [--identity-dir <path>] [--legacy-store <path>]... [--exclude-store <path>]... [--apply <digest>]`. Without apply, emit a JSON preservation report including digest, paths, observations and blockers. With apply, revalidate and publish. Reject layout/unknown/duplicate scalar flags. Help explains source preservation, UNMIGRATED and stop/upgrade prerequisite.
+- [ ] Prepare OSRuntime once after CLI classification and before source mutation. Help/skill remain unprepared; fake Runtime keeps its injection seam. Owner operations call Manager.Acquire; metadata/read/message calls use Manager.Read. Adoption uses Preview/Adopt. Lifetime cleanup encloses all existing deferred service/Console teardown.
+- [ ] Store resolved Selection on OSRuntime. ResolveNamespace uses the selected namespace; NewCouchWith uses selected PairDataDir and IdentityDir. Add a single Pair-root helper for traces, idle fading, terminal bundle, continuation/slug/default/session readers. CurrentRepoScope remains repo-derived. Messaging consumes resolved COUCH_STORE_DIR while preserving caller scope/tag/nonce authorization.
+- [ ] Wrap both Runner.Start and StartBlocked to append configured Pair/Couch/identity/isolation roots to children, preserving actor-specific env and terminal capabilities. Strip conflicting inherited explicit session-artifact overrides at the existing subprocess boundary; preserve legitimate operation-specific arguments. Verify actual child argv/env through a real helper, not only a fake runtime.
+- [ ] Read-only CLI before adoption refuses with exact adoption command; isolated smoke helper initializes a fresh selected configuration before invoking commands that require it. Fresh launch auto-adopts sole/default roots.
+- [ ] Run couchcmd CLI/runtime and couchcore launch suites, then commit.
+
+### Task 4 — production-path isolation, docs and acceptance
+
+Files: `tests/with-isolated-pair.sh`, actual-process fixtures found by `rg 'HOME|COUCH_STORE_DIR|OSRuntime|exec.Command' cmd/internal/couchcmd`, README.md, atlas/couch.md, atlas/session-identity.md, atlas/storage-retention.md, workshop/lessons.md.
+
+- [ ] Extend isolated wrapper and actual-process fixtures to use explicit isolation root and bootstrap selection without touching production. Existing fixtures may locate roots anywhere under their temporary isolation root; validate every resolved path. All subprocess tests using Run/OSRuntime must be audited before the broad suite.
+- [ ] Add end-to-end preservation fixture with populated legacy identity/store/preferences and dirty checkout; preview/refusal and successful sole adoption preserve byte snapshots and slot identity. Competing live legacy lease refuses; message reconnect uses unchanged namespace. Add production-root sentinels and descendant writes in the isolation wrapper test.
+- [ ] Mutation-check: remove host lease → two distinct stores acquire; restore old ambient Pair-root derivation → selected-root test fails; drop isolated mode → sentinel/production-boundary test fails without accessing actual production.
+- [ ] Update operator docs with singleton, adoption commands, exclusions, unsupported shared home/old-binary concurrency, crash retry, and isolation. Keep existing C/N/M identity descriptions. Add review lessons about root provenance and migration refusal claims.
+- [ ] Run `go test ./cmd/internal/couchsingleton ./cmd/internal/couchidentity ./cmd/internal/couchcmd ./cmd/internal/couchcore ./cmd/internal/couchmessage -count=1`, the same relevant packages under `-race`, and `git diff --check`. Run required repository checks discovered in Makefile/CI. Record exact results.
+- [ ] Update issue and project, commit, then `sdlc close --issue 366 --verified '<evidence>'` (binary owns fresh review). Fix blocking findings and rerun affected checks. Open draft PR via `sdlc pr` with its required flags; no deployment or running-session cutover is implied.
+
+## Review boundaries
+
+One atomic feature, one close boundary; no Mx tags. Full-flow plan review and estimate precede implementation. The user authorized proceeding after the reviewed design; routine implementation choices do not need another confirmation.
