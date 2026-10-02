@@ -1,12 +1,13 @@
 ---
 id: 000378
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-01
 updated: 2026-10-01
 estimate_hours:
-card_mirror: 'f573ee8fec0a39f9406144ad352e612cc66346c5' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'ab4791c630310a385f67f97acc42cef53e469ff6' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-01T21:44:28-07:00
 ---
 
 # couch archive refuses thread whose registered agent is dead
@@ -44,24 +45,50 @@ itself a symptom: the two surfaces should classify a thread from the same eviden
 
 ## Spec
 
-- Action admission (archive, and every other `classifyForAction` consumer) must
-  not treat a registry record as hosting when its process is provably `Dead`
-  (exact pid + identity). Unknown stays fail-closed (see `PruneDead`'s comment).
-- Reap known-dead records on the paths that read them, not only on spawn, or
-  make the classifier ignore them — pick one owner (ARCH-DRY), not both.
-- Investigate why warm-reattach left two records for one thread.
+The registry is liveness-recomputed by design (`Couch.Liveness`, "Liveness is
+recomputed rather than stored, so the registry accumulates records"). Nothing
+removes an actor record when its child exits normally: `Forget` runs only from
+`Stop`, and `PruneDead` only from `spawnResolved`. So the contract is that
+**every reader checks liveness**. `classifyForAction` is the one reader that
+doesn't: it passes every record with a pid and identity as positive `hosted`
+proof. The switcher menu builds its hosted list from panes whose child is still
+running (`snapshotMenuObservationsLocked`), and that difference is why the
+switcher's archive action said "live" while `--list` said "parked".
+
+Warm-reattach's double record is the same root cause, not a separate bug.
+`launchTrackedThread` inserts a fresh record each time (`launch_existing.go`),
+the previous reattach's record stays until a fresh spawn prunes it, and the
+resume path never prunes.
+
+Changes:
+1. `classifyForAction` counts a registry actor of the target thread as hosted
+   only when `Liveness == Live`. A `Dead` record is skipped. `Unknown` fails
+   closed as `unusable/unknown`, which archive refuses with "retry" and
+   switch-agent refuses too, so a probe that can't answer never unlocks an
+   action.
+2. ARCH-FUNERAL: actor records are created by `spawnResolved` and
+   `launchTrackedThread`, the last thing that needs one is its process, and
+   `PruneDead` removes them. Today only fresh spawn prunes, so a console that only
+   resumes grows the registry by one record per resume. `launchTrackedThread`
+   should prune too, before it inserts, which bounds the registry to the
+   live actors plus records whose liveness is unknown.
 
 ## Done when
 
-- A test: a thread with a dead registered actor (and parked record) classifies
-  the same way for `classifyForAction` as for `--list`, and archive admits it.
-- A test: an actor with `Unknown` liveness still refuses archive.
-- Warm-reattach replaces, not appends, the thread's actor record (or the double
-  record is explained and covered by a test).
+- A test: a thread whose only registry actor is dead and whose record is parked
+  classifies as parked through `classifyForAction`, and archive admits it.
+- A test: an actor with `Unknown` liveness classifies as `unusable/unknown`, and
+  archive refuses it.
+- A test: launching an existing thread prunes a dead prior record, so the
+  registry holds one record for that thread rather than two.
+- The existing hosted-actor test marks its actor live, so it still covers the
+  live refusal.
 
 ## Plan
 
-- [ ]
+- [ ] Write failing tests: dead actor → archive admits; unknown actor → refuses as unknown; resume prunes the dead record
+- [ ] Filter by liveness in `classifyForAction`; prune in `launchTrackedThread`
+- [ ] `go test ./cmd/internal/couchcore/` passes, then the full `make test`
 
 ## Log
 
