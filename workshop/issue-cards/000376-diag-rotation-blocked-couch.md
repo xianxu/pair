@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000376-diag-rotation-blocked-couch.md
         source_blob: f9189a0716fdcb058eaa55475289a0a6fce2a5a9
         destination: workshop/issues/000376-diag-rotation-blocked-couch.md
+        main_commit: daa1612e2b85f2eccc56a12e74891d0c28ac3bdc
 ---
 
 # Diagnostic log rotation blocked while Couch runs
