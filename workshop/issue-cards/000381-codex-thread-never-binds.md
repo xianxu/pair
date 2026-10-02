@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000381-codex-thread-never-binds.md
         source_blob: 68def3b1c1a4f987257b16100601ded0467801fb
         destination: workshop/issues/000381-codex-thread-never-binds.md
+        main_commit: 5d3eaace90d9164c657938c0c321e0cbaed4a506
 ---
 
 # codex couch threads never bind their native conversation
