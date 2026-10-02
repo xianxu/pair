@@ -31,6 +31,25 @@ repeating `--store` for every registered namespace. An intentionally empty list
 uses `--complete-migration` alone. New managed Couch stores register before
 publishing references. An unavailable registered store blocks session collection.
 
+Couch singleton adoption is a separate decision from retention migration.
+`couch --adopt-store /absolute/store` previews an in-place active-inventory
+selection; repeat the request with `--apply <digest>` after reviewing its JSON
+report. Add custom sources with repeated `--legacy-store /absolute/path`.
+Multiple populated inventories remain **UNMIGRATED** until explicitly resolved;
+there is no automatic merge. `--exclude-store /absolute/path` acknowledges a
+retired active inventory without deleting its files or removing identity or
+retention registrations. It cannot bypass a live or unknown supervisor owner.
+Consequently, an excluded but unavailable retention registration can still block
+collection. Adoption does not count as acknowledgment of a complete GC inventory.
+
+Stop and upgrade old Couch binaries before adoption, and keep authority and state
+on machine-local filesystems. Production singleton authority is found through
+the real UID's account home at `.local/share/pair-host/singleton`, independently
+of HOME/XDG overrides. The selected Couch store, Pair data root and identity root
+remain stable. For isolated retention experiments, use `COUCH_ISOLATED_ROOT`
+with all effective roots beneath it and `tests/with-isolated-pair.sh` to clear
+ambient Pair overrides. Existing C/N/M and retained conversations are unchanged.
+
 After migration, running Pair/Couch schedules bounded background sweeps after
 readiness, at most once per completed daily pass. Work resumes from a cursor;
 automatic pages visit at most 100 owners, including retained owners, with a

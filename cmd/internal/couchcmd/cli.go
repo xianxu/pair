@@ -2,7 +2,10 @@ package couchcmd
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 )
@@ -18,10 +21,17 @@ const (
 	cliInternal
 	cliMessage
 	cliSkill
+	cliAdopt
 	cliHelp
 )
 
+type adoptionArgs struct {
+	StoreDir, PairDataDir, IdentityDir, Expect string
+	Stores, Exclude                            []string
+}
+
 type cliInvocation struct {
+	adoption    adoptionArgs
 	kind        cliKind
 	path        string
 	ref         string
@@ -71,6 +81,8 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 	// scanning layout flags, which could otherwise consume a literal body.
 	if len(args) > 0 {
 		switch args[0] {
+		case "--adopt-store":
+			return parseAdoptionCLI(args)
 		case "--actors", "--send-to", "--message-status", "--skill":
 			return parseMessageCLI(args)
 		}
@@ -163,6 +175,49 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 		}
 		return cliInvocation{kind: cliLaunch, path: args[0], layout: layout}, nil
 	}
+}
+
+func parseAdoptionCLI(args []string) (cliInvocation, error) {
+	var adoption adoptionArgs
+	seen := make(map[string]bool)
+	for i := 0; i < len(args); i += 2 {
+		flag := args[i]
+		switch flag {
+		case "--adopt-store", "--pair-data", "--identity-dir", "--legacy-store", "--exclude-store", "--apply":
+		default:
+			return cliInvocation{}, fmt.Errorf("unknown adoption option %q; use couch --help", flag)
+		}
+		if i+1 == len(args) {
+			return cliInvocation{}, fmt.Errorf("%s requires a value", flag)
+		}
+		if flag != "--legacy-store" && flag != "--exclude-store" && seen[flag] {
+			return cliInvocation{}, fmt.Errorf("%s may only be given once", flag)
+		}
+		seen[flag] = true
+		value := args[i+1]
+		if flag == "--apply" {
+			if len(value) != 64 || strings.IndexFunc(value, func(r rune) bool { return !(r >= '0' && r <= '9' || r >= 'a' && r <= 'f') }) >= 0 {
+				return cliInvocation{}, fmt.Errorf("--apply requires the report's 64 lowercase hexadecimal digest")
+			}
+		} else if !filepath.IsAbs(value) || !utf8.ValidString(value) || strings.IndexFunc(value, unicode.IsControl) >= 0 {
+			return cliInvocation{}, fmt.Errorf("%s requires an absolute path without control characters", flag)
+		}
+		switch flag {
+		case "--adopt-store":
+			adoption.StoreDir = value
+		case "--pair-data":
+			adoption.PairDataDir = value
+		case "--identity-dir":
+			adoption.IdentityDir = value
+		case "--legacy-store":
+			adoption.Stores = append(adoption.Stores, value)
+		case "--exclude-store":
+			adoption.Exclude = append(adoption.Exclude, value)
+		case "--apply":
+			adoption.Expect = value
+		}
+	}
+	return cliInvocation{kind: cliAdopt, adoption: adoption}, nil
 }
 
 func parseMessageCLI(args []string) (cliInvocation, error) {
