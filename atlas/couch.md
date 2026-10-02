@@ -51,7 +51,10 @@ conversation keys, preferences and worktrees are preserved.
 Retention evidence or an explicit store/Pair-data tuple establishes the companion
 artifact root; identity registration alone does not. `COUCH_PAIR_DATA_DIR` carries
 the selected Pair root to hosted children independently of repo-scoped
-`PAIR_DATA_DIR`. Inspection has a five-second context and limits of 4096 stores,
+`PAIR_DATA_DIR`. Couch clears the previous actor's scoped directory before launch;
+Pair derives the new scope from its checkout under the selected global root. Global
+claim/read paths and installed runtime extraction use that same selection. Existing
+hosted helpers may retain the matching scoped directory. Inspection has a five-second context and limits of 4096 stores,
 65536 filesystem entries, 64 MiB total source payload and 4 MiB per file; exceeding
 a limit leaves unresolved evidence and refuses adoption.
 

@@ -245,3 +245,13 @@ repository scope. Valid hosted helper scope and standalone explicit-root behavio
 remain supported. Add actual launcher artifact creation/read/resume coverage at a
 custom selected root with differing HOME/XDG, plus parent Start/StartBlocked tests.
 The same selection must govern both global ownership and scoped session artifacts.
+
+### 2026-10-01 — downstream root consumer sweep
+
+The pre-launch installed Pair asset resolver also chose ambient HOME/XDG when the
+scoped variable was cleared. It must share the launcher's selected-global resolver
+before extracting embedded assets. The dependency sweep found subsequent wrapper,
+continuation, watcher, context/title, review and retention consumers use scoped
+PAIR_DATA_DIR or explicit artifact bindings exported by the launcher; native agent
+HOME stores remain intentionally separate. Verification will include actual embedded
+asset extraction, not just the helper's returned string.
