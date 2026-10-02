@@ -99,7 +99,7 @@ Files: `tests/with-isolated-pair.sh`, actual-process fixtures found by `rg 'HOME
 - [x] Mutation-check: remove host lease → two distinct stores acquire; restore old ambient Pair-root derivation → selected-root test fails; drop isolated mode → sentinel/production-boundary test fails without accessing actual production.
 - [x] Update operator docs with singleton, adoption commands, exclusions, unsupported shared home/old-binary concurrency, crash retry, and isolation. Keep existing C/N/M identity descriptions. Add review lessons about root provenance and migration refusal claims.
 - [x] Run `go test ./cmd/internal/couchsingleton ./cmd/internal/couchidentity ./cmd/internal/couchcmd ./cmd/internal/couchcore ./cmd/internal/couchmessage -count=1`, the same relevant packages under `-race`, and `git diff --check`. Run required repository checks discovered in Makefile/CI. Record exact results.
-- [ ] Update issue and project, commit, then `sdlc close --issue 366 --verified '<evidence>'` (binary owns fresh review). Fix blocking findings and rerun affected checks. Open draft PR via `sdlc pr` with its required flags; no deployment or running-session cutover is implied.
+- [x] Update issue and project, commit, then `sdlc close --issue 366 --verified '<evidence>'` (binary owns fresh review). Fix blocking findings and rerun affected checks. Open draft PR via `sdlc pr` with its required flags; no deployment or running-session cutover is implied.
 
 ## Review boundaries
 
@@ -265,3 +265,12 @@ resume, with a stateful fake terminal service. Ignoring the global selection fai
 the real consumer; restored tests pass. Parent Start/StartBlocked and embedded extraction
 regressions also pass. The issue Log records exact commands/results and final restored
 integration reruns. No acceptance or migration scope changed.
+
+### 2026-10-02 — accepted and published for review
+
+Third boundary review returned SHIP with no Critical, Important or Minor findings;
+BR-1 through BR-4 are addressed. `sdlc close` recorded codecomplete with measured
+4.45h actual and bound evidence commit c83d4566bc8e. `sdlc pr` opened
+https://github.com/xianxu/pair/pull/196, then it was explicitly converted to draft.
+The project status/actual and task checkboxes are current. No live Couch cutover or
+merge was performed; the documented baseline test exceptions remain visible in the PR.
