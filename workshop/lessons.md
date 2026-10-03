@@ -60,6 +60,11 @@ representative evidence, not an exhaustive index.
   from booleans in each consumer. Persistent refusals need the failed resource
   and an explicit recovery action, not only a retry instruction. (#350)
 
+- A refusal or notice that names a next step must name an action reachable from
+  that row or caller, so choose the text from the same authority that decides
+  the offered actions, per row kind. Hand-written advice drifts from the menu
+  each time an action is added, removed or narrowed. (#363, three times in one
+  issue)
 - Give each fact one production authority and make consumers derive from it.
   Negative greps, duplicate registries, and prose tables drift. If a rule fails
   twice, turn it into an executable check. (ARCH-PURPOSE, #206, #256)
