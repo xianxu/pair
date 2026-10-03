@@ -56,8 +56,8 @@ const (
 	// the record's bytes and never stops its session.
 	ReasonUnreadable ThreadReason = "unreadable"
 	// ReasonPathMissing is a working path that could not be physicalized. It
-	// must stay a refusal: SelectResumableRoot compares paths by exact
-	// string, so an unphysicalized row could be auto-selected at startup.
+	// must stay a refusal: a resumable row is one startup may auto-select and
+	// resume in its path, and there is no path to resume in.
 	ReasonPathMissing ThreadReason = "path-missing"
 	// ReasonProfileMissing is a thread with no saved launch profile to resume from.
 	ReasonProfileMissing ThreadReason = "profile-missing"

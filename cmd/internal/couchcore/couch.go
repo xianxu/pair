@@ -472,7 +472,7 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 				"  the record:  %s",
 			held.Tag, resolution.CanonicalPath, held.Tag, recordPath)
 	}
-	if held, occupied := PathHoldsUsableThread(rows, scope.Key, resolution.CanonicalPath); occupied {
+	if held, occupied := ScopeHoldsUsableThread(rows, scope.Key); occupied {
 		// The next steps have to be ones that WORK from where the operator is.
 		// An earlier version said "return to it: couch <path>" -- the command
 		// they just ran, which refuses again, and which cannot take the
@@ -485,7 +485,7 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 				"  return to it:  ctrl-space, select it, Enter\n"+
 				"  start fresh:   ctrl-space, select it, Tab → reboot (park it first if it is live)\n"+
 				"  inspect it:    couch --show %s",
-			resolution.CanonicalPath, held.Tag, held.Tag)
+			resolution.CanonicalPath, held.Address.Tag, held.Address.Tag)
 	}
 	startedAt := c.Clock.Now()
 	thread, err := c.Threads.AllocateThreadTag(scope.Key, resolution.CanonicalPath, startedAt, func() (string, error) {

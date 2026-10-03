@@ -10,6 +10,13 @@ import (
 // SelectResumableRoot picks the thread `couch <path>` should return to:
 // detached first, then parked, most recently active within each class.
 //
+// It matches the REPOSITORY, not the path (pair#363): a repository has one
+// primary (`:0`) thread, so `couch` anywhere inside it -- a subdirectory of the
+// primary checkout included -- returns to that thread rather than starting a
+// second primary beside it. Only ordinary targets are primaries; a slot row is
+// a `:1+` and is never selected here. A linked worktree that is not a slot has
+// its own scope, so it keeps its own row.
+//
 // This REVERSES the selector's previous refusal to have a policy. It used to
 // require exactly one resumable row and create a new thread otherwise --
 // "Preferring warm over cold would be a policy, and this selector deliberately
@@ -29,7 +36,7 @@ import (
 // supervisor lease for the whole run, so a live row is one THIS couch hosts.
 // Unusable rows are never selected either -- they are debris, and a path whose
 // only rows are debris correctly starts something new.
-func SelectResumableRoot(rows []ActionableThreadSummary, repoScope, workingPath string) (ThreadAddress, bool) {
+func SelectResumableRoot(rows []ActionableThreadSummary, repoScope string) (ThreadAddress, bool) {
 	best := ActionableThreadSummary{}
 	found := false
 	// Eligibility is ResumableState and nothing else; rank only ORDERS rows
@@ -45,8 +52,7 @@ func SelectResumableRoot(rows []ActionableThreadSummary, repoScope, workingPath 
 		return 1
 	}
 	for _, row := range rows {
-		if row.Address.RepoScope != repoScope || row.WorkingPath != workingPath ||
-			!ResumableState(row.State, row.Reason) {
+		if !primaryOfScope(row, repoScope) || !ResumableState(row.State, row.Reason) {
 			continue
 		}
 		// A row with no recorded activity carries the ZERO time, which is Before
@@ -73,47 +79,54 @@ func SelectResumableRoot(rows []ActionableThreadSummary, repoScope, workingPath 
 // itself is mid-operation on a thread, which is what relaunch and switch-agent
 // need in order to know there is a source to park (archive stopped asking it in
 // #256 M3 -- it is bookkeeping, and archive's question is about the world);
-// `PathHoldsUsableThread` asks whether a path already holds work;
+// `ScopeHoldsUsableThread` asks whether a repository already holds its primary;
 // `PathHoldsUnreadableThread` asks whether a scope holds something couch could
 // not read. Collapsing them would force one answer onto three questions.
 //
-// What must not drift is their OVERLAP: anything `PathHoldsUsableThread`
-// counts as holding a path must also be something the operator can reach, and
-// TestOccupancyPredicatesAgreeWhereTheyOverlap pins that.
+// What must not drift is their OVERLAP: anything `ScopeHoldsUsableThread`
+// counts as holding a repository must also be something the operator can
+// reach, and TestOccupancyPredicatesAgreeWhereTheyOverlap pins that.
 
-// PathHoldsUsableThread reports whether a path already has a thread the
-// operator can get back into.
+// primaryOfScope is whether a row is a primary (`:0`, an ordinary target) of
+// the repository scope: the one row per repository the startup selector and
+// the occupancy guard read.
+func primaryOfScope(row ActionableThreadSummary, repoScope string) bool {
+	return row.Address.RepoScope == repoScope && row.Target.Kind != ThreadTargetSlot
+}
+
+// ScopeHoldsUsableThread reports the primary thread a repository already has,
+// if the operator can get back into it.
 //
-// One thread per repo path is ENFORCED for now: several threads at one path
-// without separate worktrees is confusing, and per-repo policy is a design
-// space of its own. Debris deliberately does not count -- a path whose only
-// rows are unusable must still be startable, or a corrupted record would lock
-// its repo out permanently.
-func PathHoldsUsableThread(rows []ActionableThreadSummary, repoScope, workingPath string) (ThreadAddress, bool) {
+// One primary per repository is ENFORCED (pair#363, widened from one thread
+// per path, #181): a start in a subdirectory of a repository whose `:0`
+// already exists must return to that thread or refuse, never create a second
+// primary. Debris deliberately does not count -- a repository whose only rows
+// are unusable must still be startable, or a corrupted record would lock it out
+// permanently (resolved ambiguity 9).
+func ScopeHoldsUsableThread(rows []ActionableThreadSummary, repoScope string) (ActionableThreadSummary, bool) {
 	for _, row := range rows {
-		if row.Address.RepoScope != repoScope || row.WorkingPath != workingPath {
+		if !primaryOfScope(row, repoScope) {
 			continue
 		}
 		switch row.State {
 		case ThreadLive, ThreadDetached, ThreadParked:
-			return row.Address, true
+			return row, true
 		}
 	}
-	return ThreadAddress{}, false
+	return ActionableThreadSummary{}, false
 }
 
 // PathHoldsUnreadableThread reports a record couch could not read at all.
 //
-// It is separate from PathHoldsUsableThread because it answers a different
-// question. An unreadable record has no working path -- reading it is what would
-// have supplied one -- so it cannot be matched by path, and treating "cannot
-// read" as "not here" would let a second thread be created in a tree that may
-// already hold live work. That is the ratchet M3 closed, reappearing silently
-// where the old code at least failed loudly.
+// It is separate from ScopeHoldsUsableThread because it answers a different
+// question. An unreadable record has no working path or target -- reading it is
+// what would have supplied them -- and treating "cannot read" as "not here"
+// would let a second thread be created in a repository that may already hold
+// live work. That is the ratchet M3 closed, reappearing silently where the old
+// code at least failed loudly.
 //
-// Scope-wide rather than path-exact, deliberately: unknown is unknown, and the
-// conservative reading of an unreadable record in this repo is that it might be
-// the one at this path.
+// Scope-wide, deliberately: unknown is unknown, and the conservative reading of
+// an unreadable record in this repo is that it might be its primary.
 func PathHoldsUnreadableThread(rows []ActionableThreadSummary, repoScope string) (ThreadAddress, bool) {
 	for _, row := range rows {
 		if row.Address.RepoScope == repoScope && row.Reason == ReasonUnreadable {
@@ -131,8 +144,9 @@ func PathHoldsUnreadableThread(rows []ActionableThreadSummary, repoScope string)
 // and docs point here rather than restating it, because every restated copy
 // has drifted (pair#206 M1 review):
 //
-//   - SelectResumableRoot, PathHoldsUsableThread (inside spawnResolved): read
-//     only rows at the cwd (this repo scope AND this working path);
+//   - SelectResumableRoot, ScopeHoldsUsableThread (inside spawnResolved): read
+//     only this repository's primary rows (this repo scope, any working path
+//     -- one primary per repository, pair#363);
 //   - PathHoldsUnreadableThread: scans the whole scope, but only for records
 //     the store could not decode, which never reach the resume-shaped branch
 //     this predicate gates -- so it is unaffected by the narrowing;
@@ -144,7 +158,9 @@ func PathHoldsUnreadableThread(rows []ActionableThreadSummary, repoScope string)
 // every record regardless of this predicate (#256) -- one host-wide call whose
 // cost does not scale with how many records it covers -- so such a row can still
 // classify `detached`. No reader of startup's rows can act on either: it is not
-// at the cwd, and its layout agrees, so it is neither selectable nor a conflict.
+// in this repository, and its layout agrees, so it is neither selectable nor a
+// conflict. Asking the whole scope rather than the cwd adds cold proofs only
+// for this repository's other records, normally zero or one.
 // The rows never leave StartInteractive -- StartResult carries none -- so the
 // unasked state cannot reach the switcher, which is what pair#228's close
 // review closed off.
@@ -153,9 +169,9 @@ func PathHoldsUnreadableThread(rows []ActionableThreadSummary, repoScope string)
 // inventories and asserts every reader in the list above answers identically. A
 // new reader joins that list and that test, and widens this predicate if it
 // filters differently.
-func startupAsks(requested Layout, repoScope, workingPath string) func(ThreadRecord) bool {
+func startupAsks(requested Layout, repoScope string) func(ThreadRecord) bool {
 	return func(record ThreadRecord) bool {
-		if record.Address.RepoScope == repoScope && record.WorkingPath == workingPath {
+		if record.Address.RepoScope == repoScope {
 			return true
 		}
 		return NormalizeLayout(string(record.Layout)) != requested
@@ -169,8 +185,8 @@ func startupAsks(requested Layout, repoScope, workingPath string) func(ThreadRec
 // of its own: the narrowing predicate has to agree EXACTLY with the selectors
 // that read its rows, and two independent resolutions of the same path are two
 // chances to disagree.
-func (c *Couch) startupInventory(ctx context.Context, scopeKey, workingPath string) ([]ActionableThreadSummary, error) {
-	snapshot, evidence, err := c.gatherThreadEvidence(ctx, nil, startupAsks(c.Layout, scopeKey, workingPath))
+func (c *Couch) startupInventory(ctx context.Context, scopeKey string) ([]ActionableThreadSummary, error) {
+	snapshot, evidence, err := c.gatherThreadEvidence(ctx, nil, startupAsks(c.Layout, scopeKey))
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +210,7 @@ func (c *Couch) StartInteractive(ctx context.Context, args StartArgs) (StartResu
 	if err != nil {
 		return StartResult{}, err
 	}
-	rows, err := c.startupInventory(ctx, scope.Key, resolution.CanonicalPath)
+	rows, err := c.startupInventory(ctx, scope.Key)
 	if err != nil {
 		return StartResult{}, err
 	}
@@ -203,7 +219,7 @@ func (c *Couch) StartInteractive(ctx context.Context, args StartArgs) (StartResu
 	// guard must add none of its own. It runs before any effect, so a refusal
 	// starts no child.
 	//
-	// startupAsks proved exactly two sets: the cwd's candidates, and every
+	// startupAsks proved exactly two sets: this repository's candidates, and every
 	// candidate whose layout differs -- which is this guard's own set. A row
 	// left `unknown` is one no reader here can act on (pair#206 M1).
 	//
@@ -214,7 +230,7 @@ func (c *Couch) StartInteractive(ctx context.Context, args StartArgs) (StartResu
 	if conflicts := ResolveLayoutConflicts(c.Layout, rows); len(conflicts) > 0 {
 		return StartResult{}, layoutConflictRefusal(c.Layout, conflicts)
 	}
-	if address, ok := SelectResumableRoot(rows, scope.Key, resolution.CanonicalPath); ok {
+	if address, ok := SelectResumableRoot(rows, scope.Key); ok {
 		opts := ResumeOptions{}
 		for _, row := range rows {
 			if row.Address == address {

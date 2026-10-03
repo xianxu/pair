@@ -51,14 +51,10 @@ func TestSelectResumableRoot(t *testing.T) {
 		},
 		{name: "live is never selected", rows: []ActionableThreadSummary{row(want, "/real/repo", ThreadLive)}},
 		{name: "wrong scope", rows: []ActionableThreadSummary{row(ThreadAddress{RepoScope: "scope-b", Tag: want.Tag}, "/real/repo", ThreadParked)}},
-		{name: "wrong path", rows: []ActionableThreadSummary{row(want, "/real/other", ThreadParked)}},
-		{
-			// Paths are compared by exact string, so a row still carrying an
-			// unresolved alias does not match the physical target. This is what
-			// makes physicalizing detached rows load-bearing rather than tidy.
-			name: "an unresolved alias path does not match",
-			rows: []ActionableThreadSummary{row(want, "/link/repo", ThreadDetached)},
-		},
+		// pair#363: one primary per repository. The scope is the match, so a
+		// row at another path in the same repository -- the root, when couch
+		// starts in a subdirectory -- is the one to return to.
+		{name: "another path in the same scope", rows: []ActionableThreadSummary{row(want, "/real/other", ThreadParked)}, want: want, ok: true},
 		{name: "one resumable among nonmatches", rows: []ActionableThreadSummary{
 			row(want, "/real/repo", ThreadLive),
 			detached,
@@ -68,7 +64,7 @@ func TestSelectResumableRoot(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, ok := SelectResumableRoot(test.rows, "scope-a", "/real/repo")
+			got, ok := SelectResumableRoot(test.rows, "scope-a")
 			if ok != test.ok || got != test.want {
 				t.Fatalf("SelectResumableRoot() = (%+v, %v), want (%+v, %v)", got, ok, test.want, test.ok)
 			}
@@ -264,7 +260,7 @@ func TestStartupSelectsDetachedRowsRegardlessOfNativeBinding(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, selected := SelectResumableRoot(rows, created.Address.RepoScope, "/repo")
+			_, selected := SelectResumableRoot(rows, created.Address.RepoScope)
 			if !selected {
 				t.Fatalf("row offered for selection = %v, want %v (rows = %+v) -- an offered row must be resumable",
 					selected, true, rows)

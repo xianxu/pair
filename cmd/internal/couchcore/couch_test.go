@@ -1675,14 +1675,24 @@ func TestCoTenantsAreAddressableByActorID(t *testing.T) {
 	// BR-24. Co-tenants share a tree and a label, so without an ActorID branch
 	// the escape hatch creates a state couch cannot exit.
 	//
-	// They now differ by PATH: one thread per repo path is enforced (#181), so
-	// two threads in one tree live in different subdirectories. The state this
-	// test protects is unchanged -- both still resolve from the tree ref, and
-	// only an ActorID separates them.
+	// They differ by PATH. Since pair#363 a repository has one primary, so
+	// couch no longer creates the second one; a store that predates the rule
+	// still holds such pairs, and the state this test protects is unchanged --
+	// both resolve from the tree ref, and only an ActorID separates them. The
+	// second is created past the occupancy guard (no rows), as the older couch
+	// that wrote such a store did.
 	env := newTestEnv(t, "/repo")
 	env.cannedTree("/repo", "/repo/sub")
 	first, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
-	second, _ := env.spawn(t, StartArgs{Worktree: "/repo", Cwd: "/repo/sub"})
+	resolution, err := env.Couch.resolveStartResolution(context.Background(), StartArgs{Worktree: "/repo", Cwd: "/repo/sub"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, _, err := env.Couch.spawnResolved(context.Background(), resolution, nil)
+	if err != nil {
+		t.Fatalf("seed the legacy co-tenant: %v", err)
+	}
+	env.Proc.Set(second.PID, second.Identity)
 	if first.ID == second.ID {
 		t.Fatal("expected two distinct actors")
 	}

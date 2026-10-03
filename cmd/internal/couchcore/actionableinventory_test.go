@@ -529,9 +529,11 @@ func TestProjectActionableThreadsDetachedRequiresAUsableProfile(t *testing.T) {
 	}
 }
 
-// Parked and detached rows must carry the SAME kind of path, or the startup
-// selector -- which compares by exact string -- matches one and misses the
-// other for the same tree. Only visible on a symlinked checkout, which is
+// Parked and detached rows must carry the SAME kind of path, or anything that
+// compares paths by exact string matches one and misses the other for the same
+// tree. The startup selector did until pair#363; it now matches the repository
+// scope, but a row's path is still what the operator reads and what reboot
+// starts in. Only visible on a symlinked checkout, which is
 // exactly why it needs a test rather than a reading.
 func TestActionableInventoryPhysicalizesDetachedRowsLikeParkedOnes(t *testing.T) {
 	ns := testCouchNamespace(t)
@@ -569,12 +571,12 @@ func TestActionableInventoryPhysicalizesDetachedRowsLikeParkedOnes(t *testing.T)
 		t.Fatalf("rows = %+v, want one detached row", rows)
 	}
 	if rows[0].WorkingPath != "/real/repo" {
-		t.Fatalf("detached WorkingPath = %q, want the physical path -- the startup selector compares by exact string",
+		t.Fatalf("detached WorkingPath = %q, want the physical path, the kind parked rows carry",
 			rows[0].WorkingPath)
 	}
-	// And the selector actually finds it at the physical path.
-	if _, ok := SelectResumableRoot(rows, created.Address.RepoScope, "/real/repo"); !ok {
-		t.Fatal("the detached row was not selectable at its physical path")
+	// And the selector still finds it.
+	if _, ok := SelectResumableRoot(rows, created.Address.RepoScope); !ok {
+		t.Fatal("the detached row was not selectable")
 	}
 }
 
