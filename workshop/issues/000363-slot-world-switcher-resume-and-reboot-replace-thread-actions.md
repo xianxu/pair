@@ -1,12 +1,12 @@
 ---
 id: 000363
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-30
-updated: 2026-10-02
+updated: 2026-10-03
 estimate_hours: 3.29
-card_mirror: '88501b8978d0f60988a5f5358e58a66d372964cf' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '93907700b35a9e68fe117e0fc7a26878a245b6a8' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-02T13:26:48-07:00
 claimant:
     operator: T
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 3.32
 ---
 
 # Slot-world switcher: resume and reboot replace thread actions
