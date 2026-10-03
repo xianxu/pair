@@ -1537,6 +1537,32 @@ func TestPrimaryOccupiedFreshStepNamesOnlyWhatTheRowOffers(t *testing.T) {
 	}
 }
 
+// pair#363 resolved ambiguity 1, operator-confirmed: couch starts only inside
+// a Git repository. A directory git does not recognise refuses at the first
+// seam that asks (Resolve's `rev-parse --show-toplevel`), before any record or
+// child exists. So no non-Git row can exist, and the action table has no
+// non-Git kind; supporting such starts would be its own issue.
+func TestStartInANonGitDirectoryRefuses(t *testing.T) {
+	env := newTestEnv(t) // no canned trees: git answers nothing for /plain
+	args := StartArgs{Cwd: "/plain"}
+	for name, start := range map[string]func() error{
+		"start form": func() error { _, err := env.Couch.PrepareStart(context.Background(), args); return err },
+		"startup":    func() error { _, err := env.Couch.StartInteractive(context.Background(), args); return err },
+	} {
+		err := start()
+		if err == nil || !strings.Contains(err.Error(), "resolve worktree") {
+			t.Fatalf("%s in a non-Git directory = %v, want Resolve's refusal", name, err)
+		}
+		snapshot, snapErr := env.Couch.Threads.Snapshot()
+		if snapErr != nil || len(snapshot.Records) != 0 || len(env.Runner.Ops) != 0 {
+			t.Fatalf("%s refusal had effects: records %+v, ops %q, %v", name, snapshot.Records, env.Runner.Ops, snapErr)
+		}
+	}
+	if !slices.Contains(env.Git.Ops, "/plain: rev-parse --show-toplevel") {
+		t.Fatalf("git calls = %q, want the refusal to come from asking git for the toplevel", env.Git.Ops)
+	}
+}
+
 func TestStopSignalsTheChildBeforeForgettingIt(t *testing.T) {
 	// BR-2. Forgetting first frees the tree while the agent keeps running, so
 	// the next start is allowed and two agents share one index lock.
