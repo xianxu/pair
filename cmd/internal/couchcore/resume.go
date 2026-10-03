@@ -49,6 +49,12 @@ const (
 	// one running agent that could be its conversation. Couch will not guess
 	// between them; one must be stopped first.
 	ResumeSurvivorsAmbiguous ResumeDiagnosticCode = "resume-survivors-ambiguous"
+	// ResumeSurvivorUnproven is a slot with no current record whose agent
+	// survives behind a detached session, where couch cannot prove WHICH agent
+	// runs there: the detached proof echoes the agent it is asked about, so a
+	// guessed agent proves nothing. The session is live, so the exit is to
+	// attach to it or stop it -- reboot would refuse a live owner too.
+	ResumeSurvivorUnproven ResumeDiagnosticCode = "resume-survivor-unproven"
 )
 
 // ResumeOptions narrows what a resume is allowed to do.

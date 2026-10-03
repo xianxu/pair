@@ -527,8 +527,10 @@ an internal owner operation for one launch attempt.
 **Resume and reboot are the actor operations for a row that is not live (#363).**
 `resume` (`Couch.ResumeTarget`, `couchcore/resume_route.go`) gets the old
 conversation back by whatever path works: a pure `ChooseResumeRoute` hands the
-row to `OpenSlot` (warm, cold, or adopting a running agent whose pointer couch
-lost, proved against the slot's own launch profile), `RetryContinuation`,
+row to `OpenSlot` (warm, cold, or adopting a conversation whose pointer couch
+lost -- on resume's guessed agent only through the native ledger, which binds
+per agent; a record-less detached survivor is refused `resume-survivor-unproven`
+because the detached proof cannot tell which agent runs), `RetryContinuation`,
 `RecoverThread` or `ResumeContextWith`. It takes a slot `path` or a thread
 address; `warm-only` (the background reattach pass) stays a direct warm-only
 resume. A refusal whose transcript cannot come back names reboot; the

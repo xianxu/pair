@@ -389,7 +389,18 @@ func (c *Couch) slotLaunchProfile(local *ThreadStore, slot SlotIdentity, cwd, ag
 
 // OpenSlot resumes the current conversation, or reconstructs exactly one
 // independently proved survivor. Missing metadata never requests a fresh agent.
+// An agent passed here is the operator's own choice.
 func (c *Couch) OpenSlot(ctx context.Context, path, agent string) (StartResult, error) {
+	return c.openSlot(ctx, path, agent, false)
+}
+
+// openSlot is OpenSlot with the agent's provenance. agentGuessed means the
+// agent was inferred (resume reads the slot's launch profile), not chosen: it
+// may then adopt only a survivor whose proof checks the agent -- the native
+// ledger binds per agent -- and never a record-less DETACHED survivor, whose
+// proof (DetachedSessions) echoes the agent it is asked about and so cannot
+// tell a right guess from a wrong one.
+func (c *Couch) openSlot(ctx context.Context, path, agent string, agentGuessed bool) (StartResult, error) {
 	local, slot, err := c.selectedSlot(ctx, path)
 	if err != nil {
 		return StartResult{}, err
@@ -413,10 +424,15 @@ func (c *Couch) OpenSlot(ctx context.Context, path, agent string) (StartResult, 
 			return StartResult{}, err
 		}
 		var survivors []ThreadRecord
+		unprovenWarm := false
 		for _, candidate := range sessions.Candidates {
 			recovered := candidate.Record
 			if recovered == nil {
 				if agent == "" {
+					continue
+				}
+				if agentGuessed && candidate.Presence == SessionPresent {
+					unprovenWarm = true
 					continue
 				}
 				family, err := c.slotFamily(ctx, slot, false)
@@ -475,6 +491,9 @@ func (c *Couch) OpenSlot(ctx context.Context, path, agent string) (StartResult, 
 		}
 		switch len(survivors) {
 		case 0:
+			if unprovenWarm {
+				return StartResult{}, refuseResume(ResumeSurvivorUnproven, "slot current is unavailable and a managed session survives, but couch cannot prove which agent runs in it; attach to it or stop it, then retry")
+			}
 			return StartResult{}, refuseResume(ResumeNoSurvivor, "slot current is unavailable and no running conversation could be proved its own")
 		case 1:
 		default:

@@ -91,6 +91,7 @@ func TestResumeRebootAdviceValues(t *testing.T) {
 		ResumeNotDetached:        false,
 		ResumeNotRunning:         false,
 		ResumeSurvivorsAmbiguous: false,
+		ResumeSurvivorUnproven:   false,
 	}
 	if len(want) != len(ResumeRebootAdvice) {
 		t.Errorf("advice has %d codes, the Spec lists %d", len(ResumeRebootAdvice), len(want))
@@ -187,18 +188,22 @@ func writeSlotPathPreference(t *testing.T, local *ThreadStore, agent string) {
 	}
 }
 
-// A slot whose thread pointer couch lost, with its agent still running behind
-// a detached session. Resume carries no agent argument -- the operator only
+// A slot whose thread pointer couch lost, with its conversation still bound
+// in the native ledger. Resume carries no agent argument -- the operator only
 // pressed resume -- so the agent the adoption is proved against comes from the
-// slot's own path preference.
+// slot's own path preference, and the ledger proves it per agent.
 func TestResumeOperationOnASlotPathAdoptsALostPointer(t *testing.T) {
 	env, local := slotRecoveryOperationFixture(t)
 	writeSlotPathPreference(t, local, "claude")
 	scope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
 	address := ThreadAddress{RepoScope: scope.Key, Tag: "couch-1111111111111111"}
-	env.Artifacts.SetSessionPresence(address, SessionObservation{State: SessionPresent})
-	env.Artifacts.SetPairSession(address, "pair-survivor", true)
-	env.Artifacts.SetDetachedSession(address, "pair-survivor")
+	env.Artifacts.SetPairSession(address, "pair-survivor", false)
+	env.Artifacts.SetNativeBinding(address, "claude", sessioninventory.BindingEstablished, "native-1")
+	// The cold resume's session coming up births its agent pane.
+	env.Runner.AfterAcknowledge = func(id string) error {
+		env.Artifacts.SetPairSession(address, continuationChildSession(t, env.Runner, id), true)
+		return nil
+	}
 	value, err := dispatchResume(env, map[string]string{"path": local.slot.WorktreeRoot, "repo-scope": scope.Key})
 	if err != nil {
 		t.Fatal(err)
@@ -211,39 +216,66 @@ func TestResumeOperationOnASlotPathAdoptsALostPointer(t *testing.T) {
 	if err != nil || current.LatestLaunchProfile == nil || current.LatestLaunchProfile.Agent != "claude" {
 		t.Fatalf("thread.json does not name the survivor: %+v, %v", current, err)
 	}
-	if childEnvValue(env.Runner.Child(result.Handle.ID()).Env, launcher.CouchLaunchProfileEnv) != "" {
-		t.Fatal("the adopted survivor got a fresh agent profile")
-	}
 }
 
-// The adoption proof checks the agent it is given. A record-less survivor
-// whose conversation is bound for claude is not proved by a codex guess, so
-// nothing is adopted and nothing is spawned -- and since the transcript cannot
-// come back by this route, the refusal names reboot.
+// An adoption is only as good as the evidence for its agent. Resume's agent is
+// a GUESS from the slot's preference, so it may adopt only where the world
+// checks that guess.
 //
-// This pins the COLD branch (native binding), where the proof is per agent.
-// The WARM branch's proof (DetachedSessions) echoes the agent it is asked
-// about and does not observe which agent runs in the session, so a wrong
-// guess there is not caught by the proof (pair#363 M1 finding).
+// Cold: the native ledger binds per agent, so a record-less survivor bound for
+// claude is not proved by a codex guess; there is no conversation to adopt, and
+// the refusal names reboot.
+//
+// Warm: the detached-session proof echoes whatever agent it is asked about and
+// observes nothing about which agent runs in the session (pane sidecars name
+// agents but keep stale twins, and nothing reads them as identity). So a
+// record-less detached survivor is never adopted on a guess -- right or wrong
+// -- and the refusal says a session survives, not reboot, because reboot would
+// refuse a slot with a live owner too.
 func TestResumeAdoptionWithTheWrongAgentIsNotProved(t *testing.T) {
-	env, local := slotRecoveryOperationFixture(t)
-	writeSlotPathPreference(t, local, "codex")
-	scope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
-	address := ThreadAddress{RepoScope: scope.Key, Tag: "couch-1111111111111111"}
-	env.Artifacts.SetPairSession(address, "pair-survivor", false)
-	env.Artifacts.SetNativeBinding(address, "claude", sessioninventory.BindingEstablished, "native-1")
-	_, err := dispatchResume(env, map[string]string{"path": local.slot.WorktreeRoot, "repo-scope": scope.Key})
-	if code := ResumeDiagnosticOf(err); code != ResumeNoSurvivor {
-		t.Fatalf("diagnostic %q (err %v), want %q", code, err, ResumeNoSurvivor)
-	}
-	if !strings.Contains(err.Error(), "reboot") {
-		t.Fatalf("a refusal with no way back does not name reboot: %v", err)
-	}
-	if len(env.Runner.Ops) != 0 {
-		t.Fatalf("runner ops %v: something was spawned", env.Runner.Ops)
-	}
-	if _, err := local.GetThread(address); err == nil {
-		t.Fatal("an unproved survivor was adopted into thread.json")
+	t.Run("cold", func(t *testing.T) {
+		env, local := slotRecoveryOperationFixture(t)
+		writeSlotPathPreference(t, local, "codex")
+		scope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
+		address := ThreadAddress{RepoScope: scope.Key, Tag: "couch-1111111111111111"}
+		env.Artifacts.SetPairSession(address, "pair-survivor", false)
+		env.Artifacts.SetNativeBinding(address, "claude", sessioninventory.BindingEstablished, "native-1")
+		_, err := dispatchResume(env, map[string]string{"path": local.slot.WorktreeRoot, "repo-scope": scope.Key})
+		if code := ResumeDiagnosticOf(err); code != ResumeNoSurvivor {
+			t.Fatalf("diagnostic %q (err %v), want %q", code, err, ResumeNoSurvivor)
+		}
+		if !strings.Contains(err.Error(), "reboot") {
+			t.Fatalf("a refusal with no way back does not name reboot: %v", err)
+		}
+		if len(env.Runner.Ops) != 0 {
+			t.Fatalf("runner ops %v: something was spawned", env.Runner.Ops)
+		}
+		if _, err := local.GetThread(address); err == nil {
+			t.Fatal("an unproved survivor was adopted into thread.json")
+		}
+	})
+	for _, guess := range []string{"codex", "claude"} {
+		t.Run("warm/"+guess, func(t *testing.T) {
+			env, local := slotRecoveryOperationFixture(t)
+			writeSlotPathPreference(t, local, guess)
+			scope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
+			address := ThreadAddress{RepoScope: scope.Key, Tag: "couch-1111111111111111"}
+			env.Artifacts.SetPairSession(address, "pair-survivor", true)
+			env.Artifacts.SetDetachedSession(address, "pair-survivor")
+			_, err := dispatchResume(env, map[string]string{"path": local.slot.WorktreeRoot, "repo-scope": scope.Key})
+			if code := ResumeDiagnosticOf(err); code != ResumeSurvivorUnproven {
+				t.Fatalf("diagnostic %q (err %v), want %q", code, err, ResumeSurvivorUnproven)
+			}
+			if strings.Contains(err.Error(), "reboot") {
+				t.Fatalf("a live survivor's refusal names reboot, which would refuse too: %v", err)
+			}
+			if len(env.Runner.Ops) != 0 {
+				t.Fatalf("runner ops %v: something was spawned", env.Runner.Ops)
+			}
+			if _, err := local.GetThread(address); err == nil {
+				t.Fatal("a survivor was adopted on an unproven agent guess")
+			}
+		})
 	}
 }
 

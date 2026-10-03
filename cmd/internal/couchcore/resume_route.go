@@ -81,6 +81,7 @@ var ResumeRebootAdvice = map[ResumeDiagnosticCode]bool{
 	ResumeNotDetached:        false,
 	ResumeNotRunning:         false,
 	ResumeSurvivorsAmbiguous: false,
+	ResumeSurvivorUnproven:   false,
 }
 
 // withRebootAdvice keeps errors.As working (%w) and appends the exit once, at
@@ -175,9 +176,10 @@ func (c *Couch) resumeRouted(ctx context.Context, t ResumeTarget) (any, error) {
 		agent := ""
 		if !in.HasRecord {
 			// Adopting a record-less survivor needs an agent to prove it
-			// against; the operator only pressed resume, so it comes from the
-			// slot's own launch profile (path preference, else the repository
-			// default, else the root agent).
+			// against; the operator only pressed resume, so it is GUESSED from
+			// the slot's own launch profile (path preference, else the
+			// repository default, else the root agent), and openSlot adopts on
+			// a guess only where the proof checks the agent.
 			family, err := c.slotFamily(ctx, slot, false)
 			if err != nil {
 				return nil, err
@@ -192,7 +194,7 @@ func (c *Couch) resumeRouted(ctx context.Context, t ResumeTarget) (any, error) {
 			}
 			agent = profile.Profile.Agent
 		}
-		return c.OpenSlot(ctx, t.Path, agent)
+		return c.openSlot(ctx, t.Path, agent, true)
 	case ResumeRouteContinuation:
 		return c.RetryContinuation(ctx, record.Address, record.Continuation.ID)
 	case ResumeRouteRecover:
