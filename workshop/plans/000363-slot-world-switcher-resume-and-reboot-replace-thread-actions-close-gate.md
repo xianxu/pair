@@ -103,6 +103,25 @@ rounds:
       boundary: M2
       recipe: milestone-review
       blocked: false
+    - "n": 4
+      timestamp: "2026-10-03T02:00:44-07:00"
+      agent: claude
+      findings:
+        - id: BR-11
+          severity: Minor
+          title: The slot DirectoryMissing RebootCost text cannot appear, because that row offers no reboot
+          detail: menuRowActions returns nil for a :1+ row whose directory is missing, so no reboot confirmation ever shows it. Remove the field value or comment why it is kept.
+          family: dead-advice-text
+          round: 4
+        - id: BR-12
+          severity: Minor
+          title: A rolled-back :0 reboot refuses when a pre-363 co-tenant primary exists in the scope
+          detail: reboot.go rolled-back branch calls spawnResolved, and the widened guard sees the other primary. This follows the rule and stops nothing, but it is untested and unmentioned.
+          family: legacy-cotenant-guard-interaction
+          round: 4
+      boundary: M3
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#363 (boundary-review)
@@ -154,6 +173,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-10** [Minor] `removed-action-sweep-misses-comments` menu.go:1636 comment still says relaunch and archive keep their confirmation on failure
   Archive was removed; reboot is now the action that keeps its confirmation. The Task 2.6 sweep grepped strings, not comments.
 
+## Round 4 — 2026-10-03T02:00:44-07:00 (claude) — passed
+
+### Raised
+
+- **BR-11** [Minor] `dead-advice-text` The slot DirectoryMissing RebootCost text cannot appear, because that row offers no reboot
+  menuRowActions returns nil for a :1+ row whose directory is missing, so no reboot confirmation ever shows it. Remove the field value or comment why it is kept.
+- **BR-12** [Minor] `legacy-cotenant-guard-interaction` A rolled-back :0 reboot refuses when a pre-363 co-tenant primary exists in the scope
+  reboot.go rolled-back branch calls spawnResolved, and the widened guard sees the other primary. This follows the rule and stops nothing, but it is untested and unmentioned.
+
 ## Open findings
 
 - **BR-4** [Minor] `refusal-names-unoffered-action` withRebootAdvice tells the operator "Tab → reboot" while M1 declares reboot RowAction false
@@ -163,3 +191,5 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-8** [Minor] `undeclared-runtime-cost` Routed resume adds a classifyForAction round per ordinary resume, not noted in ARCH-CONSTRAINTS
 - **BR-9** [Minor] `refusal-names-unoffered-action` A :0 path-missing row and its reboot confirmation say "add slot recreates it", which that row cannot reach
 - **BR-10** [Minor] `removed-action-sweep-misses-comments` menu.go:1636 comment still says relaunch and archive keep their confirmation on failure
+- **BR-11** [Minor] `dead-advice-text` The slot DirectoryMissing RebootCost text cannot appear, because that row offers no reboot
+- **BR-12** [Minor] `legacy-cotenant-guard-interaction` A rolled-back :0 reboot refuses when a pre-363 co-tenant primary exists in the scope
