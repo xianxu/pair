@@ -1,20 +1,12 @@
 ---
 id: 000384
-status: wontfix
+status: open
 deps: []
 github_issue:
 created: 2026-10-02
 updated: 2026-10-02
 estimate_hours:
-card_mirror: 'de2dde6cf9c640f56ab43b582b016a6d99e4542b' # card fields mirrored from issue-cards; edit via sdlc
-started: 2026-10-02T12:13:22-07:00
-claimant:
-    operator: T
-    machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: Xian’s MacBook Pro
-    workspace: pair:1
-    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
-    repository: github.com/xianxu/pair
+card_mirror: 'b834da4b7088898783108fb63604183b1c1e62ac' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Couch starts the enrolled slot set on restart
@@ -64,20 +56,3 @@ Implementation plan to be designed after issue claim and start-plan.
 
 Split out of pair#367 at the operator's direction: #367's survey found Couch
 does not start a slot set on restart. #367 depends on this issue.
-
-### 2026-10-02 — closed wontfix, split by layer
-
-Operator design review: Couch must not auto-start or auto-resume parked slots.
-A parked slot may be properly parked, stale, or corrupted; only live slots are
-safe to attach blindly. The need is an explicit slot state plus two
-recoveries: resume the slots that hold work, or reboot N clean slots for new
-work (archive the old thread, resting branch, `weave refresh`, fresh agent).
-Re-check readiness at action time; slots that cannot be reused say why
-(dirty or untracked files across the slot's checkouts) and wait for LLM or
-manual recovery.
-
-Split by owner: slot grouping, slot address, dependency checkouts and the
-readiness verdict are git/workflow facts and go to an ariadne issue on
-`sdlc fleet inventory` (after ariadne#288). The Couch slot view joins that
-with thread state in pair#367, which also owns the bulk resume/prepare actions
-and workspace shaping, built on pair#363's per-slot resume and reboot.
