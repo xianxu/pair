@@ -107,18 +107,11 @@ func VerifiedOwner(namespace CouchNamespace, proc ProcOps) (SupervisorOwner, boo
 	if owner.PID <= 0 || owner.Identity == "" {
 		return SupervisorOwner{}, false, fmt.Errorf("invalid supervisor owner metadata")
 	}
-	switch proc.Exists(owner.PID) {
+	switch observeExactProcess(proc, ProcessIdentity{PID: owner.PID, Identity: owner.Identity}) {
 	case Dead:
-		return SupervisorOwner{}, false, fmt.Errorf("published supervisor pid %d is dead", owner.PID)
+		return SupervisorOwner{}, false, fmt.Errorf("published supervisor pid %d exited or was replaced", owner.PID)
 	case Unknown:
 		return SupervisorOwner{}, false, fmt.Errorf("cannot verify supervisor pid %d", owner.PID)
-	}
-	identity, err := proc.Identity(owner.PID)
-	if err != nil {
-		return SupervisorOwner{}, false, fmt.Errorf("verify supervisor pid %d: %w", owner.PID, err)
-	}
-	if identity != owner.Identity {
-		return SupervisorOwner{}, false, fmt.Errorf("supervisor pid %d identity changed", owner.PID)
 	}
 	return owner, true, nil
 }

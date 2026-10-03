@@ -500,3 +500,8 @@ proof; record the surprising case so the next change starts from evidence.
   root does not contain a child path whose existing symlink points elsewhere;
   validate the fallback HOME, temporary and XDG roots before publishing selection
   or creating directories, and export only the validated physical paths (#366 BR-5).
+- Two probes are not one observation. `kill(pid,0)` then an identity read can
+  straddle a reap, so a process that just exited reads "unknowable". Re-ask the
+  cheap probe before reporting Unknown, and keep exactly one implementation of the
+  pair (`observeExactProcess`). #389 fixed the race once, and five hand-spelled
+  copies kept it (#389 BR-1); grep for the pattern, not just the call site.

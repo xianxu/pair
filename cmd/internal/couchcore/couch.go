@@ -1045,6 +1045,11 @@ func (c *Couch) reconcileInterruptedStarts() error {
 	return nil
 }
 
+// observeExactProcess is the one answer to "is this exact process still
+// running": pid presence, then the kernel start token, so a recycled pid
+// reads Dead. Every exact-process check goes through it rather than spelling
+// the two probes again -- the copies are where the reap-between-probes race
+// survived (#389).
 func observeExactProcess(proc ProcOps, expected ProcessIdentity) Liveness {
 	switch proc.Exists(expected.PID) {
 	case Dead:
@@ -1054,6 +1059,13 @@ func observeExactProcess(proc ProcOps, expected ProcessIdentity) Liveness {
 	}
 	identity, err := proc.Identity(expected.PID)
 	if err != nil {
+		// The two probes are not atomic: a process reaped between them (a
+		// client exiting under SIGTERM) is present for Exists and has no
+		// identity a moment later. Ask again before calling it unknowable --
+		// ESRCH now is a confirmed exit (#389).
+		if proc.Exists(expected.PID) == Dead {
+			return Dead
+		}
 		return Unknown
 	}
 	if identity != expected.Identity {
@@ -1083,22 +1095,7 @@ func (c *Couch) Liveness(a ActorRecord) Liveness {
 	if a.PID == 0 || a.Identity == "" {
 		return Dead // nothing was ever recorded to check against
 	}
-	switch c.Proc.Exists(a.PID) {
-	case Dead:
-		return Dead
-	case Unknown:
-		return Unknown
-	}
-	id, err := c.Proc.Identity(a.PID)
-	if err != nil {
-		// The process exists but we could not read its token. That is not
-		// evidence of anything; refusing to guess is the safe answer.
-		return Unknown
-	}
-	if id != a.Identity {
-		return Dead // same PID, different process
-	}
-	return Live
+	return observeExactProcess(c.Proc, ProcessIdentity{PID: a.PID, Identity: a.Identity})
 }
 
 // Forget drops an actor from the registry, freeing its tree.
