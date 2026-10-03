@@ -100,6 +100,29 @@ Action sets per row (operator decisions, 2026-09-30, from #360's design talk):
   addressing work (prefix, alias, candidates, `--agent`); this issue owns the
   switcher's action model; #364 owns slot removal.
 
+### 2026-10-02 — design decisions before the durable plan
+
+Operator decisions (from the code survey's open points):
+
+- **`:0` reboot is one crash-safe operation.** The main thread store gains the
+  same archive-then-create journal `fresh-slot` uses for `:1+`
+  (`replaceSlotCurrent`, `couchcore/slotrecovery.go`), so `:0` and `:1+` reboot
+  share one shape.
+- **Unusable rows offer reboot.** With the directory present, reboot archives the
+  broken record and starts a fresh agent. With the directory missing, reboot
+  archives the record only, and the row explains that add slot recreates the
+  directory (pair#387 repairs the leftover registration). Archive leaves the
+  switcher as a separate action.
+- **Reboot stops carrying stored name and description.** The fresh record starts
+  without them; the archived record keeps the old values.
+
+Survey facts the plan builds on: `open-slot` already resumes by whatever works
+(warm, cold, rebuilding a lost thread pointer); `fresh-slot` archives and starts
+fresh for `:1+` without touching git; `menuActionItems` (`couchtty/menu.go`)
+is the per-row action authority, swept by `menu_action_sweep_test.go`; a `:0`
+start in a repository subdirectory creates a second primary today
+(`SelectResumableRoot` / `PathHoldsUsableThread` match the exact path).
+
 ## Revisions
 
 ### 2026-10-02 — boundary with pair#367 settled: actor only
