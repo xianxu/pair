@@ -124,7 +124,7 @@ Design hours are discounted because the durable plan is reviewed and approved;
 Durable plan: `workshop/plans/000363-slot-world-switcher-resume-and-reboot-replace-thread-actions-plan.md`
 (reviewed and approved 2026-10-02). Each milestone is a review boundary.
 
-- [ ] M1 — Actor operations in couchcore: unified `resume` (warm, cold, proven adoption, continuation/recovery retry) and `reboot` (profile preflight before quiesce, `:0` journaled replace, `:1+` fresh, missing-directory archive-only, no name/description carry); switcher untouched.
+- [x] M1 — Actor operations in couchcore: unified `resume` (warm, cold, proven adoption, continuation/recovery retry) and `reboot` (profile preflight before quiesce, `:0` journaled replace, `:1+` fresh, missing-directory archive-only, no name/description carry); switcher untouched.
 - [ ] M2 — Switcher speaks the slot model: one pure per-row action table (offer equals permission), resume/reboot wired, rename/describe/archive/open-slot/fresh-slot/recover-* removed, labels and matching stop reading stored name/description, README and atlas.
 - [ ] M3 — One primary per repository: a subdirectory start resumes the existing `:0`; a console start refuses a second primary; non-Git refusal pinned.
 
@@ -137,6 +137,7 @@ Durable plan: `workshop/plans/000363-slot-world-switcher-resume-and-reboot-repla
   switcher's action model; #364 owns slot removal.
 
 ### 2026-10-02 — design decisions before the durable plan
+- 2026-10-02: closed M1 — M1 actor ops: unified resume (warm/cold/proven cold adoption/continuation+recovery retry; unproven warm adoption refused) and reboot (profile preflight before quiesce, :0 one-journal ReplaceThreadExpected, :1+ fresh, missing-dir archive-only, no name/desc carry); every new test red-then-green, plan mutation checks red; make -k test: only known test-changelog (passes with scratchpad TMPDIR); go test ./...: only the 2 pre-existing failures (artifactpath 33 pre-existing entries after inventorying the 5 new sources; gcruntime locator); -race couchcore green; actual = sdlc actual (first milestone); review verdict: SHIP
 
 Operator decisions (from the code survey's open points):
 
