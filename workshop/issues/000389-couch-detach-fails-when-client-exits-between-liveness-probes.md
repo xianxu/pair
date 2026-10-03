@@ -1,12 +1,12 @@
 ---
 id: 000389
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-03
 updated: 2026-10-03
 estimate_hours:
-card_mirror: 'f39b123c75914dd6ca9a17ebe981e421ff257525' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'e443dadf79930616c8d6dc8b4b3164fc33c094aa' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-03T11:53:54-07:00
 claimant:
     operator: T
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "4a04ace5", done: "1093ba85"}
+actual_hours: 0.32
 ---
 
 # couch detach fails when client exits between liveness probes
