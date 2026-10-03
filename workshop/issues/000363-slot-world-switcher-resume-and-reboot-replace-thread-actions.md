@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-09-30
 updated: 2026-10-02
-estimate_hours:
-card_mirror: '47f8ae0b4867c752fe36cd171053ebd4f4cbff66' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 3.29
+card_mirror: '88501b8978d0f60988a5f5358e58a66d372964cf' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-02T13:26:48-07:00
 claimant:
     operator: T
@@ -82,6 +82,41 @@ Action sets per row (operator decisions, 2026-09-30, from #360's design talk):
   thread.
 - Rename and describe are gone from the switcher, CLI help, README and atlas;
   slot rows always label `repo:N` (or `alias:N` once #360 lands).
+
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module     design=0.3 impl=0.32
+item: smaller-go-module        design=0.1 impl=0.2
+item: smaller-go-module        design=0.1 impl=0.2
+item: milestone-review         design=0.0 impl=0.2
+item: tui-screen               design=0.2 impl=0.4
+item: cross-cutting-refactor   design=0.1 impl=0.2
+item: atlas-docs               design=0.05 impl=0.08
+item: milestone-review         design=0.0 impl=0.2
+item: smaller-go-module        design=0.1 impl=0.2
+item: milestone-review         design=0.0 impl=0.2
+design-buffer: 0.15
+total: 3.29
+```
+
+Design hours are discounted because the durable plan is reviewed and approved;
+`impl=` values are 40% of the v2 primitive ranges (v3.1).
+
+- `greenfield-go-module` — M1 reboot operation + :0 journaled replace
+- `smaller-go-module` — M1 unified resume route over existing executors
+- `smaller-go-module` — M1 store journal builders + ReplaceThreadExpected extraction
+- `milestone-review` — M1
+- `tui-screen` — M2 pure per-row action table + menu wiring
+- `cross-cutting-refactor` — M2 remove rename/describe/archive/repair ops; labels and matching
+- `atlas-docs` — M2 README + atlas
+- `milestone-review` — M2
+- `smaller-go-module` — M3 one primary per repository
+- `milestone-review` — M3
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* (Calibration doc flagged stale; numbers provisional.)
 
 ## Plan
 
