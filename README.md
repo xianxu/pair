@@ -516,12 +516,23 @@ retains its 10-second outer deadline and 5-second exact-Zellij inner wait.
 Leave Couch applies one disposition to every live actor and returns to the
 shell: in the switcher, `Alt+d` **detaches** them, so quitting never kills a running agent, and
 `Alt+x` **parks** them behind the same confirmation a single park needs. A later bare `couch` returns to the work already in
-that physical repository path: **detached first, then parked, most recently
+that repository: **detached first, then parked, most recently
 active within each class**. It starts a new thread only when there is nothing to
 return to. Ranking replaced an exactness rule that was a ratchet -- two
 resumable rows at one path created a third, guaranteeing the next startup
 created a fourth -- and wanting a fresh agent instead costs one chord inside
 Pair (`Alt+Shift+N` restarts the conversation, keeping the workbench).
+
+**One primary per repository.** A repository has at most one primary (`:0`)
+thread; more agents in it are slots (`:1+`). `couch` anywhere inside a
+repository, a subdirectory of its primary checkout included, returns to that
+`:0` rather than starting a second one beside it, and the start form refuses
+with "couch keeps one primary slot per repository", naming the thread and how
+to start fresh there (`Tab → reboot` on a parked or detached row, `Alt+Shift+N`
+inside a live one). A `:0` that cannot be entered does not block a start, so a
+corrupt record never locks its repository out. A linked worktree that is not a
+slot has its own primary. Couch starts only inside a Git repository: a
+directory Git does not recognise is refused before anything is created.
 
 **Compact a Couch thread without changing its tag.** `Alt+Shift+C` saves and
 commits a continuation, then asks Couch to replace the conversation. Couch keeps
@@ -791,11 +802,13 @@ ordinary filter text—there is no command namespace or numbered jump mode.
 | cannot be entered, but resume has a route | resume, reboot |
 | cannot be entered otherwise (`:0`) | reboot |
 | state could not be checked | nothing; the next refresh decides |
-| directory missing | `:0`: reboot (archives the record only); `:1+`: nothing — add slot recreates it |
+| directory missing | `:0`: reboot (archives the record only; restore the checkout to start there again); `:1+`: nothing — add slot recreates it |
 | starting elsewhere | nothing |
 
 `Enter` switches to a live row and resumes a row that offers resume; on any
-other row it says why, and names `Tab → reboot` when the row offers it.
+other row it says why, and names `Tab → reboot` when the row offers it. Every
+next step a row names is one that row can take (a `:1+` whose directory is gone
+points at add slot on its repository's live `:0`).
 
 **Resume** brings the old conversation back by whichever path works: a retained
 continuation is retried where it stands (a failed or running request) or
@@ -830,7 +843,7 @@ failures remain in the switcher banner. Every thread in the store gets a row
 and says what it is: `live`, `detached`, `parked`, `starting elsewhere`, or a
 reason it cannot be entered — `binding lost — repairable`, `session gone`, `no
 saved launch`, `state could not be checked`, `directory missing — add slot
-recreates it`, and so on. Nothing is hidden for want of proof;
+recreates it` (`checkout missing — …` on a `:0`), and so on. Nothing is hidden for want of proof;
 `Enter` on a row it cannot act on explains instead of doing nothing, and
 `couch --list` / `couch --show` report the same population and the same states
 with more room to describe them.

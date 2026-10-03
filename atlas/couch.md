@@ -566,9 +566,14 @@ continuation, resumable, unusable, unknown, busy) plus `ResumeOffered`,
 `DirectoryMissing`, `AliasOffered` and `AddSlotOffered`, and `menuRowActions` is
 the Spec table over them. Live rows get detach, relaunch, park and switch coding
 agent (`:0` adds alias and add slot); rows that are not live get resume and
-reboot; unknown, busy and live-pending rows get nothing, and `menuRowNotice`
+reboot; unknown, busy and live-pending rows get nothing, and `menuRowAdviceOf`
 reads the same facts to say why ("state could not be checked", "starting
-elsewhere", `RebootDirectoryMissing`). Enter (`enterOperationFor`) switches a
+elsewhere", `RebootDirectoryMissing` on a `:1+`, `RebootCheckoutMissing` on a
+`:0`). It is the one home of every row-facing next step -- the status
+explanation, Enter's way forward (`Tab → reboot`) and the no-directory reboot
+cost -- so each names only an action that row's kind can reach (a step taken on
+another row says so: `OnPrimary`, `:1+` only); `TestRowAdviceNamesOnlyReachableActions`
+sweeps every derived row shape and every confirmation it offers. Enter (`enterOperationFor`) switches a
 live row and resumes a row that offers resume; every confirmation is re-checked
 by one rule -- its row still offers its action, or that action is the one in
 flight on that row (`menuFrameOperationInFlight`). A slot row's resume and
@@ -1396,8 +1401,9 @@ Where that lands differs by caller, and both matter:
   a detach candidate the normal case.
 - **Startup proves only the threads its readers consume** (`pair#206` M1).
   The readers of those rows are listed on `startupAsks` in `startup.go`, which
-  is the list's one home. Each filters before it reads -- to the cwd, or to rows
-  whose layout differs -- so `startupAsks` resolves exactly that union and leaves every other candidate
+  is the list's one home. Each filters before it reads -- to this repository's
+  scope (`pair#363`; the cwd's exact path before it), or to rows whose layout
+  differs -- so `startupAsks` resolves exactly that union and leaves every other candidate
   `ProofUnresolved`, which classifies `unknown`: a row no reader here can act
   on. Those rows never leave `StartInteractive` (`StartResult` carries none),
   so unasked state cannot reach the switcher.
@@ -1476,9 +1482,10 @@ switcher resumes that exact thread and makes it the root console. It never
 creates an intervening actor that would occupy the parked thread's address
 (`ARCH-PURPOSE`, `ARCH-PURE`).
 
-Interactive `couch [<repo>]` startup resolves the requested repository scope and
-physical working path, then applies `SelectResumableRoot` to the same
-proof-bearing actionable inventory used by the switcher. It RANKS: detached
+Interactive `couch [<repo>]` startup resolves the requested repository scope,
+then applies `SelectResumableRoot` to the same proof-bearing actionable
+inventory used by the switcher, over that scope's primary (ordinary-target) rows
+at any working path -- one primary per repository (`pair#363`). It RANKS: detached
 before parked, most recently active within each class, and starts a new thread
 only when nothing matches. Inventory failure or a Resume refusal stops startup
 without creating a fallback actor, and `startupResumeRefusal` wraps that refusal
@@ -1524,11 +1531,21 @@ restored "some records get no row" -- the regression the total projection exists
 to prevent. One value makes the omission named and visible at each construction site;
 `FromSnapshot` is the form that cannot forget.
 
-`PathHoldsUsableThread` is the other half: **one thread per repository path**,
-enforced at the single site every creation entry funnels through
-(`spawnResolved`), refusing a start where a live, detached or parked row already
-holds the path. Known debris does not block -- a path whose only rows are
-unusable-but-classified must stay startable. An UNREADABLE record is the
+`ScopeHoldsUsableThread` is the other half: **one primary thread per
+repository** (`pair#363`, widened from one thread per path, `#181`), enforced at
+the single site every creation entry funnels through (`spawnResolved`), refusing
+a start anywhere in a repository -- a subdirectory of its primary checkout
+included -- whose primary (`:0`, an ordinary target; slot rows are `:1+` and
+never count) is live, detached or parked. Startup reaches the same rows first
+and resumes instead, so the refusal is the start form's: "couch keeps one
+primary slot per repository", naming the thread's label and a fresh step its row
+can take (`primaryFreshStep`: `Tab → reboot` where `RebootableState` permits it,
+otherwise `Alt+Shift+N` inside the live thread). Known debris does not block --
+a repository whose only primary rows are unusable-but-classified must stay
+startable (resolved ambiguity 9). A linked worktree that is not a slot has its
+own scope, so its own primary. Couch starts only inside a Git repository:
+`Resolve`'s `rev-parse --show-toplevel` refuses anything else before any record
+exists (`TestStartInANonGitDirectoryRefuses`), so no non-Git row kind exists. An UNREADABLE record is the
 deliberate exception, and it accepts the hazard this sentence used to warn
 against ("one corrupt record locks its repo out permanently"): couch cannot tell
 which path such a record holds, so it blocks the scope rather than risk a second
@@ -1536,9 +1553,9 @@ thread over live work. The lockout is bounded by naming the record's file in the
 refusal, and by the switcher reached from another repository -- which is the
 recovery path, and is stated in the refusal because an unstated escape is no
 escape. In total version skew every record is unreadable and no repository
-starts; the file path is then the only honest next step. The
-TREE is not the bound; two threads in one tree at different subdirectories
-remain legal. There is deliberately no opt-in flag: `StartArgs.SameTree` looks
+starts; the file path is then the only honest next step. Co-tenant primaries in
+one tree from a store that predates `pair#363` still resolve and can be stopped
+by actor ID. There is deliberately no opt-in flag: `StartArgs.SameTree` looks
 like one and is documented as inert legacy serialization, so reading it would
 resurrect a dead field as policy.
 
