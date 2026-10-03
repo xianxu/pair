@@ -561,11 +561,42 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 	//
 	// This is a deliberate slice of #149, which makes the tag the space's
 	// durable identity; #146 needs only that re-entry is deterministic.
+	var afterPrepare func() error
+	if resolution.Target.Kind == ThreadTargetSlot && resolution.Action == StartCreate {
+		afterPrepare = func() error { return c.revalidateCreatedSlot(ctx, resolution) }
+	}
+	return c.launchClaimedThread(claimedLaunch{
+		Context: ctx, Thread: thread, Nonce: nonce, Args: args, StartedAt: startedAt,
+		Profile: profile, AfterPrepare: afterPrepare,
+	})
+}
+
+// claimedLaunch is a start-claimed record ready to become a running thread.
+// AfterPrepare is the caller's last re-check once the workspace is prepared --
+// a created slot's revalidation, a fresh slot's other-owner check -- and runs
+// inside the same rollback as everything else here.
+type claimedLaunch struct {
+	Context      context.Context
+	Thread       ThreadRecord
+	Nonce        string
+	Args         StartArgs
+	StartedAt    time.Time
+	Profile      LaunchProfileResolution
+	AfterPrepare func() error
+}
+
+// launchClaimedThread is the tail every fresh start shares -- spawnResolved,
+// fresh slot and reboot: prepare the tracked workspace, build the trusted
+// launch profile, launch. Any failure before the launch rolls the start claim
+// back (rollbackTrackedStart), so the path is left free rather than held by a
+// claim nothing will finish.
+func (c *Couch) launchClaimedThread(in claimedLaunch) (ActorRecord, Handle, error) {
+	ctx, thread, nonce, profile := in.Context, in.Thread, in.Nonce, in.Profile
 	if err := c.prepareTrackedWorkspace(ctx, thread, nonce, false); err != nil {
 		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 	}
-	if resolution.Target.Kind == ThreadTargetSlot && resolution.Action == StartCreate {
-		if err := c.revalidateCreatedSlot(ctx, resolution); err != nil {
+	if in.AfterPrepare != nil {
+		if err := in.AfterPrepare(); err != nil {
 			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 		}
 	}
@@ -576,9 +607,12 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 	if err != nil {
 		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 	}
+	args := in.Args
+	args.Stack = profile.Profile.Agent
+	args.ExtraArgs = cloneArgv(profile.Profile.Argv)
 	return c.launchTrackedThread(trackedThreadLaunch{
 		Context: ctx,
-		Thread:  thread, Nonce: nonce, Args: args, StartedAt: startedAt,
+		Thread:  thread, Nonce: nonce, Args: args, StartedAt: in.StartedAt,
 		ProfileRaw: profileRaw, UseRepoDefault: profile.ArgvSource == ArgvSourceRepoDefault,
 	})
 }

@@ -311,14 +311,6 @@ func (c *Couch) startFreshSlot(ctx context.Context, path, agent string, requireE
 	if err := launcher.ValidateFreshAgentArgs(profile.Profile.Agent, profile.Profile.Argv); err != nil {
 		return StartResult{}, err
 	}
-	owner, err := c.Proc.Current()
-	if err != nil {
-		return StartResult{}, err
-	}
-	nonce, err := allocateStartNonce(c.Entropy)
-	if err != nil {
-		return StartResult{}, err
-	}
 	scope, err := launcher.ResolveRepoScope(slot.WorktreeRoot)
 	if err != nil {
 		return StartResult{}, err
@@ -327,55 +319,28 @@ func (c *Couch) startFreshSlot(ctx context.Context, path, agent string, requireE
 	for _, candidate := range observation.Candidates {
 		used[candidate.Address] = true
 	}
-	for attempt := 0; attempt < threadTagAttempts; attempt++ {
-		tag, err := c.allocateConversationTag(ctx, filepath.Base(slot.PrimaryRoot))
-		if err != nil {
-			return StartResult{}, err
-		}
-		record := ThreadRecord{SchemaVersion: ThreadSchemaVersion, Address: ThreadAddress{RepoScope: scope.Key, Tag: ThreadTag(tag)}, StartingPath: cwd, WorkingPath: cwd, CreatedAt: c.Clock.Now(), Revision: 1}
-		if used[record.Address] {
-			continue
-		}
-		if old.Record != nil {
-			record.Name = old.Record.Name
-			record.Description = old.Record.Description
-		}
-		record.Incarnations = []ThreadIncarnation{{State: IncarnationCreating, StartedAt: c.Clock.Now(), RepoIdentity: slot.RepoIdentity}}
-		record, err = AdvanceStartTransaction(record, StartEvent{Kind: StartClaimed, Nonce: nonce, Owner: SupervisorOwner{PID: owner.PID, Identity: owner.Identity}, Profile: &profile.Profile})
-		if err != nil {
-			return StartResult{}, err
-		}
-		claim, err := c.Artifacts.Claim(record.Address)
-		if errors.Is(err, launcher.ErrThreadAddressClaimed) {
-			continue
-		}
-		if err != nil {
-			return StartResult{}, err
-		}
-		if err := ctx.Err(); err != nil {
-			return StartResult{}, errors.Join(err, claim.Release())
-		}
-		raw, err := launcher.BuildCouchLaunchProfile(string(record.Address.Tag), profile.Profile.Agent, profile.Profile.Argv, string(profile.AgentSource), string(profile.ArgvSource))
-		if err != nil {
-			return StartResult{}, errors.Join(err, claim.Release())
-		}
-		if err := local.replaceSlotCurrent(old, record); err != nil {
-			return StartResult{}, local.releaseRefusedSlotClaim(record.Address, claim, err)
-		}
-		err = c.prepareTrackedWorkspace(ctx, record, nonce, false)
-		if err == nil {
-			err = c.verifyOtherSlotOwnersAbsent(ctx, slot, record.Address)
-		}
-		if err == nil && accepted != nil {
-			err = c.revalidateCreatedSlot(ctx, *accepted)
-		}
-		if err != nil {
-			return StartResult{}, errors.Join(err, c.rollbackTrackedStart(record, nonce))
-		}
-		actor, handle, err := c.launchTrackedThread(trackedThreadLaunch{Context: ctx, Thread: record, Nonce: nonce, Args: StartArgs{Worktree: Worktree(slot.WorktreeRoot), Cwd: cwd, Stack: profile.Profile.Agent, ExtraArgs: cloneArgv(profile.Profile.Argv)}, StartedAt: c.Clock.Now(), ProfileRaw: raw, UseRepoDefault: profile.ArgvSource == ArgvSourceRepoDefault})
-		return StartResult{Record: actor, Handle: handle}, err
+	record, nonce, err := c.claimFreshRecord(ctx, freshClaimInput{
+		ScopeKey: scope.Key, Cwd: cwd, RepoIdentity: slot.RepoIdentity, TagPrefix: filepath.Base(slot.PrimaryRoot),
+		Profile: profile, Used: used, Store: local,
+		Commit: func(record ThreadRecord) error { return local.replaceSlotCurrent(old, record) },
+	})
+	if err != nil {
+		return StartResult{}, err
 	}
-	return StartResult{}, errors.New("fresh slot exhausted native address collision attempts")
+	actor, handle, err := c.launchClaimedThread(claimedLaunch{
+		Context: ctx, Thread: record, Nonce: nonce, StartedAt: c.Clock.Now(), Profile: profile,
+		Args: StartArgs{Worktree: Worktree(slot.WorktreeRoot), Cwd: cwd},
+		AfterPrepare: func() error {
+			if err := c.verifyOtherSlotOwnersAbsent(ctx, slot, record.Address); err != nil {
+				return err
+			}
+			if accepted != nil {
+				return c.revalidateCreatedSlot(ctx, *accepted)
+			}
+			return nil
+		},
+	})
+	return StartResult{Record: actor, Handle: handle}, err
 }
 
 func (c *Couch) slotLaunchProfile(local *ThreadStore, slot SlotIdentity, cwd, agent string) (LaunchProfileResolution, error) {
@@ -535,27 +500,6 @@ func (c *Couch) OpenSlot(ctx context.Context, path, agent string) (StartResult, 
 		return StartResult{Record: actor, Handle: handle}, fmt.Errorf("open slot: %w; choose Start fresh only after its managed sessions are stopped", err)
 	}
 	return StartResult{Record: actor, Handle: handle}, nil
-}
-
-func (s *ThreadStore) releaseRefusedSlotClaim(address ThreadAddress, claim ThreadArtifactClaim, cause error) error {
-	// Once a journal exists, replay may publish this address even when the
-	// caller saw an error. Keep its native ownership marker until reconciliation.
-	if _, err := os.Lstat(s.journalPath()); !errors.Is(err, os.ErrNotExist) {
-		return cause
-	}
-	raw, err := s.readRetentionFile(filepath.Join(s.root, "thread.json"))
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return errors.Join(cause, err)
-	}
-	var envelope struct {
-		Address ThreadAddress `json:"address"`
-	}
-	if err == nil {
-		if json.Unmarshal(raw, &envelope) != nil || envelope.Address == address {
-			return cause
-		}
-	}
-	return errors.Join(cause, claim.Release())
 }
 
 func (c *Couch) verifyOtherSlotOwnersAbsent(ctx context.Context, slot SlotIdentity, current ThreadAddress) error {
