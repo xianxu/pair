@@ -1,6 +1,8 @@
 package couchtty
 
 import (
+	"slices"
+
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 )
@@ -122,9 +124,9 @@ func menuRowActions(f menuRowFacts) []string {
 		return []string{"resume", "reboot"}
 	case menuPhaseUnusable:
 		if f.DirectoryMissing {
-			// A :0 record outlives its directory, so reboot archives it alone.
+			// A :0 record outlives its checkout, so reboot archives it alone.
 			// A :1+ record lives inside its directory: there is nothing left
-			// to retire, and add slot is what recreates it.
+			// to retire (menuRowAdviceOf says what brings it back).
 			if f.Kind == menuRowSlot {
 				return nil
 			}
@@ -151,21 +153,60 @@ func menuActionItems(row couchcore.ActionableThreadSummary) []string {
 	return menuRowActions(menuRowFactsOf(row))
 }
 
-// menuRowNotice is what a row whose phase the table answers with a fixed
-// explanation says, in its status column and on Enter -- read off the same
-// facts as its actions, so the explanation cannot drift from the offer. Empty
-// means the row's state or reason speaks for itself.
-func menuRowNotice(f menuRowFacts) string {
+// menuNextStep is one row-facing text that may tell the operator what to do
+// next, and which row the action it names is taken on.
+type menuNextStep struct {
+	Text string
+	// OnPrimary: the action Text names is taken on the repository's live :0
+	// row, not on this one. Only a :1+ row may say so.
+	OnPrimary bool
+}
+
+// menuRowAdvice is every row-facing text that names a next step: the row's
+// status explanation (its status column and Enter's reason), Enter's way
+// forward when it will not act, and the reboot confirmation's clause where
+// reboot can start nothing. It is chosen here, per kind and phase, from the
+// same facts as menuRowActions, because a next step must name an action the
+// row's kind can reach -- three findings in a row (lessons:
+// refusal-names-unoffered-action) were hand-written advice naming an action
+// the row did not offer. TestRowAdviceNamesOnlyReachableActions sweeps the
+// derived row domain.
+type menuRowAdvice struct {
+	Notice     menuNextStep
+	Enter      menuNextStep
+	RebootCost menuNextStep
+}
+
+func menuRowAdviceOf(f menuRowFacts) menuRowAdvice {
+	var a menuRowAdvice
 	switch {
 	case f.Phase == menuPhaseBusy:
-		return "starting elsewhere"
+		a.Notice.Text = "starting elsewhere"
 	case f.Phase == menuPhaseUnknown:
 		// "checking…" read like progress; it is the absence of a verdict, and
 		// reboot stops a session, so nothing is offered until there is one.
-		return "state could not be checked"
+		a.Notice.Text = "state could not be checked"
+	case f.DirectoryMissing && f.Kind == menuRowSlot:
+		// The reboot result's own words, so the row and the reboot agree. A
+		// :1+ record lives inside its directory and offers nothing; add slot,
+		// on the repository's live :0, recreates the directory.
+		a.Notice = menuNextStep{Text: couchcore.RebootDirectoryMissing, OnPrimary: true}
+		a.RebootCost.Text = " — directory missing: archives the record only"
 	case f.DirectoryMissing:
-		// The reboot result's own words, so the row and the reboot agree.
-		return couchcore.RebootDirectoryMissing
+		// A :0 record outlives its checkout: reboot archives it alone, and
+		// only the checkout coming back lets an agent start there again.
+		a.Notice.Text = couchcore.RebootCheckoutMissing
+		a.RebootCost.Text = " — checkout missing: archives the record only; restore the checkout to start here again"
 	}
-	return ""
+	if slices.Contains(menuRowActions(f), "reboot") {
+		a.Enter.Text = "Tab → reboot"
+	}
+	return a
+}
+
+// menuRowNotice is what a row whose phase the table answers with a fixed
+// explanation says, in its status column and on Enter. Empty means the row's
+// state or reason speaks for itself.
+func menuRowNotice(f menuRowFacts) string {
+	return menuRowAdviceOf(f).Notice.Text
 }

@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -251,7 +252,7 @@ func TestRebootConfirmationNamesItsCost(t *testing.T) {
 		{couchcore.ThreadParked, "", " — archives this conversation, starts a fresh agent"},
 		// "may survive": #274's measurement, quiesce reaps by SIGHUP.
 		{couchcore.ThreadDetached, "", " — archives this conversation, starts a fresh agent, stops its session; its running agent may survive"},
-		{couchcore.ThreadUnusable, couchcore.ReasonPathMissing, " — directory missing: archives the record only; add slot recreates it"},
+		{couchcore.ThreadUnusable, couchcore.ReasonPathMissing, " — checkout missing: archives the record only; restore the checkout to start here again"},
 	} {
 		row := base
 		row.State, row.Reason = tc.state, tc.reason
@@ -352,21 +353,31 @@ func TestSwitcherFilterMatchesLabelAndPublishedSummary(t *testing.T) {
 	}
 }
 
-// A path-missing row says what the reboot result says: the directory is gone
-// and add slot recreates it (couchcore.RebootDirectoryMissing), in its status
-// and on Enter, for both kinds.
-func TestPathMissingRowExplainsAddSlot(t *testing.T) {
+// A path-missing row says what the reboot result says, per kind, in its
+// status and on Enter. A :1+ (which offers nothing) says add slot recreates
+// its directory (couchcore.RebootDirectoryMissing); a :0 offers reboot, which
+// archives the record, and its checkout is what brings it back
+// (couchcore.RebootCheckoutMissing) -- add slot makes :1+ slots and a :0 row
+// never offers it here (pair#363 M2 review).
+func TestPathMissingRowExplainsItsNextStep(t *testing.T) {
 	primary := couchcore.ActionableThreadSummary{Address: menuAddress("couch-primary"), WorkingPath: "/w/gone", State: couchcore.ThreadUnusable, Reason: couchcore.ReasonPathMissing}
 	slot := menuSlotRow(1, "couch-slot")
 	slot.Reason = couchcore.ReasonPathMissing
-	for _, row := range []couchcore.ActionableThreadSummary{primary, slot} {
-		if got := rootStateText(row, time.Now()); !strings.Contains(got, "directory missing — add slot recreates it") {
-			t.Errorf("%s status = %q", row.Label(), got)
+	for _, tc := range []struct {
+		row  couchcore.ActionableThreadSummary
+		want string
+	}{
+		{primary, "checkout missing — reboot archives this record; restore the checkout to start here again"},
+		{slot, "directory missing — add slot recreates it"},
+	} {
+		row := tc.row
+		if got := rootStateText(row, time.Now()); !strings.Contains(got, tc.want) {
+			t.Errorf("%s status = %q, want %q", row.Label(), got, tc.want)
 		}
 		state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
 		state.InventoryReady = true
 		next, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
-		if len(effects) != 0 || !strings.Contains(next.Notice.Text, "directory missing — add slot recreates it") {
+		if len(effects) != 0 || !strings.Contains(next.Notice.Text, tc.want) {
 			t.Errorf("%s Enter: effects %v, notice %q", row.Label(), effects, next.Notice.Text)
 		}
 	}
@@ -378,5 +389,86 @@ func TestUnknownRowSaysItsStateCouldNotBeChecked(t *testing.T) {
 	row := couchcore.ActionableThreadSummary{Address: menuAddress("couch-primary"), WorkingPath: "/w/p", State: couchcore.ThreadUnusable, Reason: couchcore.ReasonUnknown}
 	if got := rootStateText(row, time.Now()); got != "state could not be checked" {
 		t.Fatalf("unknown status = %q", got)
+	}
+}
+
+// The rule behind three findings in one family (lessons:
+// refusal-names-unoffered-action): every row-facing next step names only an
+// action that row's kind can reach. Checked over the derived row domain, for
+// the advice authority (menuRowAdviceOf) and for the surfaces that print it --
+// the status column, Enter's refusal and every confirmation the row offers --
+// so hand-written advice that bypasses the authority is caught too.
+//
+// "Names" is a whole-word match on every action any row offers, by id and by
+// display label, so the vocabulary grows with the table. An action reached on
+// another row (OnPrimary: add slot on the live :0 recreating a gone :1+) is
+// checked against that row's offer instead, and only a :1+ may defer to it.
+func TestRowAdviceNamesOnlyReachableActions(t *testing.T) {
+	shapes := everyMenuRowShape(t)
+	vocabulary := map[string]bool{}
+	var livePrimary []string
+	for _, s := range shapes {
+		offered := menuActionItems(s.row)
+		for _, action := range offered {
+			vocabulary[action] = true
+		}
+		if !s.slot && s.state == couchcore.ThreadLive && s.phase == "" {
+			livePrimary = offered
+		}
+	}
+	if !vocabulary["add-slot"] || !vocabulary["reboot"] || !vocabulary["resume"] || len(livePrimary) == 0 {
+		t.Fatalf("derived vocabulary %v / live :0 offer %v is missing the actions this sweep exists to check", vocabulary, livePrimary)
+	}
+	names := func(text, action string) bool {
+		for _, word := range []string{action, menuItemLabel(action)} {
+			if regexp.MustCompile(`(^|[^\pL\pN-])` + regexp.QuoteMeta(word) + `($|[^\pL\pN-])`).MatchString(text) {
+				return true
+			}
+		}
+		return false
+	}
+	check := func(shape, where string, step menuNextStep, slot bool, offered []string) {
+		reach := offered
+		if step.OnPrimary {
+			if !slot {
+				t.Errorf("%s %s: a :0 row defers %q to the primary, which is itself", shape, where, step.Text)
+			}
+			reach = livePrimary
+		}
+		for action := range vocabulary {
+			if names(step.Text, action) && !slices.Contains(reach, action) {
+				t.Errorf("%s %s: %q names %s, which is not offered there (offered %v)", shape, where, step.Text, action, reach)
+			}
+		}
+	}
+	for _, s := range shapes {
+		f := menuRowFactsOf(s.row)
+		offered := menuRowActions(f)
+		advice := menuRowAdviceOf(f)
+		check(s.name, "notice", advice.Notice, s.slot, offered)
+		check(s.name, "enter", advice.Enter, s.slot, offered)
+		check(s.name, "reboot cost", advice.RebootCost, s.slot, offered)
+
+		// The surfaces print the authority's words, and nothing else of
+		// their own that names an action.
+		if advice.Notice.Text != "" && !strings.Contains(rootStateText(s.row, time.Now()), advice.Notice.Text) {
+			t.Errorf("%s: status %q does not carry the advice %q", s.name, rootStateText(s.row, time.Now()), advice.Notice.Text)
+		}
+		if !s.row.Live() && enterOperationFor(s.row) == "" {
+			refusal := enterRefusalNotice(s.row)
+			if !strings.Contains(refusal, advice.Enter.Text) {
+				t.Errorf("%s: Enter refusal %q does not carry the advice %q", s.name, refusal, advice.Enter.Text)
+			}
+			// The explanation half is the notice, already checked; the rest
+			// is the way forward.
+			check(s.name, "enter refusal", menuNextStep{Text: strings.TrimPrefix(refusal, s.row.Label()+": "+unusableThreadNotice(s.row))}, s.slot, offered)
+		}
+		state := NewMenuState([]couchcore.ActionableThreadSummary{s.row}, s.row.Address)
+		for _, action := range offered {
+			frame := MenuFrame{Kind: MenuFrameConfirmation, RowKey: menuRowKey(s.row), Thread: s.row.Address, Action: action}
+			items := confirmationMenuItems(state, frame)
+			item := strings.TrimPrefix(items[len(items)-1], action+" "+s.row.Label())
+			check(s.name, action+" confirmation", menuNextStep{Text: item}, s.slot, offered)
+		}
 	}
 }

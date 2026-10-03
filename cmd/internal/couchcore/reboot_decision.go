@@ -41,10 +41,25 @@ const (
 	RebootStartOnly
 )
 
-// RebootDirectoryMissing is the operator's next step when reboot has no
-// directory to start in: archive is all reboot can do, and add slot is what
-// brings a slot directory back (pair#387 repairs the leftover registration).
+// RebootDirectoryMissing is a :1+ slot's next step when there is no directory
+// to start in: archive is all reboot can do, and add slot (on the
+// repository's live :0) is what brings a slot directory back (pair#387
+// repairs the leftover registration).
 const RebootDirectoryMissing = "directory missing — add slot recreates it"
+
+// RebootCheckoutMissing is the same for a :0, whose checkout is the primary
+// itself: add slot makes :1+ slots, never a primary, and a :0 row does not
+// offer it there. Reboot archives the record; the checkout coming back is
+// what lets a fresh agent start at that path again (pair#363 M2 review).
+const RebootCheckoutMissing = "checkout missing — reboot archives this record; restore the checkout to start here again"
+
+// rebootMissing is the no-directory reason for the kind reboot is acting on.
+func rebootMissing(slot bool) string {
+	if slot {
+		return RebootDirectoryMissing
+	}
+	return RebootCheckoutMissing
+}
 
 const (
 	rebootUnreadablePrimary = "record unreadable — start couch in its directory for a fresh agent"
@@ -63,7 +78,7 @@ func DecideReboot(f RebootFacts) (RebootPlan, string) {
 	switch f.Record {
 	case RebootRecordReadable:
 		if !f.DirectoryPresent {
-			return RebootArchiveOnly, RebootDirectoryMissing
+			return RebootArchiveOnly, rebootMissing(f.Slot)
 		}
 		return RebootArchiveAndStart, ""
 	case RebootRecordUnreadable:
@@ -71,12 +86,12 @@ func DecideReboot(f RebootFacts) (RebootPlan, string) {
 			return RebootArchiveOnly, rebootUnreadablePrimary
 		}
 		if !f.DirectoryPresent {
-			return RebootRefuse, RebootDirectoryMissing
+			return RebootRefuse, rebootMissing(f.Slot)
 		}
 		return RebootArchiveAndStart, ""
 	case RebootRecordRolledBack:
 		if !f.DirectoryPresent {
-			return RebootRefuse, RebootDirectoryMissing
+			return RebootRefuse, rebootMissing(f.Slot)
 		}
 		return RebootStartOnly, ""
 	case RebootRecordNone:
@@ -84,7 +99,7 @@ func DecideReboot(f RebootFacts) (RebootPlan, string) {
 			return RebootRefuse, rebootNothing
 		}
 		if !f.DirectoryPresent {
-			return RebootRefuse, RebootDirectoryMissing
+			return RebootRefuse, rebootMissing(f.Slot)
 		}
 		return RebootStartOnly, ""
 	}

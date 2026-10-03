@@ -58,7 +58,10 @@ func TestDecideRebootReasons(t *testing.T) {
 		facts RebootFacts
 		want  string
 	}{
-		{RebootFacts{Slot: false, Record: RebootRecordReadable}, RebootDirectoryMissing},
+		// A :0's next step is its checkout, never add slot: add slot makes
+		// :1+ slots and a :0 row never offers it there (pair#363 M2 review).
+		{RebootFacts{Slot: false, Record: RebootRecordReadable}, RebootCheckoutMissing},
+		{RebootFacts{Slot: false, Record: RebootRecordRolledBack}, RebootCheckoutMissing},
 		{RebootFacts{Slot: true, Record: RebootRecordReadable}, RebootDirectoryMissing},
 		{RebootFacts{Slot: false, Record: RebootRecordUnreadable, DirectoryPresent: true}, "record unreadable — start couch in its directory for a fresh agent"},
 		{RebootFacts{Slot: true, Record: RebootRecordUnreadable}, RebootDirectoryMissing},

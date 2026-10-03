@@ -770,11 +770,11 @@ func enterOperationFor(thread couchcore.ActionableThreadSummary) string {
 }
 
 // enterRefusalNotice is what Enter says on a row it will not act on: why, and
-// -- when the row offers it -- the one way forward.
+// -- when the row offers one -- the way forward (menuRowAdviceOf).
 func enterRefusalNotice(thread couchcore.ActionableThreadSummary) string {
 	notice := thread.Label() + ": " + unusableThreadNotice(thread)
-	if containsMenuItem(menuActionItems(thread), "reboot") {
-		notice += " · Tab → reboot"
+	if next := menuRowAdviceOf(menuRowFactsOf(thread)).Enter.Text; next != "" {
+		notice += " · " + next
 	}
 	return notice
 }
@@ -1322,10 +1322,10 @@ func confirmationMenuItems(state MenuState, frame MenuFrame) []string {
 	case "reboot":
 		// Say what rebooting COSTS, because the frame title never reaches the
 		// screen and "reboot" alone does not say the conversation goes.
-		if menuRowFactsOf(thread).DirectoryMissing {
+		if cost := menuRowAdviceOf(menuRowFactsOf(thread)).RebootCost.Text; cost != "" {
 			// Nothing can start where there is no directory: reboot files the
 			// record and stops, and the operator needs the next step here.
-			item += " — directory missing: archives the record only; add slot recreates it"
+			item += cost
 			break
 		}
 		item += " — archives this conversation, starts a fresh agent"

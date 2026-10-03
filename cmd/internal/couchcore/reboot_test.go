@@ -251,7 +251,7 @@ func TestRebootDirectoryMissingArchivesOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !result.ArchiveOnly || result.Reason != RebootDirectoryMissing || result.Archived != record.Address {
+	if !result.ArchiveOnly || result.Reason != RebootCheckoutMissing || result.Archived != record.Address {
 		t.Fatalf("result %+v", result)
 	}
 	if _, ok := result.Started(); ok || len(env.Runner.Ops) != 0 {
