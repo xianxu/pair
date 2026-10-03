@@ -1331,10 +1331,19 @@ func confirmationMenuItems(state MenuState, frame MenuFrame) []string {
 		item += " — archives this conversation, starts a fresh agent"
 		if thread.Detached() {
 			// A detached row's agent is RUNNING behind a session couch does
-			// not host, and reboot stops it before archiving (archive's own
-			// quiesce). This confirmation is the last thing between the
-			// operator and that (operator decision, pair#363).
-			item += ", stops its running agent"
+			// not host, and reboot stops that session before archiving
+			// (archive's own quiesce). This confirmation is the last thing
+			// between the operator and that (operator decision, pair#363).
+			//
+			// "may survive" is a MEASUREMENT, not hedging: `zellij
+			// delete-session --force` reaps a pane by SIGHUP, and a pane
+			// process that inherited SIG_IGN outlives it (measured 2026-09-17;
+			// #274, still open, owns making the stop a promise).
+			agent := thread.Agent
+			if agent == "" {
+				agent = "agent"
+			}
+			item += ", stops its session; its running " + agent + " may survive"
 		}
 	case "relaunch":
 		// Same reason, different confusion: the one thing an operator needs to

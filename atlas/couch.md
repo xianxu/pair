@@ -424,8 +424,8 @@ discards the first invalid thread frame plus descendants; hidden-target notices
 retain the prior human label and composite address, while a global start frame
 survives with its saved origin reduced to the valid prefix. Every list frame,
 including park confirmation, filters displayed labels while retaining internal
-operation identities (`rename` presents the shared `name` operation). Inputs
-are byte-bounded at 1 KiB for filters/names and 4 KiB for paths/descriptions.
+operation identities (`switch coding agent` presents `switch-agent`). Inputs
+are byte-bounded at 1 KiB for filters/aliases and 4 KiB for paths.
 The input seam decodes horizontal arrows in both CSI and application-mode SS3,
 so the start form's agent selector is reachable in either terminal mode. Root
 rows clip variable label/path text around a protected state/age/bell suffix at
@@ -437,10 +437,11 @@ and effects bounded
 empty root filter; returning from a child frame and reopening retain that mode
 for the console lifetime. `visibleMenuRows` applies focus membership after the
 existing inventory overlay and typeahead: `Live()` plus a nonempty sanitized
-`DisplaySummary()`. This keeps keyboard selection, mouse extents, and rendering
-on the same rows. Focus rendering uses the full-inventory labels and presents
-`name ◆ description ◆ slug` on one line, clipped to terminal-cell width; a row
-with no slug ends at its description. The slug (#372) is the thread's latest
+`DisplaySummary()` -- the agent's published summary only, since #363 stopped
+displaying the stored operator description. This keeps keyboard selection, mouse
+extents, and rendering on the same rows. Focus rendering uses the full-inventory
+labels and presents `label ◆ summary ◆ slug` on one line, clipped to terminal-cell
+width; a row with no slug ends at its summary. The slug (#372) is the thread's latest
 pair-slug suggestion (`slug-proposed-<tag>`, never the draft-mirrored
 `slug-<tag>`), unfenced to `<branch> | <focus>` by `cmd/internal/slugline`,
 the one definition of that line format. `ApplySlugs` fills
@@ -519,10 +520,18 @@ argument/result family, effect, confirmation, execution owner, and presentation.
 `list`, `show` and `archived` project as public `--list`, `--show` and
 `--archived`; the hosted-agent hook `publish-description` projects only through
 hidden `couch --internal publish-description <text>`, which pair's draft calls for a `!` tag line (#337), a `!!` describe line (#358), and a bare `!` clear line (#357), which publishes an empty summary. `prepare-start`, `start`,
-`attach`, `switch`, `park`, `resume`, `open-slot`, `fresh-slot`, `relaunch`, `prepare-switch-agent`,
-`switch-agent`, `leave`, `stop`, `name`,
-`describe`, `archive`, `recover-thread`, `recover-checkpoint` and `reboot` are TUI/in-process operations. `orientation-status` is
-an internal owner operation for one launch attempt.
+`attach`, `switch`, `park`, `resume`, `relaunch`, `prepare-switch-agent`,
+`switch-agent`, `leave`, `stop`, `alias` and `reboot` are TUI/in-process
+operations. `orientation-status` is an internal owner operation for one launch
+attempt. #363 removed `open-slot`, `fresh-slot`, `name`, `describe`, `archive`,
+`recover-thread` and `recover-checkpoint` from the declarations: resume and
+reboot replace them, and their couchcore internals (`OpenSlot`,
+`StartFreshSlot`, `Couch.ArchiveThread`, `RecoverThread`, `ApplyThreadMetadata`)
+stay as what resume and reboot compose. The stored name and description fields
+stay on the record, written by nothing in the switcher, and are neither displayed
+nor matched: `ThreadReferenceFields` is `{Address, Label, WorkingPath, Summary}`,
+store resolution leaves `Label` and `Summary` empty (tag and path only), and the
+switcher passes what a row shows.
 
 **Resume and reboot are the actor operations for a row that is not live (#363).**
 `resume` (`Couch.ResumeTarget`, `couchcore/resume_route.go`) gets the old
@@ -546,8 +555,31 @@ plus the fresh claimed record commit in one store journal: `replaceSlotCurrent`
 for `:1+`, `ThreadStore.ReplaceThreadExpected` for `:0`, which composes the
 same `archiveJournalEntries` / `createJournalEntries` builders `archiveThread`
 and `CreateThread` use. Fresh records start without the stored name and
-description; the archived record keeps them. In M1 both are reachable through
-dispatch only (`reboot` is declared `RowAction: false`); M2 wires the switcher.
+description; the archived record keeps them. Both kinds report the retirement
+half through one `retiredResult`, including a session left unstopped.
+
+**The switcher's per-row actions are one pure table (#363 M2).**
+`menuActionItems(row)` is `menuRowActions(menuRowFactsOf(row))`
+(`couchtty/menu_actions.go`): `menuRowFacts` reduces a row to its kind (`:0`
+primary or `:1+` slot) and phase (live, live with a failed / running / pending
+continuation, resumable, unusable, unknown, busy) plus `ResumeOffered`,
+`DirectoryMissing`, `AliasOffered` and `AddSlotOffered`, and `menuRowActions` is
+the Spec table over them. Live rows get detach, relaunch, park and switch coding
+agent (`:0` adds alias and add slot); rows that are not live get resume and
+reboot; unknown, busy and live-pending rows get nothing, and `menuRowNotice`
+reads the same facts to say why ("state could not be checked", "starting
+elsewhere", `RebootDirectoryMissing`). Enter (`enterOperationFor`) switches a
+live row and resumes a row that offers resume; every confirmation is re-checked
+by one rule -- its row still offers its action, or that action is the one in
+flight on that row (`menuFrameOperationInFlight`). A slot row's resume and
+reboot send the host checkout as `path` and key their in-flight by row; reboot's
+result may name a new tag, so it matches by attempt (`menuOperationReplacesAddress`)
+and keeps its own frames while its row is replaced. `couchtty`'s sweeps
+(`TestRowActionTableMatchesTheSpec`, the both-direction declaration sweep,
+reachability and offered-implies-permitted) all iterate one derived domain,
+`everyMenuRowShape`: kinds × `AllThreadStates` × `AllThreadReasons` ×
+`AllPhases`. The console's continuation watch and focus-on-landing key on the
+routed `resume`, which can return `ContinuationResult`.
 
 Numbered directory preparation uses `couch --internal provision-workspace <primary>
 --slot=N [--remote=R]` without taking a supervisor lease or launching a thread.
@@ -573,11 +605,13 @@ Continuation has five internal operations (`pair#249`, `pair#280`):
   relaunch, switch-agent, cold resume, start), plus retry and dismiss. Park and
   detach stay, because neither reads the request.
 - **Actions of an in-flight request:** kept restricted on purpose, because the
-  continuation owns the thread mid-replacement. `Running` offers `retry`
-  (which reconciles a stalled request), `name` and `describe`. `Pending` offers
-  only `name` and `describe`.
+  continuation owns the thread mid-replacement. On a live row `Running` offers
+  only `retry-continuation` (which reconciles a stalled request), and `Pending`
+  offers nothing until it runs. A row that is not live offers resume (which
+  routes the request to `RetryContinuation` or `RecoverThread`) and reboot.
 - **Refusals:** every refusal a retained request causes names its exits
-  through one wording, `checkpoint.Exits`. The guard and publish call it
+  through one wording, `checkpoint.Exits`, which names each row's own actions:
+  retry/dismiss on a live thread, resume/reboot on one that is not. The guard and publish call it
   directly. Each other check wraps its refusals ONCE, at its boundary, in
   `withContinuationExits`: `RecoverThread`, `prepareAbsentContinuation`
   (through `admitRetainedRecovery`), `archiveContinuationVacant` and
@@ -600,12 +634,14 @@ row by its exact implicit tag alone.
 
 ### Stale-thread recovery
 
-`recover-thread` reobserves the selected address and prefers warm attachment to
-an exactly owned detached session. `recover-checkpoint` accepts one absolute
-`path` (4096-byte limit), reads the bounded checkpoint, and starts a new
-conversation through the existing continuation executor. Both use the Console
-operation queue; internal CLI recovery and `archive` acquire the same namespace
-supervisor lease. The CLI resolves their repository scope from the caller.
+`RecoverThread` reobserves the selected address and prefers warm attachment to
+an exactly owned detached session; with no survivor, a retained checkpoint
+starts a new conversation through the existing continuation executor. Since
+#363 it is reached through resume's route (`ResumeRouteRecover`), not its own
+switcher entry, and the explicit-checkpoint-path form has no caller left but
+the live conformance test. Resume and reboot use the Console operation queue
+and acquire the namespace supervisor lease from the CLI too; the CLI resolves
+their repository scope from the caller.
 
 `RecoveryDecision` is the common UI result shape. The snapshot projection adds
 no refresh IO and offers inspection; execution gathers process-start identity,
@@ -690,7 +726,8 @@ continues. A fresh Pair-chosen UUID whose root transcript has not materialized
 instead restarts fresh with a new UUID. A fresh launch without any known UUID must wait for correlation;
 ambiguous confirmed identities remain unavailable. See [Session identity](session-identity.md).
 
-`archive` is the operator's "delete", and it is COMPLETE: it stops the thread's
+`Couch.ArchiveThread` (reached through reboot's `prepareRetirement` since #363;
+`archive` is no longer a declared operation) is COMPLETE: it stops the thread's
 zellij session first (`Artifacts.Quiesce` -> `zellij delete-session --force`,
 polled until the session is verifiably gone), then removes the thread from the
 working set and KEEPS its record, moving `threadstore/records/<scope>/<tag>.json` to
@@ -968,7 +1005,7 @@ of the result (`couchcore.StartedChild`), not a concrete type: asserting
 record said live, the switcher rendered `live`, and no pane existed to switch
 to. The separately declared typed `attach` operation must join that exact
 terminal before success can select or land on it; attach failure aborts the exact newly started actor
-and retains the form plus local error. Park, leave, rename, and description use
+and retains the form plus local error. Park, leave, reboot and alias use
 the same declared operation surface. Each accepted slow action paints an
 identity-owned spinner before dispatch, and stale completions cannot mutate a
 replacement frame.
@@ -1505,8 +1542,12 @@ remain legal. There is deliberately no opt-in flag: `StartArgs.SameTree` looks
 like one and is documented as inert legacy serialization, so reading it would
 resurrect a dead field as policy.
 
-A row's label is `threadLabel`: the human name, else the working directory's
-last segment, else the tag. `DisambiguateLabels` appends the tag's tail to
+A row's label is `Label()`: a slot's `repo:N` (or `alias:N`), else the
+repository alias, else `threadLabel` -- the working directory's last segment,
+else the tag. The stored human name is never read (#363). `PresentThreads`
+labels an ordinary row with its group's alias or scope-proven root name, which
+is how a `:0` started in a subdirectory reads `repo` on the tab bar and in the
+switcher alike; the console no longer transports pane labels through `Name`. `DisambiguateLabels` appends the tag's tail to
 labels that collide, computed over the whole inventory rather than the filtered
 view so a name does not change as the operator types.
 
@@ -2117,11 +2158,14 @@ consumed by the guard that would otherwise re-derive one:
 |---|---|---|---|
 | switch-agent | `SwitchableState` | `PrepareAgentSwitch` | `live`, `parked`, `binding-lost`, `session-gone` |
 | archive | `ArchivableState` | `Couch.ArchiveThread` (via `classifyForAction`) | `detached`, `parked`, every unusable reason **except** `unknown` |
+| reboot | `RebootableState` (= `ArchivableState`) | `Couch.Reboot` (`rebootAdmit`, then `prepareRetirement`) | same as archive |
 | resume | `ResumableState` | `SelectResumableRoot` | `detached`, `parked` |
 
-The switcher's **offer** is written separately, at `menuActionItems` /
-`menuArchiveOffered`, and `couchtty`'s `TestActionOfferedImpliesPermitted`
-compares the two over `AllThreadStates × AllThreadReasons`. It is deliberately
+The switcher's **offer** is written separately, in the action table
+(`menuRowActions`), and `couchtty`'s `TestActionOfferedImpliesPermitted`
+compares the two over the table's derived domain. Resume on an unusable row is
+admitted by `ResumeTarget`'s route rather than `ResumableState`, so the test
+pairs it with that statement (resumable, or unusable). It is deliberately
 not filtered through the predicate: a filter makes offered-implies-permitted true
 by construction, and a guard that cannot fail is not a guard.
 
@@ -2206,8 +2250,8 @@ survives and is reparented to init. Same fixture, one variable. `#274`'s 106
 orphaned `pair term` trees are that regime in production, and this measurement
 proves its standing hypothesis.
 
-So archive's confirmation on a **detached** row names the agent and says it *may*
-survive, rather than promising a stop couch cannot deliver. `#274` owns making it
+So reboot's confirmation on a **detached** row (archive's, before #363) names the
+agent and says it *may* survive, rather than promising a stop couch cannot deliver. `#274` owns making it
 a promise. The agent name reaches the confirmation through
 `ActionableThreadSummary.Agent`, projected from the saved launch profile.
 
@@ -2333,7 +2377,7 @@ saved arguments before claiming an address or replacing the current record.
 History and preferences stay with the slot; existing live-owner checks still
 apply. Same-address agent switching and continuation keep their existing flows.
 
-`TestSpawnComposesProductionPairRegistrationBoundary` runs ordinary and fresh-slot
+`TestSpawnComposesProductionPairRegistrationBoundary` runs ordinary and fresh-slot (reboot's `:1+` half)
 creation through the real Pair launcher and claim files, with the special fresh
 readiness observer unset. The slot needs no additional launch protocol.
 

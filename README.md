@@ -380,7 +380,7 @@ couch [<repo>]           open the Couch TUI (default: .)
 couch --layout2          opt into pair's two-pane workbench
 couch --layout3          threads also get pair's right-hand terminal (the default)
 couch --list             every durable work thread across all repositories
-couch --show <ref>       one current-repository thread by tag, path, or name
+couch --show <ref>       one current-repository thread by tag or path
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
 couch --send-to repo:N --message TEXT   send to an exact live slot
@@ -487,22 +487,22 @@ other layout, and names the threads to park first. Parked threads never block �
 session, so the next revival simply takes the layout couch is in.
 
 `<ref>` resolution for `--show` is scoped to the Git
-repository containing the current directory. An exact opaque tag wins; human
-name and canonical working path are also accepted, and an ambiguous match
-refuses instead of choosing. `list` is intentionally global. It renders one
-row per `{repository scope, opaque tag}` even when several threads share one
-path. A human name leads when present; otherwise the label is the working
-directory's last segment (`brain`, `pair`, `arc-agi-3`), with the tag's tail
-appended only when two rows would otherwise read the same.
-The agent-published summary is displayed ahead of the operator description,
-without overwriting it.
+repository containing the current directory. An exact opaque tag wins; the
+canonical working path is also accepted, and an ambiguous match refuses instead
+of choosing. A stored human name or operator description is kept on the record
+but is no longer displayed or matched anywhere (#363). `list` is intentionally
+global. It renders one row per `{repository scope, opaque tag}` even when several
+threads share one path. A slot row labels `repo:N` (or `alias:N`); a `:0` row
+labels its repository's name or alias, on the tab bar and in the switcher alike;
+any other row labels the working directory's last segment (`brain`, `pair`,
+`arc-agi-3`), with the tag's tail appended only when two rows would otherwise
+read the same. The agent-published summary is the one summary displayed.
 
-`couch --list` stays compact and name-first. `couch --show` is the diagnostic view:
-it always prints the immutable `{repository scope}/{opaque tag}` address, even
-when a human name is present. Name, description, start, Park, Resume, switch,
-and Leave Couch are TUI actions, all routed through Couch's typed in-process
-dispatcher. They are deliberately not shell commands; an explicit empty string
-in the name or description form clears that field.
+`couch --list` stays compact and label-first. `couch --show` is the diagnostic view:
+it always prints the immutable `{repository scope}/{opaque tag}` address. Start,
+Park, Resume, Reboot, switch, and Leave Couch are TUI actions, all routed through
+Couch's typed in-process dispatcher. They are deliberately not shell commands; an
+explicit empty string in the alias form clears the repository's alias.
 
 Park and Resume are live-owner operations available in the Couch switcher.
 Couch paints confirmation before lifecycle work and queues confirmed Park off
@@ -530,18 +530,19 @@ another worktree. The switcher shows the queued or running continuation; saving
 the document means the request was accepted, while completion requires the new
 agent's prompt submission receipt.
 
-If replacement or delivery fails, the checkpoint stays saved and the thread
-provides **Retry continuation**. Retry first checks for an existing target;
+If replacement or delivery fails, the checkpoint stays saved and a live thread
+offers **retry-continuation**. Retry first checks for an existing target;
 it does not blindly start or submit again. Inspect that target before manually
 sending anything when delivery is uncertain. If you have already taken the
 thread over (for example, you typed into the new agent before its handoff
-finished) choose **Dismiss continuation** instead. It drops the failed request
+finished) choose **dismiss-continuation** instead. It drops the failed request
 without re-delivering it, the checkpoint file stays where it is, and the thread's
 relaunch and switch-agent come back. Until you retry or dismiss, the row reads
-`<state> · continuation failed`. If Couch itself exited, follow the
-explicit retry command in its diagnostic to reopen recovery. Inner
-`pair restart` and address-changing rename are refused for hosted threads; use
-Couch's relaunch and name actions.
+`<state> · continuation failed`. On a thread that is not live, **resume**
+retries the request and **reboot** archives it with the conversation. If Couch
+itself exited, follow the explicit retry command in its diagnostic to reopen
+recovery. Inner `pair restart` and address-changing rename are refused for
+hosted threads; use Couch's relaunch.
 
 **Every other detached thread comes back too, behind you** (pair#206). Once the
 thread you land on is up, couch reattaches the rest in the background, one at a
@@ -568,11 +569,10 @@ is reused as-is, so its leftover files and branch are inherited by the fresh
 conversation; only when every number is occupied is a new slot created. Within
 that repo you can address a slot as `:N`; the qualified form is `<repo>:N`.
 Parked work does not block adding a slot: the launch preview names parked work
-and lost bindings with the matching `open-slot` or `fresh-slot` reuse action.
-To add one without typing a path, open an existing thread's action menu and
-choose **add slot**. The launch form opens with its repository filled in and
-the agent selected; press Enter to use the defaults, or choose an agent first.
-The action also works from numbered slot rows.
+and lost bindings with the matching `resume` or `reboot` reuse action.
+To add one without typing a path, open the repository's live `:0` row's action
+menu and choose **add slot**. The launch form opens with its repository filled in
+and the agent selected; press Enter to use the defaults, or choose an agent first.
 
 A repository family keeps the starting directory chosen for its first thread.
 Starting at `kbench/competition/arc-agi-3` makes added slots start at
@@ -710,17 +710,17 @@ stays put and says so on the status row. Inside the switcher it is not claimed
 and acts as the switcher's own `Enter`.
 
 With an empty root filter, **Space** toggles the **normal view** and **focus view**.
-Focus view shows only live threads with a description, in normal-view order,
-as `name ◆ description`. Tag a thread with `! …` in its Pair draft; published
-tags take precedence over operator descriptions. An empty focus view explains
-how to tag a thread. The switcher remembers the last view used until Couch
+Focus view shows only live threads with a published summary, in normal-view
+order, as `label ◆ summary`. Tag a thread with `! …` in its Pair draft. An empty
+focus view explains how to tag a thread. The switcher remembers the last view used until Couch
 exits. Reopening clears search text but keeps the view. With text in the filter,
 Space is a literal search character; it does not toggle views.
 
-Printable input filters the current list from memory (typeahead), including the
-displayed description in both default and focus views. Description matching is
-case-insensitive; default results show the matching description beneath the row.
-Exact thread tags and slot references keep their usual precedence. Use `↑↓` and `Enter` to
+Printable input filters the current list from memory (typeahead), matching what a
+row shows: its label, its path, and the published summary in both default and
+focus views. Matching is case-insensitive; default results show the matching
+summary beneath the row. Exact thread tags and slot references keep their usual
+precedence. Use `↑↓` and `Enter` to
 select and switch/resume; `Tab` or `Right` opens the selected thread's actions,
 while `Left` or `Escape` restores its parent. Rows expose only proven `live`, resumable
 `parked`, and proved `detached` states — and a row is offered only when
@@ -735,7 +735,7 @@ all live threads and returns to the shell; `Alt+x` parks them after confirmation
 Those two chords are not intercepted while a Pair pane is displayed. They
 reach the agent or invoke the draft/right pane's existing Pair actions. Use the
 switcher for Couch's durable retirement.
-In a live or resumable `parked` thread's actions, **switch coding agent** opens the coding
+In a live thread's actions, **switch coding agent** opens the coding
 agent switch form. Choose an agent, then edit its prefilled startup parameters (an
 empty value is allowed). This second screen names the source and target and
 contains **Switch** and **Cancel**. Tab or Up/Down move between the
@@ -765,10 +765,10 @@ a notice; use Ctrl+Space then Alt+n to relaunch from the switcher. Pair's own
 reload refuses in a Couch thread, visibly, because
 Couch owns that thread's restarts. Leaving
 never depends on there being something live to act on, so an empty switcher is
-never a dead end. `Tab → archive` removes a thread from couch and keeps its record: it is the
-operator's delete, offered when ownership can be reconciled, and undone by
-moving the file back from `threadstore/archive/` and re-adding its address to
-the manifest. `couch --archived` lists what has been retired. `Escape` clears
+never a dead end. `Tab → reboot` archives a conversation that will not come back
+and starts a fresh agent in its place (see below). The archived record can be
+restored by moving the file back from `threadstore/archive/` and re-adding its
+address to the manifest. `couch --archived` lists what has been retired. `Escape` clears
 the filter or returns to an attached actor;
 with no live actor, the switcher stays open and reports why. Press `ctrl-space` again from the
 switcher to open the path/agent start form; an empty path uses the existing `.`
@@ -778,30 +778,59 @@ cycle that menu, `Enter` accepts, and `Escape` closes it. With the menu closed,
 `↑↓` moves between path and agent and `←→` selects the agent. Hidden directories
 appear only after a leading dot; directory symlinks remain navigable. Colons and digits are
 ordinary filter text—there is no command namespace or numbered jump mode.
-For a stale row, **Recover session or retained checkpoint** checks the helper
-and session again. A surviving detached session reattaches to the same running
-agent without needing a native transcript binding. If the session is gone,
-a retained checkpoint starts a **new conversation** seeded by those exact saved
-bytes. **Recover from checkpoint · new conversation** accepts an absolute path,
-including a checkpoint saved in another worktree; it does not scan for a likely
-file or silently start an empty conversation. The actions show the retained
-checkpoint path and digest. Native resume of a parked conversation still needs
-its verified binding.
+**Each row offers only what the slot model needs** (#363). `Tab` lists:
+
+| Row | Actions |
+|---|---|
+| live `:0` | detach, relaunch, park, switch coding agent, alias, add slot |
+| live `:1+` | detach, relaunch, park, switch coding agent |
+| live, continuation failed | the above minus relaunch and switch coding agent, with retry-continuation and dismiss-continuation after detach |
+| live, continuation running | retry-continuation |
+| live, continuation pending | nothing yet; the request runs on its own |
+| parked or detached, any slot | resume, reboot |
+| cannot be entered, but resume has a route | resume, reboot |
+| cannot be entered otherwise (`:0`) | reboot |
+| state could not be checked | nothing; the next refresh decides |
+| directory missing | `:0`: reboot (archives the record only); `:1+`: nothing — add slot recreates it |
+| starting elsewhere | nothing |
+
+`Enter` switches to a live row and resumes a row that offers resume; on any
+other row it says why, and names `Tab → reboot` when the row offers it.
+
+**Resume** brings the old conversation back by whichever path works: a retained
+continuation is retried where it stands (a failed or running request) or
+re-delivered from its saved checkpoint (a pending one); a slot reattaches,
+resumes cold, or adopts a still-running agent whose pointer couch lost (on a cold,
+proven binding only); a `:0` thread whose session survives reattaches to it;
+otherwise a warm reattach, then a cold resume. A surviving detached session
+reattaches to the same running agent without needing a native transcript binding;
+native resume of a parked conversation still needs its verified binding. When the
+transcript cannot come back, the refusal says so and names reboot; a transient
+refusal (still starting, parking, checking) says to retry instead.
+
+**Reboot** archives the record with its evidence (checkpoint, native binding,
+scrollback) and starts a fresh agent in the same slot or path under a new tag,
+in one crash-safe store journal. It never changes the branch or the worktree. A
+detached row's session is stopped first, and its confirmation says so -- and that
+the agent may survive the stop until #274 lands; the
+fresh agent's profile resolves before anything is stopped, so an agent that
+cannot launch leaves the old one running. The stored name and description are not
+carried to the fresh record. A `:0` row whose directory is gone (or whose record
+cannot be read) is archived without starting anything. Rebooting a thread whose
+continuation is unfinished requires its source and target to be proved stopped.
 
 Unknown ownership and active clients leave a diagnostic instead of guessing that
 a process died. An open **park** transaction no longer decides anything: a park
 whose owner died used to read `parking…` forever, so the classification consults
-the session instead (`#256`). Once a stale helper is
-proved dead, explicit **archive** remains an escape even with an incomplete
-continuation: the archived record keeps the checkpoint and history. A live
-continuation source or target must be resolved first. Inspection and recovery
-do not stop a surviving session; archive remains a separate confirmed action.
+the session instead (`#256`). Inspection and resume do not stop a surviving
+session; reboot is the confirmed action that does.
 
 Slow start/park/resume actions show local progress, and validation or operation
 failures remain in the switcher banner. Every thread in the store gets a row
-and says what it is: `live`, `detached`, `parked`, `starting…`, or a reason it
-cannot be entered — `binding lost — repairable`, `session gone`, `no saved
-launch`, and so on. Nothing is hidden for want of proof;
+and says what it is: `live`, `detached`, `parked`, `starting elsewhere`, or a
+reason it cannot be entered — `binding lost — repairable`, `session gone`, `no
+saved launch`, `state could not be checked`, `directory missing — add slot
+recreates it`, and so on. Nothing is hidden for want of proof;
 `Enter` on a row it cannot act on explains instead of doing nothing, and
 `couch --list` / `couch --show` report the same population and the same states
 with more room to describe them.

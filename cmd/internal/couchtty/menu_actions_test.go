@@ -249,7 +249,8 @@ func TestRebootConfirmationNamesItsCost(t *testing.T) {
 		want   string
 	}{
 		{couchcore.ThreadParked, "", " — archives this conversation, starts a fresh agent"},
-		{couchcore.ThreadDetached, "", " — archives this conversation, starts a fresh agent, stops its running agent"},
+		// "may survive": #274's measurement, quiesce reaps by SIGHUP.
+		{couchcore.ThreadDetached, "", " — archives this conversation, starts a fresh agent, stops its session; its running agent may survive"},
 		{couchcore.ThreadUnusable, couchcore.ReasonPathMissing, " — directory missing: archives the record only; add slot recreates it"},
 	} {
 		row := base
