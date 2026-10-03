@@ -235,6 +235,14 @@ continuation phases, in-flight exemption, console label transport).
   and `TestCouchReferencesLocalArchiveLocatorRoundTrip`. `go test -race`
   couchtty and couchcore are green.
 
+### 2026-10-03 — M2 coordinator decisions
+
+- `RecoverThread`'s `path` parameter is kept for now: its only remaining caller
+  is the live-only zellij conformance test, whose cold branch cannot run in the
+  sandbox. Deferred cleanup, not a defect; remove it when that test is reworked.
+- The live smoke test the plan puts at Task 2.9 is deferred to one operator
+  smoke test after M3, at the operator's direction (2026-10-02).
+
 ## Revisions
 
 ### 2026-10-02 — boundary with pair#367 settled: actor only
