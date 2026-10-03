@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000387-add-slot-repairs-a-slot-whose-directory-was-deleted.md
         source_blob: 19667d4fe081cfbdbbf7049fd6aaafaafa86adcc
         destination: workshop/issues/000387-add-slot-repairs-a-slot-whose-directory-was-deleted.md
+        main_commit: 05b7f25457002714d8758ed363c90b939ac86834
 ---
 
 # Add slot repairs a slot whose directory was deleted
