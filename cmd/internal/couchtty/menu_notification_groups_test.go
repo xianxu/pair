@@ -14,7 +14,7 @@ func TestMenuNotificationGroupsFollowSlotIndent(t *testing.T) {
 	slot := menuSlotRow(2, "secondary")
 	for _, row := range []*couchcore.ActionableThreadSummary{&primary, &slot} {
 		row.State = couchcore.ThreadLive
-		row.Description = "work"
+		row.PublishedSummary = "work"
 	}
 	for _, mode := range []MenuRootView{MenuViewNormal, MenuViewFocus} {
 		for _, color := range []bool{false, true} {

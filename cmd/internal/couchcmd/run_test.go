@@ -650,7 +650,9 @@ func TestPublishDescriptionUsesCompositeThreadEnvironment(t *testing.T) {
 // The draft's bare `!` (#357) runs exactly this argv. An empty flag value must
 // clear only the published summary, so the row falls back to the operator's
 // description.
-func TestPublishDescriptionEmptyFlagFallsBackToOperatorDescription(t *testing.T) {
+// Clearing the published summary leaves the stored operator description in
+// place but displays nothing: the description is no longer displayed (pair#363).
+func TestPublishDescriptionEmptyFlagClearsTheDisplayedSummary(t *testing.T) {
 	for name, description := range map[string]string{"with fallback": "operator description", "without fallback": ""} {
 		t.Run(name, func(t *testing.T) {
 			rt := newRT(t)
@@ -687,7 +689,7 @@ func TestPublishDescriptionEmptyFlagFallsBackToOperatorDescription(t *testing.T)
 			}
 			for _, row := range rows {
 				if row.Address == created.Address {
-					if row.PublishedSummary != "" || row.DisplaySummary() != description {
+					if row.PublishedSummary != "" || row.DisplaySummary() != "" {
 						t.Fatalf("row after clear = published %q, display %q", row.PublishedSummary, row.DisplaySummary())
 					}
 					return
@@ -982,19 +984,19 @@ func TestRenderedOutputHasNoANSIWhenNotATerminal(t *testing.T) {
 	}
 }
 
-func TestRenderThreadsIsNameFirstAndKeepsSamePathThreadsDistinct(t *testing.T) {
+func TestRenderThreadsIsLabelFirstAndKeepsSamePathThreadsDistinct(t *testing.T) {
 	rows := []couchcore.ThreadSummary{
-		{Address: couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0000000000000001"}, WorkingPath: "/repo", Name: "compiler", PublishedSummary: "agent work"},
+		{Address: couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0000000000000001"}, WorkingPath: "/repo", Name: "stored", PublishedSummary: "agent work"},
 		{Address: couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0000000000000002"}, WorkingPath: "/repo"},
 	}
 	var out bytes.Buffer
 	renderThreads(&out, rows)
 	text := out.String()
-	if !strings.Contains(text, "compiler") || strings.Contains(strings.Split(text, "\n")[0], "couch-0000000000000001") {
-		t.Fatalf("named row leads with opaque id: %q", text)
+	// Rows lead with their directory label, never the opaque tag, and the
+	// stored name is no longer displayed (pair#363).
+	if strings.Contains(strings.Split(text, "\n")[0], "couch-0000000000000001") || strings.Contains(text, "stored") {
+		t.Fatalf("row leads with opaque id or a stored name: %q", text)
 	}
-	// The unnamed row now reads as its DIRECTORY rather than its tag. Here it
-	// does not collide -- the other row is named -- so it stays plain `repo`.
 	if !strings.Contains(text, "repo") || strings.Count(text, "/repo") != 2 {
 		t.Fatalf("same-path thread rows collapsed: %q", text)
 	}

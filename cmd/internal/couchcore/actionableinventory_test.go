@@ -179,7 +179,9 @@ func TestActionableThreadSummaryOwnsDisplayMetadata(t *testing.T) {
 		PublishedSummary: "agent",
 		State:            ThreadLive,
 	}
-	if !row.Live() || row.Label() != "compiler" || row.DisplaySummary() != "agent" {
+	// The stored name is not the label (pair#363): an unrooted row reads as
+	// its tag.
+	if !row.Live() || row.Label() != "couch-0000000000000001" || row.DisplaySummary() != "agent" {
 		t.Fatalf("display projection = %+v", row)
 	}
 }
@@ -647,5 +649,52 @@ func TestCouchsOwnObservationIsTheProof(t *testing.T) {
 
 	if len(rows) != 1 || rows[0].State != ThreadLive {
 		t.Fatalf("rows = %+v, want one live row — couch hosts this process", rows)
+	}
+}
+
+// A slot row labels repo:N (or alias:N), never a stored name: the tab bar and
+// the switcher must agree on what a slot is called (pair#363).
+func TestSlotRowLabelIgnoresStoredName(t *testing.T) {
+	target := ThreadTarget{Kind: ThreadTargetSlot, Slot: SlotIdentity{Repo: "repo", PrimaryRoot: "/w/repo", WorktreeRoot: "/w/worktree/repo-slot1/repo", Number: 1}}
+	row := ActionableThreadSummary{Target: target, Name: "renamed", WorkingPath: target.Slot.WorktreeRoot}
+	if got := row.Label(); got != "repo:1" {
+		t.Fatalf("slot label = %q, want repo:1", got)
+	}
+	row.RepositoryAlias = "pr"
+	if got := row.Label(); got != "pr:1" {
+		t.Fatalf("aliased slot label = %q, want pr:1", got)
+	}
+	summary := ThreadSummary{Target: target, Name: "renamed", WorkingPath: target.Slot.WorktreeRoot}
+	if got := summary.Label(); got != "repo:1" {
+		t.Fatalf("diagnostic slot label = %q, want repo:1", got)
+	}
+}
+
+func TestPrimaryRowLabelIgnoresStoredName(t *testing.T) {
+	row := ActionableThreadSummary{Address: ThreadAddress{RepoScope: "s", Tag: "couch-1"}, Name: "renamed", WorkingPath: "/w/repo"}
+	if got := row.Label(); got != "repo" {
+		t.Fatalf("primary label = %q, want the working-path basename", got)
+	}
+	row.RepositoryAlias = "pr"
+	if got := row.Label(); got != "pr" {
+		t.Fatalf("aliased primary label = %q, want pr", got)
+	}
+	summary := ThreadSummary{Address: row.Address, Name: "renamed", WorkingPath: "/w/repo"}
+	if got := summary.Label(); got != "repo" {
+		t.Fatalf("diagnostic primary label = %q, want repo", got)
+	}
+}
+
+// Only the agent's own published summary is displayed; the operator
+// description left with describe (pair#363).
+func TestDisplaySummaryIsThePublishedSummaryOnly(t *testing.T) {
+	if got := (ActionableThreadSummary{Description: "operator"}).DisplaySummary(); got != "" {
+		t.Fatalf("actionable summary = %q, want empty", got)
+	}
+	if got := (ThreadSummary{Description: "operator"}).DisplaySummary(); got != "" {
+		t.Fatalf("diagnostic summary = %q, want empty", got)
+	}
+	if got := (ThreadSummary{Description: "operator", PublishedSummary: "agent"}).DisplaySummary(); got != "agent" {
+		t.Fatalf("diagnostic summary = %q, want agent", got)
 	}
 }

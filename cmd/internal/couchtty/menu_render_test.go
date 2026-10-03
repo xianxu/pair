@@ -64,13 +64,13 @@ func TestRenderMenuUsesSingleSurfaceBreadcrumbs(t *testing.T) {
 		absent     []string
 	}{
 		{name: "root", state: root, breadcrumb: "threads"},
-		{name: "actions", state: actions, breadcrumb: "threads › compiler › actions", absent: []string{"/repo/one", "review"}},
-		{name: "park", state: park, breadcrumb: "threads › compiler › park", absent: []string{"/repo/one", "relaunch"}},
-		{name: "reboot", state: reboot, breadcrumb: "threads › review › reboot", absent: []string{"/repo/two", "resume"}},
+		{name: "actions", state: actions, breadcrumb: "threads › compiler › actions", absent: []string{"/repo/compiler", "review"}},
+		{name: "park", state: park, breadcrumb: "threads › compiler › park", absent: []string{"/repo/compiler", "relaunch"}},
+		{name: "reboot", state: reboot, breadcrumb: "threads › review › reboot", absent: []string{"/repo/review", "resume"}},
 		// Leave is a GLOBAL frame since #170: it names couch, not a thread, so
 		// its breadcrumb no longer borrows an actor's label -- and "compiler"
 		// is now asserted ABSENT, because borrowing one is the bug.
-		{name: "leave", state: leave, breadcrumb: "threads › leave couch", absent: []string{"actions", "/repo/one", "compiler"}},
+		{name: "leave", state: leave, breadcrumb: "threads › leave couch", absent: []string{"actions", "/repo/compiler", "compiler"}},
 		{name: "global start", state: startFromConfirmation, breadcrumb: "start thread", absent: []string{"threads", "compiler", "park"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -142,12 +142,12 @@ func TestRenderMenuKeepsSelectedRowVisibleAndBounded(t *testing.T) {
 
 func TestRenderMenuSingleSurfaceStaysInsideTerminalWithLongBreadcrumb(t *testing.T) {
 	threads := menuThreads()
-	threads[0].Name = strings.Repeat("wide", 40)
+	threads[0].WorkingPath = "/repo/" + strings.Repeat("wide", 40)
 	state := NewMenuState(threads, menuAddress("couch-one"))
 	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
 	got := RenderMenu(state, 120, 40, time.Unix(200000, 0).UTC(), true)
 	plain := string(ansi.Strip([]byte(got)))
-	if !strings.HasPrefix(plain, "threads › wide") || !strings.Contains(plain, "park") || strings.Contains(plain, "/repo/one") {
+	if !strings.HasPrefix(plain, "threads › wide") || !strings.Contains(plain, "park") || strings.Contains(plain, "/repo/compiler") {
 		t.Fatalf("single-surface render retained or omitted the wrong content: %q", got)
 	}
 	assertRenderedBounds(t, got, 120, 40)

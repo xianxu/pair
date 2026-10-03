@@ -214,21 +214,22 @@ func (s ActionableThreadSummary) Resumable() bool {
 	return s.State == ThreadParked || s.State == ThreadDetached
 }
 
-// Label is the row's display name. A repository alias outranks a thread's
-// operator name and an attached pane's label: the alias names the slot's
-// repository, which is what the operator addresses (#360).
+// Label is the row's display name. A slot labels repo:N, or alias:N once the
+// repository has an alias (#360); a primary labels its alias, else its working
+// directory. The stored operator name is never read (pair#363): a renamed slot
+// read one thing in the switcher and another on the tab bar.
 func (s ActionableThreadSummary) Label() string {
 	if s.Target.Kind == ThreadTargetSlot {
-		switch {
-		case s.RepositoryAlias != "":
-			return (WorkspaceReference{Repo: s.RepositoryAlias, Number: s.Target.Slot.Number}).String()
-		case s.Name == "":
-			return (WorkspaceReference{Repo: s.Target.Slot.Repo, Number: s.Target.Slot.Number}).String()
+		repo := s.Target.Slot.Repo
+		if s.RepositoryAlias != "" {
+			repo = s.RepositoryAlias
 		}
-	} else if s.RepositoryAlias != "" {
+		return (WorkspaceReference{Repo: repo, Number: s.Target.Slot.Number}).String()
+	}
+	if s.RepositoryAlias != "" {
 		return s.RepositoryAlias
 	}
-	return threadLabel(s.Name, s.WorkingPath, s.Address.Tag)
+	return threadLabel(s.WorkingPath, s.Address.Tag)
 }
 
 // threadLabel is what the operator reads instead of an opaque address.
@@ -239,21 +240,17 @@ func (s ActionableThreadSummary) Label() string {
 // thread per path it identifies the row as well as the tag does. The tag stays
 // the fallback for a record with no path, and `couch --show` still prints the
 // full address, so nothing loses its exact identity.
-func threadLabel(name, workingPath string, tag ThreadTag) string {
-	if name != "" {
-		return name
-	}
+func threadLabel(workingPath string, tag ThreadTag) string {
 	if base := filepath.Base(workingPath); base != "" && base != "." && base != string(filepath.Separator) {
 		return base
 	}
 	return string(tag)
 }
 
+// DisplaySummary is the agent's own published one-line summary. The operator
+// description is stored but no longer displayed (pair#363).
 func (s ActionableThreadSummary) DisplaySummary() string {
-	if s.PublishedSummary != "" {
-		return s.PublishedSummary
-	}
-	return s.Description
+	return s.PublishedSummary
 }
 
 // ThreadProjectionInput is everything a projection needs, as ONE value.

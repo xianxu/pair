@@ -539,9 +539,6 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		}
 		entry := labels[menuRowKey(thread)]
 		detail := entry.Path
-		if thread.Name != "" && entry.Label != thread.Label() {
-			detail += "  (" + thread.Name + ")"
-		}
 		head := marker + strings.Repeat(" ", entry.Indent) + entry.Label
 		plain := clipMenuLine(head+entry.Glyph+"  "+detail, prefixWidth) + suffix
 		if frame.View == MenuViewFocus {

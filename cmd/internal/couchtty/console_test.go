@@ -224,8 +224,9 @@ func TestActiveChildExitFocusesPanelRecordsCauseAndForgetsActor(t *testing.T) {
 
 	select {
 	case got := <-forgot:
-		if got.tree != "c1" || got.id != "c1" {
-			t.Fatalf("forgot %+v, want c1/c1", got)
+		// Attach's tree is its label (the tab reads the tree, pair#363).
+		if got.tree != "brain" || got.id != "c1" {
+			t.Fatalf("forgot %+v, want brain/c1", got)
 		}
 	case <-time.After(time.Second):
 		t.Fatal("actor forget did not finish")

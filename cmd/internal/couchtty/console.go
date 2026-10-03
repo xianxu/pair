@@ -340,8 +340,16 @@ func (c *Console) Deliver(ctx context.Context, id string, batch ptychild.OutputB
 
 // Attach registers a child with a synthetic legacy thread address. It remains
 // as a test/helper convenience; production supplies the durable address.
+//
+// Its tree is the label: a tab reads its row's working directory, never a
+// pane label transported through the stored name (pair#363), so a pane
+// attached as "brain" must sit in a tree whose name is brain.
 func (c *Console) Attach(id, label string, child *ptychild.Child) {
-	c.AttachActor(id, couchcore.ActorID(id), couchcore.Worktree(id), label, child)
+	tree := couchcore.Worktree(id)
+	if label != "" {
+		tree = couchcore.Worktree(label)
+	}
+	c.AttachActor(id, couchcore.ActorID(id), tree, label, child)
 }
 
 // AttachTree registers a child with a synthetic legacy thread address and its

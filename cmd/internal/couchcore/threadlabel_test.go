@@ -2,17 +2,16 @@ package couchcore
 
 import "testing"
 
-func TestThreadLabelPrefersNameThenDirectory(t *testing.T) {
+func TestThreadLabelIsTheDirectoryThenTheTag(t *testing.T) {
 	tag := ThreadTag("couch-0123456789abcdef")
-	for _, tc := range []struct{ name, path, want string }{
-		{"compiler", "/Users/x/workspace/brain", "compiler"},
-		{"", "/Users/x/workspace/brain", "brain"},
-		{"", "/Users/x/workspace/kbench/competition/arc-agi-3", "arc-agi-3"},
-		{"", "", string(tag)},
-		{"", "/", string(tag)},
+	for _, tc := range []struct{ path, want string }{
+		{"/Users/x/workspace/brain", "brain"},
+		{"/Users/x/workspace/kbench/competition/arc-agi-3", "arc-agi-3"},
+		{"", string(tag)},
+		{"/", string(tag)},
 	} {
-		if got := threadLabel(tc.name, tc.path, tag); got != tc.want {
-			t.Errorf("threadLabel(%q, %q) = %q, want %q", tc.name, tc.path, got, tc.want)
+		if got := threadLabel(tc.path, tag); got != tc.want {
+			t.Errorf("threadLabel(%q) = %q, want %q", tc.path, got, tc.want)
 		}
 	}
 }

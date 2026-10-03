@@ -16,15 +16,16 @@ func TestBuildThreadInventoryKeepsOneRowPerCompositeThreadAtSamePath(t *testing.
 	}
 }
 
-// An unnamed row now falls back to its DIRECTORY, not its tag: a switcher of
-// 16-hex addresses reads as noise. The tag remains the last resort, and
-// DisambiguateLabels keeps two rows at one path distinguishable.
-func TestThreadSummaryUsesNameFirstThenDirectory(t *testing.T) {
+// A row labels as its DIRECTORY, not its tag -- a switcher of 16-hex
+// addresses reads as noise -- and never as its stored name (pair#363). The tag
+// remains the last resort, and DisambiguateLabels keeps two rows at one path
+// distinguishable.
+func TestThreadSummaryLabelsByDirectoryNotName(t *testing.T) {
 	named := metadataThread("816fc349d3faebf8", "couch-0000000000000001", "/repo/named", "compiler")
 	unnamed := metadataThread("816fc349d3faebf8", "couch-0000000000000002", "/repo/unnamed", "")
 
 	namedSummary := BuildThreadInventory(ThreadProjectionInput{Records: []ThreadRecord{named}})[0]
-	if namedSummary.Label() != "compiler" || namedSummary.Label() == string(named.Address.Tag) {
+	if namedSummary.Label() != "named" {
 		t.Fatalf("named label = %q", namedSummary.Label())
 	}
 	unnamedSummary := BuildThreadInventory(ThreadProjectionInput{Records: []ThreadRecord{unnamed}})[0]

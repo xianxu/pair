@@ -17,8 +17,9 @@ func menuAddress(tag string) couchcore.ThreadAddress {
 
 func menuThreads() []couchcore.ActionableThreadSummary {
 	return []couchcore.ActionableThreadSummary{
-		{Address: menuAddress("couch-one"), WorkingPath: "/repo/one", Name: "compiler", State: couchcore.ThreadLive},
-		{Address: menuAddress("couch-two"), WorkingPath: "/repo/two", Name: "review", State: couchcore.ThreadParked},
+		// Labels are working-directory basenames (pair#363): compiler, review.
+		{Address: menuAddress("couch-one"), WorkingPath: "/repo/compiler", State: couchcore.ThreadLive},
+		{Address: menuAddress("couch-two"), WorkingPath: "/repo/review", State: couchcore.ThreadParked},
 	}
 }
 
@@ -1209,7 +1210,7 @@ func TestStartFormArmedSubmitDispatchesOnce(t *testing.T) {
 
 func unusableMenuRow(reason couchcore.ThreadReason) couchcore.ActionableThreadSummary {
 	return couchcore.ActionableThreadSummary{
-		Address: menuAddress("couch-one"), WorkingPath: "/repo/one", Name: "compiler",
+		Address: menuAddress("couch-one"), WorkingPath: "/repo/compiler",
 		State: couchcore.ThreadUnusable, Reason: reason,
 	}
 }
@@ -1297,7 +1298,7 @@ func TestRebootConfirmationDispatchesAndSurvivesARefresh(t *testing.T) {
 // reaches the empty-reason arm a busy row carries.
 func TestEnterOnABusyRowExplainsAndOffersNoLifecycleAction(t *testing.T) {
 	busy := couchcore.ActionableThreadSummary{
-		Address: menuAddress("couch-one"), WorkingPath: "/repo/one", Name: "compiler",
+		Address: menuAddress("couch-one"), WorkingPath: "/repo/compiler",
 		State: couchcore.ThreadBusy,
 	}
 	state := NewMenuState([]couchcore.ActionableThreadSummary{busy}, couchcore.ThreadAddress{})

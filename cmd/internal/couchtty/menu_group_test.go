@@ -89,17 +89,25 @@ func TestGroupedMenuOrderingRenderingAndRefreshRouting(t *testing.T) {
 	}
 }
 
-func TestGroupedMenuCustomNameStillShowsWorkspaceAndFilters(t *testing.T) {
+// A renamed slot reads and filters as its workspace: the stored name is no
+// longer displayed or matched (pair#363).
+func TestGroupedMenuStoredNameIsNeitherShownNorMatched(t *testing.T) {
 	row := groupedRow("/workspace/pair", 2, "two")
 	row.Name = "bugfix"
 	row.State = couchcore.ThreadParked
 	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
-	state.Frames[0].Filter = "bugfix"
 	plain := string(ansi.Strip([]byte(RenderMenu(state, 120, 15, time.Unix(1, 0), false))))
-	for _, part := range []string{"pair:2", row.WorkingPath, "bugfix", "parked"} {
+	for _, part := range []string{"pair:2", row.WorkingPath, "parked"} {
 		if !strings.Contains(plain, part) {
 			t.Errorf("missing %q in %s", part, plain)
 		}
+	}
+	if strings.Contains(plain, "bugfix") {
+		t.Errorf("stored name rendered: %s", plain)
+	}
+	state.Frames[0].Filter = "bugfix"
+	if rows := VisibleMenuThreads(state); len(rows) != 0 {
+		t.Fatalf("stored name matched: %+v", rows)
 	}
 	state.Frames[0].Filter = "pair:2"
 	if rows := VisibleMenuThreads(state); len(rows) != 1 || menuRowKey(rows[0]) != row.RowKey {
