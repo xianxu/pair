@@ -1,6 +1,6 @@
 ---
 id: 000389
-status: codecomplete
+status: done
 created: 2026-10-03
 updated: 2026-10-03
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 22fb27b2aa9bdeced83241c02374b31886d1be0d
         evidence_commit: 8f60f743b7488b291a5ebc1d4facd9c99f10a3e7
+        landed_commit: 79ab5378349c164534c3c677f74f7850644f232c
 ---
 
 # couch detach fails when client exits between liveness probes
