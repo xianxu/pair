@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000386-focus-view-empty-selection.md
         source_blob: 5d0460668cef4b289a9c90daef8fe8ef6379afad
         destination: workshop/issues/000386-focus-view-empty-selection.md
+        main_commit: 11adc0740d0fb9b18d788bd0ace1a1986760f122
 ---
 
 # Switcher focus view: no default selection when current slot is hidden
