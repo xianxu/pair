@@ -521,8 +521,31 @@ argument/result family, effect, confirmation, execution owner, and presentation.
 hidden `couch --internal publish-description <text>`, which pair's draft calls for a `!` tag line (#337), a `!!` describe line (#358), and a bare `!` clear line (#357), which publishes an empty summary. `prepare-start`, `start`,
 `attach`, `switch`, `park`, `resume`, `open-slot`, `fresh-slot`, `relaunch`, `prepare-switch-agent`,
 `switch-agent`, `leave`, `stop`, `name`,
-`describe`, `archive`, `recover-thread` and `recover-checkpoint` are TUI/in-process operations. `orientation-status` is
+`describe`, `archive`, `recover-thread`, `recover-checkpoint` and `reboot` are TUI/in-process operations. `orientation-status` is
 an internal owner operation for one launch attempt.
+
+**Resume and reboot are the actor operations for a row that is not live (#363).**
+`resume` (`Couch.ResumeTarget`, `couchcore/resume_route.go`) gets the old
+conversation back by whatever path works: a pure `ChooseResumeRoute` hands the
+row to `OpenSlot` (warm, cold, or adopting a running agent whose pointer couch
+lost, proved against the slot's own launch profile), `RetryContinuation`,
+`RecoverThread` or `ResumeContextWith`. It takes a slot `path` or a thread
+address; `warm-only` (the background reattach pass) stays a direct warm-only
+resume. A refusal whose transcript cannot come back names reboot; the
+`ResumeRebootAdvice` map classifies every `ResumeDiagnosticCode`, so transient
+refusals say retry instead. `reboot` (`Couch.Reboot`, `couchcore/reboot.go`)
+archives the old record with its evidence and starts a fresh agent with a new
+tag in the same slot or path, without touching the worktree; a pure
+`DecideReboot` picks archive-and-start, archive-only (directory missing, or an
+unreadable `:0`), start-only, or refuse, and `RebootableState` is archive's
+admission rule. The fresh profile resolves before `prepareRetirement`
+(`ArchiveThread`'s admission and quiesce half) stops anything, and the retire
+plus the fresh claimed record commit in one store journal: `replaceSlotCurrent`
+for `:1+`, `ThreadStore.ReplaceThreadExpected` for `:0`, which composes the
+same `archiveJournalEntries` / `createJournalEntries` builders `archiveThread`
+and `CreateThread` use. Fresh records start without the stored name and
+description; the archived record keeps them. In M1 both are reachable through
+dispatch only (`reboot` is declared `RowAction: false`); M2 wires the switcher.
 
 Numbered directory preparation uses `couch --internal provision-workspace <primary>
 --slot=N [--remote=R]` without taking a supervisor lease or launching a thread.
