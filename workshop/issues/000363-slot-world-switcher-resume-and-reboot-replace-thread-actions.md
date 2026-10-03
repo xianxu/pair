@@ -170,6 +170,31 @@ resolved (adoption agent source, recovery route, journal-aware claim release,
 profile preflight before quiesce, offer equals permission for unknown rows,
 continuation phases, in-flight exemption, console label transport).
 
+### 2026-10-02 — M1 implementation notes
+
+- **Warm-path agent proof (fixed before close).** Resume guesses the agent it adopts a lost slot pointer under, from
+  the slot's launch profile. The plan assumed both survivor proofs check that agent; only the cold one does
+  (`ResolveEstablished`, the native ledger binds per agent). `DetachedSessions` echoes whatever agent it is asked
+  about, and nothing couch reads names the running agent: pane sidecars keep stale twins and are read only for birth.
+  Resume now adopts a record-less survivor on a guess only on the cold path, and refuses a detached one with the new
+  `resume-survivor-unproven`, advising attach or stop rather than reboot (reboot refuses a live owner too).
+  `open-slot` with an operator-chosen agent is unchanged. Warm tests were observed red before the guard; disabling
+  the guard, or passing the guess as a chosen agent, turns them red again.
+- **`resume` removed from `ContinuationRefuses`.** The routed resume sends a failed or running request to
+  `RetryContinuation` and a pending one to `RecoverThread`, so it never meets `continuationGuard`.
+  `TestContinuationRefusesMatchesTheGuardForEveryRowAction` exempts it with that reason. No switcher row changes,
+  because live rows never offer resume.
+- **Unusable `:0` resume usually lands on `ResumeContextWith`.** Fresh classification reads a surviving session as
+  `detached`, so the Recover route is reached only when the fresh classification is unusable and a session survives.
+  The route is pinned by the pure `TestChooseResumeRoute` table; the outcome (warm reattach, no fresh agent) is
+  pinned end-to-end by `TestResumeReattachesASurvivorOfAnUnusablePrimary`.
+- **Reboot costs two classification rounds; the plan said one.** The admission classify runs first so that a live or
+  busy row is refused before the profile preflight and its idempotent family enrollment, and `prepareRetirement`
+  classifies again for archive's own admission. Each round is one host-wide `list-sessions` on an operator keypress,
+  off the UI path, so this is acceptable.
+- **Test-declaration fixes:** `ops_declarations_test` gained `reboot`; `couchcmd/run_test.go`'s argument counts are
+  now resume 5 and reboot 4.
+
 ## Revisions
 
 ### 2026-10-02 — boundary with pair#367 settled: actor only

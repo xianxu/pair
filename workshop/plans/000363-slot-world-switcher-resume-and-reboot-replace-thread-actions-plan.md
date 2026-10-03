@@ -559,7 +559,7 @@ test below pins both.
 
 ### Task 1.7: Close M1
 
-- [ ] Update `atlas/couch.md` operations section (`:521-524`) for the two new operations and the shared journal.
+- [x] Update `atlas/couch.md` operations section (`:521-524`) for the two new operations and the shared journal.
       Update `workshop/issues/000363-…md` `## Log`.
 - [ ] Run Chunk 4's full verification recipe.
 - [ ] `sdlc milestone-close --issue 363 --milestone M1`.
@@ -944,3 +944,23 @@ to `head`, which reports a phantom FAIL through SIGPIPE.
 4. PTY-dependent tests (`ptychild`, console attach) report "operation not permitted" inside the sandbox. Re-run those
    packages with the sandbox off before calling them failures.
 5. Paste the pass/fail summary into `--verified` and `## Log`.
+
+## Revisions
+
+### 2026-10-02 — M1 implementation corrections
+
+Reason: findings while implementing Chunk 1. Delta:
+
+- **Task 1.5's warm-proof claim was wrong.** The `ResumeTarget` sketch says the survivor proof "(DetachedSessions /
+  ResolveEstablished) checks that agent, so a wrong guess cannot adopt". Only `ResolveEstablished` (the native ledger)
+  checks the agent. `DetachedSessions`, real and fake, echoes the candidate's agent, and no evidence couch reads names
+  the agent running in a surviving session (pane sidecars keep stale twins and are read only for birth). Resolution:
+  `openSlot(…, agentGuessed)`. Resume adopts a record-less survivor on its guessed agent only on the cold path, and
+  refuses a record-less detached survivor with the new code `ResumeSurvivorUnproven` (advice: attach or stop it, not
+  reboot). `open-slot` with an operator-chosen agent is unchanged. `TestResumeAdoptionWithTheWrongAgentIsNotProved`
+  covers cold and warm; `TestResumeOperationOnASlotPathAdoptsALostPointer` now adopts through the ledger.
+- **`resume` left `ContinuationRefuses`.** The routed resume sends a retained request to `RetryContinuation` /
+  `RecoverThread` and never meets the guard. It is exempt in the guard test, with a reason.
+- **Reboot costs two classification rounds, not one** (ARCH-CONSTRAINTS note). Step 1's admission classify runs ahead
+  of the profile preflight, and `prepareRetirement` classifies again.
+
