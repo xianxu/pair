@@ -391,3 +391,16 @@ func TestExactProcessPresentWithoutIdentityStaysUnknown(t *testing.T) {
 		t.Fatalf("observeExactProcess = %v, want Unknown", got)
 	}
 }
+
+// Liveness is the exported door to the same observation, so it inherits the
+// re-probe rather than keeping its own copy of the two probes.
+func TestLivenessReapedBetweenProbesIsDead(t *testing.T) {
+	proc := NewFakeProcOps()
+	proc.Set(42, "client")
+	proc.ReapedOnIdentity[42] = true
+	c := &Couch{Proc: proc}
+
+	if got := c.Liveness(ActorRecord{PID: 42, Identity: "client"}); got != Dead {
+		t.Fatalf("Liveness = %v, want Dead", got)
+	}
+}

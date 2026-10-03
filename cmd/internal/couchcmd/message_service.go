@@ -218,15 +218,11 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 		},
 		thread: console.MessageBinding, workspace: resolver.ResolveWorkspace,
 		process: func(b couchmessage.Binding) error {
-			if c.Proc.Exists(b.PID) != couchcore.Live {
-				return errors.New("wrapper is not live")
-			}
-			identity, e := c.Proc.Identity(b.PID)
-			if e != nil {
-				return e
-			}
-			if identity != b.Start {
-				return errors.New("wrapper process identity changed")
+			switch c.Liveness(couchcore.ActorRecord{PID: b.PID, Identity: b.Start}) {
+			case couchcore.Dead:
+				return errors.New("wrapper exited or was replaced")
+			case couchcore.Unknown:
+				return fmt.Errorf("cannot verify wrapper pid %d", b.PID)
 			}
 			return nil
 		},

@@ -230,15 +230,11 @@ func (c *Couch) ReadOrientationStatus(ctx context.Context, address ThreadAddress
 		return orientation.DeliveryState{}, errors.New("orientation target attempt is obsolete")
 	}
 	if c.Proc != nil && incarnation.PID > 0 {
-		if c.Proc.Exists(incarnation.PID) == Dead {
+		switch observeExactProcess(c.Proc, ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}) {
+		case Dead:
 			return orientation.DeliveryState{}, errors.New("orientation target exited")
-		}
-		identity, err := c.Proc.Identity(incarnation.PID)
-		if err != nil {
-			return orientation.DeliveryState{}, err
-		}
-		if identity != incarnation.Identity {
-			return orientation.DeliveryState{}, fmt.Errorf("orientation target process identity changed")
+		case Unknown:
+			return orientation.DeliveryState{}, fmt.Errorf("cannot verify orientation target pid %d", incarnation.PID)
 		}
 	}
 	if c.OrientationStatus == nil {
