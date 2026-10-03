@@ -409,7 +409,24 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				return nil, fmt.Errorf("leave: invalid mode %q (want detach or park)", a["mode"])
 			}
 		case "resume":
-			if a["tag"] == "" && a["warm-only"] != "true" && c.Slots != nil {
+			// warm-only is the background reattach pass, and it stays a direct
+			// warm-only resume: no route may start an agent behind the
+			// operator's back (pair#206).
+			if a["warm-only"] == "true" {
+				address, err := resolveOperationThread(c, a)
+				if err != nil {
+					return nil, err
+				}
+				record, handle, err := c.ResumeContextWith(ctx, address, ResumeOptions{WarmOnly: true})
+				if err != nil {
+					return nil, err
+				}
+				return StartResult{Record: record, Handle: handle}, nil
+			}
+			if path := a["path"]; path != "" {
+				return c.ResumeTarget(ctx, ResumeTarget{Path: path})
+			}
+			if a["tag"] == "" && c.Slots != nil {
 				ref, recognized, err := ParseWorkspaceReference(a["ref"])
 				if err != nil {
 					return nil, err
@@ -419,18 +436,14 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 					if err != nil {
 						return nil, err
 					}
-					return c.OpenSlot(ctx, path, "")
+					return c.ResumeTarget(ctx, ResumeTarget{Path: path})
 				}
 			}
 			address, err := resolveOperationThread(c, a)
 			if err != nil {
 				return nil, err
 			}
-			record, handle, err := c.ResumeContextWith(ctx, address, ResumeOptions{WarmOnly: a["warm-only"] == "true"})
-			if err != nil {
-				return nil, err
-			}
-			return StartResult{Record: record, Handle: handle}, nil
+			return c.ResumeTarget(ctx, ResumeTarget{Address: address})
 		case "switch", "attach":
 			return nil, fmt.Errorf("%s requires an active couch console", call.Operation.Name)
 		default:

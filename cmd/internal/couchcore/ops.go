@@ -423,6 +423,7 @@ func Operations() []Operation {
 				// reattach pass may ask for a resume that refuses to start an agent
 				// (pair#206). Its absence is today's behaviour.
 				{Name: "warm-only", Summary: "refuse unless the thread is detached; never start an agent", Implicit: true},
+				{Name: "path", Summary: "slot host checkout", Implicit: true},
 			},
 		},
 	}

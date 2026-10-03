@@ -466,8 +466,12 @@ func (c *Couch) OpenSlot(ctx context.Context, path, agent string) (StartResult, 
 				survivors = append(survivors, next)
 			}
 		}
-		if len(survivors) != 1 {
-			return StartResult{}, fmt.Errorf("slot current is unavailable; found %d proven conversations; select an explicit agent to recover one survivor or choose Start fresh after stopping managed sessions", len(survivors))
+		switch len(survivors) {
+		case 0:
+			return StartResult{}, refuseResume(ResumeNoSurvivor, "slot current is unavailable and no running conversation could be proved its own")
+		case 1:
+		default:
+			return StartResult{}, refuseResume(ResumeSurvivorsAmbiguous, fmt.Sprintf("slot current is unavailable and %d running conversations could each be its own; stop all but one managed session, then retry", len(survivors)))
 		}
 		for _, candidate := range sessions.Candidates {
 			active := candidate.Presence == SessionPresent
@@ -497,7 +501,7 @@ func (c *Couch) OpenSlot(ctx context.Context, path, agent string) (StartResult, 
 	}
 	actor, handle, err := c.ResumeContextWith(ctx, record.Address, ResumeOptions{})
 	if err != nil {
-		return StartResult{Record: actor, Handle: handle}, fmt.Errorf("open slot: %w; choose Start fresh only after its managed sessions are stopped", err)
+		return StartResult{Record: actor, Handle: handle}, fmt.Errorf("open slot: %w", err)
 	}
 	return StartResult{Record: actor, Handle: handle}, nil
 }

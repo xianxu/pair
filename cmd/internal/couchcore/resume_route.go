@@ -1,6 +1,8 @@
 package couchcore
 
 import (
+	"context"
+	"errors"
 	"fmt"
 
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
@@ -88,4 +90,118 @@ func withRebootAdvice(err error) error {
 		return err
 	}
 	return fmt.Errorf("%w; this conversation cannot come back -- Tab → reboot archives it and starts a fresh agent here", err)
+}
+
+// ResumeTarget names what resume acts on: a slot by its host checkout (:1+),
+// or an ordinary thread by its address (:0). Exactly one is set.
+type ResumeTarget struct {
+	Path    string        // slot host checkout (:1+)
+	Address ThreadAddress // ordinary (:0)
+}
+
+// ResumeTarget is the resume operation: read the target, gather the one piece
+// of fresh evidence routing needs, hand the row to the executor
+// ChooseResumeRoute names, and -- only at this top -- say whether a refusal
+// means the conversation cannot come back, so the operator is pointed at
+// reboot.
+//
+// The result is whatever the executor returns (StartResult from OpenSlot and
+// ResumeContextWith, ContinuationResult from RetryContinuation and
+// RecoverThread); every consumer of a ResultStart operation already reads both.
+func (c *Couch) ResumeTarget(ctx context.Context, t ResumeTarget) (any, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if c == nil || c.Threads == nil {
+		return nil, errors.New("resume requires a thread store")
+	}
+	if (t.Path == "") == (t.Address == ThreadAddress{}) {
+		return nil, errors.New("resume needs exactly one of a slot path or a thread address")
+	}
+	result, err := c.resumeRouted(ctx, t)
+	return result, withRebootAdvice(err)
+}
+
+func (c *Couch) resumeRouted(ctx context.Context, t ResumeTarget) (any, error) {
+	in := ResumeRouteInput{Slot: t.Path != ""}
+	var record ThreadRecord
+	var local *ThreadStore
+	var slot SlotIdentity
+	if in.Slot {
+		var err error
+		local, slot, err = c.selectedSlot(ctx, t.Path)
+		if err != nil {
+			return nil, err
+		}
+		observed, err := local.observeSlotCurrent()
+		if err != nil {
+			return nil, err
+		}
+		if observed.Unsupported {
+			return nil, observed.Err
+		}
+		if observed.Record != nil {
+			in.HasRecord, record = true, *observed.Record
+		}
+	} else {
+		var err error
+		record, err = c.Threads.GetThread(t.Address)
+		if err != nil {
+			return nil, err
+		}
+		in.HasRecord = true
+	}
+	if in.HasRecord && record.Continuation != nil {
+		in.Continuation = record.Continuation.Phase
+	}
+	// A surviving session behind an unusable ordinary record is RecoverThread's
+	// to reattach. Asked from FRESH evidence: the row the operator pressed may
+	// have been drawn before the agent came back, or after it left.
+	if !in.Slot && (record.Continuation == nil || record.Continuation.Phase == checkpoint.Complete) {
+		state, _, err := c.classifyForAction(ctx, record.Address)
+		if err != nil {
+			return nil, err
+		}
+		if state == ThreadUnusable {
+			evidence, err := c.observeRecovery(ctx, record)
+			if err != nil {
+				return nil, err
+			}
+			in.RecoveryRecover = DecideRecovery(evidence).Recover
+		}
+	}
+	switch ChooseResumeRoute(in) {
+	case ResumeRouteSlot:
+		agent := ""
+		if !in.HasRecord {
+			// Adopting a record-less survivor needs an agent to prove it
+			// against; the operator only pressed resume, so it comes from the
+			// slot's own launch profile (path preference, else the repository
+			// default, else the root agent).
+			family, err := c.slotFamily(ctx, slot, false)
+			if err != nil {
+				return nil, err
+			}
+			cwd, err := ValidateFamilyPath(slot.WorktreeRoot, family.RelativeStart)
+			if err != nil {
+				return nil, err
+			}
+			profile, err := c.slotLaunchProfile(local, slot, cwd, "")
+			if err != nil {
+				return nil, err
+			}
+			agent = profile.Profile.Agent
+		}
+		return c.OpenSlot(ctx, t.Path, agent)
+	case ResumeRouteContinuation:
+		return c.RetryContinuation(ctx, record.Address, record.Continuation.ID)
+	case ResumeRouteRecover:
+		return c.RecoverThread(ctx, record.Address, "")
+	default:
+		actor, handle, err := c.ResumeContextWith(ctx, record.Address, ResumeOptions{})
+		if err != nil {
+			return nil, err
+		}
+		return StartResult{Record: actor, Handle: handle}, nil
+	}
 }
