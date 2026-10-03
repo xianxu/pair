@@ -207,11 +207,11 @@ func Operations() []Operation {
 			Presentation: PresentationList,
 		},
 		{
-			Name: "show", Summary: "Show one work thread by tag, path, or name",
+			Name: "show", Summary: "Show one work thread by tag or path",
 			Execution: ExecuteDirectStore, Effect: EffectRead, Confirmation: ConfirmNone, Result: ResultThreadInventory,
 			Presentation: PresentationShow,
 			Args: []ArgSpec{
-				{Name: "ref", Summary: "thread tag, path, or operator-assigned name", Required: true},
+				{Name: "ref", Summary: "thread tag or path", Required: true},
 				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
 			},
 		},
@@ -300,7 +300,7 @@ func Operations() []Operation {
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultThread,
 			Presentation: PresentationTUI, RowAction: true,
 			Args: []ArgSpec{
-				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
+				{Name: "ref", Summary: "thread tag or path", Required: false},
 				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
 				{Name: "mode", Summary: "normal, retry, recover, or abandon (--mode=<mode>)", FlagOnly: true, ValueRequired: true},
 				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
@@ -314,7 +314,7 @@ func Operations() []Operation {
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultThread,
 			Presentation: PresentationTUI, RowAction: true,
 			Args: []ArgSpec{
-				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
+				{Name: "ref", Summary: "thread tag or path", Required: false},
 				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
 				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
 			},
@@ -338,7 +338,7 @@ func Operations() []Operation {
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultStart,
 			Presentation: PresentationTUI, RowAction: true,
 			Args: []ArgSpec{
-				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
+				{Name: "ref", Summary: "thread tag or path", Required: false},
 				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
 				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
 			},
@@ -371,7 +371,7 @@ func Operations() []Operation {
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart,
 			Presentation: PresentationTUI, RowAction: true,
 			Args: []ArgSpec{
-				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
+				{Name: "ref", Summary: "thread tag or path", Required: false},
 				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
 				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
 				// Implicit, so the CLI can never send it: only couch's own background
@@ -419,7 +419,7 @@ func continuationArguments(operatorFacing bool) []ArgSpec {
 		// its exact implicit tag, and resolveOperationThread refuses a call that
 		// carries both. A required ref forced the switcher to send both, so its
 		// Retry continuation never reached the thread (#280).
-		args = append([]ArgSpec{{Name: "ref", Summary: "thread tag, path, or operator-assigned name"}}, args...)
+		args = append([]ArgSpec{{Name: "ref", Summary: "thread tag or path"}}, args...)
 	}
 	return args
 }

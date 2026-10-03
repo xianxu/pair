@@ -361,12 +361,8 @@ func visibleRootThreads(inventory []couchcore.ActionableThreadSummary, frame Men
 			}
 			continue
 		}
-		name := row.Name
-		if slotRow {
-			name = row.Label()
-		}
 		match, err := couchcore.ClassifyThreadReferenceFields(couchcore.ThreadReferenceFields{
-			Address: row.Address, Name: name, WorkingPath: row.WorkingPath, Description: menuFocusSummary(row),
+			Address: row.Address, Label: row.Label(), WorkingPath: row.WorkingPath, Summary: menuFocusSummary(row),
 		}, frame.Filter)
 		if err != nil {
 			continue

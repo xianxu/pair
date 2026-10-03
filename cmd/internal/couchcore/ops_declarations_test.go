@@ -97,7 +97,7 @@ func TestParkDetachLeaveAndResumeSurface(t *testing.T) {
 		t.Fatalf("park confirmation = %v, want required", park.Confirmation)
 	}
 	wantParkArgs := []ArgSpec{
-		{Name: "ref", Summary: "thread tag, path, or name", Required: false},
+		{Name: "ref", Summary: "thread tag or path", Required: false},
 		{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
 		{Name: "mode", Summary: "normal, retry, recover, or abandon (--mode=<mode>)", FlagOnly: true, ValueRequired: true},
 		{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},

@@ -317,3 +317,29 @@ func TestRebootFrameSurvivesItsOwnStateChange(t *testing.T) {
 		}
 	})
 }
+
+// The switcher filter matches what a row shows -- its label and the agent's
+// published summary -- and never a stored name (pair#363).
+func TestSwitcherFilterMatchesLabelAndPublishedSummary(t *testing.T) {
+	primary := couchcore.ActionableThreadSummary{Address: menuAddress("couch-primary"), WorkingPath: "/w/repo", Name: "renamed", Description: "described", PublishedSummary: "fixing the parser", State: couchcore.ThreadLive}
+	slot := menuSlotRow(1, "couch-slot")
+	slot.State, slot.Reason, slot.Name = couchcore.ThreadLive, "", "slotname"
+	state := NewMenuState([]couchcore.ActionableThreadSummary{primary, slot}, primary.Address)
+	for filter, want := range map[string]couchcore.ThreadRowKey{
+		"parser": menuRowKey(primary),
+		"repo":   menuRowKey(primary),
+		"pair:1": menuRowKey(slot),
+	} {
+		state.Frames[0].Filter = filter
+		got := VisibleMenuThreads(state)
+		if len(got) != 1 || menuRowKey(got[0]) != want {
+			t.Errorf("filter %q selected %+v", filter, got)
+		}
+	}
+	for _, filter := range []string{"renamed", "described", "slotname"} {
+		state.Frames[0].Filter = filter
+		if got := VisibleMenuThreads(state); len(got) != 0 {
+			t.Errorf("filter %q matched a stored field: %+v", filter, got)
+		}
+	}
+}
