@@ -140,12 +140,11 @@ func (c *Couch) rebootPrimary(ctx context.Context, t RebootTarget) (RebootResult
 	if err != nil {
 		return RebootResult{}, err
 	}
-	result := RebootResult{Archived: address, SessionNotStopped: r.SessionNotStopped}
+	result := retiredResult(address, r)
 	if r.RolledBack {
 		// The record held only an unfinished start and is already gone: there
 		// is no old record left to replace, so this is an ordinary fresh :0
 		// start at its path, through the same guard every start passes.
-		result.Archived = ThreadAddress{}
 		if plan, reason = DecideReboot(RebootFacts{Record: RebootRecordRolledBack, DirectoryPresent: facts.DirectoryPresent}); plan != RebootStartOnly {
 			return result, fmt.Errorf("reboot %s: %s", address.Tag, reason)
 		}
@@ -187,6 +186,18 @@ func (c *Couch) rebootPrimary(ctx context.Context, t RebootTarget) (RebootResult
 	})
 	result.Start = StartResult{Record: actor, Handle: handle}
 	return result, err
+}
+
+// retiredResult is what reboot reports about the retirement half, for both
+// kinds: the record it retired (none when retirement only rolled back an
+// unfinished start) and the session it deliberately did not stop. One
+// construction site, so a :0 and a :1+ reboot cannot report it differently.
+func retiredResult(address ThreadAddress, r retirement) RebootResult {
+	result := RebootResult{SessionNotStopped: r.SessionNotStopped}
+	if !r.RolledBack {
+		result.Archived = address
+	}
+	return result
 }
 
 func (c *Couch) rebootSlot(ctx context.Context, t RebootTarget) (RebootResult, error) {
@@ -250,11 +261,11 @@ func (c *Couch) rebootSlot(ctx context.Context, t RebootTarget) (RebootResult, e
 		if err != nil {
 			return RebootResult{}, err
 		}
-		if !r.RolledBack {
-			// The archive half is replaceSlotCurrent's, inside startFreshSlot:
-			// it re-observes the slot and refuses on any change since.
-			result.Archived = address
-		}
+		// The archive half is replaceSlotCurrent's, inside startFreshSlot: it
+		// re-observes the slot and refuses on any change since. A record that
+		// turned unreadable after the preflight read it is filed without its
+		// session being stopped, and the result says so, as a :0 reboot's does.
+		result = retiredResult(address, r)
 	}
 	start, err := c.startFreshSlot(ctx, t.Path, t.Agent, false, nil, &profile)
 	result.Start = start

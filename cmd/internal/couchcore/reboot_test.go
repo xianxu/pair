@@ -464,3 +464,18 @@ func TestRebootAfterFailedLaunchDoesNotArchiveTwice(t *testing.T) {
 		}
 	})
 }
+
+// Both kinds report the retirement through retiredResult (pair#363 M1 review:
+// rebootSlot dropped SessionNotStopped). A slot record can turn unreadable
+// only in the window between the preflight's read and retirement's, which no
+// fake seam reaches, so the shared construction is what is pinned.
+func TestRetiredResultCarriesWhatRetirementDidNotDo(t *testing.T) {
+	address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
+	got := retiredResult(address, retirement{Record: ThreadRecord{Address: address}, Unreadable: true, SessionNotStopped: true})
+	if got.Archived != address || !got.SessionNotStopped || got.Warning() == "" {
+		t.Fatalf("unreadable retirement = %+v", got)
+	}
+	if got := retiredResult(address, retirement{RolledBack: true}); got.Archived != (ThreadAddress{}) || got.SessionNotStopped {
+		t.Fatalf("rolled-back retirement = %+v", got)
+	}
+}
