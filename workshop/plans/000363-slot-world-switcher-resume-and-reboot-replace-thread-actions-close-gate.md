@@ -122,6 +122,48 @@ rounds:
       boundary: M3
       recipe: milestone-review
       blocked: false
+    - "n": 5
+      timestamp: "2026-10-03T12:16:05-07:00"
+      agent: claude
+      dispose:
+        - id: BR-4
+          disposition: addressed
+          note: Reboot is a live action in the switcher now (M2/M3), so the "Tab → reboot" advice at resume_route.go:94 names an action the operator can reach.
+          round: 5
+        - id: BR-5
+          disposition: addressed
+          note: fresh-slot is gone; OpenSlot is reached only through slotstart.go:270 and resume_route.go:123, both of which wrap the error with withRebootAdvice.
+          round: 5
+        - id: BR-6
+          disposition: addressed
+          note: console_continuation.go:232 now registers the watch for the "resume" operation's ContinuationResult.
+          round: 5
+        - id: BR-7
+          disposition: addressed
+          note: rebootSlot and the :0 path both build their result through retiredResult (reboot.go:195), which carries SessionNotStopped.
+          round: 5
+        - id: BR-8
+          disposition: addressed
+          note: Plan Revision at line 972 states the extra classifyForAction round per ordinary resume.
+          round: 5
+        - id: BR-9
+          disposition: addressed
+          note: A :0 row now says RebootCheckoutMissing ("restore the checkout"); the add-slot text is used only for slot rows (menu_actions.go:189-198), and the advice test enforces reachability.
+          round: 5
+        - id: BR-10
+          disposition: addressed
+          note: menu.go:1635 comment now says relaunch and reboot keep their confirmation.
+          round: 5
+        - id: BR-11
+          disposition: addressed
+          note: Field removed in c8e5d395; menu_actions_test.go:451 now fails on any row that has reboot-confirmation text but offers no reboot.
+          round: 5
+        - id: BR-12
+          disposition: addressed
+          note: TestRebootOfARolledBackStartRefusesBesideALegacyPrimary pins the refusal, that nothing starts, and that the legacy primary stays live; ran green.
+          round: 5
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#363 (boundary-review)
@@ -182,14 +224,20 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-12** [Minor] `legacy-cotenant-guard-interaction` A rolled-back :0 reboot refuses when a pre-363 co-tenant primary exists in the scope
   reboot.go rolled-back branch calls spawnResolved, and the widened guard sees the other primary. This follows the rule and stops nothing, but it is untested and unmentioned.
 
+## Round 5 — 2026-10-03T12:16:05-07:00 (claude) — passed
+
+### Disposed
+
+- BR-4 — addressed — Reboot is a live action in the switcher now (M2/M3), so the "Tab → reboot" advice at resume_route.go:94 names an action the operator can reach.
+- BR-5 — addressed — fresh-slot is gone; OpenSlot is reached only through slotstart.go:270 and resume_route.go:123, both of which wrap the error with withRebootAdvice.
+- BR-6 — addressed — console_continuation.go:232 now registers the watch for the "resume" operation's ContinuationResult.
+- BR-7 — addressed — rebootSlot and the :0 path both build their result through retiredResult (reboot.go:195), which carries SessionNotStopped.
+- BR-8 — addressed — Plan Revision at line 972 states the extra classifyForAction round per ordinary resume.
+- BR-9 — addressed — A :0 row now says RebootCheckoutMissing ("restore the checkout"); the add-slot text is used only for slot rows (menu_actions.go:189-198), and the advice test enforces reachability.
+- BR-10 — addressed — menu.go:1635 comment now says relaunch and reboot keep their confirmation.
+- BR-11 — addressed — Field removed in c8e5d395; menu_actions_test.go:451 now fails on any row that has reboot-confirmation text but offers no reboot.
+- BR-12 — addressed — TestRebootOfARolledBackStartRefusesBesideALegacyPrimary pins the refusal, that nothing starts, and that the legacy primary stays live; ran green.
+
 ## Open findings
 
-- **BR-4** [Minor] `refusal-names-unoffered-action` withRebootAdvice tells the operator "Tab → reboot" while M1 declares reboot RowAction false
-- **BR-5** [Minor] `refusal-names-unoffered-action` OpenSlot refusals dropped the "choose Start fresh" exit while fresh-slot is still offered in M1
-- **BR-6** [Minor] `result-consumer-keyed-by-op-name` Console continuation watch registers only for recover-thread/recover-checkpoint, not routed resume
-- **BR-7** [Minor] `result-field-dropped` rebootSlot ignores prepareRetirement's SessionNotStopped
-- **BR-8** [Minor] `undeclared-runtime-cost` Routed resume adds a classifyForAction round per ordinary resume, not noted in ARCH-CONSTRAINTS
-- **BR-9** [Minor] `refusal-names-unoffered-action` A :0 path-missing row and its reboot confirmation say "add slot recreates it", which that row cannot reach
-- **BR-10** [Minor] `removed-action-sweep-misses-comments` menu.go:1636 comment still says relaunch and archive keep their confirmation on failure
-- **BR-11** [Minor] `dead-advice-text` The slot DirectoryMissing RebootCost text cannot appear, because that row offers no reboot
-- **BR-12** [Minor] `legacy-cotenant-guard-interaction` A rolled-back :0 reboot refuses when a pre-363 co-tenant primary exists in the scope
+(none — every finding has been disposed)
