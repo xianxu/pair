@@ -402,6 +402,56 @@ func TestRebootOfARolledBackStartStartsFresh(t *testing.T) {
 	}
 }
 
+// A rolled-back :0 start is an ordinary fresh primary start, so it passes the
+// one-primary guard (#363 M3). A store written before that rule may still hold
+// a second, live primary in the same repository; the reboot then refuses with
+// the rule's words, creates nothing, and leaves that primary running.
+func TestRebootOfARolledBackStartRefusesBesideALegacyPrimary(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	env.cannedTree("/repo", "/repo/sub")
+	// The legacy co-tenant, created past the occupancy guard (no rows) as the
+	// older couch that wrote such a store did.
+	resolution, err := env.Couch.resolveStartResolution(context.Background(), StartArgs{Worktree: "/repo", Cwd: "/repo/sub"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cotenant, _, err := env.Couch.spawnResolved(context.Background(), resolution, nil)
+	if err != nil {
+		t.Fatalf("seed the legacy co-tenant: %v", err)
+	}
+	env.Proc.Set(cotenant.PID, cotenant.Identity)
+	husk := actionableTestThread("couch-00000000000000d2", time.Unix(100, 0).UTC())
+	husk.Incarnations = []ThreadIncarnation{{
+		State: IncarnationCreating,
+		Start: &ThreadStartClaim{Nonce: "start-0123456789abcdee", OwnerPID: 4243, OwnerIdentity: "supervisor"},
+	}}
+	record, err := env.Couch.Threads.CreateThread(husk)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := env.Couch.Threads.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := dispatchReboot(env, rebootArgs(record.Address))
+	if err == nil || !strings.Contains(err.Error(), "one primary slot per repository") {
+		t.Fatalf("reboot beside a legacy primary: %+v, %v; want the one-primary refusal", result, err)
+	}
+	if _, ok := result.Started(); ok {
+		t.Fatalf("a refused reboot started a thread: %+v", result)
+	}
+	after, err := env.Couch.Threads.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after.Records) != len(before.Records)-1 {
+		t.Fatalf("threads %d -> %d; want only the rolled-back husk gone", len(before.Records), len(after.Records))
+	}
+	if state, reason, err := env.Couch.classifyForAction(context.Background(), cotenant.Thread); err != nil || state != ThreadLive {
+		t.Fatalf("the legacy primary classifies %s/%s (%v), want live and untouched", state, reason, err)
+	}
+}
+
 // The Done-when, end to end: resume on a conversation that cannot come back
 // says so and names reboot; reboot then yields a live thread with a new tag,
 // and the old record is in the archive.
