@@ -383,6 +383,19 @@ func Operations() []Operation {
 			},
 		},
 		{
+			// RowAction false until M2 wires the switcher (pair#363): reachable
+			// only through dispatch in the meantime.
+			Name: "reboot", Summary: "Archive this conversation and start a fresh agent in the same slot or path",
+			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultStart,
+			Presentation: PresentationTUI, RowAction: false,
+			Args: []ArgSpec{
+				{Name: "path", Summary: "slot host checkout", Implicit: true},
+				{Name: "repo-scope", Summary: "repository scope derived from caller context", Implicit: true},
+				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
+				{Name: "agent", Summary: "agent for the fresh conversation", FlagOnly: true, ValueRequired: true},
+			},
+		},
+		{
 			Name: "leave", Summary: "Apply one disposition to every live work thread and leave Couch",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultConsole,
 			Presentation: PresentationTUI,

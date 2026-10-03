@@ -222,7 +222,9 @@ func TestResumeOperationOnASlotPathAdoptsALostPointer(t *testing.T) {
 // come back by this route, the refusal names reboot.
 //
 // This pins the COLD branch (native binding), where the proof is per agent.
-// See the M1 Log: the detached-session proof does not distinguish agents.
+// The WARM branch's proof (DetachedSessions) echoes the agent it is asked
+// about and does not observe which agent runs in the session, so a wrong
+// guess there is not caught by the proof (pair#363 M1 finding).
 func TestResumeAdoptionWithTheWrongAgentIsNotProved(t *testing.T) {
 	env, local := slotRecoveryOperationFixture(t)
 	writeSlotPathPreference(t, local, "codex")

@@ -406,17 +406,22 @@ func withContinuationExits(record ThreadRecord, err error) error {
 
 // ContinuationRefuses is the single statement of continuationGuard's reach:
 // the operations it refuses while a thread retains an unfinished request --
-// relaunch (relaunch.go), switch-agent (switchagent.go), a cold resume
-// (resume.go) and every non-warm start claim (threadstore.go). Park and detach
-// never read the request. The switcher filters a failed row's actions through
-// this rather than restating the list. TestContinuationRefusesMatchesTheGuard-
-// ForEveryRowAction drives relaunch, switch-agent's preview (which SwitchAgent
-// re-runs), a cold resume and a cold start claim into the guard -- refused by
-// its own words, having written nothing -- and park, detach, name and describe
-// to success, through the production dispatcher (#280).
+// relaunch (relaunch.go), switch-agent (switchagent.go) and every non-warm
+// start claim (threadstore.go). Park and detach never read the request. The
+// switcher filters a failed row's actions through this rather than restating
+// the list. TestContinuationRefusesMatchesTheGuardForEveryRowAction drives
+// relaunch, switch-agent's preview (which SwitchAgent re-runs) and a cold start
+// claim into the guard -- refused by its own words, having written nothing --
+// and park, detach, name and describe to success, through the production
+// dispatcher (#280).
+//
+// The `resume` OPERATION left this list in #363: it routes a retained request
+// to its own executor (ChooseResumeRoute -- RetryContinuation for a failed or
+// running request, RecoverThread for a pending one) instead of meeting the
+// guard. The guard still protects a cold ResumeContextWith reached directly.
 func ContinuationRefuses(operation string) bool {
 	switch operation {
-	case "relaunch", "switch-agent", "prepare-switch-agent", "resume", "start":
+	case "relaunch", "switch-agent", "prepare-switch-agent", "start":
 		return true
 	}
 	return false

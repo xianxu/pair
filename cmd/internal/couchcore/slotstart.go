@@ -266,7 +266,7 @@ func (c *Couch) spawnManagedResolution(ctx context.Context, resolution StartReso
 		return c.OpenSlot(ctx, slot.WorktreeRoot, resolution.RequestedAgent)
 	case StartCreate:
 		if resolution.ReuseSlot {
-			return c.startFreshSlot(ctx, slot.WorktreeRoot, resolution.RequestedAgent, true, &resolution)
+			return c.startFreshSlot(ctx, slot.WorktreeRoot, resolution.RequestedAgent, true, &resolution, nil)
 		}
 	default:
 		return StartResult{}, fmt.Errorf("invalid slot start action %q", resolution.Action)

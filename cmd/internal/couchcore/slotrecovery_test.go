@@ -50,7 +50,7 @@ func TestStartCreateReuseRefusesAnOccupiedCurrent(t *testing.T) {
 	if _, err := local.CreateThread(old); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := env.Couch.startFreshSlot(context.Background(), local.slot.WorktreeRoot, "claude", true, nil); !errors.Is(err, ErrStartResolutionChanged) {
+	if _, err := env.Couch.startFreshSlot(context.Background(), local.slot.WorktreeRoot, "claude", true, nil, nil); !errors.Is(err, ErrStartResolutionChanged) {
 		t.Fatalf("occupied reuse error = %v, want resolution drift", err)
 	}
 }

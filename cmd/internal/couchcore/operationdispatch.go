@@ -295,6 +295,17 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				return nil, err
 			}
 			return c.ArchiveThread(ctx, address)
+		case "reboot":
+			if path := a["path"]; path != "" {
+				return c.Reboot(ctx, RebootTarget{Path: path, Agent: a["agent"]})
+			}
+			// Exact-tag addressing reaches unreadable records too: an
+			// unreadable :0 is the case reboot archives on its own.
+			address, err := resolveThreadForArchive(c, a)
+			if err != nil {
+				return nil, err
+			}
+			return c.Reboot(ctx, RebootTarget{Address: address, Agent: a["agent"]})
 		case "recover-thread", "recover-checkpoint":
 			address, err := resolveOperationThread(c, a)
 			if err != nil {

@@ -262,10 +262,15 @@ func (c *Couch) selectedSlot(ctx context.Context, path string) (*ThreadStore, Sl
 }
 
 func (c *Couch) StartFreshSlot(ctx context.Context, path, agent string) (StartResult, error) {
-	return c.startFreshSlot(ctx, path, agent, false, nil)
+	return c.startFreshSlot(ctx, path, agent, false, nil, nil)
 }
 
-func (c *Couch) startFreshSlot(ctx context.Context, path, agent string, requireEmpty bool, accepted *StartResolution) (StartResult, error) {
+// startFreshSlot archives the slot's current record (if any) and starts a fresh
+// conversation in one slot journal. profile, when set, is a launch profile the
+// caller already resolved before an irreversible step (reboot resolves it
+// before quiescing), so it is not re-resolved here; it is distinct from
+// accepted, which also triggers revalidateCreatedSlot.
+func (c *Couch) startFreshSlot(ctx context.Context, path, agent string, requireEmpty bool, accepted *StartResolution, preflight *LaunchProfileResolution) (StartResult, error) {
 	local, slot, err := c.selectedSlot(ctx, path)
 	if err != nil {
 		return StartResult{}, err
@@ -296,7 +301,9 @@ func (c *Couch) startFreshSlot(ctx context.Context, path, agent string, requireE
 		return StartResult{}, errors.New("slot has a live or unresolved owner; park the running conversation before starting fresh")
 	}
 	var profile LaunchProfileResolution
-	if accepted != nil {
+	if preflight != nil {
+		profile = LaunchProfileResolution{Profile: cloneLaunchProfile(preflight.Profile), AgentSource: preflight.AgentSource, ArgvSource: preflight.ArgvSource}
+	} else if accepted != nil {
 		profile = LaunchProfileResolution{
 			Profile:     cloneLaunchProfile(accepted.Profile),
 			AgentSource: accepted.AgentSource,

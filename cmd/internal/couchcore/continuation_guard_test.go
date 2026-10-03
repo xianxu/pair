@@ -77,7 +77,6 @@ func TestFailedContinuationRelaunchesOnceDismissed(t *testing.T) {
 func TestContinuationRefusesMatchesTheGuardForEveryRowAction(t *testing.T) {
 	type drive struct {
 		args map[string]string
-		cold bool // retire the helper first: the guard reaches only a COLD resume
 	}
 	driven := map[string]drive{
 		"relaunch":             {args: map[string]string{}},
@@ -86,7 +85,6 @@ func TestContinuationRefusesMatchesTheGuardForEveryRowAction(t *testing.T) {
 		"detach":               {args: map[string]string{}},
 		"name":                 {args: map[string]string{"name": "renamed"}},
 		"describe":             {args: map[string]string{}},
-		"resume":               {args: map[string]string{}, cold: true},
 	}
 	rowActionDrivenAs := map[string]string{"switch-agent": "prepare-switch-agent"}
 	exempt := map[string]string{
@@ -94,6 +92,7 @@ func TestContinuationRefusesMatchesTheGuardForEveryRowAction(t *testing.T) {
 		"dismiss-continuation": "an exit from the failed request, not an operation it gates",
 		"archive":              "never offered on a live row; its own admission is archiveContinuationVacant",
 		"alias":                "repository metadata keyed by primary root; it addresses no thread, so no thread's continuation gates it",
+		"resume":               "#363: routes a retained request to RetryContinuation/RecoverThread instead of the guard; pinned by TestResumeOperationRetriesAFailedContinuation and TestChooseResumeRoute",
 		"recover-thread":       "offered only on recovery rows, never composed",
 		"recover-checkpoint":   "offered only on recovery rows, never composed",
 		"open-slot":            "path-based dispatcher tested by TestSlotOpenColdUsesContinuationGuard; hosted/warm open preserves the existing conversation",
@@ -114,13 +113,6 @@ func TestContinuationRefusesMatchesTheGuardForEveryRowAction(t *testing.T) {
 	for name, d := range driven {
 		t.Run(name, func(t *testing.T) {
 			env, live := switchEnvWithLiveThread(t)
-			if d.cold {
-				var err error
-				live, err = env.Couch.Threads.updateExistingThread(live.Address, live.Revision, func(r *ThreadRecord) error { r.Incarnations = nil; return nil })
-				if err != nil {
-					t.Fatal(err)
-				}
-			}
 			if name == "detach" {
 				// Detach SIGTERMs the helper and waits for it, as newDetachFixture
 				// models; without this the fake never exits and detach fails for a
