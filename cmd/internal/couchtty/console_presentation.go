@@ -27,7 +27,7 @@ func (c *Console) statusModelLocked() StatusModel {
 		members[p.thread] = actor
 		index, found := byAddress[p.thread]
 		if !found {
-			row := couchcore.ActionableThreadSummary{Address: p.thread, StartingPath: string(p.tree), WorkingPath: string(p.tree), Name: p.label}
+			row := couchcore.ActionableThreadSummary{Address: p.thread, StartingPath: string(p.tree), WorkingPath: string(p.tree)}
 			if target, ok := slotsByPath[string(p.tree)]; ok {
 				row.Target = target
 				row.RowKey, _ = target.RowKey()
@@ -43,9 +43,6 @@ func (c *Console) statusModelLocked() StatusModel {
 		if rows[index].WorkingPath == "" {
 			rows[index].WorkingPath = string(p.tree)
 		}
-		// Ordinary tabs retain their attached label. Workspace labels for a
-		// verified slot group are supplied by PresentThreads instead.
-		rows[index].Name = p.label
 	}
 	for _, pending := range pendingPlaceholders(c.menu.Reattach) {
 		if _, attached := members[pending.Address]; attached {
@@ -54,8 +51,10 @@ func (c *Console) statusModelLocked() StatusModel {
 		members[pending.Address] = StatusActor{Thread: pending.Address, Placeholder: true, Loading: pending.Loading}
 		if index, found := byAddress[pending.Address]; !found {
 			rows = append(rows, couchcore.ActionableThreadSummary{Address: pending.Address})
-		} else if rows[index].Name == "" && rows[index].StartingPath != "" {
-			rows[index].Name = couchcore.Worktree(rows[index].StartingPath).Repo()
+		} else if rows[index].WorkingPath == "" {
+			// Labelled as the chip will be -- the starting path's repository
+			// -- so the label does not change when the thread arrives.
+			rows[index].WorkingPath = rows[index].StartingPath
 		}
 	}
 	for _, entry := range PresentThreads(rows, c.menu.SlotGit) {

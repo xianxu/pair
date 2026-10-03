@@ -60,6 +60,14 @@ representative evidence, not an exhaustive index.
   from booleans in each consumer. Persistent refusals need the failed resource
   and an explicit recovery action, not only a retry instruction. (#350)
 
+- A refusal or notice that names a next step must name an action reachable from
+  that row or caller, so choose the text from the same authority that decides
+  the offered actions, per row kind. Hand-written advice drifts from the menu
+  each time an action is added, removed or narrowed. (#363, three times in one
+  issue)
+- A sweep for a removed name must match it in prose too, not only as a quoted
+  identifier: "retry open-slot" survived #363's quoted-name grep in an error
+  string, and comments kept describing archive and name/describe. (#363 M2 BR)
 - Give each fact one production authority and make consumers derive from it.
   Negative greps, duplicate registries, and prose tables drift. If a rule fails
   twice, turn it into an executable check. (ARCH-PURPOSE, #206, #256)

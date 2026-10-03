@@ -263,10 +263,14 @@ func (c *Couch) spawnManagedResolution(ctx context.Context, resolution StartReso
 	case StartFresh:
 		return c.StartFreshSlot(ctx, slot.WorktreeRoot, resolution.RequestedAgent)
 	case StartOpen:
-		return c.OpenSlot(ctx, slot.WorktreeRoot, resolution.RequestedAgent)
+		// The start form's open reaches OpenSlot without resume's top, so it
+		// takes the same exit advice: a refusal that means the conversation
+		// cannot come back names reboot (pair#363).
+		start, err := c.OpenSlot(ctx, slot.WorktreeRoot, resolution.RequestedAgent)
+		return start, withRebootAdvice(err)
 	case StartCreate:
 		if resolution.ReuseSlot {
-			return c.startFreshSlot(ctx, slot.WorktreeRoot, resolution.RequestedAgent, true, &resolution)
+			return c.startFreshSlot(ctx, slot.WorktreeRoot, resolution.RequestedAgent, true, &resolution, nil)
 		}
 	default:
 		return StartResult{}, fmt.Errorf("invalid slot start action %q", resolution.Action)

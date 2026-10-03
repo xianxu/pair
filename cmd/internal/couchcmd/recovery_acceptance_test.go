@@ -49,14 +49,19 @@ func (p recoveryAcceptanceProc) Identity(pid int) (string, error) {
 
 func TestRecoveryDisposableInteractive(t *testing.T) {
 	mode := os.Getenv("PAIR_RECOVERY_INTERACTIVE")
-	if mode != "warm" && mode != "checkpoint" && mode != "retired-checkpoint" {
+	if mode != "warm" && mode != "reboot" {
 		t.Skip("run tests/couch-recovery-smoke.sh for the disposable UI")
 	}
 	runRecoveryMenuAcceptance(t, mode)
 }
 
 func TestRecoveryMenuReachesTerminalAfterActualHelperDeath(t *testing.T) {
-	for _, mode := range []string{"warm", "checkpoint", "retired-checkpoint", "archive"} {
+	// The checkpoint modes drove "Recover from checkpoint", the typed-path
+	// import #363 removed with the rest of the repair entries; a retained
+	// checkpoint now comes back through resume (couchcore's
+	// TestResumeOperationRetriesAFailedContinuation and TestChooseResumeRoute).
+	// Reboot is archive's successor on a row that cannot come back.
+	for _, mode := range []string{"warm", "reboot"} {
 		t.Run(mode, func(t *testing.T) { runRecoveryMenuAcceptance(t, mode) })
 	}
 }
@@ -157,6 +162,11 @@ func runRecoveryMenuAcceptance(t *testing.T, mode string) {
 	c.FreshRegistration, c.OrientationStatus = receipt.Registered, receipt.Read
 	c.ContinuationGeneration = receipt.Generation
 	rt.runner.AfterAcknowledge = func(id string) error {
+		if mode == "reboot" {
+			// The fresh agent is a new record under a new tag; the old one
+			// is already in the archive, which the result loop asserts.
+			return nil
+		}
 		current, err := c.Threads.GetThread(source.Address)
 		if err != nil {
 			return err
@@ -256,10 +266,7 @@ func runRecoveryMenuAcceptance(t *testing.T, mode string) {
 	// checkpoint written, no native binding consulted.
 	operation := "resume"
 	if mode != "warm" {
-		operation = "recover-checkpoint"
-		if mode == "archive" {
-			operation = "archive"
-		}
+		operation = "reboot"
 		state := couchtty.NewMenuState(rows, couchcore.ThreadAddress{})
 		state, _ = couchtty.ReduceMenu(state, couchtty.MenuEvent{Kind: couchtty.MenuEventKey, Key: couchtty.PanelKey{Kind: couchtty.KeyTab}})
 		keys = append(keys, '\t')
@@ -270,15 +277,10 @@ func runRecoveryMenuAcceptance(t *testing.T, mode string) {
 		if state.CurrentFrame().SelectedItem != operation {
 			t.Fatalf("recovery path action absent: %+v", state.CurrentFrame())
 		}
+		// Enter opens reboot's confirmation; Down selects the action over
+		// cancel, and the Enter below confirms it.
 		keys = append(keys, '\r')
-		if mode != "archive" {
-			keys = append(keys, []byte(checkpointPath)...)
-		} else {
-			keys = append(keys, []byte("\x1b[B")...)
-			if err := os.Remove(checkpointPath); err != nil {
-				t.Fatal(err)
-			}
-		}
+		keys = append(keys, []byte("\x1b[B")...)
 	}
 	keys = append(keys, '\r')
 	type completed struct {
@@ -323,16 +325,20 @@ func runRecoveryMenuAcceptance(t *testing.T, mode string) {
 				t.Fatalf("%s: %v", result.call.Name, result.err)
 			}
 			if result.call.Name == operation {
-				if mode == "archive" {
+				if mode == "reboot" {
 					archived, err := c.Threads.ArchivedThreads()
 					if err != nil || len(archived) != 1 || archived[0].Address != source.Address {
-						t.Fatalf("archive result: %+v %v", archived, err)
+						t.Fatalf("reboot archive: %+v %v", archived, err)
 					}
 					if _, err := c.Threads.GetThread(source.Address); err == nil {
-						t.Fatal("archived stale row stayed active")
+						t.Fatal("rebooted stale row stayed active")
 					}
 					if got, err := os.ReadFile(paths.Log()); err != nil || !bytes.Equal(got, history) {
-						t.Fatalf("archive changed prompt history: %q %v", got, err)
+						t.Fatalf("reboot changed prompt history: %q %v", got, err)
+					}
+					rebooted, ok := result.value.(couchcore.RebootResult)
+					if !ok || rebooted.Start.Record.Thread == source.Address || rebooted.Start.Record.Thread == (couchcore.ThreadAddress{}) {
+						t.Fatalf("reboot did not start a fresh tag: %#v", result.value)
 					}
 					return
 				}
@@ -437,14 +443,14 @@ func runInteractiveRecoveryConsole(t *testing.T, console *couchtty.Console, c *c
 	if mode == "warm" {
 		instruction += "Select the detached row and press Enter to reattach.\r\n"
 	} else {
-		instruction += "Select the stale row, Tab, Recover from checkpoint, then enter:\r\n" + path + "\r\n"
+		instruction += "Select the stale row, Tab, reboot, then confirm it.\r\n"
 	}
 	instruction += "After recovery, type text to check echo. Ctrl+D exits. Five-minute limit.\r\n"
 	echo(initial, instruction)
 	actual := console.Ops()
 	console.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
 		value, err := actual(call)
-		if err == nil && (call.Name == "resume" || call.Name == "recover-thread" || call.Name == "recover-checkpoint") {
+		if err == nil && (call.Name == "resume" || call.Name == "reboot") {
 			if child, ok := value.(couchcore.StartedChild); ok {
 				if start, ok := child.Started(); ok {
 					targetMu.Lock()
@@ -453,7 +459,7 @@ func runInteractiveRecoveryConsole(t *testing.T, console *couchtty.Console, c *c
 					terminal := start.Handle.(couchcore.TerminalHandle).Terminal()
 					banner := "\r\nRECOVERED SAME THREAD: " + string(source.Address.Tag) + "\r\n"
 					if mode != "warm" {
-						banner += "Checkpoint NEXT ACTION: RECOVERY-EXACT-250\r\n"
+						banner = "\r\nREBOOTED: fresh agent " + string(start.Record.Thread.Tag) + "; " + string(source.Address.Tag) + " archived\r\n"
 					}
 					banner += "Deterministic fixture echo is ready. Type text; Ctrl+D exits.\r\n"
 					echo(terminal, banner)
@@ -471,12 +477,14 @@ func runInteractiveRecoveryConsole(t *testing.T, console *couchtty.Console, c *c
 	}
 	targetMu.Unlock()
 	initial.Exit(0)
-	record, err := c.Threads.GetThread(source.Address)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if record.Address != source.Address {
-		t.Fatal("interactive recovery changed thread address")
+	if mode == "warm" {
+		record, err := c.Threads.GetThread(source.Address)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if record.Address != source.Address {
+			t.Fatal("interactive recovery changed thread address")
+		}
 	}
 	fmt.Fprintln(os.Stderr, "Disposable recovery UI closed; fixture resources will be removed.")
 }

@@ -3,7 +3,6 @@ package couchtty
 import (
 	"testing"
 
-	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 )
 
@@ -14,24 +13,12 @@ import (
 // an operator loses trust in a menu. Adding a sixth action to the list without
 // making it reachable now fails here rather than in a smoke test.
 func TestEveryOfferedActionIsReachableFromEnter(t *testing.T) {
-	address := menuAddress("brain")
-	for _, row := range []struct {
-		name  string
-		state couchcore.ActionableThreadState
-	}{
-		{"live", couchcore.ThreadLive},
-		{"parked", couchcore.ThreadParked},
-		{"busy", couchcore.ThreadBusy},
-		{"unusable", couchcore.ThreadUnusable},
-	} {
-		t.Run(row.name, func(t *testing.T) {
-			thread := couchcore.ActionableThreadSummary{
-				Address: address, WorkingPath: "/w/brain", Name: "brain", State: row.state,
-			}
+	everOffered := 0
+	for _, shape := range everyMenuRowShape(t) {
+		thread, address := shape.row, shape.row.Address
+		t.Run(shape.name, func(t *testing.T) {
 			offered := menuActionItems(thread)
-			if len(offered) == 0 {
-				t.Fatalf("%s row offers no actions", row.name)
-			}
+			everOffered += len(offered)
 			for _, action := range offered {
 				t.Run(action, func(t *testing.T) {
 					state := NewMenuState([]couchcore.ActionableThreadSummary{thread}, address)
@@ -65,6 +52,9 @@ func TestEveryOfferedActionIsReachableFromEnter(t *testing.T) {
 			}
 		})
 	}
+	if everOffered == 0 {
+		t.Fatal("no row offers anything; this sweep is passing by vacuity")
+	}
 }
 
 // The direction the plan actually asked for, and the one the sweep above cannot
@@ -74,33 +64,14 @@ func TestEveryOfferedActionIsReachableFromEnter(t *testing.T) {
 // has one source of truth (Operation.RowAction) instead of two lists that agree
 // until someone adds to one.
 func TestRowActionDeclarationsAndTheMenuAgreeInBothDirections(t *testing.T) {
+	// The SAME derived domain the action table is tested over, not a
+	// hand-picked set of rows: a row shape this sweep never built is a row
+	// whose offer it could not check.
 	offered := map[string]bool{}
-	for _, action := range menuActionItems(menuSlotRow(1, "")) {
-		offered[action] = true
-	}
-	for _, state := range []couchcore.ActionableThreadState{
-		couchcore.ThreadLive, couchcore.ThreadParked, couchcore.ThreadBusy, couchcore.ThreadUnusable,
-		couchcore.ThreadDetached,
-	} {
-		for _, action := range menuActionItems(couchcore.ActionableThreadSummary{
-			Address: menuAddress("brain"), WorkingPath: "/w/brain", Name: "brain", State: state,
-		}) {
+	for _, shape := range everyMenuRowShape(t) {
+		for _, action := range menuActionItems(shape.row) {
 			offered[action] = true
 		}
-	}
-	for _, phase := range checkpoint.AllPhases() {
-		for _, action := range menuActionItems(couchcore.ActionableThreadSummary{
-			Address: menuAddress("continuation"), State: couchcore.ThreadUnusable,
-			Continuation: &couchcore.ContinuationStatus{RequestID: "request", Phase: phase},
-		}) {
-			offered[action] = true
-		}
-	}
-	for _, action := range menuActionItems(recoveryMenuRow()) {
-		offered[action] = true
-	}
-	for _, action := range menuActionItems(livePrimaryMenuRow(t)) {
-		offered[action] = true
 	}
 	// Read straight off the declaration. A helper here would need a production
 	// caller to survive the dead-symbol guard, and the only honest one -- having
@@ -118,8 +89,12 @@ func TestRowActionDeclarationsAndTheMenuAgreeInBothDirections(t *testing.T) {
 			t.Errorf("%q declares RowAction but no row state offers it — declared and unreachable", name)
 		}
 	}
+	// add-slot is the switcher's own affordance, not an operation: it opens
+	// the start form, whose submit is the declared `start`. It is reachable
+	// (TestEveryOfferedActionIsReachableFromEnter) and has nothing to declare.
+	menuLocal := map[string]bool{"add-slot": true}
 	for name := range offered {
-		if !declared[name] {
+		if !declared[name] && !menuLocal[name] {
 			t.Errorf("the switcher offers %q on a row, but it does not declare RowAction", name)
 		}
 	}
@@ -135,7 +110,7 @@ func TestEndsItsOwnChildNamesTheDeliberateOnes(t *testing.T) {
 			t.Errorf("%q deliberately ends its child but is not named, so its exit raises a spurious notice", operation)
 		}
 	}
-	for _, operation := range []string{"switch", "resume", "archive", "name", "describe", "leave", ""} {
+	for _, operation := range []string{"switch", "resume", "reboot", "alias", "leave", ""} {
 		if endsItsOwnChild(operation) {
 			t.Errorf("%q does not end its own child, so marking its exit expected would SWALLOW a real one", operation)
 		}

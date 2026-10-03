@@ -1442,9 +1442,11 @@ func TestNameSurvivesActorReplacement(t *testing.T) {
 // produced -- six threads in one repo -- was the concrete cost. couch keeps one
 // thread per path until per-repo policy is modelled.
 //
-// The tree is still not the bound: two threads in one TREE at different
-// subdirectories remain legal, which is what TestCoTenantsAreAddressableByActorID
-// now exercises. Only the exact path is one-at-a-time.
+// pair#363 widens it again, to one PRIMARY thread per repository: a start in a
+// subdirectory of a repository whose :0 exists returns to it or refuses
+// (TestSpawnInSubdirectoryOfALivePrimaryRefuses). Slots are how a repository
+// gets a second agent. Co-tenants from a store that predates the rule still
+// resolve, which is what TestCoTenantsAreAddressableByActorID exercises.
 func TestASecondThreadAtOnePathIsRefused(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	first, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
@@ -1458,10 +1460,106 @@ func TestASecondThreadAtOnePathIsRefused(t *testing.T) {
 	// where this fires. The first version named `couch <path>` (the command
 	// that just refused) and `couch --show` as a way to retire (it is
 	// read-only) -- advice that fails at the moment someone is already stuck.
-	for _, want := range []string{string(first.Thread.Tag), "ctrl-space", "Tab → archive", "couch --show"} {
+	//
+	// The held thread is LIVE, and a live row offers no reboot (pair#363), so
+	// "Tab → reboot" would name an action the row does not offer; it says to
+	// restart inside Pair instead.
+	for _, want := range []string{string(first.Thread.Tag), "ctrl-space", "Alt+Shift+N", "couch --show"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("refusal %q does not mention %q", err, want)
 		}
+	}
+	if strings.Contains(err.Error(), "reboot") {
+		t.Fatalf("refusal %q names reboot, which a live row does not offer", err)
+	}
+}
+
+// pair#363: one primary per repository. The start form in a subdirectory of
+// a repository whose :0 is live refuses through SpawnPrepared, names the
+// thread it found, and starts nothing.
+func TestSpawnInSubdirectoryOfALivePrimaryRefuses(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	env.cannedTree("/repo", "/repo/sub")
+	first, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
+	before, err := env.Couch.Threads.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	opsBefore := len(env.Runner.Ops)
+
+	args := StartArgs{Worktree: "/repo", Cwd: "/repo/sub"}
+	prepared, err := env.Couch.PrepareStart(context.Background(), args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = env.Couch.SpawnPrepared(context.Background(), args, prepared.Resolution.Fingerprint)
+	if err == nil {
+		t.Fatal("a second primary started in a subdirectory of a live one")
+	}
+	for _, want := range []string{"one primary slot per repository", "repo", string(first.Thread.Tag), "ctrl-space"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("refusal %q does not mention %q", err, want)
+		}
+	}
+	after, err := env.Couch.Threads.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after.Records) != len(before.Records) || len(env.Runner.Ops) != opsBefore {
+		t.Fatalf("the refusal had effects: records %d -> %d, ops %q", len(before.Records), len(after.Records), env.Runner.Ops[opsBefore:])
+	}
+}
+
+// The refusal's "start fresh" line names only what the held thread's row
+// offers (lessons: refusal-names-unoffered-action): reboot where reboot is
+// permitted, which is exactly what the switcher offers it on; a live :0 gets
+// no reboot (pair#363 Spec), so it is told to restart inside Pair instead.
+// Derived over every state the occupancy guard can hold.
+func TestPrimaryOccupiedFreshStepNamesOnlyWhatTheRowOffers(t *testing.T) {
+	for _, state := range AllThreadStates() {
+		for _, reason := range append(AllThreadReasons(), "") {
+			if (state == ThreadUnusable) != (reason != "") {
+				continue
+			}
+			row := ActionableThreadSummary{Address: ThreadAddress{RepoScope: "scope", Tag: "couch-0000000000000001"}, WorkingPath: "/repo", State: state, Reason: reason}
+			held, ok := ScopeHoldsUsableThread([]ActionableThreadSummary{row}, "scope")
+			if !ok {
+				continue
+			}
+			step := primaryFreshStep(held)
+			if names := strings.Contains(step, "reboot"); names != RebootableState(state, reason) {
+				t.Errorf("%s/%s: fresh step %q names reboot = %v, reboot permitted = %v", state, reason, step, names, RebootableState(state, reason))
+			}
+			if step == "" {
+				t.Errorf("%s/%s: no way to start fresh", state, reason)
+			}
+		}
+	}
+}
+
+// pair#363 resolved ambiguity 1, operator-confirmed: couch starts only inside
+// a Git repository. A directory git does not recognise refuses at the first
+// seam that asks (Resolve's `rev-parse --show-toplevel`), before any record or
+// child exists. So no non-Git row can exist, and the action table has no
+// non-Git kind; supporting such starts would be its own issue.
+func TestStartInANonGitDirectoryRefuses(t *testing.T) {
+	env := newTestEnv(t) // no canned trees: git answers nothing for /plain
+	args := StartArgs{Cwd: "/plain"}
+	for name, start := range map[string]func() error{
+		"start form": func() error { _, err := env.Couch.PrepareStart(context.Background(), args); return err },
+		"startup":    func() error { _, err := env.Couch.StartInteractive(context.Background(), args); return err },
+	} {
+		err := start()
+		if err == nil || !strings.Contains(err.Error(), "resolve worktree") {
+			t.Fatalf("%s in a non-Git directory = %v, want Resolve's refusal", name, err)
+		}
+		snapshot, snapErr := env.Couch.Threads.Snapshot()
+		if snapErr != nil || len(snapshot.Records) != 0 || len(env.Runner.Ops) != 0 {
+			t.Fatalf("%s refusal had effects: records %+v, ops %q, %v", name, snapshot.Records, env.Runner.Ops, snapErr)
+		}
+	}
+	if !slices.Contains(env.Git.Ops, "/plain: rev-parse --show-toplevel") {
+		t.Fatalf("git calls = %q, want the refusal to come from asking git for the toplevel", env.Git.Ops)
 	}
 }
 
@@ -1675,14 +1773,24 @@ func TestCoTenantsAreAddressableByActorID(t *testing.T) {
 	// BR-24. Co-tenants share a tree and a label, so without an ActorID branch
 	// the escape hatch creates a state couch cannot exit.
 	//
-	// They now differ by PATH: one thread per repo path is enforced (#181), so
-	// two threads in one tree live in different subdirectories. The state this
-	// test protects is unchanged -- both still resolve from the tree ref, and
-	// only an ActorID separates them.
+	// They differ by PATH. Since pair#363 a repository has one primary, so
+	// couch no longer creates the second one; a store that predates the rule
+	// still holds such pairs, and the state this test protects is unchanged --
+	// both resolve from the tree ref, and only an ActorID separates them. The
+	// second is created past the occupancy guard (no rows), as the older couch
+	// that wrote such a store did.
 	env := newTestEnv(t, "/repo")
 	env.cannedTree("/repo", "/repo/sub")
 	first, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
-	second, _ := env.spawn(t, StartArgs{Worktree: "/repo", Cwd: "/repo/sub"})
+	resolution, err := env.Couch.resolveStartResolution(context.Background(), StartArgs{Worktree: "/repo", Cwd: "/repo/sub"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, _, err := env.Couch.spawnResolved(context.Background(), resolution, nil)
+	if err != nil {
+		t.Fatalf("seed the legacy co-tenant: %v", err)
+	}
+	env.Proc.Set(second.PID, second.Identity)
 	if first.ID == second.ID {
 		t.Fatal("expected two distinct actors")
 	}

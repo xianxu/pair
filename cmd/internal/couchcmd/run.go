@@ -493,7 +493,7 @@ func dispatchInteractiveStart(c *couchcore.Couch, args map[string]string) (couch
 
 func operationUsesCurrentRepoScope(name string) bool {
 	switch name {
-	case "show", "name", "describe", "park", "resume", "retry-continuation", "dismiss-continuation", "recover-thread", "recover-checkpoint", "archive":
+	case "show", "park", "resume", "reboot", "retry-continuation", "dismiss-continuation":
 		return true
 	default:
 		return false
@@ -503,7 +503,7 @@ func operationUsesCurrentRepoScope(name string) bool {
 // operationOwnsLive is the pure entrypoint policy. Both ways into Couch must
 // acquire the same singleton before they can create a child or take a terminal.
 func operationOwnsLive(name string) bool {
-	return name == "open-slot" || name == "fresh-slot" || name == "start" || name == "resume" || name == "retry-continuation" || name == "recover-thread" || name == "recover-checkpoint" || name == "archive"
+	return name == "start" || name == "resume" || name == "reboot" || name == "retry-continuation"
 }
 
 // WantsConsole is the console DECISION, separated from building one.
@@ -518,7 +518,7 @@ func operationOwnsLive(name string) bool {
 // draws on the output fd, so a redirected stdout with a tty stdin would
 // otherwise build a console that paints into a file.
 func WantsConsole(name string, hasTerminal bool) bool {
-	return operationOwnsLive(name) && name != "archive" && hasTerminal
+	return operationOwnsLive(name) && hasTerminal
 }
 
 // consoleRunner decides which Runner this invocation gets, and builds the
@@ -830,17 +830,23 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 		if warning := v.Warning(); warning != "" {
 			fmt.Fprintf(w, "%s\n", warning)
 		}
+	case couchcore.RebootResult:
+		// A reboot that started an agent rendered above, as a start. What
+		// reaches here retired a record and started nothing; say why.
+		if v.Archived != (couchcore.ThreadAddress{}) {
+			fmt.Fprintf(w, "archived %s\n", v.Archived.Tag)
+		}
+		if v.Reason != "" {
+			fmt.Fprintf(w, "no fresh agent started: %s\n", v.Reason)
+		}
+		if warning := v.Warning(); warning != "" {
+			fmt.Fprintf(w, "%s\n", warning)
+		}
 	case couchcore.StopResult:
 		if v.Signalled {
 			fmt.Fprintf(w, "signalled %s on %s (pid %d)\n", v.Record.ID, v.Record.Args.Worktree, v.Record.PID)
 		} else {
 			fmt.Fprintf(w, "forgot %s on %s -- it was not running\n", v.Record.ID, v.Record.Args.Worktree)
-		}
-	case string:
-		if v == "" {
-			fmt.Fprintln(w, "(no description)")
-		} else {
-			fmt.Fprintln(w, v)
 		}
 	default:
 		fmt.Fprintf(w, "%v\n", v)

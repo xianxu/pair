@@ -227,7 +227,9 @@ func (c *Console) acceptContinuationRequests(result continuationScanResult) {
 }
 
 func (c *Console) finishContinuationOperation(completed operationCompletion, err error) {
-	if completed.origin.ContinuationID == "" && (completed.name == "recover-thread" || completed.name == "recover-checkpoint") {
+	// A routed resume (pair#363) returns RecoverThread's or RetryContinuation's
+	// ContinuationResult; a published request in it starts the watch.
+	if completed.origin.ContinuationID == "" && completed.name == "resume" {
 		if result, ok := completed.value.(couchcore.ContinuationResult); ok && result.Status.RequestID != "" && result.Status.Address == completed.origin.Address {
 			completed.origin.ContinuationID = result.Status.RequestID
 			c.mu.Lock()

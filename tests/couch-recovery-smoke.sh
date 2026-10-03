@@ -9,8 +9,8 @@ if [ "${PAIR_SMOKE_ISOLATED:-}" != 1 ]; then
   exec sh "$root/tests/with-isolated-pair.sh" env PAIR_SMOKE_ISOLATED=1 sh "$root/tests/couch-recovery-smoke.sh" "$@"
 fi
 case "${1:-warm}" in
-  warm|checkpoint|retired-checkpoint) mode=${1:-warm} ;;
-  *) printf 'Usage: %s [warm|checkpoint|retired-checkpoint]\n' "$0" >&2; exit 2 ;;
+  warm|reboot) mode=${1:-warm} ;;
+  *) printf 'Usage: %s [warm|reboot]\n' "$0" >&2; exit 2 ;;
 esac
 if [ ! -t 0 ] || [ ! -t 1 ]; then
   printf 'Run this smoke test in an interactive terminal.\n' >&2

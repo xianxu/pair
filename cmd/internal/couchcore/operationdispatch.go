@@ -189,13 +189,6 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 				return nil, err
 			}
 			return BuildArchivedInventory(records), nil
-		case "name":
-			address, err := resolveOperationThread(c, a)
-			if err != nil {
-				return nil, err
-			}
-			name := a["name"]
-			return c.ApplyThreadMetadata(address, ThreadMetadataPatch{Name: &name})
 		case "alias":
 			var alias *string
 			if v, supplied := a["alias"]; supplied {
@@ -209,19 +202,6 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 				alias = &empty
 			}
 			return c.RepositoryAlias(call.Context, a["ref"], alias)
-		case "describe":
-			address, err := resolveOperationThread(c, a)
-			if err != nil {
-				return nil, err
-			}
-			if d, supplied := a["description"]; supplied {
-				return c.ApplyThreadMetadata(address, ThreadMetadataPatch{Description: &d})
-			}
-			record, err := c.Threads.GetThread(address)
-			if err != nil {
-				return nil, err
-			}
-			return record.Description, nil
 		case "dismiss-continuation":
 			address, err := resolveOperationThread(c, a)
 			if err != nil {
@@ -287,20 +267,17 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				return nil, fmt.Errorf("accepted startup parameters are required")
 			}
 			return c.SwitchAgent(ctx, SwitchAgentRequest{Address: address, Agent: a["agent"], Argv: *argv, AcceptedFingerprint: a["fingerprint"]})
-		case "archive":
-			// Exact tag/ref addressing must also work for unreadable records;
-			// archive retains those without signalling an unproved session.
+		case "reboot":
+			if path := a["path"]; path != "" {
+				return c.Reboot(ctx, RebootTarget{Path: path, Agent: a["agent"]})
+			}
+			// Exact-tag addressing reaches unreadable records too: an
+			// unreadable :0 is the case reboot archives on its own.
 			address, err := resolveThreadForArchive(c, a)
 			if err != nil {
 				return nil, err
 			}
-			return c.ArchiveThread(ctx, address)
-		case "recover-thread", "recover-checkpoint":
-			address, err := resolveOperationThread(c, a)
-			if err != nil {
-				return nil, err
-			}
-			return c.RecoverThread(ctx, address, a["path"])
+			return c.Reboot(ctx, RebootTarget{Address: address, Agent: a["agent"]})
 		case "continue-thread", "retry-continuation", "continuation-status":
 			address, err := resolveOperationThread(c, a)
 			if err != nil {
@@ -320,10 +297,6 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				return nil, err
 			}
 			return c.ReadOrientationStatus(ctx, address, a["agent"], a["attempt"])
-		case "open-slot":
-			return c.OpenSlot(ctx, a["path"], a["agent"])
-		case "fresh-slot":
-			return c.StartFreshSlot(ctx, a["path"], a["agent"])
 		case "prepare-start":
 			path := a["path"]
 			if path == "" {
@@ -409,7 +382,24 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				return nil, fmt.Errorf("leave: invalid mode %q (want detach or park)", a["mode"])
 			}
 		case "resume":
-			if a["tag"] == "" && a["warm-only"] != "true" && c.Slots != nil {
+			// warm-only is the background reattach pass, and it stays a direct
+			// warm-only resume: no route may start an agent behind the
+			// operator's back (pair#206).
+			if a["warm-only"] == "true" {
+				address, err := resolveOperationThread(c, a)
+				if err != nil {
+					return nil, err
+				}
+				record, handle, err := c.ResumeContextWith(ctx, address, ResumeOptions{WarmOnly: true})
+				if err != nil {
+					return nil, err
+				}
+				return StartResult{Record: record, Handle: handle}, nil
+			}
+			if path := a["path"]; path != "" {
+				return c.ResumeTarget(ctx, ResumeTarget{Path: path})
+			}
+			if a["tag"] == "" && c.Slots != nil {
 				ref, recognized, err := ParseWorkspaceReference(a["ref"])
 				if err != nil {
 					return nil, err
@@ -419,18 +409,14 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 					if err != nil {
 						return nil, err
 					}
-					return c.OpenSlot(ctx, path, "")
+					return c.ResumeTarget(ctx, ResumeTarget{Path: path})
 				}
 			}
 			address, err := resolveOperationThread(c, a)
 			if err != nil {
 				return nil, err
 			}
-			record, handle, err := c.ResumeContextWith(ctx, address, ResumeOptions{WarmOnly: a["warm-only"] == "true"})
-			if err != nil {
-				return nil, err
-			}
-			return StartResult{Record: record, Handle: handle}, nil
+			return c.ResumeTarget(ctx, ResumeTarget{Address: address})
 		case "switch", "attach":
 			return nil, fmt.Errorf("%s requires an active couch console", call.Operation.Name)
 		default:

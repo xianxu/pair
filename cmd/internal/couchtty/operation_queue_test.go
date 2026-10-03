@@ -67,7 +67,7 @@ func TestOperationQueueCoalescesAndRefusesOverloadWithoutEffects(t *testing.T) {
 }
 
 func TestOperationQueueCarriesTypedResultForEveryMenuOperation(t *testing.T) {
-	for _, operation := range []string{"switch", "resume", "park", "name", "describe", "start", "leave"} {
+	for _, operation := range []string{"switch", "resume", "park", "reboot", "start", "leave"} {
 		t.Run(operation, func(t *testing.T) {
 			queue := newOperationQueue(1)
 			stop := make(chan struct{})

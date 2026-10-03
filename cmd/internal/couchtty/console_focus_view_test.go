@@ -16,8 +16,8 @@ func TestConsoleFocusViewPersistsAcrossSwitchAndReopen(t *testing.T) {
 	description.Store("working on focus view")
 	f.con.SetActionableProvider(func(context.Context, []couchcore.LiveTTYObservation) ([]couchcore.ActionableThreadSummary, error) {
 		return []couchcore.ActionableThreadSummary{
-			{Address: address, WorkingPath: "/repo", Name: "root", State: couchcore.ThreadLive, PublishedSummary: description.Load().(string)},
-			{Address: menuAddress("parked"), WorkingPath: "/parked", Name: "parked", State: couchcore.ThreadParked, PublishedSummary: "not live"},
+			{Address: address, WorkingPath: "/root", State: couchcore.ThreadLive, PublishedSummary: description.Load().(string)},
+			{Address: menuAddress("parked"), WorkingPath: "/parked", State: couchcore.ThreadParked, PublishedSummary: "not live"},
 		}, nil
 	})
 	waitFor(t, "two inventory rows", func() bool { return len(f.con.menuSnapshot().Inventory) == 2 })

@@ -340,8 +340,16 @@ func (c *Console) Deliver(ctx context.Context, id string, batch ptychild.OutputB
 
 // Attach registers a child with a synthetic legacy thread address. It remains
 // as a test/helper convenience; production supplies the durable address.
+//
+// Its tree is the label: a tab reads its row's working directory, never a
+// pane label transported through the stored name (pair#363), so a pane
+// attached as "brain" must sit in a tree whose name is brain.
 func (c *Console) Attach(id, label string, child *ptychild.Child) {
-	c.AttachActor(id, couchcore.ActorID(id), couchcore.Worktree(id), label, child)
+	tree := couchcore.Worktree(id)
+	if label != "" {
+		tree = couchcore.Worktree(label)
+	}
+	c.AttachActor(id, couchcore.ActorID(id), tree, label, child)
 }
 
 // AttachTree registers a child with a synthetic legacy thread address and its
@@ -1888,7 +1896,7 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	// Never for a background completion: the pass reattaches behind the
 	// operator, and there is no adoption, so no background completion is ever
 	// the operator's own landing (pair#206).
-	if (completed.origin.Operation == "resume" || completed.origin.Operation == "recover-thread" || completed.origin.Operation == "recover-checkpoint") && err == nil && startedHandleID != "" && !completed.origin.Background && !completed.origin.PreserveFocus {
+	if completed.origin.Operation == "resume" && err == nil && startedHandleID != "" && !completed.origin.Background && !completed.origin.PreserveFocus {
 		c.requestMenuRefresh()
 		c.forceSwitch(startedHandleID)
 		return false

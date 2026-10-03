@@ -25,7 +25,7 @@ func liveMenuFixture(t *testing.T) *consoleFixture {
 	f.con.mu.Unlock()
 	f.con.SetActionableProvider(func(context.Context, []couchcore.LiveTTYObservation) ([]couchcore.ActionableThreadSummary, error) {
 		return []couchcore.ActionableThreadSummary{{
-			Address: address, WorkingPath: "/repo", Name: "root", State: couchcore.ThreadLive,
+			Address: address, WorkingPath: "/root", State: couchcore.ThreadLive,
 			LastActiveAt: time.Now(),
 		}}, nil
 	})
@@ -51,9 +51,9 @@ func TestConsoleRunHierarchicalMenuControls(t *testing.T) {
 	_, _ = f.stdin.Write([]byte{'\t'})
 	waitUpTo(t, 250*time.Millisecond, "thread action frame", func() bool {
 		screen := f.screenText()
-		return strings.Contains(screen, "threads › root › actions") && strings.Contains(screen, "rename")
+		return strings.Contains(screen, "threads › root › actions") && strings.Contains(screen, "switch coding agent")
 	})
-	if screen := f.screenText(); strings.Contains(screen, "/repo") {
+	if screen := f.screenText(); strings.Contains(screen, "/root") {
 		t.Fatalf("action surface retained the root body: %q", f.host.Written())
 	}
 
@@ -64,7 +64,9 @@ func TestConsoleRunHierarchicalMenuControls(t *testing.T) {
 	waitUpTo(t, 250*time.Millisecond, "start form", func() bool {
 		return strings.Contains(f.screenText(), "start thread") && strings.Contains(f.screenText(), "path")
 	})
-	if screen := f.screenText(); strings.Contains(screen, "threads") || strings.Contains(screen, "root") {
+	// The panel only: the status row's tab legitimately names the thread.
+	lines := strings.Split(f.screenText(), "\n")
+	if screen := strings.Join(lines[:len(lines)-1], "\n"); strings.Contains(screen, "threads") || strings.Contains(screen, "root") {
 		t.Fatalf("global start rendered a false parent: %q", f.host.Written())
 	}
 }
@@ -510,7 +512,7 @@ func TestConsoleRunLeavesFromASwitcherWithNothingLive(t *testing.T) {
 			state = couchcore.ThreadLive
 		}
 		return []couchcore.ActionableThreadSummary{{
-			Address: address, WorkingPath: "/repo", Name: "root", State: state, LastActiveAt: time.Now(),
+			Address: address, WorkingPath: "/root", State: state, LastActiveAt: time.Now(),
 		}}, nil
 	})
 	waitUpTo(t, 250*time.Millisecond, "live inventory", func() bool {

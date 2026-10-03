@@ -267,31 +267,17 @@ func TestResumeOperationResolutionBoundary(t *testing.T) {
 	}
 }
 
-func TestRecoveryAndArchiveRequireOwnerAndCheckpointPath(t *testing.T) {
-	for _, name := range []string{"archive", "recover-thread", "recover-checkpoint"} {
-		t.Run(name, func(t *testing.T) {
-			args := map[string]string{"repo-scope": "scope", "tag": "tag"}
-			if name == "recover-checkpoint" {
-				args["path"] = "/worktree/checkpoint.md"
-			}
-			calls := 0
-			executors := OperationExecutors{DirectStore: func(OperationCall) (any, error) { t.Fatal("lifecycle bypassed owner"); return nil, nil }, LiveOwner: func(OperationCall) (any, error) { calls++; return nil, nil }}
-			if _, err := DispatchOperation(executors, OperationCall{Name: name, Args: args, Implicit: true}); err != nil || calls != 1 {
-				t.Fatalf("owner calls=%d err=%v", calls, err)
-			}
-			executors.LiveOwner = nil
-			_, err := DispatchOperation(executors, OperationCall{Name: name, Args: args, Implicit: true})
-			var required *OwnerRoutingRequiredError
-			if !errors.As(err, &required) {
-				t.Fatalf("unowned lifecycle returned %v", err)
-			}
-			if name == "recover-checkpoint" {
-				executors.LiveOwner = func(OperationCall) (any, error) { t.Fatal("missing path executed"); return nil, nil }
-				delete(args, "path")
-				if _, err := DispatchOperation(executors, OperationCall{Name: name, Args: args, Implicit: true}); err == nil {
-					t.Fatal("missing path accepted")
-				}
-			}
-		})
+func TestRebootRequiresOwner(t *testing.T) {
+	args := map[string]string{"repo-scope": "scope", "tag": "tag"}
+	calls := 0
+	executors := OperationExecutors{DirectStore: func(OperationCall) (any, error) { t.Fatal("lifecycle bypassed owner"); return nil, nil }, LiveOwner: func(OperationCall) (any, error) { calls++; return nil, nil }}
+	if _, err := DispatchOperation(executors, OperationCall{Name: "reboot", Args: args, Implicit: true}); err != nil || calls != 1 {
+		t.Fatalf("owner calls=%d err=%v", calls, err)
+	}
+	executors.LiveOwner = nil
+	_, err := DispatchOperation(executors, OperationCall{Name: "reboot", Args: args, Implicit: true})
+	var required *OwnerRoutingRequiredError
+	if !errors.As(err, &required) {
+		t.Fatalf("unowned lifecycle returned %v", err)
 	}
 }

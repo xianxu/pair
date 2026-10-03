@@ -225,17 +225,54 @@ func (c *Couch) awaitExactProcessExit(ctx context.Context, identity ProcessIdent
 // is no session bound to the address at all, which is the common debris case --
 // so a refused archive is safe to retry.
 func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (ArchiveResult, error) {
+	r, err := c.prepareRetirement(ctx, address)
+	if err != nil {
+		return ArchiveResult{}, err
+	}
+	if r.RolledBack {
+		// The record carried nothing but an unfinished start, so rolling it
+		// back removed the row -- which is the whole of what archive promises
+		// the operator.
+		return ArchiveResult{Record: r.Record}, nil
+	}
+	if err := c.Threads.ArchiveThreadExpected(address, r.Revision); err != nil {
+		return ArchiveResult{}, err
+	}
+	return ArchiveResult{Record: r.Record, SessionNotStopped: r.SessionNotStopped}, nil
+}
+
+// retirement is what prepareRetirement proved and did before the record moves:
+// the record (and the revision to compare against) as it stood once the
+// session was stopped, and the two ways the record itself is special.
+type retirement struct {
+	Record   ThreadRecord
+	Revision uint64
+	// Unreadable: the record could not be decoded, so its bytes move as they
+	// are at revision zero and its session is deliberately left alone.
+	Unreadable        bool
+	SessionNotStopped bool
+	// RolledBack: the record held only an unfinished start, and clearing that
+	// debris already removed it. There is nothing left to archive.
+	RolledBack bool
+}
+
+// prepareRetirement is ArchiveThread's admission and quiesce half -- every
+// refusal and the one irreversible act on the world (stopping the session) --
+// up to, and not including, the record's move. Archive and reboot share it
+// (ARCH-DRY), so a row reboot retires has passed exactly the guards archive
+// would have run. The comments below are archive's, and they hold for both.
+func (c *Couch) prepareRetirement(ctx context.Context, address ThreadAddress) (retirement, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if err := validateThreadAddress(address); err != nil {
-		return ArchiveResult{}, err
+		return retirement{}, err
 	}
 	if c == nil || c.Threads == nil || c.Artifacts == nil {
-		return ArchiveResult{}, errors.New("archive requires a thread store and an artifact controller")
+		return retirement{}, errors.New("archive requires a thread store and an artifact controller")
 	}
 	if err := ctx.Err(); err != nil {
-		return ArchiveResult{}, err
+		return retirement{}, err
 	}
 	// Read for the RESULT, not as a precondition. An undecodable record is
 	// exactly what the operator most wants gone, so failing here would leave a
@@ -267,10 +304,10 @@ func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (Archi
 		// PrepareAgentSwitch pays for the same reason.
 		state, reason, classifyErr := c.classifyForAction(ctx, address)
 		if classifyErr != nil {
-			return ArchiveResult{}, fmt.Errorf("archive %s: its state could not be classified; inspect and retry: %w", address.Tag, classifyErr)
+			return retirement{}, fmt.Errorf("archive %s: its state could not be classified; inspect and retry: %w", address.Tag, classifyErr)
 		}
 		if !ArchivableState(state, reason) {
-			return ArchiveResult{}, fmt.Errorf("archive %s: %s", address.Tag, archiveRefusal(state, reason))
+			return retirement{}, fmt.Errorf("archive %s: %s", address.Tag, archiveRefusal(state, reason))
 		}
 		// ORDER, in two steps, and the order is the guard (#256 M2).
 		//
@@ -292,10 +329,10 @@ func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (Archi
 		case observeErr != nil && !errors.Is(observeErr, ErrPairSessionBindingAbsent):
 			// An unanswerable session is not an absent one, and nothing has
 			// been written yet, so the honest move is to say so and stop.
-			return ArchiveResult{}, fmt.Errorf("archive %s: %w", address.Tag, observeErr)
+			return retirement{}, fmt.Errorf("archive %s: %w", address.Tag, observeErr)
 		case observeErr == nil:
 			if refusal := RecoverySessionRefusal(first); refusal != "" {
-				return ArchiveResult{}, fmt.Errorf("archive %s: %s", address.Tag, refusal)
+				return retirement{}, fmt.Errorf("archive %s: %s", address.Tag, refusal)
 			}
 		}
 		// clearLifecycleDebris refuses, with a code, whenever it cannot prove
@@ -305,11 +342,10 @@ func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (Archi
 		if cleared, clearErr := c.clearLifecycleDebris(record); clearErr != nil {
 			if errors.Is(clearErr, ErrThreadRolledBack) {
 				// The record carried nothing but an unfinished start, so
-				// rolling it back removed the row -- which is the whole of what
-				// archive promises the operator.
-				return ArchiveResult{Record: record}, nil
+				// rolling it back removed the row.
+				return retirement{Record: record, RolledBack: true}, nil
 			}
-			return ArchiveResult{}, fmt.Errorf("archive %s: %w", address.Tag, clearErr)
+			return retirement{}, fmt.Errorf("archive %s: %w", address.Tag, clearErr)
 		} else if cleared != nil {
 			record = *cleared
 		}
@@ -319,38 +355,35 @@ func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (Archi
 			// with no binding. This is a non-signalling bookkeeping escape,
 			// not proof of session absence for recovery or a retained request.
 			if !errors.Is(err, ErrPairSessionBindingAbsent) || len(record.Incarnations) != 0 || record.Park != nil || record.Continuation != nil {
-				return ArchiveResult{}, err
+				return retirement{}, err
 			}
 			// Recheck the exact index before the revision-guarded move. A
 			// newly published binding requires normal ownership checks.
 			if _, err := c.recoverySession(ctx, address); !errors.Is(err, ErrPairSessionBindingAbsent) {
 				if err != nil {
-					return ArchiveResult{}, err
+					return retirement{}, err
 				}
-				return ArchiveResult{}, fmt.Errorf("archive %s: session binding appeared before archive", address.Tag)
+				return retirement{}, fmt.Errorf("archive %s: session binding appeared before archive", address.Tag)
 			}
 			if err := ctx.Err(); err != nil {
-				return ArchiveResult{}, err
+				return retirement{}, err
 			}
-			if err := c.Threads.ArchiveThreadExpected(address, record.Revision); err != nil {
-				return ArchiveResult{}, err
-			}
-			return ArchiveResult{Record: record}, nil
+			return retirement{Record: record, Revision: record.Revision}, nil
 		}
 		record = reconciled
 		decision := DecideRecovery(evidence)
 		if !decision.Archive {
-			return ArchiveResult{}, fmt.Errorf("archive %s: %s", address.Tag, decision.Diagnosis)
+			return retirement{}, fmt.Errorf("archive %s: %s", address.Tag, decision.Diagnosis)
 		}
 		if err := archivableRecord(record); err != nil {
-			return ArchiveResult{}, err
+			return retirement{}, err
 		}
 		if err := c.archiveContinuationVacant(record, evidence); err != nil {
-			return ArchiveResult{}, err
+			return retirement{}, err
 		}
 		latest, err := c.observeRecovery(ctx, record)
 		if err != nil {
-			return ArchiveResult{}, err
+			return retirement{}, err
 		}
 		// Compared against BOTH earlier looks, not just the reconciler's. The
 		// window that matters runs from the FIRST observation -- a session that
@@ -359,30 +392,27 @@ func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (Archi
 		if latest.Session != evidence.Session || latest.Presence != evidence.Presence ||
 			(observeErr == nil && (latest.Session != first.Session || latest.Presence != first.Presence)) ||
 			!DecideRecovery(latest).Archive {
-			return ArchiveResult{}, fmt.Errorf("archive %s: helper or session ownership changed before stop", address.Tag)
+			return retirement{}, fmt.Errorf("archive %s: helper or session ownership changed before stop", address.Tag)
 		}
 		if err := c.archiveContinuationVacant(record, latest); err != nil {
-			return ArchiveResult{}, err
+			return retirement{}, err
 		}
 		if err := ctx.Err(); err != nil {
-			return ArchiveResult{}, err
+			return retirement{}, err
 		}
 		if err := c.quiesceThreadSession(ctx, address); err != nil {
-			return ArchiveResult{}, fmt.Errorf("archive %s: its session could not be stopped: %w", address.Tag, err)
+			return retirement{}, fmt.Errorf("archive %s: its session could not be stopped: %w", address.Tag, err)
 		}
 		// Quiesce may cross an external failure/retry boundary. Refuse if a
 		// session appeared again or durable request state changed meanwhile.
 		presence, err := c.observeSessionPresenceContext(ctx, address)
 		if err != nil {
-			return ArchiveResult{}, err
+			return retirement{}, err
 		}
 		if presence != PresenceAbsent {
-			return ArchiveResult{}, fmt.Errorf("archive %s: session absence is no longer proved", address.Tag)
+			return retirement{}, fmt.Errorf("archive %s: session absence is no longer proved", address.Tag)
 		}
-		if err := c.Threads.ArchiveThreadExpected(address, record.Revision); err != nil {
-			return ArchiveResult{}, err
-		}
-		return ArchiveResult{Record: record}, nil
+		return retirement{Record: record, Revision: record.Revision}, nil
 	} else {
 		// Unreadable: the operator can still remove the row -- that escape is
 		// what keeps a corrupt record from locking its repository -- but couch
@@ -393,10 +423,7 @@ func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (Archi
 		// left alone, and the caller is told.
 		record = ThreadRecord{Address: address}
 	}
-	if err := c.Threads.ArchiveThreadExpected(address, 0); err != nil {
-		return ArchiveResult{}, err
-	}
-	return ArchiveResult{Record: record, SessionNotStopped: readErr != nil}, nil
+	return retirement{Record: record, Unreadable: true, SessionNotStopped: true}, nil
 }
 
 // archiveRefusal says what to DO about a row archive will not take. It is called
@@ -412,7 +439,8 @@ func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (Archi
 //
 // Guidance lives here, at the consumer, rather than as a field every producer
 // carries (#256 M1, round 3): the classification says what the thread IS, and
-// archive is the only caller that needs to say what to do about it instead.
+// retirement (archive's admission, which reboot runs) is the only caller that
+// needs to say what to do about it instead.
 func archiveRefusal(state ActionableThreadState, reason ThreadReason) string {
 	switch state {
 	case ThreadLive:

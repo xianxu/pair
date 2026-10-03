@@ -22,12 +22,13 @@ func TestMenuFocusMembership(t *testing.T) {
 		name, description, published string
 		live, want                   bool
 	}{
-		{"operator", " work ", "", true, true},
+		// The operator description is stored, not displayed (pair#363).
+		{"operator", " work ", "", true, false},
 		{"published", "", "progress", true, true},
 		{"precedence", "work", " \x1b[2J\n\x0e\u0085 ", true, false},
 		{"controls", "\x1b[31m\x1b[0m\r\n\x7f", "", true, false},
 		{"whitespace", " \t\u2003 ", "", true, false},
-		{"dead", "work", "", false, false},
+		{"dead", "", "work", false, false},
 		{"empty", "", "", true, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -50,17 +51,17 @@ func TestMenuFocusMembership(t *testing.T) {
 func TestMenuFocusOrderSelectionAndRouting(t *testing.T) {
 	rows := menuThreads()
 	rows[1].State = couchcore.ThreadLive
-	rows[1].Description = "review task"
+	rows[1].PublishedSummary = "review task"
 	third := rows[0]
 	third.Address = menuAddress("couch-three")
 	third.Name = "third"
-	third.Description = "third task"
+	third.PublishedSummary = "third task"
 	rows = append(rows, third)
 	state := NewMenuState(rows, rows[0].Address)
 	normal := VisibleMenuThreads(state)
 	var want []couchcore.ThreadAddress
 	for _, r := range normal {
-		if r.Description != "" {
+		if r.PublishedSummary != "" {
 			want = append(want, r.Address)
 		}
 	}
@@ -112,8 +113,8 @@ func TestMenuFocusNonemptyFilterKeepsSpaceLiteralInBothViews(t *testing.T) {
 
 func TestMenuFocusRefreshAndOverlay(t *testing.T) {
 	rows := menuThreads()
-	rows[0].Description = "first"
-	rows[1].Description = "second"
+	rows[0].PublishedSummary = "first"
+	rows[1].PublishedSummary = "second"
 	rows[1].State = couchcore.ThreadDetached
 	state := NewMenuState(rows, rows[0].Address)
 	state.Reattach.Attached = map[couchcore.ThreadAddress]uint64{rows[1].Address: 0}
@@ -127,7 +128,7 @@ func TestMenuFocusRefreshAndOverlay(t *testing.T) {
 	if state.CurrentFrame().SelectedAddress != rows[1].Address {
 		t.Fatal("refresh lost still visible selection")
 	}
-	rows[1].Description = ""
+	rows[1].PublishedSummary = ""
 	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventInventory, Inventory: rows})
 	if got := VisibleMenuThreads(state); len(got) != 1 || state.CurrentFrame().SelectedAddress != rows[0].Address {
 		t.Fatalf("refresh membership/selection = %+v %+v", got, state.CurrentFrame())
@@ -174,7 +175,7 @@ func TestMenuFocusEmptyAndNoMatch(t *testing.T) {
 		t.Fatalf("missing placeholder: %q", got)
 	}
 	rows := menuThreads()
-	rows[0].Description = "task"
+	rows[0].PublishedSummary = "task"
 	state = focusSpace(NewMenuState(rows, rows[0].Address))
 	state, _ = reduceKey(state, PanelKey{Kind: KeyRune, Rune: 'z'})
 	if got := RenderMenu(state, 100, 12, time.Time{}, false); !strings.Contains(got, "no match") || strings.Contains(got, "no tagged live threads") {
@@ -188,7 +189,7 @@ func TestMenuFocusPreservesNormalExactSearchAndLabels(t *testing.T) {
 	rows[0].Address = menuAddress("target") // Exact tag but untagged: focus must not expose fuzzy matches.
 	rows[1].Name = "target longer"
 	rows[1].State = couchcore.ThreadLive
-	rows[1].Description = "task"
+	rows[1].PublishedSummary = "task"
 	state := focusSpace(NewMenuState(rows, rows[0].Address))
 	for _, r := range "target" {
 		state, _ = reduceKey(state, PanelKey{Kind: KeyRune, Rune: r})
@@ -219,7 +220,7 @@ func TestMenuFocusRendersSlugInline(t *testing.T) {
 		return string(ansi.Strip([]byte(RenderMenu(state, width, 12, time.Time{}, false))))
 	}
 	row := menuThreads()[0]
-	row.Description = "task"
+	row.PublishedSummary = "task"
 	row.Slug = "main-slot3 | couch \x1b[2Jswitcher\n click-select"
 	if got := render(row, 100); !strings.Contains(got, "compiler ◆ task ◆ main-slot3 | couch switcher click-select") || strings.Contains(got, "\x1b[2J") {
 		t.Fatalf("slug render = %q", got)
@@ -234,7 +235,7 @@ func TestMenuFocusRendersSlugInline(t *testing.T) {
 			t.Fatalf("long slug wrapped or overflowed: %q", line)
 		}
 	}
-	row.Description, row.Slug = "", "main | busy"
+	row.PublishedSummary, row.Slug = "", "main | busy"
 	state := focusSpace(NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address))
 	if len(VisibleMenuThreads(state)) != 0 {
 		t.Fatal("a slug without a description joined the focus view")
@@ -244,7 +245,7 @@ func TestMenuFocusRendersSlugInline(t *testing.T) {
 // A slug change is display only: it is not a notification.
 func TestMenuFocusSlugChangeIsNotAttention(t *testing.T) {
 	rows := menuThreads()
-	rows[0].Description, rows[0].Slug = "task", "main | one"
+	rows[0].PublishedSummary, rows[0].Slug = "task", "main | one"
 	state := focusSpace(NewMenuState(rows, rows[0].Address))
 	rows[0].Slug = "main | two"
 	state, effects := ReduceMenu(state, MenuEvent{Kind: MenuEventInventory, Inventory: rows})

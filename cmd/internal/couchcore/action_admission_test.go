@@ -144,7 +144,7 @@ func TestStartupSelectionDerivesFromResumableState(t *testing.T) {
 				Reason:      reason,
 				WorkingPath: "/repo",
 			}}
-			_, selected := SelectResumableRoot(rows, "816fc349d3faebf8", "/repo")
+			_, selected := SelectResumableRoot(rows, "816fc349d3faebf8")
 			if selected != ResumableState(state, reason) {
 				t.Errorf("%s/%s: startup selects=%v, the resumable rule says %v",
 					state, reason, selected, ResumableState(state, reason))

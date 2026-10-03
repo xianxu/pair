@@ -42,6 +42,19 @@ const (
 	// agent -- here nothing may be running yet, and the refusal is about the
 	// TRANSACTION, not the actor (#256 M2).
 	ResumeStarting ResumeDiagnosticCode = "resume-starting"
+	// ResumeNoSurvivor is a slot with no current record and no running agent
+	// couch could prove is its own: there is no conversation to adopt.
+	ResumeNoSurvivor ResumeDiagnosticCode = "resume-no-survivor"
+	// ResumeSurvivorsAmbiguous is a slot with no current record and more than
+	// one running agent that could be its conversation. Couch will not guess
+	// between them; one must be stopped first.
+	ResumeSurvivorsAmbiguous ResumeDiagnosticCode = "resume-survivors-ambiguous"
+	// ResumeSurvivorUnproven is a slot with no current record whose agent
+	// survives behind a detached session, where couch cannot prove WHICH agent
+	// runs there: the detached proof echoes the agent it is asked about, so a
+	// guessed agent proves nothing. The session is live, so the exit is to
+	// attach to it or stop it -- reboot would refuse a live owner too.
+	ResumeSurvivorUnproven ResumeDiagnosticCode = "resume-survivor-unproven"
 )
 
 // ResumeOptions narrows what a resume is allowed to do.

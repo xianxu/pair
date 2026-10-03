@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/ansi"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
@@ -175,5 +176,79 @@ func TestGroupedThreeWorkspaceActivationTrial(t *testing.T) {
 		if strings.Contains(row.WorkingPath, "ariadne") {
 			t.Fatal("dependency gained its own row")
 		}
+	}
+}
+
+// Resolved ambiguity 11 (pair#363): a :0 labels with its repository's name on
+// the tab bar and in the switcher alike, even when it was started in a
+// subdirectory -- never repo:0, never the working path's basename, never a
+// stored name.
+func TestPrimaryInASubdirectoryLabelsByRepositoryOnTabBarAndSwitcher(t *testing.T) {
+	f := newFixture(t, 24, 120)
+	root := filepath.Join(t.TempDir(), "repo")
+	sub := filepath.Join(root, "sub")
+	if err := os.MkdirAll(sub, 0755); err != nil {
+		t.Fatal(err)
+	}
+	row := groupedRow(root, 0, "primary")
+	row.StartingPath, row.WorkingPath, row.Name = sub, sub, "renamed"
+	child := ptychild.NewFakeChild(nil)
+	t.Cleanup(func() { _ = child.Close() })
+	// The real label argument: the console passes Worktree.Repo().
+	if err := f.con.installObservedThreadActor(context.Background(), "primary", couchcore.ActorID("primary"), row.Address, couchcore.Worktree(sub), couchcore.Worktree(sub).Repo(), child, couchcore.ProcessIdentity{}, true); err != nil {
+		t.Fatal(err)
+	}
+	f.con.mu.Lock()
+	f.con.menu = NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
+	model := f.con.statusModelLocked()
+	menu := f.con.menu
+	f.con.mu.Unlock()
+	found := false
+	for _, actor := range model.Actors {
+		if actor.Thread == row.Address {
+			found = true
+			if actor.Label != "repo" {
+				t.Fatalf("tab label = %q, want repo", actor.Label)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("no tab for the primary: %+v", model.Actors)
+	}
+	for _, entry := range PresentThreads(menuRows(menu), nil) {
+		if entry.Label != "repo" {
+			t.Fatalf("switcher label = %q, want repo", entry.Label)
+		}
+	}
+}
+
+// The tab bar's label no longer travels through the stored Name. An attached
+// pane whose row has not reached the inventory yet still reads as its
+// repository; a pending reattach placeholder with only an address reads as its
+// tag.
+func TestTabBarLabelsDoNotTransportThroughName(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "repo")
+	if err := os.MkdirAll(root, 0755); err != nil {
+		t.Fatal(err)
+	}
+	row := groupedRow(root, 0, "primary")
+	con := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 120}), strings.NewReader(""))
+	con.order = []string{"primary"}
+	con.panes = map[string]*pane{"primary": {tree: couchcore.Worktree(root), thread: row.Address, label: "stale-label"}}
+	model := con.statusModelLocked()
+	if len(model.Actors) != 1 || model.Actors[0].Label != "repo" {
+		t.Fatalf("lagging pane label = %+v, want repo", model.Actors)
+	}
+}
+
+// The switcher row shows no stored-name detail: the name is no longer
+// displayed anywhere (pair#363).
+func TestSwitcherRowShowsNoStoredNameDetail(t *testing.T) {
+	row := groupedRow("/workspace/pair", 2, "two")
+	row.Name = "renamed"
+	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
+	plain := string(ansi.Strip([]byte(RenderMenu(state, 120, 15, time.Unix(1, 0), false))))
+	if strings.Contains(plain, "renamed") {
+		t.Fatalf("stored name rendered: %s", plain)
 	}
 }

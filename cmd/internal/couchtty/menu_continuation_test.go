@@ -51,7 +51,7 @@ func TestFailedContinuationComposesWithALiveRowsActions(t *testing.T) {
 			Continuation: &couchcore.ContinuationStatus{Address: address, RequestID: "request", Phase: phase}}
 	}
 	live := menuActionItems(row(couchcore.ThreadLive, checkpoint.Failed))
-	if want := []string{"detach", "retry-continuation", "dismiss-continuation", "park", "name", "describe"}; !slices.Equal(live, want) {
+	if want := []string{"detach", "retry-continuation", "dismiss-continuation", "park"}; !slices.Equal(live, want) {
 		t.Fatalf("live + failed = %v, want %v", live, want)
 	}
 	for _, op := range live {
@@ -64,19 +64,21 @@ func TestFailedContinuationComposesWithALiveRowsActions(t *testing.T) {
 		phase checkpoint.Phase
 		want  []string
 	}{
-		{couchcore.ThreadBusy, checkpoint.Failed, []string{"retry-continuation", "dismiss-continuation", "name", "describe"}},
-		{couchcore.ThreadLive, checkpoint.Running, []string{"retry-continuation", "name", "describe"}},
-		{couchcore.ThreadLive, checkpoint.Pending, []string{"name", "describe"}},
+		{couchcore.ThreadBusy, checkpoint.Failed, nil},
+		{couchcore.ThreadLive, checkpoint.Running, []string{"retry-continuation"}},
+		{couchcore.ThreadLive, checkpoint.Pending, nil},
+		// Not live: resume routes the request to its own executor, reboot
+		// retires it with the conversation.
+		{couchcore.ThreadDetached, checkpoint.Failed, []string{"resume", "reboot"}},
+		{couchcore.ThreadUnusable, checkpoint.Running, []string{"resume", "reboot"}},
 	} {
-		if got := menuActionItems(row(tc.state, tc.phase)); !slices.Equal(got, tc.want) {
+		r := row(tc.state, tc.phase)
+		if tc.state == couchcore.ThreadUnusable {
+			r.Reason = couchcore.ReasonSessionGone
+		}
+		if got := menuActionItems(r); !slices.Equal(got, tc.want) {
 			t.Errorf("%s + %s = %v, want %v", tc.state, tc.phase, got, tc.want)
 		}
-	}
-	recovery := row(couchcore.ThreadDetached, checkpoint.Failed)
-	recovery.Recovery = &couchcore.RecoveryDecision{Recover: true}
-	got := menuActionItems(recovery)
-	if i := slices.Index(got, "retry-continuation"); i < 0 || i+1 >= len(got) || got[i+1] != "dismiss-continuation" {
-		t.Fatalf("recovery row with a failed request must offer dismiss after retry: %v", got)
 	}
 }
 

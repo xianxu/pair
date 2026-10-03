@@ -45,11 +45,18 @@ func startupFixture(t *testing.T, others int, otherLayout Layout) (*testEnv, Thr
 
 func detachedThreadAt(t *testing.T, env *testEnv, path, suffix string) ThreadAddress {
 	t.Helper()
-	// The scope key is the REAL one for this path. A hand-written key would
-	// never match what StartInteractive resolves, and the narrowing predicate
-	// compares scope keys -- so the fixture would silently exercise the
-	// "nothing at the cwd" branch and pass for the wrong reason.
-	scope, err := launcher.ResolveRepoScope(path)
+	return detachedThreadIn(t, env, path, path, suffix)
+}
+
+// detachedThreadIn is detachedThreadAt for a record whose working path is
+// somewhere inside the repository rooted at root, not at the root itself.
+func detachedThreadIn(t *testing.T, env *testEnv, root, path, suffix string) ThreadAddress {
+	t.Helper()
+	// The scope key is the REAL one for this repository. A hand-written key
+	// would never match what StartInteractive resolves, and the narrowing
+	// predicate compares scope keys -- so the fixture would silently exercise
+	// the "nothing in this repository" branch and pass for the wrong reason.
+	scope, err := launcher.ResolveRepoScope(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,6 +241,17 @@ func TestNarrowedStartupAnswersAsAFullProofWould(t *testing.T) {
 			parkThread(t, env, env.cwd)
 			addOthers(t, env, 2, "")
 		}},
+		// pair#363: startup runs in /repo/sub while the primary is parked at
+		// the repository root, beside a dead record at the subdirectory itself.
+		// Startup returns to the repository's primary, so the root record needs
+		// its cold proof although it is not at the cwd; an inventory narrowed to
+		// the cwd's path would leave it `unknown` and select nothing.
+		{"the primary is parked at the root, startup runs in a subdirectory", func(t *testing.T, env *testEnv) {
+			parkThread(t, env, env.cwd)
+			sub := detachedThreadIn(t, env, "/repo", "/repo/sub", "sub")
+			env.Artifacts.SetDetachedSession(sub, "")
+			addOthers(t, env, 2, "")
+		}},
 		{"the cwd thread shares its session name with an unasked thread", func(t *testing.T, env *testEnv) {
 			other := addOthers(t, env, 1, "")[0]
 			env.Artifacts.SetDetachedSession(other, "pair-"+string(env.cwd.Tag))
@@ -255,7 +273,7 @@ func TestNarrowedStartupAnswersAsAFullProofWould(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			narrowRows, err := narrow.Couch.startupInventory(context.Background(), scope, "/repo")
+			narrowRows, err := narrow.Couch.startupInventory(context.Background(), scope)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -263,15 +281,15 @@ func TestNarrowedStartupAnswersAsAFullProofWould(t *testing.T) {
 			if got, want := conflictAddresses(narrow.Couch.Layout, narrowRows), conflictAddresses(full.Couch.Layout, fullRows); !slices.Equal(got, want) {
 				t.Fatalf("layout conflicts: narrowed %v, full %v", got, want)
 			}
-			fullRoot, fullOK := SelectResumableRoot(fullRows, scope, "/repo")
-			narrowRoot, narrowOK := SelectResumableRoot(narrowRows, scope, "/repo")
+			fullRoot, fullOK := SelectResumableRoot(fullRows, scope)
+			narrowRoot, narrowOK := SelectResumableRoot(narrowRows, scope)
 			if fullOK != narrowOK || fullRoot != narrowRoot {
 				t.Fatalf("root: narrowed (%+v,%v), full (%+v,%v)", narrowRoot, narrowOK, fullRoot, fullOK)
 			}
-			fullHeld, fullHeldOK := PathHoldsUsableThread(fullRows, scope, "/repo")
-			narrowHeld, narrowHeldOK := PathHoldsUsableThread(narrowRows, scope, "/repo")
-			if fullHeldOK != narrowHeldOK || fullHeld != narrowHeld {
-				t.Fatalf("usable-path guard: narrowed (%+v,%v), full (%+v,%v)", narrowHeld, narrowHeldOK, fullHeld, fullHeldOK)
+			fullHeld, fullHeldOK := ScopeHoldsUsableThread(fullRows, scope)
+			narrowHeld, narrowHeldOK := ScopeHoldsUsableThread(narrowRows, scope)
+			if fullHeldOK != narrowHeldOK || fullHeld.Address != narrowHeld.Address {
+				t.Fatalf("usable-scope guard: narrowed (%+v,%v), full (%+v,%v)", narrowHeld.Address, narrowHeldOK, fullHeld.Address, fullHeldOK)
 			}
 			fullUnreadable, fullUnreadableOK := PathHoldsUnreadableThread(fullRows, scope)
 			narrowUnreadable, narrowUnreadableOK := PathHoldsUnreadableThread(narrowRows, scope)
@@ -346,12 +364,12 @@ func conflictAddresses(layout Layout, rows []ActionableThreadSummary) []ThreadAd
 	return out
 }
 
-// The cwd arm of the predicate matches on scope AND path, and only a COUNT can
+// The repository arm of the predicate matches on scope, and only a COUNT can
 // show why: an equivalence test cannot catch a predicate that asks too much,
 // because over-asking never changes an answer -- it only costs.
 //
-// The case the scope half pays for is a stale record at the cwd's path under a
-// scope that is no longer this repo's (a repository that moved, a record from
+// The case the scope match pays for is a stale record at the cwd's path under
+// a scope that is no longer this repo's (a repository that moved, a record from
 // before a scope derivation changed). The selectors skip it either way, so
 // proving it is a list-clients and a ledger read that nothing consults.
 func TestStartupDoesNotProveAForeignScopeRecordAtTheCwdPath(t *testing.T) {
@@ -375,7 +393,7 @@ func TestStartupDoesNotProveAForeignScopeRecordAtTheCwdPath(t *testing.T) {
 	}
 	before := env.Artifacts.DetachedCandidatesAsked()
 	beforePresence := env.Artifacts.SessionPresenceQueries()
-	if _, err := env.Couch.startupInventory(context.Background(), cwdScope.Key, "/repo"); err != nil {
+	if _, err := env.Couch.startupInventory(context.Background(), cwdScope.Key); err != nil {
 		t.Fatal(err)
 	}
 	// RESTATED for #256. The rule this pins is that startup's EXPENSIVE proof is

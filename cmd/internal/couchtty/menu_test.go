@@ -17,8 +17,9 @@ func menuAddress(tag string) couchcore.ThreadAddress {
 
 func menuThreads() []couchcore.ActionableThreadSummary {
 	return []couchcore.ActionableThreadSummary{
-		{Address: menuAddress("couch-one"), WorkingPath: "/repo/one", Name: "compiler", State: couchcore.ThreadLive},
-		{Address: menuAddress("couch-two"), WorkingPath: "/repo/two", Name: "review", State: couchcore.ThreadParked},
+		// Labels are working-directory basenames (pair#363): compiler, review.
+		{Address: menuAddress("couch-one"), WorkingPath: "/repo/compiler", State: couchcore.ThreadLive},
+		{Address: menuAddress("couch-two"), WorkingPath: "/repo/review", State: couchcore.ThreadParked},
 	}
 }
 
@@ -116,26 +117,6 @@ func TestReduceMenuActionAndConfirmationCaptureExactThread(t *testing.T) {
 	}
 }
 
-func TestReduceMenuActionUsesExistingNameOperation(t *testing.T) {
-	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
-	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
-	state = selectMenuItem(state, "name")
-	state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
-	if frame := state.CurrentFrame(); frame.Kind != MenuFrameText || frame.Action != "name" {
-		t.Fatalf("text frame = %+v", frame)
-	}
-	for _, r := range "new name" {
-		state, _ = reduceKey(state, PanelKey{Kind: KeyRune, Rune: r})
-	}
-	_, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
-	want := []MenuEffect{{Operation: "name", Attempt: 1, Args: map[string]string{
-		"repo-scope": "scope", "ref": "couch-one", "name": "new name",
-	}}}
-	if !reflect.DeepEqual(effects, want) {
-		t.Fatalf("name effects = %+v, want %+v", effects, want)
-	}
-}
-
 func TestReduceMenuAttentionProjectionIsImmutableByCopy(t *testing.T) {
 	threads := menuThreads()
 	threads[1].State = couchcore.ThreadLive
@@ -152,9 +133,10 @@ func TestReduceMenuAttentionProjectionIsImmutableByCopy(t *testing.T) {
 }
 
 func TestReduceMenuTextBoundsUTF8AndRestoresActionFrame(t *testing.T) {
-	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	primary := livePrimaryMenuRow(t)
+	state := NewMenuState([]couchcore.ActionableThreadSummary{primary}, primary.Address)
 	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
-	state = selectMenuItem(state, "name")
+	state = selectMenuItem(state, "alias")
 	state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
 	state.Frames[len(state.Frames)-1].Input = strings.Repeat("a", menuNameLimit-1)
 
@@ -168,7 +150,7 @@ func TestReduceMenuTextBoundsUTF8AndRestoresActionFrame(t *testing.T) {
 	}
 
 	state, _ = reduceKey(state, PanelKey{Kind: KeyEscape})
-	if frame := state.CurrentFrame(); len(state.Frames) != 2 || frame.Kind != MenuFrameActions || frame.SelectedItem != "name" {
+	if frame := state.CurrentFrame(); len(state.Frames) != 2 || frame.Kind != MenuFrameActions || frame.SelectedItem != "alias" {
 		t.Fatalf("Escape did not restore exact action frame: %+v", state.Frames)
 	}
 }
@@ -393,18 +375,18 @@ func TestReduceMenuRootResumeSuccessAppliesReturnedInventory(t *testing.T) {
 func TestReduceMenuOperationResultRequiresExactCapturedOperation(t *testing.T) {
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
 	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
-	state = selectMenuItem(state, "name")
+	state = selectMenuItem(state, "park")
 	state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
-	state, _ = reduceKey(state, PanelKey{Kind: KeyRune, Rune: 'x'})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
 	state, dispatched := reduceKey(state, PanelKey{Kind: KeyEnter})
-	if len(dispatched) != 1 || dispatched[0].Operation != "name" {
-		t.Fatalf("rename dispatch = %+v", dispatched)
+	if len(dispatched) != 1 || dispatched[0].Operation != "park" {
+		t.Fatalf("park dispatch = %+v", dispatched)
 	}
 	state.Notice = infoMenuNotice("keep")
 
 	before := state
 	got, effects := ReduceMenu(state, correlatedMenuResult(state, MenuEvent{
-		Operation: "describe", Address: menuAddress("couch-one"), Error: "unrelated",
+		Operation: "detach", Address: menuAddress("couch-one"), Error: "unrelated",
 		Inventory: menuThreads()[1:], InventorySet: true,
 	}))
 	if len(effects) != 0 || !reflect.DeepEqual(got, before) {
@@ -516,7 +498,7 @@ func TestMenuOperationCorrelationEnumeratesEveryOperationOutcomeAndAddressShape(
 func TestMenuOperationAttemptRejectsDelayedDuplicateAcrossEveryOperation(t *testing.T) {
 	target := menuAddress("couch-one")
 	created := menuAddress("couch-new")
-	for _, operation := range []string{"switch", "resume", "park", "name", "describe", "start"} {
+	for _, operation := range []string{"switch", "resume", "park", "reboot", "start"} {
 		for _, success := range []bool{false, true} {
 			t.Run(operation+fmt.Sprintf("/success=%t", success), func(t *testing.T) {
 				state := NewMenuState(menuThreads(), target)
@@ -568,8 +550,7 @@ func TestMenuDispatchInstallsOperationProgressBeforeEffect(t *testing.T) {
 		{operation: "resume", address: menuAddress("couch-two"), want: "resuming review"},
 		{operation: "park", address: target, want: "parking compiler"},
 		{operation: "leave", address: target, want: "leaving couch"},
-		{operation: "name", address: target, want: "renaming compiler"},
-		{operation: "describe", address: target, want: "saving compiler description"},
+		{operation: "reboot", address: menuAddress("couch-two"), want: "rebooting review"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.operation, func(t *testing.T) {
@@ -919,7 +900,7 @@ func selectMenuItem(state MenuState, item string) MenuState {
 }
 
 func TestMenuOperationCompletionPreservesLaterGlobalStartOverlay(t *testing.T) {
-	for _, operation := range []string{"switch", "resume", "park", "name", "describe", "start"} {
+	for _, operation := range []string{"switch", "resume", "park", "reboot", "start"} {
 		for _, success := range []bool{false, true} {
 			t.Run(operation+fmt.Sprintf("/success=%t", success), func(t *testing.T) {
 				state := NewMenuState(menuThreads(), menuAddress("couch-one"))
@@ -938,10 +919,12 @@ func TestMenuOperationCompletionPreservesLaterGlobalStartOverlay(t *testing.T) {
 					state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
 					state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
 					state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
-				case "name", "describe":
+				case "reboot":
+					state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
 					state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
-					state = selectMenuItem(state, operation)
+					state = selectMenuItem(state, "reboot")
 					state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
+					state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
 					state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
 				case "start":
 					state, _ = reduceKey(state, PanelKey{Kind: KeyCtrlSpace})
@@ -1227,7 +1210,7 @@ func TestStartFormArmedSubmitDispatchesOnce(t *testing.T) {
 
 func unusableMenuRow(reason couchcore.ThreadReason) couchcore.ActionableThreadSummary {
 	return couchcore.ActionableThreadSummary{
-		Address: menuAddress("couch-one"), WorkingPath: "/repo/one", Name: "compiler",
+		Address: menuAddress("couch-one"), WorkingPath: "/repo/compiler",
 		State: couchcore.ThreadUnusable, Reason: reason,
 	}
 }
@@ -1271,68 +1254,41 @@ func TestEveryReasonExplainsItselfOnEnter(t *testing.T) {
 	}
 }
 
-// An unusable row offers metadata actions only: naming a lost thread is how the
-// operator records what it was, but nothing may offer to resume it.
-func TestUnusableRowOffersOnlyMetadataActions(t *testing.T) {
+// An unusable row offers reboot: nothing may offer to resume a row resume has
+// no route for, and metadata actions left the switcher (#363).
+func TestUnusableRowOffersReboot(t *testing.T) {
 	items := menuActionItems(unusableMenuRow(couchcore.ReasonSessionGone))
-	for _, forbidden := range []string{"resume", "detach", "park"} {
-		if slices.Contains(items, forbidden) {
-			t.Fatalf("action items = %v, want metadata only", items)
-		}
-	}
-	if !slices.Contains(items, "name") || !slices.Contains(items, "describe") {
-		t.Fatalf("action items = %v, want name and describe", items)
+	if !slices.Equal(items, []string{"reboot"}) {
+		t.Fatalf("action items = %v, want reboot", items)
 	}
 }
 
-// Archive is how a row leaves the switcher, so it has to be reachable from
-// exactly the rows the operator wants gone -- including the ones they cannot
-// enter, which is the whole point.
-func TestArchiveIsOfferedWhereverCouchIsNotHostingTheThread(t *testing.T) {
-	for _, tc := range []struct {
-		name   string
-		thread couchcore.ActionableThreadSummary
-		want   bool
-	}{
-		{name: "unusable", thread: unusableMenuRow(couchcore.ReasonBindingLost), want: true},
-		{name: "parked", thread: menuThreads()[1], want: true},
-		{name: "live", thread: menuThreads()[0], want: false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := slices.Contains(menuActionItems(tc.thread), "archive"); got != tc.want {
-				t.Fatalf("archive offered = %v, want %v (items %v)", got, tc.want, menuActionItems(tc.thread))
-			}
-		})
-	}
-}
-
-// It is confirmed, and the confirmation survives the inventory refresh that
-// follows it -- a park confirmation requires its thread to be live, and reusing
-// that rule would drop an archive confirmation the moment it appeared.
-func TestArchiveConfirmationDispatchesAndSurvivesARefresh(t *testing.T) {
+// Reboot is confirmed, and the confirmation survives the inventory refresh
+// that follows it -- a park confirmation requires its thread to be live, and
+// reusing that rule would drop a reboot confirmation the moment it appeared.
+func TestRebootConfirmationDispatchesAndSurvivesARefresh(t *testing.T) {
 	row := unusableMenuRow(couchcore.ReasonSessionGone)
 	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, couchcore.ThreadAddress{})
 	state.InventoryReady = true
 
 	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
 	frame := state.CurrentFrame()
-	frame.SelectedItem = "archive"
+	frame.SelectedItem = "reboot"
 	state.Frames[len(state.Frames)-1] = frame
 	state, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
-	if len(effects) != 0 || state.CurrentFrame().Kind != MenuFrameConfirmation || state.CurrentFrame().Action != "archive" {
-		t.Fatalf("archive did not open a confirmation: %+v (effects %+v)", state.CurrentFrame(), effects)
+	if len(effects) != 0 || state.CurrentFrame().Kind != MenuFrameConfirmation || state.CurrentFrame().Action != "reboot" {
+		t.Fatalf("reboot did not open a confirmation: %+v (effects %+v)", state.CurrentFrame(), effects)
 	}
 
-	// The refresh that would have dropped it.
 	state = reconcileMenuFrames(state)
-	if state.CurrentFrame().Kind != MenuFrameConfirmation || state.CurrentFrame().Action != "archive" {
+	if state.CurrentFrame().Kind != MenuFrameConfirmation || state.CurrentFrame().Action != "reboot" {
 		t.Fatalf("the confirmation vanished on refresh: %+v", state.Frames)
 	}
 
 	state, _ = reduceKey(state, PanelKey{Kind: KeyDown})
 	_, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
-	if len(effects) != 1 || effects[0].Operation != "archive" {
-		t.Fatalf("confirmed archive dispatched %+v", effects)
+	if len(effects) != 1 || effects[0].Operation != "reboot" {
+		t.Fatalf("confirmed reboot dispatched %+v", effects)
 	}
 }
 
@@ -1342,7 +1298,7 @@ func TestArchiveConfirmationDispatchesAndSurvivesARefresh(t *testing.T) {
 // reaches the empty-reason arm a busy row carries.
 func TestEnterOnABusyRowExplainsAndOffersNoLifecycleAction(t *testing.T) {
 	busy := couchcore.ActionableThreadSummary{
-		Address: menuAddress("couch-one"), WorkingPath: "/repo/one", Name: "compiler",
+		Address: menuAddress("couch-one"), WorkingPath: "/repo/compiler",
 		State: couchcore.ThreadBusy,
 	}
 	state := NewMenuState([]couchcore.ActionableThreadSummary{busy}, couchcore.ThreadAddress{})
@@ -1352,16 +1308,13 @@ func TestEnterOnABusyRowExplainsAndOffersNoLifecycleAction(t *testing.T) {
 	if len(effects) != 0 {
 		t.Fatalf("a busy row dispatched %+v", effects)
 	}
-	if got.Notice.Level != MenuNoticeError || !strings.Contains(got.Notice.Text, "busy") {
-		t.Fatalf("notice = %+v, want it to say the thread is busy", got.Notice)
+	if got.Notice.Level != MenuNoticeError || !strings.Contains(got.Notice.Text, "starting elsewhere") {
+		t.Fatalf("notice = %+v, want it to say the thread is starting elsewhere", got.Notice)
 	}
 
-	// And no lifecycle action is offered on a thread something else is still
-	// doing something to -- archiving one would file a record mid-park.
-	items := menuActionItems(busy)
-	for _, forbidden := range []string{"resume", "detach", "park", "archive"} {
-		if slices.Contains(items, forbidden) {
-			t.Fatalf("busy row offers %q: %v", forbidden, items)
-		}
+	// And nothing is offered on a thread another couch is still starting:
+	// rebooting one would retire a record mid-start.
+	if items := menuActionItems(busy); len(items) != 0 {
+		t.Fatalf("busy row offers %v", items)
 	}
 }
