@@ -863,7 +863,7 @@ grep -rnE 'Tab → archive|Start fresh|Recover from checkpoint|, or archive|Dism
 - Modify: `cmd/internal/couchcore/startup.go:32-103,156-163`
 - Test: `cmd/internal/couchcore/startupselect_test.go:77-118`, `cmd/internal/couchcore/startup_proof_test.go:214`
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `TestSelectResumableRootMatchesTheRepositoryNotThePath`: a parked row at `/w/repo` in scope `S`, selected from
     `/w/repo/sub`, returns that address. A row in another scope does not.
   - `TestScopeHoldsUsableThreadFromASubdirectory`: live, detached and parked rows in `S` hold; unusable rows do not
@@ -872,57 +872,57 @@ grep -rnE 'Tab → archive|Start fresh|Recover from checkpoint|, or archive|Dism
     counts must still be reachable by the operator.
   - Extend `TestNarrowedStartupAnswersAsAFullProofWould` with a fixture whose `:0` record sits at `/repo` while
     startup runs at `/repo/sub`. Narrowed and full inventories must agree.
-- [ ] **Step 2:** Run `SCRUB go test ./cmd/internal/couchcore -run
+- [x] **Step 2:** Run `SCRUB go test ./cmd/internal/couchcore -run
       'TestSelectResumableRoot|TestScopeHolds|TestNarrowedStartup' -count=1`. Expected: FAIL.
-- [ ] **Step 3: Implement.** The signatures become `SelectResumableRoot(rows, repoScope)` and
+- [x] **Step 3: Implement.** The signatures become `SelectResumableRoot(rows, repoScope)` and
       `ScopeHoldsUsableThread(rows, repoScope)`. Restrict both to ordinary targets (`row.Target.Kind !=
       ThreadTargetSlot`). `startupAsks(requested, repoScope)` asks for every record in the scope. Update the reader
       list in `startupAsks`' doc comment, which is its one home.
-- [ ] **Step 4:** Re-run, plus `SCRUB go test ./cmd/internal/couchcore -run 'Startup|Select|Occupancy' -count=1`.
+- [x] **Step 4:** Re-run, plus `SCRUB go test ./cmd/internal/couchcore -run 'Startup|Select|Occupancy' -count=1`.
       Expected: PASS.
-- [ ] **Step 5: Commit** `#363 M3: startup: one primary per repository scope`.
+- [x] **Step 5: Commit** `#363 M3: startup: one primary per repository scope`.
 
 ### Task 3.2: Startup in a subdirectory resumes the primary
 
 **Files:** `cmd/internal/couchcore/startup.go:182-230`; test `cmd/internal/couchcore/startup_test.go`
-- [ ] **Step 1:** Write the failing test `TestStartInteractiveInSubdirectoryResumesTheExistingPrimary`. Through
+- [x] **Step 1:** Write the failing test `TestStartInteractiveInSubdirectoryResumesTheExistingPrimary`. Through
       `StartInteractive`, with a parked `:0` at the repository root and args `Cwd: <root>/sub`, it resumes that
       address. Assert that no record was created (the manifest count is unchanged) and that `ResumeContextWith` ran (a
       child was spawned with the old tag).
-- [ ] **Step 2:** Run. Expected: FAIL (today a second primary is created).
-- [ ] **Step 3:** Pass the scope to the new predicates.
-- [ ] **Step 4:** Run. Expected: PASS.
-- [ ] **Step 5:** Commit.
+- [x] **Step 2:** Run. Expected: FAIL (today a second primary is created).
+- [x] **Step 3:** Pass the scope to the new predicates.
+- [x] **Step 4:** Run. Expected: PASS.
+- [x] **Step 5:** Commit.
 
 ### Task 3.3: Console start refuses a second primary
 
 **Files:** `cmd/internal/couchcore/couch.go:475-490`; test `cmd/internal/couchcore/couch_test.go`
-- [ ] **Step 1:** Write the failing test `TestSpawnInSubdirectoryOfALivePrimaryRefuses`. Through `SpawnPrepared`, the
+- [x] **Step 1:** Write the failing test `TestSpawnInSubdirectoryOfALivePrimaryRefuses`. Through `SpawnPrepared`, the
       error contains "one primary slot per repository" and the existing label. No record is created and no child is
       spawned.
-- [ ] **Step 2:** Run. Expected: FAIL.
-- [ ] **Step 3:** Reword the refusal: `"%s already has its primary thread %s; couch keeps one primary slot per
+- [x] **Step 2:** Run. Expected: FAIL.
+- [x] **Step 3:** Reword the refusal: `"%s already has its primary thread %s; couch keeps one primary slot per
       repository\n  return to it: ctrl-space, select it, Enter\n  start fresh: ctrl-space, select it, Tab → reboot\n
       inspect it: couch --show %s"`.
-- [ ] **Step 4:** Run. Expected: PASS.
-- [ ] **Step 5:** Commit.
+- [x] **Step 4:** Run. Expected: PASS.
+- [x] **Step 5:** Commit.
 
 ### Task 3.4: Pin the non-Git behavior (resolved ambiguity 1)
 
 **Files:** test `cmd/internal/couchcore/couch_test.go`
-- [ ] **Step 1:** Write `TestStartInANonGitDirectoryRefuses`. `FakeGit` returns an error for `rev-parse
+- [x] **Step 1:** Write `TestStartInANonGitDirectoryRefuses`. `FakeGit` returns an error for `rev-parse
       --show-toplevel`. `PrepareStart` refuses, with no record and no child. If it does **not** refuse, stop and add
       the non-Git row kind to Task 2.1's table (no add-slot, no alias; a second start refuses through
       `ScopeHoldsUsableThread`) before closing.
-- [ ] **Step 2:** Run. Expected: PASS against today's code. Then revert `Resolve`'s error return temporarily and
+- [x] **Step 2:** Run. Expected: PASS against today's code. Then revert `Resolve`'s error return temporarily and
       confirm the test fails.
-- [ ] **Step 3:** Record the outcome in `## Log` and README ("couch starts only inside a Git repository"), if README
+- [x] **Step 3:** Record the outcome in `## Log` and README ("couch starts only inside a Git repository"), if README
       does not already say so.
-- [ ] **Step 4:** Commit.
+- [x] **Step 4:** Commit.
 
 ### Task 3.5: Close M3
 
-- [ ] README and atlas one-primary paragraph (`atlas/couch.md` startup section; `README.md` startup section).
+- [x] README and atlas one-primary paragraph (`atlas/couch.md` startup section; `README.md` startup section).
 - [ ] Full verification (Chunk 4). Ask the operator to run `couch` from a repository subdirectory live.
 - [ ] `sdlc milestone-close --issue 363 --milestone M3`, then `sdlc close --issue 363 --verified '<evidence>'`.
 
@@ -1015,3 +1015,47 @@ plan recommendations. Delta:
   `RebootResult` through `retiredResult`, so a slot reboot reports
   `SessionNotStopped` like a `:0` one.
 
+### 2026-10-03 — M3 implementation corrections
+
+Reason: findings while implementing Chunk 3, and the M2 boundary review's two
+Minor findings. Delta:
+
+- **Task 3.1, `ScopeHoldsUsableThread` returns the row**, not only its address,
+  so Task 3.3's refusal can name the label and choose the fresh step from the
+  held row's state. A shared `primaryOfScope` (scope match, ordinary target) is
+  the one filter both predicates read.
+- **Task 3.1, the equivalence fixture** is "the primary is parked at the root,
+  startup runs in a subdirectory": the root record needs its cold proof
+  although it is not at the cwd. `startupInventory`/`startupAsks` no longer take
+  a path at all, so the fixture's red is shown by mutating `startupAsks` back to
+  the cwd's path.
+- **Task 3.2's red is a mutation.** The 3.1 signature change already carries the
+  scope into `StartInteractive`, so the new test was green on arrival; restoring
+  an exact-path filter in the selector turns it red.
+- **Task 3.3, the refusal names only what the held row offers** (M2 review rule,
+  lessons `refusal-names-unoffered-action`). The planned text said "Tab →
+  reboot" unconditionally; a live `:0` offers no reboot. `primaryFreshStep`
+  says `Tab → reboot` where `RebootableState` permits it and "Enter, then
+  Alt+Shift+N" for a live row, pinned by a derived test over every state the
+  guard holds. The first `%s` is the repository root, the second the row label.
+  `TestASecondThreadAtOnePathIsRefused` now expects Alt+Shift+N and no reboot;
+  `TestCoTenantsAreAddressableByActorID` seeds its second primary past the guard
+  (a store that predates the rule).
+- **Task 3.4** also asserts the refusal is `Resolve`'s ("resolve worktree"):
+  `resolveRepoIdentity` refuses a non-Git directory too, so without it the
+  plan's mutation (reverting `Resolve`'s error return) stays green.
+- **M2 review finding 1 (rule, not instance):** every row-facing next step now
+  comes from `menuRowAdviceOf` in `menu_actions.go`, beside `menuRowActions`
+  and over the same facts (status explanation, Enter's way forward, the
+  no-directory reboot cost; `OnPrimary` marks a step taken on the live `:0`,
+  `:1+` only). `TestRowAdviceNamesOnlyReachableActions` sweeps every derived row
+  shape and every confirmation it offers. A `:0` with no checkout reads
+  `couchcore.RebootCheckoutMissing` ("checkout missing — reboot archives this
+  record; restore the checkout to start here again"), and `DecideReboot` gives
+  that reason for every `:0` no-directory outcome; `:1+` keeps
+  `RebootDirectoryMissing`. `TestPathMissingRowExplainsAddSlot` became
+  `TestPathMissingRowExplainsItsNextStep` (per kind).
+- **M2 review finding 2:** the stale failure-confirmation comment is fixed, and a
+  prose sweep of removed action names found a live string, "retry open-slot"
+  (`launch_existing.go`), now "resume it again". The Task 2.6 grep matched
+  quoted names only.

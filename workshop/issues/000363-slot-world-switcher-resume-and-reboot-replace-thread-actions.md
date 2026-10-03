@@ -244,6 +244,48 @@ continuation phases, in-flight exemption, console label transport).
 - The live smoke test the plan puts at Task 2.9 is deferred to one operator
   smoke test after M3, at the operator's direction (2026-10-02).
 
+### 2026-10-03 — M3 implementation notes
+
+- **Chunk 3 done, TDD per task.** One primary per repository: `SelectResumableRoot`
+  and the new `ScopeHoldsUsableThread` match the repository scope (ordinary
+  targets only; unusable rows never block), and `startupAsks` asks the whole
+  scope. A subdirectory start resumes the root `:0`
+  (`TestStartInteractiveInSubdirectoryResumesTheExistingPrimary`); the start
+  form refuses with "couch keeps one primary slot per repository"
+  (`TestSpawnInSubdirectoryOfALivePrimaryRefuses`). The non-Git refusal is pinned
+  (`TestStartInANonGitDirectoryRefuses`): couch starts only inside a Git
+  repository (resolved ambiguity 1, confirmed), so no non-Git row kind exists.
+  Red was observed for each test. The mutation checks were red too: a path-narrowed
+  `startupAsks`, an exact-path selector or guard, a selector that admits slot rows,
+  `Resolve` accepting a non-Git directory, and a reboot fresh step on a live row.
+  `TestNarrowedStartupAnswersAsAFullProofWould` gained the root/subdirectory fixture;
+  `TestOccupancyPredicatesAgreeWhereTheyOverlap` now iterates every state and
+  reason against the scope predicate.
+- **M2 review findings handled.** (1) Rule, not instance: every row-facing next
+  step comes from `menuRowAdviceOf` beside `menuRowActions`.
+  `TestRowAdviceNamesOnlyReachableActions` sweeps every derived row shape and its
+  confirmations, and it was red on the `:0` path-missing family before the fix. A
+  `:0` with no checkout now reads "checkout missing — reboot archives this
+  record; restore the checkout to start here again"; the reboot result uses the
+  same words (`RebootCheckoutMissing`); `:1+` keeps "directory missing — add slot
+  recreates it". The start-form refusal picks its fresh step the same way
+  (`primaryFreshStep`: reboot where `RebootableState` permits it, Alt+Shift+N on a
+  live `:0`). (2) The stale archive comment was fixed. A prose sweep also caught a
+  live "retry open-slot" error string and a name/describe comment.
+- **Deviations** are in the plan's 2026-10-03 M3 Revision. `ScopeHoldsUsableThread`
+  returns the row. The 3.3 refusal text differs from the plan: it gives a
+  per-state fresh step and the repository root. The co-tenant test seeds its
+  second primary past the guard. Lessons gained a prose-sweep rule.
+- **Verification (scrubbed, unsandboxed):** `make -k test` fails only the known
+  `test-changelog`, which passes with a scratchpad TMPDIR. `go test ./...` fails
+  only the pre-existing `TestProductionArtifactReferencesAreExactlyClassified`
+  (no M3 sources in its list; no new production files) and
+  `TestCouchReferencesLocalArchiveLocatorRoundTrip`. `-race` couchcore and couchtty
+  are green; gofmt is clean. `go vet ./...` flags only
+  `pairlifecycletest/live_zellij_diagnostics_test.go:20`, which is untouched by
+  this branch (#239). The live operator smoke test (subdirectory `couch`, plus the
+  M2 items) is still pending.
+
 ## Revisions
 
 ### 2026-10-02 — boundary with pair#367 settled: actor only

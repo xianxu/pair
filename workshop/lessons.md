@@ -65,6 +65,9 @@ representative evidence, not an exhaustive index.
   the offered actions, per row kind. Hand-written advice drifts from the menu
   each time an action is added, removed or narrowed. (#363, three times in one
   issue)
+- A sweep for a removed name must match it in prose too, not only as a quoted
+  identifier: "retry open-slot" survived #363's quoted-name grep in an error
+  string, and comments kept describing archive and name/describe. (#363 M2 BR)
 - Give each fact one production authority and make consumers derive from it.
   Negative greps, duplicate registries, and prose tables drift. If a rule fails
   twice, turn it into an executable check. (ARCH-PURPOSE, #206, #256)
