@@ -130,3 +130,27 @@ Reason: operator design review of pair#384 (closed wontfix). Delta:
   bulk reboot of N ready slots fold into #363; this issue adds the claim join,
   the report, and the operator-approved "continue #N" step on top.
 - deps: pair#384 dropped; ariadne#289 and pair#363 added.
+
+### 2026-10-02 — owns bulk recovery and Couch-owned workspace shaping
+
+Reason: operator design review; pair#363 is settled as actor-only. Delta:
+
+- **Two layers.** pair#363's resume and reboot get a live agent into a slot
+  without reshaping the worktree. This issue is automation: it also wants the
+  worktree in a known shape, and composes per slot from ariadne#289's verdict:
+  holds-work → #363 resume, then "continue #N"; ready and wanted for new work →
+  shape the workspace, then #363 reboot for a fresh agent; needs-recovery /
+  missing / unknown → report why and leave it.
+- **Bulk commands live here:** resume the slots holding work; prepare N ready
+  slots for new work (names TBD).
+- **Couch owns workspace shaping**, because Couch owns the named slot
+  worktrees: re-check the verdict at action time, switch every checkout of the
+  slot to its resting branch (from `sdlc workspace`), run `weave refresh`
+  (which refuses dirty trees and active Git operations). Never stash, reset or
+  discard. sdlc supplies only the verdict and resting-branch name; weave the
+  refresh.
+- **Known constraint:** a second `couch` invocation cannot run operations while
+  the console runs (owner routing deferred to #147); bulk commands need a route
+  to the running Couch or must be triggered from inside it.
+- A deleted slot directory is pair#387's repair, not this issue's.
+- deps unchanged (pair#363 stays: resume and reboot are its primitives).
