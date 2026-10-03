@@ -1,6 +1,6 @@
 ---
 id: 000363
-status: codecomplete
+status: done
 created: 2026-09-30
 updated: 2026-10-03
 estimate_hours: 3.29
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: b1bf933a2691562e03f2c02e92e2d3ea443482ae
         evidence_commit: 1b538ac15c90ab8a6ff6920df6bf8a57d86b828c
+        landed_commit: 1c54f8b4c23924a9035b1201bd73d16e1db102d5
 ---
 
 # Slot-world switcher: resume and reboot replace thread actions
