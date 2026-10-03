@@ -423,6 +423,19 @@ func (c *Couch) resolveRepoIdentity(ctx context.Context, workingPath string) (st
 	return common, nil
 }
 
+// primaryFreshStep is how the operator starts a fresh agent in place of the
+// primary thread that refused a second start: the next step its switcher row
+// can reach. Reboot is offered exactly where it is permitted
+// (RebootableState; the switcher's table asserts offer equals permission), so
+// that is the test. A live :0 offers no reboot (pair#363 Spec) -- Pair's own
+// restart chord is its fresh agent.
+func primaryFreshStep(held ActionableThreadSummary) string {
+	if RebootableState(held.State, held.Reason) {
+		return "ctrl-space, select it, Tab → reboot"
+	}
+	return "ctrl-space, select it, Enter, then Alt+Shift+N restarts its conversation"
+}
+
 // spawnResolved creates a thread. `rows` is the caller's already-resolved
 // actionable inventory, used only for the one-thread-per-path guard -- passed
 // in rather than re-derived so an interactive startup does not pay for a second
@@ -436,10 +449,11 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 	if err != nil {
 		return ActorRecord{}, nil, err
 	}
-	// One thread per repo path, enforced at the single site every creation
-	// entry funnels through. Several threads at one path without separate
-	// worktrees is confusing, and per-repo policy is a design space of its own
-	// -- so until it exists, a second thread has to be DELIBERATE.
+	// One primary thread per repository (pair#363, widened from one thread
+	// per path, #181), enforced at the single site every creation entry
+	// funnels through: a start anywhere inside a repository whose :0 exists
+	// returns to it (startup) or refuses here (the start form). Slots are how a
+	// repository gets more than one agent.
 	//
 	// There is no opt-in yet, deliberately. StartArgs.SameTree looks like one
 	// but is documented as "an inert legacy serialization field... New
@@ -479,13 +493,14 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 		// supervisor lease from inside couch anyway -- and "retire it: couch
 		// --show <tag>", which is a read-only listing. Both were dead ends
 		// printed at the moment someone was already stuck. These are switcher
-		// gestures, because the switcher is where they are.
+		// gestures, because the switcher is where they are, and the fresh one
+		// is chosen by what the held row offers (primaryFreshStep).
 		return ActorRecord{}, nil, fmt.Errorf(
-			"%s already has thread %s; couch keeps one thread per path for now\n"+
+			"%s already has its primary thread %s; couch keeps one primary slot per repository\n"+
 				"  return to it:  ctrl-space, select it, Enter\n"+
-				"  start fresh:   ctrl-space, select it, Tab → reboot (park it first if it is live)\n"+
+				"  start fresh:   %s\n"+
 				"  inspect it:    couch --show %s",
-			resolution.CanonicalPath, held.Address.Tag, held.Address.Tag)
+			scope.Root, held.Label(), primaryFreshStep(held), held.Address.Tag)
 	}
 	startedAt := c.Clock.Now()
 	thread, err := c.Threads.AllocateThreadTag(scope.Key, resolution.CanonicalPath, startedAt, func() (string, error) {
