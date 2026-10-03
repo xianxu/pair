@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000389-couch-detach-fails-when-client-exits-between-liveness-probes.md
         source_blob: a9ec86316b1a2579144d497aaeafb8dbada7f6f8
         destination: workshop/issues/000389-couch-detach-fails-when-client-exits-between-liveness-probes.md
+        main_commit: 6bab73a96b4bccf5854f515e2bc1215cbc14f2e7
 ---
 
 # couch detach fails when client exits between liveness probes
