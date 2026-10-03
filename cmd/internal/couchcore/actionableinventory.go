@@ -438,6 +438,18 @@ func ArchivableState(state ActionableThreadState, reason ThreadReason) bool {
 	return false
 }
 
+// RebootableState is reboot's admission rule over the classification.
+//
+// It is archive's rule, by construction rather than by agreement: reboot runs
+// the same retirement (prepareRetirement) before it starts anything, so a row
+// archive would refuse is a row reboot cannot retire either. `unusable/unknown`
+// stays refused for the same reason -- reboot stops a session, and ignorance
+// is not a verdict. The switcher offers reboot exactly where this holds, so
+// the offer is the permission.
+func RebootableState(state ActionableThreadState, reason ThreadReason) bool {
+	return ArchivableState(state, reason)
+}
+
 // ResumableState is resume's admission rule over the classification.
 //
 // It reads no reason, and that is a property of ClassifyThread rather than an
