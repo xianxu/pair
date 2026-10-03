@@ -466,6 +466,9 @@ func continuationLabel(phase checkpoint.Phase) string {
 }
 
 func threadStateText(thread couchcore.ActionableThreadSummary, now time.Time) string {
+	if notice := menuRowNotice(menuRowFactsOf(thread)); notice != "" {
+		return notice
+	}
 	switch thread.State {
 	case couchcore.ThreadLive:
 		return "live"
@@ -473,10 +476,6 @@ func threadStateText(thread couchcore.ActionableThreadSummary, now time.Time) st
 		return withMenuAge("detached", now, thread.LastActiveAt)
 	case couchcore.ThreadParked:
 		return withMenuAge("parked", now, thread.LastActiveAt)
-	case couchcore.ThreadBusy:
-		// #256 changed the referent: busy is a START couch has claimed and not
-		// finished, never a park in flight.
-		return "starting…"
 	case couchcore.ThreadArchived:
 		return "archived"
 	}

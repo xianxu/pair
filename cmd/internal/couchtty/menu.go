@@ -7,7 +7,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/orientation"
 )
@@ -624,6 +623,12 @@ func reduceRootKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			return state, nil
 		}
 		items := menuActionsFor(state, thread)
+		if len(items) == 0 {
+			// Busy, unknown and continuation-pending rows offer nothing; an
+			// empty action list would be a screen with no way forward.
+			state.Notice = errorMenuNotice(thread.Label() + ": " + unusableThreadNotice(thread) + " · no actions")
+			return state, nil
+		}
 		appendMenuFrame(&state, MenuFrame{
 			Kind: MenuFrameActions, RowKey: menuRowKey(thread), Thread: thread.Address, SelectedItem: items[0],
 		})
@@ -1280,6 +1285,9 @@ func menuThreadActionable(thread couchcore.ActionableThreadSummary) bool {
 // still running, couch just lost the pointer" and "this is over" call for very
 // different reactions.
 func unusableThreadNotice(thread couchcore.ActionableThreadSummary) string {
+	if notice := menuRowNotice(menuRowFactsOf(thread)); notice != "" {
+		return notice
+	}
 	if thread.Recovery != nil && thread.Recovery.Diagnosis != "" {
 		return thread.Recovery.Diagnosis
 	}
@@ -1302,158 +1310,8 @@ func unusableThreadNotice(thread couchcore.ActionableThreadSummary) string {
 		return "its saved agent is not supported by this build"
 	case couchcore.ReasonUnknown:
 		return "couch could not check its state this refresh"
-	case "":
-		return "it is busy"
 	}
 	return string(thread.Reason)
-}
-
-// menuLiveActions is a live row's action set. Detach first: it is the safe,
-// everyday gesture -- the agent keeps running and only the client goes. Park is
-// destructive and sits behind it, in the position the operator has to travel to.
-var menuLiveActions = []string{"detach", "relaunch", "park", "switch-agent", "name", "describe"}
-
-// menuActionItems is what a row offers. It is NOT filtered through the
-// declaration: a filter made the sweep's offered-implies-declared direction
-// unfalsifiable -- offered became a subset of declared by construction -- and
-// turned the mistake it was meant to catch into an item silently vanishing from
-// the switcher. A guard must be able to fail, and production must not coerce its
-// input into agreement. The test reads this function and compares.
-func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
-	if thread.Target.Kind == couchcore.ThreadTargetSlot {
-		ordinary := thread
-		ordinary.Target = couchcore.ThreadTarget{}
-		ordinary.RowKey = couchcore.ThreadRowKey{}
-		items := []string{}
-		if !thread.Live() {
-			items = append(items, "open-slot")
-		}
-		if slotFreshOffered(thread) {
-			items = append(items, "fresh-slot")
-		}
-		if thread.Address != (couchcore.ThreadAddress{}) {
-			for _, item := range menuActionItems(ordinary) {
-				if item != "archive" && item != "resume" && item != "recover-thread" && item != "alias" {
-					items = append(items, item)
-				}
-			}
-		}
-		return items
-	}
-	if recovery := thread.Recovery; recovery != nil && (thread.State == couchcore.ThreadUnusable || (thread.Continuation != nil && thread.Continuation.Phase != checkpoint.Complete)) {
-		items := []string{}
-		if recovery.Recover {
-			items = append(items, "recover-thread")
-		}
-		if request := thread.Continuation; request != nil && (request.Phase == checkpoint.Failed || request.Phase == checkpoint.Running) {
-			items = append(items, "retry-continuation")
-			if request.Phase == checkpoint.Failed {
-				items = append(items, "dismiss-continuation")
-			}
-		}
-		if recovery.FromCheckpoint {
-			items = append(items, "recover-checkpoint")
-		}
-		if recovery.Archive && menuArchiveOffered(thread) {
-			items = append(items, "archive")
-		}
-		return append(items, "name", "describe")
-	}
-	if request := thread.Continuation; request != nil && request.Phase != checkpoint.Complete {
-		switch {
-		case request.Phase == checkpoint.Failed && thread.Live():
-			// A failed request COMPOSES with a live thread's actions (#280): it
-			// used to replace them, so the one thread the operator was typing into
-			// lost detach and park. Only what continuationGuard refuses goes, and
-			// that list is couchcore's, not restated here. Live rows only: other
-			// states have their own admissions reading the request (archive's
-			// archiveContinuationVacant, a warm reattach's validateContinuationWarm).
-			items := []string{}
-			for _, op := range menuLiveActions {
-				if couchcore.ContinuationRefuses(op) {
-					continue
-				}
-				items = append(items, op)
-				if op == "detach" {
-					items = append(items, "retry-continuation", "dismiss-continuation")
-				}
-			}
-			return items
-		case request.Phase == checkpoint.Failed:
-			return []string{"retry-continuation", "dismiss-continuation", "name", "describe"}
-		case request.Phase == checkpoint.Running:
-			// While a request is in flight the continuation owns the thread:
-			// parking or detaching mid-replacement races its own reconciliation.
-			// Retry is the exit, including for a request whose owner died and
-			// that will never finish on its own (#280).
-			return []string{"retry-continuation", "name", "describe"}
-		}
-		return []string{"name", "describe"}
-	}
-	if thread.State == couchcore.ThreadBusy {
-		// ANOTHER COUCH is starting this thread right now, and both halves of
-		// that sentence are load-bearing since #256.
-		//
-		// The old wording said "would file a record mid-park". M1 disproved it:
-		// `busy` is never a park -- a ThreadStartClaim is its only producer. The
-		// old wording also said "it resolves on its own", and M2 made that TRUE
-		// rather than hopeful: a claim whose owner couch is provably dead stops
-		// counting, so the row leaves this branch and reports the world. It
-		// stays here only while that owner is alive or unprovable, which is the
-		// one case where something really is still acting on the thread.
-		//
-		// So archive is still withheld, for the reason the comment always gave:
-		// offering an action that always fails is how a switcher teaches an
-		// operator to distrust it. Metadata still applies.
-		return []string{"name", "describe"}
-	}
-	if !menuThreadActionable(thread) {
-		// Naming a thread you cannot enter is still useful -- it is how the
-		// operator marks what a lost row was for -- and archiving is how it
-		// leaves, which is the point of a row that cannot be entered.
-		if !menuArchiveOffered(thread) {
-			return []string{"name", "describe"}
-		}
-		return []string{"archive", "name", "describe"}
-	}
-	if thread.Live() {
-		items := append([]string(nil), menuLiveActions...)
-		if menuAliasOffered(thread) {
-			items = append(items, "alias")
-		}
-		return items
-	}
-	// Archive is offered wherever couch is not hosting the thread, which is
-	// ArchivableState's rule stated a second time on purpose: the guard that
-	// refuses a hosted thread is Couch.ArchiveThread's admission, and
-	// TestActionOfferedImpliesPermitted is what keeps the two statements from
-	// drifting. Offering an action that always fails is how a switcher teaches
-	// an operator to distrust it.
-	if thread.State == couchcore.ThreadParked {
-		return []string{"resume", "switch-agent", "archive", "name", "describe"}
-	}
-	return []string{"resume", "archive", "name", "describe"}
-}
-
-// menuArchiveOffered is the ONE place the switcher decides to put archive on a
-// row. Two branches reach that decision -- a row carrying a recovery offer, and
-// a row nothing can be entered on -- and a rule written at one of them is a
-// rule the other keeps not having.
-//
-// It is stated here rather than delegated to couchcore.ArchivableState on
-// purpose, for the reason menuActionItems already carries above: filtering the
-// offer through the guard makes offered-implies-permitted true by construction,
-// and a guard that cannot fail is not a guard. The offer is written, the
-// permission is written, and TestActionOfferedImpliesPermitted compares them.
-func menuArchiveOffered(thread couchcore.ActionableThreadSummary) bool {
-	if thread.Target.Kind == couchcore.ThreadTargetSlot {
-		return false
-	}
-	// "checking..." is not a verdict about the thread -- it says the evidence
-	// did not resolve this round. Archive stops a session and cannot be undone,
-	// so offering it here is how an operator retires a thread whose agent is
-	// still up.
-	return !(thread.State == couchcore.ThreadUnusable && thread.Reason == couchcore.ReasonUnknown)
 }
 
 // confirmationMenuItems names what the operator is about to accept.
