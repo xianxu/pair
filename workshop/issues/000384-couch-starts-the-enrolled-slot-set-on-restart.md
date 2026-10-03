@@ -79,5 +79,5 @@ manual recovery.
 Split by owner: slot grouping, slot address, dependency checkouts and the
 readiness verdict are git/workflow facts and go to an ariadne issue on
 `sdlc fleet inventory` (after ariadne#288). The Couch slot view joins that
-with thread state in pair#367. The bulk resume/reboot actions fold into
-pair#363, which owns the per-slot resume and reboot operations.
+with thread state in pair#367, which also owns the bulk resume/prepare actions
+and workspace shaping, built on pair#363's per-slot resume and reboot.

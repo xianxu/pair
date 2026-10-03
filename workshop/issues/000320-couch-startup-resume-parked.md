@@ -101,4 +101,4 @@ thread), #205 (parallel batch park/detach), #214 (racing launches).
 Closed wontfix at the operator's direction: outdated. Auto-resuming every
 parked thread at startup is unsafe, because a parked slot may be ready, stale,
 or corrupted. Startup stays reattach-only; slot recovery became an explicit
-state report plus resume/reboot actions (pair#363 bulk resume/reboot; pair#367 slot view).
+state report plus resume/reboot actions (pair#367, on pair#363's per-slot resume and reboot).

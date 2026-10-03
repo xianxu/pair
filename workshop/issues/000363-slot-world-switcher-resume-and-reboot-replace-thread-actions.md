@@ -1,12 +1,20 @@
 ---
 id: 000363
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-30
-updated: 2026-09-30
+updated: 2026-10-02
 estimate_hours:
-card_mirror: '05060d6273a6f8af12b16c6e4ab716907e50608d' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '47f8ae0b4867c752fe36cd171053ebd4f4cbff66' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-02T13:26:48-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Slot-world switcher: resume and reboot replace thread actions
@@ -91,3 +99,23 @@ Action sets per row (operator decisions, 2026-09-30, from #360's design talk):
 - Filed from #360's design conversation with the operator. #360 keeps the
   addressing work (prefix, alias, candidates, `--agent`); this issue owns the
   switcher's action model; #364 owns slot removal.
+
+## Revisions
+
+### 2026-10-02 — boundary with pair#367 settled: actor only
+
+Reason: operator design review after pair#384 closed. Bulk recovery was briefly
+folded in here (with a wait on ariadne#288/#289); that was reversed the same
+day. Delta, relative to the Spec as filed:
+
+- **This issue is about the actor.** Resume and reboot get a live agent into a
+  slot while changing as little disk state as possible. Reboot archives the old
+  record with its evidence and starts a fresh agent in the directory as it is;
+  it never switches branches, refreshes, or otherwise reshapes the worktree,
+  and it needs no readiness verdict. A missing directory is not reboot's job:
+  archive, then add slot (pair#387 repairs a deleted slot's leftover
+  registration).
+- **Automation is pair#367's.** Bulk resume of slots holding work, preparing N
+  ready slots for new work, and shaping a slot's workspace (resting branch,
+  `weave refresh`, Couch-owned) build on this issue's resume and reboot.
+- No ariadne dependency: `deps: []`.
