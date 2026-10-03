@@ -146,8 +146,6 @@ type StopResult struct {
 
 func Operations() []Operation {
 	return []Operation{
-		{Name: "open-slot", Summary: "Open or recover this durable slot", Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart, Presentation: PresentationTUI, RowAction: true, Args: []ArgSpec{{Name: "path", Summary: "slot host checkout", Required: true}, {Name: "agent", Summary: "agent when initialization needs a profile", FlagOnly: true, ValueRequired: true}}},
-		{Name: "fresh-slot", Summary: "Start a fresh conversation in this slot", Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultStart, Presentation: PresentationTUI, RowAction: true, Args: []ArgSpec{{Name: "path", Summary: "slot host checkout", Required: true}, {Name: "agent", Summary: "agent for the fresh conversation", FlagOnly: true, ValueRequired: true}}},
 		{
 			Name: "provision-workspace", Summary: "Prepare a durable numbered workspace",
 			Execution: ExecuteDirectStore, Effect: EffectProcess, Confirmation: ConfirmNone,
@@ -224,17 +222,6 @@ func Operations() []Operation {
 			Args:         []ArgSpec{{Name: "ref", Summary: "path or operator-assigned name", Required: true}},
 		},
 		{
-			Name: "name", Summary: "Give a work thread a short human name",
-			Execution: ExecuteDirectStore, Effect: EffectMetadata, Confirmation: ConfirmNone, Result: ResultThread,
-			Presentation: PresentationTUI, RowAction: true,
-			Args: []ArgSpec{
-				{Name: "ref", Summary: "thread tag, path, or existing name", Required: false},
-				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
-				{Name: "name", Summary: "the new short name", Required: true},
-				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
-			},
-		},
-		{
 			Name: "alias", Summary: "Read or set a repository's short name for slot references",
 			Execution: ExecuteDirectStore, Effect: EffectMetadata, Confirmation: ConfirmNone, Result: ResultRepositoryAlias,
 			Presentation: PresentationTUI, RowAction: true,
@@ -242,17 +229,6 @@ func Operations() []Operation {
 				{Name: "ref", Summary: "repository name, alias, repo:N, or path", Required: true},
 				{Name: "alias", Summary: "the new short name; omit to read it", Required: false},
 				{Name: "clear", Summary: "remove the alias", FlagOnly: true},
-			},
-		},
-		{
-			Name: "describe", Summary: "Read or set a work thread's operator description",
-			Execution: ExecuteDirectStore, Effect: EffectMetadata, Confirmation: ConfirmNone, Result: ResultDescription,
-			Presentation: PresentationTUI, RowAction: true,
-			Args: []ArgSpec{
-				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
-				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
-				{Name: "description", Summary: "omit to read the cached value", Required: false},
-				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
 			},
 		},
 
@@ -368,26 +344,13 @@ func Operations() []Operation {
 			},
 		},
 		{
-			// Archiving is the operator's "delete": remove a thread from the
-			// switcher so they can start anew. It is reversible by design --
-			// the record moves rather than being destroyed -- but it is still
-			// confirmed, because a row leaving the working set is exactly the
-			// kind of change that should not happen by a mistyped keystroke.
-			Name: "archive", Summary: "Remove a work thread from Couch, keeping its record in the archive",
-			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultThread,
-			Presentation: PresentationTUI, RowAction: true,
-			Args: []ArgSpec{
-				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
-				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
-				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
-			},
-		},
-		{
-			// RowAction false until M2 wires the switcher (pair#363): reachable
-			// only through dispatch in the meantime.
+			// Reboot is the operator's way out of a conversation that cannot
+			// come back (pair#363): it archives the record with its evidence,
+			// so it is reversible in the way archive was, and confirmed because
+			// it stops a detached row's running agent.
 			Name: "reboot", Summary: "Archive this conversation and start a fresh agent in the same slot or path",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultStart,
-			Presentation: PresentationTUI, RowAction: false,
+			Presentation: PresentationTUI, RowAction: true,
 			Args: []ArgSpec{
 				{Name: "path", Summary: "slot host checkout", Implicit: true},
 				{Name: "repo-scope", Summary: "repository scope derived from caller context", Implicit: true},
@@ -401,27 +364,6 @@ func Operations() []Operation {
 			Presentation: PresentationTUI,
 			Args: []ArgSpec{
 				{Name: "mode", Summary: "detach (default) or park every live thread (--mode=<mode>)", FlagOnly: true, ValueRequired: true},
-			},
-		},
-		{
-			Name: "recover-thread", Summary: "Recover a surviving session or the retained checkpoint",
-			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart,
-			Presentation: PresentationTUI, RowAction: true,
-			Args: []ArgSpec{
-				{Name: "ref", Summary: "thread tag, path, or name"},
-				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
-				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
-			},
-		},
-		{
-			Name: "recover-checkpoint", Summary: "Start a new conversation from a selected checkpoint",
-			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart,
-			Presentation: PresentationTUI, RowAction: true,
-			Args: []ArgSpec{
-				{Name: "ref", Summary: "thread tag, path, or name"},
-				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
-				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
-				{Name: "path", Summary: "absolute checkpoint path", Required: true, FlagOnly: true, ValueRequired: true},
 			},
 		},
 		{

@@ -16,8 +16,6 @@ func TestOperationDeclarationsAreClosureFreeCompleteAndOwned(t *testing.T) {
 		result       OperationResult
 		presentation OperationPresentation
 	}{
-		"open-slot":            {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart, PresentationTUI},
-		"fresh-slot":           {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultStart, PresentationTUI},
 		"provision-workspace":  {ExecuteDirectStore, EffectProcess, ConfirmNone, ResultWorkspace, PresentationInternal},
 		"prepare-switch-agent": {ExecuteLiveOwner, EffectRead, ConfirmNone, ResultStartResolution, PresentationTUI},
 		"switch-agent":         {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultStart, PresentationTUI},
@@ -27,8 +25,6 @@ func TestOperationDeclarationsAreClosureFreeCompleteAndOwned(t *testing.T) {
 		"list":                 {ExecuteDirectStore, EffectRead, ConfirmNone, ResultThreadInventory, PresentationList},
 		"show":                 {ExecuteDirectStore, EffectRead, ConfirmNone, ResultThreadInventory, PresentationShow},
 		"stop":                 {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultStop, PresentationTUI},
-		"name":                 {ExecuteDirectStore, EffectMetadata, ConfirmNone, ResultThread, PresentationTUI},
-		"describe":             {ExecuteDirectStore, EffectMetadata, ConfirmNone, ResultDescription, PresentationTUI},
 		"alias":                {ExecuteDirectStore, EffectMetadata, ConfirmNone, ResultRepositoryAlias, PresentationTUI},
 		"request-continuation": {ExecuteDirectStore, EffectMetadata, ConfirmNone, ResultThread, PresentationInternal},
 		"continue-thread":      {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart, PresentationInternal},
@@ -42,10 +38,7 @@ func TestOperationDeclarationsAreClosureFreeCompleteAndOwned(t *testing.T) {
 		"detach":               {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultThread, PresentationTUI},
 		"leave":                {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultConsole, PresentationTUI},
 		"relaunch":             {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultStart, PresentationTUI},
-		"archive":              {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultThread, PresentationTUI},
 		"archived":             {ExecuteDirectStore, EffectRead, ConfirmNone, ResultThreadInventory, PresentationList},
-		"recover-thread":       {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart, PresentationTUI},
-		"recover-checkpoint":   {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart, PresentationTUI},
 		"resume":               {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart, PresentationTUI},
 		"reboot":               {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultStart, PresentationTUI},
 	}

@@ -189,13 +189,6 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 				return nil, err
 			}
 			return BuildArchivedInventory(records), nil
-		case "name":
-			address, err := resolveOperationThread(c, a)
-			if err != nil {
-				return nil, err
-			}
-			name := a["name"]
-			return c.ApplyThreadMetadata(address, ThreadMetadataPatch{Name: &name})
 		case "alias":
 			var alias *string
 			if v, supplied := a["alias"]; supplied {
@@ -209,19 +202,6 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 				alias = &empty
 			}
 			return c.RepositoryAlias(call.Context, a["ref"], alias)
-		case "describe":
-			address, err := resolveOperationThread(c, a)
-			if err != nil {
-				return nil, err
-			}
-			if d, supplied := a["description"]; supplied {
-				return c.ApplyThreadMetadata(address, ThreadMetadataPatch{Description: &d})
-			}
-			record, err := c.Threads.GetThread(address)
-			if err != nil {
-				return nil, err
-			}
-			return record.Description, nil
 		case "dismiss-continuation":
 			address, err := resolveOperationThread(c, a)
 			if err != nil {
@@ -287,14 +267,6 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				return nil, fmt.Errorf("accepted startup parameters are required")
 			}
 			return c.SwitchAgent(ctx, SwitchAgentRequest{Address: address, Agent: a["agent"], Argv: *argv, AcceptedFingerprint: a["fingerprint"]})
-		case "archive":
-			// Exact tag/ref addressing must also work for unreadable records;
-			// archive retains those without signalling an unproved session.
-			address, err := resolveThreadForArchive(c, a)
-			if err != nil {
-				return nil, err
-			}
-			return c.ArchiveThread(ctx, address)
 		case "reboot":
 			if path := a["path"]; path != "" {
 				return c.Reboot(ctx, RebootTarget{Path: path, Agent: a["agent"]})
@@ -306,12 +278,6 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				return nil, err
 			}
 			return c.Reboot(ctx, RebootTarget{Address: address, Agent: a["agent"]})
-		case "recover-thread", "recover-checkpoint":
-			address, err := resolveOperationThread(c, a)
-			if err != nil {
-				return nil, err
-			}
-			return c.RecoverThread(ctx, address, a["path"])
 		case "continue-thread", "retry-continuation", "continuation-status":
 			address, err := resolveOperationThread(c, a)
 			if err != nil {
@@ -331,10 +297,6 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				return nil, err
 			}
 			return c.ReadOrientationStatus(ctx, address, a["agent"], a["attempt"])
-		case "open-slot":
-			return c.OpenSlot(ctx, a["path"], a["agent"])
-		case "fresh-slot":
-			return c.StartFreshSlot(ctx, a["path"], a["agent"])
 		case "prepare-start":
 			path := a["path"]
 			if path == "" {

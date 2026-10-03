@@ -83,20 +83,14 @@ func TestContinuationRefusesMatchesTheGuardForEveryRowAction(t *testing.T) {
 		"prepare-switch-agent": {args: map[string]string{"agent": "codex"}}, // SwitchAgent re-runs this preview (switchagent.go)
 		"park":                 {args: map[string]string{}},
 		"detach":               {args: map[string]string{}},
-		"name":                 {args: map[string]string{"name": "renamed"}},
-		"describe":             {args: map[string]string{}},
 	}
 	rowActionDrivenAs := map[string]string{"switch-agent": "prepare-switch-agent"}
 	exempt := map[string]string{
 		"retry-continuation":   "an exit from the failed request, not an operation it gates",
 		"dismiss-continuation": "an exit from the failed request, not an operation it gates",
-		"archive":              "never offered on a live row; its own admission is archiveContinuationVacant",
+		"reboot":               "never offered on a live row; its retirement is prepareRetirement, whose admission is archive's archiveContinuationVacant",
 		"alias":                "repository metadata keyed by primary root; it addresses no thread, so no thread's continuation gates it",
 		"resume":               "#363: routes a retained request to RetryContinuation/RecoverThread instead of the guard; pinned by TestResumeOperationRetriesAFailedContinuation and TestChooseResumeRoute",
-		"recover-thread":       "offered only on recovery rows, never composed",
-		"recover-checkpoint":   "offered only on recovery rows, never composed",
-		"open-slot":            "path-based dispatcher tested by TestSlotOpenColdUsesContinuationGuard; hosted/warm open preserves the existing conversation",
-		"fresh-slot":           "explicit slot recovery tested by TestSlotFreshContinuationProtectsLiveAndUnknownOwners and TestSlotFreshRetainsStoppedContinuationWithoutArchiveGesture; requires stopped owners and retains the request",
 	}
 	for _, op := range Operations() {
 		if !op.RowAction {

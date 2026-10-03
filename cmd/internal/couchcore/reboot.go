@@ -35,6 +35,12 @@ type RebootResult struct {
 // Started makes a reboot that launched a fresh agent adoptable like any start.
 func (r RebootResult) Started() (StartResult, bool) { return r.Start, r.Start.Handle != nil }
 
+// Warning is the operator-facing note, empty when there is nothing to say:
+// archive's own wording, because the retirement is archive's.
+func (r RebootResult) Warning() string {
+	return ArchiveResult{Record: ThreadRecord{Address: r.Archived}, SessionNotStopped: r.SessionNotStopped}.Warning()
+}
+
 // Reboot archives the old conversation's record with its evidence and starts
 // a fresh agent in the same slot or path, with a new tag. It never touches the
 // worktree itself (pair#367 owns shaping a slot's workspace).

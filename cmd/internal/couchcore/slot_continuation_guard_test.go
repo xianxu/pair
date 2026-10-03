@@ -59,7 +59,10 @@ func dispatchSlotContinuation(env *testEnv, op, path string) (any, error) {
 	return DispatchOperation(OperationExecutors{LiveOwner: CouchLiveOwnerExecutor(env.Couch), DirectStore: DirectStoreExecutor(env.Couch)}, OperationCall{Name: op, Args: map[string]string{"path": path, "agent": "claude"}, Implicit: true, Context: context.Background()})
 }
 
-func TestSlotFreshContinuationProtectsLiveAndUnknownOwners(t *testing.T) {
+// Reboot is fresh-slot's successor on a slot (pair#363): it retires the
+// record with its retained request and starts fresh, and must refuse while the
+// request's owner is not proved stopped.
+func TestSlotRebootContinuationProtectsLiveAndUnknownOwners(t *testing.T) {
 	for _, target := range []bool{false, true} {
 		for _, unknown := range []bool{false, true} {
 			name := "source"
@@ -71,6 +74,9 @@ func TestSlotFreshContinuationProtectsLiveAndUnknownOwners(t *testing.T) {
 			}
 			t.Run(name, func(t *testing.T) {
 				env, local, record := slotContinuationFixture(t, checkpoint.Running, target)
+				// Reboot retires through archive's admission, which reads the
+				// record's exact session binding (absent session, known name).
+				env.Artifacts.SetPairSession(record.Address, "pair-slot-fixture", false)
 				pid, identity := 42, "source"
 				if target {
 					pid, identity = 43, "target"
@@ -80,11 +86,11 @@ func TestSlotFreshContinuationProtectsLiveAndUnknownOwners(t *testing.T) {
 				} else {
 					env.Proc.Set(pid, identity)
 				}
-				_, err := dispatchSlotContinuation(env, "fresh-slot", record.StartingPath)
+				_, err := dispatchSlotContinuation(env, "reboot", record.StartingPath)
 				if err == nil {
 					t.Fatal("fresh replaced a continuation whose owner was not proved stopped")
 				}
-				if !strings.Contains(err.Error(), "owner") {
+				if !strings.Contains(err.Error(), "not proved dead") && !strings.Contains(err.Error(), "owner") {
 					t.Fatalf("refused for unrelated reason: %v", err)
 				}
 				current, readErr := local.GetThread(record.Address)
@@ -96,18 +102,19 @@ func TestSlotFreshContinuationProtectsLiveAndUnknownOwners(t *testing.T) {
 	}
 }
 
-func TestSlotFreshRetainsStoppedContinuationWithoutArchiveGesture(t *testing.T) {
+func TestSlotRebootRetainsStoppedContinuationInTheArchive(t *testing.T) {
 	for _, phase := range checkpoint.AllPhases() {
 		if phase != checkpoint.Pending && phase != checkpoint.Failed {
 			continue
 		}
 		t.Run(string(phase), func(t *testing.T) {
 			env, local, record := slotContinuationFixture(t, phase, false)
-			result, err := dispatchSlotContinuation(env, "fresh-slot", record.StartingPath)
+			env.Artifacts.SetPairSession(record.Address, "pair-slot-fixture", false)
+			result, err := dispatchSlotContinuation(env, "reboot", record.StartingPath)
 			if err != nil {
 				t.Fatal(err)
 			}
-			start := result.(StartResult)
+			start := result.(RebootResult).Start
 			if start.Handle == nil || start.Record.Thread == record.Address {
 				t.Fatalf("not fresh: %+v", start)
 			}
@@ -121,7 +128,9 @@ func TestSlotFreshRetainsStoppedContinuationWithoutArchiveGesture(t *testing.T) 
 
 func TestSlotOpenColdUsesContinuationGuard(t *testing.T) {
 	env, local, record := slotContinuationFixture(t, checkpoint.Failed, false)
-	_, err := dispatchSlotContinuation(env, "open-slot", record.StartingPath)
+	// OpenSlot directly: resume routes a failed request to RetryContinuation
+	// before it reaches OpenSlot, so the guard is OpenSlot's own defence.
+	_, err := env.Couch.OpenSlot(context.Background(), record.StartingPath, "claude")
 	if err == nil || !strings.Contains(err.Error(), "continuation "+record.Continuation.ID+" is failed;") {
 		t.Fatalf("cold slot open bypassed continuation guard: %v", err)
 	}
