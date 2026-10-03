@@ -196,6 +196,45 @@ continuation phases, in-flight exemption, console label transport).
 - **Test-declaration fixes:** `ops_declarations_test` gained `reboot`; `couchcmd/run_test.go`'s argument counts are
   now resume 5 and reboot 4.
 
+### 2026-10-03 — M2 implementation notes
+
+- **Chunk 2 done, TDD per task.** Every new test was observed red first, and
+  the mutation checks were observed red as well: dropping reboot's in-flight
+  exemption, its replaced-row exemption, or its attempt matching; removing the
+  "Tab → reboot" hint; the slot path-missing arm; the busy notice;
+  `retiredResult`'s SessionNotStopped; the start form's `withRebootAdvice`. The
+  sweeps (`menu_action_sweep_test`, `action_agreement_test`) iterate the table's
+  derived domain (`everyMenuRowShape`) in both directions.
+- **M1 review findings handled:** (1) the console's watch and focus-on-landing
+  key on routed `resume` (`TestRoutedResumeResultStartsWatchOnlyForPublishedRequest`,
+  red before); (2) the advice texts: `withRebootAdvice` stays as written,
+  because reboot is offered wherever resume is (asserted in the table test), and
+  the start form's open applies the same helper, so OpenSlot's refusals keep a
+  next step (`TestStartFormOpenOfAnEmptySlotNamesReboot`); (3) `retiredResult`
+  is shared by both reboot kinds (`TestRetiredResultCarriesWhatRetirementDidNotDo`);
+  (4) the ARCH-CONSTRAINTS note is in the plan's Revisions. The busy row's
+  "starting elsewhere" comes from the table's busy phase (`menuRowNotice`), as
+  the plan-quality advisory asked.
+- **Deviations:** they are recorded in the plan's 2026-10-03 Revision. In short:
+  a `:1+` path-missing row offers nothing (ambiguity 7); reboot matches its
+  result by attempt; the detached reboot confirmation says the agent "may
+  survive" (#274); `RecoverThread`'s `path` parameter is kept (the live-only
+  conformance test still uses it); `checkpoint.Exits` names live-row and
+  not-live-row exits; the checkpoint acceptance modes were removed; the
+  `ResultDescription` result family was deleted (dead-symbol guard).
+- **`rename` hits kept** (pair/OS, not switcher): `detachedsessions.go:13` (a
+  session name never renamed), `threadstore.go:102` and `store.go:20`
+  (`rename(2)`), README `pair rename` and the inner rename refusal. The final
+  sweep grep shows only the `"archive"` directory-name strings in
+  `slotmigration.go:187`, `threadstore.go:1258,1392`, `retention.go:176`,
+  `repository_family_store.go:219` and `slotsessions.go:251`.
+- **Verification (scrubbed, unsandboxed):** `make -k test` fails only the known
+  `test-changelog`, and `test-changelog` passes with a scratchpad TMPDIR. `go
+  test ./...` fails only the pre-existing `TestProductionArtifactReferencesAreExactlyClassified`
+  (its failure list is identical to M1's after inventorying `menu_actions.go`)
+  and `TestCouchReferencesLocalArchiveLocatorRoundTrip`. `go test -race`
+  couchtty and couchcore are green.
+
 ## Revisions
 
 ### 2026-10-02 — boundary with pair#367 settled: actor only

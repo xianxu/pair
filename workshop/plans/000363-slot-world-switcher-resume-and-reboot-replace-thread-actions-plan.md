@@ -576,7 +576,7 @@ test below pins both.
   `menuArchiveOffered`), `cmd/internal/couchtty/menu_slot.go:35` (delete `slotFreshOffered`),
   `cmd/internal/couchtty/menu_switchagent.go:201` (add-slot leaves `menuActionsFor`)
 
-- [ ] **Step 1: Write the failing test.** `TestRowActionTableMatchesTheSpec`. The **domain is derived**: kinds
+- [x] **Step 1: Write the failing test.** `TestRowActionTableMatchesTheSpec`. The **domain is derived**: kinds
       {primary `:0`, slot `:1`} × `AllThreadStates()` (minus archived) × `AllThreadReasons() ∪ ""` (only the
       combinations the projection can produce) × (`checkpoint.AllPhases() ∪ none`). The **expected value** is a
       literal function written from the Spec table, which is a separate statement and not a call into production:
@@ -600,9 +600,9 @@ test below pins both.
   The live-running/pending rows apply to both kinds, and they take precedence over the plain live rows. Add
   `TestBusyRowSaysStartingElsewhere`: render the root list and assert the status text. Change `case "":` at
   `menu.go:1306` to return "starting elsewhere", and Enter's notice to match.
-- [ ] **Step 2:** Run `SCRUB go test ./cmd/internal/couchtty -run 'TestRowActionTable|TestBusyRow' -count=1`.
+- [x] **Step 2:** Run `SCRUB go test ./cmd/internal/couchtty -run 'TestRowActionTable|TestBusyRow' -count=1`.
       Expected: FAIL.
-- [ ] **Step 3: Implement.**
+- [x] **Step 3: Implement.**
 
 ```go
 type menuRowKind uint8
@@ -659,8 +659,8 @@ func menuActionItems(row couchcore.ActionableThreadSummary) []string { return me
 
   Keep the "NOT filtered through the declaration" doc comment on `menuActionItems`. `menuActionsFor` keeps only
   `copy-orientation`.
-- [ ] **Step 4:** Re-run. Expected: PASS.
-- [ ] **Step 5: Commit** `#363 M2: switcher: one pure action table per row`.
+- [x] **Step 4:** Re-run. Expected: PASS.
+- [x] **Step 5: Commit** `#363 M2: switcher: one pure action table per row`.
 
 ### Task 2.2: Enter, dispatch, confirmation and in-flight re-checks
 
@@ -672,7 +672,7 @@ func menuActionItems(row couchcore.ActionableThreadSummary) []string { return me
 - Test: `cmd/internal/couchtty/menu_test.go`, `menu_slot_test.go`, `menu_recovery_test.go`,
   `menu_continuation_test.go`
 
-- [ ] **Step 1: Write and rewrite the failing tests.**
+- [x] **Step 1: Write and rewrite the failing tests.**
   - `TestEnterResumesEveryRowThatOffersResume`: over the Task 2.1 domain, Enter on a row whose items contain `resume`
     dispatches `resume`, and on a live row dispatches `switch`. Other rows dispatch nothing and show the row's notice
     plus "Tab → reboot".
@@ -694,15 +694,15 @@ func menuActionItems(row couchcore.ActionableThreadSummary) []string { return me
   - Rewrite `TestUnusableRowOffersOnlyMetadataActions` (`menu_test.go:1276`) as `TestUnusableRowOffersReboot`. Delete
     the archive-specific tests at `:1291` and their recovery and continuation siblings, and replace them with reboot
     or resume equivalents. Keep the busy test (`:1343`), now asserting no items and "starting elsewhere".
-- [ ] **Step 2:** Run `SCRUB go test ./cmd/internal/couchtty -count=1`. Expected: FAIL on the new and rewritten tests.
-- [ ] **Step 3: Implement.** `enterOperationFor`: live → `switch`; `resume` offered → `resume`; else `""`.
+- [x] **Step 2:** Run `SCRUB go test ./cmd/internal/couchtty -count=1`. Expected: FAIL on the new and rewritten tests.
+- [x] **Step 3: Implement.** `enterOperationFor`: live → `switch`; `resume` offered → `resume`; else `""`.
       `dispatchMenuRow`: for `resume`/`reboot` on a slot target, send `{path}`; otherwise use
       `dispatchThreadOperation`. In-flight tracking keys by `RowKey` whenever the effect carries a `path`
       (`menu.go:1795,1935`), not by the `open-slot`/`fresh-slot` names. Completion text: `"rebooting " + label`.
       Remove the `archive`/`recover-checkpoint` arms in `menu_render.go:352,358`. Change `menu_render.go:422`'s
       reuse-notice verbs to `resume`/`reboot`.
-- [ ] **Step 4:** Re-run. Expected: PASS.
-- [ ] **Step 5: Commit** `#363 M2: switcher: Enter, dispatch and confirmations follow the table`.
+- [x] **Step 4:** Re-run. Expected: PASS.
+- [x] **Step 5: Commit** `#363 M2: switcher: Enter, dispatch and confirmations follow the table`.
 
 ### Task 2.3: Flip `RowAction`, delete superseded operations
 
@@ -713,7 +713,7 @@ func menuActionItems(row couchcore.ActionableThreadSummary) []string { return me
 - Test: `cmd/internal/couchtty/menu_action_sweep_test.go`, `cmd/internal/couchtty/action_agreement_test.go`,
   `cmd/internal/couchcmd/*_test.go`
 
-- [ ] **Step 1: Update the sweeps first, so they fail.**
+- [x] **Step 1: Update the sweeps first, so they fail.**
   - `TestRowActionDeclarationsAndTheMenuAgreeInBothDirections`: build `offered` from the **same derived domain** as
     Task 2.1 (a shared test helper `everyMenuRowShape(t)` in `menu_actions_test.go`), not the current hand-picked
     rows.
@@ -722,19 +722,19 @@ func menuActionItems(row couchcore.ActionableThreadSummary) []string { return me
     ResumableState-or-unusable-with-offer}` and `{"reboot", RebootableState}`. Resume on unusable rows is admitted by
     `ResumeTarget`'s route, so pair it with a `resumeAdmitted(state, reason)` predicate stated in the test: resumable,
     or unusable. Delete `TestRecoveryRowArchiveOfferedImpliesPermitted`.
-- [ ] **Step 2:** Run `SCRUB go test ./cmd/internal/couchtty -run
+- [x] **Step 2:** Run `SCRUB go test ./cmd/internal/couchtty -run
       'TestRowActionDeclarations|TestEveryOfferedAction|TestActionOffered' -count=1`. Expected: FAIL. `reboot` is
       offered but not declared a RowAction, and the deleted operations are declared but not offered.
-- [ ] **Step 3: Implement.** Flip `RowAction` and delete the declarations and their executor arms.
+- [x] **Step 3: Implement.** Flip `RowAction` and delete the declarations and their executor arms.
       `Couch.ArchiveThread`, `OpenSlot`, `StartFreshSlot`, `RecoverThread` and `ApplyThreadMetadata` stay as
       internals; `publish-description` still uses the last. If `RecoverThread`'s `path` parameter has no caller left,
       delete it and its `selected` branch, and move its tests in `recovery_execute_test.go` to the retained-checkpoint
       form. `run.go`: `operationUsesCurrentRepoScope` drops `name describe recover-thread recover-checkpoint archive`
       and adds `reboot`. `operationOwnsLive` drops `open-slot fresh-slot recover-thread recover-checkpoint archive`
       and adds `reboot`. `WantsConsole` drops the `archive` exception.
-- [ ] **Step 4:** Run `SCRUB go test ./cmd/internal/couchtty ./cmd/internal/couchcore ./cmd/internal/couchcmd
+- [x] **Step 4:** Run `SCRUB go test ./cmd/internal/couchtty ./cmd/internal/couchcore ./cmd/internal/couchcmd
       -count=1`. Expected: PASS (minus the known 3).
-- [ ] **Step 5: Commit** `#363 M2: ops: reboot is a row action; rename, describe, archive and repair entries leave`.
+- [x] **Step 5: Commit** `#363 M2: ops: reboot is a row action; rename, describe, archive and repair entries leave`.
 
 ### Task 2.4: Labels stop reading the stored name; summaries stop reading the stored description
 
@@ -744,7 +744,7 @@ func menuActionItems(row couchcore.ActionableThreadSummary) []string { return me
 - Test: `cmd/internal/couchcore/actionableinventory_test.go`, `cmd/internal/couchtty/menu_test.go`,
   `cmd/internal/couchcmd` list/show tests
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `TestSlotRowLabelIgnoresStoredName`: a slot row with `Name: "renamed"` gives `repo:1`, and with `RepositoryAlias:
     "pr"` gives `pr:1`. Do the same for `ThreadSummary.Label`.
   - `TestPrimaryRowLabelIgnoresStoredName`: `ActionableThreadSummary.Label()` on an ordinary row with `Name:
@@ -759,8 +759,8 @@ func menuActionItems(row couchcore.ActionableThreadSummary) []string { return me
   - `TestDisplaySummaryIsThePublishedSummaryOnly`: `Description` set and `PublishedSummary` empty give `""` from both
     summary types.
   - `TestSwitcherRowShowsNoStoredNameDetail`: the rendered root line does not contain `(renamed)`.
-- [ ] **Step 2:** Run the six tests. Expected: FAIL.
-- [ ] **Step 3: Implement.** `threadLabel(workingPath, tag)` loses its `name` parameter. Both `Label()` methods stop
+- [x] **Step 2:** Run the six tests. Expected: FAIL.
+- [x] **Step 3: Implement.** `threadLabel(workingPath, tag)` loses its `name` parameter. Both `Label()` methods stop
       reading `Name`. Both `DisplaySummary()` methods return `PublishedSummary`. Delete the `(name)` detail at
       `menu_render.go:549`. The console's pane `label` is `Record.Args.Worktree.Repo()` (`console.go:1991`), the
       repository basename, carried into rows through `Name` at `console_presentation.go:30,48,57`. Delete all three
@@ -768,9 +768,9 @@ func menuActionItems(row couchcore.ActionableThreadSummary) []string { return me
       `PresentThreads` (`thread_presentation.go:~64`), label an ordinary row with `RepositoryAlias`, else
       `filepath.Base(root)` when `presentationRoot` resolved, else `row.Label()`. The tab bar and the switcher both go
       through `PresentThreads`, so they agree.
-- [ ] **Step 4:** Re-run, then `SCRUB go test ./cmd/internal/couchcore ./cmd/internal/couchtty ./cmd/internal/couchcmd
+- [x] **Step 4:** Re-run, then `SCRUB go test ./cmd/internal/couchcore ./cmd/internal/couchtty ./cmd/internal/couchcmd
       -count=1`. Expected: PASS.
-- [ ] **Step 5: Commit** `#363 M2: labels: slot rows always label repo:N or alias:N`.
+- [x] **Step 5: Commit** `#363 M2: labels: slot rows always label repo:N or alias:N`.
 
 ### Task 2.5: Matching stops reading stored name and description
 
@@ -780,20 +780,20 @@ func menuActionItems(row couchcore.ActionableThreadSummary) []string { return me
   path, or name"` / `"operator-assigned name"` arg summary
 - Test: `cmd/internal/couchcore/threadmetadata_test.go`, `cmd/internal/couchtty/menu_test.go`
 
-- [ ] **Step 1: Write the failing tests.** `TestThreadReferenceDoesNotMatchStoredNameOrDescription`:
+- [x] **Step 1: Write the failing tests.** `TestThreadReferenceDoesNotMatchStoredNameOrDescription`:
       `ResolveThreadReference` on `"renamed"`, where only `Name` holds it, gives `ErrThreadReferenceNotFound`. The
       same applies to `Description`. A tag or path still matches. `TestSwitcherFilterMatchesLabelAndPublishedSummary`:
       a filter `repo:1` or a published-summary word selects the row; a stored-name word does not.
-- [ ] **Step 2:** Run. Expected: FAIL.
-- [ ] **Step 3: Implement.** `ResolveThreadReference` leaves `Label` and `Summary` empty, so only tag and path match
+- [x] **Step 2:** Run. Expected: FAIL.
+- [x] **Step 3: Implement.** `ResolveThreadReference` leaves `Label` and `Summary` empty, so only tag and path match
       there. The switcher passes `Label: row.Label()` and `Summary: menuFocusSummary(row)`. Arg summaries become
       `"thread tag or path"`.
-- [ ] **Step 4:** Re-run. Expected: PASS.
-- [ ] **Step 5: Commit** `#363 M2: matching: stored names and descriptions are no longer searched`.
+- [x] **Step 4:** Re-run. Expected: PASS.
+- [x] **Step 5: Commit** `#363 M2: matching: stored names and descriptions are no longer searched`.
 
 ### Task 2.6: Derived sweep of removed operation names and stale advice strings
 
-- [ ] **Step 1: Enumerate.** Run:
+- [x] **Step 1: Enumerate.** Run:
 
 ```bash
 grep -rnE '"(open-slot|fresh-slot|name|describe|archive|recover-thread|recover-checkpoint)"' cmd/internal | grep -v _test.go
@@ -808,42 +808,42 @@ grep -rnE 'Tab → archive|Start fresh|Recover from checkpoint|, or archive|Dism
   it", keeping the `couch --internal retry-continuation|dismiss-continuation` CLI forms); `console.go:1891` and
   `console_continuation.go:230` (focus and continuation handling for `recover-thread`/`recover-checkpoint`, which
   become `reboot` or are deleted).
-- [ ] **Step 2:** Fix each hit. For every changed message, update or add the test that executes it. `spawnResolved`'s
+- [x] **Step 2:** Fix each hit. For every changed message, update or add the test that executes it. `spawnResolved`'s
       refusal comment requires that every gesture it names is executed by a test.
-- [ ] **Step 3:** Re-run both greps. Expected: no hits except the `"archive"` directory-name strings
+- [x] **Step 3:** Re-run both greps. Expected: no hits except the `"archive"` directory-name strings
       (`threadstore.go:1251,1373`, `retention.go:176`, `slotsessions.go:251`, `repository_family_store.go:219`,
       `slotmigration.go:187`) and `RecoveryDecision.Archive`'s JSON tag. Paste the final grep output into `## Log`.
-- [ ] **Step 4:** Run `SCRUB go test ./cmd/internal/... -count=1`. Expected: PASS (minus the known 3).
-- [ ] **Step 5: Commit** `#363 M2: side-quest: every refusal names resume or reboot, never a removed action`.
+- [x] **Step 4:** Run `SCRUB go test ./cmd/internal/... -count=1`. Expected: PASS (minus the known 3).
+- [x] **Step 5: Commit** `#363 M2: side-quest: every refusal names resume or reboot, never a removed action`.
 
 ### Task 2.7: Directory-missing row explanation
 
 **Files:** `cmd/internal/couchtty/menu.go:1282-1310` (`unusableThreadNotice`, row reason text)
-- [ ] **Step 1:** Write the failing test `TestPathMissingRowExplainsAddSlot`: rendered status and Enter notice contain
+- [x] **Step 1:** Write the failing test `TestPathMissingRowExplainsAddSlot`: rendered status and Enter notice contain
       "directory missing — add slot recreates it".
-- [ ] **Step 2:** Run. Expected: FAIL.
-- [ ] **Step 3:** Implement using `couchcore.RebootDirectoryMissing`, so the row and the reboot result say the same
+- [x] **Step 2:** Run. Expected: FAIL.
+- [x] **Step 3:** Implement using `couchcore.RebootDirectoryMissing`, so the row and the reboot result say the same
       thing.
-- [ ] **Step 4:** Run. Expected: PASS.
-- [ ] **Step 5: Commit** `#363 M2: switcher: a path-missing row says add slot recreates it`.
+- [x] **Step 4:** Run. Expected: PASS.
+- [x] **Step 5: Commit** `#363 M2: switcher: a path-missing row says add slot recreates it`.
 
 ### Task 2.8: README and atlas
 
 **Files:** `README.md:383,500-502,543-544,714,768-771,783-798`,
 `atlas/couch.md:427,521-524,537,552-553,578-582,668-690,946`
 
-- [ ] **Step 1: Enumerate.** `grep -nE 'rename|describe|Tab → archive|archive|recover|fresh slot|open
+- [x] **Step 1: Enumerate.** `grep -nE 'rename|describe|Tab → archive|archive|recover|fresh slot|open
       slot|Dismiss|Retry continuation' README.md atlas/couch.md`. Classify each hit: a switcher action (reword to
       resume/reboot or delete), a store mechanism (archive directory, grace: keep), or pair's own `pair rename`
       (keep).
-- [ ] **Step 2: Rewrite.** Cover the per-row table, what resume tries in order, reboot's contract (archive with
+- [x] **Step 2: Rewrite.** Cover the per-row table, what resume tries in order, reboot's contract (archive with
       evidence, fresh tag, no branch or worktree change, directory-missing archive-only, name and description not
       carried), stored name and description no longer displayed or matched, the busy row's "starting elsewhere", and
       the live-failed continuation exits. The atlas gets the new pure entities and `ReplaceThreadExpected`. Keep
       `atlas/index.md` links valid.
-- [ ] **Step 3:** Run README contract checks (`SCRUB make -k test` covers them; lessons: "documentation edits can
+- [x] **Step 3:** Run README contract checks (`SCRUB make -k test` covers them; lessons: "documentation edits can
       break executable contract checks").
-- [ ] **Step 4:** Commit `#363 M2: docs: README and atlas speak resume and reboot`.
+- [x] **Step 4:** Commit `#363 M2: docs: README and atlas speak resume and reboot`.
 
 ### Task 2.9: Close M2
 
@@ -963,4 +963,55 @@ Reason: findings while implementing Chunk 1. Delta:
   `RecoverThread` and never meets the guard. It is exempt in the guard test, with a reason.
 - **Reboot costs two classification rounds, not one** (ARCH-CONSTRAINTS note). Step 1's admission classify runs ahead
   of the profile preflight, and `prepareRetirement` classifies again.
+
+### 2026-10-03 — M2 implementation corrections
+
+Reason: findings while implementing Chunk 2, and the M1 boundary review's
+plan recommendations. Delta:
+
+- **ARCH-CONSTRAINTS (M1 review):** routed resume adds one `classifyForAction`
+  round (one host-wide `list-sessions`) per ordinary resume keypress, before
+  `ResumeContextWith`, off the UI path through the operation queue. Reboot's
+  two rounds are recorded above.
+- **Task 2.6, console sites (M1 review):** `console.go`'s focus-on-landing and
+  `console_continuation.go`'s watch registration key on `resume`, not
+  `reboot`: resume now returns `RecoverThread`'s and `RetryContinuation`'s
+  `ContinuationResult`; reboot returns a `RebootResult`.
+- **Task 2.6, advice texts (M1 review):** `withRebootAdvice` stays as written
+  (reboot is now offered wherever resume is; `TestRowActionTableMatchesTheSpec`
+  asserts resume implies reboot). OpenSlot's refusals keep a next step through
+  the same helper: the start form's open applies `withRebootAdvice` too.
+- **Task 2.1, `:1+` path-missing:** the table row "unusable, path-missing →
+  reboot" applies to `:0` only. Resolved ambiguity 7 governs `:1+`: it offers
+  nothing and shows "directory missing — add slot recreates it" (`rebootSlot`
+  refuses a missing directory, so offering reboot would break offer equals
+  permission). Unknown rows show "state could not be checked" (ambiguity 5).
+- **Task 2.1, add-slot is not an operation:** it moved into the table but has
+  no declaration (it opens the start form, whose submit is `start`), so the
+  both-direction sweep names it as the switcher's own affordance.
+- **Task 2.2, reboot result matching:** a `:0` reboot's success names the NEW
+  tag, so matching by address would never clear `InFlight`. Reboot (and any
+  row-keyed operation) matches by attempt and restores its frames on completion;
+  its frames survive while its own row is replaced.
+- **Task 2.2, reboot confirmation on a detached row** reads "stops its session;
+  its running <agent> may survive", not "stops its running agent": #274 (open)
+  measured that quiesce reaps by SIGHUP and a SIG_IGN pane survives, which is
+  why archive's confirmation already said "may survive".
+- **Task 2.3, `RecoverThread`'s `path` parameter is kept.** Its only remaining
+  callers are tests, chiefly the live-only zellij conformance test's cold
+  branch (`recovery_conformance_live_test.go`), which imports a selected
+  checkpoint with no retained request. Removing the parameter means reworking
+  that live fixture to seed a retained request, which cannot be run in the
+  sandbox; left for a follow-up.
+- **Task 2.3, acceptance:** `recovery_acceptance_test.go`'s checkpoint modes
+  drove the removed checkpoint form; the menu acceptance now runs `warm` and
+  `reboot`, and `tests/couch-recovery-smoke.sh` takes `warm|reboot`.
+- **Task 2.6, `checkpoint.Exits`:** refusals reach live rows (relaunch,
+  switch-agent) and rows that are not live (archive admission under reboot,
+  warm resume), so the wording names each: retry-continuation /
+  dismiss-continuation on a live thread, resume / reboot otherwise, keeping the
+  `couch --internal` CLI forms.
+- **M1 review finding 3:** both reboot kinds build the retirement half of
+  `RebootResult` through `retiredResult`, so a slot reboot reports
+  `SessionNotStopped` like a `:0` one.
 
