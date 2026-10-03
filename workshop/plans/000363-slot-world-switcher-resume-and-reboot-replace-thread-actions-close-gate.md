@@ -71,6 +71,38 @@ rounds:
       boundary: M1
       recipe: milestone-review
       blocked: false
+    - "n": 3
+      timestamp: "2026-10-03T01:17:00-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: withdrawn
+          note: 'Overtaken: tasks 1.x and 2.x are executed and their tests exist; compressing completed prose now has no value.'
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: TestRebootPrimaryCrashAfterJournalRecovers installs leakFirstClaim and asserts the next reboot starts past the leaked address (reboot_test.go:107-170).
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: menuRowNotice reads menuPhaseBusy for both threadStateText and enterRefusalNotice; pinned by TestBusyRowSaysStartingElsewhere.
+          round: 3
+      findings:
+        - id: BR-9
+          severity: Minor
+          title: A :0 path-missing row and its reboot confirmation say "add slot recreates it", which that row cannot reach
+          detail: '3rd in family. Rule: a row''s next-step text must name an action reachable from that row''s kind (slot vs primary), chosen per kind next to the action table. Here a :0 never offers add-slot unless live, and add slot does not recreate a primary checkout (reboot_decision.go:47, menu_actions.go:170, menu.go:1316). Confirm the :0 wording with the operator.'
+          family: refusal-names-unoffered-action
+          round: 3
+        - id: BR-10
+          severity: Minor
+          title: menu.go:1636 comment still says relaunch and archive keep their confirmation on failure
+          detail: Archive was removed; reboot is now the action that keeps its confirmation. The Task 2.6 sweep grepped strings, not comments.
+          family: removed-action-sweep-misses-comments
+          round: 3
+      boundary: M2
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#363 (boundary-review)
@@ -107,13 +139,27 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-8** [Minor] `undeclared-runtime-cost` Routed resume adds a classifyForAction round per ordinary resume, not noted in ARCH-CONSTRAINTS
   resume_route.go:162. One host-wide list-sessions per keypress, off the UI path; the plan Revision should state it, as it does for reboot.
 
+## Round 3 — 2026-10-03T01:17:00-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — withdrawn — Overtaken: tasks 1.x and 2.x are executed and their tests exist; compressing completed prose now has no value.
+- BR-2 — addressed — TestRebootPrimaryCrashAfterJournalRecovers installs leakFirstClaim and asserts the next reboot starts past the leaked address (reboot_test.go:107-170).
+- BR-3 — addressed — menuRowNotice reads menuPhaseBusy for both threadStateText and enterRefusalNotice; pinned by TestBusyRowSaysStartingElsewhere.
+
+### Raised
+
+- **BR-9** [Minor] `refusal-names-unoffered-action` A :0 path-missing row and its reboot confirmation say "add slot recreates it", which that row cannot reach
+  3rd in family. Rule: a row's next-step text must name an action reachable from that row's kind (slot vs primary), chosen per kind next to the action table. Here a :0 never offers add-slot unless live, and add slot does not recreate a primary checkout (reboot_decision.go:47, menu_actions.go:170, menu.go:1316). Confirm the :0 wording with the operator.
+- **BR-10** [Minor] `removed-action-sweep-misses-comments` menu.go:1636 comment still says relaunch and archive keep their confirmation on failure
+  Archive was removed; reboot is now the action that keeps its confirmation. The Task 2.6 sweep grepped strings, not comments.
+
 ## Open findings
 
-- **BR-1** [Minor] `test-prose-enumeration` Tasks 1.3/1.5/1.6/2.2/2.4 enumerate test cases in prose instead of one strategy line per risky function
-- **BR-2** [Minor] `unconfirmed-outcome-untested` The :0 reboot claim leak (death between Claim and journal) is asserted in prose but not pinned by a test
-- **BR-3** [Minor] `single-action-authority` Busy-row "starting elsewhere" is patched at menu.go case "" rather than derived from the action-table busy phase
 - **BR-4** [Minor] `refusal-names-unoffered-action` withRebootAdvice tells the operator "Tab → reboot" while M1 declares reboot RowAction false
 - **BR-5** [Minor] `refusal-names-unoffered-action` OpenSlot refusals dropped the "choose Start fresh" exit while fresh-slot is still offered in M1
 - **BR-6** [Minor] `result-consumer-keyed-by-op-name` Console continuation watch registers only for recover-thread/recover-checkpoint, not routed resume
 - **BR-7** [Minor] `result-field-dropped` rebootSlot ignores prepareRetirement's SessionNotStopped
 - **BR-8** [Minor] `undeclared-runtime-cost` Routed resume adds a classifyForAction round per ordinary resume, not noted in ARCH-CONSTRAINTS
+- **BR-9** [Minor] `refusal-names-unoffered-action` A :0 path-missing row and its reboot confirmation say "add slot recreates it", which that row cannot reach
+- **BR-10** [Minor] `removed-action-sweep-misses-comments` menu.go:1636 comment still says relaunch and archive keep their confirmation on failure

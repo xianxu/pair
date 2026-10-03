@@ -125,7 +125,7 @@ Durable plan: `workshop/plans/000363-slot-world-switcher-resume-and-reboot-repla
 (reviewed and approved 2026-10-02). Each milestone is a review boundary.
 
 - [x] M1 — Actor operations in couchcore: unified `resume` (warm, cold, proven adoption, continuation/recovery retry) and `reboot` (profile preflight before quiesce, `:0` journaled replace, `:1+` fresh, missing-directory archive-only, no name/description carry); switcher untouched.
-- [ ] M2 — Switcher speaks the slot model: one pure per-row action table (offer equals permission), resume/reboot wired, rename/describe/archive/open-slot/fresh-slot/recover-* removed, labels and matching stop reading stored name/description, README and atlas.
+- [x] M2 — Switcher speaks the slot model: one pure per-row action table (offer equals permission), resume/reboot wired, rename/describe/archive/open-slot/fresh-slot/recover-* removed, labels and matching stop reading stored name/description, README and atlas.
 - [ ] M3 — One primary per repository: a subdirectory start resumes the existing `:0`; a console start refuses a second primary; non-Git refusal pinned.
 
 ## Log
@@ -197,6 +197,7 @@ continuation phases, in-flight exemption, console label transport).
   now resume 5 and reboot 4.
 
 ### 2026-10-03 — M2 implementation notes
+- 2026-10-03: closed M2 — M2 switcher: one pure per-row action table (offer equals permission; derived row-shape sweeps both directions), resume/reboot wired as row actions, 7 old ops removed, labels/matching stop reading stored name/description, M1 review findings folded (continuation watch keyed to resume, advice wording, SessionNotStopped via shared retiredResult), README+atlas; every new test red-then-green, mutation checks red; make -k test only known test-changelog (passes with scratchpad TMPDIR); go test ./... only the 2 pre-existing failures (artifactpath still 33 pre-existing entries); -race couchtty+couchcore green; actual = sdlc actual cumulative 1.49 minus M1 0.87; review verdict: SHIP
 
 - **Chunk 2 done, TDD per task.** Every new test was observed red first, and
   the mutation checks were observed red as well: dropping reboot's in-flight
