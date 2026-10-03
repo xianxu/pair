@@ -1005,6 +1005,13 @@ func observeExactProcess(proc ProcOps, expected ProcessIdentity) Liveness {
 	}
 	identity, err := proc.Identity(expected.PID)
 	if err != nil {
+		// The two probes are not atomic: a process reaped between them (a
+		// client exiting under SIGTERM) is present for Exists and has no
+		// identity a moment later. Ask again before calling it unknowable --
+		// ESRCH now is a confirmed exit (#389).
+		if proc.Exists(expected.PID) == Dead {
+			return Dead
+		}
 		return Unknown
 	}
 	if identity != expected.Identity {

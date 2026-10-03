@@ -358,3 +358,36 @@ func TestDetachRecordsOneActivityTimeHoweverManyAttemptsItTakes(t *testing.T) {
 			record.LastActiveAt, first)
 	}
 }
+
+// A client reaped between the two probes of one observation has exited; it
+// is not unobservable. Exists answers Live, the process is reaped, and the
+// identity read then fails -- reporting that as Unknown aborted a detach at
+// the very moment its client finished leaving (#389).
+func TestExactProcessReapedBetweenProbesIsDead(t *testing.T) {
+	proc := NewFakeProcOps()
+	proc.Set(42, "client")
+	proc.ReapedOnIdentity[42] = true
+	identity := ProcessIdentity{PID: 42, Identity: "client"}
+
+	if got := observeExactProcess(proc, identity); got != Dead {
+		t.Fatalf("observeExactProcess = %v, want Dead", got)
+	}
+
+	proc.Set(42, "client")
+	c := &Couch{Proc: proc, sleep: func(time.Duration) {}}
+	if err := c.awaitExactProcessExit(context.Background(), identity); err != nil {
+		t.Fatalf("awaitExactProcessExit = %v, want nil", err)
+	}
+}
+
+// The re-probe must not turn real uncertainty into exit: a pid still present
+// whose identity cannot be read stays Unknown.
+func TestExactProcessPresentWithoutIdentityStaysUnknown(t *testing.T) {
+	proc := NewFakeProcOps()
+	proc.Set(42, "client")
+	proc.IdentityErr[42] = true
+
+	if got := observeExactProcess(proc, ProcessIdentity{PID: 42, Identity: "client"}); got != Unknown {
+		t.Fatalf("observeExactProcess = %v, want Unknown", got)
+	}
+}
