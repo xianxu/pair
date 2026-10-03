@@ -173,7 +173,7 @@ PAIR_RETENTION_BACKGROUND -u PAIR_RETENTION_START_ID`. Below it is abbreviated `
 - Create: `cmd/internal/couchcore/reboot_decision.go`, `cmd/internal/couchcore/reboot_decision_test.go`
 - Modify: `cmd/internal/couchcore/actionableinventory.go` (add `RebootableState` beside `ArchivableState:431`)
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
 
 ```go
 func TestDecideRebootCoversEveryFactCombination(t *testing.T) {
@@ -213,9 +213,9 @@ Add `TestRebootableStateOverEveryClassification`. Iterate `AllThreadStates() × 
 the combinations the projection cannot produce, and assert true exactly for parked, detached and every unusable reason
 except `unknown` (resolved ambiguity 5; same exclusion as `ArchivableState`).
 
-- [ ] **Step 2:** Run `SCRUB go test ./cmd/internal/couchcore -run 'TestDecideReboot|TestRebootableState' -count=1`.
+- [x] **Step 2:** Run `SCRUB go test ./cmd/internal/couchcore -run 'TestDecideReboot|TestRebootableState' -count=1`.
       Expected: FAIL (undefined).
-- [ ] **Step 3: Implement.**
+- [x] **Step 3: Implement.**
 
 ```go
 type RebootRecord uint8
@@ -241,8 +241,8 @@ const RebootDirectoryMissing = "directory missing — add slot recreates it"
 func DecideReboot(f RebootFacts) (RebootPlan, string) { /* the table above, as a switch */ }
 ```
 
-- [ ] **Step 4:** Re-run. Expected: PASS.
-- [ ] **Step 5: Commit** `#363 M1: reboot: pure decision and admission`.
+- [x] **Step 4:** Re-run. Expected: PASS.
+- [x] **Step 5: Commit** `#363 M1: reboot: pure decision and admission`.
 
 ### Task 1.2: `ResumeRebootAdvice` and `ChooseResumeRoute` (pure)
 
@@ -251,7 +251,7 @@ func DecideReboot(f RebootFacts) (RebootPlan, string) { /* the table above, as a
 - Modify: `cmd/internal/couchcore/resume.go:14` (add `ResumeNoSurvivor ResumeDiagnosticCode = "resume-no-survivor"`
   and `ResumeSurvivorsAmbiguous = "resume-survivors-ambiguous"`)
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `TestResumeRebootAdviceClassifiesEveryDeclaredCode`. This is the derived enumeration (lessons: "a claim about
     every site needs a derived enumeration"). Parse `resume.go` with `go/parser`, collect every constant of type
     `ResumeDiagnosticCode`, and assert each is a key of `ResumeRebootAdvice`. Also assert the reverse: no key is
@@ -276,9 +276,9 @@ func DecideReboot(f RebootFacts) (RebootPlan, string) { /* the table above, as a
   `DecideRecovery(observeRecovery(record)).Recover` for an ordinary record whose classification is unusable. It is not
   the row's possibly stale projection.
 
-- [ ] **Step 2:** Run `SCRUB go test ./cmd/internal/couchcore -run 'TestResumeRebootAdvice|TestChooseResumeRoute'
+- [x] **Step 2:** Run `SCRUB go test ./cmd/internal/couchcore -run 'TestResumeRebootAdvice|TestChooseResumeRoute'
       -count=1`. Expected: FAIL.
-- [ ] **Step 3: Implement.**
+- [x] **Step 3: Implement.**
 
 ```go
 type ResumeRoute uint8
@@ -304,8 +304,8 @@ func withRebootAdvice(err error) error {
 }
 ```
 
-- [ ] **Step 4:** Re-run. Expected: PASS.
-- [ ] **Step 5: Commit** `#363 M1: resume: pure route and reboot advice`.
+- [x] **Step 4:** Re-run. Expected: PASS.
+- [x] **Step 5: Commit** `#363 M1: resume: pure route and reboot advice`.
 
 ### Task 1.3: Shared journal builders and `ReplaceThreadExpected` (`:0` crash safety)
 
@@ -313,7 +313,7 @@ func withRebootAdvice(err error) error {
 - Create: `cmd/internal/couchcore/threadstore_replace.go`, `cmd/internal/couchcore/threadstore_replace_test.go`
 - Modify: `cmd/internal/couchcore/threadstore.go:214-274` (`CreateThread`), `:1290-1363` (`archiveThread`)
 
-- [ ] **Step 1: Write the failing tests** (real store in `t.TempDir()`, as `threadstore_test.go` does):
+- [x] **Step 1: Write the failing tests** (real store in `t.TempDir()`, as `threadstore_test.go` does):
   - `TestReplaceThreadExpectedArchivesAndCreatesInOneJournal`. Afterwards `GetThread(next)` succeeds; `GetThread(old)`
     is `ErrThreadNotFound`; `archivePath(old)` holds old's exact bytes; `archiveGracePath(old)` exists; the manifest
     lists `next` and not `old`; `ArchivedThreads()` contains old with its `Name`/`Description` intact.
@@ -326,9 +326,9 @@ func withRebootAdvice(err error) error {
   - `TestReplaceThreadExpectedRefusesLocalLayout`.
   - `TestReplaceThreadExpectedRoutesNextLikeCreateThread`: a `next` whose `StartingPath` lies inside an enrolled slot
     checkout is refused, with no journal. The `:0` replace must never publish into a slot store.
-- [ ] **Step 2:** Run `SCRUB go test ./cmd/internal/couchcore -run TestReplaceThreadExpected -count=1`. Expected: FAIL
+- [x] **Step 2:** Run `SCRUB go test ./cmd/internal/couchcore -run TestReplaceThreadExpected -count=1`. Expected: FAIL
       (undefined).
-- [ ] **Step 3: Extract and implement.** Lift the entry construction out of `archiveThread` into
+- [x] **Step 3: Extract and implement.** Lift the entry construction out of `archiveThread` into
       `archiveJournalEntries(address, raw) ([]storeJournalEntry, error)` (archive, grace, record removal, continuation
       snapshot removal) and out of `CreateThread` into `createJournalEntries(record) ([]storeJournalEntry, error)`.
       Manifest handling stays in each caller, because replace edits the manifest once. Then:
@@ -346,12 +346,12 @@ func (s *ThreadStore) ReplaceThreadExpected(old ThreadAddress, expectedRevision 
 }
 ```
 
-- [ ] **Step 4:** Re-run the new tests, then the store suites: `SCRUB go test ./cmd/internal/couchcore -run
+- [x] **Step 4:** Re-run the new tests, then the store suites: `SCRUB go test ./cmd/internal/couchcore -run
       'TestReplaceThreadExpected|Archive|CreateThread|Journal' -count=1`. Expected: PASS. The existing archive and
       create tests are the safety net for the extraction.
-- [ ] **Step 5: Mutation check** (lessons: "a test must fail when the code under test is reverted"). Temporarily drop
+- [x] **Step 5: Mutation check** (lessons: "a test must fail when the code under test is reverted"). Temporarily drop
       the manifest entry from replace. The crash test must fail. Restore.
-- [ ] **Step 6: Commit** `#363 M1: threadstore: one-journal replace for the main store`.
+- [x] **Step 6: Commit** `#363 M1: threadstore: one-journal replace for the main store`.
 
 ### Task 1.4: Extract `prepareRetirement`, `claimFreshRecord`, `launchClaimedThread`; stop carrying name and description
 
@@ -361,12 +361,12 @@ func (s *ThreadStore) ReplaceThreadExpected(old ThreadAddress, expectedRevision 
 - Create: `cmd/internal/couchcore/fresh_claim.go`
 - Test: `cmd/internal/couchcore/slotrecovery_test.go:136`
 
-- [ ] **Step 1: Flip the existing assertion first.** In `TestStartFreshSlotReplacesStoppedCurrentAndKeepsPreferences`,
+- [x] **Step 1: Flip the existing assertion first.** In `TestStartFreshSlotReplacesStoppedCurrentAndKeepsPreferences`,
       require `next.Name == "" && next.Description == ""`. Also read the archived record (`local.ArchivedThreads()`)
       and require that it kept `"durable name"` and `"durable description"`.
-- [ ] **Step 2:** Run `SCRUB go test ./cmd/internal/couchcore -run TestStartFreshSlotReplacesStoppedCurrent -count=1`.
+- [x] **Step 2:** Run `SCRUB go test ./cmd/internal/couchcore -run TestStartFreshSlotReplacesStoppedCurrent -count=1`.
       Expected: FAIL (the fresh record still copies them).
-- [ ] **Step 3: Refactor.**
+- [x] **Step 3: Refactor.**
   - `prepareRetirement`: move `ArchiveThread`'s body, everything before each final `ArchiveThreadExpected`, into it.
     Return `retirement{Record ThreadRecord; Revision uint64; Unreadable, SessionNotStopped, RolledBack bool}`.
     `ArchiveThread` keeps its doc comment and becomes prepare, then `ArchiveThreadExpected(address, r.Revision)`
@@ -389,9 +389,9 @@ func (s *ThreadStore) ReplaceThreadExpected(old ThreadAddress, expectedRevision 
     `launchTrackedThread`, with `rollbackTrackedStart` on failure. This is the tail `spawnResolved`
     (`couch.go:544-570`) and `startFreshSlot` share. `startFreshSlot` keeps its own `verifyOtherSlotOwnersAbsent` /
     `revalidateCreatedSlot` hook through an optional `afterPrepare func() error`.
-- [ ] **Step 4:** Run `SCRUB go test ./cmd/internal/couchcore -count=1`. Expected: PASS, apart from the 3 tests known
+- [x] **Step 4:** Run `SCRUB go test ./cmd/internal/couchcore -count=1`. Expected: PASS, apart from the 3 tests known
       to fail on main (see Chunk 4). The archive, slot-fresh and spawn suites prove the refactor kept behavior.
-- [ ] **Step 5: Commit** `#363 M1: couchcore: share retirement, claim and launch; fresh records start unnamed`.
+- [x] **Step 5: Commit** `#363 M1: couchcore: share retirement, claim and launch; fresh records start unnamed`.
 
 ### Task 1.5: `Couch.ResumeTarget` and the `resume` operation
 
@@ -401,7 +401,7 @@ func (s *ThreadStore) ReplaceThreadExpected(old ThreadAddress, expectedRevision 
   "path", Summary: "slot host checkout", Implicit: true}`)
 - Test: `cmd/internal/couchcore/resume_route_test.go`, `cmd/internal/couchcore/slotrecovery_test.go`
 
-- [ ] **Step 1: Write the failing tests.** They go through `CouchLiveOwnerExecutor(env.Couch)` with the declared
+- [x] **Step 1: Write the failing tests.** They go through `CouchLiveOwnerExecutor(env.Couch)` with the declared
       `resume` operation, because that is the production boundary.
   - `TestResumeOperationOnASlotPathAdoptsALostPointer`: reuse `TestSlotOpenReconstructsSingleDetachedSurvivor`'s
     fixture (a record-less survivor running `claude`), but dispatch `resume {path}` **with no agent arg**. The slot's
@@ -423,10 +423,10 @@ func (s *ThreadStore) ReplaceThreadExpected(old ThreadAddress, expectedRevision 
     `ResumeSurvivorsAmbiguous`.
   - `TestWarmOnlyResumeIsUnrouted`: `resume {warm-only: true}` still calls `ResumeContextWith(WarmOnly)` directly and
     refuses `ResumeNotDetached` for a parked thread. The background reattach pass depends on this.
-- [ ] **Step 2:** Run `SCRUB go test ./cmd/internal/couchcore -run
+- [x] **Step 2:** Run `SCRUB go test ./cmd/internal/couchcore -run
       'TestResumeOperation|TestResumeThat|TestResumeTransient|TestOpenSlotZero|TestWarmOnlyResume' -count=1`.
       Expected: FAIL.
-- [ ] **Step 3: Implement.**
+- [x] **Step 3: Implement.**
 
 ```go
 type ResumeTarget struct {
@@ -451,9 +451,9 @@ func (c *Couch) ResumeTarget(ctx context.Context, t ResumeTarget) (any, error) {
   `withRebootAdvice` adds the exit text once, at the top. In the `resume` dispatch arm: `warm-only` takes the existing
   direct path; `path` (or a `repo:N` ref, `N > 0`) becomes `ResumeTarget{Path}`; everything else becomes
   `ResumeTarget{Address}`.
-- [ ] **Step 4:** Re-run, then `SCRUB go test ./cmd/internal/couchcore -run 'Resume|OpenSlot|Slot' -count=1`.
+- [x] **Step 4:** Re-run, then `SCRUB go test ./cmd/internal/couchcore -run 'Resume|OpenSlot|Slot' -count=1`.
       Expected: PASS.
-- [ ] **Step 5: Commit** `#363 M1: resume: one operation over warm, cold, adopt and continuation`.
+- [x] **Step 5: Commit** `#363 M1: resume: one operation over warm, cold, adopt and continuation`.
 
 ### Task 1.6: `Couch.Reboot` and the `reboot` operation
 
@@ -511,7 +511,7 @@ archived, so the `:0` row disappears and the path is free for an ordinary start;
 gets `RebootRefuse` "nothing to reboot". A `:1+` row stays (the slot persists) and reboots as `RebootStartOnly`. The
 test below pins both.
 
-- [ ] **Step 1: Write the failing tests.** Dispatch through `CouchLiveOwnerExecutor` with `reboot` args.
+- [x] **Step 1: Write the failing tests.** Dispatch through `CouchLiveOwnerExecutor` with `reboot` args.
   - `TestRebootPrimaryParkedArchivesAndStartsFreshInOneJournal`. Set up a parked `:0` with `Name`/`Description` set.
     Afterwards: result live with a new tag ≠ old; `StartingPath` equal; new record `Name == "" && Description == ""`;
     `ArchivedThreads()` holds the old record with its name; the manifest lists only the new address in that scope; a
@@ -541,20 +541,20 @@ test below pins both.
     and the old record appears in `ArchivedThreads()`.
   - `TestRebootAfterFailedLaunchDoesNotArchiveTwice`. Make the launch fail via `FakeRunner`; then reboot again. `:0`
     gives `RebootRefuse` "nothing to reboot" and `:1+` gives a clean fresh start. Exactly one archive file.
-- [ ] **Step 2:** Run `SCRUB go test ./cmd/internal/couchcore -run TestReboot -count=1`. Expected: FAIL (undefined).
-- [ ] **Step 3: Implement `Couch.Reboot`** with the sequence above. In preflight (step 2, before `prepareRetirement`),
+- [x] **Step 2:** Run `SCRUB go test ./cmd/internal/couchcore -run TestReboot -count=1`. Expected: FAIL (undefined).
+- [x] **Step 3: Implement `Couch.Reboot`** with the sequence above. In preflight (step 2, before `prepareRetirement`),
       resolve the `:0` profile with `resolveStartResolution(ctx, StartArgs{Cwd: old.StartingPath, Stack: t.Agent,
       Action: StartOpen})` and call `enrollPrimaryResolution` the way spawn does (idempotent for an enrolled family;
       verify in the test). After prepare, run `claimFreshRecord` with `Commit: ReplaceThreadExpected(old.Address,
       retirement.Revision, ·)`, then `launchClaimedThread`. "Directory present" means the slot's `WorktreeRoot`, or
       the record's `StartingPath`, physicalizes through `c.Path.Physical`. Add the `reboot` dispatch arm: `path` →
       slot; otherwise `resolveThreadForArchive` (it accepts unreadable records by exact tag).
-- [ ] **Step 4:** Re-run. Expected: PASS. Then run `SCRUB go test ./cmd/internal/couchcore ./cmd/internal/couchcmd
+- [x] **Step 4:** Re-run. Expected: PASS. Then run `SCRUB go test ./cmd/internal/couchcore ./cmd/internal/couchcmd
       -count=1`.
-- [ ] **Step 5: Mutation checks.** (a) Swap the order of quiesce and journal in the detached arm:
+- [x] **Step 5: Mutation checks.** (a) Swap the order of quiesce and journal in the detached arm:
       `TestRebootDetachedStopsTheSessionFirst` must fail. (b) Re-add the name copy in `claimFreshRecord`: the `:0` and
       `:1+` reboot tests must fail. Restore both.
-- [ ] **Step 6: Commit** `#363 M1: reboot: archive-then-fresh for :0 and :1+, archive-only when the directory is
+- [x] **Step 6: Commit** `#363 M1: reboot: archive-then-fresh for :0 and :1+, archive-only when the directory is
       gone`.
 
 ### Task 1.7: Close M1
