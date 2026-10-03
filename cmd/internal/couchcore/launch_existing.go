@@ -460,7 +460,7 @@ func (c *Couch) sessionBindingForLaunch(ctx context.Context, thread ThreadRecord
 			return couchidentity.SessionBinding{}, err
 		}
 		if !observed.Present || observed.Name == "" {
-			return couchidentity.SessionBinding{}, errors.New("managed attach session disappeared; retry open-slot")
+			return couchidentity.SessionBinding{}, errors.New("managed attach session disappeared; resume it again")
 		}
 		if thread.SessionBinding != nil {
 			if thread.SessionBinding.Name != observed.Name {

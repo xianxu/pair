@@ -412,8 +412,7 @@ func withContinuationExits(record ThreadRecord, err error) error {
 // the list. TestContinuationRefusesMatchesTheGuardForEveryRowAction drives
 // relaunch, switch-agent's preview (which SwitchAgent re-runs) and a cold start
 // claim into the guard -- refused by its own words, having written nothing --
-// and park, detach, name and describe to success, through the production
-// dispatcher (#280).
+// and park and detach to success, through the production dispatcher (#280).
 //
 // The `resume` OPERATION left this list in #363: it routes a retained request
 // to its own executor (ChooseResumeRoute -- RetryContinuation for a failed or

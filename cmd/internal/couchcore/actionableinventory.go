@@ -188,7 +188,7 @@ type ActionableThreadSummary struct {
 	//
 	// It exists so a destructive confirmation can NAME what it is about to
 	// stop: the frame title never reaches the screen, so the item is the only
-	// place the operator learns which agent archive is aimed at.
+	// place the operator learns which agent reboot is aimed at.
 	Agent string                `json:"agent,omitempty"`
 	State ActionableThreadState `json:"state"`
 	// Reason is set exactly when State is ThreadUnusable, and says why.

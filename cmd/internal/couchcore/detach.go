@@ -439,7 +439,8 @@ func (c *Couch) prepareRetirement(ctx context.Context, address ThreadAddress) (r
 //
 // Guidance lives here, at the consumer, rather than as a field every producer
 // carries (#256 M1, round 3): the classification says what the thread IS, and
-// archive is the only caller that needs to say what to do about it instead.
+// retirement (archive's admission, which reboot runs) is the only caller that
+// needs to say what to do about it instead.
 func archiveRefusal(state ActionableThreadState, reason ThreadReason) string {
 	switch state {
 	case ThreadLive:
