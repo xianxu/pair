@@ -848,12 +848,6 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 		} else {
 			fmt.Fprintf(w, "forgot %s on %s -- it was not running\n", v.Record.ID, v.Record.Args.Worktree)
 		}
-	case string:
-		if v == "" {
-			fmt.Fprintln(w, "(no description)")
-		} else {
-			fmt.Fprintln(w, v)
-		}
 	default:
 		fmt.Fprintf(w, "%v\n", v)
 	}

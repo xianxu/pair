@@ -71,7 +71,6 @@ const (
 	ResultThreadInventory
 	ResultStop
 	ResultThread
-	ResultDescription
 	ResultConsole
 	ResultOrientationStatus
 	ResultWorkspace
