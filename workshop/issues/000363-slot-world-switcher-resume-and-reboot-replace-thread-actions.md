@@ -1,7 +1,7 @@
 ---
 id: 000363
 status: working
-deps: [ariadne#288, ariadne#289]
+deps: []
 github_issue:
 created: 2026-09-30
 updated: 2026-10-02
@@ -127,9 +127,3 @@ reimplementing them. Delta:
   not rescan git. The bulk forms depend on ariadne#289 (which follows
   ariadne#288); the per-row action model does not.
 - Sending "continue #N" to resumed slots is pair#367's step, not this issue's.
-
-### 2026-10-02 — waits for ariadne#288 and ariadne#289
-
-Operator decision: the whole issue (per-row actions and the bulk forms) starts
-after ariadne#288 and ariadne#289 land, rather than splitting the bulk forms
-into a later milestone or a follow-up issue.
