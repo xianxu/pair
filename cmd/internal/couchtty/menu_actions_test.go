@@ -350,3 +350,32 @@ func TestSwitcherFilterMatchesLabelAndPublishedSummary(t *testing.T) {
 		}
 	}
 }
+
+// A path-missing row says what the reboot result says: the directory is gone
+// and add slot recreates it (couchcore.RebootDirectoryMissing), in its status
+// and on Enter, for both kinds.
+func TestPathMissingRowExplainsAddSlot(t *testing.T) {
+	primary := couchcore.ActionableThreadSummary{Address: menuAddress("couch-primary"), WorkingPath: "/w/gone", State: couchcore.ThreadUnusable, Reason: couchcore.ReasonPathMissing}
+	slot := menuSlotRow(1, "couch-slot")
+	slot.Reason = couchcore.ReasonPathMissing
+	for _, row := range []couchcore.ActionableThreadSummary{primary, slot} {
+		if got := rootStateText(row, time.Now()); !strings.Contains(got, "directory missing — add slot recreates it") {
+			t.Errorf("%s status = %q", row.Label(), got)
+		}
+		state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
+		state.InventoryReady = true
+		next, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
+		if len(effects) != 0 || !strings.Contains(next.Notice.Text, "directory missing — add slot recreates it") {
+			t.Errorf("%s Enter: effects %v, notice %q", row.Label(), effects, next.Notice.Text)
+		}
+	}
+}
+
+// An unknown row has no verdict this round and offers nothing (resolved
+// ambiguity 5); its status says so rather than reading like progress.
+func TestUnknownRowSaysItsStateCouldNotBeChecked(t *testing.T) {
+	row := couchcore.ActionableThreadSummary{Address: menuAddress("couch-primary"), WorkingPath: "/w/p", State: couchcore.ThreadUnusable, Reason: couchcore.ReasonUnknown}
+	if got := rootStateText(row, time.Now()); got != "state could not be checked" {
+		t.Fatalf("unknown status = %q", got)
+	}
+}

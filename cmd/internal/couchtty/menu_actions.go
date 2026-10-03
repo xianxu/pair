@@ -152,12 +152,20 @@ func menuActionItems(row couchcore.ActionableThreadSummary) []string {
 }
 
 // menuRowNotice is what a row whose phase the table answers with a fixed
-// explanation says, in its status column and on Enter. Empty means the row's
-// state or reason speaks for itself.
+// explanation says, in its status column and on Enter -- read off the same
+// facts as its actions, so the explanation cannot drift from the offer. Empty
+// means the row's state or reason speaks for itself.
 func menuRowNotice(f menuRowFacts) string {
 	switch {
 	case f.Phase == menuPhaseBusy:
 		return "starting elsewhere"
+	case f.Phase == menuPhaseUnknown:
+		// "checking…" read like progress; it is the absence of a verdict, and
+		// reboot stops a session, so nothing is offered until there is one.
+		return "state could not be checked"
+	case f.DirectoryMissing:
+		// The reboot result's own words, so the row and the reboot agree.
+		return couchcore.RebootDirectoryMissing
 	}
 	return ""
 }
