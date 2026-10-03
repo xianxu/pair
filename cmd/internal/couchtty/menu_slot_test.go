@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"slices"
 	"testing"
 	"time"
 )
@@ -30,7 +31,7 @@ func TestMenuSelectsAddresslessSlotsIndependently(t *testing.T) {
 		t.Fatalf("selection %+v", row)
 	}
 	_, effects := reduceRootKey(state, PanelKey{Kind: KeyEnter})
-	if len(effects) != 1 || effects[0].Operation != "open-slot" || effects[0].Args["path"] != second.WorkingPath {
+	if len(effects) != 1 || effects[0].Operation != "resume" || effects[0].Args["path"] != second.WorkingPath {
 		t.Fatalf("effects %+v", effects)
 	}
 }
@@ -45,23 +46,23 @@ func TestMenuSlotSelectionSurvivesConversationReplacement(t *testing.T) {
 		t.Fatalf("replacement selection %+v", row)
 	}
 }
-func TestMenuSlotFreshConfirmsAndNeverArchives(t *testing.T) {
+func TestMenuSlotRebootConfirmsAndSendsThePath(t *testing.T) {
 	row := menuSlotRow(1, "")
 	items := menuActionItems(row)
-	if containsMenuItem(items, "archive") || !containsMenuItem(items, "fresh-slot") {
+	if !slices.Equal(items, []string{"resume", "reboot"}) {
 		t.Fatalf("actions %v", items)
 	}
 	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, couchcore.ThreadAddress{})
 	state, _ = reduceRootKey(state, PanelKey{Kind: KeyTab})
-	state.Frames[len(state.Frames)-1].SelectedItem = "fresh-slot"
+	state.Frames[len(state.Frames)-1].SelectedItem = "reboot"
 	state, effects := reduceActionKey(state, PanelKey{Kind: KeyEnter})
 	if len(effects) != 0 || state.CurrentFrame().Kind != MenuFrameConfirmation {
-		t.Fatalf("fresh bypassed confirmation: %+v", effects)
+		t.Fatalf("reboot bypassed confirmation: %+v", effects)
 	}
-	state.Frames[len(state.Frames)-1].SelectedItem = "fresh-slot"
+	state.Frames[len(state.Frames)-1].SelectedItem = "reboot"
 	_, effects = reduceConfirmationKey(state, PanelKey{Kind: KeyEnter})
-	if len(effects) != 1 || effects[0].Operation != "fresh-slot" || effects[0].Args["path"] != row.WorkingPath {
-		t.Fatalf("fresh effects %+v", effects)
+	if len(effects) != 1 || effects[0].Operation != "reboot" || effects[0].Args["path"] != row.WorkingPath {
+		t.Fatalf("reboot effects %+v", effects)
 	}
 }
 
@@ -95,7 +96,7 @@ func TestMenuSlotOperationCompletionAcceptsNewConversation(t *testing.T) {
 	row := menuSlotRow(1, "")
 	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, couchcore.ThreadAddress{})
 	state, effects := reduceRootKey(state, PanelKey{Kind: KeyEnter})
-	next := reduceOperationResult(state, MenuEvent{Operation: "open-slot", Attempt: effects[0].Attempt, Success: true, Address: couchcore.ThreadAddress{RepoScope: "scope", Tag: "created"}})
+	next := reduceOperationResult(state, MenuEvent{Operation: "resume", Attempt: effects[0].Attempt, Success: true, Address: couchcore.ThreadAddress{RepoScope: "scope", Tag: "created"}})
 	if next.InFlight.Operation != "" || !next.ProjectionPending {
 		t.Fatalf("completion not consumed: %+v", next.InFlight)
 	}

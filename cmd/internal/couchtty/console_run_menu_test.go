@@ -51,7 +51,7 @@ func TestConsoleRunHierarchicalMenuControls(t *testing.T) {
 	_, _ = f.stdin.Write([]byte{'\t'})
 	waitUpTo(t, 250*time.Millisecond, "thread action frame", func() bool {
 		screen := f.screenText()
-		return strings.Contains(screen, "threads › root › actions") && strings.Contains(screen, "rename")
+		return strings.Contains(screen, "threads › root › actions") && strings.Contains(screen, "switch coding agent")
 	})
 	if screen := f.screenText(); strings.Contains(screen, "/repo") {
 		t.Fatalf("action surface retained the root body: %q", f.host.Written())

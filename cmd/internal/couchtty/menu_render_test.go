@@ -50,12 +50,10 @@ func TestRenderMenuUsesSingleSurfaceBreadcrumbs(t *testing.T) {
 	parkSelected := cloneMenuState(actions)
 	parkSelected.Frames[len(parkSelected.Frames)-1].SelectedItem = "park"
 	park, _ := reduceKey(parkSelected, PanelKey{Kind: KeyEnter})
-	rename := cloneMenuState(actions)
-	rename.Frames[len(rename.Frames)-1].SelectedItem = "name"
-	rename, _ = reduceKey(rename, PanelKey{Kind: KeyEnter})
-	describe := cloneMenuState(actions)
-	describe.Frames[len(describe.Frames)-1].SelectedItem = "describe"
-	describe, _ = reduceKey(describe, PanelKey{Kind: KeyEnter})
+	reboot, _ := reduceKey(root, PanelKey{Kind: KeyDown})
+	reboot, _ = reduceKey(reboot, PanelKey{Kind: KeyTab})
+	reboot.Frames[len(reboot.Frames)-1].SelectedItem = "reboot"
+	reboot, _ = reduceKey(reboot, PanelKey{Kind: KeyEnter})
 	leave, _ := ReduceMenu(root, MenuEvent{Kind: MenuEventParkHotkey, Operation: "leave", Mode: string(couchcore.LeavePark)})
 	startFromConfirmation, _ := reduceKey(park, PanelKey{Kind: KeyCtrlSpace})
 
@@ -67,9 +65,8 @@ func TestRenderMenuUsesSingleSurfaceBreadcrumbs(t *testing.T) {
 	}{
 		{name: "root", state: root, breadcrumb: "threads"},
 		{name: "actions", state: actions, breadcrumb: "threads › compiler › actions", absent: []string{"/repo/one", "review"}},
-		{name: "park", state: park, breadcrumb: "threads › compiler › park", absent: []string{"/repo/one", "rename"}},
-		{name: "rename", state: rename, breadcrumb: "threads › compiler › rename", absent: []string{"/repo/one", "park"}},
-		{name: "describe", state: describe, breadcrumb: "threads › compiler › describe", absent: []string{"/repo/one", "park"}},
+		{name: "park", state: park, breadcrumb: "threads › compiler › park", absent: []string{"/repo/one", "relaunch"}},
+		{name: "reboot", state: reboot, breadcrumb: "threads › review › reboot", absent: []string{"/repo/two", "resume"}},
 		// Leave is a GLOBAL frame since #170: it names couch, not a thread, so
 		// its breadcrumb no longer borrows an actor's label -- and "compiler"
 		// is now asserted ABSENT, because borrowing one is the bug.
@@ -160,7 +157,7 @@ func TestRenderMenuUsesOperationPresentationLabels(t *testing.T) {
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
 	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
 	plain := string(ansi.Strip([]byte(RenderMenu(state, 120, 40, time.Time{}, false))))
-	if !strings.Contains(plain, "rename") || strings.Contains(plain, "\nname") || strings.Contains(plain, "\r\n  name") {
+	if !strings.Contains(plain, "switch coding agent") || strings.Contains(plain, "switch-agent") {
 		t.Fatalf("action menu leaked operation identifier instead of label: %q", plain)
 	}
 }
@@ -398,7 +395,7 @@ func TestRootStateTextNamesEveryState(t *testing.T) {
 		{couchcore.ThreadLive, "", "live"},
 		{couchcore.ThreadDetached, "", "detached · 4h ago"},
 		{couchcore.ThreadParked, "", "parked · 4h ago"},
-		{couchcore.ThreadBusy, "", "starting…"},
+		{couchcore.ThreadBusy, "", "starting elsewhere"},
 		{couchcore.ThreadUnusable, couchcore.ReasonBindingLost, "binding lost — repairable"},
 		{couchcore.ThreadUnusable, couchcore.ReasonProfileMissing, "no saved launch"},
 	} {

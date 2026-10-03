@@ -348,16 +348,10 @@ func renderMenuFrame(state MenuState, frame MenuFrame, width, height int, now ti
 		// overwrites line 0 with the breadcrumb. What the operator reads is the
 		// ITEM, which is why the item names the action's cost.
 		thread, _ := menuThreadTarget(state, frame.RowKey, frame.Thread)
-		title := "park " + thread.Label() + "?"
-		if frame.Action == "archive" {
-			title = "archive " + thread.Label() + "?"
-		}
+		title := frame.Action + " " + thread.Label() + "?"
 		return renderItemMenuFrame(title, filterMenuItems(confirmationMenuItems(state, frame), frame.Filter), confirmationDisplaySelection(frame), frame.Filter, width, height), nil
 	case MenuFrameText:
 		hint := ""
-		if frame.Action == "recover-checkpoint" {
-			hint = "Absolute checkpoint path · starts a new conversation"
-		}
 		if frame.Action == "alias" {
 			hint = "Short repository name for repo:N and --send-to · empty clears"
 		}
@@ -419,9 +413,9 @@ func renderStartMenuFrame(state MenuState, frame MenuFrame, width, height int) [
 		lines = append(lines, clipMenuLine("  args  "+string(frame.PreviewResolution.ArgvSource), width))
 	}
 	for _, notice := range frame.PreviewResolution.ReuseNotices {
-		action := "open-slot"
+		action := "resume"
 		if notice.Kind == couchcore.StartReuseNoticeLost {
-			action = "fresh-slot"
+			action = "reboot"
 		}
 		lines = append(lines, clipMenuLine("  consider reuse "+string(notice.Kind)+" "+notice.Label+" with "+action, width))
 	}

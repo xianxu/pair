@@ -106,7 +106,7 @@ func TestGroupedMenuCustomNameStillShowsWorkspaceAndFilters(t *testing.T) {
 		t.Fatalf("workspace search: %+v", rows)
 	}
 	_, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
-	if len(effects) != 1 || effects[0].Operation != "open-slot" || effects[0].Args["path"] != row.WorkingPath {
+	if len(effects) != 1 || effects[0].Operation != "resume" || effects[0].Args["path"] != row.WorkingPath {
 		t.Fatalf("parked activation: %+v", effects)
 	}
 }

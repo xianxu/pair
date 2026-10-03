@@ -20,8 +20,19 @@ func addSlotMenu(t *testing.T, row couchcore.ActionableThreadSummary) (MenuState
 }
 
 func TestAddSlotPrefillsExactRepositoryAndUsesCreatePreview(t *testing.T) {
+	// Add slot is a live :0 row's action (the Spec table); a slot row, and a
+	// :0 that is not live, do not offer it.
+	for _, row := range []couchcore.ActionableThreadSummary{groupedRow("/workspace/pair", 2, "current"), func() couchcore.ActionableThreadSummary {
+		parked := groupedRow("/workspace/pair", 0, "current")
+		parked.State = couchcore.ThreadParked
+		return parked
+	}()} {
+		if slices.Contains(menuActionsFor(NewMenuState(nil, row.Address), row), "add-slot") {
+			t.Fatalf("%s/%s offers add slot", row.WorkingPath, row.State)
+		}
+	}
 	for _, root := range []string{"/workspace/pair", "/other/pair"} {
-		for _, number := range []int{0, 2} {
+		for _, number := range []int{0} {
 			row := groupedRow(root, number, "current")
 			row.StartingPath += "/cmd/internal"
 			wantPath := root + "/cmd/internal"
