@@ -1458,7 +1458,7 @@ func TestASecondThreadAtOnePathIsRefused(t *testing.T) {
 	// where this fires. The first version named `couch <path>` (the command
 	// that just refused) and `couch --show` as a way to retire (it is
 	// read-only) -- advice that fails at the moment someone is already stuck.
-	for _, want := range []string{string(first.Thread.Tag), "ctrl-space", "Tab → archive", "couch --show"} {
+	for _, want := range []string{string(first.Thread.Tag), "ctrl-space", "Tab → reboot", "couch --show"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("refusal %q does not mention %q", err, want)
 		}

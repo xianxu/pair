@@ -59,9 +59,9 @@ func DecideRecovery(in RecoveryEvidence) RecoveryDecision {
 		d.Diagnosis = "session survives; reattach to the running agent"
 	case PresenceAbsent:
 		d.Recover, d.FromCheckpoint, d.Archive = in.Checkpoint, true, true
-		d.Diagnosis = "session is gone; select a checkpoint to start a new conversation, or archive"
+		d.Diagnosis = "session is gone; Tab → reboot archives it and starts a fresh agent"
 		if in.Checkpoint {
-			d.Diagnosis = "session is gone; recover a new conversation from the retained checkpoint"
+			d.Diagnosis = "session is gone; resume starts a new conversation from the retained checkpoint"
 		}
 	}
 	return d
@@ -135,5 +135,5 @@ func AdmitRecoveryGeneration(request checkpoint.Request, current ContinuationSou
 			}
 		}
 	}
-	return fmt.Errorf("recovery source generation changed without an exact request-owned target; inspect or archive")
+	return fmt.Errorf("recovery source generation changed without an exact request-owned target; inspect it, or Tab → reboot archives it and starts a fresh agent")
 }

@@ -454,7 +454,7 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 		// Every gesture named here is executed by a test against the fixture
 		// that produces this refusal. The previous version of this block named
 		// `couch --show` (which answered "not found" for the very row that
-		// caused the refusal) and `Tab → archive` (unreachable, because the TUI
+		// caused the refusal) and a switcher gesture (unreachable, because the TUI
 		// never opens in a repository couch refuses to start in) -- three lines
 		// above the comment explaining why refusals must not do that.
 		//
@@ -468,7 +468,7 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 		return ActorRecord{}, nil, fmt.Errorf(
 			"couch cannot read thread %s in this repository, so it cannot tell whether %s is free\n"+
 				"  inspect it:  couch --show %s\n"+
-				"  retire it:   run couch in another repository, select it, Tab → archive\n"+
+				"  retire it:   run couch in another repository, select it, Tab → reboot\n"+
 				"  the record:  %s",
 			held.Tag, resolution.CanonicalPath, held.Tag, recordPath)
 	}
@@ -483,7 +483,7 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 		return ActorRecord{}, nil, fmt.Errorf(
 			"%s already has thread %s; couch keeps one thread per path for now\n"+
 				"  return to it:  ctrl-space, select it, Enter\n"+
-				"  retire it:     ctrl-space, select it, Tab → archive\n"+
+				"  start fresh:   ctrl-space, select it, Tab → reboot (park it first if it is live)\n"+
 				"  inspect it:    couch --show %s",
 			resolution.CanonicalPath, held.Tag, held.Tag)
 	}

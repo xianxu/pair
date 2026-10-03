@@ -492,12 +492,12 @@ func (c *Couch) openSlot(ctx context.Context, path, agent string, agentGuessed b
 		switch len(survivors) {
 		case 0:
 			if unprovenWarm {
-				return StartResult{}, refuseResume(ResumeSurvivorUnproven, "slot current is unavailable and a managed session survives, but couch cannot prove which agent runs in it; attach to it or stop it, then retry")
+				return StartResult{}, refuseResume(ResumeSurvivorUnproven, "slot current is unavailable and a managed session survives, but couch cannot prove which agent runs in it; attach to it with zellij or stop it, then resume again")
 			}
 			return StartResult{}, refuseResume(ResumeNoSurvivor, "slot current is unavailable and no running conversation could be proved its own")
 		case 1:
 		default:
-			return StartResult{}, refuseResume(ResumeSurvivorsAmbiguous, fmt.Sprintf("slot current is unavailable and %d running conversations could each be its own; stop all but one managed session, then retry", len(survivors)))
+			return StartResult{}, refuseResume(ResumeSurvivorsAmbiguous, fmt.Sprintf("slot current is unavailable and %d running conversations could each be its own; stop all but one managed session, then resume again", len(survivors)))
 		}
 		for _, candidate := range sessions.Candidates {
 			active := candidate.Presence == SessionPresent

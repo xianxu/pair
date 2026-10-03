@@ -1896,7 +1896,7 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	// Never for a background completion: the pass reattaches behind the
 	// operator, and there is no adoption, so no background completion is ever
 	// the operator's own landing (pair#206).
-	if (completed.origin.Operation == "resume" || completed.origin.Operation == "recover-thread" || completed.origin.Operation == "recover-checkpoint") && err == nil && startedHandleID != "" && !completed.origin.Background && !completed.origin.PreserveFocus {
+	if completed.origin.Operation == "resume" && err == nil && startedHandleID != "" && !completed.origin.Background && !completed.origin.PreserveFocus {
 		c.requestMenuRefresh()
 		c.forceSwitch(startedHandleID)
 		return false

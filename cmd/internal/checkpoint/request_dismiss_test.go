@@ -41,9 +41,13 @@ func TestCheckDismissible(t *testing.T) {
 func TestExitsNameBothWaysOutOfAFailedRequest(t *testing.T) {
 	for _, phase := range AllPhases() {
 		plain, tagged := Exits(phase, ""), Exits(phase, "couch-01")
-		both := strings.Contains(plain, "Retry continuation") && strings.Contains(plain, "Dismiss continuation")
+		both := strings.Contains(plain, "retry-continuation re-delivers") && strings.Contains(plain, "dismiss-continuation drops")
 		if both != (phase == Failed) {
 			t.Errorf("%s: exits %q; both exits must be named exactly for a failed request", phase, plain)
+		}
+		// A row that is not live offers resume and reboot instead (#363).
+		if !strings.Contains(plain, "resume retries it and reboot archives it") {
+			t.Errorf("%s: exits %q omit the not-live row's resume and reboot", phase, plain)
 		}
 		if strings.Contains(plain, "couch --internal") || !strings.Contains(tagged, "couch --internal retry-continuation couch-01") {
 			t.Errorf("%s: CLI forms must follow the tag: %q / %q", phase, plain, tagged)
@@ -88,7 +92,7 @@ func TestPhaseListIsWrittenOnlyInAllPhases(t *testing.T) {
 // only for a failed request, never as an unconditional exit.
 func TestExitsWithAnUnknownPhaseAreConditional(t *testing.T) {
 	plain, tagged := Exits("", ""), Exits("", "couch-01")
-	if !strings.Contains(plain, "Dismiss continuation drops it if it failed") || !strings.Contains(tagged, "`couch --internal dismiss-continuation couch-01` for a failed one") {
+	if !strings.Contains(plain, "dismiss-continuation drops it if it failed") || !strings.Contains(tagged, "`couch --internal dismiss-continuation couch-01` for a failed one") {
 		t.Fatalf("unknown-phase exits must make dismissal conditional: %q / %q", plain, tagged)
 	}
 }

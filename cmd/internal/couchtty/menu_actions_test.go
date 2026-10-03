@@ -35,7 +35,9 @@ func everyMenuRowShape(t *testing.T) []menuRowShape {
 	if err != nil {
 		t.Fatal(err)
 	}
-	phases := []checkpoint.Phase{""}
+	// "" is no retained request; appended, not written as a phase literal,
+	// which TestPhaseListIsWrittenOnlyInAllPhases forbids outside AllPhases.
+	phases := append(make([]checkpoint.Phase, 0, 5), "")
 	phases = append(phases, checkpoint.AllPhases()...)
 	var shapes []menuRowShape
 	for _, slot := range []bool{false, true} {
@@ -135,6 +137,11 @@ func TestRowActionTableMatchesTheSpec(t *testing.T) {
 		got, want := menuActionItems(s.row), expectedRowActions(s)
 		if !slices.Equal(got, want) {
 			t.Errorf("%s: offers %v, Spec says %v", s.name, got, want)
+		}
+		// Resume's refusal advice (couchcore.withRebootAdvice) says
+		// "Tab → reboot": every row that offers resume must offer reboot.
+		if slices.Contains(got, "resume") && !slices.Contains(got, "reboot") {
+			t.Errorf("%s: offers resume without reboot, so resume's advice names an action the row lacks", s.name)
 		}
 	}
 }

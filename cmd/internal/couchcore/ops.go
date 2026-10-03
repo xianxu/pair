@@ -253,7 +253,7 @@ func Operations() []Operation {
 		},
 		{
 			// A record write that stops nothing: direct-store, and no confirmation,
-			// like retry. Arguments take name's shape -- an optional ref for the CLI
+			// like retry. Arguments take park's shape -- an optional ref for the CLI
 			// and the exact implicit tag from the switcher, never both (#280).
 			Name: "dismiss-continuation", Summary: "Drop a failed continuation the thread has moved on from",
 			Execution: ExecuteDirectStore, Effect: EffectMetadata, Confirmation: ConfirmNone, Result: ResultThread, Presentation: PresentationInternal, RowAction: true,
@@ -415,10 +415,10 @@ func continuationArguments(operatorFacing bool) []ArgSpec {
 	// Operator-facing entries (retry, dismiss) are addressed by the switcher's
 	// exact implicit tag or a CLI ref, and default to the retained request.
 	if operatorFacing {
-		// Optional, like name's and describe's: the switcher addresses the row by
+		// Optional, like park's and detach's: the switcher addresses the row by
 		// its exact implicit tag, and resolveOperationThread refuses a call that
 		// carries both. A required ref forced the switcher to send both, so its
-		// Retry continuation never reached the thread (#280).
+		// retry never reached the thread (#280).
 		args = append([]ArgSpec{{Name: "ref", Summary: "thread tag or path"}}, args...)
 	}
 	return args

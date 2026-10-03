@@ -420,3 +420,16 @@ func TestWarmOnlyResumeIsUnrouted(t *testing.T) {
 		t.Fatalf("runner ops %v", env.Runner.Ops)
 	}
 }
+
+// The start form's open reaches OpenSlot without resume's top, and still names
+// reboot when nothing can come back (pair#363 M1 review: OpenSlot's refusals
+// had lost their next step).
+func TestStartFormOpenOfAnEmptySlotNamesReboot(t *testing.T) {
+	env, local := slotRecoveryOperationFixture(t)
+	_, err := env.Couch.spawnManagedResolution(context.Background(), StartResolution{
+		Target: ThreadTarget{Kind: ThreadTargetSlot, Slot: *local.slot}, Action: StartOpen,
+	})
+	if ResumeDiagnosticOf(err) != ResumeNoSurvivor || !strings.Contains(err.Error(), "Tab → reboot") {
+		t.Fatalf("open of an empty slot: diagnostic %q, err %v", ResumeDiagnosticOf(err), err)
+	}
+}

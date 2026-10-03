@@ -54,7 +54,7 @@ func TestFailedContinuationRelaunchesOnceDismissed(t *testing.T) {
 	env, live := envWithLiveThread(t)
 	failed, request := failedContinuation(t, env.Couch.Threads, live)
 	_, err := env.Couch.Relaunch(context.Background(), failed.Address)
-	if err == nil || !strings.Contains(err.Error(), "Retry continuation re-delivers it and Dismiss continuation drops it") ||
+	if err == nil || !strings.Contains(err.Error(), "retry-continuation re-delivers it and dismiss-continuation drops it") ||
 		!strings.Contains(err.Error(), "couch --internal dismiss-continuation") {
 		t.Fatalf("relaunch refusal must name both exits: %v", err)
 	}
@@ -163,7 +163,7 @@ func TestContinuationRefusesMatchesTheGuardForEveryRowAction(t *testing.T) {
 // each driven for real, and the scan below fails when a site is added without a
 // row -- a claim of reach over a set of sites is checked against that set.
 func TestEveryRefusalARetainedRequestCausesNamesBothExits(t *testing.T) {
-	const both = "; the retained continuation is failed: Retry continuation re-delivers it and Dismiss continuation drops it"
+	const both = "; the retained continuation is failed: on a live thread, retry-continuation re-delivers it and dismiss-continuation drops it"
 	rows := []struct {
 		site  string // the function holding the withContinuationExits call
 		drive func(t *testing.T) error
@@ -295,7 +295,7 @@ func TestPublishAfterDismissalAcceptsOnlyTheCurrentSource(t *testing.T) {
 	if err := os.WriteFile(path, []byte("---\ntype: continuation\nagent: claude\n---\n## NEXT ACTION\nfresh handoff\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := env.Couch.RequestContinuation(context.Background(), failed.Address, current, path); err == nil || !strings.Contains(err.Error(), "Dismiss continuation drops it") {
+	if _, err := env.Couch.RequestContinuation(context.Background(), failed.Address, current, path); err == nil || !strings.Contains(err.Error(), "dismiss-continuation drops it") {
 		t.Fatalf("a failed request must block publishing and name both exits: %v", err)
 	}
 	if _, err := env.Couch.DismissContinuation(context.Background(), failed.Address, request.ID); err != nil {

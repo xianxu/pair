@@ -237,7 +237,7 @@ func (c *Couch) RecoverThread(ctx context.Context, address ThreadAddress, path s
 	}
 	if request := record.Continuation; request != nil && request.Phase != checkpoint.Complete {
 		if selected != nil && selected.Digest != request.Checkpoint.Digest {
-			return ContinuationResult{}, withContinuationExits(record, errors.New("another continuation is unresolved; recover its retained checkpoint or archive"))
+			return ContinuationResult{}, withContinuationExits(record, errors.New("another continuation is unresolved"))
 		}
 		// Target/start recovery has stronger exact-attempt rules than stale-source
 		// retirement. Let its existing reconciler own those interrupted boundaries.
@@ -273,7 +273,7 @@ func (c *Couch) RecoverThread(ctx context.Context, address ThreadAddress, path s
 		return ContinuationResult{}, errors.New(decision.Diagnosis)
 	}
 	if selected == nil && record.Continuation == nil {
-		return ContinuationResult{}, errors.New("no retained checkpoint; choose Recover from checkpoint with its absolute path, or archive")
+		return ContinuationResult{}, errors.New("no retained checkpoint; this conversation cannot come back -- Tab → reboot archives it and starts a fresh agent")
 	}
 	record, err = c.prepareAbsentContinuation(ctx, address, selected)
 	if err != nil {
@@ -289,7 +289,7 @@ func (c *Couch) RecoverThread(ctx context.Context, address ThreadAddress, path s
 func (c *Couch) admitRetainedRecovery(old checkpoint.Request, selected *checkpoint.Checkpoint, source ContinuationSource) (request checkpoint.Request, settled bool, err error) {
 	request = old.Clone()
 	if selected != nil && selected.Digest != request.Checkpoint.Digest {
-		return request, false, errors.New("another continuation is unresolved; recover it or archive")
+		return request, false, errors.New("another continuation is unresolved")
 	}
 	if err := AdmitRecoveryGeneration(request, source); err != nil {
 		return request, false, err

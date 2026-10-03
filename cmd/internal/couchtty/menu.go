@@ -33,7 +33,7 @@ var menuControls = []MenuControl{
 	{Keys: "click", Action: "an actor's chip or row switches to it · empty space does nothing"},
 	{Keys: "Alt+n", Action: "relaunch: new Pair binary, same conversation (Ctrl+Alt+n aliases it)"},
 	{Keys: "Escape", Action: "clear/back"},
-	{Keys: "Tab → archive", Action: "remove a thread from couch, keeping its record"},
+	{Keys: "Tab → reboot", Action: "archive this conversation and start a fresh agent"},
 }
 
 // MenuControls returns the shared, immutable-by-copy key inventory.
@@ -648,7 +648,7 @@ func reduceRootKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 // menuFrameBindsThread reports whether a frame's validity depends on a durable
 // thread still being live and visible.
 //
-// Almost every frame does: an actions list, a park confirmation and a rename
+// Almost every frame does: an actions list, a park confirmation and an alias
 // prompt are all *about* one thread, and must vanish when it does. The `leave`
 // confirmation is the exception -- it is about couch itself. It used to ride
 // the root actor's address, so every thread-bound check passed by accident;
@@ -1267,7 +1267,7 @@ func unusableThreadNotice(thread couchcore.ActionableThreadSummary) string {
 	case couchcore.ReasonBindingLost:
 		return "its native conversation binding is unavailable; cold resume requires a verified binding"
 	case couchcore.ReasonSessionGone:
-		return "the session is gone; recover from a saved checkpoint or archive"
+		return "the session is gone"
 	case couchcore.ReasonNeverStarted:
 		return "it never started"
 	case couchcore.ReasonInvalid:
