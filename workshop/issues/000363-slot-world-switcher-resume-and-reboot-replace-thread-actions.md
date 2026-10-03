@@ -85,12 +85,12 @@ Action sets per row (operator decisions, 2026-09-30, from #360's design talk):
 
 ## Plan
 
-- [ ] Design: the per-row action table as one pure function over row kind and state (live/parked/detached/busy x :0/:1+/non-Git), replacing `menuActionItems`' branches; durable plan if past the quick-flow shell.
-- [ ] Resume: one operation that tries warm reattach, cold resume, adoption of a still-running agent, and continuation retry in order, and reports "use reboot" when none can work.
-- [ ] Reboot: archive the old record with its evidence and start a fresh thread with a new tag in the same slot or path, as one operation for :0 and :1+.
-- [ ] One primary per repository: a second start in a repository with a :0 switches to it or refuses.
-- [ ] Remove rename and describe from the switcher, help, README and atlas; slot labels always `repo:N` (or `alias:N`).
-- [ ] Tests per row kind, including a resume that cannot succeed followed by reboot.
+Durable plan: `workshop/plans/000363-slot-world-switcher-resume-and-reboot-replace-thread-actions-plan.md`
+(reviewed and approved 2026-10-02). Each milestone is a review boundary.
+
+- [ ] M1 — Actor operations in couchcore: unified `resume` (warm, cold, proven adoption, continuation/recovery retry) and `reboot` (profile preflight before quiesce, `:0` journaled replace, `:1+` fresh, missing-directory archive-only, no name/description carry); switcher untouched.
+- [ ] M2 — Switcher speaks the slot model: one pure per-row action table (offer equals permission), resume/reboot wired, rename/describe/archive/open-slot/fresh-slot/recover-* removed, labels and matching stop reading stored name/description, README and atlas.
+- [ ] M3 — One primary per repository: a subdirectory start resumes the existing `:0`; a console start refuses a second primary; non-Git refusal pinned.
 
 ## Log
 
@@ -122,6 +122,17 @@ fresh for `:1+` without touching git; `menuActionItems` (`couchtty/menu.go`)
 is the per-row action authority, swept by `menu_action_sweep_test.go`; a `:0`
 start in a repository subdirectory creates a second primary today
 (`SelectResumableRoot` / `PathHoldsUsableThread` match the exact path).
+
+### 2026-10-02 — plan approved
+
+Operator approved the durable plan and its resolved ambiguities, confirming:
+non-Git directories keep today's refusal (pinned by test; support would be a
+separate issue); reboot on a detached row stops its running agent first;
+add slot appears only on live `:0` rows; `:0` labels show the repository name
+(or alias), not `repo:0`. Plan review: two rounds, eight blocking findings
+resolved (adoption agent source, recovery route, journal-aware claim release,
+profile preflight before quiesce, offer equals permission for unknown rows,
+continuation phases, in-flight exemption, console label transport).
 
 ## Revisions
 
