@@ -191,7 +191,6 @@ func menuRowAdviceOf(f menuRowFacts) menuRowAdvice {
 		// :1+ record lives inside its directory and offers nothing; add slot,
 		// on the repository's live :0, recreates the directory.
 		a.Notice = menuNextStep{Text: couchcore.RebootDirectoryMissing, OnPrimary: true}
-		a.RebootCost.Text = " — directory missing: archives the record only"
 	case f.DirectoryMissing:
 		// A :0 record outlives its checkout: reboot archives it alone, and
 		// only the checkout coming back lets an agent start there again.

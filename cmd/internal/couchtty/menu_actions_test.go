@@ -448,6 +448,11 @@ func TestRowAdviceNamesOnlyReachableActions(t *testing.T) {
 		check(s.name, "notice", advice.Notice, s.slot, offered)
 		check(s.name, "enter", advice.Enter, s.slot, offered)
 		check(s.name, "reboot cost", advice.RebootCost, s.slot, offered)
+		// A reboot suffix only shows in reboot's confirmation; on a row that
+		// offers no reboot it is text nobody can see (#363 M3 review).
+		if advice.RebootCost.Text != "" && !slices.Contains(offered, "reboot") {
+			t.Errorf("%s: reboot cost %q on a row that offers no reboot (offered %v)", s.name, advice.RebootCost.Text, offered)
+		}
 
 		// The surfaces print the authority's words, and nothing else of
 		// their own that names an action.
