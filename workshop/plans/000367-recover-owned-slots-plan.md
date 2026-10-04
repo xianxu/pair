@@ -49,14 +49,16 @@ one-shot "execute the plan" command, and repairing deleted slots (pair#387; the 
    - Disk evidence for that fleet's slots comes from Couch's own existing probe, `ProbeSlotGit` (`slotgit.go`, one
      `git status --porcelain=v2 --branch` per slot, the function the switcher polls every 10 s). The report runs in
      the CLI process, which has no cached console observation, so it calls that same function. This is reuse, not a
-     second scanner. The probe yields branch, detached and dirty, but not in-progress operations or ahead-of-main, so
-     such rows are `partial-evidence`.
+     second scanner. Each probe is bounded by the console's own `slotGitProbeTimeout` (3 s), which moves to
+     couchcore as `SlotGitProbeTimeout` so both callers share it. The probe yields branch, detached and dirty, but not
+     in-progress operations or ahead-of-main, so those dimensions stay unknown (`partial-evidence` /
+     `evidence-unavailable`, never absence).
    - If the Couch store read fails, every row's agent becomes unknown.
    - Exit 0 whenever a report renders.
 4. **`claims_state` is per-source quality, not a hold** (operator).
    - `stale`: steps are still suggested, and the row is marked `claims.quality: stale` with sdlc's `claims_error`. The
-     agents' own sdlc verbs re-check ownership against the live tracker. sdlc v1 carries no fetch timestamp, so "as
-     of" is the error text, not a time (see design problems).
+     agents' own sdlc verbs re-check ownership against the live tracker. sdlc v1 carries no fetch timestamp, so the row
+     shows `claims stale: <claims_error>`, with no time and no ariadne change (operator, 2026-10-04).
    - `partial`/`unknown`: the claims that were read are used together with the other evidence, and the row names the
      missing or partial source.
 5. **Union of evidence replaces "foreign/unattributed"** (operator). Work evidence in a slot is any of:
@@ -69,8 +71,9 @@ one-shot "execute the plan" command, and repairing deleted slots (pair#387; the 
    The rows that result:
    - **Agreeing** evidence → `agrees`, with a step.
    - **Work but no visible claim, claims fully read** → `claim-likely-lost`: still suggest resume, plus the note
-     `claim-repair` (`sdlc claim --issue N --adopt` or `sdlc reclaim`; the operator or TL decides, and the report
-     never runs either).
+     `claim-repair`. v1 omits other machines' claims and ownerless cards, so the note says: first run
+     `sdlc issue show N --json`. If a repair is needed, the **slot's own agent** (not the TL) runs
+     `sdlc claim --issue N --adopt` or `sdlc reclaim`, under operator direction. The report runs neither.
    - **Claims not fully read** → `partial-evidence`: resume only.
    - **Conflicting** evidence → `conflict`, with no step and the facts listed:
      - `claim-elsewhere`: #N's branch is here, but its claim sits on another slot path;
@@ -85,9 +88,11 @@ one-shot "execute the plan" command, and repairing deleted slots (pair#387; the 
      `inspect-uncommitted-first`.
    - An in-progress git operation or detached HEAD → resume only, never reboot. With no resume offered, the row gets
      `no-safe-step`.
-   - Dirty or unlanded work on the resting branch with no claim and no issue branch → `unidentified-work`, no step.
-   - My choice, please confirm: exactly one claim on the resting branch **and dirty** → resume only, note
-     `resting-branch-dirty`, and no `ask-agent-restore`.
+   - Exactly one claim on the resting branch **and dirty** → resume only, with note `resting-branch-dirty`: "no restore
+     request: switching branches with uncommitted files can fail or carry the edits across". Operator confirmed.
+   - Work on **any** non-issue branch (resting, another branch, or detached) with no claim → `unidentified-work`, no
+     step. Example: `42shots:0` on `cast-embed`, dirty.
+   - A claimed slot with a detached HEAD → `agrees` with note `detached-head`: resume only, never reboot.
 7. **Rows are per slot path only** (operator): `:0` and `:1+`, per Couch's slot layout. Claims attach to the path
    they sit on (any member of the slot). A claim whose conventional slot path no longer exists (an sdlc dangling
    claim that `conventionalSlotFromPath` recognizes) gets that slot's row as `directory-missing`. Everything off-slot
@@ -122,8 +127,8 @@ one-shot "execute the plan" command, and repairing deleted slots (pair#387; the 
 13. **Busy = "a start not yet reconciled"** (operator): a persisted start claim from a possibly crashed Couch that
     startup reconciliation could not decide. → `start-unreconciled`, no step, re-read later, never reboot (it could
     duplicate a live agent). Unusable-unknown → `agent-unknown`, no step, re-read later.
-14. **A parked conversation with no git work evidence** → `conversation-only`: resume is suggested, because a
-    conversation counts as work evidence under decision 5. See design problems.
+14. **A conversation alone** (clean, resting branch, no claim, no issue branch) → `idle`, no step (operator). The row
+    still shows the agent state, so the TL may resume it if wanted.
 
 ## ARCH-* notes
 
@@ -133,7 +138,8 @@ one-shot "execute the plan" command, and repairing deleted slots (pair#387; the 
   `dispatchMenuOperation`, `menu.go:1797`, and moves out of it. `IsPrimaryRow` is extracted from
   `ApplyRepositoryAliases` and used by both it and the join. The sdlc subprocess reuses `ProvisionIO`/`OSProvisionIO` (process group, timeout, 1 MiB cap),
   and the queue path reuses `operationQueue`/`c.ops`/`finishOperation`. Disk verdicts are sdlc's
-  (`slots[].verdict`/`reasons`). Couch adds no git scan of its own.
+  (`slots[].verdict`/`reasons`). Couch adds no git scanner of its own. Its only git read here is the existing
+  `ProbeSlotGit`, called for an unavailable or unsupported fleet's slots.
 - **ARCH-PURE:** `DecodeFleetInventory`, `DeriveRecoverPlan`, `ActorActions`, `SelectSlotRow`,
   `ActorOperationArgs`, `SlotOperationCommand` and `ApplyReceiptEvent` are pure and table-tested with no fakes. The IO
   shells are `SDLCFleetSource.FleetInventory`, `Couch.RecoverPlan`, `Couch.PrepareSlotOperation`,
@@ -355,8 +361,11 @@ Below it is abbreviated `SCRUB`.
   3. `c.ActionableThreadInventoryContext(ctx, nil)` → a `CouchObservation`. It shares `--list`'s evidence gather
      (`gatherThreadEvidence`, positive-only, safe while a console runs), but takes the actionable projection.
   4. Resolve `PrimaryScopes[hostPath]` with `launcher.ResolveRepoScope` for each fleet `:0` host.
-  4b. For each slot path of an unavailable or unsupported fleet only, call `ProbeSlotGit(ctx, c.Git, path)` (the
-      switcher's existing probe, not a new scanner) into `LocalGit[path]`. Any probe error is recorded as unknown.
+  4b. For an unavailable or unsupported fleet only, gather that fleet's `SlotCandidates`: its enrolled primaries plus
+      `EnumerateSlotCandidates`. That function does filesystem IO, so it runs here in the shell, never inside
+      `DeriveRecoverPlan`. Then, per path, call `ProbeSlotGit` under `context.WithTimeout(ctx, SlotGitProbeTimeout)`
+      (moved from `couchtty/console_slotgit.go:22`; the console then uses it) and store the result in
+      `LocalGit[path]`. A probe error or timeout is recorded as unknown.
       The cost is bounded by that fleet's slot count, at about 10 ms each.
   5. `return DeriveRecoverPlan(input), nil`. `DeriveRecoverPlan` also deduplicates slots by address, first fleet wins,
      and records a duplicate in that fleet's `error`.
@@ -367,55 +376,66 @@ Below it is abbreviated `SCRUB`.
 **Files:** Create `cmd/internal/couchcore/recoverplan.go`, `recoverplan_test.go`; extract `IsPrimaryRow(row,
 primaryRoot, scopeKey) bool` from `ApplyRepositoryAliases:737`, which then calls it.
 
-**Slot universe.** Every slot path is a fleet `slots[]` entry, or (for an unavailable/unsupported fleet) an enrolled
-primary plus `EnumerateSlotCandidates`, plus Couch slot-target rows, plus dangling-claim paths that
-`conventionalSlotFromPath` recognizes. Rows are deduplicated by address. Couch rows join by `Target.Slot.WorktreeRoot`
-(`:N`) or `IsPrimaryRow` (`:0`). Anything else is counted in `ignored`.
+**Slot universe.** The universe is the union of:
+- fleet `slots[]`;
+- for an unavailable or unsupported fleet, `RecoverPlanInput.SlotCandidates`, gathered by the shell (Task 1.4);
+- Couch slot-target rows;
+- dangling-claim paths that `conventionalSlotFromPath` recognizes.
 
-**Evidence per slot** (`SlotEvidence`, pure):
-- `Claims` with their `quality` (present/stale/partial/unknown/absent/unsupported);
-- `IssueBranch` (ref and declared status; from `ProbeSlotGit` the ref comes from the branch prefix, with unknown
-  status);
-- `Unlanded` (tri-state);
-- `Dirty` (tri-state);
-- `Operation`/`Detached`;
-- `Conversation`;
-- `DirectoryMissing`;
-- `GitSource` (`sdlc` | `local-probe` | `unknown`).
+Rows are deduplicated by address. Couch rows join by `Target.Slot.WorktreeRoot` (`:N`) or `IsPrimaryRow` (`:0`).
+Anything else is counted in `ignored`. `DeriveRecoverPlan` does no IO.
 
-Classes (`AllRecoverClasses()` order) by first match:
+**Evidence per slot** (`SlotEvidence`, pure). Every dimension is closed, and `unknown` is a value, never absence.
+
+| Dimension | Values |
+|---|---|
+| `Dir` | present, missing |
+| `Couch` | ok, unavailable |
+| `Agent` | none, live, detached, parked, busy, unusable, unusable-unknown |
+| `Threads` | 0, 1, many |
+| `Branch` | resting, open-issue, terminal-issue, other, detached, unknown (local probe: an issue prefix → open-issue, status unknown) |
+| `Claims` | none, one-active (its issue is the branch), one-inactive, many-with-active, many-without-active |
+| `Quality` | present, stale, partial, unknown, absent, unsupported |
+| `Dirty`, `Unlanded`, `Operation` | yes, no, unknown |
+| `Workspace` (host claim workspace ≠ address) | yes, no |
+| `Elsewhere` (the branch issue's claim sits on another slot path) | yes, no |
+| `GitSource` | sdlc, local-probe, unknown |
+
+A healthy fleet whose member verdict is `unknown` (`probe:*`) sets the unread dimensions to `unknown`.
+
+Rules (first match). `AllRecoverClasses()` follows this order:
 
 | # | Condition | Class | Steps | Hold / notes |
 |---|---|---|---|---|
-| 1 | directory missing (host verdict `missing`, Couch `path-missing`, dangling claim on a conventional slot path) | `directory-missing` | — | hold `directory-missing` (pair#387) |
-| 2 | Couch observation unavailable | `agent-unknown` | — | hold `couch-unavailable` |
-| 3 | agent `busy` | `start-unreconciled` | — | hold `start-unreconciled` (re-read later) |
-| 4 | agent `unusable/unknown` | `agent-unknown` | — | hold `agent-unknown` (re-read later) |
-| 5 | more than 1 joined thread | `ambiguous-threads` | — | hold `threads:<n>` |
-| 6 | any conflict fact | `conflict` | — | hold `conflict:<claim-elsewhere\|issue-terminal\|claim-branch-mismatch\|claim-workspace>` (all listed) |
-| 7 | resting branch, more than 1 claim | `ambiguous-claims` | — | hold `ambiguous-claims` |
-| 8 | git unknown and no conversation | `evidence-unavailable` | — | hold `git-unknown` |
-| 9 | no work evidence | `idle` | — | — |
-| 10 | dirty/unlanded/detached/operation on the resting branch, no claim, no issue branch | `unidentified-work` | — | hold `unidentified-work` |
-| 11 | work evidence, but no Couch thread (unenrolled `:N`, `:0` without a thread) | `no-couch-thread` | — | hold `no-couch-thread` |
-| 12 | one claim, resting branch | `restore-workspace` | actor step (rule A) + `ask-agent-restore`; dirty → actor step only | note `resting-branch-dirty` if dirty |
-| 13 | issue branch claimed (active claim) | `agrees` | rule A | `inactive-claims` if other claims |
-| 14 | issue branch unclaimed, claims fully read (present/stale) | `claim-likely-lost` | rule A | note `claim-repair` |
-| 15 | claims not fully read, or `GitSource != sdlc` | `partial-evidence` | rule A, but **resume only** | notes `claims-partial`/`claims-unknown`/`claims-unsupported`/`git-local-probe` |
-| 16 | conversation only (no git work evidence) | `conversation-only` | resume only | note `conversation-only` |
+| 1 | `Dir` missing | `directory-missing` | — | hold `directory-missing` (pair#387) |
+| 2 | `Couch` unavailable | `agent-unknown` | — | hold `couch-unavailable` |
+| 3 | `Agent` busy | `start-unreconciled` | — | hold `start-unreconciled` (re-read later; never reboot) |
+| 4 | `Agent` unusable-unknown | `agent-unknown` | — | hold `agent-unknown` (re-read later) |
+| 5 | `Threads` many | `ambiguous-threads` | — | hold `threads:<n>` |
+| 6 | conflict: `Elsewhere`; `Branch` terminal-issue; `Workspace`; a claim with `Branch` other; claims present and `Branch` open-issue not claimed while `Quality` ∈ {present, stale} | `conflict` | — | hold `conflict:<claim-elsewhere\|issue-terminal\|claim-workspace\|claim-off-branch\|claim-branch-mismatch>` (all that apply) |
+| 7 | `Claims` many-without-active | `ambiguous-claims` | — | hold `ambiguous-claims` |
+| 8 | no claim, `Branch` ∉ {open-issue}, and any of `Branch`/`Dirty`/`Unlanded`/`Operation` unknown | `evidence-unavailable` | — | hold `git-unknown` |
+| 9 | no claim, `Branch` resting, `Dirty`/`Unlanded`/`Operation` all no | `idle` | — | — (a conversation is shown, not acted on) |
+| 10 | no claim, `Branch` ∈ {resting, other, detached}, with work (dirty, unlanded, operation, or a non-resting branch) | `unidentified-work` | — | hold `unidentified-work` |
+| 11 | claims or `Branch` open-issue, `Agent` none | `no-couch-thread` | — | hold `no-couch-thread` |
+| 12 | `Claims` one-inactive, `Branch` resting | `restore-workspace` | rule A + `ask-agent-restore`; dirty → rule A only | note `resting-branch-dirty` (why there is no restore request) |
+| 13 | `Claims` one-active or many-with-active; or one claim with `Branch` detached | `agrees` | rule A | notes `inactive-claims`, `detached-head`, `git-unknown` as they apply |
+| 14 | `Branch` open-issue, unclaimed, `Quality` ∈ {present, stale}, `GitSource` sdlc, no git dimension unknown | `claim-likely-lost` | rule A | note `claim-repair` |
+| 15 | `Branch` open-issue unclaimed (otherwise), or claims present with `Branch` unknown | `partial-evidence` | rule A, but **resume only** | notes `claims-partial`/`claims-unknown`/`claims-absent`/`claims-unsupported`/`git-local-probe`/`git-unknown` |
+| 16 | anything else | `no-rule` | — | hold `no-rule` (defensive; the totality test proves it is unreachable) |
 
 **Rule A (actor step).** Read only from `ActorActions(ActorRowFactsOf(row))`:
 - Live agent → no step.
 - `resume` offered → `[resume]`.
-- Otherwise `reboot` offered, git known, and no operation or detached HEAD → `[reboot]`, plus note
+- Otherwise `reboot` offered, every git dimension known, no operation and not detached → `[reboot]`, plus note
   `inspect-uncommitted-first` if dirty.
 - Otherwise no step, and the class becomes `no-safe-step` with hold `reboot-unsafe-operation` / `reboot-unsafe-git` /
   `no-actor-action`.
-- Stale claims add note `claims-stale` on any class.
+- `Quality` stale adds note `claims-stale` ("claims stale: <reason>") on any class.
 
 `Automatic` is true exactly when there are steps and no hold. `AllRecoverHolds()` and `AllRecoverNotes()` are closed
-vocabularies; a parameterized code renders as `kind:suffix`. Every row has a `Reason` sentence built from its class,
-holds and notes by one function, `recoverReason`. Rows are sorted by address.
+vocabularies; a parameterized code renders as `kind:suffix`. Every row's `Reason` comes from one function,
+`recoverReason`. Rows are sorted by address.
 
 - [ ] **Step 1: Failing tests.**
 
@@ -433,19 +453,25 @@ func TestDeriveRecoverPlanCoversEveryClassHoldAndNote(t *testing.T) {
 			for _, n := range row.Next.Notes { seen["note:"+codeKind(n)] = true }
 		})
 	}
-	for _, k := range derivedVocabulary() { // AllRecoverClasses ∪ AllRecoverHolds ∪ AllRecoverNotes — derived, not copied
+	for _, k := range derivedVocabulary() { // AllRecoverClasses ∪ AllRecoverHolds ∪ AllRecoverNotes minus no-rule — derived
 		if !seen[k] { t.Errorf("no fixture yields %s", k) }
 	}
 }
-func TestRecoverStepsAreOffered(t *testing.T)   { /* every resume/reboot step ∈ ActorActions(joined row); never reboot with operation/detached/git-unknown/busy */ }
-func TestHeldRowsSuggestNothing(t *testing.T)   { /* non-empty hold ⇒ no steps, Automatic false, Reason names each hold */ }
+func TestDeriveRecoverPlanIsTotalOverTheEvidenceDomain(t *testing.T) {
+	// evidenceDomain() crosses every value of every SlotEvidence dimension (each from its own All* list, derived)
+	// minus physically impossible combinations named in one consistent() predicate (~10^5 points, pure, < 2 s).
+	// For every point: class != no-rule; a non-empty hold ⇒ no steps and Automatic false; every resume/reboot step
+	// ∈ ActorActions; never reboot with Operation yes|unknown, Branch detached|unknown, any git dimension unknown,
+	// or Agent busy|unusable-unknown; and Dirty|Unlanded|Operation unknown never yields idle.
+}
 func TestOneWeakSourceNeverHoldsARepo(t *testing.T) {
 	// One partial card read in a fleet: the other slots of that repo keep agrees/claim-likely-lost with their steps;
 	// only rows lacking a claim become partial-evidence.
 }
 func TestUnsupportedFleetUsesLocalProbe(t *testing.T) {
 	// An unsupported fleet plus a LocalGit observation (dirty on 000012-x, parked thread) → partial-evidence [resume],
-	// note git-local-probe, never reboot. A failed probe and no conversation → evidence-unavailable.
+	// note git-local-probe, never reboot. A clean resting slot there (unlanded/operation unknown) → evidence-unavailable.
+	// A healthy fleet with verdict unknown (probe:base) on an issue branch → partial-evidence with git-unknown.
 }
 func TestJoinUsesThePrimaryRowDefinition(t *testing.T) {
 	// A :0 thread at the root plus a subdirectory thread in one scope: :0 has one thread, the subdirectory thread is
@@ -464,8 +490,9 @@ func TestClaimsAttachToTheirSlotPath(t *testing.T) {
   `RestoreWorkspaceMessage(ref, address) = "Recovery (" + address + "): restore the workspace of this slot for " + ref +
   " through sdlc (check out its issue branch); never discard files. Reply with what sdlc issue show reports."`
 - [ ] **Step 4:** Run → PASS. Mutations, each on inputs two rules share, each must turn a test red:
-  - swap 6 and 13 (claim A, B's branch unclaimed);
-  - swap 14 and 15 (unclaimed branch, claims partial: `claim-likely-lost` + reboot vs resume-only);
+  - swap 6 and 13 (a host claim on B, with B checked out and a mismatched workspace: `conflict` vs `agrees`);
+  - swap 13 and 15 (an active claim seen while `Quality` is partial, on an unusable primary where only reboot is
+    offered: `agrees [reboot]` vs no step);
   - drop the operation guard in rule A (operation present, resume not offered → `no-safe-step` vs `[reboot]`);
   - swap 3 and rule A (busy with reboot offered);
   - make `IsPrimaryRow` accept subdirectories.
@@ -515,7 +542,8 @@ Timeout: 90 * time.Second}`, `render` JSON-encodes `couchcore.RecoverPlan`, and 
 
   Dispatch `DispatchOperation(OperationExecutors{DirectStore: DirectStoreExecutor(env.Couch)}, OperationCall{Name:
   "recover-plan"})`. Assert `:1`–`:3` → `agrees [resume]`, `:4` → `restore-workspace`, `:5` → `unidentified-work`, `:6` →
-  `claim-likely-lost [resume]` with note `claim-repair`, `:0` → `idle`, `:9` → `directory-missing`, and
+  `claim-likely-lost [resume]` with note `claim-repair`, `:0` → `idle` (live agent, clean resting branch, no claim:
+  rule 9 and no step), `:9` → `directory-missing`, and
   `ignored.off_slot_claims == 1`. Then mutate the fake (`Release(":1")`) and dispatch again: `:1` →
   `claim-likely-lost`. This proves the plan is recomputed from fresh sdlc output on every call.
 - [ ] **Step 2:** Run → it must PASS against Tasks 1.1–1.6. Revert `DirectStoreExecutor`'s case → FAIL. Drop rule 10
@@ -721,11 +749,12 @@ Section "## Recovering slots after a restart". Take the contract wording from
 1. Run `couch --recover-plan-from-sdlc` and read every row.
 2. Review the rows with the operator before acting, and never run steps without that review.
 3. For each row the operator approves that has `automatic: true`, run its `steps[].command` in order.
-4. Delegate disk fixes to the slot's own agent through `--send-to` (the `ask-agent-restore` command). Never edit
+4. Delegate disk fixes and claim repairs to the slot's own agent through `--send-to` (the `ask-agent-restore` command). Never edit
    another slot's repository.
 5. A row with a `hold` gets no primitive unless the operator directs one for that specific row. A `conflict` row
-   lists its facts so the TL can inspect them. A `claim-repair` note names `sdlc claim --adopt` / `sdlc reclaim`;
-   those run only on the operator's explicit instruction (#278), never on a report's suggestion. `start-unreconciled`
+   lists its facts so the TL can inspect them. For a `claim-repair` note, first run
+   `sdlc issue show N --json`. If a repair is needed, ask the slot's own agent to run `sdlc claim --adopt` /
+   `sdlc reclaim`, only on the operator's explicit instruction (#278), never on the report's suggestion. `start-unreconciled`
    and `agent-unknown` mean: re-read later, and never reboot.
 6. Verify by re-running the report, never by a reply or a receipt. A message receipt proves delivery only. Stale or
    unknown is not negative evidence: look again after about 30 s.
@@ -820,3 +849,24 @@ Reason: the operator design session. Delta:
 - **Multiple claims** pick the active one by branch; more than one on the resting branch → `ambiguous-claims`.
 - **Busy** becomes `start-unreconciled`.
 - Task 1.5's table, vocabularies and mutations, and the Task 1.7/2.6/2.7 expectations, are re-derived.
+
+### 2026-10-04 (b) — operator answers and table-totality review
+
+Reason: the operator answered the plan's three questions, and the review found that the table was not total. Delta:
+- **Operator answers.**
+  - A conversation alone → `idle`, no step; `conversation-only` is removed.
+  - One claim on a dirty resting branch → resume only, with the `resting-branch-dirty` note explaining why.
+  - Stale claims show `claims stale: <reason>`.
+- **Totality.** The table is rebuilt over closed evidence dimensions:
+  - any non-issue branch with no claim → `unidentified-work`;
+  - claimed + detached → `agrees` (resume only);
+  - a claim on another branch → `conflict:claim-off-branch`;
+  - a `no-rule` catch-all.
+
+  A totality test runs over the derived evidence domain, and unknown git is never idle or absence (rule 8, rule 15
+  `git-unknown`).
+- **Mutations.** Re-picked so each pair overlaps: 6/13 and 13/15.
+- **Probes.** `ProbeSlotGit` is bounded by the shared `SlotGitProbeTimeout`. `SlotCandidates` are gathered in the
+  shell, so the derivation stays pure.
+- **Claim repair.** `claim-repair` → `issue show` first; the slot's own agent repairs, under operator direction.
+- **Wording.** The dangling "design problems" references and the ARCH-DRY wording are fixed.
