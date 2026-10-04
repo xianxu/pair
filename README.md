@@ -384,6 +384,8 @@ couch --show <ref>       one current-repository thread by tag or path
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
 couch --recover-plan-from-sdlc   per-slot recovery report (JSON), see below
+couch --resume repo:N [--json]   from a live slot: resume that slot's agent
+couch --reboot repo:N --confirm [--json]   from a live slot: archive and replace it
 couch --send-to repo:N --message TEXT   send to an exact live slot
 couch --send-to repo --message TEXT     select an eligible slot in that family
 couch --send-to repo --agent NAME --message TEXT   ...running that agent
@@ -408,6 +410,21 @@ request names that checkout. Unknown is never absence: a failed sdlc run, an old
 sdlc, a partial claim read or an unreadable git state is shown as such and degrades
 only the rows it touches. The report creates nothing; it only writes stdout. Its
 one side effect is sdlc's own tracker fetch, which updates remote-tracking refs.
+Each step carries its `command`: `couch --resume repo:N`, `couch --reboot repo:N
+--confirm`, or a `couch --send-to` asking the slot's own agent to restore its
+workspace.
+
+`couch --resume repo:N` and `couch --reboot repo:N --confirm` run one slot's step
+through the running Couch. Only an agent in a live Couch slot may call them; Couch
+checks the caller the same way it checks `--send-to` senders and refuses anyone
+else. The request runs on the switcher's own queue, in the background (the
+operator's screen stays put), and is admitted only if the switcher would offer the
+same action on that row at that moment. Reboot needs `--confirm` because the
+operation declares it. The CLI polls a receipt Couch keeps in memory for 5 minutes
+(visible only to the slot that asked); a lost or unreadable outcome prints
+"outcome uncertain". Verify by reading the report again, never by the receipt: a
+repeat is refused harmlessly once the slot is live. `couch --skill` carries the
+full recovery procedure.
 
 Couch runs one production supervisor per local OS account. Its authority lives
 under the account home's `.local/share/pair-host/singleton`, found by the real

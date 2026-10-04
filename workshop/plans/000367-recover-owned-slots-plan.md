@@ -582,13 +582,13 @@ Transitions (anything not listed → error, state unchanged):
 
 Couch exit drops every receipt (memory only), so `status` answers `unknown`.
 
-- [ ] **Step 1: Failing tests.** `TestApplyReceiptEventTable` iterates every (state, event) pair from
+- [x] **Step 1: Failing tests.** `TestApplyReceiptEventTable` iterates every (state, event) pair from
   `allReceiptStatuses() × allReceiptEvents()` and checks it against the literal table. `TestReceiptSequences` covers
   admit → duplicate-admit → start → finish → status → expire → status=unknown. `TestValidateSlotOperationRequests`:
   `resume`/`reboot` need a valid ID, an exact `repo:N` target (`parseSlot`), no Body or Agent, and the caller
   identity. `Confirmed` is allowed only on `resume`/`reboot`. `operation-status` takes an ID only. A family target
   (`pair`) is refused with `ErrInvalidTarget`.
-- [ ] **Step 2:** FAIL → **Step 3:** implement → **Step 4:** PASS. Commit
+- [x] **Step 2:** FAIL → **Step 3:** implement → **Step 4:** PASS. Commit
   `#367 M2: couchmessage: slot-operation requests and receipt state machine`.
 
 ### Task 2.2: `SelectSlotRow`, `ActorOperationArgs`, `SlotOperationCommand`, `PrepareSlotOperation`
@@ -598,7 +598,7 @@ Couch exit drops every receipt (memory only), so `status` answers `unknown`.
 build resume/reboot args with `ActorOperationArgs`. Delete the warm-only block from `dispatchMenuOperation`
 (`menu.go:1797-1803`) and keep its `clearReattachFailure` call there.
 
-- [ ] **Step 1: Failing tests.**
+- [x] **Step 1: Failing tests.**
   - `SelectSlotRow`: a `:N` row matches by host path. `:0` matches only the row `IsPrimaryRow` accepts; a
     subdirectory thread is never picked. Zero matches →
     `SlotOperationError{Code: "no-thread"}`; two → `"ambiguous"`.
@@ -615,7 +615,7 @@ build resume/reboot args with `ActorOperationArgs`. Delete the warm-only block f
     - a parked slot gives an `OperationCall{Name: "resume", Args: {"path": …}, Implicit: true}`;
     - a live slot gives `SlotOperationError{Code: "not-offered"}` with a factual detail ("pair:2 is live");
     - an unknown repo gives `"unknown-slot"`.
-- [ ] **Step 2:** FAIL. **Step 3:** Implement. `PrepareSlotOperation(ctx, op, target string) (OperationCall, error)`
+- [x] **Step 2:** FAIL. **Step 3:** Implement. `PrepareSlotOperation(ctx, op, target string) (OperationCall, error)`
   runs these steps:
   1. Parse the target with `ParseWorkspaceReference`.
   2. Resolve its path with `c.WorkspaceReferencePath`.
@@ -627,7 +627,7 @@ build resume/reboot args with `ActorOperationArgs`. Delete the warm-only block f
   Now set `RecoverStep.Command = SlotOperationCommand(...)` in `DeriveRecoverPlan`. For `ask-agent-restore`, use
   `couch --send-to <addr> --message '<RestoreWorkspaceMessage>'`, quoted with a shell-quoting helper. Add a test that
   every emitted command parses.
-- [ ] **Step 4:** PASS. The couchtty tests stay green. Commit `#367 M2: couchcore: PrepareSlotOperation resolves and
+- [x] **Step 4:** PASS. The couchtty tests stay green. Commit `#367 M2: couchcore: PrepareSlotOperation resolves and
   admits a slot target`.
 
 ### Task 2.3: The console's remote enqueue (the same queue as a keypress)
@@ -655,7 +655,7 @@ never matches; a test pins both sides. If `Enqueue` returns `accepted=false`, th
 an error, it has not called and never will call `started` or `finished`; the admission path reports that outcome.
 When it returns nil, `finished` fires exactly once.
 
-- [ ] **Step 1: Failing tests** on the `continuationConsole`-style fixture:
+- [x] **Step 1: Failing tests** on the `continuationConsole`-style fixture:
   - A remote resume whose dispatcher returns a `StartResult` is adopted. `attach` is called with
     `background="true"`, focus is unchanged, and `finished` gets `(value, nil)`.
   - An `attach` failure reaches `finished` as an error.
@@ -664,7 +664,7 @@ When it returns nil, `finished` fires exactly once.
   - A prepare error reaches `finished` and no dispatcher call happens.
   - An overloaded or pending enqueue returns an error and **never** calls `started` or `finished` (no double report).
   - A remote resume clears the row's reattach-failure mark.
-- [ ] **Step 2:** FAIL → implement → PASS. Mutation: call `finished` before adoption, and confirm the attach-failure
+- [x] **Step 2:** FAIL → implement → PASS. Mutation: call `finished` before adoption, and confirm the attach-failure
   test fails. Commit `#367 M2: couchtty: remote operations ride the console queue`.
 
 ### Task 2.4: The message-service handler and caller rule
@@ -698,7 +698,7 @@ Handler order:
 `RebootResult.Archived` tag and the `Warning()`. `operation-status` shows only receipts admitted by the same
 (Scope, Tag).
 
-- [ ] **Step 1: Failing tests** on `serviceRig` with a fake `slotOps` that records calls:
+- [x] **Step 1: Failing tests** on `serviceRig` with a fake `slotOps` that records calls:
   - `TestSlotOperationCallerRule` covers: no identity, an unknown nonce, a disconnected binding, a binding that is no
     longer current (`TestMessageSendingCallerMustRemainCurrent`'s mechanism), and an ambiguous binding. Each gets
     `unavailable` with zero `slotOps` calls. A connected current caller gets `accepted`.
@@ -710,7 +710,7 @@ Handler order:
   - `TestSlotOperationReceiptsConcurrent`: run `-race` with N goroutines admitting, polling status, and firing
     `started`/`finished` from separate goroutines. No race, and every receipt ends terminal exactly once.
   - `TestSlotOperationAliasSharesKey`: `pair:1` then `pa:1` while the first is pending → `busy`.
-- [ ] **Step 2:** FAIL → implement → PASS (`SCRUB go test -race ./cmd/internal/couchcmd -run SlotOperation -count=1`).
+- [x] **Step 2:** FAIL → implement → PASS (`SCRUB go test -race ./cmd/internal/couchcmd -run SlotOperation -count=1`).
   Mutation: skip `authority.current`, and confirm the stale-caller case
   fails. Commit `#367 M2: couch: resume/reboot on the message socket for live slots only`.
 
@@ -724,7 +724,7 @@ budget as an outer deadline, `run.go` `usageWith` (two lines); tests in `cli_tes
 (`TestPublicHelpListsOnlyPublicSurface`: allow the `--resume`/`--reboot` flags and keep refusing the bare internal
 names: `start`, `park`, `publish-description`, `--internal`, and `resume` outside `--resume`).
 
-- [ ] **Step 1: Failing tests.**
+- [x] **Step 1: Failing tests.**
   - Parse forms: `--resume pair:1`, `--resume pair:1 --json`, `--reboot pair:1 --confirm [--json]`. Refused:
     `--resume`, `--resume pair`, `--resume pair:1 extra`, `--reboot pair:1 --confirm --confirm`.
   - Poll loop with a fake `messageCall`:
@@ -739,7 +739,7 @@ names: `start`, `park`, `publish-description`, `--internal`, and `resume` outsid
     - The 6th poll still succeeds after more than 2 s in total, which proves the per-call context.
     - `--json` prints the final `OperationReceipt`.
   - Outside a slot (no `COUCH_STORE_DIR`): "requires a live Couch slot", exit 1.
-- [ ] **Step 2:** FAIL → implement → PASS. Commit `#367 M2: couch: --resume and --reboot CLI`.
+- [x] **Step 2:** FAIL → implement → PASS. Commit `#367 M2: couch: --resume and --reboot CLI`.
 
 ### Task 2.6: Skill recovery section
 
@@ -766,39 +766,39 @@ Section "## Recovering slots after a restart". Take the contract wording from
 
 Also add the two commands to the command table.
 
-- [ ] **Step 1: Failing test** `TestSkillDocumentsRecovery`: `couchSkill` contains `--recover-plan-from-sdlc`,
+- [x] **Step 1: Failing test** `TestSkillDocumentsRecovery`: `couchSkill` contains `--recover-plan-from-sdlc`,
   `--resume`, `--reboot`, `--confirm`, `--send-to`, and "re-run" verification wording. Every `couch --…` command in
   the skill parses with `ParseCLI`. This is a derived sweep: extract each fenced or backticked `couch …` command,
   then **shell-split it** with a quote-aware splitter (a test helper handling `'…'`, `"…"` and `\'`), so quoted
   `--message` bodies arrive as one argv element. Every class named in
   the skill is in `AllRecoverClasses()`.
-- [ ] **Step 2:** FAIL → write → PASS. Commit `#367 M2: couch skill: recovery procedure`.
+- [x] **Step 2:** FAIL → write → PASS. Commit `#367 M2: couch skill: recovery procedure`.
 
 ### Task 2.7: End-to-end recovery acceptance
 
 **Files:** Extend `cmd/internal/couchcore/recoverplan_acceptance_test.go`; create
 `cmd/internal/couchcmd/slot_operations_acceptance_test.go`
 
-- [ ] **Step 1: couchcore loop** `TestRecoverPlanStepsConverge`. Start from Task 1.7's world. For each `automatic`
+- [x] **Step 1: couchcore loop** `TestRecoverPlanStepsConverge`. Start from Task 1.7's world. For each `automatic`
   row: `PrepareSlotOperation(step)` → `DispatchOperation` with `CouchLiveOwnerExecutor(env.Couch)` → mark the started
   process alive in `FakeProcOps` → re-run `recover-plan`. Expect `:1`/`:2`/`:3`/`:6` live with no steps (`:6` keeps note
   `claim-repair`), `:5` untouched (its record is byte-identical), and `:4` → `restore-workspace` with steps reduced
   to `[ask-agent-restore]`.
   Calling `PrepareSlotOperation` again on `:1` → `not-offered`, which proves resends converge.
-- [ ] **Step 2: couchcmd socket acceptance.** Use a real `newMessageService` on temp sockets (the `serviceRig`)
+- [x] **Step 2: couchcmd socket acceptance.** Use a real `newMessageService` on temp sockets (the `serviceRig`)
   wired to a real `couchtty.Console` fixture, whose dispatcher is `DispatchOperation` over a test Couch. The fixture
   needs no pty: use the `continuationConsole` shape and run its queue goroutine. Run
   `runMessageCLIWithCall(--resume pair:1)` from a connected caller's env and expect exit 0. The same call from a
   non-slot env refuses before anything is enqueued.
-- [ ] **Step 3:** Both PASS. Revert the `handle` intercept → socket test FAIL. Revert `finished` → poll times out →
+- [x] **Step 3:** Both PASS. Revert the `handle` intercept → socket test FAIL. Revert `finished` → poll times out →
   FAIL. Commit `#367 M2: acceptance: report → resume via socket → report`.
 
 ### Task 2.8: Docs and close M2
 
-- [ ] README: `--resume`/`--reboot` (live-slot callers only, `--confirm`, receipts, verify via the report).
+- [x] README: `--resume`/`--reboot` (live-slot callers only, `--confirm`, receipts, verify via the report).
   `atlas/couch.md`: the socket slot-operation flow and receipt lifecycle (ARCH-FUNERAL line), and `ActorActions` as
   the shared authority. `atlas/index.md` links.
-- [ ] Full verification (Chunk 3).
+- [x] Full verification (Chunk 3).
 - [ ] **Ask the operator to smoke-test live** (memory: dogfood live). Run `sdlc move` then `make build` in `pair:0`,
   and check its HEAD. Relaunch Couch. From `:0`'s agent: `couch --recover-plan-from-sdlc`, then park a scratch slot,
   `couch --resume pair:N`, re-read the report, and confirm it is `live`. The new pane must appear without stealing
@@ -912,3 +912,36 @@ only append). Delta:
   each dependency is judged on its own facts into `DepClaims` (none, active, resting, resting-dirty, conflict,
   work, unknown) plus `DepOperation` (rule A's reboot guard only). The union across members is display-only.
   `claim-member-unread` became `dependency-unread`; new note `dependency-work`.
+
+### 2026-10-04 (d) — M2 implementation reconciliation
+
+Reason: M2 delivered; the Chunk 2 mappings are reconciled with the code. Delta:
+- **M1 round-4 advisories first.** `DepOperation` became `DepTree` (clean, dirty, unknown, operation; each
+  dependency's tree folded worst first). Reboot safety is slot-level: rule A's guard and its
+  `inspect-uncommitted-first` note read only `slotOperation`/`slotGitUnknown`/`slotDirty`, which fold the host's
+  tree with `DepTree`; host judgments still read host facts. `restoreWorkspaceDecision` builds its notes with
+  `slices.Concat`, and `withRuleA` owns a clone.
+- **`ActorOperationArgs` for a slot is `{"path", "repo-scope"}`, not `{"path"}`.** The end-to-end loop found that
+  `resume` declares `repo-scope` Required, so the switcher's path-only slot effect (in place since #306) is refused
+  by `DispatchOperation` with "missing required argument repo-scope", on main too. The scope is the slot
+  checkout's own (`launcher.ResolveRepoScope(WorktreeRoot)`). The args tests now dispatch every shape through the
+  declared table. This supersedes Task 2.2's "literal equality with what the switcher carried before" for slots.
+- **`EnqueueRemoteOperation(key, op, prepare, started, finished)`** takes the op: the origin (and the remote-resume
+  recognition) is fixed at enqueue time, before prepare runs. The job's completion state is
+  `operationRequest.remote *remoteOperation{call, finished}` rather than a bare `finished` field, so the console can
+  clear the reattach mark for the row the prepared call named (by tag, or by slot path in the menu inventory).
+  The queue errors are exported (`ErrRemotePending`, `ErrOperationQueueOverloaded`) for the socket's mapping.
+- **`newMessageService(…, slotOps *slotOperations)`** takes the store, built by `consoleSlotOperations(console, c)`
+  (shared by production and the socket acceptance test) with a repository-names reader for the queue key.
+- **Caller rule, no identity.** A request with no identity fields fails `ValidateRequest` and is
+  `invalid-request`, not `unavailable`; it is still refused before any enqueue. Every other caller fault is
+  `unavailable`.
+- **Admission-time refusals** carry response codes (`confirmation-required`, `id-conflict`, `busy`, `overloaded`,
+  `unknown-slot`, `unavailable`); run-time refusals are receipts with `Status: refused` and a `SlotOperationError`
+  code.
+- **CLI.** `--confirm` is accepted exactly when `OperationConfirms(op)`: `--reboot` without it and `--resume` with
+  it are parse errors. `runSlotOperationCLI` takes a `slotPollClock` (now, sleep) for the budget; each exchange
+  still uses a real per-call context.
+- **Task 2.7 step 2** drives a detached `:0` (`repo:0`, warm-only reattach) through `SlotCatalogFake`, since
+  couchcmd has no real-git slot fixture; the slot path is covered by the couchcore loop.
+

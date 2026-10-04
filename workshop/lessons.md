@@ -22,6 +22,11 @@ representative evidence, not an exhaustive index.
 - Test the behavior at the production boundary that decides it. A parser,
   helper, or framing test does not prove routing, attachment, scheduling, or
   lifecycle behavior. (#139, #255, #265)
+- An effect's arguments are proved by the table that consumes them, not by a
+  literal copy of their shape. #367: the switcher's slot resume sent only its
+  path while `resume` declares `repo-scope` Required, so DispatchOperation
+  refused every slot resume since #306, and the shape test pinned the bug.
+  Send each argument shape through the declared operation table.
 - A test must fail when the code under test is reverted. Assert the guard's own
   outcome and that it caused no forbidden effect; a later refusal or generic
   `err != nil` is not evidence. (#209, #230, #256, #280)

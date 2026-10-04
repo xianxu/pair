@@ -333,9 +333,14 @@ and never touches the console. Flow:
    `judgeDependency` on its own branch, dirt, unlanded commits, operation and
    claims (`judgeMemberClaim`: active, resting, other, unknown) and folded by
    `foldDependencies` into `DepClaims` (none, active, resting, resting-dirty,
-   conflict, work, unknown) plus `DepOperation`, the one slot-level fact,
-   read only by rule A's reboot guard. The union across members appears only
-   in the row's `evidence` list. A dependency claim on another branch is
+   conflict, work, unknown) plus `DepTree` (clean, dirty, unknown, operation:
+   every dependency's working tree folded worst first). Reboot safety is a
+   slot-level property, since a reboot replaces the whole slot's agent: rule
+   A's reboot guard and its `inspect-uncommitted-first` note read only the
+   `slotOperation` / `slotGitUnknown` / `slotDirty` helpers, which fold the
+   host's tree with `DepTree`; every other judgment reads host facts alone
+   (M1 review round 4). The union across members appears only in the row's
+   `evidence` list. A dependency claim on another branch is
    `conflict:dependency-claim`; an unread or gone dependency (a dangling claim
    on a missing member) is note `dependency-unread`, never absence; a
    dependency's own unclaimed work is `dependency-work`; a dependency claim
@@ -373,7 +378,64 @@ any argv but the one `SDLCFleetSource` builds. The golden capture
 (skipped without `sdlc` on PATH or under `-short`) pin its vocabulary to the
 real producer. `TestDeriveRecoverPlanIsTotalOverTheEvidenceDomain` crosses every
 evidence dimension and proves the defensive `no-rule` class unreachable. The
-report writes nothing; M2 adds `resume`/`reboot` through the running Couch.
+report writes nothing. Each step's `command` is `SlotOperationCommand` (adds
+`--confirm` exactly when the declaration requires it) or `SendToCommand` with
+the shell-quoted restore message; tests shell-split and parse every one.
+
+**Slot operations through the running Couch (M2).** `couch --resume repo:N`
+and `couch --reboot repo:N --confirm` act on one slot from a live Couch slot:
+
+1. The CLI (`runSlotOperationCLI`, `messages.go`) admits `resume`/`reboot` on
+   the broker socket with a request ID, then polls `operation-status` every
+   500 ms within 3 minutes, each exchange on a fresh `AdmissionTimeout`
+   context. After admission any lost outcome (dial failure, timeout, an
+   unavailable caller after a restart, a receipt no longer held, the budget)
+   prints one uncertain line pointing at the report.
+2. `messageService.handle` intercepts the three ops before the broker
+   protocol: `ValidateRequest` (one exact `repo:N`, `Confirmed` only on
+   resume/reboot), then the `--send-to` caller rule, `broker.Caller` plus
+   `authority.current`; any failure is `unavailable` with nothing enqueued.
+3. `slotOperations` (`slot_operations.go`) owns the in-memory receipts behind
+   one mutex: reboot without `Confirmed` is `confirmation-required`
+   (`OperationConfirms`); the queue key comes from the resolved repository
+   (`remote\x00<primary key>:N`, so `pair:1` and `pa:1` share one pending
+   key); a duplicate admission returns the held receipt and never enqueues;
+   an enqueue refusal drops the reservation and answers `busy`/`overloaded`;
+   more than 64 held receipts is `overloaded`. The pure receipt machine is
+   `couchmessage.ApplyReceiptEvent` (`queued → running →
+   succeeded|refused|failed`, a closed table). Receipts are created on
+   admission, removed 5 minutes after they turn terminal (swept on every
+   admit and status) or when Couch exits; status answers only the slot that
+   admitted them, and a receipt not held answers `unknown`.
+4. `consoleSlotOperations` wires `Console.EnqueueRemoteOperation`
+   (`console_remote.go`) with `Couch.PrepareSlotOperation`: the job rides the
+   switcher's `operationQueue`, `c.ops` and `finishOperation`. Prepare runs on
+   the queue against fresh inventory: `ParseWorkspaceReference`,
+   `WorkspaceReferencePath`, `SelectSlotRow` (`IsPrimaryRow` for `:0`), then
+   `not-offered` unless `ActorActions` offers the op, and the call's args from
+   `ActorOperationArgs` (slot path plus its scope; exact tag plus warm-only on
+   a detached `:0`), the one mapping the switcher also reads. The origin is
+   `{op, PreserveFocus}` with Attempt 0: adopted with `background=true`, never
+   touching the operator's `InFlight`. A remote resume is recognized at
+   completion as `resume`, Attempt 0, no `ContinuationID`, and clears the
+   row's reattach-failure mark. `finished` fires once after adoption; an
+   enqueue error never reports through it.
+
+| Entity | Lives in | Kind |
+|---|---|---|
+| `OperationReceipt`, `ReceiptStatus`, `ReceiptEvent`, `ApplyReceiptEvent` | `couchmessage/operation.go` | pure |
+| `SelectSlotRow`, `ActorOperationArgs`, `SlotOperationCommand`, `SendToCommand`, `SlotOperationError` | `couchcore/slot_operation.go` | pure |
+| `Couch.PrepareSlotOperation` | `couchcore/slot_operation.go` | IO shell |
+| `Console.EnqueueRemoteOperation`, `remoteResumeCompletion` | `couchtty/console_remote.go` | console queue |
+| `slotOperations`, `consoleSlotOperations`, `handleSlotOperation` | `couchcmd/slot_operations.go`, `message_service.go` | socket handler |
+| `runSlotOperationCLI` | `couchcmd/messages.go` | CLI |
+
+`TestRecoverPlanStepsConverge` (couchcore) runs the loop: report, every
+automatic step through `PrepareSlotOperation` and the live-owner dispatch,
+report again, and a resend refused `not-offered`.
+`TestSlotOperationSocketAcceptance` (couchcmd) drives `--resume repo:0`
+through the real socket, wiring and a running Console. The skill's
+"Recovering slots after a restart" section is the agent procedure.
 
 ### Grouped workspace display (#307)
 

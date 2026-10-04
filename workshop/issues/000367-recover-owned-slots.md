@@ -336,6 +336,55 @@ I fixed the rule, not the site: the evidence model is per member.
   fails the property and the totality test.
 - The rule is added to lessons.md.
 
+### 2026-10-04 — M2 implementation notes
+
+One commit per task (921d272b … a316320a), tests written first and observed red
+(compile red for new symbols, behavioural red for changed ones), plus mutations
+restored from byte copies:
+- M1 round-4 advisories (921d272b). `DepOperation` → `DepTree`; reboot safety is
+  slot-level (`slotOperation`/`slotGitUnknown`/`slotDirty`), host judgments stay
+  host-only. Red: a claimed dependency with an unread base got `agrees [reboot]`,
+  a dirty one lost `inspect-uncommitted-first`; the alias test failed on a slice
+  with spare capacity. Totality gains the property "any member dirty/unknown/in an
+  operation ⇒ no reboot without the hold/note". Mutations on each of the three
+  helpers fail the fixtures and/or totality.
+- 2.1 receipt machine: the table test walks every (state, event) pair; letting a
+  different op reuse an ID fails it.
+- 2.2 `ActorOperationArgs`: dropping warm-only fails couchcore and couchtty.
+- 2.3 console queue: calling `finished` before adoption fails the attach-failure
+  test; dropping the reattach clear fails three cases.
+- 2.4 socket: skipping `authority.current` fails the caller rule; letting a
+  duplicate enqueue fails the duplicate case.
+- 2.5 CLI: an invocation-wide context fails the fresh-context test; raw errors
+  mid-poll fail the uncertain cases. Fault cases and argv malformations are
+  table-driven, one strategy line each.
+- 2.6 skill: a bogus class name or an unparsable command fails the sweep.
+- 2.7 acceptance: removing the `handle` intercept answers invalid-request;
+  dropping `finished` runs the poll into the 3-minute uncertain line; dropping
+  the not-offered check lets the resend through.
+
+Found by the end-to-end loop (ec554b43): `resume` declares `repo-scope`
+Required, and the switcher's slot effect (since #306) sent only `path`, so
+DispatchOperation refuses Tab → resume on any slot row, on main too.
+`ActorOperationArgs` adds the slot checkout's own scope; the args tests now
+dispatch every shape through the declared table. Lesson added. Worth a
+coordinator look: this is live breakage on main independent of #367.
+
+Deviations: plan Revision 2026-10-04 (d) (EnqueueRemoteOperation takes the op;
+`remoteOperation` completion state; `newMessageService` takes `*slotOperations`;
+a no-identity request is invalid-request; `--confirm` derived from
+`OperationConfirms`; socket acceptance uses a detached `:0`).
+
+Live sdlc conformance (`TestFleetInventoryLiveConformance`) ran unsandboxed and
+passed (5.95 s, PATH sdlc `~/.local/bin/sdlc`).
+
+Verification (unsandboxed, at the docs commit): `go test ./... -count=1` fails only
+`TestProductionArtifactReferencesAreExactlyClassified` (33 entries, none a #367
+file) and `TestCouchReferencesLocalArchiveLocatorRoundTrip`, both known. `-race`
+on couchcore, couchtty, couchcmd, couchmessage passes. `make -k test` fails only
+`test-changelog`; `TMPDIR=<scratch>/tmp make test-changelog` passes. gofmt and vet
+clean. Remaining for M2: operator live smoke test, then `sdlc close`.
+
 ## Revisions
 
 ### 2026-10-01 — recovery shape settled in operator discussion
