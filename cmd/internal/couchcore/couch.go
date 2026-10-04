@@ -51,6 +51,10 @@ type Couch struct {
 	// Slug reads a thread's latest pair-slug suggestion for the switcher's
 	// focus view (pair#372); nil shows none. Production wires OSSlugReader.
 	Slug func(context.Context, ThreadAddress) (string, error)
+	// Fleet reads `sdlc fleet inventory --json` for the recover-plan report
+	// (pair#367); nil reports every fleet unavailable. Production wires
+	// SDLCFleetSource over OSProvisionIO.
+	Fleet FleetInventorySource
 	// Layout is which pair layout this couch launches its threads in, chosen
 	// once at construction and IMMUTABLE for the process lifetime -- there is
 	// no mid-session layout change, which is what keeps the mixed-state
