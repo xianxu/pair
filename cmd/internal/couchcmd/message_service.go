@@ -587,8 +587,9 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 
 // handleSlotOperation is the caller rule for slot operations, exactly the
 // --send-to rule: the request names a connected, registered binding
-// (broker.Caller) that is still current (authority.current). Any failure is
-// unavailable, and nothing is enqueued.
+// (broker.Caller) that is still current (authority.current). A malformed
+// request (including one with no caller identity) is invalid-request; a caller
+// that fails the rule is unavailable. Nothing is enqueued in either case.
 func (s *messageService) handleSlotOperation(ctx context.Context, request couchmessage.Request) couchmessage.Response {
 	if err := couchmessage.ValidateRequest(request); err != nil {
 		return couchmessage.Response{Code: "invalid-request", Error: err.Error()}

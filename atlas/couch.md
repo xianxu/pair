@@ -394,7 +394,9 @@ and `couch --reboot repo:N --confirm` act on one slot from a live Couch slot:
 2. `messageService.handle` intercepts the three ops before the broker
    protocol: `ValidateRequest` (one exact `repo:N`, `Confirmed` only on
    resume/reboot), then the `--send-to` caller rule, `broker.Caller` plus
-   `authority.current`; any failure is `unavailable` with nothing enqueued.
+   `authority.current`. A malformed request, including one with no caller
+   identity, is `invalid-request`; a caller that is not a connected, current
+   binding is `unavailable`. Nothing is enqueued in either case.
 3. `slotOperations` (`slot_operations.go`) owns the in-memory receipts behind
    one mutex: reboot without `Confirmed` is `confirmation-required`
    (`OperationConfirms`); the queue key comes from the resolved repository

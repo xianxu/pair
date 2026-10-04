@@ -221,6 +221,28 @@ rounds:
       boundary: M1
       recipe: milestone-review
       blocked: false
+    - "n": 6
+      timestamp: "2026-10-04T05:01:30-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: withdrawn
+          note: 'Overtaken by implementation: the poll loop and argv parser landed as table-driven tests, one strategy per row (messages_test.go:246, cli_test.go:152); the plan prose is now history.'
+          round: 6
+        - id: BR-3
+          disposition: addressed
+          note: The completion now carries an explicit origin (operationCompletion.remote); remoteOperationAddress returns false for nil remote, so a non-remote origin of the same shape clears nothing; TestRemoteResumeRecognitionIsPinnedBothSides pins both producer sides. Residual cleanup noted as Minor in prose.
+          round: 6
+      findings:
+        - id: BR-17
+          severity: Minor
+          title: atlas/couch.md says every caller failure is unavailable; a no-identity request is invalid-request
+          detail: 'This is the 2nd finding in family docs-lag-new-vocabulary. Rule: atlas text describing response codes should be checked against the plan''s latest Revisions entry for the same flow; here revision (d) and handleSlotOperation both say invalid-request.'
+          family: docs-lag-new-vocabulary
+          round: 6
+      boundary: M2
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#367 (boundary-review)
@@ -315,10 +337,21 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-16** [Minor] `slice-alias-append` restoreWorkspaceDecision appends to extra twice, so the second append overwrites the first through a shared backing array
   Correct today only because depNotes returns fresh len-1 slices; build notes explicitly instead.
 
+## Round 6 — 2026-10-04T05:01:30-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — withdrawn — Overtaken by implementation: the poll loop and argv parser landed as table-driven tests, one strategy per row (messages_test.go:246, cli_test.go:152); the plan prose is now history.
+- BR-3 — addressed — The completion now carries an explicit origin (operationCompletion.remote); remoteOperationAddress returns false for nil remote, so a non-remote origin of the same shape clears nothing; TestRemoteResumeRecognitionIsPinnedBothSides pins both producer sides. Residual cleanup noted as Minor in prose.
+
+### Raised
+
+- **BR-17** [Minor] `docs-lag-new-vocabulary` atlas/couch.md says every caller failure is unavailable; a no-identity request is invalid-request
+  This is the 2nd finding in family docs-lag-new-vocabulary. Rule: atlas text describing response codes should be checked against the plan's latest Revisions entry for the same flow; here revision (d) and handleSlotOperation both say invalid-request.
+
 ## Open findings
 
-- **BR-1** [Minor] `plan-enumerates-test-cases` Tasks 2.4/2.5 enumerate individual test cases in prose instead of one strategy line per risky function
-- **BR-3** [Minor] `origin-recognized-by-field-shape` A remote resume is recognized by Operation/Attempt/ContinuationID shape rather than an explicit origin
 - **BR-8** [Minor] `restated-vocabulary` issueTerminalStatuses restates ariadne issue.cue's terminal set (ARCH-DRY)
 - **BR-15** [Minor] `slot-level-guard-reads-subset-of-member-facts` Rule A's reboot guard treats only dependency operation and unknown verdict as slot-level, so dependency dirt or unread git allows reboot silently
 - **BR-16** [Minor] `slice-alias-append` restoreWorkspaceDecision appends to extra twice, so the second append overwrites the first through a shared backing array
+- **BR-17** [Minor] `docs-lag-new-vocabulary` atlas/couch.md says every caller failure is unavailable; a no-identity request is invalid-request
