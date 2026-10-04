@@ -494,8 +494,14 @@ func TestDeriveRecoverPlanCoversEveryClassHoldAndNote(t *testing.T) {
 			}
 			assertReasonMatchesDecision(t, row)
 			for _, step := range row.Next.Steps {
-				if step.Command != "" {
-					t.Fatalf("M1 step carries command text %q", step.Command)
+				// Every step names the CLI text that runs it (M2): the slot
+				// operation's own command, or a send to the slot's agent.
+				want := SlotOperationCommand(step.Action, row.Address)
+				if step.Action == "ask-agent-restore" {
+					want = SendToCommand(row.Address, step.Message)
+				}
+				if step.Command != want {
+					t.Fatalf("step %s command %q, want %q", step.Action, step.Command, want)
 				}
 				if step.Action == "ask-agent-restore" && step.Message != RestoreWorkspaceMessage(c.restore[0], row.Address, c.restore[1]) {
 					t.Fatalf("restore message = %q, want one naming %s in the %s checkout", step.Message, c.restore[0], c.restore[1])

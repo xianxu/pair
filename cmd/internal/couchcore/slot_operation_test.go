@@ -1,0 +1,131 @@
+package couchcore
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"maps"
+	"path/filepath"
+	"testing"
+
+	"github.com/xianxu/pair/cmd/internal/launcher"
+)
+
+func slotRow(path string, n int, state ActionableThreadState) ActionableThreadSummary {
+	scope, _ := launcher.ResolveRepoScope(path)
+	return ActionableThreadSummary{Address: ThreadAddress{RepoScope: scope.Key, Tag: ThreadTag(fmt.Sprintf("s%d", n))}, State: state, StartingPath: path,
+		Target: ThreadTarget{Kind: ThreadTargetSlot, Slot: SlotIdentity{Repo: "pair", Number: n, WorktreeRoot: path}}}
+}
+
+func primaryRow(path, tag string, state ActionableThreadState) ActionableThreadSummary {
+	scope, _ := launcher.ResolveRepoScope(path)
+	return ActionableThreadSummary{Address: ThreadAddress{RepoScope: scope.Key, Tag: ThreadTag(tag)}, State: state, StartingPath: path, Target: ThreadTarget{Kind: ThreadTargetOrdinary}}
+}
+
+func slotOperationCode(err error) string {
+	var e *SlotOperationError
+	if errors.As(err, &e) {
+		return e.Code
+	}
+	return ""
+}
+
+func TestSelectSlotRow(t *testing.T) {
+	primary, host := "/fleet/pair", "/fleet/worktree/pair-slot1/pair"
+	root := primaryRow(primary, "root", ThreadParked)
+	sub := primaryRow(primary, "sub", ThreadParked)
+	sub.StartingPath = filepath.Join(primary, "cmd")
+	one := slotRow(host, 1, ThreadParked)
+	rows := []ActionableThreadSummary{sub, root, one}
+	if got, err := SelectSlotRow(rows, 1, host); err != nil || got.Address != one.Address {
+		t.Fatalf(":1 = %+v %v", got, err)
+	}
+	if got, err := SelectSlotRow(rows, 0, primary); err != nil || got.Address != root.Address {
+		t.Fatalf(":0 = %+v %v; the subdirectory thread is never the slot's row", got, err)
+	}
+	if _, err := SelectSlotRow([]ActionableThreadSummary{sub}, 0, primary); slotOperationCode(err) != SlotOpNoThread {
+		t.Fatalf("subdirectory only: %v", err)
+	}
+	if _, err := SelectSlotRow(rows, 2, "/fleet/worktree/pair-slot2/pair"); slotOperationCode(err) != SlotOpNoThread {
+		t.Fatalf("no row: %v", err)
+	}
+	twin := one
+	twin.Address.Tag = "twin"
+	if _, err := SelectSlotRow(append(rows, twin), 1, host); slotOperationCode(err) != SlotOpAmbiguous {
+		t.Fatalf("two rows: %v", err)
+	}
+}
+
+// TestActorOperationArgs pins the three shapes the switcher's resume and
+// reboot effects carried before the mapping moved to couchcore (literal
+// copies of dispatchMenuRow / dispatchThreadOperation / the warm-only block).
+func TestActorOperationArgs(t *testing.T) {
+	host := "/fleet/worktree/pair-slot1/pair"
+	slot := slotRow(host, 1, ThreadDetached)
+	parked := primaryRow("/fleet/pair", "root", ThreadParked)
+	detached := primaryRow("/fleet/pair", "root", ThreadDetached)
+	for _, c := range []struct {
+		name string
+		row  ActionableThreadSummary
+		op   string
+		want map[string]string
+	}{
+		{"slot resume", slot, "resume", map[string]string{"path": host}},
+		{"slot reboot", slot, "reboot", map[string]string{"path": host}},
+		{"parked primary resume", parked, "resume", map[string]string{"repo-scope": parked.Address.RepoScope, "tag": "root"}},
+		{"parked primary reboot", parked, "reboot", map[string]string{"repo-scope": parked.Address.RepoScope, "tag": "root"}},
+		{"detached primary resume", detached, "resume", map[string]string{"repo-scope": detached.Address.RepoScope, "tag": "root", "warm-only": "true"}},
+		{"detached primary reboot", detached, "reboot", map[string]string{"repo-scope": detached.Address.RepoScope, "tag": "root"}},
+	} {
+		if got := ActorOperationArgs(c.row, c.op); !maps.Equal(got, c.want) {
+			t.Errorf("%s: %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
+func TestSlotOperationCommandText(t *testing.T) {
+	if got := SlotOperationCommand("resume", "pair:2"); got != "couch --resume pair:2" {
+		t.Fatalf("resume = %q", got)
+	}
+	if got := SlotOperationCommand("reboot", "pair:2"); got != "couch --reboot pair:2 --confirm" {
+		t.Fatalf("reboot = %q", got)
+	}
+}
+
+func TestPrepareSlotOperation(t *testing.T) {
+	env, local := slotRecoveryOperationFixture(t)
+	address := WorkspaceReference{Repo: local.slot.Repo, Number: local.slot.Number}.String()
+	ctx := context.Background()
+	if _, err := env.Couch.PrepareSlotOperation(ctx, "resume", "nosuchrepo:1"); slotOperationCode(err) != SlotOpUnknownSlot {
+		t.Fatalf("unknown repo: %v", err)
+	}
+	if _, err := env.Couch.PrepareSlotOperation(ctx, "park", address); err == nil {
+		t.Fatal("park admitted as a slot operation")
+	}
+	// An enrolled slot with no record is offered reboot (never-started).
+	slotRecordFixture(t, env, local)
+	call, err := env.Couch.PrepareSlotOperation(ctx, "resume", address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if call.Name != "resume" || !call.Implicit || !maps.Equal(call.Args, map[string]string{"path": local.slot.WorktreeRoot}) {
+		t.Fatalf("call = %+v", call)
+	}
+	// Live: nothing to resume, and the refusal says why.
+	env, local = slotRecoveryOperationFixture(t)
+	scope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
+	live := validThreadRecord(t)
+	live.Address.RepoScope = scope.Key
+	live.StartingPath, live.WorkingPath = local.slot.WorktreeRoot, local.slot.WorktreeRoot
+	live.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
+	live.Incarnations = []ThreadIncarnation{{PID: 5151, Identity: "slot-live", State: IncarnationLive, RepoIdentity: local.slot.RepoIdentity, LaunchProfile: live.LatestLaunchProfile}}
+	if _, err := local.CreateThread(live); err != nil {
+		t.Fatal(err)
+	}
+	env.Proc.Set(5151, "slot-live")
+	_, err = env.Couch.PrepareSlotOperation(ctx, "resume", address)
+	var refusal *SlotOperationError
+	if !errors.As(err, &refusal) || refusal.Code != SlotOpNotOffered || refusal.Detail != address+" is live" {
+		t.Fatalf("live slot: %v", err)
+	}
+}

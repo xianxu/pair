@@ -37,8 +37,9 @@ var hosttyDeadSymbolAllowlist = map[string]string{
 }
 
 var couchcoreDeadSymbolAllowlist = map[string]string{
-	"ReadStoreRetention": "pair#239 M2 Task4/5: read-only registered-store adapter; remove exemption when production GC preview is wired",
-	"RestoreThread":      "pair#239: explicitly supported typed archive restoration transaction; no new UI is in scope",
+	"ReadStoreRetention":   "pair#239 M2 Task4/5: read-only registered-store adapter; remove exemption when production GC preview is wired",
+	"RestoreThread":        "pair#239: explicitly supported typed archive restoration transaction; no new UI is in scope",
+	"PrepareSlotOperation": "pair#367 M2 Task 2.2: the message socket wires it in Task 2.4; remove this exemption there",
 	// Seams and non-context wrappers: production takes the Context form, the
 	// bare one exists so a test can call it without threading a context.
 	"Spawn":                     "the test seam over the start path; documented as such at couch.go",

@@ -609,6 +609,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchmessage/registry.go",
 	"cmd/internal/couchmessage/session_protocol.go",
 	"cmd/internal/couchmessage/session_transport.go",
+	// #367 M2 slot-operation receipts.
+	"cmd/internal/couchmessage/operation.go",
 	"cmd/internal/couchidentity/identity.go",
 	"cmd/internal/couchidentity/session.go",
 	"cmd/internal/couchidentity/store.go",
@@ -785,6 +787,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/recoverplan_source.go",
 	"cmd/internal/couchcore/recoverplan_fake.go",
 	"cmd/internal/couchcore/recoverplan.go",
+	"cmd/internal/couchcore/slot_operation.go",
 	"cmd/internal/couchcore/store.go",
 	"cmd/internal/couchcore/storejournal.go",
 	"cmd/internal/couchcore/storelock.go",

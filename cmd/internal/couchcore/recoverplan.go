@@ -184,8 +184,9 @@ type RecoverNext struct {
 }
 
 // RecoverStep is one action: resume or reboot (from ActorActions), or
-// ask-agent-restore with the message to send the slot's agent. Command stays
-// empty until the socket primitives exist (M2).
+// ask-agent-restore with the message to send the slot's agent. Command is the
+// CLI text that runs it from a live Couch slot (SlotOperationCommand or
+// SendToCommand).
 type RecoverStep struct {
 	Action  string `json:"action"`
 	Command string `json:"command,omitempty"`
@@ -1426,9 +1427,10 @@ func recoverRowOf(s *recoverSlot, in RecoverPlanInput) RecoverRow {
 		row.Next.Notes = append(row.Next.Notes, string(n))
 	}
 	for _, action := range d.Steps {
-		step := RecoverStep{Action: action}
+		step := RecoverStep{Action: action, Command: SlotOperationCommand(action, s.address)}
 		if action == "ask-agent-restore" {
 			step.Message = RestoreWorkspaceMessage(f.restoreRef, s.address, f.restoreCheckout)
+			step.Command = SendToCommand(s.address, step.Message)
 		}
 		row.Next.Steps = append(row.Next.Steps, step)
 	}
