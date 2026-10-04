@@ -327,6 +327,9 @@ and never touches the console. Flow:
    first-match rule table; steps come only from rule A over
    `ActorActions(ActorRowFactsOf(row))` plus the literal `ask-agent-restore`
    (`RestoreWorkspaceMessage`). `recoverReason` authors every row's text.
+   A clean, unclaimed slot on a done issue's branch is `landed` (note
+   `issue-done-branch`, no step), not a conflict; `conflict:issue-terminal`
+   needs dirt, unlanded commits, an operation or a claim on that branch.
 
 | Entity | Lives in | Kind |
 |---|---|---|

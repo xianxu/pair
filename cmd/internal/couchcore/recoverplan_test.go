@@ -147,6 +147,22 @@ func recoverPlanCases() []recoverPlanCase {
 				p.fleet.AddSlot("pair:1")
 				p.fleet.SetBranch("pair:1", "000013-x")
 				p.fleet.SetIssueStatus("pair:1", "done")
+				p.fleet.SetDirty("pair:1", 1)
+				p.thread("pair:1", ThreadParked, "")
+			}},
+		{name: "clean unclaimed done-issue branch", address: "pair:1", want: RecoverLanded, notes: []string{"issue-done-branch"},
+			setup: func(p *planFixture) {
+				p.fleet.AddSlot("pair:1")
+				p.fleet.SetBranch("pair:1", "000013-x")
+				p.fleet.SetIssueStatus("pair:1", "done")
+				p.thread("pair:1", ThreadParked, "")
+			}},
+		{name: "done-issue branch with unread base", address: "pair:1", want: RecoverEvidenceUnavailable, hold: []string{"git-unknown"},
+			setup: func(p *planFixture) {
+				p.fleet.AddSlot("pair:1")
+				p.fleet.SetBranch("pair:1", "000013-x")
+				p.fleet.SetIssueStatus("pair:1", "wontfix")
+				p.fleet.SetBaseUnavailable("pair:1")
 				p.thread("pair:1", ThreadParked, "")
 			}},
 		{name: "host claim workspace mismatch", address: "pair:1", want: RecoverConflict, hold: []string{"conflict:claim-workspace"},
@@ -454,6 +470,13 @@ func TestDeriveRecoverPlanIsTotalOverTheEvidenceDomain(t *testing.T) {
 		}
 		if d.Class == RecoverIdle && (e.Dirty != TriNo || e.Unlanded != TriNo || e.Operation != TriNo) {
 			fail("unknown or present work read as idle")
+		}
+		clean := e.Dirty == TriNo && e.Unlanded == TriNo && e.Operation == TriNo && e.Claims == ClaimsNone
+		if d.Class == RecoverLanded && (!clean || e.Branch != BranchTerminalIssue || len(d.Steps) > 0) {
+			fail("landed without a clean, unclaimed done-issue branch")
+		}
+		if slices.Contains(d.Hold, "conflict:issue-terminal") && !(e.Claims != ClaimsNone || e.Dirty == TriYes || e.Unlanded == TriYes || e.Operation == TriYes) {
+			fail("a done-issue branch without dirt, unlanded commits or a claim read as a conflict")
 		}
 	}
 	t.Logf("%d consistent evidence points in %s", len(domain), time.Since(start))

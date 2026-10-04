@@ -192,12 +192,16 @@ func RestoreWorkspaceMessage(ref, address string) string {
 type RecoverClass string
 
 const (
-	RecoverDirectoryMissing    RecoverClass = "directory-missing"
-	RecoverAgentUnknown        RecoverClass = "agent-unknown"
-	RecoverStartUnreconciled   RecoverClass = "start-unreconciled"
-	RecoverAmbiguousThreads    RecoverClass = "ambiguous-threads"
-	RecoverConflict            RecoverClass = "conflict"
-	RecoverAmbiguousClaims     RecoverClass = "ambiguous-claims"
+	RecoverDirectoryMissing  RecoverClass = "directory-missing"
+	RecoverAgentUnknown      RecoverClass = "agent-unknown"
+	RecoverStartUnreconciled RecoverClass = "start-unreconciled"
+	RecoverAmbiguousThreads  RecoverClass = "ambiguous-threads"
+	RecoverConflict          RecoverClass = "conflict"
+	RecoverAmbiguousClaims   RecoverClass = "ambiguous-claims"
+	// RecoverLanded: a clean, unclaimed slot on a done issue's branch, the
+	// normal leftover after landing. No step: returning it to rest is not a
+	// recovery action.
+	RecoverLanded              RecoverClass = "landed"
 	RecoverEvidenceUnavailable RecoverClass = "evidence-unavailable"
 	RecoverIdle                RecoverClass = "idle"
 	RecoverUnidentifiedWork    RecoverClass = "unidentified-work"
@@ -212,7 +216,7 @@ const (
 
 func AllRecoverClasses() []RecoverClass {
 	return []RecoverClass{RecoverDirectoryMissing, RecoverAgentUnknown, RecoverStartUnreconciled, RecoverAmbiguousThreads,
-		RecoverConflict, RecoverAmbiguousClaims, RecoverEvidenceUnavailable, RecoverIdle, RecoverUnidentifiedWork,
+		RecoverConflict, RecoverAmbiguousClaims, RecoverLanded, RecoverEvidenceUnavailable, RecoverIdle, RecoverUnidentifiedWork,
 		RecoverNoCouchThread, RecoverRestoreWorkspace, RecoverAgrees, RecoverClaimLikelyLost, RecoverPartialEvidence,
 		RecoverNoSafeStep, RecoverNoRule}
 }
@@ -265,12 +269,13 @@ const (
 	NoteClaimsUnsupported       RecoverNote = "claims-unsupported"
 	NoteGitLocalProbe           RecoverNote = "git-local-probe"
 	NoteGitUnknown              RecoverNote = "git-unknown"
+	NoteIssueDoneBranch         RecoverNote = "issue-done-branch"
 )
 
 func AllRecoverNotes() []RecoverNote {
 	return []RecoverNote{NoteInactiveClaims, NoteDetachedHead, NoteRestingBranchDirty, NoteInspectUncommittedFirst,
 		NoteClaimRepair, NoteClaimsStale, NoteClaimsPartial, NoteClaimsUnknown, NoteClaimsAbsent, NoteClaimsUnsupported,
-		NoteGitLocalProbe, NoteGitUnknown}
+		NoteGitLocalProbe, NoteGitUnknown, NoteIssueDoneBranch}
 }
 
 // SlotEvidence dimensions. Every dimension is closed; unknown is a value.
@@ -443,6 +448,8 @@ func classifyRecover(e SlotEvidence) recoverDecision {
 		}
 	case e.Claims == ClaimsManyWithoutActive:
 		d = recoverDecision{Class: RecoverAmbiguousClaims, Hold: []string{string(HoldAmbiguousClaims)}}
+	case !claims && e.Branch == BranchTerminalIssue && e.Dirty == TriNo && e.Unlanded == TriNo && e.Operation == TriNo:
+		d = recoverDecision{Class: RecoverLanded, Notes: []RecoverNote{NoteIssueDoneBranch}}
 	case !claims && e.Branch != BranchOpenIssue && e.gitUnknown():
 		d = recoverDecision{Class: RecoverEvidenceUnavailable, Hold: []string{string(HoldGitUnknown)}}
 	case !claims && e.Branch == BranchResting && e.Dirty == TriNo && e.Unlanded == TriNo && e.Operation == TriNo:
@@ -499,8 +506,10 @@ func classifyRecover(e SlotEvidence) recoverDecision {
 
 func conflictFacts(e SlotEvidence, claims, read bool) []string {
 	applies := map[string]bool{
-		"claim-elsewhere":       e.Elsewhere,
-		"issue-terminal":        e.Branch == BranchTerminalIssue,
+		"claim-elsewhere": e.Elsewhere,
+		// A done issue's branch conflicts only when work is still on it; a
+		// clean, unclaimed one is the leftover of landing (RecoverLanded).
+		"issue-terminal":        e.Branch == BranchTerminalIssue && (claims || e.Dirty == TriYes || e.Unlanded == TriYes || e.Operation == TriYes),
 		"claim-workspace":       e.Workspace,
 		"claim-off-branch":      claims && e.Branch == BranchOther,
 		"claim-branch-mismatch": claims && e.Branch == BranchOpenIssue && (e.Claims == ClaimsOneInactive || e.Claims == ClaimsManyWithoutActive) && read,
@@ -1145,6 +1154,8 @@ func recoverReason(row RecoverRow, in RecoverPlanInput) string {
 		text = "the evidence conflicts (" + strings.Join(row.Next.Hold, ", ") + "); inspect before acting"
 	case RecoverAmbiguousClaims:
 		text = "several claims and none is checked out (" + strings.Join(row.Claims.Inactive, ", ") + ")"
+	case RecoverLanded:
+		text = "issue done; the slot can return to its resting branch"
 	case RecoverEvidenceUnavailable:
 		text = "no claim, and the slot's git state could not be fully read"
 	case RecoverIdle:

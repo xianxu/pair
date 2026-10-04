@@ -399,7 +399,7 @@ dangling claims and slot verdicts), reads Couch's own thread states the way
 `couch --list` does, and prints one JSON row per slot path (`:0` and `:1+`; other
 worktrees are only counted under `ignored`). Each row carries git, disk and agent
 state, the union of work evidence, a `class` (`agrees`, `restore-workspace`,
-`claim-likely-lost`, `partial-evidence`, `conflict`, `idle`, `unidentified-work`,
+`claim-likely-lost`, `partial-evidence`, `conflict`, `landed`, `idle`, `unidentified-work`,
 `directory-missing`, ...), and `next`: steps named by action (`resume`, `reboot`,
 `ask-agent-restore`) drawn from the switcher's own admission table, or a `hold`
 that says why there is none. Unknown is never absence: a failed sdlc run, an older
