@@ -36,15 +36,22 @@ At the operator’s request resume assigned local work in its existing slot (e.g
 (Rewritten 2026-10-03; see the Revision of that date. The original bullets are
 superseded.)
 
-- A read-only Couch report (`couch --recover-plan-from-sdlc`, JSON output) reconstructs, after
-  a restart, one row per slot and per claimed-not-done issue of this machine,
-  joining `sdlc fleet inventory` (claims, dangling claims, slot verdicts) with
-  Couch's slot and thread state; each row carries git state, disk state, agent
-  state and a suggested next step with its reason. Missing, stale or unknown
-  evidence is shown as such, never as absence.
-- Rows that are unsafe for automation (dirty or untracked files, an active Git
-  operation, a dangling claim, a foreign or unattributed claim) suggest no
-  automatic step and say why.
+- A read-only Couch report (`couch --recover-plan-from-sdlc`, JSON output)
+  reconstructs, after a restart, one row per Couch slot path (`:0` and `:1+`;
+  off-slot paths are ignored, a vanished slot path keeps its row), joining
+  `sdlc fleet inventory` (this machine's claims, dangling claims, slot verdicts)
+  with Couch's slot and thread state. Each row carries git state, disk state,
+  agent state, the union of work evidence, and a suggested next step with its
+  reason. Missing, stale, partial or unknown evidence is shown as such, never
+  as absence, and degrades only the rows it touches.
+- Suggestions follow the 2026-10-04 operator decisions: evidence that agrees
+  suggests resume (or reboot, or asking the slot's agent to restore its
+  workspace); work evidence with no visible claim suggests resume and flags the
+  claim for repair; conflicting evidence, ambiguous claims, an unreconciled start
+  or unknown agent state suggest no step and list the facts. Dirty files do not
+  block resume; a Git operation in progress or a detached HEAD never suggests
+  reboot; dirty files on a resting branch with no claim, or an idle conversation
+  alone, suggest no step.
 - `resume <slot>` and `reboot <slot>` (pair#363's operations) are callable through
   the running Couch's socket from a live Couch slot only; any other caller is
   refused; results and refusals are typed.
@@ -231,3 +238,11 @@ Reason: operator design session after pair#363 landed. Delta:
   built from stale or partial piped input. "from-sdlc" in the flag names that
   coupling explicitly: the report consumes sdlc's versioned fleet contract
   (schema_version 1) and must refuse any other version.
+
+### 2026-10-04 — Done-when follows the operator decisions
+
+Reason: the first two Done-when bullets still described the superseded rules
+(no step for dirty files or foreign claims; a row per claimed issue). Delta:
+rows are per Couch slot path, and suggestions follow the union-of-evidence
+decisions in the Log entry of 2026-10-04 (with idle conversations and a dirty
+resting branch with one claim settled the same day: no step, and resume only).
