@@ -310,6 +310,7 @@ type (
 	EvidenceQuality   string
 	EvidenceGitSource string
 	EvidenceDepClaims string
+	EvidenceDepTree   string
 	TriState          string
 )
 
@@ -373,6 +374,16 @@ const (
 	DepWork         EvidenceDepClaims = "work"          // a member's own work no claim names
 	DepUnknown      EvidenceDepClaims = "unknown"       // a member, or the claim on it, unread or gone
 
+	// DepTree folds every dependency checkout's working tree into one
+	// slot-level fact, worst first: an operation in progress, then anything
+	// unread, then dirt. Only slot-level judgments read it (rule A's reboot
+	// guard and its inspect-uncommitted note: a reboot replaces the whole
+	// slot's agent), never a judgment about one member (M1 review round 4).
+	DepTreeClean     EvidenceDepTree = "clean"
+	DepTreeDirty     EvidenceDepTree = "dirty"
+	DepTreeUnknown   EvidenceDepTree = "unknown"
+	DepTreeOperation EvidenceDepTree = "operation"
+
 	TriYes     TriState = "yes"
 	TriNo      TriState = "no"
 	TriUnknown TriState = "unknown"
@@ -404,6 +415,9 @@ func AllEvidenceGitSources() []EvidenceGitSource {
 func AllEvidenceTriStates() []TriState { return []TriState{TriYes, TriNo, TriUnknown} }
 func AllEvidenceDepClaims() []EvidenceDepClaims {
 	return []EvidenceDepClaims{DepNone, DepActive, DepResting, DepRestingDirty, DepConflict, DepWork, DepUnknown}
+}
+func AllEvidenceDepTrees() []EvidenceDepTree {
+	return []EvidenceDepTree{DepTreeClean, DepTreeDirty, DepTreeUnknown, DepTreeOperation}
 }
 
 func (o EvidenceOffer) actions() []string {
@@ -438,10 +452,9 @@ type SlotEvidence struct {
 	// Claims are the host's claims, judged against the host's branch.
 	Claims    EvidenceClaims
 	DepClaims EvidenceDepClaims
-	// DepOperation is an operation in any dependency checkout: a slot-level
-	// fact read only by rule A's reboot guard (a reboot replaces the slot's
-	// whole agent), never by a judgment about one member.
-	DepOperation TriState
+	// DepTree is the dependency checkouts' working trees folded into one
+	// slot-level fact, read only through the slot* helpers below.
+	DepTree EvidenceDepTree
 	// Quality, Dirty, Unlanded and Operation are the HOST's own facts.
 	Quality   EvidenceQuality
 	GitSource EvidenceGitSource
@@ -457,6 +470,23 @@ type SlotEvidence struct {
 
 func (e SlotEvidence) gitUnknown() bool {
 	return e.Branch == BranchUnknown || e.Dirty == TriUnknown || e.Unlanded == TriUnknown || e.Operation == TriUnknown
+}
+
+// Reboot safety is a SLOT-level property: a reboot replaces the agent of the
+// whole slot, so it folds every member's tree, the host's and each
+// dependency's, where host-only judgments (hostAtRest, the rule table's host
+// dimensions) read the host's facts alone. These three are the only readers
+// of DepTree.
+func (e SlotEvidence) slotOperation() bool {
+	return e.Operation == TriYes || e.DepTree == DepTreeOperation
+}
+
+func (e SlotEvidence) slotGitUnknown() bool {
+	return e.Branch == BranchDetached || e.gitUnknown() || e.DepTree == DepTreeUnknown || e.DepClaims == DepUnknown
+}
+
+func (e SlotEvidence) slotDirty() bool {
+	return e.Dirty == TriYes || e.DepTree == DepTreeDirty
 }
 
 // recoverDecision is classifyRecover's answer, before row text is attached.
@@ -645,12 +675,13 @@ func dependencyClaimDecision(e SlotEvidence) recoverDecision {
 // dirt is the restoring member's own: the host's for a host claim, the
 // holding dependency's for a dependency claim.
 func restoreWorkspaceDecision(e SlotEvidence, dirt TriState, extra []RecoverNote) recoverDecision {
-	if dirt != TriNo {
-		notes := append(extra, NoteRestingBranchDirty)
-		if dirt == TriUnknown {
-			notes = append(extra, NoteGitUnknown)
-		}
-		return withRuleA(RecoverRestoreWorkspace, e, true, notes)
+	// Built fresh (slices.Concat never shares extra's backing array): dirt
+	// names why there is no restore request, unread names the unread tree.
+	switch dirt {
+	case TriYes:
+		return withRuleA(RecoverRestoreWorkspace, e, true, slices.Concat(extra, []RecoverNote{NoteRestingBranchDirty}))
+	case TriUnknown:
+		return withRuleA(RecoverRestoreWorkspace, e, true, slices.Concat(extra, []RecoverNote{NoteGitUnknown}))
 	}
 	d := withRuleA(RecoverRestoreWorkspace, e, false, extra)
 	if d.Class == RecoverRestoreWorkspace {
@@ -662,6 +693,7 @@ func restoreWorkspaceDecision(e SlotEvidence, dirt TriState, extra []RecoverNote
 // withRuleA attaches rule A's actor step to a class, or turns the row into
 // no-safe-step when no step is safe. resumeOnly forbids reboot.
 func withRuleA(class RecoverClass, e SlotEvidence, resumeOnly bool, notes []RecoverNote) recoverDecision {
+	notes = slices.Clone(notes) // the decision owns its notes; never the caller's array
 	d := recoverDecision{Class: class, Notes: notes}
 	if e.Agent == AgentLive {
 		return d
@@ -676,13 +708,13 @@ func withRuleA(class RecoverClass, e SlotEvidence, resumeOnly bool, notes []Reco
 		hold = HoldNoActorAction
 	case resumeOnly:
 		hold = HoldResumeOnly
-	case e.Operation == TriYes || e.DepOperation == TriYes:
+	case e.slotOperation():
 		hold = HoldRebootUnsafeOperation
-	case e.Branch == BranchDetached || e.gitUnknown() || e.DepOperation == TriUnknown || e.DepClaims == DepUnknown:
+	case e.slotGitUnknown():
 		hold = HoldRebootUnsafeGit
 	default:
 		d.Steps = []string{"reboot"}
-		if e.Dirty == TriYes {
+		if e.slotDirty() {
 			d.Notes = append(d.Notes, NoteInspectUncommittedFirst)
 		}
 		return d
@@ -899,7 +931,7 @@ func slotEvidenceOf(s *recoverSlot, in RecoverPlanInput) slotFacts {
 
 	// Git, from sdlc's slot members, else the local probe, else unknown.
 	e.GitSource, e.Branch, e.Dirty, e.Unlanded, e.Operation = GitSourceUnknown, BranchUnknown, TriUnknown, TriUnknown, TriUnknown
-	e.DepOperation = TriNo
+	e.DepTree = DepTreeClean
 	resting := RestingBranch(s.number)
 	activeRef := ""
 	var claimRefs []string // the host's
@@ -980,7 +1012,9 @@ func slotEvidenceOf(s *recoverSlot, in RecoverPlanInput) slotFacts {
 		if s.slot != nil && slices.ContainsFunc(s.slot.Members, func(m FleetMember) bool { return filepath.Clean(m.Path) == path }) {
 			continue
 		}
-		dep := dependencyJudgment{verdict: DepUnknown, operation: TriNo, claims: []RecoverMemberClaim{{Ref: c.Ref, Checkout: filepath.Base(path), State: memberClaimUnknown}}}
+		// Not a listed member: its tree is unread, never clean.
+		dep := dependencyJudgment{verdict: DepUnknown, tree: DepTreeUnknown, dirty: TriUnknown, unlanded: TriUnknown, operation: TriUnknown,
+			claims: []RecoverMemberClaim{{Ref: c.Ref, Checkout: filepath.Base(path), State: memberClaimUnknown}}}
 		deps = append(deps, dep)
 		depClaims = append(depClaims, dep.claims...)
 	}
@@ -1010,7 +1044,7 @@ func slotEvidenceOf(s *recoverSlot, in RecoverPlanInput) slotFacts {
 			f.claims.Inactive = append(f.claims.Inactive, ref)
 		}
 	}
-	e.DepClaims, e.DepOperation = foldDependencies(deps)
+	e.DepClaims, e.DepTree = foldDependencies(deps)
 	switch {
 	case e.Claims == ClaimsOneInactive:
 		f.restoreRef, f.restoreCheckout = f.claims.Inactive[0], filepath.Base(s.path)
@@ -1125,6 +1159,22 @@ type dependencyJudgment struct {
 	verdict                    EvidenceDepClaims
 	claims                     []RecoverMemberClaim
 	dirty, unlanded, operation TriState
+	// tree is this member's working tree for the slot-level reboot guard.
+	tree EvidenceDepTree
+}
+
+// memberTree reads one member's tree, worst first: an operation, anything
+// unread (dirt, unlanded commits, operation or branch), then dirt.
+func memberTree(dirty, unlanded, operation TriState, branch EvidenceBranch) EvidenceDepTree {
+	switch {
+	case operation == TriYes:
+		return DepTreeOperation
+	case dirty == TriUnknown || unlanded == TriUnknown || operation == TriUnknown || branch == BranchUnknown:
+		return DepTreeUnknown
+	case dirty == TriYes:
+		return DepTreeDirty
+	}
+	return DepTreeClean
 }
 
 // danglingOn lists the dangling claims whose checkout is path.
@@ -1141,14 +1191,16 @@ func danglingOn(dangling []FleetDanglingClaim, path string) []string {
 // judgeDependency judges one dependency member reading only its own branch,
 // dirt, unlanded commits, operation and claims (BR-4, BR-14).
 func judgeDependency(m FleetMember, row FleetRow, read bool, dangling []string) dependencyJudgment {
-	d := dependencyJudgment{dirty: TriNo, unlanded: TriNo, operation: TriNo}
+	d := dependencyJudgment{dirty: TriNo, unlanded: TriNo, operation: TriNo, tree: DepTreeClean}
 	for _, ref := range dangling {
 		d.claims = append(d.claims, RecoverMemberClaim{Ref: ref, Checkout: filepath.Base(m.Path), State: memberClaimUnknown})
 	}
 	switch {
 	case m.Verdict == FleetVerdictMissing:
 		// Absent: a claim on it is unread evidence; without one, the disk
-		// verdict shows it and there is nothing of its own to judge.
+		// verdict shows it and there is nothing of its own to judge. Its tree
+		// is gone, so nothing in it can be lost (clean for the reboot guard;
+		// a claim on it still holds reboot through DepUnknown).
 		if len(d.claims) > 0 {
 			d.verdict = DepUnknown
 		} else {
@@ -1156,7 +1208,7 @@ func judgeDependency(m FleetMember, row FleetRow, read bool, dangling []string) 
 		}
 		return d
 	case !read:
-		d.verdict, d.dirty, d.unlanded, d.operation = DepUnknown, TriUnknown, TriUnknown, TriUnknown
+		d.verdict, d.dirty, d.unlanded, d.operation, d.tree = DepUnknown, TriUnknown, TriUnknown, TriUnknown, DepTreeUnknown
 		return d
 	}
 	d.dirty, d.unlanded, d.operation = memberGit(m, row, read)
@@ -1168,6 +1220,7 @@ func judgeDependency(m FleetMember, row FleetRow, read bool, dangling []string) 
 		states[c.State]++
 	}
 	branch, _, _, _ := sdlcBranch(m, row, filepath.Base(m.Path))
+	d.tree = memberTree(d.dirty, d.unlanded, d.operation, branch)
 	switch {
 	case states[memberClaimOther] > 0 || states[memberClaimResting] > 1:
 		d.verdict = DepConflict
@@ -1193,11 +1246,12 @@ func judgeDependency(m FleetMember, row FleetRow, read bool, dangling []string) 
 }
 
 // foldDependencies reduces the per-member judgments to the slot's dependency
-// dimension, plus the one slot-level fact rule A's reboot guard reads: an
-// operation in any dependency.
-func foldDependencies(deps []dependencyJudgment) (EvidenceDepClaims, TriState) {
+// dimension, plus the slot-level tree fact rule A's reboot guard reads: the
+// worst dependency tree (AllEvidenceDepTrees is ordered best to worst).
+func foldDependencies(deps []dependencyJudgment) (EvidenceDepClaims, EvidenceDepTree) {
 	rank := map[EvidenceDepClaims]int{DepNone: 0, DepActive: 1, DepResting: 2, DepRestingDirty: 3, DepUnknown: 4, DepWork: 5, DepConflict: 6}
-	out, operation, resting := DepNone, TriNo, 0
+	trees := AllEvidenceDepTrees()
+	out, tree, resting := DepNone, DepTreeClean, 0
 	for _, d := range deps {
 		if rank[d.verdict] > rank[out] {
 			out = d.verdict
@@ -1205,17 +1259,14 @@ func foldDependencies(deps []dependencyJudgment) (EvidenceDepClaims, TriState) {
 		if d.verdict == DepResting || d.verdict == DepRestingDirty {
 			resting++
 		}
-		switch {
-		case d.operation == TriYes:
-			operation = TriYes
-		case d.operation == TriUnknown && operation == TriNo:
-			operation = TriUnknown
+		if slices.Index(trees, d.tree) > slices.Index(trees, tree) {
+			tree = d.tree
 		}
 	}
 	if resting > 1 {
 		out = DepConflict
 	}
-	return out, operation
+	return out, tree
 }
 
 // memberGit reads one present member's dirt, unlanded commits and operation.

@@ -239,6 +239,13 @@ func (fl *FakeFleet) SetMemberAhead(path string, n int) {
 	fl.member(path).ahead = n
 }
 
+// SetMemberBaseUnavailable makes one checkout's base comparison fail
+// (probe:base): its unlanded commits are unread.
+func (fl *FakeFleet) SetMemberBaseUnavailable(path string) {
+	defer fl.lock()()
+	fl.member(path).baseUnavailable = true
+}
+
 func (fl *FakeFleet) SetMemberOperation(path, operation string) {
 	defer fl.lock()()
 	fl.member(path).operation = operation

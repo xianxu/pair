@@ -404,6 +404,29 @@ func recoverPlanCases() []recoverPlanCase {
 				p.fleet.SetDetached("pair:0")
 				p.fleet.Claim("pair:0", "pair#000010")
 			}},
+		// Reboot safety is a slot-level property: a reboot replaces the whole
+		// slot's agent, so every member's dirt, unread git and operation
+		// guard it, not only the host's (M1 review round 4).
+		{name: "primary reboot only, claimed dependency with unread base", address: "pair:0", want: RecoverNoSafeStep, hold: []string{"reboot-unsafe-git"},
+			setup: func(p *planFixture) {
+				primaryRebootOnly(p)
+				p.fleet.SetBranch("pair:0", "000010-x")
+				p.fleet.Claim("pair:0", "pair#000010")
+				dep := p.fleet.AddDependency("pair:0", "ariadne")
+				p.fleet.SetMemberBranch(dep, "000290-y")
+				p.fleet.ClaimAt(dep, "ariadne#000290", "")
+				p.fleet.SetMemberBaseUnavailable(dep)
+			}},
+		{name: "primary reboot only, dirty claimed dependency", address: "pair:0", want: RecoverAgrees, steps: []string{"reboot"}, notes: []string{"inspect-uncommitted-first"},
+			setup: func(p *planFixture) {
+				primaryRebootOnly(p)
+				p.fleet.SetBranch("pair:0", "000010-x")
+				p.fleet.Claim("pair:0", "pair#000010")
+				dep := p.fleet.AddDependency("pair:0", "ariadne")
+				p.fleet.SetMemberBranch(dep, "000290-y")
+				p.fleet.ClaimAt(dep, "ariadne#000290", "")
+				p.fleet.SetMemberDirty(dep, 1)
+			}},
 		{name: "slot record whose path cannot be read", address: "pair:1", want: RecoverNoSafeStep, hold: []string{"no-actor-action"},
 			setup: func(p *planFixture) { claimedOnBranch(p); p.thread("pair:1", ThreadUnusable, ReasonPathMissing) }},
 		{name: "work but no visible claim", address: "pair:1", want: RecoverClaimLikelyLost, steps: []string{"resume"}, notes: []string{"claim-repair"},
@@ -535,8 +558,8 @@ func forEachEvidence(visit func(SlotEvidence)) {
 													for _, workspace := range []bool{false, true} {
 														for _, elsewhere := range []bool{false, true} {
 															for _, dep := range AllEvidenceDepClaims() {
-																for _, depOperation := range tri {
-																	e := SlotEvidence{DepClaims: dep, DepOperation: depOperation, Dir: dir, Couch: couch, Agent: agent, Threads: threads, Offer: offer,
+																for _, depTree := range AllEvidenceDepTrees() {
+																	e := SlotEvidence{DepClaims: dep, DepTree: depTree, Dir: dir, Couch: couch, Agent: agent, Threads: threads, Offer: offer,
 																		Branch: branch, Claims: claims, Quality: quality, GitSource: source, Dirty: dirty, Unlanded: unlanded, Operation: operation,
 																		Workspace: workspace, Elsewhere: elsewhere}
 																	if consistent(e) {
@@ -561,8 +584,8 @@ func forEachEvidence(visit func(SlotEvidence)) {
 }
 
 // withDependencyFacts is e with only its dependency dimensions replaced.
-func withDependencyFacts(e SlotEvidence, dep EvidenceDepClaims, operation TriState) SlotEvidence {
-	e.DepClaims, e.DepOperation = dep, operation
+func withDependencyFacts(e SlotEvidence, dep EvidenceDepClaims, tree EvidenceDepTree) SlotEvidence {
+	e.DepClaims, e.DepTree = dep, tree
 	return e
 }
 
@@ -590,9 +613,20 @@ func TestDeriveRecoverPlanIsTotalOverTheEvidenceDomain(t *testing.T) {
 			default:
 				fail("unknown step " + step)
 			}
-			if step == "reboot" && (e.Operation != TriNo || e.DepOperation != TriNo || e.Branch == BranchDetached || e.Branch == BranchUnknown || e.gitUnknown() || e.Agent == AgentBusy || e.Agent == AgentUnusableUnknown) {
+			if step == "reboot" && (e.Operation != TriNo || e.DepTree == DepTreeOperation || e.DepTree == DepTreeUnknown || e.Branch == BranchDetached || e.Branch == BranchUnknown || e.gitUnknown() || e.Agent == AgentBusy || e.Agent == AgentUnusableUnknown) {
 				fail("unsafe reboot")
 			}
+		}
+		// Reboot safety is slot-level: dirt in ANY member of the slot never
+		// yields a reboot without the inspect-uncommitted-first note, and an
+		// operation or unread tree in any member never yields one at all.
+		if slices.Contains(d.Steps, "reboot") {
+			if (e.Dirty == TriYes || e.DepTree == DepTreeDirty) && !slices.Contains(d.Notes, NoteInspectUncommittedFirst) {
+				fail("reboot over a dirty member without inspect-uncommitted-first")
+			}
+		}
+		if (e.Operation == TriYes || e.DepTree == DepTreeOperation) && slices.Contains(d.Steps, "reboot") {
+			fail("reboot over an operation in some member")
 		}
 		if d.Class == RecoverIdle && (e.Dirty != TriNo || e.Unlanded != TriNo || e.Operation != TriNo) {
 			fail("unknown or present work read as idle")
@@ -631,7 +665,7 @@ func TestDeriveRecoverPlanIsTotalOverTheEvidenceDomain(t *testing.T) {
 // cannot shrink silently.
 func TestConsistentExcludesOnlyImpossibleEvidence(t *testing.T) {
 	base := SlotEvidence{Dir: DirPresent, Couch: CouchOK, Agent: AgentParked, Threads: ThreadsOne, Offer: OfferResumeReboot, Branch: BranchOpenIssue,
-		Claims: ClaimsOneActive, DepClaims: DepNone, DepOperation: TriNo, Quality: QualityPresent, GitSource: GitSourceSDLC, Dirty: TriNo, Unlanded: TriNo, Operation: TriNo}
+		Claims: ClaimsOneActive, DepClaims: DepNone, DepTree: DepTreeClean, Quality: QualityPresent, GitSource: GitSourceSDLC, Dirty: TriNo, Unlanded: TriNo, Operation: TriNo}
 	if !consistent(base) {
 		t.Fatal("the ordinary claimed, parked slot is excluded")
 	}
@@ -643,7 +677,9 @@ func TestConsistentExcludesOnlyImpossibleEvidence(t *testing.T) {
 		"local probe with claims":            func(e *SlotEvidence) { e.GitSource = GitSourceLocalProbe },
 		"no tracker listing a host claim":    func(e *SlotEvidence) { e.Quality = QualityAbsent },
 		"unread host read listing a claim":   func(e *SlotEvidence) { e.Quality = QualityUnknown },
-		"dependency operation, no finding":   func(e *SlotEvidence) { e.DepOperation = TriYes },
+		"dependency operation, no finding":   func(e *SlotEvidence) { e.DepTree = DepTreeOperation },
+		"dependency dirt, no finding":        func(e *SlotEvidence) { e.DepTree = DepTreeDirty },
+		"resting-dirty member, clean trees":  func(e *SlotEvidence) { e.Branch, e.Claims, e.DepClaims = BranchResting, ClaimsNone, DepRestingDirty },
 		"active claim on the resting branch": func(e *SlotEvidence) { e.Branch = BranchResting },
 		"workspace mismatch without claims":  func(e *SlotEvidence) { e.Claims, e.Workspace = ClaimsNone, true },
 		"claim both here and elsewhere":      func(e *SlotEvidence) { e.Elsewhere = true },
@@ -798,11 +834,13 @@ func consistent(e SlotEvidence) bool {
 		// Quality is the host's own read (BR-14): an unread, unsupported or
 		// trackerless host lists no host claims.
 		(e.Quality == QualityUnknown || e.Quality == QualityUnsupported || e.Quality == QualityAbsent) && e.Claims != ClaimsNone,
-		(e.Quality == QualityUnsupported || e.GitSource == GitSourceLocalProbe) && (e.DepClaims != DepNone || e.DepOperation != TriNo),
-		e.GitSource == GitSourceUnknown && (e.DepClaims != DepNone && e.DepClaims != DepUnknown || e.DepOperation != TriNo),
-		// A dependency operation is that member's own work or unread state:
-		// its judgment cannot be "nothing".
-		e.DepOperation != TriNo && e.DepClaims == DepNone,
+		(e.Quality == QualityUnsupported || e.GitSource == GitSourceLocalProbe) && (e.DepClaims != DepNone || e.DepTree != DepTreeClean),
+		e.GitSource == GitSourceUnknown && (e.DepClaims != DepNone && e.DepClaims != DepUnknown || e.DepTree != DepTreeClean),
+		// A dependency tree with dirt, an operation or unread facts is that
+		// member's own work or unread state: its judgment cannot be "nothing".
+		e.DepTree != DepTreeClean && e.DepClaims == DepNone,
+		// The resting-dirty member is itself a dirty tree.
+		e.DepClaims == DepRestingDirty && e.DepTree == DepTreeClean,
 		e.Claims == ClaimsNone && e.Workspace,
 		(e.Claims == ClaimsOneActive || e.Claims == ClaimsManyWithActive) && (e.Branch == BranchResting || e.Branch == BranchOther || e.Branch == BranchDetached),
 		e.Elsewhere && (e.Claims == ClaimsOneActive || e.Claims == ClaimsManyWithActive || e.Branch == BranchResting || e.Branch == BranchOther || e.Branch == BranchDetached),
@@ -847,10 +885,9 @@ func assertReasonMatchesDecision(t *testing.T, row RecoverRow) {
 // operation) never changes a judgment about the host -- hostAtRest, the
 // issue-terminal conflict fact, or whether a host-only row is idle or landed.
 func TestHostJudgmentsReadOnlyHostFacts(t *testing.T) {
-	tri := AllEvidenceTriStates()
 	checked := 0
 	forEachEvidence(func(e SlotEvidence) {
-		if e.DepClaims != DepNone || e.DepOperation != TriNo {
+		if e.DepClaims != DepNone || e.DepTree != DepTreeClean {
 			return // each base point once; its dependency variants below
 		}
 		base := classifyRecover(e)
@@ -858,7 +895,7 @@ func TestHostJudgmentsReadOnlyHostFacts(t *testing.T) {
 		read := e.Quality == QualityPresent || e.Quality == QualityStale
 		terminal := slices.Contains(conflictFacts(e, claims, read), "issue-terminal")
 		for _, dep := range AllEvidenceDepClaims() {
-			for _, op := range tri {
+			for _, op := range AllEvidenceDepTrees() {
 				v := withDependencyFacts(e, dep, op)
 				if !consistent(v) {
 					continue
@@ -893,5 +930,26 @@ func TestDependencyFactsStayOnTheDependency(t *testing.T) {
 	row := findRow(t, DeriveRecoverPlan(p.input()), "pair:1")
 	if row.Git.Dirty != "no" || !slices.Contains(row.Evidence, "dirty") {
 		t.Fatalf("host dirty %q, evidence %v; want the host clean and the union dirty", row.Git.Dirty, row.Evidence)
+	}
+}
+
+// restoreWorkspaceDecision's notes never share a backing array with the
+// caller's extra notes: a caller slice with spare capacity must survive a
+// later append untouched in the decision (M1 review round 4, slice alias).
+func TestRestoreWorkspaceNotesDoNotAliasExtra(t *testing.T) {
+	e := SlotEvidence{Dir: DirPresent, Couch: CouchOK, Agent: AgentParked, Threads: ThreadsOne, Offer: OfferResumeReboot, Branch: BranchResting,
+		Claims: ClaimsOneInactive, DepClaims: DepResting, Quality: QualityPresent, GitSource: GitSourceSDLC, Dirty: TriYes, Unlanded: TriNo, Operation: TriNo}
+	for dirt, want := range map[TriState][]RecoverNote{
+		TriNo:      {NoteInactiveClaims},
+		TriYes:     {NoteInactiveClaims, NoteRestingBranchDirty},
+		TriUnknown: {NoteInactiveClaims, NoteGitUnknown},
+	} {
+		extra := make([]RecoverNote, 1, 8)
+		extra[0] = NoteInactiveClaims
+		d := restoreWorkspaceDecision(e, dirt, extra)
+		_ = append(extra, NoteClaimRepair, NoteClaimRepair)
+		if !slices.Equal(d.Notes, want) {
+			t.Errorf("dirt %s: notes %v, want %v", dirt, d.Notes, want)
+		}
 	}
 }
