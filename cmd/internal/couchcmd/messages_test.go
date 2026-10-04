@@ -7,11 +7,14 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
@@ -341,4 +344,86 @@ func TestSlotOperationCLIRequiresALiveSlot(t *testing.T) {
 	if run.code != 1 || len(run.calls) != 0 || !strings.Contains(run.stderr, "requires a live Couch slot") {
 		t.Fatalf("exit %d calls %d stderr %q", run.code, len(run.calls), run.stderr)
 	}
+}
+
+// TestSkillDocumentsRecovery: the skill carries the recovery procedure
+// (pair#367 M2), every `couch …` command it shows parses (shell-split, so a
+// quoted --message body is one argv element), and every class, hold and
+// note it names is in the report's own vocabulary.
+func TestSkillDocumentsRecovery(t *testing.T) {
+	for _, want := range []string{"## Recovering slots after a restart", "--recover-plan-from-sdlc", "--resume", "--reboot", "--confirm", "--send-to", "re-run the report", "sdlc issue show"} {
+		if !strings.Contains(couchSkill, want) {
+			t.Errorf("skill omits %q", want)
+		}
+	}
+	commands := skillCommands(couchSkill)
+	if len(commands) < 8 {
+		t.Fatalf("found only %d couch commands: %q", len(commands), commands)
+	}
+	ops := map[string]bool{}
+	for _, command := range commands {
+		got := parseCommandText(t, command)
+		ops[got.messageOp] = true
+	}
+	for _, op := range []string{"resume", "reboot", "send", "actors", "status"} {
+		if !ops[op] {
+			t.Errorf("no parsed skill command runs %s", op)
+		}
+	}
+	vocabulary := map[string][]string{"class": {}, "hold": {}, "note": {}}
+	for _, c := range couchcore.AllRecoverClasses() {
+		vocabulary["class"] = append(vocabulary["class"], string(c))
+	}
+	for _, h := range couchcore.AllRecoverHolds() {
+		vocabulary["hold"] = append(vocabulary["hold"], string(h))
+	}
+	for _, n := range couchcore.AllRecoverNotes() {
+		vocabulary["note"] = append(vocabulary["note"], string(n))
+	}
+	named := 0
+	for _, m := range skillVocabularyRef.FindAllStringSubmatch(couchSkill, -1) {
+		kind := strings.ToLower(m[1])
+		for _, k := range []string{"class", "hold", "note"} {
+			if strings.HasPrefix(kind, k) {
+				kind = k
+			}
+		}
+		for _, code := range regexp.MustCompile("`([^`]+)`").FindAllStringSubmatch(m[2], -1) {
+			named++
+			kindOf, _, _ := strings.Cut(code[1], ":")
+			if !slices.Contains(vocabulary[kind], kindOf) {
+				t.Errorf("skill names %s `%s`, which the report never emits", kind, code[1])
+			}
+		}
+	}
+	if named < 6 {
+		t.Fatalf("the skill names only %d report codes", named)
+	}
+}
+
+// skillVocabularyRef finds "class `a`", "classes `a`, `b` and `c`", "hold
+// `x`", "note `y`" in the skill text.
+var skillVocabularyRef = regexp.MustCompile("(?i)\\b(class(?:es)?|holds?|notes?)\\s+((?:`[^`]+`(?:,\\s+|\\s+and\\s+|\\s+or\\s+)?)+)")
+
+// skillCommands extracts every `couch …` command from inline code spans and
+// fenced blocks.
+func skillCommands(skill string) []string {
+	var commands []string
+	inFence := false
+	for _, line := range strings.Split(skill, "\n") {
+		if strings.HasPrefix(line, "```") {
+			inFence = !inFence
+			continue
+		}
+		if inFence {
+			if strings.HasPrefix(strings.TrimSpace(line), "couch ") {
+				commands = append(commands, strings.TrimSpace(line))
+			}
+			continue
+		}
+	}
+	for _, m := range regexp.MustCompile("`(couch [^`]+)`").FindAllStringSubmatch(skill, -1) {
+		commands = append(commands, m[1])
+	}
+	return commands
 }

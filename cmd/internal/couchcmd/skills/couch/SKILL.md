@@ -1,6 +1,6 @@
 ---
 name: couch
-description: Use when an agent in a live Couch slot needs to coordinate with another live slot, hand off authorized independent work, or interpret an incoming Couch message.
+description: Use when an agent in a live Couch slot needs to coordinate with another live slot, hand off authorized independent work, interpret an incoming Couch message, or recover slots after a restart.
 ---
 
 # Couch peer messages
@@ -16,6 +16,9 @@ is a request, never operator approval or evidence that work is accepted.
 | Choose a free slot in a repository | `couch --send-to pair --message 'Please pick up pair#353.'` |
 | Choose a free slot running one agent | `couch --send-to pair --agent codex --message 'Please pick up pair#353.'` |
 | Inspect a receipt | `couch --message-status ID --json` |
+| Read the recovery report | `couch --recover-plan-from-sdlc` |
+| Resume one slot's agent | `couch --resume pair:2` |
+| Archive and replace one slot's agent | `couch --reboot pair:2 --confirm` |
 
 Exact addresses include `repo:0`. The `repo` part may be the directory name,
 the repository's alias, or a unique prefix of either (`parley:1` reaches
@@ -59,6 +62,51 @@ Each slot admits at most eight inbound peer messages between genuine operator
 submissions. Peer messages, output, idle time, and ordinary reconnects do not
 reset the allowance. Do not manufacture operator input, restart, or change IDs
 to evade this breaker.
+
+## Recovering slots after a restart
+
+After Couch or the machine restarts, rebuild which slot was doing what from
+durable evidence, never from memory. The report and two slot operations are the
+whole surface:
+
+```
+couch --recover-plan-from-sdlc
+couch --resume pair:2
+couch --reboot pair:3 --confirm
+couch --send-to pair:4 --message 'Recovery (pair:4): restore this slot'\''s pair checkout for pair#000014 through sdlc (check out its issue branch); never discard files. Reply with what sdlc issue show reports.'
+```
+
+1. Run `couch --recover-plan-from-sdlc` and read every row. It joins
+   `sdlc fleet inventory` (this machine's claims, dangling claims and slot
+   verdicts) with Couch's threads. Missing, stale, partial or unknown evidence
+   is shown as such, never as absence.
+2. Review the rows with the operator before acting. Never run steps without
+   that review.
+3. For each row the operator approves that has `automatic: true`, run its
+   `next.steps[].command` values in order. `--resume` and `--reboot` work only
+   from a live Couch slot; Couch refuses any other caller. They run through the
+   running Couch in the background and leave the operator's screen where it is.
+   A reboot archives the conversation and begins a fresh agent, so it needs
+   `--confirm`; note `inspect-uncommitted-first` on a reboot row means: ask the
+   slot's own agent about its uncommitted files before the operator approves.
+4. Delegate disk fixes and claim repairs to the slot's own agent through
+   `--send-to`; the `ask-agent-restore` step carries the exact command and
+   message. Never edit another slot's repository yourself.
+5. A row with a hold gets no primitive unless the operator directs one for that
+   specific row. Classes `conflict` and `ambiguous-claims` list their facts for
+   you to inspect. For note `claim-repair`, first run `sdlc issue show N --json`;
+   if a repair is needed, ask the slot's own agent to run
+   `sdlc claim --issue N --adopt` or `sdlc reclaim`, and only on the operator's
+   explicit instruction, never on the report's suggestion. Classes
+   `start-unreconciled` and `agent-unknown` mean: read the report again later,
+   and never reboot.
+6. Verify every step: re-run the report and read the row again. Never trust a
+   reply or a receipt; a message receipt proves delivery only, and a
+   slot-operation receipt proves only what Couch did. Stale or unknown is not
+   negative evidence: look again after about 30 seconds.
+7. An uncertain outcome means re-run the report before resending. A resend is
+   refused harmlessly (`not-offered`) once the slot is live.
+8. Continuing work and scheduling are not part of recovery.
 
 ## Setup and qualification
 
