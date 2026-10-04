@@ -51,6 +51,7 @@ type FakeFleet struct {
 	slots    map[string]*fakeFleetSlot
 	offSlot  map[string]*fakeFleetMember
 	dangling []FleetDanglingClaim
+	schema   int // 0 prints the owner's Schema
 }
 
 type fakeFleetSlot struct {
@@ -92,6 +93,12 @@ func (f *FakeFleetSDLC) Fleet(root string) *FakeFleet {
 	fleet := &FakeFleet{owner: f, root: root, slots: map[string]*fakeFleetSlot{}, offSlot: map[string]*fakeFleetMember{}}
 	f.fleets[root] = fleet
 	return fleet
+}
+
+// SetSchema makes this fleet alone print another schema_version.
+func (fl *FakeFleet) SetSchema(version int) {
+	defer fl.lock()()
+	fl.schema = version
 }
 
 // SlotPath is the host checkout of a slot address in this fleet: root/repo for
@@ -373,7 +380,11 @@ func (fl *FakeFleet) Inventory() FleetInventory {
 }
 
 func (fl *FakeFleet) inventoryLocked() FleetInventory {
-	inv := FleetInventory{SchemaVersion: fl.owner.Schema, Machine: fl.owner.Machine, Rows: []FleetRow{}, Slots: []FleetSlot{}, DanglingClaims: append([]FleetDanglingClaim{}, fl.dangling...), Diagnostics: []FleetDiagnostic{}}
+	schema := fl.owner.Schema
+	if fl.schema != 0 {
+		schema = fl.schema
+	}
+	inv := FleetInventory{SchemaVersion: schema, Machine: fl.owner.Machine, Rows: []FleetRow{}, Slots: []FleetSlot{}, DanglingClaims: append([]FleetDanglingClaim{}, fl.dangling...), Diagnostics: []FleetDiagnostic{}}
 	addresses := make([]string, 0, len(fl.slots))
 	for address := range fl.slots {
 		addresses = append(addresses, address)

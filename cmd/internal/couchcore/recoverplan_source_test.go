@@ -2,8 +2,12 @@ package couchcore
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"slices"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -172,5 +176,174 @@ func TestFakeFleetSDLCVerdictsMatchSDLCPrecedence(t *testing.T) {
 				t.Fatalf("got %s %v, want %s %s", slot.Verdict, slot.Members[0].Reasons, tc.verdict, tc.reasons)
 			}
 		})
+	}
+}
+
+// enrollRoots writes the enrolled-repository list the way an older test
+// fixture does (aliasTestStore), without Git discovery.
+func enrollRoots(t *testing.T, store *ThreadStore, roots ...string) {
+	t.Helper()
+	if err := store.withLock(func() error {
+		raw, err := json.Marshal(threadManifest{SchemaVersion: 2, Threads: []ThreadAddress{}, SlotRepositories: roots})
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(store.manifestPath(), raw, 0600)
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func recoverEnv(t *testing.T, fleets map[string]string) (*testEnv, *FakeFleetSDLC, *SlotCatalogFake) {
+	t.Helper()
+	env := newTestEnv(t)
+	fake := NewFakeFleetSDLC()
+	catalog := &SlotCatalogFake{Workspaces: map[string]WorkspaceIdentity{}, Errors: map[string]error{}}
+	var roots []string
+	for primary, fleetRoot := range fleets {
+		roots = append(roots, primary)
+		catalog.Workspaces[primary] = WorkspaceIdentity{FleetRoot: fleetRoot, PrimaryRoot: primary}
+	}
+	sort.Strings(roots)
+	enrollRoots(t, env.Couch.Threads, roots...)
+	env.Couch.Slots = catalog
+	env.Couch.Fleet = SDLCFleetSource{IO: fake}
+	return env, fake, catalog
+}
+
+func TestRecoverPlanRunsOneInventoryPerEnrolledFleet(t *testing.T) {
+	env, fake, _ := recoverEnv(t, map[string]string{"/fa/alpha": "/fa", "/fa/beta": "/fa", "/fb/gamma": "/fb"})
+	fake.Fleet("/fa").AddSlot("alpha:0")
+	fake.Fleet("/fa").AddSlot("beta:0")
+	fake.Fleet("/fb").AddSlot("gamma:0")
+	plan, err := env.Couch.RecoverPlan(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var vantages []string
+	for _, call := range fake.Calls {
+		vantages = append(vantages, call.Dir)
+	}
+	if !slices.Equal(vantages, []string{"/fa/alpha", "/fb/gamma"}) {
+		t.Fatalf("sdlc vantages = %v, want one per fleet from its first primary", vantages)
+	}
+	for _, address := range []string{"alpha:0", "beta:0", "gamma:0"} {
+		findRow(t, plan, address)
+	}
+}
+
+func TestRecoverPlanReadsAFleetOnceFromTwoVantages(t *testing.T) {
+	env, fake, catalog := recoverEnv(t, map[string]string{"/fa/alpha": "/fa", "/fa/beta": "/fa"})
+	fake.Fleet("/fa").AddSlot("alpha:0")
+	fake.Fleet("/fa").AddSlot("beta:0")
+	fake.Fleet("/fa").AddSlot("beta:1")
+	if _, err := env.Couch.RecoverPlan(context.Background()); err != nil || len(fake.Calls) != 1 {
+		t.Fatalf("calls = %d (%v), want one sdlc run for one fleet", len(fake.Calls), err)
+	}
+	// The dedupe backstop: two vantages resolving different roots but sdlc
+	// answering both with the same document still give one row per address.
+	catalog.Workspaces["/fa/beta"] = WorkspaceIdentity{FleetRoot: "/fa-other", PrimaryRoot: "/fa/beta"}
+	fake.Route = map[string]string{"/fa/beta": "/fa"}
+	plan, err := env.Couch.RecoverPlan(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]int{}
+	for _, row := range plan.Rows {
+		seen[row.Address]++
+	}
+	for _, address := range []string{"alpha:0", "beta:0", "beta:1"} {
+		if seen[address] != 1 {
+			t.Fatalf("%s appears %d times in %v", address, seen[address], seen)
+		}
+	}
+}
+
+func TestRecoverPlanFailedWorkspaceProbeIsUnavailableNotEmpty(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	primary := filepath.Join(root, "delta")
+	if err := os.MkdirAll(primary, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	env, fake, catalog := recoverEnv(t, map[string]string{primary: root})
+	catalog.Errors[primary] = errors.New("sdlc workspace: exit 1")
+	plan, err := env.Couch.RecoverPlan(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fake.Calls) != 0 || len(plan.Fleets) != 1 || plan.Fleets[0].State != FleetObservationUnavailable || !strings.Contains(plan.Fleets[0].Error, "exit 1") {
+		t.Fatalf("calls %d, fleets %+v", len(fake.Calls), plan.Fleets)
+	}
+	if row := findRow(t, plan, "delta:0"); row.Class != RecoverEvidenceUnavailable || row.Git.Source != "unknown" {
+		t.Fatalf("delta:0 = %+v", row)
+	}
+}
+
+func TestRecoverPlanDegradesPerSource(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	healthy, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	zeta := filepath.Join(root, "zeta")
+	slot := filepath.Join(root, "worktree", "zeta-slot1", "zeta")
+	alpha := filepath.Join(healthy, "alpha")
+	// The healthy fleet's checkouts exist too, so probing them would be seen.
+	for _, dir := range []string{zeta, slot, alpha, filepath.Join(healthy, "worktree", "alpha-slot1", "alpha")} {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// /gone/omega does not exist: Couch's store cannot enumerate it, which is
+	// the store error this test needs (the inventory read fails, names do not).
+	env, fake, _ := recoverEnv(t, map[string]string{alpha: healthy, "/gone/omega": "/gone", zeta: root})
+	fake.Fleet("/gone").AddSlot("omega:0")
+	fake.Fleet(healthy).AddSlot("alpha:0")
+	fake.Fleet(healthy).AddSlot("alpha:1")
+	fake.Fleet(healthy).SetBranch("alpha:1", "000011-x")
+	fake.Fleet(healthy).Claim("alpha:1", "alpha#000011")
+	fake.Fleet(root).AddSlot("zeta:0")
+	fake.Fleet(root).SetSchema(2)
+	status := strings.Join(slotGitStatusArgs, " ")
+	env.Git.replies[GitCall{Dir: zeta, Args: status}] = "# branch.head main\n"
+	env.Git.replies[GitCall{Dir: slot, Args: status}] = "# branch.head 000012-x\n1 .M N... 100644 100644 100644 a a f.go\n"
+	plan, err := env.Couch.RecoverPlan(context.Background())
+	if err != nil {
+		t.Fatalf("a degraded source was returned as an error: %v", err)
+	}
+	states := map[string]string{}
+	for _, f := range plan.Fleets {
+		states[f.Root] = f.State
+	}
+	if states[healthy] != FleetObservationPresent || states["/gone"] != FleetObservationPresent || states[root] != FleetObservationUnsupported {
+		t.Fatalf("fleets = %+v", plan.Fleets)
+	}
+	if plan.Couch.State != CouchObservationUnavailable || plan.Couch.Error == "" {
+		t.Fatalf("couch = %+v", plan.Couch)
+	}
+	if row := findRow(t, plan, "alpha:1"); row.Git.Source != "sdlc" || row.Claims.Active != "alpha#000011" || row.Class != RecoverAgentUnknown {
+		t.Fatalf("alpha:1 = %+v", row)
+	}
+	z0, z1 := findRow(t, plan, "zeta:0"), findRow(t, plan, "zeta:1")
+	if z0.Git.Source != "local-probe" || z0.Git.Branch != "main" || z0.Claims.Quality != "unsupported" {
+		t.Fatalf("zeta:0 = %+v", z0)
+	}
+	if z1.Git.Source != "local-probe" || z1.Git.Dirty != "yes" || z1.Git.Unlanded != "unknown" || z1.Git.Issue != "zeta#000012" {
+		t.Fatalf("zeta:1 = %+v", z1)
+	}
+	var probed []string
+	for _, op := range env.Git.Ops {
+		if strings.Contains(op, "status --porcelain=v2") {
+			probed = append(probed, op)
+		}
+	}
+	if len(probed) != 2 {
+		t.Fatalf("git probes = %v, want one per slot of the unsupported fleet only", probed)
 	}
 }
