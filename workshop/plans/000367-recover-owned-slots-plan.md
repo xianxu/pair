@@ -188,8 +188,10 @@ one-shot "execute the plan" command, and repairing deleted slots (pair#387; the 
 | `RecoverPlanInput` / `FleetObservation` / `CouchObservation` | `cmd/internal/couchcore/recoverplan.go` | new |
 | `RecoverPlan` / `RecoverRow` / `RecoverGit` / `RecoverDisk` / `RecoverAgent` / `RecoverNext` / `RecoverStep` | `cmd/internal/couchcore/recoverplan.go` | new |
 | `RecoverHold` / `AllRecoverHolds` (hold-code kinds; parameterized codes are `kind:suffix`) | `cmd/internal/couchcore/recoverplan.go` | new |
-| `SlotEvidence` / `slotEvidenceOf` / `RecoverNote` / `AllRecoverNotes` / `RecoverPlan.Ignored` | `cmd/internal/couchcore/recoverplan.go` | new |
-| `IsPrimaryRow` (extracted; `ApplyRepositoryAliases` uses it) | `cmd/internal/couchcore/actionableinventory.go:721` | new (extracted) |
+| `SlotEvidence` (+ `Offer` dimension) / `slotEvidenceOf` / `classifyRecover` / `consistent` / `RecoverNote` / `AllRecoverNotes` / `RecoverPlan.Ignored` | `cmd/internal/couchcore/recoverplan.go` | new |
+| `RecoverClaims` / `RecoverFleet` / `RecoverCouch` / `RecoverIgnored` / `RecoverSlotCandidate` / `RecoverLocalGit` | `cmd/internal/couchcore/recoverplan.go` | new (Revision (c)) |
+| `IsPrimaryRow` (extracted; `ApplyRepositoryAliases` uses it) | `cmd/internal/couchcore/actionableinventory.go` | new (extracted) |
+| `strictjson.RejectDuplicateKeys` (Decode's structural check, exported for the fleet decoder) | `cmd/internal/strictjson/decode.go` | new (Revision (c)) |
 | `RecoverClass` / `AllRecoverClasses` / `DeriveRecoverPlan` | `cmd/internal/couchcore/recoverplan.go` | new |
 | `RestoreWorkspaceMessage` | `cmd/internal/couchcore/recoverplan.go` | new |
 | `ActorRowFacts` / `ActorRowFactsOf` / `ActorActions` | `cmd/internal/couchcore/actor_actions.go` | new (extracted from `couchtty/menu_actions.go`) |
@@ -204,9 +206,9 @@ one-shot "execute the plan" command, and repairing deleted slots (pair#387; the 
 
 - **DeriveRecoverPlan** — `(RecoverPlanInput) RecoverPlan`. It joins fleet slots to Couch rows by normalized path. A
   slot row matches when `Target.Slot.WorktreeRoot` equals the host member path. An ordinary row matches `:0` only when
-  `IsPrimaryRow(row, hostPath, scopeKey)` holds; the shell resolves `scopeKey` with `launcher.ResolveRepoScope` and
-  passes it in `RecoverPlanInput.PrimaryScopes`. Each row's class is then picked by the first match in the table
-  in Task 1.5.
+  `IsPrimaryRow(row, hostPath, scopeKey)` holds; `scopeKey` is `launcher.ResolveRepoScope(hostPath)`, a pure hash the
+  derivation computes itself (Revision 2026-10-04 (c): no `PrimaryScopes` input). Each row's class is then picked by
+  the first match in the table in Task 1.5.
   - **Relationships:** 1 fleet slot → 1 row with 0..N Couch threads (more than one → `ambiguous-threads`). 1 claim → 1
     row: its slot's row, or its own row.
   - **DRY rationale:** It is the only place the two observations are joined. The steps come from `ActorActions`, not
@@ -222,7 +224,8 @@ one-shot "execute the plan" command, and repairing deleted slots (pair#387; the 
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
 | `FleetInventorySource` / `SDLCFleetSource` | `cmd/internal/couchcore/recoverplan_source.go` | new | `sdlc fleet inventory --json` via `ProvisionIO` |
-| `FakeFleetSDLC` | `cmd/internal/couchcore/recoverplan_fake.go` | new | stateful sdlc fleet model behind `ProvisionIO` |
+| `FakeFleetSDLC` / `FakeFleet` (per-fleet mutators, `SetSchema`) | `cmd/internal/couchcore/recoverplan_fake.go` | new | stateful sdlc fleet model behind `ProvisionIO` |
+| `SlotGitProbeTimeout` (moved from couchtty) | `cmd/internal/couchcore/recoverplan_source.go` | moved | — |
 | `Couch.Fleet` field, `Couch.RecoverPlan` | `cmd/internal/couchcore/couch.go`, `recoverplan_source.go` | new | thread store + fleet source |
 | `DirectStoreExecutor` `recover-plan` case | `cmd/internal/couchcore/operationdispatch.go:141` | modified | — |
 | `OSRuntime.NewCouchWith` (sets `c.Fleet`) | `cmd/internal/couchcmd/run.go:169` | modified | — |
@@ -265,13 +268,13 @@ Below it is abbreviated `SCRUB`.
   `cmd/internal/couchcore/testdata/sdlc_fleet_inventory_v1_pre288.json` (a real v1 document from before #288/#289:
   no `slots`, `machine`, `dangling_claims` or `claims_state`; build it from the same capture by deleting those keys)
 
-- [ ] **Step 1: Capture the golden fixture.** Run
+- [x] **Step 1: Capture the golden fixture.** Run
   `/Users/xianxu/workspace/worktree/pair-slot1/ariadne/bin/sdlc fleet inventory --json > $SCRATCH/fleet.json`. Trim it
   to: one `:0` ready slot, one `:N` holds-work slot with a `claims[]` entry and a dependency member, one
   `needs-recovery` (`dirty`), one `missing` member, a `diagnostics[]` entry, and one `dangling_claims[]` entry (hand
   added, shape from ariadne `fleet/claims.go:78-83`). Also include one claim on a **dependency member** with no
   `workspace` key; this is the real shape per `claimant.go:42-66`. Rewrite paths to `/fleet/...`.
-- [ ] **Step 2: Write the failing tests.**
+- [x] **Step 2: Write the failing tests.**
   - `TestDecodeFleetInventoryGolden`: `ReadFile` errors are checked. The golden decodes with machine `present`, at
     least one slot, and exactly 1 dangling claim.
   - `TestDecodeFleetInventoryRejectsUnsupported`: each case must return `errors.Is(err, ErrFleetSchemaUnsupported)`,
@@ -282,8 +285,8 @@ Below it is abbreviated `SCRUB`.
   - `TestFleetInventoryLiveConformance` (skips without `sdlc` on PATH): runs the real command through `OSProvisionIO`
     and decodes it. Every verdict must be in `knownFleetVerdicts`, and every reason must match `knownFleetReason`.
     This pins the fake's vocabulary to the real producer.
-- [ ] **Step 3:** `SCRUB go test ./cmd/internal/couchcore -run 'FleetInventory' -count=1` → FAIL (undefined).
-- [ ] **Step 4: Implement.** First probe `schema_version` alone (`struct{ V *int }`) and return
+- [x] **Step 3:** `SCRUB go test ./cmd/internal/couchcore -run 'FleetInventory' -count=1` → FAIL (undefined).
+- [x] **Step 4: Implement.** First probe `schema_version` alone (`struct{ V *int }`) and return
   `ErrFleetSchemaUnsupported` unless it is exactly 1. Then do a presence probe: top-level `slots`, `machine` and
   `dangling_claims`, and each row's `claims_state`, are `json.RawMessage`/pointer fields. Any one absent →
   `ErrFleetSchemaUnsupported` ("sdlc predates #288/#289; upgrade the slot's sdlc"). Then decode the full struct with `encoding/json`, which accepts
@@ -291,7 +294,7 @@ Below it is abbreviated `SCRUB`.
   vocabulary is `knownFleetVerdicts = {ready, holds-work, unknown, missing, needs-recovery}`. The reason grammar is
   `dirty | detached | missing | unlanded-commits | operation:<x> | open-issue:<ref> | claimed:<ref> | probe:<x>`. An
   unknown verdict decodes but is treated as `unknown` downstream (Task 1.5).
-- [ ] **Step 5:** Run → PASS. Commit `#367 M1: couchcore: decode sdlc fleet inventory v1`.
+- [x] **Step 5:** Run → PASS. Commit `#367 M1: couchcore: decode sdlc fleet inventory v1`.
 
 ### Task 1.2: `ActorActions` extracted from the switcher table
 
@@ -299,20 +302,20 @@ Below it is abbreviated `SCRUB`.
 - Create: `cmd/internal/couchcore/actor_actions.go`, `actor_actions_test.go`
 - Modify: `cmd/internal/couchtty/menu_actions.go:35-90,125-140`
 
-- [ ] **Step 1: Failing test.** Pin a literal table written from #363's Spec (not from the code): `{kind, state,
+- [x] **Step 1: Failing test.** Pin a literal table written from #363's Spec (not from the code): `{kind, state,
   reason, unfinished, recover} → want`. Parked/detached → `[resume reboot]`. Unusable/unknown → nil. Unusable
   `path-missing` slot → nil, and primary → `[reboot]`. Unusable slot → `[resume reboot]`. Unusable primary with
   recover or an unfinished request → `[resume reboot]`, otherwise `[reboot]`. Live/busy → nil. Iterate over
   `AllThreadStates() × AllThreadReasons() × {primary, slot} × {"", pending, running, failed} × {false, true}`, and
   fail any combination the literal table does not cover (derived enumeration).
-- [ ] **Step 2:** Run → FAIL. **Step 3:** Move the resumable/unusable arms into `ActorActions(ActorRowFacts)`, and
+- [x] **Step 2:** Run → FAIL. **Step 3:** Move the resumable/unusable arms into `ActorActions(ActorRowFacts)`, and
   `ResumeOffered`/`DirectoryMissing` derivation into `ActorRowFactsOf(ActionableThreadSummary)`. `menuRowFacts` gains
   `Actor couchcore.ActorRowFacts`, and the two `menuRowActions` arms become `return couchcore.ActorActions(f.Actor)`.
   `menuRowAdviceOf` keeps reading `f.DirectoryMissing` through `f.Actor`.
-- [ ] **Step 4:** `SCRUB go test ./cmd/internal/couchcore ./cmd/internal/couchtty -count=1` → PASS, including
+- [x] **Step 4:** `SCRUB go test ./cmd/internal/couchcore ./cmd/internal/couchtty -count=1` → PASS, including
   `TestActionOfferedImpliesPermitted` and `TestRowAdviceNamesOnlyReachableActions`, unchanged. Mutation: make
   `ActorActions` return `[resume]` for unusable primaries, and confirm both packages fail.
-- [ ] **Step 5:** Commit `#367 M1: couchcore: ActorActions, the one resume/reboot admission table`.
+- [x] **Step 5:** Commit `#367 M1: couchcore: ActorActions, the one resume/reboot admission table`.
 
 ### Task 1.3: `FakeFleetSDLC` and `SDLCFleetSource`
 
@@ -321,7 +324,7 @@ Below it is abbreviated `SCRUB`.
 - Modify: `cmd/internal/couchcore/couch.go` (field `Fleet FleetInventorySource`),
   `cmd/internal/artifactpath/manifest.go` (`NonArtifactSources` += the five M1 `.go` files)
 
-- [ ] **Step 1: Failing tests.**
+- [x] **Step 1: Failing tests.**
   - `TestSDLCFleetSourceArgv`: the fake records `{Dir: v, Program: "sdlc", Args: [fleet inventory --json --path v],
     Timeout: 90s}`.
   - `TestFakeFleetSDLCIsStateful`: `AddSlot("pair:1")` gives verdict `ready`; `Claim` makes it `holds-work` with
@@ -329,17 +332,17 @@ Below it is abbreviated `SCRUB`.
     the claim to `dangling_claims`; `Schema=2` makes the output fail to decode.
   - `TestFakeFleetSDLCVerdictsMatchSDLCPrecedence`: a table copied from ariadne `TestJudgeCheckout` cases. Note the
     source commit.
-- [ ] **Step 2:** Run → FAIL. **Step 3:** Implement. The fake's `Run` refuses any program other than `sdlc` and any
+- [x] **Step 2:** Run → FAIL. **Step 3:** Implement. The fake's `Run` refuses any program other than `sdlc` and any
   other argv. It marshals through the same `FleetInventory` types it is decoded with, plus `schema_version` from
   `Schema`.
-- [ ] **Step 4:** Run → PASS. `SCRUB go test ./cmd/internal/artifactpath -count=1` shows the same 33 pre-existing
+- [x] **Step 4:** Run → PASS. `SCRUB go test ./cmd/internal/artifactpath -count=1` shows the same 33 pre-existing
   failures as main, with no new failures (if the list differs, compare against main in a scratch worktree). Commit `#367 M1: couchcore: SDLC fleet source and its stateful fake`.
 
 ### Task 1.4: Couch observation and `Couch.RecoverPlan`
 
 **Files:** Modify `cmd/internal/couchcore/recoverplan_source.go`; test `recoverplan_source_test.go`
 
-- [ ] **Step 1: Failing tests.** `TestRecoverPlanRunsOneInventoryPerEnrolledFleet`: enroll two repositories in one
+- [x] **Step 1: Failing tests.** `TestRecoverPlanRunsOneInventoryPerEnrolledFleet`: enroll two repositories in one
   fleet and one in another, and expect exactly two fake calls with the first primary of each fleet as the vantage.
   `TestRecoverPlanReadsAFleetOnceFromTwoVantages`: two enrolled primaries in one fleet resolve the same
   `fleet_root`; expect one sdlc call. If the fake is forced to answer both vantages with the same document, every
@@ -350,7 +353,7 @@ Below it is abbreviated `SCRUB`.
   `TestRecoverPlanDegradesPerSource`: one fleet unsupported → its slots come from enrolled primaries and
   `EnumerateSlotCandidates`, carrying `ProbeSlotGit` observations (via `env.Git`, the fake `GitRunner`); the other
   fleet is unaffected. A store error makes `couch.state = unavailable`. Neither error is returned.
-- [ ] **Step 2:** Run → FAIL. **Step 3:** Implement
+- [x] **Step 2:** Run → FAIL. **Step 3:** Implement
   `func (c *Couch) RecoverPlan(ctx context.Context) (RecoverPlan, error)`:
   1. Read `c.Threads.RepositoryNames()` (an error here is the only returned error). For each primary, resolve its
      `fleet_root` with the slot catalog's existing `sdlc workspace --json` probe (`SlotWorkspaceResolver.
@@ -369,7 +372,7 @@ Below it is abbreviated `SCRUB`.
       The cost is bounded by that fleet's slot count, at about 10 ms each.
   5. `return DeriveRecoverPlan(input), nil`. `DeriveRecoverPlan` also deduplicates slots by address, first fleet wins,
      and records a duplicate in that fleet's `error`.
-- [ ] **Step 4:** Run → PASS. Commit `#367 M1: couchcore: RecoverPlan gathers both observations`.
+- [x] **Step 4:** Run → PASS. Commit `#367 M1: couchcore: RecoverPlan gathers both observations`.
 
 ### Task 1.5: `DeriveRecoverPlan` (pure)
 
@@ -437,7 +440,7 @@ Rules (first match). `AllRecoverClasses()` follows this order:
 vocabularies; a parameterized code renders as `kind:suffix`. Every row's `Reason` comes from one function,
 `recoverReason`. Rows are sorted by address.
 
-- [ ] **Step 1: Failing tests.**
+- [x] **Step 1: Failing tests.**
 
 ```go
 func TestDeriveRecoverPlanCoversEveryClassHoldAndNote(t *testing.T) {
@@ -484,12 +487,12 @@ func TestClaimsAttachToTheirSlotPath(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2:** Run → FAIL. **Step 3:** Implement in two pure steps: `slotEvidenceOf` (join plus facts), then a
+- [x] **Step 2:** Run → FAIL. **Step 3:** Implement in two pure steps: `slotEvidenceOf` (join plus facts), then a
   single `switch` that follows the table, with rule A as one helper. Step actions come only from `ActorActions` or
   the literal `ask-agent-restore`, and `RecoverStep.Command` stays empty in M1.
   `RestoreWorkspaceMessage(ref, address) = "Recovery (" + address + "): restore the workspace of this slot for " + ref +
   " through sdlc (check out its issue branch); never discard files. Reply with what sdlc issue show reports."`
-- [ ] **Step 4:** Run → PASS. Mutations, each on inputs two rules share, each must turn a test red:
+- [x] **Step 4:** Run → PASS. Mutations, each on inputs two rules share, each must turn a test red:
   - swap 6 and 13 (a host claim on B, with B checked out and a mismatched workspace: `conflict` vs `agrees`);
   - swap 11 and 13 (an active claim with `Agent` none: hold `no-couch-thread` vs `agrees`; rule 11's claims clause
     and rule 13's one-active clause both match it, so the order decides);
@@ -507,25 +510,25 @@ func TestClaimsAttachToTheirSlotPath(t *testing.T) {
 Timeout: 90 * time.Second}`, `render` JSON-encodes `couchcore.RecoverPlan`, and `usageWith` adds `couch
 --recover-plan-from-sdlc`); tests in `cli_test.go`, `run_test.go`.
 
-- [ ] **Step 1: Failing tests.**
+- [x] **Step 1: Failing tests.**
   - `TestRecoverPlanCLIEmitsTheReport`: `newRT` with a `FakeFleetSDLC` injected through a `recoverPlanRT`
     `NewCouchWith` override (the `provisionRT` pattern). Run `RunWithRuntime([]string{"--recover-plan-from-sdlc"})`.
     Expect exit 0, exactly one JSON document on stdout with `schema_version` 1, empty stderr, no supervisor acquired,
     and no runner ops.
   - `TestRecoverPlanCLIRejectsArguments`: `--recover-plan-from-sdlc x` and `--recover-plan-from-sdlc --layout2` exit 2.
   - `TestPublicHelpListsOnlyPublicSurface`: add `couch --recover-plan-from-sdlc` to the wanted list.
-- [ ] **Step 2:** Run → FAIL. **Step 3:** Implement. The declaration is `{Name: "recover-plan", Execution:
+- [x] **Step 2:** Run → FAIL. **Step 3:** Implement. The declaration is `{Name: "recover-plan", Execution:
   ExecuteDirectStore, Effect: EffectRead, Confirmation: ConfirmNone, Result: ResultRecoverPlan, Presentation:
   PresentationRecoverPlan}`, and `operationOwnsLive` stays false. Run whatever audit enumerates
   `Operations()`/presentations and update it per its own message.
-- [ ] **Step 4:** `SCRUB go test ./cmd/internal/couchcmd ./cmd/internal/couchcore -count=1` → PASS. Commit
+- [x] **Step 4:** `SCRUB go test ./cmd/internal/couchcmd ./cmd/internal/couchcore -count=1` → PASS. Commit
   `#367 M1: couch: --recover-plan-from-sdlc`.
 
 ### Task 1.7: Restart acceptance through the real report path
 
 **Files:** Create `cmd/internal/couchcore/recoverplan_acceptance_test.go`
 
-- [ ] **Step 1: Write the test** `TestRecoverPlanAfterRestart`. Use `slotRecoveryOperationFixture` to get an env with
+- [x] **Step 1: Write the test** `TestRecoverPlanAfterRestart`. Use `slotRecoveryOperationFixture` to get an env with
   slot stores, and give the env's `Couch.Fleet` a `FakeFleetSDLC` whose slot paths are the fixture's real
   `WorktreeRoot`s. Seed a "before restart" world:
   - `:1`: a record (`slotRecordFixture`) with a dead PID and its session present → detached. Claimed `#11`, branch
@@ -546,16 +549,16 @@ Timeout: 90 * time.Second}`, `render` JSON-encodes `couchcore.RecoverPlan`, and 
   rule 9 and no step), `:9` → `directory-missing`, and
   `ignored.off_slot_claims == 1`. Then mutate the fake (`Release(":1")`) and dispatch again: `:1` →
   `claim-likely-lost`. This proves the plan is recomputed from fresh sdlc output on every call.
-- [ ] **Step 2:** Run → it must PASS against Tasks 1.1–1.6. Revert `DirectStoreExecutor`'s case → FAIL. Drop rule 10
+- [x] **Step 2:** Run → it must PASS against Tasks 1.1–1.6. Revert `DirectStoreExecutor`'s case → FAIL. Drop rule 10
   → FAIL.
-- [ ] **Step 3:** Commit `#367 M1: couchcore: restart acceptance through the recover-plan dispatch`.
+- [x] **Step 3:** Commit `#367 M1: couchcore: restart acceptance through the recover-plan dispatch`.
 
 ### Task 1.8: Docs and close M1
 
-- [ ] README: under the Couch CLI section, add `--recover-plan-from-sdlc` (what it reads, the row classes, "unknown is
+- [x] README: under the Couch CLI section, add `--recover-plan-from-sdlc` (what it reads, the row classes, "unknown is
   never absence", "creates nothing"). `atlas/couch.md`: the recover-plan flow, the entities table above, and
   `FakeFleetSDLC`. Keep `atlas/index.md` links valid.
-- [ ] Full verification (Chunk 3). Paste the summary into `## Log`.
+- [x] Full verification (Chunk 3). Paste the summary into `## Log`.
 - [ ] `sdlc milestone-close --issue 367 --milestone M1`.
 
 ---
@@ -870,3 +873,29 @@ Reason: the operator answered the plan's three questions, and the review found t
   shell, so the derivation stays pure.
 - **Claim repair.** `claim-repair` → `issue show` first; the slot's own agent repairs, under operator direction.
 - **Wording.** The dangling "design problems" references and the ARCH-DRY wording are fixed.
+
+### 2026-10-04 (c) — M1 implementation reconciliation
+
+Reason: M1 delivered; the active mappings above are reconciled with the code (lessons: reconcile entity tables, not
+only append). Delta:
+- **Order.** Task 1.5 landed before Task 1.4: `Couch.RecoverPlan` returns `DeriveRecoverPlan(input)`, so the pure
+  join had to exist first. Each task kept its own red → green commit.
+- **No `PrimaryScopes` input.** `launcher.ResolveRepoScope` is a pure hash, so `DeriveRecoverPlan` computes the `:0`
+  scope itself; one less shell → pure channel.
+- **`SlotEvidence.Offer`** (`none` / `reboot` / `resume-reboot`, from `ActorActions(ActorRowFactsOf(row))` for the
+  single joined row) is a dimension, so rule A is a function of the evidence and the totality test checks every step
+  against the offer. `consistent()` ties it to `Agent`.
+- **New hold `resume-only`.** `partial-evidence` and a dirty `restore-workspace` are resume-only (ambiguity 6, operator
+  answer in Revision (b)); when resume is not offered, the row is `no-safe-step` with this hold instead of borrowing
+  `no-actor-action`.
+- **`restore-workspace` with dirt unknown** is resume-only with note `git-unknown` and no restore request (an unread
+  tree is not known clean).
+- **A slot-target Couch row the healthy fleet lacks** (path present) has unknown git and no claims, so the total table
+  gives `evidence-unavailable` (rule 8), superseding ambiguity 7's older `partial-evidence` wording.
+- **Dependency members** fold into the slot: their dirt, unlanded commits and operation count as the slot's; their
+  claims attach as inactive claims; claim quality is the host's unless a dependency's read is weaker.
+- **`ActorRowFacts`** is `{Slot, State, Reason, ResumeOffered, DirectoryMissing}`.
+- **Acceptance fixture.** `recoverAcceptanceFixture` is `slotRecoveryOperationFixture` widened to six real slot
+  worktrees. It showed an enrolled slot with no record is still a Couch row (unusable, `never-started`), which the
+  join counts as a thread but not as a conversation.
+

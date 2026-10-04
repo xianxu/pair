@@ -184,6 +184,56 @@ IsPrimaryRow as the single `:0` rule, warm-only in ActorOperationArgs,
 per-call poll contexts, receipt mutex owner, evidence-table totality over a
 derived domain, unknown git never read as absence, overlapping mutations).
 
+### 2026-10-04 — M1 implementation notes
+
+All Chunk 1 tasks landed as one commit per TDD cycle (c2fe58da … f7373ad5), each
+with red observed before green and the plan's mutations observed red, then
+restored from byte copies:
+- 1.1 decoder: dropping the section-presence check fails the unsupported cases.
+- 1.2 `ActorActions`: `[resume]` for unusable primaries fails both couchcore (2)
+  and couchtty (6 switcher tests). The domain test now iterates
+  `checkpoint.AllPhases()`.
+- 1.3 fake: removing sdlc's "only claims unread" precedence fails the copied
+  `TestJudgeCheckout` case.
+- 1.4 shell: per-primary instead of per-fleet sdlc runs, probing healthy fleets,
+  and returning the store error each fail.
+- 1.5 table: all five mutations (6↔13, 11↔13, rule A's operation guard, 3↔rule A,
+  `IsPrimaryRow` accepting subdirectories) fail. Totality: 83,504 consistent
+  evidence points in about 0.3 s.
+- 1.6/1.7: reverting `DirectStoreExecutor`'s case fails the CLI and acceptance
+  tests; dropping rule 10 fails the acceptance test.
+
+Deviations (plan Revision 2026-10-04 (c)): 1.5 before 1.4; no `PrimaryScopes`
+(pure hash, computed in the derivation); `SlotEvidence.Offer` dimension; new
+hold `resume-only`; dirt-unknown restore is resume-only; a slot-target row the
+fleet lacks is `evidence-unavailable` per the total table; dependency members
+fold into the slot. The full suite caught two repository audits the targeted
+runs missed (phase list restated, test-only production symbols), fixed in
+f7373ad5.
+
+Live sdlc conformance (`TestFleetInventoryLiveConformance`) ran and passed
+both sandboxed (5.7 s; the fetch still decoded) and in the unsandboxed full run,
+against the PATH sdlc.
+
+Observed while testing, for the coordinator: an enrolled primary whose
+directory is gone makes Couch's whole `Snapshot` fail (`EnumerateSlotCandidates`),
+so the report marks every agent unknown (`--list` fails the same way, so this
+predates #367). `conflict:issue-terminal` holds any slot still sitting on a
+done issue's branch, even when it is clean and unclaimed, which may be common
+right after a close.
+
+Verification (Chunk 3, unsandboxed, at f7373ad5): `go test ./... -count=1` fails
+only `TestProductionArtifactReferencesAreExactlyClassified` (its 33 entries are
+main's 25 plus 8 generated runtimebundle `nvim/review/*.lua` assets; none is a
+#367 file) and `TestCouchReferencesLocalArchiveLocatorRoundTrip`, both known.
+`-race` on couchcore, couchtty, couchcmd and strictjson passes. gofmt and vet
+are clean. `TMPDIR=<scratch>/tmp make test-changelog` passes. `make -k test`:
+the first run at 3e9cdcbe failed only `test-changelog`. The re-run at f7373ad5
+also failed `test-pair-embedded-runtime`; its smoke passes, then the script's
+`trap rm -rf "$tmp"` reports "Directory not empty" for `custom-data`. That
+reproduces on standalone re-runs and touches no #367 code (pair runtime only),
+so it looks environmental: something keeps writing into the temp tree.
+
 ## Revisions
 
 ### 2026-10-01 — recovery shape settled in operator discussion
