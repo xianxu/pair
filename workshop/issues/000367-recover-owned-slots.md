@@ -101,7 +101,7 @@ Design hours are discounted because the durable plan is reviewed and approved;
 Durable plan: `workshop/plans/000367-recover-owned-slots-plan.md` (reviewed in three
 rounds and approved 2026-10-04). Each milestone is a review boundary.
 
-- [ ] M1 — Read-only `couch --recover-plan-from-sdlc`: presence-aware decoder for `sdlc fleet inventory --json` v1 (fleets grouped by `fleet_root`), stateful sdlc fake behind ProvisionIO, `ActorActions` single-sourced in couchcore, pure total `DeriveRecoverPlan` over the union of work evidence (derived-domain totality test), ProbeSlotGit fallback for unsupported fleets, restart acceptance through the real dispatch, docs.
+- [x] M1 — Read-only `couch --recover-plan-from-sdlc`: presence-aware decoder for `sdlc fleet inventory --json` v1 (fleets grouped by `fleet_root`), stateful sdlc fake behind ProvisionIO, `ActorActions` single-sourced in couchcore, pure total `DeriveRecoverPlan` over the union of work evidence (derived-domain totality test), ProbeSlotGit fallback for unsupported fleets, restart acceptance through the real dispatch, docs.
 - [ ] M2 — `resume`/`reboot <slot>` through the running Couch's socket: live-slot callers only (server-side), queued like a switcher keypress (background, operator focus preserved), receipts + polling with "uncertain" on lost outcomes, `couch --resume`/`--reboot --confirm`, skill recovery section, end-to-end report → resume → report acceptance.
 
 ## Log
@@ -147,6 +147,7 @@ Gaps against the Revisions' assumptions:
 Scope decisions requested from the operator before the durable plan.
 
 ### 2026-10-04 — operator decisions on the plan's resolved ambiguities
+- 2026-10-04: closed M1 — M1 read-only couch --recover-plan-from-sdlc; review rounds 1-3 fixed. BR-14 fixed by rule: per-member evidence model, every judgment reads its own member's facts, union only for the evidence list; domain property test (1.55M points) proves dependency-only changes never alter host judgments; re-merge mutation fails 5 fixtures incl. the 3 reproduced shapes (code preceded tests here; mutations are the red evidence); lesson added. couchcore/couchtty/couchcmd green, -race green, artifactpath 33 pre-existing; earlier full recipe: go test ./... only 2 pre-existing failures, make -k only test-changelog + flaky embedded-runtime cleanup; terminal-status restatement deferred (logged); actual = sdlc actual (first milestone); --no-project: project tracks pair#367 at issue granularity; review verdict: SHIP
 
 - Confirmed: report scope = fleets of Couch-enrolled repositories, same result
   from any slot; JSON only (the agent explains it); repeats refused harmlessly
