@@ -74,6 +74,7 @@ var couchcoreDeadSymbolAllowlist = map[string]string{
 	"AllEvidenceQualities":  "a SlotEvidence dimension; the recover-plan totality domain is derived from it",
 	"AllEvidenceGitSources": "a SlotEvidence dimension; the recover-plan totality domain is derived from it",
 	"AllEvidenceTriStates":  "a SlotEvidence dimension; the recover-plan totality domain is derived from it",
+	"AllEvidenceDepClaims":  "a SlotEvidence dimension; the recover-plan totality domain is derived from it",
 
 	// Genuinely unreferenced, and NOT dispositioned here. Deleting each means
 	// deleting its tests, which is a judgement call per symbol rather than part

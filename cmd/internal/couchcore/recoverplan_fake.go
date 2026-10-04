@@ -216,6 +216,17 @@ func (fl *FakeFleet) SetBranch(address, branch string) {
 	}
 }
 
+// SetMemberBranch checks out branch on any present checkout of the fleet
+// (a dependency member), with the same issue rule as SetBranch.
+func (fl *FakeFleet) SetMemberBranch(path, branch string) {
+	defer fl.lock()()
+	m := fl.member(path)
+	m.branch, m.detached, m.issueStatus = branch, false, ""
+	if fakeIssueBranch.MatchString(branch) {
+		m.issueStatus = "working"
+	}
+}
+
 // SetDetached detaches the host's HEAD.
 func (fl *FakeFleet) SetDetached(address string) {
 	defer fl.lock()()

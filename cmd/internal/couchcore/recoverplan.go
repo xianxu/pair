@@ -157,11 +157,22 @@ type RecoverThreadRef struct {
 	Reason    string `json:"reason,omitempty"`
 }
 
+// RecoverClaims are the host's claims (Active/Inactive, against the host's
+// branch) and the dependency members' claims, each against its own member.
 type RecoverClaims struct {
-	Quality  string   `json:"quality"`
-	Error    string   `json:"error,omitempty"`
-	Active   string   `json:"active,omitempty"`
-	Inactive []string `json:"inactive,omitempty"`
+	Quality    string               `json:"quality"`
+	Error      string               `json:"error,omitempty"`
+	Active     string               `json:"active,omitempty"`
+	Inactive   []string             `json:"inactive,omitempty"`
+	Dependency []RecoverMemberClaim `json:"dependency,omitempty"`
+}
+
+// RecoverMemberClaim is one dependency claim: the checkout holding it and how
+// that checkout's own branch relates to it (active, resting, other, unknown).
+type RecoverMemberClaim struct {
+	Ref      string `json:"ref"`
+	Checkout string `json:"checkout"`
+	State    string `json:"state"`
 }
 
 // RecoverNext is the suggestion. Hold and Notes are closed vocabularies
@@ -181,10 +192,12 @@ type RecoverStep struct {
 	Message string `json:"message,omitempty"`
 }
 
-// RestoreWorkspaceMessage is the one text a slot's own agent receives when its
-// claim sits on the slot's resting branch.
-func RestoreWorkspaceMessage(ref, address string) string {
-	return "Recovery (" + address + "): restore the workspace of this slot for " + ref +
+// RestoreWorkspaceMessage is the one text a slot's own agent receives when a
+// claim sits on its checkout's resting branch. checkout names the member that
+// holds the claim (the host repository or a dependency), so the agent restores
+// the right repository.
+func RestoreWorkspaceMessage(ref, address, checkout string) string {
+	return "Recovery (" + address + "): restore this slot's " + checkout + " checkout for " + ref +
 		" through sdlc (check out its issue branch); never discard files. Reply with what sdlc issue show reports."
 }
 
@@ -251,7 +264,7 @@ func AllRecoverHolds() []RecoverHold {
 }
 
 // Conflict facts, in the order a conflict hold lists them.
-var recoverConflictFacts = []string{"claim-elsewhere", "issue-terminal", "claim-workspace", "claim-off-branch", "claim-branch-mismatch"}
+var recoverConflictFacts = []string{"claim-elsewhere", "issue-terminal", "claim-workspace", "claim-off-branch", "claim-branch-mismatch", "dependency-claim"}
 
 // RecoverNote qualifies a row without holding it.
 type RecoverNote string
@@ -270,12 +283,15 @@ const (
 	NoteGitLocalProbe           RecoverNote = "git-local-probe"
 	NoteGitUnknown              RecoverNote = "git-unknown"
 	NoteIssueDoneBranch         RecoverNote = "issue-done-branch"
+	// NoteClaimMemberUnread: a claim sits on a checkout whose branch could not
+	// be read (a missing or unread dependency); it is evidence, not absence.
+	NoteClaimMemberUnread RecoverNote = "claim-member-unread"
 )
 
 func AllRecoverNotes() []RecoverNote {
 	return []RecoverNote{NoteInactiveClaims, NoteDetachedHead, NoteRestingBranchDirty, NoteInspectUncommittedFirst,
 		NoteClaimRepair, NoteClaimsStale, NoteClaimsPartial, NoteClaimsUnknown, NoteClaimsAbsent, NoteClaimsUnsupported,
-		NoteGitLocalProbe, NoteGitUnknown, NoteIssueDoneBranch}
+		NoteGitLocalProbe, NoteGitUnknown, NoteIssueDoneBranch, NoteClaimMemberUnread}
 }
 
 // SlotEvidence dimensions. Every dimension is closed; unknown is a value.
@@ -289,6 +305,7 @@ type (
 	EvidenceClaims    string
 	EvidenceQuality   string
 	EvidenceGitSource string
+	EvidenceDepClaims string
 	TriState          string
 )
 
@@ -340,6 +357,14 @@ const (
 	GitSourceLocalProbe EvidenceGitSource = "local-probe"
 	GitSourceUnknown    EvidenceGitSource = "unknown"
 
+	// DepClaims: the dependency members' claims, each judged against its own
+	// member's branch (pair#367 BR-4), never the host's.
+	DepNone     EvidenceDepClaims = "none"
+	DepActive   EvidenceDepClaims = "active"   // every one on its own issue branch
+	DepResting  EvidenceDepClaims = "resting"  // exactly one not active, its member resting
+	DepConflict EvidenceDepClaims = "conflict" // one on another branch or detached, or several resting
+	DepUnknown  EvidenceDepClaims = "unknown"  // a claim whose member's branch is unread or gone
+
 	TriYes     TriState = "yes"
 	TriNo      TriState = "no"
 	TriUnknown TriState = "unknown"
@@ -369,6 +394,9 @@ func AllEvidenceGitSources() []EvidenceGitSource {
 	return []EvidenceGitSource{GitSourceSDLC, GitSourceLocalProbe, GitSourceUnknown}
 }
 func AllEvidenceTriStates() []TriState { return []TriState{TriYes, TriNo, TriUnknown} }
+func AllEvidenceDepClaims() []EvidenceDepClaims {
+	return []EvidenceDepClaims{DepNone, DepActive, DepResting, DepConflict, DepUnknown}
+}
 
 func (o EvidenceOffer) actions() []string {
 	switch o {
@@ -393,13 +421,15 @@ func offerOf(actions []string) EvidenceOffer {
 // SlotEvidence is one slot's facts over closed dimensions: the whole input of
 // classifyRecover.
 type SlotEvidence struct {
-	Dir       EvidenceDir
-	Couch     EvidenceCouch
-	Agent     EvidenceAgent
-	Threads   EvidenceThreads
-	Offer     EvidenceOffer
-	Branch    EvidenceBranch
+	Dir     EvidenceDir
+	Couch   EvidenceCouch
+	Agent   EvidenceAgent
+	Threads EvidenceThreads
+	Offer   EvidenceOffer
+	Branch  EvidenceBranch
+	// Claims are the host's claims, judged against the host's branch.
 	Claims    EvidenceClaims
+	DepClaims EvidenceDepClaims
 	Quality   EvidenceQuality
 	GitSource EvidenceGitSource
 	Dirty     TriState
@@ -428,6 +458,8 @@ type recoverDecision struct {
 // rule decides the class; steps come only from rule A over ActorActions' offer.
 func classifyRecover(e SlotEvidence) recoverDecision {
 	claims := e.Claims != ClaimsNone
+	// work: any claim in the slot, the host's or a dependency's.
+	work := claims || e.DepClaims != DepNone
 	read := e.Quality == QualityPresent || e.Quality == QualityStale
 	var d recoverDecision
 	switch {
@@ -448,13 +480,13 @@ func classifyRecover(e SlotEvidence) recoverDecision {
 		}
 	case e.Claims == ClaimsManyWithoutActive:
 		d = recoverDecision{Class: RecoverAmbiguousClaims, Hold: []string{string(HoldAmbiguousClaims)}}
-	case !claims && e.Branch == BranchTerminalIssue && e.Dirty == TriNo && e.Unlanded == TriNo && e.Operation == TriNo:
+	case !work && e.Branch == BranchTerminalIssue && e.Dirty == TriNo && e.Unlanded == TriNo && e.Operation == TriNo:
 		d = recoverDecision{Class: RecoverLanded, Notes: []RecoverNote{NoteIssueDoneBranch}}
-	case !claims && e.Branch != BranchOpenIssue && e.gitUnknown():
+	case !work && e.Branch != BranchOpenIssue && e.gitUnknown():
 		d = recoverDecision{Class: RecoverEvidenceUnavailable, Hold: []string{string(HoldGitUnknown)}}
-	case !claims && e.Branch == BranchResting && e.Dirty == TriNo && e.Unlanded == TriNo && e.Operation == TriNo:
+	case !work && e.Branch == BranchResting && e.Dirty == TriNo && e.Unlanded == TriNo && e.Operation == TriNo:
 		d = recoverDecision{Class: RecoverIdle}
-	case !claims && e.Branch != BranchOpenIssue:
+	case !work && e.Branch != BranchOpenIssue:
 		// resting with work, another branch or a detached HEAD
 		d = recoverDecision{Class: RecoverUnidentifiedWork, Hold: []string{string(HoldUnidentifiedWork)}}
 	case e.Agent == AgentNone:
@@ -462,7 +494,7 @@ func classifyRecover(e SlotEvidence) recoverDecision {
 	case e.Claims == ClaimsOneInactive && e.Branch == BranchResting:
 		d = restoreWorkspaceDecision(e)
 	case e.Claims == ClaimsOneActive || e.Claims == ClaimsManyWithActive || e.Claims == ClaimsOneInactive && e.Branch == BranchDetached:
-		var notes []RecoverNote
+		notes := depNotes(e)
 		if e.Claims == ClaimsManyWithActive {
 			notes = append(notes, NoteInactiveClaims)
 		}
@@ -474,9 +506,9 @@ func classifyRecover(e SlotEvidence) recoverDecision {
 		}
 		d = withRuleA(RecoverAgrees, e, false, notes)
 	case e.Branch == BranchOpenIssue && !claims && read && e.GitSource == GitSourceSDLC && !e.gitUnknown():
-		d = withRuleA(RecoverClaimLikelyLost, e, false, []RecoverNote{NoteClaimRepair})
+		d = withRuleA(RecoverClaimLikelyLost, e, false, append(depNotes(e), NoteClaimRepair))
 	case e.Branch == BranchOpenIssue || claims && e.Branch == BranchUnknown:
-		var notes []RecoverNote
+		notes := depNotes(e)
 		switch e.Quality {
 		case QualityPartial:
 			notes = append(notes, NoteClaimsPartial)
@@ -494,6 +526,11 @@ func classifyRecover(e SlotEvidence) recoverDecision {
 			notes = append(notes, NoteGitUnknown)
 		}
 		d = withRuleA(RecoverPartialEvidence, e, true, notes)
+	case e.DepClaims != DepNone:
+		// Only dependency claims, the host off any issue branch: each claim was
+		// judged against its own member, so the host's branch decides only
+		// whether the host itself is clean and at rest.
+		d = dependencyClaimDecision(e)
 	default:
 		d = recoverDecision{Class: RecoverNoRule, Hold: []string{string(HoldNoRule)}}
 	}
@@ -513,6 +550,7 @@ func conflictFacts(e SlotEvidence, claims, read bool) []string {
 		"claim-workspace":       e.Workspace,
 		"claim-off-branch":      claims && e.Branch == BranchOther,
 		"claim-branch-mismatch": claims && e.Branch == BranchOpenIssue && (e.Claims == ClaimsOneInactive || e.Claims == ClaimsManyWithoutActive) && read,
+		"dependency-claim":      e.DepClaims == DepConflict,
 	}
 	var facts []string
 	for _, fact := range recoverConflictFacts {
@@ -521,6 +559,39 @@ func conflictFacts(e SlotEvidence, claims, read bool) []string {
 		}
 	}
 	return facts
+}
+
+// depNotes qualifies a host-decided row by its dependency claims: one resting
+// on its member's resting branch is listed as inactive (no step of its own);
+// one whose member is unread is named as such.
+func depNotes(e SlotEvidence) []RecoverNote {
+	switch e.DepClaims {
+	case DepResting:
+		return []RecoverNote{NoteInactiveClaims}
+	case DepUnknown:
+		return []RecoverNote{NoteClaimMemberUnread}
+	}
+	return nil
+}
+
+// dependencyClaimDecision classifies a slot whose only claims are its
+// dependencies', with the host not on an issue branch.
+func dependencyClaimDecision(e SlotEvidence) recoverDecision {
+	switch {
+	case e.Branch == BranchResting && e.Unlanded == TriNo && e.Operation == TriNo && e.Dirty != TriUnknown:
+		switch e.DepClaims {
+		case DepActive:
+			return withRuleA(RecoverAgrees, e, false, nil)
+		case DepResting:
+			return restoreWorkspaceDecision(e)
+		}
+		return withRuleA(RecoverPartialEvidence, e, true, []RecoverNote{NoteClaimMemberUnread})
+	case e.gitUnknown():
+		return withRuleA(RecoverPartialEvidence, e, true, append(depNotes(e), NoteGitUnknown))
+	}
+	// The host carries work of its own (another branch, a detached HEAD,
+	// unlanded commits or an operation) that no claim names.
+	return recoverDecision{Class: RecoverUnidentifiedWork, Hold: []string{string(HoldUnidentifiedWork)}}
 }
 
 // restoreWorkspaceDecision: one claim on the resting branch. The slot's agent
@@ -597,7 +668,8 @@ type recoverSlot struct {
 var issueBranchPattern = regexp.MustCompile(`^([0-9]{6})-`)
 
 // issueTerminalStatuses mirrors ariadne's issue vocabulary terminal set
-// (construct/vocabulary/issue.cue).
+// (construct/vocabulary/issue.cue). Deferred (#367 M1 review): sdlc should
+// emit terminality on FleetIssue so Couch stops restating it.
 var issueTerminalStatuses = []string{"done", "wontfix", "punt"}
 
 // DeriveRecoverPlan joins the fleet and Couch observations into one row per
@@ -751,6 +823,9 @@ type slotFacts struct {
 	claims      RecoverClaims
 	work        []string
 	threadCount int
+	// restoreRef/restoreCheckout name the claim ask-agent-restore asks about
+	// and the checkout holding it.
+	restoreRef, restoreCheckout string
 }
 
 // slotEvidenceOf reads one slot's sources into closed evidence (pure).
@@ -779,7 +854,8 @@ func slotEvidenceOf(s *recoverSlot, in RecoverPlanInput) slotFacts {
 	e.GitSource, e.Branch, e.Dirty, e.Unlanded, e.Operation = GitSourceUnknown, BranchUnknown, TriUnknown, TriUnknown, TriUnknown
 	resting := RestingBranch(s.number)
 	activeRef := ""
-	var claimRefs []string
+	var claimRefs []string // the host's
+	var depClaims []RecoverMemberClaim
 	var hostClaims []FleetClaim
 	e.Quality = QualityUnknown
 	claimsError := ""
@@ -800,7 +876,11 @@ func slotEvidenceOf(s *recoverSlot, in RecoverPlanInput) slotFacts {
 			dirty, unlanded, operation = append(dirty, md), append(unlanded, mu), append(operation, mo)
 			if read {
 				for _, c := range row.Claims {
-					claimRefs = append(claimRefs, c.Ref)
+					if i == 0 {
+						claimRefs = append(claimRefs, c.Ref)
+					} else {
+						depClaims = append(depClaims, judgeMemberClaim(c.Ref, m, row))
+					}
 				}
 				q := qualityOf(row.ClaimsState)
 				if i == 0 || qualityRank(q) > qualityRank(e.Quality) {
@@ -852,9 +932,16 @@ func slotEvidenceOf(s *recoverSlot, in RecoverPlanInput) slotFacts {
 		}
 	case len(s.dangling) > 0:
 		e.Quality = QualityPresent
-		for _, c := range s.dangling {
+	}
+	// Dangling claims (their checkout is no inventory row) always count toward
+	// their slot, present or not: on the host path a host claim, otherwise a
+	// dependency claim whose member's branch is unread (pair#367 BR-5).
+	for _, c := range s.dangling {
+		if filepath.Clean(c.Claimant.Worktree) == s.path {
 			claimRefs = append(claimRefs, c.Ref)
+			continue
 		}
+		depClaims = append(depClaims, RecoverMemberClaim{Ref: c.Ref, Checkout: filepath.Base(c.Claimant.Worktree), State: memberClaimUnknown})
 	}
 	f.git.Source, f.git.State = string(e.GitSource), string(e.Branch)
 	f.git.Dirty, f.git.Unlanded, f.git.Operation = string(e.Dirty), string(e.Unlanded), string(e.Operation)
@@ -874,12 +961,23 @@ func slotEvidenceOf(s *recoverSlot, in RecoverPlanInput) slotFacts {
 	default:
 		e.Claims = ClaimsManyWithoutActive
 	}
-	f.claims = RecoverClaims{Quality: string(e.Quality), Error: claimsError}
+	f.claims = RecoverClaims{Quality: string(e.Quality), Error: claimsError, Dependency: depClaims}
 	for _, ref := range claimRefs {
 		if active && ref == activeRef {
 			f.claims.Active = ref
 		} else {
 			f.claims.Inactive = append(f.claims.Inactive, ref)
+		}
+	}
+	e.DepClaims = foldMemberClaims(depClaims)
+	switch {
+	case e.Claims == ClaimsOneInactive:
+		f.restoreRef, f.restoreCheckout = f.claims.Inactive[0], filepath.Base(s.path)
+	case e.DepClaims == DepResting:
+		for _, c := range depClaims {
+			if c.State == memberClaimResting {
+				f.restoreRef, f.restoreCheckout = c.Ref, c.Checkout
+			}
 		}
 	}
 	for _, c := range hostClaims {
@@ -923,7 +1021,7 @@ func slotEvidenceOf(s *recoverSlot, in RecoverPlanInput) slotFacts {
 	f.agent.Threads = len(s.threads)
 
 	// The union of work evidence.
-	if len(claimRefs) > 0 {
+	if len(claimRefs) > 0 || len(depClaims) > 0 {
 		f.work = append(f.work, "claim")
 	}
 	if e.Branch == BranchOpenIssue {
@@ -945,6 +1043,59 @@ func slotEvidenceOf(s *recoverSlot, in RecoverPlanInput) slotFacts {
 		}
 	}
 	return f
+}
+
+// Member-claim states: a dependency claim judged against its own member.
+const (
+	memberClaimActive  = "active"  // the member is on the claim's issue branch
+	memberClaimResting = "resting" // the member rests on its resting branch
+	memberClaimOther   = "other"   // another branch, or a detached HEAD
+	memberClaimUnknown = "unknown" // the member's branch is unread or gone
+)
+
+// judgeMemberClaim judges one claim against the branch of the member it sits
+// on (pair#367 BR-4): never against the host's.
+func judgeMemberClaim(ref string, m FleetMember, row FleetRow) RecoverMemberClaim {
+	c := RecoverMemberClaim{Ref: ref, Checkout: filepath.Base(m.Path)}
+	state, issueRef, _, _ := sdlcBranch(m, row, filepath.Base(m.Path))
+	switch {
+	case issueRef != "" && issueRef == ref && state != BranchUnknown:
+		c.State = memberClaimActive
+	case state == BranchResting:
+		c.State = memberClaimResting
+	case state == BranchUnknown || !knownFleetVerdicts[m.Verdict]:
+		c.State = memberClaimUnknown
+	default:
+		c.State = memberClaimOther
+	}
+	return c
+}
+
+// foldMemberClaims reduces the dependency claims to the evidence dimension.
+func foldMemberClaims(claims []RecoverMemberClaim) EvidenceDepClaims {
+	if len(claims) == 0 {
+		return DepNone
+	}
+	resting, unknown := 0, false
+	for _, c := range claims {
+		switch c.State {
+		case memberClaimOther:
+			return DepConflict
+		case memberClaimResting:
+			resting++
+		case memberClaimUnknown:
+			unknown = true
+		}
+	}
+	switch {
+	case resting > 1:
+		return DepConflict
+	case unknown:
+		return DepUnknown
+	case resting == 1:
+		return DepResting
+	}
+	return DepActive
 }
 
 // memberGit reads one present member's dirt, unlanded commits and operation.
@@ -1125,7 +1276,7 @@ func recoverRowOf(s *recoverSlot, in RecoverPlanInput) RecoverRow {
 	for _, action := range d.Steps {
 		step := RecoverStep{Action: action}
 		if action == "ask-agent-restore" {
-			step.Message = RestoreWorkspaceMessage(f.claims.Inactive[0], s.address)
+			step.Message = RestoreWorkspaceMessage(f.restoreRef, s.address, f.restoreCheckout)
 		}
 		row.Next.Steps = append(row.Next.Steps, step)
 	}
@@ -1165,7 +1316,7 @@ func recoverReason(row RecoverRow, in RecoverPlanInput) string {
 	case RecoverNoCouchThread:
 		text = "work evidence but no Couch thread stands for this slot"
 	case RecoverRestoreWorkspace:
-		text = "claimed " + strings.Join(row.Claims.Inactive, ", ") + " on the resting branch"
+		text = "a claim sits on a resting branch; ask the slot's agent to restore it"
 		if slices.Contains(row.Next.Notes, string(NoteRestingBranchDirty)) {
 			text += "; no restore request: switching branches with uncommitted files can fail or carry the edits across"
 		}
