@@ -196,3 +196,8 @@ Reason: operator design session after pair#363 landed. Delta:
   resting branch, `weave refresh`, fresh agent) moves to step 4 / pair#362, and
   so does Couch-owned workspace shaping.
 - Naming (operator, 2026-10-03): the report is `couch --recover-plan-from-sdlc`.
+- Couch runs `sdlc fleet inventory --json` itself, through its existing
+  sdlc/weave shell-out seam (`ProvisionIO`, timeouts, fakes), so the plan is never
+  built from stale or partial piped input. "from-sdlc" in the flag names that
+  coupling explicitly: the report consumes sdlc's versioned fleet contract
+  (schema_version 1) and must refuse any other version.
