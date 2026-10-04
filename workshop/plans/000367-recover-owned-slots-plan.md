@@ -908,3 +908,7 @@ only append). Delta:
   `dependency-claim`; candidate layout errors go on the fleet observation's error; only `fs.ErrNotExist` is missing.
 - **M1 review round 2:** the host counts as at rest on its resting branch or on a clean done-issue branch
   (`hostAtRest`), wherever idle, landed or a dependency claim is decided; row text derives from the row's decision.
+- **M1 review round 3 (BR-14):** the evidence model is per member. Host dimensions are the host's own facts;
+  each dependency is judged on its own facts into `DepClaims` (none, active, resting, resting-dirty, conflict,
+  work, unknown) plus `DepOperation` (rule A's reboot guard only). The union across members is display-only.
+  `claim-member-unread` became `dependency-unread`; new note `dependency-work`.

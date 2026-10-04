@@ -307,6 +307,34 @@ M1 review round 2 (4337e9a4 code, 7ce9b0a2 docs):
   dependency claim notes `inactive-claims`. Red first; mutation (drop the
   notes) fails the fixture.
 
+M1 review round 3 (a44adc9b): BR-14, a repeat of the
+claim-judged-against-wrong-member family. `hostAtRest` and
+`conflict:issue-terminal` read git facts merged across the slot's checkouts.
+I fixed the rule, not the site: the evidence model is per member.
+- Host dimensions (branch, dirt, unlanded, operation, claims, claim quality)
+  are the host's own. Each dependency is judged by `judgeDependency` on its
+  own facts and folded into `DepClaims` (adds `resting-dirty` and `work`)
+  plus `DepOperation`. `DepOperation` is a slot-level fact that only rule A's
+  reboot guard reads.
+- The cross-member union is built only for the row's evidence list.
+- Vocabulary: note `claim-member-unread` is renamed `dependency-unread`,
+  since it now also covers unclaimed unread members; new note
+  `dependency-work`. A dependency restore's dirt is the holding checkout's own.
+- Fake: member-level `SetMemberDirty`, `SetMemberAhead`,
+  `SetMemberOperation`. Fixtures for the four reproduced shapes, plus
+  unclaimed dependency dirt, a claimed host beside dependency work, and a
+  dirty dependency restore.
+- Property: `TestHostJudgmentsReadOnlyHostFacts` runs over the whole derived
+  domain (1,554,640 points, about 5 s; the totality test takes another 5 s).
+  Changing only dependency facts never moves `hostAtRest`, the
+  issue-terminal fact, or a host-only idle/landed answer. Host claim quality
+  is again host-only, so unread host quality with host claims is again
+  excluded from the domain (a reversal of the round-1 BR-9 note).
+- Red and mutations: re-merging the facts in the producer (the pre-fix
+  behaviour) fails five fixtures; letting `hostAtRest` read a dependency fact
+  fails the property and the totality test.
+- The rule is added to lessons.md.
+
 ## Revisions
 
 ### 2026-10-01 — recovery shape settled in operator discussion
