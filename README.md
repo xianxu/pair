@@ -402,7 +402,9 @@ state, the union of work evidence, a `class` (`agrees`, `restore-workspace`,
 `claim-likely-lost`, `partial-evidence`, `conflict`, `landed`, `idle`, `unidentified-work`,
 `directory-missing`, ...), and `next`: steps named by action (`resume`, `reboot`,
 `ask-agent-restore`) drawn from the switcher's own admission table, or a `hold`
-that says why there is none. Unknown is never absence: a failed sdlc run, an older
+that says why there is none. Each claim is judged against the checkout that holds
+it: a dependency checkout's claims appear under `claims.dependency`, and a restore
+request names that checkout. Unknown is never absence: a failed sdlc run, an older
 sdlc, a partial claim read or an unreadable git state is shown as such and degrades
 only the rows it touches. The report creates nothing; it only writes stdout. Its
 one side effect is sdlc's own tracker fetch, which updates remote-tracking refs.

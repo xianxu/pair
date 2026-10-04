@@ -327,6 +327,20 @@ and never touches the console. Flow:
    first-match rule table; steps come only from rule A over
    `ActorActions(ActorRowFactsOf(row))` plus the literal `ask-agent-restore`
    (`RestoreWorkspaceMessage`). `recoverReason` authors every row's text.
+   Claims are judged against the member that holds them (M1 review BR-4/5):
+   the host's claims against the host's branch (`Claims`), each dependency
+   member's claims against that member's own branch (`judgeMemberClaim`:
+   active, resting, other, unknown), folded by `foldMemberClaims` into the
+   `DepClaims` dimension. A dependency claim on another branch is
+   `conflict:dependency-claim`; one whose member is unread or gone (a dangling
+   claim on a missing dependency) is note `claim-member-unread`, never absence;
+   one beside a host-decided row is listed as `inactive-claims`. The JSON row
+   shows them under `claims.dependency` (`ref`, `checkout`, `state`), and
+   `RestoreWorkspaceMessage(ref, address, checkout)` names the checkout that
+   holds the claim. `hostAtRest` (resting or landed branch, nothing unlanded,
+   no operation) is the one reading of an idle host, shared by `idle`,
+   `landed` and the dependency-claim decision; `recoverReason` derives each
+   row's text from that row's own steps and notes.
    A clean, unclaimed slot on a done issue's branch is `landed` (note
    `issue-done-branch`, no step), not a conflict; `conflict:issue-terminal`
    needs dirt, unlanded commits, an operation or a claim on that branch.
