@@ -36,7 +36,7 @@ At the operator’s request resume assigned local work in its existing slot (e.g
 (Rewritten 2026-10-03; see the Revision of that date. The original bullets are
 superseded.)
 
-- A read-only Couch report (`couch --slots --json`, name TBD) reconstructs, after
+- A read-only Couch report (`couch --recover-plan-from-sdlc`, JSON output) reconstructs, after
   a restart, one row per slot and per claimed-not-done issue of this machine,
   joining `sdlc fleet inventory` (claims, dangling claims, slot verdicts) with
   Couch's slot and thread state; each row carries git state, disk state, agent
@@ -195,3 +195,4 @@ Reason: operator design session after pair#363 landed. Delta:
 - **Removed from scope:** preparing N ready slots for new work (archive,
   resting branch, `weave refresh`, fresh agent) moves to step 4 / pair#362, and
   so does Couch-owned workspace shaping.
+- Naming (operator, 2026-10-03): the report is `couch --recover-plan-from-sdlc`.
