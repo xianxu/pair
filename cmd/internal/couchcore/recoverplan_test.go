@@ -255,6 +255,24 @@ func recoverPlanCases() []recoverPlanCase {
 				p.fleet.ClaimAt(dep, "ariadne#000290", "")
 				p.thread("pair:1", ThreadParked, "")
 			}},
+		// Round 2: a landed host is at rest for a dependency claim too.
+		{name: "landed host beside an active dependency claim", address: "pair:1", want: RecoverAgrees, steps: []string{"resume"}, notes: []string{"issue-done-branch"},
+			setup: func(p *planFixture) {
+				p.fleet.AddSlot("pair:1")
+				p.fleet.SetBranch("pair:1", "000016-x")
+				p.fleet.SetIssueStatus("pair:1", "done")
+				dep := p.fleet.AddDependency("pair:1", "ariadne")
+				p.fleet.SetMemberBranch(dep, "000290-y")
+				p.fleet.ClaimAt(dep, "ariadne#000290", "")
+				p.thread("pair:1", ThreadParked, "")
+			}},
+		{name: "host and dependency claims both resting", address: "pair:1", want: RecoverRestoreWorkspace, steps: []string{"resume", "ask-agent-restore"}, notes: []string{"inactive-claims"}, restore: [2]string{"pair#000014", "pair"},
+			setup: func(p *planFixture) {
+				p.fleet.AddSlot("pair:1")
+				p.fleet.Claim("pair:1", "pair#000014")
+				p.fleet.ClaimAt(p.fleet.AddDependency("pair:1", "ariadne"), "ariadne#000290", "")
+				p.thread("pair:1", ThreadParked, "")
+			}},
 		{name: "lost host claim beside a dependency claim", address: "pair:1", want: RecoverClaimLikelyLost, steps: []string{"resume"}, notes: []string{"inactive-claims", "claim-repair"},
 			setup: func(p *planFixture) {
 				p.fleet.AddSlot("pair:1")
@@ -393,9 +411,7 @@ func TestDeriveRecoverPlanCoversEveryClassHoldAndNote(t *testing.T) {
 			if row.Automatic != (len(row.Next.Steps) > 0 && len(row.Next.Hold) == 0) {
 				t.Fatalf("automatic = %v with steps %v hold %v", row.Automatic, row.Next.Steps, row.Next.Hold)
 			}
-			if row.Reason == "" {
-				t.Fatal("row has no reason")
-			}
+			assertReasonMatchesDecision(t, row)
 			for _, step := range row.Next.Steps {
 				if step.Command != "" {
 					t.Fatalf("M1 step carries command text %q", step.Command)
@@ -516,7 +532,7 @@ func TestDeriveRecoverPlanIsTotalOverTheEvidenceDomain(t *testing.T) {
 		if d.Class == RecoverIdle && (e.Dirty != TriNo || e.Unlanded != TriNo || e.Operation != TriNo) {
 			fail("unknown or present work read as idle")
 		}
-		if d.Class == RecoverRestoreWorkspace && !(e.Claims == ClaimsOneInactive && e.Branch == BranchResting || e.Claims == ClaimsNone && e.DepClaims == DepResting && e.Branch == BranchResting) {
+		if d.Class == RecoverRestoreWorkspace && !(e.Claims == ClaimsOneInactive && e.Branch == BranchResting || e.Claims == ClaimsNone && e.DepClaims == DepResting && (e.Branch == BranchResting || e.Branch == BranchTerminalIssue)) {
 			fail("restore-workspace without one claim on its own member's resting branch")
 		}
 		if slices.Contains(d.Hold, "conflict:claim-branch-mismatch") && e.Claims != ClaimsOneInactive && e.Claims != ClaimsManyWithoutActive {
@@ -524,6 +540,12 @@ func TestDeriveRecoverPlanIsTotalOverTheEvidenceDomain(t *testing.T) {
 		}
 		if (d.Class == RecoverIdle || d.Class == RecoverLanded) && e.DepClaims != DepNone {
 			fail("a dependency claim read as nothing to recover")
+		}
+		// A host at rest (resting or landed, nothing unlanded, no operation)
+		// beside dependency claims is never unidentified work (BR-10).
+		if d.Class == RecoverUnidentifiedWork && e.Claims == ClaimsNone && e.DepClaims != DepNone && e.Dirty == TriNo &&
+			(e.Branch == BranchResting || e.Branch == BranchTerminalIssue) && e.Unlanded == TriNo && e.Operation == TriNo {
+			fail("a host at rest beside a dependency claim read as unidentified work")
 		}
 		clean := e.Dirty == TriNo && e.Unlanded == TriNo && e.Operation == TriNo && e.Claims == ClaimsNone
 		if d.Class == RecoverLanded && (!clean || e.Branch != BranchTerminalIssue || len(d.Steps) > 0) {
@@ -712,4 +734,34 @@ func consistent(e SlotEvidence) bool {
 		return false
 	}
 	return true
+}
+
+// assertReasonMatchesDecision checks a row's text against its own decision:
+// the reason may not deny a claim the row holds, offer a restore request the
+// steps lack, or both offer and refuse one; and every dependency claim the
+// row does not act on is named in its notes (round 2 minors).
+func assertReasonMatchesDecision(t *testing.T, row RecoverRow) {
+	t.Helper()
+	if row.Reason == "" {
+		t.Fatal("row has no reason")
+	}
+	asks := slices.ContainsFunc(row.Next.Steps, func(s RecoverStep) bool { return s.Action == "ask-agent-restore" })
+	claimed := row.Claims.Active != "" || len(row.Claims.Inactive) > 0 || len(row.Claims.Dependency) > 0
+	switch {
+	case claimed && strings.Contains(row.Reason, "no claim"):
+		t.Fatalf("reason %q denies the row's claims %+v", row.Reason, row.Claims)
+	case strings.Contains(row.Reason, "ask the slot's agent") != asks:
+		t.Fatalf("reason %q disagrees with the steps %+v", row.Reason, row.Next.Steps)
+	case asks && strings.Contains(row.Reason, "no restore request"):
+		t.Fatalf("reason %q both asks for and refuses a restore", row.Reason)
+	}
+	if len(row.Next.Hold) > 0 {
+		return
+	}
+	for _, c := range row.Claims.Dependency {
+		named := slices.ContainsFunc(row.Next.Steps, func(s RecoverStep) bool { return strings.Contains(s.Message, c.Ref) })
+		if c.State != "active" && !named && !slices.Contains(row.Next.Notes, "inactive-claims") && !slices.Contains(row.Next.Notes, "claim-member-unread") {
+			t.Fatalf("dependency claim %+v is in neither the steps nor the notes: %+v", c, row.Next)
+		}
+	}
 }

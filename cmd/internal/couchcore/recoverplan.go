@@ -480,11 +480,11 @@ func classifyRecover(e SlotEvidence) recoverDecision {
 		}
 	case e.Claims == ClaimsManyWithoutActive:
 		d = recoverDecision{Class: RecoverAmbiguousClaims, Hold: []string{string(HoldAmbiguousClaims)}}
-	case !work && e.Branch == BranchTerminalIssue && e.Dirty == TriNo && e.Unlanded == TriNo && e.Operation == TriNo:
+	case !work && e.Branch == BranchTerminalIssue && hostAtRest(e) && e.Dirty == TriNo:
 		d = recoverDecision{Class: RecoverLanded, Notes: []RecoverNote{NoteIssueDoneBranch}}
 	case !work && e.Branch != BranchOpenIssue && e.gitUnknown():
 		d = recoverDecision{Class: RecoverEvidenceUnavailable, Hold: []string{string(HoldGitUnknown)}}
-	case !work && e.Branch == BranchResting && e.Dirty == TriNo && e.Unlanded == TriNo && e.Operation == TriNo:
+	case !work && e.Branch == BranchResting && hostAtRest(e) && e.Dirty == TriNo:
 		d = recoverDecision{Class: RecoverIdle}
 	case !work && e.Branch != BranchOpenIssue:
 		// resting with work, another branch or a detached HEAD
@@ -492,7 +492,8 @@ func classifyRecover(e SlotEvidence) recoverDecision {
 	case e.Agent == AgentNone:
 		d = recoverDecision{Class: RecoverNoCouchThread, Hold: []string{string(HoldNoCouchThread)}}
 	case e.Claims == ClaimsOneInactive && e.Branch == BranchResting:
-		d = restoreWorkspaceDecision(e)
+		// The host's claim is restored; a dependency claim beside it is noted.
+		d = restoreWorkspaceDecision(e, depNotes(e))
 	case e.Claims == ClaimsOneActive || e.Claims == ClaimsManyWithActive || e.Claims == ClaimsOneInactive && e.Branch == BranchDetached:
 		notes := depNotes(e)
 		if e.Claims == ClaimsManyWithActive {
@@ -561,6 +562,16 @@ func conflictFacts(e SlotEvidence, claims, read bool) []string {
 	return facts
 }
 
+// hostAtRest is the one reading of "the host carries no work of its own": on
+// its resting branch or on a done issue's branch (landed), with nothing
+// unlanded and no operation in progress. Dirt is checked by each caller,
+// because a dependency's dirt folds into the slot's and only some decisions
+// may proceed with it. Rules idle and landed and dependencyClaimDecision all
+// read it (M1 review round 2, BR-10).
+func hostAtRest(e SlotEvidence) bool {
+	return (e.Branch == BranchResting || e.Branch == BranchTerminalIssue) && e.Unlanded == TriNo && e.Operation == TriNo
+}
+
 // depNotes qualifies a host-decided row by its dependency claims: one resting
 // on its member's resting branch is listed as inactive (no step of its own);
 // one whose member is unread is named as such.
@@ -578,14 +589,18 @@ func depNotes(e SlotEvidence) []RecoverNote {
 // dependencies', with the host not on an issue branch.
 func dependencyClaimDecision(e SlotEvidence) recoverDecision {
 	switch {
-	case e.Branch == BranchResting && e.Unlanded == TriNo && e.Operation == TriNo && e.Dirty != TriUnknown:
+	case hostAtRest(e) && e.Dirty != TriUnknown:
+		var landed []RecoverNote
+		if e.Branch == BranchTerminalIssue {
+			landed = []RecoverNote{NoteIssueDoneBranch}
+		}
 		switch e.DepClaims {
 		case DepActive:
-			return withRuleA(RecoverAgrees, e, false, nil)
+			return withRuleA(RecoverAgrees, e, false, landed)
 		case DepResting:
-			return restoreWorkspaceDecision(e)
+			return restoreWorkspaceDecision(e, landed)
 		}
-		return withRuleA(RecoverPartialEvidence, e, true, []RecoverNote{NoteClaimMemberUnread})
+		return withRuleA(RecoverPartialEvidence, e, true, append(landed, NoteClaimMemberUnread))
 	case e.gitUnknown():
 		return withRuleA(RecoverPartialEvidence, e, true, append(depNotes(e), NoteGitUnknown))
 	}
@@ -597,15 +612,17 @@ func dependencyClaimDecision(e SlotEvidence) recoverDecision {
 // restoreWorkspaceDecision: one claim on the resting branch. The slot's agent
 // is asked to restore its issue branch, unless uncommitted (or unread) files
 // could make the switch fail or carry edits across: then resume only.
-func restoreWorkspaceDecision(e SlotEvidence) recoverDecision {
+// extra carries the notes of claims the restore does not ask about, so every
+// claim in the slot shows in the row's steps or notes.
+func restoreWorkspaceDecision(e SlotEvidence, extra []RecoverNote) recoverDecision {
 	if e.Dirty != TriNo {
-		notes := []RecoverNote{NoteRestingBranchDirty}
+		notes := append(extra, NoteRestingBranchDirty)
 		if e.Dirty == TriUnknown {
-			notes = []RecoverNote{NoteGitUnknown}
+			notes = append(extra, NoteGitUnknown)
 		}
 		return withRuleA(RecoverRestoreWorkspace, e, true, notes)
 	}
-	d := withRuleA(RecoverRestoreWorkspace, e, false, nil)
+	d := withRuleA(RecoverRestoreWorkspace, e, false, extra)
 	if d.Class == RecoverRestoreWorkspace {
 		d.Steps = append(d.Steps, "ask-agent-restore")
 	}
@@ -1281,12 +1298,13 @@ func recoverRowOf(s *recoverSlot, in RecoverPlanInput) RecoverRow {
 		row.Next.Steps = append(row.Next.Steps, step)
 	}
 	row.Automatic = len(row.Next.Steps) > 0 && len(row.Next.Hold) == 0
-	row.Reason = recoverReason(row, in)
+	row.Reason = recoverReason(row, f, in)
 	return row
 }
 
 // recoverReason is the one author of every row's reason text.
-func recoverReason(row RecoverRow, in RecoverPlanInput) string {
+func recoverReason(row RecoverRow, f slotFacts, in RecoverPlanInput) string {
+	asks := slices.ContainsFunc(row.Next.Steps, func(s RecoverStep) bool { return s.Action == "ask-agent-restore" })
 	var text string
 	switch row.Class {
 	case RecoverDirectoryMissing:
@@ -1312,13 +1330,21 @@ func recoverReason(row RecoverRow, in RecoverPlanInput) string {
 	case RecoverIdle:
 		text = "clean resting branch with no claim; nothing to recover"
 	case RecoverUnidentifiedWork:
-		text = "work with no claim or issue branch (branch " + orUnknown(row.Git.Branch) + ")"
+		text = "the host carries work no claim or issue branch names (branch " + orUnknown(row.Git.Branch) + ")"
+		if !slices.Contains(f.work, "claim") {
+			text = "work with no claim or issue branch (branch " + orUnknown(row.Git.Branch) + ")"
+		}
 	case RecoverNoCouchThread:
 		text = "work evidence but no Couch thread stands for this slot"
 	case RecoverRestoreWorkspace:
-		text = "a claim sits on a resting branch; ask the slot's agent to restore it"
-		if slices.Contains(row.Next.Notes, string(NoteRestingBranchDirty)) {
+		text = "claimed " + f.restoreRef + " on the " + f.restoreCheckout + " checkout's resting branch"
+		switch {
+		case asks:
+			text += "; ask the slot's agent to restore it"
+		case slices.Contains(row.Next.Notes, string(NoteRestingBranchDirty)):
 			text += "; no restore request: switching branches with uncommitted files can fail or carry the edits across"
+		case slices.Contains(row.Next.Notes, string(NoteGitUnknown)):
+			text += "; no restore request: the working tree could not be read"
 		}
 	case RecoverAgrees:
 		text = "claim and checkout agree"
