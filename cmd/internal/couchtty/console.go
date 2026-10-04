@@ -1786,7 +1786,14 @@ func (c *Console) pendingMouse() MouseHit {
 // finishOperation returns true when the completion requested Console exit.
 func (c *Console) finishOperation(completed operationCompletion) bool {
 	err := completed.err
-	defer func() { c.finishContinuationOperation(completed, err) }()
+	defer func() {
+		c.finishContinuationOperation(completed, err)
+		// A remote job's caller hears the outcome once, after adoption, so an
+		// attach failure is its failure too (pair#367 M2).
+		if completed.remote != nil && completed.remote.finished != nil {
+			completed.remote.finished(completed.value, err)
+		}
+	}()
 	if completed.name == "continuation-status" {
 		return false
 	}
@@ -1840,6 +1847,13 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 		c.traceEvent(traceReattachDone, address, reattachDoneDetail(event.Success, event.Diagnostic))
 	}
 	c.mu.Lock()
+	if remoteResumeCompletion(completed.origin) {
+		// A remote resume clears its row's reattach-failure mark, as the
+		// switcher's resume does at dispatch (pair#206 cell 9).
+		if row, ok := remoteOperationAddress(c.menu, completed.remote); ok {
+			c.menu = clearReattachFailure(c.menu, row)
+		}
+	}
 	if completed.origin.Operation == "switch" {
 		// Success is acknowledged by switchTo, which is the only place that
 		// knows a landing actually happened -- two authorities for one rule is
