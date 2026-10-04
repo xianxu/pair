@@ -34,6 +34,12 @@ func Decode(raw []byte, target any) error {
 	return nil
 }
 
+// RejectDuplicateKeys is Decode's structural check alone: one JSON value with
+// no duplicate object key and nothing trailing. It is for boundary readers of
+// a versioned EXTERNAL contract that must accept additive unknown fields (the
+// sdlc fleet inventory, pair#367) yet refuse an ambiguous document.
+func RejectDuplicateKeys(raw []byte) error { return rejectDuplicateKeys(raw) }
+
 func rejectDuplicateKeys(raw []byte) error {
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	if err := scanValue(dec); err != nil {
