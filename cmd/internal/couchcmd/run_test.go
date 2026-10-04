@@ -797,13 +797,16 @@ func TestPublicHelpListsOnlyPublicSurface(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d", code)
 	}
-	for _, want := range []string{"couch [path]", "couch --list", "couch --show", "couch --recover-plan-from-sdlc", "couch --help"} {
+	for _, want := range []string{"couch [path]", "couch --list", "couch --show", "couch --recover-plan-from-sdlc", "couch --resume repo:N", "couch --reboot repo:N --confirm", "couch --help"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("help omits %q", want)
 		}
 	}
+	// The public --resume flag is allowed; the bare internal names are not,
+	// anywhere else in the text.
+	bare := strings.ReplaceAll(out, "--resume", "")
 	for _, hidden := range []string{"start", "park", "resume", "publish-description", "--internal"} {
-		if strings.Contains(out, hidden) {
+		if strings.Contains(bare, hidden) {
 			t.Errorf("help exposes %q", hidden)
 		}
 	}
