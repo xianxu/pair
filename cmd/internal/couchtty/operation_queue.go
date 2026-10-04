@@ -5,7 +5,7 @@ import (
 	"sync"
 )
 
-var errOperationQueueOverloaded = errors.New("operation queue is full")
+var ErrOperationQueueOverloaded = errors.New("operation queue is full")
 
 type operationRequest struct {
 	key    string
@@ -62,7 +62,7 @@ func (q *operationQueue) Enqueue(request operationRequest) (accepted bool, err e
 		return true, nil
 	default:
 		delete(q.pending, request.key)
-		return false, errOperationQueueOverloaded
+		return false, ErrOperationQueueOverloaded
 	}
 }
 

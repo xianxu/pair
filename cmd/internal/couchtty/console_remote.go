@@ -9,8 +9,8 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 )
 
-// errRemotePending refuses a remote operation whose key is already queued.
-var errRemotePending = errors.New("an operation for this slot is already pending")
+// ErrRemotePending refuses a remote operation whose key is already queued.
+var ErrRemotePending = errors.New("an operation for this slot is already pending")
 
 // remoteOperation is a socket-originated job's completion state: the call its
 // prepare step admitted (written on the queue goroutine before the completion
@@ -29,7 +29,7 @@ type remoteOperation struct {
 // (PreserveFocus), and with Attempt 0 it never touches the operator's
 // InFlight operation.
 //
-// Single outcome owner: when it returns an error (errRemotePending, a full
+// Single outcome owner: when it returns an error (ErrRemotePending, a full
 // queue, no dispatcher) it has not called, and never will call, started or
 // finished; the caller reports that outcome. When it returns nil, started
 // fires once when the job begins and finished exactly once after adoption.
@@ -65,7 +65,7 @@ func (c *Console) EnqueueRemoteOperation(key, op string, prepare func(context.Co
 	case err != nil:
 		return err
 	case !accepted:
-		return errRemotePending
+		return ErrRemotePending
 	}
 	return nil
 }

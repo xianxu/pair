@@ -31,7 +31,7 @@ func TestOperationQueueCoalescesAndRefusesOverloadWithoutEffects(t *testing.T) {
 		effects++
 		return nil, nil
 	}})
-	if accepted || !errors.Is(err, errOperationQueueOverloaded) || effects != 0 {
+	if accepted || !errors.Is(err, ErrOperationQueueOverloaded) || effects != 0 {
 		t.Fatalf("overload = accepted %v err %v effects %d", accepted, err, effects)
 	}
 

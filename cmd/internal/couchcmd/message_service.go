@@ -125,6 +125,9 @@ type messageService struct {
 	connected atomic.Pointer[map[couchmessage.Binding]bool]
 	// after schedules a retry; tests replace it to fire retries on demand.
 	after func(time.Duration, func())
+	// slotOps answers resume, reboot and operation-status (pair#367 M2);
+	// nil answers them unsupported.
+	slotOps *slotOperations
 
 	mu sync.Mutex
 	// workspaces holds each connected binding's verified workspace, for the
@@ -277,7 +280,19 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 		},
 	}
 	panes := couchmessage.NewPaneMailbox()
-	service, err := newMessageService(context.Background(), brokerSocket, registrySocket, authority, panes, console.MessageSlotGit)
+	// Slot operations ride the console's queue; PrepareSlotOperation runs on
+	// it, so admission is judged against the inventory at execution time.
+	slotOps := newSlotOperations(func(key, op, target string, started func(), finished func(any, error)) error {
+		return console.EnqueueRemoteOperation(key, op, func(ctx context.Context) (couchcore.OperationCall, error) {
+			return c.PrepareSlotOperation(ctx, op, target)
+		}, started, finished)
+	}, func(ctx context.Context) ([]couchcore.RepositoryName, error) {
+		if c.Threads == nil {
+			return nil, errors.New("no thread store")
+		}
+		return c.Threads.RepositoryNamesContext(ctx)
+	}, time.Now)
+	service, err := newMessageService(context.Background(), brokerSocket, registrySocket, authority, panes, console.MessageSlotGit, slotOps)
 	if err != nil {
 		return nil, err
 	}
@@ -288,7 +303,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	return service, nil
 }
 
-func newMessageService(parent context.Context, brokerSocket, registrySocket string, authority messageAuthority, panes *couchmessage.PaneMailbox, slotGit func(string) (couchcore.SlotGitStatus, bool)) (*messageService, error) {
+func newMessageService(parent context.Context, brokerSocket, registrySocket string, authority messageAuthority, panes *couchmessage.PaneMailbox, slotGit func(string) (couchcore.SlotGitStatus, bool), slotOps *slotOperations) (*messageService, error) {
 	if authority.thread == nil || authority.workspace == nil || authority.process == nil || authority.wrapperPID == nil || authority.launch == nil || authority.recorded == nil || authority.endpoint == nil || authority.branch == nil || panes == nil || slotGit == nil {
 		return nil, errors.New("message authority is incomplete")
 	}
@@ -303,7 +318,7 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 	lifetime, cancel := context.WithCancel(parent)
 	s := &messageService{cancel: cancel, lifetime: lifetime, authority: authority, panes: panes,
 		inbox: make(chan messageInput), admitting: make(chan struct{}, messageAdmissionWorkers),
-		after:      func(d time.Duration, f func()) { time.AfterFunc(d, f) },
+		after: func(d time.Duration, f func()) { time.AfterFunc(d, f) }, slotOps: slotOps,
 		workspaces: map[couchmessage.Binding]couchcore.WorkspaceIdentity{},
 		prepared:   map[preparedKey]preparedAdmission{}}
 	s.connected.Store(&map[couchmessage.Binding]bool{})
@@ -538,6 +553,10 @@ func (s *messageService) connectedWorkspace(ctx context.Context, b couchmessage.
 }
 
 func (s *messageService) handle(ctx context.Context, request couchmessage.Request) couchmessage.Response {
+	switch request.Op {
+	case "resume", "reboot", "operation-status":
+		return s.handleSlotOperation(ctx, request)
+	}
 	if request.Binding == nil && couchmessage.ValidateRequest(request) == nil {
 		binding, err := s.broker.Caller(request.Scope, request.Tag, request.Session, request.Nonce)
 		// A send acts as this caller, so it proves the caller current; the
@@ -559,6 +578,27 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		}
 	}
 	return couchmessage.Handle(ctx, s.broker, request)
+}
+
+// handleSlotOperation is the caller rule for slot operations, exactly the
+// --send-to rule: the request names a connected, registered binding
+// (broker.Caller) that is still current (authority.current). Any failure is
+// unavailable, and nothing is enqueued.
+func (s *messageService) handleSlotOperation(ctx context.Context, request couchmessage.Request) couchmessage.Response {
+	if err := couchmessage.ValidateRequest(request); err != nil {
+		return couchmessage.Response{Code: "invalid-request", Error: err.Error()}
+	}
+	if s.slotOps == nil {
+		return couchmessage.Response{Code: "unsupported", Error: "this Couch runs no slot operations"}
+	}
+	caller, err := s.broker.Caller(request.Scope, request.Tag, request.Session, request.Nonce)
+	if err == nil {
+		_, err = s.authority.current(ctx, caller)
+	}
+	if err != nil {
+		return couchmessage.Response{Code: "unavailable", Error: err.Error()}
+	}
+	return s.slotOps.handle(ctx, caller, request)
 }
 
 // messageEndpoint repeats the use-time check, so a wrapper the registry no

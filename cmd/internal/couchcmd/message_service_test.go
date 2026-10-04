@@ -166,18 +166,27 @@ type serviceRig struct {
 	mu                  sync.Mutex
 	slotGit             map[string]couchcore.SlotGitStatus
 	retries             []func()
+	// slotOps answers resume/reboot/operation-status; nil = unsupported.
+	slotOps *slotOperations
 }
 
 func newServiceRig(t *testing.T) *serviceRig {
 	t.Helper()
+	r := &serviceRig{t: t, world: newMessageWorld(), slotGit: map[string]couchcore.SlotGitStatus{}}
+	r.init()
+	return r
+}
+
+// init takes fresh sockets and starts the service.
+func (r *serviceRig) init() {
+	r.t.Helper()
 	dir, err := os.MkdirTemp("/tmp", "pair-message-service-")
 	if err != nil {
-		t.Fatal(err)
+		r.t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.RemoveAll(dir) })
-	r := &serviceRig{t: t, world: newMessageWorld(), brokerSock: filepath.Join(dir, "broker.sock"), regSock: filepath.Join(dir, "registry.sock"), slotGit: map[string]couchcore.SlotGitStatus{}}
+	r.t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	r.brokerSock, r.regSock = filepath.Join(dir, "broker.sock"), filepath.Join(dir, "registry.sock")
 	r.start()
-	return r
 }
 
 // restart is a Couch restart: the old service goes, a new one takes the same
@@ -199,7 +208,7 @@ func (r *serviceRig) start() {
 		defer r.mu.Unlock()
 		v, ok := r.slotGit[root]
 		return v, ok
-	})
+	}, r.slotOps)
 	if err != nil {
 		t.Fatal(err)
 	}

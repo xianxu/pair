@@ -67,7 +67,7 @@ func TestParkLatencySmoke(t *testing.T) {
 		t.Fatal("overloaded request executed")
 		return nil, nil
 	}})
-	if accepted || !errors.Is(overloadErr, errOperationQueueOverloaded) {
+	if accepted || !errors.Is(overloadErr, ErrOperationQueueOverloaded) {
 		t.Fatalf("overload = accepted %v, err %v", accepted, overloadErr)
 	}
 	feedbackP95, commitP95, commitMax := nearestRankP95(feedback), nearestRankP95(commits), maxDuration(commits)

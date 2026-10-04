@@ -181,7 +181,7 @@ func TestRemoteEnqueueRefusalsNeverReport(t *testing.T) {
 		if err := r.enqueue("same", "resume", prepared(slotResumeCall())); err != nil {
 			t.Fatal(err)
 		}
-		if err := r.enqueue("same", "resume", prepared(slotResumeCall())); !errors.Is(err, errRemotePending) {
+		if err := r.enqueue("same", "resume", prepared(slotResumeCall())); !errors.Is(err, ErrRemotePending) {
 			t.Fatalf("duplicate key: %v", err)
 		}
 		r.drain(t)
@@ -195,7 +195,7 @@ func TestRemoteEnqueueRefusalsNeverReport(t *testing.T) {
 		if accepted, err := r.c.operationQueue.Enqueue(operationRequest{key: "occupied", run: func() (any, error) { return nil, nil }}); !accepted || err != nil {
 			t.Fatal("cannot fill the queue")
 		}
-		if err := r.enqueue("k", "resume", prepared(slotResumeCall())); !errors.Is(err, errOperationQueueOverloaded) {
+		if err := r.enqueue("k", "resume", prepared(slotResumeCall())); !errors.Is(err, ErrOperationQueueOverloaded) {
 			t.Fatalf("full queue: %v", err)
 		}
 		r.drain(t) // the occupying job
