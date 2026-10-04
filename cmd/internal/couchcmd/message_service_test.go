@@ -77,6 +77,16 @@ func (w *messageWorld) authority() messageAuthority {
 			}
 			return "", errors.New("no pane")
 		},
+		agent: func(ctx context.Context, address couchcore.ThreadAddress) (string, error) {
+			w.mu.Lock()
+			defer w.mu.Unlock()
+			for _, s := range w.slots {
+				if s.binding.Scope == address.RepoScope && s.binding.Tag == string(address.Tag) {
+					return s.binding.Agent, ctx.Err()
+				}
+			}
+			return "", errors.New("no such thread record")
+		},
 		workspace: func(ctx context.Context, root string) (couchcore.WorkspaceIdentity, error) {
 			w.mu.Lock()
 			defer w.mu.Unlock()
@@ -117,7 +127,9 @@ func (w *messageWorld) authority() messageAuthority {
 			w.mu.Lock()
 			defer w.mu.Unlock()
 			w.recordeds++
-			if s := slot(b); s == nil || !s.recorded {
+			// Production compares the ready file's nonce and the session
+			// index's name with the binding's.
+			if s := slot(b); s == nil || !s.recorded || s.binding.Nonce != b.Nonce || s.binding.Session != b.Session {
 				return errors.New("launch record moved on")
 			}
 			return ctx.Err()

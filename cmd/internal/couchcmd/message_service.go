@@ -42,6 +42,10 @@ type messageAuthority struct {
 	// families lists every enrolled message family with its alias ("" when
 	// none); nil means routing sees live bindings only.
 	families func(context.Context) (map[string]string, error)
+	// agent names the agent a thread's record says it launched, so a slot
+	// operation's caller can be checked against that launch's recorded files
+	// without a messaging binding (pair#367).
+	agent func(context.Context, couchcore.ThreadAddress) (string, error)
 }
 
 // live is the full check, run once per admission: a lifecycle event, never a
@@ -220,6 +224,22 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 			return messageFamilies(names), nil
 		},
 		thread: console.MessageBinding, workspace: resolver.ResolveWorkspace,
+		agent: func(ctx context.Context, address couchcore.ThreadAddress) (string, error) {
+			if err := ctx.Err(); err != nil {
+				return "", err
+			}
+			if c.Threads == nil {
+				return "", errors.New("no thread store")
+			}
+			record, err := c.Threads.GetThread(address)
+			if err != nil {
+				return "", err
+			}
+			if record.LatestLaunchProfile == nil || record.LatestLaunchProfile.Agent == "" {
+				return "", errors.New("thread records no launched agent")
+			}
+			return record.LatestLaunchProfile.Agent, nil
+		},
 		process: func(b couchmessage.Binding) error {
 			switch c.Liveness(couchcore.ActorRecord{PID: b.PID, Identity: b.Start}) {
 			case couchcore.Dead:
@@ -309,7 +329,7 @@ func consoleSlotOperations(console *couchtty.Console, c *couchcore.Couch) *slotO
 }
 
 func newMessageService(parent context.Context, brokerSocket, registrySocket string, authority messageAuthority, panes *couchmessage.PaneMailbox, slotGit func(string) (couchcore.SlotGitStatus, bool), slotOps *slotOperations) (*messageService, error) {
-	if authority.thread == nil || authority.workspace == nil || authority.process == nil || authority.wrapperPID == nil || authority.launch == nil || authority.recorded == nil || authority.endpoint == nil || authority.branch == nil || panes == nil || slotGit == nil {
+	if authority.thread == nil || authority.agent == nil || authority.workspace == nil || authority.process == nil || authority.wrapperPID == nil || authority.launch == nil || authority.recorded == nil || authority.endpoint == nil || authority.branch == nil || panes == nil || slotGit == nil {
 		return nil, errors.New("message authority is incomplete")
 	}
 	if err := parent.Err(); err != nil {
@@ -585,11 +605,13 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 	return couchmessage.Handle(ctx, s.broker, request)
 }
 
-// handleSlotOperation is the caller rule for slot operations, exactly the
-// --send-to rule: the request names a connected, registered binding
-// (broker.Caller) that is still current (authority.current). A malformed
-// request (including one with no caller identity) is invalid-request; a caller
-// that fails the rule is unavailable. Nothing is enqueued in either case.
+// handleSlotOperation authenticates a slot operation's caller by Couch's own
+// liveness, not by messaging registration (operator decision, #367 smoke
+// test: a live slot whose wrapper's peer setup failed must still recover
+// others). The thread named by the request's scope and tag must have a live
+// Couch pane (authority.thread), and its recorded launch must name this
+// shell's session and launch nonce (authority.recorded, for the agent its
+// record launched). Any failure refuses with nothing enqueued.
 func (s *messageService) handleSlotOperation(ctx context.Context, request couchmessage.Request) couchmessage.Response {
 	if err := couchmessage.ValidateRequest(request); err != nil {
 		return couchmessage.Response{Code: "invalid-request", Error: err.Error()}
@@ -597,14 +619,29 @@ func (s *messageService) handleSlotOperation(ctx context.Context, request couchm
 	if s.slotOps == nil {
 		return couchmessage.Response{Code: "unsupported", Error: "this Couch runs no slot operations"}
 	}
-	caller, err := s.broker.Caller(request.Scope, request.Tag, request.Session, request.Nonce)
-	if err == nil {
-		_, err = s.authority.current(ctx, caller)
-	}
+	caller, err := s.liveCaller(ctx, request)
 	if err != nil {
-		return couchmessage.Response{Code: "unavailable", Error: err.Error()}
+		return couchmessage.Response{Code: "unavailable", Error: fmt.Sprintf(
+			"caller is not a live Couch slot (thread %s not live, or this shell's session/launch does not match its record): %v", request.Tag, err)}
 	}
 	return s.slotOps.handle(ctx, caller, request)
+}
+
+// liveCaller is the request's identity proved against Couch's records.
+func (s *messageService) liveCaller(ctx context.Context, request couchmessage.Request) (couchmessage.Binding, error) {
+	caller := couchmessage.Binding{Scope: request.Scope, Tag: request.Tag, Session: request.Session, Nonce: request.Nonce}
+	agent, err := s.authority.agent(ctx, couchcore.ThreadAddress{RepoScope: request.Scope, Tag: couchcore.ThreadTag(request.Tag)})
+	if err != nil {
+		return couchmessage.Binding{}, err
+	}
+	caller.Agent = agent
+	if _, err := s.authority.thread(ctx, caller); err != nil {
+		return couchmessage.Binding{}, err
+	}
+	if err := s.authority.recorded(ctx, caller); err != nil {
+		return couchmessage.Binding{}, err
+	}
+	return caller, nil
 }
 
 // messageEndpoint repeats the use-time check, so a wrapper the registry no

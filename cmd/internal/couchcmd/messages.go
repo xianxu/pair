@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
@@ -179,6 +180,10 @@ func runSlotOperationCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer
 		return uncertain(err.Error())
 	case result.Code == "uncertain":
 		return uncertain(result.Error)
+	case result.Code == "invalid-request" && strings.Contains(result.Error, "unknown message operation"):
+		// The running Couch is older than this CLI: it has no slot operations.
+		fmt.Fprintln(stderr, "couch: the running Couch predates `couch --resume`/`--reboot`; restart Couch (switcher Alt+d, then `couch`) to use them")
+		return 1
 	case result.Code != "accepted" || result.Operation == nil:
 		fmt.Fprintf(stderr, "couch: %s: %s\n", result.Code, result.Error)
 		return 1

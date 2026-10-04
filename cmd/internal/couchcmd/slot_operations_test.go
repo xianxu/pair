@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -104,9 +105,12 @@ func statusRequest(b couchmessage.Binding, id string) couchmessage.Request {
 	return r
 }
 
-// TestSlotOperationCallerRule: only a live, registered, current Couch slot may
-// run a slot operation (the --send-to rule), checked server-side before
-// anything is enqueued. One strategy per caller fault.
+// TestSlotOperationCallerRule: only a live Couch slot may run a slot
+// operation, judged by Couch's own records, not by messaging registration
+// (operator decision after the #367 smoke test): the thread named by the
+// request's scope and tag has a live Couch pane, and its recorded launch
+// names this shell's session and launch nonce. One strategy per fault; every
+// refusal enqueues nothing and says the caller is not a live Couch slot.
 func TestSlotOperationCallerRule(t *testing.T) {
 	for _, c := range []struct {
 		name  string
@@ -114,52 +118,71 @@ func TestSlotOperationCallerRule(t *testing.T) {
 		fault func(*serviceRig, couchmessage.Binding) couchmessage.Request
 	}{
 		// Without the identity fields the request is not a caller request at
-		// all: ValidateRequest refuses it before the caller lookup.
+		// all: ValidateRequest refuses it before the caller check.
 		{"no identity", "invalid-request", func(_ *serviceRig, b couchmessage.Binding) couchmessage.Request {
 			return couchmessage.Request{Op: "resume", ID: "id", Target: "pair:1"}
 		}},
-		{"unknown nonce", "unavailable", func(_ *serviceRig, b couchmessage.Binding) couchmessage.Request {
+		{"wrong launch nonce", "unavailable", func(_ *serviceRig, b couchmessage.Binding) couchmessage.Request {
 			r := slotRequest(b, "resume", "id", "pair:1")
 			r.Nonce = "forged"
 			return r
 		}},
-		{"disconnected binding", "unavailable", func(r *serviceRig, b couchmessage.Binding) couchmessage.Request {
-			r.attach(b, "")
-			r.waitConnected(b, false)
+		{"wrong session", "unavailable", func(_ *serviceRig, b couchmessage.Binding) couchmessage.Request {
+			r := slotRequest(b, "resume", "id", "pair:1")
+			r.Session = "another-session"
+			return r
+		}},
+		{"thread not live", "unavailable", func(r *serviceRig, b couchmessage.Binding) couchmessage.Request {
+			r.world.set(b, func(s *worldSlot) { s.live = false })
 			return slotRequest(b, "resume", "id", "pair:1")
 		}},
-		{"binding no longer current", "unavailable", func(r *serviceRig, b couchmessage.Binding) couchmessage.Request {
-			r.world.set(b, func(s *worldSlot) { s.pidFile++ })
+		{"recorded launch moved on", "unavailable", func(r *serviceRig, b couchmessage.Binding) couchmessage.Request {
+			r.world.set(b, func(s *worldSlot) { s.recorded = false })
 			return slotRequest(b, "resume", "id", "pair:1")
 		}},
-		{"ambiguous binding", "unavailable", func(r *serviceRig, b couchmessage.Binding) couchmessage.Request {
-			twin := b
-			twin.Slot, twin.PID = "pair:7", b.PID+1
-			if err := r.s.broker.Register(twin, serviceEndpointFake{}); err != nil {
-				t.Fatal(err)
-			}
-			return slotRequest(b, "resume", "id", "pair:1")
+		{"unknown tag", "unavailable", func(_ *serviceRig, b couchmessage.Binding) couchmessage.Request {
+			r := slotRequest(b, "resume", "id", "pair:1")
+			r.Tag = "no-such-thread"
+			return r
 		}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			r, runner, _ := slotRig(t)
-			b := r.connect(0)
-			if resp := r.s.handle(context.Background(), c.fault(r, b)); resp.Code != c.code || resp.Operation != nil {
+			b := r.world.add(0)
+			resp := r.s.handle(context.Background(), c.fault(r, b))
+			if resp.Code != c.code || resp.Operation != nil {
 				t.Fatalf("response %+v, want %s", resp, c.code)
+			}
+			if c.code == "unavailable" && (!strings.HasPrefix(resp.Error, "caller is not a live Couch slot") || strings.Contains(resp.Error, "recipient")) {
+				t.Fatalf("refusal text %q", resp.Error)
 			}
 			if runner.count() != 0 {
 				t.Fatal("a refused caller enqueued a job")
 			}
 		})
 	}
+}
+
+// A live slot whose wrapper never registered for messaging (its one-shot
+// peer setup failed) is still a live Couch slot and may call (smoke test,
+// pair:0 under codex).
+func TestSlotOperationCallerNeedsNoMessagingRegistration(t *testing.T) {
 	r, runner, _ := slotRig(t)
-	b := r.connect(0)
+	b := r.world.add(0) // live pane and recorded launch, no wrapper session
+	if r.s.isConnected(b) {
+		t.Fatal("fixture registered the caller for messaging")
+	}
 	resp := r.s.handle(context.Background(), slotRequest(b, "resume", "id", "pair:1"))
 	if resp.Code != "accepted" || resp.Operation == nil || resp.Operation.Status != couchmessage.ReceiptQueued || runner.count() != 1 {
-		t.Fatalf("connected caller: %+v, %d jobs", resp, runner.count())
+		t.Fatalf("unregistered live caller: %+v, %d jobs", resp, runner.count())
 	}
 	if job := runner.job(0); job.op != "resume" || job.target != "pair:1" {
 		t.Fatalf("job = %+v", job)
+	}
+	// A connected messaging caller is still a live slot.
+	connected := r.connect(2)
+	if resp := r.s.handle(context.Background(), slotRequest(connected, "resume", "id", "pair:2")); resp.Code != "accepted" {
+		t.Fatalf("connected caller: %+v", resp)
 	}
 }
 
