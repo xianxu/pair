@@ -281,6 +281,32 @@ M1 boundary review (FIX-THEN-SHIP, `000367-recover-owned-slots-m1-review.md`):
   sdlc to emit terminality on `FleetIssue`, a candidate ariadne follow-up; a
   comment at the constant points here.
 
+M1 review round 2 (4337e9a4 code, 7ce9b0a2 docs):
+- BR-10, host-at-rest predicate restated. `hostAtRest` (resting or landed
+  branch, nothing unlanded, no operation) is now the one reading. Rules
+  `idle` and `landed` and `dependencyClaimDecision` read it; a landed host
+  adds note `issue-done-branch`. Red first: the landed host beside an active
+  ariadne claim was `unidentified-work` with a false reason; it is now
+  `agrees [resume]`. The totality domain already crosses a terminal-issue
+  host with every `DepClaims` value; a new invariant pins that a host at rest
+  beside a dependency claim is never unidentified work. Mutation (resting
+  only) fails the fixture and totality.
+- BR-11, docs lag new vocabulary. The atlas now covers per-member judgment:
+  `DepClaims`, `conflict:dependency-claim`, `claim-member-unread`,
+  `claims.dependency`, the holding checkout in the restore message, and
+  `hostAtRest`. The README notes `claims.dependency`.
+- Minor, row text contradicts decision. `recoverReason` takes the row's
+  facts; the restore text names the claim and checkout and appends exactly
+  one of ask / dirty-refusal / unread-refusal from the steps and notes.
+  `assertReasonMatchesDecision` sweeps every fixture row: no "no claim" text
+  on a claimed row, ask text if and only if an ask step, never ask plus
+  refusal, every unacted dependency claim named in the notes. Red first on
+  the dirty restore row; mutation (always append the ask text) fails it.
+- Minor, evidence dropped from next. `restoreWorkspaceDecision` carries the
+  notes for claims it does not ask about: a host restore beside a resting
+  dependency claim notes `inactive-claims`. Red first; mutation (drop the
+  notes) fails the fixture.
+
 ## Revisions
 
 ### 2026-10-01 — recovery shape settled in operator discussion

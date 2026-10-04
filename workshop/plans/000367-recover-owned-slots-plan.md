@@ -906,3 +906,5 @@ only append). Delta:
   or `claim-branch-mismatch`; `RestoreWorkspaceMessage` takes the holding checkout. Dangling claims on a present
   slot's members count toward that slot (unread member → `claim-member-unread`). New conflict fact
   `dependency-claim`; candidate layout errors go on the fleet observation's error; only `fs.ErrNotExist` is missing.
+- **M1 review round 2:** the host counts as at rest on its resting branch or on a clean done-issue branch
+  (`hostAtRest`), wherever idle, landed or a dependency claim is decided; row text derives from the row's decision.
