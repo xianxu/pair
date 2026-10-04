@@ -901,3 +901,8 @@ only append). Delta:
 - **`landed`** (coordinator, after review of the above): a clean (no dirt, unlanded commits or operation), unclaimed
   slot on a terminal issue's branch is class `landed`, note `issue-done-branch`, no step, ordered after
   `ambiguous-claims`; `conflict:issue-terminal` applies only with dirt, unlanded commits, an operation or a claim.
+- **M1 review (BR-4/BR-5), amending (c)'s "dependency claims attach as inactive claims":** each claim is judged
+  against its own member's branch. Dependency claims form the `DepClaims` dimension and never drive a host restore
+  or `claim-branch-mismatch`; `RestoreWorkspaceMessage` takes the holding checkout. Dangling claims on a present
+  slot's members count toward that slot (unread member → `claim-member-unread`). New conflict fact
+  `dependency-claim`; candidate layout errors go on the fleet observation's error; only `fs.ErrNotExist` is missing.

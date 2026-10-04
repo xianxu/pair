@@ -247,6 +247,40 @@ dirt/commits fall to `evidence-unavailable`. Red first: the new fixture got
 flagged the clean tuple. Mutation (drop the clean condition) fails coverage
 and totality.
 
+M1 boundary review (FIX-THEN-SHIP, `000367-recover-owned-slots-m1-review.md`):
+- BR-4, claim judged against the wrong member (d5052e19). Each claim is now
+  judged against the branch of the member holding it. Host claims keep the
+  `Claims` dimension. Dependency claims fold into a new `DepClaims` dimension
+  (none/active/resting/conflict/unknown) that the table answers:
+  - a restore names the checkout holding the claim
+    (`RestoreWorkspaceMessage(ref, address, checkout)`);
+  - a claim on another branch is `conflict:dependency-claim`;
+  - a host-decided row lists a resting dependency claim as `inactive-claims`.
+
+  Red first on the reviewer's shapes: the resting-dependency claim was
+  restored with the host-worded message, and a lost host claim beside a
+  dependency claim was `claim-branch-mismatch` (now `claim-likely-lost`).
+  Mutation: judging dependency claims as host claims fails 4 fixtures plus
+  `TestClaimsAttachToTheirSlotPath`.
+- BR-5, unread evidence shown as absence (d5052e19). Dangling claims always
+  fold into their slot. On a missing dependency, the claim is a dependency
+  claim with an unread member: `partial-evidence [resume]`, note
+  `claim-member-unread`. Red first: the row was `idle`. Mutation: reading
+  dangling claims only for absent slots fails the fixture.
+- Totality: the domain gains `DepClaims`, now 516,784 points in about 1.5 s.
+  It admits unread claim quality with host claims present (reachable through
+  a weaker dependency read), and pins three facts: a restore has one claim on
+  its own member's resting branch, a mismatch is made of host claims, and a
+  dependency claim is never idle or landed. Dropping `!work` from rule 9
+  fails it.
+- Minors (8e8f2aec). Candidate enumeration and stat failures are appended to
+  the fleet's error, and only `fs.ErrNotExist` is missing; a permission error
+  is present-but-unread. Red first, and mutating back to "any error is
+  missing" fails `TestRecoverPlanCandidateErrorsAreRecordedNotMissing`.
+- Deferred: `issueTerminalStatuses` restates ariadne's terminal set. It needs
+  sdlc to emit terminality on `FleetIssue`, a candidate ariadne follow-up; a
+  comment at the constant points here.
+
 ## Revisions
 
 ### 2026-10-01 — recovery shape settled in operator discussion
