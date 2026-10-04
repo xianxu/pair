@@ -24,6 +24,7 @@ func TestOperationDeclarationsAreClosureFreeCompleteAndOwned(t *testing.T) {
 		"start":                {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart, PresentationTUI},
 		"list":                 {ExecuteDirectStore, EffectRead, ConfirmNone, ResultThreadInventory, PresentationList},
 		"show":                 {ExecuteDirectStore, EffectRead, ConfirmNone, ResultThreadInventory, PresentationShow},
+		"recover-plan":         {ExecuteDirectStore, EffectRead, ConfirmNone, ResultRecoverPlan, PresentationRecoverPlan},
 		"stop":                 {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultStop, PresentationTUI},
 		"alias":                {ExecuteDirectStore, EffectMetadata, ConfirmNone, ResultRepositoryAlias, PresentationTUI},
 		"request-continuation": {ExecuteDirectStore, EffectMetadata, ConfirmNone, ResultThread, PresentationInternal},

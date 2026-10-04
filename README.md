@@ -383,6 +383,7 @@ couch --list             every durable work thread across all repositories
 couch --show <ref>       one current-repository thread by tag or path
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
+couch --recover-plan-from-sdlc   per-slot recovery report (JSON), see below
 couch --send-to repo:N --message TEXT   send to an exact live slot
 couch --send-to repo --message TEXT     select an eligible slot in that family
 couch --send-to repo --agent NAME --message TEXT   ...running that agent
@@ -390,6 +391,21 @@ couch --message-status ID [--json]      inspect a message receipt
 couch --skill            print the bundled agent coordination skill
 couch --adopt-store /absolute/store     preview adoption of an existing store
 ```
+
+`couch --recover-plan-from-sdlc` is the after-restart report an agent (typically
+the one in `:0`) reads before resuming work. It runs `sdlc fleet inventory --json`
+once per fleet of the repositories Couch has enrolled (this machine's claims,
+dangling claims and slot verdicts), reads Couch's own thread states the way
+`couch --list` does, and prints one JSON row per slot path (`:0` and `:1+`; other
+worktrees are only counted under `ignored`). Each row carries git, disk and agent
+state, the union of work evidence, a `class` (`agrees`, `restore-workspace`,
+`claim-likely-lost`, `partial-evidence`, `conflict`, `idle`, `unidentified-work`,
+`directory-missing`, ...), and `next`: steps named by action (`resume`, `reboot`,
+`ask-agent-restore`) drawn from the switcher's own admission table, or a `hold`
+that says why there is none. Unknown is never absence: a failed sdlc run, an older
+sdlc, a partial claim read or an unreadable git state is shown as such and degrades
+only the rows it touches. The report creates nothing; it only writes stdout. Its
+one side effect is sdlc's own tracker fetch, which updates remote-tracking refs.
 
 Couch runs one production supervisor per local OS account. Its authority lives
 under the account home's `.local/share/pair-host/singleton`, found by the real

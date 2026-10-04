@@ -208,6 +208,10 @@ func TestOperationPresentationDocs(t *testing.T) {
 			if !strings.Contains(readme, "couch --show") {
 				t.Error("show presentation has no README home")
 			}
+		case couchcore.PresentationRecoverPlan:
+			if !strings.Contains(readme, "couch --recover-plan-from-sdlc") || !strings.Contains(atlas, "couch --recover-plan-from-sdlc") {
+				t.Error("recover-plan presentation has no README and atlas home")
+			}
 		case couchcore.PresentationInternal:
 			if !strings.Contains(atlas, "couch --internal "+op.Name) {
 				t.Errorf("internal operation %q has no atlas protocol home", op.Name)

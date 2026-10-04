@@ -17,6 +17,7 @@ const (
 	cliLaunch
 	cliList
 	cliArchived
+	cliRecoverPlan
 	cliShow
 	cliInternal
 	cliMessage
@@ -132,6 +133,14 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 			return cliInvocation{}, err
 		}
 		return cliInvocation{kind: cliArchived}, nil
+	case "--recover-plan-from-sdlc":
+		if len(args) != 1 {
+			return invalid("--recover-plan-from-sdlc takes no arguments")
+		}
+		if err := refuseLayout("--recover-plan-from-sdlc"); err != nil {
+			return cliInvocation{}, err
+		}
+		return cliInvocation{kind: cliRecoverPlan}, nil
 	case "--show":
 		if len(args) != 2 || args[1] == "" || strings.HasPrefix(args[1], "-") {
 			return invalid("--show requires exactly one non-empty reference")

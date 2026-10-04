@@ -295,6 +295,61 @@ outside Couch. Loading or installing it is explicit; runtime does not change
 agent configuration. Ordinary messages carry follow-up context in their body;
 there is no reply protocol or availability toggle.
 
+### Recover plan after a restart (#367)
+
+`couch --recover-plan-from-sdlc` (operation `recover-plan`, `ExecuteDirectStore`,
+`EffectRead`, `PresentationRecoverPlan`) runs in the CLI process like `--list`
+and never touches the console. Flow:
+
+1. `Couch.RecoverPlan` (`recoverplan_source.go`) reads the enrolled repositories,
+   resolves each primary's `fleet_root` through the slot catalog's
+   `sdlc workspace --json` probe, and runs `sdlc fleet inventory --json --path
+   <first primary>` once per fleet (sorted, at most 8) through
+   `SDLCFleetSource` over `ProvisionIO` (process group, 90 s, 1 MiB).
+2. `DecodeFleetInventory` (`recoverplan_fleet.go`) is the only reader of those
+   bytes: `schema_version` must be exactly 1 and `slots`, `machine`,
+   `dangling_claims` and every `rows[].claims_state` present, else
+   `ErrFleetSchemaUnsupported` (a pre-ariadne#288/#289 build never reads as
+   zero slots). Duplicate keys refuse; additive fields are accepted.
+3. Couch's side is `ActionableThreadInventoryContext(ctx, nil)`, the same
+   evidence gather as `--list`. An unreadable store makes every agent unknown.
+4. For an unavailable or unsupported fleet only, the shell lists its slots by
+   Couch's layout (enrolled primaries + `EnumerateSlotCandidates`) and reads
+   each with the switcher's `ProbeSlotGit` under the shared
+   `SlotGitProbeTimeout` (3 s). That probe has no ahead or operation facts, so
+   those stay unknown.
+5. Pure `DeriveRecoverPlan` (`recoverplan.go`) builds the slot universe (fleet
+   slots, candidates, Couch slot rows, dangling claims on a conventional slot
+   path), joins Couch rows by `Target.Slot.WorktreeRoot` or, for `:0`,
+   `IsPrimaryRow` (the one definition, shared with `ApplyRepositoryAliases`),
+   dedupes by address (first fleet wins), and reads each slot into closed
+   `SlotEvidence` dimensions where unknown is a value. `classifyRecover` is the
+   first-match rule table; steps come only from rule A over
+   `ActorActions(ActorRowFactsOf(row))` plus the literal `ask-agent-restore`
+   (`RestoreWorkspaceMessage`). `recoverReason` authors every row's text.
+
+| Entity | Lives in | Kind |
+|---|---|---|
+| `FleetInventory` / `DecodeFleetInventory` / `FleetSchemaVersion` | `recoverplan_fleet.go` | pure |
+| `RecoverPlanInput`, `FleetObservation`, `CouchObservation`, `RecoverSlotCandidate`, `RecoverLocalGit` | `recoverplan.go` | pure |
+| `RecoverPlan` / `RecoverRow` / `RecoverNext` / `RecoverStep`, `RecoverClass` / `RecoverHold` / `RecoverNote` and their `All*` vocabularies | `recoverplan.go` | pure |
+| `SlotEvidence`, `slotEvidenceOf`, `classifyRecover`, `consistent` (test-domain pruning only) | `recoverplan.go` | pure |
+| `ActorRowFacts` / `ActorRowFactsOf` / `ActorActions` (the switcher's resume/reboot arms) | `actor_actions.go` | pure |
+| `IsPrimaryRow` | `actionableinventory.go` | pure |
+| `FleetInventorySource` / `SDLCFleetSource`, `Couch.RecoverPlan`, `Couch.Fleet` | `recoverplan_source.go`, `couch.go` | IO shell |
+| `FakeFleetSDLC` / `FakeFleet` | `recoverplan_fake.go` | stateful fake behind `ProvisionIO` |
+
+`FakeFleetSDLC` models fleets of slots whose members carry branch, dirt,
+operation, unlanded commits, issues and claims, plus dangling claims, off-slot
+rows, claim-read quality, per-fleet schema and failure modes (exit, hang,
+garbage). It judges members with sdlc's `JudgeCheckout` precedence and refuses
+any argv but the one `SDLCFleetSource` builds. The golden capture
+(`testdata/sdlc_fleet_inventory_v1*.json`) and `TestFleetInventoryLiveConformance`
+(skipped without `sdlc` on PATH or under `-short`) pin its vocabulary to the
+real producer. `TestDeriveRecoverPlanIsTotalOverTheEvidenceDomain` crosses every
+evidence dimension and proves the defensive `no-rule` class unreachable. The
+report writes nothing; M2 adds `resume`/`reboot` through the running Couch.
+
 ### Grouped workspace display (#307)
 
 `couchtty.PresentThreads` derives repository grouping, numeric slot order, full
@@ -331,7 +386,9 @@ the one attention amber (#321), the rest in the row's style; the switcher's sele
 once from `MenuState.SlotGit`, so the two views cannot disagree.
 
 The data is one `git --no-optional-locks status --porcelain=v2 --branch` per
-checkout (`couchcore.ProbeSlotGit` / `ParseSlotGitStatus`). `Console.Run` owns a
+checkout (`couchcore.ProbeSlotGit` / `ParseSlotGitStatus`; the recover-plan
+report reuses it for slots sdlc could not describe, under the same
+`couchcore.SlotGitProbeTimeout`). `Console.Run` owns a
 single-flight refresh (`console_slotgit.go`, reusing `RefreshSchedule`): a 10s
 ticker, every landed inventory (so opening the switcher), and every switch
 request a pass. A worker probes the inventory's checkouts one at a time,

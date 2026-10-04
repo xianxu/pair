@@ -154,6 +154,8 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 			return c.Workspaces.Ensure(call.Context, request)
 		case "list":
 			return c.ThreadInventoryContext(call.Context)
+		case "recover-plan":
+			return c.RecoverPlan(call.Context)
 		case "show":
 			if err := requireOperationRepoScope(a); err != nil {
 				return nil, err

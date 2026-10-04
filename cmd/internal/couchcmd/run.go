@@ -168,6 +168,7 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.Cou
 	c.Identities = couchidentity.IdentityStore{HostDir: r.selection.Roots.IdentityDir, StoreDir: namespace.Dir()}
 	c.Workspaces = couchcore.NewWorkspaceProvisioner(couchcore.OSProvisionIO{})
 	c.Slots = couchcore.NewOSSlotCatalog(couchcore.OSProvisionIO{})
+	c.Fleet = couchcore.SDLCFleetSource{IO: couchcore.OSProvisionIO{}, Timeout: couchcore.FleetInventoryTimeout}
 	c.RootAgent = r.Getenv("PAIR_AGENT")
 	c.ContinuationSource = (couchcore.OSContinuationSourceReader{DataDir: dataDir}).Read
 	renderer, _ := exec.LookPath("pair")
@@ -288,6 +289,8 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		op, _ = Resolve("list")
 	case cliArchived:
 		op, _ = Resolve("archived")
+	case cliRecoverPlan:
+		op, _ = Resolve("recover-plan")
 	case cliShow:
 		op, _ = Resolve("show")
 		argv = []string{invocation.ref}
@@ -810,6 +813,13 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 		if err := json.NewEncoder(w).Encode(v); err != nil {
 			return 1
 		}
+	case couchcore.RecoverPlan:
+		// One JSON document and nothing else: the report is read by an agent.
+		encoder := json.NewEncoder(w)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(v); err != nil {
+			return 1
+		}
 	case couchcore.ContinuationResult:
 		return render(w, op, v.Status)
 	case couchcore.ContinuationStatus:
@@ -958,6 +968,9 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "       couch --list")
 	fmt.Fprintln(w, "       couch --show <thread>")
 	fmt.Fprintln(w, "       couch --archived")
+	fmt.Fprintln(w, "       couch --recover-plan-from-sdlc")
+	fmt.Fprintln(w, "             Recovery report: one JSON row per slot joining sdlc's claims and")
+	fmt.Fprintln(w, "             slot verdicts with Couch's threads, with a suggested next step.")
 	fmt.Fprintln(w, "       couch --actors [--json]")
 	fmt.Fprintln(w, "       couch --adopt-store <absolute-path> [--pair-data <path>] [--identity-dir <path>]")
 	fmt.Fprintln(w, "             [--legacy-store <path>]... [--exclude-store <path>]... [--apply <digest>]")

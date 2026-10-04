@@ -1,7 +1,9 @@
 package couchcmd
 
 import (
+	"bytes"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
@@ -20,6 +22,7 @@ func TestParseCLI(t *testing.T) {
 		{name: "path", args: []string{"../pair"}, want: cliInvocation{kind: cliLaunch, path: "../pair", layout: couchcore.Layout3}},
 		{name: "dash path", args: []string{"--", "-repo"}, want: cliInvocation{kind: cliLaunch, path: "-repo", layout: couchcore.Layout3}},
 		{name: "list", args: []string{"--list"}, want: cliInvocation{kind: cliList}},
+		{name: "recover plan", args: []string{"--recover-plan-from-sdlc"}, want: cliInvocation{kind: cliRecoverPlan}},
 		{name: "show", args: []string{"--show", "thread"}, want: cliInvocation{kind: cliShow, ref: "thread"}},
 		{name: "help long", args: []string{"--help"}, want: cliInvocation{kind: cliHelp}},
 		{name: "help short", args: []string{"-h"}, want: cliInvocation{kind: cliHelp}},
@@ -109,6 +112,15 @@ func TestParseMessageCLIRejectsMixedShapes(t *testing.T) {
 	} {
 		if got, err := ParseCLI(args, couchcore.Operations()); err == nil || got.kind != cliInvalid {
 			t.Errorf("accepted %q: %#v %v", args, got, err)
+		}
+	}
+}
+
+func TestRecoverPlanCLIRejectsArguments(t *testing.T) {
+	for _, args := range [][]string{{"--recover-plan-from-sdlc", "x"}, {"--recover-plan-from-sdlc", "--layout2"}, {"--layout3", "--recover-plan-from-sdlc"}} {
+		var out, diag bytes.Buffer
+		if code := RunWithRuntime(args, strings.NewReader(""), &out, &diag, newRT(t)); code != 2 || out.Len() != 0 || diag.Len() == 0 {
+			t.Errorf("%q: code=%d stdout=%q stderr=%q, want a usage refusal", args, code, &out, &diag)
 		}
 	}
 }
