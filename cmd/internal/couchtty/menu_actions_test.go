@@ -237,8 +237,12 @@ func TestSwitcherActorEffectsCarryActorOperationArgs(t *testing.T) {
 	detached := couchcore.ActionableThreadSummary{Address: menuAddress("couch-primary"), WorkingPath: "/w/p", State: couchcore.ThreadDetached}
 	parked := detached
 	parked.State = couchcore.ThreadParked
+	slotScope, err := launcher.ResolveRepoScope(slot.Target.Slot.WorktreeRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
 	literal := map[string]map[string]string{
-		"slot":     {"path": slot.Target.Slot.WorktreeRoot},
+		"slot":     {"path": slot.Target.Slot.WorktreeRoot, "repo-scope": slotScope.Key},
 		"detached": {"repo-scope": "scope", "tag": "couch-primary", "warm-only": "true"},
 		"parked":   {"repo-scope": "scope", "tag": "couch-primary"},
 	}

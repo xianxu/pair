@@ -60,12 +60,17 @@ func SelectSlotRow(rows []ActionableThreadSummary, number int, path string) (Act
 // ActorOperationArgs is the one row → arguments mapping for resume and
 // reboot, read by the switcher and the socket alike (ARCH-DRY). A slot row is
 // addressed by its host checkout (its record may be missing or replaced under
-// the row). An ordinary row is addressed by its exact tag, and a detached one
-// resumes warm-only: it may be reattached, never cold-started, even if the
-// record changes before the queued operation runs.
+// the row), with the checkout's own repository scope, which resume's
+// declaration requires. An ordinary row is addressed by its exact tag, and a
+// detached one resumes warm-only: it may be reattached, never cold-started,
+// even if the record changes before the queued operation runs.
 func ActorOperationArgs(row ActionableThreadSummary, op string) map[string]string {
 	if row.Target.Kind == ThreadTargetSlot {
-		return map[string]string{"path": row.Target.Slot.WorktreeRoot}
+		scope := row.Address.RepoScope
+		if resolved, err := launcher.ResolveRepoScope(row.Target.Slot.WorktreeRoot); err == nil {
+			scope = resolved.Key
+		}
+		return map[string]string{"path": row.Target.Slot.WorktreeRoot, "repo-scope": scope}
 	}
 	args := map[string]string{"repo-scope": row.Address.RepoScope, "tag": string(row.Address.Tag)}
 	if op == "resume" && row.Detached() {

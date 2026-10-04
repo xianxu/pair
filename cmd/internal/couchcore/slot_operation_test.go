@@ -70,15 +70,24 @@ func TestActorOperationArgs(t *testing.T) {
 		op   string
 		want map[string]string
 	}{
-		{"slot resume", slot, "resume", map[string]string{"path": host}},
-		{"slot reboot", slot, "reboot", map[string]string{"path": host}},
+		{"slot resume", slot, "resume", map[string]string{"path": host, "repo-scope": slot.Address.RepoScope}},
+		{"slot reboot", slot, "reboot", map[string]string{"path": host, "repo-scope": slot.Address.RepoScope}},
 		{"parked primary resume", parked, "resume", map[string]string{"repo-scope": parked.Address.RepoScope, "tag": "root"}},
 		{"parked primary reboot", parked, "reboot", map[string]string{"repo-scope": parked.Address.RepoScope, "tag": "root"}},
 		{"detached primary resume", detached, "resume", map[string]string{"repo-scope": detached.Address.RepoScope, "tag": "root", "warm-only": "true"}},
 		{"detached primary reboot", detached, "reboot", map[string]string{"repo-scope": detached.Address.RepoScope, "tag": "root"}},
 	} {
-		if got := ActorOperationArgs(c.row, c.op); !maps.Equal(got, c.want) {
+		got := ActorOperationArgs(c.row, c.op)
+		if !maps.Equal(got, c.want) {
 			t.Errorf("%s: %v, want %v", c.name, got, c.want)
+		}
+		// The production boundary: the declared operation table accepts the
+		// arguments (a slot resume once carried only its path, which the
+		// declaration's required repo-scope refused).
+		reached := false
+		stub := func(OperationCall) (any, error) { reached = true; return nil, nil }
+		if _, err := DispatchOperation(OperationExecutors{LiveOwner: stub, DirectStore: stub}, OperationCall{Name: c.op, Args: got, Implicit: true}); err != nil || !reached {
+			t.Errorf("%s: the declaration refuses %v: %v", c.name, got, err)
 		}
 	}
 }
@@ -108,7 +117,8 @@ func TestPrepareSlotOperation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if call.Name != "resume" || !call.Implicit || !maps.Equal(call.Args, map[string]string{"path": local.slot.WorktreeRoot}) {
+	slotScope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
+	if call.Name != "resume" || !call.Implicit || !maps.Equal(call.Args, map[string]string{"path": local.slot.WorktreeRoot, "repo-scope": slotScope.Key}) {
 		t.Fatalf("call = %+v", call)
 	}
 	// Live: nothing to resume, and the refusal says why.
