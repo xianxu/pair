@@ -64,7 +64,11 @@ superseded.)
 
 ## Plan
 
-Implementation plan to be designed after issue claim and start-plan; these are requirements, not an approved implementation plan.
+Durable plan: `workshop/plans/000367-recover-owned-slots-plan.md` (reviewed in three
+rounds and approved 2026-10-04). Each milestone is a review boundary.
+
+- [ ] M1 — Read-only `couch --recover-plan-from-sdlc`: presence-aware decoder for `sdlc fleet inventory --json` v1 (fleets grouped by `fleet_root`), stateful sdlc fake behind ProvisionIO, `ActorActions` single-sourced in couchcore, pure total `DeriveRecoverPlan` over the union of work evidence (derived-domain totality test), ProbeSlotGit fallback for unsupported fleets, restart acceptance through the real dispatch, docs.
+- [ ] M2 — `resume`/`reboot <slot>` through the running Couch's socket: live-slot callers only (server-side), queued like a switcher keypress (background, operator focus preserved), receipts + polling with "uncertain" on lost outcomes, `couch --resume`/`--reboot --confirm`, skill recovery section, end-to-end report → resume → report acceptance.
 
 ## Log
 
@@ -137,6 +141,14 @@ Scope decisions requested from the operator before the durable plan.
 - **Busy** is a persisted start claim kept for crash safety (a dead Couch may have
   left a running agent); a row that stays busy after startup reconciliation gets
   no step, and is never rebooted, to avoid a duplicate agent.
+
+### 2026-10-04 — plan approved
+
+Operator approved the durable plan after three review rounds (findings
+resolved: presence-aware decode for pre-#288 sdlc, fleet_root grouping,
+IsPrimaryRow as the single `:0` rule, warm-only in ActorOperationArgs,
+per-call poll contexts, receipt mutex owner, evidence-table totality over a
+derived domain, unknown git never read as absence, overlapping mutations).
 
 ## Revisions
 
