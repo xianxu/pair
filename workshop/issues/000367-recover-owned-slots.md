@@ -5,8 +5,8 @@ deps: [pair#366, ariadne#277, ariadne#278, ariadne#279, ariadne#280, ariadne#288
 github_issue:
 created: 2026-10-01
 updated: 2026-10-02
-estimate_hours:
-card_mirror: 'eb186c2373aeebbe7a59503fb223d080066f8af6' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 2.82
+card_mirror: 'f0aebb45368c9e7f3e5f293788b7d0266c2d0974' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-02T11:50:33-07:00
 claimant:
     operator: T
@@ -61,6 +61,39 @@ superseded.)
   re-reading; it never acts on a slot flagged for recovery.
 - Tested with stateful fixtures covering every report row class and the caller
   rule, plus a restart acceptance case through the real report path.
+
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module     design=0.2 impl=0.32
+item: smaller-go-module        design=0.1 impl=0.2
+item: smaller-go-module        design=0.1 impl=0.2
+item: milestone-review         design=0.0 impl=0.2
+item: greenfield-go-module     design=0.2 impl=0.32
+item: smaller-go-module        design=0.1 impl=0.2
+item: skill-or-dispatcher      design=0.1 impl=0.12
+item: atlas-docs               design=0.05 impl=0.08
+item: milestone-review         design=0.0 impl=0.2
+design-buffer: 0.15
+total: 2.82
+```
+
+Design hours are discounted because the durable plan is reviewed and approved;
+`impl=` values are 40% of the v2 primitive ranges (v3.1).
+
+- `greenfield-go-module` — M1 pure DeriveRecoverPlan: union-of-evidence table + derived-domain totality
+- `smaller-go-module` — M1 fleet v1 decoder (presence-aware) + stateful FakeFleetSDLC
+- `smaller-go-module` — M1 report operation/CLI, fleet_root grouping, ProbeSlotGit fallback, ActorActions move
+- `milestone-review` — M1
+- `greenfield-go-module` — M2 socket request kinds, receipt store, queue admission
+- `smaller-go-module` — M2 --resume/--reboot CLI, caller rule, polling with uncertain outcomes
+- `skill-or-dispatcher` — M2 couch --skill recovery section + command sweep
+- `atlas-docs` — M1+M2 README/atlas
+- `milestone-review` — M2
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* (Calibration doc flagged stale; numbers provisional.)
 
 ## Plan
 
