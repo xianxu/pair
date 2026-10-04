@@ -101,6 +101,36 @@ Gaps against the Revisions' assumptions:
 
 Scope decisions requested from the operator before the durable plan.
 
+### 2026-10-04 — operator decisions on the plan's resolved ambiguities
+
+- Confirmed: report scope = fleets of Couch-enrolled repositories, same result
+  from any slot; JSON only (the agent explains it); repeats refused harmlessly
+  once a slot is live (a reboot after a failed fresh start may start a second
+  fresh record); admission checked at run time with the switcher's rules;
+  remote resume/reboot run in the background without moving the operator's
+  screen.
+- **Union of evidence.** Work in a slot is evidenced by any of: this machine's
+  claim on the path, a checked-out issue branch, unlanded commits, dirty files,
+  a Couch thread with a conversation. Work evidence with no visible claim is
+  treated as a probably-lost claim (a bug, or an unreadable card): still resume,
+  flag the claim for repair. Conflicting evidence goes to the TL agent to
+  inspect; no automatic step.
+- **Claim read quality is per source, not a blanket hold.** Stale claims still
+  inform suggestions (marked "as of"); partial/unknown reads contribute what
+  they have; one unreadable card never holds a whole repository.
+- **Dirty files don't block resume.** Neither primitive touches disk; dirty files
+  on the active branch suggest resume; a Git operation in progress or detached
+  HEAD suggests resume, never reboot; dirty on the resting branch with no claim
+  gets no step.
+- **Rows are per slot path** (`:0`/`:1+` only); off-slot paths are ignored; a
+  vanished slot path still gets its row.
+- **Several claims in one slot:** the checked-out claim is active; others are
+  listed as inactive; a resting branch with several claims is ambiguous (TL
+  decides).
+- **Busy** is a persisted start claim kept for crash safety (a dead Couch may have
+  left a running agent); a row that stays busy after startup reconciliation gets
+  no step, and is never rebooted, to avoid a duplicate agent.
+
 ## Revisions
 
 ### 2026-10-01 — recovery shape settled in operator discussion
