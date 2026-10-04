@@ -233,6 +233,19 @@ also failed `test-pair-embedded-runtime`; its smoke passes, then the script's
 `trap rm -rf "$tmp"` reports "Directory not empty" for `custom-data`. That
 reproduces on standalone re-runs and touches no #367 code (pair runtime only),
 so it looks environmental: something keeps writing into the temp tree.
+The coordinator re-ran `test-pair-embedded-runtime` standalone and it passed
+(rc=0). It is a flaky cleanup race (the test's own `trap rm -rf` meets
+"custom-data: Directory not empty" while something still writes), unrelated
+to #367.
+
+Coordinator decision, 5e99f024: a clean, unclaimed slot on a
+done/wontfix/punt issue's branch is the new class `landed` (note
+`issue-done-branch`, no step), not `conflict:issue-terminal`, which now needs
+dirt, unlanded commits, an operation or a claim on that branch. Unread
+dirt/commits fall to `evidence-unavailable`. Red first: the new fixture got
+`conflict`, the coverage test reported no `landed` fixture, and totality
+flagged the clean tuple. Mutation (drop the clean condition) fails coverage
+and totality.
 
 ## Revisions
 

@@ -898,4 +898,6 @@ only append). Delta:
 - **Acceptance fixture.** `recoverAcceptanceFixture` is `slotRecoveryOperationFixture` widened to six real slot
   worktrees. It showed an enrolled slot with no record is still a Couch row (unusable, `never-started`), which the
   join counts as a thread but not as a conversation.
-
+- **`landed`** (coordinator, after review of the above): a clean (no dirt, unlanded commits or operation), unclaimed
+  slot on a terminal issue's branch is class `landed`, note `issue-done-branch`, no step, ordered after
+  `ambiguous-claims`; `conflict:issue-terminal` applies only with dirt, unlanded commits, an operation or a claim.
