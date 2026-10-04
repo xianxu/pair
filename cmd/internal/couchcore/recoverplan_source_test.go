@@ -347,3 +347,53 @@ func TestRecoverPlanDegradesPerSource(t *testing.T) {
 		t.Fatalf("git probes = %v, want one per slot of the unsupported fleet only", probed)
 	}
 }
+
+// An unreadable layout is unknown, never missing, and its reason is recorded
+// on the fleet rather than vanishing (M1 review minors).
+func TestRecoverPlanCandidateErrorsAreRecordedNotMissing(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// eta's worktree container is a file: slot enumeration fails.
+	eta := filepath.Join(root, "eta")
+	if err := os.MkdirAll(eta, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "worktree"), []byte("not a directory"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// theta's primary sits under a directory nobody may search: stat fails
+	// with permission denied, which proves nothing about absence.
+	locked := filepath.Join(root, "locked")
+	theta := filepath.Join(locked, "theta")
+	if err := os.MkdirAll(theta, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(locked, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o700) })
+	env, fake, _ := recoverEnv(t, map[string]string{eta: root, theta: locked})
+	fake.Fleet(root).SetSchema(2)
+	fake.Fleet(locked).SetSchema(2)
+	fake.Fleet(root).AddSlot("eta:0")
+	fake.Fleet(locked).AddSlot("theta:0")
+	plan, err := env.Couch.RecoverPlan(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	errs := map[string]string{}
+	for _, f := range plan.Fleets {
+		errs[f.Root] = f.Error
+	}
+	if !strings.Contains(errs[root], "foreign slot path") {
+		t.Fatalf("fleet %s error = %q, want the enumeration failure", root, errs[root])
+	}
+	if !strings.Contains(errs[locked], "permission denied") {
+		t.Fatalf("fleet %s error = %q, want the stat failure", locked, errs[locked])
+	}
+	if row := findRow(t, plan, "theta:0"); row.Class == RecoverDirectoryMissing || row.Disk.Directory != "present" {
+		t.Fatalf("an unreadable primary read as missing: %+v", row)
+	}
+}

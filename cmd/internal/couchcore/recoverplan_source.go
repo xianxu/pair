@@ -3,9 +3,12 @@ package couchcore
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -128,7 +131,13 @@ func (c *Couch) RecoverPlan(ctx context.Context) (RecoverPlan, error) {
 		input.Fleets = append(input.Fleets, obs)
 		if obs.State != FleetObservationPresent {
 			for _, primary := range g.primaries {
-				input.SlotCandidates = append(input.SlotCandidates, c.recoverCandidates(ctx, g.root, primary, input.LocalGit)...)
+				candidates, problems := c.recoverCandidates(ctx, g.root, primary, input.LocalGit)
+				input.SlotCandidates = append(input.SlotCandidates, candidates...)
+				// A layout Couch could not read is recorded on its fleet, so
+				// slots it would have listed never vanish without a reason.
+				for _, problem := range problems {
+					input.Fleets[len(input.Fleets)-1].Error = strings.TrimPrefix(input.Fleets[len(input.Fleets)-1].Error+"; "+problem, "; ")
+				}
 			}
 		}
 	}
@@ -143,16 +152,30 @@ func (c *Couch) RecoverPlan(ctx context.Context) (RecoverPlan, error) {
 
 // recoverCandidates lists one primary's slots by Couch's conventional layout
 // and probes each present host's git through ProbeSlotGit, recording a failed
-// probe as unknown.
-func (c *Couch) recoverCandidates(ctx context.Context, fleet, primary string, probes map[string]RecoverLocalGit) []RecoverSlotCandidate {
+// probe as unknown. Only a path that does not exist is missing; any other
+// failure to read the layout is returned as a problem for the fleet's error,
+// and its paths stay present-but-unread (unknown is never absence).
+func (c *Couch) recoverCandidates(ctx context.Context, fleet, primary string, probes map[string]RecoverLocalGit) ([]RecoverSlotCandidate, []string) {
 	repo := filepath.Base(primary)
 	candidates := []RecoverSlotCandidate{{Fleet: fleet, Address: WorkspaceReference{Repo: repo}.String(), Path: primary}}
-	if _, err := os.Stat(primary); err != nil {
+	var problems []string
+	if _, err := os.Stat(primary); errors.Is(err, fs.ErrNotExist) {
 		candidates[0].Missing = true
-	} else if slots, err := EnumerateSlotCandidates(primary); err == nil {
+	} else if err != nil {
+		problems = append(problems, fmt.Sprintf("read %s: %v", primary, err))
+	} else if slots, err := EnumerateSlotCandidates(primary); err != nil {
+		problems = append(problems, fmt.Sprintf("list slots of %s: %v", primary, err))
+	} else {
 		for _, slot := range slots {
-			candidates = append(candidates, RecoverSlotCandidate{Fleet: fleet, Address: WorkspaceReference{Repo: repo, Number: slot.Identity.Number}.String(),
-				Path: slot.Identity.WorktreeRoot, Missing: slot.Err != nil})
+			candidate := RecoverSlotCandidate{Fleet: fleet, Address: WorkspaceReference{Repo: repo, Number: slot.Identity.Number}.String(), Path: slot.Identity.WorktreeRoot}
+			if slot.Err != nil {
+				if errors.Is(slot.Err, fs.ErrNotExist) {
+					candidate.Missing = true
+				} else {
+					problems = append(problems, slot.Err.Error())
+				}
+			}
+			candidates = append(candidates, candidate)
 		}
 	}
 	for _, candidate := range candidates {
@@ -172,5 +195,5 @@ func (c *Couch) recoverCandidates(ctx context.Context, fleet, primary string, pr
 		}
 		probes[candidate.Path] = RecoverLocalGit{Status: status}
 	}
-	return candidates
+	return candidates, problems
 }
