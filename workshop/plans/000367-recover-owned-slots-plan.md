@@ -38,12 +38,17 @@ one-shot "execute the plan" command, and repairing deleted slots (pair#387; the 
 ## Resolved spec ambiguities (operator: confirm or correct)
 
 1. **Report scope = the fleets of Couch-enrolled repositories.** One `sdlc fleet inventory --json --path <primary>` runs
-   per distinct fleet root (`filepath.Dir` of each enrolled primary). The caller's cwd plays no part, so the result is
-   the same from any slot. A fleet Couch has never enrolled is not reported.
+   per distinct fleet root. The root is the `fleet_root` that `sdlc workspace --json` reports for each enrolled
+   primary, read through the slot catalog's existing `identity` probe. It is not `filepath.Dir`, because a primary that
+   is nested or placed elsewhere would make one fleet be read twice. Rows are also deduplicated by slot address across
+   fleets. The caller's cwd plays no part, so the result is the same from any slot. A fleet Couch has never enrolled
+   is not reported.
 2. **JSON only, with no human view.** The agent explains the rows to the operator. A second renderer would be a second
    thing that can drift.
 3. **Failed sources degrade the report; they do not abort it.** If sdlc fails, times out, overflows 1 MiB or reports a
-   `schema_version` other than 1, that fleet's `state` becomes `unavailable` or `unsupported`, and every row in it is
+   `schema_version` other than 1, or is an older v1 build missing any of `slots`, `machine`, `dangling_claims` or
+   `rows[].claims_state` (#288/#289 added them without a version bump), that fleet's `state` becomes `unavailable` or
+   `unsupported`. It never reads as zero slots, and every row in it is
    held as `unknown-evidence` (the data is refused, not interpreted). If the Couch store read fails, every row's agent
    state becomes `unknown`. Exit 0 whenever a report renders. Exit 1 only when the process could not produce one.
 4. **`claims_state` stale, partial or unknown → hold.** sdlc says "stale" means "complete as last fetched", but no
@@ -51,21 +56,35 @@ one-shot "execute the plan" command, and repairing deleted slots (pair#387; the 
    unattributed.
 5. **"Foreign or unattributed claim."** The fleet omits other machines' claims, so this is inferred from what is left:
    a branch that names an open issue this machine does not claim, unlanded commits with no claim and no open issue, a
-   claim whose `claimant.workspace` is non-empty and differs from the slot address, or a legacy repo holding work.
-   Every one of these holds as `unattributed`.
+   **host-member** claim whose `claimant.workspace` is non-empty and differs from the slot address, or a legacy repo
+   holding work. Every one of these holds as `unattributed`. This was verified in ariadne `cmd/sdlc/claimant.go:42-66`:
+   `claimant.workspace` is `slotLabel(workspace.Resolve(root))`, which is `""` whenever the checkout has no address
+   (a dependency clone: `kind: dependency, address: null`) or does not use the slot layout. So claims on dependency
+   members and plain clones carry an empty workspace, and an empty workspace is never a mismatch. The golden fixture
+   includes such a claim.
 6. **Needs-recovery rows (dirty, `operation:*`, detached HEAD) suggest no step.** The skill lets the operator choose
    "resume, then ask its own agent to restore" for one specific row. The report never suggests that on its own, and
    no agent touches another slot's files. "Never acts on a slot flagged for recovery" means: no primitive runs
    without the operator's direction for that row.
 7. **Row cardinality.** There is one row per fleet slot. A claim placed on any member of a slot (its host or a
    dependency clone) appears in that slot's row. A claim on no slot gets its own row: `dangling-claim` when sdlc
-   reports it as dangling, `off-slot-claim` when it sits on a non-slot worktree. A Couch thread inside no fleet slot
-   gets an informational `outside-fleet` row. Unknown is never shown as absent, so these rows are kept.
+   reports it as dangling, `off-slot-claim` when it sits on a non-slot worktree. Couch rows join a fleet slot by one
+   of two rules. A slot-target row joins the fleet slot whose host path is its `Target.Slot.WorktreeRoot`. An ordinary
+   row joins a `:0` only under today's single definition of the primary row (the `ApplyRepositoryAliases` rule: same
+   repository scope **and** `StartingPath` exactly at the primary root), extracted as `IsPrimaryRow`. Leftovers split
+   two ways:
+   - **`not-in-fleet`** (rule 1, hold): a slot-target row whose repo's fleet is healthy but has no such slot.
+   - **`outside-fleet`** (informational, no hold): an ordinary row that is no fleet's primary row, e.g. a subdirectory
+     thread, a linked worktree, or a repo outside every enrolled fleet.
+
+   Unknown is never shown as absent, so these rows are kept.
 8. **CLI shape:** `couch --resume repo:N [--json]` and `couch --reboot repo:N --confirm [--json]`. These take an exact
    address only, `:0` included. A repository family is refused because a primitive needs one slot. The repo part
    resolves the way `--send-to` does: name, alias or unique prefix. `--confirm` is required only because the `reboot`
    declaration says `ConfirmRequired`; the handler reads `couchcore.OperationConfirms`.
-9. **The socket admits, then the CLI polls.** The transport has a hard 2 s deadline per exchange
+9. **The socket admits, then the CLI polls.** Both primitives are #280 class `duplicate-safe-refusal`: once the slot is
+   live, a repeat is refused (`not-offered`). One caveat: a reboot whose fresh launch failed leaves the slot
+   record-less, so a repeat reboot is offered again and archives nothing more, but it starts a second fresh record. The transport has a hard 2 s deadline per exchange
    (`couchmessage.TransportTimeout`), and a resume can take longer. Admission returns a receipt ID, and the CLI polls
    `operation-status` until the receipt is terminal or 3 minutes pass. Receipts live in memory and are visible only to
    the slot that admitted them. A Couch exit loses them. After a lost or uncertain outcome, the skill says: read the
@@ -74,8 +93,10 @@ one-shot "execute the plan" command, and repairing deleted slots (pair#387; the 
 10. **Admission is checked when the queued job runs, against fresh inventory.** It uses the same `ActorActions` the
     switcher offers from, so whatever the socket accepts, the switcher would also offer on that row. The executors
     re-classify at action time, as they do today.
-11. **A remote start does not take operator focus** (`PreserveFocus`, like continuation replacements). It never
-    clobbers the operator's in-flight switcher operation.
+11. **A remote start does not take operator focus.** It uses `PreserveFocus` with `Attempt == 0`, like continuation
+    replacements; no new origin field is added. It never clobbers the operator's in-flight switcher operation, and a
+    remote resume clears the row's reattach-failure mark (`clearReattachFailure`) exactly as the switcher's resume
+    does.
 12. **`ask-agent-restore`** is suggested only for a clean slot that is claimed while sitting on its resting branch. In
     that case the agent restores the claimed issue's branch through its own SDLC. The message text is a single
     constant.
@@ -85,7 +106,9 @@ one-shot "execute the plan" command, and repairing deleted slots (pair#387; the 
 
 - **ARCH-DRY:** `ActorActions` moves the resume/reboot half of `menuRowActions` into couchcore. The switcher, the
   report's steps and the socket's admission all read it. `ActorOperationArgs` moves the row → args mapping out of
-  `dispatchMenuRow`. The sdlc subprocess reuses `ProvisionIO`/`OSProvisionIO` (process group, timeout, 1 MiB cap),
+  `dispatchMenuRow`, including the `warm-only=true` rule for a detached ordinary row. That rule is now in
+  `dispatchMenuOperation`, `menu.go:1797`, and moves out of it. `IsPrimaryRow` is extracted from
+  `ApplyRepositoryAliases` and used by both it and the join. The sdlc subprocess reuses `ProvisionIO`/`OSProvisionIO` (process group, timeout, 1 MiB cap),
   and the queue path reuses `operationQueue`/`c.ops`/`finishOperation`. Disk verdicts are sdlc's
   (`slots[].verdict`/`reasons`). Couch adds no git scan of its own.
 - **ARCH-PURE:** `DecodeFleetInventory`, `DeriveRecoverPlan`, `ActorActions`, `SelectSlotRow`,
@@ -100,7 +123,8 @@ one-shot "execute the plan" command, and repairing deleted slots (pair#387; the 
   claims_state, and failure modes. It computes verdicts with sdlc's precedence. A golden fixture captured from real
   output, plus a live conformance test (skipped when there is no `sdlc` on PATH), keep it honest.
 - **ARCH-CONSTRAINTS:** The report is a batch CLI call that runs in the **CLI process**, like `--list`, so it never
-  touches the console's UI path. It measured 5.7 s for 52 worktrees and 39 slots (2026-10-03). Each fleet gets a 90 s
+  touches the console's UI path. It shares `--list`'s evidence gather (`gatherThreadEvidence`), but uses the
+  actionable projection (`ActionableThreadInventoryContext(ctx, nil)`), not `ThreadInventoryContext`. It measured 5.7 s for 52 worktrees and 39 slots (2026-10-03). Each fleet gets a 90 s
   timeout, because sdlc's own claim reads are 15 s each with at most 8 concurrent. Fleets run sequentially, normally 1
   and capped at 8, and stdout is capped at 1 MiB per fleet. Socket handlers do only O(1) work inside the 2 s budget;
   the inventory read and the action run on the console queue (capacity 16, one runner). At most 64 receipts are held
@@ -109,7 +133,9 @@ one-shot "execute the plan" command, and repairing deleted slots (pair#387; the 
   checked first, unknown verdict and reason strings become `unknown`, and paths are normalized before joining.
   Socket callers are authenticated exactly as for `--send-to` (`Broker.Caller` + `authority.current`). Targets are
   re-resolved inside Couch and never trusted as paths. No credentials are involved.
-- **ARCH-ORDER:** The receipt machine has states `queued → running → succeeded|refused|failed`. Its events are admit,
+- **ARCH-ORDER / concurrency:** `slotOperations` owns one `sync.Mutex` guarding the receipt map. Every touch goes
+  through its methods, from three goroutines: admit and status from socket handlers, `started` from the queue runner,
+  and `finished` from the console loop. Tests run under `-race`. The receipt machine has states `queued → running → succeeded|refused|failed`. Its events are admit,
   duplicate-admit (same ID → same receipt; a different op or target → `id-conflict`), start, finish, expire and
   couch-exit. It is enumerated in Task 2.1 and sequence-tested. Couch-exit drops every receipt, so a later status call
   answers `unknown` → the CLI reports "uncertain; verify with the report".
@@ -131,21 +157,24 @@ one-shot "execute the plan" command, and repairing deleted slots (pair#387; the 
 | `FleetInventory` (+ `FleetRow`, `FleetSlot`, `FleetMember`, `FleetClaim`, `FleetMachine`) / `DecodeFleetInventory` / `FleetSchemaVersion` | `cmd/internal/couchcore/recoverplan_fleet.go` | new |
 | `RecoverPlanInput` / `FleetObservation` / `CouchObservation` | `cmd/internal/couchcore/recoverplan.go` | new |
 | `RecoverPlan` / `RecoverRow` / `RecoverGit` / `RecoverDisk` / `RecoverAgent` / `RecoverNext` / `RecoverStep` | `cmd/internal/couchcore/recoverplan.go` | new |
+| `RecoverHold` / `AllRecoverHolds` (hold-code kinds; parameterized codes are `kind:suffix`) | `cmd/internal/couchcore/recoverplan.go` | new |
+| `IsPrimaryRow` (extracted; `ApplyRepositoryAliases` uses it) | `cmd/internal/couchcore/actionableinventory.go:721` | new (extracted) |
 | `RecoverClass` / `AllRecoverClasses` / `DeriveRecoverPlan` | `cmd/internal/couchcore/recoverplan.go` | new |
 | `RestoreWorkspaceMessage` | `cmd/internal/couchcore/recoverplan.go` | new |
 | `ActorRowFacts` / `ActorRowFactsOf` / `ActorActions` | `cmd/internal/couchcore/actor_actions.go` | new (extracted from `couchtty/menu_actions.go`) |
 | `menuRowFacts` / `menuRowFactsOf` / `menuRowActions` (non-live phases delegate to `ActorActions`) | `cmd/internal/couchtty/menu_actions.go` | modified |
 | Operation `recover-plan`, `PresentationRecoverPlan`, `ResultRecoverPlan` | `cmd/internal/couchcore/ops.go` | new |
 | `SelectSlotRow` / `ActorOperationArgs` / `SlotOperationError` (codes) | `cmd/internal/couchcore/slot_operation.go` | new (M2) |
-| `dispatchMenuRow` (uses `ActorOperationArgs`) | `cmd/internal/couchtty/menu_slot.go:30` | modified (M2) |
+| `dispatchMenuRow` / `dispatchThreadOperation` (use `ActorOperationArgs`); the warm-only block in `dispatchMenuOperation` is deleted | `cmd/internal/couchtty/menu_slot.go:30`, `menu.go:1775,1797` | modified (M2) |
 | `SlotOperationCommand` | `cmd/internal/couchcore/slot_operation.go` | new (M2) |
 | `OperationReceipt` / `ReceiptStatus` / `ReceiptEvent` / `ApplyReceiptEvent` | `cmd/internal/couchmessage/operation.go` | new (M2) |
 | `Request.Confirmed`, `Response.Operation`, `ValidateRequest` (`resume`, `reboot`, `operation-status`) | `cmd/internal/couchmessage/protocol.go` | modified (M2) |
 | `ParseCLI` / `parseMessageCLI` (`--recover-plan-from-sdlc`, `--resume`, `--reboot`) | `cmd/internal/couchcmd/cli.go` | modified |
 
 - **DeriveRecoverPlan** — `(RecoverPlanInput) RecoverPlan`. It joins fleet slots to Couch rows by normalized path. A
-  slot row matches when `Target.Slot.WorktreeRoot` equals the host member path. An ordinary row matches `:0` when its
-  `StartingPath` is the host path or lies under it. Each row's class is then picked by the first match in the table
+  slot row matches when `Target.Slot.WorktreeRoot` equals the host member path. An ordinary row matches `:0` only when
+  `IsPrimaryRow(row, hostPath, scopeKey)` holds; the shell resolves `scopeKey` with `launcher.ResolveRepoScope` and
+  passes it in `RecoverPlanInput.PrimaryScopes`. Each row's class is then picked by the first match in the table
   in Task 1.5.
   - **Relationships:** 1 fleet slot → 1 row with 0..N Couch threads (more than one → `ambiguous-threads`). 1 claim → 1
     row: its slot's row, or its own row.
@@ -199,27 +228,50 @@ Below it is abbreviated `SCRUB`.
 
 **Files:**
 - Create: `cmd/internal/couchcore/recoverplan_fleet.go`, `recoverplan_fleet_test.go`,
-  `cmd/internal/couchcore/testdata/sdlc_fleet_inventory_v1.json`
+  `cmd/internal/couchcore/testdata/sdlc_fleet_inventory_v1.json`,
+  `cmd/internal/couchcore/testdata/sdlc_fleet_inventory_v1_pre288.json` (a real v1 document from before #288/#289:
+  no `slots`, `machine`, `dangling_claims` or `claims_state`; build it from the same capture by deleting those keys)
 
 - [ ] **Step 1: Capture the golden fixture.** Run
   `/Users/xianxu/workspace/worktree/pair-slot1/ariadne/bin/sdlc fleet inventory --json > $SCRATCH/fleet.json`. Trim it
   to: one `:0` ready slot, one `:N` holds-work slot with a `claims[]` entry and a dependency member, one
   `needs-recovery` (`dirty`), one `missing` member, a `diagnostics[]` entry, and one `dangling_claims[]` entry (hand
-  added, shape from ariadne `fleet/claims.go:78-83`). Rewrite paths to `/fleet/...`.
+  added, shape from ariadne `fleet/claims.go:78-83`). Also include one claim on a **dependency member** with no
+  `workspace` key; this is the real shape per `claimant.go:42-66`. Rewrite paths to `/fleet/...`.
 - [ ] **Step 2: Write the failing tests.**
 
 ```go
 func TestDecodeFleetInventoryGolden(t *testing.T) {
-	raw, _ := os.ReadFile("testdata/sdlc_fleet_inventory_v1.json")
+	raw, err := os.ReadFile("testdata/sdlc_fleet_inventory_v1.json")
+	if err != nil { t.Fatal(err) }
 	inv, err := DecodeFleetInventory(raw)
 	if err != nil { t.Fatal(err) }
 	if inv.Machine.State != "present" || len(inv.Slots) == 0 || len(inv.DanglingClaims) != 1 { t.Fatalf("%+v", inv) }
 }
-func TestDecodeFleetInventoryRejectsOtherVersions(t *testing.T) {
-	for _, raw := range []string{`{"schema_version":2,"rows":[],"slots":[]}`, `{"rows":[]}`, `{"schema_version":"1"}`, `[]`, ``} {
-		if _, err := DecodeFleetInventory([]byte(raw)); !errors.Is(err, ErrFleetSchemaUnsupported) && err == nil {
-			t.Errorf("%q accepted", raw)
+func TestDecodeFleetInventoryRejectsUnsupported(t *testing.T) {
+	full := `"rows":[],"slots":[],"machine":{"state":"present"},"dangling_claims":[]`
+	for _, raw := range []string{ // each must be the TYPED refusal, not just any error
+		`{"schema_version":2,` + full + `}`, `{` + full + `}`, `{"schema_version":"1",` + full + `}`,
+		`{"schema_version":1,"rows":[],"machine":{"state":"present"},"dangling_claims":[]}`,   // no slots
+		`{"schema_version":1,"rows":[],"slots":[],"dangling_claims":[]}`,                      // no machine
+		`{"schema_version":1,"rows":[],"slots":[],"machine":{"state":"present"}}`,             // no dangling_claims
+		`{"schema_version":1,"rows":[{"tree_path":"/f/r"}],"slots":[],"machine":{"state":"present"},"dangling_claims":[]}`, // row lacks claims_state
+	} {
+		if _, err := DecodeFleetInventory([]byte(raw)); !errors.Is(err, ErrFleetSchemaUnsupported) {
+			t.Errorf("%s: err %v, want ErrFleetSchemaUnsupported", raw, err)
 		}
+	}
+	for _, raw := range []string{`[]`, ``, `{"schema_version":1,` + full + `,"schema_version":1}`} { // malformed / duplicate key
+		if _, err := DecodeFleetInventory([]byte(raw)); err == nil || errors.Is(err, ErrFleetSchemaUnsupported) {
+			t.Errorf("%q: err %v, want a malformed-input error", raw, err)
+		}
+	}
+}
+func TestDecodeFleetInventoryPre288IsUnsupportedNotEmpty(t *testing.T) {
+	raw, err := os.ReadFile("testdata/sdlc_fleet_inventory_v1_pre288.json")
+	if err != nil { t.Fatal(err) }
+	if _, err := DecodeFleetInventory(raw); !errors.Is(err, ErrFleetSchemaUnsupported) {
+		t.Fatalf("an older v1 build read as %v; it must never read as zero slots", err)
 	}
 }
 func TestFleetInventoryLiveConformance(t *testing.T) { // skips without sdlc on PATH
@@ -231,7 +283,9 @@ func TestFleetInventoryLiveConformance(t *testing.T) { // skips without sdlc on 
 
 - [ ] **Step 3:** `SCRUB go test ./cmd/internal/couchcore -run 'FleetInventory' -count=1` → FAIL (undefined).
 - [ ] **Step 4: Implement.** First probe `schema_version` alone (`struct{ V *int }`) and return
-  `ErrFleetSchemaUnsupported` unless it is exactly 1. Then decode the full struct with `encoding/json`, which accepts
+  `ErrFleetSchemaUnsupported` unless it is exactly 1. Then do a presence probe: top-level `slots`, `machine` and
+  `dangling_claims`, and each row's `claims_state`, are `json.RawMessage`/pointer fields. Any one absent →
+  `ErrFleetSchemaUnsupported` ("sdlc predates #288/#289; upgrade the slot's sdlc"). Then decode the full struct with `encoding/json`, which accepts
   unknown fields because additive v1 fields are allowed. Use `strictjson.Decode`'s duplicate-key check. The verdict
   vocabulary is `knownFleetVerdicts = {ready, holds-work, unknown, missing, needs-recovery}`. The reason grammar is
   `dirty | detached | missing | unlanded-commits | operation:<x> | open-issue:<ref> | claimed:<ref> | probe:<x>`. An
@@ -284,19 +338,29 @@ func TestFleetInventoryLiveConformance(t *testing.T) { // skips without sdlc on 
 
 **Files:** Modify `cmd/internal/couchcore/recoverplan_source.go`; test `recoverplan_source_test.go`
 
-- [ ] **Step 1: Failing test** `TestRecoverPlanRunsOneInventoryPerEnrolledFleet`. Enroll two repositories in one fleet
-  and one in another, and expect exactly two fake calls with the first primary of each fleet as the vantage.
+- [ ] **Step 1: Failing tests.** `TestRecoverPlanRunsOneInventoryPerEnrolledFleet`: enroll two repositories in one
+  fleet and one in another, and expect exactly two fake calls with the first primary of each fleet as the vantage.
+  `TestRecoverPlanReadsAFleetOnceFromTwoVantages`: two enrolled primaries in one fleet resolve the same
+  `fleet_root`; expect one sdlc call. If the fake is forced to answer both vantages with the same document, every
+  slot address must appear in exactly one row (the dedupe backstop, the real defense). A nested primary is NOT a
+  case to fixture: `WorkspaceIdentity` validation (`workspace_identity.go:89`) refuses an ordinary identity whose
+  `filepath.Dir(PrimaryRoot) != FleetRoot`, so through the real resolver its probe fails. Test that instead: a
+  primary whose workspace probe fails yields an `unavailable` fleet observation for it, never zero rows.
   `TestRecoverPlanDegradesPerSource`: one fleet failing makes only its rows `unknown-evidence`. A store error makes
   `couch.state = unavailable` and every row's agent `unknown`. Neither error is returned.
 - [ ] **Step 2:** Run → FAIL. **Step 3:** Implement
   `func (c *Couch) RecoverPlan(ctx context.Context) (RecoverPlan, error)`:
-  1. Read `c.Threads.RepositoryNames()` (an error here is the only returned error). Group by `filepath.Dir(key)` in
-     sorted order, capped at 8 fleets. Each extra fleet becomes an observation with `state: unavailable, error:
+  1. Read `c.Threads.RepositoryNames()` (an error here is the only returned error). For each primary, resolve its
+     `fleet_root` with the slot catalog's existing `sdlc workspace --json` probe (`SlotWorkspaceResolver.
+     ResolveWorkspace`; `WorkspaceIdentity.FleetRoot`). A primary whose probe fails becomes its own observation with
+     `state: unavailable`. Group by fleet root in sorted order, capped at 8 fleets. Each extra fleet becomes an observation with `state: unavailable, error:
      "fleet limit"`.
   2. For each fleet: `c.Fleet.FleetInventory` → `DecodeFleetInventory` → a `FleetObservation`.
-  3. `c.ActionableThreadInventoryContext(ctx, nil)` → a `CouchObservation`. This is the `--list` evidence path, which
-     is positive-only and safe while a console runs.
-  4. `return DeriveRecoverPlan(input), nil`.
+  3. `c.ActionableThreadInventoryContext(ctx, nil)` → a `CouchObservation`. It shares `--list`'s evidence gather
+     (`gatherThreadEvidence`, positive-only, safe while a console runs), but takes the actionable projection.
+  4. Resolve `PrimaryScopes[hostPath]` with `launcher.ResolveRepoScope` for each fleet `:0` host.
+  5. `return DeriveRecoverPlan(input), nil`. `DeriveRecoverPlan` also deduplicates slots by address, first fleet wins,
+     and records a duplicate in that fleet's `error`.
 - [ ] **Step 4:** Run → PASS. Commit `#367 M1: couchcore: RecoverPlan gathers both observations`.
 
 ### Task 1.5: `DeriveRecoverPlan` (pure)
@@ -307,14 +371,14 @@ Classes (`AllRecoverClasses()` returns them in this order) and the first-match p
 
 | # | Condition | Class | Steps / hold |
 |---|---|---|---|
-| 1 | fleet `unavailable`/`unsupported`; or a Couch slot row not in a healthy fleet (`path-missing` → row 3b) | `unknown-evidence` | hold `fleet-unavailable` / `fleet-unsupported` / `not-in-fleet` |
+| 1 | the slot's fleet is `unavailable`/`unsupported`; or (**slot-target Couch rows only**) the repo's fleet is healthy but has no such slot (`path-missing` → rule 3b instead) | `unknown-evidence` | hold `fleet-unavailable` / `fleet-unsupported` / `not-in-fleet` |
 | 2 | `machine.state != present` | `unknown-evidence` | hold `machine-unknown` |
 | 3 | verdict `needs-recovery` | `needs-recovery` | hold = the members' recovery reasons (`dirty`, `operation:x`, `detached`) |
 | 3b | verdict `missing`, or Couch reason `path-missing` | `missing-checkout` | hold `missing` (pair#387) |
 | 4 | verdict `unknown`/unrecognized; any member `claims_state` ∈ {stale, partial, unknown} | `unknown-evidence` | hold = `probe:*` reasons / `claims-<state>` |
 | 5 | Couch observation unavailable | `unknown-evidence` | hold `couch-unavailable` |
 | 6 | more than 1 joined non-archived thread | `ambiguous-threads` | hold `threads:<n>` |
-| 7 | an open issue without a claim; unlanded commits with no claim or issue; claim workspace ≠ address; `claims_state` absent while holding work | `unattributed` | hold `unclaimed:<ref>` / `unlanded-unclaimed` / `claim-workspace:<ws>` / `no-tracker` |
+| 7 | an open issue without a claim; unlanded commits with no claim or issue; a **host-member** claim whose `claimant.workspace` is non-empty and ≠ address (empty, as on dependency clones and plain clones, is never a mismatch); `claims_state` absent while holding work | `unattributed` | hold `unclaimed:<ref>` / `unlanded-unclaimed` / `claim-workspace:<ws>` / `no-tracker` |
 | 8 | agent `busy` | `agent-busy` | hold `agent-busy` |
 | 9 | agent `unusable/unknown` | `unknown-evidence` | hold `agent-unknown` |
 | 10 | verdict `ready` | `idle` | none |
@@ -325,8 +389,16 @@ Classes (`AllRecoverClasses()` returns them in this order) and the first-match p
 | 15 | `ActorActions` == `[reboot]` | `reboot` | `[reboot]` |
 | 16 | otherwise | `unknown-evidence` | hold `no-actor-action` |
 
-Non-slot rows: `dangling-claim` (hold `dangling`), `off-slot-claim` (hold `off-slot`), and `outside-fleet` (a Couch
-thread in no fleet slot; nothing suggested). `Automatic` is true exactly when there are steps and no hold. Every row
+Non-slot rows: `dangling-claim` (hold `dangling`) and `off-slot-claim` (hold `off-slot`). An **ordinary** Couch row
+that is no fleet's primary row (`IsPrimaryRow` false everywhere) becomes `outside-fleet`, with nothing suggested and
+no hold. `not-in-fleet` (rule 1) applies only to slot-target rows. A subdirectory thread under a repo is therefore
+`outside-fleet` and never makes that repo's `:0` `ambiguous-threads`.
+
+Hold codes are a closed vocabulary: `AllRecoverHolds()` returns every kind (`fleet-unavailable`, `fleet-unsupported`,
+`not-in-fleet`, `machine-unknown`, `dirty`, `operation`, `detached`, `missing`, `probe`, `claims-stale`,
+`claims-partial`, `claims-unknown`, `couch-unavailable`, `threads`, `unclaimed`, `unlanded-unclaimed`,
+`claim-workspace`, `no-tracker`, `agent-busy`, `agent-unknown`, `no-couch-thread`, `no-actor-action`, `dangling`,
+`off-slot`). A parameterized code renders as `kind:suffix`. `Automatic` is true exactly when there are steps and no hold. Every row
 has a non-empty `Reason` sentence. Rows are sorted by (kind, address, path).
 
 - [ ] **Step 1: Failing tests.**
@@ -348,6 +420,20 @@ func TestDeriveRecoverPlanCoversEveryClass(t *testing.T) {
 		if !seen[class] { t.Errorf("no fixture yields %s", class) }
 	}
 }
+func TestDeriveRecoverPlanCoversEveryHold(t *testing.T) {
+	// unknown-evidence comes from six rules, so class coverage alone proves little. Every kind in
+	// AllRecoverHolds() (derived) must be produced by at least one case, and every produced code's kind must be
+	// in AllRecoverHolds() (closed vocabulary).
+}
+func TestJoinUsesThePrimaryRowDefinition(t *testing.T) {
+	// A :0 thread at the primary root plus a subdirectory thread in the same scope gives :0 = one thread (not
+	// ambiguous) and the subdirectory thread = outside-fleet. Same fixture through ApplyRepositoryAliases: the alias
+	// lands on exactly the row the join picked (one IsPrimaryRow).
+}
+func TestDependencyCloneClaimIsAttributed(t *testing.T) {
+	// The golden fixture's dependency-member claim (no workspace) is not unattributed. The same claim on the host
+	// member with workspace "pair:9" on slot pair:1 is unattributed (claim-workspace:pair:9).
+}
 func TestRecoverStepsAreOffered(t *testing.T) { // reachability: resume/reboot steps ⊆ ActorActions(row)
 	// For every case, every resume/reboot step must be in ActorActions(ActorRowFactsOf(joined row)).
 }
@@ -362,13 +448,20 @@ func TestEveryClaimAppearsInExactlyOneRow(t *testing.T) { /* slot members + dang
 ```
 
 - [ ] **Step 2:** Run → FAIL. **Step 3:** Implement as a single pass. Normalize paths with `NormalizePath`. Join in
-  this order: Couch slot rows, then ordinary rows under `:0` hosts, then leftovers → `outside-fleet`. Classify with
+  this order: Couch slot-target rows by host path, then ordinary rows for which `IsPrimaryRow` holds, then
+  leftovers: slot-target rows → rule 1 `not-in-fleet`, ordinary rows → `outside-fleet`. First extract
+  `IsPrimaryRow(row, primaryRoot, scopeKey) bool` from `ApplyRepositoryAliases:737` and make that function call it. Classify with
   one `switch` that follows the table. Step `Action` values come from `ActorActions` (or the literal
   `ask-agent-restore`), and `RecoverStep.Command` stays empty in M1.
-  `RestoreWorkspaceMessage(ref, address) = "Recovery (" + address + "): restore this slot's workspace for " + ref +
+  `RestoreWorkspaceMessage(ref, address) = "Recovery (" + address + "): restore the workspace of this slot for " + ref +
   " through sdlc (check out its issue branch); never discard files. Reply with what sdlc issue show reports."`
-- [ ] **Step 4:** Run → PASS. Mutations, each of which must turn a test red: drop rule 3; swap 10 and 12; return
-  `[resume]` where `ActorActions` says `[reboot]`. Commit `#367 M1: couchcore: DeriveRecoverPlan joins sdlc and Couch
+- [ ] **Step 4:** Run → PASS. Mutations, each of which must turn a test red. Each pair below shares an input, so the
+  swap changes the answer:
+  - drop rule 3;
+  - swap 12 and 13 (claimed on the resting branch with a live agent: `restore-workspace` vs `live`);
+  - swap 7 and 14 (unclaimed open issue with a parked agent: `unattributed` vs `resume`);
+  - return `[resume]` where `ActorActions` says `[reboot]`;
+  - make `IsPrimaryRow` accept subdirectories. Commit `#367 M1: couchcore: DeriveRecoverPlan joins sdlc and Couch
   per slot`.
 
 ### Task 1.6: The `recover-plan` operation and `couch --recover-plan-from-sdlc`
@@ -404,7 +497,8 @@ Timeout: 90 * time.Second}`, `render` JSON-encodes `couchcore.RecoverPlan`, and 
     `000011-x`.
   - `:2`: parked (`verified_park`), claimed `#12`.
   - `:3`: dirty, claimed `#13`.
-  - `:4`: claimed `#14`, sitting on its resting branch.
+  - `:4`: claimed `#14`, sitting on its resting branch; its agent is parked, so the steps are
+    `[resume, ask-agent-restore]`.
   - one `:0` thread live (`FakeProcOps` alive) with a ready verdict.
   - one dangling claim `#15`.
 
@@ -456,14 +550,21 @@ Couch exit drops every receipt (memory only), so `status` answers `unknown`.
 
 ### Task 2.2: `SelectSlotRow`, `ActorOperationArgs`, `SlotOperationCommand`, `PrepareSlotOperation`
 
-**Files:** Create `cmd/internal/couchcore/slot_operation.go`, `slot_operation_test.go`; modify
-`cmd/internal/couchtty/menu_slot.go:30` and its thread-operation helper to use `ActorOperationArgs`.
+**Files:** Create `cmd/internal/couchcore/slot_operation.go`, `slot_operation_test.go`. Modify
+`cmd/internal/couchtty/menu_slot.go:30` (`dispatchMenuRow`) and `menu.go:1775` (`dispatchThreadOperation`) so both
+build resume/reboot args with `ActorOperationArgs`. Delete the warm-only block from `dispatchMenuOperation`
+(`menu.go:1797-1803`) and keep its `clearReattachFailure` call there.
 
 - [ ] **Step 1: Failing tests.**
-  - `SelectSlotRow`: a `:N` row matches by host path. `:0` matches the ordinary row under the primary. Zero matches →
+  - `SelectSlotRow`: a `:N` row matches by host path. `:0` matches only the row `IsPrimaryRow` accepts; a
+    subdirectory thread is never picked. Zero matches →
     `SlotOperationError{Code: "no-thread"}`; two → `"ambiguous"`.
-  - `ActorOperationArgs`: a slot gives `{"path": WorktreeRoot}`, and an ordinary row gives `{"repo-scope", "tag"}`.
-    Assert this equals what `dispatchMenuRow` emitted before the change, captured as literals.
+  - `ActorOperationArgs(row, op)`: a slot gives `{"path": WorktreeRoot}`; an ordinary row gives
+    `{"repo-scope", "tag"}`; a **detached ordinary** row with `resume` adds `{"warm-only": "true"}`, so a detached
+    `:0` is only ever reattached and never cold-started. Assert literal equality with what the switcher's effect
+    carried before the change, captured for all three shapes, and that the switcher still emits them (couchtty
+    `dispatchMenuRow`/`dispatchThreadOperation` tests). Mutation: drop warm-only from `ActorOperationArgs`; both the
+    couchcore and couchtty tests must fail.
   - `SlotOperationCommand("resume", "pair:2") == "couch --resume pair:2"` and reboot gives `"... --confirm"`.
     `TestSlotOperationCommandParses` round-trips each through `couchcmd.ParseCLI`. That test lives in couchcmd
     because couchcmd imports couchcore.
@@ -502,8 +603,14 @@ func (c *Console) EnqueueRemoteOperation(key string, prepare func(context.Contex
 
 The job does three things, in order: it calls `started()`; it runs `prepare(c.lifetime)`, which returns its error on
 failure; and it runs `c.ops(call)` with `Implicit: true, Context: c.lifetime`. Its origin is `{Operation: name,
-Address: from the call args, PreserveFocus: true, Remote: true}`. If `Enqueue` returns `accepted=false`, the method
-returns `errRemotePending`; overflow returns `errOperationQueueOverloaded`.
+Address: from the call args, PreserveFocus: true}`, with `Attempt == 0`. No new origin field is needed; Attempt 0 is
+what keeps it out of `InFlight`. For a resume, the console also reduces `clearReattachFailure` for the resolved
+address on completion, as the switcher's resume does. With no origin field, the completion recognises a remote
+resume by exactly: `Operation == "resume"`, `Attempt == 0` and no `ContinuationID`, so a continuation replacement
+never matches; a test pins both sides. If `Enqueue` returns `accepted=false`, the method returns
+`errRemotePending`; overflow returns `errOperationQueueOverloaded`. **Single outcome owner:** when the method returns
+an error, it has not called and never will call `started` or `finished`; the admission path reports that outcome.
+When it returns nil, `finished` fires exactly once.
 
 - [ ] **Step 1: Failing tests** on the `continuationConsole`-style fixture:
   - A remote resume whose dispatcher returns a `StartResult` is adopted. `attach` is called with
@@ -512,6 +619,8 @@ returns `errRemotePending`; overflow returns `errOperationQueueOverloaded`.
   - A remote completion while the operator has `InFlight.Attempt=3` leaves `InFlight` intact.
   - A duplicate key gives `errRemotePending`.
   - A prepare error reaches `finished` and no dispatcher call happens.
+  - An overloaded or pending enqueue returns an error and **never** calls `started` or `finished` (no double report).
+  - A remote resume clears the row's reattach-failure mark.
 - [ ] **Step 2:** FAIL → implement → PASS. Mutation: call `finished` before adoption, and confirm the attach-failure
   test fails. Commit `#367 M2: couchtty: remote operations ride the console queue`.
 
@@ -523,12 +632,22 @@ returns `errRemotePending`; overflow returns `errOperationQueueOverloaded`.
 `startMessageService` wires `console.EnqueueRemoteOperation` with `c.PrepareSlotOperation`; and `handle` intercepts
 `resume`/`reboot`/`operation-status` before `couchmessage.Handle`). Add the new file to `NonArtifactSources`.
 
+**Concurrency owner:** `slotOperations` holds one `sync.Mutex` over its receipt map and clock-driven sweep. `admit`,
+`status`, `started` (queue goroutine) and `finished` (console loop) all lock it. None of them waits on the queue or the
+console while holding it.
+
 Handler order:
 1. `ValidateRequest`.
 2. `broker.Caller` + `authority.current`. Any failure → `unavailable`, with nothing enqueued.
 3. For `reboot` without `Confirmed`, check `couchcore.OperationConfirms(op)` → `confirmation-required`.
-4. `ApplyReceiptEvent(admit)`; a duplicate returns the existing receipt.
-5. `slotOps(key = "remote\x00" + target, …)`. Pending → `busy`; overflow or more than 64 receipts → `overloaded`.
+4. Canonicalize the target to a queue key from the **resolved** slot: `ResolveRepositoryName` over the stored
+   repository names, then `"remote\x00" + primaryKey + ":" + N`. This is a store read, with no git or sdlc call.
+   `pair:1` and `pa:1` therefore share one pending key.
+5. Under the mutex: `ApplyReceiptEvent(admit)`. A duplicate returns the existing receipt and STOPS here: it never
+   calls `slotOps`, so a duplicate can never enqueue a second job (tested). Otherwise call `slotOps(key, …)`.
+   `Enqueue` never blocks, so holding the lock here is safe, and a job that starts at once waits briefly in `started`
+   until its receipt exists. On an enqueue error, drop the reservation and answer pending → `busy`, or overflow / more
+   than 64 receipts → `overloaded`. That is the only report of that outcome.
 6. Return `accepted` + the receipt.
 
 `finished` maps errors as follows: `errors.As(*SlotOperationError)` → `refused` with its code; anything else →
@@ -545,14 +664,20 @@ Handler order:
     `overloaded`, `id-conflict`, duplicate-admit.
   - `TestOperationStatusIsCallerScoped`.
   - `TestReceiptsExpireAndCap`: inject a clock and check the 5 min expiry and the 64 cap.
-- [ ] **Step 2:** FAIL → implement → PASS. Mutation: skip `authority.current`, and confirm the stale-caller case
+  - `TestSlotOperationReceiptsConcurrent`: run `-race` with N goroutines admitting, polling status, and firing
+    `started`/`finished` from separate goroutines. No race, and every receipt ends terminal exactly once.
+  - `TestSlotOperationAliasSharesKey`: `pair:1` then `pa:1` while the first is pending → `busy`.
+- [ ] **Step 2:** FAIL → implement → PASS (`SCRUB go test -race ./cmd/internal/couchcmd -run SlotOperation -count=1`).
+  Mutation: skip `authority.current`, and confirm the stale-caller case
   fails. Commit `#367 M2: couch: resume/reboot on the message socket for live slots only`.
 
 ### Task 2.5: CLI `--resume` / `--reboot`
 
 **Files:** Modify `cmd/internal/couchcmd/cli.go` (the `parseMessageCLI` forms; add `"--resume", "--reboot"` to
 `ParseCLI`'s early switch), `messages.go` (an admit-then-poll branch with injectable `sleep`, 500 ms interval and
-3 min budget), `run.go` `usageWith` (two lines); tests in `cli_test.go`, `messages_test.go`, `run_test.go`
+3 min budget). Today one `AdmissionTimeout` context covers the whole invocation (`messages.go:52`). The new branch
+creates a **fresh `context.WithTimeout(…, AdmissionTimeout)` per call** (admit and each status poll), with the 3 min
+budget as an outer deadline, `run.go` `usageWith` (two lines); tests in `cli_test.go`, `messages_test.go`, `run_test.go`
 (`TestPublicHelpListsOnlyPublicSurface`: allow the `--resume`/`--reboot` flags and keep refusing the bare internal
 names: `start`, `park`, `publish-description`, `--internal`, and `resume` outside `--resume`).
 
@@ -564,6 +689,11 @@ names: `start`, `park`, `publish-description`, `--internal`, and `resume` outsid
     - `refused not-offered` gives exit 1 with the detail.
     - Polling past the budget gives exit 1: `outcome uncertain; verify with couch --recover-plan-from-sdlc`.
     - A status of `unknown` after Couch restarts gives the same uncertain line.
+    - Mid-poll, a dial error (Couch exited, socket gone), an `unavailable` response (the caller's binding no longer
+      resolves after a Couch restart), or a per-call timeout gives the same **uncertain** line, exit 1, with no raw
+      transport error as the only output.
+    - An admit-time transport error gives uncertain plus the printed ID (`printUncertainMessage` pattern).
+    - The 6th poll still succeeds after more than 2 s in total, which proves the per-call context.
     - `--json` prints the final `OperationReceipt`.
   - Outside a slot (no `COUCH_STORE_DIR`): "requires a live Couch slot", exit 1.
 - [ ] **Step 2:** FAIL → implement → PASS. Commit `#367 M2: couch: --resume and --reboot CLI`.
@@ -592,7 +722,9 @@ Also add the two commands to the command table.
 
 - [ ] **Step 1: Failing test** `TestSkillDocumentsRecovery`: `couchSkill` contains `--recover-plan-from-sdlc`,
   `--resume`, `--reboot`, `--confirm`, `--send-to`, and "re-run" verification wording. Every `couch --…` command in
-  the skill parses with `ParseCLI` (a derived sweep with the regex `couch --[a-z-]+[^\n|`]*`). Every class named in
+  the skill parses with `ParseCLI`. This is a derived sweep: extract each fenced or backticked `couch …` command,
+  then **shell-split it** with a quote-aware splitter (a test helper handling `'…'`, `"…"` and `\'`), so quoted
+  `--message` bodies arrive as one argv element. Every class named in
   the skill is in `AllRecoverClasses()`.
 - [ ] **Step 2:** FAIL → write → PASS. Commit `#367 M2: couch skill: recovery procedure`.
 
@@ -638,8 +770,23 @@ gives a phantom FAIL).
 2. `SCRUB TMPDIR=$SCRATCH/tmp make test-changelog > $SCRATCH/changelog.log 2>&1`. Expected: PASS.
 3. `SCRUB go test ./... -count=1 > $SCRATCH/go-test.log 2>&1`. Expected: only
    `TestProductionArtifactReferencesAreExactlyClassified` and `TestCouchReferencesLocalArchiveLocatorRoundTrip` fail
-   (both fail on main too), and the artifact-inventory failure list is the same 33 as main.
+   (both fail on main too). Run `SCRUB go test ./cmd/internal/artifactpath -run
+   TestProductionArtifactReferencesAreExactlyClassified -count=1 -v`. Its 33 failing subtests must be exactly main's
+   33: diff the `--- FAIL` subtest names against the same command on main, and confirm none names a new #367 file.
 4. PTY-dependent packages (`ptychild`, console attach) report "operation not permitted" in the sandbox. Re-run them
    with the sandbox off before calling them failures. The live sdlc conformance test needs network access for
    tracker fetches; run it unsandboxed or accept its skip, and record which happened.
 5. Paste the pass/fail summary into `--verified` and `## Log`.
+
+## Revisions
+
+### 2026-10-03 — plan review (coordinator), blocking findings 1–13
+
+Reason: the fresh-eyes plan review. Delta:
+- **sdlc input.** Presence-aware decoding with a pre-#288 golden, and typed rejection asserts (1, 2).
+- **Join.** `fleet_root` grouping plus an address dedupe (3); `IsPrimaryRow` as the one `:0` definition (4); empty
+  dependency-clone claim workspace, verified in ariadne `claimant.go` (5); overlapping mutation pairs (6); per-hold
+  coverage (7); `not-in-fleet` vs `outside-fleet` scoped by row kind (8).
+- **Socket.** Warm-only moves into `ActorOperationArgs` (9); a per-call poll context, with failures → uncertain (10);
+  a mutex owner and `-race` (11); a single owner for the overload outcome (12); no `Remote` origin field (13).
+- **Advisories.** All applied.
