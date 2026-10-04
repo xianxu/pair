@@ -280,9 +280,23 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 		},
 	}
 	panes := couchmessage.NewPaneMailbox()
-	// Slot operations ride the console's queue; PrepareSlotOperation runs on
-	// it, so admission is judged against the inventory at execution time.
-	slotOps := newSlotOperations(func(key, op, target string, started func(), finished func(any, error)) error {
+	service, err := newMessageService(context.Background(), brokerSocket, registrySocket, authority, panes, console.MessageSlotGit, consoleSlotOperations(console, c))
+	if err != nil {
+		return nil, err
+	}
+	console.SetMessageBroker(service.broker)
+	// After the loop runs: the replay of already-attached panes lands in the
+	// mailbox the loop drains.
+	console.SubscribeMessageLifecycle(panes)
+	return service, nil
+}
+
+// consoleSlotOperations runs slot operations on the console's queue;
+// PrepareSlotOperation runs on it, so admission is judged against the
+// inventory at execution time, and the queue key resolves repository names
+// from the thread store.
+func consoleSlotOperations(console *couchtty.Console, c *couchcore.Couch) *slotOperations {
+	return newSlotOperations(func(key, op, target string, started func(), finished func(any, error)) error {
 		return console.EnqueueRemoteOperation(key, op, func(ctx context.Context) (couchcore.OperationCall, error) {
 			return c.PrepareSlotOperation(ctx, op, target)
 		}, started, finished)
@@ -292,15 +306,6 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 		}
 		return c.Threads.RepositoryNamesContext(ctx)
 	}, time.Now)
-	service, err := newMessageService(context.Background(), brokerSocket, registrySocket, authority, panes, console.MessageSlotGit, slotOps)
-	if err != nil {
-		return nil, err
-	}
-	console.SetMessageBroker(service.broker)
-	// After the loop runs: the replay of already-attached panes lands in the
-	// mailbox the loop drains.
-	console.SubscribeMessageLifecycle(panes)
-	return service, nil
 }
 
 func newMessageService(parent context.Context, brokerSocket, registrySocket string, authority messageAuthority, panes *couchmessage.PaneMailbox, slotGit func(string) (couchcore.SlotGitStatus, bool), slotOps *slotOperations) (*messageService, error) {
