@@ -784,6 +784,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/actor_actions.go",
 	"cmd/internal/couchcore/recoverplan_source.go",
 	"cmd/internal/couchcore/recoverplan_fake.go",
+	"cmd/internal/couchcore/recoverplan.go",
 	"cmd/internal/couchcore/store.go",
 	"cmd/internal/couchcore/storejournal.go",
 	"cmd/internal/couchcore/storelock.go",
