@@ -33,10 +33,27 @@ At the operator’s request resume assigned local work in its existing slot (e.g
 
 ## Done when
 
-- A restart exercise reconstructs assignments and produces a clear report for every relevant local slot, with missing/unknown evidence retained.
-- Operator-directed recovery resumes the matching issue/worktree and leaves already running work alone.
-- Conflicting dirty work, parked intent, foreign-machine assignments and legacy missing owners do not trigger destructive takeover or automatic reclaim.
-- The skill uses documented commands and is discoverable; its recovery steps are tested with stateful fixtures and a local restart acceptance case.
+(Rewritten 2026-10-03; see the Revision of that date. The original bullets are
+superseded.)
+
+- A read-only Couch report (`couch --slots --json`, name TBD) reconstructs, after
+  a restart, one row per slot and per claimed-not-done issue of this machine,
+  joining `sdlc fleet inventory` (claims, dangling claims, slot verdicts) with
+  Couch's slot and thread state; each row carries git state, disk state, agent
+  state and a suggested next step with its reason. Missing, stale or unknown
+  evidence is shown as such, never as absence.
+- Rows that are unsafe for automation (dirty or untracked files, an active Git
+  operation, a dangling claim, a foreign or unattributed claim) suggest no
+  automatic step and say why.
+- `resume <slot>` and `reboot <slot>` (pair#363's operations) are callable through
+  the running Couch's socket from a live Couch slot only; any other caller is
+  refused; results and refusals are typed.
+- Couch's skill (`couch --skill`) documents the recovery procedure an agent
+  follows: read the report, review with the operator, resume/reboot per row,
+  delegate disk fixes to the slot's own agent via `--send-to`, verify by
+  re-reading; it never acts on a slot flagged for recovery.
+- Tested with stateful fixtures covering every report row class and the caller
+  rule, plus a restart acceptance case through the real report path.
 
 ## Plan
 
@@ -154,3 +171,27 @@ Reason: operator design review; pair#363 is settled as actor-only. Delta:
   to the running Couch or must be triggered from inside it.
 - A deleted slot directory is pair#387's repair, not this issue's.
 - deps unchanged (pair#363 stays: resume and reboot are its primitives).
+
+### 2026-10-03 — recovery as LLM-driven steps 1-3 over Couch primitives
+
+Reason: operator design session after pair#363 landed. Delta:
+
+- **Steps.** (1) Git: what this machine claims and has not finished. This is
+  already `sdlc fleet inventory --json` (`rows[].claims`, `dangling_claims`,
+  `slots[]`); no new sdlc work. (2) Git vs disk per slot, and (3) whether a live
+  agent is there: a new read-only Couch report that also derives a recovery
+  plan, the steps that make each slot ready for an agent to resume. (4) Driving
+  agents to continue, the TL-in-`:0` workflow and notifications, is not this
+  issue (pair#362 and later).
+- **LLM-driven first.** An agent (typically the TL in `:0`) follows the report
+  and a skill section, calling Couch primitives. A deterministic one-shot
+  verb comes later, once the plan's row classes prove stable.
+- **Primitives on the existing socket.** `resume <slot>` / `reboot <slot>` run
+  in the running Couch through its operation queue. Callers are live
+  registered Couch slots only (the `--send-to` rule); outside callers come later.
+- **Disk fixes belong to the slot's own agent.** The TL resumes the slot, then
+  asks its agent (existing `--send-to`) to restore its workspace per the plan.
+  No agent acts in another slot's repository.
+- **Removed from scope:** preparing N ready slots for new work (archive,
+  resting branch, `weave refresh`, fresh agent) moves to step 4 / pair#362, and
+  so does Couch-owned workspace shaping.
