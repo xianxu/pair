@@ -158,11 +158,6 @@ const (
 	FleetClaimsAbsent  = "absent"
 )
 
-var knownClaimsStates = map[string]bool{
-	FleetClaimsPresent: true, FleetClaimsStale: true, FleetClaimsPartial: true,
-	FleetClaimsUnknown: true, FleetClaimsAbsent: true,
-}
-
 // knownFleetReason is the member reason grammar: dirty | detached | missing |
 // unlanded-commits | operation:<x> | open-issue:<ref> | claimed:<ref> |
 // probe:<x>.

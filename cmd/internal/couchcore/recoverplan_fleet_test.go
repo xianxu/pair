@@ -192,3 +192,10 @@ func TestFleetInventoryLiveConformance(t *testing.T) {
 		t.Error("live inventory has an empty machine state")
 	}
 }
+
+// knownClaimsStates is sdlc's claim-read quality vocabulary; the live
+// conformance test pins the producer to it.
+var knownClaimsStates = map[string]bool{
+	FleetClaimsPresent: true, FleetClaimsStale: true, FleetClaimsPartial: true,
+	FleetClaimsUnknown: true, FleetClaimsAbsent: true,
+}

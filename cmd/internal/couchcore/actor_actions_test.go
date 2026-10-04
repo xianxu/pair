@@ -14,7 +14,7 @@ type actorActionRule struct {
 	kind       ThreadTargetKind
 	state      ActionableThreadState
 	reason     ThreadReason
-	unfinished string // "", or "any" for pending|running|failed, or "none"
+	unfinished string // "", or "any" for pending|running|failed, or "none" (no request, or a complete one)
 	recover    string // "", "yes", "no"
 	want       []string
 }
@@ -46,13 +46,14 @@ func (r actorActionRule) matches(kind ThreadTargetKind, state ActionableThreadSt
 	if r.kind != "" && r.kind != kind || r.state != state || r.reason != "" && r.reason != reason {
 		return false
 	}
+	pending := unfinished != "" && unfinished != checkpoint.Complete
 	switch r.unfinished {
 	case "any":
-		if unfinished == "" {
+		if !pending {
 			return false
 		}
 	case "none":
-		if unfinished != "" {
+		if pending {
 			return false
 		}
 	}
@@ -70,7 +71,9 @@ func (r actorActionRule) matches(kind ThreadTargetKind, state ActionableThreadSt
 // own enumeration) and fails any combination the literal table does not
 // cover, so a new state or reason cannot slip past the admission table.
 func TestActorActionsFollowsTheSpecOverTheDerivedDomain(t *testing.T) {
-	phases := []checkpoint.Phase{"", checkpoint.Pending, checkpoint.Running, checkpoint.Failed}
+	// No request, plus every phase from the one vocabulary (a complete request
+	// is not unfinished).
+	phases := append(make([]checkpoint.Phase, 1), checkpoint.AllPhases()...)
 	for _, state := range AllThreadStates() {
 		for _, reason := range AllThreadReasons() {
 			for _, kind := range []ThreadTargetKind{ThreadTargetOrdinary, ThreadTargetSlot} {

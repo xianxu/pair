@@ -607,3 +607,27 @@ func TestDeriveRecoverPlanDedupesSlotsAcrossFleets(t *testing.T) {
 		t.Fatalf("rows %d, fleets %+v", count, plan.Fleets)
 	}
 }
+
+// consistent excludes evidence that cannot be observed together. It only
+// prunes the totality test's domain (so it lives with the test); production
+// evidence is derived, not checked against it.
+func consistent(e SlotEvidence) bool {
+	switch {
+	case e.Couch == CouchUnavailable && e.Threads != ThreadsZero,
+		(e.Agent == AgentNone) != (e.Threads == ThreadsZero),
+		e.Threads != ThreadsOne && e.Offer != OfferNone,
+		(e.Agent == AgentParked || e.Agent == AgentDetached) && e.Threads == ThreadsOne && e.Offer != OfferResumeReboot,
+		e.Agent != AgentUnusable && e.Agent != AgentParked && e.Agent != AgentDetached && e.Offer != OfferNone,
+		e.GitSource == GitSourceUnknown && !(e.Branch == BranchUnknown && e.Dirty == TriUnknown && e.Unlanded == TriUnknown && e.Operation == TriUnknown),
+		e.GitSource == GitSourceLocalProbe && (e.Unlanded != TriUnknown || e.Operation != TriUnknown || e.Dirty == TriUnknown ||
+			e.Branch == BranchTerminalIssue || e.Branch == BranchUnknown || (e.Quality != QualityUnknown && e.Quality != QualityUnsupported)),
+		e.GitSource == GitSourceSDLC && e.Quality == QualityUnsupported,
+		(e.Quality == QualityUnknown || e.Quality == QualityUnsupported || e.Quality == QualityAbsent) && e.Claims != ClaimsNone,
+		e.Claims == ClaimsNone && e.Workspace,
+		(e.Claims == ClaimsOneActive || e.Claims == ClaimsManyWithActive) && (e.Branch == BranchResting || e.Branch == BranchOther || e.Branch == BranchDetached),
+		e.Elsewhere && (e.Claims == ClaimsOneActive || e.Claims == ClaimsManyWithActive || e.Branch == BranchResting || e.Branch == BranchOther || e.Branch == BranchDetached),
+		e.Dir == DirMissing && e.GitSource != GitSourceUnknown:
+		return false
+	}
+	return true
+}
