@@ -386,6 +386,32 @@ on couchcore, couchtty, couchcmd, couchmessage passes. `make -k test` fails only
 `test-changelog`; `TMPDIR=<scratch>/tmp make test-changelog` passes. gofmt and vet
 clean. Remaining for M2: operator live smoke test, then `sdlc close`.
 
+### 2026-10-04 — smoke-test fixes
+
+The operator's live smoke test found three things; fixed on the branch:
+- **Caller rule (operator decision, design change).** `pair:0` under codex was live
+  in `couch --list`, but its wrapper's one-shot peer setup had failed, so it had no
+  messaging binding and `--resume` answered "unavailable: recipient is not live".
+  The operator decided slot-operation callers are authenticated by Couch's own
+  liveness, not messaging registration: a live Couch pane for the request's thread,
+  and its recorded launch matching the request's session and launch nonce.
+  Red first: an unregistered live caller was refused, and the refusal text was the
+  broker's. Mutations: re-requiring `broker.Caller` fails the unregistered case;
+  dropping the recorded-launch check lets a wrong nonce/session through.
+- **Refusal wording.** "caller is not a live Couch slot (…)", tested on every
+  caller fault (wrong nonce, wrong session, thread not live, record moved on,
+  unknown tag), none of which enqueues.
+- **Version skew.** An older Couch's "unknown message operation" becomes a
+  restart hint; a table row in the CLI outcome test (red first, mutation fails it).
+
+Environment note: this session now runs inside a live Pair/Couch slot, and the
+standard five-variable scrub leaks the rest (`COUCH_ISOLATED_ROOT`,
+`COUCH_PAIR_DATA_DIR`, other `PAIR_*`). Under it,
+`TestContinuationWriterPublishesExactCheckpointAcrossWorktrees` (couchcmd) and
+`TestSpawnComposesProductionPairRegistrationBoundary` (couchcore) fail; with every
+`PAIR_*`/`COUCH_*`/`ZELLIJ*` variable unset, both pass, as do the full couchcmd,
+couchcore and couchmessage suites and `-race` on couchcmd and couchcore.
+
 ## Revisions
 
 ### 2026-10-01 — recovery shape settled in operator discussion

@@ -415,9 +415,11 @@ Each step carries its `command`: `couch --resume repo:N`, `couch --reboot repo:N
 workspace.
 
 `couch --resume repo:N` and `couch --reboot repo:N --confirm` run one slot's step
-through the running Couch. Only an agent in a live Couch slot may call them; Couch
-checks the caller the same way it checks `--send-to` senders and refuses anyone
-else. The request runs on the switcher's own queue, in the background (the
+through the running Couch. Only an agent in a live Couch slot may call them: Couch
+checks its own records (the calling thread has a live pane, and its recorded launch
+names this shell's session and launch), so a slot whose messaging setup failed can
+still call, and anyone else is refused. An older running Couch answers with a hint
+to restart it. The request runs on the switcher's own queue, in the background (the
 operator's screen stays put), and is admitted only if the switcher would offer the
 same action on that row at that moment. Reboot needs `--confirm` because the
 operation declares it. The CLI polls a receipt Couch keeps in memory for 5 minutes

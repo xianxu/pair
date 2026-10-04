@@ -945,3 +945,18 @@ Reason: M2 delivered; the Chunk 2 mappings are reconciled with the code. Delta:
 - **Task 2.7 step 2** drives a detached `:0` (`repo:0`, warm-only reattach) through `SlotCatalogFake`, since
   couchcmd has no real-git slot fixture; the slot path is covered by the couchcore loop.
 
+### 2026-10-04 (e) — smoke-test fixes (operator decision)
+
+Reason: the operator's live smoke test. A live `pair:0` under codex whose wrapper's one-shot peer setup had failed
+(no messaging endpoint; `couch --list` shows it live) could not call `--resume` ("unavailable: recipient is not
+live"). Delta:
+- **Caller rule (operator-approved design change).** Slot-operation callers are authenticated by Couch's own
+  liveness, not by messaging registration: the thread named by the request's Scope/Tag has a live Couch pane
+  (`authority.thread`), and its recorded launch, for the agent its record names (`authority.agent`), records the
+  request's Session and Nonce (`authority.recorded`). `broker.Caller` and `authority.current` (wrapper PID) are no
+  longer read. This supersedes ARCH-SECURE's "exactly as for `--send-to`" and Task 2.4's handler step 2.
+- **Refusal text.** A caller failure says "caller is not a live Couch slot (thread <tag> not live, or this shell's
+  session/launch does not match its record)", never the broker's "recipient is not live".
+- **Version skew.** An older running Couch answers `invalid-request` "unknown message operation"; the CLI prints a
+  restart hint instead.
+

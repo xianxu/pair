@@ -393,10 +393,17 @@ and `couch --reboot repo:N --confirm` act on one slot from a live Couch slot:
    prints one uncertain line pointing at the report.
 2. `messageService.handle` intercepts the three ops before the broker
    protocol: `ValidateRequest` (one exact `repo:N`, `Confirmed` only on
-   resume/reboot), then the `--send-to` caller rule, `broker.Caller` plus
-   `authority.current`. A malformed request, including one with no caller
-   identity, is `invalid-request`; a caller that is not a connected, current
-   binding is `unavailable`. Nothing is enqueued in either case.
+   resume/reboot), then `liveCaller`, which authenticates by Couch's own
+   liveness rather than messaging registration (operator decision after the
+   smoke test): the thread named by the request's scope and tag has a live
+   Couch pane (`authority.thread`), and the launch its record names
+   (`authority.agent` reads the agent) records this shell's session and nonce
+   (`authority.recorded`). No broker binding or wrapper PID is needed, so a
+   slot whose wrapper's peer setup failed can still recover others. A
+   malformed request, including one with no caller identity, is
+   `invalid-request`; a caller that fails the check is `unavailable` ("caller
+   is not a live Couch slot …"). Nothing is enqueued in either case. The CLI
+   turns an older Couch's "unknown message operation" into a restart hint.
 3. `slotOperations` (`slot_operations.go`) owns the in-memory receipts behind
    one mutex: reboot without `Confirmed` is `confirmation-required`
    (`OperationConfirms`); the queue key comes from the resolved repository
