@@ -327,18 +327,26 @@ and never touches the console. Flow:
    first-match rule table; steps come only from rule A over
    `ActorActions(ActorRowFactsOf(row))` plus the literal `ask-agent-restore`
    (`RestoreWorkspaceMessage`). `recoverReason` authors every row's text.
-   Claims are judged against the member that holds them (M1 review BR-4/5):
-   the host's claims against the host's branch (`Claims`), each dependency
-   member's claims against that member's own branch (`judgeMemberClaim`:
-   active, resting, other, unknown), folded by `foldMemberClaims` into the
-   `DepClaims` dimension. A dependency claim on another branch is
-   `conflict:dependency-claim`; one whose member is unread or gone (a dangling
-   claim on a missing dependency) is note `claim-member-unread`, never absence;
-   one beside a host-decided row is listed as `inactive-claims`. The JSON row
+   Every member of a slot is judged on its own facts (M1 review BR-4/5/14):
+   the host's branch, dirt, unlanded commits, operation, claims and claim-read
+   quality fill the host dimensions; each dependency is judged by
+   `judgeDependency` on its own branch, dirt, unlanded commits, operation and
+   claims (`judgeMemberClaim`: active, resting, other, unknown) and folded by
+   `foldDependencies` into `DepClaims` (none, active, resting, resting-dirty,
+   conflict, work, unknown) plus `DepOperation`, the one slot-level fact,
+   read only by rule A's reboot guard. The union across members appears only
+   in the row's `evidence` list. A dependency claim on another branch is
+   `conflict:dependency-claim`; an unread or gone dependency (a dangling claim
+   on a missing member) is note `dependency-unread`, never absence; a
+   dependency's own unclaimed work is `dependency-work`; a dependency claim
+   beside a host-decided row is listed as `inactive-claims`.
+   `TestHostJudgmentsReadOnlyHostFacts` proves over the whole evidence domain
+   that dependency facts never change a host judgment. The JSON row
    shows them under `claims.dependency` (`ref`, `checkout`, `state`), and
    `RestoreWorkspaceMessage(ref, address, checkout)` names the checkout that
-   holds the claim. `hostAtRest` (resting or landed branch, nothing unlanded,
-   no operation) is the one reading of an idle host, shared by `idle`,
+   holds the claim, and the dirt that blocks a restore is that checkout's own.
+   `hostAtRest` (resting or landed branch, no dirt, nothing unlanded, no
+   operation, all the host's own) is the one reading of an idle host, shared by `idle`,
    `landed` and the dependency-claim decision; `recoverReason` derives each
    row's text from that row's own steps and notes.
    A clean, unclaimed slot on a done issue's branch is `landed` (note

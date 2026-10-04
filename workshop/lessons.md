@@ -56,6 +56,13 @@ representative evidence, not an exhaustive index.
 
 ## Authority, ownership, and identity
 
+- A judgment about one member of a composite reads that member's own facts;
+  a merged view across members is for display only. Keep per-member facts in
+  per-member fields so no decision can read the union, and prove it as a
+  domain property (vary only the other members' facts, the judgment must not
+  move). #367 hit this family twice: dependency claims judged on the host's
+  branch, then dependency dirt and commits counted as the host's (M1 review).
+
 - Model present/absent/unknown at the producer instead of reconstructing it
   from booleans in each consumer. Persistent refusals need the failed resource
   and an explicit recovery action, not only a retry instruction. (#350)

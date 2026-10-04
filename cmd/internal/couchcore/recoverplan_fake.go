@@ -227,6 +227,23 @@ func (fl *FakeFleet) SetMemberBranch(path, branch string) {
 	}
 }
 
+// SetMemberDirty, SetMemberAhead and SetMemberOperation set one checkout's
+// own facts (a dependency member's), as SetDirty and friends do the host's.
+func (fl *FakeFleet) SetMemberDirty(path string, n int) {
+	defer fl.lock()()
+	fl.member(path).dirty = n
+}
+
+func (fl *FakeFleet) SetMemberAhead(path string, n int) {
+	defer fl.lock()()
+	fl.member(path).ahead = n
+}
+
+func (fl *FakeFleet) SetMemberOperation(path, operation string) {
+	defer fl.lock()()
+	fl.member(path).operation = operation
+}
+
 // SetDetached detaches the host's HEAD.
 func (fl *FakeFleet) SetDetached(address string) {
 	defer fl.lock()()

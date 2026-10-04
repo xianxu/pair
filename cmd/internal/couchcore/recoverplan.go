@@ -283,15 +283,19 @@ const (
 	NoteGitLocalProbe           RecoverNote = "git-local-probe"
 	NoteGitUnknown              RecoverNote = "git-unknown"
 	NoteIssueDoneBranch         RecoverNote = "issue-done-branch"
-	// NoteClaimMemberUnread: a claim sits on a checkout whose branch could not
-	// be read (a missing or unread dependency); it is evidence, not absence.
-	NoteClaimMemberUnread RecoverNote = "claim-member-unread"
+	// NoteDependencyUnread: a dependency checkout, or a claim on one, could
+	// not be read (a missing member holding a claim, or unread facts); it is
+	// evidence, not absence.
+	NoteDependencyUnread RecoverNote = "dependency-unread"
+	// NoteDependencyWork: a dependency checkout carries work of its own
+	// (dirt, unlanded commits, an operation, another branch) no claim names.
+	NoteDependencyWork RecoverNote = "dependency-work"
 )
 
 func AllRecoverNotes() []RecoverNote {
 	return []RecoverNote{NoteInactiveClaims, NoteDetachedHead, NoteRestingBranchDirty, NoteInspectUncommittedFirst,
 		NoteClaimRepair, NoteClaimsStale, NoteClaimsPartial, NoteClaimsUnknown, NoteClaimsAbsent, NoteClaimsUnsupported,
-		NoteGitLocalProbe, NoteGitUnknown, NoteIssueDoneBranch, NoteClaimMemberUnread}
+		NoteGitLocalProbe, NoteGitUnknown, NoteIssueDoneBranch, NoteDependencyUnread, NoteDependencyWork}
 }
 
 // SlotEvidence dimensions. Every dimension is closed; unknown is a value.
@@ -357,13 +361,17 @@ const (
 	GitSourceLocalProbe EvidenceGitSource = "local-probe"
 	GitSourceUnknown    EvidenceGitSource = "unknown"
 
-	// DepClaims: the dependency members' claims, each judged against its own
-	// member's branch (pair#367 BR-4), never the host's.
-	DepNone     EvidenceDepClaims = "none"
-	DepActive   EvidenceDepClaims = "active"   // every one on its own issue branch
-	DepResting  EvidenceDepClaims = "resting"  // exactly one not active, its member resting
-	DepConflict EvidenceDepClaims = "conflict" // one on another branch or detached, or several resting
-	DepUnknown  EvidenceDepClaims = "unknown"  // a claim whose member's branch is unread or gone
+	// DepClaims: the dependency members, each judged on its OWN facts (its
+	// branch, dirt, unlanded commits, operation and claims; pair#367 BR-4,
+	// BR-14), never the host's, then folded. Host dimensions never read
+	// dependency facts.
+	DepNone         EvidenceDepClaims = "none"          // clean, unclaimed (or absent without a claim)
+	DepActive       EvidenceDepClaims = "active"        // every claim on its own member's issue branch
+	DepResting      EvidenceDepClaims = "resting"       // one claim on its clean member's resting branch
+	DepRestingDirty EvidenceDepClaims = "resting-dirty" // the same, its member dirty
+	DepConflict     EvidenceDepClaims = "conflict"      // a claim on another branch, or several resting
+	DepWork         EvidenceDepClaims = "work"          // a member's own work no claim names
+	DepUnknown      EvidenceDepClaims = "unknown"       // a member, or the claim on it, unread or gone
 
 	TriYes     TriState = "yes"
 	TriNo      TriState = "no"
@@ -395,7 +403,7 @@ func AllEvidenceGitSources() []EvidenceGitSource {
 }
 func AllEvidenceTriStates() []TriState { return []TriState{TriYes, TriNo, TriUnknown} }
 func AllEvidenceDepClaims() []EvidenceDepClaims {
-	return []EvidenceDepClaims{DepNone, DepActive, DepResting, DepConflict, DepUnknown}
+	return []EvidenceDepClaims{DepNone, DepActive, DepResting, DepRestingDirty, DepConflict, DepWork, DepUnknown}
 }
 
 func (o EvidenceOffer) actions() []string {
@@ -430,6 +438,11 @@ type SlotEvidence struct {
 	// Claims are the host's claims, judged against the host's branch.
 	Claims    EvidenceClaims
 	DepClaims EvidenceDepClaims
+	// DepOperation is an operation in any dependency checkout: a slot-level
+	// fact read only by rule A's reboot guard (a reboot replaces the slot's
+	// whole agent), never by a judgment about one member.
+	DepOperation TriState
+	// Quality, Dirty, Unlanded and Operation are the HOST's own facts.
 	Quality   EvidenceQuality
 	GitSource EvidenceGitSource
 	Dirty     TriState
@@ -458,7 +471,8 @@ type recoverDecision struct {
 // rule decides the class; steps come only from rule A over ActorActions' offer.
 func classifyRecover(e SlotEvidence) recoverDecision {
 	claims := e.Claims != ClaimsNone
-	// work: any claim in the slot, the host's or a dependency's.
+	// work: a host claim, or anything a dependency member's own judgment
+	// found (a claim, its own unclaimed work, or an unread member).
 	work := claims || e.DepClaims != DepNone
 	read := e.Quality == QualityPresent || e.Quality == QualityStale
 	var d recoverDecision
@@ -480,11 +494,11 @@ func classifyRecover(e SlotEvidence) recoverDecision {
 		}
 	case e.Claims == ClaimsManyWithoutActive:
 		d = recoverDecision{Class: RecoverAmbiguousClaims, Hold: []string{string(HoldAmbiguousClaims)}}
-	case !work && e.Branch == BranchTerminalIssue && hostAtRest(e) && e.Dirty == TriNo:
+	case !work && e.Branch == BranchTerminalIssue && hostAtRest(e):
 		d = recoverDecision{Class: RecoverLanded, Notes: []RecoverNote{NoteIssueDoneBranch}}
 	case !work && e.Branch != BranchOpenIssue && e.gitUnknown():
 		d = recoverDecision{Class: RecoverEvidenceUnavailable, Hold: []string{string(HoldGitUnknown)}}
-	case !work && e.Branch == BranchResting && hostAtRest(e) && e.Dirty == TriNo:
+	case !work && e.Branch == BranchResting && hostAtRest(e):
 		d = recoverDecision{Class: RecoverIdle}
 	case !work && e.Branch != BranchOpenIssue:
 		// resting with work, another branch or a detached HEAD
@@ -493,7 +507,7 @@ func classifyRecover(e SlotEvidence) recoverDecision {
 		d = recoverDecision{Class: RecoverNoCouchThread, Hold: []string{string(HoldNoCouchThread)}}
 	case e.Claims == ClaimsOneInactive && e.Branch == BranchResting:
 		// The host's claim is restored; a dependency claim beside it is noted.
-		d = restoreWorkspaceDecision(e, depNotes(e))
+		d = restoreWorkspaceDecision(e, e.Dirty, depNotes(e))
 	case e.Claims == ClaimsOneActive || e.Claims == ClaimsManyWithActive || e.Claims == ClaimsOneInactive && e.Branch == BranchDetached:
 		notes := depNotes(e)
 		if e.Claims == ClaimsManyWithActive {
@@ -547,7 +561,7 @@ func conflictFacts(e SlotEvidence, claims, read bool) []string {
 		"claim-elsewhere": e.Elsewhere,
 		// A done issue's branch conflicts only when work is still on it; a
 		// clean, unclaimed one is the leftover of landing (RecoverLanded).
-		"issue-terminal":        e.Branch == BranchTerminalIssue && (claims || e.Dirty == TriYes || e.Unlanded == TriYes || e.Operation == TriYes),
+		"issue-terminal":        e.Branch == BranchTerminalIssue && (claims || hostCarriesWork(e)),
 		"claim-workspace":       e.Workspace,
 		"claim-off-branch":      claims && e.Branch == BranchOther,
 		"claim-branch-mismatch": claims && e.Branch == BranchOpenIssue && (e.Claims == ClaimsOneInactive || e.Claims == ClaimsManyWithoutActive) && read,
@@ -563,24 +577,32 @@ func conflictFacts(e SlotEvidence, claims, read bool) []string {
 }
 
 // hostAtRest is the one reading of "the host carries no work of its own": on
-// its resting branch or on a done issue's branch (landed), with nothing
-// unlanded and no operation in progress. Dirt is checked by each caller,
-// because a dependency's dirt folds into the slot's and only some decisions
-// may proceed with it. Rules idle and landed and dependencyClaimDecision all
-// read it (M1 review round 2, BR-10).
+// its resting branch or on a done issue's branch (landed), with no dirt,
+// nothing unlanded and no operation in progress. Every fact it reads is the
+// host's own; a dependency's work is judged on that dependency (DepClaims),
+// never folded into the host (BR-10, BR-14). Rules idle and landed, the
+// issue-terminal conflict fact and dependencyClaimDecision all read it.
 func hostAtRest(e SlotEvidence) bool {
-	return (e.Branch == BranchResting || e.Branch == BranchTerminalIssue) && e.Unlanded == TriNo && e.Operation == TriNo
+	return (e.Branch == BranchResting || e.Branch == BranchTerminalIssue) && e.Dirty == TriNo && e.Unlanded == TriNo && e.Operation == TriNo
 }
 
-// depNotes qualifies a host-decided row by its dependency claims: one resting
-// on its member's resting branch is listed as inactive (no step of its own);
-// one whose member is unread is named as such.
+// hostCarriesWork: the host's own facts show work (dirt, unlanded commits or
+// an operation), read for the issue-terminal conflict.
+func hostCarriesWork(e SlotEvidence) bool {
+	return e.Dirty == TriYes || e.Unlanded == TriYes || e.Operation == TriYes
+}
+
+// depNotes qualifies a host-decided row by its dependency members: a claim
+// resting on its member's resting branch is listed as inactive (no step of
+// its own); an unread member and a member's unclaimed work are named.
 func depNotes(e SlotEvidence) []RecoverNote {
 	switch e.DepClaims {
-	case DepResting:
+	case DepResting, DepRestingDirty:
 		return []RecoverNote{NoteInactiveClaims}
 	case DepUnknown:
-		return []RecoverNote{NoteClaimMemberUnread}
+		return []RecoverNote{NoteDependencyUnread}
+	case DepWork:
+		return []RecoverNote{NoteDependencyWork}
 	}
 	return nil
 }
@@ -589,7 +611,10 @@ func depNotes(e SlotEvidence) []RecoverNote {
 // dependencies', with the host not on an issue branch.
 func dependencyClaimDecision(e SlotEvidence) recoverDecision {
 	switch {
-	case hostAtRest(e) && e.Dirty != TriUnknown:
+	case e.DepClaims == DepWork:
+		// A dependency's own work that no claim names.
+		return recoverDecision{Class: RecoverUnidentifiedWork, Hold: []string{string(HoldUnidentifiedWork)}, Notes: []RecoverNote{NoteDependencyWork}}
+	case hostAtRest(e):
 		var landed []RecoverNote
 		if e.Branch == BranchTerminalIssue {
 			landed = []RecoverNote{NoteIssueDoneBranch}
@@ -598,9 +623,12 @@ func dependencyClaimDecision(e SlotEvidence) recoverDecision {
 		case DepActive:
 			return withRuleA(RecoverAgrees, e, false, landed)
 		case DepResting:
-			return restoreWorkspaceDecision(e, landed)
+			// The dirt that decides a restore is the holding member's own.
+			return restoreWorkspaceDecision(e, TriNo, landed)
+		case DepRestingDirty:
+			return restoreWorkspaceDecision(e, TriYes, landed)
 		}
-		return withRuleA(RecoverPartialEvidence, e, true, append(landed, NoteClaimMemberUnread))
+		return withRuleA(RecoverPartialEvidence, e, true, append(landed, NoteDependencyUnread))
 	case e.gitUnknown():
 		return withRuleA(RecoverPartialEvidence, e, true, append(depNotes(e), NoteGitUnknown))
 	}
@@ -614,10 +642,12 @@ func dependencyClaimDecision(e SlotEvidence) recoverDecision {
 // could make the switch fail or carry edits across: then resume only.
 // extra carries the notes of claims the restore does not ask about, so every
 // claim in the slot shows in the row's steps or notes.
-func restoreWorkspaceDecision(e SlotEvidence, extra []RecoverNote) recoverDecision {
-	if e.Dirty != TriNo {
+// dirt is the restoring member's own: the host's for a host claim, the
+// holding dependency's for a dependency claim.
+func restoreWorkspaceDecision(e SlotEvidence, dirt TriState, extra []RecoverNote) recoverDecision {
+	if dirt != TriNo {
 		notes := append(extra, NoteRestingBranchDirty)
-		if e.Dirty == TriUnknown {
+		if dirt == TriUnknown {
 			notes = append(extra, NoteGitUnknown)
 		}
 		return withRuleA(RecoverRestoreWorkspace, e, true, notes)
@@ -646,9 +676,9 @@ func withRuleA(class RecoverClass, e SlotEvidence, resumeOnly bool, notes []Reco
 		hold = HoldNoActorAction
 	case resumeOnly:
 		hold = HoldResumeOnly
-	case e.Operation == TriYes:
+	case e.Operation == TriYes || e.DepOperation == TriYes:
 		hold = HoldRebootUnsafeOperation
-	case e.Branch == BranchDetached || e.gitUnknown():
+	case e.Branch == BranchDetached || e.gitUnknown() || e.DepOperation == TriUnknown || e.DepClaims == DepUnknown:
 		hold = HoldRebootUnsafeGit
 	default:
 		d.Steps = []string{"reboot"}
@@ -869,10 +899,12 @@ func slotEvidenceOf(s *recoverSlot, in RecoverPlanInput) slotFacts {
 
 	// Git, from sdlc's slot members, else the local probe, else unknown.
 	e.GitSource, e.Branch, e.Dirty, e.Unlanded, e.Operation = GitSourceUnknown, BranchUnknown, TriUnknown, TriUnknown, TriUnknown
+	e.DepOperation = TriNo
 	resting := RestingBranch(s.number)
 	activeRef := ""
 	var claimRefs []string // the host's
 	var depClaims []RecoverMemberClaim
+	var deps []dependencyJudgment
 	var hostClaims []FleetClaim
 	e.Quality = QualityUnknown
 	claimsError := ""
@@ -882,46 +914,31 @@ func slotEvidenceOf(s *recoverSlot, in RecoverPlanInput) slotFacts {
 		if !knownFleetVerdicts[s.slot.Verdict] {
 			f.disk.Verdict = FleetVerdictUnknown
 		}
-		dirty, unlanded, operation := []TriState{}, []TriState{}, []TriState{}
+		// Every member is judged on its own facts (BR-14): the host's fill the
+		// host dimensions, each dependency's its own judgment. The union
+		// across members is built only for the row's evidence list.
 		for i, m := range s.slot.Members {
 			f.disk.Members = append(f.disk.Members, RecoverDiskMember{Role: m.Role, Path: m.Path, Verdict: m.Verdict, Reasons: append([]string{}, m.Reasons...)})
-			if m.Verdict == FleetVerdictMissing {
-				continue
-			}
 			row, read := s.rows[filepath.Clean(m.Path)]
-			md, mu, mo := memberGit(m, row, read)
-			dirty, unlanded, operation = append(dirty, md), append(unlanded, mu), append(operation, mo)
-			if read {
-				for _, c := range row.Claims {
-					if i == 0 {
-						claimRefs = append(claimRefs, c.Ref)
-					} else {
-						depClaims = append(depClaims, judgeMemberClaim(c.Ref, m, row))
-					}
-				}
-				q := qualityOf(row.ClaimsState)
-				if i == 0 || qualityRank(q) > qualityRank(e.Quality) {
-					e.Quality, claimsError = q, row.ClaimsError
-				}
-			} else if i == 0 {
-				e.Quality = QualityUnknown
-			}
 			if i != 0 {
+				dep := judgeDependency(m, row, read, danglingOn(s.dangling, m.Path))
+				deps = append(deps, dep)
+				depClaims = append(depClaims, dep.claims...)
 				continue
 			}
-			if read {
-				hostClaims = row.Claims
-				resting = m.RestingBranch
-				f.git.Branch = row.Branch
-				e.Branch, activeRef, f.git.Issue, f.git.IssueStatus = sdlcBranch(m, row, s.repo)
+			if m.Verdict == FleetVerdictMissing || !read {
+				continue
 			}
-		}
-		if len(s.slot.Members) > 0 && s.slot.Members[0].Verdict != FleetVerdictMissing {
 			e.GitSource = GitSourceSDLC
-			e.Dirty, e.Unlanded, e.Operation = foldTri(dirty), foldTri(unlanded), foldTri(operation)
-		}
-		if _, read := s.rows[filepath.Clean(s.path)]; !read {
-			e.GitSource, e.Branch, e.Dirty, e.Unlanded, e.Operation = GitSourceUnknown, BranchUnknown, TriUnknown, TriUnknown, TriUnknown
+			e.Dirty, e.Unlanded, e.Operation = memberGit(m, row, read)
+			for _, c := range row.Claims {
+				claimRefs = append(claimRefs, c.Ref)
+			}
+			e.Quality, claimsError = qualityOf(row.ClaimsState), row.ClaimsError
+			hostClaims = row.Claims
+			resting = m.RestingBranch
+			f.git.Branch = row.Branch
+			e.Branch, activeRef, f.git.Issue, f.git.IssueStatus = sdlcBranch(m, row, s.repo)
 		}
 	case s.candidate != nil:
 		e.Quality = QualityUnknown
@@ -952,13 +969,20 @@ func slotEvidenceOf(s *recoverSlot, in RecoverPlanInput) slotFacts {
 	}
 	// Dangling claims (their checkout is no inventory row) always count toward
 	// their slot, present or not: on the host path a host claim, otherwise a
-	// dependency claim whose member's branch is unread (pair#367 BR-5).
+	// dependency claim whose member's branch is unread (pair#367 BR-5). A
+	// listed member already took its own above.
 	for _, c := range s.dangling {
-		if filepath.Clean(c.Claimant.Worktree) == s.path {
+		path := filepath.Clean(c.Claimant.Worktree)
+		if path == s.path {
 			claimRefs = append(claimRefs, c.Ref)
 			continue
 		}
-		depClaims = append(depClaims, RecoverMemberClaim{Ref: c.Ref, Checkout: filepath.Base(c.Claimant.Worktree), State: memberClaimUnknown})
+		if s.slot != nil && slices.ContainsFunc(s.slot.Members, func(m FleetMember) bool { return filepath.Clean(m.Path) == path }) {
+			continue
+		}
+		dep := dependencyJudgment{verdict: DepUnknown, operation: TriNo, claims: []RecoverMemberClaim{{Ref: c.Ref, Checkout: filepath.Base(path), State: memberClaimUnknown}}}
+		deps = append(deps, dep)
+		depClaims = append(depClaims, dep.claims...)
 	}
 	f.git.Source, f.git.State = string(e.GitSource), string(e.Branch)
 	f.git.Dirty, f.git.Unlanded, f.git.Operation = string(e.Dirty), string(e.Unlanded), string(e.Operation)
@@ -986,11 +1010,11 @@ func slotEvidenceOf(s *recoverSlot, in RecoverPlanInput) slotFacts {
 			f.claims.Inactive = append(f.claims.Inactive, ref)
 		}
 	}
-	e.DepClaims = foldMemberClaims(depClaims)
+	e.DepClaims, e.DepOperation = foldDependencies(deps)
 	switch {
 	case e.Claims == ClaimsOneInactive:
 		f.restoreRef, f.restoreCheckout = f.claims.Inactive[0], filepath.Base(s.path)
-	case e.DepClaims == DepResting:
+	case e.DepClaims == DepResting || e.DepClaims == DepRestingDirty:
 		for _, c := range depClaims {
 			if c.State == memberClaimResting {
 				f.restoreRef, f.restoreCheckout = c.Ref, c.Checkout
@@ -1044,13 +1068,21 @@ func slotEvidenceOf(s *recoverSlot, in RecoverPlanInput) slotFacts {
 	if e.Branch == BranchOpenIssue {
 		f.work = append(f.work, "issue-branch")
 	}
-	if e.Unlanded == TriYes {
+	// The one place facts cross members: the row's evidence list is the
+	// union of what any checkout of the slot carries (display only).
+	anyMember := func(host TriState, of func(dependencyJudgment) TriState) bool {
+		if host == TriYes {
+			return true
+		}
+		return slices.ContainsFunc(deps, func(d dependencyJudgment) bool { return of(d) == TriYes })
+	}
+	if anyMember(e.Unlanded, func(d dependencyJudgment) TriState { return d.unlanded }) {
 		f.work = append(f.work, "unlanded-commits")
 	}
-	if e.Dirty == TriYes {
+	if anyMember(e.Dirty, func(d dependencyJudgment) TriState { return d.dirty }) {
 		f.work = append(f.work, "dirty")
 	}
-	if e.Operation == TriYes {
+	if anyMember(e.Operation, func(d dependencyJudgment) TriState { return d.operation }) {
 		f.work = append(f.work, "operation")
 	}
 	for _, row := range s.threads {
@@ -1088,31 +1120,102 @@ func judgeMemberClaim(ref string, m FleetMember, row FleetRow) RecoverMemberClai
 	return c
 }
 
-// foldMemberClaims reduces the dependency claims to the evidence dimension.
-func foldMemberClaims(claims []RecoverMemberClaim) EvidenceDepClaims {
-	if len(claims) == 0 {
-		return DepNone
-	}
-	resting, unknown := 0, false
-	for _, c := range claims {
-		switch c.State {
-		case memberClaimOther:
-			return DepConflict
-		case memberClaimResting:
-			resting++
-		case memberClaimUnknown:
-			unknown = true
+// dependencyJudgment is one dependency member judged on its own facts.
+type dependencyJudgment struct {
+	verdict                    EvidenceDepClaims
+	claims                     []RecoverMemberClaim
+	dirty, unlanded, operation TriState
+}
+
+// danglingOn lists the dangling claims whose checkout is path.
+func danglingOn(dangling []FleetDanglingClaim, path string) []string {
+	var refs []string
+	for _, c := range dangling {
+		if filepath.Clean(c.Claimant.Worktree) == filepath.Clean(path) {
+			refs = append(refs, c.Ref)
 		}
 	}
-	switch {
-	case resting > 1:
-		return DepConflict
-	case unknown:
-		return DepUnknown
-	case resting == 1:
-		return DepResting
+	return refs
+}
+
+// judgeDependency judges one dependency member reading only its own branch,
+// dirt, unlanded commits, operation and claims (BR-4, BR-14).
+func judgeDependency(m FleetMember, row FleetRow, read bool, dangling []string) dependencyJudgment {
+	d := dependencyJudgment{dirty: TriNo, unlanded: TriNo, operation: TriNo}
+	for _, ref := range dangling {
+		d.claims = append(d.claims, RecoverMemberClaim{Ref: ref, Checkout: filepath.Base(m.Path), State: memberClaimUnknown})
 	}
-	return DepActive
+	switch {
+	case m.Verdict == FleetVerdictMissing:
+		// Absent: a claim on it is unread evidence; without one, the disk
+		// verdict shows it and there is nothing of its own to judge.
+		if len(d.claims) > 0 {
+			d.verdict = DepUnknown
+		} else {
+			d.verdict = DepNone
+		}
+		return d
+	case !read:
+		d.verdict, d.dirty, d.unlanded, d.operation = DepUnknown, TriUnknown, TriUnknown, TriUnknown
+		return d
+	}
+	d.dirty, d.unlanded, d.operation = memberGit(m, row, read)
+	for _, c := range row.Claims {
+		d.claims = append(d.claims, judgeMemberClaim(c.Ref, m, row))
+	}
+	states := map[string]int{}
+	for _, c := range d.claims {
+		states[c.State]++
+	}
+	branch, _, _, _ := sdlcBranch(m, row, filepath.Base(m.Path))
+	switch {
+	case states[memberClaimOther] > 0 || states[memberClaimResting] > 1:
+		d.verdict = DepConflict
+	case states[memberClaimUnknown] > 0:
+		d.verdict = DepUnknown
+	case states[memberClaimActive] > 0:
+		d.verdict = DepActive
+	case states[memberClaimResting] == 1 && d.dirty == TriNo:
+		d.verdict = DepResting
+	case states[memberClaimResting] == 1 && d.dirty == TriYes:
+		d.verdict = DepRestingDirty
+	case states[memberClaimResting] == 1:
+		d.verdict = DepUnknown
+	case d.dirty == TriYes || d.unlanded == TriYes || d.operation == TriYes || branch == BranchOther || branch == BranchDetached || branch == BranchOpenIssue:
+		// Unclaimed work of its own, or a branch no claim names.
+		d.verdict = DepWork
+	case d.dirty == TriUnknown || d.unlanded == TriUnknown || d.operation == TriUnknown || branch == BranchUnknown:
+		d.verdict = DepUnknown
+	default:
+		d.verdict = DepNone
+	}
+	return d
+}
+
+// foldDependencies reduces the per-member judgments to the slot's dependency
+// dimension, plus the one slot-level fact rule A's reboot guard reads: an
+// operation in any dependency.
+func foldDependencies(deps []dependencyJudgment) (EvidenceDepClaims, TriState) {
+	rank := map[EvidenceDepClaims]int{DepNone: 0, DepActive: 1, DepResting: 2, DepRestingDirty: 3, DepUnknown: 4, DepWork: 5, DepConflict: 6}
+	out, operation, resting := DepNone, TriNo, 0
+	for _, d := range deps {
+		if rank[d.verdict] > rank[out] {
+			out = d.verdict
+		}
+		if d.verdict == DepResting || d.verdict == DepRestingDirty {
+			resting++
+		}
+		switch {
+		case d.operation == TriYes:
+			operation = TriYes
+		case d.operation == TriUnknown && operation == TriNo:
+			operation = TriUnknown
+		}
+	}
+	if resting > 1 {
+		out = DepConflict
+	}
+	return out, operation
 }
 
 // memberGit reads one present member's dirt, unlanded commits and operation.
@@ -1236,30 +1339,11 @@ func qualityOf(state string) EvidenceQuality {
 	return QualityUnknown
 }
 
-// qualityRank orders claim-read weakness; a dependency degrades the host's
-// read only when its own is weaker. absent (no tracker) is a complete read.
-func qualityRank(q EvidenceQuality) int {
-	return map[EvidenceQuality]int{QualityPresent: 0, QualityAbsent: 0, QualityStale: 1, QualityPartial: 2, QualityUnknown: 3, QualityUnsupported: 4}[q]
-}
-
 func triOf(b bool) TriState {
 	if b {
 		return TriYes
 	}
 	return TriNo
-}
-
-func foldTri(values []TriState) TriState {
-	out := TriNo
-	for _, v := range values {
-		if v == TriYes {
-			return TriYes
-		}
-		if v == TriUnknown {
-			out = TriUnknown
-		}
-	}
-	return out
 }
 
 func uniqueStrings(values []string) []string {
