@@ -491,8 +491,8 @@ func TestClaimsAttachToTheirSlotPath(t *testing.T) {
   " through sdlc (check out its issue branch); never discard files. Reply with what sdlc issue show reports."`
 - [ ] **Step 4:** Run → PASS. Mutations, each on inputs two rules share, each must turn a test red:
   - swap 6 and 13 (a host claim on B, with B checked out and a mismatched workspace: `conflict` vs `agrees`);
-  - swap 13 and 15 (an active claim seen while `Quality` is partial, on an unusable primary where only reboot is
-    offered: `agrees [reboot]` vs no step);
+  - swap 11 and 13 (an active claim with `Agent` none: hold `no-couch-thread` vs `agrees`; rule 11's claims clause
+    and rule 13's one-active clause both match it, so the order decides);
   - drop the operation guard in rule A (operation present, resume not offered → `no-safe-step` vs `[reboot]`);
   - swap 3 and rule A (busy with reboot offered);
   - make `IsPrimaryRow` accept subdirectories.
@@ -865,7 +865,7 @@ Reason: the operator answered the plan's three questions, and the review found t
 
   A totality test runs over the derived evidence domain, and unknown git is never idle or absence (rule 8, rule 15
   `git-unknown`).
-- **Mutations.** Re-picked so each pair overlaps: 6/13 and 13/15.
+- **Mutations.** Re-picked so each pair overlaps: 6/13 and 11/13 (13/15 was disjoint by construction; replaced after review round 3).
 - **Probes.** `ProbeSlotGit` is bounded by the shared `SlotGitProbeTimeout`. `SlotCandidates` are gathered in the
   shell, so the derivation stays pure.
 - **Claim repair.** `claim-repair` → `issue show` first; the slot's own agent repairs, under operator direction.
