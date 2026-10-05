@@ -1,7 +1,7 @@
 ---
 id: 000387
 status: working
-deps: []
+deps: [ariadne#294]
 github_issue:
 created: 2026-10-02
 updated: 2026-10-05
@@ -218,6 +218,9 @@ ariadne#293 (record sources fleet-wide; weave flags a sourceless row). The
 operator rejected a weave fallback that infers the source from a sibling
 checkout's `origin` as fragile. #387 does not depend on it: reconcile reports the
 failure and hands off to `:0`.
+Filed ariadne#294 (export `layergraph.DeclaredSubstrates`, reporting absent
+substrates that `Walk` present-skips); #387's Task 1.3 imports it, so it is in
+`deps:`. Both ariadne filings' details are local in `~/workspace/ariadne`.
 
 ## Revisions
 
