@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000393-raise-all-storage-retention-periods-to-one-year.md
         source_blob: 40cfa7ecf3ee691b2b06ef7e98c236422611b2ba
         destination: workshop/issues/000393-raise-all-storage-retention-periods-to-one-year.md
+        main_commit: a73a85b0f3e8c9b0e06da536ed145ef47735b6fa
 ---
 
 # Raise all storage retention periods to one year
