@@ -121,12 +121,18 @@ creation. Principle: ariadne#291 (reconcile dispersed state; don't script it).
   registration and `main-slotN` (this issue's original case, which must no longer
   block add slot or allocation for the whole repository); an interrupted setup
   like `tools:1` (missing clone and marker); a missing dependency clone under a
-  valid marker; a dirty slot whose rebuild saves the work first.
-- A failure names the resource that did not converge, the classified cause, and
-  the fix; the `tools:1` case reads "`construct/deps` declares `../ariadne`
-  without a clone source — add its URL, then reconcile".
-- Add slot, reboot's workspace step and rebuild run through the reconciler rather
-  than their own repair logic.
+  valid marker; a dirty slot whose broken checkout must be recreated saves the
+  work first (host: a stash-shaped commit on a private ref; dependency clones: a
+  saved-work entry in the slot store) and the result names how to restore it.
+- A failure names the resource that did not converge and the cause verbatim
+  (weave's own `Error:` line for setup). Only a retryable cause (setup running
+  elsewhere, timeout, cancellation) says to run it again; every other failure says
+  to hand it to the repository's `:0` agent. The `tools:1` case shows weave's
+  missing-substrate line and the `:0` hand-off, never "retry".
+- Add slot, open, resume and reboot converge the workspace through the reconciler
+  rather than their own repair logic, with no confirmation for routine repair;
+  `couch --show repo:N` prints the observed resources and the plan, and
+  `couch --reconcile repo:N` applies it explicitly.
 
 ## Plan
 
@@ -148,7 +154,53 @@ the slot reconciler, after pair#367's M3 (`couch --rebuild` as a scripted saga) 
 dropped. The deleted-slot repair stays as one acceptance case. Related:
 ariadne#291 (the ARCH principle), pair#390 (wrapper messaging needs no sdlc).
 
+Design decisions (operator, planning session):
+- The desired state is a working slot. Past state matters only where it is the
+  operator's: uncommitted and untracked files, local-only commits, the slot
+  store's archive and preferences (the transcript is never touched). Everything
+  else is derived and repaired automatically, without confirmation. There is no
+  operator "rebuild" verb: a derived resource that cannot converge in place is
+  saved (if it holds user data), removed and recreated.
+- A leftover `main-slotN` without ownership proof is adopted (checked out again,
+  its commits kept); refuse only if it is checked out elsewhere or its upstream
+  config conflicts.
+- Saved work: the host checkout's dirty and untracked files become a
+  stash-shaped commit on a private ref `refs/couch/saved/slotN/<id>` (not the
+  shared stash stack, which every worktree and session shares); dependency clones'
+  dirty work and local-only commits go to `<env>/.couch/saved-work/<id>/`. Both
+  are collected after storagegc's 60-day retention. Ignored files are derived and
+  not saved.
+- A live agent whose Couch record is lost or unreadable is adopted, never
+  stopped. Reconcile never removes a checkout under a live agent; that case stops
+  and reports.
+- An unknown observation stops the walk at that resource.
+- A converge step that fails is reported with its verbatim cause and handed to
+  the repository's `:0` agent to debug; only retryable causes say run again.
+  `tools:1` is this case: `tools/construct/deps` declares `substrate ../ariadne`
+  without a URL (verified 2026-10-05; pair's line carries the URL), so a fresh
+  `weave compile` fails identically. The fix belongs in tools.
+- Surface: reconcile runs inside add slot, open, resume and reboot; `couch --show
+  repo:N` shows resources and the plan; `couch --reconcile repo:N` applies it.
+
+Code survey (2026-10-05): nothing in `cmd/` deletes a slot directory, its git
+registration, `main-slotN` or its config, so any leftover blocks forever; a
+leftover registration blocks add slot for the whole repository
+(`SelectStartSlot`, `slotallocation.go`). Slot discovery has two disagreeing
+predicates (`EnumerateSlotCandidates` filesystem-only vs `OSSlotCatalog.Discover`
+plus `git worktree list`). `selectedSlot` already calls `Workspaces.Ensure` for an
+unverified candidate, and `NextHostAction` is already observation-driven: the
+reconciler generalizes `Ensure` rather than adding a second provisioner.
+
 ## Revisions
+
+### 2026-10-05 — Done-when follows the planning-session decisions
+
+Reason: operator decisions above (automatic repair, `:0` hand-off for failures
+reconcile cannot fix, no rebuild verb). Delta: the acceptance bullet for a dirty
+slot names where work is saved; the failure bullet drops the tools-specific fix
+text and classified-fix wording for verbatim cause + retryable-only "run again" +
+`:0` hand-off; the last bullet replaces "rebuild" with add slot/open/resume/reboot
+plus `--show` and `--reconcile`.
 
 ### 2026-10-05 — re-scoped to the slot reconciler
 
