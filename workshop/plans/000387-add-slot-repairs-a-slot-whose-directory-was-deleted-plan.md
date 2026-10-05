@@ -462,8 +462,9 @@ the intent path, the marker path built from `admin` in `readSuccess` and `Ensure
 
 ### Task 1.3: Declared dependencies through ariadne's `layergraph`
 
-**Prerequisite:** ariadne#294 landed (`DeclaredSubstrates`, `e76aac11`) and ariadne#295 (typed
-`NotLayerError`) has landed; pin the sha that contains both.
+**Prerequisite (met):** ariadne#294 (`DeclaredSubstrates`) and ariadne#295 (typed
+`NotLayerError`, returned by `declaredGraph`; the walk still stops there) are on ariadne
+`main`; pin `b9bc9f32` (the #295 merge) or later.
 
 `DeclaredSubstrates` errors for the whole walk when a *present* substrate has no
 `construct/base.manifest` ("present but not a compilable layer", an untyped `fmt.Errorf`).
@@ -472,8 +473,7 @@ unknown and stop the repair. Pair must not match error text. Resolution (operato
 2026-10-05): a typed `*layergraph.NotLayerError{Path, Owner}` from ariadne#295,
 read with `errors.As` → that `dep:<path>` is a set-aside candidate, judged by R2's git evidence.
 
-**Files:** `go.mod`/`go.sum` (`go get github.com/xianxu/ariadne@e76aac11`, or the follow-up's
-sha; no `replace`);
+**Files:** `go.mod`/`go.sum` (`go get github.com/xianxu/ariadne@b9bc9f32`; no `replace`);
 create `slotdeps.go` (an `osFS` adapter implementing `layergraph.FS`, with reads bounded by
 `layergraph.ReadDeclaration`'s 64 KB limit; `DeclaredDeps(host) ([]DeclaredSubstrate,
 error)`) and `slotdeps_test.go`.
