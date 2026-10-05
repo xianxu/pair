@@ -72,17 +72,19 @@ g/h/i (`workshop/history/plans/000367-recover-owned-slots-plan.md`).
   *is* the removal: the dependency is absent afterwards, so it cannot be saved twice. Restore is
   `mv`. Plan review round 2 showed a tar cannot work: the real `ariadne` clone measures 65 MB.
   There is one mechanism and no new ref namespace (ARCH-DRY).
-- **R5 — A failing recompile under a valid marker is remembered, not repeated every open.**
-  Rule 4 keeps a working slot usable when its recompile fails. To keep each later open from
-  re-running a failing `weave compile` (up to `SetupTimeout`), the reconciler writes
-  `couch-setup-attempt.json` beside the marker. It records an inputs digest (host `HEAD` + the
-  bytes of every read `construct/deps`) and the failure, **handoff class only**: a retryable
-  failure (timeout, cancellation, a held lock) is never memoized. Observation reads it: same
-  digest → `setup` is `present-with-warning`, and the plan does not compile. A changed input, or
-  an explicit `couch --reconcile` (which ignores the memo), compiles again. The digest cannot see
-  fixes outside the host (network restored, credentials, a remote created), so the warning text
-  names `couch --reconcile repo:N` as the way to force another attempt. It is derived state, lives and dies with the
-  registration's admin directory, and is overwritten in place (one file).
+- **R5 — A failed setup is remembered, not repeated on every open or add slot.** Rule 4 keeps a
+  working slot usable when its recompile fails, and a slot without a marker refuses (blocking).
+  In both cases, re-running a failing `weave compile` (up to `SetupTimeout`) on every open or
+  add slot is waste. So the reconciler writes `couch-setup-attempt.json` in the registration's
+  admin directory after any setup failure, **with or without a valid marker**. It records an
+  inputs digest (host `HEAD` + the bytes of every read `construct/deps`) and the failure,
+  **handoff class only**: a retryable failure (timeout, cancellation, a held lock) is never
+  memoized. Observation reads it. Same digest → `setup` is `present-with-warning` under a valid
+  marker, or `failed-known` without one; in both cases the plan does not compile. A changed
+  input, or an explicit `couch --reconcile` (which ignores the memo), compiles again. The digest
+  cannot see fixes outside the host (network restored, credentials, a remote created), so the
+  advice names `couch --reconcile repo:N` as the way to force another attempt. It is derived
+  state, lives and dies with the admin directory, and is overwritten in place (one file).
 - **R3 — An invalid setup marker is derived state, not a conflict.** #367 treated an invalid
   `couch-setup-success.json` as "setup conflict, never advise reboot". Here it is a broken
   derived file: remove it and re-run setup. The rule "repair never makes a working slot worse"
@@ -113,7 +115,7 @@ g/h/i (`workshop/history/plans/000367-recover-owned-slots-plan.md`).
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
 | `ObserveSlot(ctx, io, layout) SlotObservation` | `cmd/internal/couchcore/slotobserve.go` | new | git (`worktree list`, `for-each-ref`, `config`, `rev-parse`, `status`), `sdlc workspace --json`, lstat, non-creating flock probe, `construct/deps` reads |
-| `Converge(ctx, io, layout, step)` | `cmd/internal/couchcore/slotconverge.go` | new | git (`worktree add/repair/prune`, `fetch`, `update-ref`, `config --add`), mkdir, rename/RemoveAll, `weave compile`, marker write |
+| `Converge(ctx, io, layout, step)` | `cmd/internal/couchcore/slotconverge.go` | new | git (`worktree add/repair/remove`, `fetch`, `update-ref`, `config --add`), mkdir, `rename`, `weave compile`, marker write |
 | `SetAsideDep(ctx, layout, dep, sessions)` | `cmd/internal/couchcore/slotsave.go` | new | mkdir, the session re-check, `rename`, manifest write via `durablefile`, `RegisterStore` |
 | `Reconciler.Reconcile(ctx, slot) (ReconcileResult, error)` (the loop) | `cmd/internal/couchcore/slotreconcile.go` | new | the two above, the host creation lease |
 | `WorkspaceProvisioner.Ensure` (body becomes `Reconcile`; signature kept for its four callers) | `cmd/internal/couchcore/provision.go` | modified | — |
@@ -234,9 +236,18 @@ non-converged resources are each tagged **blocking** or **degraded** by a pure f
 | open / resume (`selectedSlot` → `OpenSlot`, incl. adopting a live agent) | refuse with `ReconcileAdvice` | proceed; the advice is a warning on the result |
 | reboot, first `selectedSlot` (before `prepareRetirement`) | refuse; nothing stopped | proceed; `agent-live` is expected here, since reboot stops the agent next |
 | reboot / fresh start, `selectedSlot` inside `startFreshSlot` (agent already stopped) | refuse; the old record is already archived, as with today's launch failure | proceed with a warning; a broken dependency was set aside and recompiled in this pass, because the agent is gone |
-| add slot (reuse route) | skip that number with a `Notice`, try the next free number (at most 3 numbers, then refuse with every notice) | proceed with a warning |
+| add slot (reuse route) | refuse with `ReconcileAdvice` naming that slot (the `:0` hand-off); the memo (R5) then makes the next add slot skip it at preview | proceed with a warning |
 | `couch --reconcile` | report, exit 1 | report, exit 0 with warnings |
 | `couch --show`, recovery report | display only | display only |
+
+**Add slot skips known-bad numbers at preview, never by retrying.** Allocation is decided at
+preview (`resolveManagedStart`) and reconcile runs only at spawn, so there is no retry loop.
+`SelectStartSlot` gains an `excluded` set: unverified candidates whose cheap preview facts (one
+file read of the memo) show `setup` `failed-known` without a marker. The first add slot after a
+fresh failure reconciles that slot, fails with the hand-off and records the memo. Every later
+add slot skips the number (with a `Notice` naming it and the advice), and a brand-new number
+goes through the existing create branch. A changed input clears the exclusion. This is the
+`tools:1` case: one hand-off, then `tools:2`.
 
 So a held `index.lock` in a dependency (an agent running git) never blocks attaching to that
 agent. A broken dependency on a live slot is repaired by reboot, which is the operation that
@@ -322,7 +333,8 @@ clears the hold.
 - **ARCH-FUNERAL.**
   - **saved-work entries:** created by `SetAsideDep`. The last reader is the operator restoring
     work. Removed by the archive GC pass at 60 days (`storagegc.RetentionPeriod`, measured from
-    the entry's `saved_at`, else its directory mtime). Bounded at 16 entries; at the cap,
+    the entry's `saved_at`, else its directory mtime). Bounded at 16 entries, so disk use per
+    slot is at most 16 × the largest dependency; at the cap,
     reconcile stops rather than evicting. The GC pass only visits registered stores
     (`CouchReferences.Snapshot`, `gcruntime/references.go:14`), so `SetAsideDep` registers the
     slot store with `Coordinator.RegisterStore` (`storagegc/stores.go:122`) before the rename. A store recreated lazily after
@@ -339,7 +351,7 @@ clears the hold.
     env, and is refused if it is a symlink.
   - **`construct/deps`:** another repository's file, so untrusted. It is read with a 64 KB
     bound, and a row whose path resolves outside the env is `unknown` (never cloned or removed).
-  - **Tar members:** relative names only.
+  - **Set-aside:** a rename within the env; the target is built by `SlotLayout`, and the source must be a direct, non-symlink child of the env.
   - **The marker:** validated as today. Read errors → unknown.
   - No credentials are touched.
 
@@ -544,7 +556,6 @@ deleted env.
 - [ ] **Step 1: Failing tests** on `ProvisionFixture`, one per step, each run twice (second run a
   no-op or refused by its own precondition, never a duplicate effect):
   - `MkdirEnv`;
-  - `SweepTrash`;
   - `RemoveIntent`;
   - `CreateBranch`: fetch, then `update-ref` with the zero-OID CAS. A concurrently created
     branch → the CAS fails → re-observe adopts it;
@@ -766,13 +777,20 @@ Entry layout: `<env>/.couch/saved-work/<id>/{tree/, manifest.json}`, with `<id>`
 `<dep-name>-<UTC timestamp>`. The steps, in order:
 1. `RegisterStore` (GC visibility).
 2. Refuse at 16 entries.
-3. `mkdir` the entry.
-4. Probe `.weave-setup.lock` without `O_CREAT`; held → retryable.
+3. `mkdir` the entry, then write `manifest.json` via `durablefile` with `state: pending`,
+   `saved_at`, the slot address, the dependency path, and the restore command
+   `mv <entry>/tree <dep>` (after moving the re-cloned dependency aside).
+4. Open the existing `.weave-setup.lock` without `O_CREAT` and take a nonblocking `flock`;
+   held → retryable. Hold it through steps 5–6; an absent lock file means no setup to race.
 5. Re-check agent sessions and the broken evidence; a change aborts.
-6. `rename(dep, entry/tree)`.
-7. Write `manifest.json` via `durablefile`: `saved_at`, the slot address, the dependency path,
-   and the restore command `mv <entry>/tree <dep>` (after moving the re-cloned dependency
-   aside).
+6. `rename(dep, entry/tree)` through the injected `SetAsideIO.Rename` seam (the crash-injection
+   point for tests and `SlotWorld`).
+7. Rewrite the manifest with `state: complete`.
+
+A crash at any point leaves a manifest naming the dependency. `pending` with a `tree/` means
+the move happened; `pending` without one means it did not. `--show` lists both, and GC
+collects by `saved_at`. Disk use per slot is bounded by 16 × the largest dependency
+(ARCH-FUNERAL).
 
 Every path comes from `SlotLayout`. The dependency must be a direct child of the env and not
 a symlink (`provisionSafePath`).
@@ -788,8 +806,9 @@ a symlink (`provisionSafePath`).
   - an agent session appearing at step 5 (injected through the session-probe seam) →
     `agent-live`, nothing moved; the empty entry is later collected as abandoned;
   - the store's registration is visible to `CouchReferences.Snapshot` after the call.
-- [ ] **Step 2–4:** red → green. Mutation: implement as copy+delete, and the crash-injection
-  test (abort between copy and delete) leaves a partial tree, so the test fails.
+- [ ] **Step 2–4:** red → green. Mutation: implement step 6 as copy+delete through the same
+  seam with an abort injected between them, and the test that no partial tree exists anywhere
+  must fail.
 - [ ] **Step 5:** commit `#387 M3: couchcore: SetAsideDep moves a broken dependency into saved work`.
 
 ### Task 3.2: Reconcile sets aside, then setup re-clones
@@ -826,16 +845,21 @@ a symlink (`provisionSafePath`).
 - [ ] **Step 1: Failing tests.**
   - `RecoverPlanInput` carries one `SlotPlan` per present `:1+` candidate (gathered in the shell
     via `ObserveSlot`).
-  - A slot whose plan is non-empty and has no `Stop` → class `reconcilable`, step `[reconcile]`
-    (emitting `couch --reconcile repo:N`).
-  - A plan with a handoff (from a recorded last failure, or a `Stop`) → class `slot-needs-:0`
-    with `ReconcileAdvice`.
+  - The class is derived from the same source as the callers, `OutcomeSeverity` plus the stop
+    reason, through one pure `RecoverSlotClass(SlotPlan)`:
+    - a blocking resource, a handoff failure or a `failed-known` memo → class `slot-needs-:0`,
+      with `ReconcileAdvice`;
+    - `Stop{agent-live}` → step `[reboot]` (reboot repairs after stopping the agent);
+    - degraded `unknown` (e.g. a dependency's `index.lock`) → a note, with no step;
+    - a non-empty plan with no stop → class `reconcilable`, step `[reconcile]` (emitting
+      `couch --reconcile repo:N`);
+    - an empty plan → unchanged.
   - `directory-missing` for `:1+` maps to `reconcilable`.
-  - The totality test's domain gains `SlotPlan` shapes, derived from Task 1.5's domain
-    generator; class/hold/note coverage is re-derived.
+  - The totality test's domain is `RecoverSlotClass` over Task 1.5's state domain × agent states
+    (derived); class/hold/note coverage is re-derived.
   - `TestRowAdviceNamesOnlyReachableActions`'s sweep includes `reconcile`.
-- [ ] **Step 2–4:** red → green. Mutation: classify a plan with a `Stop` as `reconcilable`, and
-  the totality test must fail.
+- [ ] **Step 2–4:** red → green. Mutations: map `agent-live` to `slot-needs-:0` → the totality
+  test fails; map degraded unknown to `reconcilable` → it fails.
 - [ ] **Step 5:** commit `#387 M3: recovery report reads slot plans`.
 
 ### Task 3.5: Acceptance (part 2) — the dirty slot
@@ -935,3 +959,17 @@ override; the token audit matches at boundaries, with a reasoned allowlist; Task
 downgrades a file or symlink env to a per-candidate error; `ReserveRepositoryFamily` runs
 always; reboot's double observation is counted in the budget; the agent re-check is stated to
 narrow, not close, the race (harmless under rename).
+
+### 2026-10-05 (c) — plan review round 3 (2 blocking)
+
+1. Add slot's "next number" had no mechanism. Allocation is decided at preview, so add slot now
+   refuses a blocking slot with the hand-off. R5's memo now also covers slots without a marker
+   (`failed-known`), and `SelectStartSlot` excludes such numbers at preview, so the next add
+   slot takes a fresh number through the existing create branch. There is no retry loop.
+2. The recovery report's class is derived from `OutcomeSeverity` via `RecoverSlotClass`:
+   `agent-live` → `[reboot]`, degraded unknown → a note, blocking/handoff → `slot-needs-:0`.
+
+Non-blocking items adopted: the tar/trash leftovers are removed (`Converge` wraps, ARCH-SECURE,
+`SweepTrash`); the manifest is written `pending` before the rename and `complete` after; the lock
+is held across the re-check and the rename; the crash seam is named (`SetAsideIO.Rename`); the
+disk bound is stated.
