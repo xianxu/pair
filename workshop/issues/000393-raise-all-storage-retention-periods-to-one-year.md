@@ -1,12 +1,12 @@
 ---
 id: 000393
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-05
 updated: 2026-10-05
 estimate_hours:
-card_mirror: '0178dba3a2dd86af8fd0a3157ede0b952c4aed8b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'd1a721bd2092d3b5dbc7cbcb3756155942013111' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-05T12:06:46-07:00
 claimant:
     operator: T
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "4be4cfd8", done: "c54c1b42"}
+actual_hours: 0.19
 ---
 
 # Raise all storage retention periods to one year
