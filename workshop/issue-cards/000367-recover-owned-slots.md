@@ -1,6 +1,6 @@
 ---
 id: 000367
-status: codecomplete
+status: done
 created: 2026-10-01
 updated: 2026-10-05
 estimate_hours: 2.82
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: da19d16e4f1e35c839d00321eab157f86849208e
         evidence_commit: 497051f678c7313c022d29f6aed156049c15efee
+        landed_commit: 0da740ae404f6df320341124d13b44555c340343
 ---
 
 # Recover local slots from durable issue ownership
