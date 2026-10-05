@@ -60,6 +60,18 @@ superseded.)
   follows: read the report, review with the operator, resume/reboot per row,
   delegate disk fixes to the slot's own agent via `--send-to`, verify by
   re-reading; it never acts on a slot flagged for recovery.
+- A `:1+` slot whose checkout is missing or whose setup never completed is
+  detectable before acting ("setup incomplete": a declared dependency checkout
+  missing, generated files missing, or a setup lock with no completed setup),
+  shown by `couch --show` and the recovery report, and repaired by `couch
+  --rebuild repo:N --confirm`. Rebuild is destructive and says so: it refuses
+  unsafe or unknown states (as reboot does) and never touches `:0`; it saves
+  uncommitted and untracked work and local-only commits (git bundle) of every
+  slot checkout into a 60-day-retained archive family, refusing above 64 MB unless
+  explicitly discarded; then removes the checkouts and the worktree registration,
+  re-provisions the slot number via add slot's provisioning, and starts a fresh
+  agent. Reboot/resume on such a slot say "setup incomplete" and name rebuild as
+  destructive.
 - Tested with stateful fixtures covering every report row class and the caller
   rule, plus a restart acceptance case through the real report path.
 
@@ -103,6 +115,7 @@ rounds and approved 2026-10-04). Each milestone is a review boundary.
 
 - [x] M1 — Read-only `couch --recover-plan-from-sdlc`: presence-aware decoder for `sdlc fleet inventory --json` v1 (fleets grouped by `fleet_root`), stateful sdlc fake behind ProvisionIO, `ActorActions` single-sourced in couchcore, pure total `DeriveRecoverPlan` over the union of work evidence (derived-domain totality test), ProbeSlotGit fallback for unsupported fleets, restart acceptance through the real dispatch, docs.
 - [x] M2 — `resume`/`reboot <slot>` through the running Couch's socket: live-slot callers only (server-side), queued like a switcher keypress (background, operator focus preserved), receipts + polling with "uncertain" on lost outcomes, `couch --resume`/`--reboot --confirm`, skill recovery section, end-to-end report → resume → report acceptance.
+- [ ] M3 — Rebuild a broken `:1+` slot: observable "setup incomplete" (report, `couch --show`), `couch --rebuild repo:N --confirm` (destructive: save uncommitted/untracked + local-only commits to a 60-day archive family, 64 MB cap; remove checkouts + worktree registration; re-provision via add slot; fresh agent); reboot/resume messages name it; supersedes pair#387.
 
 ## Log
 
@@ -585,3 +598,24 @@ Reason: the first two Done-when bullets still described the superseded rules
 rows are per Couch slot path, and suggestions follow the union-of-evidence
 decisions in the Log entry of 2026-10-04 (with idle conversations and a dirty
 resting branch with one claim settled the same day: no step, and resume only).
+
+### 2026-10-05 — M3: rebuild a broken slot (from the smoke test)
+
+Reason: smoke test found `tools:1` almost empty (setup interrupted Sep 27: no
+`ariadne` checkout, no generated files; `tools/construct/deps` declares
+`../ariadne` without a clone source). Reboot is actor-only and failed at workspace
+setup with an unhelpful "open again to retry". Operator decisions:
+- New verb `couch --rebuild repo:N --confirm` in #367 (M3): save what's savable,
+  remove the slot's checkouts and worktree registration, re-provision that slot
+  number via add slot, start a fresh agent. Destructive, and every message naming it
+  says so. Reboot stays actor-only.
+- Rebuild covers reboot's refusal rows "`:1+` directory missing" and "`:1+` setup
+  broken" only; it keeps reboot's refusals for unknown/live/busy/unusable-unknown
+  and session-won't-stop, and never touches `:0`.
+- "Setup incomplete" must be observable before acting (today no read-only check
+  shows it): report class + `couch --show`, the same check rebuild re-runs.
+- Saved work joins a registered archive family on storagegc's 60-day retention
+  (archives have no size cap today, only age; `recovery/` caps 16 files/64 MB);
+  rebuild refuses above 64 MB and lists the largest paths unless the operator
+  explicitly discards.
+- pair#387 (deleted-slot repair) is superseded by rebuild; close it when #367 lands.
