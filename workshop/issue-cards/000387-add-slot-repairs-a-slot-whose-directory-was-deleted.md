@@ -1,8 +1,8 @@
 ---
 id: 000387
-status: open
+status: working
 created: 2026-10-02
-updated: 2026-10-02
+updated: 2026-10-05
 estimate_hours:
 github_issue:
 tracker:
@@ -17,6 +17,14 @@ tracker:
         source_blob: 19667d4fe081cfbdbbf7049fd6aaafaafa86adcc
         destination: workshop/issues/000387-add-slot-repairs-a-slot-whose-directory-was-deleted.md
         main_commit: 05b7f25457002714d8758ed363c90b939ac86834
+started: 2026-10-05T10:47:34-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Add slot repairs a slot whose directory was deleted
