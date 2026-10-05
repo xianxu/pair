@@ -1,7 +1,7 @@
 ---
 id: 000387
 status: working
-deps: [ariadne#294]
+deps: [ariadne#294, ariadne#295]
 github_issue:
 created: 2026-10-02
 updated: 2026-10-05
