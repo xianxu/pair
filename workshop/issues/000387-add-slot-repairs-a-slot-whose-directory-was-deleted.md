@@ -121,9 +121,9 @@ creation. Principle: ariadne#291 (reconcile dispersed state; don't script it).
   registration and `main-slotN` (this issue's original case, which must no longer
   block add slot or allocation for the whole repository); an interrupted setup
   like `tools:1` (missing clone and marker); a missing dependency clone under a
-  valid marker; a dirty slot whose broken checkout must be recreated saves the
-  work first (host: a stash-shaped commit on a private ref; dependency clones: a
-  saved-work entry in the slot store) and the result names how to restore it.
+  valid marker; a dirty slot whose broken dependency clone must be recreated saves
+  it first (a whole-tree tar in a saved-work entry in the slot store; the host
+  checkout is never removed) and the result names how to restore it.
 - A failure names the resource that did not converge and the cause verbatim
   (weave's own `Error:` line for setup). Only a retryable cause (setup running
   elsewhere, timeout, cancellation) says to run it again; every other failure says
@@ -219,3 +219,12 @@ and Done-when were rewritten from the original deleted-slot repair (preserved in
 git history and as one acceptance case) to a declarative resource model with a
 dependency graph and idempotent per-resource convergence; the title changed via
 `sdlc issue set-title`.
+
+### 2026-10-05 (b) — Done-when follows plan refinement R2
+
+Reason: planning showed the host checkout is never removed (absent → re-add,
+mismatched → `git worktree repair` or hand-off), and a dependency is removed only
+when git positively cannot read it, so a git-based save cannot run. Delta: the
+dirty-slot acceptance saves a broken dependency as a whole-tree tar in
+`<env>/.couch/saved-work/<id>/`; the stash-shaped host ref is dropped. See the
+plan's R1–R5 and its plan-review revision.
