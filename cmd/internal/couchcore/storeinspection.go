@@ -75,7 +75,7 @@ func WithStoreInspectionLocks(ctx context.Context, namespaces []CouchNamespace, 
 		if e != nil {
 			return e
 		}
-		lock, e := s.retentionReadLock()
+		lock, e := s.retentionReadLock(context.Background(), storeReadLockWait)
 		if e != nil {
 			return e
 		}

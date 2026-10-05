@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"errors"
 	"os"
 )
@@ -23,7 +24,13 @@ func (s *ThreadStore) PreviewPathLaunchPreference(repoIdentity, path, scope stri
 	view.readOnly = true
 	return view.getPathLaunchPreference(repoIdentity, path, scope)
 }
-func (s *ThreadStore) withPreviewLock(fn func() error) (err error) {
+func (s *ThreadStore) withPreviewLock(fn func() error) error {
+	return s.withPreviewLockContext(context.Background(), fn)
+}
+
+// withPreviewLockContext is a read under store.lock that waits a busy store
+// out for up to storeReadLockWait, bounded by ctx.
+func (s *ThreadStore) withPreviewLockContext(ctx context.Context, fn func() error) (err error) {
 	if s.inspection != nil {
 		return s.inspection.withRoot(s, fn)
 	}
@@ -38,7 +45,7 @@ func (s *ThreadStore) withPreviewLock(fn func() error) (err error) {
 	if err := s.validateBackendPath(); err != nil {
 		return err
 	}
-	lock, err := s.retentionReadLock()
+	lock, err := s.retentionReadLock(ctx, storeReadLockWait)
 	if err != nil {
 		return err
 	}
