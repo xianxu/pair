@@ -361,24 +361,87 @@ func (c *Couch) awaitResumeRegistration(ctx context.Context, address ThreadAddre
 	if !ok {
 		return errors.New("exact Pair session observer is unavailable")
 	}
+	wait := &registrationWaitError{phase: "ownership poll", last: "none"}
+	start := time.Now()
 	if birth != nil {
-		if err := c.awaitPaneBirth(ctx, address, *birth); err != nil {
-			return err
+		err := c.awaitPaneBirth(ctx, address, *birth)
+		wait.birth = time.Since(start)
+		if err != nil {
+			wait.phase, wait.err = "pane-birth wait", err
+			return wait
 		}
 	}
+	polling := time.Now()
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		binding, err := c.recoverySession(ctx, address)
-		if err == nil && binding.Present {
+		switch {
+		case err == nil && binding.Present:
 			return nil
+		case err != nil && ctx.Err() != nil:
+			// Cut off by the deadline itself: no observation to report.
+			wait.ownership, wait.err = time.Since(polling), ctx.Err()
+			return wait
+		}
+		wait.polls++
+		switch {
+		case err != nil:
+			wait.last = err.Error()
+		default:
+			wait.last = "not owned"
+			if binding.Owner != nil {
+				wait.last += " (" + sessionOwnerWord(binding.Owner.State) + prefixed("; ", binding.Owner.Diagnostic) + ")"
+			}
 		}
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			wait.ownership, wait.err = time.Since(polling), ctx.Err()
+			return wait
 		case <-ticker.C:
 		}
 	}
+}
+
+// registrationWaitError is a cold resume's registration timeout with its
+// phases: which one consumed the budget (the pane-birth wait or the zellij
+// ownership poll), each phase's elapsed time, how many ownership polls ran
+// and what the last one said (pair#367 smoke test: a bare "context deadline
+// exceeded" left the stalled phase unknown). It unwraps to the cause, so the
+// deadline diagnosis still applies.
+type registrationWaitError struct {
+	err              error
+	phase            string
+	birth, ownership time.Duration
+	polls            int
+	last             string
+}
+
+func (e *registrationWaitError) Error() string {
+	return fmt.Sprintf("%v [%s consumed the budget: pane birth %s, ownership poll %s, %d ownership polls; last ownership check: %s]",
+		e.err, e.phase, e.birth.Round(time.Millisecond), e.ownership.Round(time.Millisecond), e.polls, e.last)
+}
+
+func (e *registrationWaitError) Unwrap() error { return e.err }
+
+// sessionOwnerWord names an ownership verdict for a diagnostic.
+func sessionOwnerWord(state launcher.SessionOwnerState) string {
+	switch state {
+	case launcher.SessionOwnerAbsent:
+		return "absent"
+	case launcher.SessionOwnerOwned:
+		return "owned"
+	case launcher.SessionOwnerForeign:
+		return "foreign"
+	}
+	return "unknown"
+}
+
+func prefixed(prefix, s string) string {
+	if s == "" {
+		return ""
+	}
+	return prefix + s
 }
 
 // coldResumeBirthBaseline captures the proposed terminal pane marks while the
