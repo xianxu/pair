@@ -403,6 +403,17 @@ The operator's live smoke test found three things; fixed on the branch:
   unknown tag), none of which enqueues.
 - **Version skew.** An older Couch's "unknown message operation" becomes a
   restart hint; a table row in the CLI outcome test (red first, mutation fails it).
+- **Side-quest: a store read waits briefly for a busy store** (operator-approved).
+  `couch --reboot tools:0 --confirm` failed once with "read launch preference:
+  resource temporarily unavailable": with slots enabled the preference read takes
+  store.lock nonblocking and returned the raw EWOULDBLOCK whenever a write held it
+  for a moment. `retentionReadLock` now polls (5 ms) for up to 1 s, never past the
+  caller's context, and refuses with `ErrThreadStoreBusy` ("thread store busy;
+  retry"). Retention maintenance passes a zero wait, since it yields a busy store to
+  its schedule by contract. Red first: a 50 ms hold failed the read with the raw
+  errno; past the bound the refusal is typed. Mutations: a zero wait for reads fails
+  both new tests; ignoring the caller's context fails
+  `TestRepositoryNamesWaitsOutABusyStore`.
 
 Environment note: this session now runs inside a live Pair/Couch slot, and the
 standard five-variable scrub leaks the rest (`COUCH_ISOLATED_ROOT`,
