@@ -210,6 +210,15 @@ never blocks attaching); saved work is a set-aside rename (the 65 MB `ariadne` c
 a tar); a failed setup is memoized; add slot refuses with the hand-off instead of skipping
 numbers, because `construct/deps` is shared through `main`.
 
+Fleet audit (2026-10-05): only pair, parley.nvim, ducks and test-repo declare a
+clone source on their `construct/deps` substrate row; 15 derivatives do not, so a
+new slot of any of them fails setup the way `tools:1` does. Root cause: the
+source migration (ariadne #239/#243) reached only pair and parley.nvim. Filed
+ariadne#293 (record sources fleet-wide; weave flags a sourceless row). The
+operator rejected a weave fallback that infers the source from a sibling
+checkout's `origin` as fragile. #387 does not depend on it: reconcile reports the
+failure and hands off to `:0`.
+
 ## Revisions
 
 ### 2026-10-05 — Done-when follows the planning-session decisions
