@@ -414,6 +414,39 @@ The operator's live smoke test found three things; fixed on the branch:
   errno; past the bound the refusal is typed. Mutations: a zero wait for reads fails
   both new tests; ignoring the caller's context fails
   `TestRepositoryNamesWaitsOutABusyStore`.
+- **Remote cold resume timed out (tools:0, investigated, cause not yet evidenced).**
+  `couch --resume tools:0` (parked, cold) failed with "await Pair registration:
+  context deadline exceeded (waited 15s; session … IS live)". Evidence: the failing
+  launch was the 23:26:05 cold resume of `1-tools-15` (helper 65447); Pair finished
+  starting (pair wrap 65509, agent-ready launch 4 and the pane sidecar at 23:26:07,
+  zellij server 📁1-62 alive), and the earlier remote reboot's fresh start of that
+  thread had registered. Ruled out: unattached output (dropped and acked,
+  `couchtty/console.go:1187`), size, sink, context, timeout, args and launch shape,
+  all identical across origins. The 15 s went inside `awaitResumeRegistration`
+  (pane-birth wait or the zellij ownership poll), which the error could not name.
+  - The timeout now names the phase that consumed the budget, both phases' elapsed
+    time, the number of ownership polls and the last check result (red first for
+    both phases; dropping the phase text fails both tests).
+  - `TestColdResumeOfAParkedPrimaryRegistersFromBothOrigins` drives a parked `:0`
+    cold resume through the real console path from the switcher (Enter) and from
+    `--resume` over the socket; both register and end live, and both fail when the
+    session never comes up. The fakes cannot tell the origins apart: everything
+    before adoption is the same code. The next live failure will name the phase.
+  - A failure with no diagnostic code no longer prints "failed ()".
+  - The operator then saw a switcher cold resume of parked tools:0 come up live in
+    about 2 s on this build. A code comparison still finds no remote-only behaviour
+    before adoption: the reattach pass and continuation controller defer to an
+    operator `InFlight` but share the single queue runner, so neither can run
+    alongside a remote job; the launch helper is `pair-launch-helper`, not the
+    Couch binary rebuilt at 23:26:03. The console-path test (both origins green)
+    therefore cannot encode a difference yet.
+  - Every step is now timed in memory and carried into a failure: the launch's
+    `[steps: claim, checkout, prepare, spawn, record+baseline, ack, registration]`
+    and a remote job's `[remote job: queued, prepare, operation]`, which reach the
+    receipt's detail. Red first (and by mutation for the launch steps).
+  - The `tools:1` label on other repositories' never-started slot rows is on main
+    (`renderThreadRows` keys labels by an address those rows lack, since #181/#306);
+    left for a separate issue.
 
 Environment note: this session now runs inside a live Pair/Couch slot, and the
 standard five-variable scrub leaks the rest (`COUCH_ISOLATED_ROOT`,
