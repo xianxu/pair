@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 )
@@ -42,14 +43,26 @@ func (c *Console) EnqueueRemoteOperation(key, op string, prepare func(context.Co
 		return errors.New("no action dispatcher wired")
 	}
 	remote := &remoteOperation{finished: finished}
+	enqueued := time.Now()
 	accepted, err := c.operationQueue.Enqueue(operationRequest{
 		key: key, name: op, remote: remote,
 		origin: MenuOperationOrigin{Operation: op, PreserveFocus: true},
-		run: func() (any, error) {
+		run: func() (value any, err error) {
 			started()
+			// The job's own steps, carried into a failure so a slow one
+			// before the launch cannot hide (pair#367 smoke test).
+			begun := time.Now()
+			var prepared, operated time.Duration
+			defer func() {
+				if err != nil {
+					err = fmt.Errorf("%w [remote job: queued %s, prepare %s, operation %s]", err,
+						begun.Sub(enqueued).Round(time.Millisecond), prepared.Round(time.Millisecond), operated.Round(time.Millisecond))
+				}
+			}()
 			ctx, cancel := context.WithCancel(c.lifetime)
 			defer cancel()
 			call, err := prepare(ctx)
+			prepared = time.Since(begun)
 			if err != nil {
 				return nil, err
 			}
@@ -58,7 +71,10 @@ func (c *Console) EnqueueRemoteOperation(key, op string, prepare func(context.Co
 			}
 			call.Implicit, call.Context = true, ctx
 			remote.call = call
-			return fn(call)
+			operating := time.Now()
+			value, err = fn(call)
+			operated = time.Since(operating)
+			return value, err
 		},
 	})
 	switch {

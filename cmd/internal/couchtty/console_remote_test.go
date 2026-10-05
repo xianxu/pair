@@ -3,6 +3,7 @@ package couchtty
 import (
 	"context"
 	"errors"
+	"regexp"
 	"sync"
 	"testing"
 
@@ -285,5 +286,28 @@ func TestRemoteResumeRecognitionIsPinnedBothSides(t *testing.T) {
 	replacement := <-c.operationQueue.requests
 	if remoteResumeCompletion(replacement.origin) {
 		t.Fatalf("continuation replacement %+v recognized as remote", replacement.origin)
+	}
+}
+
+// A remote job's failure carries its own step timings (queue wait, prepare,
+// operation), so a slow step before the launch cannot hide (pair#367 smoke
+// test), and the typed error still unwraps.
+func TestRemoteFailureCarriesItsStepTimings(t *testing.T) {
+	r := newRemoteRig(t)
+	refusal := &couchcore.ResumeRefusal{Code: couchcore.ResumeNotDetached, Diagnostic: "registration timed out"}
+	r.resume = func(couchcore.OperationCall) (any, error) { return nil, refusal }
+	if err := r.enqueue("k", "resume", prepared(slotResumeCall())); err != nil {
+		t.Fatal(err)
+	}
+	r.drain(t)
+	if len(r.finished) != 1 || r.finished[0].err == nil {
+		t.Fatalf("finished = %+v", r.finished)
+	}
+	err := r.finished[0].err
+	if !regexp.MustCompile(`\[remote job: queued [0-9.]+m?s, prepare [0-9.]+m?s, operation [0-9.]+m?s\]`).MatchString(err.Error()) {
+		t.Fatalf("error %q lacks the remote job's step timings", err)
+	}
+	if couchcore.ResumeDiagnosticOf(err) != couchcore.ResumeNotDetached {
+		t.Fatalf("the timings hid the typed refusal: %v", err)
 	}
 }

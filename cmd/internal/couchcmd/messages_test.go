@@ -258,6 +258,7 @@ func TestSlotOperationCLIPollLoop(t *testing.T) {
 		{"queued → running → succeeded reports the tag", admitThen(running, succeeded), 0, "pair:1 resume succeeded (tag t9)", "", 3},
 		{"a refusal at completion names its code and fact", admitThen(receiptResponse("ok", couchmessage.ReceiptRefused, func(r *couchmessage.OperationReceipt) { r.Code, r.Detail = "not-offered", "pair:1 is live" })), 1, "", "refused (not-offered): pair:1 is live", 2},
 		{"a failure names its diagnostic", admitThen(receiptResponse("ok", couchmessage.ReceiptFailed, func(r *couchmessage.OperationReceipt) { r.Diagnostic, r.Detail = "attach-failed", "pane gone" })), 1, "", "failed (attach-failed): pane gone", 2},
+		{"a failure without a diagnostic code prints no empty parentheses", admitThen(receiptResponse("ok", couchmessage.ReceiptFailed, func(r *couchmessage.OperationReceipt) { r.Detail = "await Pair registration" })), 1, "", "couch: pair:1 resume failed: await Pair registration", 2},
 		{"an admission refusal is a refusal, not uncertain", func(int, couchmessage.Request) (couchmessage.Response, error) {
 			return couchmessage.Response{Code: "unavailable", Error: "caller not live"}, nil
 		}, 1, "", "couch: unavailable: caller not live", 1},

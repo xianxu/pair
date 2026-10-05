@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
@@ -415,6 +416,7 @@ func (c *Couch) ResumeContext(ctx context.Context, address ThreadAddress) (Actor
 
 // ResumeContextWith is ResumeContext narrowed by opts.
 func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, opts ResumeOptions) (retRecord ActorRecord, retHandle Handle, retErr error) {
+	begun := time.Now()
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -613,6 +615,7 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 		Context: ctx,
 		Thread:  thread, Nonce: nonce, Args: args, StartedAt: startedAt,
 		ProfileRaw: profileRaw, Resume: !eligible.FreshRequired, Fresh: eligible.FreshRequired, Warm: detached, Background: opts.WarmOnly,
+		Begun: begun,
 	})
 }
 

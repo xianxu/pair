@@ -240,7 +240,11 @@ func reportSlotOperation(stdout, stderr io.Writer, receipt couchmessage.Operatio
 	case couchmessage.ReceiptRefused:
 		fmt.Fprintf(stderr, "couch: %s %s refused (%s): %s\n", receipt.Target, receipt.Op, receipt.Code, receipt.Detail)
 	default:
-		fmt.Fprintf(stderr, "couch: %s %s failed (%s): %s\n", receipt.Target, receipt.Op, receipt.Diagnostic, receipt.Detail)
+		code := ""
+		if receipt.Diagnostic != "" {
+			code = " (" + receipt.Diagnostic + ")"
+		}
+		fmt.Fprintf(stderr, "couch: %s %s failed%s: %s\n", receipt.Target, receipt.Op, code, receipt.Detail)
 	}
 	return code
 }

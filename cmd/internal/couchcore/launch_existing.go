@@ -29,6 +29,9 @@ type trackedThreadLaunch struct {
 	// Warm marks a REATTACH: the agent is alive behind a client-less zellij
 	// session and Pair only has to attach to it.
 	Warm bool
+	// Begun is when the caller began the operation (before its claim), so
+	// the step timings cover the claim too; zero starts them at the launch.
+	Begun time.Time
 }
 
 // launchTrackedThread is the single post-claim launch path for both a newly
@@ -38,6 +41,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	steps := newLaunchSteps(in.Begun)
 	thread := in.Thread
 	if c.Slots != nil {
 		cwd, err := c.Path.Physical(in.Args.WorkingDir())
@@ -62,6 +66,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		in.Args.Cwd = cwd
 		in.Args.Worktree = tree
 	}
+	steps.mark("checkout")
 
 	// A warm reattach sends NEITHER a layout flag NOR a trusted resume profile,
 	// and both omissions are the fix rather than an oversight (#179).
@@ -152,7 +157,9 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	}
 	argv = append([]string{argv[0], launcher.CouchSessionFlag}, argv[1:]...)
 	env = append(env, launcher.CouchSessionIntentEnv+"="+string(intent))
+	steps.mark("prepare")
 	h, err := c.Runner.StartBlocked(ctx, in.Args.WorkingDir(), argv, env, 10*time.Second)
+	steps.mark("spawn")
 	if err != nil {
 		return ActorRecord{}, nil, errors.Join(
 			fmt.Errorf("spawn %s: %w", in.Args.Worktree, err),
@@ -194,6 +201,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 			return ActorRecord{}, h, c.failTrackedPreAckStart(thread, in.Nonce, h, err)
 		}
 	}
+	steps.mark("record+baseline")
 	if err := h.Acknowledge(); err != nil {
 		cause := fmt.Errorf("acknowledge blocked helper %+v: %w", thread.Address, err)
 		return ActorRecord{}, h, c.failTrackedPostAckStart(shape, thread, in.Nonce, h, cause)
@@ -205,6 +213,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	if (in.Resume || in.Fresh) && c.resumeRegistrationTimeout > 0 {
 		registrationTimeout = c.resumeRegistrationTimeout
 	}
+	steps.mark("ack")
 	registrationContext, cancelRegistration := context.WithTimeout(ctx, registrationTimeout)
 	if in.Fresh {
 		err = c.awaitFreshRegistration(registrationContext, thread.Address, in.Args.Stack, in.Nonce)
@@ -217,8 +226,9 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		err = c.awaitThreadRegistration(registrationContext, thread.Address)
 	}
 	cancelRegistration()
+	steps.mark("registration")
 	if err != nil {
-		cause := fmt.Errorf("await Pair registration %+v: %w%s", thread.Address, err,
+		cause := fmt.Errorf("await Pair registration %+v: %w [steps: %s]%s", thread.Address, err, steps,
 			c.diagnoseRegistrationFailure(err, thread.Address, registrationTimeout))
 		return ActorRecord{}, h, c.failTrackedPostAckStart(shape, thread, in.Nonce, h, cause)
 	}
@@ -402,6 +412,31 @@ func (c *Couch) awaitResumeRegistration(ctx context.Context, address ThreadAddre
 		}
 	}
 }
+
+// launchSteps times each step of a launch in memory (pair#367 smoke test: the
+// operator asked that an earlier slow step never hide behind the one that
+// timed out). It writes nothing; failures carry its text.
+type launchSteps struct {
+	last  time.Time
+	steps []string
+}
+
+func newLaunchSteps(begun time.Time) *launchSteps {
+	s := &launchSteps{last: time.Now()}
+	if !begun.IsZero() {
+		s.last = begun
+		s.mark("claim")
+	}
+	return s
+}
+
+func (s *launchSteps) mark(step string) {
+	now := time.Now()
+	s.steps = append(s.steps, step+" "+now.Sub(s.last).Round(time.Millisecond).String())
+	s.last = now
+}
+
+func (s *launchSteps) String() string { return strings.Join(s.steps, ", ") }
 
 // registrationWaitError is a cold resume's registration timeout with its
 // phases: which one consumed the budget (the pane-birth wait or the zellij

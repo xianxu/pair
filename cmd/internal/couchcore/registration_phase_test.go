@@ -25,6 +25,11 @@ func TestColdResumeRegistrationTimeoutNamesThePaneBirthPhase(t *testing.T) {
 
 	_, _, err := env.Couch.Resume(parked.Address)
 	text := errorText(err)
+	// Every step of the resume is timed, so an earlier slow step cannot
+	// hide behind the one that timed out.
+	if !regexp.MustCompile(`\[steps: claim [0-9.]+m?s, checkout [0-9.]+m?s, prepare [0-9.]+m?s, spawn [0-9.]+m?s, record\+baseline [0-9.]+m?s, ack [0-9.]+m?s, registration [0-9.]+m?s\]`).MatchString(text) {
+		t.Fatalf("error %q lacks the per-step timings", text)
+	}
 	for _, want := range []string{"pane-birth wait consumed the budget", "0 ownership polls", "(waited "} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("error %q lacks %q", text, want)
