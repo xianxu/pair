@@ -106,6 +106,8 @@ rounds and approved 2026-10-04). Each milestone is a review boundary.
 
 ## Log
 
+
+- 2026-10-05: closed — M1 (read-only couch --recover-plan-from-sdlc) and M2 (resume/reboot over the running Couch socket) milestone-closed SHIP; M3 dropped by operator (setup repair moves to pair#387 slot reconciler). Operator smoke test on pair:0 drove fixes, each test-first with mutation: caller rule by Couch liveness (not messaging registration), caller/version-skew messages, store read lock waits briefly for foreground reads and never while holding another lock (adoption/maintenance/family read zero-wait), no resume without an established conversation + launch nonce handed to Pair (fixed the 15s registration stall), per-step launch timings in errors. Final verification: go test ./... (full PAIR_*/COUCH_*/ZELLIJ* scrub) only the 2 pre-existing failures (artifactpath 33 pre-existing entries, none #367; gcruntime locator); couchsingleton contention regression found and fixed (da19d16e); make -k: test-changelog (passes with scratchpad TMPDIR) + test-pair-embedded-runtime env leak from the live Couch slot (passes with full scrub); -race couchcore/couchtty/couchcmd/couchmessage green.; review verdict: SHIP
 ### 2026-10-01
 
 Captured from the performance → messaging guarantees → SDLC ownership/observability → recovery discussion. No implementation started.

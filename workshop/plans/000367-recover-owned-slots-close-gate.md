@@ -243,6 +243,35 @@ rounds:
       boundary: M2
       recipe: milestone-review
       blocked: false
+    - "n": 7
+      timestamp: "2026-10-05T10:45:56-07:00"
+      agent: claude
+      dispose:
+        - id: BR-8
+          disposition: not-addressed
+          note: Still restated at recoverplan.go:753; deferral is recorded in code (sdlc should emit terminality). Minor, non-blocking.
+          round: 7
+        - id: BR-15
+          disposition: addressed
+          note: memberTree computes per-member tree regardless of claim verdict; slotGitUnknown/slotDirty fold DepTree; tests at recoverplan_test.go:410,420 and invariant sweep :626-635.
+          round: 7
+        - id: BR-16
+          disposition: addressed
+          note: restoreWorkspaceDecision uses slices.Concat and withRuleA clones notes (recoverplan.go:679-697); aliasing impossible by construction.
+          round: 7
+        - id: BR-17
+          disposition: addressed
+          note: atlas/couch.md:403-405 now states a no-identity request is invalid-request and only a failed caller check is unavailable, matching revision (d).
+          round: 7
+      findings:
+        - id: BR-18
+          severity: Minor
+          title: ThreadStore.withLock routes read-only stores to the waiting withPreviewLock, so a nested read-only caller would wait under a held lock
+          detail: threadstore.go:157. da19d16e fixed the known nested sites by caller class; the read-only withLock path picks the wait implicitly. Consider making the wait an explicit parameter there.
+          family: nested-read-waits-under-held-lock
+          round: 7
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#367 (boundary-review)
@@ -349,9 +378,21 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-17** [Minor] `docs-lag-new-vocabulary` atlas/couch.md says every caller failure is unavailable; a no-identity request is invalid-request
   This is the 2nd finding in family docs-lag-new-vocabulary. Rule: atlas text describing response codes should be checked against the plan's latest Revisions entry for the same flow; here revision (d) and handleSlotOperation both say invalid-request.
 
+## Round 7 — 2026-10-05T10:45:56-07:00 (claude) — passed
+
+### Disposed
+
+- BR-8 — not-addressed — Still restated at recoverplan.go:753; deferral is recorded in code (sdlc should emit terminality). Minor, non-blocking.
+- BR-15 — addressed — memberTree computes per-member tree regardless of claim verdict; slotGitUnknown/slotDirty fold DepTree; tests at recoverplan_test.go:410,420 and invariant sweep :626-635.
+- BR-16 — addressed — restoreWorkspaceDecision uses slices.Concat and withRuleA clones notes (recoverplan.go:679-697); aliasing impossible by construction.
+- BR-17 — addressed — atlas/couch.md:403-405 now states a no-identity request is invalid-request and only a failed caller check is unavailable, matching revision (d).
+
+### Raised
+
+- **BR-18** [Minor] `nested-read-waits-under-held-lock` ThreadStore.withLock routes read-only stores to the waiting withPreviewLock, so a nested read-only caller would wait under a held lock
+  threadstore.go:157. da19d16e fixed the known nested sites by caller class; the read-only withLock path picks the wait implicitly. Consider making the wait an explicit parameter there.
+
 ## Open findings
 
 - **BR-8** [Minor] `restated-vocabulary` issueTerminalStatuses restates ariadne issue.cue's terminal set (ARCH-DRY)
-- **BR-15** [Minor] `slot-level-guard-reads-subset-of-member-facts` Rule A's reboot guard treats only dependency operation and unknown verdict as slot-level, so dependency dirt or unread git allows reboot silently
-- **BR-16** [Minor] `slice-alias-append` restoreWorkspaceDecision appends to extra twice, so the second append overwrites the first through a shared backing array
-- **BR-17** [Minor] `docs-lag-new-vocabulary` atlas/couch.md says every caller failure is unavailable; a no-identity request is invalid-request
+- **BR-18** [Minor] `nested-read-waits-under-held-lock` ThreadStore.withLock routes read-only stores to the waiting withPreviewLock, so a nested read-only caller would wait under a held lock
