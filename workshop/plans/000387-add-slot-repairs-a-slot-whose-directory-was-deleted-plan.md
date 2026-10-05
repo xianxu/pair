@@ -60,32 +60,37 @@ g/h/i (`workshop/history/plans/000367-recover-owned-slots-plan.md`).
   becomes a legacy resource whose desired state is absent. Mixed binaries: an older Couch that
   crashed mid-creation and runs again after the new binary removed its intent will refuse;
   acceptable, since `make build` replaces the binary.
-- **R2 — One save mechanism for every removal: a whole-tree tar.** The planning-session answer
-  proposed a stash-shaped commit on `refs/couch/saved/slotN/<id>` for the host. Planning showed
-  the host checkout is never removed: an absent host is re-added, and a mismatched one gets
+- **R2 — One save mechanism for every removal: set the directory aside.** The planning-session
+  answer proposed a stash-shaped commit on `refs/couch/saved/slotN/<id>` for the host. Planning
+  showed the host checkout is never removed: an absent host is re-added, and a mismatched one gets
   `git worktree repair`, otherwise a hand-off. Only a dependency clone is ever removed, and only
   when it is broken on **positive evidence**: no `.git`, or git answers "not a git repository".
-  Any other git error is `unknown` (lessons: a failed probe is not evidence). A broken clone
-  cannot be read through git, so the save is a whole-tree tar of the directory, `.git`
-  included. That keeps local-only commits wherever git data survives, and needs no git. There
-  is one mechanism and no new ref namespace. The issue's Done-when bullet is revised now
-  (ARCH-DRY).
+  Any other git error is `unknown` (lessons: a failed probe is not evidence). The save is an
+  atomic `rename` of the whole broken directory into `<env>/.couch/saved-work/<id>/tree`. Env
+  and store share the env root, so it is the same filesystem. Nothing is lost: `.git`, ignored
+  files and mtimes all move. There is no size cap, no tar and no git dependency, and the save
+  *is* the removal: the dependency is absent afterwards, so it cannot be saved twice. Restore is
+  `mv`. Plan review round 2 showed a tar cannot work: the real `ariadne` clone measures 65 MB.
+  There is one mechanism and no new ref namespace (ARCH-DRY).
 - **R5 — A failing recompile under a valid marker is remembered, not repeated every open.**
   Rule 4 keeps a working slot usable when its recompile fails. To keep each later open from
   re-running a failing `weave compile` (up to `SetupTimeout`), the reconciler writes
   `couch-setup-attempt.json` beside the marker. It records an inputs digest (host `HEAD` + the
-  bytes of every read `construct/deps`) and the classified failure. Observation reads it: same
+  bytes of every read `construct/deps`) and the failure, **handoff class only**: a retryable
+  failure (timeout, cancellation, a held lock) is never memoized. Observation reads it: same
   digest → `setup` is `present-with-warning`, and the plan does not compile. A changed input, or
-  an explicit `couch --reconcile`, compiles again. It is derived state, lives and dies with the
+  an explicit `couch --reconcile` (which ignores the memo), compiles again. The digest cannot see
+  fixes outside the host (network restored, credentials, a remote created), so the warning text
+  names `couch --reconcile repo:N` as the way to force another attempt. It is derived state, lives and dies with the
   registration's admin directory, and is overwritten in place (one file).
 - **R3 — An invalid setup marker is derived state, not a conflict.** #367 treated an invalid
   `couch-setup-success.json` as "setup conflict, never advise reboot". Here it is a broken
   derived file: remove it and re-run setup. The rule "repair never makes a working slot worse"
   still holds for a *valid* marker whose recompile fails (Task 2.3).
-- **R4 — Removal is a rename, then a delete.** A dependency clone is removed by an atomic
-  `rename` into `<env>/.reconcile-trash/<id>`, and only then by `RemoveAll`. A crash mid-delete
-  therefore never leaves a half-deleted clone that would read as "broken" and be saved again.
-  The trash is swept at the start of every reconcile.
+- **R4 — Removal is the rename (superseded by R2's set-aside).** There is no trash directory
+  and no `RemoveAll` of a dependency. The only deletes reconcile performs are the legacy intent
+  file and a stale registration (`git worktree remove`, whose directory is already gone).
+  Collection of set-aside trees is the GC's, after 60 days.
 
 ---
 
@@ -95,11 +100,11 @@ g/h/i (`workshop/history/plans/000367-recover-owned-slots-plan.md`).
 
 | Name | Lives in | Status |
 |------|----------|--------|
-| `SlotLayout` (every slot-state location: env, host, store, saved-work, trash, setup lock, intent, resting branch, marker name) | `cmd/internal/couchcore/slotlayout.go` | new |
+| `SlotLayout` (every slot-state location: env, host, store, saved-work, setup lock, intent, resting branch, marker and memo names) | `cmd/internal/couchcore/slotlayout.go` | new |
 | `SlotResourceID` / `ResourceKind` / `SlotResourceSpec` / `SlotResources()` (the table and its edges) | `cmd/internal/couchcore/slotresource.go` | new |
 | `ObservedState` (`present`/`absent`/`broken`/`unknown`) / `ResourceObservation` / `SlotObservation` | `cmd/internal/couchcore/slotresource.go` | new |
 | `ConvergeStep` / `PlannedStep` / `SlotPlan` / `PlanSlot(SlotObservation) SlotPlan` | `cmd/internal/couchcore/slotplan.go` | new |
-| `ReconcileFailure{Resource, Class: retryable\|handoff\|unknown, Cause}` / `ClassifyConvergeError` / `ReconcileAdvice(address, failure)` | `cmd/internal/couchcore/slotfailure.go` | new |
+| `ReconcileFailure{Resource, Class: retryable\|handoff\|unknown, Cause}` / `ClassifyConvergeError` / `ReconcileAdvice(address, failure)` / `OutcomeSeverity` (blocking\|degraded) | `cmd/internal/couchcore/slotfailure.go` | new |
 | `ParseSubstrateRows(content) ([]string, error)` | `cmd/internal/couchcore/slotdeps.go` | new |
 | `SelectStartSlot` (a reconcilable candidate is reusable; an unknown one skips only its number) | `cmd/internal/couchcore/slotallocation.go` | modified |
 | `NextHostAction` / `HostObservation` | `cmd/internal/couchcore/provision_host.go` | deleted (absorbed into `PlanSlot`) |
@@ -109,7 +114,7 @@ g/h/i (`workshop/history/plans/000367-recover-owned-slots-plan.md`).
 |------|----------|--------|-------|
 | `ObserveSlot(ctx, io, layout) SlotObservation` | `cmd/internal/couchcore/slotobserve.go` | new | git (`worktree list`, `for-each-ref`, `config`, `rev-parse`, `status`), `sdlc workspace --json`, lstat, non-creating flock probe, `construct/deps` reads |
 | `Converge(ctx, io, layout, step)` | `cmd/internal/couchcore/slotconverge.go` | new | git (`worktree add/repair/prune`, `fetch`, `update-ref`, `config --add`), mkdir, rename/RemoveAll, `weave compile`, marker write |
-| `SaveWork(ctx, io, checkout, dest)` | `cmd/internal/couchcore/slotsave.go` | new | `git bundle`, `git diff --binary`, tar of untracked files |
+| `SetAsideDep(ctx, layout, dep, sessions)` | `cmd/internal/couchcore/slotsave.go` | new | mkdir, the session re-check, `rename`, manifest write via `durablefile`, `RegisterStore` |
 | `Reconciler.Reconcile(ctx, slot) (ReconcileResult, error)` (the loop) | `cmd/internal/couchcore/slotreconcile.go` | new | the two above, the host creation lease |
 | `WorkspaceProvisioner.Ensure` (body becomes `Reconcile`; signature kept for its four callers) | `cmd/internal/couchcore/provision.go` | modified | — |
 | `OSSlotCatalog.Discover` (candidates carry their `SlotObservation`; numbers come from env dirs ∪ registrations ∪ `main-slotN` refs) | `cmd/internal/couchcore/slotcatalog.go` | modified | git, filesystem |
@@ -124,14 +129,13 @@ g/h/i (`workshop/history/plans/000367-recover-owned-slots-plan.md`).
 |---|---|---|---|---|---|---|
 | `env` | env directory | `<fleet>/worktree/<repo>-slotN` | derived | — | present (real dir, not a symlink) | absent → `mkdir 0700`; broken (a file or symlink) → hand-off |
 | `store` | Couch slot store | `<env>/.couch` | internal, preserved | `env` | (observed only) | never converged or removed by reconcile; created lazily by the thread store |
-| `trash` | reconcile trash | `<env>/.reconcile-trash/` | derived, transient | `env` | absent | present → `RemoveAll` (first step of every run) |
 | `intent` | legacy creation intent | `<common>/couch-workspaces/N/creation.json` | derived, legacy (R1) | — | absent | present → remove, under the lease |
 | `branch` | resting branch `main-slotN` | `refs/heads/main-slotN` in the shared repo | user data (adopted; never deleted) | — | present | absent → fetch remote `main`, `update-ref` create at the fetched OID; checked out in a worktree other than the host path → hand-off |
 | `upstream` | `branch.main-slotN.{remote,merge}` | shared repo config | derived | `branch` | `<remote>` / `refs/heads/main` | absent → `config --add`; conflicting → hand-off |
 | `registration` | git worktree registration | `<common>/worktrees/<name>/` for the host path | derived | `branch`, `env` | present, directory present | stale (directory gone, git reports `prunable` for **this** path) → `git worktree remove <hostPath>` (targeted; never `prune`, which drops every prunable registration in the shared repository); locked → hand-off; absent → handled by `host` |
 | `host` | host checkout | `<env>/<repo>` | derived container; its dirty files are user data | `registration`, `env`, `upstream` | present and verified (`verifyHost`'s identity check) | absent → `git worktree add <host> main-slotN`; mismatched → `git worktree repair <host>` once, then hand-off; never removed |
 | `deps` | dependency declaration | `construct/deps` of the host, then of each present substrate (transitive) | external (another repo's file) | `host` | parseable | unparseable/unreadable → unknown (stop at `deps` and `setup`) |
-| `dep:<rel>` | one dependency clone | `<env>/<name>` per declared substrate | derived from a remote; dirty files and local-only commits are user data | `deps`, `env` | present, git-readable | absent → covered by `setup`; broken **on positive evidence only** (no `.git`, or `rev-parse` says "not a git repository"; any other git error is `unknown`) → tree-tar save → rename to trash → covered by `setup` |
+| `dep:<rel>` | one dependency clone | `<env>/<name>` per declared substrate | derived from a remote; dirty files and local-only commits are user data | `deps`, `env` | present, git-readable | absent → covered by `setup`; broken **on positive evidence only** (no `.git`, or `rev-parse` says "not a git repository"; any other git error is `unknown`) → set aside (rename into saved-work, R2) → absent → covered by `setup` |
 | `setup` | weave setup, Couch's marker, the attempt memo (R5) | `<admin>/couch-setup-success.json`, `<admin>/couch-setup-attempt.json`; lock `<env>/.weave-setup.lock` | derived | `host`, every `dep:*` | valid marker and no `dep:*` absent | lock held → retryable stop; a memo whose digest matches → `present-with-warning`, no compile; otherwise `weave compile` (no lease held), then re-observe under the lease and write the marker (success) or the memo (failure under a valid marker); an invalid marker is removed first (R3) |
 | `agent` | agent session + thread record | zellij session, `<env>/.couch/thread.json` | runtime | `host` | (observed only) | never converged by reconcile; a live, busy or unknown agent forbids any `dep:*` removal (hold `agent-live`), re-checked under `.weave-setup.lock` immediately before the rename; a record-less live agent is adopted by `OpenSlot`, which runs after reconcile |
 
@@ -140,9 +144,9 @@ the agent's transcript, Pair per-thread artifacts (`artifactpath`), sdlc claims,
 manifest's `SlotRepositories` enrollment, and every other branch in the shared repository.
 
 **Edges, in topological order:**
-`env → {store, trash}`, `{intent}`, `branch → upstream`, `{branch, env} → registration →
+`env → store`, `{intent}`, `branch → upstream`, `{branch, env} → registration →
 host`, `upstream → host`, `host → deps → dep:* → setup`, `host → agent`. Converge runs in this
-order. Removal (only `trash`, `intent`, a broken `dep:*`) runs before the converges of its
+order. Removal (only `intent`, a stale `registration`, a broken `dep:*` set aside) runs before the converges of its
 dependents.
 
 ### `PlanSlot` rules (pure; `SlotObservation → SlotPlan`)
@@ -150,12 +154,12 @@ dependents.
 1. **Unknown blocks.** An `unknown` resource contributes a `Stop{resource, reason}`. Every
    resource that transitively depends on it is skipped. Resources that do not depend on it
    still converge. Example: an unknown `agent` does not stop `branch`.
-2. **User data is saved before removal.** A `RemoveDep` step is always immediately preceded by a
-   `SaveWork` step for the same `dep:*`. The save is a whole-tree tar (R2). The size is measured
-   only when a removal is planned, never on the healthy path. If the tree is over the cap
-   (64 MB) or cannot be read, a `Stop` replaces both steps.
+2. **User data is never deleted.** A broken `dep:*` gets one step, `SetAsideDep`, which moves
+   the whole directory into a saved-work entry atomically (R2). If the entry limit (16 per slot)
+   is reached, the step is replaced by a `Stop{saved-work-full}`. No size is measured on any
+   path.
 3. **No removal under a live agent.** If `agent` is `live`, `busy` or `unknown`, a broken `dep:*`
-   gets `Stop{agent-live}`. Every non-removing step still runs. `RemoveDep` re-observes the agent
+   gets `Stop{agent-live}`. Every non-removing step still runs. `SetAsideDep` re-observes the agent
    sessions while holding `.weave-setup.lock`, immediately before the rename, and aborts on a
    change. A plain `pair` launch outside the operation queue can start one between observe and
    apply (lessons: revalidate authority before mutation).
@@ -171,7 +175,6 @@ dependents.
 ### The loop (`Reconciler.Reconcile`)
 
 ```
-sweep trash
 var previous *SlotObservation
 for i := 0; i < len(SlotResources())+2; i++ {   // bound: each pass converges ≥1 resource or stops
     obs  := ObserveSlot(...)            // under the host creation lease for git resources
@@ -213,6 +216,31 @@ only after a fresh observation under the lease shows the same admin directory (t
 
 The text never contains a bare "retry" for handoff, and never "fix it". `withRebootAdvice`, the
 start form, `--reconcile`, `--show` and the recovery report all call this function.
+
+### What a reconcile outcome means to each caller (`ReconcileResult.Severity`)
+
+`Reconcile` itself never decides whether an agent may start. It returns a `ReconcileResult` whose
+non-converged resources are each tagged **blocking** or **degraded** by a pure function,
+`OutcomeSeverity(resource, state, marker)`:
+- **blocking:** `env`, `branch`, `upstream`, `registration` or `host` not converged, or `setup`
+  without a valid marker (setup never completed: an agent would start in an unprepared
+  checkout, today's refusal).
+- **degraded:** anything under `deps`/`dep:*`, `setup` under a valid marker (including R5's
+  `present-with-warning`), the `agent-live` and `saved-work-full` holds, and `agent` unknown.
+  The checkout exists and was once set up, so an agent can work in it.
+
+| Caller | blocking | degraded |
+|---|---|---|
+| open / resume (`selectedSlot` → `OpenSlot`, incl. adopting a live agent) | refuse with `ReconcileAdvice` | proceed; the advice is a warning on the result |
+| reboot, first `selectedSlot` (before `prepareRetirement`) | refuse; nothing stopped | proceed; `agent-live` is expected here, since reboot stops the agent next |
+| reboot / fresh start, `selectedSlot` inside `startFreshSlot` (agent already stopped) | refuse; the old record is already archived, as with today's launch failure | proceed with a warning; a broken dependency was set aside and recompiled in this pass, because the agent is gone |
+| add slot (reuse route) | skip that number with a `Notice`, try the next free number (at most 3 numbers, then refuse with every notice) | proceed with a warning |
+| `couch --reconcile` | report, exit 1 | report, exit 0 with warnings |
+| `couch --show`, recovery report | display only | display only |
+
+So a held `index.lock` in a dependency (an agent running git) never blocks attaching to that
+agent. A broken dependency on a live slot is repaired by reboot, which is the operation that
+clears the hold.
 
 ### ARCH notes
 
@@ -262,8 +290,8 @@ start form, `--reconcile`, `--show` and the recovery report all call this functi
     `:1+` slot, which is a batch path already paying sdlc's ~6 s; budget ≤ 150 ms per slot,
     measured with 10 slots in Task 3.4.
   - **Compile:** bounded by the existing 20 min `SetupTimeout`.
-  - **Saves:** capped at 64 MB per entry and 16 entries per slot. Over the cap → `Stop` with the
-    10 largest paths.
+  - **Saves:** a rename, O(1) and with no copy. Capped at 16 entries per slot (`Stop` at the
+    limit); disk use is the set-aside trees themselves, bounded by 60-day collection.
   - **Loop:** at most `len(SlotResources())+2` passes.
   - Other categories N/A.
 - **ARCH-ORDER.** The reconciler holds no state between runs. Each run rebuilds its view from
@@ -273,31 +301,34 @@ start form, `--reconcile`, `--show` and the recovery report all call this functi
     and setup's marker is written only after a re-observation under the lease.
   - **Second actors:** another Couch operation on the same slot is serialized by the operation
     queue (same process) or by the lease (other processes). A concurrent `weave` holds
-    `.weave-setup.lock` → retryable stop. A dependency removal probes that lock without
-    `O_CREAT` and holds it across save + rename (`flock` on the existing file). If the file is
+    `.weave-setup.lock` → retryable stop. `SetAsideDep` probes that lock without `O_CREAT` and
+    holds it across the re-check and the rename (`flock` on the existing file). If the file is
     absent, there is no setup to race.
   - **Stale observations:** each converge step re-checks its own precondition at execution time
     (e.g. `update-ref` with the zero-OID CAS, `worktree add` failing if the path appeared).
-    The only destructive step, `RemoveDep`, re-observes agent sessions and the dependency's
-    broken evidence under `.weave-setup.lock` immediately before its rename (rule 3). A test
-    injects an agent appearing between observe and apply.
-  - **Most likely to be mishandled:** a crash between `SaveWork` and the rename. On re-run the
-    dependency is still broken, so it is saved again. Entries are content-addressed
-    (`<id>` = digest of the saved files), so the second save finds the same id and writes
-    nothing.
+    The only removing step, `SetAsideDep`, re-observes agent sessions and the dependency's
+    broken evidence immediately before its rename (rule 3). A test injects an agent appearing
+    between observe and apply. Pair never takes `.weave-setup.lock`, so the re-check narrows the
+    window but cannot close it. A race costs nothing, because the rename preserves every byte and
+    a running agent keeps its open files.
+  - **Most likely to be mishandled:** a crash between creating the entry directory and the
+    rename, or between the rename and the manifest write. In the first case the dependency is
+    still broken, so the next run sets it aside under a new id, and the empty entry is collected
+    as abandoned. In the second the tree is safe and the entry's id (`<dep>-<UTC timestamp>`)
+    names it. A manifest-less entry is listed by `--show` and collected by directory age like
+    any other.
   - **Tests:** `SlotWorld` crash injection after every step reproduces each ordering
     deterministically.
 - **ARCH-FUNERAL.**
-  - **saved-work entries:** created by `SaveWork`. The last reader is the operator restoring
+  - **saved-work entries:** created by `SetAsideDep`. The last reader is the operator restoring
     work. Removed by the archive GC pass at 60 days (`storagegc.RetentionPeriod`, measured from
-    the entry's `saved_at`). Bounded at 64 MB and 16 entries; at the cap, reconcile stops rather
-    than evicting. The GC pass only visits registered stores (`CouchReferences.Snapshot`,
-    `gcruntime/references.go:14`), so `SaveWork` registers the slot store through the same path
-    `withRetentionWrite` uses (`archive_gc.go`) before writing. A store recreated lazily after
+    the entry's `saved_at`, else its directory mtime). Bounded at 16 entries; at the cap,
+    reconcile stops rather than evicting. The GC pass only visits registered stores
+    (`CouchReferences.Snapshot`, `gcruntime/references.go:14`), so `SetAsideDep` registers the
+    slot store with `Coordinator.RegisterStore` (`storagegc/stores.go:122`) before the rename. A store recreated lazily after
     an env reset is therefore still collected.
   - **The attempt memo (R5):** one file per registration, overwritten in place, removed with
     the admin directory.
-  - **`.reconcile-trash/`:** removed within the same run, and swept at the start of the next.
   - **The legacy intent family:** removed by reconcile (R1). Nothing creates it any more.
   - **The marker:** lives in the registration's admin dir and dies with it.
   - **Nothing else new is durable.**
@@ -327,12 +358,13 @@ slot state (from the review's survey; Task 1.2's token audit proves the list com
 the intent path, the marker path built from `admin` in `readSuccess` and `Ensure`),
 `provision_lock_unix.go:29` (`couch-workspaces`), `slot.go:40` (`validateLocation`),
 `workspace_identity.go:96,131` (the `main-slot` parse), `slotgit.go:37` (`RestingBranch`),
-`recoverplan.go:883` (the `-slot` cut), `threadstore_layout.go:19` (`.couch`), and the
+`recoverplan.go:883` (the `-slot` cut), `recoverplan_fake.go:111`, `couchsingleton/inspect.go:223`,
+`threadstore_layout.go:19` (`.couch`), and the
 `slotForContainedPath`, `conventionalSlotFromPath` and `conventionalSlotOfMember` parsers.
 
 - [ ] **Step 1: Failing tests.**
   - `TestSlotLayoutPaths`: for primary `/f/pair`, N=3, every method returns the documented path
-    (env, host, store, saved-work root, trash, setup lock, intent, resting branch
+    (env, host, store, saved-work root, setup lock, intent, resting branch
     `main-slot3`, marker name).
   - `TestParseSlotPathRoundTrip`: for every layout path of N ∈ {1, 12} and for paths inside the
     host, `ParseSlotPath` returns (primary, N). Paths outside → false. N=0 → false.
@@ -362,9 +394,14 @@ the intent path, the marker path built from `admin` in `readSuccess` and `Ensure
     - (a) **Token audit.** Every string literal (and every constant it reaches) containing a slot
       state token appears only in `slotlayout.go`. Tokens: `-slot`, `main-slot`, `.couch`,
       `couch-setup-success.json`, `couch-setup-attempt.json`, `.weave-setup.lock`,
-      `couch-workspaces`, `creation.json`, `saved-work`, `.reconcile-trash`. Any other file
-      fails the test, naming the file:line. The token list is the one hand-written piece: a
-      token names a *kind* of state, so adding state without a token is caught by (b).
+      `couch-workspaces`, `creation.json`, `saved-work`. Any other file
+      fails the test, naming the file:line. Tokens match at a path or ref boundary (`/`, start,
+      end, or `N` digits for `-slot`), not as substrings: `"unknown-slot"`, `"reuse-slot"`,
+      `"add-slot"` and `".couch-provision-*"` are not slot state. Each remaining exception is an
+      allowlist entry with a reason string, asserted non-stale. Non-test fakes in production
+      files (`recoverplan_fake.go:111`) move their literals to `SlotLayout` like any site. The
+      token list is the one hand-written piece: a token names a *kind* of state, so adding state
+      without a token is caught by (b).
     - (b) **Path-root audit.** Any `filepath.Join`/`+` outside `slotlayout.go` whose first
       operand is a `SlotIdentity`/`WorkspaceIdentity` field (`EnvironmentRoot`,
       `WorktreeRoot`, `FleetRoot`, `PrimaryRoot`, `RepoIdentity`) or a `SlotLayout` result
@@ -438,7 +475,7 @@ see ARCH-MOCK).
   - `git` replaced by a script failing `worktree list` → `registration` unknown (never absent;
     lessons: a failed probe is not absence);
   - a dirty dependency (modified tracked file + untracked file + local-only commit) → `dep`
-    present. No user data is measured on observe (rule 2); the measure is taken by `SaveWork`.
+    present. No user data is measured anywhere (rule 2).
 - [ ] **Step 2:** FAIL. **Step 3:** implement. Observations use `SlotLayout` and the
   `ProvisionIO` seam only. The flock probe opens without `O_CREAT`, and a missing lock file
   means free.
@@ -457,8 +494,8 @@ see ARCH-MOCK).
     invariants hold:
     - I1: no step targets a resource that is converged;
     - I2: no step targets an `unknown` resource or anything depending on one;
-    - I3: every `RemoveDep` is immediately preceded by `SaveWork` for the same dependency;
-    - I4: no `RemoveDep` when agent is live, busy or unknown;
+    - I3: the only step that makes a `dep:*` absent is `SetAsideDep`; no step deletes user data;
+    - I4: no `SetAsideDep` when agent is live, busy or unknown;
     - I5: `store` and `branch` never get a removing step;
     - I6: the step order respects `TopoOrder()`.
   - `TestPlanSlotNamedCases`: `tools:1`'s shape (host present, marker absent, `dep:ariadne`
@@ -542,12 +579,12 @@ deleted env.
     domain proved `SlotWorld` agrees with git.
   - `TestReconcileCrashAfterEveryStep`: inject a panic-equivalent abort after each executed step
     of the deleted-slot and dirty-broken-dep scenarios. Re-running converges with no duplicate
-    effects; content-addressed saves produce one entry.
+    effects. A crash after the rename produces exactly one entry holding the tree.
   - `TestReconcileNoProgressStops`: a world whose `WorktreeAdd` reports success but changes
     nothing → failure `no progress at registration`, within the pass bound.
 - [ ] **Step 2–4:** red → green. Mutations: remove the second-pass re-observation (use the first
-  plan for every pass) → the crash test fails; make save ids random → the duplicate-entry
-  assertion fails.
+  plan for every pass) → the crash test fails; make `SetAsideDep` copy then delete instead of
+  rename → the crash-mid-step assertion (no partial tree anywhere) fails.
 - [ ] **Step 5:** commit `#387 M2: couchcore: Reconcile, level-triggered and bounded`.
 
 ### Task 2.3: `Ensure` is `Reconcile`; intents and `NextHostAction` retire
@@ -607,6 +644,14 @@ start form's error path.
   today `tools:1` and a missing clone under a valid marker go straight to the agent. On a
   healthy slot this costs one `ObserveSlot` with an empty plan (the 150 ms budget). Its
   "not an existing conventional candidate" refusal stays only for numbers no source knows.
+- **`selectedSlot` details.** `ReserveRepositoryFamily` (today inside the `!Verified` branch,
+  `slotrecovery.go:233-237`) runs always, before reconcile. It is an idempotent family write
+  that returns the existing family. `selectedSlot` returns the `ReconcileResult`, and each
+  caller applies the outcome table above. Reboot observes twice (both `selectedSlot` calls); the
+  second has an empty plan and is counted in the budget (≤ 2 × 150 ms).
+- **`EnumerateSlotCandidates`** (`slotcatalog.go:66-68`, `checkSlotDirectory`) fails the whole
+  inventory when an env path is a file or a symlink. It becomes a per-candidate `Err` (`env`
+  broken → handoff for that number only), so no single slot refuses the whole repository.
 - **`Discover`** gains the number union (env dirs ∪ registrations ∪ `main-slotN` refs; three
   calls per repository) and keeps today's cheap per-candidate verification. A number known only
   from a registration or branch becomes a candidate with `Err = ErrSlotNeedsReconcile` (typed),
@@ -652,14 +697,26 @@ start form's error path.
   - Open on a fixture whose host is **verified** but whose marker is missing → reconcile
     compiles before the agent starts (red today: `selectedSlot` skips `Ensure`).
   - Open/resume on the `tools:1`-shaped fixture (the weave fake knows no source for `ariadne`)
-    returns `ReconcileAdvice` handoff text, and no agent is started.
+    returns `ReconcileAdvice` handoff text, and no agent is started (blocking: no valid marker).
+  - `TestReconcileOutcomeTable`: for every (caller, severity) cell, a fixture produces it and
+    asserts the caller's behavior. The severity domain is derived from `OutcomeSeverity` over
+    Task 1.5's state domain. Named cells:
+    - open with a held `index.lock` in a dependency of a live slot → attaches, with a warning;
+    - open with a broken dependency under a live agent → attaches, with the `agent-live`
+      warning, and nothing moved;
+    - reboot of a live slot with a broken dependency → the agent is stopped, the dependency is
+      set aside and re-cloned, and a fresh agent starts;
+    - add slot whose lowest reusable number is blocking → the next number is used, with a
+      notice.
+  - An env path that is a file → only that number is skipped.
   - `rebootSlot` on a slot whose env is gone: reconcile recreates it, then a fresh start.
   - `DecideReboot`'s totality test: slot rows no longer produce `RebootDirectoryMissing`, and
     `:0` rows are unchanged.
   - `ActorActions`: a `:1+` `DirectoryMissing` row offers `reboot`.
 - [ ] **Step 2–4:** red → green. Mutations: restore the repository-wide refusal in
   `SelectStartSlot` → the add-slot test fails; restore the `Verified` gate in `selectedSlot` →
-  the verified-host open test fails.
+  the verified-host open test fails; make every non-converged resource blocking → the
+  `index.lock` attach test fails.
 - [ ] **Step 5:** commit `#387 M2: add slot, open, resume and reboot converge through the reconciler`.
 
 ### Task 2.6: `couch --reconcile repo:N` and real-git acceptance (part 1)
@@ -699,51 +756,54 @@ start form's error path.
 
 ---
 
-## Chunk 3: M3 — save-then-remove, saved-work lifecycle, recovery report
+## Chunk 3: M3 — set aside a broken dependency, saved-work lifecycle, recovery report
 
-### Task 3.1: `SaveWork` and the saved-work entry
+### Task 3.1: `SetAsideDep` and the saved-work entry
 
 **Files:** create `slotsave.go`, `slotsave_test.go`.
 
-Entry layout: `<env>/.couch/saved-work/<id>/{manifest.json, tree.tar}` (one entry per removed
-dependency; R2). `id` is a sha256 over a canonical listing of the tree: for each entry, sorted by
-relative path, `(path, type, mode&0777, sha256(content) | symlink target)`. The tar is written
-from the same sorted walk with canonical headers (uid/gid 0, empty names, fixed format), so
-saving the same tree twice gives the same id and the same bytes. `manifest.json` holds
-`saved_at`, the slot address, the dependency path, the size, and the restore command
-(`mkdir -p <path> && tar -xf <entry>/tree.tar -C <path>`). It is written last via
-`durablefile`, so an entry without a manifest is incomplete and is redone. Before writing,
-`SaveWork` registers the slot store for GC (ARCH-FUNERAL).
+Entry layout: `<env>/.couch/saved-work/<id>/{tree/, manifest.json}`, with `<id>` =
+`<dep-name>-<UTC timestamp>`. The steps, in order:
+1. `RegisterStore` (GC visibility).
+2. Refuse at 16 entries.
+3. `mkdir` the entry.
+4. Probe `.weave-setup.lock` without `O_CREAT`; held → retryable.
+5. Re-check agent sessions and the broken evidence; a change aborts.
+6. `rename(dep, entry/tree)`.
+7. Write `manifest.json` via `durablefile`: `saved_at`, the slot address, the dependency path,
+   and the restore command `mv <entry>/tree <dep>` (after moving the re-cloned dependency
+   aside).
+
+Every path comes from `SlotLayout`. The dependency must be a direct child of the env and not
+a symlink (`provisionSafePath`).
 
 - [ ] **Step 1: Failing tests** (real git):
-  - a dependency with a local-only commit, a dirty tracked file and an untracked file, made
-    broken by removing `.git/HEAD` → the tar restores into a temp directory. After restoring
-    `.git/HEAD`, `git log` there shows the local-only commit, `git status` shows the dirty file,
-    and the untracked file is present;
-  - a non-git directory → the tar restores byte-identical;
-  - over 64 MB → error listing the 10 largest paths, nothing written;
-  - 16 existing entries → error `saved-work limit reached`;
-  - the same tree saved twice (with mtimes touched between) → the same id, one entry,
-    identical tar bytes;
-  - symlinks are archived as links, never followed. Member names are relative, and an entry
-    whose resolved path leaves the dependency directory is refused.
-- [ ] **Step 2–4:** red → green.
-- [ ] **Step 5:** commit `#387 M3: couchcore: SaveWork writes a content-addressed saved-work entry`.
+  - a dependency with a local-only commit, a dirty tracked file, an untracked file and an
+    ignored file, made broken by removing `.git/HEAD` → after `SetAsideDep`, the dependency
+    path is absent and `entry/tree` holds every file byte-identical, with mtimes kept. After
+    restoring `.git/HEAD` in the tree, `git log` shows the local-only commit;
+  - 16 existing entries → `Stop{saved-work-full}`, nothing moved;
+  - a symlinked dependency path → handoff, nothing moved;
+  - the lock held by the test → retryable, nothing moved;
+  - an agent session appearing at step 5 (injected through the session-probe seam) →
+    `agent-live`, nothing moved; the empty entry is later collected as abandoned;
+  - the store's registration is visible to `CouchReferences.Snapshot` after the call.
+- [ ] **Step 2–4:** red → green. Mutation: implement as copy+delete, and the crash-injection
+  test (abort between copy and delete) leaves a partial tree, so the test fails.
+- [ ] **Step 5:** commit `#387 M3: couchcore: SetAsideDep moves a broken dependency into saved work`.
 
-### Task 3.2: `RemoveDep` under the setup lock, then setup re-clones
+### Task 3.2: Reconcile sets aside, then setup re-clones
 
-**Files:** `slotconverge.go`, `slotplan.go` (the save → remove pair already planned in M1;
-now executed).
+**Files:** `slotconverge.go`, `slotreconcile.go` (the step was planned in M1; now executed).
 
 - [ ] **Step 1: Failing tests:**
-  - a broken dirty dependency → saved, renamed to trash, trash swept, re-cloned by compile;
-    the result lists the entry and its restore commands;
-  - the same under a live agent → `Stop{agent-live}`, nothing saved or moved;
-  - the setup lock held by the test during the run → retryable, nothing moved;
-  - a symlinked dependency path → handoff, nothing moved.
-- [ ] **Step 2–4:** red → green. Mutation: swap save and rename, and the dirty-dep test (which
-  asserts the entry exists before the rename in the effect log) must fail.
-- [ ] **Step 5:** commit `#387 M3: couchcore: a broken dependency is saved, removed and re-cloned`.
+  - a broken dirty dependency → set aside, then re-cloned by compile. The result lists the entry
+    and its restore command;
+  - the same under a live agent → `Stop{agent-live}`, which callers treat as degraded (Task
+    2.5's outcome table), and nothing moved;
+  - a second run → no-op.
+- [ ] **Step 2–4:** red → green.
+- [ ] **Step 5:** commit `#387 M3: reconcile repairs a broken dependency without losing work`.
 
 ### Task 3.3: Saved-work collection
 
@@ -755,7 +815,7 @@ now executed).
   period is removed as abandoned. The pass tolerates a slot with no `saved-work/`. Removal is
   under the store lock, through the same write path as archive detach.
   - A slot whose store was recreated lazily after an env reset, and whose only content is a
-    saved-work entry, is visited by `CouchReferences.Snapshot` (because `SaveWork` registered
+    saved-work entry, is visited by `CouchReferences.Snapshot` (because `SetAsideDep` registered
     it) and the old entry is collected. On today's registration path this is red.
 - [ ] **Step 2–4:** red → green. **Step 5:** commit `#387 M3: saved-work entries expire with archive retention`.
 
@@ -793,7 +853,7 @@ now executed).
 - [ ] A foreign, pre-populated env (R1): a non-git `ariadne/` with files at the env path before
   slot creation → adopted. The dependency is saved, then replaced by the clone, and the entry
   restores the foreign files.
-- [ ] An agent session appearing between observe and `RemoveDep` (injected through the session
+- [ ] An agent session appearing between observe and `SetAsideDep` (injected through the session
   probe seam) → the rename aborts with `agent-live`; nothing is moved, and the saved entry stays.
 
 ### Task 3.6: Docs, issue revision, close
@@ -856,3 +916,22 @@ Done-when revised now (issue Revision b); the weave fake is extended in place, p
 script for the real seam; the skill path; the full `Ensure` caller list; corrected loop
 pseudocode; `busy` in the agent domain; no user-data measurement on the healthy path; the deps
 parser import-vs-copy question raised for the operator.
+
+### 2026-10-05 (b) — plan review round 2 (2 blocking)
+
+1. A stop in reconcile would have blocked open, resume and reboot of a running slot (a held
+   `index.lock` in a dependency, or `agent-live`). Added `OutcomeSeverity` (blocking for
+   checkout resources and never-completed setup; degraded otherwise) and a per-caller outcome
+   table. Reboot's first pass tolerates `agent-live`; its post-stop pass repairs. Tests per cell
+   (Task 2.5).
+2. The whole-tree tar with a 64 MB cap could not save the real `ariadne` clone (65 MB). Replaced
+   by `SetAsideDep`: an atomic rename into `<env>/.couch/saved-work/<id>/tree`, with no size
+   cap, no tar, no trash directory and no content addressing (R2, R4, rule 2, Tasks 3.1–3.2).
+   The issue's Done-when follows in its own Revision.
+
+Non-blocking items adopted: R5 memoizes handoff failures only and names `--reconcile` as the
+override; the token audit matches at boundaries, with a reasoned allowlist; Task 1.1 lists
+`recoverplan_fake.go:111` and `couchsingleton/inspect.go:223`; `EnumerateSlotCandidates`
+downgrades a file or symlink env to a per-candidate error; `ReserveRepositoryFamily` runs
+always; reboot's double observation is counted in the budget; the agent re-check is stated to
+narrow, not close, the race (harmless under rename).
