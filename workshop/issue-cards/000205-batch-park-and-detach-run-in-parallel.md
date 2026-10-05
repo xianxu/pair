@@ -1,10 +1,18 @@
 ---
 id: 000205
-status: open
+status: working
 created: 2026-09-06
-updated: 2026-09-06
+updated: 2026-10-04
 estimate_hours:
 github_issue:
+started: 2026-10-04T17:59:49-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
 ---
 
 # batch park and detach run in parallel
