@@ -444,6 +444,27 @@ The operator's live smoke test found three things; fixed on the branch:
     `[steps: claim, checkout, prepare, spawn, record+baseline, ack, registration]`
     and a remote job's `[remote job: queued, prepare, operation]`, which reach the
     receipt's detail. Red first (and by mutation for the launch steps).
+  - **Root cause (evidenced, operator decision: fix both).** The stalled thread
+    `1-tools-15` had just been created by a reboot and never took a turn: its
+    ledger records a Pair-chosen id with no stored conversation, and the 23:26
+    "resume" launched Claude with a brand-new chosen id. #346 M2 admitted that as
+    a fresh restart (`bindingResumeDiagnostic`, `resume.go`), whose registration
+    (`awaitFreshRegistration`) needs the ready file to carry Couch's start nonce
+    (`switchcontext.go` readReadyFile), but Pair takes a Couch nonce only from
+    `Orientation.Attempt` (`createflow.go`), so it minted its own and every such
+    resume waited the full 15 s, from any origin. The switcher "2 s" was a warm
+    reattach, so the origin comparison was void. Fixed: (b) a never-turned thread
+    is not resumable (resume and relaunch refuse at once with
+    `resume-binding-unbound` naming reboot; the resume-fresh branch is removed;
+    a parked binding-lost slot is not offered resume in the switcher, socket or
+    report); (a) every fresh launch must hand Pair its nonce through the
+    orientation's attempt (`freshNonceReachesPair`, checked before a child
+    starts). Red first: resume of a never-turned thread waited out the budget,
+    relaunch parked it, a binding-lost slot was offered resume, and the guard
+    admitted nonce-less fresh launches. Mutations: re-admitting the provisional
+    binding fails both refusal tests; restoring the slot offer fails the
+    ActorActions spec, the report fixture and the socket admission test. The two
+    relaunch tests that encoded #346 M2's fresh restart are removed.
   - The `tools:1` label on other repositories' never-started slot rows is on main
     (`renderThreadRows` keys labels by an address those rows lack, since #181/#306);
     left for a separate issue.

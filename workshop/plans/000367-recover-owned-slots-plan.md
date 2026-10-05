@@ -960,3 +960,18 @@ live"). Delta:
 - **Version skew.** An older running Couch answers `invalid-request` "unknown message operation"; the CLI prints a
   restart hint instead.
 
+### 2026-10-05 (f) — never-turned threads are not resumable (operator decision)
+
+Reason: the smoke test's remote cold resume of tools:0 stalled 15 s. Root cause: the thread was created by a
+reboot and never took a turn, so its binding was a Pair-chosen id with no stored conversation. #346 M2 admitted
+that as a fresh restart under resume (`bindingResumeDiagnostic`), whose registration waited for a ready file
+carrying Couch's start nonce, but Pair learns a Couch nonce only from `Orientation.Attempt` and the resume-fresh
+profile carried none; Pair minted its own and the wait always ran out, from any origin. Delta:
+- **(b) Semantics.** Such a thread is not resumable: `bindingResumeDiagnostic` answers `resume-binding-unbound`
+  (reboot advice), so resume and relaunch refuse at once and launch nothing; the resume-fresh branch of
+  `ResumeContextWith` is removed. A parked slot whose conversation is lost (`binding-lost`) is not offered resume
+  (`ActorRowFactsOf`), so the switcher, the socket's admission and the report's steps (rule A over `ActorActions`)
+  all derive the same answer; an unfinished continuation keeps its own resume executor.
+- **(a) Rule.** Every fresh launch hands Pair its registration nonce through the orientation's attempt;
+  `freshNonceReachesPair` refuses any other before a child starts (continuation and switch-agent already comply).
+
