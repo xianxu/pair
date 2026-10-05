@@ -27,6 +27,6 @@ claimant:
     repository: github.com/xianxu/pair
 ---
 
-# Add slot repairs a slot whose directory was deleted
+# Slot reconciler: reconcile a Couch slot's dispersed state
 
 ## Problem
