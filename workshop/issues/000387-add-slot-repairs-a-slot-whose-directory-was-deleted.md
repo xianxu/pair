@@ -136,8 +136,17 @@ creation. Principle: ariadne#291 (reconcile dispersed state; don't script it).
 
 ## Plan
 
-To be designed in a fresh context (operator, 2026-10-05), starting from the
-resource table. Expected to need a durable plan in `workshop/plans/`.
+Durable plan: `workshop/plans/000387-add-slot-repairs-a-slot-whose-directory-was-deleted-plan.md`
+(pending review; design refinements R1–R4 flagged there for the operator).
+
+- [ ] M1 — resource model, `SlotLayout`, AST coverage audit, `ObserveSlot`, pure
+  `PlanSlot` over the derived domain, `couch --show` resources and plan
+- [ ] M2 — `Reconcile` loop replaces `Ensure`'s repair logic; failures name the
+  resource and cause and hand off to `:0`; add slot, open, resume and reboot
+  converge through it; `couch --reconcile`; acceptance for deleted, interrupted
+  and missing-dependency slots
+- [ ] M3 — save then remove a broken dependency, saved-work retention, the
+  recovery report reads slot plans, dirty-slot acceptance
 
 ## Log
 
