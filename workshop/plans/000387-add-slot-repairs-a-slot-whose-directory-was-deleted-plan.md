@@ -25,16 +25,26 @@ g/h/i (`workshop/history/plans/000367-recover-owned-slots-plan.md`).
 
 ---
 
-## Needs operator sign-off at approval
+## Operator sign-offs (2026-10-05)
 
-1. **R1:** retiring the creation intent drops the protection against non-Couch actors. Content
-   found at a slot's conventional path is adopted; save-before-remove is the only remaining
-   guard.
-2. **Deps parser:** copy weave's substrate rules plus a conformance table (the plan's default;
-   no new module dependency), or import ariadne's exported `layergraph` (no copy; adds a
-   pair→ariadne Go dependency).
-3. **Done-when, dirty-slot bullet (issue Revisions b, c):** a broken dependency is set aside by
-   an atomic rename into `<env>/.couch/saved-work/<id>/tree`; the host checkout is never removed.
+1. **R1: accepted, as reworded.** Couch stops refusing slots it did not itself create. Couch is
+   a singleton, so "not created by Couch" realistically means one of three things: a slot from
+   before creation tracking, or from an interrupted setup (`tools:1`); the leftovers of a slot
+   Couch lost track of (this issue's original case); or something done by hand at that path.
+   The right move in each case is to adopt what is there. The worst that can happen to such
+   content is a broken dependency being set aside intact.
+2. **Deps parser: depend on ariadne, don't copy.** pair imports
+   `github.com/xianxu/ariadne/pkg/layergraph` (stdlib-only), pinned with
+   `go get github.com/xianxu/ariadne@<sha>`, with no `replace` to a local tree. The Homebrew
+   build fetches the pinned module, and the live ariadne tree never leaks into pair's build.
+   `layergraph.Walk` silently skips an *absent* substrate (`walk.go`, "present-skip"), which is
+   exactly what reconcile must detect. So ariadne first exports
+   `DeclaredSubstrates(fs FS, root string) ([]DeclaredSubstrate, error)`: every substrate
+   declared transitively over the *present* layers, with `{Path (physical), Owner (declaring
+   repo), Source, Present}`, built on the same unexported `substrateTargets` that `Walk` uses,
+   so the two cannot diverge. That is its own ariadne issue (pair#387 `deps:` it). Task 1.3
+   waits for it to land; Tasks 1.1–1.2 do not.
+3. **Done-when wording (dirty slot):** pending the explanation of "host checkout".
 
 ## Decisions this plan rests on (operator, 2026-10-05)
 
@@ -118,7 +128,7 @@ g/h/i (`workshop/history/plans/000367-recover-owned-slots-plan.md`).
 | `ObservedState` (`present`/`absent`/`broken`/`unknown`) / `ResourceObservation` / `SlotObservation` | `cmd/internal/couchcore/slotresource.go` | new |
 | `ConvergeStep` / `PlannedStep` / `SlotPlan` / `PlanSlot(SlotObservation) SlotPlan` | `cmd/internal/couchcore/slotplan.go` | new |
 | `ReconcileFailure{Resource, Class: retryable\|handoff\|unknown, Cause}` / `ClassifyConvergeError` / `ReconcileAdvice(address, failure)` / `OutcomeSeverity` (blocking\|degraded) | `cmd/internal/couchcore/slotfailure.go` | new |
-| `ParseSubstrateRows(content) ([]string, error)` | `cmd/internal/couchcore/slotdeps.go` | new |
+| `DeclaredDeps(host)` over `layergraph.DeclaredSubstrates` (ariadne, imported) | `cmd/internal/couchcore/slotdeps.go` | new |
 | `SelectStartSlot` (a reconcilable candidate is reusable; an unknown one skips only its number) | `cmd/internal/couchcore/slotallocation.go` | modified |
 | `NextHostAction` / `HostObservation` | `cmd/internal/couchcore/provision_host.go` | deleted (absorbed into `PlanSlot`) |
 | `CreationIntent` / `validateCreationIntent` | `cmd/internal/couchcore/provision.go`, `provision_request.go` | deleted (R1; the legacy file is a resource with desired state absent) |
@@ -277,11 +287,9 @@ clears the hold.
   rather than kept beside the new planner. One path authority (`SlotLayout`) replaces the slot
   path math, and the slot-path parsers become one `ParseSlotPath`. Task 1.1 enumerates the
   sites, and Task 1.2's token audit proves the list complete. One advice function. The deps
-  parser is copied, with a conformance table (pair has no Go dependency on ariadne today). The
-  alternative, importing ariadne's exported `layergraph.ParseRows`/`Walk`/`ReadDeclaration`, adds
-  a module dependency pair→ariadne. That is a layer decision for the operator, raised at
-  approval.
-- **ARCH-PURE.** `PlanSlot`, `ClassifyConvergeError`, `ReconcileAdvice`, `ParseSubstrateRows` and
+  declaration is read through ariadne's `layergraph` (sign-off 2), so weave and pair share one
+  parser and one resolver.
+- **ARCH-PURE.** `PlanSlot`, `ClassifyConvergeError`, `ReconcileAdvice`, `DeclaredDeps`' path checks and
   `SelectStartSlot` are pure. Observe, converge and save are the shell. The loop is thin glue,
   tested against `SlotWorld` and real git.
 - **ARCH-PURPOSE.** All four Done-when consumers derive from the table: the reconciler,
@@ -451,25 +459,27 @@ the intent path, the marker path built from `admin` in `readSuccess` and `Ensure
   each from a `cp` byte copy (lessons: never `git checkout <file>`).
 - [ ] **Step 5:** commit `#387 M1: couchcore: the slot resource table, enforced by an AST audit`.
 
-### Task 1.3: `ParseSubstrateRows` and the deps conformance table
+### Task 1.3: Declared dependencies through ariadne's `layergraph`
 
-**Files:** create `slotdeps.go`, `slotdeps_test.go`, and
-`testdata/layergraph_deps_rows.txt` (copied from ariadne `pkg/layergraph/deps_test.go`'s
-row table, with the ariadne revision in its header).
+**Prerequisite:** the ariadne issue exporting `layergraph.DeclaredSubstrates` (sign-off 2) has
+landed on ariadne `main`.
 
-- [ ] **Step 1: Failing tests.**
-  - `TestParseSubstrateRowsConformance`: for each copied row, substrate rows yield their path,
-    `data` rows are ignored, and malformed rows are errors.
-  - Paths are resolved like weave: relative to the declaring checkout's parent, canonicalized
-    through `pwd -P` of the parent. An unresolvable parent is skipped (ariadne `walk.go`).
-  - Inputs over 64 KB are errors. A row resolving outside the env makes the whole declaration
-    unknown.
-- [ ] **Step 2–4:** red → green. Mutation: accept `data` rows as substrates, and the
-  conformance test must fail.
-- [ ] **Step 5:** commit `#387 M1: couchcore: construct/deps substrate parser`. File the
-  upstream ask in ariadne (`sdlc issue new` there, deps on pair#387): expose declared
-  dependencies in `sdlc workspace --json` so this parser can be deleted. Record the id in the
-  Log.
+**Files:** `go.mod`/`go.sum` (`go get github.com/xianxu/ariadne@<landed sha>`; no `replace`);
+create `slotdeps.go` (an `osFS` adapter implementing `layergraph.FS`, with reads bounded by
+`layergraph.ReadDeclaration`'s 64 KB limit; `DeclaredDeps(host) ([]DeclaredSubstrate,
+error)`) and `slotdeps_test.go`.
+
+- [ ] **Step 1: Failing tests** (temp directories, no git needed):
+  - host declares `substrate ../a src`, `a` declares `substrate ../b`, and `b` is absent →
+    `a` present, `b` absent with owner `a`;
+  - a `data` row is not a dependency;
+  - a malformed row → error (mapped to `deps` unknown);
+  - a row resolving outside the env → `deps` unknown (a pair-side check on the returned paths);
+  - an absent host `construct/deps` → no dependencies.
+- [ ] **Step 2–4:** red → green.
+- [ ] **Step 5:** commit `#387 M1: couchcore: declared dependencies from ariadne layergraph`.
+  Verify `make build` and the Homebrew-style module fetch: `GOFLAGS=-mod=mod go build ./...`
+  in a clean `GOMODCACHE`.
 
 ### Task 1.4: `ObserveSlot` (the shell) and its states
 
@@ -1012,3 +1022,11 @@ domains include them.
 No blocking issues. Adopted: the add-slot paragraph states that a slot-local hand-off still
 refuses add slot for the repository (deliberately), with an outcome-table cell for a
 `main-slotN` checked out elsewhere; the operator sign-offs are listed at the top.
+
+### 2026-10-05 (f) — operator sign-offs: R1 reworded, depend on ariadne
+
+R1 is accepted with the wording "Couch stops refusing slots it did not itself create" (Couch is
+a singleton; the non-Couch content is legacy, interrupted, lost-track or hand-made). The deps
+parser is imported from ariadne `layergraph`, pinned with no `replace`. Because `Walk`
+present-skips absent substrates, ariadne first exports `DeclaredSubstrates`, as its own issue;
+Task 1.3 is rewritten around it, and the copied parser and conformance table are dropped.
