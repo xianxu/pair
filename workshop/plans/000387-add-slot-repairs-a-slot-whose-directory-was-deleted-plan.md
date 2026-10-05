@@ -55,7 +55,7 @@ g/h/i (`workshop/history/plans/000367-recover-owned-slots-plan.md`).
 2. **Adopt a leftover `main-slotN`.** It is the resting branch by convention. Refuse only if it
    is checked out in a different worktree or its upstream config conflicts.
 3. **Saved work lives in the slot store**, `<env>/.couch/saved-work/<id>/`, and is collected after
-   storagegc's 60-day `RetentionPeriod`.
+   storagegc's `RetentionPeriod` (one year since pair#393).
 4. **A live agent is never stopped by reconcile.** A record-less live agent is adopted (the
    existing `OpenSlot` route). Removing a checkout under a live agent stops and reports.
 5. **Unknown stops the walk** at that resource and its dependents.
@@ -82,10 +82,11 @@ g/h/i (`workshop/history/plans/000367-recover-owned-slots-plan.md`).
   crashed mid-creation and runs again after the new binary removed its intent will refuse;
   acceptable, since `make build` replaces the binary.
 - **R2 — One save mechanism for every removal: set the directory aside.** The planning-session
-  answer proposed a stash-shaped commit on `refs/couch/saved/slotN/<id>` for the host. Planning
-  showed the host checkout is never removed: an absent host is re-added, and a mismatched one gets
-  `git worktree repair`, otherwise a hand-off. Only a dependency clone is ever removed, and only
-  when it is broken on **positive evidence**: no `.git`, or git answers "not a git repository".
+  answer proposed a stash-shaped commit on `refs/couch/saved/slotN/<id>` for the host. Any
+  checkout, the host or a dependency clone, is set aside only when it is broken on **positive
+  evidence**: no `.git`, or git answers "not a git repository" (for the host: after `git
+  worktree repair` was tried and the evidence remains). A stale checkout (behind origin) is not
+  broken and is never touched; re-adding would check out the same commit anyway.
   Any other git error is `unknown` (lessons: a failed probe is not evidence). The save is an
   atomic `rename` of the whole broken directory into `<env>/.couch/saved-work/<id>/tree`. Env
   and store share the env root, so it is the same filesystem. Nothing is lost: `.git`, ignored
@@ -113,7 +114,7 @@ g/h/i (`workshop/history/plans/000367-recover-owned-slots-plan.md`).
 - **R4 — Removal is the rename (superseded by R2's set-aside).** There is no trash directory
   and no `RemoveAll` of a dependency. The only deletes reconcile performs are the legacy intent
   file and a stale registration (`git worktree remove`, whose directory is already gone).
-  Collection of set-aside trees is the GC's, after 60 days.
+  Collection of set-aside trees is the GC's, after `storagegc.RetentionPeriod` (one year).
 
 ---
 
@@ -156,7 +157,7 @@ g/h/i (`workshop/history/plans/000367-recover-owned-slots-plan.md`).
 | `branch` | resting branch `main-slotN` | `refs/heads/main-slotN` in the shared repo | user data (adopted; never deleted) | — | present | absent → fetch remote `main`, `update-ref` create at the fetched OID; checked out in a worktree other than the host path → hand-off |
 | `upstream` | `branch.main-slotN.{remote,merge}` | shared repo config | derived | `branch` | `<remote>` / `refs/heads/main` | absent → `config --add`; conflicting → hand-off |
 | `registration` | git worktree registration | `<common>/worktrees/<name>/` for the host path | derived | `branch`, `env` | present, directory present | stale (directory gone, git reports `prunable` for **this** path) → `git worktree remove <hostPath>` (targeted; never `prune`, which drops every prunable registration in the shared repository); locked → hand-off; absent → handled by `host` |
-| `host` | host checkout | `<env>/<repo>` | derived container; its dirty files are user data | `registration`, `env`, `upstream` | present and verified (`verifyHost`'s identity check) | absent → `git worktree add <host> main-slotN`; mismatched → `git worktree repair <host>` once, then hand-off; never removed |
+| `host` | host checkout | `<env>/<repo>` | derived container; its dirty files are user data | `registration`, `env`, `upstream` | present and verified (`verifyHost`'s identity check) | absent → `git worktree add <host> main-slotN`; mismatched → `git worktree repair <host>` once; still broken on positive evidence (R2) → set aside (rename into saved-work), then `git worktree remove` the registration and re-add on the branch the registration recorded (`main-slotN` if that branch is gone; the result says which); never under a live agent; stale (behind origin) is converged |
 | `deps` | dependency declaration | `construct/deps` of the host, then of each present substrate (transitive) | external (another repo's file) | `host` | parseable | unparseable/unreadable → unknown (stop at `deps` and `setup`) |
 | `dep:<rel>` | one dependency clone | `<env>/<name>` per declared substrate | derived from a remote; dirty files and local-only commits are user data | `deps`, `env` | present, git-readable | absent → covered by `setup`; broken **on positive evidence only** (no `.git`, or `rev-parse` says "not a git repository"; any other git error is `unknown`) → set aside (rename into saved-work, R2) → absent → covered by `setup` |
 | `setup` | weave setup, Couch's marker, the attempt memo (R5) | `<admin>/couch-setup-success.json`, `<admin>/couch-setup-attempt.json`; lock `<env>/.weave-setup.lock` | derived | `host`, every `dep:*` | valid marker and no `dep:*` absent | lock held → retryable stop; a memo whose digest matches → `present-with-warning`, no compile; otherwise `weave compile` (no lease held), then re-observe under the lease and write the marker (success) or the memo (failure under a valid marker); an invalid marker is removed first (R3) |
@@ -325,7 +326,7 @@ clears the hold.
     measured with 10 slots in Task 3.4.
   - **Compile:** bounded by the existing 20 min `SetupTimeout`.
   - **Saves:** a rename, O(1) and with no copy. Capped at 16 entries per slot (`Stop` at the
-    limit); disk use is the set-aside trees themselves, bounded by 60-day collection.
+    limit); disk use is the set-aside trees themselves, bounded by `RetentionPeriod` collection.
   - **Loop:** at most `len(SlotResources())+2` passes.
   - Other categories N/A.
 - **ARCH-ORDER.** The reconciler holds no state between runs. Each run rebuilds its view from
@@ -355,7 +356,7 @@ clears the hold.
     deterministically.
 - **ARCH-FUNERAL.**
   - **saved-work entries:** created by `SetAsideDep`. The last reader is the operator restoring
-    work. Removed by the archive GC pass at 60 days (`storagegc.RetentionPeriod`, measured from
+    work. Removed by the archive GC pass after `storagegc.RetentionPeriod` (one year since pair#393; measured from
     the entry's `saved_at`, else its directory mtime). Bounded at 16 entries, so disk use per
     slot is at most 16 × the largest dependency; at the cap,
     reconcile stops rather than evicting. The GC pass only visits registered stores
@@ -461,10 +462,17 @@ the intent path, the marker path built from `admin` in `readSuccess` and `Ensure
 
 ### Task 1.3: Declared dependencies through ariadne's `layergraph`
 
-**Prerequisite:** the ariadne issue exporting `layergraph.DeclaredSubstrates` (sign-off 2) has
-landed on ariadne `main`.
+**Prerequisite:** ariadne#294 landed (`DeclaredSubstrates`, ariadne `main` at `e76aac11`).
 
-**Files:** `go.mod`/`go.sum` (`go get github.com/xianxu/ariadne@<landed sha>`; no `replace`);
+`DeclaredSubstrates` errors for the whole walk when a *present* substrate has no
+`construct/base.manifest` ("present but not a compilable layer", an untyped `fmt.Errorf`).
+A half-cloned or gutted dependency is exactly that, so an untyped error would make `deps`
+unknown and stop the repair. Pair must not match error text. Resolution (operator choice at
+approval): a typed `*layergraph.NotLayerError{Path, Owner}` from a small ariadne follow-up,
+read with `errors.As` → that `dep:<path>` is a set-aside candidate, judged by R2's git evidence.
+
+**Files:** `go.mod`/`go.sum` (`go get github.com/xianxu/ariadne@e76aac11`, or the follow-up's
+sha; no `replace`);
 create `slotdeps.go` (an `osFS` adapter implementing `layergraph.FS`, with reads bounded by
 `layergraph.ReadDeclaration`'s 64 KB limit; `DeclaredDeps(host) ([]DeclaredSubstrate,
 error)`) and `slotdeps_test.go`.
@@ -474,6 +482,8 @@ error)`) and `slotdeps_test.go`.
     `a` present, `b` absent with owner `a`;
   - a `data` row is not a dependency;
   - a malformed row → error (mapped to `deps` unknown);
+  - a present substrate without a base.manifest → that `dep:<path>` is broken-candidate, and the
+    others are still reported (via the typed error);
   - a row resolving outside the env → `deps` unknown (a pair-side check on the returned paths);
   - an absent host `construct/deps` → no dependencies.
 - [ ] **Step 2–4:** red → green.
@@ -900,11 +910,15 @@ a symlink (`provisionSafePath`).
 **Files:** `slotreconcile_acceptance_test.go`.
 
 - [ ] A dirty slot whose broken dependency must be recreated. The host has a dirty file (it must
-  be untouched: the host is never removed). The dependency has a local-only commit, a dirty file
+  be untouched: a readable host is never set aside). The dependency has a local-only commit, a dirty file
   and an untracked file, and is made broken by removing `.git/HEAD` (git then answers "not a
   git repository": positive evidence). Reconcile saves the dependency first (entry verified as
   in Task 3.1, including the local-only commit after restore), recreates it via compile, and
   leaves the host's dirty file byte-identical. A second run is a no-op with no new entry.
+- [ ] A host made unreadable (its `.git` file points nowhere and `git worktree repair` cannot fix
+  it), checked out on an issue branch with a dirty file → set aside whole, re-added on the same
+  issue branch; the set-aside tree holds the dirty file. Under a live agent → `agent-live`,
+  nothing moved.
 - [ ] The same dependency with a held `index.lock` instead → `unknown`, nothing saved or moved,
   and the output names `dep:<rel>` as unobservable.
 - [ ] A foreign, pre-populated env (R1): a non-git `ariadne/` with files at the env path before
@@ -1030,3 +1044,12 @@ a singleton; the non-Couch content is legacy, interrupted, lost-track or hand-ma
 parser is imported from ariadne `layergraph`, pinned with no `replace`. Because `Walk`
 present-skips absent substrates, ariadne first exports `DeclaredSubstrates`, as its own issue;
 Task 1.3 is rewritten around it, and the copied parser and conformance table are dropped.
+
+### 2026-10-05 (g) — host set-aside, one-year retention, ariadne#294 landed
+
+- The host checkout follows the same rule as a dependency (operator): set aside only on
+  positive evidence after `git worktree repair`, then re-added on its recorded branch; a stale
+  checkout is never touched. Table, R2 and Task 3.5 updated.
+- pair#393 raised `storagegc.RetentionPeriod` to one year; saved-work collection follows it.
+- ariadne#294 landed (`e76aac11`); Task 1.3 pins it. Its error for a present substrate without
+  base.manifest is untyped, so a typed error is proposed as a small ariadne follow-up.

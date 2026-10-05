@@ -121,10 +121,11 @@ creation. Principle: ariadne#291 (reconcile dispersed state; don't script it).
   registration and `main-slotN` (this issue's original case, which must no longer
   block add slot or allocation for the whole repository); an interrupted setup
   like `tools:1` (missing clone and marker); a missing dependency clone under a
-  valid marker; a dirty slot whose broken dependency clone must be recreated saves
-  it first (the directory is moved whole into a saved-work entry in the slot
-  store; the host checkout is never removed) and the result names how to restore
-  it.
+  valid marker; a dirty slot whose broken checkout (a dependency clone, or the
+  host when `git worktree repair` cannot fix it) must be recreated saves it first:
+  the directory is moved whole into a saved-work entry in the slot store, the
+  host is re-added on its recorded branch, and the result names how to restore
+  it. A checkout that is merely stale is never touched.
 - A failure names the resource that did not converge and the cause verbatim
   (weave's own `Error:` line for setup). Only a retryable cause (setup running
   elsewhere, timeout, cancellation) says to run it again; every other failure says
@@ -257,3 +258,12 @@ Reason: plan review round 2 measured the real `ariadne` clone at 65 MB, above an
 sensible tar cap. Delta: the dirty-slot bullet's save becomes an atomic rename of
 the broken dependency into `<env>/.couch/saved-work/<id>/tree` (nothing lost, no
 size cap); restore is a move.
+
+### 2026-10-05 (d) — the host checkout follows the dependency rule
+
+Reason: operator: a clean host is no different from a dependency; the earlier
+"never removed" rested on the tar save, which the set-aside rename replaced.
+Delta: the dirty-slot bullet covers a broken host (set aside after repair fails,
+re-added on its recorded branch) and states that a stale checkout is never
+touched. Saved-work retention follows `storagegc.RetentionPeriod`, one year since
+pair#393 (was 60 days in the Log's decision).
