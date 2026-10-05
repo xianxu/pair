@@ -52,12 +52,22 @@ logs for a year instead of a week. Watch the data directory size.
 
 ## Plan
 
-- [ ] Change the constants and derive the reason/output text from them
-- [ ] Update README and atlas/storage-retention.md
+- [x] Change the constants and derive the reason/output text from them
+- [x] Update README and atlas/storage-retention.md
 
 ## Log
 
 ### 2026-10-05
+- 2026-10-05: closed — The three retention constants are 365 days. Retention text is derived from them (storagegc.Days, diagnosticlog.RetainedReason), and the test fixtures age relative to the constants instead of fixed 8/61/70/90-day ages. Unsandboxed make -k test: 145 Go packages ok, no FAIL; test-changelog passes with the scratchpad TMPDIR (#360 quirk). no-atlas: atlas/storage-retention.md is already updated in this window (period values only, no new surface).; review verdict: SHIP
 
 - Operator request: "turn it off by setting retention period to 1 year", for all
   three periods.
+- 3d2986ea: three constants → 365 days. `storagegc.Days` derives the reason and
+  `pair gc` text; `diagnosticlog.RetainedReason` replaces the "within seven-day
+  retention" string, which `pair gc` also compared against.
+- The test fixtures used hard-coded ages (8d, 61d, 70d, 90d), so the first run had
+  about 25 failures. They now age relative to the constants, so the next change to a
+  period touches one line.
+- Unsandboxed `make -k test`: 145 Go packages ok, no FAIL; test-changelog passes
+  with the scratchpad TMPDIR.
+- Follow-up filed: #394, archive expired data to cloud storage instead of deleting it.
