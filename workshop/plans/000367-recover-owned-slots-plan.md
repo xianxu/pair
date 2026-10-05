@@ -820,29 +820,54 @@ pair#387. Provisioning already repairs a present but unconfirmed slot in place: 
 | Name | Lives in | Status |
 |------|----------|--------|
 | `ValidSetupMarker(SetupSuccess, provisionHost) error` (extracted from `readSuccess`; avoids `SetupConfirmed`, `provision_host.go:21`) | `cmd/internal/couchcore/provision.go:372` | new (extracted) |
-| `SetupFailure{Cause string; Retryable bool}` / `ClassifySetupFailure(weaveOutput string, err error) SetupFailure` / `SetupIncompleteAdvice(address, cause)` | `cmd/internal/couchcore/setup_failure.go` | new |
-| `SlotSetupFacts{Marker: valid\|absent\|invalid\|unknown; MissingDeps []string}` / `SlotSetupIncomplete(facts) (bool, []string)` | `cmd/internal/couchcore/setup_failure.go` | new |
-| `RecoverSetupIncomplete` class, note `setup-unconfirmed` / `dependency-missing:<path>` | `cmd/internal/couchcore/recoverplan.go` | modified |
+| `SetupFailure{Class: permanent\|retryable\|unclassified; Line string}` / `ClassifySetupFailure(err error) SetupFailure` / `SetupError` / `SetupIncompleteAdvice(address, failure, rebootOffered)` | `cmd/internal/couchcore/setup_failure.go` | new |
+| `SlotSetupFacts{Marker: valid\|absent\|invalid\|unknown; MissingDeps []string}` / `SlotSetupState(facts)` → incomplete / conflicting (`#387`) / unknown / ok | `cmd/internal/couchcore/setup_failure.go` | new |
+| `ParseSubstrateRows(content) ([]string, error)` (substrate rows of `construct/deps`) / `MissingSubstrates(host, read)` | `cmd/internal/couchcore/setup_deps.go` | new |
+| `ensureHost` reuse decision: a missing declared substrate → `CompileHost`, not `ReuseHost` | `cmd/internal/couchcore/provision.go:183-189`, `provision_host.go` (`HostObservation.DepsMissing`) | modified |
+| `RecoverSetupIncomplete` class; notes `setup-unconfirmed`, `dependency-missing:<path>`, `setup-conflict` (pair#387); hold `setup-unknown` | `cmd/internal/couchcore/recoverplan.go` | modified |
 | `WorkspaceProvisioner.Ensure` (the weave-failure wrap) | `cmd/internal/couchcore/provision.go:96-98` | modified |
 
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
-| `ObserveSetupMarker(ctx, slot)` (admin dir from `git rev-parse --git-dir`, then `ProvisionStore.Read` + `ValidSetupMarker`) | `cmd/internal/couchcore/setup_failure.go` | new | git, filesystem |
+| `ObserveSetupMarker(ctx, slot)` (admin dir from `git rev-parse --absolute-git-dir`, as `verifyHost` does, then `ProvisionStore.Read` + `ValidSetupMarker`; any probe or read error → `unknown`) | `cmd/internal/couchcore/setup_failure.go` | new | git, filesystem |
 | `RecoverPlanInput.SetupMarkers` (gathered in `Couch.RecoverPlan`'s shell, one per present `:1+` host) | `recoverplan_source.go` | modified | — |
 | `show` rendering (`setup:` line on slot rows) | `couchcmd/run.go` `render` | modified | stdout |
 
-- **ClassifySetupFailure** is pure. It reads weave's stderr tail (`Error: …`, `ariadne cmd/weave/main.go:58`).
-  - **Permanent**, not retryable: the `Error:` line, verbatim, e.g. `missing substrate <dest> declared in <owner>:
-    record its source in construct/deps` (`acquire.go:351`) or `missing repository …: record its source in
-    construct/deps` (`acquire.go:107`). Any other non-zero weave exit with an `Error:` line is also permanent.
-  - **Retryable**: setup-lease contention (`lock setup lease for …`, `staging/setup.go:37`), the
-    `ProvisionCommand` timeout, and context cancellation.
-  - Unclassified output (no `Error:` line) is permanent with the tail as the cause. A deterministic failure never
-    says retry, and only the retryable class does. Lessons: false vs inconclusive.
-- **SetupIncompleteAdvice** is the single source of the fix text. It reads: "slot setup incomplete: <cause>; fix
-  it, then `couch --reboot repo:N --confirm` (re-runs setup in place)". The reboot clause is emitted only when
-  `ActorActions` offers reboot on the row. Otherwise the text ends at "fix it" and adds the row's own state wording,
-  so it names only reachable actions. `:0` never gets this advice, because `:0` setup is not Couch's.
+- **Classification source.** It reads the **error text through the real seam**. `OSProvisionIO.Run` already folds
+  the stderr tail into its error (`provision_io.go`, `fmt.Errorf("%w: %s", err, diagnostics.data)`), so `ProvisionIO`
+  is unchanged. `ClassifySetupFailure` takes the last `Error: ` line (`ariadne cmd/weave/main.go:58`) plus
+  `errors.Is` checks. The classes, captured from weave's source (`ariadne` revision recorded in the fixture):
+  - **retryable**: `Error: environment setup is active in <env>; retry after the active setup finishes`
+    (`staging/setup.go:35`, `ErrSetupInUse`); `context.DeadlineExceeded` (the `SetupTimeout`); `context.Canceled`.
+  - **permanent** (only recognized deterministic lines): `missing substrate <dest> declared in <owner>: record its
+    source in construct/deps` (`acquire.go:351`); `missing repository <dir>: record its source in construct/deps: …`
+    (`acquire.go:107`); `construct/deps line N: expected substrate <path> [source] or data …` (layergraph grammar).
+  - **unclassified**: everything else, including `lock setup lease for …` (`setup.go:37`, a generic flock failure,
+    **not** contention), clone network, auth or remote-down, and output with no `Error:` line. The advice shows
+    weave's line verbatim and says it **may be transient**. It says neither "fix it" nor a bare "retry". Unknown ≠
+    permanent.
+  - Upstream ask (ariadne, filed at implementation): a stable machine token on weave errors, e.g.
+    `Error[missing-substrate]:`, so this match stops being text-based.
+- **SetupIncompleteAdvice** is the single source of the fix text. Permanent: "slot setup incomplete: <line>; fix it,
+  then `couch --reboot repo:N --confirm` (re-runs setup in place)". Retryable: "slot setup incomplete: setup is
+  running elsewhere (or timed out); retry with `couch --reboot repo:N --confirm`". Unclassified: "slot setup
+  incomplete: <line> (may be transient); `couch --reboot repo:N --confirm` re-runs setup". The reboot clause is
+  emitted only when `ActorActions` offers reboot on the row; otherwise the text ends after the cause. `:0` never
+  gets this advice, because `:0` setup is not Couch's.
+- **Setup states** (`SlotSetupState`, pure, total over `SlotSetupFacts`):
+  - marker `absent`, or a missing declared substrate → **incomplete**: reboot re-runs setup;
+  - marker `invalid` → **conflicting**: `readSuccess` errors, so `ensureHost` refuses before compiling. Note
+    `setup-conflict` names pair#387 and the advice never says reboot fixes it;
+  - marker `unknown` (rev-parse or store read failed) → hold `setup-unknown`, never incomplete;
+  - otherwise **ok**.
+- **Reboot really re-runs setup (coordinator decision).** Today a valid marker plus a later-deleted dependency clone
+  takes `ReuseHost` (`provision.go:183-189`) and never compiles. `ensureHost` gains `HostObservation.DepsMissing`
+  from `MissingSubstrates`, which reads `construct/deps` of the host, then of each present substrate transitively.
+  Those are file reads only (no git, no sdlc), so a healthy reuse costs a handful of `stat`s and stays fast.
+  `NextHostAction` maps a confirmed setup with missing deps to `CompileHost`. Pair does not depend on ariadne's
+  `pkg/layergraph`, so `ParseSubstrateRows` is a minimal substrate-only parser. A conformance test runs it over the
+  same row table layergraph's `deps_test.go` uses (copied, with its ariadne revision noted). Upstream ask: expose
+  declared dependencies in `sdlc workspace --json`, then delete the parser.
 - **ARCH-FUNERAL:** M3 creates nothing. **ARCH-PURE:** classification, advice and the setup check are pure, and the
   marker read is a thin shell. **ARCH-DRY:** the report, `--show`, the reboot/resume errors and the skill share one
   advice function.
@@ -852,22 +877,30 @@ pair#387. Provisioning already repairs a present but unconfirmed slot in place: 
 **Files:** create `setup_failure.go`, `setup_failure_test.go`; modify `provision.go:96-98`.
 
 - [ ] **Step 1: Failing tests.**
-  - `TestClassifySetupFailure` is a table over captured weave outputs:
-    - missing substrate → permanent, cause = the `Error:` line;
-    - missing repository → permanent;
-    - lease contention → retryable;
-    - a timeout `context.DeadlineExceeded` → retryable;
-    - empty output → permanent with a generic cause.
+  - `TestClassifySetupFailure` is a table over the captured texts above. Each class gets at least two rows: missing
+    substrate and missing repository → permanent; `environment setup is active…` → retryable; `DeadlineExceeded` and
+    `Canceled` → retryable; `lock setup lease…`, a git clone auth failure, a network failure and no `Error:` line →
+    unclassified. Every `SetupFailure` class appears (derived from `AllSetupFailureClasses`).
+  - `TestSetupFailureThroughRealSeam`: `OSProvisionIO` runs a fake `weave` script on a temp `PATH` that prints each
+    captured stderr text and exits 1. The resulting error classifies the same as the table.
+  - `TestWeaveConformance` (skipped without `weave` on PATH): real `weave compile` on a temp slot (1) with
+    `.weave-setup.lock` flock-held by the test → retryable; (2) with `construct/deps` naming `substrate ../missing`
+    with no source → permanent. Wording drift fails the build.
   - `TestEnsureSetupFailureIsActionable`: a `ProvisionFixture` whose weave fake prints
     `Error: missing substrate /f/worktree/tools-slot1/ariadne declared in /f/worktree/tools-slot1/tools: record its
     source in construct/deps` and exits 1. `Ensure`'s error is a typed `*SetupError{SetupFailure}` that starts with
     `slot setup incomplete: missing substrate`, and does **not** contain `retry`.
-  - The lease-contention fake → the error says `setup is running elsewhere; retry when it finishes`.
+  - The contention fake → the error says retry. The unclassified fake (a clone auth error) → the error shows the
+    line and "may be transient", and contains neither "fix it" nor a bare "retry".
+  - `TestEnsureRecompilesWhenADeclaredSubstrateIsMissing` (red today): a provisioned slot with a valid marker whose
+    dependency clone directory is deleted → `Ensure` runs `weave compile` (`WeaveCalls` 1, not 0). With every
+    substrate present, `WeaveCalls` stays 0. `TestParseSubstrateRowsConformance` covers the parser.
 - [ ] **Step 2:** FAIL → **Step 3:** `Ensure` returns `&SetupError{ClassifySetupFailure(out, err)}`, where `out` is
   the diagnostics tail `OSProvisionIO` already appends. Delete the `open again to retry` text. Sweep for the class:
   `grep -rn "again to retry\|open again" cmd/internal`, and every remaining hit must be retryable-only.
-- [ ] **Step 4:** PASS. Mutations: make the permanent class retryable → the no-retry assertion fails; drop the
-  `Error:` extraction → the cause assertion fails. Commit `#367 M3: couchcore: setup failures name their cause`.
+- [ ] **Step 4:** PASS. Mutations: make the permanent class retryable → the no-retry assertion fails; fold
+  unclassified into permanent → the auth-error row fails; drop the `Error:` extraction → the cause assertion fails;
+  ignore `DepsMissing` in `NextHostAction` → the recompile test fails. Commit `#367 M3: couchcore: setup failures name their cause`.
 
 ### Task 3.2: Reboot and resume lead with the setup cause
 
@@ -896,11 +929,15 @@ pair#387. Provisioning already repairs a present but unconfirmed slot in place: 
   - In both cases the step is `[reboot]` carrying `SetupIncompleteAdvice` when reboot is offered. When it is not
     (live agent, busy, unknown), the row has no step and its existing hold applies; `setup-incomplete` is ordered
     after `agent-unknown`, `start-unreconciled` and `ambiguous-threads`, and before `idle`/`agrees`.
+  - An invalid marker → no reboot step, note `setup-conflict` (pair#387), and the advice never says reboot. An
+    unknown marker → hold `setup-unknown`, never `setup-incomplete`.
   - A `:0` with no marker is unaffected.
-  - The totality test's domain gains `SlotSetupFacts`.
+  - The totality test's domain gains `SlotSetupFacts`, including `unknown` and `invalid`.
   - The class/hold/note coverage is re-derived (`AllRecoverClasses`/`AllRecoverNotes`).
-  - `couch --show` on a slot row with no marker prints `setup: incomplete (setup unconfirmed); dependencies: see couch
-    --recover-plan-from-sdlc`; a valid marker prints `setup: complete`.
+  - `couch --show` on a slot row: with no marker it prints `setup: incomplete (setup unconfirmed); dependencies: see
+    couch --recover-plan-from-sdlc`; with a valid marker, `setup marker valid; dependencies: see couch
+    --recover-plan-from-sdlc` (never "complete"); with an invalid marker, `setup: conflicting evidence (pair#387)`;
+    and with an unknown marker, `setup: unknown`.
 - [ ] **Step 2–4:** red → green. Mutations: treat `invalid` as `valid` → fixture 1's sibling fails; ignore
   `MissingDeps` → fixture 2 fails. Commit `#367 M3: report and --show say setup incomplete`.
 
@@ -1118,3 +1155,14 @@ compile`, which re-clones missing dependencies). `tools:1` fails only because `t
 - Revision (g)'s component table, health/vacancy predicates, rebuild journal, `rebuilds` storage family and
   `--rebuild` CLI are removed from this plan and move to pair#387, with the review findings recorded in the issue.
   Revision (g) stays as history.
+- **M3 re-review (same day).**
+  - The classifier has three classes: permanent (recognized deterministic lines only), retryable (`environment
+    setup is active…`, timeout, cancellation) and unclassified (including `lock setup lease`, network or auth
+    failures; shown verbatim as possibly transient). Texts are captured from weave's source, with a live weave
+    conformance test and an upstream ask for a stable error token.
+  - Classification reads the error text that `OSProvisionIO.Run` already folds in, tested through the real seam.
+  - `ensureHost` recompiles when a declared substrate is missing (coordinator decision), using a minimal
+    `construct/deps` substrate parser with a conformance table. Upstream ask: `sdlc workspace --json` exposes deps.
+  - An invalid marker → `setup-conflict` (pair#387; reboot is never advised); an unknown marker → held.
+  - `--show` prints "setup marker valid", never "complete".
+  - `ObserveSetupMarker` uses `--absolute-git-dir`.
