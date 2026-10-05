@@ -1,6 +1,6 @@
 ---
 id: 000393
-status: codecomplete
+status: done
 created: 2026-10-05
 updated: 2026-10-05
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 3d2986ea93fba1a195333717a30e537d237b3a4e
         evidence_commit: 0e6c094921b738ab1e13cdbb36d4f1c5f64483e0
+        landed_commit: 9a7ea1d94effc1d036f72336f60bb230c39e1b34
 ---
 
 # Raise all storage retention periods to one year
