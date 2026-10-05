@@ -462,13 +462,14 @@ the intent path, the marker path built from `admin` in `readSuccess` and `Ensure
 
 ### Task 1.3: Declared dependencies through ariadne's `layergraph`
 
-**Prerequisite:** ariadne#294 landed (`DeclaredSubstrates`, ariadne `main` at `e76aac11`).
+**Prerequisite:** ariadne#294 landed (`DeclaredSubstrates`, `e76aac11`) and ariadne#295 (typed
+`NotLayerError`) has landed; pin the sha that contains both.
 
 `DeclaredSubstrates` errors for the whole walk when a *present* substrate has no
 `construct/base.manifest` ("present but not a compilable layer", an untyped `fmt.Errorf`).
 A half-cloned or gutted dependency is exactly that, so an untyped error would make `deps`
-unknown and stop the repair. Pair must not match error text. Resolution (operator choice at
-approval): a typed `*layergraph.NotLayerError{Path, Owner}` from a small ariadne follow-up,
+unknown and stop the repair. Pair must not match error text. Resolution (operator choice,
+2026-10-05): a typed `*layergraph.NotLayerError{Path, Owner}` from ariadne#295,
 read with `errors.As` → that `dep:<path>` is a set-aside candidate, judged by R2's git evidence.
 
 **Files:** `go.mod`/`go.sum` (`go get github.com/xianxu/ariadne@e76aac11`, or the follow-up's
