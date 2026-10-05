@@ -113,6 +113,10 @@ representative evidence, not an exhaustive index.
   or wrapper that adds its own shorter timeout silently overrides the owner's.
   Test the deadline the I/O actually sees through the production path, not the
   constant that names it. (#383)
+- A wait added to a shared lock path is a per-caller decision: a caller that holds
+  another lock or authority must not wait (yield instead), or lock ordering breaks
+  tests and liveness elsewhere. Run every package that takes the lock, not only the
+  one being fixed. (#367 smoke-test side-quest broke couchsingleton adoption)
 - A timeout bounds a phase only when a live owner enforces it. If the owner can
   die, make the deadline observable and recoverable without that owner. (#250,
   #280)
