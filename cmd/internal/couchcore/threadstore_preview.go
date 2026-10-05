@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"time"
 )
 
 // PreviewSnapshot uses the regular decoder/routing without initializing stores,
@@ -28,9 +29,20 @@ func (s *ThreadStore) withPreviewLock(fn func() error) error {
 	return s.withPreviewLockContext(context.Background(), fn)
 }
 
-// withPreviewLockContext is a read under store.lock that waits a busy store
-// out for up to storeReadLockWait, bounded by ctx.
-func (s *ThreadStore) withPreviewLockContext(ctx context.Context, fn func() error) (err error) {
+// withPreviewLockContext is a foreground read under store.lock: it holds no
+// other lock, so it waits a busy store out for up to storeReadLockWait,
+// bounded by ctx.
+func (s *ThreadStore) withPreviewLockContext(ctx context.Context, fn func() error) error {
+	return s.withPreviewLockWithin(ctx, storeReadLockWait, fn)
+}
+
+// withNestedPreviewLock is a read taken while another store lock is held: it
+// never waits under that lock (lock ordering), so a busy store fails at once.
+func (s *ThreadStore) withNestedPreviewLock(fn func() error) error {
+	return s.withPreviewLockWithin(context.Background(), 0, fn)
+}
+
+func (s *ThreadStore) withPreviewLockWithin(ctx context.Context, wait time.Duration, fn func() error) (err error) {
 	if s.inspection != nil {
 		return s.inspection.withRoot(s, fn)
 	}
@@ -45,7 +57,7 @@ func (s *ThreadStore) withPreviewLockContext(ctx context.Context, fn func() erro
 	if err := s.validateBackendPath(); err != nil {
 		return err
 	}
-	lock, err := s.retentionReadLock(ctx, storeReadLockWait)
+	lock, err := s.retentionReadLock(ctx, wait)
 	if err != nil {
 		return err
 	}
