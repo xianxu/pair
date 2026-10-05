@@ -12,8 +12,10 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
 	"github.com/xianxu/pair/cmd/internal/gcruntime"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/storagegc"
 )
 
 type pathsFlag []string
@@ -102,7 +104,7 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer) in
 		if err := coordinator.CompleteMigration(ctx, paths); err != nil {
 			return fail(err)
 		}
-		fmt.Fprintln(stdout, "Couch store inventory acknowledged; automatic collection is enabled. Session data keeps its 60-day grace.")
+		fmt.Fprintf(stdout, "Couch store inventory acknowledged; automatic collection is enabled. Session data keeps its %d-day grace.\n", storagegc.Days(storagegc.RetentionPeriod))
 		return 0
 	}
 	if *apply {
@@ -162,7 +164,7 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer) in
 	}
 
 	if !report.Storage.MigrationComplete {
-		fmt.Fprintln(stdout, "Collection is disabled until all Couch stores are registered and acknowledged with --complete-migration --store PATH (repeat --store for every registered namespace). Use --apply to initialize 60-day session clocks.")
+		fmt.Fprintf(stdout, "Collection is disabled until all Couch stores are registered and acknowledged with --complete-migration --store PATH (repeat --store for every registered namespace). Use --apply to initialize %d-day session clocks.\n", storagegc.Days(storagegc.RetentionPeriod))
 	}
 	return 0
 }
@@ -186,7 +188,7 @@ func render(out io.Writer, r gcruntime.Report) {
 		status := "retained"
 		if item.Eligible {
 			status = "eligible"
-		} else if item.Reason != "within seven-day retention" {
+		} else if item.Reason != diagnosticlog.RetainedReason {
 			status = "blocked"
 		}
 		add("debug", status, 1, item.Bytes)
@@ -196,7 +198,8 @@ func render(out io.Writer, r gcruntime.Report) {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
-	fmt.Fprintln(out, "Retention: session 60 days; parked captures and debugging logs 7 days.")
+	fmt.Fprintf(out, "Retention: session %d days; parked captures %d days; debugging logs %d days.\n",
+		storagegc.Days(storagegc.RetentionPeriod), storagegc.Days(storagegc.CaptureRetentionPeriod), storagegc.Days(diagnosticlog.RetentionPeriod))
 	for _, key := range keys {
 		v := totals[key]
 		fmt.Fprintf(out, "%-25s %6d files %9.3f GiB\n", key, v.count, float64(v.bytes)/(1<<30))

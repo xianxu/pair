@@ -62,7 +62,7 @@ func TestUnknownWriterBlocksRotationAndCollection(t *testing.T) {
 	}
 	defer w.Close()
 	w.Write([]byte("first\n"))
-	*now = now.Add(8 * 24 * time.Hour)
+	*now = now.Add(RetentionPeriod + 24*time.Hour)
 	w.Write([]byte("second\n"))
 	got, _ := os.ReadFile(path)
 	if string(got) != "first\nsecond\n" {
@@ -169,7 +169,7 @@ func TestExpiryAndStableLock(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	*now = now.Add(7*24*time.Hour - time.Nanosecond)
+	*now = now.Add(RetentionPeriod - time.Nanosecond)
 	rows, e := Collect(path, opts, 100)
 	if e != nil {
 		t.Fatal(e)
@@ -207,7 +207,7 @@ func TestRejectSubstitution(t *testing.T) {
 	}
 	w.Write([]byte("original\n"))
 	w.Close()
-	*now = now.Add(8 * 24 * time.Hour)
+	*now = now.Add(RetentionPeriod + 24*time.Hour)
 	os.Rename(path, path+".old")
 	os.WriteFile(path, []byte("replacement\n"), 0600)
 	if _, e = Collect(path, opts, 100); e == nil {
@@ -229,7 +229,7 @@ func TestCollectionRecoveryBeforeNextAppend(t *testing.T) {
 			}
 			w.Write([]byte("expired\n"))
 			w.Close()
-			*now = now.Add(8 * 24 * time.Hour)
+			*now = now.Add(RetentionPeriod + 24*time.Hour)
 			opts.Fault = func(step string) error {
 				if step == point {
 					return errors.New("crash")
@@ -266,7 +266,7 @@ func TestSameSizeExternalModificationBlocks(t *testing.T) {
 	st, _ := os.Stat(path)
 	os.WriteFile(path, []byte("new\n"), 0600)
 	os.Chtimes(path, st.ModTime().Add(time.Minute), st.ModTime().Add(time.Minute))
-	*now = now.Add(8 * 24 * time.Hour)
+	*now = now.Add(RetentionPeriod + 24*time.Hour)
 	if _, e = Collect(path, opts, 100); e == nil {
 		t.Fatal("same-size outside write accepted")
 	}
@@ -297,7 +297,7 @@ func TestMalformedDeletionIntentCannotRemoveCurrent(t *testing.T) {
 	}
 	s.Deleting = &generation{}
 	save(path, s, true, Options{})
-	*now = now.Add(8 * 24 * time.Hour)
+	*now = now.Add(RetentionPeriod + 24*time.Hour)
 	if _, e = Collect(path, opts, 100); e == nil {
 		t.Fatal("malformed deletion accepted")
 	}
@@ -395,7 +395,7 @@ func TestAbandonedMetadataTempHasBoundedLifetime(t *testing.T) {
 	abandoned := filepath.Join(directory(path), ".pending-1234")
 	os.WriteFile(abandoned, []byte("interrupted metadata"), 0600)
 	os.Chtimes(abandoned, *now, *now)
-	*now = now.Add(8 * 24 * time.Hour)
+	*now = now.Add(RetentionPeriod + 24*time.Hour)
 	if _, e = Collect(path, opts, 100); e != nil {
 		t.Fatal(e)
 	}
@@ -474,7 +474,7 @@ func TestMaintenanceCancellationStopsBeforeNextEffect(t *testing.T) {
 				t.Fatal(err)
 			}
 			w.Close()
-			*now = now.Add(8 * 24 * time.Hour)
+			*now = now.Add(RetentionPeriod + 24*time.Hour)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			opts.Context = ctx

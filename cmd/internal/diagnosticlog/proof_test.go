@@ -161,7 +161,7 @@ func TestCanceledProofDoesNotStartNextInspection(t *testing.T) {
 	if err = w.Close(); err != nil {
 		t.Fatal(err)
 	}
-	*now = now.Add(8 * 24 * time.Hour)
+	*now = now.Add(RetentionPeriod + 24*time.Hour)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	probe := &cancelingInspection{cancel: cancel}

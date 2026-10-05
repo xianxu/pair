@@ -34,7 +34,7 @@ func previewLegacyCurrent(path string, options Options) ([]Segment, error) {
 	}
 	eligible := reason == "" && DecideSegment(options.Now(), st.ModTime())
 	if reason == "" && !eligible {
-		reason = "within seven-day retention"
+		reason = RetainedReason
 	}
 	return []Segment{{Path: p, Bytes: st.Size(), LastWrite: st.ModTime(), Eligible: eligible, Reason: reason}}, nil
 }

@@ -60,7 +60,7 @@ func TestScheduledBatchContinuesBoundedSessionsThenDiagnostics(t *testing.T) {
 		t.Fatal(err)
 	}
 	old := c.Now()
-	c.Now = func() time.Time { return old.Add(61 * 24 * time.Hour) }
+	c.Now = func() time.Time { return old.Add(storagegc.RetentionPeriod + 24*time.Hour) }
 	cursor, complete, err := s.Batch(ctx, "", 1)
 	if err != nil || complete || cursor == "" {
 		t.Fatalf("first batch %q %v %v", cursor, complete, err)
@@ -126,7 +126,7 @@ func TestScheduledDiagnosticsAdvanceAcrossDeletedPaths(t *testing.T) {
 		if err := os.WriteFile(path, []byte("old diagnostic"), 0600); err != nil {
 			t.Fatal(err)
 		}
-		old := now.Add(-8 * 24 * time.Hour)
+		old := now.Add(-(diagnosticlog.RetentionPeriod + 24*time.Hour))
 		if err := os.Chtimes(path, old, old); err != nil {
 			t.Fatal(err)
 		}

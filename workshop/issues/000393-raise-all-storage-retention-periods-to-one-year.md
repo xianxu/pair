@@ -1,12 +1,22 @@
 ---
 id: 000393
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-05
 updated: 2026-10-05
 estimate_hours:
-card_mirror: '0cffc0eae01c0a5a67cac144caccc4553caf5078' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'd1a721bd2092d3b5dbc7cbcb3756155942013111' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-05T12:06:46-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "4be4cfd8", done: "c54c1b42"}
+actual_hours: 0.19
 ---
 
 # Raise all storage retention periods to one year
@@ -43,12 +53,22 @@ logs for a year instead of a week. Watch the data directory size.
 
 ## Plan
 
-- [ ] Change the constants and derive the reason/output text from them
-- [ ] Update README and atlas/storage-retention.md
+- [x] Change the constants and derive the reason/output text from them
+- [x] Update README and atlas/storage-retention.md
 
 ## Log
 
 ### 2026-10-05
+- 2026-10-05: closed — The three retention constants are 365 days. Retention text is derived from them (storagegc.Days, diagnosticlog.RetainedReason), and the test fixtures age relative to the constants instead of fixed 8/61/70/90-day ages. Unsandboxed make -k test: 145 Go packages ok, no FAIL; test-changelog passes with the scratchpad TMPDIR (#360 quirk). no-atlas: atlas/storage-retention.md is already updated in this window (period values only, no new surface).; review verdict: SHIP
 
 - Operator request: "turn it off by setting retention period to 1 year", for all
   three periods.
+- 3d2986ea: three constants → 365 days. `storagegc.Days` derives the reason and
+  `pair gc` text; `diagnosticlog.RetainedReason` replaces the "within seven-day
+  retention" string, which `pair gc` also compared against.
+- The test fixtures used hard-coded ages (8d, 61d, 70d, 90d), so the first run had
+  about 25 failures. They now age relative to the constants, so the next change to a
+  period touches one line.
+- Unsandboxed `make -k test`: 145 Go packages ok, no FAIL; test-changelog passes
+  with the scratchpad TMPDIR.
+- Follow-up filed: #394, archive expired data to cloud storage instead of deleting it.

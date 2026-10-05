@@ -22,7 +22,7 @@ func collectorFixture(t *testing.T) (*Collector, artifactpath.StorageOwner) {
 		t.Fatal(err)
 	}
 	before := c.Now()
-	c.Now = func() time.Time { return before.Add(61 * 24 * time.Hour) }
+	c.Now = func() time.Time { return before.Add(RetentionPeriod + 24*time.Hour) }
 	return &Collector{Coordinator: c, Agents: []string{"codex"}, Legacy: func(context.Context, artifactpath.StorageOwner) (Liveness, error) { return ProcessDead, nil }}, o
 }
 func TestCollectorPreviewIsReadOnlyAndSeparatesCaptureAge(t *testing.T) {
@@ -31,7 +31,7 @@ func TestCollectorPreviewIsReadOnlyAndSeparatesCaptureAge(t *testing.T) {
 	cap, _ := p.ParkedScrollbackArtifacts("20260913T000000")
 	os.WriteFile(cap.Raw, []byte("capture"), 0600)
 	now := gc.Coordinator.Now()
-	os.Chtimes(cap.Raw, now.Add(-8*24*time.Hour), now.Add(-8*24*time.Hour))
+	os.Chtimes(cap.Raw, now.Add(-(CaptureRetentionPeriod + 24*time.Hour)), now.Add(-(CaptureRetentionPeriod + 24*time.Hour)))
 	before, _ := os.ReadFile(gc.Coordinator.statePath(o))
 	report, err := gc.Preview(context.Background())
 	if err != nil {
@@ -102,7 +102,7 @@ func TestCollectorUsesCapturePublicationClockAndRejectsChangedPayload(t *testing
 	for _, mutation := range []string{"none", "raw", "events", "metadata"} {
 		t.Run(mutation, func(t *testing.T) {
 			gc, owner := collectorFixture(t)
-			at := gc.Coordinator.Now().Add(-7*24*time.Hour - time.Hour)
+			at := gc.Coordinator.Now().Add(-CaptureRetentionPeriod - time.Hour)
 			paths, _ := artifactpath.ResolveScoped(owner.Directory(), owner.Tag)
 			capture, _ := paths.ParkedScrollbackArtifacts(at.UTC().Format("20060102T150405"))
 			if err := os.WriteFile(capture.Raw, []byte("raw"), 0600); err != nil {

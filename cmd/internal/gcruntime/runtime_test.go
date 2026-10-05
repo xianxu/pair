@@ -24,7 +24,7 @@ func TestLegacyDiagnosticsExpireWithoutSessionGrace(t *testing.T) {
 	s.DiagnosticOptions.Proof = func(context.Context, string, []diagnosticlog.Registration) error { return nil }
 	path := filepath.Join(c.Root, "wrap-events-tag.jsonl")
 	os.WriteFile(path, []byte("old diagnostic"), 0600)
-	at := time.Now().Add(-8 * 24 * time.Hour)
+	at := time.Now().Add(-(diagnosticlog.RetentionPeriod + 24*time.Hour))
 	os.Chtimes(path, at, at)
 	preview, err := s.Preview(context.Background())
 	if err != nil {
@@ -61,7 +61,7 @@ func TestExplicitApplyDoesNotStarveBehindRetainedOwner(t *testing.T) {
 		t.Fatal(err)
 	}
 	old := c.Now()
-	c.Now = func() time.Time { return old.Add(61 * 24 * time.Hour) }
+	c.Now = func() time.Time { return old.Add(storagegc.RetentionPeriod + 24*time.Hour) }
 	young, err := artifactpath.NewStorageOwner(c.Root, "", "aaa-young")
 	if err != nil {
 		t.Fatal(err)

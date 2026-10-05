@@ -146,7 +146,7 @@ func TestCurrentCreationAfterRotationAndCollection(t *testing.T) {
 					t.Fatal(err)
 				}
 			} else {
-				*now = now.Add(8 * 24 * time.Hour)
+				*now = now.Add(RetentionPeriod + 24*time.Hour)
 				if _, err = Collect(path, o, 100); err != nil {
 					t.Fatal(err)
 				}
@@ -247,7 +247,7 @@ func TestCurrentCreationKilledPublisherCollectedWithoutReopen(t *testing.T) {
 		t.Run(step, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "trace.log")
 			killCurrentCreationPublisher(t, path, step)
-			options := Options{Now: func() time.Time { return time.Now().Add(8 * 24 * time.Hour) }, Proof: func(context.Context, string, []Registration) error { return nil }}
+			options := Options{Now: func() time.Time { return time.Now().Add(RetentionPeriod + 24*time.Hour) }, Proof: func(context.Context, string, []Registration) error { return nil }}
 			for range 2 {
 				if _, err := Collect(path, options, 100); err != nil {
 					t.Fatalf("collect without reopen: %v", err)
