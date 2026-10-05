@@ -1,12 +1,12 @@
 ---
 id: 000367
-status: working
+status: codecomplete
 deps: [pair#366, ariadne#277, ariadne#278, ariadne#279, ariadne#280, ariadne#288, ariadne#289, pair#363]
 github_issue:
 created: 2026-10-01
-updated: 2026-10-02
+updated: 2026-10-05
 estimate_hours: 2.82
-card_mirror: 'f0aebb45368c9e7f3e5f293788b7d0266c2d0974' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '0c3c327848c651abe3d11c8c65d04ab517ef544c' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-02T11:50:33-07:00
 claimant:
     operator: T
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 14.11
 ---
 
 # Recover local slots from durable issue ownership
