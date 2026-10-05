@@ -34,7 +34,7 @@ one-shot "execute the plan" command, and repairing deleted slots (pair#387; the 
 |---|---|---|
 | **M1** | Read-only report: the sdlc v1 decoder with a golden fixture and live conformance, `SDLCFleetSource` with `FakeFleetSDLC`, `ActorActions` extracted, pure `DeriveRecoverPlan`, the `recover-plan` operation and CLI, the restart acceptance test, docs | An agent can read the plan. Steps name actions only (`resume`/`reboot`/`ask-agent-restore`) and carry no CLI text, because `--resume`/`--reboot` do not exist yet |
 | **M2** | Socket primitives: protocol ops, a pure receipt state machine, the console's remote enqueue, `PrepareSlotOperation`, the caller rule, `--resume`/`--reboot` CLI, step `command` text, the skill section, the end-to-end recovery acceptance test | The full LLM-driven loop: read the report, act, read it again |
-| **M3** | Rebuild a broken `:1+` slot: the slot component table, pure health and vacancy, `setup-incomplete` in the report and `--show`, single-sourced rebuild advice, a journaled `Couch.Rebuild` (save → retire → remove → assert vacant → provision → fresh agent), `couch --rebuild repo:N --confirm`, real-git acceptance | `tools:1`/`brain:1`/`parli:1` are repairable by one command; pair#387 is superseded |
+| **M3** | Actionable setup errors: `ValidSetupMarker`, a typed `ClassifySetupFailure` (permanent vs retryable), single-sourced `SetupIncompleteAdvice`, `setup-incomplete` in the report and `--show`, skill/docs | A broken slot is visible, and its failure names the fix (reboot re-runs setup in place); no destructive verb |
 
 ## Resolved spec ambiguities (operator: confirm or correct)
 
@@ -808,262 +808,113 @@ Also add the two commands to the command table.
 
 ---
 
-## Chunk 3: M3 — rebuild a broken `:1+` slot
+## Chunk 3: M3 — actionable setup errors
 
-Source: the issue's fifth Done-when bullet and its Revision "2026-10-05 — M3: rebuild a broken slot". The design
-builds on the M2 smoke-test fixes: caller rule by Couch liveness, the store read lock's bounded wait, no resume
-without an established conversation, and nonce plumbing. One frame organizes this chunk (operator, 2026-10-05): every
-piece of slot state has an owner and a rebuild disposition, and one pure health classification over those pieces
-decides what is advised. It is read by the report, by `couch --show` and by rebuild's admission (offer =
-permission). Only the operator runs anything: `couch --rebuild repo:N --confirm`. Every phase is an internal step of
-one couchcore operation that the Couch server runs on its queue.
+Source: the issue's rewritten fifth Done-when bullet and its Revision "2026-10-05 — M3 split". Rebuild moves to
+pair#387. Provisioning already repairs a present but unconfirmed slot in place: `ensureHost` re-runs `weave compile`
+(`provision.go:177-198`), which re-clones missing dependencies. M3 therefore only has to make the broken state
+**visible** and the failure **actionable**. It adds no destructive verb.
 
 ### Core concepts (M3)
 
-**Slot component table.** Each row was verified against the code on 2026-10-05.
-
-| # | Component | Lives at (code) | Owner / kind | Rebuild disposition |
-|---|---|---|---|---|
-| C1 | Thread record + slot store | `<env>/.couch/{thread.json, preferences.json, archive/, archive-grace/, store.lock}` (`threadstore_layout.go:19`) | Couch / internal | Current record **archived** (reboot's `prepareRetirement` + `replaceSlotCurrent`). `archive/`, `archive-grace/` and `preferences.json` are **carried**: saved, then restored into the new env at the **same path**, so archive identities (`ArchiveDetachRequest.SlotEnvironment`) and the 60-day `archive_gc` stay valid |
-| C2 | Agent session / process | zellij session, wrapper PID (`prepareRetirement`) | runtime | **Stopped** by reboot's quiesce; live, busy or unknown → refuse |
-| C3 | Conversation transcript | the agent's own store (e.g. `~/.claude/projects/<cwd>`), keyed by the unchanged path | user data, agent-owned | **Untouched**; reachable through the archived record's binding |
-| C4 | Pair per-thread artifacts | Pair data dir by scope/tag (`artifactpath`) | runtime/derived | Untouched; storagegc's existing retention covers the old tag |
-| C5 | Host worktree directory | `<fleet>/worktree/<repo>-slotN/<repo>` | derived | **Removed** (`git worktree remove --force --force`), re-provisioned |
-| C6 | Git worktree registration + setup marker | `<common>/worktrees/<name>/` incl. `couch-setup-success.json` (`provision.go:372`) | derived (Couch writes the marker only after `weave compile` succeeds) | **Removed** (`git worktree prune` after C5), recreated by provisioning |
-| C7 | Creation intent | `<common>/couch-workspaces/N/creation.json` (`provision.go:156`) | derived | A stale intent is **removed** under the host-creation lease |
-| C8 | Resting branch `main-slotN` | shared repo `refs/heads/main-slotN` | derived, but may hold local commits | **Bundled** if it has local-only commits, then deleted with a CAS `update-ref -d` (provisioning refuses an unowned existing resting branch, `provision.go:228`; this was pair#387's blocker) |
-| C9 | Other branches in the shared repo (issue branches) | `refs/heads/*` | user data | **Untouched** (they survive in the shared repo); any checked-out or local-only ones are recorded in the bundle |
-| C10 | Uncommitted + untracked (not ignored) files | in C5 and in each C11 | user data | **Saved** (`git diff --binary HEAD` + a tar of `ls-files -o --exclude-standard`); never silently discarded |
-| C11 | Dependency clones | `<env>/<dep>` per `construct/deps` (sdlc's fleet `members[role=dependency]`) | derived from a remote | Local-only commits **bundled**, C10 saved, then **removed**; re-cloned by provisioning (`weave compile`) |
-| C12 | Weave generated files + setup lock | inside C5/C11; `<env>/.weave-setup.lock` (permanent by weave's design, `staging/setup.go:14`) | derived | **Discarded** with the env and regenerated. A lock that is currently **held** means a setup is in progress → refuse |
-| C13 | sdlc claims / tracker cards | issue-tracker branch | external | **Untouched**; claims key on the path, which re-attaches |
-| C14 | Couch enrollment | global manifest `SlotRepositories` = primary roots (`threadstore_location.go:39`); slot backends are enumerated from disk | Couch / internal | Untouched; there is no per-slot manifest entry, so removing the env removes the backend |
-| C15 | Rebuild save entry (new) | `<CouchStore>/rebuilds/<op-id>/` | Couch / internal | Created here; see ARCH-FUNERAL below |
-
-**Health** (pure, `cmd/internal/couchcore/slot_health.go`): `ClassifySlotHealth(SlotHealthFacts) SlotHealth{Verdict,
-Evidence []string}`. `Verdict` ∈ {`ok`, `in-place`, `rebuild`, `unsafe`}. The facts are:
-- `HostDir` (present / missing / unknown);
-- `Registration` (registered / missing / unknown);
-- `SetupMarker` (valid / absent / invalid / unknown; `readSuccess`'s check, extracted as `SetupConfirmed`);
-- `Deps []` (present / missing / unknown, from fleet members);
-- `SetupLock` (free / held / absent / unknown);
-- `Agent` (C2's state from the row);
-- `Operation` (none / in-progress / unknown);
-- `UserData` (within-cap / over-cap / unreadable / not-measured).
-
-Rules, in order:
-
-| # | Condition | Verdict | Evidence |
-|---|---|---|---|
-| 1 | `:0` | `ok` or `in-place` (never rebuild) | — |
-| 2 | Agent live / busy / unusable-unknown, `SetupLock` held, `Operation` in-progress/unknown, `UserData` unreadable/over-cap | `unsafe` | `agent-live`, `start-unreconciled`, `agent-unknown`, `setup-running`, `operation`, `save-unreadable`, `save-over-cap` |
-| 3 | `HostDir` missing | `rebuild` | `host-missing` |
-| 4 | any `Deps` missing; `SetupMarker` absent/invalid with `HostDir` present | `rebuild` | `dependency-missing:<path>`, `setup-unconfirmed` |
-| 5 | any fact unknown | `unsafe` | `<fact>-unknown` |
-| 6 | otherwise | `ok` (`in-place` when ActorActions offers resume/reboot) | — |
-
-`not-measured` is the report's value: it still advises rebuild and adds a note that save size is checked at run time.
-The admission measures sizes. `over-cap` refuses unless `--discard-unsaved`, which turns it into `within-cap` and is
-recorded in the receipt.
-
-Live check (2026-10-05): `tools:1`, `brain:1` and `parli:1` all have no marker and a missing dependency (sdlc
-verdict `missing`). `pair:1-4`, `ariadne:1-3` and `parley.nvim:1-2` all have the marker.
-
-**Vacancy** (pure, `cmd/internal/couchcore/slot_vacancy.go`): `SlotVacancy(VacancyFacts) []VacancyBlocker`, empty
-means vacant. It is derived from what provisioning and add slot require of a never-used number:
-- no conventional candidate (`slotstart.go:282`);
-- host path absent (`ensureHost`);
-- env absent unless an owned intent exists (`provision.go:221`);
-- no creation intent;
-- no resting branch without an intent (`provision.go:226`);
-- no git worktree registration for the host path (`git worktree add` refuses a missing-but-registered path);
-- no slot store (it lives in the env).
-
-`ensureHost`'s create branch and add slot's preview call it (refactor: same blockers, same text), and rebuild asserts
-it after its remove phase. `ObserveSlotVacancy(ctx, primary, n)` is the IO shell (lstat, `git worktree list
---porcelain -z`, `for-each-ref`, intent read).
-
 | Name | Lives in | Status |
 |------|----------|--------|
-| `SlotHealthFacts` / `ClassifySlotHealth` / `SlotHealth` / `AllSlotHealthEvidence` | `cmd/internal/couchcore/slot_health.go` | new |
-| `SetupConfirmed` (extracted from `readSuccess`) | `cmd/internal/couchcore/provision.go:372` | new (extracted) |
-| `VacancyFacts` / `SlotVacancy` / `VacancyBlocker` | `cmd/internal/couchcore/slot_vacancy.go` | new |
-| `RebuildJournal` / `RebuildPhase` / `NextRebuildStep` | `cmd/internal/couchcore/rebuild_journal.go` | new |
-| `RebuildAdvice` (the one text naming rebuild) | `cmd/internal/couchcore/slot_health.go` | new |
-| `RecoverSetupIncomplete` class, step `rebuild`, `directory-missing` `:1+` step `rebuild` | `cmd/internal/couchcore/recoverplan.go` | modified |
-| `PrepareSlotOperation` (admits `rebuild` by `ClassifySlotHealth`, not `ActorActions`, which stays actor-only) / `slotOperations` += `rebuild` | `slot_operation.go:32,108` | modified |
-| Operation `rebuild` (`ConfirmRequired`, `RowAction: false`) | `cmd/internal/couchcore/ops.go` | new |
+| `ValidSetupMarker(SetupSuccess, provisionHost) error` (extracted from `readSuccess`; avoids `SetupConfirmed`, `provision_host.go:21`) | `cmd/internal/couchcore/provision.go:372` | new (extracted) |
+| `SetupFailure{Cause string; Retryable bool}` / `ClassifySetupFailure(weaveOutput string, err error) SetupFailure` / `SetupIncompleteAdvice(address, cause)` | `cmd/internal/couchcore/setup_failure.go` | new |
+| `SlotSetupFacts{Marker: valid\|absent\|invalid\|unknown; MissingDeps []string}` / `SlotSetupIncomplete(facts) (bool, []string)` | `cmd/internal/couchcore/setup_failure.go` | new |
+| `RecoverSetupIncomplete` class, note `setup-unconfirmed` / `dependency-missing:<path>` | `cmd/internal/couchcore/recoverplan.go` | modified |
+| `WorkspaceProvisioner.Ensure` (the weave-failure wrap) | `cmd/internal/couchcore/provision.go:96-98` | modified |
 
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
-| `Couch.Rebuild` / `RebuildResult` | `cmd/internal/couchcore/rebuild.go` | new | all phases below |
-| `SlotSaver` / `GitSlotSaver` | `cmd/internal/couchcore/rebuild_save.go` | new | `git bundle`, `git diff`, tar via `ProvisionIO` |
-| `ObserveSlotHealth` / `ObserveSlotVacancy` | `slot_health.go`, `slot_vacancy.go` | new | lstat, marker read, flock probe, `git worktree list` |
-| `rebuilds` storagegc family | `cmd/internal/storagegc/` (the family table the collector sweeps) + `couchcore` collector hook | new | `<CouchStore>/rebuilds/` |
-| `WorkspaceProvisioner.Ensure` (actionable weave failure first) | `cmd/internal/couchcore/provision.go:97` | modified | weave |
+| `ObserveSetupMarker(ctx, slot)` (admin dir from `git rev-parse --git-dir`, then `ProvisionStore.Read` + `ValidSetupMarker`) | `cmd/internal/couchcore/setup_failure.go` | new | git, filesystem |
+| `RecoverPlanInput.SetupMarkers` (gathered in `Couch.RecoverPlan`'s shell, one per present `:1+` host) | `recoverplan_source.go` | modified | — |
+| `show` rendering (`setup:` line on slot rows) | `couchcmd/run.go` `render` | modified | stdout |
 
-**ARCH notes (M3).**
-- **ARCH-FUNERAL:** C15 is created by the rebuild save phase. Its last reader is the operator restoring work, and the
-  entry is removed by the `rebuilds` family: storagegc's 60-day `RetentionPeriod` from `completed_at`, plus
-  abandoned journals older than 60 days. Its size is bounded to 64 MB per entry at save time. The family is also
-  capped at 16 entries; beyond that rebuild refuses ("prune old rebuild saves"), the `recovery/` precedent.
-- **ARCH-ORDER:** see the journal table in Task 3.4.
-- **ARCH-DRY:** retirement and fresh start are reboot's. Provisioning is add slot's. Health is read in three places,
-  through one classifier.
-- **ARCH-MOCK:** stateful fakes. `FakeGit` is extended with worktree registration, branches, bundle and diff state.
-  A `ProvisionFixture`-style weave fake supports a failure mode, and `FakeFleetSDLC` supports `MissingMember`. A
-  real-git acceptance test runs too.
-- **ARCH-SECURE:** paths come from `conventionalSlot` and are never from the request. Every removal is
-  `provisionSafePath`-checked and refuses symlinks. Tar members are written with relative names only.
+- **ClassifySetupFailure** is pure. It reads weave's stderr tail (`Error: …`, `ariadne cmd/weave/main.go:58`).
+  - **Permanent**, not retryable: the `Error:` line, verbatim, e.g. `missing substrate <dest> declared in <owner>:
+    record its source in construct/deps` (`acquire.go:351`) or `missing repository …: record its source in
+    construct/deps` (`acquire.go:107`). Any other non-zero weave exit with an `Error:` line is also permanent.
+  - **Retryable**: setup-lease contention (`lock setup lease for …`, `staging/setup.go:37`), the
+    `ProvisionCommand` timeout, and context cancellation.
+  - Unclassified output (no `Error:` line) is permanent with the tail as the cause. A deterministic failure never
+    says retry, and only the retryable class does. Lessons: false vs inconclusive.
+- **SetupIncompleteAdvice** is the single source of the fix text. It reads: "slot setup incomplete: <cause>; fix
+  it, then `couch --reboot repo:N --confirm` (re-runs setup in place)". The reboot clause is emitted only when
+  `ActorActions` offers reboot on the row. Otherwise the text ends at "fix it" and adds the row's own state wording,
+  so it names only reachable actions. `:0` never gets this advice, because `:0` setup is not Couch's.
+- **ARCH-FUNERAL:** M3 creates nothing. **ARCH-PURE:** classification, advice and the setup check are pure, and the
+  marker read is a thin shell. **ARCH-DRY:** the report, `--show`, the reboot/resume errors and the skill share one
+  advice function.
 
-### Task 3.1: `SetupConfirmed`, health and vacancy (pure)
+### Task 3.1: `ClassifySetupFailure` and the `Ensure` wrap
 
-**Files:** Create `slot_health.go`, `slot_health_test.go`, `slot_vacancy.go`, `slot_vacancy_test.go`; modify
-`provision.go` (extract `SetupConfirmed`; `ensureHost`'s create branch calls `SlotVacancy`), `slotstart.go:282`
-(the add slot preview uses `SlotVacancy`).
+**Files:** create `setup_failure.go`, `setup_failure_test.go`; modify `provision.go:96-98`.
 
 - [ ] **Step 1: Failing tests.**
-  - `TestClassifySlotHealthIsTotal`: cross every value of every `SlotHealthFacts` dimension (each from its own
-    `All*`, derived) for `:0` and `:1+`. For every point: `:0` is never `rebuild`; `rebuild` only with a named
-    `host-missing`/`dependency-missing`/`setup-unconfirmed`; any rule-2 fact → `unsafe`; an unknown fact is never
-    `ok`.
-  - Coverage: every `AllSlotHealthEvidence` code is produced by at least one fixture.
-  - `TestSlotVacancyMatchesProvisioning`: for each blocker, a real-git `ProvisionFixture` world that has only that
-    blocker. `SlotVacancy` names it, and `Ensure` for that number fails. With none, `Ensure` creates the slot.
-  - The add-slot preview refuses with the same blocker text.
-- [ ] **Step 2:** FAIL → **Step 3:** implement → **Step 4:** PASS. Mutation: drop the registration blocker →
-  `TestSlotVacancyMatchesProvisioning`'s registered-path case fails. Commit `#367 M3: couchcore: slot health and
-  vacancy`.
+  - `TestClassifySetupFailure` is a table over captured weave outputs:
+    - missing substrate → permanent, cause = the `Error:` line;
+    - missing repository → permanent;
+    - lease contention → retryable;
+    - a timeout `context.DeadlineExceeded` → retryable;
+    - empty output → permanent with a generic cause.
+  - `TestEnsureSetupFailureIsActionable`: a `ProvisionFixture` whose weave fake prints
+    `Error: missing substrate /f/worktree/tools-slot1/ariadne declared in /f/worktree/tools-slot1/tools: record its
+    source in construct/deps` and exits 1. `Ensure`'s error is a typed `*SetupError{SetupFailure}` that starts with
+    `slot setup incomplete: missing substrate`, and does **not** contain `retry`.
+  - The lease-contention fake → the error says `setup is running elsewhere; retry when it finishes`.
+- [ ] **Step 2:** FAIL → **Step 3:** `Ensure` returns `&SetupError{ClassifySetupFailure(out, err)}`, where `out` is
+  the diagnostics tail `OSProvisionIO` already appends. Delete the `open again to retry` text. Sweep for the class:
+  `grep -rn "again to retry\|open again" cmd/internal`, and every remaining hit must be retryable-only.
+- [ ] **Step 4:** PASS. Mutations: make the permanent class retryable → the no-retry assertion fails; drop the
+  `Error:` extraction → the cause assertion fails. Commit `#367 M3: couchcore: setup failures name their cause`.
 
-### Task 3.2: Observable "setup incomplete"
+### Task 3.2: Reboot and resume lead with the setup cause
 
-**Files:** `recoverplan.go`, `recoverplan_source.go` (gather `SetupMarker`/`SetupLock` per slot in the shell; `Deps`
-from fleet members), `operationdispatch.go` `show` + `couchcmd/run.go` `render` (a `setup:` line for slot rows).
+**Files:** `reboot.go`, `resume_route.go` (`withRebootAdvice`), `slotrecovery.go`; tests `reboot_test.go`,
+`resume_route_test.go`.
 
-- [ ] **Step 1: Failing tests.**
-  - Report: a slot with health `rebuild` → class `setup-incomplete`, step `rebuild` carrying `destructive: true` and
-    the evidence list. It is placed after rules 2–5 (`agent-unknown`, `start-unreconciled`, `ambiguous-threads`
-    keep precedence). A `:1+` `directory-missing` now steps `rebuild`; `:0` keeps no step.
-  - The totality test's domain gains the health dimension, and the class/hold/note coverage is re-derived.
-  - `couch --show tools:1`-shaped fixture: prints `setup: incomplete (missing: ../ariadne; setup unconfirmed)` plus
-    `RebuildAdvice`. `--show` reads Couch-owned facts only (host, registration, marker, lock); dependency
-    presence is printed as `dependencies: see couch --recover-plan-from-sdlc`, because `--show` does not spend
-    sdlc's ~6 s. Its verdict is therefore at most `rebuild` on marker/host evidence.
-- [ ] **Step 2–4:** red → green. Mutation: classify `setup-unconfirmed` as `ok` → the report and `--show` tests fail.
-  Commit `#367 M3: report and --show say setup incomplete`.
+- [ ] **Step 1: Failing tests** on `slotRecoveryOperationFixture`, with the workspace fake returning the permanent
+  `*SetupError`:
+  - `reboot` on the slot: the error is `SetupIncompleteAdvice(...)` verbatim. Nothing was stopped (the preflight
+    order holds), and the receipt detail through the socket carries the same text.
+  - `resume`: the same text, with no reboot advice appended twice.
+  - Retryable: reboot says retry, and nothing names a fix.
+- [ ] **Step 2–4:** route `errors.As(err, *SetupError)` through `SetupIncompleteAdvice` at the one top-level advice
+  point (`withRebootAdvice`, plus `Reboot`'s return). Mutation: bypass that routing in `rebootSlot`, and the reboot
+  test must fail. Commit `#367 M3: reboot and resume lead with setup's cause`.
 
-### Task 3.3: Single-sourced advice
+### Task 3.3: Observable `setup-incomplete` (report and `--show`)
 
-**Files:** `slot_health.go` (`RebuildAdvice(address, evidence)`), `reboot.go`, `resume_route.go` (`withRebootAdvice`),
-`recoverplan.go` (`recoverReason`).
-
-`RebuildAdvice` = "setup incomplete (missing: …); `couch --rebuild repo:N --confirm` recreates it — destructive: stops
-the agent, saves then deletes the slot's checkouts, re-provisions and starts a fresh agent". `rebootSlot`, the slot
-resume route and the report all call it when health = `rebuild`. Today `rebootSlot` would fail at workspace setup
-first; the health check moves before the preflight.
-
-- [ ] **Step 1: Failing tests:** reboot and resume on the `tools:1` fixture return it verbatim. A `:0` with the same
-  facts never names rebuild. `TestRowAdviceNamesOnlyReachableActions`'s sweep includes `rebuild`, offered exactly
-  where health = `rebuild`. Then implement and commit `#367 M3: one text names rebuild`.
-
-### Task 3.4: The rebuild journal (pure state machine)
-
-**Files:** `rebuild_journal.go`, `rebuild_journal_test.go`. The journal lives at `<CouchStore>/rebuilds/<op-id>/journal.json`
-and is written atomically (`durablefile`). It records the slot identity, the evidence, the saved-artifact manifest
-and `phase`.
-
-| phase \ event | ok | fail | crash, then re-run |
-|---|---|---|---|
-| `admitted` | → `saved` (all artifacts written + fsync'd + sizes ≤ cap) | → removed entry, nothing touched | re-save from scratch (discard the partial entry) |
-| `saved` | → `retired` (C1 archived, C2 stopped, C1 carry copied) | stay; refuse with the error | retry retirement (it is idempotent: an already-archived record is "none") |
-| `retired` | → `removed` (C5–C8, C11, C12 gone) | stay; report what remains | re-run removal (each step tolerates absence) |
-| `removed` | → `vacant` (`SlotVacancy` empty) | stay; list blockers | re-observe |
-| `vacant` | → `provisioned` (`Ensure` created + C1 carry restored) | stay **vacant, work saved**, return provisioning's first actionable line | re-run `Ensure` (converges) |
-| `provisioned` | → `started` (fresh agent) → `completed_at` | stay; reboot-style error | `startFreshSlot` |
-
-A re-run of `couch --rebuild repo:N --confirm` finds the newest unfinished journal for that slot and resumes at its
-phase, without re-admitting on health. The destructive phases are already past, and the slot may look vacant. Only
-`admitted`/`saved` re-check health.
-
-- [ ] **Step 1: Failing tests.** `TestNextRebuildStepTable` crosses every (phase, event) pair. Sequence tests cover:
-  a crash after each phase converges to `started`; and provisioning failing twice, then succeeding.
-
-### Task 3.5: `Couch.Rebuild` (IO phases)
-
-**Files:** `rebuild.go`, `rebuild_save.go`, tests `rebuild_test.go`; `ops.go` (`rebuild`: `ExecuteLiveOwner`,
-`EffectProcess`, `ConfirmRequired`, args `path`, `repo-scope`, `discard-unsaved` FlagOnly); `operationdispatch.go`
-(`CouchLiveOwnerExecutor` case); `provision.go:97`.
-
-Admission:
-1. Refuse `:0`.
-2. Classify (`classifyForAction`, as `rebootAdmit` does); refuse exactly where reboot does.
-3. `ObserveSlotHealth`, with fleet inventory for that one fleet so `Deps` is read.
-4. Verdict must be `rebuild` after measuring `UserData`.
-
-Save, per checkout (host, then each dependency):
-- `git bundle create` of `HEAD` and all local-only refs (`--not --remotes`; C8 included; skipped when empty);
-- `git diff --binary HEAD`;
-- a tar of the untracked, not-ignored files.
-
-The sum is checked against 64 MB, and the top 10 paths by size are listed on refusal. Any failure stops before
-retirement.
-
-Then retire (`prepareRetirement` + archive via the slot store) and copy C1's carry set into the entry. Remove:
-`worktree remove --force --force`, `worktree prune`, CAS-delete `main-slotN`, delete the intent (under
-`AcquireHostCreationLease`), then `RemoveAll(env)` after `provisionSafePath`. Assert vacant. Provision with
-`c.Workspaces.Ensure(ProvisionRequest{Path: primary, Slot: N})`, then restore the C1 carry and run
-`startFreshSlot(path, agent, …)` with the same preflight as reboot.
-
-Provisioning error text: `Ensure` today wraps every weave failure in "open again to retry". Classify weave's
-output instead. Weave's first `error:` line (e.g. a `construct/deps` substrate without a clone source) is
-**permanent** and leads the error. Only lease contention or a timeout says "retry".
-
-- [ ] **Step 1: Failing tests** with stateful fakes:
-  - each admission refusal (`:0`, live, busy, unusable-unknown, classification failure, session won't stop, setup
-    running, over cap, unreadable checkout, health `ok`);
-  - `--discard-unsaved` passes over-cap and is recorded;
-  - a save failure (bundle error) → nothing archived or removed;
-  - each phase's crash point → the re-run converges;
-  - provisioning's permanent failure → the slot is vacant, work is saved, and the error starts with weave's line;
-    after "fixing" the fake, the re-run starts the agent;
-  - the vacancy assertion holds after removal for every starting brokenness in the derived health domain.
-- [ ] **Step 2–4:** red → green. Mutations: skip the save-before-delete ordering; skip the CAS on `main-slotN`;
-  make the re-run re-admit on health. Each must fail. Commit `#367 M3: couchcore: rebuild a broken slot`.
-
-### Task 3.6: Socket, CLI, skill and docs
-
-**Files:** `couchmessage/protocol.go` (`rebuild` in `ValidateRequest`; a `Discard` flag on rebuild only),
-`couchcmd/cli.go` (`--rebuild repo:N --confirm [--discard-unsaved] [--json]`), `slot_operations.go` (admission via
-`PrepareSlotOperation`, same caller rule and receipts; poll budget 15 min, since provisioning can run `weave compile`
-for minutes), `usageWith`, `SlotOperationCommand`, `skills/couch/SKILL.md`, README, `atlas/couch.md`.
+**Files:** `recoverplan.go`, `recoverplan_source.go`, `recoverplan_test.go`, `operationdispatch.go` (`show`),
+`couchcmd/run.go` (`render`), `run_test.go`.
 
 - [ ] **Step 1: Failing tests.**
-  - Parse forms: `--rebuild` requires `--confirm` (from the declaration).
-  - The socket refuses a non-live caller before enqueue.
-  - `PrepareSlotOperation` offers `rebuild` only where health = `rebuild` (offer = permission).
-  - The emitted command parses.
-  - Skill sweep: the skill names rebuild as destructive, needing explicit operator approval for that row; it is
-    never batched.
-- [ ] **Step 2–4.** Commit `#367 M3: couch --rebuild over the socket`.
+  - Report fixtures:
+    1. marker absent on a present `:1+` host → class `setup-incomplete`, note `setup-unconfirmed`;
+    2. a dependency member with fleet verdict `missing` → `setup-incomplete`, note `dependency-missing:<path>`.
+  - In both cases the step is `[reboot]` carrying `SetupIncompleteAdvice` when reboot is offered. When it is not
+    (live agent, busy, unknown), the row has no step and its existing hold applies; `setup-incomplete` is ordered
+    after `agent-unknown`, `start-unreconciled` and `ambiguous-threads`, and before `idle`/`agrees`.
+  - A `:0` with no marker is unaffected.
+  - The totality test's domain gains `SlotSetupFacts`.
+  - The class/hold/note coverage is re-derived (`AllRecoverClasses`/`AllRecoverNotes`).
+  - `couch --show` on a slot row with no marker prints `setup: incomplete (setup unconfirmed); dependencies: see couch
+    --recover-plan-from-sdlc`; a valid marker prints `setup: complete`.
+- [ ] **Step 2–4:** red → green. Mutations: treat `invalid` as `valid` → fixture 1's sibling fails; ignore
+  `MissingDeps` → fixture 2 fails. Commit `#367 M3: report and --show say setup incomplete`.
 
-### Task 3.7: Real-git acceptance and close M3
+### Task 3.4: Skill, README, atlas; close M3
 
-**Files:** `cmd/internal/couchcore/rebuild_acceptance_test.go`.
-
-- [ ] Build a real temp world:
-  - a primary with a remote;
-  - slot 1 provisioned through `ProvisionFixture`, plus a dependency clone directory;
-  - a host branch with a local-only commit, a dirty tracked file and an untracked file;
-  - a dependency with a local-only commit;
-  - the marker deleted and the dependency removed (broken).
-
-  Then run `CouchLiveOwnerExecutor` `rebuild`. Assert: the entry holds bundles whose `git bundle verify` passes, the
-  patch applies (`git apply --check`) and the tar lists the untracked file; the slot is re-provisioned at the same
-  path with a valid marker; the archived record and `preferences.json` are restored; a fresh agent starts; and
-  `--recover-plan-from-sdlc` then classifies the slot `idle`.
-- [ ] Full verification (Chunk 4). Ask the operator to smoke-test `couch --rebuild tools:1 --confirm` live (after
-  adding a clone source to `tools/construct/deps`, or expect weave's actionable line first).
-- [ ] `sdlc milestone-close --issue 367 --milestone M3`. When #367 lands, close pair#387 as superseded.
+- [ ] Skill recovery section: `setup-incomplete` means fix the named cause (often `construct/deps`, in the owning
+  repo, through its own workflow), then reboot re-runs setup in place. "Retry" appears only for retryable setup
+  errors. The skill's command sweep and class sweep cover the new text.
+- [ ] README (Couch recovery) and `atlas/couch.md`: setup marker, `setup-incomplete`, typed setup errors. Keep
+  `atlas/index.md` links valid.
+- [ ] Full verification (Chunk 4). Ask the operator to smoke-test live: `couch --show tools:1`, the report row, and
+  `couch --reboot tools:1 --confirm` showing weave's missing-substrate line. Then fix `tools/construct/deps` and
+  reboot again.
+- [ ] `sdlc milestone-close --issue 367 --milestone M3`.
 
 
 ---
@@ -1251,3 +1102,19 @@ model. Delta:
 - The slot's `.couch/` archive and preferences are carried across the rebuild at the same path.
 - `main-slotN` is bundled and then CAS-deleted (pair#387's blocker).
 - Provisioning's permanent weave error leads the message.
+
+### 2026-10-05 (h) — M3 split: actionable setup errors here, rebuild to pair#387
+
+Reason: plan review of Revision (g)'s rebuild chunk, and the issue's Revision "2026-10-05 — M3 split" (operator
+decision). Provisioning already repairs a present but unconfirmed slot in place (`ensureHost` re-runs `weave
+compile`, which re-clones missing dependencies). `tools:1` fails only because `tools/construct/deps` declares
+`../ariadne` without a clone source, so a rebuild would delete the slot and fail at the same step. Delta:
+- Chunk 3 is rewritten to the narrow scope:
+  - `setup-incomplete` from `ValidSetupMarker` plus fleet `dependency-missing`;
+  - a typed `SetupError` from `ClassifySetupFailure` (weave's `Error:` line first; only lease contention, timeout and
+    cancellation say retry);
+  - `SetupIncompleteAdvice` naming reboot only where it is offered;
+  - the skill and docs.
+- Revision (g)'s component table, health/vacancy predicates, rebuild journal, `rebuilds` storage family and
+  `--rebuild` CLI are removed from this plan and move to pair#387, with the review findings recorded in the issue.
+  Revision (g) stays as history.
