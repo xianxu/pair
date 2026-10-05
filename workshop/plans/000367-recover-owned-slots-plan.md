@@ -1189,3 +1189,11 @@ Approved by review with one defect, decided by the coordinator:
     conformance table.
   - Recognized weave lines match by substring, not line prefix (weave may prefix
     the owner, `acquire.go:283`).
+
+### 2026-10-05 (j) — M3 dropped
+
+Operator decision: #367 closes with M1–M2 and the smoke-test fixes. Chunk 3 (M3,
+in its rebuild form of Revision g and its narrowed form of Revisions h/i) is not
+implemented here; its component model, review findings and setup-error
+classification carry into pair#387, re-scoped as the slot reconciler. Chunk 3 stays
+in this file as history only.

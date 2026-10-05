@@ -60,13 +60,6 @@ superseded.)
   follows: read the report, review with the operator, resume/reboot per row,
   delegate disk fixes to the slot's own agent via `--send-to`, verify by
   re-reading; it never acts on a slot flagged for recovery.
-- A `:1+` slot whose setup never completed (no setup-success marker, a declared
-  dependency checkout missing) is detectable before acting: the recovery report
-  shows `setup-incomplete` and `couch --show` says so. Reboot/resume on such a slot,
-  and the report, lead with setup's actionable error (e.g. "`construct/deps`
-  declares `../ariadne` without a clone source — add its URL, then reboot", reboot
-  re-running setup in place) and never advise "open again to retry" when a retry
-  cannot succeed. Destroying and recreating a slot is not part of #367 (pair#387).
 - Tested with stateful fixtures covering every report row class and the caller
   rule, plus a restart acceptance case through the real report path.
 
@@ -110,7 +103,6 @@ rounds and approved 2026-10-04). Each milestone is a review boundary.
 
 - [x] M1 — Read-only `couch --recover-plan-from-sdlc`: presence-aware decoder for `sdlc fleet inventory --json` v1 (fleets grouped by `fleet_root`), stateful sdlc fake behind ProvisionIO, `ActorActions` single-sourced in couchcore, pure total `DeriveRecoverPlan` over the union of work evidence (derived-domain totality test), ProbeSlotGit fallback for unsupported fleets, restart acceptance through the real dispatch, docs.
 - [x] M2 — `resume`/`reboot <slot>` through the running Couch's socket: live-slot callers only (server-side), queued like a switcher keypress (background, operator focus preserved), receipts + polling with "uncertain" on lost outcomes, `couch --resume`/`--reboot --confirm`, skill recovery section, end-to-end report → resume → report acceptance.
-- [ ] M3 — Actionable setup errors: observable `setup-incomplete` (report class, `couch --show`), reboot/resume/report lead with setup's actionable error and the in-place fix (reboot re-runs setup), no futile "open again to retry". Rebuild moves to pair#387.
 
 ## Log
 
@@ -650,3 +642,17 @@ decision: split.
   7. `SetupConfirmed` name collides with `provision_host.go:21`;
   8. switcher text must not name a CLI-only verb as if the row could run it.
   Component model and real-git vacancy oracle from Revision g remain good groundwork.
+
+### 2026-10-05 — M3 dropped; #367 closes with M1–M2; setup repair goes to pair#387
+
+Reason: operator decision. pair#387 starts right after #367 as "the slot reconciler":
+a declarative model of a slot's resources across git, weave, Couch, the agent and
+sdlc, with their dependency graph and idempotent per-resource observe/converge
+steps run in topological order (reconciliation, not a scripted saga). Actionable
+setup errors and "setup incomplete" detection fall out of the reconciler there
+("resource X did not converge: cause; fix"), so M3 here would be a stopgap
+replaced a week later. Delta: the M3 milestone row and its Done-when bullet are
+removed; their substance, the M3 review findings (Log, "M3 split") and the
+component model in the plan's Revision g/h/i move to pair#387. Until #387 lands,
+the "open again to retry" setup message remains; `tools:1` is fixed by adding the
+ariadne clone source to `tools/construct/deps` and rebooting.
