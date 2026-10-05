@@ -1,12 +1,20 @@
 ---
 id: 000205
-status: open
+status: working
 deps: ["#214"]
 github_issue:
 created: 2026-09-06
-updated: 2026-09-06
+updated: 2026-10-04
 estimate_hours:
-card_mirror: '71c95a0e6fc9b05bd3acf0fd88dbe86930b7f54f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '3c5b194d7d512a3299485df5a45580564598c421' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-04T17:59:49-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
 ---
 
 # batch park and detach run in parallel
@@ -87,6 +95,30 @@ implementation sample one:
 - A thread **exits on its own** while its park is in flight.
 - The operator **quits couch** mid-batch.
 
+### The startup reattach pass uses the same pool (scope revision 2026-10-04)
+
+Couch's startup background pass (#206, `couchtty/menu_reattach.go`) is the
+other direction of the same batch: detach on the way out, reattach on the way
+back in. It is serialized twice, and the pool must lift both:
+
+- **The pass holds one slot.** `advanceReattach` emits nothing while
+  `pass.Loading` is set, so at most one attempt is in flight. Make that a set of
+  in-flight attempts up to the pool bound; `finishReattach` releases the one
+  that completed by its attempt number, not "the" attempt.
+- **The queue worker is single.** Same `operationQueue` as park/detach; the pool
+  above covers it.
+
+What stays: every attempt is still `warm-only` and re-proves its thread at its
+turn; the pass still never takes focus; it still holds while the operator has an
+operation in flight (cell 10, which is what makes quit-mid-pass safe; a pool
+that keeps starting attempts would break it); failures stay per row.
+
+Why it is worth it now: the #206 probe measured raw `zellij attach` at about
+55 ms with 8 concurrent attaches finishing in 121 ms total and no movement in
+`zellij action` latency. After #228 a couch reattach costs about 280 ms, nearly
+all of it proof snapshots, so a sequential pass grows linearly with the fleet:
+about 5 s for 17 background threads at the 18 slots now in use.
+
 ## Done when
 
 - A batch park/detach of N threads completes in materially less wall-clock than
@@ -101,6 +133,12 @@ implementation sample one:
   and the failure visible.
 - `#204`'s suite gains a counted invariant for the batch path — batch park of N
   threads issues O(N) store writes, not O(N²).
+- The startup reattach pass runs up to the pool bound in parallel. Its
+  wall-clock at N threads is measured before and after with the working-agent
+  count, and it still holds while the operator has an operation in flight (quit
+  mid-pass leaves no extra attempt behind, by test).
+- `TestAReattachedChildKeepsItsTrackingMode` (#196) passes unmodified, and a
+  variant runs N reattaches at once.
 
 ## Plan
 
@@ -111,6 +149,11 @@ implementation sample one:
 - [ ] Test the failure and mid-batch-input cells.
 - [ ] Measure N-batch wall-clock before/after, recording agent count.
 - [ ] Add the counted invariant to `#204`.
+- [ ] Lift the reattach pass's single `Loading` slot to a bounded in-flight set;
+      keep the operator-in-flight hold and per-row failure.
+- [ ] Test: parallel pass, a quit mid-pass, and the #196 tracking mode under N
+      concurrent reattaches.
+- [ ] Measure the startup pass wall-clock before/after at the live slot count.
 
 ## Log
 
@@ -122,3 +165,26 @@ well-founded: the store's concurrency model, the dedup invariant and the park
 future all already exist, so the change is small and lands on seams built for it.
 
 `#206` is the one that needs a measurement before its approach is chosen.
+
+### 2026-10-04
+
+The operator now runs 18 active slots and restarts have become slow. They asked
+for this issue to cover the startup reattach pass as well; see Revisions.
+
+## Revisions
+
+### 2026-10-04: scope adds the startup reattach pass
+
+**Reason.** The operator, at 18 active slots: restarting has become slow. No
+issue owned making the startup reattach pass parallel: #206 chose a sequential
+pass, #320 defers parallelism here, and this issue covered only park and detach.
+
+**Delta.** Added a Spec subsection, two Done-when bullets and three Plan steps
+that bring the #206 reattach pass under the same bounded pool. The pass's own
+single `Loading` slot is the second serialization to lift. The operator-in-flight
+hold and the warm-only, per-row-failure rules are kept. Dependency on #214 is
+unchanged; it matters as much here, since a parallel pass makes a racing
+resume more likely.
+
+Line drift noted: the single worker is now started at `console.go:629`
+(`c.operationQueue.Run(c.stop)`), not `:538` as the Problem says.
