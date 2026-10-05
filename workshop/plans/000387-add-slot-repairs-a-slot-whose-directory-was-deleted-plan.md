@@ -236,18 +236,17 @@ non-converged resources are each tagged **blocking** or **degraded** by a pure f
 | open / resume (`selectedSlot` → `OpenSlot`, incl. adopting a live agent) | refuse with `ReconcileAdvice` | proceed; the advice is a warning on the result |
 | reboot, first `selectedSlot` (before `prepareRetirement`) | refuse; nothing stopped | proceed; `agent-live` is expected here, since reboot stops the agent next |
 | reboot / fresh start, `selectedSlot` inside `startFreshSlot` (agent already stopped) | refuse; the old record is already archived, as with today's launch failure | proceed with a warning; a broken dependency was set aside and recompiled in this pass, because the agent is gone |
-| add slot (reuse route) | refuse with `ReconcileAdvice` naming that slot (the `:0` hand-off); the memo (R5) then makes the next add slot skip it at preview | proceed with a warning |
+| add slot (reuse route) | refuse with `ReconcileAdvice` naming that slot (the `:0` hand-off). The refusing run writes the memo (R5) before returning, so a repeat add slot refuses at once without recompiling | proceed with a warning |
 | `couch --reconcile` | report, exit 1 | report, exit 0 with warnings |
 | `couch --show`, recovery report | display only | display only |
 
-**Add slot skips known-bad numbers at preview, never by retrying.** Allocation is decided at
-preview (`resolveManagedStart`) and reconcile runs only at spawn, so there is no retry loop.
-`SelectStartSlot` gains an `excluded` set: unverified candidates whose cheap preview facts (one
-file read of the memo) show `setup` `failed-known` without a marker. The first add slot after a
-fresh failure reconciles that slot, fails with the hand-off and records the memo. Every later
-add slot skips the number (with a `Notice` naming it and the advice), and a brand-new number
-goes through the existing create branch. A changed input clears the exclusion. This is the
-`tools:1` case: one hand-off, then `tools:2`.
+**Add slot does not skip to another number.** A blocking setup failure comes from inputs every
+slot of the repository shares (`construct/deps` reaches each slot through `main`), so a fresh
+number would fail identically. Add slot therefore allocates as usual and refuses with the `:0`
+hand-off. The memo makes repeat attempts refuse immediately with the same advice, until an input
+changes or `couch --reconcile` forces a compile. The original deleted-directory case is
+different: reconcile can repair it, so it no longer blocks the repository (Done-when bullet 3).
+This is the `tools:1` case: one compile, then an immediate hand-off on every later attempt.
 
 So a held `index.lock` in a dependency (an agent running git) never blocks attaching to that
 agent. A broken dependency on a live slot is repaired by reboot, which is the operation that
@@ -501,7 +500,9 @@ see ARCH-MOCK).
 
 - [ ] **Step 1: Failing tests.**
   - `TestPlanSlotDomain`: the domain is derived. Every resource from `SlotResources()` takes
-    every `ObservedState` from `AllObservedStates()`, singly and in pairs (other resources
+    every state from `AllObservedStates()` plus that resource's declared sub-states (for
+    `setup`: `present-with-warning`, `failed-known`, `lock-held`; enumerated by
+    `SlotResourceSpec.SubStates`, so the domain cannot skip one), singly and in pairs (other resources
     present), with agent ∈ `AllAgentStates()` = {none, live, busy, unknown}. For each point the
     invariants hold:
     - I1: no step targets a resource that is converged;
@@ -699,6 +700,10 @@ start form's error path.
   - `TestDiscoverUnionsNumberSources`: numbers come from env dirs ∪ registrations ∪ `main-slotN`
     refs; registration/branch-only numbers carry `ErrSlotNeedsReconcile`. A 10-slot fixture
     measures Discover at ≤ today + 30 ms.
+  - Add slot in a `tools`-shaped repository (no source for `ariadne`): the first attempt compiles
+    once, refuses with the hand-off and writes the memo. A second attempt refuses with the same
+    text and zero weave calls. Changing the root `construct/deps` makes the next attempt compile
+    again.
   - `TestSelectStartSlotReconcilable`: a reconcilable candidate is picked as the lowest free
     number (`Exists: true, Reconcile: true`). Any other `Err` skips its number only and the
     allocation carries a `Notice`. With the domain of candidate errors derived from the typed
@@ -717,8 +722,8 @@ start form's error path.
       warning, and nothing moved;
     - reboot of a live slot with a broken dependency → the agent is stopped, the dependency is
       set aside and re-cloned, and a fresh agent starts;
-    - add slot whose lowest reusable number is blocking → the next number is used, with a
-      notice.
+    - add slot whose lowest reusable number is blocking → refused with the hand-off; no other
+      number is tried.
   - An env path that is a file → only that number is skipped.
   - `rebootSlot` on a slot whose env is gone: reconcile recreates it, then a fresh start.
   - `DecideReboot`'s totality test: slot rows no longer produce `RebootDirectoryMissing`, and
@@ -973,3 +978,13 @@ Non-blocking items adopted: the tar/trash leftovers are removed (`Converge` wrap
 `SweepTrash`); the manifest is written `pending` before the rename and `complete` after; the lock
 is held across the re-check and the rename; the crash seam is named (`SetAsideIO.Rename`); the
 disk bound is stated.
+
+### 2026-10-05 (d) — plan review round 4 (1 blocking)
+
+The preview exclusion missed `tools:1`, a *verified* candidate, and could not apply the
+memo's digest from one file read. The reviewer's bounding note then showed that the exclusion
+was wrong in principle: `construct/deps` reaches every slot through `main`, so a new number
+fails identically. The exclusion is removed. Add slot refuses with the hand-off, and the memo
+(written before the refusal returns) makes repeat attempts immediate. `failed-known` and the
+other `setup` sub-states are enumerated through `SlotResourceSpec.SubStates`, so the derived
+domains include them.
