@@ -42,6 +42,9 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		ctx = context.Background()
 	}
 	steps := newLaunchSteps(in.Begun)
+	if err := freshNonceReachesPair(in); err != nil {
+		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(in.Thread, in.Nonce))
+	}
 	thread := in.Thread
 	if c.Slots != nil {
 		cwd, err := c.Path.Physical(in.Args.WorkingDir())
@@ -589,4 +592,24 @@ func (c *Couch) sessionBindingForLaunch(ctx context.Context, thread ThreadRecord
 		return couchidentity.SessionBinding{}, err
 	}
 	return couchidentity.SessionBinding{C: allocated.C, M: allocated.M, Name: allocated.SessionName, ScopeKey: thread.Address.RepoScope, Tag: string(thread.Address.Tag), StartNonce: nonce}, nil
+}
+
+// errFreshNonceUnreachable refuses a fresh launch whose registration nonce
+// Pair could never learn.
+var errFreshNonceUnreachable = errors.New("fresh launch nonce cannot reach Pair")
+
+// freshNonceReachesPair is the rule a fresh launch's registration rests on: it
+// waits for a ready file carrying in.Nonce (awaitFreshRegistration), and Pair
+// takes a Couch nonce only from the orientation's attempt; otherwise it mints
+// its own and the wait can only run out (pair#367 smoke test: a resume that
+// restarted fresh stalled the full budget). So a fresh launch must carry an
+// orientation whose attempt is its nonce, checked before any child starts.
+func freshNonceReachesPair(in trackedThreadLaunch) error {
+	if !in.Fresh {
+		return nil
+	}
+	if in.Orientation == nil || in.Orientation.Attempt != in.Nonce {
+		return fmt.Errorf("%w: a fresh launch must hand Pair its nonce through the orientation's attempt", errFreshNonceUnreachable)
+	}
+	return nil
 }

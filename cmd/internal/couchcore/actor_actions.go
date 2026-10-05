@@ -13,8 +13,9 @@ type ActorRowFacts struct {
 	State  ActionableThreadState
 	Reason ThreadReason
 	// ResumeOffered is read on unusable rows only: a slot (OpenSlot may adopt
-	// a still-running agent), or a primary with Recovery.Recover or an
-	// unfinished request (resume routes those to their own executors).
+	// a still-running agent) unless its parked conversation is binding-lost,
+	// or a primary with Recovery.Recover; an unfinished request either way
+	// (resume routes those to their own executors).
 	ResumeOffered bool
 	// DirectoryMissing is an unusable row whose reason is path-missing.
 	DirectoryMissing bool
@@ -30,7 +31,15 @@ func ActorRowFactsOf(row ActionableThreadSummary) ActorRowFacts {
 	}
 	if row.State == ThreadUnusable {
 		unfinished := row.Continuation != nil && row.Continuation.Phase != checkpoint.Complete
-		f.ResumeOffered = f.Slot || unfinished || (row.Recovery != nil && row.Recovery.Recover)
+		if f.Slot {
+			// OpenSlot may adopt a still-running agent, except where a park
+			// quiesced the session and its conversation cannot be resolved
+			// (binding-lost: e.g. the agent never took a turn). An unfinished
+			// continuation still has its own executor.
+			f.ResumeOffered = unfinished || row.Reason != ReasonBindingLost
+		} else {
+			f.ResumeOffered = unfinished || (row.Recovery != nil && row.Recovery.Recover)
+		}
 	}
 	return f
 }

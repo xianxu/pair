@@ -34,6 +34,11 @@ var actorActionSpec = []actorActionRule{
 	// checkout, so reboot archives it alone.
 	{state: ThreadUnusable, reason: ReasonPathMissing, kind: ThreadTargetSlot},
 	{state: ThreadUnusable, reason: ReasonPathMissing, kind: ThreadTargetOrdinary, want: []string{"reboot"}},
+	// A slot whose parked conversation cannot be resolved (binding-lost, e.g.
+	// its agent never took a turn) has nothing to resume or adopt: a park
+	// quiesced its session. Reboot only (pair#367 smoke test), unless an
+	// unfinished continuation gives resume its own executor.
+	{state: ThreadUnusable, reason: ReasonBindingLost, kind: ThreadTargetSlot, unfinished: "none", want: []string{"reboot"}},
 	// A slot resume may adopt a still-running agent.
 	{state: ThreadUnusable, kind: ThreadTargetSlot, want: []string{"resume", "reboot"}},
 	// A primary resumes only through its own recovery or request executor.

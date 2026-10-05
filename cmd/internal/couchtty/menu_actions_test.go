@@ -122,6 +122,10 @@ func expectedRowActions(s menuRowShape) []string {
 			return nil
 		case s.reason == couchcore.ReasonPathMissing:
 			return []string{"reboot"}
+		// A parked slot whose conversation cannot be resolved (its agent
+		// never took a turn) has nothing to resume (pair#367 smoke test).
+		case s.slot && s.reason == couchcore.ReasonBindingLost && !unfinished:
+			return []string{"reboot"}
 		case s.slot || s.recover || unfinished:
 			return []string{"resume", "reboot"}
 		}

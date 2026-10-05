@@ -427,6 +427,10 @@ func recoverPlanCases() []recoverPlanCase {
 				p.fleet.ClaimAt(dep, "ariadne#000290", "")
 				p.fleet.SetMemberDirty(dep, 1)
 			}},
+		// A parked slot whose conversation cannot be resolved (its agent never
+		// took a turn): no resume to suggest, reboot is (pair#367 smoke test).
+		{name: "claimed slot whose parked conversation is lost", address: "pair:1", want: RecoverAgrees, steps: []string{"reboot"},
+			setup: func(p *planFixture) { claimedOnBranch(p); p.thread("pair:1", ThreadUnusable, ReasonBindingLost) }},
 		{name: "slot record whose path cannot be read", address: "pair:1", want: RecoverNoSafeStep, hold: []string{"no-actor-action"},
 			setup: func(p *planFixture) { claimedOnBranch(p); p.thread("pair:1", ThreadUnusable, ReasonPathMissing) }},
 		{name: "work but no visible claim", address: "pair:1", want: RecoverClaimLikelyLost, steps: []string{"resume"}, notes: []string{"claim-repair"},

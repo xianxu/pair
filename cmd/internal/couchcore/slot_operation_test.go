@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
@@ -137,5 +138,44 @@ func TestPrepareSlotOperation(t *testing.T) {
 	var refusal *SlotOperationError
 	if !errors.As(err, &refusal) || refusal.Code != SlotOpNotOffered || refusal.Detail != address+" is live" {
 		t.Fatalf("live slot: %v", err)
+	}
+}
+
+// A slot parked with no resolvable conversation (its agent never took a turn)
+// is not offered resume: the socket refuses at admission, nothing launches,
+// and reboot is still offered (pair#367 smoke test).
+func TestPrepareSlotOperationRefusesResumeOfALostConversation(t *testing.T) {
+	env, local := slotRecoveryOperationFixture(t)
+	address := WorkspaceReference{Repo: local.slot.Repo, Number: local.slot.Number}.String()
+	scope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
+	profile := LaunchProfile{Agent: "claude", Argv: []string{}}
+	record := validThreadRecord(t)
+	record.Address.RepoScope = scope.Key
+	record.StartingPath, record.WorkingPath = local.slot.WorktreeRoot, local.slot.WorktreeRoot
+	record.LatestLaunchProfile = &profile
+	record.Incarnations = []ThreadIncarnation{{PID: 42, Identity: "pair-helper", State: IncarnationLive, RepoIdentity: local.slot.RepoIdentity, LaunchProfile: &profile}}
+	created, err := local.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	identity := ParkIdentity{Nonce: "park-lost", Address: created.Address, PID: 42, ProcessIdentity: "pair-helper"}
+	begun, err := local.BeginPark(created.Address, created.Revision, identity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := local.FinalizePark(created.Address, begun.Revision, identity, 1, env.Now); err != nil {
+		t.Fatal(err)
+	}
+	// No native binding: the parked conversation cannot be resolved.
+	_, err = env.Couch.PrepareSlotOperation(context.Background(), "resume", address)
+	var refusal *SlotOperationError
+	if !errors.As(err, &refusal) || refusal.Code != SlotOpNotOffered || !strings.Contains(refusal.Detail, "binding-lost") {
+		t.Fatalf("resume of a lost conversation: %v", err)
+	}
+	if call, err := env.Couch.PrepareSlotOperation(context.Background(), "reboot", address); err != nil || call.Name != "reboot" {
+		t.Fatalf("reboot of a lost conversation: %+v %v", call, err)
+	}
+	if n := len(env.Runner.Ops); n != 0 {
+		t.Fatalf("admission launched %d children", n)
 	}
 }
