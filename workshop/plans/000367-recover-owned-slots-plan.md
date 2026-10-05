@@ -1166,3 +1166,26 @@ compile`, which re-clones missing dependencies). `tools:1` fails only because `t
   - An invalid marker → `setup-conflict` (pair#387; reboot is never advised); an unknown marker → held.
   - `--show` prints "setup marker valid", never "complete".
   - `ObserveSetupMarker` uses `--absolute-git-dir`.
+
+### 2026-10-05 (i) — M3 review round 2 decisions
+
+Approved by review with one defect, decided by the coordinator:
+- **Repair never makes a working slot worse.** With a valid setup marker and a
+  declared substrate missing, `ensureHost` attempts `CompileHost`; if that compile
+  fails with a permanent or unclassified cause, it falls back to `ReuseHost` (the
+  pre-M3 behavior) and returns the `SetupIncompleteAdvice` warning with the
+  classified cause, so open/resume/reboot still work and the operator sees why
+  setup is incomplete. Only a slot without a valid marker (setup never completed)
+  refuses on a failed compile, as today. Task 3.1 tests both: valid marker +
+  sourceless substrate → reuses with the warning (red if it refuses); no marker +
+  sourceless substrate → refuses with the permanent cause.
+- Parser and matcher notes from review, applied to Task 3.1:
+  - `data <source> <mount>` rows are out of scope (a missing data mount still
+    reuses); stated in the atlas.
+  - Malformed `construct/deps` → unknown → compile, so weave's own grammar error
+    surfaces; never read as "no deps".
+  - Substrate path resolution copies weave's rules (canonicalize via the parent's
+    `pwd -P`; an unresolvable parent is skipped, `walk.go:88-120`), pinned in the
+    conformance table.
+  - Recognized weave lines match by substring, not line prefix (weave may prefix
+    the owner, `acquire.go:283`).
