@@ -60,18 +60,13 @@ superseded.)
   follows: read the report, review with the operator, resume/reboot per row,
   delegate disk fixes to the slot's own agent via `--send-to`, verify by
   re-reading; it never acts on a slot flagged for recovery.
-- A `:1+` slot whose checkout is missing or whose setup never completed is
-  detectable before acting ("setup incomplete": a declared dependency checkout
-  missing, generated files missing, or a setup lock with no completed setup),
-  shown by `couch --show` and the recovery report, and repaired by `couch
-  --rebuild repo:N --confirm`. Rebuild is destructive and says so: it refuses
-  unsafe or unknown states (as reboot does) and never touches `:0`; it saves
-  uncommitted and untracked work and local-only commits (git bundle) of every
-  slot checkout into a 60-day-retained archive family, refusing above 64 MB unless
-  explicitly discarded; then removes the checkouts and the worktree registration,
-  re-provisions the slot number via add slot's provisioning, and starts a fresh
-  agent. Reboot/resume on such a slot say "setup incomplete" and name rebuild as
-  destructive.
+- A `:1+` slot whose setup never completed (no setup-success marker, a declared
+  dependency checkout missing) is detectable before acting: the recovery report
+  shows `setup-incomplete` and `couch --show` says so. Reboot/resume on such a slot,
+  and the report, lead with setup's actionable error (e.g. "`construct/deps`
+  declares `../ariadne` without a clone source — add its URL, then reboot", reboot
+  re-running setup in place) and never advise "open again to retry" when a retry
+  cannot succeed. Destroying and recreating a slot is not part of #367 (pair#387).
 - Tested with stateful fixtures covering every report row class and the caller
   rule, plus a restart acceptance case through the real report path.
 
@@ -115,7 +110,7 @@ rounds and approved 2026-10-04). Each milestone is a review boundary.
 
 - [x] M1 — Read-only `couch --recover-plan-from-sdlc`: presence-aware decoder for `sdlc fleet inventory --json` v1 (fleets grouped by `fleet_root`), stateful sdlc fake behind ProvisionIO, `ActorActions` single-sourced in couchcore, pure total `DeriveRecoverPlan` over the union of work evidence (derived-domain totality test), ProbeSlotGit fallback for unsupported fleets, restart acceptance through the real dispatch, docs.
 - [x] M2 — `resume`/`reboot <slot>` through the running Couch's socket: live-slot callers only (server-side), queued like a switcher keypress (background, operator focus preserved), receipts + polling with "uncertain" on lost outcomes, `couch --resume`/`--reboot --confirm`, skill recovery section, end-to-end report → resume → report acceptance.
-- [ ] M3 — Rebuild a broken `:1+` slot: observable "setup incomplete" (report, `couch --show`), `couch --rebuild repo:N --confirm` (destructive: save uncommitted/untracked + local-only commits to a 60-day archive family, 64 MB cap; remove checkouts + worktree registration; re-provision via add slot; fresh agent); reboot/resume messages name it; supersedes pair#387.
+- [ ] M3 — Actionable setup errors: observable `setup-incomplete` (report class, `couch --show`), reboot/resume/report lead with setup's actionable error and the in-place fix (reboot re-runs setup), no futile "open again to retry". Rebuild moves to pair#387.
 
 ## Log
 
@@ -619,3 +614,39 @@ setup with an unhelpful "open again to retry". Operator decisions:
   rebuild refuses above 64 MB and lists the largest paths unless the operator
   explicitly discards.
 - pair#387 (deleted-slot repair) is superseded by rebuild; close it when #367 lands.
+
+### 2026-10-05 — M3 split: actionable setup errors here, rebuild to pair#387
+
+Reason: plan review of the rebuild chunk (workshop/plans/000367-recover-owned-slots-plan.md,
+Revision g; reviewer findings below). Provisioning already repairs a present but
+unconfirmed slot in place: `ensureHost` re-runs `weave compile`
+(`couchcore/provision.go:177-198`), which re-clones missing dependencies. `tools:1`
+fails only because `tools/construct/deps` declares `../ariadne` without a clone
+source, so a rebuild would delete the slot and then fail at the same step. Operator
+decision: split.
+- #367 M3 = actionable setup errors: `setup-incomplete` observable (report class,
+  `couch --show`); reboot/resume/report lead with setup's actionable error and the
+  in-place fix (fix the cause, reboot re-runs setup); never "open again to retry"
+  when a retry cannot succeed.
+- `couch --rebuild` moves to pair#387, re-scoped as "rebuild a slot whose
+  leftovers block provisioning" (host missing with registration/`main-slotN`/
+  unowned environment left; identity or admin-dir mismatch; conflicting setup
+  evidence). Carry these review findings into #387's design:
+  1. no archive-only slot retirement exists (reboot's is `replaceSlotCurrent` with a
+     successor) — specify one;
+  2. a resumed rebuild journal must fingerprint what each phase expects and refuse
+     on mismatch; add slot/reboot/resume refuse a slot with an unfinished rebuild
+     journal; provide an abandon path;
+  3. save ignored files too (`.env`, local settings), dependency-clone stashes
+     (`refs/stash`) and local-only refs (`--all --not --remotes`), scoped for the
+     host to HEAD/`main-slotN`/checked-out branches; ignored paths count toward
+     the cap or need `--discard-unsaved`;
+  4. the saved-work family needs a real collector (extend `archive_gc` / the Couch
+     store GC, not a storagegc family that does not exist), and a carried `.couch`
+     `archive/` must not drop out of `couch --archived` if provisioning fails;
+  5. derive the vacancy predicate inside `ensureHost` (it also refuses conflicting
+     `branch.main-slotN.*` config and a `main-slotN` checked out elsewhere);
+  6. hold `.weave-setup.lock` from save through removal (probe without O_CREAT);
+  7. `SetupConfirmed` name collides with `provision_host.go:21`;
+  8. switcher text must not name a CLI-only verb as if the row could run it.
+  Component model and real-git vacancy oracle from Revision g remain good groundwork.
