@@ -609,6 +609,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchmessage/registry.go",
 	"cmd/internal/couchmessage/session_protocol.go",
 	"cmd/internal/couchmessage/session_transport.go",
+	// #367 M2 slot-operation receipts.
+	"cmd/internal/couchmessage/operation.go",
 	"cmd/internal/couchidentity/identity.go",
 	"cmd/internal/couchidentity/session.go",
 	"cmd/internal/couchidentity/store.go",
@@ -778,6 +780,16 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/reboot_decision.go",
 	"cmd/internal/couchcore/resume_route.go",
 	"cmd/internal/couchcore/slotstart.go",
+	// #367 recover-plan: the sdlc fleet decoder, its source and fake, the
+	// resume/reboot admission table and the pure join. No artifact paths.
+	"cmd/internal/couchcore/recoverplan_fleet.go",
+	"cmd/internal/couchcore/actor_actions.go",
+	"cmd/internal/couchcore/recoverplan_source.go",
+	"cmd/internal/couchcore/recoverplan_fake.go",
+	"cmd/internal/couchcore/recoverplan.go",
+	"cmd/internal/couchcore/slot_operation.go",
+	"cmd/internal/couchtty/console_remote.go",
+	"cmd/internal/couchcmd/slot_operations.go",
 	"cmd/internal/couchcore/store.go",
 	"cmd/internal/couchcore/storejournal.go",
 	"cmd/internal/couchcore/storelock.go",

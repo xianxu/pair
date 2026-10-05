@@ -1773,7 +1773,13 @@ func menuOperationMatches(origin MenuOperationOrigin, event MenuEvent) bool {
 }
 
 func dispatchThreadOperation(state MenuState, operation string, address couchcore.ThreadAddress) (MenuState, []MenuEffect) {
-	return dispatchMenuOperation(state, threadEffect(operation, address), address)
+	effect := threadEffect(operation, address)
+	if thread, ok := menuThread(state, address); ok && actorOperation(operation) {
+		// Resume and reboot take the row's arguments from the one mapping the
+		// socket's admission also reads (warm-only on a detached row).
+		effect.Args = couchcore.ActorOperationArgs(thread, operation)
+	}
+	return dispatchMenuOperation(state, effect, address)
 }
 
 func dispatchMenuOperation(state MenuState, effect MenuEffect, address couchcore.ThreadAddress) (MenuState, []MenuEffect) {
@@ -1795,13 +1801,6 @@ func dispatchMenuOperation(state MenuState, effect MenuEffect, address couchcore
 		}
 	}
 	if effect.Operation == "resume" {
-		// Preserve the selected action when the record changes before the
-		// queued operation executes. A detached row authorizes attachment only.
-		// A slot resume carries its path instead: OpenSlot is its route, and
-		// it reattaches a detached slot itself.
-		if thread, ok := menuThread(state, address); ok && thread.Detached() && effect.Args["path"] == "" {
-			effect.Args["warm-only"] = "true"
-		}
 		// The operator resuming a failed thread by hand clears its mark
 		// (pair#206 cell 9).
 		state = clearReattachFailure(state, address)

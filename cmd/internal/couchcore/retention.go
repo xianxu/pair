@@ -147,7 +147,7 @@ func (s *ThreadStore) retentionSnapshotBackend(held *storagegc.Locked) (snapshot
 	} else if err != nil {
 		return snapshot, err
 	}
-	lock, err := s.retentionReadLock()
+	lock, err := s.retentionReadLock(context.Background(), 0)
 	if err != nil {
 		return snapshot, retentionLockError(err)
 	}
@@ -280,7 +280,21 @@ func (s *ThreadStore) RestoreThread(address ThreadAddress) error {
 	})
 }
 
-func (s *ThreadStore) retentionReadLock() (*threadStoreLock, error) {
+// ErrThreadStoreBusy: store.lock stayed held past storeReadLockWait.
+var ErrThreadStoreBusy = errors.New("thread store busy; retry")
+
+// storeReadLockWait bounds how long a store read waits for store.lock. The
+// lock is only ever held briefly (a write, an inventory refresh, an activity
+// update), so a read waits for it rather than failing on the first EWOULDBLOCK
+// (pair#367 smoke test: a reboot's preference read failed once that way).
+var storeReadLockWait = time.Second
+
+const storeReadLockPoll = 5 * time.Millisecond
+
+// retentionReadLock takes store.lock for a read, waiting out contention for
+// up to wait and never past ctx's deadline. Retention maintenance passes 0: it
+// yields a busy store to the maintenance schedule instead of waiting.
+func (s *ThreadStore) retentionReadLock(ctx context.Context, wait time.Duration) (*threadStoreLock, error) {
 	st, err := os.Lstat(s.root)
 	if err != nil {
 		return nil, err
@@ -298,11 +312,24 @@ func (s *ThreadStore) retentionReadLock() (*threadStoreLock, error) {
 		file.Close()
 		return nil, errors.New("unsafe thread store lock")
 	}
-	if err := unix.Flock(fd, unix.LOCK_EX|unix.LOCK_NB); err != nil {
-		file.Close()
-		return nil, err
+	// Poll the nonblocking lock within the bound, like
+	// storagegc.Coordinator.withLock; only contention is waited out.
+	deadline := time.Now().Add(wait)
+	for {
+		err := unix.Flock(fd, unix.LOCK_EX|unix.LOCK_NB)
+		if err == nil {
+			return &threadStoreLock{file: file}, nil
+		}
+		if !errors.Is(err, unix.EWOULDBLOCK) && !errors.Is(err, unix.EAGAIN) {
+			file.Close()
+			return nil, err
+		}
+		if !time.Now().Before(deadline) || ctx.Err() != nil {
+			file.Close()
+			return nil, ErrThreadStoreBusy
+		}
+		time.Sleep(storeReadLockPoll)
 	}
-	return &threadStoreLock{file: file}, nil
 }
 
 // ReadStoreRetention adapts a registered namespace for preview without
@@ -461,7 +488,7 @@ func RecoverStoreRetention(ctx context.Context, namespace CouchNamespace, c *sto
 // Busy nested stores yield through the same maintenance scheduling contract as
 // a busy Pair root; callers must not turn contention into permanent failure.
 func retentionLockError(err error) error {
-	if errors.Is(err, unix.EWOULDBLOCK) || errors.Is(err, unix.EAGAIN) {
+	if errors.Is(err, ErrThreadStoreBusy) || errors.Is(err, unix.EWOULDBLOCK) || errors.Is(err, unix.EAGAIN) {
 		return fmt.Errorf("Couch store busy: %w", storagegc.ErrCoordinatorBusy)
 	}
 	return err
@@ -486,7 +513,7 @@ func (s *ThreadStore) retentionBackends(held *storagegc.Locked) (backends []*Thr
 	}
 	var snapshot threadManifest
 	err = func() (err error) {
-		lock, err := s.retentionReadLock()
+		lock, err := s.retentionReadLock(context.Background(), 0)
 		if err != nil {
 			return retentionLockError(err)
 		}

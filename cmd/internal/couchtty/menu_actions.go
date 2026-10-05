@@ -35,21 +35,18 @@ const (
 type menuRowFacts struct {
 	Kind  menuRowKind
 	Phase menuRowPhase
-	// ResumeOffered is read on unusable rows only: a slot (OpenSlot may adopt
-	// a still-running agent), or a primary with Recovery.Recover or an
-	// unfinished request (resume routes those to their own executors).
-	ResumeOffered bool
-	// DirectoryMissing is Reason == ReasonPathMissing.
-	DirectoryMissing bool
-	AliasOffered     bool // menuAliasOffered
-	AddSlotOffered   bool // menuAddSlotPath != ""
+	// Actor is what couchcore's resume/reboot admission table reads; the
+	// resumable and unusable phases offer exactly couchcore.ActorActions.
+	Actor          couchcore.ActorRowFacts
+	AliasOffered   bool // menuAliasOffered
+	AddSlotOffered bool // menuAddSlotPath != ""
 }
 
 func menuRowFactsOf(row couchcore.ActionableThreadSummary) menuRowFacts {
 	f := menuRowFacts{
-		Kind:             menuRowPrimary,
-		DirectoryMissing: row.State == couchcore.ThreadUnusable && row.Reason == couchcore.ReasonPathMissing,
-		AliasOffered:     menuAliasOffered(row),
+		Kind:         menuRowPrimary,
+		Actor:        couchcore.ActorRowFactsOf(row),
+		AliasOffered: menuAliasOffered(row),
 	}
 	if row.Target.Kind == couchcore.ThreadTargetSlot {
 		f.Kind = menuRowSlot
@@ -80,7 +77,6 @@ func menuRowFactsOf(row couchcore.ActionableThreadSummary) menuRowFacts {
 		if row.Reason == couchcore.ReasonUnknown {
 			f.Phase = menuPhaseUnknown
 		}
-		f.ResumeOffered = f.Kind == menuRowSlot || unfinished != "" || (row.Recovery != nil && row.Recovery.Recover)
 	}
 	return f
 }
@@ -120,22 +116,11 @@ func menuRowActions(f menuRowFacts) []string {
 		// parking or detaching mid-replacement races its own reconciliation.
 		// Retry is the exit, including for a request whose owner died (#280).
 		return []string{"retry-continuation"}
-	case menuPhaseResumable:
-		return []string{"resume", "reboot"}
-	case menuPhaseUnusable:
-		if f.DirectoryMissing {
-			// A :0 record outlives its checkout, so reboot archives it alone.
-			// A :1+ record lives inside its directory: there is nothing left
-			// to retire (menuRowAdviceOf says what brings it back).
-			if f.Kind == menuRowSlot {
-				return nil
-			}
-			return []string{"reboot"}
-		}
-		if f.ResumeOffered {
-			return []string{"resume", "reboot"}
-		}
-		return []string{"reboot"}
+	case menuPhaseResumable, menuPhaseUnusable:
+		// The actor operations are couchcore's one admission table, shared
+		// with the recover-plan report (pair#367). A :1+ row whose directory
+		// is missing offers nothing; menuRowAdviceOf says what brings it back.
+		return couchcore.ActorActions(f.Actor)
 	}
 	// Busy, unknown, live with a pending request: nothing to offer, and
 	// menuRowNotice says why. "checking…" is not a verdict, and reboot stops a
@@ -186,12 +171,12 @@ func menuRowAdviceOf(f menuRowFacts) menuRowAdvice {
 		// "checking…" read like progress; it is the absence of a verdict, and
 		// reboot stops a session, so nothing is offered until there is one.
 		a.Notice.Text = "state could not be checked"
-	case f.DirectoryMissing && f.Kind == menuRowSlot:
+	case f.Actor.DirectoryMissing && f.Kind == menuRowSlot:
 		// The reboot result's own words, so the row and the reboot agree. A
 		// :1+ record lives inside its directory and offers nothing; add slot,
 		// on the repository's live :0, recreates the directory.
 		a.Notice = menuNextStep{Text: couchcore.RebootDirectoryMissing, OnPrimary: true}
-	case f.DirectoryMissing:
+	case f.Actor.DirectoryMissing:
 		// A :0 record outlives its checkout: reboot archives it alone, and
 		// only the checkout coming back lets an agent start there again.
 		a.Notice.Text = couchcore.RebootCheckoutMissing

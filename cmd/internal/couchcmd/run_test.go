@@ -797,13 +797,16 @@ func TestPublicHelpListsOnlyPublicSurface(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d", code)
 	}
-	for _, want := range []string{"couch [path]", "couch --list", "couch --show", "couch --help"} {
+	for _, want := range []string{"couch [path]", "couch --list", "couch --show", "couch --recover-plan-from-sdlc", "couch --resume repo:N", "couch --reboot repo:N --confirm", "couch --help"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("help omits %q", want)
 		}
 	}
+	// The public --resume flag is allowed; the bare internal names are not,
+	// anywhere else in the text.
+	bare := strings.ReplaceAll(out, "--resume", "")
 	for _, hidden := range []string{"start", "park", "resume", "publish-description", "--internal"} {
-		if strings.Contains(out, hidden) {
+		if strings.Contains(bare, hidden) {
 			t.Errorf("help exposes %q", hidden)
 		}
 	}
@@ -1707,4 +1710,70 @@ func managedChildSession(t *testing.T, runner *couchcore.FakeRunner, id string) 
 		t.Fatal(err)
 	}
 	return intent.Name
+}
+
+// recoverPlanRT injects the sdlc fake and a workspace resolver the way
+// provisionRT injects readiness: through NewCouchWith, so the CLI runs its
+// real composition and dispatch.
+type recoverPlanRT struct {
+	testRT
+	fleet   *couchcore.FakeFleetSDLC
+	catalog *couchcore.SlotCatalogFake
+}
+
+func (r recoverPlanRT) NewCouchWith(runner couchcore.Runner, namespace couchcore.CouchNamespace) (*couchcore.Couch, error) {
+	c, err := r.testRT.NewCouchWith(runner, namespace)
+	if err == nil {
+		c.Fleet = couchcore.SDLCFleetSource{IO: r.fleet}
+		c.Slots = r.catalog
+	}
+	return c, err
+}
+
+func TestRecoverPlanCLIEmitsTheReport(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	primary := filepath.Join(root, "repo")
+	if err := os.MkdirAll(primary, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	address, slot, rest := "repo:0", 0, "main"
+	identity := couchcore.WorkspaceIdentity{SchemaVersion: 2, Repo: "repo", RepoIdentity: filepath.Join(primary, ".git"), PrimaryRoot: primary, FleetRoot: root,
+		EnvironmentRoot: root, WorktreeRoot: primary, Kind: "primary", Address: &address, Slot: &slot, RestingBranch: &rest}
+	fake := couchcore.NewFakeFleetSDLC()
+	fake.Fleet(root).AddSlot("repo:0")
+	rt := recoverPlanRT{testRT: newRT(t), fleet: fake, catalog: &couchcore.SlotCatalogFake{Workspaces: map[string]couchcore.WorkspaceIdentity{primary: identity}}}
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Threads.EnrollSlotRepository(context.Background(), couchcore.SlotRepository{Identity: identity}); err != nil {
+		t.Fatal(err)
+	}
+	var out, diag bytes.Buffer
+	if code := RunWithRuntime([]string{"--recover-plan-from-sdlc"}, strings.NewReader(""), &out, &diag, rt); code != 0 {
+		t.Fatalf("code=%d stderr=%s", code, &diag)
+	}
+	if diag.Len() != 0 {
+		t.Fatalf("stderr = %q", &diag)
+	}
+	decoder := json.NewDecoder(&out)
+	var plan couchcore.RecoverPlan
+	if err := decoder.Decode(&plan); err != nil {
+		t.Fatal(err)
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		t.Fatalf("more than one JSON document: %v", err)
+	}
+	if plan.SchemaVersion != 1 || len(plan.Rows) != 1 || plan.Rows[0].Address != "repo:0" || plan.Rows[0].Git.Source != "sdlc" {
+		t.Fatalf("plan = %+v", plan)
+	}
+	if len(fake.Calls) != 1 || fake.Calls[0].Dir != primary {
+		t.Fatalf("sdlc calls = %+v", fake.Calls)
+	}
+	if rt.supervisor.acquired != 0 || len(rt.runner.Ops) != 0 {
+		t.Fatalf("the read-only report acquired the supervisor (%d) or ran children (%v)", rt.supervisor.acquired, rt.runner.Ops)
+	}
 }

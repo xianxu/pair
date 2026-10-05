@@ -14,14 +14,19 @@ import (
 type Request struct {
 	Op, Scope, Tag, Session, Nonce, ID, Target, Body string
 	// Agent narrows a send to slots running that agent; send only.
-	Agent   string `json:",omitempty"`
-	Binding *Binding
+	Agent string `json:",omitempty"`
+	// Confirmed declares the operator's confirmation for an operation whose
+	// declaration requires one (reboot); resume and reboot only.
+	Confirmed bool `json:",omitempty"`
+	Binding   *Binding
 }
 
 type Response struct {
 	Code, Error string
 	Receipt     *Receipt
 	Actors      []Candidate
+	// Operation is a resume/reboot request's receipt (pair#367 M2).
+	Operation *OperationReceipt `json:",omitempty"`
 }
 
 func validMessageID(id string) bool {
@@ -48,7 +53,23 @@ func ValidateRequest(r Request) error {
 	if r.Agent != "" && (r.Op != "send" || !validFamily(r.Agent)) {
 		return errors.New("an agent filter applies only to send and must be a plain agent name")
 	}
+	if r.Confirmed && r.Op != "resume" && r.Op != "reboot" {
+		return errors.New("a confirmation applies only to resume and reboot")
+	}
 	switch r.Op {
+	case "resume", "reboot":
+		// One exact slot: a primitive acts on one slot, never a family.
+		if !validMessageID(r.ID) || r.Body != "" {
+			return errors.New(r.Op + " requires only a request ID and an exact slot")
+		}
+		// parseSlot refuses a family ("pair") as well as a malformed slot.
+		if _, _, err := parseSlot(r.Target); err != nil {
+			return err
+		}
+	case "operation-status":
+		if !validMessageID(r.ID) || r.Target != "" || r.Body != "" {
+			return errors.New("operation-status requires only a request ID")
+		}
 	case "actors":
 		if r.ID != "" || r.Target != "" || r.Body != "" {
 			return errors.New("actors takes no message fields")

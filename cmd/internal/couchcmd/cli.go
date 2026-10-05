@@ -17,6 +17,7 @@ const (
 	cliLaunch
 	cliList
 	cliArchived
+	cliRecoverPlan
 	cliShow
 	cliInternal
 	cliMessage
@@ -41,7 +42,10 @@ type cliInvocation struct {
 	messageBody string
 	// messageAgent narrows --send-to to slots running that agent.
 	messageAgent string
-	jsonOutput   bool
+	// confirmed is --confirm on a slot operation whose declaration requires
+	// a confirmation (reboot).
+	confirmed  bool
+	jsonOutput bool
 	// layout is the couch-wide pair layout to launch threads in. Set only on
 	// cliLaunch -- it is a property of the session being started, so the
 	// read-only forms reject the flag rather than carrying a meaningless value.
@@ -83,7 +87,7 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 		switch args[0] {
 		case "--adopt-store":
 			return parseAdoptionCLI(args)
-		case "--actors", "--send-to", "--message-status", "--skill":
+		case "--actors", "--send-to", "--message-status", "--skill", "--resume", "--reboot":
 			return parseMessageCLI(args)
 		}
 	}
@@ -132,6 +136,14 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 			return cliInvocation{}, err
 		}
 		return cliInvocation{kind: cliArchived}, nil
+	case "--recover-plan-from-sdlc":
+		if len(args) != 1 {
+			return invalid("--recover-plan-from-sdlc takes no arguments")
+		}
+		if err := refuseLayout("--recover-plan-from-sdlc"); err != nil {
+			return cliInvocation{}, err
+		}
+		return cliInvocation{kind: cliRecoverPlan}, nil
 	case "--show":
 		if len(args) != 2 || args[1] == "" || strings.HasPrefix(args[1], "-") {
 			return invalid("--show requires exactly one non-empty reference")
@@ -240,6 +252,29 @@ func parseMessageCLI(args []string) (cliInvocation, error) {
 			return bad()
 		}
 		return cliInvocation{kind: cliMessage, messageOp: "status", ref: args[1], jsonOutput: len(args) == 3}, nil
+	case "--resume", "--reboot":
+		// One exact slot, then --json and the declared --confirm, each once.
+		op := strings.TrimPrefix(args[0], "--")
+		if len(args) < 2 {
+			return bad()
+		}
+		if ref, recognized, err := couchcore.ParseWorkspaceReference(args[1]); err != nil || !recognized || ref.Repo == "" {
+			return cliInvocation{}, fmt.Errorf("%s requires one exact repo:N slot, not %q", args[0], args[1])
+		}
+		seen := map[string]bool{}
+		for _, flag := range args[2:] {
+			if (flag != "--json" && flag != "--confirm") || seen[flag] {
+				return bad()
+			}
+			seen[flag] = true
+		}
+		if confirms, _ := couchcore.OperationConfirms(op); seen["--confirm"] != confirms {
+			if confirms {
+				return cliInvocation{}, fmt.Errorf("%s requires --confirm", args[0])
+			}
+			return cliInvocation{}, fmt.Errorf("%s takes no --confirm", args[0])
+		}
+		return cliInvocation{kind: cliMessage, messageOp: op, ref: args[1], confirmed: seen["--confirm"], jsonOutput: seen["--json"]}, nil
 	case "--send-to":
 		agent := ""
 		if len(args) == 6 && args[2] == "--agent" {

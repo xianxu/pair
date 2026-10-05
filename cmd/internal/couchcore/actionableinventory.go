@@ -713,6 +713,15 @@ func ApplySlugs(ctx context.Context, rows []ActionableThreadSummary, read func(c
 	return rows
 }
 
+// IsPrimaryRow is the one definition of a repository's :0 row among ordinary
+// threads: the thread whose scope is the repository's and which starts at its
+// primary root (pair#367: shared by the alias labels and the
+// recover-plan join). Subdirectory threads and nested repositories are not it.
+func IsPrimaryRow(row ActionableThreadSummary, primaryRoot, scopeKey string) bool {
+	return row.Target.Kind != ThreadTargetSlot && row.Address.RepoScope == scopeKey &&
+		filepath.Clean(row.StartingPath) == filepath.Clean(primaryRoot)
+}
+
 // ApplyRepositoryAliases labels the rows that stand for a slot with their
 // repository's alias: slot rows by primary root, and the :0 row, the thread
 // whose scope is the repository's and which starts at its primary root. Other
@@ -734,7 +743,9 @@ func ApplyRepositoryAliases(rows []ActionableThreadSummary, names []RepositoryNa
 		rows[i].RepositoryAlias = ""
 		if rows[i].Target.Kind == ThreadTargetSlot {
 			rows[i].RepositoryAlias = byRoot[rows[i].Target.Slot.PrimaryRoot]
-		} else if name, ok := byScope[rows[i].Address.RepoScope]; ok && filepath.Clean(rows[i].StartingPath) == filepath.Clean(name.Key) {
+		} else if name, ok := byScope[rows[i].Address.RepoScope]; ok && IsPrimaryRow(rows[i], name.Key, rows[i].Address.RepoScope) {
+			// byScope is keyed by the name's own scope, so the scope half of
+			// IsPrimaryRow already holds; the root half decides.
 			rows[i].RepositoryAlias = name.Alias
 		}
 	}

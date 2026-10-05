@@ -75,6 +75,7 @@ const (
 	ResultOrientationStatus
 	ResultWorkspace
 	ResultRepositoryAlias
+	ResultRecoverPlan
 )
 
 // OperationPresentation assigns every typed operation exactly one UI/process
@@ -88,6 +89,8 @@ const (
 	PresentationList
 	PresentationShow
 	PresentationInternal
+	// PresentationRecoverPlan is `couch --recover-plan-from-sdlc` (pair#367).
+	PresentationRecoverPlan
 )
 
 // Operation is one thing couch can do. The terminal UI and the advisor are
@@ -204,6 +207,11 @@ func Operations() []Operation {
 			Name: "list", Summary: "List every durable work thread",
 			Execution: ExecuteDirectStore, Effect: EffectRead, Confirmation: ConfirmNone, Result: ResultThreadInventory,
 			Presentation: PresentationList,
+		},
+		{
+			Name: "recover-plan", Summary: "Report per slot what to do after a restart, from sdlc's claims and Couch's threads",
+			Execution: ExecuteDirectStore, Effect: EffectRead, Confirmation: ConfirmNone, Result: ResultRecoverPlan,
+			Presentation: PresentationRecoverPlan,
 		},
 		{
 			Name: "show", Summary: "Show one work thread by tag or path",

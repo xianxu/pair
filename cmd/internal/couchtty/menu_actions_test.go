@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -121,6 +122,10 @@ func expectedRowActions(s menuRowShape) []string {
 			return nil
 		case s.reason == couchcore.ReasonPathMissing:
 			return []string{"reboot"}
+		// A parked slot whose conversation cannot be resolved (its agent
+		// never took a turn) has nothing to resume (pair#367 smoke test).
+		case s.slot && s.reason == couchcore.ReasonBindingLost && !unfinished:
+			return []string{"reboot"}
 		case s.slot || s.recover || unfinished:
 			return []string{"resume", "reboot"}
 		}
@@ -223,6 +228,46 @@ func TestSlotRowResumeAndRebootSendThePath(t *testing.T) {
 				t.Fatalf("effects %+v", effects)
 			}
 		})
+	}
+}
+
+// The switcher's resume and reboot effects carry exactly
+// couchcore.ActorOperationArgs for every row shape, including warm-only on a
+// detached :0 (it may only reattach, never cold-start), whether dispatched by
+// row or by address (pair#367: the socket's admission reads the same mapping).
+func TestSwitcherActorEffectsCarryActorOperationArgs(t *testing.T) {
+	slot := menuSlotRow(1, "couch-slot")
+	slot.State, slot.Reason = couchcore.ThreadDetached, ""
+	detached := couchcore.ActionableThreadSummary{Address: menuAddress("couch-primary"), WorkingPath: "/w/p", State: couchcore.ThreadDetached}
+	parked := detached
+	parked.State = couchcore.ThreadParked
+	slotScope, err := launcher.ResolveRepoScope(slot.Target.Slot.WorktreeRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	literal := map[string]map[string]string{
+		"slot":     {"path": slot.Target.Slot.WorktreeRoot, "repo-scope": slotScope.Key},
+		"detached": {"repo-scope": "scope", "tag": "couch-primary", "warm-only": "true"},
+		"parked":   {"repo-scope": "scope", "tag": "couch-primary"},
+	}
+	for name, row := range map[string]couchcore.ActionableThreadSummary{"slot": slot, "detached": detached, "parked": parked} {
+		state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
+		_, byRow := dispatchMenuRow(state, "resume", row)
+		if len(byRow) != 1 || !maps.Equal(byRow[0].Args, literal[name]) || !maps.Equal(byRow[0].Args, couchcore.ActorOperationArgs(row, "resume")) {
+			t.Errorf("%s resume by row: %+v, want %v", name, byRow, literal[name])
+		}
+		if row.Target.Kind != couchcore.ThreadTargetSlot {
+			_, byAddress := dispatchThreadOperation(state, "resume", row.Address)
+			if len(byAddress) != 1 || !maps.Equal(byAddress[0].Args, literal[name]) {
+				t.Errorf("%s resume by address: %+v, want %v", name, byAddress, literal[name])
+			}
+		}
+		_, reboot := dispatchMenuRow(state, "reboot", row)
+		want := maps.Clone(literal[name])
+		delete(want, "warm-only")
+		if len(reboot) != 1 || !maps.Equal(reboot[0].Args, want) || !maps.Equal(reboot[0].Args, couchcore.ActorOperationArgs(row, "reboot")) {
+			t.Errorf("%s reboot: %+v, want %v", name, reboot, want)
+		}
 	}
 }
 

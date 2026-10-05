@@ -1,0 +1,276 @@
+{
+  "schema_version": 1,
+  "rows": [
+    {
+      "repo_identity": "/fleet/astro/.git",
+      "repo_root": "/fleet/astro",
+      "tree_path": "/fleet/astro",
+      "branch": "main",
+      "detached": false,
+      "bare": false,
+      "facts": {
+        "available": true,
+        "head": "2d24ec9f1240d9e486dbdef8ab4c9da64033ba9b",
+        "commit_timestamp": "2026-09-28T00:06:26-07:00",
+        "base_available": true,
+        "base_ref": "origin/main",
+        "ahead": 0,
+        "behind": 0,
+        "dirty_count": 8
+      },
+      "issues": [],
+      "claims": [],
+      "policy": {
+        "ok": true,
+        "value": {
+          "policy_version": 1,
+          "policy_digest": "b446286124e39db3c6117fe7b3f29aa4c43d266ff96eccfa475a84f1f8ba7844",
+          "key_kind": "repo",
+          "roots": [],
+          "capacity": {
+            "kind": "bounded",
+            "limit": 1
+          },
+          "on_capacity": "reject"
+        }
+      }
+    },
+    {
+      "repo_identity": "/fleet/brain/.git",
+      "repo_root": "/fleet/brain",
+      "tree_path": "/fleet/brain",
+      "branch": "main",
+      "detached": false,
+      "bare": false,
+      "facts": {
+        "available": true,
+        "head": "d90ae6471d6a9f1d6c9659674c26ca57040a79c8",
+        "commit_timestamp": "2026-10-03T12:21:01-07:00",
+        "base_available": true,
+        "base_ref": "origin/main",
+        "ahead": 0,
+        "behind": 0,
+        "dirty_count": 0
+      },
+      "issues": [],
+      "claims": [],
+      "policy": {
+        "ok": true,
+        "value": {
+          "policy_version": 1,
+          "policy_digest": "f1124bb7b3be88acaaa8ad561f09e2993ef8257a4312c73c17e29ba7d464ab10",
+          "key_kind": "repo",
+          "roots": [],
+          "capacity": {
+            "kind": "unbounded"
+          }
+        }
+      }
+    },
+    {
+      "repo_identity": "/fleet/brain/.git",
+      "repo_root": "/fleet/brain",
+      "tree_path": "/fleet/worktree/brain-slot1/brain",
+      "branch": "main-slot1",
+      "detached": false,
+      "bare": false,
+      "facts": {
+        "available": true,
+        "head": "ca1ce1a5a9e64d95e34c1d3df7e75668948f63ba",
+        "commit_timestamp": "2026-10-01T21:24:55-07:00",
+        "base_available": true,
+        "base_ref": "origin/main",
+        "ahead": 0,
+        "behind": 18,
+        "dirty_count": 0
+      },
+      "issues": [],
+      "claims": [],
+      "policy": {
+        "ok": true,
+        "value": {
+          "policy_version": 1,
+          "policy_digest": "f1124bb7b3be88acaaa8ad561f09e2993ef8257a4312c73c17e29ba7d464ab10",
+          "key_kind": "repo",
+          "roots": [],
+          "capacity": {
+            "kind": "unbounded"
+          }
+        }
+      }
+    },
+    {
+      "repo_identity": "/fleet/pair/.git",
+      "repo_root": "/fleet/pair",
+      "tree_path": "/fleet/pair",
+      "branch": "main",
+      "detached": false,
+      "bare": false,
+      "facts": {
+        "available": true,
+        "head": "441b8500736c0eab46fc007a7ad5303143640cf9",
+        "commit_timestamp": "2026-10-03T11:23:52-07:00",
+        "base_available": true,
+        "base_ref": "origin/main",
+        "ahead": 0,
+        "behind": 65,
+        "dirty_count": 0
+      },
+      "issues": [],
+      "claims": [],
+      "policy": {
+        "ok": true,
+        "value": {
+          "policy_version": 1,
+          "policy_digest": "b446286124e39db3c6117fe7b3f29aa4c43d266ff96eccfa475a84f1f8ba7844",
+          "key_kind": "repo",
+          "roots": [],
+          "capacity": {
+            "kind": "bounded",
+            "limit": 1
+          },
+          "on_capacity": "reject"
+        }
+      }
+    },
+    {
+      "repo_identity": "/fleet/pair/.git",
+      "repo_root": "/fleet/pair",
+      "tree_path": "/fleet/worktree/pair-slot1/pair",
+      "branch": "000367-recover-owned-slots",
+      "detached": false,
+      "bare": false,
+      "facts": {
+        "available": true,
+        "head": "c77727df2f93c129c664acb48100ae88bae0ff90",
+        "commit_timestamp": "2026-10-04T00:29:21-07:00",
+        "base_available": true,
+        "base_ref": "origin/main",
+        "ahead": 17,
+        "behind": 0,
+        "dirty_count": 0
+      },
+      "issues": [
+        {
+          "ref": "pair#000367",
+          "declared_status": "working",
+          "provenance": "branch-prefix"
+        }
+      ],
+      "claims": [
+        {
+          "ref": "pair#000367",
+          "status": "working",
+          "revision": "f0aebb45368c9e7f3e5f293788b7d0266c2d0974",
+          "claimant": {
+            "operator": "T",
+            "machine": "4716879978a7b90f6b583da1716fd0e9",
+            "machine_name": "Example Machine",
+            "workspace": "pair:1",
+            "worktree": "/fleet/worktree/pair-slot1/pair",
+            "repository": "github.com/xianxu/pair"
+          }
+        }
+      ],
+      "policy": {
+        "ok": true,
+        "value": {
+          "policy_version": 1,
+          "policy_digest": "b446286124e39db3c6117fe7b3f29aa4c43d266ff96eccfa475a84f1f8ba7844",
+          "key_kind": "repo",
+          "roots": [],
+          "capacity": {
+            "kind": "bounded",
+            "limit": 1
+          },
+          "on_capacity": "reject"
+        }
+      }
+    },
+    {
+      "repo_identity": "/fleet/pair/.git",
+      "repo_root": "/fleet/pair",
+      "tree_path": "/fleet/scratch/basewt",
+      "detached": true,
+      "bare": false,
+      "prunable": "gitdir file points to non-existent location",
+      "facts": {
+        "available": false,
+        "error": "git rev-parse HEAD: exit status 128: fatal: not a git repository (or any of the parent directories): .git",
+        "base_available": false
+      },
+      "issues": [],
+      "claims": [],
+      "policy": {
+        "ok": true,
+        "value": {
+          "policy_version": 1,
+          "policy_digest": "b446286124e39db3c6117fe7b3f29aa4c43d266ff96eccfa475a84f1f8ba7844",
+          "key_kind": "repo",
+          "roots": [],
+          "capacity": {
+            "kind": "bounded",
+            "limit": 1
+          },
+          "on_capacity": "reject"
+        }
+      }
+    },
+    {
+      "repo_identity": "/fleet/worktree/pair-slot1/ariadne/.git",
+      "repo_root": "/fleet/worktree/pair-slot1/ariadne",
+      "tree_path": "/fleet/worktree/pair-slot1/ariadne",
+      "branch": "main",
+      "detached": false,
+      "bare": false,
+      "facts": {
+        "available": true,
+        "head": "b9dbf8cfa584a087cb053ad07a245b952f0ec164",
+        "commit_timestamp": "2026-10-02T17:52:43-07:00",
+        "base_available": true,
+        "base_ref": "origin/main",
+        "ahead": 0,
+        "behind": 0,
+        "dirty_count": 0
+      },
+      "issues": [],
+      "claims": [
+        {
+          "ref": "ariadne#000290",
+          "status": "working",
+          "revision": "1111111111111111111111111111111111111111",
+          "claimant": {
+            "operator": "T",
+            "machine": "4716879978a7b90f6b583da1716fd0e9",
+            "machine_name": "Example Machine",
+            "worktree": "/fleet/worktree/pair-slot1/ariadne",
+            "repository": "github.com/xianxu/ariadne"
+          }
+        }
+      ],
+      "policy": {
+        "ok": true,
+        "value": {
+          "policy_version": 1,
+          "policy_digest": "b446286124e39db3c6117fe7b3f29aa4c43d266ff96eccfa475a84f1f8ba7844",
+          "key_kind": "repo",
+          "roots": [],
+          "capacity": {
+            "kind": "bounded",
+            "limit": 1
+          },
+          "on_capacity": "reject"
+        }
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "repo_identity": "/fleet/pair/.git",
+      "repo_path": "/fleet/pair",
+      "tree_path": "/fleet/scratch/basewt",
+      "stage": "facts",
+      "message": "git rev-parse HEAD: exit status 128: fatal: not a git repository (or any of the parent directories): .git"
+    }
+  ]
+}

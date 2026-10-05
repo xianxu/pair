@@ -383,6 +383,9 @@ couch --list             every durable work thread across all repositories
 couch --show <ref>       one current-repository thread by tag or path
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
+couch --recover-plan-from-sdlc   per-slot recovery report (JSON), see below
+couch --resume repo:N [--json]   from a live slot: resume that slot's agent
+couch --reboot repo:N --confirm [--json]   from a live slot: archive and replace it
 couch --send-to repo:N --message TEXT   send to an exact live slot
 couch --send-to repo --message TEXT     select an eligible slot in that family
 couch --send-to repo --agent NAME --message TEXT   ...running that agent
@@ -390,6 +393,42 @@ couch --message-status ID [--json]      inspect a message receipt
 couch --skill            print the bundled agent coordination skill
 couch --adopt-store /absolute/store     preview adoption of an existing store
 ```
+
+`couch --recover-plan-from-sdlc` is the after-restart report an agent (typically
+the one in `:0`) reads before resuming work. It runs `sdlc fleet inventory --json`
+once per fleet of the repositories Couch has enrolled (this machine's claims,
+dangling claims and slot verdicts), reads Couch's own thread states the way
+`couch --list` does, and prints one JSON row per slot path (`:0` and `:1+`; other
+worktrees are only counted under `ignored`). Each row carries git, disk and agent
+state, the union of work evidence, a `class` (`agrees`, `restore-workspace`,
+`claim-likely-lost`, `partial-evidence`, `conflict`, `landed`, `idle`, `unidentified-work`,
+`directory-missing`, ...), and `next`: steps named by action (`resume`, `reboot`,
+`ask-agent-restore`) drawn from the switcher's own admission table, or a `hold`
+that says why there is none. Each claim is judged against the checkout that holds
+it: a dependency checkout's claims appear under `claims.dependency`, and a restore
+request names that checkout. Unknown is never absence: a failed sdlc run, an older
+sdlc, a partial claim read or an unreadable git state is shown as such and degrades
+only the rows it touches. The report creates nothing; it only writes stdout. Its
+one side effect is sdlc's own tracker fetch, which updates remote-tracking refs.
+Each step carries its `command`: `couch --resume repo:N`, `couch --reboot repo:N
+--confirm`, or a `couch --send-to` asking the slot's own agent to restore its
+workspace.
+
+`couch --resume repo:N` and `couch --reboot repo:N --confirm` run one slot's step
+through the running Couch. Only an agent in a live Couch slot may call them: Couch
+checks its own records (the calling thread has a live pane, and its recorded launch
+names this shell's session and launch), so a slot whose messaging setup failed can
+still call, and anyone else is refused. An older running Couch answers with a hint
+to restart it. A thread whose agent never took a turn has no conversation to
+resume: resume refuses at once and names reboot, and the report suggests reboot,
+never resume, for it. The request runs on the switcher's own queue, in the background (the
+operator's screen stays put), and is admitted only if the switcher would offer the
+same action on that row at that moment. Reboot needs `--confirm` because the
+operation declares it. The CLI polls a receipt Couch keeps in memory for 5 minutes
+(visible only to the slot that asked); a lost or unreadable outcome prints
+"outcome uncertain". Verify by reading the report again, never by the receipt: a
+repeat is refused harmlessly once the slot is live. `couch --skill` carries the
+full recovery procedure.
 
 Couch runs one production supervisor per local OS account. Its authority lives
 under the account home's `.local/share/pair-host/singleton`, found by the real

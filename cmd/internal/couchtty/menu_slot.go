@@ -29,8 +29,8 @@ func menuThreadTarget(state MenuState, key couchcore.ThreadRowKey, address couch
 // or replaced under the row, so the tag is not what names it. Its in-flight
 // operation is then keyed by row, not by an address the operation replaces.
 func dispatchMenuRow(state MenuState, operation string, row couchcore.ActionableThreadSummary) (MenuState, []MenuEffect) {
-	if row.Target.Kind == couchcore.ThreadTargetSlot && (operation == "resume" || operation == "reboot") {
-		next, effects := dispatchMenuOperation(state, MenuEffect{Operation: operation, Args: map[string]string{"path": row.Target.Slot.WorktreeRoot}}, row.Address)
+	if row.Target.Kind == couchcore.ThreadTargetSlot && actorOperation(operation) {
+		next, effects := dispatchMenuOperation(state, MenuEffect{Operation: operation, Args: couchcore.ActorOperationArgs(row, operation)}, row.Address)
 		if len(effects) > 0 {
 			next.InFlight.RowKey = menuRowKey(row)
 		}
@@ -38,6 +38,10 @@ func dispatchMenuRow(state MenuState, operation string, row couchcore.Actionable
 	}
 	return dispatchThreadOperation(state, operation, row.Address)
 }
+
+// actorOperation names the two operations whose arguments come from
+// couchcore.ActorOperationArgs.
+func actorOperation(operation string) bool { return operation == "resume" || operation == "reboot" }
 
 // menuOperationReplacesAddress names an in-flight operation whose success may
 // hand back a different address than the one it was sent for: anything keyed

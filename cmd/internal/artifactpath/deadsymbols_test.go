@@ -58,6 +58,23 @@ var couchcoreDeadSymbolAllowlist = map[string]string{
 	// is what does. A production caller would be the tail wagging the dog.
 	"AllThreadReasons": "the ThreadReason vocabulary; iterated by the guards that prove every reason is produced and rendered",
 	"AllThreadStates":  "the ActionableThreadState vocabulary; iterated by the offered-implies-permitted guards, which derive their domain from it rather than hand-listing states (pair#256 M2, BR-33)",
+	// pair#367: the recover-plan vocabularies. The coverage test derives its
+	// "every class and hold has a fixture" set from them, and the totality test
+	// crosses every SlotEvidence dimension from its own list, so a value added
+	// to a const block without its list fails there instead of hiding.
+	"AllRecoverClasses":     "the RecoverClass vocabulary; derives the recover-plan fixture-coverage set",
+	"AllRecoverHolds":       "the RecoverHold vocabulary; derives the recover-plan fixture-coverage set",
+	"AllEvidenceDirs":       "a SlotEvidence dimension; the recover-plan totality domain is derived from it",
+	"AllEvidenceCouch":      "a SlotEvidence dimension; the recover-plan totality domain is derived from it",
+	"AllEvidenceAgents":     "a SlotEvidence dimension; the recover-plan totality domain is derived from it",
+	"AllEvidenceThreads":    "a SlotEvidence dimension; the recover-plan totality domain is derived from it",
+	"AllEvidenceOffers":     "a SlotEvidence dimension; the recover-plan totality domain is derived from it",
+	"AllEvidenceBranches":   "a SlotEvidence dimension; the recover-plan totality domain is derived from it",
+	"AllEvidenceClaims":     "a SlotEvidence dimension; the recover-plan totality domain is derived from it",
+	"AllEvidenceQualities":  "a SlotEvidence dimension; the recover-plan totality domain is derived from it",
+	"AllEvidenceGitSources": "a SlotEvidence dimension; the recover-plan totality domain is derived from it",
+	"AllEvidenceTriStates":  "a SlotEvidence dimension; the recover-plan totality domain is derived from it",
+	"AllEvidenceDepClaims":  "a SlotEvidence dimension; the recover-plan totality domain is derived from it",
 
 	// Genuinely unreferenced, and NOT dispositioned here. Deleting each means
 	// deleting its tests, which is a judgement call per symbol rather than part

@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 	"sort"
 	"time"
-
-	"golang.org/x/sys/unix"
 )
 
 // repositoryAliasFile is its own payload rather than a manifest field: the
@@ -49,22 +47,16 @@ func (s *ThreadStore) RepositoryNamesContext(ctx context.Context) ([]RepositoryN
 	view.readOnly = true
 	ctx, cancel := context.WithTimeout(ctx, repositoryNamesWait)
 	defer cancel()
-	for {
-		var names []RepositoryName
-		err := view.withPreviewLock(func() error {
-			var err error
-			names, _, err = view.repositoryNamesLocked()
-			return err
-		})
-		if !errors.Is(err, unix.EWOULDBLOCK) && !errors.Is(err, unix.EAGAIN) {
-			return names, err
-		}
-		select {
-		case <-ctx.Done():
-			return nil, fmt.Errorf("read repository names: store stayed busy: %w", err)
-		case <-time.After(10 * time.Millisecond):
-		}
+	var names []RepositoryName
+	err := view.withPreviewLockContext(ctx, func() error {
+		var err error
+		names, _, err = view.repositoryNamesLocked()
+		return err
+	})
+	if errors.Is(err, ErrThreadStoreBusy) {
+		return nil, fmt.Errorf("read repository names: store stayed busy: %w", err)
 	}
+	return names, err
 }
 
 // SetRepositoryAlias sets (or, with "", clears) the alias of the enrolled
