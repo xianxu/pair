@@ -137,7 +137,7 @@ func TestMaintenanceHundredThousandFilenamesBoundsOwnerWork(t *testing.T) {
 		t.Fatal(err)
 	}
 	old := c.Now()
-	c.Now = func() time.Time { return old.Add(61 * 24 * time.Hour) }
+	c.Now = func() time.Time { return old.Add(storagegc.RetentionPeriod + 24*time.Hour) }
 	probes, persists := 0, 0
 	s.Collector.Legacy = func(context.Context, artifactpath.StorageOwner) (storagegc.Liveness, error) {
 		probes++
@@ -235,7 +235,7 @@ func TestMaintenanceDiagnosticPagesDoNotEvaluateSessionOwners(t *testing.T) {
 		if err := os.WriteFile(p, []byte("expired diagnostic"), 0600); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.Chtimes(p, now.Add(-8*24*time.Hour), now.Add(-8*24*time.Hour)); err != nil {
+		if err := os.Chtimes(p, now.Add(-(diagnosticlog.RetentionPeriod + 24*time.Hour)), now.Add(-(diagnosticlog.RetentionPeriod + 24*time.Hour))); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -56,7 +56,7 @@ func TestAppendInterruptionReconcilesObservedBytes(t *testing.T) {
 			if err != nil || string(raw) != expected+"next" {
 				t.Fatalf("recovery duplicated/invented bytes %q %v", raw, err)
 			}
-			*now = now.Add(8 * 24 * time.Hour)
+			*now = now.Add(RetentionPeriod + 24*time.Hour)
 			if _, err := Collect(path, opts, 100); err != nil {
 				t.Fatal("collection remains blocked", err)
 			}

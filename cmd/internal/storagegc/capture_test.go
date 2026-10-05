@@ -7,7 +7,7 @@ import (
 
 func TestCaptureExpiresIndependently(t *testing.T) {
 	now := time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC)
-	e := CaptureEvidence{CapturedAt: now.Add(-7 * 24 * time.Hour), Complete: true, Reader: ProcessDead}
+	e := CaptureEvidence{CapturedAt: now.Add(-CaptureRetentionPeriod), Complete: true, Reader: ProcessDead}
 	if d := DecideCapture(now, e); d.State != Eligible {
 		t.Fatal(d)
 	}
@@ -33,7 +33,7 @@ func FuzzCaptureNeverExpiresWithoutEvidence(f *testing.F) {
 	f.Add(int64(0))
 	f.Fuzz(func(t *testing.T, seconds int64) {
 		now := time.Unix(seconds%1000000000, 0)
-		for _, e := range []CaptureEvidence{{CapturedAt: now.Add(-7 * 24 * time.Hour), Reader: ProcessDead}, {Complete: true, Reader: ProcessDead}, {CapturedAt: now.Add(-7 * 24 * time.Hour), Complete: true}} {
+		for _, e := range []CaptureEvidence{{CapturedAt: now.Add(-CaptureRetentionPeriod), Reader: ProcessDead}, {Complete: true, Reader: ProcessDead}, {CapturedAt: now.Add(-CaptureRetentionPeriod), Complete: true}} {
 			if d := DecideCapture(now, e); d.State == Eligible {
 				t.Fatal("incomplete capture eligible")
 			}

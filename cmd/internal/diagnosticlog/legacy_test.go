@@ -12,7 +12,7 @@ import (
 func TestLegacyExpiredDiagnosticKeepsOriginalAge(t *testing.T) {
 	path, now, opts := fixture(t)
 	os.WriteFile(path, []byte("old debug"), 0600)
-	old := now.Add(-8 * 24 * time.Hour)
+	old := now.Add(-(RetentionPeriod + 24*time.Hour))
 	os.Chtimes(path, old, old)
 	rows, e := PreviewLegacy(path, opts)
 	if e != nil || len(rows) != 1 || !rows[0].Eligible {
@@ -39,7 +39,7 @@ func TestLegacyUnknownOrYoungDoesNotInitialize(t *testing.T) {
 			os.WriteFile(path, []byte("keep"), 0600)
 			old := now.Add(-time.Hour)
 			if unknown {
-				old = now.Add(-8 * 24 * time.Hour)
+				old = now.Add(-(RetentionPeriod + 24*time.Hour))
 				opts.Proof = func(context.Context, string, []Registration) error { return errors.New("legacy writer alive") }
 			}
 			os.Chtimes(path, old, old)

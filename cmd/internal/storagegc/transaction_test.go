@@ -326,7 +326,7 @@ func TestSessionRetirementLeavesYoungCaptureDiscoverableUntilSevenDays(t *testin
 			t.Fatal("young capture lost", err)
 		}
 	}
-	c.Coordinator.Now = func() time.Time { return now.Add(8 * 24 * time.Hour) }
+	c.Coordinator.Now = func() time.Time { return now.Add(CaptureRetentionPeriod) }
 	report, err = c.Apply(context.Background(), 100)
 	if err != nil || report.Collected != 1 {
 		t.Fatalf("capture collection after parent retirement %+v %v", report, err)
@@ -338,7 +338,7 @@ func TestSessionRetirementLeavesYoungCaptureDiscoverableUntilSevenDays(t *testin
 	}
 	// Capture-only rediscovery creates fresh activity metadata. That metadata
 	// must itself retire after grace instead of aborting every later sweep.
-	c.Coordinator.Now = func() time.Time { return now.Add(70 * 24 * time.Hour) }
+	c.Coordinator.Now = func() time.Time { return now.Add(CaptureRetentionPeriod + RetentionPeriod + 2*24*time.Hour) }
 	report, err = c.Apply(context.Background(), 100)
 	if err != nil || report.Collected != 1 {
 		t.Fatalf("metadata retirement %+v %v", report, err)

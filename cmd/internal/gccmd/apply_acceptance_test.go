@@ -14,6 +14,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
 	"github.com/xianxu/pair/cmd/internal/gcruntime"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
 )
@@ -28,7 +29,15 @@ func TestPublicApplyPreservesProtectedOwnersAndCollectsIndependentBuckets(t *tes
 		t.Fatal(err)
 	}
 	now := time.Now().UTC()
-	old := now.Add(-90 * 24 * time.Hour)
+	// Older than every retention period, so session, capture and diagnostic
+	// data are all eligible whatever the periods are set to.
+	oldest := storagegc.RetentionPeriod
+	for _, d := range []time.Duration{storagegc.CaptureRetentionPeriod, diagnosticlog.RetentionPeriod} {
+		if d > oldest {
+			oldest = d
+		}
+	}
+	old := now.Add(-(oldest + 24*time.Hour))
 	c.Now = func() time.Time { return old }
 	ps, err := exec.LookPath("ps")
 	if err != nil {

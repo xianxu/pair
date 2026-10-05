@@ -12,7 +12,13 @@ import (
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 )
 
-const RetentionPeriod = 60 * 24 * time.Hour
+// RetentionPeriod is a year: the operator turned routine cleanup off in
+// practice (#393) while keeping the collector and its liveness proofs running.
+const RetentionPeriod = 365 * 24 * time.Hour
+
+// Days renders a retention period for reasons and CLI text, so the prose is
+// derived from the constant and cannot drift from it.
+func Days(d time.Duration) int { return int(d / (24 * time.Hour)) }
 
 // ActivityRecord is bounded evidence for one owner incarnation, never a log.
 type ActivityRecord struct {
@@ -95,7 +101,7 @@ func Decide(now time.Time, e Evidence) RetentionDecision {
 		return result(Blocked, "process liveness unknown")
 	}
 	if e.Activity == nil {
-		return result(Untracked, "initial 60-day grace has not started")
+		return result(Untracked, fmt.Sprintf("initial %d-day grace has not started", Days(RetentionPeriod)))
 	}
 	if err := e.Activity.validate(e.Owner); err != nil {
 		return result(Blocked, err.Error())
@@ -120,7 +126,7 @@ func Decide(now time.Time, e Evidence) RetentionDecision {
 	}
 	expiry := last.Add(RetentionPeriod)
 	if now.Before(expiry) {
-		return RetentionDecision{State: Grace, Reason: "within 60 days of meaningful use or initialization", EligibleAt: expiry}
+		return RetentionDecision{State: Grace, Reason: fmt.Sprintf("within %d days of meaningful use or initialization", Days(RetentionPeriod)), EligibleAt: expiry}
 	}
-	return RetentionDecision{State: Eligible, Reason: "60 days without meaningful use", EligibleAt: expiry}
+	return RetentionDecision{State: Eligible, Reason: fmt.Sprintf("%d days without meaningful use", Days(RetentionPeriod)), EligibleAt: expiry}
 }

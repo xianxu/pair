@@ -1,8 +1,11 @@
 package storagegc
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
-const CaptureRetentionPeriod = 7 * 24 * time.Hour
+const CaptureRetentionPeriod = 365 * 24 * time.Hour
 
 // CaptureEvidence concerns one immutable raw/events capture. Tag activity and
 // Couch visibility are intentionally absent: neither renews a capture's age.
@@ -28,7 +31,7 @@ func DecideCapture(now time.Time, e CaptureEvidence) RetentionDecision {
 	}
 	expiry := e.CapturedAt.Add(CaptureRetentionPeriod)
 	if now.Before(expiry) {
-		return RetentionDecision{State: Grace, Reason: "capture is less than 7 days old", EligibleAt: expiry}
+		return RetentionDecision{State: Grace, Reason: fmt.Sprintf("capture is less than %d days old", Days(CaptureRetentionPeriod)), EligibleAt: expiry}
 	}
-	return RetentionDecision{State: Eligible, Reason: "capture is at least 7 days old", EligibleAt: expiry}
+	return RetentionDecision{State: Eligible, Reason: fmt.Sprintf("capture is at least %d days old", Days(CaptureRetentionPeriod)), EligibleAt: expiry}
 }

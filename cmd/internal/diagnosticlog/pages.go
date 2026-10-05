@@ -314,7 +314,7 @@ func previewPageLocked(path string, o Options, cursor string, limit int, cleanup
 		eligible := reason == "" && DecideSegment(o.Now(), g.LastWrite)
 		why := reason
 		if why == "" && !eligible {
-			why = "within seven-day retention"
+			why = RetainedReason
 		}
 		out = append(out, Segment{p, st.Size(), g.LastWrite, eligible, why})
 		return nil

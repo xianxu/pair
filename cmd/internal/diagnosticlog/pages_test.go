@@ -32,7 +32,7 @@ func TestDiagnosticPageCursorSurvivesDeletionShrink(t *testing.T) {
 	w.Write([]byte("current"))
 	w.Close()
 	for i := 1; i <= 3; i++ {
-		fixtureSegment(t, path, fmt.Sprintf("segment-%032x.log", i), now.Add(-8*24*time.Hour))
+		fixtureSegment(t, path, fmt.Sprintf("segment-%032x.log", i), now.Add(-(RetentionPeriod + 24*time.Hour)))
 	}
 	cursor := "current"
 	removed := 0
@@ -66,7 +66,7 @@ func TestYoungFirstPageDoesNotHideExpiredLaterSegment(t *testing.T) {
 	young := fmt.Sprintf("segment-%032x.log", 1)
 	old := fmt.Sprintf("segment-%032x.log", 2)
 	fixtureSegment(t, path, young, *now)
-	fixtureSegment(t, path, old, now.Add(-8*24*time.Hour))
+	fixtureSegment(t, path, old, now.Add(-(RetentionPeriod + 24*time.Hour)))
 	cursor := ""
 	removed := 0
 	for i := 0; i < 10; i++ {
