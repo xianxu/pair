@@ -138,8 +138,8 @@ func TestAnUnknownAgeRowIsNotPaintedLikeARecentOne(t *testing.T) {
 	subject := menuAddress("subject")
 	rowFor := func(at time.Time) string {
 		state := NewMenuState([]couchcore.ActionableThreadSummary{
-			{Address: selected, Name: "selected", WorkingPath: "/w/a", State: couchcore.ThreadParked, LastActiveAt: now},
-			{Address: subject, Name: "subject", WorkingPath: "/w/b", State: couchcore.ThreadParked, LastActiveAt: at},
+			{Address: selected, WorkingPath: "/w/selected", State: couchcore.ThreadParked, LastActiveAt: now},
+			{Address: subject, WorkingPath: "/w/subject", State: couchcore.ThreadParked, LastActiveAt: at},
 		}, selected)
 		for _, line := range strings.Split(RenderMenu(state, 60, 12, now, true), "\r\n") {
 			if strings.Contains(line, "subject") {

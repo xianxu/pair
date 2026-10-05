@@ -168,6 +168,7 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.Cou
 	c.Identities = couchidentity.IdentityStore{HostDir: r.selection.Roots.IdentityDir, StoreDir: namespace.Dir()}
 	c.Workspaces = couchcore.NewWorkspaceProvisioner(couchcore.OSProvisionIO{})
 	c.Slots = couchcore.NewOSSlotCatalog(couchcore.OSProvisionIO{})
+	c.Fleet = couchcore.SDLCFleetSource{IO: couchcore.OSProvisionIO{}, Timeout: couchcore.FleetInventoryTimeout}
 	c.RootAgent = r.Getenv("PAIR_AGENT")
 	c.ContinuationSource = (couchcore.OSContinuationSourceReader{DataDir: dataDir}).Read
 	renderer, _ := exec.LookPath("pair")
@@ -288,6 +289,8 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		op, _ = Resolve("list")
 	case cliArchived:
 		op, _ = Resolve("archived")
+	case cliRecoverPlan:
+		op, _ = Resolve("recover-plan")
 	case cliShow:
 		op, _ = Resolve("show")
 		argv = []string{invocation.ref}
@@ -493,7 +496,7 @@ func dispatchInteractiveStart(c *couchcore.Couch, args map[string]string) (couch
 
 func operationUsesCurrentRepoScope(name string) bool {
 	switch name {
-	case "show", "name", "describe", "park", "resume", "retry-continuation", "dismiss-continuation", "recover-thread", "recover-checkpoint", "archive":
+	case "show", "park", "resume", "reboot", "retry-continuation", "dismiss-continuation":
 		return true
 	default:
 		return false
@@ -503,7 +506,7 @@ func operationUsesCurrentRepoScope(name string) bool {
 // operationOwnsLive is the pure entrypoint policy. Both ways into Couch must
 // acquire the same singleton before they can create a child or take a terminal.
 func operationOwnsLive(name string) bool {
-	return name == "open-slot" || name == "fresh-slot" || name == "start" || name == "resume" || name == "retry-continuation" || name == "recover-thread" || name == "recover-checkpoint" || name == "archive"
+	return name == "start" || name == "resume" || name == "reboot" || name == "retry-continuation"
 }
 
 // WantsConsole is the console DECISION, separated from building one.
@@ -518,7 +521,7 @@ func operationOwnsLive(name string) bool {
 // draws on the output fd, so a redirected stdout with a tty stdin would
 // otherwise build a console that paints into a file.
 func WantsConsole(name string, hasTerminal bool) bool {
-	return operationOwnsLive(name) && name != "archive" && hasTerminal
+	return operationOwnsLive(name) && hasTerminal
 }
 
 // consoleRunner decides which Runner this invocation gets, and builds the
@@ -810,6 +813,13 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 		if err := json.NewEncoder(w).Encode(v); err != nil {
 			return 1
 		}
+	case couchcore.RecoverPlan:
+		// One JSON document and nothing else: the report is read by an agent.
+		encoder := json.NewEncoder(w)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(v); err != nil {
+			return 1
+		}
 	case couchcore.ContinuationResult:
 		return render(w, op, v.Status)
 	case couchcore.ContinuationStatus:
@@ -830,17 +840,23 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 		if warning := v.Warning(); warning != "" {
 			fmt.Fprintf(w, "%s\n", warning)
 		}
+	case couchcore.RebootResult:
+		// A reboot that started an agent rendered above, as a start. What
+		// reaches here retired a record and started nothing; say why.
+		if v.Archived != (couchcore.ThreadAddress{}) {
+			fmt.Fprintf(w, "archived %s\n", v.Archived.Tag)
+		}
+		if v.Reason != "" {
+			fmt.Fprintf(w, "no fresh agent started: %s\n", v.Reason)
+		}
+		if warning := v.Warning(); warning != "" {
+			fmt.Fprintf(w, "%s\n", warning)
+		}
 	case couchcore.StopResult:
 		if v.Signalled {
 			fmt.Fprintf(w, "signalled %s on %s (pid %d)\n", v.Record.ID, v.Record.Args.Worktree, v.Record.PID)
 		} else {
 			fmt.Fprintf(w, "forgot %s on %s -- it was not running\n", v.Record.ID, v.Record.Args.Worktree)
-		}
-	case string:
-		if v == "" {
-			fmt.Fprintln(w, "(no description)")
-		} else {
-			fmt.Fprintln(w, v)
 		}
 	default:
 		fmt.Fprintf(w, "%v\n", v)
@@ -952,6 +968,14 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "       couch --list")
 	fmt.Fprintln(w, "       couch --show <thread>")
 	fmt.Fprintln(w, "       couch --archived")
+	fmt.Fprintln(w, "       couch --recover-plan-from-sdlc")
+	fmt.Fprintln(w, "             Recovery report: one JSON row per slot joining sdlc's claims and")
+	fmt.Fprintln(w, "             slot verdicts with Couch's threads, with a suggested next step.")
+	fmt.Fprintln(w, "       couch --resume repo:N [--json]")
+	fmt.Fprintln(w, "       couch --reboot repo:N --confirm [--json]")
+	fmt.Fprintln(w, "             From a live Couch slot only: run the report's step on one slot")
+	fmt.Fprintln(w, "             through the running Couch, in the background. Verify by reading")
+	fmt.Fprintln(w, "             the report again; an uncertain outcome means read it before resending.")
 	fmt.Fprintln(w, "       couch --actors [--json]")
 	fmt.Fprintln(w, "       couch --adopt-store <absolute-path> [--pair-data <path>] [--identity-dir <path>]")
 	fmt.Fprintln(w, "             [--legacy-store <path>]... [--exclude-store <path>]... [--apply <digest>]")

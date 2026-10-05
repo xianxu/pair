@@ -50,7 +50,7 @@ func TestStartCreateReuseRefusesAnOccupiedCurrent(t *testing.T) {
 	if _, err := local.CreateThread(old); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := env.Couch.startFreshSlot(context.Background(), local.slot.WorktreeRoot, "claude", true, nil); !errors.Is(err, ErrStartResolutionChanged) {
+	if _, err := env.Couch.startFreshSlot(context.Background(), local.slot.WorktreeRoot, "claude", true, nil, nil); !errors.Is(err, ErrStartResolutionChanged) {
 		t.Fatalf("occupied reuse error = %v, want resolution drift", err)
 	}
 }
@@ -163,11 +163,19 @@ func TestStartFreshSlotReplacesStoppedCurrentAndKeepsPreferences(t *testing.T) {
 	if err != nil || !found || len(preference.ArgvByAgent["codex"]) != 1 || preference.ArgvByAgent["codex"][0] != "--no-alt-screen" || len(result.Record.Args.ExtraArgs) != 1 || result.Record.Args.ExtraArgs[0] != "--verbose" {
 		t.Fatalf("preferences lost %+v %v", preference, err)
 	}
-	if next.Address == old.Address || next.Name != old.Name || next.Description != old.Description || next.PublishedSummary != "" {
+	// A fresh agent is a fresh conversation: it starts unnamed (#363). The
+	// stored name and description stay with the conversation they described,
+	// in the archive.
+	if next.Address == old.Address || next.Name != "" || next.Description != "" || next.PublishedSummary != "" {
 		t.Fatalf("fresh identity %+v", next)
 	}
 	if _, err := os.Stat(local.archivePath(old.Address)); err != nil {
 		t.Fatal(err)
+	}
+	archived, err := local.ArchivedThreads()
+	if err != nil || len(archived) != 1 || archived[0].Address != old.Address ||
+		archived[0].Name != "durable name" || archived[0].Description != "durable description" {
+		t.Fatalf("archived record lost its name or description: %+v, %v", archived, err)
 	}
 	if result.Handle == nil || len(env.Runner.Ops) == 0 {
 		t.Fatal("fresh never launched")

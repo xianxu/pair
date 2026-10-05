@@ -127,7 +127,7 @@ func TestSwitchAttentionAcknowledgesOnLandingAndReleasesOnFailure(t *testing.T) 
 
 		con.finishOperation(operationCompletion{
 			origin: MenuOperationOrigin{Operation: "switch", Attempt: 1, Address: address, AttentionCapture: capture},
-			err:    errOperationQueueOverloaded,
+			err:    ErrOperationQueueOverloaded,
 		})
 
 		con.mu.Lock()

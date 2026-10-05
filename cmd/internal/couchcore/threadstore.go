@@ -240,11 +240,10 @@ func (s *ThreadStore) CreateThread(record ThreadRecord) (ThreadRecord, error) {
 		if err := ValidateThreadRecord(record); err != nil {
 			return err
 		}
-		recordRaw, err := json.MarshalIndent(toPersistedThreadRecord(record), "", "  ")
+		entries, err := s.createJournalEntries(record)
 		if err != nil {
 			return err
 		}
-		recordRaw = append(recordRaw, '\n')
 		nextManifest := manifest
 		nextManifest.Generation++
 		nextManifest.Threads = append(nextManifest.Threads, record.Address)
@@ -259,19 +258,27 @@ func (s *ThreadStore) CreateThread(record ThreadRecord) (ThreadRecord, error) {
 			copy := append([]byte{}, manifestRaw...)
 			expectedManifest = &copy
 		}
-		afterRecord := append([]byte{}, recordRaw...)
 		afterManifest := append([]byte{}, nextManifestRaw...)
-		journal := storeJournal{SchemaVersion: 1, Entries: []storeJournalEntry{
-			{Path: relativeStorePath(s.root, s.recordPath(record.Address)), After: &afterRecord},
-			{Path: relativeStorePath(s.root, s.manifestPath()), Expected: expectedManifest, After: &afterManifest},
-		}}
-		if err := s.commitJournalLocked(journal); err != nil {
+		entries = append(entries, storeJournalEntry{Path: relativeStorePath(s.root, s.manifestPath()), Expected: expectedManifest, After: &afterManifest})
+		if err := s.commitJournalLocked(storeJournal{SchemaVersion: 1, Entries: entries}); err != nil {
 			return err
 		}
 		created = cloneThreadRecord(record)
 		return nil
 	})
 	return created, err
+}
+
+// createJournalEntries is the record half of publishing a new thread: the
+// record file appears. The manifest entry stays with the caller, because a
+// replace edits the manifest once for both of its halves.
+func (s *ThreadStore) createJournalEntries(record ThreadRecord) ([]storeJournalEntry, error) {
+	recordRaw, err := json.MarshalIndent(toPersistedThreadRecord(record), "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	recordRaw = append(recordRaw, '\n')
+	return []storeJournalEntry{{Path: relativeStorePath(s.root, s.recordPath(record.Address)), After: &recordRaw}}, nil
 }
 
 func (s *ThreadStore) GetThread(address ThreadAddress) (ThreadRecord, error) {
@@ -1339,29 +1346,41 @@ func (s *ThreadStore) archiveThread(address ThreadAddress, expectedRevision *uin
 		// One journal, four effects: archive bytes and their grace clock appear,
 		// the record disappears, and the manifest stops listing it. A crash between them would
 		// otherwise leave a record in no set or in both.
-		grace, err := s.archiveGraceBytes(address, raw)
+		entries, err := s.archiveJournalEntries(address, raw)
 		if err != nil {
 			return err
 		}
-		archived := append([]byte{}, raw...)
-		expectedRecord := append([]byte{}, raw...)
 		expectedManifest := append([]byte{}, manifestRaw...)
 		afterManifest := append(nextRaw, '\n')
-		entries := []storeJournalEntry{
-			{Path: relativeStorePath(s.root, s.archivePath(address)), After: &archived},
-			{Path: relativeStorePath(s.root, s.archiveGracePath(address)), After: &grace},
-			{Path: relativeStorePath(s.root, s.recordPath(address)), Expected: &expectedRecord},
-			{Path: relativeStorePath(s.root, s.manifestPath()), Expected: &expectedManifest, After: &afterManifest},
-		}
-		// Snapshot bytes are already preserved by the first journal entry.
-		// Removing the sole derived file is part of the same recoverable commit.
-		if snapshot, exists, err := s.readOptionalPayload(s.continuationPath(address)); err != nil {
-			return err
-		} else if exists {
-			entries = append(entries, storeJournalEntry{Path: relativeStorePath(s.root, s.continuationPath(address)), Expected: &snapshot})
-		}
+		entries = append(entries, storeJournalEntry{Path: relativeStorePath(s.root, s.manifestPath()), Expected: &expectedManifest, After: &afterManifest})
 		return s.commitJournalLocked(storeJournal{SchemaVersion: 1, Entries: entries})
 	})
+}
+
+// archiveJournalEntries is the record half of retiring a thread: its exact
+// bytes and their grace clock appear under archive/, the record disappears,
+// and so does its derived continuation snapshot (whose content the archived
+// bytes already preserve). The manifest entry stays with the caller, because a
+// replace edits the manifest once for both of its halves. It reads the
+// snapshot, so it runs under the store lock.
+func (s *ThreadStore) archiveJournalEntries(address ThreadAddress, raw []byte) ([]storeJournalEntry, error) {
+	grace, err := s.archiveGraceBytes(address, raw)
+	if err != nil {
+		return nil, err
+	}
+	archived := append([]byte{}, raw...)
+	expectedRecord := append([]byte{}, raw...)
+	entries := []storeJournalEntry{
+		{Path: relativeStorePath(s.root, s.archivePath(address)), After: &archived},
+		{Path: relativeStorePath(s.root, s.archiveGracePath(address)), After: &grace},
+		{Path: relativeStorePath(s.root, s.recordPath(address)), Expected: &expectedRecord},
+	}
+	if snapshot, exists, err := s.readOptionalPayload(s.continuationPath(address)); err != nil {
+		return nil, err
+	} else if exists {
+		entries = append(entries, storeJournalEntry{Path: relativeStorePath(s.root, s.continuationPath(address)), Expected: &snapshot})
+	}
+	return entries, nil
 }
 
 // ArchivedThreads lists what has been retired, without loading any of it into

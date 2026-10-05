@@ -71,11 +71,11 @@ const (
 	ResultThreadInventory
 	ResultStop
 	ResultThread
-	ResultDescription
 	ResultConsole
 	ResultOrientationStatus
 	ResultWorkspace
 	ResultRepositoryAlias
+	ResultRecoverPlan
 )
 
 // OperationPresentation assigns every typed operation exactly one UI/process
@@ -89,6 +89,8 @@ const (
 	PresentationList
 	PresentationShow
 	PresentationInternal
+	// PresentationRecoverPlan is `couch --recover-plan-from-sdlc` (pair#367).
+	PresentationRecoverPlan
 )
 
 // Operation is one thing couch can do. The terminal UI and the advisor are
@@ -146,8 +148,6 @@ type StopResult struct {
 
 func Operations() []Operation {
 	return []Operation{
-		{Name: "open-slot", Summary: "Open or recover this durable slot", Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart, Presentation: PresentationTUI, RowAction: true, Args: []ArgSpec{{Name: "path", Summary: "slot host checkout", Required: true}, {Name: "agent", Summary: "agent when initialization needs a profile", FlagOnly: true, ValueRequired: true}}},
-		{Name: "fresh-slot", Summary: "Start a fresh conversation in this slot", Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultStart, Presentation: PresentationTUI, RowAction: true, Args: []ArgSpec{{Name: "path", Summary: "slot host checkout", Required: true}, {Name: "agent", Summary: "agent for the fresh conversation", FlagOnly: true, ValueRequired: true}}},
 		{
 			Name: "provision-workspace", Summary: "Prepare a durable numbered workspace",
 			Execution: ExecuteDirectStore, Effect: EffectProcess, Confirmation: ConfirmNone,
@@ -209,11 +209,16 @@ func Operations() []Operation {
 			Presentation: PresentationList,
 		},
 		{
-			Name: "show", Summary: "Show one work thread by tag, path, or name",
+			Name: "recover-plan", Summary: "Report per slot what to do after a restart, from sdlc's claims and Couch's threads",
+			Execution: ExecuteDirectStore, Effect: EffectRead, Confirmation: ConfirmNone, Result: ResultRecoverPlan,
+			Presentation: PresentationRecoverPlan,
+		},
+		{
+			Name: "show", Summary: "Show one work thread by tag or path",
 			Execution: ExecuteDirectStore, Effect: EffectRead, Confirmation: ConfirmNone, Result: ResultThreadInventory,
 			Presentation: PresentationShow,
 			Args: []ArgSpec{
-				{Name: "ref", Summary: "thread tag, path, or operator-assigned name", Required: true},
+				{Name: "ref", Summary: "thread tag or path", Required: true},
 				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
 			},
 		},
@@ -224,17 +229,6 @@ func Operations() []Operation {
 			Args:         []ArgSpec{{Name: "ref", Summary: "path or operator-assigned name", Required: true}},
 		},
 		{
-			Name: "name", Summary: "Give a work thread a short human name",
-			Execution: ExecuteDirectStore, Effect: EffectMetadata, Confirmation: ConfirmNone, Result: ResultThread,
-			Presentation: PresentationTUI, RowAction: true,
-			Args: []ArgSpec{
-				{Name: "ref", Summary: "thread tag, path, or existing name", Required: false},
-				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
-				{Name: "name", Summary: "the new short name", Required: true},
-				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
-			},
-		},
-		{
 			Name: "alias", Summary: "Read or set a repository's short name for slot references",
 			Execution: ExecuteDirectStore, Effect: EffectMetadata, Confirmation: ConfirmNone, Result: ResultRepositoryAlias,
 			Presentation: PresentationTUI, RowAction: true,
@@ -242,17 +236,6 @@ func Operations() []Operation {
 				{Name: "ref", Summary: "repository name, alias, repo:N, or path", Required: true},
 				{Name: "alias", Summary: "the new short name; omit to read it", Required: false},
 				{Name: "clear", Summary: "remove the alias", FlagOnly: true},
-			},
-		},
-		{
-			Name: "describe", Summary: "Read or set a work thread's operator description",
-			Execution: ExecuteDirectStore, Effect: EffectMetadata, Confirmation: ConfirmNone, Result: ResultDescription,
-			Presentation: PresentationTUI, RowAction: true,
-			Args: []ArgSpec{
-				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
-				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
-				{Name: "description", Summary: "omit to read the cached value", Required: false},
-				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
 			},
 		},
 
@@ -277,7 +260,7 @@ func Operations() []Operation {
 		},
 		{
 			// A record write that stops nothing: direct-store, and no confirmation,
-			// like retry. Arguments take name's shape -- an optional ref for the CLI
+			// like retry. Arguments take park's shape -- an optional ref for the CLI
 			// and the exact implicit tag from the switcher, never both (#280).
 			Name: "dismiss-continuation", Summary: "Drop a failed continuation the thread has moved on from",
 			Execution: ExecuteDirectStore, Effect: EffectMetadata, Confirmation: ConfirmNone, Result: ResultThread, Presentation: PresentationInternal, RowAction: true,
@@ -324,7 +307,7 @@ func Operations() []Operation {
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultThread,
 			Presentation: PresentationTUI, RowAction: true,
 			Args: []ArgSpec{
-				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
+				{Name: "ref", Summary: "thread tag or path", Required: false},
 				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
 				{Name: "mode", Summary: "normal, retry, recover, or abandon (--mode=<mode>)", FlagOnly: true, ValueRequired: true},
 				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
@@ -338,7 +321,7 @@ func Operations() []Operation {
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultThread,
 			Presentation: PresentationTUI, RowAction: true,
 			Args: []ArgSpec{
-				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
+				{Name: "ref", Summary: "thread tag or path", Required: false},
 				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
 				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
 			},
@@ -362,24 +345,24 @@ func Operations() []Operation {
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultStart,
 			Presentation: PresentationTUI, RowAction: true,
 			Args: []ArgSpec{
-				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
+				{Name: "ref", Summary: "thread tag or path", Required: false},
 				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
 				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
 			},
 		},
 		{
-			// Archiving is the operator's "delete": remove a thread from the
-			// switcher so they can start anew. It is reversible by design --
-			// the record moves rather than being destroyed -- but it is still
-			// confirmed, because a row leaving the working set is exactly the
-			// kind of change that should not happen by a mistyped keystroke.
-			Name: "archive", Summary: "Remove a work thread from Couch, keeping its record in the archive",
-			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultThread,
+			// Reboot is the operator's way out of a conversation that cannot
+			// come back (pair#363): it archives the record with its evidence,
+			// so it is reversible in the way archive was, and confirmed because
+			// it stops a detached row's running agent.
+			Name: "reboot", Summary: "Archive this conversation and start a fresh agent in the same slot or path",
+			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultStart,
 			Presentation: PresentationTUI, RowAction: true,
 			Args: []ArgSpec{
-				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
+				{Name: "path", Summary: "slot host checkout", Implicit: true},
+				{Name: "repo-scope", Summary: "repository scope derived from caller context", Implicit: true},
 				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
-				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
+				{Name: "agent", Summary: "agent for the fresh conversation", FlagOnly: true, ValueRequired: true},
 			},
 		},
 		{
@@ -391,38 +374,18 @@ func Operations() []Operation {
 			},
 		},
 		{
-			Name: "recover-thread", Summary: "Recover a surviving session or the retained checkpoint",
-			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart,
-			Presentation: PresentationTUI, RowAction: true,
-			Args: []ArgSpec{
-				{Name: "ref", Summary: "thread tag, path, or name"},
-				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
-				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
-			},
-		},
-		{
-			Name: "recover-checkpoint", Summary: "Start a new conversation from a selected checkpoint",
-			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart,
-			Presentation: PresentationTUI, RowAction: true,
-			Args: []ArgSpec{
-				{Name: "ref", Summary: "thread tag, path, or name"},
-				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
-				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
-				{Name: "path", Summary: "absolute checkpoint path", Required: true, FlagOnly: true, ValueRequired: true},
-			},
-		},
-		{
 			Name: "resume", Summary: "Reattach a detached work thread, or resume one whose conversation still resolves",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart,
 			Presentation: PresentationTUI, RowAction: true,
 			Args: []ArgSpec{
-				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
+				{Name: "ref", Summary: "thread tag or path", Required: false},
 				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
 				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
 				// Implicit, so the CLI can never send it: only couch's own background
 				// reattach pass may ask for a resume that refuses to start an agent
 				// (pair#206). Its absence is today's behaviour.
 				{Name: "warm-only", Summary: "refuse unless the thread is detached; never start an agent", Implicit: true},
+				{Name: "path", Summary: "slot host checkout", Implicit: true},
 			},
 		},
 	}
@@ -459,11 +422,11 @@ func continuationArguments(operatorFacing bool) []ArgSpec {
 	// Operator-facing entries (retry, dismiss) are addressed by the switcher's
 	// exact implicit tag or a CLI ref, and default to the retained request.
 	if operatorFacing {
-		// Optional, like name's and describe's: the switcher addresses the row by
+		// Optional, like park's and detach's: the switcher addresses the row by
 		// its exact implicit tag, and resolveOperationThread refuses a call that
 		// carries both. A required ref forced the switcher to send both, so its
-		// Retry continuation never reached the thread (#280).
-		args = append([]ArgSpec{{Name: "ref", Summary: "thread tag, path, or operator-assigned name"}}, args...)
+		// retry never reached the thread (#280).
+		args = append([]ArgSpec{{Name: "ref", Summary: "thread tag or path"}}, args...)
 	}
 	return args
 }

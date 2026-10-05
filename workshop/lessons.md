@@ -22,6 +22,11 @@ representative evidence, not an exhaustive index.
 - Test the behavior at the production boundary that decides it. A parser,
   helper, or framing test does not prove routing, attachment, scheduling, or
   lifecycle behavior. (#139, #255, #265)
+- An effect's arguments are proved by the table that consumes them, not by a
+  literal copy of their shape. #367: the switcher's slot resume sent only its
+  path while `resume` declares `repo-scope` Required, so DispatchOperation
+  refused every slot resume since #306, and the shape test pinned the bug.
+  Send each argument shape through the declared operation table.
 - A test must fail when the code under test is reverted. Assert the guard's own
   outcome and that it caused no forbidden effect; a later refusal or generic
   `err != nil` is not evidence. (#209, #230, #256, #280)
@@ -56,10 +61,25 @@ representative evidence, not an exhaustive index.
 
 ## Authority, ownership, and identity
 
+- A judgment about one member of a composite reads that member's own facts;
+  a merged view across members is for display only. Keep per-member facts in
+  per-member fields so no decision can read the union, and prove it as a
+  domain property (vary only the other members' facts, the judgment must not
+  move). #367 hit this family twice: dependency claims judged on the host's
+  branch, then dependency dirt and commits counted as the host's (M1 review).
+
 - Model present/absent/unknown at the producer instead of reconstructing it
   from booleans in each consumer. Persistent refusals need the failed resource
   and an explicit recovery action, not only a retry instruction. (#350)
 
+- A refusal or notice that names a next step must name an action reachable from
+  that row or caller, so choose the text from the same authority that decides
+  the offered actions, per row kind. Hand-written advice drifts from the menu
+  each time an action is added, removed or narrowed. (#363, three times in one
+  issue)
+- A sweep for a removed name must match it in prose too, not only as a quoted
+  identifier: "retry open-slot" survived #363's quoted-name grep in an error
+  string, and comments kept describing archive and name/describe. (#363 M2 BR)
 - Give each fact one production authority and make consumers derive from it.
   Negative greps, duplicate registries, and prose tables drift. If a rule fails
   twice, turn it into an executable check. (ARCH-PURPOSE, #206, #256)
@@ -93,6 +113,10 @@ representative evidence, not an exhaustive index.
   or wrapper that adds its own shorter timeout silently overrides the owner's.
   Test the deadline the I/O actually sees through the production path, not the
   constant that names it. (#383)
+- A wait added to a shared lock path is a per-caller decision: a caller that holds
+  another lock or authority must not wait (yield instead), or lock ordering breaks
+  tests and liveness elsewhere. Run every package that takes the lock, not only the
+  one being fixed. (#367 smoke-test side-quest broke couchsingleton adoption)
 - A timeout bounds a phase only when a live owner enforces it. If the owner can
   die, make the deadline observable and recoverable without that owner. (#250,
   #280)
@@ -492,3 +516,8 @@ proof; record the surprising case so the next change starts from evidence.
   root does not contain a child path whose existing symlink points elsewhere;
   validate the fallback HOME, temporary and XDG roots before publishing selection
   or creating directories, and export only the validated physical paths (#366 BR-5).
+- Two probes are not one observation. `kill(pid,0)` then an identity read can
+  straddle a reap, so a process that just exited reads "unknowable". Re-ask the
+  cheap probe before reporting Unknown, and keep exactly one implementation of the
+  pair (`observeExactProcess`). #389 fixed the race once, and five hand-spelled
+  copies kept it (#389 BR-1); grep for the pattern, not just the call site.

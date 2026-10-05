@@ -593,7 +593,7 @@ func TestEveryOperationHasASummaryAndDescribedArgs(t *testing.T) {
 func TestOperationArityMatchesExpectation(t *testing.T) {
 	// Declared in the test rather than read from the operation itself, so
 	// this cannot degrade into asserting X == X.
-	want := map[string]int{"open-slot": 2, "fresh-slot": 2, "provision-workspace": 3, "recover-thread": 3, "recover-checkpoint": 4, "request-continuation": 7, "continue-thread": 3, "retry-continuation": 4, "dismiss-continuation": 4, "continuation-status": 4, "prepare-switch-agent": 4, "switch-agent": 5, "orientation-status": 4, "prepare-start": 3, "start": 5, "list": 0, "show": 2, "stop": 1, "name": 4, "describe": 4, "alias": 3, "publish-description": 3, "switch": 2, "attach": 3, "park": 4, "detach": 3, "leave": 1, "resume": 4, "archive": 3, "archived": 0, "relaunch": 3}
+	want := map[string]int{"provision-workspace": 3, "request-continuation": 7, "continue-thread": 3, "retry-continuation": 4, "dismiss-continuation": 4, "continuation-status": 4, "prepare-switch-agent": 4, "switch-agent": 5, "orientation-status": 4, "prepare-start": 3, "start": 5, "list": 0, "show": 2, "stop": 1, "alias": 3, "publish-description": 3, "switch": 2, "attach": 3, "park": 4, "detach": 3, "leave": 1, "resume": 5, "reboot": 4, "archived": 0, "relaunch": 3}
 	for _, op := range couchcore.Operations() {
 		if got := len(op.Args); got != want[op.Name] {
 			t.Errorf("%s has %d args, want %d", op.Name, got, want[op.Name])
@@ -650,7 +650,9 @@ func TestPublishDescriptionUsesCompositeThreadEnvironment(t *testing.T) {
 // The draft's bare `!` (#357) runs exactly this argv. An empty flag value must
 // clear only the published summary, so the row falls back to the operator's
 // description.
-func TestPublishDescriptionEmptyFlagFallsBackToOperatorDescription(t *testing.T) {
+// Clearing the published summary leaves the stored operator description in
+// place but displays nothing: the description is no longer displayed (pair#363).
+func TestPublishDescriptionEmptyFlagClearsTheDisplayedSummary(t *testing.T) {
 	for name, description := range map[string]string{"with fallback": "operator description", "without fallback": ""} {
 		t.Run(name, func(t *testing.T) {
 			rt := newRT(t)
@@ -687,7 +689,7 @@ func TestPublishDescriptionEmptyFlagFallsBackToOperatorDescription(t *testing.T)
 			}
 			for _, row := range rows {
 				if row.Address == created.Address {
-					if row.PublishedSummary != "" || row.DisplaySummary() != description {
+					if row.PublishedSummary != "" || row.DisplaySummary() != "" {
 						t.Fatalf("row after clear = published %q, display %q", row.PublishedSummary, row.DisplaySummary())
 					}
 					return
@@ -795,13 +797,16 @@ func TestPublicHelpListsOnlyPublicSurface(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d", code)
 	}
-	for _, want := range []string{"couch [path]", "couch --list", "couch --show", "couch --help"} {
+	for _, want := range []string{"couch [path]", "couch --list", "couch --show", "couch --recover-plan-from-sdlc", "couch --resume repo:N", "couch --reboot repo:N --confirm", "couch --help"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("help omits %q", want)
 		}
 	}
+	// The public --resume flag is allowed; the bare internal names are not,
+	// anywhere else in the text.
+	bare := strings.ReplaceAll(out, "--resume", "")
 	for _, hidden := range []string{"start", "park", "resume", "publish-description", "--internal"} {
-		if strings.Contains(out, hidden) {
+		if strings.Contains(bare, hidden) {
 			t.Errorf("help exposes %q", hidden)
 		}
 	}
@@ -873,7 +878,7 @@ func TestCLIRejectsMissingOrEmptyExplicitAgentBeforeSpawn(t *testing.T) {
 	}
 }
 
-func TestListShowsANamedTreeWithNoAgent(t *testing.T) {
+func TestListShowsATreeWithNoAgent(t *testing.T) {
 	// The forgetting case: a tree with no running client has no actor, but it
 	// is exactly the thread the operator loses track of. It must be a visible
 	// row, not filtered out.
@@ -884,15 +889,12 @@ func TestListShowsANamedTreeWithNoAgent(t *testing.T) {
 	// TestRenderThreadRowsDistinguishesParkedFromDetached.
 	rt := newRT(t, "/repo")
 	seedThread(t, rt, "/repo")
-	if _, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "name", Args: map[string]string{"ref": "/repo", "name": "the pair tree"}}); code != 0 {
-		t.Fatalf("name failed: %s", errw)
-	}
 	out, _, code := runTypedRT(rt, couchcore.OperationCall{Name: "list"})
 	if code != 0 {
 		t.Fatalf("exit %d", code)
 	}
-	if !strings.Contains(out, "the pair tree") {
-		t.Fatalf("out = %q; a named tree must appear even with no agent", out)
+	if !strings.Contains(out, "repo") {
+		t.Fatalf("out = %q; a tree must appear even with no agent", out)
 	}
 	// The fixture carries no launch profile, so the classifier says exactly
 	// that rather than guessing at the session. What matters here is that the
@@ -935,46 +937,6 @@ func TestRenderThreadRowsDistinguishesParkedFromDetached(t *testing.T) {
 	}
 }
 
-func TestCLIEmptyNameClearsHumanThreadName(t *testing.T) {
-	rt := newRT(t, "/repo")
-	created := seedThread(t, rt, "/repo")
-	if _, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "name", Args: map[string]string{"ref": string(created.Address.Tag), "name": "compiler"}}); code != 0 {
-		t.Fatalf("set name: code=%d stderr=%q", code, errw)
-	}
-	if _, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "name", Args: map[string]string{"ref": string(created.Address.Tag), "name": ""}}); code != 0 {
-		t.Fatalf("clear name: code=%d stderr=%q", code, errw)
-	}
-	c, err := rt.NewCouch()
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := c.Threads.GetThread(created.Address)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.Name != "" {
-		t.Fatalf("empty CLI name did not clear field: %+v", got)
-	}
-}
-
-func TestShowResolvesANameToItsTreePath(t *testing.T) {
-	rt := newRT(t, "/repo")
-	created := seedThread(t, rt, "/repo")
-	if _, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "name", Args: map[string]string{"ref": "/repo", "name": "pairtree"}}); code != 0 {
-		t.Fatalf("name failed: %s", errw)
-	}
-	out, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "show", Args: map[string]string{"ref": "pairtree"}})
-	if code != 0 {
-		t.Fatalf("exit %d, stderr %q", code, errw)
-	}
-	if !strings.Contains(out, "/repo") {
-		t.Fatalf("out = %q; show must print the tree path", out)
-	}
-	if !strings.Contains(out, string(created.Address.Tag)) {
-		t.Fatalf("out = %q; show must retain the immutable thread tag", out)
-	}
-}
-
 func TestCLICompositeReferencesDeriveCurrentRepositoryScope(t *testing.T) {
 	rt := newRT(t, "/repo")
 	localScope, err := launcher.ResolveRepoScope("/repo")
@@ -989,35 +951,12 @@ func TestCLICompositeReferencesDeriveCurrentRepositoryScope(t *testing.T) {
 	local := seedThreadAtAddress(t, rt, localScope.Key, repeatedTag, "/repo")
 	other := seedThreadAtAddress(t, rt, otherScope.Key, repeatedTag, "/other")
 
-	if _, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "name", Args: map[string]string{"ref": repeatedTag, "name": "local thread"}}); code != 0 {
-		t.Fatalf("name: code=%d stderr=%q", code, errw)
-	}
-	if _, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "describe", Args: map[string]string{"ref": repeatedTag, "description": "local description"}}); code != 0 {
-		t.Fatalf("describe: code=%d stderr=%q", code, errw)
-	}
 	out, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "show", Args: map[string]string{"ref": repeatedTag}})
-	if code != 0 || !strings.Contains(out, "/repo") || strings.Contains(out, "/other") {
+	if code != 0 || !strings.Contains(out, "/repo") || strings.Contains(out, "/other") || !strings.Contains(out, string(local.Address.Tag)) {
 		t.Fatalf("show: code=%d out=%q stderr=%q", code, out, errw)
 	}
+	_ = other
 
-	c, err := rt.NewCouch()
-	if err != nil {
-		t.Fatal(err)
-	}
-	gotLocal, err := c.Threads.GetThread(local.Address)
-	if err != nil {
-		t.Fatal(err)
-	}
-	gotOther, err := c.Threads.GetThread(other.Address)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if gotLocal.Name != "local thread" || gotLocal.Description != "local description" {
-		t.Fatalf("local metadata = name %q description %q", gotLocal.Name, gotLocal.Description)
-	}
-	if gotOther.Name != "" || gotOther.Description != "" {
-		t.Fatalf("other repository thread was mutated: %+v", gotOther)
-	}
 }
 
 func TestCurrentRepoScopeUsesGitRootFromSubdirectory(t *testing.T) {
@@ -1042,26 +981,25 @@ func TestRenderedOutputHasNoANSIWhenNotATerminal(t *testing.T) {
 	// otherwise piped or captured output carries escape codes.
 	rt := newRT(t, "/repo")
 	seedThread(t, rt, "/repo")
-	_, _, _ = runTypedRT(rt, couchcore.OperationCall{Name: "name", Args: map[string]string{"ref": "/repo", "name": "plain"}})
 	out, _, _ := runTypedRT(rt, couchcore.OperationCall{Name: "list"})
 	if strings.Contains(out, "\x1b[") {
 		t.Fatalf("ANSI leaked into non-terminal output: %q", out)
 	}
 }
 
-func TestRenderThreadsIsNameFirstAndKeepsSamePathThreadsDistinct(t *testing.T) {
+func TestRenderThreadsIsLabelFirstAndKeepsSamePathThreadsDistinct(t *testing.T) {
 	rows := []couchcore.ThreadSummary{
-		{Address: couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0000000000000001"}, WorkingPath: "/repo", Name: "compiler", PublishedSummary: "agent work"},
+		{Address: couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0000000000000001"}, WorkingPath: "/repo", Name: "stored", PublishedSummary: "agent work"},
 		{Address: couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0000000000000002"}, WorkingPath: "/repo"},
 	}
 	var out bytes.Buffer
 	renderThreads(&out, rows)
 	text := out.String()
-	if !strings.Contains(text, "compiler") || strings.Contains(strings.Split(text, "\n")[0], "couch-0000000000000001") {
-		t.Fatalf("named row leads with opaque id: %q", text)
+	// Rows lead with their directory label, never the opaque tag, and the
+	// stored name is no longer displayed (pair#363).
+	if strings.Contains(strings.Split(text, "\n")[0], "couch-0000000000000001") || strings.Contains(text, "stored") {
+		t.Fatalf("row leads with opaque id or a stored name: %q", text)
 	}
-	// The unnamed row now reads as its DIRECTORY rather than its tag. Here it
-	// does not collide -- the other row is named -- so it stays plain `repo`.
 	if !strings.Contains(text, "repo") || strings.Count(text, "/repo") != 2 {
 		t.Fatalf("same-path thread rows collapsed: %q", text)
 	}
@@ -1117,21 +1055,6 @@ func TestExternalStopRefusesUntilOwnerRoutingExists(t *testing.T) {
 	_, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "stop", Args: map[string]string{"ref": "/repo"}})
 	if code == 0 || !strings.Contains(errw, "routing requires #147") {
 		t.Fatalf("stop: code=%d err=%q", code, errw)
-	}
-}
-
-func TestTypedMetadataOperationsPreserveOptionalDescription(t *testing.T) {
-	rt := newRT(t, "/repo")
-	seedThread(t, rt, "/repo")
-	if _, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "name", Args: map[string]string{"ref": "/repo", "name": "thing"}}); code != 0 {
-		t.Fatalf("name: %s", errw)
-	}
-	if _, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "describe", Args: map[string]string{"ref": "thing", "description": "what it is doing"}}); code != 0 {
-		t.Fatalf("describe: %s", errw)
-	}
-	out, _, _ := runTypedRT(rt, couchcore.OperationCall{Name: "describe", Args: map[string]string{"ref": "thing"}})
-	if !strings.Contains(out, "what it is doing") {
-		t.Fatalf("out = %q", out)
 	}
 }
 
@@ -1504,62 +1427,27 @@ func TestConsoleExitForgetsThroughCouchRegistry(t *testing.T) {
 
 // The seam that shipped a broken headline action: the switcher dispatches
 // thread operations through threadEffect, which sends {repo-scope, tag} and no
-// `ref`. The direct-store executor read only `ref`, so every Tab -> archive
-// failed with "empty reference" -- while a store-level test and a menu-level
-// test both passed, because neither crosses the boundary.
-//
-// One case per TUI-dispatched direct-store operation, in the argument dialect
-// the SWITCHER actually sends.
-func TestSwitcherDialectReachesMetadataAndArchiveOperations(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		args map[string]string
-	}{
-		{name: "archive", args: map[string]string{}},
-		{name: "name", args: map[string]string{"name": "renamed"}},
-		{name: "describe", args: map[string]string{"description": "a description"}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			rt := newRT(t, "/repo")
-			thread := seedThread(t, rt, "/repo")
-			rt.artifacts.SetPairSession(thread.Address, "pair-archive-fixture", false)
-			args := map[string]string{
-				"repo-scope": thread.Address.RepoScope,
-				// tag, not ref: this is exactly what threadEffect sends.
-				"tag": string(thread.Address.Tag),
-			}
-			for k, v := range tc.args {
-				args[k] = v
-			}
-			_, errw, code := runTypedRT(rt, couchcore.OperationCall{
-				Name: tc.name, Args: args, Implicit: true,
-			})
-			if code != 0 {
-				t.Fatalf("%s from the switcher's dialect failed: code=%d err=%q", tc.name, code, errw)
-			}
-		})
-	}
-}
-
-// Archiving through the real runtime removes the thread from the working set
-// and puts it in the archive listing -- the operator's whole gesture, end to
-// end, rather than its halves.
-func TestArchiveThroughTheRuntimeMovesTheThreadToTheArchive(t *testing.T) {
+// `ref`. The executor once read only `ref`, so every Tab -> archive failed
+// with "empty reference" -- while a store-level test and a menu-level test both
+// passed, because neither crosses the boundary. Reboot is archive's successor
+// on that seam, so it is driven in the argument dialect the SWITCHER sends.
+func TestSwitcherDialectReachesReboot(t *testing.T) {
 	rt := newRT(t, "/repo")
 	thread := seedThread(t, rt, "/repo")
 	rt.artifacts.SetPairSession(thread.Address, "pair-archive-fixture", false)
-
-	_, errw, code := runTypedRT(rt, couchcore.OperationCall{
-		Name: "archive", Implicit: true,
+	out, errw, code := runTypedRT(rt, couchcore.OperationCall{
+		Name: "reboot", Implicit: true,
+		// tag, not ref: this is exactly what threadEffect sends.
 		Args: map[string]string{"repo-scope": thread.Address.RepoScope, "tag": string(thread.Address.Tag)},
 	})
 	if code != 0 {
-		t.Fatalf("archive failed: code=%d err=%q", code, errw)
+		t.Fatalf("reboot from the switcher's dialect failed: code=%d out=%q err=%q", code, out, errw)
 	}
-
+	// The operator's whole gesture, end to end: the old record leaves the
+	// working set and appears in the archive listing.
 	listOut, _, code := runTypedRT(rt, couchcore.OperationCall{Name: "list"})
 	if code != 0 || strings.Contains(listOut, string(thread.Address.Tag)) {
-		t.Fatalf("archived thread still in the working set: %q", listOut)
+		t.Fatalf("rebooted record still in the working set: %q", listOut)
 	}
 	archivedOut, _, code := runTypedRT(rt, couchcore.OperationCall{Name: "archived"})
 	if code != 0 || !strings.Contains(archivedOut, "archived") {
@@ -1572,7 +1460,7 @@ func TestArchiveThroughTheRuntimeMovesTheThreadToTheArchive(t *testing.T) {
 // failed through the real dispatcher, because resolving a thread by tag or ref
 // reads the record first. A row the operator can see and cannot remove is worse
 // than one they cannot use.
-func TestAnUnreadableRecordCanBeArchivedThroughTheRuntime(t *testing.T) {
+func TestAnUnreadableRecordCanBeRebootedThroughTheRuntime(t *testing.T) {
 	rt := newRT(t, "/repo")
 	thread := seedThread(t, rt, "/repo")
 
@@ -1597,19 +1485,20 @@ func TestAnUnreadableRecordCanBeArchivedThroughTheRuntime(t *testing.T) {
 		t.Fatalf("list = %q, want the unreadable row", listOut)
 	}
 
-	// And it can leave, through the operator's actual gesture.
+	// And it can leave, through the operator's actual gesture. An unreadable
+	// :0 has no readable path to start in, so reboot archives it alone.
 	out, errw, code := runTypedRT(rt, couchcore.OperationCall{
-		Name: "archive", Implicit: true,
+		Name: "reboot", Implicit: true,
 		Args: map[string]string{"repo-scope": thread.Address.RepoScope, "tag": string(thread.Address.Tag)},
 	})
 	// It SUCCEEDS -- the archive happened -- and says on stdout what it did not
 	// do. Reporting this on the error channel made every consumer read a
 	// completed archive as a failed one.
 	if code != 0 {
-		t.Fatalf("archiving an unreadable record exited %d: %q", code, errw)
+		t.Fatalf("rebooting an unreadable record exited %d: %q", code, errw)
 	}
-	if !strings.Contains(out, "without stopping its session") {
-		t.Fatalf("archive output = %q, want the session warning", out)
+	if !strings.Contains(out, "without stopping its session") || !strings.Contains(out, "no fresh agent started") {
+		t.Fatalf("reboot output = %q, want the session warning and why nothing started", out)
 	}
 	after, _, _ := runTypedRT(rt, couchcore.OperationCall{Name: "list"})
 	if strings.Contains(after, "could not be read") {
@@ -1648,10 +1537,10 @@ func TestARefusalsNamedCommandsActuallyWork(t *testing.T) {
 		t.Fatalf("`couch --show` did not report the thread the refusal names: %q", showOut)
 	}
 
-	// And the retire gesture the refusal names, which is `archive` reached from
+	// And the retire gesture the refusal names, which is `reboot` reached from
 	// a repository couch will start in.
 	_, archiveErr, archiveCode := runTypedRT(rt, couchcore.OperationCall{
-		Name: "archive", Implicit: true,
+		Name: "reboot", Implicit: true,
 		Args: map[string]string{"repo-scope": thread.Address.RepoScope, "tag": string(thread.Address.Tag)},
 	})
 	if archiveCode != 0 {
@@ -1799,14 +1688,13 @@ func TestOSCompositionChecksSwitchExecutablesAndWiresExactStatus(t *testing.T) {
 	}
 }
 
-func TestRecoveryAndArchiveEntrypointsAcquireOwnerScope(t *testing.T) {
-	for _, name := range []string{"recover-thread", "recover-checkpoint", "archive"} {
-		if !operationOwnsLive(name) || !operationUsesCurrentRepoScope(name) {
-			t.Errorf("%s does not acquire exact owner/scope", name)
-		}
-		if WantsConsole(name, true) != (name != "archive") {
-			t.Errorf("%s has wrong terminal policy", name)
-		}
+func TestRebootEntrypointAcquiresOwnerScope(t *testing.T) {
+	if !operationOwnsLive("reboot") || !operationUsesCurrentRepoScope("reboot") {
+		t.Error("reboot does not acquire exact owner/scope")
+	}
+	// Reboot starts a fresh agent, so a terminal hosts it like resume.
+	if !WantsConsole("reboot", true) {
+		t.Error("reboot has wrong terminal policy")
 	}
 }
 
@@ -1822,4 +1710,70 @@ func managedChildSession(t *testing.T, runner *couchcore.FakeRunner, id string) 
 		t.Fatal(err)
 	}
 	return intent.Name
+}
+
+// recoverPlanRT injects the sdlc fake and a workspace resolver the way
+// provisionRT injects readiness: through NewCouchWith, so the CLI runs its
+// real composition and dispatch.
+type recoverPlanRT struct {
+	testRT
+	fleet   *couchcore.FakeFleetSDLC
+	catalog *couchcore.SlotCatalogFake
+}
+
+func (r recoverPlanRT) NewCouchWith(runner couchcore.Runner, namespace couchcore.CouchNamespace) (*couchcore.Couch, error) {
+	c, err := r.testRT.NewCouchWith(runner, namespace)
+	if err == nil {
+		c.Fleet = couchcore.SDLCFleetSource{IO: r.fleet}
+		c.Slots = r.catalog
+	}
+	return c, err
+}
+
+func TestRecoverPlanCLIEmitsTheReport(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	primary := filepath.Join(root, "repo")
+	if err := os.MkdirAll(primary, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	address, slot, rest := "repo:0", 0, "main"
+	identity := couchcore.WorkspaceIdentity{SchemaVersion: 2, Repo: "repo", RepoIdentity: filepath.Join(primary, ".git"), PrimaryRoot: primary, FleetRoot: root,
+		EnvironmentRoot: root, WorktreeRoot: primary, Kind: "primary", Address: &address, Slot: &slot, RestingBranch: &rest}
+	fake := couchcore.NewFakeFleetSDLC()
+	fake.Fleet(root).AddSlot("repo:0")
+	rt := recoverPlanRT{testRT: newRT(t), fleet: fake, catalog: &couchcore.SlotCatalogFake{Workspaces: map[string]couchcore.WorkspaceIdentity{primary: identity}}}
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Threads.EnrollSlotRepository(context.Background(), couchcore.SlotRepository{Identity: identity}); err != nil {
+		t.Fatal(err)
+	}
+	var out, diag bytes.Buffer
+	if code := RunWithRuntime([]string{"--recover-plan-from-sdlc"}, strings.NewReader(""), &out, &diag, rt); code != 0 {
+		t.Fatalf("code=%d stderr=%s", code, &diag)
+	}
+	if diag.Len() != 0 {
+		t.Fatalf("stderr = %q", &diag)
+	}
+	decoder := json.NewDecoder(&out)
+	var plan couchcore.RecoverPlan
+	if err := decoder.Decode(&plan); err != nil {
+		t.Fatal(err)
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		t.Fatalf("more than one JSON document: %v", err)
+	}
+	if plan.SchemaVersion != 1 || len(plan.Rows) != 1 || plan.Rows[0].Address != "repo:0" || plan.Rows[0].Git.Source != "sdlc" {
+		t.Fatalf("plan = %+v", plan)
+	}
+	if len(fake.Calls) != 1 || fake.Calls[0].Dir != primary {
+		t.Fatalf("sdlc calls = %+v", fake.Calls)
+	}
+	if rt.supervisor.acquired != 0 || len(rt.runner.Ops) != 0 {
+		t.Fatalf("the read-only report acquired the supervisor (%d) or ran children (%v)", rt.supervisor.acquired, rt.runner.Ops)
+	}
 }

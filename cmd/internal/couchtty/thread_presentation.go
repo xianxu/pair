@@ -24,6 +24,9 @@ type ThreadPresentation struct {
 	// Glyph is the slot quick-status glyph (pair#317), derived here once so the
 	// switcher and the tab bar cannot disagree. Empty without an observation.
 	Glyph string
+	// root is this ordinary row's own scope-proven repository root, empty
+	// when the row's starting path does not prove one.
+	root string
 }
 
 type threadPresentationGroup struct {
@@ -59,6 +62,7 @@ func PresentThreads(rows []couchcore.ActionableThreadSummary, git map[string]cou
 				p.GroupKey = "native:" + fmt.Sprintf("%q", row.Address)
 			}
 			root = presentationRoot(row.StartingPath, row.Address.RepoScope)
+			p.root = root
 		}
 		g := groups[p.GroupKey]
 		if g == nil {
@@ -101,8 +105,13 @@ func PresentThreads(rows []couchcore.ActionableThreadSummary, git map[string]cou
 			if p.SlotNumber > 0 {
 				p.Label = g.name + ":" + strconv.Itoa(p.SlotNumber)
 			} else {
+				// A primary labels with its repository: the alias, else the
+				// scope-proven root's name, so a :0 started in a subdirectory
+				// reads `repo` on the tab bar and in the switcher alike
+				// (pair#363, resolved ambiguity 11). Only an unproven root
+				// falls back to the row's own label.
 				p.Label = p.Row.Label()
-				if g.hasSlots {
+				if g.hasSlots || g.alias != "" || p.root != "" {
 					p.Label = g.name
 				}
 				p.Path = g.root

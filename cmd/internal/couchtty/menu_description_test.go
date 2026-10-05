@@ -24,6 +24,16 @@ func TestMenuDescriptionTypeaheadBothViewsAndRowKinds(t *testing.T) {
 						row.Description = "superseded fallback"
 						row.PublishedSummary = "\x1b[31mFix Needle regression\x1b[0m"
 					}
+					if source == "operator" {
+						// The operator description is stored, never matched
+						// or displayed (pair#363).
+						state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
+						state.Frames[0].View, state.Frames[0].Filter = view, "needle"
+						if got := VisibleMenuThreads(state); len(got) != 0 {
+							t.Fatalf("operator description matched: %+v", got)
+						}
+						return
+					}
 					other := menuThreads()[1]
 					other.State = couchcore.ThreadLive
 					state := NewMenuState([]couchcore.ActionableThreadSummary{row, other}, row.Address)
@@ -72,7 +82,7 @@ func TestMenuDescriptionKeepsExactReferences(t *testing.T) {
 					query = "pair:1"
 				}
 				first.State, other.State = couchcore.ThreadLive, couchcore.ThreadLive
-				first.Description, other.Description = "unrelated work", "mentions "+query
+				first.PublishedSummary, other.PublishedSummary = "unrelated work", "mentions "+query
 				state := NewMenuState([]couchcore.ActionableThreadSummary{first, other}, first.Address)
 				state.Frames[0].View, state.Frames[0].Filter = view, query
 				if got := VisibleMenuThreads(state); len(got) != 1 || got[0].Address != first.Address {
@@ -107,7 +117,7 @@ func TestMenuDescriptionKeepsExactReferencesAcrossRowKinds(t *testing.T) {
 					other = menuSlotRow(2, "other-owner")
 				}
 				first.State, other.State = couchcore.ThreadLive, couchcore.ThreadLive
-				first.Description, other.Description = "target work", "mentions "+tc.query
+				first.PublishedSummary, other.PublishedSummary = "target work", "mentions "+tc.query
 				state := NewMenuState([]couchcore.ActionableThreadSummary{first, other}, first.Address)
 				state.Frames[0].View, state.Frames[0].Filter = view, tc.query
 				if got := VisibleMenuThreads(state); len(got) != 1 || menuRowKey(got[0]) != menuRowKey(first) {

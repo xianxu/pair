@@ -85,9 +85,18 @@ func TestSwitchAgentFrameSurvivesOwnParkButRejectsUnrelatedLoss(t *testing.T) {
 	state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
 	parked := menuThreads()
 	parked[0].State = couchcore.ThreadParked
-	next, _ := ReduceMenu(state, MenuEvent{Kind: MenuEventInventory, Inventory: parked, Generation: 1})
+	// The switch's OWN park keeps the form (the switch is in flight); a park
+	// from elsewhere does not, because parked rows no longer offer
+	// switch-agent (#363).
+	inFlight := state
+	inFlight.InFlight = MenuOperationOrigin{Operation: "switch-agent", Attempt: 1, Address: menuAddress("couch-one")}
+	next, _ := ReduceMenu(inFlight, MenuEvent{Kind: MenuEventInventory, Inventory: parked, Generation: 1})
 	if next.CurrentFrame().Kind != MenuFrameSwitchAgent {
-		t.Fatal("valid parked source lost form")
+		t.Fatal("the switch's own park lost its form")
+	}
+	next, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventInventory, Inventory: parked, Generation: 1})
+	if next.CurrentFrame().Kind == MenuFrameSwitchAgent {
+		t.Fatal("a source parked elsewhere retained the switch form")
 	}
 	lost := menuThreads()
 	lost[0].State = couchcore.ThreadUnusable
@@ -234,7 +243,7 @@ func TestSwitchAgentParameterCursorUsesRunesAndRenderedCells(t *testing.T) {
 }
 
 func TestSlotSwitchAgentTargetsSelectedWorkspace(t *testing.T) {
-	for _, lifecycle := range []couchcore.ActionableThreadState{couchcore.ThreadLive, couchcore.ThreadParked} {
+	for _, lifecycle := range []couchcore.ActionableThreadState{couchcore.ThreadLive} {
 		t.Run(string(lifecycle), func(t *testing.T) {
 			row := groupedRow("/workspace/pair", 2, "slot-two")
 			row.State = lifecycle

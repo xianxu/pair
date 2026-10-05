@@ -74,15 +74,11 @@ func ObserveSupervisor(ns CouchNamespace, proc ProcOps, owned *SupervisorLease) 
 	if proc == nil {
 		proc = OSProcOps{}
 	}
-	if proc.Exists(owner.PID) != Live {
+	switch observeExactProcess(proc, ProcessIdentity{PID: owner.PID, Identity: owner.Identity}) {
+	case Dead:
+		return out, fmt.Errorf("supervisor pid %d exited or was replaced", owner.PID)
+	case Unknown:
 		return out, fmt.Errorf("cannot verify supervisor pid %d", owner.PID)
-	}
-	identity, e := proc.Identity(owner.PID)
-	if e != nil {
-		return out, e
-	}
-	if identity != owner.Identity {
-		return out, errors.New("supervisor identity changed")
 	}
 	out.Owner = &owner
 	return out, nil

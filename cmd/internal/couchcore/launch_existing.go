@@ -29,6 +29,9 @@ type trackedThreadLaunch struct {
 	// Warm marks a REATTACH: the agent is alive behind a client-less zellij
 	// session and Pair only has to attach to it.
 	Warm bool
+	// Begun is when the caller began the operation (before its claim), so
+	// the step timings cover the claim too; zero starts them at the launch.
+	Begun time.Time
 }
 
 // launchTrackedThread is the single post-claim launch path for both a newly
@@ -37,6 +40,10 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	ctx := in.Context
 	if ctx == nil {
 		ctx = context.Background()
+	}
+	steps := newLaunchSteps(in.Begun)
+	if err := freshNonceReachesPair(in); err != nil {
+		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(in.Thread, in.Nonce))
 	}
 	thread := in.Thread
 	if c.Slots != nil {
@@ -62,6 +69,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		in.Args.Cwd = cwd
 		in.Args.Worktree = tree
 	}
+	steps.mark("checkout")
 
 	// A warm reattach sends NEITHER a layout flag NOR a trusted resume profile,
 	// and both omissions are the fix rather than an oversight (#179).
@@ -152,7 +160,9 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	}
 	argv = append([]string{argv[0], launcher.CouchSessionFlag}, argv[1:]...)
 	env = append(env, launcher.CouchSessionIntentEnv+"="+string(intent))
+	steps.mark("prepare")
 	h, err := c.Runner.StartBlocked(ctx, in.Args.WorkingDir(), argv, env, 10*time.Second)
+	steps.mark("spawn")
 	if err != nil {
 		return ActorRecord{}, nil, errors.Join(
 			fmt.Errorf("spawn %s: %w", in.Args.Worktree, err),
@@ -194,6 +204,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 			return ActorRecord{}, h, c.failTrackedPreAckStart(thread, in.Nonce, h, err)
 		}
 	}
+	steps.mark("record+baseline")
 	if err := h.Acknowledge(); err != nil {
 		cause := fmt.Errorf("acknowledge blocked helper %+v: %w", thread.Address, err)
 		return ActorRecord{}, h, c.failTrackedPostAckStart(shape, thread, in.Nonce, h, cause)
@@ -205,6 +216,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	if (in.Resume || in.Fresh) && c.resumeRegistrationTimeout > 0 {
 		registrationTimeout = c.resumeRegistrationTimeout
 	}
+	steps.mark("ack")
 	registrationContext, cancelRegistration := context.WithTimeout(ctx, registrationTimeout)
 	if in.Fresh {
 		err = c.awaitFreshRegistration(registrationContext, thread.Address, in.Args.Stack, in.Nonce)
@@ -217,8 +229,9 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		err = c.awaitThreadRegistration(registrationContext, thread.Address)
 	}
 	cancelRegistration()
+	steps.mark("registration")
 	if err != nil {
-		cause := fmt.Errorf("await Pair registration %+v: %w%s", thread.Address, err,
+		cause := fmt.Errorf("await Pair registration %+v: %w [steps: %s]%s", thread.Address, err, steps,
 			c.diagnoseRegistrationFailure(err, thread.Address, registrationTimeout))
 		return ActorRecord{}, h, c.failTrackedPostAckStart(shape, thread, in.Nonce, h, cause)
 	}
@@ -361,24 +374,112 @@ func (c *Couch) awaitResumeRegistration(ctx context.Context, address ThreadAddre
 	if !ok {
 		return errors.New("exact Pair session observer is unavailable")
 	}
+	wait := &registrationWaitError{phase: "ownership poll", last: "none"}
+	start := time.Now()
 	if birth != nil {
-		if err := c.awaitPaneBirth(ctx, address, *birth); err != nil {
-			return err
+		err := c.awaitPaneBirth(ctx, address, *birth)
+		wait.birth = time.Since(start)
+		if err != nil {
+			wait.phase, wait.err = "pane-birth wait", err
+			return wait
 		}
 	}
+	polling := time.Now()
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		binding, err := c.recoverySession(ctx, address)
-		if err == nil && binding.Present {
+		switch {
+		case err == nil && binding.Present:
 			return nil
+		case err != nil && ctx.Err() != nil:
+			// Cut off by the deadline itself: no observation to report.
+			wait.ownership, wait.err = time.Since(polling), ctx.Err()
+			return wait
+		}
+		wait.polls++
+		switch {
+		case err != nil:
+			wait.last = err.Error()
+		default:
+			wait.last = "not owned"
+			if binding.Owner != nil {
+				wait.last += " (" + sessionOwnerWord(binding.Owner.State) + prefixed("; ", binding.Owner.Diagnostic) + ")"
+			}
 		}
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			wait.ownership, wait.err = time.Since(polling), ctx.Err()
+			return wait
 		case <-ticker.C:
 		}
 	}
+}
+
+// launchSteps times each step of a launch in memory (pair#367 smoke test: the
+// operator asked that an earlier slow step never hide behind the one that
+// timed out). It writes nothing; failures carry its text.
+type launchSteps struct {
+	last  time.Time
+	steps []string
+}
+
+func newLaunchSteps(begun time.Time) *launchSteps {
+	s := &launchSteps{last: time.Now()}
+	if !begun.IsZero() {
+		s.last = begun
+		s.mark("claim")
+	}
+	return s
+}
+
+func (s *launchSteps) mark(step string) {
+	now := time.Now()
+	s.steps = append(s.steps, step+" "+now.Sub(s.last).Round(time.Millisecond).String())
+	s.last = now
+}
+
+func (s *launchSteps) String() string { return strings.Join(s.steps, ", ") }
+
+// registrationWaitError is a cold resume's registration timeout with its
+// phases: which one consumed the budget (the pane-birth wait or the zellij
+// ownership poll), each phase's elapsed time, how many ownership polls ran
+// and what the last one said (pair#367 smoke test: a bare "context deadline
+// exceeded" left the stalled phase unknown). It unwraps to the cause, so the
+// deadline diagnosis still applies.
+type registrationWaitError struct {
+	err              error
+	phase            string
+	birth, ownership time.Duration
+	polls            int
+	last             string
+}
+
+func (e *registrationWaitError) Error() string {
+	return fmt.Sprintf("%v [%s consumed the budget: pane birth %s, ownership poll %s, %d ownership polls; last ownership check: %s]",
+		e.err, e.phase, e.birth.Round(time.Millisecond), e.ownership.Round(time.Millisecond), e.polls, e.last)
+}
+
+func (e *registrationWaitError) Unwrap() error { return e.err }
+
+// sessionOwnerWord names an ownership verdict for a diagnostic.
+func sessionOwnerWord(state launcher.SessionOwnerState) string {
+	switch state {
+	case launcher.SessionOwnerAbsent:
+		return "absent"
+	case launcher.SessionOwnerOwned:
+		return "owned"
+	case launcher.SessionOwnerForeign:
+		return "foreign"
+	}
+	return "unknown"
+}
+
+func prefixed(prefix, s string) string {
+	if s == "" {
+		return ""
+	}
+	return prefix + s
 }
 
 // coldResumeBirthBaseline captures the proposed terminal pane marks while the
@@ -460,7 +561,7 @@ func (c *Couch) sessionBindingForLaunch(ctx context.Context, thread ThreadRecord
 			return couchidentity.SessionBinding{}, err
 		}
 		if !observed.Present || observed.Name == "" {
-			return couchidentity.SessionBinding{}, errors.New("managed attach session disappeared; retry open-slot")
+			return couchidentity.SessionBinding{}, errors.New("managed attach session disappeared; resume it again")
 		}
 		if thread.SessionBinding != nil {
 			if thread.SessionBinding.Name != observed.Name {
@@ -491,4 +592,24 @@ func (c *Couch) sessionBindingForLaunch(ctx context.Context, thread ThreadRecord
 		return couchidentity.SessionBinding{}, err
 	}
 	return couchidentity.SessionBinding{C: allocated.C, M: allocated.M, Name: allocated.SessionName, ScopeKey: thread.Address.RepoScope, Tag: string(thread.Address.Tag), StartNonce: nonce}, nil
+}
+
+// errFreshNonceUnreachable refuses a fresh launch whose registration nonce
+// Pair could never learn.
+var errFreshNonceUnreachable = errors.New("fresh launch nonce cannot reach Pair")
+
+// freshNonceReachesPair is the rule a fresh launch's registration rests on: it
+// waits for a ready file carrying in.Nonce (awaitFreshRegistration), and Pair
+// takes a Couch nonce only from the orientation's attempt; otherwise it mints
+// its own and the wait can only run out (pair#367 smoke test: a resume that
+// restarted fresh stalled the full budget). So a fresh launch must carry an
+// orientation whose attempt is its nonce, checked before any child starts.
+func freshNonceReachesPair(in trackedThreadLaunch) error {
+	if !in.Fresh {
+		return nil
+	}
+	if in.Orientation == nil || in.Orientation.Attempt != in.Nonce {
+		return fmt.Errorf("%w: a fresh launch must hand Pair its nonce through the orientation's attempt", errFreshNonceUnreachable)
+	}
+	return nil
 }

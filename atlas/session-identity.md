@@ -342,9 +342,13 @@ migrates by being quit and relaunched.
 Couch verified park preserves the exact Pair address; it is not a new native
 identity state. Cold resume uses the current durable target, including a requested
 UUID under probation, through the existing `{repo scope, tag}` marker. It requires
-the same native ID before launch for a resume. The explicit exception is an
-unmaterialized fresh Pair-chosen ID: Couch requests a fresh launch and generates
-a new UUID using the saved launch parameters. It never allocates or adopts a marker, chooses
+the same native ID before launch for a resume. An unmaterialized Pair-chosen ID
+(the agent never took a turn) is no conversation: resume and relaunch refuse it
+at once with `resume-binding-unbound`, naming reboot, and a parked slot whose
+conversation is lost (`binding-lost`) is not offered resume at all (pair#367,
+reversing #346 M2's fresh restart, which waited for a ready nonce Pair never
+learned). Every fresh launch must hand Pair its registration nonce through the
+orientation's attempt (`freshNonceReachesPair`). It never allocates or adopts a marker, chooses
 a newest transcript, or consults current path/root/repository launch defaults.
 The ledger owns native identity; the native forest supplies parsed observations.
 Couch stores the last successfully registered launch profile.

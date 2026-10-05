@@ -17,9 +17,10 @@ const (
 	// defaultSlotGitInterval is how stale a glyph may get while nothing else
 	// (a switch, an inventory landing) asks for a fresh pass.
 	defaultSlotGitInterval = 10 * time.Second
-	// slotGitProbeTimeout bounds one checkout's git status. A pass probes its
-	// checkouts one at a time, so a pass costs at most N times this.
-	slotGitProbeTimeout = 3 * time.Second
+	// slotGitProbeTimeout bounds one checkout's git status; couchcore owns
+	// the value so the recover-plan fallback probes with the same bound. A
+	// pass probes its checkouts one at a time, so it costs at most N times it.
+	slotGitProbeTimeout = couchcore.SlotGitProbeTimeout
 )
 
 type slotGitResult struct {

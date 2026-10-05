@@ -16,8 +16,6 @@ func TestOperationDeclarationsAreClosureFreeCompleteAndOwned(t *testing.T) {
 		result       OperationResult
 		presentation OperationPresentation
 	}{
-		"open-slot":            {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart, PresentationTUI},
-		"fresh-slot":           {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultStart, PresentationTUI},
 		"provision-workspace":  {ExecuteDirectStore, EffectProcess, ConfirmNone, ResultWorkspace, PresentationInternal},
 		"prepare-switch-agent": {ExecuteLiveOwner, EffectRead, ConfirmNone, ResultStartResolution, PresentationTUI},
 		"switch-agent":         {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultStart, PresentationTUI},
@@ -26,9 +24,8 @@ func TestOperationDeclarationsAreClosureFreeCompleteAndOwned(t *testing.T) {
 		"start":                {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart, PresentationTUI},
 		"list":                 {ExecuteDirectStore, EffectRead, ConfirmNone, ResultThreadInventory, PresentationList},
 		"show":                 {ExecuteDirectStore, EffectRead, ConfirmNone, ResultThreadInventory, PresentationShow},
+		"recover-plan":         {ExecuteDirectStore, EffectRead, ConfirmNone, ResultRecoverPlan, PresentationRecoverPlan},
 		"stop":                 {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultStop, PresentationTUI},
-		"name":                 {ExecuteDirectStore, EffectMetadata, ConfirmNone, ResultThread, PresentationTUI},
-		"describe":             {ExecuteDirectStore, EffectMetadata, ConfirmNone, ResultDescription, PresentationTUI},
 		"alias":                {ExecuteDirectStore, EffectMetadata, ConfirmNone, ResultRepositoryAlias, PresentationTUI},
 		"request-continuation": {ExecuteDirectStore, EffectMetadata, ConfirmNone, ResultThread, PresentationInternal},
 		"continue-thread":      {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart, PresentationInternal},
@@ -42,11 +39,9 @@ func TestOperationDeclarationsAreClosureFreeCompleteAndOwned(t *testing.T) {
 		"detach":               {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultThread, PresentationTUI},
 		"leave":                {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultConsole, PresentationTUI},
 		"relaunch":             {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultStart, PresentationTUI},
-		"archive":              {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultThread, PresentationTUI},
 		"archived":             {ExecuteDirectStore, EffectRead, ConfirmNone, ResultThreadInventory, PresentationList},
-		"recover-thread":       {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart, PresentationTUI},
-		"recover-checkpoint":   {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart, PresentationTUI},
 		"resume":               {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart, PresentationTUI},
+		"reboot":               {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultStart, PresentationTUI},
 	}
 	for _, op := range Operations() {
 		expected, ok := want[op.Name]
@@ -103,7 +98,7 @@ func TestParkDetachLeaveAndResumeSurface(t *testing.T) {
 		t.Fatalf("park confirmation = %v, want required", park.Confirmation)
 	}
 	wantParkArgs := []ArgSpec{
-		{Name: "ref", Summary: "thread tag, path, or name", Required: false},
+		{Name: "ref", Summary: "thread tag or path", Required: false},
 		{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
 		{Name: "mode", Summary: "normal, retry, recover, or abandon (--mode=<mode>)", FlagOnly: true, ValueRequired: true},
 		{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},

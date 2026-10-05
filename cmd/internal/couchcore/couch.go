@@ -51,6 +51,10 @@ type Couch struct {
 	// Slug reads a thread's latest pair-slug suggestion for the switcher's
 	// focus view (pair#372); nil shows none. Production wires OSSlugReader.
 	Slug func(context.Context, ThreadAddress) (string, error)
+	// Fleet reads `sdlc fleet inventory --json` for the recover-plan report
+	// (pair#367); nil reports every fleet unavailable. Production wires
+	// SDLCFleetSource over OSProvisionIO.
+	Fleet FleetInventorySource
 	// Layout is which pair layout this couch launches its threads in, chosen
 	// once at construction and IMMUTABLE for the process lifetime -- there is
 	// no mid-session layout change, which is what keeps the mixed-state
@@ -423,6 +427,19 @@ func (c *Couch) resolveRepoIdentity(ctx context.Context, workingPath string) (st
 	return common, nil
 }
 
+// primaryFreshStep is how the operator starts a fresh agent in place of the
+// primary thread that refused a second start: the next step its switcher row
+// can reach. Reboot is offered exactly where it is permitted
+// (RebootableState; the switcher's table asserts offer equals permission), so
+// that is the test. A live :0 offers no reboot (pair#363 Spec) -- Pair's own
+// restart chord is its fresh agent.
+func primaryFreshStep(held ActionableThreadSummary) string {
+	if RebootableState(held.State, held.Reason) {
+		return "ctrl-space, select it, Tab → reboot"
+	}
+	return "ctrl-space, select it, Enter, then Alt+Shift+N restarts its conversation"
+}
+
 // spawnResolved creates a thread. `rows` is the caller's already-resolved
 // actionable inventory, used only for the one-thread-per-path guard -- passed
 // in rather than re-derived so an interactive startup does not pay for a second
@@ -436,10 +453,11 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 	if err != nil {
 		return ActorRecord{}, nil, err
 	}
-	// One thread per repo path, enforced at the single site every creation
-	// entry funnels through. Several threads at one path without separate
-	// worktrees is confusing, and per-repo policy is a design space of its own
-	// -- so until it exists, a second thread has to be DELIBERATE.
+	// One primary thread per repository (pair#363, widened from one thread
+	// per path, #181), enforced at the single site every creation entry
+	// funnels through: a start anywhere inside a repository whose :0 exists
+	// returns to it (startup) or refuses here (the start form). Slots are how a
+	// repository gets more than one agent.
 	//
 	// There is no opt-in yet, deliberately. StartArgs.SameTree looks like one
 	// but is documented as "an inert legacy serialization field... New
@@ -454,7 +472,7 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 		// Every gesture named here is executed by a test against the fixture
 		// that produces this refusal. The previous version of this block named
 		// `couch --show` (which answered "not found" for the very row that
-		// caused the refusal) and `Tab → archive` (unreachable, because the TUI
+		// caused the refusal) and a switcher gesture (unreachable, because the TUI
 		// never opens in a repository couch refuses to start in) -- three lines
 		// above the comment explaining why refusals must not do that.
 		//
@@ -468,24 +486,25 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 		return ActorRecord{}, nil, fmt.Errorf(
 			"couch cannot read thread %s in this repository, so it cannot tell whether %s is free\n"+
 				"  inspect it:  couch --show %s\n"+
-				"  retire it:   run couch in another repository, select it, Tab → archive\n"+
+				"  retire it:   run couch in another repository, select it, Tab → reboot\n"+
 				"  the record:  %s",
 			held.Tag, resolution.CanonicalPath, held.Tag, recordPath)
 	}
-	if held, occupied := PathHoldsUsableThread(rows, scope.Key, resolution.CanonicalPath); occupied {
+	if held, occupied := ScopeHoldsUsableThread(rows, scope.Key); occupied {
 		// The next steps have to be ones that WORK from where the operator is.
 		// An earlier version said "return to it: couch <path>" -- the command
 		// they just ran, which refuses again, and which cannot take the
 		// supervisor lease from inside couch anyway -- and "retire it: couch
 		// --show <tag>", which is a read-only listing. Both were dead ends
 		// printed at the moment someone was already stuck. These are switcher
-		// gestures, because the switcher is where they are.
+		// gestures, because the switcher is where they are, and the fresh one
+		// is chosen by what the held row offers (primaryFreshStep).
 		return ActorRecord{}, nil, fmt.Errorf(
-			"%s already has thread %s; couch keeps one thread per path for now\n"+
+			"%s already has its primary thread %s; couch keeps one primary slot per repository\n"+
 				"  return to it:  ctrl-space, select it, Enter\n"+
-				"  retire it:     ctrl-space, select it, Tab → archive\n"+
+				"  start fresh:   %s\n"+
 				"  inspect it:    couch --show %s",
-			resolution.CanonicalPath, held.Tag, held.Tag)
+			scope.Root, held.Label(), primaryFreshStep(held), held.Address.Tag)
 	}
 	startedAt := c.Clock.Now()
 	thread, err := c.Threads.AllocateThreadTag(scope.Key, resolution.CanonicalPath, startedAt, func() (string, error) {
@@ -561,11 +580,42 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 	//
 	// This is a deliberate slice of #149, which makes the tag the space's
 	// durable identity; #146 needs only that re-entry is deterministic.
+	var afterPrepare func() error
+	if resolution.Target.Kind == ThreadTargetSlot && resolution.Action == StartCreate {
+		afterPrepare = func() error { return c.revalidateCreatedSlot(ctx, resolution) }
+	}
+	return c.launchClaimedThread(claimedLaunch{
+		Context: ctx, Thread: thread, Nonce: nonce, Args: args, StartedAt: startedAt,
+		Profile: profile, AfterPrepare: afterPrepare,
+	})
+}
+
+// claimedLaunch is a start-claimed record ready to become a running thread.
+// AfterPrepare is the caller's last re-check once the workspace is prepared --
+// a created slot's revalidation, a fresh slot's other-owner check -- and runs
+// inside the same rollback as everything else here.
+type claimedLaunch struct {
+	Context      context.Context
+	Thread       ThreadRecord
+	Nonce        string
+	Args         StartArgs
+	StartedAt    time.Time
+	Profile      LaunchProfileResolution
+	AfterPrepare func() error
+}
+
+// launchClaimedThread is the tail every fresh start shares -- spawnResolved,
+// fresh slot and reboot: prepare the tracked workspace, build the trusted
+// launch profile, launch. Any failure before the launch rolls the start claim
+// back (rollbackTrackedStart), so the path is left free rather than held by a
+// claim nothing will finish.
+func (c *Couch) launchClaimedThread(in claimedLaunch) (ActorRecord, Handle, error) {
+	ctx, thread, nonce, profile := in.Context, in.Thread, in.Nonce, in.Profile
 	if err := c.prepareTrackedWorkspace(ctx, thread, nonce, false); err != nil {
 		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 	}
-	if resolution.Target.Kind == ThreadTargetSlot && resolution.Action == StartCreate {
-		if err := c.revalidateCreatedSlot(ctx, resolution); err != nil {
+	if in.AfterPrepare != nil {
+		if err := in.AfterPrepare(); err != nil {
 			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 		}
 	}
@@ -576,9 +626,12 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 	if err != nil {
 		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 	}
+	args := in.Args
+	args.Stack = profile.Profile.Agent
+	args.ExtraArgs = cloneArgv(profile.Profile.Argv)
 	return c.launchTrackedThread(trackedThreadLaunch{
 		Context: ctx,
-		Thread:  thread, Nonce: nonce, Args: args, StartedAt: startedAt,
+		Thread:  thread, Nonce: nonce, Args: args, StartedAt: in.StartedAt,
 		ProfileRaw: profileRaw, UseRepoDefault: profile.ArgvSource == ArgvSourceRepoDefault,
 	})
 }
@@ -996,6 +1049,11 @@ func (c *Couch) reconcileInterruptedStarts() error {
 	return nil
 }
 
+// observeExactProcess is the one answer to "is this exact process still
+// running": pid presence, then the kernel start token, so a recycled pid
+// reads Dead. Every exact-process check goes through it rather than spelling
+// the two probes again -- the copies are where the reap-between-probes race
+// survived (#389).
 func observeExactProcess(proc ProcOps, expected ProcessIdentity) Liveness {
 	switch proc.Exists(expected.PID) {
 	case Dead:
@@ -1005,6 +1063,13 @@ func observeExactProcess(proc ProcOps, expected ProcessIdentity) Liveness {
 	}
 	identity, err := proc.Identity(expected.PID)
 	if err != nil {
+		// The two probes are not atomic: a process reaped between them (a
+		// client exiting under SIGTERM) is present for Exists and has no
+		// identity a moment later. Ask again before calling it unknowable --
+		// ESRCH now is a confirmed exit (#389).
+		if proc.Exists(expected.PID) == Dead {
+			return Dead
+		}
 		return Unknown
 	}
 	if identity != expected.Identity {
@@ -1034,22 +1099,7 @@ func (c *Couch) Liveness(a ActorRecord) Liveness {
 	if a.PID == 0 || a.Identity == "" {
 		return Dead // nothing was ever recorded to check against
 	}
-	switch c.Proc.Exists(a.PID) {
-	case Dead:
-		return Dead
-	case Unknown:
-		return Unknown
-	}
-	id, err := c.Proc.Identity(a.PID)
-	if err != nil {
-		// The process exists but we could not read its token. That is not
-		// evidence of anything; refusing to guess is the safe answer.
-		return Unknown
-	}
-	if id != a.Identity {
-		return Dead // same PID, different process
-	}
-	return Live
+	return observeExactProcess(c.Proc, ProcessIdentity{PID: a.PID, Identity: a.Identity})
 }
 
 // Forget drops an actor from the registry, freeing its tree.

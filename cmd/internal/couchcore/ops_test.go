@@ -47,52 +47,23 @@ func createOperationThread(t *testing.T, c *Couch) ThreadRecord {
 	return created
 }
 
-func TestMetadataOperationsMutateCompositeThreadRecord(t *testing.T) {
+// The name and describe operations left the switcher and the CLI (pair#363);
+// the stored fields stay, written through ApplyThreadMetadata, and a patch of
+// one field must not cross into another.
+func TestThreadMetadataPatchesDoNotCrossFields(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	created := createOperationThread(t, env.Couch)
-
-	result, err := dispatchTestOperation(env.Couch, "name", map[string]string{
-		"ref": string(created.Address.Tag), "name": "compiler", "repo-scope": created.Address.RepoScope,
-	})
+	name, description := "compiler", "operator context"
+	named, err := env.Couch.ApplyThreadMetadata(created.Address, ThreadMetadataPatch{Name: &name})
+	if err != nil || named.Name != "compiler" {
+		t.Fatalf("name patch = %+v, %v", named, err)
+	}
+	described, err := env.Couch.ApplyThreadMetadata(created.Address, ThreadMetadataPatch{Description: &description})
 	if err != nil {
 		t.Fatal(err)
 	}
-	named, ok := result.(ThreadRecord)
-	if !ok || named.Name != "compiler" {
-		t.Fatalf("name result = %#v", result)
-	}
-
-	result, err = dispatchTestOperation(env.Couch, "describe", map[string]string{
-		"ref": string(created.Address.Tag), "description": "operator context", "repo-scope": created.Address.RepoScope,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	described := result.(ThreadRecord)
 	if described.Name != "compiler" || described.Description != "operator context" || described.PublishedSummary != "agent summary" {
 		t.Fatalf("describe crossed metadata fields: %+v", described)
-	}
-
-	result, err = dispatchTestOperation(env.Couch, "describe", map[string]string{
-		"ref": string(created.Address.Tag), "description": "", "repo-scope": created.Address.RepoScope,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	cleared, ok := result.(ThreadRecord)
-	if !ok || cleared.Description != "" || cleared.Name != "compiler" {
-		t.Fatalf("explicit empty description did not clear only that field: %#v", result)
-	}
-
-	result, err = dispatchTestOperation(env.Couch, "name", map[string]string{
-		"ref": string(created.Address.Tag), "name": "", "repo-scope": created.Address.RepoScope,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	cleared = result.(ThreadRecord)
-	if cleared.Name != "" || cleared.Description != "" {
-		t.Fatalf("explicit empty name did not clear only that field: %#v", result)
 	}
 }
 

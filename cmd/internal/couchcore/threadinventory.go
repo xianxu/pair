@@ -26,18 +26,19 @@ type ThreadSummary struct {
 	Reason ThreadReason          `json:"reason,omitempty"`
 }
 
+// Label is ActionableThreadSummary.Label's rule for the diagnostic row: a
+// slot labels repo:N, anything else its working directory, never the stored
+// operator name (pair#363).
 func (s ThreadSummary) Label() string {
-	if s.Target.Kind == ThreadTargetSlot && s.Name == "" {
+	if s.Target.Kind == ThreadTargetSlot {
 		return (WorkspaceReference{Repo: s.Target.Slot.Repo, Number: s.Target.Slot.Number}).String()
 	}
-	return threadLabel(s.Name, s.WorkingPath, s.Address.Tag)
+	return threadLabel(s.WorkingPath, s.Address.Tag)
 }
 
+// DisplaySummary is the agent's own published summary only (pair#363).
 func (s ThreadSummary) DisplaySummary() string {
-	if s.PublishedSummary != "" {
-		return s.PublishedSummary
-	}
-	return s.Description
+	return s.PublishedSummary
 }
 
 func (s ThreadSummary) Live() bool {

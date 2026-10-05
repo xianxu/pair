@@ -87,11 +87,15 @@ type AmbiguousThreadReferenceError struct {
 // ThreadReferenceFields is the complete shared matching surface for one
 // thread. It contains values only, so CLI resolution and in-memory menu
 // filtering can consume the same rule without store access.
+//
+// Label and Summary are what a row SHOWS, supplied by in-memory menu callers;
+// store resolution leaves them empty, so it matches tag and path only. The
+// stored operator name and description are not matching surface (pair#363).
 type ThreadReferenceFields struct {
 	Address     ThreadAddress
-	Name        string
+	Label       string
 	WorkingPath string
-	Description string // Optional display text supplied by in-memory menu callers.
+	Summary     string
 }
 
 // ThreadReferenceMatch orders match strength. Zero is deliberately no match.
@@ -166,17 +170,17 @@ func classifyNormalizedThreadReferenceFields(fields ThreadReferenceFields, norma
 		return ThreadReferenceExact
 	}
 	needle := strings.ToLower(normalized)
-	if strings.Contains(strings.ToLower(fields.Name), needle) ||
+	if strings.Contains(strings.ToLower(fields.Label), needle) ||
 		strings.Contains(strings.ToLower(fields.WorkingPath), needle) ||
-		strings.Contains(strings.ToLower(fields.Description), needle) {
+		strings.Contains(strings.ToLower(fields.Summary), needle) {
 		return ThreadReferenceFuzzy
 	}
 	return ThreadReferenceNone
 }
 
 // ResolveThreadReference resolves within repoScope when it is non-empty.
-// Exact tag equality is authoritative. Otherwise name and canonical working
-// path match case-insensitively by substring. Ambiguity is returned with every
+// Exact tag equality is authoritative. Otherwise the canonical working path
+// matches case-insensitively by substring. Ambiguity is returned with every
 // candidate and never collapsed to an arbitrary winner.
 func ResolveThreadReference(records []ThreadRecord, repoScope, ref string) ([]ThreadRecord, error) {
 	normalized, err := normalizeThreadReference(ref)
@@ -190,7 +194,6 @@ func ResolveThreadReference(records []ThreadRecord, repoScope, ref string) ([]Th
 			eligible = append(eligible, record)
 			fields = append(fields, ThreadReferenceFields{
 				Address:     record.Address,
-				Name:        record.Name,
 				WorkingPath: record.WorkingPath,
 			})
 		}

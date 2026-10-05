@@ -262,10 +262,15 @@ func (c *Couch) selectedSlot(ctx context.Context, path string) (*ThreadStore, Sl
 }
 
 func (c *Couch) StartFreshSlot(ctx context.Context, path, agent string) (StartResult, error) {
-	return c.startFreshSlot(ctx, path, agent, false, nil)
+	return c.startFreshSlot(ctx, path, agent, false, nil, nil)
 }
 
-func (c *Couch) startFreshSlot(ctx context.Context, path, agent string, requireEmpty bool, accepted *StartResolution) (StartResult, error) {
+// startFreshSlot archives the slot's current record (if any) and starts a fresh
+// conversation in one slot journal. profile, when set, is a launch profile the
+// caller already resolved before an irreversible step (reboot resolves it
+// before quiescing), so it is not re-resolved here; it is distinct from
+// accepted, which also triggers revalidateCreatedSlot.
+func (c *Couch) startFreshSlot(ctx context.Context, path, agent string, requireEmpty bool, accepted *StartResolution, preflight *LaunchProfileResolution) (StartResult, error) {
 	local, slot, err := c.selectedSlot(ctx, path)
 	if err != nil {
 		return StartResult{}, err
@@ -296,7 +301,9 @@ func (c *Couch) startFreshSlot(ctx context.Context, path, agent string, requireE
 		return StartResult{}, errors.New("slot has a live or unresolved owner; park the running conversation before starting fresh")
 	}
 	var profile LaunchProfileResolution
-	if accepted != nil {
+	if preflight != nil {
+		profile = LaunchProfileResolution{Profile: cloneLaunchProfile(preflight.Profile), AgentSource: preflight.AgentSource, ArgvSource: preflight.ArgvSource}
+	} else if accepted != nil {
 		profile = LaunchProfileResolution{
 			Profile:     cloneLaunchProfile(accepted.Profile),
 			AgentSource: accepted.AgentSource,
@@ -311,14 +318,6 @@ func (c *Couch) startFreshSlot(ctx context.Context, path, agent string, requireE
 	if err := launcher.ValidateFreshAgentArgs(profile.Profile.Agent, profile.Profile.Argv); err != nil {
 		return StartResult{}, err
 	}
-	owner, err := c.Proc.Current()
-	if err != nil {
-		return StartResult{}, err
-	}
-	nonce, err := allocateStartNonce(c.Entropy)
-	if err != nil {
-		return StartResult{}, err
-	}
 	scope, err := launcher.ResolveRepoScope(slot.WorktreeRoot)
 	if err != nil {
 		return StartResult{}, err
@@ -327,55 +326,28 @@ func (c *Couch) startFreshSlot(ctx context.Context, path, agent string, requireE
 	for _, candidate := range observation.Candidates {
 		used[candidate.Address] = true
 	}
-	for attempt := 0; attempt < threadTagAttempts; attempt++ {
-		tag, err := c.allocateConversationTag(ctx, filepath.Base(slot.PrimaryRoot))
-		if err != nil {
-			return StartResult{}, err
-		}
-		record := ThreadRecord{SchemaVersion: ThreadSchemaVersion, Address: ThreadAddress{RepoScope: scope.Key, Tag: ThreadTag(tag)}, StartingPath: cwd, WorkingPath: cwd, CreatedAt: c.Clock.Now(), Revision: 1}
-		if used[record.Address] {
-			continue
-		}
-		if old.Record != nil {
-			record.Name = old.Record.Name
-			record.Description = old.Record.Description
-		}
-		record.Incarnations = []ThreadIncarnation{{State: IncarnationCreating, StartedAt: c.Clock.Now(), RepoIdentity: slot.RepoIdentity}}
-		record, err = AdvanceStartTransaction(record, StartEvent{Kind: StartClaimed, Nonce: nonce, Owner: SupervisorOwner{PID: owner.PID, Identity: owner.Identity}, Profile: &profile.Profile})
-		if err != nil {
-			return StartResult{}, err
-		}
-		claim, err := c.Artifacts.Claim(record.Address)
-		if errors.Is(err, launcher.ErrThreadAddressClaimed) {
-			continue
-		}
-		if err != nil {
-			return StartResult{}, err
-		}
-		if err := ctx.Err(); err != nil {
-			return StartResult{}, errors.Join(err, claim.Release())
-		}
-		raw, err := launcher.BuildCouchLaunchProfile(string(record.Address.Tag), profile.Profile.Agent, profile.Profile.Argv, string(profile.AgentSource), string(profile.ArgvSource))
-		if err != nil {
-			return StartResult{}, errors.Join(err, claim.Release())
-		}
-		if err := local.replaceSlotCurrent(old, record); err != nil {
-			return StartResult{}, local.releaseRefusedSlotClaim(record.Address, claim, err)
-		}
-		err = c.prepareTrackedWorkspace(ctx, record, nonce, false)
-		if err == nil {
-			err = c.verifyOtherSlotOwnersAbsent(ctx, slot, record.Address)
-		}
-		if err == nil && accepted != nil {
-			err = c.revalidateCreatedSlot(ctx, *accepted)
-		}
-		if err != nil {
-			return StartResult{}, errors.Join(err, c.rollbackTrackedStart(record, nonce))
-		}
-		actor, handle, err := c.launchTrackedThread(trackedThreadLaunch{Context: ctx, Thread: record, Nonce: nonce, Args: StartArgs{Worktree: Worktree(slot.WorktreeRoot), Cwd: cwd, Stack: profile.Profile.Agent, ExtraArgs: cloneArgv(profile.Profile.Argv)}, StartedAt: c.Clock.Now(), ProfileRaw: raw, UseRepoDefault: profile.ArgvSource == ArgvSourceRepoDefault})
-		return StartResult{Record: actor, Handle: handle}, err
+	record, nonce, err := c.claimFreshRecord(ctx, freshClaimInput{
+		ScopeKey: scope.Key, Cwd: cwd, RepoIdentity: slot.RepoIdentity, TagPrefix: filepath.Base(slot.PrimaryRoot),
+		Profile: profile, Used: used, Store: local,
+		Commit: func(record ThreadRecord) error { return local.replaceSlotCurrent(old, record) },
+	})
+	if err != nil {
+		return StartResult{}, err
 	}
-	return StartResult{}, errors.New("fresh slot exhausted native address collision attempts")
+	actor, handle, err := c.launchClaimedThread(claimedLaunch{
+		Context: ctx, Thread: record, Nonce: nonce, StartedAt: c.Clock.Now(), Profile: profile,
+		Args: StartArgs{Worktree: Worktree(slot.WorktreeRoot), Cwd: cwd},
+		AfterPrepare: func() error {
+			if err := c.verifyOtherSlotOwnersAbsent(ctx, slot, record.Address); err != nil {
+				return err
+			}
+			if accepted != nil {
+				return c.revalidateCreatedSlot(ctx, *accepted)
+			}
+			return nil
+		},
+	})
+	return StartResult{Record: actor, Handle: handle}, err
 }
 
 func (c *Couch) slotLaunchProfile(local *ThreadStore, slot SlotIdentity, cwd, agent string) (LaunchProfileResolution, error) {
@@ -417,7 +389,18 @@ func (c *Couch) slotLaunchProfile(local *ThreadStore, slot SlotIdentity, cwd, ag
 
 // OpenSlot resumes the current conversation, or reconstructs exactly one
 // independently proved survivor. Missing metadata never requests a fresh agent.
+// An agent passed here is the operator's own choice.
 func (c *Couch) OpenSlot(ctx context.Context, path, agent string) (StartResult, error) {
+	return c.openSlot(ctx, path, agent, false)
+}
+
+// openSlot is OpenSlot with the agent's provenance. agentGuessed means the
+// agent was inferred (resume reads the slot's launch profile), not chosen: it
+// may then adopt only a survivor whose proof checks the agent -- the native
+// ledger binds per agent -- and never a record-less DETACHED survivor, whose
+// proof (DetachedSessions) echoes the agent it is asked about and so cannot
+// tell a right guess from a wrong one.
+func (c *Couch) openSlot(ctx context.Context, path, agent string, agentGuessed bool) (StartResult, error) {
 	local, slot, err := c.selectedSlot(ctx, path)
 	if err != nil {
 		return StartResult{}, err
@@ -441,10 +424,15 @@ func (c *Couch) OpenSlot(ctx context.Context, path, agent string) (StartResult, 
 			return StartResult{}, err
 		}
 		var survivors []ThreadRecord
+		unprovenWarm := false
 		for _, candidate := range sessions.Candidates {
 			recovered := candidate.Record
 			if recovered == nil {
 				if agent == "" {
+					continue
+				}
+				if agentGuessed && candidate.Presence == SessionPresent {
+					unprovenWarm = true
 					continue
 				}
 				family, err := c.slotFamily(ctx, slot, false)
@@ -501,8 +489,15 @@ func (c *Couch) OpenSlot(ctx context.Context, path, agent string) (StartResult, 
 				survivors = append(survivors, next)
 			}
 		}
-		if len(survivors) != 1 {
-			return StartResult{}, fmt.Errorf("slot current is unavailable; found %d proven conversations; select an explicit agent to recover one survivor or choose Start fresh after stopping managed sessions", len(survivors))
+		switch len(survivors) {
+		case 0:
+			if unprovenWarm {
+				return StartResult{}, refuseResume(ResumeSurvivorUnproven, "slot current is unavailable and a managed session survives, but couch cannot prove which agent runs in it; attach to it with zellij or stop it, then resume again")
+			}
+			return StartResult{}, refuseResume(ResumeNoSurvivor, "slot current is unavailable and no running conversation could be proved its own")
+		case 1:
+		default:
+			return StartResult{}, refuseResume(ResumeSurvivorsAmbiguous, fmt.Sprintf("slot current is unavailable and %d running conversations could each be its own; stop all but one managed session, then resume again", len(survivors)))
 		}
 		for _, candidate := range sessions.Candidates {
 			active := candidate.Presence == SessionPresent
@@ -532,30 +527,9 @@ func (c *Couch) OpenSlot(ctx context.Context, path, agent string) (StartResult, 
 	}
 	actor, handle, err := c.ResumeContextWith(ctx, record.Address, ResumeOptions{})
 	if err != nil {
-		return StartResult{Record: actor, Handle: handle}, fmt.Errorf("open slot: %w; choose Start fresh only after its managed sessions are stopped", err)
+		return StartResult{Record: actor, Handle: handle}, fmt.Errorf("open slot: %w", err)
 	}
 	return StartResult{Record: actor, Handle: handle}, nil
-}
-
-func (s *ThreadStore) releaseRefusedSlotClaim(address ThreadAddress, claim ThreadArtifactClaim, cause error) error {
-	// Once a journal exists, replay may publish this address even when the
-	// caller saw an error. Keep its native ownership marker until reconciliation.
-	if _, err := os.Lstat(s.journalPath()); !errors.Is(err, os.ErrNotExist) {
-		return cause
-	}
-	raw, err := s.readRetentionFile(filepath.Join(s.root, "thread.json"))
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return errors.Join(cause, err)
-	}
-	var envelope struct {
-		Address ThreadAddress `json:"address"`
-	}
-	if err == nil {
-		if json.Unmarshal(raw, &envelope) != nil || envelope.Address == address {
-			return cause
-		}
-	}
-	return errors.Join(cause, claim.Release())
 }
 
 func (c *Couch) verifyOtherSlotOwnersAbsent(ctx context.Context, slot SlotIdentity, current ThreadAddress) error {

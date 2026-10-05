@@ -260,7 +260,8 @@ func (s *ThreadStore) repositoryFamilyRecordsLocked(ctx context.Context, manifes
 		} else if err != nil {
 			return nil, err
 		}
-		if err := local.withPreviewLock(func() error {
+		// Under the root store's lock: a busy slot store refuses at once.
+		if err := local.withNestedPreviewLock(func() error {
 			membership, _, _, err := local.loadManifestLocked()
 			if err != nil {
 				return err

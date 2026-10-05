@@ -51,14 +51,10 @@ func TestSelectResumableRoot(t *testing.T) {
 		},
 		{name: "live is never selected", rows: []ActionableThreadSummary{row(want, "/real/repo", ThreadLive)}},
 		{name: "wrong scope", rows: []ActionableThreadSummary{row(ThreadAddress{RepoScope: "scope-b", Tag: want.Tag}, "/real/repo", ThreadParked)}},
-		{name: "wrong path", rows: []ActionableThreadSummary{row(want, "/real/other", ThreadParked)}},
-		{
-			// Paths are compared by exact string, so a row still carrying an
-			// unresolved alias does not match the physical target. This is what
-			// makes physicalizing detached rows load-bearing rather than tidy.
-			name: "an unresolved alias path does not match",
-			rows: []ActionableThreadSummary{row(want, "/link/repo", ThreadDetached)},
-		},
+		// pair#363: one primary per repository. The scope is the match, so a
+		// row at another path in the same repository -- the root, when couch
+		// starts in a subdirectory -- is the one to return to.
+		{name: "another path in the same scope", rows: []ActionableThreadSummary{row(want, "/real/other", ThreadParked)}, want: want, ok: true},
 		{name: "one resumable among nonmatches", rows: []ActionableThreadSummary{
 			row(want, "/real/repo", ThreadLive),
 			detached,
@@ -68,7 +64,7 @@ func TestSelectResumableRoot(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, ok := SelectResumableRoot(test.rows, "scope-a", "/real/repo")
+			got, ok := SelectResumableRoot(test.rows, "scope-a")
 			if ok != test.ok || got != test.want {
 				t.Fatalf("SelectResumableRoot() = (%+v, %v), want (%+v, %v)", got, ok, test.want, test.ok)
 			}
@@ -102,6 +98,43 @@ func TestStartInteractiveResumesUniqueExactParkedRoot(t *testing.T) {
 	child := env.Runner.Child(start.Handle.ID())
 	if !strings.Contains(strings.Join(child.Env, "\n"), "native-root-1") {
 		t.Fatalf("resume env = %v, want saved native root", child.Env)
+	}
+}
+
+// pair#363: one primary per repository. `couch` in a subdirectory of a
+// repository whose parked :0 sits at the root resumes that thread; it never
+// creates a second primary beside it. Before #363 the selector matched the
+// exact path, so this start minted a new thread.
+func TestStartInteractiveInSubdirectoryResumesTheExistingPrimary(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	env.cannedTree("/repo", "/repo/sub")
+	primary := seedStartupParked(t, env, "couch-0000000000000001", "/repo")
+	seedStartupColdLaunch(t, env, primary.Address)
+	before, err := env.Couch.Threads.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	start, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: "/repo/sub"})
+	if err != nil {
+		t.Fatalf("StartInteractive: %v", err)
+	}
+	if start.Record.Thread != primary.Address {
+		t.Fatalf("started %+v, want the existing primary %+v resumed", start.Record.Thread, primary.Address)
+	}
+	after, err := env.Couch.Threads.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after.Records) != len(before.Records) {
+		t.Fatalf("records %d -> %d: a subdirectory start created a second primary", len(before.Records), len(after.Records))
+	}
+	// ResumeContextWith ran: a child was spawned for the OLD tag, with the
+	// saved native conversation.
+	child := env.Runner.Child(start.Handle.ID())
+	joined := strings.Join(child.Env, "\n")
+	if !strings.Contains(joined, string(primary.Address.Tag)) || !strings.Contains(joined, "native-"+string(primary.Address.Tag)) {
+		t.Fatalf("resume env = %v, want the old tag and its native conversation", child.Env)
 	}
 }
 
@@ -264,7 +297,7 @@ func TestStartupSelectsDetachedRowsRegardlessOfNativeBinding(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, selected := SelectResumableRoot(rows, created.Address.RepoScope, "/repo")
+			_, selected := SelectResumableRoot(rows, created.Address.RepoScope)
 			if !selected {
 				t.Fatalf("row offered for selection = %v, want %v (rows = %+v) -- an offered row must be resumable",
 					selected, true, rows)

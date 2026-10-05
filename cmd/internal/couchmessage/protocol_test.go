@@ -2,6 +2,7 @@ package couchmessage
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 )
@@ -105,5 +106,52 @@ func TestProtocolHandleSendStatusAndNoFree(t *testing.T) {
 	request.Nonce = "replacement"
 	if result := Handle(context.Background(), b, request); result.Code != "unavailable" {
 		t.Fatalf("stale caller: %#v", result)
+	}
+}
+
+// TestValidateSlotOperationRequests pins the closed shapes of the slot
+// operation requests (pair#367 M2), one strategy per malformation.
+func TestValidateSlotOperationRequests(t *testing.T) {
+	caller := Request{Scope: "scope", Tag: "pair:0", Session: "session", Nonce: "launch"}
+	with := func(mutate func(*Request)) Request {
+		r := caller
+		mutate(&r)
+		return r
+	}
+	valid := []Request{
+		with(func(r *Request) { r.Op, r.ID, r.Target = "resume", "id", "pair:1" }),
+		with(func(r *Request) { r.Op, r.ID, r.Target = "resume", "id", "pair:0" }),
+		with(func(r *Request) { r.Op, r.ID, r.Target, r.Confirmed = "reboot", "id", "pair:1", true }),
+		with(func(r *Request) { r.Op, r.ID, r.Target = "reboot", "id", "pair:1" }), // confirmation is the handler's check
+		with(func(r *Request) { r.Op, r.ID = "operation-status", "id" }),
+	}
+	for _, r := range valid {
+		if err := ValidateRequest(r); err != nil {
+			t.Errorf("%s %q: %v", r.Op, r.Target, err)
+		}
+	}
+	for _, c := range []struct {
+		name string
+		r    Request
+		is   error
+	}{
+		{"resume without an ID", with(func(r *Request) { r.Op, r.Target = "resume", "pair:1" }), nil},
+		{"resume with a family target", with(func(r *Request) { r.Op, r.ID, r.Target = "resume", "id", "pair" }), ErrInvalidTarget},
+		{"reboot with a family target", with(func(r *Request) { r.Op, r.ID, r.Target = "reboot", "id", "pair" }), ErrInvalidTarget},
+		{"resume with a malformed slot", with(func(r *Request) { r.Op, r.ID, r.Target = "resume", "id", "pair:01" }), ErrInvalidTarget},
+		{"resume without a target", with(func(r *Request) { r.Op, r.ID = "resume", "id" }), ErrInvalidTarget},
+		{"resume with a body", with(func(r *Request) { r.Op, r.ID, r.Target, r.Body = "resume", "id", "pair:1", "work" }), nil},
+		{"resume with an agent", with(func(r *Request) { r.Op, r.ID, r.Target, r.Agent = "resume", "id", "pair:1", "claude" }), nil},
+		{"resume without a caller", Request{Op: "resume", ID: "id", Target: "pair:1"}, nil},
+		{"confirmation on a send", with(func(r *Request) { r.Op, r.ID, r.Target, r.Body, r.Confirmed = "send", "id", "pair:1", "work", true }), nil},
+		{"confirmation on a status", with(func(r *Request) { r.Op, r.ID, r.Confirmed = "operation-status", "id", true }), nil},
+		{"operation-status without an ID", with(func(r *Request) { r.Op = "operation-status" }), nil},
+		{"operation-status with a target", with(func(r *Request) { r.Op, r.ID, r.Target = "operation-status", "id", "pair:1" }), nil},
+		{"operation-status with a body", with(func(r *Request) { r.Op, r.ID, r.Body = "operation-status", "id", "x" }), nil},
+	} {
+		err := ValidateRequest(c.r)
+		if err == nil || c.is != nil && !errors.Is(err, c.is) {
+			t.Errorf("%s: %v", c.name, err)
+		}
 	}
 }

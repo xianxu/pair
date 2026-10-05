@@ -5,13 +5,16 @@ import (
 	"sync"
 )
 
-var errOperationQueueOverloaded = errors.New("operation queue is full")
+var ErrOperationQueueOverloaded = errors.New("operation queue is full")
 
 type operationRequest struct {
 	key    string
 	name   string
 	origin MenuOperationOrigin
 	run    func() (any, error)
+	// remote is a socket-originated job's completion state (pair#367 M2);
+	// nil for every console-originated request.
+	remote *remoteOperation
 }
 
 type operationCompletion struct {
@@ -20,6 +23,12 @@ type operationCompletion struct {
 	origin MenuOperationOrigin
 	value  any
 	err    error
+	remote *remoteOperation
+}
+
+// complete is the request's completion carrying its outcome.
+func (r operationRequest) complete(value any, err error) operationCompletion {
+	return operationCompletion{key: r.key, name: r.name, origin: r.origin, value: value, err: err, remote: r.remote}
 }
 
 type operationQueue struct {
@@ -53,7 +62,7 @@ func (q *operationQueue) Enqueue(request operationRequest) (accepted bool, err e
 		return true, nil
 	default:
 		delete(q.pending, request.key)
-		return false, errOperationQueueOverloaded
+		return false, ErrOperationQueueOverloaded
 	}
 }
 
@@ -66,7 +75,7 @@ func (q *operationQueue) Run(stop <-chan struct{}) {
 			delete(q.pending, request.key)
 			q.mu.Unlock()
 			select {
-			case q.results <- operationCompletion{key: request.key, name: request.name, origin: request.origin, value: value, err: err}:
+			case q.results <- request.complete(value, err):
 			case <-stop:
 				return
 			}

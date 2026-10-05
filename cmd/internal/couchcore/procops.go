@@ -147,23 +147,28 @@ type FakeProcOps struct {
 	Signals map[int][]os.Signal
 	// GroupSignals records only the signals sent to a whole process group, so a
 	// test can distinguish "signalled the pid" from "signalled the group".
-	GroupSignals   map[int][]os.Signal
-	DiesOn         map[int]os.Signal
-	IdentityErr    map[int]bool
-	CurrentProcess ProcessIdentity
-	CurrentErr     error
+	GroupSignals map[int][]os.Signal
+	DiesOn       map[int]os.Signal
+	IdentityErr  map[int]bool
+	// ReapedOnIdentity makes the pid vanish as its identity is read: Exists
+	// answered Live a moment ago, and the process was reaped before the
+	// identity probe -- the window a client exiting under SIGTERM falls into.
+	ReapedOnIdentity map[int]bool
+	CurrentProcess   ProcessIdentity
+	CurrentErr       error
 }
 
 var _ ProcOps = (*FakeProcOps)(nil)
 
 func NewFakeProcOps() *FakeProcOps {
 	fake := &FakeProcOps{
-		ids:            map[int]string{},
-		unknown:        map[int]bool{},
-		Signals:        map[int][]os.Signal{},
-		DiesOn:         map[int]os.Signal{},
-		IdentityErr:    map[int]bool{},
-		CurrentProcess: ProcessIdentity{PID: 900, Identity: "fake-supervisor-token"},
+		ids:              map[int]string{},
+		unknown:          map[int]bool{},
+		Signals:          map[int][]os.Signal{},
+		DiesOn:           map[int]os.Signal{},
+		IdentityErr:      map[int]bool{},
+		ReapedOnIdentity: map[int]bool{},
+		CurrentProcess:   ProcessIdentity{PID: 900, Identity: "fake-supervisor-token"},
 	}
 	fake.ids[fake.CurrentProcess.PID] = fake.CurrentProcess.Identity
 	return fake
@@ -193,6 +198,9 @@ func (f *FakeProcOps) Exists(pid int) Liveness {
 }
 
 func (f *FakeProcOps) Identity(pid int) (string, error) {
+	if f.ReapedOnIdentity[pid] {
+		delete(f.ids, pid)
+	}
 	if f.unknown[pid] || f.IdentityErr[pid] {
 		return "", fmt.Errorf("cannot read identity for pid %d", pid)
 	}

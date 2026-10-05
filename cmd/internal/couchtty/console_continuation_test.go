@@ -52,7 +52,9 @@ func TestContinuationFailedRowKeepsAnExplicitRetry(t *testing.T) {
 	address := menuAddress("failed")
 	row := couchcore.ActionableThreadSummary{Address: address, State: couchcore.ThreadUnusable,
 		Continuation: &couchcore.ContinuationStatus{Address: address, RequestID: "request", Phase: checkpoint.Failed}}
-	if !slices.Contains(menuActionItems(row), "retry-continuation") || slices.Contains(menuActionItems(row), "archive") {
+	// A row that is not live retries its request through resume, which routes
+	// a failed request to RetryContinuation (#363); reboot is its other exit.
+	if !slices.Equal(menuActionItems(row), []string{"resume", "reboot"}) {
 		t.Fatalf("failed continuation actions: %v", menuActionItems(row))
 	}
 
@@ -329,7 +331,10 @@ func TestContinuationWorkerPicksUpQuietActorAndJoinsOnStop(t *testing.T) {
 	}
 }
 
-func TestRecoveryResultStartsWatchOnlyForPublishedRequest(t *testing.T) {
+// Resume routes a retained request to RecoverThread or RetryContinuation
+// (pair#363), and their ContinuationResult must start the console's watch the
+// way the old recover-thread completion did.
+func TestRoutedResumeResultStartsWatchOnlyForPublishedRequest(t *testing.T) {
 	for _, published := range []bool{false, true} {
 		t.Run(map[bool]string{false: "warm", true: "checkpoint"}[published], func(t *testing.T) {
 			c, status := continuationConsole(t)
@@ -339,7 +344,7 @@ func TestRecoveryResultStartsWatchOnlyForPublishedRequest(t *testing.T) {
 				result.Status = status
 				result.SourceReattached = true
 			}
-			c.finishContinuationOperation(operationCompletion{name: "recover-thread", origin: MenuOperationOrigin{Address: status.Address}, value: result}, nil)
+			c.finishContinuationOperation(operationCompletion{name: "resume", origin: MenuOperationOrigin{Address: status.Address}, value: result}, nil)
 			watch, found := c.continuations[status.Address]
 			if found != published {
 				t.Fatalf("watch exists = %v, want %v", found, published)
@@ -359,7 +364,7 @@ func TestRecoveryCompletionDoesNotReplaceNewerWatchedRequest(t *testing.T) {
 	newer := status
 	newer.RequestID = "newer"
 	c.continuations[status.Address] = continuationWatch{status: newer, queued: true}
-	c.finishContinuationOperation(operationCompletion{name: "recover-checkpoint", origin: MenuOperationOrigin{Address: status.Address}, value: couchcore.ContinuationResult{Status: status}}, nil)
+	c.finishContinuationOperation(operationCompletion{name: "resume", origin: MenuOperationOrigin{Address: status.Address}, value: couchcore.ContinuationResult{Status: status}}, nil)
 	if got := c.continuations[status.Address]; got.status.RequestID != newer.RequestID || !got.queued {
 		t.Fatalf("obsolete recovery replaced accepted request: %+v", got)
 	}

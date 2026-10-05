@@ -63,9 +63,11 @@ func TestSelectResumableRootPrefersWarmThenRecent(t *testing.T) {
 			want: "",
 		},
 		{
-			name: "another path never matches",
+			// pair#363: the repository, not the path, is what a row holds, so
+			// a row elsewhere in the same scope is the one to return to.
+			name: "another path in the same repository matches",
 			rows: []ActionableThreadSummary{selectRow("couch-elsewhere", ThreadDetached, "/other", newer)},
-			want: "",
+			want: "couch-elsewhere",
 		},
 		{
 			name: "a live row is never selected -- this couch already hosts it",
@@ -74,7 +76,7 @@ func TestSelectResumableRootPrefersWarmThenRecent(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			address, ok := SelectResumableRoot(tc.rows, "scope", path)
+			address, ok := SelectResumableRoot(tc.rows, "scope")
 			if tc.want == "" {
 				if ok {
 					t.Fatalf("selected %+v, want nothing", address)
@@ -99,7 +101,7 @@ func TestSelectResumableRootHandlesACrowdedPath(t *testing.T) {
 		selectRow("couch-4", ThreadDetached, path, time.Unix(3000, 0).UTC()),
 		selectRow("couch-5", ThreadUnusable, path, time.Unix(2000, 0).UTC()),
 	}
-	address, ok := SelectResumableRoot(rows, "scope", path)
+	address, ok := SelectResumableRoot(rows, "scope")
 	if !ok || address.Tag != "couch-4" {
 		t.Fatalf("selected %+v (ok=%v), want the newest detached row", address, ok)
 	}
@@ -107,19 +109,71 @@ func TestSelectResumableRootHandlesACrowdedPath(t *testing.T) {
 
 // The occupancy predicates answer different questions, so they are not one
 // function -- but they must not disagree where they overlap. A state that holds
-// a path has to be one the operator can actually reach, or couch refuses a
-// start for a thread it will not offer.
+// a repository's primary has to be one the operator can actually reach, or
+// couch refuses a start for a thread it will not offer. Read from a
+// subdirectory, because since pair#363 the scope, not the path, is what a row
+// holds.
 func TestOccupancyPredicatesAgreeWhereTheyOverlap(t *testing.T) {
-	const path = "/repo"
-	for _, state := range []ActionableThreadState{
-		ThreadLive, ThreadDetached, ThreadParked, ThreadBusy, ThreadUnusable,
-	} {
-		row := selectRow("couch-0000000000000001", state, path, time.Unix(1000, 0).UTC())
-		_, holds := PathHoldsUsableThread([]ActionableThreadSummary{row}, "scope", path)
-		reachable := row.Live() || row.Resumable()
-		if holds != reachable {
-			t.Fatalf("state %q: holds path = %v, reachable by the operator = %v -- "+
-				"couch would refuse a start for a thread it will not offer", state, holds, reachable)
+	for _, state := range AllThreadStates() {
+		for _, reason := range append(AllThreadReasons(), "") {
+			if (state == ThreadUnusable) != (reason != "") {
+				continue
+			}
+			row := selectRow("couch-0000000000000001", state, "/repo", time.Unix(1000, 0).UTC())
+			row.Reason = reason
+			_, holds := ScopeHoldsUsableThread([]ActionableThreadSummary{row}, "scope")
+			reachable := row.Live() || row.Resumable()
+			if holds != reachable {
+				t.Fatalf("state %q/%q: holds the repository = %v, reachable by the operator = %v -- "+
+					"couch would refuse a start for a thread it will not offer", state, reason, holds, reachable)
+			}
+		}
+	}
+}
+
+// pair#363: one primary per repository. A start in a subdirectory of a
+// repository returns to the primary thread wherever in that repository it
+// sits; a thread in another repository scope is not this one's.
+func TestSelectResumableRootMatchesTheRepositoryNotThePath(t *testing.T) {
+	at := time.Unix(1000, 0).UTC()
+	parked := selectRow("couch-0000000000000001", ThreadParked, "/w/repo", at)
+	if address, ok := SelectResumableRoot([]ActionableThreadSummary{parked}, "scope"); !ok || address != parked.Address {
+		t.Fatalf("a parked primary at the repository root was not selected from its subdirectory: (%+v, %v)", address, ok)
+	}
+	foreign := parked
+	foreign.Address.RepoScope = "other-scope"
+	if address, ok := SelectResumableRoot([]ActionableThreadSummary{foreign}, "scope"); ok {
+		t.Fatalf("a row in another repository scope was selected: %+v", address)
+	}
+	// A slot row is never the primary, even if a scope key were shared.
+	slot := parked
+	slot.Target = ThreadTarget{Kind: ThreadTargetSlot}
+	if address, ok := SelectResumableRoot([]ActionableThreadSummary{slot}, "scope"); ok {
+		t.Fatalf("a slot row was selected as the primary: %+v", address)
+	}
+}
+
+// Live, detached and parked rows hold the repository's primary from any
+// subdirectory; unusable rows do not, or a corrupted record would lock its
+// repository out (resolved ambiguity 9).
+func TestScopeHoldsUsableThreadFromASubdirectory(t *testing.T) {
+	at := time.Unix(1000, 0).UTC()
+	for _, state := range []ActionableThreadState{ThreadLive, ThreadDetached, ThreadParked} {
+		row := selectRow("couch-0000000000000001", state, "/w/repo", at)
+		if held, ok := ScopeHoldsUsableThread([]ActionableThreadSummary{row}, "scope"); !ok || held.Address != row.Address {
+			t.Errorf("%s row at the root does not hold the repository: (%+v, %v)", state, held.Address, ok)
+		}
+		slot := row
+		slot.Target = ThreadTarget{Kind: ThreadTargetSlot}
+		if _, ok := ScopeHoldsUsableThread([]ActionableThreadSummary{slot}, "scope"); ok {
+			t.Errorf("a %s slot row holds the primary", state)
+		}
+	}
+	for _, reason := range AllThreadReasons() {
+		row := selectRow("couch-0000000000000001", ThreadUnusable, "/w/repo", at)
+		row.Reason = reason
+		if _, ok := ScopeHoldsUsableThread([]ActionableThreadSummary{row}, "scope"); ok {
+			t.Errorf("unusable/%s holds the repository; debris must not lock it out", reason)
 		}
 	}
 }

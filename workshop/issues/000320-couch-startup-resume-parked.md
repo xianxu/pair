@@ -1,12 +1,12 @@
 ---
 id: 000320
-status: open
+status: wontfix
 deps: []
 github_issue:
 created: 2026-09-24
-updated: 2026-09-24
+updated: 2026-10-02
 estimate_hours:
-card_mirror: 'bd9e91cbf0ec02006bcfd7017da9875ec74c813e' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '9fbd6b5715dab606579074d11a8ca1ea2c2efbf5' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Resume every parked thread when couch starts
@@ -95,3 +95,10 @@ up, so we can batch park and batch recover." Grounding: atlas/couch.md
 "Every other detached thread comes back in the background" (#206 M2) and
 startup ranking (`SelectResumableRoot`). Related: #175 (resume a unique parked
 thread), #205 (parallel batch park/detach), #214 (racing launches).
+
+### 2026-10-02
+
+Closed wontfix at the operator's direction: outdated. Auto-resuming every
+parked thread at startup is unsafe, because a parked slot may be ready, stale,
+or corrupted. Startup stays reattach-only; slot recovery became an explicit
+state report plus resume/reboot actions (pair#367, on pair#363's per-slot resume and reboot).

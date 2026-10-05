@@ -54,7 +54,7 @@ func TestFailedContinuationRelaunchesOnceDismissed(t *testing.T) {
 	env, live := envWithLiveThread(t)
 	failed, request := failedContinuation(t, env.Couch.Threads, live)
 	_, err := env.Couch.Relaunch(context.Background(), failed.Address)
-	if err == nil || !strings.Contains(err.Error(), "Retry continuation re-delivers it and Dismiss continuation drops it") ||
+	if err == nil || !strings.Contains(err.Error(), "retry-continuation re-delivers it and dismiss-continuation drops it") ||
 		!strings.Contains(err.Error(), "couch --internal dismiss-continuation") {
 		t.Fatalf("relaunch refusal must name both exits: %v", err)
 	}
@@ -77,27 +77,20 @@ func TestFailedContinuationRelaunchesOnceDismissed(t *testing.T) {
 func TestContinuationRefusesMatchesTheGuardForEveryRowAction(t *testing.T) {
 	type drive struct {
 		args map[string]string
-		cold bool // retire the helper first: the guard reaches only a COLD resume
 	}
 	driven := map[string]drive{
 		"relaunch":             {args: map[string]string{}},
 		"prepare-switch-agent": {args: map[string]string{"agent": "codex"}}, // SwitchAgent re-runs this preview (switchagent.go)
 		"park":                 {args: map[string]string{}},
 		"detach":               {args: map[string]string{}},
-		"name":                 {args: map[string]string{"name": "renamed"}},
-		"describe":             {args: map[string]string{}},
-		"resume":               {args: map[string]string{}, cold: true},
 	}
 	rowActionDrivenAs := map[string]string{"switch-agent": "prepare-switch-agent"}
 	exempt := map[string]string{
 		"retry-continuation":   "an exit from the failed request, not an operation it gates",
 		"dismiss-continuation": "an exit from the failed request, not an operation it gates",
-		"archive":              "never offered on a live row; its own admission is archiveContinuationVacant",
+		"reboot":               "never offered on a live row; its retirement is prepareRetirement, whose admission is archive's archiveContinuationVacant",
 		"alias":                "repository metadata keyed by primary root; it addresses no thread, so no thread's continuation gates it",
-		"recover-thread":       "offered only on recovery rows, never composed",
-		"recover-checkpoint":   "offered only on recovery rows, never composed",
-		"open-slot":            "path-based dispatcher tested by TestSlotOpenColdUsesContinuationGuard; hosted/warm open preserves the existing conversation",
-		"fresh-slot":           "explicit slot recovery tested by TestSlotFreshContinuationProtectsLiveAndUnknownOwners and TestSlotFreshRetainsStoppedContinuationWithoutArchiveGesture; requires stopped owners and retains the request",
+		"resume":               "#363: routes a retained request to RetryContinuation/RecoverThread instead of the guard; pinned by TestResumeOperationRetriesAFailedContinuation and TestChooseResumeRoute",
 	}
 	for _, op := range Operations() {
 		if !op.RowAction {
@@ -114,13 +107,6 @@ func TestContinuationRefusesMatchesTheGuardForEveryRowAction(t *testing.T) {
 	for name, d := range driven {
 		t.Run(name, func(t *testing.T) {
 			env, live := switchEnvWithLiveThread(t)
-			if d.cold {
-				var err error
-				live, err = env.Couch.Threads.updateExistingThread(live.Address, live.Revision, func(r *ThreadRecord) error { r.Incarnations = nil; return nil })
-				if err != nil {
-					t.Fatal(err)
-				}
-			}
 			if name == "detach" {
 				// Detach SIGTERMs the helper and waits for it, as newDetachFixture
 				// models; without this the fake never exits and detach fails for a
@@ -177,7 +163,7 @@ func TestContinuationRefusesMatchesTheGuardForEveryRowAction(t *testing.T) {
 // each driven for real, and the scan below fails when a site is added without a
 // row -- a claim of reach over a set of sites is checked against that set.
 func TestEveryRefusalARetainedRequestCausesNamesBothExits(t *testing.T) {
-	const both = "; the retained continuation is failed: Retry continuation re-delivers it and Dismiss continuation drops it"
+	const both = "; the retained continuation is failed: on a live thread, retry-continuation re-delivers it and dismiss-continuation drops it"
 	rows := []struct {
 		site  string // the function holding the withContinuationExits call
 		drive func(t *testing.T) error
@@ -309,7 +295,7 @@ func TestPublishAfterDismissalAcceptsOnlyTheCurrentSource(t *testing.T) {
 	if err := os.WriteFile(path, []byte("---\ntype: continuation\nagent: claude\n---\n## NEXT ACTION\nfresh handoff\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := env.Couch.RequestContinuation(context.Background(), failed.Address, current, path); err == nil || !strings.Contains(err.Error(), "Dismiss continuation drops it") {
+	if _, err := env.Couch.RequestContinuation(context.Background(), failed.Address, current, path); err == nil || !strings.Contains(err.Error(), "dismiss-continuation drops it") {
 		t.Fatalf("a failed request must block publishing and name both exits: %v", err)
 	}
 	if _, err := env.Couch.DismissContinuation(context.Background(), failed.Address, request.ID); err != nil {

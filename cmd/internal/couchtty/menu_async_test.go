@@ -229,10 +229,10 @@ func TestReduceMenuStartPreviewPreservesOptionalAgentAndAcceptedProvenance(t *te
 		t.Fatalf("accepted start provenance not rendered: %q", rendered)
 	}
 	// #332: parked work no longer blocks a new slot; the form names it.
-	if !strings.Contains(rendered, "consider reuse parked repo:2 with open-slot") {
+	if !strings.Contains(rendered, "consider reuse parked repo:2 with resume") {
 		t.Fatalf("parked reminder not rendered: %q", rendered)
 	}
-	if !strings.Contains(rendered, "consider reuse lost repo:1 with fresh-slot") || !strings.Contains(rendered, "consider reuse lost repo:10 with fresh-slot") {
+	if !strings.Contains(rendered, "consider reuse lost repo:1 with reboot") || !strings.Contains(rendered, "consider reuse lost repo:10 with reboot") {
 		t.Fatalf("lost-binding reminder not rendered: %q", rendered)
 	}
 	if strings.Index(rendered, "lost repo:1") > strings.Index(rendered, "parked repo:2") || strings.Index(rendered, "parked repo:2") > strings.Index(rendered, "lost repo:10") {

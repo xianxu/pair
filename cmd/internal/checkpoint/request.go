@@ -34,22 +34,34 @@ func AllPhases() []Phase { return []Phase{Pending, Running, Failed, Complete} }
 // (pair#280). A non-empty tag adds the forms that work after Couch exits. A
 // caller that does not know the phase passes "" and gets phase-neutral wording:
 // dismissal is offered only for a request that failed.
+//
+// The switcher offers different exits by row (pair#363): a live thread keeps
+// retry-continuation and dismiss-continuation, and a thread that is not live
+// offers resume, which retries the request, and reboot, which archives it with
+// the conversation. Refusals reach both kinds of row, so the wording names
+// each row's own actions and never one its row does not offer.
 func Exits(phase Phase, tag string) string {
+	const notLive = "; on a thread that is not live, resume retries it and reboot archives it"
 	if phase == "" {
-		s := "Retry continuation reconciles it, and Dismiss continuation drops it if it failed"
+		s := "on a live thread, retry-continuation reconciles it, and dismiss-continuation drops it if it failed" + notLive
 		if tag != "" {
 			s += fmt.Sprintf("; after Couch exits, `couch --internal retry-continuation %s`, or `couch --internal dismiss-continuation %s` for a failed one", tag, tag)
 		}
 		return s
 	}
 	if phase == Failed {
-		s := "Retry continuation re-delivers it and Dismiss continuation drops it"
+		s := "on a live thread, retry-continuation re-delivers it and dismiss-continuation drops it" + notLive
 		if tag != "" {
 			s += fmt.Sprintf("; after Couch exits, `couch --internal retry-continuation %s` or `couch --internal dismiss-continuation %s`", tag, tag)
 		}
 		return s
 	}
-	s := "Retry continuation reconciles it"
+	s := "on a live thread, retry-continuation reconciles it" + notLive
+	if phase == Pending {
+		// A live thread's pending request runs on its own; the switcher offers
+		// nothing on that row until it does.
+		s = "on a live thread it runs on its own" + notLive
+	}
 	if tag != "" {
 		s += fmt.Sprintf("; after Couch exits, `couch --internal retry-continuation %s`", tag)
 	}

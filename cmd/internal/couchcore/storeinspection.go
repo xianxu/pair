@@ -75,7 +75,9 @@ func WithStoreInspectionLocks(ctx context.Context, namespaces []CouchNamespace, 
 		if e != nil {
 			return e
 		}
-		lock, e := s.retentionReadLock()
+		// Adoption holds the singleton's authority across every store it
+		// inspects, so a busy store yields at once rather than wait under it.
+		lock, e := s.retentionReadLock(context.Background(), 0)
 		if e != nil {
 			return e
 		}
