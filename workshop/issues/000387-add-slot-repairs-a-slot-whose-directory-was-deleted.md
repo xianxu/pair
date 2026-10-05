@@ -138,7 +138,8 @@ creation. Principle: ariadne#291 (reconcile dispersed state; don't script it).
 ## Plan
 
 Durable plan: `workshop/plans/000387-add-slot-repairs-a-slot-whose-directory-was-deleted-plan.md`
-(pending review; design refinements R1–R4 flagged there for the operator).
+(fresh-context plan review: 5 rounds, approved 2026-10-05; awaiting operator
+approval and the three sign-offs listed at its top).
 
 - [ ] M1 — resource model, `SlotLayout`, AST coverage audit, `ObserveSlot`, pure
   `PlanSlot` over the derived domain, `couch --show` resources and plan
@@ -200,6 +201,14 @@ predicates (`EnumerateSlotCandidates` filesystem-only vs `OSSlotCatalog.Discover
 plus `git worktree list`). `selectedSlot` already calls `Workspaces.Ensure` for an
 unverified candidate, and `NextHostAction` is already observation-driven: the
 reconciler generalizes `Ensure` rather than adding a second provisioner.
+
+Plan review (fresh-context reviewer, 5 rounds, 2026-10-05). Each round's delta is in the
+plan's Revisions. The design moves that came out of review: targeted `git worktree remove`
+instead of `prune`; a dependency is broken only on positive evidence; `selectedSlot` always
+reconciles; outcomes are blocking or degraded per caller (a live agent or a transient unknown
+never blocks attaching); saved work is a set-aside rename (the 65 MB `ariadne` clone ruled out
+a tar); a failed setup is memoized; add slot refuses with the hand-off instead of skipping
+numbers, because `construct/deps` is shared through `main`.
 
 ## Revisions
 

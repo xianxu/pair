@@ -25,6 +25,17 @@ g/h/i (`workshop/history/plans/000367-recover-owned-slots-plan.md`).
 
 ---
 
+## Needs operator sign-off at approval
+
+1. **R1:** retiring the creation intent drops the protection against non-Couch actors. Content
+   found at a slot's conventional path is adopted; save-before-remove is the only remaining
+   guard.
+2. **Deps parser:** copy weave's substrate rules plus a conformance table (the plan's default;
+   no new module dependency), or import ariadne's exported `layergraph` (no copy; adds a
+   pair→ariadne Go dependency).
+3. **Done-when, dirty-slot bullet (issue Revisions b, c):** a broken dependency is set aside by
+   an atomic rename into `<env>/.couch/saved-work/<id>/tree`; the host checkout is never removed.
+
 ## Decisions this plan rests on (operator, 2026-10-05)
 
 1. **Desired state = a working slot.** Derived state is repaired automatically, with no
@@ -247,6 +258,11 @@ hand-off. The memo makes repeat attempts refuse immediately with the same advice
 changes or `couch --reconcile` forces a compile. The original deleted-directory case is
 different: reconcile can repair it, so it no longer blocks the repository (Done-when bullet 3).
 This is the `tools:1` case: one compile, then an immediate hand-off on every later attempt.
+A failure local to one slot also refuses add slot for the repository, because allocation always
+picks the lowest free number. Examples: a leftover `main-slotN` checked out in another worktree,
+a locked registration, conflicting upstream config. That is deliberate: the hand-off names the
+slot, and `:0` fixes it. This plan does not claim that nothing ever blocks the repository, only
+that reconcilable leftovers no longer do.
 
 So a held `index.lock` in a dependency (an agent running git) never blocks attaching to that
 agent. A broken dependency on a live slot is repaired by reboot, which is the operation that
@@ -723,7 +739,9 @@ start form's error path.
     - reboot of a live slot with a broken dependency → the agent is stopped, the dependency is
       set aside and re-cloned, and a fresh agent starts;
     - add slot whose lowest reusable number is blocking → refused with the hand-off; no other
-      number is tried.
+      number is tried;
+    - a leftover `main-slotN` checked out in another worktree → add slot refuses with the
+      hand-off naming that slot.
   - An env path that is a file → only that number is skipped.
   - `rebootSlot` on a slot whose env is gone: reconcile recreates it, then a fresh start.
   - `DecideReboot`'s totality test: slot rows no longer produce `RebootDirectoryMissing`, and
@@ -988,3 +1006,9 @@ fails identically. The exclusion is removed. Add slot refuses with the hand-off,
 (written before the refusal returns) makes repeat attempts immediate. `failed-known` and the
 other `setup` sub-states are enumerated through `SlotResourceSpec.SubStates`, so the derived
 domains include them.
+
+### 2026-10-05 (e) — plan review round 5: approved
+
+No blocking issues. Adopted: the add-slot paragraph states that a slot-local hand-off still
+refuses add slot for the repository (deliberately), with an outcome-table cell for a
+`main-slotN` checked out elsewhere; the operator sign-offs are listed at the top.
