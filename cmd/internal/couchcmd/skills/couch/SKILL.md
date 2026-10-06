@@ -118,8 +118,10 @@ couch --send-to pair:4 --message 'Recovery (pair:4): restore this slot'\''s pair
      checked out elsewhere. Fix the cause in the owning repository through its own
      workflow, then run `couch --reconcile pair:N`. That form ignores a remembered
      setup failure.
-   - **"reboot the slot to repair it":** an agent may be working there. Reboot only
-     on the operator's instruction for that row.
+   - **"reboot the slot to repair it":** an agent is working there. Reboot only on
+     the operator's instruction for that row; reboot stops it and then repairs.
+   - **"look again later":** the slot's agent could not be observed. Re-run
+     `couch --show pair:N` later; do not reboot.
    - **A checkout reconcile set aside** is under the slot's
      `.couch/saved-work/<name>-<time>/`, and its `manifest.json` gives the restore
      command. Nothing is ever deleted.

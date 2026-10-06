@@ -30,8 +30,14 @@ type SavedWorkManifest struct {
 	Restore       string    `json:"restore"`
 }
 
-// errSetupRunning: weave holds its setup lock.
-var errSetupRunning = errors.New("weave setup is running in this slot environment")
+// The typed refusals of converge steps (ClassifyConvergeError maps each to
+// the class the plan gives the same condition): weave holds its setup lock
+// (retryable); an agent appeared, or saved work is full (holds).
+var (
+	errSetupRunning  = errors.New("weave setup is running in this slot environment")
+	errAgentAppeared = errors.New(StopReasonAgentLive + ": an agent appeared in the slot")
+	errSavedWorkFull = errors.New(StopReasonSavedWorkFull)
+)
 
 // checkoutEvidence is the one positive-evidence reading of a checkout: git's
 // own answer about the work tree (R2). "Not a git repository", or a work tree
@@ -62,9 +68,12 @@ func savedWorkEntries(l SlotLayout) (int, error) {
 
 // setAside moves a checkout broken on positive evidence, whole, into the
 // slot's saved work: the only way reconcile removes a checkout, and never a
-// deletion. Order (plan Task 3.1): register the store for collection, refuse
-// at the limit, write the pending manifest, hold weave's setup lock, re-check
-// the agent and the evidence, rename, mark complete.
+// deletion. Every check that can refuse runs before anything is written, so a
+// refusal leaves no residue (no entry counts toward the cap): register the
+// store, refuse at the limit, hold weave's setup lock, re-check the agent and
+// the evidence; then write the pending manifest, rename, mark it complete.
+// Every refusal is a typed error ClassifyConvergeError maps to the class the
+// plan would give it.
 func (cv *slotConverger) setAside(ctx context.Context, s PlannedStep) error {
 	l := cv.layout
 	path := filepath.Clean(s.Path)
@@ -84,7 +93,20 @@ func (cv *slotConverger) setAside(ctx context.Context, s PlannedStep) error {
 	if n, err := savedWorkEntries(l); err != nil {
 		return err
 	} else if n >= MaxSavedWork {
-		return fmt.Errorf("%s: %d saved-work entries (limit %d); restore or remove old entries first", StopReasonSavedWorkFull, n, MaxSavedWork)
+		return fmt.Errorf("%w: %d entries (limit %d); restore or remove old entries first", errSavedWorkFull, n, MaxSavedWork)
+	}
+	unlock, err := holdSetupLock(l.SetupLock())
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	if cv.agentNow != nil {
+		if running, known := AgentRunning(cv.agentNow(ctx)); running || !known {
+			return fmt.Errorf("%w; nothing was moved", errAgentAppeared)
+		}
+	}
+	if state, _, _ := checkoutEvidence(ctx, cv.p.IO, path); state != StateBroken {
+		return fmt.Errorf("%s is no longer broken on positive evidence; nothing was moved", path)
 	}
 	now := time.Now().UTC()
 	entry := l.SavedWorkEntry(path, now)
@@ -100,19 +122,6 @@ func (cv *slotConverger) setAside(ctx context.Context, s PlannedStep) error {
 	manifestPath := filepath.Join(entry, "manifest.json")
 	if err := cv.p.Store.Write(manifestPath, manifest); err != nil {
 		return err
-	}
-	unlock, err := holdSetupLock(l.SetupLock())
-	if err != nil {
-		return err
-	}
-	defer unlock()
-	if cv.agentNow != nil {
-		if running, known := AgentRunning(cv.agentNow(ctx)); running || !known {
-			return fmt.Errorf("%s: an agent appeared in the slot; nothing was moved", StopReasonAgentLive)
-		}
-	}
-	if state, _, _ := checkoutEvidence(ctx, cv.p.IO, path); state != StateBroken {
-		return fmt.Errorf("%s is no longer broken on positive evidence; nothing was moved", path)
 	}
 	rename := cv.rename
 	if rename == nil {

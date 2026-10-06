@@ -205,7 +205,7 @@ func (c *Couch) rebootSlot(ctx context.Context, t RebootTarget) (RebootResult, e
 	// directory is re-created, and a failure refuses with its resource and
 	// cause before anything is stopped. A live agent is a degraded hold here;
 	// the post-stop pass inside startFreshSlot repairs what it held.
-	local, slot, err := c.selectedSlot(ctx, t.Path)
+	local, slot, err := c.selectSlot(ctx, t.Path, true)
 	if err != nil {
 		return RebootResult{}, err
 	}

@@ -94,3 +94,49 @@ func TestOpenRefusesWithTheHandoffWhenSetupCannotConverge(t *testing.T) {
 		t.Fatalf("an agent started: %v", env.Runner.Ops)
 	}
 }
+
+// TestRebootGetsPastAHoldItsAdviceNames (BR-10): the hold advice for a slot
+// whose repair waits on a live agent says "reboot the slot to repair it", so
+// reboot's first pass must get past exactly that hold, stop the agent, and let
+// its post-stop pass repair. A hand-off still refuses before anything stops.
+func TestRebootGetsPastAHoldItsAdviceNames(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		first    ReconcileFailure
+		proceeds bool
+	}{
+		{"live-agent hold", ReconcileFailure{Resource: ResourceHost, Class: FailureHold, Cause: StopReasonAgentLive}, true},
+		{"hand-off", ReconcileFailure{Resource: ResourceSetup, Class: FailureHandoff, Cause: "Error: missing substrate"}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			env, local := slotRecoveryOperationFixture(t)
+			old := slotRecordFixture(t, env, local)
+			env.Artifacts.SetPairSession(old.Address, "pair-slot-detached", true)
+			env.Artifacts.SetDetachedSession(old.Address, "pair-slot-detached")
+			calls := 0
+			env.Couch.Workspaces = slotReadinessFunc(func(context.Context, ProvisionRequest) (ProvisionResult, error) {
+				calls++
+				if calls == 1 {
+					return ProvisionResult{}, &SlotReconcileError{Address: "repo-name:1", Repo: "repo-name", Failure: tc.first}
+				}
+				return slotReadyResult(local), nil
+			})
+			result, err := dispatchReboot(env, map[string]string{"path": local.slot.WorktreeRoot, "repo-scope": old.Address.RepoScope})
+			if !tc.proceeds {
+				if err == nil || len(env.Artifacts.Quiesces()) != 0 {
+					t.Fatalf("a hand-off must refuse with nothing stopped: err=%v quiesced=%v", err, env.Artifacts.Quiesces())
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("reboot refused the hold its own advice names: %v", err)
+			}
+			if got := env.Artifacts.Quiesces(); len(got) != 1 || got[0] != old.Address {
+				t.Fatalf("quiesced %v, want the slot's agent stopped", got)
+			}
+			if _, ok := result.Started(); !ok || calls < 2 {
+				t.Fatalf("result %+v, reconcile calls %d: want the post-stop pass and a fresh start", result, calls)
+			}
+		})
+	}
+}

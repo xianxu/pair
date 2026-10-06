@@ -99,8 +99,13 @@ remove it.
   - unknown: a probe failed;
   - hold: a live or unknown agent, or saved work full.
 
-  `ReconcileAdvice` is the one operator text. Only retryable says "run it again", a
-  hand-off goes to the repository's `:0` agent, and a hold names reboot.
+  `ReconcileAdvice` is the one operator text. Only retryable says "run it again",
+  and a hand-off goes to the repository's `:0` agent. A live-agent hold names
+  reboot, whose first reconcile pass gets past exactly that hold, stops the agent,
+  and repairs in its post-stop pass. An unknown-agent hold says to look again
+  later, because reboot cannot act on an agent it cannot observe either. Every
+  converge-step refusal is a typed error that classifies into the class the plan
+  gives it.
 - **Outcome.** `OutcomeSeverity` reads the final observation. It is blocking (the
   caller refuses) exactly when the host is not present or setup never completed;
   everything else is degraded (the caller proceeds and prints the warning). Open,

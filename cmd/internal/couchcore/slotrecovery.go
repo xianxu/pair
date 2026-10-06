@@ -220,6 +220,16 @@ func (c *Couch) registerSlotStore(ctx context.Context, path string) error {
 }
 
 func (c *Couch) selectedSlot(ctx context.Context, path string) (*ThreadStore, SlotIdentity, error) {
+	return c.selectSlot(ctx, path, false)
+}
+
+// selectSlot is selectedSlot. toleratesHolds is reboot's first pass: a slot
+// whose repair is held only because an agent may be working there (a hold, not
+// a failure) is still selected, so reboot can stop that agent; its post-stop
+// pass (startFreshSlot) then repairs what the hold deferred. Any other blocking
+// outcome refuses as usual. This keeps the hold's advice ("reboot the slot to
+// repair it") an action that can succeed.
+func (c *Couch) selectSlot(ctx context.Context, path string, toleratesHolds bool) (*ThreadStore, SlotIdentity, error) {
 	if ctx == nil || c == nil || c.Slots == nil || c.Threads == nil {
 		return nil, SlotIdentity{}, errors.New("slot services unavailable")
 	}
@@ -273,10 +283,17 @@ func (c *Couch) selectedSlot(ctx context.Context, path string) (*ThreadStore, Sl
 	agentNow := func(ctx context.Context) EvidenceAgent { return c.slotAgentNow(ctx, identified) }
 	result, err := c.Workspaces.Ensure(ctx, ProvisionRequest{Path: slot.PrimaryRoot, Slot: slot.Number, Progress: c.WorkspaceProgress,
 		Agent: agentNow(ctx), AgentNow: agentNow, RegisterStore: c.registerSlotStore})
-	if err != nil {
+	held := false
+	var blocked *SlotReconcileError
+	switch {
+	case err != nil && toleratesHolds && errors.As(err, &blocked) && blocked.Failure.Class == FailureHold && blocked.Failure.Cause == StopReasonAgentLive:
+		held = true
+		if c.WorkspaceProgress != nil {
+			fmt.Fprintln(c.WorkspaceProgress, err.Error())
+		}
+	case err != nil:
 		return nil, slot, err
-	}
-	if result.Warning != "" && c.WorkspaceProgress != nil {
+	case result.Warning != "" && c.WorkspaceProgress != nil:
 		fmt.Fprintln(c.WorkspaceProgress, result.Warning) // degraded: the slot is usable
 	}
 	repository, err = c.Slots.Discover(ctx, slot.PrimaryRoot)
@@ -284,7 +301,7 @@ func (c *Couch) selectedSlot(ctx context.Context, path string) (*ThreadStore, Sl
 		return nil, slot, err
 	}
 	candidate, found = find(repository)
-	if !found || !candidate.Verified || candidate.Err != nil {
+	if !found || (!held && (!candidate.Verified || candidate.Err != nil)) {
 		return nil, slot, errors.New("slot host is not verified; inspect workspace before opening")
 	}
 	if resolveErr == nil && candidate.Identity != slot {

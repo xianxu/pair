@@ -2,6 +2,7 @@ package couchcmd
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 
@@ -60,4 +61,62 @@ func TestRenderSlotReportConverged(t *testing.T) {
 	if !strings.Contains(out.String(), "store          pending: waits for env") || !strings.HasSuffix(out.String(), "plan: nothing to do\n") {
 		t.Fatalf("output:\n%s", out.String())
 	}
+}
+
+// reconcileRT injects a slot catalog and a provisioner whose reconcile blocks.
+type reconcileRT struct {
+	testRT
+	catalog    *couchcore.SlotCatalogFake
+	workspaces provisionFunc
+}
+
+type provisionFunc func(context.Context, couchcore.ProvisionRequest) (couchcore.ProvisionResult, error)
+
+func (f provisionFunc) Ensure(ctx context.Context, r couchcore.ProvisionRequest) (couchcore.ProvisionResult, error) {
+	return f(ctx, r)
+}
+
+func (r reconcileRT) NewCouchWith(runner couchcore.Runner, namespace couchcore.CouchNamespace) (*couchcore.Couch, error) {
+	c, err := r.testRT.NewCouchWith(runner, namespace)
+	if err == nil {
+		c.Slots = r.catalog
+		c.Workspaces = r.workspaces
+	}
+	return c, err
+}
+
+// TestReconcileCLIShowsTheReportOnABlockingFailure: a failed couch
+// --reconcile prints the resources and plan it acted on beside the advice.
+func TestReconcileCLIShowsTheReportOnABlockingFailure(t *testing.T) {
+	primary := "/f/pair"
+	identity := couchcore.WorkspaceIdentity{RepoIdentity: "/f/pair/.git", PrimaryRoot: primary}
+	observation := couchcore.SlotObservation{Primary: primary, Number: 1, Resources: []couchcore.ResourceObservation{
+		{ID: couchcore.ResourceEnv, State: couchcore.StatePresent},
+		{ID: couchcore.ResourceSetup, State: couchcore.StateAbsent, Reason: "no marker"},
+	}}
+	rt := reconcileRT{
+		testRT:  newRT(t),
+		catalog: &couchcore.SlotCatalogFake{Repositories: map[string]couchcore.SlotRepository{primary: {Identity: identity}}},
+		workspaces: func(context.Context, couchcore.ProvisionRequest) (couchcore.ProvisionResult, error) {
+			return couchcore.ProvisionResult{}, &couchcore.SlotReconcileError{Address: "pair:1", Repo: "pair",
+				Failure: couchcore.ReconcileFailure{Resource: couchcore.ResourceSetup, Class: couchcore.FailureHandoff, Cause: "Error: missing substrate"},
+				Result:  couchcore.ReconcileResult{Observation: observation}}
+		},
+	}
+	out, errw, code := runTypedRTWith(rt, couchcore.OperationCall{Name: "reconcile", Args: map[string]string{"ref": "/f/worktree/pair-slot1/pair"}})
+	if code != 1 || !strings.Contains(out, "slot pair:1") || !strings.Contains(out, "setup") || !strings.Contains(errw, "ask the pair:0 agent") {
+		t.Fatalf("code %d\nstdout:\n%s\nstderr:\n%s", code, out, errw)
+	}
+}
+
+// runTypedRTWith runs one typed operation through the CLI's real dispatch with
+// any runtime (runTypedRT's shape for wrapped runtimes).
+func runTypedRTWith(rt Runtime, call couchcore.OperationCall) (string, string, int) {
+	var out, errw bytes.Buffer
+	op, ok := Resolve(call.Name)
+	if !ok {
+		return "", "unknown operation", 2
+	}
+	code := runTypedOperation(op, call.Args, nil, false, "", nil, nil, strings.NewReader(""), &out, &errw, rt)
+	return out.String(), errw.String(), code
 }

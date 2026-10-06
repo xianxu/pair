@@ -1345,3 +1345,25 @@ resource.
   The narrowing that remains is the workspace one: in `SelectStartSlot`, a leftover-only number
   is reused and any other failed workspace candidate skips its own number. The Done-when case
   (a deleted directory no longer blocks the repository) holds.
+
+### 2026-10-05 (t) — M2 boundary review round 3 (FIX-THEN-SHIP)
+
+- BR-10 (Important), rule: "advice names an action that can succeed from the state that produced
+  it".
+  - Reboot's first reconcile pass (`selectSlot(..., toleratesHolds=true)`) gets past exactly the
+    live-agent hold: it prints the advice, stops the agent, and its post-stop pass repairs. Any
+    other blocking outcome still refuses before anything stops.
+  - Swept the hold class: the unknown-agent hold now says "look again later" rather than reboot,
+    since reboot cannot act on an unobservable agent either. `TestRebootGetsPastAHoldItsAdviceNames`
+    covers both directions; the mutation (no tolerance) reproduces BR-10's refusal verbatim.
+- BR-11 (Important): `SetAside` runs every refusable check (limit, weave lock, agent, evidence)
+  before writing anything. A refusal leaves no entry toward the cap (`assertNoSavedWork`), and the
+  pending manifest is still written before the rename, for crash safety. The mutation (entry
+  before checks) is caught.
+- Minor, stop-reason precision (2nd in family), rule: "every stop reason a converge step returns
+  is a typed error that `ClassifyConvergeError` maps to the class `PlanSlot` gives it".
+  `errAgentAppeared` and `errSavedWorkFull` map to holds, alongside `errSetupRunning`
+  (retryable).
+- Minor, error-surface (3rd in family), rule: "a failed slot operation renders the observation it
+  holds beside the advice". The CLI renders `SlotReconcileError.Result`'s report on stdout before
+  the advice on stderr (`TestReconcileCLIShowsTheReportOnABlockingFailure`; mutation caught).

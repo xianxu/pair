@@ -6,7 +6,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 )
@@ -88,8 +87,14 @@ func TestSetAsideRefusals(t *testing.T) {
 			os.MkdirAll(s.layout.SavedWorkEntry("old", time.Unix(int64(i), 0)), 0o700)
 		}
 		err := s.converger(t).converge(context.Background(), PlannedStep{Step: StepSetAside, Resource: DepResource(fakeDep), Path: dep})
-		if err == nil || !strings.Contains(err.Error(), StopReasonSavedWorkFull) {
+		if !errors.Is(err, errSavedWorkFull) {
 			t.Fatalf("err = %v", err)
+		}
+		if f := ClassifyConvergeError(PlannedStep{Step: StepSetAside, Resource: DepResource(fakeDep)}, err); f.Class != FailureHold {
+			t.Fatalf("classified %+v, want a hold", f)
+		}
+		if entries, _ := os.ReadDir(s.layout.SavedWork()); len(entries) != MaxSavedWork {
+			t.Fatalf("%d entries, want the %d old ones and no new one", len(entries), MaxSavedWork)
 		}
 		if _, err := os.Lstat(dep); err != nil {
 			t.Fatal("moved despite the limit")
@@ -109,6 +114,7 @@ func TestSetAsideRefusals(t *testing.T) {
 		s := newObservedSlot(t)
 		dep := brokenDep(t, s)
 		holdLock(t, s.layout.SetupLock())
+		defer assertNoSavedWork(t, s.layout)
 		err := s.converger(t).converge(context.Background(), PlannedStep{Step: StepSetAside, Resource: DepResource(fakeDep), Path: dep})
 		if !errors.Is(err, errSetupRunning) {
 			t.Fatalf("err = %v, want setup running", err)
@@ -120,11 +126,15 @@ func TestSetAsideRefusals(t *testing.T) {
 	t.Run("an agent appears", func(t *testing.T) {
 		s := newObservedSlot(t)
 		dep := brokenDep(t, s)
+		defer assertNoSavedWork(t, s.layout)
 		cv := s.converger(t)
 		cv.agentNow = func(context.Context) EvidenceAgent { return AgentDetached }
 		err := cv.converge(context.Background(), PlannedStep{Step: StepSetAside, Resource: DepResource(fakeDep), Path: dep})
-		if err == nil || !strings.Contains(err.Error(), StopReasonAgentLive) {
+		if !errors.Is(err, errAgentAppeared) {
 			t.Fatalf("err = %v", err)
+		}
+		if f := ClassifyConvergeError(PlannedStep{Step: StepSetAside, Resource: DepResource(fakeDep)}, err); f.Class != FailureHold || f.Cause != StopReasonAgentLive {
+			t.Fatalf("classified %+v, want the live-agent hold the plan gives", f)
 		}
 		if _, err := os.Lstat(dep); err != nil {
 			t.Fatal("moved under a live agent")
@@ -165,5 +175,14 @@ func TestSetAsideCrashAtTheRenameLeavesNoPartialTree(t *testing.T) {
 	entries, _ := os.ReadDir(s.layout.SavedWork())
 	if _, err := os.Lstat(filepath.Join(s.layout.SavedWork(), entries[0].Name(), "tree")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("a partial tree exists in saved work")
+	}
+}
+
+// assertNoSavedWork: a refused set-aside leaves no entry behind (it would
+// count toward the cap).
+func assertNoSavedWork(t *testing.T, l SlotLayout) {
+	t.Helper()
+	if entries, _ := os.ReadDir(l.SavedWork()); len(entries) != 0 {
+		t.Errorf("a refused set-aside left %d saved-work entries", len(entries))
 	}
 }

@@ -48,6 +48,10 @@ const weaveSetupActive = "environment setup is active in"
 func ClassifyConvergeError(step PlannedStep, err error) ReconcileFailure {
 	f := ReconcileFailure{Resource: step.Resource, Class: FailureHandoff, Cause: errorCause(err)}
 	switch {
+	case errors.Is(err, errAgentAppeared):
+		f.Class, f.Cause = FailureHold, StopReasonAgentLive
+	case errors.Is(err, errSavedWorkFull):
+		f.Class, f.Cause = FailureHold, StopReasonSavedWorkFull
 	case errors.Is(err, errSetupRunning), errors.Is(err, ErrHostCreationBusy),
 		errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled),
 		strings.Contains(err.Error(), weaveSetupActive):
@@ -100,8 +104,12 @@ func ReconcileAdvice(address, repo string, f ReconcileFailure) string {
 		return fmt.Sprintf("slot %s: %s could not be observed: %s; nothing depending on it was changed", address, f.Resource, f.Cause)
 	case FailureHold:
 		switch f.Cause {
-		case StopReasonAgentLive, StopReasonAgentUnknown:
-			return fmt.Sprintf("slot %s: %s needs repair, but an agent may be working in the slot; reboot the slot to repair it", address, f.Resource)
+		case StopReasonAgentLive:
+			return fmt.Sprintf("slot %s: %s needs repair, but an agent is working in the slot; reboot the slot to repair it", address, f.Resource)
+		case StopReasonAgentUnknown:
+			// Reboot cannot act on an agent it cannot observe either, so the
+			// only action that can succeed is looking again.
+			return fmt.Sprintf("slot %s: %s needs repair, but the slot's agent could not be observed; look again later (couch --show %s)", address, f.Resource, address)
 		case StopReasonSavedWorkFull:
 			return fmt.Sprintf("slot %s: %s needs repair, but its saved work is full; restore or remove old entries (couch --show %s lists the slot)", address, f.Resource, address)
 		}

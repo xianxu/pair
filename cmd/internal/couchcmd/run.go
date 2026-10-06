@@ -472,6 +472,12 @@ func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs ma
 		})
 	}
 	if err != nil {
+		// A slot operation that failed still holds the observation it acted
+		// on: show it beside the advice (pair#387).
+		var blocked *couchcore.SlotReconcileError
+		if errors.As(err, &blocked) && len(blocked.Result.Observation.Resources) > 0 {
+			renderSlotReport(stdout, couchcore.SlotReport{Address: blocked.Address, Observation: blocked.Result.Observation, Plan: blocked.Result.Plan})
+		}
 		renderError(stderr, err)
 		return 1
 	}
