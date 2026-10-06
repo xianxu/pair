@@ -99,6 +99,7 @@ func TestSeparateGitDirectoryEnrollmentPreservesStorageAuthority(t *testing.T) {
 	env.Couch.Threads = reopened
 	env.Couch.Namespace = s.namespace
 	env.Couch.Slots = NewOSSlotCatalog(f)
+	env.Couch.Workspaces = NewWorkspaceProvisioner(f) // opening a slot reconciles it (pair#387)
 	env.Couch.RepoAgentDefault = func(root, agent string) (LaunchProfile, bool, error) {
 		if root != f.Primary {
 			t.Fatalf("default lookup lost primary: %s", root)

@@ -195,6 +195,30 @@ func (s *ThreadStore) slotRecoveryBackupLocked(raw []byte) (*storeJournalEntry, 
 	return &storeJournalEntry{Path: filepath.Join("recovery", name), After: &raw}, nil
 }
 
+// slotAgentNow is the slot's agent evidence for reconcile: any session left in
+// the slot's scope (a record-less survivor included) is a running agent, and a
+// failed observation is unknown. Reconcile never removes a checkout unless this
+// says none.
+func (c *Couch) slotAgentNow(ctx context.Context, slot SlotIdentity) EvidenceAgent {
+	observation, err := c.ObserveSlotSessions(ctx, slot)
+	switch {
+	case err != nil:
+		return AgentUnusableUnknown
+	case observation.Absent:
+		return AgentNone
+	}
+	return AgentLive
+}
+
+// registerSlotStore makes a slot store visible to storage collection before
+// reconcile writes saved work into it (pair#387, ARCH-FUNERAL).
+func (c *Couch) registerSlotStore(ctx context.Context, path string) error {
+	if c.Threads == nil || c.Threads.coordinator == nil {
+		return nil
+	}
+	return c.Threads.coordinator.RegisterStore(ctx, path)
+}
+
 func (c *Couch) selectedSlot(ctx context.Context, path string) (*ThreadStore, SlotIdentity, error) {
 	if ctx == nil || c == nil || c.Slots == nil || c.Threads == nil {
 		return nil, SlotIdentity{}, errors.New("slot services unavailable")
@@ -230,22 +254,36 @@ func (c *Couch) selectedSlot(ctx context.Context, path string) (*ThreadStore, Sl
 	if !found {
 		return nil, slot, errors.New("slot directory is not an existing conventional candidate")
 	}
+	// Every open, resume, reboot and fresh start converges the slot's
+	// workspace first (pair#387): verifyHost proves identity only, not setup
+	// or dependency clones, so a verified candidate is reconciled too. On a
+	// healthy slot this is one observation and an empty plan.
+	// A candidate that is not yet a verified checkout is provisioned below,
+	// which needs its repository family; a verified one keeps the family it
+	// has (reserving an empty start would contradict a recorded one).
 	if !candidate.Verified || candidate.Err != nil {
 		if _, err := c.Threads.ReserveRepositoryFamily(ctx, repository, RepositoryFamily{RepoIdentity: repository.Identity.RepoIdentity, PrimaryRoot: slot.PrimaryRoot}); err != nil {
 			return nil, slot, err
 		}
-		if c.Workspaces == nil {
-			return nil, slot, errors.New("incomplete slot needs workspace readiness")
-		}
-		if _, err := c.Workspaces.Ensure(ctx, ProvisionRequest{Path: slot.PrimaryRoot, Slot: slot.Number, Progress: c.WorkspaceProgress}); err != nil {
-			return nil, slot, err
-		}
-		repository, err = c.Slots.Discover(ctx, slot.PrimaryRoot)
-		if err != nil {
-			return nil, slot, err
-		}
-		candidate, found = find(repository)
 	}
+	if c.Workspaces == nil {
+		return nil, slot, errors.New("slot reconcile needs workspace readiness")
+	}
+	identified := candidate.Identity
+	agentNow := func(ctx context.Context) EvidenceAgent { return c.slotAgentNow(ctx, identified) }
+	result, err := c.Workspaces.Ensure(ctx, ProvisionRequest{Path: slot.PrimaryRoot, Slot: slot.Number, Progress: c.WorkspaceProgress,
+		Agent: agentNow(ctx), AgentNow: agentNow, RegisterStore: c.registerSlotStore})
+	if err != nil {
+		return nil, slot, err
+	}
+	if result.Warning != "" && c.WorkspaceProgress != nil {
+		fmt.Fprintln(c.WorkspaceProgress, result.Warning) // degraded: the slot is usable
+	}
+	repository, err = c.Slots.Discover(ctx, slot.PrimaryRoot)
+	if err != nil {
+		return nil, slot, err
+	}
+	candidate, found = find(repository)
 	if !found || !candidate.Verified || candidate.Err != nil {
 		return nil, slot, errors.New("slot host is not verified; inspect workspace before opening")
 	}

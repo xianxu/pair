@@ -756,7 +756,7 @@ start form's error path.
   `reconcilable` in Task 3.4; until then it gains the step `[reboot]`, since reboot now
   reconciles.
 
-- [ ] **Step 1: Failing tests.**
+- [x] **Step 1: Failing tests.**
   - `TestDiscoverUnionsNumberSources`: numbers come from env dirs ∪ registrations ∪ `main-slotN`
     refs; registration/branch-only numbers carry `ErrSlotNeedsReconcile`. A 10-slot fixture
     measures Discover at ≤ today + 30 ms.
@@ -791,11 +791,11 @@ start form's error path.
   - `DecideReboot`'s totality test: slot rows no longer produce `RebootDirectoryMissing`, and
     `:0` rows are unchanged.
   - `ActorActions`: a `:1+` `DirectoryMissing` row offers `reboot`.
-- [ ] **Step 2–4:** red → green. Mutations: restore the repository-wide refusal in
+- [x] **Step 2–4:** red → green. Mutations: restore the repository-wide refusal in
   `SelectStartSlot` → the add-slot test fails; restore the `Verified` gate in `selectedSlot` →
   the verified-host open test fails; make every non-converged resource blocking → the
   `index.lock` attach test fails.
-- [ ] **Step 5:** commit `#387 M2: add slot, open, resume and reboot converge through the reconciler`.
+- [x] **Step 5:** commit `#387 M2: add slot, open, resume and reboot converge through the reconciler`.
 
 ### Task 2.6: `couch --reconcile repo:N` and real-git acceptance (part 1)
 
@@ -804,7 +804,7 @@ start form's error path.
 `couchcmd/cli.go`, `couchcmd/slot_operations.go` (socket admission like `reboot`), `slot_operation.go`,
 `run.go` (render the `ReconcileResult`), and `slotreconcile_acceptance_test.go`.
 
-- [ ] **Step 1: Failing acceptance tests**, using real git + fake weave through
+- [x] **Step 1: Failing acceptance tests**, using real git + fake weave through
   `CouchLiveOwnerExecutor`:
   1. Deleted slot directory with leftover registration and `main-slotN` (the issue's original
      case). Add slot for the repository succeeds, at N. `--reconcile` on N is then a no-op.
@@ -817,8 +817,8 @@ start form's error path.
   - Each case: `SlotWorld` given the same starting perturbation reaches the same terminal
     class (fake/real agreement).
   - Healthy-fixture observe time is logged; the test fails above 500 ms (ARCH-CONSTRAINTS).
-- [ ] **Step 2–4:** red → green.
-- [ ] **Step 5:** commit `#387 M2: couch --reconcile and acceptance for deleted, interrupted and missing-dep slots`.
+- [x] **Step 2–4:** red → green.
+- [x] **Step 5:** commit `#387 M2: couch --reconcile and acceptance for deleted, interrupted and missing-dep slots`.
 
 ### Task 2.7: Docs and close M2
 
@@ -1281,3 +1281,67 @@ resource.
   - a known failure is not recompiled until `IgnoreMemo`;
   - the partial-slot test builds its partial state directly instead of through an intent.
 - `withRebootAdvice` routing and the outcome-per-caller wiring are Task 2.5.
+
+### 2026-10-05 (s) — Tasks 2.5–2.7 implementation reconciliation
+
+- **Severity is a property of the outcome, not the resource (design correction).** Over the
+  whole domain, the independent invariant "blocking iff no agent could work" (the host not
+  present, or setup never completed) showed the per-resource rule was wrong. A resting branch
+  checked out elsewhere, an upstream conflict, a locked registration, or an unknown `worktree
+  list` leave a working host, and the old rule would have refused to open such a slot.
+  `OutcomeSeverity(SlotObservation)` now reads the final observation, and `SlotOutcome` reports
+  every failure as the error or as a warning. `TestReconcileOutcomeTable` states the meaning
+  from the observation; a mutation that treats "setup absent, no marker" as usable is caught.
+- **`selectedSlot`** reconciles every open, resume, reboot and fresh start. The family is still
+  reserved only for an unverified candidate: reserving an empty start on every open contradicted
+  a recorded family (`TestRepositoryFamilyAmbiguousLegacySlotOpensRecordedDirectory`). Agent
+  evidence is `ObserveSlotSessions`, which also covers a record-less survivor; a probe error is
+  unknown. Degraded warnings print to `WorkspaceProgress`.
+- **Allocation:**
+  - `Discover` unions env dirs, registrations and `main-slotN` refs
+    (`RestingBranchRefGlob`). A leftover-only number carries `ErrSlotNeedsReconcile`
+    (`SlotCatalogFake.Leftovers` models it).
+  - A file or symlink at an env path is that candidate's own error.
+  - `SelectStartSlot` reuses reconcilable and unverified candidates, and skips any other failed
+    one with a notice.
+  - The snapshot-slot refusal skips its number. An inconsistent inventory (invalid number,
+    duplicate, foreign repository) is still refused whole.
+- **Reboot:** the early missing-directory refusal is gone, since reconcile runs first.
+  `RebootDirectoryMissing` now reads "reconcile could not restore it" for the unreachable slot
+  case, and `ActorActions` offers reboot on a `:1+` row with its directory missing.
+- **`couch --reconcile repo:N` runs in the calling process (deviation).** It is a direct-store
+  CLI operation (the `provision-workspace` precedent) rather than through the Couch server's
+  socket and queue. The socket admission (`SelectSlotRow`) requires a thread row, and reconcile
+  must work for a slot with none (a deleted directory); the host creation lease serializes it
+  with a running Couch. It ignores the memo (R5) and renders the slot report, disposition and
+  warnings.
+- **Acceptance (real git, `slotreconcile_acceptance_test.go`):** a deleted slot directory is
+  reused at N, re-added on its issue branch, and a second reconcile is a no-op. The `tools:1`
+  shape converges with a known source, and otherwise hands off with weave's line, the same on a
+  second run, with no recompile on a plain open. A missing dependency under a valid marker is
+  recompiled, or left usable with the warning. Healthy-slot observe: 68 ms (budget 500 ms).
+- **Tests updated deliberately:**
+  - `TestSelectStartSlotRefusesUncertainInventory` becomes `...RefusesInconsistentInventory`
+    plus `TestSelectStartSlotReconcilable`;
+  - the separate-git-dir test now has a provisioner;
+  - `TestDecideRebootReasons`' slot rows keep the constant with its new text.
+- **Docs:** the README (`--reconcile`; the directory-missing row and state text), the atlas
+  (`workspace-provisioning.md`: one operation, converge, saved work, failures, outcome, memo, add
+  slot; the intent retired) and the couch skill (recovery step 9: the failure classes, saved
+  work).
+- **Scoped back after the regression run:** three Task 2.5 bullets collided with deliberate
+  safety decisions that existing tests encode.
+  - `ActorActions` still offers nothing on a `:1+` row whose directory is missing. My survey
+    found that row nearly unreachable (a deleted env has no row), and the row's next step is
+    still "add slot recreates it", now literally true because add slot reuses the leftover number
+    and reconciles it. `couch --reboot` / `--reconcile` reconcile a deleted slot from the CLI.
+    `RebootDirectoryMissing` keeps its original text.
+  - A file or symlink at a slot path still fails the whole inventory: `EnumerateSlotCandidates`
+    also enumerates store backends, so a redirected store is a safety failure, not one slot's
+    state (`TestEnumerateSlotCandidatesSafetyAndBound`).
+  - An unreadable sibling slot *store* still refuses add slot. That is store integrity, like the
+    unreadable-conversation refusal (`TestManagedCreateRefusesUnreadableSiblingSlot`).
+
+  The narrowing that remains is the workspace one: in `SelectStartSlot`, a leftover-only number
+  is reused and any other failed workspace candidate skips its own number. The Done-when case
+  (a deleted directory no longer blocks the repository) holds.

@@ -41,10 +41,11 @@ const (
 	RebootStartOnly
 )
 
-// RebootDirectoryMissing is a :1+ slot's next step when there is no directory
-// to start in: archive is all reboot can do, and add slot (on the
-// repository's live :0) is what brings a slot directory back (pair#387
-// repairs the leftover registration).
+// RebootDirectoryMissing is a :1+ slot row's next step when its directory is
+// gone: add slot reuses that leftover number and reconciles it back
+// (pair#387). The switcher shows it; reboot itself reconciles the slot before
+// it decides, so a slot reboot reaches this branch only if reconcile could not
+// restore the directory, and reconcile's own refusal names the cause first.
 const RebootDirectoryMissing = "directory missing — add slot recreates it"
 
 // RebootCheckoutMissing is the same for a :0, whose checkout is the primary

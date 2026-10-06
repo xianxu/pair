@@ -295,6 +295,9 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 	case cliShow:
 		op, _ = Resolve("show")
 		argv = []string{invocation.ref}
+	case cliReconcile:
+		op, _ = Resolve("reconcile")
+		argv = []string{invocation.ref}
 	case cliInternal:
 		op, _ = Resolve(invocation.operation)
 		argv = invocation.args
@@ -811,6 +814,10 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 	}
 	switch v := result.(type) {
 	case couchcore.ProvisionResult:
+		if op.Name == "reconcile" {
+			renderReconcile(w, v)
+			break
+		}
 		if err := json.NewEncoder(w).Encode(v); err != nil {
 			return 1
 		}
@@ -871,6 +878,18 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 // renderThreads consumes the same one-row-per-composite-thread inventory as
 // the panel and advisor. Human names lead named rows; only unnamed rows expose
 // the opaque tag as their fallback label.
+// renderReconcile prints what couch --reconcile did: the slot's final
+// resources and plan, then any degraded warnings.
+func renderReconcile(w io.Writer, r couchcore.ProvisionResult) {
+	if r.Report != nil {
+		renderSlotReport(w, *r.Report)
+	}
+	fmt.Fprintf(w, "%s %s at %s\n", r.Address, r.Disposition, r.Path)
+	if r.Warning != "" {
+		fmt.Fprintln(w, "warning: "+strings.ReplaceAll(r.Warning, "\n", "\nwarning: "))
+	}
+}
+
 // renderSlotReport prints a slot's resources in converge order and the plan
 // reconcile would run (pair#387): the plan half of plan/apply.
 func renderSlotReport(w io.Writer, r couchcore.SlotReport) {
@@ -995,6 +1014,7 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "usage: couch [path] [--layout2|--layout3]")
 	fmt.Fprintln(w, "       couch --list")
 	fmt.Fprintln(w, "       couch --show <thread>")
+	fmt.Fprintln(w, "       couch --reconcile repo:N")
 	fmt.Fprintln(w, "       couch --archived")
 	fmt.Fprintln(w, "       couch --recover-plan-from-sdlc")
 	fmt.Fprintln(w, "             Recovery report: one JSON row per slot joining sdlc's claims and")

@@ -59,7 +59,8 @@ func ActorActions(f ActorRowFacts) []string {
 		if f.DirectoryMissing {
 			// A :0 record outlives its checkout, so reboot archives it alone.
 			// A :1+ record lives inside its directory: there is nothing left
-			// to retire.
+			// to retire. (couch --reboot / --reconcile still reconcile a
+			// deleted slot, pair#387.)
 			if f.Slot {
 				return nil
 			}

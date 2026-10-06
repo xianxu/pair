@@ -19,6 +19,8 @@ is a request, never operator approval or evidence that work is accepted.
 | Read the recovery report | `couch --recover-plan-from-sdlc` |
 | Resume one slot's agent | `couch --resume pair:2` |
 | Archive and replace one slot's agent | `couch --reboot pair:2 --confirm` |
+| See a slot's resources and repair plan | `couch --show pair:2` |
+| Repair a slot's workspace now | `couch --reconcile pair:2` |
 
 Exact addresses include `repo:0`. The `repo` part may be the directory name,
 the repository's alias, or a unique prefix of either (`parley:1` reaches
@@ -107,6 +109,20 @@ couch --send-to pair:4 --message 'Recovery (pair:4): restore this slot'\''s pair
 7. An uncertain outcome means re-run the report before resending. A resend is
    refused harmlessly (`not-offered`) once the slot is live.
 8. Continuing work and scheduling are not part of recovery.
+9. A slot's workspace is reconciled automatically on open, resume, reboot and
+   add slot. A failure names the resource and its cause:
+   - **"run it again when that finishes":** something else was running. Run
+     `couch --reconcile pair:N` later.
+   - **"ask the pair:0 agent to investigate":** reconcile cannot fix it. Typical
+     causes are a `construct/deps` row without a clone source, or a resting branch
+     checked out elsewhere. Fix the cause in the owning repository through its own
+     workflow, then run `couch --reconcile pair:N`. That form ignores a remembered
+     setup failure.
+   - **"reboot the slot to repair it":** an agent may be working there. Reboot only
+     on the operator's instruction for that row.
+   - **A checkout reconcile set aside** is under the slot's
+     `.couch/saved-work/<name>-<time>/`, and its `manifest.json` gives the restore
+     command. Nothing is ever deleted.
 
 ## Setup and qualification
 

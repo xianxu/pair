@@ -130,6 +130,9 @@ func ParseEnvName(repo, name string) (int, bool) {
 	return canonicalSlotNumber(suffix)
 }
 
+// RestingBranchRefGlob matches every :1+ resting branch ref (for-each-ref).
+const RestingBranchRefGlob = "refs/heads/main-slot*"
+
 // ParseRestingBranch recognizes a :1+ resting branch name.
 func ParseRestingBranch(branch string) (int, bool) {
 	suffix, ok := strings.CutPrefix(branch, "main-slot")

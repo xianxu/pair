@@ -109,6 +109,29 @@ func (c *Couch) slotIdentityFromGit(ctx context.Context, primary string, n int) 
 	return slot, nil
 }
 
+// ReconcileSlot converges the :1+ slot a reference names (couch --reconcile,
+// pair#387). It is Ensure with the slot's own agent evidence and storage
+// registration, and it ignores a remembered setup failure: the operator runs
+// it after fixing a cause outside the slot.
+func (c *Couch) ReconcileSlot(ctx context.Context, ref string) (ProvisionResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	slot, ok, err := c.slotOfShowReference(ctx, ref, nil)
+	if err != nil {
+		return ProvisionResult{}, err
+	}
+	if !ok {
+		return ProvisionResult{}, fmt.Errorf("%s does not name a :1+ slot (repo:N, or a path in the slot)", ref)
+	}
+	if c.Workspaces == nil {
+		return ProvisionResult{}, fmt.Errorf("workspace provisioner is unavailable")
+	}
+	agentNow := func(ctx context.Context) EvidenceAgent { return c.slotAgentNow(ctx, slot) }
+	return c.Workspaces.Ensure(ctx, ProvisionRequest{Path: slot.PrimaryRoot, Slot: slot.Number, Progress: c.WorkspaceProgress,
+		Agent: agentNow(ctx), AgentNow: agentNow, RegisterStore: c.registerSlotStore, IgnoreMemo: true})
+}
+
 // SlotReportFor observes a slot and plans its reconcile. It changes nothing.
 func (c *Couch) SlotReportFor(ctx context.Context, slot SlotIdentity, rows []ThreadSummary) SlotReport {
 	io := c.SlotIO

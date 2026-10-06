@@ -201,13 +201,10 @@ func retiredResult(address ThreadAddress, r retirement) RebootResult {
 }
 
 func (c *Couch) rebootSlot(ctx context.Context, t RebootTarget) (RebootResult, error) {
-	// A slot whose directory is gone has no record left to archive -- the
-	// record lives inside it -- and selecting the slot could provision it
-	// again, which is add slot's job, not reboot's.
-	if !c.directoryPresent(t.Path) {
-		_, reason := DecideReboot(RebootFacts{Slot: true, Record: RebootRecordNone})
-		return RebootResult{}, fmt.Errorf("reboot %s: %s", t.Path, reason)
-	}
+	// Selecting the slot reconciles its workspace first (pair#387): a missing
+	// directory is re-created, and a failure refuses with its resource and
+	// cause before anything is stopped. A live agent is a degraded hold here;
+	// the post-stop pass inside startFreshSlot repairs what it held.
 	local, slot, err := c.selectedSlot(ctx, t.Path)
 	if err != nil {
 		return RebootResult{}, err

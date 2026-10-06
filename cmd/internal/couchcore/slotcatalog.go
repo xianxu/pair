@@ -26,6 +26,12 @@ type SlotCandidate struct {
 }
 type OSSlotCatalog struct{ IO ProvisionIO }
 
+// ErrSlotNeedsReconcile marks a candidate known only from leftovers (an
+// environment or registration without a checkout, or a resting branch alone):
+// reconcile can bring it back, so it is a reusable number, not a refusal
+// (pair#387).
+var ErrSlotNeedsReconcile = errors.New("slot needs reconcile")
+
 func NewOSSlotCatalog(commandIO ProvisionIO) *OSSlotCatalog { return &OSSlotCatalog{IO: commandIO} }
 
 func conventionalSlot(primary string, n int) SlotIdentity {
@@ -58,7 +64,7 @@ func inspectSlot(s SlotIdentity) (SlotCandidate, error) {
 		}
 	}
 	if _, err := os.Stat(s.WorktreeRoot); err != nil {
-		c.Err = fmt.Errorf("incomplete slot host %s: %w", s.WorktreeRoot, err)
+		c.Err = fmt.Errorf("%w: incomplete slot host %s: %v", ErrSlotNeedsReconcile, s.WorktreeRoot, err)
 	}
 	return c, nil
 }
@@ -98,6 +104,9 @@ func EnumerateSlotCandidates(primaryRoot string) ([]SlotCandidate, error) {
 		}
 		c, err := inspectSlot(conventionalSlot(primaryRoot, n))
 		if err != nil {
+			// A symlink or file at a slot path fails the whole inventory: it
+			// also enumerates store backends, and a redirected store is a
+			// safety failure, not one slot's state (pair#387 keeps this).
 			return nil, err
 		}
 		slots = append(slots, c)
@@ -161,6 +170,22 @@ func (c *OSSlotCatalog) Discover(ctx context.Context, path string) (SlotReposito
 		if err != nil {
 			return SlotRepository{}, err
 		}
+		slots = append(slots, row)
+		seen[n] = true
+	}
+	refs, err := p.git(ctx, path, nil, "for-each-ref", "--format=%(refname)", RestingBranchRefGlob)
+	if err != nil {
+		return SlotRepository{}, err
+	}
+	for _, ref := range strings.Split(refs, "\n") {
+		n, ok := ParseRestingBranch(strings.TrimPrefix(ref, "refs/heads/"))
+		if !ok || seen[n] {
+			continue
+		}
+		if len(slots) >= MaxSlotCandidates {
+			return SlotRepository{}, fmt.Errorf("slot candidate limit %d exceeded", MaxSlotCandidates)
+		}
+		row := SlotCandidate{Identity: conventionalSlot(path, n), Err: fmt.Errorf("%w: only its resting branch remains", ErrSlotNeedsReconcile)}
 		slots = append(slots, row)
 		seen[n] = true
 	}

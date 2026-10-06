@@ -129,3 +129,71 @@ func TestWeaveConformance(t *testing.T) {
 		t.Errorf("sourceless substrate: %+v from %v", got, err)
 	}
 }
+
+// TestReconcileOutcomeTable (pair#387 Task 2.5): over every single
+// perturbation and agent state, a reconcile outcome is blocking exactly when
+// no agent could work in the slot: its host checkout is not present, or setup
+// never completed (no valid marker). Stated from the final observation,
+// independently of OutcomeSeverity's rules.
+func TestReconcileOutcomeTable(t *testing.T) {
+	for _, agent := range AllEvidenceAgents() {
+		for _, p := range slotPerturbations() {
+			w := newSlotWorld()
+			w.Agent = agent
+			w.set(p)
+			result, err := reconcileLoop(context.Background(), w, nil)
+			blocking, _ := SlotOutcome("pair:1", "pair", result, err)
+			host, _ := result.Observation.Get(ResourceHost)
+			setup, _ := result.Observation.Get(ResourceSetup)
+			// An agent can work in the slot when its checkout is there and was
+			// set up once (a known failure or a running compile under a valid
+			// marker still counts).
+			setUp := setup.State == StatePresent || setup.Sub == SubMarkerValid || setup.Sub == SubWithWarning
+			unusable := host.State != StatePresent || !setUp
+			if (blocking != nil) != unusable {
+				t.Errorf("agent=%s %s: blocking=%v (%v), but host=%s setup=%s/%s", agent, p, blocking != nil, blocking, host.State, setup.State, setup.Sub)
+			}
+		}
+	}
+}
+
+// The outcome table's named cells.
+func TestOutcomeTableNamedCells(t *testing.T) {
+	run := func(agent EvidenceAgent, ps ...perturbation) (*SlotReconcileError, []string, *SlotWorld) {
+		w := newSlotWorld()
+		w.Agent = agent
+		for _, p := range ps {
+			w.set(p)
+		}
+		result, err := reconcileLoop(context.Background(), w, nil)
+		b, warnings := SlotOutcome("pair:1", "pair", result, err)
+		return b, warnings, w
+	}
+	// A held index.lock in a dependency of a live slot: unknown, degraded, attach.
+	if b, warnings, _ := run(AgentLive, perturbation{DepResource(fakeDep), StateUnknown, ""}); b != nil || len(warnings) != 1 {
+		t.Errorf("index.lock under a live agent: blocking=%v warnings=%v", b, warnings)
+	}
+	// A broken dependency under a live agent: held, degraded, nothing moved.
+	b, warnings, w := run(AgentLive, perturbation{DepResource(fakeDep), StateBroken, SubUnreadable})
+	if b != nil || len(warnings) != 1 || !strings.Contains(warnings[0], "reboot the slot") || len(w.Effects) != 0 {
+		t.Errorf("broken dep under a live agent: blocking=%v warnings=%v effects=%v", b, warnings, w.Effects)
+	}
+	// Reboot's second pass, the agent stopped: the same dependency is repaired.
+	b, warnings, w = run(AgentNone, perturbation{DepResource(fakeDep), StateBroken, SubUnreadable})
+	if b != nil || len(warnings) != 0 || len(w.Effects) != 2 {
+		t.Errorf("after the agent stopped: blocking=%v warnings=%v effects=%v, want set-aside then compile", b, warnings, w.Effects)
+	}
+	// tools:1: setup never completed and cannot: blocking, the :0 hand-off.
+	b, _, _ = run(AgentNone, perturbation{DepResource(fakeDep), StateAbsent, ""}, perturbation{ResourceSetup, StateAbsent, ""})
+	if b == nil {
+		w := newSlotWorld()
+		w.SourceKnown = false
+		w.set(perturbation{DepResource(fakeDep), StateAbsent, ""})
+		w.set(perturbation{ResourceSetup, StateAbsent, ""})
+		result, err := reconcileLoop(context.Background(), w, nil)
+		b, _ = SlotOutcome("tools:1", "tools", result, err)
+		if b == nil || b.Failure.Class != FailureHandoff || !strings.Contains(b.Error(), "ask the tools:0 agent") {
+			t.Errorf("tools:1: %v, want the blocking :0 hand-off", b)
+		}
+	}
+}

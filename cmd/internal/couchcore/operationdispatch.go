@@ -153,6 +153,8 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 			}
 			request.Progress = c.WorkspaceProgress
 			return c.Workspaces.Ensure(call.Context, request)
+		case "reconcile":
+			return c.ReconcileSlot(call.Context, a["ref"])
 		case "list":
 			return c.ThreadInventoryContext(call.Context)
 		case "recover-plan":

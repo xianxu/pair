@@ -121,24 +121,26 @@ const (
 	SeverityDegraded Severity = "degraded"
 )
 
-// OutcomeSeverity decides blocking versus degraded for one resource that did
-// not converge. The stop reason decides first: a hold (a running or unknown
-// agent, saved work full) is degraded on any resource, because the agent is
-// attached as it is and reboot is what clears it. Then the resource: the
-// checkout's own resources, and setup that never completed, are blocking;
-// dependencies and setup under a valid marker are degraded.
-func OutcomeSeverity(resource SlotResourceID, observed ResourceObservation, stopReason string) Severity {
-	switch stopReason {
-	case StopReasonAgentLive, StopReasonAgentUnknown, StopReasonSavedWorkFull:
-		return SeverityDegraded
+// OutcomeSeverity reads a reconcile's final observation for a caller: it is
+// blocking exactly when no agent could work in the slot -- the host checkout
+// is not present, or setup never completed (no valid marker; a remembered
+// failure under a valid marker, or a compile running under one, still counts
+// as set up). Anything else that did not converge (a resting branch checked
+// out elsewhere, an upstream conflict, a dependency, a hold) is degraded: the
+// caller proceeds and shows the advice. It is a property of the outcome, not
+// of the resource that failed (TestReconcileOutcomeTable states it from the
+// observation).
+func OutcomeSeverity(o SlotObservation) Severity {
+	host, _ := o.Get(ResourceHost)
+	setup, _ := o.Get(ResourceSetup)
+	if host.State != StatePresent {
+		return SeverityBlocking
 	}
-	switch templateOf(resource) {
-	case ResourceDeps, ResourceDep, ResourceAgent, ResourceStore, ResourceIntent:
+	switch {
+	case setup.State == StatePresent:
 		return SeverityDegraded
-	case ResourceSetup:
-		if observed.Sub == SubMarkerValid || observed.Sub == SubWithWarning || (observed.State == StatePresent && observed.Sub == SubLockHeld) {
-			return SeverityDegraded
-		}
+	case setup.Sub == SubMarkerValid || setup.Sub == SubWithWarning:
+		return SeverityDegraded
 	}
 	return SeverityBlocking
 }
@@ -157,36 +159,41 @@ func (e *SlotReconcileError) Error() string { return ReconcileAdvice(e.Address, 
 func (e *SlotReconcileError) Unwrap() error { return e.Err }
 
 // SlotOutcome reads a reconcile run for a caller: the blocking failure (nil
-// when the slot is usable) and the degraded warnings to show.
+// when the slot is usable) and the degraded warnings to show. Every resource
+// that did not converge is reported, as the error or as a warning.
 func SlotOutcome(address, repo string, result ReconcileResult, runErr error) (*SlotReconcileError, []string) {
-	var warnings []string
+	var failures []ReconcileFailure
 	var rerr *ReconcileError
-	if errors.As(runErr, &rerr) {
+	switch {
+	case errors.As(runErr, &rerr):
 		f := ClassifyConvergeError(rerr.Failure.Step, rerr.Failure.Err)
 		if errors.Is(runErr, errNoProgress) {
 			f.Cause = rerr.Failure.Step.String() + ": " + errNoProgress.Error()
 		}
-		observed, _ := result.Observation.Get(f.Resource)
-		if OutcomeSeverity(f.Resource, observed, "") == SeverityBlocking {
-			return &SlotReconcileError{Address: address, Repo: repo, Failure: f, Result: result, Err: runErr}, nil
-		}
-		warnings = append(warnings, ReconcileAdvice(address, repo, f))
-	} else if runErr != nil {
+		failures = append(failures, f)
+	case runErr != nil:
 		f := ReconcileFailure{Resource: ResourceEnv, Class: FailureHandoff, Cause: errorCause(runErr)}
 		if errors.Is(runErr, context.Canceled) || errors.Is(runErr, context.DeadlineExceeded) || errors.Is(runErr, ErrHostCreationBusy) {
 			f.Class = FailureRetryable
 		}
+		// The run never observed the slot: nothing shows it usable.
 		return &SlotReconcileError{Address: address, Repo: repo, Failure: f, Result: result, Err: runErr}, nil
 	}
 	for _, w := range result.Warnings {
-		warnings = append(warnings, ReconcileAdvice(address, repo, ClassifyConvergeError(w.Step, w.Err)))
+		failures = append(failures, ClassifyConvergeError(w.Step, w.Err))
 	}
 	for _, s := range result.Plan.Stops {
-		observed, _ := result.Observation.Get(s.Resource)
-		f := stopFailure(s)
-		if OutcomeSeverity(s.Resource, observed, s.Reason) == SeverityBlocking {
-			return &SlotReconcileError{Address: address, Repo: repo, Failure: f, Result: result}, warnings
+		failures = append(failures, stopFailure(s))
+	}
+	if OutcomeSeverity(result.Observation) == SeverityBlocking {
+		f := ReconcileFailure{Resource: ResourceHost, Class: FailureHandoff, Cause: "the slot's checkout is not usable"}
+		if len(failures) > 0 {
+			f = failures[0]
 		}
+		return &SlotReconcileError{Address: address, Repo: repo, Failure: f, Result: result, Err: runErr}, nil
+	}
+	warnings := make([]string, 0, len(failures))
+	for _, f := range failures {
 		warnings = append(warnings, ReconcileAdvice(address, repo, f))
 	}
 	return nil, warnings

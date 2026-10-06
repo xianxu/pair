@@ -60,6 +60,8 @@ func TestDecideRebootReasons(t *testing.T) {
 	}{
 		// A :0's next step is its checkout, never add slot: add slot makes
 		// :1+ slots and a :0 row never offers it there (pair#363 M2 review).
+		// A :1+ slot reaches the missing reason only when reconcile could
+		// not restore its directory (pair#387).
 		{RebootFacts{Slot: false, Record: RebootRecordReadable}, RebootCheckoutMissing},
 		{RebootFacts{Slot: false, Record: RebootRecordRolledBack}, RebootCheckoutMissing},
 		{RebootFacts{Slot: true, Record: RebootRecordReadable}, RebootDirectoryMissing},

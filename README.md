@@ -381,6 +381,7 @@ couch --layout2          opt into pair's two-pane workbench
 couch --layout3          threads also get pair's right-hand terminal (the default)
 couch --list             every durable work thread across all repositories
 couch --show <ref>       one current-repository thread by tag or path, or a slot (repo:N)
+couch --reconcile repo:N converge a slot's workspace now and show what it did
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
 couch --recover-plan-from-sdlc   per-slot recovery report (JSON), see below
@@ -851,7 +852,7 @@ ordinary filter text—there is no command namespace or numbered jump mode.
 | cannot be entered, but resume has a route | resume, reboot |
 | cannot be entered otherwise (`:0`) | reboot |
 | state could not be checked | nothing; the next refresh decides |
-| directory missing | `:0`: reboot (archives the record only; restore the checkout to start there again); `:1+`: nothing — add slot recreates it |
+| directory missing | `:0`: reboot (archives the record only; restore the checkout to start there again); `:1+`: add slot recreates it (it reuses the leftover number and reconciles it); `couch --reconcile repo:N` does the same from the CLI |
 | starting elsewhere | nothing |
 
 `Enter` switches to a live row and resumes a row that offers resume; on any
