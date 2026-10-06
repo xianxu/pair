@@ -183,7 +183,7 @@ Durable plan: `workshop/plans/000387-add-slot-repairs-a-slot-whose-directory-was
 (fresh-context plan review: 5 rounds, approved 2026-10-05; awaiting operator
 approval and the three sign-offs listed at its top).
 
-- [ ] M1 — resource model, `SlotLayout`, AST coverage audit, `ObserveSlot`, pure
+- [x] M1 — resource model, `SlotLayout`, AST coverage audit, `ObserveSlot`, pure
   `PlanSlot` over the derived domain, `couch --show` resources and plan
 - [ ] M2 — `Reconcile` loop replaces `Ensure`'s repair logic; failures name the
   resource and cause and hand off to `:0`; add slot, open, resume and reboot
@@ -201,6 +201,7 @@ Filed at the operator's request from the #363/#367 design talk: a deleted slot
 directory should be repaired by prune-then-add-slot, not left blocking.
 
 ### 2026-10-05
+- 2026-10-05: closed M1 — M1 + boundary round-1 fixes: SlotLayout; resource table + AST coverage audit (3 mutations caught); DeclaredDepsOf via ariadne layergraph b9bc9f32; ObserveSlot on real git (single-break cases, failed probes unknown, gitfile dependency readable via --show-toplevel; mutations caught); PlanSlot over the derived single+pair domain x 7 agent states plus a hand-written I2 case; couch --show slot report through Discover's git identity (deleted-slot and symlinked-fleet cases; old construction reproduces BR-2's misreads); README documents --show repo:N. Full suite unsandboxed: remaining failures identical on origin/main 57ae1bed; TestColdResumeOfAParkedPrimary... passes 3/3 alone (load-timing flake).; review verdict: SHIP
 
 Re-scoped at the operator's direction from "add slot repairs a deleted slot" to
 the slot reconciler, after pair#367's M3 (`couch --rebuild` as a scripted saga) was
