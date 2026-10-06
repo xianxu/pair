@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000391-alt-c-in-insert-mode-types-pairreview-into-the-draft-buffer.md
         source_blob: df9bffe0047ee5cfdca48c4d6588c22d910f0d9c
         destination: workshop/issues/000391-alt-c-in-insert-mode-types-pairreview-into-the-draft-buffer.md
+        main_commit: 0ec0dd9db42b2ebdf824af349c943e963e9b1484
 ---
 
 # Alt+c in insert mode types :PairReview into the draft buffer
