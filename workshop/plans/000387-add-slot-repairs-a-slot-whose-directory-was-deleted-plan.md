@@ -614,7 +614,7 @@ deleted env.
 
 **Files:** create `slotconverge.go`, `slotconverge_test.go`.
 
-- [ ] **Step 1: Failing tests** on `ProvisionFixture`, one per step, each run twice (second run a
+- [x] **Step 1: Failing tests** on `ProvisionFixture`, one per step, each run twice (second run a
   no-op or refused by its own precondition, never a duplicate effect):
   - `MkdirEnv`;
   - `RemoveIntent`;
@@ -629,8 +629,8 @@ deleted env.
   - `WorktreeAdd`;
   - `RepairHost` (`git worktree repair`);
   - `Compile`, then `WriteMarker`.
-- [ ] **Step 2–4:** red → green.
-- [ ] **Step 5:** commit `#387 M2: couchcore: idempotent converge steps`.
+- [x] **Step 2–4:** red → green.
+- [x] **Step 5:** commit `#387 M2: couchcore: idempotent converge steps`.
 
 ### Task 2.2: The loop, `SlotWorld`, and the twice-run property
 
@@ -1212,3 +1212,17 @@ resource.
   `atlas/couch.md`.
 - For M2 (Task 2.2): the loop's no-progress guard compares observations on state and reading only.
   `Reason` text from git can vary between runs, which would defeat the guard.
+
+### 2026-10-05 (p) — Task 2.1 implementation reconciliation
+
+- The steps are methods of `slotConverger`, which wraps the one `WorkspaceProvisioner` and reuses
+  its git, `selectRemote`, `branchOID`, `configValue` and fetch-baseline helpers (ARCH-DRY).
+  `RemoveRegistration` is gone (Revision l). The stale-registration row is
+  `TestConvergeWorktreeAddOverAStaleRegistration`: the host comes back on the registration's
+  branch, and slot 2's stale registration survives.
+- Measured: `git worktree repair <host>` rewrites a broken `.git` file but still exits 1, reporting
+  what it found (git 2.54). `RepairHost` is therefore an attempt whose result the next observation
+  judges; only a cancelled context fails it.
+- `compileSetup` runs weave without the lease, then retakes it through a caller-supplied `relock`,
+  checks that the admin directory is unchanged, and writes the marker with the resting branch's
+  current commit as its baseline.
