@@ -556,3 +556,9 @@ proof; record the surprising case so the next change starts from evidence.
   cheap probe before reporting Unknown, and keep exactly one implementation of the
   pair (`observeExactProcess`). #389 fixed the race once, and five hand-spelled
   copies kept it (#389 BR-1); grep for the pattern, not just the call site.
+- Sweep a constant's dependents across the whole tree, not just the packages
+  that obviously own it. #393 retargeted test fixtures in the four retention
+  packages, but `workbenchshortcut` also built a diagnosticlog clock from a
+  hard-coded 8 days, and main stayed red until #397's `go test ./...` caught it.
+  Grep the literal shape (`8 * 24 * time.Hour`) repo-wide, and run `go test ./...`,
+  not only `make test`, which runs a subset of Go packages.
