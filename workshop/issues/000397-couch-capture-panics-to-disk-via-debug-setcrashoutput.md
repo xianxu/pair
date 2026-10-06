@@ -1,12 +1,20 @@
 ---
 id: 000397
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-06
 updated: 2026-10-06
 estimate_hours:
-card_mirror: 'cea61f84ab7ab6a87597617f513cdf40781269af' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '02d1658cbfe90831a52fc258ca524c35fd792187' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-06T16:09:24-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch: capture panics to disk via debug.SetCrashOutput
@@ -33,7 +41,48 @@ Couch crashed on 2026-10-06 sometime between 13:56 and 14:02 (battery at 2%, CPU
 
 ## Plan
 
-- [ ]
+Design (2026-10-06):
+
+- **Who captures (ARCH-PURPOSE):** only the console-owning couch: the process that
+  holds the singleton lease and draws the console, which is the terminal that gets
+  redrawn over. CLI invocations (`couch --list` etc.) already print panics to a
+  readable stderr, and capturing those too would make a file per agent query.
+- **Where:** `<couch store dir>/crash/` (`crashreport.Dir(namespace)`), one store
+  per singleton selection, so isolated roots get their own. The store dir already
+  holds mixed metadata files. `pair gc`'s inventory excludes registered stores, so
+  the files neither block collection nor go unclassified.
+- **Names:** `<UTC yyyymmddThhmmssZ>-<pid>.log` while unreported, renamed to
+  `….crash` once reported. The runtime writes into the open `.log`.
+- **Lifecycle (ARCH-ORDER):** after the singleton lease is taken and before the
+  console runs:
+  1. Scan the crash dir; every existing file belongs to a previous incarnation (the
+     lease proves no other owner is live).
+  2. Classify, as a pure function over (name, size) (ARCH-PURE):
+     - a non-empty `.log` is a crash → control notice
+       `previous couch crashed — see <path>`, renamed to `.crash`;
+     - an empty `.log` is an abrupt end without a panic (SIGKILL, power loss, memory
+       kill) → control notice `previous couch ended abruptly (no panic recorded)`,
+       then deleted;
+     - a `.crash` was already reported → left for retention.
+  3. Open our own `.log` (O_EXCL, 0600) and call `debug.SetCrashOutput(f, {})`.
+  4. On clean exit: disable crash output, close, and delete the file if empty.
+  A failure anywhere becomes a status-row notice; crash capture never stops couch.
+- **Retention (ARCH-FUNERAL), a dedicated sweep:** the diagnosticlog writer protocol
+  assumes a live, cooperating writer and would keep a runtime-written file forever.
+  Instead, `gcruntime` Preview/Apply walk each registered store's `crash/`, matching
+  only the exact name grammar, regular files only (Lstat), and skipping a `.log`
+  whose pid is alive. Age is decided by `diagnosticlog.DecideSegment` (the same
+  period as other diagnostics, ARCH-DRY), and rows go into `Report.Diagnostics` so
+  `pair gc` renders them unchanged.
+- **Bounds (ARCH-CONSTRAINTS):** one file per console run; startup scans at most a
+  fixed number of entries; gc honours `limit`.
+
+- [ ] crashreport package: name grammar, pure classification, Install/Close, gc
+      sweep decision; tests including a re-exec child that panics (file holds
+      `panic:` + goroutine stack, and stderr still gets it)
+- [ ] couchcmd wiring after the singleton lease, notices on the status row
+- [ ] gcruntime sweep over registered stores' crash dirs, with preview/apply tests
+- [ ] atlas/couch.md (next to COUCH_TRACE), manifest source classification
 
 ## Log
 
