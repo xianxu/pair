@@ -229,3 +229,24 @@ it, and the dead-symbol allowlist only if required.
   If it exceeds about 1 s, cap the replay to the tail of the file (resize events
   allow restarting there) and log it.
 - **Dependency direction.** Peek touches only couch and Pair data; no sdlc call.
+
+## Revisions
+
+### 2026-10-06 (a) — the peek latency is in resolving `repo:N`, not in rendering
+
+Measured on the live `ariadne:1` (a 1.5 MB recording):
+- `couch --peek ariadne:1` takes 2.3 s.
+- `RenderLines` on the same capture takes 85 ms; `couch --list` takes 0.23 s.
+- `couch --show ariadne:1` takes 3.7 s.
+
+So the cost is in resolving the slot reference (`resolveSlotInput`: workspace
+resolution plus `Slots.Discover`), which every `repo:N` operation pays. The CLI path
+pays it twice: once in `runTypedOperationWithConsole`, to derive the repository
+scope, and again in `ResolveThreadReference`. The replay itself meets the ~1 s
+budget, so no tail cap is needed.
+
+At about 2 s, peek is adequate for a coordinator that looks again about every 30 s.
+Speeding up `repo:N` resolution (resolve once per call, and cache Discover)
+benefits `--show`, `--resume` and `--reboot` as well, so it is a follow-up issue,
+not #362 scope.
+
