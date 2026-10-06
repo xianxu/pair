@@ -264,6 +264,13 @@ Filed ariadne#294 (export `layergraph.DeclaredSubstrates`, reporting absent
 substrates that `Walk` present-skips); #387's Task 1.3 imports it, so it is in
 `deps:`. Both ariadne filings' details are local in `~/workspace/ariadne`.
 
+change-code (2026-10-05): full flow; plan-quality cleared after 3 rounds (PQ-1
+host set-aside machinery fixed as a class; PQ-3, the prose test-case lists, carried
+to close as Minor). Estimate 8.34 h (v3.1, Method A). The estimate-quality judge
+returned INFO: the derivation is genuine but likely low (10–12 h). Task 3.2 has no
+item of its own, and 2.5 and the acceptance tasks are costed light. The recorded
+estimate is left as derived, so the actual calibrates against it.
+
 ## Revisions
 
 ### 2026-10-05 — Done-when follows the planning-session decisions
