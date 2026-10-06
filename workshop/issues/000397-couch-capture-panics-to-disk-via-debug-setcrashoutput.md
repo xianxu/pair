@@ -15,6 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "9b36eef0", done: "b01aa013"}
 ---
 
 # couch: capture panics to disk via debug.SetCrashOutput
