@@ -1,12 +1,20 @@
 ---
 id: 000214
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-08
-updated: 2026-09-08
+updated: 2026-10-06
 estimate_hours:
-card_mirror: 'd2f0c9cecbd9d0f48de8cb8d23d38586ee56258f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'bb67527b27e87913062af2b669ebd1fe9791a39f' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-06T14:45:49-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
 ---
 
 # racing launch operations on one thread leave it unresumable
@@ -168,3 +176,41 @@ so the property does not depend on the single worker. **The key does not contain
 that guarantee does not exist — the single worker is the only thing serialising these today.
 Parallelising the queue as `#205` specifies would make this race substantially easier to hit, so
 `#205` should depend on this issue rather than the reverse.
+
+### 2026-10-06: re-read against current code (claimed in pair:4)
+
+Claimed so `#205` (now also covering the startup reattach pass) can land on it.
+An exploration of current code, with the key claims re-read by hand, finds the
+premise of this issue mostly stale:
+
+- **Inside one console the operator cannot overlap two operations, and could not
+  on 2026-09-08 either.** `dispatchMenuOperation` (`couchtty/menu.go:1785-1788`)
+  silently drops any operator operation while `InFlight` is set. The guard is
+  global, not per thread.
+- **The store already refuses a second occupant.** `CommitStartClaim`
+  (`couchcore/threadstore.go:564-592`) refuses when `Incarnations` is non-empty
+  or a park is open, under the revision CAS. All four claim sites go through it.
+  Spec option 2 largely exists.
+- **The "multiplicity" diagnosis is wrong.** The evidence pass appends at most one
+  `ParkedResumeObservation` per record (`actionableinventory.go:930-938`), so
+  `len != 1` cannot fire on two bindings. The real rule is
+  `sessionledger/record.go` `CurrentLaunch`: only the newest launch counts, so
+  dangling launch #3 shadowed the earlier bindings (the "#168 shape"). The
+  projector drops `bindingResumeDiagnostic`'s ambiguous/unbound/provisional code
+  and returns a bare `ReasonBindingLost` (`:601`). That is where the split
+  belongs.
+- **Launch paths that bypass `InFlight`:** the reattach pass (warm-only, holds
+  but never takes the slot), continuations, remote socket `resume|reboot`, and
+  the in-pane agent restart (`pair agent restart` → SIGUSR2 → a ledger `launch`
+  row with no store claim). The last one is the most plausible source of the
+  unbound launch #3.
+- **What `#205` actually needs from here:** the queue key still has no thread
+  (`console.go:1661`), and the single worker (`console.go:629`) is what orders
+  pass, remote, continuation and operator jobs on one thread. With a pool, only
+  the store CAS separates them; relaunch's park→resume window would then lose to
+  a concurrent resume (`ParkedNotResumed`), which fails safe but confuses. A
+  per-(thread, launch-class) admission guard where all four enqueue paths meet
+  is the real prerequisite.
+
+Stale line refs: `console.go:1509`→`:1661`, `:538`→`:629`,
+`actionableinventory.go:370-376`→`:668-674`.
