@@ -143,14 +143,13 @@ func (cv *slotConverger) setAside(ctx context.Context, s PlannedStep) error {
 	if err := rename(path, filepath.Join(entry, "tree")); err != nil {
 		return err
 	}
-	manifest.State = "complete"
-	if err := cv.p.Store.Write(manifestPath, manifest); err != nil {
-		return err
-	}
+	// The move is the effect: report it now, before the bookkeeping that
+	// follows can fail (its pending manifest already names the restore).
 	if cv.setAsideDone != nil {
 		cv.setAsideDone(entry)
 	}
-	return nil
+	manifest.State = "complete"
+	return cv.p.Store.Write(manifestPath, manifest)
 }
 
 // SavedWorkRestoreCommand is the POSIX shell command that puts a set-aside
