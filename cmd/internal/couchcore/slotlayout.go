@@ -55,6 +55,12 @@ func (l SlotLayout) SavedWorkEntry(checkout string, at time.Time) string {
 	return filepath.Join(l.SavedWork(), filepath.Base(checkout)+"-"+at.UTC().Format("20060102T150405.000000000Z"))
 }
 
+// SavedWorkEntryNamed is the saved-work entry directory with the given name
+// (as listed in SavedWork).
+func (l SlotLayout) SavedWorkEntryNamed(name string) string {
+	return filepath.Join(l.SavedWork(), filepath.Base(name))
+}
+
 // SetupLock is weave's environment setup lock (weave owns it; Couch only
 // probes it).
 func (l SlotLayout) SetupLock() string { return filepath.Join(l.Env(), ".weave-setup.lock") }

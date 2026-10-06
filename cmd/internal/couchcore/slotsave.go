@@ -152,8 +152,7 @@ func (cv *slotConverger) setAside(ctx context.Context, s PlannedStep) error {
 // reconciler that writes saved work collects it at the start of every run on
 // the slot (ARCH-FUNERAL); at most MaxSavedWork entries wait for that.
 func collectSavedWork(l SlotLayout, now time.Time) ([]string, error) {
-	root := l.SavedWork()
-	entries, err := os.ReadDir(root)
+	entries, err := os.ReadDir(l.SavedWork())
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
@@ -162,7 +161,7 @@ func collectSavedWork(l SlotLayout, now time.Time) ([]string, error) {
 	}
 	var removed []string
 	for _, e := range entries {
-		entry := filepath.Join(root, e.Name())
+		entry := l.SavedWorkEntryNamed(e.Name())
 		info, err := os.Lstat(entry)
 		if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 			continue // not an entry this code wrote; never followed or removed
@@ -194,7 +193,7 @@ func SavedWorkSince(l SlotLayout, since time.Time) []SavedWorkManifest {
 	var out []SavedWorkManifest
 	for _, e := range entries {
 		var m SavedWorkManifest
-		exists, err := (ProvisionStore{}).Read(filepath.Join(l.SavedWork(), e.Name(), "manifest.json"), &m)
+		exists, err := (ProvisionStore{}).Read(filepath.Join(l.SavedWorkEntryNamed(e.Name()), "manifest.json"), &m)
 		if err != nil || !exists || m.SavedAt.Before(since) {
 			continue
 		}
