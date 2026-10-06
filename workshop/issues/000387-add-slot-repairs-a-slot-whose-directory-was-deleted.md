@@ -5,8 +5,8 @@ deps: [ariadne#294, ariadne#295]
 github_issue:
 created: 2026-10-02
 updated: 2026-10-05
-estimate_hours:
-card_mirror: '878f3ad955c203b5acdfaf966f1677fe2d1083e0' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 8.34
+card_mirror: 'eb223c880a341abb49bde52ac6f66e12530c6f26' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-05T10:47:34-07:00
 claimant:
     operator: T
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
 ---
 
 # Slot reconciler: reconcile a Couch slot's dispersed state
@@ -135,6 +136,46 @@ creation. Principle: ariadne#291 (reconcile dispersed state; don't script it).
   rather than their own repair logic, with no confirmation for routine repair;
   `couch --show repo:N` prints the observed resources and the plan, and
   `couch --reconcile repo:N` applies it explicitly.
+
+## Estimate
+
+Items in plan order. M1: SlotLayout, resource table + AST audit, ObserveSlot,
+PlanSlot, layergraph import, `--show`. M2: converge steps, reconcile loop +
+SlotWorld, Ensure replacement, failure classification, callers + outcome table,
+`--reconcile` + acceptance. M3: SetAside, saved-work GC, recovery report,
+dirty-slot acceptance. Then docs ×3 and milestone reviews ×3. Design is v2 ×0.2
+(the durable plan pre-resolves decisions); impl is 40% of v2 (v3.1).
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: cross-cutting-refactor design=0.2 impl=0.2
+item: greenfield-go-module design=0.4 impl=0.32
+item: greenfield-go-module design=0.4 impl=0.32
+item: greenfield-go-module design=0.3 impl=0.32
+item: smaller-go-module design=0.06 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: greenfield-go-module design=0.4 impl=0.32
+item: greenfield-go-module design=0.4 impl=0.32
+item: cross-cutting-refactor design=0.2 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: cross-cutting-refactor design=0.2 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: atlas-docs design=0.04 impl=0.08
+item: atlas-docs design=0.04 impl=0.08
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.04 impl=0.2
+item: milestone-review design=0.04 impl=0.2
+item: milestone-review design=0.04 impl=0.2
+design-buffer: 0.15
+total: 8.34
+```
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*
 
 ## Plan
 

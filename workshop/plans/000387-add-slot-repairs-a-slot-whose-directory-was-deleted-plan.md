@@ -139,7 +139,7 @@ g/h/i (`workshop/history/plans/000367-recover-owned-slots-plan.md`).
 | `SlotResourceID` / `ResourceKind` / `SlotResourceSpec` / `SlotResources()` (the table and its edges) | `cmd/internal/couchcore/slotresource.go` | new |
 | `ObservedState` (`present`/`absent`/`broken`/`unknown`) / `ResourceObservation` / `SlotObservation` | `cmd/internal/couchcore/slotresource.go` | new |
 | `ConvergeStep` / `PlannedStep` / `SlotPlan` / `PlanSlot(SlotObservation) SlotPlan` | `cmd/internal/couchcore/slotplan.go` | new |
-| `ReconcileFailure{Resource, Class: retryable\|handoff\|unknown, Cause}` / `ClassifyConvergeError` / `ReconcileAdvice(address, failure)` / `OutcomeSeverity` (blocking\|degraded) | `cmd/internal/couchcore/slotfailure.go` | new |
+| `ReconcileFailure{Resource, Class: retryable\|handoff\|unknown, Cause}` / `ClassifyConvergeError` / `ReconcileAdvice(address, failure)` / `OutcomeSeverity(resource, state, stopReason, marker)` (blocking\|degraded) | `cmd/internal/couchcore/slotfailure.go` | new |
 | `DeclaredDeps(host)` over `layergraph.DeclaredSubstrates` (ariadne, imported) | `cmd/internal/couchcore/slotdeps.go` | new |
 | `SelectStartSlot` (a reconcilable candidate is reusable; an unknown one skips only its number) | `cmd/internal/couchcore/slotallocation.go` | modified |
 | `NextHostAction` / `HostObservation` | `cmd/internal/couchcore/provision_host.go` | deleted (absorbed into `PlanSlot`) |
@@ -172,7 +172,7 @@ g/h/i (`workshop/history/plans/000367-recover-owned-slots-plan.md`).
 | `deps` | dependency declaration | `construct/deps` of the host, then of each present substrate (transitive) | external (another repo's file) | `host` | parseable | unparseable/unreadable → unknown (stop at `deps` and `setup`) |
 | `dep:<rel>` | one dependency clone | `<env>/<name>` per declared substrate | derived from a remote; dirty files and local-only commits are user data | `deps`, `env` | present, git-readable | absent → covered by `setup`; broken **on positive evidence only** (no `.git`, or `rev-parse` says "not a git repository"; any other git error is `unknown`) → set aside (rename into saved-work, R2) → absent → covered by `setup` |
 | `setup` | weave setup, Couch's marker, the attempt memo (R5) | `<admin>/couch-setup-success.json`, `<admin>/couch-setup-attempt.json`; lock `<env>/.weave-setup.lock` | derived | `host`, every `dep:*` | valid marker and no `dep:*` absent | lock held → retryable stop; a memo whose digest matches → `present-with-warning`, no compile; otherwise `weave compile` (no lease held), then re-observe under the lease and write the marker (success) or the memo (failure under a valid marker); an invalid marker is removed first (R3) |
-| `agent` | agent session + thread record | zellij session, `<env>/.couch/thread.json` | runtime | `host` | (observed only) | never converged by reconcile; a live, busy or unknown agent forbids any `dep:*` removal (hold `agent-live`), re-checked under `.weave-setup.lock` immediately before the rename; a record-less live agent is adopted by `OpenSlot`, which runs after reconcile |
+| `agent` | agent session + thread record | zellij session, `<env>/.couch/thread.json` | runtime | `host` | (observed only) | never converged by reconcile; a live, busy or unknown agent forbids setting aside any checkout, the host or a `dep:*` (hold `agent-live`), re-checked immediately before the rename; a record-less live agent is adopted by `OpenSlot`, which runs after reconcile |
 
 **Outside the table (external, never touched; listed so the coverage audit can name them):**
 the agent's transcript, Pair per-thread artifacts (`artifactpath`), sdlc claims, the global
@@ -265,7 +265,7 @@ start form, `--reconcile`, `--show` and the recovery report all call this functi
 
 `Reconcile` itself never decides whether an agent may start. It returns a `ReconcileResult` whose
 non-converged resources are each tagged **blocking** or **degraded** by a pure function,
-`OutcomeSeverity(resource, state, marker)`:
+`OutcomeSeverity(resource, state, stopReason, marker)` (the reason decides first: `agent-live` and `saved-work-full` are degraded whatever the resource):
 - **blocking:** `env`, `branch`, `upstream`, `registration` or `host` not converged, or `setup`
   without a valid marker (setup never completed: an agent would start in an unprepared
   checkout, today's refusal).
@@ -1100,3 +1100,9 @@ then `main-slotN`. A stop's severity follows its reason, so `agent-live` is degr
 host. Minors: Task 1.5's `Prune` → `RemoveRegistration`; a Non-goals section. The test-case
 lists in Tasks 1.4/2.5/3.1 stay as written: each is a derived perturbation or a named
 acceptance cell that the Done-when calls for, not free-form enumeration.
+
+### 2026-10-05 (i) — plan-quality advisory: the old subject swept
+
+Every occurrence of the dependency-only hold now names the host as well: the agent row of the
+table, and `OutcomeSeverity`, which gains `stopReason` so `agent-live` is degraded on any
+resource.
