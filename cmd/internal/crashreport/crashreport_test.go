@@ -2,6 +2,7 @@ package crashreport
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -279,5 +280,49 @@ func TestSweepMissingDirIsEmpty(t *testing.T) {
 	rows, err := Sweep(filepath.Join(t.TempDir(), "absent"), time.Now(), func(int) bool { return false }, true, 10)
 	if err != nil || len(rows) != 0 {
 		t.Fatalf("Sweep(absent) = %v, %v", rows, err)
+	}
+}
+
+// Over the bound, gc still drains the first MaxEntries and reports the rest,
+// instead of refusing the directory forever.
+func TestSweepDrainsAnOverfullDirectory(t *testing.T) {
+	dir := t.TempDir()
+	old := time.Now().Add(-(diagnosticlog.RetentionPeriod + 24*time.Hour))
+	for i := 1; i <= MaxEntries+1; i++ {
+		path := filepath.Join(dir, fmt.Sprintf("20251001T000000Z-%d.crash", i))
+		if err := os.WriteFile(path, nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(path, old, old); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rows, err := Sweep(dir, time.Now(), dead, true, MaxEntries+10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rows[0].Eligible || !strings.Contains(rows[0].Reason, "more than") {
+		t.Fatalf("overflow not reported first: %+v", rows[0])
+	}
+	left, _ := os.ReadDir(dir)
+	if len(left) != 1 {
+		t.Fatalf("%d files left, want one past the bound", len(left))
+	}
+}
+
+// One capture per process: a second Install ends the first normally.
+func TestSecondInstallEndsTheFirst(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "crash")
+	if _, _, err := Install(dir, time.Now(), 4242, dead); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := Install(dir, time.Now(), 4243, dead); err != nil {
+		t.Fatal(err)
+	}
+	if err := Finish(); err != nil {
+		t.Fatal(err)
+	}
+	if entries, _ := os.ReadDir(dir); len(entries) != 0 {
+		t.Fatalf("captures left behind: %v", entries)
 	}
 }

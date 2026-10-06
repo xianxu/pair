@@ -6,13 +6,11 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/crashreport"
 	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
 	"github.com/xianxu/pair/cmd/internal/launcher"
-	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
 )
@@ -238,11 +236,10 @@ func (s *Service) crashRows(apply bool, limit int) []diagnosticlog.Segment {
 	if err != nil {
 		return []diagnosticlog.Segment{{Path: "couch crash files", Reason: err.Error()}}
 	}
-	alive := func(pid int) bool { return procutil.Alive(strconv.Itoa(pid)) }
 	var rows []diagnosticlog.Segment
 	for _, store := range registry.Stores {
 		dir := crashreport.Dir(store)
-		found, err := crashreport.Sweep(dir, s.Collector.Coordinator.Now(), alive, apply, limit)
+		found, err := crashreport.Sweep(dir, s.Collector.Coordinator.Now(), crashreport.ProcessAlive, apply, limit)
 		if err != nil {
 			found = []diagnosticlog.Segment{{Path: dir, Reason: err.Error()}}
 		}

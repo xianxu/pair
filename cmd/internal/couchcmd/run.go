@@ -19,7 +19,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -36,7 +35,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/keyhelp"
 	"github.com/xianxu/pair/cmd/internal/launcher"
-	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/runtimebundle"
 	"github.com/xianxu/pair/cmd/internal/threadactivity"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
@@ -631,8 +629,7 @@ func tracesForRuntime(rt Runtime) consoleTraceConfig {
 // would run while a panic unwinds and delete the file before the runtime
 // writes it (#397 BR-1). crashreport.Finish runs in main after a normal return.
 func installCrashReport(console *couchtty.Console, store string) {
-	alive := func(pid int) bool { return procutil.Alive(strconv.Itoa(pid)) }
-	_, reports, err := crashreport.Install(crashreport.Dir(store), time.Now(), os.Getpid(), alive)
+	_, reports, err := crashreport.Install(crashreport.Dir(store), time.Now(), os.Getpid(), crashreport.ProcessAlive)
 	if summary := crashreport.Summary(reports); summary != "" {
 		console.Notify(couchtty.Notice{Kind: "crash", Control: true, Body: summary})
 	}

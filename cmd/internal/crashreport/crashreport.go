@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
+	"github.com/xianxu/pair/cmd/internal/procutil"
 )
 
 const (
@@ -34,6 +35,10 @@ const (
 // Dir is the crash directory inside one couch store namespace. One store per
 // singleton selection, so isolated roots keep their own crashes.
 func Dir(store string) string { return filepath.Join(store, "crash") }
+
+// ProcessAlive is the liveness the startup scan and gc both ask about a
+// crash file's pid.
+func ProcessAlive(pid int) bool { return procutil.Alive(strconv.Itoa(pid)) }
 
 func parseName(name string) (time.Time, int, string, bool) {
 	ext := filepath.Ext(name)
@@ -196,8 +201,18 @@ func Install(dir string, now time.Time, pid int, alive func(pid int) bool) (*Cap
 	}
 	capture := &Capture{file: file}
 	activeMu.Lock()
+	previous := active
 	active = capture
 	activeMu.Unlock()
+	// One capture per process: SetCrashOutput already replaced the old one's
+	// fd, so the old file only needs its normal end.
+	if previous != nil && previous.file != nil {
+		previous.file.Close()
+		if info, err := os.Stat(previous.file.Name()); err == nil && info.Size() == 0 {
+			os.Remove(previous.file.Name())
+		}
+		previous.file = nil
+	}
 	return capture, reports, errors.Join(problems...)
 }
 
@@ -222,6 +237,11 @@ func (c *Capture) Close() error {
 	if c == nil || c.file == nil {
 		return nil
 	}
+	activeMu.Lock()
+	if active == c {
+		active = nil
+	}
+	activeMu.Unlock()
 	file := c.file
 	c.file = nil
 	err := debug.SetCrashOutput(nil, debug.CrashOptions{})
@@ -244,8 +264,12 @@ func list(dir string) ([]File, error) {
 	if err != nil && len(names) == 0 && !errors.Is(err, io.EOF) {
 		return nil, err
 	}
+	// Over the bound, work on the first MaxEntries and say so, rather than
+	// refuse: a refusal would leave gc unable ever to drain the directory.
+	var overflow error
 	if len(names) > MaxEntries {
-		return nil, fmt.Errorf("crash directory %s holds more than %d entries", dir, MaxEntries)
+		names = names[:MaxEntries]
+		overflow = fmt.Errorf("crash directory %s holds more than %d entries", dir, MaxEntries)
 	}
 	sort.Strings(names)
 	var out []File
@@ -256,7 +280,7 @@ func list(dir string) ([]File, error) {
 		}
 		out = append(out, File{Name: name, Size: info.Size()})
 	}
-	return out, nil
+	return out, overflow
 }
 
 // Sweep is pair gc's retention for crash files: the same age rule as other
@@ -268,10 +292,13 @@ func Sweep(dir string, now time.Time, alive func(pid int) bool, apply bool, limi
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
-	if err != nil {
+	if err != nil && files == nil {
 		return nil, err
 	}
 	var rows []diagnosticlog.Segment
+	if err != nil {
+		rows = append(rows, diagnosticlog.Segment{Path: dir, Reason: err.Error()})
+	}
 	for _, f := range files {
 		if len(rows) >= limit {
 			break
