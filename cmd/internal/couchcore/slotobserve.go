@@ -195,6 +195,9 @@ func lstatState(path string) (ObservedState, string, string) {
 // ObserveSlot observes every resource of a :1+ slot (pair#387). It changes
 // nothing. A failed probe is unknown, never absent.
 func ObserveSlot(ctx context.Context, in SlotObserveInput) SlotObservation {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	l := in.Layout
 	o := &observer{ctx: ctx, in: in, obs: SlotObservation{Primary: l.primary, Number: l.n, Agent: in.Agent}}
 	if in.Agent == "" {

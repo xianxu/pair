@@ -3,6 +3,7 @@ package couchcore
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -161,7 +162,8 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 				return nil, err
 			}
 			matches, err := c.ResolveThreadReference(a["repo-scope"], a["ref"])
-			if err != nil {
+			slot, isSlot := c.slotOfShowReference(call.Context, a["ref"], matches)
+			if err != nil && !(isSlot && errors.Is(err, ErrThreadReferenceNotFound)) {
 				return nil, err
 			}
 			// Show reads the same classified inventory list does and then
@@ -184,7 +186,12 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 					narrowed = append(narrowed, row)
 				}
 			}
-			return narrowed, nil
+			result := ShowResult{Threads: narrowed}
+			if isSlot {
+				report := c.SlotReportFor(call.Context, slot, narrowed)
+				result.Slot = &report
+			}
+			return result, nil
 		case "archived":
 			records, err := c.Threads.ArchivedThreads()
 			if err != nil {

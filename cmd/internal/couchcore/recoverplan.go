@@ -1357,8 +1357,12 @@ func claimedElsewhere(s *recoverSlot, ref string) bool {
 	return false
 }
 
-func agentOf(row ActionableThreadSummary) EvidenceAgent {
-	switch row.State {
+func agentOf(row ActionableThreadSummary) EvidenceAgent { return agentEvidence(row.State, row.Reason) }
+
+// agentEvidence is the one reading of a classified thread row as agent
+// evidence; the recovery report and the slot reconciler share it.
+func agentEvidence(state ActionableThreadState, reason ThreadReason) EvidenceAgent {
+	switch state {
 	case ThreadLive:
 		return AgentLive
 	case ThreadDetached:
@@ -1368,7 +1372,7 @@ func agentOf(row ActionableThreadSummary) EvidenceAgent {
 	case ThreadBusy:
 		return AgentBusy
 	case ThreadUnusable:
-		if row.Reason == ReasonUnknown {
+		if reason == ReasonUnknown {
 			return AgentUnusableUnknown
 		}
 	}

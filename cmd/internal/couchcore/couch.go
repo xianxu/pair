@@ -55,6 +55,9 @@ type Couch struct {
 	// (pair#367); nil reports every fleet unavailable. Production wires
 	// SDLCFleetSource over OSProvisionIO.
 	Fleet FleetInventorySource
+	// SlotIO is the command seam slot reconcile observes and converges
+	// through (pair#387); nil means OSProvisionIO.
+	SlotIO ProvisionIO
 	// Layout is which pair layout this couch launches its threads in, chosen
 	// once at construction and IMMUTABLE for the process lifetime -- there is
 	// no mid-session layout change, which is what keeps the mixed-state

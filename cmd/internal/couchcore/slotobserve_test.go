@@ -270,3 +270,30 @@ func TestParseWorktreeList(t *testing.T) {
 		}
 	}
 }
+
+// TestObserveSlotFollowsTheResourceOrder: every table resource is observed,
+// in SlotResourceOrder (instances under their template), so --show and the
+// plan read one order with no second list.
+func TestObserveSlotFollowsTheResourceOrder(t *testing.T) {
+	s := newObservedSlot(t)
+	os.MkdirAll(s.layout.Store(), 0o700)
+	s.addDep(t, "ariadne")
+	order, err := SlotResourceOrder()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []SlotResourceID
+	for _, r := range s.observe(t).Resources {
+		if id := templateOf(r.ID); len(got) == 0 || got[len(got)-1] != id {
+			got = append(got, id)
+		}
+	}
+	if len(got) != len(order) {
+		t.Fatalf("observed %v, want %v", got, order)
+	}
+	for i := range order {
+		if got[i] != order[i] {
+			t.Fatalf("observed %v, want %v", got, order)
+		}
+	}
+}

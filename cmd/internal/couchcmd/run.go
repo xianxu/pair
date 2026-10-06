@@ -169,6 +169,7 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.Cou
 	c.Workspaces = couchcore.NewWorkspaceProvisioner(couchcore.OSProvisionIO{})
 	c.Slots = couchcore.NewOSSlotCatalog(couchcore.OSProvisionIO{})
 	c.Fleet = couchcore.SDLCFleetSource{IO: couchcore.OSProvisionIO{}, Timeout: couchcore.FleetInventoryTimeout}
+	c.SlotIO = couchcore.OSProvisionIO{}
 	c.RootAgent = r.Getenv("PAIR_AGENT")
 	c.ContinuationSource = (couchcore.OSContinuationSourceReader{DataDir: dataDir}).Read
 	renderer, _ := exec.LookPath("pair")
@@ -828,10 +829,13 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 			fmt.Fprintln(w, v.Failure)
 		}
 	case []couchcore.ThreadSummary:
-		if op.Name == "show" {
-			renderThreadDetails(w, v)
-		} else {
-			renderThreads(w, v)
+		renderThreads(w, v)
+	case couchcore.ShowResult:
+		if len(v.Threads) > 0 {
+			renderThreadDetails(w, v.Threads)
+		}
+		if v.Slot != nil {
+			renderSlotReport(w, *v.Slot)
 		}
 	case couchcore.Worktree:
 		fmt.Fprintf(w, "%s\n", v)
@@ -867,6 +871,26 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 // renderThreads consumes the same one-row-per-composite-thread inventory as
 // the panel and advisor. Human names lead named rows; only unnamed rows expose
 // the opaque tag as their fallback label.
+// renderSlotReport prints a slot's resources in converge order and the plan
+// reconcile would run (pair#387): the plan half of plan/apply.
+func renderSlotReport(w io.Writer, r couchcore.SlotReport) {
+	fmt.Fprintf(w, "slot %s\n", r.Address)
+	for _, res := range r.Observation.Resources {
+		state := res.State.String()
+		if res.State == couchcore.StatePending {
+			state = "pending"
+		}
+		if res.Sub != "" {
+			state += " (" + res.Sub + ")"
+		}
+		if res.Reason != "" {
+			state += ": " + res.Reason
+		}
+		fmt.Fprintf(w, "  %-14s %s\n", res.ID, state)
+	}
+	fmt.Fprintln(w, "plan: "+couchcore.SlotPlanSummary(r.Plan, r.PlanError))
+}
+
 func renderThreads(w io.Writer, threads []couchcore.ThreadSummary) {
 	renderThreadRows(w, threads, false)
 }

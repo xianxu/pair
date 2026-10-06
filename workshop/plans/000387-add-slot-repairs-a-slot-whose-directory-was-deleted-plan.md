@@ -589,16 +589,16 @@ path, also observe the slot and attach `SlotReport{Observation, Plan}`), `couchc
 (`render`), `run_test.go`. `--show repo:N` must work even when no thread record exists, as for a
 deleted env.
 
-- [ ] **Step 1: Failing tests.**
+- [x] **Step 1: Failing tests.**
   - `--show tools:1`-shaped fixture prints one line per resource in topological order
     (`env present`, …, `dep:ariadne absent`, `setup absent (no marker)`), then
     `plan: compile (weave compile in <host>)`.
   - Deleted-slot fixture prints `env absent`, `registration stale`, and the plan.
   - A converged slot prints `plan: nothing to do`.
   - An unknown resource prints `<id> unknown: <reason>` and `plan: stops at <id>`.
-- [ ] **Step 2–4:** red → green. Mutation: render from a hand-written resource list instead of
+- [x] **Step 2–4:** red → green. Mutation: render from a hand-written resource list instead of
   `TopoOrder()`, and a test adding a resource must fail.
-- [ ] **Step 5:** commit `#387 M1: couch --show reports slot resources and the plan`.
+- [x] **Step 5:** commit `#387 M1: couch --show reports slot resources and the plan`.
 
 ### Task 1.7: Docs and close M1
 
@@ -1155,3 +1155,18 @@ resource.
   pairs. Mutations caught: dropping the agent gate (210 I4 violations), setting aside a
   git-readable non-layer (I3), ignoring unknown blocking (I2). One mutation first "passed" only
   because it did not compile; it was re-run in a compiling form.
+
+### 2026-10-05 (m) — Task 1.6 implementation reconciliation
+
+- `show` now returns one type, `ShowResult{Threads, Slot *SlotReport}`, rather than a slice
+  of threads; the slot section is present when the reference names a :1+ slot (a `repo:N`, a path
+  at or inside a slot, or the one slot all matched threads start in). A slot with no thread (a
+  deleted directory) no longer fails `show`: `ErrThreadReferenceNotFound` is tolerated exactly when
+  the reference resolved to a slot.
+- `Couch.SlotIO` (wired to `OSProvisionIO` in `couchcmd`) is the observation seam.
+  `slotAgentEvidence` reads the rows through `agentEvidence`, extracted from the recovery
+  report's `agentOf` so both read rows one way.
+- `SlotPlanSummary` is the one plan text (shared with M2's reconcile result).
+- Added `TestObserveSlotFollowsTheResourceOrder`: `ObserveSlot`'s order is pinned to
+  `SlotResourceOrder()`, so the renderer, which prints in observation order, follows the
+  table. Mutation (observe intent after host) caught.

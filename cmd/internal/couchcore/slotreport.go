@@ -1,0 +1,108 @@
+package couchcore
+
+import (
+	"context"
+	"path/filepath"
+	"strings"
+)
+
+// SlotReport is a slot's observed resources and the plan reconcile would run
+// (pair#387): the plan half of plan/apply, read by couch --show.
+type SlotReport struct {
+	Address     string
+	Observation SlotObservation
+	Plan        SlotPlan
+	PlanError   string
+}
+
+// ShowResult is couch --show's answer: the matching threads, and the slot's
+// report when the reference names a :1+ slot (with or without a thread).
+type ShowResult struct {
+	Threads []ThreadSummary
+	Slot    *SlotReport
+}
+
+// slotAgentEvidence is the agent evidence for a slot from its thread rows:
+// the most active row wins, so a running agent is never hidden by a parked
+// sibling.
+func slotAgentEvidence(rows []ThreadSummary) EvidenceAgent {
+	if len(rows) == 0 {
+		return AgentNone
+	}
+	rank := map[EvidenceAgent]int{AgentBusy: 6, AgentLive: 5, AgentDetached: 4, AgentUnusableUnknown: 3, AgentUnusable: 2, AgentParked: 1, AgentNone: 0}
+	best := AgentNone
+	for _, row := range rows {
+		if e := agentEvidence(row.State, row.Reason); rank[e] > rank[best] {
+			best = e
+		}
+	}
+	return best
+}
+
+// slotOfShowReference finds the :1+ slot a show reference names: a workspace
+// reference (repo:N), a path at or inside a slot, or the one slot all the
+// matched threads start in.
+func (c *Couch) slotOfShowReference(ctx context.Context, ref string, matches []ThreadRecord) (SlotIdentity, bool) {
+	if path, recognized, err := c.WorkspaceReferencePath(ctx, ref); recognized && err == nil {
+		ref = path
+	}
+	candidates := []string{ref}
+	if !filepath.IsAbs(ref) {
+		candidates = nil
+		for _, m := range matches {
+			candidates = append(candidates, m.StartingPath)
+		}
+	}
+	var found SlotIdentity
+	for _, p := range candidates {
+		primary, n, ok := ParseSlotPath(p)
+		if !ok {
+			return SlotIdentity{}, false
+		}
+		slot := conventionalSlot(primary, n)
+		if found != (SlotIdentity{}) && found != slot {
+			return SlotIdentity{}, false
+		}
+		found = slot
+	}
+	return found, found != (SlotIdentity{})
+}
+
+// SlotReportFor observes a slot and plans its reconcile. It changes nothing.
+func (c *Couch) SlotReportFor(ctx context.Context, slot SlotIdentity, rows []ThreadSummary) SlotReport {
+	io := c.SlotIO
+	if io == nil {
+		io = OSProvisionIO{}
+	}
+	obs := ObserveSlot(ctx, SlotObserveInput{IO: io, Layout: LayoutOf(slot), Agent: slotAgentEvidence(rows)})
+	report := SlotReport{Address: WorkspaceReference{Repo: slot.Repo, Number: slot.Number}.String(), Observation: obs}
+	plan, err := PlanSlot(PlanInput{Observation: obs})
+	if err != nil {
+		report.PlanError = err.Error()
+	}
+	report.Plan = plan
+	return report
+}
+
+// SlotPlanSummary is the one-line text of a plan, shared by --show and the
+// reconcile result.
+func SlotPlanSummary(p SlotPlan, planErr string) string {
+	if planErr != "" {
+		return planErr
+	}
+	if p.Empty() {
+		return "nothing to do"
+	}
+	var parts []string
+	for _, s := range p.Steps {
+		parts = append(parts, s.String())
+	}
+	for _, s := range p.Stops {
+		text := "stops at " + string(s.Resource) + " (" + string(s.Class) + ")"
+		if s.Reason != "" {
+			text += ": " + s.Reason
+		}
+		parts = append(parts, text)
+	}
+	return strings.Join(parts, "; ")
+}
