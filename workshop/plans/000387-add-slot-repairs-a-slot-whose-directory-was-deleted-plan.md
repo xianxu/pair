@@ -437,7 +437,7 @@ the intent path, the marker path built from `admin` in `readSuccess` and `Ensure
 
 **Files:** create `slotresource.go`, `slotresource_test.go`, `slotresource_coverage_test.go`.
 
-- [ ] **Step 1: Failing tests.**
+- [x] **Step 1: Failing tests.**
   - `TestSlotResourcesFormADAG`: every `DependsOn` names a declared resource. There are no
     cycles. `TopoOrder()` is stable and puts every resource after its dependencies.
   - `TestSlotResourceKinds`: `store` and `branch` are never removable (`Removable()` false).
@@ -470,15 +470,15 @@ the intent path, the marker path built from `admin` in `readSuccess` and `Ensure
       config key, or whose args are built from `SlotLayout.RestingBranch()`, lives in
       `slotobserve.go`, `slotconverge.go`, `slotcatalog.go` or `slotgit.go`. It matches the
       built expression, not a `refs/heads/main-slot` literal, which never appears.
-- [ ] **Step 2:** FAIL. The audit lists today's sites, i.e. Task 1.1's enumeration plus anything
+- [x] **Step 2:** FAIL. The audit lists today's sites, i.e. Task 1.1's enumeration plus anything
   it missed. Record any miss in the Log.
-- [ ] **Step 3:** implement the table exactly as in Core concepts, and move each listed site
+- [x] **Step 3:** implement the table exactly as in Core concepts, and move each listed site
   onto `SlotLayout` (for `threadstore_layout.go`, `newSlotThreadStore` takes `layout.Store()`).
-- [ ] **Step 4:** PASS. Mutation (a): add `"x-slot2"` in `reboot.go`, and the audit must fail.
+- [x] **Step 4:** PASS. Mutation (a): add `"x-slot2"` in `reboot.go`, and the audit must fail.
   Mutation (b): add `filepath.Join(slot.EnvironmentRoot, "x")` in `reboot.go`, and the audit
   must fail. Mutation (c): add an unused `SlotLayout.Foo()`, and the audit must fail. Revert
   each from a `cp` byte copy (lessons: never `git checkout <file>`).
-- [ ] **Step 5:** commit `#387 M1: couchcore: the slot resource table, enforced by an AST audit`.
+- [x] **Step 5:** commit `#387 M1: couchcore: the slot resource table, enforced by an AST audit`.
 
 ### Task 1.3: Declared dependencies through ariadne's `layergraph`
 

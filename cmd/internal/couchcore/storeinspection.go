@@ -110,7 +110,7 @@ func WithStoreInspectionLocks(ctx context.Context, namespaces []CouchNamespace, 
 		}
 		if check != nil {
 			for _, root := range manifest.SlotRepositories {
-				for _, path := range []string{root, filepath.Join(filepath.Dir(root), "worktree")} {
+				for _, path := range []string{root, WorktreesRoot(filepath.Dir(root))} {
 					if e := check(path); e != nil {
 						return e
 					}

@@ -14,6 +14,8 @@ func TestSlotLayoutPaths(t *testing.T) {
 		{"saved-work", l.SavedWork(), "/f/worktree/pair-slot3/.couch/saved-work"},
 		{"setup lock", l.SetupLock(), "/f/worktree/pair-slot3/.weave-setup.lock"},
 		{"intent", l.Intent(), "/f/pair/.git/couch-workspaces/3/creation.json"},
+		{"registrations", l.Registrations(), "/f/pair/.git/worktrees"},
+		{"intent, common unknown", NewSlotLayout("/f/pair", "", 3).Intent(), ""},
 		{"resting branch", l.RestingBranch(), "main-slot3"},
 		{"resting ref", l.RestingRef(), "refs/heads/main-slot3"},
 		{"marker", SetupMarkerPath("/f/pair/.git/worktrees/pair"), "/f/pair/.git/worktrees/pair/couch-setup-success.json"},

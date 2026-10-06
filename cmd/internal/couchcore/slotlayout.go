@@ -60,6 +60,16 @@ func (l SlotLayout) Intent() string {
 	return filepath.Join(l.common, CouchWorkspacesDir, strconv.Itoa(l.n), "creation.json")
 }
 
+// Registrations is git's directory of worktree registrations in the common
+// directory; a slot's registration is one entry in it ("" when the common
+// directory is unknown).
+func (l SlotLayout) Registrations() string {
+	if l.common == "" {
+		return ""
+	}
+	return filepath.Join(l.common, "worktrees")
+}
+
 // RestingBranch is the slot's resting branch.
 func (l SlotLayout) RestingBranch() string { return RestingBranch(l.n) }
 

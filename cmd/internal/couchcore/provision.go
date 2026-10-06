@@ -355,7 +355,7 @@ func (p *WorkspaceProvisioner) verifyHost(ctx context.Context, primary Workspace
 	if err != nil {
 		return provisionHost{}, err
 	}
-	if filepath.Dir(admin) != filepath.Join(primary.RepoIdentity, "worktrees") {
+	if filepath.Dir(admin) != NewSlotLayout(primary.PrimaryRoot, primary.RepoIdentity, slot).Registrations() {
 		return provisionHost{}, errors.New("unexpected slot Git administrative directory")
 	}
 	if err := provisionSafePath(admin); err != nil {
