@@ -28,6 +28,8 @@ func TestParseCLI(t *testing.T) {
 		{name: "recover plan", args: []string{"--recover-plan-from-sdlc"}, want: cliInvocation{kind: cliRecoverPlan}},
 		{name: "show", args: []string{"--show", "thread"}, want: cliInvocation{kind: cliShow, ref: "thread"}},
 		{name: "reconcile", args: []string{"--reconcile", "pair:2"}, want: cliInvocation{kind: cliReconcile, ref: "pair:2"}},
+		{name: "peek", args: []string{"--peek", "pair:1"}, want: cliInvocation{kind: cliPeek, ref: "pair:1"}},
+		{name: "peek options", args: []string{"--peek", "pair:1", "--lines", "80", "--json"}, want: cliInvocation{kind: cliPeek, ref: "pair:1", args: []string{"--lines=80", "--json"}}},
 		{name: "help long", args: []string{"--help"}, want: cliInvocation{kind: cliHelp}},
 		{name: "help short", args: []string{"-h"}, want: cliInvocation{kind: cliHelp}},
 		{name: "internal", args: []string{"--internal", "publish-description", "working"}, want: cliInvocation{kind: cliInternal, operation: "publish-description", args: []string{"working"}}},
@@ -53,6 +55,9 @@ func TestParseCLIRejectsMalformedOrUnpublishedForms(t *testing.T) {
 		{"--internal"}, {"--internal=publish-description"}, {"--internal", ""},
 		{"--internal", "list"}, {"--internal", "start"}, {"--internal", "missing"},
 		{"--internal", "publish-description", "--"},
+		{"--peek"}, {"--peek", ""}, {"--peek", "--json"}, {"--peek", "pair:1", "--lines"},
+		{"--peek", "pair:1", "--json", "--json"}, {"--peek", "pair:1", "--lines", "3", "--lines", "4"},
+		{"--peek", "pair:1", "extra"}, {"--peek", "pair:1", "--layout3"},
 	} {
 		got, err := ParseCLI(args, operations)
 		if err == nil || got.kind != cliInvalid {
