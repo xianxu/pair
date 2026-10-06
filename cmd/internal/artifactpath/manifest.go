@@ -671,6 +671,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/diagnosticlog/proof.go",
 	"cmd/internal/diagnosticlog/registry.go",
 	"cmd/internal/diagnosticlog/writer.go",
+	// #397 couch crash files live in the Couch store, not the Pair artifact namespace.
+	"cmd/internal/crashreport/crashreport.go",
 	"cmd/internal/couchcore/archive_gc.go",
 	"nvim/retention.lua",
 	"cmd/internal/retentioncmd/run.go",

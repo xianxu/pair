@@ -1923,6 +1923,25 @@ at a path the composition root passes in, and reported on the status row when
 it cannot open. `PAIR_PROBE_SAMPLE_SECS=N make test-reattach-cost` samples
 `zellij action` latency and prints its window in unix ms, so the sampler's
 output lines up with the trace.
+
+**Crash files** (`pair#397`, `cmd/internal/crashreport`). A Go panic writes its
+stack only to stderr, and couch's stderr is the terminal it redraws over, so the
+console-owning couch also routes its crash output (`debug.SetCrashOutput`) to
+`<couch store>/crash/<UTC yyyymmddThhmmssZ>-<pid>.log`. It installs this right
+after taking the singleton lease; the lease is what proves every older file there
+belongs to a dead incarnation. CLI invocations don't install it, since their
+stderr is readable. On a clean exit the empty file is removed. On the next start:
+- a non-empty `.log` is a crash: a control notice
+  `previous couch crashed — see <path>` stands on the status row, and the file is
+  renamed `.crash`, so it is reported once;
+- an empty `.log` means the process died without a panic (SIGKILL, power loss, the
+  memory killer): notice `previous couch ended abruptly (no panic recorded)`, and
+  the file is removed. SIGTERM and SIGHUP shut down in order and don't count.
+
+`pair gc` ages crash files out with the diagnostics retention period through its
+own sweep of each registered store's `crash/` (`gcruntime.crashRows`). The
+inventory walk excludes stores, and the runtime writes these files outside any
+`diagnosticlog` writer registration, so neither existing path reaches them.
 Except for matching the scope/tag to establish Pair's reserved address claim,
 Pair treats these Couch-owned values as opaque pass-through context for the
 hosted child: it does not resolve Couch names or paths and never reads or

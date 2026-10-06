@@ -2031,6 +2031,10 @@ func (c *Console) switchTargetForAddressLocked(address couchcore.ThreadAddress) 
 	return ""
 }
 
+// Notify publishes a notice from outside the console, e.g. the composition
+// root reporting a previous incarnation's crash (#397).
+func (c *Console) Notify(n Notice) { c.publishNotice(n) }
+
 func (c *Console) setNotice(text string) {
 	c.publishNotice(Notice{Kind: "status", Body: text})
 }
