@@ -287,13 +287,11 @@ The new audits found real issues, all fixed: the six new files were not classifi
 `artifactpath` inventory; three production symbols had only test consumers; one token match
 lacked its boundary.
 
-Resume point (2026-10-05): M1 closed (SHIP, c4637555). In M2, Tasks 2.1 and 2.2 are done, and
-Task 3.1 (SetAside) was pulled forward into 2.2 (plan Revision q). Next is Task 2.3: Ensure's body
-becomes Reconcile (fold Task 2.4's OutcomeSeverity in: ProvisionResult.Warning for degraded, an
-error for blocking; ProvisionRequest gains the agent evidence), retiring CreationIntent and
-NextHostAction. Expected test changes: TestProvisionHostRefusesForeignPathOrBranch (foreign branch
-adopted), the intent and HostDecisionTable tests, and the provision_recovery tests that rely on intents.
-Baseline failures to ignore are listed in the M1 verification entry above.
+Resume point (2026-10-05, later): M1 closed (SHIP, c4637555); M2 closed (FIX-THEN-SHIP,
+fd7da051). In M3, Tasks 3.1 (in M2), 3.2 (87a20de4) and 3.3 (8fb75941; owner collection, and
+the hazardous RegisterStore hook removed) are done. Next: Task 3.4 (the recovery report reads
+slot plans through RecoverSlotClass), then 3.5 (dirty-slot acceptance), 3.6 (docs, issue,
+close). The live smoke test in pair:0 still awaits the operator's go-ahead to move the branch.
 
 ## Revisions
 
