@@ -921,7 +921,7 @@ a symlink (`provisionSafePath`).
 
 **Files:** `recoverplan.go`, `recoverplan_source.go`, `recoverplan_test.go`.
 
-- [ ] **Step 1: Failing tests.**
+- [x] **Step 1: Failing tests.**
   - `RecoverPlanInput` carries one `SlotPlan` per present `:1+` candidate (gathered in the shell
     via `ObserveSlot`).
   - The class is derived from the same source as the callers, `OutcomeSeverity` plus the stop
@@ -937,9 +937,9 @@ a symlink (`provisionSafePath`).
   - The totality test's domain is `RecoverSlotClass` over Task 1.5's state domain × agent states
     (derived); class/hold/note coverage is re-derived.
   - `TestRowAdviceNamesOnlyReachableActions`'s sweep includes `reconcile`.
-- [ ] **Step 2–4:** red → green. Mutations: map `agent-live` to `slot-needs-:0` → the totality
+- [x] **Step 2–4:** red → green. Mutations: map `agent-live` to `slot-needs-:0` → the totality
   test fails; map degraded unknown to `reconcilable` → it fails.
-- [ ] **Step 5:** commit `#387 M3: recovery report reads slot plans`.
+- [x] **Step 5:** commit `#387 M3: recovery report reads slot plans`.
 
 ### Task 3.5: Acceptance (part 2) — the dirty slot
 
@@ -1421,3 +1421,25 @@ its restore command, and the warning repeats it (`TestReconcileResultListsWhatIt
 - **Evidence.** `TestSavedWorkIsCollectedPastRetention` (old, young, manifest-less and symlink
   entries, plus a reconcile run collecting). The compiling mutation (collect as of the zero time)
   is caught.
+
+
+### 2026-10-05 (x) — Task 3.4 reconciliation: the report reads the reconciler
+
+- The report gains one evidence dimension, `SlotEvidence.Reconcile`. It is `RecoverSlotClass(SlotReport)`'s
+  reading (converged, reconcilable, held, needs-zero, unknown), derived from the plan's stops and
+  `OutcomeSeverity`: the same source the callers use. The new vocabulary is classes `reconcilable`
+  and `slot-needs-:0`, hold `workspace-handoff`, and notes `workspace-held` and `workspace-unknown`.
+- Precedence was corrected by the restart acceptance test. Open, resume and reboot already
+  reconcile first, so a fixable workspace adds a `reconcile` step only where the row has none
+  (idle), or for a missing directory whose reconciler has a plan. It never overrides claim and
+  agent classes. Needs-zero ranks right after ambiguous threads, because resume or reboot would
+  fail at it too. Held and unknown are notes only.
+- The shell (`Couch.RecoverPlan`) derives the report once to learn the `:1+` rows, observes each
+  slot `Discover` knows (git's identity, the row's agent evidence), then derives again. A number
+  known only from a dangling claim gets no plan, because planning it would advise *creating* that
+  slot.
+- Evidence: five new fixtures in `recoverPlanCases`, and `TestRecoverReconcileReadingIsMetamorphic`.
+  The full domain crossed with the five readings would take about 36 s, so a deterministic stride
+  (one in 23, about 85k points) is compared metamorphically against the converged reading. The
+  mutation (reconcilable overriding any decision) is caught. The full totality test also admits
+  `reconcile` as a step.

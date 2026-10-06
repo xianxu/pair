@@ -134,11 +134,15 @@ func (c *Couch) ReconcileSlot(ctx context.Context, ref string) (ProvisionResult,
 
 // SlotReportFor observes a slot and plans its reconcile. It changes nothing.
 func (c *Couch) SlotReportFor(ctx context.Context, slot SlotIdentity, rows []ThreadSummary) SlotReport {
+	return c.slotReportWithAgent(ctx, slot, slotAgentEvidence(rows))
+}
+
+func (c *Couch) slotReportWithAgent(ctx context.Context, slot SlotIdentity, agent EvidenceAgent) SlotReport {
 	io := c.SlotIO
 	if io == nil {
 		io = OSProvisionIO{}
 	}
-	obs := ObserveSlot(ctx, SlotObserveInput{IO: io, Layout: LayoutOf(slot), Agent: slotAgentEvidence(rows)})
+	obs := ObserveSlot(ctx, SlotObserveInput{IO: io, Layout: LayoutOf(slot), Agent: agent})
 	report := SlotReport{Address: WorkspaceReference{Repo: slot.Repo, Number: slot.Number}.String(), Observation: obs}
 	plan, err := PlanSlot(PlanInput{Observation: obs})
 	if err != nil {

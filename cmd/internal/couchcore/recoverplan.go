@@ -25,6 +25,9 @@ type RecoverPlanInput struct {
 	SlotCandidates []RecoverSlotCandidate
 	// LocalGit is ProbeSlotGit's observation per candidate path.
 	LocalGit map[string]RecoverLocalGit
+	// SlotPlans is the slot reconciler's report per :1+ host path (pair#387);
+	// a slot without one reads as converged.
+	SlotPlans map[string]SlotReport
 }
 
 // Fleet observation states.
@@ -226,11 +229,16 @@ const (
 	RecoverPartialEvidence     RecoverClass = "partial-evidence"
 	RecoverNoSafeStep          RecoverClass = "no-safe-step"
 	RecoverNoRule              RecoverClass = "no-rule"
+	// RecoverReconcilable: the slot's workspace has converge steps reconcile
+	// can run (pair#387); RecoverSlotNeedsZero: it cannot converge, and the
+	// repository's :0 agent must look.
+	RecoverReconcilable  RecoverClass = "reconcilable"
+	RecoverSlotNeedsZero RecoverClass = "slot-needs-:0"
 )
 
 func AllRecoverClasses() []RecoverClass {
 	return []RecoverClass{RecoverDirectoryMissing, RecoverAgentUnknown, RecoverStartUnreconciled, RecoverAmbiguousThreads,
-		RecoverConflict, RecoverAmbiguousClaims, RecoverLanded, RecoverEvidenceUnavailable, RecoverIdle, RecoverUnidentifiedWork,
+		RecoverSlotNeedsZero, RecoverReconcilable, RecoverConflict, RecoverAmbiguousClaims, RecoverLanded, RecoverEvidenceUnavailable, RecoverIdle, RecoverUnidentifiedWork,
 		RecoverNoCouchThread, RecoverRestoreWorkspace, RecoverAgrees, RecoverClaimLikelyLost, RecoverPartialEvidence,
 		RecoverNoSafeStep, RecoverNoRule}
 }
@@ -256,12 +264,15 @@ const (
 	// offered, so reboot is not suggested in its place.
 	HoldResumeOnly RecoverHold = "resume-only"
 	HoldNoRule     RecoverHold = "no-rule"
+	// HoldWorkspaceHandoff: the slot reconciler cannot converge the workspace
+	// (pair#387); the repository's :0 agent investigates.
+	HoldWorkspaceHandoff RecoverHold = "workspace-handoff"
 )
 
 func AllRecoverHolds() []RecoverHold {
 	return []RecoverHold{HoldDirectoryMissing, HoldCouchUnavailable, HoldStartUnreconciled, HoldAgentUnknown, HoldThreads,
 		HoldConflict, HoldAmbiguousClaims, HoldGitUnknown, HoldUnidentifiedWork, HoldNoCouchThread,
-		HoldRebootUnsafeOperation, HoldRebootUnsafeGit, HoldNoActorAction, HoldResumeOnly, HoldNoRule}
+		HoldRebootUnsafeOperation, HoldRebootUnsafeGit, HoldNoActorAction, HoldResumeOnly, HoldWorkspaceHandoff, HoldNoRule}
 }
 
 // Conflict facts, in the order a conflict hold lists them.
@@ -291,12 +302,17 @@ const (
 	// NoteDependencyWork: a dependency checkout carries work of its own
 	// (dirt, unlanded commits, an operation, another branch) no claim names.
 	NoteDependencyWork RecoverNote = "dependency-work"
+	// NoteWorkspaceHeld: the slot's workspace needs repair that waits on its
+	// agent (pair#387); NoteWorkspaceUnknown: part of it could not be observed.
+	NoteWorkspaceHeld    RecoverNote = "workspace-held"
+	NoteWorkspaceUnknown RecoverNote = "workspace-unknown"
 )
 
 func AllRecoverNotes() []RecoverNote {
 	return []RecoverNote{NoteInactiveClaims, NoteDetachedHead, NoteRestingBranchDirty, NoteInspectUncommittedFirst,
 		NoteClaimRepair, NoteClaimsStale, NoteClaimsPartial, NoteClaimsUnknown, NoteClaimsAbsent, NoteClaimsUnsupported,
-		NoteGitLocalProbe, NoteGitUnknown, NoteIssueDoneBranch, NoteDependencyUnread, NoteDependencyWork}
+		NoteGitLocalProbe, NoteGitUnknown, NoteIssueDoneBranch, NoteDependencyUnread, NoteDependencyWork,
+		NoteWorkspaceHeld, NoteWorkspaceUnknown}
 }
 
 // SlotEvidence dimensions. Every dimension is closed; unknown is a value.
@@ -467,6 +483,50 @@ type SlotEvidence struct {
 	Workspace bool
 	// Elsewhere: the branch issue's claim sits on another path.
 	Elsewhere bool
+	// Reconcile is the slot reconciler's reading of the workspace (pair#387).
+	Reconcile EvidenceReconcile
+}
+
+// EvidenceReconcile is RecoverSlotClass's reading of a slot plan.
+type EvidenceReconcile string
+
+const (
+	ReconcileConverged    EvidenceReconcile = "converged"
+	ReconcileReconcilable EvidenceReconcile = "reconcilable"
+	ReconcileHeld         EvidenceReconcile = "held"
+	ReconcileNeedsZero    EvidenceReconcile = "needs-zero"
+	ReconcileUnknown      EvidenceReconcile = "unknown"
+)
+
+func AllEvidenceReconciles() []EvidenceReconcile {
+	return []EvidenceReconcile{ReconcileConverged, ReconcileReconcilable, ReconcileHeld, ReconcileNeedsZero, ReconcileUnknown}
+}
+
+// RecoverSlotClass reads a slot reconciler report for the recovery report,
+// from the same source the callers use (OutcomeSeverity and the plan's
+// stops): a blocking outcome or a hand-off is :0's; a hold waits on the agent;
+// an unknown observation is noted; converge steps are reconcilable.
+func RecoverSlotClass(r SlotReport) EvidenceReconcile {
+	if r.PlanError != "" {
+		return ReconcileConverged // :0 or not a slot: nothing to reconcile
+	}
+	stops := map[StopClass]bool{}
+	for _, s := range r.Plan.Stops {
+		stops[s.Class] = true
+	}
+	switch {
+	case stops[StopHandoff] || len(r.Plan.Retried) > 0:
+		return ReconcileNeedsZero
+	case len(r.Plan.Steps) == 0 && OutcomeSeverity(r.Observation) == SeverityBlocking && !stops[StopHold] && !stops[StopUnknown] && !stops[StopRetryable]:
+		return ReconcileNeedsZero
+	case stops[StopHold]:
+		return ReconcileHeld
+	case stops[StopUnknown] || stops[StopRetryable]:
+		return ReconcileUnknown
+	case len(r.Plan.Steps) > 0:
+		return ReconcileReconcilable
+	}
+	return ReconcileConverged
 }
 
 func (e SlotEvidence) gitUnknown() bool {
@@ -508,6 +568,10 @@ func classifyRecover(e SlotEvidence) recoverDecision {
 	read := e.Quality == QualityPresent || e.Quality == QualityStale
 	var d recoverDecision
 	switch {
+	case e.Dir == DirMissing && e.Reconcile == ReconcileReconcilable:
+		// A slot whose directory is gone but whose reconciler has a plan
+		// (its leftovers are there) is re-created by reconcile.
+		d = recoverDecision{Class: RecoverReconcilable, Steps: []string{"reconcile"}}
 	case e.Dir == DirMissing:
 		d = recoverDecision{Class: RecoverDirectoryMissing, Hold: []string{string(HoldDirectoryMissing)}}
 	case e.Couch == CouchUnavailable:
@@ -518,6 +582,10 @@ func classifyRecover(e SlotEvidence) recoverDecision {
 		d = recoverDecision{Class: RecoverAgentUnknown, Hold: []string{string(HoldAgentUnknown)}}
 	case e.Threads == ThreadsMany:
 		d = recoverDecision{Class: RecoverAmbiguousThreads, Hold: []string{string(HoldThreads)}}
+	case e.Reconcile == ReconcileNeedsZero:
+		// Reconcile cannot converge the workspace, so resume or reboot would
+		// fail at it too: the :0 agent looks first.
+		d = recoverDecision{Class: RecoverSlotNeedsZero, Hold: []string{string(HoldWorkspaceHandoff)}}
 	case len(conflictFacts(e, claims, read)) > 0:
 		d = recoverDecision{Class: RecoverConflict}
 		for _, fact := range conflictFacts(e, claims, read) {
@@ -584,6 +652,19 @@ func classifyRecover(e SlotEvidence) recoverDecision {
 		d.Notes = append(d.Notes, NoteClaimsStale)
 	}
 	d.Notes = sortedNotes(d.Notes)
+	// Open, resume and reboot reconcile the workspace first, so a fixable
+	// workspace needs its own step only where the row has none (idle); a
+	// repair waiting on a live agent, or a resource not observed, is noted.
+	switch e.Reconcile {
+	case ReconcileReconcilable:
+		if d.Class == RecoverIdle {
+			d = recoverDecision{Class: RecoverReconcilable, Steps: []string{"reconcile"}}
+		}
+	case ReconcileHeld:
+		d.Notes = append(d.Notes, NoteWorkspaceHeld)
+	case ReconcileUnknown:
+		d.Notes = append(d.Notes, NoteWorkspaceUnknown)
+	}
 	return d
 }
 
@@ -914,6 +995,10 @@ func slotEvidenceOf(s *recoverSlot, in RecoverPlanInput) slotFacts {
 	var f slotFacts
 	e := &f.evidence
 	e.Dir = DirPresent
+	e.Reconcile = ReconcileConverged
+	if report, ok := in.SlotPlans[filepath.Clean(s.path)]; ok && s.number > 0 {
+		e.Reconcile = RecoverSlotClass(report)
+	}
 	switch {
 	case s.slot != nil:
 	case s.candidate != nil:
