@@ -1,12 +1,20 @@
 ---
 id: 000362
-status: open
+status: working
 deps: [pair#365, ariadne#277, ariadne#279, ariadne#280]
 github_issue:
 created: 2026-09-30
-updated: 2026-09-30
+updated: 2026-10-06
 estimate_hours:
-card_mirror: 'cdcefb2e19829957bf093fa02ee07c8a8a51f3b5' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '0d817bf9641db727524d7a205425fa505d621620' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-06T11:40:57-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Teach Couch skill to schedule contextual work
@@ -43,6 +51,27 @@ Implementation plan to be designed after issue claim and start-plan; these are r
 Captured from the performance → messaging guarantees → SDLC ownership/observability → recovery discussion. No implementation started.
 
 ## Revisions
+
+### 2026-10-06 — narrowed to mechanisms; orchestration is a follow-up
+
+The operator narrowed #362 to the mechanisms of cross-slot scheduling:
+- sending a scheduling message to another local slot;
+- knowing where and how to pull the state of scheduled work.
+
+Milestone and gate state are named explicitly as observable: a closed milestone (its
+`closed Mx` log line and `Review-Verdict` trailer) and a closed issue are progress
+evidence the coordinator reads, alongside owner, branch and activity.
+
+Out of scope, and going to a follow-up issue (being brainstormed):
+- the TL ↔ worker protocol for whether a task may close autonomously or needs the
+  operator's smoke test;
+- a "ready for smoke test" state, since `codecomplete` blurs "review passed" and
+  "operator verified";
+- tracking which assigned work awaits a smoke test;
+- where the TL sits;
+- the end-to-end test of driving a project from one TL slot.
+Ergonomics and scale are also left to later issues. The Done-when bullets above are
+unchanged: they already describe mechanisms.
 
 ### 2026-10-01 — contextual scheduling scope
 
