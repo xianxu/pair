@@ -498,7 +498,7 @@ create `slotdeps.go` (an `osFS` adapter implementing `layergraph.FS`, with reads
 `layergraph.ReadDeclaration`'s 64 KB limit; `DeclaredDeps(host) ([]DeclaredSubstrate,
 error)`) and `slotdeps_test.go`.
 
-- [ ] **Step 1: Failing tests** (temp directories, no git needed):
+- [x] **Step 1: Failing tests** (temp directories, no git needed):
   - host declares `substrate ../a src`, `a` declares `substrate ../b`, and `b` is absent →
     `a` present, `b` absent with owner `a`;
   - a `data` row is not a dependency;
@@ -507,8 +507,8 @@ error)`) and `slotdeps_test.go`.
     others are still reported (via the typed error);
   - a row resolving outside the env → `deps` unknown (a pair-side check on the returned paths);
   - an absent host `construct/deps` → no dependencies.
-- [ ] **Step 2–4:** red → green.
-- [ ] **Step 5:** commit `#387 M1: couchcore: declared dependencies from ariadne layergraph`.
+- [x] **Step 2–4:** red → green.
+- [x] **Step 5:** commit `#387 M1: couchcore: declared dependencies from ariadne layergraph`.
   Verify `make build` and the Homebrew-style module fetch: `GOFLAGS=-mod=mod go build ./...`
   in a clean `GOMODCACHE`.
 
@@ -1106,3 +1106,17 @@ acceptance cell that the Done-when calls for, not free-form enumeration.
 Every occurrence of the dependency-only hold now names the host as well: the agent row of the
 table, and `OutcomeSeverity`, which gains `stopReason` so `agent-live` is degraded on any
 resource.
+
+### 2026-10-05 (j) — Task 1.3 implementation reconciliation
+
+- `layergraph.OSFS` already reads declarations safely (no-follow, ordinary file, 1 MiB
+  `DeclarationLimit`), so there is no pair-side 64 KB adapter; `DeclaredDepsOf(env, host)`
+  calls `DeclaredSubstrates(layergraph.OSFS{}, host)` directly.
+- Deviation, decided at implementation: a dependency that does not live directly in the slot
+  environment is reported with `Outside: true` (not slot state, weave's to manage, never
+  converged or set aside by reconcile) instead of making the whole declaration unknown. The plan's
+  rule would have left any repository with such a row permanently unreconcilable. A present
+  non-layer is `DeclaredDeps.NotLayer` (from ariadne#295's typed error); it carries `Outside` too,
+  so an outside non-layer is never set aside.
+- Pinned `github.com/xianxu/ariadne v0.0.0-20261005230324-b9bc9f32f5ae` (no `replace`);
+  `make build` and a clean-`GOMODCACHE` `go build ./...` pass.
