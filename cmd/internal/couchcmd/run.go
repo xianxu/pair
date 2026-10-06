@@ -874,6 +874,10 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 // renderSlotReport prints a slot's resources in converge order and the plan
 // reconcile would run (pair#387): the plan half of plan/apply.
 func renderSlotReport(w io.Writer, r couchcore.SlotReport) {
+	if r.Address == "" {
+		fmt.Fprintln(w, "slot: "+r.PlanError)
+		return
+	}
 	fmt.Fprintf(w, "slot %s\n", r.Address)
 	for _, res := range r.Observation.Resources {
 		state := res.State.String()

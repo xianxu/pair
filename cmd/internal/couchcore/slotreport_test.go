@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -105,4 +106,53 @@ func TestSlotPlanSummary(t *testing.T) {
 	if got != "stops at registration (unknown): git worktree list: boom" {
 		t.Fatal(got)
 	}
+}
+
+// The --show slot-resolution error rule: every error on the slot path fails
+// --show when no thread matched, and is the slot report's error line when one
+// did; it is never reduced to "not a slot". One test per error source.
+func TestShowSurfacesSlotResolutionErrors(t *testing.T) {
+	const host = "/f/worktree/pair-slot1/pair"
+	boom := errors.New("discovery exploded")
+	t.Run("discover, no thread", func(t *testing.T) {
+		env := newTestEnv(t, "/repo")
+		env.Couch.Slots = &SlotCatalogFake{Errors: map[string]error{"/f/pair": boom}}
+		_, err := dispatchTestOperation(env.Couch, "show", map[string]string{"ref": host, "repo-scope": "scope"})
+		if !errors.Is(err, boom) {
+			t.Fatalf("err = %v, want the discovery error", err)
+		}
+	})
+	t.Run("discover, thread found", func(t *testing.T) {
+		env := newTestEnv(t, "/repo")
+		env.Couch.Slots = &SlotCatalogFake{Errors: map[string]error{"/f/pair": boom}}
+		record := metadataThread("816fc349d3faebf8", "couch-0102030405060708", host, "")
+		created, err := env.Couch.Threads.CreateThread(record)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err := dispatchTestOperation(env.Couch, "show", map[string]string{"ref": string(created.Address.Tag), "repo-scope": created.Address.RepoScope})
+		if err != nil {
+			t.Fatal(err)
+		}
+		show := result.(ShowResult)
+		if len(show.Threads) != 1 || show.Slot == nil || !strings.Contains(show.Slot.PlanError, boom.Error()) {
+			t.Fatalf("show = %+v, want the thread plus a slot error line", show)
+		}
+	})
+	t.Run("path probe", func(t *testing.T) {
+		locked := filepath.Join(t.TempDir(), "locked")
+		if err := os.MkdirAll(filepath.Join(locked, "inner"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(locked, 0); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { os.Chmod(locked, 0o755) })
+		env := newTestEnv(t, "/repo")
+		env.Couch.Slots = &SlotCatalogFake{}
+		_, err := dispatchTestOperation(env.Couch, "show", map[string]string{"ref": filepath.Join(locked, "inner", "worktree", "pair-slot1", "pair"), "repo-scope": "scope"})
+		if err == nil || !strings.Contains(err.Error(), "resolve") {
+			t.Fatalf("err = %v, want the path probe's error", err)
+		}
+	})
 }

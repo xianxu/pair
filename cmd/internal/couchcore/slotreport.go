@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 )
@@ -71,7 +72,8 @@ func (c *Couch) slotOfShowReference(ctx context.Context, ref string, matches []T
 	for _, p := range candidates {
 		physical, err := retainedPhysicalPath(p)
 		if err != nil {
-			return SlotIdentity{}, false, nil
+			// Never "not a slot" on a failed probe: the caller reports it.
+			return SlotIdentity{}, false, fmt.Errorf("resolve %s: %w", p, err)
 		}
 		pr, n, ok := ParseSlotPath(physical)
 		if !ok || (primary != "" && (pr != primary || n != number)) {

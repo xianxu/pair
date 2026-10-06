@@ -162,10 +162,13 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 				return nil, err
 			}
 			matches, err := c.ResolveThreadReference(a["repo-scope"], a["ref"])
+			// Every slot-resolution error is surfaced: it fails --show when no
+			// thread matched, and is the slot report's error line when one did.
+			// It never reduces the answer to "not a slot".
 			slot, isSlot, slotErr := c.slotOfShowReference(call.Context, a["ref"], matches)
 			if err != nil && !(isSlot && errors.Is(err, ErrThreadReferenceNotFound)) {
 				if slotErr != nil {
-					return nil, slotErr // the workspace reference's own, more specific error
+					return nil, slotErr // the slot reference's own, more specific error
 				}
 				return nil, err
 			}
@@ -190,7 +193,10 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 				}
 			}
 			result := ShowResult{Threads: narrowed}
-			if isSlot {
+			switch {
+			case slotErr != nil:
+				result.Slot = &SlotReport{PlanError: "slot unresolved: " + slotErr.Error()}
+			case isSlot:
 				report := c.SlotReportFor(call.Context, slot, narrowed)
 				result.Slot = &report
 			}

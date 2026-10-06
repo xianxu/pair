@@ -102,6 +102,17 @@ representative evidence, not an exhaustive index.
   ownership. Keep authority, observation, and presentation as separate concepts.
   (ARCH-PURPOSE, #256)
 
+- Build an identity that is compared against an external tool's output from that
+  tool's own answer, never from a naming convention. Git reports resolved paths and its
+  real common directory. #387's `--show` built a slot from `<primary>/.git` plus an
+  unresolved symlinked path, so a healthy slot read as "registration absent, host
+  mismatched". Resolve first, then ask the tool (`Discover`), and test through a
+  symlink.
+- Positive evidence is the tool's answer to the question asked, not a structural proxy
+  for it. "Is this a checkout of its own?" is `rev-parse --show-toplevel == path`, not
+  "the git dir sits at path/.git". A gitfile-backed clone fails the proxy and would have
+  been set aside. (#387)
+
 ## Async, concurrency, and process lifetime
 
 - Name the owner of every goroutine, timer, lock, callback, and critical section.
@@ -140,6 +151,11 @@ representative evidence, not an exhaustive index.
 - Child fakes must model the real API's return values, cancellation races, and
   shutdown behavior. A fake that cannot express the failing interleaving proves
   nothing. (#206, #288)
+
+- An error on a lookup path is surfaced, never collapsed into "not that kind of thing".
+  A failed probe that returns `(false, nil)` silently turns "could not tell" into "no".
+  Every error source on the path fails the command, or appears on the result as an
+  error line. Write one test per source. (#387 `--show`, two review rounds)
 
 ## Interfaces, schemas, and data
 
