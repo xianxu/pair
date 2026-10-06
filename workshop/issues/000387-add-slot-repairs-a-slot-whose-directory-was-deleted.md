@@ -271,6 +271,20 @@ returned INFO: the derivation is genuine but likely low (10–12 h). Task 3.2 ha
 item of its own, and 2.5 and the acceptance tasks are costed light. The recorded
 estimate is left as derived, so the actual calibrates against it.
 
+M1 verification (2026-10-05). Unsandboxed, with the Pair session variables scrubbed:
+`make -k test`, `test-changelog` (scratchpad TMPDIR, passes), `go test ./...`, and race on
+couchcore. Every remaining failure also fails on `origin/main` (57ae1bed, checked in a scratch
+worktree):
+- `TestSpawnComposesProductionPairRegistrationBoundary` ("Couch thread claim missing");
+- `TestContinuationWriterPublishesExactCheckpointAcrossWorktrees` ('origin' is not a repository);
+- `test-pair-embedded-runtime` (inherited `PAIR_DATA_DIR` scope conflict);
+- `artifactpath` `TestProductionArtifactReferencesAreExactlyClassified` (failure set byte-identical
+  to main after the new files were classified).
+
+The new audits found real issues, all fixed: the six new files were not classified in the
+`artifactpath` inventory; three production symbols had only test consumers; one token match
+lacked its boundary.
+
 ## Revisions
 
 ### 2026-10-05 — Done-when follows the planning-session decisions
