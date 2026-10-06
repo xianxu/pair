@@ -88,6 +88,13 @@ continuing work checks the owner. Send the request, then read the evidence.
    | complete | `completion` holds the close's evidence | `sdlc issue show N --json` |
    | landed | `landing` holds the landed commit | `sdlc issue show N --json` |
 
+   A working agent does not hold a delivery: its composer stays empty, so the
+   message submits at once and the agent queues it behind its current turn.
+   `submitted` therefore means queued, not acted on; the `claimed` rung shows it
+   acted. Delivery waits only on an occupied composer (an operator's draft, a
+   dialog), and the receipt says why. A message still waiting after 30 seconds
+   expires undelivered.
+
    `sdlc issue show` runs from any checkout of that repository; the recipient's
    agent need not answer. Dirty files and a working card are activity, not
    progress. A section whose `state` is `unknown` or `stale` was not read; it is not
@@ -101,6 +108,8 @@ continuing work checks the owner. Send the request, then read the evidence.
      stuck.
    - Submitted, but the agent did not act: follow up at the same exact slot,
      naming the issue.
+   - `expired` or `not-dispatched`: nothing reached the agent; sending again is
+     safe.
    - Uncertain outcome: query the receipt and peek before anything else. Retry
      only as the operation's recovery contract allows (`sdlc help recovery`), and
      never resend to another slot while the first may still act.
