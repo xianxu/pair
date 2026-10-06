@@ -1,12 +1,12 @@
 ---
 id: 000387
-status: working
+status: codecomplete
 deps: [ariadne#294, ariadne#295]
 github_issue:
 created: 2026-10-02
-updated: 2026-10-05
+updated: 2026-10-06
 estimate_hours: 8.34
-card_mirror: 'eb223c880a341abb49bde52ac6f66e12530c6f26' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '8732981958a999481b4c8ec4930f3d87c4059b9a' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-05T10:47:34-07:00
 claimant:
     operator: T
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 10.06
 ---
 
 # Slot reconciler: reconcile a Couch slot's dispersed state
