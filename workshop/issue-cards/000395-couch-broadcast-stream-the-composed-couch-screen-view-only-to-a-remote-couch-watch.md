@@ -5,6 +5,17 @@ created: 2026-10-06
 updated: 2026-10-06
 estimate_hours:
 github_issue:
+tracker:
+    version: 1
+    handoff:
+        token: move-2eaa66d8a265
+        repository: github.com/xianxu/pair
+        source_branch: refs/heads/main-slot3
+        source_base: d9cdc78ab8e0760422a51365251bcdff65cea452
+        source_head: d9cdc78ab8e0760422a51365251bcdff65cea452
+        source_path: workshop/issues/000395-couch-broadcast-stream-the-composed-couch-screen-view-only-to-a-remote-couch-watch.md
+        source_blob: e5555eda3989b4ddd4c45cf1bda5cd7c469631e4
+        destination: workshop/issues/000395-couch-broadcast-stream-the-composed-couch-screen-view-only-to-a-remote-couch-watch.md
 ---
 
 # Couch broadcast: stream the composed Couch screen, view-only, to a remote couch --watch
