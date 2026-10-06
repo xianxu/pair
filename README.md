@@ -415,6 +415,25 @@ Each step carries its `command`: `couch --resume repo:N`, `couch --reboot repo:N
 --confirm`, or a `couch --send-to` asking the slot's own agent to restore its
 workspace.
 
+Each `:1+` row also reads the slot reconciler (#387). If the workspace cannot
+converge, the row's class is `slot-needs-:0` with hold `workspace-handoff`: the
+repository's `:0` agent looks first, because resume or reboot would fail at the
+same place. A fixable workspace on an otherwise idle row, or a deleted slot
+directory whose leftovers remain, steps `couch --reconcile repo:N`. A repair
+waiting on a live agent is noted `workspace-held`, and an unobservable resource
+`workspace-unknown`.
+
+Open, resume, reboot and add slot reconcile a slot's workspace first, and
+`couch --reconcile repo:N` does it on its own. Reconcile repairs what is derived
+(the directory, registration, checkout, dependency clones, setup) and adopts what
+it finds; it never deletes the operator's work. A checkout git cannot read is moved
+whole into `<slot>/.couch/saved-work/<name>-<time>/tree`. Its `manifest.json` gives
+the restore command, and the result prints it. Saved work is collected after the
+storage retention period. A failure names the resource and its cause, and says to
+run it again only when something else was running. Otherwise it hands the slot to
+the repository's `:0` agent, and a failed `--reconcile` also prints the resources
+it observed.
+
 `couch --resume repo:N` and `couch --reboot repo:N --confirm` run one slot's step
 through the running Couch. Only an agent in a live Couch slot may call them: Couch
 checks its own records (the calling thread has a live pane, and its recorded launch
