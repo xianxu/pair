@@ -10,7 +10,7 @@
 - [Workflow](workflow/index.md) — issue-based development loop inherited from the ariadne base layer.
 - [How-to-bring-up-a-new-harness-cli](how-to-bring-up-a-new-harness-cli.md) — guide on integrating a new agent harness CLI.
 - [couch](couch.md) — the session supervisor (`cmd/couch`): one leased namespace, Couch-owned composite durable threads coordinated with Pair-owned address claims, recoverable pre-exec starts, stale-thread/checkpoint recovery, explicit archive, tty routing, and the after-restart recover plan with resume/reboot over the message socket (#367).
-- [Workspace provisioning](workspace-provisioning.md) — repeatable numbered worktree setup, local Couch state, Weave readiness and durable recovery (#305–306); repository-family admission and subdirectory propagation are mapped in [couch](couch.md).
+- [Workspace provisioning](workspace-provisioning.md) — repeatable numbered worktree setup, local Couch state, Weave readiness and durable recovery (#305–306); the slot resource table, observation and reconcile plan (#387); repository-family admission and subdirectory propagation are mapped in [couch](couch.md).
 - [Review workbench](review-workbench.md) — embedded nvim document-review pane (#66): agent proposes edit records, nvim applies them undo-ably + journals rounds via docflow.
 
 ## See also

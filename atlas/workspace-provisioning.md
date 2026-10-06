@@ -36,6 +36,52 @@ and missing dependency files require an explicit Weave/build operation.
 resting branch, baseline SHA, and disposition `created`, `prepared`, or `reused`.
 Progress and diagnostics go to stderr; failure returns nonzero and no result.
 
+## Slot resources (#387)
+
+A `:1+` slot's state is spread over git, the filesystem, weave and Couch, so it
+is modeled as a table of resources rather than one thing. The table is
+`SlotResources()` in `cmd/internal/couchcore/slotresource.go` and is the single
+source: each row has an owner kind, `DependsOn` edges (converge order is
+`SlotResourceOrder()`), its `SlotLayout` locations, and whether reconcile may
+remove it.
+
+| Resource | What | Kind |
+|---|---|---|
+| `env` | `<fleet>/worktree/<repo>-slotN` | derived |
+| `store` | `<env>/.couch` (incl. `saved-work/`) | Couch internal, preserved |
+| `intent` | legacy `couch-workspaces/N/creation.json` | derived, desired absent |
+| `branch` | `main-slotN` | user data (adopted, never deleted) |
+| `upstream` | `branch.main-slotN.{remote,merge}` | derived |
+| `registration` | `<common>/worktrees/<name>` | derived |
+| `host` | `<env>/<repo>` | derived checkout (set aside, never deleted) |
+| `deps` | the host's `construct/deps` graph | external (read through ariadne `layergraph`) |
+| `dep:<rel>` | each dependency clone in the env | derived checkout (set aside, never deleted) |
+| `setup` | weave compile + `couch-setup-success.json` | derived |
+| `agent` | the slot's agent session and record | runtime, observed only |
+
+- **Paths.** `SlotLayout` (`slotlayout.go`) spells every slot-state path and name.
+  `TestEverySlotStateSiteIsAResource` reads the production AST, so a literal or join
+  that builds slot state elsewhere fails the build.
+- **Observation.** `ObserveSlot` (`slotobserve.go`) reads each resource as
+  present / absent / broken / unknown, with a reading (stale, unreadable,
+  lock-held …), and changes nothing:
+  - A failed probe is unknown, never absent.
+  - A checkout is broken only on positive evidence: git answers "not a git
+    repository".
+  - A resource waiting on an unconverged dependency is pending.
+- **Plan.** `PlanSlot` (`slotplan.go`) is pure, and its rules are checked over every
+  single and pair perturbation of the table:
+  - unknown blocks its dependents;
+  - a checkout is only ever set aside, never deleted, and never under a running
+    or unknown agent;
+  - a stale registration is re-added with `git worktree add --force` on the branch
+    it records;
+  - `:0` is refused.
+- **Display.** `couch --show repo:N` (or a slot path) prints the resources in table
+  order and the plan, including for a slot with no thread left.
+- **Not converged yet.** M1 delivers the model, the observation and the plan. The
+  converge loop that replaces `Ensure`'s repair logic is M2 of #387.
+
 ## Ownership and interruption
 
 - One close-only inherited flock at `<common-git-dir>/couch-workspaces/creation.lock`
