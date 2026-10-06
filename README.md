@@ -1036,11 +1036,11 @@ From a non-agent Pair pane, detach with `Alt+d`. For Couch-managed work, use the
 reasons for keeping or collecting each group. Use `pair gc --json` for exact
 paths. Preview does not change your files or initialize retention clocks.
 
-- Debug logs and old parked captures expire after seven days. Captures keep
+- Debug logs and old parked captures expire after one year. Captures keep
   their raw output and offset sidecars together; active readers postpone removal.
-- Standalone session data expires after sixty days without meaningful use.
+- Standalone session data expires after one year without meaningful use.
   Threads visible in Couch's switcher stay protected, including parked threads.
-  Archiving a thread starts a fresh sixty-day grace; old archives without tracking
+  Archiving a thread starts a fresh one-year grace; old archives without tracking
   receive the same grace when collection first initializes them.
 - Existing session data receives a full grace period when tracking begins.
   Unknown ownership or liveness keeps data. Agent-native conversations and

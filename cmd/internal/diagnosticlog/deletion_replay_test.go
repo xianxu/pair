@@ -53,7 +53,7 @@ func TestDeletionReplayAfterParentCleanup(t *testing.T) {
 	if err = removeEmptyParents(filepath.Dir(p), directory(path), opts); err != nil {
 		t.Fatal(err)
 	}
-	*now = now.Add(8 * 24 * time.Hour)
+	*now = now.Add(RetentionPeriod + 24*time.Hour)
 	if _, err = Collect(path, opts, 100); err != nil {
 		t.Fatalf("cannot replay completed deletion: %v", err)
 	}

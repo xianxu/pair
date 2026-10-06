@@ -63,7 +63,7 @@ func TestPreviewDoesNotInitializeOrRecover(t *testing.T) {
 	}
 	w.Write([]byte("content"))
 	w.Close()
-	*now = now.Add(8 * 24 * time.Hour)
+	*now = now.Add(RetentionPeriod + 24*time.Hour)
 	state, _ := os.ReadFile(filepath.Join(directory(path), "state.json"))
 	rows, e := Preview(path, opts, 100)
 	if e != nil || len(rows) != 1 || !rows[0].Eligible {
@@ -132,7 +132,7 @@ func TestPausedOpenerRepublishesAfterRetirement(t *testing.T) {
 	if e = save(path, s, true, Options{}); e != nil {
 		t.Fatal(e)
 	}
-	*now = now.Add(8 * 24 * time.Hour)
+	*now = now.Add(RetentionPeriod + 24*time.Hour)
 	paused, e := openRegular(lockPath(path), syscall.O_RDWR)
 	if e != nil {
 		t.Fatal(e)
@@ -198,7 +198,7 @@ func TestRetirementCrashKeepsDiscoverableRecovery(t *testing.T) {
 			s, _ := load(path)
 			s.Writers = nil
 			save(path, s, true, Options{})
-			*now = now.Add(8 * 24 * time.Hour)
+			*now = now.Add(RetentionPeriod + 24*time.Hour)
 			opts.Fault = func(step string) error {
 				if step == point {
 					return errors.New("crash")

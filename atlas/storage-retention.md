@@ -5,15 +5,15 @@ receipts. Agent-native stores and repository files are outside collection.
 
 | Data | Expiry clock | Protection |
 | --- | --- | --- |
-| Pair drafts, queued/submitted prompts, ledger, current terminal data and recovery state | 60 days since meaningful use | Live users and Couch switcher membership, including parked or unreadable threads |
-| Archived Couch records and associated Pair session data | Fresh 60-day grace at archive, extended by later meaningful use | Live users; a restored manifest reference protects again |
-| Immutable old parked captures | 7 days per capture | Exact readers and unfinished handoffs; tag reuse and Couch visibility do not renew age |
-| Debugging logs | 7 days per generation | Writer coordination and complete legacy-process evidence |
+| Pair drafts, queued/submitted prompts, ledger, current terminal data and recovery state | 365 days since meaningful use | Live users and Couch switcher membership, including parked or unreadable threads |
+| Archived Couch records and associated Pair session data | Fresh 365-day grace at archive, extended by later meaningful use | Live users; a restored manifest reference protects again |
+| Immutable old parked captures | 365 days per capture | Exact readers and unfinished handoffs; tag reuse and Couch visibility do not renew age |
+| Debugging logs | 365 days per generation | Writer coordination and complete legacy-process evidence |
 
 Meaningful use is explicit create/attach/resume/view, or a changed authored-content
 write. Unchanged saves, background scans, repaint, diagnostics and distillation do
 not extend the session clock. Foreground viewing remains protected until the
-viewer closes. Existing session data without use metadata starts a new 60-day
+viewer closes. Existing session data without use metadata starts a new 365-day
 grace; old atime/mtime does not prove session inactivity. Legacy archived Couch
 records missing a grace sidecar also receive a full grace on apply; malformed
 sidecars remain blocked.

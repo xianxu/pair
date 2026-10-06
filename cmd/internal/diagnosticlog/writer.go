@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -20,8 +21,13 @@ import (
 	"github.com/xianxu/pair/cmd/internal/procutil"
 )
 
-const RetentionPeriod = 7 * 24 * time.Hour
+const RetentionPeriod = 365 * 24 * time.Hour
 const GenerationPeriod = 24 * time.Hour
+
+// RetainedReason is why a segment younger than RetentionPeriod stays. Derived
+// from the constant; `pair gc` compares against it to tell retained from blocked.
+var RetainedReason = fmt.Sprintf("within %d-day retention", int(RetentionPeriod/(24*time.Hour)))
+
 const MaxGenerationBytes int64 = 64 << 20
 
 var ErrBusy = errors.New("diagnostic log busy")

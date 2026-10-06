@@ -163,7 +163,7 @@ func TestRecoverUseKeepsLiveAndUnknownIntent(t *testing.T) {
 	delete(probe.Unknown, p.PID)
 	delete(probe.Processes, p.PID)
 	old := s.Activity.LastUse
-	c.Now = func() time.Time { return old.Add(61 * 24 * time.Hour) }
+	c.Now = func() time.Time { return old.Add(RetentionPeriod + 24*time.Hour) }
 	if err := c.RecoverUse(ctx, o); err != nil {
 		t.Fatal(err)
 	}
