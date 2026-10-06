@@ -518,7 +518,7 @@ error)`) and `slotdeps_test.go`.
 (`ProvisionFixture` gains helpers that break each resource) and `testdata/fakeweave` (stateful,
 see ARCH-MOCK).
 
-- [ ] **Step 1: Failing tests** on `ProvisionFixture` (real git). Each starts from a slot
+- [x] **Step 1: Failing tests** on `ProvisionFixture` (real git). Each starts from a slot
   provisioned by today's `Ensure`, breaks exactly one resource, and asserts that resource's
   observation (and that every other resource stays `present`):
   - env deleted (whole directory) → `env` absent, `registration` stale, `branch` present,
@@ -547,12 +547,12 @@ see ARCH-MOCK).
   - a host whose `.git` file points at a missing admin directory and whose registration
     `git worktree repair` cannot restore → `host` broken (positive evidence), carrying the
     branch from the registration's admin `HEAD` when one is still readable.
-- [ ] **Step 2:** FAIL. **Step 3:** implement. Observations use `SlotLayout` and the
+- [x] **Step 2:** FAIL. **Step 3:** implement. Observations use `SlotLayout` and the
   `ProvisionIO` seam only. The flock probe opens without `O_CREAT`, and a missing lock file
   means free.
-- [ ] **Step 4:** PASS. Mutation: map a `worktree list` failure to `absent`, and the unknown
+- [x] **Step 4:** PASS. Mutation: map a `worktree list` failure to `absent`, and the unknown
   case must fail.
-- [ ] **Step 5:** commit `#387 M1: couchcore: observe every slot resource`.
+- [x] **Step 5:** commit `#387 M1: couchcore: observe every slot resource`.
 
 ### Task 1.5: `PlanSlot` (pure) and the derived domain
 
@@ -1120,3 +1120,18 @@ resource.
   so an outside non-layer is never set aside.
 - Pinned `github.com/xianxu/ariadne v0.0.0-20261005230324-b9bc9f32f5ae` (no `replace`);
   `make build` and a clean-`GOMODCACHE` `go build ./...` pass.
+
+### 2026-10-05 (k) — Task 1.4 implementation reconciliation
+
+- The agent input reuses the recovery report's `EvidenceAgent`, rather than a new enum;
+  `AgentRunning(EvidenceAgent) (running, known)` is the one reading for reconcile (detached =
+  running; parked/none = not; unusable = unknown). `AllAgentStates()` in Task 1.5 is therefore
+  `AllEvidenceAgents()`.
+- A resource whose dependency is not present is `StatePending` (the zero state, "waits for
+  X"): neither a step nor a stop. It is not in `AllObservedStates()`; the planner skips it.
+- The host is verified by git (`--absolute-git-dir` under `Registrations()`, common directory
+  match), not `sdlc workspace --json`, so observation spends no sdlc call. Setup reads the
+  marker through the new `ValidSetupMarker` (which `readSuccess` now shares), and a held weave
+  lock outranks every marker reading.
+- Observation needs no weave, so the stateful weave fake moves to M2 (Task 2.1/2.6), where
+  compile runs. The attempt memo (R5) is observed when M2 starts writing it.

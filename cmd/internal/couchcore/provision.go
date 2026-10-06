@@ -376,7 +376,7 @@ func (p *WorkspaceProvisioner) readSuccess(host provisionHost) (SetupSuccess, bo
 	if err != nil || !exists {
 		return s, exists, err
 	}
-	if s.SchemaVersion != 1 || s.Host != host.identity.WorktreeRoot || s.Common != host.identity.RepoIdentity || s.Admin != host.admin || s.Slot != *host.identity.Slot || !validWorkspaceOID(s.BaselineSHA) {
+	if !ValidSetupMarker(s, host.identity.WorktreeRoot, host.identity.RepoIdentity, host.admin, *host.identity.Slot) {
 		return s, false, errors.New("invalid or mismatched workspace setup-success marker")
 	}
 	return s, true, nil
