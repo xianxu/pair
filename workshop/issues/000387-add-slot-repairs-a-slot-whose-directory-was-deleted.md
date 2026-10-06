@@ -195,6 +195,8 @@ approval and the three sign-offs listed at its top).
 ## Log
 
 
+
+- 2026-10-06: closed — M1–M3 closed with boundary reviews (M3 SHIP at a7acac18). Close round 7 produced no parseable verdict (prose said FIX-THEN-SHIP, one Minor BR-21) — BR-21 fixed with a mutation-checked test (d439ada4). Operator live smoke test in pair:0 PASSED 2026-10-06: couch --show tools:1 / parli:1 reports, couch --reconcile parli:1 converged with ariadne#296's weave, hand-off text correct with the old weave. Smoke-test finding fixed: weave identity is a setup input of the remembered-failure digest (28486df7, TestRememberedSetupFailureRetriesWithAnUpgradedWeave, mutation-checked). Full suite unsandboxed after it: make -k test / test-changelog / go test ./... — every failure reproduces on origin/main 57ae1bed (spawn registration, continuation writer, cold-resume load flake, launcher x5, workbenchshortcut, gcruntime locator, embedded-runtime; artifactpath set identical).; review verdict: SHIP
 ### 2026-10-02
 
 Filed at the operator's request from the #363/#367 design talk: a deleted slot

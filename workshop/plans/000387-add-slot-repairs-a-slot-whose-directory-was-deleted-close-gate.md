@@ -278,6 +278,40 @@ rounds:
       recipe: milestone-review
       blocked: false
       protocol_error: no valid findings block
+    - "n": 9
+      timestamp: "2026-10-06T10:55:47-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: Plan Tasks 1.4/2.5/3.1 still list test cases in prose; Minor, non-blocking.
+          round: 9
+        - id: BR-8
+          disposition: not-addressed
+          note: 'Code returns the WorkspaceReferencePath error, but TestShowSurfacesSlotResolutionErrors has no subtest for show repo:N of a missing slot asserting "does not exist (existing: ...)".'
+          round: 9
+        - id: BR-9
+          disposition: addressed
+          note: operationdispatch.go:166-203 surfaces slotErr either as the command error or as SlotReport.PlanError; slotreport.go:73-76 returns the probe error; TestShowSurfacesSlotResolutionErrors covers discover with no thread, discover with a thread, and the path probe.
+          round: 9
+        - id: BR-12
+          disposition: addressed
+          note: setAsideHoldError derives the error from SetAsideHold (slotsave.go:46-56); ClassifyConvergeError maps agent-appeared, agent-unobserved and saved-work-full to holds and checkout-recovered to retryable; TestSetAsideHoldsMatchThePlan sweeps every agent state.
+          round: 9
+        - id: BR-19
+          disposition: not-addressed
+          note: Fix present at recoverplan.go:667, but the reconcilable branch of TestRecoverReconcileReadingIsMetamorphic checks only class and steps, never Notes, so reverting it stays green.
+          round: 9
+        - id: BR-20
+          disposition: not-addressed
+          note: Identity reporting is done; the future-saved_at guard (slotsave.go:199-201) still has no fixture in TestSavedWorkIsCollectedPastRetention.
+          round: 9
+        - id: BR-21
+          disposition: addressed
+          note: setAsideDone fires right after the rename (c3394e40); TestASetAsideIsReportedWhenTheMoveHappens fails the complete-manifest write and asserts the entry is reported with a pending restore manifest.
+          round: 9
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#387 (boundary-review)
@@ -399,12 +433,21 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 **Protocol error:** no valid findings block — this round contributed no findings.
 
+## Round 9 — 2026-10-06T10:55:47-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — not-addressed — Plan Tasks 1.4/2.5/3.1 still list test cases in prose; Minor, non-blocking.
+- BR-8 — not-addressed — Code returns the WorkspaceReferencePath error, but TestShowSurfacesSlotResolutionErrors has no subtest for show repo:N of a missing slot asserting "does not exist (existing: ...)".
+- BR-9 — addressed — operationdispatch.go:166-203 surfaces slotErr either as the command error or as SlotReport.PlanError; slotreport.go:73-76 returns the probe error; TestShowSurfacesSlotResolutionErrors covers discover with no thread, discover with a thread, and the path probe.
+- BR-12 — addressed — setAsideHoldError derives the error from SetAsideHold (slotsave.go:46-56); ClassifyConvergeError maps agent-appeared, agent-unobserved and saved-work-full to holds and checkout-recovered to retryable; TestSetAsideHoldsMatchThePlan sweeps every agent state.
+- BR-19 — not-addressed — Fix present at recoverplan.go:667, but the reconcilable branch of TestRecoverReconcileReadingIsMetamorphic checks only class and steps, never Notes, so reverting it stays green.
+- BR-20 — not-addressed — Identity reporting is done; the future-saved_at guard (slotsave.go:199-201) still has no fixture in TestSavedWorkIsCollectedPastRetention.
+- BR-21 — addressed — setAsideDone fires right after the rename (c3394e40); TestASetAsideIsReportedWhenTheMoveHappens fails the complete-manifest write and asserts the entry is reported with a pending restore manifest.
+
 ## Open findings
 
 - **BR-1** [Minor] `plan-enumerates-test-cases` Tasks 1.4, 2.5 and 3.1 enumerate test cases in prose; compress to functions plus one strategy line per risky function
 - **BR-8** [Minor] `error-surface-preserved` slotOfShowReference drops WorkspaceReferencePath's error, so --show repo:N of a missing slot shows the generic not-found message
-- **BR-9** [Minor] `error-surface-preserved` --show still drops slot-resolution errors whenever thread resolution succeeds, or the physical path probe fails
-- **BR-12** [Minor] `stop-reason-precision` setAside's agent-appeared and limit refusals are classified as a hand-off, not a hold
 - **BR-19** [Minor] `decision-preserves-notes` Idle plus reconcilable replaces the whole decision, dropping notes computed earlier such as claims-stale
 - **BR-20** [Minor] `identity-not-time-window` SavedWorkSince picks this run's entries by wall-clock window, not by the step's own entry
-- **BR-21** [Minor] `error-surface-preserved` A set-aside whose final manifest write fails after the rename is not reported
