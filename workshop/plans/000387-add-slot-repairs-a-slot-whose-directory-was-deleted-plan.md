@@ -1497,3 +1497,16 @@ Each finding is fixed as its class's rule:
     over ten real slots (budget 150 ms).
   - The row-advice sweep does not apply to `reconcile`: it is a CLI and report step, not a
     switcher row action (Revision s), so switcher row advice must never name it, and it does not.
+
+### 2026-10-06 (aa) — smoke-test finding: weave is a setup input
+
+The operator's smoke test passed: `tools:1` and `parli:1` were repaired once
+ariadne#296's weave ran. While filing #296, we found that the remembered-failure
+digest left out weave itself, so an upgraded weave would not have re-run a
+remembered hand-off on a plain open. The digest now includes weave's identity:
+`ProgramIdentifier`, implemented by `OSProvisionIO` as the resolved file on `PATH`
+with its size and modification time.
+`TestRememberedSetupFailureRetriesWithAnUpgradedWeave` covers it and fails when
+weave is left out of the digest. The smoke test also showed that couch runs the
+first weave on `PATH`, here Homebrew's; shipping #296 to Homebrew is ariadne's
+release step.

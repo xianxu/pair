@@ -116,8 +116,9 @@ remove it.
   agent evidence from `ObserveSlotSessions`. Reboot's first pass holds under the
   live agent, and its post-stop pass repairs.
 - **Known failures.** A hand-off setup failure is remembered beside the marker
-  (`couch-setup-attempt.json`, keyed by a digest of `HEAD` and the
-  `construct/deps` files). Later opens do not recompile until an input changes or
+  (`couch-setup-attempt.json`, keyed by a digest of `HEAD`, the
+  `construct/deps` files and the weave on `PATH`: its resolved file, size and
+  modification time, so an upgraded weave retries). Later opens do not recompile until an input changes or
   `couch --reconcile repo:N` asks for it explicitly.
 - **Add slot.** `Discover` unions environment directories, registrations and
   `main-slotN` refs. A number known only from leftovers is reusable

@@ -26,6 +26,12 @@ type ProvisionFixture struct {
 	// fails, with weave's own line, on one it does not (pair#387).
 	DepSources map[string]bool
 	AfterGit   func(ProvisionCommand, []byte) error
+	// WeaveIdentity is the installed weave's identity (ProgramIdentifier).
+	WeaveIdentity string
+}
+
+func (f *ProvisionFixture) ProgramIdentity(program string) string {
+	return program + " " + f.WeaveIdentity
 }
 
 func newProvisionFixture(t *testing.T, repositoryNames ...string) *ProvisionFixture {
@@ -214,6 +220,51 @@ func TestProvisionHostMissingSuccessRepeatsSameOperation(t *testing.T) {
 	}
 	if got.BaselineSHA != f.Base || f.WeaveCalls != 2 {
 		t.Fatalf("result %+v calls=%d", got, f.WeaveCalls)
+	}
+}
+
+// TestRememberedSetupFailureRetriesWithAnUpgradedWeave: weave is a setup
+// input, so a plain open after a weave upgrade compiles again rather than
+// repeating the remembered failure.
+func TestRememberedSetupFailureRetriesWithAnUpgradedWeave(t *testing.T) {
+	f := newProvisionFixture(t)
+	f.WeaveIdentity = "v1"
+	f.FailWeave = true
+	p := NewWorkspaceProvisioner(f)
+	req := ProvisionRequest{Path: f.Primary, Slot: 1}
+	if _, err := p.Ensure(context.Background(), req); err == nil {
+		t.Fatal("failed setup accepted")
+	}
+	if _, err := p.Ensure(context.Background(), req); err == nil || f.WeaveCalls != 1 {
+		t.Fatalf("unchanged weave: err=%v calls=%d, want the remembered failure", err, f.WeaveCalls)
+	}
+	f.FailWeave = false
+	f.WeaveIdentity = "v2"
+	if _, err := p.Ensure(context.Background(), req); err != nil || f.WeaveCalls != 2 {
+		t.Fatalf("upgraded weave: err=%v calls=%d, want a fresh compile", err, f.WeaveCalls)
+	}
+}
+
+func TestOSProgramIdentityChangesWhenTheProgramIsReplaced(t *testing.T) {
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir)
+	io := OSProvisionIO{}
+	if got := io.ProgramIdentity("weave"); got != "unresolved" {
+		t.Fatalf("missing program: %q", got)
+	}
+	bin := filepath.Join(dir, "weave")
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	first := io.ProgramIdentity("weave")
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\necho v2\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if second := io.ProgramIdentity("weave"); second == first || !strings.HasPrefix(second, bin) {
+		t.Fatalf("identity %q then %q", first, second)
 	}
 }
 

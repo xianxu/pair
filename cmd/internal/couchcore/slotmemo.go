@@ -20,8 +20,9 @@ type SetupAttempt struct {
 	At            time.Time `json:"at"`
 }
 
-// setupInputsDigest hashes what setup reads: the host's HEAD and every
-// construct/deps it would walk (the host's, then each present dependency's).
+// setupInputsDigest hashes what setup reads: the host's HEAD, every
+// construct/deps it would walk (the host's, then each present dependency's),
+// and the weave that would run it, so an upgraded weave retries.
 func setupInputsDigest(ctx context.Context, io ProvisionIO, layout SlotLayout) (string, error) {
 	head, err := io.Run(ctx, ProvisionCommand{Dir: layout.Host(), Program: "git", Args: []string{"rev-parse", "HEAD"}})
 	if err != nil {
@@ -29,6 +30,9 @@ func setupInputsDigest(ctx context.Context, io ProvisionIO, layout SlotLayout) (
 	}
 	h := sha256.New()
 	h.Write(head)
+	if id, ok := io.(ProgramIdentifier); ok {
+		h.Write([]byte("weave\x00" + id.ProgramIdentity("weave") + "\x00"))
+	}
 	read := func(dir string) {
 		raw, err := os.ReadFile(filepath.Join(dir, "construct", "deps"))
 		h.Write([]byte(dir + "\x00"))

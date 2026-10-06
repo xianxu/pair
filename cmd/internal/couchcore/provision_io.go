@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
@@ -27,6 +28,30 @@ type ProvisionIO interface {
 }
 
 type OSProvisionIO struct{ Env []string }
+
+// ProgramIdentifier is an optional ProvisionIO capability: an identity for
+// the program Run would execute, which changes when that program is replaced
+// (an upgrade, or another one earlier on PATH).
+type ProgramIdentifier interface {
+	ProgramIdentity(program string) string
+}
+
+// ProgramIdentity resolves the program as Run does (exec looks it up on this
+// process's PATH) and names the real file with its size and modification time.
+func (OSProvisionIO) ProgramIdentity(program string) string {
+	path, err := exec.LookPath(program)
+	if err != nil {
+		return "unresolved"
+	}
+	if real, err := filepath.EvalSymlinks(path); err == nil {
+		path = real
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return path
+	}
+	return fmt.Sprintf("%s %d %d", path, info.Size(), info.ModTime().UnixNano())
+}
 
 func (runner OSProvisionIO) Run(ctx context.Context, request ProvisionCommand) ([]byte, error) {
 	if request.Timeout > 0 {
