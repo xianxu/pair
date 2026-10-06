@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 )
 
@@ -27,21 +26,17 @@ type SlotCandidate struct {
 }
 type OSSlotCatalog struct{ IO ProvisionIO }
 
+// ErrSlotNeedsReconcile marks a candidate known only from leftovers (an
+// environment or registration without a checkout, or a resting branch alone):
+// reconcile can bring it back, so it is a reusable number, not a refusal
+// (pair#387).
+var ErrSlotNeedsReconcile = errors.New("slot needs reconcile")
+
 func NewOSSlotCatalog(commandIO ProvisionIO) *OSSlotCatalog { return &OSSlotCatalog{IO: commandIO} }
 
 func conventionalSlot(primary string, n int) SlotIdentity {
-	repo := filepath.Base(primary)
-	env := filepath.Join(filepath.Dir(primary), "worktree", repo+"-slot"+strconv.Itoa(n))
-	return SlotIdentity{Repo: repo, RepoIdentity: filepath.Join(primary, ".git"), PrimaryRoot: primary, EnvironmentRoot: env, WorktreeRoot: filepath.Join(env, repo), Number: n}
-}
-func slotDirectoryNumber(primary, name string) (int, bool) {
-	prefix := filepath.Base(primary) + "-slot"
-	if !strings.HasPrefix(name, prefix) {
-		return 0, false
-	}
-	suffix := strings.TrimPrefix(name, prefix)
-	n, err := strconv.Atoi(suffix)
-	return n, err == nil && n > 0 && strconv.Itoa(n) == suffix
+	l := NewSlotLayout(primary, filepath.Join(primary, ".git"), n)
+	return SlotIdentity{Repo: filepath.Base(primary), RepoIdentity: l.common, PrimaryRoot: primary, EnvironmentRoot: l.Env(), WorktreeRoot: l.Host(), Number: n}
 }
 
 // checkSlotDirectory permits absence, but never a symlink or non-directory.
@@ -63,13 +58,13 @@ func checkSlotDirectory(path string) error {
 }
 func inspectSlot(s SlotIdentity) (SlotCandidate, error) {
 	c := SlotCandidate{Identity: s}
-	for _, p := range []string{s.EnvironmentRoot, s.WorktreeRoot, filepath.Join(s.EnvironmentRoot, ".couch")} {
+	for _, p := range []string{s.EnvironmentRoot, s.WorktreeRoot, LayoutOf(s).Store()} {
 		if err := checkSlotDirectory(p); err != nil {
 			return c, err
 		}
 	}
 	if _, err := os.Stat(s.WorktreeRoot); err != nil {
-		c.Err = fmt.Errorf("incomplete slot host %s: %w", s.WorktreeRoot, err)
+		c.Err = fmt.Errorf("%w: incomplete slot host %s: %v", ErrSlotNeedsReconcile, s.WorktreeRoot, err)
 	}
 	return c, nil
 }
@@ -87,7 +82,7 @@ func EnumerateSlotCandidates(primaryRoot string) ([]SlotCandidate, error) {
 	if _, err := os.Stat(primaryRoot); err != nil {
 		return nil, err
 	}
-	root := filepath.Join(filepath.Dir(primaryRoot), "worktree")
+	root := WorktreesRoot(filepath.Dir(primaryRoot))
 	if err := checkSlotDirectory(root); err != nil {
 		return nil, err
 	}
@@ -100,7 +95,7 @@ func EnumerateSlotCandidates(primaryRoot string) ([]SlotCandidate, error) {
 	}
 	var slots []SlotCandidate
 	for _, entry := range entries {
-		n, ok := slotDirectoryNumber(primaryRoot, entry.Name())
+		n, ok := ParseEnvName(filepath.Base(primaryRoot), entry.Name())
 		if !ok {
 			continue
 		}
@@ -109,6 +104,9 @@ func EnumerateSlotCandidates(primaryRoot string) ([]SlotCandidate, error) {
 		}
 		c, err := inspectSlot(conventionalSlot(primaryRoot, n))
 		if err != nil {
+			// A symlink or file at a slot path fails the whole inventory: it
+			// also enumerates store backends, and a redirected store is a
+			// safety failure, not one slot's state (pair#387 keeps this).
 			return nil, err
 		}
 		slots = append(slots, c)
@@ -158,10 +156,10 @@ func (c *OSSlotCatalog) Discover(ctx context.Context, path string) (SlotReposito
 		}
 		host := strings.TrimPrefix(field, "worktree ")
 		env := filepath.Dir(host)
-		if filepath.Dir(env) != filepath.Join(primary.FleetRoot, "worktree") || filepath.Base(host) != primary.Repo {
+		if filepath.Dir(env) != WorktreesRoot(primary.FleetRoot) || filepath.Base(host) != primary.Repo {
 			continue
 		}
-		n, ok := slotDirectoryNumber(path, filepath.Base(env))
+		n, ok := ParseEnvName(filepath.Base(path), filepath.Base(env))
 		if !ok || seen[n] {
 			continue
 		}
@@ -172,6 +170,22 @@ func (c *OSSlotCatalog) Discover(ctx context.Context, path string) (SlotReposito
 		if err != nil {
 			return SlotRepository{}, err
 		}
+		slots = append(slots, row)
+		seen[n] = true
+	}
+	refs, err := p.git(ctx, path, nil, "for-each-ref", "--format=%(refname)", RestingBranchRefGlob)
+	if err != nil {
+		return SlotRepository{}, err
+	}
+	for _, ref := range strings.Split(refs, "\n") {
+		n, ok := ParseRestingBranch(strings.TrimPrefix(ref, "refs/heads/"))
+		if !ok || seen[n] {
+			continue
+		}
+		if len(slots) >= MaxSlotCandidates {
+			return SlotRepository{}, fmt.Errorf("slot candidate limit %d exceeded", MaxSlotCandidates)
+		}
+		row := SlotCandidate{Identity: conventionalSlot(path, n), Err: fmt.Errorf("%w: only its resting branch remains", ErrSlotNeedsReconcile)}
 		slots = append(slots, row)
 		seen[n] = true
 	}

@@ -27,6 +27,7 @@ func TestParseCLI(t *testing.T) {
 		{name: "list", args: []string{"--list"}, want: cliInvocation{kind: cliList}},
 		{name: "recover plan", args: []string{"--recover-plan-from-sdlc"}, want: cliInvocation{kind: cliRecoverPlan}},
 		{name: "show", args: []string{"--show", "thread"}, want: cliInvocation{kind: cliShow, ref: "thread"}},
+		{name: "reconcile", args: []string{"--reconcile", "pair:2"}, want: cliInvocation{kind: cliReconcile, ref: "pair:2"}},
 		{name: "help long", args: []string{"--help"}, want: cliInvocation{kind: cliHelp}},
 		{name: "help short", args: []string{"-h"}, want: cliInvocation{kind: cliHelp}},
 		{name: "internal", args: []string{"--internal", "publish-description", "working"}, want: cliInvocation{kind: cliInternal, operation: "publish-description", args: []string{"working"}}},

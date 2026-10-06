@@ -49,20 +49,58 @@ func TestSelectStartSlotFillsLowestFreeNumber(t *testing.T) {
 	}
 }
 
-func TestSelectStartSlotRefusesUncertainInventory(t *testing.T) {
-	partial := allocationCandidate(3)
-	partial.Verified = false
-	failed := allocationCandidate(3)
-	failed.Err = errors.New("permission denied")
+// TestSelectStartSlotRefusesInconsistentInventory: an inventory that
+// contradicts itself (an invalid number, a duplicate, another repository's
+// slot) is still refused whole; it is not one slot's problem.
+func TestSelectStartSlotRefusesInconsistentInventory(t *testing.T) {
 	invalid := allocationCandidate(0)
 	foreign := allocationCandidate(2)
 	foreign.Identity.RepoIdentity = "/other/pair/.git"
 	for _, candidates := range [][]SlotCandidate{
-		{allocationCandidate(1), partial}, {failed}, {invalid},
-		{allocationCandidate(1), allocationCandidate(1)}, {allocationCandidate(1), foreign},
+		{invalid}, {allocationCandidate(1), allocationCandidate(1)}, {allocationCandidate(1), foreign},
 	} {
 		if _, err := SelectStartSlot(candidates, occupiedSet(0)); err == nil {
-			t.Fatalf("allocated around uncertain inventory: %+v", candidates)
+			t.Fatalf("allocated around an inconsistent inventory: %+v", candidates)
+		}
+	}
+}
+
+// TestSelectStartSlotReconcilable (pair#387): a slot known only from leftovers
+// or not yet verified is an existing number to reuse (reconciled on the reuse
+// route), and any other failed slot skips only its own number. No candidate
+// error refuses the whole repository.
+func TestSelectStartSlotReconcilable(t *testing.T) {
+	leftover := allocationCandidate(1)
+	leftover.Verified = false
+	leftover.Err = fmt.Errorf("%w: only its resting branch remains", ErrSlotNeedsReconcile)
+	got, err := SelectStartSlot([]SlotCandidate{leftover}, occupiedSet(0))
+	if err != nil || got.Number != 1 || !got.Exists || len(got.Notices) != 0 {
+		t.Fatalf("leftover slot: %+v, %v; want reuse of 1", got, err)
+	}
+	unverified := allocationCandidate(1)
+	unverified.Verified = false
+	if got, err := SelectStartSlot([]SlotCandidate{unverified}, occupiedSet(0)); err != nil || got.Number != 1 || !got.Exists {
+		t.Fatalf("unverified slot: %+v, %v; want reuse of 1", got, err)
+	}
+	broken := allocationCandidate(2)
+	broken.Err = errors.New("permission denied")
+	got, err = SelectStartSlot([]SlotCandidate{allocationCandidate(1), broken}, occupiedSet(0, 1))
+	if err != nil || got.Number != 3 || got.Exists || len(got.Notices) != 1 {
+		t.Fatalf("broken slot 2: %+v, %v; want a new slot 3 and a notice naming 2", got, err)
+	}
+	// The domain of candidate readings (verified, unverified, needs-reconcile,
+	// any other error): none refuses the repository.
+	readings := []func(SlotCandidate) SlotCandidate{
+		func(c SlotCandidate) SlotCandidate { return c },
+		func(c SlotCandidate) SlotCandidate { c.Verified = false; return c },
+		func(c SlotCandidate) SlotCandidate { c.Verified, c.Err = false, ErrSlotNeedsReconcile; return c },
+		func(c SlotCandidate) SlotCandidate { c.Verified, c.Err = false, errors.New("anything else"); return c },
+	}
+	for i, a := range readings {
+		for j, b := range readings {
+			if _, err := SelectStartSlot([]SlotCandidate{a(allocationCandidate(1)), b(allocationCandidate(2))}, occupiedSet(0)); err != nil {
+				t.Errorf("readings %d,%d refused the repository: %v", i, j, err)
+			}
 		}
 	}
 }

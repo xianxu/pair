@@ -380,7 +380,8 @@ couch [<repo>]           open the Couch TUI (default: .)
 couch --layout2          opt into pair's two-pane workbench
 couch --layout3          threads also get pair's right-hand terminal (the default)
 couch --list             every durable work thread across all repositories
-couch --show <ref>       one current-repository thread by tag or path
+couch --show <ref>       one current-repository thread by tag or path, or a slot (repo:N)
+couch --reconcile repo:N converge a slot's workspace now and show what it did
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
 couch --recover-plan-from-sdlc   per-slot recovery report (JSON), see below
@@ -413,6 +414,28 @@ one side effect is sdlc's own tracker fetch, which updates remote-tracking refs.
 Each step carries its `command`: `couch --resume repo:N`, `couch --reboot repo:N
 --confirm`, or a `couch --send-to` asking the slot's own agent to restore its
 workspace.
+
+Each `:1+` row also reads the slot reconciler (#387). If the workspace cannot
+converge, the row's class is `slot-needs-zero` with hold `workspace-handoff`: the
+repository's `:0` agent looks first, because resume or reboot would fail at the
+same place. A fixable workspace on an otherwise idle row, or a deleted slot
+directory whose leftovers remain, steps `couch --reconcile repo:N`. A repair
+waiting on a live agent is noted `workspace-held`, a usable slot where something
+did not converge (for example its resting branch is checked out elsewhere)
+`workspace-degraded`, and an unobservable resource `workspace-unknown`. The report
+holds a row for `:0` only when the callers would refuse to open the slot; its
+reason carries the reconciler's own advice.
+
+Open, resume, reboot and add slot reconcile a slot's workspace first, and
+`couch --reconcile repo:N` does it on its own. Reconcile repairs what is derived
+(the directory, registration, checkout, dependency clones, setup) and adopts what
+it finds; it never deletes the operator's work. A checkout git cannot read is moved
+whole into `<slot>/.couch/saved-work/<name>-<time>/tree`. Its `manifest.json` gives
+the restore command, and the result prints it. Saved work is collected after the
+storage retention period. A failure names the resource and its cause, and says to
+run it again only when something else was running. Otherwise it hands the slot to
+the repository's `:0` agent, and a failed `--reconcile` also prints the resources
+it observed.
 
 `couch --resume repo:N` and `couch --reboot repo:N --confirm` run one slot's step
 through the running Couch. Only an agent in a live Couch slot may call them: Couch
@@ -538,7 +561,17 @@ any other row labels the working directory's last segment (`brain`, `pair`,
 read the same. The agent-published summary is the one summary displayed.
 
 `couch --list` stays compact and label-first. `couch --show` is the diagnostic view:
-it always prints the immutable `{repository scope}/{opaque tag}` address. Start,
+it always prints the immutable `{repository scope}/{opaque tag}` address. When the
+reference names a `:1+` slot (`repo:N`, a path at or inside the slot, or the slot
+its threads start in), `--show` also prints the slot's resources in converge order:
+- env, store, branch, registration, host, dependencies, setup and agent, each
+  `present` / `absent` / `broken` / `unknown` / `pending`, with a reading such as
+  `stale` or `unreadable`;
+- the plan a reconcile would run, e.g. `plan: compile setup` or `plan: nothing to
+  do` (#387).
+
+This works for a slot with no thread left, e.g. a deleted slot directory.
+`--show` observes and changes nothing. Start,
 Park, Resume, Reboot, switch, and Leave Couch are TUI actions, all routed through
 Couch's typed in-process dispatcher. They are deliberately not shell commands; an
 explicit empty string in the alias form clears the repository's alias.
@@ -841,7 +874,7 @@ ordinary filter text—there is no command namespace or numbered jump mode.
 | cannot be entered, but resume has a route | resume, reboot |
 | cannot be entered otherwise (`:0`) | reboot |
 | state could not be checked | nothing; the next refresh decides |
-| directory missing | `:0`: reboot (archives the record only; restore the checkout to start there again); `:1+`: nothing — add slot recreates it |
+| directory missing | `:0`: reboot (archives the record only; restore the checkout to start there again); `:1+`: add slot recreates it (it reuses the leftover number and reconciles it); `couch --reconcile repo:N` does the same from the CLI |
 | starting elsewhere | nothing |
 
 `Enter` switches to a live row and resumes a row that offers resume; on any

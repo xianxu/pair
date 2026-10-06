@@ -24,6 +24,22 @@ type planFixture struct {
 	couchErr   string
 	candidates []RecoverSlotCandidate
 	localGit   map[string]RecoverLocalGit
+	slotPlans  map[string]SlotReport
+}
+
+// workspaceReport is a slot reconciler report whose checkout is usable, with
+// the given plan.
+func workspaceReport(plan SlotPlan) SlotReport {
+	return SlotReport{Address: "pair:1", Plan: plan, Observation: SlotObservation{Resources: []ResourceObservation{
+		{ID: ResourceHost, State: StatePresent}, {ID: ResourceSetup, State: StatePresent}}}}
+}
+
+// plan records the slot reconciler's report for an address.
+func (p *planFixture) plan(address string, report SlotReport) {
+	if p.slotPlans == nil {
+		p.slotPlans = map[string]SlotReport{}
+	}
+	p.slotPlans[filepath.Clean(p.path(address))] = report
 }
 
 func newPlanFixture(t *testing.T) *planFixture {
@@ -64,7 +80,7 @@ func (p *planFixture) input() RecoverPlanInput {
 	if p.couchErr != "" {
 		couch = CouchObservation{State: CouchObservationUnavailable, Error: p.couchErr}
 	}
-	return RecoverPlanInput{Fleets: []FleetObservation{obs}, Couch: couch, SlotCandidates: p.candidates, LocalGit: p.localGit}
+	return RecoverPlanInput{Fleets: []FleetObservation{obs}, Couch: couch, SlotCandidates: p.candidates, LocalGit: p.localGit, SlotPlans: p.slotPlans}
 }
 
 type recoverPlanCase struct {
@@ -220,6 +236,48 @@ func recoverPlanCases() []recoverPlanCase {
 			}},
 		{name: "conversation alone", address: "pair:1", want: RecoverIdle,
 			setup: func(p *planFixture) { p.fleet.AddSlot("pair:1"); p.thread("pair:1", ThreadParked, "") }},
+		{name: "workspace reconcilable", address: "pair:1", want: RecoverReconcilable, steps: []string{"reconcile"},
+			setup: func(p *planFixture) {
+				p.fleet.AddSlot("pair:1")
+				p.thread("pair:1", ThreadParked, "")
+				p.plan("pair:1", workspaceReport(SlotPlan{Steps: []PlannedStep{{Step: StepCompile, Resource: ResourceSetup}}}))
+			}},
+		{name: "workspace needs :0", address: "pair:1", want: RecoverSlotNeedsZero, hold: []string{"workspace-handoff"},
+			setup: func(p *planFixture) {
+				p.fleet.AddSlot("pair:1")
+				p.thread("pair:1", ThreadParked, "")
+				// Setup never completed and cannot: no agent could work here.
+				r := workspaceReport(SlotPlan{Stops: []PlanStop{{Resource: ResourceSetup, Class: StopHandoff, Reason: "setup-failed-known: Error: missing substrate"}}})
+				r.Observation.Resources[1] = ResourceObservation{ID: ResourceSetup, State: StateAbsent, Sub: SubFailedKnown}
+				p.plan("pair:1", r)
+			}},
+		{name: "workspace degraded but usable", address: "pair:1", want: RecoverIdle, notes: []string{"workspace-degraded"},
+			setup: func(p *planFixture) {
+				p.fleet.AddSlot("pair:1")
+				p.thread("pair:1", ThreadParked, "")
+				// The resting branch is checked out elsewhere, but the host works:
+				// the callers open it with a warning, so the report does not hold it.
+				p.plan("pair:1", workspaceReport(SlotPlan{Stops: []PlanStop{{Resource: ResourceBranch, Class: StopHandoff, Reason: "main-slot1 is checked out elsewhere"}}}))
+			}},
+		{name: "workspace held by a live agent", address: "pair:1", want: RecoverIdle, notes: []string{"workspace-held"},
+			setup: func(p *planFixture) {
+				p.fleet.AddSlot("pair:1")
+				p.thread("pair:1", ThreadLive, "")
+				p.plan("pair:1", workspaceReport(SlotPlan{Stops: []PlanStop{{Resource: DepResource("ariadne"), Class: StopHold, Reason: StopReasonAgentLive}}}))
+			}},
+		{name: "workspace partly unobservable", address: "pair:1", want: RecoverIdle, notes: []string{"workspace-unknown"},
+			setup: func(p *planFixture) {
+				p.fleet.AddSlot("pair:1")
+				p.thread("pair:1", ThreadParked, "")
+				p.plan("pair:1", workspaceReport(SlotPlan{Stops: []PlanStop{{Resource: ResourceDeps, Class: StopUnknown, Reason: "construct/deps unreadable"}}}))
+			}},
+		{name: "deleted slot directory with leftovers", address: "pair:5", want: RecoverReconcilable, steps: []string{"reconcile"},
+			setup: func(p *planFixture) {
+				p.fleet.AddSlot("pair:0")
+				p.fleet.AddDanglingClaim("/fleet/pair", "/fleet/worktree/pair-slot5/pair", "pair#000015", "pair:5")
+				p.slotPlans = map[string]SlotReport{"/fleet/worktree/pair-slot5/pair": {Address: "pair:5", Plan: SlotPlan{Steps: []PlannedStep{{Step: StepMkdirEnv, Resource: ResourceEnv}}},
+					Observation: SlotObservation{Resources: []ResourceObservation{{ID: ResourceEnv, State: StateAbsent}}}}}
+			}},
 		{name: "dirty resting branch, no claim", address: "pair:1", want: RecoverUnidentifiedWork, hold: []string{"unidentified-work"},
 			setup: func(p *planFixture) {
 				p.fleet.AddSlot("pair:1")
@@ -497,6 +555,11 @@ func TestDeriveRecoverPlanCoversEveryClassHoldAndNote(t *testing.T) {
 				t.Fatalf("automatic = %v with steps %v hold %v", row.Automatic, row.Next.Steps, row.Next.Hold)
 			}
 			assertReasonMatchesDecision(t, row)
+			// recoverReason is total over the classes (BR-15): no fixture's
+			// row may read the default text.
+			if row.Class != RecoverNoRule && row.Reason == "no rule matched" {
+				t.Fatalf("class %s has no reason text", row.Class)
+			}
 			for _, step := range row.Next.Steps {
 				// Every step names the CLI text that runs it (M2): the slot
 				// operation's own command, or a send to the slot's agent.
@@ -619,7 +682,7 @@ func TestDeriveRecoverPlanIsTotalOverTheEvidenceDomain(t *testing.T) {
 				if !slices.Contains(offered, step) {
 					fail(step + " is not offered by ActorActions")
 				}
-			case "ask-agent-restore":
+			case "ask-agent-restore", "reconcile":
 			default:
 				fail("unknown step " + step)
 			}
@@ -960,6 +1023,88 @@ func TestRestoreWorkspaceNotesDoNotAliasExtra(t *testing.T) {
 		_ = append(extra, NoteClaimRepair, NoteClaimRepair)
 		if !slices.Equal(d.Notes, want) {
 			t.Errorf("dirt %s: notes %v, want %v", dirt, d.Notes, want)
+		}
+	}
+}
+
+// TestRecoverReconcileReadingIsMetamorphic (pair#387): over a deterministic
+// stride of the full evidence domain, each slot-reconciler reading changes the
+// decision exactly as stated, relative to the same evidence read as converged:
+// needs-zero holds the row unless an earlier rule decided it; reconcilable
+// turns idle or a missing directory (and nothing else) into the reconcile step; held and unknown add
+// their note and change nothing else; reconcile is never stepped otherwise.
+func TestRecoverReconcileReadingIsMetamorphic(t *testing.T) {
+	earlier := map[RecoverClass]bool{RecoverDirectoryMissing: true, RecoverAgentUnknown: true, RecoverStartUnreconciled: true, RecoverAmbiguousThreads: true}
+	points := 0
+	index := 0
+	forEachEvidence(func(e SlotEvidence) {
+		index++
+		if index%23 != 0 {
+			return
+		}
+		points++
+		e.Reconcile = ReconcileConverged
+		base := classifyRecover(e)
+		if slices.Contains(base.Steps, "reconcile") {
+			t.Fatalf("converged workspace stepped reconcile: %+v → %+v", e, base)
+		}
+		for _, r := range AllEvidenceReconciles() {
+			e.Reconcile = r
+			d := classifyRecover(e)
+			fail := func(why string) { t.Fatalf("%s: %+v (%s) → %+v, converged → %+v", why, e, r, d, base) }
+			switch r {
+			case ReconcileNeedsZero:
+				if earlier[base.Class] {
+					if d.Class != base.Class {
+						fail("an earlier rule was overridden")
+					}
+				} else if d.Class != RecoverSlotNeedsZero || !slices.Equal(d.Hold, []string{string(HoldWorkspaceHandoff)}) || len(d.Steps) != 0 {
+					fail("needs-zero did not hold the row")
+				}
+			case ReconcileReconcilable:
+				// Idle, or a missing directory the reconciler can re-create.
+				if base.Class == RecoverIdle || base.Class == RecoverDirectoryMissing {
+					if d.Class != RecoverReconcilable || !slices.Equal(d.Steps, []string{"reconcile"}) {
+						fail("a reconcilable workspace with no other step is not stepped")
+					}
+				} else if d.Class != base.Class || !slices.Equal(d.Steps, base.Steps) {
+					fail("reconcilable changed a non-idle decision")
+				}
+			case ReconcileHeld, ReconcileUnknown, ReconcileDegraded:
+				note := map[EvidenceReconcile]RecoverNote{ReconcileHeld: NoteWorkspaceHeld, ReconcileUnknown: NoteWorkspaceUnknown, ReconcileDegraded: NoteWorkspaceDegraded}[r]
+				if d.Class != base.Class || !slices.Equal(d.Steps, base.Steps) || !slices.Contains(d.Notes, note) {
+					fail("held/unknown must only add its note")
+				}
+			}
+		}
+	})
+	if points < 50000 {
+		t.Fatalf("only %d sampled points; the stride is not covering the domain", points)
+	}
+}
+
+// TestRecoverSlotClassAgreesWithTheCallers (BR-16): over the planner's
+// derived perturbation domain and every agent state, the report holds a slot
+// for :0 only when the callers' own SlotOutcome would refuse it, and never
+// holds one they would open.
+func TestRecoverSlotClassAgreesWithTheCallers(t *testing.T) {
+	for _, agent := range AllEvidenceAgents() {
+		for _, p := range slotPerturbations() {
+			o := perturb(healthyObservation(), p)
+			o.Agent = agent
+			plan, err := PlanSlot(PlanInput{Observation: o})
+			if err != nil {
+				t.Fatal(err)
+			}
+			r := SlotReport{Address: "pair:1", Observation: o, Plan: plan}
+			blocking, _ := SlotOutcome("pair:1", "pair", ReconcileResult{Observation: o, Plan: plan}, nil)
+			class := RecoverSlotClass(r)
+			if class == ReconcileNeedsZero && blocking == nil {
+				t.Errorf("agent=%s %s: the report holds a slot the callers would open", agent, p)
+			}
+			if blocking != nil && len(plan.Steps) == 0 && class == ReconcileConverged {
+				t.Errorf("agent=%s %s: the callers refuse a slot the report calls converged", agent, p)
+			}
 		}
 	}
 }

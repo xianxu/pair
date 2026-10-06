@@ -1,6 +1,9 @@
 package couchcore
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 // SlotAllocation is a proposed number; the guarded creation boundary must
 // still reject a directory created after the inventory was observed. Exists
@@ -8,24 +11,32 @@ import "fmt"
 type SlotAllocation struct {
 	Number int
 	Exists bool
+	// Notices name numbers skipped because they need attention that
+	// reconcile cannot give (pair#387: never a repository-wide refusal).
+	Notices []string
 }
 
 // SelectStartSlot picks where a new thread starts (#332): the lowest number,
 // :0 included, that holds no thread, reusing its checkout when one exists; a
 // new directory only when every number is taken. occupied names the numbers
 // holding a thread (live, parked or otherwise). It consumes a complete
-// repository inventory: unverified or failed candidates need attention first.
+// repository inventory. A candidate known only from leftovers
+// (ErrSlotNeedsReconcile) or not yet verified is an existing number to reuse,
+// reconciled by the reuse route; any other failed candidate skips its own
+// number with a notice, never the whole repository (pair#387).
 func SelectStartSlot(candidates []SlotCandidate, occupied map[int]bool) (SlotAllocation, error) {
 	used := make(map[int]bool, len(candidates))
+	skipped := make(map[int]bool)
+	var notices []string
 	var repository SlotIdentity
 	for _, candidate := range candidates {
-		if candidate.Err != nil {
-			return SlotAllocation{}, fmt.Errorf("slot %d needs attention: %w", candidate.Identity.Number, candidate.Err)
-		}
-		if !candidate.Verified {
-			return SlotAllocation{}, fmt.Errorf("slot %d is not verified", candidate.Identity.Number)
-		}
 		slot := candidate.Identity
+		if candidate.Err != nil && !errors.Is(candidate.Err, ErrSlotNeedsReconcile) {
+			// Only this number needs attention; the repository stays usable.
+			skipped[slot.Number] = true
+			notices = append(notices, fmt.Sprintf("slot %d skipped: %v", slot.Number, candidate.Err))
+			continue
+		}
 		if err := slot.Validate(); err != nil {
 			return SlotAllocation{}, err
 		}
@@ -39,9 +50,11 @@ func SelectStartSlot(candidates []SlotCandidate, occupied map[int]bool) (SlotAll
 		used[slot.Number] = true
 	}
 	// The first free number is at most len(occupied)+len(candidates)+1 away.
+	// A reconcilable or unverified candidate is an existing number: the reuse
+	// route reconciles it before anything starts there.
 	for number := 0; ; number++ {
-		if !occupied[number] {
-			return SlotAllocation{Number: number, Exists: number == 0 || used[number]}, nil
+		if !occupied[number] && !skipped[number] {
+			return SlotAllocation{Number: number, Exists: number == 0 || used[number], Notices: notices}, nil
 		}
 	}
 }

@@ -159,6 +159,20 @@ func Operations() []Operation {
 			},
 		},
 		{
+			// Reconcile converges one :1+ slot to a working slot (pair#387):
+			// the explicit form of what open, resume, reboot and add slot do
+			// first. It ignores a remembered setup failure, so it is how an
+			// operator retries after fixing a cause outside the slot. It runs
+			// in the calling process; the host creation lease serializes it
+			// with a running Couch.
+			Name: "reconcile", Summary: "Converge a slot's workspace and show what it did",
+			Execution: ExecuteDirectStore, Effect: EffectProcess, Confirmation: ConfirmNone,
+			Result: ResultWorkspace, Presentation: PresentationShow,
+			Args: []ArgSpec{
+				{Name: "ref", Summary: "slot reference (repo:N) or a path in the slot", Required: true},
+			},
+		},
+		{
 			Name: "prepare-start", Summary: "Resolve a start request without starting anything",
 			Execution: ExecuteLiveOwner, Effect: EffectAuthority, Confirmation: ConfirmNone, Result: ResultStartResolution,
 			Presentation: PresentationTUI,

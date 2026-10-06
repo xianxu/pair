@@ -11,7 +11,11 @@ type SlotCatalogFake struct {
 	Workspaces   map[string]WorkspaceIdentity
 	Repositories map[string]SlotRepository
 	Errors       map[string]error
-	Calls        []string
+	// Leftovers names slot numbers per repository known only from leftovers
+	// (a stale registration or a resting branch): Discover returns them as
+	// candidates wrapping ErrSlotNeedsReconcile, as OSSlotCatalog does.
+	Leftovers map[string][]int
+	Calls     []string
 }
 
 func (f *SlotCatalogFake) Discover(ctx context.Context, path string) (SlotRepository, error) {
@@ -30,5 +34,10 @@ func (f *SlotCatalogFake) Discover(ctx context.Context, path string) (SlotReposi
 		return SlotRepository{}, fmt.Errorf("unknown repository %s", path)
 	}
 	r.Slots = append([]SlotCandidate(nil), r.Slots...)
+	for _, n := range f.Leftovers[path] {
+		slot := conventionalSlot(path, n)
+		slot.RepoIdentity = r.Identity.RepoIdentity
+		r.Slots = append(r.Slots, SlotCandidate{Identity: slot, Err: fmt.Errorf("%w: only leftovers remain", ErrSlotNeedsReconcile)})
+	}
 	return r, nil
 }

@@ -103,6 +103,9 @@ func (c *Couch) resolveManagedStart(ctx context.Context, args StartArgs) (StartR
 				return StartResolution{}, fmt.Errorf("repository has an unreadable conversation; recover it before creating another slot")
 			}
 		}
+		// A slot store that cannot be read is Couch store integrity, not
+		// workspace state: it still refuses (pair#387 narrows only the
+		// workspace refusals, in SelectStartSlot).
 		for _, slot := range snapshot.Slots {
 			if slot.Err != nil && slot.Identity.RepoIdentity == repository.Identity.RepoIdentity {
 				return StartResolution{}, fmt.Errorf("repository slot %d needs attention before creating another slot: %w", slot.Identity.Number, slot.Err)
@@ -117,6 +120,11 @@ func (c *Couch) resolveManagedStart(ctx context.Context, args StartArgs) (StartR
 		allocation, e := SelectStartSlot(repository.Slots, occupied)
 		if e != nil {
 			return StartResolution{}, e
+		}
+		if c.WorkspaceProgress != nil {
+			for _, notice := range allocation.Notices {
+				fmt.Fprintln(c.WorkspaceProgress, notice)
+			}
 		}
 		if allocation.Number != 0 {
 			reuseNotices, e = c.reuseNoticesInRepository(ctx, repository)

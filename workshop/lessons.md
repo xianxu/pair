@@ -102,6 +102,30 @@ representative evidence, not an exhaustive index.
   ownership. Keep authority, observation, and presentation as separate concepts.
   (ARCH-PURPOSE, #256)
 
+- Build an identity that is compared against an external tool's output from that
+  tool's own answer, never from a naming convention. Git reports resolved paths and its
+  real common directory. #387's `--show` built a slot from `<primary>/.git` plus an
+  unresolved symlinked path, so a healthy slot read as "registration absent, host
+  mismatched". Resolve first, then ask the tool (`Discover`), and test through a
+  symlink.
+- Positive evidence is the tool's answer to the question asked, not a structural proxy
+  for it. "Is this a checkout of its own?" is `rev-parse --show-toplevel == path`, not
+  "the git dir sits at path/.git". A gitfile-backed clone fails the proxy and would have
+  been set aside. (#387)
+
+- Classify an outcome by what it means to the caller, not by which component
+  failed. #387 first made a slot "blocking" whenever certain resources failed, which
+  would have refused to open a working checkout whose resting branch was checked out
+  elsewhere. Stating the invariant from the result ("blocking iff no agent could
+  work") over the whole domain exposed it.
+- Advice must name an action that can succeed from the state that produced it, and
+  the named action's own admission must accept that state. #387's hold said "reboot",
+  and reboot's first pass refused on the same hold (BR-10). Test the advised action
+  from the advising state.
+- A decision made in two places (a planner and the step that executes it) is one pure
+  function both call. #387's plan and its set-aside step each mapped agent evidence to
+  a hold, and diverged on "unknown" (BR-12).
+
 ## Async, concurrency, and process lifetime
 
 - Name the owner of every goroutine, timer, lock, callback, and critical section.
@@ -140,6 +164,11 @@ representative evidence, not an exhaustive index.
 - Child fakes must model the real API's return values, cancellation races, and
   shutdown behavior. A fake that cannot express the failing interleaving proves
   nothing. (#206, #288)
+
+- An error on a lookup path is surfaced, never collapsed into "not that kind of thing".
+  A failed probe that returns `(false, nil)` silently turns "could not tell" into "no".
+  Every error source on the path fails the command, or appears on the result as an
+  error line. Write one test per source. (#387 `--show`, two review rounds)
 
 ## Interfaces, schemas, and data
 
@@ -246,6 +275,12 @@ representative evidence, not an exhaustive index.
   (#221, #223)
 
 ## Language and tool sharp edges
+
+- When inserting a declaration before another one by anchoring on its `func`
+  line, insert above that function's doc comment, not between the comment and the
+  `func`. Godoc then attributes the comment to the new declaration. #387 did this
+  twice (renderThreads, recoverReason); `TestNoDeclarationCarriesTwoStackedGodocs`
+  catches it, but only in the full suite.
 
 - In Lua, `\0` is an empty-position pattern, not a NUL byte; run `luac -p` before
   the suite. In Go, `strings.ToLower` can change byte length, and `gofmt -w`

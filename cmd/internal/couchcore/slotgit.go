@@ -31,16 +31,6 @@ const SlotGlyphDiverged = "±"
 // SlotGlyphDirty marks a dirty working tree on any branch.
 const SlotGlyphDirty = "*"
 
-// RestingBranch is the branch a checkout rests on: main for :0, main-slotN for
-// slot N. sdlc workspace asserts the same convention, which validate() checks
-// through this helper.
-func RestingBranch(n int) string {
-	if n == 0 {
-		return "main"
-	}
-	return "main-slot" + strconv.Itoa(n)
-}
-
 // SlotGlyph is two independent parts (pair#319). The branch part says where the
 // checkout is: off its resting branch (issue work), or on it and diverged from
 // its upstream both ways (±), ahead only (+, unpublished) or behind only (-,

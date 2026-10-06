@@ -1,0 +1,158 @@
+package couchcore
+
+import (
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+// TestShowReportsASlotWithoutAThread: a deleted slot directory has no thread
+// record left (it lived inside the directory), yet --show of its path must
+// still report the slot's resources and the plan.
+func TestShowReportsASlotWithoutAThread(t *testing.T) {
+	s := newObservedSlot(t)
+	if err := os.RemoveAll(s.layout.Env()); err != nil {
+		t.Fatal(err)
+	}
+	env := newTestEnv(t, "/repo")
+	env.Couch.SlotIO = s.f
+	env.Couch.Slots = NewOSSlotCatalog(s.f)
+	result, err := dispatchTestOperation(env.Couch, "show", map[string]string{"ref": s.layout.Host(), "repo-scope": "scope"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	show, ok := result.(ShowResult)
+	if !ok || show.Slot == nil {
+		t.Fatalf("show = %#v, want a slot report", result)
+	}
+	if len(show.Threads) != 0 {
+		t.Fatalf("threads = %+v, want none", show.Threads)
+	}
+	env0, _ := show.Slot.Observation.Get(ResourceEnv)
+	reg, _ := show.Slot.Observation.Get(ResourceRegistration)
+	if env0.State != StateAbsent || reg.Sub != SubStale {
+		t.Fatalf("observation %+v", show.Slot.Observation)
+	}
+	if show.Slot.Address != "repo-name:1" || !strings.HasPrefix(SlotPlanSummary(show.Slot.Plan, show.Slot.PlanError), string(StepMkdirEnv)) {
+		t.Fatalf("report %q plan %q", show.Slot.Address, SlotPlanSummary(show.Slot.Plan, show.Slot.PlanError))
+	}
+}
+
+// TestShowThroughASymlinkedFleetReadsGitsIdentity: the reference reaches the
+// slot through a symlinked fleet root. Git reports resolved paths, so a layout
+// built from the unresolved path or the <primary>/.git guess would misread a
+// healthy slot as registration absent and host mismatched (BR-2).
+func TestShowThroughASymlinkedFleetReadsGitsIdentity(t *testing.T) {
+	s := newObservedSlot(t)
+	os.MkdirAll(s.layout.Store(), 0o700)
+	link := filepath.Join(t.TempDir(), "fleet-link")
+	if err := os.Symlink(filepath.Dir(s.f.Primary), link); err != nil {
+		t.Fatal(err)
+	}
+	env := newTestEnv(t, "/repo")
+	env.Couch.SlotIO = s.f
+	env.Couch.Slots = NewOSSlotCatalog(s.f)
+	host := filepath.Join(link, "worktree", filepath.Base(s.layout.Env()), filepath.Base(s.f.Primary))
+	result, err := dispatchTestOperation(env.Couch, "show", map[string]string{"ref": host, "repo-scope": "scope"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	report := result.(ShowResult).Slot
+	if report == nil {
+		t.Fatal("no slot report through the symlink")
+	}
+	for _, id := range []SlotResourceID{ResourceRegistration, ResourceHost, ResourceBranch, ResourceSetup} {
+		if r, _ := report.Observation.Get(id); r.State != StatePresent || r.Sub != "" {
+			t.Errorf("%s = %s/%q (%s) through a symlinked fleet, want present", id, r.State, r.Sub, r.Reason)
+		}
+	}
+	if !report.Plan.Empty() {
+		t.Errorf("a healthy slot plans %q", SlotPlanSummary(report.Plan, report.PlanError))
+	}
+}
+
+// TestShowOfAThreadOutsideASlotHasNoSlotReport keeps --show of an ordinary
+// thread as it was.
+func TestShowOfAThreadOutsideASlotHasNoSlotReport(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	created := createOperationThread(t, env.Couch)
+	result, err := dispatchTestOperation(env.Couch, "show", map[string]string{"ref": string(created.Address.Tag), "repo-scope": created.Address.RepoScope})
+	if err != nil {
+		t.Fatal(err)
+	}
+	show := result.(ShowResult)
+	if show.Slot != nil || len(show.Threads) != 1 {
+		t.Fatalf("show = %+v", show)
+	}
+}
+
+func TestSlotAgentEvidenceTakesTheMostActiveRow(t *testing.T) {
+	rows := []ThreadSummary{{State: ThreadParked}, {State: ThreadDetached}}
+	if got := slotAgentEvidence(rows); got != AgentDetached {
+		t.Fatalf("got %s, want detached: a parked sibling must not hide a running agent", got)
+	}
+	if got := slotAgentEvidence(nil); got != AgentNone {
+		t.Fatalf("no rows = %s", got)
+	}
+}
+
+func TestSlotPlanSummary(t *testing.T) {
+	if got := SlotPlanSummary(SlotPlan{}, ""); got != "nothing to do" {
+		t.Fatal(got)
+	}
+	got := SlotPlanSummary(SlotPlan{Stops: []PlanStop{{Resource: ResourceRegistration, Class: StopUnknown, Reason: "git worktree list: boom"}}}, "")
+	if got != "stops at registration (unknown): git worktree list: boom" {
+		t.Fatal(got)
+	}
+}
+
+// The --show slot-resolution error rule: every error on the slot path fails
+// --show when no thread matched, and is the slot report's error line when one
+// did; it is never reduced to "not a slot". One test per error source.
+func TestShowSurfacesSlotResolutionErrors(t *testing.T) {
+	const host = "/f/worktree/pair-slot1/pair"
+	boom := errors.New("discovery exploded")
+	t.Run("discover, no thread", func(t *testing.T) {
+		env := newTestEnv(t, "/repo")
+		env.Couch.Slots = &SlotCatalogFake{Errors: map[string]error{"/f/pair": boom}}
+		_, err := dispatchTestOperation(env.Couch, "show", map[string]string{"ref": host, "repo-scope": "scope"})
+		if !errors.Is(err, boom) {
+			t.Fatalf("err = %v, want the discovery error", err)
+		}
+	})
+	t.Run("discover, thread found", func(t *testing.T) {
+		env := newTestEnv(t, "/repo")
+		env.Couch.Slots = &SlotCatalogFake{Errors: map[string]error{"/f/pair": boom}}
+		record := metadataThread("816fc349d3faebf8", "couch-0102030405060708", host, "")
+		created, err := env.Couch.Threads.CreateThread(record)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err := dispatchTestOperation(env.Couch, "show", map[string]string{"ref": string(created.Address.Tag), "repo-scope": created.Address.RepoScope})
+		if err != nil {
+			t.Fatal(err)
+		}
+		show := result.(ShowResult)
+		if len(show.Threads) != 1 || show.Slot == nil || !strings.Contains(show.Slot.PlanError, boom.Error()) {
+			t.Fatalf("show = %+v, want the thread plus a slot error line", show)
+		}
+	})
+	t.Run("path probe", func(t *testing.T) {
+		locked := filepath.Join(t.TempDir(), "locked")
+		if err := os.MkdirAll(filepath.Join(locked, "inner"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(locked, 0); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { os.Chmod(locked, 0o755) })
+		env := newTestEnv(t, "/repo")
+		env.Couch.Slots = &SlotCatalogFake{}
+		_, err := dispatchTestOperation(env.Couch, "show", map[string]string{"ref": filepath.Join(locked, "inner", "worktree", "pair-slot1", "pair"), "repo-scope": "scope"})
+		if err == nil || !strings.Contains(err.Error(), "resolve") {
+			t.Fatalf("err = %v, want the path probe's error", err)
+		}
+	})
+}

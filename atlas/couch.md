@@ -446,6 +446,24 @@ report again, and a resend refused `not-offered`.
 through the real socket, wiring and a running Console. The skill's
 "Recovering slots after a restart" section is the agent procedure.
 
+**Slot reconciler in the report (#387).** `RecoverPlanInput.SlotPlans` carries
+the slot reconciler's report per `:1+` host path, observed by
+`Couch.recoverSlotPlans` for each slot `Discover` knows, with the row's agent
+evidence. `RecoverSlotClass` reads a report into the `SlotEvidence.Reconcile`
+dimension:
+- `needs-zero` → class `slot-needs-zero`, hold `workspace-handoff`, ranked right after
+  ambiguous threads. It is decided through `SlotOutcome`, the callers' own
+  decision, so the report never holds a slot they would open
+  (`TestRecoverSlotClassAgreesWithTheCallers`).
+- `reconcilable` → a `reconcile` step, only on an otherwise idle row or a missing
+  directory with leftovers, keeping earlier notes.
+- `held`, `degraded` (a non-blocking hand-off) and `unknown` → notes.
+
+`recoverReason` is total over the classes, and the new classes carry the
+reconciler's advice or plan.
+
+The mechanics are mapped in [workspace provisioning](workspace-provisioning.md#slot-resources-387).
+
 ### Grouped workspace display (#307)
 
 `couchtty.PresentThreads` derives repository grouping, numeric slot order, full

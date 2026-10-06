@@ -26,10 +26,10 @@ func AcquireHostCreationLease(commonDir string) (*HostCreationLease, error) {
 		return nil, fmt.Errorf("open Git common directory: %w", err)
 	}
 	defer unix.Close(root)
-	if err = unix.Mkdirat(root, "couch-workspaces", 0700); err != nil && !errors.Is(err, unix.EEXIST) {
+	if err = unix.Mkdirat(root, CouchWorkspacesDir, 0700); err != nil && !errors.Is(err, unix.EEXIST) {
 		return nil, err
 	}
-	dir, err := unix.Openat(root, "couch-workspaces", unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+	dir, err := unix.Openat(root, CouchWorkspacesDir, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return nil, fmt.Errorf("open workspace metadata directory: %w", err)
 	}

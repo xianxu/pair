@@ -3,6 +3,7 @@ package couchcore
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -152,6 +153,8 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 			}
 			request.Progress = c.WorkspaceProgress
 			return c.Workspaces.Ensure(call.Context, request)
+		case "reconcile":
+			return c.ReconcileSlot(call.Context, a["ref"])
 		case "list":
 			return c.ThreadInventoryContext(call.Context)
 		case "recover-plan":
@@ -161,7 +164,14 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 				return nil, err
 			}
 			matches, err := c.ResolveThreadReference(a["repo-scope"], a["ref"])
-			if err != nil {
+			// Every slot-resolution error is surfaced: it fails --show when no
+			// thread matched, and is the slot report's error line when one did.
+			// It never reduces the answer to "not a slot".
+			slot, isSlot, slotErr := c.slotOfShowReference(call.Context, a["ref"], matches)
+			if err != nil && !(isSlot && errors.Is(err, ErrThreadReferenceNotFound)) {
+				if slotErr != nil {
+					return nil, slotErr // the slot reference's own, more specific error
+				}
 				return nil, err
 			}
 			// Show reads the same classified inventory list does and then
@@ -184,7 +194,15 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 					narrowed = append(narrowed, row)
 				}
 			}
-			return narrowed, nil
+			result := ShowResult{Threads: narrowed}
+			switch {
+			case slotErr != nil:
+				result.Slot = &SlotReport{PlanError: "slot unresolved: " + slotErr.Error()}
+			case isSlot:
+				report := c.SlotReportFor(call.Context, slot, narrowed)
+				result.Slot = &report
+			}
+			return result, nil
 		case "archived":
 			records, err := c.Threads.ArchivedThreads()
 			if err != nil {

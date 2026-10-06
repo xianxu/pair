@@ -14,20 +14,6 @@ import (
 
 const provisionRecordLimit = 16 << 10
 
-// CreationIntent retains only evidence needed to finish interrupted Git creation.
-// Setup progress is observed from Git and the success marker, never journaled.
-type CreationIntent struct {
-	SchemaVersion int    `json:"schema_version"`
-	Primary       string `json:"primary"`
-	Common        string `json:"common"`
-	Host          string `json:"host"`
-	Slot          int    `json:"slot"`
-	Remote        string `json:"remote"`
-	BaselineSHA   string `json:"baseline_sha"`
-	Token         string `json:"token"`
-	DirDevice     uint64 `json:"dir_device"`
-	DirInode      uint64 `json:"dir_inode"`
-}
 type SetupSuccess struct {
 	SchemaVersion int    `json:"schema_version"`
 	Host          string `json:"host"`
@@ -160,17 +146,4 @@ func provisionMkdirAll(path string) error {
 		return err
 	}
 	return os.MkdirAll(path, 0700)
-}
-func provisionDirIdentity(path string) (uint64, uint64, error) {
-	if err := provisionSafePath(path); err != nil {
-		return 0, 0, err
-	}
-	var st unix.Stat_t
-	if err := unix.Lstat(path, &st); err != nil {
-		return 0, 0, err
-	}
-	if st.Mode&unix.S_IFMT != unix.S_IFDIR {
-		return 0, 0, fmt.Errorf("not a provision directory: %s", path)
-	}
-	return uint64(st.Dev), uint64(st.Ino), nil
 }

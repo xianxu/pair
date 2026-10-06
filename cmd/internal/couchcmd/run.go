@@ -169,6 +169,7 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.Cou
 	c.Workspaces = couchcore.NewWorkspaceProvisioner(couchcore.OSProvisionIO{})
 	c.Slots = couchcore.NewOSSlotCatalog(couchcore.OSProvisionIO{})
 	c.Fleet = couchcore.SDLCFleetSource{IO: couchcore.OSProvisionIO{}, Timeout: couchcore.FleetInventoryTimeout}
+	c.SlotIO = couchcore.OSProvisionIO{}
 	c.RootAgent = r.Getenv("PAIR_AGENT")
 	c.ContinuationSource = (couchcore.OSContinuationSourceReader{DataDir: dataDir}).Read
 	renderer, _ := exec.LookPath("pair")
@@ -293,6 +294,9 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		op, _ = Resolve("recover-plan")
 	case cliShow:
 		op, _ = Resolve("show")
+		argv = []string{invocation.ref}
+	case cliReconcile:
+		op, _ = Resolve("reconcile")
 		argv = []string{invocation.ref}
 	case cliInternal:
 		op, _ = Resolve(invocation.operation)
@@ -468,6 +472,12 @@ func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs ma
 		})
 	}
 	if err != nil {
+		// A slot operation that failed still holds the observation it acted
+		// on: show it beside the advice (pair#387).
+		var blocked *couchcore.SlotReconcileError
+		if errors.As(err, &blocked) && len(blocked.Result.Observation.Resources) > 0 {
+			renderSlotReport(stdout, couchcore.SlotReport{Address: blocked.Address, Observation: blocked.Result.Observation, Plan: blocked.Result.Plan})
+		}
 		renderError(stderr, err)
 		return 1
 	}
@@ -810,6 +820,10 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 	}
 	switch v := result.(type) {
 	case couchcore.ProvisionResult:
+		if op.Name == "reconcile" {
+			renderReconcile(w, v)
+			break
+		}
 		if err := json.NewEncoder(w).Encode(v); err != nil {
 			return 1
 		}
@@ -828,10 +842,13 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 			fmt.Fprintln(w, v.Failure)
 		}
 	case []couchcore.ThreadSummary:
-		if op.Name == "show" {
-			renderThreadDetails(w, v)
-		} else {
-			renderThreads(w, v)
+		renderThreads(w, v)
+	case couchcore.ShowResult:
+		if len(v.Threads) > 0 {
+			renderThreadDetails(w, v.Threads)
+		}
+		if v.Slot != nil {
+			renderSlotReport(w, *v.Slot)
 		}
 	case couchcore.Worktree:
 		fmt.Fprintf(w, "%s\n", v)
@@ -862,6 +879,42 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 		fmt.Fprintf(w, "%v\n", v)
 	}
 	return 0
+}
+
+// renderReconcile prints what couch --reconcile did: the slot's final
+// resources and plan, then any degraded warnings.
+func renderReconcile(w io.Writer, r couchcore.ProvisionResult) {
+	if r.Report != nil {
+		renderSlotReport(w, *r.Report)
+	}
+	fmt.Fprintf(w, "%s %s at %s\n", r.Address, r.Disposition, r.Path)
+	if r.Warning != "" {
+		fmt.Fprintln(w, "warning: "+strings.ReplaceAll(r.Warning, "\n", "\nwarning: "))
+	}
+}
+
+// renderSlotReport prints a slot's resources in converge order and the plan
+// reconcile would run (pair#387): the plan half of plan/apply.
+func renderSlotReport(w io.Writer, r couchcore.SlotReport) {
+	if r.Address == "" {
+		fmt.Fprintln(w, "slot: "+r.PlanError)
+		return
+	}
+	fmt.Fprintf(w, "slot %s\n", r.Address)
+	for _, res := range r.Observation.Resources {
+		state := res.State.String()
+		if res.State == couchcore.StatePending {
+			state = "pending"
+		}
+		if res.Sub != "" {
+			state += " (" + res.Sub + ")"
+		}
+		if res.Reason != "" {
+			state += ": " + res.Reason
+		}
+		fmt.Fprintf(w, "  %-14s %s\n", res.ID, state)
+	}
+	fmt.Fprintln(w, "plan: "+couchcore.SlotPlanSummary(r.Plan, r.PlanError))
 }
 
 // renderThreads consumes the same one-row-per-composite-thread inventory as
@@ -967,6 +1020,7 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "usage: couch [path] [--layout2|--layout3]")
 	fmt.Fprintln(w, "       couch --list")
 	fmt.Fprintln(w, "       couch --show <thread>")
+	fmt.Fprintln(w, "       couch --reconcile repo:N")
 	fmt.Fprintln(w, "       couch --archived")
 	fmt.Fprintln(w, "       couch --recover-plan-from-sdlc")
 	fmt.Fprintln(w, "             Recovery report: one JSON row per slot joining sdlc's claims and")

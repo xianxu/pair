@@ -19,6 +19,7 @@ const (
 	cliArchived
 	cliRecoverPlan
 	cliShow
+	cliReconcile
 	cliInternal
 	cliMessage
 	cliSkill
@@ -152,6 +153,14 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 			return cliInvocation{}, err
 		}
 		return cliInvocation{kind: cliShow, ref: args[1]}, nil
+	case "--reconcile":
+		if len(args) != 2 || args[1] == "" || strings.HasPrefix(args[1], "-") {
+			return invalid("--reconcile requires exactly one slot reference (repo:N)")
+		}
+		if err := refuseLayout("--reconcile"); err != nil {
+			return cliInvocation{}, err
+		}
+		return cliInvocation{kind: cliReconcile, ref: args[1]}, nil
 	case "--":
 		if len(args) != 2 || args[1] == "" {
 			return invalid("-- requires exactly one non-empty path")

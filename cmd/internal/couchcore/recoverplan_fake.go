@@ -108,7 +108,7 @@ func (fl *FakeFleet) SlotPath(address string) string {
 	if n == 0 {
 		return filepath.Join(fl.root, repo)
 	}
-	return filepath.Join(fl.root, "worktree", repo+"-slot"+strconv.Itoa(n), repo)
+	return NewSlotLayout(filepath.Join(fl.root, repo), "", n).Host()
 }
 
 func fakeSplitAddress(address string) (string, int) {

@@ -16,7 +16,7 @@ import (
 type StoreLayout struct{ Local bool }
 
 func newSlotThreadStore(namespace CouchNamespace, slot SlotIdentity) *ThreadStore {
-	return &ThreadStore{namespace: namespace, root: filepath.Join(slot.EnvironmentRoot, ".couch"), slot: &slot, layout: StoreLayout{Local: true}}
+	return &ThreadStore{namespace: namespace, root: LayoutOf(slot).Store(), slot: &slot, layout: StoreLayout{Local: true}}
 }
 
 // journalEntries removes only the synthetic membership update. Every lifecycle

@@ -332,18 +332,10 @@ func TestManagedPartialSlotPathPreviewsWithoutCreatingHost(t *testing.T) {
 
 func TestStartInteractiveRepairsPartialSlotWithoutCreatingConversation(t *testing.T) {
 	f := newProvisionFixture(t)
-	p := NewWorkspaceProvisioner(f)
-	p.Store = recoveryStorage{ProvisionStorage: ProvisionStore{}, write: func(path string, value any) error {
-		if err := (ProvisionStore{}).Write(path, value); err != nil {
-			return err
-		}
-		if intent, ok := value.(CreationIntent); ok && intent.DirInode != 0 {
-			return errors.New("interrupted after directory publication")
-		}
-		return nil
-	}}
-	if _, err := p.Ensure(context.Background(), ProvisionRequest{Path: f.Primary, Slot: 1}); err == nil {
-		t.Fatal("injection failed")
+	// A creation interrupted after its environment directory was made: the
+	// directory exists, nothing else does (no branch, no checkout).
+	if err := os.MkdirAll(filepath.Dir(f.host(1)), 0o700); err != nil {
+		t.Fatal(err)
 	}
 	env := newTestEnv(t, f.Primary)
 	env.Couch.Git = ExecGit{}

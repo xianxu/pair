@@ -3,7 +3,6 @@ package couchcore
 import (
 	"fmt"
 	"path/filepath"
-	"strconv"
 )
 
 // SlotIdentity names a durable numbered environment. Identity alone is not
@@ -37,8 +36,8 @@ func (s SlotIdentity) validateLocation() error {
 	if s.RepoIdentity != "" && !workspaceAbsolute(s.RepoIdentity) {
 		return fmt.Errorf("invalid slot repository identity")
 	}
-	expected := filepath.Join(filepath.Dir(s.PrimaryRoot), "worktree", s.Repo+"-slot"+strconv.Itoa(s.Number))
-	if s.EnvironmentRoot != expected || s.WorktreeRoot != filepath.Join(expected, s.Repo) {
+	expected := NewSlotLayout(s.PrimaryRoot, "", s.Number)
+	if s.EnvironmentRoot != expected.Env() || s.WorktreeRoot != expected.Host() {
 		return fmt.Errorf("inconsistent slot paths")
 	}
 	return nil

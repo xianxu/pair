@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"strconv"
@@ -14,6 +15,12 @@ type ProvisionRequest struct {
 	Slot     int
 	Remote   string
 	Progress io.Writer `json:"-"`
+	// Agent is what the caller knows of the slot's agent (empty: unknown, so
+	// no checkout is set aside); AgentNow re-reads it before a set-aside
+	// (pair#387).
+	Agent      EvidenceAgent                       `json:"-"`
+	AgentNow   func(context.Context) EvidenceAgent `json:"-"`
+	IgnoreMemo bool                                `json:"-"`
 }
 type ProvisionResult struct {
 	SchemaVersion int    `json:"schema_version"`
@@ -22,6 +29,13 @@ type ProvisionResult struct {
 	RestingBranch string `json:"resting_branch"`
 	BaselineSHA   string `json:"baseline_sha"`
 	Disposition   string `json:"disposition"`
+	// Warning: the slot is usable, but a resource did not converge (degraded).
+	Warning string `json:"warning,omitempty"`
+	// Report is the reconcile's final observation and plan.
+	Report *SlotReport `json:"-"`
+	// SetAside lists the checkouts this run moved into saved work, each with
+	// its restore command.
+	SetAside []SavedWorkManifest `json:"set_aside,omitempty"`
 }
 
 func ParseProvisionRequest(path, slot, remote string) (ProvisionRequest, error) {

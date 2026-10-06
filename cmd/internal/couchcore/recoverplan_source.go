@@ -147,7 +147,45 @@ func (c *Couch) RecoverPlan(ctx context.Context) (RecoverPlan, error) {
 	} else {
 		input.Couch = CouchObservation{State: CouchObservationOK, Rows: rows}
 	}
+	// The slot reconciler's reading of each :1+ slot (pair#387): one
+	// observation per slot row, from git's own identity, then the report is
+	// derived again with them. A slot the reconciler cannot resolve keeps no
+	// plan (it reads as converged; its other evidence still classifies it).
+	first := DeriveRecoverPlan(input)
+	input.SlotPlans = c.recoverSlotPlans(ctx, first.Rows)
 	return DeriveRecoverPlan(input), nil
+}
+
+// recoverSlotPlans observes and plans every :1+ slot row of a report.
+func (c *Couch) recoverSlotPlans(ctx context.Context, rows []RecoverRow) map[string]SlotReport {
+	plans := map[string]SlotReport{}
+	if c.Slots == nil {
+		return plans
+	}
+	identities := map[string]map[int]SlotIdentity{}
+	for _, row := range rows {
+		primary, n, ok := ParseSlotPath(filepath.Clean(row.Path))
+		if !ok {
+			continue
+		}
+		if _, seen := identities[primary]; !seen {
+			identities[primary] = map[int]SlotIdentity{}
+			if repository, err := c.Slots.Discover(ctx, primary); err == nil {
+				for _, candidate := range repository.Slots {
+					identities[primary][candidate.Identity.Number] = candidate.Identity
+				}
+			}
+		}
+		// Only a slot Discover knows (its directory, registration or resting
+		// branch) has a plan: a number known only from a dangling claim has no
+		// leftovers to reconcile, and planning it would advise creating it.
+		slot, known := identities[primary][n]
+		if !known {
+			continue
+		}
+		plans[filepath.Clean(row.Path)] = c.slotReportWithAgent(ctx, slot, EvidenceAgent(row.Agent.State))
+	}
+	return plans
 }
 
 // recoverCandidates lists one primary's slots by Couch's conventional layout

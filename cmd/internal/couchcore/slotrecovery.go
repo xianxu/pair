@@ -195,7 +195,32 @@ func (s *ThreadStore) slotRecoveryBackupLocked(raw []byte) (*storeJournalEntry, 
 	return &storeJournalEntry{Path: filepath.Join("recovery", name), After: &raw}, nil
 }
 
+// slotAgentNow is the slot's agent evidence for reconcile: any session left in
+// the slot's scope (a record-less survivor included) is a running agent, and a
+// failed observation is unknown. Reconcile never removes a checkout unless this
+// says none.
+func (c *Couch) slotAgentNow(ctx context.Context, slot SlotIdentity) EvidenceAgent {
+	observation, err := c.ObserveSlotSessions(ctx, slot)
+	switch {
+	case err != nil:
+		return AgentUnusableUnknown
+	case observation.Absent:
+		return AgentNone
+	}
+	return AgentLive
+}
+
 func (c *Couch) selectedSlot(ctx context.Context, path string) (*ThreadStore, SlotIdentity, error) {
+	return c.selectSlot(ctx, path, false)
+}
+
+// selectSlot is selectedSlot. toleratesHolds is reboot's first pass: a slot
+// whose repair is held only because an agent may be working there (a hold, not
+// a failure) is still selected, so reboot can stop that agent; its post-stop
+// pass (startFreshSlot) then repairs what the hold deferred. Any other blocking
+// outcome refuses as usual. This keeps the hold's advice ("reboot the slot to
+// repair it") an action that can succeed.
+func (c *Couch) selectSlot(ctx context.Context, path string, toleratesHolds bool) (*ThreadStore, SlotIdentity, error) {
 	if ctx == nil || c == nil || c.Slots == nil || c.Threads == nil {
 		return nil, SlotIdentity{}, errors.New("slot services unavailable")
 	}
@@ -230,23 +255,44 @@ func (c *Couch) selectedSlot(ctx context.Context, path string) (*ThreadStore, Sl
 	if !found {
 		return nil, slot, errors.New("slot directory is not an existing conventional candidate")
 	}
+	// Every open, resume, reboot and fresh start converges the slot's
+	// workspace first (pair#387): verifyHost proves identity only, not setup
+	// or dependency clones, so a verified candidate is reconciled too. On a
+	// healthy slot this is one observation and an empty plan.
+	// A candidate that is not yet a verified checkout is provisioned below,
+	// which needs its repository family; a verified one keeps the family it
+	// has (reserving an empty start would contradict a recorded one).
 	if !candidate.Verified || candidate.Err != nil {
 		if _, err := c.Threads.ReserveRepositoryFamily(ctx, repository, RepositoryFamily{RepoIdentity: repository.Identity.RepoIdentity, PrimaryRoot: slot.PrimaryRoot}); err != nil {
 			return nil, slot, err
 		}
-		if c.Workspaces == nil {
-			return nil, slot, errors.New("incomplete slot needs workspace readiness")
-		}
-		if _, err := c.Workspaces.Ensure(ctx, ProvisionRequest{Path: slot.PrimaryRoot, Slot: slot.Number, Progress: c.WorkspaceProgress}); err != nil {
-			return nil, slot, err
-		}
-		repository, err = c.Slots.Discover(ctx, slot.PrimaryRoot)
-		if err != nil {
-			return nil, slot, err
-		}
-		candidate, found = find(repository)
 	}
-	if !found || !candidate.Verified || candidate.Err != nil {
+	if c.Workspaces == nil {
+		return nil, slot, errors.New("slot reconcile needs workspace readiness")
+	}
+	identified := candidate.Identity
+	agentNow := func(ctx context.Context) EvidenceAgent { return c.slotAgentNow(ctx, identified) }
+	result, err := c.Workspaces.Ensure(ctx, ProvisionRequest{Path: slot.PrimaryRoot, Slot: slot.Number, Progress: c.WorkspaceProgress,
+		Agent: agentNow(ctx), AgentNow: agentNow})
+	held := false
+	var blocked *SlotReconcileError
+	switch {
+	case err != nil && toleratesHolds && errors.As(err, &blocked) && blocked.Failure.Class == FailureHold && blocked.Failure.Cause == StopReasonAgentLive:
+		held = true
+		if c.WorkspaceProgress != nil {
+			fmt.Fprintln(c.WorkspaceProgress, err.Error())
+		}
+	case err != nil:
+		return nil, slot, err
+	case result.Warning != "" && c.WorkspaceProgress != nil:
+		fmt.Fprintln(c.WorkspaceProgress, result.Warning) // degraded: the slot is usable
+	}
+	repository, err = c.Slots.Discover(ctx, slot.PrimaryRoot)
+	if err != nil {
+		return nil, slot, err
+	}
+	candidate, found = find(repository)
+	if !found || (!held && (!candidate.Verified || candidate.Err != nil)) {
 		return nil, slot, errors.New("slot host is not verified; inspect workspace before opening")
 	}
 	if resolveErr == nil && candidate.Identity != slot {
@@ -556,16 +602,7 @@ func (c *Couch) verifyOtherSlotOwnersAbsent(ctx context.Context, slot SlotIdenti
 // conventionalSlotFromPath recognizes only an absolute conventional host path.
 // It supplies a discovery location, never proof that the host belongs to Git.
 func conventionalSlotFromPath(path string) (SlotIdentity, bool) {
-	if !workspaceAbsolute(path) {
-		return SlotIdentity{}, false
-	}
-	environment := filepath.Dir(path)
-	container := filepath.Dir(environment)
-	if filepath.Base(container) != "worktree" {
-		return SlotIdentity{}, false
-	}
-	primary := filepath.Join(filepath.Dir(container), filepath.Base(path))
-	number, ok := slotDirectoryNumber(primary, filepath.Base(environment))
+	primary, number, ok := ParseSlotPath(path)
 	if !ok {
 		return SlotIdentity{}, false
 	}
