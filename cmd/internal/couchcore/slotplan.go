@@ -82,10 +82,14 @@ type PlanStop struct {
 type SlotPlan struct {
 	Steps []PlannedStep
 	Stops []PlanStop
+	// Retried: steps the observation still calls for although this run
+	// already executed them. A converge that reported success without effect
+	// shows up here, never as an empty plan.
+	Retried []PlannedStep
 }
 
 // Empty: nothing to do and nothing in the way, the slot is converged.
-func (p SlotPlan) Empty() bool { return len(p.Steps) == 0 && len(p.Stops) == 0 }
+func (p SlotPlan) Empty() bool { return len(p.Steps) == 0 && len(p.Stops) == 0 && len(p.Retried) == 0 }
 
 // PlanInput is what PlanSlot decides from.
 type PlanInput struct {
@@ -138,10 +142,13 @@ func PlanSlot(in PlanInput) (SlotPlan, error) {
 	running, known := AgentRunning(o.Agent)
 	get := func(id SlotResourceID) ResourceObservation { r, _ := o.Get(id); return r }
 	step := func(s PlannedStep) {
-		if blocked[templateOf(s.Resource)] || in.Attempted[StepKey(s)] {
-			return
+		switch {
+		case blocked[templateOf(s.Resource)]:
+		case in.Attempted[StepKey(s)]:
+			plan.Retried = append(plan.Retried, s)
+		default:
+			plan.Steps = append(plan.Steps, s)
 		}
-		plan.Steps = append(plan.Steps, s)
 	}
 	stop := func(id SlotResourceID, class StopClass, reason string) {
 		if blocked[templateOf(id)] {
@@ -209,6 +216,9 @@ func PlanSlot(in PlanInput) (SlotPlan, error) {
 			step(repair)
 		case host.Sub == SubUnreadable:
 			setAside(host, NewSlotLayout(o.Primary, "", o.Number).Host())
+			if n := len(plan.Steps); n > 0 && plan.Steps[n-1].Step == StepSetAside {
+				plan.Steps[n-1].Branch = reg.Branch // recorded in the manifest
+			}
 		default:
 			stop(ResourceHost, StopHandoff, host.Reason)
 		}

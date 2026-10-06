@@ -22,6 +22,13 @@ type slotConverger struct {
 	lease    *HostCreationLease
 	remote   string
 	progress io.Writer
+	// registerStore makes the slot store visible to collection before saved
+	// work is written (nil: the caller has no coordinator).
+	registerStore func(context.Context, string) error
+	// agentNow re-reads the slot's agent right before a set-aside.
+	agentNow func(context.Context) EvidenceAgent
+	// rename is the set-aside move (the crash-injection seam; nil: os.Rename).
+	rename func(oldpath, newpath string) error
 }
 
 func (cv *slotConverger) git(ctx context.Context, dir string, args ...string) (string, error) {
@@ -49,6 +56,8 @@ func (cv *slotConverger) converge(ctx context.Context, s PlannedStep) error {
 		return ctx.Err()
 	case StepWorktreeAdd:
 		return cv.worktreeAdd(ctx, s)
+	case StepSetAside:
+		return cv.setAside(ctx, s)
 	}
 	return fmt.Errorf("converge step %s is not executable here", s.Step)
 }

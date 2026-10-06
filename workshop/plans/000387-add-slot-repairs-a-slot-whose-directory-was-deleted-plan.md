@@ -636,7 +636,7 @@ deleted env.
 
 **Files:** create `slotreconcile.go`, `slotreconcile_test.go`, `slotworld_fake_test.go`.
 
-- [ ] **Step 1: Failing tests.**
+- [x] **Step 1: Failing tests.**
   - `TestReconcileConvergesFromEverySinglePerturbationRealGit` (Done-when bullet 2, on the real
     boundary). It reuses Task 1.4's perturbation helpers: one per (resource, state) the fixture
     can produce, derived from `SlotResources()` × `AllObservedStates()`. A pair the fixture
@@ -654,10 +654,10 @@ deleted env.
     effects. A crash after the rename produces exactly one entry holding the tree.
   - `TestReconcileNoProgressStops`: a world whose `WorktreeAdd` reports success but changes
     nothing → failure `no progress at registration`, within the pass bound.
-- [ ] **Step 2–4:** red → green. Mutations: remove the second-pass re-observation (use the first
+- [x] **Step 2–4:** red → green. Mutations: remove the second-pass re-observation (use the first
   plan for every pass) → the crash test fails; make `SetAside` copy then delete instead of
   rename → the crash-mid-step assertion (no partial tree anywhere) fails.
-- [ ] **Step 5:** commit `#387 M2: couchcore: Reconcile, level-triggered and bounded`.
+- [x] **Step 5:** commit `#387 M2: couchcore: Reconcile, level-triggered and bounded`.
 
 ### Task 2.3: `Ensure` is `Reconcile`; intents and `NextHostAction` retire
 
@@ -863,7 +863,7 @@ collects by `saved_at`. Disk use per slot is bounded by 16 × the largest depend
 Every path comes from `SlotLayout`. The checkout must be a direct child of the env and not
 a symlink (`provisionSafePath`).
 
-- [ ] **Step 1: Failing tests** (real git):
+- [x] **Step 1: Failing tests** (real git):
   - a dependency with a local-only commit, a dirty tracked file, an untracked file and an
     ignored file, made broken by removing `.git/HEAD` → after `SetAside`, the dependency
     path is absent and `entry/tree` holds every file byte-identical, with mtimes kept. After
@@ -878,10 +878,10 @@ a symlink (`provisionSafePath`).
     branch, read from the admin `HEAD` before the rename;
   - crash injection at the `Rename` seam for both kinds: no partial tree anywhere, and the
     manifest names the checkout.
-- [ ] **Step 2–4:** red → green. Mutation: implement step 6 as copy+delete through the same
+- [x] **Step 2–4:** red → green. Mutation: implement step 6 as copy+delete through the same
   seam with an abort injected between them, and the test that no partial tree exists anywhere
   must fail.
-- [ ] **Step 5:** commit `#387 M3: couchcore: SetAside moves a broken checkout into saved work`.
+- [x] **Step 5:** commit `#387 M3: couchcore: SetAside moves a broken checkout into saved work`.
 
 ### Task 3.2: Reconcile sets aside, then recreates (host re-add, dependency re-clone)
 
@@ -1226,3 +1226,30 @@ resource.
 - `compileSetup` runs weave without the lease, then retakes it through a caller-supplied `relock`,
   checks that the admin directory is unchanged, and writes the marker with the resting branch's
   current commit as its baseline.
+
+### 2026-10-05 (q) — Task 2.2 implementation reconciliation; SetAside pulled into M2
+
+- The loop (`reconcileLoop`) runs over a `slotWorld` interface (lock, observe, apply). Production is
+  `osSlotWorld` (git and the filesystem under the host creation lease, released for weave
+  compile); tests use `SlotWorld`.
+- No-progress is detected precisely, not by comparing observations. `PlanSlot` reports a step the
+  observation still calls for after this run executed it as `SlotPlan.Retried`, and the loop fails
+  with no progress at it. An observation-equality guard would have misfired on `RepairHost`, whose
+  effect is judged by the next pass. The `SameShape` idea from Revision (o) is therefore not used.
+  `SlotPlan.Empty` counts `Retried`, so a lying converge is never read as converged.
+- Domain evidence (Done-when 2):
+  - `TestReconcileConvergesFromEveryPerturbation` runs every single and pair perturbation under
+    all 7 agent states, twice each (>5000 runs).
+  - `TestReconcileAgreesWithRealGit` gives the same terminal class on real git for all 12
+    producible scenarios.
+  - `TestReconcileCrashAfterEveryStep` models a crash as process death (a panic), not a returned
+    error.
+  - Mutations caught: the agent gate, ignoring `Retried`, planning from the first observation only.
+- The fixture's weave is now stateful (`DepSources`): it clones a known missing dependency as a
+  layer, and fails with weave's missing-substrate line on an unknown one.
+- Task 3.1 (`SetAside`) moves into M2. The planner already plans it, and M2 wires reconcile into
+  open and reboot, so a slot with an unreadable clone would otherwise fail in production. It
+  follows Task 3.1's order. `registerStore` and `agentNow` are hooks Couch supplies; `rename` is
+  the crash seam. `checkoutEvidence` is the one positive-evidence reading, shared by the observer
+  and the pre-rename re-check (ARCH-DRY). M3 keeps the GC (3.3), the report (3.4) and the
+  acceptance work (3.5).

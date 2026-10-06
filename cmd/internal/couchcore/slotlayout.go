@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // SlotLayout is the one authority for where a :1+ slot's state lives
@@ -44,6 +45,15 @@ func (l SlotLayout) Host() string { return filepath.Join(l.Env(), l.repo()) }
 
 // Store is Couch's per-slot store.
 func (l SlotLayout) Store() string { return filepath.Join(l.Env(), ".couch") }
+
+// SavedWork holds checkouts reconcile set aside instead of deleting them.
+func (l SlotLayout) SavedWork() string { return filepath.Join(l.Store(), "saved-work") }
+
+// SavedWorkEntry is one saved-work entry: the set-aside checkout's name and
+// the UTC time it was set aside.
+func (l SlotLayout) SavedWorkEntry(checkout string, at time.Time) string {
+	return filepath.Join(l.SavedWork(), filepath.Base(checkout)+"-"+at.UTC().Format("20060102T150405.000000000Z"))
+}
 
 // SetupLock is weave's environment setup lock (weave owns it; Couch only
 // probes it).

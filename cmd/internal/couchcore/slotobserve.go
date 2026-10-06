@@ -440,23 +440,13 @@ func (o *observer) observeDep(d DeclaredDep, notLayer bool) ResourceObservation 
 		r.State, r.Sub, r.Reason = state, sub, reason
 		return r
 	}
-	// --show-toplevel, not the git directory's location: a clone whose .git
-	// is a gitfile (a linked worktree, --separate-git-dir) is a readable
-	// checkout of its own, and only git's answer about the work tree is
-	// positive evidence (R2).
-	out, err := o.run(d.Path, "rev-parse", "--show-toplevel")
+	// Git's own answer about the work tree, not where its git directory lives:
+	// a gitfile-backed clone is a readable checkout of its own (R2).
+	r.State, r.Sub, r.Reason = checkoutEvidence(o.ctx, o.in.IO, d.Path)
 	switch {
-	case notAGitRepository(err, out):
-		r.State, r.Sub, r.Reason = StateBroken, SubUnreadable, "git cannot read "+d.Path
-	case err != nil:
-		r.State, r.Reason = StateUnknown, err.Error()
-	case filepath.Clean(out) != d.Path:
-		// The directory sits inside another work tree (no repository of its own).
-		r.State, r.Sub, r.Reason = StateBroken, SubUnreadable, d.Path+" has no repository of its own"
+	case r.State != StatePresent:
 	case notLayer:
 		r.State, r.Sub, r.Reason = StateBroken, SubNotLayer, d.Path+" is a repository but not a layer (no construct/base.manifest)"
-	default:
-		r.State = StatePresent
 	}
 	return r
 }

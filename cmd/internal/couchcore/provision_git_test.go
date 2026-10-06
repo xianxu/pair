@@ -21,7 +21,11 @@ type ProvisionFixture struct {
 	IO                    OSProvisionIO
 	WeaveCalls            int
 	FailWeave             bool
-	AfterGit              func(ProvisionCommand, []byte) error
+	// DepSources names the dependencies whose clone source weave knows:
+	// compile clones a missing declared dependency it knows (as a layer) and
+	// fails, with weave's own line, on one it does not (pair#387).
+	DepSources map[string]bool
+	AfterGit   func(ProvisionCommand, []byte) error
 }
 
 func newProvisionFixture(t *testing.T, repositoryNames ...string) *ProvisionFixture {
@@ -60,6 +64,29 @@ func (f *ProvisionFixture) git(dir string, args ...string) string {
 func (f *ProvisionFixture) host(n int) string {
 	return filepath.Join(filepath.Dir(f.Primary), "worktree", fmt.Sprintf("%s-slot%d", filepath.Base(f.Primary), n), filepath.Base(f.Primary))
 }
+
+// cloneDeclaredDeps is the fixture weave's dependency acquisition.
+func (f *ProvisionFixture) cloneDeclaredDeps(host string) error {
+	declared, err := DeclaredDepsOf(filepath.Dir(host), host)
+	if err != nil {
+		return fmt.Errorf("Error: %w", err)
+	}
+	for _, d := range declared.Deps {
+		if d.Present || d.Outside {
+			continue
+		}
+		if !f.DepSources[d.Rel] {
+			return fmt.Errorf("Error: missing substrate %s declared in %s: record its source in construct/deps", d.Path, d.Owner)
+		}
+		os.MkdirAll(filepath.Join(d.Path, "construct"), 0o755)
+		f.git(d.Path, "init", "-q", "-b", "main")
+		os.WriteFile(filepath.Join(d.Path, "construct", "base.manifest"), []byte("# layer\n"), 0o644)
+		f.git(d.Path, "add", ".")
+		f.git(d.Path, "commit", "-q", "-m", "cloned")
+	}
+	return nil
+}
+
 func (f *ProvisionFixture) Run(ctx context.Context, c ProvisionCommand) ([]byte, error) {
 	switch c.Program {
 	case "sdlc":
@@ -103,6 +130,9 @@ func (f *ProvisionFixture) Run(ctx context.Context, c ProvisionCommand) ([]byte,
 		}
 		if f.FailWeave {
 			return nil, errors.New("fixture setup failed")
+		}
+		if err := f.cloneDeclaredDeps(c.Dir); err != nil {
+			return []byte(err.Error() + "\n"), fmt.Errorf("exit status 1: %w", err)
 		}
 		return nil, ctx.Err()
 	default:
