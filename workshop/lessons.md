@@ -113,6 +113,19 @@ representative evidence, not an exhaustive index.
   "the git dir sits at path/.git". A gitfile-backed clone fails the proxy and would have
   been set aside. (#387)
 
+- Classify an outcome by what it means to the caller, not by which component
+  failed. #387 first made a slot "blocking" whenever certain resources failed, which
+  would have refused to open a working checkout whose resting branch was checked out
+  elsewhere. Stating the invariant from the result ("blocking iff no agent could
+  work") over the whole domain exposed it.
+- Advice must name an action that can succeed from the state that produced it, and
+  the named action's own admission must accept that state. #387's hold said "reboot",
+  and reboot's first pass refused on the same hold (BR-10). Test the advised action
+  from the advising state.
+- A decision made in two places (a planner and the step that executes it) is one pure
+  function both call. #387's plan and its set-aside step each mapped agent evidence to
+  a hold, and diverged on "unknown" (BR-12).
+
 ## Async, concurrency, and process lifetime
 
 - Name the owner of every goroutine, timer, lock, callback, and critical section.
