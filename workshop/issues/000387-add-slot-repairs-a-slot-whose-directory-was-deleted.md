@@ -286,6 +286,14 @@ The new audits found real issues, all fixed: the six new files were not classifi
 `artifactpath` inventory; three production symbols had only test consumers; one token match
 lacked its boundary.
 
+Resume point (2026-10-05): M1 closed (SHIP, c4637555). In M2, Tasks 2.1 and 2.2 are done, and
+Task 3.1 (SetAside) was pulled forward into 2.2 (plan Revision q). Next is Task 2.3: Ensure's body
+becomes Reconcile (fold Task 2.4's OutcomeSeverity in: ProvisionResult.Warning for degraded, an
+error for blocking; ProvisionRequest gains the agent evidence), retiring CreationIntent and
+NextHostAction. Expected test changes: TestProvisionHostRefusesForeignPathOrBranch (foreign branch
+adopted), the intent and HostDecisionTable tests, and the provision_recovery tests that rely on intents.
+Baseline failures to ignore are listed in the M1 verification entry above.
+
 ## Revisions
 
 ### 2026-10-05 — Done-when follows the planning-session decisions
