@@ -875,9 +875,6 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 	return 0
 }
 
-// renderThreads consumes the same one-row-per-composite-thread inventory as
-// the panel and advisor. Human names lead named rows; only unnamed rows expose
-// the opaque tag as their fallback label.
 // renderReconcile prints what couch --reconcile did: the slot's final
 // resources and plan, then any degraded warnings.
 func renderReconcile(w io.Writer, r couchcore.ProvisionResult) {
@@ -914,6 +911,9 @@ func renderSlotReport(w io.Writer, r couchcore.SlotReport) {
 	fmt.Fprintln(w, "plan: "+couchcore.SlotPlanSummary(r.Plan, r.PlanError))
 }
 
+// renderThreads consumes the same one-row-per-composite-thread inventory as
+// the panel and advisor. Human names lead named rows; only unnamed rows expose
+// the opaque tag as their fallback label.
 func renderThreads(w io.Writer, threads []couchcore.ThreadSummary) {
 	renderThreadRows(w, threads, false)
 }
