@@ -131,7 +131,7 @@ func (cv *slotConverger) setAside(ctx context.Context, s PlannedStep) error {
 		kind = "host"
 	}
 	manifest := SavedWorkManifest{SchemaVersion: 1, State: "pending", SavedAt: now, Slot: WorkspaceReference{Repo: l.repo(), Number: l.n}.String(),
-		Kind: kind, Path: path, Branch: s.Branch, Restore: fmt.Sprintf("mv %q %q", filepath.Join(entry, "tree"), path)}
+		Kind: kind, Path: path, Branch: s.Branch, Restore: SavedWorkRestoreCommand(entry, path)}
 	manifestPath := filepath.Join(entry, "manifest.json")
 	if err := cv.p.Store.Write(manifestPath, manifest); err != nil {
 		return err
@@ -144,7 +144,36 @@ func (cv *slotConverger) setAside(ctx context.Context, s PlannedStep) error {
 		return err
 	}
 	manifest.State = "complete"
-	return cv.p.Store.Write(manifestPath, manifest)
+	if err := cv.p.Store.Write(manifestPath, manifest); err != nil {
+		return err
+	}
+	if cv.setAsideDone != nil {
+		cv.setAsideDone(entry)
+	}
+	return nil
+}
+
+// SavedWorkRestoreCommand is the POSIX shell command that puts a set-aside
+// checkout back from the state reconcile leaves: whatever now stands at the
+// path (the recreated checkout) moves into the entry as "recreated", then the
+// saved tree moves back to the path.
+func SavedWorkRestoreCommand(entry, path string) string {
+	recreated, tree := filepath.Join(entry, "recreated"), filepath.Join(entry, "tree")
+	return fmt.Sprintf("{ [ ! -e %s ] || mv %s %s; } && mv %s %s",
+		ShellQuote(path), ShellQuote(path), ShellQuote(recreated), ShellQuote(tree), ShellQuote(path))
+}
+
+// SavedWorkManifests reads the manifests of the given saved-work entries
+// (an unreadable one is skipped: the entry is still on disk under its name).
+func SavedWorkManifests(entries []string) []SavedWorkManifest {
+	var out []SavedWorkManifest
+	for _, entry := range entries {
+		var m SavedWorkManifest
+		if exists, err := (ProvisionStore{}).Read(filepath.Join(entry, "manifest.json"), &m); err == nil && exists {
+			out = append(out, m)
+		}
+	}
+	return out
 }
 
 // collectSavedWork removes saved-work entries older than the storage retention
@@ -168,7 +197,9 @@ func collectSavedWork(l SlotLayout, now time.Time) ([]string, error) {
 		}
 		saved := info.ModTime()
 		var m SavedWorkManifest
-		if exists, err := (ProvisionStore{}).Read(filepath.Join(entry, "manifest.json"), &m); err == nil && exists && !m.SavedAt.IsZero() {
+		// A saved_at in the future (a hand-edited or skewed manifest) is not
+		// believed: it would keep the entry forever.
+		if exists, err := (ProvisionStore{}).Read(filepath.Join(entry, "manifest.json"), &m); err == nil && exists && !m.SavedAt.IsZero() && !m.SavedAt.After(now) {
 			saved = m.SavedAt
 		}
 		if now.Sub(saved) < storagegc.RetentionPeriod {
@@ -180,26 +211,6 @@ func collectSavedWork(l SlotLayout, now time.Time) ([]string, error) {
 		removed = append(removed, entry)
 	}
 	return removed, nil
-}
-
-// SavedWorkSince lists the slot's saved-work manifests written at or after
-// since (what one reconcile run set aside), newest last. An unreadable
-// manifest is skipped: the entry is still on disk under its own name.
-func SavedWorkSince(l SlotLayout, since time.Time) []SavedWorkManifest {
-	entries, err := os.ReadDir(l.SavedWork())
-	if err != nil {
-		return nil
-	}
-	var out []SavedWorkManifest
-	for _, e := range entries {
-		var m SavedWorkManifest
-		exists, err := (ProvisionStore{}).Read(filepath.Join(l.SavedWorkEntryNamed(e.Name()), "manifest.json"), &m)
-		if err != nil || !exists || m.SavedAt.Before(since) {
-			continue
-		}
-		out = append(out, m)
-	}
-	return out
 }
 
 // holdSetupLock takes weave's setup lock if its file exists (an absent file

@@ -1458,3 +1458,42 @@ its restore command, and the warning repeats it (`TestReconcileResultListsWhatIt
   seam (`TestObserveFailedProbesAreUnknownNeverAbsent`) rather than a literal lock.
 - The host is set aside only when git cannot read it after repair: real git
   `TestRebootRepairsABrokenHostUnderALiveAgent`.
+
+### 2026-10-05 (z) — M3 boundary review round 5 (FIX-THEN-SHIP)
+
+Each finding is fixed as its class's rule:
+- **BR-14, rule "every printed command is executed in a test from the state that prints it".**
+  The restore command is now `SavedWorkRestoreCommand`: shell-quoted (`ShellQuote`), it moves
+  whatever stands at the path (the recreated checkout) into the entry as `recreated`, then the
+  saved tree back. `TestAcceptanceDirtySlot` runs it with `sh -c` and checks the work is back and
+  the recreated clone is kept.
+  - A failed run still names what it set aside: `SlotReconcileError.SetAside` is in its text
+    (`TestAFailedRunStillNamesWhatItSetAside`).
+  - The result reports entries by identity: the set-aside step hands its entry to the world, and
+    `ReconcileResult.SetAside` carries it. That replaced `SavedWorkSince`'s time window (an
+    ARCH-ORDER minor).
+  - A future-dated `saved_at` is not believed, so a hand-edited manifest cannot make an entry
+    immortal.
+- **BR-15, rule "`recoverReason` is total over `AllRecoverClasses`, and a report consumer
+  carries the report's own cause".**
+  - New reason cases: `reconcilable` (the plan) and `slot-needs-zero` (the reconciler's advice
+    via `SlotOutcome`).
+  - A workspace note appends the plan; the stale directory-missing text is fixed.
+  - The coverage test rejects the default text for every class.
+- **BR-16, rule "one decision in one place".** `RecoverSlotClass` decides needs-zero through
+  `SlotOutcome`, the callers' own decision. A non-blocking hand-off is the new note
+  `workspace-degraded`, and steps mean reconcilable. Proved by
+  `TestRecoverSlotClassAgreesWithTheCallers` over the planner domain × 7 agents (the mutation:
+  56 wrongly held slots).
+- **BR-17, rule "a vocabulary or lifecycle change sweeps every doc that lists it".** The couch
+  skill gains a recovery step 10 (both new classes, the hold, and all three workspace notes) and
+  corrects "nothing is ever deleted" (one-year collection). The README and atlas list
+  `workspace-degraded`.
+- **Rename.** The class `slot-needs-:0` is now `slot-needs-zero`: the vocabulary uses `:` as the
+  code/suffix separator (`conflict:<fact>`), and the skill sweep parses it that way.
+- **Minors.**
+  - Idle-to-reconcilable keeps earlier notes.
+  - Task 3.4's budget is measured: `TestAcceptanceReportBudgetTenSlots`, 61 ms mean per slot
+    over ten real slots (budget 150 ms).
+  - The row-advice sweep does not apply to `reconcile`: it is a CLI and report step, not a
+    switcher row action (Revision s), so switcher row advice must never name it, and it does not.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -204,6 +205,22 @@ func TestAcceptanceDirtySlot(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dep, "construct", "base.manifest")); err != nil {
 		t.Fatal("the dependency was not re-cloned")
 	}
+	// The printed restore command restores, run from the state that printed it
+	// (BR-14): the recreated clone moves into the entry, the saved tree back.
+	entry := filepath.Dir(tree)
+	if out, err := exec.Command("sh", "-c", r.SetAside[0].Restore).CombinedOutput(); err != nil {
+		t.Fatalf("restore %q: %v %s", r.SetAside[0].Restore, err, out)
+	}
+	if raw, err := os.ReadFile(filepath.Join(dep, "untracked.txt")); err != nil || string(raw) != "dep draft" {
+		t.Fatalf("restore did not bring the work back to %s: %q %v", dep, raw, err)
+	}
+	if _, err := os.Stat(filepath.Join(entry, "recreated", "construct", "base.manifest")); err != nil {
+		t.Fatalf("the recreated clone was not kept in the entry: %v", err)
+	}
+	// Put the recreated clone back so the second run below sees a healthy slot.
+	if out, err := exec.Command("sh", "-c", "mv "+ShellQuote(dep)+" "+ShellQuote(tree)+" && mv "+ShellQuote(filepath.Join(entry, "recreated"))+" "+ShellQuote(dep)).CombinedOutput(); err != nil {
+		t.Fatalf("%v %s", err, out)
+	}
 	entries, _ := os.ReadDir(NewSlotLayout(f.Primary, "", 1).SavedWork())
 	again, err := p.Ensure(context.Background(), ProvisionRequest{Path: f.Primary, Slot: 1, Agent: AgentNone})
 	after, _ := os.ReadDir(NewSlotLayout(f.Primary, "", 1).SavedWork())
@@ -237,5 +254,32 @@ func TestAcceptanceForeignEnvironment(t *testing.T) {
 	}
 	if raw, err := os.ReadFile(filepath.Join(NewSlotLayout(f.Primary, "", 1).SavedWork(), entries[0].Name(), "tree", "notes.txt")); err != nil || string(raw) != "someone else's" {
 		t.Fatalf("the foreign file was not kept: %q %v", raw, err)
+	}
+}
+
+// TestAcceptanceReportBudgetTenSlots: the recovery report observes and plans
+// every :1+ slot; with ten real slots the mean per slot stays within the
+// 150 ms budget (ARCH-CONSTRAINTS, plan Task 3.4).
+func TestAcceptanceReportBudgetTenSlots(t *testing.T) {
+	f := newProvisionFixture(t)
+	p := NewWorkspaceProvisioner(f)
+	common := f.git(f.Primary, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	for n := 1; n <= 10; n++ {
+		if _, err := p.Ensure(context.Background(), ProvisionRequest{Path: f.Primary, Slot: n, Agent: AgentNone}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	io := OSProvisionIO{Env: f.IO.Env}
+	start := time.Now()
+	for n := 1; n <= 10; n++ {
+		obs := ObserveSlot(context.Background(), SlotObserveInput{IO: io, Layout: NewSlotLayout(f.Primary, common, n), Agent: AgentNone})
+		if plan, _ := PlanSlot(PlanInput{Observation: obs}); !plan.Empty() {
+			t.Fatalf("slot %d plans %q", n, SlotPlanSummary(plan, ""))
+		}
+	}
+	mean := time.Since(start) / 10
+	t.Logf("observe+plan, mean of 10 slots: %v", mean)
+	if mean > 150*time.Millisecond {
+		t.Fatalf("mean %v per slot exceeds the 150 ms budget", mean)
 	}
 }

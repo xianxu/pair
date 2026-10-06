@@ -228,7 +228,7 @@ func TestReconcileResultListsWhatItSetAside(t *testing.T) {
 	if len(r.SetAside) != 1 || r.SetAside[0].Path != dep || r.SetAside[0].State != "complete" {
 		t.Fatalf("set aside %+v", r.SetAside)
 	}
-	if !strings.Contains(r.Warning, "restore with: mv") {
+	if !strings.Contains(r.Warning, "restore with: {") {
 		t.Fatalf("warning %q does not name the restore", r.Warning)
 	}
 	if _, err := os.Stat(filepath.Join(dep, "construct", "base.manifest")); err != nil {
@@ -285,5 +285,19 @@ func TestSavedWorkIsCollectedPastRetention(t *testing.T) {
 	}
 	if _, err := os.Lstat(again); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("a reconcile run did not collect saved work past retention")
+	}
+}
+
+// TestAFailedRunStillNamesWhatItSetAside (BR-14): a run that set a checkout
+// aside and then could not converge still prints the restore.
+func TestAFailedRunStillNamesWhatItSetAside(t *testing.T) {
+	s := newObservedSlot(t)
+	brokenDep(t, s)
+	os.Remove(SetupMarkerPath(s.admin(t))) // setup never completed: a failed compile blocks
+	s.f.DepSources = map[string]bool{}     // and it fails: no clone source
+	_, err := NewWorkspaceProvisioner(s.f).Ensure(context.Background(), ProvisionRequest{Path: s.f.Primary, Slot: 1, Agent: AgentNone})
+	var blocked *SlotReconcileError
+	if !errors.As(err, &blocked) || len(blocked.SetAside) != 1 || !strings.Contains(err.Error(), "restore with: {") {
+		t.Fatalf("err = %v, want the blocking failure naming the set-aside restore", err)
 	}
 }

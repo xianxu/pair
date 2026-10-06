@@ -25,6 +25,8 @@ type ReconcileResult struct {
 	Observation SlotObservation
 	Plan        SlotPlan
 	Executed    []PlannedStep
+	// SetAside are the saved-work entries this run wrote.
+	SetAside []string
 	// Warnings: failures that left a working slot usable (KeepOnFailure).
 	Warnings []StepFailure
 }
@@ -119,6 +121,7 @@ type osSlotWorld struct {
 	progress io.Writer
 	lease    *HostCreationLease
 	req      ReconcileRequest
+	setAside []string
 }
 
 func (w *osSlotWorld) lock() error {
@@ -143,7 +146,8 @@ func (w *osSlotWorld) observe(ctx context.Context) SlotObservation {
 
 func (w *osSlotWorld) apply(ctx context.Context, step PlannedStep) error {
 	cv := &slotConverger{p: w.p, layout: w.layout, lease: w.lease, remote: w.remote, progress: w.progress,
-		agentNow: w.req.AgentNow, rename: w.req.rename}
+		agentNow: w.req.AgentNow, rename: w.req.rename,
+		setAsideDone: func(entry string) { w.setAside = append(w.setAside, entry) }}
 	if step.Step != StepCompile {
 		return cv.converge(ctx, step)
 	}
@@ -189,8 +193,14 @@ func (p *WorkspaceProvisioner) Reconcile(ctx context.Context, req ReconcileReque
 			fmt.Fprintf(req.Progress, "saved-work collection deferred: %v\n", err)
 		}
 	}
-	return reconcileLoop(ctx, w, func() bool {
+	result, err := reconcileLoop(ctx, w, func() bool {
 		n, err := savedWorkEntries(req.Layout)
 		return err == nil && n >= MaxSavedWork
 	})
+	result.SetAside = w.setAside
+	var rerr *ReconcileError
+	if errors.As(err, &rerr) {
+		rerr.Result.SetAside = w.setAside
+	}
+	return result, err
 }

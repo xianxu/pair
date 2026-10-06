@@ -276,6 +276,12 @@ representative evidence, not an exhaustive index.
 
 ## Language and tool sharp edges
 
+- When inserting a declaration before another one by anchoring on its `func`
+  line, insert above that function's doc comment, not between the comment and the
+  `func`. Godoc then attributes the comment to the new declaration. #387 did this
+  twice (renderThreads, recoverReason); `TestNoDeclarationCarriesTwoStackedGodocs`
+  catches it, but only in the full suite.
+
 - In Lua, `\0` is an empty-position pattern, not a NUL byte; run `luac -p` before
   the suite. In Go, `strings.ToLower` can change byte length, and `gofmt -w`
   accepts a directory wider than the intended diff. (#183)

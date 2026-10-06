@@ -165,9 +165,18 @@ type SlotReconcileError struct {
 	Result        ReconcileResult
 	// Err is the underlying cause, when one exists (errors.Is sees it).
 	Err error
+	// SetAside are the checkouts the run moved into saved work before it
+	// stopped: a failure still names what to restore.
+	SetAside []SavedWorkManifest
 }
 
-func (e *SlotReconcileError) Error() string { return ReconcileAdvice(e.Address, e.Repo, e.Failure) }
+func (e *SlotReconcileError) Error() string {
+	text := ReconcileAdvice(e.Address, e.Repo, e.Failure)
+	for _, m := range e.SetAside {
+		text += fmt.Sprintf("\nslot %s: set aside %s (it could not be read); restore with: %s", e.Address, m.Path, m.Restore)
+	}
+	return text
+}
 func (e *SlotReconcileError) Unwrap() error { return e.Err }
 
 // SlotOutcome reads a reconcile run for a caller: the blocking failure (nil

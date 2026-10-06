@@ -233,7 +233,7 @@ const (
 	// can run (pair#387); RecoverSlotNeedsZero: it cannot converge, and the
 	// repository's :0 agent must look.
 	RecoverReconcilable  RecoverClass = "reconcilable"
-	RecoverSlotNeedsZero RecoverClass = "slot-needs-:0"
+	RecoverSlotNeedsZero RecoverClass = "slot-needs-zero"
 )
 
 func AllRecoverClasses() []RecoverClass {
@@ -304,15 +304,16 @@ const (
 	NoteDependencyWork RecoverNote = "dependency-work"
 	// NoteWorkspaceHeld: the slot's workspace needs repair that waits on its
 	// agent (pair#387); NoteWorkspaceUnknown: part of it could not be observed.
-	NoteWorkspaceHeld    RecoverNote = "workspace-held"
-	NoteWorkspaceUnknown RecoverNote = "workspace-unknown"
+	NoteWorkspaceHeld     RecoverNote = "workspace-held"
+	NoteWorkspaceUnknown  RecoverNote = "workspace-unknown"
+	NoteWorkspaceDegraded RecoverNote = "workspace-degraded" // usable, but something did not converge
 )
 
 func AllRecoverNotes() []RecoverNote {
 	return []RecoverNote{NoteInactiveClaims, NoteDetachedHead, NoteRestingBranchDirty, NoteInspectUncommittedFirst,
 		NoteClaimRepair, NoteClaimsStale, NoteClaimsPartial, NoteClaimsUnknown, NoteClaimsAbsent, NoteClaimsUnsupported,
 		NoteGitLocalProbe, NoteGitUnknown, NoteIssueDoneBranch, NoteDependencyUnread, NoteDependencyWork,
-		NoteWorkspaceHeld, NoteWorkspaceUnknown}
+		NoteWorkspaceHeld, NoteWorkspaceUnknown, NoteWorkspaceDegraded}
 }
 
 // SlotEvidence dimensions. Every dimension is closed; unknown is a value.
@@ -495,17 +496,20 @@ const (
 	ReconcileReconcilable EvidenceReconcile = "reconcilable"
 	ReconcileHeld         EvidenceReconcile = "held"
 	ReconcileNeedsZero    EvidenceReconcile = "needs-zero"
+	ReconcileDegraded     EvidenceReconcile = "degraded"
 	ReconcileUnknown      EvidenceReconcile = "unknown"
 )
 
 func AllEvidenceReconciles() []EvidenceReconcile {
-	return []EvidenceReconcile{ReconcileConverged, ReconcileReconcilable, ReconcileHeld, ReconcileNeedsZero, ReconcileUnknown}
+	return []EvidenceReconcile{ReconcileConverged, ReconcileReconcilable, ReconcileHeld, ReconcileNeedsZero, ReconcileDegraded, ReconcileUnknown}
 }
 
-// RecoverSlotClass reads a slot reconciler report for the recovery report,
-// from the same source the callers use (OutcomeSeverity and the plan's
-// stops): a blocking outcome or a hand-off is :0's; a hold waits on the agent;
-// an unknown observation is noted; converge steps are reconcilable.
+// RecoverSlotClass reads a slot reconciler report for the recovery report
+// through the callers' own decision (SlotOutcome over the report's plan), so
+// the report never holds a slot its callers would open: a hold waits on the
+// agent; converge steps are reconcilable (their blocking state is what
+// reconcile fixes); a hand-off on a slot no agent could work in is :0's; one
+// on a usable slot is degraded (noted); an unobservable resource is noted.
 func RecoverSlotClass(r SlotReport) EvidenceReconcile {
 	if r.PlanError != "" {
 		return ReconcileConverged // :0 or not a slot: nothing to reconcile
@@ -514,17 +518,19 @@ func RecoverSlotClass(r SlotReport) EvidenceReconcile {
 	for _, s := range r.Plan.Stops {
 		stops[s.Class] = true
 	}
+	repo, _, _ := strings.Cut(r.Address, ":")
+	blocking, _ := SlotOutcome(r.Address, repo, ReconcileResult{Observation: r.Observation, Plan: r.Plan}, nil)
 	switch {
-	case stops[StopHandoff] || len(r.Plan.Retried) > 0:
-		return ReconcileNeedsZero
-	case len(r.Plan.Steps) == 0 && OutcomeSeverity(r.Observation) == SeverityBlocking && !stops[StopHold] && !stops[StopUnknown] && !stops[StopRetryable]:
-		return ReconcileNeedsZero
 	case stops[StopHold]:
 		return ReconcileHeld
-	case stops[StopUnknown] || stops[StopRetryable]:
-		return ReconcileUnknown
 	case len(r.Plan.Steps) > 0:
 		return ReconcileReconcilable
+	case blocking != nil && (stops[StopHandoff] || len(r.Plan.Stops) == 0):
+		return ReconcileNeedsZero
+	case stops[StopHandoff]:
+		return ReconcileDegraded
+	case stops[StopUnknown] || stops[StopRetryable]:
+		return ReconcileUnknown
 	}
 	return ReconcileConverged
 }
@@ -658,10 +664,12 @@ func classifyRecover(e SlotEvidence) recoverDecision {
 	switch e.Reconcile {
 	case ReconcileReconcilable:
 		if d.Class == RecoverIdle {
-			d = recoverDecision{Class: RecoverReconcilable, Steps: []string{"reconcile"}}
+			d = recoverDecision{Class: RecoverReconcilable, Steps: []string{"reconcile"}, Notes: d.Notes}
 		}
 	case ReconcileHeld:
 		d.Notes = append(d.Notes, NoteWorkspaceHeld)
+	case ReconcileDegraded:
+		d.Notes = append(d.Notes, NoteWorkspaceDegraded)
 	case ReconcileUnknown:
 		d.Notes = append(d.Notes, NoteWorkspaceUnknown)
 	}
@@ -1529,13 +1537,40 @@ func recoverRowOf(s *recoverSlot, in RecoverPlanInput) RecoverRow {
 	return row
 }
 
+// recoverWorkspacePlan is the slot reconciler's plan for a row, as text.
+func recoverWorkspacePlan(row RecoverRow, in RecoverPlanInput) string {
+	r, ok := in.SlotPlans[filepath.Clean(row.Path)]
+	if !ok {
+		return "no plan observed"
+	}
+	return SlotPlanSummary(r.Plan, r.PlanError)
+}
+
+// recoverWorkspaceAdvice is the reconciler's own advice for a row whose
+// workspace cannot converge (the text callers print).
+func recoverWorkspaceAdvice(row RecoverRow, in RecoverPlanInput) string {
+	r, ok := in.SlotPlans[filepath.Clean(row.Path)]
+	if !ok {
+		return "the slot's workspace cannot converge"
+	}
+	repo, _, _ := strings.Cut(row.Address, ":")
+	if blocking, _ := SlotOutcome(row.Address, repo, ReconcileResult{Observation: r.Observation, Plan: r.Plan}, nil); blocking != nil {
+		return blocking.Error()
+	}
+	return "the slot's workspace cannot converge: " + SlotPlanSummary(r.Plan, r.PlanError)
+}
+
 // recoverReason is the one author of every row's reason text.
 func recoverReason(row RecoverRow, f slotFacts, in RecoverPlanInput) string {
 	asks := slices.ContainsFunc(row.Next.Steps, func(s RecoverStep) bool { return s.Action == "ask-agent-restore" })
 	var text string
 	switch row.Class {
 	case RecoverDirectoryMissing:
-		text = "the slot directory is gone; repairing it is pair#387"
+		text = "the slot directory is gone and nothing is left to re-create it from"
+	case RecoverReconcilable:
+		text = "the slot's workspace needs repair (" + recoverWorkspacePlan(row, in) + "); couch --reconcile " + row.Address + " runs it, as open, resume and reboot do first"
+	case RecoverSlotNeedsZero:
+		text = recoverWorkspaceAdvice(row, in)
 	case RecoverAgentUnknown:
 		if slices.Contains(row.Next.Hold, string(HoldCouchUnavailable)) {
 			text = "Couch's store could not be read: " + in.Couch.Error
@@ -1587,6 +1622,12 @@ func recoverReason(row RecoverRow, f slotFacts, in RecoverPlanInput) string {
 	}
 	if slices.Contains(row.Next.Notes, string(NoteClaimsStale)) {
 		text += "; claims stale: " + row.Claims.Error
+	}
+	// A workspace note carries the reconciler's own reading.
+	for _, note := range []RecoverNote{NoteWorkspaceHeld, NoteWorkspaceDegraded, NoteWorkspaceUnknown} {
+		if slices.Contains(row.Next.Notes, string(note)) {
+			text += "; workspace (" + string(note) + "): " + recoverWorkspacePlan(row, in)
+		}
 	}
 	return text
 }

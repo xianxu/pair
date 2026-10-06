@@ -26,6 +26,9 @@ type slotConverger struct {
 	agentNow func(context.Context) EvidenceAgent
 	// rename is the set-aside move (the crash-injection seam; nil: os.Rename).
 	rename func(oldpath, newpath string) error
+	// setAsideDone receives each saved-work entry a set-aside wrote, so the
+	// run reports what it moved by identity, not by a time window.
+	setAsideDone func(entry string)
 }
 
 func (cv *slotConverger) git(ctx context.Context, dir string, args ...string) (string, error) {

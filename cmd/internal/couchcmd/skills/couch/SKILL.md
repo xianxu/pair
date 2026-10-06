@@ -123,8 +123,25 @@ couch --send-to pair:4 --message 'Recovery (pair:4): restore this slot'\''s pair
    - **"look again later":** the slot's agent could not be observed. Re-run
      `couch --show pair:N` later; do not reboot.
    - **A checkout reconcile set aside** is under the slot's
-     `.couch/saved-work/<name>-<time>/`, and its `manifest.json` gives the restore
-     command. Nothing is ever deleted.
+     `.couch/saved-work/<name>-<time>/`. Its `manifest.json` gives the restore
+     command, and the run's own output prints it. The command moves the recreated
+     checkout into the entry and the saved tree back, so nothing is lost. Reconcile
+     itself never deletes work; saved work older than the storage retention period
+     (a year) is collected when the slot is next reconciled.
+10. In the recovery report, a `:1+` row reads the slot reconciler. Proceed only on
+    the operator's direction for that row:
+   - **Class `slot-needs-zero`, hold `workspace-handoff`:** the workspace cannot
+     converge and no agent could work there. The repository's `:0` agent reads the
+     row's reason (the reconciler's own advice), fixes the cause in the owning
+     repository, then runs `couch --reconcile pair:N`.
+   - **Class `reconcilable`, step `couch --reconcile pair:N`:** a fixable workspace
+     on an idle row, or a deleted slot directory whose leftovers remain. Run the
+     step.
+   - **Note `workspace-held`:** the repair waits on a live agent, and reboot repairs
+     it. Note `workspace-degraded`: the slot is usable but something did not
+     converge (for example its resting branch is checked out elsewhere); tell the
+     `:0` agent. Note `workspace-unknown`: part of the workspace could not be
+     observed; read the report again later.
 
 ## Setup and qualification
 

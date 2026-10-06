@@ -246,6 +246,17 @@ func recoverPlanCases() []recoverPlanCase {
 			setup: func(p *planFixture) {
 				p.fleet.AddSlot("pair:1")
 				p.thread("pair:1", ThreadParked, "")
+				// Setup never completed and cannot: no agent could work here.
+				r := workspaceReport(SlotPlan{Stops: []PlanStop{{Resource: ResourceSetup, Class: StopHandoff, Reason: "setup-failed-known: Error: missing substrate"}}})
+				r.Observation.Resources[1] = ResourceObservation{ID: ResourceSetup, State: StateAbsent, Sub: SubFailedKnown}
+				p.plan("pair:1", r)
+			}},
+		{name: "workspace degraded but usable", address: "pair:1", want: RecoverIdle, notes: []string{"workspace-degraded"},
+			setup: func(p *planFixture) {
+				p.fleet.AddSlot("pair:1")
+				p.thread("pair:1", ThreadParked, "")
+				// The resting branch is checked out elsewhere, but the host works:
+				// the callers open it with a warning, so the report does not hold it.
 				p.plan("pair:1", workspaceReport(SlotPlan{Stops: []PlanStop{{Resource: ResourceBranch, Class: StopHandoff, Reason: "main-slot1 is checked out elsewhere"}}}))
 			}},
 		{name: "workspace held by a live agent", address: "pair:1", want: RecoverIdle, notes: []string{"workspace-held"},
@@ -544,6 +555,11 @@ func TestDeriveRecoverPlanCoversEveryClassHoldAndNote(t *testing.T) {
 				t.Fatalf("automatic = %v with steps %v hold %v", row.Automatic, row.Next.Steps, row.Next.Hold)
 			}
 			assertReasonMatchesDecision(t, row)
+			// recoverReason is total over the classes (BR-15): no fixture's
+			// row may read the default text.
+			if row.Class != RecoverNoRule && row.Reason == "no rule matched" {
+				t.Fatalf("class %s has no reason text", row.Class)
+			}
 			for _, step := range row.Next.Steps {
 				// Every step names the CLI text that runs it (M2): the slot
 				// operation's own command, or a send to the slot's agent.
@@ -1054,11 +1070,8 @@ func TestRecoverReconcileReadingIsMetamorphic(t *testing.T) {
 				} else if d.Class != base.Class || !slices.Equal(d.Steps, base.Steps) {
 					fail("reconcilable changed a non-idle decision")
 				}
-			case ReconcileHeld, ReconcileUnknown:
-				note := NoteWorkspaceHeld
-				if r == ReconcileUnknown {
-					note = NoteWorkspaceUnknown
-				}
+			case ReconcileHeld, ReconcileUnknown, ReconcileDegraded:
+				note := map[EvidenceReconcile]RecoverNote{ReconcileHeld: NoteWorkspaceHeld, ReconcileUnknown: NoteWorkspaceUnknown, ReconcileDegraded: NoteWorkspaceDegraded}[r]
 				if d.Class != base.Class || !slices.Equal(d.Steps, base.Steps) || !slices.Contains(d.Notes, note) {
 					fail("held/unknown must only add its note")
 				}
@@ -1067,5 +1080,31 @@ func TestRecoverReconcileReadingIsMetamorphic(t *testing.T) {
 	})
 	if points < 50000 {
 		t.Fatalf("only %d sampled points; the stride is not covering the domain", points)
+	}
+}
+
+// TestRecoverSlotClassAgreesWithTheCallers (BR-16): over the planner's
+// derived perturbation domain and every agent state, the report holds a slot
+// for :0 only when the callers' own SlotOutcome would refuse it, and never
+// holds one they would open.
+func TestRecoverSlotClassAgreesWithTheCallers(t *testing.T) {
+	for _, agent := range AllEvidenceAgents() {
+		for _, p := range slotPerturbations() {
+			o := perturb(healthyObservation(), p)
+			o.Agent = agent
+			plan, err := PlanSlot(PlanInput{Observation: o})
+			if err != nil {
+				t.Fatal(err)
+			}
+			r := SlotReport{Address: "pair:1", Observation: o, Plan: plan}
+			blocking, _ := SlotOutcome("pair:1", "pair", ReconcileResult{Observation: o, Plan: plan}, nil)
+			class := RecoverSlotClass(r)
+			if class == ReconcileNeedsZero && blocking == nil {
+				t.Errorf("agent=%s %s: the report holds a slot the callers would open", agent, p)
+			}
+			if blocking != nil && len(plan.Steps) == 0 && class == ReconcileConverged {
+				t.Errorf("agent=%s %s: the callers refuse a slot the report calls converged", agent, p)
+			}
+		}
 	}
 }

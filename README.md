@@ -416,12 +416,15 @@ Each step carries its `command`: `couch --resume repo:N`, `couch --reboot repo:N
 workspace.
 
 Each `:1+` row also reads the slot reconciler (#387). If the workspace cannot
-converge, the row's class is `slot-needs-:0` with hold `workspace-handoff`: the
+converge, the row's class is `slot-needs-zero` with hold `workspace-handoff`: the
 repository's `:0` agent looks first, because resume or reboot would fail at the
 same place. A fixable workspace on an otherwise idle row, or a deleted slot
 directory whose leftovers remain, steps `couch --reconcile repo:N`. A repair
-waiting on a live agent is noted `workspace-held`, and an unobservable resource
-`workspace-unknown`.
+waiting on a live agent is noted `workspace-held`, a usable slot where something
+did not converge (for example its resting branch is checked out elsewhere)
+`workspace-degraded`, and an unobservable resource `workspace-unknown`. The report
+holds a row for `:0` only when the callers would refuse to open the slot; its
+reason carries the reconciler's own advice.
 
 Open, resume, reboot and add slot reconcile a slot's workspace first, and
 `couch --reconcile repo:N` does it on its own. Reconcile repairs what is derived
