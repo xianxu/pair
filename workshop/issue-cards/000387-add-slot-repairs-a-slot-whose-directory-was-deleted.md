@@ -1,6 +1,6 @@
 ---
 id: 000387
-status: codecomplete
+status: done
 created: 2026-10-02
 updated: 2026-10-06
 estimate_hours: 8.34
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 28486df7b4d639e5fcbfd70b4a2391220347951a
         evidence_commit: f45f7f10d9e9d4b42ab7401c99bb1b6459ceb066
+        landed_commit: 875de12b5f002eef20009a09abcbbe8f9b4af9ac
 ---
 
 # Slot reconciler: reconcile a Couch slot's dispersed state
