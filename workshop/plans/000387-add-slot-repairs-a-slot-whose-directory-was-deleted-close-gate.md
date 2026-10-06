@@ -172,6 +172,106 @@ rounds:
       boundary: M2
       recipe: milestone-review
       blocked: false
+    - "n": 6
+      timestamp: "2026-10-05T21:06:31-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: Plan prose for Tasks 1.4/2.5/3.1 unchanged in this window; still Minor, carried to close as Revision (u) states.
+          round: 6
+      findings:
+        - id: BR-14
+          severity: Important
+          title: 'Printed restore command does not restore: mv into the recreated checkout nests the tree; missing on failure; Go-quoted not shell-quoted'
+          detail: '2nd in family. slotsave.go:134 builds mv "<entry>/tree" "<path>" and provision.go:110 prints it after path was re-cloned/re-added, so mv yields path/tree (verified). The blocking path returns before SetAside is reported, and %q is Go quoting (ShellQuote exists). Rule: every printed command is executed in a test from the state that prints it. Make Restore move the recreated checkout aside then move the tree back via ShellQuote, run r.SetAside[0].Restore with sh -c in TestAcceptanceDirtySlot, and carry the set-aside list on failure too.'
+          family: advice-names-reachable-action
+          round: 6
+        - id: BR-15
+          severity: Important
+          title: recoverReason has no case for slot-needs-:0 or reconcilable, so those rows read "no rule matched" and drop the reconciler's cause
+          detail: '4th in family. Task 3.4 promised needs-zero with ReconcileAdvice. The DirectoryMissing text "repairing it is pair#387" is also stale. Rule: a SlotReport consumer carries the report''s known cause (stopFailure/ReconcileAdvice) into its text, and recoverReason is total over AllRecoverClasses, enforced by a test sweeping every class and rejecting the default text.'
+          family: error-surface-preserved
+          round: 6
+        - id: BR-16
+          severity: Important
+          title: RecoverSlotClass holds a usable slot on any handoff stop, while SlotOutcome treats it as a warning
+          detail: recoverplan.go:518 maps StopHandoff to needs-zero, but SlotOutcome blocks only when OutcomeSeverity is blocking. A resting branch checked out elsewhere with a working host loses its resume step (fixture "workspace needs :0" asserts this). It is the same decision made twice (ARCH-DRY, lessons BR-12). Derive needs-zero from SlotOutcome returning blocking and turn non-blocking handoff stops into a note. The Retried branch is unreachable in the report.
+          family: report-agrees-with-caller-outcome
+          round: 6
+        - id: BR-17
+          severity: Important
+          title: 'Couch skill not updated despite Task 3.6 tick: still says "Nothing is ever deleted" and omits the new classes, hold and notes'
+          detail: '2nd in family. cmd/internal/couchcmd/skills/couch/SKILL.md:125-127 contradicts retention collection and gives the recovering agent no procedure for slot-needs-:0/workspace-handoff, the reconcile step, or workspace-held/unknown. Rule: a diff adding a class/hold/note or changing a lifecycle statement sweeps every doc listing that vocabulary (README, atlas, skill) in the same window.'
+          family: readme-tracks-user-surface
+          round: 6
+        - id: BR-18
+          severity: Minor
+          title: 'Task 3.4 ticked items without delivery or Revision: 150 ms/slot budget with 10 slots, row-advice sweep including reconcile'
+          detail: '2nd in family. Rule: a ticked item that shipped differently gets a Revision line in the same commit that ticks it. The unmeasured budget is also an ARCH-CONSTRAINTS gap.'
+          family: plan-tracks-implementation
+          round: 6
+        - id: BR-19
+          severity: Minor
+          title: Idle plus reconcilable replaces the whole decision, dropping notes computed earlier such as claims-stale
+          detail: recoverplan.go:661 rebuilds recoverDecision; it should keep d.Notes.
+          family: decision-preserves-notes
+          round: 6
+        - id: BR-20
+          severity: Minor
+          title: SavedWorkSince picks this run's entries by wall-clock window, not by the step's own entry
+          detail: 'ARCH-ORDER: have setAside return its entry path in Executed. Separately, a hand-edited future saved_at is never collected (ARCH-SECURE).'
+          family: identity-not-time-window
+          round: 6
+      boundary: M3
+      recipe: milestone-review
+      blocked: true
+    - "n": 7
+      timestamp: "2026-10-05T21:36:08-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: Still carried to close by the plan's own note at line 1389; Minor, does not block.
+          round: 7
+        - id: BR-14
+          disposition: addressed
+          note: SavedWorkRestoreCommand is ShellQuoted and moves the path aside first; executed via sh -c in TestAcceptanceDirtySlot; failure path covered by TestAFailedRunStillNamesWhatItSetAside.
+          round: 7
+        - id: BR-15
+          disposition: addressed
+          note: Reconcilable and slot-needs-zero reason cases added, stale text fixed; coverage test rejects the default text per fixture class.
+          round: 7
+        - id: BR-16
+          disposition: addressed
+          note: RecoverSlotClass derives needs-zero via SlotOutcome; non-blocking handoff becomes the workspace-degraded note; TestRecoverSlotClassAgreesWithTheCallers sweeps the planner domain x agents.
+          round: 7
+        - id: BR-17
+          disposition: addressed
+          note: SKILL.md step 10 documents slot-needs-zero, workspace-handoff, reconcile and the three notes; deletion statement corrected; README and atlas also list workspace-degraded.
+          round: 7
+        - id: BR-18
+          disposition: addressed
+          note: TestAcceptanceReportBudgetTenSlots measures the budget; Revision (z) records that the reconcile row-advice item does not apply.
+          round: 7
+        - id: BR-19
+          disposition: not-addressed
+          note: Fix present at recoverplan.go:667, but reverting it leaves the Recover tests green; add a notes-preserved check for idle to reconcilable.
+          round: 7
+        - id: BR-20
+          disposition: not-addressed
+          note: Identity reporting addressed (setAsideDone; SavedWorkSince removed); the future saved_at guard has no test, as removing it keeps the suite green.
+          round: 7
+      findings:
+        - id: BR-21
+          severity: Minor
+          title: A set-aside whose final manifest write fails after the rename is not reported
+          detail: 'This is the 5th finding in family error-surface-preserved. Rule: report an effect when it happens, not when its bookkeeping completes. setAsideDone fires only after the complete-manifest write, so a tree already moved by rename goes unreported if that write fails. Fix: call setAsideDone right after the rename succeeds.'
+          family: error-surface-preserved
+          round: 7
+      boundary: M3
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#387 (boundary-review)
@@ -248,9 +348,53 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-12 — not-addressed — setAside still returns errAgentAppeared when the agent is unknown (running || !known), so ClassifyConvergeError reports the live-agent hold where PlanSlot gives the unknown-agent one. After BR-10, reboot's first pass accepts that hold and the operator is told to reboot. The "no longer broken" refusal is still untyped and classified as a hand-off, though a rerun would converge. Rule: derive the converge-time hold reason from the same pure function PlanSlot's setAside closure uses, and give the evidence-changed refusal a typed retryable error.
 - BR-13 — addressed — run.go renders SlotReconcileError.Result's observation and plan on the error path. TestReconcileCLIShowsTheReportOnABlockingFailure pins it.
 
+## Round 6 — 2026-10-05T21:06:31-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — not-addressed — Plan prose for Tasks 1.4/2.5/3.1 unchanged in this window; still Minor, carried to close as Revision (u) states.
+
+### Raised
+
+- **BR-14** [Important] `advice-names-reachable-action` Printed restore command does not restore: mv into the recreated checkout nests the tree; missing on failure; Go-quoted not shell-quoted
+  2nd in family. slotsave.go:134 builds mv "<entry>/tree" "<path>" and provision.go:110 prints it after path was re-cloned/re-added, so mv yields path/tree (verified). The blocking path returns before SetAside is reported, and %q is Go quoting (ShellQuote exists). Rule: every printed command is executed in a test from the state that prints it. Make Restore move the recreated checkout aside then move the tree back via ShellQuote, run r.SetAside[0].Restore with sh -c in TestAcceptanceDirtySlot, and carry the set-aside list on failure too.
+- **BR-15** [Important] `error-surface-preserved` recoverReason has no case for slot-needs-:0 or reconcilable, so those rows read "no rule matched" and drop the reconciler's cause
+  4th in family. Task 3.4 promised needs-zero with ReconcileAdvice. The DirectoryMissing text "repairing it is pair#387" is also stale. Rule: a SlotReport consumer carries the report's known cause (stopFailure/ReconcileAdvice) into its text, and recoverReason is total over AllRecoverClasses, enforced by a test sweeping every class and rejecting the default text.
+- **BR-16** [Important] `report-agrees-with-caller-outcome` RecoverSlotClass holds a usable slot on any handoff stop, while SlotOutcome treats it as a warning
+  recoverplan.go:518 maps StopHandoff to needs-zero, but SlotOutcome blocks only when OutcomeSeverity is blocking. A resting branch checked out elsewhere with a working host loses its resume step (fixture "workspace needs :0" asserts this). It is the same decision made twice (ARCH-DRY, lessons BR-12). Derive needs-zero from SlotOutcome returning blocking and turn non-blocking handoff stops into a note. The Retried branch is unreachable in the report.
+- **BR-17** [Important] `readme-tracks-user-surface` Couch skill not updated despite Task 3.6 tick: still says "Nothing is ever deleted" and omits the new classes, hold and notes
+  2nd in family. cmd/internal/couchcmd/skills/couch/SKILL.md:125-127 contradicts retention collection and gives the recovering agent no procedure for slot-needs-:0/workspace-handoff, the reconcile step, or workspace-held/unknown. Rule: a diff adding a class/hold/note or changing a lifecycle statement sweeps every doc listing that vocabulary (README, atlas, skill) in the same window.
+- **BR-18** [Minor] `plan-tracks-implementation` Task 3.4 ticked items without delivery or Revision: 150 ms/slot budget with 10 slots, row-advice sweep including reconcile
+  2nd in family. Rule: a ticked item that shipped differently gets a Revision line in the same commit that ticks it. The unmeasured budget is also an ARCH-CONSTRAINTS gap.
+- **BR-19** [Minor] `decision-preserves-notes` Idle plus reconcilable replaces the whole decision, dropping notes computed earlier such as claims-stale
+  recoverplan.go:661 rebuilds recoverDecision; it should keep d.Notes.
+- **BR-20** [Minor] `identity-not-time-window` SavedWorkSince picks this run's entries by wall-clock window, not by the step's own entry
+  ARCH-ORDER: have setAside return its entry path in Executed. Separately, a hand-edited future saved_at is never collected (ARCH-SECURE).
+
+## Round 7 — 2026-10-05T21:36:08-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — not-addressed — Still carried to close by the plan's own note at line 1389; Minor, does not block.
+- BR-14 — addressed — SavedWorkRestoreCommand is ShellQuoted and moves the path aside first; executed via sh -c in TestAcceptanceDirtySlot; failure path covered by TestAFailedRunStillNamesWhatItSetAside.
+- BR-15 — addressed — Reconcilable and slot-needs-zero reason cases added, stale text fixed; coverage test rejects the default text per fixture class.
+- BR-16 — addressed — RecoverSlotClass derives needs-zero via SlotOutcome; non-blocking handoff becomes the workspace-degraded note; TestRecoverSlotClassAgreesWithTheCallers sweeps the planner domain x agents.
+- BR-17 — addressed — SKILL.md step 10 documents slot-needs-zero, workspace-handoff, reconcile and the three notes; deletion statement corrected; README and atlas also list workspace-degraded.
+- BR-18 — addressed — TestAcceptanceReportBudgetTenSlots measures the budget; Revision (z) records that the reconcile row-advice item does not apply.
+- BR-19 — not-addressed — Fix present at recoverplan.go:667, but reverting it leaves the Recover tests green; add a notes-preserved check for idle to reconcilable.
+- BR-20 — not-addressed — Identity reporting addressed (setAsideDone; SavedWorkSince removed); the future saved_at guard has no test, as removing it keeps the suite green.
+
+### Raised
+
+- **BR-21** [Minor] `error-surface-preserved` A set-aside whose final manifest write fails after the rename is not reported
+  This is the 5th finding in family error-surface-preserved. Rule: report an effect when it happens, not when its bookkeeping completes. setAsideDone fires only after the complete-manifest write, so a tree already moved by rename goes unreported if that write fails. Fix: call setAsideDone right after the rename succeeds.
+
 ## Open findings
 
 - **BR-1** [Minor] `plan-enumerates-test-cases` Tasks 1.4, 2.5 and 3.1 enumerate test cases in prose; compress to functions plus one strategy line per risky function
 - **BR-8** [Minor] `error-surface-preserved` slotOfShowReference drops WorkspaceReferencePath's error, so --show repo:N of a missing slot shows the generic not-found message
 - **BR-9** [Minor] `error-surface-preserved` --show still drops slot-resolution errors whenever thread resolution succeeds, or the physical path probe fails
 - **BR-12** [Minor] `stop-reason-precision` setAside's agent-appeared and limit refusals are classified as a hand-off, not a hold
+- **BR-19** [Minor] `decision-preserves-notes` Idle plus reconcilable replaces the whole decision, dropping notes computed earlier such as claims-stale
+- **BR-20** [Minor] `identity-not-time-window` SavedWorkSince picks this run's entries by wall-clock window, not by the step's own entry
+- **BR-21** [Minor] `error-surface-preserved` A set-aside whose final manifest write fails after the rename is not reported
