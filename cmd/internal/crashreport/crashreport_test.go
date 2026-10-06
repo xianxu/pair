@@ -16,7 +16,7 @@ import (
 // outside the process that panics, so the test re-executes its own binary.
 func TestMain(m *testing.M) {
 	if dir := os.Getenv("CRASHREPORT_TEST_PANIC_DIR"); dir != "" {
-		if _, _, err := Install(dir, time.Now(), os.Getpid()); err != nil {
+		if _, _, err := Install(dir, time.Now(), os.Getpid(), dead); err != nil {
 			os.Stderr.WriteString("install: " + err.Error())
 			os.Exit(3)
 		}
@@ -54,7 +54,7 @@ func TestPanicLandsInCrashFileAndStderr(t *testing.T) {
 
 func TestCleanCloseLeavesNoFile(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "crash")
-	capture, _, err := Install(dir, time.Now(), 4242)
+	capture, _, err := Install(dir, time.Now(), 4242, dead)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestInstallReportsPreviousEndingsOnce(t *testing.T) {
 	write("20261001T000000Z-333.crash", "panic: old\n")
 	write("notes.txt", "not ours")
 
-	capture, reports, err := Install(dir, time.Now(), 4242)
+	capture, reports, err := Install(dir, time.Now(), 4242, dead)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,13 +95,16 @@ func TestInstallReportsPreviousEndingsOnce(t *testing.T) {
 		kinds[r.Kind] = r
 	}
 	crash, abrupt := kinds[Crashed], kinds[Abrupt]
-	if crash.Path != filepath.Join(dir, "20261006T135600Z-111.crash") || !strings.Contains(crash.Notice(), crash.Path) {
+	if crash.Path != filepath.Join(dir, "20261006T135600Z-111.crash") {
 		t.Fatalf("crash report %+v", crash)
+	}
+	if summary := Summary(reports); !strings.Contains(summary, crash.Path) || !strings.Contains(summary, "abruptly") {
+		t.Fatalf("one notice must carry both endings: %q", summary)
 	}
 	if _, err := os.Stat(crash.Path); err != nil {
 		t.Fatalf("reported crash not kept: %v", err)
 	}
-	if abrupt.Notice() == "" {
+	if abrupt.Kind != Abrupt {
 		t.Fatalf("abrupt report %+v", abrupt)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "20261006T120000Z-222.log")); !os.IsNotExist(err) {
@@ -112,12 +115,76 @@ func TestInstallReportsPreviousEndingsOnce(t *testing.T) {
 	}
 	capture.Close()
 
-	_, again, err := Install(dir, time.Now(), 4243)
+	again2, again, err := Install(dir, time.Now(), 4243, dead)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer again2.Close()
 	if len(again) != 0 {
 		t.Fatalf("second startup re-reported %+v", again)
+	}
+}
+
+func dead(int) bool { return false }
+
+// One stuck stale file must not disable capture for good (#397 BR-2).
+func TestUnreportableFileStillInstallsCapture(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "crash")
+	if err := os.MkdirAll(filepath.Join(dir, "20261006T135600Z-111.crash", "blocker"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "20261006T135600Z-111.log"), []byte("panic: boom\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	capture, _, err := Install(dir, time.Now(), 4242, dead)
+	if err == nil {
+		t.Fatal("the failed rename was not reported")
+	}
+	if capture == nil {
+		t.Fatal("a stuck stale file disabled this run's capture")
+	}
+	capture.Close()
+}
+
+// A dying owner releases its lease (a defer) before the runtime writes its
+// panic. Its .log is still empty then; a relaunch in that window must not
+// misread it as an abrupt end and delete it.
+func TestInstallLeavesALiveOwnersFileAlone(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "crash")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	dying := filepath.Join(dir, "20261006T135600Z-77.log")
+	if err := os.WriteFile(dying, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	capture, reports, err := Install(dir, time.Now(), 4242, func(pid int) bool { return pid == 77 })
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer capture.Close()
+	if len(reports) != 0 {
+		t.Fatalf("live owner's file reported: %+v", reports)
+	}
+	if _, err := os.Stat(dying); err != nil {
+		t.Fatalf("live owner's file removed: %v", err)
+	}
+}
+
+func TestSummary(t *testing.T) {
+	for _, tc := range []struct {
+		reports []Report
+		want    string
+	}{
+		{nil, ""},
+		{[]Report{{Abrupt, "a"}}, "previous couch ended abruptly (no panic recorded)"},
+		{[]Report{{Abrupt, "a"}, {Abrupt, "b"}}, "2 previous couch runs ended abruptly (no panic recorded)"},
+		{[]Report{{Crashed, "old"}, {Crashed, "new"}}, "previous couch crashed — see new (+1 earlier)"},
+		{[]Report{{Crashed, "c"}, {Abrupt, "a"}}, "previous couch crashed — see c; previous couch ended abruptly (no panic recorded)"},
+	} {
+		if got := Summary(tc.reports); got != tc.want {
+			t.Fatalf("Summary(%+v) = %q, want %q", tc.reports, got, tc.want)
+		}
 	}
 }
 

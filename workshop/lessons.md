@@ -562,3 +562,9 @@ proof; record the surprising case so the next change starts from evidence.
   hard-coded 8 days, and main stayed red until #397's `go test ./...` caught it.
   Grep the literal shape (`8 * 24 * time.Hour`) repo-wide, and run `go test ./...`,
   not only `make test`, which runs a subset of Go packages.
+- Never end crash capture (or anything a panic must outlive) from a `defer`. Go
+  runs defers while a panic unwinds, before the runtime writes the panic, so a
+  deferred `SetCrashOutput(nil)` and empty-file removal deleted the very file the
+  panic was about to fill (#397 BR-1). Clean up after a normal return in `main`
+  instead, and test with a crashing child that has defers pending. A child with
+  no defers passes either way.

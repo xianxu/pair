@@ -1930,7 +1930,13 @@ console-owning couch also routes its crash output (`debug.SetCrashOutput`) to
 `<couch store>/crash/<UTC yyyymmddThhmmssZ>-<pid>.log`. It installs this right
 after taking the singleton lease; the lease is what proves every older file there
 belongs to a dead incarnation. CLI invocations don't install it, since their
-stderr is readable. On a clean exit the empty file is removed. On the next start:
+stderr is readable. On a clean exit `cmd/couch`'s `main` calls
+`crashreport.Finish` after `Run` returns, which removes the empty file. This is
+never done from a defer: Go runs defers while a panic unwinds, before the runtime
+writes the panic, so a deferred close would delete the file empty (BR-1). On the
+next start, files whose pid is still alive are skipped (a dying owner drops its
+lease before its panic is written), and every previous ending is folded into one
+standing notice:
 - a non-empty `.log` is a crash: a control notice
   `previous couch crashed — see <path>` stands on the status row, and the file is
   renamed `.crash`, so it is reported once;

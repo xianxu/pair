@@ -179,7 +179,7 @@ func (s *Service) Preview(ctx context.Context) (r Report, err error) {
 		}
 		r.Diagnostics = append(r.Diagnostics, rows...)
 	}
-	r.Diagnostics = append(r.Diagnostics, s.crashRows(false, maxCrashRows)...)
+	r.Diagnostics = append(r.Diagnostics, s.crashRows(false, crashreport.MaxEntries)...)
 	return r, nil
 }
 func (s *Service) Apply(ctx context.Context, limit int) (r Report, err error) {
@@ -225,10 +225,6 @@ func (s *Service) Apply(ctx context.Context, limit int) (r Report, err error) {
 	}
 	return r, nil
 }
-
-// maxCrashRows bounds a preview's crash-file rows per store; one file per
-// console run, so this is far past any real history.
-const maxCrashRows = 4096
 
 // crashRows is retention for couch crash files (#397), one sweep per registered
 // Couch store. They live inside the store, which the inventory walk excludes,

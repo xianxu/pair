@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
@@ -25,9 +26,9 @@ const (
 	unreported = ".log"
 	reported   = ".crash"
 	stampForm  = "20060102T150405Z"
-	// maxEntries bounds the startup scan and the gc walk: one file per console
+	// MaxEntries bounds the startup scan and the gc walk: one file per console
 	// run, so a directory this large is debris, not history.
-	maxEntries = 4096
+	MaxEntries = 4096
 )
 
 // Dir is the crash directory inside one couch store namespace. One store per
@@ -99,48 +100,86 @@ type Report struct {
 	Path string
 }
 
-func (r Report) Notice() string {
-	switch r.Kind {
-	case Crashed:
-		return "previous couch crashed — see " + r.Path
-	case Abrupt:
-		return "previous couch ended abruptly (no panic recorded)"
+// Summary folds every previous ending into ONE status-row sentence: each
+// standing control notice holds the row until displaced, so N reports would
+// stack N notices.
+func Summary(reports []Report) string {
+	var latest string
+	crashes, abrupt := 0, 0
+	for _, r := range reports {
+		switch r.Kind {
+		case Crashed:
+			crashes++
+			latest = r.Path // names sort by timestamp: the last is the newest
+		case Abrupt:
+			abrupt++
+		}
 	}
-	return ""
+	var parts []string
+	if crashes > 0 {
+		s := "previous couch crashed — see " + latest
+		if crashes > 1 {
+			s += fmt.Sprintf(" (+%d earlier)", crashes-1)
+		}
+		parts = append(parts, s)
+	}
+	switch {
+	case abrupt == 1:
+		parts = append(parts, "previous couch ended abruptly (no panic recorded)")
+	case abrupt > 1:
+		parts = append(parts, fmt.Sprintf("%d previous couch runs ended abruptly (no panic recorded)", abrupt))
+	}
+	return strings.Join(parts, "; ")
 }
 
 type Capture struct {
 	file *os.File
 }
 
+var (
+	activeMu sync.Mutex
+	active   *Capture
+)
+
 // Install reports the previous incarnations' files, then routes this
 // process's crash output to a fresh file.
 //
-// The caller must hold couch's singleton lease: that is what proves every file
-// already in dir belongs to a process that is gone.
-func Install(dir string, now time.Time, pid int) (*Capture, []Report, error) {
+// The caller must hold couch's singleton lease, which proves no other owner is
+// live. A dying owner still holds its pid while it writes its panic -- its lease
+// is released by a defer before the runtime prints -- so a .log whose pid is
+// alive is left alone rather than misread as an abrupt end.
+//
+// A file that cannot be reported is an error alongside a working capture, not
+// instead of one: one stuck stale file must not disable capture for good.
+func Install(dir string, now time.Time, pid int, alive func(pid int) bool) (*Capture, []Report, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, nil, err
 	}
 	files, err := list(dir)
-	if err != nil {
-		return nil, nil, err
-	}
 	var reports []Report
+	var problems []error
+	if err != nil {
+		problems = append(problems, err)
+	}
 	for _, f := range Classify(files) {
 		path := filepath.Join(dir, f.Name)
+		if _, owner, _, _ := parseName(f.Name); f.Kind != Reported && alive(owner) {
+			continue
+		}
 		switch f.Kind {
 		case Crashed:
 			// Renamed first, reported second: a report whose rename failed
 			// would come back on every start.
 			next := strings.TrimSuffix(path, unreported) + reported
 			if err := os.Rename(path, next); err != nil {
-				return nil, reports, err
+				problems = append(problems, err)
+				continue
 			}
 			reports = append(reports, Report{Kind: Crashed, Path: next})
 		case Abrupt:
 			if err := os.Remove(path); err != nil {
-				return nil, reports, err
+				problems = append(problems, err)
+				continue
 			}
 			reports = append(reports, Report{Kind: Abrupt, Path: path})
 		}
@@ -148,18 +187,37 @@ func Install(dir string, now time.Time, pid int) (*Capture, []Report, error) {
 	name := fmt.Sprintf("%s-%d%s", now.UTC().Format(stampForm), pid, unreported)
 	file, err := os.OpenFile(filepath.Join(dir, name), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
-		return nil, reports, err
+		return nil, reports, errors.Join(append(problems, err)...)
 	}
 	if err := debug.SetCrashOutput(file, debug.CrashOptions{}); err != nil {
 		file.Close()
 		os.Remove(file.Name())
-		return nil, reports, err
+		return nil, reports, errors.Join(append(problems, err)...)
 	}
-	return &Capture{file: file}, reports, nil
+	capture := &Capture{file: file}
+	activeMu.Lock()
+	active = capture
+	activeMu.Unlock()
+	return capture, reports, errors.Join(problems...)
+}
+
+// Finish ends the installed capture after a NORMAL return from the program's
+// run, and only there. It must never run from a defer: Go runs defers while a
+// panic unwinds, BEFORE the runtime writes the panic, so a deferred Finish
+// would switch crash output off and delete the file the panic was about to
+// fill (#397 BR-1). The program's main calls it after Run returns; a panic
+// never reaches that line.
+func Finish() error {
+	activeMu.Lock()
+	capture := active
+	active = nil
+	activeMu.Unlock()
+	return capture.Close()
 }
 
 // Close ends capture on a clean exit. An empty file is removed: only a file
-// that survives its process says something.
+// that survives its process says something. Same rule as Finish: never from a
+// defer.
 func (c *Capture) Close() error {
 	if c == nil || c.file == nil {
 		return nil
@@ -181,13 +239,13 @@ func list(dir string) ([]File, error) {
 	if err != nil {
 		return nil, err
 	}
-	names, err := f.Readdirnames(maxEntries + 1)
+	names, err := f.Readdirnames(MaxEntries + 1)
 	f.Close()
 	if err != nil && len(names) == 0 && !errors.Is(err, io.EOF) {
 		return nil, err
 	}
-	if len(names) > maxEntries {
-		return nil, fmt.Errorf("crash directory %s holds more than %d entries", dir, maxEntries)
+	if len(names) > MaxEntries {
+		return nil, fmt.Errorf("crash directory %s holds more than %d entries", dir, MaxEntries)
 	}
 	sort.Strings(names)
 	var out []File
