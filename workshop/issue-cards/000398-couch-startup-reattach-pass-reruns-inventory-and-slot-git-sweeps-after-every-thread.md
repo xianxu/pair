@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000398-couch-startup-reattach-pass-reruns-inventory-and-slot-git-sweeps-after-every-thread.md
         source_blob: b67c34d8767f20e04f14fb5fb19e8e448ce066c0
         destination: workshop/issues/000398-couch-startup-reattach-pass-reruns-inventory-and-slot-git-sweeps-after-every-thread.md
+        main_commit: 01502719f947082e290e5c19d05fb3ea53dcbfd8
 ---
 
 # couch: startup reattach pass reruns inventory and slot-git sweeps after every thread
