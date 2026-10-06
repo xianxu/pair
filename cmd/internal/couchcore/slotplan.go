@@ -65,6 +65,7 @@ const (
 // Stop reasons the outcome severity reads (OutcomeSeverity, Task 2.4).
 const (
 	StopReasonAgentLive      = "live-agent"
+	StopReasonAgentUnknown   = "unknown-agent"
 	StopReasonSavedWorkFull  = "saved-work-full"
 	StopReasonSetupRunning   = "setup-running"
 	StopReasonSetupKnownFail = "setup-failed-known"
@@ -135,7 +136,6 @@ func PlanSlot(in PlanInput) (SlotPlan, error) {
 		}
 	}
 	running, known := AgentRunning(o.Agent)
-	mayRemove := known && !running
 	get := func(id SlotResourceID) ResourceObservation { r, _ := o.Get(id); return r }
 	step := func(s PlannedStep) {
 		if blocked[templateOf(s.Resource)] || in.Attempted[StepKey(s)] {
@@ -151,7 +151,9 @@ func PlanSlot(in PlanInput) (SlotPlan, error) {
 	}
 	setAside := func(r ResourceObservation, path string) {
 		switch {
-		case !mayRemove:
+		case !known:
+			stop(r.ID, StopHold, StopReasonAgentUnknown)
+		case running:
 			stop(r.ID, StopHold, StopReasonAgentLive)
 		case in.SavedWorkFull:
 			stop(r.ID, StopHold, StopReasonSavedWorkFull)
@@ -230,7 +232,9 @@ func PlanSlot(in PlanInput) (SlotPlan, error) {
 	}
 	setup := get(ResourceSetup)
 	switch {
-	case setup.Sub == SubLockHeld:
+	case setup.Sub == SubLockHeld && setup.State != StatePresent:
+		// A running setup only matters when setup has work to do; a converged
+		// slot whose agent happens to be compiling is not stopped.
 		stop(ResourceSetup, StopRetryable, StopReasonSetupRunning)
 	case setup.Sub == SubFailedKnown:
 		stop(ResourceSetup, StopHandoff, StopReasonSetupKnownFail+": "+setup.Reason)

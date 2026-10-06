@@ -218,6 +218,40 @@ func TestPlanSlotNamedCases(t *testing.T) {
 			t.Fatalf("under a detached agent %+v, want only the agent-live hold", plan)
 		}
 	})
+	t.Run("unknown host blocks exactly its dependents", func(t *testing.T) {
+		// Written out by hand, independent of SlotResourceDependents: an
+		// unknown host stops at host, and nothing on deps, the clone or setup
+		// is planned, while the unrelated legacy intent still converges.
+		o := perturb(healthyObservation(), perturbation{ResourceHost, StateUnknown, ""},
+			perturbation{DepResource("ariadne"), StateBroken, SubUnreadable}, perturbation{ResourceSetup, StateAbsent, ""},
+			perturbation{ResourceIntent, StatePresent, ""})
+		plan, _ := PlanSlot(PlanInput{Observation: o})
+		if len(plan.Steps) != 1 || plan.Steps[0].Step != StepRemoveIntent {
+			t.Fatalf("steps %+v, want only remove-intent", plan.Steps)
+		}
+		if len(plan.Stops) != 1 || plan.Stops[0].Resource != ResourceHost || plan.Stops[0].Class != StopUnknown {
+			t.Fatalf("stops %+v, want exactly the unknown host", plan.Stops)
+		}
+	})
+	t.Run("a held weave lock stops only pending setup work", func(t *testing.T) {
+		o := perturb(healthyObservation(), perturbation{ResourceSetup, StatePresent, SubLockHeld})
+		if plan, _ := PlanSlot(PlanInput{Observation: o}); !plan.Empty() {
+			t.Fatalf("converged slot with a running compile plans %+v", plan)
+		}
+		o = perturb(healthyObservation(), perturbation{ResourceSetup, StateAbsent, SubLockHeld})
+		plan, _ := PlanSlot(PlanInput{Observation: o})
+		if len(plan.Steps) != 0 || len(plan.Stops) != 1 || plan.Stops[0].Class != StopRetryable {
+			t.Fatalf("pending setup under a held lock plans %+v, want one retryable stop", plan)
+		}
+	})
+	t.Run("an unknown agent holds with its own reason", func(t *testing.T) {
+		o := perturb(healthyObservation(), perturbation{DepResource("ariadne"), StateBroken, SubUnreadable})
+		o.Agent = AgentUnusableUnknown
+		plan, _ := PlanSlot(PlanInput{Observation: o})
+		if len(plan.Stops) != 1 || plan.Stops[0].Reason != StopReasonAgentUnknown {
+			t.Fatalf("plan %+v, want the unknown-agent hold", plan)
+		}
+	})
 	t.Run(":0 is refused", func(t *testing.T) {
 		o := healthyObservation()
 		o.Number = 0

@@ -162,8 +162,11 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 				return nil, err
 			}
 			matches, err := c.ResolveThreadReference(a["repo-scope"], a["ref"])
-			slot, isSlot := c.slotOfShowReference(call.Context, a["ref"], matches)
+			slot, isSlot, slotErr := c.slotOfShowReference(call.Context, a["ref"], matches)
 			if err != nil && !(isSlot && errors.Is(err, ErrThreadReferenceNotFound)) {
+				if slotErr != nil {
+					return nil, slotErr // the workspace reference's own, more specific error
+				}
 				return nil, err
 			}
 			// Show reads the same classified inventory list does and then

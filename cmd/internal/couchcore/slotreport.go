@@ -41,9 +41,23 @@ func slotAgentEvidence(rows []ThreadSummary) EvidenceAgent {
 
 // slotOfShowReference finds the :1+ slot a show reference names: a workspace
 // reference (repo:N), a path at or inside a slot, or the one slot all the
-// matched threads start in.
-func (c *Couch) slotOfShowReference(ctx context.Context, ref string, matches []ThreadRecord) (SlotIdentity, bool) {
-	if path, recognized, err := c.WorkspaceReferencePath(ctx, ref); recognized && err == nil {
+// matched threads start in. The identity comes from git (Discover), never from
+// the <primary>/.git convention, and the path is resolved through symlinks
+// first: observation compares against git's own resolved paths. A workspace
+// reference git cannot resolve keeps its own error (e.g. "slot does not
+// exist (existing: …)").
+func (c *Couch) slotOfShowReference(ctx context.Context, ref string, matches []ThreadRecord) (SlotIdentity, bool, error) {
+	if c.Slots == nil {
+		return SlotIdentity{}, false, nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	path, recognized, err := c.WorkspaceReferencePath(ctx, ref)
+	if recognized {
+		if err != nil {
+			return SlotIdentity{}, false, err
+		}
 		ref = path
 	}
 	candidates := []string{ref}
@@ -53,19 +67,44 @@ func (c *Couch) slotOfShowReference(ctx context.Context, ref string, matches []T
 			candidates = append(candidates, m.StartingPath)
 		}
 	}
-	var found SlotIdentity
+	primary, number := "", 0
 	for _, p := range candidates {
-		primary, n, ok := ParseSlotPath(p)
-		if !ok {
-			return SlotIdentity{}, false
+		physical, err := retainedPhysicalPath(p)
+		if err != nil {
+			return SlotIdentity{}, false, nil
 		}
-		slot := conventionalSlot(primary, n)
-		if found != (SlotIdentity{}) && found != slot {
-			return SlotIdentity{}, false
+		pr, n, ok := ParseSlotPath(physical)
+		if !ok || (primary != "" && (pr != primary || n != number)) {
+			return SlotIdentity{}, false, nil
 		}
-		found = slot
+		primary, number = pr, n
 	}
-	return found, found != (SlotIdentity{})
+	if primary == "" {
+		return SlotIdentity{}, false, nil
+	}
+	slot, err := c.slotIdentityFromGit(ctx, primary, number)
+	if err != nil {
+		return SlotIdentity{}, false, err
+	}
+	return slot, true, nil
+}
+
+// slotIdentityFromGit is slot n of the repository at primary as git knows it:
+// Discover's candidate when there is one, else the conventional location with
+// git's own common directory (a number known only from leftovers).
+func (c *Couch) slotIdentityFromGit(ctx context.Context, primary string, n int) (SlotIdentity, error) {
+	repository, err := c.Slots.Discover(ctx, primary)
+	if err != nil {
+		return SlotIdentity{}, err
+	}
+	for _, candidate := range repository.Slots {
+		if candidate.Identity.Number == n {
+			return candidate.Identity, nil
+		}
+	}
+	slot := conventionalSlot(repository.Identity.PrimaryRoot, n)
+	slot.RepoIdentity = repository.Identity.RepoIdentity
+	return slot, nil
 }
 
 // SlotReportFor observes a slot and plans its reconcile. It changes nothing.

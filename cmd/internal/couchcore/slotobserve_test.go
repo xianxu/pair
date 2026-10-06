@@ -193,6 +193,27 @@ func TestObserveDependencies(t *testing.T) {
 	}
 }
 
+// TestObserveGitfileDependencyIsReadable: a dependency whose .git is a gitfile
+// (here a linked worktree of another repository) is a readable checkout, never
+// "unreadable" (which would set it aside).
+func TestObserveGitfileDependencyIsReadable(t *testing.T) {
+	s := newObservedSlot(t)
+	os.MkdirAll(s.layout.Store(), 0o700)
+	origin := filepath.Join(t.TempDir(), "ariadne-origin")
+	os.MkdirAll(origin, 0o755)
+	s.f.git(origin, "init", "-q", "-b", "main")
+	write(t, filepath.Join(origin, "construct", "base.manifest"), "# layer\n")
+	s.f.git(origin, "add", ".")
+	s.f.git(origin, "commit", "-q", "-m", "layer")
+	dep := filepath.Join(s.layout.Env(), "ariadne")
+	s.f.git(origin, "worktree", "add", "-q", "-b", "slot-dep", dep)
+	write(t, filepath.Join(s.layout.Host(), "construct", "deps"), "substrate ../ariadne\n")
+	if info, err := os.Lstat(filepath.Join(dep, ".git")); err != nil || info.IsDir() {
+		t.Fatalf("fixture: %s/.git should be a gitfile (%v)", dep, err)
+	}
+	assertObserved(t, s.observe(t), wantObservation{DepResource("ariadne"), StatePresent, ""})
+}
+
 func TestObserveHalfClonedDependency(t *testing.T) {
 	s := newObservedSlot(t)
 	os.MkdirAll(s.layout.Store(), 0o700)

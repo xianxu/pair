@@ -193,7 +193,11 @@ func lstatState(path string) (ObservedState, string, string) {
 }
 
 // ObserveSlot observes every resource of a :1+ slot (pair#387). It changes
-// nothing. A failed probe is unknown, never absent.
+// nothing. A failed probe is unknown, never absent. The layout must be built
+// from git's own resolved identity (Discover's SlotIdentity, or a physical
+// primary with git's common directory): git reports resolved paths, so a
+// layout from an unresolved symlink or the <primary>/.git guess misreads a
+// healthy slot.
 func ObserveSlot(ctx context.Context, in SlotObserveInput) SlotObservation {
 	if ctx == nil {
 		ctx = context.Background()
@@ -436,14 +440,18 @@ func (o *observer) observeDep(d DeclaredDep, notLayer bool) ResourceObservation 
 		r.State, r.Sub, r.Reason = state, sub, reason
 		return r
 	}
-	out, err := o.run(d.Path, "rev-parse", "--absolute-git-dir")
+	// --show-toplevel, not the git directory's location: a clone whose .git
+	// is a gitfile (a linked worktree, --separate-git-dir) is a readable
+	// checkout of its own, and only git's answer about the work tree is
+	// positive evidence (R2).
+	out, err := o.run(d.Path, "rev-parse", "--show-toplevel")
 	switch {
 	case notAGitRepository(err, out):
 		r.State, r.Sub, r.Reason = StateBroken, SubUnreadable, "git cannot read "+d.Path
 	case err != nil:
 		r.State, r.Reason = StateUnknown, err.Error()
-	case filepath.Dir(out) != d.Path:
-		// The directory is inside some other repository (no .git of its own).
+	case filepath.Clean(out) != d.Path:
+		// The directory sits inside another work tree (no repository of its own).
 		r.State, r.Sub, r.Reason = StateBroken, SubUnreadable, d.Path+" has no repository of its own"
 	case notLayer:
 		r.State, r.Sub, r.Reason = StateBroken, SubNotLayer, d.Path+" is a repository but not a layer (no construct/base.manifest)"

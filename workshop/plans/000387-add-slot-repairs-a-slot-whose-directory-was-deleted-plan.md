@@ -1183,3 +1183,32 @@ resource.
   trip `artifactpath`'s agent-family vocabulary check. Prose keeps calling the hold "agent-live".
 - The coverage token for saved work matches at a path boundary, so the stop reason
   `saved-work-full` is not slot state.
+
+### 2026-10-05 (o) — M1 boundary review round 1 (FIX-THEN-SHIP)
+
+- BR-2 (Important): `--show` now takes the slot's identity from git (`Discover`'s candidate, else
+  the conventional location with git's common directory) after resolving the reference through
+  symlinks (`retainedPhysicalPath`). Building it from the `<primary>/.git` guess and the unresolved
+  path misread a healthy slot reached through a symlinked fleet as registration absent, host
+  mismatched and branch elsewhere. A test now reproduces exactly that against the old construction.
+  `ObserveSlot`'s doc states the precondition: a git-resolved layout.
+- BR-3 (Important): a dependency is judged by `git rev-parse --show-toplevel == path`, not by where
+  its git directory lives, so a gitfile-backed clone (a linked worktree, `--separate-git-dir`) is a
+  readable checkout rather than "unreadable" (which would set it aside). Test added; the old check
+  fails it.
+- BR-4 (Important): the README describes `--show repo:N`, the resource lines and the plan line.
+- Minors taken:
+  - a held weave lock stops only when setup has work pending;
+  - an unknown agent holds with its own reason, `unknown-agent`;
+  - `--show repo:N` of a missing slot keeps `WorkspaceReferencePath`'s own error;
+  - a hand-written I2 case (an unknown host blocks exactly deps/clone/setup) is independent of
+    `SlotResourceDependents`.
+- Amends Revision (j): when a present dependency is not a layer, the walk stops there, so the other
+  declared dependencies are not reported until it is repaired. Task 1.3's "the others are still
+  reported" does not hold (ariadne#295 chose the typed error, not partial results). The
+  consequence is bounded: the not-layer dependency is a stop or set-aside, so setup never reads as
+  converged past it.
+- Task 1.7's atlas section lives in `atlas/workspace-provisioning.md` (the numbered-slot page), not
+  `atlas/couch.md`.
+- For M2 (Task 2.2): the loop's no-progress guard compares observations on state and reading only.
+  `Reason` text from git can vary between runs, which would defeat the guard.

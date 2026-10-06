@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -16,6 +17,7 @@ func TestShowReportsASlotWithoutAThread(t *testing.T) {
 	}
 	env := newTestEnv(t, "/repo")
 	env.Couch.SlotIO = s.f
+	env.Couch.Slots = NewOSSlotCatalog(s.f)
 	result, err := dispatchTestOperation(env.Couch, "show", map[string]string{"ref": s.layout.Host(), "repo-scope": "scope"})
 	if err != nil {
 		t.Fatal(err)
@@ -34,6 +36,39 @@ func TestShowReportsASlotWithoutAThread(t *testing.T) {
 	}
 	if show.Slot.Address != "repo-name:1" || !strings.HasPrefix(SlotPlanSummary(show.Slot.Plan, show.Slot.PlanError), string(StepMkdirEnv)) {
 		t.Fatalf("report %q plan %q", show.Slot.Address, SlotPlanSummary(show.Slot.Plan, show.Slot.PlanError))
+	}
+}
+
+// TestShowThroughASymlinkedFleetReadsGitsIdentity: the reference reaches the
+// slot through a symlinked fleet root. Git reports resolved paths, so a layout
+// built from the unresolved path or the <primary>/.git guess would misread a
+// healthy slot as registration absent and host mismatched (BR-2).
+func TestShowThroughASymlinkedFleetReadsGitsIdentity(t *testing.T) {
+	s := newObservedSlot(t)
+	os.MkdirAll(s.layout.Store(), 0o700)
+	link := filepath.Join(t.TempDir(), "fleet-link")
+	if err := os.Symlink(filepath.Dir(s.f.Primary), link); err != nil {
+		t.Fatal(err)
+	}
+	env := newTestEnv(t, "/repo")
+	env.Couch.SlotIO = s.f
+	env.Couch.Slots = NewOSSlotCatalog(s.f)
+	host := filepath.Join(link, "worktree", filepath.Base(s.layout.Env()), filepath.Base(s.f.Primary))
+	result, err := dispatchTestOperation(env.Couch, "show", map[string]string{"ref": host, "repo-scope": "scope"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	report := result.(ShowResult).Slot
+	if report == nil {
+		t.Fatal("no slot report through the symlink")
+	}
+	for _, id := range []SlotResourceID{ResourceRegistration, ResourceHost, ResourceBranch, ResourceSetup} {
+		if r, _ := report.Observation.Get(id); r.State != StatePresent || r.Sub != "" {
+			t.Errorf("%s = %s/%q (%s) through a symlinked fleet, want present", id, r.State, r.Sub, r.Reason)
+		}
+	}
+	if !report.Plan.Empty() {
+		t.Errorf("a healthy slot plans %q", SlotPlanSummary(report.Plan, report.PlanError))
 	}
 }
 

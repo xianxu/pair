@@ -380,7 +380,7 @@ couch [<repo>]           open the Couch TUI (default: .)
 couch --layout2          opt into pair's two-pane workbench
 couch --layout3          threads also get pair's right-hand terminal (the default)
 couch --list             every durable work thread across all repositories
-couch --show <ref>       one current-repository thread by tag or path
+couch --show <ref>       one current-repository thread by tag or path, or a slot (repo:N)
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
 couch --recover-plan-from-sdlc   per-slot recovery report (JSON), see below
@@ -538,7 +538,17 @@ any other row labels the working directory's last segment (`brain`, `pair`,
 read the same. The agent-published summary is the one summary displayed.
 
 `couch --list` stays compact and label-first. `couch --show` is the diagnostic view:
-it always prints the immutable `{repository scope}/{opaque tag}` address. Start,
+it always prints the immutable `{repository scope}/{opaque tag}` address. When the
+reference names a `:1+` slot (`repo:N`, a path at or inside the slot, or the slot
+its threads start in), `--show` also prints the slot's resources in converge order:
+- env, store, branch, registration, host, dependencies, setup and agent, each
+  `present` / `absent` / `broken` / `unknown` / `pending`, with a reading such as
+  `stale` or `unreadable`;
+- the plan a reconcile would run, e.g. `plan: compile setup` or `plan: nothing to
+  do` (#387).
+
+This works for a slot with no thread left, e.g. a deleted slot directory.
+`--show` observes and changes nothing. Start,
 Park, Resume, Reboot, switch, and Leave Couch are TUI actions, all routed through
 Couch's typed in-process dispatcher. They are deliberately not shell commands; an
 explicit empty string in the alias form clears the repository's alias.
