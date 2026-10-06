@@ -188,3 +188,41 @@ func TestRender_ViewportEmptyHistory(t *testing.T) {
 		t.Errorf("viewport_top: got %d, want 1 (no scrollback history)", vp)
 	}
 }
+
+// TestRenderLinesMatchesTheRenderedFile: the in-memory lines are exactly the
+// plain file render writes, so a caller reading them sees what the viewer and
+// the change log see.
+func TestRenderLinesMatchesTheRenderedFile(t *testing.T) {
+	dir := t.TempDir()
+	rawPath := filepath.Join(dir, "in.raw")
+	evPath := filepath.Join(dir, "in.events.jsonl")
+	outPath := filepath.Join(dir, "out.txt")
+	var raw strings.Builder
+	for i := 1; i <= 12; i++ {
+		fmt.Fprintf(&raw, "\x1b[1mline %02d\x1b[0m\r\n", i)
+	}
+	raw.WriteString("> [Couch peer from pair:0; delivery abc]")
+	if err := os.WriteFile(rawPath, []byte(raw.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(evPath, []byte(`{"type":"resize","offset":0,"cols":60,"rows":5}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := render(rawPath, evPath, outPath, "", true, historyRows, false); err != nil {
+		t.Fatal(err)
+	}
+	file, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines, err := RenderLines(rawPath, evPath, historyRows)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(lines, "\n") + "\n"; got != string(file) {
+		t.Fatalf("RenderLines:\n%q\nrendered file:\n%q", got, file)
+	}
+	if last := lines[len(lines)-1]; last != "> [Couch peer from pair:0; delivery abc]" {
+		t.Fatalf("the visible screen is not the tail: last line %q", last)
+	}
+}
