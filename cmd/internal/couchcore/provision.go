@@ -122,7 +122,7 @@ func (p *WorkspaceProvisioner) Ensure(ctx context.Context, req ProvisionRequest)
 			return ProvisionResult{}, err
 		}
 		success = SetupSuccess{SchemaVersion: 1, Host: host.identity.WorktreeRoot, Common: primary.RepoIdentity, Admin: host.admin, Slot: req.Slot, BaselineSHA: host.baseline}
-		if err := p.Store.Write(filepath.Join(host.admin, "couch-setup-success.json"), success); err != nil {
+		if err := p.Store.Write(SetupMarkerPath(host.admin), success); err != nil {
 			return ProvisionResult{}, fmt.Errorf("record setup success: %w", err)
 		}
 	}
@@ -137,7 +137,7 @@ func provisionResult(h provisionHost, disposition string) ProvisionResult {
 	return ProvisionResult{SchemaVersion: 1, Address: *h.identity.Address, Path: h.identity.WorktreeRoot, RestingBranch: *h.identity.RestingBranch, BaselineSHA: h.baseline, Disposition: disposition}
 }
 func slotHostPath(primary WorkspaceIdentity, n int) string {
-	return filepath.Join(primary.FleetRoot, "worktree", fmt.Sprintf("%s-slot%d", primary.Repo, n), primary.Repo)
+	return NewSlotLayout(primary.PrimaryRoot, primary.RepoIdentity, n).Host()
 }
 func (p *WorkspaceProvisioner) ensureHost(ctx context.Context, primary WorkspaceIdentity, req ProvisionRequest, lease *HostCreationLease) (provisionHost, error) {
 	current, err := p.identity(ctx, primary.PrimaryRoot)
@@ -149,11 +149,12 @@ func (p *WorkspaceProvisioner) ensureHost(ctx context.Context, primary Workspace
 	}
 	hostPath := slotHostPath(primary, req.Slot)
 	env := filepath.Dir(hostPath)
-	rest := fmt.Sprintf("main-slot%d", req.Slot)
+	layout := NewSlotLayout(primary.PrimaryRoot, primary.RepoIdentity, req.Slot)
+	rest := layout.RestingBranch()
 	if err := provisionSafePath(hostPath); err != nil {
 		return provisionHost{}, err
 	}
-	intentPath := filepath.Join(primary.RepoIdentity, "couch-workspaces", strconv.Itoa(req.Slot), "creation.json")
+	intentPath := layout.Intent()
 	var intent CreationIntent
 	owned, err := p.Store.Read(intentPath, &intent)
 	if err != nil {
@@ -371,7 +372,7 @@ func (p *WorkspaceProvisioner) verifyHost(ctx context.Context, primary Workspace
 }
 func (p *WorkspaceProvisioner) readSuccess(host provisionHost) (SetupSuccess, bool, error) {
 	var s SetupSuccess
-	exists, err := p.Store.Read(filepath.Join(host.admin, "couch-setup-success.json"), &s)
+	exists, err := p.Store.Read(SetupMarkerPath(host.admin), &s)
 	if err != nil || !exists {
 		return s, exists, err
 	}

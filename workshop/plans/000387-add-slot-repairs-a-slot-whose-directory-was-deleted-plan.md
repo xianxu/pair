@@ -418,20 +418,20 @@ the intent path, the marker path built from `admin` in `readSuccess` and `Ensure
 `threadstore_layout.go:19` (`.couch`), and the
 `slotForContainedPath`, `conventionalSlotFromPath` and `conventionalSlotOfMember` parsers.
 
-- [ ] **Step 1: Failing tests.**
+- [x] **Step 1: Failing tests.**
   - `TestSlotLayoutPaths`: for primary `/f/pair`, N=3, every method returns the documented path
     (env, host, store, saved-work root, setup lock, intent, resting branch
     `main-slot3`, marker name).
   - `TestParseSlotPathRoundTrip`: for every layout path of N ∈ {1, 12} and for paths inside the
     host, `ParseSlotPath` returns (primary, N). Paths outside → false. N=0 → false.
     `primary-slotX` → false.
-- [ ] **Step 2:** run `go test ./cmd/internal/couchcore -run 'SlotLayout|ParseSlotPath'`. Expect
+- [x] **Step 2:** run `go test ./cmd/internal/couchcore -run 'SlotLayout|ParseSlotPath'`. Expect
   FAIL (undefined).
-- [ ] **Step 3:** implement. Replace `slotDirectoryNumber`, `slotForContainedPath`,
+- [x] **Step 3:** implement. Replace `slotDirectoryNumber`, `slotForContainedPath`,
   `conventionalSlotFromPath` and `conventionalSlotOfMember`'s parsing with `ParseSlotPath`.
-- [ ] **Step 4:** `go test ./cmd/internal/couchcore` passes. Mutation: make `ParseSlotPath`
+- [x] **Step 4:** `go test ./cmd/internal/couchcore` passes. Mutation: make `ParseSlotPath`
   accept N=0, and the round-trip test must fail.
-- [ ] **Step 5:** commit `#387 M1: couchcore: SlotLayout is the one slot path authority`.
+- [x] **Step 5:** commit `#387 M1: couchcore: SlotLayout is the one slot path authority`.
 
 ### Task 1.2: The resource table and its coverage audit
 

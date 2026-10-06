@@ -220,7 +220,7 @@ func (m Manager) inspectSources(q Request, owned *couchcore.SupervisorLease, ins
 						return fmt.Errorf("unreadable thread records in %s", p)
 					}
 					for _, slot := range snapshot.Slots {
-						root := filepath.Join(slot.Identity.EnvironmentRoot, ".couch")
+						root := couchcore.LayoutOf(slot.Identity).Store()
 						if slot.Err != nil {
 							return fmt.Errorf("unresolved slot %s: %w", root, slot.Err)
 						}

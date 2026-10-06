@@ -93,8 +93,9 @@ func (id WorkspaceIdentity) validate() error {
 		if !workspaceRepoName(host.Repo) || host.Slot <= 0 || !workspaceAbsolute(host.RepoIdentity) || host.PrimaryRoot != filepath.Join(id.FleetRoot, host.Repo) {
 			return fmt.Errorf("invalid environment host")
 		}
-		env := filepath.Join(id.FleetRoot, "worktree", host.Repo+"-slot"+strconv.Itoa(host.Slot))
-		if id.EnvironmentRoot != env || host.WorktreeRoot != filepath.Join(env, host.Repo) {
+		layout := NewSlotLayout(host.PrimaryRoot, "", host.Slot)
+		env := layout.Env()
+		if id.EnvironmentRoot != env || host.WorktreeRoot != layout.Host() {
 			return fmt.Errorf("inconsistent numbered environment")
 		}
 		if id.RepoIdentity == host.RepoIdentity {
@@ -128,12 +129,8 @@ func (id WorkspaceIdentity) validate() error {
 				if b == "main" {
 					return fmt.Errorf("slot on primary resting branch")
 				}
-				if strings.HasPrefix(b, "main-slot") {
-					suffix := strings.TrimPrefix(b, "main-slot")
-					m, e := strconv.Atoi(suffix)
-					if e == nil && m > 0 && strconv.Itoa(m) == suffix && b != rest {
-						return fmt.Errorf("slot on another resting branch")
-					}
+				if _, resting := ParseRestingBranch(b); resting && b != rest {
+					return fmt.Errorf("slot on another resting branch")
 				}
 			}
 		}

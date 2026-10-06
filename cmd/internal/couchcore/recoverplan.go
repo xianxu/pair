@@ -876,15 +876,16 @@ func DeriveRecoverPlan(in RecoverPlanInput) RecoverPlan {
 // conventionalSlotOfMember recognizes a slot host path or a dependency
 // checkout beside one (worktree/<repo>-slotN/<dep>).
 func conventionalSlotOfMember(path string) (SlotIdentity, bool) {
-	if slot, ok := conventionalSlotFromPath(path); ok {
-		return slot, true
-	}
-	env := filepath.Dir(path)
-	repo, _, ok := strings.Cut(filepath.Base(env), "-slot")
-	if !ok || repo == "" {
+	primary, n, ok := ParseSlotPath(path)
+	if !ok {
 		return SlotIdentity{}, false
 	}
-	return conventionalSlotFromPath(filepath.Join(env, repo))
+	slot := conventionalSlot(primary, n)
+	// The host itself, or a checkout directly beside it in the environment.
+	if path != slot.WorktreeRoot && filepath.Dir(path) != slot.EnvironmentRoot {
+		return SlotIdentity{}, false
+	}
+	return slot, slot.Validate() == nil
 }
 
 func splitRecoverAddress(address string) (string, int) {

@@ -556,16 +556,7 @@ func (c *Couch) verifyOtherSlotOwnersAbsent(ctx context.Context, slot SlotIdenti
 // conventionalSlotFromPath recognizes only an absolute conventional host path.
 // It supplies a discovery location, never proof that the host belongs to Git.
 func conventionalSlotFromPath(path string) (SlotIdentity, bool) {
-	if !workspaceAbsolute(path) {
-		return SlotIdentity{}, false
-	}
-	environment := filepath.Dir(path)
-	container := filepath.Dir(environment)
-	if filepath.Base(container) != "worktree" {
-		return SlotIdentity{}, false
-	}
-	primary := filepath.Join(filepath.Dir(container), filepath.Base(path))
-	number, ok := slotDirectoryNumber(primary, filepath.Base(environment))
+	primary, number, ok := ParseSlotPath(path)
 	if !ok {
 		return SlotIdentity{}, false
 	}

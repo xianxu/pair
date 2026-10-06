@@ -70,7 +70,7 @@ func (s *ThreadStore) discoveredBackendsFromManifest(manifest threadManifest) ([
 // slotForContainedPath recognizes a conventional checkout without requiring it
 // to exist yet. Component boundaries keep sibling repository names distinct.
 func slotForContainedPath(root, path, commonGit string) (SlotIdentity, bool) {
-	worktrees := filepath.Join(filepath.Dir(root), "worktree")
+	worktrees := WorktreesRoot(filepath.Dir(root))
 	rel, err := filepath.Rel(worktrees, path)
 	if err != nil || filepath.IsAbs(rel) {
 		return SlotIdentity{}, false
@@ -79,7 +79,7 @@ func slotForContainedPath(root, path, commonGit string) (SlotIdentity, bool) {
 	if len(parts) < 2 || parts[1] != filepath.Base(root) {
 		return SlotIdentity{}, false
 	}
-	n, ok := slotDirectoryNumber(root, parts[0])
+	n, ok := ParseEnvName(filepath.Base(root), parts[0])
 	if !ok {
 		return SlotIdentity{}, false
 	}
