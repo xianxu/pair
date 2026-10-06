@@ -965,9 +965,9 @@ a symlink (`provisionSafePath`).
 
 ### Task 3.6: Docs, issue revision, close
 
-- [ ] Confirm the issue's Done-when still matches what shipped (the R2 revision landed with plan
+- [x] Confirm the issue's Done-when still matches what shipped (the R2 revision landed with plan
   approval); append a Revision for any delta.
-- [ ] README, `atlas/couch.md` (saved-work entry, restore commands, retention), and the skill
+- [x] README, `atlas/couch.md` (saved-work entry, restore commands, retention), and the skill
   (restoring saved work). Run `sdlc issue sync --issue 387`.
 - [ ] Full verification (Chunk 4); operator live smoke on a scratch slot (break a dependency, make
   it dirty, `couch --reconcile`, restore from the entry).
