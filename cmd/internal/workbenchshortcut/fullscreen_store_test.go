@@ -125,7 +125,7 @@ func TestFullscreenStoreDiagnosticsManagedAndRetained(t *testing.T) {
 	if err != nil || !strings.Contains(string(data), "focus return=12 target=42: failed") {
 		t.Fatalf("diagnostic = %q, %v", data, err)
 	}
-	opts := diagnosticlog.Options{Now: func() time.Time { return time.Now().Add(8 * 24 * time.Hour) }, Proof: func(context.Context, string, []diagnosticlog.Registration) error { return nil }}
+	opts := diagnosticlog.Options{Now: func() time.Time { return time.Now().Add(diagnosticlog.RetentionPeriod + 24*time.Hour) }, Proof: func(context.Context, string, []diagnosticlog.Registration) error { return nil }}
 	rows, err := diagnosticlog.Preview(p.FullscreenDiagnostics(), opts, 100)
 	if err != nil || len(rows) != 1 || !rows[0].Eligible {
 		t.Fatalf("retention = %+v, %v", rows, err)
