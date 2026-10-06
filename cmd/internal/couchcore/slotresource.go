@@ -101,15 +101,22 @@ type SlotResourceSpec struct {
 	// Layout names the SlotLayout methods that locate this resource; every
 	// SlotLayout method belongs to exactly one resource.
 	Layout []string
+	// DesiredAbsent: converged means absent (a legacy file reconcile retires);
+	// every other resource converges to present.
+	DesiredAbsent bool
 	// Removable: reconcile may make this resource absent. Only derived
 	// resources are, and a checkout holding user data only by SetAside.
 	Removable bool
 	// SetAside: removal moves the directory whole into saved work, because it
 	// may hold the operator's files.
 	SetAside bool
-	// SubStates refine an observed state where the plan needs more than the
-	// four states (enumerated here so derived domains cannot skip one).
+	// SubStates refine a present or absent observation where the plan needs
+	// more than the four states (enumerated here so derived domains cannot
+	// skip one).
 	SubStates []string
+	// BrokenSubs are the readings a broken observation of this resource can
+	// carry ("" is a broken reading without one).
+	BrokenSubs []string
 	// Summary is the operator-facing description (couch --show).
 	Summary string
 }
@@ -117,18 +124,26 @@ type SlotResourceSpec struct {
 // SlotResources is the slot resource table, in topological order.
 func SlotResources() []SlotResourceSpec {
 	return []SlotResourceSpec{
-		{ID: ResourceEnv, Kind: KindDerived, Layout: []string{"Env"}, Summary: "environment directory"},
-		{ID: ResourceStore, Kind: KindInternal, DependsOn: []SlotResourceID{ResourceEnv}, Layout: []string{"Store", "SavedWork"}, Summary: "Couch slot store (preserved)"},
-		{ID: ResourceIntent, Kind: KindDerived, Layout: []string{"Intent"}, Removable: true, Summary: "legacy creation intent"},
-		{ID: ResourceBranch, Kind: KindUserData, Layout: []string{"RestingBranch", "RestingRef"}, Summary: "resting branch (adopted, never deleted)"},
-		{ID: ResourceUpstream, Kind: KindDerived, DependsOn: []SlotResourceID{ResourceBranch}, Summary: "resting branch upstream configuration"},
-		{ID: ResourceRegistration, Kind: KindDerived, DependsOn: []SlotResourceID{ResourceBranch, ResourceEnv}, Layout: []string{"Registrations"}, Removable: true, Summary: "git worktree registration"},
-		{ID: ResourceHost, Kind: KindDerived, DependsOn: []SlotResourceID{ResourceRegistration, ResourceEnv, ResourceUpstream}, Layout: []string{"Host"}, Removable: true, SetAside: true, Summary: "host checkout"},
+		{ID: ResourceEnv, Kind: KindDerived, Layout: []string{"Env"}, BrokenSubs: []string{SubForeign}, Summary: "environment directory"},
+		{ID: ResourceStore, Kind: KindInternal, DependsOn: []SlotResourceID{ResourceEnv}, Layout: []string{"Store", "SavedWork"}, BrokenSubs: []string{SubForeign}, Summary: "Couch slot store (preserved)"},
+		{ID: ResourceIntent, Kind: KindDerived, Layout: []string{"Intent"}, DesiredAbsent: true, Removable: true, Summary: "legacy creation intent"},
+		{ID: ResourceBranch, Kind: KindUserData, Layout: []string{"RestingBranch", "RestingRef"}, BrokenSubs: []string{SubElsewhere}, Summary: "resting branch (adopted, never deleted)"},
+		{ID: ResourceUpstream, Kind: KindDerived, DependsOn: []SlotResourceID{ResourceBranch}, BrokenSubs: []string{SubConflict}, Summary: "resting branch upstream configuration"},
+		{ID: ResourceRegistration, Kind: KindDerived, DependsOn: []SlotResourceID{ResourceBranch, ResourceEnv}, Layout: []string{"Registrations"}, Removable: true, BrokenSubs: []string{SubStale, SubLocked}, Summary: "git worktree registration"},
+		{ID: ResourceHost, Kind: KindDerived, DependsOn: []SlotResourceID{ResourceRegistration, ResourceEnv, ResourceUpstream}, Layout: []string{"Host"}, Removable: true, SetAside: true, BrokenSubs: []string{SubForeign, SubMismatched, SubUnreadable}, Summary: "host checkout"},
 		{ID: ResourceDeps, Kind: KindExternal, DependsOn: []SlotResourceID{ResourceHost}, Summary: "dependency declaration (construct/deps)"},
-		{ID: ResourceDep, Kind: KindDerived, DependsOn: []SlotResourceID{ResourceDeps, ResourceEnv}, Removable: true, SetAside: true, Summary: "dependency clone"},
-		{ID: ResourceSetup, Kind: KindDerived, DependsOn: []SlotResourceID{ResourceHost, ResourceDep}, Layout: []string{"SetupLock"}, SubStates: []string{"present-with-warning", "failed-known", "lock-held"}, Summary: "weave setup and Couch's marker"},
+		{ID: ResourceDep, Kind: KindDerived, DependsOn: []SlotResourceID{ResourceDeps, ResourceEnv}, Removable: true, SetAside: true, BrokenSubs: []string{SubForeign, SubUnreadable, SubNotLayer}, Summary: "dependency clone"},
+		{ID: ResourceSetup, Kind: KindDerived, DependsOn: []SlotResourceID{ResourceHost, ResourceDep}, Layout: []string{"SetupLock"}, SubStates: []string{SubWithWarning, SubFailedKnown, SubLockHeld, SubMarkerValid}, BrokenSubs: []string{""}, Summary: "weave setup and Couch's marker"},
 		{ID: ResourceAgent, Kind: KindRuntime, DependsOn: []SlotResourceID{ResourceHost}, Summary: "agent session and thread record"},
 	}
+}
+
+// Desired is the state this resource converges to.
+func (s SlotResourceSpec) Desired() ObservedState {
+	if s.DesiredAbsent {
+		return StateAbsent
+	}
+	return StatePresent
 }
 
 // SlotResource returns the spec for id (a dep:<rel> instance resolves to the

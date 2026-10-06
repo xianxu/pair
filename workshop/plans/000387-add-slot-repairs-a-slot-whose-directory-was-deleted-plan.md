@@ -558,7 +558,7 @@ see ARCH-MOCK).
 
 **Files:** create `slotplan.go`, `slotplan_test.go`.
 
-- [ ] **Step 1: Failing tests.**
+- [x] **Step 1: Failing tests.**
   - `TestPlanSlotDomain`: the domain is derived. Every resource from `SlotResources()` takes
     every state from `AllObservedStates()` plus that resource's declared sub-states (for
     `setup`: `present-with-warning`, `failed-known`, `lock-held`; enumerated by
@@ -577,10 +577,10 @@ see ARCH-MOCK).
     pass's ready set. A valid marker with a missing dependency → `[Compile]` with
     `KeepOnFailure`.
   - `:0` → refusal.
-- [ ] **Step 2–4:** red → green. Mutations: drop I3's save step, or let I4 pass under a live
+- [x] **Step 2–4:** red → green. Mutations: drop I3's save step, or let I4 pass under a live
   agent. Each must fail the domain test (verify the mutation applied before trusting the
   result).
-- [ ] **Step 5:** commit `#387 M1: couchcore: PlanSlot over the derived domain`.
+- [x] **Step 5:** commit `#387 M1: couchcore: PlanSlot over the derived domain`.
 
 ### Task 1.6: `couch --show` prints the slot's resources and plan
 
@@ -1135,3 +1135,23 @@ resource.
   lock outranks every marker reading.
 - Observation needs no weave, so the stateful weave fake moves to M2 (Task 2.1/2.6), where
   compile runs. The attempt memo (R5) is observed when M2 starts writing it.
+
+### 2026-10-05 (l) — Task 1.5 implementation reconciliation
+
+- `RemoveRegistration` is replaced by `WorktreeAdd{Force: true, Branch: <the stale registration's
+  branch>}`. `git worktree add --force` overrides "missing but already registered" in one step, so
+  the branch the registration records is used before it can be lost. With a separate remove, the
+  next pass would no longer see it, and a deleted slot on an issue branch would silently come back
+  on `main-slotN`. A broken host's set-aside leaves its registration stale with the branch, so the
+  same re-add serves it, and the host manifest no longer needs to carry the branch for the re-add
+  (it still records it for the operator). Task 2.1's `RemoveRegistration` row becomes the forced
+  re-add, plus a conformance row: git re-adds over the stale registration only, and a second stale
+  registration survives.
+- An invalid marker needs no separate remove: `Compile`'s marker write replaces it.
+- `RepairHost` runs at most once per run (`PlanInput.Attempted`). A host still unreadable after it
+  is set aside; a mismatched one is a hand-off.
+- The table gained `DesiredAbsent` (the intent) and `BrokenSubs` (the broken readings each
+  resource can produce), so the domain test is generated from it: 7 agent states × singles and
+  pairs. Mutations caught: dropping the agent gate (210 I4 violations), setting aside a
+  git-readable non-layer (I3), ignoring unknown blocking (I2). One mutation first "passed" only
+  because it did not compile; it was re-run in a compiling form.
