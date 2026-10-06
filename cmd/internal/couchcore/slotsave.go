@@ -150,6 +150,26 @@ func (cv *slotConverger) setAside(ctx context.Context, s PlannedStep) error {
 	return cv.p.Store.Write(manifestPath, manifest)
 }
 
+// SavedWorkSince lists the slot's saved-work manifests written at or after
+// since (what one reconcile run set aside), newest last. An unreadable
+// manifest is skipped: the entry is still on disk under its own name.
+func SavedWorkSince(l SlotLayout, since time.Time) []SavedWorkManifest {
+	entries, err := os.ReadDir(l.SavedWork())
+	if err != nil {
+		return nil
+	}
+	var out []SavedWorkManifest
+	for _, e := range entries {
+		var m SavedWorkManifest
+		exists, err := (ProvisionStore{}).Read(filepath.Join(l.SavedWork(), e.Name(), "manifest.json"), &m)
+		if err != nil || !exists || m.SavedAt.Before(since) {
+			continue
+		}
+		out = append(out, m)
+	}
+	return out
+}
+
 // holdSetupLock takes weave's setup lock if its file exists (an absent file
 // means no setup has ever run, so none can be running); held by weave is
 // errSetupRunning.

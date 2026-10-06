@@ -887,7 +887,7 @@ a symlink (`provisionSafePath`).
 
 **Files:** `slotconverge.go`, `slotreconcile.go` (the step was planned in M1; now executed).
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - a broken dirty dependency → set aside, then re-cloned by compile. The result lists the entry
     and its restore command;
   - the same under a live agent → `Stop{agent-live}`, which callers treat as degraded (Task
@@ -900,8 +900,8 @@ a symlink (`provisionSafePath`).
   - a broken host under a live agent → `Stop{agent-live}` (degraded): open attaches, and nothing
     moves;
   - a second run → no-op.
-- [ ] **Step 2–4:** red → green.
-- [ ] **Step 5:** commit `#387 M3: reconcile repairs a broken dependency without losing work`.
+- [x] **Step 2–4:** red → green.
+- [x] **Step 5:** commit `#387 M3: reconcile repairs a broken dependency without losing work`.
 
 ### Task 3.3: Saved-work collection
 
@@ -1387,3 +1387,14 @@ resource.
   detached in the slot. Reboot gets past the hold through the unverified candidate, stops the
   agent, sets the host aside with the operator's file intact, re-adds it and starts fresh.
 - Still open, Minor: BR-1 (prose test-case lists in Tasks 1.4/2.5/3.1), carried to close as before.
+
+### 2026-10-05 (v) — Task 3.2 reconciliation
+
+Task 3.2's behavior landed in M2 with `SetAside`. Its rows are covered:
+- `TestReconcileAgreesWithRealGit`: a broken dependency is set aside and re-cloned;
+- `TestRebootRepairsABrokenHostUnderALiveAgent`: a broken host is set aside and re-added;
+- `TestPlanSlotNamedCases`: the live-agent hold;
+- the converge tests: the branch fallback.
+
+What M3 adds is the result: `ProvisionResult.SetAside` lists the checkouts a run moved, each with
+its restore command, and the warning repeats it (`TestReconcileResultListsWhatItSetAside`).

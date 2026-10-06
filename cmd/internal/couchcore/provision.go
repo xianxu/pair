@@ -82,6 +82,7 @@ func (p *WorkspaceProvisioner) Ensure(ctx context.Context, req ProvisionRequest)
 	}
 	_, hostErr := os.Lstat(layout.Host())
 	existed := hostErr == nil
+	started := time.Now().UTC()
 	result, runErr := p.Reconcile(ctx, ReconcileRequest{Layout: layout, Agent: req.Agent, Remote: req.Remote, Progress: req.Progress,
 		RegisterStore: req.RegisterStore, AgentNow: req.AgentNow, IgnoreMemo: req.IgnoreMemo})
 	address := WorkspaceReference{Repo: primary.Repo, Number: req.Slot}.String()
@@ -106,6 +107,12 @@ func (p *WorkspaceProvisioner) Ensure(ctx context.Context, req ProvisionRequest)
 		disposition = "prepared"
 	}
 	out := provisionResult(host, disposition)
+	if executedStep(result, StepSetAside) {
+		out.SetAside = SavedWorkSince(layout, started)
+		for _, m := range out.SetAside {
+			warnings = append(warnings, fmt.Sprintf("slot %s: set aside %s (it could not be read); restore with: %s", address, m.Path, m.Restore))
+		}
+	}
 	out.Warning = strings.Join(warnings, "\n")
 	out.Report = &SlotReport{Address: address, Observation: result.Observation, Plan: result.Plan}
 	return out, nil

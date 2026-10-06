@@ -34,6 +34,9 @@ type ProvisionResult struct {
 	Warning string `json:"warning,omitempty"`
 	// Report is the reconcile's final observation and plan.
 	Report *SlotReport `json:"-"`
+	// SetAside lists the checkouts this run moved into saved work, each with
+	// its restore command.
+	SetAside []SavedWorkManifest `json:"set_aside,omitempty"`
 }
 
 func ParseProvisionRequest(path, slot, remote string) (ProvisionRequest, error) {

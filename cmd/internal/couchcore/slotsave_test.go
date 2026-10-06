@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -214,5 +215,26 @@ func TestSetAsideHoldsMatchThePlan(t *testing.T) {
 	err := s.converger(t).converge(context.Background(), PlannedStep{Step: StepSetAside, Resource: DepResource(fakeDep), Path: dep})
 	if f := ClassifyConvergeError(PlannedStep{Step: StepSetAside, Resource: DepResource(fakeDep)}, err); !errors.Is(err, errCheckoutRecovered) || f.Class != FailureRetryable {
 		t.Fatalf("recovered checkout: %v classified %+v, want retryable", err, f)
+	}
+}
+
+// TestReconcileResultListsWhatItSetAside: a broken dependency is set aside and
+// re-cloned, and the result names the entry and how to restore it.
+func TestReconcileResultListsWhatItSetAside(t *testing.T) {
+	s := newObservedSlot(t)
+	dep := brokenDep(t, s)
+	s.f.DepSources = map[string]bool{fakeDep: true}
+	r, err := NewWorkspaceProvisioner(s.f).Ensure(context.Background(), ProvisionRequest{Path: s.f.Primary, Slot: 1, Agent: AgentNone})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.SetAside) != 1 || r.SetAside[0].Path != dep || r.SetAside[0].State != "complete" {
+		t.Fatalf("set aside %+v", r.SetAside)
+	}
+	if !strings.Contains(r.Warning, "restore with: mv") {
+		t.Fatalf("warning %q does not name the restore", r.Warning)
+	}
+	if _, err := os.Stat(filepath.Join(dep, "construct", "base.manifest")); err != nil {
+		t.Fatal("the dependency was not re-cloned")
 	}
 }
