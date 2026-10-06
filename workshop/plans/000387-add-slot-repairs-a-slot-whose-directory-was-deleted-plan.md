@@ -945,22 +945,22 @@ a symlink (`provisionSafePath`).
 
 **Files:** `slotreconcile_acceptance_test.go`.
 
-- [ ] A dirty slot whose broken dependency must be recreated. The host has a dirty file (it must
+- [x] A dirty slot whose broken dependency must be recreated. The host has a dirty file (it must
   be untouched: a readable host is never set aside). The dependency has a local-only commit, a dirty file
   and an untracked file, and is made broken by removing `.git/HEAD` (git then answers "not a
   git repository": positive evidence). Reconcile saves the dependency first (entry verified as
   in Task 3.1, including the local-only commit after restore), recreates it via compile, and
   leaves the host's dirty file byte-identical. A second run is a no-op with no new entry.
-- [ ] A host made unreadable (its `.git` file points nowhere and `git worktree repair` cannot fix
+- [x] A host made unreadable (its `.git` file points nowhere and `git worktree repair` cannot fix
   it), checked out on an issue branch with a dirty file → set aside whole, re-added on the same
   issue branch; the set-aside tree holds the dirty file. Under a live agent → `agent-live`,
   nothing moved.
-- [ ] The same dependency with a held `index.lock` instead → `unknown`, nothing saved or moved,
+- [x] The same dependency with a held `index.lock` instead → `unknown`, nothing saved or moved,
   and the output names `dep:<rel>` as unobservable.
-- [ ] A foreign, pre-populated env (R1): a non-git `ariadne/` with files at the env path before
+- [x] A foreign, pre-populated env (R1): a non-git `ariadne/` with files at the env path before
   slot creation → adopted. The dependency is saved, then replaced by the clone, and the entry
   restores the foreign files.
-- [ ] An agent session appearing between observe and `SetAside` (injected through the session
+- [x] An agent session appearing between observe and `SetAside` (injected through the session
   probe seam) → the rename aborts with `agent-live`; nothing is moved, and the saved entry stays.
 
 ### Task 3.6: Docs, issue revision, close
@@ -1443,3 +1443,18 @@ its restore command, and the warning repeats it (`TestReconcileResultListsWhatIt
   (one in 23, about 85k points) is compared metamorphically against the converged reading. The
   mutation (reconcilable overriding any decision) is caught. The full totality test also admits
   `reconcile` as a step.
+
+### 2026-10-05 (y) — Task 3.5 reconciliation
+
+- `TestAcceptanceDirtySlot` (real git): a dependency with a local-only commit and an untracked
+  file, made unreadable, is moved whole into saved work. Restoring its `HEAD` shows the commit, and
+  the restore command names the entry. It is re-cloned; the host's own dirty file is
+  byte-identical; a second run is `reused` with no new entry.
+- `TestAcceptanceForeignEnvironment` (R1): a non-git `ariadne/` already in the environment is
+  adopted, set aside with its file intact, and replaced by the clone.
+- An agent appearing between observe and the move is `TestSetAsideRefusals/an_agent_appears` plus
+  `TestSetAsideHoldsMatchThePlan`, at the step itself. A held `index.lock` does not make
+  `rev-parse --show-toplevel` fail on real git, so the "unknown" row is covered through the IO
+  seam (`TestObserveFailedProbesAreUnknownNeverAbsent`) rather than a literal lock.
+- The host is set aside only when git cannot read it after repair: real git
+  `TestRebootRepairsABrokenHostUnderALiveAgent`.

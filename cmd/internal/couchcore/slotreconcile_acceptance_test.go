@@ -147,3 +147,95 @@ func TestAcceptanceObserveBudget(t *testing.T) {
 		t.Fatalf("healthy-slot observe took %v (budget 500 ms)", elapsed)
 	}
 }
+
+// declareAriadne commits construct/deps naming ../ariadne to the remote main,
+// so a new slot's host declares it.
+func declareAriadne(t *testing.T, f *ProvisionFixture) {
+	t.Helper()
+	write(t, filepath.Join(f.Primary, "construct", "deps"), "substrate ../ariadne\n")
+	f.git(f.Primary, "add", "construct/deps")
+	f.git(f.Primary, "commit", "-q", "-m", "declare ariadne")
+	f.git(f.Primary, "push", "-q", "upstream", "main")
+}
+
+// A dirty slot whose broken dependency must be recreated (Done-when bullet
+// 3): the dependency's local commit, dirty and untracked files are moved whole
+// into saved work before it is re-cloned; the host's own dirty file is never
+// touched; a second run is a no-op and writes no new entry.
+func TestAcceptanceDirtySlot(t *testing.T) {
+	f := newProvisionFixture(t)
+	declareAriadne(t, f)
+	f.DepSources = map[string]bool{"ariadne": true}
+	p := NewWorkspaceProvisioner(f)
+	if _, err := p.Ensure(context.Background(), ProvisionRequest{Path: f.Primary, Slot: 1, Agent: AgentNone}); err != nil {
+		t.Fatal(err)
+	}
+	hostFile := filepath.Join(f.host(1), "work-in-progress.txt")
+	write(t, hostFile, "host draft")
+	dep := filepath.Join(filepath.Dir(f.host(1)), "ariadne")
+	f.git(dep, "commit", "-q", "--allow-empty", "-m", "local only")
+	write(t, filepath.Join(dep, "untracked.txt"), "dep draft")
+	os.Remove(filepath.Join(dep, ".git", "HEAD")) // git: not a git repository
+	r, err := p.Ensure(context.Background(), ProvisionRequest{Path: f.Primary, Slot: 1, Agent: AgentNone})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.SetAside) != 1 {
+		t.Fatalf("set aside %+v", r.SetAside)
+	}
+	saved, _ := os.ReadDir(NewSlotLayout(f.Primary, "", 1).SavedWork())
+	if len(saved) != 1 {
+		t.Fatalf("saved work %v", saved)
+	}
+	tree := filepath.Join(NewSlotLayout(f.Primary, "", 1).SavedWork(), saved[0].Name(), "tree")
+	if !strings.Contains(r.SetAside[0].Restore, tree) {
+		t.Fatalf("restore command %q does not name %s", r.SetAside[0].Restore, tree)
+	}
+	if raw, err := os.ReadFile(filepath.Join(tree, "untracked.txt")); err != nil || string(raw) != "dep draft" {
+		t.Fatalf("the dependency's work was not kept in %s: %q %v", tree, raw, err)
+	}
+	write(t, filepath.Join(tree, ".git", "HEAD"), "ref: refs/heads/main\n")
+	if got := f.git(tree, "log", "-1", "--format=%s"); got != "local only" {
+		t.Fatalf("set-aside clone lost its local commit: %q", got)
+	}
+	if raw, _ := os.ReadFile(hostFile); string(raw) != "host draft" {
+		t.Fatalf("the host's dirty file changed: %q", raw)
+	}
+	if _, err := os.Stat(filepath.Join(dep, "construct", "base.manifest")); err != nil {
+		t.Fatal("the dependency was not re-cloned")
+	}
+	entries, _ := os.ReadDir(NewSlotLayout(f.Primary, "", 1).SavedWork())
+	again, err := p.Ensure(context.Background(), ProvisionRequest{Path: f.Primary, Slot: 1, Agent: AgentNone})
+	after, _ := os.ReadDir(NewSlotLayout(f.Primary, "", 1).SavedWork())
+	if err != nil || len(again.SetAside) != 0 || len(after) != len(entries) || again.Disposition != "reused" {
+		t.Fatalf("second run: %+v %v, entries %d → %d", again, err, len(entries), len(after))
+	}
+}
+
+// R1: a slot environment pre-populated by something that is not Couch (here a
+// non-git ariadne/ directory with a file in it) is adopted: the foreign files
+// are moved whole into saved work, never deleted, and the slot converges.
+func TestAcceptanceForeignEnvironment(t *testing.T) {
+	f := newProvisionFixture(t)
+	declareAriadne(t, f)
+	f.DepSources = map[string]bool{"ariadne": true}
+	foreign := filepath.Join(filepath.Dir(f.host(1)), "ariadne")
+	write(t, filepath.Join(foreign, "notes.txt"), "someone else's")
+	r, err := NewWorkspaceProvisioner(f).Ensure(context.Background(), ProvisionRequest{Path: f.Primary, Slot: 1, Agent: AgentNone})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Disposition != "created" || len(r.SetAside) != 1 || r.SetAside[0].Path != foreign {
+		t.Fatalf("result %+v", r)
+	}
+	if _, err := os.Stat(filepath.Join(foreign, "construct", "base.manifest")); err != nil {
+		t.Fatal("ariadne was not cloned in place of the foreign directory")
+	}
+	entries, _ := os.ReadDir(NewSlotLayout(f.Primary, "", 1).SavedWork())
+	if len(entries) != 1 {
+		t.Fatalf("saved work %v", entries)
+	}
+	if raw, err := os.ReadFile(filepath.Join(NewSlotLayout(f.Primary, "", 1).SavedWork(), entries[0].Name(), "tree", "notes.txt")); err != nil || string(raw) != "someone else's" {
+		t.Fatalf("the foreign file was not kept: %q %v", raw, err)
+	}
+}
