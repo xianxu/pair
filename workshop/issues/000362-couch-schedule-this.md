@@ -50,6 +50,26 @@ Implementation plan to be designed after issue claim and start-plan; these are r
 
 Captured from the performance → messaging guarantees → SDLC ownership/observability → recovery discussion. No implementation started.
 
+### 2026-10-06 — design decisions
+
+- **Reading another slot is in scope.** A coordinator may inspect another slot's
+  recent terminal output or transcript, read-only, instead of asking the other actor
+  "did my message arrive?". The operator's reasoning: Couch centralizes the context,
+  and every actor can already read its own transcript, so a read-only look at a peer
+  is acceptable. This deliberately departs from strict encapsulation, to keep the
+  protocol simple and to get the benefit of the central view.
+- **No combined couch+sdlc view for now.** If it is ever needed, it lives in couch,
+  which calls `sdlc issue show`: couch → sdlc is the allowed direction, and sdlc
+  never depends on couch.
+- **Existing building blocks.**
+  - Sending: `couch --send-to`, `--message-status`.
+  - Liveness: `couch --actors --json`.
+  - Work state, including milestone checkpoints and verdicts:
+    `sdlc issue show N --json` (ariadne#279).
+  - Retry semantics: `sdlc help recovery` (ariadne#280).
+  - Pair's agent-agnostic recorded scrollback (`scrollback-<tag>-<agent>.raw` plus
+    `.events.jsonl`) is the likely base for the read command; being traced.
+
 ## Revisions
 
 ### 2026-10-06 — narrowed to mechanisms; orchestration is a follow-up
