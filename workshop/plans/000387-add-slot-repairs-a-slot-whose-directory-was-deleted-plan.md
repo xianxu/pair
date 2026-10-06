@@ -908,14 +908,14 @@ a symlink (`provisionSafePath`).
 **Files:** `archive_gc.go`, the gcruntime pass that drives archive detach
 (`gcruntime/references.go`), tests.
 
-- [ ] **Step 1: Failing tests:** an entry with `saved_at` older than `storagegc.RetentionPeriod`
+- [x] **Step 1: Failing tests:** an entry with `saved_at` older than `storagegc.RetentionPeriod`
   is removed by the GC pass. A younger one stays. An entry without a manifest older than the
   period is removed as abandoned. The pass tolerates a slot with no `saved-work/`. Removal is
   under the store lock, through the same write path as archive detach.
   - A slot whose store was recreated lazily after an env reset, and whose only content is a
     saved-work entry, is visited by `CouchReferences.Snapshot` (because `SetAside` registered
     it) and the old entry is collected. On today's registration path this is red.
-- [ ] **Step 2–4:** red → green. **Step 5:** commit `#387 M3: saved-work entries expire with archive retention`.
+- [x] **Step 2–4:** red → green. **Step 5:** commit `#387 M3: saved-work entries expire with archive retention`.
 
 ### Task 3.4: The recovery report reads the reconciler's observations
 
@@ -1398,3 +1398,26 @@ Task 3.2's behavior landed in M2 with `SetAside`. Its rows are covered:
 
 What M3 adds is the result: `ProvisionResult.SetAside` lists the checkouts a run moved, each with
 its restore command, and the warning repeats it (`TestReconcileResultListsWhatItSetAside`).
+
+### 2026-10-05 (w) — Task 3.3: owner collection, and a removed M2 hazard
+
+- **Hazard found and removed.** M2 wired `RegisterStore` to register a slot's `<env>/.couch` with
+  the storage coordinator. `CouchReferences.Snapshot` reads every registered path as a Couch
+  *namespace* root, so registering a slot backend would have fed the collector a pseudo-namespace
+  without a manifest, risking the retention snapshot for every store. The plan-review premise was
+  also wrong: the registered namespace store already reaches each slot backend through its
+  manifest's enrolled repositories and the slot directories on disk. The hook is removed
+  (`ProvisionRequest.RegisterStore`, `ReconcileRequest.RegisterStore`,
+  `slotConverger.registerStore`, `Couch.registerSlotStore`).
+- **Deviation: saved work is collected by its owner, not the archive GC pass.** The reconciler
+  that writes saved work removes entries older than `storagegc.RetentionPeriod` at the start of
+  every run on the slot (`collectSavedWork`: by `saved_at`, else the directory's age; symlinks are
+  never followed). Adding a new reference kind to the transactional collector would have been a
+  large change for a family that has a natural owner.
+- **ARCH-FUNERAL.** The creator is `SetAside`. The last reader is the operator restoring work. The
+  remover is the next reconcile of that slot (open, resume, reboot, add slot, `--reconcile`) after
+  one year. The bound is 16 entries per slot until then, and the slot directory's own removal for
+  a slot never used again.
+- **Evidence.** `TestSavedWorkIsCollectedPastRetention` (old, young, manifest-less and symlink
+  entries, plus a reconcile run collecting). The compiling mutation (collect as of the zero time)
+  is caught.

@@ -210,15 +210,6 @@ func (c *Couch) slotAgentNow(ctx context.Context, slot SlotIdentity) EvidenceAge
 	return AgentLive
 }
 
-// registerSlotStore makes a slot store visible to storage collection before
-// reconcile writes saved work into it (pair#387, ARCH-FUNERAL).
-func (c *Couch) registerSlotStore(ctx context.Context, path string) error {
-	if c.Threads == nil || c.Threads.coordinator == nil {
-		return nil
-	}
-	return c.Threads.coordinator.RegisterStore(ctx, path)
-}
-
 func (c *Couch) selectedSlot(ctx context.Context, path string) (*ThreadStore, SlotIdentity, error) {
 	return c.selectSlot(ctx, path, false)
 }
@@ -282,7 +273,7 @@ func (c *Couch) selectSlot(ctx context.Context, path string, toleratesHolds bool
 	identified := candidate.Identity
 	agentNow := func(ctx context.Context) EvidenceAgent { return c.slotAgentNow(ctx, identified) }
 	result, err := c.Workspaces.Ensure(ctx, ProvisionRequest{Path: slot.PrimaryRoot, Slot: slot.Number, Progress: c.WorkspaceProgress,
-		Agent: agentNow(ctx), AgentNow: agentNow, RegisterStore: c.registerSlotStore})
+		Agent: agentNow(ctx), AgentNow: agentNow})
 	held := false
 	var blocked *SlotReconcileError
 	switch {

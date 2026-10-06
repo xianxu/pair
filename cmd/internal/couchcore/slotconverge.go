@@ -22,9 +22,6 @@ type slotConverger struct {
 	lease    *HostCreationLease
 	remote   string
 	progress io.Writer
-	// registerStore makes the slot store visible to collection before saved
-	// work is written (nil: the caller has no coordinator).
-	registerStore func(context.Context, string) error
 	// agentNow re-reads the slot's agent right before a set-aside.
 	agentNow func(context.Context) EvidenceAgent
 	// rename is the set-aside move (the crash-injection seam; nil: os.Rename).

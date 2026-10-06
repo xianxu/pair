@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 )
 
 // slotWorld is what the reconcile loop needs from the world: observe the
@@ -142,7 +143,7 @@ func (w *osSlotWorld) observe(ctx context.Context) SlotObservation {
 
 func (w *osSlotWorld) apply(ctx context.Context, step PlannedStep) error {
 	cv := &slotConverger{p: w.p, layout: w.layout, lease: w.lease, remote: w.remote, progress: w.progress,
-		registerStore: w.req.RegisterStore, agentNow: w.req.AgentNow, rename: w.req.rename}
+		agentNow: w.req.AgentNow, rename: w.req.rename}
 	if step.Step != StepCompile {
 		return cv.converge(ctx, step)
 	}
@@ -163,11 +164,8 @@ type ReconcileRequest struct {
 	Agent    EvidenceAgent
 	Remote   string
 	Progress io.Writer
-	// RegisterStore registers the slot store with storage collection before
-	// saved work is written; AgentNow re-reads the agent right before a
-	// set-aside. Couch supplies both.
-	RegisterStore func(context.Context, string) error
-	AgentNow      func(context.Context) EvidenceAgent
+	// AgentNow re-reads the agent right before a set-aside (Couch supplies it).
+	AgentNow func(context.Context) EvidenceAgent
 	// IgnoreMemo compiles even when the same inputs failed before (R5).
 	IgnoreMemo bool
 	rename     func(oldpath, newpath string) error
@@ -180,6 +178,17 @@ func (p *WorkspaceProvisioner) Reconcile(ctx context.Context, req ReconcileReque
 	}
 	w := &osSlotWorld{p: p, layout: req.Layout, agent: req.Agent, remote: req.Remote, progress: req.Progress, req: req}
 	defer w.unlock()
+	// Saved work past retention is collected by its owner, at the start of
+	// every run on the slot. Best effort: an entry that cannot be removed now
+	// is collected by a later run.
+	if removed, err := collectSavedWork(req.Layout, time.Now()); req.Progress != nil {
+		for _, entry := range removed {
+			fmt.Fprintf(req.Progress, "removed saved work past retention: %s\n", entry)
+		}
+		if err != nil {
+			fmt.Fprintf(req.Progress, "saved-work collection deferred: %v\n", err)
+		}
+	}
 	return reconcileLoop(ctx, w, func() bool {
 		n, err := savedWorkEntries(req.Layout)
 		return err == nil && n >= MaxSavedWork

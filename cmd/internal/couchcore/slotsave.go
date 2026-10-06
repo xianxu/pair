@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/storagegc"
+
 	"golang.org/x/sys/unix"
 )
 
@@ -83,8 +85,8 @@ func savedWorkEntries(l SlotLayout) (int, error) {
 // setAside moves a checkout broken on positive evidence, whole, into the
 // slot's saved work: the only way reconcile removes a checkout, and never a
 // deletion. Every check that can refuse runs before anything is written, so a
-// refusal leaves no residue (no entry counts toward the cap): register the
-// store, refuse at the limit, hold weave's setup lock, re-check the agent and
+// refusal leaves no residue (no entry counts toward the cap): refuse at the
+// limit, hold weave's setup lock, re-check the agent and
 // the evidence; then write the pending manifest, rename, mark it complete.
 // Every refusal is a typed error ClassifyConvergeError maps to the class the
 // plan would give it.
@@ -98,11 +100,6 @@ func (cv *slotConverger) setAside(ctx context.Context, s PlannedStep) error {
 		return err
 	} else if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
 		return fmt.Errorf("refusing to set aside %s: not a directory", path)
-	}
-	if cv.registerStore != nil {
-		if err := cv.registerStore(ctx, l.Store()); err != nil {
-			return fmt.Errorf("register the slot store for collection: %w", err)
-		}
 	}
 	n, err := savedWorkEntries(l)
 	if err != nil {
@@ -148,6 +145,42 @@ func (cv *slotConverger) setAside(ctx context.Context, s PlannedStep) error {
 	}
 	manifest.State = "complete"
 	return cv.p.Store.Write(manifestPath, manifest)
+}
+
+// collectSavedWork removes saved-work entries older than the storage retention
+// period (by the manifest's saved_at, else the entry directory's age). The
+// reconciler that writes saved work collects it at the start of every run on
+// the slot (ARCH-FUNERAL); at most MaxSavedWork entries wait for that.
+func collectSavedWork(l SlotLayout, now time.Time) ([]string, error) {
+	root := l.SavedWork()
+	entries, err := os.ReadDir(root)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var removed []string
+	for _, e := range entries {
+		entry := filepath.Join(root, e.Name())
+		info, err := os.Lstat(entry)
+		if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			continue // not an entry this code wrote; never followed or removed
+		}
+		saved := info.ModTime()
+		var m SavedWorkManifest
+		if exists, err := (ProvisionStore{}).Read(filepath.Join(entry, "manifest.json"), &m); err == nil && exists && !m.SavedAt.IsZero() {
+			saved = m.SavedAt
+		}
+		if now.Sub(saved) < storagegc.RetentionPeriod {
+			continue
+		}
+		if err := os.RemoveAll(entry); err != nil {
+			return removed, err
+		}
+		removed = append(removed, entry)
+	}
+	return removed, nil
 }
 
 // SavedWorkSince lists the slot's saved-work manifests written at or after

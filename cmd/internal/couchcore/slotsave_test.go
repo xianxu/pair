@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/storagegc"
 )
 
 // brokenDep is a declared dependency with a local-only commit, a dirty file,
@@ -47,17 +49,12 @@ func readManifests(t *testing.T, l SlotLayout) []SavedWorkManifest {
 func TestSetAsideMovesTheWholeCheckoutAndCanBeRestored(t *testing.T) {
 	s := newObservedSlot(t)
 	dep := brokenDep(t, s)
-	registered := ""
 	cv := s.converger(t)
-	cv.registerStore = func(_ context.Context, path string) error { registered = path; return nil }
 	if err := cv.converge(context.Background(), PlannedStep{Step: StepSetAside, Resource: DepResource(fakeDep), Path: dep}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Lstat(dep); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("the dependency is still at %s", dep)
-	}
-	if registered != s.layout.Store() {
-		t.Fatalf("store registered as %q before the move, want %q", registered, s.layout.Store())
 	}
 	ms := readManifests(t, s.layout)
 	if len(ms) != 1 || ms[0].State != "complete" || ms[0].Kind != "dep" || ms[0].Path != dep {
@@ -236,5 +233,57 @@ func TestReconcileResultListsWhatItSetAside(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dep, "construct", "base.manifest")); err != nil {
 		t.Fatal("the dependency was not re-cloned")
+	}
+}
+
+// TestSavedWorkIsCollectedPastRetention: the reconciler that writes saved work
+// collects it after storagegc.RetentionPeriod, by saved_at or, for an entry
+// without a readable manifest, by the directory's age; a symlink in saved work
+// is never followed or removed.
+func TestSavedWorkIsCollectedPastRetention(t *testing.T) {
+	s := newObservedSlot(t)
+	l := s.layout
+	now := time.Now()
+	writeEntry := func(name string, savedAt time.Time, manifest bool) string {
+		entry := filepath.Join(l.SavedWork(), name)
+		os.MkdirAll(filepath.Join(entry, "tree"), 0o700)
+		if manifest {
+			if err := (ProvisionStore{}).Write(filepath.Join(entry, "manifest.json"), SavedWorkManifest{SchemaVersion: 1, State: "complete", SavedAt: savedAt}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		os.Chtimes(entry, savedAt, savedAt)
+		return entry
+	}
+	old := writeEntry("old", now.Add(-storagegc.RetentionPeriod-time.Hour), true)
+	young := writeEntry("young", now.Add(-time.Hour), true)
+	orphan := writeEntry("orphan", now.Add(-storagegc.RetentionPeriod-time.Hour), false)
+	target := t.TempDir()
+	link := filepath.Join(l.SavedWork(), "link")
+	os.Symlink(target, link)
+	removed, err := collectSavedWork(l, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, gone := range []string{old, orphan} {
+		if _, err := os.Lstat(gone); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("%s past retention was kept", gone)
+		}
+	}
+	for _, kept := range []string{young, link, target} {
+		if _, err := os.Lstat(kept); err != nil {
+			t.Errorf("%s was removed: %v", kept, err)
+		}
+	}
+	if len(removed) != 2 {
+		t.Fatalf("removed %v", removed)
+	}
+	// A reconcile run on the slot collects as it starts.
+	again := writeEntry("again", now.Add(-storagegc.RetentionPeriod-time.Hour), true)
+	if _, err := NewWorkspaceProvisioner(s.f).Ensure(context.Background(), ProvisionRequest{Path: s.f.Primary, Slot: 1, Agent: AgentNone}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(again); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("a reconcile run did not collect saved work past retention")
 	}
 }

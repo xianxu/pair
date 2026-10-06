@@ -84,7 +84,7 @@ func (p *WorkspaceProvisioner) Ensure(ctx context.Context, req ProvisionRequest)
 	existed := hostErr == nil
 	started := time.Now().UTC()
 	result, runErr := p.Reconcile(ctx, ReconcileRequest{Layout: layout, Agent: req.Agent, Remote: req.Remote, Progress: req.Progress,
-		RegisterStore: req.RegisterStore, AgentNow: req.AgentNow, IgnoreMemo: req.IgnoreMemo})
+		AgentNow: req.AgentNow, IgnoreMemo: req.IgnoreMemo})
 	address := WorkspaceReference{Repo: primary.Repo, Number: req.Slot}.String()
 	blocking, warnings := SlotOutcome(address, primary.Repo, result, runErr)
 	if blocking != nil {

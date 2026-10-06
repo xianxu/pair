@@ -92,7 +92,10 @@ remove it.
   repository") is never deleted. `SetAside` (`slotsave.go`) moves it whole into
   `<env>/.couch/saved-work/<name>-<time>/tree`, with a manifest written pending
   before the move and complete after. The move happens under weave's setup lock,
-  after re-checking the agent; it is capped at 16 entries per slot.
+  after re-checking the agent; it is capped at 16 entries per slot. The reconciler
+  that writes saved work also collects it: every run removes entries older than
+  `storagegc.RetentionPeriod` (by `saved_at`, else the entry's age). The result's
+  `SetAside` lists what a run moved and how to restore it.
 - **Failures.** `slotfailure.go` classifies each failure:
   - retryable: weave's "setup is active", a busy lease, a timeout, cancellation;
   - hand-off: everything else, with weave's own `Error:` line as the cause;

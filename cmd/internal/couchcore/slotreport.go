@@ -129,7 +129,7 @@ func (c *Couch) ReconcileSlot(ctx context.Context, ref string) (ProvisionResult,
 	}
 	agentNow := func(ctx context.Context) EvidenceAgent { return c.slotAgentNow(ctx, slot) }
 	return c.Workspaces.Ensure(ctx, ProvisionRequest{Path: slot.PrimaryRoot, Slot: slot.Number, Progress: c.WorkspaceProgress,
-		Agent: agentNow(ctx), AgentNow: agentNow, RegisterStore: c.registerSlotStore, IgnoreMemo: true})
+		Agent: agentNow(ctx), AgentNow: agentNow, IgnoreMemo: true})
 }
 
 // SlotReportFor observes a slot and plans its reconcile. It changes nothing.

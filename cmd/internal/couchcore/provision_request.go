@@ -16,12 +16,11 @@ type ProvisionRequest struct {
 	Remote   string
 	Progress io.Writer `json:"-"`
 	// Agent is what the caller knows of the slot's agent (empty: unknown, so
-	// no checkout is set aside); AgentNow re-reads it before a set-aside, and
-	// RegisterStore makes the slot store collectable (pair#387).
-	Agent         EvidenceAgent                       `json:"-"`
-	AgentNow      func(context.Context) EvidenceAgent `json:"-"`
-	RegisterStore func(context.Context, string) error `json:"-"`
-	IgnoreMemo    bool                                `json:"-"`
+	// no checkout is set aside); AgentNow re-reads it before a set-aside
+	// (pair#387).
+	Agent      EvidenceAgent                       `json:"-"`
+	AgentNow   func(context.Context) EvidenceAgent `json:"-"`
+	IgnoreMemo bool                                `json:"-"`
 }
 type ProvisionResult struct {
 	SchemaVersion int    `json:"schema_version"`
