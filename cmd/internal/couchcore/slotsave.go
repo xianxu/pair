@@ -34,10 +34,24 @@ type SavedWorkManifest struct {
 // the class the plan gives the same condition): weave holds its setup lock
 // (retryable); an agent appeared, or saved work is full (holds).
 var (
-	errSetupRunning  = errors.New("weave setup is running in this slot environment")
-	errAgentAppeared = errors.New(StopReasonAgentLive + ": an agent appeared in the slot")
-	errSavedWorkFull = errors.New(StopReasonSavedWorkFull)
+	errSetupRunning      = errors.New("weave setup is running in this slot environment")
+	errAgentAppeared     = errors.New(StopReasonAgentLive + ": an agent appeared in the slot")
+	errAgentUnobserved   = errors.New(StopReasonAgentUnknown + ": the slot's agent could not be observed")
+	errSavedWorkFull     = errors.New(StopReasonSavedWorkFull)
+	errCheckoutRecovered = errors.New("the checkout is no longer broken on positive evidence")
 )
+
+// setAsideHoldError is SetAsideHold's reason as the typed error the step
+// returns, so ClassifyConvergeError lands on the class the plan gave it.
+func setAsideHoldError(reason string) error {
+	switch reason {
+	case StopReasonAgentUnknown:
+		return errAgentUnobserved
+	case StopReasonSavedWorkFull:
+		return errSavedWorkFull
+	}
+	return errAgentAppeared
+}
 
 // checkoutEvidence is the one positive-evidence reading of a checkout: git's
 // own answer about the work tree (R2). "Not a git repository", or a work tree
@@ -90,10 +104,12 @@ func (cv *slotConverger) setAside(ctx context.Context, s PlannedStep) error {
 			return fmt.Errorf("register the slot store for collection: %w", err)
 		}
 	}
-	if n, err := savedWorkEntries(l); err != nil {
+	n, err := savedWorkEntries(l)
+	if err != nil {
 		return err
-	} else if n >= MaxSavedWork {
-		return fmt.Errorf("%w: %d entries (limit %d); restore or remove old entries first", errSavedWorkFull, n, MaxSavedWork)
+	}
+	if reason, held := SetAsideHold(AgentNone, n >= MaxSavedWork); held {
+		return fmt.Errorf("%w: %d entries (limit %d); restore or remove old entries first", setAsideHoldError(reason), n, MaxSavedWork)
 	}
 	unlock, err := holdSetupLock(l.SetupLock())
 	if err != nil {
@@ -101,12 +117,12 @@ func (cv *slotConverger) setAside(ctx context.Context, s PlannedStep) error {
 	}
 	defer unlock()
 	if cv.agentNow != nil {
-		if running, known := AgentRunning(cv.agentNow(ctx)); running || !known {
-			return fmt.Errorf("%w; nothing was moved", errAgentAppeared)
+		if reason, held := SetAsideHold(cv.agentNow(ctx), false); held {
+			return fmt.Errorf("%w; nothing was moved", setAsideHoldError(reason))
 		}
 	}
 	if state, _, _ := checkoutEvidence(ctx, cv.p.IO, path); state != StateBroken {
-		return fmt.Errorf("%s is no longer broken on positive evidence; nothing was moved", path)
+		return fmt.Errorf("%w: %s; nothing was moved", errCheckoutRecovered, path)
 	}
 	now := time.Now().UTC()
 	entry := l.SavedWorkEntry(path, now)

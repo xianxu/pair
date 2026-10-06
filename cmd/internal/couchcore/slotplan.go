@@ -91,6 +91,22 @@ type SlotPlan struct {
 // Empty: nothing to do and nothing in the way, the slot is converged.
 func (p SlotPlan) Empty() bool { return len(p.Steps) == 0 && len(p.Stops) == 0 && len(p.Retried) == 0 }
 
+// SetAsideHold is the one reading of whether a checkout may be set aside now,
+// shared by PlanSlot and the converge step so the plan and the step can never
+// name different holds for the same condition: an unknown agent, a running
+// agent, saved work full -- in that order -- or none.
+func SetAsideHold(agent EvidenceAgent, savedWorkFull bool) (string, bool) {
+	switch running, known := AgentRunning(agent); {
+	case !known:
+		return StopReasonAgentUnknown, true
+	case running:
+		return StopReasonAgentLive, true
+	case savedWorkFull:
+		return StopReasonSavedWorkFull, true
+	}
+	return "", false
+}
+
 // PlanInput is what PlanSlot decides from.
 type PlanInput struct {
 	Observation SlotObservation
@@ -139,7 +155,6 @@ func PlanSlot(in PlanInput) (SlotPlan, error) {
 			}
 		}
 	}
-	running, known := AgentRunning(o.Agent)
 	get := func(id SlotResourceID) ResourceObservation { r, _ := o.Get(id); return r }
 	step := func(s PlannedStep) {
 		switch {
@@ -157,16 +172,11 @@ func PlanSlot(in PlanInput) (SlotPlan, error) {
 		plan.Stops = append(plan.Stops, PlanStop{Resource: id, Class: class, Reason: reason})
 	}
 	setAside := func(r ResourceObservation, path string) {
-		switch {
-		case !known:
-			stop(r.ID, StopHold, StopReasonAgentUnknown)
-		case running:
-			stop(r.ID, StopHold, StopReasonAgentLive)
-		case in.SavedWorkFull:
-			stop(r.ID, StopHold, StopReasonSavedWorkFull)
-		default:
-			step(PlannedStep{Step: StepSetAside, Resource: r.ID, Path: path})
+		if reason, held := SetAsideHold(o.Agent, in.SavedWorkFull); held {
+			stop(r.ID, StopHold, reason)
+			return
 		}
+		step(PlannedStep{Step: StepSetAside, Resource: r.ID, Path: path})
 	}
 
 	if env := get(ResourceEnv); env.State == StateAbsent {

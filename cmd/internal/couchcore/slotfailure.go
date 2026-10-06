@@ -50,6 +50,10 @@ func ClassifyConvergeError(step PlannedStep, err error) ReconcileFailure {
 	switch {
 	case errors.Is(err, errAgentAppeared):
 		f.Class, f.Cause = FailureHold, StopReasonAgentLive
+	case errors.Is(err, errAgentUnobserved):
+		f.Class, f.Cause = FailureHold, StopReasonAgentUnknown
+	case errors.Is(err, errCheckoutRecovered):
+		f.Class = FailureRetryable // the next run observes the recovered checkout
 	case errors.Is(err, errSavedWorkFull):
 		f.Class, f.Cause = FailureHold, StopReasonSavedWorkFull
 	case errors.Is(err, errSetupRunning), errors.Is(err, ErrHostCreationBusy),

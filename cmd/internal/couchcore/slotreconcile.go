@@ -65,7 +65,11 @@ func reconcileLoop(ctx context.Context, w slotWorld, savedWorkFull func() bool) 
 			return result, err
 		}
 		if err := w.lock(); err != nil {
-			return result, err
+			if len(result.Executed) == 0 {
+				return result, err
+			}
+			// Steps already ran: report the state they reached, not a bare error.
+			return result, &ReconcileError{Failure: StepFailure{Step: result.Executed[len(result.Executed)-1], Err: err}, Result: result}
 		}
 		obs := w.observe(ctx)
 		plan, err := PlanSlot(PlanInput{Observation: obs, Attempted: attempted, SavedWorkFull: savedWorkFull != nil && savedWorkFull()})
@@ -94,7 +98,7 @@ func reconcileLoop(ctx context.Context, w slotWorld, savedWorkFull func() bool) 
 			if step.KeepOnFailure && ctx.Err() == nil {
 				result.Warnings = append(result.Warnings, failure)
 				result.Observation = w.observe(ctx)
-				result.Plan, _ = PlanSlot(PlanInput{Observation: result.Observation, Attempted: attempted})
+				result.Plan, _ = PlanSlot(PlanInput{Observation: result.Observation, Attempted: attempted, SavedWorkFull: savedWorkFull != nil && savedWorkFull()})
 				return result, nil
 			}
 			return result, &ReconcileError{Failure: failure, Result: result}

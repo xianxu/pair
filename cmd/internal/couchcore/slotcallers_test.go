@@ -140,3 +140,44 @@ func TestRebootGetsPastAHoldItsAdviceNames(t *testing.T) {
 		})
 	}
 }
+
+// TestRebootRepairsABrokenHostUnderALiveAgent (BR-10 at the caller, real git):
+// the host is unreadable and git worktree repair cannot fix it (its
+// registration is gone), and an agent is detached in the slot. Reboot's first
+// pass gets past the live-agent hold through the unverified candidate, stops
+// the agent, and its post-stop pass sets the host aside, re-adds it and
+// starts fresh. The slot record lives in <env>/.couch, so it survives.
+func TestRebootRepairsABrokenHostUnderALiveAgent(t *testing.T) {
+	env, local := slotRecoveryOperationFixture(t)
+	old := slotRecordFixture(t, env, local)
+	f := env.Couch.Slots.(*OSSlotCatalog).IO.(*ProvisionFixture)
+	env.Couch.Workspaces = NewWorkspaceProvisioner(f)
+	host := local.slot.WorktreeRoot
+	admin := f.git(host, "rev-parse", "--absolute-git-dir")
+	write(t, filepath.Join(host, "kept.txt"), "operator's file")
+	if err := os.RemoveAll(admin); err != nil {
+		t.Fatal(err)
+	}
+	env.Artifacts.SetPairSession(old.Address, "pair-slot-detached", true)
+	env.Artifacts.SetDetachedSession(old.Address, "pair-slot-detached")
+	result, err := dispatchReboot(env, map[string]string{"path": host, "repo-scope": old.Address.RepoScope})
+	if err != nil {
+		t.Fatalf("reboot of a broken host under a live agent: %v", err)
+	}
+	if got := env.Artifacts.Quiesces(); len(got) != 1 || got[0] != old.Address {
+		t.Fatalf("quiesced %v", got)
+	}
+	if _, ok := result.Started(); !ok {
+		t.Fatalf("no fresh agent: %+v", result)
+	}
+	if f.git(host, "rev-parse", "--is-inside-work-tree") != "true" {
+		t.Fatal("host not re-added")
+	}
+	entries, _ := os.ReadDir(LayoutOf(*local.slot).SavedWork())
+	if len(entries) != 1 {
+		t.Fatalf("saved work %v, want the broken host set aside", entries)
+	}
+	if raw, err := os.ReadFile(filepath.Join(LayoutOf(*local.slot).SavedWork(), entries[0].Name(), "tree", "kept.txt")); err != nil || string(raw) != "operator's file" {
+		t.Fatalf("the operator's file was not kept: %q %v", raw, err)
+	}
+}

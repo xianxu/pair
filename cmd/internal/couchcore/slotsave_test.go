@@ -186,3 +186,33 @@ func assertNoSavedWork(t *testing.T, l SlotLayout) {
 		t.Errorf("a refused set-aside left %d saved-work entries", len(entries))
 	}
 }
+
+// TestSetAsideHoldsMatchThePlan (BR-12): the converge step names the same hold
+// PlanSlot gives the same condition, through the one SetAsideHold, and a
+// checkout that recovered meanwhile is retryable, never a hand-off.
+func TestSetAsideHoldsMatchThePlan(t *testing.T) {
+	for _, agent := range AllEvidenceAgents() {
+		s := newObservedSlot(t)
+		dep := brokenDep(t, s)
+		cv := s.converger(t)
+		cv.agentNow = func(context.Context) EvidenceAgent { return agent }
+		err := cv.converge(context.Background(), PlannedStep{Step: StepSetAside, Resource: DepResource(fakeDep), Path: dep})
+		reason, held := SetAsideHold(agent, false)
+		if !held {
+			if err != nil {
+				t.Errorf("agent %s: %v", agent, err)
+			}
+			continue
+		}
+		if f := ClassifyConvergeError(PlannedStep{Step: StepSetAside, Resource: DepResource(fakeDep)}, err); f.Class != FailureHold || f.Cause != reason {
+			t.Errorf("agent %s: classified %+v, the plan gives hold %s", agent, f, reason)
+		}
+		assertNoSavedWork(t, s.layout)
+	}
+	s := newObservedSlot(t)
+	dep := s.addDep(t, fakeDep) // healthy: no longer broken when the step runs
+	err := s.converger(t).converge(context.Background(), PlannedStep{Step: StepSetAside, Resource: DepResource(fakeDep), Path: dep})
+	if f := ClassifyConvergeError(PlannedStep{Step: StepSetAside, Resource: DepResource(fakeDep)}, err); !errors.Is(err, errCheckoutRecovered) || f.Class != FailureRetryable {
+		t.Fatalf("recovered checkout: %v classified %+v, want retryable", err, f)
+	}
+}

@@ -185,7 +185,7 @@ approval and the three sign-offs listed at its top).
 
 - [x] M1 — resource model, `SlotLayout`, AST coverage audit, `ObserveSlot`, pure
   `PlanSlot` over the derived domain, `couch --show` resources and plan
-- [ ] M2 — `Reconcile` loop replaces `Ensure`'s repair logic; failures name the
+- [x] M2 — `Reconcile` loop replaces `Ensure`'s repair logic; failures name the
   resource and cause and hand off to `:0`; add slot, open, resume and reboot
   converge through it; `couch --reconcile`; acceptance for deleted, interrupted
   and missing-dependency slots
@@ -201,6 +201,7 @@ Filed at the operator's request from the #363/#367 design talk: a deleted slot
 directory should be repaired by prune-then-add-slot, not left blocking.
 
 ### 2026-10-05
+- 2026-10-05: closed M2 — M2 + round-3 fixes: Reconcile loop proved over every single+pair perturbation x 7 agent states (SlotWorld agrees with real git on 12 scenarios; crash after every step converges); Ensure is Reconcile; SetAside (refusals leave no residue, typed into the plan's class); failures retryable/handoff/unknown/hold with one advice text; OutcomeSeverity by observation; selectedSlot reconciles every open/resume/reboot/fresh start, reboot's first pass gets past the live-agent hold its advice names (TestRebootGetsPastAHoldItsAdviceNames); Discover unions env/registrations/main-slotN; couch --reconcile renders the report on failure; real-git acceptance: deleted slot dir, tools:1 hand-off, missing dep under valid marker, observe 68ms. Full suite unsandboxed: remaining failures reproduce on origin/main 57ae1bed (spawn registration, continuation writer, cold-resume load flake, launcher, workbenchshortcut, gcruntime locator, embedded-runtime; artifactpath set identical).; review verdict: FIX-THEN-SHIP
 - 2026-10-05: closed M1 — M1 + boundary round-1 fixes: SlotLayout; resource table + AST coverage audit (3 mutations caught); DeclaredDepsOf via ariadne layergraph b9bc9f32; ObserveSlot on real git (single-break cases, failed probes unknown, gitfile dependency readable via --show-toplevel; mutations caught); PlanSlot over the derived single+pair domain x 7 agent states plus a hand-written I2 case; couch --show slot report through Discover's git identity (deleted-slot and symlinked-fleet cases; old construction reproduces BR-2's misreads); README documents --show repo:N. Full suite unsandboxed: remaining failures identical on origin/main 57ae1bed; TestColdResumeOfAParkedPrimary... passes 3/3 alone (load-timing flake).; review verdict: SHIP
 
 Re-scoped at the operator's direction from "add slot repairs a deleted slot" to

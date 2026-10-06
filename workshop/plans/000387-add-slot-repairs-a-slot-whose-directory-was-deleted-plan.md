@@ -1367,3 +1367,23 @@ resource.
 - Minor, error-surface (3rd in family), rule: "a failed slot operation renders the observation it
   holds beside the advice". The CLI renders `SlotReconcileError.Result`'s report on stdout before
   the advice on stderr (`TestReconcileCLIShowsTheReportOnABlockingFailure`; mutation caught).
+
+### 2026-10-05 (u) — M2 boundary review round 4 (converged; FIX-THEN-SHIP)
+
+- BR-12 is fixed as a rule. `SetAsideHold(agent, savedWorkFull)` is the one pure reading of
+  whether a checkout may be set aside now, used by both `PlanSlot` and `slotConverger.setAside`;
+  its reason becomes the step's typed error (`setAsideHoldError`). The plan and the step can no
+  longer name different holds: an unknown agent was folded into "live" by the step, so after BR-10
+  an unobservable agent would have been sent to reboot. A checkout that recovered before the move
+  is `errCheckoutRecovered`, which is retryable (the next run observes it). Evidence:
+  - `TestSetAsideHoldsMatchThePlan` runs every agent state through `SetAsideHold`;
+  - the mutation (the old fold) is caught.
+- Loop minors fixed:
+  - the `KeepOnFailure` re-plan keeps `SavedWorkFull`;
+  - a lock failure after steps ran returns a `ReconcileError` carrying the state reached, not a
+    bare error.
+- Coverage gap closed: `TestRebootRepairsABrokenHostUnderALiveAgent` (real git). The host is
+  unreadable and unrepairable (its registration admin directory is deleted), and an agent is
+  detached in the slot. Reboot gets past the hold through the unverified candidate, stops the
+  agent, sets the host aside with the operator's file intact, re-adds it and starts fresh.
+- Still open, Minor: BR-1 (prose test-case lists in Tasks 1.4/2.5/3.1), carried to close as before.
