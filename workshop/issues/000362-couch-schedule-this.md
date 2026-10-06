@@ -15,6 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "2489e9bf", done: "d0b6b6ae"}
 ---
 
 # Teach Couch skill to schedule contextual work
