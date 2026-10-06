@@ -42,7 +42,13 @@ A successful claim is not proof work is progressing. Use owner, worktree/branch,
 
 ## Plan
 
-Implementation plan to be designed after issue claim and start-plan; these are requirements, not an approved implementation plan.
+Durable plan: `workshop/plans/000362-couch-schedule-this-plan.md`.
+
+- [ ] Task 1: `RenderLines` extracted from the scrollback renderer (byte-identical output)
+- [ ] Task 2: `Couch.PeekSlot`: recent terminal tail, transcript paths, explicit unavailable reasons
+- [ ] Task 3: `peek` operation and `couch --peek repo:N [--lines N] [--json]`
+- [ ] Task 4: Couch skill scheduling section with the evidence ladder
+- [ ] Task 5: full suite, then live exercises (duplicate claim, delayed delivery, idle recipient) recorded in the Log
 
 ## Log
 
