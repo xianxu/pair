@@ -301,3 +301,34 @@ func TestAFailedRunStillNamesWhatItSetAside(t *testing.T) {
 		t.Fatalf("err = %v, want the blocking failure naming the set-aside restore", err)
 	}
 }
+
+// failCompleteManifest fails the write that marks a manifest complete.
+type failCompleteManifest struct{ ProvisionStorage }
+
+func (s failCompleteManifest) Write(path string, v any) error {
+	if m, ok := v.(SavedWorkManifest); ok && m.State == "complete" {
+		return errors.New("disk full")
+	}
+	return s.ProvisionStorage.Write(path, v)
+}
+
+// TestASetAsideIsReportedWhenTheMoveHappens (BR-21): the tree moved, so the
+// run reports the entry even when the bookkeeping after the move fails.
+func TestASetAsideIsReportedWhenTheMoveHappens(t *testing.T) {
+	s := newObservedSlot(t)
+	dep := brokenDep(t, s)
+	cv := s.converger(t)
+	cv.p.Store = failCompleteManifest{cv.p.Store}
+	var reported []string
+	cv.setAsideDone = func(entry string) { reported = append(reported, entry) }
+	err := cv.converge(context.Background(), PlannedStep{Step: StepSetAside, Resource: DepResource(fakeDep), Path: dep})
+	if err == nil {
+		t.Fatal("the failed manifest write was not returned")
+	}
+	if len(reported) != 1 {
+		t.Fatalf("reported %v, want the one entry the move wrote", reported)
+	}
+	if ms := SavedWorkManifests(reported); len(ms) != 1 || ms[0].State != "pending" || ms[0].Restore == "" {
+		t.Fatalf("manifest %+v, want the pending manifest naming the restore", ms)
+	}
+}
