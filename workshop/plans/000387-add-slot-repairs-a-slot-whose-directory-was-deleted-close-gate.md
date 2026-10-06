@@ -272,6 +272,12 @@ rounds:
       boundary: M3
       recipe: milestone-review
       blocked: false
+    - "n": 8
+      timestamp: "2026-10-05T21:40:37-07:00"
+      agent: claude
+      recipe: milestone-review
+      blocked: false
+      protocol_error: no valid findings block
 ---
 
 # Gate ledger — pair#387 (boundary-review)
@@ -388,6 +394,10 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - **BR-21** [Minor] `error-surface-preserved` A set-aside whose final manifest write fails after the rename is not reported
   This is the 5th finding in family error-surface-preserved. Rule: report an effect when it happens, not when its bookkeeping completes. setAsideDone fires only after the complete-manifest write, so a tree already moved by rename goes unreported if that write fails. Fix: call setAsideDone right after the rename succeeds.
+
+## Round 8 — 2026-10-05T21:40:37-07:00 (claude) — passed
+
+**Protocol error:** no valid findings block — this round contributed no findings.
 
 ## Open findings
 
