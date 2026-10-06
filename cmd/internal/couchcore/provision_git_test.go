@@ -201,6 +201,13 @@ func TestProvisionHostMissingSuccessRepeatsSameOperation(t *testing.T) {
 	f.git(f.Primary, "commit", "--allow-empty", "-m", "new remote")
 	f.git(f.Primary, "push", "upstream", "main")
 	f.FailWeave = false
+	// R5: the hand-off failure is remembered for unchanged inputs, so a plain
+	// repeat refuses with it and does not recompile; the fix happened outside
+	// the slot, so an explicit reconcile (IgnoreMemo) compiles again.
+	if _, err := p.Ensure(context.Background(), req); err == nil || !strings.Contains(err.Error(), "fixture setup failed") || f.WeaveCalls != 1 {
+		t.Fatalf("known failure: err=%v calls=%d", err, f.WeaveCalls)
+	}
+	req.IgnoreMemo = true
 	got, err := p.Ensure(context.Background(), req)
 	if err != nil {
 		t.Fatal(err)
@@ -209,21 +216,33 @@ func TestProvisionHostMissingSuccessRepeatsSameOperation(t *testing.T) {
 		t.Fatalf("result %+v calls=%d", got, f.WeaveCalls)
 	}
 }
-func TestProvisionHostRefusesForeignPathOrBranch(t *testing.T) {
+
+// TestProvisionHostAdoptsForeignDirectoryAndBranch: Couch no longer refuses a
+// slot it did not itself create (pair#387 R1). A directory and a resting
+// branch found at the slot's conventional place are adopted: the user's file
+// survives and the branch is reused at its own commit.
+func TestProvisionHostAdoptsForeignDirectoryAndBranch(t *testing.T) {
 	for _, collision := range []string{"directory", "branch"} {
 		t.Run(collision, func(t *testing.T) {
 			f := newProvisionFixture(t)
+			keep := filepath.Join(filepath.Dir(f.host(1)), "keep")
+			var at string
 			if collision == "directory" {
 				os.MkdirAll(filepath.Dir(f.host(1)), 0700)
-				os.WriteFile(filepath.Join(filepath.Dir(f.host(1)), "keep"), []byte("user"), 0600)
+				os.WriteFile(keep, []byte("user"), 0600)
 			} else {
-				f.git(f.Primary, "branch", "main-slot1", f.Base)
+				at = f.git(f.Primary, "commit-tree", "-m", "foreign", f.git(f.Primary, "rev-parse", "HEAD^{tree}"))
+				f.git(f.Primary, "branch", "main-slot1", at)
 			}
-			if _, err := NewWorkspaceProvisioner(f).Ensure(context.Background(), ProvisionRequest{Path: f.Primary, Slot: 1}); err == nil {
-				t.Fatal("foreign collision accepted")
+			if _, err := NewWorkspaceProvisioner(f).Ensure(context.Background(), ProvisionRequest{Path: f.Primary, Slot: 1}); err != nil {
+				t.Fatal(err)
 			}
-			if f.WeaveCalls != 0 {
-				t.Fatal("compiled on collision")
+			if collision == "directory" {
+				if raw, err := os.ReadFile(keep); err != nil || string(raw) != "user" {
+					t.Fatalf("user file not preserved: %q %v", raw, err)
+				}
+			} else if got := f.git(f.Primary, "rev-parse", "main-slot1"); got != at {
+				t.Fatalf("adopted branch moved to %s, want %s", got, at)
 			}
 		})
 	}
@@ -240,9 +259,8 @@ func TestProvisionHostLostBranchAcknowledgment(t *testing.T) {
 	}
 	p := NewWorkspaceProvisioner(f)
 	req := ProvisionRequest{Path: f.Primary, Slot: 1}
-	if _, err := p.Ensure(context.Background(), req); err == nil {
-		t.Fatal("lost acknowledgment accepted")
-	}
+	// The update-ref happened; only its acknowledgment was lost. The compare
+	// and swap's probe finds the branch and adopts it in the same run.
 	r, err := p.Ensure(context.Background(), req)
 	if err != nil {
 		t.Fatal(err)
@@ -334,7 +352,10 @@ func TestProvisionGitRemoteSelection(t *testing.T) {
 		})
 	}
 }
-func TestProvisionHostInvalidSuccessRefusesWithoutCompile(t *testing.T) {
+
+// TestProvisionHostInvalidMarkerIsRecompiled: an invalid setup marker is a
+// broken derived file (pair#387 R3): setup runs again and rewrites it.
+func TestProvisionHostInvalidMarkerIsRecompiled(t *testing.T) {
 	f := newProvisionFixture(t)
 	p := NewWorkspaceProvisioner(f)
 	req := ProvisionRequest{Path: f.Primary, Slot: 1}
@@ -346,10 +367,14 @@ func TestProvisionHostInvalidSuccessRefusesWithoutCompile(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(admin, "couch-setup-success.json"), []byte(`{"schema_version":99}`), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := p.Ensure(context.Background(), req); err == nil {
-		t.Fatal("invalid marker accepted")
+	if _, err := p.Ensure(context.Background(), req); err != nil {
+		t.Fatal(err)
 	}
-	if f.WeaveCalls != 1 {
-		t.Fatal("compiled despite corrupt marker")
+	if f.WeaveCalls != 2 {
+		t.Fatalf("weave calls %d, want a recompile", f.WeaveCalls)
+	}
+	var marker SetupSuccess
+	if exists, err := (ProvisionStore{}).Read(filepath.Join(admin, "couch-setup-success.json"), &marker); err != nil || !exists || marker.SchemaVersion != 1 {
+		t.Fatalf("marker not rewritten: %+v %v", marker, err)
 	}
 }

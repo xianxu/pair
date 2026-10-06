@@ -298,7 +298,9 @@ func TestProvisionRecoveryMarkerPublicationExcludesCleanup(t *testing.T) {
 		return (ProvisionStore{}).Remove(path)
 	}}
 	done := make(chan error, 1)
-	go func() { _, err := p.Ensure(context.Background(), req); done <- err }()
+	retry := req
+	retry.IgnoreMemo = true // the failure was fixed outside the slot (R5)
+	go func() { _, err := p.Ensure(context.Background(), retry); done <- err }()
 	awaitRecoveryBarrier(t, entered)
 	if _, err := NewWorkspaceProvisioner(f).Ensure(context.Background(), req); !errors.Is(err, ErrHostCreationBusy) {
 		t.Fatalf("publication did not exclude competing caller: %v", err)

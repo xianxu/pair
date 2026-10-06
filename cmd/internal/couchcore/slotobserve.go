@@ -101,6 +101,9 @@ type SlotObserveInput struct {
 	// configured remote whose merge is refs/heads/main).
 	Remote string
 	Agent  EvidenceAgent
+	// IgnoreMemo reads setup without the remembered failure (R5): an
+	// explicit couch --reconcile compiles again.
+	IgnoreMemo bool
 }
 
 // worktreeEntry is one record of `git worktree list --porcelain -z`.
@@ -496,6 +499,18 @@ func (o *observer) observeSetup(admin string, deps []ResourceObservation) {
 			// The marker is valid, but the setup it records is incomplete.
 			r.State, r.Sub, r.Reason = StateAbsent, SubMarkerValid, string(d.ID)+" is "+d.State.String()
 			break
+		}
+	}
+	// A remembered hand-off failure for unchanged inputs is not recompiled
+	// (R5): under a valid marker the slot stays usable with the warning;
+	// without one the failure is known.
+	if (r.State == StateAbsent || r.State == StateBroken) && !o.in.IgnoreMemo {
+		if failure, known := knownFailedSetup(o.ctx, o.in.IO, l, admin); known {
+			if r.Sub == SubMarkerValid {
+				r.State, r.Sub, r.Reason = StatePresent, SubWithWarning, failure
+			} else {
+				r.State, r.Sub, r.Reason = StateAbsent, SubFailedKnown, failure
+			}
 		}
 	}
 	// A running setup outranks every marker reading: nothing may compile now.

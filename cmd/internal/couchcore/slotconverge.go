@@ -215,6 +215,14 @@ func (cv *slotConverger) compileSetup(ctx context.Context, relock func() (*HostC
 		fmt.Fprintf(cv.progress, "Preparing %s in %s\n", WorkspaceReference{Repo: l.repo(), Number: l.n}, l.Host())
 	}
 	if _, err := cv.p.command(ctx, l.Host(), "weave", []string{"compile"}, nil, cv.progress, cv.p.SetupTimeout); err != nil {
+		// A hand-off failure is remembered (R5), written under the lease like
+		// every slot record. Best effort: without it the next open recompiles.
+		if f := ClassifyConvergeError(PlannedStep{Step: StepCompile, Resource: ResourceSetup}, err); f.Class == FailureHandoff && ctx.Err() == nil {
+			if lease, lerr := relock(); lerr == nil {
+				cv.lease = lease
+				_ = rememberFailedSetup(ctx, cv.p, l, admin, f)
+			}
+		}
 		return err
 	}
 	if err := ctx.Err(); err != nil {
@@ -239,9 +247,25 @@ func (cv *slotConverger) compileSetup(ctx context.Context, relock func() (*HostC
 	if !validWorkspaceOID(baseline) {
 		return errors.New("invalid resting branch baseline")
 	}
+	// A marker a concurrent caller already published for this registration
+	// wins: it is never rewritten.
+	var published SetupSuccess
+	if exists, err := cv.p.Store.Read(SetupMarkerPath(admin), &published); err == nil && exists && ValidSetupMarker(published, l.Host(), l.common, admin, l.n) {
+		return cv.clearSetupMemo(admin)
+	}
 	marker := SetupSuccess{SchemaVersion: 1, Host: l.Host(), Common: l.common, Admin: admin, Slot: l.n, BaselineSHA: baseline}
 	if err := cv.p.Store.Write(SetupMarkerPath(admin), marker); err != nil {
 		return fmt.Errorf("record setup success: %w", err)
+	}
+	return cv.clearSetupMemo(admin)
+}
+
+func (cv *slotConverger) clearSetupMemo(admin string) error {
+	if _, err := os.Lstat(SetupAttemptPath(admin)); errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err := cv.p.Store.Remove(SetupAttemptPath(admin)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("clear the remembered setup failure: %w", err)
 	}
 	return nil
 }

@@ -5,63 +5,6 @@ import (
 	"strings"
 )
 
-type HostKind uint8
-
-const (
-	HostConflict HostKind = iota
-	HostAbsent
-	HostOwnedPartial
-	HostVerified
-)
-
-type HostSetup uint8
-
-const (
-	SetupUnconfirmed HostSetup = iota
-	SetupConfirmed
-	SetupConflict
-)
-
-type HostObservation struct {
-	Kind  HostKind
-	Setup HostSetup
-}
-type HostAction uint8
-
-const (
-	RefuseHost HostAction = iota
-	CreateHost
-	CompleteHost
-	CompileHost
-	ReuseHost
-)
-
-// NextHostAction derives the next safe step from observed evidence. It is not a
-// stored phase: every invocation rebuilds its observation from Git and files.
-func NextHostAction(o HostObservation) HostAction {
-	if o.Setup == SetupConflict {
-		return RefuseHost
-	}
-	switch o.Kind {
-	case HostAbsent:
-		if o.Setup == SetupUnconfirmed {
-			return CreateHost
-		}
-	case HostOwnedPartial:
-		if o.Setup == SetupUnconfirmed {
-			return CompleteHost
-		}
-	case HostVerified:
-		if o.Setup == SetupConfirmed {
-			return ReuseHost
-		}
-		if o.Setup == SetupUnconfirmed {
-			return CompileHost
-		}
-	}
-	return RefuseHost
-}
-
 // ParseFetchBaseline takes the immutable new OID from fetch --verbose --porcelain
 // stdout. Reading a remote-tracking ref afterward would race another fetch.
 func ParseFetchBaseline(raw []byte, ref string) (string, error) {

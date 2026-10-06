@@ -133,7 +133,7 @@ func (w *osSlotWorld) unlock() {
 }
 
 func (w *osSlotWorld) observe(ctx context.Context) SlotObservation {
-	return ObserveSlot(ctx, SlotObserveInput{IO: w.p.IO, Layout: w.layout, Remote: w.remote, Agent: w.agent})
+	return ObserveSlot(ctx, SlotObserveInput{IO: w.p.IO, Layout: w.layout, Remote: w.remote, Agent: w.agent, IgnoreMemo: w.req.IgnoreMemo})
 }
 
 func (w *osSlotWorld) apply(ctx context.Context, step PlannedStep) error {
@@ -164,7 +164,9 @@ type ReconcileRequest struct {
 	// set-aside. Couch supplies both.
 	RegisterStore func(context.Context, string) error
 	AgentNow      func(context.Context) EvidenceAgent
-	rename        func(oldpath, newpath string) error
+	// IgnoreMemo compiles even when the same inputs failed before (R5).
+	IgnoreMemo bool
+	rename     func(oldpath, newpath string) error
 }
 
 // Reconcile converges a :1+ slot to a working slot (pair#387).

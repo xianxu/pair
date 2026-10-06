@@ -664,7 +664,7 @@ deleted env.
 **Files:** `provision.go`, `provision_host.go` (delete), `provision_request.go`,
 `provision_git_test.go`, `provision_recovery_test.go`.
 
-- [ ] **Step 1: Update tests to the new contract** (the deliberate behavior changes, each named):
+- [x] **Step 1: Update tests to the new contract** (the deliberate behavior changes, each named):
   - `TestProvisionHostRefusesForeignPathOrBranch` splits. A foreign `main-slotN` is now adopted
     (decision 2). A non-directory at the env path still refuses (handoff).
   - The intent tests become: a stale `creation.json` is removed and creation proceeds.
@@ -672,13 +672,13 @@ deleted env.
     returns `reused` plus a `Warning` carrying `ReconcileAdvice` (decision carried from #367
     Revision i). Without a marker → error.
   - `ProvisionResult` gains `Warning string` and `Saved []SavedWork`.
-- [ ] **Step 2:** FAIL. **Step 3:** replace `Ensure`'s body with `Reconcile`, keeping the request
+- [x] **Step 2:** FAIL. **Step 3:** replace `Ensure`'s body with `Reconcile`, keeping the request
   validation and the primary identity check. Delete `NextHostAction`, `HostObservation`,
   `CreationIntent`, `validateCreationIntent`, `cleanupIntent` and `provisionDirIdentity` (if now
   unused). Sweep: `grep -rn "NextHostAction\|CreationIntent\|open again to retry" cmd/` must be
   empty.
-- [ ] **Step 4:** PASS, including every existing provisioning test that is not a named change.
-- [ ] **Step 5:** commit `#387 M2: couchcore: Ensure converges through the reconciler`.
+- [x] **Step 4:** PASS, including every existing provisioning test that is not a named change.
+- [x] **Step 5:** commit `#387 M2: couchcore: Ensure converges through the reconciler`.
 
 ### Task 2.4: Failures carry their resource and cause
 
@@ -686,7 +686,7 @@ deleted env.
 (`withRebootAdvice` routes `*ReconcileError` through `ReconcileAdvice`), `reboot.go`, and the
 start form's error path.
 
-- [ ] **Step 1: Failing tests.**
+- [x] **Step 1: Failing tests.**
   - `TestClassifyConvergeError` table, using weave texts captured from ariadne's source
     (revision recorded in a fixture header):
     - retryable: `environment setup is active…`, `ErrHostCreationBusy`, deadline, cancel;
@@ -698,9 +698,9 @@ start form's error path.
   - `TestReconcileAdviceText`: handoff contains `ask the <repo>:0 agent` and neither `retry` nor
     `fix it`. Retryable contains `run it again`. Every class is covered (`AllFailureClasses`).
   - `TestWeaveConformance`: skipped without `weave` on PATH (see ARCH-MOCK).
-- [ ] **Step 2–4:** red → green. Mutation: make handoff retryable, and the no-retry assertion
+- [x] **Step 2–4:** red → green. Mutation: make handoff retryable, and the no-retry assertion
   must fail.
-- [ ] **Step 5:** commit `#387 M2: reconcile failures name resource, cause and the :0 hand-off`.
+- [x] **Step 5:** commit `#387 M2: reconcile failures name resource, cause and the :0 hand-off`.
 
 ### Task 2.5: Callers converge through it — add slot, open, resume, reboot
 
@@ -1253,3 +1253,31 @@ resource.
   the crash seam. `checkoutEvidence` is the one positive-evidence reading, shared by the observer
   and the pre-rename re-check (ARCH-DRY). M3 keeps the GC (3.3), the report (3.4) and the
   acceptance work (3.5).
+
+### 2026-10-05 (r) — Tasks 2.3–2.4 implementation reconciliation
+
+- `Ensure`'s body is `Reconcile`. Its disposition is `created` when the host did not exist,
+  `prepared` when a compile ran, and `reused` otherwise. `ProvisionResult` gains `Warning` (the
+  degraded advice) and `Report` (the final observation and plan). `ProvisionRequest` gains `Agent`,
+  `AgentNow`, `RegisterStore` and `IgnoreMemo`. An empty `Agent` means unknown, so no checkout is
+  set aside. Retired: `ensureHost`, `readSuccess`, `cleanupIntent`, `validateCreationIntent`,
+  `CreationIntent`, `provisionDirIdentity`, `NextHostAction`/`HostObservation` and their table test.
+- `slotfailure.go`:
+  - `ClassifyConvergeError` reads weave's last `Error:` line anywhere in a line;
+  - the classes are retryable, handoff, unknown and **hold**: a live or unknown agent, or saved
+    work full, is neither a hand-off nor a retry, and its advice names reboot or the cleanup;
+  - `ReconcileAdvice` is the one text;
+  - `OutcomeSeverity(resource, observed, stopReason)` is the reason first, then the resource;
+  - `SlotOutcome` turns a run into a blocking `*SlotReconcileError` (`Unwrap` exposes the cause)
+    or degraded warnings.
+  - `TestWeaveConformance` ran against the installed weave and passed.
+- R5's memo is in place (`slotmemo.go`). Only a hand-off compile failure is remembered, written
+  under the lease. A successful compile clears it, and observation ignores it on `IgnoreMemo`. A
+  marker a concurrent caller already published is never rewritten (kept from the old `Ensure`).
+- Changed provisioning tests, each intentional:
+  - a foreign directory or branch is adopted (`TestProvisionHostAdoptsForeignDirectoryAndBranch`);
+  - a lost `update-ref` acknowledgment is adopted in the same run;
+  - an invalid marker is recompiled;
+  - a known failure is not recompiled until `IgnoreMemo`;
+  - the partial-slot test builds its partial state directly instead of through an intent.
+- `withRebootAdvice` routing and the outcome-per-caller wiring are Task 2.5.

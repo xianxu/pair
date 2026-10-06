@@ -91,6 +91,10 @@ const CouchWorkspacesDir = "couch-workspaces"
 // administrative directory (git rev-parse --absolute-git-dir).
 func SetupMarkerPath(admin string) string { return filepath.Join(admin, "couch-setup-success.json") }
 
+// SetupAttemptPath is the remembered failed setup attempt beside the marker
+// (R5: a known failure is not recompiled until an input changes).
+func SetupAttemptPath(admin string) string { return filepath.Join(admin, "couch-setup-attempt.json") }
+
 // WorktreesRoot is the directory under a fleet root holding every slot
 // environment.
 func WorktreesRoot(fleet string) string { return filepath.Join(fleet, "worktree") }

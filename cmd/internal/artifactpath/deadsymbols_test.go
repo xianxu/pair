@@ -68,6 +68,7 @@ var couchcoreDeadSymbolAllowlist = map[string]string{
 	"AllEvidenceCouch":      "a SlotEvidence dimension; the recover-plan totality domain is derived from it",
 	"AllEvidenceAgents":     "a SlotEvidence dimension; the recover-plan totality domain is derived from it",
 	"AllObservedStates":     "the slot resource observation vocabulary; the reconcile plan domain (pair#387) is derived from it",
+	"AllFailureClasses":     "the reconcile failure vocabulary; the advice-text coverage (pair#387) is derived from it",
 	"AllEvidenceThreads":    "a SlotEvidence dimension; the recover-plan totality domain is derived from it",
 	"AllEvidenceOffers":     "a SlotEvidence dimension; the recover-plan totality domain is derived from it",
 	"AllEvidenceBranches":   "a SlotEvidence dimension; the recover-plan totality domain is derived from it",

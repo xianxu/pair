@@ -791,6 +791,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/slotconverge.go",
 	"cmd/internal/couchcore/slotreconcile.go",
 	"cmd/internal/couchcore/slotsave.go",
+	"cmd/internal/couchcore/slotfailure.go",
+	"cmd/internal/couchcore/slotmemo.go",
 	// #367 recover-plan: the sdlc fleet decoder, its source and fake, the
 	// resume/reboot admission table and the pure join. No artifact paths.
 	"cmd/internal/couchcore/recoverplan_fleet.go",

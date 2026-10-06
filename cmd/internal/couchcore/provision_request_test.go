@@ -56,7 +56,7 @@ func FuzzProvisionRequest(f *testing.F) {
 			}
 		}
 		again, err := ParseProvisionRequest(got.Path, strconv.Itoa(got.Slot), got.Remote)
-		if err != nil || again != got {
+		if err != nil || again.Path != got.Path || again.Slot != got.Slot || again.Remote != got.Remote {
 			t.Fatalf("request round-trip changed: %#v -> %#v, %v", got, again, err)
 		}
 	})
