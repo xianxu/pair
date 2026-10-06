@@ -37,7 +37,7 @@ var slotStateTokens = []struct {
 	{"weave setup lock", regexp.MustCompile(`\.weave-setup\.lock`)},
 	{"Couch's git-common directory", regexp.MustCompile(`couch-workspaces`)},
 	{"creation intent", regexp.MustCompile(`creation\.json`)},
-	{"saved work", regexp.MustCompile(`saved-work`)},
+	{"saved work", regexp.MustCompile(`(^|/)saved-work($|/)`)},
 }
 
 // slotTokenAllowlist holds literals that match a token but are not slot

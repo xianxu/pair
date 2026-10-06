@@ -780,6 +780,14 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/reboot_decision.go",
 	"cmd/internal/couchcore/resume_route.go",
 	"cmd/internal/couchcore/slotstart.go",
+	// #387 slot reconciler: the slot resource table, its one path authority,
+	// observation, plan and report. Slot state, not Pair artifact paths.
+	"cmd/internal/couchcore/slotlayout.go",
+	"cmd/internal/couchcore/slotresource.go",
+	"cmd/internal/couchcore/slotdeps.go",
+	"cmd/internal/couchcore/slotobserve.go",
+	"cmd/internal/couchcore/slotplan.go",
+	"cmd/internal/couchcore/slotreport.go",
 	// #367 recover-plan: the sdlc fleet decoder, its source and fake, the
 	// resume/reboot admission table and the pure join. No artifact paths.
 	"cmd/internal/couchcore/recoverplan_fleet.go",

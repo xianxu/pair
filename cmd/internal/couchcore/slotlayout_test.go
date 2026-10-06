@@ -11,7 +11,6 @@ func TestSlotLayoutPaths(t *testing.T) {
 		{"env", l.Env(), "/f/worktree/pair-slot3"},
 		{"host", l.Host(), "/f/worktree/pair-slot3/pair"},
 		{"store", l.Store(), "/f/worktree/pair-slot3/.couch"},
-		{"saved-work", l.SavedWork(), "/f/worktree/pair-slot3/.couch/saved-work"},
 		{"setup lock", l.SetupLock(), "/f/worktree/pair-slot3/.weave-setup.lock"},
 		{"intent", l.Intent(), "/f/pair/.git/couch-workspaces/3/creation.json"},
 		{"registrations", l.Registrations(), "/f/pair/.git/worktrees"},
@@ -19,7 +18,6 @@ func TestSlotLayoutPaths(t *testing.T) {
 		{"resting branch", l.RestingBranch(), "main-slot3"},
 		{"resting ref", l.RestingRef(), "refs/heads/main-slot3"},
 		{"marker", SetupMarkerPath("/f/pair/.git/worktrees/pair"), "/f/pair/.git/worktrees/pair/couch-setup-success.json"},
-		{"attempt", SetupAttemptPath("/f/pair/.git/worktrees/pair"), "/f/pair/.git/worktrees/pair/couch-setup-attempt.json"},
 		{"worktrees root", WorktreesRoot("/f"), "/f/worktree"},
 	} {
 		if c.got != c.want {
@@ -37,7 +35,7 @@ func TestSlotLayoutPaths(t *testing.T) {
 func TestParseSlotPathRoundTrip(t *testing.T) {
 	for _, n := range []int{1, 12} {
 		l := NewSlotLayout("/f/pair", "/f/pair/.git", n)
-		for _, p := range []string{l.Env(), l.Host(), l.Store(), l.SavedWork(), filepath.Join(l.Host(), "cmd", "x.go"), filepath.Join(l.Env(), "ariadne")} {
+		for _, p := range []string{l.Env(), l.Host(), l.Store(), filepath.Join(l.Host(), "cmd", "x.go"), filepath.Join(l.Env(), "ariadne")} {
 			primary, got, ok := ParseSlotPath(p)
 			if !ok || primary != "/f/pair" || got != n {
 				t.Errorf("ParseSlotPath(%q) = %q, %d, %v; want /f/pair, %d, true", p, primary, got, ok, n)

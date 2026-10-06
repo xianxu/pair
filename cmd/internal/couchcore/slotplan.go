@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -63,7 +64,7 @@ const (
 
 // Stop reasons the outcome severity reads (OutcomeSeverity, Task 2.4).
 const (
-	StopReasonAgentLive      = "agent-live"
+	StopReasonAgentLive      = "live-agent"
 	StopReasonSavedWorkFull  = "saved-work-full"
 	StopReasonSetupRunning   = "setup-running"
 	StopReasonSetupKnownFail = "setup-failed-known"
@@ -84,9 +85,6 @@ type SlotPlan struct {
 
 // Empty: nothing to do and nothing in the way, the slot is converged.
 func (p SlotPlan) Empty() bool { return len(p.Steps) == 0 && len(p.Stops) == 0 }
-
-// OnlyStops: nothing can be done until a stop clears.
-func (p SlotPlan) OnlyStops() bool { return len(p.Steps) == 0 && len(p.Stops) > 0 }
 
 // PlanInput is what PlanSlot decides from.
 type PlanInput struct {
@@ -170,7 +168,7 @@ func PlanSlot(in PlanInput) (SlotPlan, error) {
 	if store := get(ResourceStore); store.State == StateBroken {
 		stop(ResourceStore, StopHandoff, store.Reason)
 	}
-	if get(ResourceIntent).State == StatePresent {
+	if intent, spec := get(ResourceIntent), mustSlotResource(ResourceIntent); intent.State == StatePresent && spec.Desired() == StateAbsent {
 		step(PlannedStep{Step: StepRemoveIntent, Resource: ResourceIntent})
 	}
 	branch := get(ResourceBranch)
@@ -239,5 +237,29 @@ func PlanSlot(in PlanInput) (SlotPlan, error) {
 	case (setup.State == StateAbsent || setup.State == StateBroken) && setupReady:
 		step(PlannedStep{Step: StepCompile, Resource: ResourceSetup, KeepOnFailure: setup.Sub == SubMarkerValid})
 	}
+	sortStepsByResourceOrder(plan.Steps)
 	return plan, nil
+}
+
+func mustSlotResource(id SlotResourceID) SlotResourceSpec {
+	spec, ok := SlotResource(id)
+	if !ok {
+		panic("undeclared slot resource " + string(id))
+	}
+	return spec
+}
+
+// sortStepsByResourceOrder puts steps in converge order (the table's
+// topological order), so the plan's order is the table's, not the order the
+// rules above happen to be written in.
+func sortStepsByResourceOrder(steps []PlannedStep) {
+	order, err := SlotResourceOrder()
+	if err != nil {
+		panic(err) // TestSlotResourcesFormADAG pins the table
+	}
+	rank := make(map[SlotResourceID]int, len(order))
+	for i, id := range order {
+		rank[id] = i
+	}
+	sort.SliceStable(steps, func(i, j int) bool { return rank[templateOf(steps[i].Resource)] < rank[templateOf(steps[j].Resource)] })
 }

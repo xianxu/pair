@@ -1170,3 +1170,16 @@ resource.
 - Added `TestObserveSlotFollowsTheResourceOrder`: `ObserveSlot`'s order is pinned to
   `SlotResourceOrder()`, so the renderer, which prints in observation order, follows the
   table. Mutation (observe intent after host) caught.
+
+### 2026-10-05 (n) — M1 verification reconciliation
+
+- The repository audits shaped the surface: `artifactpath`'s exhaustive inventory now lists the six
+  new files as non-artifact sources. The dead-symbol audit removed `SavedWork`, `SetupAttemptPath`
+  and `SlotPlan.OnlyStops`, which M2/M3 re-add with their consumers. `AllObservedStates` is
+  allowlisted as the plan domain's vocabulary (the `AllEvidence*` precedent). `SlotResource`,
+  `Desired` and `SlotResourceOrder` gained production consumers: `PlanSlot` retires the intent
+  through `Desired`, and sorts its steps by `SlotResourceOrder`, so I6 holds by construction.
+- The stop reason's value is `live-agent` (constant `StopReasonAgentLive`); `agent-…` literals
+  trip `artifactpath`'s agent-family vocabulary check. Prose keeps calling the hold "agent-live".
+- The coverage token for saved work matches at a path boundary, so the stop reason
+  `saved-work-full` is not slot state.

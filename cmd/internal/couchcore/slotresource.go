@@ -125,7 +125,7 @@ type SlotResourceSpec struct {
 func SlotResources() []SlotResourceSpec {
 	return []SlotResourceSpec{
 		{ID: ResourceEnv, Kind: KindDerived, Layout: []string{"Env"}, BrokenSubs: []string{SubForeign}, Summary: "environment directory"},
-		{ID: ResourceStore, Kind: KindInternal, DependsOn: []SlotResourceID{ResourceEnv}, Layout: []string{"Store", "SavedWork"}, BrokenSubs: []string{SubForeign}, Summary: "Couch slot store (preserved)"},
+		{ID: ResourceStore, Kind: KindInternal, DependsOn: []SlotResourceID{ResourceEnv}, Layout: []string{"Store"}, BrokenSubs: []string{SubForeign}, Summary: "Couch slot store (preserved)"},
 		{ID: ResourceIntent, Kind: KindDerived, Layout: []string{"Intent"}, DesiredAbsent: true, Removable: true, Summary: "legacy creation intent"},
 		{ID: ResourceBranch, Kind: KindUserData, Layout: []string{"RestingBranch", "RestingRef"}, BrokenSubs: []string{SubElsewhere}, Summary: "resting branch (adopted, never deleted)"},
 		{ID: ResourceUpstream, Kind: KindDerived, DependsOn: []SlotResourceID{ResourceBranch}, BrokenSubs: []string{SubConflict}, Summary: "resting branch upstream configuration"},

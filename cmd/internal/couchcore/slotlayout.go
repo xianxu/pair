@@ -45,9 +45,6 @@ func (l SlotLayout) Host() string { return filepath.Join(l.Env(), l.repo()) }
 // Store is Couch's per-slot store.
 func (l SlotLayout) Store() string { return filepath.Join(l.Env(), ".couch") }
 
-// SavedWork holds checkouts reconcile set aside instead of deleting them.
-func (l SlotLayout) SavedWork() string { return filepath.Join(l.Store(), "saved-work") }
-
 // SetupLock is weave's environment setup lock (weave owns it; Couch only
 // probes it).
 func (l SlotLayout) SetupLock() string { return filepath.Join(l.Env(), ".weave-setup.lock") }
@@ -83,9 +80,6 @@ const CouchWorkspacesDir = "couch-workspaces"
 // SetupMarkerPath is Couch's setup-success marker in a slot registration's
 // administrative directory (git rev-parse --absolute-git-dir).
 func SetupMarkerPath(admin string) string { return filepath.Join(admin, "couch-setup-success.json") }
-
-// SetupAttemptPath is the remembered failed setup attempt beside the marker.
-func SetupAttemptPath(admin string) string { return filepath.Join(admin, "couch-setup-attempt.json") }
 
 // WorktreesRoot is the directory under a fleet root holding every slot
 // environment.
