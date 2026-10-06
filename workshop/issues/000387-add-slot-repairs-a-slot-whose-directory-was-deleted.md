@@ -337,3 +337,24 @@ Delta: the dirty-slot bullet covers a broken host (set aside after repair fails,
 re-added on its recorded branch) and states that a stale checkout is never
 touched. Saved-work retention follows `storagegc.RetentionPeriod`, one year since
 pair#393 (was 60 days in the Log's decision).
+
+### 2026-10-05 (e) — Spec deviations at implementation
+
+Reason: findings during M2–M3, recorded in the plan's Revisions (s), (w) and (x). Delta against
+the Spec:
+- **Where reconcile runs.** It runs inside each caller (add slot, open, resume, reboot) through
+  `Ensure`, in the process that calls it. `couch --reconcile repo:N` is a direct CLI operation
+  rather than a request through the Couch server's queue: the socket's admission requires a thread
+  row, and a slot with none (a deleted directory) must still reconcile. The host creation lease
+  serializes concurrent runs.
+- **Who collects saved work.** The reconciler that sets checkouts aside removes entries older than
+  `storagegc.RetentionPeriod` at the start of every run on the slot (16 entries at most), not the
+  archive GC pass. Registering slot stores with the storage coordinator was removed as unsafe.
+- **The recovery report.** It reads the reconciler through one evidence dimension. "Setup
+  incomplete" and "leftovers block provisioning" from the Spec appear as classes `reconcilable` and
+  `slot-needs-:0` with hold `workspace-handoff`.
+- **Severity.** Blocking versus degraded is decided by whether an agent can work in the slot (the
+  host is present and setup completed once), not by which resource failed.
+
+Done-when is met as revised in (b)–(d): every bullet has real-git or derived-domain evidence, listed
+in the plan's Revisions (j)–(y).
