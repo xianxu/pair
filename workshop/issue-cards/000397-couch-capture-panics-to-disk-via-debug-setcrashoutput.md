@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000397-couch-capture-panics-to-disk-via-debug-setcrashoutput.md
         source_blob: f961d2a1a98e8387eaf33af122dda06f3a1df649
         destination: workshop/issues/000397-couch-capture-panics-to-disk-via-debug-setcrashoutput.md
+        main_commit: 447e12d247b3f889761ecd69ae68bfcf32bf57bf
 ---
 
 # couch: capture panics to disk via debug.SetCrashOutput
