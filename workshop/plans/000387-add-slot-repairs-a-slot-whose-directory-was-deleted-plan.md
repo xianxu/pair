@@ -46,6 +46,17 @@ g/h/i (`workshop/history/plans/000367-recover-owned-slots-plan.md`).
    waits for it to land; Tasks 1.1–1.2 do not.
 3. **Done-when wording (dirty slot):** pending the explanation of "host checkout".
 
+## Non-goals
+
+- Freshness: reconcile never fetches, pulls or recreates a checkout for being behind origin
+  (sdlc's resting-branch handling owns that).
+- Thread records: an unreadable conversation still refuses add slot; the agent's transcript,
+  Pair per-thread artifacts, sdlc claims and the manifest enrollment are never touched.
+- `:0`: never planned or converged.
+- Guaranteeing add slot always succeeds: a hand-off on any slot (shared setup inputs, or a
+  slot-local conflict) refuses it, deliberately; only reconcilable leftovers stop blocking.
+- Sourceless `construct/deps` rows: fixed fleet-wide by ariadne#293, not worked around here.
+
 ## Decisions this plan rests on (operator, 2026-10-05)
 
 1. **Desired state = a working slot.** Derived state is repaired automatically, with no
@@ -75,7 +86,7 @@ g/h/i (`workshop/history/plans/000367-recover-owned-slots-plan.md`).
   (`provision_lock_unix.go:23`) only serializes Couch against Couch. So what is dropped is
   protection against *non-Couch* actors (the operator, sdlc, a sync tool) having put something
   at the slot's conventional path. Under decisions 1–2 that content is adopted. Anything a
-  removal would touch is saved first (rule 2), and only a broken dependency is ever removed.
+  removal would touch is saved first (rule 2), and only a checkout broken on positive evidence is ever set aside.
   Save-before-remove is the only remaining guard. Test: a foreign, pre-populated env (a non-git
   `ariadne/` with files) is adopted, and the dependency is saved before removal. The intent
   becomes a legacy resource whose desired state is absent. Mixed binaries: an older Couch that
@@ -138,7 +149,7 @@ g/h/i (`workshop/history/plans/000367-recover-owned-slots-plan.md`).
 |------|----------|--------|-------|
 | `ObserveSlot(ctx, io, layout) SlotObservation` | `cmd/internal/couchcore/slotobserve.go` | new | git (`worktree list`, `for-each-ref`, `config`, `rev-parse`, `status`), `sdlc workspace --json`, lstat, non-creating flock probe, `construct/deps` reads |
 | `Converge(ctx, io, layout, step)` | `cmd/internal/couchcore/slotconverge.go` | new | git (`worktree add/repair/remove`, `fetch`, `update-ref`, `config --add`), mkdir, `rename`, `weave compile`, marker write |
-| `SetAsideDep(ctx, layout, dep, sessions)` | `cmd/internal/couchcore/slotsave.go` | new | mkdir, the session re-check, `rename`, manifest write via `durablefile`, `RegisterStore` |
+| `SetAside(ctx, layout, checkout, sessions)` (one step for the host and every `dep:*`) | `cmd/internal/couchcore/slotsave.go` | new | mkdir, the session re-check, `rename`, manifest write via `durablefile`, `RegisterStore` |
 | `Reconciler.Reconcile(ctx, slot) (ReconcileResult, error)` (the loop) | `cmd/internal/couchcore/slotreconcile.go` | new | the two above, the host creation lease |
 | `WorkspaceProvisioner.Ensure` (body becomes `Reconcile`; signature kept for its four callers) | `cmd/internal/couchcore/provision.go` | modified | — |
 | `OSSlotCatalog.Discover` (candidates carry their `SlotObservation`; numbers come from env dirs ∪ registrations ∪ `main-slotN` refs) | `cmd/internal/couchcore/slotcatalog.go` | modified | git, filesystem |
@@ -170,7 +181,7 @@ manifest's `SlotRepositories` enrollment, and every other branch in the shared r
 **Edges, in topological order:**
 `env → store`, `{intent}`, `branch → upstream`, `{branch, env} → registration →
 host`, `upstream → host`, `host → deps → dep:* → setup`, `host → agent`. Converge runs in this
-order. Removal (only `intent`, a stale `registration`, a broken `dep:*` set aside) runs before the converges of its
+order. Removal (only `intent`, a stale `registration`, a broken checkout set aside) runs before the converges of its
 dependents.
 
 ### `PlanSlot` rules (pure; `SlotObservation → SlotPlan`)
@@ -178,15 +189,24 @@ dependents.
 1. **Unknown blocks.** An `unknown` resource contributes a `Stop{resource, reason}`. Every
    resource that transitively depends on it is skipped. Resources that do not depend on it
    still converge. Example: an unknown `agent` does not stop `branch`.
-2. **User data is never deleted.** A broken `dep:*` gets one step, `SetAsideDep`, which moves
-   the whole directory into a saved-work entry atomically (R2). If the entry limit (16 per slot)
-   is reached, the step is replaced by a `Stop{saved-work-full}`. No size is measured on any
-   path.
-3. **No removal under a live agent.** If `agent` is `live`, `busy` or `unknown`, a broken `dep:*`
-   gets `Stop{agent-live}`. Every non-removing step still runs. `SetAsideDep` re-observes the agent
-   sessions while holding `.weave-setup.lock`, immediately before the rename, and aborts on a
+2. **User data is never deleted.** A checkout broken on positive evidence (R2), either the
+   `host` after its `RepairHost` step left the evidence in place or a `dep:*`, gets one step,
+   `SetAside(checkout)`, which moves the whole directory into a saved-work entry atomically.
+   For the host, the entry's manifest records the branch the registration's admin `HEAD` named,
+   read before the rename. The following passes run `RemoveRegistration` (now stale) and then
+   `WorktreeAdd` on that recorded branch. `WorktreeAdd`'s branch is chosen in this order: the
+   stale registration's `HEAD`, then the newest host saved-work manifest's `branch`, then
+   `main-slotN`. A branch that is gone, or checked out elsewhere, falls through to the next. If
+   the entry limit (16 per slot) is reached, the step is replaced by a `Stop{saved-work-full}`.
+   No size is measured on any path.
+3. **No removal under a live agent.** If `agent` is `live`, `busy` or `unknown`, a broken
+   checkout, host or `dep:*`, gets `Stop{agent-live}`. Every non-removing step still runs.
+   `SetAside` re-observes the agent sessions immediately before the rename and aborts on a
    change. A plain `pair` launch outside the operation queue can start one between observe and
-   apply (lessons: revalidate authority before mutation).
+   apply (lessons: revalidate authority before mutation). A stop's severity comes from its
+   **reason**, not its resource: `agent-live` is always degraded, because a live agent is
+   attached as-is and reboot is what clears the hold. This holds even on a host. Fresh starts
+   only run after the agent is gone (reboot's second pass), where the stop no longer arises.
 4. **Repair never makes a working slot worse.** With a valid marker and an absent `dep:*`, the
    plan is `Compile` with `KeepOnFailure`. If that compile fails, the run **ends** with a
    warning (it never re-plans the compile in a later pass), the slot stays usable, and the
@@ -336,13 +356,13 @@ clears the hold.
     and setup's marker is written only after a re-observation under the lease.
   - **Second actors:** another Couch operation on the same slot is serialized by the operation
     queue (same process) or by the lease (other processes). A concurrent `weave` holds
-    `.weave-setup.lock` → retryable stop. `SetAsideDep` probes that lock without `O_CREAT` and
+    `.weave-setup.lock` → retryable stop. `SetAside` probes that lock without `O_CREAT` and
     holds it across the re-check and the rename (`flock` on the existing file). If the file is
     absent, there is no setup to race.
   - **Stale observations:** each converge step re-checks its own precondition at execution time
     (e.g. `update-ref` with the zero-OID CAS, `worktree add` failing if the path appeared).
-    The only removing step, `SetAsideDep`, re-observes agent sessions and the dependency's
-    broken evidence immediately before its rename (rule 3). A test injects an agent appearing
+    The only removing step, `SetAside`, re-observes agent sessions and the checkout's broken
+    evidence immediately before its rename (rule 3). A test injects an agent appearing
     between observe and apply. Pair never takes `.weave-setup.lock`, so the re-check narrows the
     window but cannot close it. A race costs nothing, because the rename preserves every byte and
     a running agent keeps its open files.
@@ -355,12 +375,12 @@ clears the hold.
   - **Tests:** `SlotWorld` crash injection after every step reproduces each ordering
     deterministically.
 - **ARCH-FUNERAL.**
-  - **saved-work entries:** created by `SetAsideDep`. The last reader is the operator restoring
+  - **saved-work entries:** created by `SetAside`. The last reader is the operator restoring
     work. Removed by the archive GC pass after `storagegc.RetentionPeriod` (one year since pair#393; measured from
     the entry's `saved_at`, else its directory mtime). Bounded at 16 entries, so disk use per
     slot is at most 16 × the largest dependency; at the cap,
     reconcile stops rather than evicting. The GC pass only visits registered stores
-    (`CouchReferences.Snapshot`, `gcruntime/references.go:14`), so `SetAsideDep` registers the
+    (`CouchReferences.Snapshot`, `gcruntime/references.go:14`), so `SetAside` registers the
     slot store with `Coordinator.RegisterStore` (`storagegc/stores.go:122`) before the rename. A store recreated lazily after
     an env reset is therefore still collected.
   - **The attempt memo (R5):** one file per registration, overwritten in place, removed with
@@ -523,7 +543,10 @@ see ARCH-MOCK).
   - `git` replaced by a script failing `worktree list` → `registration` unknown (never absent;
     lessons: a failed probe is not absence);
   - a dirty dependency (modified tracked file + untracked file + local-only commit) → `dep`
-    present. No user data is measured anywhere (rule 2).
+    present. No user data is measured anywhere (rule 2);
+  - a host whose `.git` file points at a missing admin directory and whose registration
+    `git worktree repair` cannot restore → `host` broken (positive evidence), carrying the
+    branch from the registration's admin `HEAD` when one is still readable.
 - [ ] **Step 2:** FAIL. **Step 3:** implement. Observations use `SlotLayout` and the
   `ProvisionIO` seam only. The flock probe opens without `O_CREAT`, and a missing lock file
   means free.
@@ -544,13 +567,13 @@ see ARCH-MOCK).
     invariants hold:
     - I1: no step targets a resource that is converged;
     - I2: no step targets an `unknown` resource or anything depending on one;
-    - I3: the only step that makes a `dep:*` absent is `SetAsideDep`; no step deletes user data;
-    - I4: no `SetAsideDep` when agent is live, busy or unknown;
+    - I3: the only step that makes a `host` or `dep:*` absent is `SetAside`; no step deletes user data;
+    - I4: no `SetAside` when agent is live, busy or unknown, for the host and every `dep:*`;
     - I5: `store` and `branch` never get a removing step;
     - I6: the step order respects `TopoOrder()`.
   - `TestPlanSlotNamedCases`: `tools:1`'s shape (host present, marker absent, `dep:ariadne`
     absent) → `[Compile]`. The deleted-slot shape (env absent, registration stale, branch
-    present) → `[Mkdir env, Prune, WorktreeAdd, Compile]` across passes; asserted on the first
+    present) → `[MkdirEnv, RemoveRegistration, WorktreeAdd, Compile]` across passes; asserted on the first
     pass's ready set. A valid marker with a missing dependency → `[Compile]` with
     `KeepOnFailure`.
   - `:0` → refusal.
@@ -632,7 +655,7 @@ deleted env.
   - `TestReconcileNoProgressStops`: a world whose `WorktreeAdd` reports success but changes
     nothing → failure `no progress at registration`, within the pass bound.
 - [ ] **Step 2–4:** red → green. Mutations: remove the second-pass re-observation (use the first
-  plan for every pass) → the crash test fails; make `SetAsideDep` copy then delete instead of
+  plan for every pass) → the crash test fails; make `SetAside` copy then delete instead of
   rename → the crash-mid-step assertion (no partial tree anywhere) fails.
 - [ ] **Step 5:** commit `#387 M2: couchcore: Reconcile, level-triggered and bounded`.
 
@@ -813,35 +836,36 @@ start form's error path.
 
 ## Chunk 3: M3 — set aside a broken dependency, saved-work lifecycle, recovery report
 
-### Task 3.1: `SetAsideDep` and the saved-work entry
+### Task 3.1: `SetAside` and the saved-work entry
 
 **Files:** create `slotsave.go`, `slotsave_test.go`.
 
 Entry layout: `<env>/.couch/saved-work/<id>/{tree/, manifest.json}`, with `<id>` =
-`<dep-name>-<UTC timestamp>`. The steps, in order:
+`<checkout-name>-<UTC timestamp>` (the host's name is the repository's). The steps, in order:
 1. `RegisterStore` (GC visibility).
 2. Refuse at 16 entries.
 3. `mkdir` the entry, then write `manifest.json` via `durablefile` with `state: pending`,
-   `saved_at`, the slot address, the dependency path, and the restore command
-   `mv <entry>/tree <dep>` (after moving the re-cloned dependency aside).
+   `saved_at`, the slot address, the checkout path, its kind (`host`/`dep`), for the host the
+   recorded `branch`, and the restore command `mv <entry>/tree <path>` (after moving the
+   recreated checkout aside).
 4. Open the existing `.weave-setup.lock` without `O_CREAT` and take a nonblocking `flock`;
    held → retryable. Hold it through steps 5–6; an absent lock file means no setup to race.
 5. Re-check agent sessions and the broken evidence; a change aborts.
-6. `rename(dep, entry/tree)` through the injected `SetAsideIO.Rename` seam (the crash-injection
+6. `rename(checkout, entry/tree)` through the injected `SetAsideIO.Rename` seam (the crash-injection
    point for tests and `SlotWorld`).
 7. Rewrite the manifest with `state: complete`.
 
-A crash at any point leaves a manifest naming the dependency. `pending` with a `tree/` means
+A crash at any point leaves a manifest naming the checkout. `pending` with a `tree/` means
 the move happened; `pending` without one means it did not. `--show` lists both, and GC
 collects by `saved_at`. Disk use per slot is bounded by 16 × the largest dependency
 (ARCH-FUNERAL).
 
-Every path comes from `SlotLayout`. The dependency must be a direct child of the env and not
+Every path comes from `SlotLayout`. The checkout must be a direct child of the env and not
 a symlink (`provisionSafePath`).
 
 - [ ] **Step 1: Failing tests** (real git):
   - a dependency with a local-only commit, a dirty tracked file, an untracked file and an
-    ignored file, made broken by removing `.git/HEAD` → after `SetAsideDep`, the dependency
+    ignored file, made broken by removing `.git/HEAD` → after `SetAside`, the dependency
     path is absent and `entry/tree` holds every file byte-identical, with mtimes kept. After
     restoring `.git/HEAD` in the tree, `git log` shows the local-only commit;
   - 16 existing entries → `Stop{saved-work-full}`, nothing moved;
@@ -849,13 +873,17 @@ a symlink (`provisionSafePath`).
   - the lock held by the test → retryable, nothing moved;
   - an agent session appearing at step 5 (injected through the session-probe seam) →
     `agent-live`, nothing moved; the empty entry is later collected as abandoned;
-  - the store's registration is visible to `CouchReferences.Snapshot` after the call.
+  - the store's registration is visible to `CouchReferences.Snapshot` after the call;
+  - the host, broken on positive evidence and on an issue branch: the manifest records that
+    branch, read from the admin `HEAD` before the rename;
+  - crash injection at the `Rename` seam for both kinds: no partial tree anywhere, and the
+    manifest names the checkout.
 - [ ] **Step 2–4:** red → green. Mutation: implement step 6 as copy+delete through the same
   seam with an abort injected between them, and the test that no partial tree exists anywhere
   must fail.
-- [ ] **Step 5:** commit `#387 M3: couchcore: SetAsideDep moves a broken dependency into saved work`.
+- [ ] **Step 5:** commit `#387 M3: couchcore: SetAside moves a broken checkout into saved work`.
 
-### Task 3.2: Reconcile sets aside, then setup re-clones
+### Task 3.2: Reconcile sets aside, then recreates (host re-add, dependency re-clone)
 
 **Files:** `slotconverge.go`, `slotreconcile.go` (the step was planned in M1; now executed).
 
@@ -864,6 +892,13 @@ a symlink (`provisionSafePath`).
     and its restore command;
   - the same under a live agent → `Stop{agent-live}`, which callers treat as degraded (Task
     2.5's outcome table), and nothing moved;
+  - a broken host on an issue branch → set aside, the registration removed, re-added on the
+    same issue branch (asserted from git, and named in the result); the branch's commits are
+    intact in the shared repository;
+  - the recorded branch checked out in another worktree → re-added on `main-slotN`, with the
+    result saying so;
+  - a broken host under a live agent → `Stop{agent-live}` (degraded): open attaches, and nothing
+    moves;
   - a second run → no-op.
 - [ ] **Step 2–4:** red → green.
 - [ ] **Step 5:** commit `#387 M3: reconcile repairs a broken dependency without losing work`.
@@ -878,7 +913,7 @@ a symlink (`provisionSafePath`).
   period is removed as abandoned. The pass tolerates a slot with no `saved-work/`. Removal is
   under the store lock, through the same write path as archive detach.
   - A slot whose store was recreated lazily after an env reset, and whose only content is a
-    saved-work entry, is visited by `CouchReferences.Snapshot` (because `SetAsideDep` registered
+    saved-work entry, is visited by `CouchReferences.Snapshot` (because `SetAside` registered
     it) and the old entry is collected. On today's registration path this is red.
 - [ ] **Step 2–4:** red → green. **Step 5:** commit `#387 M3: saved-work entries expire with archive retention`.
 
@@ -925,7 +960,7 @@ a symlink (`provisionSafePath`).
 - [ ] A foreign, pre-populated env (R1): a non-git `ariadne/` with files at the env path before
   slot creation → adopted. The dependency is saved, then replaced by the clone, and the entry
   restores the foreign files.
-- [ ] An agent session appearing between observe and `SetAsideDep` (injected through the session
+- [ ] An agent session appearing between observe and `SetAside` (injected through the session
   probe seam) → the rename aborts with `agent-live`; nothing is moved, and the saved entry stays.
 
 ### Task 3.6: Docs, issue revision, close
@@ -997,7 +1032,7 @@ parser import-vs-copy question raised for the operator.
    table. Reboot's first pass tolerates `agent-live`; its post-stop pass repairs. Tests per cell
    (Task 2.5).
 2. The whole-tree tar with a 64 MB cap could not save the real `ariadne` clone (65 MB). Replaced
-   by `SetAsideDep`: an atomic rename into `<env>/.couch/saved-work/<id>/tree`, with no size
+   by `SetAside`: an atomic rename into `<env>/.couch/saved-work/<id>/tree`, with no size
    cap, no tar, no trash directory and no content addressing (R2, R4, rule 2, Tasks 3.1–3.2).
    The issue's Done-when follows in its own Revision.
 
@@ -1054,3 +1089,14 @@ Task 1.3 is rewritten around it, and the copied parser and conformance table are
 - pair#393 raised `storagegc.RetentionPeriod` to one year; saved-work collection follows it.
 - ariadne#294 landed (`e76aac11`); Task 1.3 pins it. Its error for a present substrate without
   base.manifest is untyped, so a typed error is proposed as a small ariadne follow-up.
+
+### 2026-10-05 (h) — plan-quality gate PQ-1 (Important)
+
+Revision g put the host set-aside into the table and Done-when, but not into the machinery. The
+class is fixed: one `SetAside(checkout)` step for the host and every `dep:*` (rule 2, I3, I4,
+R1, ARCH-ORDER, Tasks 1.4, 3.1, 3.2). The host's branch is recorded in the manifest before the
+rename, and `WorktreeAdd` picks the stale registration's `HEAD`, then the manifest's branch,
+then `main-slotN`. A stop's severity follows its reason, so `agent-live` is degraded even on a
+host. Minors: Task 1.5's `Prune` → `RemoveRegistration`; a Non-goals section. The test-case
+lists in Tasks 1.4/2.5/3.1 stay as written: each is a derived perturbation or a named
+acceptance cell that the Done-when calls for, not free-form enumeration.
