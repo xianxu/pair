@@ -250,3 +250,25 @@ Speeding up `repo:N` resolution (resolve once per call, and cache Discover)
 benefits `--show`, `--resume` and `--reboot` as well, so it is a follow-up issue,
 not #362 scope.
 
+
+### 2026-10-06 (b) — "busy" for delivery means an occupied composer
+
+The operator asked when an actor counts as busy, and the code answers it in two
+places:
+- **Family routing** (`--send-to repo`) skips a slot unless it is on its resting
+  branch, has been quiet for 30 seconds, has a free mailbox and has allowance left.
+- **Delivery to an addressed slot** does not observe model execution
+  (`wrapcmd/peer_composer.go`). It waits only for a recognized, empty composer,
+  paste mode, and 1 second since the last keystroke. A working agent's composer is
+  empty, so the message submits and the agent queues it behind its current turn.
+  A message still waiting after `DeliveryTimeout` (30 seconds) expires.
+
+Task 5 exercise 2 therefore becomes: a draft sits in the recipient's composer. Peek
+shows the draft and no envelope, and the receipt says "waiting for empty composer".
+Clearing the draft within 30 seconds lets the message submit; leaving it lets the
+message expire undelivered, which is safe to resend.
+
+The skill now states that `submitted` means queued, not acted on, and that an
+expired or not-dispatched message is safe to resend (526b1a15). The full suite's
+only new failure was the operation-declaration table missing `peek`, which is now
+fixed; every other failure matches main.
