@@ -50,6 +50,13 @@ func newPlanFixture(t *testing.T) *planFixture {
 func (p *planFixture) path(address string) string { return p.fleet.SlotPath(address) }
 
 // thread adds one Couch row standing for the slot address.
+// orphanedThread is a thread whose zellij server is alive with its socket
+// gone (#399): unusable/orphaned-server, carrying the server.
+func (p *planFixture) orphanedThread(address string, pid int) {
+	p.thread(address, ThreadUnusable, ReasonOrphanedServer)
+	p.rows[len(p.rows)-1].Orphan = &launcher.SessionServerIdentity{PID: pid, Identity: "t", Session: "📁" + address}
+}
+
 func (p *planFixture) thread(address string, state ActionableThreadState, reason ThreadReason) {
 	repo, n := fakeSplitAddress(address)
 	path := p.path(address)
@@ -163,6 +170,8 @@ func recoverPlanCases() []recoverPlanCase {
 			setup: func(p *planFixture) { claimedOnBranch(p); p.thread("pair:1", ThreadBusy, "") }},
 		{name: "unusable unknown", address: "pair:1", want: RecoverAgentUnknown, hold: []string{"agent-unknown"},
 			setup: func(p *planFixture) { claimedOnBranch(p); p.thread("pair:1", ThreadUnusable, ReasonUnknown) }},
+		{name: "orphaned server", address: "pair:1", want: RecoverOrphanedServer, hold: []string{"orphaned-server"},
+			setup: func(p *planFixture) { claimedOnBranch(p); p.orphanedThread("pair:1", 4242) }},
 		{name: "two threads", address: "pair:1", want: RecoverAmbiguousThreads, hold: []string{"threads:2"},
 			setup: func(p *planFixture) {
 				claimedOnBranch(p)
@@ -1034,7 +1043,7 @@ func TestRestoreWorkspaceNotesDoNotAliasExtra(t *testing.T) {
 // turns idle or a missing directory (and nothing else) into the reconcile step; held and unknown add
 // their note and change nothing else; reconcile is never stepped otherwise.
 func TestRecoverReconcileReadingIsMetamorphic(t *testing.T) {
-	earlier := map[RecoverClass]bool{RecoverDirectoryMissing: true, RecoverAgentUnknown: true, RecoverStartUnreconciled: true, RecoverAmbiguousThreads: true}
+	earlier := map[RecoverClass]bool{RecoverDirectoryMissing: true, RecoverAgentUnknown: true, RecoverOrphanedServer: true, RecoverStartUnreconciled: true, RecoverAmbiguousThreads: true}
 	points := 0
 	index := 0
 	forEachEvidence(func(e SlotEvidence) {
@@ -1106,5 +1115,23 @@ func TestRecoverSlotClassAgreesWithTheCallers(t *testing.T) {
 				t.Errorf("agent=%s %s: the callers refuse a slot the report calls converged", agent, p)
 			}
 		}
+	}
+}
+
+// The report names an orphan as such, with its server, and suggests nothing a
+// running conversation can't survive: no resume, no reboot (#399 M1).
+func TestRecoverPlanNamesAnOrphanedAgent(t *testing.T) {
+	p := newPlanFixture(t)
+	claimedOnBranch(p)
+	p.orphanedThread("pair:1", 4242)
+	row := findRow(t, DeriveRecoverPlan(p.input()), "pair:1")
+	if row.Agent.State != string(AgentOrphaned) || row.Agent.Orphan == nil || row.Agent.Orphan.PID != 4242 {
+		t.Fatalf("agent = %+v", row.Agent)
+	}
+	if len(row.Next.Steps) != 0 {
+		t.Fatalf("steps = %+v, want none until reap exists", row.Next.Steps)
+	}
+	if !strings.Contains(row.Reason, "server PID 4242 lost its socket") {
+		t.Fatalf("reason = %q", row.Reason)
 	}
 }

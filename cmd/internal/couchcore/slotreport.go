@@ -30,7 +30,9 @@ func slotAgentEvidence(rows []ThreadSummary) EvidenceAgent {
 	if len(rows) == 0 {
 		return AgentNone
 	}
-	rank := map[EvidenceAgent]int{AgentBusy: 6, AgentLive: 5, AgentDetached: 4, AgentUnusableUnknown: 3, AgentUnusable: 2, AgentParked: 1, AgentNone: 0}
+	// An orphan is a running agent nothing can reach: above every row that
+	// isn't running, below the reachable ones (#399).
+	rank := map[EvidenceAgent]int{AgentBusy: 7, AgentLive: 6, AgentDetached: 5, AgentOrphaned: 4, AgentUnusableUnknown: 3, AgentUnusable: 2, AgentParked: 1, AgentNone: 0}
 	best := AgentNone
 	for _, row := range rows {
 		if e := agentEvidence(row.State, row.Reason); rank[e] > rank[best] {
