@@ -1,6 +1,6 @@
 ---
 id: 000362
-status: codecomplete
+status: done
 created: 2026-09-30
 updated: 2026-10-06
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 59b077bbe5340abe89db38958693bf0e062d6276
         evidence_commit: ad6481137adaff62b3173d96587b3867c9766cce
+        landed_commit: 2bf875b4687654ed2b8f373bfe8ce6b213e5548d
 ---
 
 # Teach Couch skill to schedule contextual work
