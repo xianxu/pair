@@ -510,16 +510,10 @@ above because it writes first.
     order. Block a cold resume in its launch (`env.Runner` acknowledge hook),
     call `Relaunch`, and assert `*ThreadBusyError` with `Running == "resume"`.
     Once the hook is released, the resume completes and the thread is live.
-  - `TestAResumeDuringARelaunchIsRefusedAndTheThreadStaysResumable` (the
-    2026-09-08 incident's order):
-    1. Set `TriggerQuitHook` to block on a channel. Start `Relaunch` in a
-       goroutine and wait until the hook is entered.
-    2. Call `ResumeContext` on the same address and assert `*ThreadBusyError`
-       with `Running == "relaunch"`.
-    3. Unblock the hook. `Relaunch` succeeds (`Outcome == Relaunched`).
-    4. The ledger has exactly one new launch since the park.
-    5. Then `Detach` and `ResumeContext` succeed. This is #214's Done-when,
-       carried over.
+  - `TestAResumeDuringARelaunchIsRefusedAndTheThreadStaysResumable`: the
+    2026-09-08 order. A resume against a relaunch blocked mid-park is refused
+    busy naming `relaunch`; the relaunch then completes with exactly one new
+    launch, and the thread detaches and resumes afterwards.
   - `TestTheGateDoesNotSerialiseDifferentThreads`: two threads, a blocked
     relaunch on A; `Detach(B)` completes.
   - `TestEveryLifecycleEntryRefusesAHeldThread`: table over the entries above
@@ -530,23 +524,17 @@ above because it writes first.
   - `TestLeaveAndParkRecoveryWaitForAHolder`: hold A, start `Leave(LeaveDetach)`
     in a goroutine, assert it hasn't returned, release, assert A is in
     `Detached`.
-  - `TestALateAbortLeavesARelaunchedSessionAlone`:
-    1. A start on A returns its `StartResult`, and its hold is released.
-    2. A relaunch on A is admitted and completes with a new session.
-    3. `AbortStarted` runs with the old `StartResult`.
-    4. Assert the relaunched session and incarnation are untouched, and only
-       the old actor record is retired.
-
-    Also `TestAbortStartedInsideAComposite`: it re-enters through the
-    composite's ctx and does not wait on its own caller.
-    Also `TestAMismatchedAbortStillClosesItsOwnHandle`: with the identity
-    changed, the handle cleanup runs and the session quiesce does not.
-  - `couchtty`: `TestTheConsoleKeepsProcessingWhileAnAbortWaits`.
-    1. Hold A with a blocked operation and fail an attach on A, so the
-       console-side abort waits.
-    2. Assert the console still handles a key event and drains a completion
-       for thread B.
-    3. Release; the abort completes and its notice appears.
+  - `TestALateAbortLeavesARelaunchedSessionAlone`: an `AbortStarted` that runs
+    after a relaunch has replaced the incarnation retires only its own actor
+    record and leaves the relaunched session and incarnation untouched.
+    `TestAbortStartedInsideAComposite`: it re-enters through the composite's
+    ctx and never waits on its own caller.
+    `TestAMismatchedAbortStillClosesItsOwnHandle`: on an identity mismatch the
+    handle cleanup runs and the session quiesce does not.
+  - `couchtty`: `TestTheConsoleKeepsProcessingWhileAnAbortWaits`: while a
+    console-side abort waits on a held thread, the console still handles input
+    and other threads' completions, and the abort's notice arrives after the
+    release.
   - `TestLeaveDecidesFromTheRecordAfterWaiting`: A is detached in the snapshot.
     Hold A, start `Leave`, then make A live with a new incarnation (a warm
     resume) and release. Assert `Leave` detached A rather than skipping it on
