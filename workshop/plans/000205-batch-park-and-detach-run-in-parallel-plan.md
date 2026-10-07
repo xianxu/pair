@@ -94,8 +94,8 @@ unchanged.
 | couch process dies mid-`Leave` | Unchanged from today: per-thread durable transitions; the next startup reconciles | n/a |
 | A thread's agent exits on its own while its park is in flight | Unchanged: park already treats child death as completion evidence (`awaitCompletionAndChildDeath`). The gate stays held until park returns, so no other operation sees the half-torn-down thread | park's recovery modes |
 | `Leave` waited behind a holder, so its snapshot row is stale | `leaveOne` takes `holdWait` **first**, then re-reads the record with `GetThread` and decides from that. Never from the snapshot | none |
-| Completion-side effects run after release (`finishOperation` → `attach`/`AbortStarted` on the console goroutine) | These act on the exact actor record and process identity the operation returned, never on "the thread's current state". A newer holder's incarnation has a different identity and is untouched. Test in Task 10 | none |
-| Boot: `StartInteractive` resumes a thread `RecoverActiveParks` holds | Startup **waits** (`ResumeOptions.WaitForHolder`). The operator's first frame must not fail because boot recovery touched the same thread | none |
+| Completion-side effects run after release (`finishOperation` → `attach`/`AbortStarted` on the console goroutine) | `AbortStarted` can quiesce the thread's session **by address** (`couch.go:857`, cold-start shapes that own the session), so identity matching is not what makes this safe. What does: until `AbortStarted` retires it, the record still holds the aborted start's incarnation as `IncarnationLive`. Every launch-class operation refuses a thread with a live incarnation (resume "not detached", `CommitStartClaim` occupancy), so no newer incarnation can exist in that window. Test in Task 10 | none |
+| Boot: `StartInteractive` meets `RecoverActiveParks` | Cannot happen today: `RecoverActiveParks` starts only after the startup operation returns (`couchcmd/run.go:489-496`). If that order ever changes, the startup resume is refused busy; that is acceptable, and the next start succeeds | none |
 
 **Most likely to be mishandled:** a composite that releases its hold before its
 inner work finishes (D4), and its twin, a drain that decides from an observation
@@ -473,9 +473,9 @@ defer release()
 | `ReconcileContinuation` | `continuation_recovery.go:182` | `continuation-status` | refuse. The console's continuation scan treats busy as "not yet" and retries on its next scan, silently (Task 4) |
 | `rebootPrimary` / `rebootSlot` | `reboot.go`. In `rebootSlot`, hold **after** the `switch` at :226-229, so `ctx` is not shadowed inside a case. The unreadable-record branch has no address and is accepted unheld: it archives a file couch cannot decode | `reboot` | refuse |
 | `RecoverThread` | `recovery_execute.go:213`. A composite: it writes (`reconcileRecoveryHelper` :257, `prepareAbsentContinuation` :279) before calling `ResumeContextWith` / `RetryContinuation` | `recover` | refuse |
-| `Stop` | `couch.go` (`Stop(record)`: hold `record.Thread` when it is non-zero) | `stop` | refuse |
+| `Stop` | `couch.go:1241` (`Stop(a ActorRecord)` has no ctx: hold `a.Thread` with `context.Background()` when it is non-zero; it is never reached inside a composite) | `stop` | refuse |
 | **new** `Couch.Park(ctx, address, mode)` | `park.go` | `park` | refuse |
-| `Leave`'s per-record step | `park.go:194` loop body, extracted here into `leaveOne(ctx, address, disposition)`: `holdWait`, then `GetThread`, then today's decision | `leave` | **wait** |
+| `Leave`'s per-record step | `park.go:194` loop body, extracted here into `leaveOne(ctx, address, disposition)`: `holdWait`, then `GetThread`, then today's decision. `ErrThreadNotFound` after the wait (archived meanwhile) is a skip, not a failure. Trade-off accepted: quit waits on every thread, including ones it will skip, so it can wait behind an unrelated operation; that operation's own timeouts bound the wait | `leave` | **wait** |
 | `RecoverActiveParks`'s per-record step | `couch.go:89` loop body | `park-recovery` | **wait** |
 
 `Couch.Park` holds the gate and switches on `mode` to
@@ -494,10 +494,6 @@ above because it writes first.
 - `ArchiveThread` is CAS-guarded and has no live caller.
 - `ReconcileActiveParks` has no interactive caller; `RecoverActiveParks` is the
   one used.
-
-`ResumeContextWith` gains `ResumeOptions.WaitForHolder`. `StartInteractive`
-(`startup.go:241`) sets it, so the boot resume waits behind `RecoverActiveParks`
-instead of failing the operator's first frame.
 
 - [ ] **Step 1: Failing tests** in `cmd/internal/couchcore/threadgate_couch_test.go`,
   built on `envWithLiveThread`:
@@ -530,9 +526,6 @@ instead of failing the operator's first frame.
     resume) and release. Assert `Leave` detached A rather than skipping it on
     the stale snapshot row. In Task 3 `leaveOne` already takes `holdWait`
     first and then re-reads with `GetThread`; Task 7 only adds the fan-out.
-  - `TestStartupResumeWaitsBehindParkRecovery`: hold A as `park-recovery`, call
-    `ResumeContextWith(WaitForHolder)` in a goroutine, release, and assert it
-    proceeds.
 - [ ] **Step 2: Run, expect FAIL.**
 - [ ] **Step 3: Implement** the table above, one entry per commit-sized edit.
 - [ ] **Step 4: Run** `go test ./cmd/internal/couchcore -race -count=1`. Expect PASS,
@@ -557,13 +550,19 @@ instead of failing the operator's first frame.
 - [ ] **Step 3: Implement.** `finishReattach` sees only `event.Diagnostic`,
   which `console.go:1844` sets from `couchcore.ResumeDiagnosticOf(err)`, so
   busy has to arrive as a diagnostic code:
-  - Add `ResumeThreadBusy` to the resume diagnostic codes.
-  - Teach `ResumeDiagnosticOf` to return it for a `*ThreadBusyError` (via
-    `errors.As`).
-  - In `finishReattach`, add it to the cell-6 skip case alongside
-    `ResumeNotDetached` and `ResumeSessionGone`.
+  - **`ResumeDiagnosticOf` stays unchanged.** A resume diagnostic means "couch
+    decided not to start" (`startup.go:257-266`). Readers branch on it at
+    `startup.go:273`, `relaunch.go:123`, `resume_route.go:90` and
+    `couchcmd/slot_operations.go:158`, and a busy thread is not that verdict.
+  - Instead, add `couchcore.IsThreadBusy(err) bool` (an `errors.As` wrapper).
+  - Add a `Busy bool` field to `MenuEvent`, set at `console.go:1844` from
+    `IsThreadBusy(err)`.
+  - In `finishReattach`, treat `event.Busy` like cell 6: skip silently.
   - In the console's continuation scan, an operation refused busy leaves
-    `watch.queued` false, so the next scan retries it without a notice.
+    `watch.queued` false, so the next scan retries it without a notice. A busy
+    `continue-thread` completion also clears the `c.expectedExits[id]` entries
+    it set (`console_continuation.go:205-209`); otherwise a later real exit of
+    that pane would be read as expected. Test this.
   - The operator notice and the remote path already carry `err.Error()`;
     assert rather than change them unless a test shows otherwise.
 - [ ] **Step 4: Run** `go test ./cmd/internal/couchtty -race -count=1`. Expect PASS.
@@ -664,6 +663,9 @@ worker.
     section per writer.
   - Readers take the lock to copy the value (the registry is an immutable
     value type, so a copied value is safe to use after unlocking).
+  - `regMu` is held across `Store.Save` and `withoutDead`'s liveness probes.
+    That is acceptable at this scale. Comment on `mutateRegistry` that no
+    zellij or other external call may run inside it.
   - Route all ~20 `c.reg`/`c.names` uses through two helpers,
     `c.registry() (Registry, Names)` and
     `c.mutateRegistry(func(Registry, Names) (Registry, Names, error)) error`,
@@ -723,10 +725,12 @@ external reader of `Loading`), `menu_reattach_test.go`.
     bound and record why in the Log.
   - `TestAReattachedChildKeepsItsTrackingMode` (#196) unchanged, plus a new
     variant that completes N reattaches in one burst.
-  - New test, `TestALateCompletionDoesNotTouchANewerHolder`. An attempt on A
-    completes and is adopted. Its failed sibling's `AbortStarted` runs after a
-    new operation has taken A's hold. Assert that the abort removes only its own
-    actor ID and never the newer incarnation.
+  - New test, `TestAnOperationBetweenReleaseAndAbortIsRefusedByOccupancy`. A
+    start on A returns, its hold is released, and its completion is pending on
+    the console. An operation admitted by the gate in that window (a resume, and
+    a relaunch) must be refused by the live-incarnation guard. Cover both the
+    cold-start shape (owns the session) and the warm shape. Then `AbortStarted`
+    runs, and the thread is resumable afterwards.
 - [ ] **Step 4: Commit.**
 
 ### Task 11: Counted invariant and measurement
