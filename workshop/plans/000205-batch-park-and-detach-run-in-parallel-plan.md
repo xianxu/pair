@@ -473,7 +473,7 @@ defer release()
 | `ReconcileContinuation` | `continuation_recovery.go:182` | `continuation-status` | refuse. The console's continuation scan treats busy as "not yet" and retries on its next scan, silently (Task 4) |
 | `rebootPrimary` / `rebootSlot` | `reboot.go`. In `rebootSlot`, hold **after** the `switch` at :226-229, so `ctx` is not shadowed inside a case. The unreadable-record branch has no address and is accepted unheld: it archives a file couch cannot decode | `reboot` | refuse |
 | `RecoverThread` | `recovery_execute.go:213`. A composite: it writes (`reconcileRecoveryHelper` :257, `prepareAbsentContinuation` :279) before calling `ResumeContextWith` / `RetryContinuation` | `recover` | refuse |
-| `AbortStarted` | `couch.go:778`. Gains `ctx` as its first parameter. Callers pass their own ctx: the gated composites at `continuation_recovery.go:143,163,171` and `continuation.go:277,368,374` (so it re-enters), and `couchcmd/run.go:765` passes `call.Context`. Under the hold, quiesce by address only if the record's live incarnation still matches `start.Record`'s PID and identity; otherwise retire the actor record alone | `abort-start` | **wait** |
+| `AbortStarted` | `couch.go:778`. Gains `ctx` as its first parameter. Callers pass their own ctx: the gated composites at `continuation_recovery.go:143,163,171` and `continuation.go:277,368,374` (so it re-enters), and `couchcmd/run.go:765` passes `call.Context`. Under the hold, the **handle half** of `quiescePostAckStart` (`couch.go:837-851`: the start's own terminal and handle cleanup) always runs, because it is identity-scoped. The **address-scoped** `quiesceThreadSession` (`couch.go:857`) runs only if the record's live incarnation still matches `start.Record`'s PID and identity. The actor record is retired either way. **Never wait on the console goroutine:** `run.go:765` runs synchronously inside `finishOperation` (`console.go:1820-1830`). A gate wait there would freeze rendering and input, and in M2 it would fill `q.results` and stall the workers. So the console-side abort runs in a goroutine tracked by `c.workers`, and its outcome is reported through the existing notice path | `abort-start` | **wait** |
 | `Stop` | `couch.go:1241` (`Stop(a ActorRecord)` has no ctx: hold `a.Thread` with `context.Background()` when it is non-zero; it is never reached inside a composite) | `stop` | refuse |
 | **new** `Couch.Park(ctx, address, mode)` | `park.go` | `park` | refuse |
 | `Leave`'s per-record step | `park.go:194` loop body, extracted here into `leaveOne(ctx, address, disposition)`: `holdWait`, then `GetThread`, then today's decision. `ErrThreadNotFound` after the wait (archived meanwhile) is a skip, not a failure. Trade-off accepted: quit waits on every thread, including ones it will skip, so it can wait behind an unrelated operation; that operation's own timeouts bound the wait | `leave` | **wait** |
@@ -531,6 +531,14 @@ above because it writes first.
 
     Also `TestAbortStartedInsideAComposite`: it re-enters through the
     composite's ctx and does not wait on its own caller.
+    Also `TestAMismatchedAbortStillClosesItsOwnHandle`: with the identity
+    changed, the handle cleanup runs and the session quiesce does not.
+  - `couchtty`: `TestTheConsoleKeepsProcessingWhileAnAbortWaits`.
+    1. Hold A with a blocked operation and fail an attach on A, so the
+       console-side abort waits.
+    2. Assert the console still handles a key event and drains a completion
+       for thread B.
+    3. Release; the abort completes and its notice appears.
   - `TestLeaveDecidesFromTheRecordAfterWaiting`: A is detached in the snapshot.
     Hold A, start `Leave`, then make A live with a new incarnation (a warm
     resume) and release. Assert `Leave` detached A rather than skipping it on
