@@ -1,12 +1,12 @@
 ---
 id: 000402
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-06
 updated: 2026-10-06
 estimate_hours:
-card_mirror: '27615b541a4c90755e90b248fb7ed062bb149f41' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '192ca706e08fc189aae48c8321b125482808942f' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-06T22:11:19-07:00
 claimant:
     operator: T
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "cd2a532f", done: "7c7d4e5d"}
+actual_hours: 0.24
 ---
 
 # Switcher: add slot is offered only while the repository's :0 is live
