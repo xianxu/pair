@@ -211,3 +211,38 @@ evidence. No new persistent artifact family or external service.
   were reproduced on main (see issue Log); the cumulative couchcore timeout was
   completed by a separate passing run of its 126 remaining tests. No baseline bug
   is claimed fixed. Runbook large-capture extractor verified with disposable bytes.
+
+
+## 2026-10-07 boundary-review revision
+
+The first close review raised BR-1 (README), BR-2 (aggregate retention), and BR-3
+(pure lifecycle authority). Address the classes without deleting evidence or
+changing the operator-approved complete-prefix choice. This supersedes prior
+per-session-only retention and the proposed 1 TiB configuration maximum.
+
+- BR-1: document both activation variables, defaults/ranges, recording/stopped
+  indicator and storage admission in README, linked to the detailed atlas runbook.
+- BR-2: `terminalcapture/storage.go` owns admission under a persistent private
+  parent lock (nonblocking flock; busy refuses startup). Reserve each session's
+  full allowance in a private versioned budget.json before returning its file.
+  Enforce 32 GiB aggregate reserved stream bytes and 64 session directories.
+  Per-session configuration is consequently limited to 1 MiB–32 GiB. Reservations
+  survive close/crash; removing or moving the particular evidence session frees
+  admission. Never automatically delete recordings. Validate bounded metadata,
+  reject symlink/corrupt/unknown sessions and files larger than their reservation.
+  Legacy sessions lacking metadata are charged by actual size only when their
+  final bounded JSONL tail proves a version-one complete/incomplete capture-end;
+  otherwise refuse with a fresh-directory/preserve-evidence instruction. Lock and
+  metadata overhead is bounded separately from recorded stream bytes. Test repeated
+  and concurrent admissions, count/byte exhaustion, old/corrupt/unfinished evidence,
+  permissions and no existing-data loss. No per-record disk scan or lock added.
+- BR-3: `terminalcapture/lifecycle.go` encapsulates authoritative phase/error state;
+  a pure state/event transition yields close-admission and notify effects. Recorder
+  executes those effects; writer completion, failure and close timeout cannot
+  mutate phase directly. Tests exercise normal/repeated close, queue/IO failure,
+  timeout and late completion through this production model and concurrent recorder.
+- Register both new source files in the artifact inventory. Rerun affected package,
+  race and real-PTY tests; update all configuration range/readback tests and docs.
+
+Operator explicitly confirmed “Complete capture with visible limit (recommended)”
+during the first close review. Review refusal was not bypassed; re-close after fixes.
