@@ -172,12 +172,19 @@ or recovered by hand (`claude --resume 9a99ff57-…`).
 
 ## Done when
 
-- A thread whose resume proof fails names the failure. Ambiguous reads
-  "two conversations claim it — reboot", unbound reads "no turn taken yet —
-  reboot", and provisional reads "conversation not confirmed yet — retry after
-  a turn". This holds with or without a park receipt (operator decision D2,
-  2026-10-07). Every new reason is produced by a test shape and passes the
-  defining-word guard.
+- A thread whose resume proof fails names the failure when the resolution
+  proves it, with or without a park receipt (operator decision D2, applied to
+  proven evidence on 2026-10-07; see Revisions):
+  - ambiguous reads "two conversations claim it — reboot";
+  - unbound, only with a proven-absent fresh file and nothing behind it, reads
+    "no turn taken yet — reboot";
+  - provisional, only on an incomplete listing, reads "conversation not
+    confirmed yet — retry after a turn".
+
+  An unproven refusal keeps `binding-lost` (with a receipt) or `session-gone`
+  (`provenBindingRefusal`, table-tested). Every new reason is produced by a
+  test shape and passes the defining-word guard. The slot actions and the
+  start-reuse notice treat the four binding reasons as one class.
 - A resolver IO failure projects `unusable/unknown`, never a binding verdict
   (test).
 - After an in-pane fresh restart whose agent never took a turn, the thread
