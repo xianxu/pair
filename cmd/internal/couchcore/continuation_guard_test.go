@@ -90,6 +90,8 @@ func TestContinuationRefusesMatchesTheGuardForEveryRowAction(t *testing.T) {
 		"dismiss-continuation": "an exit from the failed request, not an operation it gates",
 		"reboot":               "never offered on a live row; its retirement is prepareRetirement, whose admission is archive's archiveContinuationVacant",
 		"alias":                "repository metadata keyed by primary root; it addresses no thread, so no thread's continuation gates it",
+		"reap":                 "never offered on a live row (only unusable/orphaned-server); it ends a process tree and touches no record, so no continuation gates it (#399)",
+		"recover":              "never offered on a live row; it composes resume, reap and reboot, each gated as itself through DispatchOperation (#399)",
 		"resume":               "#363: routes a retained request to RetryContinuation/RecoverThread instead of the guard; pinned by TestResumeOperationRetriesAFailedContinuation and TestChooseResumeRoute",
 	}
 	for _, op := range Operations() {

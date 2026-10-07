@@ -120,7 +120,13 @@ func menuRowActions(f menuRowFacts) []string {
 		// The actor operations are couchcore's one admission table, shared
 		// with the recover-plan report (pair#367). A :1+ row whose directory
 		// is missing offers nothing; menuRowAdviceOf says what brings it back.
-		return couchcore.ActorActions(f.Actor)
+		// Recover leads: it is the default gesture, running whatever the
+		// recovery report decides for this row (#399).
+		actions := couchcore.ActorActions(f.Actor)
+		if couchcore.RecoverOffered(actions) {
+			return append([]string{"recover"}, actions...)
+		}
+		return actions
 	}
 	// Busy, unknown, live with a pending request: nothing to offer, and
 	// menuRowNotice says why. "checking…" is not a verdict, and reboot stops a

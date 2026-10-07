@@ -316,9 +316,17 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 // inventory at execution time, and the queue key resolves repository names
 // from the thread store.
 func consoleSlotOperations(console *couchtty.Console, c *couchcore.Couch) *slotOperations {
-	return newSlotOperations(func(key, op, target string, started func(), finished func(any, error)) error {
+	return newSlotOperations(func(key, op, target string, confirmed bool, started func(), finished func(any, error)) error {
 		return console.EnqueueRemoteOperation(key, op, func(ctx context.Context) (couchcore.OperationCall, error) {
-			return c.PrepareSlotOperation(ctx, op, target)
+			call, err := c.PrepareSlotOperation(ctx, op, target)
+			if err == nil && confirmed {
+				if _, _, byPlan := couchcore.OperationConfirms(op); byPlan {
+					// The CLI saw no preview, so its --confirm is plan-blind:
+					// recover runs the plan as it stands when the job runs.
+					call.Args["confirmed"] = "true"
+				}
+			}
+			return call, err
 		}, started, finished)
 	}, func(ctx context.Context) ([]couchcore.RepositoryName, error) {
 		if c.Threads == nil {
@@ -579,7 +587,7 @@ func (s *messageService) connectedWorkspace(ctx context.Context, b couchmessage.
 
 func (s *messageService) handle(ctx context.Context, request couchmessage.Request) couchmessage.Response {
 	switch request.Op {
-	case "resume", "reboot", "reap", "operation-status":
+	case "resume", "reboot", "reap", "recover", "operation-status":
 		return s.handleSlotOperation(ctx, request)
 	}
 	if request.Binding == nil && couchmessage.ValidateRequest(request) == nil {

@@ -14,8 +14,10 @@ import (
 
 // slotOperationRunner enqueues one slot operation on the console's queue
 // (couchtty.Console.EnqueueRemoteOperation with Couch.PrepareSlotOperation).
+// confirmed is the request's --confirm, which a by-plan operation (recover)
+// carries into its call because only its plan says whether it was needed.
 // When it returns an error it never calls started or finished.
-type slotOperationRunner func(key, op, target string, started func(), finished func(any, error)) error
+type slotOperationRunner func(key, op, target string, confirmed bool, started func(), finished func(any, error)) error
 
 // maxSlotOperationReceipts bounds the receipts held at once (about 1 KiB each);
 // the next admission is refused overloaded.
@@ -56,7 +58,9 @@ func (s *slotOperations) handle(ctx context.Context, caller couchmessage.Binding
 		}
 		return couchmessage.Response{Code: "ok", Operation: &receipt}
 	}
-	if confirms, _ := couchcore.OperationConfirms(r.Op); confirms && !r.Confirmed {
+	// A by-plan operation is admitted either way: its job refuses an
+	// unconfirmed destructive plan itself, naming what it would do.
+	if confirms, _, _ := couchcore.OperationConfirms(r.Op); confirms && !r.Confirmed {
 		return couchmessage.Response{Code: "confirmation-required", Error: r.Op + " requires --confirm"}
 	}
 	queueKey, err := s.queueKey(ctx, r.Target)
@@ -84,7 +88,7 @@ func (s *slotOperations) handle(ctx context.Context, caller couchmessage.Binding
 	s.receipts[key] = receipt
 	// Enqueue never blocks, so holding the lock is safe; a job that starts at
 	// once waits in started until this admission returns.
-	err = s.run(queueKey, r.Op, r.Target, func() { s.apply(key, couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptStart, ID: r.ID}) },
+	err = s.run(queueKey, r.Op, r.Target, r.Confirmed, func() { s.apply(key, couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptStart, ID: r.ID}) },
 		func(value any, err error) {
 			s.apply(key, couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptFinish, ID: r.ID, Outcome: slotOperationOutcome(value, err), At: s.now()})
 		})
@@ -151,10 +155,13 @@ func (s *slotOperations) queueKey(ctx context.Context, target string) (string, e
 // resume diagnostic, and a success names the thread left running.
 func slotOperationOutcome(value any, err error) couchmessage.ReceiptOutcome {
 	var refusal *couchcore.SlotOperationError
+	var recoverRefusal *couchcore.RecoverRefusal
 	var reapRefusal *couchcore.ReapRefusal
 	switch {
 	case errors.As(err, &refusal):
 		return couchmessage.ReceiptOutcome{Status: couchmessage.ReceiptRefused, Code: refusal.Code, Detail: refusal.Detail}
+	case errors.As(err, &recoverRefusal):
+		return couchmessage.ReceiptOutcome{Status: couchmessage.ReceiptRefused, Code: recoverRefusal.Code, Detail: recoverRefusal.Detail}
 	case errors.As(err, &reapRefusal):
 		return couchmessage.ReceiptOutcome{Status: couchmessage.ReceiptRefused, Code: "reap-refused", Detail: reapRefusal.Detail}
 	case err != nil:

@@ -511,7 +511,7 @@ func dispatchInteractiveStart(c *couchcore.Couch, args map[string]string) (couch
 
 func operationUsesCurrentRepoScope(name string) bool {
 	switch name {
-	case "show", "park", "resume", "reboot", "reap", "retry-continuation", "dismiss-continuation":
+	case "show", "park", "resume", "reboot", "reap", "recover", "retry-continuation", "dismiss-continuation":
 		return true
 	default:
 		return false
@@ -521,7 +521,7 @@ func operationUsesCurrentRepoScope(name string) bool {
 // operationOwnsLive is the pure entrypoint policy. Both ways into Couch must
 // acquire the same singleton before they can create a child or take a terminal.
 func operationOwnsLive(name string) bool {
-	return name == "start" || name == "resume" || name == "reboot" || name == "reap" || name == "retry-continuation"
+	return name == "start" || name == "resume" || name == "reboot" || name == "reap" || name == "recover" || name == "retry-continuation"
 }
 
 // WantsConsole is the console DECISION, separated from building one.
@@ -1053,6 +1053,7 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "       couch --resume repo:N [--json]")
 	fmt.Fprintln(w, "       couch --reboot repo:N --confirm [--json]")
 	fmt.Fprintln(w, "       couch --reap repo:N --confirm [--json]")
+	fmt.Fprintln(w, "       couch --recover repo:N [--confirm] [--json]")
 	fmt.Fprintln(w, "             From a live Couch slot only: run the report's step on one slot")
 	fmt.Fprintln(w, "             through the running Couch, in the background. Verify by reading")
 	fmt.Fprintln(w, "             the report again; an uncertain outcome means read it before resending.")

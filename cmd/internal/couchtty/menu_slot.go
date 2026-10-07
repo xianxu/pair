@@ -48,9 +48,9 @@ func actorOperation(operation string) bool {
 // menuOperationReplacesAddress names an in-flight operation whose success may
 // hand back a different address than the one it was sent for: anything keyed
 // by row (a slot's record can be adopted or replaced), and reboot, which
-// retires its record and starts a fresh one under a new tag.
+// retires its record and starts a fresh one under a new tag (as recover may).
 func menuOperationReplacesAddress(origin MenuOperationOrigin) bool {
-	return origin.RowKey.Kind == couchcore.ThreadTargetSlot || origin.Operation == "reboot"
+	return origin.RowKey.Kind == couchcore.ThreadTargetSlot || origin.Operation == "reboot" || origin.Operation == "recover"
 }
 
 // menuFrameTargetsInFlight reports a frame bound to the row the in-flight

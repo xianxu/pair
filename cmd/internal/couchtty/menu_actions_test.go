@@ -113,7 +113,7 @@ func expectedRowActions(s menuRowShape) []string {
 		}
 		return []string{"detach", "relaunch", "park", "switch-agent", "alias", "add-slot"}
 	case couchcore.ThreadParked, couchcore.ThreadDetached:
-		return []string{"resume", "reboot"}
+		return []string{"recover", "resume", "reboot"}
 	case couchcore.ThreadUnusable:
 		switch {
 		case s.reason == couchcore.ReasonUnknown:
@@ -121,19 +121,19 @@ func expectedRowActions(s menuRowShape) []string {
 		// An orphaned server's agent may still be writing: neither resume nor
 		// reboot is safe; only the confirmed reap (#399).
 		case s.reason == couchcore.ReasonOrphanedServer:
-			return []string{"reap"}
+			return []string{"recover", "reap"}
 		case s.reason == couchcore.ReasonPathMissing && s.slot:
 			return nil
 		case s.reason == couchcore.ReasonPathMissing:
-			return []string{"reboot"}
+			return []string{"recover", "reboot"}
 		// A parked slot whose conversation cannot be resolved (its agent
 		// never took a turn) has nothing to resume (pair#367 smoke test).
 		case s.slot && s.reason == couchcore.ReasonBindingLost && !unfinished:
-			return []string{"reboot"}
+			return []string{"recover", "reboot"}
 		case s.slot || s.recover || unfinished:
-			return []string{"resume", "reboot"}
+			return []string{"recover", "resume", "reboot"}
 		}
-		return []string{"reboot"}
+		return []string{"recover", "reboot"}
 	}
 	return nil
 }

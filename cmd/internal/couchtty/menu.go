@@ -73,6 +73,9 @@ const (
 // MenuFrame owns the navigation state for exactly one menu level.
 type MenuFrame struct {
 	SwitchPrepared *couchcore.PreparedAgentSwitch
+	// RecoverPreview is the accepted recover preview a confirmation frame shows
+	// (#399); nil while its prepare-recover is still running.
+	RecoverPreview *couchcore.RecoverPreview
 	SwitchStage    int
 	SwitchEdited   bool
 	// Rune distance from the end; zero keeps newly prefilled parameters at end.
@@ -287,6 +290,7 @@ type MenuEvent struct {
 	// predates a committed operation mutation.
 	ProjectionAfterGeneration uint64
 	SwitchPrepared            *couchcore.PreparedAgentSwitch
+	RecoverPreview            *couchcore.RecoverPreview
 	Prepared                  *couchcore.PreparedStart
 	Completion                *CompletionResult
 	// Background marks the completion of a reattach-pass attempt (pair#206),
@@ -825,6 +829,10 @@ func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			return requestStartPreview(state)
 		case "switch-agent":
 			return openSwitchAgent(state, thread.Address)
+		case "recover":
+			// By plan: whether it confirms is the report's answer, so Enter
+			// runs the preview first (openRecover).
+			return openRecover(state, thread)
 		case "alias":
 			// The genuine special case: it collects text before it can run,
 			// which no declaration expresses.
@@ -839,9 +847,15 @@ func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			// switch and did nothing at all. Detach still destroys nothing and
 			// still runs without a confirmation -- that asymmetry with park is
 			// why both actions exist -- but it is now DECLARED, not remembered.
-			confirms, declared := couchcore.OperationConfirms(frame.SelectedItem)
+			confirms, declared, byPlan := couchcore.OperationConfirms(frame.SelectedItem)
 			if !declared {
 				state.Notice = errorMenuNotice(frame.SelectedItem + " is not a declared operation")
+				return state, nil
+			}
+			if byPlan {
+				// A by-plan operation needs its own preview arm above; running
+				// it here would skip the plan's confirmation.
+				state.Notice = errorMenuNotice(frame.SelectedItem + " confirms by plan and has no preview here")
 				return state, nil
 			}
 			if confirms {
@@ -895,10 +909,19 @@ func reduceConfirmationKey(state MenuState, key PanelKey) (MenuState, []MenuEffe
 			state.Frames = state.Frames[:len(state.Frames)-1]
 			return state, nil
 		}
-		confirms, _ := couchcore.OperationConfirms(frame.Action)
-		if frame.SelectedItem != frame.Action || !confirms ||
+		confirms, _, byPlan := couchcore.OperationConfirms(frame.Action)
+		if frame.SelectedItem != frame.Action || !(confirms || byPlan) ||
 			(binds && !menuFrameOperationInFlight(state, *frame) && !containsMenuItem(menuActionItems(thread), frame.Action)) {
 			return discardThreadFrames(state, frame.Thread, "thread action is no longer applicable"), nil
+		}
+		if frame.Action == "recover" {
+			if frame.RecoverPreview == nil {
+				return state, nil // the report is still being read
+			}
+			return dispatchRecover(state, thread, *frame.RecoverPreview, true)
+		}
+		if byPlan {
+			return discardThreadFrames(state, frame.Thread, frame.Action+" confirms by plan and has no preview here"), nil
 		}
 		if frame.Action == "leave" {
 			return dispatchMenuOperation(state, leaveEffect(couchcore.LeaveDisposition(frame.Mode)), couchcore.ThreadAddress{})
@@ -1218,6 +1241,9 @@ func reducePreviewResult(state MenuState, event MenuEvent) (MenuState, []MenuEff
 	if state.CurrentFrame().Kind == MenuFrameSwitchAgent {
 		return reduceSwitchAgentPreview(state, event)
 	}
+	if frame := state.CurrentFrame(); frame.Kind == MenuFrameConfirmation && frame.Action == "recover" {
+		return reduceRecoverPreview(state, event)
+	}
 	if state.CurrentFrame().Kind != MenuFrameStart {
 		return state, nil
 	}
@@ -1326,6 +1352,12 @@ func confirmationMenuItems(state MenuState, frame MenuFrame) []string {
 	// that spells another action's name is not a default, it is a lie.
 	item := frame.Action + " " + thread.Label()
 	switch frame.Action {
+	case "recover":
+		if frame.RecoverPreview == nil {
+			item += " — reading the recovery report…"
+		} else {
+			item += " — " + frame.RecoverPreview.Text
+		}
 	case "reap":
 		item += reapConfirmationCost(thread)
 	case "reboot":
@@ -1583,8 +1615,10 @@ func reconcileMenuFrames(state MenuState, previous ...[]couchcore.ActionableThre
 			// an operation that went on to work. Target AND operation: an
 			// exemption wider than its rationale is not scoped to the window
 			// it explains.
-			confirms, _ := couchcore.OperationConfirms(frame.Action)
-			if (bound != (couchcore.ThreadAddress{}) && bound != frame.Thread) || !confirms ||
+			// A by-plan confirmation (recover) is a confirmation frame like
+			// any other once its plan asked for one.
+			confirms, _, byPlan := couchcore.OperationConfirms(frame.Action)
+			if (bound != (couchcore.ThreadAddress{}) && bound != frame.Thread) || !(confirms || byPlan) ||
 				(!menuFrameOperationInFlight(state, frame) && !containsMenuItem(menuActionItems(thread), frame.Action)) {
 				invalidThreadFrame = true
 				setBookkeepingNotice(&state, "thread action is no longer applicable")
@@ -1717,7 +1751,7 @@ func endsItsOwnChild(operation string) bool {
 // terminal focus; leave terminates the console and has no next frame to update.
 func operationNeedsProjectionRefresh(operation string) bool {
 	switch operation {
-	case "start", "park", "detach", "resume", "reboot", "reap", "alias", "relaunch", "switch-agent", "retry-continuation", "dismiss-continuation", "continue-thread":
+	case "start", "park", "detach", "resume", "reboot", "reap", "recover", "alias", "relaunch", "switch-agent", "retry-continuation", "dismiss-continuation", "continue-thread":
 		return true
 	case "switch", "leave":
 		return false
@@ -1857,6 +1891,8 @@ func menuOperationProgressText(state MenuState, operation string, address couchc
 		return "rebooting " + label
 	case "reap":
 		return "reaping " + label + "'s orphaned server…"
+	case "recover":
+		return "recovering " + label + "…"
 	default:
 		return operation
 	}

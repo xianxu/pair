@@ -49,7 +49,7 @@ func TestMenuSlotSelectionSurvivesConversationReplacement(t *testing.T) {
 func TestMenuSlotRebootConfirmsAndSendsThePath(t *testing.T) {
 	row := menuSlotRow(1, "")
 	items := menuActionItems(row)
-	if !slices.Equal(items, []string{"resume", "reboot"}) {
+	if !slices.Equal(items, []string{"recover", "resume", "reboot"}) {
 		t.Fatalf("actions %v", items)
 	}
 	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, couchcore.ThreadAddress{})

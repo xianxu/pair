@@ -42,10 +42,19 @@ func TestEveryOfferedActionIsReachableFromEnter(t *testing.T) {
 					}
 					// And what it did must match the DECLARATION, so the two
 					// cannot drift apart again.
-					if confirms, declared := couchcore.OperationConfirms(action); declared && confirms {
+					confirms, declared, byPlan := couchcore.OperationConfirms(action)
+					if declared && confirms {
 						if next.CurrentFrame().Kind != MenuFrameConfirmation && next.CurrentFrame().Kind != MenuFrameSwitchAgent {
 							t.Errorf("%q declares ConfirmRequired but Enter did not confirm: %v",
 								action, next.CurrentFrame().Kind)
+						}
+					}
+					// A by-plan action cannot dispatch before its plan is known:
+					// Enter must ask for the preview, never run the operation.
+					if declared && byPlan {
+						previewed := len(effects) == 1 && effects[0].Preview != nil && effects[0].Operation == ""
+						if !previewed || next.InFlight.Operation != "" {
+							t.Errorf("%q confirms by plan but Enter did not ask for its preview: %+v", action, effects)
 						}
 					}
 				})

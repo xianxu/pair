@@ -29,7 +29,7 @@ type SlotOperationError struct {
 func (e *SlotOperationError) Error() string { return e.Code + ": " + e.Detail }
 
 // slotOperations are the actor operations a slot target may request.
-var slotOperations = []string{"resume", "reboot", "reap"}
+var slotOperations = []string{"resume", "reboot", "reap", "recover"}
 
 // SelectSlotRow picks the one actionable row that stands for a slot: a :N
 // slot row by its host checkout, or, for :0, the row IsPrimaryRow accepts (a
@@ -81,10 +81,12 @@ func ActorOperationArgs(row ActionableThreadSummary, op string) map[string]strin
 
 // SlotOperationCommand is the CLI text that runs op on a slot through the
 // running Couch. --confirm is added exactly when the operation's declaration
-// requires a confirmation (OperationConfirms).
+// requires a confirmation (OperationConfirms). A by-plan operation (recover)
+// gets none: the report never emits it as a step, and its CLI refusal names
+// --confirm itself when the plan needs it.
 func SlotOperationCommand(op, address string) string {
 	command := "couch --" + op + " " + address
-	if confirms, _ := OperationConfirms(op); confirms {
+	if confirms, _, _ := OperationConfirms(op); confirms {
 		command += " --confirm"
 	}
 	return command
@@ -129,7 +131,8 @@ func (c *Couch) PrepareSlotOperation(ctx context.Context, op, target string) (Op
 	if err != nil {
 		return OperationCall{}, err
 	}
-	if !slices.Contains(ActorActions(ActorRowFactsOf(row)), op) {
+	offered := ActorActions(ActorRowFactsOf(row))
+	if !slices.Contains(offered, op) && !(op == "recover" && RecoverOffered(offered)) {
 		state := string(row.State)
 		if row.Reason != "" {
 			state += " (" + string(row.Reason) + ")"

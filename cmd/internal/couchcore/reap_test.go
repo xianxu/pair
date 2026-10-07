@@ -16,10 +16,14 @@ type fakeOrphanReaper struct {
 	artifacts *FakeThreadArtifactCollisionChecker
 	address   ThreadAddress
 	err       error
+	hook      func() // runs as the reap happens, before its effect
 }
 
 func (f *fakeOrphanReaper) ReapOrphan(_ context.Context, server launcher.SessionServerIdentity) error {
 	f.reaped = append(f.reaped, server)
+	if f.hook != nil {
+		f.hook()
+	}
 	if f.err == nil && f.artifacts != nil {
 		f.artifacts.SetSessionPresence(f.address, SessionObservation{State: SessionAbsent})
 	}

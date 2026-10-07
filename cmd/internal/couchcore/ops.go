@@ -58,6 +58,11 @@ const (
 	ConfirmUnknown OperationConfirmation = iota
 	ConfirmNone
 	ConfirmRequired
+	// ConfirmByPlan: the operation confirms exactly when its resolved plan
+	// contains a destructive step (#399 recover). No caller can answer it from
+	// the declaration alone; the plan's preview carries the answer, and the
+	// operation itself refuses a destructive plan it was not confirmed for.
+	ConfirmByPlan
 )
 
 // OperationResult describes the stable result family without embedding Go
@@ -76,6 +81,7 @@ const (
 	ResultWorkspace
 	ResultRepositoryAlias
 	ResultRecoverPlan
+	ResultRecoverPreview
 )
 
 // OperationPresentation assigns every typed operation exactly one UI/process
@@ -393,6 +399,23 @@ func Operations() []Operation {
 			},
 		},
 		{
+			// recover's preview (#399): the report's steps for one row. It
+			// runs sdlc, so the switcher calls it off the UI thread, exactly
+			// as it calls prepare-switch-agent.
+			Name: "prepare-recover", Summary: "Preview the recovery report's steps for one thread",
+			Execution: ExecuteLiveOwner, Effect: EffectRead, Confirmation: ConfirmNone, Result: ResultRecoverPreview,
+			Presentation: PresentationTUI,
+			Args:         recoverArguments(false),
+		},
+		{
+			// Recover runs the report's steps for one row: resume, reap then
+			// resume, or reboot (#399). Its confirmation follows those steps.
+			Name: "recover", Summary: "Run the recovery report's steps for one thread: resume, reap then resume, or reboot",
+			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmByPlan, Result: ResultStart,
+			Presentation: PresentationTUI, RowAction: true,
+			Args: recoverArguments(true),
+		},
+		{
 			Name: "leave", Summary: "Apply one disposition to every live work thread and leave Couch",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultConsole,
 			Presentation: PresentationTUI,
@@ -454,6 +477,23 @@ func continuationArguments(operatorFacing bool) []ArgSpec {
 		// carries both. A required ref forced the switcher to send both, so its
 		// retry never reached the thread (#280).
 		args = append([]ArgSpec{{Name: "ref", Summary: "thread tag or path"}}, args...)
+	}
+	return args
+}
+
+// recoverArguments addresses a row the way reap does (ActorOperationArgs);
+// recover adds the steps the operator was shown and whether they confirmed.
+func recoverArguments(execute bool) []ArgSpec {
+	args := []ArgSpec{
+		{Name: "path", Summary: "slot host checkout", Implicit: true},
+		{Name: "repo-scope", Summary: "repository scope derived from caller context", Implicit: true},
+		{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
+	}
+	if execute {
+		args = append(args,
+			ArgSpec{Name: "steps", Summary: "comma-separated steps the operator was shown; absent when none were", Implicit: true},
+			ArgSpec{Name: "confirmed", Summary: "the operator confirmed a destructive plan", Implicit: true},
+		)
 	}
 	return args
 }

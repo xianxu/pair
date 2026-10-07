@@ -8,6 +8,9 @@ type PreviewRequest struct {
 	Action        couchcore.StartAction
 	SwitchAddress couchcore.ThreadAddress
 	SwitchArgv    string
+	// RecoverArgs addresses a prepare-recover (#399): the row's
+	// ActorOperationArgs. Never mutated after the request is built.
+	RecoverArgs map[string]string
 
 	Generation uint64
 	Path       string

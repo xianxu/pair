@@ -2163,6 +2163,22 @@ otherwise debris to the one-primary rule). The recovery report shows agent
 `orphaned` with its server and holds the row as `orphaned-server`. Reap and the
 switcher's `recover` (M2) are the way forward.
 
+**`recover`** (M2, `couchcore/recover_action.go`) is the switcher's default Tab
+action, offered wherever `ActorActions` offers anything. It runs exactly the
+actor steps the recovery report computes for that row — `[resume]`,
+`[reap, resume]` or `[reboot]` — or refuses with the report's hold.
+`prepare-recover` (`PrepareRecover`, off the UI thread: it runs sdlc) returns
+the preview `{Steps, Confirm, Text, Hold}`; a thread no report row stands for
+falls back to the same rule over `ActorActions`. Its confirmation is
+`ConfirmByPlan`: it confirms exactly when the steps contain reap or reboot, and
+`OperationConfirms` answers `byPlan` so every consumer handles it explicitly.
+`Recover` re-derives the preview and refuses a stale one ("the row changed;
+review again"), then runs each step through `DispatchOperation`, re-reading the
+row between steps; the last step's result is returned unchanged so a resume's
+child is adopted as a plain resume's is. `couch --recover repo:N [--confirm]`
+reaches it through the slot-operation socket; there `--confirm` is plan-blind
+and an unconfirmed destructive plan is refused naming what it would do.
+
 There is deliberately no "held elsewhere" value. The refresh never counts
 clients — `list-clients` costs ~250 ms per live session (`#228`) — and the
 reattach path re-observes attach state before committing. **Optimistic inventory,

@@ -26,11 +26,12 @@ type fakeSlotRunner struct {
 
 type fakeSlotJob struct {
 	key, op, target string
+	confirmed       bool
 	started         func()
 	finished        func(any, error)
 }
 
-func (f *fakeSlotRunner) run(key, op, target string, started func(), finished func(any, error)) error {
+func (f *fakeSlotRunner) run(key, op, target string, confirmed bool, started func(), finished func(any, error)) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.err != nil {
@@ -49,7 +50,7 @@ func (f *fakeSlotRunner) run(key, op, target string, started func(), finished fu
 		f.mu.Unlock()
 		finished(value, err)
 	}
-	f.jobs = append(f.jobs, fakeSlotJob{key, op, target, started, done})
+	f.jobs = append(f.jobs, fakeSlotJob{key, op, target, confirmed, started, done})
 	return nil
 }
 
@@ -398,5 +399,31 @@ func TestSlotOperationAliasSharesKey(t *testing.T) {
 	}
 	if key := runner.job(0).key; key != "remote\x00/src/pair:1" {
 		t.Fatalf("key %q", key)
+	}
+}
+
+// recover confirms by plan (#399): the socket admits it with or without
+// --confirm and carries the caller's answer to the job, whose own plan decides
+// whether it was needed; an unconfirmed destructive plan is refused there,
+// typed, naming what it would do.
+func TestSlotOperationRecoverCarriesItsConfirmationToTheJob(t *testing.T) {
+	r, runner, _ := slotRig(t)
+	b := r.connect(0)
+	for i, confirmed := range []bool{false, true} {
+		request := slotRequest(b, "recover", fmt.Sprintf("id%d", i), "pair:1")
+		request.Confirmed = confirmed
+		if resp := r.s.handle(context.Background(), request); resp.Code != "accepted" {
+			t.Fatalf("recover confirmed=%v: %+v", confirmed, resp)
+		}
+		job := runner.job(i)
+		if job.op != "recover" || job.confirmed != confirmed {
+			t.Fatalf("job = %+v, want recover confirmed=%v", job, confirmed)
+		}
+		job.started()
+		job.finished(nil, nil)
+	}
+	outcome := slotOperationOutcome(nil, &couchcore.RecoverRefusal{Code: couchcore.RecoverUnconfirmed, Detail: "re-run with --confirm to reap orphaned server PID 9"})
+	if outcome.Status != couchmessage.ReceiptRefused || outcome.Code != couchcore.RecoverUnconfirmed || !strings.Contains(outcome.Detail, "--confirm") {
+		t.Fatalf("outcome = %+v", outcome)
 	}
 }

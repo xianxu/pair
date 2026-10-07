@@ -78,12 +78,17 @@ func DispatchOperation(executors OperationExecutors, call OperationCall) (any, e
 // they were transcribing. relaunch joined the action list and none of the three,
 // so Enter on it did nothing whatsoever, silently. Confirmation is declared
 // exactly once, in Operations(); this is how the terminal asks.
-func OperationConfirms(name string) (confirms bool, declared bool) {
+//
+// byPlan is the third answer (#399): the operation confirms exactly when its
+// resolved plan is destructive, which only its preview can say. confirms is
+// false for it, so every caller must handle byPlan explicitly rather than
+// read it as either "always" or "never".
+func OperationConfirms(name string) (confirms bool, declared bool, byPlan bool) {
 	op, ok := operationByName(name)
 	if !ok {
-		return false, false
+		return false, false, false
 	}
-	return op.Confirmation == ConfirmRequired, true
+	return op.Confirmation == ConfirmRequired, true, op.Confirmation == ConfirmByPlan
 }
 
 func operationByName(name string) (Operation, bool) {
@@ -307,6 +312,23 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				return nil, err
 			}
 			return c.Reap(ctx, ReapTarget{Address: address})
+		case "prepare-recover", "recover":
+			target := RecoverTarget{Path: a["path"]}
+			if target.Path == "" {
+				address, err := resolveThreadForArchive(c, a)
+				if err != nil {
+					return nil, err
+				}
+				target.Address = address
+			}
+			if call.Operation.Name == "prepare-recover" {
+				return c.PrepareRecover(ctx, target)
+			}
+			var steps []string
+			if raw, shown := a["steps"]; shown {
+				steps = strings.Split(raw, ",")
+			}
+			return c.Recover(ctx, target, steps, a["confirmed"] == "true")
 		case "continue-thread", "retry-continuation", "continuation-status":
 			address, err := resolveOperationThread(c, a)
 			if err != nil {

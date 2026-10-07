@@ -143,6 +143,10 @@ func TestParseSlotOperationCLI(t *testing.T) {
 		{args: []string{"--reboot", "pair:1", "--json", "--confirm"}, op: "reboot", ref: "pair:1", confirmed: true, json: true},
 		{args: []string{"--reap", "pair:2", "--confirm"}, op: "reap", ref: "pair:2", confirmed: true},
 		{args: []string{"--reap", "pair:0", "--confirm", "--json"}, op: "reap", ref: "pair:0", confirmed: true, json: true},
+		// recover confirms by plan: --confirm is optional at parse time (#399).
+		{args: []string{"--recover", "pair:2"}, op: "recover", ref: "pair:2"},
+		{args: []string{"--recover", "pair:2", "--confirm"}, op: "recover", ref: "pair:2", confirmed: true},
+		{args: []string{"--recover", "pa:0", "--json", "--confirm"}, op: "recover", ref: "pa:0", confirmed: true, json: true},
 	} {
 		got, err := ParseCLI(tc.args, couchcore.Operations())
 		if err != nil || got.kind != cliMessage || got.messageOp != tc.op || got.ref != tc.ref || got.confirmed != tc.confirmed || got.jsonOutput != tc.json {
