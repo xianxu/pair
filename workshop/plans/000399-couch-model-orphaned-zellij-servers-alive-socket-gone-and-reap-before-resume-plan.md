@@ -33,9 +33,9 @@ would have started a second agent on a conversation the orphan was still writing
 
 | Name | Lives in | Status |
 |------|----------|--------|
-| `ServerProcess` (pid, start identity, session, socket path) | `cmd/internal/launcher/session_servers.go` | new |
-| `ParseServerProcesses` (ps text → `[]ServerProcess`) | `cmd/internal/launcher/session_servers.go` | new |
-| `ClassifyServers` (servers + socket-exists → live/orphaned per session) | `cmd/internal/launcher/session_servers.go` | new |
+| `SessionServerIdentity` gains `Socket`; the lowercase `sessionServerIdentity` duplicate is deleted | `cmd/internal/launcher/session_owner.go`, `session_quiescence.go` | modified / deleted |
+| `ParseServerProcesses` (ps text → `[]SessionServerIdentity`) | `cmd/internal/launcher/session_servers.go` | new |
+| `SocketState` (present / gone / unknown) and `ClassifyServers` (servers + socket states → per-session reachable / orphaned / unresolved) | `cmd/internal/launcher/session_servers.go` | new |
 | `SessionOwnerOrphaned` | `cmd/internal/launcher/session_owner.go` | modified (new state) |
 | `SessionOrphaned` + `SessionObservation.Orphan` | `cmd/internal/couchcore/sessionevidence.go` | modified |
 | `ProjectSessionPresence` | `cmd/internal/couchcore/sessionevidence.go` | modified (orphan input) |
@@ -46,12 +46,20 @@ would have started a second agent on a conversation the orphan was still writing
 | `ResumeOrphanedServer` diagnostic code | `cmd/internal/couchcore/resume.go` | new |
 | `ReapPlan` (tree snapshot → ordered signal plan) | `cmd/internal/launcher/session_reap.go` | new |
 
-- **ServerProcess** — what `ps` says about one zellij server. Today
-  `sessionServerIdentity` has pid/identity/session but throws the socket path
-  away; the path is the third argv field and is the only evidence of orphaning.
+- **SessionServerIdentity (+Socket)** — what `ps` says about one zellij server.
+  Today two structs carry this fact (`SessionServerIdentity` in session_owner.go
+  and `sessionServerIdentity` in session_quiescence.go, copied field-for-field in
+  `osSessionOwnerIO.SessionServers`); both drop the socket path, the third argv
+  field and the only evidence of orphaning. The exported one gains `Socket` and the
+  lowercase copy is deleted (ARCH-DRY, PQ-1).
   - **DRY rationale:** `zellijServerPIDs` and `isExactZellijServerCommand` already
     parse this argv; they become thin wrappers over `ParseServerProcesses`, so there
-    is one argv grammar.
+    is one argv grammar and one struct.
+- **SocketState** — `present`, `gone` (Lstat says ENOENT, and only that) or
+  `unknown` (any other Lstat error, or a non-socket file). Only `gone` makes an
+  orphan; `unknown` projects to `SessionUnresolved`, so an unreadable socket
+  directory can never manufacture orphans (PQ-2, ARCH-SECURE: the trusted fact is
+  ENOENT, nothing weaker).
   - **Future extensions:** a socket that exists but refuses connections (stale
     socket file) is a third state; it widens `ClassifyServers`, not its callers.
 - **SessionOrphaned** — the session-evidence value "a server for this name is
@@ -87,6 +95,17 @@ would have started a second agent on a conversation the orphan was still writing
 - **Reaper** wraps `kill(2)` behind a `ProcessTable` interface
   (`Snapshot()`, `Identity(pid)`, `Signal(pid, sig)`); the fake models processes
   that ignore SIGTERM, which is the case that bit on 2026-10-06.
+
+## Non-goals
+
+- Reaping automatically: an orphan's agent may still be writing; the operator
+  confirms every reap.
+- A socket file that exists but refuses connections (stale socket): `present`
+  stays `present`; a refused `list-panes` stays an error. A third socket state can
+  widen `SocketState` later.
+- The lifecycle queue's capacity-one behaviour noted in the issue Log (switches
+  waiting behind remote resumes): separate issue.
+- Making `recover` replace resume and reboot in the menu: both stay.
 
 ## Operating envelope (ARCH-CONSTRAINTS)
 
@@ -132,30 +151,36 @@ func TestParseServerProcessesKeepsTheSocketPath(t *testing.T) {
 		"  102 101 /usr/local/bin/pair wrap\n" +
 		"  103 1 zellij --server /T/zellij-501/contract_version_1/other extra\n"
 	got := ParseServerProcesses(raw)
-	want := []ServerProcess{{PID: 101, Session: "📁1-37", Socket: "/T/zellij-501/contract_version_1/📁1-37"}}
+	want := []SessionServerIdentity{{PID: 101, Session: "📁1-37", Socket: "/T/zellij-501/contract_version_1/📁1-37"}}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v", got)
 	}
 }
 
 func TestClassifyServers(t *testing.T) {
-	servers := []ServerProcess{{PID: 1, Session: "a", Socket: "/s/a"}, {PID: 2, Session: "b", Socket: "/s/b"}}
-	exists := func(p string) bool { return p == "/s/a" }
-	got := ClassifyServers(servers, exists)
+	servers := []SessionServerIdentity{{PID: 1, Session: "a", Socket: "/s/a"}, {PID: 2, Session: "b", Socket: "/s/b"}}
+	sockets := map[string]SocketState{"/s/a": SocketPresent, "/s/b": SocketGone}
+	got := ClassifyServers(servers, sockets)
 	if got["a"].Orphaned || !got["b"].Orphaned || got["b"].Server.PID != 2 {
 		t.Fatalf("got %+v", got)
 	}
 }
 ```
 
-Two servers for one session name classify as ambiguous (neither orphaned nor
-live) — a test row for that, mirroring `indexSessionsByName`'s fail-closed rule.
+Strategy (one line per risky function): `ParseServerProcesses` — `go test -fuzz`
+seed corpus of real `ps` lines plus a fuzz target asserting it never panics and
+every result round-trips `isExactZellijServerCommand`; `ClassifyServers` — table
+over {present, gone, unknown} × {one server, two servers for a name}.
 
 - [ ] **Step 2:** `go test ./cmd/internal/launcher -run 'ParseServer|ClassifyServers'` → FAIL (undefined).
-- [ ] **Step 3: implement** `ServerProcess{PID int; Identity string; Session string; Socket string}`,
-  `ParseServerProcesses(raw string) []ServerProcess` (exact 3-field argv,
-  `filepath.Base(socket) == session`), `ServerState{Server ServerProcess; Orphaned, Ambiguous bool}`,
-  `ClassifyServers(servers, exists func(string) bool) map[string]ServerState`.
+- [ ] **Step 3: implement** `SessionServerIdentity.Socket`; delete
+  `sessionServerIdentity` (quiescence ops use the exported type);
+  `ParseServerProcesses(raw string) []SessionServerIdentity` (exact 3-field argv,
+  `filepath.Base(socket) == session`); `SocketState` + `ObserveSocket(lstat) SocketState`
+  (ENOENT → gone, socket mode → present, anything else → unknown);
+  `ServerState{Server SessionServerIdentity; Orphaned, Unresolved bool}`;
+  `ClassifyServers(servers, sockets map[string]SocketState) map[string]ServerState`
+  (a `gone` socket → orphaned; `unknown` or two servers for one name → unresolved).
   Rewrite `zellijServerPIDs`/`isExactZellijServerCommand` on top.
 - [ ] **Step 4:** run launcher tests → PASS (including existing quiescence tests).
 - [ ] **Step 5:** commit `#399 M1: launcher: parse zellij servers with their socket path`.
@@ -166,15 +191,17 @@ live) — a test row for that, mirroring `indexSessionsByName`'s fail-closed rul
 - Modify: `cmd/internal/launcher/session_servers.go` (`ServerSnapshot`, OS impl)
 - Modify: `cmd/internal/launcher/session_owner.go` (`SessionOwnerOrphaned`)
 - Modify: `cmd/internal/launcher/session_owner_os.go` (`Probe`, `SessionOwnerIO`)
-- Test: `cmd/internal/launcher/session_owner_os_test.go`
+- Test: `cmd/internal/launcher/session_owner_test.go` (extend the `ownerWorld` fake, `session_owner_test.go:49`)
 
-- [ ] **Step 1: failing test** using the existing fake `SessionOwnerIO`, extended
-  with `SocketExists(path) bool`:
+- [ ] **Step 1: failing test** using the existing `ownerWorld` fake, extended
+  with a socket table (`map[string]SocketState`) behind `SessionOwnerIO.Socket(path) SocketState`:
 
 ```go
 func TestProbeReportsOrphanedServerInsteadOfAnError(t *testing.T) {
-	io := &fakeOwnerIO{servers: []SessionServerIdentity{{PID: 7, Identity: "t7", Session: "📁1-37", Socket: "/gone"}},
-		panesErr: errors.New("exit status 1")}
+	io := newOwnerWorld(t) // session_owner_test.go
+	io.addServer(SessionServerIdentity{PID: 7, Identity: "t7", Session: "📁1-37", Socket: "/gone"})
+	io.sockets["/gone"] = SocketGone
+	io.panesErr = errors.New("exit status 1")
 	got, err := SessionOwnerProbe{IO: io}.Probe(ctx, "📁1-37", dataDir, scope, tag)
 	if err != nil || got.State != SessionOwnerOrphaned || got.Server.PID != 7 {
 		t.Fatalf("got %+v, %v", got, err)
@@ -185,12 +212,13 @@ func TestProbeReportsOrphanedServerInsteadOfAnError(t *testing.T) {
 }
 ```
 
-Plus: socket present + `list-panes` failing still returns the error (only a
-missing socket is the orphan state — an unreachable live socket stays a fault).
+Strategy: table over socket {present, gone, unknown} × list-panes {ok, error}:
+only `gone` yields orphaned (and skips list-panes); `unknown` yields
+`SessionOwnerUnknown` with a diagnostic; `present` + error stays an error.
 
 - [ ] **Step 2:** run → FAIL.
 - [ ] **Step 3: implement:** `SessionServerIdentity` gains `Socket`; `Probe`
-  checks `SocketExists(before[0].Socket)` before `SessionPanes`; on absence returns
+  checks `Socket(before[0].Socket)` before `SessionPanes` (gone → orphaned; unknown → `SessionOwnerUnknown` + diagnostic); on absence returns
   `{State: SessionOwnerOrphaned, Server: before[0], Diagnostic: OrphanDiagnostic(name, pid)}`.
   `OrphanDiagnostic` is the one sentence: `"<name>: server PID <n> lost its socket — reap to resume"`.
 - [ ] **Step 4:** PASS. **Step 5:** commit `#399 M1: launcher: Probe names an orphaned server`.
@@ -208,7 +236,7 @@ missing socket is the orphan state — an unreachable live socket stays a fault)
 ```go
 func TestProjectSessionPresenceSeesAnOrphan(t *testing.T) {
 	bindings := []SessionNameBinding{{Address: a, SessionName: "📁1-37"}}
-	servers := map[string]launcher.ServerState{"📁1-37": {Server: launcher.ServerProcess{PID: 9}, Orphaned: true}}
+	servers := map[string]launcher.ServerState{"📁1-37": {Server: launcher.SessionServerIdentity{PID: 9}, Orphaned: true}}
 	got := ProjectSessionPresence(bindings, nil, servers, map[string]int{"📁1-37": 1})
 	if got[a].State != SessionOrphaned || got[a].Orphan.PID != 9 {
 		t.Fatalf("got %+v", got[a])
@@ -312,6 +340,7 @@ call a reachable session orphaned).
 **Files:**
 - Modify: `couchcore/ops.go` (declare `reap`: `ExecuteLiveOwner`, `EffectProcess`,
   `ConfirmRequired`, `RowAction: false`), `couchcore/operationdispatch.go`,
+  `couchcmd/slot_operations.go` (the socket side of resume/reboot),
   `couchcore/slot_operation.go` (`slotOperations`), `couchcore/actor_actions.go`
   (offer `["reap"]` for `ReasonOrphanedServer`), new `couchcore/reap.go`
   (`Couch.Reap`), `couchcmd/cli.go` (`--reap` beside `--resume`/`--reboot`),
@@ -359,9 +388,10 @@ disagree. Resume and reboot stay as separate entries.
 `couchcore/recover_action.go` (`Couch.Recover`), `couchcore/recoverplan.go`
 (extract `RecoverRowFor(ctx, address)` — one slot's row through the same
 `DeriveRecoverPlan` inputs, ARCH-DRY), `couchcore/actor_actions.go` (offer
-`recover` wherever `ActorActions` offers anything), `couchtty/menu.go` (the action,
-its progress text, the sweep test), `couchcmd/cli.go` (`--recover repo:N`),
-socket registration as in Task 8.
+`recover` wherever `ActorActions` offers anything), `couchtty/menu_actions.go` +
+`couchtty/console_menu.go` (the action, its progress text, the sweep test), `couchcmd/cli.go` (`--recover repo:N`),
+socket registration as in Task 8 (`couchcmd/slot_operations.go`); menu code in
+`couchtty/menu_actions.go` and `couchtty/console_menu.go`.
 
 - **Offer (cheap):** recover appears on a row whenever `ActorActions` offers any
   actor operation. The menu never runs the report per repaint.
@@ -369,10 +399,30 @@ socket registration as in Task 8.
   and runs its steps in order: `[resume]`; `[reap, resume]`; `[reboot]`. A hold
   (unknown, conflict, unsafe git, ambiguous threads) refuses with the hold's
   reason and runs nothing.
-- **Confirmation follows the steps, not the action:** a plan that is only
-  `resume` runs at once; a plan containing `reap` or `reboot` shows one
-  confirmation naming what it will do ("reap server PID N, then resume" /
-  "archive this conversation and start a fresh agent").
+- **Confirmation follows the steps — a named change to the seam (PQ-3).**
+  Today `Operation.Confirmation` (`ops.go:58-60`) is fixed per operation and
+  `OperationConfirms` (`operationdispatch.go:81`) answers a bool from it. This adds
+  one declared value, `ConfirmByPlan`: the operation confirms exactly when its
+  resolved plan contains a destructive step.
+  - **Core:** `PrepareRecover(ctx, address) (RecoverPreview, error)` returns
+    `{Steps []string; Confirm bool; Text string; Hold string}`. `Confirm` is true iff
+    Steps contains `reap` or `reboot`; `Text` is the one sentence ("reap server
+    PID N, then resume" / "archive this conversation and start a fresh agent").
+    Execution takes the preview's steps plus a `confirmed` arg and re-derives;
+    if the re-derived steps differ from the preview it refuses ("the row changed;
+    review again"), the same stale-confirmation rule menu.go already applies.
+  - **Menu:** Enter on recover calls `PrepareRecover`; `Confirm` false → dispatch
+    at once; true → a confirmation frame showing `Text`, then dispatch with
+    `confirmed=true`; `Hold` non-empty → the hold as an error notice, no frame.
+  - **CLI:** `couch --recover repo:N` prints the preview; if `Confirm` it refuses
+    without `--confirm` ("re-run with --confirm to …"). `--confirm` on a plan that
+    doesn't need it is accepted (harmless) — unlike fixed-confirmation ops, the
+    CLI cannot know the plan when parsing.
+  - **`OperationConfirms` / audits:** `OperationConfirms` gains a third answer for
+    `ConfirmByPlan` (`confirms, declared, byPlan`), and the CLI's fixed-confirm
+    check skips by-plan operations. The operation audit tests enumerate the new
+    value; `SlotOperationCommand` is not asked to render `recover` (the report never
+    emits it as a step).
 
 - [ ] **Step 1: failing tests:** parked row → recover resumes with no
   confirmation; orphaned row → confirmation text names the pid, then reap and
@@ -420,3 +470,13 @@ otherwise does the right recovery. Delta: Task 9b added to M2. `recover` runs th
 recovery report's steps for that row (resume / reap→resume / reboot, or refuse on a
 hold), and its confirmation follows the steps. Reap is reached from the switcher
 through recover rather than as its own menu entry. Resume and reboot stay.
+
+### 2026-10-06 — plan-quality round 1
+
+Reason: change-code's plan review. Delta: PQ-1 — no `ServerProcess`; the existing
+`SessionServerIdentity` gains `Socket` and the lowercase duplicate is deleted.
+PQ-2 — `SocketState` is tri-state; only ENOENT is `gone`; `unknown` projects to
+unresolved. PQ-3 — `ConfirmByPlan` named, with `PrepareRecover`, menu, CLI and
+audit handling. Minors: real fake/file names (`ownerWorld`,
+`couchcmd/slot_operations.go`, `menu_actions.go`/`console_menu.go`), test strategy
+as one line per risky function (fuzz `ParseServerProcesses`), Non-goals section.
