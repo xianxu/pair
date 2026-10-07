@@ -174,7 +174,7 @@ func TestLeaveSignalsEachThreadExactlyOnce(t *testing.T) {
 // Cancelling Leave partway through its fan-out stops STARTING threads: only the
 // ones already started were ever signalled, and the cancellation is reported
 // (D6, M2 review). The started ones see the cancellation through their ctx.
-func TestLeaveCancelledMidFanOutFinishesStartedAndStartsNoMore(t *testing.T) {
+func TestLeaveCancelledMidFanOutStartsNoFurtherThread(t *testing.T) {
 	withParallelism(t, 2)
 	c, proc, threads := leaveFleet(t, 5)
 	ctx, cancel := context.WithCancel(context.Background())

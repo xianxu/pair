@@ -90,6 +90,67 @@ rounds:
       boundary: M1
       recipe: milestone-review
       blocked: false
+    - "n": 3
+      timestamp: "2026-10-07T12:48:38-07:00"
+      agent: claude
+      findings:
+        - id: BR-9
+          severity: Important
+          title: Concurrency cells that exist only above bound 1 are untested; couchtty pins LifecycleParallelism=1 package-wide
+          detail: '2nd finding in family interleaving-cell-untested. Rule: each declared M2 concurrency policy needs a test that runs at bound > 1 with controlled ordering; pinning the global bound to 1 covers none of them. Missing: Task 8 TestLeaveParkAlongsideAnotherParkNeverFails; Leave cancellation partway through the fan-out (stops starting, started finish); Task 10 Step 3 console-path tests under N workers (burst of reattaches, late abort vs relaunch); quit mid-pass at Limit>1 covered only in the reducer. Fix: add the couchcore tests with withParallelism and one console test with the bound raised, or record a Revisions entry saying why reducer coverage suffices.'
+          family: interleaving-cell-untested
+          round: 3
+        - id: BR-10
+          severity: Minor
+          title: queueWorkers comment and atlas say an operator gesture never waits behind pass attempts; remote and continuation jobs share the spare worker
+          detail: 'console.go:180-183 and atlas/couch.md. Narrow the wording to: the pass alone cannot occupy every worker.'
+          family: doc-claim-exceeds-mechanism
+          round: 3
+        - id: BR-11
+          severity: Minor
+          title: Park worker capacity tests assert absence and wait with 20-30ms sleeps
+          detail: TestParkWorkerCapacityWaitHonoursContext passes without exercising the wait if cancel fires before Submit blocks. Expose a waiting hook or signal so the test synchronizes instead of sleeping.
+          family: test-asserts-absence-by-sleep
+          round: 3
+        - id: BR-12
+          severity: Minor
+          title: Leave joins one untagged context error per cancelled thread
+          detail: When holdWait is cancelled, the joined error repeats "context canceled" N times without naming the threads. Wrap each error with the thread tag in the fan-out goroutine.
+          family: joined-error-loses-subject
+          round: 3
+      boundary: M2
+      recipe: milestone-review
+      blocked: true
+    - "n": 4
+      timestamp: "2026-10-07T12:58:10-07:00"
+      agent: claude
+      dispose:
+        - id: BR-9
+          disposition: addressed
+          note: Two bound>1 tests added (console Stop mid-pass at bound 3; Leave cancel mid-fan-out at bound 2), both pass under -race; remaining cells justified in issue Log (should also be a plan Revisions entry).
+          round: 4
+        - id: BR-10
+          disposition: addressed
+          note: console.go:180-183 and atlas/couch.md now say "the pass alone" and name the shared spare worker.
+          round: 4
+        - id: BR-11
+          disposition: addressed
+          note: parkWorker.onWait hook (read under mu) replaces the 20-30ms sleeps; absence check is now deterministic.
+          round: 4
+        - id: BR-12
+          disposition: addressed
+          note: holdWait cancellation now names the thread; GetThread and controller-unavailable errors in leaveOne remain untagged (minor; wrap once in the fan-out goroutine).
+          round: 4
+      findings:
+        - id: BR-13
+          severity: Minor
+          title: Leave cancellation test name still claims started threads finish
+          detail: '2nd in family. Rule: a cancellation-policy claim in a name, comment or atlas line must state what the test asserts. Corrected in park.go:196-200 but not in the leave_test.go:177 name. Rename it, and grep this issue''s tests and comments for "finish" against cancellation.'
+          family: doc-claim-exceeds-mechanism
+          round: 4
+      boundary: M2
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#205 (boundary-review)
@@ -132,8 +193,36 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-8** [Minor] `doc-comment-detached-by-insertion` withoutDead's doc comment now heads registry() at couch.go:1282
   The registry helpers were inserted between the comment and its function; move the comment back above withoutDead.
 
+## Round 3 — 2026-10-07T12:48:38-07:00 (claude) — BLOCKED
+
+### Raised
+
+- **BR-9** [Important] `interleaving-cell-untested` Concurrency cells that exist only above bound 1 are untested; couchtty pins LifecycleParallelism=1 package-wide
+  2nd finding in family interleaving-cell-untested. Rule: each declared M2 concurrency policy needs a test that runs at bound > 1 with controlled ordering; pinning the global bound to 1 covers none of them. Missing: Task 8 TestLeaveParkAlongsideAnotherParkNeverFails; Leave cancellation partway through the fan-out (stops starting, started finish); Task 10 Step 3 console-path tests under N workers (burst of reattaches, late abort vs relaunch); quit mid-pass at Limit>1 covered only in the reducer. Fix: add the couchcore tests with withParallelism and one console test with the bound raised, or record a Revisions entry saying why reducer coverage suffices.
+- **BR-10** [Minor] `doc-claim-exceeds-mechanism` queueWorkers comment and atlas say an operator gesture never waits behind pass attempts; remote and continuation jobs share the spare worker
+  console.go:180-183 and atlas/couch.md. Narrow the wording to: the pass alone cannot occupy every worker.
+- **BR-11** [Minor] `test-asserts-absence-by-sleep` Park worker capacity tests assert absence and wait with 20-30ms sleeps
+  TestParkWorkerCapacityWaitHonoursContext passes without exercising the wait if cancel fires before Submit blocks. Expose a waiting hook or signal so the test synchronizes instead of sleeping.
+- **BR-12** [Minor] `joined-error-loses-subject` Leave joins one untagged context error per cancelled thread
+  When holdWait is cancelled, the joined error repeats "context canceled" N times without naming the threads. Wrap each error with the thread tag in the fan-out goroutine.
+
+## Round 4 — 2026-10-07T12:58:10-07:00 (claude) — passed
+
+### Disposed
+
+- BR-9 — addressed — Two bound>1 tests added (console Stop mid-pass at bound 3; Leave cancel mid-fan-out at bound 2), both pass under -race; remaining cells justified in issue Log (should also be a plan Revisions entry).
+- BR-10 — addressed — console.go:180-183 and atlas/couch.md now say "the pass alone" and name the shared spare worker.
+- BR-11 — addressed — parkWorker.onWait hook (read under mu) replaces the 20-30ms sleeps; absence check is now deterministic.
+- BR-12 — addressed — holdWait cancellation now names the thread; GetThread and controller-unavailable errors in leaveOne remain untagged (minor; wrap once in the fan-out goroutine).
+
+### Raised
+
+- **BR-13** [Minor] `doc-claim-exceeds-mechanism` Leave cancellation test name still claims started threads finish
+  2nd in family. Rule: a cancellation-policy claim in a name, comment or atlas line must state what the test asserts. Corrected in park.go:196-200 but not in the leave_test.go:177 name. Rename it, and grep this issue's tests and comments for "finish" against cancellation.
+
 ## Open findings
 
 - **BR-5** [Minor] `absence-read-as-ownership` startStillOwnsThread returns true for a record with zero incarnations
 - **BR-7** [Minor] `cleanup-scope-wider-than-own-effect` Expected-exit marks have first-come ownership; a late busy refusal can still delete a park's re-mark
 - **BR-8** [Minor] `doc-comment-detached-by-insertion` withoutDead's doc comment now heads registry() at couch.go:1282
+- **BR-13** [Minor] `doc-claim-exceeds-mechanism` Leave cancellation test name still claims started threads finish

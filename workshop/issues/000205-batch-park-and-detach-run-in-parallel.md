@@ -228,7 +228,7 @@ Durable plan: `workshop/plans/000205-batch-park-and-detach-run-in-parallel-plan.
 
 - [x] M1 — Per-thread `ThreadGate` in couchcore on every lifecycle entry; refusal
       reaches the operator; nothing outlives its hold (plan Tasks 1–5).
-- [ ] M2 — Bounded parallelism: `Leave` fan-out, park worker bound, reattach pass
+- [x] M2 — Bounded parallelism: `Leave` fan-out, park worker bound, reattach pass
       in-flight set, console queue workers; measured before/after (plan Tasks 6–12).
 
 ## Estimate
@@ -279,6 +279,8 @@ decisions. Implementation hours are 40% of the v2 table, per v3.1.
 ## Log
 
 
+
+- 2026-10-07: closed M2 — M2 bounded parallelism plus review fixes: bound-above-1 tests (Stop mid-pass cancels every parallel attempt, bound 3; Leave cancelled mid-fan-out starts no more, bound 2), which also fixed a real select-randomness race in Leave's cancellation; Leave errors name threads; capacity tests sync on a wait hook. Operator live smoke test of the #205 build at full fleet: 'tested a couple of rounds, much more pleasant now'; zellij action p95 <= 24ms across the restart window. Full verification at HEAD unsandboxed: couch packages green; remaining failures pre-existing/environmental. --no-actual: the rebase rewrote committer timestamps, so the per-milestone increment is not measurable.; review verdict: SHIP
 - 2026-10-07: closed M1 — M1 per-thread ThreadGate, plus boundary-review round 1 fixes (BR-1 park join never begins unheld; BR-2 registry lock pulled into M1, all ~20 accesses through registry()/mutateRegistry(), -race test red without the lock; BR-3 refusal undoes only its own expected-exit marks; BR-4 wait tests for RecoverActiveParks and AbortStarted, cancelled abort wait). Tests: gate decision/acquire/wait/reentry/stale-token; every lifecycle entry refuses a held thread; resume-during-relaunch and relaunch-during-resume refused naming the holder; Leave waits and decides after waiting; abort identity paths; couchtty busy skip/retry/notice; GoTracked. Unsandboxed clean-env go test: couchcore, couchtty, couchcmd ok. Full-suite residue is pre-existing or environmental (verified vs merge base): gcruntime archive locator, artifactpath classification (only generated runtime-bundle files and pre-existing console_messages.go), couchsingleton selection-size under long TMPDIR, test-changelog and test-pair-embedded-runtime under session env.; review verdict: FIX-THEN-SHIP
 ### 2026-09-06
 
@@ -445,7 +447,7 @@ Mutation checks are red as expected. couchtty and couchcmd pass unsandboxed.
 bound 1:
 - `TestStopMidPassCancelsEveryParallelAttemptAndStartsNoMore` (couchtty, bound
   3, 5 threads, end to end through the worker pool).
-- `TestLeaveCancelledMidFanOutFinishesStartedAndStartsNoMore` (bound 2).
+- `TestLeaveCancelledMidFanOutStartsNoFurtherThread` (bound 2).
 
 The second one surfaced two things:
 - **A wrong policy sentence.** Started threads see the cancellation through

@@ -870,3 +870,28 @@ kept "refuse" for a same-thread collision (the #214 decision).
   a constant.
 - Task 8: `parkWorker.Submit` waits, bounded by ctx, for capacity.
   `ErrParkWorkerOverloaded` is deleted; it had no production reader.
+
+### 2026-10-07 (M2 review): cancellation policy corrected; cells covered by mechanism
+
+**Reason.** The M2 boundary review (BR-9, then an advisory) showed Task 7's
+"started ones finish" was wrong. It also asked that the cells covered by
+reasoning rather than new tests be recorded here, not only in the issue.
+
+**Delta.**
+- **Task 7 / D6:** cancellation stops *starting* threads. The ones already
+  started see it through their shared ctx and stop at their own safe points,
+  as the single in-flight thread did under serial `Leave`. A detach stopped
+  mid-way destroys nothing. The dispatch loop checks `ctx.Err()` before and
+  after its `select`, because `select` picks at random when ctx is done and a
+  unit is free. Tested by `TestLeaveCancelledMidFanOutStartsNoFurtherThread`.
+- **Tested above bound 1:** quit mid-pass
+  (`TestStopMidPassCancelsEveryParallelAttemptAndStartsNoMore`) and `Leave`
+  cancellation.
+- **Covered by mechanism, not a new test:**
+  - **Leave-park beside another park.** The capacity tests run concurrent
+    submitters through the same `Submit`. The lifecycle fake is not safe for
+    concurrent use.
+  - **Late abort against relaunch under N workers.** The gate-level abort
+    tests hold that race on the couchcore objects.
+  - **A burst of N reattaches (#196).** The console adopts one completion at a
+    time.
