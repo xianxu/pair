@@ -91,9 +91,10 @@ continuing work checks the owner. Send the request, then read the evidence.
    A working agent does not hold a delivery: its composer stays empty, so the
    message submits at once and the agent queues it behind its current turn.
    `submitted` therefore means queued, not acted on; the `claimed` rung shows it
-   acted. Delivery waits only on an occupied composer (an operator's draft, a
-   dialog), and the receipt says why. A message still waiting after 30 seconds
-   expires undelivered.
+   acted. Delivery waits on an occupied composer (a draft, an agent's
+   prompt suggestion, a dialog); peek shows what occupies it. The receipt names
+   the reason only once the delivery ends. A message still waiting after 30
+   seconds expires undelivered.
 
    `sdlc issue show` runs from any checkout of that repository; the recipient's
    agent need not answer. Dirty files and a working card are activity, not
@@ -103,9 +104,9 @@ continuing work checks the owner. Send the request, then read the evidence.
    example, not a deadline. A slow rung is not a lost message.
 4. **Decide.**
    - The rungs advance: wait.
-   - The message sits in the composer (peek shows the header under the prompt) or
-     the receipt says why it waits: wait, or tell the operator if the recipient is
-     stuck.
+   - The receipt is still `queued` or `delivering` and peek shows the composer
+     occupied: wait. If it expires, the receipt's detail says why; tell the
+     operator if the recipient stays stuck.
    - Submitted, but the agent did not act: follow up at the same exact slot,
      naming the issue.
    - `expired` or `not-dispatched`: nothing reached the agent; sending again is
