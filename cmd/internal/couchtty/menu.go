@@ -1719,9 +1719,13 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 // the fix is to stop making positional claims. A third operation had to appear in both or the
 // operator gets a spurious child-exited notice for work they asked for; deriving
 // it is what stops the next one being added to one list only (ARCH-DRY).
+//
+// reap and recover end a live orphan's server, and with it the client Couch is
+// hosting (#399); on any other row there is no hosted child to end, and the
+// child a recover's resume starts is excluded by handle at completion.
 func endsItsOwnChild(operation string) bool {
 	switch operation {
-	case "park", "detach", "relaunch", "switch-agent", "retry-continuation", "continue-thread":
+	case "park", "detach", "relaunch", "switch-agent", "retry-continuation", "continue-thread", "reap", "recover":
 		return true
 	}
 	return false

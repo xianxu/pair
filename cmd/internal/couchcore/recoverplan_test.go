@@ -1155,6 +1155,27 @@ func TestRecoverPlanNamesAnOrphanedAgent(t *testing.T) {
 	}
 }
 
+// The live orphan (#399, 2026-10-07): Couch hosts the thread, so it stays
+// live, but its server lost its socket. The report reads it as agent orphaned
+// with the same steps, reap then resume.
+func TestRecoverPlanNamesALiveOrphan(t *testing.T) {
+	p := newPlanFixture(t)
+	claimedOnBranch(p)
+	p.thread("pair:1", ThreadLive, "")
+	p.rows[len(p.rows)-1].Orphan = &launcher.SessionServerIdentity{PID: 4343, Identity: "t", Session: "📁pair:1"}
+	row := findRow(t, DeriveRecoverPlan(p.input()), "pair:1")
+	if row.Agent.State != string(AgentOrphaned) || row.Class != RecoverOrphanedServer {
+		t.Fatalf("agent %+v class %q", row.Agent, row.Class)
+	}
+	var actions []string
+	for _, step := range row.Next.Steps {
+		actions = append(actions, step.Action)
+	}
+	if !slices.Equal(actions, []string{"reap", "resume"}) || !strings.Contains(row.Reason, "server PID 4343 lost its socket") {
+		t.Fatalf("steps %v reason %q", actions, row.Reason)
+	}
+}
+
 // A many-thread slot keeps its most urgent attention state by the one
 // agentRank: an orphan outranks an unknown row (#399 M1 review).
 func TestManyThreadsWithAnOrphanReadOrphaned(t *testing.T) {

@@ -55,7 +55,9 @@ func (c *Couch) Reap(ctx context.Context, target ReapTarget) (ReapResult, error)
 	if !ok {
 		return ReapResult{}, &ReapRefusal{Detail: "no Couch thread stands for that target"}
 	}
-	if row.Reason != ReasonOrphanedServer || row.Orphan == nil {
+	// Any row carrying an orphan, a live one included: Couch may still host
+	// the client of a server nothing else can reach (#399).
+	if row.Orphan == nil {
 		return ReapResult{}, &ReapRefusal{Detail: fmt.Sprintf("thread %s is %s, not an orphaned server", row.Address.Tag, rowStateWord(row))}
 	}
 	server := *row.Orphan

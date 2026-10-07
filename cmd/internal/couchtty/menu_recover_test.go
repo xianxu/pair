@@ -15,7 +15,9 @@ func TestRecoverIsOfferedExactlyWhereActorActionsOffersAnything(t *testing.T) {
 	for _, shape := range everyMenuRowShape(t) {
 		items := menuActionItems(shape.row)
 		actor := couchcore.ActorActions(couchcore.ActorRowFactsOf(shape.row))
-		live := shape.row.State == couchcore.ThreadLive
+		// A live row's lifecycle actions come from the switcher; only the
+		// live orphan, whose lifecycle actions all refuse, is offered recover.
+		live := shape.row.State == couchcore.ThreadLive && shape.row.Orphan == nil
 		want := !live && len(actor) > 0
 		has := len(items) > 0 && items[0] == "recover"
 		if has != want {
@@ -47,6 +49,8 @@ func TestRecoverDispatchesWithoutAConfirmation(t *testing.T) {
 			State: couchcore.ThreadUnusable, Reason: couchcore.ReasonOrphanedServer,
 			Orphan: &launcher.SessionServerIdentity{PID: 812, Session: "📁1-37"}},
 		"slot": menuSlotRow(1, "couch-slot"),
+		"live orphan": {Address: menuAddress("couch-live-orphan"), WorkingPath: "/w/p", State: couchcore.ThreadLive,
+			Orphan: &launcher.SessionServerIdentity{PID: 813, Session: "📁1-38"}},
 	} {
 		next, effects := pressRecover(t, row)
 		if len(effects) != 1 || effects[0].Operation != "recover" || effects[0].Preview != nil ||

@@ -2168,13 +2168,22 @@ The classifier turns it into `unusable/orphaned-server`, ahead of every
 "no session" reading and the record's own faults (an orphan is a running process
 whatever the record says). It is not archivable, rebootable or resumable. Rows
 carry `Orphan` (pid, session) so every surface prints one sentence,
-`launcher.OrphanDiagnostic`: "<session>: server PID N lost its socket — reap to
-resume". Resume refuses with `resume-orphaned-server`. Startup refuses rather than
+`launcher.OrphanDiagnostic`: "<session>: server PID N lost its socket — Tab →
+recover". Resume refuses with `resume-orphaned-server`. Startup refuses rather than
 starting a second primary beside it (`ScopeHoldsOrphanedThread`; unusable rows are
 otherwise debris to the one-primary rule). The recovery report shows agent
 `orphaned` with its server; a lone orphaned row's steps are `couch --reap repo:N
 --confirm` then `couch --resume repo:N` (never reboot, which would archive a
 running conversation), and an orphan among several threads holds the slot.
+
+**The live orphan** (2026-10-07 acceptance): a thread Couch still hosts keeps
+working over its open connection when its server loses the socket, so
+`ClassifyThread` keeps it `live` — but `orphanOf` sets `Orphan` on it too (never
+on busy or unknown rows). `ActorActions` offers `reap` on any row carrying
+`Orphan`, `agentOf` reads it as `orphaned` (steps reap → resume), `Couch.Reap`
+admits it, and the switcher offers `[recover, reap]` instead of detach, relaunch,
+park and switch-agent, which would all refuse an orphan. Reap and recover are in
+`endsItsOwnChild`, so the hosted client's exit is expected, not a notice.
 
 **`reap`** (M2) is the confirmed operation that ends an orphaned server's tree,
 offered by `ActorActions` (only) on an orphaned row, so the switcher shows it

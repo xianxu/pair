@@ -23,14 +23,17 @@ type menuRowShape struct {
 	reason  couchcore.ThreadReason
 	phase   checkpoint.Phase // "" = no retained request
 	recover bool             // unusable :0 with Recovery.Recover
+	orphan  bool             // row.Orphan: every orphaned-server row, and the live orphan (#399)
 	row     couchcore.ActionableThreadSummary
 }
 
 // everyMenuRowShape is the DERIVED row domain every per-row sweep iterates:
 // kinds {:0, :1} x AllThreadStates() (minus archived) x AllThreadReasons() ∪ ""
 // (only the combinations the projection produces: a reason exactly when
-// unusable) x AllPhases() ∪ none, plus Recovery.Recover on unusable :0 rows. A
-// new state, reason or phase lands here without anyone listing it.
+// unusable) x AllPhases() ∪ none, plus Recovery.Recover on unusable :0 rows,
+// plus an orphaned server on every live row (the live orphan, #399; an
+// orphaned-server row always carries one). A new state, reason or phase lands
+// here without anyone listing it.
 func everyMenuRowShape(t *testing.T) []menuRowShape {
 	t.Helper()
 	scope, err := launcher.ResolveRepoScope("/w/xianxu.dev")
@@ -77,10 +80,20 @@ func everyMenuRowShape(t *testing.T) []menuRowShape {
 						if slot {
 							kind = ":1"
 						}
-						shapes = append(shapes, menuRowShape{
+						shape := menuRowShape{
 							name: kind + "/" + string(state) + "/" + string(reason) + "/" + string(phase) + map[bool]string{true: "/recover"}[recover],
 							slot: slot, state: state, reason: reason, phase: phase, recover: recover, row: row,
-						})
+						}
+						server := &launcher.SessionServerIdentity{PID: 812, Identity: "t812", Session: "📁1-37"}
+						if reason == couchcore.ReasonOrphanedServer {
+							shape.orphan, shape.row.Orphan = true, server
+						}
+						shapes = append(shapes, shape)
+						if state == couchcore.ThreadLive {
+							shape.name += "/orphan"
+							shape.orphan, shape.row.Orphan = true, server
+							shapes = append(shapes, shape)
+						}
 					}
 				}
 			}
@@ -97,6 +110,13 @@ func expectedRowActions(s menuRowShape) []string {
 		return nil
 	case couchcore.ThreadLive:
 		switch {
+		// The live orphan (#399): its pane still works, but detach, park,
+		// relaunch and switch-agent all refuse an orphan; recover and reap are
+		// its way out, whatever its request is doing.
+		case s.orphan && s.slot:
+			return []string{"recover", "reap"}
+		case s.orphan:
+			return []string{"recover", "reap", "add-slot"}
 		case unfinished && s.phase == checkpoint.Running:
 			return []string{"retry-continuation"}
 		case unfinished && s.phase == checkpoint.Pending:

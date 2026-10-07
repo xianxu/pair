@@ -1483,7 +1483,15 @@ func claimedElsewhere(s *recoverSlot, ref string) bool {
 	return false
 }
 
-func agentOf(row ActionableThreadSummary) EvidenceAgent { return agentEvidence(row.State, row.Reason) }
+// agentOf is a row's agent evidence. Any row carrying an orphan reads
+// orphaned, the live orphan included (#399): its steps are reap → resume, as
+// for an unusable one, because ActorActions offers it reap alone.
+func agentOf(row ActionableThreadSummary) EvidenceAgent {
+	if row.Orphan != nil {
+		return AgentOrphaned
+	}
+	return agentEvidence(row.State, row.Reason)
+}
 
 // agentRank is the ONE ordering of agent evidence (#399 M1 review): the slot
 // report keeps its most active row by it, and a many-thread slot keeps its most

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
@@ -34,6 +35,8 @@ func TestDeriveRecoverSteps(t *testing.T) {
 	parked := ActionableThreadSummary{Address: ThreadAddress{RepoScope: "s", Tag: "t"}, WorkingPath: "/w/p", State: ThreadParked}
 	orphan := ActionableThreadSummary{Address: ThreadAddress{RepoScope: "s", Tag: "t"}, WorkingPath: "/w/p", State: ThreadUnusable,
 		Reason: ReasonOrphanedServer, Orphan: &launcher.SessionServerIdentity{PID: 812, Session: "📁p-1"}}
+	liveOrphan := ActionableThreadSummary{Address: ThreadAddress{RepoScope: "s", Tag: "t"}, WorkingPath: "/w/p", State: ThreadLive,
+		Orphan: &launcher.SessionServerIdentity{PID: 812, Session: "📁p-1"}}
 	rebootOnly := ActionableThreadSummary{Address: ThreadAddress{RepoScope: "s", Tag: "t"}, WorkingPath: "/w/p", State: ThreadUnusable, Reason: ReasonBindingLost}
 	unknown := ActionableThreadSummary{Address: ThreadAddress{RepoScope: "s", Tag: "t"}, WorkingPath: "/w/p", State: ThreadUnusable, Reason: ReasonUnknown}
 	report := func(steps []string, hold ...string) *RecoverRow {
@@ -58,6 +61,7 @@ func TestDeriveRecoverSteps(t *testing.T) {
 		{name: "a report row with no step falls back", row: parked, report: report(nil), steps: []string{"resume"}},
 		{name: "no report row: parked", row: parked, steps: []string{"resume"}},
 		{name: "no report row: orphan", row: orphan, steps: []string{"reap", "resume"}},
+		{name: "no report row: live orphan", row: liveOrphan, steps: []string{"reap", "resume"}},
 		{name: "no report row: reboot only", row: rebootOnly, steps: []string{"reboot"}},
 		{name: "no report row: nothing offered", row: unknown, hold: []string{string(HoldNoActorAction)}},
 	} {
@@ -151,4 +155,79 @@ func countStarts(r *FakeRunner) int {
 		}
 	}
 	return n
+}
+
+// liveOrphanEnv is the 2026-10-07 acceptance gap: Couch still hosts the
+// thread (its recorded process is alive) and its server lost its socket. exit
+// ends the hosted process the way its client exits once the server is gone.
+func liveOrphanEnv(t *testing.T) (env *testEnv, address ThreadAddress, server launcher.SessionServerIdentity, reaper *fakeOrphanReaper, exit func()) {
+	t.Helper()
+	env = newTestEnv(t, "/repo")
+	first, h := env.spawn(t, StartArgs{Worktree: "/repo"})
+	address = first.Thread
+	server = launcher.SessionServerIdentity{PID: 9191, Identity: "t9191", Session: "📁repo-1"}
+	env.Artifacts.SetSessionPresence(address, SessionObservation{State: SessionOrphaned, Orphan: &server})
+	env.Artifacts.SetNativeBinding(address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+	env.Runner.AfterAcknowledge = func(id string) error {
+		env.Artifacts.SetPairSession(address, continuationChildSession(t, env.Runner, id), true)
+		return nil
+	}
+	reaper = &fakeOrphanReaper{artifacts: env.Artifacts, address: address}
+	env.Couch.Reaper = reaper
+	env.Couch.sleep = func(time.Duration) {}
+	exit = func() {
+		env.Runner.SetExited(h.ID(), 0)
+		env.Proc.Kill(first.PID)
+	}
+	return env, address, server, reaper, exit
+}
+
+// Reap admits a live orphan: the row carries Orphan though it stays live.
+func TestReapAdmitsALiveOrphan(t *testing.T) {
+	env, address, server, reaper, _ := liveOrphanEnv(t)
+	if _, err := env.Couch.Reap(context.Background(), ReapTarget{Address: address}); err != nil {
+		t.Fatal(err)
+	}
+	if len(reaper.reaped) != 1 || reaper.reaped[0] != server {
+		t.Fatalf("reaped %+v", reaper.reaped)
+	}
+}
+
+// Recover on a live orphan reaps, waits for the hosted client's exit to land
+// (it does a moment after the reap returns), then resumes, returning resume's
+// child. Without the wait the row still reads live and resume is refused.
+func TestRecoverOnALiveOrphanReapsWaitsThenResumes(t *testing.T) {
+	env, address, server, reaper, exit := liveOrphanEnv(t)
+	polls := 0
+	env.Couch.sleep = func(d time.Duration) {
+		if d == recoverSettlePoll {
+			if polls++; polls == 2 {
+				exit()
+			}
+		}
+	}
+	before := countStarts(env.Runner)
+	value, err := env.Couch.Recover(context.Background(), RecoverTarget{Address: address})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reaper.reaped) != 1 || reaper.reaped[0] != server || polls != 2 {
+		t.Fatalf("reaped %+v after %d polls", reaper.reaped, polls)
+	}
+	assertResumedChild(t, env, value, before)
+}
+
+// A hosted client that never exits bounds the wait: recover stops before
+// resume, typed, having reaped.
+func TestRecoverStopsWhenTheRowNeverAdmitsTheNextStep(t *testing.T) {
+	env, address, _, reaper, _ := liveOrphanEnv(t)
+	before := countStarts(env.Runner)
+	_, err := env.Couch.Recover(context.Background(), RecoverTarget{Address: address})
+	var refusal *RecoverRefusal
+	if !errors.As(err, &refusal) || refusal.Code != RecoverChanged || !strings.Contains(err.Error(), "after reap") {
+		t.Fatalf("err = %v", err)
+	}
+	if len(reaper.reaped) != 1 || countStarts(env.Runner) != before {
+		t.Fatalf("reaped %+v, starts %d → %d", reaper.reaped, before, countStarts(env.Runner))
+	}
 }
