@@ -1,6 +1,6 @@
 ---
 id: 000402
-status: codecomplete
+status: done
 created: 2026-10-06
 updated: 2026-10-06
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: e5c49b7a5f751e1f69fc82c7ffa17e7193883d89
         evidence_commit: 3e553210747a4c3594146e401c2e27c9638ec00f
+        landed_commit: 589d4e2c3d72e45d737c2eb472ec2088a9c9ba9b
 ---
 
 # Switcher: add slot is offered only while the repository's :0 is live
