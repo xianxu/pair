@@ -1,6 +1,6 @@
 ---
 id: 000405
-status: codecomplete
+status: done
 created: 2026-10-07
 updated: 2026-10-07
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: c573660b8153b8438b9a2f5fc1833e665a464aa3
         evidence_commit: 50cdf82c19b56cb038186a4ab3dae0b4d24e49af
+        landed_commit: b97cf8dc0c8be6e0f8d2cd0ab8ded95fed4fb92a
 ---
 
 # Highlight Couch capture status badge
