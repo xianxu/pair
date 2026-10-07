@@ -189,6 +189,11 @@ func (c *Couch) Continue(ctx context.Context, address ThreadAddress, id string) 
 	if err := ctx.Err(); err != nil {
 		return ContinuationResult{}, err
 	}
+	ctx, release, err := c.hold(ctx, address, "continue-thread")
+	if err != nil {
+		return ContinuationResult{}, err
+	}
+	defer release()
 	record, err := c.requestRecord(address, id)
 	if err != nil {
 		return ContinuationResult{}, err
@@ -274,7 +279,7 @@ func (c *Couch) executeContinuation(ctx context.Context, record ThreadRecord) (C
 			updated, err := c.advanceContinuation(record.Address, checkpoint.Event{Kind: checkpoint.RefreshSource, RequestID: request.ID, Attempt: request.Attempt, Helper: checkpoint.Process{PID: inc.PID, Identity: inc.Identity}})
 			if err != nil {
 				if attachedHandle != nil {
-					err = errors.Join(err, c.AbortStarted(StartResult{Record: attachedActor, Handle: attachedHandle}, err))
+					err = errors.Join(err, c.AbortStarted(ctx, StartResult{Record: attachedActor, Handle: attachedHandle}, err))
 				}
 				return c.failContinuation(record, err)
 			}
@@ -365,20 +370,20 @@ func (c *Couch) executeContinuation(ctx context.Context, record ThreadRecord) (C
 		}
 	}
 	if generationErr != nil {
-		cleanupErr := c.AbortStarted(StartResult{Record: actor, Handle: handle}, generationErr)
+		cleanupErr := c.AbortStarted(ctx, StartResult{Record: actor, Handle: handle}, generationErr)
 		return c.failContinuation(record, errors.Join(generationErr, cleanupErr))
 	}
 	target := checkpoint.Process{PID: actor.PID, Identity: actor.Identity}
 	registeredRecord, persistErr := c.advanceContinuation(record.Address, checkpoint.Event{Kind: checkpoint.Registered, At: c.Clock.Now(), RequestID: request.ID, Attempt: request.Attempt, Target: &target, TargetGeneration: generation})
 	if persistErr != nil {
-		cleanupErr := c.AbortStarted(StartResult{Record: actor, Handle: handle}, persistErr)
+		cleanupErr := c.AbortStarted(ctx, StartResult{Record: actor, Handle: handle}, persistErr)
 		return c.failContinuation(record, errors.Join(persistErr, cleanupErr))
 	}
 	record = registeredRecord
 	return ContinuationResult{Status: *continuationStatus(record), Record: actor, Handle: handle, Orientation: &orient}, persistErr
 }
 func (c *Couch) ownsContinuationHelper(address ThreadAddress, inc ThreadIncarnation) bool {
-	for _, a := range c.reg.Records() {
+	for _, a := range c.actorRegistry().Records() {
 		if a.Thread == address && a.PID == inc.PID && a.Identity == inc.Identity {
 			return true
 		}

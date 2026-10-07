@@ -35,7 +35,7 @@ func passInventory() []couchcore.ActionableThreadSummary {
 // comes back out of ReduceMenu for the console to dispatch.
 func TestReduceMenuSeedsAndStartsThePassFromTheFirstInventory(t *testing.T) {
 	state, effects := passMenu(t, passInventory())
-	if state.Reattach.Phase != ReattachRunning || state.Reattach.Loading != menuAddress("couch-a") {
+	if state.Reattach.Phase != ReattachRunning || state.Reattach.soleLoading() != menuAddress("couch-a") {
 		t.Fatalf("pass = %+v, want running with couch-a loading", state.Reattach)
 	}
 	if len(effects) != 1 || !effects[0].Background || effects[0].Args["warm-only"] != "true" {
@@ -86,8 +86,8 @@ func TestReduceMenuResumesAHeldPassWhenTheOperatorsSlotClears(t *testing.T) {
 	// HOLDS rather than starting couch-b.
 	state, held := ReduceMenu(state, MenuEvent{Kind: MenuEventOperationResult, Operation: "resume", Background: true,
 		Attempt: effects[0].Attempt, Address: menuAddress("couch-a"), Success: true})
-	if len(held) != 0 || state.Reattach.Loading != (couchcore.ThreadAddress{}) {
-		t.Fatalf("the pass advanced under the operator's operation: effects %+v, loading %v", held, state.Reattach.Loading)
+	if len(held) != 0 || state.Reattach.soleLoading() != (couchcore.ThreadAddress{}) {
+		t.Fatalf("the pass advanced under the operator's operation: effects %+v, loading %v", held, state.Reattach.soleLoading())
 	}
 	// The operator's operation completes; the slot clears; the held pass resumes.
 	_, resumed := ReduceMenu(state, correlatedMenuResult(state, MenuEvent{
@@ -196,11 +196,11 @@ func TestReattachPassInvariantsHoldOverGeneratedSequences(t *testing.T) {
 				case 1:
 					event = MenuEvent{Kind: MenuEventInventory, Error: "refresh failed", Generation: generation}
 				case 2, 3:
-					if state.Reattach.Loading == (couchcore.ThreadAddress{}) {
+					if state.Reattach.soleLoading() == (couchcore.ThreadAddress{}) {
 						continue
 					}
 					event = MenuEvent{Kind: MenuEventOperationResult, Operation: "resume", Background: true,
-						Attempt: state.Reattach.LoadingAttempt, Address: state.Reattach.Loading, ProjectionAfterGeneration: generation}
+						Attempt: state.Reattach.soleLoadingAttempt(), Address: state.Reattach.soleLoading(), ProjectionAfterGeneration: generation}
 					switch rng.Intn(3) {
 					case 0:
 						event.Success = true
@@ -249,8 +249,8 @@ func assertReattachInvariants(t *testing.T, before, after MenuState, effects []M
 		}
 		seen[address] = where2
 	}
-	if pass.Loading != (couchcore.ThreadAddress{}) {
-		claim(pass.Loading, "loading")
+	if pass.soleLoading() != (couchcore.ThreadAddress{}) {
+		claim(pass.soleLoading(), "loading")
 	}
 	for _, address := range pass.Queue {
 		if address == root {
@@ -370,8 +370,8 @@ func TestAFailedFirstInventoryLeavesThePassArmed(t *testing.T) {
 		reattachRow("couch-a", couchcore.ThreadDetached, 1),
 	}
 	state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventInventory, Inventory: inventory, Generation: 2})
-	if state.Reattach.Loading != menuAddress("couch-a") || len(effects) != 1 {
+	if state.Reattach.soleLoading() != menuAddress("couch-a") || len(effects) != 1 {
 		t.Fatalf("after the first good inventory: loading %v, effects %v; want the pass seeded and couch-a started",
-			state.Reattach.Loading, effects)
+			state.Reattach.soleLoading(), effects)
 	}
 }

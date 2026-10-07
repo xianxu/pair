@@ -423,10 +423,10 @@ func TestRelaunchDoesNotPreMarkTheChildItJustAdopted(t *testing.T) {
 
 	con.mu.Lock()
 	defer con.mu.Unlock()
-	if con.expectedExits["new-child"] {
+	if con.expectedExits.has("new-child") {
 		t.Error("the child relaunch just adopted was pre-marked as an expected exit; its first real death would be silent")
 	}
-	if !con.expectedExits["old-child"] {
+	if !con.expectedExits.has("old-child") {
 		t.Error("the child relaunch replaced was NOT marked, so its exit raises a spurious notice")
 	}
 }

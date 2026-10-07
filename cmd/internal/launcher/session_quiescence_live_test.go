@@ -32,7 +32,7 @@ func (o *observingLiveSessionOps) SessionPresent(ctx context.Context, session st
 	return o.inner.SessionPresent(ctx, session)
 }
 
-func (o *observingLiveSessionOps) SessionServers(ctx context.Context, session string) ([]sessionServerIdentity, error) {
+func (o *observingLiveSessionOps) SessionServers(ctx context.Context, session string) ([]SessionServerIdentity, error) {
 	servers, err := o.inner.SessionServers(ctx, session)
 	if len(servers) > 0 {
 		o.serverObserved = true
@@ -45,7 +45,7 @@ func (o *observingLiveSessionOps) DeleteSessionRecord(ctx context.Context, sessi
 	return o.inner.DeleteSessionRecord(ctx, session)
 }
 
-func (o *observingLiveSessionOps) KillServer(server sessionServerIdentity) error {
+func (o *observingLiveSessionOps) KillServer(server SessionServerIdentity) error {
 	o.killAttempted = true
 	return o.inner.KillServer(server)
 }

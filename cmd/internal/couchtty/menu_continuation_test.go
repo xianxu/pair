@@ -69,8 +69,8 @@ func TestFailedContinuationComposesWithALiveRowsActions(t *testing.T) {
 		{couchcore.ThreadLive, checkpoint.Pending, nil},
 		// Not live: resume routes the request to its own executor, reboot
 		// retires it with the conversation.
-		{couchcore.ThreadDetached, checkpoint.Failed, []string{"resume", "reboot"}},
-		{couchcore.ThreadUnusable, checkpoint.Running, []string{"resume", "reboot"}},
+		{couchcore.ThreadDetached, checkpoint.Failed, []string{"recover", "resume", "reboot"}},
+		{couchcore.ThreadUnusable, checkpoint.Running, []string{"recover", "resume", "reboot"}},
 	} {
 		r := row(tc.state, tc.phase)
 		if tc.state == couchcore.ThreadUnusable {

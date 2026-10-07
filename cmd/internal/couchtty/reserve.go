@@ -6,6 +6,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/rowtext"
+	"github.com/xianxu/pair/cmd/internal/terminalcapture"
 
 	"github.com/xianxu/pair/cmd/internal/textwidth"
 )
@@ -42,8 +43,8 @@ type StatusActor struct {
 	// it resolves to no actor: unclickable by construction, not by a check at
 	// the click site.
 	Placeholder bool
-	// Loading marks the one placeholder currently starting; it carries the
-	// spinner.
+	// Loading marks a placeholder currently starting; it carries the spinner.
+	// Several can load at once (pair#205).
 	Loading bool
 	// Idle is how long this thread has gone without activity (pair#247). It
 	// fades the chip -- label and amber glyphs alike -- unless the chip is
@@ -54,8 +55,9 @@ type StatusActor struct {
 
 // StatusModel is everything the row shows.
 type StatusModel struct {
-	Actors []StatusActor
-	Notice string
+	Capture terminalcapture.Status
+	Actors  []StatusActor
+	Notice  string
 	// Spinner is the loading placeholder's spinner frame (pair#206).
 	Spinner uint8
 	// Palette is what the host terminal told couch about its colours, which
@@ -152,6 +154,9 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		}
 		used += textwidth.Width(clipped)
 	}
+	// Capture leads so actor chips and transient notices cannot hide a stopped
+	// recorder. It never receives an actor click target.
+	appendText(captureBadge(m.Capture), "\x1b[1;7m")
 	var chips []ChipSpan
 	previousGroup := ""
 	for _, a := range m.Actors {

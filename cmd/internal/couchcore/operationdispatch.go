@@ -312,6 +312,25 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				return nil, err
 			}
 			return c.Reboot(ctx, RebootTarget{Address: address, Agent: a["agent"]})
+		case "reap":
+			if path := a["path"]; path != "" {
+				return c.Reap(ctx, ReapTarget{Path: path})
+			}
+			address, err := resolveThreadForArchive(c, a)
+			if err != nil {
+				return nil, err
+			}
+			return c.Reap(ctx, ReapTarget{Address: address})
+		case "recover":
+			target := RecoverTarget{Path: a["path"]}
+			if target.Path == "" {
+				address, err := resolveThreadForArchive(c, a)
+				if err != nil {
+					return nil, err
+				}
+				target.Address = address
+			}
+			return c.Recover(ctx, target)
 		case "continue-thread", "retry-continuation", "continuation-status":
 			address, err := resolveOperationThread(c, a)
 			if err != nil {
@@ -374,21 +393,7 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			if err != nil {
 				return nil, err
 			}
-			if c.PairLifecycle == nil {
-				return nil, fmt.Errorf("Pair lifecycle controller is unavailable")
-			}
-			switch a["mode"] {
-			case "", "normal":
-				return c.PairLifecycle.Park(ctx, address)
-			case "retry":
-				return c.PairLifecycle.Retry(ctx, address)
-			case "recover":
-				return c.PairLifecycle.Recover(ctx, address)
-			case "abandon":
-				return c.PairLifecycle.Abandon(ctx, address)
-			default:
-				return nil, fmt.Errorf("park: invalid mode %q (want normal, retry, recover, or abandon)", a["mode"])
-			}
+			return c.Park(ctx, address, a["mode"])
 		case "detach":
 			address, err := resolveOperationThread(c, a)
 			if err != nil {

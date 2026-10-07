@@ -82,6 +82,11 @@ func (c *Couch) Relaunch(ctx context.Context, address ThreadAddress) (RelaunchRe
 	if err := ctx.Err(); err != nil {
 		return refused, err
 	}
+	ctx, release, err := c.hold(ctx, address, "relaunch")
+	if err != nil {
+		return refused, err
+	}
+	defer release()
 	thread, err := c.Threads.GetThread(address)
 	if err != nil {
 		return refused, err

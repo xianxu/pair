@@ -579,7 +579,7 @@ func (s *messageService) connectedWorkspace(ctx context.Context, b couchmessage.
 
 func (s *messageService) handle(ctx context.Context, request couchmessage.Request) couchmessage.Response {
 	switch request.Op {
-	case "resume", "reboot", "operation-status":
+	case "resume", "reboot", "reap", "recover", "operation-status":
 		return s.handleSlotOperation(ctx, request)
 	}
 	if request.Binding == nil && couchmessage.ValidateRequest(request) == nil {

@@ -105,7 +105,7 @@ func TestRowActionDeclarationsAndTheMenuAgreeInBothDirections(t *testing.T) {
 // only _test.go occurrence being the concept inventory's own literal, which is
 // why the coverage assertion was passing vacuously.
 func TestEndsItsOwnChildNamesTheDeliberateOnes(t *testing.T) {
-	for _, operation := range []string{"park", "detach", "relaunch"} {
+	for _, operation := range []string{"park", "detach", "relaunch", "reap", "recover"} {
 		if !endsItsOwnChild(operation) {
 			t.Errorf("%q deliberately ends its child but is not named, so its exit raises a spurious notice", operation)
 		}

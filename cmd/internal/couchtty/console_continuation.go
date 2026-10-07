@@ -26,6 +26,50 @@ type continuationWatch struct {
 	status  couchcore.ContinuationStatus
 	queued  bool
 	handled bool
+	// marked are the expected-exit marks THIS watch's queued operation added
+	// (pair#205), so a refusal undoes its own marks and never one that a park,
+	// detach or other operation set on the same thread's panes.
+	marked []string
+}
+
+// exitMarks counts, per child handle, the operations that expect it to exit.
+// An undo removes one owner's mark; the child's actual exit consumes them all.
+type exitMarks map[string]int
+
+func (m exitMarks) mark(id string) { m[id]++ }
+
+func (m exitMarks) unmark(id string) {
+	if m[id] <= 1 {
+		delete(m, id)
+		return
+	}
+	m[id]--
+}
+
+func (m exitMarks) has(id string) bool { return m[id] > 0 }
+
+// consume reports whether any operation expected id to exit, and clears it:
+// one exit satisfies every owner.
+func (m exitMarks) consume(id string) bool {
+	if m[id] == 0 {
+		return false
+	}
+	delete(m, id)
+	return true
+}
+
+// markThreadExitsLocked adds one expected-exit mark, owned by the caller, to
+// every pane of address, and returns them so a refusal can undo exactly its
+// own. Callers hold c.mu.
+func (c *Console) markThreadExitsLocked(address couchcore.ThreadAddress) []string {
+	var added []string
+	for id, p := range c.panes {
+		if p.thread == address {
+			c.expectedExits.mark(id)
+			added = append(added, id)
+		}
+	}
+	return added
 }
 
 func (c *Console) SetContinuationProvider(provider ContinuationProvider) {
@@ -202,13 +246,11 @@ func (c *Console) acceptContinuationRequests(result continuationScanResult) {
 			continue
 		}
 		watch.queued, watch.handled = true, true
+		if operation == "continue-thread" {
+			watch.marked = c.markThreadExitsLocked(status.Address)
+		}
 		c.continuations[status.Address] = watch
 		if operation == "continue-thread" {
-			for id, p := range c.panes {
-				if p.thread == status.Address {
-					c.expectedExits[id] = true
-				}
-			}
 			if !origin.PreserveFocus {
 				c.focus = FocusPanel()
 				c.menu.ActiveAddress = status.Address
@@ -253,6 +295,21 @@ func (c *Console) finishContinuationOperation(completed operationCompletion, err
 		return
 	}
 	watch.queued = false
+	busy := couchcore.IsThreadBusy(err)
+	if busy {
+		// Refused because another operation held the thread (pair#205): the
+		// operation never ran. Undo exactly the exit marks it added -- not marks
+		// another operation set on these panes -- or a later real exit would be
+		// swallowed as expected.
+		for _, id := range watch.marked {
+			c.expectedExits.unmark(id)
+		}
+		if completed.name == "continue-thread" {
+			// Re-arm it for the next scan.
+			watch.handled = false
+		}
+	}
+	watch.marked = nil
 	switch result := completed.value.(type) {
 	case couchcore.ContinuationStatus:
 		if result.RequestID == watch.status.RequestID && result.Address == address {
@@ -276,7 +333,8 @@ func (c *Console) finishContinuationOperation(completed operationCompletion, err
 	}
 	c.reconcileContinuationOrientationLocked()
 	c.mu.Unlock()
-	if err != nil {
+	if err != nil && !busy {
+		// A busy refusal is retried on the next scan, silently.
 		c.setNotice(fmt.Sprintf("Continuation %s: %v", address.Tag, err))
 	}
 	c.requestMenuRefresh()

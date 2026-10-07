@@ -140,7 +140,7 @@ func (c *Couch) ensureContinuationAttached(ctx context.Context, record ThreadRec
 	}
 	updated, err := c.Threads.GetThread(record.Address)
 	if err != nil {
-		return record, ActorRecord{}, nil, c.AbortStarted(StartResult{Record: actor, Handle: handle}, err)
+		return record, ActorRecord{}, nil, c.AbortStarted(ctx, StartResult{Record: actor, Handle: handle}, err)
 	}
 	return updated, actor, handle, nil
 }
@@ -160,7 +160,7 @@ func (c *Couch) observeContinuationTarget(ctx context.Context, record ThreadReco
 	generation, generationErr := c.continuationTargetGeneration(ctx, record)
 	if generationErr != nil {
 		if handle != nil {
-			generationErr = errors.Join(generationErr, c.AbortStarted(StartResult{Record: actor, Handle: handle}, generationErr))
+			generationErr = errors.Join(generationErr, c.AbortStarted(ctx, StartResult{Record: actor, Handle: handle}, generationErr))
 		}
 		return c.failContinuation(record, generationErr)
 	}
@@ -168,7 +168,7 @@ func (c *Couch) observeContinuationTarget(ctx context.Context, record ThreadReco
 	updated, err := c.advanceContinuation(record.Address, checkpoint.Event{Kind: checkpoint.Registered, At: c.Clock.Now(), RequestID: record.Continuation.ID, Attempt: record.Continuation.Attempt, Target: &target, TargetGeneration: generation})
 	if err != nil {
 		if handle != nil {
-			err = errors.Join(err, c.AbortStarted(StartResult{Record: actor, Handle: handle}, err))
+			err = errors.Join(err, c.AbortStarted(ctx, StartResult{Record: actor, Handle: handle}, err))
 		}
 		return c.failContinuation(record, err)
 	}
@@ -180,6 +180,11 @@ func (c *Couch) observeContinuationTarget(ctx context.Context, record ThreadReco
 	return ContinuationResult{Status: status, Record: actor, Handle: handle}, err
 }
 func (c *Couch) ReconcileContinuation(ctx context.Context, address ThreadAddress, id, attempt string) (ContinuationStatus, error) {
+	ctx, release, err := c.hold(ctx, address, "reconcile-continuation")
+	if err != nil {
+		return ContinuationStatus{}, err
+	}
+	defer release()
 	record, err := c.requestRecord(address, id)
 	if err != nil {
 		return ContinuationStatus{}, err
@@ -235,6 +240,11 @@ func (c *Couch) RetryContinuation(ctx context.Context, address ThreadAddress, id
 	if err := ctx.Err(); err != nil {
 		return ContinuationResult{}, err
 	}
+	ctx, release, err := c.hold(ctx, address, "retry-continuation")
+	if err != nil {
+		return ContinuationResult{}, err
+	}
+	defer release()
 	record, err := c.requestRecord(address, id)
 	if err != nil {
 		return ContinuationResult{}, err

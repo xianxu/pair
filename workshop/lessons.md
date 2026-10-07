@@ -7,6 +7,21 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- When opt-in diagnostics add configuration, update README as well as the detailed
+  runbook. Bound repeated-launch storage through admission or evidence-preserving
+  retention, not only individual files. Keep lifecycle phase authority in the pure
+  model; IO executes its channel/notification effects. (#404 BR-1–BR-3)
+
+- Bound diagnostic queues against measured burst shapes, including record count
+  as well as bytes. Report capture loss through the owning UI while it is running;
+  a teardown-only error can leave an operator waiting on a recorder that stopped
+  minutes earlier. Keep admission budgets distinct from total allocation overhead.
+  (#404)
+
+- Optional diagnostic resources need one owner across startup failure and normal
+  exit. Report shutdown failures on both paths, and clear process-scoped capture
+  activation from child environments so descendants do not silently opt in. (#379)
+
 - A filename absence decision that creates a replacement requires complete
   enumeration. Carry failed/partial probes as unknown through every consumer;
   an empty ID must not silently select a destructive fresh fallback. (#346)
@@ -574,3 +589,62 @@ proof; record the surprising case so the next change starts from evidence.
   it. In a re-exec crash test, the parent must own every directory the child
   writes: Go's test runner runs `t.Cleanup` (deleting `t.TempDir`) while a panic
   unwinds, before the runtime writes the crash.
+- A guard that admits by an earlier observation must never begin new work on it.
+  #205 BR-1: `Couch.Park` read "open park transaction" and skipped the thread gate
+  to join it, but the transaction could close before acting, and a normal park
+  would then begin a fresh one unheld. On the bypass path, map every mode that can
+  begin to one that only drives existing work (`Retry` refuses an absent
+  transaction), so a stale observation fails closed.
+- Moving work off a goroutine moves it out of that goroutine's implicit lock.
+  #205 BR-2: running `AbortStarted` via `GoTracked` made it race `Forget` on the
+  unlocked actor registry, which the single console goroutine had serialized for
+  free. Before moving a writer to a new goroutine, list the shared state it
+  writes and lock it at the same change, not a milestone later.
+- Undo only what you did. #205 BR-3: a refused continuation cleared every
+  expected-exit mark on its thread's panes, including ones a park had set. Record
+  the marks an operation adds (`markThreadExitsLocked` returns them) and remove
+  exactly those on refusal. Recording "the marks I added" is not enough when the
+  mark is shared: a later owner re-marking the same pane loses its mark to your
+  undo. A shared mark must count its owners (`exitMarks`): undo decrements, and
+  the real event consumes all (#205 M1 round 2).
+- A drain's wait is an interleaving cell, so give each waiter its own test.
+  #205 BR-4 found `RecoverActiveParks` and `AbortStarted` waiting untested because
+  only `Leave`'s wait was. One waiter's test does not cover another.
+- `select` does not prefer `ctx.Done()`. When the context is already cancelled
+  and another case is ready, Go picks at random, so a "cancelled" loop
+  sometimes takes one more step. #205 M2: a cancelled `Leave` occasionally
+  started another thread, caught only by an existing pre-cancelled-ctx test
+  that flaked. Check `ctx.Err()` before the select, and after it when the other
+  case acquires something.
+- Test the cancellation claim you write. #205's `Leave` comment said "started
+  threads finish", but they share the ctx and stop at their own safe points.
+  The test written for the claim failed on day one. A policy sentence about
+  cancellation needs a test that cancels at that exact point.
+- Operator advice is code: it must be steps that would have worked on the
+  documented incident, and its test checks their ORDER, not that words appear.
+  #399's startup refusal said "kill the server; its agent goes with it" and then
+  "pkill -P …; kill …; pkill -KILL -P …". Both were wrong on 2026-10-06:
+  descendants that outlive the server reparent to PID 1, where no child-of-server
+  command finds them. List the tree while the server still parents it, kill the
+  descendants, and only then the server.
+- A test that already fails on main still has to be read, not skipped. #399
+  added five production files and each was missing from the artifact inventory;
+  TestProductionArtifactReferencesAreExactlyClassified named them, but it was on
+  the "known failure" list, so two milestones passed without anyone reading its
+  output. Grep a known-failing test's output for your own files at every close.
+- Check how a process is spawned before claiming a tree snapshot covers it. #399's
+  reaper skipped the title-poller pidfile reaper on the reasoning that helpers live
+  under the zellij server. But the poller's parent is the launcher (Couch's hosted
+  client, or standalone `pair`), not the server, so it was never in the server's
+  tree; when the launcher dies it reparents to PID 1. That is exactly why
+  2026-10-06 left stray `pair title` processes. (A first correction blamed
+  `Setsid`, which Couch-launched Pair doesn't even apply. Check the actual parent
+  in `ps`, not a plausible mechanism.)
+- A test may only remove paths it created with its own `t.TempDir()`. Never derive
+  a removal root by walking up (`filepath.Dir`) from a path a child process
+  reported: on 2026-10-06 an unsandboxed #397 test ran
+  `os.RemoveAll(filepath.Dir(filepath.Dir(store)))` on `$TMPDIR/TestX…/001`,
+  deleted the real `$TMPDIR`, including zellij's sockets, and orphaned every live
+  session (#399). Run unsandboxed tests with every `PAIR_*`/`COUCH_*`/`ZELLIJ*`
+  variable unset and `TMPDIR` pointed at a short, dedicated directory. Short,
+  because nvim sockets and some size-bounded fixtures break on a long one.

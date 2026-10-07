@@ -191,6 +191,8 @@ func runCleanupContext(ctx context.Context, env Env, rt Runtime, step launchStep
 		rt: rt, env: env, step: step, scopeKey: scopeKey, parkTimeout: parkTimeout,
 		out: out, quitAgent: quitAgent, now: time.Now, scrollback: scrollback,
 		panePath: panePath,
+		// Spelled inline, not through editorPathsOf: the artifact inventory
+		// checks that each scoped member is consumed where it was resolved.
 		editorPaths: lifecycleEditorPaths{
 			draft: paths.Draft(), scrollbackPrefix: paths.ScrollbackPrefix(),
 			pids: []string{paths.NvimPID("draft"), paths.NvimPID("scrollback")},
@@ -285,6 +287,18 @@ type lifecycleEditorPaths struct {
 	draft            string
 	scrollbackPrefix string
 	pids             []string
+}
+
+// editorPathsOf is the orphan reaper's derivation of a tag's editor pidfiles
+// and patterns (#399). It matches the quit path's inline literal in
+// runCleanupContext, which stays inline for the artifact inventory's
+// consumed-where-resolved check; TestReapTagHelpersEndsTheHelpersOutsideTheTree
+// pins this one.
+func editorPathsOf(paths artifactpath.Paths) lifecycleEditorPaths {
+	return lifecycleEditorPaths{
+		draft: paths.Draft(), scrollbackPrefix: paths.ScrollbackPrefix(),
+		pids: []string{paths.NvimPID("draft"), paths.NvimPID("scrollback")},
+	}
 }
 
 type launcherCleanupOps struct {
@@ -491,4 +505,49 @@ func liveTagsForSweep(sessions []Session, index SessionNameIndex, scopeKey strin
 
 func (o *launcherCleanupOps) PreservedScrollback() *pairlifecycle.PreservedScrollback {
 	return o.preserved
+}
+
+// OSOrphanReaper ends an orphaned server on the real host: the whole tree,
+// then the tag's helpers that live OUTSIDE that tree, then zellij's leftover
+// session record (an EXITED resurrect row), proven absent by the same
+// quiescence loop every session deletion uses.
+//
+// The helpers are why the tree is not enough (#399 M2 review): the title
+// poller's parent is the LAUNCHER -- Couch's hosted client, or standalone pair
+// -- never the zellij server, so no snapshot of the server's tree contains it.
+// When the launcher dies the poller reparents to PID 1: the stray `pair title`
+// processes of 2026-10-06. Its pidfile, and the editors', are the same ones
+// the quit path reaps (editorPathsOf; pinned by
+// TestQuitPathAndReaperShareEditorPaths).
+type OSOrphanReaper struct{ DataDir string }
+
+func (r OSOrphanReaper) ReapOrphan(ctx context.Context, server SessionServerIdentity, scope, tag string) error {
+	if r.DataDir == "" {
+		return errors.New("reap: no Pair data directory for the thread's helpers")
+	}
+	reaper := Reaper{Table: OSProcessTable{}, TermWait: 3 * time.Second, KillWait: 2 * time.Second, Poll: 50 * time.Millisecond}
+	if err := reaper.Reap(ctx, server); err != nil {
+		return err
+	}
+	paths, err := artifactpath.Resolve(artifactpath.Address{DataDir: r.DataDir, RepoScope: scope, Tag: tag})
+	if err != nil {
+		return fmt.Errorf("reap: the thread's helper paths: %w", err)
+	}
+	if err := ReapTagHelpers(ctx, OSRuntime{}, paths); err != nil {
+		return err
+	}
+	return quiesceZellijSession(ctx, server.Session, newOSSessionQuiescenceOps(), zellijQueryTimeout, 25*time.Millisecond)
+}
+
+// tagHelperReaper is the part of the lifecycle runtime that ends a tag's
+// helpers by pidfile.
+type tagHelperReaper interface {
+	KillTitlePollerContext(ctx context.Context, pidPath string) error
+	ReapNvimContext(ctx context.Context, paths lifecycleEditorPaths) error
+}
+
+// ReapTagHelpers ends the tag's title poller and editors through their
+// pidfiles -- the same reapers, on the same paths, as the quit path.
+func ReapTagHelpers(ctx context.Context, rt tagHelperReaper, paths artifactpath.Paths) error {
+	return errors.Join(rt.KillTitlePollerContext(ctx, paths.TitlePID()), rt.ReapNvimContext(ctx, editorPathsOf(paths)))
 }

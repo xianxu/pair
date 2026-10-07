@@ -88,6 +88,16 @@ type ScopedThreadArtifactCollisionChecker struct {
 	// "a reattach asks two sessions for their clients" is a count, not a timing
 	// (pair#228).
 	Zellij launcher.ZellijSource
+	// Servers is the host's zellij server snapshot, the only place an orphaned
+	// server is visible (#399). Nil is the real host.
+	Servers launcher.ServerStates
+}
+
+func (c ScopedThreadArtifactCollisionChecker) serverStates() launcher.ServerStates {
+	if c.Servers != nil {
+		return c.Servers
+	}
+	return launcher.OSServerStates{}
 }
 
 func NewScopedThreadArtifactCollisionChecker(globalDataDir string) ScopedThreadArtifactCollisionChecker {
@@ -299,6 +309,8 @@ func (c ScopedThreadArtifactCollisionChecker) NamedPairSessionContext(ctx contex
 	case launcher.SessionOwnerOwned:
 		binding.Present = true
 	case launcher.SessionOwnerAbsent, launcher.SessionOwnerForeign:
+	case launcher.SessionOwnerOrphaned:
+		return binding, refuseResume(ResumeOrphanedServer, owner.Diagnostic)
 	default:
 		return binding, fmt.Errorf("session %q ownership unresolved: %s", name, owner.Diagnostic)
 	}
@@ -480,7 +492,13 @@ func (c ScopedThreadArtifactCollisionChecker) SessionPresence(ctx context.Contex
 		if sessionErr != nil {
 			return nil, fmt.Errorf("observe zellij sessions: %w", sessionErr)
 		}
-		out = ProjectSessionPresence(bindings, sessions, claimsFromBindings(current))
+		servers, serverErr := c.serverStates().ServerStates(ctx)
+		if serverErr != nil {
+			// Without the server snapshot an orphan would read absent -- the
+			// "no session" that offers a resume onto a running agent. Fail closed.
+			return nil, fmt.Errorf("observe zellij servers: %w", serverErr)
+		}
+		out = ProjectSessionPresence(bindings, sessions, servers, claimsFromBindings(current))
 	}
 	// An address in a READABLE scope with no index row was asked about, and
 	// there is no session: absent, not unresolved. Only an address whose scope

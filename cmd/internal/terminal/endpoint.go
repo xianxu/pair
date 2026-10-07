@@ -84,9 +84,13 @@ type Endpoint struct {
 	closed                                bool
 	inputEnded                            bool
 	closeDone                             chan struct{}
+	observer                              Observer
 }
 
-func NewEndpoint(id string, g Geometry, out ttyio.Writer) (*Endpoint, error) {
+func NewEndpoint(id string, g Geometry, out ttyio.Writer, observers ...Observer) (*Endpoint, error) {
+	if len(observers) > 1 {
+		return nil, errors.New("terminal: endpoint accepts at most one observer")
+	}
 	if id == "" || out == nil {
 		return nil, errors.New("terminal: endpoint needs identity and writer")
 	}
@@ -98,6 +102,9 @@ func NewEndpoint(id string, g Geometry, out ttyio.Writer) (*Endpoint, error) {
 		return nil, err
 	}
 	e := &Endpoint{closeDone: make(chan struct{}), id: id, backend: backend, geometry: g, epoch: 1}
+	if len(observers) == 1 {
+		e.observer = observers[0]
+	}
 	backend.SetReplyWriter(&e.replies)
 	backend.RegisterOscHandler(9, func(data []byte) bool {
 		n, ok := notifyosc.DecodeZellijOSC9(data)
@@ -141,6 +148,9 @@ func NewEndpoint(id string, g Geometry, out ttyio.Writer) (*Endpoint, error) {
 	}
 	e.input = NewInputWriter(out, MaxInputPackets, MaxInputBytes)
 	e.capturePublication()
+	e.mu.Lock()
+	e.observe("endpoint-open", nil)
+	e.mu.Unlock()
 	return e, nil
 }
 func validSelection(s string) bool {
@@ -201,6 +211,7 @@ func (e *Endpoint) Feed(p []byte, now time.Time) (Output, error) {
 		return Output{}, e.failure
 	}
 	e.now = now
+	e.observe("endpoint-feed", p)
 	n, err := e.backend.Write(p)
 	if !e.backend.Mode(ansi.DECMode(2026)).IsSet() {
 		e.syncState = 0
@@ -356,6 +367,7 @@ func (e *Endpoint) Resize(g Geometry, apply func(Geometry) error) error {
 		return err
 	}
 	e.geometry = g
+	e.observe("endpoint-resize", nil)
 	e.epoch++
 	e.generation++
 	e.syncState = 0
@@ -382,6 +394,7 @@ func (e *Endpoint) EndInput() {
 		e.inputEnded = true
 		e.syncState = 0
 		e.capturePublication()
+		e.observe("endpoint-end", nil)
 	}
 	e.mu.Unlock()
 	e.input.Close()
@@ -392,6 +405,9 @@ func (e *Endpoint) Close() {
 		e.mu.Unlock()
 		<-e.closeDone
 		return
+	}
+	if !e.inputEnded {
+		e.observe("endpoint-end", nil)
 	}
 	e.closed = true
 	e.backend.Close()

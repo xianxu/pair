@@ -388,6 +388,8 @@ couch --actors [--json]  live peer-message receivers in this Couch namespace
 couch --recover-plan-from-sdlc   per-slot recovery report (JSON), see below
 couch --resume repo:N [--json]   from a live slot: resume that slot's agent
 couch --reboot repo:N --confirm [--json]   from a live slot: archive and replace it
+couch --reap repo:N --confirm [--json]     from a live slot: end an orphaned server's tree
+couch --recover repo:N [--json]               from a live slot: run the report's steps for it
 couch --send-to repo:N --message TEXT   send to an exact live slot
 couch --send-to repo --message TEXT     select an eligible slot in that family
 couch --send-to repo --agent NAME --message TEXT   ...running that agent
@@ -413,8 +415,18 @@ sdlc, a partial claim read or an unreadable git state is shown as such and degra
 only the rows it touches. The report creates nothing; it only writes stdout. Its
 one side effect is sdlc's own tracker fetch, which updates remote-tracking refs.
 Each step carries its `command`: `couch --resume repo:N`, `couch --reboot repo:N
---confirm`, or a `couch --send-to` asking the slot's own agent to restore its
-workspace.
+--confirm`, `couch --reap repo:N --confirm`, or a `couch --send-to` asking the
+slot's own agent to restore its workspace.
+
+An **orphaned** thread is one whose zellij server is alive but lost its socket
+(for example when something deleted `$TMPDIR`): nothing can reach it, and its
+agent may still be writing. The report shows agent `orphaned` with the server's
+pid, and its steps are `couch --reap repo:N --confirm`, then `couch --resume
+repo:N`, never reboot. Reap ends the server and everything under it, children
+before the server, plus the thread's title poller and editors, and refuses unless
+the server is still orphaned a second later with the same identity. Startup in a
+repository whose primary is orphaned refuses rather than start a second agent,
+and names the server.
 
 Each `:1+` row also reads the slot reconciler (#387). If the workspace cannot
 converge, the row's class is `slot-needs-zero` with hold `workspace-handoff`: the
@@ -849,7 +861,11 @@ a notice; use Ctrl+Space then Alt+n to relaunch from the switcher. Pair's own
 reload refuses in a Couch thread, visibly, because
 Couch owns that thread's restarts. Leaving
 never depends on there being something live to act on, so an empty switcher is
-never a dead end. `Tab → reboot` archives a conversation that will not come back
+never a dead end. `Tab → recover` is the default recovery gesture: it runs the
+steps the recovery report computes for that row (resume; reap then resume for an
+orphaned server; or reboot), asks for confirmation when they include reap or
+reboot, and refuses with the report's hold when there is no safe step.
+`Tab → reboot` archives a conversation that will not come back
 and starts a fresh agent in its place (see below). The archived record can be
 restored by moving the file back from `threadstore/archive/` and re-adding its
 address to the manifest. `couch --archived` lists what has been retired. `Escape` clears
@@ -1207,6 +1223,29 @@ note has been handed over. If the capture or the send fails, your text is kept
 and you are told so. The full capture goes to a file and the prompt carries a
 headline plus that file's path.
 
+
+### Opt-in Couch live capture
+
+For intermittent display problems, restart Couch with tracing enabled only for
+that launch (existing Pair threads can reattach):
+
+```sh
+COUCH_CAPTURE_DIR="$HOME/.local/share/pair/captures" COUCH_CAPTURE_MAX_MIB=4096 couch
+```
+
+Capture is off by default. The absolute destination holds private, unredacted
+terminal-output recordings; no keystroke stream is collected. The optional limit
+is in whole MiB (1–32768), default 256 MiB; the example allows 4 GiB. The status
+row shows `REC N%`, or persistent `REC STOP:queue`, `REC STOP:full` or
+`REC STOP:IO` when recording has stopped. Invalid enabled settings refuse startup;
+both settings are cleared from child environments.
+
+Recordings retain the complete prefix for replay, with no automatic rotation or
+deletion. Each directory admits at most 32 GiB of reserved recording allowances
+and 64 sessions across repeated launches; exhaustion refuses a new capture.
+Preserve or remove specific saved sessions to free their reservations. See the
+[live-capture runbook](atlas/couch-live-capture.md) for limits, legacy recordings,
+private-file handling, stop behavior and streaming extraction.
 
 ### Terminal backend qualification
 

@@ -53,11 +53,11 @@ func ValidateRequest(r Request) error {
 	if r.Agent != "" && (r.Op != "send" || !validFamily(r.Agent)) {
 		return errors.New("an agent filter applies only to send and must be a plain agent name")
 	}
-	if r.Confirmed && r.Op != "resume" && r.Op != "reboot" {
-		return errors.New("a confirmation applies only to resume and reboot")
+	if r.Confirmed && r.Op != "resume" && r.Op != "reboot" && r.Op != "reap" && r.Op != "recover" {
+		return errors.New("a confirmation applies only to resume, reboot, reap and recover")
 	}
 	switch r.Op {
-	case "resume", "reboot":
+	case "resume", "reboot", "reap", "recover":
 		// One exact slot: a primitive acts on one slot, never a family.
 		if !validMessageID(r.ID) || r.Body != "" {
 			return errors.New(r.Op + " requires only a request ID and an exact slot")

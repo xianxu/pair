@@ -32,13 +32,13 @@ func (f *statefulSessionQuiescenceOps) SessionPresent(context.Context, string) (
 	return f.present, nil
 }
 
-func (f *statefulSessionQuiescenceOps) SessionServers(_ context.Context, session string) ([]sessionServerIdentity, error) {
+func (f *statefulSessionQuiescenceOps) SessionServers(_ context.Context, session string) ([]SessionServerIdentity, error) {
 	if f.serverAlive {
 		identity := f.serverIdentity
 		if identity == "" {
 			identity = "start-a"
 		}
-		return []sessionServerIdentity{{PID: f.serverPID, Identity: identity, Session: session}}, nil
+		return []SessionServerIdentity{{PID: f.serverPID, Identity: identity, Session: session}}, nil
 	}
 	return nil, nil
 }
@@ -56,7 +56,7 @@ func (f *statefulSessionQuiescenceOps) DeleteSessionRecord(context.Context, stri
 	return nil
 }
 
-func (f *statefulSessionQuiescenceOps) KillServer(server sessionServerIdentity) error {
+func (f *statefulSessionQuiescenceOps) KillServer(server SessionServerIdentity) error {
 	f.killed = append(f.killed, server.PID)
 	if f.killErr != nil {
 		return f.killErr
@@ -99,7 +99,7 @@ func TestOSSessionKillReauthorizesExactProcessIdentity(t *testing.T) {
 				processCommand: func(string) string { return tc.command },
 				killProcess:    func(int) error { killed = true; return nil },
 			}
-			if err := ops.KillServer(sessionServerIdentity{PID: 4242, Identity: "zellij-start", Session: "pair-work"}); err != nil {
+			if err := ops.KillServer(SessionServerIdentity{PID: 4242, Identity: "zellij-start", Session: "pair-work"}); err != nil {
 				t.Fatal(err)
 			}
 			if killed != tc.wantKill {
@@ -159,7 +159,7 @@ func (o *deadlineCaptureOps) SessionPresent(ctx context.Context, _ string) (bool
 	o.capture(ctx)
 	return false, nil
 }
-func (o *deadlineCaptureOps) SessionServers(ctx context.Context, _ string) ([]sessionServerIdentity, error) {
+func (o *deadlineCaptureOps) SessionServers(ctx context.Context, _ string) ([]SessionServerIdentity, error) {
 	o.capture(ctx)
 	return nil, nil
 }
@@ -167,7 +167,7 @@ func (o *deadlineCaptureOps) DeleteSessionRecord(ctx context.Context, _ string) 
 	o.capture(ctx)
 	return nil
 }
-func (*deadlineCaptureOps) KillServer(sessionServerIdentity) error { return nil }
+func (*deadlineCaptureOps) KillServer(SessionServerIdentity) error { return nil }
 
 func TestCleanupDeadlinePropagation(t *testing.T) {
 	parentDeadline := time.Now().Add(time.Hour)

@@ -1035,7 +1035,8 @@ Snapshots and typed normal history replace raw replay and resize nudges. See
 
 **Placeholders** (`pair#206`). While the reattach pass runs, each pending
 thread is drawn after the attached chips as a greyed placeholder
-(`placeholderSGR`). The thread starting now carries the spinner, from the
+(`placeholderSGR`). Each thread starting now carries the spinner (up to the
+pass's `Limit` at once, `pair#205`; drawn in attempt order), from the
 `spinnerGlyph` table the switcher shares. A placeholder records no `ChipSpan`,
 so it cannot be clicked, and the attached chips keep their columns. A thread
 that attaches takes the column its placeholder held, because attached chips
@@ -1268,7 +1269,7 @@ re-derive it.
 row, and `ClassifyThread` returns a state plus, when the row cannot be acted on,
 a `ThreadReason` from one closed vocabulary -- `binding-lost`, `session-gone`,
 `never-started`, `invalid`, `unreadable`, `path-missing`, `profile-missing`,
-`unsupported-agent`, `unknown`. (`stale-incarnation` and `unrecorded-child` were
+`unsupported-agent`, `unknown`, `orphaned-server` (#399). (`stale-incarnation` and `unrecorded-child` were
 retired by #256; see "Recoverability is a fact about the session" below.)
 Failing closed is unchanged -- an unproved row is not actionable and startup
 never selects it -- but it is expressed as a state rather than as absence. The
@@ -1369,10 +1370,58 @@ the request; only a matching durable completion plus final ThreadStore CAS
 removes the incarnation. Timeout, stale evidence, replacement, and child exit
 remain occupied. Couch derives both Alt+x terminal encodings from Pair's
 canonical chord table, renders confirmation first, and submits confirmed work
-through the `PairLifecycleController`'s bounded, capacity-one worker. Startup
+through the `PairLifecycleController`'s bounded worker (capacity
+`LifecycleParallelism`, `pair#205`). Startup
 recovery, Park, Retry, Recover, Abandon, and Leave all enter that same boundary;
-same-address/same-nonce overlap shares one future, while other work overloads
-without lifecycle effects.
+same-address/same-nonce overlap shares one future; at capacity, other work
+waits for a free unit (bounded by its ctx) rather than being refused.
+
+**Bounded parallelism** (`pair#205`). One bound,
+`couchcore.LifecycleParallelism`, is half the CPU cores and at least one. It
+caps three things:
+- **`Leave`'s fan-out:** quit detaches or parks that many threads at once. A
+  failing thread does not stop its siblings, and the report keeps snapshot
+  order.
+- **The park worker.**
+- **The startup reattach pass's in-flight set** (`ReattachPass.Limit`, fixed
+  when the pass is armed).
+
+The console drains its operation queue with `Limit+1` workers, so the pass
+alone can never occupy all of them. Remote and continuation jobs share the
+spare worker. Results still reach the console goroutine through `q.results`. Every
+bound makes callers wait; none refuses on load. The actor registry is guarded
+by `regMu` (`registry()`/`mutateRegistry()`), because writers no longer share
+one goroutine.
+
+**One lifecycle operation per thread** (`pair#205`, `couchcore/threadgate.go`).
+An in-memory `ThreadGate` on `Couch` is held by every entry that changes a
+thread's lifecycle:
+- **Refuse** a held thread with `ThreadBusyError`, naming what is running:
+  resume (all roads), relaunch, detach, `Couch.Park`, switch-agent, the three
+  continuation entries, reboot, `RecoverThread`, `Stop`, and #399's `Reap`
+  and `Recover` (which holds once for all its steps). The canonical list is
+  `TestEveryLifecycleEntryRefusesAHeldThread`; a new lifecycle entry joins
+  that table.
+- **Wait** for the holder instead: the drains `Leave`, `RecoverActiveParks` and
+  `AbortStarted`. `Leave` decides each thread from the record it reads *after*
+  waiting.
+
+Composites acquire once at the top and hand their context down, so the inner
+entries re-enter instead of refusing their own caller. Re-entry matches the
+hold's identity token, so a context that outlived its release cannot slip into
+a later holder's hold.
+
+Two existing guards cover what the gate does not:
+- An **open park transaction is its own lock**: `Couch.Park` joins it (the
+  worker coalesces by nonce) rather than refusing, and every launch refuses a
+  thread carrying one.
+- **`AbortStarted` touches the session by address only while the thread's
+  incarnation is still its own.** The console runs it through
+  `Console.GoTracked`, so a gate wait never blocks rendering.
+
+A busy refusal reaches the console as `MenuEvent.Busy`, never as a resume
+diagnostic. The reattach pass skips it silently, a refused continuation is
+re-armed for the next scan, and an operator gesture shows it as a notice.
 
 **Alt+n / Ctrl+Alt+n relaunch a thread from every pane** (`pair#182`,
 `pair#284`). They are `couchkeys.ScopeEveryPane`: from a displayed Pair pane
@@ -2142,7 +2191,7 @@ the world**:
 Neither field is deleted from the record; they stop being **read** by the
 classifier. Replacing the park transaction itself is `#275`.
 
-### `SessionObservation` — three values, not a boolean
+### `SessionObservation` — four values, not a boolean
 
 `couchcore/sessionevidence.go`. `SessionUnresolved` is the **zero value**, so an
 observation nobody populated fails closed: if absence were the zero value, a
@@ -2150,7 +2199,76 @@ gather branch that silently stopped running would assert "no session" for every
 thread it skipped — the anonymous refusals `#181` removed. `session-gone` is
 archive-eligible, which is what makes the distinction load-bearing.
 
-There is deliberately no fourth "held elsewhere" value. The refresh never counts
+**`SessionOrphaned` (#399)** is the fourth value: the session's exact zellij
+server is alive but its socket is gone. Nothing can reach it, `list-sessions` no
+longer lists it, and its agent may still be writing. On 2026-10-06 a test deleted
+`$TMPDIR` and orphaned all 20 servers; the inventory read them `parked`, offered
+`resume`, and resume failed with a raw `list-panes` exit status.
+
+| Fact | Where it is read | Rule |
+|---|---|---|
+| server argv `zellij --server <socket>` | `launcher.ParseServerProcesses` | one parser; the socket's base name is the session |
+| socket state | `launcher.ObserveSocket` | only ENOENT is `gone`; any other Lstat answer is `unknown` and never makes an orphan |
+| per-session verdict | `launcher.ClassifyServers` | lone server + gone socket → orphaned; unknown socket or two servers for a name → unresolved |
+| refresh evidence | `SessionPresence` + `launcher.ServerStates` | one `ps` + one Lstat per server per refresh; consulted only for names `list-sessions` doesn't report live; a snapshot error fails the refresh closed |
+| one session's owner | `SessionOwnerProbe.Probe` | asks the socket before `list-panes`; gone → `SessionOwnerOrphaned` |
+
+The classifier turns it into `unusable/orphaned-server`, ahead of every
+"no session" reading and the record's own faults (an orphan is a running process
+whatever the record says). It is not archivable, rebootable or resumable. Rows
+carry `Orphan` (pid, session) so every surface prints one sentence,
+`launcher.OrphanDiagnostic`: "<session>: server PID N lost its socket — Tab →
+recover". Resume refuses with `resume-orphaned-server`. Startup refuses rather than
+starting a second primary beside it (`ScopeHoldsOrphanedThread`; unusable rows are
+otherwise debris to the one-primary rule). The recovery report shows agent
+`orphaned` with its server; a lone orphaned row's steps are `couch --reap repo:N
+--confirm` then `couch --resume repo:N` (never reboot, which would archive a
+running conversation), and an orphan among several threads holds the slot.
+
+**The live orphan** (2026-10-07 acceptance): a thread Couch still hosts keeps
+working over its open connection when its server loses the socket, so
+`ClassifyThread` keeps it `live` — but `orphanOf` sets `Orphan` on it too (never
+on busy or unknown rows). `ActorActions` offers `reap` on any row carrying
+`Orphan`, `agentOf` reads it as `orphaned` (steps reap → resume), `Couch.Reap`
+admits it, and the switcher offers `[recover, reap]` instead of detach, relaunch,
+park and switch-agent, which would all refuse an orphan. Reap and recover are in
+`endsItsOwnChild`, so the hosted client's exit is expected, not a notice.
+
+**`reap`** (M2) is the confirmed operation that ends an orphaned server's tree,
+offered by `ActorActions` (only) on an orphaned row, so the switcher shows it
+too. `Couch.Reap` admits a row only if the orphan verdict holds again for the
+same server identity a second later: a starting server is in `ps` before its
+socket exists. `launcher.PlanReap` orders one snapshot of the tree, deepest
+descendant first and the server last; `launcher.Reaper` sends SIGTERM in that
+order, SIGKILLs survivors by pid after a bound (a child that reparented to PID 1
+is still found), re-reads every pid's start identity before every signal, refuses
+a changed server before any signal, and names a SIGKILL survivor instead of
+waiting. `launcher.OSOrphanReaper` then ends the thread's helpers that live
+OUTSIDE the server's tree, the title poller (whose parent is the launcher, Couch's
+hosted client) and the editors, through the quit path's own pidfiles
+(`ReapTagHelpers`), and finally proves zellij's leftover EXITED record gone with
+the shared quiescence loop. The snapshot reads pid, parent and start identity in
+one read (`procutil.Table`). Order matters because on 2026-10-06 the servers were
+killed first: `pair wrap`, which ignored SIGTERM, survived, and the launcher-owned
+`pair title` pollers were left at PPID 1.
+
+**`recover`** (M2, `couchcore/recover_action.go`) is the switcher's default Tab
+action, offered wherever `ActorActions` offers anything. It runs exactly the
+actor steps the recovery report computes for that row — `[resume]`,
+`[reap, resume]` or `[reboot]` — or refuses with the report's hold (a typed
+`RecoverRefusal`, no effect); a thread no report row stands for falls back to
+the same rule over `ActorActions`. It never asks (`ConfirmNone`, operator
+2026-10-07): choosing it is the consent, since within its envelope it only stops
+a server nothing can reach or reboots a conversation that cannot be resolved,
+and never changes the slot's files. `reap` alone keeps its confirmation.
+`Recover` runs each step through `DispatchOperation`, re-reading the row before
+each and waiting briefly (`recoverSettle`) for it to admit the next step — a
+reaped live orphan's hosted client exits a moment after the reap; the last
+step's result is returned unchanged so a resume's child is adopted as a plain
+resume's is. `couch --recover repo:N [--json]` reaches it through the
+slot-operation socket.
+
+There is deliberately no "held elsewhere" value. The refresh never counts
 clients — `list-clients` costs ~250 ms per live session (`#228`) — and the
 reattach path re-observes attach state before committing. **Optimistic inventory,
 strict action:** the expensive question is asked for the one thread the operator
@@ -2644,3 +2762,10 @@ latency under bursts, one Go CPU and delayed host writes. Two-second trials
 have bounded output and joined teardown. It does not emulate Zellij, Ghostty,
 system-wide scheduler pressure or sustained full-screen redraws; a negative
 result cannot rule out those causes of selective pane freezing.
+
+## Live display capture
+
+For an explicitly opted-in session, `COUCH_CAPTURE_DIR` enables both display
+boundaries with exact bytes, geometry and timing. Regular Couch is supported;
+`COUCH_ISOLATED_ROOT` remains optional. Capture stays disabled by default. See the
+[live capture runbook](couch-live-capture.md) for launch, limits and extraction.

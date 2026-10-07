@@ -134,13 +134,15 @@ func TestSingletonReadDoesNotAdopt(t *testing.T) {
 func TestSingletonChildUsesSelectedRoots(t *testing.T) {
 	root := isolatedCouchTestEnvironment(t)
 	t.Setenv("PAIR_LOG_PATH", filepath.Join(root, "poison"))
+	t.Setenv("COUCH_CAPTURE_DIR", filepath.Join(root, "capture"))
+	t.Setenv("COUCH_CAPTURE_MAX_MIB", "4096")
 	rt, lease, err := (OSRuntime{}).prepareSingleton(true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer lease.Close()
 	output := filepath.Join(root, "child-env")
-	h, err := rt.runtimeRunner(couchcore.ExecRunner{}).Start(root, []string{"/bin/sh", "-c", `printf '%s\n' "$PAIR_DATA_DIR" "$COUCH_STORE_DIR" "$COUCH_IDENTITY_DIR" "$COUCH_ISOLATED_ROOT" "$PAIR_LOG_PATH" "$COUCH_PAIR_DATA_DIR" > "$1"`, "sh", output}, nil)
+	h, err := rt.runtimeRunner(couchcore.ExecRunner{}).Start(root, []string{"/bin/sh", "-c", `printf '%s\n' "$PAIR_DATA_DIR" "$COUCH_STORE_DIR" "$COUCH_IDENTITY_DIR" "$COUCH_ISOLATED_ROOT" "$PAIR_LOG_PATH" "$COUCH_PAIR_DATA_DIR" "$COUCH_CAPTURE_DIR" "$COUCH_CAPTURE_MAX_MIB" > "$1"`, "sh", output}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +154,7 @@ func TestSingletonChildUsesSelectedRoots(t *testing.T) {
 		t.Fatal(err)
 	}
 	lines := strings.Split(strings.TrimSuffix(string(raw), "\n"), "\n")
-	if len(lines) != 6 || lines[0] != "" || lines[1] != rt.StoreDir() || lines[2] != rt.selection.Roots.IdentityDir || lines[3] != root || lines[4] != "" || lines[5] != rt.selection.Roots.PairDataDir {
+	if len(lines) != 8 || lines[7] != "" || lines[6] != "" || lines[0] != "" || lines[1] != rt.StoreDir() || lines[2] != rt.selection.Roots.IdentityDir || lines[3] != root || lines[4] != "" || lines[5] != rt.selection.Roots.PairDataDir {
 		t.Fatalf("wrong descendant environment: %q", raw)
 	}
 }

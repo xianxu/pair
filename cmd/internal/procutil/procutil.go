@@ -130,3 +130,10 @@ func WaitCode(cmd *exec.Cmd) int {
 	}
 	return -1
 }
+
+// Process is one row of Table: a pid, its parent, and its start identity, all
+// from the same read.
+type Process struct {
+	PID, PPID int
+	Identity  string
+}

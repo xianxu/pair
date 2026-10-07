@@ -31,8 +31,8 @@ func TestTheSwitcherShowsEachPassStateOnItsRow(t *testing.T) {
 		Attempt: effects[0].Attempt, Address: menuAddress("couch-a"), Success: true, ProjectionAfterGeneration: 1})
 	resolve(MenuEvent{Kind: MenuEventOperationResult, Operation: "resume", Background: true,
 		Attempt: effects[0].Attempt, Address: menuAddress("couch-b"), Diagnostic: couchcore.ResumePathMissing})
-	if state.Reattach.Loading != menuAddress("couch-c") {
-		t.Fatalf("setup: loading %v, want couch-c", state.Reattach.Loading)
+	if state.Reattach.soleLoading() != menuAddress("couch-c") {
+		t.Fatalf("setup: loading %v, want couch-c", state.Reattach.soleLoading())
 	}
 
 	lines, extents := renderRootMenuFrame(state, state.Frames[0], 120, 40, time.Date(2026, 9, 11, 12, 0, 0, 0, time.UTC), true)

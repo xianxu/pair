@@ -67,6 +67,10 @@ func everyThreadShape(t *testing.T) []classifyCase {
 		e.Session = SessionObservation{State: SessionAbsent}
 		return e
 	}
+	orphaned := func(e ThreadEvidence) ThreadEvidence {
+		e.Session = SessionObservation{State: SessionOrphaned, Orphan: &launcher.SessionServerIdentity{PID: 9, Identity: "t9", Session: "📁1-9"}}
+		return e
+	}
 	withSession := func(e ThreadEvidence) ThreadEvidence {
 		e.ParkedStatus = ProofResolved
 		e.Session = SessionObservation{State: SessionPresent}
@@ -349,6 +353,22 @@ func everyThreadShape(t *testing.T) []classifyCase {
 			name: "working path could not be physicalized", record: pathBroken,
 			evidence:  resolved(ThreadEvidence{PathError: errTestPathBroken}),
 			wantState: ThreadUnusable, wantReason: ReasonPathMissing,
+		},
+		{
+			// #399: the server is alive with its socket gone. list-sessions no
+			// longer lists it, so without this branch the ledger made it read
+			// `parked` -- and resume would start a second agent on a
+			// conversation the orphan is still writing.
+			name: "orphaned server, ledger resolves", record: parked(),
+			evidence:  orphaned(resolved(ThreadEvidence{Parked: parkedProof(parked())})),
+			wantState: ThreadUnusable, wantReason: ReasonOrphanedServer,
+		},
+		{
+			// An orphan outranks the record's own faults: the process is
+			// running whatever the record says, and reap is still the step.
+			name: "orphaned server, working path missing", record: pathBroken,
+			evidence:  orphaned(resolved(ThreadEvidence{PathError: errTestPathBroken})),
+			wantState: ThreadUnusable, wantReason: ReasonOrphanedServer,
 		},
 	}
 }
@@ -1011,5 +1031,64 @@ func TestSessionAbsentWithResolvableLedgerIsResumable(t *testing.T) {
 	if rows[0].State != ThreadParked {
 		t.Fatalf("= %q/%q, want parked: the ledger names a conversation to resume into",
 			rows[0].State, rows[0].Reason)
+	}
+}
+
+// An orphan's agent may still be writing: never archive-eligible (#399).
+func TestAnOrphanedServerIsNeverArchivable(t *testing.T) {
+	if ArchivableState(ThreadUnusable, ReasonOrphanedServer) || RebootableState(ThreadUnusable, ReasonOrphanedServer) {
+		t.Fatal("an orphaned server's thread is archivable")
+	}
+}
+
+// The row carries the orphaned server so every surface can name its pid (#399).
+func TestProjectionCarriesTheOrphanedServer(t *testing.T) {
+	record := actionableTestThread("couch-0000000000000021", time.Unix(1000, 0).UTC())
+	record.LatestLaunchProfile = classifyProfile()
+	server := launcher.SessionServerIdentity{PID: 55, Identity: "t55", Session: "📁1-55"}
+	rows := ProjectActionableThreads(ThreadProjectionInput{
+		Records:  []ThreadRecord{record},
+		Evidence: map[ThreadAddress]ThreadEvidence{record.Address: {ParkedStatus: ProofResolved, Session: SessionObservation{State: SessionOrphaned, Orphan: &server}}},
+	})
+	if len(rows) != 1 || rows[0].Reason != ReasonOrphanedServer || rows[0].Orphan == nil || *rows[0].Orphan != server {
+		t.Fatalf("rows = %+v", rows)
+	}
+}
+
+// The live orphan (#399, 2026-10-07 acceptance): Couch hosts the thread and its
+// pane still works over the open connection, so it stays live -- but its
+// server lost its socket, so the row carries Orphan and is offered reap, which
+// the report reads as agent orphaned with steps reap → resume. A thread that
+// is busy or unknown carries no Orphan: a starting server is socketless for a
+// moment, and ignorance is not a verdict.
+func TestALiveThreadWhoseSessionIsOrphanedCarriesTheOrphan(t *testing.T) {
+	record := actionableTestThread("couch-0000000000000022", time.Unix(1000, 0).UTC())
+	record.LatestLaunchProfile = classifyProfile()
+	server := launcher.SessionServerIdentity{PID: 56, Identity: "t56", Session: "📁1-56"}
+	orphaned := SessionObservation{State: SessionOrphaned, Orphan: &server}
+	project := func(evidence ThreadEvidence) ActionableThreadSummary {
+		t.Helper()
+		rows := ProjectActionableThreads(ThreadProjectionInput{Records: []ThreadRecord{record}, Evidence: map[ThreadAddress]ThreadEvidence{record.Address: evidence}})
+		if len(rows) != 1 {
+			t.Fatalf("rows = %+v", rows)
+		}
+		return rows[0]
+	}
+	live := project(ThreadEvidence{Live: []ProcessIdentity{{PID: 42, Identity: "pair-live"}}, ParkedStatus: ProofResolved, Session: orphaned})
+	if live.State != ThreadLive || live.Reason != "" || live.Orphan == nil || *live.Orphan != server {
+		t.Fatalf("live orphan row = %+v", live)
+	}
+	if got := ActorActions(ActorRowFactsOf(live)); len(got) != 1 || got[0] != "reap" {
+		t.Fatalf("ActorActions(live orphan) = %v, want [reap]", got)
+	}
+	if agentOf(live) != AgentOrphaned {
+		t.Fatalf("agentOf(live orphan) = %s", agentOf(live))
+	}
+	unknown := project(ThreadEvidence{Unproven: []ProcessIdentity{{PID: 43, Identity: "pair-other"}}, ParkedStatus: ProofResolved, Session: orphaned})
+	if unknown.Reason != ReasonUnknown || unknown.Orphan != nil {
+		t.Fatalf("unknown row = %+v, want no Orphan", unknown)
+	}
+	if plain := project(ThreadEvidence{Live: []ProcessIdentity{{PID: 42, Identity: "pair-live"}}, ParkedStatus: ProofResolved, Session: SessionObservation{State: SessionPresent}}); plain.Orphan != nil || len(ActorActions(ActorRowFactsOf(plain))) != 0 {
+		t.Fatalf("a plain live row = %+v", plain)
 	}
 }

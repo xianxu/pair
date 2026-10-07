@@ -224,7 +224,9 @@ func (c *Console) showMenu() {
 	}
 	frame, err := terminal.PanelFrame(terminal.Geometry{Cols: int(size.Cols), Rows: int(size.Rows)}, cells, cursor)
 	if err == nil {
+		c.traceCaptureTransition("panel-start", "", nil)
 		err = c.presenter.Panel(c.lifetime, frame)
+		c.traceCaptureTransition("panel-end", "", err)
 	}
 	if err != nil {
 		c.terminalError(err)

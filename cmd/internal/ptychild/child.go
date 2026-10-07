@@ -34,6 +34,7 @@ type OutputBatch struct {
 // about switching policy belongs in it.
 type Options struct {
 	EndpointID string
+	Observer   terminal.Observer
 	Dir        string
 	Argv       []string
 	Env        []string
@@ -125,7 +126,7 @@ func Start(opts Options) (*Child, error) {
 	c.fd = int(ptmx.Fd())
 	c.transport, err = ttyio.NewFile(ptmx, ptmx, true)
 	if err == nil {
-		err = c.initTerminal(opts.EndpointID)
+		err = c.initTerminal(opts.EndpointID, opts.Observer)
 	}
 	if err != nil {
 		_ = cmd.Process.Kill()

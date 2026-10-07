@@ -65,6 +65,11 @@ func (c *Couch) Detach(ctx context.Context, address ThreadAddress) (ThreadRecord
 	if !ok {
 		return ThreadRecord{}, errors.New("detach requires Pair session observation")
 	}
+	ctx, release, err := c.hold(ctx, address, "detach")
+	if err != nil {
+		return ThreadRecord{}, err
+	}
+	defer release()
 
 	record, err := c.Threads.GetThread(address)
 	if err != nil {

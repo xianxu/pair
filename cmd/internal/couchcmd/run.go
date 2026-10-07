@@ -37,6 +37,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/runtimebundle"
 	"github.com/xianxu/pair/cmd/internal/scrollbackcmd"
+	"github.com/xianxu/pair/cmd/internal/terminalcapture"
 	"github.com/xianxu/pair/cmd/internal/threadactivity"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
@@ -352,7 +353,7 @@ func runTypedOperation(op couchcore.Operation, parsed, prepareArgs map[string]st
 
 type consoleFinisher func(*couchtty.Console, *couchcore.Couch, couchcore.StartResult, io.Writer) int
 
-func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs map[string]string, forceConsole bool, layout couchcore.Layout, inFile, outFile *os.File, stdin io.Reader, stdout, stderr io.Writer, rt Runtime, finishConsole consoleFinisher) int {
+func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs map[string]string, forceConsole bool, layout couchcore.Layout, inFile, outFile *os.File, stdin io.Reader, stdout, stderr io.Writer, rt Runtime, finishConsole consoleFinisher) (code int) {
 	_, workspaceRef, referenceErr := couchcore.ParseWorkspaceReference(parsed["ref"])
 	if referenceErr != nil {
 		renderError(stderr, referenceErr)
@@ -402,9 +403,22 @@ func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs ma
 	var console *couchtty.Console
 	var runner couchcore.Runner
 	if forceConsole {
-		console, runner = consoleRunnerFor(op.Name, stdin, true, inFile, outFile, tracesForRuntime(rt))
+		console, runner, err = consoleRunnerFor(op.Name, stdin, true, inFile, outFile, tracesForRuntime(rt))
 	} else {
-		console, runner = consoleRunner(op.Name, stdin, stdout, tracesForRuntime(rt))
+		console, runner, err = consoleRunner(op.Name, stdin, stdout, tracesForRuntime(rt))
+	}
+
+	if err != nil {
+		fmt.Fprintln(stderr, "couch:", err)
+		return 1
+	}
+	if console != nil {
+		defer func() {
+			if captureErr := console.CloseCapture(); captureErr != nil {
+				fmt.Fprintln(stderr, "couch: capture incomplete:", captureErr)
+				code = 1
+			}
+		}()
 	}
 
 	c, err := rt.NewCouchWith(runner, namespace)
@@ -525,7 +539,7 @@ func dispatchInteractiveStart(c *couchcore.Couch, args map[string]string) (couch
 
 func operationUsesCurrentRepoScope(name string) bool {
 	switch name {
-	case "show", "peek", "park", "resume", "reboot", "retry-continuation", "dismiss-continuation":
+	case "show", "peek", "park", "resume", "reboot", "reap", "recover", "retry-continuation", "dismiss-continuation":
 		return true
 	default:
 		return false
@@ -535,7 +549,7 @@ func operationUsesCurrentRepoScope(name string) bool {
 // operationOwnsLive is the pure entrypoint policy. Both ways into Couch must
 // acquire the same singleton before they can create a child or take a terminal.
 func operationOwnsLive(name string) bool {
-	return name == "start" || name == "resume" || name == "reboot" || name == "retry-continuation"
+	return name == "start" || name == "resume" || name == "reboot" || name == "reap" || name == "recover" || name == "retry-continuation"
 }
 
 // WantsConsole is the console DECISION, separated from building one.
@@ -558,7 +572,7 @@ func WantsConsole(name string, hasTerminal bool) bool {
 //
 // Returning (nil, ExecRunner{}) is the injected fallback for non-console typed
 // operations.
-func consoleRunner(name string, stdin io.Reader, stdout io.Writer, settings ...consoleTraceConfig) (*couchtty.Console, couchcore.Runner) {
+func consoleRunner(name string, stdin io.Reader, stdout io.Writer, settings ...consoleTraceConfig) (*couchtty.Console, couchcore.Runner, error) {
 	inFile, _ := stdin.(*os.File)
 	outFile, _ := stdout.(*os.File)
 
@@ -573,20 +587,36 @@ func consoleRunner(name string, stdin io.Reader, stdout io.Writer, settings ...c
 // Splitting it is not decoration: pinning only WantsConsole left "does
 // consoleRunner actually use it" uncovered, and forcing consoleRunner to return
 // (nil, ExecRunner) kept the whole suite green (M2 BR-24, twice).
-func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, outFile *os.File, settings ...consoleTraceConfig) (*couchtty.Console, couchcore.Runner) {
+func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, outFile *os.File, settings ...consoleTraceConfig) (*couchtty.Console, couchcore.Runner, error) {
 	if !WantsConsole(name, hasTerminal) {
-		return nil, couchcore.ExecRunner{}
+		return nil, couchcore.ExecRunner{}, nil
 	}
 
-	host := hostty.NewOSHost(inFile, outFile)
+	getenv := os.Getenv
+	if len(settings) > 0 {
+		getenv = settings[0].getenv
+	}
+	path, captureConfig, err := captureSettings(getenv)
+	if err != nil {
+		return nil, nil, err
+	}
+	var recorder *terminalcapture.Recorder
+	if path != "" {
+		recorder, err = terminalcapture.Open(path, captureConfig)
+		if err != nil {
+			return nil, nil, fmt.Errorf("COUCH_CAPTURE_DIR: %w", err)
+		}
+	}
+	osHost := hostty.NewOSHost(inFile, outFile)
+	var host hostty.Host = osHost
+	if recorder != nil {
+		host = &captureHost{OSHost: osHost, recorder: recorder}
+	}
 	if inFile != nil {
-		stdin = host
+		stdin = osHost
 	}
 	console := couchtty.New(host, stdin)
-	// The composition root owns the environment read. A failed open reports
-	// itself on the status row; it must never take the console down, and it must
-	// never be mistaken for "the terminal sent nothing".
-	getenv := os.Getenv
+	console.SetCapture(recorder)
 	options := diagnosticlog.Options{Proof: diagnosticlog.DefaultProof}
 	if len(settings) > 0 {
 		config := settings[0]
@@ -622,7 +652,8 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 		Environment: profile,
 		Size:        console.ChildSize,
 		Sink:        console.Deliver,
-	}
+		Observer:    captureObserver(recorder),
+	}, nil
 }
 
 type consoleTraceConfig struct {
@@ -776,7 +807,19 @@ func wireResolver(console *couchtty.Console, c *couchcore.Couch) {
 					result, err := console.ExecuteConsoleOperation(call)
 					if err != nil && call.Operation.Name == "attach" {
 						if start, ok := call.TypedPayload.(couchcore.StartResult); ok {
-							return nil, c.AbortStarted(start, err)
+							// Attach runs on the console goroutine, and the abort may
+							// wait on the thread's gate: run it off that goroutine so
+							// the console keeps rendering and draining results
+							// (pair#205). The attach error is the operation's answer;
+							// a cleanup failure beyond it follows as a notice.
+							attachErr := err
+							console.GoTracked(func() {
+								abortErr := c.AbortStarted(call.Context, start, attachErr)
+								if abortErr != nil && abortErr.Error() != attachErr.Error() {
+									console.Notify(couchtty.Notice{Kind: "status", Body: fmt.Sprintf("cleanup after a failed attach of %s: %v", start.Record.Thread.Tag, abortErr)})
+								}
+							})
+							return nil, err
 						}
 					}
 					return result, err
@@ -908,6 +951,8 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 		if warning := v.Warning(); warning != "" {
 			fmt.Fprintf(w, "%s\n", warning)
 		}
+	case couchcore.ReapResult:
+		fmt.Fprintf(w, "reaped orphaned server PID %d (%s) for %s; resume it next\n", v.Server.PID, v.Server.Session, v.Address.Tag)
 	case couchcore.StopResult:
 		if v.Signalled {
 			fmt.Fprintf(w, "signalled %s on %s (pid %d)\n", v.Record.ID, v.Record.Args.Worktree, v.Record.PID)
@@ -1092,6 +1137,8 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "             slot verdicts with Couch's threads, with a suggested next step.")
 	fmt.Fprintln(w, "       couch --resume repo:N [--json]")
 	fmt.Fprintln(w, "       couch --reboot repo:N --confirm [--json]")
+	fmt.Fprintln(w, "       couch --reap repo:N --confirm [--json]")
+	fmt.Fprintln(w, "       couch --recover repo:N [--json]")
 	fmt.Fprintln(w, "             From a live Couch slot only: run the report's step on one slot")
 	fmt.Fprintln(w, "             through the running Couch, in the background. Verify by reading")
 	fmt.Fprintln(w, "             the report again; an uncertain outcome means read it before resending.")

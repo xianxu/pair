@@ -126,7 +126,7 @@ func TestAFailedWarmReattachKeepsItsSession(t *testing.T) {
 				if err != nil {
 					t.Fatalf("warm reattach refused before the console saw it: %v", err)
 				}
-				err = env.Couch.AbortStarted(StartResult{Record: record, Handle: handle}, errors.New("attach terminal has already exited"))
+				err = env.Couch.AbortStarted(context.Background(), StartResult{Record: record, Handle: handle}, errors.New("attach terminal has already exited"))
 			}
 			if err == nil {
 				t.Fatal("the route did not fail; the injection no longer reaches it")
@@ -216,7 +216,7 @@ func TestAFailedOwningStartStillQuiescesItsSession(t *testing.T) {
 				if err != nil {
 					t.Fatalf("cold resume refused before the console saw it: %v", err)
 				}
-				err = env.Couch.AbortStarted(StartResult{Record: record, Handle: handle}, errors.New("attach terminal has already exited"))
+				err = env.Couch.AbortStarted(context.Background(), StartResult{Record: record, Handle: handle}, errors.New("attach terminal has already exited"))
 			}
 			if err == nil {
 				t.Fatal("the route did not fail; the injection no longer reaches it")
@@ -312,7 +312,7 @@ func TestAbortStartedReadsOwnershipFromTheRegistryNotTheCaller(t *testing.T) {
 	// since OwnsSession already answers no to that.
 	relayed.Shape = StartColdResume
 
-	if err := env.Couch.AbortStarted(StartResult{Record: relayed, Handle: handle}, errors.New("attach terminal has already exited")); err == nil {
+	if err := env.Couch.AbortStarted(context.Background(), StartResult{Record: relayed, Handle: handle}, errors.New("attach terminal has already exited")); err == nil {
 		t.Fatal("AbortStarted returned nil, want the abort cause")
 	}
 	if quiesced := env.Artifacts.Quiesces(); containsAddress(quiesced, address) {

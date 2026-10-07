@@ -397,6 +397,34 @@ func Operations() []Operation {
 			},
 		},
 		{
+			// Reap ends an orphaned server's whole tree (#399): its agent may
+			// still be writing, so it is confirmed, and it admits only a row
+			// whose orphan verdict holds on a second observation.
+			Name: "reap", Summary: "End an orphaned zellij server and everything under it so its thread can be resumed",
+			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultStop,
+			Presentation: PresentationTUI, RowAction: true,
+			Args: []ArgSpec{
+				{Name: "path", Summary: "slot host checkout", Implicit: true},
+				{Name: "repo-scope", Summary: "repository scope derived from caller context", Implicit: true},
+				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
+			},
+		},
+		{
+			// Recover runs the report's steps for one row: resume, reap then
+			// resume, or reboot (#399). Choosing it is the consent (operator,
+			// 2026-10-07): within its envelope it only stops a server nothing
+			// can reach or reboots a conversation that cannot be resolved, and
+			// it never changes the slot's files. A held row refuses.
+			Name: "recover", Summary: "Run the recovery report's steps for one thread: resume, reap then resume, or reboot",
+			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart,
+			Presentation: PresentationTUI, RowAction: true,
+			Args: []ArgSpec{
+				{Name: "path", Summary: "slot host checkout", Implicit: true},
+				{Name: "repo-scope", Summary: "repository scope derived from caller context", Implicit: true},
+				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
+			},
+		},
+		{
 			Name: "leave", Summary: "Apply one disposition to every live work thread and leave Couch",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultConsole,
 			Presentation: PresentationTUI,
