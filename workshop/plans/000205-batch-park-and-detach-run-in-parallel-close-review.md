@@ -62,3 +62,67 @@ dispose:
     note: |
       Renamed TestLeaveCancelledMidFanOutStartsNoFurtherThread (leave_test.go:177); its comment says started threads stop at their own safe points, matching park.go:196-200.
 ```
+
+---
+
+## Re-review — 2026-10-07T13:40:18-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 205 — batch park and detach run in parallel |
+| repo | pair |
+| issue file | workshop/issues/000205-batch-park-and-detach-run-in-parallel.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | d7e9c4272cbc63196ca5d838b411d04485ff108b..edb0f11a428f31bb1fd718da2064b58823d7944e |
+| command | sdlc close --issue 205 |
+| reviewer | claude |
+| timestamp | 2026-10-07T13:40:18-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+Since the last round, the window gained one commit: merge `edb0f11a`, which brings in main (#399, #404) and puts the per-thread gate on #399's two new lifecycle entries. I checked that merge against the gate design already accepted for this issue. `Couch.Reap` (`cmd/internal/couchcore/reap.go:60`) holds the thread before its first refusable check. `Couch.Recover` (`cmd/internal/couchcore/recover_action.go:152`) holds once at the top and passes the held context through `DispatchOperation` (`operationdispatch.go:276`) to its reap, resume and reboot steps. Those steps then re-enter the gate instead of refusing their own caller. That re-entry is exercised for real: `TestRecoverReapsThenResumes` and `TestRecoverOnALiveOrphanReapsWaitsThenResumes` run a reap and then a resume under one Recover hold, and both would fail with a busy refusal if re-entry broke. The table of entries that refuse a held thread now lists both new entries, and the targeted tests pass (`go test ./cmd/internal/couchcore -run 'Recover|Reap|Lifecycle|Gate|Held'` → ok, 95s). Nothing blocks SHIP. One Minor item: the atlas list of gated entries was not extended.
+
+1. **Strengths**
+   - Reap's ordering holds up. It reads the inventory row before taking the hold. But after taking it, it waits `reapConfirmInterval` and observes the session again before any signal, so a row that went stale before the hold is caught (`reap.go:72-84`).
+   - Recover is one composite under a single hold, the same pattern relaunch already uses. Nothing can run between reap and resume, which is the gap #214 named, and no new mechanism was added for it.
+   - The enumeration test (`threadgate_couch_test.go:51-55`) was extended in the merge commit itself. It asserts a typed `ThreadBusyError` naming the holder, not just any error.
+   - Merging rather than rebasing keeps the codecomplete evidence commit in history.
+
+2. **Critical findings:** none.
+
+3. **Important findings:** none.
+
+4. **Minor findings**
+   - `atlas/couch.md:1399-1401`: the list of entries that refuse a held thread still ends at `RecoverThread` and `Stop`. It is missing `Reap` and the switcher's `Recover` (#399). The atlas restates by hand the enumeration that `TestEveryLifecycleEntryRefusesAHeldThread` owns, and the merge updated the test but not the prose.
+
+5. **Test coverage notes:** the refusal side of the new entries is pinned by the enumeration test, and the re-entry side by #399's own Recover tests running through the gated path. No test shows a *third* operation being refused partway through a Recover. That case rests on the same token mechanism, which is already tested for relaunch, so I am not raising it as a finding.
+
+6. **Architecture**
+   - **ARCH-DRY:** pass. Reap and Recover reuse `c.hold`.
+   - **ARCH-PURE:** pass. The admission decision is still the pure `gateDecision`.
+   - **ARCH-PURPOSE:** pass. Every entry #399 added that changes a lifecycle is now gated, so the "every entry" claim still holds after the merge.
+   - **ARCH-MOCK:** pass. Both entries are tested through the existing fakes (the `Reaper` seam and the artifacts fake).
+   - **ARCH-CONSTRAINTS:** pass. Recover's 5s settle loop is bounded and runs off the UI thread.
+   - **ARCH-SECURE:** N/A. The merge adds no new untrusted input or credentials.
+   - **ARCH-ORDER:** pass. Recover's hold covers its whole step sequence, and Reap confirms before it signals.
+   - **ARCH-FUNERAL:** pass. Holds are in memory and released by `defer`.
+
+7. **Plan revision recommendations:** none needed for the code. Optionally, add a `## Revisions` note in the issue file recording that the merge with #399 brought `Reap` and `Recover` under the gate.
+
+```findings
+findings:
+  - id: new
+    severity: Minor
+    family: hand-restated-enumeration-drifts
+    title: |
+      atlas/couch.md refuse-list omits the #399 entries Reap and Recover gated at merge
+    detail: |
+      atlas/couch.md:1399-1401 lists the refusing entries by hand and stops at RecoverThread and Stop. The merge edb0f11a gated Couch.Reap and Couch.Recover and added them to TestEveryLifecycleEntryRefusesAHeldThread, but not to the atlas. Either append them, or point the atlas at the test table as the canonical enumeration.
+```

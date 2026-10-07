@@ -173,6 +173,18 @@ rounds:
           round: 5
       recipe: milestone-review
       blocked: false
+    - "n": 6
+      timestamp: "2026-10-07T13:40:18-07:00"
+      agent: claude
+      findings:
+        - id: BR-14
+          severity: Minor
+          title: 'atlas/couch.md refuse-list omits the #399 entries Reap and Recover gated at merge'
+          detail: atlas/couch.md:1399-1401 lists the refusing entries by hand and stops at RecoverThread and Stop. The merge edb0f11a gated Couch.Reap and Couch.Recover and added them to TestEveryLifecycleEntryRefusesAHeldThread, but not to the atlas. Either append them, or point the atlas at the test table as the canonical enumeration.
+          family: hand-restated-enumeration-drifts
+          round: 6
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#205 (boundary-review)
@@ -251,6 +263,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-8 — addressed — withoutDead's doc comment sits directly above it at couch.go:1316-1321; registry() has its own comment.
 - BR-13 — addressed — Renamed TestLeaveCancelledMidFanOutStartsNoFurtherThread (leave_test.go:177); its comment says started threads stop at their own safe points, matching park.go:196-200.
 
+## Round 6 — 2026-10-07T13:40:18-07:00 (claude) — passed
+
+### Raised
+
+- **BR-14** [Minor] `hand-restated-enumeration-drifts` atlas/couch.md refuse-list omits the #399 entries Reap and Recover gated at merge
+  atlas/couch.md:1399-1401 lists the refusing entries by hand and stops at RecoverThread and Stop. The merge edb0f11a gated Couch.Reap and Couch.Recover and added them to TestEveryLifecycleEntryRefusesAHeldThread, but not to the atlas. Either append them, or point the atlas at the test table as the canonical enumeration.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-14** [Minor] `hand-restated-enumeration-drifts` atlas/couch.md refuse-list omits the #399 entries Reap and Recover gated at merge
