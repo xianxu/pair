@@ -170,7 +170,7 @@ total: 7.78
 Durable plan: `workshop/plans/000395-couch-broadcast-stream-the-composed-couch-screen-view-only-to-a-remote-couch-watch-plan.md`.
 
 - [x] Spike: zellij web-client comparison; Presenter tap seam located (see Log)
-- [ ] M1 — Presenter frame tap with privacy class; broadcast indicator, privacy,
+- [x] M1 — Presenter frame tap with privacy class; broadcast indicator, privacy,
       stream and hub (withholding, grace stop, resync)
 - [ ] M2 — vendored xterm.js viewer page with auto-fit font; GET-only SSE server;
       session lifecycle over a tunnel seam; no-persistence test
@@ -189,6 +189,7 @@ Durable plan: `workshop/plans/000395-couch-broadcast-stream-the-composed-couch-s
   not a concern.
 
 ### 2026-10-07
+- 2026-10-07: closed M1 — go test -race ./cmd/internal/broadcast ok (indicator/privacy/stream/hub; 500-seed interleaving property test with Activate at random steps, mutation-checked via -overlay against dropped resync, missing withholding, leaked private frames, and the BR-1 always-arm Activate; real-ticker resync test); BR-1 fixed as tagged off|shown|hidden watch with regression tests; go test ./cmd/internal/terminal ./cmd/internal/couchtty unsandboxed (clean PAIR_*/ZELLIJ* env, short TMPDIR) ok; artifact inventory names no broadcast/tap file (remaining failures pre-existing); review verdict: SHIP
 
 - Claimed; `start-plan`. Spike findings (code map + web research):
   - **zellij web client (0.43+, read-only tokens since 0.44, latest 0.45.1
