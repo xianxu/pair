@@ -420,6 +420,25 @@ Mutation checks are red as expected. couchtty and couchcmd pass unsandboxed.
   about 50% of the time on main as well (4 of 8 at the merge base). It is
   pre-existing and not #205.
 
+### 2026-10-07: close-time evidence
+
+- **Latency sampler, 12:02–12:32,** covering the operator's base and #205
+  restarts. `zellij action` stayed at p50 18–19 ms and p95 22–24 ms, with maxima
+  of 65, 129 and 148 ms and no errors. The context was 53 sessions, 11–12
+  agents and 12 cores. Parallel reattach did not visibly hurt interactive
+  latency. The restarts can't be pinned to sub-windows without the traces.
+- **Measured actual is unreliable after the rebase.** The same window read
+  4.69 h at the M1 close and 3.70 h after rebasing, because the rebase rewrote
+  committer timestamps. M2 closes with `--no-actual`. The issue close adopts
+  the engine's measured total, and this note explains it.
+- **Full verification** at branch HEAD, in a scratch worktree, unsandboxed:
+  - The couch packages are green; couchcore needs a timeout above the 10-minute
+    default under full-suite load (553 s alone).
+  - Remaining failures are pre-existing or environmental: gcruntime archive
+    locator, artifactpath classification (only the pre-existing
+    `console_messages.go`), the cold-resume `-race` flake, and the TMPDIR and
+    session-env shell tests.
+
 ## Revisions
 
 ### 2026-10-04: scope adds the startup reattach pass
