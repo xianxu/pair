@@ -67,14 +67,15 @@ Issue: `workshop/issues/000395-couch-broadcast-stream-the-composed-couch-screen-
   - **Future extensions:** the row-diff work #262 deferred lands in `Render`
     and this inherits it.
 - **BroadcastCell / RenderedStatusRow.Control** — the tab bar's leftmost cell:
-  `None` (no broadcaster wired: draw nothing), `Idle` (`▶`), `Starting` (`▶…`),
+  `Off` (draw nothing; also when no broadcaster is wired), `Starting`
+  (`LIVE …` in `LiveSGR`; the tunnel is opening, nothing streams yet), and
   `Live` (`LIVE ⏸` on a red background with the terminal's normal foreground,
   `\x1b[41m`). It is drawn before the `REC` capture badge, with one space
-  between them. `Control` is its zero-based, half-open column span: while live
-  that is exactly the red portion, and a click anywhere in it stops the
-  broadcast. While idle, a click on `▶` starts one, which copies the link to the
-  clipboard for the operator to share through another channel. Ctrl+Alt+b
-  toggles in both directions.
+  between them. Ctrl+Alt+b starts a broadcast, which copies the link to the
+  clipboard for the operator to share through another channel; a second
+  Ctrl+Alt+b, or a click anywhere in the red portion, stops it. A stopped
+  broadcast has no cell and no click target. `Control` is the red portion's
+  zero-based, half-open column span, empty when off.
 - **nextFontSize** — the viewer's pure fit step: given the current font size,
   the rendered screen's pixel size, and the viewport size, returns
   `clamp(floor2(current × min(viewW/screenW, viewH/screenH)), 4, 64)`, where
@@ -100,8 +101,9 @@ Issue: `workshop/issues/000395-couch-broadcast-stream-the-composed-couch-screen-
   go out. As soon as the queue has room again, checked on every frame and on a
   100ms hub tick, it gets `Join()` of the current frame, with no new frame
   needed. It never gets a diff computed against a frame it didn't receive. Frames without the indicator are withheld; if the indicator
-  stays absent for `Grace` (1s; armed at start too), the hub ends with
-  `ErrIndicatorHidden`.
+  stays absent for `Grace` (1s), the hub ends with `ErrIndicatorHidden`. The
+  timer arms at `Activate()`, which Console calls right after installing the
+  tap, not while the tunnel is still opening (that can take up to 30s).
   - **Injected into:** `Session`. Timer creation is injected
     (`HubOptions.After`) so grace tests are deterministic.
 - **Server** — `http.Handler` rooted at `/<token>/`: `GET /<token>/` (page),
@@ -313,7 +315,7 @@ func (p *Presenter) SetTap(ctx context.Context, t Tap) error {
   - `TestIndicatorShown`: a frame whose last row starts with `LiveLabel` in
     `LiveStyle` → true; the label in another style, on another row, clipped
     (`cols < width(LiveLabel)`), absent, or a blank resize row → false.
-  - `TestIndicatorGlyphWidths`: `▶` and `⏸` are one column wide in
+  - `TestIndicatorGlyphWidths`: `⏸` and `…` are one column wide in
     `textwidth.Width` and in `ansi.StringWidth`, so click spans and cell
     matching agree. If either reports 2, switch to glyphs that agree in both and
     record it in the Log. Terminal and xterm.js widths are checked by eye in the
@@ -343,7 +345,7 @@ package broadcast
 // every frame; one constant so the drawer and the checker can't disagree.
 const (
 	LiveLabel = "LIVE ⏸"
-	IdleLabel = "▶"
+	StartingLabel = "LIVE …"
 	// LiveSGR is the style the status row draws LiveLabel in: red background,
 	// the terminal's own foreground. IndicatorShown checks that the drawn
 	// cells' background is red (ANSI 1).
@@ -400,8 +402,9 @@ func (s *Stream) Join() (Message, bool, error) {
     indicator produces no message; a subsequent frame with it does.
   - `TestHubStopsWhenIndicatorHiddenPastGrace`: withheld frames, fire the
     timer → subscribers get `End{Reason: ErrIndicatorHidden}`, channels close,
-    `Done()` closes, `Err()` is `ErrIndicatorHidden`. Also at start: no frame
-    before the timer fires → same end.
+    `Done()` closes, `Err()` is `ErrIndicatorHidden`. Also after `Activate()`:
+    no frame before the timer fires → same end. Before `Activate()`, no timer
+    runs.
   - `TestHubIndicatorReturnsBeforeGrace`: absent, then present before the
     timer → no end, and the timer is cancelled.
   - `TestHubPrivateFramePlaceholderByDefault` and `…ShownWithOption`:
@@ -544,9 +547,8 @@ func (s *Stream) Join() (Message, bool, error) {
   `RenderStatusRow`), `reserve_test.go`
 
 - [ ] **Step 1: Write failing tests:**
-  - `BroadcastNone` draws nothing; the existing row tests stay unchanged.
-  - `Idle` draws `▶` first, then a space, then the capture badge; `Control` covers
-    exactly its columns.
+  - `Off` draws nothing and leaves `Control` empty; the existing row tests stay
+    unchanged. `Starting` draws `LIVE …`, and `IndicatorShown` is false for it.
   - `Live` draws `LIVE ⏸` with `LiveSGR` at column 0, followed by a space and
     `REC n%` when capture is on (LIVE leads REC), and
     `broadcast.IndicatorShown` is true on a frame whose last row is the
@@ -593,14 +595,16 @@ func (s *Stream) Join() (Message, bool, error) {
   drives clicks, keys and a live presenter:
   `grep -n 'func panelConsole\|func consoleFixture\|func notificationConsole' cmd/internal/couchtty/*_test.go`)
   and `broadcast.FakeTunnel`:
-  - `TestBroadcastClickStartsAndStops`: a click on `▶` → the
+  - `TestBroadcastKeyStartsClickStops`: Ctrl+Alt+b from a Pair pane → the
     session starts, the row shows `LIVE ⏸`, a clipboard copy of the link was
     written, and a viewer GET of the link receives the composed screen
     (emulator text includes an actor's output and the tab bar). A click on any
     column of the red `LIVE ⏸` span (first, middle and last are each tested) →
-    the viewer gets `end`, the row shows `▶`. A click one column past the span
+    the viewer gets `end`, the cell disappears. A click one column past the span
     does not stop.
-  - `TestBroadcastKeyToggles`: the same through Ctrl+Alt+b, from a Pair pane.
+  - `TestBroadcastKeyToggles`: Ctrl+Alt+b starts, and Ctrl+Alt+b again stops.
+  - `TestBroadcastOffHasNoClickTarget`: with no broadcast, a click on columns
+    0–6 of the row behaves exactly as before (chip or nothing).
   - `TestBroadcastSwitcherPrivate`: open the switcher while live → the viewer
     sees the placeholder, not a thread name; with `ShowSwitcher` → it sees the
     switcher.
@@ -636,7 +640,7 @@ func (s *Stream) Join() (Message, bool, error) {
 - [ ] **Step 2:** local smoke: `COUCH_BROADCAST_TUNNEL=off couch`, Ctrl+Alt+b,
   open the copied `http://127.0.0.1:…/<token>/` in a browser, then switch
   threads, open the switcher, resize, `clear`, and stop. Check the browser
-  console for CSP errors, and that `▶`/`⏸` take one column each in both
+  console for CSP errors, and that `⏸` takes one column in both
   the operator's terminal and the viewer. **Ask the operator to
   run this smoke** (memory: dogfood live), and record what they see in the Log.
 - [ ] **Step 3: Commit** `#395 M3: couchcmd: broadcast options`.

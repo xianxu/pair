@@ -71,12 +71,13 @@ Requirements settled with the operator on 2026-10-06 and revised on 2026-10-07
   for late joiners. This prevents accidental persistence by viewers acting in
   good faith. It does not prevent deliberate capture: anyone with the link can
   record the stream or take a screenshot. Access control is what bounds exposure.
-- **Control and indicator in the tab bar's leftmost cell.** When stopped, it
-  shows ▶. Clicking it starts broadcasting and copies the `cloudflared` link to
-  the clipboard, for sharing through another channel. While live it shows
+- **Control and indicator in the tab bar's leftmost cell.** When stopped, the
+  tab bar shows nothing extra. Ctrl+Alt+b starts broadcasting and copies the
+  `cloudflared` link to the clipboard, for sharing through another channel.
+  While live it shows
   `LIVE ⏸` on a red background with the normal foreground, ahead of the
   `REC` capture badge. Clicking anywhere in the red portion stops the broadcast.
-  Ctrl+Alt+b toggles in both directions. Invariant: a frame reaches viewers only
+  A second Ctrl+Alt+b also stops it. Invariant: a frame reaches viewers only
   if the same frame on the operator's screen showed `LIVE ⏸`. Fail-safe: if the
   indicator can't be drawn, the broadcast stops; it never streams without the
   indicator visible.
@@ -214,3 +215,6 @@ Durable plan: `workshop/plans/000395-couch-broadcast-stream-the-composed-couch-s
   in the red portion stops; Ctrl+Alt+b toggles. The tunnel connects to a unix
   socket in a private directory, so an orphaned tunnel can't expose an
   unrelated program that later reuses a TCP port.
+- **2026-10-07** — no idle glyph (▶ was ambiguous-width and odd to show all
+  the time): stopped draws nothing; Ctrl+Alt+b starts; a click on the red
+  `LIVE ⏸` or Ctrl+Alt+b again stops.
