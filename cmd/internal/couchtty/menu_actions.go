@@ -83,8 +83,9 @@ func menuRowFactsOf(row couchcore.ActionableThreadSummary) menuRowFacts {
 
 // menuRowActions is the per-row action authority, one table over kind x
 // phase. Live rows get the lifecycle actions; rows that are not live get the
-// two actor operations, resume and reboot. A row the table offers nothing on
-// says why through menuRowNotice, which reads the same phase.
+// two actor operations, resume and reboot, and a :0 among them also gets add
+// slot unless its checkout is missing (pair#402). A row the table offers
+// nothing on says why through menuRowNotice, which reads the same phase.
 func menuRowActions(f menuRowFacts) []string {
 	switch f.Phase {
 	case menuPhaseLive, menuPhaseLiveContinuationFailed:

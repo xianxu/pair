@@ -654,8 +654,8 @@ conversation; only when every number is occupied is a new slot created. Within
 that repo you can address a slot as `:N`; the qualified form is `<repo>:N`.
 Parked work does not block adding a slot: the launch preview names parked work
 and lost bindings with the matching `resume` or `reboot` reuse action.
-To add one without typing a path, open the repository's live `:0` row's action
-menu and choose **add slot**. The launch form opens with its repository filled in
+To add one without typing a path, open the repository's `:0` row's action menu
+and choose **add slot**; `:0` may be live, parked or detached. The launch form opens with its repository filled in
 and the agent selected; press Enter to use the defaults, or choose an agent first.
 
 A repository family keeps the starting directory chosen for its first thread.

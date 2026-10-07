@@ -132,23 +132,21 @@ func expectedRowActions(s menuRowShape) []string {
 }
 
 func expectedUnusableActions(s menuRowShape, unfinished bool) []string {
-	{
-		switch {
-		case s.reason == couchcore.ReasonUnknown:
-			return nil
-		case s.reason == couchcore.ReasonPathMissing && s.slot:
-			return nil
-		case s.reason == couchcore.ReasonPathMissing:
-			return []string{"reboot"}
-		// A parked slot whose conversation cannot be resolved (its agent
-		// never took a turn) has nothing to resume (pair#367 smoke test).
-		case s.slot && s.reason == couchcore.ReasonBindingLost && !unfinished:
-			return []string{"reboot"}
-		case s.slot || s.recover || unfinished:
-			return []string{"resume", "reboot"}
-		}
+	switch {
+	case s.reason == couchcore.ReasonUnknown:
+		return nil
+	case s.reason == couchcore.ReasonPathMissing && s.slot:
+		return nil
+	case s.reason == couchcore.ReasonPathMissing:
 		return []string{"reboot"}
+	// A parked slot whose conversation cannot be resolved (its agent
+	// never took a turn) has nothing to resume (pair#367 smoke test).
+	case s.slot && s.reason == couchcore.ReasonBindingLost && !unfinished:
+		return []string{"reboot"}
+	case s.slot || s.recover || unfinished:
+		return []string{"resume", "reboot"}
 	}
+	return []string{"reboot"}
 }
 
 func TestRowActionTableMatchesTheSpec(t *testing.T) {
@@ -463,23 +461,36 @@ func TestUnknownRowSaysItsStateCouldNotBeChecked(t *testing.T) {
 //
 // "Names" is a whole-word match on every action any row offers, by id and by
 // display label, so the vocabulary grows with the table. An action reached on
-// another row (OnPrimary: add slot on the live :0 recreating a gone :1+) is
-// checked against that row's offer instead, and only a :1+ may defer to it.
+// another row (OnPrimary: add slot on the :0 recreating a gone :1+) is checked
+// against the :0's offer in every state it can be in when a :1+ defers to it
+// (live, parked, detached; pair#402), and only a :1+ may defer to it.
 func TestRowAdviceNamesOnlyReachableActions(t *testing.T) {
 	shapes := everyMenuRowShape(t)
 	vocabulary := map[string]bool{}
-	var livePrimary []string
+	// primaryOffers: what :0 offers when live, parked or detached. An
+	// OnPrimary step must be reachable in every one of them.
+	primaryOffers := map[couchcore.ActionableThreadState][]string{}
 	for _, s := range shapes {
 		offered := menuActionItems(s.row)
 		for _, action := range offered {
 			vocabulary[action] = true
 		}
-		if !s.slot && s.state == couchcore.ThreadLive && s.phase == "" {
-			livePrimary = offered
+		switch {
+		case s.slot || s.phase != "":
+		case s.state == couchcore.ThreadLive, s.state == couchcore.ThreadParked, s.state == couchcore.ThreadDetached:
+			primaryOffers[s.state] = offered
 		}
 	}
-	if !vocabulary["add-slot"] || !vocabulary["reboot"] || !vocabulary["resume"] || len(livePrimary) == 0 {
-		t.Fatalf("derived vocabulary %v / live :0 offer %v is missing the actions this sweep exists to check", vocabulary, livePrimary)
+	if !vocabulary["add-slot"] || !vocabulary["reboot"] || !vocabulary["resume"] || len(primaryOffers) != 3 {
+		t.Fatalf("derived vocabulary %v / :0 offers %v are missing the actions this sweep exists to check", vocabulary, primaryOffers)
+	}
+	reachableOnPrimary := func(action string) bool {
+		for _, offered := range primaryOffers {
+			if !slices.Contains(offered, action) {
+				return false
+			}
+		}
+		return true
 	}
 	names := func(text, action string) bool {
 		for _, word := range []string{action, menuItemLabel(action)} {
@@ -495,10 +506,16 @@ func TestRowAdviceNamesOnlyReachableActions(t *testing.T) {
 			if !slot {
 				t.Errorf("%s %s: a :0 row defers %q to the primary, which is itself", shape, where, step.Text)
 			}
-			reach = livePrimary
 		}
 		for action := range vocabulary {
-			if names(step.Text, action) && !slices.Contains(reach, action) {
+			if !names(step.Text, action) {
+				continue
+			}
+			if step.OnPrimary && !reachableOnPrimary(action) {
+				t.Errorf("%s %s: %q names %s, which :0 does not offer in every state (offers %v)", shape, where, step.Text, action, primaryOffers)
+				continue
+			}
+			if !step.OnPrimary && !slices.Contains(reach, action) {
 				t.Errorf("%s %s: %q names %s, which is not offered there (offered %v)", shape, where, step.Text, action, reach)
 			}
 		}
