@@ -169,7 +169,7 @@ func TestNamedPairSessionRefusesAnOrphanWithItsDiagnostic(t *testing.T) {
 	if ResumeDiagnosticOf(err) != ResumeOrphanedServer {
 		t.Fatalf("code = %q (%v), want %q", ResumeDiagnosticOf(err), err, ResumeOrphanedServer)
 	}
-	if !strings.Contains(err.Error(), "📁1-37: server PID 4321 lost its socket — reap to resume") || strings.Contains(err.Error(), "exit status") {
+	if !strings.Contains(err.Error(), "📁1-37: server PID 4321 lost its socket — Tab → recover") || strings.Contains(err.Error(), "exit status") {
 		t.Fatalf("diagnostic = %v", err)
 	}
 	if ResumeRebootAdvice[ResumeOrphanedServer] {

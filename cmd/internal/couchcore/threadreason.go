@@ -125,7 +125,7 @@ func (r ThreadReason) Label() string {
 	case ReasonUnknown:
 		return "checking…"
 	case ReasonOrphanedServer:
-		return "server lost its socket — reap to resume"
+		return "server lost its socket — Tab → recover"
 	}
 	// Legible beats silent: an unlabelled reason shows its slug rather than an
 	// empty column, and the vocabulary guard fails so it does not stay that way.

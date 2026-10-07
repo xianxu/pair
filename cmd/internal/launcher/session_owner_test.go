@@ -110,7 +110,7 @@ func TestSessionOwnerProbeNamesAnOrphanedServer(t *testing.T) {
 			t.Fatalf("socket %v: asked list-panes of a server with no reachable socket", tc.socket)
 		}
 		if tc.socket == SocketGone {
-			if got.Server != server || !strings.Contains(got.Diagnostic, "server PID 7 lost its socket — reap to resume") {
+			if got.Server != server || !strings.Contains(got.Diagnostic, "server PID 7 lost its socket — Tab → recover") {
 				t.Fatalf("orphan observation %+v", got)
 			}
 		}

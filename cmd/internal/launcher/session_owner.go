@@ -24,7 +24,7 @@ const (
 
 // OrphanDiagnostic is the one sentence every surface shows for an orphan.
 func OrphanDiagnostic(session string, pid int) string {
-	return fmt.Sprintf("%s: server PID %d lost its socket — reap to resume", session, pid)
+	return fmt.Sprintf("%s: server PID %d lost its socket — Tab → recover", session, pid)
 }
 
 // SessionServerIdentity witnesses one server generation, not just its name.
