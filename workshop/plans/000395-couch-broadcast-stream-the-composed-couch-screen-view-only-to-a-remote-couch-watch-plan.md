@@ -34,7 +34,7 @@ Issue: `workshop/issues/000395-couch-broadcast-stream-the-composed-couch-screen-
 | `FrameClass` | `cmd/internal/terminal/tap.go` | new |
 | `Tap` | `cmd/internal/terminal/tap.go` | new |
 | `Presenter.Panel` (gains a `FrameClass`) | `cmd/internal/terminal/presenter.go` | modified |
-| `LiveLabel`, `IdleLabel`, `IndicatorShown` | `cmd/internal/broadcast/indicator.go` | new |
+| `LiveLabel`, `StartingLabel`, `IndicatorShown` | `cmd/internal/broadcast/indicator.go` | new |
 | `ViewerFrame` | `cmd/internal/broadcast/privacy.go` | new |
 | `Stream`, `Message` | `cmd/internal/broadcast/stream.go` | new |
 | `BroadcastCell` in `StatusModel`; `RenderedStatusRow.Control` | `cmd/internal/couchtty/reserve.go` | modified |
