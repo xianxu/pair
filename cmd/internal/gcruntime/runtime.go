@@ -8,6 +8,7 @@ import (
 	"sort"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/crashreport"
 	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
@@ -176,6 +177,7 @@ func (s *Service) Preview(ctx context.Context) (r Report, err error) {
 		}
 		r.Diagnostics = append(r.Diagnostics, rows...)
 	}
+	r.Diagnostics = append(r.Diagnostics, s.crashRows(false, crashreport.MaxEntries)...)
 	return r, nil
 }
 func (s *Service) Apply(ctx context.Context, limit int) (r Report, err error) {
@@ -213,7 +215,37 @@ func (s *Service) Apply(ctx context.Context, limit int) (r Report, err error) {
 		}
 		r.Diagnostics = append(r.Diagnostics, rows...)
 	}
+	for _, row := range s.crashRows(true, limit) {
+		if row.Eligible {
+			r.DiagnosticCollectedBytes += row.Bytes
+		}
+		r.Diagnostics = append(r.Diagnostics, row)
+	}
 	return r, nil
+}
+
+// crashRows is retention for couch crash files (#397), one sweep per registered
+// Couch store. They live inside the store, which the inventory walk excludes,
+// and the runtime writes them outside any diagnostic writer registration, so
+// neither existing path reaches them.
+func (s *Service) crashRows(apply bool, limit int) []diagnosticlog.Segment {
+	registry, err := s.Collector.Coordinator.ReadRegistry()
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return []diagnosticlog.Segment{{Path: "couch crash files", Reason: err.Error()}}
+	}
+	var rows []diagnosticlog.Segment
+	for _, store := range registry.Stores {
+		dir := crashreport.Dir(store)
+		found, err := crashreport.Sweep(dir, s.Collector.Coordinator.Now(), crashreport.ProcessAlive, apply, limit)
+		if err != nil {
+			found = []diagnosticlog.Segment{{Path: dir, Reason: err.Error()}}
+		}
+		rows = append(rows, found...)
+	}
+	return rows
 }
 
 // RootFromSelected preserves the already selected scoped/flat namespace. The

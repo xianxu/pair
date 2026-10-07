@@ -9,8 +9,13 @@ import (
 	"os"
 
 	"github.com/xianxu/pair/cmd/internal/couchcmd"
+	"github.com/xianxu/pair/cmd/internal/crashreport"
 )
 
 func main() {
-	os.Exit(couchcmd.Run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
+	code := couchcmd.Run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr)
+	// Only a normal return reaches this line, which is the point: a panic
+	// must leave its crash file behind (#397).
+	_ = crashreport.Finish()
+	os.Exit(code)
 }

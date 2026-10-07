@@ -556,3 +556,21 @@ proof; record the surprising case so the next change starts from evidence.
   cheap probe before reporting Unknown, and keep exactly one implementation of the
   pair (`observeExactProcess`). #389 fixed the race once, and five hand-spelled
   copies kept it (#389 BR-1); grep for the pattern, not just the call site.
+- Sweep a constant's dependents across the whole tree, not just the packages
+  that obviously own it. #393 retargeted test fixtures in the four retention
+  packages, but `workbenchshortcut` also built a diagnosticlog clock from a
+  hard-coded 8 days, and main stayed red until #397's `go test ./...` caught it.
+  Grep the literal shape (`8 * 24 * time.Hour`) repo-wide, and run `go test ./...`,
+  not only `make test`, which runs a subset of Go packages.
+- Never end crash capture (or anything a panic must outlive) from a `defer`. Go
+  runs defers while a panic unwinds, before the runtime writes the panic, so a
+  deferred `SetCrashOutput(nil)` and empty-file removal deleted the very file the
+  panic was about to fill (#397 BR-1). Clean up after a normal return in `main`
+  instead, and test with a crashing child that has defers pending. A child with
+  no defers passes either way.
+- A regression test must run through the code path where the bug lived. #397's
+  first BR-1 test called a helper below the faulty `defer`, so re-adding the bug at
+  the production site stayed green. Mutate the real site, not the test's copy of
+  it. In a re-exec crash test, the parent must own every directory the child
+  writes: Go's test runner runs `t.Cleanup` (deleting `t.TempDir`) while a panic
+  unwinds, before the runtime writes the crash.

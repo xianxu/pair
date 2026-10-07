@@ -29,6 +29,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchkeys"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
+	"github.com/xianxu/pair/cmd/internal/crashreport"
 	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
 	"github.com/xianxu/pair/cmd/internal/gcruntime"
 	"github.com/xianxu/pair/cmd/internal/hostty"
@@ -404,6 +405,10 @@ func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs ma
 		fmt.Fprintf(stderr, "couch: %v\n", err)
 		return 1
 	}
+	if console != nil && ownsLive {
+		// No defer: cmd/couch's main ends capture after a normal return.
+		installCrashReport(console, namespace.Dir())
+	}
 	if operationUsesCurrentRepoScope(op.Name) && workspaceRef {
 		path, recognized, err := c.WorkspaceReferencePath(context.Background(), parsed["ref"])
 		if err != nil {
@@ -613,6 +618,24 @@ type consoleTraceConfig struct {
 
 func tracesForRuntime(rt Runtime) consoleTraceConfig {
 	return consoleTraceConfig{getenv: rt.Getenv, root: runtimePairDataDir(rt)}
+}
+
+// installCrashReport keeps this console's fatal panics on disk (#397): its
+// stderr is the terminal it redraws over. Only the lease holder installs it --
+// the lease is what proves every older file in the crash dir is a dead
+// incarnation's. A failure is a notice; crash capture never stops couch.
+//
+// It returns nothing to close on purpose: ending capture from a defer here
+// would run while a panic unwinds and delete the file before the runtime
+// writes it (#397 BR-1). crashreport.Finish runs in main after a normal return.
+func installCrashReport(console *couchtty.Console, store string) {
+	_, reports, err := crashreport.Install(crashreport.Dir(store), time.Now(), os.Getpid(), crashreport.ProcessAlive)
+	if summary := crashreport.Summary(reports); summary != "" {
+		console.Notify(couchtty.Notice{Kind: "crash", Control: true, Body: summary})
+	}
+	if err != nil {
+		console.Notify(couchtty.Notice{Kind: "crash-capture", Control: true, Body: "crash capture unavailable: " + err.Error()})
+	}
 }
 
 // processStartedAt is when this couch process began: package initialisation,
