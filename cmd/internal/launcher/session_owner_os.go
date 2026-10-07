@@ -101,12 +101,7 @@ func (p SessionOwnerProbe) Revalidate(ctx context.Context, observation SessionOw
 type osSessionOwnerIO struct{}
 
 func (osSessionOwnerIO) SessionServers(ctx context.Context, name string) ([]SessionServerIdentity, error) {
-	servers, err := newOSSessionQuiescenceOps().SessionServers(ctx, name)
-	out := make([]SessionServerIdentity, len(servers))
-	for i, s := range servers {
-		out[i] = SessionServerIdentity{PID: s.PID, Identity: s.Identity, Session: s.Session}
-	}
-	return out, err
+	return newOSSessionQuiescenceOps().SessionServers(ctx, name)
 }
 func (osSessionOwnerIO) SessionPresent(ctx context.Context, name string) (bool, error) {
 	raw, err := (ZellijSource{}).runContext(ctx, "list-sessions", "--no-formatting")

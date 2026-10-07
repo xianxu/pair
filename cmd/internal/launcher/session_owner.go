@@ -20,9 +20,12 @@ const (
 )
 
 // SessionServerIdentity witnesses one server generation, not just its name.
+// Socket is the path from the server's own argv: the only evidence that tells a
+// reachable server from an orphaned one (#399).
 type SessionServerIdentity struct {
 	PID               int
 	Identity, Session string
+	Socket            string
 }
 
 type SessionOwnerObservation struct {
