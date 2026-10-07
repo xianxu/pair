@@ -253,6 +253,19 @@ func (c *Console) finishContinuationOperation(completed operationCompletion, err
 		return
 	}
 	watch.queued = false
+	busy := couchcore.IsThreadBusy(err)
+	if busy && completed.name == "continue-thread" {
+		// Refused because another operation held the thread (pair#205): the
+		// continuation never ran. Re-arm it for the next scan and drop the exits
+		// its enqueue marked as expected, or a later real exit of this thread's
+		// pane would be swallowed as one.
+		watch.handled = false
+		for id, p := range c.panes {
+			if p.thread == address {
+				delete(c.expectedExits, id)
+			}
+		}
+	}
 	switch result := completed.value.(type) {
 	case couchcore.ContinuationStatus:
 		if result.RequestID == watch.status.RequestID && result.Address == address {
@@ -276,7 +289,8 @@ func (c *Console) finishContinuationOperation(completed operationCompletion, err
 	}
 	c.reconcileContinuationOrientationLocked()
 	c.mu.Unlock()
-	if err != nil {
+	if err != nil && !busy {
+		// A busy refusal is retried on the next scan, silently.
 		c.setNotice(fmt.Sprintf("Continuation %s: %v", address.Tag, err))
 	}
 	c.requestMenuRefresh()

@@ -293,6 +293,10 @@ type MenuEvent struct {
 	// Diagnostic is ResumeDiagnosticOf(err) for an operation result, so the pass
 	// tells a skip from a failure by code rather than by matching error text.
 	Diagnostic couchcore.ResumeDiagnosticCode
+	// Busy marks an operation refused because another lifecycle operation held
+	// its thread (pair#205). Deliberately not a resume diagnostic: those mean
+	// "couch decided not to start", and a busy thread is no such verdict.
+	Busy bool
 	// SlotGit and SlotGitFailed are one slot git pass: the paths it observed and
 	// the paths whose probe failed. Together they are the pass's probe set.
 	SlotGit       map[string]couchcore.SlotGitStatus

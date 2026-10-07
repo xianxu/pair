@@ -1842,6 +1842,7 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 		event.Error = err.Error()
 		// A code, so the pass tells a skip from a failure without matching text.
 		event.Diagnostic = couchcore.ResumeDiagnosticOf(err)
+		event.Busy = couchcore.IsThreadBusy(err)
 	}
 	if completed.origin.Background {
 		c.traceEvent(traceReattachDone, address, reattachDoneDetail(event.Success, event.Diagnostic))
@@ -2034,6 +2035,26 @@ func (c *Console) switchTargetForAddressLocked(address couchcore.ThreadAddress) 
 // Notify publishes a notice from outside the console, e.g. the composition
 // root reporting a previous incarnation's crash (#397).
 func (c *Console) Notify(n Notice) { c.publishNotice(n) }
+
+// GoTracked runs f off the console goroutine, on a worker the console joins at
+// shutdown (pair#205): for work that may wait on a thread's gate and so must
+// never block rendering, input, or the operation results the queue workers
+// deliver. Once the console has stopped, f runs inline -- there is no event
+// loop left to block, and joining has already begun.
+func (c *Console) GoTracked(f func()) {
+	c.mu.Lock()
+	if !c.started {
+		c.mu.Unlock()
+		f()
+		return
+	}
+	c.workers.Add(1)
+	c.mu.Unlock()
+	go func() {
+		defer c.workers.Done()
+		f()
+	}()
+}
 
 func (c *Console) setNotice(text string) {
 	c.publishNotice(Notice{Kind: "status", Body: text})

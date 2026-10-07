@@ -237,7 +237,9 @@ func finishReattach(state MenuState, event MenuEvent) MenuState {
 			state.Reattach.Attached = map[couchcore.ThreadAddress]uint64{}
 		}
 		state.Reattach.Attached[address] = event.ProjectionAfterGeneration
-	case event.Diagnostic == couchcore.ResumeNotDetached || event.Diagnostic == couchcore.ResumeSessionGone:
+	case event.Busy || event.Diagnostic == couchcore.ResumeNotDetached || event.Diagnostic == couchcore.ResumeSessionGone:
+		// Busy (pair#205): another operation holds the thread, so it is being
+		// acted on by someone else -- not this pass's failure to report.
 		// Cell 6: the thread stopped being warm before its turn. Skipped
 		// silently -- it was never going to be reattached, so it did not fail.
 	default:

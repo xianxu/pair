@@ -156,6 +156,21 @@ func TestReattachFinishResolvesTheAttempt(t *testing.T) {
 			}
 		})
 	}
+	t.Run("cell 6: a thread busy with another operation is a silent skip", func(t *testing.T) {
+		// pair#205: the busy refusal carries a message, not a code, so only the
+		// Busy flag keeps it out of cell 7.
+		state, attempt := loadingPass(t)
+		event := passResult(attempt, "couch-a")
+		event.Busy = true
+		event.Error = "couch-a is busy: relaunch is already running on it"
+		state = finishReattach(state, event)
+		if _, failed := state.Reattach.Failed[menuAddress("couch-a")]; failed {
+			t.Fatalf("a busy thread was marked reattach failed: %v", state.Reattach.Failed)
+		}
+		if view, owned := passViewOf(state.Reattach, menuAddress("couch-a")); owned {
+			t.Fatalf("a busy thread is still owned by the pass: %+v", view)
+		}
+	})
 	t.Run("cell 7: a failure is marked with its code", func(t *testing.T) {
 		state, attempt := loadingPass(t)
 		event := passResult(attempt, "couch-a")
