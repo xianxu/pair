@@ -19,7 +19,7 @@ type fakeOrphanReaper struct {
 	hook      func() // runs as the reap happens, before its effect
 }
 
-func (f *fakeOrphanReaper) ReapOrphan(_ context.Context, server launcher.SessionServerIdentity) error {
+func (f *fakeOrphanReaper) ReapOrphan(_ context.Context, server launcher.SessionServerIdentity, _, _ string) error {
 	f.reaped = append(f.reaped, server)
 	if f.hook != nil {
 		f.hook()

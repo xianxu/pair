@@ -551,3 +551,28 @@ func TestReapConfirmationNamesTheServerAndItsTree(t *testing.T) {
 		}
 	}
 }
+
+// #399 M2 review BR-9: a successful reap closes its confirmation and completes
+// the attempt; before, the reducer had no arm for it and the frame lingered.
+func TestReapSuccessClosesItsConfirmation(t *testing.T) {
+	row := couchcore.ActionableThreadSummary{Address: menuAddress("couch-orphan"), WorkingPath: "/w/p",
+		State: couchcore.ThreadUnusable, Reason: couchcore.ReasonOrphanedServer,
+		Orphan: &launcher.SessionServerIdentity{PID: 812, Session: "📁1-37"}}
+	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
+	state.InventoryReady = true
+	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+	state.Frames[len(state.Frames)-1].SelectedItem = "reap"
+	state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
+	if state.CurrentFrame().Kind != MenuFrameConfirmation || state.CurrentFrame().Action != "reap" {
+		t.Fatalf("reap did not confirm: %+v", state.CurrentFrame())
+	}
+	state, _ = reduceConfirmationKey(state, PanelKey{Kind: KeyDown})
+	state, effects := reduceConfirmationKey(state, PanelKey{Kind: KeyEnter})
+	if len(effects) != 1 || effects[0].Operation != "reap" {
+		t.Fatalf("reap did not dispatch: %+v", effects)
+	}
+	next := reduceOperationResult(state, MenuEvent{Operation: "reap", Attempt: state.InFlight.Attempt, Success: true, Address: row.Address})
+	if next.InFlight.Operation != "" || next.CurrentFrame().Kind != MenuFrameRoot || next.Notice.Level == MenuNoticeError {
+		t.Fatalf("reap result not consumed: in flight %+v, frame %v, notice %q", next.InFlight, next.CurrentFrame().Kind, next.Notice.Text)
+	}
+}

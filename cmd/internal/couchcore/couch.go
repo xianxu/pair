@@ -1277,27 +1277,21 @@ func (c *Couch) allocateConversationTag(ctx context.Context, repo string) (strin
 }
 
 // orphanStartRefusal is startup's refusal beside an orphaned primary (#399).
-// The advice must match the evidence: on 2026-10-06 killing only the server left
-// `pair wrap` (which ignored SIGTERM) and PPID-1 `pair title` helpers behind, so
-// it names the whole tree. server may be nil when the row lost its details.
+//
+// The advice is the reap mechanism itself, not a hand-written recipe (M1/M2
+// review: two hand-written recipes were both wrong about the 2026-10-06 tree).
+// Couch will not start in this repository, and `couch --reap` is a slot-socket
+// operation, so the gesture that works from here is the switcher in another
+// repository -- the same escape the unreadable-record refusal names.
 func orphanStartRefusal(root string, address ThreadAddress, server *launcher.SessionServerIdentity) string {
-	if server == nil {
-		return fmt.Sprintf("thread %s's zellij server lost its socket and may still be running its agent, "+
-			"so couch will not start a second primary in %s\n"+
-			"  find it:     ps -axo pid,command | grep 'zellij --server'\n"+
-			"  inspect it:  couch --show %s", address.Tag, root, address.Tag)
+	headline := fmt.Sprintf("thread %s's zellij server lost its socket", address.Tag)
+	if server != nil {
+		headline = launcher.OrphanDiagnostic(server.Session, server.PID)
 	}
-	// The order is the content: descendants must die while the server still
-	// parents them, or they reparent to PID 1 and nothing finds them again --
-	// exactly what killing the server first did on 2026-10-06.
 	return fmt.Sprintf("%s\n"+
 		"its agent may still be running, so couch will not start a second primary in %s\n"+
-		"killing the server alone is not enough: its pair wrap may ignore SIGTERM, and whatever\n"+
-		"outlives the server reparents to PID 1. In this order:\n"+
-		"  1. list its tree while the server still parents it:  ps -axo pid,ppid,command\n"+
-		"     (every process whose parent chain reaches %d: pair wrap/term/title, nvim, the agent)\n"+
-		"  2. kill those descendants, deepest first:             kill -KILL <pid> ...\n"+
-		"  3. only then the server:                               kill -KILL %d\n"+
+		"  recover it:  run couch in another repository, select %s, Tab → recover\n"+
+		"               (it reaps the orphaned server and everything under it, then resumes)\n"+
 		"  inspect it:  couch --show %s",
-		launcher.OrphanDiagnostic(server.Session, server.PID), root, server.PID, server.PID, address.Tag)
+		headline, root, address.Tag, address.Tag)
 }

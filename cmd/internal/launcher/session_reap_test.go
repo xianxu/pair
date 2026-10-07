@@ -3,6 +3,7 @@ package launcher
 import (
 	"context"
 	"errors"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -10,6 +11,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 )
 
 // fakeProcess is one row of the fake table, with the behaviours 2026-10-06
@@ -183,5 +186,48 @@ func TestPlanReapOrdersDeepestFirstServerLast(t *testing.T) {
 	}
 	if len(order) != 4 || order[0] != 13 || order[3] != 10 {
 		t.Fatalf("plan order %v: want the grandchild first and the server last", order)
+	}
+}
+
+type recordingHelperReaper struct {
+	titlePIDs []string
+	editors   []lifecycleEditorPaths
+}
+
+func (r *recordingHelperReaper) KillTitlePollerContext(_ context.Context, pidPath string) error {
+	r.titlePIDs = append(r.titlePIDs, pidPath)
+	return nil
+}
+func (r *recordingHelperReaper) ReapNvimContext(_ context.Context, paths lifecycleEditorPaths) error {
+	r.editors = append(r.editors, paths)
+	return nil
+}
+
+// #399 M2 review BR-10: the title poller is spawned with Setsid, outside the
+// zellij server's tree, so the tree snapshot never contains it (the stray
+// `pair title` processes of 2026-10-06). Reap ends it through its pidfile, the
+// same paths the quit path uses.
+func TestReapTagHelpersEndsTheHelpersOutsideTheTree(t *testing.T) {
+	paths, err := artifactpath.Resolve(artifactpath.Address{DataDir: t.TempDir(), RepoScope: "0123456789abcdef", Tag: "1-repo-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt := &recordingHelperReaper{}
+	if err := ReapTagHelpers(context.Background(), rt, paths); err != nil {
+		t.Fatal(err)
+	}
+	if len(rt.titlePIDs) != 1 || rt.titlePIDs[0] != paths.TitlePID() {
+		t.Fatalf("title pidfiles %v, want %q", rt.titlePIDs, paths.TitlePID())
+	}
+	if len(rt.editors) != 1 || !reflect.DeepEqual(rt.editors[0], editorPathsOf(paths)) {
+		t.Fatalf("editor paths %+v", rt.editors)
+	}
+}
+
+// Without the data directory the helpers cannot be found, so reap refuses
+// rather than leave them running.
+func TestOSOrphanReaperRefusesWithoutADataDir(t *testing.T) {
+	if err := (OSOrphanReaper{}).ReapOrphan(context.Background(), SessionServerIdentity{PID: 1}, "s", "t"); err == nil {
+		t.Fatal("reaped without a data directory")
 	}
 }

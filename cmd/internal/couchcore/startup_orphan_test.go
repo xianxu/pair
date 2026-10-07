@@ -7,27 +7,21 @@ import (
 	"github.com/xianxu/pair/cmd/internal/launcher"
 )
 
-// #399 M1 review (rule, family operator-advice-contradicts-evidence): advice
-// must be steps that would have worked on the documented incident, and the test
-// checks their ORDER. On 2026-10-06 killing the server first let `pair wrap`
-// (which ignored SIGTERM) and `pair title` helpers reparent to PID 1, where no
-// child-of-server command finds them. So: list the tree while the server still
-// parents it, kill the descendants, and only then the server.
-func TestOrphanRefusalStepsWouldHaveWorkedOnTheIncident(t *testing.T) {
+// #399 M1/M2 review (rule, family operator-advice-contradicts-evidence): the
+// advice is the reap mechanism, never a hand-written kill recipe -- two such
+// recipes were each wrong about the 2026-10-06 tree. The gesture it names is
+// the switcher's recover, which runs the tested reap (descendants first, the
+// helpers outside the tree, identity-gated) and then resume.
+func TestOrphanRefusalNamesTheReapMechanism(t *testing.T) {
 	text := orphanStartRefusal("/repo", ThreadAddress{Tag: "couch-1"}, &launcher.SessionServerIdentity{PID: 9090, Session: "📁repo-1"})
-	list := strings.Index(text, "ps -axo pid,ppid,command")
-	descendants := strings.Index(text, "kill -KILL <pid>")
-	server := strings.Index(text, "kill -KILL 9090")
-	if list < 0 || descendants < 0 || server < 0 || !(list < descendants && descendants < server) {
-		t.Fatalf("steps out of order (list %d, descendants %d, server %d):\n%s", list, descendants, server, text)
+	for _, want := range []string{"server PID 9090 lost its socket", "Tab → recover", "couch-1"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("refusal lacks %q:\n%s", want, text)
+		}
 	}
-	// No step may signal the server before its descendants are dealt with.
-	if first := strings.Index(text, "9090"); strings.Contains(text[:descendants], "kill") && first < descendants && strings.Contains(text[first:descendants], "kill 9090") {
-		t.Fatalf("a step kills the server before its descendants:\n%s", text)
-	}
-	for _, wrong := range []string{"goes with it", "pkill -TERM -P"} {
+	for _, wrong := range []string{"kill ", "pkill", "goes with it"} {
 		if strings.Contains(text, wrong) {
-			t.Fatalf("refusal still advises %q, which failed on 2026-10-06:\n%s", wrong, text)
+			t.Fatalf("refusal still carries a hand-written recipe (%q):\n%s", wrong, text)
 		}
 	}
 }
@@ -40,7 +34,7 @@ func TestAnOrphanRowWithoutItsServerStillBlocksStartup(t *testing.T) {
 	if _, held := ScopeHoldsOrphanedThread([]ActionableThreadSummary{row}, "s"); !held {
 		t.Fatal("an orphan without server details read as debris")
 	}
-	if text := orphanStartRefusal("/repo", row.Address, nil); !strings.Contains(text, "lost its socket") {
+	if text := orphanStartRefusal("/repo", row.Address, nil); !strings.Contains(text, "lost its socket") || !strings.Contains(text, "Tab → recover") {
 		t.Fatalf("refusal without a server = %q", text)
 	}
 }

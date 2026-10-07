@@ -190,12 +190,9 @@ func runCleanupContext(ctx context.Context, env Env, rt Runtime, step launchStep
 	ops := &launcherCleanupOps{
 		rt: rt, env: env, step: step, scopeKey: scopeKey, parkTimeout: parkTimeout,
 		out: out, quitAgent: quitAgent, now: time.Now, scrollback: scrollback,
-		panePath: panePath,
-		editorPaths: lifecycleEditorPaths{
-			draft: paths.Draft(), scrollbackPrefix: paths.ScrollbackPrefix(),
-			pids: []string{paths.NvimPID("draft"), paths.NvimPID("scrollback")},
-		},
-		outerTTY: paths.OuterTTY(), agentPath: paths.Agent(), agentOutput: paths.AgentOutput(),
+		panePath:    panePath,
+		editorPaths: editorPathsOf(paths),
+		outerTTY:    paths.OuterTTY(), agentPath: paths.Agent(), agentOutput: paths.AgentOutput(),
 		pairWrapPID: paths.PairWrapPID(), adaptLog: paths.AdaptLog(), imageCapture: paths.ImageCapture(),
 		imageCaptureDone: paths.ImageCaptureDone(), titlePID: paths.TitlePID(),
 	}
@@ -285,6 +282,15 @@ type lifecycleEditorPaths struct {
 	draft            string
 	scrollbackPrefix string
 	pids             []string
+}
+
+// editorPathsOf is the one derivation of a tag's editor pidfiles and patterns,
+// shared by the quit path and the orphan reaper (#399).
+func editorPathsOf(paths artifactpath.Paths) lifecycleEditorPaths {
+	return lifecycleEditorPaths{
+		draft: paths.Draft(), scrollbackPrefix: paths.ScrollbackPrefix(),
+		pids: []string{paths.NvimPID("draft"), paths.NvimPID("scrollback")},
+	}
 }
 
 type launcherCleanupOps struct {

@@ -586,3 +586,8 @@ proof; record the surprising case so the next change starts from evidence.
   TestProductionArtifactReferencesAreExactlyClassified named them, but it was on
   the "known failure" list, so two milestones passed without anyone reading its
   output. Grep a known-failing test's output for your own files at every close.
+- Check how a process is spawned before claiming a tree snapshot covers it. #399's
+  reaper skipped the title-poller pidfile reaper on the reasoning that helpers live
+  under the zellij server, but the launcher spawns the poller with `Setsid`,
+  outside that tree. That is exactly why 2026-10-06 left stray `pair title`
+  processes. One grep for the spawn site settles it.

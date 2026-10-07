@@ -1706,7 +1706,8 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 		if origin.FrameKind == MenuFrameText && originVisible && originFrame.Thread == origin.Address && originFrame.Action == event.Operation {
 			state.Frames = state.Frames[:origin.Depth-1]
 		}
-	case "start", "reboot":
+	case "start", "reboot", "recover":
+		// recover may end in a reboot, which hands back a new address.
 		if originVisible {
 			if origin.RowKey.Kind == couchcore.ThreadTargetSlot {
 				state.Frames[0].SelectedKey = origin.RowKey
@@ -1715,6 +1716,21 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 			state.Frames[0].SelectedAddress = event.Address
 		}
 	case "park", "detach", "resume", "leave", "relaunch", "switch-agent", "retry-continuation", "dismiss-continuation":
+		state = restoreMenuPrefixPreservingStart(state, 1, origin)
+		state.Frames[0].SelectedAddress = event.Address
+		if origin.RowKey.Kind == couchcore.ThreadTargetSlot {
+			state.Frames[0].SelectedKey = origin.RowKey
+		}
+		reconcileRootSelection(&state, event.Address)
+	default:
+		// A CONFIRMATION frame never outlives its operation's success. The list
+		// above is explicit, and an operation missing from it (reap, #399 M2
+		// review BR-9) left its confirmation open after it had worked; this is
+		// the rule that keeps the next one from doing so. Text frames (name,
+		// describe) keep their own handling.
+		if origin.FrameKind != MenuFrameConfirmation || !originVisible {
+			break
+		}
 		state = restoreMenuPrefixPreservingStart(state, 1, origin)
 		state.Frames[0].SelectedAddress = event.Address
 		if origin.RowKey.Kind == couchcore.ThreadTargetSlot {

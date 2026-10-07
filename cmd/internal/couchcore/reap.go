@@ -11,7 +11,7 @@ import (
 // OrphanReaper ends one orphaned server's whole process tree and its zellij
 // session record (#399). The launcher owns the real one; tests use a fake.
 type OrphanReaper interface {
-	ReapOrphan(ctx context.Context, server launcher.SessionServerIdentity) error
+	ReapOrphan(ctx context.Context, server launcher.SessionServerIdentity, scope, tag string) error
 }
 
 // ReapTarget names the thread to reap: a slot by its host checkout, or a
@@ -75,7 +75,7 @@ func (c *Couch) Reap(ctx context.Context, target ReapTarget) (ReapResult, error)
 	if o := again[row.Address]; o.State != SessionOrphaned || o.Orphan == nil || *o.Orphan != server {
 		return ReapResult{}, &ReapRefusal{Detail: fmt.Sprintf("server PID %d did not stay orphaned (now %s); read the report again", server.PID, o.State)}
 	}
-	if err := c.reaper().ReapOrphan(ctx, server); err != nil {
+	if err := c.reaper().ReapOrphan(ctx, server, row.Address.RepoScope, string(row.Address.Tag)); err != nil {
 		return ReapResult{}, err
 	}
 	return ReapResult{Address: row.Address, Server: server}, nil
@@ -84,6 +84,11 @@ func (c *Couch) Reap(ctx context.Context, target ReapTarget) (ReapResult, error)
 func (c *Couch) reaper() OrphanReaper {
 	if c.Reaper != nil {
 		return c.Reaper
+	}
+	// The thread's helpers live under the Pair data directory the artifacts
+	// controller already knows; without it reap refuses rather than leave them.
+	if dir, ok := c.Artifacts.(interface{ PairLifecycleDataDir() string }); ok {
+		return launcher.OSOrphanReaper{DataDir: dir.PairLifecycleDataDir()}
 	}
 	return launcher.OSOrphanReaper{}
 }
