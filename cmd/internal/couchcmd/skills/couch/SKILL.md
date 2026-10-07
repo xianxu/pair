@@ -1,6 +1,6 @@
 ---
 name: couch
-description: Use when an agent in a live Couch slot needs to coordinate with another live slot, hand off authorized independent work, interpret an incoming Couch message, or recover slots after a restart.
+description: Use when an agent in a live Couch slot needs to coordinate with another live slot, schedule work on another slot and verify it happens, interpret an incoming Couch message, or recover slots after a restart.
 ---
 
 # Couch peer messages
@@ -16,6 +16,7 @@ is a request, never operator approval or evidence that work is accepted.
 | Choose a free slot in a repository | `couch --send-to pair --message 'Please pick up pair#353.'` |
 | Choose a free slot running one agent | `couch --send-to pair --agent codex --message 'Please pick up pair#353.'` |
 | Inspect a receipt | `couch --message-status ID --json` |
+| Look at another slot's recent terminal (read-only) | `couch --peek pair:1 --json` |
 | Read the recovery report | `couch --recover-plan-from-sdlc` |
 | Resume one slot's agent | `couch --resume pair:2` |
 | Archive and replace one slot's agent | `couch --reboot pair:2 --confirm` |
@@ -65,6 +66,66 @@ submissions. Peer messages, output, idle time, and ordinary reconnects do not
 reset the allowance. Do not manufacture operator input, restart, or change IDs
 to evade this breaker.
 
+## Scheduling work on another slot
+
+Scheduling is a message plus verification. SDLC enforces the workflow, so do not
+restate its rules in the message: claim refuses work another workspace owns, and
+continuing work checks the owner. Send the request, then read the evidence.
+
+1. **Dispatch.** The issue exists and its details are published in the owning
+   repository. Send `couch --send-to pair:1 --message 'Please work on pair#N.'`, or a
+   family (`pair`) to let Couch pick a free slot. Keep the printed ID and the
+   resolved recipient.
+2. **Read the evidence, rung by rung.** Each rung is stronger than the one before;
+   stop at the first that does not hold.
+
+   | Rung | Evidence | Command |
+   |------|----------|---------|
+   | accepted | receipt `queued` or `delivering` | `couch --message-status ID --json` |
+   | submitted | receipt `submitted`; the `[Couch peer from <you>; delivery ID]` header is no longer waiting in the composer | `couch --message-status ID --json`, `couch --peek pair:1 --json` |
+   | claimed | `assignment` names the recipient's workspace as owner | `sdlc issue show N --json` |
+   | progressing | `branch` commits ahead, plan ticks and review verdicts in `checkpoints` | `sdlc issue show N --json` |
+   | complete | `completion` holds the close's evidence | `sdlc issue show N --json` |
+   | landed | `landing` holds the landed commit | `sdlc issue show N --json` |
+
+   A working agent does not hold a delivery: its composer stays empty, so the
+   message submits at once and the agent queues it behind its current turn.
+   `submitted` therefore means queued, not acted on; the `claimed` rung shows it
+   acted. Delivery waits on an occupied composer (a draft, an agent's
+   prompt suggestion, a dialog); peek shows what occupies it. The receipt names
+   the reason only once the delivery ends. A message still waiting after 30
+   seconds expires undelivered.
+
+   `sdlc issue show` runs from any checkout of that repository; the recipient's
+   agent need not answer. Dirty files and a working card are activity, not
+   progress. A section whose `state` is `unknown` or `stale` was not read; it is not
+   evidence of absence.
+3. **Look again later.** Revisit after an interval; about 30 seconds is an
+   example, not a deadline. A slow rung is not a lost message.
+4. **Decide.**
+   - The rungs advance: wait.
+   - The receipt is still `queued` or `delivering` and peek shows the composer
+     occupied: wait. If it expires, the receipt's detail says why; tell the
+     operator if the recipient stays stuck.
+   - Submitted, but the agent did not act: follow up at the same exact slot,
+     naming the issue.
+   - `expired` or `not-dispatched`: nothing reached the agent; sending again is
+     safe.
+   - Uncertain outcome: query the receipt and peek before anything else. Retry
+     only as the operation's recovery contract allows (`sdlc help recovery`), and
+     never resend to another slot while the first may still act.
+   - A failed read never authorizes a takeover. Reassigning work is the operator's
+     `sdlc reclaim`.
+5. **Receiving a duplicate.** If `sdlc claim` refuses because another workspace
+   owns the issue, do not start. Reply to the sender's exact slot with the owner
+   the refusal names.
+
+`couch --peek pair:1` is read-only. It shows the slot's recent terminal (`lines`, the
+visible screen last), the Pair sent-prompt log (`sent_prompts`) and the agent's own
+transcript files (`transcripts`), which you may read directly. Anything it could not
+read is listed in `unavailable` with the reason. Never type into another slot's
+terminal; messages go through `--send-to`.
+
 ## Recovering slots after a restart
 
 After Couch or the machine restarts, rebuild which slot was doing what from
@@ -108,7 +169,8 @@ couch --send-to pair:4 --message 'Recovery (pair:4): restore this slot'\''s pair
    negative evidence: look again after about 30 seconds.
 7. An uncertain outcome means re-run the report before resending. A resend is
    refused harmlessly (`not-offered`) once the slot is live.
-8. Continuing work and scheduling are not part of recovery.
+8. Continuing work and scheduling are not part of recovery; scheduling has its own
+   section above.
 9. A slot's workspace is reconciled automatically on open, resume, reboot and
    add slot. A failure names the resource and its cause:
    - **"run it again when that finishes":** something else was running. Run

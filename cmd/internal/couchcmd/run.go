@@ -36,6 +36,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/keyhelp"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/runtimebundle"
+	"github.com/xianxu/pair/cmd/internal/scrollbackcmd"
 	"github.com/xianxu/pair/cmd/internal/threadactivity"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
@@ -175,6 +176,9 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.Cou
 	c.ContinuationSource = (couchcore.OSContinuationSourceReader{DataDir: dataDir}).Read
 	renderer, _ := exec.LookPath("pair")
 	c.SwitchContext = couchcore.OSSwitchContextResolver{DataDir: dataDir, HomeDir: r.Getenv("HOME"), Renderer: renderer}
+	c.SlotTerminal = func(address couchcore.ThreadAddress, agent string, maxLines int) ([]string, error) {
+		return scrollbackcmd.RenderOwnedLines(dataDir, address.RepoScope, string(address.Tag), agent, maxLines)
+	}
 	c.Slug = couchcore.OSSlugReader{DataDir: dataDir}.Read
 	c.SwitchLaunchCheck = func(agent string) error {
 		if !launcher.IsSupportedAgent(agent) {
@@ -299,6 +303,9 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 	case cliReconcile:
 		op, _ = Resolve("reconcile")
 		argv = []string{invocation.ref}
+	case cliPeek:
+		op, _ = Resolve("peek")
+		argv = append([]string{invocation.ref}, invocation.args...)
 	case cliInternal:
 		op, _ = Resolve(invocation.operation)
 		argv = invocation.args
@@ -502,6 +509,13 @@ func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs ma
 			}
 		}
 	}
+	if parsed["json"] == "true" {
+		if err := json.NewEncoder(stdout).Encode(result); err != nil {
+			renderError(stderr, err)
+			return 1
+		}
+		return 0
+	}
 	return render(stdout, op, result)
 }
 
@@ -511,7 +525,7 @@ func dispatchInteractiveStart(c *couchcore.Couch, args map[string]string) (couch
 
 func operationUsesCurrentRepoScope(name string) bool {
 	switch name {
-	case "show", "park", "resume", "reboot", "retry-continuation", "dismiss-continuation":
+	case "show", "peek", "park", "resume", "reboot", "retry-continuation", "dismiss-continuation":
 		return true
 	default:
 		return false
@@ -842,6 +856,8 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 		}
 	}
 	switch v := result.(type) {
+	case couchcore.PeekResult:
+		renderPeek(w, v)
 	case couchcore.ProvisionResult:
 		if op.Name == "reconcile" {
 			renderReconcile(w, v)
@@ -902,6 +918,30 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 		fmt.Fprintf(w, "%v\n", v)
 	}
 	return 0
+}
+
+// renderPeek prints a peek: a header naming the thread, the slot's recent
+// terminal lines, then where its logs live and what could not be read.
+func renderPeek(w io.Writer, r couchcore.PeekResult) {
+	agent := r.Agent
+	if agent == "" {
+		agent = "unknown"
+	}
+	fmt.Fprintf(w, "peek %s  agent %s  tag %s\n", r.Ref, agent, r.Tag)
+	fmt.Fprintln(w, "--- recent terminal ---")
+	for _, line := range r.Lines {
+		fmt.Fprintln(w, line)
+	}
+	fmt.Fprintln(w, "---")
+	if r.SentPrompts != "" {
+		fmt.Fprintf(w, "sent prompts: %s\n", r.SentPrompts)
+	}
+	for _, path := range r.Transcripts {
+		fmt.Fprintf(w, "transcript: %s\n", path)
+	}
+	for _, reason := range r.Unavailable {
+		fmt.Fprintf(w, "unavailable: %s\n", reason)
+	}
 }
 
 // renderReconcile prints what couch --reconcile did: the slot's final
@@ -1044,6 +1084,8 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "       couch --list")
 	fmt.Fprintln(w, "       couch --show <thread>")
 	fmt.Fprintln(w, "       couch --reconcile repo:N")
+	fmt.Fprintln(w, "       couch --peek repo:N [--lines N] [--json]")
+	fmt.Fprintln(w, "             Read-only: a slot's recent terminal and where its transcripts live.")
 	fmt.Fprintln(w, "       couch --archived")
 	fmt.Fprintln(w, "       couch --recover-plan-from-sdlc")
 	fmt.Fprintln(w, "             Recovery report: one JSON row per slot joining sdlc's claims and")

@@ -284,65 +284,34 @@ func visibleRow(em *vt.Emulator, y, width int) uv.Line {
 	return row
 }
 
+// RenderLines replays a recorded capture and returns it as plain text lines:
+// scrollback history (oldest first, at most maxLines rows; <=0 = uncapped),
+// then the visible screen, trailing blank lines trimmed. The visible screen is
+// the tail, so a caller wanting "what the pane shows now" takes the last rows.
+// It reads the two files and writes nothing; the caller holds any retention
+// lease the capture needs.
+//
+// Each call parks one emulator drain goroutine for the life of the process
+// (see replay), so call it from short-lived processes such as a CLI, never
+// in a loop inside a long-running supervisor.
+func RenderLines(rawPath, eventsPath string, maxLines int) ([]string, error) {
+	r, err := replay(rawPath, eventsPath, true, maxLines)
+	return r.lines, err
+}
+
+// replayed is one capture replayed through the emulator.
+type replayed struct {
+	lines       []string
+	viewportTop int // 1-indexed line where the visible buffer starts
+	marks       []dateMark
+}
+
 func render(rawPath, eventsPath, outPath, viewportPath string, plain bool, maxLines int, withTimestamps bool) error {
-	events, err := parseEvents(eventsPath)
+	r, err := replay(rawPath, eventsPath, plain, maxLines)
 	if err != nil {
-		return fmt.Errorf("parse events: %w", err)
+		return err
 	}
-	cols, rows := initialSize(events)
-	em := vt.NewEmulator(cols, rows)
-	em.Scrollback().SetMaxLines(resolveMax(maxLines))
-
-	// Drain the emulator's input pipe in the background. CSI status
-	// queries (DSR, Device Attributes, etc.) in the captured stream
-	// trigger handlers that *write a reply back* into this pipe — in a
-	// real terminal those bytes go to the controlling app. Offscreen
-	// replay has no reader, so the handler's WriteString blocks
-	// forever and deadlocks the Write goroutine. Discarding the bytes
-	// preserves emulation correctness; we never act on the replies.
-	//
-	// The emulator is deliberately never closed, and this goroutine is
-	// deliberately allowed to park. vt.Emulator.closed is a plain bool
-	// written by Close() and read by Read() with no synchronisation, so
-	// closing while the drainer is blocked in Read is a data race inside the
-	// dependency. The obvious inversion -- wait for the drainer, then close
-	// -- deadlocks, because Close() is the only thing that can unblock that
-	// Read; an earlier attempt here hit exactly that (its comment survived
-	// after the ordering was flipped back).
-	//
-	// So the drainer stays parked on the pipe for the life of the process.
-	// `pair scrollback` renders once and exits, so the leak is bounded by
-	// process lifetime, and a parked goroutine is cheaper than either a real
-	// race or a fork of the dependency. Revisit if vt makes closed atomic.
-	go func() { _, _ = io.Copy(io.Discard, em) }()
-
-	raw, err := os.ReadFile(rawPath)
-	if err != nil {
-		return fmt.Errorf("read raw: %w", err)
-	}
-	marks := feedSegments(em, raw, events)
-
-	// Scrollback lines (oldest → newest), then visible buffer top → bottom.
-	// Visible buffer iterates by row index rather than dropping trailing
-	// blank rows: an agent that cleared and paused mid-redraw would shift
-	// every subsequent line number otherwise, and `:880` should still land
-	// where zellij showed line 880.
-	sb := em.Scrollback()
-	viewportTop := sb.Len() + 1 // 1-indexed line where the visible buffer starts
-	out := make([]string, 0, sb.Len()+em.Height())
-	for i := 0; i < sb.Len(); i++ {
-		out = append(out, serializeRow(sb.Line(i), plain))
-	}
-	w := em.Width()
-	for y := 0; y < em.Height(); y++ {
-		out = append(out, serializeRow(visibleRow(em, y, w), plain))
-	}
-	// Trim trailing all-blank lines: a half-empty visible buffer otherwise
-	// leaves a tail of empties at EOF.
-	for len(out) > 0 && out[len(out)-1] == "" {
-		out = out[:len(out)-1]
-	}
-
+	out, viewportTop, marks := r.lines, r.viewportTop, r.marks
 	// Change-log path only: interleave day markers from the time-event snapshots
 	// so the distiller can date entries by real change-time (#59). Done after the
 	// trailing-blank trim so a marker never dangles past content. The scrollback
@@ -350,7 +319,6 @@ func render(rawPath, eventsPath, outPath, viewportPath string, plain bool, maxLi
 	if withTimestamps {
 		out = interleaveDateMarkers(out, marks)
 	}
-
 	// Write the viewport sidecar *first*, then atomically rename the
 	// .ansi into place. Order matters: scrollback.lua's BufReadPost
 	// opens the .ansi and immediately reads the sidecar — flipping the
@@ -389,6 +357,67 @@ func render(rawPath, eventsPath, outPath, viewportPath string, plain bool, maxLi
 		return err
 	}
 	return os.Rename(tmp, outPath)
+}
+
+func replay(rawPath, eventsPath string, plain bool, maxLines int) (replayed, error) {
+	events, err := parseEvents(eventsPath)
+	if err != nil {
+		return replayed{}, fmt.Errorf("parse events: %w", err)
+	}
+	cols, rows := initialSize(events)
+	em := vt.NewEmulator(cols, rows)
+	em.Scrollback().SetMaxLines(resolveMax(maxLines))
+
+	// Drain the emulator's input pipe in the background. CSI status
+	// queries (DSR, Device Attributes, etc.) in the captured stream
+	// trigger handlers that *write a reply back* into this pipe — in a
+	// real terminal those bytes go to the controlling app. Offscreen
+	// replay has no reader, so the handler's WriteString blocks
+	// forever and deadlocks the Write goroutine. Discarding the bytes
+	// preserves emulation correctness; we never act on the replies.
+	//
+	// The emulator is deliberately never closed, and this goroutine is
+	// deliberately allowed to park. vt.Emulator.closed is a plain bool
+	// written by Close() and read by Read() with no synchronisation, so
+	// closing while the drainer is blocked in Read is a data race inside the
+	// dependency. The obvious inversion -- wait for the drainer, then close
+	// -- deadlocks, because Close() is the only thing that can unblock that
+	// Read; an earlier attempt here hit exactly that (its comment survived
+	// after the ordering was flipped back).
+	//
+	// So the drainer stays parked on the pipe for the life of the process.
+	// `pair scrollback` renders once and exits, so the leak is bounded by
+	// process lifetime, and a parked goroutine is cheaper than either a real
+	// race or a fork of the dependency. Revisit if vt makes closed atomic.
+	go func() { _, _ = io.Copy(io.Discard, em) }()
+
+	raw, err := os.ReadFile(rawPath)
+	if err != nil {
+		return replayed{}, fmt.Errorf("read raw: %w", err)
+	}
+	marks := feedSegments(em, raw, events)
+
+	// Scrollback lines (oldest → newest), then visible buffer top → bottom.
+	// Visible buffer iterates by row index rather than dropping trailing
+	// blank rows: an agent that cleared and paused mid-redraw would shift
+	// every subsequent line number otherwise, and `:880` should still land
+	// where zellij showed line 880.
+	sb := em.Scrollback()
+	viewportTop := sb.Len() + 1 // 1-indexed line where the visible buffer starts
+	out := make([]string, 0, sb.Len()+em.Height())
+	for i := 0; i < sb.Len(); i++ {
+		out = append(out, serializeRow(sb.Line(i), plain))
+	}
+	w := em.Width()
+	for y := 0; y < em.Height(); y++ {
+		out = append(out, serializeRow(visibleRow(em, y, w), plain))
+	}
+	// Trim trailing all-blank lines: a half-empty visible buffer otherwise
+	// leaves a tail of empties at EOF.
+	for len(out) > 0 && out[len(out)-1] == "" {
+		out = out[:len(out)-1]
+	}
+	return replayed{lines: out, viewportTop: viewportTop, marks: marks}, nil
 }
 
 func Run(argv []string, stdout, stderr io.Writer) int {

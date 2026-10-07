@@ -3,6 +3,7 @@ package scrollbackcmd
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -103,4 +104,39 @@ func acknowledgeRenderHandoff(lease *storagegc.ProcessLease, id, raw string) err
 	// Re-running a renderer argv after a completed transfer still has a newly
 	// acquired exact-target lease and requires no second use publication.
 	return nil
+}
+
+// RenderOwnedLines renders an owner's live capture (dataDir is the Pair data
+// root; the owner is the repository scope and thread tag within it) (scrollback-<tag>-<agent>)
+// as plain lines, under the same read lease `pair scrollback render` takes, so
+// a reader outside the owning wrapper cannot race its retention. maxLines caps
+// the scrollback history rows (see RenderLines).
+func RenderOwnedLines(dataDir, scope, tag, agent string, maxLines int) ([]string, error) {
+	// An owner is selected by its scoped directory (PAIR_DATA_DIR inside a
+	// wrapper is repos/<scope>, not the data root). The capture's path comes
+	// from that owner, as the lease derives it, so the two agree on the
+	// physical directory.
+	scoped, err := artifactpath.Resolve(artifactpath.Address{DataDir: dataDir, RepoScope: scope, Tag: tag})
+	if err != nil {
+		return nil, err
+	}
+	owner, err := storagegc.SelectedOwner(scoped.ScopeDir(), scope, tag)
+	if err != nil {
+		return nil, err
+	}
+	paths, err := artifactpath.ResolveScoped(owner.Directory(), owner.Tag)
+	if err != nil {
+		return nil, err
+	}
+	live, err := paths.ScrollbackArtifacts(agent)
+	if err != nil {
+		return nil, err
+	}
+	env := map[string]string{"PAIR_DATA_DIR": scoped.ScopeDir(), "PAIR_SCOPE_KEY": scope, "PAIR_TAG": tag, "PAIR_AGENT": agent}
+	lease, err := acquireRenderLease(func(key string) string { return env[key] }, live.Raw, live.Events)
+	if err != nil {
+		return nil, fmt.Errorf("retention: %w", err)
+	}
+	defer lease.Close()
+	return RenderLines(live.Raw, live.Events, maxLines)
 }

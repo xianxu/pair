@@ -795,6 +795,9 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/slotsave.go",
 	"cmd/internal/couchcore/slotfailure.go",
 	"cmd/internal/couchcore/slotmemo.go",
+	// #362 peek: projects a thread's recording and transcripts through
+	// injected readers (scrollbackcmd, OSSwitchContextResolver); no paths here.
+	"cmd/internal/couchcore/peek.go",
 	// #367 recover-plan: the sdlc fleet decoder, its source and fake, the
 	// resume/reboot admission table and the pure join. No artifact paths.
 	"cmd/internal/couchcore/recoverplan_fleet.go",

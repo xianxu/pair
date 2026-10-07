@@ -382,6 +382,7 @@ couch --layout3          threads also get pair's right-hand terminal (the defaul
 couch --list             every durable work thread across all repositories
 couch --show <ref>       one current-repository thread by tag or path, or a slot (repo:N)
 couch --reconcile repo:N converge a slot's workspace now and show what it did
+couch --peek repo:N [--lines N] [--json]   read-only: a slot's recent terminal and transcript paths
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
 couch --recover-plan-from-sdlc   per-slot recovery report (JSON), see below
