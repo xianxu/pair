@@ -37,6 +37,32 @@ rounds:
           round: 1
       recipe: milestone-review
       blocked: true
+    - "n": 2
+      timestamp: "2026-10-07T16:05:13-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: actionableinventory.go reads the resolution on typed refusals; mutation (ignore resolution on refusal) turns TestNamedBindingReasonsAreProducedThroughTheResolver red for no-turn/unconfirmed.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: contractResolver mirrors resume.go:408-411 (resolution plus refusal) and drives no-turn, unconfirmed, ambiguous and session-gone through ActionableThreadInventory.
+          round: 2
+        - id: BR-3
+          disposition: addressed
+          note: Label is now "conversation not confirmed — retry"; the const comment and atlas tie it to the incomplete-listing proof, and the menu notice reuses Label().
+          round: 2
+        - id: BR-4
+          disposition: addressed
+          note: menu.go returns Reason.Label() for the three new reasons; bindingRefusalDiagnostic stays the resume-refusal sentence for a different surface.
+          round: 2
+        - id: BR-5
+          disposition: addressed
+          note: resume_target_test.go adds the bound, re-bound, then unturned (launch 5) ledger shape at query level.
+          round: 2
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#214 (boundary-review)
@@ -57,10 +83,16 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-4** [Minor] `wording-single-source` Binding-code wording now lives in three tables (Label, unusableThreadNotice, bindingRefusalDiagnostic)
 - **BR-5** [Minor] `done-when-test-shape` Query-level fallback test uses a simplified ledger; the 2026-09-08 26/29/31 shape exists only in the pure table
 
+## Round 2 — 2026-10-07T16:05:13-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — addressed — actionableinventory.go reads the resolution on typed refusals; mutation (ignore resolution on refusal) turns TestNamedBindingReasonsAreProducedThroughTheResolver red for no-turn/unconfirmed.
+- BR-2 — addressed — contractResolver mirrors resume.go:408-411 (resolution plus refusal) and drives no-turn, unconfirmed, ambiguous and session-gone through ActionableThreadInventory.
+- BR-3 — addressed — Label is now "conversation not confirmed — retry"; the const comment and atlas tie it to the incomplete-listing proof, and the menu notice reuses Label().
+- BR-4 — addressed — menu.go returns Reason.Label() for the three new reasons; bindingRefusalDiagnostic stays the resume-refusal sentence for a different surface.
+- BR-5 — addressed — resume_target_test.go adds the bound, re-bound, then unturned (launch 5) ledger shape at query level.
+
 ## Open findings
 
-- **BR-1** [Critical] `refusal-drops-resolution` Evidence pass drops the resolution on a typed refusal, so no-turn and unconfirmed are never produced
-- **BR-2** [Important] `test-bypasses-production-seam` Named reasons are tested only via hand-built ThreadEvidence, never through resolver to evidence to classify
-- **BR-3** [Important] `label-matches-proof` unconfirmed label says retry after a turn, but it is proven only by an incomplete storage listing
-- **BR-4** [Minor] `wording-single-source` Binding-code wording now lives in three tables (Label, unusableThreadNotice, bindingRefusalDiagnostic)
-- **BR-5** [Minor] `done-when-test-shape` Query-level fallback test uses a simplified ledger; the 2026-09-08 26/29/31 shape exists only in the pure table
+(none — every finding has been disposed)

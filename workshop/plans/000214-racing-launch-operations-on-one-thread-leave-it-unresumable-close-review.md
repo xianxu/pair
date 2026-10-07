@@ -94,3 +94,91 @@ findings:
     title: |
       Query-level fallback test uses a simplified ledger; the 2026-09-08 26/29/31 shape exists only in the pure table
 ```
+
+---
+
+## Re-review — 2026-10-07T16:05:12-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 214 — racing launch operations on one thread leave it unresumable |
+| repo | pair |
+| issue file | workshop/issues/000214-racing-launch-operations-on-one-thread-leave-it-unresumable.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 6986321e216f9da591464e5991bcb03a5675fdf4..7cd33d907cde6d81944994aeea2e17a5c26ae3b9 |
+| command | sdlc close --issue 214 |
+| reviewer | claude |
+| timestamp | 2026-10-07T16:05:12-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+All five findings from round 1 are dealt with, and I found nothing new worth raising.
+
+- **BR-1 (Critical) is fixed.** The resolver hands back its resolution and a typed refusal together. The evidence pass at `actionableinventory.go:1008-1035` now reads the resolution on that path, and only a genuine IO error (one that isn't a typed refusal) is left as unresolved.
+- **I checked that the new test catches the bug.** In a scratch copy I put the old behaviour back (on a refusal, the resolution is ignored). `TestNamedBindingReasonsAreProducedThroughTheResolver` then fails: the no-turn and unconfirmed cases come back as `session-gone`. With the fix they pass.
+- **The test's fake resolver matches the real one.** `contractResolver` returns the same shape as the real resolver at `resume.go:408-411`.
+- **Test runs:**
+  - The sessioninventory and sessionledger packages pass.
+  - The targeted couchcore and couchtty tests pass.
+  - The full couchcore package run hit the 600s timeout. I couldn't see which test hung because only the tail of the output was kept, so that run is not evidence either way.
+  - Four couchtty tests fail on the sandbox's pty and `/tmp` restrictions (`operation not permitted`), not on this change.
+
+**Strengths**
+- `provenBindingRefusal` (`actionableinventory.go:95`) only names a reason when the resolution proves it. Its table test covers both the proven and the unproven cases.
+- `IsBindingFailure` is now the single check used by every place that used to compare against `ReasonBindingLost`: `SwitchableState`, `ActorRowFactsOf`, slotstart's reuse notices, and the menu test's expectations.
+- A resolver IO error stays `unknown` instead of being turned into a verdict, and `TestAResolverIOFailureProjectsUnknownNotABindingReason` covers it.
+- `PreviousEstablished` only looks back to the nearest earlier launch, so it never jumps to old history. It is tested on its own and at the query level, including the 2026-09-08 shape.
+- The new lessons.md entry states a general rule (test each projected value through the real seam), not just the one case that broke.
+
+**Critical:** none.
+
+**Important:** none.
+
+**Minor**
+- `IsBindingFailure` includes `unconfirmed`, so a storage listing that is only temporarily incomplete still triggers the "lost" reuse notice at `slotstart.go:253`. That is arguably harsher than the "retry" label suggests. I didn't raise it as a finding.
+- The `switch` at `actionableinventory.go:1009` has an empty first case that exists only for its comment. An `if` would read more plainly.
+
+**Test coverage:** the named reasons are now exercised through the production resolver seam, in classify tables, actor-action rules, the menu action spec, the label-word guard, the query-level fallback and the ledger table.
+
+**Architecture**
+- **ARCH-DRY: pass.** The menu notice reuses `Label()`, and `IsBindingFailure` is the one definition of the class.
+- **ARCH-PURE: pass.** Classification and proof selection are pure functions; the gather pass is a thin IO shell around them.
+- **ARCH-PURPOSE: pass.** The issue's purpose (name the reasons, and fall back past an unturned launch) is reachable in production.
+- **ARCH-MOCK: pass.** The stateful fake and the contract resolver share the real refusal constructors.
+- **ARCH-CONSTRAINTS: pass.** It adds no new probes; it reuses the existing ledger read.
+- **ARCH-SECURE: pass.** The ledger is parsed by the existing `ParseLedger`, and the fallback requires exactly one bound root.
+- **ARCH-ORDER: pass.** Uncertainty (an IO error, an incomplete listing) is kept as unknown or unconfirmed, never collapsed into a verdict.
+- **ARCH-FUNERAL: pass.** Nothing durable is created; `FellBackFrom` only lives in memory.
+
+**Plan revisions:** none needed.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      actionableinventory.go reads the resolution on typed refusals; mutation (ignore resolution on refusal) turns TestNamedBindingReasonsAreProducedThroughTheResolver red for no-turn/unconfirmed.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      contractResolver mirrors resume.go:408-411 (resolution plus refusal) and drives no-turn, unconfirmed, ambiguous and session-gone through ActionableThreadInventory.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Label is now "conversation not confirmed — retry"; the const comment and atlas tie it to the incomplete-listing proof, and the menu notice reuses Label().
+  - id: BR-4
+    disposition: addressed
+    note: |
+      menu.go returns Reason.Label() for the three new reasons; bindingRefusalDiagnostic stays the resume-refusal sentence for a different surface.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      resume_target_test.go adds the bound, re-bound, then unturned (launch 5) ledger shape at query level.
+```

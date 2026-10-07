@@ -15,7 +15,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "93b62408", done: "ed20fee6"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # racing launch operations on one thread leave it unresumable
@@ -209,6 +209,10 @@ Durable plan: `workshop/plans/000214-racing-launch-operations-on-one-thread-leav
 
 ## Log
 
+
+
+- 2026-10-07: closed — Close review REWORK fixed: BR-1 evidence pass reads the resolution on typed refusals (the real resolver contract); BR-2 TestNamedBindingReasonsAreProducedThroughTheResolver drives no-turn/unconfirmed/conversation-ambiguous/session-gone through the resolver seam (red under the BR-1 mutation); BR-3 unconfirmed label 'conversation not confirmed — retry'; notice single-sourced via Label(); 2026-09-08 shape tested at query level. Unsandboxed clean-env: couchcore, couchtty, couchcmd, sessioninventory, sessionledger, launcher, wrapcmd green; full-suite residue pre-existing/environmental (artifactpath base list, cold-resume -race flake, gcruntime, TMPDIR/session-env shell tests).; review verdict: SHIP
+- 2026-10-07: flow upgraded quick → full — 173 added lines in code files (limit 100); an earlier round of this close already ran the full review
 ### 2026-09-08
 
 Operator report, diagnosed from the ledger and threadstore rather than reproduced live. The timeline
