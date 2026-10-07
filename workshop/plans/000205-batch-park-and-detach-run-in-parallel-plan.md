@@ -92,13 +92,22 @@ unchanged.
 | Pass completions arrive out of order | `finishReattach` matches by attempt number in the in-flight map, not "the" attempt | none |
 | One of N `Leave` threads fails | Others continue; joined error plus partial result (D6) | none: already-detached threads stay detached |
 | couch process dies mid-`Leave` | Unchanged from today: per-thread durable transitions; the next startup reconciles | n/a |
+| A thread's agent exits on its own while its park is in flight | Unchanged: park already treats child death as completion evidence (`awaitCompletionAndChildDeath`). The gate stays held until park returns, so no other operation sees the half-torn-down thread | park's recovery modes |
+| `Leave` waited behind a holder, so its snapshot row is stale | `leaveOne` takes `holdWait` **first**, then re-reads the record with `GetThread` and decides from that. Never from the snapshot | none |
+| Completion-side effects run after release (`finishOperation` → `attach`/`AbortStarted` on the console goroutine) | These act on the exact actor record and process identity the operation returned, never on "the thread's current state". A newer holder's incarnation has a different identity and is untouched. Test in Task 10 | none |
+| Boot: `StartInteractive` resumes a thread `RecoverActiveParks` holds | Startup **waits** (`ResumeOptions.WaitForHolder`). The operator's first frame must not fail because boot recovery touched the same thread | none |
 
 **Most likely to be mishandled:** a composite that releases its hold before its
-inner park finishes. That's why D4 has its own test.
+inner work finishes (D4), and its twin, a drain that decides from an observation
+taken before it waited (`Leave`'s snapshot). Both have their own tests.
 
 **Nondeterminism:** scheduler order of goroutines. Tests control it with blocking
 fakes (a park whose `TriggerQuitHook` waits on a channel) and assert outcomes
 that hold under any order. They don't assert sleeps.
+
+The issue's Done-when requires these answers to be stated **in the issue**. Task 5
+copies this table into its `## Spec` under "The interleaving policy has to be
+written down", replacing the open questions there.
 
 ### ARCH-FUNERAL
 
@@ -198,6 +207,7 @@ func TestGateDecision(t *testing.T) {
 		{"free thread admits", nil, b, gateAdmit, ""},
 		{"held thread refuses a stranger", nil, a, gateBusy, "relaunch"},
 		{"holder re-enters its own thread", []ThreadAddress{a}, a, gateReenter, ""},
+		{"a released hold in a surviving context does not bypass", []ThreadAddress{b}, b, gateAdmit, ""},
 		{"a holder of another thread is still refused", []ThreadAddress{b}, a, gateBusy, "relaunch"},
 	}
 	for _, tc := range cases {
@@ -314,15 +324,18 @@ const (
 // gateDecision is the whole admission rule: one lifecycle operation per
 // thread, re-entered by its own holder.
 func gateDecision(held map[ThreadAddress]string, holds []ThreadAddress, address ThreadAddress) (gateVerdict, string) {
+	running, isHeld := held[address]
+	if !isHeld {
+		// Also covers a context that outlived its own release: re-entry needs
+		// the hold to still exist, or a stale ctx would bypass the gate.
+		return gateAdmit, ""
+	}
 	for _, h := range holds {
 		if h == address {
 			return gateReenter, ""
 		}
 	}
-	if running, ok := held[address]; ok {
-		return gateBusy, running
-	}
-	return gateAdmit, ""
+	return gateBusy, running
 }
 
 type gateHoldsKey struct{}
@@ -394,18 +407,12 @@ func (c *Couch) holdWait(ctx context.Context, address ThreadAddress, op string) 
 }
 ```
 
-Add to the `Couch` struct (`couch.go`) the fields `gateOnce sync.Once` and
-`threadGate *ThreadGate`, and:
+Add the field `threadGate ThreadGate` to the `Couch` struct (`couch.go`). It
+is a plain value, since the zero value is ready, and `Couch` is always used by
+pointer:
 
 ```go
-func (c *Couch) gate() *ThreadGate {
-	c.gateOnce.Do(func() {
-		if c.threadGate == nil {
-			c.threadGate = &ThreadGate{}
-		}
-	})
-	return c.threadGate
-}
+func (c *Couch) gate() *ThreadGate { return &c.threadGate }
 ```
 
 - [ ] **Step 4: Run, expect PASS.** Same command, plus `-race`.
@@ -426,7 +433,20 @@ func (c *Couch) gate() *ThreadGate {
   joined with the `ctx` error. Leave `parkFuture.Await` unchanged for
   `reconcileActive`, which already awaits under its own loop. Comment the
   reason: a hold must not end while the effect it guards is still running.
-- [ ] **Step 4: Run, expect PASS** (`go test ./cmd/internal/couchcore -run Submit -race -count=1`).
+- [ ] **Step 3b: `parkWorker` releases its address before signalling done.**
+  `parkworker.go:79-83` closes `future.done` and *then* deletes `active[address]`.
+  So after `submit` returns, the worker still briefly counts the address. A
+  following `Park` on that address with a new nonce is refused "another park
+  transaction already owns this address", and at full capacity a sibling gets
+  `ErrParkWorkerOverloaded`. Reorder to delete under `w.mu`, then close `done`.
+  Test: `TestParkWorkerFreesTheAddressBeforeDone`. After `Await` returns, an
+  immediate `Submit` on the same address with a new nonce is admitted (loop it
+  1000× under `-race`).
+- [ ] **Step 4: Run, expect PASS** (`go test ./cmd/internal/couchcore -run 'Submit|ParkWorker' -race -count=1`).
+  D4 lengthens console shutdown by at most the time the park work takes to see
+  cancellation, which `CompletionTimeout` bounds. `c.workers.Wait()`
+  (`couchtty/console.go:936`) already waits on the workers, so nothing hangs.
+  Check that the existing quit tests still pass.
 - [ ] **Step 5: Commit.**
 
 ### Task 3: Gate every lifecycle entry
@@ -450,22 +470,43 @@ defer release()
 | `SwitchAgent` | `switchagent.go:258` (address from the request) | `switch-agent` | refuse |
 | `Continue` | `continuation.go:185` | `continue-thread` | refuse |
 | `RetryContinuation` | `continuation_recovery.go:231` | `retry-continuation` | refuse |
-| `ReconcileContinuation` | `continuation_recovery.go:182` | `continuation-status` | refuse |
-| `rebootPrimary` / `rebootSlot` | `reboot.go` (after each resolves its address) | `reboot` | refuse |
+| `ReconcileContinuation` | `continuation_recovery.go:182` | `continuation-status` | refuse. The console's continuation scan treats busy as "not yet" and retries on its next scan, silently (Task 4) |
+| `rebootPrimary` / `rebootSlot` | `reboot.go`. In `rebootSlot`, hold **after** the `switch` at :226-229, so `ctx` is not shadowed inside a case. The unreadable-record branch has no address and is accepted unheld: it archives a file couch cannot decode | `reboot` | refuse |
+| `RecoverThread` | `recovery_execute.go:213`. A composite: it writes (`reconcileRecoveryHelper` :257, `prepareAbsentContinuation` :279) before calling `ResumeContextWith` / `RetryContinuation` | `recover` | refuse |
+| `Stop` | `couch.go` (`Stop(record)`: hold `record.Thread` when it is non-zero) | `stop` | refuse |
 | **new** `Couch.Park(ctx, address, mode)` | `park.go` | `park` | refuse |
-| `Leave`'s per-record step | `park.go:194` loop body | `leave` | **wait** |
+| `Leave`'s per-record step | `park.go:194` loop body, extracted here into `leaveOne(ctx, address, disposition)`: `holdWait`, then `GetThread`, then today's decision | `leave` | **wait** |
 | `RecoverActiveParks`'s per-record step | `couch.go:89` loop body | `park-recovery` | **wait** |
 
 `Couch.Park` holds the gate and switches on `mode` to
 `PairLifecycle.Park/Retry/Recover/Abandon`. The executor's `"park"` case
 (`operationdispatch.go:358`) calls it instead of reaching `c.PairLifecycle`
 directly. So the executor no longer holds lifecycle logic; it routes, like every
-other case. `ResumeTarget` (path or address) needs no hold of its own: every road
-it takes ends in a gated entry.
+other case. `ResumeTarget` (path or address) needs no hold of its own. Every
+route (`resume_route.go:180-205`) ends in a gated entry *before any write*:
+`ResumeContextWith`, `RetryContinuation`, or `RecoverThread`, which is gated
+above because it writes first.
+
+**Not gated, with reasons:**
+- `DismissContinuation` and `RequestContinuation` are single revision-CAS writes
+  to the record, with no process effect.
+- `StartFreshSlot` and `start` mint a new address.
+- `ArchiveThread` is CAS-guarded and has no live caller.
+- `ReconcileActiveParks` has no interactive caller; `RecoverActiveParks` is the
+  one used.
+
+`ResumeContextWith` gains `ResumeOptions.WaitForHolder`. `StartInteractive`
+(`startup.go:241`) sets it, so the boot resume waits behind `RecoverActiveParks`
+instead of failing the operator's first frame.
 
 - [ ] **Step 1: Failing tests** in `cmd/internal/couchcore/threadgate_couch_test.go`,
   built on `envWithLiveThread`:
-  - `TestAResumeDuringARelaunchIsRefusedAndTheThreadStaysResumable`:
+  - `TestARelaunchDuringAResumeIsRefused`: the Done-when's resume-then-relaunch
+    order. Block a cold resume in its launch (`env.Runner` acknowledge hook),
+    call `Relaunch`, and assert `*ThreadBusyError` with `Running == "resume"`.
+    Once the hook is released, the resume completes and the thread is live.
+  - `TestAResumeDuringARelaunchIsRefusedAndTheThreadStaysResumable` (the
+    2026-09-08 incident's order):
     1. Set `TriggerQuitHook` to block on a channel. Start `Relaunch` in a
        goroutine and wait until the hook is entered.
     2. Call `ResumeContext` on the same address and assert `*ThreadBusyError`
@@ -477,13 +518,21 @@ it takes ends in a gated entry.
   - `TestTheGateDoesNotSerialiseDifferentThreads`: two threads, a blocked
     relaunch on A; `Detach(B)` completes.
   - `TestEveryLifecycleEntryRefusesAHeldThread`: table over the entries above
-    in refuse mode. Hold the address with `c.hold(ctx, addr, "test")`, call
-    each entry and assert `*ThreadBusyError`. This test is the enumeration that
+    in refuse mode, `RecoverThread` and `Stop` included. Hold the address with
+    `c.hold(ctx, addr, "test")`, call each entry and assert `*ThreadBusyError`. This test is the enumeration that
     keeps a future entry from skipping the gate (ARCH-PURPOSE: the class, not
     the instance).
   - `TestLeaveAndParkRecoveryWaitForAHolder`: hold A, start `Leave(LeaveDetach)`
     in a goroutine, assert it hasn't returned, release, assert A is in
     `Detached`.
+  - `TestLeaveDecidesFromTheRecordAfterWaiting`: A is detached in the snapshot.
+    Hold A, start `Leave`, then make A live with a new incarnation (a warm
+    resume) and release. Assert `Leave` detached A rather than skipping it on
+    the stale snapshot row. In Task 3 `leaveOne` already takes `holdWait`
+    first and then re-reads with `GetThread`; Task 7 only adds the fan-out.
+  - `TestStartupResumeWaitsBehindParkRecovery`: hold A as `park-recovery`, call
+    `ResumeContextWith(WaitForHolder)` in a goroutine, release, and assert it
+    proceeds.
 - [ ] **Step 2: Run, expect FAIL.**
 - [ ] **Step 3: Implement** the table above, one entry per commit-sized edit.
 - [ ] **Step 4: Run** `go test ./cmd/internal/couchcore -race -count=1`. Expect PASS,
@@ -505,11 +554,18 @@ it takes ends in a gated entry.
     someone else, so its row is not a failure.
   - A remote job refused busy reports the error text to its caller.
 - [ ] **Step 2: Run, expect FAIL.**
-- [ ] **Step 3: Implement.** Add `couchcore.IsThreadBusy(err) bool` (an
-  `errors.As` wrapper) next to `ThreadBusyError`. In `finishReattach`, treat it
-  like `ResumeNotDetached`. The operator notice and the remote path already
-  carry `err.Error()`; assert rather than change them unless a test shows
-  otherwise.
+- [ ] **Step 3: Implement.** `finishReattach` sees only `event.Diagnostic`,
+  which `console.go:1844` sets from `couchcore.ResumeDiagnosticOf(err)`, so
+  busy has to arrive as a diagnostic code:
+  - Add `ResumeThreadBusy` to the resume diagnostic codes.
+  - Teach `ResumeDiagnosticOf` to return it for a `*ThreadBusyError` (via
+    `errors.As`).
+  - In `finishReattach`, add it to the cell-6 skip case alongside
+    `ResumeNotDetached` and `ResumeSessionGone`.
+  - In the console's continuation scan, an operation refused busy leaves
+    `watch.queued` false, so the next scan retries it without a notice.
+  - The operator notice and the remote path already carry `err.Error()`;
+    assert rather than change them unless a test shows otherwise.
 - [ ] **Step 4: Run** `go test ./cmd/internal/couchtty -race -count=1`. Expect PASS.
 - [ ] **Step 5: Commit.**
 
@@ -517,6 +573,8 @@ it takes ends in a gated entry.
 
 - [ ] Atlas: add the gate to `atlas/couch.md`'s lifecycle section: one paragraph
   covering the rule, the drains, re-entry, and a pointer to `threadgate.go`.
+- [ ] Copy the ARCH-ORDER table into the issue's `## Spec`, answering the open
+  interleaving cells. Log it in the issue Revisions.
 - [ ] Full verification per the repo's test memory: unsandboxed `make -k test`,
   then `go test ./...`. Record the results in the issue Log.
 - [ ] `sdlc milestone-close --issue 205 --milestone M1 --verified '<evidence>'`.
@@ -555,9 +613,9 @@ it takes ends in a gated entry.
     report.
 - [ ] **Step 2: Run, expect FAIL.**
 - [ ] **Step 3: Implement.**
-  - Split the loop body into
-    `leaveOne(ctx, record, disposition) (leaveOutcome, error)`, which is
-    unchanged logic plus `holdWait`.
+  - The loop body is already `leaveOne` from Task 3, which takes `holdWait`, then
+    re-reads with `GetThread`, then decides. Task 7 only drives it
+    concurrently.
   - Run it over the snapshot with a semaphore of `LifecycleParallelism`.
   - Collect into a slice indexed by record position, then build the
     `LeaveResult` lists in snapshot order. Return `errors.Join` of the
@@ -578,6 +636,40 @@ it takes ends in a gated entry.
   instead of failing? Its semaphore already caps it at the bound, so assert
   that `Leave` never sees `ErrParkWorkerOverloaded`.
 - [ ] Commit.
+
+### Task 8b: The actor registry is safe under concurrent operations
+
+**Files:** `cmd/internal/couchcore/couch.go`, `launch_existing.go`. Test in
+`cmd/internal/couchcore/registry_concurrency_test.go`.
+
+`c.reg` and `c.names` are read-modify-written with no lock:
+- `launch_existing.go:260-263` (`withoutDead`, `Insert`, `Store.Save`);
+- `couch.go:815` (`AbortStarted`);
+- `couch.go:1110` (`Forget`, which the console goroutine calls via `SetForget`,
+  `couchcmd/run.go:749`).
+
+With parallel workers, two inserts can start from the same old registry, and
+one actor record is lost both in memory and on disk. A small version of this
+race exists today, between `Forget` on the console goroutine and the single
+worker.
+
+- [ ] **Step 1: Failing test.** `TestConcurrentLaunchesKeepEveryActorRecord`
+  runs 8 goroutines through the registry insert path on distinct threads, with
+  a concurrent `Forget` loop, under `-race`. Assert the race detector stays
+  clean, the saved registry holds all 8 actors, and the in-memory registry
+  holds all 8.
+- [ ] **Step 2: Implement.**
+  - Add `regMu sync.Mutex` to `Couch`. Every read-modify-write of
+    `c.reg`/`c.names` and its `Store.Save` happens under it, as one critical
+    section per writer.
+  - Readers take the lock to copy the value (the registry is an immutable
+    value type, so a copied value is safe to use after unlocking).
+  - Route all ~20 `c.reg`/`c.names` uses through two helpers,
+    `c.registry() (Registry, Names)` and
+    `c.mutateRegistry(func(Registry, Names) (Registry, Names, error)) error`,
+    so a future writer cannot skip the lock (ARCH-DRY).
+- [ ] **Step 3: Run** `go test ./cmd/internal/couchcore -race -count=1`. Expect PASS.
+- [ ] **Step 4: Commit.**
 
 ### Task 9: The reattach pass keeps up to the bound in flight
 
@@ -604,7 +696,12 @@ external reader of `Loading`), `menu_reattach_test.go`.
   - `advanceReattach` loops while `len(InFlight) < bound` and the queue is
     non-empty.
   - `PassView`'s `PassLoading` comes from membership in `InFlight`'s values.
-  - Update `console.go:687`.
+  - `pendingPlaceholders` (`menu_reattach.go:291-307`) builds its chips as the
+    in-flight threads **sorted by attempt number**, then the queue. Map order
+    would jitter the chip columns every frame. Add a test that renders twice
+    and compares the chip order.
+  - Update the other consumers of loading state: the status-tick check at
+    `console.go:687`, and the "the one placeholder" comment at `reserve.go:45`.
 - [ ] **Step 4: Run** `go test ./cmd/internal/couchtty -race -count=1`.
 - [ ] **Step 5: Commit.**
 
@@ -626,6 +723,10 @@ external reader of `Loading`), `menu_reattach_test.go`.
     bound and record why in the Log.
   - `TestAReattachedChildKeepsItsTrackingMode` (#196) unchanged, plus a new
     variant that completes N reattaches in one burst.
+  - New test, `TestALateCompletionDoesNotTouchANewerHolder`. An attempt on A
+    completes and is adopted. Its failed sibling's `AbortStarted` runs after a
+    new operation has taken A's hold. Assert that the abort removes only its own
+    actor ID and never the newer incarnation.
 - [ ] **Step 4: Commit.**
 
 ### Task 11: Counted invariant and measurement
