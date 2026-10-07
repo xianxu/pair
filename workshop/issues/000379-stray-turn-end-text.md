@@ -394,6 +394,13 @@ implementation or a reproduction of the reported misplaced text.
   Targeted capture tests passed. Baseline check retained in
   `/tmp/pair379-regular-baseline.log`; no rendering fix is claimed.
 
+### 2026-10-07 — Recording resumed with shipped tracing
+
+- #404 landed through PR #206. Operator restarted ordinary Couch with `COUCH_CAPTURE_DIR="$HOME/.local/share/pair/captures" COUCH_CAPTURE_MAX_MIB=4096 couch`.
+- New recording: `/Users/xianxu/.local/share/pair/captures/session-2616925832/events.jsonl`; started 14:00:35 PDT (21:00:35 UTC), PID 61877, clean build revision `86da11d31a2d64a91986e8848e69e00345c4efaf`, budget 4,294,967,296 bytes. At 21:05:33 UTC the readable prefix was 93,317,062 bytes, including 49,602 endpoint feeds, 892 host writes, ten endpoint opens/bindings, geometry and selection records. Partial trailing lines were excluded while the writer remained active; no capture-end appeared in this snapshot. This confirms ongoing recording, not a finalized complete capture or a reproduction.
+- Another earlier capture, `session-1849422337`, used old build `0b384b45` and ended incomplete after 7.53 seconds (queue limit). Preserve as instrumentation evidence; it does not implicate the shipped recorder.
+- Operator requested clearer badge emphasis. Delivered separately as #405 / PR #209: bold reverse-video capture label, existing scoped reset; then resumed this issue and merged current main. #379 remains open, awaiting an observed incident with its approximate time and thread/pane. Preserve the entire capture directory and exit Couch normally after an incident to finalize evidence before replay analysis.
+
 ## Revisions
 
 - 2026-10-07 — Corrected the interpretation of “isolated session”: operator wants
