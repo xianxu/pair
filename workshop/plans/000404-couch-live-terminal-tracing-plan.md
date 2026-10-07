@@ -96,3 +96,88 @@ Files: `atlas/` existing Couch diagnostic documentation (linked from atlas/index
 - [ ] Add regression coverage from the observed workload and implement the approved reliability changes.
 - [ ] Verify regular-session capture survives startup and remains usable for waiting on #379; document limits and evidence gaps honestly.
 - [ ] Complete independent review and ship #404 without closing #379.
+
+
+## 2026-10-07 reliability revision — proposed completion design
+
+This revision supersedes the imported queue and failure-visibility decisions;
+all previous verification remains historical. Use the existing full-prefix file
+format; rolling arbitrary ANSI history would discard parser/screen state needed
+for faithful reproduction. Keep a finite configurable disk budget and make its
+usage and stop condition persistent in Couch. Operator retention preference is
+being checked before finalizing this design.
+
+### Evidence and bounded workload
+
+The failed regular capture has 3,280 records and 3,722,498 raw data bytes over
+6.88 seconds. 3,228 are endpoint-feed records; the largest payload is 18,851
+bytes. The busiest observed 100 ms contains 279 records / 277,881 payload bytes.
+A 128-record bound can fail with well under the 8 MiB memory budget. Replace it
+with 8,192 records while retaining the 8 MiB admission-cost bound (including
+in-flight data and string/record overhead). This holds the entire observed burst
+with writer progress paused. It is a measured envelope, not a promise to keep up
+with indefinitely blocked storage. No producer waits for disk. Test a sanitized
+4,000-record / 1 KiB burst with a deliberately blocked writer, then verify exact
+order and bytes after drain. Replay the actual capture locally, without checking
+private contents into Git. No buffering optimization without measurement.
+
+### Core concepts and integration
+
+| Entity | Lives in | Status |
+|---|---|---|
+| Capture status snapshot (phase, persisted bytes, limit, failure) | terminalcapture/recorder.go | new |
+| Admission and completion lifecycle | terminalcapture/recorder.go | refined |
+| Capture status badge | couchtty/reserve.go | new |
+| Capture configuration | couchcmd/capture.go | extended |
+
+Recorder phase transitions: recording + admit -> recording; recording + close
+-> draining; recording/draining + failure -> failed; draining + successful
+writer close -> closed. Failed stays failed; no later data admission. Repeated
+close keeps its existing idempotent receipt and bounded wait. No caller may
+mutate phase. Record and worker transitions/status share the recorder mutex.
+Persisted-byte counters advance from write receipts, not offered data; a complete
+end still means admitted-stream completeness, not successful command shutdown.
+
+Recorder exposes nil-safe Status() and a bounded coalesced Changes() notification
+channel. Notify on phase/failure or whole-percent usage changes, not every record;
+read the authoritative snapshot after notification. Never call Console from the
+recorder. Console.Run selects Changes alongside existing events, then uses its
+Presenter-owned repaint. Initial paint reads status even if failure preceded Run.
+No new goroutine, stderr output, timer, or closed-channel busy loop. Badge precedes
+actor chips, never owns a click target, is clipped normally, and remains visible
+in actor and switcher views. Failures show a compact fixed reason (queue/full/IO),
+not unsanitized filesystem/error text. Disabled mode remains unchanged.
+
+Configuration: retain default 256 MiB complete capture; add strict positive
+COUCH_CAPTURE_MAX_MIB override (bounded to a documented safe maximum), meaningful
+only with explicit COUCH_CAPTURE_DIR. Validate before launch; clear both from
+children. Expose configuration via Open options without breaking existing callers.
+Status shows capture usage percentage and persistent stopped reason. Once stopped,
+restart capture with a larger budget; no silent resumption or discarded prefix.
+Runbook gives a 4 GiB opt-in example for a longer wait and explains duration depends
+on recorded traffic. No guarantee that any finite cap covers an indefinite wait.
+
+ARCH-DRY: use existing recorder, status row and Presenter rather than a second
+terminal writer. ARCH-ORDER: explicit phases and coalesced wakeups; missed/coalesced
+notifications cannot erase failure. ARCH-CONSTRAINTS: memory remains 8 MiB, record
+count 8,192, disk finite/configurable, no new producer blocking. ARCH-PURPOSE:
+full-prefix evidence and immediate failure visibility support #379 without claiming
+a root cause. ARCH-PURE/SECURE: typed status and strict config parsing; private
+files and existing exact-byte schema remain. ARCH-MOCK: existing stateful faultSink,
+fake Console host and real-PTY integration. ARCH-FUNERAL: per-run files remain
+operator-retained evidence within the selected finite cap; runbook states per-run
+cost and explicit deletion responsibility rather than auto-deleting investigation
+evidence. No new persistent artifact family or external service.
+
+### Completion tasks (one close/review boundary)
+
+- [ ] Write failing blocked-startup-burst and status/wakeup lifecycle tests; implement
+  queue correction and explicit recorder phase/status with receipt accounting.
+- [ ] Write invalid/valid disk-limit and child-environment tests; implement config
+  at couchcmd composition root, preserving optional isolation and default-off.
+- [ ] Write status-row and idle failure repaint tests (actor and switcher), then wire
+  recorder changes through Console.Run. Cover pre-Run failure and narrow rows.
+- [ ] Replay local measured workload; extend real-PTY regular/isolated fixture with
+  sustained startup output and assert both exact boundaries survive capture.
+- [ ] Update runbook (limits, stopped state, larger-budget launch, retention and
+  extraction), run relevant suites/race checks, build, review and ship #404 only.
