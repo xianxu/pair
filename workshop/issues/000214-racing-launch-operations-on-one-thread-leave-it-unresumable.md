@@ -242,6 +242,40 @@ premise of this issue mostly stale:
 Stale line refs: `console.go:1509`→`:1661`, `:538`→`:629`,
 `actionableinventory.go:370-376`→`:668-674`.
 
+### 2026-10-07: design reading (after #205 landed)
+
+**Item 1, naming the failure:**
+- The evidence pass drops `bindingResumeDiagnostic`'s code
+  (`actionableinventory.go:965`), and `ThreadEvidence` has no field for it.
+- `ClassifyThread` says `binding-lost` only when a park receipt exists
+  (`:613-618`). Otherwise a binding failure is labelled `session-gone`
+  (`:626`), which can be archived.
+- **Separate bug:** a resolver IO error still marks the proof resolved (`:964`),
+  and a zero resolution reads as "unbound". Relaunch already guards against
+  this (`relaunch.go:123-130`); the evidence pass does not.
+- Wording already exists in `bindingRefusalDiagnostic` (`resume.go:363`) and
+  `ResumeRebootAdvice` (`resume_route.go:65`): unbound and ambiguous mean
+  reboot, provisional means retry after a turn.
+- Every table that grows with a new reason is listed by the exploration: the
+  label, the defining-word test, the menu notice, `SwitchableState`, the slot
+  resume offer and the lost-slot notice.
+
+**Item 2, shadowing:**
+- `sessionledger.CurrentLaunch` (`record.go:556`) keeps only the newest
+  launch's bindings. Its writers (`store.go`) need that meaning, so the reader
+  is the place to change.
+- The in-pane restart (`wrap.go:2462`) records a chosen-id launch with **no
+  process identity**, so "is that launch's process gone" cannot be decided from
+  the ledger.
+- The evidence that decides it: a complete listing that proves the chosen
+  session file absent (`FreshRequired`). That means the fresh agent never took
+  a turn.
+- Couch reads the ledger only when no session is present and nothing is live
+  (`:959`).
+- This is the #168 shape (punted, "reopen if a new thread loses its binding
+  this way"), and the 2026-09-08 incident qualifies.
+- No test covers bindings followed by a newer unbound launch.
+
 ## Revisions
 
 ### 2026-10-06: concurrency half moved to `#205`
