@@ -118,15 +118,15 @@ func ProjectSessionPresence(bindings []SessionNameBinding, sessions []launcher.S
 			// Either no name at all -- the caller decides whether that means
 			// "no row" or "could not read" -- or a name nobody can attribute.
 			observation.State = SessionUnresolved
-		case servers[binding.SessionName].Contested:
+		case hasServer(servers, binding.SessionName, launcher.ServerContested):
 			// Two servers for one name: an orphan may hide behind the live one.
 			observation.State = SessionUnresolved
 		case index.live[binding.SessionName]:
 			observation.State = SessionPresent
-		case servers[binding.SessionName].Orphaned:
+		case hasServer(servers, binding.SessionName, launcher.ServerOrphaned):
 			server := servers[binding.SessionName].Server
 			observation = SessionObservation{State: SessionOrphaned, Orphan: &server}
-		case servers[binding.SessionName].Unresolved:
+		case hasServer(servers, binding.SessionName, launcher.ServerUnresolved):
 			observation.State = SessionUnresolved
 		default:
 			// Listed and exited, or not listed at all. Both are the honest
@@ -137,6 +137,14 @@ func ProjectSessionPresence(bindings []SessionNameBinding, sessions []launcher.S
 		out[binding.Address] = observation
 	}
 	return out
+}
+
+// hasServer reports a server row for name with exactly this verdict. A name with
+// no server row is absent from the map, so it never matches -- not even the
+// zero verdict.
+func hasServer(servers map[string]launcher.ServerState, name string, verdict launcher.ServerVerdict) bool {
+	state, ok := servers[name]
+	return ok && state.Verdict == verdict
 }
 
 // sessionNameIndex is one pass over a zellij snapshot: which names are live, and

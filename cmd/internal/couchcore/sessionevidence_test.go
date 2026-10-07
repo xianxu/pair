@@ -714,11 +714,11 @@ func TestForeignOwnedParkIsRepresentableAndRefused(t *testing.T) {
 func TestProjectSessionPresenceSeesAnOrphan(t *testing.T) {
 	orphan := launcher.SessionServerIdentity{PID: 9, Identity: "t9", Session: "orphan", Socket: "/s/orphan"}
 	servers := map[string]launcher.ServerState{
-		"orphan":          {Server: orphan, Orphaned: true},
-		"orphan-exited":   {Server: launcher.SessionServerIdentity{PID: 10, Session: "orphan-exited"}, Orphaned: true},
-		"unreadable":      {Unresolved: true},
-		"live-unreadable": {Unresolved: true},
-		"contested":       {Server: launcher.SessionServerIdentity{PID: 11, Session: "contested"}, Orphaned: true},
+		"orphan":          {Server: orphan, Verdict: launcher.ServerOrphaned},
+		"orphan-exited":   {Server: launcher.SessionServerIdentity{PID: 10, Session: "orphan-exited"}, Verdict: launcher.ServerOrphaned},
+		"unreadable":      {Verdict: launcher.ServerUnresolved},
+		"live-unreadable": {Verdict: launcher.ServerUnresolved},
+		"contested":       {Server: launcher.SessionServerIdentity{PID: 11, Session: "contested"}, Verdict: launcher.ServerOrphaned},
 	}
 	sessions := []launcher.Session{
 		{Name: "orphan-exited", State: launcher.SessionExited},
@@ -759,12 +759,12 @@ func TestAContestedServerNameIsNeverPresent(t *testing.T) {
 	a := presenceAddress("couch-0000000000000031")
 	bindings := []SessionNameBinding{{Address: a, SessionName: "twice"}}
 	sessions := []launcher.Session{{Name: "twice", State: launcher.SessionLive}}
-	servers := map[string]launcher.ServerState{"twice": {Unresolved: true, Contested: true}}
+	servers := map[string]launcher.ServerState{"twice": {Verdict: launcher.ServerContested}}
 	if got := ProjectSessionPresence(bindings, sessions, servers, claimsFromSessionBindings(bindings)); got[a].State != SessionUnresolved {
 		t.Fatalf("got %v", got[a].State)
 	}
 	// An unreadable socket for a lone, listed-live server stays present.
-	servers = map[string]launcher.ServerState{"twice": {Unresolved: true}}
+	servers = map[string]launcher.ServerState{"twice": {Verdict: launcher.ServerUnresolved}}
 	if got := ProjectSessionPresence(bindings, sessions, servers, claimsFromSessionBindings(bindings)); got[a].State != SessionPresent {
 		t.Fatalf("lone live server with an unknown socket = %v", got[a].State)
 	}

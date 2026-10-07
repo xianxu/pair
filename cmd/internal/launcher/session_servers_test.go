@@ -78,17 +78,13 @@ func TestClassifyServers(t *testing.T) {
 	}
 	sockets := map[string]SocketState{"/s/a": SocketPresent, "/s/b": SocketGone, "/s/c": SocketUnknown, "/s/d": SocketGone}
 	got := ClassifyServers(servers, sockets)
-	if s := got["a"]; s.Orphaned || s.Unresolved {
-		t.Fatalf("reachable server classified %+v", s)
+	for name, want := range map[string]ServerVerdict{"a": ServerReachable, "b": ServerOrphaned, "c": ServerUnresolved, "d": ServerContested} {
+		if got[name].Verdict != want {
+			t.Fatalf("%s: verdict %v, want %v (%+v)", name, got[name].Verdict, want, got[name])
+		}
 	}
-	if s := got["b"]; !s.Orphaned || s.Server.PID != 2 {
-		t.Fatalf("orphan missed %+v", s)
-	}
-	if s := got["c"]; s.Orphaned || !s.Unresolved {
-		t.Fatalf("unknown socket must be unresolved, never orphaned: %+v", s)
-	}
-	if s := got["d"]; s.Orphaned || !s.Unresolved || !s.Contested {
-		t.Fatalf("two servers for one name must be unresolved and contested: %+v", s)
+	if got["b"].Server.PID != 2 {
+		t.Fatalf("orphan lost its server: %+v", got["b"])
 	}
 }
 

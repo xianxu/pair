@@ -529,7 +529,7 @@ func TestSessionPresenceReportsAnOrphanThroughTheProductionChecker(t *testing.T)
 	indexSession(t, dataDir, orphan, "📁repo-orphan")
 	checker, _ := sandboxedChecker(t, dataDir, map[string]string{})
 	server := launcher.SessionServerIdentity{PID: 77, Identity: "t77", Session: "📁repo-orphan", Socket: "/gone"}
-	checker.Servers = fakeServerStates{"📁repo-orphan": {Server: server, Orphaned: true}}
+	checker.Servers = fakeServerStates{"📁repo-orphan": {Server: server, Verdict: launcher.ServerOrphaned}}
 	got, err := checker.SessionPresence(context.Background(), []ThreadAddress{orphan})
 	if err != nil {
 		t.Fatal(err)

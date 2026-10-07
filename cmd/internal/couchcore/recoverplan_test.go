@@ -1135,3 +1135,16 @@ func TestRecoverPlanNamesAnOrphanedAgent(t *testing.T) {
 		t.Fatalf("reason = %q", row.Reason)
 	}
 }
+
+// A many-thread slot keeps its most urgent attention state by the one
+// agentRank: an orphan outranks an unknown row (#399 M1 review).
+func TestManyThreadsWithAnOrphanReadOrphaned(t *testing.T) {
+	p := newPlanFixture(t)
+	claimedOnBranch(p)
+	p.thread("pair:1", ThreadUnusable, ReasonUnknown)
+	p.orphanedThread("pair:1", 4242)
+	row := findRow(t, DeriveRecoverPlan(p.input()), "pair:1")
+	if row.Class != RecoverOrphanedServer || row.Agent.State != string(AgentOrphaned) {
+		t.Fatalf("class %q agent %q", row.Class, row.Agent.State)
+	}
+}

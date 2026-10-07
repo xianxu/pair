@@ -82,18 +82,31 @@ func ObserveSocket(info fs.FileInfo, err error) SocketState {
 	return SocketUnknown
 }
 
-// ServerState is one session name's server verdict.
+// ServerVerdict is what the snapshot says about one session name's server. A
+// tagged value rather than flags, so contradictory combinations (orphaned AND
+// unresolved) cannot be represented (#399 M1 review).
+type ServerVerdict uint8
+
+const (
+	// ServerUnresolved is the zero value: the evidence cannot decide (an
+	// unreadable socket, or an orphan whose identity cannot be read). Callers
+	// fail closed on it.
+	ServerUnresolved ServerVerdict = iota
+	// ServerReachable: one server, socket present.
+	ServerReachable
+	// ServerOrphaned: one server, socket gone (ENOENT).
+	ServerOrphaned
+	// ServerContested: several servers claim the name. It outranks a live
+	// list-sessions row: an orphan and a fresh server sharing a name must not
+	// read as one healthy session.
+	ServerContested
+)
+
+// ServerState is one session name's server verdict. A name with no server is
+// absent from the map, never a zero ServerState.
 type ServerState struct {
-	Server SessionServerIdentity
-	// Orphaned: exactly one server for the name, and its socket is gone.
-	Orphaned bool
-	// Unresolved: the evidence cannot decide -- an unknown socket, or several
-	// servers claiming one name. Callers must fail closed on it.
-	Unresolved bool
-	// Contested: several servers claim the name. Unlike an unreadable socket,
-	// this outranks a live list-sessions row: an orphan and a fresh server
-	// sharing a name must not read as one healthy session.
-	Contested bool
+	Server  SessionServerIdentity
+	Verdict ServerVerdict
 }
 
 // ClassifyServers is the orphan rule over one snapshot.
@@ -104,14 +117,14 @@ func ClassifyServers(servers []SessionServerIdentity, sockets map[string]SocketS
 	}
 	out := make(map[string]ServerState, len(servers))
 	for _, s := range servers {
-		state := ServerState{Server: s}
+		state := ServerState{Server: s, Verdict: ServerUnresolved}
 		switch {
 		case count[s.Session] > 1:
-			state = ServerState{Unresolved: true, Contested: true}
+			state = ServerState{Verdict: ServerContested}
 		case sockets[s.Socket] == SocketGone:
-			state.Orphaned = true
-		case sockets[s.Socket] != SocketPresent:
-			state.Unresolved = true
+			state.Verdict = ServerOrphaned
+		case sockets[s.Socket] == SocketPresent:
+			state.Verdict = ServerReachable
 		}
 		out[s.Session] = state
 	}
@@ -142,12 +155,12 @@ func (OSServerStates) ServerStates(ctx context.Context) (map[string]ServerState,
 	}
 	states := ClassifyServers(servers, sockets)
 	for name, state := range states {
-		if !state.Orphaned {
+		if state.Verdict != ServerOrphaned {
 			continue
 		}
 		state.Server.Identity = procutil.Identity(strconv.Itoa(state.Server.PID))
 		if state.Server.Identity == "" {
-			state = ServerState{Unresolved: true}
+			state = ServerState{Verdict: ServerUnresolved}
 		}
 		states[name] = state
 	}

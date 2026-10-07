@@ -7,18 +7,28 @@ import (
 	"github.com/xianxu/pair/cmd/internal/launcher"
 )
 
-// #399 M1 review. The operator advice must match the evidence: on 2026-10-06
-// killing only the server left `pair wrap` (which ignored SIGTERM) and PPID-1
-// `pair title` helpers behind. The refusal names the whole tree.
-func TestOrphanRefusalNamesTheWholeProcessTree(t *testing.T) {
+// #399 M1 review (rule, family operator-advice-contradicts-evidence): advice
+// must be steps that would have worked on the documented incident, and the test
+// checks their ORDER. On 2026-10-06 killing the server first let `pair wrap`
+// (which ignored SIGTERM) and `pair title` helpers reparent to PID 1, where no
+// child-of-server command finds them. So: list the tree while the server still
+// parents it, kill the descendants, and only then the server.
+func TestOrphanRefusalStepsWouldHaveWorkedOnTheIncident(t *testing.T) {
 	text := orphanStartRefusal("/repo", ThreadAddress{Tag: "couch-1"}, &launcher.SessionServerIdentity{PID: 9090, Session: "📁repo-1"})
-	for _, want := range []string{"pkill -TERM -P 9090", "kill 9090", "pkill -KILL", "pair wrap"} {
-		if !strings.Contains(text, want) {
-			t.Fatalf("refusal %q lacks %q", text, want)
-		}
+	list := strings.Index(text, "ps -axo pid,ppid,command")
+	descendants := strings.Index(text, "kill -KILL <pid>")
+	server := strings.Index(text, "kill -KILL 9090")
+	if list < 0 || descendants < 0 || server < 0 || !(list < descendants && descendants < server) {
+		t.Fatalf("steps out of order (list %d, descendants %d, server %d):\n%s", list, descendants, server, text)
 	}
-	if strings.Contains(text, "goes with it") {
-		t.Fatalf("refusal still claims the agent dies with the server: %q", text)
+	// No step may signal the server before its descendants are dealt with.
+	if first := strings.Index(text, "9090"); strings.Contains(text[:descendants], "kill") && first < descendants && strings.Contains(text[first:descendants], "kill 9090") {
+		t.Fatalf("a step kills the server before its descendants:\n%s", text)
+	}
+	for _, wrong := range []string{"goes with it", "pkill -TERM -P"} {
+		if strings.Contains(text, wrong) {
+			t.Fatalf("refusal still advises %q, which failed on 2026-10-06:\n%s", wrong, text)
+		}
 	}
 }
 

@@ -574,3 +574,10 @@ proof; record the surprising case so the next change starts from evidence.
   it. In a re-exec crash test, the parent must own every directory the child
   writes: Go's test runner runs `t.Cleanup` (deleting `t.TempDir`) while a panic
   unwinds, before the runtime writes the crash.
+- Operator advice is code: it must be steps that would have worked on the
+  documented incident, and its test checks their ORDER, not that words appear.
+  #399's startup refusal said "kill the server; its agent goes with it" and then
+  "pkill -P …; kill …; pkill -KILL -P …". Both were wrong on 2026-10-06:
+  descendants that outlive the server reparent to PID 1, where no child-of-server
+  command finds them. List the tree while the server still parents it, kill the
+  descendants, and only then the server.

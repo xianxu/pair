@@ -480,3 +480,17 @@ unresolved. PQ-3 — `ConfirmByPlan` named, with `PrepareRecover`, menu, CLI and
 audit handling. Minors: real fake/file names (`ownerWorld`,
 `couchcmd/slot_operations.go`, `menu_actions.go`/`console_menu.go`), test strategy
 as one line per risky function (fuzz `ParseServerProcesses`), Non-goals section.
+
+### 2026-10-07 — M1 review carries into M2
+
+Reason: M1 boundary review. Delta for M2:
+- **A single snapshot is provisional.** A zellij server that is starting appears
+  in `ps` before it binds its socket, so for that moment it reads orphaned.
+  Reap (Task 7/8) must require the orphan verdict on two snapshots at least a
+  short interval apart (or a minimum process age), and re-read the server's
+  identity before every signal; a fixture with a just-started server proves it
+  is never reaped.
+- **One source for the advice.** Startup's refusal currently prints manual steps
+  (list the tree, kill descendants, then the server). Once `PlanReap` exists the
+  refusal renders `couch --recover <ref>` and the plan's steps, so the text and
+  the behaviour cannot drift.

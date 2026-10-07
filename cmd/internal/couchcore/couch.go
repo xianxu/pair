@@ -1285,10 +1285,17 @@ func orphanStartRefusal(root string, address ThreadAddress, server *launcher.Ses
 			"  find it:     ps -axo pid,command | grep 'zellij --server'\n"+
 			"  inspect it:  couch --show %s", address.Tag, root, address.Tag)
 	}
+	// The order is the content: descendants must die while the server still
+	// parents them, or they reparent to PID 1 and nothing finds them again --
+	// exactly what killing the server first did on 2026-10-06.
 	return fmt.Sprintf("%s\n"+
 		"its agent may still be running, so couch will not start a second primary in %s\n"+
-		"  stop it:     pkill -TERM -P %d; kill %d   (the server and what runs under it: pair wrap/term/title, nvim)\n"+
-		"  then:        pkill -KILL -P %d; kill -KILL %d   (some ignore SIGTERM; anything left reparents to PID 1)\n"+
+		"killing the server alone is not enough: its pair wrap may ignore SIGTERM, and whatever\n"+
+		"outlives the server reparents to PID 1. In this order:\n"+
+		"  1. list its tree while the server still parents it:  ps -axo pid,ppid,command\n"+
+		"     (every process whose parent chain reaches %d: pair wrap/term/title, nvim, the agent)\n"+
+		"  2. kill those descendants, deepest first:             kill -KILL <pid> ...\n"+
+		"  3. only then the server:                               kill -KILL %d\n"+
 		"  inspect it:  couch --show %s",
-		launcher.OrphanDiagnostic(server.Session, server.PID), root, server.PID, server.PID, server.PID, server.PID, address.Tag)
+		launcher.OrphanDiagnostic(server.Session, server.PID), root, server.PID, server.PID, address.Tag)
 }
