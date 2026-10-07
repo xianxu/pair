@@ -223,6 +223,27 @@ future all already exist, so the change is small and lands on seams built for it
 The operator now runs 18 active slots and restarts have become slow. They asked
 for this issue to cover the startup reattach pass as well; see Revisions.
 
+### 2026-10-06: design reading for M1 (findings that move the Spec)
+
+- **Global detach is one job, serial inside couchcore.** Quit dispatches
+  `leave`, one queue request; `Couch.Leave` (`couchcore/park.go:170`) loops every
+  record and detaches or parks each in turn ("Serial by choice"). A worker pool
+  in `operationQueue` would not parallelize it at all. Leave-park also funnels
+  through `parkWorker`, created with capacity 1 (`park.go:549`).
+- **A per-address guard already exists for park.** `parkWorker`
+  (`couchcore/parkworker.go`) keeps an `active` map keyed by `ThreadAddress`,
+  refuses "another park transaction already owns this address", and bounds
+  admission. That is the M1 shape, today scoped to park only (ARCH-DRY).
+- **The queue is the wrong place for the guard.** A remote job's address is only
+  known after `prepare` runs on the worker (`console_remote.go`), path-addressed
+  `resume`/`reboot` resolve their thread inside couchcore, and `leave` touches
+  every thread from one job. All launch paths converge on a few couchcore
+  entries instead: `ResumeContextWith`, `Relaunch`, `Detach`, `SwitchAgent`,
+  `Continue`, `RetryContinuation`, `Reboot`, the `PairLifecycle` park entries,
+  and `Leave`'s per-thread step. Composites call leaves (`Relaunch` → park +
+  `ResumeContext`; `RetryContinuation` → `ResumeContextWith`), so a leaf-level
+  guard needs re-entry for the holder.
+
 ## Revisions
 
 ### 2026-10-04: scope adds the startup reattach pass
