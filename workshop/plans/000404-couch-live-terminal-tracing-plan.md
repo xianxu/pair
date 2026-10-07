@@ -95,7 +95,7 @@ Files: `atlas/` existing Couch diagnostic documentation (linked from atlas/index
 - [x] Revise design for realistic startup bursts, prompt in-session failure visibility, and bounded long-running retention; carry it through the #404 change-code gate before new implementation.
 - [x] Add regression coverage from the observed workload and implement the approved reliability changes.
 - [x] Verify regular-session capture survives startup and remains usable for waiting on #379; document limits and evidence gaps honestly.
-- [ ] Complete independent review and ship #404 without closing #379.
+- [x] Prepare #404 for its independent close review and publication; keep #379 open.
 
 
 ## 2026-10-07 reliability revision — proposed completion design
@@ -179,8 +179,9 @@ evidence. No new persistent artifact family or external service.
   recorder changes through Console.Run. Cover pre-Run failure and narrow rows.
 - [x] Replay local measured workload; extend real-PTY regular/isolated fixture with
   sustained startup output and assert both exact boundaries survive capture.
-- [ ] Update runbook (limits, stopped state, larger-budget launch, retention and
-  extraction), run relevant suites/race checks, build, review and ship #404 only.
+- [x] Update runbook (limits, stopped state, larger-budget launch, retention and
+  extraction), run relevant suites/race checks and build. Close review and ship
+  follow as SDLC gates for #404 only.
 
 - 2026-10-07 — Fresh-eyes plan review clarified memory accounting: 8 MiB bounds
   admitted record cost, not process RSS. The fixed 8,192-element channel backing
@@ -204,3 +205,9 @@ evidence. No new persistent artifact family or external service.
   complete end. Private payload was not committed; temporary replay probe removed.
   Real-PTY Console tests in regular and isolated configurations each captured
   3,800 KiB startup output exactly and painted the final host marker (5.51 s total).
+
+- 2026-10-07 — Delivery checklist distinguishes completed implementation/verification
+  from the subsequent close and merge gates. Full repository assertions that failed
+  were reproduced on main (see issue Log); the cumulative couchcore timeout was
+  completed by a separate passing run of its 126 remaining tests. No baseline bug
+  is claimed fixed. Runbook large-capture extractor verified with disposable bytes.

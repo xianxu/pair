@@ -55,7 +55,7 @@ explicit. The imported implementation is not yet ready to ship.
 - [x] Import the existing implementation, tests and runbook from #379 onto a branch based on main.
 - [x] Revise the transferred implementation plan for the real overflow finding and long-running capture behavior.
 - [x] Fix and verify remaining capture reliability and failure visibility requirements.
-- [ ] Prepare independent delivery with verified implementation and updated runbook; close/merge gates follow, and #379 remains open.
+- [x] Prepare independent delivery with verified implementation and updated runbook; close/merge gates follow, and #379 remains open.
 
 ## Log
 
@@ -117,3 +117,19 @@ explicit. The imported implementation is not yet ready to ship.
   repetitions: it presses Return on the menu header before async inventory loads
   (inventory unavailable -> no selection -> parked row); its fixture has capture
   nil. These are not marked fixed or silently waived by tracing acceptance.
+
+- Final broad verification: `go test ./...` returned nonzero with five failing
+  packages, all named assertion failures reproduced on baseline b933b5a5:
+  artifactpath, couchcmd, couchcore, gcruntime and launcher. Additional baseline
+  logs `/tmp/pair404-baseline-{couchcore,gcruntime,launcher}.log` match missing
+  thread claim, missing slot metadata and five launcher scope/restart failures.
+  Couchcore also exhausted its cumulative 10-minute package budget while starting
+  a test; the remaining 126 tests were run separately and passed in 25.258 s
+  (`/tmp/pair404-core-tail.log`). Other packages, including full terminalcapture,
+  terminal, ptychild and couchtty suites, passed. This is not a green full-suite
+  claim; known baseline failures are explicitly preserved for review.
+- Runbook extraction was executed on a disposable complete fixture: exact bytes,
+  partial host acceptance and path-safe endpoint naming passed; missing end marker
+  was rejected. Two streaming passes support large captures without full-file RAM.
+- Implementation and verification are ready for the single SDLC close review,
+  then independent publication. #379 remains working, untouched by this close.
