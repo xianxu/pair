@@ -1,6 +1,6 @@
 ---
 id: 000401
-status: working
+status: wontfix
 created: 2026-10-06
 updated: 2026-10-06
 estimate_hours:
