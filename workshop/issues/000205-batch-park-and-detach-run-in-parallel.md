@@ -279,3 +279,15 @@ sentence is struck through). Done-when gains a bullet for `Leave` running
 concurrently. The Plan points at the durable plan, whose M1/M2 split replaces
 the inline sub-steps. One shared bound, `LifecycleParallelism = 4`, is chosen
 with its reason in the plan (D5).
+
+### 2026-10-06: durable plan reviewed
+
+Fresh-context plan review ran five rounds and ended Approved. What it changed:
+- `RecoverThread`, `Stop` and `AbortStarted` are gated.
+- `Leave` decides only after waiting.
+- `parkWorker` frees its address before signalling done.
+- A registry mutex guards parallel workers. The race exists today between `Forget` and the worker.
+- Busy reaches the console as `MenuEvent.Busy`, not as a resume diagnostic.
+- A late abort holds the thread, re-checks identity, and never waits on the console goroutine.
+
+Plan: `workshop/plans/000205-batch-park-and-detach-run-in-parallel-plan.md`.
