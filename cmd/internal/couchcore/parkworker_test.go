@@ -3,12 +3,14 @@ package couchcore
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
 )
 
@@ -193,5 +195,58 @@ func TestParkWorkerBeginDeadlineHasZeroExternalEffectsAtOneSecond(t *testing.T) 
 				t.Fatalf("deadline result = %+v, thread=%+v", result, persisted)
 			}
 		})
+	}
+}
+
+// A cancelled park caller returns at once (TestCanceledParkAwaitStill...), and
+// its thread stays guarded while the work runs on: the record's open park
+// transaction and the worker's active entry refuse a second lifecycle
+// operation, whether or not the caller's gate hold has been released
+// (pair#205 D4, revised during M1).
+func TestACancelledParkStillRefusesOtherLifecycleOperations(t *testing.T) {
+	env, source := switchEnvWithLiveThread(t)
+	c := env.Couch
+	reached, release := make(chan struct{}), make(chan struct{})
+	var releaseOnce sync.Once
+	unblock := func() { releaseOnce.Do(func() { close(release) }) }
+	defer unblock()
+	env.Lifecycle.onPublish = func(pairlifecycle.QuitRequest) { close(reached); <-release }
+	ctx, cancel := context.WithCancel(context.Background())
+	returned := make(chan error, 1)
+	go func() { _, err := c.PairLifecycle.Park(ctx, source.Address); returned <- err }()
+	<-reached
+	cancel()
+	if err := <-returned; !errors.Is(err, context.Canceled) {
+		t.Fatalf("park = %v, want prompt cancellation", err)
+	}
+	if _, _, err := c.ResumeContext(context.Background(), source.Address); err == nil {
+		t.Fatal("resume admitted while the cancelled park still runs")
+	}
+	if _, err := c.Detach(context.Background(), source.Address); err == nil {
+		t.Fatal("detach admitted while the cancelled park still runs")
+	}
+	// A second transaction carries its own nonce (production nonces are random;
+	// this fixture's is fixed, which would coalesce onto the running park).
+	c.PairLifecycle.Nonce = func() (string, error) { return "park-second-transaction", nil }
+	if _, err := c.PairLifecycle.ParkExpected(context.Background(), source.Address, 0); err == nil {
+		t.Fatal("a second park transaction admitted while the first still runs")
+	}
+	unblock()
+}
+
+// parkWorker frees its address before it signals done, so a caller that has
+// seen its park finish can submit the next park on that address at once.
+func TestParkWorkerFreesTheAddressBeforeDone(t *testing.T) {
+	worker := newParkWorker(1)
+	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0123456789abcdef"}
+	done := func(context.Context) (ParkResult, error) { return ParkResult{}, nil }
+	for i := 0; i < 1000; i++ {
+		future, err := worker.Submit(context.Background(), address, fmt.Sprintf("nonce-%d", i), done)
+		if err != nil {
+			t.Fatalf("iteration %d: submit after a finished park refused: %v", i, err)
+		}
+		if _, err := future.Await(context.Background()); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

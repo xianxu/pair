@@ -76,10 +76,13 @@ func (w *parkWorker) Submit(ctx context.Context, address ThreadAddress, nonce st
 
 	go func() {
 		future.work.result, future.work.err = work(ctx)
-		close(future.done)
+		// Free the address BEFORE signalling done: a caller that has seen its
+		// park finish may submit the next park on this address at once, and a
+		// stale entry would refuse it as "another park transaction" (pair#205).
 		w.mu.Lock()
 		delete(w.active, address)
 		w.mu.Unlock()
+		close(future.done)
 	}()
 	return future, nil
 }

@@ -792,3 +792,36 @@ external reader of `Loading`), `menu_reattach_test.go`.
 - [ ] Atlas: update `atlas/couch.md` on leave, the reattach pass and the bound.
 - [ ] Full verification as in Task 5.
 - [ ] `sdlc close --issue 205 --verified '<evidence>'`.
+
+## Revisions
+
+### 2026-10-06 (M1, Task 1): re-entry keys on the hold's identity, not its address
+
+**Reason.** Task 1's stale-context test failed under the plan's rule. A context
+that outlived its release re-entered a *later* holder's hold on the same
+address, because re-entry compared addresses.
+
+**Delta.** Each hold carries a `gateToken`. The context records
+address → token, and re-entry requires the token to match the current hold.
+`release` deletes only its own token's entry.
+
+### 2026-10-06 (M1, Task 2): D4 replaced by the existing durable guard
+
+**Reason.** `TestCanceledParkAwaitStillBlocksRecoveryAndArchiveUntilWorkerSettles`
+pins the opposite, deliberate contract: a cancelled park caller returns at once,
+even while its publication is blocked and ignoring `ctx`. Making `submit` wait
+would turn a prompt cancel into a possible hang. And it adds nothing: while the
+work runs, the thread is already guarded by the record's open park transaction,
+which `CommitStartClaim`, `Detach`, recovery and archive all refuse, and by the
+park worker's per-address entry, which refuses a second transaction.
+
+**Delta.**
+- `submit` is unchanged.
+- Kept: `parkWorker` frees the address before closing `done`, which that guard
+  relies on.
+- Added `TestACancelledParkStillRefusesOtherLifecycleOperations`: after a
+  cancelled park, resume, detach and a second park transaction are all refused
+  while the work runs.
+- The ARCH-ORDER row "caller ctx cancelled mid-park" now reads: the caller
+  returns; the durable park transaction and the worker entry guard the thread
+  until the work ends.

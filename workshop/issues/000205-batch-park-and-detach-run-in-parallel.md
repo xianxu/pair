@@ -283,6 +283,19 @@ for this issue to cover the startup reattach pass as well; see Revisions.
   `ResumeContext`; `RetryContinuation` → `ResumeContextWith`), so a leaf-level
   guard needs re-entry for the holder.
 
+### 2026-10-06: M1 Tasks 1–2
+
+- Task 1 landed the gate (`9eff1a00`). Re-entry now keys on the hold's identity
+  token: the stale-context test showed address-keyed re-entry lets an outlived
+  context into a later holder's hold.
+- Task 2: the plan's D4 ("submit waits for the park after cancellation")
+  contradicted a deliberate, tested contract (prompt cancel), and the durable
+  park transaction plus the worker entry already guard the thread. D4 was
+  dropped, the `parkWorker` delete-before-close ordering kept, and a test now
+  pins that guard. The ordering stress test (1000 runs) passed even before the
+  fix, so it is a regression guard, not a reproduction. Plan Revisions record
+  both changes.
+
 ## Revisions
 
 ### 2026-10-04: scope adds the startup reattach pass
