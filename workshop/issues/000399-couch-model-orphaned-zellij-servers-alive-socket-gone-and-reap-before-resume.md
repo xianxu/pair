@@ -118,7 +118,7 @@ Design hours are discounted because the durable plan is reviewed and approved;
 
 Durable plan: `workshop/plans/000399-couch-model-orphaned-zellij-servers-alive-socket-gone-and-reap-before-resume-plan.md`.
 
-- [ ] M1 — Observe and name: the server argv carries its socket path, so an
+- [x] M1 — Observe and name: the server argv carries its socket path, so an
       orphan is a `zellij --server <socket>` process whose `<socket>` is gone (one
       bulk `ps` per refresh plus an `Lstat` per server). `Probe` returns
       `SessionOwnerOrphaned`; session presence gains `orphaned`; the thread reads
@@ -137,6 +137,7 @@ Durable plan: `workshop/plans/000399-couch-model-orphaned-zellij-servers-alive-s
 ## Log
 
 ### 2026-10-06
+- 2026-10-06: closed M1 — Round 3. BR-2 fixed as a rule (lessons.md): the startup refusal lists the tree while the server parents it, kills descendants, then the server; TestOrphanRefusalStepsWouldHaveWorkedOnTheIncident checks the order and forbids the 2026-10-06-failing commands. Round-2 minors: ServerVerdict tagged enum (contradictory flags unrepresentable), TestManyThreadsWithAnOrphanReadOrphaned; the starting-server provisional rule recorded as an M2 requirement in the plan revision. couchcore, couchtty, couchcmd, launcher all pass in a full scrubbed run (all PAIR_/COUCH_/ZELLIJ unset, short isolated TMPDIR).; review verdict: SHIP
 
 - Filed from the brain session that did the manual recovery. A related
   lesson (tests must only `RemoveAll` paths from their own `t.TempDir()`;
