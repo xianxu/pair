@@ -51,6 +51,8 @@ incidental rather than load-bearing:
    `#214` records a real incident where `resume` racing `relaunch` produced three
    launches in 32 seconds and left the thread unresumable. **Fix `#214` first**;
    this issue now depends on it.
+   *(2026-10-06: the guard moved into this issue as M1; the dependency is
+   gone. See Revisions.)*
 3. **Park already has a future seam.** `parkworker.go` carries `parkFuture`,
    `Await`, and an admission limit (`ErrParkWorkerOverloaded`) — the shape this
    issue needs, already built.
