@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000401-scheduling-exercise-for-pair-362-throwaway-claim-only-do-no-work.md
         source_blob: e226ec604c9a8f51f551eb16b089fefd33751a03
         destination: workshop/issues/000401-scheduling-exercise-for-pair-362-throwaway-claim-only-do-no-work.md
+        main_commit: 1640a14915fdc9e6ae4896b6337a23995195f765
 ---
 
 # Scheduling exercise for pair#362 (throwaway: claim only, do no work)
