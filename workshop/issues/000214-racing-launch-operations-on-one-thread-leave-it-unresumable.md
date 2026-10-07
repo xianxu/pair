@@ -178,13 +178,15 @@ or recovered by hand (`claude --resume 9a99ff57-…`).
   - ambiguous reads "two conversations claim it — reboot";
   - unbound, only with a proven-absent fresh file and nothing behind it, reads
     "no turn taken yet — reboot";
-  - provisional, only on an incomplete listing, reads "conversation not
-    confirmed yet — retry after a turn".
+  - provisional, only on an incomplete storage listing, reads "conversation
+    not confirmed — retry".
 
   An unproven refusal keeps `binding-lost` (with a receipt) or `session-gone`
   (`provenBindingRefusal`, table-tested). Every new reason is produced by a
   test shape and passes the defining-word guard. The slot actions and the
   start-reuse notice treat the four binding reasons as one class.
+- The named reasons are produced through the real resolver contract
+  (resolution together with a typed refusal), by test.
 - A resolver IO failure projects `unusable/unknown`, never a binding verdict
   (test).
 - After an in-pane fresh restart whose agent never took a turn, the thread
@@ -347,3 +349,20 @@ Anything unproven keeps `binding-lost` with a receipt and `session-gone`
 without one. D2's intent (name what is known, with or without a receipt) is
 unchanged. The slot actions and the start-reuse notice treat all four binding
 reasons as one class (`IsBindingFailure`).
+
+
+### 2026-10-07: close review REWORK (BR-1..BR-3) addressed
+
+**Reason.** The full close review found three blocking problems:
+- **BR-1:** the evidence pass dropped the resolution on a typed refusal, so
+  `no-turn` and `unconfirmed` could never fire in production.
+- **BR-2:** the named reasons were tested only from hand-built evidence.
+- **BR-3:** "retry after a turn" did not match the incomplete-listing proof.
+
+**Delta.**
+- The refusal path reads the resolution, per the real contract.
+- `TestNamedBindingReasonsAreProducedThroughTheResolver` produces every named
+  reason through the resolver seam. It turns red under the BR-1 mutation.
+- The `unconfirmed` label is now "conversation not confirmed — retry".
+- The switcher notice uses `Label()` as its single source.
+- The 2026-09-08 shape is tested at query level too.

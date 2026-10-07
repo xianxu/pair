@@ -87,8 +87,9 @@ const (
 	// ReasonNoTurn: the latest launch never took a turn and no earlier
 	// conversation stands behind it, so there is nothing to resume. Reboot.
 	ReasonNoTurn ThreadReason = "no-turn"
-	// ReasonUnconfirmed: the latest launch's conversation exists but is not
-	// confirmed yet; it settles after a turn. Retry.
+	// ReasonUnconfirmed: the latest launch's conversation could not be
+	// confirmed because the agent's session storage could not be listed
+	// completely. Retry when it can be.
 	ReasonUnconfirmed ThreadReason = "unconfirmed"
 )
 
@@ -158,7 +159,7 @@ func (r ThreadReason) Label() string {
 	case ReasonNoTurn:
 		return "no turn taken yet — reboot"
 	case ReasonUnconfirmed:
-		return "conversation not confirmed yet — retry after a turn"
+		return "conversation not confirmed — retry"
 	}
 	// Legible beats silent: an unlabelled reason shows its slug rather than an
 	// empty column, and the vocabulary guard fails so it does not stay that way.

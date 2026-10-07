@@ -1014,21 +1014,22 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 				// resolver returns a ZERO resolution on a real error, which
 				// would read as "unbound" (pair#214; relaunch.go guards the
 				// same hole). The question stays unresolved.
-			case resolveErr != nil:
-				// A typed refusal is a resolved "no binding". It carries no
-				// resolution, so only an ambiguity is provable from it.
-				item.ParkedStatus = ProofResolved
-				if code := ResumeDiagnosticOf(resolveErr); code == ResumeBindingAmbiguous {
-					item.ParkedRefusal = code
-				}
 			default:
+				// Answered either way. The resolver's contract returns the
+				// resolution TOGETHER with a typed refusal, so the proof is read
+				// from the resolution whether or not an error came with it
+				// (pair#214 close review BR-1).
 				item.ParkedStatus = ProofResolved
-				if code := bindingResumeDiagnostic(binding); code != "" {
-					item.ParkedRefusal = provenBindingRefusal(code, binding)
-				} else {
+				code := ResumeDiagnosticOf(resolveErr)
+				if resolveErr == nil {
+					code = bindingResumeDiagnostic(binding)
+				}
+				if code == "" {
 					resumable = append(resumable, ParkedResumeObservation{
 						Address: record.Address, Agent: agent, NativeID: binding.NativeID,
 					})
+				} else {
+					item.ParkedRefusal = provenBindingRefusal(code, binding)
 				}
 			}
 		}

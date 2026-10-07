@@ -10,6 +10,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 // Every couchcore entry that changes a thread's lifecycle refuses a thread
@@ -489,5 +490,62 @@ func TestProvenBindingRefusalNamesOnlyWhatTheResolutionProves(t *testing.T) {
 		if got := provenBindingRefusal(tc.code, tc.binding); got != tc.want {
 			t.Errorf("%s: got %q, want %q", tc.name, got, tc.want)
 		}
+	}
+}
+
+// contractResolver resolves the way the real resolver does: the resolution AND
+// a typed refusal together whenever the binding refuses (resume.go
+// ResolveEstablished). pair#214 close review BR-1/BR-2: the named reasons must
+// be produced through this seam, not only from hand-built evidence.
+type contractResolver struct {
+	*FakeThreadArtifactCollisionChecker
+	resolution NativeBindingResolution
+}
+
+func (r *contractResolver) ResolveEstablished(context.Context, string, string, string) (NativeBindingResolution, error) {
+	if bindingResumeDiagnostic(r.resolution) != "" {
+		return r.resolution, refuseResolvedBinding(r.resolution)
+	}
+	return r.resolution, nil
+}
+
+func TestNamedBindingReasonsAreProducedThroughTheResolver(t *testing.T) {
+	cases := []struct {
+		name       string
+		resolution NativeBindingResolution
+		want       ThreadReason
+	}{
+		{"fresh launch proven unturned", NativeBindingResolution{Status: sessioninventory.BindingProvisional, FreshRequired: true, RequestedNativeID: "fresh"}, ReasonNoTurn},
+		{"storage listing incomplete", NativeBindingResolution{Status: sessioninventory.BindingProvisional, RequestedNativeID: "pending", ObservationIncomplete: true}, ReasonUnconfirmed},
+		{"two roots", NativeBindingResolution{Status: sessioninventory.BindingAmbiguous}, ReasonConversationAmbiguous},
+		{"no launch at all", NativeBindingResolution{Status: sessioninventory.BindingUnbound}, ReasonSessionGone},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newTestEnv(t, "/repo")
+			record := validThreadRecord(t)
+			record.StartingPath, record.WorkingPath = "/repo", "/repo"
+			record.Reservation = false
+			profile := LaunchProfile{Agent: "claude", Argv: []string{}}
+			record.LatestLaunchProfile = &profile
+			created, err := env.Couch.Threads.CreateThread(record)
+			if err != nil {
+				t.Fatal(err)
+			}
+			env.Couch.Artifacts = &contractResolver{FakeThreadArtifactCollisionChecker: env.Artifacts, resolution: tc.resolution}
+			rows, err := env.Couch.ActionableThreadInventory(nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, row := range rows {
+				if row.Address == created.Address {
+					if row.State != ThreadUnusable || row.Reason != tc.want {
+						t.Fatalf("row = %s/%s, want unusable/%s", row.State, row.Reason, tc.want)
+					}
+					return
+				}
+			}
+			t.Fatal("thread missing from the inventory")
+		})
 	}
 }

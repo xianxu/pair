@@ -2415,7 +2415,7 @@ code (`ThreadEvidence.ParkedRefusal`), and the row names it whether or not a
 receipt exists:
 - ambiguous reads `conversation-ambiguous` (reboot);
 - unbound reads `no-turn` (reboot);
-- provisional reads `unconfirmed` (retry after a turn).
+- provisional, on an incomplete storage listing, reads `unconfirmed` (retry).
 
 A resolver IO error leaves the proof unresolved (`unknown`), never a binding
 verdict.

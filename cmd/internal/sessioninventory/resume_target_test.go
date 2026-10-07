@@ -196,6 +196,26 @@ func TestAnUnturnedFreshLaunchDoesNotHideThePreviousConversation(t *testing.T) {
 			t.Fatalf("target = %+v, %v; want provisional, no fallback", got, err)
 		}
 	})
+	t.Run("the 2026-09-08 shape: bound, re-bound to one root, then unturned", func(t *testing.T) {
+		rt := sessioninventorytest.NewFakeRuntime()
+		pair := sessioninventory.StorageRoot{Name: "pair-data", Path: "/pair"}
+		rt.SetPairDataRoot(pair)
+		root := sessioninventory.StorageRoot{Name: "claude-projects", Path: "/native", Agent: sessioninventory.AgentClaude}
+		rt.AddRoot(root)
+		launch := func(id string) string {
+			return `{"v":3,"kind":"launch","scope_key":"scope","tag":"work","agent":"claude","pair_log_offset":0,"artifact_boundaries":[],"requested_native_id":"` + id + `","request_origin":"chosen-id","baseline_complete":true}` + "\n"
+		}
+		bind := func(launchOrdinal string) string {
+			return `{"v":3,"kind":"binding","scope_key":"scope","tag":"work","agent":"claude","launch_ordinal":` + launchOrdinal + `,"root_native_id":"` + old + `","confirmation_reason":"chosen-id"}` + "\n"
+		}
+		rows := launch(old) + bind("1") + launch(old) + bind("3") + launch(fresh)
+		rt.PutFile(sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: pair.Name, RelativePath: "ledger-work.jsonl"}}, []byte(rows))
+		rt.PutFile(sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: root.Name, RelativePath: "project/" + old + ".jsonl"}}, []byte("old conversation"))
+		got, err := sessioninventory.QueryResumeTarget(rt, "scope", "work", sessioninventory.AgentClaude)
+		if err != nil || got.Status != sessioninventory.BindingEstablished || got.NativeID != old || got.FellBackFrom != 5 {
+			t.Fatalf("target = %+v, %v; want the re-bound conversation, fallen back from launch 5", got, err)
+		}
+	})
 	t.Run("no earlier conversation: still fresh-required", func(t *testing.T) {
 		rt := sessioninventorytest.NewFakeRuntime()
 		pair := sessioninventory.StorageRoot{Name: "pair-data", Path: "/pair"}
