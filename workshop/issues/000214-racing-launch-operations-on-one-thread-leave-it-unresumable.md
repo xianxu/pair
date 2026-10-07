@@ -199,11 +199,11 @@ or recovered by hand (`claude --resume 9a99ff57-…`).
 
 Durable plan: `workshop/plans/000214-racing-launch-operations-on-one-thread-leave-it-unresumable-plan.md`.
 
-- [ ] `sessionledger.PreviousEstablished` (pure) and its table test.
-- [ ] The owner query falls back on `FreshRequired`, with the 2026-09-08 shape test.
-- [ ] Named binding-failure reasons, the IO-error fix, and the sweep over every
+- [x] `sessionledger.PreviousEstablished` (pure) and its table test.
+- [x] The owner query falls back on `FreshRequired`, with the 2026-09-08 shape test.
+- [x] Named binding-failure reasons, the IO-error fix, and the sweep over every
       reason switch.
-- [ ] Atlas, full verification, close.
+- [x] Atlas, full verification, close.
 
 ## Log
 
