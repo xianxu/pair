@@ -119,9 +119,9 @@ func expectedRowActions(s menuRowShape) []string {
 		case s.reason == couchcore.ReasonUnknown:
 			return nil
 		// An orphaned server's agent may still be writing: neither resume nor
-		// reboot is safe; M2's recover runs the confirmed reap (#399).
+		// reboot is safe; only the confirmed reap (#399).
 		case s.reason == couchcore.ReasonOrphanedServer:
-			return nil
+			return []string{"reap"}
 		case s.reason == couchcore.ReasonPathMissing && s.slot:
 			return nil
 		case s.reason == couchcore.ReasonPathMissing:
@@ -535,5 +535,19 @@ func TestUnusableNoticeNamesTheOrphanedServer(t *testing.T) {
 		Orphan: &launcher.SessionServerIdentity{PID: 812, Session: "📁1-37"}}
 	if got, want := unusableThreadNotice(row), launcher.OrphanDiagnostic("📁1-37", 812); got != want {
 		t.Fatalf("notice = %q, want %q", got, want)
+	}
+}
+
+// The reap confirmation names the exact server it ends and what goes with it:
+// the agent under it may still be writing (#399).
+func TestReapConfirmationNamesTheServerAndItsTree(t *testing.T) {
+	row := couchcore.ActionableThreadSummary{Address: menuAddress("couch-orphan"), WorkingPath: "/w/p",
+		State: couchcore.ThreadUnusable, Reason: couchcore.ReasonOrphanedServer,
+		Orphan: &launcher.SessionServerIdentity{PID: 812, Session: "📁1-37"}}
+	text := reapConfirmationCost(row)
+	for _, want := range []string{"PID 812", "everything under it", "the agent"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("confirmation %q lacks %q", text, want)
+		}
 	}
 }

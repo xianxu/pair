@@ -380,6 +380,19 @@ func Operations() []Operation {
 			},
 		},
 		{
+			// Reap ends an orphaned server's whole tree (#399): its agent may
+			// still be writing, so it is confirmed, and it admits only a row
+			// whose orphan verdict holds on a second observation.
+			Name: "reap", Summary: "End an orphaned zellij server and everything under it so its thread can be resumed",
+			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultStop,
+			Presentation: PresentationTUI, RowAction: true,
+			Args: []ArgSpec{
+				{Name: "path", Summary: "slot host checkout", Implicit: true},
+				{Name: "repo-scope", Summary: "repository scope derived from caller context", Implicit: true},
+				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
+			},
+		},
+		{
 			Name: "leave", Summary: "Apply one disposition to every live work thread and leave Couch",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultConsole,
 			Presentation: PresentationTUI,

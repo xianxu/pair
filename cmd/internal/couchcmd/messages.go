@@ -19,7 +19,7 @@ func runMessageCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer) int 
 }
 
 func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, call messageCall) int {
-	if inv.messageOp == "resume" || inv.messageOp == "reboot" {
+	if inv.messageOp == "resume" || inv.messageOp == "reboot" || inv.messageOp == "reap" {
 		return runSlotOperationCLI(inv, rt, stdout, stderr, call, slotPollClock{now: time.Now, sleep: time.Sleep})
 	}
 	namespace := rt.Getenv("COUCH_STORE_DIR")

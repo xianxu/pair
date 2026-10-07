@@ -29,7 +29,7 @@ type SlotOperationError struct {
 func (e *SlotOperationError) Error() string { return e.Code + ": " + e.Detail }
 
 // slotOperations are the actor operations a slot target may request.
-var slotOperations = []string{"resume", "reboot"}
+var slotOperations = []string{"resume", "reboot", "reap"}
 
 // SelectSlotRow picks the one actionable row that stands for a slot: a :N
 // slot row by its host checkout, or, for :0, the row IsPrimaryRow accepts (a

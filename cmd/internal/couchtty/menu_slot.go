@@ -39,9 +39,11 @@ func dispatchMenuRow(state MenuState, operation string, row couchcore.Actionable
 	return dispatchThreadOperation(state, operation, row.Address)
 }
 
-// actorOperation names the two operations whose arguments come from
+// actorOperation names the operations whose arguments come from
 // couchcore.ActorOperationArgs.
-func actorOperation(operation string) bool { return operation == "resume" || operation == "reboot" }
+func actorOperation(operation string) bool {
+	return operation == "resume" || operation == "reboot" || operation == "reap"
+}
 
 // menuOperationReplacesAddress names an in-flight operation whose success may
 // hand back a different address than the one it was sent for: anything keyed

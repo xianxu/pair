@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -1325,6 +1326,8 @@ func confirmationMenuItems(state MenuState, frame MenuFrame) []string {
 	// that spells another action's name is not a default, it is a lie.
 	item := frame.Action + " " + thread.Label()
 	switch frame.Action {
+	case "reap":
+		item += reapConfirmationCost(thread)
 	case "reboot":
 		// Say what rebooting COSTS, because the frame title never reaches the
 		// screen and "reboot" alone does not say the conversation goes.
@@ -1714,7 +1717,7 @@ func endsItsOwnChild(operation string) bool {
 // terminal focus; leave terminates the console and has no next frame to update.
 func operationNeedsProjectionRefresh(operation string) bool {
 	switch operation {
-	case "start", "park", "detach", "resume", "reboot", "alias", "relaunch", "switch-agent", "retry-continuation", "dismiss-continuation", "continue-thread":
+	case "start", "park", "detach", "resume", "reboot", "reap", "alias", "relaunch", "switch-agent", "retry-continuation", "dismiss-continuation", "continue-thread":
 		return true
 	case "switch", "leave":
 		return false
@@ -1852,6 +1855,8 @@ func menuOperationProgressText(state MenuState, operation string, address couchc
 		return "dismissing continuation for " + label
 	case "reboot":
 		return "rebooting " + label
+	case "reap":
+		return "reaping " + label + "'s orphaned server…"
 	default:
 		return operation
 	}
@@ -1979,4 +1984,14 @@ func cloneMenuState(state MenuState) MenuState {
 		}
 	}
 	return next
+}
+
+// reapConfirmationCost says what reaping costs, because the operator is about to
+// end a process tree whose agent may still be writing (#399). It names the
+// server so the confirmation is about an exact process, not a label.
+func reapConfirmationCost(thread couchcore.ActionableThreadSummary) string {
+	if o := thread.Orphan; o != nil {
+		return fmt.Sprintf(" — ends orphaned server PID %d and everything under it (pair wrap/term/title, nvim, the agent)", o.PID)
+	}
+	return " — ends its orphaned server and everything under it (pair wrap/term/title, nvim, the agent)"
 }
