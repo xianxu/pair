@@ -3,9 +3,9 @@ type: project
 name: "cross-slot-work-scheduling"
 goal: "Make cross-slot issue work assignable, observable, and recoverable using atomic SDLC claims and event-driven local messaging."
 done_when: "Two local slots receive duplicate work requests with one claim winner; owner and workflow evidence are queryable; operator-directed recovery resumes the assigned work after restart; idle messaging performs no recurring global ownership discovery."
-status: defined
+status: done
 created: 2026-10-01
-updated: 2026-10-01
+updated: 2026-10-06
 operator: xianxu
 mvp_scope: [pair#365, ariadne#277, ariadne#278, ariadne#279, ariadne#280, pair#366, pair#367, pair#362]
 explicitly_out: [pair#203, pair#210]
@@ -216,6 +216,65 @@ Project schema validation and a fresh read-only review passed; all eight issue s
 ### 2026-10-01 — approved publication
 
 The operator approved publishing the project and all eight tasks. Initial issue details are now published on their respective main branches through `sdlc issue move-detail`; each publication confirmed creation complete. The project remains defined, with implementation unstarted and dependencies preserved. The independent entry tasks are pair#365 (messaging lifecycle/performance), ariadne#277 (claim ownership), and pair#366 (singleton). Publication does not waive downstream dependencies or implementation-design gates.
+
+### 2026-10-06 — transition evidence
+
+- reality-check: Never baselined: the project was defined 2026-10-01 and executed without a commit step; all 8 tasks were done by 2026-10-06. Forced to record completion, not to set a forecast.
+
+### 2026-10-06 — transition evidence
+
+- issues-cover-prd: All 8 MVP-scope issues (pair#365, ariadne#277-280, pair#366, pair#367, pair#362) covered the PRD and are landed; the Breakdown lists each.
+
+### 2026-10-06 — retro
+
+**Outcome.** All eight MVP issues landed between 2026-10-01 and 2026-10-06:
+pair#365, ariadne#277–280, pair#366, pair#367 and pair#362. Each part of
+`done_when` has evidence:
+- **Duplicate requests, one claim winner:** pair#362's live exercise on the
+  throwaway pair#401. `pair:5` won the claim; `pair:6` reported the owner back to
+  the sender and did not start.
+- **Owner and workflow evidence are queryable:** `sdlc issue show --json`
+  (ariadne#279) and `couch --peek` (pair#362), both answering with the recipient
+  idle or parked.
+- **Operator-directed recovery:** pair#367's recovery report and skill, plus
+  `sdlc reclaim` (ariadne#278).
+- **No idle global discovery:** pair#365 removed idle messaging probes, with a
+  counted-probe acceptance test and live measurement.
+
+**Not baselined.** The project went from `defined` to execution without a commit
+step, so there is no deadline, planned finish or fog factor. The
+`committed`/`executing` transitions were forced on 2026-10-06 to record completion,
+and the ledger row is skipped rather than invented.
+
+**What went well:**
+- One issue per branch from main held throughout.
+- Each piece reused existing authorities instead of adding parallel ones: claims,
+  observations, recovery contracts, the scrollback renderer and the transcript
+  resolver.
+- Live exercises found real defects that tests had not:
+  - pair#362's peek resolved the wrong data directory;
+  - a receipt's detail is empty while a message is held;
+  - pair#387 (adjacent work) remembered setup failures without considering weave
+    itself.
+
+**What to change:**
+- **Commit the next project to a baseline before executing it.** Otherwise velocity
+  calibration learns nothing from it.
+- **Fix the sdlc reviewer's verdict capture (ariadne#300).** It lost the verdict
+  twice in two days, on pair#387 and pair#362.
+- **Make fresh slots usable by their own agents (ariadne#299).** The dev-alias
+  `couch` cannot build in a fresh slot.
+
+**Follow-ups:**
+- pair#396: TL-driven project execution from a driver repository;
+- ariadne#297: verification authority and the smoke-test state;
+- ariadne#298: the product-lead skill;
+- pair#403: `repo:N` resolution latency;
+- pair#402: add slot from a parked `:0`, fixed on 2026-10-06.
+
+### 2026-10-06 — close
+
+- fog: n/a
 
 ## Revisions
 
