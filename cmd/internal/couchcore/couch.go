@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -73,6 +74,11 @@ type Couch struct {
 	postAckRetryDelay         time.Duration
 	resumeRegistrationTimeout time.Duration
 	sleep                     func(time.Duration)
+
+	// threadGate admits one lifecycle operation per thread (pair#205); see
+	// threadgate.go. A pointer, so a copied Couch cannot split the gate.
+	gateOnce   sync.Once
+	threadGate *ThreadGate
 }
 
 // ReconcileActiveParks performs an explicit active-park reconciliation pass.
