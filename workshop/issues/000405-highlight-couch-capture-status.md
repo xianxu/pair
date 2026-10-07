@@ -1,12 +1,21 @@
 ---
 id: 000405
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-07
 updated: 2026-10-07
 estimate_hours:
-card_mirror: 'fcf754f35a7cead00035e88f56aa4fbfbc32d10f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '1527714f4e2c2a6f2c128ef033e90d6d81115ef4' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-07T14:04:38-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "19233212", done: "8871a7ef"}
 ---
 
 # Highlight Couch capture status badge
