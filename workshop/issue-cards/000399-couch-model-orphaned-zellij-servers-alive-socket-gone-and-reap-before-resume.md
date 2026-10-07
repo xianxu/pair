@@ -1,6 +1,6 @@
 ---
 id: 000399
-status: codecomplete
+status: done
 created: 2026-10-06
 updated: 2026-10-07
 estimate_hours: 3.65
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 83acde0eaf436b93f55b66a2510fe0bbf04391a3
         evidence_commit: 790223cc777bb97dc2c13f26d0b58e12b8c4b122
+        landed_commit: 8c5a6a92025723f42724653d2de8d0f98d038b66
 ---
 
 # couch: model orphaned zellij servers (alive, socket gone) and reap before resume
