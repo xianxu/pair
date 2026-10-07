@@ -591,3 +591,11 @@ proof; record the surprising case so the next change starts from evidence.
   under the zellij server, but the launcher spawns the poller with `Setsid`,
   outside that tree. That is exactly why 2026-10-06 left stray `pair title`
   processes. One grep for the spawn site settles it.
+- A test may only remove paths it created with its own `t.TempDir()`. Never derive
+  a removal root by walking up (`filepath.Dir`) from a path a child process
+  reported: on 2026-10-06 an unsandboxed #397 test ran
+  `os.RemoveAll(filepath.Dir(filepath.Dir(store)))` on `$TMPDIR/TestX…/001`,
+  deleted the real `$TMPDIR`, including zellij's sockets, and orphaned every live
+  session (#399). Run unsandboxed tests with every `PAIR_*`/`COUCH_*`/`ZELLIJ*`
+  variable unset and `TMPDIR` pointed at a short, dedicated directory. Short,
+  because nvim sockets and some size-bounded fixtures break on a long one.
