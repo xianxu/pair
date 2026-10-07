@@ -30,9 +30,14 @@ func TestAddSlotPrefillsExactRepositoryAndUsesCreatePreview(t *testing.T) {
 	if !slices.Contains(menuActionsFor(NewMenuState(nil, parked.Address), parked), "add-slot") {
 		t.Fatal("a parked :0 does not offer add slot")
 	}
+	// The create commit is the same whether :0 is live or parked (pair#402):
+	// nothing in the flow resumes :0.
 	for _, root := range []string{"/workspace/pair", "/other/pair"} {
-		for _, number := range []int{0} {
-			row := groupedRow(root, number, "current")
+		for _, phase := range []couchcore.ActionableThreadState{"", couchcore.ThreadParked} {
+			row := groupedRow(root, 0, "current")
+			if phase != "" {
+				row.State = phase
+			}
 			row.StartingPath += "/cmd/internal"
 			wantPath := root + "/cmd/internal"
 			state, effects := addSlotMenu(t, row)
