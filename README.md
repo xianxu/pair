@@ -382,6 +382,7 @@ couch --layout3          threads also get pair's right-hand terminal (the defaul
 couch --list             every durable work thread across all repositories
 couch --show <ref>       one current-repository thread by tag or path, or a slot (repo:N)
 couch --reconcile repo:N converge a slot's workspace now and show what it did
+couch --peek repo:N [--lines N] [--json]   read-only: a slot's recent terminal and transcript paths
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
 couch --recover-plan-from-sdlc   per-slot recovery report (JSON), see below
@@ -665,8 +666,8 @@ conversation; only when every number is occupied is a new slot created. Within
 that repo you can address a slot as `:N`; the qualified form is `<repo>:N`.
 Parked work does not block adding a slot: the launch preview names parked work
 and lost bindings with the matching `resume` or `reboot` reuse action.
-To add one without typing a path, open the repository's live `:0` row's action
-menu and choose **add slot**. The launch form opens with its repository filled in
+To add one without typing a path, open the repository's `:0` row's action menu
+and choose **add slot**; `:0` may be live, parked or detached. The launch form opens with its repository filled in
 and the agent selected; press Enter to use the defaults, or choose an agent first.
 
 A repository family keeps the starting directory chosen for its first thread.
@@ -886,9 +887,9 @@ ordinary filter text—there is no command namespace or numbered jump mode.
 | live, continuation failed | the above minus relaunch and switch coding agent, with retry-continuation and dismiss-continuation after detach |
 | live, continuation running | retry-continuation |
 | live, continuation pending | nothing yet; the request runs on its own |
-| parked or detached, any slot | resume, reboot |
-| cannot be entered, but resume has a route | resume, reboot |
-| cannot be entered otherwise (`:0`) | reboot |
+| parked or detached, any slot | resume, reboot (`:0` adds add slot) |
+| cannot be entered, but resume has a route | resume, reboot (`:0` adds add slot) |
+| cannot be entered otherwise (`:0`) | reboot, add slot |
 | state could not be checked | nothing; the next refresh decides |
 | directory missing | `:0`: reboot (archives the record only; restore the checkout to start there again); `:1+`: add slot recreates it (it reuses the leftover number and reconciles it); `couch --reconcile repo:N` does the same from the CLI |
 | starting elsewhere | nothing |
@@ -896,7 +897,8 @@ ordinary filter text—there is no command namespace or numbered jump mode.
 `Enter` switches to a live row and resumes a row that offers resume; on any
 other row it says why, and names `Tab → reboot` when the row offers it. Every
 next step a row names is one that row can take (a `:1+` whose directory is gone
-points at add slot on its repository's live `:0`).
+points at add slot on its repository's `:0`). Add slot needs nothing from `:0`'s
+agent, so a parked `:0` offers it too; a `:0` whose checkout is gone does not.
 
 **Resume** brings the old conversation back by whichever path works: a retained
 continuation is retried where it stands (a failed or running request) or

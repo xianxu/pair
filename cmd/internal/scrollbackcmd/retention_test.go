@@ -88,3 +88,36 @@ func TestExplicitOwnerRejectsOtherCaptureBeforeOutput(t *testing.T) {
 		t.Fatal("invalid input wrote output")
 	}
 }
+
+// TestRenderOwnedLinesReadsTheLiveCaptureUnderItsLease: given the data root,
+// the scope and the tag, the owner's live capture is found in repos/<scope>
+// and rendered; a missing capture is an error, never an empty render.
+func TestRenderOwnedLinesReadsTheLiveCaptureUnderItsLease(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	scope, tag := "0123456789abcdef", "couch-0123456789abcdef"
+	dir := filepath.Join(root, "repos", scope)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	raw := filepath.Join(dir, "scrollback-"+tag+"-claude.raw")
+	events := filepath.Join(dir, "scrollback-"+tag+"-claude.events.jsonl")
+	if err := os.WriteFile(raw, []byte("one\r\ntwo\r\n[Couch peer from pair:0; delivery abc]"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(events, []byte(`{"type":"resize","offset":0,"cols":60,"rows":5}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	lines, err := RenderOwnedLines(root, scope, tag, "claude", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(lines) == 0 || lines[len(lines)-1] != "[Couch peer from pair:0; delivery abc]" {
+		t.Fatalf("lines %q", lines)
+	}
+	if _, err := RenderOwnedLines(root, scope, tag, "codex", 10); err == nil {
+		t.Fatal("a missing capture rendered")
+	}
+}

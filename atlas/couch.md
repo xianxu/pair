@@ -689,8 +689,18 @@ proves the public test target generates it before every consumer.
 `couchcore.Operations()` is the closure-free capability schema: typed
 argument/result family, effect, confirmation, execution owner, and presentation.
 `list`, `show` and `archived` project as public `--list`, `--show` and
-`--archived`; the hosted-agent hook `publish-description` projects only through
-hidden `couch --internal publish-description <text>`, which pair's draft calls for a `!` tag line (#337), a `!!` describe line (#358), and a bare `!` clear line (#357), which publishes an empty summary. `prepare-start`, `start`,
+`--archived`. `peek` (pair#362) projects as `--peek repo:N [--lines N]
+[--json]`, a read-only look at another slot. It returns the plain-text tail of the
+thread's live terminal recording (`scrollbackcmd.RenderOwnedLines`, under the same
+retention lease `pair scrollback render` takes), the Pair sent-prompt log, and
+native transcript paths from the switcher's `OSSwitchContextResolver`. Transcripts
+are paths, never parsed, and every unreadable source is named in `unavailable`.
+Any operation that declares a `json` flag prints its result as JSON.
+
+The hosted-agent hook `publish-description` projects only through hidden
+`couch --internal publish-description <text>`, which pair's draft calls for a `!`
+tag line (#337), a `!!` describe line (#358), and a bare `!` clear line (#357),
+which publishes an empty summary. `prepare-start`, `start`,
 `attach`, `switch`, `park`, `resume`, `relaunch`, `prepare-switch-agent`,
 `switch-agent`, `leave`, `stop`, `alias` and `reboot` are TUI/in-process
 operations. `orientation-status` is an internal owner operation for one launch
@@ -737,7 +747,9 @@ continuation, resumable, unusable, unknown, busy) plus `ResumeOffered`,
 `DirectoryMissing`, `AliasOffered` and `AddSlotOffered`, and `menuRowActions` is
 the Spec table over them. Live rows get detach, relaunch, park and switch coding
 agent (`:0` adds alias and add slot); rows that are not live get resume and
-reboot; unknown, busy and live-pending rows get nothing, and `menuRowAdviceOf`
+reboot, and a `:0` among them also gets add slot unless its directory is missing
+(pair#402: a new slot needs the primary checkout, not `:0`'s agent); unknown,
+busy and live-pending rows get nothing, and `menuRowAdviceOf`
 reads the same facts to say why ("state could not be checked", "starting
 elsewhere", `RebootDirectoryMissing` on a `:1+`, `RebootCheckoutMissing` on a
 `:0`). It is the one home of every row-facing next step -- the status

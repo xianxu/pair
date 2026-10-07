@@ -83,8 +83,9 @@ func menuRowFactsOf(row couchcore.ActionableThreadSummary) menuRowFacts {
 
 // menuRowActions is the per-row action authority, one table over kind x
 // phase. Live rows get the lifecycle actions; rows that are not live get the
-// two actor operations, resume and reboot. A row the table offers nothing on
-// says why through menuRowNotice, which reads the same phase.
+// two actor operations, resume and reboot, and a :0 among them also gets add
+// slot unless its checkout is missing (pair#402). A row the table offers
+// nothing on says why through menuRowNotice, which reads the same phase.
 func menuRowActions(f menuRowFacts) []string {
 	switch f.Phase {
 	case menuPhaseLive, menuPhaseLiveContinuationFailed:
@@ -123,10 +124,17 @@ func menuRowActions(f menuRowFacts) []string {
 		// Recover leads: it is the default gesture, running whatever the
 		// recovery report decides for this row (#399).
 		actions := couchcore.ActorActions(f.Actor)
+		items := actions
 		if couchcore.RecoverOffered(actions) {
-			return append([]string{"recover"}, actions...)
+			items = append([]string{"recover"}, actions...)
 		}
-		return actions
+		// Adding a slot opens the start form for a new :1+ worktree and needs
+		// nothing from :0's agent, so a parked :0 offers it too (pair#402). It
+		// does need the primary checkout: a :0 whose directory is gone does not.
+		if f.AddSlotOffered && !f.Actor.DirectoryMissing {
+			items = append(items, "add-slot")
+		}
+		return items
 	}
 	// Busy, unknown, live with a pending request: nothing to offer, and
 	// menuRowNotice says why. "checking…" is not a verdict, and reboot stops a
@@ -148,7 +156,7 @@ func menuActionItems(row couchcore.ActionableThreadSummary) []string {
 // next, and which row the action it names is taken on.
 type menuNextStep struct {
 	Text string
-	// OnPrimary: the action Text names is taken on the repository's live :0
+	// OnPrimary: the action Text names is taken on the repository's :0
 	// row, not on this one. Only a :1+ row may say so.
 	OnPrimary bool
 }
@@ -180,7 +188,7 @@ func menuRowAdviceOf(f menuRowFacts) menuRowAdvice {
 	case f.Actor.DirectoryMissing && f.Kind == menuRowSlot:
 		// The reboot result's own words, so the row and the reboot agree. A
 		// :1+ record lives inside its directory and offers nothing; add slot,
-		// on the repository's live :0, recreates the directory.
+		// on the repository's :0, recreates the directory.
 		a.Notice = menuNextStep{Text: couchcore.RebootDirectoryMissing, OnPrimary: true}
 	case f.Actor.DirectoryMissing:
 		// A :0 record outlives its checkout: reboot archives it alone, and

@@ -160,6 +160,20 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 			return c.Workspaces.Ensure(call.Context, request)
 		case "reconcile":
 			return c.ReconcileSlot(call.Context, a["ref"])
+		case "peek":
+			lines := 0
+			if raw := a["lines"]; raw != "" {
+				n, err := strconv.Atoi(raw)
+				if err != nil || n <= 0 {
+					return nil, fmt.Errorf("--lines takes a positive number, not %q", raw)
+				}
+				lines = n
+			}
+			address, err := resolveOperationThread(c, a)
+			if err != nil {
+				return nil, err
+			}
+			return c.PeekThread(call.Context, a["ref"], address, lines)
 		case "list":
 			return c.ThreadInventoryContext(call.Context)
 		case "recover-plan":

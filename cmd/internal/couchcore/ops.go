@@ -82,6 +82,7 @@ const (
 	ResultRepositoryAlias
 	ResultRecoverPlan
 	ResultRecoverPreview
+	ResultPeek
 )
 
 // OperationPresentation assigns every typed operation exactly one UI/process
@@ -176,6 +177,22 @@ func Operations() []Operation {
 			Result: ResultWorkspace, Presentation: PresentationShow,
 			Args: []ArgSpec{
 				{Name: "ref", Summary: "slot reference (repo:N) or a path in the slot", Required: true},
+			},
+		},
+		{
+			// Read-only look at another slot (pair#362): the coordinator's
+			// evidence that a peer message reached the composer. It replays a
+			// recording, and each replay parks one emulator goroutine for the
+			// life of the process (scrollbackcmd.RenderLines), so it is a CLI
+			// operation: the long-running console must not dispatch it.
+			Name: "peek", Summary: "Show a slot's recent terminal and where its transcripts live (read-only)",
+			Execution: ExecuteDirectStore, Effect: EffectRead, Confirmation: ConfirmNone,
+			Result: ResultPeek, Presentation: PresentationShow,
+			Args: []ArgSpec{
+				{Name: "ref", Summary: "slot reference (repo:N), thread tag or path", Required: true},
+				{Name: "lines", Summary: "how many recent lines to show (default 40)", FlagOnly: true, ValueRequired: true},
+				{Name: "json", Summary: "print the result as JSON", FlagOnly: true},
+				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
 			},
 		},
 		{

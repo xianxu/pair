@@ -49,6 +49,8 @@ type Couch struct {
 	FreshRegistration func(context.Context, ThreadAddress, string, string) (bool, error)
 	OrientationStatus func(context.Context, ThreadAddress, string, string) (orientation.DeliveryState, error)
 	SwitchContext     SwitchContextResolver
+	// SlotTerminal renders a thread's live terminal recording (peek, pair#362).
+	SlotTerminal      SlotTerminalReader
 	SwitchLaunchCheck func(agent string) error
 	// Slug reads a thread's latest pair-slug suggestion for the switcher's
 	// focus view (pair#372); nil shows none. Production wires OSSlugReader.
