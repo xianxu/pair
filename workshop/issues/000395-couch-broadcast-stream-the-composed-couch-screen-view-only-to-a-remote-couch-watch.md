@@ -123,10 +123,16 @@ cell are outside its reach.
 
 ## Plan
 
+Durable plan: `workshop/plans/000395-couch-broadcast-stream-the-composed-couch-screen-view-only-to-a-remote-couch-watch-plan.md`.
+
 - [x] Spike: zellij web-client comparison; Presenter tap seam located (see Log)
-- [ ] Durable plan at `workshop/plans/000395-…-plan.md` (milestones: hub +
-      frame tap + switcher privacy; local SSE server + token + viewer page;
-      tab-bar LIVE cell + fail-safe; `cloudflared` quick tunnel + live smoke)
+- [ ] M1 — Presenter frame tap with privacy class; broadcast indicator, privacy,
+      stream and hub (withholding, grace stop, resync)
+- [ ] M2 — vendored xterm.js viewer page with auto-fit font; GET-only SSE server;
+      session lifecycle over a tunnel seam; no-persistence test
+- [ ] M3 — tab-bar LIVE cell, Ctrl+Alt+b, Console wiring and fail-safe;
+      `COUCH_BROADCAST_*` options; local smoke; atlas
+- [ ] M4 — `cloudflared` quick tunnel with orphan reaping; live smoke; close
 
 ## Log
 
@@ -190,3 +196,12 @@ cell are outside its reach.
   - Done when: rewritten to match; the read-only criterion moves from "refuse
     viewer input" to "GET-only, tokens checked and expiring", and a
     "no other origin" criterion is added.
+- **2026-10-07** — the durable plan settles points the Spec left open:
+  - The link lives exactly as long as the broadcast; the "or after a timeout"
+    clause is dropped, because an expiry would cut a live demo, and stopping
+    already revokes it.
+  - Fail-safe: a frame reaches viewers only if the operator's painted frame
+    showed `LIVE ⏸`; if it stays hidden for 1s (resize interim, a narrow
+    terminal), the broadcast stops.
+  - Options: `COUCH_BROADCAST_SWITCHER=show` and `COUCH_BROADCAST_TUNNEL=off`
+    (local-only). Key: Ctrl+Alt+b.
