@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000404-couch-live-terminal-tracing.md
         source_blob: 49c461e639e2860d59095e03077eed87a17fc4b9
         destination: workshop/issues/000404-couch-live-terminal-tracing.md
+        main_commit: b933b5a5bfef7fb681c5dffa2fd39c40d8765e7d
 ---
 
 # Opt-in Couch live terminal tracing
