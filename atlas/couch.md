@@ -747,7 +747,8 @@ continuation, resumable, unusable, unknown, busy) plus `ResumeOffered`,
 `DirectoryMissing`, `AliasOffered` and `AddSlotOffered`, and `menuRowActions` is
 the Spec table over them. Live rows get detach, relaunch, park and switch coding
 agent (`:0` adds alias and add slot); rows that are not live get resume and
-reboot; unknown, busy and live-pending rows get nothing, and `menuRowAdviceOf`
+reboot, and a `:0` among them also gets add slot unless its directory is missing
+(pair#402: a new slot needs the primary checkout, not `:0`'s agent); unknown, busy and live-pending rows get nothing, and `menuRowAdviceOf`
 reads the same facts to say why ("state could not be checked", "starting
 elsewhere", `RebootDirectoryMissing` on a `:1+`, `RebootCheckoutMissing` on a
 `:0`). It is the one home of every row-facing next step -- the status

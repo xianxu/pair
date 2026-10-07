@@ -871,9 +871,9 @@ ordinary filter text—there is no command namespace or numbered jump mode.
 | live, continuation failed | the above minus relaunch and switch coding agent, with retry-continuation and dismiss-continuation after detach |
 | live, continuation running | retry-continuation |
 | live, continuation pending | nothing yet; the request runs on its own |
-| parked or detached, any slot | resume, reboot |
-| cannot be entered, but resume has a route | resume, reboot |
-| cannot be entered otherwise (`:0`) | reboot |
+| parked or detached, any slot | resume, reboot (`:0` adds add slot) |
+| cannot be entered, but resume has a route | resume, reboot (`:0` adds add slot) |
+| cannot be entered otherwise (`:0`) | reboot, add slot |
 | state could not be checked | nothing; the next refresh decides |
 | directory missing | `:0`: reboot (archives the record only; restore the checkout to start there again); `:1+`: add slot recreates it (it reuses the leftover number and reconciles it); `couch --reconcile repo:N` does the same from the CLI |
 | starting elsewhere | nothing |
@@ -881,7 +881,8 @@ ordinary filter text—there is no command namespace or numbered jump mode.
 `Enter` switches to a live row and resumes a row that offers resume; on any
 other row it says why, and names `Tab → reboot` when the row offers it. Every
 next step a row names is one that row can take (a `:1+` whose directory is gone
-points at add slot on its repository's live `:0`).
+points at add slot on its repository's `:0`). Add slot needs nothing from `:0`'s
+agent, so a parked `:0` offers it too; a `:0` whose checkout is gone does not.
 
 **Resume** brings the old conversation back by whichever path works: a retained
 continuation is retried where it stands (a failed or running request) or

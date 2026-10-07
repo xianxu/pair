@@ -113,8 +113,26 @@ func expectedRowActions(s menuRowShape) []string {
 		}
 		return []string{"detach", "relaunch", "park", "switch-agent", "alias", "add-slot"}
 	case couchcore.ThreadParked, couchcore.ThreadDetached:
+		// A stopped :0 still offers add slot: a new slot needs nothing from
+		// :0's agent (pair#402).
+		if !s.slot {
+			return []string{"resume", "reboot", "add-slot"}
+		}
 		return []string{"resume", "reboot"}
 	case couchcore.ThreadUnusable:
+		offers := expectedUnusableActions(s, unfinished)
+		// An unusable :0 whose directory is present still offers add slot
+		// (pair#402); unknown and missing-directory rows offer what they did.
+		if !s.slot && len(offers) > 0 && s.reason != couchcore.ReasonPathMissing {
+			offers = append(offers, "add-slot")
+		}
+		return offers
+	}
+	return nil
+}
+
+func expectedUnusableActions(s menuRowShape, unfinished bool) []string {
+	{
 		switch {
 		case s.reason == couchcore.ReasonUnknown:
 			return nil
@@ -131,7 +149,6 @@ func expectedRowActions(s menuRowShape) []string {
 		}
 		return []string{"reboot"}
 	}
-	return nil
 }
 
 func TestRowActionTableMatchesTheSpec(t *testing.T) {

@@ -20,16 +20,15 @@ func addSlotMenu(t *testing.T, row couchcore.ActionableThreadSummary) (MenuState
 }
 
 func TestAddSlotPrefillsExactRepositoryAndUsesCreatePreview(t *testing.T) {
-	// Add slot is a live :0 row's action (the Spec table); a slot row, and a
-	// :0 that is not live, do not offer it.
-	for _, row := range []couchcore.ActionableThreadSummary{groupedRow("/workspace/pair", 2, "current"), func() couchcore.ActionableThreadSummary {
-		parked := groupedRow("/workspace/pair", 0, "current")
-		parked.State = couchcore.ThreadParked
-		return parked
-	}()} {
-		if slices.Contains(menuActionsFor(NewMenuState(nil, row.Address), row), "add-slot") {
-			t.Fatalf("%s/%s offers add slot", row.WorkingPath, row.State)
-		}
+	// Add slot is a :0 row's action whatever its agent's state (the Spec
+	// table; pair#402): a parked :0 offers it, a slot row does not.
+	if slot := groupedRow("/workspace/pair", 2, "current"); slices.Contains(menuActionsFor(NewMenuState(nil, slot.Address), slot), "add-slot") {
+		t.Fatal("a slot row offers add slot")
+	}
+	parked := groupedRow("/workspace/pair", 0, "current")
+	parked.State = couchcore.ThreadParked
+	if !slices.Contains(menuActionsFor(NewMenuState(nil, parked.Address), parked), "add-slot") {
+		t.Fatal("a parked :0 does not offer add slot")
 	}
 	for _, root := range []string{"/workspace/pair", "/other/pair"} {
 		for _, number := range []int{0} {
