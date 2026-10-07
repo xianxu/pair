@@ -173,3 +173,21 @@ Durable plan: `workshop/plans/000399-couch-model-orphaned-zellij-servers-alive-s
   unset, plus a scratchpad `TMPDIR` (the #399 lesson); the five-var scrub leaks.
   couchcore takes 505–532 s, close to `go test`'s default 10-minute limit; one
   run timed out under load, so runs use `-timeout 30m`.
+
+### 2026-10-07 — M2 progress
+
+- 33b3f4a6: `launcher.PlanReap` and `Reaper`. One snapshot while the server still
+  parents its tree; SIGTERM deepest-first with the server last; SIGKILL survivors
+  by pid after a bound; identity re-read before every signal; a changed server is
+  refused with no signal; a SIGKILL survivor is named rather than waited on. The
+  fake table models 2026-10-06 (a TERM-ignoring wrap that reparents). Mutation
+  check: server-first ordering fails two tests.
+- ac85310f: `Couch.Reap`. Admits only an orphaned row, and only if the verdict
+  holds again, for the same server identity, after 1 s (M1 review: one snapshot is
+  provisional). `launcher.OSOrphanReaper` runs the tree kill, then the existing
+  quiescence loop for zellij's EXITED record. `ActorActions` offers `reap` (only)
+  on an orphan, so the switcher shows it beside resume/reboot (one admission
+  table; the menu is deliberately unfiltered).
+- Next: the operation surface (ops, dispatch, slotOperations, CLI `--reap`,
+  socket, switcher confirmation/progress text), the report steps reap → resume,
+  then Task 9b `recover`.
