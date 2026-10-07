@@ -1,7 +1,7 @@
 ---
 id: 000205
 status: working
-deps: ["#214"]
+deps: []
 github_issue:
 created: 2026-09-06
 updated: 2026-10-04
@@ -75,12 +75,49 @@ reason this is a nice-to-have rather than a fix.
   an unbounded fan-out over a large batch recreates the load shape that took the
   same call from 17.6 ms to 145 ms. A small pool captures nearly all the
   overlap without the storm.
-- The safety invariant must be **established by `#214`**, not inherited: key the
-  queue by thread + operation class so one thread admits one launch-producing
-  operation. Only then does removing the single worker leave the cross-thread
-  ordering as the sole thing given up.
+- The safety invariant must be **established here, before the pool** (M1; moved
+  from `#214` on 2026-10-06): key admission by thread + operation class so one
+  thread admits one launch-producing operation. Only then does removing the
+  single worker leave the cross-thread ordering as the sole thing given up. See
+  "Per-thread admission guard" below.
 - Results still land on the console goroutine through `q.results`, so completion
   handling and `c.mu` discipline are unchanged.
+
+### Per-thread admission guard (M1, moved from `#214` on 2026-10-06)
+
+**What exists.** Two guards already hold, and neither is per thread at the
+queue:
+
+- `dispatchMenuOperation` (`couchtty/menu.go:1785-1788`) drops any operator
+  operation while `InFlight` is set. It is global and silent.
+- `CommitStartClaim` (`couchcore/threadstore.go:564-592`) refuses a second
+  occupant (`already has N incarnation(s)`, `open park transaction`) under the
+  revision CAS. It is the invariant of last resort and stays as is.
+
+**The gap.** Four paths enqueue onto the one `operationQueue` with keys that
+carry no thread: operator menu operations (`console.go:1661`), the reattach pass
+(`console_reattach.go:50`), continuations (`console_continuation.go:195`) and
+remote socket `resume|reboot` (`couchcmd/slot_operations.go:141`). Only the
+single worker (`console.go:629`) orders them per thread. Under a pool, a resume
+landing inside relaunch's park→resume window would win the CAS and the relaunch
+would fail `ParkedNotResumed`: safe, but confusing and unexplained.
+
+**Rule (operator decision, 2026-09-08, carried from `#214`).** Exactly one
+launch-class operation (`resume`, `relaunch`, `reboot`, `switch-agent`,
+continuation launch, park/detach) may be in progress per thread. A later request
+for that thread is **refused**, not queued or coalesced, with a message naming
+what is already running there. Different threads are unaffected. The guard may
+be relaxed later; for now, one.
+
+**Where.** One admission map, keyed by (thread address, operation class), at
+the point all four paths enqueue: beside `operationQueue.pending`, or a wrapper
+around `Enqueue`. Release happens on result delivery. Each path supplies its
+address explicitly; a job without one (the global `leave`) is not
+launch-class. M1 lands with the single worker still in place and is tested
+there, so M2 changes only the worker count.
+
+**Out of scope here** (stays in `#214`): naming the `binding lost` failure, and
+the in-pane restart's unclaimed ledger launch.
 
 ### The interleaving policy has to be written down (`ARCH-ORDER`, ariadne#215)
 
@@ -128,6 +165,12 @@ about 5 s for 17 background threads at the 18 slots now in use.
 - Concurrency is bounded; the bound is stated with its reason, not tuned by feel.
 - No two operations ever run on one thread — asserted by a test, not inherited
   from the queue's current shape.
+- The per-thread guard covers all four enqueue paths. A second launch-class
+  request for a busy thread is **refused** with a message naming what is
+  running; a request for a different thread is admitted.
+- A refused second gesture leaves the thread resumable: a test fires
+  resume-then-relaunch on one thread, sees one admitted and one refused, then
+  resumes successfully.
 - Every interleaving cell above has a stated answer in the issue and a test.
 - A failing operation inside a batch leaves the other threads' outcomes intact
   and the failure visible.
@@ -142,18 +185,25 @@ about 5 s for 17 background threads at the 18 slots now in use.
 
 ## Plan
 
-- [ ] Decide the interleaving policy cells above; record them in `## Spec`.
-- [ ] Replace the single `q.Run` with a bounded pool; keep dedup and result
-      delivery unchanged.
-- [ ] Test: N threads, one in-flight op each, no cross-thread ordering assumed.
-- [ ] Test the failure and mid-batch-input cells.
-- [ ] Measure N-batch wall-clock before/after, recording agent count.
-- [ ] Add the counted invariant to `#204`.
-- [ ] Lift the reattach pass's single `Loading` slot to a bounded in-flight set;
-      keep the operator-in-flight hold and per-row failure.
-- [ ] Test: parallel pass, a quit mid-pass, and the #196 tracking mode under N
-      concurrent reattaches.
-- [ ] Measure the startup pass wall-clock before/after at the live slot count.
+- [ ] M1 — Per-thread admission guard, single worker unchanged.
+  - [ ] Define the launch-class operation set in one place; map every enqueue
+        path (menu, reattach, continuation, remote) to (address, class).
+  - [ ] Admission map beside `operationQueue.pending`; release on result
+        delivery; refusal notice naming the running operation.
+  - [ ] Tests: resume-then-relaunch admits one, thread stays resumable; two
+        threads both admitted; each path refused against a busy thread.
+- [ ] M2 — Bounded pool for batch park/detach and the startup reattach pass.
+  - [ ] Decide the interleaving policy cells above; record them in `## Spec`.
+  - [ ] Replace the single `q.Run` with a bounded pool; keep dedup and result
+        delivery unchanged.
+  - [ ] Lift the reattach pass's single `Loading` slot to a bounded in-flight
+        set; keep the operator-in-flight hold and per-row failure.
+  - [ ] Tests: N threads, one in-flight op each, no cross-thread ordering
+        assumed; the failure and mid-batch-input cells; a quit mid-pass; the
+        #196 tracking mode under N concurrent reattaches.
+  - [ ] Measure batch and startup-pass wall-clock before/after at the live slot
+        count, recording agent count.
+  - [ ] Add the counted invariant to `#204`.
 
 ## Log
 
@@ -188,3 +238,15 @@ resume more likely.
 
 Line drift noted: the single worker is now started at `console.go:629`
 (`c.operationQueue.Run(c.stop)`), not `:538` as the Problem says.
+
+### 2026-10-06: per-thread guard moved in from `#214`
+
+**Reason.** Re-reading `#214` against current code showed its named race
+already blocked within one console, and that the per-thread guard is only
+needed once this issue removes the single worker. The operator chose to land
+the guard here, so the old ordering and its replacement ship together.
+
+**Delta.** Dependency on `#214` removed. Added the "Per-thread admission guard"
+Spec subsection, two Done-when bullets carried from `#214`, and split the Plan
+into M1 (guard, single worker) and M2 (pool for batch park/detach and the
+startup reattach pass). `#214` keeps the non-concurrency half.
