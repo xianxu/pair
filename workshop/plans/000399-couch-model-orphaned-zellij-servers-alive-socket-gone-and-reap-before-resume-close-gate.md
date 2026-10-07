@@ -113,6 +113,102 @@ rounds:
       boundary: M1
       recipe: milestone-review
       blocked: false
+    - "n": 5
+      timestamp: "2026-10-07T00:20:01-07:00"
+      agent: claude
+      findings:
+        - id: BR-9
+          severity: Important
+          title: 'reduceOperationResult has no success arm for reap/recover: the confirmation frame lingers, then an error notice appears'
+          detail: 'Reproduced with a scratch test: a confirmed recover succeeds and the frame stays at depth 3; the next inventory drops it with an error-level notice "thread action is no longer applicable" (menu.go:1703-1724). This is the 2nd finding in this family. The rule to fix: every per-operation switch in couchtty/couchcmd derives from an Operations() declaration or is guarded by a sweep test over Operations() that fails on a missing arm. About 12 hand-maintained restatements of the slot-op set exist (cli.go, messages.go, message_service.go, protocol.go, run.go, slot_operation.go, menu_slot.go, menu.go).'
+          family: vocabulary-consumer-missing-member
+          round: 5
+        - id: BR-10
+          severity: Important
+          title: OSOrphanReaper skips the tag's title-poller/nvim pidfile reapers that the plan's ARCH-ORDER listed
+          detail: pair title is started detached by the launcher (osruntime.go:382), not under the zellij server, so the tree kill never reaches it. That is the PPID-1 residue the Done-when forbids and that M3 step 4 checks for. Call KillTitlePoller and ReapNvim for the tag after the tree kill, or revise the plan; also correct the atlas wording.
+          family: declared-order-step-dropped
+          round: 5
+        - id: BR-11
+          severity: Important
+          title: orphanStartRefusal still prints manual ps/kill steps despite the M1-review revision requiring advice derived from the reap mechanism
+          detail: couch.go:1279-1300. The sibling refusal at couch.go:494 already gives a working switcher gesture ("run couch in another repository, select it, Tab → reboot"). The orphan case should name Tab → recover (or couch --recover <ref> --confirm), or a plan revision should explain why manual steps must stay.
+          family: advice-restates-mechanism
+          round: 5
+        - id: BR-12
+          severity: Important
+          title: README does not document couch --reap / couch --recover or the switcher recover action
+          detail: README.md:388-389 and :440 list --resume/--reboot only; usageWith and the atlas were updated in this range, but the README was not.
+          family: docs-surface-missing
+          round: 5
+        - id: BR-13
+          severity: Minor
+          title: Plan says reap is reached only through recover, but the switcher lists reap as its own entry too
+          detail: menuRowActions returns recover plus ActorActions (["reap"]). The Log records this as deliberate; add a Revisions entry so the plan matches the code.
+          family: plan-drift-unrevised
+          round: 5
+        - id: BR-14
+          severity: Minor
+          title: ActorActions doc comment still says "the two actor operations, resume and reboot"
+          family: stale-doc-comment
+          round: 5
+        - id: BR-15
+          severity: Minor
+          title: OSProcessTable.Snapshot reads ppid from ps and start identity from a later sysctl, so a pid recycled between the two reads is planned under the wrong parent
+          detail: 'This is the 2nd finding in this family; it is very unlikely in practice. The rule: a process fact used to authorize a signal comes from one atomic read. Here that means reading ppid and start time from the same kinfo_proc.'
+          family: point-observation-as-settled-state
+          round: 5
+      boundary: M2
+      recipe: milestone-review
+      blocked: true
+    - "n": 6
+      timestamp: "2026-10-07T00:47:45-07:00"
+      agent: claude
+      dispose:
+        - id: BR-9
+          disposition: addressed
+          note: menu.go default arm closes any confirmation on success; TestReapSuccessClosesItsConfirmation drives the real key path and fails without the arm.
+          round: 6
+        - id: BR-10
+          disposition: addressed
+          note: OSOrphanReaper calls ReapTagHelpers (title pidfile + nvim) after the tree; TestReapTagHelpersEndsTheHelpersOutsideTheTree. The atlas and the code comment's reason are raised as a new Minor.
+          round: 6
+        - id: BR-11
+          disposition: addressed
+          note: couch.go orphanStartRefusal names Tab → recover and the inspect step, with no kill recipe; TestOrphanRefusalNamesTheReapMechanism asserts this.
+          round: 6
+        - id: BR-12
+          disposition: addressed
+          note: README.md 390-391 (CLI), 420-428 (orphaned threads), 863-867 (Tab → recover) match the code.
+          round: 6
+        - id: BR-13
+          disposition: not-addressed
+          note: No Revisions entry added; plan line 472 still says reap is not its own menu entry.
+          round: 6
+        - id: BR-14
+          disposition: not-addressed
+          note: actor_actions.go:47 unchanged.
+          round: 6
+        - id: BR-15
+          disposition: not-addressed
+          note: session_reap.go Snapshot still takes ppid from ps and identity from a later read.
+          round: 6
+      findings:
+        - id: BR-16
+          severity: Minor
+          title: Atlas omits reap's helper step, and the code and lessons say the poller is outside the tree because of Setsid, which is false for Couch threads
+          detail: 'This is the 2nd finding in family stale-doc-comment. The rule: when a mechanism changes, every prose description of it (atlas, code comment, lessons) changes in the same commit. Here: atlas/couch.md''s OSOrphanReaper sentence lacks the helper step and still lists pair title among the server''s children. lifecycle.go:515 and lessons.md say the poller is outside the tree because it is spawned with Setsid, but sidecarProcessAttributes returns nil for Couch-launched Pair. The real reason is that the launcher, not the zellij server, is its parent.'
+          family: stale-doc-comment
+          round: 6
+        - id: BR-17
+          severity: Minor
+          title: editorPathsOf duplicates the quit path's inline editor-path literal and no test checks they stay equal
+          detail: lifecycle.go:196-199 vs 297-302 (ARCH-DRY). The inventory check is why the literal stays inline; a test asserting launcherCleanupOps.editorPaths equals editorPathsOf(paths) would keep the two from drifting.
+          family: duplicate-derivation
+          round: 6
+      boundary: M2
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#399 (boundary-review)
@@ -165,6 +261,47 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-7 — addressed — ServerState carries one ServerVerdict enum (zero value Unresolved); every consumer uses hasServer or a verdict comparison; the table test pins all four verdicts.
 - BR-8 — addressed — Harmless in M1 (it only refuses); the plan's 2026-10-07 Revisions requires two snapshots or a minimum process age, an identity re-read before each signal, and a just-started-server fixture in M2.
 
+## Round 5 — 2026-10-07T00:20:01-07:00 (claude) — BLOCKED
+
+### Raised
+
+- **BR-9** [Important] `vocabulary-consumer-missing-member` reduceOperationResult has no success arm for reap/recover: the confirmation frame lingers, then an error notice appears
+  Reproduced with a scratch test: a confirmed recover succeeds and the frame stays at depth 3; the next inventory drops it with an error-level notice "thread action is no longer applicable" (menu.go:1703-1724). This is the 2nd finding in this family. The rule to fix: every per-operation switch in couchtty/couchcmd derives from an Operations() declaration or is guarded by a sweep test over Operations() that fails on a missing arm. About 12 hand-maintained restatements of the slot-op set exist (cli.go, messages.go, message_service.go, protocol.go, run.go, slot_operation.go, menu_slot.go, menu.go).
+- **BR-10** [Important] `declared-order-step-dropped` OSOrphanReaper skips the tag's title-poller/nvim pidfile reapers that the plan's ARCH-ORDER listed
+  pair title is started detached by the launcher (osruntime.go:382), not under the zellij server, so the tree kill never reaches it. That is the PPID-1 residue the Done-when forbids and that M3 step 4 checks for. Call KillTitlePoller and ReapNvim for the tag after the tree kill, or revise the plan; also correct the atlas wording.
+- **BR-11** [Important] `advice-restates-mechanism` orphanStartRefusal still prints manual ps/kill steps despite the M1-review revision requiring advice derived from the reap mechanism
+  couch.go:1279-1300. The sibling refusal at couch.go:494 already gives a working switcher gesture ("run couch in another repository, select it, Tab → reboot"). The orphan case should name Tab → recover (or couch --recover <ref> --confirm), or a plan revision should explain why manual steps must stay.
+- **BR-12** [Important] `docs-surface-missing` README does not document couch --reap / couch --recover or the switcher recover action
+  README.md:388-389 and :440 list --resume/--reboot only; usageWith and the atlas were updated in this range, but the README was not.
+- **BR-13** [Minor] `plan-drift-unrevised` Plan says reap is reached only through recover, but the switcher lists reap as its own entry too
+  menuRowActions returns recover plus ActorActions (["reap"]). The Log records this as deliberate; add a Revisions entry so the plan matches the code.
+- **BR-14** [Minor] `stale-doc-comment` ActorActions doc comment still says "the two actor operations, resume and reboot"
+- **BR-15** [Minor] `point-observation-as-settled-state` OSProcessTable.Snapshot reads ppid from ps and start identity from a later sysctl, so a pid recycled between the two reads is planned under the wrong parent
+  This is the 2nd finding in this family; it is very unlikely in practice. The rule: a process fact used to authorize a signal comes from one atomic read. Here that means reading ppid and start time from the same kinfo_proc.
+
+## Round 6 — 2026-10-07T00:47:45-07:00 (claude) — passed
+
+### Disposed
+
+- BR-9 — addressed — menu.go default arm closes any confirmation on success; TestReapSuccessClosesItsConfirmation drives the real key path and fails without the arm.
+- BR-10 — addressed — OSOrphanReaper calls ReapTagHelpers (title pidfile + nvim) after the tree; TestReapTagHelpersEndsTheHelpersOutsideTheTree. The atlas and the code comment's reason are raised as a new Minor.
+- BR-11 — addressed — couch.go orphanStartRefusal names Tab → recover and the inspect step, with no kill recipe; TestOrphanRefusalNamesTheReapMechanism asserts this.
+- BR-12 — addressed — README.md 390-391 (CLI), 420-428 (orphaned threads), 863-867 (Tab → recover) match the code.
+- BR-13 — not-addressed — No Revisions entry added; plan line 472 still says reap is not its own menu entry.
+- BR-14 — not-addressed — actor_actions.go:47 unchanged.
+- BR-15 — not-addressed — session_reap.go Snapshot still takes ppid from ps and identity from a later read.
+
+### Raised
+
+- **BR-16** [Minor] `stale-doc-comment` Atlas omits reap's helper step, and the code and lessons say the poller is outside the tree because of Setsid, which is false for Couch threads
+  This is the 2nd finding in family stale-doc-comment. The rule: when a mechanism changes, every prose description of it (atlas, code comment, lessons) changes in the same commit. Here: atlas/couch.md's OSOrphanReaper sentence lacks the helper step and still lists pair title among the server's children. lifecycle.go:515 and lessons.md say the poller is outside the tree because it is spawned with Setsid, but sidecarProcessAttributes returns nil for Couch-launched Pair. The real reason is that the launcher, not the zellij server, is its parent.
+- **BR-17** [Minor] `duplicate-derivation` editorPathsOf duplicates the quit path's inline editor-path literal and no test checks they stay equal
+  lifecycle.go:196-199 vs 297-302 (ARCH-DRY). The inventory check is why the literal stays inline; a test asserting launcherCleanupOps.editorPaths equals editorPathsOf(paths) would keep the two from drifting.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-13** [Minor] `plan-drift-unrevised` Plan says reap is reached only through recover, but the switcher lists reap as its own entry too
+- **BR-14** [Minor] `stale-doc-comment` ActorActions doc comment still says "the two actor operations, resume and reboot"
+- **BR-15** [Minor] `point-observation-as-settled-state` OSProcessTable.Snapshot reads ppid from ps and start identity from a later sysctl, so a pid recycled between the two reads is planned under the wrong parent
+- **BR-16** [Minor] `stale-doc-comment` Atlas omits reap's helper step, and the code and lessons say the poller is outside the tree because of Setsid, which is false for Couch threads
+- **BR-17** [Minor] `duplicate-derivation` editorPathsOf duplicates the quit path's inline editor-path literal and no test checks they stay equal

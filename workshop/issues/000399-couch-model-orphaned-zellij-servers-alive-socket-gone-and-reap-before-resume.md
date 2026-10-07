@@ -125,7 +125,7 @@ Durable plan: `workshop/plans/000399-couch-model-orphaned-zellij-servers-alive-s
       `unusable/orphaned-server` (never `parked`, never archivable); resume,
       startup and the switcher show "<name>: server PID N lost its socket — reap
       to resume"; the report says agent `orphaned`.
-- [ ] M2 — Reap: a pure `PlanReap` over one process-tree snapshot plus an
+- [x] M2 — Reap: a pure `PlanReap` over one process-tree snapshot plus an
       identity-gated `Reaper` (TERM, then KILL after a bound, never a recycled
       pid); `couch --reap repo:N --confirm` through the socket; the report's
       steps become `reap` then `resume`. A switcher Tab action **recover** runs
@@ -150,6 +150,7 @@ Durable plan: `workshop/plans/000399-couch-model-orphaned-zellij-servers-alive-s
   another slot's lifecycle job, or at least needs visible "busy" feedback.
 
 ### 2026-10-07 — M1 implementation notes
+- 2026-10-07: closed M2 — Round 2. BR-9: a confirmation never outlives its op success (default rule; TestReapSuccessClosesItsConfirmation failed before). BR-10: title poller is Setsid-spawned outside the server tree, so reap also runs the tag pidfile helper reapers (TestReapTagHelpersEndsTheHelpersOutsideTheTree; refuses without a data dir); lesson. BR-11: startup refusal names Tab → recover, no hand-written kill recipe (test forbids kill/pkill). BR-12: README documents --reap/--recover/orphaned/Tab → recover. Artifact inventory lists no #399 file. couchcore, couchtty, couchcmd, launcher, couchmessage pass in a full scrubbed run. actual = measured 2.99 - M1 1.35.; review verdict: SHIP
 
 - e7c0f173: one server type with its socket path (PQ-1; the lowercase copy
   deleted), one argv parser (fuzzed), `SocketState` that trusts only ENOENT (PQ-2).
