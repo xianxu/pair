@@ -337,6 +337,31 @@ for this issue to cover the startup reattach pass as well; see Revisions.
 - Atlas: `atlas/couch.md` gains "One lifecycle operation per thread".
 - Spec: the interleaving answers are copied in.
 
+### 2026-10-07: M1 boundary review, round 1 (FIX-THEN-SHIP, 4 Important + 2 Minor)
+
+The first `milestone-close` hit the 30-minute review timeout and refused
+without writing. It was re-run with `WF_REVIEW_TIMEOUT=75m`. Fixes, each for
+the class the finding named:
+- **BR-1:** `Couch.Park`'s joining path maps begin-capable modes to `retry`
+  (`parkJoinMode`), so a stale "open transaction" read fails closed instead of
+  beginning a park unheld.
+- **BR-2:** the registry mutex (plan Task 8b) is pulled into M1. All ~20
+  `c.reg`/`c.names` accesses go through `registry()` and `mutateRegistry()`.
+  `TestConcurrentRegistryWritersLoseNoUpdate` turns red under `-race` with the
+  lock removed.
+- **BR-3:** continuation watches record the expected-exit marks their own
+  operation added (`markThreadExitsLocked`); a busy refusal removes only those.
+  The test now proves a park's mark survives.
+- **BR-4:** wait tests for `RecoverActiveParks`, `AbortStarted` (matching path),
+  and a cancelled abort wait.
+- **Minor:** `startStillOwnsThread` needs a matching incarnation, since zero
+  incarnations is not ownership.
+- **Minor:** the cancelled-park test asserts its refusal causes. That surfaced
+  that resume refuses on its own live-incarnation rule before reaching the
+  open-park check; the test now requires a structured resume refusal.
+
+Lessons are added to `workshop/lessons.md`.
+
 ## Revisions
 
 ### 2026-10-04: scope adds the startup reattach pass
