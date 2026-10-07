@@ -1,12 +1,12 @@
 ---
 id: 000405
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-07
 updated: 2026-10-07
 estimate_hours:
-card_mirror: '1527714f4e2c2a6f2c128ef033e90d6d81115ef4' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '0e0b696ce0051bb401a36b2821a38d1629ea4e9b' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-07T14:04:38-07:00
 claimant:
     operator: T
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "19233212", done: "8871a7ef"}
+actual_hours: 0.05
 ---
 
 # Highlight Couch capture status badge
