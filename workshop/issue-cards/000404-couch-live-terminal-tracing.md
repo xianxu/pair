@@ -1,6 +1,6 @@
 ---
 id: 000404
-status: codecomplete
+status: done
 created: 2026-10-07
 updated: 2026-10-07
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 2df93faba69b5bc13754b75859bc9db76b4a6dee
         evidence_commit: 49ee945b75a485a757254e14730d9007b166ae65
+        landed_commit: c76e26dc7763ae3bf255b9a6d8591077a802e9c3
 ---
 
 # Opt-in Couch live terminal tracing
