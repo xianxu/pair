@@ -155,3 +155,20 @@ explicit. The imported implementation is not yet ready to ship.
   a 32 GiB / 64-session directory budget, preserve all evidence on refusal, narrow
   per-session limit accordingly, and centralize phase changes in a pure model.
   Operator explicitly confirmed full-prefix capture with a visible limit.
+
+- BR-1 addressed: README now documents activation, limits, status and aggregate
+  admission with a runbook link. BR-2 addressed: storage admission reserves full
+  allowances under a persistent nonblocking flock, bounds bytes/session count,
+  refuses unsafe/unknown metadata and never deletes prior evidence. Both reservation
+  and legacy-ending readers use shared strictjson decoding, including duplicate-key
+  rejection. Open's real quota wiring is covered: replacing it with unbudgeted
+  creation makes TestCaptureStorageOpenKeepsCompletedReservation fail.
+- BR-3 addressed: lifecycle.go is the authoritative pure transition model; Recorder
+  executes returned close/notify effects. Sequence tests cover repeated close,
+  queue/IO failure, timeout and late completion, including successful completion
+  winning a race against timeout. New lifecycle/storage sources registered.
+- Post-review verification: full terminalcapture and couchtty suites passed
+  (`/tmp/pair404-review-packages.log`); focused race passed in terminalcapture,
+  couchcmd and couchtty, including both real-PTY startup configurations
+  (`/tmp/pair404-review-race.log`). Build and diff check passed. Rechecked artifact
+  inventory: exactly the same 53 baseline findings, zero additions/removals.

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"runtime"
 	"runtime/debug"
 	"sync"
@@ -14,6 +13,8 @@ import (
 )
 
 const (
+	// MaxSessionBytes also bounds the directory reservation budget.
+	MaxSessionBytes = 32 << 30
 	maxQueueBytes   = 8 << 20
 	maxQueueRecords = 8192
 	maxFileBytes    = 256 << 20
@@ -27,7 +28,7 @@ var (
 )
 
 // Config bounds the complete session file, including its final status record.
-// Zero selects the default 256 MiB; explicit limits range from 1 MiB to 1 TiB.
+// Zero selects the default 256 MiB; explicit limits range from 1 MiB to 32 GiB.
 type Config struct {
 	MaxBytes int64
 }
@@ -77,12 +78,11 @@ type Recorder struct {
 	opts            options
 	queue           chan Record
 	done            chan struct{}
-	phase           Phase
+	lifecycle       lifecycle
 	changes         chan struct{}
 	written         int64
 	percent         int64
 	retained, count int
-	failure         error
 }
 
 // Open creates a unique private session under parent. The composition root is
@@ -94,29 +94,21 @@ func Open(parent string, config ...Config) (*Recorder, error) {
 	}
 	if len(config) == 1 && config[0].MaxBytes != 0 {
 		limit := config[0].MaxBytes
-		if limit < 1<<20 || limit > 1<<40 {
-			return nil, errors.New("terminal capture byte limit must be between 1 MiB and 1 TiB")
+		if limit < 1<<20 || limit > MaxSessionBytes {
+			return nil, errors.New("terminal capture byte limit must be between 1 MiB and 32 GiB")
 		}
 		opts.fileBytes = limit
 	}
 
-	if err := os.MkdirAll(parent, 0700); err != nil {
-		return nil, fmt.Errorf("capture directory: %w", err)
-	}
-	dir, err := os.MkdirTemp(parent, "session-")
+	dir, f, err := openCaptureFile(parent, opts.fileBytes)
 	if err != nil {
-		return nil, fmt.Errorf("capture session: %w", err)
-	}
-	f, err := os.OpenFile(filepath.Join(dir, "events.jsonl"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
-	if err != nil {
-		_ = os.Remove(dir)
-		return nil, fmt.Errorf("capture events: %w", err)
+		return nil, fmt.Errorf("capture admission: %w", err)
 	}
 	return newRecorder(dir, f, opts), nil
 }
 
 func newRecorder(dir string, out io.WriteCloser, opts options) *Recorder {
-	r := &Recorder{dir: dir, start: time.Now(), opts: opts, queue: make(chan Record, opts.queueRecords), done: make(chan struct{}), phase: Recording, changes: make(chan struct{}, 1)}
+	r := &Recorder{dir: dir, start: time.Now(), opts: opts, queue: make(chan Record, opts.queueRecords), done: make(chan struct{}), lifecycle: newLifecycle(), changes: make(chan struct{}, 1)}
 	build := runtime.Version()
 	if info, ok := debug.ReadBuildInfo(); ok {
 		build += " " + info.Main.Path + "@" + info.Main.Version
@@ -155,7 +147,8 @@ func (r *Recorder) Status() Status {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return Status{Phase: r.phase, WrittenBytes: r.written, LimitBytes: r.opts.fileBytes, Err: r.failure}
+	state := r.lifecycle.snapshot()
+	return Status{Phase: state.phase, WrittenBytes: r.written, LimitBytes: r.opts.fileBytes, Err: state.err}
 }
 
 // Changes coalesces wakeups; consumers read Status after waking. The channel is
@@ -174,20 +167,12 @@ func (r *Recorder) notifyLocked() {
 	}
 }
 
-func (r *Recorder) stopLocked(err error) {
-	previous := r.phase
-	if err != nil {
-		if !errors.Is(r.failure, err) {
-			r.failure = errors.Join(r.failure, err)
-		}
-		r.phase = Failed
-	} else if r.phase == Recording {
-		r.phase = Draining
-	}
-	if previous == Recording {
+func (r *Recorder) transitionLocked(event lifecycleEvent) {
+	effects := r.lifecycle.transition(event)
+	if effects.closeAdmission {
 		close(r.queue)
 	}
-	if r.phase != previous || err != nil {
+	if effects.notify {
 		r.notifyLocked()
 	}
 }
@@ -213,12 +198,12 @@ func (r *Recorder) Record(record Record) {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.phase != Recording {
+	if r.lifecycle.snapshot().phase != Recording {
 		return
 	}
 	cost := record.retainedBytes()
 	if cost > r.opts.queueBytes-r.retained || r.count >= r.opts.queueRecords {
-		r.stopLocked(ErrQueueFull)
+		r.transitionLocked(lifecycleEvent{kind: captureFailed, err: ErrQueueFull})
 		return
 	}
 	record = record.owned()
@@ -231,7 +216,7 @@ func (r *Recorder) Record(record Record) {
 func (r *Recorder) fail(err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.stopLocked(err)
+	r.transitionLocked(lifecycleEvent{kind: captureFailed, err: err})
 }
 
 func (r *Recorder) run(out io.WriteCloser) {
@@ -266,9 +251,9 @@ func (r *Recorder) run(out io.WriteCloser) {
 	}
 	r.mu.Lock()
 	end := Record{Kind: "capture-end", Status: "complete"}
-	if r.failure != nil {
+	if failure := r.lifecycle.snapshot().err; failure != nil {
 		end.Status = "incomplete"
-		end.Error = r.failure.Error()
+		end.Error = failure.Error()
 		if len(end.Error) > 512 {
 			end.Error = end.Error[:512]
 		}
@@ -296,10 +281,7 @@ func (r *Recorder) run(out io.WriteCloser) {
 		r.fail(err)
 	}
 	r.mu.Lock()
-	if r.phase == Draining {
-		r.phase = Closed
-		r.notifyLocked()
-	}
+	r.transitionLocked(lifecycleEvent{kind: workerCompleted})
 	r.mu.Unlock()
 }
 
@@ -315,7 +297,7 @@ func (r *Recorder) Close() error {
 	}
 	r.closeOnce.Do(func() {
 		r.mu.Lock()
-		r.stopLocked(nil)
+		r.transitionLocked(lifecycleEvent{kind: closeRequested})
 		r.mu.Unlock()
 		timer := time.NewTimer(r.opts.closeTimeout)
 		defer timer.Stop()
@@ -323,11 +305,11 @@ func (r *Recorder) Close() error {
 		case <-r.done:
 		case <-timer.C:
 			r.mu.Lock()
-			r.stopLocked(ErrCloseTimeout)
+			r.transitionLocked(lifecycleEvent{kind: drainTimedOut})
 			r.mu.Unlock()
 		}
 		r.mu.Lock()
-		r.closeErr = r.failure
+		r.closeErr = r.lifecycle.snapshot().err
 		r.mu.Unlock()
 	})
 	return r.closeErr

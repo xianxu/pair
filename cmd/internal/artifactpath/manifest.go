@@ -595,6 +595,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/capture.go",
 	"cmd/internal/couchtty/capture.go",
 	"cmd/internal/terminal/observation.go",
+	"cmd/internal/terminalcapture/lifecycle.go",
+	"cmd/internal/terminalcapture/storage.go",
 	"cmd/internal/terminalcapture/record.go",
 	"cmd/internal/terminalcapture/recorder.go",
 	// #366 singleton ownership/configuration, not Pair artifact filenames.

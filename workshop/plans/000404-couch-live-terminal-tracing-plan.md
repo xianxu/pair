@@ -246,3 +246,12 @@ per-session-only retention and the proposed 1 TiB configuration maximum.
 
 Operator explicitly confirmed “Complete capture with visible limit (recommended)”
 during the first close review. Review refusal was not bypassed; re-close after fixes.
+
+- 2026-10-07 — BR-1–BR-3 implementation verified. Concrete model is private
+  captureLifecycle/nextLifecycle in lifecycle.go; storage shell openCaptureFile
+  in storage.go owns flock and versioned captureBudget admission. MaxSessionBytes
+  exposes the common per-session/CLI maximum; aggregate budget remains named at
+  its owner. Public Open quota mutation fails its regression as expected; shared
+  strictjson rejects ambiguous budget/legacy JSON. Full affected package suites,
+  focused races and real-PTY capture tests pass; 53 baseline artifact findings
+  remain unchanged. Ready for second close review, not a waived first review.

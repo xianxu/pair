@@ -55,8 +55,8 @@ func captureSettings(getenv func(string) string) (string, terminalcapture.Config
 		}
 	}
 	n, parseErr := strconv.ParseUint(raw, 10, 64)
-	if !valid || parseErr != nil || n < 1 || n > 1<<20 {
-		return "", config, fmt.Errorf("COUCH_CAPTURE_MAX_MIB must be an integer from 1 to 1048576")
+	if !valid || parseErr != nil || n < 1 || n > terminalcapture.MaxSessionBytes>>20 {
+		return "", config, fmt.Errorf("COUCH_CAPTURE_MAX_MIB must be an integer from 1 to %d", terminalcapture.MaxSessionBytes>>20)
 	}
 	config.MaxBytes = int64(n) << 20
 	return path, config, nil

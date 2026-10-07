@@ -7,6 +7,11 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- When opt-in diagnostics add configuration, update README as well as the detailed
+  runbook. Bound repeated-launch storage through admission or evidence-preserving
+  retention, not only individual files. Keep lifecycle phase authority in the pure
+  model; IO executes its channel/notification effects. (#404 BR-1–BR-3)
+
 - Bound diagnostic queues against measured burst shapes, including record count
   as well as bytes. Report capture loss through the owning UI while it is running;
   a teardown-only error can leave an operator waiting on a recorder that stopped

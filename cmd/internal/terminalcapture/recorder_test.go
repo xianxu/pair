@@ -377,7 +377,7 @@ func TestStatusNilAndConfiguration(t *testing.T) {
 	if got := disabled.Status(); got != (Status{Phase: Disabled}) || disabled.Changes() != nil {
 		t.Fatalf("disabled=%+v", got)
 	}
-	for _, limit := range []int64{0, 1 << 20, 1 << 40} {
+	for _, limit := range []int64{0, 1 << 20, 32 << 30} {
 		r, err := Open(t.TempDir(), Config{MaxBytes: limit})
 		if err != nil {
 			t.Fatal(err)
@@ -401,7 +401,7 @@ func TestStatusNilAndConfiguration(t *testing.T) {
 		}
 	}
 	parent := filepath.Join(t.TempDir(), "not-created")
-	for _, limit := range []int64{-1, 1, (1 << 20) - 1, (1 << 40) + 1} {
+	for _, limit := range []int64{-1, 1, (1 << 20) - 1, (32 << 30) + 1} {
 		if _, err := Open(parent, Config{MaxBytes: limit}); err == nil {
 			t.Fatalf("accepted %d", limit)
 		}

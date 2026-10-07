@@ -243,11 +243,11 @@ func testCapturePTYBothBoundaries(t *testing.T, isolated bool) {
 	case <-time.After(time.Second):
 		t.Fatal("capture reader failed to join")
 	}
-	dirs, err := os.ReadDir(env["COUCH_CAPTURE_DIR"])
+	dirs, err := filepath.Glob(filepath.Join(env["COUCH_CAPTURE_DIR"], "session-*"))
 	if err != nil || len(dirs) != 1 {
 		t.Fatalf("dirs %v %v", dirs, err)
 	}
-	records := readCaptureRecords(t, filepath.Join(env["COUCH_CAPTURE_DIR"], dirs[0].Name()))
+	records := readCaptureRecords(t, dirs[0])
 	var feed, host, bind, geometry bool
 	var ingress []byte
 	for _, e := range records {
@@ -306,7 +306,7 @@ func TestCaptureEarlyLaunchFailureReportsDrainFailure(t *testing.T) {
 }
 
 func TestCaptureConfiguredLimitValidationBeforeOpen(t *testing.T) {
-	for _, value := range []string{"0", "-1", "+1", "1.5", " 1", "1048577", "999999999999999999999999"} {
+	for _, value := range []string{"0", "-1", "+1", "1.5", " 1", "32769", "1048577", "999999999999999999999999"} {
 		t.Run(value, func(t *testing.T) {
 			root := t.TempDir()
 			env := map[string]string{"COUCH_CAPTURE_DIR": filepath.Join(root, "capture"), "COUCH_CAPTURE_MAX_MIB": value}
@@ -337,11 +337,11 @@ func TestCaptureConfiguredLimitAppliesAtComposition(t *testing.T) {
 	if err := con.CloseCapture(); !errors.Is(err, terminalcapture.ErrFileLimit) {
 		t.Fatalf("configured limit not enforced: %v", err)
 	}
-	dirs, err := os.ReadDir(env["COUCH_CAPTURE_DIR"])
+	dirs, err := filepath.Glob(filepath.Join(env["COUCH_CAPTURE_DIR"], "session-*"))
 	if err != nil || len(dirs) != 1 {
 		t.Fatalf("capture dirs %v %v", dirs, err)
 	}
-	info, err := os.Stat(filepath.Join(env["COUCH_CAPTURE_DIR"], dirs[0].Name(), "events.jsonl"))
+	info, err := os.Stat(filepath.Join(dirs[0], "events.jsonl"))
 	if err != nil || info.Size() > 1<<20 {
 		t.Fatalf("disk bound %v %v", info, err)
 	}

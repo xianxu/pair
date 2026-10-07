@@ -24,7 +24,7 @@ or agent restart is required. Only output arriving after attachment is recorded.
 
 `COUCH_CAPTURE_DIR` must be an absolute directory. It is off when unset or empty;
 invalid/unopenable destinations fail startup. `COUCH_CAPTURE_MAX_MIB` optionally
-sets the per-session disk budget in whole MiB (1–1048576); the default is 256 MiB.
+sets the per-session disk budget in whole MiB (1–32768); the default is 256 MiB.
 The example chooses 4 GiB for a longer wait. A limit alone does not enable capture.
 When capture is enabled, invalid limits fail before any capture file is created.
 Both capture settings are cleared from launched child environments, so activation
@@ -87,9 +87,22 @@ screen history needed for replay. A finite budget cannot cover an indefinite
 wait. Duration depends on traffic: 4 GiB lasts about 11.7 hours at 100 KiB/s or
 68 minutes at 1 MiB/s of encoded capture growth. Startup bursts are not a steady
 rate estimate. Watch the percentage; restart with a larger budget before it fills.
-Each restart creates another independently bounded session; old sessions are not
-automatically deleted. After investigation, remove the particular session directories
-you no longer need. Keep the complete directory of a reported incident.
+Each restart reserves its full configured allowance against a **32 GiB directory
+budget**, with at most **64 sessions**. Reservations remain after close or crash;
+unused reserved capacity is intentionally not reclaimed automatically. Admission
+uses a private lock and versioned `budget.json` beside each `events.jsonl`. A busy
+lock or exhausted budget refuses startup. To free a reservation, move a specific
+saved session to your evidence archive or remove it when no longer needed; never
+move or remove a session that is still recording. No recording is auto-deleted.
+These limits bound recorder-created stream storage; separately extracted raw files
+and copies belong to the operator's evidence archive.
+
+Finished legacy recordings without budget metadata count at their actual file
+size only when the ending record proves recording stopped. Unfinished, corrupt or
+unrecognized recordings refuse admission rather than being assumed disposable;
+retain them and use a fresh capture directory. Budget metadata must not be edited
+to claim capacity: mismatches or unknown versions refuse admission. Each capture
+contains unredacted display data; retain the whole session directory for incidents.
 
 Shutdown restores the terminal before draining capture, with a two-second drain
 limit. A filesystem write cannot reliably be canceled; after timeout the existing
