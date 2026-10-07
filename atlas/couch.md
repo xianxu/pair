@@ -2160,8 +2160,23 @@ carry `Orphan` (pid, session) so every surface prints one sentence,
 resume". Resume refuses with `resume-orphaned-server`. Startup refuses rather than
 starting a second primary beside it (`ScopeHoldsOrphanedThread`; unusable rows are
 otherwise debris to the one-primary rule). The recovery report shows agent
-`orphaned` with its server and holds the row as `orphaned-server`. Reap and the
-switcher's `recover` (M2) are the way forward.
+`orphaned` with its server; a lone orphaned row's steps are `couch --reap repo:N
+--confirm` then `couch --resume repo:N` (never reboot, which would archive a
+running conversation), and an orphan among several threads holds the slot.
+
+**`reap`** (M2) is the confirmed operation that ends an orphaned server's tree,
+offered by `ActorActions` (only) on an orphaned row, so the switcher shows it
+too. `Couch.Reap` admits a row only if the orphan verdict holds again for the
+same server identity a second later: a starting server is in `ps` before its
+socket exists. `launcher.PlanReap` orders one snapshot of the tree, deepest
+descendant first and the server last; `launcher.Reaper` sends SIGTERM in that
+order, SIGKILLs survivors by pid after a bound (a child that reparented to PID 1
+is still found), re-reads every pid's start identity before every signal, refuses
+a changed server before any signal, and names a SIGKILL survivor instead of
+waiting. `launcher.OSOrphanReaper` then proves zellij's leftover EXITED record
+gone with the shared quiescence loop. Order matters because on 2026-10-06 the
+servers were killed first and their `pair wrap`/`pair title` children survived at
+PPID 1.
 
 **`recover`** (M2, `couchcore/recover_action.go`) is the switcher's default Tab
 action, offered wherever `ActorActions` offers anything. It runs exactly the
