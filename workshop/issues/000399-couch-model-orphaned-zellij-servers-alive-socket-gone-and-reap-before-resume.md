@@ -147,3 +147,28 @@ Durable plan: `workshop/plans/000399-couch-model-orphaned-zellij-servers-alive-s
   is likely the capacity-one lifecycle queue refusing ("overloads") the
   switch. Investigate separately: a switch to a live thread shouldn't wait on
   another slot's lifecycle job, or at least needs visible "busy" feedback.
+
+### 2026-10-07 — M1 implementation notes
+
+- e7c0f173: one server type with its socket path (PQ-1; the lowercase copy
+  deleted), one argv parser (fuzzed), `SocketState` that trusts only ENOENT (PQ-2).
+- dfec2c1a: `Probe` asks the socket before `list-panes`. A gone socket gives
+  `SessionOwnerOrphaned` plus one sentence; an unknown socket gives Unknown.
+- 5c610a37: session presence takes one host server snapshot per refresh (an
+  injectable `Servers` seam; tests use a fake table) and projects
+  `SessionOrphaned` for names `list-sessions` doesn't report live.
+- 955ed445: `unusable/orphaned-server` outranks every no-session reading and the
+  record's own faults. It is not archivable or rebootable, and nothing is offered.
+- 343a1655: resume refuses with `resume-orphaned-server` (never reboot advice).
+  Rows carry the orphan so the switcher names the pid.
+  **Found during design:** startup ignored unusable rows as debris, so a repo
+  whose primary was orphaned would have started a SECOND agent beside the
+  running one. Startup now refuses, naming the server. Test-first: the new test
+  failed with "a second primary started beside an orphaned one".
+- Recovery report: agent `orphaned` with `{pid, session}`, class and hold
+  `orphaned-server`, no steps (M2 adds reap → resume). The orphan rule outranks the
+  workspace-handoff rule.
+- Test runs inside this live slot need EVERY `PAIR_*`/`COUCH_*`/`ZELLIJ*` var
+  unset, plus a scratchpad `TMPDIR` (the #399 lesson); the five-var scrub leaks.
+  couchcore takes 505–532 s, close to `go test`'s default 10-minute limit; one
+  run timed out under load, so runs use `-timeout 30m`.

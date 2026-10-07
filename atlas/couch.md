@@ -1256,7 +1256,7 @@ re-derive it.
 row, and `ClassifyThread` returns a state plus, when the row cannot be acted on,
 a `ThreadReason` from one closed vocabulary -- `binding-lost`, `session-gone`,
 `never-started`, `invalid`, `unreadable`, `path-missing`, `profile-missing`,
-`unsupported-agent`, `unknown`. (`stale-incarnation` and `unrecorded-child` were
+`unsupported-agent`, `unknown`, `orphaned-server` (#399). (`stale-incarnation` and `unrecorded-child` were
 retired by #256; see "Recoverability is a fact about the session" below.)
 Failing closed is unchanged -- an unproved row is not actionable and startup
 never selects it -- but it is expressed as a state rather than as absence. The
@@ -2130,7 +2130,7 @@ the world**:
 Neither field is deleted from the record; they stop being **read** by the
 classifier. Replacing the park transaction itself is `#275`.
 
-### `SessionObservation` — three values, not a boolean
+### `SessionObservation` — four values, not a boolean
 
 `couchcore/sessionevidence.go`. `SessionUnresolved` is the **zero value**, so an
 observation nobody populated fails closed: if absence were the zero value, a
@@ -2138,7 +2138,32 @@ gather branch that silently stopped running would assert "no session" for every
 thread it skipped — the anonymous refusals `#181` removed. `session-gone` is
 archive-eligible, which is what makes the distinction load-bearing.
 
-There is deliberately no fourth "held elsewhere" value. The refresh never counts
+**`SessionOrphaned` (#399)** is the fourth value: the session's exact zellij
+server is alive but its socket is gone. Nothing can reach it, `list-sessions` no
+longer lists it, and its agent may still be writing. On 2026-10-06 a test deleted
+`$TMPDIR` and orphaned all 20 servers; the inventory read them `parked`, offered
+`resume`, and resume failed with a raw `list-panes` exit status.
+
+| Fact | Where it is read | Rule |
+|---|---|---|
+| server argv `zellij --server <socket>` | `launcher.ParseServerProcesses` | one parser; the socket's base name is the session |
+| socket state | `launcher.ObserveSocket` | only ENOENT is `gone`; any other Lstat answer is `unknown` and never makes an orphan |
+| per-session verdict | `launcher.ClassifyServers` | lone server + gone socket → orphaned; unknown socket or two servers for a name → unresolved |
+| refresh evidence | `SessionPresence` + `launcher.ServerStates` | one `ps` + one Lstat per server per refresh; consulted only for names `list-sessions` doesn't report live; a snapshot error fails the refresh closed |
+| one session's owner | `SessionOwnerProbe.Probe` | asks the socket before `list-panes`; gone → `SessionOwnerOrphaned` |
+
+The classifier turns it into `unusable/orphaned-server`, ahead of every
+"no session" reading and the record's own faults (an orphan is a running process
+whatever the record says). It is not archivable, rebootable or resumable. Rows
+carry `Orphan` (pid, session) so every surface prints one sentence,
+`launcher.OrphanDiagnostic`: "<session>: server PID N lost its socket — reap to
+resume". Resume refuses with `resume-orphaned-server`. Startup refuses rather than
+starting a second primary beside it (`ScopeHoldsOrphanedThread`; unusable rows are
+otherwise debris to the one-primary rule). The recovery report shows agent
+`orphaned` with its server and holds the row as `orphaned-server`. Reap and the
+switcher's `recover` (M2) are the way forward.
+
+There is deliberately no "held elsewhere" value. The refresh never counts
 clients — `list-clients` costs ~250 ms per live session (`#228`) — and the
 reattach path re-observes attach state before committing. **Optimistic inventory,
 strict action:** the expensive question is asked for the one thread the operator
