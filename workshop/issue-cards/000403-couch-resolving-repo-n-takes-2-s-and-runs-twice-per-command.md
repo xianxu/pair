@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000403-couch-resolving-repo-n-takes-2-s-and-runs-twice-per-command.md
         source_blob: 5d4c8deb15ab1fe6b0da2b3a93da2b34b4faf791
         destination: workshop/issues/000403-couch-resolving-repo-n-takes-2-s-and-runs-twice-per-command.md
+        main_commit: 21d9b74a5408ebddcc68125285fb52865e31b95a
 ---
 
 # couch: resolving repo:N takes ~2 s and runs twice per command
