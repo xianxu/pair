@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -49,7 +50,19 @@ type ownerWorld struct {
 	generation    SessionServerIdentity
 	present       bool
 	panes         []byte
+	panesErr      error
+	panesCalls    int
 	changeOnQuery bool
+	// sockets is the socket table; a path it doesn't name reads present, so
+	// the older cases keep their reachable server.
+	sockets map[string]SocketState
+}
+
+func (w *ownerWorld) Socket(path string) SocketState {
+	if state, ok := w.sockets[path]; ok {
+		return state
+	}
+	return SocketPresent
 }
 
 func (w *ownerWorld) SessionServers(context.Context, string) ([]SessionServerIdentity, error) {
@@ -60,10 +73,48 @@ func (w *ownerWorld) SessionServers(context.Context, string) ([]SessionServerIde
 }
 func (w *ownerWorld) SessionPresent(context.Context, string) (bool, error) { return w.present, nil }
 func (w *ownerWorld) SessionPanes(context.Context, string) ([]byte, error) {
+	w.panesCalls++
 	if w.changeOnQuery {
 		w.generation.Identity = "replaced"
 	}
-	return w.panes, nil
+	return w.panes, w.panesErr
+}
+
+// A server alive with its socket gone is an orphan, reported as a state and
+// never an error (#399). Strategy: socket {present, gone, unknown} x list-panes
+// {ok, error}. Only gone yields orphaned, and an orphan is never asked for panes
+// (it has no socket); unknown is unknown; present keeps today's behaviour.
+func TestSessionOwnerProbeNamesAnOrphanedServer(t *testing.T) {
+	panes := []byte(`[{"id":1,"pane_command":"nvim /tmp/data/repos/0123456789abcdef/draft-1-repo-1.md"}]`)
+	server := SessionServerIdentity{PID: 7, Identity: "t7", Session: "📁1-37", Socket: "/T/zellij-501/contract_version_1/📁1-37"}
+	for _, tc := range []struct {
+		socket    SocketState
+		panesErr  error
+		wantState SessionOwnerState
+		wantErr   bool
+	}{
+		{SocketGone, nil, SessionOwnerOrphaned, false},
+		{SocketGone, errors.New("exit status 1"), SessionOwnerOrphaned, false},
+		{SocketUnknown, nil, SessionOwnerUnknown, false},
+		{SocketUnknown, errors.New("exit status 1"), SessionOwnerUnknown, false},
+		{SocketPresent, nil, SessionOwnerOwned, false},
+		{SocketPresent, errors.New("exit status 1"), SessionOwnerUnknown, true},
+	} {
+		w := &ownerWorld{present: true, generation: server, panes: panes, panesErr: tc.panesErr,
+			sockets: map[string]SocketState{server.Socket: tc.socket}}
+		got, err := SessionOwnerProbe{IO: w}.Probe(context.Background(), "📁1-37", "/tmp/data", "0123456789abcdef", "1-repo-1")
+		if (err != nil) != tc.wantErr || got.State != tc.wantState {
+			t.Fatalf("socket %v, panes err %v: got %+v, %v", tc.socket, tc.panesErr, got, err)
+		}
+		if tc.socket != SocketPresent && w.panesCalls != 0 {
+			t.Fatalf("socket %v: asked list-panes of a server with no reachable socket", tc.socket)
+		}
+		if tc.socket == SocketGone {
+			if got.Server != server || !strings.Contains(got.Diagnostic, "server PID 7 lost its socket — reap to resume") {
+				t.Fatalf("orphan observation %+v", got)
+			}
+		}
+	}
 }
 
 func TestSessionOwnerProbeRevalidatesServerGeneration(t *testing.T) {

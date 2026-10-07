@@ -17,7 +17,15 @@ const (
 	SessionOwnerAbsent
 	SessionOwnerOwned
 	SessionOwnerForeign
+	// SessionOwnerOrphaned: the exact server is alive but its socket is gone,
+	// so nothing can reach it -- and its agent may still be writing (#399).
+	SessionOwnerOrphaned
 )
+
+// OrphanDiagnostic is the one sentence every surface shows for an orphan.
+func OrphanDiagnostic(session string, pid int) string {
+	return fmt.Sprintf("%s: server PID %d lost its socket — reap to resume", session, pid)
+}
 
 // SessionServerIdentity witnesses one server generation, not just its name.
 // Socket is the path from the server's own argv: the only evidence that tells a

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 )
@@ -13,6 +14,7 @@ type SessionOwnerIO interface {
 	SessionServers(context.Context, string) ([]SessionServerIdentity, error)
 	SessionPresent(context.Context, string) (bool, error)
 	SessionPanes(context.Context, string) ([]byte, error)
+	Socket(path string) SocketState
 }
 
 type SessionOwnerProbe struct{ IO SessionOwnerIO }
@@ -58,6 +60,18 @@ func (p SessionOwnerProbe) Probe(ctx context.Context, name, globalDataDir, scope
 	}
 	if len(before) != 1 || before[0].PID <= 0 || before[0].Identity == "" || before[0].Session != name {
 		result.Diagnostic = "ambiguous session server identity"
+		return result, nil
+	}
+	// Ask the socket before the server: an orphan has no socket to answer
+	// list-panes, and its failure used to surface as a raw exit status (#399).
+	switch io.Socket(before[0].Socket) {
+	case SocketGone:
+		result.State = SessionOwnerOrphaned
+		result.Server = before[0]
+		result.Diagnostic = OrphanDiagnostic(name, before[0].PID)
+		return result, nil
+	case SocketUnknown:
+		result.Diagnostic = "session server socket unreadable"
 		return result, nil
 	}
 	raw, err := io.SessionPanes(ctx, name)
@@ -110,6 +124,9 @@ func (osSessionOwnerIO) SessionPresent(ctx context.Context, name string) (bool, 
 	}
 	present, exited := sessionRowState(string(raw), name)
 	return present && !exited, nil
+}
+func (osSessionOwnerIO) Socket(path string) SocketState {
+	return ObserveSocket(os.Lstat(path))
 }
 func (osSessionOwnerIO) SessionPanes(ctx context.Context, name string) ([]byte, error) {
 	return (ZellijSource{}).runContext(ctx, "--session", name, "action", "list-panes", "--json", "--command")

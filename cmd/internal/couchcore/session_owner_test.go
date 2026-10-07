@@ -29,6 +29,7 @@ func (w *sessionOwnerWorld) SessionPresent(_ context.Context, name string) (bool
 	_, ok := w.owners[name]
 	return ok, nil
 }
+func (w *sessionOwnerWorld) Socket(string) launcher.SocketState { return launcher.SocketPresent }
 func (w *sessionOwnerWorld) SessionPanes(_ context.Context, name string) ([]byte, error) {
 	a := w.owners[name]
 	p, e := artifactpath.Resolve(artifactpath.Address{DataDir: w.root, RepoScope: a.RepoScope, Tag: string(a.Tag)})
