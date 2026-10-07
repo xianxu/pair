@@ -1,12 +1,20 @@
 ---
 id: 000395
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-06
-updated: 2026-10-06
+updated: 2026-10-07
 estimate_hours:
-card_mirror: '9fa63e5a5ccb0c99e7f16471257b5dfcc5e5a699' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'c872e97f56fcc5fdccf7719c0feb334f401bd802' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-07T14:20:51-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Couch broadcast: stream the composed Couch screen, view-only, to a remote couch --watch
@@ -103,3 +111,30 @@ thread-aware screen, the switcher policy and the LIVE control.
   over about 3 days (about 1.6 MB/day); the rendered transcript was 69 KB / 739
   lines. Codex output has been measured at about 53 KB/s in bursts. Bandwidth is
   not a concern.
+
+### 2026-10-07
+
+- Claimed; `start-plan`. Spike findings (code map + web research):
+  - **zellij web client (0.43+, read-only tokens since 0.44, latest 0.45.1
+    2026-08-28) can't do this.** It attaches as a zellij client and draws only
+    zellij's UI, so Couch's tab bar, switcher and LIVE cell are outside its
+    reach. ~48 open web-client issues (reconnect loops, freezes). Couch's value
+    is the composed screen; broadcasting Couch's own frames is the only route.
+  - **Tap seam:** `terminal/presenter.go` `paintPublication` (~:371) after a
+    successful paint, next to `p.previous = f.Clone()`. Every paint converges
+    there (endpoint, `Panel`, `UpdateChrome`, `Resize`). Hand subscribers
+    `f.Clone()` (Frame holds slices; only a clone is goroutine-safe). Don't tap
+    bytes: they are diffs against the operator's `previous` and carry
+    parent-mode/kitty-keyboard controls. Precedent for a bounded non-blocking
+    tap: `terminalcapture.Recorder` (`ErrQueueFull`).
+  - **Switcher isn't a layer.** `Console.showMenu` builds a whole `PanelFrame`
+    and calls `presenter.Panel`, so the broadcast needs an explicit
+    "private frame" mark at that call site, not layer omission (spec's
+    "layering" wording is wrong for today's code).
+  - **Tab bar:** `couchtty/reserve.go` `RenderStatusRow`; capture badge is
+    leftmost (no click target). Clicks: `couchtty/terminal_input.go`
+    `routeMouseEvent` (last row → `ColumnToActor`). Keys: `couchkeys` table +
+    `dispatchFor` + `hitHandlers`.
+  - Geometry rides on every `Frame.Geometry`; resizes come free.
+  - No HTTP server or network deps today; CLI is hand-parsed
+    (`couchcmd/cli.go`).
