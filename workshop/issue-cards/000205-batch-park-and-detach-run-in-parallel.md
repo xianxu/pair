@@ -13,14 +13,14 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
-actual_hours: 7.51
+actual_hours: 6.88
 tracker:
     version: 1
     completion:
-        token: close-feaa0dd98bb6
+        token: close-e61aad882fce
         repository: github.com/xianxu/pair
-        reviewed_head: d3019e4331687d53afd7145ba79e27b921f493b1
-        evidence_commit: 586a48d8ebd3ea4c96b266dab0f2334b7c706f0c
+        reviewed_head: edb0f11a428f31bb1fd718da2064b58823d7944e
+        evidence_commit: 325fed0b2b726dcb2c490f150090443799e186be
 ---
 
 # batch park and detach run in parallel
