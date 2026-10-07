@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-06
 updated: 2026-10-07
-estimate_hours:
-card_mirror: 'd86ccb80b61184856c222e958057840daa283226' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 7.78
+card_mirror: '6ffa19d88031e882ed0d5513f4869a83e94a381a' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-07T14:20:51-07:00
 claimant:
     operator: T
@@ -125,6 +125,44 @@ cell are outside its reach.
   valid token is refused, and a token stops working once the broadcast ends.
 - The viewer page and xterm.js are served from the binary (vendored, pinned);
   the page makes no request to any other origin.
+
+## Estimate
+
+Derived per `estimate-logic-v3.1` (`impl=` at 40% of the v2 table). Design
+×0.2 for the thorough plan (except the two smoke/UX rounds, which are
+operator-bound); +15% design buffer; familiarity 1.2, because the browser and
+`cloudflared` parts are novel-but-bounded while the Go side is familiar. Items,
+in order: M1 tap, indicator/privacy/stream, hub; M2 viewer, server, session;
+M3 status row/key, console wiring, couchcmd, atlas; M4 cloudflared; discovery
+(cloudflared, xterm.js under CSP); two smoke rounds; four milestone reviews.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.2
+item: smaller-go-module      design=0.06 impl=0.14
+item: greenfield-go-module   design=0.25 impl=0.22
+item: greenfield-go-module   design=0.25 impl=0.32
+item: greenfield-go-module   design=0.25 impl=0.22
+item: greenfield-go-module   design=0.25 impl=0.22
+item: greenfield-go-module   design=0.25 impl=0.22
+item: smaller-go-module      design=0.06 impl=0.14
+item: tui-screen             design=0.25 impl=0.26
+item: smaller-go-module      design=0.06 impl=0.14
+item: atlas-docs             design=0.03 impl=0.05
+item: api-integration        design=0.40 impl=0.40
+item: real-api-discovery     design=0.00 impl=0.18
+item: real-api-discovery     design=0.00 impl=0.18
+item: ux-rename-iteration    design=0.55 impl=0.08
+item: ux-rename-iteration    design=0.55 impl=0.08
+item: milestone-review       design=0.00 impl=0.14
+item: milestone-review       design=0.00 impl=0.14
+item: milestone-review       design=0.00 impl=0.14
+item: milestone-review       design=0.00 impl=0.14
+design-buffer: 0.15
+total: 7.78
+```
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*
 
 ## Plan
 
