@@ -1,12 +1,22 @@
 ---
 id: 000405
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-07
 updated: 2026-10-07
 estimate_hours:
-card_mirror: 'fcf754f35a7cead00035e88f56aa4fbfbc32d10f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '0e0b696ce0051bb401a36b2821a38d1629ea4e9b' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-07T14:04:38-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "19233212", done: "8871a7ef"}
+actual_hours: 0.05
 ---
 
 # Highlight Couch capture status badge
@@ -26,8 +36,14 @@ Render every visible capture badge in bold reverse video, using the terminal for
 
 ## Plan
 
-- [ ] Apply the highlight through the existing row renderer and verify the capture/status tests and build.
+- [x] Apply the highlight through the existing row renderer and verify the capture/status tests and build.
 
 ## Log
 
 ### 2026-10-07
+- 2026-10-07: closed — Existing capture/status tests and Couch build pass. Scoped reset, empty badge and zero-width behavior verified by inspection in unchanged appendText. BR-1 withdrawal requested: session instructions prohibit new implementation-mirroring tests for this reversible one-line style change. No new architectural surface.; review verdict: SHIP
+
+- Applied bold reverse video through the existing `appendText` style argument; its reset scopes emphasis to the clipped badge, including stopped states. No new rendering mechanism or terminal write path.
+- Verified `go test ./cmd/internal/couchtty -run 'Capture|RenderStatusRow|StatusRow' -count=1`, `go build -o bin/couch ./cmd/couch`, and `git diff --check`. Tests ran with Pair/Couch/Zellij environment removed and a dedicated temporary root.
+
+- Close review BR-1 requests new tests asserting the exact bold/inverse escape and reset. Requested disposition: withdraw. This reversible, one-line presentation tweak intentionally relies on the existing scoped renderer rather than adding implementation-mirroring tests. Session instructions explicitly prohibit writing tests for reversible low-impact changes or tests that mirror implementation. Inspection verifies `appendText` omits style for empty/zero-width output, clips before adding style, and emits its reset immediately after badge text; the existing state/width/click-span tests pass. No rendering logic changed.
