@@ -69,6 +69,8 @@ type Presenter struct {
 	// keyboard flags are a stack per screen (#279); see writeFramePacket.
 	altKeyboardOwned bool
 	history          HistoryState
+	tap              Tap
+	class            FrameClass // of what is on screen: Select → public, Panel → its argument
 	modesKnown       bool
 	parentTouched    bool // actor-owned; even an interrupted first write requires release
 }
@@ -375,6 +377,9 @@ func (p *Presenter) paintPublication(ctx context.Context, f Frame, history *Hist
 		p.history = nextHistory
 	}
 	_, err = p.transition(ViewEvent{Kind: PresentView, EndpointID: f.EndpointID, Token: v.Token, Generation: f.Generation, GeometryEpoch: f.GeometryEpoch})
+	if err == nil && p.tap != nil {
+		p.tap(f.Clone(), p.class)
+	}
 	return err
 }
 func (p *Presenter) paintEndpoint(ctx context.Context, e *Endpoint, selection bool) error {
@@ -411,6 +416,7 @@ func (p *Presenter) Select(ctx context.Context, e *Endpoint, host Geometry, bott
 			return p.fail(err)
 		}
 		p.selected = e
+		p.class = FramePublic
 		p.host = host
 		p.bottom = bottom
 		return p.paintEndpoint(ctx, e, true)
@@ -435,7 +441,10 @@ func (p *Presenter) Present(ctx context.Context, e *Endpoint) error {
 	}
 	return nil
 }
-func (p *Presenter) Panel(ctx context.Context, f Frame) error {
+
+// Panel presents a compositor-owned surface. class tells a tap whether the
+// surface may leave the operator's screen.
+func (p *Presenter) Panel(ctx context.Context, f Frame, class FrameClass) error {
 	if err := f.Validate(); err != nil {
 		return err
 	}
@@ -451,6 +460,7 @@ func (p *Presenter) Panel(ctx context.Context, f Frame) error {
 			return p.fail(err)
 		}
 		p.selected = nil
+		p.class = class
 		p.host = f.Geometry
 		p.bottom = nil
 		return p.paint(ctx, f, true)
