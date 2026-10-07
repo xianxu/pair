@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000399-couch-model-orphaned-zellij-servers-alive-socket-gone-and-reap-before-resume.md
         source_blob: 50a2a3d9818089c1a413f67a5dd52e586f7110eb
         destination: workshop/issues/000399-couch-model-orphaned-zellij-servers-alive-socket-gone-and-reap-before-resume.md
+        main_commit: 09e5bef6d670bf17eceb033524ef33a6d1999629
 ---
 
 # couch: model orphaned zellij servers (alive, socket gone) and reap before resume
