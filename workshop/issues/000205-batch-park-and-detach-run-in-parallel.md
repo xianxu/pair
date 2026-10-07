@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-09-06
 updated: 2026-10-04
-estimate_hours:
-card_mirror: '3c5b194d7d512a3299485df5a45580564598c421' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 3.34
+card_mirror: 'ec7ab0fa323dde39fab1a0b59f2004ef990a85b6' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-04T17:59:49-07:00
 claimant:
     operator: T
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
 ---
 
 # batch park and detach run in parallel
@@ -199,6 +200,51 @@ Durable plan: `workshop/plans/000205-batch-park-and-detach-run-in-parallel-plan.
       reaches the operator; nothing outlives its hold (plan Tasks 1–5).
 - [ ] M2 — Bounded parallelism: `Leave` fan-out, park worker bound, reattach pass
       in-flight set, console queue workers; measured before/after (plan Tasks 6–12).
+
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module   design=0.10 impl=0.32
+item: cross-cutting-refactor design=0.20 impl=0.20
+item: smaller-go-module      design=0.05 impl=0.16
+item: tui-screen             design=0.10 impl=0.32
+item: milestone-review       design=0.00 impl=0.20
+item: atlas-docs             design=0.05 impl=0.04
+item: smaller-go-module      design=0.05 impl=0.16
+item: smaller-go-module      design=0.05 impl=0.20
+item: tui-screen             design=0.10 impl=0.40
+item: real-api-discovery     design=0.00 impl=0.24
+item: milestone-review       design=0.00 impl=0.20
+item: atlas-docs             design=0.05 impl=0.04
+design-buffer: 0.15
+total: 3.34
+```
+
+The items in order:
+- **M1:**
+  - `ThreadGate` (greenfield);
+  - gating about 13 couchcore entries, plus `AbortStarted` gaining a ctx and
+    `Couch.Park` (cross-cutting);
+  - `parkWorker` ordering and the capacity wait;
+  - the console busy path, the off-goroutine abort and the continuation cleanup
+    (tui);
+  - the M1 review;
+  - the atlas update.
+- **M2:**
+  - `Leave` fan-out;
+  - the registry mutex across about 20 sites;
+  - the reattach pass in-flight set, the generated-sequence test, placeholders
+    and queue workers (tui);
+  - the live before/after measurement (discovery budget);
+  - the M2 review;
+  - the atlas update.
+
+Design hours are discounted because the durable plan already settles the
+decisions. Implementation hours are 40% of the v2 table, per v3.1.
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* (`sdlc estimate-source` flags the doc as stale versus the ledger, so the numbers are provisional.)
 
 ## Log
 
