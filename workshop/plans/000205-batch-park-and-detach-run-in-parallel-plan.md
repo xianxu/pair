@@ -94,7 +94,7 @@ unchanged.
 | couch process dies mid-`Leave` | Unchanged from today: per-thread durable transitions; the next startup reconciles | n/a |
 | A thread's agent exits on its own while its park is in flight | Unchanged: park already treats child death as completion evidence (`awaitCompletionAndChildDeath`). The gate stays held until park returns, so no other operation sees the half-torn-down thread | park's recovery modes |
 | `Leave` waited behind a holder, so its snapshot row is stale | `leaveOne` takes `holdWait` **first**, then re-reads the record with `GetThread` and decides from that. Never from the snapshot | none |
-| Completion-side effects run after release (`finishOperation` → `attach`/`AbortStarted` on the console goroutine) | `AbortStarted` can quiesce the thread's session **by address** (`couch.go:857`, cold-start shapes that own the session), so identity matching is not what makes this safe. What does: until `AbortStarted` retires it, the record still holds the aborted start's incarnation as `IncarnationLive`. Every launch-class operation refuses a thread with a live incarnation (resume "not detached", `CommitStartClaim` occupancy), so no newer incarnation can exist in that window. Test in Task 10 | none |
+| Completion-side effects run after release (`finishOperation` → `attach`/`AbortStarted` on the console goroutine) | `AbortStarted` can quiesce the thread's session **by address** (`couch.go:857`, cold-start shapes that own the session). Occupancy alone does not protect a newer operation: relaunch, detach, park, switch-agent and leave all act *on* live threads. A relaunch admitted in the window would park the aborted start's incarnation and start a new session on A, and the late abort would then kill that session. **Policy:** `AbortStarted` is a gated drain. It takes `holdWait` on the thread and re-enters through its caller's ctx inside composites. Under the hold, it re-checks that the record's live incarnation is still this start's PID and identity before any address-scoped quiesce. If not, it retires only its own actor record. This race is reachable today, between a remote or continuation job on the worker and the console's completion path. Test in Task 3 | none: the newer session is left alone |
 | Boot: `StartInteractive` meets `RecoverActiveParks` | Cannot happen today: `RecoverActiveParks` starts only after the startup operation returns (`couchcmd/run.go:489-496`). If that order ever changes, the startup resume is refused busy; that is acceptable, and the next start succeeds | none |
 
 **Most likely to be mishandled:** a composite that releases its hold before its
@@ -473,6 +473,7 @@ defer release()
 | `ReconcileContinuation` | `continuation_recovery.go:182` | `continuation-status` | refuse. The console's continuation scan treats busy as "not yet" and retries on its next scan, silently (Task 4) |
 | `rebootPrimary` / `rebootSlot` | `reboot.go`. In `rebootSlot`, hold **after** the `switch` at :226-229, so `ctx` is not shadowed inside a case. The unreadable-record branch has no address and is accepted unheld: it archives a file couch cannot decode | `reboot` | refuse |
 | `RecoverThread` | `recovery_execute.go:213`. A composite: it writes (`reconcileRecoveryHelper` :257, `prepareAbsentContinuation` :279) before calling `ResumeContextWith` / `RetryContinuation` | `recover` | refuse |
+| `AbortStarted` | `couch.go:778`. Gains `ctx` as its first parameter. Callers pass their own ctx: the gated composites at `continuation_recovery.go:143,163,171` and `continuation.go:277,368,374` (so it re-enters), and `couchcmd/run.go:765` passes `call.Context`. Under the hold, quiesce by address only if the record's live incarnation still matches `start.Record`'s PID and identity; otherwise retire the actor record alone | `abort-start` | **wait** |
 | `Stop` | `couch.go:1241` (`Stop(a ActorRecord)` has no ctx: hold `a.Thread` with `context.Background()` when it is non-zero; it is never reached inside a composite) | `stop` | refuse |
 | **new** `Couch.Park(ctx, address, mode)` | `park.go` | `park` | refuse |
 | `Leave`'s per-record step | `park.go:194` loop body, extracted here into `leaveOne(ctx, address, disposition)`: `holdWait`, then `GetThread`, then today's decision. `ErrThreadNotFound` after the wait (archived meanwhile) is a skip, not a failure. Trade-off accepted: quit waits on every thread, including ones it will skip, so it can wait behind an unrelated operation; that operation's own timeouts bound the wait | `leave` | **wait** |
@@ -521,6 +522,15 @@ above because it writes first.
   - `TestLeaveAndParkRecoveryWaitForAHolder`: hold A, start `Leave(LeaveDetach)`
     in a goroutine, assert it hasn't returned, release, assert A is in
     `Detached`.
+  - `TestALateAbortLeavesARelaunchedSessionAlone`:
+    1. A start on A returns its `StartResult`, and its hold is released.
+    2. A relaunch on A is admitted and completes with a new session.
+    3. `AbortStarted` runs with the old `StartResult`.
+    4. Assert the relaunched session and incarnation are untouched, and only
+       the old actor record is retired.
+
+    Also `TestAbortStartedInsideAComposite`: it re-enters through the
+    composite's ctx and does not wait on its own caller.
   - `TestLeaveDecidesFromTheRecordAfterWaiting`: A is detached in the snapshot.
     Hold A, start `Leave`, then make A live with a new incarnation (a warm
     resume) and release. Assert `Leave` detached A rather than skipping it on
@@ -725,12 +735,10 @@ external reader of `Loading`), `menu_reattach_test.go`.
     bound and record why in the Log.
   - `TestAReattachedChildKeepsItsTrackingMode` (#196) unchanged, plus a new
     variant that completes N reattaches in one burst.
-  - New test, `TestAnOperationBetweenReleaseAndAbortIsRefusedByOccupancy`. A
-    start on A returns, its hold is released, and its completion is pending on
-    the console. An operation admitted by the gate in that window (a resume, and
-    a relaunch) must be refused by the live-incarnation guard. Cover both the
-    cold-start shape (owns the session) and the warm shape. Then `AbortStarted`
-    runs, and the thread is resumable afterwards.
+  - Under N workers, re-run `TestALateAbortLeavesARelaunchedSessionAlone`
+    (Task 3) through the console path. A failed attempt's `AbortStarted` on the
+    console goroutine races a relaunch on another worker, for both the
+    cold-start shape (owns the session) and the warm shape.
 - [ ] **Step 4: Commit.**
 
 ### Task 11: Counted invariant and measurement
