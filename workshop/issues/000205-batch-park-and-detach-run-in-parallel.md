@@ -6,7 +6,7 @@ github_issue:
 created: 2026-09-06
 updated: 2026-10-07
 estimate_hours: 3.34
-card_mirror: '4912ebf12026c79b7ba1b32a41bebd422195c7b2' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '683f602beae9ef726f9dc801d2e159e84d909b4c' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-04T17:59:49-07:00
 claimant:
     operator: T
@@ -16,7 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
-actual_hours: 7.51
+actual_hours: 6.88
 ---
 
 # batch park and detach run in parallel
