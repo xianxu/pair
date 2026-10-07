@@ -348,6 +348,40 @@ gains `"reap"`), `couchcore/slot_operation.go` (`SlotOperationCommand` renders
   orphaned rows reap first, confirm with the operator); then
   **`sdlc milestone-close --issue 399 --milestone M2`**.
 
+### Task 9b: `recover` — the switcher's one "do the right thing" action
+
+Operator decision (2026-10-06): the switcher gets a Tab action **recover** that
+runs the steps the recovery report computes for that row, so the two can't
+disagree. Resume and reboot stay as separate entries.
+
+**Files:** `couchcore/ops.go` (declare `recover`: `ExecuteLiveOwner`,
+`EffectProcess`, `RowAction: true`; confirmation is per-plan, see below), new
+`couchcore/recover_action.go` (`Couch.Recover`), `couchcore/recoverplan.go`
+(extract `RecoverRowFor(ctx, address)` — one slot's row through the same
+`DeriveRecoverPlan` inputs, ARCH-DRY), `couchcore/actor_actions.go` (offer
+`recover` wherever `ActorActions` offers anything), `couchtty/menu.go` (the action,
+its progress text, the sweep test), `couchcmd/cli.go` (`--recover repo:N`),
+socket registration as in Task 8.
+
+- **Offer (cheap):** recover appears on a row whenever `ActorActions` offers any
+  actor operation. The menu never runs the report per repaint.
+- **Execute (exact):** `Couch.Recover` derives that one row's report decision
+  and runs its steps in order: `[resume]`; `[reap, resume]`; `[reboot]`. A hold
+  (unknown, conflict, unsafe git, ambiguous threads) refuses with the hold's
+  reason and runs nothing.
+- **Confirmation follows the steps, not the action:** a plan that is only
+  `resume` runs at once; a plan containing `reap` or `reboot` shows one
+  confirmation naming what it will do ("reap server PID N, then resume" /
+  "archive this conversation and start a fresh agent").
+
+- [ ] **Step 1: failing tests:** parked row → recover resumes with no
+  confirmation; orphaned row → confirmation text names the pid, then reap and
+  resume run in order; unusable non-resumable row → reboot's confirmation; a held
+  row (e.g. `unusable-unknown`) → refusal carrying the hold, no effect; the menu
+  sweep test sees `recover` exactly where `ActorActions` is non-empty.
+- [ ] **Step 2–4:** FAIL → implement → PASS.
+- [ ] **Step 5:** commit.
+
 ## Chunk 3 — M3: live acceptance and the map
 
 ### Task 10: Live acceptance (manual, recorded in the issue Log)
@@ -378,3 +412,11 @@ hand, unsandboxed, from a throwaway thread:
 - [ ] `sdlc close --issue 399` (full `make -k test` + `go test ./...` first).
 
 ## Revisions
+
+### 2026-10-06 — switcher `recover` action (operator)
+
+Reason: the operator asked for one switcher action that resumes when it can and
+otherwise does the right recovery. Delta: Task 9b added to M2. `recover` runs the
+recovery report's steps for that row (resume / reap→resume / reboot, or refuse on a
+hold), and its confirmation follows the steps. Reap is reached from the switcher
+through recover rather than as its own menu entry. Resume and reboot stay.
