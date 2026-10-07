@@ -66,7 +66,7 @@ would have started a second agent on a conversation the orphan was still writing
   alive and unreachable". The comment on `SessionState` forbids a value no
   producer emits; this one has a producer (`SessionPresence` via `ClassifyServers`).
   `SessionObservation` regains a field (the comment says M2 would re-add one with
-  its consumer): `Orphan *ServerProcess`, consumed by the diagnostic and by reap.
+  its consumer): `Orphan *launcher.SessionServerIdentity`, consumed by the diagnostic and by reap.
 - **ReasonOrphanedServer** — `unusable/orphaned-server`. Not archive-eligible
   (`ArchivableState` must refuse it: the agent may still be writing), not
   resumable, offers only `reap`.
@@ -135,7 +135,7 @@ classifier, and `resume` is its ordinary next step.
 
 ## Chunk 1 — M1: observe and name the orphan
 
-### Task 1: ServerProcess parsing and classification (launcher, pure)
+### Task 1: server parsing (with socket path) and classification (launcher, pure)
 
 **Files:**
 - Create: `cmd/internal/launcher/session_servers.go`
@@ -250,7 +250,7 @@ server row (cannot happen with one server per socket, but the projector must not
 call a reachable session orphaned).
 
 - [ ] **Step 2:** FAIL. **Step 3:** add `SessionOrphaned` (String `"orphaned"`),
-  `SessionObservation.Orphan *launcher.ServerProcess`; `ProjectSessionPresence`
+  `SessionObservation.Orphan *launcher.SessionServerIdentity`; `ProjectSessionPresence`
   gains the `servers` argument and checks it before the absent default. The OS
   `SessionPresence` takes one `ServerSnapshot` alongside `LivenessContext`; a
   snapshot error makes the bound addresses unresolved (fail closed), never absent.
@@ -329,7 +329,7 @@ call a reachable session orphaned).
     with no signal sent at all.
   - waits are bounded: a process that survives KILL (fake "unkillable") makes
     `Reap` return an error naming the pid after the bound, not hang.
-- [ ] **Step 2:** FAIL. **Step 3:** `PlanReap(root ServerProcess, table Snapshot) []ReapStep`
+- [ ] **Step 2:** FAIL. **Step 3:** `PlanReap(root SessionServerIdentity, table Snapshot) []ReapStep`
   (pure: descendants BFS from the snapshot, children before the server);
   `Reaper{Table ProcessTable; TermWait, KillWait, Poll time.Duration}.Reap(ctx, root)`.
   The OS `ProcessTable` reads `ps -axo pid=,ppid=` once and `procutil.Identity`.
