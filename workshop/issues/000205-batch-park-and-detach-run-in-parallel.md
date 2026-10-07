@@ -139,6 +139,25 @@ implementation sample one:
 - A thread **exits on its own** while its park is in flight.
 - The operator **quits couch** mid-batch.
 
+#### Answers (2026-10-06, from the durable plan's ARCH-ORDER table)
+
+The cells above, and the ones the code can actually produce, are answered here:
+
+| Event (cannot be blocked by the caller) | Policy | Rollback |
+|---|---|---|
+| Second lifecycle op on a held thread (pass vs remote vs continuation vs operator) | **Refuse** with `ThreadBusyError{Address, Running}` | none: nothing ran |
+| `Leave` reaches a thread a reattach attempt holds | **Wait** on the gate (ctx-bounded), then detach or park | none |
+| `RecoverActiveParks` reaches a thread an operation holds | **Wait**, then recover | none |
+| Operator quits mid-pass | Pass holds new attempts (cell 10, unchanged). At most `LifecycleParallelism` attempts are in flight; `Leave` waits on each thread it needs | none |
+| Caller `ctx` cancelled mid-park | The caller returns at once (prompt cancel, an existing tested contract). The thread stays guarded while the park work runs on: the record's open park transaction is refused by every launch, detach, recovery and archive, and the park worker refuses a second transaction (revised in M1; was "submit waits") | park's recovery modes, unchanged |
+| Pass completions arrive out of order | `finishReattach` matches by attempt number in the in-flight map, not "the" attempt | none |
+| One of N `Leave` threads fails | Others continue; joined error plus partial result (D6) | none: already-detached threads stay detached |
+| couch process dies mid-`Leave` | Unchanged from today: per-thread durable transitions; the next startup reconciles | n/a |
+| A thread's agent exits on its own while its park is in flight | Unchanged: park already treats child death as completion evidence (`awaitCompletionAndChildDeath`). The gate stays held until park returns, so no other operation sees the half-torn-down thread | park's recovery modes |
+| `Leave` waited behind a holder, so its snapshot row is stale | `leaveOne` takes `holdWait` **first**, then re-reads the record with `GetThread` and decides from that. Never from the snapshot | none |
+| Completion-side effects run after release (`finishOperation` → `attach`/`AbortStarted` on the console goroutine) | `AbortStarted` can quiesce the thread's session **by address** (`couch.go:857`, cold-start shapes that own the session). Occupancy alone does not protect a newer operation: relaunch, detach, park, switch-agent and leave all act *on* live threads. A relaunch admitted in the window would park the aborted start's incarnation and start a new session on A, and the late abort would then kill that session. **Policy:** `AbortStarted` is a gated drain. It takes `holdWait` on the thread and re-enters through its caller's ctx inside composites. Under the hold, it re-checks that the record's live incarnation is still this start's PID and identity before any address-scoped quiesce. If not, it retires only its own actor record. This race is reachable today, between a remote or continuation job on the worker and the console's completion path. Test in Task 3 | none: the newer session is left alone |
+| Boot: `StartInteractive` meets `RecoverActiveParks` | Cannot happen today: `RecoverActiveParks` starts only after the startup operation returns (`couchcmd/run.go:489-496`). If that order ever changes, the startup resume is refused busy; that is acceptable, and the next start succeeds | none |
+
 ### The startup reattach pass uses the same pool (scope revision 2026-10-04)
 
 Couch's startup background pass (#206, `couchtty/menu_reattach.go`) is the
@@ -295,6 +314,28 @@ for this issue to cover the startup reattach pass as well; see Revisions.
   pins that guard. The ordering stress test (1000 runs) passed even before the
   fix, so it is a regression guard, not a reproduction. Plan Revisions record
   both changes.
+
+### 2026-10-06: M1 Tasks 3–5
+
+- Every lifecycle entry holds the gate (`f365eca6`). The console carries
+  `MenuEvent.Busy` and runs the abort off its goroutine (`f63e6793`).
+- `make runtimebundle-generate` was needed once in this fresh checkout before
+  couchtty would build.
+- Deviations, recorded in plan Revisions:
+  - `Couch.Park` joins an open park transaction, keeping the deliberate
+    recovery/retry coalescing.
+  - `AbortStarted` waits first and cleans up exactly once per path.
+  - The late-abort and console-wait tests were taken in a narrower form.
+- Mutation checks:
+  - A gate that admits everything turns the entry table, both relaunch-order
+    tests, and the leave tests red. `TestLeaveWaitsForAHolder` needed its
+    window widened to 150 ms to fail reliably under load.
+  - Removing the busy re-arm turns the continuation test red.
+  - Removing `event.Busy` from the reattach skip turns its test red.
+- Sandboxed couchcore run: the only failures are PTY tests the sandbox blocks
+  (`ptychild: start … operation not permitted`), a known environment limit.
+- Atlas: `atlas/couch.md` gains "One lifecycle operation per thread".
+- Spec: the interleaving answers are copied in.
 
 ## Revisions
 
