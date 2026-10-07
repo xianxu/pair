@@ -1,6 +1,6 @@
 ---
 id: 000397
-status: codecomplete
+status: done
 created: 2026-10-06
 updated: 2026-10-06
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 889592b03d6563e4ff410c18034f27309dcbd837
         evidence_commit: 3e3a13eecc90b7e7fc8b1e338c7be5585e796417
+        landed_commit: a91b5018b5fd1a5f5ae49649fed4e0f38d5be21a
 ---
 
 # couch: capture panics to disk via debug.SetCrashOutput
