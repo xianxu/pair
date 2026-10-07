@@ -1,6 +1,6 @@
 ---
 id: 000205
-status: codecomplete
+status: done
 created: 2026-09-06
 updated: 2026-10-07
 estimate_hours: 3.34
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: edb0f11a428f31bb1fd718da2064b58823d7944e
         evidence_commit: 325fed0b2b726dcb2c490f150090443799e186be
+        landed_commit: d8b0dc9b9ede7e8d04fecaab712c12d94520cc49
 ---
 
 # batch park and detach run in parallel
