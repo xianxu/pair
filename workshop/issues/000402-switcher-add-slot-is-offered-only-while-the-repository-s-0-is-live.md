@@ -62,6 +62,7 @@ creation.
 ## Log
 
 ### 2026-10-06
+- 2026-10-06: closed — Round 1 FIX-THEN-SHIP fixed as rules: BR-1 every 'live :0' add-slot claim swept (README how-to, menuRowActions doc, sweep comment; alias claims stay, alias is live-only); BR-2 TestRowAdviceNamesOnlyReachableActions requires an OnPrimary action to be offered by :0 live, parked and detached (mutation dropping the fix fails it on the :1+ directory-missing notice); minors (test block, atlas wrap, Log records the spec-bullet-2 check). A parked or unusable :0 offers add slot; a :0 whose checkout is missing does not. TestRowActionTableMatchesTheSpec + TestAddSlotPrefillsExactRepositoryAndUsesCreatePreview (live and parked :0 reach the same create commit). couchtty passes unsandboxed. Live smoke test waived by the operator on 2026-10-06.; review verdict: SHIP
 
 - **Spec bullet 2, checked:** the add-slot path (`couchtty/menu.go`, the
   `add-slot` case) reads only `menuAddSlotPath(thread)` and opens the start form.
