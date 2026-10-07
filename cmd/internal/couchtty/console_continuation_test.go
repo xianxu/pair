@@ -208,7 +208,7 @@ func TestContinuationAdoptsReplacementAndPreservesUnrelatedFocus(t *testing.T) {
 			if c.focus != wantFocus {
 				t.Fatalf("focus=%v want=%v", c.focus, wantFocus)
 			}
-			if c.expectedExits[started.Handle.ID()] {
+			if c.expectedExits.has(started.Handle.ID()) {
 				t.Fatal("new target death would be mistaken for expected source retirement")
 			}
 		})
@@ -235,7 +235,7 @@ func TestContinuationFullQueueRetainsRequestWithoutRetiringSource(t *testing.T) 
 	scan := continuationScanResult{statuses: []couchcore.ContinuationStatus{status}}
 	c.acceptContinuationRequests(scan)
 	watch, retained := c.continuations[status.Address]
-	if !retained || watch.queued || watch.handled || c.expectedExits["source"] || c.focus != FocusActor("source") {
+	if !retained || watch.queued || watch.handled || c.expectedExits.has("source") || c.focus != FocusActor("source") {
 		t.Fatal("queue overload lost request or prematurely retired the source")
 	}
 	<-c.operationQueue.requests
@@ -461,16 +461,14 @@ func TestReplacedRequestTakesItsOrientationPromptWithIt(t *testing.T) {
 func TestABusyContinuationIsRetriedSilently(t *testing.T) {
 	c, status := continuationConsole(t)
 	c.attachThreadActor("source", "source", status.Address, "/repo", "source", ptychild.NewFakeChild(nil))
-	c.attachThreadActor("parked", "parked", status.Address, "/repo", "parked", ptychild.NewFakeChild(nil))
 	status.Phase = checkpoint.Running
-	// A park already marked one of the thread's panes; the continuation's
-	// enqueue marks only the other and records that it did.
-	c.expectedExits["parked"] = true
+	// An unrelated handle's mark (set by some other operation) must survive.
+	c.expectedExits.mark("parked")
 	c.mu.Lock()
 	marked := c.markThreadExitsLocked(status.Address)
 	c.mu.Unlock()
 	if len(marked) != 1 || marked[0] != "source" {
-		t.Fatalf("enqueue claimed marks %v, want only its own [source]", marked)
+		t.Fatalf("enqueue recorded marks %v, want its own mark on the thread's pane", marked)
 	}
 	c.continuations[status.Address] = continuationWatch{status: status, queued: true, handled: true, marked: marked}
 	before := c.feed.Row().Body
@@ -480,10 +478,10 @@ func TestABusyContinuationIsRetriedSilently(t *testing.T) {
 		origin: MenuOperationOrigin{Address: status.Address, ContinuationID: status.RequestID},
 	}, &couchcore.ThreadBusyError{Address: status.Address, Running: "relaunch"})
 
-	if c.expectedExits["source"] {
+	if c.expectedExits.has("source") {
 		t.Fatal("a refused continuation left its pane's exit marked as expected")
 	}
-	if !c.expectedExits["parked"] {
+	if !c.expectedExits.has("parked") {
 		t.Fatal("a refused continuation cleared the mark a park set on the same thread")
 	}
 	if got := c.feed.Row().Body; got != before {
@@ -524,4 +522,36 @@ func TestGoTrackedDoesNotBlockTheCallerAndIsJoined(t *testing.T) {
 	close(release)
 	<-finished
 	<-joined
+}
+
+// Marks are owned (pair#205 M1 review): whichever order a park's mark and a
+// continuation's mark land in, the continuation's refusal removes only its own.
+func TestARefusalNeverRemovesAnotherOperationsExitMark(t *testing.T) {
+	for _, parkFirst := range []bool{true, false} {
+		t.Run(map[bool]string{true: "park marks first", false: "park re-marks after"}[parkFirst], func(t *testing.T) {
+			c, status := continuationConsole(t)
+			c.attachThreadActor("source", "source", status.Address, "/repo", "source", ptychild.NewFakeChild(nil))
+			status.Phase = checkpoint.Running
+			if parkFirst {
+				c.expectedExits.mark("source")
+			}
+			c.mu.Lock()
+			marked := c.markThreadExitsLocked(status.Address)
+			c.mu.Unlock()
+			if !parkFirst {
+				c.expectedExits.mark("source")
+			}
+			c.continuations[status.Address] = continuationWatch{status: status, queued: true, handled: true, marked: marked}
+			c.finishContinuationOperation(operationCompletion{
+				name:   "continue-thread",
+				origin: MenuOperationOrigin{Address: status.Address, ContinuationID: status.RequestID},
+			}, &couchcore.ThreadBusyError{Address: status.Address, Running: "park"})
+			if !c.expectedExits.has("source") {
+				t.Fatal("a refused continuation removed the park's expected-exit mark")
+			}
+			if !c.expectedExits.consume("source") || c.expectedExits.has("source") {
+				t.Fatal("the pane's real exit must consume every remaining mark")
+			}
+		})
+	}
 }

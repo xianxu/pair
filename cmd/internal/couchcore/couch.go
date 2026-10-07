@@ -1281,11 +1281,6 @@ func (c *Couch) Describe(w Worktree) string {
 	return c.namingTable().Entry(w).Description
 }
 
-// withoutDead is the registry minus every KNOWN-dead record, and how many that
-// was. It is the registry's funeral: actor records are never removed when their
-// child exits, so each launch reaps the dead before inserting its own record
-// (pair#378): after each launch the registry holds only live and unprovable
-// actors, and between launches it grows only by children that have exited.
 // registry returns the current actor registry and naming table. Both are
 // immutable values, safe to use after the lock is released.
 func (c *Couch) registry() (Registry, NamingTable) {
@@ -1318,6 +1313,11 @@ func (c *Couch) mutateRegistry(mutate func(Registry) (Registry, error)) error {
 	return nil
 }
 
+// withoutDead is the registry minus every KNOWN-dead record, and how many that
+// was. It is the registry's funeral: actor records are never removed when their
+// child exits, so each launch reaps the dead before inserting its own record
+// (pair#378): after each launch the registry holds only live and unprovable
+// actors, and between launches it grows only by children that have exited.
 func (c *Couch) withoutDead(reg Registry) (Registry, int) {
 	removed := 0
 	for _, r := range reg.Records() {

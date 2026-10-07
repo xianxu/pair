@@ -588,7 +588,10 @@ proof; record the surprising case so the next change starts from evidence.
 - Undo only what you did. #205 BR-3: a refused continuation cleared every
   expected-exit mark on its thread's panes, including ones a park had set. Record
   the marks an operation adds (`markThreadExitsLocked` returns them) and remove
-  exactly those on refusal.
+  exactly those on refusal. Recording "the marks I added" is not enough when the
+  mark is shared: a later owner re-marking the same pane loses its mark to your
+  undo. A shared mark must count its owners (`exitMarks`): undo decrements, and
+  the real event consumes all (#205 M1 round 2).
 - A drain's wait is an interleaving cell, so give each waiter its own test.
   #205 BR-4 found `RecoverActiveParks` and `AbortStarted` waiting untested because
   only `Leave`'s wait was. One waiter's test does not cover another.

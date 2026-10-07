@@ -99,8 +99,10 @@ type Console struct {
 	size      ptychild.Size
 	// expectedExits are exact child handles whose successful Park already
 	// authorized shutdown. They bridge the race between the child-exit channel
-	// and the asynchronous operation-completion channel.
-	expectedExits map[string]bool
+	// and the asynchronous operation-completion channel. Marks are counted per
+	// owner (pair#205), so an operation that undoes its own mark never removes
+	// one that another operation set on the same pane.
+	expectedExits exitMarks
 
 	// Run orders product input, output notifications, and focus transitions.
 	// Presenter alone owns the host writer.
@@ -215,7 +217,7 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		previewResults:      make(chan menuPreviewResult, 1),
 		directoryReader:     OSDirectoryBatchReader{},
 		completionResults:   make(chan menuCompletionResult, 1),
-		expectedExits:       map[string]bool{},
+		expectedExits:       exitMarks{},
 		lifetime:            lifetime,
 		cancelLifetime:      cancelLifetime,
 		stop:                make(chan struct{}),
@@ -1880,7 +1882,7 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 			// exact spurious-notice bug this bridge exists to prevent, inverted.
 			// The child a relaunch expects to exit is the one it replaced.
 			if p.thread == address && id != startedHandleID {
-				c.expectedExits[id] = true
+				c.expectedExits.mark(id)
 			}
 		}
 	}
@@ -1932,8 +1934,7 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 // is in flight its immutable origin is authority; after successful completion
 // the exact handle marker bridges until the child-exit event arrives.
 func (c *Console) consumeExpectedParkExitLocked(id string, address couchcore.ThreadAddress) bool {
-	if c.expectedExits[id] {
-		delete(c.expectedExits, id)
+	if c.expectedExits.consume(id) {
 		return true
 	}
 	origin := c.menu.InFlight

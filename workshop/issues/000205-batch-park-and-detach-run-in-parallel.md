@@ -215,7 +215,7 @@ about 5 s for 17 background threads at the 18 slots now in use.
 
 Durable plan: `workshop/plans/000205-batch-park-and-detach-run-in-parallel-plan.md`.
 
-- [ ] M1 — Per-thread `ThreadGate` in couchcore on every lifecycle entry; refusal
+- [x] M1 — Per-thread `ThreadGate` in couchcore on every lifecycle entry; refusal
       reaches the operator; nothing outlives its hold (plan Tasks 1–5).
 - [ ] M2 — Bounded parallelism: `Leave` fan-out, park worker bound, reattach pass
       in-flight set, console queue workers; measured before/after (plan Tasks 6–12).
@@ -267,6 +267,8 @@ decisions. Implementation hours are 40% of the v2 table, per v3.1.
 
 ## Log
 
+
+- 2026-10-07: closed M1 — M1 per-thread ThreadGate, plus boundary-review round 1 fixes (BR-1 park join never begins unheld; BR-2 registry lock pulled into M1, all ~20 accesses through registry()/mutateRegistry(), -race test red without the lock; BR-3 refusal undoes only its own expected-exit marks; BR-4 wait tests for RecoverActiveParks and AbortStarted, cancelled abort wait). Tests: gate decision/acquire/wait/reentry/stale-token; every lifecycle entry refuses a held thread; resume-during-relaunch and relaunch-during-resume refused naming the holder; Leave waits and decides after waiting; abort identity paths; couchtty busy skip/retry/notice; GoTracked. Unsandboxed clean-env go test: couchcore, couchtty, couchcmd ok. Full-suite residue is pre-existing or environmental (verified vs merge base): gcruntime archive locator, artifactpath classification (only generated runtime-bundle files and pre-existing console_messages.go), couchsingleton selection-size under long TMPDIR, test-changelog and test-pair-embedded-runtime under session env.; review verdict: FIX-THEN-SHIP
 ### 2026-09-06
 
 Operator request, split from `#206` (auto-reattach at startup) at their
@@ -361,6 +363,19 @@ the class the finding named:
   open-park check; the test now requires a structured resume refusal.
 
 Lessons are added to `workshop/lessons.md`.
+
+### 2026-10-07: M1 closed (round 2 FIX-THEN-SHIP), fixes bundled
+
+Round 2 disposed BR-1..4 and BR-6 and found three things still open. All are
+fixed in the M1 close commit:
+- **BR-5:** a test for a thread with zero incarnations.
+- **Exit marks:** a repeat of the "cleanup wider than its own effect" family.
+  Expected-exit marks are now owner-counted (`exitMarks`): undo decrements, a
+  real exit consumes them all. A test covers both orderings and fails if undo
+  deletes outright.
+- **Doc comment:** `withoutDead`'s comment is back on its function.
+
+Mutation checks are red as expected. couchtty and couchcmd pass unsandboxed.
 
 ## Revisions
 

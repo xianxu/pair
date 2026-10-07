@@ -401,3 +401,37 @@ func TestACancelledAbortWaitEndsOnlyItsOwnHelper(t *testing.T) {
 		t.Fatalf("a cancelled abort left its actor registered: %+v", got)
 	}
 }
+
+// Ownership needs positive evidence (M1 review BR-5): a thread whose
+// incarnation another operation already retired is not this abort's, so only
+// the start's own helper and terminal are ended.
+func TestAnAbortOnARetiredThreadLeavesTheSessionAlone(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	record, handle, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
+	if err != nil {
+		t.Fatalf("Spawn: %v", err)
+	}
+	thread, err := env.Couch.Threads.GetThread(record.Thread)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.Couch.Threads.updateExistingThread(record.Thread, thread.Revision, func(next *ThreadRecord) error {
+		next.Incarnations = nil
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if env.Couch.startStillOwnsThread(StartResult{Record: record, Handle: handle}) {
+		t.Fatal("a thread with no incarnation was read as still owned by the start")
+	}
+	cause := errors.New("attach failed")
+	if err := env.Couch.AbortStarted(context.Background(), StartResult{Record: record, Handle: handle}, cause); !errors.Is(err, cause) {
+		t.Fatalf("AbortStarted = %v, want the cause", err)
+	}
+	if handle.Alive() {
+		t.Fatal("the aborted start's own helper survived")
+	}
+	if got := env.Artifacts.Quiesces(); len(got) != 0 {
+		t.Fatalf("an abort on a retired thread quiesced its session: %+v", got)
+	}
+}
