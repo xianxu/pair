@@ -7,14 +7,6 @@ import (
 	"sync"
 )
 
-// LifecycleParallelism bounds how many threads couch drives through a
-// lifecycle operation at once: Leave's fan-out, the park worker and the
-// console's queue workers (pair#205 D5). Each couch reattach still asks every
-// live session for its clients, so N parallel attempts put N×S zellij calls in
-// flight; 4 keeps that burst bounded at the slot counts in use. Callers wait
-// for a free unit; a bound is never a refusal.
-const LifecycleParallelism = 4
-
 // ThreadBusyError refuses a lifecycle operation on a thread another operation
 // holds. Refused, not queued: the operator learns at once that the gesture did
 // not take (pair#214's operator decision, carried by #205).

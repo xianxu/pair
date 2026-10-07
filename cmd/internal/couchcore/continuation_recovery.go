@@ -180,7 +180,7 @@ func (c *Couch) observeContinuationTarget(ctx context.Context, record ThreadReco
 	return ContinuationResult{Status: status, Record: actor, Handle: handle}, err
 }
 func (c *Couch) ReconcileContinuation(ctx context.Context, address ThreadAddress, id, attempt string) (ContinuationStatus, error) {
-	ctx, release, err := c.hold(ctx, address, "continuation-status")
+	ctx, release, err := c.hold(ctx, address, "reconcile-continuation")
 	if err != nil {
 		return ContinuationStatus{}, err
 	}
