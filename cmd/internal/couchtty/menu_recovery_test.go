@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"strings"
 	"testing"
@@ -62,13 +63,21 @@ func TestRecoveryAndRebootUseExistingOwnerQueue(t *testing.T) {
 	for _, operation := range []string{"resume", "reboot"} {
 		t.Run(operation, func(t *testing.T) {
 			f := newFixture(t, 24, 100)
-			entered, release := make(chan struct{}), make(chan struct{})
+			// Pause EVERY queue worker (pair#205: the queue has several), so an
+			// operation that goes through the owner queue must wait behind them.
+			release := make(chan struct{})
 			defer close(release)
-			_, err := f.con.operationQueue.Enqueue(operationRequest{key: "paused-lifecycle", name: "park", run: func() (any, error) { close(entered); <-release; return nil, nil }})
-			if err != nil {
-				t.Fatal(err)
+			workers := max(1, f.con.queueWorkers)
+			entered := make(chan struct{}, workers)
+			for i := 0; i < workers; i++ {
+				_, err := f.con.operationQueue.Enqueue(operationRequest{key: fmt.Sprintf("paused-lifecycle-%d", i), name: "park", run: func() (any, error) { entered <- struct{}{}; <-release; return nil, nil }})
+				if err != nil {
+					t.Fatal(err)
+				}
 			}
-			<-entered
+			for i := 0; i < workers; i++ {
+				<-entered
+			}
 			calls := make(chan string, 1)
 			f.con.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
 				return couchcore.DispatchOperation(couchcore.OperationExecutors{LiveOwner: func(call couchcore.OperationCall) (any, error) { calls <- call.Name; return nil, nil }}, call)

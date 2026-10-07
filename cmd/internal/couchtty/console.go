@@ -177,6 +177,10 @@ type Console struct {
 	stop                 chan struct{}
 	once                 sync.Once
 	workers              sync.WaitGroup
+	// queueWorkers is how many goroutines drain operationQueue (pair#205):
+	// the reattach pass's limit plus one, so the pass can never occupy every
+	// worker and an operator's gesture never waits behind its attempts.
+	queueWorkers int
 }
 
 // errw is where the console reports its own failures. Separate from the host
@@ -202,6 +206,7 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		input:               make(chan []byte, 64),
 		exited:              make(chan childExit, 64),
 		operationQueue:      newOperationQueue(16),
+		queueWorkers:        max(1, couchcore.LifecycleParallelism) + 1,
 		refreshRequests:     make(chan struct{}, 1),
 		refreshResults:      make(chan menuRefreshResult, 1),
 		slotGitRequests:     make(chan struct{}, 1),
@@ -624,11 +629,18 @@ func (c *Console) Run() (code int) {
 		c.switchTo(initial, true, arrivalOrdinary)
 	}
 
-	c.workers.Add(4)
+	queueWorkers := max(1, c.queueWorkers)
+	c.workers.Add(3 + queueWorkers)
 	go func() { defer c.workers.Done(); c.watchContinuations() }()
 	go func() { defer c.workers.Done(); c.pumpStdin() }()
 	go func() { defer c.workers.Done(); c.watchResize() }()
-	go func() { defer c.workers.Done(); c.operationQueue.Run(c.stop) }()
+	// Several workers drain the operation queue (pair#205): operations on
+	// different threads run at once, bounded; the thread gate in couchcore
+	// keeps two off one thread, and results still reach this goroutine
+	// through q.results.
+	for i := 0; i < queueWorkers; i++ {
+		go func() { defer c.workers.Done(); c.operationQueue.Run(c.stop) }()
+	}
 	slotGitTicker := time.NewTicker(c.slotGitInterval)
 	defer slotGitTicker.Stop()
 	activityTicker := time.NewTicker(c.activityInterval)
