@@ -791,9 +791,14 @@ func (c *Console) Run() (code int) {
 		noticeC = noticeTimer.C
 	}
 	syncNoticeExpiry()
+	// Notifications are coalesced wakeups; chrome reads the current snapshot.
+	// The recorder owns this channel and never closes it. Nil disables capture.
+	captureChanges := c.capture.Changes()
 
 	for {
 		select {
+		case <-captureChanges:
+			c.repaint()
 		case command := <-c.terminalCommands:
 			if err := command.ctx.Err(); err != nil {
 				command.done <- err

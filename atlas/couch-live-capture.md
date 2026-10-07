@@ -11,7 +11,7 @@ Then launch the new binary from a terminal outside Couch, with the capture setti
 applied only to that command:
 
 ```sh
-COUCH_CAPTURE_DIR="$HOME/.local/share/pair/captures" \
+COUCH_CAPTURE_DIR="$HOME/.local/share/pair/captures" COUCH_CAPTURE_MAX_MIB=4096 \
   /Users/xianxu/workspace/worktree/pair-slot2/pair/bin/couch "$HOME/workspace/pair"
 ```
 
@@ -23,8 +23,12 @@ threads can be resumed/reattached inside the traced Couch; no per-thread setting
 or agent restart is required. Only output arriving after attachment is recorded.
 
 `COUCH_CAPTURE_DIR` must be an absolute directory. It is off when unset or empty;
-invalid/unopenable destinations fail startup. Activation is cleared from launched
-child environments, so this setting belongs to the explicitly launched Couch.
+invalid/unopenable destinations fail startup. `COUCH_CAPTURE_MAX_MIB` optionally
+sets the per-session disk budget in whole MiB (1–1048576); the default is 256 MiB.
+The example chooses 4 GiB for a longer wait. A limit alone does not enable capture.
+When capture is enabled, invalid limits fail before any capture file is created.
+Both capture settings are cleared from launched child environments, so activation
+belongs to the explicitly launched Couch.
 If you also set `COUCH_ISOLATED_ROOT`, the capture directory must remain inside
 that root, including after symlink resolution. Isolation is optional.
 
@@ -62,12 +66,30 @@ The capture includes all children attached to this Couch, so background
 Claude completions can be distinguished. It records no host keystroke stream,
 child environments or full command lines. Display output can still echo input.
 
-Recording uses one asynchronous writer, at most 128 queued/in-flight records and
-8 MiB retained record data. The file is capped at 256 MiB. Exceeding a limit stops
-capture permanently and writes an incomplete ending when possible; it does not
-block terminal rendering or silently resume after a gap. Disk errors are reported
-when the owning command exits, with nonzero status. Keep sessions short and start
-a fresh one if a capture fills. Copying and timestamps still perturb timing.
+The status row starts with `REC N%` while recording. Usage counts bytes accepted
+by file writes, not an fsync guarantee. The badge updates on whole-percentage
+changes; it stays visible in both actor and switcher views. `REC STOP:queue`,
+`REC STOP:full`, or `REC STOP:IO` means recording has stopped and later incidents
+will **not** be captured. The badge takes precedence over actor chips and is not
+clickable; very narrow terminals can clip it. Full error details are reported
+when the owning command exits, with nonzero status.
+
+Recording uses one asynchronous writer, at most 8,192 queued/in-flight records
+and 8 MiB of admitted record cost (payload, string data and per-record allowance).
+The fixed channel and one in-flight JSON encoding add bounded memory overhead;
+8 MiB is not a process-memory ceiling. The disk budget includes the ending marker.
+Exceeding a queue/disk limit stops capture permanently and writes an incomplete
+ending when possible; it does not wait for disk on the rendering path or silently
+resume after a gap. Copying and timestamps still perturb timing.
+
+Capture preserves the full prefix: it does not rotate away terminal parser and
+screen history needed for replay. A finite budget cannot cover an indefinite
+wait. Duration depends on traffic: 4 GiB lasts about 11.7 hours at 100 KiB/s or
+68 minutes at 1 MiB/s of encoded capture growth. Startup bursts are not a steady
+rate estimate. Watch the percentage; restart with a larger budget before it fills.
+Each restart creates another independently bounded session; old sessions are not
+automatically deleted. After investigation, remove the particular session directories
+you no longer need. Keep the complete directory of a reported incident.
 
 Shutdown restores the terminal before draining capture, with a two-second drain
 limit. A filesystem write cannot reliably be canceled; after timeout the existing

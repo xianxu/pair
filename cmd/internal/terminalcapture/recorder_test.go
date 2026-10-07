@@ -344,3 +344,263 @@ func TestCloseTimeoutStopsAdmissionAndWorkerEventuallyExits(t *testing.T) {
 		t.Fatal("timed out drain claimed complete")
 	}
 }
+
+// A paused disk must retain the observed startup envelope, including in-flight data.
+func TestBlockedStartupBurstSurvives(t *testing.T) {
+	unblock := make(chan struct{})
+	sink := &faultSink{block: unblock, started: make(chan struct{}, 1)}
+	r := newRecorder("", sink, defaultOptions())
+	<-sink.started
+	payload := bytes.Repeat([]byte("x"), 1024)
+	for i := 0; i < 4000; i++ {
+		payload[0] = byte(i)
+		r.Record(Record{Kind: "endpoint-feed", Data: payload})
+	}
+	close(unblock)
+	if err := r.Close(); err != nil {
+		t.Fatal(err)
+	}
+	records := readRecords(t, sink.bytes())
+	if len(records) != 4002 {
+		t.Fatalf("records=%d, want4002", len(records))
+	}
+	for i, record := range records[1:4001] {
+		payload[0] = byte(i)
+		if !bytes.Equal(record.Data, payload) {
+			t.Fatalf("payload %d changed", i)
+		}
+	}
+}
+
+func TestStatusNilAndConfiguration(t *testing.T) {
+	var disabled *Recorder
+	if got := disabled.Status(); got != (Status{Phase: Disabled}) || disabled.Changes() != nil {
+		t.Fatalf("disabled=%+v", got)
+	}
+	for _, limit := range []int64{0, 1 << 20, 1 << 40} {
+		r, err := Open(t.TempDir(), Config{MaxBytes: limit})
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := limit
+		if want == 0 {
+			want = maxFileBytes
+		}
+		if got := r.Status(); got.Phase != Recording || got.LimitBytes != want || got.Err != nil {
+			t.Fatalf("open=%+v", got)
+		}
+		if err := r.Close(); err != nil {
+			t.Fatal(err)
+		}
+		info, err := os.Stat(filepath.Join(r.Dir(), "events.jsonl"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := r.Status(); got.Phase != Closed || got.WrittenBytes != info.Size() {
+			t.Fatalf("closed=%+v size=%d", got, info.Size())
+		}
+	}
+	parent := filepath.Join(t.TempDir(), "not-created")
+	for _, limit := range []int64{-1, 1, (1 << 20) - 1, (1 << 40) + 1} {
+		if _, err := Open(parent, Config{MaxBytes: limit}); err == nil {
+			t.Fatalf("accepted %d", limit)
+		}
+	}
+	if _, err := os.Stat(parent); !os.IsNotExist(err) {
+		t.Fatalf("invalid configuration created directory: %v", err)
+	}
+}
+
+func awaitPhase(t *testing.T, r *Recorder, want Phase) Status {
+	t.Helper()
+	deadline := time.NewTimer(time.Second)
+	defer deadline.Stop()
+	for {
+		if got := r.Status(); got.Phase == want {
+			return got
+		}
+		select {
+		case <-r.Changes():
+		case <-deadline.C:
+			t.Fatalf("status=%+v, want phase %v", r.Status(), want)
+		}
+	}
+}
+
+func TestStatusFailureWakesBeforeClose(t *testing.T) {
+	for _, kind := range []string{"queue", "disk", "cap", "short"} {
+		t.Run(kind, func(t *testing.T) {
+			unblock := make(chan struct{})
+			sink := &faultSink{block: unblock, started: make(chan struct{}, 1)}
+			opts := defaultOptions()
+			want := ErrQueueFull
+			switch kind {
+			case "queue":
+				opts.queueRecords = 1
+			case "disk":
+				want = errors.New("disk failure")
+				sink.fail = want
+			case "cap":
+				opts.fileBytes = finalReserve
+				want = ErrFileLimit
+			case "short":
+				sink.short = true
+				want = io.ErrShortWrite
+			}
+			r := newRecorder("", sink, opts)
+			if kind != "cap" {
+				<-sink.started
+			}
+			if kind != "cap" {
+				select {
+				case <-r.Changes():
+				default:
+				}
+			}
+			if kind == "queue" {
+				r.Record(Record{Kind: "overflow"})
+			}
+			close(unblock)
+			select {
+			case <-r.Changes():
+			case <-time.After(time.Second):
+				t.Fatal("failure did not wake status consumer before Close")
+			}
+			got := awaitPhase(t, r, Failed)
+			if !errors.Is(got.Err, want) {
+				t.Fatalf("status=%+v want=%v", got, want)
+			}
+			if err := r.Close(); !errors.Is(err, want) {
+				t.Fatalf("close=%v", err)
+			}
+			got = r.Status()
+			if got.Phase != Failed || got.WrittenBytes != int64(len(sink.bytes())) {
+				t.Fatalf("final=%+v bytes=%d", got, len(sink.bytes()))
+			}
+			// Changes stays open and coalesced after worker exit, avoiding select spin.
+			select {
+			case _, ok := <-r.Changes():
+				if !ok {
+					t.Fatal("changes closed")
+				}
+			default:
+			}
+			select {
+			case <-r.Changes():
+				t.Fatal("extra notification or closed changes")
+			default:
+			}
+		})
+	}
+}
+
+func TestStatusDrainingAndTimeoutRemainFailed(t *testing.T) {
+	unblock := make(chan struct{})
+	sink := &faultSink{block: unblock, started: make(chan struct{}, 1)}
+	opts := defaultOptions()
+	opts.closeTimeout = 100 * time.Millisecond
+	r := newRecorder("", sink, opts)
+	<-sink.started
+	select {
+	case <-r.Changes():
+	default:
+	}
+	closed := make(chan error, 1)
+	go func() { closed <- r.Close() }()
+	got := awaitPhase(t, r, Draining)
+	if got.WrittenBytes != 0 {
+		t.Fatalf("offered bytes counted: %+v", got)
+	}
+	if err := <-closed; !errors.Is(err, ErrCloseTimeout) {
+		t.Fatalf("close=%v", err)
+	}
+	if got := r.Status(); got.Phase != Failed || !errors.Is(got.Err, ErrCloseTimeout) {
+		t.Fatalf("timeout=%+v", got)
+	}
+	close(unblock)
+	<-r.done
+	if got := r.Status(); got.Phase != Failed || !errors.Is(got.Err, ErrCloseTimeout) {
+		t.Fatalf("late worker=%+v", got)
+	}
+}
+
+func TestUsageNotificationsOnlyCrossPercentages(t *testing.T) {
+	sink := &faultSink{}
+	opts := defaultOptions()
+	opts.fileBytes = 1 << 20
+	r := newRecorder("", sink, opts)
+	// Observe each completed write independently, consuming changes as we go.
+	waitWritten := func(previous int64) {
+		t.Helper()
+		deadline := time.Now().Add(time.Second)
+		for r.Status().WrittenBytes <= previous {
+			if time.Now().After(deadline) {
+				t.Fatal("writer stalled")
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}
+	waitWritten(0)
+	select {
+	case <-r.Changes():
+	default:
+	}
+	notifications := 0
+	for i := 0; i < 200; i++ {
+		before := r.Status().WrittenBytes
+		r.Record(Record{Kind: "feed", Data: bytes.Repeat([]byte("x"), 100)})
+		waitWritten(before)
+		select {
+		case <-r.Changes():
+			notifications++
+		default:
+		}
+	}
+	status := r.Status()
+	if notifications == 0 || int64(notifications) > status.WrittenBytes*100/status.LimitBytes {
+		t.Fatalf("notifications=%d status=%+v", notifications, status)
+	}
+	if err := r.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestNearLimitRecordIncludesBlockedInflightCost(t *testing.T) {
+	unblock := make(chan struct{})
+	sink := &faultSink{block: unblock, started: make(chan struct{}, 1)}
+	r := newRecorder("", sink, defaultOptions())
+	<-sink.started
+	record := Record{Kind: "endpoint-feed"}
+	r.mu.Lock()
+	remaining := r.opts.queueBytes - r.retained - record.retainedBytes()
+	r.mu.Unlock()
+	record.Data = bytes.Repeat([]byte("x"), remaining)
+	r.Record(record)
+	if got := r.Status(); got.Phase != Recording {
+		t.Fatalf("near-limit rejected: %+v", got)
+	}
+	r.mu.Lock()
+	retained, count := r.retained, r.count
+	r.mu.Unlock()
+	if retained != maxQueueBytes || count != 2 {
+		t.Fatalf("retained=%d count=%d", retained, count)
+	}
+	r.Record(Record{Kind: "overflow"})
+	if got := r.Status(); got.Phase != Failed || !errors.Is(got.Err, ErrQueueFull) {
+		t.Fatalf("overflow=%+v", got)
+	}
+	r.mu.Lock()
+	after := r.retained
+	r.mu.Unlock()
+	if after != retained {
+		t.Fatalf("overflow retained extra bytes: %d -> %d", retained, after)
+	}
+	close(unblock)
+	if err := r.Close(); !errors.Is(err, ErrQueueFull) {
+		t.Fatal(err)
+	}
+	records := readRecords(t, sink.bytes())
+	if len(records) != 3 || !bytes.Equal(records[1].Data, record.Data) || records[2].Status != "incomplete" {
+		t.Fatal("near-limit admitted data lost")
+	}
+}

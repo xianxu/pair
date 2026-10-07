@@ -2,7 +2,10 @@
 // It reads no environment variables and collects no input by itself.
 package terminalcapture
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // Record is the version-one JSONL wire schema. Data contains exact bytes and
 // encoding/json represents it as base64. Accepted is deliberately not omitted:
@@ -34,4 +37,19 @@ type Record struct {
 // overhead; JSON's base64 expansion is separately bounded by the disk cap.
 func (r Record) retainedBytes() int {
 	return 384 + len(r.Data) + len(r.Kind) + len(r.EndpointID) + len(r.Scope) + len(r.Tag) + len(r.Actor) + len(r.Error) + len(r.Status) + len(r.Build)
+}
+
+// owned detaches caller-controlled backing storage, including substrings whose
+// visible length may be much smaller than their retained allocation.
+func (r Record) owned() Record {
+	r.Data = append([]byte(nil), r.Data...)
+	r.Kind = strings.Clone(r.Kind)
+	r.EndpointID = strings.Clone(r.EndpointID)
+	r.Scope = strings.Clone(r.Scope)
+	r.Tag = strings.Clone(r.Tag)
+	r.Actor = strings.Clone(r.Actor)
+	r.Error = strings.Clone(r.Error)
+	r.Status = strings.Clone(r.Status)
+	r.Build = strings.Clone(r.Build)
+	return r
 }

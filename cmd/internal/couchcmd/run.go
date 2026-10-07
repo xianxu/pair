@@ -596,13 +596,13 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 	if len(settings) > 0 {
 		getenv = settings[0].getenv
 	}
-	path, err := capturePath(getenv)
+	path, captureConfig, err := captureSettings(getenv)
 	if err != nil {
 		return nil, nil, err
 	}
 	var recorder *terminalcapture.Recorder
 	if path != "" {
-		recorder, err = terminalcapture.Open(path)
+		recorder, err = terminalcapture.Open(path, captureConfig)
 		if err != nil {
 			return nil, nil, fmt.Errorf("COUCH_CAPTURE_DIR: %w", err)
 		}

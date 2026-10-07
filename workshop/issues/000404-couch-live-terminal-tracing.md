@@ -53,9 +53,9 @@ explicit. The imported implementation is not yet ready to ship.
 ## Plan
 
 - [x] Import the existing implementation, tests and runbook from #379 onto a branch based on main.
-- [ ] Revise the transferred implementation plan for the real overflow finding and long-running capture behavior.
-- [ ] Fix and verify remaining capture reliability and failure visibility requirements.
-- [ ] Review and ship instrumentation independently; keep #379 open for reproduction and diagnosis.
+- [x] Revise the transferred implementation plan for the real overflow finding and long-running capture behavior.
+- [x] Fix and verify remaining capture reliability and failure visibility requirements.
+- [ ] Prepare independent delivery with verified implementation and updated runbook; close/merge gates follow, and #379 remains open.
 
 ## Log
 
@@ -90,3 +90,30 @@ explicit. The imported implementation is not yet ready to ship.
   record coverage; plan updated accordingly. Run loop will consume coalesced
   recorder-status notifications and repaint through Presenter; no separate
   terminal writer or polling worker.
+
+### 2026-10-07 — Reliability implementation and verification
+
+- Recorder admits 8,192 records within the same 8 MiB record-cost bound; explicit
+  phases and coalesced status notifications preserve terminal-owner rendering.
+  Status shows `REC N%` or persistent queue/full/IO stop. A disk-limit override
+  supports finite full-prefix captures from 1 MiB through 1 TiB; default remains
+  256 MiB, runbook suggests 4 GiB for a longer wait. Both settings are cleared
+  from child environments; a limit alone never activates capture.
+- Recorder package/race tests pass, including blocked 4,000-record startup,
+  near-limit in-flight allocation, lifecycle/status wakeups, ownership and limits.
+  Full couchtty suite passes, including idle actor/switcher status and pre-Run
+  failure; deleting the event-loop notification repaint makes the regression fail.
+- Actual failed capture replayed locally without delays: 3,278 observations,
+  3,722,498 bytes, exact comparison, complete end in 100.7 ms. No private payload
+  committed. Regular and isolated real-PTY Console startup tests each preserve
+  3,800 KiB exact input plus final host marker, both pass in 5.51 seconds total.
+- Targeted race run passed across terminalcapture, terminal, ptychild (no matching
+  tests), couchcmd and couchtty; log `/tmp/pair404-race.log`. Build passed via
+  `go build -o /tmp/pair404-couch ./cmd/couch`; diff check passed.
+- Full repository run `/tmp/pair404-go-all.log` found baseline failures. Fresh
+  origin/main b933b5a5 baseline `/tmp/pair404-baseline.UU2Pv4`, with generated
+  runtime bundle, has the identical 53 artifact inventory findings and all five
+  continuation scope-conflict failures. Cold-resume switcher failed 1/5 baseline
+  repetitions: it presses Return on the menu header before async inventory loads
+  (inventory unavailable -> no selection -> parked row); its fixture has capture
+  nil. These are not marked fixed or silently waived by tracing acceptance.

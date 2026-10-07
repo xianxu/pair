@@ -15,7 +15,7 @@ import (
 
 const (
 	maxQueueBytes   = 8 << 20
-	maxQueueRecords = 128
+	maxQueueRecords = 8192
 	maxFileBytes    = 256 << 20
 	finalReserve    = 4096
 )
@@ -25,6 +25,32 @@ var (
 	ErrFileLimit    = errors.New("terminal capture file limit reached")
 	ErrCloseTimeout = errors.New("terminal capture drain timed out")
 )
+
+// Config bounds the complete session file, including its final status record.
+// Zero selects the default 256 MiB; explicit limits range from 1 MiB to 1 TiB.
+type Config struct {
+	MaxBytes int64
+}
+
+// Phase describes recorder admission and shutdown. Failed is terminal even when
+// the worker later completes its bounded drain.
+type Phase uint8
+
+const (
+	Disabled Phase = iota
+	Recording
+	Draining
+	Closed
+	Failed
+)
+
+// Status is an immutable snapshot. WrittenBytes counts accepted writer receipts,
+// including a partial write and the final marker; it does not promise fsync.
+type Status struct {
+	Phase                    Phase
+	WrittenBytes, LimitBytes int64
+	Err                      error
+}
 
 type options struct {
 	queueBytes, queueRecords int
@@ -51,14 +77,29 @@ type Recorder struct {
 	opts            options
 	queue           chan Record
 	done            chan struct{}
-	stopped         bool
+	phase           Phase
+	changes         chan struct{}
+	written         int64
+	percent         int64
 	retained, count int
 	failure         error
 }
 
 // Open creates a unique private session under parent. The composition root is
 // responsible for validating the opt-in destination against its isolation root.
-func Open(parent string) (*Recorder, error) {
+func Open(parent string, config ...Config) (*Recorder, error) {
+	opts := defaultOptions()
+	if len(config) > 1 {
+		return nil, errors.New("terminal capture accepts at most one configuration")
+	}
+	if len(config) == 1 && config[0].MaxBytes != 0 {
+		limit := config[0].MaxBytes
+		if limit < 1<<20 || limit > 1<<40 {
+			return nil, errors.New("terminal capture byte limit must be between 1 MiB and 1 TiB")
+		}
+		opts.fileBytes = limit
+	}
+
 	if err := os.MkdirAll(parent, 0700); err != nil {
 		return nil, fmt.Errorf("capture directory: %w", err)
 	}
@@ -71,11 +112,11 @@ func Open(parent string) (*Recorder, error) {
 		_ = os.Remove(dir)
 		return nil, fmt.Errorf("capture events: %w", err)
 	}
-	return newRecorder(dir, f, defaultOptions()), nil
+	return newRecorder(dir, f, opts), nil
 }
 
 func newRecorder(dir string, out io.WriteCloser, opts options) *Recorder {
-	r := &Recorder{dir: dir, start: time.Now(), opts: opts, queue: make(chan Record, opts.queueRecords), done: make(chan struct{})}
+	r := &Recorder{dir: dir, start: time.Now(), opts: opts, queue: make(chan Record, opts.queueRecords), done: make(chan struct{}), phase: Recording, changes: make(chan struct{}, 1)}
 	build := runtime.Version()
 	if info, ok := debug.ReadBuildInfo(); ok {
 		build += " " + info.Main.Path + "@" + info.Main.Version
@@ -85,6 +126,7 @@ func newRecorder(dir string, out io.WriteCloser, opts options) *Recorder {
 			}
 		}
 	}
+	r.notifyLocked() // Publish the initial recording phase before returning.
 	r.Record(Record{Kind: "capture-start", PID: os.Getpid(), Build: build})
 	go r.run(out)
 	return r
@@ -106,13 +148,60 @@ func (r *Recorder) stamp(record *Record) {
 	record.ElapsedNS = now.Sub(r.start).Nanoseconds()
 }
 
-func (r *Recorder) stopLocked(err error) {
-	if err != nil {
-		r.failure = errors.Join(r.failure, err)
+// Status and Changes are nil-safe so disabled capture needs no special adapter.
+func (r *Recorder) Status() Status {
+	if r == nil {
+		return Status{Phase: Disabled}
 	}
-	if !r.stopped {
-		r.stopped = true
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return Status{Phase: r.phase, WrittenBytes: r.written, LimitBytes: r.opts.fileBytes, Err: r.failure}
+}
+
+// Changes coalesces wakeups; consumers read Status after waking. The channel is
+// never closed, including at shutdown, so selecting it cannot become a busy loop.
+func (r *Recorder) Changes() <-chan struct{} {
+	if r == nil {
+		return nil
+	}
+	return r.changes
+}
+
+func (r *Recorder) notifyLocked() {
+	select {
+	case r.changes <- struct{}{}:
+	default:
+	}
+}
+
+func (r *Recorder) stopLocked(err error) {
+	previous := r.phase
+	if err != nil {
+		if !errors.Is(r.failure, err) {
+			r.failure = errors.Join(r.failure, err)
+		}
+		r.phase = Failed
+	} else if r.phase == Recording {
+		r.phase = Draining
+	}
+	if previous == Recording {
 		close(r.queue)
+	}
+	if r.phase != previous || err != nil {
+		r.notifyLocked()
+	}
+}
+
+// receipt accounts for bytes only after Write acknowledges them. Usage wakeups
+// occur at most 100 times over the finite file budget, never for each record.
+func (r *Recorder) receipt(n int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.written += int64(n)
+	percent := r.written * 100 / r.opts.fileBytes
+	if percent != r.percent {
+		r.percent = percent
+		r.notifyLocked()
 	}
 }
 
@@ -124,7 +213,7 @@ func (r *Recorder) Record(record Record) {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.stopped {
+	if r.phase != Recording {
 		return
 	}
 	cost := record.retainedBytes()
@@ -132,7 +221,7 @@ func (r *Recorder) Record(record Record) {
 		r.stopLocked(ErrQueueFull)
 		return
 	}
-	record.Data = append([]byte(nil), record.Data...)
+	record = record.owned()
 	r.stamp(&record)
 	r.retained += cost
 	r.count++
@@ -160,6 +249,7 @@ func (r *Recorder) run(out io.WriteCloser) {
 				var n int
 				n, err = out.Write(data)
 				written += int64(n)
+				r.receipt(n)
 				if err == nil && n != len(data) {
 					err = io.ErrShortWrite
 				}
@@ -193,6 +283,7 @@ func (r *Recorder) run(out io.WriteCloser) {
 		} else {
 			var n int
 			n, err = out.Write(data)
+			r.receipt(n)
 			if err == nil && n != len(data) {
 				err = io.ErrShortWrite
 			}
@@ -204,6 +295,12 @@ func (r *Recorder) run(out io.WriteCloser) {
 	if err = out.Close(); err != nil {
 		r.fail(err)
 	}
+	r.mu.Lock()
+	if r.phase == Draining {
+		r.phase = Closed
+		r.notifyLocked()
+	}
+	r.mu.Unlock()
 }
 
 // Close stops admission, drains admitted records, and closes the file. Calls are
@@ -226,9 +323,7 @@ func (r *Recorder) Close() error {
 		case <-r.done:
 		case <-timer.C:
 			r.mu.Lock()
-			if !errors.Is(r.failure, ErrCloseTimeout) {
-				r.failure = errors.Join(r.failure, ErrCloseTimeout)
-			}
+			r.stopLocked(ErrCloseTimeout)
 			r.mu.Unlock()
 		}
 		r.mu.Lock()

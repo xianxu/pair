@@ -110,7 +110,7 @@ func TestCaptureHostWritePreservesPartialFailure(t *testing.T) {
 
 func TestCaptureCompositionOffAndExplicitOpenFailure(t *testing.T) {
 	root := t.TempDir()
-	env := map[string]string{"COUCH_ISOLATED_ROOT": root}
+	env := map[string]string{"COUCH_ISOLATED_ROOT": root, "COUCH_CAPTURE_MAX_MIB": "invalid-but-disabled"}
 	config := consoleTraceConfig{getenv: func(k string) string { return env[k] }, root: root}
 	con, runner, err := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil, config)
 	if err != nil || con == nil {
@@ -125,6 +125,7 @@ func TestCaptureCompositionOffAndExplicitOpenFailure(t *testing.T) {
 	}
 	con.Stop()
 	_ = con.CloseCapture()
+	delete(env, "COUCH_CAPTURE_MAX_MIB")
 	env["COUCH_CAPTURE_DIR"] = filepath.Join(root, "file")
 	if err := os.WriteFile(env["COUCH_CAPTURE_DIR"], nil, 0600); err != nil {
 		t.Fatal(err)
@@ -135,11 +136,20 @@ func TestCaptureCompositionOffAndExplicitOpenFailure(t *testing.T) {
 	}
 }
 
+// Exercise several MiB through a real PTY, endpoint parser and host Presenter,
+// not just the recorder. The final marker proves the whole startup arrived.
+func captureStartupPayload() []byte {
+	data := bytes.Repeat([]byte("x"), 3800*1024)
+	return append(data, []byte("\x1b[2J\x1b[HCAPTURE379")...)
+}
+
 func TestCaptureChildHelper(t *testing.T) {
 	if os.Getenv("PAIR_CAPTURE_CHILD_HELPER") != "1" {
 		return
 	}
-	_, _ = os.Stdout.Write([]byte("\x1b[2J\x1b[HCAPTURE379"))
+	if _, err := os.Stdout.Write(captureStartupPayload()); err != nil {
+		os.Exit(2)
+	}
 	_, _ = io.Copy(io.Discard, os.Stdin)
 	os.Exit(0)
 }
@@ -214,7 +224,7 @@ func testCapturePTYBothBoundaries(t *testing.T, isolated bool) {
 	go func() { done <- con.Run() }()
 	select {
 	case <-seen:
-	case <-time.After(5 * time.Second):
+	case <-time.After(30 * time.Second):
 		con.Stop()
 		t.Error("marker never reached host")
 	}
@@ -239,7 +249,11 @@ func testCapturePTYBothBoundaries(t *testing.T, isolated bool) {
 	}
 	records := readCaptureRecords(t, filepath.Join(env["COUCH_CAPTURE_DIR"], dirs[0].Name()))
 	var feed, host, bind, geometry bool
+	var ingress []byte
 	for _, e := range records {
+		if e.Kind == "endpoint-feed" && e.EndpointID == h.ID() {
+			ingress = append(ingress, e.Data...)
+		}
 		if e.Kind == "endpoint-feed" && bytes.Contains(e.Data, []byte("CAPTURE379")) {
 			feed = true
 			if e.EndpointID != h.ID() {
@@ -255,6 +269,12 @@ func testCapturePTYBothBoundaries(t *testing.T, isolated bool) {
 		if e.Kind == "host-geometry" && e.Cols == 80 && e.Rows == 24 {
 			geometry = true
 		}
+	}
+	if !bytes.Equal(ingress, captureStartupPayload()) {
+		t.Fatalf("startup ingress mismatch: got %d bytes want %d", len(ingress), len(captureStartupPayload()))
+	}
+	if len(records) < 2 || records[len(records)-1].Status != "complete" {
+		t.Fatal("startup capture incomplete")
 	}
 	if !feed || !host || !bind || !geometry {
 		t.Fatalf("feed=%t host=%t bind=%t geometry=%t", feed, host, bind, geometry)
@@ -282,5 +302,47 @@ func TestCaptureEarlyLaunchFailureReportsDrainFailure(t *testing.T) {
 	}
 	if strings.Count(stderr.String(), "capture incomplete") != 1 {
 		t.Fatalf("duplicate diagnostic %s", stderr.String())
+	}
+}
+
+func TestCaptureConfiguredLimitValidationBeforeOpen(t *testing.T) {
+	for _, value := range []string{"0", "-1", "+1", "1.5", " 1", "1048577", "999999999999999999999999"} {
+		t.Run(value, func(t *testing.T) {
+			root := t.TempDir()
+			env := map[string]string{"COUCH_CAPTURE_DIR": filepath.Join(root, "capture"), "COUCH_CAPTURE_MAX_MIB": value}
+			con, _, err := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil, consoleTraceConfig{getenv: func(k string) string { return env[k] }, root: root})
+			if con != nil {
+				con.Stop()
+				_ = con.CloseCapture()
+			}
+			if err == nil || !strings.Contains(err.Error(), "COUCH_CAPTURE_MAX_MIB") {
+				t.Fatalf("invalid limit accepted: %v", err)
+			}
+			if _, err := os.Stat(env["COUCH_CAPTURE_DIR"]); !os.IsNotExist(err) {
+				t.Fatalf("invalid config touched destination: %v", err)
+			}
+		})
+	}
+}
+
+func TestCaptureConfiguredLimitAppliesAtComposition(t *testing.T) {
+	root := t.TempDir()
+	env := map[string]string{"COUCH_CAPTURE_DIR": filepath.Join(root, "capture"), "COUCH_CAPTURE_MAX_MIB": "1"}
+	con, runner, err := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil, consoleTraceConfig{getenv: func(k string) string { return env[k] }, root: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer con.Stop()
+	runner.(*couchcore.PtyRunner).Observer(term.Observation{Kind: "endpoint-feed", EndpointID: "limit", Data: make([]byte, 1<<20)})
+	if err := con.CloseCapture(); !errors.Is(err, terminalcapture.ErrFileLimit) {
+		t.Fatalf("configured limit not enforced: %v", err)
+	}
+	dirs, err := os.ReadDir(env["COUCH_CAPTURE_DIR"])
+	if err != nil || len(dirs) != 1 {
+		t.Fatalf("capture dirs %v %v", dirs, err)
+	}
+	info, err := os.Stat(filepath.Join(env["COUCH_CAPTURE_DIR"], dirs[0].Name(), "events.jsonl"))
+	if err != nil || info.Size() > 1<<20 {
+		t.Fatalf("disk bound %v %v", info, err)
 	}
 }

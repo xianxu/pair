@@ -92,9 +92,9 @@ Files: `atlas/` existing Couch diagnostic documentation (linked from atlas/index
 
 ## Remaining work before delivery
 
-- [ ] Revise design for realistic startup bursts, prompt in-session failure visibility, and bounded long-running retention; carry it through the #404 change-code gate before new implementation.
-- [ ] Add regression coverage from the observed workload and implement the approved reliability changes.
-- [ ] Verify regular-session capture survives startup and remains usable for waiting on #379; document limits and evidence gaps honestly.
+- [x] Revise design for realistic startup bursts, prompt in-session failure visibility, and bounded long-running retention; carry it through the #404 change-code gate before new implementation.
+- [x] Add regression coverage from the observed workload and implement the approved reliability changes.
+- [x] Verify regular-session capture survives startup and remains usable for waiting on #379; document limits and evidence gaps honestly.
 - [ ] Complete independent review and ship #404 without closing #379.
 
 
@@ -104,8 +104,8 @@ This revision supersedes the imported queue and failure-visibility decisions;
 all previous verification remains historical. Use the existing full-prefix file
 format; rolling arbitrary ANSI history would discard parser/screen state needed
 for faithful reproduction. Keep a finite configurable disk budget and make its
-usage and stop condition persistent in Couch. Operator retention preference is
-being checked before finalizing this design.
+usage and stop condition persistent in Couch. The implementation uses this recommendation under the operator’s authorization
+to finish #404; an optional retention preference question received no correction.
 
 ### Evidence and bounded workload
 
@@ -159,7 +159,7 @@ on recorded traffic. No guarantee that any finite cap covers an indefinite wait.
 
 ARCH-DRY: use existing recorder, status row and Presenter rather than a second
 terminal writer. ARCH-ORDER: explicit phases and coalesced wakeups; missed/coalesced
-notifications cannot erase failure. ARCH-CONSTRAINTS: memory remains 8 MiB, record
+notifications cannot erase failure. ARCH-CONSTRAINTS: admitted record cost remains 8 MiB, record
 count 8,192, disk finite/configurable, no new producer blocking. ARCH-PURPOSE:
 full-prefix evidence and immediate failure visibility support #379 without claiming
 a root cause. ARCH-PURE/SECURE: typed status and strict config parsing; private
@@ -171,13 +171,36 @@ evidence. No new persistent artifact family or external service.
 
 ### Completion tasks (one close/review boundary)
 
-- [ ] Write failing blocked-startup-burst and status/wakeup lifecycle tests; implement
+- [x] Write failing blocked-startup-burst and status/wakeup lifecycle tests; implement
   queue correction and explicit recorder phase/status with receipt accounting.
-- [ ] Write invalid/valid disk-limit and child-environment tests; implement config
+- [x] Write invalid/valid disk-limit and child-environment tests; implement config
   at couchcmd composition root, preserving optional isolation and default-off.
-- [ ] Write status-row and idle failure repaint tests (actor and switcher), then wire
+- [x] Write status-row and idle failure repaint tests (actor and switcher), then wire
   recorder changes through Console.Run. Cover pre-Run failure and narrow rows.
-- [ ] Replay local measured workload; extend real-PTY regular/isolated fixture with
+- [x] Replay local measured workload; extend real-PTY regular/isolated fixture with
   sustained startup output and assert both exact boundaries survive capture.
 - [ ] Update runbook (limits, stopped state, larger-budget launch, retention and
   extraction), run relevant suites/race checks, build, review and ship #404 only.
+
+- 2026-10-07 — Fresh-eyes plan review clarified memory accounting: 8 MiB bounds
+  admitted record cost, not process RSS. The fixed 8,192-element channel backing
+  array and one in-flight JSON encoding allocation are additional bounded costs;
+  JSON escaping can expand string fields up to 6x (byte Data uses base64). No claim
+  of 8 MiB total memory. Test a near-limit individual record with a blocked writer
+  as well as the many-small-record workload. Existing capture copies/encoding
+  perturb timing; this is diagnostic overhead, not a real-time guarantee.
+
+- 2026-10-07 — Completion implementation maps the phase/status entity to
+  `terminalcapture.Phase`, `Status`, `Recorder.Status`, `Recorder.Changes`; config
+  to `terminalcapture.Config` and `couchcmd.captureSettings`; badge to
+  `couchtty.captureBadge`, `StatusModel.Capture` and the Console.Run select arm.
+  No new production source files were needed beyond the transferred inventory.
+  Fresh-eyes plan review approved the revised accounting. TDD reproduced queue
+  overflow, invalid/ignored cap settings, inherited child limit and missing idle
+  status updates before their fixes. Removing the Console change-notification
+  repaint arm makes both actor/switcher idle tests fail.
+- 2026-10-07 — Actual private workload replay: 3,278 observations / 3,722,498 bytes,
+  no-delay admission plus drain in 100.7 ms, exact field/payload comparison and
+  complete end. Private payload was not committed; temporary replay probe removed.
+  Real-PTY Console tests in regular and isolated configurations each captured
+  3,800 KiB startup output exactly and painted the final host marker (5.51 s total).

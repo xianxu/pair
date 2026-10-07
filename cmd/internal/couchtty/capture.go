@@ -1,6 +1,38 @@
 package couchtty
 
-import "github.com/xianxu/pair/cmd/internal/terminalcapture"
+import (
+	"errors"
+	"fmt"
+
+	"github.com/xianxu/pair/cmd/internal/terminalcapture"
+)
+
+// captureBadge renders only fixed labels, never filesystem or writer error text.
+func captureBadge(status terminalcapture.Status) string {
+	switch status.Phase {
+	case terminalcapture.Recording:
+		percent := int64(0)
+		if status.LimitBytes > 0 {
+			percent = status.WrittenBytes * 100 / status.LimitBytes
+		}
+		return fmt.Sprintf("REC %d%%", percent)
+	case terminalcapture.Draining:
+		return "REC draining"
+	case terminalcapture.Closed:
+		return "REC closed"
+	case terminalcapture.Failed:
+		switch {
+		case errors.Is(status.Err, terminalcapture.ErrQueueFull):
+			return "REC STOP:queue"
+		case errors.Is(status.Err, terminalcapture.ErrFileLimit):
+			return "REC STOP:full"
+		default:
+			return "REC STOP:IO"
+		}
+	default:
+		return ""
+	}
+}
 
 // SetCapture is composition-time injection, before any children are started.
 func (c *Console) SetCapture(recorder *terminalcapture.Recorder) { c.capture = recorder }

@@ -3,6 +3,7 @@ package couchcmd
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/hostty"
@@ -32,6 +33,33 @@ func capturePath(getenv func(string) string) (string, error) {
 		return "", fmt.Errorf("COUCH_CAPTURE_DIR: %w", err)
 	}
 	return confinedDirectory(root, path, "COUCH_CAPTURE_DIR")
+}
+
+// captureSettings keeps validation identical at singleton admission and console
+// composition. A limit alone never enables capture.
+func captureSettings(getenv func(string) string) (string, terminalcapture.Config, error) {
+	path, err := capturePath(getenv)
+	config := terminalcapture.Config{}
+	if err != nil || path == "" {
+		return path, config, err
+	}
+	raw := getenv("COUCH_CAPTURE_MAX_MIB")
+	if raw == "" {
+		return path, config, nil
+	}
+	valid := true
+	for _, c := range raw {
+		if c < '0' || c > '9' {
+			valid = false
+			break
+		}
+	}
+	n, parseErr := strconv.ParseUint(raw, 10, 64)
+	if !valid || parseErr != nil || n < 1 || n > 1<<20 {
+		return "", config, fmt.Errorf("COUCH_CAPTURE_MAX_MIB must be an integer from 1 to 1048576")
+	}
+	config.MaxBytes = int64(n) << 20
+	return path, config, nil
 }
 
 // captureWriter observes the transport's receipt, not just the requested bytes.

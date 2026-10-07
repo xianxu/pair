@@ -7,6 +7,12 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- Bound diagnostic queues against measured burst shapes, including record count
+  as well as bytes. Report capture loss through the owning UI while it is running;
+  a teardown-only error can leave an operator waiting on a recorder that stopped
+  minutes earlier. Keep admission budgets distinct from total allocation overhead.
+  (#404)
+
 - Optional diagnostic resources need one owner across startup failure and normal
   exit. Report shutdown failures on both paths, and clear process-scoped capture
   activation from child environments so descendants do not silently opt in. (#379)
