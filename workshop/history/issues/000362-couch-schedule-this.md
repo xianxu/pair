@@ -1,12 +1,12 @@
 ---
 id: 000362
-status: codecomplete
+status: done
 deps: [pair#365, ariadne#277, ariadne#279, ariadne#280]
 github_issue:
 created: 2026-09-30
 updated: 2026-10-06
 estimate_hours:
-card_mirror: '107baa9371b8d4ed8207232f457e369aacd0319e' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'd7ba35042af0d5f83b17bf1f019e9d14e6cf1bb0' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-06T11:40:57-07:00
 claimant:
     operator: T
