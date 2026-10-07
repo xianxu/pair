@@ -171,23 +171,31 @@ or recovered by hand (`claude --resume 9a99ff57-…`).
 
 ## Done when
 
-- A thread whose resume binding fails projects a reason that names which way it
-  failed (ambiguous, unbound, provisional) rather than a bare `binding lost`;
-  every new reason is produced by a test shape (`TestEveryReasonIsProducedBySomeShape`).
-- A test reproduces the 2026-09-08 ledger shape (two bindings, then a newer
-  launch with no binding) and asserts the thread's state and reason; the
-  outcome the operator sees is stated in the Spec and pinned by that test.
-- An in-pane agent restart that has not bound yet does not make a couch thread
-  unusable, by test, and the Pair wrapper still makes no couch call.
+- A thread whose resume proof fails names the failure. Ambiguous reads
+  "two conversations claim it — reboot", unbound reads "no turn taken yet —
+  reboot", and provisional reads "conversation not confirmed yet — retry after
+  a turn". This holds with or without a park receipt (operator decision D2,
+  2026-10-07). Every new reason is produced by a test shape and passes the
+  defining-word guard.
+- A resolver IO failure projects `unusable/unknown`, never a binding verdict
+  (test).
+- After an in-pane fresh restart whose agent never took a turn, the thread
+  resumes the conversation that restart replaced (operator decision D1). The
+  owner query falls back to the previous established generation exactly when a
+  complete listing proves the chosen file absent. A test reproduces the
+  2026-09-08 ledger shape. Couch's proof and pair's resume launch agree
+  because both read the same query, and pair's restart path is unchanged.
+- The Pair wrapper makes no couch call (layer direction).
 
 ## Plan
 
-- [ ] Carry `bindingResumeDiagnostic`'s code through the evidence pass to the
-      projected reason; add the reasons to the vocabulary and the classify table.
-- [ ] Decide the shadowing rule for an unbound newer launch (`CurrentLaunch` or
-      the couch-side reader); record it in the Spec.
-- [ ] Tests: the 2026-09-08 ledger shape; an unbound in-pane restart; reason
-      coverage.
+Durable plan: `workshop/plans/000214-racing-launch-operations-on-one-thread-leave-it-unresumable-plan.md`.
+
+- [ ] `sessionledger.PreviousEstablished` (pure) and its table test.
+- [ ] The owner query falls back on `FreshRequired`, with the 2026-09-08 shape test.
+- [ ] Named binding-failure reasons, the IO-error fix, and the sweep over every
+      reason switch.
+- [ ] Atlas, full verification, close.
 
 ## Log
 
@@ -299,3 +307,16 @@ and adding its replacement land together.
   Spec text is kept above the new subsection.
 - The card title still describes the old scope; retitling waits for the
   operator.
+
+
+### 2026-10-07: operator decisions D1 and D2; design settled
+
+**Reason.** The design reading (Log) left two calls to the operator: what
+resume should do after an unturned fresh restart, and how far the named
+reasons should reach.
+
+**Delta.**
+- D1: resume the old conversation.
+- D2: name binding failures with or without a park receipt.
+- Done-when and Plan were rewritten for the settled design, which lives in the
+  durable plan.
