@@ -369,6 +369,8 @@ const (
 	OfferNone         EvidenceOffer = "none"
 	OfferReboot       EvidenceOffer = "reboot"
 	OfferResumeReboot EvidenceOffer = "resume-reboot"
+	// OfferReap is an orphaned row: reap, and nothing else, is offered (#399).
+	OfferReap EvidenceOffer = "reap"
 
 	BranchResting       EvidenceBranch = "resting"
 	BranchOpenIssue     EvidenceBranch = "open-issue"
@@ -430,7 +432,7 @@ func AllEvidenceThreads() []EvidenceThreads {
 	return []EvidenceThreads{ThreadsZero, ThreadsOne, ThreadsMany}
 }
 func AllEvidenceOffers() []EvidenceOffer {
-	return []EvidenceOffer{OfferNone, OfferReboot, OfferResumeReboot}
+	return []EvidenceOffer{OfferNone, OfferReboot, OfferResumeReboot, OfferReap}
 }
 func AllEvidenceBranches() []EvidenceBranch {
 	return []EvidenceBranch{BranchResting, BranchOpenIssue, BranchTerminalIssue, BranchOther, BranchDetached, BranchUnknown}
@@ -458,12 +460,16 @@ func (o EvidenceOffer) actions() []string {
 		return []string{"reboot"}
 	case OfferResumeReboot:
 		return []string{"resume", "reboot"}
+	case OfferReap:
+		return []string{"reap"}
 	}
 	return nil
 }
 
 func offerOf(actions []string) EvidenceOffer {
 	switch {
+	case slices.Contains(actions, "reap"):
+		return OfferReap
 	case slices.Contains(actions, "resume"):
 		return OfferResumeReboot
 	case slices.Contains(actions, "reboot"):
@@ -600,6 +606,11 @@ func classifyRecover(e SlotEvidence) recoverDecision {
 		d = recoverDecision{Class: RecoverStartUnreconciled, Hold: []string{string(HoldStartUnreconciled)}}
 	case e.Agent == AgentUnusableUnknown:
 		d = recoverDecision{Class: RecoverAgentUnknown, Hold: []string{string(HoldAgentUnknown)}}
+	case e.Agent == AgentOrphaned && e.Offer == OfferReap:
+		// The confirmed reap ends the orphaned tree; the thread then reads like
+		// any thread whose session ended, so resume follows (#399). Never
+		// reboot: that would archive a conversation still being written.
+		d = recoverDecision{Class: RecoverOrphanedServer, Steps: []string{"reap", "resume"}}
 	case e.Agent == AgentOrphaned:
 		d = recoverDecision{Class: RecoverOrphanedServer, Hold: []string{string(HoldOrphanedServer)}}
 	case e.Threads == ThreadsMany:
@@ -1617,9 +1628,9 @@ func recoverReason(row RecoverRow, f slotFacts, in RecoverPlanInput) string {
 			text = "the agent's state could not be checked; read the report again"
 		}
 	case RecoverOrphanedServer:
-		text = "the agent's zellij server is running but lost its socket; its conversation may still be writing, so neither resume nor reboot is safe"
+		text = "the agent's zellij server is running but lost its socket; its conversation may still be writing, so reap it (confirmed) before resuming, and never reboot"
 		if o := row.Agent.Orphan; o != nil {
-			text = launcher.OrphanDiagnostic(o.Session, o.PID) + "; its conversation may still be writing, so neither resume nor reboot is safe"
+			text = launcher.OrphanDiagnostic(o.Session, o.PID) + "; its conversation may still be writing, so reap it (confirmed) before resuming, and never reboot"
 		}
 	case RecoverStartUnreconciled:
 		text = "a start was claimed and not reconciled; read the report again later, never reboot (it could duplicate a live agent)"

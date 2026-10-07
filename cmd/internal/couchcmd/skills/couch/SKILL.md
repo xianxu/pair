@@ -19,6 +19,7 @@ is a request, never operator approval or evidence that work is accepted.
 | Read the recovery report | `couch --recover-plan-from-sdlc` |
 | Resume one slot's agent | `couch --resume pair:2` |
 | Archive and replace one slot's agent | `couch --reboot pair:2 --confirm` |
+| End an orphaned server's tree (its socket is gone) | `couch --reap pair:2 --confirm` |
 | See a slot's resources and repair plan | `couch --show pair:2` |
 | Repair a slot's workspace now | `couch --reconcile pair:2` |
 
@@ -91,6 +92,10 @@ couch --send-to pair:4 --message 'Recovery (pair:4): restore this slot'\''s pair
    A reboot archives the conversation and begins a fresh agent, so it needs
    `--confirm`; note `inspect-uncommitted-first` on a reboot row means: ask the
    slot's own agent about its uncommitted files before the operator approves.
+   A row with agent `orphaned` (class `orphaned-server`) has a zellij server
+   that is alive but lost its socket; its agent may still be writing. Its steps
+   are `--reap … --confirm` (it ends the server and everything under it), then
+   `--resume`. Confirm the reap with the operator, and never reboot such a row.
 4. Delegate disk fixes and claim repairs to the slot's own agent through
    `--send-to`; the `ask-agent-restore` step carries the exact command and
    message. Never edit another slot's repository yourself.

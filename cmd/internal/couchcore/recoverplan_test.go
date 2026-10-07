@@ -170,8 +170,16 @@ func recoverPlanCases() []recoverPlanCase {
 			setup: func(p *planFixture) { claimedOnBranch(p); p.thread("pair:1", ThreadBusy, "") }},
 		{name: "unusable unknown", address: "pair:1", want: RecoverAgentUnknown, hold: []string{"agent-unknown"},
 			setup: func(p *planFixture) { claimedOnBranch(p); p.thread("pair:1", ThreadUnusable, ReasonUnknown) }},
-		{name: "orphaned server", address: "pair:1", want: RecoverOrphanedServer, hold: []string{"orphaned-server"},
+		{name: "orphaned server", address: "pair:1", want: RecoverOrphanedServer, steps: []string{"reap", "resume"},
 			setup: func(p *planFixture) { claimedOnBranch(p); p.orphanedThread("pair:1", 4242) }},
+		// Several threads, one orphaned: reap is not offered on one row, so the
+		// orphan holds the slot rather than any thread being acted on.
+		{name: "orphaned server among threads", address: "pair:1", want: RecoverOrphanedServer, hold: []string{"orphaned-server"},
+			setup: func(p *planFixture) {
+				claimedOnBranch(p)
+				p.thread("pair:1", ThreadUnusable, ReasonUnknown)
+				p.orphanedThread("pair:1", 4242)
+			}},
 		{name: "two threads", address: "pair:1", want: RecoverAmbiguousThreads, hold: []string{"threads:2"},
 			setup: func(p *planFixture) {
 				claimedOnBranch(p)
@@ -685,17 +693,19 @@ func TestDeriveRecoverPlanIsTotalOverTheEvidenceDomain(t *testing.T) {
 			fail("a hold with steps")
 		}
 		offered := e.Offer.actions()
-		for _, step := range d.Steps {
+		for i, step := range d.Steps {
 			switch step {
-			case "resume", "reboot":
-				if !slices.Contains(offered, step) {
+			case "resume", "reboot", "reap":
+				// resume may follow reap: the reap is what makes it offered.
+				afterReap := step == "resume" && i > 0 && d.Steps[i-1] == "reap"
+				if !slices.Contains(offered, step) && !afterReap {
 					fail(step + " is not offered by ActorActions")
 				}
 			case "ask-agent-restore", "reconcile":
 			default:
 				fail("unknown step " + step)
 			}
-			if step == "reboot" && (e.Operation != TriNo || e.DepTree == DepTreeOperation || e.DepTree == DepTreeUnknown || e.Branch == BranchDetached || e.Branch == BranchUnknown || e.gitUnknown() || e.Agent == AgentBusy || e.Agent == AgentUnusableUnknown) {
+			if step == "reboot" && (e.Operation != TriNo || e.DepTree == DepTreeOperation || e.DepTree == DepTreeUnknown || e.Branch == BranchDetached || e.Branch == BranchUnknown || e.gitUnknown() || e.Agent == AgentBusy || e.Agent == AgentUnusableUnknown || e.Agent == AgentOrphaned) {
 				fail("unsafe reboot")
 			}
 		}
@@ -905,7 +915,11 @@ func consistent(e SlotEvidence) bool {
 		(e.Agent == AgentNone) != (e.Threads == ThreadsZero),
 		e.Threads != ThreadsOne && e.Offer != OfferNone,
 		(e.Agent == AgentParked || e.Agent == AgentDetached) && e.Threads == ThreadsOne && e.Offer != OfferResumeReboot,
-		e.Agent != AgentUnusable && e.Agent != AgentParked && e.Agent != AgentDetached && e.Offer != OfferNone,
+		e.Agent != AgentUnusable && e.Agent != AgentParked && e.Agent != AgentDetached && e.Agent != AgentOrphaned && e.Offer != OfferNone,
+		// ActorActions offers exactly reap on a lone orphaned row, and reap
+		// nowhere else (#399).
+		e.Agent == AgentOrphaned && e.Threads == ThreadsOne && e.Offer != OfferReap,
+		e.Offer == OfferReap && e.Agent != AgentOrphaned,
 		e.GitSource == GitSourceUnknown && !(e.Branch == BranchUnknown && e.Dirty == TriUnknown && e.Unlanded == TriUnknown && e.Operation == TriUnknown),
 		e.GitSource == GitSourceLocalProbe && (e.Unlanded != TriUnknown || e.Operation != TriUnknown || e.Dirty == TriUnknown ||
 			e.Branch == BranchTerminalIssue || e.Branch == BranchUnknown || (e.Quality != QualityUnknown && e.Quality != QualityUnsupported)),
@@ -1118,8 +1132,9 @@ func TestRecoverSlotClassAgreesWithTheCallers(t *testing.T) {
 	}
 }
 
-// The report names an orphan as such, with its server, and suggests nothing a
-// running conversation can't survive: no resume, no reboot (#399 M1).
+// The report names an orphan as such, with its server, and its steps are a
+// confirmed reap, then resume -- never reboot, which would archive a running
+// conversation (#399).
 func TestRecoverPlanNamesAnOrphanedAgent(t *testing.T) {
 	p := newPlanFixture(t)
 	claimedOnBranch(p)
@@ -1128,8 +1143,12 @@ func TestRecoverPlanNamesAnOrphanedAgent(t *testing.T) {
 	if row.Agent.State != string(AgentOrphaned) || row.Agent.Orphan == nil || row.Agent.Orphan.PID != 4242 {
 		t.Fatalf("agent = %+v", row.Agent)
 	}
-	if len(row.Next.Steps) != 0 {
-		t.Fatalf("steps = %+v, want none until reap exists", row.Next.Steps)
+	var commands []string
+	for _, step := range row.Next.Steps {
+		commands = append(commands, step.Command)
+	}
+	if want := []string{"couch --reap pair:1 --confirm", "couch --resume pair:1"}; !slices.Equal(commands, want) {
+		t.Fatalf("steps = %q, want %q", commands, want)
 	}
 	if !strings.Contains(row.Reason, "server PID 4242 lost its socket") {
 		t.Fatalf("reason = %q", row.Reason)
@@ -1146,5 +1165,16 @@ func TestManyThreadsWithAnOrphanReadOrphaned(t *testing.T) {
 	row := findRow(t, DeriveRecoverPlan(p.input()), "pair:1")
 	if row.Class != RecoverOrphanedServer || row.Agent.State != string(AgentOrphaned) {
 		t.Fatalf("class %q agent %q", row.Class, row.Agent.State)
+	}
+}
+
+// After the reap the same slot reads like any parked thread: resume only.
+func TestRecoverPlanAfterReapIsResumeOnly(t *testing.T) {
+	p := newPlanFixture(t)
+	claimedOnBranch(p)
+	p.thread("pair:1", ThreadParked, "")
+	row := findRow(t, DeriveRecoverPlan(p.input()), "pair:1")
+	if len(row.Next.Steps) != 1 || row.Next.Steps[0].Action != "resume" {
+		t.Fatalf("steps after reap = %+v", row.Next.Steps)
 	}
 }
