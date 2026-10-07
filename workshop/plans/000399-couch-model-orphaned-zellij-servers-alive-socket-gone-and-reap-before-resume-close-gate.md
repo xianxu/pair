@@ -209,6 +209,32 @@ rounds:
       boundary: M2
       recipe: milestone-review
       blocked: false
+    - "n": 7
+      timestamp: "2026-10-07T12:38:06-07:00"
+      agent: claude
+      dispose:
+        - id: BR-13
+          disposition: addressed
+          note: Plan revision "2026-10-07 — reap is its own switcher entry too (M2)" (17124a86) records [recover, reap].
+          round: 7
+        - id: BR-14
+          disposition: addressed
+          note: actor_actions.go ActorActions comment now names resume, reboot and reap, and the live-orphan exception.
+          round: 7
+        - id: BR-15
+          disposition: not-addressed
+          note: session_reap.go OSProcessTable.Snapshot still takes ppid from ps and start identity from a later per-pid sysctl.
+          round: 7
+        - id: BR-16
+          disposition: not-addressed
+          note: atlas/couch.md about line 2197 still skips ReapTagHelpers and lists pair title as a child; lifecycle.go:516 and lessons.md:591 still credit Setsid.
+          round: 7
+        - id: BR-17
+          disposition: not-addressed
+          note: The only test (session_reap_test.go:222) compares against editorPathsOf itself; nothing compares it with the quit path's inline literal at lifecycle.go:196.
+          round: 7
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#399 (boundary-review)
@@ -298,10 +324,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-17** [Minor] `duplicate-derivation` editorPathsOf duplicates the quit path's inline editor-path literal and no test checks they stay equal
   lifecycle.go:196-199 vs 297-302 (ARCH-DRY). The inventory check is why the literal stays inline; a test asserting launcherCleanupOps.editorPaths equals editorPathsOf(paths) would keep the two from drifting.
 
+## Round 7 — 2026-10-07T12:38:06-07:00 (claude) — passed
+
+### Disposed
+
+- BR-13 — addressed — Plan revision "2026-10-07 — reap is its own switcher entry too (M2)" (17124a86) records [recover, reap].
+- BR-14 — addressed — actor_actions.go ActorActions comment now names resume, reboot and reap, and the live-orphan exception.
+- BR-15 — not-addressed — session_reap.go OSProcessTable.Snapshot still takes ppid from ps and start identity from a later per-pid sysctl.
+- BR-16 — not-addressed — atlas/couch.md about line 2197 still skips ReapTagHelpers and lists pair title as a child; lifecycle.go:516 and lessons.md:591 still credit Setsid.
+- BR-17 — not-addressed — The only test (session_reap_test.go:222) compares against editorPathsOf itself; nothing compares it with the quit path's inline literal at lifecycle.go:196.
+
 ## Open findings
 
-- **BR-13** [Minor] `plan-drift-unrevised` Plan says reap is reached only through recover, but the switcher lists reap as its own entry too
-- **BR-14** [Minor] `stale-doc-comment` ActorActions doc comment still says "the two actor operations, resume and reboot"
 - **BR-15** [Minor] `point-observation-as-settled-state` OSProcessTable.Snapshot reads ppid from ps and start identity from a later sysctl, so a pid recycled between the two reads is planned under the wrong parent
 - **BR-16** [Minor] `stale-doc-comment` Atlas omits reap's helper step, and the code and lessons say the poller is outside the tree because of Setsid, which is false for Couch threads
 - **BR-17** [Minor] `duplicate-derivation` editorPathsOf duplicates the quit path's inline editor-path literal and no test checks they stay equal

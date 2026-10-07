@@ -231,3 +231,42 @@ func TestOSOrphanReaperRefusesWithoutADataDir(t *testing.T) {
 		t.Fatal("reaped without a data directory")
 	}
 }
+
+// contextualFakeRuntime records the editor paths the quit path's cleanup hands
+// to ReapNvimContext.
+type contextualFakeRuntime struct {
+	*fakeRuntime
+	editors []lifecycleEditorPaths
+}
+
+func (c *contextualFakeRuntime) DeleteSessionContext(_ context.Context, session string) error {
+	c.fakeRuntime.DeleteSession(session)
+	return nil
+}
+func (c *contextualFakeRuntime) ReapNvimContext(_ context.Context, paths lifecycleEditorPaths) error {
+	c.editors = append(c.editors, paths)
+	return nil
+}
+func (c *contextualFakeRuntime) KillTitlePollerContext(context.Context, string) error { return nil }
+func (c *contextualFakeRuntime) CleanupCmuxContext(context.Context, string, string) error {
+	return nil
+}
+
+// #399 close review BR-17: the quit path spells its editor paths inline (the
+// artifact inventory checks each scoped member where it is resolved), and the
+// orphan reaper derives them through editorPathsOf. This pins the two to the
+// same paths, so one cannot drift from the other.
+func TestQuitPathAndReaperShareEditorPaths(t *testing.T) {
+	rt := &contextualFakeRuntime{fakeRuntime: newFakeRuntime()}
+	rt.quitMarkers["pair-work"] = true
+	if _, ran := runCleanupContext(context.Background(), Env{DataDir: "/data", Cwd: "/repo"}, rt, launchStep{tag: "work", agent: "claude", session: "pair-work"}, "scope", 0, &strings.Builder{}); !ran {
+		t.Fatal("cleanup did not run")
+	}
+	paths, err := artifactpath.ResolveScoped("/data", "work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rt.editors) != 1 || !reflect.DeepEqual(rt.editors[0], editorPathsOf(paths)) {
+		t.Fatalf("quit path reaped %+v, reaper derives %+v", rt.editors, editorPathsOf(paths))
+	}
+}

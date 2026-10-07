@@ -2194,10 +2194,14 @@ descendant first and the server last; `launcher.Reaper` sends SIGTERM in that
 order, SIGKILLs survivors by pid after a bound (a child that reparented to PID 1
 is still found), re-reads every pid's start identity before every signal, refuses
 a changed server before any signal, and names a SIGKILL survivor instead of
-waiting. `launcher.OSOrphanReaper` then proves zellij's leftover EXITED record
-gone with the shared quiescence loop. Order matters because on 2026-10-06 the
-servers were killed first and their `pair wrap`/`pair title` children survived at
-PPID 1.
+waiting. `launcher.OSOrphanReaper` then ends the thread's helpers that live
+OUTSIDE the server's tree, the title poller (whose parent is the launcher, Couch's
+hosted client) and the editors, through the quit path's own pidfiles
+(`ReapTagHelpers`), and finally proves zellij's leftover EXITED record gone with
+the shared quiescence loop. The snapshot reads pid, parent and start identity in
+one read (`procutil.Table`). Order matters because on 2026-10-06 the servers were
+killed first: `pair wrap`, which ignored SIGTERM, survived, and the launcher-owned
+`pair title` pollers were left at PPID 1.
 
 **`recover`** (M2, `couchcore/recover_action.go`) is the switcher's default Tab
 action, offered wherever `ActorActions` offers anything. It runs exactly the

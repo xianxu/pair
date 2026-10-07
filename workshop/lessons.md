@@ -588,9 +588,12 @@ proof; record the surprising case so the next change starts from evidence.
   output. Grep a known-failing test's output for your own files at every close.
 - Check how a process is spawned before claiming a tree snapshot covers it. #399's
   reaper skipped the title-poller pidfile reaper on the reasoning that helpers live
-  under the zellij server, but the launcher spawns the poller with `Setsid`,
-  outside that tree. That is exactly why 2026-10-06 left stray `pair title`
-  processes. One grep for the spawn site settles it.
+  under the zellij server. But the poller's parent is the launcher (Couch's hosted
+  client, or standalone `pair`), not the server, so it was never in the server's
+  tree; when the launcher dies it reparents to PID 1. That is exactly why
+  2026-10-06 left stray `pair title` processes. (A first correction blamed
+  `Setsid`, which Couch-launched Pair doesn't even apply. Check the actual parent
+  in `ps`, not a plausible mechanism.)
 - A test may only remove paths it created with its own `t.TempDir()`. Never derive
   a removal root by walking up (`filepath.Dir`) from a path a child process
   reported: on 2026-10-06 an unsandboxed #397 test ran

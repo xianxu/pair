@@ -513,10 +513,12 @@ func (o *launcherCleanupOps) PreservedScrollback() *pairlifecycle.PreservedScrol
 // quiescence loop every session deletion uses.
 //
 // The helpers are why the tree is not enough (#399 M2 review): the title
-// poller is spawned by the launcher with Setsid, never under the zellij
-// server, so no snapshot of the server's tree contains it -- the stray
-// `pair title` processes of 2026-10-06. Its pidfile, and the editors', are
-// the same ones the quit path reaps (editorPathsOf).
+// poller's parent is the LAUNCHER -- Couch's hosted client, or standalone pair
+// -- never the zellij server, so no snapshot of the server's tree contains it.
+// When the launcher dies the poller reparents to PID 1: the stray `pair title`
+// processes of 2026-10-06. Its pidfile, and the editors', are the same ones
+// the quit path reaps (editorPathsOf; pinned by
+// TestQuitPathAndReaperShareEditorPaths).
 type OSOrphanReaper struct{ DataDir string }
 
 func (r OSOrphanReaper) ReapOrphan(ctx context.Context, server SessionServerIdentity, scope, tag string) error {

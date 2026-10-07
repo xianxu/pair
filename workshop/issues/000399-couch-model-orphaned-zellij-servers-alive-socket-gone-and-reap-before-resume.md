@@ -131,7 +131,7 @@ Durable plan: `workshop/plans/000399-couch-model-orphaned-zellij-servers-alive-s
       steps become `reap` then `resume`. A switcher Tab action **recover** runs
       that row's report steps (resume / reap→resume / reboot, or refuses on a
       hold); its confirmation follows the steps (operator decision 2026-10-06).
-- [ ] M3 — Live acceptance (unlink one socket, report, reap, resume), atlas,
+- [x] M3 — Live acceptance (unlink one socket, report, reap, resume), atlas,
       lessons.
 
 ## Log
@@ -150,6 +150,7 @@ Durable plan: `workshop/plans/000399-couch-model-orphaned-zellij-servers-alive-s
   another slot's lifecycle job, or at least needs visible "busy" feedback.
 
 ### 2026-10-07 — M1 implementation notes
+- 2026-10-07: closed — M1-M3. Live acceptance on pair:6 passed twice (crash case: client ended; live case: client attached), each time recover reaped the whole old tree including the PPID-1 title poller and resumed the same conversation in a fresh session. Full scrubbed go test ./... and make -k test fail only the 2 known main failures (TestProductionArtifactReferencesAreExactlyClassified lists no #399 file; TestCouchReferencesLocalArchiveLocatorRoundTrip). M1 and M2 milestone reviews: SHIP.; review verdict: FIX-THEN-SHIP
 - 2026-10-07: closed M2 — Round 2. BR-9: a confirmation never outlives its op success (default rule; TestReapSuccessClosesItsConfirmation failed before). BR-10: title poller is Setsid-spawned outside the server tree, so reap also runs the tag pidfile helper reapers (TestReapTagHelpersEndsTheHelpersOutsideTheTree; refuses without a data dir); lesson. BR-11: startup refusal names Tab → recover, no hand-written kill recipe (test forbids kill/pkill). BR-12: README documents --reap/--recover/orphaned/Tab → recover. Artifact inventory lists no #399 file. couchcore, couchtty, couchcmd, launcher, couchmessage pass in a full scrubbed run. actual = measured 2.99 - M1 1.35.; review verdict: SHIP
 
 - e7c0f173: one server type with its socket path (PQ-1; the lowercase copy
@@ -192,3 +193,24 @@ Durable plan: `workshop/plans/000399-couch-model-orphaned-zellij-servers-alive-s
 - Next: the operation surface (ops, dispatch, slotOperations, CLI `--reap`,
   socket, switcher confirmation/progress text), the report steps reap → resume,
   then Task 9b `recover`.
+
+### 2026-10-07 — M3: live acceptance and its fixes
+
+- **Crash case, pair:6:** unlinked `📁1-80`'s socket and ended its client. The
+  report showed agent `orphaned` with reap → resume; switcher Tab → recover
+  ended every old process, including the title poller at PPID 1, and resumed
+  the same conversation in `📁1-81`.
+- **Gap found: the live orphan.** With the client still attached the row stayed
+  live, and detach/park/relaunch all refused, leaving no way out. Fixed:
+  `Orphan` rides live rows too; the live menu offers `[recover, reap]`; the report
+  gives reap → resume; reap admits any orphaned row; the hosted child's exit is
+  expected. Re-tested live on pair:6 (`📁1-81` → `📁1-83`): recover worked with no
+  confirmation, and nothing of the old tree was left.
+- **Operator decisions:** recover never asks (`ConfirmByPlan` and the preview
+  machinery removed; reap alone confirms); the sentence ends "— Tab → recover";
+  recover's spinner shows the current step ("step i/n: …", with reap's phases).
+- Known gap carried forward: a remote `couch --recover` can still post a spurious
+  exit notice if the hosted client exits before the operation completes (the
+  switcher path is covered in both orders).
+- Gotcha: the agent shell's `couch` function builds from pair:3, so live reads
+  used `~/workspace/pair/bin/couch` explicitly.

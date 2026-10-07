@@ -136,3 +136,24 @@ func TestAliveReportsThisProcessAndNotADeadOne(t *testing.T) {
 		t.Error("Alive(4194305) = true for a pid past the platform maximum")
 	}
 }
+
+// Table's identity is the same token Identity reads, so a reaper's later
+// identity re-check compares like with like; and this process's row names its
+// real parent.
+func TestTableMatchesIdentityAndParent(t *testing.T) {
+	rows, err := Table()
+	if err != nil {
+		t.Skipf("process table unavailable: %v", err)
+	}
+	self := os.Getpid()
+	for _, r := range rows {
+		if r.PID != self {
+			continue
+		}
+		if r.Identity != Identity(strconv.Itoa(self)) || r.PPID != os.Getppid() {
+			t.Fatalf("row %+v, identity %q, ppid %d", r, Identity(strconv.Itoa(self)), os.Getppid())
+		}
+		return
+	}
+	t.Fatal("this process is missing from the table")
+}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
@@ -153,29 +152,20 @@ func (r Reaper) await(ctx context.Context, steps []ReapStep, wait time.Duration)
 // OSProcessTable reads the real host.
 type OSProcessTable struct{}
 
+// Snapshot reads pid, parent and start identity together (procutil.Table: one
+// kern.proc.all sysctl on macOS), so a planned row's parent and identity
+// describe the same process at the same moment (#399 close review BR-15).
 func (OSProcessTable) Snapshot(ctx context.Context) ([]ProcessRow, error) {
-	out, err := exec.CommandContext(ctx, "ps", "-axo", "pid=,ppid=").Output()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	procs, err := procutil.Table()
 	if err != nil {
 		return nil, err
 	}
-	var rows []ProcessRow
-	for _, line := range strings.Split(string(out), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) != 2 {
-			continue
-		}
-		pid, perr := strconv.Atoi(fields[0])
-		ppid, qerr := strconv.Atoi(fields[1])
-		if perr != nil || qerr != nil || pid <= 0 {
-			continue
-		}
-		rows = append(rows, ProcessRow{PID: pid, PPID: ppid})
-	}
-	// Identity only for the rows a plan can reach is cheaper, but the plan is
-	// built from this snapshot, so every row needs one; a vanished pid reads ""
-	// and is never planned against a live identity.
-	for i := range rows {
-		rows[i].Identity = procutil.Identity(strconv.Itoa(rows[i].PID))
+	rows := make([]ProcessRow, len(procs))
+	for i, p := range procs {
+		rows[i] = ProcessRow{PID: p.PID, PPID: p.PPID, Identity: p.Identity}
 	}
 	return rows, nil
 }
