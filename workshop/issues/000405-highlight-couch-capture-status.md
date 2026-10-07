@@ -43,3 +43,5 @@ Render every visible capture badge in bold reverse video, using the terminal for
 
 - Applied bold reverse video through the existing `appendText` style argument; its reset scopes emphasis to the clipped badge, including stopped states. No new rendering mechanism or terminal write path.
 - Verified `go test ./cmd/internal/couchtty -run 'Capture|RenderStatusRow|StatusRow' -count=1`, `go build -o bin/couch ./cmd/couch`, and `git diff --check`. Tests ran with Pair/Couch/Zellij environment removed and a dedicated temporary root.
+
+- Close review BR-1 requests new tests asserting the exact bold/inverse escape and reset. Requested disposition: withdraw. This reversible, one-line presentation tweak intentionally relies on the existing scoped renderer rather than adding implementation-mirroring tests. Session instructions explicitly prohibit writing tests for reversible low-impact changes or tests that mirror implementation. Inspection verifies `appendText` omits style for empty/zero-width output, clips before adding style, and emits its reset immediately after badge text; the existing state/width/click-span tests pass. No rendering logic changed.
