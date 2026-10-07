@@ -111,9 +111,13 @@ for that thread is **refused**, not queued or coalesced, with a message naming
 what is already running there. Different threads are unaffected. The guard may
 be relaxed later; for now, one.
 
-**Where.** One admission map, keyed by (thread address, operation class), at
+**Where (revised 2026-10-06, see Revisions).** One in-memory `ThreadGate` on
+`Couch`, held by every couchcore lifecycle entry where its address is final, with
+re-entry for composites through the context. The queue is the wrong place: it
+cannot name a remote job's or a path-addressed thread, nor `leave`'s many. The
+durable plan has the entry table. ~~One admission map, keyed by (thread address, operation class), at
 the point all four paths enqueue: beside `operationQueue.pending`, or a wrapper
-around `Enqueue`. Release happens on result delivery. Each path supplies its
+around `Enqueue`.~~ Release happens on result delivery. Each path supplies its
 address explicitly; a job without one (the global `leave`) is not
 launch-class. M1 lands with the single worker still in place and is tested
 there, so M2 changes only the worker count.
@@ -160,6 +164,8 @@ about 5 s for 17 background threads at the 18 slots now in use.
 
 ## Done when
 
+- Quit (`leave`, detach or park) of N threads runs them concurrently inside
+  `Couch.Leave`, bounded, finishing siblings when one fails.
 - A batch park/detach of N threads completes in materially less wall-clock than
   N sequential operations; measured, with the working-agent count recorded
   (per `workshop/targets/workbench-latency.md`, a timing without its co-tenancy
@@ -187,25 +193,12 @@ about 5 s for 17 background threads at the 18 slots now in use.
 
 ## Plan
 
-- [ ] M1 — Per-thread admission guard, single worker unchanged.
-  - [ ] Define the launch-class operation set in one place; map every enqueue
-        path (menu, reattach, continuation, remote) to (address, class).
-  - [ ] Admission map beside `operationQueue.pending`; release on result
-        delivery; refusal notice naming the running operation.
-  - [ ] Tests: resume-then-relaunch admits one, thread stays resumable; two
-        threads both admitted; each path refused against a busy thread.
-- [ ] M2 — Bounded pool for batch park/detach and the startup reattach pass.
-  - [ ] Decide the interleaving policy cells above; record them in `## Spec`.
-  - [ ] Replace the single `q.Run` with a bounded pool; keep dedup and result
-        delivery unchanged.
-  - [ ] Lift the reattach pass's single `Loading` slot to a bounded in-flight
-        set; keep the operator-in-flight hold and per-row failure.
-  - [ ] Tests: N threads, one in-flight op each, no cross-thread ordering
-        assumed; the failure and mid-batch-input cells; a quit mid-pass; the
-        #196 tracking mode under N concurrent reattaches.
-  - [ ] Measure batch and startup-pass wall-clock before/after at the live slot
-        count, recording agent count.
-  - [ ] Add the counted invariant to `#204`.
+Durable plan: `workshop/plans/000205-batch-park-and-detach-run-in-parallel-plan.md`.
+
+- [ ] M1 — Per-thread `ThreadGate` in couchcore on every lifecycle entry; refusal
+      reaches the operator; nothing outlives its hold (plan Tasks 1–5).
+- [ ] M2 — Bounded parallelism: `Leave` fan-out, park worker bound, reattach pass
+      in-flight set, console queue workers; measured before/after (plan Tasks 6–12).
 
 ## Log
 
@@ -273,3 +266,16 @@ the guard here, so the old ordering and its replacement ship together.
 Spec subsection, two Done-when bullets carried from `#214`, and split the Plan
 into M1 (guard, single worker) and M2 (pool for batch park/detach and the
 startup reattach pass). `#214` keeps the non-concurrency half.
+
+### 2026-10-06: guard moves to couchcore; quit parallelises inside `Leave`
+
+**Reason.** Design reading (Log, 2026-10-06): `leave` is one queue job with a
+serial loop inside `Couch.Leave`, and the queue cannot name the thread for
+remote, path-addressed or `leave` work. The operator approved the couchcore
+design.
+
+**Delta.** The Spec's "Where" now names a couchcore `ThreadGate` (the old
+sentence is struck through). Done-when gains a bullet for `Leave` running
+concurrently. The Plan points at the durable plan, whose M1/M2 split replaces
+the inline sub-steps. One shared bound, `LifecycleParallelism = 4`, is chosen
+with its reason in the plan (D5).
