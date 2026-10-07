@@ -1282,6 +1282,8 @@ func unusableThreadNotice(thread couchcore.ActionableThreadSummary) string {
 		return "its saved agent is not supported by this build"
 	case couchcore.ReasonUnknown:
 		return "couch could not check its state this refresh"
+	case couchcore.ReasonOrphanedServer:
+		return "its zellij server is running but lost its socket; reap it to resume"
 	}
 	return string(thread.Reason)
 }

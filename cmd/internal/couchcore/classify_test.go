@@ -67,6 +67,10 @@ func everyThreadShape(t *testing.T) []classifyCase {
 		e.Session = SessionObservation{State: SessionAbsent}
 		return e
 	}
+	orphaned := func(e ThreadEvidence) ThreadEvidence {
+		e.Session = SessionObservation{State: SessionOrphaned, Orphan: &launcher.SessionServerIdentity{PID: 9, Identity: "t9", Session: "📁1-9"}}
+		return e
+	}
 	withSession := func(e ThreadEvidence) ThreadEvidence {
 		e.ParkedStatus = ProofResolved
 		e.Session = SessionObservation{State: SessionPresent}
@@ -349,6 +353,22 @@ func everyThreadShape(t *testing.T) []classifyCase {
 			name: "working path could not be physicalized", record: pathBroken,
 			evidence:  resolved(ThreadEvidence{PathError: errTestPathBroken}),
 			wantState: ThreadUnusable, wantReason: ReasonPathMissing,
+		},
+		{
+			// #399: the server is alive with its socket gone. list-sessions no
+			// longer lists it, so without this branch the ledger made it read
+			// `parked` -- and resume would start a second agent on a
+			// conversation the orphan is still writing.
+			name: "orphaned server, ledger resolves", record: parked(),
+			evidence:  orphaned(resolved(ThreadEvidence{Parked: parkedProof(parked())})),
+			wantState: ThreadUnusable, wantReason: ReasonOrphanedServer,
+		},
+		{
+			// An orphan outranks the record's own faults: the process is
+			// running whatever the record says, and reap is still the step.
+			name: "orphaned server, working path missing", record: pathBroken,
+			evidence:  orphaned(resolved(ThreadEvidence{PathError: errTestPathBroken})),
+			wantState: ThreadUnusable, wantReason: ReasonOrphanedServer,
 		},
 	}
 }
@@ -1011,5 +1031,12 @@ func TestSessionAbsentWithResolvableLedgerIsResumable(t *testing.T) {
 	if rows[0].State != ThreadParked {
 		t.Fatalf("= %q/%q, want parked: the ledger names a conversation to resume into",
 			rows[0].State, rows[0].Reason)
+	}
+}
+
+// An orphan's agent may still be writing: never archive-eligible (#399).
+func TestAnOrphanedServerIsNeverArchivable(t *testing.T) {
+	if ArchivableState(ThreadUnusable, ReasonOrphanedServer) || RebootableState(ThreadUnusable, ReasonOrphanedServer) {
+		t.Fatal("an orphaned server's thread is archivable")
 	}
 }

@@ -53,7 +53,7 @@ func ActorActions(f ActorRowFacts) []string {
 	case ThreadParked, ThreadDetached:
 		return []string{"resume", "reboot"}
 	case ThreadUnusable:
-		if f.Reason == ReasonUnknown {
+		if f.Reason == ReasonUnknown || f.Reason == ReasonOrphanedServer {
 			return nil
 		}
 		if f.DirectoryMissing {

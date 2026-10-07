@@ -118,6 +118,10 @@ func expectedRowActions(s menuRowShape) []string {
 		switch {
 		case s.reason == couchcore.ReasonUnknown:
 			return nil
+		// An orphaned server's agent may still be writing: neither resume nor
+		// reboot is safe; M2's recover runs the confirmed reap (#399).
+		case s.reason == couchcore.ReasonOrphanedServer:
+			return nil
 		case s.reason == couchcore.ReasonPathMissing && s.slot:
 			return nil
 		case s.reason == couchcore.ReasonPathMissing:

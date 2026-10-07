@@ -430,7 +430,8 @@ func ArchivableState(state ActionableThreadState, reason ThreadReason) bool {
 	case ThreadDetached, ThreadParked:
 		return true
 	case ThreadUnusable:
-		return reason != ReasonUnknown
+		// An orphan's conversation is still running (#399).
+		return reason != ReasonUnknown && reason != ReasonOrphanedServer
 	}
 	return false
 }
@@ -530,6 +531,13 @@ func ClassifyThread(record ThreadRecord, evidence ThreadEvidence) (ActionableThr
 	// session, which is the whole of #272's fix.
 	if len(evidence.Unproven) != 0 {
 		return ThreadUnusable, ReasonUnknown
+	}
+	// An orphaned server is a running process nothing can reach (#399). It
+	// outranks the record's own faults and every "no session" reading below:
+	// list-sessions no longer lists it, so the ledger alone would call it
+	// `parked` and offer a resume onto a conversation still being written.
+	if evidence.Session.State == SessionOrphaned {
+		return ThreadUnusable, ReasonOrphanedServer
 	}
 	// Resume authority gates BOTH the warm and the cold path, and must be
 	// checked before either. Reattaching still goes through DecideResume, which
