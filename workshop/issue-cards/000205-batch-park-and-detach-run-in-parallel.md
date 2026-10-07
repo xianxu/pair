@@ -9,9 +9,9 @@ started: 2026-10-04T17:59:49-07:00
 claimant:
     operator: T
     machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: MacBook Pro
-    workspace: pair:4
-    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:0
+    worktree: /Users/xianxu/workspace/pair
     repository: github.com/xianxu/pair
 ---
 
