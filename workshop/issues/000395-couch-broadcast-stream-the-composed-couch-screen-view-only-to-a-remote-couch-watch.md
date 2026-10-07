@@ -19,6 +19,8 @@ claimant:
 
 # Couch broadcast: stream the composed Couch screen, view-only, to a remote couch --watch
 
+> Viewer revised 2026-10-07: browser viewer, not `couch --watch` (see Revisions).
+
 ## Problem
 
 There's no way to show a live coding session to a remote person. Screen sharing
@@ -28,29 +30,49 @@ what Couch shows, view-only, to a remote player, over a `cloudflared` tunnel.
 
 ## Spec
 
-Requirements, settled with the operator on 2026-10-06:
+Requirements settled with the operator on 2026-10-06 and revised on 2026-10-07
+(see Revisions):
 
-- **View-only.** Viewers send no input. No tab switching, no scrolling into the
-  sender's history.
+- **View-only, by construction.** The viewer endpoint is an HTTP GET whose
+  response is a Server-Sent Events stream. It has no inbound channel, so a viewer
+  cannot send input, switch tabs or scroll into the sender's history. Remote
+  control, if it comes, is a different URL with a different grant (#407); a
+  view-only link can never be upgraded to it.
 - **Source: Couch's Presenter frames**, not pair's per-pane recording. The pair
   recording covers only the agent pane, not the draft or terminal panes or zellij
   chrome. The Presenter owns the one writer to the real terminal and composes the
   child session with Couch's tab bar and switcher (`atlas/terminal.md`), so it is
-  exactly what the operator sees.
+  exactly what the operator sees. Tap point: after a successful paint in
+  `Presenter.paintPublication`, handing subscribers a `Frame.Clone()`. The parent
+  bytes can't be tapped, because they are diffs against the operator's previous
+  frame and carry parent-mode controls.
+- **Hub and transport adapters.** A transport-agnostic hub receives tapped
+  frames, substitutes private frames, keeps only the current frame, and renders
+  one shared diff stream: each new subscriber gets a full render of the current
+  frame, then the shared diffs, in order. SSE is a thin adapter over the hub. A
+  later control WebSocket (#407) reuses the hub and adds only the input direction.
 - **Late joiners start from the current frame.** Every presented frame restates
   cursor, margins, SGR and modes (#262 M2), so a full render of the current
-  composed frame is a complete starting point; live frames follow. No replay from
-  the start.
-- **Sender's size, no reflow.** Full-screen programs (nvim, agent interfaces, Couch
-  itself) draw for an exact grid, so generic reflow can't work. The player emulates
-  at the sender's cols×rows and shows it letterboxed, scaled or scrolled; resize
-  events are part of the stream.
-- **Render and forget at both ends.** `couch --watch` keeps only the current screen;
-  quitting leaves nothing behind, and the sender's `clear` clears every viewer. The
-  broadcaster keeps no history either, only the current frame for late joiners.
-  This prevents accidental persistence by viewers acting in good faith. It does not
-  prevent deliberate capture: anyone with the link can use another client or a
-  screenshot. Access control is what bounds exposure.
+  composed frame is a complete starting point. No replay from the start.
+- **Sender's grid, viewer's font size.** Full-screen programs (nvim, agent
+  interfaces, Couch itself) draw for an exact grid, so generic reflow can't
+  work. The sender's cols×rows is preserved exactly; the browser viewer scales
+  the font to fit, at font size = min(viewport width ÷ cols, viewport height ÷
+  rows), recomputed on every resize event in the stream.
+- **Browser viewer.** A small page served by the local server renders the stream
+  with a vendored, pinned `@xterm/xterm`, embedded in the binary with `go:embed`.
+  It loads nothing from a CDN, because a page showing the operator's screen
+  shouldn't load third-party scripts and should work offline. The wire bytes are
+  our own `Render` output, which `tests/terminal-oracle` already checks against
+  pinned `@xterm/headless`, the same parser. Check whether xterm.js honours
+  synchronized output (DECSET 2026). The hub sends only finished frames either
+  way.
+- **Render and forget at both ends.** The viewer keeps only xterm.js's in-page
+  screen. Closing the tab leaves nothing behind, and the sender's `clear` clears
+  every viewer. The broadcaster keeps no history either, only the current frame
+  for late joiners. This prevents accidental persistence by viewers acting in
+  good faith. It does not prevent deliberate capture: anyone with the link can
+  record the stream or take a screenshot. Access control is what bounds exposure.
 - **Control and indicator in the tab bar's leftmost cell.** One reserved cell shows
   ⏺ (start broadcasting). While live it shows `LIVE ⏸` on a red background;
   clicking it stops the broadcast. A keybinding does the same. Fail-safe: if the
@@ -60,47 +82,53 @@ Requirements, settled with the operator on 2026-10-06:
   the whole fleet (every thread's name, path and notes), which is more than the
   session being shared. By default viewers see a placeholder ("operator is
   switching threads") while it's open. An option (a toggle or a start flag)
-  includes it, for demos from a clean workspace. The Presenter's layering lets the
-  broadcast frame omit the switcher while the operator's own terminal shows it.
-  The same layering could later hide individual panes.
-- **Transport:** a local server exposed through `cloudflared`, behind Cloudflare
-  Access, with a per-session link that expires.
-- **Optional end-to-end encryption.** Cloudflare's edge ends TLS and could see
-  plaintext. Frames can be encrypted with a key carried in the link's `#fragment`,
-  which browsers never send to the server, so the tunnel relays only ciphertext.
+  includes it, for demos from a clean workspace. The switcher is not a layer:
+  `Console.showMenu` presents a whole `PanelFrame`. So the call site marks its
+  frame private, and the hub substitutes the placeholder (unless the option is on)
+  while the operator's own terminal shows the switcher. The same mark could later
+  hide individual panes.
+- **Transport and access: a capability link.** A local HTTP server, bound to
+  127.0.0.1, is exposed through a `cloudflared` quick tunnel (trycloudflare.com,
+  no Cloudflare account setup). Access is a random per-broadcast token in the
+  link that expires when the broadcast stops, or after a timeout. Requests
+  without a valid token are refused. Quick tunnels can't sit behind Cloudflare
+  Access; a named tunnel with Access is a possible later layer.
+- **End-to-end encryption is a follow-up (#406).** Cloudflare's edge ends TLS and
+  sees plaintext frames in this issue's version.
 
-Related: #121 (remote control relay, a two-way trust model; this issue is
-deliberately one-way), #347 (permanent tty capture identity; not used here, since
-render-and-forget persists nothing).
+Related: #121 (remote control relay), #407 (a web front end as a remote-controlled
+Couch), #406 (end-to-end encryption), #347 (permanent tty capture identity; not
+used here, since render-and-forget persists nothing).
 
-Before building: check how close zellij's built-in web client (0.43+) gets to
-this, including its maturity and auth model. Couch's value-add is the composed,
-thread-aware screen, the switcher policy and the LIVE control.
+Zellij's built-in web client was checked and can't do this (see Log
+2026-10-07): it draws only zellij's UI, so Couch's tab bar, switcher and LIVE
+cell are outside its reach.
 
 ## Done when
 
-- The operator starts a broadcast from the tab bar. A remote `couch --watch`
-  connected through a `cloudflared` link sees the composed Couch screen live, at the
-  sender's size. A viewer joining mid-session gets the current screen immediately.
-- `LIVE ⏸` is visible while broadcasting; clicking it stops the broadcast and
-  viewers see it end. A test shows that failing to draw the indicator stops the
-  stream.
+- The operator starts a broadcast from the tab bar. A remote browser opening the
+  `cloudflared` link sees the composed Couch screen live, at the sender's grid,
+  with the font scaled to fit the window. A viewer joining mid-session gets the
+  current screen immediately.
+- `LIVE ⏸` is visible while broadcasting; clicking it (or the keybinding) stops
+  the broadcast, and viewers see it end. A test shows that failing to draw the
+  indicator stops the stream.
 - The switcher is replaced by a placeholder in the broadcast frame by default, and
   included when the option is on. Tests cover both, at the frame level.
-- Neither `couch --watch` nor the broadcaster writes frame content to disk, shown by
-  a test that runs a session and checks for no persisted frame data. A `clear` on
-  the sender clears connected viewers.
-- The viewer sends no input; any input from a viewer connection is refused and has
-  no effect.
+- Neither the viewer page nor the broadcaster writes frame content to disk, shown
+  by a test that runs a session and checks for no persisted frame data. A
+  `clear` on the sender clears connected viewers.
+- The viewer endpoint is read-only: it serves only GET, a request without a
+  valid token is refused, and a token stops working once the broadcast ends.
+- The viewer page and xterm.js are served from the binary (vendored, pinned);
+  the page makes no request to any other origin.
 
 ## Plan
 
-- [ ] Spike: zellij web-client comparison, and a Presenter frame tap (in-process
-      subscriber, switcher layer omitted)
-- [ ] Design the wire format (initial full frame, then frames and resizes) and the
-      local server, then the `cloudflared` + Access setup
-- [ ] Tab-bar control cell and the fail-safe indicator
-- [ ] `couch --watch` player
+- [x] Spike: zellij web-client comparison; Presenter tap seam located (see Log)
+- [ ] Durable plan at `workshop/plans/000395-…-plan.md` (milestones: hub +
+      frame tap + switcher privacy; local SSE server + token + viewer page;
+      tab-bar LIVE cell + fail-safe; `cloudflared` quick tunnel + live smoke)
 
 ## Log
 
@@ -138,3 +166,29 @@ thread-aware screen, the switcher policy and the LIVE control.
   - Geometry rides on every `Frame.Geometry`; resizes come free.
   - No HTTP server or network deps today; CLI is hand-parsed
     (`couchcmd/cli.go`).
+- Design discussion with the operator, on four decisions:
+  - Capability link on a quick tunnel instead of Cloudflare Access.
+  - SSE for the view-only stream. Remote control would be a separate WebSocket
+    URL with its own grant, safer than one bidirectional socket that drops
+    viewer input.
+  - A browser viewer (vendored `@xterm/xterm`, auto-fit font) instead of
+    `couch --watch`. The browser is easier for viewers and starts a possible web
+    front end: "a remote-controlled Couch" (#407).
+  - End-to-end encryption deferred to #406.
+
+## Revisions
+
+- **2026-10-07** — after the spike and the operator discussion. Delta:
+  - Viewer: `couch --watch` → browser page (vendored `@xterm/xterm`, font scaled
+    to fit the sender's grid).
+  - Transport: unspecified → SSE GET (no inbound channel); control later on a
+    separate WebSocket URL (#407).
+  - Access: Cloudflare Access + expiring link → capability token on a quick
+    tunnel.
+  - End-to-end encryption: optional here → #406.
+  - Switcher hiding: Presenter layering → a private-frame mark at the
+    `showMenu` call site, substituted by the hub, because the switcher is a whole
+    frame, not a layer.
+  - Done when: rewritten to match; the read-only criterion moves from "refuse
+    viewer input" to "GET-only, tokens checked and expiring", and a
+    "no other origin" criterion is added.
