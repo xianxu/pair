@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000400-couch-recover-bring-back-pending-work-resume-conversation-else-new-actor.md
         source_blob: 0b9b8a49f5653bc125162da871dd2bbce2e6a404
         destination: workshop/issues/000400-couch-recover-bring-back-pending-work-resume-conversation-else-new-actor.md
+        main_commit: f2b393be9457e4a40ab57532dc4d621a18cb344a
 ---
 
 # couch --recover: bring back pending work (resume conversation, else new actor)
