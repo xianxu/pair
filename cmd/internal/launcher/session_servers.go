@@ -90,6 +90,10 @@ type ServerState struct {
 	// Unresolved: the evidence cannot decide -- an unknown socket, or several
 	// servers claiming one name. Callers must fail closed on it.
 	Unresolved bool
+	// Contested: several servers claim the name. Unlike an unreadable socket,
+	// this outranks a live list-sessions row: an orphan and a fresh server
+	// sharing a name must not read as one healthy session.
+	Contested bool
 }
 
 // ClassifyServers is the orphan rule over one snapshot.
@@ -103,7 +107,7 @@ func ClassifyServers(servers []SessionServerIdentity, sockets map[string]SocketS
 		state := ServerState{Server: s}
 		switch {
 		case count[s.Session] > 1:
-			state = ServerState{Unresolved: true}
+			state = ServerState{Unresolved: true, Contested: true}
 		case sockets[s.Socket] == SocketGone:
 			state.Orphaned = true
 		case sockets[s.Socket] != SocketPresent:

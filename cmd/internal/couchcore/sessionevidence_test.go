@@ -752,3 +752,20 @@ func TestProjectSessionPresenceSeesAnOrphan(t *testing.T) {
 		t.Fatalf("orphan observation must carry its server: %+v", got[a])
 	}
 }
+
+// An orphan and a fresh server for the same name: the name is contested, so it
+// is unresolved -- never "present", which would hide the orphan (#399 M1 review).
+func TestAContestedServerNameIsNeverPresent(t *testing.T) {
+	a := presenceAddress("couch-0000000000000031")
+	bindings := []SessionNameBinding{{Address: a, SessionName: "twice"}}
+	sessions := []launcher.Session{{Name: "twice", State: launcher.SessionLive}}
+	servers := map[string]launcher.ServerState{"twice": {Unresolved: true, Contested: true}}
+	if got := ProjectSessionPresence(bindings, sessions, servers, claimsFromSessionBindings(bindings)); got[a].State != SessionUnresolved {
+		t.Fatalf("got %v", got[a].State)
+	}
+	// An unreadable socket for a lone, listed-live server stays present.
+	servers = map[string]launcher.ServerState{"twice": {Unresolved: true}}
+	if got := ProjectSessionPresence(bindings, sessions, servers, claimsFromSessionBindings(bindings)); got[a].State != SessionPresent {
+		t.Fatalf("lone live server with an unknown socket = %v", got[a].State)
+	}
+}

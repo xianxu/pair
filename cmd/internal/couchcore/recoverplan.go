@@ -217,11 +217,11 @@ func RestoreWorkspaceMessage(ref, address, checkout string) string {
 type RecoverClass string
 
 const (
-	RecoverDirectoryMissing  RecoverClass = "directory-missing"
-	RecoverAgentUnknown      RecoverClass = "agent-unknown"
+	RecoverDirectoryMissing RecoverClass = "directory-missing"
+	RecoverAgentUnknown     RecoverClass = "agent-unknown"
 	// RecoverOrphanedServer: the agent's zellij server is alive but lost its
 	// socket (#399). Its conversation may still be running.
-	RecoverOrphanedServer RecoverClass = "orphaned-server"
+	RecoverOrphanedServer    RecoverClass = "orphaned-server"
 	RecoverStartUnreconciled RecoverClass = "start-unreconciled"
 	RecoverAmbiguousThreads  RecoverClass = "ambiguous-threads"
 	RecoverConflict          RecoverClass = "conflict"
@@ -1196,7 +1196,7 @@ func slotEvidenceOf(s *recoverSlot, in RecoverPlanInput) slotFacts {
 	default:
 		e.Threads, e.Agent = ThreadsMany, agentOf(s.threads[0])
 		for _, row := range s.threads {
-			if a := agentOf(row); a == AgentBusy || (a == AgentUnusableUnknown || a == AgentOrphaned) && e.Agent != AgentBusy {
+			if a := agentOf(row); needsAttention(a) && (!needsAttention(e.Agent) || agentRank[a] > agentRank[e.Agent]) {
 				e.Agent = a
 			}
 		}
@@ -1473,6 +1473,20 @@ func claimedElsewhere(s *recoverSlot, ref string) bool {
 }
 
 func agentOf(row ActionableThreadSummary) EvidenceAgent { return agentEvidence(row.State, row.Reason) }
+
+// agentRank is the ONE ordering of agent evidence (#399 M1 review): the slot
+// report keeps its most active row by it, and a many-thread slot keeps its most
+// urgent attention state by it. An orphan is a running agent nothing can reach:
+// above every row that isn't running, below the reachable ones.
+var agentRank = map[EvidenceAgent]int{
+	AgentBusy: 7, AgentLive: 6, AgentDetached: 5, AgentOrphaned: 4,
+	AgentUnusableUnknown: 3, AgentUnusable: 2, AgentParked: 1, AgentNone: 0,
+}
+
+// needsAttention is agent evidence that holds a many-thread slot's row.
+func needsAttention(a EvidenceAgent) bool {
+	return a == AgentBusy || a == AgentOrphaned || a == AgentUnusableUnknown
+}
 
 // agentEvidence is the one reading of a classified thread row as agent
 // evidence; the recovery report and the slot reconciler share it.

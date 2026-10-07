@@ -87,8 +87,8 @@ func TestClassifyServers(t *testing.T) {
 	if s := got["c"]; s.Orphaned || !s.Unresolved {
 		t.Fatalf("unknown socket must be unresolved, never orphaned: %+v", s)
 	}
-	if s := got["d"]; s.Orphaned || !s.Unresolved {
-		t.Fatalf("two servers for one name must be unresolved: %+v", s)
+	if s := got["d"]; s.Orphaned || !s.Unresolved || !s.Contested {
+		t.Fatalf("two servers for one name must be unresolved and contested: %+v", s)
 	}
 }
 

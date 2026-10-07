@@ -494,12 +494,7 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 			held.Tag, resolution.CanonicalPath, held.Tag, recordPath)
 	}
 	if held, orphaned := ScopeHoldsOrphanedThread(rows, scope.Key); orphaned {
-		return ActorRecord{}, nil, fmt.Errorf(
-			"%s\n"+
-				"its agent may still be running, so couch will not start a second primary in %s\n"+
-				"  stop it:     kill %d   (the orphaned server; its agent goes with it)\n"+
-				"  inspect it:  couch --show %s",
-			launcher.OrphanDiagnostic(held.Orphan.Session, held.Orphan.PID), scope.Root, held.Orphan.PID, held.Address.Tag)
+		return ActorRecord{}, nil, errors.New(orphanStartRefusal(scope.Root, held.Address, held.Orphan))
 	}
 	if held, occupied := ScopeHoldsUsableThread(rows, scope.Key); occupied {
 		// The next steps have to be ones that WORK from where the operator is.
@@ -1277,4 +1272,23 @@ func (c *Couch) allocateConversationTag(ctx context.Context, repo string) (strin
 	}
 	result, err := c.Identities.Allocate(ctx, couchidentity.AllocationRequest{Conversation: true, RepositoryToken: repo})
 	return result.PairTag, err
+}
+
+// orphanStartRefusal is startup's refusal beside an orphaned primary (#399).
+// The advice must match the evidence: on 2026-10-06 killing only the server left
+// `pair wrap` (which ignored SIGTERM) and PPID-1 `pair title` helpers behind, so
+// it names the whole tree. server may be nil when the row lost its details.
+func orphanStartRefusal(root string, address ThreadAddress, server *launcher.SessionServerIdentity) string {
+	if server == nil {
+		return fmt.Sprintf("thread %s's zellij server lost its socket and may still be running its agent, "+
+			"so couch will not start a second primary in %s\n"+
+			"  find it:     ps -axo pid,command | grep 'zellij --server'\n"+
+			"  inspect it:  couch --show %s", address.Tag, root, address.Tag)
+	}
+	return fmt.Sprintf("%s\n"+
+		"its agent may still be running, so couch will not start a second primary in %s\n"+
+		"  stop it:     pkill -TERM -P %d; kill %d   (the server and what runs under it: pair wrap/term/title, nvim)\n"+
+		"  then:        pkill -KILL -P %d; kill -KILL %d   (some ignore SIGTERM; anything left reparents to PID 1)\n"+
+		"  inspect it:  couch --show %s",
+		launcher.OrphanDiagnostic(server.Session, server.PID), root, server.PID, server.PID, server.PID, server.PID, address.Tag)
 }

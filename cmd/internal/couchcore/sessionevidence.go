@@ -118,6 +118,9 @@ func ProjectSessionPresence(bindings []SessionNameBinding, sessions []launcher.S
 			// Either no name at all -- the caller decides whether that means
 			// "no row" or "could not read" -- or a name nobody can attribute.
 			observation.State = SessionUnresolved
+		case servers[binding.SessionName].Contested:
+			// Two servers for one name: an orphan may hide behind the live one.
+			observation.State = SessionUnresolved
 		case index.live[binding.SessionName]:
 			observation.State = SessionPresent
 		case servers[binding.SessionName].Orphaned:

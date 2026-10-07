@@ -122,7 +122,7 @@ func ScopeHoldsUsableThread(rows []ActionableThreadSummary, repoScope string) (A
 // starting a fresh primary beside it would put two agents in one tree.
 func ScopeHoldsOrphanedThread(rows []ActionableThreadSummary, repoScope string) (ActionableThreadSummary, bool) {
 	for _, row := range rows {
-		if primaryOfScope(row, repoScope) && row.Reason == ReasonOrphanedServer && row.Orphan != nil {
+		if primaryOfScope(row, repoScope) && row.Reason == ReasonOrphanedServer {
 			return row, true
 		}
 	}
