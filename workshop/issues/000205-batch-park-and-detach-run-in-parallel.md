@@ -377,6 +377,18 @@ fixed in the M1 close commit:
 
 Mutation checks are red as expected. couchtty and couchcmd pass unsandboxed.
 
+### 2026-10-07: M2 started, operator decisions
+
+- Bound: "the 4 should be half of CPU cores, not a fixed number", so
+  `LifecycleParallelism = max(1, NumCPU/2)`.
+- The M1 live smoke test is skipped: the same-thread collision is hard to
+  trigger by hand. One live check at the end of the issue covers both
+  milestones.
+- The issue lands whole (M1+M2), not M1 alone.
+- The baseline is the operator's running main-built couch, measured with
+  `COUCH_TRACE` on its next restart.
+- Task 8: the park worker waits for capacity instead of refusing.
+
 ## Revisions
 
 ### 2026-10-04: scope adds the startup reattach pass
