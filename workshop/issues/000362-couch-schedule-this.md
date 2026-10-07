@@ -49,13 +49,51 @@ Durable plan: `workshop/plans/000362-couch-schedule-this-plan.md`.
 - [x] Task 2: `Couch.PeekSlot`: recent terminal tail, transcript paths, explicit unavailable reasons
 - [x] Task 3: `peek` operation and `couch --peek repo:N [--lines N] [--json]`
 - [x] Task 4: Couch skill scheduling section with the evidence ladder
-- [ ] Task 5: full suite, then live exercises (duplicate claim, delayed delivery, idle recipient) recorded in the Log
+- [x] Task 5: full suite, then live exercises (duplicate claim, delayed delivery, idle recipient) recorded in the Log
 
 ## Log
 
 ### 2026-10-01
 
 Captured from the performance → messaging guarantees → SDLC ownership/observability → recovery discussion. No implementation started.
+
+### 2026-10-06 — live exercises (Task 5)
+
+The exercises ran from `pair:1` with the branch's `couch` build, against two
+scratch slots (`pair:5`, `pair:6`, both claude) and the throwaway pair#401.
+
+1. **Duplicate work.** "Please work on pair#401" went to `pair:5` and `pair:6` back
+   to back.
+   - Both receipts reached `submitted`, and peek showed `pair:5` running
+     `sdlc claim --issue 401`.
+   - `sdlc issue show 401 --json` showed card `working`, with `assignment.claimant`
+     at workspace `pair:5`.
+   - `pair:6` reported "The claim lost: pair:5 owns it" and started nothing.
+   - Its reply to the sender was blocked by the operator's `couch` dev shell
+     function: it runs `go build ./cmd/couch` in the slot's own checkout, which
+     fails in a fresh slot because the embedded runtime assets are produced by
+     `make`. The agent fell back to `~/workspace/pair/bin/couch`. This is an
+     environment finding, not a Couch defect.
+2. **Held delivery.** A message went to `pair:5`, whose composer held text
+   (`unclaim 401`, apparently Claude Code's prompt suggestion).
+   - Peek showed the composer occupied and no envelope; the receipt read
+     `delivering`.
+   - After 30 seconds: `expired | delivery deadline elapsed: waiting for previous
+     automatic input to clear`.
+   - Finding: the receipt's `Detail` is empty while the message is held, and the
+     reason only arrives with the outcome. The skill text was corrected to say so,
+     and to direct the coordinator to peek for the live reason.
+3. **Idle or stopped recipient.**
+   - `couch --peek pair:0`, a parked codex thread whose agent is not running,
+     showed its last screen from the recording and the sent-prompt log. It named
+     the unreadable transcript ("native session has no exact established outgoing
+     binding") instead of returning nothing.
+   - `sdlc issue show 401 --json` answered with `pair:6` idle: card, assignment
+     and landing present; workspaces, branch, checkpoints and completion `absent`
+     (read, none recorded), none `unknown`.
+
+Bug found during setup: with `pair:0` parked, the switcher offered no add slot.
+Filed as pair#402, a separate branch.
 
 ### 2026-10-06 — design decisions
 
