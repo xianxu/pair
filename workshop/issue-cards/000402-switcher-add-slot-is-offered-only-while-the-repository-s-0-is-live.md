@@ -1,6 +1,6 @@
 ---
 id: 000402
-status: open
+status: working
 created: 2026-10-06
 updated: 2026-10-06
 estimate_hours:
@@ -17,6 +17,14 @@ tracker:
         source_blob: 44a6433c36018fe1be92071ae6bfe3571b2226a6
         destination: workshop/issues/000402-switcher-add-slot-is-offered-only-while-the-repository-s-0-is-live.md
         main_commit: bf4dc370e25d10c732df077c87b173eec2ec580c
+started: 2026-10-06T22:11:19-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Switcher: add slot is offered only while the repository's :0 is live
