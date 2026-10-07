@@ -568,3 +568,9 @@ proof; record the surprising case so the next change starts from evidence.
   panic was about to fill (#397 BR-1). Clean up after a normal return in `main`
   instead, and test with a crashing child that has defers pending. A child with
   no defers passes either way.
+- A regression test must run through the code path where the bug lived. #397's
+  first BR-1 test called a helper below the faulty `defer`, so re-adding the bug at
+  the production site stayed green. Mutate the real site, not the test's copy of
+  it. In a re-exec crash test, the parent must own every directory the child
+  writes: Go's test runner runs `t.Cleanup` (deleting `t.TempDir`) while a panic
+  unwinds, before the runtime writes the crash.
