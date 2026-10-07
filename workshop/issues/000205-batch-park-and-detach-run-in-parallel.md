@@ -186,10 +186,13 @@ about 5 s for 17 background threads at the 18 slots now in use.
 
 - Quit (`leave`, detach or park) of N threads runs them concurrently inside
   `Couch.Leave`, bounded, finishing siblings when one fails.
-- A batch park/detach of N threads completes in materially less wall-clock than
+- ~~A batch park/detach of N threads completes in materially less wall-clock than
   N sequential operations; measured, with the working-agent count recorded
   (per `workshop/targets/workbench-latency.md`, a timing without its co-tenancy
-  is not a measurement).
+  is not a measurement).~~ **Revised 2026-10-07 (operator):** accepted on the
+  operator's live smoke test of the #205 build at their full fleet ("tested a
+  couple of rounds, much more pleasant now"). The traced before/after did not
+  capture, and the operator chose not to repeat it. Not measured; see Revisions.
 - Concurrency is bounded; the bound is stated with its reason, not tuned by feel.
 - No two operations ever run on one thread — asserted by a test, not inherited
   from the queue's current shape.
@@ -202,14 +205,22 @@ about 5 s for 17 background threads at the 18 slots now in use.
 - Every interleaving cell above has a stated answer in the issue and a test.
 - A failing operation inside a batch leaves the other threads' outcomes intact
   and the failure visible.
-- `#204`'s suite gains a counted invariant for the batch path — batch park of N
-  threads issues O(N) store writes, not O(N²).
-- The startup reattach pass runs up to the pool bound in parallel. Its
-  wall-clock at N threads is measured before and after with the working-agent
-  count, and it still holds while the operator has an operation in flight (quit
-  mid-pass leaves no extra attempt behind, by test).
-- `TestAReattachedChildKeepsItsTrackingMode` (#196) passes unmodified, and a
-  variant runs N reattaches at once.
+- ~~`#204`'s suite gains a counted invariant for the batch path — batch park of N
+  threads issues O(N) store writes, not O(N²).~~ **Revised:** #204's suite does
+  not exist yet (the issue is open). The counted invariant is pinned locally
+  instead: `TestLeaveSignalsEachThreadExactlyOnce`, plus the generated-sequence
+  test's "attempted at most once".
+- The startup reattach pass runs up to the pool bound in parallel, and it still
+  holds while the operator has an operation in flight (quit mid-pass leaves no
+  extra attempt behind, by test). ~~Its wall-clock at N threads is measured
+  before and after with the working-agent count~~ **Revised:** operator smoke
+  test, as above.
+- ~~`TestAReattachedChildKeepsItsTrackingMode` (#196) passes unmodified, and a
+  variant runs N reattaches at once.~~ **Revised:** that test no longer exists.
+  #196's invariant now lives in per-child state
+  (`TestCouchParentCaptureStableAcrossChildMouseModes`, passing). Adoption still
+  runs on the console goroutine one completion at a time, so N parallel
+  reattaches arrive as N serial adoptions and create no new interleaving.
 
 ## Plan
 
@@ -389,6 +400,26 @@ Mutation checks are red as expected. couchtty and couchcmd pass unsandboxed.
   `COUCH_TRACE` on its next restart.
 - Task 8: the park worker waits for capacity instead of refusing.
 
+### 2026-10-07: M2 implemented; operator smoke test; rebased
+
+- **M2 tasks:**
+  - Task 8: the park worker waits for capacity.
+  - Task 7: `Leave` fan-out.
+  - Task 9: the reattach pass's in-flight set.
+  - Task 10: queue workers, sized at the limit plus one for operator headroom.
+  - Counted invariant and atlas.
+- **The traced A/B did not capture.** The `/tmp/couch205-*` trace, input and
+  exit files were never written. The only latency window that completed
+  (12:02–12:12) read `zellij action` p50 18 ms, p95 22 ms, max 65 ms at 53
+  sessions and 11–12 agents, with an unknown overlap with the restarts.
+- **Operator decision:** close on the live smoke test, "tested a couple of
+  rounds, much more pleasant now".
+- The branch was rebased onto main (35 commits, including #362 peek) before the
+  `pair:0` test. The couch packages are green after the rebase.
+- `TestColdResumeOfAParkedPrimaryRegistersFromBothOrigins` flakes under `-race`
+  about 50% of the time on main as well (4 of 8 at the merge base). It is
+  pre-existing and not #205.
+
 ## Revisions
 
 ### 2026-10-04: scope adds the startup reattach pass
@@ -443,3 +474,15 @@ Fresh-context plan review ran five rounds and ended Approved. What it changed:
 - A late abort holds the thread, re-checks identity, and never waits on the console goroutine.
 
 Plan: `workshop/plans/000205-batch-park-and-detach-run-in-parallel-plan.md`.
+
+### 2026-10-07: measurement bullets accepted on the operator's smoke test
+
+**Reason.** The traced before/after restarts did not produce their files, and
+the operator closed on a live smoke test of the #205 build instead: "no,
+consider smoke test passed, close this issue and merge."
+
+**Delta.**
+- The two measurement Done-when bullets are struck and annotated as
+  operator-observed.
+- The #204 counted-suite bullet is re-pointed to the local counted tests.
+- The #196 test bullet is re-pointed to its current form, with the reason.
