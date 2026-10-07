@@ -6,7 +6,7 @@ github_issue:
 created: 2026-10-06
 updated: 2026-10-07
 estimate_hours:
-card_mirror: 'c872e97f56fcc5fdccf7719c0feb334f401bd802' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'd86ccb80b61184856c222e958057840daa283226' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-07T14:20:51-07:00
 claimant:
     operator: T
@@ -17,9 +17,7 @@ claimant:
     repository: github.com/xianxu/pair
 ---
 
-# Couch broadcast: stream the composed Couch screen, view-only, to a remote couch --watch
-
-> Viewer revised 2026-10-07: browser viewer, not `couch --watch` (see Revisions).
+# Couch broadcast: stream the composed Couch screen, view-only, to a browser viewer
 
 ## Problem
 
