@@ -1,12 +1,22 @@
 ---
 id: 000402
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-06
 updated: 2026-10-06
 estimate_hours:
-card_mirror: 'd7efa7cb6acbc549fc9d5823f119ca1fa2d11404' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '192ca706e08fc189aae48c8321b125482808942f' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-06T22:11:19-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "cd2a532f", done: "7c7d4e5d"}
+actual_hours: 0.24
 ---
 
 # Switcher: add slot is offered only while the repository's :0 is live
@@ -53,3 +63,20 @@ creation.
 ## Log
 
 ### 2026-10-06
+- 2026-10-06: closed — Round 1 FIX-THEN-SHIP fixed as rules: BR-1 every 'live :0' add-slot claim swept (README how-to, menuRowActions doc, sweep comment; alias claims stay, alias is live-only); BR-2 TestRowAdviceNamesOnlyReachableActions requires an OnPrimary action to be offered by :0 live, parked and detached (mutation dropping the fix fails it on the :1+ directory-missing notice); minors (test block, atlas wrap, Log records the spec-bullet-2 check). A parked or unusable :0 offers add slot; a :0 whose checkout is missing does not. TestRowActionTableMatchesTheSpec + TestAddSlotPrefillsExactRepositoryAndUsesCreatePreview (live and parked :0 reach the same create commit). couchtty passes unsandboxed. Live smoke test waived by the operator on 2026-10-06.; review verdict: SHIP
+
+- **Spec bullet 2, checked:** the add-slot path (`couchtty/menu.go`, the
+  `add-slot` case) reads only `menuAddSlotPath(thread)` and opens the start form.
+  It never reads the `:0` actor, so no decoupling was needed.
+- **Fix:** `menuActionItems` appends `add-slot` for resumable and unusable `:0` rows
+  unless `DirectoryMissing` holds, because a slot needs the primary checkout.
+- **Close review (FIX-THEN-SHIP), fixed as rules:**
+  - BR-1: swept every "live `:0`" claim about add slot (README how-to, the
+    `menuRowActions` doc, the sweep comment). The alias claims stay, because alias
+    is still live-only.
+  - BR-2: the advice sweep now requires an `OnPrimary` action to be offered by
+    `:0` when live, parked and detached. The mutation (dropping the fix) fails it
+    on the `:1+` directory-missing notice.
+- **Live smoke test (Done-when clause 2): waived by the operator on 2026-10-06**
+  ("this is so small, you got to get it right"). Testing needs a Couch restart,
+  because the switcher runs inside the live supervisor.
