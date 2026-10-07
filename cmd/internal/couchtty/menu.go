@@ -1275,6 +1275,12 @@ func unusableThreadNotice(thread couchcore.ActionableThreadSummary) string {
 	switch thread.Reason {
 	case couchcore.ReasonBindingLost:
 		return "its native conversation binding is unavailable; cold resume requires a verified binding"
+	case couchcore.ReasonConversationAmbiguous:
+		return "two native conversations claim its latest launch; reboot starts it fresh"
+	case couchcore.ReasonNoTurn:
+		return "its latest launch never took a turn and no earlier conversation stands behind it; reboot starts it fresh"
+	case couchcore.ReasonUnconfirmed:
+		return "its conversation is not confirmed yet; retry after the agent takes a turn"
 	case couchcore.ReasonSessionGone:
 		return "the session is gone"
 	case couchcore.ReasonNeverStarted:

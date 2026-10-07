@@ -223,7 +223,7 @@ func (c *Couch) reuseNoticesInRepository(ctx context.Context, repository SlotRep
 		if row.State == ThreadParked {
 			notices = append(notices, StartReuseNotice{Kind: StartReuseNoticeParked, Label: row.Label(), Slot: rowSlotNumber(row)})
 		}
-		if row.Target.Kind == ThreadTargetSlot && row.State == ThreadUnusable && row.Reason == ReasonBindingLost {
+		if row.Target.Kind == ThreadTargetSlot && row.State == ThreadUnusable && IsBindingFailure(row.Reason) {
 			notices = append(notices, StartReuseNotice{Kind: StartReuseNoticeLost, Label: row.Label(), Slot: row.Target.Slot.Number})
 		}
 	}

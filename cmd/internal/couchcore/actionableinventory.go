@@ -138,6 +138,10 @@ type ThreadEvidence struct {
 	// or could not be, never that there is nothing to resume.
 	Parked       []ParkedResumeObservation
 	ParkedStatus ProofStatus
+	// ParkedRefusal is why the resolved proof refused a resume (pair#214):
+	// the binding code the ledger read produced. Empty when the proof
+	// matched, or when the refusal names no binding failure.
+	ParkedRefusal ResumeDiagnosticCode
 	// StartOwner is the liveness of the couch process that CLAIMED this
 	// thread's start -- not the helper it was starting. The two are different
 	// processes, and a claim outlives its claimant.
@@ -404,7 +408,7 @@ func SwitchableState(state ActionableThreadState, reason ThreadReason) bool {
 	case ThreadLive, ThreadParked:
 		return true
 	case ThreadUnusable:
-		return reason == ReasonBindingLost || reason == ReasonSessionGone
+		return IsBindingFailure(reason) || reason == ReasonSessionGone
 	}
 	return false
 }
@@ -610,6 +614,12 @@ func ClassifyThread(record ThreadRecord, evidence ThreadEvidence) (ActionableThr
 	if parkedResumeProofMatches(record, evidence.Parked) {
 		return ThreadParked, ""
 	}
+	// The ledger refused the resume for a reason the operator can act on:
+	// name it, with or without a park receipt (pair#214 D2). A thread whose
+	// conversation is recoverable must not read as plain session-gone.
+	if reason, named := bindingFailureReason(evidence.ParkedRefusal); named {
+		return ThreadUnusable, reason
+	}
 	if record.VerifiedPark != nil {
 		// The receipt as a diagnostic, not an authority: couch parked this
 		// thread deliberately and the conversation it preserved can no longer
@@ -624,6 +634,45 @@ func ClassifyThread(record ThreadRecord, evidence ThreadEvidence) (ActionableThr
 	// The distinction still holds -- it is decided above, where the receipt
 	// exception lives.
 	return ThreadUnusable, ReasonSessionGone
+}
+
+// provenBindingRefusal keeps a refusal code only when the resolution PROVES
+// that failure (pair#214), so a named reason is never a guess:
+//   - ambiguous: two roots claim one generation -- always proven;
+//   - unbound: only with FreshRequired, where a complete listing proved a
+//     fresh launch's file absent and no earlier conversation stood behind it.
+//     A missing ledger, or a launch with no origin, is also "unbound", and
+//     naming those "no turn" would relabel every ended session;
+//   - provisional: only when the native listing was incomplete, the one case
+//     where retrying later can change the answer.
+//
+// Anything else returns "", and the row keeps today's binding-lost (with a
+// park receipt) or session-gone.
+func provenBindingRefusal(code ResumeDiagnosticCode, binding NativeBindingResolution) ResumeDiagnosticCode {
+	switch {
+	case code == ResumeBindingAmbiguous:
+		return code
+	case code == ResumeBindingUnbound && binding.FreshRequired:
+		return code
+	case code == ResumeBindingProvisional && binding.ObservationIncomplete:
+		return code
+	}
+	return ""
+}
+
+// bindingFailureReason names the resume refusals an operator can act on
+// (pair#214). Root-missing and everything else keep the receipt/session
+// fallbacks below it.
+func bindingFailureReason(code ResumeDiagnosticCode) (ThreadReason, bool) {
+	switch code {
+	case ResumeBindingAmbiguous:
+		return ReasonConversationAmbiguous, true
+	case ResumeBindingUnbound:
+		return ReasonNoTurn, true
+	case ResumeBindingProvisional:
+		return ReasonUnconfirmed, true
+	}
+	return "", false
 }
 
 // orphanOf is the row's orphaned server: present when the classifier called
@@ -959,13 +1008,28 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 		if item.Session.State != SessionPresent && len(item.Live) == 0 && resolver != nil {
 			agent := record.LatestLaunchProfile.Agent
 			binding, resolveErr := resolver.ResolveEstablished(ctx, record.Address.RepoScope, string(record.Address.Tag), agent)
-			// The parked question is answered either way: a refusal is a
-			// resolved "no binding", not an unresolved question.
-			item.ParkedStatus = ProofResolved
-			if resolveErr == nil && bindingResumeDiagnostic(binding) == "" {
-				resumable = append(resumable, ParkedResumeObservation{
-					Address: record.Address, Agent: agent, NativeID: binding.NativeID,
-				})
+			switch {
+			case resolveErr != nil && ResumeDiagnosticOf(resolveErr) == "":
+				// An IO failure is not a verdict about the binding: the
+				// resolver returns a ZERO resolution on a real error, which
+				// would read as "unbound" (pair#214; relaunch.go guards the
+				// same hole). The question stays unresolved.
+			case resolveErr != nil:
+				// A typed refusal is a resolved "no binding". It carries no
+				// resolution, so only an ambiguity is provable from it.
+				item.ParkedStatus = ProofResolved
+				if code := ResumeDiagnosticOf(resolveErr); code == ResumeBindingAmbiguous {
+					item.ParkedRefusal = code
+				}
+			default:
+				item.ParkedStatus = ProofResolved
+				if code := bindingResumeDiagnostic(binding); code != "" {
+					item.ParkedRefusal = provenBindingRefusal(code, binding)
+				} else {
+					resumable = append(resumable, ParkedResumeObservation{
+						Address: record.Address, Agent: agent, NativeID: binding.NativeID,
+					})
+				}
 			}
 		}
 		evidence[record.Address] = item

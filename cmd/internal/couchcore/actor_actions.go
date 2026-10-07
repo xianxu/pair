@@ -40,7 +40,7 @@ func ActorRowFactsOf(row ActionableThreadSummary) ActorRowFacts {
 			// quiesced the session and its conversation cannot be resolved
 			// (binding-lost: e.g. the agent never took a turn). An unfinished
 			// continuation still has its own executor.
-			f.ResumeOffered = unfinished || row.Reason != ReasonBindingLost
+			f.ResumeOffered = unfinished || !IsBindingFailure(row.Reason)
 		} else {
 			f.ResumeOffered = unfinished || (row.Recovery != nil && row.Recovery.Recover)
 		}

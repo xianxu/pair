@@ -321,3 +321,22 @@ reasons should reach.
 - D2: name binding failures with or without a park receipt.
 - Done-when and Plan were rewritten for the settled design, which lives in the
   durable plan.
+
+### 2026-10-07: D2 applied to what the evidence proves
+
+**Reason.** In implementation, the full couch suites showed that
+`ResumeBindingUnbound` is also the code for "no launch record at all". Mapping
+it straight to `no-turn` relabeled ordinary ended sessions, which exceeds what
+D2 asked for.
+
+**Delta.** A named reason now needs proof from the resolution
+(`provenBindingRefusal`):
+- ambiguous: always proven;
+- unbound: only with `FreshRequired`, meaning a complete listing proved the
+  fresh file absent and no earlier conversation exists;
+- provisional: only on an incomplete listing.
+
+Anything unproven keeps `binding-lost` with a receipt and `session-gone`
+without one. D2's intent (name what is known, with or without a receipt) is
+unchanged. The slot actions and the start-reuse notice treat all four binding
+reasons as one class (`IsBindingFailure`).

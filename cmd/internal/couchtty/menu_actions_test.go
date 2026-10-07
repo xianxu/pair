@@ -167,7 +167,7 @@ func expectedUnusableActions(s menuRowShape, unfinished bool) []string {
 		return []string{"recover", "reboot"}
 	// A parked slot whose conversation cannot be resolved (its agent
 	// never took a turn) has nothing to resume (pair#367 smoke test).
-	case s.slot && s.reason == couchcore.ReasonBindingLost && !unfinished:
+	case s.slot && couchcore.IsBindingFailure(s.reason) && !unfinished:
 		return []string{"recover", "reboot"}
 	case s.slot || s.recover || unfinished:
 		return []string{"recover", "resume", "reboot"}

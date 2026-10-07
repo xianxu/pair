@@ -78,7 +78,31 @@ const (
 	// resumable (a second agent would join the conversation), not archivable
 	// (the conversation is running), not rebootable; reap is the step.
 	ReasonOrphanedServer ThreadReason = "orphaned-server"
+	// The binding failures the evidence pass names (pair#214): the ledger was
+	// read and refused the resume, for a reason the operator can act on.
+	//
+	// ReasonConversationAmbiguous: two native conversations claim the latest
+	// generation. Reboot picks a fresh one.
+	ReasonConversationAmbiguous ThreadReason = "conversation-ambiguous"
+	// ReasonNoTurn: the latest launch never took a turn and no earlier
+	// conversation stands behind it, so there is nothing to resume. Reboot.
+	ReasonNoTurn ThreadReason = "no-turn"
+	// ReasonUnconfirmed: the latest launch's conversation exists but is not
+	// confirmed yet; it settles after a turn. Retry.
+	ReasonUnconfirmed ThreadReason = "unconfirmed"
 )
+
+// IsBindingFailure reports a reason whose thread has durable state but no
+// resumable conversation: the class the switcher still lets the operator
+// select (to see the refusal), a slot does not offer to resume, and a start
+// reports as lost.
+func IsBindingFailure(reason ThreadReason) bool {
+	switch reason {
+	case ReasonBindingLost, ReasonConversationAmbiguous, ReasonNoTurn, ReasonUnconfirmed:
+		return true
+	}
+	return false
+}
 
 // AllThreadReasons is the vocabulary itself, so display tables and the
 // retirement rule iterate it rather than restating it. Go cannot check a switch
@@ -95,6 +119,9 @@ func AllThreadReasons() []ThreadReason {
 		ReasonAgentUnsupported,
 		ReasonUnknown,
 		ReasonOrphanedServer,
+		ReasonConversationAmbiguous,
+		ReasonNoTurn,
+		ReasonUnconfirmed,
 	}
 }
 
@@ -126,6 +153,12 @@ func (r ThreadReason) Label() string {
 		return "checking…"
 	case ReasonOrphanedServer:
 		return "server lost its socket — Tab → recover"
+	case ReasonConversationAmbiguous:
+		return "two conversations claim it — reboot"
+	case ReasonNoTurn:
+		return "no turn taken yet — reboot"
+	case ReasonUnconfirmed:
+		return "conversation not confirmed yet — retry after a turn"
 	}
 	// Legible beats silent: an unlabelled reason shows its slug rather than an
 	// empty column, and the vocabulary guard fails so it does not stay that way.
