@@ -504,3 +504,31 @@ filtering, so offered and declared cannot silently disagree), and `ActorActions`
 offers `reap` on an orphaned row, so the switcher shows `[recover, reap]` there.
 This matches the operator's decision to keep the specific actions (resume, reboot)
 beside recover. recover remains the default, first entry.
+
+### 2026-10-07 — live acceptance; recover never asks; the live orphan (operator)
+
+Reason: M3 live acceptance on pair:6, and two operator decisions.
+
+- **Acceptance (crash case) passed.** Unlinking `📁1-80`'s socket and ending its
+  client reproduced 2026-10-06 exactly: server 76308, `pair wrap` and claude
+  still running, and the title poller reparented to PID 1. The report showed
+  agent `orphaned` with steps reap → resume. Switcher Tab → recover reaped every
+  old process (including the PPID-1 title poller) and resumed the same
+  conversation in a fresh session `📁1-81`.
+- **Gap: the live orphan.** With the client still attached, unlinking the socket
+  left the row `live` (correct: its pane works), but no way out remained. Detach,
+  park and relaunch all refuse an orphan, and the live menu offered no recover or
+  reap. Decision: a live thread whose session is orphaned carries `Orphan` and is
+  offered `recover`/`reap` instead of the lifecycle actions; the report treats it
+  as agent `orphaned` with steps reap → resume; reap admits any row carrying
+  `Orphan`; and the console expects the hosted child to exit when recover/reap
+  end it.
+- **recover never asks (operator).** Choosing recover is the consent: within its
+  envelope it only stops a running server (possibly losing transcript not yet
+  written) or reboots a conversation that cannot be resolved, and it never
+  changes the slot's files. Delta: `recover` is `ConfirmNone`; `ConfirmByPlan`,
+  the preview operation (`prepare-recover`), the menu's preview frame and
+  `--recover --confirm` are removed. `Recover` derives its steps and runs them,
+  refusing only on a hold. `reap` alone keeps its confirmation.
+- **The sentence names the gesture:** `OrphanDiagnostic` ends "— Tab → recover"
+  instead of "— reap to resume".
