@@ -37,6 +37,23 @@ type HubOptions struct {
 	Ticks <-chan time.Time
 }
 
+// watch is the indicator watch. Its transitions:
+//
+//	off    --Activate, indicator shown-->   shown
+//	off    --Activate, indicator hidden-->  hidden (grace armed)
+//	shown  --frame without indicator-->     hidden (grace armed)
+//	hidden --frame with indicator-->        shown  (grace disarmed)
+//	hidden --grace fires-->                 end(ErrIndicatorHidden)
+//
+// While off, frames are still gated by the indicator; only the timer waits.
+type watch uint8
+
+const (
+	watchOff watch = iota
+	watchShown
+	watchHidden
+)
+
 type offered struct {
 	frame terminal.Frame
 	class terminal.FrameClass
@@ -60,8 +77,9 @@ type Hub struct {
 	// Owned by the loop goroutine.
 	stream    Stream
 	subs      map[*Subscription]struct{}
-	active    bool
-	missing   bool
+	resyncing int  // subscribers with resync set; the tick runs only while > 0
+	shown     bool // the most recent offered frame showed the indicator
+	watch     watch
 	graceC    <-chan time.Time
 	stopGrace func() bool
 }
@@ -80,6 +98,7 @@ func (s *Subscription) Messages() <-chan Message { return s.c }
 func (s *Subscription) Close() {
 	s.h.do(func() {
 		if _, ok := s.h.subs[s]; ok {
+			s.h.setResync(s, false)
 			delete(s.h.subs, s)
 			close(s.c)
 		}
@@ -123,14 +142,18 @@ func (h *Hub) Offer(f terminal.Frame, class terminal.FrameClass) {
 	}
 }
 
-// Activate arms the indicator watch: from now on the LIVE indicator must be
-// on the operator's screen within Grace, and stay there. Called once the tap
-// is installed, not while the tunnel is still opening.
+// Activate starts the indicator watch: from now on the LIVE indicator must be
+// on the operator's screen, or return to it within Grace. Called once the tap
+// is installed, not while the tunnel is still opening. Idempotent.
 func (h *Hub) Activate() {
 	h.do(func() {
-		h.active = true
-		if !h.missing {
-			h.missing = true
+		if h.watch != watchOff {
+			return
+		}
+		if h.shown {
+			h.watch = watchShown
+		} else {
+			h.watch = watchHidden
 			h.armGrace()
 		}
 	})
@@ -203,6 +226,10 @@ func (h *Hub) run() {
 		ticks = t.C
 	}
 	for {
+		var tickC <-chan time.Time
+		if h.resyncing > 0 {
+			tickC = ticks
+		}
 		select {
 		case <-h.wake:
 			h.takePending()
@@ -211,11 +238,11 @@ func (h *Hub) run() {
 			f()
 		case <-h.graceC:
 			h.graceC = nil
-			if h.missing {
+			if h.watch == watchHidden {
 				h.end(ErrIndicatorHidden)
 			}
-		case <-ticks:
-			h.deliver(Message{}, false)
+		case <-tickC:
+			h.onTick()
 		}
 		if h.err != nil {
 			close(h.done)
@@ -223,6 +250,10 @@ func (h *Hub) run() {
 		}
 	}
 }
+
+// onTick retries pending resyncs, so a viewer that dropped diffs catches up
+// even when the operator's screen has gone quiet.
+func (h *Hub) onTick() { h.deliver(Message{}, false) }
 
 func (h *Hub) takePending() {
 	h.mu.Lock()
@@ -235,17 +266,18 @@ func (h *Hub) takePending() {
 }
 
 func (h *Hub) accept(o offered) {
-	if !IndicatorShown(o.frame) {
-		// Withheld: viewers never get a frame the operator didn't see marked.
-		if h.active && !h.missing {
-			h.missing = true
-			h.armGrace()
-		}
-		return
-	}
-	if h.missing {
-		h.missing = false
+	h.shown = IndicatorShown(o.frame)
+	switch {
+	case !h.shown && h.watch == watchShown:
+		h.watch = watchHidden
+		h.armGrace()
+	case h.shown && h.watch == watchHidden:
+		h.watch = watchShown
 		h.disarmGrace()
+	}
+	if !h.shown {
+		// Withheld: viewers never get a frame the operator didn't see marked.
+		return
 	}
 	vf, err := ViewerFrame(o.frame, o.class, h.opts.ShowSwitcher)
 	if err != nil {
@@ -274,14 +306,14 @@ func (h *Hub) deliver(m Message, ok bool) {
 					return
 				}
 				if !jok {
-					sub.resync = false
+					h.setResync(sub, false)
 					continue
 				}
 				join = &j
 			}
 			select {
 			case sub.c <- *join:
-				sub.resync = false
+				h.setResync(sub, false)
 			default:
 			}
 			continue
@@ -292,8 +324,20 @@ func (h *Hub) deliver(m Message, ok bool) {
 		select {
 		case sub.c <- m:
 		default:
-			sub.resync = true
+			h.setResync(sub, true)
 		}
+	}
+}
+
+func (h *Hub) setResync(sub *Subscription, on bool) {
+	if sub.resync == on {
+		return
+	}
+	sub.resync = on
+	if on {
+		h.resyncing++
+	} else {
+		h.resyncing--
 	}
 }
 

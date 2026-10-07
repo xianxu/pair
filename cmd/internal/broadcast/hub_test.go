@@ -38,7 +38,10 @@ func (c *manualClock) fireGrace(h *Hub) {
 	}
 	h.sync()
 }
-func (c *manualClock) tick(h *Hub) { c.ticks <- time.Now(); h.sync() }
+
+// tick runs one resync tick on the hub's loop. The hub's own ticker channel
+// (c.ticks) never fires in tests.
+func (c *manualClock) tick(h *Hub) { h.do(h.onTick) }
 
 func testHub(t *testing.T, opts HubOptions) (*Hub, *manualClock) {
 	t.Helper()
@@ -153,6 +156,31 @@ func TestHubStopsWhenIndicatorHiddenPastGrace(t *testing.T) {
 	t.Run("never shown after activate", func(t *testing.T) {
 		h, clock := testHub(t, HubOptions{})
 		v := subscribe(t, h)
+		h.Activate()
+		clock.fireGrace(h)
+		assertEnded(t, h, v, ErrIndicatorHidden)
+	})
+	t.Run("idle live screen at activate keeps running", func(t *testing.T) {
+		// BR-1: the operator's screen already shows LIVE and then goes quiet;
+		// no further frame arrives. Activate must not arm the grace timer.
+		h, clock := testHub(t, HubOptions{})
+		offer(h, live(t, "a"), terminal.FramePublic)
+		h.Activate()
+		clock.fireGrace(h)
+		if clock.armed != 0 {
+			t.Fatalf("grace armed %d times with the indicator showing", clock.armed)
+		}
+		select {
+		case <-h.Done():
+			t.Fatalf("idle live broadcast ended: %v", h.Err())
+		default:
+		}
+	})
+	t.Run("hidden at activate arms grace", func(t *testing.T) {
+		h, clock := testHub(t, HubOptions{})
+		v := subscribe(t, h)
+		offer(h, live(t, "a"), terminal.FramePublic)
+		offer(h, hidden(t, "b"), terminal.FramePublic)
 		h.Activate()
 		clock.fireGrace(h)
 		assertEnded(t, h, v, ErrIndicatorHidden)
@@ -326,8 +354,22 @@ func hubInterleaving(t *testing.T, seed int64) {
 			}
 		}
 	}
-	h.Activate()
+	// Activate at a random point (or never): the watch must judge the
+	// indicator by the frames already offered, not assume it is missing.
+	activateAt := r.Intn(70)
+	shown := false // the indicator on the most recent offered frame
 	for step := range 60 {
+		if step == activateAt {
+			h.Activate()
+			if shown {
+				clock.fireGrace(h)
+				select {
+				case <-h.Done():
+					t.Fatalf("activate with LIVE showing ended the hub: %v", h.Err())
+				default:
+				}
+			}
+		}
 		if ended {
 			break
 		}
@@ -342,10 +384,12 @@ func hubInterleaving(t *testing.T, seed int64) {
 				}
 				if r.Intn(5) == 0 {
 					offer(h, hidden(t, body+" WITHHELD"), class)
+					shown = false
 					continue
 				}
 				f := live(t, body)
 				offer(h, f, class)
+				shown = true
 				vf, err := ViewerFrame(f, class, show)
 				if err != nil {
 					t.Fatal(err)
@@ -365,6 +409,9 @@ func hubInterleaving(t *testing.T, seed int64) {
 				select {
 				case <-h.Done():
 					ended = true
+					if shown || step < activateAt {
+						t.Fatalf("step %d: grace ended the hub (shown=%v, activated=%v)", step, shown, step >= activateAt)
+					}
 				default:
 				}
 			}
@@ -390,5 +437,34 @@ func hubInterleaving(t *testing.T, seed int64) {
 		if !v.drain(t) {
 			t.Fatalf("viewer %d queue not closed after end", i)
 		}
+	}
+}
+
+// The real ticker runs only while a viewer awaits resync; this drives it
+// through that gate rather than calling onTick by hand.
+func TestHubRealTickerResyncsQuietScreen(t *testing.T) {
+	h := NewHub(HubOptions{QueueDepth: 1, Tick: 5 * time.Millisecond})
+	t.Cleanup(func() { h.Close(nil) })
+	slow := subscribe(t, h)
+	var last terminal.Frame
+	for i := range 5 {
+		last = live(t, fmt.Sprintf("quiet %d", i))
+		offer(h, last, terminal.FramePublic)
+	}
+	// The screen is now quiet. Reading the stale prefix frees room; the tick
+	// alone must bring the viewer current.
+	deadline := time.After(5 * time.Second)
+	for slow.scr.text() != frameText(t, last) {
+		select {
+		case m := <-slow.sub.Messages():
+			slow.scr.apply(t, m)
+		case <-deadline:
+			t.Fatalf("viewer never caught up: %q", slow.scr.text())
+		}
+	}
+	var pending int
+	h.do(func() { pending = h.resyncing })
+	if pending != 0 {
+		t.Fatalf("resyncing = %d after catch-up", pending)
 	}
 }
