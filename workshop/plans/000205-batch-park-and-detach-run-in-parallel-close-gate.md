@@ -151,6 +151,28 @@ rounds:
       boundary: M2
       recipe: milestone-review
       blocked: false
+    - "n": 5
+      timestamp: "2026-10-07T13:25:27-07:00"
+      agent: claude
+      dispose:
+        - id: BR-5
+          disposition: addressed
+          note: couch.go:880 returns false on zero incarnations; TestAnAbortOnARetiredThreadLeavesTheSessionAlone (threadgate_couch_test.go:408) reaches that branch.
+          round: 5
+        - id: BR-7
+          disposition: addressed
+          note: exitMarks is now a refcount map (console_continuation.go:37); park's re-mark at console.go:1898 increments; TestARefusalNeverRemovesAnotherOperationsExitMark covers both orderings.
+          round: 5
+        - id: BR-8
+          disposition: addressed
+          note: withoutDead's doc comment sits directly above it at couch.go:1316-1321; registry() has its own comment.
+          round: 5
+        - id: BR-13
+          disposition: addressed
+          note: Renamed TestLeaveCancelledMidFanOutStartsNoFurtherThread (leave_test.go:177); its comment says started threads stop at their own safe points, matching park.go:196-200.
+          round: 5
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#205 (boundary-review)
@@ -220,9 +242,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-13** [Minor] `doc-claim-exceeds-mechanism` Leave cancellation test name still claims started threads finish
   2nd in family. Rule: a cancellation-policy claim in a name, comment or atlas line must state what the test asserts. Corrected in park.go:196-200 but not in the leave_test.go:177 name. Rename it, and grep this issue's tests and comments for "finish" against cancellation.
 
+## Round 5 — 2026-10-07T13:25:27-07:00 (claude) — passed
+
+### Disposed
+
+- BR-5 — addressed — couch.go:880 returns false on zero incarnations; TestAnAbortOnARetiredThreadLeavesTheSessionAlone (threadgate_couch_test.go:408) reaches that branch.
+- BR-7 — addressed — exitMarks is now a refcount map (console_continuation.go:37); park's re-mark at console.go:1898 increments; TestARefusalNeverRemovesAnotherOperationsExitMark covers both orderings.
+- BR-8 — addressed — withoutDead's doc comment sits directly above it at couch.go:1316-1321; registry() has its own comment.
+- BR-13 — addressed — Renamed TestLeaveCancelledMidFanOutStartsNoFurtherThread (leave_test.go:177); its comment says started threads stop at their own safe points, matching park.go:196-200.
+
 ## Open findings
 
-- **BR-5** [Minor] `absence-read-as-ownership` startStillOwnsThread returns true for a record with zero incarnations
-- **BR-7** [Minor] `cleanup-scope-wider-than-own-effect` Expected-exit marks have first-come ownership; a late busy refusal can still delete a park's re-mark
-- **BR-8** [Minor] `doc-comment-detached-by-insertion` withoutDead's doc comment now heads registry() at couch.go:1282
-- **BR-13** [Minor] `doc-claim-exceeds-mechanism` Leave cancellation test name still claims started threads finish
+(none — every finding has been disposed)
