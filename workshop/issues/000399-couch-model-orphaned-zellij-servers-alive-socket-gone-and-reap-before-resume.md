@@ -1,12 +1,12 @@
 ---
 id: 000399
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-06
-updated: 2026-10-06
+updated: 2026-10-07
 estimate_hours: 3.65
-card_mirror: '59006bed5b8af141123a805e7d07caf90e7fd79b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '31eb271c7c078bd52da4c9735ce0f0eb587f32ba' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-06T19:29:06-07:00
 claimant:
     operator: T
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 5.84
 ---
 
 # couch: model orphaned zellij servers (alive, socket gone) and reap before resume
