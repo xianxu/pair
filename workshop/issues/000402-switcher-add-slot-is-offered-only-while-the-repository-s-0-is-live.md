@@ -62,3 +62,19 @@ creation.
 ## Log
 
 ### 2026-10-06
+
+- **Spec bullet 2, checked:** the add-slot path (`couchtty/menu.go`, the
+  `add-slot` case) reads only `menuAddSlotPath(thread)` and opens the start form.
+  It never reads the `:0` actor, so no decoupling was needed.
+- **Fix:** `menuActionItems` appends `add-slot` for resumable and unusable `:0` rows
+  unless `DirectoryMissing` holds, because a slot needs the primary checkout.
+- **Close review (FIX-THEN-SHIP), fixed as rules:**
+  - BR-1: swept every "live `:0`" claim about add slot (README how-to, the
+    `menuRowActions` doc, the sweep comment). The alias claims stay, because alias
+    is still live-only.
+  - BR-2: the advice sweep now requires an `OnPrimary` action to be offered by
+    `:0` when live, parked and detached. The mutation (dropping the fix) fails it
+    on the `:1+` directory-missing notice.
+- **Live smoke test (Done-when clause 2): waived by the operator on 2026-10-06**
+  ("this is so small, you got to get it right"). Testing needs a Couch restart,
+  because the switcher runs inside the live supervisor.
