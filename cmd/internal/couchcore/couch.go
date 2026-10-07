@@ -42,12 +42,14 @@ type Couch struct {
 	Threads                *ThreadStore
 	Entropy                io.Reader
 	Artifacts              ThreadArtifactController
-	PairLifecycle          *PairLifecycleController
-	RootAgent              string
-	RepoAgentDefault       func(repoRoot, agent string) (LaunchProfile, bool, error)
-	FreshRegistration      func(context.Context, ThreadAddress, string, string) (bool, error)
-	OrientationStatus      func(context.Context, ThreadAddress, string, string) (orientation.DeliveryState, error)
-	SwitchContext          SwitchContextResolver
+	// Reaper ends an orphaned server's tree (#399). Nil is the real host.
+	Reaper            OrphanReaper
+	PairLifecycle     *PairLifecycleController
+	RootAgent         string
+	RepoAgentDefault  func(repoRoot, agent string) (LaunchProfile, bool, error)
+	FreshRegistration func(context.Context, ThreadAddress, string, string) (bool, error)
+	OrientationStatus func(context.Context, ThreadAddress, string, string) (orientation.DeliveryState, error)
+	SwitchContext     SwitchContextResolver
 	// SlotTerminal renders a thread's live terminal recording (peek, pair#362).
 	SlotTerminal      SlotTerminalReader
 	SwitchLaunchCheck func(agent string) error
@@ -513,6 +515,9 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 				"  retire it:   run couch in another repository, select it, Tab → reboot\n"+
 				"  the record:  %s",
 			held.Tag, resolution.CanonicalPath, held.Tag, recordPath)
+	}
+	if held, orphaned := ScopeHoldsOrphanedThread(rows, scope.Key); orphaned {
+		return ActorRecord{}, nil, errors.New(orphanStartRefusal(scope.Root, held.Address, held.Orphan))
 	}
 	if held, occupied := ScopeHoldsUsableThread(rows, scope.Key); occupied {
 		// The next steps have to be ones that WORK from where the operator is.
@@ -1383,4 +1388,24 @@ func (c *Couch) allocateConversationTag(ctx context.Context, repo string) (strin
 	}
 	result, err := c.Identities.Allocate(ctx, couchidentity.AllocationRequest{Conversation: true, RepositoryToken: repo})
 	return result.PairTag, err
+}
+
+// orphanStartRefusal is startup's refusal beside an orphaned primary (#399).
+//
+// The advice is the reap mechanism itself, not a hand-written recipe (M1/M2
+// review: two hand-written recipes were both wrong about the 2026-10-06 tree).
+// Couch will not start in this repository, and `couch --reap` is a slot-socket
+// operation, so the gesture that works from here is the switcher in another
+// repository -- the same escape the unreadable-record refusal names.
+func orphanStartRefusal(root string, address ThreadAddress, server *launcher.SessionServerIdentity) string {
+	headline := fmt.Sprintf("thread %s's zellij server lost its socket", address.Tag)
+	if server != nil {
+		headline = launcher.OrphanDiagnostic(server.Session, server.PID)
+	}
+	return fmt.Sprintf("%s\n"+
+		"its agent may still be running, so couch will not start a second primary in %s\n"+
+		"  recover it:  run couch in another repository, select %s, Tab → recover\n"+
+		"               (it reaps the orphaned server and everything under it, then resumes)\n"+
+		"  inspect it:  couch --show %s",
+		headline, root, address.Tag, address.Tag)
 }

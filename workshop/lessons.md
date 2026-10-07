@@ -7,6 +7,21 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- When opt-in diagnostics add configuration, update README as well as the detailed
+  runbook. Bound repeated-launch storage through admission or evidence-preserving
+  retention, not only individual files. Keep lifecycle phase authority in the pure
+  model; IO executes its channel/notification effects. (#404 BR-1–BR-3)
+
+- Bound diagnostic queues against measured burst shapes, including record count
+  as well as bytes. Report capture loss through the owning UI while it is running;
+  a teardown-only error can leave an operator waiting on a recorder that stopped
+  minutes earlier. Keep admission budgets distinct from total allocation overhead.
+  (#404)
+
+- Optional diagnostic resources need one owner across startup failure and normal
+  exit. Report shutdown failures on both paths, and clear process-scoped capture
+  activation from child environments so descendants do not silently opt in. (#379)
+
 - A filename absence decision that creates a replacement requires complete
   enumeration. Carry failed/partial probes as unknown through every consumer;
   an empty ID must not silently select a destructive fresh fallback. (#346)
@@ -605,3 +620,31 @@ proof; record the surprising case so the next change starts from evidence.
   threads finish", but they share the ctx and stop at their own safe points.
   The test written for the claim failed on day one. A policy sentence about
   cancellation needs a test that cancels at that exact point.
+- Operator advice is code: it must be steps that would have worked on the
+  documented incident, and its test checks their ORDER, not that words appear.
+  #399's startup refusal said "kill the server; its agent goes with it" and then
+  "pkill -P …; kill …; pkill -KILL -P …". Both were wrong on 2026-10-06:
+  descendants that outlive the server reparent to PID 1, where no child-of-server
+  command finds them. List the tree while the server still parents it, kill the
+  descendants, and only then the server.
+- A test that already fails on main still has to be read, not skipped. #399
+  added five production files and each was missing from the artifact inventory;
+  TestProductionArtifactReferencesAreExactlyClassified named them, but it was on
+  the "known failure" list, so two milestones passed without anyone reading its
+  output. Grep a known-failing test's output for your own files at every close.
+- Check how a process is spawned before claiming a tree snapshot covers it. #399's
+  reaper skipped the title-poller pidfile reaper on the reasoning that helpers live
+  under the zellij server. But the poller's parent is the launcher (Couch's hosted
+  client, or standalone `pair`), not the server, so it was never in the server's
+  tree; when the launcher dies it reparents to PID 1. That is exactly why
+  2026-10-06 left stray `pair title` processes. (A first correction blamed
+  `Setsid`, which Couch-launched Pair doesn't even apply. Check the actual parent
+  in `ps`, not a plausible mechanism.)
+- A test may only remove paths it created with its own `t.TempDir()`. Never derive
+  a removal root by walking up (`filepath.Dir`) from a path a child process
+  reported: on 2026-10-06 an unsandboxed #397 test ran
+  `os.RemoveAll(filepath.Dir(filepath.Dir(store)))` on `$TMPDIR/TestX…/001`,
+  deleted the real `$TMPDIR`, including zellij's sockets, and orphaned every live
+  session (#399). Run unsandboxed tests with every `PAIR_*`/`COUCH_*`/`ZELLIJ*`
+  variable unset and `TMPDIR` pointed at a short, dedicated directory. Short,
+  because nvim sockets and some size-bounded fixtures break on a long one.

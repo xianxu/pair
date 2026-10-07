@@ -400,3 +400,20 @@ func TestSlotOperationAliasSharesKey(t *testing.T) {
 		t.Fatalf("key %q", key)
 	}
 }
+
+// recover never asks (#399, 2026-10-07): the socket admits it without
+// --confirm, and a held row's refusal reaches the caller typed, naming the hold.
+func TestSlotOperationRecoverNeedsNoConfirmation(t *testing.T) {
+	r, runner, _ := slotRig(t)
+	b := r.connect(0)
+	if resp := r.s.handle(context.Background(), slotRequest(b, "recover", "id0", "pair:1")); resp.Code != "accepted" {
+		t.Fatalf("recover: %+v", resp)
+	}
+	if job := runner.job(0); job.op != "recover" || job.target != "pair:1" {
+		t.Fatalf("job = %+v", job)
+	}
+	outcome := slotOperationOutcome(nil, &couchcore.RecoverRefusal{Code: couchcore.RecoverHeld, Detail: "conflict:claim-elsewhere: claimed in pair:3"})
+	if outcome.Status != couchmessage.ReceiptRefused || outcome.Code != couchcore.RecoverHeld || !strings.Contains(outcome.Detail, "claim-elsewhere") {
+		t.Fatalf("outcome = %+v", outcome)
+	}
+}

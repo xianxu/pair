@@ -43,6 +43,8 @@ func sandboxedChecker(t *testing.T, dataDir string, sessions map[string]string) 
 	checker := NewScopedThreadArtifactCollisionChecker(dataDir)
 	checker.Sessions = deleter
 	checker.Zellij = launcher.ZellijSource{Path: path}
+	// The host's real servers are never this fixture's evidence.
+	checker.Servers = fakeServerStates{}
 	// Runtime ownership is independent evidence, initialized from this fixture's
 	// registrations once. Subsequent index changes cannot change its live owner.
 	world := &sessionOwnerWorld{root: dataDir, owners: map[string]ThreadAddress{}, generation: "test-server"}
@@ -509,5 +511,30 @@ func TestSessionPresenceCountsNoClients(t *testing.T) {
 		if strings.HasSuffix(call, "action list-clients") {
 			t.Fatalf("presence asked for clients (%q); it must reach list-sessions only", call)
 		}
+	}
+}
+
+// fakeServerStates is the server table a test's world holds, by session name.
+type fakeServerStates map[string]launcher.ServerState
+
+func (f fakeServerStates) ServerStates(context.Context) (map[string]launcher.ServerState, error) {
+	return f, nil
+}
+
+// An orphaned server is invisible to list-sessions; the production checker
+// still reports it, through the server snapshot (#399).
+func TestSessionPresenceReportsAnOrphanThroughTheProductionChecker(t *testing.T) {
+	dataDir := t.TempDir()
+	orphan := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0000000000000001"}
+	indexSession(t, dataDir, orphan, "📁repo-orphan")
+	checker, _ := sandboxedChecker(t, dataDir, map[string]string{})
+	server := launcher.SessionServerIdentity{PID: 77, Identity: "t77", Session: "📁repo-orphan", Socket: "/gone"}
+	checker.Servers = fakeServerStates{"📁repo-orphan": {Server: server, Verdict: launcher.ServerOrphaned}}
+	got, err := checker.SessionPresence(context.Background(), []ThreadAddress{orphan})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got[orphan].State != SessionOrphaned || got[orphan].Orphan == nil || got[orphan].Orphan.PID != 77 {
+		t.Fatalf("got %+v", got[orphan])
 	}
 }

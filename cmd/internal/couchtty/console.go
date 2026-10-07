@@ -17,6 +17,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/terminal"
+	"github.com/xianxu/pair/cmd/internal/terminalcapture"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
@@ -59,6 +60,7 @@ type Console struct {
 	host             hostty.Host
 	stdin            io.Reader
 	stderr           io.Writer
+	capture          *terminalcapture.Recorder
 	presenter        *terminal.Presenter
 	terminalCommands chan terminalCommand
 	terminalFailure  error
@@ -464,6 +466,9 @@ func (c *Console) installObservedThreadActor(ctx context.Context, handleID strin
 		label: label, child: child,
 		messageHandle: couchmessage.PaneHandle(fmt.Sprintf("%s#%d", handleID, c.messagePaneGen)),
 	}
+	if c.capture != nil {
+		c.capture.Record(terminalcapture.Record{Kind: "thread-bind", EndpointID: child.Endpoint().ID(), Scope: thread.RepoScope, Tag: string(thread.Tag), Actor: string(actorID)})
+	}
 	c.order = append(c.order, handleID)
 	c.postMessagePaneLocked(thread)
 	if c.active == "" {
@@ -801,9 +806,14 @@ func (c *Console) Run() (code int) {
 		noticeC = noticeTimer.C
 	}
 	syncNoticeExpiry()
+	// Notifications are coalesced wakeups; chrome reads the current snapshot.
+	// The recorder owns this channel and never closes it. Nil disables capture.
+	captureChanges := c.capture.Changes()
 
 	for {
 		select {
+		case <-captureChanges:
+			c.repaint()
 		case command := <-c.terminalCommands:
 			if err := command.ctx.Err(); err != nil {
 				command.done <- err
@@ -1673,6 +1683,15 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 	_, err := c.operationQueue.Enqueue(operationRequest{key: key, name: effect.Operation, origin: origin, run: func() (any, error) {
 		operationContext, cancelOperation := context.WithCancel(c.lifetime)
 		defer cancelOperation()
+		// A long operation reports its current step onto its own progress
+		// notice (#399); the reducer ignores a line that arrives after the
+		// notice became a result.
+		operationContext = couchcore.WithOperationProgress(operationContext, func(detail string) {
+			c.mu.Lock()
+			c.menu = updateOperationProgress(c.menu, origin.Attempt, detail)
+			c.mu.Unlock()
+			c.repaint()
+		})
 		return fn(couchcore.OperationCall{Name: effect.Operation, Args: requestArgs, Implicit: true, Context: operationContext})
 	}})
 	if err != nil {

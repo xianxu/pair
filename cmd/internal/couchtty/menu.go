@@ -1,12 +1,14 @@
 package couchtty
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/orientation"
 )
 
@@ -1267,6 +1269,9 @@ func unusableThreadNotice(thread couchcore.ActionableThreadSummary) string {
 	if thread.Recovery != nil && thread.Recovery.Diagnosis != "" {
 		return thread.Recovery.Diagnosis
 	}
+	if thread.Orphan != nil {
+		return launcher.OrphanDiagnostic(thread.Orphan.Session, thread.Orphan.PID)
+	}
 	switch thread.Reason {
 	case couchcore.ReasonBindingLost:
 		return "its native conversation binding is unavailable; cold resume requires a verified binding"
@@ -1286,6 +1291,8 @@ func unusableThreadNotice(thread couchcore.ActionableThreadSummary) string {
 		return "its saved agent is not supported by this build"
 	case couchcore.ReasonUnknown:
 		return "couch could not check its state this refresh"
+	case couchcore.ReasonOrphanedServer:
+		return "its zellij server is running but lost its socket; reap it to resume"
 	}
 	return string(thread.Reason)
 }
@@ -1323,6 +1330,8 @@ func confirmationMenuItems(state MenuState, frame MenuFrame) []string {
 	// that spells another action's name is not a default, it is a lie.
 	item := frame.Action + " " + thread.Label()
 	switch frame.Action {
+	case "reap":
+		item += reapConfirmationCost(thread)
 	case "reboot":
 		// Say what rebooting COSTS, because the frame title never reaches the
 		// screen and "reboot" alone does not say the conversation goes.
@@ -1667,7 +1676,8 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 		if origin.FrameKind == MenuFrameText && originVisible && originFrame.Thread == origin.Address && originFrame.Action == event.Operation {
 			state.Frames = state.Frames[:origin.Depth-1]
 		}
-	case "start", "reboot":
+	case "start", "reboot", "recover":
+		// recover may end in a reboot, which hands back a new address.
 		if originVisible {
 			if origin.RowKey.Kind == couchcore.ThreadTargetSlot {
 				state.Frames[0].SelectedKey = origin.RowKey
@@ -1676,6 +1686,21 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 			state.Frames[0].SelectedAddress = event.Address
 		}
 	case "park", "detach", "resume", "leave", "relaunch", "switch-agent", "retry-continuation", "dismiss-continuation":
+		state = restoreMenuPrefixPreservingStart(state, 1, origin)
+		state.Frames[0].SelectedAddress = event.Address
+		if origin.RowKey.Kind == couchcore.ThreadTargetSlot {
+			state.Frames[0].SelectedKey = origin.RowKey
+		}
+		reconcileRootSelection(&state, event.Address)
+	default:
+		// A CONFIRMATION frame never outlives its operation's success. The list
+		// above is explicit, and an operation missing from it (reap, #399 M2
+		// review BR-9) left its confirmation open after it had worked; this is
+		// the rule that keeps the next one from doing so. Text frames (name,
+		// describe) keep their own handling.
+		if origin.FrameKind != MenuFrameConfirmation || !originVisible {
+			break
+		}
 		state = restoreMenuPrefixPreservingStart(state, 1, origin)
 		state.Frames[0].SelectedAddress = event.Address
 		if origin.RowKey.Kind == couchcore.ThreadTargetSlot {
@@ -1698,9 +1723,13 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 // the fix is to stop making positional claims. A third operation had to appear in both or the
 // operator gets a spurious child-exited notice for work they asked for; deriving
 // it is what stops the next one being added to one list only (ARCH-DRY).
+//
+// reap and recover end a live orphan's server, and with it the client Couch is
+// hosting (#399); on any other row there is no hosted child to end, and the
+// child a recover's resume starts is excluded by handle at completion.
 func endsItsOwnChild(operation string) bool {
 	switch operation {
-	case "park", "detach", "relaunch", "switch-agent", "retry-continuation", "continue-thread":
+	case "park", "detach", "relaunch", "switch-agent", "retry-continuation", "continue-thread", "reap", "recover":
 		return true
 	}
 	return false
@@ -1712,7 +1741,7 @@ func endsItsOwnChild(operation string) bool {
 // terminal focus; leave terminates the console and has no next frame to update.
 func operationNeedsProjectionRefresh(operation string) bool {
 	switch operation {
-	case "start", "park", "detach", "resume", "reboot", "alias", "relaunch", "switch-agent", "retry-continuation", "dismiss-continuation", "continue-thread":
+	case "start", "park", "detach", "resume", "reboot", "reap", "recover", "alias", "relaunch", "switch-agent", "retry-continuation", "dismiss-continuation", "continue-thread":
 		return true
 	case "switch", "leave":
 		return false
@@ -1826,6 +1855,17 @@ func dispatchMenuOperation(state MenuState, effect MenuEffect, address couchcore
 	return state, []MenuEffect{effect}
 }
 
+// updateOperationProgress puts a running operation's current step on its OWN
+// progress notice (#399): another attempt's line, or a notice that already
+// turned into a result, is left alone.
+func updateOperationProgress(state MenuState, attempt uint64, detail string) MenuState {
+	if state.Notice.Level != MenuNoticeProgress || state.Notice.Owner.OperationAttempt != attempt || attempt == 0 {
+		return state
+	}
+	state.Notice.Text = menuOperationProgressText(state, state.InFlight.Operation, state.InFlight.Address) + " " + detail
+	return state
+}
+
 func menuOperationProgressText(state MenuState, operation string, address couchcore.ThreadAddress) string {
 	label := string(address.Tag)
 	if thread, ok := menuThread(state, address); ok {
@@ -1850,6 +1890,10 @@ func menuOperationProgressText(state MenuState, operation string, address couchc
 		return "dismissing continuation for " + label
 	case "reboot":
 		return "rebooting " + label
+	case "reap":
+		return "reaping " + label + "'s orphaned server…"
+	case "recover":
+		return "recovering " + label + "…"
 	default:
 		return operation
 	}
@@ -1977,4 +2021,14 @@ func cloneMenuState(state MenuState) MenuState {
 		}
 	}
 	return next
+}
+
+// reapConfirmationCost says what reaping costs, because the operator is about to
+// end a process tree whose agent may still be writing (#399). It names the
+// server so the confirmation is about an exact process, not a label.
+func reapConfirmationCost(thread couchcore.ActionableThreadSummary) string {
+	if o := thread.Orphan; o != nil {
+		return fmt.Sprintf(" — ends orphaned server PID %d and everything under it (pair wrap/term/title, nvim, the agent)", o.PID)
+	}
+	return " — ends its orphaned server and everything under it (pair wrap/term/title, nvim, the agent)"
 }

@@ -10,12 +10,12 @@ import (
 
 var endpointSequence atomic.Uint64
 
-func (c *Child) initTerminal(id string) error {
+func (c *Child) initTerminal(id string, observers ...terminal.Observer) error {
 	if id == "" {
 		id = fmt.Sprintf("pty-%d", endpointSequence.Add(1))
 	}
 	var err error
-	c.endpoint, err = terminal.NewEndpoint(id, terminal.Geometry{Cols: int(c.size.Cols), Rows: int(c.size.Rows)}, childInput{c})
+	c.endpoint, err = terminal.NewEndpoint(id, terminal.Geometry{Cols: int(c.size.Cols), Rows: int(c.size.Rows)}, childInput{c}, observers...)
 	if err != nil {
 		return err
 	}

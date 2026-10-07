@@ -51,6 +51,8 @@ func TestEveryLifecycleEntryRefusesAHeldThread(t *testing.T) {
 		{"reboot", func() error { _, err := c.Reboot(bg, RebootTarget{Address: address}); return err }},
 		{"recover", func() error { _, err := c.RecoverThread(bg, address, ""); return err }},
 		{"stop", func() error { _, err := c.Stop(ActorRecord{ID: "a", Thread: address}); return err }},
+		{"reap (#399)", func() error { _, err := c.Reap(bg, ReapTarget{Address: address}); return err }},
+		{"recover (#399)", func() error { _, err := c.Recover(bg, RecoverTarget{Address: address}); return err }},
 	}
 	for _, entry := range entries {
 		err := entry.call()

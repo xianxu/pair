@@ -484,6 +484,21 @@ reasons:
 - The park-worker capacity tests synchronize on a wait hook instead of
   sleeping.
 
+### 2026-10-07: post-close, main merged in
+
+PR #208 no longer merged cleanly after #399 (orphaned-server reap) and #404
+(terminal capture) landed. Main was merged into the branch, not rebased, so the
+`codecomplete` evidence commit stays in history. The only conflict was
+`workshop/lessons.md`, resolved by keeping both sides.
+
+#399 added two lifecycle entries that must follow #205's rule:
+- `Couch.Reap` ends a thread's orphaned server, so it now holds the thread.
+- `Couch.Recover` is a composite (reap, then the follow-on step) and now holds
+  once at the top, so its steps re-enter.
+
+Both are in `TestEveryLifecycleEntryRefusesAHeldThread`. couchcore, couchtty
+and couchcmd are green on the merged tree.
+
 ## Revisions
 
 ### 2026-10-04: scope adds the startup reattach pass

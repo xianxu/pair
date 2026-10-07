@@ -5,7 +5,7 @@ import "github.com/xianxu/pair/cmd/internal/couchcore"
 // statusModelLocked joins attached and pending members to the same projection
 // used by the switcher. Callers hold c.mu; no discovery or process IO occurs.
 func (c *Console) statusModelLocked() StatusModel {
-	model := StatusModel{Notice: c.feed.Row().Body, Spinner: c.statusSpinner, Palette: c.menu.Palette}
+	model := StatusModel{Notice: c.feed.Row().Body, Spinner: c.statusSpinner, Palette: c.menu.Palette, Capture: c.capture.Status()}
 	now := c.now()
 	rows := menuRows(c.menu)
 	byAddress := make(map[couchcore.ThreadAddress]int, len(rows))

@@ -192,8 +192,16 @@ type ActionableThreadSummary struct {
 	Agent string                `json:"agent,omitempty"`
 	State ActionableThreadState `json:"state"`
 	// Reason is set exactly when State is ThreadUnusable, and says why.
-	Reason       ThreadReason `json:"reason,omitempty"`
-	LastActiveAt time.Time    `json:"last_active_at,omitempty"`
+	Reason ThreadReason `json:"reason,omitempty"`
+	// Orphan is the orphaned zellij server: every surface names its pid, and
+	// reap acts on its exact identity (#399). Set exactly when the session is
+	// orphaned and the row is either unusable/orphaned-server or live -- a
+	// thread Couch still hosts keeps working over its open connection, so it
+	// stays live, yet nothing else can reach its server (the live orphan).
+	// Never on busy or unknown rows: a starting server is socketless for a
+	// moment, and ignorance is not a verdict.
+	Orphan       *launcher.SessionServerIdentity `json:"orphan,omitempty"`
+	LastActiveAt time.Time                       `json:"last_active_at,omitempty"`
 	// Layout is the thread's witnessed pair layout, already normalized: the
 	// projection runs NormalizeLayout, so a record predating #198 reads as
 	// Layout2 here and an unreadable one as LayoutUnknown. Consumers compare
@@ -318,6 +326,7 @@ func ProjectActionableThreads(input ThreadProjectionInput) []ActionableThreadSum
 			Agent:            launchProfileAgent(record),
 			State:            state,
 			Reason:           reason,
+			Orphan:           orphanOf(state, reason, evidence[record.Address]),
 			LastActiveAt:     record.LastActiveAt,
 			// THE normalization point for the layout witness: the raw persisted
 			// value is untrusted, and "" (a pre-#198 record) must read as
@@ -430,7 +439,8 @@ func ArchivableState(state ActionableThreadState, reason ThreadReason) bool {
 	case ThreadDetached, ThreadParked:
 		return true
 	case ThreadUnusable:
-		return reason != ReasonUnknown
+		// An orphan's conversation is still running (#399).
+		return reason != ReasonUnknown && reason != ReasonOrphanedServer
 	}
 	return false
 }
@@ -531,6 +541,13 @@ func ClassifyThread(record ThreadRecord, evidence ThreadEvidence) (ActionableThr
 	if len(evidence.Unproven) != 0 {
 		return ThreadUnusable, ReasonUnknown
 	}
+	// An orphaned server is a running process nothing can reach (#399). It
+	// outranks the record's own faults and every "no session" reading below:
+	// list-sessions no longer lists it, so the ledger alone would call it
+	// `parked` and offer a resume onto a conversation still being written.
+	if evidence.Session.State == SessionOrphaned {
+		return ThreadUnusable, ReasonOrphanedServer
+	}
 	// Resume authority gates BOTH the warm and the cold path, and must be
 	// checked before either. Reattaching still goes through DecideResume, which
 	// needs the path and the profile -- so a row shown `detached` without them
@@ -607,6 +624,20 @@ func ClassifyThread(record ThreadRecord, evidence ThreadEvidence) (ActionableThr
 	// The distinction still holds -- it is decided above, where the receipt
 	// exception lives.
 	return ThreadUnusable, ReasonSessionGone
+}
+
+// orphanOf is the row's orphaned server: present when the classifier called
+// the thread orphaned, or kept it live over a session that is orphaned (the
+// live orphan, #399). ClassifyThread's precedence is untouched: live stays
+// live, and busy and unknown carry nothing.
+func orphanOf(state ActionableThreadState, reason ThreadReason, evidence ThreadEvidence) *launcher.SessionServerIdentity {
+	if evidence.Session.State != SessionOrphaned {
+		return nil
+	}
+	if state == ThreadLive || reason == ReasonOrphanedServer {
+		return evidence.Session.Orphan
+	}
+	return nil
 }
 
 // startClaimed reports a start couch has claimed and not yet completed.

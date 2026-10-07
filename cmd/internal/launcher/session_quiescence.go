@@ -14,19 +14,13 @@ import (
 	"github.com/xianxu/pair/cmd/internal/procutil"
 )
 
-type sessionServerIdentity struct {
-	PID      int
-	Identity string
-	Session  string
-}
-
 // sessionQuiescenceOps is the stateful external-zellij boundary used when a
 // deletion result is safety evidence rather than best-effort cleanup.
 type sessionQuiescenceOps interface {
 	SessionPresent(context.Context, string) (bool, error)
-	SessionServers(context.Context, string) ([]sessionServerIdentity, error)
+	SessionServers(context.Context, string) ([]SessionServerIdentity, error)
 	DeleteSessionRecord(context.Context, string) error
-	KillServer(sessionServerIdentity) error
+	KillServer(SessionServerIdentity) error
 }
 
 func quiesceZellijSession(parent context.Context, session string, ops sessionQuiescenceOps, timeout, poll time.Duration) error {
@@ -62,7 +56,7 @@ func quiesceZellijSession(parent context.Context, session string, ops sessionQui
 		servers, err := ops.SessionServers(ctx, session)
 		if err != nil {
 			attemptErr = errors.Join(attemptErr, fmt.Errorf("observe zellij servers for %q: %w", session, err))
-			servers = []sessionServerIdentity{{}} // non-empty means unproven
+			servers = []SessionServerIdentity{{}} // non-empty means unproven
 		}
 		if err == nil && !present && len(servers) == 0 {
 			absentObservations++
@@ -130,21 +124,24 @@ func (osSessionQuiescenceOps) SessionPresent(ctx context.Context, session string
 	return present, nil
 }
 
-func (o osSessionQuiescenceOps) SessionServers(ctx context.Context, session string) ([]sessionServerIdentity, error) {
+func (o osSessionQuiescenceOps) SessionServers(ctx context.Context, session string) ([]SessionServerIdentity, error) {
 	out, err := exec.CommandContext(ctx, "ps", "-axo", "pid=,command=").Output()
 	if err != nil {
 		return nil, err
 	}
-	var result []sessionServerIdentity
-	for _, pid := range zellijServerPIDs(string(out), session) {
-		identity := o.identity()(strconv.Itoa(pid))
-		if identity == "" {
+	var result []SessionServerIdentity
+	for _, server := range ParseServerProcesses(string(out)) {
+		if server.Session != session {
+			continue
+		}
+		server.Identity = o.identity()(strconv.Itoa(server.PID))
+		if server.Identity == "" {
 			// The process may have exited between snapshots, but treating an
 			// observed exact server as absent would be a false proof. Retry the
 			// complete observation instead.
-			return nil, fmt.Errorf("process identity unavailable for zellij server %d", pid)
+			return nil, fmt.Errorf("process identity unavailable for zellij server %d", server.PID)
 		}
-		result = append(result, sessionServerIdentity{PID: pid, Identity: identity, Session: session})
+		result = append(result, server)
 	}
 	return result, nil
 }
@@ -157,7 +154,7 @@ func (osSessionQuiescenceOps) DeleteSessionRecord(ctx context.Context, session s
 	return nil
 }
 
-func (o osSessionQuiescenceOps) KillServer(server sessionServerIdentity) error {
+func (o osSessionQuiescenceOps) KillServer(server SessionServerIdentity) error {
 	pid := strconv.Itoa(server.PID)
 	identity := o.identity()
 	command := o.command()
@@ -193,14 +190,9 @@ func (o osSessionQuiescenceOps) killer() func(int) error {
 
 func zellijServerPIDs(raw, session string) []int {
 	var result []int
-	for _, line := range strings.Split(raw, "\n") {
-		fields := strings.Fields(line)
-		if len(fields) != 4 || !isExactZellijServerCommand(strings.Join(fields[1:], " "), session) {
-			continue
-		}
-		pid, err := strconv.Atoi(fields[0])
-		if err == nil && pid > 0 {
-			result = append(result, pid)
+	for _, server := range ParseServerProcesses(raw) {
+		if server.Session == session {
+			result = append(result, server.PID)
 		}
 	}
 	return result

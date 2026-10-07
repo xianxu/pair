@@ -25,6 +25,7 @@ const (
 	menuPhaseLiveContinuationFailed               // #280: a failed request composes with live actions
 	menuPhaseLiveContinuationRunning              // the request owns the thread: retry is the only exit
 	menuPhaseLiveContinuationPending              // the request is about to run: nothing to do yet
+	menuPhaseLiveOrphaned                         // live, but its server lost its socket (#399)
 	menuPhaseUnknown                              // unusable/unknown: no verdict this round, offer nothing
 	menuPhaseResumable                            // parked or detached
 	menuPhaseUnusable                             // unusable, or not live with an unfinished request
@@ -60,6 +61,12 @@ func menuRowFactsOf(row couchcore.ActionableThreadSummary) menuRowFacts {
 	case couchcore.ThreadBusy:
 		f.Phase = menuPhaseBusy
 	case couchcore.ThreadLive:
+		if row.Orphan != nil {
+			// The live orphan outranks its request's phase: every lifecycle
+			// action refuses an orphan, and recover/reap are the way out.
+			f.Phase = menuPhaseLiveOrphaned
+			break
+		}
 		switch unfinished {
 		case checkpoint.Failed:
 			f.Phase = menuPhaseLiveContinuationFailed
@@ -82,8 +89,8 @@ func menuRowFactsOf(row couchcore.ActionableThreadSummary) menuRowFacts {
 }
 
 // menuRowActions is the per-row action authority, one table over kind x
-// phase. Live rows get the lifecycle actions; rows that are not live get the
-// two actor operations, resume and reboot, and a :0 among them also gets add
+// phase. Live rows get the lifecycle actions; rows that are not live, and the
+// live orphan, get the actor operations, and a :0 among them also gets add
 // slot unless its checkout is missing (pair#402). A row the table offers
 // nothing on says why through menuRowNotice, which reads the same phase.
 func menuRowActions(f menuRowFacts) []string {
@@ -117,11 +124,19 @@ func menuRowActions(f menuRowFacts) []string {
 		// parking or detaching mid-replacement races its own reconciliation.
 		// Retry is the exit, including for a request whose owner died (#280).
 		return []string{"retry-continuation"}
-	case menuPhaseResumable, menuPhaseUnusable:
+	case menuPhaseResumable, menuPhaseUnusable, menuPhaseLiveOrphaned:
 		// The actor operations are couchcore's one admission table, shared
-		// with the recover-plan report (pair#367). A :1+ row whose directory
+		// with the recover-plan report (pair#367). On a live orphan it offers
+		// reap alone: detach, relaunch, park and switch-agent would all refuse
+		// (#399). A :1+ row whose directory
 		// is missing offers nothing; menuRowAdviceOf says what brings it back.
-		items := couchcore.ActorActions(f.Actor)
+		// Recover leads: it is the default gesture, running whatever the
+		// recovery report decides for this row (#399).
+		actions := couchcore.ActorActions(f.Actor)
+		items := actions
+		if couchcore.RecoverOffered(actions) {
+			items = append([]string{"recover"}, actions...)
+		}
 		// Adding a slot opens the start form for a new :1+ worktree and needs
 		// nothing from :0's agent, so a parked :0 offers it too (pair#402). It
 		// does need the primary checkout: a :0 whose directory is gone does not.

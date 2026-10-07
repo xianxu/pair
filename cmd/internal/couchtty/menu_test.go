@@ -1141,8 +1141,9 @@ func TestMenuActionItemsLeadWithTheSafeAction(t *testing.T) {
 	for _, state := range []couchcore.ActionableThreadState{couchcore.ThreadParked, couchcore.ThreadDetached} {
 		row := couchcore.ActionableThreadSummary{State: state}
 		got := menuActionItems(row)
-		if len(got) == 0 || got[0] != "resume" {
-			t.Fatalf("%s actions = %v, want resume first", state, got)
+		// recover leads (#399): on a row with no hazard it is resume.
+		if len(got) < 2 || got[0] != "recover" || got[1] != "resume" {
+			t.Fatalf("%s actions = %v, want recover, then resume", state, got)
 		}
 		if containsMenuItem(got, "detach") || containsMenuItem(got, "park") {
 			t.Fatalf("%s actions = %v, want no detach/park on a row with no client", state, got)
@@ -1258,8 +1259,8 @@ func TestEveryReasonExplainsItselfOnEnter(t *testing.T) {
 // no route for, and metadata actions left the switcher (#363).
 func TestUnusableRowOffersReboot(t *testing.T) {
 	items := menuActionItems(unusableMenuRow(couchcore.ReasonSessionGone))
-	if !slices.Equal(items, []string{"reboot"}) {
-		t.Fatalf("action items = %v, want reboot", items)
+	if !slices.Equal(items, []string{"recover", "reboot"}) {
+		t.Fatalf("action items = %v, want recover, reboot", items)
 	}
 }
 

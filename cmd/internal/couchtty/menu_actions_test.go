@@ -23,14 +23,17 @@ type menuRowShape struct {
 	reason  couchcore.ThreadReason
 	phase   checkpoint.Phase // "" = no retained request
 	recover bool             // unusable :0 with Recovery.Recover
+	orphan  bool             // row.Orphan: every orphaned-server row, and the live orphan (#399)
 	row     couchcore.ActionableThreadSummary
 }
 
 // everyMenuRowShape is the DERIVED row domain every per-row sweep iterates:
 // kinds {:0, :1} x AllThreadStates() (minus archived) x AllThreadReasons() ∪ ""
 // (only the combinations the projection produces: a reason exactly when
-// unusable) x AllPhases() ∪ none, plus Recovery.Recover on unusable :0 rows. A
-// new state, reason or phase lands here without anyone listing it.
+// unusable) x AllPhases() ∪ none, plus Recovery.Recover on unusable :0 rows,
+// plus an orphaned server on every live row (the live orphan, #399; an
+// orphaned-server row always carries one). A new state, reason or phase lands
+// here without anyone listing it.
 func everyMenuRowShape(t *testing.T) []menuRowShape {
 	t.Helper()
 	scope, err := launcher.ResolveRepoScope("/w/xianxu.dev")
@@ -77,10 +80,20 @@ func everyMenuRowShape(t *testing.T) []menuRowShape {
 						if slot {
 							kind = ":1"
 						}
-						shapes = append(shapes, menuRowShape{
+						shape := menuRowShape{
 							name: kind + "/" + string(state) + "/" + string(reason) + "/" + string(phase) + map[bool]string{true: "/recover"}[recover],
 							slot: slot, state: state, reason: reason, phase: phase, recover: recover, row: row,
-						})
+						}
+						server := &launcher.SessionServerIdentity{PID: 812, Identity: "t812", Session: "📁1-37"}
+						if reason == couchcore.ReasonOrphanedServer {
+							shape.orphan, shape.row.Orphan = true, server
+						}
+						shapes = append(shapes, shape)
+						if state == couchcore.ThreadLive {
+							shape.name += "/orphan"
+							shape.orphan, shape.row.Orphan = true, server
+							shapes = append(shapes, shape)
+						}
 					}
 				}
 			}
@@ -97,6 +110,13 @@ func expectedRowActions(s menuRowShape) []string {
 		return nil
 	case couchcore.ThreadLive:
 		switch {
+		// The live orphan (#399): its pane still works, but detach, park,
+		// relaunch and switch-agent all refuse an orphan; recover and reap are
+		// its way out, whatever its request is doing.
+		case s.orphan && s.slot:
+			return []string{"recover", "reap"}
+		case s.orphan:
+			return []string{"recover", "reap", "add-slot"}
 		case unfinished && s.phase == checkpoint.Running:
 			return []string{"retry-continuation"}
 		case unfinished && s.phase == checkpoint.Pending:
@@ -116,9 +136,9 @@ func expectedRowActions(s menuRowShape) []string {
 		// A stopped :0 still offers add slot: a new slot needs nothing from
 		// :0's agent (pair#402).
 		if !s.slot {
-			return []string{"resume", "reboot", "add-slot"}
+			return []string{"recover", "resume", "reboot", "add-slot"}
 		}
-		return []string{"resume", "reboot"}
+		return []string{"recover", "resume", "reboot"}
 	case couchcore.ThreadUnusable:
 		offers := expectedUnusableActions(s, unfinished)
 		// An unusable :0 whose directory is present still offers add slot
@@ -131,22 +151,28 @@ func expectedRowActions(s menuRowShape) []string {
 	return nil
 }
 
+// expectedUnusableActions is the literal spec for unusable rows. recover leads
+// wherever any actor operation is offered (#399).
 func expectedUnusableActions(s menuRowShape, unfinished bool) []string {
 	switch {
 	case s.reason == couchcore.ReasonUnknown:
 		return nil
+	// An orphaned server's agent may still be writing: neither resume nor
+	// reboot is safe; only the confirmed reap (#399).
+	case s.reason == couchcore.ReasonOrphanedServer:
+		return []string{"recover", "reap"}
 	case s.reason == couchcore.ReasonPathMissing && s.slot:
 		return nil
 	case s.reason == couchcore.ReasonPathMissing:
-		return []string{"reboot"}
+		return []string{"recover", "reboot"}
 	// A parked slot whose conversation cannot be resolved (its agent
 	// never took a turn) has nothing to resume (pair#367 smoke test).
 	case s.slot && s.reason == couchcore.ReasonBindingLost && !unfinished:
-		return []string{"reboot"}
+		return []string{"recover", "reboot"}
 	case s.slot || s.recover || unfinished:
-		return []string{"resume", "reboot"}
+		return []string{"recover", "resume", "reboot"}
 	}
-	return []string{"reboot"}
+	return []string{"recover", "reboot"}
 }
 
 func TestRowActionTableMatchesTheSpec(t *testing.T) {
@@ -554,5 +580,74 @@ func TestRowAdviceNamesOnlyReachableActions(t *testing.T) {
 			item := strings.TrimPrefix(items[len(items)-1], action+" "+s.row.Label())
 			check(s.name, action+" confirmation", menuNextStep{Text: item}, s.slot, offered)
 		}
+	}
+}
+
+// The switcher names the orphaned server's pid, in the same sentence every
+// other surface prints (#399).
+func TestUnusableNoticeNamesTheOrphanedServer(t *testing.T) {
+	row := couchcore.ActionableThreadSummary{Address: menuAddress("couch-orphan"), WorkingPath: "/w/p",
+		State: couchcore.ThreadUnusable, Reason: couchcore.ReasonOrphanedServer,
+		Orphan: &launcher.SessionServerIdentity{PID: 812, Session: "📁1-37"}}
+	if got, want := unusableThreadNotice(row), launcher.OrphanDiagnostic("📁1-37", 812); got != want {
+		t.Fatalf("notice = %q, want %q", got, want)
+	}
+}
+
+// The reap confirmation names the exact server it ends and what goes with it:
+// the agent under it may still be writing (#399).
+func TestReapConfirmationNamesTheServerAndItsTree(t *testing.T) {
+	row := couchcore.ActionableThreadSummary{Address: menuAddress("couch-orphan"), WorkingPath: "/w/p",
+		State: couchcore.ThreadUnusable, Reason: couchcore.ReasonOrphanedServer,
+		Orphan: &launcher.SessionServerIdentity{PID: 812, Session: "📁1-37"}}
+	text := reapConfirmationCost(row)
+	for _, want := range []string{"PID 812", "everything under it", "the agent"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("confirmation %q lacks %q", text, want)
+		}
+	}
+}
+
+// #399 M2 review BR-9: a successful reap closes its confirmation and completes
+// the attempt; before, the reducer had no arm for it and the frame lingered.
+func TestReapSuccessClosesItsConfirmation(t *testing.T) {
+	row := couchcore.ActionableThreadSummary{Address: menuAddress("couch-orphan"), WorkingPath: "/w/p",
+		State: couchcore.ThreadUnusable, Reason: couchcore.ReasonOrphanedServer,
+		Orphan: &launcher.SessionServerIdentity{PID: 812, Session: "📁1-37"}}
+	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
+	state.InventoryReady = true
+	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+	state.Frames[len(state.Frames)-1].SelectedItem = "reap"
+	state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
+	if state.CurrentFrame().Kind != MenuFrameConfirmation || state.CurrentFrame().Action != "reap" {
+		t.Fatalf("reap did not confirm: %+v", state.CurrentFrame())
+	}
+	state, _ = reduceConfirmationKey(state, PanelKey{Kind: KeyDown})
+	state, effects := reduceConfirmationKey(state, PanelKey{Kind: KeyEnter})
+	if len(effects) != 1 || effects[0].Operation != "reap" {
+		t.Fatalf("reap did not dispatch: %+v", effects)
+	}
+	next := reduceOperationResult(state, MenuEvent{Operation: "reap", Attempt: state.InFlight.Attempt, Success: true, Address: row.Address})
+	if next.InFlight.Operation != "" || next.CurrentFrame().Kind != MenuFrameRoot || next.Notice.Level == MenuNoticeError {
+		t.Fatalf("reap result not consumed: in flight %+v, frame %v, notice %q", next.InFlight, next.CurrentFrame().Kind, next.Notice.Text)
+	}
+}
+
+// A running operation's progress replaces the detail of ITS progress notice
+// only: another attempt's progress, or a notice that is no longer a progress
+// notice, is left alone (#399).
+func TestOperationProgressUpdatesOnlyItsOwnNotice(t *testing.T) {
+	state := MenuState{Notice: MenuNotice{Level: MenuNoticeProgress, Text: "recovering pair:6…", Owner: MenuProgressOwner{OperationAttempt: 7}}}
+	state.InFlight = MenuOperationOrigin{Operation: "recover", Attempt: 7}
+	next := updateOperationProgress(state, 7, "step 1/2: reaping orphaned server PID 9090")
+	if !strings.Contains(next.Notice.Text, "step 1/2: reaping orphaned server PID 9090") || next.Notice.Level != MenuNoticeProgress {
+		t.Fatalf("notice = %+v", next.Notice)
+	}
+	if other := updateOperationProgress(state, 8, "stale"); other.Notice.Text != state.Notice.Text {
+		t.Fatalf("another attempt's progress changed the notice: %q", other.Notice.Text)
+	}
+	state.Notice.Level = MenuNoticeError
+	if done := updateOperationProgress(state, 7, "late"); done.Notice.Text != state.Notice.Text {
+		t.Fatalf("progress overwrote a finished notice: %q", done.Notice.Text)
 	}
 }

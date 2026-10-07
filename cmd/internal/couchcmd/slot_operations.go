@@ -151,9 +151,15 @@ func (s *slotOperations) queueKey(ctx context.Context, target string) (string, e
 // resume diagnostic, and a success names the thread left running.
 func slotOperationOutcome(value any, err error) couchmessage.ReceiptOutcome {
 	var refusal *couchcore.SlotOperationError
+	var recoverRefusal *couchcore.RecoverRefusal
+	var reapRefusal *couchcore.ReapRefusal
 	switch {
 	case errors.As(err, &refusal):
 		return couchmessage.ReceiptOutcome{Status: couchmessage.ReceiptRefused, Code: refusal.Code, Detail: refusal.Detail}
+	case errors.As(err, &recoverRefusal):
+		return couchmessage.ReceiptOutcome{Status: couchmessage.ReceiptRefused, Code: recoverRefusal.Code, Detail: recoverRefusal.Detail}
+	case errors.As(err, &reapRefusal):
+		return couchmessage.ReceiptOutcome{Status: couchmessage.ReceiptRefused, Code: "reap-refused", Detail: reapRefusal.Detail}
 	case err != nil:
 		return couchmessage.ReceiptOutcome{Status: couchmessage.ReceiptFailed, Detail: err.Error(), Diagnostic: string(couchcore.ResumeDiagnosticOf(err))}
 	}
