@@ -631,6 +631,14 @@ var NonArtifactSources = []string{
 	"cmd/internal/terminalqualify/presenter_cases.go",
 	"cmd/internal/terminal/endpoint.go",
 	"cmd/internal/terminal/frame.go",
+	"cmd/internal/terminal/tap.go",
+	// #395 broadcast: in-memory frames, an HTTP stream and a tunnel; it
+	// persists no Pair artifact.
+	"cmd/internal/broadcast/doc.go",
+	"cmd/internal/broadcast/hub.go",
+	"cmd/internal/broadcast/indicator.go",
+	"cmd/internal/broadcast/privacy.go",
+	"cmd/internal/broadcast/stream.go",
 	"cmd/internal/ptychild/publication.go",
 	"cmd/internal/ptychild/terminal.go",
 	"cmd/internal/runtimebundle/terminal.go",
