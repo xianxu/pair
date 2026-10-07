@@ -92,6 +92,9 @@ func TestResumeRebootAdviceValues(t *testing.T) {
 		ResumeNotRunning:         false,
 		ResumeSurvivorsAmbiguous: false,
 		ResumeSurvivorUnproven:   false,
+		// The conversation is still running behind an orphaned server; the
+		// advice is reap, never reboot (#399).
+		ResumeOrphanedServer: false,
 	}
 	if len(want) != len(ResumeRebootAdvice) {
 		t.Errorf("advice has %d codes, the Spec lists %d", len(ResumeRebootAdvice), len(want))

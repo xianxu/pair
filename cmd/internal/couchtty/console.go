@@ -1672,6 +1672,15 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 	_, err := c.operationQueue.Enqueue(operationRequest{key: key, name: effect.Operation, origin: origin, run: func() (any, error) {
 		operationContext, cancelOperation := context.WithCancel(c.lifetime)
 		defer cancelOperation()
+		// A long operation reports its current step onto its own progress
+		// notice (#399); the reducer ignores a line that arrives after the
+		// notice became a result.
+		operationContext = couchcore.WithOperationProgress(operationContext, func(detail string) {
+			c.mu.Lock()
+			c.menu = updateOperationProgress(c.menu, origin.Attempt, detail)
+			c.mu.Unlock()
+			c.repaint()
+		})
 		return fn(couchcore.OperationCall{Name: effect.Operation, Args: requestArgs, Implicit: true, Context: operationContext})
 	}})
 	if err != nil {

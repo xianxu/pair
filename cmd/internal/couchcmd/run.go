@@ -539,7 +539,7 @@ func dispatchInteractiveStart(c *couchcore.Couch, args map[string]string) (couch
 
 func operationUsesCurrentRepoScope(name string) bool {
 	switch name {
-	case "show", "peek", "park", "resume", "reboot", "retry-continuation", "dismiss-continuation":
+	case "show", "peek", "park", "resume", "reboot", "reap", "recover", "retry-continuation", "dismiss-continuation":
 		return true
 	default:
 		return false
@@ -549,7 +549,7 @@ func operationUsesCurrentRepoScope(name string) bool {
 // operationOwnsLive is the pure entrypoint policy. Both ways into Couch must
 // acquire the same singleton before they can create a child or take a terminal.
 func operationOwnsLive(name string) bool {
-	return name == "start" || name == "resume" || name == "reboot" || name == "retry-continuation"
+	return name == "start" || name == "resume" || name == "reboot" || name == "reap" || name == "recover" || name == "retry-continuation"
 }
 
 // WantsConsole is the console DECISION, separated from building one.
@@ -939,6 +939,8 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 		if warning := v.Warning(); warning != "" {
 			fmt.Fprintf(w, "%s\n", warning)
 		}
+	case couchcore.ReapResult:
+		fmt.Fprintf(w, "reaped orphaned server PID %d (%s) for %s; resume it next\n", v.Server.PID, v.Server.Session, v.Address.Tag)
 	case couchcore.StopResult:
 		if v.Signalled {
 			fmt.Fprintf(w, "signalled %s on %s (pid %d)\n", v.Record.ID, v.Record.Args.Worktree, v.Record.PID)
@@ -1123,6 +1125,8 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "             slot verdicts with Couch's threads, with a suggested next step.")
 	fmt.Fprintln(w, "       couch --resume repo:N [--json]")
 	fmt.Fprintln(w, "       couch --reboot repo:N --confirm [--json]")
+	fmt.Fprintln(w, "       couch --reap repo:N --confirm [--json]")
+	fmt.Fprintln(w, "       couch --recover repo:N [--json]")
 	fmt.Fprintln(w, "             From a live Couch slot only: run the report's step on one slot")
 	fmt.Fprintln(w, "             through the running Couch, in the background. Verify by reading")
 	fmt.Fprintln(w, "             the report again; an uncertain outcome means read it before resending.")

@@ -312,6 +312,25 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				return nil, err
 			}
 			return c.Reboot(ctx, RebootTarget{Address: address, Agent: a["agent"]})
+		case "reap":
+			if path := a["path"]; path != "" {
+				return c.Reap(ctx, ReapTarget{Path: path})
+			}
+			address, err := resolveThreadForArchive(c, a)
+			if err != nil {
+				return nil, err
+			}
+			return c.Reap(ctx, ReapTarget{Address: address})
+		case "recover":
+			target := RecoverTarget{Path: a["path"]}
+			if target.Path == "" {
+				address, err := resolveThreadForArchive(c, a)
+				if err != nil {
+					return nil, err
+				}
+				target.Address = address
+			}
+			return c.Recover(ctx, target)
 		case "continue-thread", "retry-continuation", "continuation-status":
 			address, err := resolveOperationThread(c, a)
 			if err != nil {

@@ -73,6 +73,11 @@ const (
 	// is the only transient reason: it says the evidence did not resolve this
 	// round, not that anything about the thread is settled.
 	ReasonUnknown ThreadReason = "unknown"
+	// ReasonOrphanedServer is a thread whose zellij server is alive but lost
+	// its socket (#399): unreachable, and its agent may still be writing. Not
+	// resumable (a second agent would join the conversation), not archivable
+	// (the conversation is running), not rebootable; reap is the step.
+	ReasonOrphanedServer ThreadReason = "orphaned-server"
 )
 
 // AllThreadReasons is the vocabulary itself, so display tables and the
@@ -89,6 +94,7 @@ func AllThreadReasons() []ThreadReason {
 		ReasonProfileMissing,
 		ReasonAgentUnsupported,
 		ReasonUnknown,
+		ReasonOrphanedServer,
 	}
 }
 
@@ -118,6 +124,8 @@ func (r ThreadReason) Label() string {
 		return "unsupported agent"
 	case ReasonUnknown:
 		return "checking…"
+	case ReasonOrphanedServer:
+		return "server lost its socket — Tab → recover"
 	}
 	// Legible beats silent: an unlabelled reason shows its slug rather than an
 	// empty column, and the vocabulary guard fails so it does not stay that way.

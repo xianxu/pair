@@ -146,6 +146,11 @@ func TestParseSlotOperationCLI(t *testing.T) {
 		{args: []string{"--reboot", "pair:1", "--confirm"}, op: "reboot", ref: "pair:1", confirmed: true},
 		{args: []string{"--reboot", "pa:1", "--confirm", "--json"}, op: "reboot", ref: "pa:1", confirmed: true, json: true},
 		{args: []string{"--reboot", "pair:1", "--json", "--confirm"}, op: "reboot", ref: "pair:1", confirmed: true, json: true},
+		{args: []string{"--reap", "pair:2", "--confirm"}, op: "reap", ref: "pair:2", confirmed: true},
+		{args: []string{"--reap", "pair:0", "--confirm", "--json"}, op: "reap", ref: "pair:0", confirmed: true, json: true},
+		// recover never asks: no --confirm (#399, 2026-10-07).
+		{args: []string{"--recover", "pair:2"}, op: "recover", ref: "pair:2"},
+		{args: []string{"--recover", "pa:0", "--json"}, op: "recover", ref: "pa:0", json: true},
 	} {
 		got, err := ParseCLI(tc.args, couchcore.Operations())
 		if err != nil || got.kind != cliMessage || got.messageOp != tc.op || got.ref != tc.ref || got.confirmed != tc.confirmed || got.jsonOutput != tc.json {
@@ -169,6 +174,7 @@ func TestParseSlotOperationCLIRejectsMalformedArgv(t *testing.T) {
 		{"a repeated flag", []string{"--resume", "pair:1", "--json", "--json"}},
 		{"confirmation on an operation that declares none", []string{"--resume", "pair:1", "--confirm"}},
 		{"reboot without its declared confirmation", []string{"--reboot", "pair:1"}},
+		{"recover never asks (#399)", []string{"--recover", "pair:1", "--confirm"}},
 		{"a repeated confirmation", []string{"--reboot", "pair:1", "--confirm", "--confirm"}},
 		{"a layout flag", []string{"--resume", "pair:1", "--layout2"}},
 		{"a layout flag first", []string{"--layout2", "--resume", "pair:1"}},
@@ -182,7 +188,7 @@ func TestParseSlotOperationCLIRejectsMalformedArgv(t *testing.T) {
 // Every command text the report emits parses back to the operation and slot
 // it names (pair#367 M2).
 func TestSlotOperationCommandParses(t *testing.T) {
-	for _, op := range []string{"resume", "reboot"} {
+	for _, op := range []string{"resume", "reboot", "reap"} {
 		got := parseCommandText(t, couchcore.SlotOperationCommand(op, "pair:2"))
 		if got.kind != cliMessage || got.messageOp != op || got.ref != "pair:2" {
 			t.Errorf("%s: %#v", op, got)
@@ -326,5 +332,16 @@ func TestShellSplit(t *testing.T) {
 		if got, err := shellSplit(in); err != nil || !slices.Equal(got, want) {
 			t.Errorf("%s: %q %v", in, got, err)
 		}
+	}
+}
+
+// Reap ends a process tree whose agent may still be writing: it is never run
+// without the operator's --confirm (#399).
+func TestReapRequiresConfirm(t *testing.T) {
+	if _, err := ParseCLI([]string{"--reap", "pair:2"}, couchcore.Operations()); err == nil {
+		t.Fatal("couch --reap without --confirm parsed")
+	}
+	if got := couchcore.SlotOperationCommand("reap", "pair:2"); got != "couch --reap pair:2 --confirm" {
+		t.Fatalf("command = %q", got)
 	}
 }

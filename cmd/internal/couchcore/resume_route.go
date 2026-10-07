@@ -82,6 +82,7 @@ var ResumeRebootAdvice = map[ResumeDiagnosticCode]bool{
 	ResumeNotRunning:         false,
 	ResumeSurvivorsAmbiguous: false,
 	ResumeSurvivorUnproven:   false,
+	ResumeOrphanedServer:     false,
 }
 
 // withRebootAdvice keeps errors.As working (%w) and appends the exit once, at

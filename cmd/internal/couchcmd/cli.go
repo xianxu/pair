@@ -89,7 +89,7 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 		switch args[0] {
 		case "--adopt-store":
 			return parseAdoptionCLI(args)
-		case "--actors", "--send-to", "--message-status", "--skill", "--resume", "--reboot":
+		case "--actors", "--send-to", "--message-status", "--skill", "--resume", "--reboot", "--reap", "--recover":
 			return parseMessageCLI(args)
 		}
 	}
@@ -289,7 +289,7 @@ func parseMessageCLI(args []string) (cliInvocation, error) {
 			return bad()
 		}
 		return cliInvocation{kind: cliMessage, messageOp: "status", ref: args[1], jsonOutput: len(args) == 3}, nil
-	case "--resume", "--reboot":
+	case "--resume", "--reboot", "--reap", "--recover":
 		// One exact slot, then --json and the declared --confirm, each once.
 		op := strings.TrimPrefix(args[0], "--")
 		if len(args) < 2 {

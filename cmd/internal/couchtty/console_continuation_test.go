@@ -53,8 +53,9 @@ func TestContinuationFailedRowKeepsAnExplicitRetry(t *testing.T) {
 	row := couchcore.ActionableThreadSummary{Address: address, State: couchcore.ThreadUnusable,
 		Continuation: &couchcore.ContinuationStatus{Address: address, RequestID: "request", Phase: checkpoint.Failed}}
 	// A row that is not live retries its request through resume, which routes
-	// a failed request to RetryContinuation (#363); reboot is its other exit.
-	if !slices.Equal(menuActionItems(row), []string{"resume", "reboot"}) {
+	// a failed request to RetryContinuation (#363); reboot is its other exit,
+	// and recover leads with whichever the report picks (#399).
+	if !slices.Equal(menuActionItems(row), []string{"recover", "resume", "reboot"}) {
 		t.Fatalf("failed continuation actions: %v", menuActionItems(row))
 	}
 

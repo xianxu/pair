@@ -341,9 +341,10 @@ func TestConsolePreviousWithNowhereToGoSaysSo(t *testing.T) {
 // so roughly half the time the completion lands first and clears InFlight --
 // leaving consumeExpectedParkExitLocked's InFlight arm nothing to match. Both
 // halves must know about both operations, or every other alt+d prints an exit
-// notice for a child the operator deliberately stopped.
+// notice for a child the operator deliberately stopped. reap and recover end
+// a live orphan's hosted client with its server (#399).
 func TestDeliberateChildExitsAreExpectedInEitherEventOrder(t *testing.T) {
-	for _, operation := range []string{"park", "detach"} {
+	for _, operation := range []string{"park", "detach", "reap", "recover"} {
 		for _, completionFirst := range []bool{false, true} {
 			name := operation
 			if completionFirst {

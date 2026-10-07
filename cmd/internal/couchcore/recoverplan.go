@@ -151,6 +151,14 @@ type RecoverAgent struct {
 	Threads int                `json:"threads"`
 	Offered []string           `json:"offered"`
 	Rows    []RecoverThreadRef `json:"rows,omitempty"`
+	// Orphan is the orphaned zellij server when State is "orphaned" (#399).
+	Orphan *RecoverOrphan `json:"orphan,omitempty"`
+}
+
+// RecoverOrphan names an orphaned server: what reap acts on.
+type RecoverOrphan struct {
+	PID     int    `json:"pid"`
+	Session string `json:"session"`
 }
 
 type RecoverThreadRef struct {
@@ -209,8 +217,11 @@ func RestoreWorkspaceMessage(ref, address, checkout string) string {
 type RecoverClass string
 
 const (
-	RecoverDirectoryMissing  RecoverClass = "directory-missing"
-	RecoverAgentUnknown      RecoverClass = "agent-unknown"
+	RecoverDirectoryMissing RecoverClass = "directory-missing"
+	RecoverAgentUnknown     RecoverClass = "agent-unknown"
+	// RecoverOrphanedServer: the agent's zellij server is alive but lost its
+	// socket (#399). Its conversation may still be running.
+	RecoverOrphanedServer    RecoverClass = "orphaned-server"
 	RecoverStartUnreconciled RecoverClass = "start-unreconciled"
 	RecoverAmbiguousThreads  RecoverClass = "ambiguous-threads"
 	RecoverConflict          RecoverClass = "conflict"
@@ -237,7 +248,7 @@ const (
 )
 
 func AllRecoverClasses() []RecoverClass {
-	return []RecoverClass{RecoverDirectoryMissing, RecoverAgentUnknown, RecoverStartUnreconciled, RecoverAmbiguousThreads,
+	return []RecoverClass{RecoverDirectoryMissing, RecoverAgentUnknown, RecoverOrphanedServer, RecoverStartUnreconciled, RecoverAmbiguousThreads,
 		RecoverSlotNeedsZero, RecoverReconcilable, RecoverConflict, RecoverAmbiguousClaims, RecoverLanded, RecoverEvidenceUnavailable, RecoverIdle, RecoverUnidentifiedWork,
 		RecoverNoCouchThread, RecoverRestoreWorkspace, RecoverAgrees, RecoverClaimLikelyLost, RecoverPartialEvidence,
 		RecoverNoSafeStep, RecoverNoRule}
@@ -251,6 +262,7 @@ const (
 	HoldCouchUnavailable      RecoverHold = "couch-unavailable"
 	HoldStartUnreconciled     RecoverHold = "start-unreconciled"
 	HoldAgentUnknown          RecoverHold = "agent-unknown"
+	HoldOrphanedServer        RecoverHold = "orphaned-server"
 	HoldThreads               RecoverHold = "threads"  // threads:<n>
 	HoldConflict              RecoverHold = "conflict" // conflict:<fact>
 	HoldAmbiguousClaims       RecoverHold = "ambiguous-claims"
@@ -270,7 +282,7 @@ const (
 )
 
 func AllRecoverHolds() []RecoverHold {
-	return []RecoverHold{HoldDirectoryMissing, HoldCouchUnavailable, HoldStartUnreconciled, HoldAgentUnknown, HoldThreads,
+	return []RecoverHold{HoldDirectoryMissing, HoldCouchUnavailable, HoldStartUnreconciled, HoldAgentUnknown, HoldOrphanedServer, HoldThreads,
 		HoldConflict, HoldAmbiguousClaims, HoldGitUnknown, HoldUnidentifiedWork, HoldNoCouchThread,
 		HoldRebootUnsafeOperation, HoldRebootUnsafeGit, HoldNoActorAction, HoldResumeOnly, HoldWorkspaceHandoff, HoldNoRule}
 }
@@ -346,6 +358,8 @@ const (
 	AgentBusy            EvidenceAgent = "busy"
 	AgentUnusable        EvidenceAgent = "unusable"
 	AgentUnusableUnknown EvidenceAgent = "unusable-unknown"
+	// AgentOrphaned: the thread's zellij server is alive, its socket gone (#399).
+	AgentOrphaned EvidenceAgent = "orphaned"
 
 	ThreadsZero EvidenceThreads = "0"
 	ThreadsOne  EvidenceThreads = "1"
@@ -355,6 +369,8 @@ const (
 	OfferNone         EvidenceOffer = "none"
 	OfferReboot       EvidenceOffer = "reboot"
 	OfferResumeReboot EvidenceOffer = "resume-reboot"
+	// OfferReap is an orphaned row: reap, and nothing else, is offered (#399).
+	OfferReap EvidenceOffer = "reap"
 
 	BranchResting       EvidenceBranch = "resting"
 	BranchOpenIssue     EvidenceBranch = "open-issue"
@@ -410,13 +426,13 @@ const (
 func AllEvidenceDirs() []EvidenceDir    { return []EvidenceDir{DirPresent, DirMissing} }
 func AllEvidenceCouch() []EvidenceCouch { return []EvidenceCouch{CouchOK, CouchUnavailable} }
 func AllEvidenceAgents() []EvidenceAgent {
-	return []EvidenceAgent{AgentNone, AgentLive, AgentDetached, AgentParked, AgentBusy, AgentUnusable, AgentUnusableUnknown}
+	return []EvidenceAgent{AgentNone, AgentLive, AgentDetached, AgentParked, AgentBusy, AgentUnusable, AgentUnusableUnknown, AgentOrphaned}
 }
 func AllEvidenceThreads() []EvidenceThreads {
 	return []EvidenceThreads{ThreadsZero, ThreadsOne, ThreadsMany}
 }
 func AllEvidenceOffers() []EvidenceOffer {
-	return []EvidenceOffer{OfferNone, OfferReboot, OfferResumeReboot}
+	return []EvidenceOffer{OfferNone, OfferReboot, OfferResumeReboot, OfferReap}
 }
 func AllEvidenceBranches() []EvidenceBranch {
 	return []EvidenceBranch{BranchResting, BranchOpenIssue, BranchTerminalIssue, BranchOther, BranchDetached, BranchUnknown}
@@ -444,12 +460,16 @@ func (o EvidenceOffer) actions() []string {
 		return []string{"reboot"}
 	case OfferResumeReboot:
 		return []string{"resume", "reboot"}
+	case OfferReap:
+		return []string{"reap"}
 	}
 	return nil
 }
 
 func offerOf(actions []string) EvidenceOffer {
 	switch {
+	case slices.Contains(actions, "reap"):
+		return OfferReap
 	case slices.Contains(actions, "resume"):
 		return OfferResumeReboot
 	case slices.Contains(actions, "reboot"):
@@ -586,6 +606,13 @@ func classifyRecover(e SlotEvidence) recoverDecision {
 		d = recoverDecision{Class: RecoverStartUnreconciled, Hold: []string{string(HoldStartUnreconciled)}}
 	case e.Agent == AgentUnusableUnknown:
 		d = recoverDecision{Class: RecoverAgentUnknown, Hold: []string{string(HoldAgentUnknown)}}
+	case e.Agent == AgentOrphaned && e.Offer == OfferReap:
+		// The confirmed reap ends the orphaned tree; the thread then reads like
+		// any thread whose session ended, so resume follows (#399). Never
+		// reboot: that would archive a conversation still being written.
+		d = recoverDecision{Class: RecoverOrphanedServer, Steps: []string{"reap", "resume"}}
+	case e.Agent == AgentOrphaned:
+		d = recoverDecision{Class: RecoverOrphanedServer, Hold: []string{string(HoldOrphanedServer)}}
 	case e.Threads == ThreadsMany:
 		d = recoverDecision{Class: RecoverAmbiguousThreads, Hold: []string{string(HoldThreads)}}
 	case e.Reconcile == ReconcileNeedsZero:
@@ -1180,7 +1207,7 @@ func slotEvidenceOf(s *recoverSlot, in RecoverPlanInput) slotFacts {
 	default:
 		e.Threads, e.Agent = ThreadsMany, agentOf(s.threads[0])
 		for _, row := range s.threads {
-			if a := agentOf(row); a == AgentBusy || a == AgentUnusableUnknown && e.Agent != AgentBusy {
+			if a := agentOf(row); needsAttention(a) && (!needsAttention(e.Agent) || agentRank[a] > agentRank[e.Agent]) {
 				e.Agent = a
 			}
 		}
@@ -1189,6 +1216,12 @@ func slotEvidenceOf(s *recoverSlot, in RecoverPlanInput) slotFacts {
 		f.agent.State = string(e.Agent)
 	}
 	f.agent.Threads = len(s.threads)
+	for _, row := range s.threads {
+		if row.Orphan != nil {
+			f.agent.Orphan = &RecoverOrphan{PID: row.Orphan.PID, Session: row.Orphan.Session}
+			break
+		}
+	}
 
 	// The union of work evidence.
 	if len(claimRefs) > 0 || len(depClaims) > 0 {
@@ -1450,7 +1483,29 @@ func claimedElsewhere(s *recoverSlot, ref string) bool {
 	return false
 }
 
-func agentOf(row ActionableThreadSummary) EvidenceAgent { return agentEvidence(row.State, row.Reason) }
+// agentOf is a row's agent evidence. Any row carrying an orphan reads
+// orphaned, the live orphan included (#399): its steps are reap → resume, as
+// for an unusable one, because ActorActions offers it reap alone.
+func agentOf(row ActionableThreadSummary) EvidenceAgent {
+	if row.Orphan != nil {
+		return AgentOrphaned
+	}
+	return agentEvidence(row.State, row.Reason)
+}
+
+// agentRank is the ONE ordering of agent evidence (#399 M1 review): the slot
+// report keeps its most active row by it, and a many-thread slot keeps its most
+// urgent attention state by it. An orphan is a running agent nothing can reach:
+// above every row that isn't running, below the reachable ones.
+var agentRank = map[EvidenceAgent]int{
+	AgentBusy: 7, AgentLive: 6, AgentDetached: 5, AgentOrphaned: 4,
+	AgentUnusableUnknown: 3, AgentUnusable: 2, AgentParked: 1, AgentNone: 0,
+}
+
+// needsAttention is agent evidence that holds a many-thread slot's row.
+func needsAttention(a EvidenceAgent) bool {
+	return a == AgentBusy || a == AgentOrphaned || a == AgentUnusableUnknown
+}
 
 // agentEvidence is the one reading of a classified thread row as agent
 // evidence; the recovery report and the slot reconciler share it.
@@ -1465,8 +1520,11 @@ func agentEvidence(state ActionableThreadState, reason ThreadReason) EvidenceAge
 	case ThreadBusy:
 		return AgentBusy
 	case ThreadUnusable:
-		if reason == ReasonUnknown {
+		switch reason {
+		case ReasonUnknown:
 			return AgentUnusableUnknown
+		case ReasonOrphanedServer:
+			return AgentOrphaned
 		}
 	}
 	return AgentUnusable
@@ -1576,6 +1634,11 @@ func recoverReason(row RecoverRow, f slotFacts, in RecoverPlanInput) string {
 			text = "Couch's store could not be read: " + in.Couch.Error
 		} else {
 			text = "the agent's state could not be checked; read the report again"
+		}
+	case RecoverOrphanedServer:
+		text = "the agent's zellij server is running but lost its socket; its conversation may still be writing, so reap it (confirmed) before resuming, and never reboot"
+		if o := row.Agent.Orphan; o != nil {
+			text = launcher.OrphanDiagnostic(o.Session, o.PID) + "; its conversation may still be writing, so reap it (confirmed) before resuming, and never reboot"
 		}
 	case RecoverStartUnreconciled:
 		text = "a start was claimed and not reconciled; read the report again later, never reboot (it could duplicate a live agent)"

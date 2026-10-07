@@ -56,6 +56,11 @@ const (
 	// guessed agent proves nothing. The session is live, so the exit is to
 	// attach to it or stop it -- reboot would refuse a live owner too.
 	ResumeSurvivorUnproven ResumeDiagnosticCode = "resume-survivor-unproven"
+	// ResumeOrphanedServer is a session whose exact zellij server is alive but
+	// lost its socket (#399). Nothing can reach it, and its agent may still be
+	// writing, so a resume would start a second agent on the conversation. The
+	// way forward is reap, never reboot.
+	ResumeOrphanedServer ResumeDiagnosticCode = "resume-orphaned-server"
 )
 
 // ResumeOptions narrows what a resume is allowed to do.

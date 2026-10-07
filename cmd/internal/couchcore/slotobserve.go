@@ -19,7 +19,8 @@ func AgentRunning(a EvidenceAgent) (running, known bool) {
 	switch a {
 	case AgentNone, AgentParked:
 		return false, true
-	case AgentLive, AgentDetached, AgentBusy:
+	case AgentLive, AgentDetached, AgentBusy, AgentOrphaned:
+		// An orphan's server and agent are alive, only unreachable (#399).
 		return true, true
 	}
 	return false, false

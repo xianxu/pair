@@ -680,6 +680,16 @@ var NonArtifactSources = []string{
 	"cmd/internal/diagnosticlog/writer.go",
 	// #397 couch crash files live in the Couch store, not the Pair artifact namespace.
 	"cmd/internal/crashreport/crashreport.go",
+	// #399 orphaned zellij servers: sockets, process trees and couch operations;
+	// no Pair artifact filenames.
+	"cmd/internal/launcher/session_servers.go",
+	"cmd/internal/launcher/session_reap.go",
+	"cmd/internal/couchcore/reap.go",
+	"cmd/internal/couchcore/recover_action.go",
+	"cmd/internal/couchcore/progress.go",
+	"cmd/internal/procutil/table_darwin.go",
+	"cmd/internal/procutil/table_linux.go",
+	"cmd/internal/procutil/table_other.go",
 	"cmd/internal/couchcore/archive_gc.go",
 	"nvim/retention.lua",
 	"cmd/internal/retentioncmd/run.go",

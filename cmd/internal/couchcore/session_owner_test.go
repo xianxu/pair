@@ -3,9 +3,11 @@ package couchcore
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
@@ -29,6 +31,7 @@ func (w *sessionOwnerWorld) SessionPresent(_ context.Context, name string) (bool
 	_, ok := w.owners[name]
 	return ok, nil
 }
+func (w *sessionOwnerWorld) Socket(string) launcher.SocketState { return launcher.SocketPresent }
 func (w *sessionOwnerWorld) SessionPanes(_ context.Context, name string) ([]byte, error) {
 	a := w.owners[name]
 	p, e := artifactpath.Resolve(artifactpath.Address{DataDir: w.root, RepoScope: a.RepoScope, Tag: string(a.Tag)})
@@ -141,5 +144,35 @@ func TestSlotAdmissionDisregardsProvenForeignStaleName(t *testing.T) {
 	observed, err := env.Couch.ObserveSlotSessions(context.Background(), *local.slot)
 	if err != nil || !observed.Absent {
 		t.Fatalf("foreign stale name blocked stopped slot: %+v %v", observed, err)
+	}
+}
+
+type orphanOwnerProbe struct {
+	server launcher.SessionServerIdentity
+}
+
+func (p orphanOwnerProbe) Probe(_ context.Context, name, _, _, _ string) (launcher.SessionOwnerObservation, error) {
+	return launcher.SessionOwnerObservation{State: launcher.SessionOwnerOrphaned, Name: name, Server: p.server,
+		Diagnostic: launcher.OrphanDiagnostic(name, p.server.PID)}, nil
+}
+func (orphanOwnerProbe) Revalidate(context.Context, launcher.SessionOwnerObservation) error {
+	return errors.New("an orphan has no ownership to revalidate")
+}
+
+// Resume, startup and the switcher all read this refusal: one coded sentence
+// naming the server, never a raw zellij exit status (#399).
+func TestNamedPairSessionRefusesAnOrphanWithItsDiagnostic(t *testing.T) {
+	checker := NewScopedThreadArtifactCollisionChecker(t.TempDir())
+	checker.OwnerProbe = orphanOwnerProbe{server: launcher.SessionServerIdentity{PID: 4321, Identity: "t", Session: "📁1-37"}}
+	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0000000000000001"}
+	_, err := checker.NamedPairSessionContext(context.Background(), address, "📁1-37")
+	if ResumeDiagnosticOf(err) != ResumeOrphanedServer {
+		t.Fatalf("code = %q (%v), want %q", ResumeDiagnosticOf(err), err, ResumeOrphanedServer)
+	}
+	if !strings.Contains(err.Error(), "📁1-37: server PID 4321 lost its socket — Tab → recover") || strings.Contains(err.Error(), "exit status") {
+		t.Fatalf("diagnostic = %v", err)
+	}
+	if ResumeRebootAdvice[ResumeOrphanedServer] {
+		t.Fatal("reboot would archive a running conversation; it is not this refusal's advice")
 	}
 }

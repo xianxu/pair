@@ -19,6 +19,9 @@ type ActorRowFacts struct {
 	ResumeOffered bool
 	// DirectoryMissing is an unusable row whose reason is path-missing.
 	DirectoryMissing bool
+	// Orphaned is a row carrying an orphaned server (row.Orphan), live rows
+	// included (#399).
+	Orphaned bool
 }
 
 // ActorRowFactsOf reads the admission facts off one actionable row.
@@ -28,6 +31,7 @@ func ActorRowFactsOf(row ActionableThreadSummary) ActorRowFacts {
 		State:            row.State,
 		Reason:           row.Reason,
 		DirectoryMissing: row.State == ThreadUnusable && row.Reason == ReasonPathMissing,
+		Orphaned:         row.Orphan != nil,
 	}
 	if row.State == ThreadUnusable {
 		unfinished := row.Continuation != nil && row.Continuation.Phase != checkpoint.Complete
@@ -44,17 +48,32 @@ func ActorRowFactsOf(row ActionableThreadSummary) ActorRowFacts {
 	return f
 }
 
-// ActorActions is the per-row admission table for the two actor operations,
-// resume and reboot, over rows that are not live. Live rows get lifecycle
-// actions from the switcher instead; busy, archived and unusable/unknown rows
-// get nothing ("checking…" is not a verdict, and reboot stops a session).
+// ActorActions is the per-row admission table for the actor operations --
+// resume, reboot, and reap for an orphaned server (#399). The switcher's
+// recover is offered wherever this offers anything. Live rows get lifecycle
+// actions from the switcher instead, except a live orphan, which gets reap
+// here (its lifecycle actions would all refuse); busy, archived and
+// unusable/unknown rows get nothing ("checking…" is not a verdict, and reboot
+// stops a session).
 func ActorActions(f ActorRowFacts) []string {
+	if f.Orphaned {
+		// Its agent may still be writing: resume would add a second one and
+		// reboot would archive a running conversation. Only a confirmed reap
+		// of the orphaned server tree is safe (#399), live or not.
+		return []string{"reap"}
+	}
 	switch f.State {
 	case ThreadParked, ThreadDetached:
 		return []string{"resume", "reboot"}
 	case ThreadUnusable:
 		if f.Reason == ReasonUnknown {
 			return nil
+		}
+		if f.Reason == ReasonOrphanedServer {
+			// Its agent may still be writing: resume would add a second one and
+			// reboot would archive a running conversation. Only a confirmed reap
+			// of the orphaned server tree is safe (#399).
+			return []string{"reap"}
 		}
 		if f.DirectoryMissing {
 			// A :0 record outlives its checkout, so reboot archives it alone.

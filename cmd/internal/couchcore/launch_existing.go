@@ -471,6 +471,8 @@ func sessionOwnerWord(state launcher.SessionOwnerState) string {
 		return "owned"
 	case launcher.SessionOwnerForeign:
 		return "foreign"
+	case launcher.SessionOwnerOrphaned:
+		return "orphaned"
 	}
 	return "unknown"
 }

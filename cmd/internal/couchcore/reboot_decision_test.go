@@ -79,7 +79,8 @@ func TestDecideRebootReasons(t *testing.T) {
 
 // Reboot's admission is archive's: it runs the same retirement, so it admits
 // exactly the rows nothing couch is acting on -- parked, detached and debris --
-// and refuses `unusable/unknown`, which is ignorance and not a verdict.
+// and refuses `unusable/unknown`, which is ignorance and not a verdict, and
+// `unusable/orphaned-server`, whose conversation is still running (#399).
 func TestRebootableStateOverEveryClassification(t *testing.T) {
 	admitted := 0
 	for _, state := range AllThreadStates() {
@@ -88,7 +89,7 @@ func TestRebootableStateOverEveryClassification(t *testing.T) {
 				continue
 			}
 			want := state == ThreadParked || state == ThreadDetached ||
-				(state == ThreadUnusable && reason != ReasonUnknown)
+				(state == ThreadUnusable && reason != ReasonUnknown && reason != ReasonOrphanedServer)
 			if got := RebootableState(state, reason); got != want {
 				t.Errorf("%s/%s: RebootableState=%v, want %v", state, reason, got, want)
 			}
