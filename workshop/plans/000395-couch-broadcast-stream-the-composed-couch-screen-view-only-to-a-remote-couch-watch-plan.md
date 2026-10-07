@@ -51,7 +51,8 @@ Issue: `workshop/issues/000395-couch-broadcast-stream-the-composed-couch-screen-
   - **Future extensions:** per-pane privacy (#395 Spec) is a finer class or a
     mask on the frame; the tap signature widens there.
 - **IndicatorShown(f)** — reports whether the frame's last row starts with the
-  cells of `LiveLabel`. `RenderStatusRow` draws the same constant, so the drawer
+  cells of `LiveLabel` drawn in `LiveStyle` (the red background, not just the
+  text), so a child printing "LIVE ⏸" on its own bottom row does not count. `RenderStatusRow` draws the same constant, so the drawer
   and the checker can't disagree (ARCH-DRY).
 - **ViewerFrame(f, class, showSwitcher)** — returns `f` unchanged for public
   frames or when `showSwitcher` is set; otherwise a placeholder of the same
@@ -90,8 +91,10 @@ Issue: `workshop/issues/000395-couch-broadcast-stream-the-composed-couch-screen-
 - **Hub** — receives offers (latest wins, never blocks), applies
   `IndicatorShown` and `ViewerFrame`, drives the `Stream`, fans messages out to at
   most `MaxViewers` (16) subscribers with an 8-message queue each. A full queue
-  marks that viewer for resync: it gets `Join()` at the next frame instead of the
-  diffs it missed. Frames without the indicator are withheld; if the indicator
+  marks that viewer for resync. Its queued diffs are a valid prefix and still
+  go out. As soon as the queue has room again, checked on every frame and on a
+  100ms hub tick, it gets `Join()` of the current frame, with no new frame
+  needed. It never gets a diff computed against a frame it didn't receive. Frames without the indicator are withheld; if the indicator
   stays absent for `Grace` (1s; armed at start too), the hub ends with
   `ErrIndicatorHidden`.
   - **Injected into:** `Session`. Timer creation is injected
@@ -102,7 +105,10 @@ Issue: `workshop/issues/000395-couch-broadcast-stream-the-composed-couch-screen-
   token, is 404 (constant-time compare). Every response sets
   `Cache-Control: no-store`, `Referrer-Policy: no-referrer` (the token is in the
   path), `X-Content-Type-Options: nosniff`, and
-  `Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; frame-ancestors 'none'`.
+  `Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self'; font-src 'self'; frame-ancestors 'none'`.
+  GET only; HEAD and everything else is 405, so a HEAD on `/events` never
+  subscribes. A failed `: ping` write ends that subscriber, so dead
+  connections don't hold one of the 16 viewer slots.
   SSE events: `event: frame` with `data: {"cols":C,"rows":R,"b":"<base64>"}`,
   `event: end` with `data: {"reason":"…"}`, and a `: ping` comment every 15s
   (Cloudflare closes idle streams at 100s).
@@ -119,7 +125,10 @@ Issue: `workshop/issues/000395-couch-broadcast-stream-the-composed-couch-screen-
 - **Cloudflared** — runs
   `cloudflared tunnel --no-autoupdate --url http://127.0.0.1:PORT` in its own
   process group, scans stderr for the first `https://[a-z0-9-]+\.trycloudflare\.com`
-  (30s limit), and `Close` sends SIGTERM to the group, then SIGKILL after 3s. It
+  (30s limit). It then probes `GET <url>/<token>/` until it returns 200 (the
+  quick-tunnel URL is printed a few seconds before the edge serves it), so
+  "link copied" means the link works. `Close` sends SIGTERM to the group, then
+  SIGKILL after 3s. It
   writes a pidfile so a later Couch can reap one orphaned by a crash (see
   ARCH-FUNERAL).
 - **Console broadcast wiring** — owns a `broadcastPhase` tagged enum
@@ -145,7 +154,7 @@ Issue: `workshop/issues/000395-couch-broadcast-stream-the-composed-couch-screen-
 ### Trust boundaries (ARCH-SECURE)
 
 - **Internet → local server (untrusted).** Reached only through the tunnel.
-  Accepts GET/HEAD only; never reads a request body; the 256-bit token is the
+  Accepts GET only; never reads a request body; the 256-bit token is the
   only credential, compared in constant time; nothing from the request is
   reflected. The token is never drawn into a frame (the notice says "link
   copied", not the link), so it can't leak through the broadcast itself.
@@ -155,7 +164,15 @@ Issue: `workshop/issues/000395-couch-broadcast-stream-the-composed-couch-screen-
   OSC 8 hyperlinks are carried through; xterm.js's default link handler asks
   before opening, and we add no link addon.
 - **Viewer page.** Served from the binary; CSP forbids any other origin; no
-  storage APIs used.
+  storage APIs used. Scripts are strict (`script-src 'self'`). Styles allow
+  `'unsafe-inline'`, because xterm.js's DOM renderer inserts `<style>`
+  elements; inline style can't run code or reach another origin. Task 2.3
+  verifies this choice in a real browser.
+- **Placeholder tab bar.** The switcher placeholder copies the tab bar through.
+  It shows the same thread labels as every public frame, so it leaks nothing
+  new; the fleet's paths, notes and parked threads stay hidden.
+- **Out of scope.** An operator-enabled `COUCH_CAPTURE_DIR` still records the
+  parent stream. That is the operator's own recorder, not the broadcast's.
 - **cloudflared binary** is trusted from `PATH`, like `zellij`.
 
 ### Ordering (ARCH-ORDER)
@@ -184,12 +201,18 @@ explicit offer/subscribe interleavings.
 - **Token:** in memory; dies with the session (the server stops serving it).
 - **Listener:** closed by `Stop` (`Server.Shutdown`, 2s, then `Close`).
 - **cloudflared process:** created by `Start`; removed by `Stop` (group SIGTERM,
-  then SIGKILL). A Couch crash orphans it to PID 1 (lessons.md, #399). The
-  pidfile `<pair data dir>/couch/broadcast-tunnel.pid` (pid + process start time)
-  is removed by `Stop`. On the next broadcast start, and at Couch startup, a
-  surviving pidfile whose pid is alive, whose start time matches, and whose
-  command is `cloudflared` gets that process group killed and the file removed.
-  At most one file; size bounded.
+  then SIGKILL). A Couch crash orphans it to PID 1 (lessons.md, #399). Each
+  Couch writes its own pidfile,
+  `<pair data dir>/couch/broadcast-tunnel-<owner pid>.pid`, recording the owner
+  Couch's pid and start time and the tunnel's pid and start time. `Stop`
+  removes it. At Couch startup and before each start, `ReapOrphans` visits
+  every such file. It reaps only when the **owner** is dead (its pid is gone, or
+  belongs to a process with a different start time) and the tunnel pid is alive
+  with a matching start time and a `cloudflared` command. Reaping kills that
+  process group and removes the file. A file whose tunnel is already gone is
+  just removed. A live owner's file is never touched, so concurrent Couches
+  (scoped singletons) don't kill each other's tunnels. Bounded at one file per
+  live Couch, plus crash leftovers until the next start.
 - **Viewer page:** xterm.js's in-page screen only; closing the tab ends it.
 
 ---
@@ -215,7 +238,7 @@ explicit offer/subscribe interleavings.
   - `TestTapGetsAnOwnedClone`: mutating the received frame's cells does not change
     the next diff the presenter writes.
   - `TestTapNotCalledOnFailedPaint`: with a writer that fails, the tap is not
-    called.
+    called; nor when the `PresentView` transition is refused.
   - `TestSetTapNilStopsDelivery`.
 - [ ] **Step 2:** `go test ./cmd/internal/terminal/ -run Tap` → FAIL (undefined).
 - [ ] **Step 3: Implement.**
@@ -248,12 +271,16 @@ func (p *Presenter) SetTap(ctx context.Context, t Tap) error {
 ```
 
   In `Presenter`: add `tap Tap` and `class FrameClass`. In `paintPublication`,
-  right after `p.previous = f.Clone()`:
+  the tap fires only after the `PresentView` transition succeeds, so it sees
+  exactly the frames the presenter counts as presented. `f` is cloned once
+  more for the tap, and only when a tap is set:
 
 ```go
-	if p.tap != nil {
-		p.tap(p.previous.Clone(), p.class)
+	_, err = p.transition(ViewEvent{Kind: PresentView, /* unchanged */})
+	if err == nil && p.tap != nil {
+		p.tap(f.Clone(), p.class)
 	}
+	return err
 ```
 
   `Select` sets `p.class = FramePublic` where it sets `p.selected`. `Panel`
@@ -270,9 +297,14 @@ func (p *Presenter) SetTap(ctx context.Context, t Tap) error {
   `_test.go` files.
 
 - [ ] **Step 1: Write failing tests.**
-  - `TestIndicatorShown`: a frame whose last row starts with `LiveLabel` → true;
-    label on another row, clipped (`cols < width(LiveLabel)`), absent, or a
-    blank resize row → false. Build rows with `terminal.StyledRows`.
+  - `TestIndicatorShown`: a frame whose last row starts with `LiveLabel` in
+    `LiveStyle` → true; the label in another style, on another row, clipped
+    (`cols < width(LiveLabel)`), absent, or a blank resize row → false.
+  - `TestIndicatorGlyphWidths`: `⏺` and `⏸` are one column wide in
+    `textwidth.Width` and in `ansi.StringWidth`, so click spans and cell
+    matching agree. If either reports 2, switch to glyphs that agree in both and
+    record it in the Log. Terminal and xterm.js widths are checked by eye in the
+    M3 smoke. Build rows with `terminal.StyledRows`.
   - `TestViewerFramePublicUnchanged`; `TestViewerFrameShowSwitcherUnchanged`.
   - `TestViewerFramePrivateIsPlaceholder`: same geometry; no cell of the
     original body (put a marker `FLEET-SECRET` in it) survives; the last row
@@ -299,6 +331,9 @@ package broadcast
 const (
 	LiveLabel = "LIVE ⏸"
 	IdleLabel = "⏺"
+	// LiveSGR is the style the status row draws LiveLabel in; IndicatorShown
+	// checks the drawn cells' style against it.
+	LiveSGR = "\x1b[1;37;41m"
 )
 
 // IndicatorShown reports whether f's last row begins with LiveLabel.
@@ -357,10 +392,12 @@ func (s *Stream) Join() (Message, bool, error) {
     timer → no end, and the timer is cancelled.
   - `TestHubPrivateFramePlaceholderByDefault` and `…ShownWithOption`:
     frame-level, via the emulator: the viewer screen lacks/has `FLEET-SECRET`.
-  - `TestHubSlowViewerResyncs`: never read one subscriber until its queue
-    overflows; a fast subscriber still gets every diff; when the slow one reads
-    again, its next message is a full render and its screen equals the current
-    frame.
+  - `TestHubSlowViewerResyncs`: don't read one subscriber until its queue
+    overflows, while a fast subscriber still gets every diff. Then stop
+    offering and drain the slow one: after its queued diffs, a full render
+    arrives with no new offer (advance the manual tick), and its emulator screen
+    equals the current frame. No diff after the overflow reaches it before that
+    full render.
   - `TestHubOfferNeverBlocks`: 10k offers with no hub progress return
     promptly (the hub is paused via an option hook).
   - `TestHubMaxViewers`: the 17th `Subscribe` → `ErrTooManyViewers`.
@@ -372,7 +409,9 @@ func (s *Stream) Join() (Message, bool, error) {
   into the goroutine, so they are ordered with frames. Per-subscriber state:
   `queue chan Message` (cap 8), `resync bool`. Delivery per frame: compute the
   diff once, and `Join()` once if any subscriber is resyncing; non-blocking send;
-  on full set `resync`. End: send a final `Message{End: true, Reason: …}` when
+  on full set `resync` and send that subscriber nothing more until its
+  `Join()` is accepted. The hub tick (`HubOptions.Tick`, injected) retries
+  pending resyncs. End: send a final `Message{End: true, Reason: …}` when
   there is room, then close each queue.
 - [ ] **Step 4:** PASS, also with `-race -count=20`.
 - [ ] **Step 5: Commit** `#395 M1: broadcast: hub with withholding, grace stop and resync`.
@@ -446,7 +485,16 @@ func (s *Stream) Join() (Message, bool, error) {
     `event: end`.
   - `TestServerTooManyViewers` → 503.
 - [ ] **Step 2:** FAIL. **Step 3:** implement as specified in Core concepts.
-  **Step 4:** PASS. **Step 5: Commit** `#395 M2: broadcast: GET-only SSE server`.
+  **Step 4:** PASS.
+- [ ] **Step 5: Real-browser CSP check.** Run a test server (a small
+  `go test -run TestManualViewerServer` helper gated on
+  `BROADCAST_MANUAL=1`, which offers a sample frame and prints the link), open
+  the link in a browser, and confirm the page renders the frame with no CSP
+  errors in the console and fits on window resize. If the DOM renderer needs
+  more than `'unsafe-inline'` styles, adjust the policy to the minimum and
+  record why in the Log. Ask the operator if a browser can't be driven from
+  the session.
+- [ ] **Step 6: Commit** `#395 M2: broadcast: GET-only SSE server`.
 
 ### Task 2.4: Session and tunnel seam
 
@@ -503,10 +551,14 @@ func (s *Stream) Join() (Message, bool, error) {
   (`HitBroadcast`, `seqBroadcast`, `dispatchFor` arm), their tests.
 
 - [ ] **Step 1:** add the binding row:
-  `{Action: ActionBroadcast, Scope: ScopeEveryPane, Key: "Ctrl+Alt+b", Help: "start or stop broadcasting this screen (view-only link)", Encodings: [][]byte{[]byte("\x1b\x02"), []byte("\x1b[98;7u")}}`.
-  Check the encodings against how `ChordCtrlAltN` is encoded in
-  `workbenchshortcut` and match its forms. Ctrl+Alt+b is free in Pair's chord
-  table; plain Alt+b is not used because it is the shell's word-back.
+  `{Action: ActionBroadcast, Scope: ScopeEveryPane, Key: "Ctrl+Alt+b", Help: "broadcast this screen view-only, or end the broadcast", Encodings: [][]byte{[]byte("\x1b[98;7u")}}`.
+  Enhanced form only, like `ChordCtrlAltN`/`ChordCtrlAltC`
+  (`workbenchshortcut/shortcut.go`). The legacy `\x1b\x02` is also what
+  Esc-then-Ctrl+B produces, nvim's page-up, so it would start a broadcast by
+  accident. The help text avoids "start", "park" and "resume"
+  (`TestHelpAvoidsInternalOperationNames`). Ctrl+Alt+b is free in Pair's chord
+  table; plain Alt+b is the shell's word-back.
+  Test: `\x1b\x02` passes through to the child unchanged.
 - [ ] **Step 2:** `TestEveryCouchActionDispatches` fails until the
   `dispatchFor` arm exists; add it. Help rendering tests update.
 - [ ] **Step 3: Commit** `#395 M3: couchkeys: Ctrl+Alt+b toggles broadcast`.
@@ -522,7 +574,9 @@ func (s *Stream) Join() (Message, bool, error) {
   `Control`).
 
 - [ ] **Step 1: Write failing tests** using the existing Console test harness
-  (`grep -n 'func newTestConsole\|func startConsole' cmd/internal/couchtty/*_test.go`)
+  (`panelConsole`, `consoleFixture` or `notificationConsole`; read which one
+  drives clicks, keys and a live presenter:
+  `grep -n 'func panelConsole\|func consoleFixture\|func notificationConsole' cmd/internal/couchtty/*_test.go`)
   and `broadcast.FakeTunnel`:
   - `TestBroadcastClickStartsAndStops`: a click on the control column → the
     session starts, the row shows `LIVE ⏸`, a clipboard copy of the link was
@@ -564,7 +618,9 @@ func (s *Stream) Join() (Message, bool, error) {
   anything else → error). Test both parse paths.
 - [ ] **Step 2:** local smoke: `COUCH_BROADCAST_TUNNEL=off couch`, Ctrl+Alt+b,
   open the copied `http://127.0.0.1:…/<token>/` in a browser, then switch
-  threads, open the switcher, resize, `clear`, and stop. **Ask the operator to
+  threads, open the switcher, resize, `clear`, and stop. Check the browser
+  console for CSP errors, and that `⏺`/`LIVE ⏸` take one column each in both
+  the operator's terminal and the viewer. **Ask the operator to
   run this smoke** (memory: dogfood live), and record what they see in the Log.
 - [ ] **Step 3: Commit** `#395 M3: couchcmd: broadcast options`.
 - [ ] **Atlas:** `atlas/broadcast.md` (tap, hub, server, session, privacy,
@@ -582,19 +638,21 @@ func (s *Stream) Join() (Message, bool, error) {
 - [ ] **Step 1: Write failing tests** with a fake `cloudflared` script on a
   temp `PATH`. The script prints a quick-tunnel banner to stderr and sleeps;
   variants never print a URL, or exit early.
-  - Parses the URL from stderr; times out (shortened in the test) with an error
+  - Parses the URL from stderr; waits until the probe of the link succeeds
+    (the test serves the fake URL locally and fails it twice first); times out (shortened in the test) with an error
     naming cloudflared; an early exit is an error.
   - `Close` terminates the process group (the script spawns a child; both are
     gone), escalating to SIGKILL when the script ignores TERM.
   - The pidfile is written on start and removed on close.
-  - `ReapOrphan`: a pidfile for a live process with a matching start time and
-    command `cloudflared` is killed and removed; a mismatched start time or
-    command is left alone and the stale file removed. Each test may remove only
+  - `ReapOrphans`: dead owner + live matching tunnel → killed and removed;
+    **live owner → left alone, file kept**; a mismatched tunnel start time or
+    command → process left alone, stale file removed; a dead tunnel → file
+    removed. Each test may remove only
     paths under its own `t.TempDir()` (lessons.md, #399).
   - `cloudflared` not on `PATH` → `ErrNoCloudflared`, with a notice saying how
     to install it (`brew install cloudflared`).
 - [ ] **Step 2–4:** FAIL → implement → PASS.
-- [ ] **Step 5:** call `ReapOrphan` at Couch startup and before each start.
+- [ ] **Step 5:** call `ReapOrphans` at Couch startup and before each start.
   **Commit** `#395 M4: broadcast: cloudflared quick tunnel with orphan reaping`.
 
 ### Task 4.2: Live smoke and close
