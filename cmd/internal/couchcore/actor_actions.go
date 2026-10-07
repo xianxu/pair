@@ -44,8 +44,9 @@ func ActorRowFactsOf(row ActionableThreadSummary) ActorRowFacts {
 	return f
 }
 
-// ActorActions is the per-row admission table for the two actor operations,
-// resume and reboot, over rows that are not live. Live rows get lifecycle
+// ActorActions is the per-row admission table for the actor operations --
+// resume, reboot, and reap for an orphaned server (#399) -- over rows that are
+// not live. The switcher's recover is offered wherever this offers anything. Live rows get lifecycle
 // actions from the switcher instead; busy, archived and unusable/unknown rows
 // get nothing ("checking…" is not a verdict, and reboot stops a session).
 func ActorActions(f ActorRowFacts) []string {

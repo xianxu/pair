@@ -494,3 +494,13 @@ Reason: M1 boundary review. Delta for M2:
   (list the tree, kill descendants, then the server). Once `PlanReap` exists the
   refusal renders `couch --recover <ref>` and the plan's steps, so the text and
   the behaviour cannot drift.
+
+### 2026-10-07 — reap is its own switcher entry too (M2)
+
+Reason: the M2 review flagged drift from the 9b revision ("reap is reached from
+the switcher through recover rather than as its own menu entry"). Delta: the
+switcher's row menu reads `ActorActions` unfiltered (its own comment forbids
+filtering, so offered and declared cannot silently disagree), and `ActorActions`
+offers `reap` on an orphaned row, so the switcher shows `[recover, reap]` there.
+This matches the operator's decision to keep the specific actions (resume, reboot)
+beside recover. recover remains the default, first entry.
