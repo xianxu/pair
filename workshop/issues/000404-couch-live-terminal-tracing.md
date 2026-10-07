@@ -44,11 +44,22 @@ explicit. The imported implementation is not yet ready to ship.
 
 ## Done when
 
-- Explicit opt-in works in regular and isolated Couch; disabled mode writes nothing.
-- Both terminal boundaries retain exact bytes, ordering, geometry and accepted-write receipts with tested completeness semantics.
-- A regression test represents the observed startup burst; a real regular Couch smoke capture survives that workload.
-- Queue, disk and write failures are visible during the session without corrupting terminal output; resource limits and long-running retention are documented and tested.
-- Tests, review and runbook support shipping tracing to main independently, without closing #379 or claiming its display bug fixed.
+- Explicit COUCH_CAPTURE_DIR opt-in works in regular and isolated Couch; disabled
+  mode (including a limit setting alone) writes nothing and installs no observer.
+- Both terminal boundaries retain exact bytes, ordering, geometry and accepted
+  write receipts; unknown/truncated/incomplete captures cannot claim complete replay.
+- A blocked-writer 4,000-record startup burst fits the bounded admission queue;
+  regular and isolated real-PTY Console tests retain 3,800 KiB startup output exactly.
+- Recording usage and sticky queue/full/IO failure are visible in actor and switcher
+  views without input or child output, through the existing Presenter; capture
+  failure does not replace the underlying terminal write result.
+- Full-prefix recording uses a finite 256 MiB default disk cap, configurable via
+  COUCH_CAPTURE_MAX_MIB from 1 MiB to 1 TiB. Invalid enabled settings fail startup;
+  both capture settings are cleared from children. Limits, memory overhead,
+  stopped-state behavior, per-session retention and streaming extraction are documented.
+- Focused tests, race checks and independent close review support shipping tracing
+  to main independently; broad-suite baseline failures are stated explicitly.
+  Closing #404 does not close #379 or claim its display bug fixed.
 
 ## Plan
 
@@ -133,3 +144,7 @@ explicit. The imported implementation is not yet ready to ship.
   was rejected. Two streaming passes support large captures without full-file RAM.
 - Implementation and verification are ready for the single SDLC close review,
   then independent publication. #379 remains working, untouched by this close.
+
+- Close preflight requested refreshed acceptance wording after the reliability
+  revision. Done when now states the implemented burst, persistent status,
+  configuration and complete-prefix retention contracts explicitly; no bypass.
