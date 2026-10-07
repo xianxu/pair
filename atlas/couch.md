@@ -1398,7 +1398,10 @@ An in-memory `ThreadGate` on `Couch` is held by every entry that changes a
 thread's lifecycle:
 - **Refuse** a held thread with `ThreadBusyError`, naming what is running:
   resume (all roads), relaunch, detach, `Couch.Park`, switch-agent, the three
-  continuation entries, reboot, `RecoverThread` and `Stop`.
+  continuation entries, reboot, `RecoverThread`, `Stop`, and #399's `Reap`
+  and `Recover` (which holds once for all its steps). The canonical list is
+  `TestEveryLifecycleEntryRefusesAHeldThread`; a new lifecycle entry joins
+  that table.
 - **Wait** for the holder instead: the drains `Leave`, `RecoverActiveParks` and
   `AbortStarted`. `Leave` decides each thread from the record it reads *after*
   waiting.
