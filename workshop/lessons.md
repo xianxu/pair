@@ -581,3 +581,8 @@ proof; record the surprising case so the next change starts from evidence.
   descendants that outlive the server reparent to PID 1, where no child-of-server
   command finds them. List the tree while the server still parents it, kill the
   descendants, and only then the server.
+- A test that already fails on main still has to be read, not skipped. #399
+  added five production files and each was missing from the artifact inventory;
+  TestProductionArtifactReferencesAreExactlyClassified named them, but it was on
+  the "known failure" list, so two milestones passed without anyone reading its
+  output. Grep a known-failing test's output for your own files at every close.
