@@ -1035,7 +1035,8 @@ Snapshots and typed normal history replace raw replay and resize nudges. See
 
 **Placeholders** (`pair#206`). While the reattach pass runs, each pending
 thread is drawn after the attached chips as a greyed placeholder
-(`placeholderSGR`). The thread starting now carries the spinner, from the
+(`placeholderSGR`). Each thread starting now carries the spinner (up to the
+pass's `Limit` at once, `pair#205`; drawn in attempt order), from the
 `spinnerGlyph` table the switcher shares. A placeholder records no `ChipSpan`,
 so it cannot be clicked, and the attached chips keep their columns. A thread
 that attaches takes the column its placeholder held, because attached chips
@@ -1369,10 +1370,28 @@ the request; only a matching durable completion plus final ThreadStore CAS
 removes the incarnation. Timeout, stale evidence, replacement, and child exit
 remain occupied. Couch derives both Alt+x terminal encodings from Pair's
 canonical chord table, renders confirmation first, and submits confirmed work
-through the `PairLifecycleController`'s bounded, capacity-one worker. Startup
+through the `PairLifecycleController`'s bounded worker (capacity
+`LifecycleParallelism`, `pair#205`). Startup
 recovery, Park, Retry, Recover, Abandon, and Leave all enter that same boundary;
-same-address/same-nonce overlap shares one future, while other work overloads
-without lifecycle effects.
+same-address/same-nonce overlap shares one future; at capacity, other work
+waits for a free unit (bounded by its ctx) rather than being refused.
+
+**Bounded parallelism** (`pair#205`). One bound,
+`couchcore.LifecycleParallelism`, is half the CPU cores and at least one. It
+caps three things:
+- **`Leave`'s fan-out:** quit detaches or parks that many threads at once. A
+  failing thread does not stop its siblings, and the report keeps snapshot
+  order.
+- **The park worker.**
+- **The startup reattach pass's in-flight set** (`ReattachPass.Limit`, fixed
+  when the pass is armed).
+
+The console drains its operation queue with `Limit+1` workers, so the pass can
+never occupy all of them and an operator's gesture never waits behind its
+attempts. Results still reach the console goroutine through `q.results`. Every
+bound makes callers wait; none refuses on load. The actor registry is guarded
+by `regMu` (`registry()`/`mutateRegistry()`), because writers no longer share
+one goroutine.
 
 **One lifecycle operation per thread** (`pair#205`, `couchcore/threadgate.go`).
 An in-memory `ThreadGate` on `Couch` is held by every entry that changes a
