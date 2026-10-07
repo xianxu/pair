@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-06
 updated: 2026-10-06
-estimate_hours:
-card_mirror: 'fc2df348c93f3a6de69c5528ba50be8975a3c7eb' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 3.65
+card_mirror: '59006bed5b8af141123a805e7d07caf90e7fd79b' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-06T19:29:06-07:00
 claimant:
     operator: T
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
 ---
 
 # couch: model orphaned zellij servers (alive, socket gone) and reap before resume
@@ -73,6 +74,45 @@ be reaped), then re-run the report and its steps. After that, all four
 - [ ] Live acceptance: start a session, unlink its socket, run the report,
       reap, resume → succeeds.
 - [ ] Atlas: the session-state table gains `orphaned`.
+
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module        design=0.1 impl=0.2
+item: smaller-go-module        design=0.1 impl=0.2
+item: smaller-go-module        design=0.1 impl=0.2
+item: milestone-review         design=0.0 impl=0.2
+item: greenfield-go-module     design=0.2 impl=0.32
+item: smaller-go-module        design=0.1 impl=0.2
+item: greenfield-go-module     design=0.2 impl=0.32
+item: smaller-go-module        design=0.1 impl=0.2
+item: skill-or-dispatcher      design=0.1 impl=0.12
+item: milestone-review         design=0.0 impl=0.2
+item: atlas-docs               design=0.05 impl=0.08
+item: milestone-review         design=0.0 impl=0.2
+design-buffer: 0.15
+total: 3.65
+```
+
+Design hours are discounted because the durable plan is reviewed and approved;
+`impl=` values are 40% of the v2 primitive ranges (v3.1).
+
+- `smaller-go-module` — M1 server parsing with socket path, SocketState, Probe's orphaned state
+- `smaller-go-module` — M1 SessionOrphaned in presence + ReasonOrphanedServer through classification/actions
+- `smaller-go-module` — M1 resume diagnostic code, startup/switcher text, report agent `orphaned`
+- `milestone-review` — M1
+- `greenfield-go-module` — M2 PlanReap + identity-gated Reaper over a fake process table
+- `smaller-go-module` — M2 `reap` operation surface (ops, dispatch, CLI, socket)
+- `greenfield-go-module` — M2 `recover` action: ConfirmByPlan, PrepareRecover, menu frame, CLI
+- `smaller-go-module` — M2 report steps `reap` → `resume`, totality
+- `skill-or-dispatcher` — M2 couch --skill recovery line
+- `milestone-review` — M2
+- `atlas-docs` — M3 atlas session-state table, lessons
+- `milestone-review` — M3 close (live acceptance run by the operator)
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* (Calibration doc flagged stale; numbers provisional.)
 
 ## Plan
 
