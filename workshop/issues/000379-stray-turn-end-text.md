@@ -1,12 +1,21 @@
 ---
 id: 000379
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-01
-updated: 2026-10-01
+updated: 2026-10-03
 estimate_hours:
-card_mirror: '290451c59fe9b2f0e6db1363fea7279f6f0c8dfd' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'df401440c6551b89efd770d672da9e4a7f02d7c0' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-03T11:34:37-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "2ca728e3", done: "7f68d96c"}
 ---
 
 # Turn-end text flashes at focused pane cursor
@@ -42,45 +51,29 @@ Evidence so far (2026-10-01):
 
 ## Spec
 
-Hypotheses, in rough order:
+Own the long-running investigation of Claude turn-end text appearing in another
+pane: preserve observations, audit isolation/redraw behavior, capture an actual
+incident, and reduce it to a repeatable reproduction that identifies the faulty
+layer. Timing, cursor state and terminal escape handling remain hypotheses,
+not established causes. The early theories in Problem are historical; the Log
+records subsequent tests and corrections.
 
-1. **Interleaved redraws.** zellij redraws two panes in the same instant (the
-   operator typing in draft, or the right terminal printing, while Claude
-   finishes) and loses or reorders a cursor move. This would explain why it's
-   rare; it is the leading theory if the operator recalls concurrent activity.
-2. **zellij 0.45.1 race** when Claude closes one frame and immediately opens
-   another.
-3. **`third_party/vt` mis-parses** one specific chunk split.
-4. **Couch's 150ms timeout for synchronized frames** publishing a half-drawn
-   frame. This is weak: text would still be correctly positioned.
-
-No existing log captures the deciding stream. The `.raw` scrollback records
-Claude → zellij. `zellij.log` records no render bytes. `COUCH_TRACE`,
-`COUCH_INPUT_TRACE` and `COUCH_MOUSE_TRACE` record timing, keystrokes and mouse
-events, not output.
-
-Instrument: an opt-in output recorder at `Endpoint.Feed`, enabled by an
-environment variable that names a file, following the `trace.go` pattern. It
-logs each chunk zellij sends to Couch with a timestamp and its boundaries. The
-stream contains everything shown on screen, so it stays opt-in and the file is
-deleted after the investigation, as with `COUCH_INPUT_TRACE`.
-
-Analysis: find the turn-end paint in the log and check whether a cursor-position
-instruction precedes it, and where the chunk splits fall. That separates "zellij
-never sent the move" from "Couch lost it". Reproduce on purpose by typing in
-draft as a long turn finishes.
+Tracing implementation, reliability, tests and delivery now belong to #404.
+Use that instrumentation once reliable to correlate endpoint ingress, host
+output and the visible incident. Closing or shipping #404 must not close this
+investigation.
 
 ## Done when
 
-- The opt-in recorder exists, is off by default, and is tested (records chunk
-  boundaries, writes nothing when off).
-- At least one captured occurrence has been analysed, and the layer at fault
-  (zellij, `vt` fork, Couch) is named in the Log, with an upstream report or a
-  fix filed accordingly.
+- At least one actual stray-text occurrence has been captured and analysed with evidence identifying the faulty layer, or a repeatable reproduction establishes it.
+- A regression reproducer and fix, or a precise upstream report with evidence, address the established cause; instrumentation alone does not satisfy this issue.
 
 ## Plan
 
-- [ ]
+- [x] Preserve operator observations, isolation audits and negative replay results in the Log.
+- [x] Transfer tracing implementation and its durable plan to #404 for independent delivery.
+- [ ] Capture and diagnose a real occurrence using reliable tracing from #404.
+- [ ] Reduce the incident to a regression reproducer and fix or upstream report.
 
 ## Log
 
@@ -88,3 +81,346 @@ draft as a long turn finishes.
 
 - Filed from a diagnosis conversation; hypotheses above. The operator could not
   say whether the earlier sightings coincided with typing.
+
+### 2026-10-02 — Additional operator evidence
+
+- Claude's turn-closing text appeared again, this time in the **right pane
+  running Neovim**, with Neovim in **insert mode**.
+- The operator was **not typing anything** when it appeared. Active operator
+  typing is therefore not required for an occurrence; concurrent background
+  redraws remain possible but were not established by this report.
+- This report establishes visible stray text, not whether it entered Neovim's
+  buffer. The exact text, duration, and deciding output stream were not captured
+  in this report, so the responsible layer remains unconfirmed.
+
+### 2026-10-03 — Cursor flicker during some occurrences
+
+- In at least some occurrences of the stray turn-closing text, the operator
+  also sees the cursor "flickering": its visibility changes irregularly rather
+  than blinking at a regular pace.
+- The operator describes the appearance as excessive redrawing. This is an
+  observed visual correlation, not yet a measured redraw rate or proof of the
+  cause; it has not been reported for every occurrence.
+
+### 2026-10-03 — Pane isolation audit
+
+Audited Pair `37af674e`, the installed Zellij 0.45.1, and the local Zellij
+repository's `v0.45.1` source. This was an audit with temporary probes, not an
+implementation or a reproduction of the reported misplaced text.
+
+- **Boundary:** Zellij owns the visible agent/draft/right-pane grids and their
+  parsers (`TerminalPane` owns a `Grid` and `vte_parser`). Couch's `Endpoint`
+  consumes the entire Zellij client screen, not each visible pane separately.
+  Normal Zellij text rendering translates pane cells to screen coordinates;
+  normal Couch rendering consumes validated cells, not raw escape passthrough.
+- **Redraw coupling confirmed:** `terminal.RenderWithHistory` marks a frame
+  dirty for any cell/cursor change. `HistoryRender.Emit` reconstructs the whole
+  viewport, hides the physical cursor, and restores its position/style/visibility
+  inside a synchronized-output bracket. A production Presenter probe changed
+  exactly one left-region cell while preserving right-region cells and cursor:
+  it emitted 244 bytes including unchanged `RIGHT-NVIM` / `idle editor` text and
+  cursor hide/show/style controls. An unchanged subsequent frame emitted nothing.
+  See `cmd/internal/terminal/history_render.go` and `render.go`.
+- **Isolation checks passed:** 14 Endpoint subcases (whole and bytewise delivery)
+  covered out-of-bounds cursor motion, erases, alternate screen/modes, synchronized
+  hold, OSC effects, cursor query, and unknown DCS. The second Endpoint's
+  publication, modes, and input remained unchanged. Reproduce while temporary
+  files remain with `go test -overlay /tmp/pair379-isolation-audit/overlay.json
+  ./cmd/internal/terminal -run '^TestAudit379' -v -count=1`.
+- **Native pane checks passed:** a disposable 80x20 two-pane Zellij 0.45.1 session
+  kept the right pane focused and idle. Seven left-pane scenarios exercised the
+  reported relative turn-end sequence (with a synthetic marker), cursor bounds,
+  erase/scroll regions, alternate screen, reset, bytewise synchronized drawing,
+  and unknown strings. Each stage showed the left stimulus, preserved the right
+  pane's native dump and host marker, and never showed the left marker in the
+  right region at captured read boundaries. Host output was independently parsed
+  by pyte; this tests cells, not physical blink timing. Probe:
+  `/tmp/pair-379-audit/native.py`; final capture:
+  `/tmp/p379-r7i7hl4q/zellij.raw`. Fixture KDL syntax and pyte query-handler errors
+  were corrected before the successful run; neither was a product failure.
+- **Existing suites passed:** `go test ./cmd/internal/terminal
+  ./cmd/internal/ptychild ./cmd/internal/termcmd ./cmd/internal/couchtty -count=1`.
+- **Deliberate global effects:** bell/title/clipboard/notifications have decoded,
+  policy-controlled paths through `Presenter.EmitEffects`. They are exceptions
+  to "everything stays inside", but do not authorize arbitrary screen drawing.
+- **Limits and next discriminator:** excessive shared repaint can explain cursor
+  disturbance without escape leakage; actual host blink-timer behavior remains
+  unmeasured. Misplaced text still requires a rendering/parser/stream-ordering
+  fault somewhere, not merely a redraw. Compare pane-local state, Zellij client
+  bytes, Couch's parsed frame, and final host rendering at an occurrence to find
+  the first divergence. These finite synthetic cases do not exclude a timing-
+  dependent fault. ARCH-PURPOSE / ARCH-MOCK: Endpoint isolation alone cannot prove
+  the visible Zellij pane boundary; both boundaries were exercised separately.
+
+### 2026-10-03 — Claimed in pair:2; deeper cursor/stream audit
+
+- Operator requested claim here and deeper investigation. `sdlc claim --issue
+  379` reserved the card for `pair:2`; `sdlc start-plan --issue 379` created
+  `000379-stray-turn-end-text` from fresh main. Earlier evidence was restored
+  after the branch transition and checkpointed with `sdlc issue sync`.
+- Clarified the operator's timing hypothesis: separate virtual cursors become
+  one focused cursor in the combined screen. The physical cursor temporarily
+  visits all rows during painting. Wrong positioning, interleaved output, or
+  parser/width disagreement could put text in another region; merely exposing
+  an incomplete synchronized frame explains flicker but not text relocation.
+- Exact Zellij v0.45.1 source: `output/mod.rs` positions each character chunk
+  absolutely; client Render and forwarded-query instructions share the client
+  loop. Startup/resize/nested-session writers emit complete control strings,
+  not application text. OSC 9;4 progress is filtered as a ConEmu subcommand.
+  No ordinary raw-text escape route found. `tab/mod.rs:4968` reasserts focused
+  cursor visibility, position and shape when any output is dirty, so cursor
+  disturbance can arise upstream of Couch as well.
+- Extended native probe with right-pane window-size/color queries and cursor
+  redraws passed all seven left-pane scenarios. Host replies were absent,
+  exercising timeout/resume. The oracle checks marker completion byte by byte,
+  so a correcting redraw later in the same read cannot hide marker leakage.
+  Temporary probe: `/tmp/pair-379-audit/native-query-transient.py`; capture:
+  `/tmp/p379-4yd3rbj9/zellij.raw` (44,160 bytes). This is synthetic traffic,
+  not yet proof for Neovim or Ghostty.
+- 500 deterministic generated ASCII/CJK editing sequences (seed 379), including
+  byte-split input, cursor save/restore, erase/insert/delete/scroll, alternate
+  screens and synchronized holds, matched an independent xterm/headless cell
+  oracle after production `RenderWithHistory` rendering. This checks completed
+  frames, not every interleaving or physical blink behavior.
+- A conditional placement fault was reproduced: `👩‍👩‍👧‍👧turn closed` puts
+  the text at column 2 in Endpoint's model but column 4 in the test xterm host
+  (zero-based). `historyEmitter.cells` emits sequential text based on the
+  assumed character widths. This establishes a width-disagreement mechanism,
+  not that Ghostty or the incident had this disagreement. Installed Ghostty
+  reports 1.3.1; no live-host width or blink test was performed.
+- Verified deeper probes with `go test -overlay
+  /tmp/pair379-isolation-audit/overlay.json ./cmd/internal/terminal
+  -run '^TestAudit379(History|Width)' -v -count=1` (pass). Probe code/dependencies
+  are temporary, outside the repository; no production behavior changed.
+- Next decisive measurement remains the first divergence between pane-local
+  state, Zellij output, Couch publication and host output at a real occurrence.
+  A recorder of Zellij input alone would not distinguish Couch's parser from
+  its renderer or the physical host; capture both sides and their geometry and
+  ordering if instrumentation is implemented.
+
+### 2026-10-03 — Neovim insert-mode and closing-frame experiments
+
+- Actual right-pane `nvim --clean -n -i NONE` remained in insert mode through
+  17 direct-Zellij scenarios (original seven plus ten repeated turn-end frames).
+  Its timer-sampled buffer stayed `["RIGHT379"]`; the file and native pane dump
+  stayed unchanged. The bytewise host marker oracle found no crossing.
+  Temporary probe: `/tmp/pair-379-audit/native-nvim-dcs.py`; capture:
+  `/tmp/p379-m6n9wzmv/zellij.raw` (89,116 bytes).
+- Corrected another independent-oracle limitation: pyte prints unknown DCS
+  payload instead of consuming it. Zellij's periodic nested-session announcement
+  therefore appeared at the focused cursor in the initial probe, while the
+  native right-pane dump remained correct. Its payload was base64 session
+  metadata, not closing prose. The probe now discards complete DCS strings.
+  Tested that captured announcement separately through production Endpoint at
+  every split and bytewise: cells/cursor unchanged, no effects. Verified with
+  `go test -overlay /tmp/pair-379-audit/dcs-overlay.json
+  ./cmd/internal/terminal -run 'TestAudit379.*DCS' -v -count=1` (pass).
+- Extracted a real 192-byte closing transition at offset 127131 of
+  `repos/11873b98e33bf004/scrollback-1-pair-7-claude.raw` into
+  `/tmp/pair-379-audit/claude-close.raw`. It uses RGB grey
+  `ESC[38;2;153;153;153m`, not standalone faint `ESC[2m`. Neither command moves
+  the cursor. The frame includes a progress-stop OSC, synchronized frame
+  boundaries, relative cursor movement, the closing text, and cursor restore.
+- Six actual-frame variants beside idle insert-mode Neovim passed: RGB grey,
+  standalone faint instead, no SGR, no progress OSC, no synchronization markers,
+  and every-byte delivery with 4ms pauses. Each starts from the same explicit
+  cursor position; only `Crunched for 1s` is replaced with the left marker.
+  Probe: `/tmp/pair-379-audit/native-nvim-ablation.py`; capture:
+  `/tmp/p379-p79c14kh/zellij.raw`. These direct replays do not exercise Pair's
+  wrapper completion/notification lifecycle or Ghostty's actual rendering.
+- Closing-only correlation remains unexplained. Two hypotheses to distinguish:
+  completion's frame/progress/notification transition triggers the fault, or
+  subsequent silence leaves a transient fault visible that ongoing output would
+  rapidly erase. Styling is not currently supported as the trigger.
+- Operator clarified that the stray closing line belongs to the **currently
+  visible Claude thread**, not another/background Couch thread. Prioritize
+  corruption within that displayed Zellij screen over cross-thread routing.
+
+### 2026-10-03 — Operator refines confidence and reproduction priority
+
+- Supersedes the source-thread certainty in the preceding note: the operator
+  **strongly suspects** the current Claude thread, but is less certain where the
+  text originates. Do not exclude another Claude thread based on that answer.
+- Stronger observations: the artifact is Claude's **turn-stop text**, occurs
+  somewhat regularly around that sequence, and has not been noticed elsewhere
+  or when using Codex. The operator strongly suspects the stop sequence's
+  interaction with Couch/Zellij/Pair, rather than a generic redraw problem.
+- Prioritize faithful Claude completion reproduction: preceding terminal state,
+  exact stop-transition bytes, byte/chunk timing, and wrapper completion hooks.
+  Passing short synthetic/ablated sequences does not rule out those interactions.
+- Wrapped-transition probe also passed: fixture named `claude` through the
+  freshly built candidate `pair-go wrap`, with a private storage root/tag and
+  no-op slug helper. `wrap.log` proves progress start/stop, `SLUG-spawn`, and
+  canonical OSC 777 emission; `slug.receipt` confirms helper dispatch. After
+  two seconds, Neovim's insert mode, buffer/file/native pane dump and host marker
+  isolation were intact. Probe:
+  `/tmp/pair-379-audit/native-nvim-wrapped-receipt.py`; evidence:
+  `/tmp/p379-8zqgeq7m/{wrap.log,slug.receipt,claude.raw,zellij.raw}`.
+  Initial fixture attempts lacked the private `PAIR_TAG` and were rejected by
+  the storage guard before the wrapper ran; those attempts are not evidence
+  about terminal behavior.
+- No incident reproduction yet. The native probes cover Zellij and the wrapper
+  against pyte; the separate renderer probes cover Couch components against
+  xterm/headless. Neither is a complete production Couch-to-Ghostty reproduction.
+  Preserve an immutable full Claude capture plus matching geometry/chunk records
+  before attempting faithful replay: the live `1-pair-7` raw file changed during
+  this investigation, so the later prefix read cannot reconstruct the earlier
+  closing occurrence. The separately extracted 192-byte close frame is retained.
+
+### 2026-10-03 — Existing live logs: fixed geometry and split closing frame
+
+- Operator reports dimensions stayed fixed during incidents; although draft height
+  can change, they did not resize it. Treat resize as absent in the reported case.
+- Current Couch mapping: pair:1 is Claude, tag `couch-9d6fdf5eecace248` in
+  repo storage `68f32487e79d85bd`; pair:2 currently has Codex capture `1-pair-8`.
+- Preserved pair:1 raw (7,880,514 bytes), geometry/time sidecar, and wrapper
+  events (104,060,063 bytes) under `/tmp/pair379-live-1791053793/` with source
+  inode/size/SHA-256 manifest. Rechecked all three live prefixes against the
+  snapshot hashes: unchanged. These are local diagnostic artifacts, not committed
+  transcript contents. `analyze.py` and JSON reports accompany the snapshot.
+- Found at least 17 literal duration/`done` footer matches (not an exhaustive
+  terminal-rendered-text count). Eight recent selected matches have hash-verified
+  ingress chunks. Examples: `Brewed for 3s · done 1:41 AM` at offset 7,470,752;
+  `Baked for 37s · done 2:01 AM` at offset 7,605,835, on October 3.
+  Seven of those eight occur after the last recorded geometry change, all 94×39.
+  Styling in sampled frames is RGB grey, not standalone SGR 2.
+- Concrete split-frame case at 01:41:26: wrapper accepted a 1,024-byte write
+  at .833304 containing sync-begin and the footer, but not sync-end; a 40-byte
+  notification write followed at .854234; the remaining 338-byte write containing
+  cursor restore and sync-end followed at .989995 (156.691 ms after first receipt).
+  Both raw portions match the recorded output hashes, with full accepted lengths
+  and no write errors. The insertion boundary is between ordinary text `for` and
+  ` agents`, **not inside an escape command or UTF-8 character**. This is a
+  concrete completion-interleaving replay candidate, not evidence that a pane
+  leaked or that this particular completion was visibly faulty.
+- `split-replay.json` records the two exact byte segments, preceding-state prefix
+  offset and receipt timing. The notification payload itself is not captured;
+  its length/hash are known, so the recipe explicitly leaves that payload unknown
+  rather than substituting assumed bytes. Receipt timestamps are not host paint
+  timestamps. Five selected footer-containing batches independently match raw
+  concatenation hashes; the 02:01 footer arrived in a complete 2,800-byte batch.
+- Logging boundary audit: raw records Claude PTY output; wrapper queue/flush
+  receipts substantiate accepted writes into Zellij. Existing Couch traces do
+  not persist Zellij→Endpoint or Presenter→Ghostty display bytes. The former has
+  only an in-memory 128 KiB ring; the latter has no byte capture. Thus these logs
+  support faithful input/chunk reproduction but cannot establish where text was
+  painted in the other pane. No incident reproduction or root cause claimed.
+
+### 2026-10-03 — Full-prefix reproduction attempt
+
+- Recovered the previously unknown 40-byte notification: canonical
+  `ESC]777;notify;pair;agent stopped working BEL`. Its SHA-256 begins
+  `b85c08c341da`, exactly matching the captured write receipt. This is the
+  grace/watchdog completion message in `notification_lifecycle.go`.
+  Saved verified bytes as `notification.raw` and updated `split-replay.json`.
+- Temporary native fixtures replay all 7,470,588 preceding Claude bytes, then
+  the exact 1,024-byte close fragment and 338-byte tail separated by 156.691 ms.
+  Two variants: no notification and exact notification inserted at +20.930 ms.
+  Both passed: the actual `Brewed for 3s` footer remained left; focused Neovim
+  stayed in insert mode with unchanged buffer, file and native pane dump.
+- Actual left PTY ioctl verifies 94×39. Zellij requires a 189×39 host for this
+  fixture: 94 content columns, one divider, 94 right-pane columns. Prefix used
+  fixed geometry and accelerated delivery, not historical resize/timing replay.
+- Scripts: `/tmp/pair-379-audit/native-nvim-full-prefix.py` and
+  `native-nvim-full-prefix-notify.py`. Captures respectively:
+  `/tmp/p379-56zh7mup/` and `/tmp/p379-700_spw2/`, including `zellij.raw`,
+  monotonic read-chunk records, Neovim snapshots and before/after pane dumps.
+  Native observation uses pyte with DCS suppression, not actual Ghostty.
+- Next diagnostic boundary if recorded sequence remains isolated: capture a
+  real occurrence at Zellij→Couch and Couch→host, with chunk timestamps,
+  geometry, actor identity and accepted write counts. Replay must distinguish
+  malformed Zellij screen state, Couch rendering/routing, and host display.
+  A passing selected frame is not a reproduction of the reported incident.
+
+- Downstream replay of both native captures through production Endpoint and
+  Presenter also passed, using recorded native chunks and bytewise feeds into
+  the parser. The independent xterm observer checked every actual parent write
+  boundary, including effect writes and asynchronous paints: baseline 152
+  boundaries / 84 footer-left matches / zero footer-right; notification variant
+  157 boundaries / 87 footer-left matches / zero footer-right, in both feed modes.
+  `EmitEffects` runs before `Present` with all active effect policies enabled.
+  Verified the exact `agent stopped working` OSC777 occurs once in each
+  notification-variant host stream and zero times in baseline host streams.
+  Downstream raw/frames/boundaries/reports reside in each native capture directory.
+  Temporary overlay: `/tmp/pair379-isolation-audit/replay_test.go`.
+  This exercises renderer components, not full live Console scheduling or Ghostty.
+
+### 2026-10-03 — Guarded live capture delivered
+
+- Operator authorized instrumentation. Implemented `COUCH_CAPTURE_DIR`, requiring
+  an absolute confined path under `COUCH_ISOLATED_ROOT`; off by default and cleared
+  in launched child environments. Built `bin/couch`; existing sessions untouched.
+- One private session JSONL stream records pre-parser Zellij bytes and applied
+  geometry under Endpoint ordering, thread bindings, host geometry, presentation
+  transitions, and exact host write receipts (including partial success/error).
+  Schema includes sequence, wall/monotonic timing, byte chunks and build identity.
+- Recorder has one asynchronous writer: 128 records / 8 MiB retained record
+  budget, 256 MiB file limit, explicit incomplete ending on loss, and bounded
+  two-second close. Terminal restoration precedes recorder drain. Normal exit
+  and startup failure both report capture failure once. Regular-file cancellation
+  limitations are explicit in the runbook; no silent resume after dropped data.
+- Fresh-eyes plan review clarified applied resize followed by reply failure and
+  bounded shutdown. Implementation review caught early-return error suppression
+  and inherited activation; both fixed, with regression coverage. Review approved.
+- Tests: full `terminal`, `ptychild`, `couchcore`, `couchcmd`, `couchtty`, and
+  `terminalcapture` suites passed. Race suites passed for terminal/ptychild and
+  recorder; focused race coverage passed for the real PTY observer and capture
+  integration. Real PTY capture verifies the marker at both boundaries with
+  identity/geometry, unchanged partial-write behavior, no default-on files, path
+  guards, early launch errors, and concurrent admission/close.
+- Initial real-PTY observer fixture hung joining a blocking master Read after
+  close on macOS; switched the test to existing contextual ttyio transport and
+  explicitly canceled/joined it. This was fixture teardown, not a capture failure.
+- `make build` passed and rebuilt Couch (existing `.skip-make-build` skips the
+  unrelated pair-go build). Built binary refuses capture without isolation.
+  `git diff --check` passed. Artifact inventory check has pre-existing unrelated
+  failures; new capture sources are classified. Baseline comparison is retained
+  under `/tmp/pair379-artifact-{baseline-generated,current}.log`.
+- Operator instructions and schema/extraction example:
+  [isolated live capture](../../atlas/couch-live-capture.md).
+  Capture implementation completes this requested step; the original occurrence
+  analysis criterion remains unchecked, so #379 is not closed or claimed fixed.
+
+### 2026-10-07 — Regular Couch opt-in correction
+
+- Removed mandatory isolated-root activation. An absolute COUCH_CAPTURE_DIR now
+  enables capture for regular Couch; explicit isolated runtimes retain confinement.
+  Default-off and descendant activation clearing remain unchanged.
+- Regular-Couch acceptance test first failed on the old guard, then passed after
+  the change. Real PTY tests cover both regular and isolated capture. Fresh-eyes
+  review approved; binary rebuilt and runbook simplified for regular restart.
+- Full couchcmd run encountered continuation-writer acceptance failures caused by
+  repository-scope/root conflicts during helper restart, outside the capture tests.
+  Targeted capture tests passed. Baseline check retained in
+  `/tmp/pair379-regular-baseline.log`; no rendering fix is claimed.
+
+## Revisions
+
+- 2026-10-07 — Corrected the interpretation of “isolated session”: operator wants
+  explicit per-launch capture on regular Couch. Mandatory isolated storage was
+  an agent misunderstanding. Remove that requirement; retain opt-in/default-off
+  capture and optional isolation confinement. Existing threads need only reattach
+  to the capture-enabled Couch, not restart their agents.
+
+- 2026-10-03 — Operator approved implementing live capture, guarded and only
+  enabled in an isolated session. Extend the initial recorder spec to both
+  Zellij→Couch and Couch→host boundaries, exact byte/timing/geometry records,
+  bounded asynchronous capture with explicit incomplete status, private files,
+  and isolated-root activation. Rendering fix and occurrence analysis remain
+  outstanding; capture delivery alone does not close this issue.
+
+- 2026-10-03 — Operator requested an isolation audit after reporting cursor
+  flicker. Clarified the boundary and added measured shared-redraw evidence in
+  the Log. Earlier statements that misplaced text *means* a lost cursor move
+  remain hypotheses, not established causes; flicker alone does not establish
+  cross-pane escape leakage. No implementation or acceptance criteria changed.
+
+### 2026-10-07 — Tracing split and live capture failure
+
+- Operator requested #404 for tracing implementation and independent delivery; #379 remains the long-running diagnosis. The implementation plan moves to `workshop/plans/000404-couch-live-terminal-tracing-plan.md`; all historical evidence below/above remains preserved here.
+- Regular capture `/Users/xianxu/.local/share/pair/captures/session-2417847440/events.jsonl` stopped after 6.88 seconds: 5,609,068 bytes, 3,280 records, `capture-end` incomplete with `terminal capture queue limit reached`. It cannot supply evidence of later incidents. This is a tracing reliability defect owned by #404, not evidence of the display bug's cause.
+- Split preserves original implementation commits 9ca17478 and 0b384b45 in a backup branch. The independent implementation branch is based on main; this branch retains investigation evidence only.
+
+## Revisions — scope separation
+
+- 2026-10-07 — Operator requested independent tracing delivery. Current Spec, Done when and Plan now cover diagnosis only; tracing and its outstanding queue-overflow/visibility/retention work move to #404. Historical Log entries and prior revision records are retained, including earlier instrumentation acceptance decisions that this revision supersedes.
