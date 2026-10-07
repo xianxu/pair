@@ -266,6 +266,11 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (Sw
 	if request.AcceptedFingerprint == "" || request.Argv == nil {
 		return result, errors.New("switch-agent: review and accept the startup parameters first")
 	}
+	ctx, release, err := c.hold(ctx, request.Address, "switch-agent")
+	if err != nil {
+		return result, err
+	}
+	defer release()
 	prepared, err := c.PrepareAgentSwitch(ctx, request.Address, request.Agent, &request.Argv)
 	if err != nil {
 		return result, err

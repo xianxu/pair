@@ -188,76 +188,153 @@ func (c *Couch) Leave(ctx context.Context, disposition LeaveDisposition) (LeaveR
 	if err != nil {
 		return result, err
 	}
-	for _, record := range snapshot.Records {
+	for _, snapshotted := range snapshot.Records {
 		if err := ctx.Err(); err != nil {
 			return result, err
 		}
-		if record.Park != nil {
-			if c.PairLifecycle == nil {
-				return result, errors.New("Pair lifecycle controller is unavailable")
-			}
-			parkResult, parkErr := c.PairLifecycle.Recover(ctx, record.Address)
-			if parkErr != nil {
-				return result, fmt.Errorf("leave couch: recover park %s: %w", record.Address.Tag, parkErr)
-			}
-			if parkResult.Thread.VerifiedPark == nil || parkResult.Thread.Park != nil {
-				return result, fmt.Errorf("leave couch: park %s did not produce verified inactive history", record.Address.Tag)
-			}
-			result.Parked = append(result.Parked, record.Address)
-			continue
-		}
-		if !hasActiveIncarnation(record) {
-			continue
-		}
-		if len(record.Incarnations) != 1 || record.Incarnations[0].State != IncarnationLive {
-			result.Skipped = append(result.Skipped, record.Address)
-			continue
-		}
-		if disposition == LeavePark {
-			if c.PairLifecycle == nil {
-				return result, errors.New("Pair lifecycle controller is unavailable")
-			}
-			parkResult, parkErr := c.PairLifecycle.Park(ctx, record.Address)
-			if parkErr != nil {
-				return result, fmt.Errorf("leave couch: park %s: %w", record.Address.Tag, parkErr)
-			}
-			if parkResult.Thread.VerifiedPark == nil || parkResult.Thread.Park != nil {
-				return result, fmt.Errorf("leave couch: park %s did not produce verified inactive history", record.Address.Tag)
-			}
-			result.Parked = append(result.Parked, record.Address)
-			continue
-		}
-		// A recorded live incarnation is history, not current liveness. The
-		// switcher may already show this thread as parked from its ledger.
-		incarnation := record.Incarnations[0]
-		identity := ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}
-		switch observeExactProcessOrUnknown(c.Proc, identity) {
-		case Dead:
-			if _, err := c.clearLifecycleDebris(record); err != nil {
-				return result, fmt.Errorf("leave couch: reconcile %s: %w", record.Address.Tag, err)
-			}
-			// Retiring dead bookkeeping neither detaches nor parks an agent,
-			// so it contributes no line to the operator's leave report.
-			continue
-		case Unknown:
-			result.Skipped = append(result.Skipped, record.Address)
-			continue
-		}
-		session, err := c.recoverySession(ctx, record.Address)
+		outcome, err := c.leaveOne(ctx, snapshotted.Address, disposition)
 		if err != nil {
-			return result, fmt.Errorf("leave couch: observe %s: %w", record.Address.Tag, err)
+			return result, err
 		}
-		if !session.Present {
-			// A missing session does not authorize stopping a live process.
-			result.Skipped = append(result.Skipped, record.Address)
-			continue
+		switch outcome {
+		case leaveParked:
+			result.Parked = append(result.Parked, snapshotted.Address)
+		case leaveDetached:
+			result.Detached = append(result.Detached, snapshotted.Address)
+		case leaveSkipped:
+			result.Skipped = append(result.Skipped, snapshotted.Address)
 		}
-		if _, detachErr := c.Detach(ctx, record.Address); detachErr != nil {
-			return result, fmt.Errorf("leave couch: detach %s: %w", record.Address.Tag, detachErr)
-		}
-		result.Detached = append(result.Detached, record.Address)
 	}
 	return result, nil
+}
+
+// Park drives one of park's modes on a thread under the thread gate
+// (pair#205). It is the executor's park entry, so a park dispatched by the
+// operator, a remote job or the CLI is refused while another lifecycle
+// operation holds the thread. Composites that park internally (relaunch,
+// switch-agent, continuations) call the controller directly with their own
+// held context.
+//
+// One exception, by design: while the thread has an OPEN park transaction, a
+// park request joins that transaction rather than starting a new operation.
+// The park worker coalesces it by nonce onto the in-flight work, so an
+// interactive retry shares the result of the startup recovery already driving
+// the same park (TestParkCoordinatorCoalescesStartupRecoveryAndInteractiveRetry).
+// The open transaction is itself the lock: CommitStartClaim, Detach, recovery
+// and archive all refuse a thread that carries one.
+func (c *Couch) Park(ctx context.Context, address ThreadAddress, mode string) (ParkResult, error) {
+	if c == nil || c.PairLifecycle == nil || c.Threads == nil {
+		return ParkResult{}, errors.New("Pair lifecycle controller is unavailable")
+	}
+	if current, err := c.Threads.GetThread(address); err != nil || current.Park == nil {
+		held, release, holdErr := c.hold(ctx, address, "park")
+		if holdErr != nil {
+			return ParkResult{}, holdErr
+		}
+		defer release()
+		ctx = held
+	}
+	switch mode {
+	case "", "normal":
+		return c.PairLifecycle.Park(ctx, address)
+	case "retry":
+		return c.PairLifecycle.Retry(ctx, address)
+	case "recover":
+		return c.PairLifecycle.Recover(ctx, address)
+	case "abandon":
+		return c.PairLifecycle.Abandon(ctx, address)
+	default:
+		return ParkResult{}, fmt.Errorf("park: invalid mode %q (want normal, retry, recover, or abandon)", mode)
+	}
+}
+
+// leaveOutcome is what Leave did to one thread.
+type leaveOutcome uint8
+
+const (
+	leaveNone leaveOutcome = iota
+	leaveParked
+	leaveDetached
+	leaveSkipped
+)
+
+// leaveOne applies the disposition to one thread. It is a drain on the thread
+// gate (pair#205): it waits for any operation holding the thread, then decides
+// from the record as it is NOW. The snapshot Leave iterates is only a list of
+// addresses; deciding from a row read before the wait would skip a thread a
+// reattach made live meanwhile, and leave that client running past quit.
+func (c *Couch) leaveOne(ctx context.Context, address ThreadAddress, disposition LeaveDisposition) (leaveOutcome, error) {
+	ctx, release, err := c.holdWait(ctx, address, "leave")
+	if err != nil {
+		return leaveNone, err
+	}
+	defer release()
+	record, err := c.Threads.GetThread(address)
+	if errors.Is(err, ErrThreadNotFound) {
+		return leaveNone, nil // archived while Leave waited
+	}
+	if err != nil {
+		return leaveNone, err
+	}
+	if record.Park != nil {
+		if c.PairLifecycle == nil {
+			return leaveNone, errors.New("Pair lifecycle controller is unavailable")
+		}
+		parkResult, parkErr := c.PairLifecycle.Recover(ctx, record.Address)
+		if parkErr != nil {
+			return leaveNone, fmt.Errorf("leave couch: recover park %s: %w", record.Address.Tag, parkErr)
+		}
+		if parkResult.Thread.VerifiedPark == nil || parkResult.Thread.Park != nil {
+			return leaveNone, fmt.Errorf("leave couch: park %s did not produce verified inactive history", record.Address.Tag)
+		}
+		return leaveParked, nil
+	}
+	if !hasActiveIncarnation(record) {
+		return leaveNone, nil
+	}
+	if len(record.Incarnations) != 1 || record.Incarnations[0].State != IncarnationLive {
+		return leaveSkipped, nil
+	}
+	if disposition == LeavePark {
+		if c.PairLifecycle == nil {
+			return leaveNone, errors.New("Pair lifecycle controller is unavailable")
+		}
+		parkResult, parkErr := c.PairLifecycle.Park(ctx, record.Address)
+		if parkErr != nil {
+			return leaveNone, fmt.Errorf("leave couch: park %s: %w", record.Address.Tag, parkErr)
+		}
+		if parkResult.Thread.VerifiedPark == nil || parkResult.Thread.Park != nil {
+			return leaveNone, fmt.Errorf("leave couch: park %s did not produce verified inactive history", record.Address.Tag)
+		}
+		return leaveParked, nil
+	}
+	// A recorded live incarnation is history, not current liveness. The
+	// switcher may already show this thread as parked from its ledger.
+	incarnation := record.Incarnations[0]
+	identity := ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}
+	switch observeExactProcessOrUnknown(c.Proc, identity) {
+	case Dead:
+		if _, err := c.clearLifecycleDebris(record); err != nil {
+			return leaveNone, fmt.Errorf("leave couch: reconcile %s: %w", record.Address.Tag, err)
+		}
+		// Retiring dead bookkeeping neither detaches nor parks an agent,
+		// so it contributes no line to the operator's leave report.
+		return leaveNone, nil
+	case Unknown:
+		return leaveSkipped, nil
+	}
+	session, err := c.recoverySession(ctx, record.Address)
+	if err != nil {
+		return leaveNone, fmt.Errorf("leave couch: observe %s: %w", record.Address.Tag, err)
+	}
+	if !session.Present {
+		// A missing session does not authorize stopping a live process.
+		return leaveSkipped, nil
+	}
+	if _, detachErr := c.Detach(ctx, record.Address); detachErr != nil {
+		return leaveNone, fmt.Errorf("leave couch: detach %s: %w", record.Address.Tag, detachErr)
+	}
+	return leaveDetached, nil
 }
 
 func hasActiveIncarnation(record ThreadRecord) bool {

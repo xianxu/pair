@@ -223,6 +223,11 @@ func (c *Couch) RecoverThread(ctx context.Context, address ThreadAddress, path s
 	if err := validateThreadAddress(address); err != nil {
 		return ContinuationResult{}, err
 	}
+	ctx, release, err := c.hold(ctx, address, "recover")
+	if err != nil {
+		return ContinuationResult{}, err
+	}
+	defer release()
 	var selected *checkpoint.Checkpoint
 	if path != "" {
 		cp, err := checkpoint.ReadFile(path)

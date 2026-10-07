@@ -215,6 +215,17 @@ func TestACancelledParkStillRefusesOtherLifecycleOperations(t *testing.T) {
 	returned := make(chan error, 1)
 	go func() { _, err := c.PairLifecycle.Park(ctx, source.Address); returned <- err }()
 	<-reached
+	worker := c.PairLifecycle.worker
+	worker.mu.Lock()
+	future := worker.active[source.Address].future
+	worker.mu.Unlock()
+	defer func() {
+		// Let the still-running park settle before the test's temp dirs go.
+		unblock()
+		waitCtx, stop := context.WithTimeout(context.Background(), 5*time.Second)
+		defer stop()
+		_, _ = future.Await(waitCtx)
+	}()
 	cancel()
 	if err := <-returned; !errors.Is(err, context.Canceled) {
 		t.Fatalf("park = %v, want prompt cancellation", err)
@@ -231,7 +242,6 @@ func TestACancelledParkStillRefusesOtherLifecycleOperations(t *testing.T) {
 	if _, err := c.PairLifecycle.ParkExpected(context.Background(), source.Address, 0); err == nil {
 		t.Fatal("a second park transaction admitted while the first still runs")
 	}
-	unblock()
 }
 
 // parkWorker frees its address before it signals done, so a caller that has

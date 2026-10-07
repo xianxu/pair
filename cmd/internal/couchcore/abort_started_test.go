@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"errors"
 	"os"
 	"slices"
@@ -16,7 +17,7 @@ func TestAbortStartedQuiescesExactHandleAndReconcilesOwnership(t *testing.T) {
 		t.Fatalf("Spawn: %v", err)
 	}
 	cause := errors.New("attach failed")
-	err = env.Couch.AbortStarted(StartResult{Record: record, Handle: handle}, cause)
+	err = env.Couch.AbortStarted(context.Background(), StartResult{Record: record, Handle: handle}, cause)
 	if !errors.Is(err, cause) {
 		t.Fatalf("AbortStarted error = %v, want original cause", err)
 	}
@@ -48,7 +49,7 @@ func TestAbortStartedRefusesMismatchedHandleIdentityWithoutEffects(t *testing.T)
 	}
 	forged := record
 	forged.Identity = "different-process-start"
-	err = env.Couch.AbortStarted(StartResult{Record: forged, Handle: handle}, errors.New("attach failed"))
+	err = env.Couch.AbortStarted(context.Background(), StartResult{Record: forged, Handle: handle}, errors.New("attach failed"))
 	if err == nil || !strings.Contains(err.Error(), "identity") {
 		t.Fatalf("AbortStarted mismatch error = %v", err)
 	}
@@ -61,7 +62,7 @@ func TestAbortStartedRefusesMismatchedHandleIdentityWithoutEffects(t *testing.T)
 
 func TestAbortStartedRefusesUnregisteredOrNilHandle(t *testing.T) {
 	env := newTestEnv(t, "/repo")
-	if err := env.Couch.AbortStarted(StartResult{}, errors.New("attach failed")); err == nil {
+	if err := env.Couch.AbortStarted(context.Background(), StartResult{}, errors.New("attach failed")); err == nil {
 		t.Fatal("nil StartResult was accepted")
 	}
 	handle, err := env.Runner.Start("/repo", []string{"pair"}, nil)
@@ -72,7 +73,7 @@ func TestAbortStartedRefusesUnregisteredOrNilHandle(t *testing.T) {
 		ID: "not-registered", Thread: ThreadAddress{RepoScope: "repo", Tag: "couch-missing"},
 		Args: StartArgs{Worktree: "/repo"}, PID: handle.PID(), Identity: handle.Identity(),
 	}
-	if err := env.Couch.AbortStarted(StartResult{Record: record, Handle: handle}, errors.New("attach failed")); err == nil {
+	if err := env.Couch.AbortStarted(context.Background(), StartResult{Record: record, Handle: handle}, errors.New("attach failed")); err == nil {
 		t.Fatal("unregistered StartResult was accepted")
 	}
 	if !handle.Alive() {

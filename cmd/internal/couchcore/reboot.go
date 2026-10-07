@@ -97,6 +97,11 @@ func (c *Couch) rebootPrimary(ctx context.Context, t RebootTarget) (RebootResult
 	if err := validateThreadAddress(address); err != nil {
 		return RebootResult{}, err
 	}
+	ctx, release, err := c.hold(ctx, address, "reboot")
+	if err != nil {
+		return RebootResult{}, err
+	}
+	defer release()
 	facts := RebootFacts{Record: RebootRecordReadable}
 	old, readErr := c.Threads.GetThread(address)
 	switch {
@@ -229,6 +234,17 @@ func (c *Couch) rebootSlot(ctx context.Context, t RebootTarget) (RebootResult, e
 		// same journal, and refuses unless every managed session is absent, so
 		// nothing is stopped on the strength of a record couch cannot read.
 		facts.Record = RebootRecordUnreadable
+	}
+	// Held after the switch so the case bodies cannot shadow ctx. An
+	// unreadable record has no address to hold; startFreshSlot refuses unless
+	// every managed session is absent, so it stops nothing on that record.
+	if address != (ThreadAddress{}) {
+		var release func()
+		ctx, release, err = c.hold(ctx, address, "reboot")
+		if err != nil {
+			return RebootResult{}, err
+		}
+		defer release()
 	}
 	plan, reason := DecideReboot(facts)
 	if plan == RebootRefuse || plan == RebootArchiveOnly {

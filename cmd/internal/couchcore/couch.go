@@ -107,7 +107,15 @@ func (c *Couch) RecoverActiveParks(ctx context.Context) error {
 		if record.Park == nil {
 			continue
 		}
-		_, recoverErr := c.PairLifecycle.Recover(ctx, record.Address)
+		// A drain (pair#205): wait for any operation holding the thread rather
+		// than fail boot recovery because the reattach pass reached it first.
+		held, release, holdErr := c.holdWait(ctx, record.Address, "park-recovery")
+		if holdErr != nil {
+			result = errors.Join(result, holdErr)
+			break
+		}
+		_, recoverErr := c.PairLifecycle.Recover(held, record.Address)
+		release()
 		result = errors.Join(result, recoverErr)
 		if ctx.Err() != nil {
 			break
@@ -783,7 +791,18 @@ func (c *Couch) markLiveRecordUnknown(address ThreadAddress, h Handle) error {
 // commit. The supplied record and handle must still identify the exact actor
 // registered by this Couch; otherwise cleanup could kill an unrelated reused
 // PID or a handle forged by another caller.
-func (c *Couch) AbortStarted(start StartResult, cause error) error {
+//
+// It is a drain on the thread gate (pair#205): it waits for any operation
+// holding the thread, re-entering when a composite caller already holds it.
+// Under the hold, the address-scoped half (the session quiesce and the durable
+// disposition) runs only if the thread's incarnation is still this start's; if
+// another operation has since replaced it, that work belongs to the newer
+// holder and only this start's own helper and terminal are ended. A cancelled
+// wait still ends them, so a failed start's helper never outlives the abort.
+func (c *Couch) AbortStarted(ctx context.Context, start StartResult, cause error) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if c == nil || start.Handle == nil {
 		return errors.Join(cause, errors.New("abort started: start handle is unavailable"))
 	}
@@ -819,9 +838,47 @@ func (c *Couch) AbortStarted(start StartResult, cause error) error {
 	// delete a session holding somebody's agent. The identity match above has
 	// already proved the relayed record is this registered actor, so the
 	// registry can answer for it.
-	cleanupErr := c.failPostAckStart(start.Record.Thread, start.Handle, registeredShape, cause)
+	// Each path below ends this start's helper and terminal exactly once.
+	// helperOnly is the identity-scoped half alone: a warm-shaped quiesce ends
+	// the helper and terminal, never the session.
+	helperOnly := func() error {
+		return errors.Join(cause, c.quiescePostAckStart(start.Record.Thread, start.Handle, StartWarmReattach))
+	}
+	_, release, holdErr := c.holdWait(ctx, start.Record.Thread, "abort-start")
+	var cleanupErr error
+	switch {
+	case holdErr != nil:
+		// Cancelled while another operation held the thread. The record still
+		// carries this start's incarnation, so Leave or the next startup
+		// reconciles the session; nothing address-scoped may run unheld.
+		cleanupErr = errors.Join(helperOnly(), holdErr)
+	case c.startStillOwnsThread(start):
+		cleanupErr = c.failPostAckStart(start.Record.Thread, start.Handle, registeredShape, cause)
+		release()
+	default:
+		cleanupErr = helperOnly()
+		release()
+	}
 	c.reg = c.reg.RemoveActor(start.Record.Args.Worktree, start.Record.ID)
 	return errors.Join(cleanupErr, c.Store.Save(c.reg, c.names))
+}
+
+// startStillOwnsThread reports whether no other incarnation has replaced this
+// start's on its thread. Read under the thread's gate hold: an unreadable
+// record or one carrying a different process identity means another operation
+// owns the thread now, and its session and record are not this abort's to
+// touch.
+func (c *Couch) startStillOwnsThread(start StartResult) bool {
+	record, err := c.Threads.GetThread(start.Record.Thread)
+	if err != nil {
+		return false
+	}
+	for _, incarnation := range record.Incarnations {
+		if incarnation.PID != start.Record.PID || incarnation.Identity != start.Record.Identity {
+			return false
+		}
+	}
+	return true
 }
 
 // quiescePostAckStart ends the start's helper and, when the start OWNS the
@@ -1247,6 +1304,15 @@ func (c *Couch) withoutDead(reg Registry) (Registry, int) {
 // stale record's PID may have been recycled by an unrelated process and
 // SIGTERM to the wrong pid is not recoverable.
 func (c *Couch) Stop(a ActorRecord) (signalled bool, err error) {
+	// Stop is never reached inside a composite, so it holds with a fresh
+	// context (pair#205); an actor with no thread has nothing to guard.
+	if a.Thread != (ThreadAddress{}) {
+		_, release, holdErr := c.hold(context.Background(), a.Thread, "stop")
+		if holdErr != nil {
+			return false, holdErr
+		}
+		defer release()
+	}
 	// Signal on Live or Unknown: refusing to signal because we could not
 	// confirm liveness would leave a running agent behind while freeing its
 	// tree, which is the hazard Stop exists to close.
