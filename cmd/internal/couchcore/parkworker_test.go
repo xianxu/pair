@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -230,17 +231,20 @@ func TestACancelledParkStillRefusesOtherLifecycleOperations(t *testing.T) {
 	if err := <-returned; !errors.Is(err, context.Canceled) {
 		t.Fatalf("park = %v, want prompt cancellation", err)
 	}
-	if _, _, err := c.ResumeContext(context.Background(), source.Address); err == nil {
-		t.Fatal("resume admitted while the cancelled park still runs")
+	// Resume refuses on its own earlier rule here (the parking incarnation is
+	// still recorded live), before reaching CommitStartClaim's open-park check;
+	// either way it must be a structured refusal, not an incidental error.
+	if _, _, err := c.ResumeContext(context.Background(), source.Address); ResumeDiagnosticOf(err) == "" {
+		t.Fatalf("resume during the cancelled park = %v, want a structured resume refusal", err)
 	}
-	if _, err := c.Detach(context.Background(), source.Address); err == nil {
-		t.Fatal("detach admitted while the cancelled park still runs")
+	if _, err := c.Detach(context.Background(), source.Address); err == nil || !strings.Contains(err.Error(), "open park transaction") {
+		t.Fatalf("detach during the cancelled park = %v, want the open park transaction refusal", err)
 	}
 	// A second transaction carries its own nonce (production nonces are random;
 	// this fixture's is fixed, which would coalesce onto the running park).
 	c.PairLifecycle.Nonce = func() (string, error) { return "park-second-transaction", nil }
-	if _, err := c.PairLifecycle.ParkExpected(context.Background(), source.Address, 0); err == nil {
-		t.Fatal("a second park transaction admitted while the first still runs")
+	if _, err := c.PairLifecycle.ParkExpected(context.Background(), source.Address, 0); err == nil || !strings.Contains(err.Error(), "another park transaction") {
+		t.Fatalf("second park transaction = %v, want the worker's another-park-transaction refusal", err)
 	}
 }
 

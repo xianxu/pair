@@ -514,7 +514,7 @@ func (c *Couch) openSlot(ctx context.Context, path, agent string, agentGuessed b
 					return StartResult{}, err
 				}
 				proven = detachedResumeProofMatches(next, proof)
-				for _, actor := range c.reg.Records() {
+				for _, actor := range c.actorRegistry().Records() {
 					if actor.Thread == next.Address && actor.Args.WorkingDir() == next.WorkingPath && observeExactProcess(c.Proc, ProcessIdentity{PID: actor.PID, Identity: actor.Identity}) == Live {
 						next.Incarnations = []ThreadIncarnation{{PID: actor.PID, Identity: actor.Identity, State: IncarnationLive, StartedAt: actor.StartedAt, RepoIdentity: slot.RepoIdentity, LaunchProfile: next.LatestLaunchProfile}}
 						proven = true
@@ -566,7 +566,7 @@ func (c *Couch) openSlot(ctx context.Context, path, agent string, agentGuessed b
 		}
 		record = &survivors[0]
 	}
-	for _, actor := range c.reg.Records() {
+	for _, actor := range c.actorRegistry().Records() {
 		if actor.Thread == record.Address && actor.Args.WorkingDir() == record.WorkingPath && observeExactProcess(c.Proc, ProcessIdentity{PID: actor.PID, Identity: actor.Identity}) == Live {
 			return StartResult{Record: actor}, nil
 		}

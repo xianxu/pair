@@ -216,17 +216,24 @@ func (c *Couch) Leave(ctx context.Context, disposition LeaveDisposition) (LeaveR
 // held context.
 //
 // One exception, by design: while the thread has an OPEN park transaction, a
-// park request joins that transaction rather than starting a new operation.
+// park request JOINS that transaction rather than starting a new operation.
 // The park worker coalesces it by nonce onto the in-flight work, so an
 // interactive retry shares the result of the startup recovery already driving
 // the same park (TestParkCoordinatorCoalescesStartupRecoveryAndInteractiveRetry).
 // The open transaction is itself the lock: CommitStartClaim, Detach, recovery
 // and archive all refuse a thread that carries one.
+//
+// Joining never BEGINS a park without the gate: the open transaction was read
+// before acting, and it may close in between, so a normal park on the joining
+// path becomes Retry, which refuses a thread with no active transaction
+// instead of minting a new one (parkJoinMode).
 func (c *Couch) Park(ctx context.Context, address ThreadAddress, mode string) (ParkResult, error) {
 	if c == nil || c.PairLifecycle == nil || c.Threads == nil {
 		return ParkResult{}, errors.New("Pair lifecycle controller is unavailable")
 	}
-	if current, err := c.Threads.GetThread(address); err != nil || current.Park == nil {
+	if current, err := c.Threads.GetThread(address); err == nil && current.Park != nil {
+		mode = parkJoinMode(mode)
+	} else {
 		held, release, holdErr := c.hold(ctx, address, "park")
 		if holdErr != nil {
 			return ParkResult{}, holdErr
@@ -246,6 +253,17 @@ func (c *Couch) Park(ctx context.Context, address ThreadAddress, mode string) (P
 	default:
 		return ParkResult{}, fmt.Errorf("park: invalid mode %q (want normal, retry, recover, or abandon)", mode)
 	}
+}
+
+// parkJoinMode is the mode a park request takes when it joins an open
+// transaction without the gate: every mode that could begin a new transaction
+// becomes retry, which only drives an existing one.
+func parkJoinMode(mode string) string {
+	switch mode {
+	case "", "normal":
+		return "retry"
+	}
+	return mode
 }
 
 // leaveOutcome is what Leave did to one thread.

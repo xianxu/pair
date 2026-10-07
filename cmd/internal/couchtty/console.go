@@ -1624,13 +1624,9 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 			watch := c.continuations[origin.Address]
 			watch.status.Address, watch.status.RequestID = origin.Address, origin.ContinuationID
 			watch.queued, watch.handled = true, true
+			watch.marked = c.markThreadExitsLocked(origin.Address)
 			c.continuations[origin.Address] = watch
 			c.reconcileContinuationOrientationLocked()
-			for id, p := range c.panes {
-				if p.thread == origin.Address {
-					c.expectedExits[id] = true
-				}
-			}
 			c.menu.InFlight = origin
 		}
 	}

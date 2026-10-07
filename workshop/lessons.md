@@ -574,3 +574,21 @@ proof; record the surprising case so the next change starts from evidence.
   it. In a re-exec crash test, the parent must own every directory the child
   writes: Go's test runner runs `t.Cleanup` (deleting `t.TempDir`) while a panic
   unwinds, before the runtime writes the crash.
+- A guard that admits by an earlier observation must never begin new work on it.
+  #205 BR-1: `Couch.Park` read "open park transaction" and skipped the thread gate
+  to join it, but the transaction could close before acting, and a normal park
+  would then begin a fresh one unheld. On the bypass path, map every mode that can
+  begin to one that only drives existing work (`Retry` refuses an absent
+  transaction), so a stale observation fails closed.
+- Moving work off a goroutine moves it out of that goroutine's implicit lock.
+  #205 BR-2: running `AbortStarted` via `GoTracked` made it race `Forget` on the
+  unlocked actor registry, which the single console goroutine had serialized for
+  free. Before moving a writer to a new goroutine, list the shared state it
+  writes and lock it at the same change, not a milestone later.
+- Undo only what you did. #205 BR-3: a refused continuation cleared every
+  expected-exit mark on its thread's panes, including ones a park had set. Record
+  the marks an operation adds (`markThreadExitsLocked` returns them) and remove
+  exactly those on refusal.
+- A drain's wait is an interleaving cell, so give each waiter its own test.
+  #205 BR-4 found `RecoverActiveParks` and `AbortStarted` waiting untested because
+  only `Leave`'s wait was. One waiter's test does not cover another.

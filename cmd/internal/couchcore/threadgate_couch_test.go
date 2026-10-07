@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
 )
 
 // Every couchcore entry that changes a thread's lifecycle refuses a thread
@@ -270,5 +271,133 @@ func TestAbortStartedInsideAComposite(t *testing.T) {
 	case <-done:
 	case <-time.After(5 * time.Second):
 		t.Fatal("AbortStarted inside its holder's context waited on its own caller")
+	}
+}
+
+// Joining an open park transaction without the gate may only drive that
+// transaction: a mode that could begin a new one becomes retry (BR-1).
+func TestParkJoinModeNeverBegins(t *testing.T) {
+	for mode, want := range map[string]string{"": "retry", "normal": "retry", "retry": "retry", "recover": "recover", "abandon": "abandon"} {
+		if got := parkJoinMode(mode); got != want {
+			t.Errorf("parkJoinMode(%q) = %q, want %q", mode, got, want)
+		}
+	}
+}
+
+// RecoverActiveParks is a drain: it waits for a thread's holder, then
+// recovers the open park (BR-4).
+func TestParkRecoveryWaitsForAHolderThenRecovers(t *testing.T) {
+	store, _, thread := createControllerThread(t)
+	identity := ParkIdentity{Nonce: "park-wait", Address: thread.Address, PID: 42, ProcessIdentity: "pair-helper"}
+	thread, err := store.BeginPark(thread.Address, thread.Revision, identity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(300, 0).UTC()
+	model := pairlifecycletest.New(now)
+	model.SetSession("pair-exact", true)
+	lifecycle := &fakeControllerLifecycle{model: model}
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	artifacts.SetPairSession(thread.Address, "pair-exact", true)
+	artifacts.TriggerQuitHook = func(string, launcher.QuitIntent) error {
+		completion := successCompletion(lifecycle.lastRequest, now)
+		lifecycle.completion = &completion
+		return nil
+	}
+	controller := &PairLifecycleController{
+		Threads: store, DataDir: t.TempDir(), Lifecycle: lifecycle, Sessions: artifacts,
+		Proc: NewFakeProcOps(), Clock: FixedClock{T: now},
+		Nonce: func() (string, error) { return "unused", nil },
+	}
+	c := &Couch{Threads: store, PairLifecycle: controller}
+	_, release, err := c.hold(context.Background(), thread.Address, "resume")
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- c.RecoverActiveParks(context.Background()) }()
+	select {
+	case err := <-done:
+		t.Fatalf("park recovery returned while the thread was held: %v", err)
+	case <-time.After(150 * time.Millisecond):
+	}
+	if got := len(artifacts.TriggeredQuits()); got != 0 {
+		t.Fatalf("park recovery acted on a held thread: %d quits", got)
+	}
+	release()
+	if err := <-done; err != nil {
+		t.Fatalf("park recovery after release = %v", err)
+	}
+	recovered, err := store.GetThread(thread.Address)
+	if err != nil || recovered.Park != nil || recovered.VerifiedPark == nil {
+		t.Fatalf("recovered thread = %+v, %v; want the park closed and verified", recovered, err)
+	}
+}
+
+// AbortStarted waits for a holder; once released, a start that still owns its
+// thread is cleaned up in full, session included (BR-4).
+func TestAbortStartedWaitsForAHolderThenQuiesces(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	record, handle, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
+	if err != nil {
+		t.Fatalf("Spawn: %v", err)
+	}
+	_, release, err := env.Couch.hold(context.Background(), record.Thread, "detach")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cause := errors.New("attach failed")
+	done := make(chan error, 1)
+	go func() {
+		done <- env.Couch.AbortStarted(context.Background(), StartResult{Record: record, Handle: handle}, cause)
+	}()
+	select {
+	case err := <-done:
+		t.Fatalf("AbortStarted returned while the thread was held: %v", err)
+	case <-time.After(150 * time.Millisecond):
+	}
+	if got := env.Artifacts.Quiesces(); len(got) != 0 {
+		t.Fatalf("AbortStarted quiesced a held thread's session: %+v", got)
+	}
+	release()
+	if err := <-done; !errors.Is(err, cause) {
+		t.Fatalf("AbortStarted = %v, want the cause", err)
+	}
+	if got := env.Artifacts.Quiesces(); len(got) != 1 || got[0] != record.Thread {
+		t.Fatalf("quiesces = %+v, want the owned session after the wait", got)
+	}
+}
+
+// A cancelled abort wait still ends the start's own helper and terminal, and
+// touches nothing address-scoped (BR-4).
+func TestACancelledAbortWaitEndsOnlyItsOwnHelper(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	record, handle, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
+	if err != nil {
+		t.Fatalf("Spawn: %v", err)
+	}
+	_, release, err := env.Couch.hold(context.Background(), record.Thread, "detach")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- env.Couch.AbortStarted(ctx, StartResult{Record: record, Handle: handle}, errors.New("attach failed"))
+	}()
+	time.Sleep(20 * time.Millisecond)
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("AbortStarted = %v, want the cancellation", err)
+	}
+	if handle.Alive() {
+		t.Fatal("a cancelled abort left its own helper running")
+	}
+	if got := env.Artifacts.Quiesces(); len(got) != 0 {
+		t.Fatalf("a cancelled abort quiesced the session without the hold: %+v", got)
+	}
+	if got := env.Couch.actorRegistry().Records(); len(got) != 0 {
+		t.Fatalf("a cancelled abort left its actor registered: %+v", got)
 	}
 }

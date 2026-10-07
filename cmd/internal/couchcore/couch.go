@@ -79,6 +79,11 @@ type Couch struct {
 	// threadgate.go. A pointer, so a copied Couch cannot split the gate.
 	gateOnce   sync.Once
 	threadGate *ThreadGate
+	// regMu guards reg and names. Both are copy-on-write values, so a reader
+	// copies them under the lock and uses the copy freely; every writer goes
+	// through mutateRegistry (pair#205: operations no longer run on one
+	// goroutine, and a lost update drops an actor in memory and on disk).
+	regMu sync.Mutex
 }
 
 // ReconcileActiveParks performs an explicit active-park reconciliation pass.
@@ -815,7 +820,8 @@ func (c *Couch) AbortStarted(ctx context.Context, start StartResult, cause error
 	}
 	registered := false
 	var registeredShape StartShape
-	for _, record := range c.reg.Records() {
+	reg, _ := c.registry()
+	for _, record := range reg.Records() {
 		if record.ID != start.Record.ID {
 			continue
 		}
@@ -859,18 +865,19 @@ func (c *Couch) AbortStarted(ctx context.Context, start StartResult, cause error
 		cleanupErr = helperOnly()
 		release()
 	}
-	c.reg = c.reg.RemoveActor(start.Record.Args.Worktree, start.Record.ID)
-	return errors.Join(cleanupErr, c.Store.Save(c.reg, c.names))
+	return errors.Join(cleanupErr, c.mutateRegistry(func(reg Registry) (Registry, error) {
+		return reg.RemoveActor(start.Record.Args.Worktree, start.Record.ID), nil
+	}))
 }
 
-// startStillOwnsThread reports whether no other incarnation has replaced this
-// start's on its thread. Read under the thread's gate hold: an unreadable
-// record or one carrying a different process identity means another operation
-// owns the thread now, and its session and record are not this abort's to
-// touch.
+// startStillOwnsThread reports whether the thread still carries this start's
+// incarnation and no other. Read under the thread's gate hold. Ownership needs
+// positive evidence: an unreadable record, a record with no incarnation (some
+// other operation retired it), or one carrying a different process identity
+// all mean the session and record are not this abort's to touch.
 func (c *Couch) startStillOwnsThread(start StartResult) bool {
 	record, err := c.Threads.GetThread(start.Record.Thread)
-	if err != nil {
+	if err != nil || len(record.Incarnations) == 0 {
 		return false
 	}
 	for _, incarnation := range record.Incarnations {
@@ -1172,8 +1179,9 @@ func (c *Couch) Liveness(a ActorRecord) Liveness {
 
 // Forget drops an actor from the registry, freeing its tree.
 func (c *Couch) Forget(w Worktree, id ActorID) error {
-	c.reg = c.reg.RemoveActor(w, id)
-	return c.Store.Save(c.reg, c.names)
+	return c.mutateRegistry(func(reg Registry) (Registry, error) {
+		return reg.RemoveActor(w, id), nil
+	})
 }
 
 // knownTrees is every tree couch knows about: those with actors and those with
@@ -1188,10 +1196,10 @@ func (c *Couch) knownTrees() []Worktree {
 			out = append(out, w)
 		}
 	}
-	for _, r := range c.reg.Records() {
+	for _, r := range c.actorRegistry().Records() {
 		add(r.Args.Worktree)
 	}
-	for _, e := range c.names.All() {
+	for _, e := range c.namingTable().All() {
 		add(e.Tree)
 	}
 	return out
@@ -1211,7 +1219,7 @@ func (c *Couch) LookupTrees(ref string) []Worktree {
 	}
 	seen := map[string]bool{}
 	var out []Worktree
-	for _, w := range c.names.Lookup(ref) {
+	for _, w := range c.namingTable().Lookup(ref) {
 		if !seen[w.Key()] {
 			seen[w.Key()] = true
 			out = append(out, w)
@@ -1238,7 +1246,7 @@ func (c *Couch) LookupTrees(ref string) []Worktree {
 func (c *Couch) ResolveRef(ref string) ([]ActorRecord, []Worktree, error) {
 	trimmed := strings.TrimSpace(ref)
 
-	for _, r := range c.reg.Records() {
+	for _, r := range c.actorRegistry().Records() {
 		if string(r.ID) == trimmed {
 			return []ActorRecord{r}, []Worktree{r.Args.Worktree}, nil
 		}
@@ -1255,7 +1263,7 @@ func (c *Couch) ResolveRef(ref string) ([]ActorRecord, []Worktree, error) {
 	}
 	var out []ActorRecord
 	for _, t := range trees {
-		out = append(out, c.reg.Get(t)...)
+		out = append(out, c.actorRegistry().Get(t)...)
 	}
 	return out, trees, nil
 }
@@ -1270,7 +1278,7 @@ func (c *Couch) Describe(w Worktree) string {
 	if s, err := c.Store.ReadDescription(w); err == nil && s != "" {
 		return s
 	}
-	return c.names.Entry(w).Description
+	return c.namingTable().Entry(w).Description
 }
 
 // withoutDead is the registry minus every KNOWN-dead record, and how many that
@@ -1278,6 +1286,38 @@ func (c *Couch) Describe(w Worktree) string {
 // child exits, so each launch reaps the dead before inserting its own record
 // (pair#378): after each launch the registry holds only live and unprovable
 // actors, and between launches it grows only by children that have exited.
+// registry returns the current actor registry and naming table. Both are
+// immutable values, safe to use after the lock is released.
+func (c *Couch) registry() (Registry, NamingTable) {
+	c.regMu.Lock()
+	defer c.regMu.Unlock()
+	return c.reg, c.names
+}
+
+// actorRegistry and namingTable are registry() for callers that need one half.
+func (c *Couch) actorRegistry() Registry { reg, _ := c.registry(); return reg }
+
+func (c *Couch) namingTable() NamingTable { _, names := c.registry(); return names }
+
+// mutateRegistry applies one read-modify-write of the actor registry and
+// persists it, as one critical section, so concurrent writers cannot lose each
+// other's update. A failed save leaves the in-memory registry unchanged.
+// mutate may probe process liveness (withoutDead), but no zellij or other
+// external call may run inside it: every registry reader waits on this lock.
+func (c *Couch) mutateRegistry(mutate func(Registry) (Registry, error)) error {
+	c.regMu.Lock()
+	defer c.regMu.Unlock()
+	next, err := mutate(c.reg)
+	if err != nil {
+		return err
+	}
+	if err := c.Store.Save(next, c.names); err != nil {
+		return err
+	}
+	c.reg = next
+	return nil
+}
+
 func (c *Couch) withoutDead(reg Registry) (Registry, int) {
 	removed := 0
 	for _, r := range reg.Records() {

@@ -86,7 +86,7 @@ func (r SwitchAgentResult) Started() (StartResult, bool) {
 func (c *Couch) classifyForAction(ctx context.Context, address ThreadAddress) (ActionableThreadState, ThreadReason, error) {
 	hosted := make([]LiveTTYObservation, 0, 4)
 	var unproven []ProcessIdentity
-	for _, actor := range c.reg.Records() {
+	for _, actor := range c.actorRegistry().Records() {
 		if actor.Thread != address {
 			continue
 		}
@@ -179,7 +179,7 @@ func (c *Couch) PrepareAgentSwitch(ctx context.Context, address ThreadAddress, a
 		}
 
 		owned := false
-		for _, actor := range c.reg.Records() {
+		for _, actor := range c.actorRegistry().Records() {
 			if actor.Thread == address && actor.PID == incarnation.PID && actor.Identity == incarnation.Identity {
 				owned = true
 				break

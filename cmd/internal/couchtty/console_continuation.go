@@ -26,6 +26,24 @@ type continuationWatch struct {
 	status  couchcore.ContinuationStatus
 	queued  bool
 	handled bool
+	// marked are the expected-exit marks THIS watch's queued operation added
+	// (pair#205), so a refusal undoes its own marks and never one that a park,
+	// detach or other operation set on the same thread's panes.
+	marked []string
+}
+
+// markThreadExitsLocked marks every pane of address as expected to exit and
+// returns the marks it added; panes already marked by someone else are not
+// claimed. Callers hold c.mu.
+func (c *Console) markThreadExitsLocked(address couchcore.ThreadAddress) []string {
+	var added []string
+	for id, p := range c.panes {
+		if p.thread == address && !c.expectedExits[id] {
+			c.expectedExits[id] = true
+			added = append(added, id)
+		}
+	}
+	return added
 }
 
 func (c *Console) SetContinuationProvider(provider ContinuationProvider) {
@@ -202,13 +220,11 @@ func (c *Console) acceptContinuationRequests(result continuationScanResult) {
 			continue
 		}
 		watch.queued, watch.handled = true, true
+		if operation == "continue-thread" {
+			watch.marked = c.markThreadExitsLocked(status.Address)
+		}
 		c.continuations[status.Address] = watch
 		if operation == "continue-thread" {
-			for id, p := range c.panes {
-				if p.thread == status.Address {
-					c.expectedExits[id] = true
-				}
-			}
 			if !origin.PreserveFocus {
 				c.focus = FocusPanel()
 				c.menu.ActiveAddress = status.Address
@@ -254,18 +270,20 @@ func (c *Console) finishContinuationOperation(completed operationCompletion, err
 	}
 	watch.queued = false
 	busy := couchcore.IsThreadBusy(err)
-	if busy && completed.name == "continue-thread" {
+	if busy {
 		// Refused because another operation held the thread (pair#205): the
-		// continuation never ran. Re-arm it for the next scan and drop the exits
-		// its enqueue marked as expected, or a later real exit of this thread's
-		// pane would be swallowed as one.
-		watch.handled = false
-		for id, p := range c.panes {
-			if p.thread == address {
-				delete(c.expectedExits, id)
-			}
+		// operation never ran. Undo exactly the exit marks it added -- not marks
+		// another operation set on these panes -- or a later real exit would be
+		// swallowed as expected.
+		for _, id := range watch.marked {
+			delete(c.expectedExits, id)
+		}
+		if completed.name == "continue-thread" {
+			// Re-arm it for the next scan.
+			watch.handled = false
 		}
 	}
+	watch.marked = nil
 	switch result := completed.value.(type) {
 	case couchcore.ContinuationStatus:
 		if result.RequestID == watch.status.RequestID && result.Address == address {

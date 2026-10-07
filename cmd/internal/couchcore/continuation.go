@@ -383,7 +383,7 @@ func (c *Couch) executeContinuation(ctx context.Context, record ThreadRecord) (C
 	return ContinuationResult{Status: *continuationStatus(record), Record: actor, Handle: handle, Orientation: &orient}, persistErr
 }
 func (c *Couch) ownsContinuationHelper(address ThreadAddress, inc ThreadIncarnation) bool {
-	for _, a := range c.reg.Records() {
+	for _, a := range c.actorRegistry().Records() {
 		if a.Thread == address && a.PID == inc.PID && a.Identity == inc.Identity {
 			return true
 		}

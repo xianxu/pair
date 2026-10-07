@@ -461,9 +461,18 @@ func TestReplacedRequestTakesItsOrientationPromptWithIt(t *testing.T) {
 func TestABusyContinuationIsRetriedSilently(t *testing.T) {
 	c, status := continuationConsole(t)
 	c.attachThreadActor("source", "source", status.Address, "/repo", "source", ptychild.NewFakeChild(nil))
+	c.attachThreadActor("parked", "parked", status.Address, "/repo", "parked", ptychild.NewFakeChild(nil))
 	status.Phase = checkpoint.Running
-	c.continuations[status.Address] = continuationWatch{status: status, queued: true, handled: true}
-	c.expectedExits["source"] = true
+	// A park already marked one of the thread's panes; the continuation's
+	// enqueue marks only the other and records that it did.
+	c.expectedExits["parked"] = true
+	c.mu.Lock()
+	marked := c.markThreadExitsLocked(status.Address)
+	c.mu.Unlock()
+	if len(marked) != 1 || marked[0] != "source" {
+		t.Fatalf("enqueue claimed marks %v, want only its own [source]", marked)
+	}
+	c.continuations[status.Address] = continuationWatch{status: status, queued: true, handled: true, marked: marked}
 	before := c.feed.Row().Body
 
 	c.finishContinuationOperation(operationCompletion{
@@ -473,6 +482,9 @@ func TestABusyContinuationIsRetriedSilently(t *testing.T) {
 
 	if c.expectedExits["source"] {
 		t.Fatal("a refused continuation left its pane's exit marked as expected")
+	}
+	if !c.expectedExits["parked"] {
+		t.Fatal("a refused continuation cleared the mark a park set on the same thread")
 	}
 	if got := c.feed.Row().Body; got != before {
 		t.Fatalf("a busy continuation announced itself: %q", got)
