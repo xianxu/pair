@@ -1,12 +1,12 @@
 ---
 id: 000404
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-07
 updated: 2026-10-07
 estimate_hours:
-card_mirror: '922ac7502752ac906468666cc024f29935e3e26b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'df54a56090988bc3d7743c53f014556cd3f45d2c' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-07T11:01:19-07:00
 claimant:
     operator: T
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 2.21
 ---
 
 # Opt-in Couch live terminal tracing
