@@ -1208,6 +1208,29 @@ and you are told so. The full capture goes to a file and the prompt carries a
 headline plus that file's path.
 
 
+### Opt-in Couch live capture
+
+For intermittent display problems, restart Couch with tracing enabled only for
+that launch (existing Pair threads can reattach):
+
+```sh
+COUCH_CAPTURE_DIR="$HOME/.local/share/pair/captures" COUCH_CAPTURE_MAX_MIB=4096 couch
+```
+
+Capture is off by default. The absolute destination holds private, unredacted
+terminal-output recordings; no keystroke stream is collected. The optional limit
+is in whole MiB (1–32768), default 256 MiB; the example allows 4 GiB. The status
+row shows `REC N%`, or persistent `REC STOP:queue`, `REC STOP:full` or
+`REC STOP:IO` when recording has stopped. Invalid enabled settings refuse startup;
+both settings are cleared from child environments.
+
+Recordings retain the complete prefix for replay, with no automatic rotation or
+deletion. Each directory admits at most 32 GiB of reserved recording allowances
+and 64 sessions across repeated launches; exhaustion refuses a new capture.
+Preserve or remove specific saved sessions to free their reservations. See the
+[live-capture runbook](atlas/couch-live-capture.md) for limits, legacy recordings,
+private-file handling, stop behavior and streaming extraction.
+
 ### Terminal backend qualification
 
 From the repository root, run `go run ./cmd/probes/terminalqualify > /tmp/terminal-qualification.json`

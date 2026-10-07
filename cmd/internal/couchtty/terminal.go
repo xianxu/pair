@@ -134,7 +134,10 @@ func (c *Console) selectActorContext(ctx context.Context, id string, force bool,
 		if err != nil {
 			return false, err
 		}
-		if err = c.presenter.Select(ctx, pane.child.Endpoint(), terminal.Geometry{Cols: int(size.Cols), Rows: int(size.Rows)}, cells); err != nil {
+		c.traceCaptureTransition("select-start", pane.child.Endpoint().ID(), nil)
+		err = c.presenter.Select(ctx, pane.child.Endpoint(), terminal.Geometry{Cols: int(size.Cols), Rows: int(size.Rows)}, cells)
+		c.traceCaptureTransition("select-end", pane.child.Endpoint().ID(), err)
+		if err != nil {
 			c.traceTerminal("select", err)
 			return false, err
 		}

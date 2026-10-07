@@ -10,6 +10,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/terminal"
 )
 
 // PtyRunner is the Runner whose children get their own pty, so a console can
@@ -24,6 +25,8 @@ type PtyRunner struct {
 	LaunchHelper string
 	// Environment prepares the advertised terminal profile once at the composition root.
 	Environment func() ([]string, error)
+	// Observer is installed before the child's first output can be parsed.
+	Observer terminal.Observer
 
 	// Size supplies a new child's dimensions, called at Start. A func rather
 	// than a value because the console's size changes: the reserved row means
@@ -91,6 +94,7 @@ func (r *PtyRunner) start(dir string, argv, env []string, extraFiles []*os.File)
 		Size:       size,
 		ExtraFiles: extraFiles,
 		EndpointID: h.ID(),
+		Observer:   r.Observer,
 		Sink: func(ctx context.Context, batch ptychild.OutputBatch) error {
 			if r.Sink != nil {
 				return r.Sink(ctx, h.ID(), batch)
