@@ -41,13 +41,15 @@ type Couch struct {
 	Threads                *ThreadStore
 	Entropy                io.Reader
 	Artifacts              ThreadArtifactController
-	PairLifecycle          *PairLifecycleController
-	RootAgent              string
-	RepoAgentDefault       func(repoRoot, agent string) (LaunchProfile, bool, error)
-	FreshRegistration      func(context.Context, ThreadAddress, string, string) (bool, error)
-	OrientationStatus      func(context.Context, ThreadAddress, string, string) (orientation.DeliveryState, error)
-	SwitchContext          SwitchContextResolver
-	SwitchLaunchCheck      func(agent string) error
+	// Reaper ends an orphaned server's tree (#399). Nil is the real host.
+	Reaper            OrphanReaper
+	PairLifecycle     *PairLifecycleController
+	RootAgent         string
+	RepoAgentDefault  func(repoRoot, agent string) (LaunchProfile, bool, error)
+	FreshRegistration func(context.Context, ThreadAddress, string, string) (bool, error)
+	OrientationStatus func(context.Context, ThreadAddress, string, string) (orientation.DeliveryState, error)
+	SwitchContext     SwitchContextResolver
+	SwitchLaunchCheck func(agent string) error
 	// Slug reads a thread's latest pair-slug suggestion for the switcher's
 	// focus view (pair#372); nil shows none. Production wires OSSlugReader.
 	Slug func(context.Context, ThreadAddress) (string, error)

@@ -183,3 +183,16 @@ func (OSProcessTable) Snapshot(ctx context.Context) ([]ProcessRow, error) {
 func (OSProcessTable) Identity(pid int) string { return procutil.Identity(strconv.Itoa(pid)) }
 
 func (OSProcessTable) Signal(pid int, sig syscall.Signal) error { return syscall.Kill(pid, sig) }
+
+// OSOrphanReaper ends an orphaned server on the real host: the whole tree,
+// then zellij's leftover session record (an EXITED resurrect row), proven
+// absent by the same quiescence loop every session deletion uses.
+type OSOrphanReaper struct{}
+
+func (OSOrphanReaper) ReapOrphan(ctx context.Context, server SessionServerIdentity) error {
+	reaper := Reaper{Table: OSProcessTable{}, TermWait: 3 * time.Second, KillWait: 2 * time.Second, Poll: 50 * time.Millisecond}
+	if err := reaper.Reap(ctx, server); err != nil {
+		return err
+	}
+	return quiesceZellijSession(ctx, server.Session, newOSSessionQuiescenceOps(), zellijQueryTimeout, 25*time.Millisecond)
+}

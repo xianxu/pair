@@ -53,8 +53,14 @@ func ActorActions(f ActorRowFacts) []string {
 	case ThreadParked, ThreadDetached:
 		return []string{"resume", "reboot"}
 	case ThreadUnusable:
-		if f.Reason == ReasonUnknown || f.Reason == ReasonOrphanedServer {
+		if f.Reason == ReasonUnknown {
 			return nil
+		}
+		if f.Reason == ReasonOrphanedServer {
+			// Its agent may still be writing: resume would add a second one and
+			// reboot would archive a running conversation. Only a confirmed reap
+			// of the orphaned server tree is safe (#399).
+			return []string{"reap"}
 		}
 		if f.DirectoryMissing {
 			// A :0 record outlives its checkout, so reboot archives it alone.
