@@ -686,7 +686,7 @@ func (c *Console) Run() (code int) {
 	var statusC <-chan time.Time
 	syncStatusTick := func() {
 		c.mu.Lock()
-		loading := c.menu.Reattach.Loading != (couchcore.ThreadAddress{})
+		loading := len(c.menu.Reattach.InFlight) > 0
 		c.mu.Unlock()
 		if !loading {
 			ticking := statusC != nil

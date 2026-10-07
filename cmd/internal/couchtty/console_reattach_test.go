@@ -323,14 +323,14 @@ func TestTheStatusTickRunsOnlyWhileAThreadIsLoading(t *testing.T) {
 		return f.con.statusSpinner
 	}
 	waitUpTo(t, 2*time.Second, "a thread loading", func() bool {
-		return f.con.menuSnapshot().Reattach.Loading != (couchcore.ThreadAddress{})
+		return f.con.menuSnapshot().Reattach.soleLoading() != (couchcore.ThreadAddress{})
 	})
 	before := spinner()
 	waitUpTo(t, 2*time.Second, "the spinner to advance while loading", func() bool { return spinner() != before })
 
 	close(release)
 	waitUpTo(t, 2*time.Second, "the pass to finish", func() bool {
-		return f.con.menuSnapshot().Reattach.Loading == (couchcore.ThreadAddress{})
+		return f.con.menuSnapshot().Reattach.soleLoading() == (couchcore.ThreadAddress{})
 	})
 	settled := spinner()
 	time.Sleep(4 * statusSpinnerInterval)
@@ -372,7 +372,7 @@ func TestTheStatusModelCarriesAPlaceholderPerPendingThread(t *testing.T) {
 		}, nil
 	})
 	waitUpTo(t, 2*time.Second, "the first thread loading", func() bool {
-		return f.con.menuSnapshot().Reattach.Loading == menuAddress("couch-first")
+		return f.con.menuSnapshot().Reattach.soleLoading() == menuAddress("couch-first")
 	})
 
 	model := statusModelOf(f)

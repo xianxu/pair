@@ -78,7 +78,7 @@ func TestGroupedStatusPlaceholderKeepsGroupPosition(t *testing.T) {
 	primary, one, two := groupedRow("/workspace/pair", 0, "primary"), groupedRow("/workspace/pair", 1, "one"), groupedRow("/workspace/pair", 2, "two")
 	con := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 100}), strings.NewReader(""))
 	con.menu = NewMenuState([]couchcore.ActionableThreadSummary{two, one, primary}, primary.Address)
-	con.menu.Reattach = ReattachPass{Phase: ReattachRunning, Loading: one.Address}
+	con.menu.Reattach = ReattachPass{Phase: ReattachRunning, InFlight: map[uint64]couchcore.ThreadAddress{1: one.Address}}
 	con.panes = map[string]*pane{"primary": {thread: primary.Address, tree: couchcore.Worktree(primary.StartingPath), label: "pair"}, "two": {thread: two.Address, tree: couchcore.Worktree(two.StartingPath), label: "pair"}}
 	con.order = []string{"two", "primary"}
 	before := con.statusModelLocked()

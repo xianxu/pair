@@ -47,11 +47,13 @@ type ReattachPass struct {
 	Root couchcore.ThreadAddress
 	// Queue is the threads not yet attempted, in attempt order.
 	Queue []couchcore.ThreadAddress
-	// Loading is the thread with an attempt in flight; zero when none is.
-	Loading couchcore.ThreadAddress
-	// LoadingAttempt is that attempt's identity, drawn from the same counter as
-	// the operator's operations so the two can never be confused.
-	LoadingAttempt uint64
+	// InFlight maps each attempt in flight to its thread (pair#205: up to
+	// Limit at once). Attempt identities come from the same counter as the
+	// operator's operations, so the two can never be confused.
+	InFlight map[uint64]couchcore.ThreadAddress
+	// Limit is how many attempts may be in flight at once, fixed when the pass
+	// is armed (couchcore.LifecycleParallelism) so the reducer reads no global.
+	Limit int
 	// Attached maps a thread that just attached to the refresh generation
 	// current when it landed. The first inventory admitted after that
 	// generation drops it: expiring on "the inventory shows it live" instead
@@ -71,6 +73,12 @@ const reattachFailedCode = "reattach-failed"
 func cloneReattachPass(pass ReattachPass) ReattachPass {
 	next := pass
 	next.Queue = append([]couchcore.ThreadAddress(nil), pass.Queue...)
+	if pass.InFlight != nil {
+		next.InFlight = make(map[uint64]couchcore.ThreadAddress, len(pass.InFlight))
+		for attempt, address := range pass.InFlight {
+			next.InFlight[attempt] = address
+		}
+	}
 	if pass.Attached != nil {
 		next.Attached = make(map[couchcore.ThreadAddress]uint64, len(pass.Attached))
 		for address, generation := range pass.Attached {
@@ -109,15 +117,36 @@ type PassView struct {
 // is neither selectable nor clickable, because it is not ready.
 func (v PassView) Pending() bool { return v.State == PassQueued || v.State == PassLoading }
 
+// loadingAttempts are the in-flight attempts in attempt order -- the order the
+// pass started them, which is what keeps placeholder chips stable.
+func (pass ReattachPass) loadingAttempts() []uint64 {
+	attempts := make([]uint64, 0, len(pass.InFlight))
+	for attempt := range pass.InFlight {
+		attempts = append(attempts, attempt)
+	}
+	slices.Sort(attempts)
+	return attempts
+}
+
+// isLoading reports whether address has an attempt in flight.
+func (pass ReattachPass) isLoading(address couchcore.ThreadAddress) bool {
+	for _, loading := range pass.InFlight {
+		if loading == address {
+			return true
+		}
+	}
+	return false
+}
+
 // passViewOf is the only place that knows what the pass means for a row. The
 // states are disjoint by construction -- an address leaves the queue as it
-// becomes Loading, and Loading resolves to exactly one of Attached, Failed or
-// nothing -- so the order below only decides ties that cannot occur.
+// starts loading, and a loading attempt resolves to exactly one of Attached,
+// Failed or nothing -- so the order below only decides ties that cannot occur.
 func passViewOf(pass ReattachPass, address couchcore.ThreadAddress) (PassView, bool) {
 	if address == (couchcore.ThreadAddress{}) {
 		return PassView{}, false
 	}
-	if pass.Loading == address {
+	if pass.isLoading(address) {
 		return PassView{State: PassLoading}, true
 	}
 	if slices.Contains(pass.Queue, address) {
@@ -151,6 +180,7 @@ func armReattach(state MenuState, root couchcore.ThreadAddress) MenuState {
 	}
 	state.Reattach.Phase = ReattachArmed
 	state.Reattach.Root = root
+	state.Reattach.Limit = couchcore.LifecycleParallelism
 	return state
 }
 
@@ -184,51 +214,65 @@ func seedReattach(state MenuState, inventory []couchcore.ActionableThreadSummary
 	return state
 }
 
-// advanceReattach starts the next attempt when the pass may.
+// advanceReattach starts attempts, up to the pass's Limit in flight at once
+// (pair#205; one at a time before).
 //
-// It emits nothing while an attempt is already in flight (one at a time), and
-// nothing while the OPERATOR has an operation in flight (cell 10). The second is
-// what makes quitting safe: the queue worker starts the next request the moment
-// it pushes the previous result, so without the hold a leave dispatched
-// mid-pass would be followed by one more reattach that is then cancelled.
+// It emits nothing while the OPERATOR has an operation in flight (cell 10).
+// That hold is what makes quitting safe: without it a leave dispatched mid-pass
+// would be followed by more reattaches that are then cancelled. Attempts
+// already in flight finish; Leave waits for each thread's hold.
 func advanceReattach(state MenuState) (MenuState, []MenuEffect) {
 	pass := state.Reattach
-	if pass.Phase != ReattachRunning || pass.Loading != (couchcore.ThreadAddress{}) || state.InFlight.Operation != "" {
+	if pass.Phase != ReattachRunning || state.InFlight.Operation != "" {
 		return state, nil
 	}
-	// The counter guard is unreachable in practice, since it takes 2^64
-	// operations. It is there because the increment below would wrap to 0,
-	// which is the "no attempt" identity finishReattach refuses, and the pass
-	// would then hang on an attempt it can never finish. Ending the pass is
-	// the safe answer.
-	if len(pass.Queue) == 0 || state.OperationSequence == ^uint64(0) {
+	limit := max(1, pass.Limit)
+	// Copy before writing: the reducer is pure, and the previous MenuState must
+	// not see this one's in-flight set change.
+	state.Reattach = cloneReattachPass(pass)
+	var effects []MenuEffect
+	for len(state.Reattach.InFlight) < limit && len(state.Reattach.Queue) > 0 {
+		// The counter guard is unreachable in practice, since it takes 2^64
+		// operations. It is there because the increment below would wrap to 0,
+		// which is the "no attempt" identity finishReattach refuses, and the
+		// pass would then hang on an attempt it can never finish. Dropping the
+		// rest of the queue is the safe answer.
+		if state.OperationSequence == ^uint64(0) {
+			state.Reattach.Queue = nil
+			break
+		}
+		next := state.Reattach.Queue[0]
+		state.Reattach.Queue = append([]couchcore.ThreadAddress(nil), state.Reattach.Queue[1:]...)
+		state.OperationSequence++
+		if state.Reattach.InFlight == nil {
+			state.Reattach.InFlight = map[uint64]couchcore.ThreadAddress{}
+		}
+		state.Reattach.InFlight[state.OperationSequence] = next
+		effect := threadEffect("resume", next)
+		effect.Attempt = state.OperationSequence
+		effect.Background = true
+		// The pass may only REATTACH. warm-only refuses a thread that stopped
+		// being warm -- parked meanwhile, or its session gone -- before any
+		// effect, so the pass can never start an agent.
+		effect.Args["warm-only"] = "true"
+		effects = append(effects, effect)
+	}
+	if len(state.Reattach.Queue) == 0 && len(state.Reattach.InFlight) == 0 {
 		state.Reattach.Phase = ReattachDone
-		return state, nil
 	}
-	next := pass.Queue[0]
-	state.Reattach.Queue = append([]couchcore.ThreadAddress(nil), pass.Queue[1:]...)
-	state.OperationSequence++
-	state.Reattach.Loading = next
-	state.Reattach.LoadingAttempt = state.OperationSequence
-	effect := threadEffect("resume", next)
-	effect.Attempt = state.OperationSequence
-	effect.Background = true
-	// The pass may only REATTACH. warm-only refuses a thread that stopped being
-	// warm -- parked meanwhile, or its session gone -- before any effect, so
-	// the pass can never start an agent.
-	effect.Args["warm-only"] = "true"
-	return state, []MenuEffect{effect}
+	return state, effects
 }
 
 // finishReattach applies one completed pass attempt: cells 5-8.
 func finishReattach(state MenuState, event MenuEvent) MenuState {
 	pass := state.Reattach
-	if !event.Background || pass.LoadingAttempt == 0 || event.Attempt != pass.LoadingAttempt || event.Address != pass.Loading {
-		return state // cell 8: not the attempt in flight
+	loading, inFlight := pass.InFlight[event.Attempt]
+	if !event.Background || event.Attempt == 0 || !inFlight || event.Address != loading {
+		return state // cell 8: not an attempt in flight
 	}
-	address := pass.Loading
-	state.Reattach.Loading = couchcore.ThreadAddress{}
-	state.Reattach.LoadingAttempt = 0
+	address := loading
+	state.Reattach = cloneReattachPass(state.Reattach)
+	delete(state.Reattach.InFlight, event.Attempt)
 	switch {
 	case event.Success:
 		// Cell 5. The pass, not the lagging inventory, is the authority for the
@@ -290,20 +334,21 @@ func clearReattachFailure(state MenuState, address couchcore.ThreadAddress) Menu
 // ReattachPlaceholder is one pending thread for the status bar.
 type ReattachPlaceholder struct {
 	Address couchcore.ThreadAddress
-	// Loading marks the one thread currently starting, which carries the
-	// spinner; the rest are queued.
+	// Loading marks a thread currently starting, which carries the spinner;
+	// the rest are queued.
 	Loading bool
 }
 
-// pendingPlaceholders are the status bar's placeholder chips: the thread
+// pendingPlaceholders are the status bar's placeholder chips: the threads
 // starting now, then the queue, in attempt order. That order is what keeps a
 // chip in place when it resolves: attached chips are drawn in attach order and
 // placeholders after them, so the thread that just attached takes the column
-// its placeholder held.
+// its placeholder held. In-flight attempts are sorted by attempt number, never
+// by map order, so the chips do not jitter between frames (pair#205).
 func pendingPlaceholders(pass ReattachPass) []ReattachPlaceholder {
 	var out []ReattachPlaceholder
-	if pass.Loading != (couchcore.ThreadAddress{}) {
-		out = append(out, ReattachPlaceholder{Address: pass.Loading, Loading: true})
+	for _, attempt := range pass.loadingAttempts() {
+		out = append(out, ReattachPlaceholder{Address: pass.InFlight[attempt], Loading: true})
 	}
 	for _, address := range pass.Queue {
 		out = append(out, ReattachPlaceholder{Address: address})

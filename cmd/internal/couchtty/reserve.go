@@ -42,8 +42,8 @@ type StatusActor struct {
 	// it resolves to no actor: unclickable by construction, not by a check at
 	// the click site.
 	Placeholder bool
-	// Loading marks the one placeholder currently starting; it carries the
-	// spinner.
+	// Loading marks a placeholder currently starting; it carries the spinner.
+	// Several can load at once (pair#205).
 	Loading bool
 	// Idle is how long this thread has gone without activity (pair#247). It
 	// fades the chip -- label and amber glyphs alike -- unless the chip is
