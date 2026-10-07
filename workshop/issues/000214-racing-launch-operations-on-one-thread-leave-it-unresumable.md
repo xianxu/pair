@@ -77,6 +77,11 @@ thread compose the same way — `resume`, `relaunch`, and the `switch-agent` tha
 
 ## Spec
 
+> **Scope revised 2026-10-06** — the concurrency half (per-thread admission
+> guard, refusal message) moved to `#205`. Current scope is
+> "Scope after 2026-10-06" below; the text between here and there is the
+> original record, kept for its reasoning. See Revisions.
+
 **Uniqueness of the live incarnation must be enforced where it is required, not assumed.**
 
 Two candidate layers; the plan picks after reading how `advanceSuccessfulStart` and
@@ -138,29 +143,51 @@ the belt to its braces rather than an alternative:
 actively edited** by the `#199` session on 2026-09-08. Coordinate before editing
 it; that file has already cost `#199` four defects in one day.
 
+### Scope after 2026-10-06
+
+The re-read (Log, 2026-10-06) found the race this issue was named for already
+blocked inside one console: `dispatchMenuOperation` refuses a second operator
+operation and `CommitStartClaim` refuses a second occupant. The incident's real
+mechanism is **newest-launch shadowing**: `sessionledger` `CurrentLaunch` counts
+only the newest launch ordinal, and a launch that never binds hides every
+earlier binding. Two things remain, neither about concurrency:
+
+1. **Name the binding failure.** `bindingResumeDiagnostic` (`couchcore/resume.go`)
+   already tells ambiguous, unbound and provisional apart; the evidence pass
+   drops the code and the projector returns a bare `ReasonBindingLost`
+   (`actionableinventory.go:601`). Carry the code through so the row says which
+   one, and what (if anything) repairs it.
+2. **Launches couch never claimed.** The in-pane agent restart
+   (`pair agent restart` → SIGUSR2 → `wrapcmd` `freshAgentInvocation`) appends a
+   ledger `launch` row with no store claim. Until its agent binds, that launch
+   shadows the thread's established binding — the most plausible source of the
+   2026-09-08 launch #3. Fix it on couch's side, in how it reads the ledger
+   (for example, an unbound newer launch whose process is gone does not shadow
+   an earlier binding). Pair must keep working without couch, so the wrapper
+   gains no couch call (layer direction).
+
+The stuck 2026-09-08 thread is out of scope: a month on, it has been archived
+or recovered by hand (`claude --resume 9a99ff57-…`).
+
 ## Done when
 
-- Two launch-producing operations cannot be admitted against one thread; the second is **refused**
-  (not queued) with a message naming what is already running on that thread.
-- The refusal is per (thread, operation class); two *different* threads are unaffected, so the guard
-  does not serialise the fleet.
-- A refused second gesture leaves the thread **resumable** — asserted by a test that fires
-  resume-then-relaunch and then resumes successfully.
-- A test reproduces the three-launch history and asserts the projector's reason distinguishes
-  multiple bindings from none.
-- The existing thread is either repaired in place or archived with its transcript pointer recorded;
-  the decision is stated with its reason.
-- `#184`'s `switch-agent` inherits the guard rather than adding a third racer.
+- A thread whose resume binding fails projects a reason that names which way it
+  failed (ambiguous, unbound, provisional) rather than a bare `binding lost`;
+  every new reason is produced by a test shape (`TestEveryReasonIsProducedBySomeShape`).
+- A test reproduces the 2026-09-08 ledger shape (two bindings, then a newer
+  launch with no binding) and asserts the thread's state and reason; the
+  outcome the operator sees is stated in the Spec and pinned by that test.
+- An in-pane agent restart that has not bound yet does not make a couch thread
+  unusable, by test, and the Pair wrapper still makes no couch call.
 
 ## Plan
 
-- [ ] Decide the layer(s) per Spec; read `CommitStartClaim` / `advanceSuccessfulStart` first.
-- [ ] Key the queue by thread + operation class; refuse with a naming message.
-- [ ] Enforce single-incarnation at the store CAS.
-- [ ] Split the `binding lost` reason into none-versus-several.
-- [ ] Test: resume-then-relaunch admits one, thread stays resumable; three-launch history projects
-      the multiplicity reason.
-- [ ] Resolve the stuck thread; record which and why.
+- [ ] Carry `bindingResumeDiagnostic`'s code through the evidence pass to the
+      projected reason; add the reasons to the vocabulary and the classify table.
+- [ ] Decide the shadowing rule for an unbound newer launch (`CurrentLaunch` or
+      the couch-side reader); record it in the Spec.
+- [ ] Tests: the 2026-09-08 ledger shape; an unbound in-pane restart; reason
+      coverage.
 
 ## Log
 
@@ -214,3 +241,27 @@ premise of this issue mostly stale:
 
 Stale line refs: `console.go:1509`→`:1661`, `:538`→`:629`,
 `actionableinventory.go:370-376`→`:668-674`.
+
+## Revisions
+
+### 2026-10-06: concurrency half moved to `#205`
+
+**Reason.** The re-read against current code (Log, 2026-10-06) showed the
+named race already blocked within one console, and that the per-thread guard is
+only needed once `#205` replaces the single queue worker with a pool. The
+operator chose to move that half into `#205`, where removing the old ordering
+and adding its replacement land together.
+
+**Delta.**
+- Moved to `#205`: the per-(thread, launch-class) admission guard, the refusal
+  message naming what is running, and the "different threads unaffected" and
+  "refused gesture leaves the thread resumable" Done-when items.
+- Dropped: store-level CAS refusal (already exists in `CommitStartClaim`); the
+  "several bindings" split (the mechanism was newest-launch shadowing, not
+  multiplicity); repairing the 2026-09-08 thread.
+- Kept and reframed: naming the binding failure; added the unclaimed in-pane
+  launch as the likely root cause.
+- `## Done when` and `## Plan` were rewritten for the new scope; the original
+  Spec text is kept above the new subsection.
+- The card title still describes the old scope; retitling waits for the
+  operator.
