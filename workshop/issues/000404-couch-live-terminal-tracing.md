@@ -54,7 +54,8 @@ explicit. The imported implementation is not yet ready to ship.
   views without input or child output, through the existing Presenter; capture
   failure does not replace the underlying terminal write result.
 - Full-prefix recording uses a finite 256 MiB default disk cap, configurable via
-  COUCH_CAPTURE_MAX_MIB from 1 MiB to 1 TiB. Invalid enabled settings fail startup;
+  COUCH_CAPTURE_MAX_MIB from 1 MiB to 32 GiB. A capture directory admits at most
+  32 GiB of reserved stream bytes and 64 sessions, without deleting evidence. Invalid enabled settings fail startup;
   both capture settings are cleared from children. Limits, memory overhead,
   stopped-state behavior, per-session retention and streaming extraction are documented.
 - Focused tests, race checks and independent close review support shipping tracing
@@ -148,3 +149,9 @@ explicit. The imported implementation is not yet ready to ship.
 - Close preflight requested refreshed acceptance wording after the reliability
   revision. Done when now states the implemented burst, persistent status,
   configuration and complete-prefix retention contracts explicitly; no bypass.
+
+- Boundary review round 1 requested README coverage, aggregate retention and pure
+  lifecycle authority (BR-1–BR-3). Plan revised: reserve session allowances against
+  a 32 GiB / 64-session directory budget, preserve all evidence on refusal, narrow
+  per-session limit accordingly, and centralize phase changes in a pure model.
+  Operator explicitly confirmed full-prefix capture with a visible limit.
