@@ -88,7 +88,9 @@ Durable plan: `workshop/plans/000399-couch-model-orphaned-zellij-servers-alive-s
 - [ ] M2 — Reap: a pure `PlanReap` over one process-tree snapshot plus an
       identity-gated `Reaper` (TERM, then KILL after a bound, never a recycled
       pid); `couch --reap repo:N --confirm` through the socket; the report's
-      steps become `reap` then `resume`.
+      steps become `reap` then `resume`. A switcher Tab action **recover** runs
+      that row's report steps (resume / reap→resume / reboot, or refuses on a
+      hold); its confirmation follows the steps (operator decision 2026-10-06).
 - [ ] M3 — Live acceptance (unlink one socket, report, reap, resume), atlas,
       lessons.
 
