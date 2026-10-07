@@ -15,7 +15,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "3c01f2a8", done: "77814f77"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # Opt-in Couch live terminal tracing
@@ -72,6 +72,8 @@ explicit. The imported implementation is not yet ready to ship.
 ## Log
 
 ### 2026-10-07 — Split tracing delivery from diagnosis
+- 2026-10-07: closed — BR1-3 addressed: README, evidence-preserving aggregate reservations, pure lifecycle. Full terminalcapture/couchtty, focused race in recorder/couchcmd/couchtty incl real-PTY startup pass; public Open quota mutation fails; build/diff check pass. Actual 3278-observation replay complete. Broad-suite assertion failures reproduced on main; remaining 126 couchcore tests pass after cumulative timeout; inventory still identical 53 findings. See issue Log. #379 stays open.; review verdict: SHIP
+- 2026-10-07: flow upgraded quick → full — 954 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 - Operator requested a separate implementation ticket and branch; #379 retains the long debugging session and all evidence.
 - Original implementation commits: 9ca17478 (capture) and 0b384b45 (regular-session activation). Imported work will preserve their provenance; historical test results do not establish live-capture reliability.

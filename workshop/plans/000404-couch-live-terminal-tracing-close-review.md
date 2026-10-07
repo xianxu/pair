@@ -85,3 +85,79 @@ findings:
     detail: |
       cmd/internal/terminalcapture/recorder.go:177 changes phases while closing channels, and :299 independently changes phase from the writer loop. Under ARCH-ORDER and ARCH-PURE, route authoritative state changes through an encapsulated pure state/event transition component; exercise failure, repeated close, timeout and late worker completion through that production model.
 ```
+
+---
+
+## Re-review — 2026-10-07T12:12:27-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 404 — Opt-in Couch live terminal tracing |
+| repo | pair |
+| issue file | workshop/issues/000404-couch-live-terminal-tracing.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | b933b5a5bfef7fb681c5dffa2fd39c40d8765e7d..2df93faba69b5bc13754b75859bc9db76b4a6dee |
+| command | sdlc close --issue 404 |
+| reviewer | codex |
+| timestamp | 2026-10-07T12:12:27-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range satisfies the revised capture contract and addresses all three prior findings. Capture remains explicitly enabled, bounded, and observable without changing terminal write results. Focused tests and race checks passed. One unrelated mouse-mode test failed intermittently and reproduced against the verified pinned-base snapshot.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      README.md:1211–1232 documents activation, configuration limits, stopped-state badges, aggregate admission and the atlas runbook. These match captureSettings, captureBadge and storage admission.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Recorder.Open calls budgeted storage admission. Reservations survive completed sessions; byte/count limits and concurrent admission preserve existing evidence. Tests cover repeated launches, exhaustion, legacy/corrupt metadata and public Open wiring.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      lifecycle.go owns authoritative phase/error transitions; Recorder executes its effects. Production-model sequence tests cover repeated close, failure, timeout, completion-before-timeout and late completion, supplemented by blocked-writer integration tests.
+```
+
+1. **Strengths**
+
+   - Endpoint observations occur under the parser/resize mutex, preserving byte and geometry ordering.
+   - Host capture retains partial-write receipts and preserves the underlying write result.
+   - Storage admission conservatively rejects unknown evidence and reserves capacity without deleting recordings.
+   - Coalesced status notifications repaint through the existing Presenter, including idle and pre-Run failures.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   - Capture, observation, lifecycle and real-PTY tests passed across the affected packages.
+   - Focused race checks passed in `terminalcapture`, `couchcmd` and `couchtty`.
+   - Child-environment clearing passed; range whitespace checks passed.
+   - `TestCouchParentCaptureStableAcrossChildMouseModes` failed once, passed ten repetitions, and reproduced on the base snapshot. Its baseline sources were verified byte-for-byte against the pinned base.
+   - Regression assertions exercise production admission and lifecycle decisions. No mutation experiment was performed during this read-only review. The full repository suite was not rerun.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared configuration validation and existing Presenter/terminal seams are reused.
+   - **ARCH-PURE — pass:** lifecycle decisions are separated from channel, clock and filesystem effects.
+   - **ARCH-PURPOSE — pass:** both boundaries, startup bursts and persistent failure visibility are delivered; #379 remains unresolved.
+   - **ARCH-MOCK — pass:** stateful fault sinks and host fixtures exercise shared production boundaries; real PTYs supplement them.
+   - **ARCH-CONSTRAINTS — pass:** queue, stream size, session count and shutdown waiting are bounded and tested.
+   - **ARCH-SECURE — pass:** private files, strict metadata parsing, confinement checks and fixed status labels protect the relevant boundaries.
+   - **ARCH-ORDER — pass:** authoritative lifecycle transitions and deterministic failure/late-completion sequences are exercised.
+   - **ARCH-FUNERAL — pass:** persistent reservations bound repeated-launch residue; explicit archival/removal releases capacity without automatic evidence deletion.
+
+7. **Plan revision recommendations:** None. Appended revisions reconcile the implemented lifecycle, storage admission and configuration limits.

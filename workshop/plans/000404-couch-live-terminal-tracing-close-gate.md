@@ -27,6 +27,24 @@ rounds:
           round: 1
       recipe: milestone-review
       blocked: true
+    - "n": 2
+      timestamp: "2026-10-07T12:12:27-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: README.md:1211–1232 documents activation, configuration limits, stopped-state badges, aggregate admission and the atlas runbook. These match captureSettings, captureBadge and storage admission.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: Recorder.Open calls budgeted storage admission. Reservations survive completed sessions; byte/count limits and concurrent admission preserve existing evidence. Tests cover repeated launches, exhaustion, legacy/corrupt metadata and public Open wiring.
+          round: 2
+        - id: BR-3
+          disposition: addressed
+          note: lifecycle.go owns authoritative phase/error transitions; Recorder executes its effects. Production-model sequence tests cover repeated close, failure, timeout, completion-before-timeout and late completion, supplemented by blocked-writer integration tests.
+          round: 2
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#404 (boundary-review)
@@ -45,8 +63,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Important] `authoritative-pure-lifecycle-transitions` Recorder lifecycle transitions remain embedded in the IO shell
   cmd/internal/terminalcapture/recorder.go:177 changes phases while closing channels, and :299 independently changes phase from the writer loop. Under ARCH-ORDER and ARCH-PURE, route authoritative state changes through an encapsulated pure state/event transition component; exercise failure, repeated close, timeout and late worker completion through that production model.
 
+## Round 2 — 2026-10-07T12:12:27-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — README.md:1211–1232 documents activation, configuration limits, stopped-state badges, aggregate admission and the atlas runbook. These match captureSettings, captureBadge and storage admission.
+- BR-2 — addressed — Recorder.Open calls budgeted storage admission. Reservations survive completed sessions; byte/count limits and concurrent admission preserve existing evidence. Tests cover repeated launches, exhaustion, legacy/corrupt metadata and public Open wiring.
+- BR-3 — addressed — lifecycle.go owns authoritative phase/error transitions; Recorder executes its effects. Production-model sequence tests cover repeated close, failure, timeout, completion-before-timeout and late completion, supplemented by blocked-writer integration tests.
+
 ## Open findings
 
-- **BR-1** [Important] `user-surface-readme-coverage` README omits the new live-capture configuration
-- **BR-2** [Important] `durable-artifact-aggregate-retention` Per-session caps leave accumulated capture storage unbounded
-- **BR-3** [Important] `authoritative-pure-lifecycle-transitions` Recorder lifecycle transitions remain embedded in the IO shell
+(none — every finding has been disposed)
