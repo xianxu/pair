@@ -104,5 +104,6 @@
 - [Managed retention I/O](storage-retention-io.md) — Checked entrypoints, protected artifacts, guard call chains, meaningful-use rules and behavioral evidence.
 
 - [Terminal ownership](terminal.md) — Shared endpoint, presenter, profile, transport and qualification boundaries.
+- [Couch broadcast](broadcast.md) — view-only streaming of the composed Couch screen: Presenter tap, LIVE-gated hub, switcher privacy (#395).
 
 - [Opt-in Couch live capture](couch-live-capture.md) — opt-in display-boundary recording and replay evidence for #379.

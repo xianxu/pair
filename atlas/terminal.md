@@ -110,6 +110,12 @@ spaces in native copied text. Child alternate-screen transitions become presente
 retain the current physical buffer. Release leaves only an alternate buffer the
 presenter actually entered, then restores parent controls.
 
+A `Tap` (`SetTap`) observes each frame after it is written and admitted as
+presented, with an owned clone and a `FrameClass`. `Select` presents public
+frames; `Panel` takes a class, and Couch's switcher is private. Couch broadcast
+(#395, [broadcast.md](broadcast.md)) is the consumer. The tap runs on the
+Presenter goroutine and must not block.
+
 Kitty keyboard flags are a stack **per screen**, so setup's `\x1b[>3u` holds only
 on the screen it was written on. `Presenter.writeFramePacket` makes the push
 follow the parent: it pushes right after entering the alternate screen and pops
