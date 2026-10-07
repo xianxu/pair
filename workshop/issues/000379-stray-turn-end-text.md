@@ -401,6 +401,13 @@ implementation or a reproduction of the reported misplaced text.
 - Another earlier capture, `session-1849422337`, used old build `0b384b45` and ended incomplete after 7.53 seconds (queue limit). Preserve as instrumentation evidence; it does not implicate the shipped recorder.
 - Operator requested clearer badge emphasis. Delivered separately as #405 / PR #209: bold reverse-video capture label, existing scoped reset; then resumed this issue and merged current main. #379 remains open, awaiting an observed incident with its approximate time and thread/pane. Preserve the entire capture directory and exit Couch normally after an incident to finalize evidence before replay analysis.
 
+### 2026-10-07 — Proactive scan without a witnessed occurrence
+
+- Operator has not noticed another occurrence but requested checking the logs for a missed one. Inspected `session-2616925832` in full (182,541,017 bytes, 99,599 records, complete at 14:11:49 PDT) and a fixed live prefix of `session-2834647007` (878,552,357 bytes, 418,959 records through 14:53:41 PDT; started 14:12:09). New session uses clean build `6986321e216f9da591464e5991bcb03a5675fdf4`. Both streams have contiguous sequence numbers, no recorded errors, no short host writes, and constant recorded host geometry 191×54. The new session was still actively growing; no completeness claim for that live prefix.
+- Replayed accepted host bytes, in recorded write order with host geometry, through the existing independent xterm/headless oracle. Checked screen rows after all 1,752 + 12,200 = 13,952 host writes. The duration-footer heuristic found matching left-half text in 309 + 2,792 = 3,101 frames, and zero right-half matches. Left-side labels included Claude’s Sautéed/Brewed/Baked/Churned/Cogitated/Cooked/Crunched and Codex’s Worked; matches are frame observations, not distinct completed turns.
+- No evidence of a missed stray-text occurrence in this check. Limits: heuristic footer detection, midpoint pane classification, xterm rather than Ghostty, accelerated replay without wall-clock delays, and inspection after each host write rather than intermediate paint states within a write. These negative results do not establish absence of a transient live rendering fault or its cause.
+- Private analysis scripts, extraction metadata, row-level replay results and usage skill: `/tmp/p379-logcheck/`. Source captures remain untouched. Continue waiting for an observed occurrence and approximate time to narrow a faithful replay.
+
 ## Revisions
 
 - 2026-10-07 — Corrected the interpretation of “isolated session”: operator wants
