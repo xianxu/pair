@@ -1,0 +1,394 @@
+package broadcast
+
+import (
+	"errors"
+	"fmt"
+	"math/rand"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/xianxu/pair/cmd/internal/terminal"
+)
+
+// manualClock drives the hub's grace timer and resync tick by hand.
+type manualClock struct {
+	grace   chan time.Time
+	armed   int
+	stopped int
+	ticks   chan time.Time
+}
+
+func newManualClock() *manualClock {
+	return &manualClock{grace: make(chan time.Time, 1), ticks: make(chan time.Time)}
+}
+
+func (c *manualClock) after(time.Duration) (<-chan time.Time, func() bool) {
+	c.armed++
+	ch := make(chan time.Time, 1)
+	c.grace = ch
+	return ch, func() bool { c.stopped++; return true }
+}
+
+// fireGrace fires the most recently armed grace timer, if it hasn't fired.
+func (c *manualClock) fireGrace(h *Hub) {
+	select {
+	case c.grace <- time.Now():
+	default:
+	}
+	h.sync()
+}
+func (c *manualClock) tick(h *Hub) { c.ticks <- time.Now(); h.sync() }
+
+func testHub(t *testing.T, opts HubOptions) (*Hub, *manualClock) {
+	t.Helper()
+	clock := newManualClock()
+	opts.After = clock.after
+	opts.Ticks = clock.ticks
+	h := NewHub(opts)
+	t.Cleanup(func() { h.Close(nil) })
+	return h, clock
+}
+
+// viewer drains a subscription into an emulator screen.
+type viewer struct {
+	sub  *Subscription
+	scr  screen
+	msgs int
+}
+
+func subscribe(t *testing.T, h *Hub) *viewer {
+	t.Helper()
+	sub, err := h.Subscribe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &viewer{sub: sub}
+}
+
+// drain applies every queued message; it reports whether the channel closed.
+func (v *viewer) drain(t *testing.T) (closed bool) {
+	t.Helper()
+	for {
+		select {
+		case m, ok := <-v.sub.Messages():
+			if !ok {
+				return true
+			}
+			v.msgs++
+			v.scr.apply(t, m)
+		default:
+			return false
+		}
+	}
+}
+
+func (v *viewer) next(t *testing.T) (Message, bool) {
+	t.Helper()
+	select {
+	case m, ok := <-v.sub.Messages():
+		return m, ok
+	default:
+		t.Fatal("no message queued")
+		return Message{}, false
+	}
+}
+
+func live(t *testing.T, body string) terminal.Frame {
+	return textFrame(t, 40, 4, body, liveChrome("tabs"))
+}
+
+func hidden(t *testing.T, body string) terminal.Frame {
+	return textFrame(t, 40, 4, body, "tabs")
+}
+
+func offer(h *Hub, f terminal.Frame, class terminal.FrameClass) {
+	h.Offer(f, class)
+	h.sync()
+}
+
+func TestHubLateJoinerGetsCurrentFrame(t *testing.T) {
+	h, _ := testHub(t, HubOptions{})
+	a := live(t, "alpha")
+	offer(h, a, terminal.FramePublic)
+	v := subscribe(t, h)
+	m, _ := v.next(t)
+	if !strings.Contains(string(m.Data), "\x1b[2J") {
+		t.Fatal("late joiner's first message is not a full render")
+	}
+	v.scr.apply(t, m)
+	b := live(t, "beta")
+	offer(h, b, terminal.FramePublic)
+	v.drain(t)
+	if v.scr.text() != frameText(t, b) {
+		t.Fatalf("viewer screen %q", v.scr.text())
+	}
+}
+
+func TestHubWithholdsFramesWithoutIndicator(t *testing.T) {
+	h, _ := testHub(t, HubOptions{})
+	v := subscribe(t, h)
+	offer(h, hidden(t, "WITHHELD"), terminal.FramePublic)
+	v.drain(t)
+	if v.msgs != 0 {
+		t.Fatalf("withheld frame produced %d messages", v.msgs)
+	}
+	offer(h, live(t, "shown"), terminal.FramePublic)
+	v.drain(t)
+	if v.msgs != 1 || strings.Contains(v.scr.text(), "WITHHELD") {
+		t.Fatalf("msgs=%d screen=%q", v.msgs, v.scr.text())
+	}
+}
+
+func TestHubStopsWhenIndicatorHiddenPastGrace(t *testing.T) {
+	t.Run("hidden after live", func(t *testing.T) {
+		h, clock := testHub(t, HubOptions{})
+		h.Activate()
+		v := subscribe(t, h)
+		offer(h, live(t, "a"), terminal.FramePublic)
+		offer(h, hidden(t, "b"), terminal.FramePublic)
+		clock.fireGrace(h)
+		assertEnded(t, h, v, ErrIndicatorHidden)
+	})
+	t.Run("never shown after activate", func(t *testing.T) {
+		h, clock := testHub(t, HubOptions{})
+		v := subscribe(t, h)
+		h.Activate()
+		clock.fireGrace(h)
+		assertEnded(t, h, v, ErrIndicatorHidden)
+	})
+	t.Run("no timer before activate", func(t *testing.T) {
+		h, clock := testHub(t, HubOptions{})
+		offer(h, hidden(t, "b"), terminal.FramePublic)
+		if clock.armed != 0 {
+			t.Fatalf("grace armed %d times before Activate", clock.armed)
+		}
+	})
+}
+
+func assertEnded(t *testing.T, h *Hub, v *viewer, want error) {
+	t.Helper()
+	select {
+	case <-h.Done():
+	case <-time.After(5 * time.Second):
+		t.Fatal("hub did not end")
+	}
+	if !errors.Is(h.Err(), want) {
+		t.Fatalf("Err() = %v, want %v", h.Err(), want)
+	}
+	if !v.drain(t) {
+		t.Fatal("subscriber channel not closed at end")
+	}
+	if _, err := h.Subscribe(); !errors.Is(err, ErrHubClosed) {
+		t.Fatalf("subscribe after end: %v", err)
+	}
+}
+
+func TestHubIndicatorReturnsBeforeGrace(t *testing.T) {
+	h, clock := testHub(t, HubOptions{})
+	h.Activate()
+	offer(h, live(t, "a"), terminal.FramePublic)
+	offer(h, hidden(t, "b"), terminal.FramePublic)
+	offer(h, live(t, "c"), terminal.FramePublic)
+	if clock.stopped == 0 {
+		t.Fatal("grace timer not cancelled when the indicator returned")
+	}
+	select {
+	case <-h.Done():
+		t.Fatal("hub ended although the indicator returned")
+	default:
+	}
+}
+
+func TestHubPrivateFrame(t *testing.T) {
+	for _, show := range []bool{false, true} {
+		t.Run(fmt.Sprintf("showSwitcher=%v", show), func(t *testing.T) {
+			h, _ := testHub(t, HubOptions{ShowSwitcher: show})
+			v := subscribe(t, h)
+			offer(h, live(t, "FLEET-SECRET"), terminal.FramePrivate)
+			v.drain(t)
+			leaked := strings.Contains(v.scr.text(), "FLEET-SECRET")
+			if leaked != show {
+				t.Fatalf("switcher visible=%v, want %v: %q", leaked, show, v.scr.text())
+			}
+			if !show && !strings.Contains(v.scr.text(), PlaceholderText) {
+				t.Fatalf("placeholder missing: %q", v.scr.text())
+			}
+		})
+	}
+}
+
+func TestHubSlowViewerResyncs(t *testing.T) {
+	h, clock := testHub(t, HubOptions{QueueDepth: 3})
+	fast, slow := subscribe(t, h), subscribe(t, h)
+	var last terminal.Frame
+	for i := range 10 {
+		last = live(t, fmt.Sprintf("frame %d", i))
+		offer(h, last, terminal.FramePublic)
+		fast.drain(t)
+	}
+	if fast.msgs != 10 || fast.scr.text() != frameText(t, last) {
+		t.Fatalf("fast viewer got %d messages, screen %q", fast.msgs, fast.scr.text())
+	}
+	// The slow viewer's queue holds a valid prefix; after it, the next message
+	// must be a full render, with no diff it can't apply in between.
+	for range 3 {
+		m, _ := slow.next(t)
+		slow.scr.apply(t, m)
+	}
+	clock.tick(h)
+	m, _ := slow.next(t)
+	if !strings.Contains(string(m.Data), "\x1b[2J") {
+		t.Fatal("first message after overflow is not a full render")
+	}
+	slow.scr.apply(t, m)
+	if slow.scr.text() != frameText(t, last) {
+		t.Fatalf("slow viewer screen %q", slow.scr.text())
+	}
+}
+
+func TestHubOfferNeverBlocks(t *testing.T) {
+	h, _ := testHub(t, HubOptions{})
+	release := make(chan struct{})
+	stalled := make(chan struct{})
+	go h.do(func() { close(stalled); <-release })
+	<-stalled
+	f := live(t, "x")
+	start := time.Now()
+	for range 10000 {
+		h.Offer(f, terminal.FramePublic)
+	}
+	close(release)
+	if d := time.Since(start); d > time.Second {
+		t.Fatalf("10k offers against a stalled hub took %v", d)
+	}
+}
+
+func TestHubMaxViewers(t *testing.T) {
+	h, _ := testHub(t, HubOptions{MaxViewers: 2})
+	subscribe(t, h)
+	v := subscribe(t, h)
+	if _, err := h.Subscribe(); !errors.Is(err, ErrTooManyViewers) {
+		t.Fatalf("third subscribe: %v", err)
+	}
+	v.sub.Close()
+	subscribe(t, h)
+}
+
+func TestHubCloseIdempotent(t *testing.T) {
+	h, _ := testHub(t, HubOptions{})
+	v := subscribe(t, h)
+	reason := errors.New("operator stopped")
+	h.Close(reason)
+	h.Close(errors.New("second"))
+	assertEnded(t, h, v, reason)
+	h.Offer(live(t, "late"), terminal.FramePublic)
+}
+
+// TestHubRandomInterleavings checks the hub's invariants against seeded
+// random interleavings of offers, subscriptions, slow drains, ticks, grace
+// expiry and close:
+//  1. every viewer screen equals some frame the hub accepted, and after
+//     quiescence plus a tick it equals the current one;
+//  2. nothing derived from a frame without the indicator reaches a viewer;
+//  3. no private body reaches a viewer unless ShowSwitcher;
+//  4. after the end, every queue is closed.
+func TestHubRandomInterleavings(t *testing.T) {
+	for seed := int64(1); seed <= 500; seed++ {
+		if !t.Run(fmt.Sprint(seed), func(t *testing.T) { hubInterleaving(t, seed) }) {
+			t.Fatalf("seed %d failed", seed)
+		}
+	}
+}
+
+func hubInterleaving(t *testing.T, seed int64) {
+	r := rand.New(rand.NewSource(seed))
+	show := r.Intn(2) == 0
+	h, clock := testHub(t, HubOptions{ShowSwitcher: show, QueueDepth: 1 + r.Intn(4)})
+	accepted := map[string]bool{"": true}
+	current := ""
+	var viewers []*viewer
+	ended := false
+	// check inspects screens without draining: slow viewers must stay slow,
+	// or no queue ever overflows and resync goes untested.
+	check := func(step string) {
+		t.Helper()
+		for i, v := range viewers {
+			text := v.scr.text()
+			if !accepted[text] {
+				t.Fatalf("%s: viewer %d shows a frame the hub never accepted: %q", step, i, text)
+			}
+			if strings.Contains(text, "WITHHELD") {
+				t.Fatalf("%s: viewer %d got a frame without the indicator", step, i)
+			}
+			if !show && strings.Contains(text, "FLEET-SECRET") {
+				t.Fatalf("%s: viewer %d got a private body", step, i)
+			}
+		}
+	}
+	h.Activate()
+	for step := range 60 {
+		if ended {
+			break
+		}
+		switch op := r.Intn(10); {
+		case op < 5:
+			// A burst, so queues of depth 1-4 overflow.
+			for n := range 1 + r.Intn(6) {
+				class := terminal.FramePublic
+				body := fmt.Sprintf("frame %d.%d", step, n)
+				if r.Intn(4) == 0 {
+					class, body = terminal.FramePrivate, body+" FLEET-SECRET"
+				}
+				if r.Intn(5) == 0 {
+					offer(h, hidden(t, body+" WITHHELD"), class)
+					continue
+				}
+				f := live(t, body)
+				offer(h, f, class)
+				vf, err := ViewerFrame(f, class, show)
+				if err != nil {
+					t.Fatal(err)
+				}
+				current = frameText(t, vf)
+				accepted[current] = true
+			}
+		case op < 6 && len(viewers) < 5:
+			viewers = append(viewers, subscribe(t, h))
+		case op < 8 && len(viewers) > 0:
+			viewers[r.Intn(len(viewers))].drain(t)
+		case op < 9:
+			clock.tick(h)
+		default:
+			if r.Intn(4) == 0 {
+				clock.fireGrace(h)
+				select {
+				case <-h.Done():
+					ended = true
+				default:
+				}
+			}
+		}
+		check(fmt.Sprintf("step %d", step))
+	}
+	if !ended {
+		// Quiescence: drain everyone, tick, drain again. Everyone is current.
+		for _, v := range viewers {
+			v.drain(t)
+		}
+		clock.tick(h)
+		for i, v := range viewers {
+			v.drain(t)
+			if current != "" && v.scr.text() != current {
+				t.Fatalf("viewer %d not current after quiescence: %q, want %q", i, v.scr.text(), current)
+			}
+		}
+		h.Close(errors.New("done"))
+		<-h.Done()
+	}
+	for i, v := range viewers {
+		if !v.drain(t) {
+			t.Fatalf("viewer %d queue not closed after end", i)
+		}
+	}
+}
