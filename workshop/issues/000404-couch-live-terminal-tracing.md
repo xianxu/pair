@@ -69,3 +69,24 @@ explicit. The imported implementation is not yet ready to ship.
 - Transfer completed onto `000404-couch-live-terminal-tracing` from current main. Investigation-only branch: `000379-stray-turn-end-text`; original history: `archive/000379-before-tracing-split`. Implementation plan: [#404 tracing plan](../plans/000404-couch-live-terminal-tracing-plan.md). A single import-block conflict in couchcmd/run.go retained both main's scrollbackcmd and tracing's terminalcapture imports. No tracing behavior changed during the split.
 
 - Split verification: `git diff --cached --check` passed; recorder package tests passed; Capture/Observation-filtered tests passed across terminal, ptychild, couchcmd, couchcore and couchtty (ptychild had no matching tests); explicit `TestPtyRunnerObservesFirstBytesAndGeometryBeforeDelivery` passed. Compared original and transferred production/test/atlas/lessons diff additions and removals: identical, with newer main context retained. #379 branch differs from main only in its issue document. These checks verify transfer integrity, not a fix for live overflow.
+
+
+## Revisions
+
+- 2026-10-07 — Operator authorized finishing #404. Completion design retains full
+  terminal prefix rather than lossy rolling history; make the finite disk budget
+  configurable and show persistent usage/failure in Couch. Increase the record
+  count bound to fit measured startup bursts while retaining the 8 MiB admitted
+  record-cost bound (channel/encoding overhead is additional). The plan records
+  exact phases, notification ownership and regression checks. No change to #379's
+  diagnosis scope or acceptance. Existing opt-in activation is unchanged.
+
+### 2026-10-07 — Reliability design evidence
+
+- Measured source capture: 3,280 records, 3,722,498 data bytes; largest payload
+  18,851 bytes, peak 279 records / 277,881 bytes in 100 ms. A 128-record limit is
+  below this observed burst even though its data fits the existing byte budget.
+- Fresh-eyes plan review requested precise memory accounting and near-limit
+  record coverage; plan updated accordingly. Run loop will consume coalesced
+  recorder-status notifications and repaint through Presenter; no separate
+  terminal writer or polling worker.
