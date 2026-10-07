@@ -165,8 +165,10 @@ type LeaveResult struct {
 // safely detached it is honest. It stays occupied and the next startup
 // reconciles it.
 //
-// Serial by choice: shutdown is not a throughput path, and each exact identity
-// gets the full bounded budget rather than competing for it.
+// Concurrent, bounded (pair#205): at 18 slots a serial quit was the operator's
+// wait, so up to LifecycleParallelism threads are driven at once. Each thread
+// still gets its own full bounded budget -- the bound caps how many compete for
+// the host, not how long any one may take.
 func (c *Couch) Leave(ctx context.Context, disposition LeaveDisposition) (LeaveResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -188,76 +190,211 @@ func (c *Couch) Leave(ctx context.Context, disposition LeaveDisposition) (LeaveR
 	if err != nil {
 		return result, err
 	}
-	for _, record := range snapshot.Records {
+	// Bounded fan-out (pair#205 D6): up to LifecycleParallelism threads at
+	// once, each under its own thread hold. One thread's failure does not stop
+	// its siblings; every failure is joined into the error, and the report keeps
+	// snapshot order whatever order the work ends in. Cancellation stops
+	// STARTING threads; the ones already started see it through their ctx and
+	// stop at their own safe points, exactly as the single in-flight thread did
+	// when Leave was serial (a detach that stops mid-way destroys nothing; the
+	// next startup reconciles the record).
+	records := snapshot.Records
+	outcomes := make([]leaveOutcome, len(records))
+	errs := make([]error, len(records))
+	units := make(chan struct{}, LifecycleParallelism)
+	var wg sync.WaitGroup
+dispatch:
+	for i, record := range records {
+		notStarted := func(err error) error {
+			return fmt.Errorf("leave couch: %d thread(s) not started: %w", len(records)-i, err)
+		}
+		// Checked before AND after the select: when the context is done and a
+		// unit is free at once, select picks either case at random, so a
+		// cancelled Leave would sometimes start another thread.
 		if err := ctx.Err(); err != nil {
-			return result, err
+			errs[i] = notStarted(err)
+			break dispatch
 		}
-		if record.Park != nil {
-			if c.PairLifecycle == nil {
-				return result, errors.New("Pair lifecycle controller is unavailable")
-			}
-			parkResult, parkErr := c.PairLifecycle.Recover(ctx, record.Address)
-			if parkErr != nil {
-				return result, fmt.Errorf("leave couch: recover park %s: %w", record.Address.Tag, parkErr)
-			}
-			if parkResult.Thread.VerifiedPark == nil || parkResult.Thread.Park != nil {
-				return result, fmt.Errorf("leave couch: park %s did not produce verified inactive history", record.Address.Tag)
-			}
+		select {
+		case <-ctx.Done():
+			errs[i] = notStarted(ctx.Err())
+			break dispatch
+		case units <- struct{}{}:
+		}
+		if err := ctx.Err(); err != nil {
+			<-units // return the token this iteration just took, unused
+			errs[i] = notStarted(err)
+			break dispatch
+		}
+		wg.Add(1)
+		go func(i int, address ThreadAddress) {
+			defer wg.Done()
+			defer func() { <-units }()
+			outcomes[i], errs[i] = c.leaveOne(ctx, address, disposition)
+		}(i, record.Address)
+	}
+	wg.Wait()
+	for i, record := range records {
+		switch outcomes[i] {
+		case leaveParked:
 			result.Parked = append(result.Parked, record.Address)
-			continue
-		}
-		if !hasActiveIncarnation(record) {
-			continue
-		}
-		if len(record.Incarnations) != 1 || record.Incarnations[0].State != IncarnationLive {
+		case leaveDetached:
+			result.Detached = append(result.Detached, record.Address)
+		case leaveSkipped:
 			result.Skipped = append(result.Skipped, record.Address)
-			continue
 		}
-		if disposition == LeavePark {
-			if c.PairLifecycle == nil {
-				return result, errors.New("Pair lifecycle controller is unavailable")
-			}
-			parkResult, parkErr := c.PairLifecycle.Park(ctx, record.Address)
-			if parkErr != nil {
-				return result, fmt.Errorf("leave couch: park %s: %w", record.Address.Tag, parkErr)
-			}
-			if parkResult.Thread.VerifiedPark == nil || parkResult.Thread.Park != nil {
-				return result, fmt.Errorf("leave couch: park %s did not produce verified inactive history", record.Address.Tag)
-			}
-			result.Parked = append(result.Parked, record.Address)
-			continue
-		}
-		// A recorded live incarnation is history, not current liveness. The
-		// switcher may already show this thread as parked from its ledger.
-		incarnation := record.Incarnations[0]
-		identity := ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}
-		switch observeExactProcessOrUnknown(c.Proc, identity) {
-		case Dead:
-			if _, err := c.clearLifecycleDebris(record); err != nil {
-				return result, fmt.Errorf("leave couch: reconcile %s: %w", record.Address.Tag, err)
-			}
-			// Retiring dead bookkeeping neither detaches nor parks an agent,
-			// so it contributes no line to the operator's leave report.
-			continue
-		case Unknown:
-			result.Skipped = append(result.Skipped, record.Address)
-			continue
-		}
-		session, err := c.recoverySession(ctx, record.Address)
-		if err != nil {
-			return result, fmt.Errorf("leave couch: observe %s: %w", record.Address.Tag, err)
-		}
-		if !session.Present {
-			// A missing session does not authorize stopping a live process.
-			result.Skipped = append(result.Skipped, record.Address)
-			continue
-		}
-		if _, detachErr := c.Detach(ctx, record.Address); detachErr != nil {
-			return result, fmt.Errorf("leave couch: detach %s: %w", record.Address.Tag, detachErr)
-		}
-		result.Detached = append(result.Detached, record.Address)
+	}
+	if err := errors.Join(errs...); err != nil {
+		return result, err
 	}
 	return result, nil
+}
+
+// Park drives one of park's modes on a thread under the thread gate
+// (pair#205). It is the executor's park entry, so a park dispatched by the
+// operator, a remote job or the CLI is refused while another lifecycle
+// operation holds the thread. Composites that park internally (relaunch,
+// switch-agent, continuations) call the controller directly with their own
+// held context.
+//
+// One exception, by design: while the thread has an OPEN park transaction, a
+// park request JOINS that transaction rather than starting a new operation.
+// The park worker coalesces it by nonce onto the in-flight work, so an
+// interactive retry shares the result of the startup recovery already driving
+// the same park (TestParkCoordinatorCoalescesStartupRecoveryAndInteractiveRetry).
+// The open transaction is itself the lock: CommitStartClaim, Detach, recovery
+// and archive all refuse a thread that carries one.
+//
+// Joining never BEGINS a park without the gate: the open transaction was read
+// before acting, and it may close in between, so a normal park on the joining
+// path becomes Retry, which refuses a thread with no active transaction
+// instead of minting a new one (parkJoinMode).
+func (c *Couch) Park(ctx context.Context, address ThreadAddress, mode string) (ParkResult, error) {
+	if c == nil || c.PairLifecycle == nil || c.Threads == nil {
+		return ParkResult{}, errors.New("Pair lifecycle controller is unavailable")
+	}
+	if current, err := c.Threads.GetThread(address); err == nil && current.Park != nil {
+		mode = parkJoinMode(mode)
+	} else {
+		held, release, holdErr := c.hold(ctx, address, "park")
+		if holdErr != nil {
+			return ParkResult{}, holdErr
+		}
+		defer release()
+		ctx = held
+	}
+	switch mode {
+	case "", "normal":
+		return c.PairLifecycle.Park(ctx, address)
+	case "retry":
+		return c.PairLifecycle.Retry(ctx, address)
+	case "recover":
+		return c.PairLifecycle.Recover(ctx, address)
+	case "abandon":
+		return c.PairLifecycle.Abandon(ctx, address)
+	default:
+		return ParkResult{}, fmt.Errorf("park: invalid mode %q (want normal, retry, recover, or abandon)", mode)
+	}
+}
+
+// parkJoinMode is the mode a park request takes when it joins an open
+// transaction without the gate: every mode that could begin a new transaction
+// becomes retry, which only drives an existing one.
+func parkJoinMode(mode string) string {
+	switch mode {
+	case "", "normal":
+		return "retry"
+	}
+	return mode
+}
+
+// leaveOutcome is what Leave did to one thread.
+type leaveOutcome uint8
+
+const (
+	leaveNone leaveOutcome = iota
+	leaveParked
+	leaveDetached
+	leaveSkipped
+)
+
+// leaveOne applies the disposition to one thread. It is a drain on the thread
+// gate (pair#205): it waits for any operation holding the thread, then decides
+// from the record as it is NOW. The snapshot Leave iterates is only a list of
+// addresses; deciding from a row read before the wait would skip a thread a
+// reattach made live meanwhile, and leave that client running past quit.
+func (c *Couch) leaveOne(ctx context.Context, address ThreadAddress, disposition LeaveDisposition) (leaveOutcome, error) {
+	ctx, release, err := c.holdWait(ctx, address, "leave")
+	if err != nil {
+		return leaveNone, fmt.Errorf("leave couch: wait for %s: %w", address.Tag, err)
+	}
+	defer release()
+	record, err := c.Threads.GetThread(address)
+	if errors.Is(err, ErrThreadNotFound) {
+		return leaveNone, nil // archived while Leave waited
+	}
+	if err != nil {
+		return leaveNone, err
+	}
+	if record.Park != nil {
+		if c.PairLifecycle == nil {
+			return leaveNone, errors.New("Pair lifecycle controller is unavailable")
+		}
+		parkResult, parkErr := c.PairLifecycle.Recover(ctx, record.Address)
+		if parkErr != nil {
+			return leaveNone, fmt.Errorf("leave couch: recover park %s: %w", record.Address.Tag, parkErr)
+		}
+		if parkResult.Thread.VerifiedPark == nil || parkResult.Thread.Park != nil {
+			return leaveNone, fmt.Errorf("leave couch: park %s did not produce verified inactive history", record.Address.Tag)
+		}
+		return leaveParked, nil
+	}
+	if !hasActiveIncarnation(record) {
+		return leaveNone, nil
+	}
+	if len(record.Incarnations) != 1 || record.Incarnations[0].State != IncarnationLive {
+		return leaveSkipped, nil
+	}
+	if disposition == LeavePark {
+		if c.PairLifecycle == nil {
+			return leaveNone, errors.New("Pair lifecycle controller is unavailable")
+		}
+		parkResult, parkErr := c.PairLifecycle.Park(ctx, record.Address)
+		if parkErr != nil {
+			return leaveNone, fmt.Errorf("leave couch: park %s: %w", record.Address.Tag, parkErr)
+		}
+		if parkResult.Thread.VerifiedPark == nil || parkResult.Thread.Park != nil {
+			return leaveNone, fmt.Errorf("leave couch: park %s did not produce verified inactive history", record.Address.Tag)
+		}
+		return leaveParked, nil
+	}
+	// A recorded live incarnation is history, not current liveness. The
+	// switcher may already show this thread as parked from its ledger.
+	incarnation := record.Incarnations[0]
+	identity := ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}
+	switch observeExactProcessOrUnknown(c.Proc, identity) {
+	case Dead:
+		if _, err := c.clearLifecycleDebris(record); err != nil {
+			return leaveNone, fmt.Errorf("leave couch: reconcile %s: %w", record.Address.Tag, err)
+		}
+		// Retiring dead bookkeeping neither detaches nor parks an agent,
+		// so it contributes no line to the operator's leave report.
+		return leaveNone, nil
+	case Unknown:
+		return leaveSkipped, nil
+	}
+	session, err := c.recoverySession(ctx, record.Address)
+	if err != nil {
+		return leaveNone, fmt.Errorf("leave couch: observe %s: %w", record.Address.Tag, err)
+	}
+	if !session.Present {
+		// A missing session does not authorize stopping a live process.
+		return leaveSkipped, nil
+	}
+	if _, detachErr := c.Detach(ctx, record.Address); detachErr != nil {
+		return leaveNone, fmt.Errorf("leave couch: detach %s: %w", record.Address.Tag, detachErr)
+	}
+	return leaveDetached, nil
 }
 
 func hasActiveIncarnation(record ThreadRecord) bool {
@@ -546,7 +683,7 @@ func (c *PairLifecycleController) submit(ctx context.Context, address ThreadAddr
 func (c *PairLifecycleController) submitFuture(ctx context.Context, address ThreadAddress, nonce string, work parkWork) (*parkFuture, error) {
 	c.workerOnce.Do(func() {
 		if c.worker == nil {
-			c.worker = newParkWorker(1)
+			c.worker = newParkWorker(LifecycleParallelism)
 		}
 	})
 	return c.worker.Submit(ctx, address, nonce, work)

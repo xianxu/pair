@@ -589,6 +589,37 @@ proof; record the surprising case so the next change starts from evidence.
   it. In a re-exec crash test, the parent must own every directory the child
   writes: Go's test runner runs `t.Cleanup` (deleting `t.TempDir`) while a panic
   unwinds, before the runtime writes the crash.
+- A guard that admits by an earlier observation must never begin new work on it.
+  #205 BR-1: `Couch.Park` read "open park transaction" and skipped the thread gate
+  to join it, but the transaction could close before acting, and a normal park
+  would then begin a fresh one unheld. On the bypass path, map every mode that can
+  begin to one that only drives existing work (`Retry` refuses an absent
+  transaction), so a stale observation fails closed.
+- Moving work off a goroutine moves it out of that goroutine's implicit lock.
+  #205 BR-2: running `AbortStarted` via `GoTracked` made it race `Forget` on the
+  unlocked actor registry, which the single console goroutine had serialized for
+  free. Before moving a writer to a new goroutine, list the shared state it
+  writes and lock it at the same change, not a milestone later.
+- Undo only what you did. #205 BR-3: a refused continuation cleared every
+  expected-exit mark on its thread's panes, including ones a park had set. Record
+  the marks an operation adds (`markThreadExitsLocked` returns them) and remove
+  exactly those on refusal. Recording "the marks I added" is not enough when the
+  mark is shared: a later owner re-marking the same pane loses its mark to your
+  undo. A shared mark must count its owners (`exitMarks`): undo decrements, and
+  the real event consumes all (#205 M1 round 2).
+- A drain's wait is an interleaving cell, so give each waiter its own test.
+  #205 BR-4 found `RecoverActiveParks` and `AbortStarted` waiting untested because
+  only `Leave`'s wait was. One waiter's test does not cover another.
+- `select` does not prefer `ctx.Done()`. When the context is already cancelled
+  and another case is ready, Go picks at random, so a "cancelled" loop
+  sometimes takes one more step. #205 M2: a cancelled `Leave` occasionally
+  started another thread, caught only by an existing pre-cancelled-ctx test
+  that flaked. Check `ctx.Err()` before the select, and after it when the other
+  case acquires something.
+- Test the cancellation claim you write. #205's `Leave` comment said "started
+  threads finish", but they share the ctx and stop at their own safe points.
+  The test written for the claim failed on day one. A policy sentence about
+  cancellation needs a test that cancels at that exact point.
 - Operator advice is code: it must be steps that would have worked on the
   documented incident, and its test checks their ORDER, not that words appear.
   #399's startup refusal said "kill the server; its agent goes with it" and then

@@ -164,7 +164,7 @@ func TestExpectedParkExitDropsOnlyExitedActorAttention(t *testing.T) {
 	two := con.panes["c2"].thread
 	con.attention.Mark(one, "gone")
 	con.attention.Mark(two, "kept")
-	con.expectedExits["c1"] = true
+	con.expectedExits.mark("c1")
 	con.mu.Unlock()
 	con.onExit(childExit{id: "c1", code: 0})
 	if got := con.attention.Projection(one); len(got) != 0 {

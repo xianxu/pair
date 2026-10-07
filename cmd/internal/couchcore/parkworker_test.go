@@ -3,12 +3,15 @@ package couchcore
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
 )
 
@@ -36,14 +39,33 @@ func TestParkWorkerBoundsAndCoalesces(t *testing.T) {
 	if err != nil || duplicate != first {
 		t.Fatalf("duplicate = %p, %v; first=%p", duplicate, err, first)
 	}
+	// At capacity, other work WAITS for a free unit (pair#205): capacity is a
+	// throughput bound shared by every park submitter, never a refusal.
 	other := ThreadAddress{RepoScope: address.RepoScope, Tag: "couch-fedcba9876543210"}
-	if _, err := worker.Submit(context.Background(), other, "other", func(context.Context) (ParkResult, error) {
-		t.Fatal("overloaded work executed")
-		return ParkResult{}, nil
-	}); !errors.Is(err, ErrParkWorkerOverloaded) {
-		t.Fatalf("overload err = %v", err)
+	otherRan := make(chan struct{})
+	otherWaiting := make(chan struct{}, 1)
+	worker.onWait = func() { otherWaiting <- struct{}{} }
+	otherSubmitted := make(chan error, 1)
+	go func() {
+		future, err := worker.Submit(context.Background(), other, "other", func(context.Context) (ParkResult, error) {
+			close(otherRan)
+			return ParkResult{}, nil
+		})
+		if err == nil {
+			_, err = future.Await(context.Background())
+		}
+		otherSubmitted <- err
+	}()
+	<-otherWaiting // blocked on capacity: it waits rather than being refused
+	select {
+	case <-otherRan:
+		t.Fatal("work beyond capacity ran while the worker was full")
+	default:
 	}
 	close(release)
+	if err := <-otherSubmitted; err != nil {
+		t.Fatalf("waiting work = %v, want it admitted once capacity freed", err)
+	}
 	if _, err := first.Await(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -193,5 +215,99 @@ func TestParkWorkerBeginDeadlineHasZeroExternalEffectsAtOneSecond(t *testing.T) 
 				t.Fatalf("deadline result = %+v, thread=%+v", result, persisted)
 			}
 		})
+	}
+}
+
+// A cancelled park caller returns at once (TestCanceledParkAwaitStill...), and
+// its thread stays guarded while the work runs on: the record's open park
+// transaction and the worker's active entry refuse a second lifecycle
+// operation, whether or not the caller's gate hold has been released
+// (pair#205 D4, revised during M1).
+func TestACancelledParkStillRefusesOtherLifecycleOperations(t *testing.T) {
+	env, source := switchEnvWithLiveThread(t)
+	c := env.Couch
+	reached, release := make(chan struct{}), make(chan struct{})
+	var releaseOnce sync.Once
+	unblock := func() { releaseOnce.Do(func() { close(release) }) }
+	defer unblock()
+	env.Lifecycle.onPublish = func(pairlifecycle.QuitRequest) { close(reached); <-release }
+	ctx, cancel := context.WithCancel(context.Background())
+	returned := make(chan error, 1)
+	go func() { _, err := c.PairLifecycle.Park(ctx, source.Address); returned <- err }()
+	<-reached
+	worker := c.PairLifecycle.worker
+	worker.mu.Lock()
+	future := worker.active[source.Address].future
+	worker.mu.Unlock()
+	defer func() {
+		// Let the still-running park settle before the test's temp dirs go.
+		unblock()
+		waitCtx, stop := context.WithTimeout(context.Background(), 5*time.Second)
+		defer stop()
+		_, _ = future.Await(waitCtx)
+	}()
+	cancel()
+	if err := <-returned; !errors.Is(err, context.Canceled) {
+		t.Fatalf("park = %v, want prompt cancellation", err)
+	}
+	// Resume refuses on its own earlier rule here (the parking incarnation is
+	// still recorded live), before reaching CommitStartClaim's open-park check;
+	// either way it must be a structured refusal, not an incidental error.
+	if _, _, err := c.ResumeContext(context.Background(), source.Address); ResumeDiagnosticOf(err) == "" {
+		t.Fatalf("resume during the cancelled park = %v, want a structured resume refusal", err)
+	}
+	if _, err := c.Detach(context.Background(), source.Address); err == nil || !strings.Contains(err.Error(), "open park transaction") {
+		t.Fatalf("detach during the cancelled park = %v, want the open park transaction refusal", err)
+	}
+	// A second transaction carries its own nonce (production nonces are random;
+	// this fixture's is fixed, which would coalesce onto the running park).
+	c.PairLifecycle.Nonce = func() (string, error) { return "park-second-transaction", nil }
+	if _, err := c.PairLifecycle.ParkExpected(context.Background(), source.Address, 0); err == nil || !strings.Contains(err.Error(), "another park transaction") {
+		t.Fatalf("second park transaction = %v, want the worker's another-park-transaction refusal", err)
+	}
+}
+
+// parkWorker frees its address before it signals done, so a caller that has
+// seen its park finish can submit the next park on that address at once.
+func TestParkWorkerFreesTheAddressBeforeDone(t *testing.T) {
+	worker := newParkWorker(1)
+	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0123456789abcdef"}
+	done := func(context.Context) (ParkResult, error) { return ParkResult{}, nil }
+	for i := 0; i < 1000; i++ {
+		future, err := worker.Submit(context.Background(), address, fmt.Sprintf("nonce-%d", i), done)
+		if err != nil {
+			t.Fatalf("iteration %d: submit after a finished park refused: %v", i, err)
+		}
+		if _, err := future.Await(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// A capacity wait honours its context (pair#205).
+func TestParkWorkerCapacityWaitHonoursContext(t *testing.T) {
+	worker := newParkWorker(1)
+	release := make(chan struct{})
+	defer close(release)
+	first := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0123456789abcdef"}
+	if _, err := worker.Submit(context.Background(), first, "first", func(context.Context) (ParkResult, error) {
+		<-release
+		return ParkResult{}, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	waiting := make(chan struct{}, 1)
+	worker.onWait = func() { waiting <- struct{}{} }
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, err := worker.Submit(ctx, ThreadAddress{RepoScope: first.RepoScope, Tag: "couch-fedcba9876543210"}, "second",
+			func(context.Context) (ParkResult, error) { return ParkResult{}, nil })
+		done <- err
+	}()
+	<-waiting // the submitter is blocked on capacity, not merely scheduled
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled capacity wait = %v, want context.Canceled", err)
 	}
 }

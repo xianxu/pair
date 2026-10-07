@@ -302,7 +302,7 @@ func (c *Couch) ObserveSlotSessions(ctx context.Context, slot SlotIdentity) (Slo
 	if err != nil {
 		return out, fmt.Errorf("slot hosted registry could not be read: %w", err)
 	}
-	actors := append(c.reg.Records(), durable.Records()...)
+	actors := append(c.actorRegistry().Records(), durable.Records()...)
 	for _, actor := range actors {
 		// Missing provenance is unresolved, not a foreign repository. Containment
 		// may veto absence for this legacy owner, but cannot establish membership.

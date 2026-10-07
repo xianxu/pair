@@ -48,7 +48,7 @@ func (c *Console) runBackgroundOperation(effect MenuEffect) {
 	}
 	requestArgs := cloneOperationArgs(effect.Args)
 	key := fmt.Sprintf("reattach\x00%d", effect.Attempt)
-	// Every attempt must complete, or the pass waits on Loading forever.
+	// Every attempt must complete, or the pass waits on its in-flight set forever.
 	// Enqueue refuses an exact request that is already pending, returning
 	// accepted=false with no error, and then nothing completes this attempt.
 	// That cannot happen here, because the shared counter never repeats an

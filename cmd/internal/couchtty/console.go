@@ -101,8 +101,10 @@ type Console struct {
 	size      ptychild.Size
 	// expectedExits are exact child handles whose successful Park already
 	// authorized shutdown. They bridge the race between the child-exit channel
-	// and the asynchronous operation-completion channel.
-	expectedExits map[string]bool
+	// and the asynchronous operation-completion channel. Marks are counted per
+	// owner (pair#205), so an operation that undoes its own mark never removes
+	// one that another operation set on the same pane.
+	expectedExits exitMarks
 
 	// Run orders product input, output notifications, and focus transitions.
 	// Presenter alone owns the host writer.
@@ -177,6 +179,11 @@ type Console struct {
 	stop                 chan struct{}
 	once                 sync.Once
 	workers              sync.WaitGroup
+	// queueWorkers is how many goroutines drain operationQueue (pair#205):
+	// the reattach pass's limit plus one, so the pass alone can never occupy
+	// every worker. (Remote and continuation jobs share the spare, so an
+	// operator's gesture can still wait behind those.)
+	queueWorkers int
 }
 
 // errw is where the console reports its own failures. Separate from the host
@@ -202,6 +209,7 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		input:               make(chan []byte, 64),
 		exited:              make(chan childExit, 64),
 		operationQueue:      newOperationQueue(16),
+		queueWorkers:        max(1, couchcore.LifecycleParallelism) + 1,
 		refreshRequests:     make(chan struct{}, 1),
 		refreshResults:      make(chan menuRefreshResult, 1),
 		slotGitRequests:     make(chan struct{}, 1),
@@ -217,7 +225,7 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		previewResults:      make(chan menuPreviewResult, 1),
 		directoryReader:     OSDirectoryBatchReader{},
 		completionResults:   make(chan menuCompletionResult, 1),
-		expectedExits:       map[string]bool{},
+		expectedExits:       exitMarks{},
 		lifetime:            lifetime,
 		cancelLifetime:      cancelLifetime,
 		stop:                make(chan struct{}),
@@ -627,11 +635,18 @@ func (c *Console) Run() (code int) {
 		c.switchTo(initial, true, arrivalOrdinary)
 	}
 
-	c.workers.Add(4)
+	queueWorkers := max(1, c.queueWorkers)
+	c.workers.Add(3 + queueWorkers)
 	go func() { defer c.workers.Done(); c.watchContinuations() }()
 	go func() { defer c.workers.Done(); c.pumpStdin() }()
 	go func() { defer c.workers.Done(); c.watchResize() }()
-	go func() { defer c.workers.Done(); c.operationQueue.Run(c.stop) }()
+	// Several workers drain the operation queue (pair#205): operations on
+	// different threads run at once, bounded; the thread gate in couchcore
+	// keeps two off one thread, and results still reach this goroutine
+	// through q.results.
+	for i := 0; i < queueWorkers; i++ {
+		go func() { defer c.workers.Done(); c.operationQueue.Run(c.stop) }()
+	}
 	slotGitTicker := time.NewTicker(c.slotGitInterval)
 	defer slotGitTicker.Stop()
 	activityTicker := time.NewTicker(c.activityInterval)
@@ -689,7 +704,7 @@ func (c *Console) Run() (code int) {
 	var statusC <-chan time.Time
 	syncStatusTick := func() {
 		c.mu.Lock()
-		loading := c.menu.Reattach.Loading != (couchcore.ThreadAddress{})
+		loading := len(c.menu.Reattach.InFlight) > 0
 		c.mu.Unlock()
 		if !loading {
 			ticking := statusC != nil
@@ -1634,13 +1649,9 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 			watch := c.continuations[origin.Address]
 			watch.status.Address, watch.status.RequestID = origin.Address, origin.ContinuationID
 			watch.queued, watch.handled = true, true
+			watch.marked = c.markThreadExitsLocked(origin.Address)
 			c.continuations[origin.Address] = watch
 			c.reconcileContinuationOrientationLocked()
-			for id, p := range c.panes {
-				if p.thread == origin.Address {
-					c.expectedExits[id] = true
-				}
-			}
 			c.menu.InFlight = origin
 		}
 	}
@@ -1861,6 +1872,7 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 		event.Error = err.Error()
 		// A code, so the pass tells a skip from a failure without matching text.
 		event.Diagnostic = couchcore.ResumeDiagnosticOf(err)
+		event.Busy = couchcore.IsThreadBusy(err)
 	}
 	if completed.origin.Background {
 		c.traceEvent(traceReattachDone, address, reattachDoneDetail(event.Success, event.Diagnostic))
@@ -1902,7 +1914,7 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 			// exact spurious-notice bug this bridge exists to prevent, inverted.
 			// The child a relaunch expects to exit is the one it replaced.
 			if p.thread == address && id != startedHandleID {
-				c.expectedExits[id] = true
+				c.expectedExits.mark(id)
 			}
 		}
 	}
@@ -1954,8 +1966,7 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 // is in flight its immutable origin is authority; after successful completion
 // the exact handle marker bridges until the child-exit event arrives.
 func (c *Console) consumeExpectedParkExitLocked(id string, address couchcore.ThreadAddress) bool {
-	if c.expectedExits[id] {
-		delete(c.expectedExits, id)
+	if c.expectedExits.consume(id) {
 		return true
 	}
 	origin := c.menu.InFlight
@@ -2053,6 +2064,26 @@ func (c *Console) switchTargetForAddressLocked(address couchcore.ThreadAddress) 
 // Notify publishes a notice from outside the console, e.g. the composition
 // root reporting a previous incarnation's crash (#397).
 func (c *Console) Notify(n Notice) { c.publishNotice(n) }
+
+// GoTracked runs f off the console goroutine, on a worker the console joins at
+// shutdown (pair#205): for work that may wait on a thread's gate and so must
+// never block rendering, input, or the operation results the queue workers
+// deliver. Once the console has stopped, f runs inline -- there is no event
+// loop left to block, and joining has already begun.
+func (c *Console) GoTracked(f func()) {
+	c.mu.Lock()
+	if !c.started {
+		c.mu.Unlock()
+		f()
+		return
+	}
+	c.workers.Add(1)
+	c.mu.Unlock()
+	go func() {
+		defer c.workers.Done()
+		f()
+	}()
+}
 
 func (c *Console) setNotice(text string) {
 	c.publishNotice(Notice{Kind: "status", Body: text})

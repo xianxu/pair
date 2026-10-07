@@ -55,6 +55,13 @@ func (c *Couch) Reap(ctx context.Context, target ReapTarget) (ReapResult, error)
 	if !ok {
 		return ReapResult{}, &ReapRefusal{Detail: "no Couch thread stands for that target"}
 	}
+	// Ending a thread's server is a lifecycle effect on that thread: hold it
+	// (pair#205), re-entering when Recover already does.
+	ctx, release, err := c.hold(ctx, row.Address, "reap")
+	if err != nil {
+		return ReapResult{}, err
+	}
+	defer release()
 	// Any row carrying an orphan, a live one included: Couch may still host
 	// the client of a server nothing else can reach (#399).
 	if row.Orphan == nil {

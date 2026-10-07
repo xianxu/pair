@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -144,5 +145,48 @@ func TestChildExitNeverProvesPark(t *testing.T) {
 				t.Fatalf("child exit changed durable phase %s: %+v, %v", phase, after, err)
 			}
 		})
+	}
+}
+
+// Several workers drain one queue (pair#205): up to N requests run at once,
+// and every result still arrives on q.results for the console goroutine.
+func TestOperationQueueRunsRequestsConcurrentlyAcrossWorkers(t *testing.T) {
+	const workers = 3
+	q := newOperationQueue(16)
+	stop := make(chan struct{})
+	defer close(stop)
+	for i := 0; i < workers; i++ {
+		go q.Run(stop)
+	}
+	started, release := make(chan struct{}, workers), make(chan struct{})
+	for i := 0; i < workers; i++ {
+		key := fmt.Sprintf("job-%d", i)
+		if accepted, err := q.Enqueue(operationRequest{key: key, name: key, run: func() (any, error) {
+			started <- struct{}{}
+			<-release
+			return key, nil
+		}}); !accepted || err != nil {
+			t.Fatalf("enqueue %s: %v %v", key, accepted, err)
+		}
+	}
+	for i := 0; i < workers; i++ {
+		select {
+		case <-started:
+		case <-time.After(5 * time.Second):
+			t.Fatalf("only %d of %d requests ran at once", i, workers)
+		}
+	}
+	close(release)
+	got := map[any]bool{}
+	for i := 0; i < workers; i++ {
+		select {
+		case completion := <-q.results:
+			got[completion.value] = true
+		case <-time.After(5 * time.Second):
+			t.Fatal("a result never reached q.results")
+		}
+	}
+	if len(got) != workers {
+		t.Fatalf("results = %v", got)
 	}
 }

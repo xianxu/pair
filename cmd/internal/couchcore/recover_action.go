@@ -146,6 +146,14 @@ func (c *Couch) Recover(ctx context.Context, target RecoverTarget) (any, error) 
 	if !ok {
 		return nil, &RecoverRefusal{Code: RecoverNoThread, Detail: "no Couch thread stands for that target"}
 	}
+	// A composite: its steps (reap, then the resume or detach that follows)
+	// run under ONE hold, re-entering through ctx, so no other operation can
+	// slip in between them (pair#205, the gap #214 named).
+	ctx, release, err := c.hold(ctx, row.Address, "recover")
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	plan, err := c.RecoverPlan(ctx)
 	if err != nil {
 		return nil, err

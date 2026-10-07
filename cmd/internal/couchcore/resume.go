@@ -435,6 +435,11 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 	if c == nil || c.Threads == nil {
 		return ActorRecord{}, nil, errors.New("resume: Couch is unavailable")
 	}
+	ctx, release, err := c.hold(ctx, address, "resume")
+	if err != nil {
+		return ActorRecord{}, nil, err
+	}
+	defer release()
 	finishRetention, err := c.beginResumeRetention(ctx, address, !opts.WarmOnly)
 	if err != nil {
 		return ActorRecord{}, nil, err

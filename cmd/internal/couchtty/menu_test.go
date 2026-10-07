@@ -1319,3 +1319,26 @@ func TestEnterOnABusyRowExplainsAndOffersNoLifecycleAction(t *testing.T) {
 		t.Fatalf("busy row offers %v", items)
 	}
 }
+
+// A gesture refused because another operation holds its thread (pair#205)
+// tells the operator what is running there, through the ordinary failure
+// notice -- the refusal must be visible, not silent.
+func TestABusyRefusalNamesTheRunningOperation(t *testing.T) {
+	target := menuAddress("couch-two")
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	state, effects := dispatchThreadOperation(state, "resume", target)
+	if len(effects) != 1 {
+		t.Fatalf("dispatch effects = %+v", effects)
+	}
+	busy := &couchcore.ThreadBusyError{Address: target, Running: "relaunch"}
+	refused, _ := ReduceMenu(state, MenuEvent{
+		Kind: MenuEventOperationResult, Operation: "resume", Attempt: effects[0].Attempt,
+		Address: target, Error: busy.Error(), Busy: true,
+	})
+	if want := "couch-two is busy: relaunch is already running on it"; !stringsContains(refused.Notice.Text, want) {
+		t.Fatalf("notice = %q, want it to contain %q", refused.Notice.Text, want)
+	}
+	if refused.InFlight.Operation != "" {
+		t.Fatalf("a refused gesture left the operator's in-flight slot held: %+v", refused.InFlight)
+	}
+}

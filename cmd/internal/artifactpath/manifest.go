@@ -756,6 +756,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/path.go",
 	"cmd/internal/couchcore/pathops.go",
 	"cmd/internal/couchcore/relaunch.go",
+	"cmd/internal/couchcore/threadgate.go",
 	// Workspace provisioning uses Git-owned repository metadata, not the
 	// tag-bearing Pair artifact families catalogued above (#305).
 	"cmd/internal/couchcore/provision.go",

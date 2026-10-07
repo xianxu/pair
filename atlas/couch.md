@@ -1035,7 +1035,8 @@ Snapshots and typed normal history replace raw replay and resize nudges. See
 
 **Placeholders** (`pair#206`). While the reattach pass runs, each pending
 thread is drawn after the attached chips as a greyed placeholder
-(`placeholderSGR`). The thread starting now carries the spinner, from the
+(`placeholderSGR`). Each thread starting now carries the spinner (up to the
+pass's `Limit` at once, `pair#205`; drawn in attempt order), from the
 `spinnerGlyph` table the switcher shares. A placeholder records no `ChipSpan`,
 so it cannot be clicked, and the attached chips keep their columns. A thread
 that attaches takes the column its placeholder held, because attached chips
@@ -1369,10 +1370,58 @@ the request; only a matching durable completion plus final ThreadStore CAS
 removes the incarnation. Timeout, stale evidence, replacement, and child exit
 remain occupied. Couch derives both Alt+x terminal encodings from Pair's
 canonical chord table, renders confirmation first, and submits confirmed work
-through the `PairLifecycleController`'s bounded, capacity-one worker. Startup
+through the `PairLifecycleController`'s bounded worker (capacity
+`LifecycleParallelism`, `pair#205`). Startup
 recovery, Park, Retry, Recover, Abandon, and Leave all enter that same boundary;
-same-address/same-nonce overlap shares one future, while other work overloads
-without lifecycle effects.
+same-address/same-nonce overlap shares one future; at capacity, other work
+waits for a free unit (bounded by its ctx) rather than being refused.
+
+**Bounded parallelism** (`pair#205`). One bound,
+`couchcore.LifecycleParallelism`, is half the CPU cores and at least one. It
+caps three things:
+- **`Leave`'s fan-out:** quit detaches or parks that many threads at once. A
+  failing thread does not stop its siblings, and the report keeps snapshot
+  order.
+- **The park worker.**
+- **The startup reattach pass's in-flight set** (`ReattachPass.Limit`, fixed
+  when the pass is armed).
+
+The console drains its operation queue with `Limit+1` workers, so the pass
+alone can never occupy all of them. Remote and continuation jobs share the
+spare worker. Results still reach the console goroutine through `q.results`. Every
+bound makes callers wait; none refuses on load. The actor registry is guarded
+by `regMu` (`registry()`/`mutateRegistry()`), because writers no longer share
+one goroutine.
+
+**One lifecycle operation per thread** (`pair#205`, `couchcore/threadgate.go`).
+An in-memory `ThreadGate` on `Couch` is held by every entry that changes a
+thread's lifecycle:
+- **Refuse** a held thread with `ThreadBusyError`, naming what is running:
+  resume (all roads), relaunch, detach, `Couch.Park`, switch-agent, the three
+  continuation entries, reboot, `RecoverThread`, `Stop`, and #399's `Reap`
+  and `Recover` (which holds once for all its steps). The canonical list is
+  `TestEveryLifecycleEntryRefusesAHeldThread`; a new lifecycle entry joins
+  that table.
+- **Wait** for the holder instead: the drains `Leave`, `RecoverActiveParks` and
+  `AbortStarted`. `Leave` decides each thread from the record it reads *after*
+  waiting.
+
+Composites acquire once at the top and hand their context down, so the inner
+entries re-enter instead of refusing their own caller. Re-entry matches the
+hold's identity token, so a context that outlived its release cannot slip into
+a later holder's hold.
+
+Two existing guards cover what the gate does not:
+- An **open park transaction is its own lock**: `Couch.Park` joins it (the
+  worker coalesces by nonce) rather than refusing, and every launch refuses a
+  thread carrying one.
+- **`AbortStarted` touches the session by address only while the thread's
+  incarnation is still its own.** The console runs it through
+  `Console.GoTracked`, so a gate wait never blocks rendering.
+
+A busy refusal reaches the console as `MenuEvent.Busy`, never as a resume
+diagnostic. The reattach pass skips it silently, a refused continuation is
+re-armed for the next scan, and an operator gesture shows it as a notice.
 
 **Alt+n / Ctrl+Alt+n relaunch a thread from every pane** (`pair#182`,
 `pair#284`). They are `couchkeys.ScopeEveryPane`: from a displayed Pair pane

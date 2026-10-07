@@ -86,7 +86,7 @@ func TestReattachAdvanceStartsOneWarmOnlyBackgroundAttempt(t *testing.T) {
 	if effect.Operation != "resume" || !effect.Background || effect.Args["warm-only"] != "true" || effect.Args["tag"] != "couch-a" {
 		t.Fatalf("effect = %+v, want a background warm-only resume of couch-a", effect)
 	}
-	if state.Reattach.Loading != menuAddress("couch-a") || state.Reattach.LoadingAttempt != effect.Attempt || effect.Attempt == 0 {
+	if state.Reattach.soleLoading() != menuAddress("couch-a") || state.Reattach.soleLoadingAttempt() != effect.Attempt || effect.Attempt == 0 {
 		t.Fatalf("pass = %+v, effect attempt %d", state.Reattach, effect.Attempt)
 	}
 	// One at a time: a second advance while couch-a is loading emits nothing.
@@ -99,7 +99,7 @@ func TestReattachAdvanceStartsOneWarmOnlyBackgroundAttempt(t *testing.T) {
 func TestReattachHoldsWhileAnOperatorOperationIsInFlight(t *testing.T) {
 	state := seedReattach(armedMenu("couch-root"), []couchcore.ActionableThreadSummary{reattachRow("couch-a", couchcore.ThreadDetached, 1)})
 	state.InFlight = MenuOperationOrigin{Operation: "leave", Attempt: 7}
-	if held, effects := advanceReattach(state); len(effects) != 0 || held.Reattach.Loading != (couchcore.ThreadAddress{}) {
+	if held, effects := advanceReattach(state); len(effects) != 0 || held.Reattach.soleLoading() != (couchcore.ThreadAddress{}) {
 		t.Fatalf("advanced under an operator operation: effects %+v, pass %+v", effects, held.Reattach)
 	}
 	state.InFlight = MenuOperationOrigin{}
@@ -141,7 +141,7 @@ func TestReattachFinishResolvesTheAttempt(t *testing.T) {
 		event := passResult(attempt, "couch-a")
 		event.Success, event.ProjectionAfterGeneration = true, 41
 		state = finishReattach(state, event)
-		if state.Reattach.Loading != (couchcore.ThreadAddress{}) || state.Reattach.Attached[menuAddress("couch-a")] != 41 {
+		if state.Reattach.soleLoading() != (couchcore.ThreadAddress{}) || state.Reattach.Attached[menuAddress("couch-a")] != 41 {
 			t.Fatalf("pass = %+v", state.Reattach)
 		}
 	})
@@ -156,6 +156,21 @@ func TestReattachFinishResolvesTheAttempt(t *testing.T) {
 			}
 		})
 	}
+	t.Run("cell 6: a thread busy with another operation is a silent skip", func(t *testing.T) {
+		// pair#205: the busy refusal carries a message, not a code, so only the
+		// Busy flag keeps it out of cell 7.
+		state, attempt := loadingPass(t)
+		event := passResult(attempt, "couch-a")
+		event.Busy = true
+		event.Error = "couch-a is busy: relaunch is already running on it"
+		state = finishReattach(state, event)
+		if _, failed := state.Reattach.Failed[menuAddress("couch-a")]; failed {
+			t.Fatalf("a busy thread was marked reattach failed: %v", state.Reattach.Failed)
+		}
+		if view, owned := passViewOf(state.Reattach, menuAddress("couch-a")); owned {
+			t.Fatalf("a busy thread is still owned by the pass: %+v", view)
+		}
+	})
 	t.Run("cell 7: a failure is marked with its code", func(t *testing.T) {
 		state, attempt := loadingPass(t)
 		event := passResult(attempt, "couch-a")
