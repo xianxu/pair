@@ -1,21 +1,22 @@
 ---
 id: 000205
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-06
-updated: 2026-10-04
+updated: 2026-10-07
 estimate_hours: 3.34
-card_mirror: 'ec7ab0fa323dde39fab1a0b59f2004ef990a85b6' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '4912ebf12026c79b7ba1b32a41bebd422195c7b2' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-04T17:59:49-07:00
 claimant:
     operator: T
     machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: MacBook Pro
+    machine_name: Xian’s MacBook Pro
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 7.51
 ---
 
 # batch park and detach run in parallel
