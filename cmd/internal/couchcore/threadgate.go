@@ -4,8 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"sync"
 )
+
+// LifecycleParallelism bounds how many threads couch drives through a
+// lifecycle operation at once: Leave's fan-out, the park worker and the
+// console's queue workers (pair#205 D5). It is half the CPU cores, at least
+// one (operator decision, 2026-10-07): each operation spawns zellij and helper
+// processes, so the host's cores are the resource it competes for. Callers
+// wait for a free unit; a bound is never a refusal.
+var LifecycleParallelism = max(1, runtime.NumCPU()/2)
 
 // ThreadBusyError refuses a lifecycle operation on a thread another operation
 // holds. Refused, not queued: the operator learns at once that the gesture did

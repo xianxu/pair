@@ -857,3 +857,16 @@ park worker's per-address entry, which refuses a second transaction.
   `TestGoTrackedDoesNotBlockTheCallerAndIsJoined`, which pins the mechanism
   rather than a full console run.
 - The remote busy path passes `err` through unchanged; there is no new test.
+
+### 2026-10-07 (M2 start): the bound is half the CPU cores; capacity waits
+
+**Reason.** The operator asked for the bound to follow the host: "the 4 should
+be half of CPU cores, not a fixed number." The operator also skipped the M1
+smoke test, because the same-thread collision is hard to reach by hand, and
+kept "refuse" for a same-thread collision (the #214 decision).
+
+**Delta.**
+- D5: `LifecycleParallelism = max(1, runtime.NumCPU()/2)`, a package `var`, not
+  a constant.
+- Task 8: `parkWorker.Submit` waits, bounded by ctx, for capacity.
+  `ErrParkWorkerOverloaded` is deleted; it had no production reader.

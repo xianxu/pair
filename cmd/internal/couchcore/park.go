@@ -641,7 +641,7 @@ func (c *PairLifecycleController) submit(ctx context.Context, address ThreadAddr
 func (c *PairLifecycleController) submitFuture(ctx context.Context, address ThreadAddress, nonce string, work parkWork) (*parkFuture, error) {
 	c.workerOnce.Do(func() {
 		if c.worker == nil {
-			c.worker = newParkWorker(1)
+			c.worker = newParkWorker(LifecycleParallelism)
 		}
 	})
 	return c.worker.Submit(ctx, address, nonce, work)

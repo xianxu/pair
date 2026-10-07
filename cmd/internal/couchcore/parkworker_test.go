@@ -39,14 +39,30 @@ func TestParkWorkerBoundsAndCoalesces(t *testing.T) {
 	if err != nil || duplicate != first {
 		t.Fatalf("duplicate = %p, %v; first=%p", duplicate, err, first)
 	}
+	// At capacity, other work WAITS for a free unit (pair#205): capacity is a
+	// throughput bound shared by every park submitter, never a refusal.
 	other := ThreadAddress{RepoScope: address.RepoScope, Tag: "couch-fedcba9876543210"}
-	if _, err := worker.Submit(context.Background(), other, "other", func(context.Context) (ParkResult, error) {
-		t.Fatal("overloaded work executed")
-		return ParkResult{}, nil
-	}); !errors.Is(err, ErrParkWorkerOverloaded) {
-		t.Fatalf("overload err = %v", err)
+	otherRan := make(chan struct{})
+	otherSubmitted := make(chan error, 1)
+	go func() {
+		future, err := worker.Submit(context.Background(), other, "other", func(context.Context) (ParkResult, error) {
+			close(otherRan)
+			return ParkResult{}, nil
+		})
+		if err == nil {
+			_, err = future.Await(context.Background())
+		}
+		otherSubmitted <- err
+	}()
+	select {
+	case <-otherRan:
+		t.Fatal("work beyond capacity ran while the worker was full")
+	case <-time.After(30 * time.Millisecond):
 	}
 	close(release)
+	if err := <-otherSubmitted; err != nil {
+		t.Fatalf("waiting work = %v, want it admitted once capacity freed", err)
+	}
 	if _, err := first.Await(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -262,5 +278,31 @@ func TestParkWorkerFreesTheAddressBeforeDone(t *testing.T) {
 		if _, err := future.Await(context.Background()); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+// A capacity wait honours its context (pair#205).
+func TestParkWorkerCapacityWaitHonoursContext(t *testing.T) {
+	worker := newParkWorker(1)
+	release := make(chan struct{})
+	defer close(release)
+	first := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0123456789abcdef"}
+	if _, err := worker.Submit(context.Background(), first, "first", func(context.Context) (ParkResult, error) {
+		<-release
+		return ParkResult{}, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, err := worker.Submit(ctx, ThreadAddress{RepoScope: first.RepoScope, Tag: "couch-fedcba9876543210"}, "second",
+			func(context.Context) (ParkResult, error) { return ParkResult{}, nil })
+		done <- err
+	}()
+	time.Sleep(20 * time.Millisecond)
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled capacity wait = %v, want context.Canceled", err)
 	}
 }
