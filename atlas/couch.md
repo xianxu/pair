@@ -1374,6 +1374,33 @@ recovery, Park, Retry, Recover, Abandon, and Leave all enter that same boundary;
 same-address/same-nonce overlap shares one future, while other work overloads
 without lifecycle effects.
 
+**One lifecycle operation per thread** (`pair#205`, `couchcore/threadgate.go`).
+An in-memory `ThreadGate` on `Couch` is held by every entry that changes a
+thread's lifecycle:
+- **Refuse** a held thread with `ThreadBusyError`, naming what is running:
+  resume (all roads), relaunch, detach, `Couch.Park`, switch-agent, the three
+  continuation entries, reboot, `RecoverThread` and `Stop`.
+- **Wait** for the holder instead: the drains `Leave`, `RecoverActiveParks` and
+  `AbortStarted`. `Leave` decides each thread from the record it reads *after*
+  waiting.
+
+Composites acquire once at the top and hand their context down, so the inner
+entries re-enter instead of refusing their own caller. Re-entry matches the
+hold's identity token, so a context that outlived its release cannot slip into
+a later holder's hold.
+
+Two existing guards cover what the gate does not:
+- An **open park transaction is its own lock**: `Couch.Park` joins it (the
+  worker coalesces by nonce) rather than refusing, and every launch refuses a
+  thread carrying one.
+- **`AbortStarted` touches the session by address only while the thread's
+  incarnation is still its own.** The console runs it through
+  `Console.GoTracked`, so a gate wait never blocks rendering.
+
+A busy refusal reaches the console as `MenuEvent.Busy`, never as a resume
+diagnostic. The reattach pass skips it silently, a refused continuation is
+re-armed for the next scan, and an operator gesture shows it as a notice.
+
 **Alt+n / Ctrl+Alt+n relaunch a thread from every pane** (`pair#182`,
 `pair#284`). They are `couchkeys.ScopeEveryPane`: from a displayed Pair pane
 `onRelaunchHotkey` targets the thread on screen, and in the switcher the

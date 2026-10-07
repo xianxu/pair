@@ -825,3 +825,35 @@ park worker's per-address entry, which refuses a second transaction.
 - The ARCH-ORDER row "caller ctx cancelled mid-park" now reads: the caller
   returns; the durable park transaction and the worker entry guard the thread
   until the work ends.
+
+### 2026-10-06 (M1, Tasks 3–4): three implementation deviations
+
+**`Couch.Park` joins an open park transaction instead of refusing.**
+- **Reason.** `TestParkCoordinatorCoalescesStartupRecoveryAndInteractiveRetry`
+  pins a deliberate design: an interactive park retry shares the in-flight
+  startup recovery's future, coalesced by nonce. Gating it would refuse it busy.
+- **Delta.** `Couch.Park` holds the gate only when the thread has no open park
+  transaction. With one open, it joins through the worker, and the open
+  transaction is itself the lock.
+
+**`AbortStarted` waits first, then cleans exactly once per path.**
+- **Reason.** The plan ran the helper/terminal half before `holdWait`. But
+  `failPostAckStart` repeats that half on the matching path, which would close
+  the terminal twice.
+- **Delta.** `holdWait` comes first:
+  - matching identity: `failPostAckStart` runs, as before;
+  - mismatched identity: only the helper and terminal are ended (a warm-shaped
+    quiesce);
+  - cancelled wait: also only the helper and terminal.
+
+  The helper can linger while the abort waits, which is bounded by the holder's
+  own operation.
+
+**Test coverage taken in a different form.**
+- `TestALateAbortLeavesARelaunchedSessionAlone` became
+  `TestAMismatchedAbortStillClosesItsOwnHandle`. A replaced incarnation is
+  written directly, which is the state the late-abort race produces.
+- `TestTheConsoleKeepsProcessingWhileAnAbortWaits` became
+  `TestGoTrackedDoesNotBlockTheCallerAndIsJoined`, which pins the mechanism
+  rather than a full console run.
+- The remote busy path passes `err` through unchanged; there is no new test.
