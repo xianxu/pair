@@ -25,9 +25,12 @@ and a frame are totally ordered.
   means its last row starts with `LiveLabel` drawn in `LiveSGR` (red
   background). The status row draws the same constants. Invariant: viewers get
   only frames the operator saw marked LIVE.
-- **Fail-safe:** after `Activate()`, an indicator that is hidden for `Grace`
-  (1s) ends the hub with `ErrIndicatorHidden`. `Activate` comes after the tap is
-  installed, never while the tunnel is opening.
+- **Fail-safe:** a tagged watch, `off | shown | hidden`, is driven by the
+  indicator on the most recent frame. After `Activate()`, an indicator that
+  stays hidden for `Grace` (1s) ends the hub with `ErrIndicatorHidden`.
+  `Activate` comes after the tap is installed, never while the tunnel is
+  opening. It arms the timer only if the last frame lacked the indicator, so a
+  quiet screen already showing LIVE keeps broadcasting.
 - **Privacy:** `ViewerFrame` replaces a private frame with a placeholder that
   keeps the tab bar, unless `ShowSwitcher` is set.
 - **Shared diffs:** each frame is rendered once with `terminal.Render`, the
