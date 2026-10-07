@@ -1095,7 +1095,7 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "       couch --resume repo:N [--json]")
 	fmt.Fprintln(w, "       couch --reboot repo:N --confirm [--json]")
 	fmt.Fprintln(w, "       couch --reap repo:N --confirm [--json]")
-	fmt.Fprintln(w, "       couch --recover repo:N [--confirm] [--json]")
+	fmt.Fprintln(w, "       couch --recover repo:N [--json]")
 	fmt.Fprintln(w, "             From a live Couch slot only: run the report's step on one slot")
 	fmt.Fprintln(w, "             through the running Couch, in the background. Verify by reading")
 	fmt.Fprintln(w, "             the report again; an uncertain outcome means read it before resending.")

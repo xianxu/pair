@@ -3,7 +3,6 @@ package couchtty
 import (
 	"context"
 	"errors"
-	"maps"
 	"strconv"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
@@ -24,7 +23,6 @@ type menuPreviewResult struct {
 	generation     uint64
 	prepared       *couchcore.PreparedStart
 	switchPrepared *couchcore.PreparedAgentSwitch
-	recoverPreview *couchcore.RecoverPreview
 	err            error
 }
 
@@ -301,12 +299,8 @@ func (c *Console) startMenuPreview(request PreviewRequest) {
 			args["agent"] = request.Agent
 		}
 		var switchPrepared *couchcore.PreparedAgentSwitch
-		var recoverPreview *couchcore.RecoverPreview
 		operation := "prepare-start"
-		if request.RecoverArgs != nil {
-			operation = "prepare-recover"
-			args = maps.Clone(request.RecoverArgs)
-		} else if request.SwitchAddress != (couchcore.ThreadAddress{}) {
+		if request.SwitchAddress != (couchcore.ThreadAddress{}) {
 			operation = "prepare-switch-agent"
 			args = map[string]string{"repo-scope": request.SwitchAddress.RepoScope, "tag": string(request.SwitchAddress.Tag), "agent": request.Agent}
 			if request.SwitchArgv != "" {
@@ -322,14 +316,7 @@ func (c *Console) startMenuPreview(request PreviewRequest) {
 			value, err = fn(couchcore.OperationCall{
 				Name: operation, Args: args, Implicit: true, Context: ctx,
 			})
-			if err == nil && operation == "prepare-recover" {
-				accepted, ok := value.(couchcore.RecoverPreview)
-				if !ok {
-					err = errors.New("invalid recover preview result")
-				} else {
-					recoverPreview = &accepted
-				}
-			} else if err == nil && operation == "prepare-switch-agent" {
+			if err == nil && operation == "prepare-switch-agent" {
 				accepted, ok := value.(couchcore.PreparedAgentSwitch)
 				if !ok {
 					err = errors.New("invalid switch preview result")
@@ -345,7 +332,7 @@ func (c *Console) startMenuPreview(request PreviewRequest) {
 				}
 			}
 		}
-		result := menuPreviewResult{generation: request.Generation, prepared: prepared, switchPrepared: switchPrepared, recoverPreview: recoverPreview, err: err}
+		result := menuPreviewResult{generation: request.Generation, prepared: prepared, switchPrepared: switchPrepared, err: err}
 		select {
 		case c.previewResults <- result:
 		case <-c.stop:
@@ -364,7 +351,7 @@ func (c *Console) finishMenuPreview(result menuPreviewResult) {
 	}
 	var menuEffects []MenuEffect
 	if c.menuReady {
-		event := MenuEvent{Kind: MenuEventPreviewResult, Generation: result.generation, Prepared: result.prepared, SwitchPrepared: result.switchPrepared, RecoverPreview: result.recoverPreview}
+		event := MenuEvent{Kind: MenuEventPreviewResult, Generation: result.generation, Prepared: result.prepared, SwitchPrepared: result.switchPrepared}
 		if result.err != nil {
 			event.Error = result.err.Error()
 		}

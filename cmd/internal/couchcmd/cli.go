@@ -305,10 +305,7 @@ func parseMessageCLI(args []string) (cliInvocation, error) {
 			}
 			seen[flag] = true
 		}
-		// A by-plan operation (recover) cannot know its plan while parsing:
-		// --confirm is optional, and its job refuses a destructive plan
-		// without one.
-		if confirms, _, byPlan := couchcore.OperationConfirms(op); !byPlan && seen["--confirm"] != confirms {
+		if confirms, _ := couchcore.OperationConfirms(op); seen["--confirm"] != confirms {
 			if confirms {
 				return cliInvocation{}, fmt.Errorf("%s requires --confirm", args[0])
 			}

@@ -27,10 +27,10 @@ func resumableOrphanEnv(t *testing.T) (*testEnv, ThreadAddress, launcher.Session
 	return env, address, server, reaper
 }
 
-// Strategy (DeriveRecoverPreview, pure): one case per report decision recover
+// Strategy (deriveRecoverSteps, pure): one case per report decision recover
 // can meet -- a step list, a hold, steps it does not run, nothing at all -- and
 // one per ActorActions answer for a thread the report has no row for.
-func TestDeriveRecoverPreview(t *testing.T) {
+func TestDeriveRecoverSteps(t *testing.T) {
 	parked := ActionableThreadSummary{Address: ThreadAddress{RepoScope: "s", Tag: "t"}, WorkingPath: "/w/p", State: ThreadParked}
 	orphan := ActionableThreadSummary{Address: ThreadAddress{RepoScope: "s", Tag: "t"}, WorkingPath: "/w/p", State: ThreadUnusable,
 		Reason: ReasonOrphanedServer, Orphan: &launcher.SessionServerIdentity{PID: 812, Session: "📁p-1"}}
@@ -44,45 +44,32 @@ func TestDeriveRecoverPreview(t *testing.T) {
 		return row
 	}
 	for _, tc := range []struct {
-		name    string
-		row     ActionableThreadSummary
-		report  *RecoverRow
-		steps   []string
-		confirm bool
-		text    []string // substrings of Text, in order
-		hold    []string // substrings of Hold
+		name   string
+		row    ActionableThreadSummary
+		report *RecoverRow
+		steps  []string
+		hold   []string // substrings of the hold
 	}{
-		{name: "parked resumes", row: parked, report: report([]string{"resume"}), steps: []string{"resume"}, text: []string{"resume", "p"}},
-		{name: "orphan reaps then resumes", row: orphan, report: report([]string{"reap", "resume"}), steps: []string{"reap", "resume"}, confirm: true, text: []string{"reap", "PID 812", "then resume"}},
-		{name: "unresumable reboots", row: rebootOnly, report: report([]string{"reboot"}), steps: []string{"reboot"}, confirm: true, text: []string{"archive this conversation and start a fresh agent"}},
+		{name: "parked resumes", row: parked, report: report([]string{"resume"}), steps: []string{"resume"}},
+		{name: "orphan reaps then resumes", row: orphan, report: report([]string{"reap", "resume"}), steps: []string{"reap", "resume"}},
+		{name: "unresumable reboots", row: rebootOnly, report: report([]string{"reboot"}), steps: []string{"reboot"}},
 		{name: "held", row: parked, report: report(nil, "agent-unknown", "conflict:claim-elsewhere"), hold: []string{"agent-unknown", "conflict:claim-elsewhere", "the report's reason"}},
-		{name: "non-actor steps are not run", row: parked, report: report([]string{"resume", "ask-agent-restore"}), steps: []string{"resume"}, text: []string{"resume"}},
-		{name: "a report row with no step falls back", row: parked, report: report(nil), steps: []string{"resume"}, text: []string{"resume"}},
-		{name: "no report row: parked", row: parked, steps: []string{"resume"}, text: []string{"resume"}},
-		{name: "no report row: orphan", row: orphan, steps: []string{"reap", "resume"}, confirm: true, text: []string{"PID 812", "then resume"}},
-		{name: "no report row: reboot only", row: rebootOnly, steps: []string{"reboot"}, confirm: true, text: []string{"archive this conversation"}},
+		{name: "non-actor steps are not run", row: parked, report: report([]string{"resume", "ask-agent-restore"}), steps: []string{"resume"}},
+		{name: "a report row with no step falls back", row: parked, report: report(nil), steps: []string{"resume"}},
+		{name: "no report row: parked", row: parked, steps: []string{"resume"}},
+		{name: "no report row: orphan", row: orphan, steps: []string{"reap", "resume"}},
+		{name: "no report row: reboot only", row: rebootOnly, steps: []string{"reboot"}},
 		{name: "no report row: nothing offered", row: unknown, hold: []string{string(HoldNoActorAction)}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got := DeriveRecoverPreview(tc.row, tc.report)
-			if !slices.Equal(got.Steps, tc.steps) || got.Confirm != tc.confirm {
-				t.Fatalf("preview = %+v, want steps %v confirm %v", got, tc.steps, tc.confirm)
-			}
-			if (got.Hold != "") != (tc.hold != nil) {
-				t.Fatalf("hold = %q, want %v", got.Hold, tc.hold)
+			steps, hold := deriveRecoverSteps(tc.row, tc.report)
+			if !slices.Equal(steps, tc.steps) || (hold != "") != (tc.hold != nil) {
+				t.Fatalf("steps %v hold %q, want steps %v hold %v", steps, hold, tc.steps, tc.hold)
 			}
 			for _, want := range tc.hold {
-				if !strings.Contains(got.Hold, want) {
-					t.Fatalf("hold %q lacks %q", got.Hold, want)
+				if !strings.Contains(hold, want) {
+					t.Fatalf("hold %q lacks %q", hold, want)
 				}
-			}
-			rest := got.Text
-			for _, want := range tc.text {
-				i := strings.Index(rest, want)
-				if i < 0 {
-					t.Fatalf("text %q lacks %q (in order)", got.Text, want)
-				}
-				rest = rest[i+len(want):]
 			}
 		})
 	}
@@ -111,29 +98,27 @@ func TestRecoverReportRowFor(t *testing.T) {
 }
 
 // Strategy (Couch.Recover, shell): the orphan fixture is outside any enrolled
-// repository, so its preview is the ActorActions fallback [reap, resume]; the
+// repository, so its steps are the ActorActions fallback [reap, resume]; the
 // reaper's hook records how many children had started when it ran, proving
-// reap precedes resume, and the result is resume's own started child.
+// reap precedes resume, and the result is resume's own started child. Recover
+// asks nothing: choosing it is the consent (#399, 2026-10-07).
 func TestRecoverReapsThenResumes(t *testing.T) {
 	env, address, server, reaper := resumableOrphanEnv(t)
-	ctx := context.Background()
-	preview, err := env.Couch.PrepareRecover(ctx, RecoverTarget{Address: address})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !slices.Equal(preview.Steps, []string{"reap", "resume"}) || !preview.Confirm || !strings.Contains(preview.Text, "PID 9090") {
-		t.Fatalf("preview = %+v", preview)
-	}
 	startsAtReap := -1
 	reaper.hook = func() { startsAtReap = countStarts(env.Runner) }
 	before := countStarts(env.Runner)
-	value, err := env.Couch.Recover(ctx, RecoverTarget{Address: address}, preview.Steps, true)
+	value, err := env.Couch.Recover(context.Background(), RecoverTarget{Address: address})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(reaper.reaped) != 1 || reaper.reaped[0] != server || startsAtReap != before {
 		t.Fatalf("reaped %+v with %d starts (before %d)", reaper.reaped, startsAtReap, before)
 	}
+	assertResumedChild(t, env, value, before)
+}
+
+func assertResumedChild(t *testing.T, env *testEnv, value any, before int) {
+	t.Helper()
 	child, ok := value.(StartedChild)
 	if !ok {
 		t.Fatalf("result %T is not resume's started child", value)
@@ -143,52 +128,18 @@ func TestRecoverReapsThenResumes(t *testing.T) {
 	}
 }
 
-// A preview the row no longer matches, an unconfirmed destructive plan and a
-// held row each refuse before any step runs.
-func TestRecoverRefusesWithNoEffect(t *testing.T) {
-	for _, tc := range []struct {
-		name      string
-		steps     []string
-		confirmed bool
-		setup     func(*testEnv, ThreadAddress)
-		code      string
-	}{
-		{name: "stale preview", steps: []string{"resume"}, confirmed: true, code: RecoverStale},
-		{name: "unconfirmed", steps: []string{"reap", "resume"}, confirmed: false, code: RecoverUnconfirmed},
-		{name: "held", steps: []string{"reap", "resume"}, confirmed: true, code: RecoverHeld, setup: func(env *testEnv, address ThreadAddress) {
-			env.Artifacts.SetSessionPresence(address, SessionObservation{State: SessionUnresolved})
-		}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			env, address, _, reaper := resumableOrphanEnv(t)
-			if tc.setup != nil {
-				tc.setup(env, address)
-			}
-			before := countStarts(env.Runner)
-			_, err := env.Couch.Recover(context.Background(), RecoverTarget{Address: address}, tc.steps, tc.confirmed)
-			var refusal *RecoverRefusal
-			if !errors.As(err, &refusal) || refusal.Code != tc.code {
-				t.Fatalf("err = %v, want refusal %s", err, tc.code)
-			}
-			if len(reaper.reaped) != 0 || countStarts(env.Runner) != before {
-				t.Fatalf("a refused recover acted: reaped %+v, starts %d → %d", reaper.reaped, before, countStarts(env.Runner))
-			}
-		})
-	}
-}
-
-// The CLI sends no preview: its --confirm is plan-blind, so a confirmed
-// recover runs whatever the plan is, and an unconfirmed destructive one is
-// refused naming what it would do.
-func TestRecoverWithoutPreviewStepsAppliesThePlan(t *testing.T) {
+// A held row refuses, typed and naming the hold, before any step runs.
+func TestRecoverRefusesAHeldRowWithNoEffect(t *testing.T) {
 	env, address, _, reaper := resumableOrphanEnv(t)
-	_, err := env.Couch.Recover(context.Background(), RecoverTarget{Address: address}, nil, false)
+	env.Artifacts.SetSessionPresence(address, SessionObservation{State: SessionUnresolved})
+	before := countStarts(env.Runner)
+	_, err := env.Couch.Recover(context.Background(), RecoverTarget{Address: address})
 	var refusal *RecoverRefusal
-	if !errors.As(err, &refusal) || refusal.Code != RecoverUnconfirmed || !strings.Contains(refusal.Detail, "PID 9090") || !strings.Contains(refusal.Detail, "--confirm") {
-		t.Fatalf("err = %v", err)
+	if !errors.As(err, &refusal) || refusal.Code != RecoverHeld || !strings.Contains(refusal.Detail, string(HoldNoActorAction)) {
+		t.Fatalf("err = %v, want a held refusal", err)
 	}
-	if _, err := env.Couch.Recover(context.Background(), RecoverTarget{Address: address}, nil, true); err != nil || len(reaper.reaped) != 1 {
-		t.Fatalf("confirmed recover: err %v, reaped %+v", err, reaper.reaped)
+	if len(reaper.reaped) != 0 || countStarts(env.Runner) != before {
+		t.Fatalf("a refused recover acted: reaped %+v, starts %d → %d", reaper.reaped, before, countStarts(env.Runner))
 	}
 }
 

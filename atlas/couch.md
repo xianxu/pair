@@ -2193,18 +2193,18 @@ PPID 1.
 **`recover`** (M2, `couchcore/recover_action.go`) is the switcher's default Tab
 action, offered wherever `ActorActions` offers anything. It runs exactly the
 actor steps the recovery report computes for that row — `[resume]`,
-`[reap, resume]` or `[reboot]` — or refuses with the report's hold.
-`prepare-recover` (`PrepareRecover`, off the UI thread: it runs sdlc) returns
-the preview `{Steps, Confirm, Text, Hold}`; a thread no report row stands for
-falls back to the same rule over `ActorActions`. Its confirmation is
-`ConfirmByPlan`: it confirms exactly when the steps contain reap or reboot, and
-`OperationConfirms` answers `byPlan` so every consumer handles it explicitly.
-`Recover` re-derives the preview and refuses a stale one ("the row changed;
-review again"), then runs each step through `DispatchOperation`, re-reading the
-row between steps; the last step's result is returned unchanged so a resume's
-child is adopted as a plain resume's is. `couch --recover repo:N [--confirm]`
-reaches it through the slot-operation socket; there `--confirm` is plan-blind
-and an unconfirmed destructive plan is refused naming what it would do.
+`[reap, resume]` or `[reboot]` — or refuses with the report's hold (a typed
+`RecoverRefusal`, no effect); a thread no report row stands for falls back to
+the same rule over `ActorActions`. It never asks (`ConfirmNone`, operator
+2026-10-07): choosing it is the consent, since within its envelope it only stops
+a server nothing can reach or reboots a conversation that cannot be resolved,
+and never changes the slot's files. `reap` alone keeps its confirmation.
+`Recover` runs each step through `DispatchOperation`, re-reading the row before
+each and waiting briefly (`recoverSettle`) for it to admit the next step — a
+reaped live orphan's hosted client exits a moment after the reap; the last
+step's result is returned unchanged so a resume's child is adopted as a plain
+resume's is. `couch --recover repo:N [--json]` reaches it through the
+slot-operation socket.
 
 There is deliberately no "held elsewhere" value. The refresh never counts
 clients — `list-clients` costs ~250 ms per live session (`#228`) — and the

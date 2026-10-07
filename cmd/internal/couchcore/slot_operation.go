@@ -81,12 +81,10 @@ func ActorOperationArgs(row ActionableThreadSummary, op string) map[string]strin
 
 // SlotOperationCommand is the CLI text that runs op on a slot through the
 // running Couch. --confirm is added exactly when the operation's declaration
-// requires a confirmation (OperationConfirms). A by-plan operation (recover)
-// gets none: the report never emits it as a step, and its CLI refusal names
-// --confirm itself when the plan needs it.
+// requires a confirmation (OperationConfirms).
 func SlotOperationCommand(op, address string) string {
 	command := "couch --" + op + " " + address
-	if confirms, _, _ := OperationConfirms(op); confirms {
+	if confirms, _ := OperationConfirms(op); confirms {
 		command += " --confirm"
 	}
 	return command
