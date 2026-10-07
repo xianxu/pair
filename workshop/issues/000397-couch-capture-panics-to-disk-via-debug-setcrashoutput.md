@@ -1,12 +1,12 @@
 ---
 id: 000397
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-06
 updated: 2026-10-06
 estimate_hours:
-card_mirror: '02d1658cbfe90831a52fc258ca524c35fd792187' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '3ffb0cc5ad785de77b4d917b39c9ed8e1fea5e80' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-06T16:09:24-07:00
 claimant:
     operator: T
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 1.36
 ---
 
 # couch: capture panics to disk via debug.SetCrashOutput
