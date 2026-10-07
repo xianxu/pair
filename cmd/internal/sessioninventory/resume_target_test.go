@@ -152,3 +152,60 @@ func TestChosenTargetListingFailureIsUnknown(t *testing.T) {
 		})
 	}
 }
+
+// pair#214 D1: an in-pane fresh restart whose agent never took a turn does not
+// hide the conversation it replaced. A complete listing that proves the chosen
+// file absent makes the owner query fall back to the previous generation.
+func TestAnUnturnedFreshLaunchDoesNotHideThePreviousConversation(t *testing.T) {
+	const old = "9a99ff57-cb0f-4590-8ea7-d684f2ff5a3f"
+	const fresh = "11111111-1111-4111-8111-111111111111"
+	setup := func(t *testing.T) (*sessioninventorytest.FakeRuntime, sessioninventory.StorageRoot, sessioninventory.Artifact) {
+		rt := sessioninventorytest.NewFakeRuntime()
+		pair := sessioninventory.StorageRoot{Name: "pair-data", Path: "/pair"}
+		rt.SetPairDataRoot(pair)
+		root := sessioninventory.StorageRoot{Name: "claude-projects", Path: "/native", Agent: sessioninventory.AgentClaude}
+		rt.AddRoot(root)
+		ledger := sessioninventory.Artifact{StorageRoot: pair.Name, RelativePath: "ledger-work.jsonl"}
+		rows := `{"v":3,"kind":"launch","scope_key":"scope","tag":"work","agent":"claude","pair_log_offset":0,"artifact_boundaries":[],"requested_native_id":"` + old + `","request_origin":"chosen-id","baseline_complete":true}` + "\n" +
+			`{"v":3,"kind":"binding","scope_key":"scope","tag":"work","agent":"claude","launch_ordinal":1,"root_native_id":"` + old + `","confirmation_reason":"chosen-id"}` + "\n" +
+			`{"v":3,"kind":"launch","scope_key":"scope","tag":"work","agent":"claude","pair_log_offset":0,"artifact_boundaries":[],"requested_native_id":"` + fresh + `","request_origin":"chosen-id","baseline_complete":true}` + "\n"
+		rt.PutFile(sessioninventory.FileEntry{Artifact: ledger}, []byte(rows))
+		rt.PutFile(sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: root.Name, RelativePath: "project/" + old + ".jsonl"}}, []byte("old conversation"))
+		return rt, root, ledger
+	}
+
+	t.Run("fresh file proven absent: resume the replaced conversation", func(t *testing.T) {
+		rt, _, _ := setup(t)
+		got, err := sessioninventory.QueryResumeTarget(rt, "scope", "work", sessioninventory.AgentClaude)
+		if err != nil || got.Status != sessioninventory.BindingEstablished || got.NativeID != old || got.FreshRequired || got.FellBackFrom != 3 {
+			t.Fatalf("target = %+v, %v; want the old conversation, established, fallen back from launch 3", got, err)
+		}
+	})
+	t.Run("fresh agent took a turn: its own conversation", func(t *testing.T) {
+		rt, root, _ := setup(t)
+		rt.PutFile(sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: root.Name, RelativePath: "project/" + fresh + ".jsonl"}}, []byte("fresh turn"))
+		got, err := sessioninventory.QueryResumeTarget(rt, "scope", "work", sessioninventory.AgentClaude)
+		if err != nil || got.NativeID != fresh || got.FellBackFrom != 0 {
+			t.Fatalf("target = %+v, %v; want the fresh conversation", got, err)
+		}
+	})
+	t.Run("incomplete listing: no fallback on missing evidence", func(t *testing.T) {
+		rt, _, _ := setup(t)
+		got, err := sessioninventory.QueryResumeTarget(incompleteNativeListing{FakeRuntime: rt, partial: true}, "scope", "work", sessioninventory.AgentClaude)
+		if err != nil || got.Status != sessioninventory.BindingProvisional || got.FellBackFrom != 0 {
+			t.Fatalf("target = %+v, %v; want provisional, no fallback", got, err)
+		}
+	})
+	t.Run("no earlier conversation: still fresh-required", func(t *testing.T) {
+		rt := sessioninventorytest.NewFakeRuntime()
+		pair := sessioninventory.StorageRoot{Name: "pair-data", Path: "/pair"}
+		rt.SetPairDataRoot(pair)
+		rt.AddRoot(sessioninventory.StorageRoot{Name: "claude-projects", Path: "/native", Agent: sessioninventory.AgentClaude})
+		rt.PutFile(sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: pair.Name, RelativePath: "ledger-work.jsonl"}},
+			[]byte(`{"v":3,"kind":"launch","scope_key":"scope","tag":"work","agent":"claude","pair_log_offset":0,"artifact_boundaries":[],"requested_native_id":"`+fresh+`","request_origin":"chosen-id","baseline_complete":true}`+"\n"))
+		got, err := sessioninventory.QueryResumeTarget(rt, "scope", "work", sessioninventory.AgentClaude)
+		if err != nil || !got.FreshRequired || got.FellBackFrom != 0 {
+			t.Fatalf("target = %+v, %v; want fresh-required, no fallback", got, err)
+		}
+	})
+}
