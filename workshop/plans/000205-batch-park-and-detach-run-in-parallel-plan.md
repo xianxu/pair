@@ -407,12 +407,20 @@ func (c *Couch) holdWait(ctx context.Context, address ThreadAddress, op string) 
 }
 ```
 
-Add the field `threadGate ThreadGate` to the `Couch` struct (`couch.go`). It
-is a plain value, since the zero value is ready, and `Couch` is always used by
-pointer:
+Add the fields `gateOnce sync.Once` and `threadGate *ThreadGate` to the
+`Couch` struct (`couch.go`). A pointer, not a value: a copied `Couch` (struct
+literals in tests, helper constructors) must not split the gate or copy its
+mutex. Confirm `go vet ./cmd/internal/couchcore` (copylocks) is clean.
 
 ```go
-func (c *Couch) gate() *ThreadGate { return &c.threadGate }
+func (c *Couch) gate() *ThreadGate {
+	c.gateOnce.Do(func() {
+		if c.threadGate == nil {
+			c.threadGate = &ThreadGate{}
+		}
+	})
+	return c.threadGate
+}
 ```
 
 - [ ] **Step 4: Run, expect PASS.** Same command, plus `-race`.
@@ -645,14 +653,45 @@ above because it writes first.
 
 ### Task 8: The park worker admits the bound
 
-- [ ] `submitFuture`: change `newParkWorker(1)` to
-  `newParkWorker(LifecycleParallelism)`.
-- [ ] Test: N parks on distinct threads run concurrently up to the bound, and
-  the bound+1th gets `ErrParkWorkerOverloaded`. Then decide: should
-  `Leave(LeavePark)` with more threads than the bound queue inside `leaveOne`
-  instead of failing? Its semaphore already caps it at the bound, so assert
-  that `Leave` never sees `ErrParkWorkerOverloaded`.
-- [ ] Commit.
+**Policy: capacity is a throughput bound that callers wait on, never a refusal.**
+The park worker is shared by every park submitter, not only `Leave`:
+- continuations (`continuation.go:246,296`, `continuation_recovery.go:261`);
+- operator and remote park jobs (`operationdispatch.go:368-374`, via
+  `Couch.Park`);
+- `RecoverActiveParks`;
+- relaunch and switch-agent (`ParkExpected`).
+
+Any fixed bound smaller than the sum of every submitter's own bound would make
+the extra park fail at random, worst of all during quit. So `Submit` **waits**,
+bounded by `ctx`, when the worker is at capacity. It still **refuses**, as
+today, a second park transaction (a different nonce) on an address already
+active. That refusal is about correctness; capacity is not. No production code
+reads `ErrParkWorkerOverloaded` (only `parkworker_test.go` does), so the error
+is removed, not kept unused. The same rule holds for every bounded resource in
+this plan: the console queue workers and the reattach pass's in-flight set make
+callers wait, and none refuses on load.
+
+- [ ] **Step 1: Failing tests** in `parkworker_test.go`:
+  - `TestParkWorkerWaitsForCapacityInsteadOfRefusing`: hold `LifecycleParallelism`
+    blocked parks on distinct addresses. A further `Submit` blocks (it does not
+    error) until one finishes, then runs.
+  - `TestParkWorkerCapacityWaitHonoursContext`: cancel `ctx` while waiting and
+    get `ctx.Err()`.
+  - `TestLeaveParkAlongsideAnotherParkNeverFails`: `Leave(LeavePark)` over 6
+    threads while a continuation-style park on a seventh is blocked. Every
+    thread ends parked and no error is returned.
+  - Rewrite the existing overload test in `parkworker_test.go` to the waiting
+    contract.
+- [ ] **Step 2: Implement.**
+  - `newParkWorker(LifecycleParallelism)`.
+  - In `Submit`, at capacity, release `w.mu`, wait on a capacity-changed channel
+    (closed and replaced under `w.mu` on every delete, the same pattern as
+    `ThreadGate`) or `ctx.Done()`, and loop. The duplicate-address check runs
+    on every iteration, before the capacity check.
+  - Delete `ErrParkWorkerOverloaded`.
+- [ ] **Step 3: Run** `go test ./cmd/internal/couchcore -run 'ParkWorker|Leave' -race -count=1`.
+  Expect PASS.
+- [ ] **Step 4: Commit.**
 
 ### Task 8b: The actor registry is safe under concurrent operations
 
