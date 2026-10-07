@@ -770,3 +770,17 @@ func (s *Stream) Join() (Message, bool, error) {
   `(cd third_party/vt && go test ./...)` if it was touched. Grep any known-failing
   test's output for broadcast files.
 - [ ] **Step 3:** `sdlc close --issue 395 --verified '<evidence>'`.
+
+## Revisions
+
+- **2026-10-07 (M1 review)** — the hub ends by closing every subscriber queue,
+  with the reason in `Hub.Err()`. It does not send a final End message. The M2
+  server turns a closed queue into `event: end` with `Hub.Err()`; it can tell a
+  hub end from its own `Subscription.Close` because it made that call itself.
+  The indicator watch is a tagged `off | shown | hidden` state. `Activate`
+  arms grace only if the most recent frame lacked the indicator (BR-1). The
+  resync tick runs only while a viewer awaits resync.
+- **2026-10-07 (M1 review)** — `TestTapNotCalledOnFailedPaint` covers the failed
+  write, not a refused `PresentView`. After a successful `PublishFrame`/
+  `SelectView`, no public path makes that transition fail, so the tap's
+  `err == nil` guard is defence in depth, not a tested branch.

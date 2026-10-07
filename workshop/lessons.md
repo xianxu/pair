@@ -655,3 +655,14 @@ proof; record the surprising case so the next change starts from evidence.
   classify test, built from hand-made evidence, stayed green. For each value a
   projector can produce, keep at least one test that drives it through the
   real input contract.
+- A property test that runs a lifecycle call at a fixed point only tests that
+  ordering. #395 M1's hub test always called `Activate()` before any frame;
+  the one ordering it skipped (LIVE already shown, then activate on a quiet
+  screen) killed every broadcast after 1s. Place lifecycle calls at random
+  steps too, and state in the invariant what the call must not do.
+- A property test's observer must not repair the state it checks. #395's
+  hub test drained every viewer after every step, so no queue ever
+  overflowed, and the test passed against a hub with resync removed. Check
+  by inspecting; let the random schedule decide who drains. Then prove the
+  test bites with `go test -overlay` mutants of the invariant's code, which
+  never touches the tracked file.
