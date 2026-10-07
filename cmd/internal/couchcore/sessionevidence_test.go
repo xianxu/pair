@@ -49,7 +49,7 @@ func TestSessionPresenceIsThreeValued(t *testing.T) {
 		{Name: "duplicated", State: launcher.SessionExited},
 	}
 
-	got := ProjectSessionPresence(bindings, sessions, claimsFromSessionBindings(bindings))
+	got := ProjectSessionPresence(bindings, sessions, nil, claimsFromSessionBindings(bindings))
 
 	for _, tc := range []struct {
 		name    string
@@ -89,7 +89,7 @@ func TestUnresolvedIsTheZeroValue(t *testing.T) {
 // TestSessionPresenceAnswersThroughTheProductionChecker.
 func TestProjectionAnswersOnlyForBindingsItWasGiven(t *testing.T) {
 	address := presenceAddress("couch-0000000000000007")
-	got := ProjectSessionPresence(nil, []launcher.Session{{Name: "something", State: launcher.SessionLive}}, nil)
+	got := ProjectSessionPresence(nil, []launcher.Session{{Name: "something", State: launcher.SessionLive}}, nil, nil)
 	if state := got[address].State; state != SessionUnresolved {
 		t.Fatalf("an address absent from the projection input reads %v; callers must supply its binding", state)
 	}
@@ -703,5 +703,52 @@ func TestForeignOwnedParkIsRepresentableAndRefused(t *testing.T) {
 	}
 	if after.Park == nil {
 		t.Fatal("the live owner's park was tombstoned; its FinalizePark can now never match, and the audit trail is gone")
+	}
+}
+
+// An orphaned server is evidence a session is ALIVE, so it must outrank every
+// "no session" reading -- an exited or missing list-sessions row is exactly how
+// an orphan looks to list-sessions (#399). Strategy: the server verdict
+// {orphaned, unresolved, none} x the list-sessions row {live, exited, missing},
+// plus a contested name.
+func TestProjectSessionPresenceSeesAnOrphan(t *testing.T) {
+	orphan := launcher.SessionServerIdentity{PID: 9, Identity: "t9", Session: "orphan", Socket: "/s/orphan"}
+	servers := map[string]launcher.ServerState{
+		"orphan":          {Server: orphan, Orphaned: true},
+		"orphan-exited":   {Server: launcher.SessionServerIdentity{PID: 10, Session: "orphan-exited"}, Orphaned: true},
+		"unreadable":      {Unresolved: true},
+		"live-unreadable": {Unresolved: true},
+		"contested":       {Server: launcher.SessionServerIdentity{PID: 11, Session: "contested"}, Orphaned: true},
+	}
+	sessions := []launcher.Session{
+		{Name: "orphan-exited", State: launcher.SessionExited},
+		{Name: "live-unreadable", State: launcher.SessionLive},
+	}
+	a, b, c := presenceAddress("couch-0000000000000011"), presenceAddress("couch-0000000000000012"), presenceAddress("couch-0000000000000013")
+	d, e1, e2 := presenceAddress("couch-0000000000000014"), presenceAddress("couch-0000000000000015"), presenceAddress("couch-0000000000000016")
+	f := presenceAddress("couch-0000000000000017")
+	bindings := []SessionNameBinding{
+		{Address: a, SessionName: "orphan"},
+		{Address: b, SessionName: "orphan-exited"},
+		{Address: c, SessionName: "unreadable"},
+		{Address: d, SessionName: "live-unreadable"},
+		{Address: e1, SessionName: "contested"},
+		{Address: e2, SessionName: "contested"},
+		{Address: f, SessionName: "gone"},
+	}
+	got := ProjectSessionPresence(bindings, sessions, servers, claimsFromSessionBindings(bindings))
+	for _, tc := range []struct {
+		address ThreadAddress
+		want    SessionState
+	}{
+		{a, SessionOrphaned}, {b, SessionOrphaned}, {c, SessionUnresolved},
+		{d, SessionPresent}, {e1, SessionUnresolved}, {e2, SessionUnresolved}, {f, SessionAbsent},
+	} {
+		if got[tc.address].State != tc.want {
+			t.Fatalf("%v: got %v want %v", tc.address, got[tc.address].State, tc.want)
+		}
+	}
+	if got[a].Orphan == nil || *got[a].Orphan != orphan {
+		t.Fatalf("orphan observation must carry its server: %+v", got[a])
 	}
 }

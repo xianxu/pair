@@ -1,10 +1,15 @@
 package launcher
 
 import (
+	"context"
 	"errors"
 	"io/fs"
+	"os"
+	"os/exec"
 	"strconv"
 	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/procutil"
 )
 
 // A zellij server's argv is `zellij --server <socket>`, and the socket's base
@@ -107,4 +112,40 @@ func ClassifyServers(servers []SessionServerIdentity, sockets map[string]SocketS
 		out[s.Session] = state
 	}
 	return out
+}
+
+// ServerStates is the one bulk server observation for a refresh: every zellij
+// server on the host with its socket verdict, by session name. One `ps` plus an
+// Lstat per server -- never a probe per thread.
+type ServerStates interface {
+	ServerStates(ctx context.Context) (map[string]ServerState, error)
+}
+
+// OSServerStates reads the host. An orphan's start identity is read too, since
+// reap must act on that exact generation; an orphan whose identity cannot be
+// read is unresolved, not orphaned.
+type OSServerStates struct{}
+
+func (OSServerStates) ServerStates(ctx context.Context) (map[string]ServerState, error) {
+	out, err := exec.CommandContext(ctx, "ps", "-axo", "pid=,command=").Output()
+	if err != nil {
+		return nil, err
+	}
+	servers := ParseServerProcesses(string(out))
+	sockets := make(map[string]SocketState, len(servers))
+	for _, s := range servers {
+		sockets[s.Socket] = ObserveSocket(os.Lstat(s.Socket))
+	}
+	states := ClassifyServers(servers, sockets)
+	for name, state := range states {
+		if !state.Orphaned {
+			continue
+		}
+		state.Server.Identity = procutil.Identity(strconv.Itoa(state.Server.PID))
+		if state.Server.Identity == "" {
+			state = ServerState{Unresolved: true}
+		}
+		states[name] = state
+	}
+	return states, nil
 }

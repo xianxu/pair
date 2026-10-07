@@ -13,11 +13,12 @@ import (
 // `session-gone` is archive-eligible, so collapsing "could not ask" into "no
 // session" would offer to retire a thread whose agent is still running.
 //
-// It is NOT four values. An earlier design added `SessionHeldElsewhere` for a
-// session with a client attached, but the refresh path never asks about clients
-// -- `list-clients` costs ~250 ms per session (#228) and the reattach path
-// re-observes with attach state before committing (`resume.go`). A value no
-// producer can emit is a state that exists only to be handled.
+// It did not gain `SessionHeldElsewhere` for a session with a client attached:
+// the refresh path never asks about clients -- `list-clients` costs ~250 ms per
+// session (#228) and the reattach path re-observes with attach state before
+// committing (`resume.go`). A value no producer can emit is a state that exists
+// only to be handled. The fourth value it DID gain, `SessionOrphaned`, has a
+// producer: the server snapshot beside `list-sessions` (#399).
 type SessionState uint8
 
 const (
@@ -30,6 +31,11 @@ const (
 	SessionAbsent
 	// SessionPresent means a live, non-exited session is bound to this address.
 	SessionPresent
+	// SessionOrphaned means the session's exact zellij server is alive but its
+	// socket is gone (#399): nothing can reach it, list-sessions no longer
+	// lists it, and its agent may still be writing. It is evidence of a LIVE
+	// session, so it outranks every "no session" reading.
+	SessionOrphaned
 )
 
 func (s SessionState) String() string {
@@ -38,6 +44,8 @@ func (s SessionState) String() string {
 		return "absent"
 	case SessionPresent:
 		return "present"
+	case SessionOrphaned:
+		return "orphaned"
 	}
 	return "unresolved"
 }
@@ -51,6 +59,9 @@ func (s SessionState) String() string {
 // the consumer that needs it.
 type SessionObservation struct {
 	State SessionState
+	// Orphan is the orphaned server, set only with SessionOrphaned: the
+	// diagnostic names its pid and reap acts on its exact identity (#399).
+	Orphan *launcher.SessionServerIdentity
 }
 
 func (o SessionObservation) Present() bool { return o.State == SessionPresent }
@@ -87,7 +98,12 @@ type SessionPresenceResolver interface {
 // ones passed in -- the same widening ProjectDetachedSessions requires. A caller
 // that asks about a subset would otherwise see a contested name as unique and
 // call a thread recoverable whose session belongs to something else (#206).
-func ProjectSessionPresence(bindings []SessionNameBinding, sessions []launcher.Session, claims map[string]int) map[ThreadAddress]SessionObservation {
+//
+// servers is the host's zellij server verdicts by session name. It is consulted
+// only for names list-sessions does not report live -- an orphan is invisible to
+// list-sessions, so that is exactly where it hides -- and an unresolved verdict
+// there fails closed to unresolved rather than reading as absent.
+func ProjectSessionPresence(bindings []SessionNameBinding, sessions []launcher.Session, servers map[string]launcher.ServerState, claims map[string]int) map[ThreadAddress]SessionObservation {
 	out := make(map[ThreadAddress]SessionObservation, len(bindings))
 	if len(bindings) == 0 {
 		return out
@@ -104,6 +120,11 @@ func ProjectSessionPresence(bindings []SessionNameBinding, sessions []launcher.S
 			observation.State = SessionUnresolved
 		case index.live[binding.SessionName]:
 			observation.State = SessionPresent
+		case servers[binding.SessionName].Orphaned:
+			server := servers[binding.SessionName].Server
+			observation = SessionObservation{State: SessionOrphaned, Orphan: &server}
+		case servers[binding.SessionName].Unresolved:
+			observation.State = SessionUnresolved
 		default:
 			// Listed and exited, or not listed at all. Both are the honest
 			// "asked, and there is no live session" -- an EXITED row is a
