@@ -16,7 +16,7 @@ func TestStandaloneCouchRegistersAllTracePathsWithoutPairEnvironment(t *testing.
 	home, data, traces := t.TempDir(), t.TempDir(), t.TempDir()
 	root := launcher.ResolveDataDir(home, data)
 	rt := testRT{env: map[string]string{"HOME": home, "XDG_DATA_HOME": data, "COUCH_TRACE": filepath.Join(traces, "timing"), "COUCH_INPUT_TRACE": filepath.Join(traces, "input"), "COUCH_MOUSE_TRACE": filepath.Join(traces, "mouse")}}
-	console, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil, tracesForRuntime(rt))
+	console, _, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil, tracesForRuntime(rt))
 	if console == nil {
 		t.Fatal("console missing")
 	}

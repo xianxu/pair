@@ -1,12 +1,20 @@
 ---
 id: 000404
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-07
 updated: 2026-10-07
 estimate_hours:
-card_mirror: 'd90abbd78e873fd46786b87f72c9e1e9fb4ccd41' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '922ac7502752ac906468666cc024f29935e3e26b' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-07T11:01:19-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Opt-in Couch live terminal tracing
@@ -56,3 +64,7 @@ explicit. The imported implementation is not yet ready to ship.
 - Original implementation commits: 9ca17478 (capture) and 0b384b45 (regular-session activation). Imported work will preserve their provenance; historical test results do not establish live-capture reliability.
 - Real evidence: `/Users/xianxu/.local/share/pair/captures/session-2417847440/events.jsonl`, 5,609,068 bytes, 3,280 records, 6.88 seconds, final incomplete marker `terminal capture queue limit reached`. The capture had already stopped, so it cannot record later incidents. Current queue bounds are 128 records / 8 MiB; disk cap is 256 MiB.
 - The underlying display fault remains unproven. No root-cause fix is included in this ticket.
+
+- Transfer completed onto `000404-couch-live-terminal-tracing` from current main. Investigation-only branch: `000379-stray-turn-end-text`; original history: `archive/000379-before-tracing-split`. Implementation plan: [#404 tracing plan](../plans/000404-couch-live-terminal-tracing-plan.md). A single import-block conflict in couchcmd/run.go retained both main's scrollbackcmd and tracing's terminalcapture imports. No tracing behavior changed during the split.
+
+- Split verification: `git diff --cached --check` passed; recorder package tests passed; Capture/Observation-filtered tests passed across terminal, ptychild, couchcmd, couchcore and couchtty (ptychild had no matching tests); explicit `TestPtyRunnerObservesFirstBytesAndGeometryBeforeDelivery` passed. Compared original and transferred production/test/atlas/lessons diff additions and removals: identical, with newer main context retained. #379 branch differs from main only in its issue document. These checks verify transfer integrity, not a fix for live overflow.

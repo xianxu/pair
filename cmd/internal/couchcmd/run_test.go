@@ -1091,7 +1091,7 @@ func TestWantsConsole(t *testing.T) {
 // The plumbing half, still unconditional: with no terminal there must be no
 // console and the stdio runner.
 func TestConsoleRunnerDeclinesWithoutATerminal(t *testing.T) {
-	console, runner := consoleRunner("start", strings.NewReader(""), &bytes.Buffer{})
+	console, runner, _ := consoleRunner("start", strings.NewReader(""), &bytes.Buffer{})
 	if console != nil {
 		t.Fatal("a console was built with no terminal")
 	}
@@ -1129,7 +1129,7 @@ func TestStartDefaultsItsPathToCwd(t *testing.T) {
 // console AND a PtyRunner. Forcing consoleRunner to decline left the whole suite
 // green twice over (BR-24).
 func TestConsoleRunnerWiresThePtyRunnerWhenATerminalExists(t *testing.T) {
-	console, runner := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
+	console, runner, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
 	if console == nil {
 		t.Fatal("no console was built for `start` with a terminal")
 	}
@@ -1152,7 +1152,7 @@ func TestConsoleRunnerDetectsARealPTY(t *testing.T) {
 	defer master.Close()
 	defer slave.Close()
 
-	console, runner := consoleRunner("start", slave, slave)
+	console, runner, _ := consoleRunner("start", slave, slave)
 	if console == nil {
 		t.Fatal("production consoleRunner declined a real pty")
 	}
@@ -1162,7 +1162,7 @@ func TestConsoleRunnerDetectsARealPTY(t *testing.T) {
 }
 
 func TestConsoleRunnerDeclinesWithoutATerminalWiring(t *testing.T) {
-	console, runner := consoleRunnerFor("start", strings.NewReader(""), false, nil, nil)
+	console, runner, _ := consoleRunnerFor("start", strings.NewReader(""), false, nil, nil)
 	if console != nil {
 		t.Fatal("a console was built with no terminal")
 	}
@@ -1179,7 +1179,7 @@ func TestConsoleGetsCouchsActionableProvider(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewCouch: %v", err)
 	}
-	console, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
+	console, _, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
 	if console == nil {
 		t.Fatal("no console to wire")
 	}
@@ -1224,7 +1224,7 @@ func TestWireResolverReportsUnboundParkInBothViews(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	console, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
+	console, _, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
 	wireResolver(console, c)
 	provider := console.ActionableProvider()
 	if provider == nil {
@@ -1272,7 +1272,7 @@ func TestWireResolverPropagatesContextIntoActionableInventory(t *testing.T) {
 		release:                            make(chan struct{}),
 	}
 	c.Artifacts = artifacts
-	console, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
+	console, _, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
 	wireResolver(console, c)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
@@ -1301,7 +1301,7 @@ func TestConsoleWiringPropagatesAuthoritativeThreadStoreFailures(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	console, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
+	console, _, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
 	wireResolver(console, c)
 	if err := os.WriteFile(filepath.Join(rt.dir, "threadstore", "manifest.json"), []byte("{corrupt"), 0o600); err != nil {
 		t.Fatal(err)
@@ -1320,7 +1320,7 @@ func TestConsoleGetsAnActionDispatcher(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewCouch: %v", err)
 	}
-	console, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
+	console, _, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
 	if console == nil {
 		t.Fatal("no console to wire")
 	}
@@ -1350,7 +1350,7 @@ func TestConsoleGetsAnActionDispatcher(t *testing.T) {
 }
 
 func TestInitialConsoleAttachDispatchesDeclaredOperation(t *testing.T) {
-	console, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
+	console, _, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
 	if console == nil {
 		t.Fatal("no console")
 	}
@@ -1381,7 +1381,7 @@ func TestWireAttachAbortCleansStartedActorAfterConsoleRefusal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	console, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
+	console, _, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
 	console.Stop()
 	wireResolver(console, c)
 
@@ -1406,7 +1406,7 @@ func TestConsoleExitForgetsThroughCouchRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewCouch: %v", err)
 	}
-	console, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
+	console, _, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
 	rec, h, err := c.Spawn(couchcore.StartArgs{Cwd: "/repo"})
 	if err != nil {
 		t.Fatalf("Spawn: %v", err)
@@ -1605,7 +1605,7 @@ func TestBeginConsoleArmsThePassOnlyAfterASuccessfulAttach(t *testing.T) {
 		{"a console that is not a start is not armed", nil, false, false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			console, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
+			console, _, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
 			if console == nil {
 				t.Fatal("no console")
 			}
@@ -1634,7 +1634,7 @@ func TestTheConsoleRunnerOpensTheTimingTraceFromTheEnvironment(t *testing.T) {
 	processStartedAt = time.UnixMilli(1757600000000)
 	t.Cleanup(func() { processStartedAt = saved })
 
-	if console, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil); console == nil {
+	if console, _, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil); console == nil {
 		t.Fatal("no console")
 	}
 	body, err := os.ReadFile(path)

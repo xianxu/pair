@@ -37,6 +37,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/runtimebundle"
 	"github.com/xianxu/pair/cmd/internal/scrollbackcmd"
+	"github.com/xianxu/pair/cmd/internal/terminalcapture"
 	"github.com/xianxu/pair/cmd/internal/threadactivity"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
@@ -352,7 +353,7 @@ func runTypedOperation(op couchcore.Operation, parsed, prepareArgs map[string]st
 
 type consoleFinisher func(*couchtty.Console, *couchcore.Couch, couchcore.StartResult, io.Writer) int
 
-func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs map[string]string, forceConsole bool, layout couchcore.Layout, inFile, outFile *os.File, stdin io.Reader, stdout, stderr io.Writer, rt Runtime, finishConsole consoleFinisher) int {
+func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs map[string]string, forceConsole bool, layout couchcore.Layout, inFile, outFile *os.File, stdin io.Reader, stdout, stderr io.Writer, rt Runtime, finishConsole consoleFinisher) (code int) {
 	_, workspaceRef, referenceErr := couchcore.ParseWorkspaceReference(parsed["ref"])
 	if referenceErr != nil {
 		renderError(stderr, referenceErr)
@@ -402,9 +403,22 @@ func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs ma
 	var console *couchtty.Console
 	var runner couchcore.Runner
 	if forceConsole {
-		console, runner = consoleRunnerFor(op.Name, stdin, true, inFile, outFile, tracesForRuntime(rt))
+		console, runner, err = consoleRunnerFor(op.Name, stdin, true, inFile, outFile, tracesForRuntime(rt))
 	} else {
-		console, runner = consoleRunner(op.Name, stdin, stdout, tracesForRuntime(rt))
+		console, runner, err = consoleRunner(op.Name, stdin, stdout, tracesForRuntime(rt))
+	}
+
+	if err != nil {
+		fmt.Fprintln(stderr, "couch:", err)
+		return 1
+	}
+	if console != nil {
+		defer func() {
+			if captureErr := console.CloseCapture(); captureErr != nil {
+				fmt.Fprintln(stderr, "couch: capture incomplete:", captureErr)
+				code = 1
+			}
+		}()
 	}
 
 	c, err := rt.NewCouchWith(runner, namespace)
@@ -558,7 +572,7 @@ func WantsConsole(name string, hasTerminal bool) bool {
 //
 // Returning (nil, ExecRunner{}) is the injected fallback for non-console typed
 // operations.
-func consoleRunner(name string, stdin io.Reader, stdout io.Writer, settings ...consoleTraceConfig) (*couchtty.Console, couchcore.Runner) {
+func consoleRunner(name string, stdin io.Reader, stdout io.Writer, settings ...consoleTraceConfig) (*couchtty.Console, couchcore.Runner, error) {
 	inFile, _ := stdin.(*os.File)
 	outFile, _ := stdout.(*os.File)
 
@@ -573,20 +587,36 @@ func consoleRunner(name string, stdin io.Reader, stdout io.Writer, settings ...c
 // Splitting it is not decoration: pinning only WantsConsole left "does
 // consoleRunner actually use it" uncovered, and forcing consoleRunner to return
 // (nil, ExecRunner) kept the whole suite green (M2 BR-24, twice).
-func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, outFile *os.File, settings ...consoleTraceConfig) (*couchtty.Console, couchcore.Runner) {
+func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, outFile *os.File, settings ...consoleTraceConfig) (*couchtty.Console, couchcore.Runner, error) {
 	if !WantsConsole(name, hasTerminal) {
-		return nil, couchcore.ExecRunner{}
+		return nil, couchcore.ExecRunner{}, nil
 	}
 
-	host := hostty.NewOSHost(inFile, outFile)
+	getenv := os.Getenv
+	if len(settings) > 0 {
+		getenv = settings[0].getenv
+	}
+	path, err := capturePath(getenv)
+	if err != nil {
+		return nil, nil, err
+	}
+	var recorder *terminalcapture.Recorder
+	if path != "" {
+		recorder, err = terminalcapture.Open(path)
+		if err != nil {
+			return nil, nil, fmt.Errorf("COUCH_CAPTURE_DIR: %w", err)
+		}
+	}
+	osHost := hostty.NewOSHost(inFile, outFile)
+	var host hostty.Host = osHost
+	if recorder != nil {
+		host = &captureHost{OSHost: osHost, recorder: recorder}
+	}
 	if inFile != nil {
-		stdin = host
+		stdin = osHost
 	}
 	console := couchtty.New(host, stdin)
-	// The composition root owns the environment read. A failed open reports
-	// itself on the status row; it must never take the console down, and it must
-	// never be mistaken for "the terminal sent nothing".
-	getenv := os.Getenv
+	console.SetCapture(recorder)
 	options := diagnosticlog.Options{Proof: diagnosticlog.DefaultProof}
 	if len(settings) > 0 {
 		config := settings[0]
@@ -622,7 +652,8 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 		Environment: profile,
 		Size:        console.ChildSize,
 		Sink:        console.Deliver,
-	}
+		Observer:    captureObserver(recorder),
+	}, nil
 }
 
 type consoleTraceConfig struct {

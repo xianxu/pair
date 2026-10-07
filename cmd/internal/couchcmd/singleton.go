@@ -107,6 +107,9 @@ func resolveIsolatedChildRoots(root, requestedHome string) (isolatedChildRoots, 
 func (r OSRuntime) singletonManager() (couchsingleton.Manager, couchsingleton.Request, string, error) {
 	var m couchsingleton.Manager
 	var q couchsingleton.Request
+	if _, err := capturePath(r.Getenv); err != nil {
+		return m, q, "", err
+	}
 	isolated := r.Getenv("COUCH_ISOLATED_ROOT")
 	var home string
 	var err error
@@ -302,7 +305,7 @@ func (r OSRuntime) runtimeRunner(runner couchcore.Runner) couchcore.Runner {
 	// Pair's PAIR_DATA_DIR is already repository-scoped. Clear the inherited
 	// actor destination and pass the selected global root separately so the
 	// launcher computes this actor's scope once, from its own checkout.
-	env := []string{"PAIR_DATA_DIR=", "COUCH_PAIR_DATA_DIR=" + roots.PairDataDir, "COUCH_STORE_DIR=" + roots.StoreDir, "COUCH_IDENTITY_DIR=" + roots.IdentityDir, "COUCH_ISOLATED_ROOT=" + r.isolatedRoot}
+	env := []string{"COUCH_CAPTURE_DIR=", "PAIR_DATA_DIR=", "COUCH_PAIR_DATA_DIR=" + roots.PairDataDir, "COUCH_STORE_DIR=" + roots.StoreDir, "COUCH_IDENTITY_DIR=" + roots.IdentityDir, "COUCH_ISOLATED_ROOT=" + r.isolatedRoot}
 	if r.isolatedRoot != "" {
 		env = append(env, "HOME="+r.isolatedPaths.home, "XDG_DATA_HOME="+r.isolatedPaths.data, "TMPDIR="+r.isolatedPaths.temporary)
 	}

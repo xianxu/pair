@@ -2644,3 +2644,10 @@ latency under bursts, one Go CPU and delayed host writes. Two-second trials
 have bounded output and joined teardown. It does not emulate Zellij, Ghostty,
 system-wide scheduler pressure or sustained full-screen redraws; a negative
 result cannot rule out those causes of selective pane freezing.
+
+## Live display capture
+
+For an explicitly opted-in session, `COUCH_CAPTURE_DIR` enables both display
+boundaries with exact bytes, geometry and timing. Regular Couch is supported;
+`COUCH_ISOLATED_ROOT` remains optional. Capture stays disabled by default. See the
+[live capture runbook](couch-live-capture.md) for launch, limits and extraction.

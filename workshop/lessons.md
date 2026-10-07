@@ -7,6 +7,10 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- Optional diagnostic resources need one owner across startup failure and normal
+  exit. Report shutdown failures on both paths, and clear process-scoped capture
+  activation from child environments so descendants do not silently opt in. (#379)
+
 - A filename absence decision that creates a replacement requires complete
   enumeration. Carry failed/partial probes as unknown through every consumer;
   an empty ID must not silently select a destructive fresh fallback. (#346)

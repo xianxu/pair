@@ -592,6 +592,11 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	"cmd/internal/couchcmd/capture.go",
+	"cmd/internal/couchtty/capture.go",
+	"cmd/internal/terminal/observation.go",
+	"cmd/internal/terminalcapture/record.go",
+	"cmd/internal/terminalcapture/recorder.go",
 	// #366 singleton ownership/configuration, not Pair artifact filenames.
 	"cmd/internal/couchcmd/singleton.go",
 	"cmd/internal/couchcmd/singleton_cli.go",
