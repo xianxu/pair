@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -167,5 +168,50 @@ func TestLeaveSignalsEachThreadExactlyOnce(t *testing.T) {
 		if got := len(proc.Signals[pid]); got != 1 {
 			t.Errorf("%s got %d signals, want exactly 1", thread.Address.Tag, got)
 		}
+	}
+}
+
+// Cancelling Leave partway through its fan-out stops STARTING threads: only the
+// ones already started were ever signalled, and the cancellation is reported
+// (D6, M2 review). The started ones see the cancellation through their ctx.
+func TestLeaveCancelledMidFanOutFinishesStartedAndStartsNoMore(t *testing.T) {
+	withParallelism(t, 2)
+	c, proc, threads := leaveFleet(t, 5)
+	ctx, cancel := context.WithCancel(context.Background())
+	inFlight := make(chan struct{}, 5)
+	release := make(chan struct{})
+	proc.OnSignal = func(int, os.Signal) {
+		inFlight <- struct{}{}
+		<-release
+	}
+	done := make(chan error, 1)
+	var result LeaveResult
+	go func() {
+		var err error
+		result, err = c.Leave(ctx, LeaveDetach)
+		done <- err
+	}()
+	for i := 0; i < 2; i++ {
+		select {
+		case <-inFlight:
+		case <-time.After(5 * time.Second):
+			t.Fatalf("only %d of 2 detaches started", i)
+		}
+	}
+	cancel()
+	close(release)
+	err := <-done
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Leave = %v, want the cancellation", err)
+	}
+	if len(result.Detached) > 2 {
+		t.Fatalf("detached = %v, want at most the 2 already started", result.Detached)
+	}
+	signalled := 0
+	for _, thread := range threads {
+		signalled += len(proc.Signals[thread.Incarnations[0].PID])
+	}
+	if signalled != 2 {
+		t.Fatalf("%d threads signalled after cancellation, want only the 2 started", signalled)
 	}
 }

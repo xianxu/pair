@@ -595,3 +595,13 @@ proof; record the surprising case so the next change starts from evidence.
 - A drain's wait is an interleaving cell, so give each waiter its own test.
   #205 BR-4 found `RecoverActiveParks` and `AbortStarted` waiting untested because
   only `Leave`'s wait was. One waiter's test does not cover another.
+- `select` does not prefer `ctx.Done()`. When the context is already cancelled
+  and another case is ready, Go picks at random, so a "cancelled" loop
+  sometimes takes one more step. #205 M2: a cancelled `Leave` occasionally
+  started another thread, caught only by an existing pre-cancelled-ctx test
+  that flaked. Check `ctx.Err()` before the select, and after it when the other
+  case acquires something.
+- Test the cancellation claim you write. #205's `Leave` comment said "started
+  threads finish", but they share the ctx and stop at their own safe points.
+  The test written for the claim failed on day one. A policy sentence about
+  cancellation needs a test that cancels at that exact point.

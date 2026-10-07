@@ -43,6 +43,8 @@ func TestParkWorkerBoundsAndCoalesces(t *testing.T) {
 	// throughput bound shared by every park submitter, never a refusal.
 	other := ThreadAddress{RepoScope: address.RepoScope, Tag: "couch-fedcba9876543210"}
 	otherRan := make(chan struct{})
+	otherWaiting := make(chan struct{}, 1)
+	worker.onWait = func() { otherWaiting <- struct{}{} }
 	otherSubmitted := make(chan error, 1)
 	go func() {
 		future, err := worker.Submit(context.Background(), other, "other", func(context.Context) (ParkResult, error) {
@@ -54,10 +56,11 @@ func TestParkWorkerBoundsAndCoalesces(t *testing.T) {
 		}
 		otherSubmitted <- err
 	}()
+	<-otherWaiting // blocked on capacity: it waits rather than being refused
 	select {
 	case <-otherRan:
 		t.Fatal("work beyond capacity ran while the worker was full")
-	case <-time.After(30 * time.Millisecond):
+	default:
 	}
 	close(release)
 	if err := <-otherSubmitted; err != nil {
@@ -293,6 +296,8 @@ func TestParkWorkerCapacityWaitHonoursContext(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	waiting := make(chan struct{}, 1)
+	worker.onWait = func() { waiting <- struct{}{} }
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() {
@@ -300,7 +305,7 @@ func TestParkWorkerCapacityWaitHonoursContext(t *testing.T) {
 			func(context.Context) (ParkResult, error) { return ParkResult{}, nil })
 		done <- err
 	}()
-	time.Sleep(20 * time.Millisecond)
+	<-waiting // the submitter is blocked on capacity, not merely scheduled
 	cancel()
 	if err := <-done; !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancelled capacity wait = %v, want context.Canceled", err)

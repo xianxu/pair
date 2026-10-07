@@ -178,8 +178,9 @@ type Console struct {
 	once                 sync.Once
 	workers              sync.WaitGroup
 	// queueWorkers is how many goroutines drain operationQueue (pair#205):
-	// the reattach pass's limit plus one, so the pass can never occupy every
-	// worker and an operator's gesture never waits behind its attempts.
+	// the reattach pass's limit plus one, so the pass alone can never occupy
+	// every worker. (Remote and continuation jobs share the spare, so an
+	// operator's gesture can still wait behind those.)
 	queueWorkers int
 }
 

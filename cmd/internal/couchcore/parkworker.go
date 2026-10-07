@@ -52,6 +52,9 @@ type parkWorker struct {
 	// freed is closed and replaced whenever a unit is released, waking
 	// submitters waiting for capacity.
 	freed chan struct{}
+	// onWait, when set, runs as a submitter starts waiting for capacity, so a
+	// test synchronizes on the wait instead of sleeping. Tests only.
+	onWait func()
 }
 
 func newParkWorker(capacity int) *parkWorker {
@@ -77,8 +80,11 @@ func (w *parkWorker) Submit(ctx context.Context, address ThreadAddress, nonce st
 		if len(w.active) < w.capacity {
 			break
 		}
-		freed := w.freed
+		freed, onWait := w.freed, w.onWait
 		w.mu.Unlock()
+		if onWait != nil {
+			onWait()
+		}
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()

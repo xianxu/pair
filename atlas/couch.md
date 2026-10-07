@@ -1386,9 +1386,9 @@ caps three things:
 - **The startup reattach pass's in-flight set** (`ReattachPass.Limit`, fixed
   when the pass is armed).
 
-The console drains its operation queue with `Limit+1` workers, so the pass can
-never occupy all of them and an operator's gesture never waits behind its
-attempts. Results still reach the console goroutine through `q.results`. Every
+The console drains its operation queue with `Limit+1` workers, so the pass
+alone can never occupy all of them. Remote and continuation jobs share the
+spare worker. Results still reach the console goroutine through `q.results`. Every
 bound makes callers wait; none refuses on load. The actor registry is guarded
 by `regMu` (`registry()`/`mutateRegistry()`), because writers no longer share
 one goroutine.

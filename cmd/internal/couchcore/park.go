@@ -194,7 +194,10 @@ func (c *Couch) Leave(ctx context.Context, disposition LeaveDisposition) (LeaveR
 	// once, each under its own thread hold. One thread's failure does not stop
 	// its siblings; every failure is joined into the error, and the report keeps
 	// snapshot order whatever order the work ends in. Cancellation stops
-	// STARTING threads; the started ones finish, so none is left half done.
+	// STARTING threads; the ones already started see it through their ctx and
+	// stop at their own safe points, exactly as the single in-flight thread did
+	// when Leave was serial (a detach that stops mid-way destroys nothing; the
+	// next startup reconciles the record).
 	records := snapshot.Records
 	outcomes := make([]leaveOutcome, len(records))
 	errs := make([]error, len(records))
@@ -202,11 +205,26 @@ func (c *Couch) Leave(ctx context.Context, disposition LeaveDisposition) (LeaveR
 	var wg sync.WaitGroup
 dispatch:
 	for i, record := range records {
+		notStarted := func(err error) error {
+			return fmt.Errorf("leave couch: %d thread(s) not started: %w", len(records)-i, err)
+		}
+		// Checked before AND after the select: when the context is done and a
+		// unit is free at once, select picks either case at random, so a
+		// cancelled Leave would sometimes start another thread.
+		if err := ctx.Err(); err != nil {
+			errs[i] = notStarted(err)
+			break dispatch
+		}
 		select {
 		case <-ctx.Done():
-			errs[i] = ctx.Err()
+			errs[i] = notStarted(ctx.Err())
 			break dispatch
 		case units <- struct{}{}:
+		}
+		if err := ctx.Err(); err != nil {
+			<-units // return the token this iteration just took, unused
+			errs[i] = notStarted(err)
+			break dispatch
 		}
 		wg.Add(1)
 		go func(i int, address ThreadAddress) {
@@ -308,7 +326,7 @@ const (
 func (c *Couch) leaveOne(ctx context.Context, address ThreadAddress, disposition LeaveDisposition) (leaveOutcome, error) {
 	ctx, release, err := c.holdWait(ctx, address, "leave")
 	if err != nil {
-		return leaveNone, err
+		return leaveNone, fmt.Errorf("leave couch: wait for %s: %w", address.Tag, err)
 	}
 	defer release()
 	record, err := c.Threads.GetThread(address)
