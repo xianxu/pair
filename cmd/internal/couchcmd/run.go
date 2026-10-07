@@ -506,6 +506,7 @@ func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs ma
 	}
 	if parsed["json"] == "true" {
 		if err := json.NewEncoder(stdout).Encode(result); err != nil {
+			renderError(stderr, err)
 			return 1
 		}
 		return 0

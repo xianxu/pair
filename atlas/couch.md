@@ -695,8 +695,12 @@ thread's live terminal recording (`scrollbackcmd.RenderOwnedLines`, under the sa
 retention lease `pair scrollback render` takes), the Pair sent-prompt log, and
 native transcript paths from the switcher's `OSSwitchContextResolver`. Transcripts
 are paths, never parsed, and every unreadable source is named in `unavailable`.
-Any operation that declares a `json` flag prints its result as JSON; the hosted-agent hook `publish-description` projects only through
-hidden `couch --internal publish-description <text>`, which pair's draft calls for a `!` tag line (#337), a `!!` describe line (#358), and a bare `!` clear line (#357), which publishes an empty summary. `prepare-start`, `start`,
+Any operation that declares a `json` flag prints its result as JSON.
+
+The hosted-agent hook `publish-description` projects only through hidden
+`couch --internal publish-description <text>`, which pair's draft calls for a `!`
+tag line (#337), a `!!` describe line (#358), and a bare `!` clear line (#357),
+which publishes an empty summary. `prepare-start`, `start`,
 `attach`, `switch`, `park`, `resume`, `relaunch`, `prepare-switch-agent`,
 `switch-agent`, `leave`, `stop`, `alias` and `reboot` are TUI/in-process
 operations. `orientation-status` is an internal owner operation for one launch

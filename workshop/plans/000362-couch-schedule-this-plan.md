@@ -272,3 +272,36 @@ The skill now states that `submitted` means queued, not acted on, and that an
 expired or not-dispatched message is safe to resend (526b1a15). The full suite's
 only new failure was the operation-declaration table missing `peek`, which is now
 fixed; every other failure matches main.
+
+### 2026-10-06 (c) — Core concepts as built (close-review finding)
+
+The close review found that the Core concepts table no longer matched the code.
+Recorded here; the table above is left as the plan of record.
+
+| Name | Lives in | Status | As built |
+|------|----------|--------|----------|
+| `RenderLines(rawPath, eventsPath, maxLines) ([]string, error)` | `scrollbackcmd/scrollbackcmd.go` | new | Plain lines only; `render` uses an internal `replay` for its marks and viewport. **IO, not PURE:** it reads two files and parks one emulator drain goroutine per call for the life of the process. |
+| `RenderOwnedLines(dataDir, scope, tag, agent, maxLines)` | `scrollbackcmd/retention.go` | new (unplanned) | Integration point: finds the owner's live capture under `repos/<scope>` and reads it under the retention lease. |
+| `SlotTerminalReader` / `Couch.SlotTerminal` | `couchcore/peek.go`, `couch.go` | new (unplanned) | The injected seam `PeekThread` reads the recording through; production wires it to `RenderOwnedLines` in `couchcmd/run.go`. |
+| `Couch.PeekThread(ctx, ref, address, lines)` | `couchcore/peek.go` | new | Planned as `PeekSlot(ctx, ref, lines)`. The `repo:N` lookup is the existing `resolveOperationThread` in the dispatcher, not inside peek. |
+| `PeekResult`, `peekTail` | `couchcore/peek.go` | new | As planned, plus `ref` and `working_path`. |
+
+Tests that changed shape:
+- `TestPeekReturnsTranscriptPaths` through the resolver's `Query`/`NativePath` seams
+  was not written. `TestPeekShowsTheSlotsRecentTerminal` covers the paths through a
+  whole-resolver fake, and the production resolver's own seams are covered by its
+  existing switch-agent tests.
+- `TestPeekIsReadOnly` snapshots the thread store. The data directory is touched only
+  through `RenderOwnedLines`, whose lease is the existing renderer's.
+
+Minors taken in the same commit:
+- a `--json` encode failure is now printed;
+- the local `context` variable no longer shadows the package;
+- the `peek` declaration records that it is a CLI operation, because each replay
+  parks a goroutine, so the long-running console must not dispatch it;
+- the atlas paragraph is re-wrapped.
+
+Left as noted:
+- no end-to-end `RunWithRuntime --peek --json` test; the live exercises covered
+  that path;
+- no direct test of the dispatcher's `--lines` refusal.

@@ -52,17 +52,17 @@ func (c *Couch) PeekThread(ctx context.Context, ref string, address ThreadAddres
 	if c.SwitchContext == nil {
 		result.Unavailable = append(result.Unavailable, "transcript resolver is not configured")
 	} else {
-		context, err := c.SwitchContext.Resolve(ctx, record)
+		orientation, err := c.SwitchContext.Resolve(ctx, record)
 		if err != nil {
 			if ctx.Err() != nil {
 				return PeekResult{}, ctx.Err()
 			}
 			result.Unavailable = append(result.Unavailable, "transcripts: "+err.Error())
 		}
-		result.Agent = context.SourceAgent
-		result.SentPrompts = context.PairLog
-		result.Transcripts = context.NativeTranscripts
-		result.Unavailable = append(result.Unavailable, context.Unavailable...)
+		result.Agent = orientation.SourceAgent
+		result.SentPrompts = orientation.PairLog
+		result.Transcripts = orientation.NativeTranscripts
+		result.Unavailable = append(result.Unavailable, orientation.Unavailable...)
 	}
 	switch {
 	case result.Agent == "":
