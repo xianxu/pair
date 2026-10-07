@@ -61,6 +61,7 @@ func (c *Couch) Reap(ctx context.Context, target ReapTarget) (ReapResult, error)
 		return ReapResult{}, &ReapRefusal{Detail: fmt.Sprintf("thread %s is %s, not an orphaned server", row.Address.Tag, rowStateWord(row))}
 	}
 	server := *row.Orphan
+	reportProgress(ctx, "confirming server PID %d is still orphaned", server.PID)
 	sleep := c.sleep
 	if sleep == nil {
 		sleep = time.Sleep
@@ -77,6 +78,7 @@ func (c *Couch) Reap(ctx context.Context, target ReapTarget) (ReapResult, error)
 	if o := again[row.Address]; o.State != SessionOrphaned || o.Orphan == nil || *o.Orphan != server {
 		return ReapResult{}, &ReapRefusal{Detail: fmt.Sprintf("server PID %d did not stay orphaned (now %s); read the report again", server.PID, o.State)}
 	}
+	reportProgress(ctx, "ending server PID %d and everything under it", server.PID)
 	if err := c.reaper().ReapOrphan(ctx, server, row.Address.RepoScope, string(row.Address.Tag)); err != nil {
 		return ReapResult{}, err
 	}

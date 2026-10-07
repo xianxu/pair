@@ -231,3 +231,36 @@ func TestRecoverStopsWhenTheRowNeverAdmitsTheNextStep(t *testing.T) {
 		t.Fatalf("reaped %+v, starts %d → %d", reaper.reaped, before, countStarts(env.Runner))
 	}
 }
+
+// recover is several slow steps; the operator sees which one is running
+// (#399 live acceptance: "very slowly, recovered"). Each step reports its
+// position, and reap reports its own phases inside its step.
+func TestRecoverReportsEachStepAsItRuns(t *testing.T) {
+	env, address, _, _ := resumableOrphanEnv(t)
+	var seen []string
+	ctx := WithOperationProgress(context.Background(), func(text string) { seen = append(seen, text) })
+	if _, err := env.Couch.Recover(ctx, RecoverTarget{Address: address}); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"step 1/2: reaping orphaned server PID 9090",
+		"step 1/2: confirming server PID 9090 is still orphaned",
+		"step 1/2: ending server PID 9090 and everything under it",
+		"step 2/2: resuming",
+	}
+	at := 0
+	for _, text := range seen {
+		if at < len(want) && strings.HasPrefix(text, want[at]) {
+			at++
+		}
+	}
+	if at != len(want) {
+		t.Fatalf("progress %q does not contain %q in order (matched %d)", seen, want, at)
+	}
+}
+
+// Without a reporter, progress is a no-op.
+func TestProgressWithoutAReporterIsSilent(t *testing.T) {
+	reportProgress(context.Background(), "nothing listens")
+	reportProgress(nil, "nothing listens")
+}

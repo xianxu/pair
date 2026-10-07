@@ -1851,6 +1851,17 @@ func dispatchMenuOperation(state MenuState, effect MenuEffect, address couchcore
 	return state, []MenuEffect{effect}
 }
 
+// updateOperationProgress puts a running operation's current step on its OWN
+// progress notice (#399): another attempt's line, or a notice that already
+// turned into a result, is left alone.
+func updateOperationProgress(state MenuState, attempt uint64, detail string) MenuState {
+	if state.Notice.Level != MenuNoticeProgress || state.Notice.Owner.OperationAttempt != attempt || attempt == 0 {
+		return state
+	}
+	state.Notice.Text = menuOperationProgressText(state, state.InFlight.Operation, state.InFlight.Address) + " " + detail
+	return state
+}
+
 func menuOperationProgressText(state MenuState, operation string, address couchcore.ThreadAddress) string {
 	label := string(address.Tag)
 	if thread, ok := menuThread(state, address); ok {

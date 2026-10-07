@@ -161,9 +161,11 @@ func (c *Couch) Recover(ctx context.Context, target RecoverTarget) (any, error) 
 	executors := OperationExecutors{LiveOwner: CouchLiveOwnerExecutor(c)}
 	var value any
 	for i, step := range steps {
-		row, err := c.awaitRecoverStep(ctx, target, step, sleep)
+		stepCtx := withProgressPrefix(ctx, fmt.Sprintf("step %d/%d: ", i+1, len(steps)))
+		reportProgress(stepCtx, "%s", recoverStepDescription(row, step))
+		row, err := c.awaitRecoverStep(stepCtx, target, step, sleep)
 		if err == nil {
-			value, err = DispatchOperation(executors, OperationCall{Name: step, Args: ActorOperationArgs(row, step), Implicit: true, Context: ctx})
+			value, err = DispatchOperation(executors, OperationCall{Name: step, Args: ActorOperationArgs(row, step), Implicit: true, Context: stepCtx})
 		}
 		if err != nil {
 			if i == 0 {
@@ -192,9 +194,28 @@ func (c *Couch) awaitRecoverStep(ctx context.Context, target RecoverTarget, step
 		if slices.Contains(ActorActions(ActorRowFactsOf(row)), step) {
 			return row, nil
 		}
+		if waited == 0 {
+			reportProgress(ctx, "waiting for the old session to close")
+		}
 		if waited >= recoverSettle || ctx.Err() != nil {
 			return ActionableThreadSummary{}, &RecoverRefusal{Code: RecoverChanged, Detail: fmt.Sprintf("%s is %s, which does not admit %s; read the report again", row.Label(), rowStateWord(row), step)}
 		}
 		sleep(recoverSettlePoll)
 	}
+}
+
+// recoverStepDescription is what the operator reads while a step runs.
+func recoverStepDescription(row ActionableThreadSummary, step string) string {
+	switch step {
+	case "reap":
+		if row.Orphan != nil {
+			return fmt.Sprintf("reaping orphaned server PID %d", row.Orphan.PID)
+		}
+		return "reaping the orphaned server"
+	case "resume":
+		return "resuming " + row.Label()
+	case "reboot":
+		return "rebooting: archiving the conversation, starting a fresh agent"
+	}
+	return step
 }

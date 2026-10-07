@@ -632,3 +632,22 @@ func TestReapSuccessClosesItsConfirmation(t *testing.T) {
 		t.Fatalf("reap result not consumed: in flight %+v, frame %v, notice %q", next.InFlight, next.CurrentFrame().Kind, next.Notice.Text)
 	}
 }
+
+// A running operation's progress replaces the detail of ITS progress notice
+// only: another attempt's progress, or a notice that is no longer a progress
+// notice, is left alone (#399).
+func TestOperationProgressUpdatesOnlyItsOwnNotice(t *testing.T) {
+	state := MenuState{Notice: MenuNotice{Level: MenuNoticeProgress, Text: "recovering pair:6…", Owner: MenuProgressOwner{OperationAttempt: 7}}}
+	state.InFlight = MenuOperationOrigin{Operation: "recover", Attempt: 7}
+	next := updateOperationProgress(state, 7, "step 1/2: reaping orphaned server PID 9090")
+	if !strings.Contains(next.Notice.Text, "step 1/2: reaping orphaned server PID 9090") || next.Notice.Level != MenuNoticeProgress {
+		t.Fatalf("notice = %+v", next.Notice)
+	}
+	if other := updateOperationProgress(state, 8, "stale"); other.Notice.Text != state.Notice.Text {
+		t.Fatalf("another attempt's progress changed the notice: %q", other.Notice.Text)
+	}
+	state.Notice.Level = MenuNoticeError
+	if done := updateOperationProgress(state, 7, "late"); done.Notice.Text != state.Notice.Text {
+		t.Fatalf("progress overwrote a finished notice: %q", done.Notice.Text)
+	}
+}
