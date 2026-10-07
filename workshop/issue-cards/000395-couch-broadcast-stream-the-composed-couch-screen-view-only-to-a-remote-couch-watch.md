@@ -27,6 +27,6 @@ claimant:
     repository: github.com/xianxu/pair
 ---
 
-# Couch broadcast: stream the composed Couch screen, view-only, to a remote couch --watch
+# Couch broadcast: stream the composed Couch screen, view-only, to a browser viewer
 
 ## Problem
