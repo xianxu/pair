@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000396-tl-driven-project-execution-from-a-driver-repo.md
         source_blob: 4a50456b3b32523fa72f55f1f5b98f5dba1b2ca0
         destination: workshop/issues/000396-tl-driven-project-execution-from-a-driver-repo.md
+        main_commit: 1fbe166cbf5af891b99ab6a9f98fb85877e70947
 ---
 
 # TL-driven project execution from a driver repo
