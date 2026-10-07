@@ -152,3 +152,20 @@ func TestLeaveResultIsInSnapshotOrder(t *testing.T) {
 		t.Fatalf("detached order = %v, want snapshot order %v", result.Detached, want)
 	}
 }
+
+// Counted invariant (pair#205; #204's suite is not built yet): Leave of N
+// threads sends exactly one SIGTERM per thread, however many run at once --
+// fan-out must not repeat or skip work.
+func TestLeaveSignalsEachThreadExactlyOnce(t *testing.T) {
+	withParallelism(t, 3)
+	c, proc, threads := leaveFleet(t, 7)
+	if _, err := c.Leave(context.Background(), LeaveDetach); err != nil {
+		t.Fatal(err)
+	}
+	for _, thread := range threads {
+		pid := thread.Incarnations[0].PID
+		if got := len(proc.Signals[pid]); got != 1 {
+			t.Errorf("%s got %d signals, want exactly 1", thread.Address.Tag, got)
+		}
+	}
+}
