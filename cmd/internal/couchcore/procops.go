@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"sync"
 	"syscall"
 
 	"github.com/xianxu/pair/cmd/internal/procutil"
@@ -156,6 +157,14 @@ type FakeProcOps struct {
 	ReapedOnIdentity map[int]bool
 	CurrentProcess   ProcessIdentity
 	CurrentErr       error
+	// OnSignal, when set, runs before a signal is applied and outside the
+	// fake's lock, so a test can hold one signal in flight while others
+	// proceed (pair#205: Leave signals threads concurrently).
+	OnSignal func(pid int, sig os.Signal)
+
+	// mu makes the fake safe for concurrent use, as the real ProcOps is.
+	// Tests that read the exported maps do so after the work has finished.
+	mu sync.Mutex
 }
 
 var _ ProcOps = (*FakeProcOps)(nil)
@@ -175,19 +184,36 @@ func NewFakeProcOps() *FakeProcOps {
 }
 
 func (f *FakeProcOps) Current() (ProcessIdentity, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.CurrentErr != nil {
 		return ProcessIdentity{}, f.CurrentErr
 	}
 	return f.CurrentProcess, nil
 }
 
-func (f *FakeProcOps) Set(pid int, identity string) { f.ids[pid] = identity }
-func (f *FakeProcOps) Kill(pid int)                 { delete(f.ids, pid) }
+func (f *FakeProcOps) Set(pid int, identity string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.ids[pid] = identity
+}
+
+func (f *FakeProcOps) Kill(pid int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.ids, pid)
+}
 
 // SetUnknown models a probe that cannot answer for this pid.
-func (f *FakeProcOps) SetUnknown(pid int) { f.unknown[pid] = true }
+func (f *FakeProcOps) SetUnknown(pid int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.unknown[pid] = true
+}
 
 func (f *FakeProcOps) Exists(pid int) Liveness {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.unknown[pid] {
 		return Unknown
 	}
@@ -198,6 +224,8 @@ func (f *FakeProcOps) Exists(pid int) Liveness {
 }
 
 func (f *FakeProcOps) Identity(pid int) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.ReapedOnIdentity[pid] {
 		delete(f.ids, pid)
 	}
@@ -214,14 +242,28 @@ func (f *FakeProcOps) Identity(pid int) (string, error) {
 // SignalGroup records into the same log as Signal, tagged by group, so a test
 // can assert BOTH that the right signal was sent and that it went to the group.
 func (f *FakeProcOps) SignalGroup(pid int, sig os.Signal) error {
+	if f.OnSignal != nil {
+		f.OnSignal(pid, sig)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.GroupSignals == nil {
 		f.GroupSignals = map[int][]os.Signal{}
 	}
 	f.GroupSignals[pid] = append(f.GroupSignals[pid], sig)
-	return f.Signal(pid, sig)
+	return f.signalLocked(pid, sig)
 }
 
 func (f *FakeProcOps) Signal(pid int, sig os.Signal) error {
+	if f.OnSignal != nil {
+		f.OnSignal(pid, sig)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.signalLocked(pid, sig)
+}
+
+func (f *FakeProcOps) signalLocked(pid int, sig os.Signal) error {
 	if _, ok := f.ids[pid]; !ok {
 		return fmt.Errorf("no such pid %d", pid)
 	}

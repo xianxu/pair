@@ -165,8 +165,10 @@ type LeaveResult struct {
 // safely detached it is honest. It stays occupied and the next startup
 // reconciles it.
 //
-// Serial by choice: shutdown is not a throughput path, and each exact identity
-// gets the full bounded budget rather than competing for it.
+// Concurrent, bounded (pair#205): at 18 slots a serial quit was the operator's
+// wait, so up to LifecycleParallelism threads are driven at once. Each thread
+// still gets its own full bounded budget -- the bound caps how many compete for
+// the host, not how long any one may take.
 func (c *Couch) Leave(ctx context.Context, disposition LeaveDisposition) (LeaveResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -188,22 +190,44 @@ func (c *Couch) Leave(ctx context.Context, disposition LeaveDisposition) (LeaveR
 	if err != nil {
 		return result, err
 	}
-	for _, snapshotted := range snapshot.Records {
-		if err := ctx.Err(); err != nil {
-			return result, err
+	// Bounded fan-out (pair#205 D6): up to LifecycleParallelism threads at
+	// once, each under its own thread hold. One thread's failure does not stop
+	// its siblings; every failure is joined into the error, and the report keeps
+	// snapshot order whatever order the work ends in. Cancellation stops
+	// STARTING threads; the started ones finish, so none is left half done.
+	records := snapshot.Records
+	outcomes := make([]leaveOutcome, len(records))
+	errs := make([]error, len(records))
+	units := make(chan struct{}, LifecycleParallelism)
+	var wg sync.WaitGroup
+dispatch:
+	for i, record := range records {
+		select {
+		case <-ctx.Done():
+			errs[i] = ctx.Err()
+			break dispatch
+		case units <- struct{}{}:
 		}
-		outcome, err := c.leaveOne(ctx, snapshotted.Address, disposition)
-		if err != nil {
-			return result, err
-		}
-		switch outcome {
+		wg.Add(1)
+		go func(i int, address ThreadAddress) {
+			defer wg.Done()
+			defer func() { <-units }()
+			outcomes[i], errs[i] = c.leaveOne(ctx, address, disposition)
+		}(i, record.Address)
+	}
+	wg.Wait()
+	for i, record := range records {
+		switch outcomes[i] {
 		case leaveParked:
-			result.Parked = append(result.Parked, snapshotted.Address)
+			result.Parked = append(result.Parked, record.Address)
 		case leaveDetached:
-			result.Detached = append(result.Detached, snapshotted.Address)
+			result.Detached = append(result.Detached, record.Address)
 		case leaveSkipped:
-			result.Skipped = append(result.Skipped, snapshotted.Address)
+			result.Skipped = append(result.Skipped, record.Address)
 		}
+	}
+	if err := errors.Join(errs...); err != nil {
+		return result, err
 	}
 	return result, nil
 }
