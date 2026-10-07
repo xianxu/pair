@@ -15,7 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "2489e9bf", done: "d0b6b6ae"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # Teach Couch skill to schedule contextual work
@@ -58,6 +58,8 @@ Durable plan: `workshop/plans/000362-couch-schedule-this-plan.md`.
 Captured from the performance → messaging guarantees → SDLC ownership/observability → recovery discussion. No implementation started.
 
 ### 2026-10-06 — live exercises (Task 5)
+- 2026-10-06: closed — Round 1's verdict was lost behind the reviewer's final message; recovered from its transcript: FIX-THEN-SHIP, no Critical, one Important (plan Core concepts drift) fixed as plan revision (c), minors fixed (json encode error printed, shadowed import, peek recorded as CLI-only, atlas wrap) in 59b077bb. Tasks 1-5 done: RenderLines byte-identical (TestRenderLinesMatchesTheRenderedFile); RenderOwnedLines under the retention lease (mutation caught); PeekThread tests; CLI/declaration/arity/atlas audits. Live exercises (issue Log): duplicate claim on throwaway pair#401 -> one winner pair:5, pair:6 reported the owner back to the sender and did not start; held delivery -> peek showed the occupied composer, receipt expired with reason after 30s; parked pair:0 and idle pair:6 -> peek and sdlc issue show answered, unreadable sources named. Full suite unsandboxed: only failures match origin/main (spawn registration, continuation writer, cold-resume flake, launcher x5, workbenchshortcut, gcruntime locator, embedded-runtime; artifactpath set identical).; review verdict: SHIP
+- 2026-10-06: flow upgraded quick → full — 371 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 The exercises ran from `pair:1` with the branch's `couch` build, against two
 scratch slots (`pair:5`, `pair:6`, both claude) and the throwaway pair#401.
