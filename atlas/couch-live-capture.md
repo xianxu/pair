@@ -108,26 +108,41 @@ extracts a validated complete capture into separate boundary files while retaini
 python3 - "$HOME/.local/share/pair/captures/session-REPLACE/events.jsonl" <<'PY'
 import base64, json, os, pathlib, sys
 source = pathlib.Path(sys.argv[1])
-# Validate before producing replay files; never treat truncation as silence.
-rows = [json.loads(line) for line in source.open()]
-assert rows and rows[0]['kind'] == 'capture-start'
-assert all(r['version'] == 1 and r['seq'] == i + 1 for i, r in enumerate(rows))
-assert rows[-1]['kind'] == 'capture-end' and rows[-1]['status'] == 'complete'
-streams = {}
-for r in rows:
-    data = base64.b64decode(r.get('data', ''), validate=True)
-    if r['kind'] == 'host-write':
-        assert r['requested'] == len(data) and 0 <= r['accepted'] <= len(data)
-        streams.setdefault('host', bytearray()).extend(data[:r['accepted']])
-    elif r['kind'] == 'endpoint-feed':
-        # Encode the ID for use as a filename rather than trusting path text.
-        name = 'endpoint-' + r['endpoint_id'].encode().hex()
-        streams.setdefault(name, bytearray()).extend(data)
-for name, data in streams.items():
-    target = source.parent / (name + '.raw')
-    with os.fdopen(os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'wb') as f:
-        f.write(data)
-    print(target)
+# Two streaming passes: validate the whole capture before producing replay files.
+# Stop Couch first so the file cannot grow between passes.
+last = None
+with source.open() as f:
+    for seq, line in enumerate(f, 1):
+        r = json.loads(line)
+        assert r['version'] == 1 and r['seq'] == seq
+        assert last is None or last['kind'] != 'capture-end'
+        if seq == 1:
+            assert r['kind'] == 'capture-start'
+        data = base64.b64decode(r.get('data', ''), validate=True)
+        if r['kind'] == 'host-write':
+            assert r['requested'] == len(data) and 0 <= r['accepted'] <= len(data)
+        last = r
+assert last and last['kind'] == 'capture-end' and last['status'] == 'complete'
+created = set()
+with source.open() as f:
+    for line in f:
+        r = json.loads(line)
+        data = base64.b64decode(r.get('data', ''), validate=True)
+        if r['kind'] == 'host-write':
+            name, data = 'host', data[:r['accepted']]
+        elif r['kind'] == 'endpoint-feed':
+            # Encode the ID rather than trusting it as a filesystem path.
+            name = 'endpoint-' + r['endpoint_id'].encode().hex()
+        else:
+            continue
+        target = source.parent / (name + '.raw')
+        flags = os.O_WRONLY | (os.O_APPEND if name in created else os.O_CREAT | os.O_EXCL)
+        with os.fdopen(os.open(target, flags, 0o600), 'ab') as out:
+            out.write(data)
+        if name not in created:
+            created.add(name)
+            print(target)
+
 PY
 ```
 
