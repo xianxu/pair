@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000402-switcher-add-slot-is-offered-only-while-the-repository-s-0-is-live.md
         source_blob: 44a6433c36018fe1be92071ae6bfe3571b2226a6
         destination: workshop/issues/000402-switcher-add-slot-is-offered-only-while-the-repository-s-0-is-live.md
+        main_commit: bf4dc370e25d10c732df077c87b173eec2ec580c
 ---
 
 # Switcher: add slot is offered only while the repository's :0 is live
