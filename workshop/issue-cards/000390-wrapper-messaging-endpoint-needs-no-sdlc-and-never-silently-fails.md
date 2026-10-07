@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000390-wrapper-messaging-endpoint-needs-no-sdlc-and-never-silently-fails.md
         source_blob: d42034afa28ffbf38e80516f429453bf8fde4a3a
         destination: workshop/issues/000390-wrapper-messaging-endpoint-needs-no-sdlc-and-never-silently-fails.md
+        main_commit: 7e4694c32a477b99bdb0a39f5edd0604ce14e661
 ---
 
 # Wrapper messaging endpoint needs no sdlc and never silently fails
