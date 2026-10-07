@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/orientation"
 )
 
@@ -1262,6 +1263,9 @@ func unusableThreadNotice(thread couchcore.ActionableThreadSummary) string {
 	}
 	if thread.Recovery != nil && thread.Recovery.Diagnosis != "" {
 		return thread.Recovery.Diagnosis
+	}
+	if thread.Orphan != nil {
+		return launcher.OrphanDiagnostic(thread.Orphan.Session, thread.Orphan.PID)
 	}
 	switch thread.Reason {
 	case couchcore.ReasonBindingLost:

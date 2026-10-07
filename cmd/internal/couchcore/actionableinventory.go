@@ -192,8 +192,12 @@ type ActionableThreadSummary struct {
 	Agent string                `json:"agent,omitempty"`
 	State ActionableThreadState `json:"state"`
 	// Reason is set exactly when State is ThreadUnusable, and says why.
-	Reason       ThreadReason `json:"reason,omitempty"`
-	LastActiveAt time.Time    `json:"last_active_at,omitempty"`
+	Reason ThreadReason `json:"reason,omitempty"`
+	// Orphan is the orphaned zellij server, set exactly when Reason is
+	// ReasonOrphanedServer: every surface names its pid, and reap acts on its
+	// exact identity (#399).
+	Orphan       *launcher.SessionServerIdentity `json:"orphan,omitempty"`
+	LastActiveAt time.Time                       `json:"last_active_at,omitempty"`
 	// Layout is the thread's witnessed pair layout, already normalized: the
 	// projection runs NormalizeLayout, so a record predating #198 reads as
 	// Layout2 here and an unreadable one as LayoutUnknown. Consumers compare
@@ -318,6 +322,7 @@ func ProjectActionableThreads(input ThreadProjectionInput) []ActionableThreadSum
 			Agent:            launchProfileAgent(record),
 			State:            state,
 			Reason:           reason,
+			Orphan:           orphanOf(reason, evidence[record.Address]),
 			LastActiveAt:     record.LastActiveAt,
 			// THE normalization point for the layout witness: the raw persisted
 			// value is untrusted, and "" (a pre-#198 record) must read as
@@ -615,6 +620,15 @@ func ClassifyThread(record ThreadRecord, evidence ThreadEvidence) (ActionableThr
 	// The distinction still holds -- it is decided above, where the receipt
 	// exception lives.
 	return ThreadUnusable, ReasonSessionGone
+}
+
+// orphanOf is the row's orphaned server: present exactly when the classifier
+// called the thread orphaned, so the field cannot disagree with the reason.
+func orphanOf(reason ThreadReason, evidence ThreadEvidence) *launcher.SessionServerIdentity {
+	if reason != ReasonOrphanedServer {
+		return nil
+	}
+	return evidence.Session.Orphan
 }
 
 // startClaimed reports a start couch has claimed and not yet completed.

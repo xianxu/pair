@@ -1923,3 +1923,36 @@ func TestSpawnRefusesAnEmptyPath(t *testing.T) {
 		t.Fatal("Spawn with no path returned nil error")
 	}
 }
+
+// An orphaned primary is a RUNNING agent nothing can reach (#399). Startup
+// used to treat unusable rows as debris and would start a second primary in
+// the same repository beside it; it refuses instead, naming the server.
+func TestSpawnBesideAnOrphanedPrimaryRefuses(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	first, h := env.spawn(t, StartArgs{Worktree: "/repo"})
+	// The launcher dies with couch; the session's server survives, orphaned.
+	env.Runner.SetExited(h.ID(), 0)
+	env.Proc.Kill(first.PID)
+	if err := env.Couch.Forget("/repo", first.ID); err != nil {
+		t.Fatalf("Forget: %v", err)
+	}
+	server := launcher.SessionServerIdentity{PID: 9090, Identity: "t", Session: "📁repo-1"}
+	env.Artifacts.SetSessionPresence(first.Thread, SessionObservation{State: SessionOrphaned, Orphan: &server})
+	opsBefore := len(env.Runner.Ops)
+
+	args := StartArgs{Worktree: "/repo"}
+	prepared, err := env.Couch.PrepareStart(context.Background(), args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = env.Couch.SpawnPrepared(context.Background(), args, prepared.Resolution.Fingerprint)
+	if err == nil {
+		t.Fatal("a second primary started beside an orphaned one")
+	}
+	if !strings.Contains(err.Error(), launcher.OrphanDiagnostic("📁repo-1", 9090)) {
+		t.Fatalf("refusal %q does not name the orphaned server", err)
+	}
+	if len(env.Runner.Ops) != opsBefore {
+		t.Fatalf("the refusal had effects: %q", env.Runner.Ops[opsBefore:])
+	}
+}

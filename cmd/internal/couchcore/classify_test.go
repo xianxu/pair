@@ -1040,3 +1040,17 @@ func TestAnOrphanedServerIsNeverArchivable(t *testing.T) {
 		t.Fatal("an orphaned server's thread is archivable")
 	}
 }
+
+// The row carries the orphaned server so every surface can name its pid (#399).
+func TestProjectionCarriesTheOrphanedServer(t *testing.T) {
+	record := actionableTestThread("couch-0000000000000021", time.Unix(1000, 0).UTC())
+	record.LatestLaunchProfile = classifyProfile()
+	server := launcher.SessionServerIdentity{PID: 55, Identity: "t55", Session: "📁1-55"}
+	rows := ProjectActionableThreads(ThreadProjectionInput{
+		Records:  []ThreadRecord{record},
+		Evidence: map[ThreadAddress]ThreadEvidence{record.Address: {ParkedStatus: ProofResolved, Session: SessionObservation{State: SessionOrphaned, Orphan: &server}}},
+	})
+	if len(rows) != 1 || rows[0].Reason != ReasonOrphanedServer || rows[0].Orphan == nil || *rows[0].Orphan != server {
+		t.Fatalf("rows = %+v", rows)
+	}
+}

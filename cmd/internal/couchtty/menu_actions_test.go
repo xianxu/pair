@@ -526,3 +526,14 @@ func TestRowAdviceNamesOnlyReachableActions(t *testing.T) {
 		}
 	}
 }
+
+// The switcher names the orphaned server's pid, in the same sentence every
+// other surface prints (#399).
+func TestUnusableNoticeNamesTheOrphanedServer(t *testing.T) {
+	row := couchcore.ActionableThreadSummary{Address: menuAddress("couch-orphan"), WorkingPath: "/w/p",
+		State: couchcore.ThreadUnusable, Reason: couchcore.ReasonOrphanedServer,
+		Orphan: &launcher.SessionServerIdentity{PID: 812, Session: "📁1-37"}}
+	if got, want := unusableThreadNotice(row), launcher.OrphanDiagnostic("📁1-37", 812); got != want {
+		t.Fatalf("notice = %q, want %q", got, want)
+	}
+}

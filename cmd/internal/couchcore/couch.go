@@ -493,6 +493,14 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 				"  the record:  %s",
 			held.Tag, resolution.CanonicalPath, held.Tag, recordPath)
 	}
+	if held, orphaned := ScopeHoldsOrphanedThread(rows, scope.Key); orphaned {
+		return ActorRecord{}, nil, fmt.Errorf(
+			"%s\n"+
+				"its agent may still be running, so couch will not start a second primary in %s\n"+
+				"  stop it:     kill %d   (the orphaned server; its agent goes with it)\n"+
+				"  inspect it:  couch --show %s",
+			launcher.OrphanDiagnostic(held.Orphan.Session, held.Orphan.PID), scope.Root, held.Orphan.PID, held.Address.Tag)
+	}
 	if held, occupied := ScopeHoldsUsableThread(rows, scope.Key); occupied {
 		// The next steps have to be ones that WORK from where the operator is.
 		// An earlier version said "return to it: couch <path>" -- the command
