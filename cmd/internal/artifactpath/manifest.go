@@ -679,7 +679,6 @@ var NonArtifactSources = []string{
 	"cmd/internal/launcher/session_reap.go",
 	"cmd/internal/couchcore/reap.go",
 	"cmd/internal/couchcore/recover_action.go",
-	"cmd/internal/couchtty/menu_recover.go",
 	"cmd/internal/couchcore/archive_gc.go",
 	"nvim/retention.lua",
 	"cmd/internal/retentioncmd/run.go",
