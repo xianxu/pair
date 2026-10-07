@@ -439,6 +439,46 @@ Mutation checks are red as expected. couchtty and couchcmd pass unsandboxed.
     `console_messages.go`), the cold-resume `-race` flake, and the TMPDIR and
     session-env shell tests.
 
+### 2026-10-07: M2 review round (FIX-THEN-SHIP): BR-9 and three minors
+
+**BR-9, concurrency cells untested above bound 1.** Real tests now run above
+bound 1:
+- `TestStopMidPassCancelsEveryParallelAttemptAndStartsNoMore` (couchtty, bound
+  3, 5 threads, end to end through the worker pool).
+- `TestLeaveCancelledMidFanOutFinishesStartedAndStartsNoMore` (bound 2).
+
+The second one surfaced two things:
+- **A wrong policy sentence.** Started threads see the cancellation through
+  their shared ctx and stop at their own safe points; they do not "finish".
+  This is the serial behaviour, and a detach that stops mid-way destroys
+  nothing.
+- **A real race.** `select` picks at random when the context is done and a
+  unit is free, so a cancelled `Leave` sometimes started a thread.
+  `TestLeaveCanceledDoesNotRetireDeadIncarnation` flaked on it. The fix checks
+  `ctx.Err()` before and after the select.
+
+The dispatch check is an equivalent mutant at the observable level, because
+`Detach` refuses a cancelled ctx before signalling.
+
+Cells covered by an existing mechanism test rather than a new one, with
+reasons:
+- **Leave-park beside another park.** The worker-level capacity tests run
+  concurrent submitters through the same `Submit` that `Leave`'s park path
+  calls. The lifecycle fake keeps one `lastRequest` and is not safe for
+  concurrent use.
+- **Late abort against a relaunch under N workers.** The gate-level tests
+  (`TestAMismatchedAbortStillClosesItsOwnHandle`,
+  `TestAbortStartedWaitsForAHolderThenQuiesces`) exercise the race on the
+  couchcore objects that hold it. The console only routes.
+- **A burst of N reattaches (#196).** Adoption runs on the console goroutine,
+  one completion at a time.
+
+**Minors:**
+- `Leave` errors name their thread.
+- The queue-worker and atlas wording now says "the pass alone".
+- The park-worker capacity tests synchronize on a wait hook instead of
+  sleeping.
+
 ## Revisions
 
 ### 2026-10-04: scope adds the startup reattach pass
