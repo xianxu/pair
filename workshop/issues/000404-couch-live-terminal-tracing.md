@@ -15,6 +15,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "3c01f2a8", done: "77814f77"}
 ---
 
 # Opt-in Couch live terminal tracing
