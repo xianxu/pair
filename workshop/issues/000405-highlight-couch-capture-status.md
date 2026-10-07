@@ -35,8 +35,11 @@ Render every visible capture badge in bold reverse video, using the terminal for
 
 ## Plan
 
-- [ ] Apply the highlight through the existing row renderer and verify the capture/status tests and build.
+- [x] Apply the highlight through the existing row renderer and verify the capture/status tests and build.
 
 ## Log
 
 ### 2026-10-07
+
+- Applied bold reverse video through the existing `appendText` style argument; its reset scopes emphasis to the clipped badge, including stopped states. No new rendering mechanism or terminal write path.
+- Verified `go test ./cmd/internal/couchtty -run 'Capture|RenderStatusRow|StatusRow' -count=1`, `go build -o bin/couch ./cmd/couch`, and `git diff --check`. Tests ran with Pair/Couch/Zellij environment removed and a dedicated temporary root.

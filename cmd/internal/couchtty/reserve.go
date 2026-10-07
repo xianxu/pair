@@ -156,7 +156,7 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 	}
 	// Capture leads so actor chips and transient notices cannot hide a stopped
 	// recorder. It never receives an actor click target.
-	appendText(captureBadge(m.Capture), "")
+	appendText(captureBadge(m.Capture), "\x1b[1;7m")
 	var chips []ChipSpan
 	previousGroup := ""
 	for _, a := range m.Actors {
