@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000405-highlight-couch-capture-status.md
         source_blob: 4b2672b35ff46d8da976b3d4333ce58f7eb542bb
         destination: workshop/issues/000405-highlight-couch-capture-status.md
+        main_commit: 83326ade46c839ac49fe1893c81cd8b1c4e77143
 ---
 
 # Highlight Couch capture status badge
