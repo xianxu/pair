@@ -257,3 +257,14 @@ Durable plan: `workshop/plans/000395-couch-broadcast-stream-the-composed-couch-s
 - **2026-10-07** — no idle glyph (▶ was ambiguous-width and odd to show all
   the time): stopped draws nothing; Ctrl+Alt+b starts; a click on the red
   `LIVE ⏸` or Ctrl+Alt+b again stops.
+- M1 built (tap, indicator/privacy/stream, hub):
+  - `⏸` and `…` are one column in both `textwidth.Width` and
+    `ansi.StringWidth` (TestIndicatorGlyphWidths).
+  - The hub's interleaving property test first passed against a hub with
+    resync removed: its `check` drained every viewer each step, so no queue
+    ever overflowed. Fixed (check only inspects; bursts of offers). Then
+    mutation-checked with `go test -overlay` against dropped resync, missing
+    withholding and leaked private frames; all three fail it.
+  - `TestProductionArtifactReferencesAreExactlyClassified` still fails on
+    pre-existing couchcmd/couchmessage files; no broadcast or tap file is
+    named.
