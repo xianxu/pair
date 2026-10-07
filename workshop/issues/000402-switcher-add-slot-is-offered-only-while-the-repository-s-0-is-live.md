@@ -1,12 +1,21 @@
 ---
 id: 000402
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-06
 updated: 2026-10-06
 estimate_hours:
-card_mirror: 'd7efa7cb6acbc549fc9d5823f119ca1fa2d11404' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '27615b541a4c90755e90b248fb7ed062bb149f41' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-06T22:11:19-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "cd2a532f", done: "7c7d4e5d"}
 ---
 
 # Switcher: add slot is offered only while the repository's :0 is live
