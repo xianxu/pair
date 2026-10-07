@@ -120,32 +120,53 @@ Issue: `workshop/issues/000395-couch-broadcast-stream-the-composed-couch-screen-
   `event: end` with `data: {"reason":"…"}`, and a `: ping` comment every 15s
   (Cloudflare closes idle streams at 100s).
 - **Session** — `Start(ctx, Config) (*Session, error)`: mints a 32-byte
-  `crypto/rand` base64url token, listens on `127.0.0.1:0`, opens the tunnel, and
-  returns once the public URL is known. `Link()` is `<public>/<token>/`.
-  `Offer`, `Stop(reason)`, `Done()`, `Err()`. Phases: `Starting → Live →
-  Ended`; `Stop` during `Starting` cancels the tunnel open.
-- **Tunnel / FakeTunnel** — `Open(ctx, localURL) (Handle, error)`, where a
-  `Handle` has `URL() string`, `Exited() <-chan struct{}`, and `Close() error`.
-  The fake is stateful: it records opens and closes, returns the local URL as the
-  public URL, can be told to delay `Open` or to exit, and fails a second
-  `Close`. A `LocalOnly` tunnel (identity URL) serves `COUCH_BROADCAST_TUNNEL=off`.
-- **Cloudflared** — runs
-  `cloudflared tunnel --no-autoupdate --unix-socket <private dir>/broadcast.sock`
-  in its own process group. The Session listens on that socket, in a 0700
-  directory under the pair data dir, rather than on a TCP port. M4 first
-  verifies that quick tunnels accept `--unix-socket`; if not, it falls back to
-  `--url http://127.0.0.1:PORT` and records that in the Log. It scans stderr for the first `https://[a-z0-9-]+\.trycloudflare\.com`
-  (30s limit). It then probes `GET <url>/<token>/` until it returns 200 (the
-  quick-tunnel URL is printed a few seconds before the edge serves it), so
-  "link copied" means the link works. `Close` sends SIGTERM to the group, then
-  SIGKILL after 3s. It
-  writes a pidfile so a later Couch can reap one orphaned by a crash (see
-  ARCH-FUNERAL).
+  `crypto/rand` base64url token, asks the tunnel for its listener, serves the
+  Server on it, opens the tunnel, and returns once the public link answers.
+  `Link()` is `<public>/<token>/`. `Offer`, `Activate`, `Stop(reason)`,
+  `Done()`, `Err()`. `Stop` ends viewers synchronously (the hub sends `end`
+  at once), then returns, while listener shutdown and tunnel close finish on a
+  goroutine that `Done()` waits for. `Stop` during `Start` cancels the tunnel
+  open. The Session never chooses a listener kind; the tunnel does.
+- **Tunnel** — the seam owns both the listener and the exposure, because the
+  listener's kind depends on what exposes it:
+
+```go
+type Tunnel interface {
+	// Listen creates the local listener this tunnel forwards to.
+	Listen() (net.Listener, error)
+	// Open exposes l and returns once the public base URL is known.
+	Open(ctx context.Context, l net.Listener) (Handle, error)
+}
+type Handle interface {
+	URL() string               // public base URL, no trailing slash
+	Exited() <-chan struct{}   // closed if the tunnel dies on its own
+	Close() error              // idempotent; also removes what Listen created
+}
+```
+
+  - **LocalOnly** — `Listen` is TCP `127.0.0.1:0`; `URL` is
+    `http://127.0.0.1:PORT` (a browser can't reach a unix socket).
+  - **FakeTunnel** — a stateful fake over LocalOnly's listener. It records
+    listens, opens and closes, can be told to delay `Open` or to exit, and
+    reports a double `Close`.
+  - **Cloudflared** (M4) — `Listen` is a unix socket `s` in a fresh 0700
+    directory `couch-broadcast-<owner pid>` under `os.TempDir()`. If that path
+    exceeds 100 bytes (macOS caps `sun_path` at 104), it falls back to TCP with
+    a Log-visible notice. `Open` runs
+    `cloudflared tunnel --no-autoupdate --unix-socket <path>` in its own process
+    group (or `--url http://127.0.0.1:PORT` on the TCP fallback, or if M4's live
+    check finds quick tunnels refuse `--unix-socket`). It scans stderr for the first
+    `https://[a-z0-9-]+\.trycloudflare\.com` (30s limit). The Session then probes
+    `GET <url>/<token>/` until it returns 200 (the edge serves the quick-tunnel
+    URL a few seconds after printing it), so "link copied" means the link works.
+    `Close` sends SIGTERM to the group, then SIGKILL after 3s, then removes the
+    socket directory and the pidfile.
 - **Console broadcast wiring** — owns a `broadcastPhase` tagged enum
-  (`off | starting | live`), toggles it from the click and the key, installs and
-  removes the tap, copies the link with `Presenter.Copy`, posts notices, and stops
-  the session when it ends on its own (grace expiry, tunnel exit) or when Couch
-  shuts down.
+  (`off | starting | live | stopping`), toggles it from the click and the key,
+  installs and removes the tap, copies the link with `Presenter.Copy`, posts
+  notices, and stops the session when it ends on its own (grace expiry, tunnel
+  exit) or when Couch shuts down. Nothing that waits on the network or a process
+  runs on the input path.
 
 ### Operating envelope (ARCH-CONSTRAINTS)
 
@@ -182,7 +203,11 @@ Issue: `workshop/issues/000395-couch-broadcast-stream-the-composed-couch-screen-
   It shows the same thread labels as every public frame, so it leaks nothing
   new; the fleet's paths, notes and parked threads stay hidden.
 - **Out of scope.** An operator-enabled `COUCH_CAPTURE_DIR` still records the
-  parent stream. That is the operator's own recorder, not the broadcast's.
+  parent stream. That is the operator's own recorder, not the broadcast's. It
+  also captures the OSC 52 clipboard write, so the link and its token reach
+  that capture file. Accepted: the token dies with the broadcast, so a
+  recorded link is dead by the time anyone could read the capture. The atlas
+  says so.
 - **cloudflared binary** is trusted from `PATH`, like `zellij`.
 - **A tunnel orphaned by a crash** forwards to a dead listener. With TCP, an
   unrelated program that later binds the same ephemeral port would be exposed
@@ -201,9 +226,11 @@ subscriber set. Events and their orders:
 | starting | toggle | cancel the start; off (a start that completes after cancel is stopped, not adopted) |
 | starting | start fails | off + error notice |
 | starting | start succeeds | live; `SetTap`, repaint chrome, copy link |
-| live | toggle | `SetTap(nil)`, then `Stop`, then off + repaint |
+| live | toggle or click | `SetTap(nil)` (ordered with paints), `Stop` (viewers get `end` now), stopping + repaint (the cell disappears); teardown continues off the input path |
+| stopping | `Done()` | off |
+| stopping | toggle | refused with the notice "Previous broadcast still stopping" |
 | live | `Done()` (grace, tunnel exit) | `SetTap(nil)`, off, notice with the reason |
-| any | Couch shutdown | stop before Presenter release |
+| any | Couch shutdown | `Stop` and wait on `Done()` (bounded at 6s) before Presenter release |
 
 In the hub, one goroutine owns the stream and the subscriber set, so a join and
 a frame are totally ordered: a joiner gets `Join()` of the frame before the next
@@ -214,7 +241,12 @@ explicit offer/subscribe interleavings.
 
 - **Hub frame and subscribers:** in memory; die with the session.
 - **Token:** in memory; dies with the session (the server stops serving it).
-- **Listener:** closed by `Stop` (`Server.Shutdown`, 2s, then `Close`).
+- **Listener:** closed by `Stop`'s teardown (`Server.Shutdown`, 2s, then
+  `Close`).
+- **Socket directory** (`$TMPDIR/couch-broadcast-<owner pid>/s`, Cloudflared
+  only): created by `Listen`, removed by `Handle.Close`. After a crash,
+  `ReapOrphans` removes a directory whose owner is dead, the same owner rule as
+  the pidfile. One per live Couch.
 - **cloudflared process:** created by `Start`; removed by `Stop` (group SIGTERM,
   then SIGKILL). A Couch crash orphans it to PID 1 (lessons.md, #399). Each
   Couch writes its own pidfile,
@@ -229,6 +261,39 @@ explicit offer/subscribe interleavings.
   (scoped singletons) don't kill each other's tunnels. Bounded at one file per
   live Couch, plus crash leftovers until the next start.
 - **Viewer page:** xterm.js's in-page screen only; closing the tab ends it.
+
+### Test strategy (one line per risky function)
+
+- **`IndicatorShown`** — adversarial: look-alike text in another style,
+  clipped widths, wide and continuation cells. Guard: a table test, plus the
+  drawer↔checker contract test in 3.1 that feeds `RenderStatusRow` output into
+  the checker.
+- **`ViewerFrame`** — adversarial: a marker anywhere in a private body.
+  Guard: the emulator screen of the viewer stream never contains the marker.
+- **`Stream`** — adversarial: geometry changes, unchanged frames, clears.
+  Guard: for random frame sequences, the emulator fed `Join()`-then-diffs
+  equals the emulator fed all diffs, and both equal the last frame's text.
+- **`Hub`** — adversarial: seeded random interleavings of
+  offer(indicator on/off, public/private), subscribe, slow drain, tick, grace
+  fire and close. Invariants checked after each step: (1) every viewer's
+  emulator screen equals some frame the hub accepted, and after quiescence
+  plus a tick it equals the current one; (2) no message derives from a frame
+  without the indicator; (3) no private body reaches a viewer unless
+  `ShowSwitcher`; (4) after close every queue is closed with `end`. Run 500
+  seeds; a failure prints its seed.
+- **Server token and method gate** — adversarial: every method on every
+  route, wrong, short and prefix tokens, path traversal (`/<token>/../`).
+  Guard: a table test; only exact `GET` + exact token + a known path is 200.
+- **`ReapOrphans`** — adversarial: live owner, recycled pids (start time
+  mismatch), a non-cloudflared command, missing files. Guard: a table test
+  with real child processes under `t.TempDir()`.
+- **`nextFontSize`** — adversarial: extreme aspect ratios, a fit within 0.5px.
+  Guard: a node table test.
+- **Cloudflared conformance** — the fake script models the stderr banner and
+  `--unix-socket`. Guard: `TestCloudflaredLive`, gated on
+  `BROADCAST_LIVE_CLOUDFLARED=1`, runs the real binary: it parses the URL,
+  serves over the unix socket, and the probe returns 200. Run it in M4, and
+  rerun it after any `cloudflared` upgrade (the atlas says so).
 
 ---
 
@@ -419,6 +484,8 @@ func (s *Stream) Join() (Message, bool, error) {
     promptly (the hub is paused via an option hook).
   - `TestHubMaxViewers`: the 17th `Subscribe` → `ErrTooManyViewers`.
   - `TestHubCloseIdempotent`.
+  - `TestHubRandomInterleavings`: the seeded property test from the test
+    strategy.
 - [ ] **Step 2:** FAIL.
 - [ ] **Step 3: Implement.** One goroutine owns `Stream`, the subscriber set
   and the grace timer. `Offer` stores the latest `(frame, class)` under a mutex
@@ -522,9 +589,10 @@ func (s *Stream) Join() (Message, bool, error) {
   - `TestSessionLinkServesViewer`: `Start` → `Link()` = fake URL + `/<token>/`;
     GET returns the page; tokens differ across sessions and are 43 base64url
     characters.
-  - `TestSessionStopEndsViewersAndRevokesToken`: after `Stop`, the open SSE
-    gets `end`, a new GET fails, the fake records the close, the listener is
-    closed.
+  - `TestSessionStopEndsViewersAndRevokesToken`: `Stop` returns before the
+    teardown finishes (the fake delays `Close`), yet the open SSE has already
+    received `end`. After `Done()`, a new GET fails, the fake records exactly one
+    close, and the listener is closed.
   - `TestSessionCancelDuringStart`: fake delays `Open`; cancel ctx → `Start`
     returns `context.Canceled`; the fake shows open-then-close (a late open is
     closed, not leaked); the listener is closed.
@@ -613,6 +681,10 @@ func (s *Stream) Join() (Message, bool, error) {
     is off.
   - `TestBroadcastToggleWhileStarting`: fake delays `Open`; toggle twice → no
     session left, the fake shows a close.
+  - `TestBroadcastStopIsOffTheInputPath`: the fake delays `Close` by 5s; a
+    click on `LIVE ⏸` returns, and the cell disappears, within one frame, and
+    keys typed during the teardown reach the child. Ctrl+Alt+b during teardown
+    shows the "still stopping" notice and starts nothing.
   - `TestBroadcastStoppedOnShutdown`: stop the Console while live → the viewer
     gets `end` and the fake shows a close, before Presenter release.
   - `TestBroadcastNoBroadcasterNoCell`: with no broadcaster configured, the row
@@ -635,8 +707,9 @@ func (s *Stream) Join() (Message, bool, error) {
 
 - [ ] **Step 1:** read `COUCH_BROADCAST_SWITCHER` (`show` → ShowSwitcher;
   unset → hidden; anything else → startup error naming the variable) and
-  `COUCH_BROADCAST_TUNNEL` (`off` → `LocalOnly`; unset → `Cloudflared`;
-  anything else → error). Test both parse paths.
+  `COUCH_BROADCAST_TUNNEL` (in M3: unset or `off` → `LocalOnly`; anything else →
+  error naming the variable). M4 Task 4.1 makes unset mean `Cloudflared` and
+  keeps `off` for local-only. Test both parse paths.
 - [ ] **Step 2:** local smoke: `COUCH_BROADCAST_TUNNEL=off couch`, Ctrl+Alt+b,
   open the copied `http://127.0.0.1:…/<token>/` in a browser, then switch
   threads, open the switcher, resize, `clear`, and stop. Check the browser
@@ -669,11 +742,19 @@ func (s *Stream) Join() (Message, bool, error) {
     **live owner → left alone, file kept**; a mismatched tunnel start time or
     command → process left alone, stale file removed; a dead tunnel → file
     removed. Each test may remove only
-    paths under its own `t.TempDir()` (lessons.md, #399).
+    paths under its own `t.TempDir()` (lessons.md, #399). Socket tests bind
+    under a short directory (`os.MkdirTemp("/tmp", "cb")`, removed by the test
+    that made it), because `t.TempDir()` on macOS can exceed `sun_path`. Also
+    test the >100-byte fallback to TCP.
   - `cloudflared` not on `PATH` → `ErrNoCloudflared`, with a notice saying how
     to install it (`brew install cloudflared`).
 - [ ] **Step 2–4:** FAIL → implement → PASS.
-- [ ] **Step 5:** call `ReapOrphans` at Couch startup and before each start.
+- [ ] **Step 5:** switch `couchcmd`'s default (unset `COUCH_BROADCAST_TUNNEL`)
+  to `Cloudflared`, and update its parse test. Run
+  `BROADCAST_LIVE_CLOUDFLARED=1 go test ./cmd/internal/broadcast -run TestCloudflaredLive`
+  (unsandboxed, network) and record the result. If `--unix-socket` is refused,
+  switch `Open` to the TCP form and log it.
+- [ ] **Step 6:** call `ReapOrphans` at Couch startup and before each start.
   **Commit** `#395 M4: broadcast: cloudflared quick tunnel with orphan reaping`.
 
 ### Task 4.2: Live smoke and close
