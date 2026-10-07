@@ -1,6 +1,6 @@
 ---
 id: 000399
-status: open
+status: working
 created: 2026-10-06
 updated: 2026-10-06
 estimate_hours:
@@ -17,6 +17,14 @@ tracker:
         source_blob: 50a2a3d9818089c1a413f67a5dd52e586f7110eb
         destination: workshop/issues/000399-couch-model-orphaned-zellij-servers-alive-socket-gone-and-reap-before-resume.md
         main_commit: 09e5bef6d670bf17eceb033524ef33a6d1999629
+started: 2026-10-06T19:29:06-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch: model orphaned zellij servers (alive, socket gone) and reap before resume
