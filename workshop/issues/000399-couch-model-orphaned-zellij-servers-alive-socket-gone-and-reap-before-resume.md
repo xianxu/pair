@@ -1,12 +1,20 @@
 ---
 id: 000399
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-06
 updated: 2026-10-06
 estimate_hours:
-card_mirror: 'a0f826c3cfba6482f2e8271cd0e467719124281b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'fc2df348c93f3a6de69c5528ba50be8975a3c7eb' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-06T19:29:06-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch: model orphaned zellij servers (alive, socket gone) and reap before resume
@@ -68,7 +76,21 @@ be reaped), then re-run the report and its steps. After that, all four
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000399-couch-model-orphaned-zellij-servers-alive-socket-gone-and-reap-before-resume-plan.md`.
+
+- [ ] M1 — Observe and name: the server argv carries its socket path, so an
+      orphan is a `zellij --server <socket>` process whose `<socket>` is gone (one
+      bulk `ps` per refresh plus an `Lstat` per server). `Probe` returns
+      `SessionOwnerOrphaned`; session presence gains `orphaned`; the thread reads
+      `unusable/orphaned-server` (never `parked`, never archivable); resume,
+      startup and the switcher show "<name>: server PID N lost its socket — reap
+      to resume"; the report says agent `orphaned`.
+- [ ] M2 — Reap: a pure `PlanReap` over one process-tree snapshot plus an
+      identity-gated `Reaper` (TERM, then KILL after a bound, never a recycled
+      pid); `couch --reap repo:N --confirm` through the socket; the report's
+      steps become `reap` then `resume`.
+- [ ] M3 — Live acceptance (unlink one socket, report, reap, resume), atlas,
+      lessons.
 
 ## Log
 
