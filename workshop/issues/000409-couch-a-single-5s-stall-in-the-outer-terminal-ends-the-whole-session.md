@@ -1,12 +1,12 @@
 ---
 id: 000409
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-07
 updated: 2026-10-07
 estimate_hours: 2.87
-card_mirror: '22cb9da4fd36836bd46ab37d66dcdf9cc7ac1a9c' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'e76cc254e1d72dbf24de857823fcc31ba0b84458' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-07T21:52:21-07:00
 claimant:
     operator: T
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 1.80
 ---
 
 # couch: full-screen repaint per frame overruns a backgrounded terminal, and the resulting exit is silent
