@@ -1,6 +1,6 @@
 ---
 id: 000214
-status: codecomplete
+status: done
 created: 2026-09-08
 updated: 2026-10-07
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 7cd33d907cde6d81944994aeea2e17a5c26ae3b9
         evidence_commit: 4c72f7429b582683c10f16df084ae758a284e9c2
+        landed_commit: 24daf0561dd337ae29ffbf8de7dd8cf7bcce34bf
 ---
 
 # racing launch operations on one thread leave it unresumable
