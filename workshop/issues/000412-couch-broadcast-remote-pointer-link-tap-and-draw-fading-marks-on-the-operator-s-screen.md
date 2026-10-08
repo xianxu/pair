@@ -269,3 +269,7 @@ Durable plan: `workshop/plans/000412-couch-broadcast-remote-pointer-link-tap-and
   steps (50ms each). With truecolor and a known background they blend into
   the operator's real background; otherwise they walk a short 256-colour
   ladder. Repaints follow the steps.
+- M4 smoke round 3 (operator, iPad through the named tunnel, pair:0 at
+  19f5d543): verified working: pointing on the screen and the tab bar, the
+  controls protected, the hold-then-fast fade, toggling with the same link,
+  right-click re-copies on `👆` and `LIVE ⏸`.
