@@ -104,6 +104,15 @@ emoji it picks Apple Color Emoji. Found in the #412 smoke on 2026-10-08.
   `make -k test`: `test-review` fails the same 7 checks on origin/main (pre-existing);
   `test-lua` and `test-changelog` pass with the env scrubbed;
   `test-pair-embedded-runtime` hits the same inherited-scope conflict.
+- iPad smoke 1 (operator): no more emoji, but `⏺` swallowed the next column
+  (`●The`) and `⏸` drew just outside LIVE's red background. Cause: xterm.js
+  6's DOM renderer `WidthCache` measures a character on first draw and keeps
+  `letter-spacing = cell − measured`. The unicode-range face was fetched by
+  that same first draw, so the fallback was measured. Once the real one-cell
+  glyph arrived, the stale negative spacing collapsed it to zero advance, and
+  the next cell drew under it. Fix: `loadFont` also loads "Couch Symbols"
+  (`SYMBOL_SAMPLE` ⏺) before the terminal opens. `TestViewerPreloadsSymbolFont`
+  guards it. The atlas's "no preload needed" claim was wrong and is corrected.
 
 ## Revisions
 
@@ -113,3 +122,7 @@ emoji it picks Apple Color Emoji. Found in the #412 smoke on 2026-10-08.
   of ~3 KB. Glyphs are **modified** (re-advanced to JetBrains Mono's 600-unit
   cell, scaled only on overflow) to honour "keep each glyph's width"; OFL
   allows it, Noto has no Reserved Font Name.
+- 2026-10-08: the symbol font is **preloaded** at page start (4 KB) rather
+  than fetched on first use. Done-when's "loaded only for its unicode-range"
+  still holds in that only those code points draw from it, but the file is
+  always fetched. Reason: xterm.js's per-character width measurement (see Log).

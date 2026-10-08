@@ -166,8 +166,11 @@ Viewers see the operator's colours and font.
   spinner frames) come from "Couch Symbols", a subset of Noto Sans Symbols 2
   listed after JetBrains Mono. Without it, iPad Safari draws several of them as
   colour emoji. Its `unicode-range` is exactly `web/vendor/fonts/symbols.txt`,
-  so the browser fetches it lazily, and no preload is needed because every
-  glyph has JetBrains Mono's cell advance: late arrival cannot shift a row.
+  and every glyph has JetBrains Mono's cell advance. It is still **preloaded**
+  with the other faces (`SYMBOL_SAMPLE`): xterm.js's DOM renderer measures
+  each character on first draw and keeps a per-character `letter-spacing`
+  fix-up, so a face fetched lazily on first use is measured as its fallback,
+  and the real glyph is then squeezed to no width (#415 iPad smoke).
   `symbols.py` derives the list from recorded agent output and builds the
   subset. The tests hold the font, the list and the CSS range in agreement.
   Wide (emoji-presentation) characters are left out on purpose and stay

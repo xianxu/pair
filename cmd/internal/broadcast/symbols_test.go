@@ -73,6 +73,21 @@ func TestSymbolFontCoversExactlyTheList(t *testing.T) {
 	}
 }
 
+// TestViewerPreloadsSymbolFont: the face loads before the first frame, with
+// a sample it actually covers. xterm.js caches each character's measured
+// width on first draw, so a face fetched lazily on first use leaves symbols
+// squeezed to no width (#415 iPad smoke).
+func TestViewerPreloadsSymbolFont(t *testing.T) {
+	viewer := string(mustAsset(t, "viewer.js"))
+	m := regexp.MustCompile(`SYMBOL_SAMPLE = '(.)';`).FindStringSubmatch(viewer)
+	if m == nil || !strings.Contains(viewer, "document.fonts.load(`16px ${SYMBOLS}`, SYMBOL_SAMPLE)") {
+		t.Fatal("viewer.js must load the symbol face up front with SYMBOL_SAMPLE")
+	}
+	if r := []rune(m[1])[0]; !slices.Contains(symbolList(t), r) {
+		t.Fatalf("SYMBOL_SAMPLE %U is not in symbols.txt, so it loads nothing", r)
+	}
+}
+
 // TestSymbolFontKeepsCouchWidth: every symbol is one column wide in Couch
 // and exactly one JetBrains Mono cell wide in the font, so xterm.js lays a
 // row out the same with or without it.

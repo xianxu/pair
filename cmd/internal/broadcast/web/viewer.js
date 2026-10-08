@@ -168,13 +168,27 @@ const FONT = '"JetBrains Mono"';
 // (#395 M5 smoke: Claude's italic recap lines pushed the pane border left.)
 export const FONT_FACES = ['', 'bold ', 'italic ', 'italic bold '];
 
-// loadFont waits, briefly, for every face of the packed font, so xterm.js
-// measures and draws with it rather than a fallback. If it doesn't load, the
-// stack falls back and the screen still works.
+const SYMBOLS = '"Couch Symbols"';
+
+// SYMBOL_SAMPLE is a code point in the symbol font's unicode-range, so loading
+// it fetches the face. xterm.js measures each character once, the first time
+// it draws it, and keeps a letter-spacing that squeezes the measured glyph
+// into one cell. Measured before the lazily fetched face arrived, a symbol
+// keeps the fallback's correction, collapses to no width, and swallows the
+// next column (#415 iPad smoke: `⏺The`, `⏸` outside LIVE's background). So it
+// loads up front with the rest, not on first use.
+export const SYMBOL_SAMPLE = '⏺';
+
+// loadFont waits, briefly, for every face of the packed fonts, so xterm.js
+// measures and draws with them rather than a fallback. If they don't load,
+// the stack falls back and the screen still works.
 async function loadFont() {
   try {
     await Promise.race([
-      Promise.all(FONT_FACES.map((face) => document.fonts.load(`${face}16px ${FONT}`))),
+      Promise.all([
+        ...FONT_FACES.map((face) => document.fonts.load(`${face}16px ${FONT}`)),
+        document.fonts.load(`16px ${SYMBOLS}`, SYMBOL_SAMPLE),
+      ]),
       new Promise((resolve) => setTimeout(resolve, 3000)),
     ]);
   } catch {
@@ -196,7 +210,7 @@ async function start() {
     disableStdin: true,
     cursorBlink: false,
     fontSize: 16,
-    fontFamily: `${FONT}, "Couch Symbols", ui-monospace, Menlo, Monaco, Consolas, monospace`,
+    fontFamily: `${FONT}, ${SYMBOLS}, ui-monospace, Menlo, Monaco, Consolas, monospace`,
     // The Unicode API is "proposed" in xterm.js; it is what sets widths.
     allowProposedApi: true,
   });
