@@ -1,12 +1,20 @@
 ---
 id: 000413
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-08
 updated: 2026-10-08
 estimate_hours:
-card_mirror: '8fc1040079f19d6019f72679c0cffea18fbfa6cd' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '98f2786b5309d429ade2edf34028788c8f104348' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-08T09:47:46-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch --broadcast-list: print the current broadcast session and its viewer count
@@ -24,8 +32,9 @@ operator has to look at the couch screen itself.
 `couch --broadcast-list` asks the running couch and prints its current
 broadcast session, if any, and the number of connected viewers.
 
-- **Routing.** It is a live-owner query, like `--actors` (`couchcmd/cli.go:92`):
-  answered by the running console over its socket. With no couch running it
+- **Routing.** A live-owner query answered by the running console over the
+  broker socket. Unlike `--actors`, it needs no slot identity: the CLI finds
+  the socket through the store directory, so it works from any shell. With no couch running it
   says so and exits non-zero. With no broadcast running it says
   "no broadcast" and exits zero.
 - **Output.** One line per session (today there is at most one):
@@ -65,10 +74,12 @@ broadcast session, if any, and the number of connected viewers.
 
 ## Plan
 
-- [ ] Hub viewer count read (through the hub loop), with a test.
-- [ ] Console and session expose a broadcast snapshot to the socket handler.
-- [ ] `--broadcast-list` CLI routing, text and `--json` output, and the
-      no-couch / no-broadcast cases.
+Durable plan: `workshop/plans/000413-couch-broadcast-list-plan.md`.
+
+- [ ] Hub viewer count and session status.
+- [ ] Console snapshot.
+- [ ] `broadcast-status` broker op and service route (no caller identity).
+- [ ] `--broadcast-list [--json]` CLI from any shell, with output and tests.
 - [ ] Atlas, verification, close.
 
 ## Log
