@@ -143,6 +143,14 @@ type ruledBoxComposerSpec struct {
 	// qualify. The zero value requires the visible cursor — the prior behaviour
 	// of every spec — so a spec that forgets the field fails closed.
 	allowHiddenCursor bool
+	// ruleCol is the column the box's rules are read at: zero for the bare
+	// full-width rules of Claude, Muse and Qoder; Grok draws a full box whose
+	// left edge sits at grokBoxCol.
+	ruleCol int
+	// sideGlyph, when set, is the box's vertical side. A row painting it at
+	// ruleCol is the box's interior (a multi-line draft), not its closing rule,
+	// so the closing-rule scan passes over it. Empty for rule-only boxes.
+	sideGlyph string
 }
 
 // ruledBoxComposerActive reports whether the cursor rests inside a ruled box.
@@ -178,7 +186,7 @@ func ruledBoxComposerBounds(snapshot terminalSnapshot, spec ruledBoxComposerSpec
 			continue
 		}
 		if spec.rulesMatch != nil {
-			top, closing := snapshot.CellAt(0, promptY-1), snapshot.CellAt(0, bottom)
+			top, closing := snapshot.CellAt(spec.ruleCol, promptY-1), snapshot.CellAt(spec.ruleCol, bottom)
 			if top == nil || closing == nil || !spec.rulesMatch(*top, *closing) {
 				continue
 			}
@@ -188,15 +196,16 @@ func ruledBoxComposerBounds(snapshot terminalSnapshot, spec ruledBoxComposerSpec
 	return 0, 0, false
 }
 
-// ruledBoxBottomRule finds the first row below the prompt that paints column 0
-// and reports whether it is the box's closing rule.
+// ruledBoxBottomRule finds the first row below the prompt that paints the
+// rule column (other than with the box's side glyph) and reports whether it is
+// the box's closing rule.
 func ruledBoxBottomRule(snapshot terminalSnapshot, spec ruledBoxComposerSpec, promptY int) (int, bool) {
 	for y := promptY + 1; y < snapshot.Height; y++ {
 		if spec.maxRows > 0 && y-promptY > spec.maxRows {
 			break
 		}
-		cell := snapshot.CellAt(0, y)
-		if cell == nil || strings.TrimSpace(cell.Content) == "" {
+		cell := snapshot.CellAt(spec.ruleCol, y)
+		if cell == nil || strings.TrimSpace(cell.Content) == "" || (spec.sideGlyph != "" && cell.Content == spec.sideGlyph) {
 			continue
 		}
 		return y, spec.ruleAt(snapshot, y)
@@ -330,6 +339,46 @@ func qoderComposerActive(snapshot terminalSnapshot) bool {
 		promptCol:         qoderPromptCol,
 		minCursorX:        2,
 		allowHiddenCursor: true,
+	})
+}
+
+// grokBoxCol is the ONE authority for the column Grok's composer box starts
+// at (its `╭`/`│`/`╰` edge); grokPromptCol is where the prompt glyph sits
+// inside it (edge, space, glyph). Captured at 1.0.46 (testdata/tty/grok/).
+const (
+	grokBoxCol    = 2
+	grokPromptCol = grokBoxCol + 2
+)
+
+// grokPromptGlyphs is the ONE authority for what may sit at grokPromptCol of a
+// Grok composer prompt row; the Return remap's recognizer and the orientation
+// gate both read it. `❯` is the captured default-mode glyph.
+var grokPromptGlyphs = map[string]bool{"❯": true}
+
+// grokComposerActive reports whether the cursor rests inside Grok's live
+// composer: a rounded box (`╭…╮` / `│ ❯ … │` / `╰…╯`) whose left edge sits at
+// grokBoxCol, the prompt glyph at grokPromptCol on the row below the top edge,
+// and the cursor inside the box. The top and bottom edges must be the box's
+// own corners — `╭` over `╰` — so the welcome card above (whose corners sit one
+// column further right) and a picker's chrome cannot pair into a composer.
+// Heights are unbounded like Claude's: interior `│` rows are skipped and the
+// first other painted edge cell below the prompt must be the closing corner.
+func grokComposerActive(snapshot terminalSnapshot) bool {
+	return ruledBoxComposerActive(snapshot, ruledBoxComposerSpec{
+		promptOK: func(c uv.Cell) bool {
+			return grokPromptGlyphs[c.Content]
+		},
+		ruleAt: func(s terminalSnapshot, y int) bool {
+			cell := s.CellAt(grokBoxCol, y)
+			return cell != nil && (cell.Content == "╭" || cell.Content == "╰")
+		},
+		rulesMatch: func(top, bottom uv.Cell) bool {
+			return top.Content == "╭" && bottom.Content == "╰"
+		},
+		promptCol:  grokPromptCol,
+		minCursorX: grokPromptCol + 2,
+		ruleCol:    grokBoxCol,
+		sideGlyph:  "│",
 	})
 }
 

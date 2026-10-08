@@ -924,6 +924,13 @@ var qoderPickerMarkers = []string{
 }
 
 func detectQoderOverlayOpen(p *proxy, data, rolling []byte) (bool, string) {
+	return detectRawCarryOverlay(p, data, qoderPickerMarkers)
+}
+
+// detectRawCarryOverlay scans the proxy-owned raw carry plus this chunk for
+// markers. Qoder and Grok share it: both paint pickers whose marker strings a
+// chunk boundary can cut inside an escape sequence.
+func detectRawCarryOverlay(p *proxy, data []byte, markers []string) (bool, string) {
 	// The raw haystack is byte-contiguous, so a chunk boundary inside an
 	// escape sequence cannot corrupt it the way per-chunk stripping can. This
 	// is not hypothetical: replaying selection.raw split 6426/6616 cut the
@@ -943,7 +950,7 @@ func detectQoderOverlayOpen(p *proxy, data, rolling []byte) (bool, string) {
 	// off its own consumed bytes (BR-28).
 	if p != nil {
 		haystack := append(append([]byte(nil), p.overlayRawTail...), data...)
-		open, reason := detectQoderOverlayText(stripTerminalControls(haystack))
+		open, reason := firstMarker(stripTerminalControls(haystack), markers)
 		if len(haystack) > rollingTailLen {
 			haystack = haystack[len(haystack)-rollingTailLen:]
 		}
@@ -952,11 +959,36 @@ func detectQoderOverlayOpen(p *proxy, data, rolling []byte) (bool, string) {
 			return true, reason
 		}
 	}
-	return detectQoderOverlayText(p.overlayVisible(data))
+	return firstMarker(p.overlayVisible(data), markers)
 }
 
 func detectQoderOverlayText(visible string) (bool, string) {
 	return firstMarker(visible, qoderPickerMarkers)
+}
+
+// grokPickerMarkers are verbatim strings from Grok's picker chrome, captured
+// live in grok/1.0.46. Every one is UI furniture rather than English prose an
+// agent might write (the qoder BR-38 rule): Grok paints its option text with
+// real spaces, so prose markers would arm off ordinary agent output.
+//
+// The permission picker (overlay.raw, a `--permission-mode default` Bash
+// approval) carries a scope hint row and a reject option whose parenthetical
+// is Grok's own. The question picker (selection.raw, the ask-user tool) closes
+// with a keybinding footer; its "Enter:submit" is why the wrapper must not
+// rewrite Enter to a newline there (#000042's muse shape). Plain Enter must
+// confirm the highlighted choice on both.
+var grokPickerMarkers = []string{
+	"← → narrow scope",
+	"No, reject (type to add feedback)",
+	"↑/↓ navigate · y copy",
+}
+
+func detectGrokOverlayOpen(p *proxy, data, rolling []byte) (bool, string) {
+	return detectRawCarryOverlay(p, data, grokPickerMarkers)
+}
+
+func detectGrokOverlayText(visible string) (bool, string) {
+	return firstMarker(visible, grokPickerMarkers)
 }
 
 func stripTerminalControls(raw []byte) string {

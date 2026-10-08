@@ -188,6 +188,45 @@ func TestOverlayDetectorByAgent(t *testing.T) {
 			wantMatch: "Allowthiscommandtorun?",
 		},
 		{
+			// Grok's permission picker scope hint, verbatim from
+			// grok/1.0.46/overlay.raw: styled runs, real spaces.
+			name:      "grok permission picker scope hint opens overlay",
+			agent:     "grok",
+			raw:       []byte("\x1b[38;2;200;200;200;48;2;36;36;36m\u2190 \u2192\x1b[2m narrow scope  \u00b7  \x1b[22me\x1b[2m edit pattern\x1b[22m"),
+			wantOpen:  true,
+			wantMatch: "\u2190 \u2192 narrow scope",
+		},
+		{
+			name:      "grok permission picker reject option opens overlay",
+			agent:     "grok",
+			raw:       []byte("\x1b[38;2;108;108;108;48;2;36;36;36m(\u25cb) No, reject (type to add feedback)\x1b[39m"),
+			wantOpen:  true,
+			wantMatch: "No, reject (type to add feedback)",
+		},
+		{
+			// Grok's question picker footer, verbatim from selection.raw.
+			name:      "grok question picker footer opens overlay",
+			agent:     "grok",
+			raw:       []byte("\x1b[38;2;200;200;200;48;2;36;36;36m\u2191/\u2193\x1b[38;2;108;108;108;48;2;36;36;36m navigate \u00b7 \x1b[38;2;200;200;200;48;2;36;36;36my\x1b[38;2;108;108;108;48;2;36;36;36m copy"),
+			wantOpen:  true,
+			wantMatch: "\u2191/\u2193 navigate \u00b7 y copy",
+		},
+		{
+			// Grok paints prose with real spaces, so agent output about the
+			// same topics must not arm the overlay: the markers are the
+			// picker's chrome (arrows, the parenthetical), not its words.
+			name:     "grok prose about scope, rejecting and navigating does not open overlay",
+			agent:    "grok",
+			raw:      []byte("We can narrow scope here. No, reject that idea; navigate to the file and copy it.\r\n"),
+			wantOpen: false,
+		},
+		{
+			name:     "grok composer does not open overlay",
+			agent:    "grok",
+			raw:      []byte("\x1b[24;3H\u256d\u2500\u2500\u2500\u256e\x1b[25;3H\u2502 \u276f fix the bug \u2502\x1b[26;3H\u2570\u2500\u2500\u2500\u256f"),
+			wantOpen: false,
+		},
+		{
 			name:      "qoder permission picker header opens overlay",
 			agent:     "qoder",
 			raw:       []byte("\x1b[38;2;238;238;235mPermission Required\x1b[39m"),

@@ -10,14 +10,16 @@ import (
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
 )
 
-// sessionInventoryKnownGaps names launcher agents that have not joined the
-// session side at all: the session-side list, scanner, event adapter, provider
-// contract and watcher/ledger membership land together in one milestone (the
-// bring-up guide's item 4), so the interim shape is "wholly absent", never
-// half-joined. The parity test asserts each gap is still exactly this shape,
-// so the milestone that closes it must delete the entry.
+// sessionInventoryKnownGaps names launcher agents whose inventory side has not
+// landed: the session-side list, scanner, event adapter, provider contract and
+// watcher membership land together in one milestone (the bring-up guide's item
+// 4), so the interim shape is "inventory wholly absent". Ledger membership is
+// NOT part of the gap: every launch encodes a ledger record for its agent, so a
+// registered agent the ledger rejects cannot launch at all (#410 M1). The
+// parity test asserts each gap is still exactly this shape, so the milestone
+// that closes it must delete the entry.
 var sessionInventoryKnownGaps = map[string]string{
-	"grok": "#410 M1: session-side list, scanner, watcher and ledger membership land together in M2",
+	"grok": "#410 M1: session-side list, scanner and watcher membership land together in M2",
 }
 
 func TestAgentInventoryParityWithSessionTables(t *testing.T) {
@@ -28,7 +30,7 @@ func TestAgentInventoryParityWithSessionTables(t *testing.T) {
 			watchable := sessionwatch.SupportsAgent(agent)
 			ledgerRejects := ledgerRejectsAgent(agent)
 			if gap, knownGap := sessionInventoryKnownGaps[agent]; knownGap {
-				if accepted || scansReal || watchable || !ledgerRejects {
+				if accepted || scansReal || watchable || ledgerRejects {
 					t.Fatalf("known gap is closed or changed shape; delete its entry (%s)", gap)
 				}
 				return

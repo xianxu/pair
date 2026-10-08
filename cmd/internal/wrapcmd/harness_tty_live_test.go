@@ -550,10 +550,11 @@ func TestHarnessTTYLiveConformance(t *testing.T) {
 		"codex":  {"codex", "--no-alt-screen", "-c", "check_for_update_on_startup=false"},
 		"muse":   {"muse"},
 		"qoder":  {"qoder"},
+		"grok":   {"grok", "--no-alt-screen"},
 	}
 	command, ok := commands[harness]
 	if !ok {
-		t.Fatalf("PAIR_LIVE_HARNESS=%q, want agy, claude, codex, muse, or qoder", harness)
+		t.Fatalf("PAIR_LIVE_HARNESS=%q, want agy, claude, codex, grok, muse, or qoder", harness)
 	}
 	executable, err := exec.LookPath(command[0])
 	if err != nil {
@@ -794,6 +795,30 @@ var harnessTTYDrivenScenarios = map[string][]harnessTTYDrivenScenario{
 		// submit the slash as a message instead of opening the menu.
 		{name: "slash menu", send: "/",
 			until: "Show version info", wantComposer: true, file: "menu.raw"},
+	},
+	// Grok's permission picker opens for a command outside every allowlist it
+	// reads (its own --allow rules and, as a fallback, Claude's settings), so
+	// the scenario asks for a `chmod` (outside pair's allowlist) of a file that
+	// does not exist. The picker
+	// replaces the composer box, numbered options over a footer that names its
+	// keys. The option text is the stable part: "Yes, proceed" is the plain
+	// confirm. Captured 1.0.46; the command never runs, since the picker is
+	// never answered.
+	"grok": {
+		{name: "permission prompt", args: []string{"--no-alt-screen", "--permission-mode", "default"},
+			send:  "use your shell tool to run exactly this command: chmod 600 pair-grok-capture-probe.txt\r",
+			until: "Yes, proceed", wantComposer: false, file: "overlay.raw",
+			timeout: 120 * time.Second,
+		},
+		// Grok's question picker (its ask-user tool): the question over
+		// numbered options and a free-text row, closed by a footer whose
+		// "Enter :submit" is why a missing marker reproduces as "Enter
+		// inserts newline" (the #000042 muse shape).
+		{name: "selection prompt", args: []string{"--no-alt-screen"},
+			send:  "Use your question tool (ask the user a multiple-choice question) to ask me which fruit I prefer: apple or banana.\r",
+			until: "Enter:submit", wantComposer: false, file: "selection.raw",
+			timeout: 150 * time.Second,
+		},
 	},
 }
 

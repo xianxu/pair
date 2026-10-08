@@ -511,6 +511,67 @@ func TestQoderComposerActiveSnapshotDifferential(t *testing.T) {
 	runComposerSnapshotDifferential(t, cases, qoderComposerActive)
 }
 
+// grokBox paints Grok's rounded composer box with its left edge at
+// grokBoxCol (1-based column grokBoxCol+1), top edge on 1-based row top, the
+// prompt glyph on the first interior row and one interior row per extra line.
+func grokBox(top int, glyph, first string, more ...string) string {
+	col := grokBoxCol + 1
+	row := func(y int, body string) string { return fmt.Sprintf("\x1b[%d;%dH%s", y, col, body) }
+	out := row(top, "\u256d\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256e")
+	out += row(top+1, "\u2502 "+glyph+" "+first)
+	for i, line := range more {
+		out += row(top+2+i, "\u2502   "+line)
+	}
+	return out + row(top+2+len(more), "\u2570\u2500\u2500\u2500 Grok 4.7 (high) \u2500\u256f")
+}
+
+func TestGrokComposerActiveSnapshotDifferential(t *testing.T) {
+	read := func(file string) []byte {
+		raw, err := os.ReadFile("testdata/tty/grok/1.0.46/" + file)
+		if err != nil {
+			t.Fatalf("read literal Grok fixture %s: %v", file, err)
+		}
+		return raw
+	}
+	// Grok 1.0.46 draws a rounded box whose left edge sits at grokBoxCol, the
+	// `❯` glyph at grokPromptCol, and keeps the system cursor visible after it.
+	// Its pickers replace the box with a `┃`-ruled card; its welcome card above
+	// is also rounded but one column further right.
+	cursor := func(y, x int) string { return fmt.Sprintf("\x1b[?25h\x1b[%d;%dH", y, x) }
+	textCol := grokPromptCol + 3 // 1-based column of the first draft character
+	cases := []composerDifferentialCase{
+		{name: "literal captured composer", stream: read("composer.raw"), want: true},
+		{name: "literal permission picker", stream: read("overlay.raw"), want: false},
+		{name: "literal question picker", stream: read("selection.raw"), want: false},
+		{name: "generated captured signature", stream: []byte(grokBox(6, "\u276f", "") + cursor(7, textCol)), want: true},
+		{name: "cursor on a continuation row", stream: []byte(grokBox(6, "\u276f", "alpha", "beta") + cursor(8, textCol+4)), want: true},
+		{name: "blank line inside the draft", stream: []byte(grokBox(6, "\u276f", "alpha", "", "gamma") + cursor(9, textCol)), want: true},
+		{name: "hidden system cursor", stream: []byte(grokBox(6, "\u276f", "alpha") + "\x1b[?25l\x1b[7;9H"), want: false},
+		{name: "cursor below the box", stream: []byte(grokBox(6, "\u276f", "alpha") + cursor(12, textCol)), want: false},
+		{name: "cursor on the glyph", stream: []byte(grokBox(6, "\u276f", "alpha") + cursor(7, grokPromptCol+1)), want: false},
+		{name: "unknown glyph", stream: []byte(grokBox(6, ">", "alpha") + cursor(7, textCol)), want: false},
+		{
+			// The welcome card's corners sit one column right of the
+			// composer's; a box drawn there must not read as the composer.
+			name:   "box one column right",
+			stream: []byte("\x1b[6;4H\u256d\u2500\u2500\u256e\x1b[7;4H\u2502 \u276f alpha\x1b[8;4H\u2570\u2500\u2500\u256f" + cursor(7, 10)),
+			want:   false,
+		},
+		{
+			// Two top corners: the closing edge must be the box's own `╰`.
+			name:   "closing edge is another top corner",
+			stream: []byte("\x1b[6;3H\u256d\u2500\u2500\u256e\x1b[7;3H\u2502 \u276f alpha\x1b[8;3H\u256d\u2500\u2500\u256e" + cursor(7, textCol)),
+			want:   false,
+		},
+		{
+			name:   "Claude-style bare rules",
+			stream: []byte("\x1b[6;1H\u2500\u2500\u2500\u2500\x1b[7;1H\u276f alpha\x1b[8;1H\u2500\u2500\u2500\u2500" + cursor(7, 3)),
+			want:   false,
+		},
+	}
+	runComposerSnapshotDifferential(t, cases, grokComposerActive)
+}
+
 func TestComposerRecognizersRejectAdversarialSnapshotsWithoutBlocking(t *testing.T) {
 	maxInt := int(^uint(0) >> 1)
 	snapshots := []struct {
@@ -531,6 +592,7 @@ func TestComposerRecognizersRejectAdversarialSnapshotsWithoutBlocking(t *testing
 		{"agy", agyComposerActive},
 		{"muse", museComposerActive},
 		{"qoder", qoderComposerActive},
+		{"grok", grokComposerActive},
 	}
 
 	for _, snapshot := range snapshots {
