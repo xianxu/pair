@@ -94,7 +94,7 @@ func Start(ctx context.Context, cfg Config) (*Session, error) {
 		return abandon(handle, err)
 	}
 	link := handle.URL() + "/" + token + "/"
-	if err := probe(ctx, link, cfg.ProbeTimeout, cfg.Resolve); err != nil {
+	if err := probe(ctx, link, cfg.ProbeTimeout, cfg.Resolve, handle.Exited()); err != nil {
 		return abandon(handle, err)
 	}
 	s := &Session{token: token, link: link, hub: hub, srv: srv, handle: handle, done: make(chan struct{})}
@@ -177,7 +177,10 @@ func newToken() (string, error) {
 // quick-tunnel hostname didn't resolve through macOS's resolver for over a
 // minute while 1.1.1.1 had it in a second, and a failed system lookup may be
 // cached, which would also delay the operator's own browser.
-func probe(ctx context.Context, link string, timeout time.Duration, resolve func(context.Context, string) ([]string, error)) error {
+//
+// It gives up at once if the tunnel exits meanwhile; probing a dead tunnel for
+// the full timeout would hide why the start failed.
+func probe(ctx context.Context, link string, timeout time.Duration, resolve func(context.Context, string) ([]string, error), exited <-chan struct{}) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	if resolve == nil {
@@ -211,6 +214,8 @@ func probe(ctx context.Context, link string, timeout time.Duration, resolve func
 				return parent
 			}
 			return fmt.Errorf("broadcast: link never answered: %w", last)
+		case <-exited:
+			return ErrTunnelExited
 		case <-time.After(probeInterval):
 		}
 	}

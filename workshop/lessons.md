@@ -696,3 +696,14 @@ proof; record the surprising case so the next change starts from evidence.
   still run the closure, so a race (seen under `-race -count=8`) could stop a
   session the loop then adopted. Decide ownership of a produced resource with
   one claim (an atomic CAS) that both sides attempt.
+- Check-then-act on a shared file needs a lock around both halves. #395 M5's
+  run records reaped a stale named-tunnel lock and then claimed with
+  O_EXCL, each safe alone; two Couches starting together could both judge the
+  same stale lock, and the slower one deleted the faster one's fresh claim. A
+  flock around reap+claim makes the decision atomic; the test races two
+  claimers 100 times and fails within a few iterations without the lock.
+- A pattern that scrapes a URL from a tool's output must not match the
+  tool's own hosts. #395's quick-tunnel regex took
+  `https://api.trycloudflare.com` out of cloudflared's failure line as the
+  tunnel. Anchor on what only a success can produce, and test with the real
+  failure text.

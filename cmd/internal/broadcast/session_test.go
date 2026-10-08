@@ -292,3 +292,19 @@ func TestSessionProbeErrorCarriesNoToken(t *testing.T) {
 		t.Fatalf("probe error leaks the link: %v", err)
 	}
 }
+
+// BR-21: a tunnel that dies while its link is being probed ends the start at
+// once, with the tunnel's failure, not after the full probe timeout.
+func TestSessionProbeStopsWhenTunnelExits(t *testing.T) {
+	ft := &hostTunnel{}
+	resolve := func(context.Context, string) ([]string, error) { return nil, errors.New("not yet") }
+	time.AfterFunc(200*time.Millisecond, ft.Exit)
+	start := time.Now()
+	_, err := Start(context.Background(), Config{Tunnel: ft, Resolve: resolve, ProbeTimeout: 20 * time.Second})
+	if !errors.Is(err, ErrTunnelExited) {
+		t.Fatalf("err %v, want ErrTunnelExited", err)
+	}
+	if d := time.Since(start); d > 5*time.Second {
+		t.Fatalf("start took %v after its tunnel died", d)
+	}
+}

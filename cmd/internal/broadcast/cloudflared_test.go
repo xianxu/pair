@@ -190,8 +190,7 @@ func TestCloudflaredOpenFailures(t *testing.T) {
 		}
 	})
 	t.Run("cancelled", func(t *testing.T) {
-		bin, dir := fakeCloudflared(t, `echo $$ > `+filepath.Join(os.TempDir(), "unused")+`; exec sleep 300`)
-		_ = dir
+		bin, _ := fakeCloudflared(t, `exec sleep 300`)
 		c := Cloudflared{Binary: bin, Guard: guardArgv(t), RunDir: shortDir(t)}
 		l, _ := c.Listen()
 		defer l.Close()
@@ -316,10 +315,11 @@ func TestReapOrphans(t *testing.T) {
 	t.Run("dead owner: orphan killed, record and dir removed", func(t *testing.T) {
 		records := shortDir(t)
 		orphan := startOrphan(t)
-		private, _ := os.MkdirTemp(shortDir(t), privateDirPrefix)
+		runDir := shortDir(t)
+		private, _ := os.MkdirTemp(runDir, privateDirPrefix)
 		owner, ownerID := deadPID(t)
 		rec := writeRecord(t, records, "named-x.json", recordData{Owner: owner, OwnerID: ownerID, Tunnel: orphan, TunnelID: identity(orphan), PrivateDir: private})
-		ReapOrphans(records)
+		ReapOrphans(records, runDir)
 		waitDead(t, strconv.Itoa(orphan), 2*time.Second)
 		for _, p := range []string{rec, private} {
 			if _, err := os.Stat(p); !os.IsNotExist(err) {
@@ -331,7 +331,7 @@ func TestReapOrphans(t *testing.T) {
 		records := shortDir(t)
 		orphan := startOrphan(t)
 		rec := writeRecord(t, records, "named-y.json", recordData{Owner: os.Getpid(), OwnerID: identity(os.Getpid()), Tunnel: orphan, TunnelID: identity(orphan)})
-		ReapOrphans(records)
+		ReapOrphans(records, "")
 		time.Sleep(100 * time.Millisecond)
 		if !procutil.Alive(strconv.Itoa(orphan)) {
 			t.Fatal("reaped a live owner's tunnel")
@@ -345,7 +345,7 @@ func TestReapOrphans(t *testing.T) {
 		orphan := startOrphan(t)
 		owner, ownerID := deadPID(t)
 		writeRecord(t, records, "named-z.json", recordData{Owner: owner, OwnerID: ownerID, Tunnel: orphan, TunnelID: "darwin:0.0"})
-		ReapOrphans(records)
+		ReapOrphans(records, "")
 		time.Sleep(100 * time.Millisecond)
 		if !procutil.Alive(strconv.Itoa(orphan)) {
 			t.Fatal("killed a process whose identity doesn't match the record")
@@ -361,20 +361,112 @@ func TestReapOrphans(t *testing.T) {
 		defer func() { _ = cmd.Process.Kill(); _ = cmd.Wait() }()
 		owner, ownerID := deadPID(t)
 		writeRecord(t, records, "named-w.json", recordData{Owner: owner, OwnerID: ownerID, Tunnel: cmd.Process.Pid, TunnelID: identity(cmd.Process.Pid)})
-		ReapOrphans(records)
+		ReapOrphans(records, "")
 		time.Sleep(100 * time.Millisecond)
 		if !procutil.Alive(strconv.Itoa(cmd.Process.Pid)) {
 			t.Fatal("killed a process that isn't cloudflared")
 		}
 	})
-	t.Run("foreign dir: not removed", func(t *testing.T) {
-		records := shortDir(t)
-		foreign := shortDir(t)
-		owner, ownerID := deadPID(t)
-		writeRecord(t, records, "named-v.json", recordData{Owner: owner, OwnerID: ownerID, PrivateDir: foreign})
-		ReapOrphans(records)
-		if _, err := os.Stat(foreign); err != nil {
-			t.Fatal("removed a directory that isn't a broadcast private dir")
+	t.Run("only a plain private dir in the run dir is removed", func(t *testing.T) {
+		runDir := shortDir(t)
+		elsewhere := shortDir(t)
+		foreignName, _ := os.MkdirTemp(runDir, "other-")
+		wrongParent, _ := os.MkdirTemp(elsewhere, privateDirPrefix)
+		openMode, _ := os.MkdirTemp(runDir, privateDirPrefix)
+		os.Chmod(openMode, 0o755)
+		target, _ := os.MkdirTemp(elsewhere, "target-")
+		link := filepath.Join(runDir, privateDirPrefix+"link")
+		os.Symlink(target, link)
+		for i, dir := range []string{foreignName, wrongParent, openMode, link} {
+			records := shortDir(t)
+			owner, ownerID := deadPID(t)
+			writeRecord(t, records, "named-"+strconv.Itoa(i)+".json", recordData{Owner: owner, OwnerID: ownerID, PrivateDir: dir})
+			ReapOrphans(records, runDir)
+			if _, err := os.Lstat(dir); err != nil {
+				t.Errorf("removed %s, which isn't plainly a broadcast private dir", dir)
+			}
+		}
+		if _, err := os.Stat(target); err != nil {
+			t.Fatal("followed a symlink out of the run dir")
 		}
 	})
+	t.Run("no owner identity: record cleared when the owner is gone, nothing killed", func(t *testing.T) {
+		records := shortDir(t)
+		orphan := startOrphan(t)
+		owner, _ := deadPID(t)
+		rec := writeRecord(t, records, "named-u.json", recordData{Owner: owner, Tunnel: orphan, TunnelID: identity(orphan)})
+		live := writeRecord(t, records, "named-l.json", recordData{Owner: os.Getpid()})
+		ReapOrphans(records, "")
+		if _, err := os.Stat(rec); !os.IsNotExist(err) {
+			t.Fatal("a dead owner's identity-less record stayed, keeping its tunnel busy")
+		}
+		if _, err := os.Stat(live); err != nil {
+			t.Fatal("removed a live owner's identity-less record")
+		}
+		time.Sleep(100 * time.Millisecond)
+		if !procutil.Alive(strconv.Itoa(orphan)) {
+			t.Fatal("killed a process on an identity-less record")
+		}
+	})
+}
+
+// BR-21: when cloudflared can't reach its API, its failure line names the
+// API host; that must not pass for a tunnel URL.
+func TestQuickTunnelAPIFailureIsNotAURL(t *testing.T) {
+	bin, _ := fakeCloudflared(t, `echo 'ERR failed to request quick Tunnel: Post "https://api.trycloudflare.com/tunnel": dial tcp: lookup api.trycloudflare.com: no such host' >&2; exit 1`)
+	c := Cloudflared{Binary: bin, Guard: guardArgv(t), RunDir: shortDir(t)}
+	l, _ := c.Listen()
+	defer l.Close()
+	h, err := c.Open(context.Background(), l)
+	if err == nil {
+		h.Close()
+		t.Fatalf("opened %q from a failure line", h.URL())
+	}
+	if !strings.Contains(err.Error(), "failed to request quick Tunnel") {
+		t.Fatalf("err %v, want cloudflared's own failure", err)
+	}
+	for _, line := range []string{"https://api.trycloudflare.com/tunnel", "https://trycloudflare.com"} {
+		if u := quickTunnelURL.FindString(line); u != "" {
+			t.Errorf("%q matched as a tunnel URL: %q", line, u)
+		}
+	}
+	if u := quickTunnelURL.FindString("|  https://brave-test-tunnel.trycloudflare.com  |"); u != "https://brave-test-tunnel.trycloudflare.com" {
+		t.Errorf("banner URL not found: %q", u)
+	}
+}
+
+// BR-22: two Couches judging the same stale named-tunnel lock at once; only
+// one may take the tunnel.
+func TestRunRecordsConcurrentClaimHasOneWinner(t *testing.T) {
+	for i := range 100 {
+		records := shortDir(t)
+		owner, ownerID := deadPID(t)
+		writeRecord(t, records, "named-shared.json", recordData{Owner: owner, OwnerID: ownerID})
+		results := make(chan error, 2)
+		for range 2 {
+			go func() {
+				r := &runRecords{dir: records}
+				_, err := r.reapAndClaim("named-shared", "")
+				results <- err
+			}()
+		}
+		won := 0
+		for range 2 {
+			if err := <-results; err == nil {
+				won++
+			} else if !errors.Is(err, ErrTunnelBusy) {
+				t.Fatal(err)
+			}
+		}
+		if won != 1 {
+			t.Fatalf("iteration %d: %d claimers took one tunnel", i, won)
+		}
+	}
+}
+
+func TestRunRecordWriteFailureIsAnError(t *testing.T) {
+	rec := &runRecord{path: filepath.Join(shortDir(t), "missing", "named-x.json")}
+	if err := rec.record(1, 2); err == nil {
+		t.Fatal("record into a missing directory reported success")
+	}
 }

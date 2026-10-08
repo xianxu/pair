@@ -238,6 +238,49 @@ rounds:
       boundary: M4
       recipe: milestone-review
       blocked: false
+    - "n": 9
+      timestamp: "2026-10-07T23:55:39-07:00"
+      agent: claude
+      findings:
+        - id: BR-21
+          severity: Important
+          title: Quick-tunnel URL regex matches cloudflared's API host in its failure line; probe ignores tunnel exit
+          detail: 'cloudflared.go:37,156 matches "https://api.trycloudflare.com" in "failed to request quick Tunnel: Post https://api.trycloudflare.com/tunnel" when cloudflared is offline or can''t reach its API, so Open succeeds with the API host. session.go:96 probe then sends /<token>/ there for the full 30s DefaultProbeTimeout and reports a misleading error instead of cloudflared''s failure line. Fix: anchor on the banner or exclude api., have probe also return on handle.Exited(), and add a fake-cloudflared test that prints the real failure line.'
+          family: tunnel-readiness-signal
+          round: 9
+        - id: BR-22
+          severity: Important
+          title: reap removes records by path after reading them, so a concurrent Couch can delete a fresh named-tunnel lock
+          detail: 'records.go:114-143: two Couches read the same stale named-x.json; A removes it and claims with O_EXCL; B, still inside its ps checks, os.Remove''s A''s fresh lock and claims too, giving two connectors on one tunnel and defeating ErrTunnelBusy. Fix: hold an flock around reap+claim, or rename-then-verify before removing; add a two-claimer test.'
+          family: lock-check-then-act
+          round: 9
+        - id: BR-23
+          severity: Minor
+          title: A record claimed without an owner identity is never reaped, so the named tunnel stays busy after a crash
+          detail: 'records.go:59,129: if StrictIdentity returns "" at claim time, reap skips the record forever, and the error says "another Couch is broadcasting". Refuse to claim without an identity, or name the record path in the error.'
+          family: lock-check-then-act
+          round: 9
+        - id: BR-24
+          severity: Minor
+          title: ReapOrphans RemoveAll's a PrivateDir read from a persisted record, checked only by its base-name prefix
+          detail: 'records.go:139: a hand-edited or corrupted record can point at any directory named couch-broadcast-* anywhere. Also require it to sit under os.TempDir() or RunDir.'
+          family: persisted-record-trusted
+          round: 9
+        - id: BR-25
+          severity: Minor
+          title: runRecord.record ignores write and rename failures, leaving the reap step unable to kill cloudflared
+          detail: records.go:88-95. This is the 2nd finding in this family; the rule is that a failed persistence write must reach a log or a returned error.
+          family: silent-error-swallow
+          round: 9
+        - id: BR-26
+          severity: Minor
+          title: The "cancelled" open test writes os.TempDir()/unused and leaves it behind
+          detail: cloudflared_test.go:193; the _ = dir is dead code too.
+          family: test-writes-outside-tempdir
+          round: 9
+      boundary: M5
+      recipe: milestone-review
+      blocked: true
 ---
 
 # Gate ledger — pair#395 (boundary-review)
@@ -343,6 +386,23 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-20** [Minor] `plan-test-coverage-gap` The input_test OSC 4 row pins only Reply, not the UnknownOscEvent with the full prefix that capturePalette needs
   This is the 3rd finding in family plan-test-coverage-gap. Rule: when a feature consumes an event from an external decoder, at least one test feeds the real decoder's output to the consumer instead of a hand-built event. Fix: set event uv.UnknownOscEvent(tc.raw) on that row (input_test.go:99).
 
+## Round 9 — 2026-10-07T23:55:39-07:00 (claude) — BLOCKED
+
+### Raised
+
+- **BR-21** [Important] `tunnel-readiness-signal` Quick-tunnel URL regex matches cloudflared's API host in its failure line; probe ignores tunnel exit
+  cloudflared.go:37,156 matches "https://api.trycloudflare.com" in "failed to request quick Tunnel: Post https://api.trycloudflare.com/tunnel" when cloudflared is offline or can't reach its API, so Open succeeds with the API host. session.go:96 probe then sends /<token>/ there for the full 30s DefaultProbeTimeout and reports a misleading error instead of cloudflared's failure line. Fix: anchor on the banner or exclude api., have probe also return on handle.Exited(), and add a fake-cloudflared test that prints the real failure line.
+- **BR-22** [Important] `lock-check-then-act` reap removes records by path after reading them, so a concurrent Couch can delete a fresh named-tunnel lock
+  records.go:114-143: two Couches read the same stale named-x.json; A removes it and claims with O_EXCL; B, still inside its ps checks, os.Remove's A's fresh lock and claims too, giving two connectors on one tunnel and defeating ErrTunnelBusy. Fix: hold an flock around reap+claim, or rename-then-verify before removing; add a two-claimer test.
+- **BR-23** [Minor] `lock-check-then-act` A record claimed without an owner identity is never reaped, so the named tunnel stays busy after a crash
+  records.go:59,129: if StrictIdentity returns "" at claim time, reap skips the record forever, and the error says "another Couch is broadcasting". Refuse to claim without an identity, or name the record path in the error.
+- **BR-24** [Minor] `persisted-record-trusted` ReapOrphans RemoveAll's a PrivateDir read from a persisted record, checked only by its base-name prefix
+  records.go:139: a hand-edited or corrupted record can point at any directory named couch-broadcast-* anywhere. Also require it to sit under os.TempDir() or RunDir.
+- **BR-25** [Minor] `silent-error-swallow` runRecord.record ignores write and rename failures, leaving the reap step unable to kill cloudflared
+  records.go:88-95. This is the 2nd finding in this family; the rule is that a failed persistence write must reach a log or a returned error.
+- **BR-26** [Minor] `test-writes-outside-tempdir` The "cancelled" open test writes os.TempDir()/unused and leaves it behind
+  cloudflared_test.go:193; the _ = dir is dead code too.
+
 ## Open findings
 
 - **BR-10** [Minor] `plan-code-drift` atlas/broadcast.md:69 still cites TestViewerFit after the rename to TestViewerNode
@@ -351,3 +411,9 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-18** [Minor] `plan-code-drift` Issue Plan M4 row still names COUCH_BROADCAST_FONT_FILE after the bundled-font revision
 - **BR-19** [Minor] `duplicate-color-parser` parseOSC4Reply writes its own rgb: parser while OSC 10/11 use ansi.XParseColor
 - **BR-20** [Minor] `plan-test-coverage-gap` The input_test OSC 4 row pins only Reply, not the UnknownOscEvent with the full prefix that capturePalette needs
+- **BR-21** [Important] `tunnel-readiness-signal` Quick-tunnel URL regex matches cloudflared's API host in its failure line; probe ignores tunnel exit
+- **BR-22** [Important] `lock-check-then-act` reap removes records by path after reading them, so a concurrent Couch can delete a fresh named-tunnel lock
+- **BR-23** [Minor] `lock-check-then-act` A record claimed without an owner identity is never reaped, so the named tunnel stays busy after a crash
+- **BR-24** [Minor] `persisted-record-trusted` ReapOrphans RemoveAll's a PrivateDir read from a persisted record, checked only by its base-name prefix
+- **BR-25** [Minor] `silent-error-swallow` runRecord.record ignores write and rename failures, leaving the reap step unable to kill cloudflared
+- **BR-26** [Minor] `test-writes-outside-tempdir` The "cancelled" open test writes os.TempDir()/unused and leaves it behind

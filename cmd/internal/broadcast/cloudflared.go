@@ -34,7 +34,11 @@ const (
 )
 
 var (
-	quickTunnelURL  = regexp.MustCompile(`https://[a-z0-9-]+\.trycloudflare\.com`)
+	// A quick tunnel's hostname is hyphen-joined random words. The pattern
+	// requires the hyphen, so cloudflared's own API host, which appears in its
+	// failure line ("failed to request quick Tunnel: Post
+	// https://api.trycloudflare.com/tunnel"), can't pass for a tunnel.
+	quickTunnelURL  = regexp.MustCompile(`https://[a-z0-9]+(?:-[a-z0-9]+)+\.trycloudflare\.com`)
 	namedRegistered = "Registered tunnel connection"
 )
 
@@ -114,14 +118,13 @@ func (c Cloudflared) Open(ctx context.Context, l net.Listener) (Handle, error) {
 	}
 	var records *runRecords
 	if c.Records != "" {
-		records = &runRecords{dir: c.Records}
-		records.reap()
+		records = &runRecords{dir: c.Records, runDir: c.RunDir}
 	}
 	key := ""
 	if c.Named != nil {
 		key = "named-" + c.Named.Name
 	}
-	rec, err := records.claim(key, pl.dir)
+	rec, err := records.reapAndClaim(key, pl.dir)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +183,10 @@ func (c Cloudflared) Open(ctx context.Context, l net.Listener) (Handle, error) {
 	select {
 	case u := <-found:
 		h.url = u
-		rec.record(h.cmd.Process.Pid, h.childPID())
+		if err := rec.record(h.cmd.Process.Pid, h.childPID()); err != nil {
+			h.Close()
+			return nil, fmt.Errorf("broadcast: run record: %w", err)
+		}
 		return h, nil
 	case <-h.exited:
 		h.Close()

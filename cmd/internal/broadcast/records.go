@@ -20,7 +20,15 @@ import (
 // recycled PID is never mistaken for them. For a named tunnel the record's
 // fixed name is also the lock that keeps a second Couch off that tunnel.
 // A nil *runRecords disables all of it.
-type runRecords struct{ dir string }
+//
+// Reaping and claiming run under one flock on the directory, so two Couches
+// starting together can't both judge the same stale lock and both take it.
+type runRecords struct {
+	dir string
+	// runDir is where private directories live; reaping removes only a
+	// directory directly inside it. Empty is os.TempDir().
+	runDir string
+}
 
 type recordData struct {
 	Owner      int    `json:"owner_pid"`
@@ -39,16 +47,43 @@ type runRecord struct {
 
 func identity(pid int) string { return procutil.StrictIdentity(strconv.Itoa(pid)) }
 
-// claim creates this process's record for a tunnel serving from dir. A
-// non-empty key is a fixed name (the named-tunnel lock); a key already held
-// by a live owner is ErrTunnelBusy.
-func (r *runRecords) claim(key, dir string) (*runRecord, error) {
+// locked runs f holding an exclusive flock on the records directory.
+func (r *runRecords) locked(f func()) error {
+	if err := os.MkdirAll(r.dir, 0o700); err != nil {
+		return err
+	}
+	lock, err := os.OpenFile(filepath.Join(r.dir, ".lock"), os.O_RDWR|os.O_CREATE, 0o600)
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
+	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX); err != nil {
+		return err
+	}
+	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+	f()
+	return nil
+}
+
+// reapAndClaim clears orphans and then claims key, as one step under the
+// lock. A non-empty key is a fixed name (the named-tunnel lock); a key still
+// held by a live owner is ErrTunnelBusy.
+func (r *runRecords) reapAndClaim(key, dir string) (*runRecord, error) {
 	if r == nil {
 		return nil, nil
 	}
-	if err := os.MkdirAll(r.dir, 0o700); err != nil {
+	var rec *runRecord
+	var claimErr error
+	if err := r.locked(func() {
+		r.reapLocked()
+		rec, claimErr = r.claimLocked(key, dir)
+	}); err != nil {
 		return nil, err
 	}
+	return rec, claimErr
+}
+
+func (r *runRecords) claimLocked(key, dir string) (*runRecord, error) {
 	if key == "" {
 		var b [6]byte
 		_, _ = rand.Read(b[:])
@@ -76,10 +111,12 @@ func (r *runRecords) claim(key, dir string) (*runRecord, error) {
 	return rec, nil
 }
 
-// record adds the guard's and cloudflared's identities once they run.
-func (rec *runRecord) record(guard, tunnel int) {
+// record adds the guard's and cloudflared's identities once they run. A
+// record that can't be written would leave a crash unreapable, so its error
+// fails the open.
+func (rec *runRecord) record(guard, tunnel int) error {
 	if rec == nil {
-		return
+		return nil
 	}
 	rec.data.Guard, rec.data.GuardID = guard, identity(guard)
 	if tunnel > 0 {
@@ -87,12 +124,13 @@ func (rec *runRecord) record(guard, tunnel int) {
 	}
 	b, err := json.Marshal(rec.data)
 	if err != nil {
-		return
+		return err
 	}
 	tmp := rec.path + ".tmp"
-	if os.WriteFile(tmp, b, 0o600) == nil {
-		_ = os.Rename(tmp, rec.path)
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		return err
 	}
+	return os.Rename(tmp, rec.path)
 }
 
 func (rec *runRecord) release() {
@@ -107,14 +145,13 @@ func (rec *runRecord) release() {
 // gone (dead, or its PID now belongs to another incarnation). Processes are
 // killed only if their identity matches the record and their command is what
 // it should be; the private directory is removed only if it is one of ours.
-func ReapOrphans(dir string) {
-	(&runRecords{dir: dir}).reap()
+// runDir is where private directories are made ("" is os.TempDir()).
+func ReapOrphans(dir, runDir string) {
+	r := &runRecords{dir: dir, runDir: runDir}
+	_ = r.locked(r.reapLocked)
 }
 
-func (r *runRecords) reap() {
-	if r == nil {
-		return
-	}
+func (r *runRecords) reapLocked() {
 	paths, _ := filepath.Glob(filepath.Join(r.dir, "*.json"))
 	for _, path := range paths {
 		b, err := os.ReadFile(path)
@@ -127,8 +164,13 @@ func (r *runRecords) reap() {
 			continue
 		}
 		if d.OwnerID == "" {
-			// No identity on this platform: can't tell a recycled PID from
-			// the owner, so destroy nothing.
+			// No identity on this platform: a recycled PID could pass for the
+			// owner, so kill nothing. A record whose owner PID is gone outright
+			// is still cleared, or a named tunnel would stay busy forever.
+			if !procutil.Alive(strconv.Itoa(d.Owner)) {
+				r.removePrivateDir(d.PrivateDir)
+				_ = os.Remove(path)
+			}
 			continue
 		}
 		if procutil.Alive(strconv.Itoa(d.Owner)) && identity(d.Owner) == d.OwnerID {
@@ -136,9 +178,7 @@ func (r *runRecords) reap() {
 		}
 		killIfOurs(d.Tunnel, d.TunnelID, "cloudflared")
 		killIfOurs(d.Guard, d.GuardID, GuardSubcommand)
-		if strings.HasPrefix(filepath.Base(d.PrivateDir), privateDirPrefix) {
-			_ = os.RemoveAll(d.PrivateDir)
-		}
+		r.removePrivateDir(d.PrivateDir)
 		_ = os.Remove(path)
 	}
 }
@@ -155,4 +195,24 @@ func killIfOurs(pid int, id, command string) {
 	}
 	_ = syscall.Kill(-pid, syscall.SIGKILL)
 	_ = syscall.Kill(pid, syscall.SIGKILL)
+}
+
+// removePrivateDir removes a recorded private directory only if it is
+// plainly one of ours: directly inside the run directory, named with our
+// prefix, a real directory (not a symlink) with mode 0700. A record is a file
+// on disk; it must not be able to aim RemoveAll anywhere else.
+func (r *runRecords) removePrivateDir(dir string) {
+	runDir := r.runDir
+	if runDir == "" {
+		runDir = os.TempDir()
+	}
+	if dir == "" || !filepath.IsAbs(dir) || filepath.Clean(filepath.Dir(dir)) != filepath.Clean(runDir) ||
+		!strings.HasPrefix(filepath.Base(dir), privateDirPrefix) {
+		return
+	}
+	info, err := os.Lstat(dir)
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 || info.Mode().Perm() != 0o700 {
+		return
+	}
+	_ = os.RemoveAll(dir)
 }

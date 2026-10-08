@@ -618,7 +618,7 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 	// A tunnel whose Couch and guard both died is cleared now, not at the
 	// next broadcast.
 	if c, ok := broadcastConfig.Tunnel.(broadcast.Cloudflared); ok && c.Records != "" {
-		broadcast.ReapOrphans(c.Records)
+		broadcast.ReapOrphans(c.Records, c.RunDir)
 	}
 	var recorder *terminalcapture.Recorder
 	if path != "" {
