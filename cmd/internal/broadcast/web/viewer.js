@@ -20,12 +20,73 @@ export function nextFontSize(current, screenW, screenH, viewW, viewH) {
   return fits && size < current ? current : size;
 }
 
+// Backoff for a connection closed for good (the server refused it or is
+// gone). A broadcast that ended says so with `end` and is never retried.
+export const RETRY_DELAYS = [2000, 4000, 8000, 15000, 30000];
+
+const EVENTSOURCE_CLOSED = 2;
+
+function endText(data) {
+  try {
+    const reason = JSON.parse(data).reason || '';
+    return reason ? `Broadcast ended: ${reason}` : 'Broadcast ended';
+  } catch {
+    return 'Broadcast ended';
+  }
+}
+
+// connect runs the viewer's connection state machine. The screen is never
+// left looking live while it isn't: any lost connection dims it and says so.
+// deps: open() → EventSource-like; render(frame); reset(); show(text);
+// setStale(bool); later(fn, ms).
+export function connect(deps) {
+  let attempt = 0;
+  let ended = false;
+  const open = () => {
+    const events = deps.open();
+    events.addEventListener('frame', (ev) => {
+      attempt = 0;
+      deps.setStale(false);
+      deps.show('');
+      deps.render(JSON.parse(ev.data));
+    });
+    events.addEventListener('end', (ev) => {
+      ended = true;
+      events.close();
+      deps.reset();
+      deps.setStale(false);
+      deps.show(endText(ev.data));
+    });
+    events.onerror = () => {
+      if (ended) {
+        return;
+      }
+      deps.setStale(true);
+      if (events.readyState !== EVENTSOURCE_CLOSED) {
+        // The browser is reconnecting by itself.
+        deps.show('Reconnecting…');
+        return;
+      }
+      events.close();
+      if (attempt >= RETRY_DELAYS.length) {
+        deps.show('Disconnected');
+        return;
+      }
+      const delay = RETRY_DELAYS[attempt++];
+      deps.show(`Disconnected — retrying in ${delay / 1000}s`);
+      deps.later(open, delay);
+    };
+  };
+  open();
+}
+
 function decode(b64) {
   return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 }
 
 function start() {
   const status = document.getElementById('status');
+  const stage = document.getElementById('stage');
   const show = (text) => {
     status.textContent = text || '';
     status.classList.toggle('hidden', !text);
@@ -55,35 +116,23 @@ function start() {
     }
   };
 
-  const events = new EventSource('events');
-  events.addEventListener('frame', (ev) => {
-    const m = JSON.parse(ev.data);
-    const resized = term.cols !== m.cols || term.rows !== m.rows;
-    if (resized) {
-      term.resize(m.cols, m.rows);
-    }
-    term.write(decode(m.b));
-    show('');
-    if (resized) {
-      fit();
-    }
+  connect({
+    open: () => new EventSource('events'),
+    render: (m) => {
+      const resized = term.cols !== m.cols || term.rows !== m.rows;
+      if (resized) {
+        term.resize(m.cols, m.rows);
+      }
+      term.write(decode(m.b));
+      if (resized) {
+        fit();
+      }
+    },
+    reset: () => term.reset(),
+    show,
+    setStale: (on) => stage.classList.toggle('stale', on),
+    later: (fn, ms) => setTimeout(fn, ms),
   });
-  events.addEventListener('end', (ev) => {
-    events.close();
-    term.reset();
-    let reason = '';
-    try {
-      reason = JSON.parse(ev.data).reason || '';
-    } catch {
-      // A malformed reason still ends the broadcast.
-    }
-    show(reason ? `Broadcast ended: ${reason}` : 'Broadcast ended');
-  });
-  events.onerror = () => {
-    if (events.readyState !== EventSource.CLOSED) {
-      show('Reconnecting…');
-    }
-  };
   window.addEventListener('resize', fit);
   fit();
 }

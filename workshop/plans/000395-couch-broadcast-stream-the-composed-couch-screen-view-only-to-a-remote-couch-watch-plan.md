@@ -784,3 +784,16 @@ func (s *Stream) Join() (Message, bool, error) {
   write, not a refused `PresentView`. After a successful `PublishFrame`/
   `SelectView`, no public path makes that transition fail, so the tap's
   `err == nil` guard is defence in depth, not a tested branch.
+- **2026-10-07 (M2 review)** — departures from the M2 steps:
+  - The viewer's node tests (`tests/broadcast-viewer/*.test.mjs`) run from Go
+    (`TestViewerNode`, skipped without node), the way the terminal oracle is
+    driven, not from a Makefile target. `go test ./...` runs them.
+  - The viewer's connection logic is an exported `connect(deps)` state
+    machine (BR-6). A lost connection dims the screen and says so: the browser
+    reconnecting by itself shows "Reconnecting…"; a connection closed for good
+    (502 from the tunnel, 503 at the viewer cap, 404/410 after the end) is
+    retried at 2, 4, 8, 15 and 30s, and then shows "Disconnected". After `end`
+    it never retries.
+  - The hub publishes its end reason before closing any queue (BR-5), so
+    `Hub.Err()` is right for whoever sees the end first. The session also
+    ends with `ErrServerFailed` if its HTTP server stops serving.

@@ -1,5 +1,5 @@
 // Unit tests for the broadcast viewer's font fit (#395). Run by
-// cmd/internal/broadcast's TestViewerFit via `node --test`.
+// cmd/internal/broadcast's TestViewerNode via `node --test`.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { nextFontSize, MIN_FONT, MAX_FONT } from '../../cmd/internal/broadcast/web/viewer.js';

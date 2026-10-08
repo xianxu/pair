@@ -666,3 +666,18 @@ proof; record the surprising case so the next change starts from evidence.
   by inspecting; let the random schedule decide who drains. Then prove the
   test bites with `go test -overlay` mutants of the invariant's code, which
   never touches the tracked file.
+- Publish ending state before signalling the end. #395 M2's hub closed
+  subscriber queues and only later closed `Done`, which gated `Err()`; a
+  consumer that reacted to its closed queue read `nil` and told viewers the
+  operator had stopped when the tunnel had died (1 in 300 runs). Store the
+  reason first, then close the channels anyone can observe, and test by
+  reading the state at the moment the first signal arrives, many times over.
+- A client whose connection can close for good must say so on screen. The
+  #395 viewer handled `end` and transient errors, but a refused or dead
+  connection left the last frame up, undimmed, looking live. Every terminal
+  state of a connection needs a visible state, and its test drives a fake
+  transport into each one.
+- Record a departure from the plan in its `## Revisions` in the same commit
+  that makes it. #395's reviews flagged undocumented departures twice
+  (an End message that became channel close; a Makefile target that became a
+  Go-driven node test).
