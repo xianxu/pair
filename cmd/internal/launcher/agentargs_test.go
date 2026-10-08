@@ -210,6 +210,15 @@ func TestPairInsertedTokensPrecedeDoubleDash(t *testing.T) {
 			args = inlineModeArgs(agent, args, nil)
 			args = inlineModeArgs(agent, args, nil) // Alt+n re-applies on restart
 			dash := slices.Index(args, "--")
+			flags := args
+			if dash >= 0 {
+				flags = args[:dash]
+			}
+			for _, inserted := range []string{"--resume", "--session-id", "--no-alt-screen"} {
+				if countOf(flags, inserted) > 1 {
+					t.Errorf("%s %v: %s inserted twice: %v", agent, saved, inserted, args)
+				}
+			}
 			if dash < 0 {
 				continue
 			}
@@ -229,6 +238,37 @@ func TestPairInsertedTokensPrecedeDoubleDash(t *testing.T) {
 		if got := insertBeforeDoubleDash(tc.in, "X"); !reflect.DeepEqual(got, tc.want) {
 			t.Errorf("insertBeforeDoubleDash(%v) = %v, want %v", tc.in, got, tc.want)
 		}
+	}
+}
+
+func countOf(args []string, tok string) int {
+	n := 0
+	for _, a := range args {
+		if a == tok {
+			n++
+		}
+	}
+	return n
+}
+
+// The strip helpers edit flags only: prompt text after `--` is kept verbatim,
+// even when it happens to spell a flag pair manages.
+func TestStripHelpersStopAtDoubleDash(t *testing.T) {
+	args := []string{"--no-alt-screen", "--session-id", "u", "--", "--no-alt-screen", "--session-id", "v"}
+	if got := stripValuelessFlag(args, "--no-alt-screen"); !reflect.DeepEqual(got, args[1:]) {
+		t.Errorf("stripValuelessFlag = %v", got)
+	}
+	if got := stripFlagAllForms(args, "--session-id"); !reflect.DeepEqual(got, []string{"--no-alt-screen", "--", "--no-alt-screen", "--session-id", "v"}) {
+		t.Errorf("stripFlagAllForms = %v", got)
+	}
+	if got := inlineModeArgs("grok", []string{"--", "explain --no-alt-screen"}, nil); !reflect.DeepEqual(got, []string{"--no-alt-screen", "--", "explain --no-alt-screen"}) {
+		t.Errorf("inlineModeArgs = %v", got)
+	}
+	if got := inlineModeArgs("grok", []string{"--", "--no-alt-screen"}, map[string]bool{"grok": true}); !reflect.DeepEqual(got, []string{"--", "--no-alt-screen"}) {
+		t.Errorf("opted-out inlineModeArgs ate prompt text: %v", got)
+	}
+	if got := persistedConfigArgs("grok", []string{"-c", "--", "-c", "--resume", "x"}); !reflect.DeepEqual(got, []string{"--", "-c", "--resume", "x"}) {
+		t.Errorf("persistedConfigArgs ate prompt text: %v", got)
 	}
 }
 

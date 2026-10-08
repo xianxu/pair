@@ -24,10 +24,14 @@ func hasFlag(args []string, flag string) bool {
 }
 
 // stripValuelessFlag removes every occurrence of a standalone flag (e.g.
-// --no-alt-screen) from args, preserving order.
+// --no-alt-screen) from args, preserving order. Prompt text after `--` is kept
+// verbatim.
 func stripValuelessFlag(args []string, flag string) []string {
 	out := make([]string, 0, len(args))
-	for _, a := range args {
+	for i, a := range args {
+		if a == "--" {
+			return append(out, args[i:]...)
+		}
 		if a == flag {
 			continue
 		}
@@ -36,15 +40,12 @@ func stripValuelessFlag(args []string, flag string) []string {
 	return out
 }
 
-// stripFlagAllForms removes a valued flag in both its space form (`flag value`)
-// and its inline form (`flag=value`) — e.g. --session-id <uuid>, --resume <id>,
-// and agy's --conversation <id> / --conversation=<id>. A trailing space-form flag
-// with no value is dropped. Together with stripCodexResumeSubcommand +
-// stripValuelessFlag, this is the single consolidation of the shell's several
-// hand-rolled resume/binding strip loops (ARCH-DRY).
 func stripFlagAllForms(args []string, flag string) []string {
 	out := make([]string, 0, len(args))
 	for i := 0; i < len(args); i++ {
+		if args[i] == "--" {
+			return append(out, args[i:]...) // prompt text, never a flag
+		}
 		if args[i] == flag {
 			i++ // also skip the space-form value
 			continue

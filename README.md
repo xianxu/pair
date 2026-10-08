@@ -1,6 +1,6 @@
 # pair
 
-A small launcher that gives TUI coding agents (Claude Code, Codex, Antigravity, Muse, and Qoder) a real input field — backed by Neovim. Pair wraps around TTY terminal, and with that, has access to all input/output from the agents and can customize everything.
+A small launcher that gives TUI coding agents (Claude Code, Codex, Antigravity, Muse, Qoder, and Grok) a real input field — backed by Neovim. Pair wraps around TTY terminal, and with that, has access to all input/output from the agents and can customize everything.
 
 Pair's 100% [AI generated](https://xianxu.dev/2026/05/a-saturday-coding-session/).
 
@@ -41,7 +41,7 @@ terminal state cannot be recovered.
 
 You compose prompts with full editor power, scrolling the agent output independently. When you are done, `Alt+Return` to send your text to the agent.
 
-Works on Mac, probably on Linux, but haven't tested. I use this with `claude` everyday; `codex`, `agy`, `muse`, and `qoder` are also integrated.
+Works on Mac, probably on Linux, but haven't tested. I use this with `claude` everyday; `codex`, `agy`, `muse`, `qoder`, and `grok` are also integrated.
 
 ## What do you get
 
@@ -143,7 +143,7 @@ one-line description can't carry.
 |---|---|---|
 | **Alt+h** | non-agent panes | Pop up the keybinding list in a floating pane (`q` or `Esc` to dismiss). Same content as `pair keys`. When Couch presents the thread, Couch's keys come first. |
 | **Alt+Return** | nvim (normal/insert) | Send buffer to agent. Note for consistency, claude's keybinding also changed to Alt+return as send, and return as newline |
-| **Return** | agent pane | Insert a newline in Claude, Codex, Agy, and Qoder composers; Pair translates it to Muse's native Shift+Return. The rewrite is *positively gated* for every agent: Pair rewrites only while it can see a live composer on screen, so in a permission picker, a selection menu, or any state it doesn't recognize, Return stays a plain Enter and the dialog confirms. Set `PAIR_WRAP_REMAP_RETURN=0` to turn the rewrite off entirely (that also disables overlay detection and its telemetry). |
+| **Return** | agent pane | Insert a newline in Claude, Codex, Agy, and Qoder composers; Pair translates it to Muse's native Shift+Return and Grok's native Alt+Enter. The rewrite is *positively gated* for every agent: Pair rewrites only while it can see a live composer on screen, so in a permission picker, a selection menu, or any state it doesn't recognize, Return stays a plain Enter and the dialog confirms. Set `PAIR_WRAP_REMAP_RETURN=0` to turn the rewrite off entirely (that also disables overlay detection and its telemetry). |
 | **Alt+Return** | agent pane | Always submits, in every state. |
 | **Alt+Shift+Return** | any Pair pane | Toggle native fullscreen for the selected right terminal; a split expands only the selected half. Press again to restore the tiling and focus the invoking pane. Zellij's bars remain visible. No-op without a right terminal. |
 | **Alt+j** | draft | Focus the agent pane. Click the draft to return from the agent. |
@@ -301,7 +301,7 @@ grab a path shouldn't hijack what you're writing.
 | [`zellij`](https://zellij.dev/) **≥ 0.45.0** | terminal multiplexer hosting the workbench |
 | [`nvim`](https://neovim.io/) | the input/drafting pane |
 | [`fzf`](https://github.com/junegunn/fzf) | session picker |
-| an agent | `claude`, `codex`, `agy`, `muse`, `qoder`, or any TUI agent you want to drive |
+| an agent | `claude`, `codex`, `agy`, `muse`, `qoder`, `grok`, or any TUI agent you want to drive |
 
 **Optional** — features degrade quietly if absent.
 
@@ -351,7 +351,7 @@ brew tap xianxu/pair && brew install pair
 brew update; brew upgrade pair
 ```
 
-That installs `zellij`, `neovim`, `fzf`, `jq`, and `par` if they aren't already present. The agent (`claude`, `codex`, `agy`, `muse`, or `qoder`) you install separately.
+That installs `zellij`, `neovim`, `fzf`, `jq`, and `par` if they aren't already present. The agent (`claude`, `codex`, `agy`, `muse`, `qoder`, or `grok`) you install separately.
 
 **zellij must be 0.45.0 or newer.** An existing installation can be older than
 that — `brew upgrade pair` does nothing while pair itself is current, and a
@@ -942,7 +942,7 @@ with more room to describe them.
 
 ```sh
 pair                             # default: claude
-pair <agent>                     # claude / codex / agy / muse / qoder
+pair <agent>                     # claude / codex / agy / muse / qoder / grok
 pair <agent> --layout3           # workbench with the user terminal on the right
 pair resume <tag>                # restart by Pair's exact repo-local tag
 pair continue                    # list saved continuations (durable session handoffs)
@@ -977,6 +977,11 @@ pair version, --version          # print launcher version metadata
 pair -h, --help                  # show full help
 ```
 
+Codex and Grok run in inline mode (`--no-alt-screen`) under Pair, so their
+conversation reaches the pane's scrollback; pair inserts the flag before any
+`--`. Set `PAIR_CODEX_ALT_SCREEN=1` or `PAIR_GROK_ALT_SCREEN=1` to leave that
+agent on its alternate screen.
+
 Inventory uses `provisional` for an unconfirmed association, `established` for
 a confirmed root, and `ambiguous` for conflicting evidence.
 
@@ -1005,7 +1010,7 @@ privacy or render failure.
 Provider or scanner changes should run `make
 test-session-inventory-conformance`. This opt-in developer check verifies the
 one-second installed metadata budget and replays installed Claude, Codex, Muse,
-Agy, and Qoder transitions against Pair's stateful fake without mutating native stores.
+Agy, Qoder, and Grok transitions against Pair's stateful fake without mutating native stores.
 
 Standalone Pair neither reads nor mutates Couch's ThreadStore. `pair resume`
 accepts Pair's exact repo-local tag (or a Pair-owned public `📁...` session name
@@ -1134,7 +1139,7 @@ pair: saved session config for tag "bugfix" (claude).
 Run that command and the picker + name prompt are skipped. Pair then offers up to four things to do with the saved config:
 
 1. **saved params + session** — replay the original args *and* point the agent at
-   its previous session id (claude/qoder `--resume <id>`, codex `resume <id>`, agy
+   its previous session id (claude/qoder/grok `--resume <id>`, codex `resume <id>`, agy
    `--conversation <id>`). Shown only if the agent's native session file is still
    on disk.
 2. **saved params** — replay the args, fresh agent session.

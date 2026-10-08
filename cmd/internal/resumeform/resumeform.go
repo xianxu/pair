@@ -103,25 +103,55 @@ func ContextShortLetters(agent string) string {
 	return letters
 }
 
-// ContextSelector reports whether one argv token is a SessionID spelling (bare
-// or `flag=value`) or a Continue spelling for the agent.
+// ContextSelector reports whether one argv token is a SessionID spelling (bare,
+// `flag=value`, or a single-letter spelling with its value glued: `-s<id>`) or
+// a Continue spelling for the agent.
 func ContextSelector(agent, tok string) bool {
 	form := forms[agent]
-	flag, _, _ := strings.Cut(tok, "=")
-	return hasSpelling(form.SessionID, flag) || hasSpelling(form.Continue, tok)
+	return sessionIDToken(form, tok) || hasSpelling(form.Continue, tok)
 }
 
 // HasSessionID reports whether args already pin a session id through one of
 // the agent's SessionID spellings, so the launcher must not mint another.
+// Prompt text after `--` is not a binding.
 func HasSessionID(agent string, args []string) bool {
 	form := forms[agent]
-	for _, tok := range args {
-		flag, _, _ := strings.Cut(tok, "=")
-		if hasSpelling(form.SessionID, flag) {
+	for _, tok := range beforeDoubleDash(args) {
+		if sessionIDToken(form, tok) {
 			return true
 		}
 	}
 	return false
+}
+
+// sessionIDToken reports whether tok spells a session id: bare, `flag=value`,
+// or glued to a single-letter spelling (`-s<id>`).
+func sessionIDToken(form Form, tok string) bool {
+	flag, _, _ := strings.Cut(tok, "=")
+	return hasSpelling(form.SessionID, flag) || gluedValue(shortSpellings(form.SessionID), tok) != ""
+}
+
+// shortSpellings keeps the single-letter spellings (`-s`), the only ones that
+// take a glued value.
+func shortSpellings(spellings []string) []string {
+	var short []string
+	for _, spelling := range spellings {
+		if letter, ok := strings.CutPrefix(spelling, "-"); ok && len(letter) == 1 {
+			short = append(short, spelling)
+		}
+	}
+	return short
+}
+
+// beforeDoubleDash returns the argv prefix that can hold flags: everything
+// after the first `--` is the agent's prompt text, never a binding.
+func beforeDoubleDash(args []string) []string {
+	for i, tok := range args {
+		if tok == "--" {
+			return args[:i]
+		}
+	}
+	return args
 }
 
 // Selector reports whether one argv token spells a resume binding for the
@@ -151,7 +181,7 @@ func Extract(agent string, args []string) string {
 		return ""
 	}
 	prev := ""
-	for _, tok := range args {
+	for _, tok := range beforeDoubleDash(args) {
 		if !strings.HasPrefix(tok, "-") && hasSpelling(form.Space, prev) {
 			return tok
 		}
@@ -170,12 +200,15 @@ func Extract(agent string, args []string) string {
 // space form followed by another flag was valueless: only the flag token is
 // dropped, never the next flag. Strictly per-agent: another agent's spelling
 // (or a glued `-r<x>` for an agent with no glued form) is not a resume binding
-// here and is preserved.
+// here and is preserved. Prompt text after `--` is kept verbatim.
 func Strip(agent string, args []string) []string {
 	form := forms[agent]
 	out := make([]string, 0, len(args))
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
+		if arg == "--" {
+			return append(out, args[i:]...)
+		}
 		switch {
 		case hasSpelling(form.Space, arg):
 			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
@@ -185,18 +218,13 @@ func Strip(agent string, args []string) []string {
 			if i+1 < len(args) {
 				i++
 			}
-		case hasSpelling(form.Continue, arg), sessionIDInline(form, arg):
+		case hasSpelling(form.Continue, arg), sessionIDToken(form, arg):
 		case inlineToken(form, arg), gluedValue(form.Glued, arg) != "":
 		default:
 			out = append(out, arg)
 		}
 	}
 	return out
-}
-
-func sessionIDInline(form Form, tok string) bool {
-	flag, _, inline := strings.Cut(tok, "=")
-	return inline && hasSpelling(form.SessionID, flag)
 }
 
 func inlineToken(form Form, tok string) bool {
