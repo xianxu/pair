@@ -270,6 +270,14 @@ func TestStripHelpersStopAtDoubleDash(t *testing.T) {
 	if got := persistedConfigArgs("grok", []string{"-c", "--", "-c", "--resume", "x"}); !reflect.DeepEqual(got, []string{"--", "-c", "--resume", "x"}) {
 		t.Errorf("persistedConfigArgs ate prompt text: %v", got)
 	}
+	// Readers too: prompt text after `--` must not suppress the mint.
+	for _, agent := range []string{"claude", "qoder", "grok"} {
+		for _, tail := range [][]string{{"--fork-session"}, {"--session-id", "u"}, {"-s", "u"}} {
+			if !shouldMintSessionID(agent, "", append([]string{"--"}, tail...)) {
+				t.Errorf("%s: prompt text %v after -- suppressed the mint", agent, tail)
+			}
+		}
+	}
 }
 
 func TestGrokResumeToken(t *testing.T) {

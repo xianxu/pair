@@ -116,7 +116,7 @@ func ContextSelector(agent, tok string) bool {
 // Prompt text after `--` is not a binding.
 func HasSessionID(agent string, args []string) bool {
 	form := forms[agent]
-	for _, tok := range beforeDoubleDash(args) {
+	for _, tok := range FlagRegion(args) {
 		if sessionIDToken(form, tok) {
 			return true
 		}
@@ -143,9 +143,11 @@ func shortSpellings(spellings []string) []string {
 	return short
 }
 
-// beforeDoubleDash returns the argv prefix that can hold flags: everything
-// after the first `--` is the agent's prompt text, never a binding.
-func beforeDoubleDash(args []string) []string {
+// FlagRegion returns the argv prefix that can hold flags: everything after the
+// first `--` is the agent's prompt text, never a binding and never a flag. It
+// is the ONE statement of that boundary — every argv reader and editor in the
+// launcher, sessionwatch and this package goes through it.
+func FlagRegion(args []string) []string {
 	for i, tok := range args {
 		if tok == "--" {
 			return args[:i]
@@ -181,7 +183,7 @@ func Extract(agent string, args []string) string {
 		return ""
 	}
 	prev := ""
-	for _, tok := range beforeDoubleDash(args) {
+	for _, tok := range FlagRegion(args) {
 		if !strings.HasPrefix(tok, "-") && hasSpelling(form.Space, prev) {
 			return tok
 		}
@@ -203,19 +205,17 @@ func Extract(agent string, args []string) string {
 // here and is preserved. Prompt text after `--` is kept verbatim.
 func Strip(agent string, args []string) []string {
 	form := forms[agent]
+	flags := FlagRegion(args)
 	out := make([]string, 0, len(args))
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
-		if arg == "--" {
-			return append(out, args[i:]...)
-		}
+	for i := 0; i < len(flags); i++ {
+		arg := flags[i]
 		switch {
 		case hasSpelling(form.Space, arg):
-			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+			if i+1 < len(flags) && !strings.HasPrefix(flags[i+1], "-") {
 				i++
 			}
 		case hasSpelling(form.SessionID, arg):
-			if i+1 < len(args) {
+			if i+1 < len(flags) {
 				i++
 			}
 		case hasSpelling(form.Continue, arg), sessionIDToken(form, arg):
@@ -224,7 +224,7 @@ func Strip(agent string, args []string) []string {
 			out = append(out, arg)
 		}
 	}
-	return out
+	return append(out, args[len(flags):]...)
 }
 
 func inlineToken(form Form, tok string) bool {

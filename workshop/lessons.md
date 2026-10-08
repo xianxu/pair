@@ -657,3 +657,14 @@ proof; record the surprising case so the next change starts from evidence.
   classify test, built from hand-made evidence, stayed green. For each value a
   projector can produce, keep at least one test that drives it through the
   real input contract.
+- Every argv reader and editor sees only the flag region before the first
+  `--` (`resumeform.FlagRegion`). #410 BR-3/BR-6: the boundary was honored by
+  the inserter, ignored by the strippers (they ate prompt text), and ignored by
+  `hasFlag` (prompt text `--fork-session` suppressed the session-id mint). One
+  helper, every site routed through it, and a test that places every managed
+  spelling after `--` for every agent.
+- A launcher registry row implies ledger membership and the whole session side
+  in the same boundary. #410: every launch encodes a ledger record for its
+  agent, so "registered, session side pending" is not a launchable state; a
+  known-gap interim that only the parity test tolerates hides that the agent
+  cannot start.

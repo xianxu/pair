@@ -1,7 +1,6 @@
 package launcher
 
 import (
-	"slices"
 	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/resumeform"
@@ -13,9 +12,10 @@ import (
 // jq config read/write) lands on the Runtime seam in M2; here we own only the
 // deterministic arg-vector transforms + the mint/skip decisions.
 
-// hasFlag reports whether flag appears as its own token in args.
+// hasFlag reports whether flag appears as its own token in the flag region of
+// args (prompt text after `--` is not a flag).
 func hasFlag(args []string, flag string) bool {
-	for _, a := range args {
+	for _, a := range resumeform.FlagRegion(args) {
 		if a == flag {
 			return true
 		}
@@ -27,35 +27,30 @@ func hasFlag(args []string, flag string) bool {
 // --no-alt-screen) from args, preserving order. Prompt text after `--` is kept
 // verbatim.
 func stripValuelessFlag(args []string, flag string) []string {
+	flags := resumeform.FlagRegion(args)
 	out := make([]string, 0, len(args))
-	for i, a := range args {
-		if a == "--" {
-			return append(out, args[i:]...)
+	for _, a := range flags {
+		if a != flag {
+			out = append(out, a)
 		}
-		if a == flag {
-			continue
-		}
-		out = append(out, a)
 	}
-	return out
+	return append(out, args[len(flags):]...)
 }
 
 func stripFlagAllForms(args []string, flag string) []string {
+	flags := resumeform.FlagRegion(args)
 	out := make([]string, 0, len(args))
-	for i := 0; i < len(args); i++ {
-		if args[i] == "--" {
-			return append(out, args[i:]...) // prompt text, never a flag
-		}
-		if args[i] == flag {
+	for i := 0; i < len(flags); i++ {
+		if flags[i] == flag {
 			i++ // also skip the space-form value
 			continue
 		}
-		if strings.HasPrefix(args[i], flag+"=") {
+		if strings.HasPrefix(flags[i], flag+"=") {
 			continue // inline form
 		}
-		out = append(out, args[i])
+		out = append(out, flags[i])
 	}
-	return out
+	return append(out, args[len(flags):]...)
 }
 
 // stripCodexResumeSubcommand drops `resume <id>` from Codex argv. Codex accepts
@@ -190,10 +185,7 @@ func composeResumeArgs(agent string, savedArgs []string, sid string) []string {
 // agent's argv goes through here: an agent reads whatever follows `--` as
 // prompt text.
 func insertBeforeDoubleDash(args []string, tokens ...string) []string {
-	at := slices.Index(args, "--")
-	if at < 0 {
-		at = len(args)
-	}
+	at := len(resumeform.FlagRegion(args))
 	out := make([]string, 0, len(args)+len(tokens))
 	out = append(out, args[:at]...)
 	out = append(out, tokens...)

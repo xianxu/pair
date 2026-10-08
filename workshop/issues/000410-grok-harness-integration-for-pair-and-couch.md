@@ -227,7 +227,7 @@ total: 5.25
 
 Durable plan: [000410-grok-harness-integration-for-pair-and-couch-plan.md](../plans/000410-grok-harness-integration-for-pair-and-couch-plan.md)
 
-- [ ] M1 — usable in pair and Couch-resumable: registry + ledger membership, resume spellings, fresh-launch table, shared inline mode before `--`, resume compose + mint, TTY profile + live captures, overlay markers, orientation glyph, grok scanner + event normalizer + every dispatch site (re-cut: old M1+M2, see plan Revisions)
+- [x] M1 — usable in pair and Couch-resumable: registry + ledger membership, resume spellings, fresh-launch table, shared inline mode before `--`, resume compose + mint, TTY profile + live captures, overlay markers, orientation glyph, grok scanner + event normalizer + every dispatch site (re-cut: old M1+M2, see plan Revisions)
 - [ ] M2 — slug, prompt glyph (scrollback/distill), permission allowlist, docs sweep, follow-up issue, operator live smoke (closes with the final `sdlc close`)
 
 ## Log
@@ -239,6 +239,7 @@ Durable plan: [000410-grok-harness-integration-for-pair-and-couch-plan.md](../pl
 - Spec re-review: 4 more findings folded in: `resumeform.Forms` moves to M1 (the fresh validator reads it), `resumeToken`/`composeResumeArgs` go in M2, both `-c` strip sites are named, and the orientation interim is noted.
 
 ### 2026-10-08 — M1 implementation
+- 2026-10-08: closed M1 — Unit+fixture suites green for launcher, resumeform, sessioninventory, sessionwatch, sessionledger, wrapcmd (clean env, unsandboxed). Live: grok TTY recognizer fires on real 1.0.46 bytes; pickers captured and declined; ESC CR inserts newline in live grok; session-inventory --agent grok lists 12 real resumable roots with zero grok diagnostics. Full suite: only failures are pre-existing on main (artifactpath, couchcmd, couchsingleton, gcruntime) plus Couch-slot env noise; see Log. Round-1 review findings BR-1..BR-5 fixed at class level.; review verdict: FIX-THEN-SHIP
 
 - **Re-cut:** M1+M2 merged (plan Revisions). A registered agent that the session ledger rejects cannot launch: `freshAgentInvocation` encodes a ledger record per launch. And `TestFreshAgentInvocationHandsTheWatcherToTheReplacementWrap` needs a watcher for every registry agent. So registry, ledger and the full session side land in one boundary.
 - **TTY (captured live, grok 1.0.46):**

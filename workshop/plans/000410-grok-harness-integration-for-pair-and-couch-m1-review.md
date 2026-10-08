@@ -102,3 +102,96 @@ findings:
     title: |
       Plan names ProviderGrokACPV1 grok-acp-v1; code ships ProviderGrokACPJSONLV1 grok-acp-jsonl-v1
 ```
+
+---
+
+## Re-review — 2026-10-08T00:32:11-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 410 — Grok harness integration for pair and couch |
+| repo | pair |
+| issue file | workshop/issues/000410-grok-harness-integration-for-pair-and-couch.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | fcce4b21c9cbfc3c6203df98259d34c1d4c5f191..6ecf7d27870c81bdeb47a6952c6b003c7468af8b |
+| command | sdlc milestone-close --issue 410 --milestone M1 |
+| reviewer | claude |
+| timestamp | 2026-10-08T00:32:11-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: medium
+```
+
+**Verdict: fix then ship.** One new Minor finding; all five round-1 findings are resolved. The round-1 fix commit `6ecf7d27` adds Grok to every README roster. It also documents `PAIR_CODEX_ALT_SCREEN`/`PAIR_GROK_ALT_SCREEN`, which had never been documented, even for codex. It stops every argv *editor* at the first `--`, and teaches the session-id check to recognise glued `-s<uuid>`. The new tests target the actual mistakes, and I checked that the strip still removes the bare space-form `--session-id <id>` / `-s <id>` value correctly. The one gap: the round-1 rule stops argv *editors* at `--`, but one argv *reader* in the launcher still looks past it. That is the second finding in family `double-dash-boundary`, so the fix should be the rule, not this one site. It is Minor and does not block the gate.
+
+**1. Strengths**
+- `resumeform.sessionIDToken` (`resumeform.go:128`) is now the single source for session-id spellings. `HasSessionID`, `Strip` and `ContextSelector` all read it, and the separate `sessionIDInline` helper is gone (ARCH-DRY).
+- `TestDoubleDashTailIsNeverABinding` builds its cases from `resumeform.Forms()`. It covers every spelling of every agent rather than a hand-picked list, so a new agent or spelling is covered automatically.
+- The live-conformance agent lists in `provider_live_fake_test.go:25` and `conformance_live_test.go:21` now come from `SupportedAgents()` instead of being typed out by hand. That fixes the class (lists drifting from the registry), not just the one site.
+- I probed `persistedConfigArgs` with `--session-id U` and `-s U` for grok, and `--session-id U` for claude. All three strip cleanly with no stray value left behind.
+
+**2. Critical findings:** none.
+
+**3. Important findings:** none.
+
+**4. Minor findings**
+- **`hasFlag` reads past `--` (second finding in family `double-dash-boundary`).** `shouldMintSessionID` (`agentargs.go:259-260`) checks `hasFlag(agentExtra, "--session-id")` and `hasFlag(agentExtra, "--fork-session")`, and `hasFlag` (`agentargs.go:17`) scans the whole argv, prompt text included.
+  - Measured: `shouldMintSessionID("claude", "", ["--", "--fork-session"])` returns `false`. Prompt text therefore stops pair minting a session id.
+  - The rule: every argv reader *or* editor looks only at the flag region before the first `--`. Today that boundary is written five separate ways: `resumeform.beforeDoubleDash`, the inline checks in `Strip`, `stripValuelessFlag` and `stripFlagAllForms`, and `slices.Index` in `insertBeforeDoubleDash`.
+  - Fix: make one exported helper the single source, e.g. `resumeform.FlagRegion(args) (flags, tail)`. Route every helper, including `hasFlag`, through it, and add `hasFlag`/`shouldMintSessionID` to `TestStripHelpersStopAtDoubleDash`.
+- **The composition test still assembles the helpers by hand.** `TestPairInsertedTokensPrecedeDoubleDash` builds the argv itself instead of driving the `createflow.go:620-658` sequence. It also adds `--session-id` on resume, which production never does. The new no-duplicates assertion is real: a mutation that removes the strip inside `inlineModeArgs` turns it red. So I record BR-4 as addressed and leave this as a note, not a new finding.
+
+**5. Test coverage notes**
+- `resumeform`, `sessioninventory`, `sessionledger` and `sessionwatch` pass in the sandbox. `wrapcmd` passes unsandboxed; inside the sandbox its PTY and `/tmp` tests fail with "operation not permitted", which is the sandbox, as already known.
+- `launcher` showed five failures in my shell. All of them are `PAIR_DATA_DIR … conflicts with selected repository scope`, which comes from the host pair session's environment, not from grok code. The issue Log records `go test ./...` under `env -i` as passing for `launcher`.
+- The `TestGluedSessionIDShortForm` and `TestStripHelpersStopAtDoubleDash` cases each go red if their fix is removed (BR-2 and BR-3).
+
+**6. Architectural notes**
+- **ARCH-DRY:** flag. The `--` boundary should have a single source (finding above).
+- **ARCH-PURE:** pass. Every argv decision is a pure function, and the IO (mint, collision check) stays in `createflow`.
+- **ARCH-PURPOSE:** pass, with one gap. Round 1 fixed the README class and the conformance-list class. The `--` class is fixed for editors but not readers (finding above).
+- **ARCH-MOCK:** pass. The grok scanner runs against native fixtures plus the stateful live fake, and the conformance run now covers every registry agent.
+- **ARCH-CONSTRAINTS:** pass. Nothing in this window touches a hot path.
+- **ARCH-SECURE:** pass. Argv is user input and is parsed per agent's own table. The M2 cleanup design in the plan's Revisions derives the deletion target only from a temp dir pair just created, not from subprocess output, which is the right call.
+- **ARCH-ORDER:** N/A for this window. It holds no state between events; the argv transforms are single-shot.
+- **ARCH-FUNERAL:** nothing new is created in this window. The M2 temp-dir and Grok session-entry removal is designed in Revisions and should be checked at M2.
+
+**7. Plan revision recommendations**
+- Append to the M1 round-1 Revisions entry: the `--` boundary is a single shared helper that covers readers (`hasFlag`, `shouldMintSessionID`) as well as editors.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      README lines 3/44/146/304/354/945/1008/1142 now list grok; PAIR_CODEX_ALT_SCREEN/PAIR_GROK_ALT_SCREEN documented under Command Usage (matches inlineModes in agentargs.go).
+  - id: BR-2
+    disposition: addressed
+    note: |
+      sessionIDToken reads glued single-letter spellings in HasSessionID/Strip/ContextSelector; TestGluedSessionIDShortForm goes red without it.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      stripValuelessFlag stops at --; the opted-out inlineModeArgs case in TestStripHelpersStopAtDoubleDash goes red without it. Reader-side sibling raised as a new family finding.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      No-duplicates assertion added before --; removing the strip in inlineModeArgs turns it red. The test still composes helpers by hand (noted, not re-raised).
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Plan Core concepts and Task 7 now name ProviderGrokACPJSONLV1 grok-acp-jsonl-v1.
+findings:
+  - id: new
+    severity: Minor
+    family: double-dash-boundary
+    title: |
+      hasFlag in shouldMintSessionID reads prompt text after --, so the -- boundary has no single source
+    detail: |
+      2nd finding in this family. agentargs.go:17,259-260 scan the whole argv; measured shouldMintSessionID claude with args [--, --fork-session] returns false, so prompt text suppresses the mint. Rule: every argv reader or editor sees only the flag region before the first --. Fix by exporting one FlagRegion helper (today written five ways across resumeform.beforeDoubleDash, Strip, stripValuelessFlag, stripFlagAllForms, insertBeforeDoubleDash), route hasFlag through it, and extend TestStripHelpersStopAtDoubleDash to readers.
+```
