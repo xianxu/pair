@@ -89,7 +89,12 @@ func Start(ctx context.Context, cfg Config) (*Session, error) {
 	s := &Session{token: token, cfg: cfg, pointer: newPointerState(), done: make(chan struct{})}
 	hubOpts := cfg.Hub
 	// The hub calls this on its own goroutine, which must not block.
-	hubOpts.OnPointerHidden = func() { go s.pointerHidden() }
+	// It records the flip generation it fired under, so a report that
+	// arrives after the operator flipped pointing again is ignored.
+	hubOpts.OnPointerHidden = func() {
+		gen := s.pointer.generation()
+		go s.pointerHidden(gen)
+	}
 	hub := NewHub(hubOpts)
 	srv := &http.Server{
 		Handler: NewServer(ServerOptions{Token: token, Hub: hub, Ping: cfg.Ping, Theme: cfg.Theme,
@@ -142,7 +147,7 @@ func (s *Session) Activate() { s.hub.Activate() }
 // closes when they have. Idempotent: the first reason wins.
 func (s *Session) Stop(reason error) {
 	s.stopOnce.Do(func() {
-		_, _, _ = s.pointer.set(false, nil)
+		s.pointer.stop()
 		s.hub.Close(reason)
 		s.reason = s.hub.Err()
 		go s.teardown()
@@ -340,8 +345,8 @@ func (s *Session) PointerLink() string {
 
 // pointerHidden turns pointing off because the active marker stayed off the
 // operator's screen (the hub has already disarmed its watch).
-func (s *Session) pointerHidden() {
-	if _, changed, _ := s.pointer.set(false, nil); changed && s.cfg.OnPointerOff != nil {
+func (s *Session) pointerHidden(gen uint64) {
+	if s.pointer.offIfGeneration(gen) && s.cfg.OnPointerOff != nil {
 		s.cfg.OnPointerOff()
 	}
 }

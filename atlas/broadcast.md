@@ -230,7 +230,7 @@ and it is kept narrow.
   2. `Content-Type: application/json` (415);
   3. an in-flight cap of 4 (429);
   4. a token bucket of 30/s per link (429);
-  5. a 5s read deadline for this request only;
+  5. a 2s read deadline for this request only;
   6. a body capped at 4 KB (`MaxBytesReader`, 413);
   7. `ParsePointBatch`: strict JSON, known fields only, 1..64 integer cell
      pairs inside a stated grid of at most 1000×1000, fixed errors that echo

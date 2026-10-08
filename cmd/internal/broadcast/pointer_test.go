@@ -411,3 +411,36 @@ func TestPointerSlowBodyIsBadRequest(t *testing.T) {
 		t.Fatal("slow body never timed out")
 	}
 }
+
+func TestPointerAfterStop(t *testing.T) {
+	p := startPointerSession(t)
+	p.s.Stop(nil)
+	<-p.s.Done()
+	if link, err := p.s.EnablePointer(); err == nil {
+		t.Fatalf("EnablePointer after Stop minted %q", link)
+	}
+}
+
+// A watch report from before the operator flipped pointing off and on again
+// doesn't turn the new pointing off.
+func TestPointerLateHiddenReportIgnored(t *testing.T) {
+	p := startPointerSession(t)
+	p.s.EnablePointer()
+	stale := p.s.pointer.generation()
+	p.s.DisablePointer()
+	p.s.EnablePointer()
+	p.s.pointerHidden(stale)
+	if on, _ := p.s.pointer.On(); !on {
+		t.Fatal("a stale watch report turned re-enabled pointing off")
+	}
+	p.mu.Lock()
+	offs := p.offs
+	p.mu.Unlock()
+	if offs != 0 {
+		t.Fatal("OnPointerOff called for a stale report")
+	}
+	p.s.pointerHidden(p.s.pointer.generation())
+	if on, _ := p.s.pointer.On(); on {
+		t.Fatal("a current watch report didn't turn pointing off")
+	}
+}

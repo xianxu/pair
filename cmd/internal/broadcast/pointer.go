@@ -15,6 +15,8 @@ type PointerState struct {
 	mu      sync.Mutex
 	token   string
 	on      bool
+	gen     uint64 // bumped on every flip; a late watch report names the gen it saw
+	stopped bool   // the broadcast ended: pointing can't be turned on again
 	limit   *RateLimit
 	changed chan struct{} // closed and replaced on every flip
 	// inFlight is a semaphore: a request holds a slot while it is read and
@@ -70,6 +72,9 @@ func (p *PointerState) allow(now time.Time) bool {
 func (p *PointerState) set(on bool, mint func() (string, error)) (string, bool, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if on && p.stopped {
+		return "", false, ErrHubClosed
+	}
 	if on && p.token == "" {
 		token, err := mint()
 		if err != nil {
@@ -81,6 +86,7 @@ func (p *PointerState) set(on bool, mint func() (string, error)) (string, bool, 
 		return p.token, false, nil
 	}
 	p.on = on
+	p.gen++
 	close(p.changed)
 	p.changed = make(chan struct{})
 	return p.token, true, nil
@@ -90,4 +96,35 @@ func (p *PointerState) link() string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.token
+}
+
+// generation is the current flip count.
+func (p *PointerState) generation() uint64 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.gen
+}
+
+// offIfGeneration turns pointing off only if nothing flipped since gen,
+// reporting whether it did. A watch report that arrives after the operator
+// turned pointing off and on again must not turn the new pointing off.
+func (p *PointerState) offIfGeneration(gen uint64) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.gen != gen || !p.on {
+		return false
+	}
+	p.on = false
+	p.gen++
+	close(p.changed)
+	p.changed = make(chan struct{})
+	return true
+}
+
+// stop turns pointing off for good.
+func (p *PointerState) stop() {
+	_, _, _ = p.set(false, nil)
+	p.mu.Lock()
+	p.stopped = true
+	p.mu.Unlock()
 }
