@@ -1,10 +1,19 @@
 ---
 id: 000379
-status: working
+status: codecomplete
 created: 2026-10-01
-updated: 2026-10-03
+updated: 2026-10-07
 estimate_hours:
 github_issue:
+started: 2026-10-03T11:34:37-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
+actual_hours: 5.74
 tracker:
     version: 1
     handoff:
@@ -17,14 +26,11 @@ tracker:
         source_blob: 9b7494eb103f984bc090c715109b80492bc661c4
         destination: workshop/issues/000379-stray-turn-end-text.md
         main_commit: f0c1e56689469666b1aaaac708538cbf95f06f1d
-started: 2026-10-03T11:34:37-07:00
-claimant:
-    operator: T
-    machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: Xian’s MacBook Pro
-    workspace: pair:2
-    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
-    repository: github.com/xianxu/pair
+    completion:
+        token: close-53a42028292f
+        repository: github.com/xianxu/pair
+        reviewed_head: 1271bf178b102a6b33536781a151943fb96f4b93
+        evidence_commit: a3083665d43bc6e20b5537691b806f32354e9555
 ---
 
 # Turn-end text flashes at focused pane cursor
