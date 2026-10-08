@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"reflect"
+	"slices"
 	"testing"
 )
 
@@ -172,19 +173,71 @@ func TestMuseResumeArgs(t *testing.T) {
 	}
 }
 
-// Named case for the idempotence behavior a port silently breaks (judge INFO #3).
-func TestCodexAltScreenIdempotent(t *testing.T) {
-	// Appends when absent.
-	if got := codexAltScreenArgs([]string{"resume", "x"}, false); !reflect.DeepEqual(got, []string{"resume", "x", "--no-alt-screen"}) {
-		t.Errorf("append when absent: %v", got)
+// Named case for the idempotence behavior a port silently breaks (judge INFO #3),
+// ranged over every harness the inline-mode table names.
+func TestInlineModeIdempotent(t *testing.T) {
+	for agent, mode := range inlineModes {
+		// Inserted when absent.
+		if got := inlineModeArgs(agent, []string{"resume", "x"}, nil); !reflect.DeepEqual(got, []string{"resume", "x", mode.flag}) {
+			t.Errorf("%s insert when absent: %v", agent, got)
+		}
+		// Idempotent: an existing flag is stripped before re-inserting (no dup).
+		if got := inlineModeArgs(agent, []string{"resume", "x", mode.flag}, nil); !reflect.DeepEqual(got, []string{"resume", "x", mode.flag}) {
+			t.Errorf("%s no duplicate on re-apply: %v", agent, got)
+		}
+		// Opt-out strips it and does not re-insert.
+		if got := inlineModeArgs(agent, []string{"resume", "x", mode.flag}, map[string]bool{agent: true}); !reflect.DeepEqual(got, []string{"resume", "x"}) {
+			t.Errorf("%s opt-out strips: %v", agent, got)
+		}
+		// Each agent's opt-out env is read on its own.
+		if got := InlineOptOuts(func(key string) string { return map[string]string{mode.optOutEnv: "1"}[key] }); !got[agent] || len(got) != 1 {
+			t.Errorf("%s opt-out env %s read as %v", agent, mode.optOutEnv, got)
+		}
 	}
-	// Idempotent: an existing --no-alt-screen is stripped before re-appending (no dup).
-	if got := codexAltScreenArgs([]string{"resume", "x", "--no-alt-screen"}, false); !reflect.DeepEqual(got, []string{"resume", "x", "--no-alt-screen"}) {
-		t.Errorf("no duplicate on re-apply: %v", got)
+	if got := inlineModeArgs("claude", []string{"--model", "m"}, nil); !reflect.DeepEqual(got, []string{"--model", "m"}) {
+		t.Errorf("claude has no inline mode but got %v", got)
 	}
-	// Opt-out strips it and does not re-append.
-	if got := codexAltScreenArgs([]string{"resume", "x", "--no-alt-screen"}, true); !reflect.DeepEqual(got, []string{"resume", "x"}) {
-		t.Errorf("opt-out strips: %v", got)
+}
+
+// Everything pair inserts into an agent's argv (the inline flag, a minted
+// --session-id, a resume token) lands before the first `--`: an agent reads
+// every word after it as prompt text (grok's [PROMPT], codex's prompt).
+func TestPairInsertedTokensPrecedeDoubleDash(t *testing.T) {
+	for _, agent := range AgentInventory() {
+		for _, saved := range [][]string{{"--model", "m"}, {"--model", "m", "--", "fix", "it"}, {"--", "--resume", "x"}} {
+			args := composeResumeArgs(agent, saved, "SID")
+			args = insertBeforeDoubleDash(args, "--session-id", "MINT")
+			args = inlineModeArgs(agent, args, nil)
+			args = inlineModeArgs(agent, args, nil) // Alt+n re-applies on restart
+			dash := slices.Index(args, "--")
+			if dash < 0 {
+				continue
+			}
+			tail := args[dash+1:]
+			want := saved[slices.Index(saved, "--")+1:]
+			if !reflect.DeepEqual(tail, want) {
+				t.Errorf("%s %v: tail after -- = %v, want the user's %v", agent, saved, tail, want)
+			}
+		}
+	}
+	for _, tc := range []struct{ in, want []string }{
+		{[]string{"a"}, []string{"a", "X"}},
+		{[]string{"a", "--", "b"}, []string{"a", "X", "--", "b"}},
+		{[]string{"--", "b"}, []string{"X", "--", "b"}},
+		{nil, []string{"X"}},
+	} {
+		if got := insertBeforeDoubleDash(tc.in, "X"); !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("insertBeforeDoubleDash(%v) = %v, want %v", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestGrokResumeToken(t *testing.T) {
+	if got := composeResumeArgs("grok", []string{"--model", "m", "--", "fix it"}, "SID"); !reflect.DeepEqual(got, []string{"--model", "m", "--resume", "SID", "--", "fix it"}) {
+		t.Errorf("grok resume compose = %v", got)
+	}
+	if got := persistedConfigArgs("grok", []string{"-c", "--model", "m", "-s", "u", "--resume", "r", "--session-id=v"}); !reflect.DeepEqual(got, []string{"--model", "m"}) {
+		t.Errorf("grok persisted args kept a context selector: %v", got)
 	}
 }
 
@@ -192,13 +245,16 @@ func TestCodexAltScreenIdempotent(t *testing.T) {
 // supported agent is ranged, so a sixth agent joining the inventory must
 // declare which side of the mint set it is on.
 func TestShouldMintSessionID(t *testing.T) {
-	minters := map[string]bool{"claude": true, "qoder": true}
+	minters := map[string]bool{"claude": true, "qoder": true, "grok": true}
 	for _, agent := range AgentInventory() {
 		if got := shouldMintSessionID(agent, "", nil); got != minters[agent] {
 			t.Errorf("fresh %s with no resume/flags: mint = %v, want %v", agent, got, minters[agent])
 		}
 	}
-	for _, agent := range []string{"claude", "qoder"} {
+	if shouldMintSessionID("grok", "", []string{"-s", "u"}) || shouldMintSessionID("grok", "", []string{"--session-id=u"}) {
+		t.Error("grok user-typed -s/--session-id= → their uuid wins, skip (no two ids on one command line)")
+	}
+	for _, agent := range []string{"claude", "qoder", "grok"} {
 		if shouldMintSessionID(agent, "resumed-sid", nil) {
 			t.Errorf("%s explicit resume already pinned → skip", agent)
 		}

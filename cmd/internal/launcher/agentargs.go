@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/resumeform"
@@ -146,14 +147,15 @@ func codexValueGlobalOption(arg string) bool {
 // resumeToken is the per-agent surface for resuming a session id: claude uses
 // `--resume <id>`, codex uses the `resume <id>` subcommand, agy uses
 // `--conversation <id>`, muse uses `resume <id>` (like codex), qoder uses
-// `--resume <id>` (like claude; a global flag, any position). Empty sid (or an
-// unknown agent) yields no token.
+// `--resume <id>` (like claude; a global flag, any position), and so does grok
+// (`-r/--resume [id]`, measured at 1.0.46). Empty sid (or an unknown agent)
+// yields no token.
 func resumeToken(agent, sid string) []string {
 	if sid == "" {
 		return nil
 	}
 	switch agent {
-	case "claude", "qoder":
+	case "claude", "qoder", "grok":
 		return []string{"--resume", sid}
 	case "codex":
 		return []string{"resume", sid}
@@ -168,8 +170,9 @@ func resumeToken(agent, sid string) []string {
 // composeResumeArgs appends the resume token to the saved args in the order each
 // agent needs. Codex's and muse's `resume` subcommand must sit at args[0] (inner
 // pair + pair-session-watch detection assume that position), so its token goes
-// first; claude's `--resume` flag works anywhere, so saved args keep their leading
-// spot.
+// first; the `--resume` flag works anywhere, so saved args keep their leading
+// spot and the token goes before any `--` (after it, the agent would read the
+// token as prompt text).
 func composeResumeArgs(agent string, savedArgs []string, sid string) []string {
 	token := resumeToken(agent, sid)
 	if len(token) == 0 {
@@ -178,38 +181,82 @@ func composeResumeArgs(agent string, savedArgs []string, sid string) []string {
 	if agent == "codex" || agent == "muse" {
 		return append(append([]string(nil), token...), savedArgs...)
 	}
-	return append(append([]string(nil), savedArgs...), token...)
+	return insertBeforeDoubleDash(savedArgs, token...)
 }
 
-// codexAltScreenArgs forces codex into inline mode (--no-alt-screen) so its
-// conversation flows through zellij's scrollback (alt-screen has none). Strips an
-// existing --no-alt-screen first so repeated Alt+n restarts don't accumulate
-// duplicates; optOut (PAIR_CODEX_ALT_SCREEN=1) leaves it off.
-func codexAltScreenArgs(args []string, optOut bool) []string {
-	stripped := stripValuelessFlag(args, "--no-alt-screen")
-	if optOut {
+// insertBeforeDoubleDash returns a copy of args with tokens inserted before the
+// first `--`, or appended when there is none. Every token pair adds to an
+// agent's argv goes through here: an agent reads whatever follows `--` as
+// prompt text.
+func insertBeforeDoubleDash(args []string, tokens ...string) []string {
+	at := slices.Index(args, "--")
+	if at < 0 {
+		at = len(args)
+	}
+	out := make([]string, 0, len(args)+len(tokens))
+	out = append(out, args[:at]...)
+	out = append(out, tokens...)
+	return append(out, args[at:]...)
+}
+
+// inlineMode is a harness's inline (no alternate screen) flag: pair forces it
+// so the conversation flows through zellij's scrollback (alt-screen has none),
+// unless the operator sets optOutEnv=1.
+type inlineMode struct{ flag, optOutEnv string }
+
+var inlineModes = map[string]inlineMode{
+	"codex": {flag: "--no-alt-screen", optOutEnv: "PAIR_CODEX_ALT_SCREEN"},
+	"grok":  {flag: "--no-alt-screen", optOutEnv: "PAIR_GROK_ALT_SCREEN"},
+}
+
+// InlineOptOuts reads every harness's opt-out env once, at launch.
+func InlineOptOuts(getenv func(string) string) map[string]bool {
+	out := map[string]bool{}
+	for agent, mode := range inlineModes {
+		if getenv(mode.optOutEnv) == "1" {
+			out[agent] = true
+		}
+	}
+	return out
+}
+
+// inlineModeArgs forces the agent's inline flag (before any `--`). An existing
+// flag is stripped first so repeated Alt+n restarts don't accumulate
+// duplicates; an agent the operator opted out keeps it off. Agents with no
+// inline mode pass through unchanged.
+func inlineModeArgs(agent string, args []string, optOut map[string]bool) []string {
+	mode, ok := inlineModes[agent]
+	if !ok {
+		return append([]string(nil), args...)
+	}
+	stripped := stripValuelessFlag(args, mode.flag)
+	if optOut[agent] {
 		return stripped
 	}
-	return append(stripped, "--no-alt-screen")
+	return insertBeforeDoubleDash(stripped, mode.flag)
 }
 
 // MintsSessionID reports whether pair pins a caller-minted --session-id at
 // launch: claude, whose jsonl is keyed by the id pair chooses (#20), and
 // qoder, which honors the same flag (verified live at 1.1.60 — the transcript
-// lands under ~/.qoder/projects/<slug>/<minted id>.jsonl). Every other agent's
-// durable binding is established independently by the causal-round watcher.
+// lands under ~/.qoder/projects/<slug>/<minted id>.jsonl), and grok, whose TUI
+// honors it for a new conversation (verified live at 1.0.46 — `grok -s <uuid>`
+// creates ~/.grok/sessions/<cwd>/<uuid>/). Every other agent's durable binding
+// is established independently by the causal-round watcher.
 func MintsSessionID(agent string) bool {
-	return agent == "claude" || agent == "qoder"
+	return agent == "claude" || agent == "qoder" || agent == "grok"
 }
 
 // shouldMintSessionID decides whether the create path should pin a
 // deterministic session id (via --session-id) instead of leaving it to the
 // agent. Skip when a resume already pinned one, when the user passed
-// their own --session-id, or when --fork-session lets the agent allocate
-// internally.
+// their own session id (--session-id, or a spelling from the agent's
+// resumeform SessionID group such as grok's -s), or when --fork-session lets
+// the agent allocate internally.
 func shouldMintSessionID(agent, explicitResume string, agentExtra []string) bool {
 	return MintsSessionID(agent) && explicitResume == "" &&
-		!hasFlag(agentExtra, "--session-id") && !hasFlag(agentExtra, "--fork-session")
+		!hasFlag(agentExtra, "--session-id") && !resumeform.HasSessionID(agent, agentExtra) &&
+		!hasFlag(agentExtra, "--fork-session")
 }
 
 // persistedConfigArgs strips every resume binding from saved launch

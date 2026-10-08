@@ -56,7 +56,9 @@ func TestCouchCodexLaunchUsesCurrentShellEnvironment(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			want := []string{"--model", "model", "--", "prompt", "--no-alt-screen"}
+			// The inline flag lands before `--`: after it, codex would read
+			// the flag as prompt text (#410).
+			want := []string{"--model", "model", "--no-alt-screen", "--", "prompt"}
 			if hosted {
 				want = append([]string{"--disable", "shell_snapshot"}, want...)
 			}
