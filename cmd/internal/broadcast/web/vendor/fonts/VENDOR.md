@@ -53,8 +53,9 @@ Why (#415): JetBrains Mono lacks some symbols agents draw, among them `⏺`
 `⏸` `✳` `✔` and the braille spinner frames. iPad Safari falls back per
 character and draws several of them as Apple Color Emoji. The viewer lists
 this font as "Couch Symbols" after JetBrains Mono, with a `unicode-range` of
-exactly `symbols.txt`, so the browser fetches it only when one of those
-symbols is on screen.
+exactly `symbols.txt`, so only those symbols draw from it. `viewer.js`
+preloads it with the other faces: xterm.js measures each character on first
+draw, and a face fetched lazily by that draw is measured as its fallback.
 
 The subset is **modified**: each glyph is moved into JetBrains Mono's 600-unit
 cell, centred by its own advance box, and scaled down only if it would

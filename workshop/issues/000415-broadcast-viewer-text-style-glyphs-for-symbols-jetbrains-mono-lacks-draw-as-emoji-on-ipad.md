@@ -15,7 +15,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "5d3cdc5f", done: "752969f7"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # Broadcast viewer: text-style glyphs for symbols JetBrains Mono lacks (⏸ ⏺ draw as emoji on iPad)
@@ -59,7 +59,8 @@ emoji it picks Apple Color Emoji. Found in the #412 smoke on 2026-10-08.
 - On an iPad (manual smoke), `LIVE ⏸` and Claude Code's `⏺` bullets draw as
   plain text symbols in the viewer, matching the operator's terminal.
 - The font file is vendored with source, licence and checksum (`VENDOR.md`),
-  served only under the token, and loaded only for its `unicode-range`; a
+  served only under the token, and used only for its `unicode-range` (loaded
+  up front before xterm.js measures, see Revisions); a
   server test covers the route, and the page lint still allows no other
   origin.
 - A width test shows these symbols keep the column width Couch counts.
@@ -76,11 +77,13 @@ emoji it picks Apple Color Emoji. Found in the #412 smoke on 2026-10-08.
 - [x] "Couch Symbols" `@font-face` + `unicode-range`, viewer font stack, route
 - [x] Tests: route + unlisted-file 404s, cmap == list == CSS range, Couch
       width 1 and 600-unit advance per symbol
-- [ ] iPad smoke (operator)
+- [x] iPad smoke (operator): passed on the second build (6706f8e3)
 
 ## Log
 
 ### 2026-10-08
+- 2026-10-08: closed — iPad Safari smoke passed (operator, 6706f8e3): ⏸ ⏺ draw as text in-cell, no column loss; go test ./cmd/internal/broadcast green (route, cmap==list==CSS range, Couch width 1 + 600-unit advance, preload guard; mutation caught); node viewer tests 28/28; make -k test failures pre-existing on main or session-env (logged); actual measured by sdlc actual from pair:6 (transcript cwd); review verdict: FIX-THEN-SHIP
+- 2026-10-08: flow upgraded quick → full — 349 added lines in code files (limit 100)
 
 - Filed from #412's smoke, kept out of #412 to avoid scope creep.
 - Operator: agents in Couch will use more such characters for ASCII art;
@@ -113,6 +116,8 @@ emoji it picks Apple Color Emoji. Found in the #412 smoke on 2026-10-08.
   the next cell drew under it. Fix: `loadFont` also loads "Couch Symbols"
   (`SYMBOL_SAMPLE` ⏺) before the terminal opens. `TestViewerPreloadsSymbolFont`
   guards it. The atlas's "no preload needed" claim was wrong and is corrected.
+- iPad smoke 2 (operator, 6706f8e3): `LIVE ⏸` sits inside the red background
+  with its gap before 👆, `⏺ The` keeps its space. Operator: "beautifully now".
 
 ## Revisions
 

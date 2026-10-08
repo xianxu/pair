@@ -28,8 +28,9 @@
   src: url("fonts/JetBrainsMono-BoldItalic.woff2") format("woff2");
 }
 /* Symbols JetBrains Mono lacks (#415), which iPad Safari would otherwise
-   draw as emoji: a subset of Noto Sans Symbols 2 (OFL), fetched only when one
-   is on screen. unicode-range is exactly vendor/fonts/symbols.txt. */
+   draw as emoji: a subset of Noto Sans Symbols 2 (OFL). viewer.js preloads it
+   before xterm.js measures (SYMBOL_SAMPLE); it is used only for its
+   unicode-range, which is exactly vendor/fonts/symbols.txt. */
 @font-face {
   font-family: "Couch Symbols";
   font-weight: 100 900;
