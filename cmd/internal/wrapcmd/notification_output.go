@@ -5,15 +5,15 @@ import (
 	"time"
 	"unicode/utf8"
 
-	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/ansi/parser"
+	"github.com/charmbracelet/x/vt/ansiparser"
 	"github.com/xianxu/pair/cmd/internal/notifyosc"
 )
 
 // outputBoundary observes framing only. Invalid UTF-8 makes injection unsafe
 // permanently; original output is always preserved, including malformed bytes.
 type outputBoundary struct {
-	parser       *xansi.Parser
+	parser       *ansiparser.Parser
 	runeBytes    []byte
 	disabled     bool
 	stringKind   byte
@@ -23,7 +23,7 @@ type outputBoundary struct {
 
 func (b *outputBoundary) init() {
 	if b.parser == nil {
-		b.parser = xansi.NewParser()
+		b.parser = ansiparser.NewParser()
 		b.parser.SetDataSize(1)
 	}
 }

@@ -77,6 +77,13 @@ fork in `third_party/vt` preserves upstream provenance and records its narrow
 repairs and bounds in `PAIR_PATCHES.md`. Root Go tests do not traverse that nested
 module; its tests must also run from `third_party/vt`.
 
+Its `ansiparser` subpackage owns the shared streaming parser used by the emulator
+and Pair's control/output observers. UTF-8 continuation bytes remain payload in
+OSC/DCS/SOS/PM/APC rather than becoming C1 controls (#379). The Endpoint Claude
+footer regression must remain when updating/replacing this parser: a notification
+at the nvim-position cursor must emit an intact effect without changing cells.
+See `third_party/vt/ansiparser/README.md` for upstream tracking and provenance.
+
 Verification has three independent layers: literal terminal/frame fixtures,
 `terminalqualify` backend and integration cases, and actual renderer wire interpreted
 by pinned `@xterm/headless` under `tests/terminal-oracle`. Production composition and

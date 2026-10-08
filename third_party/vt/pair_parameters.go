@@ -1,8 +1,8 @@
 package vt
 
 import (
-	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/ansi/parser"
+	"github.com/charmbracelet/x/vt/ansiparser"
 )
 
 // parameterGuard retains evidence the bounded upstream parser discards. It
@@ -16,7 +16,7 @@ type parameterGuard struct {
 	overflow   bool
 }
 
-func (g *parameterGuard) advance(p *ansi.Parser, b byte) bool {
+func (g *parameterGuard) advance(p *ansiparser.Parser, b byte) bool {
 	old := p.State()
 	if old == parser.Utf8State {
 		return true
