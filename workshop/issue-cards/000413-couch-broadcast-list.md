@@ -1,6 +1,6 @@
 ---
 id: 000413
-status: codecomplete
+status: done
 created: 2026-10-08
 updated: 2026-10-08
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 38253a18c998681462aefebafe7e486bded61006
         evidence_commit: 728c8e5611923caa43e6f34b4d994f9c9002ada6
+        landed_commit: 57e5a1481a900045dc45fdf95fcd5085cd0a99c0
 ---
 
 # couch --broadcast-list: print the current broadcast session and its viewer count
