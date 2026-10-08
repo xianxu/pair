@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/resumeform"
@@ -14,10 +15,14 @@ import (
 // cluster scan — the rest of the cluster is that option's glued value).
 // Resume spellings are not restated here: they come from resumeform.Forms
 // (BR-15), so the validator cannot drift from the extractors and strip sites.
+//
+// optionalValue lists value options whose value is optional: the next token
+// is consumed only when it does not itself start with `-`.
 type freshAgentSpec struct {
 	forbiddenFlags string
 	forbiddenShort string
 	valueShort     string
+	optionalValue  string
 }
 
 var freshAgentSpecs = map[string]freshAgentSpec{
@@ -25,6 +30,7 @@ var freshAgentSpecs = map[string]freshAgentSpec{
 		forbiddenFlags: "--continue --session-id --fork-session --from-pr --teleport --cloud",
 		forbiddenShort: "c",
 		valueShort:     "nwd",
+		optionalValue:  "-d --debug -w --worktree --prompt-suggestions --remote-control",
 	},
 	"agy": {
 		forbiddenFlags: "-c --continue -continue -conversation",
@@ -33,7 +39,20 @@ var freshAgentSpecs = map[string]freshAgentSpec{
 		forbiddenFlags: "--continue --session-id --fork-session --remote --remote-session --teleport --remote-control --list-sessions --delete-session",
 		forbiddenShort: "c",
 		valueShort:     "mniwo",
+		optionalValue:  "--worktree",
 	},
+	// grok's resume, session-id and continue spellings come from resumeform
+	// (Selector, ContextSelector, ContextShortLetters); only --fork-session is
+	// grok-local. -p takes a value (--single <PROMPT>), so `-pr` is `-p r`.
+	"grok": {
+		forbiddenFlags: "--fork-session",
+		valueShort:     "mpw",
+		optionalValue:  "-w --worktree",
+	},
+}
+
+func (spec freshAgentSpec) takesOptionalValue(flag string) bool {
+	return slices.Contains(strings.Fields(spec.optionalValue), flag)
 }
 
 func (spec freshAgentSpec) forbidsFlag(flag string) bool {
@@ -52,7 +71,7 @@ func (spec freshAgentSpec) forbidsFlag(flag string) bool {
 // letter ends the scan — the remainder is that option's glued value, so `-nr`
 // is `-n r`, not a resume.
 func (spec freshAgentSpec) forbidsCluster(agent, cluster string) bool {
-	forbidden := spec.forbiddenShort + resumeform.ShortLetters(agent)
+	forbidden := spec.forbiddenShort + resumeform.ShortLetters(agent) + resumeform.ContextShortLetters(agent)
 	for _, r := range cluster[1:] {
 		if strings.ContainsRune(spec.valueShort, r) {
 			return false
@@ -87,7 +106,7 @@ func ValidateFreshAgentArgs(agent string, argv []string) error {
 			return nil
 		}
 		flag, _, inline := strings.Cut(arg, "=")
-		forbidden := spec.forbidsFlag(flag) || resumeform.Selector(agent, arg)
+		forbidden := spec.forbidsFlag(flag) || resumeform.Selector(agent, arg) || resumeform.ContextSelector(agent, arg)
 		if agent == "muse" && flag == "--session-id" {
 			forbidden = true
 		}
@@ -106,10 +125,7 @@ func ValidateFreshAgentArgs(agent string, argv []string) error {
 				continue
 			}
 			if !inline && freshValueOption(agent, flag) && i+1 < len(argv) {
-				if agent == "claude" && (flag == "-d" || flag == "--debug" || flag == "-w" || flag == "--worktree" || flag == "--prompt-suggestions" || flag == "--remote-control") && strings.HasPrefix(argv[i+1], "-") {
-					continue
-				}
-				if agent == "qoder" && flag == "--worktree" && strings.HasPrefix(argv[i+1], "-") {
+				if spec.takesOptionalValue(flag) && strings.HasPrefix(argv[i+1], "-") {
 					continue
 				}
 				i++
@@ -153,6 +169,8 @@ func freshValueOption(agent, flag string) bool {
 		flags = "--add-dir --agent --effort -i --prompt-interactive --input-format --json-schema --log-file --mode --model --new-project --output-format -p --print --prompt --print-timeout --project"
 	case "muse":
 		flags = "--agents --provider --preset --model --reasoning-effort --base-url --image --workspace --worktree-base --worktree-existing --approval-mode --approval-judge --echo-delay-ms --sandbox-network"
+	case "grok":
+		flags = "--agent --agents --allow --cwd --debug-file --deny --disallowed-tools --json-schema --leader-socket --model --max-turns --output-format --single --permission-mode --prompt-file --prompt-json --reasoning-effort --effort --rules --sandbox --system-prompt-override --system-prompt --tools --worktree --worktree-ref --ref -m -p -w"
 	case "qoder":
 		flags = "--model --reasoning-effort --thinking --thinking-budget --context-window --prompt-interactive --cwd --config-dir --permission-mode --allowed-mcp-server-names --allowed-tools --disallowed-tools --attachment --plugin-dir --name --add-dir --output-format --input-format --max-output-tokens --agent --agents --append-system-prompt --system-prompt --output-style --max-model-request-retries --mcp-config --setting-sources --settings --worktree --tools -m -i -w -n -o"
 	}

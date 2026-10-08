@@ -14,10 +14,19 @@ import "strings"
 // glued letter shares the glued reading only at the first position (`-r<id>`);
 // elsewhere (`-pr`) the CLI would read the letters before it, so the cluster
 // letter is refused outright — see ShortLetters.
+//
+// SessionID and Continue are the agent's other context selectors: SessionID
+// spellings pin a caller-chosen id for a NEW conversation (valued: space form
+// or `flag=`), Continue spellings select the cwd's latest conversation
+// (valueless). Neither may persist into saved launch args, and a fresh launch
+// refuses both. Claude and qoder predate these groups; their selectors are
+// still declared in the launcher's fresh spec.
 type Form struct {
-	Space  []string
-	Inline []string
-	Glued  []string
+	Space     []string
+	Inline    []string
+	Glued     []string
+	SessionID []string
+	Continue  []string
 }
 
 var forms = map[string]Form{
@@ -35,6 +44,15 @@ var forms = map[string]Form{
 		Inline: []string{"--resume=", "-r="},
 		Glued:  []string{"-r"},
 	},
+	// grok 1.0.46: `-r/--resume [id-or-title]` (optional value), `-s/--session-id
+	// <uuid>` for a new conversation, `-c/--continue` for the cwd's latest.
+	"grok": {
+		Space:     []string{"--resume", "-r"},
+		Inline:    []string{"--resume=", "-r="},
+		Glued:     []string{"-r"},
+		SessionID: []string{"--session-id", "-s"},
+		Continue:  []string{"--continue", "-c"},
+	},
 }
 
 // Forms returns a copy of the whole table. Read-only consumers and tests use
@@ -44,9 +62,11 @@ func Forms() map[string]Form {
 	out := make(map[string]Form, len(forms))
 	for agent, form := range forms {
 		out[agent] = Form{
-			Space:  append([]string(nil), form.Space...),
-			Inline: append([]string(nil), form.Inline...),
-			Glued:  append([]string(nil), form.Glued...),
+			Space:     append([]string(nil), form.Space...),
+			Inline:    append([]string(nil), form.Inline...),
+			Glued:     append([]string(nil), form.Glued...),
+			SessionID: append([]string(nil), form.SessionID...),
+			Continue:  append([]string(nil), form.Continue...),
 		}
 	}
 	return out
@@ -66,6 +86,74 @@ func ShortLetters(agent string) string {
 		}
 	}
 	return letters
+}
+
+// ContextShortLetters returns the single-letter SessionID and Continue
+// spellings (`-s`, `-c` yield `sc`). Like ShortLetters, a fresh launch refuses
+// a short-flag cluster containing one of them in any position.
+func ContextShortLetters(agent string) string {
+	form := forms[agent]
+	var letters string
+	for _, spelling := range append(append([]string(nil), form.SessionID...), form.Continue...) {
+		letter, ok := strings.CutPrefix(spelling, "-")
+		if ok && len(letter) == 1 {
+			letters += letter
+		}
+	}
+	return letters
+}
+
+// ContextSelector reports whether one argv token is a SessionID spelling (bare,
+// `flag=value`, or a single-letter spelling with its value glued: `-s<id>`) or
+// a Continue spelling for the agent.
+func ContextSelector(agent, tok string) bool {
+	form := forms[agent]
+	return sessionIDToken(form, tok) || hasSpelling(form.Continue, tok)
+}
+
+// HasSessionID reports whether args already pin a session id through one of
+// the agent's SessionID spellings, so the launcher must not mint another.
+// Prompt text after `--` is not a binding.
+func HasSessionID(agent string, args []string) bool {
+	form := forms[agent]
+	for _, tok := range FlagRegion(args) {
+		if sessionIDToken(form, tok) {
+			return true
+		}
+	}
+	return false
+}
+
+// sessionIDToken reports whether tok spells a session id: bare, `flag=value`,
+// or glued to a single-letter spelling (`-s<id>`).
+func sessionIDToken(form Form, tok string) bool {
+	flag, _, _ := strings.Cut(tok, "=")
+	return hasSpelling(form.SessionID, flag) || gluedValue(shortSpellings(form.SessionID), tok) != ""
+}
+
+// shortSpellings keeps the single-letter spellings (`-s`), the only ones that
+// take a glued value.
+func shortSpellings(spellings []string) []string {
+	var short []string
+	for _, spelling := range spellings {
+		if letter, ok := strings.CutPrefix(spelling, "-"); ok && len(letter) == 1 {
+			short = append(short, spelling)
+		}
+	}
+	return short
+}
+
+// FlagRegion returns the argv prefix that can hold flags: everything after the
+// first `--` is the agent's prompt text, never a binding and never a flag. It
+// is the ONE statement of that boundary — every argv reader and editor in the
+// launcher, sessionwatch and this package goes through it.
+func FlagRegion(args []string) []string {
+	for i, tok := range args {
+		if tok == "--" {
+			return args[:i]
+		}
+	}
+	return args
 }
 
 // Selector reports whether one argv token spells a resume binding for the
@@ -95,7 +183,7 @@ func Extract(agent string, args []string) string {
 		return ""
 	}
 	prev := ""
-	for _, tok := range args {
+	for _, tok := range FlagRegion(args) {
 		if !strings.HasPrefix(tok, "-") && hasSpelling(form.Space, prev) {
 			return tok
 		}
@@ -114,23 +202,29 @@ func Extract(agent string, args []string) string {
 // space form followed by another flag was valueless: only the flag token is
 // dropped, never the next flag. Strictly per-agent: another agent's spelling
 // (or a glued `-r<x>` for an agent with no glued form) is not a resume binding
-// here and is preserved.
+// here and is preserved. Prompt text after `--` is kept verbatim.
 func Strip(agent string, args []string) []string {
 	form := forms[agent]
+	flags := FlagRegion(args)
 	out := make([]string, 0, len(args))
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
+	for i := 0; i < len(flags); i++ {
+		arg := flags[i]
 		switch {
 		case hasSpelling(form.Space, arg):
-			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+			if i+1 < len(flags) && !strings.HasPrefix(flags[i+1], "-") {
 				i++
 			}
+		case hasSpelling(form.SessionID, arg):
+			if i+1 < len(flags) {
+				i++
+			}
+		case hasSpelling(form.Continue, arg), sessionIDToken(form, arg):
 		case inlineToken(form, arg), gluedValue(form.Glued, arg) != "":
 		default:
 			out = append(out, arg)
 		}
 	}
-	return out
+	return append(out, args[len(flags):]...)
 }
 
 func inlineToken(form Form, tok string) bool {

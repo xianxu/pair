@@ -18,6 +18,7 @@ const (
 	AgentAgy    Agent = "agy"
 	AgentMuse   Agent = "muse"
 	AgentQoder  Agent = "qoder"
+	AgentGrok   Agent = "grok"
 )
 
 type Role string

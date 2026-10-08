@@ -23,6 +23,7 @@ func TestHarnessTTYProfileRegistry(t *testing.T) {
 		"agy":    agyComposerActive,
 		"muse":   museComposerActive,
 		"qoder":  qoderComposerActive,
+		"grok":   grokComposerActive,
 	}
 	tests := map[string]wantProfile{
 		"claude": {[]byte{'\\', '\r'}, []byte{'\r'}, ctrlU, detectClaudeOverlayOpen, composerGatePositive, false},
@@ -30,6 +31,7 @@ func TestHarnessTTYProfileRegistry(t *testing.T) {
 		"agy":    {[]byte{'\n'}, []byte{'\r'}, ctrlU, detectAgyOverlayOpen, composerGatePositive, false},
 		"muse":   {[]byte("\x1b[13;2u"), []byte{'\r'}, ctrlU, detectMuseOverlayOpen, composerGatePositive, false},
 		"qoder":  {[]byte{'\\', '\r'}, []byte{'\r'}, ctrlU, detectQoderOverlayOpen, composerGatePositive, false},
+		"grok":   {[]byte{0x1b, '\r'}, []byte{'\r'}, ctrlU, detectGrokOverlayOpen, composerGatePositive, false},
 	}
 
 	for harness, want := range tests {

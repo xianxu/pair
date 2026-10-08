@@ -41,6 +41,7 @@ func NewOSRuntime(homeDir, pairDataDir string) OSRuntime {
 			},
 			AgentMuse:  {{Agent: AgentMuse, Name: "muse-sessions", Path: filepath.Join(homeDir, ".local", "share", "muse", "sessions")}},
 			AgentQoder: {{Agent: AgentQoder, Name: "qoder-projects", Path: filepath.Join(homeDir, ".qoder", "projects")}},
+			AgentGrok:  {{Agent: AgentGrok, Name: grokSessionsRoot, Path: filepath.Join(homeDir, ".grok", "sessions")}},
 		},
 		pairRoot: StorageRoot{Name: "pair-data", Path: pairDataDir},
 	}

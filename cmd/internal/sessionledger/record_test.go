@@ -86,7 +86,7 @@ func TestParseLedgerRejectsUnsupportedTypedAgentsAcrossKinds(t *testing.T) {
 
 func TestParseLedgerAcceptsEverySupportedTypedAgent(t *testing.T) {
 	t.Parallel()
-	for _, agent := range []string{"claude", "codex", "agy", "muse", "qoder"} {
+	for _, agent := range []string{"claude", "codex", "agy", "muse", "qoder", "grok"} {
 		row := `{"v":1,"kind":"launch","scope_key":"scope","tag":"work","agent":"` + agent + `","pair_log_offset":0,"native_watermarks":[]}`
 		parsed := ParseLedger([]byte(row + "\n"))
 		if len(parsed.Records) != 1 || parsed.Records[0].Agent != agent || len(parsed.MalformedOrdinals) != 0 {

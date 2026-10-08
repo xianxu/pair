@@ -724,3 +724,19 @@ proof; record the surprising case so the next change starts from evidence.
   (commit dates, plus the transcripts of the slot it runs in) read 1.79h for
   the whole issue, against 1.75h for M1 alone. M3–M5 and the close went
   unmeasured. A later `git merge origin/main` changed nothing that existed.
+- Every argv reader and editor sees only the flag region before the first
+  `--` (`resumeform.FlagRegion`). #410 BR-3/BR-6: the boundary was honored by
+  the inserter, ignored by the strippers (they ate prompt text), and ignored by
+  `hasFlag` (prompt text `--fork-session` suppressed the session-id mint). One
+  helper, every site routed through it, and a test that places every managed
+  spelling after `--` for every agent.
+- A launcher registry row implies ledger membership and the whole session side
+  in the same boundary. #410: every launch encodes a ledger record for its
+  agent, so "registered, session side pending" is not a launchable state; a
+  known-gap interim that only the parity test tolerates hides that the agent
+  cannot start.
+- Amend `## Done when` with a `## Revisions` entry the moment an item is
+  dropped or moved, not only in Log prose. #410's close review (BR-7) blocked
+  on three Done-when items the operator had moved to a follow-up in
+  conversation and the Log, because the contract itself still promised them.
+  Name where each item went (issue id) and add it to that issue's Done-when.

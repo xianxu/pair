@@ -1,0 +1,11 @@
+# Grok's project permission rules for working on pair (#410). The standard
+# dev set every pair harness pre-approves (qoder: .qoder/settings.local.json);
+# Grok also merges this repo's .claude/settings.json rules alongside these.
+[permission]
+rules = [
+  { action = "allow", tool = "bash", pattern = "git *" },
+  { action = "allow", tool = "bash", pattern = "make *" },
+  { action = "allow", tool = "bash", pattern = "sdlc *" },
+  { action = "allow", tool = "bash", pattern = "lsof *" },
+  { action = "allow", tool = "bash", pattern = "zellij *" },
+]

@@ -700,11 +700,17 @@ local function has_ui()
   return vim.g.pair_test_has_ui == true or #vim.api.nvim_list_uis() > 0
 end
 
-local function send_esc_to_agent()
-  -- ESC = 0x1b = 27. Claude reads this as "interrupt current stream".
+_G.PairInterrupt = dofile((debug.getinfo(1, 'S').source:match('@?(.*/)') or './') .. 'interrupt.lua')
+
+-- send_interrupt_to_agent writes the current agent's interrupt byte (ESC for
+-- most; Ctrl+C for grok — see interrupt.lua) into the agent pane. The agent is
+-- read at press time, so a mid-session switch-agent is followed.
+local function send_interrupt_to_agent()
   if not has_ui() then return end
+  local agent = _G.PairInterrupt.current_agent(vim.env.PAIR_AGENT_PATH, vim.env.PAIR_AGENT)
+  local byte = _G.PairInterrupt.byte_for(agent)
   PairZellijTrace.action('draft.interrupt.focus-agent', { 'zellij', 'action', 'move-focus', 'up' })
-  PairZellijTrace.action('draft.interrupt.esc', { 'zellij', 'action', 'write', '27' })
+  PairZellijTrace.action(byte == 27 and 'draft.interrupt.esc' or 'draft.interrupt.ctrl-c', { 'zellij', 'action', 'write', tostring(byte) })
   PairZellijTrace.action('draft.interrupt.focus-draft', { 'zellij', 'action', 'move-focus', 'down' })
 end
 
@@ -3090,11 +3096,8 @@ local function pair_read_saved_config()
   local tag = vim.env.PAIR_TAG
   if not tag or tag == '' then return nil end
 
-  local af = io.open(vim.env.PAIR_AGENT_PATH or '', 'r')
-  if not af then return nil end
-  local agent = af:read('*l')
-  af:close()
-  if not agent or agent == '' then return nil end
+  local agent = _G.PairInterrupt.read_agent_file(vim.env.PAIR_AGENT_PATH)
+  if not agent then return nil end
 
   local cfg = { tag = tag, agent = agent }
   local cf = io.open(vim.env.PAIR_AGENT_CONFIG_PATH or '', 'r')
@@ -3603,13 +3606,14 @@ end
 vim.keymap.set({ 'n', 'i' }, '<M-i>', attach_image,
   { silent = true, desc = 'pair: attach clipboard image (Ctrl+V to agent + ref)' })
 
--- Ctrl+C forwards ESC to the agent. send_esc_to_agent doesn't touch the draft's mode,
+-- Ctrl+C forwards the agent's interrupt (ESC, or Ctrl+C for grok) to the agent.
+-- send_interrupt_to_agent doesn't touch the draft's mode,
 -- so in insert mode
 -- you stay in insert (overriding <C-c>'s usual leave-insert) and in normal
 -- mode the pending-command cancel is given up — both deliberate, so a reflexive
 -- Ctrl+C interrupts the agent's stream without disrupting your draft.
-vim.keymap.set({ 'n', 'i' }, '<C-c>', send_esc_to_agent,
-  { silent = true, desc = 'pair: send ESC to agent (interrupt stream)' })
+vim.keymap.set({ 'n', 'i' }, '<C-c>', send_interrupt_to_agent,
+  { silent = true, desc = 'pair: interrupt the agent (ESC; Ctrl+C for grok)' })
 
 vim.keymap.set({ 'n', 'i' }, '<M-Left>', nav_left,
   { silent = true, desc = 'pair: navigate to older history entry' })

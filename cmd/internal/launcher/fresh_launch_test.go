@@ -3,6 +3,7 @@ package launcher
 import (
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -12,6 +13,7 @@ func TestValidateFreshAgentArgs(t *testing.T) {
 		"codex":  {{"resume"}, {"--model", "x", "fork", "--last"}, {"-cx=y", "resume"}, {"--approve-for-me", "resume"}, {"exec", "--model", "x", "resume"}, {"--add-dir", "/x", "resume", "abc"}, {"--add-dir", "/x", "fork", "--last"}},
 		"agy":    {{"-c"}, {"--continue=true"}, {"--conversation=x"}, {"-conversation=x"}},
 		"muse":   {{"--provider", "echo", "resume"}, {"resume", "--last"}, {"exec", "--session-id=x"}, {"--worktree", "create", "resume"}},
+		"grok":   {{"-c"}, {"--continue"}, {"-r", "abc"}, {"-r"}, {"--resume", "abc"}, {"--resume=abc"}, {"-rabc"}, {"-s", "x"}, {"--session-id", "x"}, {"--session-id=x"}, {"--fork-session"}, {"-vc"}, {"--worktree", "--continue"}, {"-w", "-s", "x"}},
 		"qoder":  {{"-c"}, {"--continue"}, {"-r", "abc"}, {"--resume", "abc"}, {"--resume=abc"}, {"-pr", "sid"}, {"-vr", "sid"}, {"-hr", "x"}, {"--session-id", "x"}, {"--session-id=x"}, {"--fork-session"}, {"--remote"}, {"--remote", "task"}, {"--remote-session", "x"}, {"--teleport", "x"}, {"--remote-control", "x"}, {"--list-sessions"}, {"--delete-session", "1"}, {"-dc"}, {"--debug", "--continue"}, {"--worktree", "--resume"}},
 	} {
 		for _, args := range cases {
@@ -24,6 +26,7 @@ func TestValidateFreshAgentArgs(t *testing.T) {
 		"claude": {{"--model", "--resume"}, {"--system-prompt", "--continue"}, {"--", "--resume"}, {"--name", "attach"}, {"--allowed-tools", "Bash", "attach"}},
 		"codex":  {{"--model", "resume"}, {"-c", "resume"}, {"-mresume"}, {"--", "resume"}, {"a prompt about resume"}},
 		"agy":    {{"--model", "--continue"}}, "muse": {{"--model", "resume"}, {"--provider=resume"}},
+		"grok":  {{"--agent", "X", "hello"}, {"-m", "grok-4.7", "hello"}, {"--worktree", "feat", "hello"}, {"-w", "--model", "m"}, {"--allow", "Bash(git:*)", "hi"}, {"-pr"}, {"-mc"}, {"--model", "--resume"}, {"--", "--resume"}, {"--rules", "-c is fine here", "hi"}, {"hello", "world"}},
 		"qoder": {{"-m", "some-model", "hello"}, {"--model", "m", "-p"}, {"--model", "--resume"}, {"--worktree", "feat", "hello"}, {"--tools", "a", "b", "--", "hi"}, {"-w", "some/dir", "hello"}, {"-dp"}, {"--", "--resume"}, {"hello", "world"}},
 	} {
 		for _, args := range cases {
@@ -137,5 +140,42 @@ func TestFreshCouchFailureNeverPersistsRepoDefault(t *testing.T) {
 				t.Fatalf("default changed: %q", got)
 			}
 		})
+	}
+}
+
+// Every grok short-flag cluster over its selector and value letters is judged
+// by one rule: a selector letter (`c` continue, `s` session id, `r` resume)
+// rejects the launch unless a value-taking letter (`m`, `p`, `w`) precedes it,
+// because the rest of the cluster is then that option's glued value. The
+// enumeration covers every cluster up to length three, so a letter added to
+// either set is exercised by construction.
+func TestGrokFreshClusterRule(t *testing.T) {
+	const letters = "cspmwrv"
+	selector, value := "csr", "mpw"
+	var clusters []string
+	for _, a := range letters {
+		clusters = append(clusters, string(a))
+		for _, b := range letters {
+			clusters = append(clusters, string(a)+string(b))
+			for _, c := range letters {
+				clusters = append(clusters, string(a)+string(b)+string(c))
+			}
+		}
+	}
+	for _, body := range clusters {
+		want := false
+		for _, r := range body {
+			if strings.ContainsRune(value, r) {
+				break
+			}
+			if strings.ContainsRune(selector, r) {
+				want = true
+				break
+			}
+		}
+		err := ValidateFreshAgentArgs("grok", []string{"-" + body})
+		if got := err != nil; got != want {
+			t.Errorf("-%s rejected=%v, want %v (%v)", body, got, want, err)
+		}
 	}
 }

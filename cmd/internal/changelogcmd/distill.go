@@ -9,7 +9,7 @@ import (
 // promptGlyphChar is the per-agent prompt glyph — the SINGLE source for both the
 // line-start regex (promptGlyphByAgent, derived below) and the empty-input-box
 // detection (trimLiveTail), with PromptGlyph as the accessor for external
-// consumers (pinned by wrapcmd's TestDistillQoderGlyphTracksPromptAuthority).
+// consumers (pinned by wrapcmd's TestDistillGlyphsTrackPromptAuthority).
 // Sync-commented to nvim/scrollback.lua PROMPT_PATTERN_BY_AGENT. claude/codex
 // are faithful; agy is a DELIBERATE SIMPLIFICATION of scrollback's box-aware
 // variant (`\(──.*\n\)\zs>` — a `>` only after a `──` line): a bare `>` can
@@ -23,12 +23,16 @@ import (
 // glyph, because the box row itself is matched on its trimmed form. Its yolo
 // `*` glyph is a deliberate omission like agy's above: the captured echo
 // evidence covers default mode only, and a missed boundary degrades gracefully
-// (extra lookback), never corrupts the log.
+// (extra lookback), never corrupts the log. grok's value is its --minimal
+// transcript echo — `❯` at column 0 (grokPromptCol, captured in wrapcmd
+// testdata/prompt-echo/grok/1.0.46/echo.raw) — the same glyph and column as
+// claude's.
 var promptGlyphChar = map[string]string{
 	"claude": "❯",
 	"codex":  "›",
 	"agy":    ">",
 	"qoder":  " >",
+	"grok":   "❯",
 }
 
 // promptGlyphByAgent — line-start regex per agent, derived from promptGlyphChar
@@ -69,13 +73,25 @@ var (
 	// "2 AGENTS.md files · 1 MCP server · 44 skills" — counts churn as the
 	// project's agent files / MCP servers / skills change.
 	qoderHintsRe = regexp.MustCompile(`^\d+ AGENTS\.md files? · `)
+	// grokHintRe matches grok --minimal's hint row above the composer,
+	// "minimal · /help" (captured in wrapcmd testdata/prompt-echo/grok/
+	// 1.0.46/echo.raw).
+	grokHintRe = regexp.MustCompile(`^minimal · `)
+	// grokStatusRe matches grok's status row below the composer, e.g.
+	// "Grok 4.7 (high) · default · 18K / 256K (7%) · ctrl+o transcript" — keyed
+	// on its context meter, which churns every turn.
+	grokStatusRe = regexp.MustCompile(` · \d+(\.\d+)?K ?/ ?\d+K ?\(\d+%\)`)
+	// grokSpinnerRe matches grok's working row ("⠙ Waiting for response… 0.0s
+	// ⇣1.36k"): a braille spinner frame opening the line.
+	grokSpinnerRe = regexp.MustCompile(`^[⠀-⣿] `)
 )
 
 // isFooterChrome reports whether line belongs to the live UI footer — none of
 // which is committed scrollback (#58). The footer is multi-block when the agent
 // is working: a thinking spinner + rule ABOVE the input box, then the box + rule
-// + status below. Claude-shaped, plus qoder's rows (captured live, M5 Task 17);
-// other agents still get the generic blank / box / rule cases.
+// + status below. Claude-shaped, plus qoder's rows (captured live, M5 Task 17)
+// and grok's (--minimal, captured in wrapcmd testdata/prompt-echo/grok/1.0.46/
+// echo.raw); other agents still get the generic blank / box / rule cases.
 func isFooterChrome(line, glyph string) bool {
 	t := strings.TrimSpace(line)
 	switch {
@@ -104,6 +120,12 @@ func isFooterChrome(line, glyph string) bool {
 	case qoderStatusRe.MatchString(t): // "Auto Model · ctx ░░… 0% · ~/workspace/pair"
 		return true
 	case strings.Contains(t, "esc to cancel"): // "⠋ Generating... (esc to cancel, 2s)"
+		return true
+	case grokHintRe.MatchString(t): // grok "minimal · /help"
+		return true
+	case grokStatusRe.MatchString(t): // grok "Grok 4.7 (high) · … · 18K / 256K (7%) · …"
+		return true
+	case grokSpinnerRe.MatchString(t): // grok "⠙ Waiting for response… 0.0s"
 		return true
 	}
 	return false

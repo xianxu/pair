@@ -511,6 +511,64 @@ func TestQoderComposerActiveSnapshotDifferential(t *testing.T) {
 	runComposerSnapshotDifferential(t, cases, qoderComposerActive)
 }
 
+// grokMinimal paints Grok's --minimal composer as captured at 1.0.46: a
+// faint hint row, the prompt row (glyph at grokPromptCol), indented
+// continuation rows, then the `·`-separated status row. Rows are 1-based.
+func grokMinimal(top int, glyph, first string, more ...string) string {
+	row := func(y int, body string) string { return fmt.Sprintf("\x1b[%d;1H%s", y, body) }
+	out := row(top, "\x1b[2mminimal \u00b7 /help\x1b[22m")
+	out += row(top+1, glyph+" "+first)
+	for i, line := range more {
+		out += row(top+2+i, "  "+line)
+	}
+	return out + row(top+2+len(more), "Grok 4.7 (high) \u00b7 default \u00b7 18K / 256K (7%) \u00b7 ctrl+o transcript")
+}
+
+func TestGrokComposerActiveSnapshotDifferential(t *testing.T) {
+	read := func(file string) []byte {
+		raw, err := os.ReadFile("testdata/tty/grok/1.0.46/" + file)
+		if err != nil {
+			t.Fatalf("read literal Grok fixture %s: %v", file, err)
+		}
+		return raw
+	}
+	cursor := func(y, x int) string { return fmt.Sprintf("\x1b[?25h\x1b[%d;%dH", y, x) }
+	textCol := grokPromptCol + 3 // 1-based column of the first draft character
+	cases := []composerDifferentialCase{
+		{name: "literal captured composer", stream: read("composer.raw"), want: true},
+		{name: "literal permission picker", stream: read("overlay.raw"), want: false},
+		{name: "literal question picker", stream: read("selection.raw"), want: false},
+		{name: "generated captured signature", stream: []byte(grokMinimal(6, "\u276f", "") + cursor(7, textCol)), want: true},
+		{name: "cursor on a continuation row", stream: []byte(grokMinimal(6, "\u276f", "alpha", "beta") + cursor(8, textCol+4)), want: true},
+		{name: "blank line inside the draft", stream: []byte(grokMinimal(6, "\u276f", "alpha", "", "gamma") + cursor(9, textCol)), want: true},
+		{name: "hidden system cursor", stream: []byte(grokMinimal(6, "\u276f", "alpha") + "\x1b[?25l\x1b[7;9H"), want: false},
+		{name: "cursor on the status row", stream: []byte(grokMinimal(6, "\u276f", "alpha") + cursor(8, textCol)), want: false},
+		{name: "cursor on the glyph", stream: []byte(grokMinimal(6, "\u276f", "alpha") + cursor(7, 1)), want: false},
+		{name: "unknown glyph", stream: []byte(grokMinimal(6, ">", "alpha") + cursor(7, textCol)), want: false},
+		{
+			// A transcript echo of an earlier prompt is followed by the
+			// reply, not by the status row.
+			name:   "echo followed by the reply",
+			stream: []byte("\x1b[3;1H\u276f reply with just: ok\x1b[5;1Hok\x1b[6;1HWorked for 2.4s" + cursor(3, textCol)),
+			want:   false,
+		},
+		{
+			// The hint row's single separator does not make a status row.
+			name:   "only the hint row below",
+			stream: []byte("\x1b[6;1H\u276f alpha\x1b[7;1Hminimal \u00b7 /help" + cursor(6, textCol)),
+			want:   false,
+		},
+		{
+			// A painted non-continuation row between the prompt and the
+			// cursor ends the draft: the cursor is outside it.
+			name:   "transcript row between prompt and cursor",
+			stream: []byte("\x1b[5;1H\u276f alpha\x1b[6;1Hok\x1b[7;1H  beta\x1b[8;1HGrok 4.7 \u00b7 default \u00b7 ctrl+o transcript" + cursor(7, textCol)),
+			want:   false,
+		},
+	}
+	runComposerSnapshotDifferential(t, cases, grokComposerActive)
+}
+
 func TestComposerRecognizersRejectAdversarialSnapshotsWithoutBlocking(t *testing.T) {
 	maxInt := int(^uint(0) >> 1)
 	snapshots := []struct {
@@ -531,6 +589,7 @@ func TestComposerRecognizersRejectAdversarialSnapshotsWithoutBlocking(t *testing
 		{"agy", agyComposerActive},
 		{"muse", museComposerActive},
 		{"qoder", qoderComposerActive},
+		{"grok", grokComposerActive},
 	}
 
 	for _, snapshot := range snapshots {

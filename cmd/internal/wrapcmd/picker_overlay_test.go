@@ -75,31 +75,36 @@ func TestCheckOverlayOpen_QoderPermissionPicker(t *testing.T) {
 // when the confirming Enter consumes pickerActive, or its own consumed bytes
 // re-arm the flag on the next chunk and the following composer Enter passes a
 // bare CR, submitting a draft the user meant to continue on a new line.
-func TestCheckOverlayOpen_QoderDoesNotRedetectStalePickerText(t *testing.T) {
-	for _, file := range []string{"overlay.raw", "selection.raw"} {
-		t.Run(file, func(t *testing.T) {
-			raw, err := os.ReadFile(filepath.Join("testdata", "tty", "qoder", "1.1.60", file))
-			if err != nil {
-				t.Fatalf("read %s: %v", file, err)
-			}
-			p := proxyForHarness("qoder")
-			checkOverlayBytes(p, raw)
-			if !p.pickerActive.Load() {
-				t.Fatalf("%s paint must arm pickerActive", file)
-			}
-			if got := p.emitPlainCR(nil); !bytes.Equal(got, []byte{'\r'}) {
-				t.Fatalf("confirming Enter = %q, want bare CR", got)
-			}
-			if p.pickerActive.Load() {
-				t.Fatal("pickerActive should clear after the confirming Enter")
-			}
-			// A chunk with no marker of its own must not re-arm the flag from
-			// the consumed picker bytes still inside the raw window.
-			checkOverlayBytes(p, []byte("\x1b[1G\x1b[2K"))
-			if p.pickerActive.Load() {
-				t.Fatalf("%s: pickerActive re-armed from consumed picker bytes", file)
-			}
-		})
+func TestCheckOverlayOpen_RawCarryPickersDoNotRedetectStaleText(t *testing.T) {
+	// Every harness on detectRawCarryOverlay: its captured pickers must arm,
+	// the confirming Enter must consume, and the consumed bytes still inside
+	// the proxy-owned raw window must not re-arm the flag (BR-28).
+	for _, capture := range []struct{ harness, version string }{{"qoder", "1.1.60"}, {"grok", "1.0.46"}} {
+		for _, file := range []string{"overlay.raw", "selection.raw"} {
+			t.Run(capture.harness+"/"+file, func(t *testing.T) {
+				raw, err := os.ReadFile(filepath.Join("testdata", "tty", capture.harness, capture.version, file))
+				if err != nil {
+					t.Fatalf("read %s: %v", file, err)
+				}
+				p := proxyForHarness(capture.harness)
+				checkOverlayBytes(p, raw)
+				if !p.pickerActive.Load() {
+					t.Fatalf("%s paint must arm pickerActive", file)
+				}
+				if got := p.emitPlainCR(nil); !bytes.Equal(got, []byte{'\r'}) {
+					t.Fatalf("confirming Enter = %q, want bare CR", got)
+				}
+				if p.pickerActive.Load() {
+					t.Fatal("pickerActive should clear after the confirming Enter")
+				}
+				// A chunk with no marker of its own must not re-arm the flag from
+				// the consumed picker bytes still inside the raw window.
+				checkOverlayBytes(p, []byte("\x1b[1G\x1b[2K"))
+				if p.pickerActive.Load() {
+					t.Fatalf("%s: pickerActive re-armed from consumed picker bytes", file)
+				}
+			})
+		}
 	}
 }
 

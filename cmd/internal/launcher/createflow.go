@@ -636,7 +636,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	// launch records this requested target; observation confirms the actual root.
 	explicitResume := extractExplicitResume(agent, agentArgs)
 
-	// Claude/qoder: mint a deterministic --session-id (uuidgen + collision
+	// Claude/qoder/grok: mint a deterministic --session-id (uuidgen + collision
 	// retry) so two tags in one cwd can't race for the same new jsonl (#20).
 	// A new matching root filename can acknowledge this Pair-chosen identity.
 	newSid := ""
@@ -649,15 +649,13 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 			}
 		}
 		if newSid != "" {
-			agentArgs = append(agentArgs, "--session-id", newSid)
+			agentArgs = insertBeforeDoubleDash(agentArgs, "--session-id", newSid)
 		}
 	}
 
-	// Codex: force inline mode so the conversation flows through zellij's
-	// scrollback (idempotent; opt-out via PAIR_CODEX_ALT_SCREEN=1).
-	if agent == "codex" {
-		agentArgs = codexAltScreenArgs(agentArgs, opts.CodexAltScreenOptOut)
-	}
+	// Codex/grok: force inline mode so the conversation flows through zellij's
+	// scrollback (idempotent; per-agent opt-out via PAIR_<AGENT>_ALT_SCREEN=1).
+	agentArgs = inlineModeArgs(agent, agentArgs, opts.InlineOptOut)
 
 	var defaultReady <-chan error
 	// Every new Couch wrapper needs readiness evidence, including cold resume.

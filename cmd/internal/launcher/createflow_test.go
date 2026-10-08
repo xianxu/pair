@@ -935,6 +935,28 @@ func TestRunLaunchForcedCreateQoderMintProbesQoderSessions(t *testing.T) {
 	})
 }
 
+// Grok honors a caller-minted --session-id for a new conversation (measured
+// live at 1.0.46: `grok -s <uuid>` creates ~/.grok/sessions/<cwd>/<uuid>/).
+// The mint probes grok's own sessions, and every token pair inserts lands
+// before a user `--` (grok reads what follows as [PROMPT]).
+func TestRunLaunchForcedCreateGrokMintProbesGrokSessions(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.uuids = []string{"MINTED-1", "MINTED-2"}
+	rt.agentSessions["grok|MINTED-1"] = true
+	rt.agentSessions["claude|MINTED-2"] = true
+	opts := baseOpts(LaunchArgs{Agent: "grok", ForcedTag: "gk", AgentArgs: []string{"--model", "m", "--", "fix it"}, AgentArgsExplicit: true})
+	code, err := run(t, opts, rt)
+	if err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	if rt.env["PAIR_SESSION_ID"] != "MINTED-2" {
+		t.Fatalf("PAIR_SESSION_ID = %q, want MINTED-2 (grok collision retries; a claude session does not block grok)", rt.env["PAIR_SESSION_ID"])
+	}
+	if got := launchArgsText(t, rt.env); got != "--model m --session-id MINTED-2 --minimal -- fix it" {
+		t.Fatalf("AgentCommand = %q", got)
+	}
+}
+
 func TestRunLaunchAbortsBeforeHandoffWhenNativeLaunchBoundaryFails(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.prepareLaunchErr = errors.New("baseline unavailable")
