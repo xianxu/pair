@@ -3,9 +3,11 @@ package couchtty
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"image/color"
 	"net/http"
 	"strings"
 	"sync"
@@ -13,9 +15,11 @@ import (
 	"testing"
 	"time"
 
+	uv "github.com/charmbracelet/ultraviolet"
 	vt "github.com/charmbracelet/x/vt"
 	"github.com/xianxu/pair/cmd/internal/broadcast"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/terminal"
 )
 
 const ctrlAltB = "\x1b[98;7u"
@@ -76,6 +80,7 @@ type remoteViewer struct {
 	resp  *http.Response
 	emu   *vt.Emulator
 	ended string
+	theme string
 }
 
 func openViewer(t *testing.T, link string) *remoteViewer {
@@ -108,6 +113,8 @@ func (v *remoteViewer) next() bool {
 			data = strings.TrimPrefix(line, "data: ")
 		case line == "" && name != "":
 			switch name {
+			case "theme":
+				v.theme = data
 			case "end":
 				v.ended = data
 				return false
@@ -367,5 +374,61 @@ func TestBroadcastOffHasNoClickTarget(t *testing.T) {
 	f.con.mu.Unlock()
 	if control != (ColumnSpan{}) {
 		t.Fatalf("off row has a control span %+v", control)
+	}
+}
+
+// The operator's palette, as the terminal reported it, reaches a viewer
+// before its first frame (#395 M4).
+func TestBroadcastSendsOperatorTheme(t *testing.T) {
+	f := broadcastFixture(t, &broadcast.FakeTunnel{}, nil)
+	for _, ev := range []uv.Event{
+		uv.ForegroundColorEvent{Color: color.RGBA{0xee, 0xee, 0xee, 0xff}},
+		uv.BackgroundColorEvent{Color: color.RGBA{0x10, 0x10, 0x10, 0xff}},
+		uv.UnknownOscEvent("\x1b]4;1;rgb:ffff/5555/5555\x1b\\"),
+	} {
+		f.con.routeInputEvent(terminal.InputEvent{Event: ev, Reply: true})
+	}
+	s := f.startLive(t)
+	v := openViewer(t, s.Link())
+	v.until("a frame", func(string) bool { return true })
+	var theme broadcast.Theme
+	if err := json.Unmarshal([]byte(v.theme), &theme); err != nil {
+		t.Fatalf("theme event %q: %v", v.theme, err)
+	}
+	if theme.Foreground != "#eeeeee" || theme.Background != "#101010" || theme.ANSI[1] != "#ff5555" || theme.ANSI[0] != "" {
+		t.Fatalf("theme %+v", theme)
+	}
+}
+
+// The ordering behind BR-11, driven deterministically: the start goroutine
+// abandoned (and so is stopping) the session before the loop ran its
+// handover. The loop must not adopt it.
+func TestBroadcastLateHandoverAfterAbandonIsNotAdopted(t *testing.T) {
+	ft := &broadcast.FakeTunnel{}
+	f := broadcastFixture(t, ft, nil)
+	s, err := broadcast.Start(context.Background(), broadcast.Config{Tunnel: ft})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { s.Stop(nil); <-s.Done() }()
+	claim := &startClaim{}
+	if !claim.abandon() {
+		t.Fatal("fresh claim refused abandon")
+	}
+	err = f.con.runTerminalCommand(context.Background(), func() error {
+		f.con.mu.Lock()
+		f.con.bcast = broadcastState{phase: broadcastStarting, attempt: 41, cancel: func() {}}
+		f.con.mu.Unlock()
+		f.con.broadcastStarted(41, s, nil, claim)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.phase() != broadcastOff || f.session() != nil {
+		t.Fatalf("adopted an abandoned session: phase %v", f.phase())
+	}
+	if strings.Contains(f.lastRow(), "LIVE") {
+		t.Fatal("LIVE drawn for an abandoned session")
 	}
 }

@@ -110,6 +110,9 @@ func (c *Console) toggleBroadcast() {
 }
 
 func (c *Console) startBroadcast(cfg broadcast.Config) {
+	if cfg.Theme == nil {
+		cfg.Theme = c.broadcastTheme
+	}
 	ctx, cancel := context.WithCancel(c.lifetime)
 	c.mu.Lock()
 	c.bcast = broadcastState{phase: broadcastStarting, attempt: c.bcast.attempt + 1, cancel: cancel}

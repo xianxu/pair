@@ -1,19 +1,31 @@
 package couchtty
 
 import (
+	"fmt"
 	"image/color"
+	"strconv"
+	"strings"
 
 	uv "github.com/charmbracelet/ultraviolet"
 
+	"github.com/xianxu/pair/cmd/internal/broadcast"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 )
 
 // paletteQuery asks the host terminal for its default foreground (OSC 10) and
-// background (OSC 11). Idle fading blends toward the real background (pair#247),
-// because fixed greys invert on a light scheme. Run sends it once, after
-// MakeRaw and before the presenter's first write, so it cannot interleave with
-// a frame; the answers come back through the one stdin decoder.
-const paletteQuery = "\x1b]10;?\x1b\\\x1b]11;?\x1b\\"
+// background (OSC 11), and its 16 ANSI colours (OSC 4). Idle fading blends
+// toward the real background (pair#247), because fixed greys invert on a light
+// scheme; a broadcast hands all of them to viewers so they see the operator's
+// colours (#395). Run sends it once, after MakeRaw and before the presenter's
+// first write, so it cannot interleave with a frame; the answers come back
+// through the one stdin decoder, as replies, never as child input.
+var paletteQuery = func() string {
+	q := "\x1b]10;?\x1b\\\x1b]11;?\x1b\\"
+	for i := range 16 {
+		q += fmt.Sprintf("\x1b]4;%d;?\x1b\\", i)
+	}
+	return q
+}()
 
 // ensureMenuLocked builds the menu state on first use. Anything recorded before
 // that -- the colour modes, a palette reply that raced the first attach -- is
@@ -57,6 +69,15 @@ func (c *Console) capturePalette(event uv.Event) bool {
 			return false
 		}
 		rgba = toRGBA(e.Color)
+	case uv.UnknownOscEvent:
+		// OSC 4 replies have no event of their own in ultraviolet.
+		if index, rgba, ok := parseOSC4Reply(string(e)); ok {
+			c.mu.Lock()
+			c.ansiPalette[index], c.ansiKnown[index] = rgba, true
+			c.mu.Unlock()
+		}
+		// Nothing on screen depends on these yet; no repaint.
+		return false
 	default:
 		return false
 	}
@@ -74,6 +95,67 @@ func (c *Console) capturePalette(event uv.Event) bool {
 	// and ensureMenuLocked carries it over.
 	c.menu, _ = ReduceMenu(c.menu, MenuEvent{Kind: MenuEventPalette, Palette: palette})
 	return true
+}
+
+// parseOSC4Reply reads a terminal's answer to `OSC 4;N;?`, which is
+// `OSC 4;N;rgb:R/G/B` ended by BEL or ST, each component 1–4 hex digits. Only
+// indices 0–15 are kept: they are the colours SGR 30–37/90–97 name.
+func parseOSC4Reply(raw string) (int, color.RGBA, bool) {
+	body, ok := strings.CutPrefix(raw, "\x1b]4;")
+	if !ok {
+		return 0, color.RGBA{}, false
+	}
+	body = strings.TrimSuffix(strings.TrimSuffix(body, "\x07"), "\x1b\\")
+	indexText, spec, ok := strings.Cut(body, ";")
+	if !ok {
+		return 0, color.RGBA{}, false
+	}
+	index, err := strconv.Atoi(indexText)
+	if err != nil || index < 0 || index > 15 {
+		return 0, color.RGBA{}, false
+	}
+	hex, ok := strings.CutPrefix(spec, "rgb:")
+	if !ok {
+		return 0, color.RGBA{}, false
+	}
+	parts := strings.Split(hex, "/")
+	if len(parts) != 3 {
+		return 0, color.RGBA{}, false
+	}
+	var rgb [3]uint8
+	for i, p := range parts {
+		if len(p) < 1 || len(p) > 4 {
+			return 0, color.RGBA{}, false
+		}
+		v, err := strconv.ParseUint(p, 16, 16)
+		if err != nil {
+			return 0, color.RGBA{}, false
+		}
+		// Scale n hex digits to 8 bits: v / (16^n - 1) * 255, rounded.
+		maxV := uint64(1)<<(4*len(p)) - 1
+		rgb[i] = uint8((v*255 + maxV/2) / maxV)
+	}
+	return index, color.RGBA{rgb[0], rgb[1], rgb[2], 0xff}, true
+}
+
+// broadcastTheme is the operator's palette as far as the terminal has told
+// Couch, for a broadcast's viewers. Colours it didn't report stay empty.
+func (c *Console) broadcastTheme() broadcast.Theme {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	var t broadcast.Theme
+	if c.paletteFG {
+		t.Foreground = broadcast.Hex(c.menu.Palette.FG)
+	}
+	if c.paletteBG {
+		t.Background = broadcast.Hex(c.menu.Palette.BG)
+	}
+	for i, known := range c.ansiKnown {
+		if known {
+			t.ANSI[i] = broadcast.Hex(c.ansiPalette[i])
+		}
+	}
+	return t
 }
 
 func toRGBA(c color.Color) color.RGBA {

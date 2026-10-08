@@ -95,6 +95,8 @@ func TestInputRepliesMouseFocusAndKeyEventTypes(t *testing.T) {
 		{"\x1b[?1u", nil, true},
 		{"\x1b[99;42z", nil, true},
 		{"\x1b]777;unknown\x1b\\", nil, true},
+		// An OSC 4 palette reply (#395) is Couch's own answer, never child input.
+		{"\x1b]4;1;rgb:cccc/0000/0000\x1b\\", nil, true},
 		{"\x1bP1+r544e=787465726d\x1b\\", nil, true},
 	}
 	for _, tc := range cases {

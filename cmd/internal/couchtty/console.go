@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/broadcast"
+	"image/color"
 	"io"
 	"os"
 	"strings"
@@ -135,6 +136,10 @@ type Console struct {
 	// running broadcast's state (console_broadcast.go). Both under mu.
 	broadcastCfg *broadcast.Config
 	bcast        broadcastState
+	// ansiPalette is the terminal's 16 ANSI colours from OSC 4 replies, for
+	// broadcast viewers; ansiKnown marks which arrived. Under mu.
+	ansiPalette [16]color.RGBA
+	ansiKnown   [16]bool
 	// mouseHit is the payload of the hit currently being dispatched.
 	mouseHit MouseHit
 	// started reports that Run owns the terminal, so a notice may paint itself.
