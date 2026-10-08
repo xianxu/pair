@@ -86,7 +86,7 @@ func TestScopedPathsAgentDefaultStaysUnderScopeDir(t *testing.T) {
 }
 
 func TestAgentInventoryIsTheSingleDefensiveHarnessSet(t *testing.T) {
-	want := []string{"claude", "codex", "agy", "muse", "qoder"}
+	want := []string{"claude", "codex", "agy", "muse", "qoder", "grok"}
 	got := AgentInventory()
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("AgentInventory = %q, want %q", got, want)
