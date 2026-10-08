@@ -229,6 +229,52 @@ rounds:
       boundary: M4
       recipe: milestone-review
       blocked: false
+    - "n": 9
+      timestamp: "2026-10-08T12:36:34-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: Tasks 1.3/2.2 still enumerate test cases in prose alongside the one-line Test strategy; Minor, doc-only.
+          round: 9
+        - id: BR-4
+          disposition: addressed
+          note: Plan no longer names Marks.Expired; revision near plan line 334 records Live/NextChange/SetBlend (same fix as BR-14).
+          round: 9
+        - id: BR-5
+          disposition: not-addressed
+          note: marks_test.go:216 still ends with var _ = terminal.FramePrivate.
+          round: 9
+        - id: BR-6
+          disposition: not-addressed
+          note: server_test checks only that addon-unicode11.js is served; nothing exercises viewer.js:204 loading globalThis.Unicode11Addon.
+          round: 9
+        - id: BR-7
+          disposition: addressed
+          note: marks.go Add drops off-grid points (onGrid) before line(); TestMarksAddIgnoresHugeCoordinates pins it with a 1<<30 point.
+          round: 9
+        - id: BR-8
+          disposition: addressed
+          note: atlas/broadcast.md:233 now says a 2s read deadline, matching pointReadBudget; the "failed ping ends that viewer" line covers the write-deadline effect.
+          round: 9
+        - id: BR-9
+          disposition: addressed
+          note: pointer.go set refuses on && stopped; pointerHidden uses offIfGeneration(gen); tests TestPointerAfterStop and TestPointerLateHiddenReportIgnored.
+          round: 9
+        - id: BR-11
+          disposition: not-addressed
+          note: console_broadcast.go:117-122 still binds c.onPoints/c.pointerOffByWatch without capturing the attempt; applyPoints and pointerOffByWatch never check the generation.
+          round: 9
+        - id: BR-12
+          disposition: not-addressed
+          note: endBroadcastForShutdown (console_broadcast.go:238) and the SetTap-failure branch of broadcastStarted still skip detachBroadcastScreen.
+          round: 9
+        - id: BR-16
+          disposition: not-addressed
+          note: console_pointer_test.go has no blend/truecolor assertion; SetBlend at console_pointer.go:169 stays unpinned.
+          round: 9
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#412 (boundary-review)
@@ -335,15 +381,26 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-15 — addressed — pointerMode is exported with injected post/every/stop (viewer.js:271); pointermode.test.mjs drives setOn, the .pointer class, the hint, batch overlap, flush on pointerup and turning off mid-stroke; picked up by TestViewerNode's glob; removing end()'s flush(false) fails tests 3 and 4.
 - BR-16 — not-addressed — console_pointer.go:169 SetBlend call still has no couchtty test; Minor.
 
+## Round 9 — 2026-10-08T12:36:34-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — not-addressed — Tasks 1.3/2.2 still enumerate test cases in prose alongside the one-line Test strategy; Minor, doc-only.
+- BR-4 — addressed — Plan no longer names Marks.Expired; revision near plan line 334 records Live/NextChange/SetBlend (same fix as BR-14).
+- BR-5 — not-addressed — marks_test.go:216 still ends with var _ = terminal.FramePrivate.
+- BR-6 — not-addressed — server_test checks only that addon-unicode11.js is served; nothing exercises viewer.js:204 loading globalThis.Unicode11Addon.
+- BR-7 — addressed — marks.go Add drops off-grid points (onGrid) before line(); TestMarksAddIgnoresHugeCoordinates pins it with a 1<<30 point.
+- BR-8 — addressed — atlas/broadcast.md:233 now says a 2s read deadline, matching pointReadBudget; the "failed ping ends that viewer" line covers the write-deadline effect.
+- BR-9 — addressed — pointer.go set refuses on && stopped; pointerHidden uses offIfGeneration(gen); tests TestPointerAfterStop and TestPointerLateHiddenReportIgnored.
+- BR-11 — not-addressed — console_broadcast.go:117-122 still binds c.onPoints/c.pointerOffByWatch without capturing the attempt; applyPoints and pointerOffByWatch never check the generation.
+- BR-12 — not-addressed — endBroadcastForShutdown (console_broadcast.go:238) and the SetTap-failure branch of broadcastStarted still skip detachBroadcastScreen.
+- BR-16 — not-addressed — console_pointer_test.go has no blend/truecolor assertion; SetBlend at console_pointer.go:169 stays unpinned.
+
 ## Open findings
 
 - **BR-1** [Minor] `enumerated-test-prose` Tasks 1.3, 2.2, 2.3, 3.2 enumerate test cases in prose, restating Done-when
-- **BR-4** [Minor] `plan-table-matches-code` Plan Core concepts lists Marks.Expired; the code has Live/NextChange and Add(points, cols, rows, now)
 - **BR-5** [Minor] `test-filler` marks_test.go ends with var _ = terminal.FramePrivate, which asserts nothing
 - **BR-6** [Minor] `untested-page-wiring` No test covers the viewer loading the Unicode 11 add-on; a wrong global would break all viewing
-- **BR-7** [Minor] `untrusted-input-work-unbounded` Marks.Add walks Bresenham over raw coordinates before the off-grid filter, so its cost bound holds only if M2's parser validates range
-- **BR-8** [Minor] `docs-match-code` atlas/broadcast.md says the POST read deadline is 5s; code (pointReadBudget) is 2s
-- **BR-9** [Minor] `stale-observation-acts-on-new-generation` PointerState has no stopped/generation state: EnablePointer after Stop mints a link, and a late pointerHidden can turn off a re-enabled pointing
 - **BR-11** [Minor] `stale-observation-acts-on-new-generation` The Console's OnPoints and OnPointerOff aren't tied to the session that triggered them, so a late callback from an old broadcast can act on the next one
 - **BR-12** [Minor] `teardown-path-skips-detach` endBroadcastForShutdown and a failed SetTap in broadcastStarted bypass detachBroadcastScreen, leaving the fade timer armed and the overlay installed
 - **BR-16** [Minor] `untested-blend-wiring` Console's SetBlend(palette...) wiring has no test; a mutation to false stays green
