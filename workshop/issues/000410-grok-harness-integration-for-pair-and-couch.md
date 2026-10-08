@@ -228,7 +228,7 @@ total: 5.25
 Durable plan: [000410-grok-harness-integration-for-pair-and-couch-plan.md](../plans/000410-grok-harness-integration-for-pair-and-couch-plan.md)
 
 - [x] M1 — usable in pair and Couch-resumable: registry + ledger membership, resume spellings, fresh-launch table, shared inline mode before `--`, resume compose + mint, TTY profile + live captures, overlay markers, orientation glyph, grok scanner + event normalizer + every dispatch site (re-cut: old M1+M2, see plan Revisions)
-- [ ] M2 — slug, prompt glyph (scrollback/distill), permission allowlist, docs sweep, follow-up issue, operator live smoke (closes with the final `sdlc close`)
+- [x] M2 — slug, prompt glyph (scrollback/distill), permission allowlist, docs sweep, follow-up issue, operator live smoke (closes with the final `sdlc close`)
 
 ## Log
 
@@ -296,4 +296,5 @@ Durable plan: [000410-grok-harness-integration-for-pair-and-couch-plan.md](../pl
 - **Couch, operator-verified:** Grok is offered by Couch and runs hosted. pair:5's thread was switched Claude → Grok and is live (`pair --couch-session-v1 resume 1-pair-20` → `grok --minimal --session-id …`), the context count shows in the title, and the `[!]` bell mark is translated.
 - **Not met here, filed as #414:** switch-agent to Grok left the console attach refused (`attach record/handle process identity mismatch`, then `start handle is unavailable`) and the orientation prompt undelivered. A Codex → Claude switch did not reproduce it. Root cause is in Couch's switch/attach path (not localized); the operator chose to file it and close #410.
 - **Follow-ups:** #411 (Grok Couch peer delivery), #414 (switch-agent attach/orientation).
+- **Close window and actual (ariadne#269/#270/#304):** `origin/main` was merged into this branch before the slot move. The whole-issue review is still correct: the reviewer diffs `merge-base(main, HEAD)` = main's tip against HEAD, which is exactly #410's net change (86 files, M1 + M2, nothing of main's), even though close prints a short commit range. A milestone close for M2 would have over-covered (its base predates the merge), so M2 closes with the issue close. The actual is measured from pair:6, where this session's transcripts live (pair:0 saw only 0.26 h): 2.72 h. That is known low by roughly an hour: ariadne#270 attribution credited the 23:00–01:00 M2 segment to #411, which was filed inside it.
 
