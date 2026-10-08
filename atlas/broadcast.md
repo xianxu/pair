@@ -1,9 +1,8 @@
 # Couch broadcast
 
 `cmd/internal/broadcast` streams the composed Couch screen, view-only, to remote
-browser viewers (#395). Status: the frame tap, hub, server, viewer page,
-session, Couch control, and the viewer's theme and font are built (M1–M4).
-Broadcasts are local-only until the `cloudflared` tunnel lands (M5).
+browser viewers (#395). Status: built (M1–M5): frame tap, hub, server, viewer page, session, Couch
+control, viewer theme and font, and `cloudflared` tunnels.
 
 ## Source: the Presenter tap
 
@@ -160,4 +159,45 @@ Viewers see the operator's colours and font.
   waits up to 3s for it before xterm.js measures its cells, then falls back to
   the system monospace stack. Only fonts whose licence allows redistribution
   are vendored.
+
+## Tunnels (cloudflared)
+
+`broadcast.Cloudflared` is the production `Tunnel`
+(`couchcmd/broadcast.go` picks the mode from the environment):
+
+- **Named tunnel** (`COUCH_BROADCAST_TUNNEL=<name>` with
+  `COUCH_BROADCAST_HOSTNAME`): `Listen` makes a private 0700 directory under
+  `os.TempDir()` with a unix socket `s` in it. There's a TCP fallback when the
+  path would exceed `sun_path`. `Open` writes a per-broadcast `config.yml`
+  there (hostname to `unix:<socket>`, everything else `http_status:404`) and
+  runs `cloudflared tunnel --config … run <name>`. It's ready when stderr
+  reports a registered connection, and cloudflared finds the credentials
+  itself in `~/.cloudflared`. The link is `https://<hostname>/<token>/`.
+- **Quick tunnel** (unset): a TCP loopback origin, because quick tunnels
+  refuse sockets in every form (spike, issue Log). It's ready when stderr
+  prints the `*.trycloudflare.com` URL.
+- **Probe:** `Session.Start` probes the link before returning, resolving through
+  `PublicResolve` (1.1.1.1, then 1.0.0.1). Their "not found" stands, and the
+  system resolver is used only if neither is reachable. Asking the system
+  during a fresh hostname's ~1.5s propagation would cache a negative answer
+  for a minute or more. Probe errors drop the `*url.Error` text, which carries
+  the token.
+- **Guard** (`couch __broadcast-guard`, `RunGuard`): cloudflared runs in its own
+  process group under a guard that holds a pipe from Couch. When the pipe
+  closes (Couch exits, crashes or is SIGKILLed), the guard stops the group
+  (TERM, then KILL after 3s) and removes the private directory. Couch's own
+  `Close` only closes the pipe, because signalling the guard would orphan the
+  tunnel.
+- **Run records** (`<couch store>/broadcast/*.json`): owner, guard and
+  cloudflared PIDs with `procutil.StrictIdentity`. A named tunnel's record has
+  a fixed name, `named-<tunnel>.json`, and is its lock (`ErrTunnelBusy`): two
+  connectors of one tunnel are replicas, and Cloudflare would split viewers
+  between two tokens. `ReapOrphans` (at Couch startup and before each open)
+  acts only on records whose owner is dead. It kills a process only if its
+  identity and command match, and removes a directory only if it is a
+  `couch-broadcast-` private directory.
+- **Conformance:** `TestCloudflaredLive` (`BROADCAST_LIVE_CLOUDFLARED=1`,
+  `BROADCAST_LIVE_NAMED=<tunnel>@<hostname>`) runs the real binary end to end.
+  Rerun it after any cloudflared upgrade. Measured with 2026.7.3: named link
+  ready in about 1s, quick in about 6s, both 530 after stop.
 

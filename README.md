@@ -816,9 +816,26 @@ your screen showed with `LIVE ⏸`; if the indicator can't be drawn (say the
 terminal is too narrow) for a second, the broadcast stops. The switcher, which
 lists the whole fleet, is replaced for viewers by a placeholder unless
 `COUCH_BROADCAST_SWITCHER=show`. Nothing is recorded at either end; the link
-dies with the broadcast. `COUCH_BROADCAST_TUNNEL=off` serves on this machine
-only. Until the `cloudflared` tunnel lands (#395 M5), every link is
-local-only: it works in a browser on this machine and nowhere else.
+dies with the broadcast.
+
+Broadcasts reach viewers through [`cloudflared`](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/)
+(`brew install cloudflared`):
+
+- **Named tunnel** (recommended): a stable hostname on your own domain, served
+  from a private unix socket. One-time setup: `cloudflared tunnel login`,
+  `cloudflared tunnel create couch-broadcast`, and
+  `cloudflared tunnel route dns couch-broadcast live.example.com`. Then export
+  `COUCH_BROADCAST_TUNNEL=couch-broadcast` and
+  `COUCH_BROADCAST_HOSTNAME=live.example.com`. Links look like
+  `https://live.example.com/<token>/`, and only one Couch at a time can
+  broadcast on a tunnel.
+- **Quick tunnel** (`COUCH_BROADCAST_TUNNEL` unset): no account needed; each
+  broadcast gets a random `*.trycloudflare.com` hostname, live within a few
+  seconds.
+- `COUCH_BROADCAST_TUNNEL=off`: this machine only.
+
+`cloudflared` runs under a guard that stops it the moment Couch exits, even
+if Couch crashes or is killed.
 
 With an empty root filter, **Space** toggles the **normal view** and **focus view**.
 Focus view shows only live threads with a published summary, in normal-view
