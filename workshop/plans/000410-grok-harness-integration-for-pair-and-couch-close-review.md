@@ -104,3 +104,74 @@ findings:
     detail: |
       nvim/init.lua:3099-3103 reads PAIR_AGENT_PATH the same way; it could call PairInterrupt.current_agent, or both could use a shared helper (ARCH-DRY).
 ```
+
+---
+
+## Re-review — 2026-10-08T11:35:47-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 410 — Grok harness integration for pair and couch |
+| repo | pair |
+| issue file | workshop/issues/000410-grok-harness-integration-for-pair-and-couch.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | f904c1172c6bb4e2093bfef4e494e0dc0c6c26bb..8af9f9cd6ac0a3463da8651d19cd9fa068d5e988 |
+| command | sdlc close --issue 410 |
+| reviewer | claude |
+| timestamp | 2026-10-08T11:35:47-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+All three open findings are fixed in 8af9f9cd and I'm raising nothing new.
+- **BR-7:** Revisions entries now record every departure from the committed contract. The issue file records the three Done-when items moved to #414, and #414's own Done-when picks them up. The plan file records the residue refusal now going to stderr, the new M2 surfaces, and the move to #414.
+- **BR-8:** one set of accepted grok update methods, `grokUpdateMethods`, is now the only check used by the scanner, the event normalizer and `ParseTokenUsage`.
+- **BR-9:** one agent-file reader, `read_agent_file`, now serves both the draft interrupt and init.lua's saved-config prompt.
+
+The targeted Go tests and `nvim/interrupt_test.lua` pass. I didn't re-run the full `make -k test` or `go test ./...` suites in this round.
+
+1. **Strengths**
+   - `cmd/internal/sessioninventory/scan_grok.go:31`: the method set is declared once with a measured-version comment. The scanner (`scan_grok.go:143`), normalizer (`event.go:430`) and usage parser (`usage.go:89`) all read it, so the earlier mismatch (any non-empty method, two methods, one method) is gone.
+   - `scan_grok_test.go`: the new `"unknown method"` case (`session/request`) would fail without the fix, because the old check only rejected an empty method. That makes it real regression evidence.
+   - `nvim/interrupt.lua`: `current_agent` is now built on `read_agent_file`, and `init.lua:3099` calls the same function. `_G.PairInterrupt` is set at `init.lua:703`, before `pair_read_saved_config` is defined or called. The generated runtime-bundle copy has both `interrupt.lua` and the updated `init.lua`.
+   - The Revisions sections move each item rather than dropping it, give the reason, and update #414's Done-when to match.
+
+2. **Critical:** none.
+3. **Important:** none.
+4. **Minor:** none.
+5. **Test coverage notes:**
+   - `go test ./cmd/internal/sessioninventory -run 'Grok|ParseTokenUsage'`: ok.
+   - `nvim -l nvim/interrupt_test.lua`: ok.
+   - The read_agent_file tests cover the nil, missing, empty and present cases.
+6. **Architecture notes:**
+   - **ARCH-DRY:** pass. BR-8 and BR-9 consolidated at the class level.
+   - **ARCH-PURE:** pass. The method set is pure data, and the Lua reader is a thin IO helper.
+   - **ARCH-PURPOSE:** pass. The undelivered Done-when items are explicitly moved to #414 with operator sign-off.
+   - **ARCH-MOCK:** pass. This round adds no new external seams; the fake-binary slug test and the live conformance tests are unchanged.
+   - **ARCH-CONSTRAINTS:** pass. No hot-path change.
+   - **ARCH-SECURE:** pass. Changing the method check from non-empty to an allow-list makes it stricter, and untrusted JSONL degrades to a disputed near-miss.
+   - **ARCH-ORDER:** passes, because nothing in this round holds state between events.
+   - **ARCH-FUNERAL:** passes, because this round creates no durable artifact. The plan's Revisions record the stderr residue refusal, which leaves grok-owned residue in place.
+7. **Plan revision recommendations:** none. The plan and issue Revisions now match the code.
+
+```findings
+dispose:
+  - id: BR-7
+    disposition: addressed
+    note: |
+      The issue Revisions move orientation, Couch park/cold-resume and the doctor tally to #414, and #414's Done-when carries them; the plan Revisions record the stderr residue refusal and the new M2 surfaces.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      grokUpdateMethods (scan_grok.go:31) is read by applyGrokRecord, normalizeGrokEvent and ParseTokenUsage; the unknown-method scanner test fails without the fix.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      PairInterrupt.read_agent_file is the one reader; init.lua:3099 and current_agent both use it, and interrupt_test.lua covers the nil, missing, empty and present cases.
+```

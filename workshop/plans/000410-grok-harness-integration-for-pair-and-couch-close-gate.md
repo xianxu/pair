@@ -102,6 +102,24 @@ rounds:
           round: 3
       recipe: milestone-review
       blocked: true
+    - "n": 4
+      timestamp: "2026-10-08T11:35:47-07:00"
+      agent: claude
+      dispose:
+        - id: BR-7
+          disposition: addressed
+          note: 'The issue Revisions move orientation, Couch park/cold-resume and the doctor tally to #414, and #414''s Done-when carries them; the plan Revisions record the stderr residue refusal and the new M2 surfaces.'
+          round: 4
+        - id: BR-8
+          disposition: addressed
+          note: grokUpdateMethods (scan_grok.go:31) is read by applyGrokRecord, normalizeGrokEvent and ParseTokenUsage; the unknown-method scanner test fails without the fix.
+          round: 4
+        - id: BR-9
+          disposition: addressed
+          note: PairInterrupt.read_agent_file is the one reader; init.lua:3099 and current_agent both use it, and interrupt_test.lua covers the nil, missing, empty and present cases.
+          round: 4
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#410 (boundary-review)
@@ -153,8 +171,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-9** [Minor] `agent-file-read-duplicated` interrupt.lua current_agent duplicates the agent-file read in init.lua pair_read_saved_config
   nvim/init.lua:3099-3103 reads PAIR_AGENT_PATH the same way; it could call PairInterrupt.current_agent, or both could use a shared helper (ARCH-DRY).
 
+## Round 4 — 2026-10-08T11:35:47-07:00 (claude) — passed
+
+### Disposed
+
+- BR-7 — addressed — The issue Revisions move orientation, Couch park/cold-resume and the doctor tally to #414, and #414's Done-when carries them; the plan Revisions record the stderr residue refusal and the new M2 surfaces.
+- BR-8 — addressed — grokUpdateMethods (scan_grok.go:31) is read by applyGrokRecord, normalizeGrokEvent and ParseTokenUsage; the unknown-method scanner test fails without the fix.
+- BR-9 — addressed — PairInterrupt.read_agent_file is the one reader; init.lua:3099 and current_agent both use it, and interrupt_test.lua covers the nil, missing, empty and present cases.
+
 ## Open findings
 
-- **BR-7** [Important] `plan-code-drift` Done-when still promises orientation auto-submit, park/cold-resume and doctor firing that did not ship; no Revisions entry
-- **BR-8** [Minor] `grok-envelope-single-source` Accepted grok update methods differ across scanner, normalizer and ParseTokenUsage
-- **BR-9** [Minor] `agent-file-read-duplicated` interrupt.lua current_agent duplicates the agent-file read in init.lua pair_read_saved_config
+(none — every finding has been disposed)
