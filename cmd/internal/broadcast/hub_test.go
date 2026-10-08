@@ -488,3 +488,28 @@ func TestHubReasonVisibleWhenQueueCloses(t *testing.T) {
 		}
 	}
 }
+
+// Viewers is the live subscriber count (pair#413), read on the hub loop: a
+// viewer that left is gone, one that fell behind and is resyncing still counts,
+// and an ended hub has none.
+func TestHubViewersCountsLiveSubscribers(t *testing.T) {
+	h, _ := testHub(t, HubOptions{QueueDepth: 1})
+	if got := h.Viewers(); got != 0 {
+		t.Fatalf("fresh hub viewers = %d", got)
+	}
+	keep, leave, slow := subscribe(t, h), subscribe(t, h), subscribe(t, h)
+	_ = slow
+	leave.sub.Close()
+	// Overflow every queue without draining: the undrained viewers resync.
+	for i := range 4 {
+		offer(h, live(t, fmt.Sprintf("frame %d", i)), terminal.FramePublic)
+	}
+	keep.drain(t)
+	if got := h.Viewers(); got != 2 {
+		t.Fatalf("viewers = %d, want 2 (one left, one resyncing still counts)", got)
+	}
+	h.Close(nil)
+	if got := h.Viewers(); got != 0 {
+		t.Fatalf("ended hub viewers = %d, want 0", got)
+	}
+}
