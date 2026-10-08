@@ -468,3 +468,23 @@ func TestHubRealTickerResyncsQuietScreen(t *testing.T) {
 		t.Fatalf("resyncing = %d after catch-up", pending)
 	}
 }
+
+// BR-5: a consumer that sees its queue close must read the real reason at
+// that moment, not nil (which the server reported as an operator stop).
+// The end state is published before the end is observable.
+func TestHubReasonVisibleWhenQueueCloses(t *testing.T) {
+	reason := errors.New("tunnel died")
+	for i := range 2000 {
+		h := NewHub(HubOptions{Ticks: make(chan time.Time)})
+		sub, err := h.Subscribe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		go h.Close(reason)
+		for range sub.Messages() {
+		}
+		if got := h.Err(); !errors.Is(got, reason) {
+			t.Fatalf("iteration %d: Err() = %v when the queue closed", i, got)
+		}
+	}
+}

@@ -3,6 +3,7 @@ package broadcast
 import (
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/terminal"
@@ -72,7 +73,8 @@ type Hub struct {
 	reqs      chan func()
 	done      chan struct{}
 	closeOnce sync.Once
-	err       error // written by the loop before done closes
+	err       error        // loop-owned
+	reason    atomic.Value // holds hubEnd; published before any end is observable
 
 	// Owned by the loop goroutine.
 	stream    Stream
@@ -191,14 +193,17 @@ func (h *Hub) Close(reason error) {
 
 func (h *Hub) Done() <-chan struct{} { return h.done }
 
-// Err is why the hub ended; nil while it runs.
+// endReason boxes the error so atomic.Value always stores one concrete type.
+type hubEnd struct{ err error }
+
+// Err is why the hub ended; nil while it runs. The reason is published before
+// any subscriber queue closes, so a consumer reacting to its closed queue
+// always reads the real reason, even before Done closes.
 func (h *Hub) Err() error {
-	select {
-	case <-h.done:
-		return h.err
-	default:
-		return nil
+	if r, ok := h.reason.Load().(hubEnd); ok {
+		return r.err
 	}
+	return nil
 }
 
 // do runs f on the loop, after any pending offer, so callers observe their own
@@ -357,6 +362,7 @@ func (h *Hub) end(reason error) {
 		return
 	}
 	h.err = reason
+	h.reason.Store(hubEnd{reason})
 	h.disarmGrace()
 	for sub := range h.subs {
 		close(sub.c)

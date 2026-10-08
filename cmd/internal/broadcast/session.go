@@ -68,7 +68,8 @@ func Start(ctx context.Context, cfg Config) (*Session, error) {
 		Handler:           NewServer(ServerOptions{Token: token, Hub: hub, Ping: cfg.Ping}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
-	go srv.Serve(l)
+	served := make(chan error, 1)
+	go func() { served <- srv.Serve(l) }()
 	abandon := func(handle Handle, err error) (*Session, error) {
 		hub.Close(err)
 		srv.Close()
@@ -89,7 +90,7 @@ func Start(ctx context.Context, cfg Config) (*Session, error) {
 		return abandon(handle, err)
 	}
 	s := &Session{token: token, link: link, hub: hub, srv: srv, handle: handle, done: make(chan struct{})}
-	go s.watch()
+	go s.watch(served)
 	return s, nil
 }
 
@@ -126,12 +127,19 @@ func (s *Session) Err() error {
 	}
 }
 
-func (s *Session) watch() {
+// watch ends the session when any part it owns ends on its own: the hub
+// (indicator hidden), the tunnel, or the HTTP server. Serve returns
+// ErrServerClosed after our own teardown, which by then is a no-op Stop.
+func (s *Session) watch(served <-chan error) {
 	select {
 	case <-s.hub.Done():
 		s.Stop(s.hub.Err())
 	case <-s.handle.Exited():
 		s.Stop(ErrTunnelExited)
+	case err := <-served:
+		if !errors.Is(err, http.ErrServerClosed) {
+			s.Stop(fmt.Errorf("%w: %v", ErrServerFailed, err))
+		}
 	}
 }
 

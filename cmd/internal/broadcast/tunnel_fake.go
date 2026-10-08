@@ -21,6 +21,7 @@ type FakeTunnel struct {
 	mu       sync.Mutex
 	stats    FakeTunnelStats
 	lastAddr string
+	last     net.Listener
 	handles  []*fakeHandle
 }
 
@@ -37,6 +38,7 @@ func (f *FakeTunnel) Listen() (net.Listener, error) {
 	f.mu.Lock()
 	f.stats.Listens++
 	f.lastAddr = l.Addr().String()
+	f.last = l
 	f.mu.Unlock()
 	return l, nil
 }
@@ -77,6 +79,16 @@ func (f *FakeTunnel) Stats() FakeTunnelStats {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.stats
+}
+
+// BreakListener closes the most recent listener under its server, as a
+// failing socket would.
+func (f *FakeTunnel) BreakListener() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.last != nil {
+		f.last.Close()
+	}
 }
 
 // LastAddr is the address of the most recent listener.

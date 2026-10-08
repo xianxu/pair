@@ -7,8 +7,12 @@ import (
 	"sync"
 )
 
-// ErrTunnelExited ends a broadcast whose tunnel died on its own.
-var ErrTunnelExited = errors.New("broadcast: the tunnel exited")
+var (
+	// ErrTunnelExited ends a broadcast whose tunnel died on its own.
+	ErrTunnelExited = errors.New("broadcast: the tunnel exited")
+	// ErrServerFailed ends a broadcast whose HTTP server stopped serving.
+	ErrServerFailed = errors.New("broadcast: the viewer server stopped")
+)
 
 // Tunnel exposes the broadcast's local listener. It owns both halves because
 // the listener's kind depends on what exposes it: a browser on this machine

@@ -229,3 +229,19 @@ func TestSessionPersistsNoFrameData(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// A listener that breaks makes Serve return; the session must end rather
+// than report live with nothing serving viewers.
+func TestSessionEndsWhenServerFails(t *testing.T) {
+	ft := &FakeTunnel{}
+	s := startSession(t, ft, HubOptions{})
+	ft.BreakListener()
+	select {
+	case <-s.Done():
+	case <-time.After(5 * time.Second):
+		t.Fatal("session kept reporting live after its server stopped")
+	}
+	if !errors.Is(s.Err(), ErrServerFailed) {
+		t.Fatalf("Err() = %v", s.Err())
+	}
+}
