@@ -2006,6 +2006,15 @@ standing notice:
 - an empty `.log` means the process died without a panic (SIGKILL, power loss, the
   memory killer): notice `previous couch ended abruptly (no panic recorded)`, and
   the file is removed. SIGTERM and SIGHUP shut down in order and don't count.
+- a `.log` that starts with `couch-exit: <reason>` is a recorded exit
+  (`pair#409`), written by `crashreport.RecordExit` before a deliberate exit:
+  notice `previous couch exited: <reason>`, and the file is renamed `.crash` like a
+  panic. Today the one writer is couchcmd. After `console.Run` returns, it
+  records `terminal.ExitReason(console.TerminalFailure())`, which is set when a
+  write to the outer terminal failed. A write past `terminal.WriteTimeout` reads as
+  `terminal stopped accepting output for 5s (wrote A of N bytes)`. Without it, this
+  exit left nothing behind, because teardown's own `couch: terminal: …` line goes
+  to the terminal that just stopped accepting output.
 
 `pair gc` ages crash files out with the diagnostics retention period through its
 own sweep of each registered store's `crash/` (`gcruntime.crashRows`). The
