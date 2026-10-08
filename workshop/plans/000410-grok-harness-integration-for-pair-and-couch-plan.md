@@ -49,7 +49,8 @@
 - **`insertBeforeDoubleDash`**: inserts tokens before the first `--`, or appends when there is none. It is shared by the inline flag, the minted `--session-id` (createflow) and grok's `composeResumeArgs`, because Grok reads every word after `--` as `[PROMPT]`.
 - **`ValidateGrokDelta`**: a deterministic transition over supplied records. A record is valid when it decodes strictly into the envelope above **and** `params.sessionId == path ID`. Anything else disputes the file with a diagnostic. Chronology is the first record's `timestamp`, with `fallbackTime` otherwise. Role is always root (see non-goals).
   - **DRY rationale:** this is the first ACP-shaped harness. The decode is written grok-specific on purpose (an ACP-generic scanner was rejected in the Spec as speculative).
-- **`normalizeGrokEvent`**: `user_message_chunk` → `EventOperator` (text). `agent_message_chunk` → `EventAssistant`. `tool_call` → `EventToolCall`. `tool_call_update` with `status: completed|failed` → `EventToolResult`, other statuses → ignored. `agent_thought_chunk` and `plan` → ignored. `turn_completed` → `EventTerminal`. Any other kind → `EventNearMiss`, which is the drift signal.
+- **`normalizeGrokEvent`**: `user_message_chunk` → `EventOperator` (text). `agent_message_chunk` → `EventAssistant`. `tool_call` → `EventToolCall`. `tool_call_update` with `status: completed|failed` → `EventToolResult`, other statuses → ignored. `turn_completed` → `EventTerminal`. The ACP spec's documented bookkeeping kinds (`agent_thought_chunk`, `plan`, `available_commands_update`, `current_mode_update`, `config_option_update`, `usage_update`, `session_info_update`) → ignored, listed in one `grokIgnoredKinds` set. A kind in neither the mapped nor the ignored set, an unknown `method`, or a malformed envelope → `EventNearMiss`. That is the drift signal for genuinely new shapes, not for ordinary ACP kinds that our sample sessions didn't happen to contain.
+  - **Chunked prompts (ARCH-ORDER):** the normalizer stays per-record and stateless. If Task 4 measures more than one `user_message_chunk` per prompt, the join is a grok-only fold inside `NativeEventsFromRecords` (`events.go:62`), the one batch consumer that already sees ordered records. The state is the pending group keyed by `_meta.promptIndex`. It is emitted at the group's first record position when a record with a different kind or index arrives. A group still open at the end of the batch is held, not emitted, so an incremental tail never yields half a prompt. This branch is taken only on evidence, and it opens a plan `## Revisions` entry before any code.
 
 ### Integration points
 
@@ -73,8 +74,19 @@
 ### Durable state (ARCH-FUNERAL)
 
 - Pair's own families (adapt log, inventory catalog, ledger) gain `grok` rows under their existing retention. There is no new family.
-- **Slug residue:** each `runGrok` call creates one Grok session dir under `~/.grok/sessions/<enc-TMPDIR>/`. Grok owns that storage. The creator is pair, and nothing removes it. M3 Task 13 must measure whether a flag or config suppresses persistence (`grok -p --help`, README "Session Persistence"). If one exists, use it. If none does, write `runGrok` to delete the session dir it created, keyed by the `sessionId` from `--output-format json`. That makes the removal path explicit and bounds growth at zero per call.
+- **Slug residue:** each `runGrok` call creates one Grok session dir under `~/.grok/sessions/<enc-TMPDIR>/`. Grok owns that storage. The creator is pair, and nothing removes it. M3 Task 13 must measure whether a flag or config suppresses persistence (`grok -p --help`, README "Session Persistence"). If one exists, use it. If none does, `runGrok` removes the session dir it created, under these confinement rules (the input is untrusted output from a subprocess):
+  - Run with `--output-format json` and parse `sessionId`. It must match `uuidPattern`, or nothing is deleted.
+  - Build the target only as `<home>/.grok/sessions/<url-encode(cmd.Dir)>/<uuid>`: the encoded cwd is derived from pair's own `cmd.Dir`, never from Grok's output.
+  - After `filepath.Clean`, refuse unless the target's parent equals that encoded-cwd dir, and refuse symlinks (`os.Lstat`).
+  - Use `os.RemoveAll` only on that confined path.
+  - On any refusal or error, leave the residue and emit an adapt `slug-parse` near-miss with the reason. The slug result is still returned; cleanup failure never fails the slug.
+  - Task 9's fake-binary test feeds hostile IDs (`../x`, an absolute path, a non-UUID, a symlinked dir) and asserts that nothing outside the confined dir is touched.
 - Fixtures are versioned test data; only the newest `grok/<version>/` dir is kept.
+
+### Operating envelope (ARCH-CONSTRAINTS)
+
+- `updates.jsonl` grows with every turn, and tool output is inline (`tool_call_update.content`/`rawOutput`). The scanner reads it through the shared `frameJSONLArtifact` with `unlimitedRecordSize`, the same framing and budget as claude/qoder/codex transcripts. A record has no per-line cap, which matches the writer (Grok has none either). Incremental inventory reads only the appended tail, as for the other harnesses. No new budget.
+- `grok -p` slug latency is bounded by the shared `Request.timeout()`, like every `runX`. A timeout yields no slug (existing degradation). The headless probe measured ~2 s per `-p` call.
 
 ### Non-goals
 
@@ -92,7 +104,7 @@ Grok subagent transcripts (resume targets root sessions only; `subagents/` conte
 
 - [ ] Extend `TestAgentInventoryIsTheSingleDefensiveHarnessSet`'s `want` with `"grok"`. Run `go test ./cmd/internal/launcher -run TestAgentInventoryIsTheSingleDefensiveHarnessSet`; expect FAIL.
 - [ ] Add `AgentGrok Agent = "grok"`, the launcher row, and the session-side `supportedAgents` row (the usage line derives from it).
-- [ ] Add `sessionInventoryKnownGaps["grok"] = "#410 M1: scanner, events, watcher and ledger land in M2; switch-agent orientation lands in M3"`. The test requires the message to name only probed sites, so match the qoder-era wording rules in `agent_parity_test.go`.
+- [ ] Add `sessionInventoryKnownGaps["grok"] = "#410 M1: scanner, watcher and ledger membership land in M2"`. Name only sites the parity test probes. The orientation interim (M3) is recorded in the issue Spec, not in this message.
 - [ ] `go test ./cmd/internal/launcher ./cmd/internal/sessioninventory ./cmd/internal/sessionwatch ./cmd/internal/sessionledger ./cmd/internal/couchcore ./cmd/internal/couchtty`. Extend each test that pins the agent roster (the failure names it, e.g. the golden CLI matrix's known-gap row) in this same commit.
 - [ ] Commit `#410 M1: grok joins the agent registry (known gap: session side)`.
 
@@ -100,7 +112,7 @@ Grok subagent transcripts (resume targets root sessions only; `subagents/` conte
 
 **Files:** `cmd/internal/resumeform/resumeform.go`, `cmd/internal/launcher/fresh_args.go`, `cmd/internal/launcher/fresh_launch_test.go`, `cmd/internal/resumeform/*_test.go`.
 
-- [ ] Failing rows in `TestValidateFreshAgentArgs` (true = rejected): `--resume x`, `--resume=x`, `-r x`, `-rx`, `-pr` (cluster; `-p` takes a value, so this row must be **accepted**: `-pr` is `-p r`), `--continue`, `-c`, `--session-id x`, `-s x`, `--fork-session`. Accepted rows: `--agent X hello`, `-m grok-4.7 hello`, `--worktree feat hello`, `--worktree --model m`, `--allow 'Bash(git:*)' hi`, `hello world`.
+- [ ] Test strategy (failing first): the fresh validator is attacked where its parsing is subtle: optional-valued `-r`/`-w`, value letters ending a cluster (`-pr` is `-p r` and accepted), and forbidden letters hidden mid-cluster. Use one `TestValidateFreshAgentArgs` table for those shapes, plus a grok seed set in the existing fresh-args fuzz (clusters drawn from `cspmwr`) asserting that the validator never accepts argv that `resumeform.Selector` or the forbidden sets would flag.
 - [ ] `resumeform` grok row: `Space: --resume, -r`, `Inline: --resume=, -r=`, `Glued: -r`. `TestEveryTableSpellingRoundTrips` covers it automatically. Run it.
 - [ ] `freshAgentSpecs["grok"]`: `forbiddenFlags: "--continue --session-id --fork-session"`, `forbiddenShort: "cs"`, `valueShort: "mpw"`. `freshValueOption` grok: `--agent --agents --allow --cwd --debug-file --deny --disallowed-tools --json-schema --leader-socket --model --max-turns --output-format --single --permission-mode --prompt-file --prompt-json --reasoning-effort --effort --rules --sandbox --system-prompt-override --system-prompt --tools --worktree --worktree-ref --ref -m -p -w`. `--worktree`/`-w` take an optional value: skip the next arg only when it doesn't start with `-` (extend the qoder guard at `fresh_args.go:112` to read a per-agent optional-value set rather than adding a second `agent ==` branch).
 - [ ] `go test ./cmd/internal/launcher ./cmd/internal/resumeform`; commit `#410 M1: grok resume spellings + fresh-launch selectors`.
@@ -109,7 +121,7 @@ Grok subagent transcripts (resume targets root sessions only; `subagents/` conte
 
 **Files:** `cmd/internal/launcher/agentargs.go`, `createflow.go:639-660`, `runcli.go:29`, `runtime.go:289`, `agentargs_test.go`, `createflow_test.go`, `peer_launch_test.go:59`, `createlogic_test.go`.
 
-- [ ] Failing tests: `insertBeforeDoubleDash` table (none / middle / leading `--`). `inlineModeArgs` for codex and grok, with and without opt-out, idempotent on repeat. The codex couch test now wants `--model model --no-alt-screen -- prompt`. `composeResumeArgs("grok", ["--model","m","--","fix it"], "SID")` gives `["--model","m","--resume","SID","--","fix it"]`. `resumeToken("grok","SID")` gives `["--resume","SID"]`. The grok create path appends `--session-id <minted>` before `--`, and a `grok|MINTED-1` collision retries to `MINTED-2` (mirror `TestRunLaunchForcedCreateQoderMintProbesQoderSessions`).
+- [ ] Test strategy (failing first): every launcher-inserted token (inline flag, minted ID, resume token) must land before the first `--` and must be idempotent across Alt+n restarts. One property test ranges `AgentInventory()` × {no `--`, `--` mid, `--` first} × {fresh, resume, restart} and asserts that nothing pair inserts follows `--` and that no flag appears twice. The existing codex couch row flips to `--model model --no-alt-screen -- prompt` (the codex bug fix). Mint collision retry for grok mirrors `TestRunLaunchForcedCreateQoderMintProbesQoderSessions`.
 - [ ] Implement:
   - `insertBeforeDoubleDash`.
   - `inlineModeFor`/`inlineModeArgs`, replacing `codexAltScreenArgs`.
@@ -119,7 +131,8 @@ Grok subagent transcripts (resume targets root sessions only; `subagents/` conte
   - `composeResumeArgs`: the append branch uses `insertBeforeDoubleDash`. Claude and qoder accept that order too, so they are unaffected for args without `--` and fixed for args with it.
   - `MintsSessionID`: add grok, with a comment citing the measurement.
   - The mint append uses `insertBeforeDoubleDash`.
-- [ ] `persistedConfigArgs` already strips through `resumeform` plus `--session-id`. Add a test that grok's saved args drop `-c`/`--continue` too. Implement: `-c` is a context selector that must not persist, so add a per-agent `persistStripFlags` (grok: `--continue -c`) read by both `persistedConfigArgs` and `sessionwatch.StripResumeArgs`, with a test at each site.
+- [ ] **Context-selector spellings join the `resumeform` table** (its home: the leaf package both the launcher and sessionwatch already import). `resumeform.Form` gains `SessionID []string` (claude/qoder `--session-id`; grok `--session-id`, `-s`) and `Continue []string` (grok `--continue`, `-c`). `resumeform.Strip` removes all three groups. `persistedConfigArgs` drops its separate `stripFlagAllForms(out, "--session-id")` in favor of the table. `shouldMintSessionID` asks `resumeform.HasSessionID(agent, args)` instead of `hasFlag(…, "--session-id")`, so a user-typed `-s <uuid>` both suppresses the mint (no two IDs on one command line) and is stripped from persisted config (no pinning the same ID on every relaunch). `sessionwatch.StripResumeArgs` reads the same table.
+- [ ] Test strategy: `TestEveryTableSpellingRoundTrips` ranges every group of every agent through extract, strip and validate, so a new spelling is covered by construction. Add a grok `-s` row to the mint test (user `-s` → no mint) and to the persist test (`-s` and `-c` dropped).
 - [ ] `go test ./cmd/internal/launcher ./cmd/internal/sessionwatch`; commit `#410 M1: per-harness inline mode before --; grok resume compose + minted session id`.
 
 ### Task 4: TTY profile + live capture (one atomic commit)
@@ -145,6 +158,7 @@ Follow pair#300 Task 9 exactly (its plan is archived; the rules it states are bi
 
 - [ ] Full suite per the memory rule: `make -k test`, then scratchpad-TMPDIR `test-changelog`, then `go test ./...`. Compare any failure against main.
 - [ ] Live: `pair-dev grok` in this checkout (after `make build`). Enter inserts a newline, Alt+Enter sends, the picker confirms with plain Enter, and scrollback flows. Record this in `## Log`.
+- [ ] Couch interim check: while the gap is open, `ledgerRejectsAgent` makes every grok launch record parse as malformed. Launch one Couch-hosted grok thread (operator), then confirm that the thread runs, that Couch keeps serving other slots, and that `couch --recover-plan-from-sdlc` shows the row as unknown/malformed, not as a crash or a scope-wide refusal. If Couch degrades, move the launcher registry row to M2 (with `pair-dev grok` working unregistered in the meantime) and record a `## Revisions` entry.
 - [ ] `sdlc milestone-close --issue 410 --milestone M1`; fix Critical/Important findings; log the verdict.
 
 ---
@@ -157,13 +171,13 @@ Follow pair#300 Task 9 exactly (its plan is archived; the rules it states are bi
 
 **Files:** create `cmd/internal/sessioninventory/scan_grok.go` and `scan_grok_test.go`. Modify `model.go` (`validAgent` derives from the list; verify), `runtime_os.go` (root `grok-sessions` → `~/.grok/sessions`), `conformance.go` (`ScannerForAgent`), `incremental_inventory.go` (`artifactScannerShape` + both delta switches), `provider_contract.go` (`ProviderGrokACPV1 = "grok-acp-v1"`), `event.go` (`NormalizeNativeEvent` + `normalizeGrokEvent`), `target.go:197-227` (`observationNativeID`), `sessionwatch/sessionwatch.go:37`, `sessionledger/record.go:537`, `cmd/internal/artifactpath/manifest.go` (list `scan_grok.go`), and `cmd/internal/launcher/agent_parity_test.go` (delete the gap).
 
-- [ ] Fixtures: copy one real TUI session's `updates.jsonl` (from Task 6's live run) into `testdata/native/grok/v1/grok-sessions/-repo/11111111-1111-4111-8111-111111111111/updates.jsonl`. Sanitize: placeholder UUID, `-repo` cwd, text replaced, `_meta` IDs rewritten. Add a stub dir `22222222-…/summary.json` with no `updates.jsonl`, and an unrelated `events.jsonl`.
-- [ ] Failing tests:
-  - `TestScanGrokV1`: one forest, one resumable root `1111…`, chronology from the first record, no diagnostics for the stub or the sibling files.
-  - `TestValidateGrokDelta`: a valid first record, then a record with a foreign `sessionId` that disputes with `DiagnosticNodeMalformed`, then a malformed JSON line that disputes.
-  - `TestNormalizeNativeEvent` grok rows, one per kind, including an unknown `sessionUpdate` → near-miss.
-  - Extend the parity and dispatch tables that range `SupportedAgents()` (`TestEveryAgentDispatchParity`, `TestAdvanceTargetValidationPerAgent`, `TestProviderContractFor`, `TestAppendOnlyProviderConformance`, the fuzz/large-record tables): the failures name them.
-  - An `osruntime_test.go` present/absent pair for `AgentSessionExists("grok", …)`, plus `EstablishedSessionID` reading the inventory.
+- [ ] Fixtures: copy one real TUI session's `updates.jsonl` (from Task 6's live run) into `testdata/native/grok/v1/grok-sessions/%2Frepo/11111111-1111-4111-8111-111111111111/updates.jsonl` (real-shaped URL-encoded cwd dir). Sanitize: placeholder UUID, `%2Frepo` cwd, text replaced, `_meta` IDs rewritten. Add a stub dir `22222222-…/summary.json` with no `updates.jsonl`, and an unrelated `events.jsonl`.
+- [ ] Test strategy (failing first):
+  - The scanner is attacked with what an untrusted append-only file can hold: truncated tails, foreign `sessionId`, malformed JSON, huge tool-output records. Grok joins the existing `scan_fuzz_test.go`, `native_large_record_test.go` and `TestAppendOnlyProviderConformance` tables rather than getting bespoke cases.
+  - The fixture tree (real session + stub + sibling files) pins the happy path and the stub-is-silent rule in one `TestScanGrokV1`.
+  - The normalizer table is generated from the mapped and ignored sets, plus one unknown kind, so the sets and the test cannot drift.
+  - Dispatch completeness comes from the tables that range `SupportedAgents()` (`TestEveryAgentDispatchParity`, `TestAdvanceTargetValidationPerAgent`, `TestProviderContractFor`): adding grok to the list makes every missing arm fail.
+  - `osruntime_test.go`: a present/absent pair for `AgentSessionExists("grok", …)` and `EstablishedSessionID` reading the inventory.
 - [ ] Implement `scan_grok.go` on the `scan_muse.go` shape (`ScanGrok`, `scanGrokFile`, `ValidateGrokDelta`, `applyGrokRecord`, `grokPathFact` where `parts == [enc-cwd, uuid, "updates.jsonl"]`, uuid via `uuidPattern`) and every dispatch row above.
 - [ ] `go test ./cmd/internal/sessioninventory ./cmd/internal/sessionwatch ./cmd/internal/sessionledger ./cmd/internal/launcher ./cmd/internal/couchcore ./cmd/internal/couchtty`. The parity test passes with `sessionInventoryKnownGaps` empty.
 - [ ] Live conformance: `PAIR_LIVE_NATIVE_SESSIONS=1 go test ./cmd/internal/sessioninventory -run TestLiveNativeSessionShapeConformance -count=1 -v`. Also run `pair session-inventory --agent grok --json` against the real `~/.grok`. Log the node and diagnostic counts.
@@ -214,3 +228,18 @@ Follow pair#300 Task 9 exactly (its plan is archived; the rules it states are bi
 - **Don't touch couch code** beyond its pinning tests. A grok-specific couch change means the registry contract broke.
 - **Every per-agent dispatch reachable from `AgentInventory()`** either derives from one list or is probed by the parity test (pair#300 BR-16). Grep `qoder` after each task and confirm every hit has a grok counterpart or a logged reason.
 - The fixture dir is `grok/1.0.46/`. If Grok self-updates before capture, use the new version string and say so in the plan's `## Revisions`.
+
+---
+
+## Revisions
+
+### 2026-10-07 — plan-quality round 1 (sdlc change-code): PQ-1 Important + 7 Minors addressed
+
+- **PQ-1 (untrusted-input-drives-destructive-op):** the slug residue cleanup is now confined. The ID is UUID-validated, the target is built only from pair's own `cmd.Dir`, with parent-equality and no-symlink checks, residue is left on any refusal, and the fake-binary test feeds hostile IDs (Durable state).
+- **Known-gap message** names only probed sites (Task 1).
+- **Couch interim claim** gets a live check, with a stated fallback (Task 6).
+- **Context-selector table home** is `resumeform` (`SessionID`, `Continue` groups); grok `-s` is stripped and suppresses the mint (Task 3).
+- **Test prose** replaced by one adversarial strategy per risky function (Tasks 2, 3, 7).
+- **Drift signal**: documented ACP bookkeeping kinds are ignored, not near-miss. The chunk-join state location and flush rule are stated (Core concepts).
+- **Fixture** cwd dir is real-shaped (`%2Frepo`).
+- **Operating envelope** section added.
