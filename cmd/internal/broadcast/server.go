@@ -153,11 +153,29 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// endReason is the viewer-facing text for why the broadcast ended. It comes
-// from our own errors, never from request data.
+// endReasons is the whole viewer-facing vocabulary for why a broadcast ended.
+// The reason crosses to remote viewers, so it is a closed set of fixed
+// strings: error text, which can carry local addresses and socket paths, never
+// leaves the machine.
+var endReasons = []struct {
+	err  error
+	text string
+}{
+	{ErrHubClosed, "the operator stopped broadcasting"},
+	{ErrIndicatorHidden, "the LIVE indicator was not visible on the operator's screen"},
+	{ErrTunnelExited, "the tunnel closed"},
+	{ErrServerFailed, "the broadcast server stopped"},
+}
+
+// endReason maps why the hub ended to its viewer-facing text.
 func endReason(err error) string {
-	if err == nil || errors.Is(err, ErrHubClosed) {
-		return "the operator stopped broadcasting"
+	if err == nil {
+		return endReasons[0].text
 	}
-	return strings.TrimPrefix(err.Error(), "broadcast: ")
+	for _, r := range endReasons {
+		if errors.Is(err, r.err) {
+			return r.text
+		}
+	}
+	return "the broadcast ended"
 }

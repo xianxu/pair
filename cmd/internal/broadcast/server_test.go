@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -323,5 +324,33 @@ func TestServerReleasesSlotOnDisconnect(t *testing.T) {
 			t.Fatal("disconnected viewer still holds its slot")
 		}
 		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// BR-9: the end reason crosses to remote viewers, so it is a closed
+// vocabulary. No error text from the OS or a wrapped cause gets through.
+func TestEndReasonIsAClosedVocabulary(t *testing.T) {
+	secret := "/Users/someone/private/couch-broadcast-1234/s: accept tcp 127.0.0.1:53211"
+	cases := []struct {
+		err  error
+		want string
+	}{
+		{nil, "the operator stopped broadcasting"},
+		{ErrHubClosed, "the operator stopped broadcasting"},
+		{ErrIndicatorHidden, "the LIVE indicator was not visible on the operator's screen"},
+		{ErrTunnelExited, "the tunnel closed"},
+		{fmt.Errorf("%w: %s", ErrServerFailed, secret), "the broadcast server stopped"},
+		{fmt.Errorf("%w: %s", ErrTunnelExited, secret), "the tunnel closed"},
+		{errors.New(secret), "the broadcast ended"},
+		{fmt.Errorf("wrapped: %w", errors.New(secret)), "the broadcast ended"},
+	}
+	for _, c := range cases {
+		got := endReason(c.err)
+		if got != c.want {
+			t.Errorf("endReason(%v) = %q, want %q", c.err, got, c.want)
+		}
+		if strings.Contains(got, "/") || strings.Contains(got, "127.0.0.1") {
+			t.Errorf("endReason(%v) leaks local detail: %q", c.err, got)
+		}
 	}
 }

@@ -681,3 +681,8 @@ proof; record the surprising case so the next change starts from evidence.
   that makes it. #395's reviews flagged undocumented departures twice
   (an End message that became channel close; a Makefile target that became a
   Go-driven node test).
+- Text that crosses a trust boundary is a closed vocabulary. #395 M2 sent
+  `err.Error()` to remote viewers as the end reason; a wrapped `Serve` error
+  carried a local address, and in M4 a unix-socket path with a username.
+  Map known errors to fixed strings with `errors.Is`, use a generic fallback,
+  and test with a wrapped error that contains a path.
