@@ -1,6 +1,6 @@
 ---
 id: 000395
-status: codecomplete
+status: done
 created: 2026-10-06
 updated: 2026-10-08
 estimate_hours: 7.78
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 5cf35123197c52bdbe405a95e94edc9555109d5a
         evidence_commit: e30d316149f781c7793847a7bf0929604e3f1a22
+        landed_commit: 9bf70b533937b8efdeca7d15bcbf956d84127512
 ---
 
 # Couch broadcast: stream the composed Couch screen, view-only, to a browser viewer
