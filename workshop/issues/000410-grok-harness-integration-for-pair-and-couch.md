@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-07
 updated: 2026-10-07
-estimate_hours:
-card_mirror: '194960644127153e2290f72d7ea6957c53f4ed4f' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 5.25
+card_mirror: '44a700581cdaa640e603852c687258b15958b9b0' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-07T22:22:25-07:00
 claimant:
     operator: T
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
 ---
 
 # Grok harness integration for pair and couch
@@ -178,6 +179,49 @@ are versioned test data, replaced when the harness version moves.
   a slot to Grok auto-submits orientation, and the thread parks and cold-resumes.
 - A follow-up issue for a Grok Couch peer-delivery receiver profile is filed.
 - The atlas guide lists Grok and includes the orientation-glyph checklist item.
+
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` (calibration flagged stale by `sdlc estimate-source`; numbers provisional). Method A only.*
+
+**Derivation:**
+- **Design hours:** v2 ranges with the ×0.2 spec-quality discount on every code primitive, because the durable plan resolves files, seams and failure modes. Two items are undiscounted: `issue-spec` (spec, plan, two spec reviews and two plan-quality rounds already spent since the claim) and `ux-rename-iteration` (operator smoke iteration cannot be pre-resolved).
+- **Library check (Step 2.5):** no external library applies. The internal short-circuit is smaller than qoder's: Grok is not claude-family, so the scanner is a greenfield module on the `scan_muse.go` shape, and every other surface mirrors an existing per-agent seam.
+- **Implementation hours:** 40% of v2 ranges (v3.1), in the upper part for the live-capture items (`tui-screen`, both `real-api-discovery` budgets) and for the cross-cutting inline-mode/`resumeform` refactor that touches codex too.
+- **Familiarity 1.0:** pair#300 is a fresh, detailed precedent. The novel surfaces (Grok TTY bytes, the ACP transcript, `grok -p` persistence) carry their own discovery budgets.
+- **Design buffer +15%** (thorough plan doc, v2.1).
+- **Boundaries:** M1 and M2 milestone-closes plus the final close, one `milestone-review` each.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec              design=1.00 impl=0.08
+item: smaller-go-module       design=0.06 impl=0.12
+item: smaller-go-module       design=0.06 impl=0.16
+item: cross-cutting-refactor  design=0.10 impl=0.20
+item: tui-screen              design=0.30 impl=0.28
+item: real-api-discovery      design=0.00 impl=0.24
+item: smaller-go-module       design=0.06 impl=0.16
+item: greenfield-go-module    design=0.30 impl=0.28
+item: smaller-go-module       design=0.06 impl=0.16
+item: smaller-go-module       design=0.06 impl=0.16
+item: real-api-discovery      design=0.00 impl=0.12
+item: smaller-go-module       design=0.05 impl=0.10
+item: atlas-docs              design=0.04 impl=0.06
+item: ux-rename-iteration     design=0.30 impl=0.08
+item: milestone-review        design=0.00 impl=0.10
+item: milestone-review        design=0.00 impl=0.10
+item: milestone-review        design=0.00 impl=0.10
+design-buffer: 0.15
+total: 5.25
+```
+
+**Item order**, top to bottom:
+1. Spec, durable plan and review rounds (already spent).
+2. M1: registry join; `resumeform` + fresh-launch table; shared inline mode / before-`--` placement / `resumeform` selector groups / resume compose + mint; TTY profile + live captures; TTY discovery; overlay markers + recognizer spec.
+3. M2: grok scanner (greenfield); event normalizer + every dispatch site.
+4. M3: slug via `grok -p` with confined cleanup; slug/permission discovery; prompt glyph across three consumers; docs/atlas sweep; operator smoke iteration.
+5. Three boundary reviews (M1, M2, final close).
 
 ## Plan
 
