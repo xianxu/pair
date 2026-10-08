@@ -113,6 +113,18 @@ total: 2.87
     couch looks idle goes from about 2 MB a minute to about 16 KB a minute, a
     reduction of more than 100×. This is computed, not measured live; the live
     rerun with capture on is Done-when 3, for the operator.
+- **Live rerun (Done-when 3)** with `c3440fcc`, capture
+  `~/.local/share/pair/captures/session-2858329706`, 191×54. Couch ran in the
+  background behind a browser from 05:40 to 05:45 UTC on 2026-10-08, with an
+  agent's spinner selected.
+  - Rate: 120 to 122 host writes a minute, about 63 KB a minute (about 525 bytes
+    per write).
+  - Size: every write was under 1 KB except one full rebuild (new history) in six
+    minutes.
+  - Speed: the slowest write took 0.5 ms, and no write was short.
+  - Against the issue's capture (about 120 writes a minute at about 17 KB, so
+    about 2 MB a minute, with 50 to 230 ms per write before the stall): idle
+    volume is down about 32×, past the >10× target.
 - **Generative check:** over 80 seeds, 48 took the row diff and 32 were refused
   into the full rebuild. Every case matched the full rebuild under the xterm
   oracle, and the row-diffed ones also matched under the native zellij oracle.
