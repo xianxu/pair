@@ -63,7 +63,7 @@ Two independent changes:
 
 Durable plan: `workshop/plans/000409-couch-a-single-5s-stall-in-the-outer-terminal-ends-the-whole-session-plan.md`.
 
-- [ ] M1 — the exit says why: a recorded-exit kind in `crashreport`; couchcmd writes the parent-output `WriteFailure` reason, and the next start reports it once
+- [x] M1 — the exit says why: a recorded-exit kind in `crashreport`; couchcmd writes the parent-output `WriteFailure` reason, and the next start reports it once
 - [ ] M2 — repaint only the rows that changed: #262's cheaper fast path in `HistoryRender.Emit` (unwrapped rows only), checked against the full rebuild with the xterm oracle, with bytes per idle minute measured
 
 ## Estimate
@@ -104,6 +104,7 @@ total: 2.87
 ## Log
 
 ### 2026-10-07
+- 2026-10-07: closed M1 — Round 1 FIX-THEN-SHIP fixed: BR-1 (rule: one classification) — teardown stores its filtered failure and Console.TerminalFailure returns exactly it; TestConsoleStopDuringPaintClassifiesJoinedFailure now asserts the exit reason is recorded iff a real host failure occurred (mutation returning the unfiltered presenter failure records a cancelled paint: caught). Minors: the Exited notice names the file (a panic during exit lands there); stall wording 'a write waited up to 5s' (no overclaim). M1: crashreport Exited kind + RecordExit + Summary, terminal.ExitReason, couchcmd recordConsoleExit after Run; tests TestRecordedExitIsReportedOnceWithItsReason, TestExitReason, TestAStalledParentReadsAsTheTerminalStopping, TestConsoleTerminalFailureIsRecordedAsTheExitReason; atlas updated. Affected packages pass unsandboxed except TestContinuationWriterPublishesExactCheckpointAcrossWorktrees (fails on main).; review verdict: SHIP
 
 - Filed from a brain-session crash investigation. The capture file is 1.2 GB and stays local; the excerpts above are the evidence. Also noted, not investigated: `wrap-events-1-pair-8.jsonl` is 647 MB.
 - Row diff was deliberately deferred in #262 (2026-09-17, with the operator) on the premise that a local terminal parses faster than a person types. That missed spinner/streaming repaints with no input from the operator (2–9/s), and a background, throttled Ghostty (50–230 ms per frame, then a 5s stall). The operator reports these exits always happen while not interacting with couch, which supports the throttling hypothesis.
