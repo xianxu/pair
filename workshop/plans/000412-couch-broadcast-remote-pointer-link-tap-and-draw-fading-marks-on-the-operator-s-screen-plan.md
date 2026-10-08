@@ -59,7 +59,9 @@ Issue: `workshop/issues/000412-couch-broadcast-remote-pointer-link-tap-and-draw-
   `PointerShown(frame)` mirrors `IndicatorShown`. Drawer and checker share the
   constants (ARCH-DRY).
 - **Overlay** — `func(Frame, FrameClass) Frame`, applied by the Presenter to
-  every composed frame before painting.
+  every composed frame before painting. Couch's overlay returns a
+  `FramePrivate` frame unchanged: marks are never drawn on the switcher
+  (they keep ageing and show again, if still alive, when it closes).
 
 ### Integration points
 
@@ -84,8 +86,11 @@ Issue: `workshop/issues/000412-couch-broadcast-remote-pointer-link-tap-and-draw-
   Past the grace it calls `OnPointerHidden` and disarms, without ending the
   hub. `Current()` reports the last accepted frame's geometry and class, so
   the session can drop stale-size and private-frame points.
-- **Session** — owns the pointer token (minted once per session, on first
-  enable) and `pointing`. `POST point` is accepted only while pointing is on,
+- **Session** — owns a `PointerState` (`mu`, token, `pointing`), minted once
+  per session on first enable. The `Server` holds a pointer to that
+  `PointerState`, its only seam into pointer state, and reads it per request
+  through methods (`Match(token) (pointer bool)`, `On()`), comparing in
+  constant time. The view token stays immutable in `ServerOptions`. `POST point` is accepted only while pointing is on,
   the marker isn't hidden, the batch's cols×rows match `Current()`, and the
   frame is public. Accepted batches go to `Config.OnPoints`, never anywhere
   else. Disabling, by the operator or the watch, flips `caps` on pointer
@@ -147,6 +152,26 @@ Console loop through `runTerminalCommand`, after the session's own check, so a
 batch already in flight when the operator turns pointing off is dropped by the
 Console's own phase check too. Tests inject both orders: off-then-batch and
 batch-then-off.
+
+### Lock discipline
+
+The overlay runs on the Presenter goroutine inside every paint, so any lock it
+takes must be a **leaf**: never held while calling the Presenter, the session
+or the hub.
+
+- **`marksMu`** (Console): guards `Marks` and nothing else. It is a separate
+  mutex, never `c.mu`. The overlay closure takes only `marksMu`. Console code
+  takes it only around `Marks` calls and releases it before calling
+  `Presenter.Refresh`, `SetOverlay`, the session or `setNotice`.
+- **`PointerState.mu`** (session): guards the pointer token and `pointing`.
+  It is a leaf too. The session calls `OnPoints`/`OnPointerOff` **after**
+  releasing it, so a Console handler that calls back into the session (for
+  example `DisablePointer`) can't deadlock.
+- **Presenter goroutine** never calls the session or hub; the tap
+  (`Offer`) and the overlay are its only outbound calls, and both are
+  non-blocking or leaf-locked.
+- **Test:** a stress test paints continuously while batches arrive and
+  pointing toggles, under `-race` with a deadline; a deadlock fails it.
 
 ### Lifetimes (ARCH-FUNERAL)
 
