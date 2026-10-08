@@ -110,3 +110,96 @@ findings:
     detail: |
       4th in plan-code-drift; rule: docs and the Log state the milestone's actual delivered state. Add an M4 note to the README, or make sure M4 updates it; record the operator smoke in the Log or in --verified.
 ```
+
+---
+
+## Re-review — 2026-10-07T21:08:38-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 395 — Couch broadcast: stream the composed Couch screen, view-only, to a browser viewer |
+| repo | pair |
+| issue file | workshop/issues/000395-couch-broadcast-stream-the-composed-couch-screen-view-only-to-a-remote-couch-watch.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | 67cccfc6102c04826c5e0adf918c0bbb6eb5000c..c4cc6aa79e277c518dafe5a56e410039cd358c57 |
+| command | sdlc milestone-close --issue 395 --milestone M3 |
+| reviewer | claude |
+| timestamp | 2026-10-07T21:08:38-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+All five findings from round 1 are fixed, and the fixes hold up when checked against the code. **BR-11:** a single `startClaim` compare-and-swap (CAS) now decides who owns a finished start's session. Neither side can infer the other's decision any more. The loop adopts only when the start is still current and has no error. The goroutine stops the session only if its `abandon()` wins. `go test -race -count=8 -run 'TestBroadcast|TestStartClaim' ./cmd/internal/couchtty/` passes; that same command failed in round 1. **BR-12:** both background waits (`awaitDown` and the Done watcher) now also select on `c.stop`. `teardown` closes `c.stop` before `endBroadcastForShutdown` and `workers.Wait`, so a stuck tunnel can only hold exit for `broadcastShutdownWait`. A new test using `FakeTunnel{CloseBlock}` pins this. **BR-13, BR-14 and BR-15:** the missing click test now exists, the start context is cancelled once Start returns, and the README and Log now describe the local-only link and the M3 smoke run. Two Minor issues remain, and neither blocks the boundary. In `couchcmd` the only failures I saw came from the sandbox (`mkdir /tmp/...: operation not permitted`); `TestBroadcastSettings` passes, and `broadcast` and `couchkeys` are green.
+
+1. **Strengths**
+   - `console_broadcast.go:47-61`: `startClaim` sets one rule for ownership, and its doc comment explains why neither side can trust its own view of the handover.
+   - `console_broadcast.go:11-23`: the broadcast states are an explicit enum with a documented transition table, not a set of independent flags (ARCH-ORDER).
+   - `endBroadcastForShutdown` moves the attempt counter forward, so a start that finishes after shutdown is never current and is always abandoned. The claim and the attempt counter work together correctly.
+   - The `workshop/lessons.md` entry states the general rule ("a caller that can stop waiting must not read state written by the work it handed off"), not just this one case.
+
+2. **Critical:** none.
+
+3. **Important:** none.
+
+4. **Minor**
+   - `broadcast/tunnel.go:23-25` says "Start cancels its context once it returns", but `broadcast.Start` (`session.go:51`) never cancels it; `Console.startBroadcast` does. A different caller of Start would not do this, so the contract names the wrong actor.
+   - `TestStartClaimDecidesOnce` only checks that `atomic` CAS picks one winner, which mostly restates the standard library. Nothing deterministically drives the ordering that caused BR-11: `runTerminalCommand` returns early, `abandon` wins, and the loop's closure runs later.
+
+5. **Test coverage notes:** a test now covers bounded shutdown with a stuck tunnel. Click-on-off is covered for both the phase and the `statusControl` span. The race is covered only probabilistically (`-race -count=8`); there is no way to inject the order of the loop and the goroutine.
+
+6. **Architecture**
+   - **ARCH-DRY:** pass.
+   - **ARCH-PURE:** pass. The phase logic is small and lives on the loop.
+   - **ARCH-PURPOSE:** pass. M3 delivered the cell, the key, wiring, options, smoke and atlas; the theme and font work was moved to a new M4 by a Revision.
+   - **ARCH-MOCK:** pass. `FakeTunnel` sits behind the Tunnel seam and now models `CloseBlock`.
+   - **ARCH-CONSTRAINTS:** pass. Exit is bounded at 6s and a test enforces it.
+   - **ARCH-SECURE:** pass. The notice deliberately leaves the link out of broadcast frames.
+   - **ARCH-ORDER:** pass with a note. The phase enum and the CAS are explicit, but the interleaving can't be injected (Minor above).
+   - **ARCH-FUNERAL:** pass. The start context is released and sessions are stopped on shutdown. A session abandoned during shutdown is stopped but its teardown is not awaited, because `awaitDown` returns on `c.stop`. M5's cloudflared orphan reaping has to cover that tunnel process.
+
+7. **Plan revisions:** none required. The M4/M5 Revision matches the code.
+
+```findings
+dispose:
+  - id: BR-11
+    disposition: addressed
+    note: |
+      startClaim CAS (console_broadcast.go:47-61,124-131,143) gives one owner; go test -race -count=8 -run TestBroadcast|TestStartClaim passes.
+  - id: BR-12
+    disposition: addressed
+    note: |
+      awaitDown and the Done watcher select on c.stop, which teardown closes before workers.Wait; TestBroadcastShutdownBoundedByStuckTunnel pins it.
+  - id: BR-13
+    disposition: addressed
+    note: |
+      TestBroadcastOffHasNoClickTarget added (console_broadcast_test.go), checking phase, session and the statusControl span.
+  - id: BR-14
+    disposition: addressed
+    note: |
+      cancel() runs right after broadcast.Start returns; the Tunnel contract now says a tunnel must outlive ctx.
+  - id: BR-15
+    disposition: addressed
+    note: |
+      README says links are local-only until M5; the issue Log records the operator's M3 local smoke at 0dbe0802.
+findings:
+  - id: new
+    severity: Minor
+    family: plan-code-drift
+    title: |
+      Tunnel.Open doc says Start cancels its context; the Console caller does
+    detail: |
+      5th in family. Rule: a contract comment names the actor that actually performs the action, checked against the code at that point. broadcast.Start (session.go:51) never cancels ctx; only Console.startBroadcast does, so say "callers may cancel ctx once Start returns".
+  - id: new
+    severity: Minor
+    family: cross-channel-state-read
+    title: |
+      No deterministic test drives the late-closure-after-abandon ordering behind BR-11
+    detail: |
+      3rd in family. Rule: every handoff that can return early has a test that injects the order (closure after the early return). TestStartClaimDecidesOnce only exercises atomic CAS; the integration ordering is covered only by -race sampling.
+```

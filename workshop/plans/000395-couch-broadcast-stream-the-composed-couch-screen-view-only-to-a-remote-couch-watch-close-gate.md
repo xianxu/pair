@@ -173,6 +173,46 @@ rounds:
       boundary: M3
       recipe: milestone-review
       blocked: true
+    - "n": 7
+      timestamp: "2026-10-07T21:08:38-07:00"
+      agent: claude
+      dispose:
+        - id: BR-11
+          disposition: addressed
+          note: startClaim CAS (console_broadcast.go:47-61,124-131,143) gives one owner; go test -race -count=8 -run TestBroadcast|TestStartClaim passes.
+          round: 7
+        - id: BR-12
+          disposition: addressed
+          note: awaitDown and the Done watcher select on c.stop, which teardown closes before workers.Wait; TestBroadcastShutdownBoundedByStuckTunnel pins it.
+          round: 7
+        - id: BR-13
+          disposition: addressed
+          note: TestBroadcastOffHasNoClickTarget added (console_broadcast_test.go), checking phase, session and the statusControl span.
+          round: 7
+        - id: BR-14
+          disposition: addressed
+          note: cancel() runs right after broadcast.Start returns; the Tunnel contract now says a tunnel must outlive ctx.
+          round: 7
+        - id: BR-15
+          disposition: addressed
+          note: README says links are local-only until M5; the issue Log records the operator's M3 local smoke at 0dbe0802.
+          round: 7
+      findings:
+        - id: BR-16
+          severity: Minor
+          title: Tunnel.Open doc says Start cancels its context; the Console caller does
+          detail: '5th in family. Rule: a contract comment names the actor that actually performs the action, checked against the code at that point. broadcast.Start (session.go:51) never cancels ctx; only Console.startBroadcast does, so say "callers may cancel ctx once Start returns".'
+          family: plan-code-drift
+          round: 7
+        - id: BR-17
+          severity: Minor
+          title: No deterministic test drives the late-closure-after-abandon ordering behind BR-11
+          detail: '3rd in family. Rule: every handoff that can return early has a test that injects the order (closure after the early return). TestStartClaimDecidesOnce only exercises atomic CAS; the integration ordering is covered only by -race sampling.'
+          family: cross-channel-state-read
+          round: 7
+      boundary: M3
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#395 (boundary-review)
@@ -250,11 +290,25 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-15** [Minor] `plan-code-drift` README describes a remote link, but M3 broadcasts are local-only, and the M3 local smoke is not recorded in the Log
   4th in plan-code-drift; rule: docs and the Log state the milestone's actual delivered state. Add an M4 note to the README, or make sure M4 updates it; record the operator smoke in the Log or in --verified.
 
+## Round 7 — 2026-10-07T21:08:38-07:00 (claude) — passed
+
+### Disposed
+
+- BR-11 — addressed — startClaim CAS (console_broadcast.go:47-61,124-131,143) gives one owner; go test -race -count=8 -run TestBroadcast|TestStartClaim passes.
+- BR-12 — addressed — awaitDown and the Done watcher select on c.stop, which teardown closes before workers.Wait; TestBroadcastShutdownBoundedByStuckTunnel pins it.
+- BR-13 — addressed — TestBroadcastOffHasNoClickTarget added (console_broadcast_test.go), checking phase, session and the statusControl span.
+- BR-14 — addressed — cancel() runs right after broadcast.Start returns; the Tunnel contract now says a tunnel must outlive ctx.
+- BR-15 — addressed — README says links are local-only until M5; the issue Log records the operator's M3 local smoke at 0dbe0802.
+
+### Raised
+
+- **BR-16** [Minor] `plan-code-drift` Tunnel.Open doc says Start cancels its context; the Console caller does
+  5th in family. Rule: a contract comment names the actor that actually performs the action, checked against the code at that point. broadcast.Start (session.go:51) never cancels ctx; only Console.startBroadcast does, so say "callers may cancel ctx once Start returns".
+- **BR-17** [Minor] `cross-channel-state-read` No deterministic test drives the late-closure-after-abandon ordering behind BR-11
+  3rd in family. Rule: every handoff that can return early has a test that injects the order (closure after the early return). TestStartClaimDecidesOnce only exercises atomic CAS; the integration ordering is covered only by -race sampling.
+
 ## Open findings
 
 - **BR-10** [Minor] `plan-code-drift` atlas/broadcast.md:69 still cites TestViewerFit after the rename to TestViewerNode
-- **BR-11** [Critical] `cross-channel-state-read` startBroadcast reads the captured adopted flag after runTerminalCommand may have returned early; reproduced -race failure
-- **BR-12** [Important] `declared-bound-unenforced` Shutdown's 6s broadcast wait is defeated by workers.Wait on GoTracked waiters blocked on s.Done()
-- **BR-13** [Minor] `plan-test-coverage-gap` TestBroadcastOffHasNoClickTarget from Task 3.3 is absent with no Revision
-- **BR-14** [Minor] `context-lifetime-leak` Start context is never cancelled after adoption or a SetTap failure
-- **BR-15** [Minor] `plan-code-drift` README describes a remote link, but M3 broadcasts are local-only, and the M3 local smoke is not recorded in the Log
+- **BR-16** [Minor] `plan-code-drift` Tunnel.Open doc says Start cancels its context; the Console caller does
+- **BR-17** [Minor] `cross-channel-state-read` No deterministic test drives the late-closure-after-abandon ordering behind BR-11
