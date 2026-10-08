@@ -717,3 +717,10 @@ proof; record the surprising case so the next change starts from evidence.
   claim-race test passed against the unlocked mutant until the hook used an
   atomic first-caller flag. Mutation-check a race test; an ordering hook can
   silently remove the ordering.
+- Bring main into a mid-flight issue branch by merging, not rebasing. #395
+  rebased before a slot move: one commit subject starting `#395` was eaten as
+  a comment by `rebase --continue`'s message cleanup, the M1/M2
+  `Review-Window` trailers came to name pre-rebase IDs, and `sdlc actual`
+  (commit dates, plus the transcripts of the slot it runs in) read 1.79h for
+  the whole issue, against 1.75h for M1 alone. M3–M5 and the close went
+  unmeasured. A later `git merge origin/main` changed nothing that existed.
