@@ -90,6 +90,30 @@ rounds:
       boundary: M1
       recipe: milestone-review
       blocked: false
+    - "n": 4
+      timestamp: "2026-10-08T10:04:34-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: Plan tasks 1.3/2.2/2.3/3.2 still enumerate test cases in prose; Minor, non-blocking.
+          round: 4
+      findings:
+        - id: BR-8
+          severity: Minor
+          title: atlas/broadcast.md says the POST read deadline is 5s; code (pointReadBudget) is 2s
+          detail: The security-hardening revision cut the budget to 2s but the atlas step 5 still says 5s; the new 2x-ping event-stream write deadline is also undocumented there.
+          family: docs-match-code
+          round: 4
+        - id: BR-9
+          severity: Minor
+          title: 'PointerState has no stopped/generation state: EnablePointer after Stop mints a link, and a late pointerHidden can turn off a re-enabled pointing'
+          detail: ARCH-ORDER. pointerHidden runs in a spawned goroutine and applies set(false) to whatever generation is current; EnablePointer after Stop succeeds against a shutting-down server. Practically unreachable today (needs M3 phase guard / sub-ms double click); fix by refusing set(true) once stopped and tagging the hub fire with an arm generation.
+          family: stale-observation-acts-on-new-generation
+          round: 4
+      boundary: M2
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#412 (boundary-review)
@@ -133,6 +157,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-7** [Minor] `untrusted-input-work-unbounded` Marks.Add walks Bresenham over raw coordinates before the off-grid filter, so its cost bound holds only if M2's parser validates range
   This is the 2nd finding in family untrusted-input-work-unbounded. Rule: work derived from untrusted input is bounded at the entity doing the work, not by an upstream validator. A point like [1e9,0] costs ~1e9 iterations under the paint lock despite the doc's "cost is bounded". Fix at the rule: in Add, drop (or clip to the grid) any off-grid point before line(), and add the case to TestMarksAddWorstCaseIsCheap.
 
+## Round 4 — 2026-10-08T10:04:34-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — not-addressed — Plan tasks 1.3/2.2/2.3/3.2 still enumerate test cases in prose; Minor, non-blocking.
+
+### Raised
+
+- **BR-8** [Minor] `docs-match-code` atlas/broadcast.md says the POST read deadline is 5s; code (pointReadBudget) is 2s
+  The security-hardening revision cut the budget to 2s but the atlas step 5 still says 5s; the new 2x-ping event-stream write deadline is also undocumented there.
+- **BR-9** [Minor] `stale-observation-acts-on-new-generation` PointerState has no stopped/generation state: EnablePointer after Stop mints a link, and a late pointerHidden can turn off a re-enabled pointing
+  ARCH-ORDER. pointerHidden runs in a spawned goroutine and applies set(false) to whatever generation is current; EnablePointer after Stop succeeds against a shutting-down server. Practically unreachable today (needs M3 phase guard / sub-ms double click); fix by refusing set(true) once stopped and tagging the hub fire with an arm generation.
+
 ## Open findings
 
 - **BR-1** [Minor] `enumerated-test-prose` Tasks 1.3, 2.2, 2.3, 3.2 enumerate test cases in prose, restating Done-when
@@ -140,3 +177,5 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-5** [Minor] `test-filler` marks_test.go ends with var _ = terminal.FramePrivate, which asserts nothing
 - **BR-6** [Minor] `untested-page-wiring` No test covers the viewer loading the Unicode 11 add-on; a wrong global would break all viewing
 - **BR-7** [Minor] `untrusted-input-work-unbounded` Marks.Add walks Bresenham over raw coordinates before the off-grid filter, so its cost bound holds only if M2's parser validates range
+- **BR-8** [Minor] `docs-match-code` atlas/broadcast.md says the POST read deadline is 5s; code (pointReadBudget) is 2s
+- **BR-9** [Minor] `stale-observation-acts-on-new-generation` PointerState has no stopped/generation state: EnablePointer after Stop mints a link, and a late pointerHidden can turn off a re-enabled pointing
