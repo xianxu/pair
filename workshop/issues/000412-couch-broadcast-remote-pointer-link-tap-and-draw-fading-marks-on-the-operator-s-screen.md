@@ -185,7 +185,14 @@ Manual smoke (operator):
 
 ## Plan
 
-- [ ] Finish the brainstorm (open questions above), then write the plan
+Durable plan: `workshop/plans/000412-couch-broadcast-remote-pointer-link-tap-and-draw-fading-marks-on-the-operator-s-screen-plan.md`.
+
+- [ ] M1 — emoji width check; `Marks` model; Presenter overlay hook and `Refresh`
+- [ ] M2 — `PointBatch`/`RateLimit`; hub pointer watch and `Current`; session
+      pointer token, `pointing` switch, `POST point`, `caps` events
+- [ ] M3 — status row `LIVE ⏸ 👆 👽`; Console clicks, marks, fade, fail-safe
+- [ ] M4 — viewer pointer mode (Pointer Events, cell mapping, batching); iPad
+      smoke; close
 
 ## Log
 
