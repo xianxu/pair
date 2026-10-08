@@ -13,7 +13,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
-actual_hours: 2.70
+actual_hours: 2.37
 tracker:
     version: 1
     handoff:
@@ -27,10 +27,10 @@ tracker:
         destination: workshop/issues/000412-couch-broadcast-remote-pointer-link-tap-and-draw-fading-marks-on-the-operator-s-screen.md
         main_commit: 58c6dadacbf4a039d42c73cd362a8791b3b506cf
     completion:
-        token: close-48d4773af1bf
+        token: close-b206fff150dc
         repository: github.com/xianxu/pair
-        reviewed_head: d73e5ba5a3a3a7b8c3580a4949b7e2fbc1ca6459
-        evidence_commit: 9a287fec2b6433b521d35b39b579416df8686753
+        reviewed_head: b4ac23aec8214d51375dece9dee94c23eda39f66
+        evidence_commit: 370df0e1607c65959e60bbb9832be27ee13cc50f
 ---
 
 # Couch broadcast: remote pointer link (tap and draw fading marks on the operator's screen)
