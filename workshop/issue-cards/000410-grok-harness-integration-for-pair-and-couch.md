@@ -1,6 +1,6 @@
 ---
 id: 000410
-status: codecomplete
+status: done
 created: 2026-10-07
 updated: 2026-10-08
 estimate_hours: 5.25
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 8af9f9cd6ac0a3463da8651d19cd9fa068d5e988
         evidence_commit: d8519382f49179b312a4f863ced1cde3fe2f7bb2
+        landed_commit: 7bd5bdaa119f188e67ca4f3ba3103a9fbac7cd41
 ---
 
 # Grok harness integration for pair and couch
