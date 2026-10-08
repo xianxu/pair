@@ -111,8 +111,14 @@ wrap metadata. `RenderWithHistory` serializes owned cells in bounded chunks; the
 presenter commits its installed cursor only after all writes succeed. Continuous
 appends retain already delivered parent history even when endpoint retention
 evicts its prefix; missing coverage, clear epochs, owner or geometry changes
-rebuild the bounded retained suffix. Older physical scrollback follows the parent
-terminal's own policy. Erased backgrounds remain paint, without becoming printed
+rebuild the bounded retained suffix. A frame that changes only unwrapped rows
+(nothing reset, nothing new for history) repaints just those rows with
+`CUP` + `EL2` + cells (`changedPlainRows`, pair#409). Everything else takes the
+full rebuild. An idle agent's spinner tick then costs about a hundred bytes rather
+than a full screen. `TestHistoryRowDiffEqualsFullRebuild` checks seeded frame
+pairs against the full rebuild under the xterm oracle and, with
+`PAIR_TERMINAL_NATIVE=1`, the native zellij oracle. Older physical scrollback
+follows the parent terminal's own policy. Erased backgrounds remain paint, without becoming printed
 spaces in native copied text. Child alternate-screen transitions become presenter-owned parent transitions; panels
 retain the current physical buffer. Release leaves only an alternate buffer the
 presenter actually entered, then restores parent controls.

@@ -2013,11 +2013,11 @@ standing notice:
   records `terminal.ExitReason(console.TerminalFailure())`, which is set when a
   write to the outer terminal failed. A write past `terminal.WriteTimeout` reads as
   `terminal stopped accepting output (a write waited up to 5s; wrote A of N bytes)`,
-and the notice names the file, since a panic during the exit lands there too. The
-reason comes from teardown's own classification (`Console.TerminalFailure`), so a
-shutdown that only cancelled a paint records nothing. Without it, this
-  exit left nothing behind, because teardown's own `couch: terminal: …` line goes
-  to the terminal that just stopped accepting output.
+  and the notice names the file, since a panic during the exit lands there too.
+  The reason comes from teardown's own classification (`Console.TerminalFailure`),
+  so a shutdown that only cancelled a paint records nothing. Without it, this exit
+  left nothing behind, because teardown's own `couch: terminal: …` line goes to
+  the terminal that just stopped accepting output.
 
 `pair gc` ages crash files out with the diagnostics retention period through its
 own sweep of each registered store's `crash/` (`gcruntime.crashRows`). The

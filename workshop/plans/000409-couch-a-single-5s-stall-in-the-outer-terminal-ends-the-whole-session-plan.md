@@ -234,3 +234,30 @@ oracle (`tests/terminal-oracle`).
   - **ARCH-FUNERAL:** the recorded exit lives in #397's per-run file, with its
     rename-on-report and `pair gc` sweep, so nothing new is created and nothing
     new needs collecting.
+
+### 2026-10-07 (b) — as built: M1 wording and the M2 gate (M1 review advisories, M2 evidence)
+
+- **M1 as built.**
+  - `ExitReason` reads "terminal stopped accepting output (a write waited up to
+    5s; wrote A of N bytes)". A caller's shorter deadline can end a write first,
+    so "for 5s" would overclaim.
+  - The `Exited` notice names its file.
+  - `Console.TerminalFailure` returns teardown's own classification (BR-1).
+  - Tasks 1.1–1.4 are done (M1 closed SHIP, 673162c8).
+- **M2: the gate is narrower than #262's wording.** #262 also required that a
+  changed row not soft-wrap into the row below. The generative test shows that
+  condition guards nothing:
+  - with it dropped, 48 of 80 seeds take the row diff instead of 26;
+  - every one of them equals the full rebuild under both the xterm oracle and the
+    native zellij oracle (`PAIR_TERMINAL_NATIVE=1`).
+  Repainting row `y` never touches row `y+1`'s own wrap flag, which is where the
+  soft link lives. So the gate is "every changed row is unwrapped in both
+  frames", with nothing reset and nothing new for history.
+  `TestChangedPlainRowsGate` pins its width:
+  - a cursor-only change and a plain-row edit are taken;
+  - so is the head of a wrapped line;
+  - a wrapped row, a wrap-flag flip, an endpoint switch and a resize are refused.
+- **Oracle setup.** `tests/terminal-oracle` needed `npm ci` in this checkout;
+  without it the oracle tests skip silently. `PAIR_TERMINAL_ORACLE=1` turns that
+  skip into a failure.
+
