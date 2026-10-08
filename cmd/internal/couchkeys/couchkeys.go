@@ -61,6 +61,7 @@ const (
 	ActionDetach
 	ActionPark
 	ActionRelaunch
+	ActionBroadcast
 )
 
 // Binding is one chord Couch declares. Chord is the Pair chord it shares (a
@@ -90,6 +91,11 @@ var bindings = []Binding{
 	// highlighted row.
 	pairChord(ScopeEveryPane, ActionRelaunch, workbenchshortcut.ChordAltN, "Alt+n", "relaunch the thread shown or highlighted, on the current binary, same conversation"),
 	pairChord(ScopeEveryPane, ActionRelaunch, workbenchshortcut.ChordCtrlAltN, "Ctrl+Alt+n", "same as Alt+n"),
+	// Broadcast (#395): enhanced encoding only. Its legacy form, ESC ^B, is
+	// also Esc-then-Ctrl+B (nvim's page-up), and an accidental broadcast
+	// exposes the screen.
+	{Action: ActionBroadcast, Scope: ScopeEveryPane, Key: "Ctrl+Alt+b", Help: "broadcast this screen view-only, or end the broadcast",
+		Encodings: [][]byte{[]byte("\x1b[98;7u")}},
 	pairChord(ScopeSwitcher, ActionDetach, workbenchshortcut.ChordAltD, "Alt+d", "detach every live thread and leave Couch; their sessions keep running"),
 	pairChord(ScopeSwitcher, ActionPark, workbenchshortcut.ChordAltX, "Alt+x", "shut down every live thread and leave Couch (asks first)"),
 }

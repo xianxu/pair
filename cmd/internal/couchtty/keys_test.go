@@ -768,3 +768,19 @@ func TestEachHitHasOneScope(t *testing.T) {
 		scope[hit] = b.Scope
 	}
 }
+
+// Ctrl+Alt+b toggles a broadcast from every pane (#395). Only the enhanced
+// encoding: its legacy form, ESC ^B, is also Esc-then-Ctrl+B (nvim's
+// page-up), and an accidental broadcast exposes the screen.
+func TestCtrlAltBBroadcastsAndLegacyPassesThrough(t *testing.T) {
+	var it Interceptor
+	if _, hit, _ := it.FeedHit([]byte("\x1b[98;7u")); hit != HitBroadcast || !hit.actorReserved() {
+		t.Fatalf("Ctrl+Alt+b framed as %v (reserved=%v)", hit, hit.actorReserved())
+	}
+	legacy := []byte("\x1b\x02")
+	var plain Interceptor
+	before, hit, _ := plain.FeedHit(legacy)
+	if hit != HitNone || !bytes.Equal(before, legacy) {
+		t.Fatalf("ESC ^B: hit=%v forwarded=%q", hit, before)
+	}
+}

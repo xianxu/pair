@@ -135,9 +135,15 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 	if ok && !hit.Release && hit.Button == 0 {
 		c.mu.Lock()
 		rows, panel := int(c.size.Rows), c.focus.IsPanel()
-		chips, extents := c.statusChips, c.menuExtents
+		chips, extents, control := c.statusChips, c.menuExtents, c.statusControl
 		c.mu.Unlock()
 		if hit.Y == rows {
+			// The broadcast cell is checked first: anywhere in its red span
+			// stops the broadcast (#395).
+			if control.Contains(hit.X - 1) {
+				c.toggleBroadcast()
+				return
+			}
 			if thread, ok := (RenderedStatusRow{Chips: chips}).ColumnToActor(hit.X - 1); ok {
 				c.switchToThread(thread)
 			}

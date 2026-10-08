@@ -34,7 +34,7 @@ func TestPresenterHistorySwitchPanelAndAltReleaseOracle(t *testing.T) {
 		}
 	}
 	panel := Frame{Geometry: Geometry{4, 5}, Cells: make([]Cell, 20)}
-	if err = p.Panel(ctx, panel); err != nil {
+	if err = p.Panel(ctx, panel, FramePublic); err != nil {
 		t.Fatal(err)
 	}
 	if err = p.Select(ctx, e, Geometry{4, 5}, chrome); err != nil {

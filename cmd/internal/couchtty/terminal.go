@@ -100,6 +100,7 @@ func (c *Console) chrome() (RenderedStatusRow, []terminal.Cell, error) {
 func (c *Console) commitChrome(row RenderedStatusRow) {
 	c.mu.Lock()
 	c.statusChips = row.Chips
+	c.statusControl = row.Control
 	first := !c.framePainted
 	c.framePainted = true
 	var shown couchcore.ThreadAddress

@@ -805,6 +805,38 @@ you were working. Pressed again, it goes to the next page. With nothing paging i
 stays put and says so on the status row. Inside the switcher it is not claimed
 and acts as the switcher's own `Enter`.
 
+`Ctrl+Alt+b` **broadcasts** this screen, view-only, to anyone with the link
+(#395). The link is copied to your clipboard (it is never drawn on screen);
+send it through another channel. Viewers open it in a browser and see the
+composed Couch screen live, at your grid, with the font scaled to fit their
+window; they cannot type, scroll or switch anything. While broadcasting, the
+status row leads with `LIVE ⏸` on red: click it, or press `Ctrl+Alt+b` again, to
+stop, and viewers see the broadcast end. Every frame a viewer receives is one
+your screen showed with `LIVE ⏸`; if the indicator can't be drawn (say the
+terminal is too narrow) for a second, the broadcast stops. The switcher, which
+lists the whole fleet, is replaced for viewers by a placeholder unless
+`COUCH_BROADCAST_SWITCHER=show`. Nothing is recorded at either end; the link
+dies with the broadcast.
+
+Broadcasts reach viewers through [`cloudflared`](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/)
+(`brew install cloudflared`):
+
+- **Named tunnel** (recommended): a stable hostname on your own domain, served
+  from a private unix socket. One-time setup: `cloudflared tunnel login`,
+  `cloudflared tunnel create couch-broadcast`, and
+  `cloudflared tunnel route dns couch-broadcast live.example.com`. Then export
+  `COUCH_BROADCAST_TUNNEL=couch-broadcast` and
+  `COUCH_BROADCAST_HOSTNAME=live.example.com`. Links look like
+  `https://live.example.com/<token>/`, and only one Couch at a time can
+  broadcast on a tunnel.
+- **Quick tunnel** (`COUCH_BROADCAST_TUNNEL` unset): no account needed; each
+  broadcast gets a random `*.trycloudflare.com` hostname, live within a few
+  seconds.
+- `COUCH_BROADCAST_TUNNEL=off`: this machine only.
+
+`cloudflared` runs under a guard that stops it the moment Couch exits, even
+if Couch crashes or is killed.
+
 With an empty root filter, **Space** toggles the **normal view** and **focus view**.
 Focus view shows only live threads with a published summary, in normal-view
 order, as `label ◆ summary`. Tag a thread with `! …` in its Pair draft. An empty

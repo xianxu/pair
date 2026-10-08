@@ -42,9 +42,20 @@ async function main() {
       const wraps = [];
       for (let y = 0; y < rows; y++) wraps.push(buffer.getLine(buffer.viewportY+y).isWrapped);
       result.push({ History: history, Wraps: wraps, Lines: lines, Cells: cells, X: buffer.cursorX, Y: buffer.cursorY, Links: [...links],
-        Modes: terminal.modes, CursorStyle: terminal.options.cursorStyle, CursorBlink: terminal.options.cursorBlink });
+        Modes: terminal.modes, ...cursorState(terminal) });
     }
   } finally { terminal.dispose(); }
   process.stdout.write(JSON.stringify(result));
+}
+// The effective DECSCUSR state. Since @xterm 6.0, DECSCUSR lives in the core's
+// DEC private modes, not the public options, and `CSI 0 SP q` clears it to
+// undefined: no preference, the terminal's configured cursor. Reported here as
+// "default", which is also what Pair's cursor shape 0 means (#283).
+function cursorState(terminal) {
+  const modes = terminal._core.coreService.decPrivateModes;
+  if (modes.cursorStyle === undefined) {
+    return { CursorStyle: 'default', CursorBlink: false };
+  }
+  return { CursorStyle: modes.cursorStyle, CursorBlink: Boolean(modes.cursorBlink) };
 }
 main().catch(error => { process.stderr.write(String(error.stack || error) + '\n'); process.exitCode = 1; });

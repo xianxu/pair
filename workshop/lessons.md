@@ -657,3 +657,70 @@ proof; record the surprising case so the next change starts from evidence.
   classify test, built from hand-made evidence, stayed green. For each value a
   projector can produce, keep at least one test that drives it through the
   real input contract.
+- A property test that runs a lifecycle call at a fixed point only tests that
+  ordering. #395 M1's hub test always called `Activate()` before any frame;
+  the one ordering it skipped (LIVE already shown, then activate on a quiet
+  screen) killed every broadcast after 1s. Place lifecycle calls at random
+  steps too, and state in the invariant what the call must not do.
+- A property test's observer must not repair the state it checks. #395's
+  hub test drained every viewer after every step, so no queue ever
+  overflowed, and the test passed against a hub with resync removed. Check
+  by inspecting; let the random schedule decide who drains. Then prove the
+  test bites with `go test -overlay` mutants of the invariant's code, which
+  never touches the tracked file.
+- Publish ending state before signalling the end. #395 M2's hub closed
+  subscriber queues and only later closed `Done`, which gated `Err()`; a
+  consumer that reacted to its closed queue read `nil` and told viewers the
+  operator had stopped when the tunnel had died (1 in 300 runs). Store the
+  reason first, then close the channels anyone can observe, and test by
+  reading the state at the moment the first signal arrives, many times over.
+- A client whose connection can close for good must say so on screen. The
+  #395 viewer handled `end` and transient errors, but a refused or dead
+  connection left the last frame up, undimmed, looking live. Every terminal
+  state of a connection needs a visible state, and its test drives a fake
+  transport into each one.
+- Record a departure from the plan in its `## Revisions` in the same commit
+  that makes it. #395's reviews flagged undocumented departures twice
+  (an End message that became channel close; a Makefile target that became a
+  Go-driven node test), and a third time for a rename the atlas still cited.
+  A rename or departure greps the old identifier across code, atlas, plan and
+  lessons in that same commit.
+- Text that crosses a trust boundary is a closed vocabulary. #395 M2 sent
+  `err.Error()` to remote viewers as the end reason; a wrapped `Serve` error
+  carried a local address, and in M4 a unix-socket path with a username.
+  Map known errors to fixed strings with `errors.Is`, use a generic fallback,
+  and test with a wrapped error that contains a path.
+- A caller that can stop waiting must not read state written by the work it
+  handed off. #395 M3's broadcast start read an `adopted` flag after
+  `runTerminalCommand`, which returns early on shutdown while the loop may
+  still run the closure, so a race (seen under `-race -count=8`) could stop a
+  session the loop then adopted. Decide ownership of a produced resource with
+  one claim (an atomic CAS) that both sides attempt.
+- Check-then-act on a shared file needs a lock around both halves. #395 M5's
+  run records reaped a stale named-tunnel lock and then claimed with
+  O_EXCL, each safe alone; two Couches starting together could both judge the
+  same stale lock, and the slower one deleted the faster one's fresh claim. A
+  flock around reap+claim makes the decision atomic. The window is narrow:
+  racing two claimers 1000 times caught the unlocked version in only 2 of 3
+  runs. The test holds the window open with a hook between reading a record
+  and acting on it (`afterRecordRead`), which makes the bad ordering happen
+  every time.
+- A pattern that scrapes a URL from a tool's output must not match the
+  tool's own hosts. #395's quick-tunnel regex took
+  `https://api.trycloudflare.com` out of cloudflared's failure line as the
+  tunnel. Anchor on what only a success can produce, and test with the real
+  failure text.
+- A test hook that holds one goroutine must not use sync.Once. `Once.Do`
+  makes concurrent callers wait until the first call returns, so a hook that
+  parks the first caller inside `Do` also parks every other caller, and the
+  test serializes the race it was written to show. #395's deterministic
+  claim-race test passed against the unlocked mutant until the hook used an
+  atomic first-caller flag. Mutation-check a race test; an ordering hook can
+  silently remove the ordering.
+- Bring main into a mid-flight issue branch by merging, not rebasing. #395
+  rebased before a slot move: one commit subject starting `#395` was eaten as
+  a comment by `rebase --continue`'s message cleanup, the M1/M2
+  `Review-Window` trailers came to name pre-rebase IDs, and `sdlc actual`
+  (commit dates, plus the transcripts of the slot it runs in) read 1.79h for
+  the whole issue, against 1.75h for M1 alone. M3–M5 and the close went
+  unmeasured. A later `git merge origin/main` changed nothing that existed.

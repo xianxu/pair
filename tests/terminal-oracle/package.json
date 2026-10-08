@@ -4,6 +4,6 @@
   "version": "1.0.0",
   "description": "Independent test-only interpreter for Pair terminal renderer output",
   "dependencies": {
-    "@xterm/headless": "5.5.0"
+    "@xterm/headless": "6.0.0"
   }
 }

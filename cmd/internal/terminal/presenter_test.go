@@ -320,7 +320,7 @@ func TestPresenterReleaseInPanelClearsSuppression(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := p.Panel(context.Background(), f); err != nil {
+	if err := p.Panel(context.Background(), f, FramePublic); err != nil {
 		t.Fatal(err)
 	}
 	if err := p.Input(context.Background(), uv.MouseReleaseEvent{X: 1, Y: 1, Button: uv.MouseLeft}); err != nil {
@@ -491,7 +491,7 @@ func TestPresenterKeyboardPushFollowsTheScreen(t *testing.T) {
 				var err error
 				switch {
 				case s.panel:
-					err = p.Panel(ctx, Frame{Geometry: Geometry{8, 5}, Cells: make([]Cell, 40)})
+					err = p.Panel(ctx, Frame{Geometry: Geometry{8, 5}, Cells: make([]Cell, 40)}, FramePublic)
 				case s.alternate:
 					err = p.Select(ctx, alternate, Geometry{8, 5}, make([]Cell, 8))
 				default:
@@ -638,7 +638,7 @@ func TestPresenterParentAndOrphanGesturesNeverReachChild(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if err := p.Panel(context.Background(), f); err != nil {
+				if err := p.Panel(context.Background(), f, FramePublic); err != nil {
 					t.Fatal(err)
 				}
 				p.Input(context.Background(), uv.MouseClickEvent{X: 2, Y: 2, Button: uv.MouseLeft})
@@ -816,10 +816,10 @@ func TestPresenterCancellationCallersResumeOnePendingDelivery(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if err := p.Panel(context.Background(), f); err != nil {
+				if err := p.Panel(context.Background(), f, FramePublic); err != nil {
 					t.Fatal(err)
 				}
-				p.Panel(context.Background(), f)
+				p.Panel(context.Background(), f, FramePublic)
 			case "reconciliation":
 				if err := p.Input(context.Background(), uv.MouseMotionEvent{X: 2, Y: 2, Button: uv.MouseLeft}); err != nil {
 					t.Fatal(err)

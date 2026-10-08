@@ -225,7 +225,9 @@ func (c *Console) showMenu() {
 	frame, err := terminal.PanelFrame(terminal.Geometry{Cols: int(size.Cols), Rows: int(size.Rows)}, cells, cursor)
 	if err == nil {
 		c.traceCaptureTransition("panel-start", "", nil)
-		err = c.presenter.Panel(c.lifetime, frame)
+		// Private: the switcher lists the whole fleet; a broadcast shows a
+		// placeholder instead (#395).
+		err = c.presenter.Panel(c.lifetime, frame, terminal.FramePrivate)
 		c.traceCaptureTransition("panel-end", "", err)
 	}
 	if err != nil {

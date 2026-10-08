@@ -1,0 +1,872 @@
+# Couch Broadcast Implementation Plan
+
+> **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to determine the appropriate execution approach: use superpowers-subagent-driven-development (if subagents are suitable per AGENTS.md) or superpowers-executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Stream the composed Couch screen, view-only, to browser viewers over a
+`cloudflared` quick tunnel, started and stopped from a `LIVE` cell in Couch's tab
+bar.
+
+**Architecture:** The Presenter gains a frame tap: after each successful paint to
+the operator it hands a cloned composed `Frame` and its privacy class to a
+subscriber. A new `cmd/internal/broadcast` package turns tapped frames into one
+shared stream of rendered VT bytes (via the existing `terminal.Render`), swaps
+private frames (the switcher) for a placeholder, withholds every frame on which
+the operator's screen did not show the `LIVE` indicator, and serves the stream as
+Server-Sent Events to an embedded xterm.js page behind a capability token. Couch
+owns the session's lifecycle and the tab-bar control; `couchcmd` wires the real
+`cloudflared` tunnel.
+
+**Tech Stack:** Go (`net/http`, `crypto/rand`, `embed`), the existing
+`cmd/internal/terminal` renderer, vendored `@xterm/xterm` 5.5.0 (the same
+version as the `@xterm/headless` oracle in `tests/terminal-oracle`), and
+`cloudflared` quick tunnels.
+
+Issue: `workshop/issues/000395-couch-broadcast-stream-the-composed-couch-screen-view-only-to-a-remote-couch-watch.md`.
+
+---
+
+## Core concepts
+
+### Pure entities
+
+| Name | Lives in | Status |
+|------|----------|--------|
+| `FrameClass` | `cmd/internal/terminal/tap.go` | new |
+| `Tap` | `cmd/internal/terminal/tap.go` | new |
+| `Presenter.Panel` (gains a `FrameClass`) | `cmd/internal/terminal/presenter.go` | modified |
+| `LiveLabel`, `StartingLabel`, `IndicatorShown` | `cmd/internal/broadcast/indicator.go` | new |
+| `ViewerFrame` | `cmd/internal/broadcast/privacy.go` | new |
+| `Stream`, `Message` | `cmd/internal/broadcast/stream.go` | new |
+| `BroadcastCell` in `StatusModel`; `RenderedStatusRow.Control` | `cmd/internal/couchtty/reserve.go` | modified |
+| `ActionBroadcast` binding | `cmd/internal/couchkeys/couchkeys.go` | modified |
+| `nextFontSize` | `cmd/internal/broadcast/web/viewer.js` | new |
+
+- **FrameClass / Tap** — `FramePublic` or `FramePrivate`; a `Tap` is
+  `func(Frame, FrameClass)`, called by the Presenter goroutine after a paint
+  succeeds. The contract: a tap must not block and receives an owned clone.
+  - **Relationships:** 0..1 tap per Presenter. The class is set by whoever
+    selects what is on screen: `Select` sets public, `Panel` takes a class.
+  - **DRY rationale:** every paint path (endpoint, panel, chrome update, resize)
+    converges on `paintPublication`, so one hook sees all of them.
+  - **Future extensions:** per-pane privacy (#395 Spec) is a finer class or a
+    mask on the frame; the tap signature widens there.
+- **IndicatorShown(f)** — reports whether the frame's last row starts with the
+  cells of `LiveLabel` drawn in `LiveStyle` (the red background, not just the
+  text), so a child printing "LIVE ⏸" on its own bottom row does not count. `RenderStatusRow` draws the same constant, so the drawer
+  and the checker can't disagree (ARCH-DRY).
+- **ViewerFrame(f, class, showSwitcher)** — returns `f` unchanged for public
+  frames or when `showSwitcher` is set; otherwise a placeholder of the same
+  geometry: blank rows, the centered line `The operator is switching threads`,
+  hidden cursor, and `f`'s last row (the tab bar) copied through.
+- **Stream** — the broadcast's one piece of frame state: the last frame sent.
+  `Next(f)` returns the `terminal.Render(last, f)` diff as a `Message` (or none if
+  nothing changed) and advances; `Join()` renders the current frame from zero for
+  a late or resyncing viewer. Pure; tests run without IO.
+  - **Relationships:** 1:1 with a Hub; shared by all viewers, so each frame is
+    rendered once, not per viewer.
+  - **Future extensions:** the row-diff work #262 deferred lands in `Render`
+    and this inherits it.
+- **BroadcastCell / RenderedStatusRow.Control** — the tab bar's leftmost cell:
+  `Off` (draw nothing; also when no broadcaster is wired), `Starting`
+  (`LIVE …` in `LiveSGR`; the tunnel is opening, nothing streams yet), and
+  `Live` (`LIVE ⏸` on a red background with the terminal's normal foreground,
+  `\x1b[41m`). It is drawn before the `REC` capture badge, with one space
+  between them. Ctrl+Alt+b starts a broadcast, which copies the link to the
+  clipboard for the operator to share through another channel; a second
+  Ctrl+Alt+b, or a click anywhere in the red portion, stops it. A stopped
+  broadcast has no cell and no click target. `Control` is the red portion's
+  zero-based, half-open column span, empty when off.
+- **nextFontSize** — the viewer's pure fit step: given the current font size,
+  the rendered screen's pixel size, and the viewport size, returns
+  `clamp(floor2(current × min(viewW/screenW, viewH/screenH)), 4, 64)`, where
+  `floor2` rounds down to 0.5px.
+
+### Integration points
+
+| Name | Lives in | Status | Wraps |
+|------|----------|--------|-------|
+| `Presenter.SetTap` | `cmd/internal/terminal/tap.go` | new | presenter goroutine |
+| `Hub` | `cmd/internal/broadcast/hub.go` | new | goroutine, timers, subscriber channels |
+| `Server` | `cmd/internal/broadcast/server.go` | new | `net/http`, listener |
+| `Session` | `cmd/internal/broadcast/session.go` | new | hub + server + tunnel lifecycle |
+| `Tunnel`, `FakeTunnel` | `cmd/internal/broadcast/tunnel.go`, `tunnel_fake.go` | new | external tunnel |
+| `Cloudflared` | `cmd/internal/broadcast/cloudflared.go` | new | `cloudflared` binary |
+| `Console` broadcast wiring | `cmd/internal/couchtty/console_broadcast.go` | new | Session, Presenter tap, clipboard |
+| `couchcmd` wiring | `cmd/internal/couchcmd/run.go` | modified | env options, real tunnel |
+
+- **Hub** — receives offers (latest wins, never blocks), applies
+  `IndicatorShown` and `ViewerFrame`, drives the `Stream`, fans messages out to at
+  most `MaxViewers` (16) subscribers with an 8-message queue each. A full queue
+  marks that viewer for resync. Its queued diffs are a valid prefix and still
+  go out. As soon as the queue has room again, checked on every frame and on a
+  100ms hub tick, it gets `Join()` of the current frame, with no new frame
+  needed. It never gets a diff computed against a frame it didn't receive. Frames without the indicator are withheld; if the indicator
+  stays absent for `Grace` (1s), the hub ends with `ErrIndicatorHidden`. The
+  timer arms at `Activate()`, which Console calls right after installing the
+  tap, not while the tunnel is still opening (that can take up to 30s).
+  - **Injected into:** `Session`. Timer creation is injected
+    (`HubOptions.After`) so grace tests are deterministic.
+- **Server** — `http.Handler` rooted at `/<token>/`: `GET /<token>/` (page),
+  `/<token>/viewer.js`, `/<token>/xterm.js`, `/<token>/xterm.css` (embedded),
+  `/<token>/events` (SSE). Any other method is 405; any other path, or a wrong
+  token, is 404 (constant-time compare). Every response sets
+  `Cache-Control: no-store`, `Referrer-Policy: no-referrer` (the token is in the
+  path), `X-Content-Type-Options: nosniff`, and
+  `Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self'; font-src 'self'; frame-ancestors 'none'`.
+  GET only; HEAD and everything else is 405, so a HEAD on `/events` never
+  subscribes. A failed `: ping` write ends that subscriber, so dead
+  connections don't hold one of the 16 viewer slots.
+  SSE events: `event: frame` with `data: {"cols":C,"rows":R,"b":"<base64>"}`,
+  `event: end` with `data: {"reason":"…"}`, and a `: ping` comment every 15s
+  (Cloudflare closes idle streams at 100s).
+- **Session** — `Start(ctx, Config) (*Session, error)`: mints a 32-byte
+  `crypto/rand` base64url token, asks the tunnel for its listener, serves the
+  Server on it, opens the tunnel, and returns once the public link answers.
+  `Link()` is `<public>/<token>/`. `Offer`, `Activate`, `Stop(reason)`,
+  `Done()`, `Err()`. `Stop` ends viewers synchronously (the hub sends `end`
+  at once), then returns, while listener shutdown and tunnel close finish on a
+  goroutine that `Done()` waits for. `Stop` during `Start` cancels the tunnel
+  open. The Session never chooses a listener kind; the tunnel does.
+- **Tunnel** — the seam owns both the listener and the exposure, because the
+  listener's kind depends on what exposes it:
+
+```go
+type Tunnel interface {
+	// Listen creates the local listener this tunnel forwards to.
+	Listen() (net.Listener, error)
+	// Open exposes l and returns once the public base URL is known.
+	Open(ctx context.Context, l net.Listener) (Handle, error)
+}
+type Handle interface {
+	URL() string               // public base URL, no trailing slash
+	Exited() <-chan struct{}   // closed if the tunnel dies on its own
+	Close() error              // idempotent; also removes what Listen created
+}
+```
+
+  - **LocalOnly** — `Listen` is TCP `127.0.0.1:0`; `URL` is
+    `http://127.0.0.1:PORT` (a browser can't reach a unix socket).
+  - **FakeTunnel** — a stateful fake over LocalOnly's listener. It records
+    listens, opens and closes, can be told to delay `Open` or to exit, and
+    reports a double `Close`.
+  - **Cloudflared** (M4) — `Listen` is a unix socket `s` in a fresh 0700
+    directory `couch-broadcast-<owner pid>` under `os.TempDir()`. If that path
+    exceeds 100 bytes (macOS caps `sun_path` at 104), it falls back to TCP with
+    a Log-visible notice. `Open` runs
+    `cloudflared tunnel --no-autoupdate --unix-socket <path>` in its own process
+    group (or `--url http://127.0.0.1:PORT` on the TCP fallback, or if M4's live
+    check finds quick tunnels refuse `--unix-socket`). It scans stderr for the first
+    `https://[a-z0-9-]+\.trycloudflare\.com` (30s limit). The Session then probes
+    `GET <url>/<token>/` until it returns 200 (the edge serves the quick-tunnel
+    URL a few seconds after printing it), so "link copied" means the link works.
+    `Close` sends SIGTERM to the group, then SIGKILL after 3s, then removes the
+    socket directory and the pidfile.
+- **Console broadcast wiring** — owns a `broadcastPhase` tagged enum
+  (`off | starting | live | stopping`), toggles it from the click and the key,
+  installs and removes the tap, copies the link with `Presenter.Copy`, posts
+  notices, and stops the session when it ends on its own (grace expiry, tunnel
+  exit) or when Couch shuts down. Nothing that waits on the network or a process
+  runs on the input path.
+
+### Operating envelope (ARCH-CONSTRAINTS)
+
+- **Path:** the tap runs on the Presenter goroutine (the paint path). It
+  clones one frame (≈ cols×rows cells; 200×60 = 12k cells) and stores a pointer;
+  no IO, no lock contention beyond one mutex. Without an active broadcast there
+  is no tap and no clone.
+- **Rate:** bounded by the Presenter's `FrameInterval` coalescing; the hub
+  coalesces further (latest wins), so a slow hub drops intermediate frames, never
+  stalls the operator.
+- **Viewers:** max 16 (503 beyond); 8 queued messages each, then resync. A full
+  render of 200×60 is on the order of tens of KB, ×4/3 for base64. Bandwidth is
+  not a concern (issue Log, 2026-10-06).
+- **Startup:** tunnel URL within 30s or the start fails with a notice.
+
+### Trust boundaries (ARCH-SECURE)
+
+- **Internet → local server (untrusted).** Reached only through the tunnel.
+  Accepts GET only; never reads a request body; the 256-bit token is the
+  only credential, compared in constant time; nothing from the request is
+  reflected. The token is never drawn into a frame (the notice says "link
+  copied", not the link), so it can't leak through the broadcast itself.
+- **Cloudflare edge** sees plaintext frames; #406 closes this.
+- **Child output.** Viewers receive only our own `Render` output, the same
+  bytes the operator's terminal gets minus parent-mode and effect controls.
+  OSC 8 hyperlinks are carried through; xterm.js's default link handler asks
+  before opening, and we add no link addon.
+- **Viewer page.** Served from the binary; CSP forbids any other origin; no
+  storage APIs used. Scripts are strict (`script-src 'self'`). Styles allow
+  `'unsafe-inline'`, because xterm.js's DOM renderer inserts `<style>`
+  elements; inline style can't run code or reach another origin. Task 2.3
+  verifies this choice in a real browser.
+- **Placeholder tab bar.** The switcher placeholder copies the tab bar through.
+  It shows the same thread labels as every public frame, so it leaks nothing
+  new; the fleet's paths, notes and parked threads stay hidden.
+- **Out of scope.** An operator-enabled `COUCH_CAPTURE_DIR` still records the
+  parent stream. That is the operator's own recorder, not the broadcast's. It
+  also captures the OSC 52 clipboard write, so the link and its token reach
+  that capture file. Accepted: the token dies with the broadcast, so a
+  recorded link is dead by the time anyone could read the capture. The atlas
+  says so.
+- **cloudflared binary** is trusted from `PATH`, like `zellij`.
+- **A tunnel orphaned by a crash** forwards to a dead listener. With TCP, an
+  unrelated program that later binds the same ephemeral port would be exposed
+  to anyone holding the old link, with no token check. The unix socket in a
+  private directory closes that: nothing lands on that path by chance. A
+  leftover tunnel then only wastes a process, which `ReapOrphans` cleans up.
+
+### Ordering (ARCH-ORDER)
+
+Durable state: the session phase (Console) and the hub's last frame and
+subscriber set. Events and their orders:
+
+| State | Event | Result |
+|-------|-------|--------|
+| off | toggle | starting; `Session.Start` runs off the input path |
+| starting | toggle | cancel the start; off (a start that completes after cancel is stopped, not adopted) |
+| starting | start fails | off + error notice |
+| starting | start succeeds | live; `SetTap`, repaint chrome, copy link |
+| live | toggle or click | `SetTap(nil)` (ordered with paints), `Stop` (viewers get `end` now), stopping + repaint (the cell disappears); teardown continues off the input path |
+| stopping | `Done()` | off |
+| stopping | toggle | refused with the notice "Previous broadcast still stopping" |
+| live | `Done()` (grace, tunnel exit) | `SetTap(nil)`, off, notice with the reason |
+| any | Couch shutdown | `Stop` and wait on `Done()` (bounded at 6s) before Presenter release |
+
+In the hub, one goroutine owns the stream and the subscriber set, so a join and
+a frame are totally ordered: a joiner gets `Join()` of the frame before the next
+diff. Tests inject the order: `FakeTunnel` delays, a manual timer for grace, and
+explicit offer/subscribe interleavings.
+
+### Lifetimes (ARCH-FUNERAL)
+
+- **Hub frame and subscribers:** in memory; die with the session.
+- **Token:** in memory; dies with the session (the server stops serving it).
+- **Listener:** closed by `Stop`'s teardown (`Server.Shutdown`, 2s, then
+  `Close`).
+- **Socket directory** (`$TMPDIR/couch-broadcast-<owner pid>/s`, Cloudflared
+  only): created by `Listen`, removed by `Handle.Close`. After a crash,
+  `ReapOrphans` removes a directory whose owner is dead, the same owner rule as
+  the pidfile. One per live Couch.
+- **cloudflared process:** created by `Start`; removed by `Stop` (group SIGTERM,
+  then SIGKILL). A Couch crash orphans it to PID 1 (lessons.md, #399). Each
+  Couch writes its own pidfile,
+  `<pair data dir>/couch/broadcast-tunnel-<owner pid>.pid`, recording the owner
+  Couch's pid and start time and the tunnel's pid and start time. `Stop`
+  removes it. At Couch startup and before each start, `ReapOrphans` visits
+  every such file. It reaps only when the **owner** is dead (its pid is gone, or
+  belongs to a process with a different start time) and the tunnel pid is alive
+  with a matching start time and a `cloudflared` command. Reaping kills that
+  process group and removes the file. A file whose tunnel is already gone is
+  just removed. A live owner's file is never touched, so concurrent Couches
+  (scoped singletons) don't kill each other's tunnels. Bounded at one file per
+  live Couch, plus crash leftovers until the next start.
+- **Viewer page:** xterm.js's in-page screen only; closing the tab ends it.
+
+### Test strategy (one line per risky function)
+
+- **`IndicatorShown`** — adversarial: look-alike text in another style,
+  clipped widths, wide and continuation cells. Guard: a table test, plus the
+  drawer↔checker contract test in 3.1 that feeds `RenderStatusRow` output into
+  the checker.
+- **`ViewerFrame`** — adversarial: a marker anywhere in a private body.
+  Guard: the emulator screen of the viewer stream never contains the marker.
+- **`Stream`** — adversarial: geometry changes, unchanged frames, clears.
+  Guard: for random frame sequences, the emulator fed `Join()`-then-diffs
+  equals the emulator fed all diffs, and both equal the last frame's text.
+- **`Hub`** — adversarial: seeded random interleavings of
+  offer(indicator on/off, public/private), subscribe, slow drain, tick, grace
+  fire and close. Invariants checked after each step: (1) every viewer's
+  emulator screen equals some frame the hub accepted, and after quiescence
+  plus a tick it equals the current one; (2) no message derives from a frame
+  without the indicator; (3) no private body reaches a viewer unless
+  `ShowSwitcher`; (4) after close every queue is closed with `end`. Run 500
+  seeds; a failure prints its seed.
+- **Server token and method gate** — adversarial: every method on every
+  route, wrong, short and prefix tokens, path traversal (`/<token>/../`).
+  Guard: a table test; only exact `GET` + exact token + a known path is 200.
+- **`ReapOrphans`** — adversarial: live owner, recycled pids (start time
+  mismatch), a non-cloudflared command, missing files. Guard: a table test
+  with real child processes under `t.TempDir()`.
+- **`nextFontSize`** — adversarial: extreme aspect ratios, a fit within 0.5px.
+  Guard: a node table test.
+- **Cloudflared conformance** — the fake script models the stderr banner and
+  `--unix-socket`. Guard: `TestCloudflaredLive`, gated on
+  `BROADCAST_LIVE_CLOUDFLARED=1`, runs the real binary: it parses the URL,
+  serves over the unix socket, and the probe returns 200. Run it in M4, and
+  rerun it after any `cloudflared` upgrade (the atlas says so).
+
+---
+
+## Chunk 1 — M1: frame tap and hub
+
+### Task 1.1: FrameClass and the Presenter tap
+
+**Files:**
+- Create: `cmd/internal/terminal/tap.go`, `cmd/internal/terminal/tap_test.go`
+- Modify: `cmd/internal/terminal/presenter.go` (struct fields; `paintPublication`
+  after `p.previous = f.Clone()`; `Select`; `Panel`)
+- Modify: `cmd/internal/couchtty/console_menu.go:228` and every test caller of
+  `Panel` (`grep -rn '\.Panel(' cmd`)
+
+- [ ] **Step 1: Write failing tests** in `tap_test.go`, using the existing
+  presenter test helpers (`grep -n 'func newTestPresenter\|NewPresenter(' cmd/internal/terminal/*_test.go`):
+  - `TestTapSeesEveryPaintedFrame`: select an endpoint, publish output, update
+    chrome, resize. The tap receives a frame after each, equal to what was
+    painted, with `FramePublic`.
+  - `TestTapClassFollowsPanel`: `Panel(ctx, f, FramePrivate)` → the tap gets
+    `FramePrivate`; a following `Select` → `FramePublic`.
+  - `TestTapGetsAnOwnedClone`: mutating the received frame's cells does not change
+    the next diff the presenter writes.
+  - `TestTapNotCalledOnFailedPaint`: with a writer that fails, the tap is not
+    called; nor when the `PresentView` transition is refused.
+  - `TestSetTapNilStopsDelivery`.
+- [ ] **Step 2:** `go test ./cmd/internal/terminal/ -run Tap` → FAIL (undefined).
+- [ ] **Step 3: Implement.**
+
+```go
+// tap.go
+package terminal
+
+import "context"
+
+// FrameClass says whether a presented frame may leave the operator's screen.
+// Private frames (the switcher, which lists the whole fleet) are replaced
+// before they reach any viewer.
+type FrameClass uint8
+
+const (
+	FramePublic FrameClass = iota
+	FramePrivate
+)
+
+// Tap observes each frame after it has been fully painted to the parent.
+// It runs on the Presenter goroutine: it must not block, and it receives an
+// owned clone.
+type Tap func(Frame, FrameClass)
+
+// SetTap installs or (nil) removes the tap, ordered with paints.
+func (p *Presenter) SetTap(ctx context.Context, t Tap) error {
+	return p.call(ctx, func(context.Context) error { p.tap = t; return nil })
+}
+```
+
+  In `Presenter`: add `tap Tap` and `class FrameClass`. In `paintPublication`,
+  the tap fires only after the `PresentView` transition succeeds, so it sees
+  exactly the frames the presenter counts as presented. `f` is cloned once
+  more for the tap, and only when a tap is set:
+
+```go
+	_, err = p.transition(ViewEvent{Kind: PresentView, /* unchanged */})
+	if err == nil && p.tap != nil {
+		p.tap(f.Clone(), p.class)
+	}
+	return err
+```
+
+  `Select` sets `p.class = FramePublic` where it sets `p.selected`. `Panel`
+  becomes `Panel(ctx context.Context, f Frame, class FrameClass) error` and sets
+  `p.class = class` where it sets `p.selected = nil`. `showMenu` passes
+  `terminal.FramePrivate`; test callers pass `terminal.FramePublic`.
+- [ ] **Step 4:** `go test ./cmd/internal/terminal/ ./cmd/internal/couchtty/` → PASS.
+- [ ] **Step 5: Commit** `#395 M1: terminal: presenter frame tap with privacy class`.
+
+### Task 1.2: Indicator, privacy, stream (pure)
+
+**Files:**
+- Create: `cmd/internal/broadcast/{indicator,privacy,stream}.go` and colocated
+  `_test.go` files.
+
+- [ ] **Step 1: Write failing tests.**
+  - `TestIndicatorShown`: a frame whose last row starts with `LiveLabel` in
+    `LiveStyle` → true; the label in another style, on another row, clipped
+    (`cols < width(LiveLabel)`), absent, or a blank resize row → false.
+  - `TestIndicatorGlyphWidths`: `⏸` and `…` are one column wide in
+    `textwidth.Width` and in `ansi.StringWidth`, so click spans and cell
+    matching agree. If either reports 2, switch to glyphs that agree in both and
+    record it in the Log. Terminal and xterm.js widths are checked by eye in the
+    M3 smoke. Build rows with `terminal.StyledRows`.
+  - `TestViewerFramePublicUnchanged`; `TestViewerFrameShowSwitcherUnchanged`.
+  - `TestViewerFramePrivateIsPlaceholder`: same geometry; no cell of the
+    original body (put a marker `FLEET-SECRET` in it) survives; the last row
+    equals the input's last row; the placeholder text is present; cursor hidden.
+  - `TestStreamJoinThenDiffsReproduceScreen`: feed frames A, B, C through
+    `Next`; separately `Join()` after B and then `Next(C)`. Interpret both byte
+    sequences with the vt emulator (`third_party/vt`, see how
+    `cmd/internal/terminal` tests build one: `grep -rn 'vt.NewEmulator\|vt.New' cmd/internal/terminal/*_test.go`)
+    at the frame geometry; both screens equal C's text.
+  - `TestStreamUnchangedFrameYieldsNoMessage`.
+  - `TestStreamClearClearsViewer`: A contains a marker; B is blank; the screen
+    after A then B has no marker.
+  - `TestStreamGeometryChange`: a message carries the new cols/rows, and its bytes
+    redraw fully (Render emits `\x1b[2J` on geometry change).
+- [ ] **Step 2:** `go test ./cmd/internal/broadcast/` → FAIL.
+- [ ] **Step 3: Implement.**
+
+```go
+// indicator.go
+package broadcast
+
+// LiveLabel is drawn by couchtty's status row while live and checked here on
+// every frame; one constant so the drawer and the checker can't disagree.
+const (
+	LiveLabel = "LIVE ⏸"
+	StartingLabel = "LIVE …"
+	// LiveSGR is the style the status row draws LiveLabel in: red background,
+	// the terminal's own foreground. IndicatorShown checks that the drawn
+	// cells' background is red (ANSI 1).
+	LiveSGR = "\x1b[41m"
+)
+
+// IndicatorShown reports whether f's last row begins with LiveLabel.
+func IndicatorShown(f terminal.Frame) bool { /* walk last-row cells, matching
+	each grapheme of LiveLabel in order, skipping width-0 continuation cells */ }
+```
+
+```go
+// stream.go
+// Message is one unit of the broadcast: a rendered update at a geometry.
+type Message struct {
+	Cols, Rows int
+	Data       []byte
+}
+
+// Stream holds the last frame sent. Each frame is rendered once and shared.
+type Stream struct{ last terminal.Frame; started bool }
+
+func (s *Stream) Next(f terminal.Frame) (Message, bool, error) {
+	data, err := terminal.Render(s.last, f)
+	if err != nil { return Message{}, false, err }
+	s.last, s.started = f, true
+	if len(data) == 0 { return Message{}, false, nil }
+	return Message{Cols: f.Geometry.Cols, Rows: f.Geometry.Rows, Data: data}, true, nil
+}
+
+func (s *Stream) Join() (Message, bool, error) {
+	if !s.started { return Message{}, false, nil }
+	data, err := terminal.Render(terminal.Frame{}, s.last)
+	if err != nil { return Message{}, false, err }
+	return Message{Cols: s.last.Geometry.Cols, Rows: s.last.Geometry.Rows, Data: data}, true, nil
+}
+```
+
+  `ViewerFrame` builds the placeholder with `terminal.StyledRows` for the body
+  (`rows-1` rows, text centered) plus `f`'s last-row cells, then
+  `terminal.PanelFrame` with a hidden cursor.
+- [ ] **Step 4:** tests PASS.
+- [ ] **Step 5: Commit** `#395 M1: broadcast: indicator, privacy and stream`.
+
+### Task 1.3: Hub
+
+**Files:**
+- Create: `cmd/internal/broadcast/hub.go`, `hub_test.go`
+
+- [ ] **Step 1: Write failing tests** (manual timer via `HubOptions.After`):
+  - `TestHubLateJoinerGetsCurrentFrame`: offer A (with indicator), subscribe,
+    first message = `Join()` of A; offer B → the diff to B.
+  - `TestHubWithholdsFramesWithoutIndicator`: an offered frame without the
+    indicator produces no message; a subsequent frame with it does.
+  - `TestHubStopsWhenIndicatorHiddenPastGrace`: withheld frames, fire the
+    timer → subscribers get `End{Reason: ErrIndicatorHidden}`, channels close,
+    `Done()` closes, `Err()` is `ErrIndicatorHidden`. Also after `Activate()`:
+    no frame before the timer fires → same end. Before `Activate()`, no timer
+    runs.
+  - `TestHubIndicatorReturnsBeforeGrace`: absent, then present before the
+    timer → no end, and the timer is cancelled.
+  - `TestHubPrivateFramePlaceholderByDefault` and `…ShownWithOption`:
+    frame-level, via the emulator: the viewer screen lacks/has `FLEET-SECRET`.
+  - `TestHubSlowViewerResyncs`: don't read one subscriber until its queue
+    overflows, while a fast subscriber still gets every diff. Then stop
+    offering and drain the slow one: after its queued diffs, a full render
+    arrives with no new offer (advance the manual tick), and its emulator screen
+    equals the current frame. No diff after the overflow reaches it before that
+    full render.
+  - `TestHubOfferNeverBlocks`: 10k offers with no hub progress return
+    promptly (the hub is paused via an option hook).
+  - `TestHubMaxViewers`: the 17th `Subscribe` → `ErrTooManyViewers`.
+  - `TestHubCloseIdempotent`.
+  - `TestHubRandomInterleavings`: the seeded property test from the test
+    strategy.
+- [ ] **Step 2:** FAIL.
+- [ ] **Step 3: Implement.** One goroutine owns `Stream`, the subscriber set
+  and the grace timer. `Offer` stores the latest `(frame, class)` under a mutex
+  and pokes a `chan struct{}` of capacity 1. `Subscribe` and `Close` are requests
+  into the goroutine, so they are ordered with frames. Per-subscriber state:
+  `queue chan Message` (cap 8), `resync bool`. Delivery per frame: compute the
+  diff once, and `Join()` once if any subscriber is resyncing; non-blocking send;
+  on full set `resync` and send that subscriber nothing more until its
+  `Join()` is accepted. The hub tick (`HubOptions.Tick`, injected) retries
+  pending resyncs. End: send a final `Message{End: true, Reason: …}` when
+  there is room, then close each queue.
+- [ ] **Step 4:** PASS, also with `-race -count=20`.
+- [ ] **Step 5: Commit** `#395 M1: broadcast: hub with withholding, grace stop and resync`.
+- [ ] **M1 close:** `sdlc milestone-close --issue 395 --milestone M1`.
+
+## Chunk 2 — M2: local server and viewer page
+
+### Task 2.1: Vendor xterm.js
+
+**Files:**
+- Create: `cmd/internal/broadcast/web/vendor/xterm/{xterm.js,xterm.css,LICENSE,VENDOR.md}`
+
+- [ ] **Step 1:** in the scratchpad: `npm pack @xterm/xterm@5.5.0`; extract it
+  into its own empty directory; copy `lib/xterm.js`, `css/xterm.css` and
+  `LICENSE`. `VENDOR.md` records the package, version, tarball sha512 (from
+  `npm view @xterm/xterm@5.5.0 dist.integrity`) and the copy commands. Same
+  version as `tests/terminal-oracle`'s `@xterm/headless`, so the oracle
+  that already checks `Render` output checks the parser viewers run.
+- [ ] **Step 2:** classify the new files in the production artifact inventory
+  (`TestProductionArtifactReferencesAreExactlyClassified`, lessons.md #399).
+- [ ] **Step 3: Commit** `#395 M2: broadcast: vendor @xterm/xterm 5.5.0`.
+
+### Task 2.2: Viewer page
+
+**Files:**
+- Create: `cmd/internal/broadcast/web/{index.html,viewer.css,viewer.js}`,
+  `tests/broadcast-viewer/fit.test.mjs` (run with `node --test`; add it to the
+  Makefile's test target next to the terminal oracle)
+
+- [ ] **Step 1: Write the failing node test** for `nextFontSize` (exported from
+  `viewer.js` as an ES module): fits the width-bound and height-bound cases,
+  clamps to [4, 64], rounds down to 0.5, and is stable (returns `current` when
+  the screen already fits within 0.5px).
+- [ ] **Step 2:** FAIL.
+- [ ] **Step 3: Implement.** `index.html` loads `xterm.css`, `viewer.css`,
+  `xterm.js` and `viewer.js` by relative path, with no inline script or style
+  (the CSP forbids them). `viewer.js`:
+  - `new Terminal({scrollback: 0, disableStdin: true, cursorBlink: false, fontSize: 16, fontFamily: 'ui-monospace, Menlo, monospace'})`;
+    no `onData` handler.
+  - `new EventSource('events')`. On `frame`: resize the terminal to the
+    message's cols×rows if they differ; `term.write(base64 → Uint8Array)`; fit.
+  - On `end`: `term.reset()`, close the EventSource, show "Broadcast ended" (and
+    the reason). On EventSource error: show "Reconnecting…"; on a successful
+    reconnect the first message is a full render, so nothing else is needed.
+  - Fit: measure `.xterm-screen`, apply `nextFontSize` up to three times on each
+    frame geometry change and each window `resize`.
+  - Uses no storage API (`localStorage`, `sessionStorage`, `indexedDB`,
+    `caches`, service workers).
+- [ ] **Step 4:** node test PASS.
+- [ ] **Step 5: Commit** `#395 M2: broadcast: viewer page with auto-fit font`.
+
+### Task 2.3: Server
+
+**Files:**
+- Create: `cmd/internal/broadcast/server.go`, `server_test.go`, `web.go`
+  (`//go:embed web`)
+
+- [ ] **Step 1: Write failing tests** with `httptest.NewServer` over a real hub:
+  - `TestServerRefusesWrongTokenAndPaths`: 404 for a missing or wrong token
+    and for unknown paths under the right token.
+  - `TestServerIsGetOnly`: POST, PUT, DELETE, PATCH on every route → 405; no
+    request body is read (use a body reader that fails the test if read).
+  - `TestServerHeaders`: CSP exactly as specified, `no-store`, `no-referrer`,
+    `nosniff`, on every route.
+  - `TestViewerPageLoadsOnlySameOrigin`: parse `index.html`; every
+    `src`/`href` is relative; no inline `<script>` body or `style=` attribute.
+    And a static check that `viewer.js` names no storage API.
+  - `TestServerSSEStreamsFrames`: subscribe via `/events`; offered frames arrive
+    as `event: frame`, the decoded bytes reproduce the screen (emulator); a
+    `: ping` arrives within the (test-shortened) interval; closing the hub sends
+    `event: end`.
+  - `TestServerTooManyViewers` → 503.
+- [ ] **Step 2:** FAIL. **Step 3:** implement as specified in Core concepts.
+  **Step 4:** PASS.
+- [ ] **Step 5: Real-browser CSP check.** Run a test server (a small
+  `go test -run TestManualViewerServer` helper gated on
+  `BROADCAST_MANUAL=1`, which offers a sample frame and prints the link), open
+  the link in a browser, and confirm the page renders the frame with no CSP
+  errors in the console and fits on window resize. If the DOM renderer needs
+  more than `'unsafe-inline'` styles, adjust the policy to the minimum and
+  record why in the Log. Ask the operator if a browser can't be driven from
+  the session.
+- [ ] **Step 6: Commit** `#395 M2: broadcast: GET-only SSE server`.
+
+### Task 2.4: Session and tunnel seam
+
+**Files:**
+- Create: `cmd/internal/broadcast/{session,tunnel,tunnel_fake}.go` and tests.
+
+- [ ] **Step 1: Write failing tests** (with `FakeTunnel`):
+  - `TestSessionLinkServesViewer`: `Start` → `Link()` = fake URL + `/<token>/`;
+    GET returns the page; tokens differ across sessions and are 43 base64url
+    characters.
+  - `TestSessionStopEndsViewersAndRevokesToken`: `Stop` returns before the
+    teardown finishes (the fake delays `Close`), yet the open SSE has already
+    received `end`. After `Done()`, a new GET fails, the fake records exactly one
+    close, and the listener is closed.
+  - `TestSessionCancelDuringStart`: fake delays `Open`; cancel ctx → `Start`
+    returns `context.Canceled`; the fake shows open-then-close (a late open is
+    closed, not leaked); the listener is closed.
+  - `TestSessionTunnelExitEndsSession`: fake exits → `Done()` closes with
+    `ErrTunnelExited`; viewers get `end`.
+  - `TestSessionPersistsNoFrameData`: point `HOME`, `TMPDIR`, `XDG_*` and
+    the working directory at `t.TempDir()` subdirectories; run a session; offer
+    frames containing `BROADCAST-MARKER-395`; stream them to an HTTP viewer;
+    stop. Walk those directories: no file contains the marker.
+- [ ] **Step 2–4:** FAIL → implement → PASS (`-race`).
+- [ ] **Step 5: Commit** `#395 M2: broadcast: session lifecycle over a tunnel seam`.
+- [ ] **M2 close:** `sdlc milestone-close --issue 395 --milestone M2`.
+
+## Chunk 3 — M3: Couch control
+
+### Task 3.1: Status-row control cell
+
+**Files:**
+- Modify: `cmd/internal/couchtty/reserve.go` (`StatusModel`, `RenderedStatusRow`,
+  `RenderStatusRow`), `reserve_test.go`
+
+- [ ] **Step 1: Write failing tests:**
+  - `Off` draws nothing and leaves `Control` empty; the existing row tests stay
+    unchanged. `Starting` draws `LIVE …`, and `IndicatorShown` is false for it.
+  - `Live` draws `LIVE ⏸` with `LiveSGR` at column 0, followed by a space and
+    `REC n%` when capture is on (LIVE leads REC), and
+    `broadcast.IndicatorShown` is true on a frame whose last row is the
+    rendered row (`terminal.StyledRows`). This is the drawer↔checker contract.
+  - A width narrower than the label clips it, and `IndicatorShown` is false (the
+    fail-safe input).
+  - Chip spans shift right by the control's width and stay click-accurate.
+- [ ] **Step 2–4:** FAIL → add `Broadcast BroadcastCell` to `StatusModel`,
+  `Control ColumnSpan` to `RenderedStatusRow`, and draw it before
+  `captureBadge` through the same `appendText` → PASS.
+- [ ] **Step 5: Commit** `#395 M3: couchtty: broadcast control cell in the status row`.
+
+### Task 3.2: Key binding
+
+**Files:**
+- Modify: `cmd/internal/couchkeys/couchkeys.go`, `cmd/internal/couchtty/keys.go`
+  (`HitBroadcast`, `seqBroadcast`, `dispatchFor` arm), their tests.
+
+- [ ] **Step 1:** add the binding row:
+  `{Action: ActionBroadcast, Scope: ScopeEveryPane, Key: "Ctrl+Alt+b", Help: "broadcast this screen view-only, or end the broadcast", Encodings: [][]byte{[]byte("\x1b[98;7u")}}`.
+  Enhanced form only, like `ChordCtrlAltN`/`ChordCtrlAltC`
+  (`workbenchshortcut/shortcut.go`). The legacy `\x1b\x02` is also what
+  Esc-then-Ctrl+B produces, nvim's page-up, so it would start a broadcast by
+  accident. The help text avoids "start", "park" and "resume"
+  (`TestHelpAvoidsInternalOperationNames`). Ctrl+Alt+b is free in Pair's chord
+  table; plain Alt+b is the shell's word-back.
+  Test: `\x1b\x02` passes through to the child unchanged.
+- [ ] **Step 2:** `TestEveryCouchActionDispatches` fails until the
+  `dispatchFor` arm exists; add it. Help rendering tests update.
+- [ ] **Step 3: Commit** `#395 M3: couchkeys: Ctrl+Alt+b toggles broadcast`.
+
+### Task 3.3: Console wiring
+
+**Files:**
+- Create: `cmd/internal/couchtty/console_broadcast.go`, `console_broadcast_test.go`
+- Modify: `cmd/internal/couchtty/console.go` (fields, `hitHandlers`, teardown
+  before Presenter release), `terminal_input.go` (`routeMouseEvent`: check
+  `Control` before `ColumnToActor`), `console_presentation.go`
+  (`statusModelLocked` fills `Broadcast`), `terminal.go` (`commitChrome` stores
+  `Control`).
+
+- [ ] **Step 1: Write failing tests** using the existing Console test harness
+  (`panelConsole`, `consoleFixture` or `notificationConsole`; read which one
+  drives clicks, keys and a live presenter:
+  `grep -n 'func panelConsole\|func consoleFixture\|func notificationConsole' cmd/internal/couchtty/*_test.go`)
+  and `broadcast.FakeTunnel`:
+  - `TestBroadcastKeyStartsClickStops`: Ctrl+Alt+b from a Pair pane → the
+    session starts, the row shows `LIVE ⏸`, a clipboard copy of the link was
+    written, and a viewer GET of the link receives the composed screen
+    (emulator text includes an actor's output and the tab bar). A click on any
+    column of the red `LIVE ⏸` span (first, middle and last are each tested) →
+    the viewer gets `end`, the cell disappears. A click one column past the span
+    does not stop.
+  - `TestBroadcastKeyToggles`: Ctrl+Alt+b starts, and Ctrl+Alt+b again stops.
+  - `TestBroadcastOffHasNoClickTarget`: with no broadcast, a click on columns
+    0–6 of the row behaves exactly as before (chip or nothing).
+  - `TestBroadcastSwitcherPrivate`: open the switcher while live → the viewer
+    sees the placeholder, not a thread name; with `ShowSwitcher` → it sees the
+    switcher.
+  - `TestBroadcastStopsWhenIndicatorCannotBeDrawn`: shrink the host so the
+    label clips → after grace the session ends, the notice says why, the phase
+    is off.
+  - `TestBroadcastToggleWhileStarting`: fake delays `Open`; toggle twice → no
+    session left, the fake shows a close.
+  - `TestBroadcastStopIsOffTheInputPath`: the fake delays `Close` by 5s; a
+    click on `LIVE ⏸` returns, and the cell disappears, within one frame, and
+    keys typed during the teardown reach the child. Ctrl+Alt+b during teardown
+    shows the "still stopping" notice and starts nothing.
+  - `TestBroadcastStoppedOnShutdown`: stop the Console while live → the viewer
+    gets `end` and the fake shows a close, before Presenter release.
+  - `TestBroadcastNoBroadcasterNoCell`: with no broadcaster configured, the row
+    is unchanged and the key passes through to the child.
+- [ ] **Step 2:** FAIL.
+- [ ] **Step 3: Implement** the ordering table above. `SetBroadcaster(cfg
+  broadcast.Config)` configures it (nil config → `BroadcastNone`). Start runs
+  in a goroutine on the Console lifetime; its completion re-enters through the
+  Console's existing operation path, checking that the phase is still
+  `starting` with the same attempt id. A mismatch stops the late session. The
+  tap is `session.Offer`. The notice text is "Broadcast live — link copied" and
+  never contains the link.
+- [ ] **Step 4:** PASS (`-race`).
+- [ ] **Step 5: Commit** `#395 M3: couchtty: broadcast toggle, tap and fail-safe`.
+
+### Task 3.4: couchcmd options
+
+**Files:**
+- Modify: `cmd/internal/couchcmd/run.go` (`consoleRunnerFor`), its tests.
+
+- [ ] **Step 1:** read `COUCH_BROADCAST_SWITCHER` (`show` → ShowSwitcher;
+  unset → hidden; anything else → startup error naming the variable) and
+  `COUCH_BROADCAST_TUNNEL` (in M3: unset or `off` → `LocalOnly`; anything else →
+  error naming the variable). M4 Task 4.1 makes unset mean `Cloudflared` and
+  keeps `off` for local-only. Test both parse paths.
+- [ ] **Step 2:** local smoke: `COUCH_BROADCAST_TUNNEL=off couch`, Ctrl+Alt+b,
+  open the copied `http://127.0.0.1:…/<token>/` in a browser, then switch
+  threads, open the switcher, resize, `clear`, and stop. Check the browser
+  console for CSP errors, and that `⏸` takes one column in both
+  the operator's terminal and the viewer. **Ask the operator to
+  run this smoke** (memory: dogfood live), and record what they see in the Log.
+- [ ] **Step 3: Commit** `#395 M3: couchcmd: broadcast options`.
+- [ ] **Atlas:** `atlas/broadcast.md` (tap, hub, server, session, privacy,
+  fail-safe, lifetimes), link it from `atlas/index.md`, and add one paragraph to
+  `atlas/terminal.md` on the tap and `FrameClass`.
+- [ ] **M3 close:** `sdlc milestone-close --issue 395 --milestone M3`.
+
+## Chunk 4 — M4: cloudflared and live smoke
+
+### Task 4.1: Cloudflared tunnel
+
+**Files:**
+- Create: `cmd/internal/broadcast/cloudflared.go`, `cloudflared_test.go`
+
+- [ ] **Step 1: Write failing tests** with a fake `cloudflared` script on a
+  temp `PATH`. The script prints a quick-tunnel banner to stderr and sleeps;
+  variants never print a URL, or exit early.
+  - Parses the URL from stderr; waits until the probe of the link succeeds
+    (the test serves the fake URL locally and fails it twice first); times out (shortened in the test) with an error
+    naming cloudflared; an early exit is an error.
+  - `Close` terminates the process group (the script spawns a child; both are
+    gone), escalating to SIGKILL when the script ignores TERM.
+  - The pidfile is written on start and removed on close.
+  - `ReapOrphans`: dead owner + live matching tunnel → killed and removed;
+    **live owner → left alone, file kept**; a mismatched tunnel start time or
+    command → process left alone, stale file removed; a dead tunnel → file
+    removed. Each test may remove only
+    paths under its own `t.TempDir()` (lessons.md, #399). Socket tests bind
+    under a short directory (`os.MkdirTemp("/tmp", "cb")`, removed by the test
+    that made it), because `t.TempDir()` on macOS can exceed `sun_path`. Also
+    test the >100-byte fallback to TCP.
+  - `cloudflared` not on `PATH` → `ErrNoCloudflared`, with a notice saying how
+    to install it (`brew install cloudflared`).
+- [ ] **Step 2–4:** FAIL → implement → PASS.
+- [ ] **Step 5:** switch `couchcmd`'s default (unset `COUCH_BROADCAST_TUNNEL`)
+  to `Cloudflared`, and update its parse test. Run
+  `BROADCAST_LIVE_CLOUDFLARED=1 go test ./cmd/internal/broadcast -run TestCloudflaredLive`
+  (unsandboxed, network) and record the result. If `--unix-socket` is refused,
+  switch `Open` to the TCP form and log it.
+- [ ] **Step 6:** call `ReapOrphans` at Couch startup and before each start.
+  **Commit** `#395 M4: broadcast: cloudflared quick tunnel with orphan reaping`.
+
+### Task 4.2: Live smoke and close
+
+- [ ] **Step 1:** `make build` on `pair:0` after a slot move (CLAUDE.local).
+  **Ask the operator** to start a broadcast and to open the link on another
+  device or network: live updates at the sender's grid with the font fitted, a
+  late join shows the current screen, the switcher placeholder appears,
+  `clear` clears the viewer, stopping shows "Broadcast ended", and the old link
+  no longer loads. Check that no `cloudflared` remains (`pgrep -fl cloudflared`).
+- [ ] **Step 2:** full verification per memory: `make -k test`, the changelog
+  test with a scratchpad `TMPDIR`, `go test ./...`, and
+  `(cd third_party/vt && go test ./...)` if it was touched. Grep any known-failing
+  test's output for broadcast files.
+- [ ] **Step 3:** `sdlc close --issue 395 --verified '<evidence>'`.
+
+## Revisions
+
+- **2026-10-07 (M1 review)** — the hub ends by closing every subscriber queue,
+  with the reason in `Hub.Err()`. It does not send a final End message. The M2
+  server turns a closed queue into `event: end` with `Hub.Err()`; it can tell a
+  hub end from its own `Subscription.Close` because it made that call itself.
+  The indicator watch is a tagged `off | shown | hidden` state. `Activate`
+  arms grace only if the most recent frame lacked the indicator (BR-1). The
+  resync tick runs only while a viewer awaits resync.
+- **2026-10-07 (M1 review)** — `TestTapNotCalledOnFailedPaint` covers the failed
+  write, not a refused `PresentView`. After a successful `PublishFrame`/
+  `SelectView`, no public path makes that transition fail, so the tap's
+  `err == nil` guard is defence in depth, not a tested branch.
+- **2026-10-07 (M2 review)** — departures from the M2 steps:
+  - The viewer's node tests (`tests/broadcast-viewer/*.test.mjs`) run from Go
+    (`TestViewerNode`, skipped without node), the way the terminal oracle is
+    driven, not from a Makefile target. `go test ./...` runs them.
+  - The viewer's connection logic is an exported `connect(deps)` state
+    machine (BR-6). A lost connection dims the screen and says so: the browser
+    reconnecting by itself shows "Reconnecting…"; a connection closed for good
+    (502 from the tunnel, 503 at the viewer cap, 404/410 after the end) is
+    retried at 2, 4, 8, 15 and 30s, and then shows "Disconnected". After `end`
+    it never retries.
+  - The hub publishes its end reason before closing any queue (BR-5), so
+    `Hub.Err()` is right for whoever sees the end first. The session also
+    ends with `ErrServerFailed` if its HTTP server stops serving.
+- **2026-10-07 (M3)** — with no broadcaster configured, Ctrl+Alt+b shows the
+  notice "Broadcasting is not configured in this Couch." It does not pass the
+  key through to the child as Task 3.3 said: a chord's scope is static (it
+  decides `actorReserved`), so the key can't be Couch's only sometimes.
+  Production Couch always configures a broadcaster (Task 3.4). A click on the
+  `LIVE …` cell while starting cancels the start, like the key does.
+- **2026-10-07 (M3 close)** — a new **M4** inserted after the operator's smoke:
+  the viewer adopts the operator's theme and font. The `cloudflared` milestone
+  (Chunk 4 above) becomes **M5**. M4 sketch:
+  - Couch already queries OSC 10/11 for the default fg/bg (pair#247). Add OSC 4
+    queries for colours 0–15, and carry the palette in the stream as an
+    `event: theme` before the first frame (and to each joiner). The viewer
+    applies it as xterm.js's `theme`.
+  - `COUCH_BROADCAST_FONT_FILE` names a font file. The server serves it under
+    `/<token>/font` (allowed by `font-src 'self'`), and the viewer loads it
+    with `@font-face`, falling back to the current stack. The file is read
+    once at start and kept in memory.
+  - Tests: palette parsing; the theme event reaches a late joiner; font route
+    gated by the token; viewer theme/font application with node fakes.
+  M3 review fixes: BR-11 (single `startClaim` CAS owns a finished start's
+  session), BR-12 (watchers also end on console stop; shutdown bound
+  tested with a never-closing tunnel), start context released after the
+  start, `TestBroadcastOffHasNoClickTarget` added.
+- **2026-10-07 (M4 font decision)** — the operator's Ghostty config names
+  DejaVuSansM Nerd Font Mono, but that font isn't installed (`ghostty
+  +list-fonts`), so Ghostty draws its built-in JetBrains Mono. The operator
+  chose to **pack JetBrains Mono 2.304** (OFL; the four web-font weights,
+  about 380 KB) in the binary and serve it same-origin. That replaces the
+  `COUCH_BROADCAST_FONT_FILE` sketch. Only fonts whose licence allows
+  redistribution are vendored (`web/vendor/fonts/VENDOR.md`).
+  Theme: OSC 4 replies reach Couch as `uv.UnknownOscEvent`, so Couch parses
+  them itself, and they must never be forwarded to a child.
+- **2026-10-07 (M5 design, after the live spike; see the issue Log)** — the
+  tunnel milestone (Chunk 4) changes as follows.
+  - **Modes** (`COUCH_BROADCAST_TUNNEL`; environment only, since Couch has no
+    global config file yet and one gets its own task if needed):
+    - `<tunnel name>` with `COUCH_BROADCAST_HOSTNAME`: a **named tunnel**. The
+      origin is a unix socket in a private 0700 directory, and a per-broadcast
+      ingress config (hostname → `unix:<socket>`, catch-all
+      `http_status:404`) is written there. It runs as `cloudflared tunnel
+      --config <file> run <name>`, and credentials come from `~/.cloudflared`
+      through cloudflared itself. Ready when stderr reports a registered
+      connection. Link: `https://<hostname>/<token>/`.
+    - unset: a **quick tunnel**, with a TCP loopback origin (quick tunnels
+      refuse unix sockets). Ready when stderr prints the trycloudflare URL.
+    - `off`: local only.
+  - **Probe** before "link copied": hostnames are resolved through a public
+    resolver (1.1.1.1), never the system resolver, because a new quick-tunnel
+    hostname didn't resolve locally for more than 60s and a failed lookup gets
+    cached.
+  - **Guard process** (replaces relying on the next start's sweep): Couch runs
+    cloudflared through a hidden `couch __broadcast-guard` that leads a new
+    process group, holds a stdin pipe from Couch, and on EOF (Couch exits,
+    crashes or is SIGKILLed) terminates the group (TERM, then KILL after 3s)
+    and removes the private directory.
+  - **Run record** (`<couch store>/broadcast/`): one JSON per running tunnel,
+    holding the owner Couch, guard and cloudflared PIDs with
+    `procutil.StrictIdentity`. For a named tunnel it is also the **lock**: a
+    live owner refuses a second broadcaster (`ErrTunnelBusy`), because two
+    connectors of one tunnel are replicas and would split viewers across
+    tokens. `ReapOrphans` (Couch startup and each start) kills a recorded
+    cloudflared or guard only when its owner is dead, its identity matches,
+    and (for cloudflared) its command contains `cloudflared`, then removes the
+    record and directory. The guard makes this a backstop.
+  - The listener returned by `Listen` removes its private directory on
+    `Close`, so an abandoned start leaves nothing behind.
+- **2026-10-08 (M5 smoke)** — the viewer and the oracle move to xterm.js
+  **6.0.0**. 5.5.0 ignored synchronized output (DECSET 2026), and the
+  operator saw a half-painted frame in Safari; 6.0.0 implements it. 6.0 keeps
+  DECSCUSR state in the core and reads `CSI 0 SP q` as no preference, so the
+  oracle driver reports the effective state ("default" for no preference),
+  matching Pair's shape 0 (#283). The M2 steps above still name 5.5.0 as
+  history.
