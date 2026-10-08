@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 
+	"net"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -28,6 +30,9 @@ type Config struct {
 	Ping time.Duration
 	// ProbeTimeout bounds waiting for the public link to answer.
 	ProbeTimeout time.Duration
+	// Resolve looks up the link's hostname for the probe; nil uses a public
+	// resolver, then the system one (see PublicResolve).
+	Resolve func(ctx context.Context, host string) ([]string, error)
 	// Theme supplies the operator's palette for each new viewer; nil sends
 	// none and viewers keep xterm.js's colours.
 	Theme func() Theme
@@ -89,7 +94,7 @@ func Start(ctx context.Context, cfg Config) (*Session, error) {
 		return abandon(handle, err)
 	}
 	link := handle.URL() + "/" + token + "/"
-	if err := probe(ctx, link, cfg.ProbeTimeout); err != nil {
+	if err := probe(ctx, link, cfg.ProbeTimeout, cfg.Resolve); err != nil {
 		return abandon(handle, err)
 	}
 	s := &Session{token: token, link: link, hub: hub, srv: srv, handle: handle, done: make(chan struct{})}
@@ -167,10 +172,18 @@ func newToken() (string, error) {
 
 // probe waits until the link answers 200, so "link copied" means it works.
 // A quick tunnel's edge starts serving a few seconds after printing its URL.
-func probe(ctx context.Context, link string, timeout time.Duration) error {
+//
+// The hostname is resolved by resolve, not the system resolver: a new
+// quick-tunnel hostname didn't resolve through macOS's resolver for over a
+// minute while 1.1.1.1 had it in a second, and a failed system lookup may be
+// cached, which would also delay the operator's own browser.
+func probe(ctx context.Context, link string, timeout time.Duration, resolve func(context.Context, string) ([]string, error)) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	client := &http.Client{Timeout: 5 * time.Second}
+	if resolve == nil {
+		resolve = PublicResolve
+	}
+	client := &http.Client{Timeout: 5 * time.Second, Transport: &http.Transport{DialContext: resolvingDialer(resolve)}}
 	var last error
 	for {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, link, nil)
@@ -178,6 +191,12 @@ func probe(ctx context.Context, link string, timeout time.Duration) error {
 			return err
 		}
 		resp, err := client.Do(req)
+		// A *url.Error's text carries the link, and so the token; keep only
+		// its cause, since this error reaches the operator's notice.
+		var uerr *url.Error
+		if errors.As(err, &uerr) {
+			err = uerr.Err
+		}
 		if err == nil {
 			resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
@@ -194,5 +213,48 @@ func probe(ctx context.Context, link string, timeout time.Duration) error {
 			return fmt.Errorf("broadcast: link never answered: %w", last)
 		case <-time.After(probeInterval):
 		}
+	}
+}
+
+// publicResolver asks Cloudflare's resolver directly, bypassing the system's.
+var publicResolver = &net.Resolver{
+	PreferGo: true,
+	Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
+		var d net.Dialer
+		return d.DialContext(ctx, network, "1.1.1.1:53")
+	},
+}
+
+// PublicResolve resolves host through 1.1.1.1, falling back to the system
+// resolver when that fails (no route to it, or a name only local DNS knows).
+func PublicResolve(ctx context.Context, host string) ([]string, error) {
+	if addrs, err := publicResolver.LookupHost(ctx, host); err == nil && len(addrs) > 0 {
+		return addrs, nil
+	}
+	return net.DefaultResolver.LookupHost(ctx, host)
+}
+
+// resolvingDialer dials a hostname through resolve; IP literals are dialed
+// as they are.
+func resolvingDialer(resolve func(context.Context, string) ([]string, error)) func(context.Context, string, string) (net.Conn, error) {
+	var d net.Dialer
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		host, port, err := net.SplitHostPort(addr)
+		if err != nil || net.ParseIP(host) != nil {
+			return d.DialContext(ctx, network, addr)
+		}
+		ips, err := resolve(ctx, host)
+		if err != nil {
+			return nil, err
+		}
+		var last error = errors.New("no addresses")
+		for _, ip := range ips {
+			conn, err := d.DialContext(ctx, network, net.JoinHostPort(ip, port))
+			if err == nil {
+				return conn, nil
+			}
+			last = err
+		}
+		return nil, last
 	}
 }

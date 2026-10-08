@@ -245,3 +245,50 @@ func TestSessionEndsWhenServerFails(t *testing.T) {
 		t.Fatalf("Err() = %v", s.Err())
 	}
 }
+
+// hostTunnel serves on loopback but publishes a hostname the system can't
+// resolve, as a fresh quick tunnel does before local DNS catches up.
+type hostTunnel struct{ FakeTunnel }
+
+func (h *hostTunnel) Open(ctx context.Context, l net.Listener) (Handle, error) {
+	inner, err := h.FakeTunnel.Open(ctx, l)
+	if err != nil {
+		return nil, err
+	}
+	_, port, _ := net.SplitHostPort(l.Addr().String())
+	return renamed{Handle: inner, url: "http://broadcast-probe.invalid:" + port}, nil
+}
+
+type renamed struct {
+	Handle
+	url string
+}
+
+func (r renamed) URL() string { return r.url }
+
+func TestSessionProbeResolvesThroughItsResolver(t *testing.T) {
+	var asked []string
+	resolve := func(_ context.Context, host string) ([]string, error) {
+		asked = append(asked, host)
+		return []string{"127.0.0.1"}, nil
+	}
+	s, err := Start(context.Background(), Config{Tunnel: &hostTunnel{}, Resolve: resolve, ProbeTimeout: 5 * time.Second})
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer func() { s.Stop(nil); <-s.Done() }()
+	if len(asked) == 0 || asked[0] != "broadcast-probe.invalid" {
+		t.Fatalf("probe asked %v", asked)
+	}
+}
+
+func TestSessionProbeErrorCarriesNoToken(t *testing.T) {
+	resolve := func(context.Context, string) ([]string, error) { return nil, errors.New("no such host") }
+	_, err := Start(context.Background(), Config{Tunnel: &hostTunnel{}, Resolve: resolve, ProbeTimeout: 1200 * time.Millisecond})
+	if err == nil {
+		t.Fatal("start succeeded with an unresolvable link")
+	}
+	if strings.Contains(err.Error(), "broadcast-probe.invalid:") || regexp.MustCompile(`/[A-Za-z0-9_-]{43}/`).MatchString(err.Error()) {
+		t.Fatalf("probe error leaks the link: %v", err)
+	}
+}
