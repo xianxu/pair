@@ -43,21 +43,27 @@ Hypothesis (not verified): while Ghostty is in the background or covered by anot
 
 Two independent changes:
 
-1. **A slow outer terminal must not end the session.** Treat a timed-out parent-output write as backpressure, not as presenter failure. Mark the presenter as needing a full repaint, drop intermediate frames, and retry when the outer tty becomes writable. Give up (fail) only after a much longer outage, or when the tty is actually gone (EIO/EPIPE/hangup). A partially written frame must be repaired by a full repaint afterwards. The partial-frame state is already tracked by `HistoryState`, which is committed only after a fully emitted frame.
-2. **Stop full repaints for small changes.** When the frame is dirty but `reset` is false and no rows were added to history, `HistoryRender.Emit` should send only the rows that changed between `previous` and `next`, keeping the soft-wrap constraints the current code protects (see the comments about ECH/EL2 and wrapped rows). Keep the full repaint for resets, geometry changes, and history appends that shift the screen.
-
+1. **Say why couch exited when the terminal stopped accepting output.** Keep the exit: failing loudly is how this problem was found. But record the reason the way `crashreport` records a panic. When the presenter fails with `WriteFailure{Op: "parent output"}`, write the cause (operation, bytes accepted/requested, how long it waited) to the run's crash file before exiting. The next start then reports it once, like a panic, for example "previous couch exited: terminal stopped accepting output for 5s". Today this exit leaves no trace: no `.crash` file, no message, and a broken terminal because the restore write times out too. It was diagnosed only because the capture happened to be on.
+2. **Send only changed rows on the scrollback path.** When the frame is dirty but `reset` is false and no rows were added to history, `HistoryRender.Emit` should send only the changed rows instead of erasing and repainting all `height` rows. Build the chain-granular row diff already designed in #262 (history: `workshop/history/issues/000262-diagnose-input-screen-flicker.md`, Log 2026-09-17, option 1). The repaint unit is a wrap chain taken as the union of chains in the previous and next frames, using a confined `IL` for multi-row runs and `EL2` for single-row runs. Row 0 keeps `ECH` when it continues from history. Resets, alt-screen transitions and history pushes keep the full rebuild. The cheaper first step from that design also counts: diff only rows that are unwrapped in both frames, and fall back to the full rebuild for everything else.
 ## Done when
 
-- A test with a fake parent writer that blocks for longer than `WriteTimeout` and then drains shows couch staying up and converging to the correct screen.
-- A test of a spinner-style one-cell change on the history path shows output bytes in proportion to the changed rows, not the full screen. Measure bytes per frame before and after.
-- Rerun the original scenario (couch in the background behind a browser, agent spinner running, capture on): no exit, and repaint volume while idle drops by more than 10×.
-
+- A test with a fake parent writer that blocks past `WriteTimeout` shows couch exiting with the cause in the crash file. The next `crashreport.Install` reports it as a previous ending with that reason, separate from a Go panic.
+- A test of a spinner-style one-cell change on the history path shows output bytes in proportion to the changed rows, not the full screen. Measure bytes per frame before and after. The end state matches the full rebuild under the xterm oracle.
+- Rerun the original scenario (couch in the background behind a browser, agent spinner running, capture on): repaint volume while idle drops by more than 10×. If couch still exits, the next start says why.
 ## Plan
 
 - [ ]
+
+## Revisions
+
+### 2026-10-07: drop "survive a slow terminal"; record the exit reason instead
+
+- **Reason:** the operator decided exiting is the right behavior; the loud exit is how this was discovered. Absorbing stalls would hide the cost. What was wrong is that the exit was silent, not that it happened.
+- **Delta:** Spec item 1 changed from "A slow outer terminal must not end the session: treat a timed-out parent-output write as backpressure, mark for full repaint, drop frames, retry when writable, fail only after a much longer outage or on EIO/EPIPE/hangup" to "Say why couch exited". Its Done-when line changed from "couch staying up and converging" to "exit reason recorded and reported on next start". Item 2 now points at #262's existing row-diff design, and its deferral condition ("a measurement shows the bytes matter") is met by this capture.
 
 ## Log
 
 ### 2026-10-07
 
 - Filed from a brain-session crash investigation. The capture file is 1.2 GB and stays local; the excerpts above are the evidence. Also noted, not investigated: `wrap-events-1-pair-8.jsonl` is 647 MB.
+- Row diff was deliberately deferred in #262 (2026-09-17, with the operator) on the premise that a local terminal parses faster than a person types. That missed spinner/streaming repaints with no input from the operator (2–9/s), and a background, throttled Ghostty (50–230 ms per frame, then a 5s stall). The operator reports these exits always happen while not interacting with couch, which supports the throttling hypothesis.
