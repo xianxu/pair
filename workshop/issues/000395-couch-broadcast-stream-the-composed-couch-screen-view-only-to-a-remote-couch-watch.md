@@ -248,6 +248,12 @@ Durable plan: `workshop/plans/000395-couch-broadcast-stream-the-composed-couch-s
     can't hang Couch's exit past its 6s bound.
   The start context is released once the start ends, and the Tunnel contract
   now says a tunnel must outlive it.
+- M4 visual check (operator, Chrome, `TestManualViewerServer` with the
+  operator's Ghostty palette from `ghostty +show-config`, Apple System
+  Colors, background `#1e1e1e`): it works. The page background and ANSI colours
+  follow the theme event, the text is the packed JetBrains Mono (bold, italic,
+  bold italic), and it refits on resize. In a real Couch the palette comes from
+  the terminal's OSC 10/11/4 replies (`TestBroadcastSendsOperatorTheme`).
 
 ## Revisions
 
