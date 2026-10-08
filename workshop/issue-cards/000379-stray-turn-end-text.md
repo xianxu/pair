@@ -13,7 +13,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
-actual_hours: 5.82
+actual_hours: 4.94
 tracker:
     version: 1
     handoff:
@@ -27,10 +27,10 @@ tracker:
         destination: workshop/issues/000379-stray-turn-end-text.md
         main_commit: f0c1e56689469666b1aaaac708538cbf95f06f1d
     completion:
-        token: close-5161c3c2b61b
+        token: close-91c90728db50
         repository: github.com/xianxu/pair
-        reviewed_head: 1b6ddc8b671b197cef033ac6eccffa3881f95259
-        evidence_commit: 565de81a07b96a39e0ed9a6dda3952a63a1d6d76
+        reviewed_head: c3bf44c9c3bf805adceef0b6b53a91041b7e8418
+        evidence_commit: 4b566e9395eda8891db7bcd6cf8551424c2acdc6
 ---
 
 # Turn-end text flashes at focused pane cursor
