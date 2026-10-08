@@ -112,6 +112,9 @@ header comment; all transitions happen on the Run loop.
   only, because the legacy `ESC ^B` is also nvim's Esc-then-page-up.
   `broadcast.Start` runs off the loop (`GoTracked`). A start that completes after
   it was cancelled or superseded is stopped, not adopted (the `attempt` counter).
+  Who owns a finished start's session, the loop adopting it or the start
+  goroutine stopping it, is decided by one CAS (`startClaim`). The start
+  context is released as soon as the start ends; a tunnel must outlive it.
 - **Going live:** the tap goes in before the chrome shows `LIVE ⏸`, so the
   first LIVE frame streams. `Activate` comes after, so the grace watch starts
   with the indicator on screen. The link goes to the clipboard (OSC 52) and is
@@ -130,7 +133,9 @@ header comment; all transitions happen on the Run loop.
   failure): back to `off`, with a notice drawn from the same vocabulary
   viewers see (`broadcast.EndReason`).
 - **Shutdown:** `teardown` calls `endBroadcastForShutdown` before the presenter
-  is released, and waits up to 6s.
+  is released, and waits up to 6s. Background waiters also end on console
+  stop, so a tunnel whose close hangs cannot hold Couch's exit beyond that
+  bound.
 - **Options** (`couchcmd/broadcast.go`): `COUCH_BROADCAST_SWITCHER=show` and
   `COUCH_BROADCAST_TUNNEL=off`. An unknown value refuses startup, and both
   are parsed before anything opens. Without a configured broadcaster the cell
