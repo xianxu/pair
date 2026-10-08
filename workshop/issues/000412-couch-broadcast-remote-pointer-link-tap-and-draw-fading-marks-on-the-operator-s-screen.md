@@ -1,12 +1,12 @@
 ---
 id: 000412
-status: working
+status: codecomplete
 deps: [pair#395]
 github_issue:
 created: 2026-10-08
 updated: 2026-10-08
 estimate_hours: 4.85
-card_mirror: 'a6dce03f8514661188d67d4298be09941e71de1e' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'ab9f91178cf1b7b6e8182ba43726218495aaa06e' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-08T09:21:13-07:00
 claimant:
     operator: T
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 2.70
 ---
 
 # Couch broadcast: remote pointer link (tap and draw fading marks on the operator's screen)
