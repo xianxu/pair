@@ -97,6 +97,18 @@ func (c *Console) copyLink(link string) {
 	}
 }
 
+// copyViewLink is a right-click on LIVE ⏸: the view-only link again.
+func (c *Console) copyViewLink() {
+	c.mu.Lock()
+	s, live := c.bcast.session, c.bcast.phase == broadcastLive
+	c.mu.Unlock()
+	if !live || s == nil {
+		return
+	}
+	c.copyLink(s.Link())
+	c.setNotice("Broadcast link copied.")
+}
+
 // onRemoteClick is a click on 👽, which waits for #407.
 func (c *Console) onRemoteClick() {
 	c.setNotice("Remote control isn't available yet.")

@@ -258,3 +258,9 @@ Durable plan: `workshop/plans/000412-couch-broadcast-remote-pointer-link-tap-and
   At the operator's request, a dedicated security review of the input path
   found no blocking issues; its hardening was taken (see the plan's
   Revisions). `FuzzParsePointBatch` ran 60s (815k inputs) with no failures.
+- M4 smoke round 1 (operator): two changes. Pointing on the tab bar was
+  impossible because marks dropped the whole status row; the guard now covers
+  only the broadcast controls `LIVE ⏸ 👆 👽` (`StatusGuardCols`, at input and in
+  the overlay), so a helper can point at a thread chip. Right-click on
+  `LIVE ⏸` now re-copies the view-only link (left-click still stops),
+  mirroring `👆`.

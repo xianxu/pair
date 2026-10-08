@@ -843,12 +843,14 @@ your clipboard, and turns pointing on (`👆` turns amber). Give that link to th
 person helping you. Anyone holding it sees the same live view and can tap or
 drag on it (an iPad works well), leaving amber marks that fade after a few
 seconds on your screen and every viewer's. Marks are only drawn: they never
-type or click anything in your programs, never cover the status row, and
-aren't drawn while the switcher is open. Clicking `👆` again turns pointing
+type or click anything in your programs, never cover the `LIVE ⏸ 👆 👽`
+controls (the rest of the tab bar can be pointed at), and aren't drawn while
+the switcher is open. Clicking `👆` again turns pointing
 off, clears the marks and leaves the link as view-only; clicking once more
 turns it back on for the same link. Right-click `👆` to copy the link again.
-Stopping the broadcast ends every link. `👽` is reserved for remote control
-and does nothing yet.
+Right-click `LIVE ⏸` to copy the view-only link again. Stopping the
+broadcast ends every link. `👽` is reserved for remote control and does
+nothing yet.
 
 With an empty root filter, **Space** toggles the **normal view** and **focus view**.
 Focus view shows only live threads with a published summary, in normal-view

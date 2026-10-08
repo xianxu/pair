@@ -253,9 +253,10 @@ and it is kept narrow.
   server-wide `ReadTimeout`: it would also time out the disconnect watch on
   long-lived event streams.
 - **Marks** (`marks.go`): pure. A batch's points are joined by line fill; an
-  off-grid point is dropped before any line reaches it. The status row is never
-  marked and never tinted (the overlay refuses the last row whatever put a mark
-  there). At most 1/8 of the grid is marked, oldest first. Marks fade in 3 steps
+  off-grid point is dropped before any line reaches it. The broadcast's controls
+  (`StatusGuardCols`, the width of `LIVE ⏸ 👆 👽` at the left of the last row)
+  are never marked or tinted: the overlay refuses them whatever put a mark
+  there. The rest of the tab bar can be marked. At most 1/8 of the grid is marked, oldest first. Marks fade in 3 steps
   over `MarkLife` (3s). The Presenter's overlay hook draws them
   (terminal.md).
 - **Tests:** a method × route × token table; rejections that echo nothing; drops
@@ -272,7 +273,8 @@ table.
 - **Status row:** while live it reads `LIVE ⏸ 👆 👽`. `👆` is dim when off and
   on `PointerSGR` amber when on (`StatusModel.Pointer`). Its span
   (`RenderedStatusRow.Pointer`) takes a left click (toggle) and a right click
-  (re-copy the link). A click on `👽` only gives a notice (#407).
+  (re-copy the link). A right click on `LIVE ⏸` re-copies the view-only link.
+  A click on `👽` only gives a notice (#407).
   `routeMouseEvent` checks these spans before anything else on the row.
 - **Toggling:** the first click calls `Session.EnablePointer` and copies the
   link (the notice never shows it). Later clicks flip pointing for the same

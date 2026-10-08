@@ -264,3 +264,30 @@ func TestPointerStressNoDeadlock(t *testing.T) {
 		return strings.Contains(string(bytes.Join(f.child.Writes(), nil)), "still alive")
 	})
 }
+
+// The helper can point at the tab bar (a thread chip), but not at the
+// broadcast's own controls.
+func TestPointerOnTabBar(t *testing.T) {
+	f, _, link := pointerOnFixture(t, nil)
+	tab := broadcast.StatusGuardCols + 4
+	postPoint(t, link, tab, 23)
+	waitFor(t, "mark on the tab bar", func() bool { return f.screenBg(tab, 23) == markTint })
+	postPoint(t, link, 2, 23)
+	time.Sleep(100 * time.Millisecond)
+	if f.screenBg(2, 23) == markTint {
+		t.Fatal("a mark covered LIVE")
+	}
+}
+
+// Right-click on LIVE ⏸ re-copies the view-only link and keeps broadcasting.
+func TestLiveRightClickRecopiesViewLink(t *testing.T) {
+	f := broadcastFixture(t, &broadcast.FakeTunnel{}, nil)
+	s := f.startLive(t)
+	before := copies(f, s.Link())
+	_, _ = fmt.Fprintf(f.stdin, "\x1b[<2;2;24M\x1b[<2;2;24m")
+	waitFor(t, "view link re-copied", func() bool { return copies(f, s.Link()) == before+1 })
+	if f.phase() != broadcastLive {
+		t.Fatal("right-click stopped the broadcast")
+	}
+	waitFor(t, "notice", func() bool { return strings.Contains(f.notice(), "link copied") })
+}

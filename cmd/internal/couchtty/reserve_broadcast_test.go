@@ -151,3 +151,12 @@ func TestStatusRowPointerCells(t *testing.T) {
 		}
 	}
 }
+
+// The marks guard covers exactly the drawn controls: what RenderStatusRow
+// puts at the row's left while live ends where broadcast.StatusGuardCols does.
+func TestStatusGuardMatchesDrawnControls(t *testing.T) {
+	r := RenderStatusRow(80, StatusModel{Broadcast: BroadcastLive, Pointer: PointerOn})
+	if r.Remote.End != broadcast.StatusGuardCols {
+		t.Fatalf("controls end at %d, guard is %d", r.Remote.End, broadcast.StatusGuardCols)
+	}
+}

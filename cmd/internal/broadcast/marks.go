@@ -19,6 +19,10 @@ var markTints = [3]ansi.IndexedColor{214, 172, 94}
 
 type cell struct{ col, row int }
 
+// guarded reports whether c is one of the broadcast's controls (the first
+// StatusGuardCols columns of the last row), which marks must never cover.
+func guarded(c cell, rows int) bool { return c.row == rows-1 && c.col < StatusGuardCols }
+
 // Marks is the remote pointer's state: which cells a helper marked, and when.
 // Pure: the caller supplies the clock, and owns locking.
 type Marks struct {
@@ -29,8 +33,8 @@ func NewMarks() *Marks { return &Marks{cells: make(map[cell]time.Time)} }
 
 // Add marks the cells of one batch of points on a cols×rows grid at now.
 // Consecutive points within the batch are joined by a line; separate batches
-// never are. The last row (Couch's status row) and points off the grid are
-// dropped. At most cols*rows/8 cells stay marked, the oldest dropped first.
+// never are. Points off the grid and on the broadcast's controls (the left of
+// the last row) are dropped; the rest of the tab bar can be marked. At most cols*rows/8 cells stay marked, the oldest dropped first.
 //
 // Its cost is bounded (it runs under the lock the paint path takes): a batch
 // contributes at most the cap's worth of cells, its last ones, and eviction
@@ -39,7 +43,7 @@ func (m *Marks) Add(points [][2]int, cols, rows int, now time.Time) {
 	limit := max(1, cols*rows/8)
 	var batch []cell
 	put := func(c cell) {
-		if c.col >= 0 && c.col < cols && c.row >= 0 && c.row < rows-1 {
+		if c.col >= 0 && c.col < cols && c.row >= 0 && c.row < rows && !guarded(c, rows) {
 			batch = append(batch, c)
 		}
 	}
@@ -182,10 +186,10 @@ func (m *Marks) Overlay(f terminal.Frame, now time.Time) terminal.Frame {
 	out := f.Clone()
 	for c, t := range m.cells {
 		age := now.Sub(t)
-		// Never the last row: it is Couch's status row, whose LIVE and
+		// Never the broadcast's controls on the last row, whose LIVE and
 		// pointer indicators the fail-safes read (a resize can move a mark
 		// there).
-		if age >= MarkLife || c.col >= cols || c.row >= rows-1 {
+		if age >= MarkLife || c.col >= cols || c.row >= rows || guarded(c, rows) {
 			continue
 		}
 		tint := markTints[min(int(age/markStep), len(markTints)-1)]

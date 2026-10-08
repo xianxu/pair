@@ -324,3 +324,9 @@ or the hub.
   and the frame class under `marksMu` before `Marks.Add`, the overlay skips
   `FramePrivate`, and turning pointing off clears marks. `OnPoints` does
   bounded work and routes coordinates only to `Marks`.
+- **2026-10-08 (M4 smoke)** — the status-row rule narrows from "never the last
+  row" to "never the broadcast controls": `StatusGuardCols` (the width of
+  `LIVE ⏸ 👆 👽`) at the left of the last row, enforced at `Marks.Add` and in
+  the overlay; a couchtty test pins that the guard ends where `👽` does. The
+  fail-safes read only those cells, so the rest of the tab bar is safe to
+  mark. Right-click on `LIVE ⏸` re-copies the view-only link.

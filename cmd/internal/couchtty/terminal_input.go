@@ -137,8 +137,14 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 	if ok && !hit.Release && (hit.Button == 0 || hit.Button == 2) {
 		c.mu.Lock()
 		rows := int(c.size.Rows)
-		pointer, remote := c.statusPointer, c.statusRemote
+		pointer, remote, control := c.statusPointer, c.statusRemote, c.statusControl
 		c.mu.Unlock()
+		// Right-click on LIVE re-copies the view-only link; a left click
+		// (below) still stops the broadcast.
+		if hit.Button == 2 && hit.Y == rows && control.Contains(hit.X-1) {
+			c.copyViewLink()
+			return
+		}
 		if hit.Y == rows && pointer.Contains(hit.X-1) {
 			c.onPointerClick(hit.Button == 2)
 			return

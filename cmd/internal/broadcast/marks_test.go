@@ -64,15 +64,26 @@ func TestMarksBatchesAreNotJoined(t *testing.T) {
 	}
 }
 
-func TestMarksDropStatusRowAndOutOfGrid(t *testing.T) {
+// The status row (row 9 of 10) can be marked, except the broadcast's own
+// controls at its left; off-grid points are dropped.
+func TestMarksGuardControlsAndGrid(t *testing.T) {
 	m := NewMarks()
-	// Row 9 is the status row of a 10-row grid; a line through it keeps
-	// only the cells above it.
 	m.Add([][2]int{{0, 8}, {0, 9}, {-1, 2}, {20, 2}, {5, 10}}, 20, 10, t0)
+	m.Add([][2]int{{StatusGuardCols + 3, 9}}, 20, 10, t0)
+	gotTabBar := false
 	for _, c := range markedCells(m) {
-		if c[1] >= 9 || c[0] < 0 || c[0] >= 20 {
-			t.Fatalf("marked %v outside the drawable grid", c)
+		if c[0] < 0 || c[0] >= 20 || c[1] > 9 {
+			t.Fatalf("marked %v outside the grid", c)
 		}
+		if c[1] == 9 && c[0] < StatusGuardCols {
+			t.Fatalf("marked %v on the broadcast controls", c)
+		}
+		if c == [2]int{StatusGuardCols + 3, 9} {
+			gotTabBar = true
+		}
+	}
+	if !gotTabBar {
+		t.Fatal("a point on the tab bar, right of the controls, was dropped")
 	}
 }
 
@@ -177,21 +188,27 @@ func TestMarksLiveAndNextChange(t *testing.T) {
 // Overlay leaves a private-class decision to its caller; it only tints.
 var _ = terminal.FramePrivate
 
-// BR-3: the overlay never tints a frame's last row, however a mark got
-// there (here, a resize shrank the grid under it), so marks can't hide the
-// LIVE or pointer indicator.
-func TestMarksOverlayNeverTintsStatusRow(t *testing.T) {
+// BR-3, narrowed by the #412 smoke: the overlay never tints the broadcast's
+// controls on the last row, however a mark got there (here, a resize moved
+// it), so marks can't hide LIVE or the pointer marker; the rest of the tab
+// bar can be marked.
+func TestMarksOverlayNeverTintsControls(t *testing.T) {
 	m := NewMarks()
-	m.Add([][2]int{{0, 7}, {3, 7}}, 20, 10, t0) // row 7 of 10: not the status row
-	f := textFrame(t, 20, 8, "body", liveChrome("tabs"))
+	m.Add([][2]int{{0, 7}, {StatusGuardCols - 1, 7}}, 20, 10, t0) // a line across the future controls
+	m.Add([][2]int{{StatusGuardCols + 2, 7}}, 20, 10, t0)
+	chrome := LiveSGR + LiveLabel + "\x1b[0m " + PointerSGR + PointerLabel + "\x1b[0m " + ControlLabel + " tabs"
+	f := textFrame(t, 20, 8, "body", chrome)
 	o := m.Overlay(f, t0)
-	for i := range 20 {
+	for i := range StatusGuardCols {
 		if !o.Cells[7*20+i].Equal(&f.Cells[7*20+i]) {
-			t.Fatalf("status-row cell %d tinted after a resize", i)
+			t.Fatalf("control cell %d tinted after a resize", i)
 		}
 	}
-	if !IndicatorShown(o) {
-		t.Fatal("marks hid the LIVE indicator")
+	if o.Cells[7*20+StatusGuardCols+2].Equal(&f.Cells[7*20+StatusGuardCols+2]) {
+		t.Fatal("tab-bar cell right of the controls not tinted")
+	}
+	if !IndicatorShown(o) || !PointerShown(o) {
+		t.Fatal("marks hid the LIVE or pointer indicator")
 	}
 }
 

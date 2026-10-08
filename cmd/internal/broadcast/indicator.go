@@ -71,3 +71,8 @@ func PointerShown(f terminal.Frame) bool {
 }
 
 func textwidthOf(s string) int { return ansi.StringWidth(s) }
+
+// StatusGuardCols is the width of the broadcast's controls at the left of
+// Couch's status row, `LIVE ⏸ 👆 👽`. Marks never cover these columns of the
+// last row (#412); the rest of the tab bar can be pointed at.
+var StatusGuardCols = textwidthOf(LiveLabel + " " + PointerLabel + " " + ControlLabel)
