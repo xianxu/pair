@@ -74,6 +74,22 @@ func ParseTokenUsage(agent Agent, line []byte) (TokenUsage, bool) {
 			return TokenUsage{}, false
 		}
 		return TokenUsage{InputTokens: record.Message.Usage.Input + record.Message.Usage.CacheCreate + record.Message.Usage.CacheRead}, true
+	case AgentGrok:
+		// Each streamed update carries the context occupancy so far; the last
+		// one equals grok's own contextTokensUsed (signals.json). The per-turn
+		// turn_completed usage sums every model call and is not occupancy.
+		var record struct {
+			Method string `json:"method"`
+			Params struct {
+				Meta *struct {
+					TotalTokens *int `json:"totalTokens"`
+				} `json:"_meta"`
+			} `json:"params"`
+		}
+		if json.Unmarshal(line, &record) != nil || record.Method != "session/update" || record.Params.Meta == nil || record.Params.Meta.TotalTokens == nil || *record.Params.Meta.TotalTokens < 0 {
+			return TokenUsage{}, false
+		}
+		return TokenUsage{InputTokens: *record.Params.Meta.TotalTokens}, true
 	default:
 		return TokenUsage{}, false
 	}
