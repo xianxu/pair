@@ -64,7 +64,7 @@ Two independent changes:
 Durable plan: `workshop/plans/000409-couch-a-single-5s-stall-in-the-outer-terminal-ends-the-whole-session-plan.md`.
 
 - [x] M1 — the exit says why: a recorded-exit kind in `crashreport`; couchcmd writes the parent-output `WriteFailure` reason, and the next start reports it once
-- [ ] M2 — repaint only the rows that changed: #262's cheaper fast path in `HistoryRender.Emit` (unwrapped rows only), checked against the full rebuild with the xterm oracle, with bytes per idle minute measured
+- [x] M2 — repaint only the rows that changed: #262's cheaper fast path in `HistoryRender.Emit` (unwrapped rows only), checked against the full rebuild with the xterm oracle, with bytes per idle minute measured
 
 ## Estimate
 
