@@ -104,6 +104,7 @@ total: 2.87
 ## Log
 
 ### 2026-10-07
+- 2026-10-07: closed — M1 closed SHIP (673162c8): recorded exit reason (crashreport Exited kind, terminal.ExitReason, Console.TerminalFailure = teardown's classification, couchcmd records after Run); tests incl. a real stalled parent and the stop-during-paint classification. M2 (reviewed at this close): HistoryRender row diff for frames changing only unwrapped rows (changedPlainRows). TestHistoryRowDiffEqualsFullRebuild: 80 seeds, 48 row-diffed / 32 refused, all equal to the full rebuild under the xterm oracle and (PAIR_TERMINAL_NATIVE=1) the native zellij oracle; mutations caught (gate removed: wrap flags diverge); TestChangedPlainRowsGate pins the gate; spinner tick 134 B vs 10,440 B full rebuild. Live (capture session-2858329706, c3440fcc): idle 120 writes/min, ~63 KB/min vs ~2 MB/min before (~32x); streaming 217-563 KB/min vs ~8.5 MB/min (15-35x); slowest write 2 ms. Forced Ghostty stall did not take effect (writes continued), so the live exit-reason check did not happen; that path rests on its tests. Full suite unsandboxed with PAIR_TERMINAL_ORACLE=1: only failures match origin/main (artifactpath set identical).; review verdict: SHIP
 
 - **M2 byte measurement** (`TestHistoryEmitSpinnerTickWritesOnlyTheChangedRow`,
   191×52 plus chrome): one elapsed-time tick on the history path is **134 bytes**
