@@ -104,6 +104,18 @@ total: 2.87
 ## Log
 
 ### 2026-10-07
+
+- **M2 byte measurement** (`TestHistoryEmitSpinnerTickWritesOnlyTheChangedRow`,
+  191×52 plus chrome): one elapsed-time tick on the history path is **134 bytes**
+  with the row diff, against 10,440 bytes for the full rebuild of the same frame.
+  - The capture's full repaints were about 17 KB, because its rows were fuller.
+  - At the capture's idle rate (about 120 ticks a minute), parent output while
+    couch looks idle goes from about 2 MB a minute to about 16 KB a minute, a
+    reduction of more than 100×. This is computed, not measured live; the live
+    rerun with capture on is Done-when 3, for the operator.
+- **Generative check:** over 80 seeds, 48 took the row diff and 32 were refused
+  into the full rebuild. Every case matched the full rebuild under the xterm
+  oracle, and the row-diffed ones also matched under the native zellij oracle.
 - 2026-10-07: closed M1 — Round 1 FIX-THEN-SHIP fixed: BR-1 (rule: one classification) — teardown stores its filtered failure and Console.TerminalFailure returns exactly it; TestConsoleStopDuringPaintClassifiesJoinedFailure now asserts the exit reason is recorded iff a real host failure occurred (mutation returning the unfiltered presenter failure records a cancelled paint: caught). Minors: the Exited notice names the file (a panic during exit lands there); stall wording 'a write waited up to 5s' (no overclaim). M1: crashreport Exited kind + RecordExit + Summary, terminal.ExitReason, couchcmd recordConsoleExit after Run; tests TestRecordedExitIsReportedOnceWithItsReason, TestExitReason, TestAStalledParentReadsAsTheTerminalStopping, TestConsoleTerminalFailureIsRecordedAsTheExitReason; atlas updated. Affected packages pass unsandboxed except TestContinuationWriterPublishesExactCheckpointAcrossWorktrees (fails on main).; review verdict: SHIP
 
 - Filed from a brain-session crash investigation. The capture file is 1.2 GB and stays local; the excerpts above are the evidence. Also noted, not investigated: `wrap-events-1-pair-8.jsonl` is 647 MB.
