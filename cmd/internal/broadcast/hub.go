@@ -193,7 +193,7 @@ func (h *Hub) Close(reason error) {
 
 func (h *Hub) Done() <-chan struct{} { return h.done }
 
-// endReason boxes the error so atomic.Value always stores one concrete type.
+// hubEnd boxes the error so atomic.Value always stores one concrete type.
 type hubEnd struct{ err error }
 
 // Err is why the hub ended; nil while it runs. The reason is published before

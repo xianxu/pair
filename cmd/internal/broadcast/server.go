@@ -134,7 +134,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 		select {
 		case m, open := <-sub.Messages():
 			if !open {
-				end, _ := json.Marshal(wireEnd{Reason: endReason(s.opts.Hub.Err())})
+				end, _ := json.Marshal(wireEnd{Reason: EndReason(s.opts.Hub.Err())})
 				send("event: end\ndata: " + string(end) + "\n\n")
 				return
 			}
@@ -167,8 +167,8 @@ var endReasons = []struct {
 	{ErrServerFailed, "the broadcast server stopped"},
 }
 
-// endReason maps why the hub ended to its viewer-facing text.
-func endReason(err error) string {
+// EndReason maps why the hub ended to its viewer-facing text.
+func EndReason(err error) string {
 	if err == nil {
 		return endReasons[0].text
 	}

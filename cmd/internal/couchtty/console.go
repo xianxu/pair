@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/broadcast"
 	"io"
 	"os"
 	"strings"
@@ -128,6 +129,12 @@ type Console struct {
 	menuExtents []ActorExtent
 	// statusChips is the same for the reserved row.
 	statusChips []ChipSpan
+	// statusControl is the broadcast cell's span on the last drawn row.
+	statusControl ColumnSpan
+	// broadcastCfg is nil when broadcasting is not configured; bcast is the
+	// running broadcast's state (console_broadcast.go). Both under mu.
+	broadcastCfg *broadcast.Config
+	bcast        broadcastState
 	// mouseHit is the payload of the hit currently being dispatched.
 	mouseHit MouseHit
 	// started reports that Run owns the terminal, so a notice may paint itself.
@@ -947,6 +954,9 @@ type contextualInput interface {
 // restoring raw state. Diagnostics are emitted only after ownership ends.
 func (c *Console) teardown(restore func() error) error {
 	c.Stop()
+	// Viewers are told before the presenter goes, and the tunnel is closed
+	// rather than left running (#395).
+	c.endBroadcastForShutdown()
 	// Contextual readers retain their fd lease until after the input pump joins
 	// and Presenter has restored the parent terminal. Plain fixture pipes need
 	// explicit close to interrupt Read.
@@ -1796,6 +1806,7 @@ func (c *Console) hitHandlers() map[InterceptorHit]func() {
 		HitNewestPage: c.onNewestPageHotkey,
 		HitDetach:     c.onDetachHotkey,
 		HitRelaunch:   c.onRelaunchHotkey,
+		HitBroadcast:  c.toggleBroadcast,
 		// HitMouse carries coordinates, which func() cannot, so it is dispatched
 		// from processInput with the payload rather than through this table. The
 		// entry is the CONSOLE's handler for it -- a real call, not a placeholder

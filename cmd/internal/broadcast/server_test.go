@@ -345,12 +345,12 @@ func TestEndReasonIsAClosedVocabulary(t *testing.T) {
 		{fmt.Errorf("wrapped: %w", errors.New(secret)), "the broadcast ended"},
 	}
 	for _, c := range cases {
-		got := endReason(c.err)
+		got := EndReason(c.err)
 		if got != c.want {
-			t.Errorf("endReason(%v) = %q, want %q", c.err, got, c.want)
+			t.Errorf("EndReason(%v) = %q, want %q", c.err, got, c.want)
 		}
 		if strings.Contains(got, "/") || strings.Contains(got, "127.0.0.1") {
-			t.Errorf("endReason(%v) leaks local detail: %q", c.err, got)
+			t.Errorf("EndReason(%v) leaks local detail: %q", c.err, got)
 		}
 	}
 }

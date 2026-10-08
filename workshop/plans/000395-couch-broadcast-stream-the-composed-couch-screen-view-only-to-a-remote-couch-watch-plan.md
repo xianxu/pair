@@ -797,3 +797,9 @@ func (s *Stream) Join() (Message, bool, error) {
   - The hub publishes its end reason before closing any queue (BR-5), so
     `Hub.Err()` is right for whoever sees the end first. The session also
     ends with `ErrServerFailed` if its HTTP server stops serving.
+- **2026-10-07 (M3)** — with no broadcaster configured, Ctrl+Alt+b shows the
+  notice "Broadcasting is not configured in this Couch." It does not pass the
+  key through to the child as Task 3.3 said: a chord's scope is static (it
+  decides `actorReserved`), so the key can't be Couch's only sometimes.
+  Production Couch always configures a broadcaster (Task 3.4). A click on the
+  `LIVE …` cell while starting cancels the start, like the key does.
