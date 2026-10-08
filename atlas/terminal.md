@@ -129,6 +129,15 @@ frames; `Panel` takes a class, and Couch's switcher is private. Couch broadcast
 (#395, [broadcast.md](broadcast.md)) is the consumer. The tap runs on the
 Presenter goroutine and must not block.
 
+An `Overlay` (`SetOverlay`) draws on each composed frame before it is painted:
+the broadcast's remote-pointer marks (#412). It runs on the Presenter
+goroutine, must not block, and takes only leaf locks. It receives the frame's
+class, so it can skip private panels, and returns the frame itself when it has
+nothing to draw (byte-identical output). The tap sees the overlaid frame, so
+viewers see marks. History rows come from the endpoint, never the frame, so
+an overlay can't reach scrollback. `Refresh` repaints whatever is on screen
+(endpoint, or the retained panel) for overlay changes with no new output.
+
 Kitty keyboard flags are a stack **per screen**, so setup's `\x1b[>3u` holds only
 on the screen it was written on. `Presenter.writeFramePacket` makes the push
 follow the parent: it pushes right after entering the alternate screen and pops

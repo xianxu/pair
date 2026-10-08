@@ -132,6 +132,28 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 		return
 	}
 	hit, _, _, ok := mouseinput.ParsePrefix(event.Raw)
+	// The pointer controls take left and right clicks on the status row
+	// (#412); a right click anywhere else keeps going to the child.
+	if ok && !hit.Release && (hit.Button == 0 || hit.Button == 2) {
+		c.mu.Lock()
+		rows := int(c.size.Rows)
+		pointer, remote, control := c.statusPointer, c.statusRemote, c.statusControl
+		c.mu.Unlock()
+		// Right-click on LIVE re-copies the view-only link; a left click
+		// (below) still stops the broadcast.
+		if hit.Button == 2 && hit.Y == rows && control.Contains(hit.X-1) {
+			c.copyViewLink()
+			return
+		}
+		if hit.Y == rows && pointer.Contains(hit.X-1) {
+			c.onPointerClick(hit.Button == 2)
+			return
+		}
+		if hit.Y == rows && remote.Contains(hit.X-1) {
+			c.onRemoteClick()
+			return
+		}
+	}
 	if ok && !hit.Release && hit.Button == 0 {
 		c.mu.Lock()
 		rows, panel := int(c.size.Rows), c.focus.IsPanel()

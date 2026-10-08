@@ -13,6 +13,14 @@ const (
 	// LiveSGR is the style both labels are drawn in: a red background and the
 	// terminal's own foreground.
 	LiveSGR = "\x1b[41m"
+
+	// PointerLabel is the pointer-link control, drawn right after
+	// LiveLabel + " " (#412); ControlLabel is reserved for remote control
+	// (#407). Both are emoji, two columns wide.
+	PointerLabel = "👆"
+	ControlLabel = "👽"
+	// PointerSGR marks pointing as on: an amber background.
+	PointerSGR = "\x1b[48;5;214m"
 )
 
 // liveBackground is the cell background LiveSGR produces.
@@ -42,3 +50,29 @@ func IndicatorShown(f terminal.Frame) bool {
 	}
 	return true
 }
+
+// pointerBackground is the cell background PointerSGR produces.
+var pointerBackground = ansi.IndexedColor(214)
+
+// pointerColumn is where Couch draws PointerLabel: right after LiveLabel and
+// one space.
+var pointerColumn = textwidthOf(LiveLabel) + 1
+
+// PointerShown reports whether f's last row shows the active pointer marker:
+// PointerLabel on the pointer background at pointerColumn, after LIVE. It is
+// the pointer's visible-capability check, as IndicatorShown is LIVE's (#412).
+func PointerShown(f terminal.Frame) bool {
+	cols, rows := f.Geometry.Cols, f.Geometry.Rows
+	if !IndicatorShown(f) || pointerColumn+2 > cols || len(f.Cells) != cols*rows {
+		return false
+	}
+	c := f.Cells[(rows-1)*cols+pointerColumn]
+	return c.Content == PointerLabel && c.Width == 2 && c.Style.Bg == pointerBackground
+}
+
+func textwidthOf(s string) int { return ansi.StringWidth(s) }
+
+// StatusGuardCols is the width of the broadcast's controls at the left of
+// Couch's status row, `LIVE ⏸ 👆 👽`. Marks never cover these columns of the
+// last row (#412); the rest of the tab bar can be pointed at.
+var StatusGuardCols = textwidthOf(LiveLabel + " " + PointerLabel + " " + ControlLabel)

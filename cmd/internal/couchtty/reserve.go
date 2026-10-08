@@ -67,9 +67,24 @@ const (
 	BroadcastLive
 )
 
+// PointerCell is the pointer control's state (#412), drawn only while live.
+type PointerCell uint8
+
+const (
+	// PointerOff draws a dim 👆: no pointer link yet, or pointing turned off.
+	PointerOff PointerCell = iota
+	// PointerOn draws 👆 on broadcast.PointerSGR, the marker the broadcast's
+	// pointer check reads.
+	PointerOn
+)
+
+// dimSGR draws an inactive control.
+const dimSGR = "\x1b[2m"
+
 // StatusModel is everything the row shows.
 type StatusModel struct {
 	Broadcast BroadcastCell
+	Pointer   PointerCell
 	Capture   terminalcapture.Status
 	Actors    []StatusActor
 	Notice    string
@@ -129,6 +144,10 @@ type RenderedStatusRow struct {
 	// Control is the broadcast cell's red span, from the same clipping pass;
 	// empty when no broadcast is running.
 	Control ColumnSpan
+	// Pointer and Remote are the 👆 and 👽 controls' spans while live
+	// (#412); empty otherwise or when clipped.
+	Pointer ColumnSpan
+	Remote  ColumnSpan
 }
 
 // ColumnToActor maps a ZERO-BASED column on the drawn row to the actor whose
@@ -179,10 +198,29 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 	}
 	// The broadcast cell leads (#395): it is the indicator the broadcast
 	// checks every frame for, so nothing may push it off the row.
-	var control ColumnSpan
+	var control, pointer, remote ColumnSpan
 	if label := broadcastLabel(m.Broadcast); label != "" {
 		appendText(label, broadcast.LiveSGR)
 		control = ColumnSpan{Start: 0, End: used}
+	}
+	// While live, the capability controls follow LIVE at the fixed column the
+	// broadcast's pointer check reads: `LIVE ⏸ 👆 👽` (#412).
+	if m.Broadcast == BroadcastLive {
+		capability := func(label, sgr string) ColumnSpan {
+			appendText(" ", "")
+			start := used
+			appendText(label, sgr)
+			if used == start {
+				return ColumnSpan{}
+			}
+			return ColumnSpan{Start: start, End: used}
+		}
+		pointerSGR := dimSGR
+		if m.Pointer == PointerOn {
+			pointerSGR = broadcast.PointerSGR
+		}
+		pointer = capability(broadcast.PointerLabel, pointerSGR)
+		remote = capability(broadcast.ControlLabel, dimSGR)
 	}
 	// Capture follows so actor chips and transient notices cannot hide a
 	// stopped recorder. It never receives an actor click target.
@@ -253,7 +291,7 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		}
 		appendText(n, "")
 	}
-	return RenderedStatusRow{Body: row.String(), Chips: chips, Control: control}
+	return RenderedStatusRow{Body: row.String(), Chips: chips, Control: control, Pointer: pointer, Remote: remote}
 }
 
 func broadcastLabel(c BroadcastCell) string {

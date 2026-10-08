@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math/rand"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -332,7 +334,14 @@ func TestHubRandomInterleavings(t *testing.T) {
 func hubInterleaving(t *testing.T, seed int64) {
 	r := rand.New(rand.NewSource(seed))
 	show := r.Intn(2) == 0
-	h, clock := testHub(t, HubOptions{ShowSwitcher: show, QueueDepth: 1 + r.Intn(4)})
+	// The pointer watch (#412) runs alongside, on its own clock, against a
+	// model: OnPointerHidden fires exactly when armed with the marker hidden,
+	// disarms, and never ends the hub.
+	pclock := newManualClock()
+	var hiddenCalls atomic.Int32
+	h, clock := testHub(t, HubOptions{ShowSwitcher: show, QueueDepth: 1 + r.Intn(4),
+		PointerAfter: pclock.after, OnPointerHidden: func() { hiddenCalls.Add(1) }})
+	armed, pshown := false, false
 	accepted := map[string]bool{"": true}
 	current := ""
 	var viewers []*viewer
@@ -373,7 +382,31 @@ func hubInterleaving(t *testing.T, seed int64) {
 		if ended {
 			break
 		}
-		switch op := r.Intn(10); {
+		switch op := r.Intn(12); {
+		case op == 10:
+			if armed {
+				h.DisarmPointer()
+			} else {
+				h.ArmPointer()
+			}
+			armed = !armed
+		case op == 11:
+			before := hiddenCalls.Load()
+			pclock.fireGrace(h)
+			want := armed && !pshown
+			if got := hiddenCalls.Load() - before; got != map[bool]int32{true: 1, false: 0}[want] {
+				t.Fatalf("step %d: pointer fire called back %d times (armed=%v shown=%v)", step, got, armed, pshown)
+			}
+			if want {
+				armed = false
+			}
+			select {
+			case <-h.Done():
+				if !ended {
+					t.Fatalf("step %d: the pointer watch ended the hub", step)
+				}
+			default:
+			}
 		case op < 5:
 			// A burst, so queues of depth 1-4 overflow.
 			for n := range 1 + r.Intn(6) {
@@ -384,12 +417,15 @@ func hubInterleaving(t *testing.T, seed int64) {
 				}
 				if r.Intn(5) == 0 {
 					offer(h, hidden(t, body+" WITHHELD"), class)
-					shown = false
+					shown, pshown = false, false
 					continue
 				}
 				f := live(t, body)
+				if r.Intn(2) == 0 {
+					f = livePointer(t, body)
+				}
 				offer(h, f, class)
-				shown = true
+				shown, pshown = true, PointerShown(f)
 				vf, err := ViewerFrame(f, class, show)
 				if err != nil {
 					t.Fatal(err)
@@ -486,6 +522,119 @@ func TestHubReasonVisibleWhenQueueCloses(t *testing.T) {
 		if got := h.Err(); !errors.Is(got, reason) {
 			t.Fatalf("iteration %d: Err() = %v when the queue closed", i, got)
 		}
+	}
+}
+
+// livePointer is a frame whose status row shows LIVE and the active pointer
+// marker, as Couch draws it while pointing is on.
+func livePointer(t *testing.T, body string) terminal.Frame {
+	return textFrame(t, 40, 4, body, LiveSGR+LiveLabel+"\x1b[0m "+PointerSGR+PointerLabel+"\x1b[0m tabs")
+}
+
+type pointerHub struct {
+	h       *Hub
+	clock   *manualClock
+	pclock  *manualClock
+	mu      sync.Mutex
+	hiddens int
+}
+
+func (p *pointerHub) hidden() int { p.mu.Lock(); defer p.mu.Unlock(); return p.hiddens }
+
+func newPointerHub(t *testing.T) *pointerHub {
+	t.Helper()
+	p := &pointerHub{clock: newManualClock(), pclock: newManualClock()}
+	p.h = NewHub(HubOptions{
+		After: p.clock.after, PointerAfter: p.pclock.after, Ticks: p.clock.ticks,
+		OnPointerHidden: func() { p.mu.Lock(); p.hiddens++; p.mu.Unlock() },
+	})
+	t.Cleanup(func() { p.h.Close(nil) })
+	return p
+}
+
+func TestPointerShown(t *testing.T) {
+	if !PointerShown(livePointer(t, "x")) {
+		t.Fatal("active pointer marker not recognised")
+	}
+	for name, f := range map[string]terminal.Frame{
+		"live only":        live(t, "x"),
+		"dim marker":       textFrame(t, 40, 4, "x", LiveSGR+LiveLabel+"\x1b[0m "+PointerLabel+" tabs"),
+		"marker misplaced": textFrame(t, 40, 4, "x", LiveSGR+LiveLabel+"\x1b[0m  "+PointerSGR+PointerLabel+"\x1b[0m"),
+		"clipped":          textFrame(t, 8, 4, "x", LiveSGR+LiveLabel+"\x1b[0m "+PointerSGR+PointerLabel+"\x1b[0m"),
+	} {
+		if PointerShown(f) {
+			t.Errorf("%s: PointerShown true", name)
+		}
+	}
+}
+
+func TestHubPointerWatch(t *testing.T) {
+	t.Run("hidden past grace turns pointing off, hub lives", func(t *testing.T) {
+		p := newPointerHub(t)
+		offer(p.h, livePointer(t, "a"), terminal.FramePublic)
+		p.h.ArmPointer()
+		offer(p.h, live(t, "b"), terminal.FramePublic) // marker gone, LIVE still shown
+		p.pclock.fireGrace(p.h)
+		if p.hidden() != 1 {
+			t.Fatalf("OnPointerHidden called %d times", p.hidden())
+		}
+		select {
+		case <-p.h.Done():
+			t.Fatal("the pointer watch ended the hub")
+		default:
+		}
+		// Disarmed after firing: a later grace fire does nothing.
+		p.pclock.fireGrace(p.h)
+		if p.hidden() != 1 {
+			t.Fatal("fired twice")
+		}
+	})
+	t.Run("armed while hidden", func(t *testing.T) {
+		p := newPointerHub(t)
+		offer(p.h, live(t, "a"), terminal.FramePublic)
+		p.h.ArmPointer()
+		p.pclock.fireGrace(p.h)
+		if p.hidden() != 1 {
+			t.Fatal("marker never shown after arming, yet pointing stayed on")
+		}
+	})
+	t.Run("marker returns before grace", func(t *testing.T) {
+		p := newPointerHub(t)
+		offer(p.h, livePointer(t, "a"), terminal.FramePublic)
+		p.h.ArmPointer()
+		offer(p.h, live(t, "b"), terminal.FramePublic)
+		offer(p.h, livePointer(t, "c"), terminal.FramePublic)
+		p.pclock.fireGrace(p.h)
+		if p.hidden() != 0 {
+			t.Fatal("fired although the marker came back")
+		}
+	})
+	t.Run("never fires unarmed or after disarm", func(t *testing.T) {
+		p := newPointerHub(t)
+		offer(p.h, live(t, "a"), terminal.FramePublic)
+		p.pclock.fireGrace(p.h)
+		p.h.ArmPointer()
+		p.h.DisarmPointer()
+		p.pclock.fireGrace(p.h)
+		if p.hidden() != 0 {
+			t.Fatalf("fired %d times unarmed", p.hidden())
+		}
+	})
+}
+
+func TestHubCurrent(t *testing.T) {
+	p := newPointerHub(t)
+	if p.h.Current().OK {
+		t.Fatal("Current before any frame")
+	}
+	offer(p.h, live(t, "a"), terminal.FramePrivate)
+	c := p.h.Current()
+	if !c.OK || c.Geometry != (terminal.Geometry{Cols: 40, Rows: 4}) || c.Class != terminal.FramePrivate || c.PointerShown {
+		t.Fatalf("Current %+v", c)
+	}
+	offer(p.h, livePointer(t, "b"), terminal.FramePublic)
+	if c := p.h.Current(); !c.PointerShown || c.Class != terminal.FramePublic {
+		t.Fatalf("Current %+v", c)
 	}
 }
 

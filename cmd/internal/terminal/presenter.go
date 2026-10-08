@@ -70,6 +70,8 @@ type Presenter struct {
 	altKeyboardOwned bool
 	history          HistoryState
 	tap              Tap
+	overlay          Overlay
+	panel            Frame      // the panel on screen, kept for Refresh; zero while an endpoint is selected
 	class            FrameClass // of what is on screen: Select → public, Panel → its argument
 	modesKnown       bool
 	parentTouched    bool // actor-owned; even an interrupted first write requires release
@@ -325,6 +327,12 @@ func (p *Presenter) paintPublication(ctx context.Context, f Frame, history *Hist
 	if err := f.Validate(); err != nil {
 		return err
 	}
+	if p.overlay != nil {
+		f = p.overlay(f, p.class)
+		if err := f.Validate(); err != nil {
+			return err
+		}
+	}
 	v := p.View()
 	kind := PublishFrame
 	if selection {
@@ -417,6 +425,7 @@ func (p *Presenter) Select(ctx context.Context, e *Endpoint, host Geometry, bott
 		}
 		p.selected = e
 		p.class = FramePublic
+		p.panel = Frame{}
 		p.host = host
 		p.bottom = bottom
 		return p.paintEndpoint(ctx, e, true)
@@ -461,6 +470,7 @@ func (p *Presenter) Panel(ctx context.Context, f Frame, class FrameClass) error 
 		}
 		p.selected = nil
 		p.class = class
+		p.panel = f
 		p.host = f.Geometry
 		p.bottom = nil
 		return p.paint(ctx, f, true)

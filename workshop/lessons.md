@@ -724,6 +724,11 @@ proof; record the surprising case so the next change starts from evidence.
   (commit dates, plus the transcripts of the slot it runs in) read 1.79h for
   the whole issue, against 1.75h for M1 alone. M3–M5 and the close went
   unmeasured. A later `git merge origin/main` changed nothing that existed.
+- Enforce a protected screen region where it is drawn, not only where input
+  enters. #412's marks dropped points on the status row at input time, but a
+  resize moved an existing mark onto the new last row, where the overlay
+  tinted `LIVE ⏸` and would have tripped the broadcast's fail-safe. The
+  overlay itself now refuses the last row, whatever put a mark there.
 - Every argv reader and editor sees only the flag region before the first
   `--` (`resumeform.FlagRegion`). #410 BR-3/BR-6: the boundary was honored by
   the inserter, ignored by the strippers (they ate prompt text), and ignored by
@@ -740,3 +745,10 @@ proof; record the surprising case so the next change starts from evidence.
   on three Done-when items the operator had moved to a follow-up in
   conversation and the Log, because the contract itself still promised them.
   Name where each item went (issue id) and add it to that issue's Done-when.
+- A test that drives input through an async gate must wait on the gate's own
+  view, not on a neighbour that updates first. #412's pointer tests posted a
+  point once the active marker was on the operator's screen, but the hub,
+  which admits points, sees that frame a moment later; under `-race` load the
+  point was dropped and the test hung. Retry the input until its effect shows
+  (a helper re-taps), and make a "dropped" test first prove the path accepts
+  input, so its drop can't be the race.

@@ -141,6 +141,13 @@ func (c *Console) startBroadcast(cfg broadcast.Config) {
 	if cfg.Theme == nil {
 		cfg.Theme = c.broadcastTheme
 	}
+	// The pointer link's points and watch reports (#412).
+	if cfg.OnPoints == nil {
+		cfg.OnPoints = c.onPoints
+	}
+	if cfg.OnPointerOff == nil {
+		cfg.OnPointerOff = c.pointerOffByWatch
+	}
 	ctx, cancel := context.WithCancel(c.lifetime)
 	c.mu.Lock()
 	c.bcast = broadcastState{phase: broadcastStarting, attempt: c.bcast.attempt + 1, cancel: cancel}
@@ -186,6 +193,10 @@ func (c *Console) broadcastStarted(attempt uint64, s *broadcast.Session, err err
 	// The tap goes in before the chrome shows LIVE, so the first LIVE frame
 	// reaches viewers; Activate comes after, so the grace watch starts with
 	// the indicator already on screen.
+	// The marks overlay goes in with the tap, so viewers see marks too.
+	if err := c.presenter.SetOverlay(c.lifetime, c.markOverlay); err != nil {
+		c.terminalError(err)
+	}
 	if err := c.presenter.SetTap(c.lifetime, s.Offer); err != nil {
 		// Adopted, so ours to stop.
 		s.Stop(nil)
@@ -226,7 +237,7 @@ func (c *Console) stopBroadcast() {
 	s := c.bcast.session
 	c.bcast.phase = broadcastStopping
 	c.mu.Unlock()
-	c.terminalError(c.presenter.SetTap(c.lifetime, nil))
+	c.detachBroadcastScreen()
 	s.Stop(nil)
 	c.setNotice("Broadcast stopped.")
 }
@@ -243,7 +254,7 @@ func (c *Console) broadcastEnded(s *broadcast.Session) {
 	c.bcast = broadcastState{attempt: c.bcast.attempt}
 	c.mu.Unlock()
 	if !byOperator {
-		c.terminalError(c.presenter.SetTap(c.lifetime, nil))
+		c.detachBroadcastScreen()
 		c.setNotice("Broadcast ended: " + broadcast.EndReason(s.Err()) + ".")
 		return
 	}
@@ -267,4 +278,12 @@ func (c *Console) endBroadcastForShutdown() {
 		case <-time.After(broadcastShutdownWait):
 		}
 	}
+}
+
+// detachBroadcastScreen removes the broadcast from the screen: no more
+// frames tapped, no marks drawn, the pointer forgotten (#412).
+func (c *Console) detachBroadcastScreen() {
+	c.terminalError(c.presenter.SetTap(c.lifetime, nil))
+	c.terminalError(c.presenter.SetOverlay(c.lifetime, nil))
+	c.resetPointer()
 }

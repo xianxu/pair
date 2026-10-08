@@ -3,6 +3,8 @@
 // is interpreted as ordered terminal writes; each completed write is observed.
 const fs = require('node:fs');
 const { Terminal } = require('@xterm/headless');
+// Unicode 11 widths, as the broadcast viewer uses (#412).
+const { Unicode11Addon } = require('@xterm/addon-unicode11');
 
 async function main() {
   const request = JSON.parse(fs.readFileSync(0, 'utf8'));
@@ -11,6 +13,8 @@ async function main() {
     throw new Error('invalid oracle dimensions or chunks');
   }
   const terminal = new Terminal({ cols, rows, allowProposedApi: true, scrollback: Number.isInteger(request.Scrollback) ? Math.min(1000, Math.max(0, request.Scrollback)) : 0 });
+  terminal.loadAddon(new Unicode11Addon());
+  terminal.unicode.activeVersion = '11';
   const links = [];
   terminal.parser.registerOscHandler(8, data => { links.push(data); return false; });
   const result = [];

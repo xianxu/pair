@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "description": "Independent test-only interpreter for Pair terminal renderer output",
   "dependencies": {
-    "@xterm/headless": "6.0.0"
+    "@xterm/headless": "6.0.0",
+    "@xterm/addon-unicode11": "0.9.0"
   }
 }

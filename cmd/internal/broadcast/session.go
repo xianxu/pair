@@ -36,15 +36,27 @@ type Config struct {
 	// Theme supplies the operator's palette for each new viewer; nil sends
 	// none and viewers keep xterm.js's colours.
 	Theme func() Theme
+	// OnPoints receives each pointer batch that lands: pointing on, the
+	// operator's screen at the batch's grid, public, and showing the active
+	// pointer marker (#412). It is called on a request goroutine, holding no
+	// session lock.
+	OnPoints func(PointBatch)
+	// OnPointerOff is called when the pointer watch turned pointing off
+	// because the active marker stayed hidden; not on the operator's own
+	// DisablePointer.
+	OnPointerOff func()
 }
 
 // Session is one broadcast: a hub, a server on the tunnel's listener, the
 // tunnel, and the token that is the link's only credential. Everything it
 // owns dies with it; nothing is written to disk.
 type Session struct {
-	token string
-	link  string
-	hub   *Hub
+	token   string
+	link    string
+	base    string // the public base URL, for the pointer link
+	cfg     Config
+	pointer *PointerState
+	hub     *Hub
 	// startedAt and mode describe the session for Status (pair#413).
 	startedAt time.Time
 	mode      string
@@ -74,10 +86,29 @@ func Start(ctx context.Context, cfg Config) (*Session, error) {
 	if err != nil {
 		return nil, fmt.Errorf("broadcast: listen: %w", err)
 	}
-	hub := NewHub(cfg.Hub)
+	// The session is built before the hub and server, which call back into
+	// it; the pointer can't be used until Start returns (no token is minted
+	// before EnablePointer).
+	s := &Session{token: token, cfg: cfg, pointer: newPointerState(), done: make(chan struct{})}
+	hubOpts := cfg.Hub
+	// The hub calls this on its own goroutine, which must not block.
+	// It records the flip generation it fired under, so a report that
+	// arrives after the operator flipped pointing again is ignored.
+	hubOpts.OnPointerHidden = func() {
+		gen := s.pointer.generation()
+		go s.pointerHidden(gen)
+	}
+	hub := NewHub(hubOpts)
 	srv := &http.Server{
-		Handler:           NewServer(ServerOptions{Token: token, Hub: hub, Ping: cfg.Ping, Theme: cfg.Theme}),
+		Handler: NewServer(ServerOptions{Token: token, Hub: hub, Ping: cfg.Ping, Theme: cfg.Theme,
+			Pointer: s.pointer, OnPoint: s.acceptPoint}),
+		// Bounds on what an internet client can hold open: headers must
+		// arrive promptly, and the one body (the pointer POST) gets its own
+		// read deadline in its handler. No server-wide ReadTimeout: it would
+		// also time out the disconnect watch on long-lived event streams.
 		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    8 << 10,
 	}
 	served := make(chan error, 1)
 	go func() { served <- srv.Serve(l) }()
@@ -104,7 +135,8 @@ func Start(ctx context.Context, cfg Config) (*Session, error) {
 	if _, local := cfg.Tunnel.(LocalOnly); local {
 		mode = ModeLocalOnly
 	}
-	s := &Session{token: token, link: link, hub: hub, srv: srv, handle: handle, done: make(chan struct{}), startedAt: time.Now(), mode: mode}
+	s.link, s.base, s.hub, s.srv, s.handle = link, handle.URL(), hub, srv, handle
+	s.startedAt, s.mode = time.Now(), mode
 	go s.watch(served)
 	return s, nil
 }
@@ -143,6 +175,7 @@ func (s *Session) Activate() { s.hub.Activate() }
 // closes when they have. Idempotent: the first reason wins.
 func (s *Session) Stop(reason error) {
 	s.stopOnce.Do(func() {
+		s.pointer.stop()
 		s.hub.Close(reason)
 		s.reason = s.hub.Err()
 		go s.teardown()
@@ -306,5 +339,58 @@ func resolvingDialer(resolve func(context.Context, string) ([]string, error)) fu
 			last = err
 		}
 		return nil, last
+	}
+}
+
+// EnablePointer turns pointing on (#412), minting the pointer link on first
+// use; it returns the link, the same one on every later call.
+func (s *Session) EnablePointer() (string, error) {
+	token, changed, err := s.pointer.set(true, newToken)
+	if err != nil {
+		return "", err
+	}
+	if changed {
+		s.hub.ArmPointer()
+	}
+	return s.base + "/" + token + "/", nil
+}
+
+// DisablePointer turns pointing off: the pointer link stays valid as
+// view-only, and its open pages are told.
+func (s *Session) DisablePointer() {
+	if _, changed, _ := s.pointer.set(false, nil); changed {
+		s.hub.DisarmPointer()
+	}
+}
+
+// PointerLink is the pointer link, or "" before EnablePointer.
+func (s *Session) PointerLink() string {
+	if token := s.pointer.link(); token != "" {
+		return s.base + "/" + token + "/"
+	}
+	return ""
+}
+
+// pointerHidden turns pointing off because the active marker stayed off the
+// operator's screen (the hub has already disarmed its watch).
+func (s *Session) pointerHidden(gen uint64) {
+	if s.pointer.offIfGeneration(gen) && s.cfg.OnPointerOff != nil {
+		s.cfg.OnPointerOff()
+	}
+}
+
+// acceptPoint passes on a batch only if it lands on what the operator sees
+// now: pointing on, the same grid, a public screen, and the active pointer
+// marker drawn. Anything else is dropped.
+func (s *Session) acceptPoint(b PointBatch) {
+	if on, _ := s.pointer.On(); !on {
+		return
+	}
+	cur := s.hub.Current()
+	if !cur.OK || cur.Geometry != (terminal.Geometry{Cols: b.Cols, Rows: b.Rows}) || cur.Class != terminal.FramePublic || !cur.PointerShown {
+		return
+	}
+	if s.cfg.OnPoints != nil {
+		s.cfg.OnPoints(b)
 	}
 }

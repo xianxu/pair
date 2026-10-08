@@ -62,7 +62,8 @@ is the current one, for late joiners.
   - A `: ping` every 15s keeps Cloudflare from closing an idle stream (it does
     at 100s). A failed ping ends that viewer, which frees its slot.
 
-The page (`web/`) and a vendored `@xterm/xterm` 6.0.0
+The page (`web/`), a vendored `@xterm/xterm` 6.0.0 with `@xterm/addon-unicode11`
+(Unicode 11 widths, so emoji are two columns as in Couch; #412),
 (`web/vendor/xterm/VENDOR.md`, the same version as the headless oracle) are
 embedded in the binary. The viewer:
 - keeps the sender's grid and scales the font to fit (`nextFontSize`,
@@ -208,6 +209,92 @@ Viewers see the operator's colours and font.
   `BROADCAST_LIVE_NAMED=<tunnel>@<hostname>`) runs the real binary end to end.
   Rerun it after any cloudflared upgrade. Measured with 2026.7.3: named link
   ready in about 1s, quick in about 6s, both 530 after stop.
+
+## Pointer link (#412)
+
+A broadcast can carry a second capability link that lets a helper point at the
+operator's screen. It is the only input a broadcast accepts from the internet,
+and it is kept narrow.
+
+- **State:** `PointerState` (`pointer.go`) holds a 256-bit token, minted on
+  first `Session.EnablePointer` and kept for the broadcast's life, plus a
+  `pointing` switch. `DisablePointer` downgrades the link to view-only; enabling
+  again restores the same link. Its mutex is a leaf: callbacks run after it is
+  released.
+- **Routes:** `/<pointer-token>/…` serves the same page and stream as the view
+  link, plus `POST /<pointer-token>/point`, the only route that reads a body.
+  Everything else is GET-only, as in #395: the view link answers a POST with
+  405.
+- **The POST**, in order:
+  1. pointing must be on (403);
+  2. `Content-Type: application/json` (415);
+  3. an in-flight cap of 4 (429);
+  4. a token bucket of 30/s per link (429);
+  5. a 2s read deadline for this request only;
+  6. a body capped at 4 KB (`MaxBytesReader`, 413);
+  7. `ParsePointBatch`: strict JSON, known fields only, 1..64 integer cell
+     pairs inside a stated grid of at most 1000×1000, fixed errors that echo
+     nothing (400).
+
+  Accepted and dropped batches both answer 204.
+- **Landing:** `acceptPoint` passes a batch to `Config.OnPoints` only if
+  pointing is on and the hub's `Current()` frame matches the batch's grid, is
+  public, and shows the active pointer marker. Otherwise it is dropped.
+  Nothing else consumes points.
+- **Visible capability:** the hub's second watch (`ArmPointer`,
+  `DisarmPointer`, `OnPointerHidden`) checks `PointerShown`. That means
+  `PointerLabel` on `PointerSGR`'s amber background, right after `LIVE ⏸ `.
+  Hidden past the grace, the watch turns pointing off (`Config.OnPointerOff`)
+  without ending the broadcast.
+- **Pointer pages** get `event: caps` (`{"pointer":bool}`) on join and on
+  every flip; view pages never do. Stopping the broadcast ends both links.
+- **Server timeouts:** `ReadHeaderTimeout` 10s, `IdleTimeout` 60s, 8 KB
+  headers, and a read deadline only in the POST handler. There is no
+  server-wide `ReadTimeout`: it would also time out the disconnect watch on
+  long-lived event streams.
+- **Marks** (`marks.go`): pure. A batch's points are joined by line fill; an
+  off-grid point is dropped before any line reaches it. The broadcast's controls
+  (`StatusGuardCols`, the width of `LIVE ⏸ 👆 👽` at the left of the last row)
+  are never marked or tinted: the overlay refuses them whatever put a mark
+  there. The rest of the tab bar can be marked. At most 1/8 of the grid is
+  marked, oldest first. A mark holds 1.5s at full amber (`MarkHold`), then
+  fades fast over 0.5s (`MarkFade`, 10 steps): with truecolor it blends into
+  the operator's real background, otherwise it walks a short 256-colour
+  ladder. The Presenter's overlay hook draws marks (terminal.md).
+- **Tests:** a method × route × token table; rejections that echo nothing; drops
+  for a stale grid, a private frame and a hidden marker; rate and in-flight
+  limits, including slow bodies; re-entrant callbacks; `caps` on pointer streams
+  only; `FuzzParsePointBatch`; the hub property test models the pointer watch.
+
+### Couch side of the pointer
+
+`couchtty/console_pointer.go` owns the pointer phase: `none | on | off`,
+under `c.mu`, with transitions on the Run loop; the header comment has the
+table.
+
+- **Status row:** while live it reads `LIVE ⏸ 👆 👽`. `👆` is dim when off and
+  on `PointerSGR` amber when on (`StatusModel.Pointer`). Its span
+  (`RenderedStatusRow.Pointer`) takes a left click (toggle) and a right click
+  (re-copy the link). A right click on `LIVE ⏸` re-copies the view-only link.
+  A click on `👽` only gives a notice (#407).
+  `routeMouseEvent` checks these spans before anything else on the row.
+- **Toggling:** the first click calls `Session.EnablePointer` and copies the
+  link (the notice never shows it). Later clicks flip pointing for the same
+  link. The watch's `OnPointerOff` reaches the loop as `pointerOffByWatch`.
+  Turning off clears every mark at once.
+- **Points:** `Config.OnPoints` → `onPoints` → `runTerminalCommand` →
+  `applyPoints`, which re-checks on the loop that the phase is on, the
+  broadcast is live and the switcher isn't open, then calls `Marks.Add`.
+  Coordinates go nowhere else, and no byte reaches a child.
+- **Drawing:** `markOverlay` is installed with the tap when the broadcast goes
+  live and removed when it ends (`detachBroadcastScreen`, which also forgets
+  the pointer). It skips private frames. A timer driven by
+  `Marks.NextChange` calls `Presenter.Refresh` while marks live, so the fade
+  advances with no child output.
+- **Locks:** `pointerMarks.mu` is a leaf. It guards only the marks and their
+  timer, and is never held across a call into the Presenter, the session or
+  the loop. `TestPointerStressNoDeadlock` paints, posts and toggles together
+  under `-race`.
 
 ## Listing (`couch --broadcast-list`, pair#413)
 

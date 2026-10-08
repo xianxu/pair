@@ -69,14 +69,16 @@ func TestStatusRowLiveLeadsRecAndShiftsChips(t *testing.T) {
 	}
 	r := RenderStatusRow(80, m)
 	plain := string(ansi.Strip([]byte(r.Body)))
-	if want := broadcast.LiveLabel + " REC 21%  brain"; plain != want {
+	// While live the capability controls (#412) sit between LIVE and REC.
+	lead := broadcast.LiveLabel + " " + broadcast.PointerLabel + " " + broadcast.ControlLabel
+	if want := lead + " REC 21%  brain"; plain != want {
 		t.Fatalf("row %q, want %q", plain, want)
 	}
 	liveWidth := textwidth.Width(broadcast.LiveLabel)
 	if r.Control != (ColumnSpan{Start: 0, End: liveWidth}) {
 		t.Fatalf("control span %+v", r.Control)
 	}
-	start := textwidth.Width(broadcast.LiveLabel + " REC 21%  ")
+	start := textwidth.Width(lead + " REC 21%  ")
 	if len(r.Chips) != 1 || r.Chips[0].Start != start {
 		t.Fatalf("chip spans %+v, want start %d", r.Chips, start)
 	}
@@ -103,5 +105,58 @@ func TestStatusRowStartingCell(t *testing.T) {
 	}
 	if r.Control != (ColumnSpan{Start: 0, End: textwidth.Width(broadcast.StartingLabel)}) {
 		t.Fatalf("starting control %+v", r.Control)
+	}
+}
+
+// #412: while live the row is `LIVE ⏸ 👆 👽`; the drawn active 👆 is what
+// the broadcast's pointer check accepts, and nothing else is.
+func TestStatusRowPointerCells(t *testing.T) {
+	liveW := textwidth.Width(broadcast.LiveLabel)
+	cases := []struct {
+		name      string
+		model     StatusModel
+		cols      int
+		wantShown bool
+		wantPtr   ColumnSpan
+		wantCtl   ColumnSpan
+	}{
+		{"off", StatusModel{Broadcast: BroadcastLive, Pointer: PointerOff}, 80, false, ColumnSpan{liveW + 1, liveW + 3}, ColumnSpan{liveW + 4, liveW + 6}},
+		{"on", StatusModel{Broadcast: BroadcastLive, Pointer: PointerOn}, 80, true, ColumnSpan{liveW + 1, liveW + 3}, ColumnSpan{liveW + 4, liveW + 6}},
+		{"clipped", StatusModel{Broadcast: BroadcastLive, Pointer: PointerOn}, liveW + 2, false, ColumnSpan{}, ColumnSpan{}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			r := RenderStatusRow(c.cols, c.model)
+			f := rowFrame(t, c.cols, r.Body)
+			if !broadcast.IndicatorShown(f) {
+				t.Fatalf("LIVE lost: %q", r.Body)
+			}
+			if got := broadcast.PointerShown(f); got != c.wantShown {
+				t.Fatalf("PointerShown = %v, want %v (%q)", got, c.wantShown, r.Body)
+			}
+			if r.Pointer != c.wantPtr || r.Remote != c.wantCtl {
+				t.Fatalf("spans pointer %+v remote %+v, want %+v %+v", r.Pointer, r.Remote, c.wantPtr, c.wantCtl)
+			}
+		})
+	}
+	plain := string(ansi.Strip([]byte(RenderStatusRow(80, StatusModel{Broadcast: BroadcastLive, Pointer: PointerOff,
+		Actors: []StatusActor{{Label: "brain"}}}).Body)))
+	if want := broadcast.LiveLabel + " " + broadcast.PointerLabel + " " + broadcast.ControlLabel + "  brain"; plain != want {
+		t.Fatalf("row %q, want %q", plain, want)
+	}
+	for _, cell := range []BroadcastCell{BroadcastOff, BroadcastStarting} {
+		r := RenderStatusRow(80, StatusModel{Broadcast: cell, Pointer: PointerOn})
+		if strings.Contains(r.Body, broadcast.PointerLabel) || r.Pointer != (ColumnSpan{}) {
+			t.Fatalf("cell %v drew the pointer control: %q", cell, r.Body)
+		}
+	}
+}
+
+// The marks guard covers exactly the drawn controls: what RenderStatusRow
+// puts at the row's left while live ends where broadcast.StatusGuardCols does.
+func TestStatusGuardMatchesDrawnControls(t *testing.T) {
+	r := RenderStatusRow(80, StatusModel{Broadcast: BroadcastLive, Pointer: PointerOn})
+	if r.Remote.End != broadcast.StatusGuardCols {
+		t.Fatalf("controls end at %d, guard is %d", r.Remote.End, broadcast.StatusGuardCols)
 	}
 }

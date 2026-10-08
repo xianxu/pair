@@ -641,6 +641,9 @@ var NonArtifactSources = []string{
 	"cmd/internal/broadcast/privacy.go",
 	"cmd/internal/broadcast/stream.go",
 	"cmd/internal/broadcast/theme.go",
+	"cmd/internal/broadcast/marks.go",
+	"cmd/internal/broadcast/point.go",
+	"cmd/internal/broadcast/pointer.go",
 	"cmd/internal/broadcast/guard.go",
 	"cmd/internal/broadcast/cloudflared.go",
 	"cmd/internal/broadcast/records.go",
@@ -657,6 +660,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/terminal_input.go",
 	// #395 broadcast control: phase, tap and session lifecycle; no artifact paths.
 	"cmd/internal/couchtty/console_broadcast.go",
+	"cmd/internal/couchtty/console_pointer.go",
 	"cmd/internal/couchcmd/broadcast.go",
 	"cmd/internal/couchcmd/broadcast_list.go",
 	"cmd/internal/terminal/endpoint_input.go",

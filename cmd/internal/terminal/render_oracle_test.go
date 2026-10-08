@@ -295,3 +295,18 @@ func TestOracleReadsCursorShape(t *testing.T) {
 		}
 	}
 }
+
+// #412: the broadcast's capability markers are two columns in the viewer's
+// parser too, so the status row's spans match what viewers see.
+func TestOracleCapabilityMarkersAreWide(t *testing.T) {
+	glyphs := []string{"👆", "👽"}
+	chunks := make([]string, len(glyphs))
+	for i, g := range glyphs {
+		chunks[i] = "\x1b[1;3H" + g
+	}
+	for i, screen := range runOracle(t, 10, 2, chunks) {
+		if got := screen.X - 2; got != 2 {
+			t.Errorf("%q advanced the cursor %d, want 2", glyphs[i], got)
+		}
+	}
+}

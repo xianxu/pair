@@ -3,6 +3,8 @@ package broadcast
 import (
 	"testing"
 
+	vt "github.com/charmbracelet/x/vt"
+
 	"github.com/charmbracelet/x/ansi"
 	"github.com/xianxu/pair/cmd/internal/textwidth"
 )
@@ -57,6 +59,25 @@ func TestIndicatorGlyphWidths(t *testing.T) {
 		}
 		if w := ansi.StringWidth(label); w != runes {
 			t.Errorf("ansi.StringWidth(%q) = %d, want %d", label, w, runes)
+		}
+	}
+}
+
+// #412: the pointer and control markers are emoji, two columns everywhere
+// they're measured or drawn; otherwise the status row's click spans and the
+// pointer check drift from what's on screen.
+func TestCapabilityMarkerWidths(t *testing.T) {
+	for _, label := range []string{PointerLabel, ControlLabel} {
+		if w := textwidth.Width(label); w != 2 {
+			t.Errorf("textwidth.Width(%q) = %d, want 2", label, w)
+		}
+		if w := ansi.StringWidth(label); w != 2 {
+			t.Errorf("ansi.StringWidth(%q) = %d, want 2", label, w)
+		}
+		e := vt.NewEmulator(10, 2)
+		e.WriteString("\x1b[1;3H" + label)
+		if got := e.CursorPosition().X - 2; got != 2 {
+			t.Errorf("vt emulator advanced %d for %q, want 2", got, label)
 		}
 	}
 }

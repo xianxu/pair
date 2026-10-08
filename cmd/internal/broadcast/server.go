@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"mime"
 	"net/http"
 	"strings"
 	"time"
@@ -28,6 +30,11 @@ type ServerOptions struct {
 	// Theme, when set, is read for each new viewer and sent before its
 	// first frame.
 	Theme func() Theme
+	// Pointer is the broadcast's pointer capability (#412); nil serves no
+	// pointer link. OnPoint receives each well-formed batch posted while
+	// pointing is on; it decides whether the batch lands.
+	Pointer *PointerState
+	OnPoint func(PointBatch)
 }
 
 type asset struct{ file, contentType string }
@@ -39,6 +46,8 @@ var assets = map[string]asset{
 	"viewer.css": {"web/viewer.css", "text/css; charset=utf-8"},
 	"xterm.js":   {"web/vendor/xterm/xterm.js", "text/javascript; charset=utf-8"},
 	"xterm.css":  {"web/vendor/xterm/xterm.css", "text/css; charset=utf-8"},
+	// Unicode 11 widths, so emoji are two columns in the viewer as in Couch.
+	"addon-unicode11.js": {"web/vendor/xterm/addon-unicode11.js", "text/javascript; charset=utf-8"},
 	// JetBrains Mono, the font the operator's terminal draws (OFL; see
 	// web/vendor/fonts/VENDOR.md).
 	"fonts/JetBrainsMono-Regular.woff2":    {"web/vendor/fonts/JetBrainsMono-Regular.woff2", "font/woff2"},
@@ -64,18 +73,26 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.Set("Cache-Control", "no-store")
 	h.Set("Referrer-Policy", "no-referrer")
 	h.Set("X-Content-Type-Options", "nosniff")
+	segment, rest, ok := splitPath(r.URL.Path)
+	pointer := ok && s.opts.Pointer.Match(segment)
+	// The one route that reads a body: POST /<pointer-token>/point. Every
+	// other path is GET-only and never reads one (#395).
+	if r.Method == http.MethodPost && pointer && rest == "point" {
+		s.point(w, r)
+		return
+	}
 	if r.Method != http.MethodGet {
 		h.Set("Allow", http.MethodGet)
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	rest, ok := s.authorized(r.URL.Path)
-	if !ok {
+	view := ok && s.opts.Token != "" && subtle.ConstantTimeCompare([]byte(segment), []byte(s.opts.Token)) == 1
+	if !view && !pointer {
 		http.NotFound(w, r)
 		return
 	}
 	if rest == "events" {
-		s.events(w, r)
+		s.events(w, r, pointer)
 		return
 	}
 	a, ok := assets[rest]
@@ -92,16 +109,63 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write(body)
 }
 
-// authorized splits "/<token>/<rest>" and checks the token in constant time.
-func (s *Server) authorized(path string) (rest string, ok bool) {
-	segment, rest, found := strings.Cut(strings.TrimPrefix(path, "/"), "/")
-	if !found || !strings.HasPrefix(path, "/") || s.opts.Token == "" {
-		return "", false
+// splitPath splits "/<token>/<rest>".
+func splitPath(path string) (segment, rest string, ok bool) {
+	if !strings.HasPrefix(path, "/") {
+		return "", "", false
 	}
-	if subtle.ConstantTimeCompare([]byte(segment), []byte(s.opts.Token)) != 1 {
-		return "", false
+	segment, rest, ok = strings.Cut(path[1:], "/")
+	return segment, rest, ok && segment != ""
+}
+
+type wireCaps struct {
+	Pointer bool `json:"pointer"`
+}
+
+// point takes one batch from a pointer page. Only well-formed input is
+// considered; its errors are fixed text, never the request.
+func (s *Server) point(w http.ResponseWriter, r *http.Request) {
+	if on, _ := s.opts.Pointer.On(); !on {
+		http.Error(w, "pointing is off", http.StatusForbidden)
+		return
 	}
-	return rest, true
+	if mt, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || mt != "application/json" {
+		http.Error(w, "unsupported content type", http.StatusUnsupportedMediaType)
+		return
+	}
+	if !s.opts.Pointer.enter() {
+		http.Error(w, "too many requests", http.StatusTooManyRequests)
+		return
+	}
+	defer s.opts.Pointer.leave()
+	if !s.opts.Pointer.allow(time.Now()) {
+		http.Error(w, "too many requests", http.StatusTooManyRequests)
+		return
+	}
+	// A body must arrive promptly; a client trickling one doesn't get to
+	// hold a slot.
+	_ = http.NewResponseController(w).SetReadDeadline(time.Now().Add(pointReadBudget))
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, MaxPointBody))
+	var tooLarge *http.MaxBytesError
+	switch {
+	case errors.As(err, &tooLarge):
+		http.Error(w, "request too large", http.StatusRequestEntityTooLarge)
+		return
+	case err != nil:
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	batch, err := ParsePointBatch(body)
+	if err != nil {
+		http.Error(w, "bad point batch", http.StatusBadRequest)
+		return
+	}
+	if s.opts.OnPoint != nil {
+		s.opts.OnPoint(batch)
+	}
+	// Accepted or dropped (stale grid, private screen), the page is told the
+	// same: whether a point landed isn't its business.
+	w.WriteHeader(http.StatusNoContent)
 }
 
 type wireFrame struct {
@@ -114,7 +178,7 @@ type wireEnd struct {
 	Reason string `json:"reason"`
 }
 
-func (s *Server) events(w http.ResponseWriter, r *http.Request) {
+func (s *Server) events(w http.ResponseWriter, r *http.Request, pointer bool) {
 	sub, err := s.opts.Hub.Subscribe()
 	switch {
 	case errors.Is(err, ErrTooManyViewers):
@@ -129,6 +193,9 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	rc := http.NewResponseController(w)
 	send := func(chunk string) bool {
+		// A viewer that stops reading must not hold its goroutine and viewer
+		// slot forever: every write gets a deadline, two pings long.
+		_ = rc.SetWriteDeadline(time.Now().Add(2 * s.opts.Ping))
 		if _, err := fmt.Fprint(w, chunk); err != nil {
 			return false
 		}
@@ -143,6 +210,18 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// A pointer page learns whether pointing is on when it joins and at
+	// every flip; a view page never hears of it.
+	var capsChanged <-chan struct{}
+	sendCaps := func() bool {
+		on, changed := s.opts.Pointer.On()
+		capsChanged = changed
+		caps, _ := json.Marshal(wireCaps{Pointer: on})
+		return send("event: caps\ndata: " + string(caps) + "\n\n")
+	}
+	if pointer && !sendCaps() {
+		return
+	}
 	ping := time.NewTicker(s.opts.Ping)
 	defer ping.Stop()
 	for {
@@ -155,6 +234,10 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 			}
 			frame, _ := json.Marshal(wireFrame{Cols: m.Cols, Rows: m.Rows, B: base64.StdEncoding.EncodeToString(m.Data)})
 			if !send("event: frame\ndata: " + string(frame) + "\n\n") {
+				return
+			}
+		case <-capsChanged:
+			if !sendCaps() {
 				return
 			}
 		case <-ping.C:

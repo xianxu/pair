@@ -139,6 +139,14 @@ type Console struct {
 	// running broadcast's state (console_broadcast.go). Both under mu.
 	broadcastCfg *broadcast.Config
 	bcast        broadcastState
+	// pointer is the pointer link's phase (#412), under mu; pmarks is the
+	// marks state the Presenter's overlay reads, behind its own leaf lock.
+	pointer pointerPhase
+	pmarks  pointerMarks
+	// statusPointer and statusRemote are the 👆 and 👽 spans on the last
+	// drawn row.
+	statusPointer ColumnSpan
+	statusRemote  ColumnSpan
 	// ansiPalette is the terminal's 16 ANSI colours from OSC 4 replies, for
 	// broadcast viewers; ansiKnown marks which arrived. Under mu.
 	ansiPalette [16]color.RGBA

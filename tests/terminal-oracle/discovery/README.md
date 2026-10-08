@@ -19,7 +19,7 @@ python3 tests/terminal-oracle/discovery/sync_hold.py
 python3 -m unittest discover -s tests/terminal-oracle/discovery -p 'test_*.py' -v
 ```
 
-The pinned headless dependency is `@xterm/headless@6.0.0`, from the parent directory's
+The pinned headless dependency is `@xterm/headless@6.0.0` (with `@xterm/addon-unicode11@0.9.0`, as the broadcast viewer uses), from the parent directory's
 lockfile. Native discovery used **Zellij 0.45.1**. The native driver starts a uniquely
 named session on a disposable PTY with temporary config, data and socket paths. It
 removes inherited session identity and kills only the session it created, including

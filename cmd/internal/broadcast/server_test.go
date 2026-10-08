@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -19,7 +20,7 @@ import (
 
 const testToken = "tok_abcdefghijklmnopqrstuvwxyz0123456789ABCD"
 
-var routes = []string{"", "viewer.js", "viewer.css", "xterm.js", "xterm.css", "events"}
+var routes = []string{"", "viewer.js", "viewer.css", "xterm.js", "xterm.css", "addon-unicode11.js", "events"}
 
 func testServer(t *testing.T, opts HubOptions, ping time.Duration) (*Hub, http.Handler) {
 	t.Helper()
@@ -109,11 +110,12 @@ func TestServerIsGetOnly(t *testing.T) {
 func TestServerServesAssetsWithHeaders(t *testing.T) {
 	_, srv := testServer(t, HubOptions{}, 0)
 	types := map[string]string{
-		"":           "text/html; charset=utf-8",
-		"viewer.js":  "text/javascript; charset=utf-8",
-		"viewer.css": "text/css; charset=utf-8",
-		"xterm.js":   "text/javascript; charset=utf-8",
-		"xterm.css":  "text/css; charset=utf-8",
+		"":                   "text/html; charset=utf-8",
+		"viewer.js":          "text/javascript; charset=utf-8",
+		"viewer.css":         "text/css; charset=utf-8",
+		"xterm.js":           "text/javascript; charset=utf-8",
+		"xterm.css":          "text/css; charset=utf-8",
+		"addon-unicode11.js": "text/javascript; charset=utf-8",
 	}
 	for route, ctype := range types {
 		path := "/" + testToken + "/" + route
@@ -150,10 +152,18 @@ func TestViewerPageLoadsOnlySameOrigin(t *testing.T) {
 		t.Error("page has an inline event handler")
 	}
 	viewer := string(mustAsset(t, "viewer.js"))
-	for _, api := range []string{"localStorage", "sessionStorage", "indexedDB", "caches", "serviceWorker", "document.cookie", "fetch(", "XMLHttpRequest", "WebSocket", "sendBeacon"} {
+	for _, api := range []string{"localStorage", "sessionStorage", "indexedDB", "caches", "serviceWorker", "document.cookie", "XMLHttpRequest", "WebSocket", "sendBeacon", "EventSource(\"http", "EventSource('http"} {
 		if strings.Contains(viewer, api) {
 			t.Errorf("viewer.js uses %s", api)
 		}
+	}
+	// Exactly one request besides the page's own assets and stream: the
+	// pointer POST (#412), to the relative 'point', without credentials.
+	if n := strings.Count(viewer, "fetch("); n != 1 {
+		t.Errorf("viewer.js has %d fetch calls, want exactly the pointer POST", n)
+	}
+	if !strings.Contains(viewer, "fetch('point', {") || !strings.Contains(viewer, "credentials: 'omit'") {
+		t.Error("the pointer POST must target the relative 'point' and omit credentials")
 	}
 }
 
@@ -352,5 +362,35 @@ func TestEndReasonIsAClosedVocabulary(t *testing.T) {
 		if strings.Contains(got, "/") || strings.Contains(got, "127.0.0.1") {
 			t.Errorf("EndReason(%v) leaks local detail: %q", c.err, got)
 		}
+	}
+}
+
+// A viewer that stops reading is dropped once a write can't finish, freeing
+// its slot; it can't hold the stream and a viewer slot forever.
+func TestServerDropsStalledViewer(t *testing.T) {
+	h, srv := testServer(t, HubOptions{MaxViewers: 1, QueueDepth: 1000}, 20*time.Millisecond)
+	ts := httpServer(t, srv)
+	conn, err := net.Dial("tcp", strings.TrimPrefix(ts.URL, "http://"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	if tcp, ok := conn.(*net.TCPConn); ok {
+		tcp.SetReadBuffer(4096)
+	}
+	fmt.Fprintf(conn, "GET /%s/events HTTP/1.1\r\nHost: x\r\n\r\n", testToken)
+	// Never read; push frames until the server's writes back up.
+	deadline := time.Now().Add(15 * time.Second)
+	for i := 0; ; i++ {
+		offer(h, live(t, fmt.Sprintf("%d %s", i, strings.Repeat("x", 30))), terminal.FramePublic)
+		var n int
+		h.do(func() { n = len(h.subs) })
+		if n == 0 && i > 0 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("a viewer that stopped reading still holds its slot after %d frames", i)
+		}
+		time.Sleep(time.Millisecond)
 	}
 }

@@ -843,6 +843,21 @@ Broadcasts reach viewers through [`cloudflared`](https://developers.cloudflare.c
 `cloudflared` runs under a guard that stops it the moment Couch exits, even
 if Couch crashes or is killed.
 
+**Remote pointer (#412).** While broadcasting, the status row reads
+`LIVE ⏸ 👆 👽`. Clicking `👆` creates a separate **pointer link**, copies it to
+your clipboard, and turns pointing on (`👆` turns amber). Give that link to the
+person helping you. Anyone holding it sees the same live view and can tap or
+drag on it (an iPad works well), leaving amber marks that hold for a moment and
+then fade quickly on your screen and every viewer's. Marks are only drawn: they never
+type or click anything in your programs, never cover the `LIVE ⏸ 👆 👽`
+controls (the rest of the tab bar can be pointed at), and aren't drawn while
+the switcher is open. Clicking `👆` again turns pointing
+off, clears the marks and leaves the link as view-only; clicking once more
+turns it back on for the same link. Right-click `👆` to copy the link again.
+Right-click `LIVE ⏸` to copy the view-only link again. Stopping the
+broadcast ends every link. `👽` is reserved for remote control and does
+nothing yet.
+
 With an empty root filter, **Space** toggles the **normal view** and **focus view**.
 Focus view shows only live threads with a published summary, in normal-view
 order, as `label ◆ summary`. Tag a thread with `! …` in its Pair draft. An empty
