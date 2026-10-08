@@ -213,6 +213,31 @@ rounds:
       boundary: M3
       recipe: milestone-review
       blocked: false
+    - "n": 8
+      timestamp: "2026-10-07T21:34:18-07:00"
+      agent: claude
+      findings:
+        - id: BR-18
+          severity: Minor
+          title: Issue Plan M4 row still names COUCH_BROADCAST_FONT_FILE after the bundled-font revision
+          detail: 'This is the 6th finding in family plan-code-drift. Rule: a plan Revision that replaces a mechanism also rewrites the issue''s Plan row naming it, in the same commit. The issue file at line 179 still promises the env-var font file.'
+          family: plan-code-drift
+          round: 8
+        - id: BR-19
+          severity: Minor
+          title: 'parseOSC4Reply writes its own rgb: parser while OSC 10/11 use ansi.XParseColor'
+          detail: ARCH-DRY. The strict parser is defensible, but short components round differently from XParseColor's shift, so background and ANSI colours can disagree by one step. broadcast.Hex also repeats toRGBA. Use one strict parser for both, or say why there are two.
+          family: duplicate-color-parser
+          round: 8
+        - id: BR-20
+          severity: Minor
+          title: The input_test OSC 4 row pins only Reply, not the UnknownOscEvent with the full prefix that capturePalette needs
+          detail: 'This is the 3rd finding in family plan-test-coverage-gap. Rule: when a feature consumes an event from an external decoder, at least one test feeds the real decoder''s output to the consumer instead of a hand-built event. Fix: set event uv.UnknownOscEvent(tc.raw) on that row (input_test.go:99).'
+          family: plan-test-coverage-gap
+          round: 8
+      boundary: M4
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#395 (boundary-review)
@@ -307,8 +332,22 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-17** [Minor] `cross-channel-state-read` No deterministic test drives the late-closure-after-abandon ordering behind BR-11
   3rd in family. Rule: every handoff that can return early has a test that injects the order (closure after the early return). TestStartClaimDecidesOnce only exercises atomic CAS; the integration ordering is covered only by -race sampling.
 
+## Round 8 — 2026-10-07T21:34:18-07:00 (claude) — passed
+
+### Raised
+
+- **BR-18** [Minor] `plan-code-drift` Issue Plan M4 row still names COUCH_BROADCAST_FONT_FILE after the bundled-font revision
+  This is the 6th finding in family plan-code-drift. Rule: a plan Revision that replaces a mechanism also rewrites the issue's Plan row naming it, in the same commit. The issue file at line 179 still promises the env-var font file.
+- **BR-19** [Minor] `duplicate-color-parser` parseOSC4Reply writes its own rgb: parser while OSC 10/11 use ansi.XParseColor
+  ARCH-DRY. The strict parser is defensible, but short components round differently from XParseColor's shift, so background and ANSI colours can disagree by one step. broadcast.Hex also repeats toRGBA. Use one strict parser for both, or say why there are two.
+- **BR-20** [Minor] `plan-test-coverage-gap` The input_test OSC 4 row pins only Reply, not the UnknownOscEvent with the full prefix that capturePalette needs
+  This is the 3rd finding in family plan-test-coverage-gap. Rule: when a feature consumes an event from an external decoder, at least one test feeds the real decoder's output to the consumer instead of a hand-built event. Fix: set event uv.UnknownOscEvent(tc.raw) on that row (input_test.go:99).
+
 ## Open findings
 
 - **BR-10** [Minor] `plan-code-drift` atlas/broadcast.md:69 still cites TestViewerFit after the rename to TestViewerNode
 - **BR-16** [Minor] `plan-code-drift` Tunnel.Open doc says Start cancels its context; the Console caller does
 - **BR-17** [Minor] `cross-channel-state-read` No deterministic test drives the late-closure-after-abandon ordering behind BR-11
+- **BR-18** [Minor] `plan-code-drift` Issue Plan M4 row still names COUCH_BROADCAST_FONT_FILE after the bundled-font revision
+- **BR-19** [Minor] `duplicate-color-parser` parseOSC4Reply writes its own rgb: parser while OSC 10/11 use ansi.XParseColor
+- **BR-20** [Minor] `plan-test-coverage-gap` The input_test OSC 4 row pins only Reply, not the UnknownOscEvent with the full prefix that capturePalette needs
