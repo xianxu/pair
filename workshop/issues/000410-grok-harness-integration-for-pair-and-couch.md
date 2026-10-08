@@ -63,8 +63,9 @@ each aspect that misbehaves there is a checklist item. The work is done from an 
 `grok` is registered and has a scanner, Couch's start and switch-agent menus pick
 it up (guide §0), and switching a slot to Grok is the acceptance test.
 Registering in M1 does list Grok in Couch's menus early: a Couch launch works
-from M1, but park and resume only after M2. That interim is acceptable, and the
-M1 known-gap entry (below) records it.
+from M1, but park and resume only after M2, and switch-agent's orientation
+auto-submit only after M3. That interim is acceptable, and the M1 known-gap entry
+(below) records both.
 
 ### Design: follow the per-harness pattern
 
@@ -79,11 +80,16 @@ the alt-screen handling is not copied (ARCH-DRY).
     `supportedAgents`. Add a `sessionInventoryKnownGaps["grok"]` entry
     (`cmd/internal/launcher/agent_parity_test.go`) so the parity test passes
     while the session side is still missing. M2 deletes it.
-  - Fresh-launch tables (`freshAgentSpecs`, `freshValueOption`,
-    `freshVariadicOption` in `fresh_args.go`): reject `-c/--continue`,
-    `-r/--resume`, `-s/--session-id` and `--fork-session` on a fresh launch, and
-    declare Grok's value flags (`--agent`, `-m`, `--cwd`, `--permission-mode`, …)
-    so their values are not mistaken for the positional `[PROMPT]`.
+  - Grok's resume spellings (`--resume <id>`, `--resume=<id>`, `-r <id>`, glued
+    `-r<id>`) in `resumeform.Forms`. That one table is what the fresh validator,
+    the launcher and sessionwatch all read (#300 BR-15), so it lands here, not in
+    M2.
+  - The fresh-launch entry (`freshAgentSpecs`, `freshValueOption`,
+    `freshVariadicOption` in `fresh_args.go`): forbidden flags
+    `--continue --session-id --fork-session`, forbidden short flags `cs`
+    (`-r`/`--resume` come from `resumeform`), and Grok's value flags (`--agent`,
+    `-m`, `--cwd`, `--permission-mode`, …) declared so their values are not
+    mistaken for the positional `[PROMPT]`.
   - Inline mode becomes a per-harness `{flag, optOutEnv}` field. Codex keeps
     `--no-alt-screen` with `PAIR_CODEX_ALT_SCREEN`; Grok gets `--no-alt-screen`
     with `PAIR_GROK_ALT_SCREEN`. The `CodexAltScreenOptOut` option becomes
@@ -108,9 +114,11 @@ the alt-screen handling is not copied (ARCH-DRY).
   - A `grok` case in `observationNativeID` (`sessioninventory/target.go`), plus
     tests proving `OSRuntime.AgentSessionExists` and `EstablishedSessionID` read
     the scanner inventory.
-  - `MintsSessionID` includes grok; the resume token (`--resume <id>`, `-r`,
-    inline and glued spellings) goes in `resumeform.Forms`; `-c/--continue` is
-    stripped from persisted config like the other resume selectors.
+  - `MintsSessionID` includes grok. `resumeToken` and `composeResumeArgs`
+    (`agentargs.go`) gain a grok case; without it a cold resume passes no
+    `--resume <id>` and silently starts a fresh conversation. `-c/--continue` is
+    stripped from persisted config at both sites, the launcher's
+    `persistedConfigArgs` and sessionwatch's, each reading `resumeform`.
   - `pair-slug` through `grok -p`.
   - Delete the known-gap entry, so the parity test passes on real wiring.
 - **M3, polish + live check:**
@@ -148,8 +156,9 @@ are versioned test data, replaced when the harness version moves.
 - `grok` is in the launcher `supportedAgents`, the sessioninventory `Agent` enum
   and its `supportedAgents`, and `TestAgentInventoryParityWithSessionTables`
   passes with `sessionInventoryKnownGaps` empty again.
-- A fresh launch of grok rejects `-c`, `-r`, `-s` and `--fork-session`, and a
-  test parses a value flag (`--agent X`) as a flag, not as the prompt.
+- A fresh launch of grok rejects `-c`, `-r`, `--resume`, `-s` and
+  `--fork-session` (the resume spellings through `resumeform.Forms`), and a test
+  parses a value flag (`--agent X`) as a flag, not as the prompt.
 - Codex and Grok share one per-harness inline-mode field. The flag lands before
   `--` for both (test-pinned), and `PAIR_CODEX_ALT_SCREEN` and
   `PAIR_GROK_ALT_SCREEN` each opt out.
@@ -157,9 +166,9 @@ are versioned test data, replaced when the harness version moves.
   the composer recognizer, the Return remap and each overlay detector.
 - The Grok scanner's conformance fixture covers a full session and a stub
   session. `AgentSessionExists` and `EstablishedSessionID` tests read the
-  inventory. A launch mints `--session-id`. The resume token round-trips
-  `--resume`, `-r` and the inline/glued spellings, and persisted config drops
-  `-c`. `pair-slug` produces a slug for a Grok session.
+  inventory. A launch mints `--session-id`. The resume spellings round-trip,
+  a test shows `composeResumeArgs("grok", …)` placing `--resume <id>` before any
+  `--`, and persisted config drops `-c` in both the launcher and sessionwatch. `pair-slug` produces a slug for a Grok session.
 - `nvim/scrollback_test.lua` and an orientation test cover Grok's prompt glyph.
 - Operator live smoke test in `pair-dev grok`: a multi-line prompt (Enter
   inserts a newline, Alt+Enter sends), a permission picker confirms with plain
@@ -180,3 +189,4 @@ are versioned test data, replaced when the harness version moves.
 
 - Brainstorm: scope is full parity in three milestones; peer delivery goes to a follow-up. Bring-up loop is `pair-dev grok` from a Claude slot; Couch at M3. Provisional Couch attach deferred. Grok login confirmed; session layout measured live (stub session without updates.jsonl observed).
 - Spec review (fresh eyes): 10 findings, all folded in. Measured `grok -s <uuid>` in the TUI: it creates the session dir, so pair mints the ID. Added an M1 known-gap entry, the fresh-launch tables, inline flag before `--`, M2 session-side wiring, the orientation glyph, and concrete smoke observations.
+- Spec re-review: 4 more findings folded in: `resumeform.Forms` moves to M1 (the fresh validator reads it), `resumeToken`/`composeResumeArgs` go in M2, both `-c` strip sites are named, and the orientation interim is noted.
