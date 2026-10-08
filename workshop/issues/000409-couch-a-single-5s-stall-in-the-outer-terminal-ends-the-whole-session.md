@@ -1,15 +1,23 @@
 ---
 id: 000409
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-07
 updated: 2026-10-07
 estimate_hours:
-card_mirror: 'f76904259515b8bb913f65a640aa8f722bed6702' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f7cda1d084c97ad69d9c80fe79aa470e0c469995' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-07T21:52:21-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
-# couch: a single 5s stall in the outer terminal ends the whole session
+# couch: full-screen repaint per frame overruns a backgrounded terminal, and the resulting exit is silent
 
 ## Problem
 
@@ -52,7 +60,10 @@ Two independent changes:
 - Rerun the original scenario (couch in the background behind a browser, agent spinner running, capture on): repaint volume while idle drops by more than 10×. If couch still exits, the next start says why.
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000409-couch-a-single-5s-stall-in-the-outer-terminal-ends-the-whole-session-plan.md`.
+
+- [ ] M1 — the exit says why: a recorded-exit kind in `crashreport`; couchcmd writes the parent-output `WriteFailure` reason, and the next start reports it once
+- [ ] M2 — repaint only the rows that changed: #262's cheaper fast path in `HistoryRender.Emit` (unwrapped rows only), checked against the full rebuild with the xterm oracle, with bytes per idle minute measured
 
 ## Revisions
 
