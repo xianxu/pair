@@ -62,3 +62,67 @@ findings:
     detail: |
       third_party/vt/ansiparser/parser_test.go:185 and :200 read fixtures/demo.vte and fixtures/UTF-8-demo.txt, neither included in the package. Running go test ./ansiparser -run '^$' -bench '^BenchmarkParser(UTF8)?$' -benchtime=1x fails for both. Include appropriately licensed fixtures or remove the unsupported benchmarks.
 ```
+
+---
+
+## Re-review — 2026-10-07T20:19:38-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 379 — Turn-end text flashes at focused pane cursor |
+| repo | pair |
+| issue file | workshop/issues/000379-stray-turn-end-text.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 6986321e216f9da591464e5991bcb03a5675fdf4..1b6ddc8b671b197cef033ac6eccffa3881f95259 |
+| command | sdlc close --issue 379 |
+| reviewer | codex |
+| timestamp | 2026-10-07T20:19:38-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned changes address the demonstrated UTF-8 control-string leak through a shared parser correction. All three consumers are migrated, compatibility tests pass, and BR-1 is resolved by removing the unsupported benchmarks. No blocking findings.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The pinned diff removes both fixture-dependent benchmarks and their os import. No fixture references remain in ansiparser; all retained benchmarks pass with -bench . -benchtime=1x.
+```
+
+1. **Strengths**
+   - The production Endpoint regression checks unchanged screen cells and an intact notification across every split and bytewise delivery (`cmd/internal/terminal/notification_mapping_test.go:60`).
+   - Tests cover all five string families, malformed prefixes, cancellation, reset, and bounded overflow (`third_party/vt/ansiparser/string_utf8_test.go:11`).
+   - Comparison against upstream v0.11.7 confirms a narrow parser change; shared handler types and transition tables avoid unnecessary divergence.
+   - Atlas and fork documentation explain ownership, provenance, and replacement criteria.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None remaining.
+
+5. **Test coverage notes**
+   - Passed nested vt/parser suites, including race detection.
+   - Passed the full terminal package and focused wrapper observer/output-boundary tests.
+   - Passed every retained parser benchmark and diff whitespace checks.
+   - Private captured-incident replay and historical red runs were not independently repeated during this review.
+
+6. **Architecture**
+   - **ARCH-DRY — pass:** One correction shared across streaming consumers.
+   - **ARCH-PURE — pass:** Deterministic parser logic tested without IO.
+   - **ARCH-PURPOSE — pass:** Repairs the identified mechanism and related string families.
+   - **ARCH-MOCK — pass:** No new external dependency; Endpoint regression uses the existing fake transport.
+   - **ARCH-CONSTRAINTS — pass:** Constant-size UTF-8 tracking preserves existing payload bounds; overflow recovery is tested.
+   - **ARCH-SECURE — pass:** Untrusted payload continuation bytes remain contained; malformed prefixes preserve control recovery.
+   - **ARCH-ORDER — pass:** Private parser state advances through explicit transitions; reset, interruption, and fragmented input are exercised.
+   - **ARCH-FUNERAL — pass:** No new durable runtime artifacts or background tasks.
+
+7. **Plan revision recommendations:** None required. Finish the remaining close/publication checklist as delivery proceeds.

@@ -383,6 +383,7 @@ implementation or a reproduction of the reported misplaced text.
   analysis criterion remains unchecked, so #379 is not closed or claimed fixed.
 
 ### 2026-10-07 — Regular Couch opt-in correction
+- 2026-10-07: closed — BR-1 addressed: unsupported file-based benchmarks removed; go test ./ansiparser -count=1 -bench . -benchtime=1x passes. No production delta since SHIP review; prior Endpoint mutation, captured replay, vt/parser race, focused observer/notification tests and Couch build evidence retained.; review verdict: SHIP
 - 2026-10-07: closed — Captured incident replay: 23025 feeds, 798 left-footer observations, zero right leaks after fix. Permanent Endpoint and wrapper regressions fail against upstream and pass with repair. vt/parser race suites, full terminal tests, focused observer/notification race tests, Couch tests/build pass. Broader notification helper race reproduced unchanged on main; /tmp/p379-baseline-race.log.; review verdict: SHIP
 - 2026-10-07: flow upgraded quick → full — 520 added lines in code files (limit 100)
 

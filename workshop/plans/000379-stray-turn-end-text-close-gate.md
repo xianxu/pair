@@ -15,6 +15,16 @@ rounds:
           round: 1
       recipe: milestone-review
       blocked: false
+    - "n": 2
+      timestamp: "2026-10-07T20:19:39-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The pinned diff removes both fixture-dependent benchmarks and their os import. No fixture references remain in ansiparser; all retained benchmarks pass with -bench . -benchtime=1x.
+          round: 2
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#379 (boundary-review)
@@ -29,6 +39,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-1** [Minor] `benchmark-fixture-completeness` Imported parser benchmarks reference missing fixtures
   third_party/vt/ansiparser/parser_test.go:185 and :200 read fixtures/demo.vte and fixtures/UTF-8-demo.txt, neither included in the package. Running go test ./ansiparser -run '^$' -bench '^BenchmarkParser(UTF8)?$' -benchtime=1x fails for both. Include appropriately licensed fixtures or remove the unsupported benchmarks.
 
+## Round 2 — 2026-10-07T20:19:39-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — The pinned diff removes both fixture-dependent benchmarks and their os import. No fixture references remain in ansiparser; all retained benchmarks pass with -bench . -benchtime=1x.
+
 ## Open findings
 
-- **BR-1** [Minor] `benchmark-fixture-completeness` Imported parser benchmarks reference missing fixtures
+(none — every finding has been disposed)
