@@ -15,6 +15,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "d06aeb32", done: "397a2fb3"}
 ---
 
 # couch --broadcast-list: print the current broadcast session and its viewer count
