@@ -77,11 +77,11 @@ broadcast session, if any, and the number of connected viewers.
 
 Durable plan: `workshop/plans/000413-couch-broadcast-list-plan.md`.
 
-- [ ] Hub viewer count and session status.
-- [ ] Console snapshot.
-- [ ] `broadcast-status` broker op and service route (no caller identity).
-- [ ] `--broadcast-list [--json]` CLI from any shell, with output and tests.
-- [ ] Atlas, verification, close.
+- [x] Hub viewer count and session status.
+- [x] Console snapshot.
+- [x] `broadcast-status` broker op and service route (no caller identity).
+- [x] `--broadcast-list [--json]` CLI from any shell, with output and tests.
+- [x] Atlas, verification, close.
 
 ## Log
 
