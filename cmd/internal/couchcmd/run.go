@@ -600,6 +600,11 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 	if err != nil {
 		return nil, nil, err
 	}
+	// Parsed before anything is opened, so a bad value leaks nothing.
+	broadcastConfig, err := broadcastSettings(getenv)
+	if err != nil {
+		return nil, nil, err
+	}
 	var recorder *terminalcapture.Recorder
 	if path != "" {
 		recorder, err = terminalcapture.Open(path, captureConfig)
@@ -617,6 +622,7 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 	}
 	console := couchtty.New(host, stdin)
 	console.SetCapture(recorder)
+	console.SetBroadcast(broadcastConfig)
 	options := diagnosticlog.Options{Proof: diagnosticlog.DefaultProof}
 	if len(settings) > 0 {
 		config := settings[0]
