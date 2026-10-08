@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"github.com/xianxu/pair/cmd/internal/broadcast"
 	"strconv"
 	"strings"
 
@@ -53,11 +54,25 @@ type StatusActor struct {
 	Idle IdleLevel
 }
 
+// BroadcastCell is the state of the tab bar's broadcast control (#395).
+type BroadcastCell uint8
+
+const (
+	// BroadcastOff draws nothing: no cell, no click target.
+	BroadcastOff BroadcastCell = iota
+	// BroadcastStarting is the tunnel opening; nothing streams yet.
+	BroadcastStarting
+	// BroadcastLive draws broadcast.LiveLabel, the indicator every streamed
+	// frame must show.
+	BroadcastLive
+)
+
 // StatusModel is everything the row shows.
 type StatusModel struct {
-	Capture terminalcapture.Status
-	Actors  []StatusActor
-	Notice  string
+	Broadcast BroadcastCell
+	Capture   terminalcapture.Status
+	Actors    []StatusActor
+	Notice    string
 	// Spinner is the loading placeholder's spinner frame (pair#206).
 	Spinner uint8
 	// Palette is what the host terminal told couch about its colours, which
@@ -97,6 +112,11 @@ type ChipSpan struct {
 	End    int
 }
 
+// ColumnSpan is a zero-based, half-open column range on the drawn row.
+type ColumnSpan struct{ Start, End int }
+
+func (s ColumnSpan) Contains(column int) bool { return column >= s.Start && column < s.End }
+
 // RenderedStatusRow is the drawn row and where its chips are.
 //
 // One value, because the spans must come from the pass that already CLIPS chips
@@ -106,6 +126,9 @@ type ChipSpan struct {
 type RenderedStatusRow struct {
 	Body  string
 	Chips []ChipSpan
+	// Control is the broadcast cell's red span, from the same clipping pass;
+	// empty when no broadcast is running.
+	Control ColumnSpan
 }
 
 // ColumnToActor maps a ZERO-BASED column on the drawn row to the actor whose
@@ -154,9 +177,21 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		}
 		used += textwidth.Width(clipped)
 	}
-	// Capture leads so actor chips and transient notices cannot hide a stopped
-	// recorder. It never receives an actor click target.
-	appendText(captureBadge(m.Capture), "\x1b[1;7m")
+	// The broadcast cell leads (#395): it is the indicator the broadcast
+	// checks every frame for, so nothing may push it off the row.
+	var control ColumnSpan
+	if label := broadcastLabel(m.Broadcast); label != "" {
+		appendText(label, broadcast.LiveSGR)
+		control = ColumnSpan{Start: 0, End: used}
+	}
+	// Capture follows so actor chips and transient notices cannot hide a
+	// stopped recorder. It never receives an actor click target.
+	if badge := captureBadge(m.Capture); badge != "" {
+		if used > 0 {
+			appendText(" ", "")
+		}
+		appendText(badge, "\x1b[1;7m")
+	}
 	var chips []ChipSpan
 	previousGroup := ""
 	for _, a := range m.Actors {
@@ -218,7 +253,17 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		}
 		appendText(n, "")
 	}
-	return RenderedStatusRow{Body: row.String(), Chips: chips}
+	return RenderedStatusRow{Body: row.String(), Chips: chips, Control: control}
+}
+
+func broadcastLabel(c BroadcastCell) string {
+	switch c {
+	case BroadcastStarting:
+		return broadcast.StartingLabel
+	case BroadcastLive:
+		return broadcast.LiveLabel
+	}
+	return ""
 }
 
 // sanitize removes escape SEQUENCES first, then any remaining C0 control or
