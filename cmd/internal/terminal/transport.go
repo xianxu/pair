@@ -26,15 +26,16 @@ func (e *WriteFailure) Unwrap() error { return e.Err }
 
 // ExitReason is why a session ended, when err (possibly joined or wrapped)
 // holds a write to the parent terminal that failed: the one wording couch
-// records for the next start (pair#409). A write that ran out of its
-// WriteTimeout reads as the terminal having stopped accepting output.
+// records for the next start (pair#409). A write that ran out of its deadline
+// (WriteTimeout, or a caller's shorter one) reads as the terminal having
+// stopped accepting output.
 func ExitReason(err error) (string, bool) {
 	var failure *WriteFailure
 	if !errors.As(err, &failure) || failure.Op != "parent output" {
 		return "", false
 	}
 	if errors.Is(failure.Err, context.DeadlineExceeded) {
-		return fmt.Sprintf("terminal stopped accepting output for %s (wrote %d of %d bytes)", WriteTimeout, failure.Accepted, failure.Total), true
+		return fmt.Sprintf("terminal stopped accepting output (a write waited up to %s; wrote %d of %d bytes)", WriteTimeout, failure.Accepted, failure.Total), true
 	}
 	return fmt.Sprintf("terminal output failed after %d of %d bytes: %v", failure.Accepted, failure.Total, failure.Err), true
 }

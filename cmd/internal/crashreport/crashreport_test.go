@@ -182,8 +182,8 @@ func TestSummary(t *testing.T) {
 		{[]Report{{Kind: Abrupt, Path: "a"}, {Kind: Abrupt, Path: "b"}}, "2 previous couch runs ended abruptly (no panic recorded)"},
 		{[]Report{{Kind: Crashed, Path: "old"}, {Kind: Crashed, Path: "new"}}, "previous couch crashed — see new (+1 earlier)"},
 		{[]Report{{Kind: Crashed, Path: "c"}, {Kind: Abrupt, Path: "a"}}, "previous couch crashed — see c; previous couch ended abruptly (no panic recorded)"},
-		{[]Report{{Kind: Exited, Path: "e", Reason: "terminal stopped accepting output for 5s"}}, "previous couch exited: terminal stopped accepting output for 5s"},
-		{[]Report{{Kind: Exited, Reason: "old"}, {Kind: Exited, Reason: "new"}, {Kind: Crashed, Path: "c"}}, "previous couch exited: new (+1 earlier); previous couch crashed — see c"},
+		{[]Report{{Kind: Exited, Path: "e", Reason: "terminal stopped accepting output"}}, "previous couch exited: terminal stopped accepting output — see e"},
+		{[]Report{{Kind: Exited, Path: "o", Reason: "old"}, {Kind: Exited, Path: "n", Reason: "new"}, {Kind: Crashed, Path: "c"}}, "previous couch exited: new — see n (+1 earlier); previous couch crashed — see c"},
 	} {
 		if got := Summary(tc.reports); got != tc.want {
 			t.Fatalf("Summary(%+v) = %q, want %q", tc.reports, got, tc.want)

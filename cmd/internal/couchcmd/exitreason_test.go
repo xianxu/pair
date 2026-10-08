@@ -43,7 +43,7 @@ func TestConsoleTerminalFailureIsRecordedAsTheExitReason(t *testing.T) {
 		kinds[r.Kind]++
 	}
 	summary := crashreport.Summary(reports)
-	if kinds[crashreport.Exited] != 1 || kinds[crashreport.Crashed] != 1 || !strings.Contains(summary, "previous couch exited: terminal stopped accepting output for "+pairterminal.WriteTimeout.String()+" (wrote 1024 of 17424 bytes)") {
+	if kinds[crashreport.Exited] != 1 || kinds[crashreport.Crashed] != 1 || !strings.Contains(summary, "previous couch exited: terminal stopped accepting output (a write waited up to "+pairterminal.WriteTimeout.String()+"; wrote 1024 of 17424 bytes) — see ") {
 		t.Fatalf("reports %+v\nsummary %q", reports, summary)
 	}
 

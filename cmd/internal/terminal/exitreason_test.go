@@ -18,8 +18,8 @@ func TestExitReason(t *testing.T) {
 		want string
 		ok   bool
 	}{
-		{"stall", stalled, "terminal stopped accepting output for " + WriteTimeout.String() + " (wrote 1024 of 17424 bytes)", true},
-		{"joined, as teardown reports it", errors.Join(fmt.Errorf("present: %w", stalled), errors.New("restore failed")), "terminal stopped accepting output for " + WriteTimeout.String(), true},
+		{"stall", stalled, "terminal stopped accepting output (a write waited up to " + WriteTimeout.String() + "; wrote 1024 of 17424 bytes)", true},
+		{"joined, as teardown reports it", errors.Join(fmt.Errorf("present: %w", stalled), errors.New("restore failed")), "terminal stopped accepting output (", true},
 		{"broken pipe", &WriteFailure{Op: "parent output", Accepted: 0, Total: 9, Err: syscall.EPIPE}, "terminal output failed after 0 of 9 bytes: broken pipe", true},
 		{"child input is not the terminal", &WriteFailure{Op: "child input", Err: context.DeadlineExceeded}, "", false},
 		{"other error", errors.New("x"), "", false},
@@ -45,7 +45,7 @@ func TestAStalledParentReadsAsTheTerminalStopping(t *testing.T) {
 	defer cancel()
 	err := p.Select(ctx, e, Geometry{8, 5}, chrome(8))
 	reason, ok := ExitReason(err)
-	if !ok || !strings.HasPrefix(reason, "terminal stopped accepting output for ") {
+	if !ok || !strings.HasPrefix(reason, "terminal stopped accepting output (") {
 		t.Fatalf("stalled paint = %v; ExitReason = %q, %v", err, reason, ok)
 	}
 }

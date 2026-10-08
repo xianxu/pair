@@ -2,7 +2,6 @@ package couchtty
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
@@ -69,16 +68,13 @@ func shutdownCancellation(err error) bool {
 	return err == context.Canceled
 }
 
-// TerminalFailure is why the console's terminal failed, if it did: the first
-// recorded failure joined with the presenter's (pair#409 reads it after Run).
+// TerminalFailure is why the console's terminal failed, as teardown classified
+// it: the same failure Run reported, with an owner shutdown's cancellation
+// filtered out (pair#409 reads it after Run). It is nil before Run returns.
 func (c *Console) TerminalFailure() error {
 	c.mu.Lock()
-	failure := c.terminalFailure
-	c.mu.Unlock()
-	if c.presenter == nil {
-		return failure
-	}
-	return errors.Join(failure, c.presenter.Failure())
+	defer c.mu.Unlock()
+	return c.exitFailure
 }
 
 func (c *Console) terminalError(err error) {

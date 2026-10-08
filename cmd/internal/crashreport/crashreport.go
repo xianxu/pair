@@ -127,7 +127,7 @@ type Report struct {
 // standing control notice holds the row until displaced, so N reports would
 // stack N notices.
 func Summary(reports []Report) string {
-	var latest, latestExit string
+	var latest, latestExit, latestExitPath string
 	crashes, exits, abrupt := 0, 0, 0
 	for _, r := range reports {
 		switch r.Kind {
@@ -136,14 +136,19 @@ func Summary(reports []Report) string {
 			latest = r.Path // names sort by timestamp: the last is the newest
 		case Exited:
 			exits++
-			latestExit = r.Reason
+			latestExit, latestExitPath = r.Reason, r.Path
 		case Abrupt:
 			abrupt++
 		}
 	}
 	var parts []string
 	if exits > 0 {
+		// The path is named too: anything written after the reason (a panic
+		// during the exit) is in the same file.
 		s := "previous couch exited: " + latestExit
+		if latestExitPath != "" {
+			s += " — see " + latestExitPath
+		}
 		if exits > 1 {
 			s += fmt.Sprintf(" (+%d earlier)", exits-1)
 		}

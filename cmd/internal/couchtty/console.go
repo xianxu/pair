@@ -64,8 +64,11 @@ type Console struct {
 	presenter        *terminal.Presenter
 	terminalCommands chan terminalCommand
 	terminalFailure  error
-	leaveReport      string
-	ownedChildren    map[*ptychild.Child]struct{}
+	// exitFailure is teardown's one classification of why the terminal failed
+	// (shutdown cancellations filtered out), read by TerminalFailure.
+	exitFailure   error
+	leaveReport   string
+	ownedChildren map[*ptychild.Child]struct{}
 
 	mu     sync.Mutex
 	panes  map[string]*pane
@@ -980,6 +983,9 @@ func (c *Console) teardown(restore func() error) error {
 		presenterFailure = nil
 	}
 	err := errors.Join(failure, presenterFailure, cleanupErr)
+	c.mu.Lock()
+	c.exitFailure = err
+	c.mu.Unlock()
 	if err != nil {
 		fmt.Fprintf(c.errw(), "couch: terminal: %v\n", err)
 	}
