@@ -1269,7 +1269,9 @@ re-derive it.
 row, and `ClassifyThread` returns a state plus, when the row cannot be acted on,
 a `ThreadReason` from one closed vocabulary -- `binding-lost`, `session-gone`,
 `never-started`, `invalid`, `unreadable`, `path-missing`, `profile-missing`,
-`unsupported-agent`, `unknown`, `orphaned-server` (#399). (`stale-incarnation` and `unrecorded-child` were
+`unsupported-agent`, `unknown`, `orphaned-server` (#399), and #214's named
+binding failures `conversation-ambiguous`, `no-turn` and `unconfirmed`
+(`IsBindingFailure` is the class). (`stale-incarnation` and `unrecorded-child` were
 retired by #256; see "Recoverability is a fact about the session" below.)
 Failing closed is unchanged -- an unproved row is not actionable and startup
 never selects it -- but it is expressed as a state rather than as absence. The
@@ -2407,6 +2409,25 @@ present**, and `VerifiedPark` leaves the classification path the way
 *diagnostic*: a receipt with no ledger entry reads `binding-lost` rather than
 `session-gone`, because "couch parked this deliberately and the conversation is
 gone" is a different story for the operator.
+
+**Named binding failures** (`pair#214`). The evidence pass keeps the refusal
+code (`ThreadEvidence.ParkedRefusal`), and the row names it whether or not a
+receipt exists:
+- ambiguous reads `conversation-ambiguous` (reboot);
+- unbound reads `no-turn` (reboot);
+- provisional, on an incomplete storage listing, reads `unconfirmed` (retry).
+
+A resolver IO error leaves the proof unresolved (`unknown`), never a binding
+verdict.
+
+**An unturned fresh launch does not hide the conversation it replaced.** When
+the newest launch is a chosen-id fresh start whose file a complete listing
+proves absent (its agent never took a turn, e.g. an in-pane Shift+Alt+N
+restart), `QueryResumeTargetContext` falls back to the nearest earlier
+generation if it bound one root (`sessionledger.PreviousEstablished`).
+- couch's proof and pair's resume read this query, so both continue that
+  conversation.
+- Pair's restart decisions read the per-launch target and are unchanged.
 
 The cost stays bounded by the same optimistic-inventory rule: a row couch is
 hosting, and a row whose session outlived its launcher, pay nothing

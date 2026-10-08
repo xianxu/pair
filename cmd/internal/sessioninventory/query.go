@@ -72,7 +72,7 @@ func QuerySessionContext(ctx context.Context, runtime Runtime, scopeKey, tag str
 		return SessionQuery{}, err
 	}
 	query := SessionQuery{Status: BindingUnbound}
-	current, ok, diagnostics, err := readOwnerLaunch(ctx, runtime, scopeKey, tag, agent)
+	current, _, ok, diagnostics, err := readOwnerLaunch(ctx, runtime, scopeKey, tag, agent)
 	query.Diagnostics = diagnostics
 	if err != nil {
 		return SessionQuery{}, err
@@ -363,16 +363,16 @@ func RootTranscript(root Node) (Artifact, error) {
 }
 
 // readOwnerLaunch reads only Pair-owned identity records, never native bodies.
-func readOwnerLaunch(ctx context.Context, runtime Runtime, scopeKey, tag string, agent Agent) (sessionledger.Current, bool, []Diagnostic, error) {
+func readOwnerLaunch(ctx context.Context, runtime Runtime, scopeKey, tag string, agent Agent) (sessionledger.Current, []sessionledger.Record, bool, []Diagnostic, error) {
 	var diagnostics []Diagnostic
 	pairRoot := runtime.PairDataRoot()
 	files, listErr := runtime.ListFiles(pairRoot)
 	if err := ctx.Err(); err != nil {
-		return sessionledger.Current{}, false, diagnostics, err
+		return sessionledger.Current{}, nil, false, diagnostics, err
 	}
 	var issues *ListingIssuesError
 	if listErr != nil && !errors.As(listErr, &issues) {
-		return sessionledger.Current{}, false, diagnostics, listErr
+		return sessionledger.Current{}, nil, false, diagnostics, listErr
 	}
 	if issues != nil {
 		for _, artifact := range issues.Artifacts {
@@ -388,16 +388,16 @@ func readOwnerLaunch(ctx context.Context, runtime Runtime, scopeKey, tag string,
 		}
 	}
 	if ledger.RelativePath == "" {
-		return sessionledger.Current{}, false, diagnostics, nil
+		return sessionledger.Current{}, nil, false, diagnostics, nil
 	}
 	// Both the ledger and its launch boundary snapshots grow without a writer
 	// size cap. Keep chunked reads without imposing a reader-only cutoff.
 	raw, err := readJSONLArtifact(runtime, ledger, unlimitedRecordSize)
 	if err != nil {
-		return sessionledger.Current{}, false, diagnostics, err
+		return sessionledger.Current{}, nil, false, diagnostics, err
 	}
 	if err := ctx.Err(); err != nil {
-		return sessionledger.Current{}, false, diagnostics, err
+		return sessionledger.Current{}, nil, false, diagnostics, err
 	}
 	parsed := sessionledger.ParseLedger(raw)
 	for _, ordinal := range parsed.MalformedOrdinals {
@@ -405,9 +405,9 @@ func readOwnerLaunch(ctx context.Context, runtime Runtime, scopeKey, tag string,
 	}
 	current, ok := sessionledger.CurrentLaunch(parsed.Records, sessionledger.Owner{ScopeKey: scopeKey, Tag: tag, Agent: string(agent)})
 	if !ok {
-		return sessionledger.Current{}, false, diagnostics, nil
+		return sessionledger.Current{}, nil, false, diagnostics, nil
 	}
-	return current, true, diagnostics, nil
+	return current, parsed.Records, true, diagnostics, nil
 }
 
 // ResumeTarget is durable requested/observed identity, independent of optional
@@ -419,7 +419,10 @@ type ResumeTarget struct {
 	NativeID          string
 	LaunchOrdinal     uint64
 	RequestedNativeID string
-	Diagnostics       []Diagnostic
+	// FellBackFrom is the ordinal of an unturned fresh launch this target
+	// looked past to the conversation it replaced (pair#214); zero otherwise.
+	FellBackFrom uint64
+	Diagnostics  []Diagnostic
 }
 
 func QueryResumeTarget(runtime Runtime, scopeKey, tag string, agent Agent) (ResumeTarget, error) {
@@ -432,12 +435,26 @@ func QueryResumeTargetContext(ctx context.Context, runtime Runtime, scopeKey, ta
 	if err := ctx.Err(); err != nil {
 		return ResumeTarget{}, err
 	}
-	current, ok, diagnostics, err := readOwnerLaunch(ctx, runtime, scopeKey, tag, agent)
+	current, records, ok, diagnostics, err := readOwnerLaunch(ctx, runtime, scopeKey, tag, agent)
 	result := ResumeTarget{Status: BindingUnbound, Diagnostics: diagnostics}
 	if err != nil || !ok {
 		return result, err
 	}
 	result = ResumeTargetForRuntimeLaunch(runtime, current)
+	if result.FreshRequired {
+		// A chosen-id launch whose file a complete listing proves absent: its
+		// agent never took a turn, so it left no conversation to resume. The
+		// conversation it replaced is the thread's real state (pair#214 D1),
+		// so resume falls back to that generation. Restart decisions read
+		// ResumeTargetForRuntimeLaunch per launch and are unaffected.
+		owner := sessionledger.Owner{ScopeKey: scopeKey, Tag: tag, Agent: string(agent)}
+		if earlier, found := sessionledger.PreviousEstablished(records, owner, current.Launch.Ordinal); found {
+			fallback := ResumeTargetForLaunch(earlier)
+			fallback.FellBackFrom = current.Launch.Ordinal
+			fallback.Diagnostics = result.Diagnostics
+			result = fallback
+		}
+	}
 	result.Diagnostics = append(result.Diagnostics, diagnostics...)
 	return result, nil
 }

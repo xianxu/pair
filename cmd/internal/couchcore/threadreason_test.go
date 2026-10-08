@@ -28,6 +28,10 @@ func TestNoLabelBorrowsAnotherReasonsDefiningWord(t *testing.T) {
 		ReasonAgentUnsupported: "agent",
 		ReasonUnknown:          "checking",
 		ReasonOrphanedServer:   "lost its socket",
+		// pair#214
+		ReasonConversationAmbiguous: "two conversations",
+		ReasonNoTurn:                "no turn",
+		ReasonUnconfirmed:           "not confirmed",
 	}
 	for _, reason := range AllThreadReasons() {
 		word, named := defining[reason]

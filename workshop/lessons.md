@@ -650,3 +650,10 @@ proof; record the surprising case so the next change starts from evidence.
   because nvim sockets and some size-bounded fixtures break on a long one.
 
 - When copying dependency tests into a narrow fork, audit fixture paths and run imported benchmarks once; preserve licensed fixtures or omit unsupported benchmarks rather than shipping broken benchmark entrypoints. (#379 BR-1)
+- Test a projection through the seam that feeds it, with the seam's real
+  contract. #214 BR-1/BR-2: the real resolver returns its resolution TOGETHER
+  with a typed refusal, but the evidence pass assumed a refusal carried none.
+  Two of the three new reasons were unreachable in production while every
+  classify test, built from hand-made evidence, stayed green. For each value a
+  projector can produce, keep at least one test that drives it through the
+  real input contract.

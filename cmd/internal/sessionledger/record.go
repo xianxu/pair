@@ -568,6 +568,37 @@ func CurrentLaunch(records []Record, owner Owner) (Current, bool) {
 	if !found {
 		return Current{}, false
 	}
+	return generation(records, owner, current.Launch), true
+}
+
+// PreviousEstablished is the generation that the launch at ordinal `before`
+// replaced, when that earlier generation bound exactly one root (pair#214).
+// It looks at the NEAREST earlier launch only: an older generation behind an
+// unbound or conflicting one is stale history, not the replaced conversation.
+// CurrentLaunch keeps the newest-launch meaning the store's writers rely on.
+func PreviousEstablished(records []Record, owner Owner, before uint64) (Current, bool) {
+	var previous Record
+	found := false
+	for _, record := range records {
+		if record.Kind != RecordLaunch || !recordOwner(record, owner) || record.Ordinal == 0 || record.Ordinal >= before {
+			continue
+		}
+		if !found || record.Ordinal > previous.Ordinal {
+			previous = record
+			found = true
+		}
+	}
+	if !found {
+		return Current{}, false
+	}
+	earlier := generation(records, owner, previous)
+	return earlier, earlier.Binding != nil
+}
+
+// generation joins one launch to its bindings: one root binds it, several
+// conflict.
+func generation(records []Record, owner Owner, launch Record) Current {
+	current := Current{Launch: launch}
 	byRoot := map[string]Record{}
 	for _, record := range records {
 		if record.Kind != RecordBinding || !recordOwner(record, owner) || record.LaunchOrdinal != current.Launch.Ordinal || record.Ordinal <= current.Launch.Ordinal {
@@ -593,7 +624,7 @@ func CurrentLaunch(records []Record, owner Owner) (Current, bool) {
 	} else if len(current.Bindings) > 1 {
 		current.Conflict = true
 	}
-	return current, true
+	return current
 }
 
 func recordOwner(record Record, owner Owner) bool {

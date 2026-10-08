@@ -1275,6 +1275,10 @@ func unusableThreadNotice(thread couchcore.ActionableThreadSummary) string {
 	switch thread.Reason {
 	case couchcore.ReasonBindingLost:
 		return "its native conversation binding is unavailable; cold resume requires a verified binding"
+	case couchcore.ReasonConversationAmbiguous, couchcore.ReasonNoTurn, couchcore.ReasonUnconfirmed:
+		// One source for the named binding failures' wording and repair
+		// (pair#214): the label already says what happened and what to do.
+		return thread.Reason.Label()
 	case couchcore.ReasonSessionGone:
 		return "the session is gone"
 	case couchcore.ReasonNeverStarted:

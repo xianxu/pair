@@ -317,3 +317,39 @@ func FuzzValidateAuthorizationProof(f *testing.F) {
 		}
 	})
 }
+
+// PreviousEstablished is the generation an unturned fresh launch replaced
+// (pair#214): the nearest earlier launch for the owner, when it bound exactly
+// one root. It never reaches past that launch.
+func TestPreviousEstablished(t *testing.T) {
+	t.Parallel()
+	owner := Owner{ScopeKey: "scope", Tag: "work", Agent: "claude"}
+	launch := func(ordinal uint64) Record {
+		return Record{Ordinal: ordinal, Version: 1, Kind: RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "claude"}
+	}
+	binding := func(ordinal, launchOrdinal uint64, root string) Record {
+		return Record{Ordinal: ordinal, Version: 1, Kind: RecordBinding, ScopeKey: "scope", Tag: "work", Agent: "claude", LaunchOrdinal: launchOrdinal, RootNativeID: root}
+	}
+	cases := []struct {
+		name     string
+		records  []Record
+		before   uint64
+		wantOK   bool
+		wantRoot string
+	}{
+		{"earlier launch with one root", []Record{launch(1), binding(2, 1, "old"), launch(3)}, 3, true, "old"},
+		{"no earlier launch", []Record{launch(3)}, 3, false, ""},
+		{"nearest earlier launch unbound: no reach past it", []Record{launch(1), binding(2, 1, "older"), launch(3), launch(5)}, 5, false, ""},
+		{"nearest earlier launch conflicting", []Record{launch(1), binding(2, 1, "a"), binding(3, 1, "b"), launch(4)}, 4, false, ""},
+		{"another owner's launches are ignored", []Record{launch(1), binding(2, 1, "mine"),
+			{Ordinal: 3, Version: 1, Kind: RecordLaunch, ScopeKey: "other", Tag: "work", Agent: "claude"}, launch(4)}, 4, true, "mine"},
+		// 2026-09-08: launches 26 and 29 bound one root; launch 31 never bound.
+		{"the 2026-09-08 shape", []Record{launch(26), binding(27, 26, "9a99ff57"), launch(29), binding(30, 29, "9a99ff57"), launch(31)}, 31, true, "9a99ff57"},
+	}
+	for _, tc := range cases {
+		got, ok := PreviousEstablished(tc.records, owner, tc.before)
+		if ok != tc.wantOK || (ok && (got.Binding == nil || got.Binding.RootNativeID != tc.wantRoot)) {
+			t.Errorf("%s: got %#v ok=%v, want root %q ok=%v", tc.name, got.Binding, ok, tc.wantRoot, tc.wantOK)
+		}
+	}
+}
