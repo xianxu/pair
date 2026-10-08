@@ -1177,6 +1177,7 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "             through the running Couch, in the background. Verify by reading")
 	fmt.Fprintln(w, "             the report again; an uncertain outcome means read it before resending.")
 	fmt.Fprintln(w, "       couch --actors [--json]")
+	fmt.Fprintln(w, "       couch --broadcast-list [--json]   the running broadcast and its viewer count (never the link)")
 	fmt.Fprintln(w, "       couch --adopt-store <absolute-path> [--pair-data <path>] [--identity-dir <path>]")
 	fmt.Fprintln(w, "             [--legacy-store <path>]... [--exclude-store <path>]... [--apply <digest>]")
 	fmt.Fprintln(w, "             Preview legacy stores as JSON; apply the current digest to select in place.")

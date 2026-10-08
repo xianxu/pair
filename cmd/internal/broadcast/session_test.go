@@ -308,3 +308,33 @@ func TestSessionProbeStopsWhenTunnelExits(t *testing.T) {
 		t.Fatalf("start took %v after its tunnel died", d)
 	}
 }
+
+// Status describes a running session without its link (pair#413): when it
+// started, its mode, and the viewers connected now.
+func TestSessionStatusReportsModeStartAndViewers(t *testing.T) {
+	before := time.Now()
+	s := startSession(t, &FakeTunnel{}, HubOptions{})
+	if st := s.Status(); st.Mode != ModeTunnel || st.StartedAt.Before(before) || st.Viewers != 0 {
+		t.Fatalf("status before any viewer = %+v", st)
+	}
+	openSessionEvents(t, s)
+	deadline := time.Now().Add(5 * time.Second)
+	for s.Status().Viewers != 1 {
+		if time.Now().After(deadline) {
+			t.Fatalf("viewers = %d after a viewer joined, want 1", s.Status().Viewers)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// A local-only session reports its mode as such (pair#413).
+func TestSessionStatusReportsLocalOnly(t *testing.T) {
+	s, err := Start(context.Background(), Config{Tunnel: LocalOnly{}, Ping: 20 * time.Millisecond})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Stop(nil); <-s.Done() })
+	if got := s.Status().Mode; got != ModeLocalOnly {
+		t.Fatalf("mode = %q, want %q", got, ModeLocalOnly)
+	}
+}

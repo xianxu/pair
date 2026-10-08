@@ -117,9 +117,9 @@ func (r *runRecords) claimLocked(key, dir string) (*runRecord, error) {
 	return rec, nil
 }
 
-// record adds the guard's and cloudflared's identities once they run. A
-// record that can't be written would leave a crash unreapable, so its error
-// fails the open.
+// record adds the guard's and cloudflared's identities once they run. An
+// unwritable record would leave a crash unreapable, so its error fails the
+// open.
 func (rec *runRecord) record(guard, tunnel int) error {
 	if rec == nil {
 		return nil

@@ -132,6 +132,9 @@ type messageService struct {
 	// slotOps answers resume, reboot and operation-status (pair#367 M2);
 	// nil answers them unsupported.
 	slotOps *slotOperations
+	// broadcastStatus answers broadcast-status (pair#413). Installed after the
+	// service is serving, so it is an atomic pointer; nil answers unsupported.
+	broadcastStatus atomic.Pointer[func() (couchmessage.BroadcastStatus, bool)]
 
 	mu sync.Mutex
 	// workspaces holds each connected binding's verified workspace, for the
@@ -305,6 +308,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 		return nil, err
 	}
 	console.SetMessageBroker(service.broker)
+	service.SetBroadcastStatus(console.BroadcastStatus)
 	// After the loop runs: the replay of already-attached panes lands in the
 	// mailbox the loop drains.
 	console.SubscribeMessageLifecycle(panes)
@@ -581,6 +585,8 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 	switch request.Op {
 	case "resume", "reboot", "reap", "recover", "operation-status":
 		return s.handleSlotOperation(ctx, request)
+	case "broadcast-status":
+		return s.handleBroadcastStatus(request)
 	}
 	if request.Binding == nil && couchmessage.ValidateRequest(request) == nil {
 		binding, err := s.broker.Caller(request.Scope, request.Tag, request.Session, request.Nonce)
@@ -603,6 +609,29 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		}
 	}
 	return couchmessage.Handle(ctx, s.broker, request)
+}
+
+// handleBroadcastStatus answers the operator's `couch --broadcast-list`
+// (pair#413). It needs no slot identity: the broker socket lives in the
+// operator-only store directory, and the answer is read-only memory.
+func (s *messageService) handleBroadcastStatus(request couchmessage.Request) couchmessage.Response {
+	if err := couchmessage.ValidateRequest(request); err != nil {
+		return couchmessage.Response{Code: "invalid-request", Error: err.Error()}
+	}
+	status := s.broadcastStatus.Load()
+	if status == nil {
+		return couchmessage.Response{Code: "unsupported", Error: "this Couch reports no broadcast status"}
+	}
+	snapshot, running := (*status)()
+	if !running {
+		return couchmessage.Response{Code: "ok"}
+	}
+	return couchmessage.Response{Code: "ok", Broadcast: &snapshot}
+}
+
+// SetBroadcastStatus installs the console's broadcast snapshot.
+func (s *messageService) SetBroadcastStatus(status func() (couchmessage.BroadcastStatus, bool)) {
+	s.broadcastStatus.Store(&status)
 }
 
 // handleSlotOperation authenticates a slot operation's caller by Couch's own

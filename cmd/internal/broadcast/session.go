@@ -42,11 +42,14 @@ type Config struct {
 // tunnel, and the token that is the link's only credential. Everything it
 // owns dies with it; nothing is written to disk.
 type Session struct {
-	token  string
-	link   string
-	hub    *Hub
-	srv    *http.Server
-	handle Handle
+	token string
+	link  string
+	hub   *Hub
+	// startedAt and mode describe the session for Status (pair#413).
+	startedAt time.Time
+	mode      string
+	srv       *http.Server
+	handle    Handle
 
 	stopOnce sync.Once
 	reason   error
@@ -97,9 +100,33 @@ func Start(ctx context.Context, cfg Config) (*Session, error) {
 	if err := probe(ctx, link, cfg.ProbeTimeout, cfg.Resolve, handle.Exited()); err != nil {
 		return abandon(handle, err)
 	}
-	s := &Session{token: token, link: link, hub: hub, srv: srv, handle: handle, done: make(chan struct{})}
+	mode := ModeTunnel
+	if _, local := cfg.Tunnel.(LocalOnly); local {
+		mode = ModeLocalOnly
+	}
+	s := &Session{token: token, link: link, hub: hub, srv: srv, handle: handle, done: make(chan struct{}), startedAt: time.Now(), mode: mode}
 	go s.watch(served)
 	return s, nil
+}
+
+// Broadcast modes, as Status reports them.
+const (
+	ModeTunnel    = "tunnel"
+	ModeLocalOnly = "local-only"
+)
+
+// Status describes a running session for `couch --broadcast-list` (pair#413).
+// It has no field that could carry the link or its token: the token is the
+// broadcast's only credential, and a listing must never print it.
+type Status struct {
+	StartedAt time.Time
+	Mode      string
+	Viewers   int
+}
+
+// Status is the session's current description.
+func (s *Session) Status() Status {
+	return Status{StartedAt: s.startedAt, Mode: s.mode, Viewers: s.hub.Viewers()}
 }
 
 // Link is the viewer URL. It carries the token: share it, never draw it.

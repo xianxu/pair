@@ -22,6 +22,9 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 	if inv.messageOp == "resume" || inv.messageOp == "reboot" || inv.messageOp == "reap" || inv.messageOp == "recover" {
 		return runSlotOperationCLI(inv, rt, stdout, stderr, call, slotPollClock{now: time.Now, sleep: time.Sleep})
 	}
+	if inv.messageOp == "broadcast-status" {
+		return runBroadcastListCLI(inv, rt, stdout, stderr, call)
+	}
 	namespace := rt.Getenv("COUCH_STORE_DIR")
 	if namespace == "" {
 		fmt.Fprintln(stderr, "couch: messaging requires a live Couch slot")
