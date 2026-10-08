@@ -1,9 +1,9 @@
 # Vendored @xterm/xterm
 
-- Package: `@xterm/xterm` 5.5.0 (MIT, see `LICENSE`)
-- Tarball: https://registry.npmjs.org/@xterm/xterm/-/xterm-5.5.0.tgz
+- Package: `@xterm/xterm` 6.0.0 (MIT, see `LICENSE`)
+- Tarball: https://registry.npmjs.org/@xterm/xterm/-/xterm-6.0.0.tgz
 - Integrity (npm `dist.integrity`, verified on download 2026-10-07):
-  `sha512-hqJHYaQb5OptNunnyAnkHyM8aCjZ1MEIDTQu1iIbbTD/xops91NB5yq1ZK/dC2JDbVWtF23zUtl9JE2NqwT87A==`
+  `sha512-TQwDdQGtwwDt+2cgKDLn0IRaSxYu1tSUjgKarSDkUM0ZNiSRXFpjxEsvc/Zgc5kq5omJ+V0a8/kIM2WD3sMOYg==`
 - Files copied unmodified from the tarball:
   - `package/lib/xterm.js` → `xterm.js`
   - `package/css/xterm.css` → `xterm.css`
@@ -11,16 +11,17 @@
 - SHA-256 of the copies:
 
 ```
-1f991ac3b4b283ebf96e60ae23a00a52765dd3a2e46fa6fdda9f1aab032f7495  xterm.js
-ba8e6985669488981ccf40c0cefe3aba80722cb6c92de7ad628b0bd717faf2b6  xterm.css
+14903579ff54664cd72f8e8699e6961a6272c21863ec1c3b118cdc8af5d4a972  xterm.js
+854a7c0fb70e8b1a083c16797ab827299fb18744f5ad34f227b48337e33293c6  xterm.css
 ```
 
 Same version as `@xterm/headless` in `tests/terminal-oracle`, so the oracle
 that checks `terminal.Render` output checks the parser viewers run. Served
 from the binary by `cmd/internal/broadcast` (#395); never loaded from a CDN.
 
-Notes: 5.5.0 has no synchronized-output (DECSET 2026) support; the broadcast
-sends only finished frames, each in one `term.write`.
+Notes: 6.0.0 (2025-12-22) implements synchronized output (DECSET 2026), which
+every broadcast frame is bracketed in, so viewers paint only whole frames.
+5.5.0 ignored it, and a large write could paint half-way (#395 M5 smoke).
 
 To update: `npm pack @xterm/xterm@<v>` in a scratch directory, compare its
 sha512 with `npm view @xterm/xterm@<v> dist.integrity`, extract into an empty
