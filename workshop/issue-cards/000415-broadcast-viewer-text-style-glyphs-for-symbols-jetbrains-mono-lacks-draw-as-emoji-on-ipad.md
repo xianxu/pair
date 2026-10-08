@@ -1,6 +1,6 @@
 ---
 id: 000415
-status: codecomplete
+status: done
 created: 2026-10-08
 updated: 2026-10-08
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 6706f8e3f757f489429156b7c5a46448323e033a
         evidence_commit: 9950832650cf5f2cbe36c8bc041668375a4176ab
+        landed_commit: d8dd712e8f2c72490be3c9c890119ff525352df0
 ---
 
 # Broadcast viewer: text-style glyphs for symbols JetBrains Mono lacks (⏸ ⏺ draw as emoji on iPad)
