@@ -1,6 +1,7 @@
 package broadcast
 
 import (
+	"sort"
 	"time"
 
 	"github.com/charmbracelet/x/ansi"
@@ -30,10 +31,16 @@ func NewMarks() *Marks { return &Marks{cells: make(map[cell]time.Time)} }
 // Consecutive points within the batch are joined by a line; separate batches
 // never are. The last row (Couch's status row) and points off the grid are
 // dropped. At most cols*rows/8 cells stay marked, the oldest dropped first.
+//
+// Its cost is bounded (it runs under the lock the paint path takes): a batch
+// contributes at most the cap's worth of cells, its last ones, and eviction
+// is one sort per call.
 func (m *Marks) Add(points [][2]int, cols, rows int, now time.Time) {
+	limit := max(1, cols*rows/8)
+	var batch []cell
 	put := func(c cell) {
 		if c.col >= 0 && c.col < cols && c.row >= 0 && c.row < rows-1 {
-			m.cells[c] = now
+			batch = append(batch, c)
 		}
 	}
 	for i, p := range points {
@@ -43,18 +50,35 @@ func (m *Marks) Add(points [][2]int, cols, rows int, now time.Time) {
 		}
 		line(points[i-1], p, put)
 	}
+	if len(batch) > limit {
+		batch = batch[len(batch)-limit:]
+	}
 	m.prune(now)
-	limit := max(1, cols*rows/8)
-	for len(m.cells) > limit {
-		var oldest cell
-		var at time.Time
-		first := true
-		for c, t := range m.cells {
-			if first || t.Before(at) || t.Equal(at) && (c.row < oldest.row || c.row == oldest.row && c.col < oldest.col) {
-				oldest, at, first = c, t, false
-			}
+	for _, c := range batch {
+		m.cells[c] = now
+	}
+	if excess := len(m.cells) - limit; excess > 0 {
+		type aged struct {
+			c  cell
+			at time.Time
 		}
-		delete(m.cells, oldest)
+		all := make([]aged, 0, len(m.cells))
+		for c, t := range m.cells {
+			all = append(all, aged{c, t})
+		}
+		sort.Slice(all, func(i, j int) bool {
+			a, b := all[i], all[j]
+			if !a.at.Equal(b.at) {
+				return a.at.Before(b.at)
+			}
+			if a.c.row != b.c.row {
+				return a.c.row < b.c.row
+			}
+			return a.c.col < b.c.col
+		})
+		for _, a := range all[:excess] {
+			delete(m.cells, a.c)
+		}
 	}
 }
 
@@ -144,7 +168,10 @@ func (m *Marks) Overlay(f terminal.Frame, now time.Time) terminal.Frame {
 	out := f.Clone()
 	for c, t := range m.cells {
 		age := now.Sub(t)
-		if age >= MarkLife || c.col >= cols || c.row >= rows {
+		// Never the last row: it is Couch's status row, whose LIVE and
+		// pointer indicators the fail-safes read (a resize can move a mark
+		// there).
+		if age >= MarkLife || c.col >= cols || c.row >= rows-1 {
 			continue
 		}
 		tint := markTints[min(int(age/markStep), len(markTints)-1)]

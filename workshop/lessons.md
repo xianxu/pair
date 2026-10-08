@@ -724,3 +724,8 @@ proof; record the surprising case so the next change starts from evidence.
   (commit dates, plus the transcripts of the slot it runs in) read 1.79h for
   the whole issue, against 1.75h for M1 alone. M3–M5 and the close went
   unmeasured. A later `git merge origin/main` changed nothing that existed.
+- Enforce a protected screen region where it is drawn, not only where input
+  enters. #412's marks dropped points on the status row at input time, but a
+  resize moved an existing mark onto the new last row, where the overlay
+  tinted `LIVE ⏸` and would have tripped the broadcast's fail-safe. The
+  overlay itself now refuses the last row, whatever put a mark there.

@@ -176,3 +176,46 @@ func TestMarksLiveAndNextChange(t *testing.T) {
 
 // Overlay leaves a private-class decision to its caller; it only tints.
 var _ = terminal.FramePrivate
+
+// BR-3: the overlay never tints a frame's last row, however a mark got
+// there (here, a resize shrank the grid under it), so marks can't hide the
+// LIVE or pointer indicator.
+func TestMarksOverlayNeverTintsStatusRow(t *testing.T) {
+	m := NewMarks()
+	m.Add([][2]int{{0, 7}, {3, 7}}, 20, 10, t0) // row 7 of 10: not the status row
+	f := textFrame(t, 20, 8, "body", liveChrome("tabs"))
+	o := m.Overlay(f, t0)
+	for i := range 20 {
+		if !o.Cells[7*20+i].Equal(&f.Cells[7*20+i]) {
+			t.Fatalf("status-row cell %d tinted after a resize", i)
+		}
+	}
+	if !IndicatorShown(o) {
+		t.Fatal("marks hid the LIVE indicator")
+	}
+}
+
+// BR-2: Add stays cheap at the worst case, a full batch of far-apart points
+// on a big grid with the cap already full, because it runs under the lock the
+// paint path takes.
+func TestMarksAddWorstCaseIsCheap(t *testing.T) {
+	m := NewMarks()
+	cols, rows := 300, 100
+	var points [][2]int
+	for i := range 64 {
+		points = append(points, [2]int{(i * 97) % cols, (i * 31) % (rows - 1)})
+	}
+	for i := range 10 {
+		m.Add(points, cols, rows, t0.Add(time.Duration(i)*time.Millisecond))
+	}
+	start := time.Now()
+	for i := range 20 {
+		m.Add(points, cols, rows, t0.Add(time.Duration(20+i)*time.Millisecond))
+	}
+	if per := time.Since(start) / 20; per > 20*time.Millisecond {
+		t.Fatalf("Add took %v per batch at the cap", per)
+	}
+	if n := len(m.cells); n > cols*rows/8 {
+		t.Fatalf("%d cells marked, cap %d", n, cols*rows/8)
+	}
+}
