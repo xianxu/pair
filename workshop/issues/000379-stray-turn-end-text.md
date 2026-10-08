@@ -408,6 +408,12 @@ implementation or a reproduction of the reported misplaced text.
 - No evidence of a missed stray-text occurrence in this check. Limits: heuristic footer detection, midpoint pane classification, xterm rather than Ghostty, accelerated replay without wall-clock delays, and inspection after each host write rather than intermediate paint states within a write. These negative results do not establish absence of a transient live rendering fault or its cause.
 - Private analysis scripts, extraction metadata, row-level replay results and usage skill: `/tmp/p379-logcheck/`. Source captures remain untouched. Continue waiting for an observed occurrence and approximate time to narrow a faithful replay.
 
+### 2026-10-07 — New witnessed occurrence after capture capacity exhausted
+
+- At approximately 19:34 PDT the operator reported another occurrence and a full REC indicator. Exact occurrence time, visible thread and footer wording have been requested and remain unconfirmed.
+- `session-2834647007/events.jsonl` ended at 18:30:03.961 PDT with seq 2,015,319, status incomplete, error `terminal capture file limit reached`; size 4,294,963,014 bytes. Its 4 GiB budget lasted about 4h18m from 14:12:09. If the new occurrence was contemporaneous with the report, its Couch ingress/host-write evidence is unavailable. The earlier completed recording and this capped prefix remain intact.
+- Preserved fixed-length snapshots of raw Claude output, timestamp sidecars and wrapper-event logs for the three recently active Claude sources (`11873b98e33bf004/1-pair-7`, `5749d0ffa92b055d/1-pair-6`, `2e51fcf9799b1d8f/couch-6b111ea230c149dc`) under private `/tmp/p379-incident-20261007-1934/`: nine files, 215,152,829 bytes, SHA-256 manifest with source sizes/mtimes. These source logs may narrow the emitted sequence but cannot establish its actual placement in Ghostty. No causal claim or reproduction yet.
+
 ## Revisions
 
 - 2026-10-07 — Corrected the interpretation of “isolated session”: operator wants
