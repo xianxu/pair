@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000412-couch-broadcast-remote-pointer-link-tap-and-draw-fading-marks-on-the-operator-s-screen.md
         source_blob: d0ea0633946a4df6aa93b138d68d0897d375fbc3
         destination: workshop/issues/000412-couch-broadcast-remote-pointer-link-tap-and-draw-fading-marks-on-the-operator-s-screen.md
+        main_commit: 58c6dadacbf4a039d42c73cd362a8791b3b506cf
 ---
 
 # Couch broadcast: remote pointer link (tap and draw fading marks on the operator's screen)
