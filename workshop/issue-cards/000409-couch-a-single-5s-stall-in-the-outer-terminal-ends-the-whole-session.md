@@ -1,6 +1,6 @@
 ---
 id: 000409
-status: codecomplete
+status: done
 created: 2026-10-07
 updated: 2026-10-07
 estimate_hours: 2.87
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 765deca0b68d2b31629538b800695a0198f0fc76
         evidence_commit: 1995dc48fcd06eb6b1793aa18a1f3d98c539aa37
+        landed_commit: 8cde7bfc026744289a816747e6df51961e6b8d82
 ---
 
 # couch: full-screen repaint per frame overruns a backgrounded terminal, and the resulting exit is silent
