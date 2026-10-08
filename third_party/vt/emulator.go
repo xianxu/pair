@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/ultraviolet/screen"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/ansi/parser"
+	"github.com/charmbracelet/x/vt/ansiparser"
 )
 
 // Logger represents a logger interface.
@@ -52,7 +53,7 @@ type Emulator struct {
 	clusterDropping    bool
 
 	// The ANSI parser to use.
-	parser     *ansi.Parser
+	parser     *ansiparser.Parser
 	parameters parameterGuard
 	mouseEpoch uint64
 
@@ -102,7 +103,7 @@ func newEmulator(w, h int, limits Limits) *Emulator {
 	t.scr = &t.scrs[0]
 	t.scrs[0].cb = &t.cb
 	t.scrs[1].cb = &t.cb
-	t.parser = ansi.NewParser()
+	t.parser = ansiparser.NewParser()
 	t.parser.SetParamsSize(parser.MaxParamsSize + 1)
 	t.parser.SetDataSize(limits.StringBytes + 1) // one overflow sentinel byte
 	t.parser.SetHandler(ansi.Handler{

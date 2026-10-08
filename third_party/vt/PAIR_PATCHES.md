@@ -146,3 +146,11 @@ M4 notification adapter precedence:
   connection-specific protocol adapters can consume a bounded envelope without
   enlarging generic metadata limits. Pair/Zellij mapping lives outside this fork.
   `pair_osc_override_test.go` proves handled and declined fallback behavior.
+
+## #379: UTF-8 control strings
+
+`ansiparser` derives the streaming parser and tests from x/ansi v0.11.7, keeping
+its MIT license. Emulator and wrapper observers share it. The parser retains
+valid UTF-8 payloads in all five control-string states; standalone controls and
+existing payload limits remain. See `ansiparser/README.md` for upstream issue/PRs
+and the dependency-update regression contract.
