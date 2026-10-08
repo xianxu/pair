@@ -181,7 +181,11 @@ are versioned test data, replaced when the harness version moves.
 
 ## Plan
 
-- [ ]
+Durable plan: [000410-grok-harness-integration-for-pair-and-couch-plan.md](../plans/000410-grok-harness-integration-for-pair-and-couch-plan.md)
+
+- [ ] M1 — usable in pair: registry (+ known gap), resume spellings, fresh-launch table, shared inline mode before `--`, resume compose + mint, TTY profile + live captures, overlay markers
+- [ ] M2 — Couch-resumable: grok scanner + event normalizer + every dispatch site; known gap deleted
+- [ ] M3 — slug, prompt glyph (orientation/scrollback/distill), permission allowlist, docs sweep, follow-up issue, operator live smoke
 
 ## Log
 
