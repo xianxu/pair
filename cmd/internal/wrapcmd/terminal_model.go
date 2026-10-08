@@ -9,6 +9,7 @@ import (
 	xansi "github.com/charmbracelet/x/ansi"
 	xparser "github.com/charmbracelet/x/ansi/parser"
 	"github.com/charmbracelet/x/vt"
+	"github.com/charmbracelet/x/vt/ansiparser"
 )
 
 const (
@@ -42,7 +43,7 @@ type terminalResize struct {
 
 type terminalControlObserver struct {
 	visible  bool
-	parser   *xansi.Parser
+	parser   *ansiparser.Parser
 	csiBytes uint8
 }
 
@@ -190,7 +191,7 @@ func validateTerminalDimensions(width, height int) error {
 
 func (o *terminalControlObserver) Feed(data []byte) {
 	if o.parser == nil {
-		o.parser = new(xansi.Parser)
+		o.parser = new(ansiparser.Parser)
 		o.parser.SetParamsSize(terminalControlParamsMax)
 		o.parser.SetDataSize(terminalControlDataMax)
 		o.parser.SetHandler(xansi.Handler{
