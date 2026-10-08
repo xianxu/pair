@@ -5,8 +5,8 @@ deps: [pair#395]
 github_issue:
 created: 2026-10-08
 updated: 2026-10-08
-estimate_hours:
-card_mirror: '64909a604af8ffe163e9692dbd5910ea7cce397a' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 4.85
+card_mirror: 'a6dce03f8514661188d67d4298be09941e71de1e' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-08T09:21:13-07:00
 claimant:
     operator: T
@@ -182,6 +182,41 @@ Manual smoke (operator):
 - While broadcasting through the named tunnel, a click on `👆` copies a
   pointer link. A helper on an iPad taps and draws circles, and fading marks
   appear on the operator's screen and on every viewer's.
+
+## Estimate
+
+Derived per `estimate-logic-v3.1` (`impl=` at 40% of the v2 table). Design
+×0.2 for the reviewed spec and durable plan (except the smoke round, which is
+operator-bound); +15% design buffer; familiarity 1.0, since #395 built this
+code. Items, in order: M1 emoji check, Marks, Presenter overlay; M2 point
+parsing and rate limit, hub watch, session and server; M3 status row,
+Console wiring; M4 viewer pointer mode, browser Pointer Events discovery, iPad
+smoke round; atlas; four milestone reviews.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module      design=0.06 impl=0.14
+item: greenfield-go-module   design=0.25 impl=0.22
+item: smaller-go-module      design=0.06 impl=0.20
+item: smaller-go-module      design=0.06 impl=0.14
+item: smaller-go-module      design=0.06 impl=0.20
+item: greenfield-go-module   design=0.25 impl=0.30
+item: smaller-go-module      design=0.06 impl=0.14
+item: tui-screen             design=0.25 impl=0.26
+item: greenfield-go-module   design=0.25 impl=0.22
+item: real-api-discovery     design=0.00 impl=0.18
+item: ux-rename-iteration    design=0.55 impl=0.08
+item: atlas-docs             design=0.03 impl=0.05
+item: milestone-review       design=0.00 impl=0.14
+item: milestone-review       design=0.00 impl=0.14
+item: milestone-review       design=0.00 impl=0.14
+item: milestone-review       design=0.00 impl=0.14
+design-buffer: 0.15
+total: 4.85
+```
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*
 
 ## Plan
 
