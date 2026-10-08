@@ -256,6 +256,23 @@ Durable plan: `workshop/plans/000395-couch-broadcast-stream-the-composed-couch-s
   follow the theme event, the text is the packed JetBrains Mono (bold, italic,
   bold italic), and it refits on resize. In a real Couch the palette comes from
   the terminal's OSC 10/11/4 replies (`TestBroadcastSendsOperatorTheme`).
+- M5 spike, `cloudflared` 2026.7.3, live:
+  - **Quick tunnels can't forward to a unix socket.** `--unix-socket` alone
+    is refused ("pass --url"); `--url unix:/path` is parsed as host `unix`
+    (502); `--url` plus `--unix-socket` ignores the socket. A TCP origin
+    works.
+  - **Quick-tunnel hostnames resolve slowly on this Mac.** A new
+    `*.trycloudflare.com` failed to resolve through the system resolver for
+    more than 60s (curl exit 6). Through 1.1.1.1 it resolved in 1s and served on
+    the first try (`curl --resolve`).
+  - **A named tunnel works with a unix socket.** Operator setup: `tunnel
+    login`, `tunnel create couch-broadcast`, `tunnel route dns couch-broadcast
+    live.functeer.com`. Then `cloudflared tunnel --config <tmp> run
+    couch-broadcast`, with ingress `hostname: live.functeer.com → service:
+    unix:<private dir>/s` and a catch-all `http_status:404`, connected in 2s.
+    `https://live.functeer.com/x` served through the system DNS on the first
+    request, another Host got the catch-all, and `cloudflared` exited 4s after
+    SIGTERM.
 
 ## Revisions
 
