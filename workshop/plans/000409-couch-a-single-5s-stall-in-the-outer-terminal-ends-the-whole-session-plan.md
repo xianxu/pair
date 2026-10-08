@@ -181,3 +181,56 @@ oracle (`tests/terminal-oracle`).
   test enforces that equality.
 - **ARCH-CONSTRAINTS.** The 5 s deadline is unchanged. The byte cost of an idle
   spinner tick goes from about 17 KB to a few hundred bytes.
+
+## Revisions
+
+### 2026-10-07 (a) — plan-quality round 1
+
+- **PQ-1: the M1 test does not shorten `WriteTimeout`.** It is a const
+  (`profile.go:23`), and making the write budget injectable just for a test would
+  widen the presenter seam for no product reason. Task 1.3 becomes two proofs:
+  - **Stall → typed failure.** This is already proven by `presenter_stall_test.go`
+    with the real 5 s budget. That test stays the evidence that a stalled parent
+    becomes `WriteFailure{Op: "parent output"}`; it is not duplicated.
+  - **Typed failure → recorded and reported.** New in package `couchcmd`:
+    `TestConsoleTerminalFailureIsRecordedAsTheExitReason`. A console whose
+    `TerminalFailure()` holds a parent-output `*WriteFailure` (wrapped, as teardown
+    joins it) is passed through the same `recordConsoleExit` helper `runConsole`
+    calls. The crash file holds the reason, and the next `Install` (with the pid
+    dead) reports `Exited` with it, while a panic file in the same directory stays
+    `Crashed`. No timing is involved.
+- **PQ-2: one generative check replaces the hand-listed cases.** Tasks 2.1 and 2.2
+  become one strategy:
+  - `TestHistoryRowDiffEqualsFullRebuild` builds seeded random frame pairs from
+    the existing `historyFixture`. The same scrollback goes into both frames, and
+    the mutations are:
+    - a line's text changed or cleared, or its length changed across `cols`
+      (wrap-flag flips);
+    - wide characters at the right edge;
+    - full-width rows;
+    - styled and background cells;
+    - the cursor moved.
+  - Each pair is emitted twice: the fast path after a full paint of the first
+    frame, and a forced full rebuild. Both go to the xterm-headless oracle
+    (`runHistoryOracle`), which must report identical viewport lines, wrap flags
+    and history.
+  - It runs at least 60 seeds; a failure prints the seed and both wires.
+  - Pairs that the gate refuses (`changedPlainRows` not ok) must produce
+    byte-identical output to today's full rebuild. That proves the refusal falls
+    back, so the generator also exercises the refusal branch.
+  - `changedPlainRows` keeps a small table test only for its refusal reasons,
+    because the property test proves equality but not that the gate is as wide as
+    intended.
+  - The byte assertion (one changed cell on 191×53 → under 1 KB) stays as its own
+    test.
+- **Minors.**
+  - `ExitReason` derives the duration from `WriteTimeout`; no literal "5s".
+  - The issue's "no message" is corrected: teardown does print
+    `couch: terminal: <err>` to stderr (`console.go:982`), but onto the terminal
+    that just stopped accepting output, so it is lost. The fix stands.
+  - **ARCH-ORDER:** a presenter failure is terminal; no partial-paint recovery path
+    later consumes `previous`, so the row diff never trusts a half-written frame.
+    The presenter commits `previous` only after every chunk succeeds.
+  - **ARCH-FUNERAL:** the recorded exit lives in #397's per-run file, with its
+    rename-on-report and `pair gc` sweep, so nothing new is created and nothing
+    new needs collecting.
