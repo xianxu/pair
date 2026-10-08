@@ -14,10 +14,19 @@ import "strings"
 // glued letter shares the glued reading only at the first position (`-r<id>`);
 // elsewhere (`-pr`) the CLI would read the letters before it, so the cluster
 // letter is refused outright — see ShortLetters.
+//
+// SessionID and Continue are the agent's other context selectors: SessionID
+// spellings pin a caller-chosen id for a NEW conversation (valued: space form
+// or `flag=`), Continue spellings select the cwd's latest conversation
+// (valueless). Neither may persist into saved launch args, and a fresh launch
+// refuses both. Claude and qoder predate these groups; their selectors are
+// still declared in the launcher's fresh spec.
 type Form struct {
-	Space  []string
-	Inline []string
-	Glued  []string
+	Space     []string
+	Inline    []string
+	Glued     []string
+	SessionID []string
+	Continue  []string
 }
 
 var forms = map[string]Form{
@@ -35,6 +44,15 @@ var forms = map[string]Form{
 		Inline: []string{"--resume=", "-r="},
 		Glued:  []string{"-r"},
 	},
+	// grok 1.0.46: `-r/--resume [id-or-title]` (optional value), `-s/--session-id
+	// <uuid>` for a new conversation, `-c/--continue` for the cwd's latest.
+	"grok": {
+		Space:     []string{"--resume", "-r"},
+		Inline:    []string{"--resume=", "-r="},
+		Glued:     []string{"-r"},
+		SessionID: []string{"--session-id", "-s"},
+		Continue:  []string{"--continue", "-c"},
+	},
 }
 
 // Forms returns a copy of the whole table. Read-only consumers and tests use
@@ -44,9 +62,11 @@ func Forms() map[string]Form {
 	out := make(map[string]Form, len(forms))
 	for agent, form := range forms {
 		out[agent] = Form{
-			Space:  append([]string(nil), form.Space...),
-			Inline: append([]string(nil), form.Inline...),
-			Glued:  append([]string(nil), form.Glued...),
+			Space:     append([]string(nil), form.Space...),
+			Inline:    append([]string(nil), form.Inline...),
+			Glued:     append([]string(nil), form.Glued...),
+			SessionID: append([]string(nil), form.SessionID...),
+			Continue:  append([]string(nil), form.Continue...),
 		}
 	}
 	return out
@@ -66,6 +86,42 @@ func ShortLetters(agent string) string {
 		}
 	}
 	return letters
+}
+
+// ContextShortLetters returns the single-letter SessionID and Continue
+// spellings (`-s`, `-c` yield `sc`). Like ShortLetters, a fresh launch refuses
+// a short-flag cluster containing one of them in any position.
+func ContextShortLetters(agent string) string {
+	form := forms[agent]
+	var letters string
+	for _, spelling := range append(append([]string(nil), form.SessionID...), form.Continue...) {
+		letter, ok := strings.CutPrefix(spelling, "-")
+		if ok && len(letter) == 1 {
+			letters += letter
+		}
+	}
+	return letters
+}
+
+// ContextSelector reports whether one argv token is a SessionID spelling (bare
+// or `flag=value`) or a Continue spelling for the agent.
+func ContextSelector(agent, tok string) bool {
+	form := forms[agent]
+	flag, _, _ := strings.Cut(tok, "=")
+	return hasSpelling(form.SessionID, flag) || hasSpelling(form.Continue, tok)
+}
+
+// HasSessionID reports whether args already pin a session id through one of
+// the agent's SessionID spellings, so the launcher must not mint another.
+func HasSessionID(agent string, args []string) bool {
+	form := forms[agent]
+	for _, tok := range args {
+		flag, _, _ := strings.Cut(tok, "=")
+		if hasSpelling(form.SessionID, flag) {
+			return true
+		}
+	}
+	return false
 }
 
 // Selector reports whether one argv token spells a resume binding for the
@@ -125,12 +181,22 @@ func Strip(agent string, args []string) []string {
 			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
 				i++
 			}
+		case hasSpelling(form.SessionID, arg):
+			if i+1 < len(args) {
+				i++
+			}
+		case hasSpelling(form.Continue, arg), sessionIDInline(form, arg):
 		case inlineToken(form, arg), gluedValue(form.Glued, arg) != "":
 		default:
 			out = append(out, arg)
 		}
 	}
 	return out
+}
+
+func sessionIDInline(form Form, tok string) bool {
+	flag, _, inline := strings.Cut(tok, "=")
+	return inline && hasSpelling(form.SessionID, flag)
 }
 
 func inlineToken(form Form, tok string) bool {

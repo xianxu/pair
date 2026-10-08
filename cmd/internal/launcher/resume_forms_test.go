@@ -39,7 +39,7 @@ func TestResumeSpellingDivergences(t *testing.T) {
 
 // BR-17: a short-flag cluster that hides a resume letter is refused for every
 // agent whose table carries one — in any position after `-`. `-p` is a bool
-// short option for claude and qoder, so `-p<letter>` reads as `-p -<letter>`:
+// short option for claude and qoder (not for grok, see below), so `-p<letter>` reads as `-p -<letter>`:
 // the exact shape the pre-daeb781b validator refused and a fresh launch would
 // otherwise accept (resuming an existing conversation).
 func TestFreshValidatorRefusesResumeLettersInClusters(t *testing.T) {
@@ -56,6 +56,13 @@ func TestFreshValidatorRefusesResumeLettersInClusters(t *testing.T) {
 				{"-h" + letter, "x"},
 				{"-" + letter, "sid"},
 			} {
+				// A leading value letter makes the rest of the cluster its
+				// glued value (grok's `-p` is --single <PROMPT>): `-pr` is
+				// `-p r` there, not a hidden resume, and is pinned by
+				// TestGrokFreshClusterRule instead.
+				if strings.ContainsRune(freshAgentSpecs[agent].valueShort, rune(row[0][1])) {
+					continue
+				}
 				if err := ValidateFreshAgentArgs(agent, row); err == nil {
 					t.Errorf("%s accepted cluster %#v", agent, row)
 				}
