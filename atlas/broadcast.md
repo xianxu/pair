@@ -156,8 +156,10 @@ Viewers see the operator's colours and font.
 - **Font:** JetBrains Mono 2.304 (OFL) is vendored in `web/vendor/fonts/` and
   served under `/<token>/fonts/`. That is what the operator's Ghostty draws,
   as its built-in fallback when the configured family isn't installed. The page
-  waits up to 3s for it before xterm.js measures its cells, then falls back to
-  the system monospace stack. Only fonts whose licence allows redistribution
+  waits up to 3s for **all four faces** before xterm.js measures its cells,
+  then falls back to the system monospace stack. A face left to load lazily
+  draws in a fallback with a different advance, and xterm.js's in-flow row
+  layout then shifts the rest of the row (#395 M5 smoke). Only fonts whose licence allows redistribution
   are vendored.
 
 ## Tunnels (cloudflared)
