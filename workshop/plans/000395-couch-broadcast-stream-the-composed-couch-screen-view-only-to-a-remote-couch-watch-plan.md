@@ -829,3 +829,37 @@ func (s *Stream) Join() (Message, bool, error) {
   redistribution are vendored (`web/vendor/fonts/VENDOR.md`).
   Theme: OSC 4 replies reach Couch as `uv.UnknownOscEvent`, so Couch parses
   them itself, and they must never be forwarded to a child.
+- **2026-10-07 (M5 design, after the live spike; see the issue Log)** — the
+  tunnel milestone (Chunk 4) changes as follows.
+  - **Modes** (`COUCH_BROADCAST_TUNNEL`; environment only, since Couch has no
+    global config file yet and one gets its own task if needed):
+    - `<tunnel name>` with `COUCH_BROADCAST_HOSTNAME`: a **named tunnel**. The
+      origin is a unix socket in a private 0700 directory, and a per-broadcast
+      ingress config (hostname → `unix:<socket>`, catch-all
+      `http_status:404`) is written there. It runs as `cloudflared tunnel
+      --config <file> run <name>`, and credentials come from `~/.cloudflared`
+      through cloudflared itself. Ready when stderr reports a registered
+      connection. Link: `https://<hostname>/<token>/`.
+    - unset: a **quick tunnel**, with a TCP loopback origin (quick tunnels
+      refuse unix sockets). Ready when stderr prints the trycloudflare URL.
+    - `off`: local only.
+  - **Probe** before "link copied": hostnames are resolved through a public
+    resolver (1.1.1.1), never the system resolver, because a new quick-tunnel
+    hostname didn't resolve locally for more than 60s and a failed lookup gets
+    cached.
+  - **Guard process** (replaces relying on the next start's sweep): Couch runs
+    cloudflared through a hidden `couch __broadcast-guard` that leads a new
+    process group, holds a stdin pipe from Couch, and on EOF (Couch exits,
+    crashes or is SIGKILLed) terminates the group (TERM, then KILL after 3s)
+    and removes the private directory.
+  - **Run record** (`<couch store>/broadcast/`): one JSON per running tunnel,
+    holding the owner Couch, guard and cloudflared PIDs with
+    `procutil.StrictIdentity`. For a named tunnel it is also the **lock**: a
+    live owner refuses a second broadcaster (`ErrTunnelBusy`), because two
+    connectors of one tunnel are replicas and would split viewers across
+    tokens. `ReapOrphans` (Couch startup and each start) kills a recorded
+    cloudflared or guard only when its owner is dead, its identity matches,
+    and (for cloudflared) its command contains `cloudflared`, then removes the
+    record and directory. The guard makes this a backstop.
+  - The listener returned by `Listen` removes its private directory on
+    `Close`, so an abandoned start leaves nothing behind.
