@@ -172,7 +172,7 @@ Durable plan: `workshop/plans/000395-couch-broadcast-stream-the-composed-couch-s
 - [x] Spike: zellij web-client comparison; Presenter tap seam located (see Log)
 - [x] M1 — Presenter frame tap with privacy class; broadcast indicator, privacy,
       stream and hub (withholding, grace stop, resync)
-- [ ] M2 — vendored xterm.js viewer page with auto-fit font; GET-only SSE server;
+- [x] M2 — vendored xterm.js viewer page with auto-fit font; GET-only SSE server;
       session lifecycle over a tunnel seam; no-persistence test
 - [ ] M3 — tab-bar LIVE cell, Ctrl+Alt+b, Console wiring and fail-safe;
       `COUCH_BROADCAST_*` options; local smoke; atlas
@@ -189,6 +189,7 @@ Durable plan: `workshop/plans/000395-couch-broadcast-stream-the-composed-couch-s
   not a concern.
 
 ### 2026-10-07
+- 2026-10-07: closed M2 — go test -race ./cmd/internal/broadcast ok (server token gate/GET-only/headers/same-origin lint; SSE frames, ping, end, 503 cap, 410 after end, slot freed on disconnect; session lifecycle incl. late open closed, tunnel exit, server failure, hidden indicator, no persisted frame data). BR-5: end reason published before queues close, regression test fails on -overlay mutant; reviewer repro -count=300 -cpu=1,2,8 clean. BR-6: viewer connect() state machine node-tested (dim, Reconnecting, backoff then Disconnected, no retry after end). BR-9: end reasons are a closed vocabulary; TestEndReasonIsAClosedVocabulary covers wrapped errors with paths. Operator real-browser check in Chrome: renders, refits, no CSP errors.; review verdict: FIX-THEN-SHIP
 - 2026-10-07: closed M1 — go test -race ./cmd/internal/broadcast ok (indicator/privacy/stream/hub; 500-seed interleaving property test with Activate at random steps, mutation-checked via -overlay against dropped resync, missing withholding, leaked private frames, and the BR-1 always-arm Activate; real-ticker resync test); BR-1 fixed as tagged off|shown|hidden watch with regression tests; go test ./cmd/internal/terminal ./cmd/internal/couchtty unsandboxed (clean PAIR_*/ZELLIJ* env, short TMPDIR) ok; artifact inventory names no broadcast/tap file (remaining failures pre-existing); review verdict: SHIP
 
 - Claimed; `start-plan`. Spike findings (code map + web research):

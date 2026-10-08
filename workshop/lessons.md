@@ -680,7 +680,9 @@ proof; record the surprising case so the next change starts from evidence.
 - Record a departure from the plan in its `## Revisions` in the same commit
   that makes it. #395's reviews flagged undocumented departures twice
   (an End message that became channel close; a Makefile target that became a
-  Go-driven node test).
+  Go-driven node test), and a third time for a rename the atlas still cited.
+  A rename or departure greps the old identifier across code, atlas, plan and
+  lessons in that same commit.
 - Text that crosses a trust boundary is a closed vocabulary. #395 M2 sent
   `err.Error()` to remote viewers as the end reason; a wrapped `Serve` error
   carried a local address, and in M4 a unix-socket path with a username.

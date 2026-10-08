@@ -66,7 +66,7 @@ The page (`web/`) and a vendored `@xterm/xterm` 5.5.0
 (`web/vendor/xterm/VENDOR.md`, the same version as the headless oracle) are
 embedded in the binary. The viewer:
 - keeps the sender's grid and scales the font to fit (`nextFontSize`,
-  node-tested via `TestViewerFit`);
+  node-tested via `TestViewerNode`);
 - sends nothing back and uses no storage;
 - on `end`, resets the screen and shows the reason, and never retries;
 - never leaves a dead connection looking live. `connect(deps)` is a state
