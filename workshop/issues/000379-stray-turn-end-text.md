@@ -6,7 +6,7 @@ github_issue:
 created: 2026-10-01
 updated: 2026-10-07
 estimate_hours:
-card_mirror: 'e769097368336968ccb27b82bee651b44d493800' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'a21837eba0afa77921e3757a0c740c1f66983441' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-03T11:34:37-07:00
 claimant:
     operator: T
@@ -16,7 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
-actual_hours: 5.74
+actual_hours: 5.82
 ---
 
 # Turn-end text flashes at focused pane cursor
