@@ -126,3 +126,70 @@ dispose:
    - **ARCH-FUNERAL — pass:** No new durable runtime artifacts or background tasks.
 
 7. **Plan revision recommendations:** None required. Finish the remaining close/publication checklist as delivery proceeds.
+
+---
+
+## Re-review — 2026-10-07T20:24:05-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 379 — Turn-end text flashes at focused pane cursor |
+| repo | pair |
+| issue file | workshop/issues/000379-stray-turn-end-text.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 48d5c69bb558617553dec00b41170e7ee2544683..c3bf44c9c3bf805adceef0b6b53a91041b7e8418 |
+| command | sdlc close --issue 379 |
+| reviewer | codex |
+| timestamp | 2026-10-07T20:24:05-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned change addresses the demonstrated parser defect across the affected control-string families and migrates all three streaming consumers. Regression coverage confirms both containment and preserved notification delivery. No blocking findings; the repository remains unchanged.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Unsupported fixture-dependent benchmarks are removed. The retained self-contained benchmark and parser tests pass with -bench . -benchtime=1x.
+```
+
+1. **Strengths**
+   - One shared parser correction covers OSC/DCS/SOS/PM/APC without notification-specific filtering.
+   - UTF-8 prefix validation preserves standalone controls and bounded payload storage.
+   - The production Endpoint regression checks unchanged screen cells and an intact notification across transport splits.
+   - Licensed upstream provenance, atlas documentation, and a fork retirement path are retained.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage**
+   - Passed full nested vt/parser suites, including race checks.
+   - Passed the full terminal suite and focused Endpoint, control-observer, and output-boundary tests, including race checks.
+   - Independently restored the original parser through an inspected, existing overlay: the Endpoint regression failed on notification-induced cell changes.
+   - All retained parser benchmarks ran successfully; range whitespace checks passed.
+   - The private captured-session replay was not independently repeated; the permanent production-path reproducer establishes the defect and repair.
+
+6. **Architecture**
+   - **ARCH-DRY — pass:** All three consumers share the correction; upstream handler types and transition table remain shared.
+   - **ARCH-PURE — pass:** Parsing remains deterministic and directly testable without IO.
+   - **ARCH-PURPOSE — pass:** Repairs the demonstrated cause and related string families; consumer search found no remaining original streaming-parser callers.
+   - **ARCH-MOCK — pass:** No new external dependency; Endpoint coverage uses the existing fake IO seam.
+   - **ARCH-CONSTRAINTS — pass:** Constant-size prefix tracking preserves existing storage limits; overflow recovery is tested.
+   - **ARCH-SECURE — pass:** External bytes receive constrained UTF-8 prefix validation, with malformed-prefix recovery covered.
+   - **ARCH-ORDER — pass:** Encapsulated parser transitions retain continuation state across feeds; cancellation, reset, and termination sequences are exercised.
+   - **ARCH-FUNERAL — pass:** No new durable runtime artifacts or background tasks.
+   
+   Atlas changes cover the internal surface. No new commands, flags, configuration, or user workflows require a root README update.
+
+7. **Plan revision recommendations:** None required. The implementation matches the documented repair scope.

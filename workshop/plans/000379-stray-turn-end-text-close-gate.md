@@ -25,6 +25,16 @@ rounds:
           round: 2
       recipe: milestone-review
       blocked: false
+    - "n": 3
+      timestamp: "2026-10-07T20:24:06-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Unsupported fixture-dependent benchmarks are removed. The retained self-contained benchmark and parser tests pass with -bench . -benchtime=1x.
+          round: 3
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#379 (boundary-review)
@@ -44,6 +54,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - BR-1 — addressed — The pinned diff removes both fixture-dependent benchmarks and their os import. No fixture references remain in ansiparser; all retained benchmarks pass with -bench . -benchtime=1x.
+
+## Round 3 — 2026-10-07T20:24:06-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Unsupported fixture-dependent benchmarks are removed. The retained self-contained benchmark and parser tests pass with -bench . -benchtime=1x.
 
 ## Open findings
 
