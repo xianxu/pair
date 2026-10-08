@@ -32,11 +32,15 @@
 | `AgentGrok` + session `supportedAgents` row | `cmd/internal/sessioninventory/model.go`, `runcli.go` | modified |
 | `resumeform` grok row | `cmd/internal/resumeform/resumeform.go` | modified |
 | `freshAgentSpecs`/`freshValueOption` grok rows | `cmd/internal/launcher/fresh_args.go` | modified |
-| `inlineModeFor` (per-harness inline flag + opt-out env) | `cmd/internal/launcher/agentargs.go` | new (replaces `codexAltScreenArgs`) |
+| `inlineModes` / `inlineModeArgs` / `InlineOptOuts` (per-harness inline flag + opt-out env) | `cmd/internal/launcher/agentargs.go` | new (replaces `codexAltScreenArgs`) |
 | `insertBeforeDoubleDash` | `cmd/internal/launcher/agentargs.go` | new |
 | `resumeToken`/`composeResumeArgs`/`MintsSessionID` grok case | `cmd/internal/launcher/agentargs.go` | modified |
 | `ValidateGrokDelta` + `grokPathFact` | `cmd/internal/sessioninventory/scan_grok.go` | new |
-| `normalizeGrokEvent` | `cmd/internal/sessioninventory/event.go` | new |
+| `normalizeGrokEvent` + `grokMappedKinds`/`grokIgnoredKinds` | `cmd/internal/sessioninventory/event.go` | new |
+| `ruledBoxComposerSpec.ruleCol`/`sideGlyph` | `cmd/internal/wrapcmd/composer_recognizers.go` | modified |
+| `promptGlyphAuthorities` | `cmd/internal/wrapcmd/orientation.go` | new |
+| `detectRawCarryOverlay` (shared qoder/grok) | `cmd/internal/wrapcmd/wrap.go` | new |
+| `resumeform.Form.SessionID`/`Continue`, `ContextSelector`, `ContextShortLetters`, `HasSessionID` | `cmd/internal/resumeform/resumeform.go` | modified |
 | Grok composer recognizer + `grokPromptGlyphs` | `cmd/internal/wrapcmd/composer_recognizers.go` | new (capture-gated) |
 | `grokPickerMarkers` / `detectGrokOverlayText` | `cmd/internal/wrapcmd/wrap.go` | new (capture-gated) |
 | `DefaultGrokModel` | `cmd/internal/model/model.go` | new |

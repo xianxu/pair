@@ -237,3 +237,21 @@ Durable plan: [000410-grok-harness-integration-for-pair-and-couch-plan.md](../pl
 - Brainstorm: scope is full parity in three milestones; peer delivery goes to a follow-up. Bring-up loop is `pair-dev grok` from a Claude slot; Couch at M3. Provisional Couch attach deferred. Grok login confirmed; session layout measured live (stub session without updates.jsonl observed).
 - Spec review (fresh eyes): 10 findings, all folded in. Measured `grok -s <uuid>` in the TUI: it creates the session dir, so pair mints the ID. Added an M1 known-gap entry, the fresh-launch tables, inline flag before `--`, M2 session-side wiring, the orientation glyph, and concrete smoke observations.
 - Spec re-review: 4 more findings folded in: `resumeform.Forms` moves to M1 (the fresh validator reads it), `resumeToken`/`composeResumeArgs` go in M2, both `-c` strip sites are named, and the orientation interim is noted.
+
+### 2026-10-08 — M1 implementation
+
+- **Re-cut:** M1+M2 merged (plan Revisions). A registered agent that the session ledger rejects cannot launch: `freshAgentInvocation` encodes a ledger record per launch. And `TestFreshAgentInvocationHandsTheWatcherToTheReplacementWrap` needs a watcher for every registry agent. So registry, ledger and the full session side land in one boundary.
+- **TTY (captured live, grok 1.0.46):**
+  - The composer is a rounded box at column 2 with `❯` at column 4, recognized as a `ruledBoxComposerSpec` registration (`ruleCol`/`sideGlyph`); mutation-checked.
+  - Grok queries the Kitty keyboard flags (`CSI ? u`) and pushes none when unanswered, so plain Return becomes ESC CR.
+  - **ESC CR measured live as Grok's newline:** a prompt typed as `first line` ESC CR `second line` CR arrived as one `user_message_chunk` with `"first line\nsecond line"`.
+  - Pickers captured through `TestHarnessTTYLiveDrivenConformance`: `overlay.raw` (permission, via `chmod`, because pair's `.claude/settings.json` allows `rm` and Grok honors Claude allow rules) and `selection.raw` (question). The gate declines on both. Markers are chrome only.
+  - `ttyFixtureVersionDir` now prefers the dotted token, because Grok's version string ends in a build hash.
+- **Session side:**
+  - The scanner reads `<enc-cwd>/<uuid>/updates.jsonl`. The fixture is a sanitized real TUI turn plus a tool turn, a stub session and sibling files.
+  - **Live inventory:** `pair session-inventory --agent grok --scope all` found 12 real roots, all resumable, with zero grok diagnostics (the two `pair_record_malformed` are pair-data, and appear for qoder too). Grok events normalize with zero `turn_unusable`, against qoder's 19.
+- **Pre-existing failures, not #410:**
+  - `artifactpath` `TestProductionArtifactReferencesAreExactlyClassified` fails identically on a clean `main` worktree (Couch files absent from the inventory).
+  - `couchcmd` `TestColdResumeOfAParkedPrimaryRegistersFromBothOrigins` fails with grok removed from the registry too.
+  - PTY-spawning tests fail inside the sandbox ("operation not permitted"). They pass unsandboxed with a clean env (`env -i`), per the memory note on session env leaks.
+- **Aspect 6 finding:** Grok falls back to Claude Code's `.claude/settings.json` permission rules when it has no TOML rules. Pair's repo allowlist already applies, as seen live in the capture work. M2 Task 11 verifies it rather than adding config.
