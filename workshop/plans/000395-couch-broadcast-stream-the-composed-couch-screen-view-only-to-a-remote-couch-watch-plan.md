@@ -820,3 +820,12 @@ func (s *Stream) Join() (Message, bool, error) {
   session), BR-12 (watchers also end on console stop; shutdown bound
   tested with a never-closing tunnel), start context released after the
   start, `TestBroadcastOffHasNoClickTarget` added.
+- **2026-10-07 (M4 font decision)** — the operator's Ghostty config names
+  DejaVuSansM Nerd Font Mono, but that font isn't installed (`ghostty
+  +list-fonts`), so Ghostty draws its built-in JetBrains Mono. The operator
+  chose to **pack JetBrains Mono 2.304** (OFL; the four web-font weights,
+  about 380 KB) in the binary and serve it same-origin. That replaces the
+  `COUCH_BROADCAST_FONT_FILE` sketch. Only fonts whose licence allows
+  redistribution are vendored (`web/vendor/fonts/VENDOR.md`).
+  Theme: OSC 4 replies reach Couch as `uv.UnknownOscEvent`, so Couch parses
+  them itself, and they must never be forwarded to a child.
