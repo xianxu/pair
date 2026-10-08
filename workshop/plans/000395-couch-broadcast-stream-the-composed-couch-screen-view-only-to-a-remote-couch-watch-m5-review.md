@@ -132,3 +132,116 @@ findings:
     detail: |
       cloudflared_test.go:193; the _ = dir is dead code too.
 ```
+
+---
+
+## Re-review — 2026-10-08T00:03:12-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 395 — Couch broadcast: stream the composed Couch screen, view-only, to a browser viewer |
+| repo | pair |
+| issue file | workshop/issues/000395-couch-broadcast-stream-the-composed-couch-screen-view-only-to-a-remote-couch-watch.md |
+| boundary | milestone M5 |
+| milestone | M5 |
+| window | 9b8a87e0e55501818567ebd6046a342e7138e43c..e807bcd4016ef5cca99838d457c3ce899c88a627 |
+| command | sdlc milestone-close --issue 395 --milestone M5 |
+| reviewer | claude |
+| timestamp | 2026-10-08T00:03:12-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+All six round-1 findings are fixed, and I verified each one against the code. The three behaviour fixes were mutation-checked, and in every case the test goes red with the fix reverted:
+- **BR-21, the regex:** dropping the hyphen requirement fails `TestQuickTunnelAPIFailureIsNotAURL` with "opened https://api.trycloudflare.com".
+- **BR-21, the probe:** removing the `<-exited` case fails `TestSessionProbeStopsWhenTunnelExits` after a 20s timeout.
+- **BR-22, the lock:** turning the flock off fails `TestRunRecordsConcurrentClaimHasOneWinner`, but only rarely. It passed at `-count=3` and failed once at `-count=30`, iteration 97, so about 1 failure in 3000 runs.
+
+The fixes themselves are correct and simple. The one new finding is about that weak BR-22 test and a lessons.md line that overstates it. It is Minor and doesn't block. The broadcast package tests pass at HEAD. In couchcmd, the only failure is the unrelated `TestSlotOperationReceiptsConcurrent`, which fails because the sandbox blocks a `/tmp` mkdir.
+
+This round covered the round-1 fix commits (828a4393, e807bcd4) closely. The rest of the window was reviewed in round 1, and much of it is the merge of main (#379 ansiparser), so my confidence there is medium.
+
+### 1. Strengths
+- `records.go:51-82`: reap and claim now run under one `flock` held by the caller (`reapAndClaim`, which uses `reapLocked`/`claimLocked`). This fixes the general check-then-act problem rather than patching one spot, which is the right answer to the `lock-check-then-act` family.
+- `records.go:200-217`: `removePrivateDir` checks the path five ways before deleting: absolute, directly inside the run dir, carrying the `couch-broadcast-` prefix, `Lstat` showing a real directory and not a symlink, and mode 0700. That treats the record as untrusted input (ARCH-SECURE). The test covers each case on its own, including a symlink that points out of the run dir.
+- `records.go:112-131` and `cloudflared.go:173-176`: a failed record write now fails the open and closes the handle, so a tunnel that could never be reaped is never left running.
+- `session.go` probe: it stops on `exited` and strips the `*url.Error` wrapper, which removes both the 30s blind wait and the token leak.
+
+### 2. Critical
+None.
+
+### 3. Important
+None.
+
+### 4. Minor
+- **The BR-22 test rarely fails without the fix, and lessons.md says otherwise.** The race only shows when the second reaper reads the record before the first removes it. In the test, the stale record's owner is simply dead, so `Alive` returns false right away and the window is microseconds wide. The new lessons.md line claims the test "fails within a few iterations without the lock", but I measured about 1 failure in 3000 runs.
+  - **The rule:** a concurrency regression test must widen or control the window it protects, not leave it to the scheduler.
+  - **Cheap fix:** make the stale owner `os.Getpid()` with a wrong `OwnerID`. Then reaping has to call `identity()`, which runs `ps` and opens a window of several milliseconds. Or add a test hook between the read and the remove. Then correct the lessons.md sentence.
+- **Leftover `.tmp` files:** if Couch crashes between `WriteFile` and `Rename` in `record()`, `named-x.json.tmp` is never removed, because reaping only globs `*.json` (ARCH-FUNERAL, tiny).
+- **BR-23 leftover:** a record without an owner identity whose owner PID was reused stays busy until that unrelated process dies, and the error still says "another Couch is broadcasting". Naming the record path in the error would help.
+
+### 5. Test coverage
+- `TestReapOrphans` now covers: the dead owner, a live owner, an identity mismatch, a command mismatch, the four cases where a dir must not be removed, and records without an owner identity.
+- `TestQuickTunnelAPIFailureIsNotAURL` uses cloudflared's real failure line through a fake binary.
+- The only weak oracle is the concurrency test described above.
+
+### 6. Architecture
+- **ARCH-DRY:** pass.
+- **ARCH-PURE:** pass. The reap decision is mixed in with file and process IO, but the surface is small and tested through temp dirs.
+- **ARCH-PURPOSE:** pass. The whole class of round-1 findings was swept: the lock, the dir guard, the write error and the identity gap.
+- **ARCH-MOCK:** pass. A fake cloudflared runs behind the same seam, and `TestCloudflaredLive` checks against the real binary.
+- **ARCH-CONSTRAINTS:** pass. The flock is held only for bounded `ps` calls.
+- **ARCH-SECURE:** pass. The persisted record is distrusted, which disposes BR-24.
+- **ARCH-ORDER:** flagged as Minor (the concurrency test leaves ordering to the scheduler).
+- **ARCH-FUNERAL:** pass, except for the `.tmp` nit.
+
+### 7. Plan revisions
+None needed. The plan and atlas (`atlas/broadcast.md:194-206`) match the code.
+
+```findings
+dispose:
+  - id: BR-21
+    disposition: addressed
+    note: |
+      Regex requires a hyphenated host and the probe returns on exited; both mutation-checked red (TestQuickTunnelAPIFailureIsNotAURL, TestSessionProbeStopsWhenTunnelExits).
+  - id: BR-22
+    disposition: addressed
+    note: |
+      flock around reapLocked+claimLocked; the regression test goes red without the lock, but only about 1 in 3000 iterations (see the new Minor).
+  - id: BR-23
+    disposition: addressed
+    note: |
+      Records without an owner identity are cleared once the owner PID is gone, nothing killed; covered by a TestReapOrphans subtest.
+  - id: BR-24
+    disposition: addressed
+    note: |
+      removePrivateDir requires the dir directly in runDir, the prefix, a non-symlink dir and 0700; four negative cases tested.
+  - id: BR-25
+    disposition: addressed
+    note: |
+      record() returns write/rename errors and Open fails and closes the handle; TestRunRecordWriteFailureIsAnError.
+  - id: BR-26
+    disposition: addressed
+    note: |
+      The cancelled subtest no longer writes os.TempDir()/unused; the dead `_ = dir` is gone.
+findings:
+  - id: new
+    severity: Minor
+    family: race-test-no-ordering-seam
+    title: |
+      BR-22 concurrency test rarely fails without the lock, and lessons.md overstates it
+    detail: |
+      With the flock removed, TestRunRecordsConcurrentClaimHasOneWinner passed at -count=3 and failed once at -count=30 (about 1 in 3000 iterations), because a dead owner short-circuits Alive and leaves a window of microseconds. The rule: a concurrency regression test must widen or control the window it protects. Use a stale owner of os.Getpid() with a wrong OwnerID so reaping calls identity() and runs ps, or add a hook between read and remove, and correct the lessons.md claim that it fails within a few iterations.
+  - id: new
+    severity: Minor
+    family: artifact-without-removal-path
+    title: |
+      A crash between WriteFile and Rename in runRecord.record leaves a .tmp file nothing removes
+    detail: |
+      reapLocked globs only *.json, so named-x.json.tmp left by a crash or a failed rename stays forever; reaping should also remove stale *.json.tmp files.
+```

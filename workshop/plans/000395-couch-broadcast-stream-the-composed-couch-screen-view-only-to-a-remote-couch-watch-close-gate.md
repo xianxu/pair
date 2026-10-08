@@ -281,6 +281,50 @@ rounds:
       boundary: M5
       recipe: milestone-review
       blocked: true
+    - "n": 10
+      timestamp: "2026-10-08T00:03:12-07:00"
+      agent: claude
+      dispose:
+        - id: BR-21
+          disposition: addressed
+          note: Regex requires a hyphenated host and the probe returns on exited; both mutation-checked red (TestQuickTunnelAPIFailureIsNotAURL, TestSessionProbeStopsWhenTunnelExits).
+          round: 10
+        - id: BR-22
+          disposition: addressed
+          note: flock around reapLocked+claimLocked; the regression test goes red without the lock, but only about 1 in 3000 iterations (see the new Minor).
+          round: 10
+        - id: BR-23
+          disposition: addressed
+          note: Records without an owner identity are cleared once the owner PID is gone, nothing killed; covered by a TestReapOrphans subtest.
+          round: 10
+        - id: BR-24
+          disposition: addressed
+          note: removePrivateDir requires the dir directly in runDir, the prefix, a non-symlink dir and 0700; four negative cases tested.
+          round: 10
+        - id: BR-25
+          disposition: addressed
+          note: record() returns write/rename errors and Open fails and closes the handle; TestRunRecordWriteFailureIsAnError.
+          round: 10
+        - id: BR-26
+          disposition: addressed
+          note: The cancelled subtest no longer writes os.TempDir()/unused; the dead `_ = dir` is gone.
+          round: 10
+      findings:
+        - id: BR-27
+          severity: Minor
+          title: BR-22 concurrency test rarely fails without the lock, and lessons.md overstates it
+          detail: 'With the flock removed, TestRunRecordsConcurrentClaimHasOneWinner passed at -count=3 and failed once at -count=30 (about 1 in 3000 iterations), because a dead owner short-circuits Alive and leaves a window of microseconds. The rule: a concurrency regression test must widen or control the window it protects. Use a stale owner of os.Getpid() with a wrong OwnerID so reaping calls identity() and runs ps, or add a hook between read and remove, and correct the lessons.md claim that it fails within a few iterations.'
+          family: race-test-no-ordering-seam
+          round: 10
+        - id: BR-28
+          severity: Minor
+          title: A crash between WriteFile and Rename in runRecord.record leaves a .tmp file nothing removes
+          detail: reapLocked globs only *.json, so named-x.json.tmp left by a crash or a failed rename stays forever; reaping should also remove stale *.json.tmp files.
+          family: artifact-without-removal-path
+          round: 10
+      boundary: M5
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#395 (boundary-review)
@@ -403,6 +447,24 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-26** [Minor] `test-writes-outside-tempdir` The "cancelled" open test writes os.TempDir()/unused and leaves it behind
   cloudflared_test.go:193; the _ = dir is dead code too.
 
+## Round 10 — 2026-10-08T00:03:12-07:00 (claude) — passed
+
+### Disposed
+
+- BR-21 — addressed — Regex requires a hyphenated host and the probe returns on exited; both mutation-checked red (TestQuickTunnelAPIFailureIsNotAURL, TestSessionProbeStopsWhenTunnelExits).
+- BR-22 — addressed — flock around reapLocked+claimLocked; the regression test goes red without the lock, but only about 1 in 3000 iterations (see the new Minor).
+- BR-23 — addressed — Records without an owner identity are cleared once the owner PID is gone, nothing killed; covered by a TestReapOrphans subtest.
+- BR-24 — addressed — removePrivateDir requires the dir directly in runDir, the prefix, a non-symlink dir and 0700; four negative cases tested.
+- BR-25 — addressed — record() returns write/rename errors and Open fails and closes the handle; TestRunRecordWriteFailureIsAnError.
+- BR-26 — addressed — The cancelled subtest no longer writes os.TempDir()/unused; the dead `_ = dir` is gone.
+
+### Raised
+
+- **BR-27** [Minor] `race-test-no-ordering-seam` BR-22 concurrency test rarely fails without the lock, and lessons.md overstates it
+  With the flock removed, TestRunRecordsConcurrentClaimHasOneWinner passed at -count=3 and failed once at -count=30 (about 1 in 3000 iterations), because a dead owner short-circuits Alive and leaves a window of microseconds. The rule: a concurrency regression test must widen or control the window it protects. Use a stale owner of os.Getpid() with a wrong OwnerID so reaping calls identity() and runs ps, or add a hook between read and remove, and correct the lessons.md claim that it fails within a few iterations.
+- **BR-28** [Minor] `artifact-without-removal-path` A crash between WriteFile and Rename in runRecord.record leaves a .tmp file nothing removes
+  reapLocked globs only *.json, so named-x.json.tmp left by a crash or a failed rename stays forever; reaping should also remove stale *.json.tmp files.
+
 ## Open findings
 
 - **BR-10** [Minor] `plan-code-drift` atlas/broadcast.md:69 still cites TestViewerFit after the rename to TestViewerNode
@@ -411,9 +473,5 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-18** [Minor] `plan-code-drift` Issue Plan M4 row still names COUCH_BROADCAST_FONT_FILE after the bundled-font revision
 - **BR-19** [Minor] `duplicate-color-parser` parseOSC4Reply writes its own rgb: parser while OSC 10/11 use ansi.XParseColor
 - **BR-20** [Minor] `plan-test-coverage-gap` The input_test OSC 4 row pins only Reply, not the UnknownOscEvent with the full prefix that capturePalette needs
-- **BR-21** [Important] `tunnel-readiness-signal` Quick-tunnel URL regex matches cloudflared's API host in its failure line; probe ignores tunnel exit
-- **BR-22** [Important] `lock-check-then-act` reap removes records by path after reading them, so a concurrent Couch can delete a fresh named-tunnel lock
-- **BR-23** [Minor] `lock-check-then-act` A record claimed without an owner identity is never reaped, so the named tunnel stays busy after a crash
-- **BR-24** [Minor] `persisted-record-trusted` ReapOrphans RemoveAll's a PrivateDir read from a persisted record, checked only by its base-name prefix
-- **BR-25** [Minor] `silent-error-swallow` runRecord.record ignores write and rename failures, leaving the reap step unable to kill cloudflared
-- **BR-26** [Minor] `test-writes-outside-tempdir` The "cancelled" open test writes os.TempDir()/unused and leaves it behind
+- **BR-27** [Minor] `race-test-no-ordering-seam` BR-22 concurrency test rarely fails without the lock, and lessons.md overstates it
+- **BR-28** [Minor] `artifact-without-removal-path` A crash between WriteFile and Rename in runRecord.record leaves a .tmp file nothing removes
