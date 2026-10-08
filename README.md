@@ -817,7 +817,8 @@ terminal is too narrow) for a second, the broadcast stops. The switcher, which
 lists the whole fleet, is replaced for viewers by a placeholder unless
 `COUCH_BROADCAST_SWITCHER=show`. Nothing is recorded at either end; the link
 dies with the broadcast. `COUCH_BROADCAST_TUNNEL=off` serves on this machine
-only.
+only. Until the `cloudflared` tunnel lands (#395 M5), every link is
+local-only: it works in a browser on this machine and nowhere else.
 
 With an empty root filter, **Space** toggles the **normal view** and **focus view**.
 Focus view shows only live threads with a published summary, in normal-view

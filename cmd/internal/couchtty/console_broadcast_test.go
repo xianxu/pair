@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -307,5 +309,63 @@ func TestBroadcastNotConfigured(t *testing.T) {
 	waitFor(t, "notice", func() bool { return strings.Contains(f.notice(), "not configured") })
 	if strings.Contains(f.lastRow(), "LIVE") || f.phase() != broadcastOff {
 		t.Fatal("an unconfigured console drew a broadcast cell")
+	}
+}
+
+// BR-11: exactly one side owns a finished start's session, however the
+// adopt (loop) and abandon (start goroutine) calls race.
+func TestStartClaimDecidesOnce(t *testing.T) {
+	for range 2000 {
+		var c startClaim
+		var adopted, abandoned atomic.Bool
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() { defer wg.Done(); adopted.Store(c.adopt()) }()
+		go func() { defer wg.Done(); abandoned.Store(c.abandon()) }()
+		wg.Wait()
+		if adopted.Load() == abandoned.Load() {
+			t.Fatalf("adopted=%v abandoned=%v: want exactly one owner", adopted.Load(), abandoned.Load())
+		}
+	}
+}
+
+// BR-12: Couch's exit is bounded even when the tunnel never finishes
+// closing.
+func TestBroadcastShutdownBoundedByStuckTunnel(t *testing.T) {
+	old := broadcastShutdownWait
+	broadcastShutdownWait = 300 * time.Millisecond
+	t.Cleanup(func() { broadcastShutdownWait = old })
+	release := make(chan struct{})
+	t.Cleanup(func() { close(release) })
+	f := broadcastFixture(t, &broadcast.FakeTunnel{CloseBlock: release}, nil)
+	f.startLive(t)
+	start := time.Now()
+	f.con.Stop()
+	select {
+	case <-f.done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Couch's exit waited on a tunnel that never closes")
+	}
+	if d := time.Since(start); d > 3*time.Second {
+		t.Fatalf("exit took %v", d)
+	}
+}
+
+// With no broadcast running, the row's first columns are not a broadcast
+// target: clicking them changes nothing about broadcasting.
+func TestBroadcastOffHasNoClickTarget(t *testing.T) {
+	f := broadcastFixture(t, &broadcast.FakeTunnel{}, nil)
+	for col := 1; col <= len([]rune(broadcast.LiveLabel)); col++ {
+		f.clickStatus(col)
+	}
+	time.Sleep(100 * time.Millisecond)
+	if f.phase() != broadcastOff || f.session() != nil {
+		t.Fatalf("a click on an off row started a broadcast: phase %v", f.phase())
+	}
+	f.con.mu.Lock()
+	control := f.con.statusControl
+	f.con.mu.Unlock()
+	if control != (ColumnSpan{}) {
+		t.Fatalf("off row has a control span %+v", control)
 	}
 }

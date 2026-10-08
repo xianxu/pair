@@ -20,7 +20,9 @@ var (
 type Tunnel interface {
 	// Listen creates the local listener this tunnel forwards to.
 	Listen() (net.Listener, error)
-	// Open exposes l and returns once the public base URL is known.
+	// Open exposes l and returns once the public base URL is known. ctx
+	// bounds the opening only: the tunnel must outlive it (Start cancels its
+	// context once it returns), so a process must not be bound to ctx.
 	Open(ctx context.Context, l net.Listener) (Handle, error)
 }
 

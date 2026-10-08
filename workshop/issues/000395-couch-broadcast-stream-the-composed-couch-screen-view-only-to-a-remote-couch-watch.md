@@ -176,7 +176,10 @@ Durable plan: `workshop/plans/000395-couch-broadcast-stream-the-composed-couch-s
       session lifecycle over a tunnel seam; no-persistence test
 - [ ] M3 — tab-bar LIVE cell, Ctrl+Alt+b, Console wiring and fail-safe;
       `COUCH_BROADCAST_*` options; local smoke; atlas
-- [ ] M4 — `cloudflared` quick tunnel with orphan reaping; live smoke; close
+- [ ] M4 — viewer theme and font: the operator's palette (default fg/bg and
+      the 16 ANSI colours, queried from the terminal) applied as xterm.js's
+      theme; `COUCH_BROADCAST_FONT_FILE` served same-origin via `@font-face`
+- [ ] M5 — `cloudflared` quick tunnel with orphan reaping; live smoke; close
 
 ## Log
 
@@ -225,6 +228,25 @@ Durable plan: `workshop/plans/000395-couch-broadcast-stream-the-composed-couch-s
     `couch --watch`. The browser is easier for viewers and starts a possible web
     front end: "a remote-controlled Couch" (#407).
   - End-to-end encryption deferred to #406.
+- M3 local smoke (operator, pair:0 at vcs.revision 0dbe0802, local-only
+  link): it works end to end. Ctrl+Alt+b starts, the browser follows the
+  composed screen, and stopping ends it. The viewer's colours and font differ
+  from the terminal's (xterm.js defaults); this became M4.
+- The branch was rebased onto main (#214) before the slot move, so the live
+  Couch kept #214's fixes. Side effects: one commit subject starting `#395`
+  was eaten as a comment by `rebase --continue`'s message cleanup and was
+  repaired; M1/M2 `Review-Window` trailers name pre-rebase commit IDs; and
+  `sdlc actual` became unreliable (0.79h from pair:0, where this session's
+  transcripts aren't; 3.34h from pair:3, below M2's 4.20h). So M3 closes
+  with `--no-actual`.
+- M3 review round 1 was REWORK. Fixes:
+  - BR-11: a start's session is adopted or abandoned through one atomic claim.
+    The start goroutine used to read a flag that the loop could still write
+    after the goroutine stopped waiting.
+  - BR-12: background waits also end on console stop, so a stuck tunnel close
+    can't hang Couch's exit past its 6s bound.
+  The start context is released once the start ends, and the Tunnel contract
+  now says a tunnel must outlive it.
 
 ## Revisions
 
@@ -278,3 +300,9 @@ Durable plan: `workshop/plans/000395-couch-broadcast-stream-the-composed-couch-s
   browser's own `/favicon.ico` request, which gets 404: it carries no token.
   xterm.js 5.5.0 ignores DECSET 2026; frames go out whole, one `term.write`
   each.
+- **2026-10-07** — after the M3 local smoke, the operator asked for the viewer
+  to match the terminal's colours and font. That adds M4 (theme passthrough
+  and a served font file, for example "DejaVuSansM Nerd Font Mono"), and the
+  tunnel moves to M5. A terminal can't report its font, so the file is named by
+  `COUCH_BROADCAST_FONT_FILE`. DejaVu and the Nerd Fonts patches allow
+  redistribution.

@@ -803,3 +803,20 @@ func (s *Stream) Join() (Message, bool, error) {
   decides `actorReserved`), so the key can't be Couch's only sometimes.
   Production Couch always configures a broadcaster (Task 3.4). A click on the
   `LIVE …` cell while starting cancels the start, like the key does.
+- **2026-10-07 (M3 close)** — a new **M4** inserted after the operator's smoke:
+  the viewer adopts the operator's theme and font. The `cloudflared` milestone
+  (Chunk 4 above) becomes **M5**. M4 sketch:
+  - Couch already queries OSC 10/11 for the default fg/bg (pair#247). Add OSC 4
+    queries for colours 0–15, and carry the palette in the stream as an
+    `event: theme` before the first frame (and to each joiner). The viewer
+    applies it as xterm.js's `theme`.
+  - `COUCH_BROADCAST_FONT_FILE` names a font file. The server serves it under
+    `/<token>/font` (allowed by `font-src 'self'`), and the viewer loads it
+    with `@font-face`, falling back to the current stack. The file is read
+    once at start and kept in memory.
+  - Tests: palette parsing; the theme event reaches a late joiner; font route
+    gated by the token; viewer theme/font application with node fakes.
+  M3 review fixes: BR-11 (single `startClaim` CAS owns a finished start's
+  session), BR-12 (watchers also end on console stop; shutdown bound
+  tested with a never-closing tunnel), start context released after the
+  start, `TestBroadcastOffHasNoClickTarget` added.

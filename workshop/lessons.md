@@ -688,3 +688,9 @@ proof; record the surprising case so the next change starts from evidence.
   carried a local address, and in M4 a unix-socket path with a username.
   Map known errors to fixed strings with `errors.Is`, use a generic fallback,
   and test with a wrapped error that contains a path.
+- A caller that can stop waiting must not read state written by the work it
+  handed off. #395 M3's broadcast start read an `adopted` flag after
+  `runTerminalCommand`, which returns early on shutdown while the loop may
+  still run the closure, so a race (seen under `-race -count=8`) could stop a
+  session the loop then adopted. Decide ownership of a produced resource with
+  one claim (an atomic CAS) that both sides attempt.

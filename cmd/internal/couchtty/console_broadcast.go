@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
@@ -39,9 +40,34 @@ type broadcastState struct {
 	session *broadcast.Session
 }
 
-// shutdownWait bounds how long Couch's exit waits for a broadcast's listener
-// and tunnel to close.
-const shutdownWait = 6 * time.Second
+// broadcastShutdownWait bounds how long Couch's exit waits for a broadcast's
+// listener and tunnel to close. A variable so tests can shorten it.
+var broadcastShutdownWait = 6 * time.Second
+
+// startClaim decides, exactly once, who owns a session whose start finished:
+// the loop adopting it, or the start goroutine abandoning (stopping) it. The
+// goroutine can stop waiting for the loop and the loop can still run the
+// handover later, so neither side may infer the other's decision from its
+// own view of the handover; the one successful CAS is the decision.
+type startClaim struct{ state atomic.Uint32 }
+
+const (
+	claimOpen uint32 = iota
+	claimAdopted
+	claimAbandoned
+)
+
+func (c *startClaim) adopt() bool   { return c.state.CompareAndSwap(claimOpen, claimAdopted) }
+func (c *startClaim) abandon() bool { return c.state.CompareAndSwap(claimOpen, claimAbandoned) }
+
+// awaitDown waits for a stopped session to finish tearing down, or for the
+// console to stop; teardown's own bounded wait covers the rest.
+func (c *Console) awaitDown(s *broadcast.Session) {
+	select {
+	case <-s.Done():
+	case <-c.stop:
+	}
+}
 
 // SetBroadcast enables the broadcast control with this configuration. Without
 // it the tab bar never shows the cell and Ctrl+Alt+b only explains why.
@@ -92,44 +118,51 @@ func (c *Console) startBroadcast(cfg broadcast.Config) {
 	c.setNotice("Starting broadcast…")
 	c.GoTracked(func() {
 		s, err := broadcast.Start(ctx, cfg)
-		adopted := false
+		// The start is over. A session never depends on its start context
+		// (broadcast.Tunnel's contract), so release it now.
+		cancel()
+		claim := &startClaim{}
 		_ = c.runTerminalCommand(c.lifetime, func() error {
-			adopted = c.broadcastStarted(attempt, s, err)
+			c.broadcastStarted(attempt, s, err, claim)
 			return nil
 		})
-		if s != nil && !adopted {
+		if s != nil && claim.abandon() {
 			s.Stop(nil)
-			<-s.Done()
+			c.awaitDown(s)
 		}
 	})
 }
 
-// broadcastStarted runs on the loop when a start finishes. It reports whether
-// the session was adopted; a session it doesn't adopt the caller stops.
-func (c *Console) broadcastStarted(attempt uint64, s *broadcast.Session, err error) bool {
+// broadcastStarted runs on the loop when a start finishes. It adopts the
+// session only by winning claim; a session it doesn't adopt, the start
+// goroutine stops.
+func (c *Console) broadcastStarted(attempt uint64, s *broadcast.Session, err error, claim *startClaim) {
 	c.mu.Lock()
 	current := c.bcast.attempt == attempt && c.bcast.phase == broadcastStarting
 	if !current {
 		c.mu.Unlock()
-		return false
+		return
 	}
-	if err != nil {
-		c.bcast.cancel()
+	if err != nil || !claim.adopt() {
 		c.bcast = broadcastState{attempt: attempt}
 		c.mu.Unlock()
-		c.setNotice("Broadcast failed to start: " + err.Error())
-		return false
+		if err != nil {
+			c.setNotice("Broadcast failed to start: " + err.Error())
+		}
+		return
 	}
 	c.mu.Unlock()
 	// The tap goes in before the chrome shows LIVE, so the first LIVE frame
 	// reaches viewers; Activate comes after, so the grace watch starts with
 	// the indicator already on screen.
 	if err := c.presenter.SetTap(c.lifetime, s.Offer); err != nil {
+		// Adopted, so ours to stop.
+		s.Stop(nil)
 		c.mu.Lock()
 		c.bcast = broadcastState{attempt: attempt}
 		c.mu.Unlock()
 		c.setNotice("Broadcast failed to start: " + err.Error())
-		return false
+		return
 	}
 	c.mu.Lock()
 	c.bcast.phase, c.bcast.session = broadcastLive, s
@@ -142,13 +175,17 @@ func (c *Console) broadcastStarted(attempt uint64, s *broadcast.Session, err err
 	c.setNotice("Broadcast live — link copied. Click LIVE or press Ctrl+Alt+b to stop.")
 	s.Activate()
 	c.GoTracked(func() {
-		<-s.Done()
+		select {
+		case <-s.Done():
+		case <-c.stop:
+			// Shutdown stops the session itself, with a bounded wait.
+			return
+		}
 		_ = c.runTerminalCommand(c.lifetime, func() error {
 			c.broadcastEnded(s)
 			return nil
 		})
 	})
-	return true
 }
 
 // stopBroadcast is the operator's stop. Viewers are told at once; the
@@ -196,7 +233,7 @@ func (c *Console) endBroadcastForShutdown() {
 		s.Stop(nil)
 		select {
 		case <-s.Done():
-		case <-time.After(shutdownWait):
+		case <-time.After(broadcastShutdownWait):
 		}
 	}
 }
