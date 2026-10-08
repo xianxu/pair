@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000408-upstream-utf8-parser-fix.md
         source_blob: bdfa61dd945887e1bc8ea841278eb98e4006dc95
         destination: workshop/issues/000408-upstream-utf8-parser-fix.md
+        main_commit: f566d361d9f2e20270446ca4c7b612fd0f39c5b2
 ---
 
 # Contribute UTF-8 parser fix evidence upstream
