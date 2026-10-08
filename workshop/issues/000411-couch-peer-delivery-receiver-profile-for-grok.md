@@ -36,7 +36,9 @@ other profiles have.
 
 ## Plan
 
-- [ ]
+- [ ] Read the Claude/Codex receiver profiles and their qualification tests (`cmd/internal/wrapcmd/peer_runtime.go`, `atlas/couch.md` "Receiver profiles").
+- [ ] Add grok to `peerReceiverAgents` with its composer/menu/image refusals, mirroring Codex's tests.
+- [ ] Live: `couch --send-to` a grok slot; confirm delivery and submit, and a refusal over an open picker.
 
 ## Log
 

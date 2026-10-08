@@ -66,7 +66,9 @@ visible as an orientation notice.
 
 ## Plan
 
-- [ ]
+- [ ] Reproduce a Claude → Grok switch-agent on a scratch slot with Couch tracing; capture which `StartResult` reaches the console attach.
+- [ ] Find why the handle is nil or mismatched; fix the cause with a couchcore/couchtty regression test.
+- [ ] Verify orientation delivery, then Couch park/cold-resume and the `doctor/doctor.sh` tally on a live grok thread.
 
 ## Log
 
