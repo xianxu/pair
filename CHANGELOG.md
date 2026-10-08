@@ -6,6 +6,21 @@ tagged in git (`vN.M`) and tracked in the homebrew formula at
 
 ## Unreleased
 
+### Grok integration
+
+- Pair and Couch now offer xAI's Grok CLI (`grok`) as an agent. Pair supports
+  its composer keys (Return inserts a newline, Alt+Return sends), permission and
+  question picker confirmation, native session inventory and resume, prompt
+  navigation (Alt+b), slug generation, and a repo permission allowlist
+  (`.grok/config.toml`). Grok runs inline (`--no-alt-screen`) so its
+  conversation reaches the pane's scrollback; `PAIR_GROK_ALT_SCREEN=1` opts out.
+
+### Fixes
+
+- Pair no longer inserts its own flags after a user's `--`, where the agent
+  read them as prompt text (Codex's `--no-alt-screen` was affected), and no
+  longer strips or reads flag-shaped prompt text after `--`.
+
 ### Qoder integration
 
 - Pair and Couch now offer Qoder as an agent. Pair supports its composer keys,
