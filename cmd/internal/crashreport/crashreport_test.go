@@ -178,10 +178,12 @@ func TestSummary(t *testing.T) {
 		want    string
 	}{
 		{nil, ""},
-		{[]Report{{Abrupt, "a"}}, "previous couch ended abruptly (no panic recorded)"},
-		{[]Report{{Abrupt, "a"}, {Abrupt, "b"}}, "2 previous couch runs ended abruptly (no panic recorded)"},
-		{[]Report{{Crashed, "old"}, {Crashed, "new"}}, "previous couch crashed — see new (+1 earlier)"},
-		{[]Report{{Crashed, "c"}, {Abrupt, "a"}}, "previous couch crashed — see c; previous couch ended abruptly (no panic recorded)"},
+		{[]Report{{Kind: Abrupt, Path: "a"}}, "previous couch ended abruptly (no panic recorded)"},
+		{[]Report{{Kind: Abrupt, Path: "a"}, {Kind: Abrupt, Path: "b"}}, "2 previous couch runs ended abruptly (no panic recorded)"},
+		{[]Report{{Kind: Crashed, Path: "old"}, {Kind: Crashed, Path: "new"}}, "previous couch crashed — see new (+1 earlier)"},
+		{[]Report{{Kind: Crashed, Path: "c"}, {Kind: Abrupt, Path: "a"}}, "previous couch crashed — see c; previous couch ended abruptly (no panic recorded)"},
+		{[]Report{{Kind: Exited, Path: "e", Reason: "terminal stopped accepting output for 5s"}}, "previous couch exited: terminal stopped accepting output for 5s"},
+		{[]Report{{Kind: Exited, Reason: "old"}, {Kind: Exited, Reason: "new"}, {Kind: Crashed, Path: "c"}}, "previous couch exited: new (+1 earlier); previous couch crashed — see c"},
 	} {
 		if got := Summary(tc.reports); got != tc.want {
 			t.Fatalf("Summary(%+v) = %q, want %q", tc.reports, got, tc.want)
@@ -197,11 +199,13 @@ func TestClassify(t *testing.T) {
 		{Name: "20261006T135600Z-x.log", Size: 10},
 		{Name: "2026-10-06-4.log", Size: 10},
 		{Name: "20261006T135600Z-5.log.tmp", Size: 10},
+		{Name: "20261006T135600Z-6.log", Size: 40, Head: "couch-exit: terminal stopped\ntrailing"},
 	})
 	want := []Finding{
 		{Name: "20261006T135600Z-1.log", Kind: Crashed},
 		{Name: "20261006T135600Z-2.log", Kind: Abrupt},
 		{Name: "20261006T135600Z-3.crash", Kind: Reported},
+		{Name: "20261006T135600Z-6.log", Kind: Exited, Reason: "terminal stopped"},
 	}
 	if len(got) != len(want) {
 		t.Fatalf("Classify = %+v, want %+v", got, want)
@@ -324,5 +328,60 @@ func TestSecondInstallEndsTheFirst(t *testing.T) {
 	}
 	if entries, _ := os.ReadDir(dir); len(entries) != 0 {
 		t.Fatalf("captures left behind: %v", entries)
+	}
+}
+
+// TestRecordedExitIsReportedOnceWithItsReason: a run that records why it exits
+// and then returns normally leaves its reason for the next start, which
+// reports it once, apart from a panic left by another run (pair#409).
+func TestRecordedExitIsReportedOnceWithItsReason(t *testing.T) {
+	dir := t.TempDir()
+	dead := func(int) bool { return false }
+	// Another run's panic, already in the directory.
+	if err := os.WriteFile(filepath.Join(dir, "20261001T000000Z-7.log"), []byte("panic: boom\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := Install(dir, time.Date(2026, 10, 7, 4, 31, 0, 0, time.UTC), 11, dead); err != nil {
+		t.Fatal(err)
+	}
+	if err := RecordExit("terminal stopped accepting output for 5s\n(wrote 0 of 17424 bytes)"); err != nil {
+		t.Fatal(err)
+	}
+	if err := Finish(); err != nil {
+		t.Fatal(err)
+	}
+	_, reports, err := Install(dir, time.Date(2026, 10, 7, 4, 40, 0, 0, time.UTC), 12, dead)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var exited *Report
+	for i := range reports {
+		if reports[i].Kind == Exited {
+			exited = &reports[i]
+		}
+	}
+	if exited == nil || exited.Reason != "terminal stopped accepting output for 5s (wrote 0 of 17424 bytes)" || !strings.HasSuffix(exited.Path, reported) {
+		t.Fatalf("reports %+v", reports)
+	}
+	if !strings.Contains(Summary(reports), "previous couch exited: terminal stopped") {
+		t.Fatal(Summary(reports))
+	}
+	if err := Finish(); err != nil {
+		t.Fatal(err)
+	}
+	_, again, err := Install(dir, time.Date(2026, 10, 7, 4, 50, 0, 0, time.UTC), 13, dead)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if Summary(again) != "" {
+		t.Fatalf("reported twice: %+v", again)
+	}
+	Finish()
+}
+
+func TestRecordExitWithoutCaptureIsANoOp(t *testing.T) {
+	Finish()
+	if err := RecordExit("x"); err != nil {
+		t.Fatal(err)
 	}
 }

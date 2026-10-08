@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
@@ -66,6 +67,18 @@ func shutdownCancellation(err error) bool {
 		return shutdownCancellation(wrapped.Unwrap())
 	}
 	return err == context.Canceled
+}
+
+// TerminalFailure is why the console's terminal failed, if it did: the first
+// recorded failure joined with the presenter's (pair#409 reads it after Run).
+func (c *Console) TerminalFailure() error {
+	c.mu.Lock()
+	failure := c.terminalFailure
+	c.mu.Unlock()
+	if c.presenter == nil {
+		return failure
+	}
+	return errors.Join(failure, c.presenter.Failure())
 }
 
 func (c *Console) terminalError(err error) {
