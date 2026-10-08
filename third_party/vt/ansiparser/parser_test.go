@@ -1,7 +1,6 @@
 package ansiparser
 
 import (
-	"os"
 	"reflect"
 	"slices"
 	"testing"
@@ -180,36 +179,6 @@ var parsers = []struct {
 			return p
 		}(),
 	},
-}
-
-func BenchmarkParser(b *testing.B) {
-	bts, err := os.ReadFile("./fixtures/demo.vte")
-	if err != nil {
-		b.Fatalf("Error: %v", err)
-	}
-
-	for _, p := range parsers {
-		b.Run(p.name, func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
-				p.parser.Parse(bts)
-			}
-		})
-	}
-}
-
-func BenchmarkParserUTF8(b *testing.B) {
-	bts, err := os.ReadFile("./fixtures/UTF-8-demo.txt")
-	if err != nil {
-		b.Fatalf("Error: %v", err)
-	}
-
-	for _, p := range parsers {
-		b.Run(p.name, func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
-				p.parser.Parse(bts)
-			}
-		})
-	}
 }
 
 func BenchmarkParserStateChanges(b *testing.B) {

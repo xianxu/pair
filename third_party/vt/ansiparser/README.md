@@ -1,7 +1,9 @@
 # UTF-8-safe streaming parser
 
 This is the streaming parser from `github.com/charmbracelet/x/ansi` v0.11.7,
-with its MIT license and streaming parser tests retained. Public handler/value
+with its MIT license and streaming parser tests retained. Two upstream
+benchmarks requiring external fixture files are omitted; the self-contained
+state-change benchmark is retained. Public handler/value
 types and the transition table remain upstream types. Pair's vt emulator,
 terminal-control observer and output-boundary observer all use this package.
 
