@@ -330,3 +330,9 @@ or the hub.
   the overlay; a couchtty test pins that the guard ends where `👽` does. The
   fail-safes read only those cells, so the rest of the tab bar is safe to
   mark. Right-click on `LIVE ⏸` re-copies the view-only link.
+- **2026-10-08 (M4 review, BR-14)** — names as shipped, against the Core
+  concepts table above: `Marks` exposes `Live`, `NextChange` and `SetBlend`
+  (no `Expired`); the viewer's batching is `chunkStroke` (not `batchPoints`),
+  and its page wiring is `pointerMode`, with its post and timers injectable for
+  tests. The fade is hold 1.5s plus 0.5s in 10 steps (`MarkHold`, `MarkFade`),
+  not 3 steps over 3s.

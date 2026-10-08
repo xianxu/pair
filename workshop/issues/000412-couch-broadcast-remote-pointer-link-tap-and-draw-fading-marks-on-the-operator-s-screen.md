@@ -91,8 +91,8 @@ Design (proposed 2026-10-08):
   else gets 400 with nothing echoed. The coordinates feed only the mark
   overlay.
 - **Marks:** a pure `Marks` model (taps, strokes with line fill, timestamps)
-  produces an amber background tint that fades in steps and is gone about 3s
-  after the last input. A Presenter overlay hook applies it to the composed
+  produces an amber background tint that holds 1.5s after the last input,
+  then fades fast over 0.5s. A Presenter overlay hook applies it to the composed
   frame before painting, so the operator and every viewer see it. While marks
   are alive, Couch schedules repaints so the fade advances.
 - **Status row:** `👆` is dim when off or never minted, on amber when
@@ -101,8 +101,11 @@ Design (proposed 2026-10-08):
   way it checks `LIVE ⏸`; hidden for a second turns pointing off.
 
 - **Spec review decisions (2026-10-08):**
-  - **Marks never touch the status row.** Points on Couch's chrome row are
-    dropped, so a helper can't cover `LIVE ⏸` or `👆` and trip a fail-safe.
+  - **Marks never touch the broadcast's controls.** Points on `LIVE ⏸ 👆 👽`
+    (the first `StatusGuardCols` columns of Couch's status row) are dropped,
+    and the overlay never tints them, so a helper can't cover an indicator and
+    trip a fail-safe. The rest of the tab bar can be marked (revised after the
+    M4 smoke).
   - **Strokes:** the page sends a stroke as short batches (each repeating the
     previous batch's last point); line fill happens only within one request, so
     two helpers' strokes never join.
@@ -119,8 +122,8 @@ Design (proposed 2026-10-08):
   - **State on join:** a pointer-link stream gets `event: caps` on join (after
     `theme`) and on every flip; view-link streams never get it.
   - **Repaint and history:** the Presenter keeps the frame without marks and
-    paints that frame plus the current marks, repainting while marks fade (3
-    steps over about 3s). Marks never enter the parent's scrollback: history rows
+    paints that frame plus the current marks, repainting as marks fade (once
+    when the 1.5s hold ends, then every 50ms through a 0.5s fade). Marks never enter the parent's scrollback: history rows
     come from the endpoint, not the overlaid frame.
   - **Private frames:** while the switcher is open (a private frame), points
     are dropped. Helpers see the placeholder and must not mark the fleet list.
@@ -151,8 +154,8 @@ Automated (each a test):
 
 - A POST to the pointer link, while pointing is on, puts the mark tint on
   exactly those cells in the frame the operator's terminal is painted with and
-  in the broadcast. The tint fades in steps and is gone about 3s after the last
-  input.
+  in the broadcast. The tint holds 1.5s after the last input, then fades over
+  0.5s (blending into the operator's background with truecolor).
 - The first click on `👆` mints a pointer token distinct from the view token
   and copies its link; right-click re-copies it; a new broadcast mints a new
   pointer link.
@@ -168,8 +171,9 @@ Automated (each a test):
   fields, or a stale grid size each get rejected or dropped, with nothing
   echoed. The rate limit holds, and the coverage cap keeps marked cells at or
   under 1/8 of the grid.
-- Points on the status row and points while the switcher is open are
-  dropped; a stroke over `LIVE ⏸ 👆` leaves both indicators intact.
+- Points on the broadcast's controls and points while the switcher is open
+  are dropped; a stroke over `LIVE ⏸ 👆 👽` leaves the indicators intact, and
+  a point on the tab bar to their right lands.
 - If the active `👆` can't be drawn, pointing turns off (marks cleared) and the
   link stays usable as view-only.
 - A pointer page learns its state on join (`caps` after `theme`); a view page
@@ -273,3 +277,8 @@ Durable plan: `workshop/plans/000412-couch-broadcast-remote-pointer-link-tap-and
   19f5d543): verified working: pointing on the screen and the tab bar, the
   controls protected, the hold-then-fast fade, toggling with the same link,
   right-click re-copies on `👆` and `LIVE ⏸`.
+
+## Revisions
+- **2026-10-08 (M4 review, BR-13)** — the Spec and Done-when now state what
+  the smoke led to: marks avoid only the broadcast's controls, not the whole
+  status row, and they hold 1.5s then fade over 0.5s (was 3 steps over 3s).

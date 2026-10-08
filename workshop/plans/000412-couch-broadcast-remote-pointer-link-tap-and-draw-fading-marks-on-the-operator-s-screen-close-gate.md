@@ -167,6 +167,41 @@ rounds:
       boundary: M3
       recipe: milestone-review
       blocked: false
+    - "n": 7
+      timestamp: "2026-10-08T12:18:29-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: Task 4.1 still enumerates test cases in prose; Minor, never blocks.
+          round: 7
+      findings:
+        - id: BR-13
+          severity: Important
+          title: Issue Spec/Done-when still say "3 steps over 3s" and "status row dropped"; atlas fade sentence self-contradicts
+          detail: '2nd in family. Rule: a smoke-driven contract change revises Spec, Done-when, plan Revisions and atlas in the same commit; sweep "3 steps", "3s", "status row" across all four. Plan Revisions omits the fade change; atlas/broadcast.md says "fade in 3 steps ... 10 steps".'
+          family: docs-match-code
+          round: 7
+        - id: BR-14
+          severity: Important
+          title: Core concepts table lists batchPoints and Marks.Expired; code ships chunkStroke and Live/NextChange
+          detail: '2nd in family. Rule: at each boundary grep every table row''s symbol and record renames in a Revisions entry.'
+          family: plan-table-matches-code
+          round: 7
+        - id: BR-15
+          severity: Important
+          title: pointerMode (setOn/hint/.pointer class/flush on pointerup) untested despite Task 4.1's promised caps-toggle test
+          detail: '2nd in family. Rule: page logic beyond a DOM call sits behind a seam node can drive (inject post plus fake stage/hint), and every promised page test exercises that seam. The node test only checks that the caps callback fires.'
+          family: untested-page-wiring
+          round: 7
+        - id: BR-16
+          severity: Minor
+          title: Console's SetBlend(palette...) wiring has no test; a mutation to false stays green
+          family: untested-blend-wiring
+          round: 7
+      boundary: M4
+      recipe: milestone-review
+      blocked: true
 ---
 
 # Gate ledger — pair#412 (boundary-review)
@@ -247,6 +282,22 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-11 — not-addressed — startBroadcast still binds c.onPoints and c.pointerOffByWatch unconditionally (console_broadcast.go:116-122); no attempt check in applyPoints or pointerOffByWatch.
 - BR-12 — not-addressed — endBroadcastForShutdown and the failed-SetTap branch of broadcastStarted still skip detachBroadcastScreen; unchanged in this window.
 
+## Round 7 — 2026-10-08T12:18:29-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — not-addressed — Task 4.1 still enumerates test cases in prose; Minor, never blocks.
+
+### Raised
+
+- **BR-13** [Important] `docs-match-code` Issue Spec/Done-when still say "3 steps over 3s" and "status row dropped"; atlas fade sentence self-contradicts
+  2nd in family. Rule: a smoke-driven contract change revises Spec, Done-when, plan Revisions and atlas in the same commit; sweep "3 steps", "3s", "status row" across all four. Plan Revisions omits the fade change; atlas/broadcast.md says "fade in 3 steps ... 10 steps".
+- **BR-14** [Important] `plan-table-matches-code` Core concepts table lists batchPoints and Marks.Expired; code ships chunkStroke and Live/NextChange
+  2nd in family. Rule: at each boundary grep every table row's symbol and record renames in a Revisions entry.
+- **BR-15** [Important] `untested-page-wiring` pointerMode (setOn/hint/.pointer class/flush on pointerup) untested despite Task 4.1's promised caps-toggle test
+  2nd in family. Rule: page logic beyond a DOM call sits behind a seam node can drive (inject post plus fake stage/hint), and every promised page test exercises that seam. The node test only checks that the caps callback fires.
+- **BR-16** [Minor] `untested-blend-wiring` Console's SetBlend(palette...) wiring has no test; a mutation to false stays green
+
 ## Open findings
 
 - **BR-1** [Minor] `enumerated-test-prose` Tasks 1.3, 2.2, 2.3, 3.2 enumerate test cases in prose, restating Done-when
@@ -258,3 +309,7 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-9** [Minor] `stale-observation-acts-on-new-generation` PointerState has no stopped/generation state: EnablePointer after Stop mints a link, and a late pointerHidden can turn off a re-enabled pointing
 - **BR-11** [Minor] `stale-observation-acts-on-new-generation` The Console's OnPoints and OnPointerOff aren't tied to the session that triggered them, so a late callback from an old broadcast can act on the next one
 - **BR-12** [Minor] `teardown-path-skips-detach` endBroadcastForShutdown and a failed SetTap in broadcastStarted bypass detachBroadcastScreen, leaving the fade timer armed and the overlay installed
+- **BR-13** [Important] `docs-match-code` Issue Spec/Done-when still say "3 steps over 3s" and "status row dropped"; atlas fade sentence self-contradicts
+- **BR-14** [Important] `plan-table-matches-code` Core concepts table lists batchPoints and Marks.Expired; code ships chunkStroke and Live/NextChange
+- **BR-15** [Important] `untested-page-wiring` pointerMode (setOn/hint/.pointer class/flush on pointerup) untested despite Task 4.1's promised caps-toggle test
+- **BR-16** [Minor] `untested-blend-wiring` Console's SetBlend(palette...) wiring has no test; a mutation to false stays green

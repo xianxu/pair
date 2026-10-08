@@ -251,25 +251,31 @@ async function start() {
   fit();
 }
 
+// postPoint is the one request this page makes besides its own assets and
+// stream: same origin, relative URL, no credentials, no referrer.
+function postPoint(body) {
+  fetch('point', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    credentials: 'omit',
+    referrerPolicy: 'no-referrer',
+    cache: 'no-store',
+  }).catch(() => {});
+}
+
 // pointerMode turns the helper's taps and drags into point batches while
-// the broadcast says pointing is on. Strokes are flushed every 50ms.
-function pointerMode(term, stage, hint) {
+// the broadcast says pointing is on. Strokes are flushed every 50ms. deps
+// (for tests): post(body), every(fn, ms) → id, stop(id).
+export function pointerMode(term, stage, hint, deps = {}) {
+  const send = deps.post || postPoint;
+  const every = deps.every || ((fn, ms) => setInterval(fn, ms));
+  const stop = deps.stop || ((id) => clearInterval(id));
   let on = false;
   let stroke = null;
   let timer = null;
   const screen = () => stage.querySelector('.xterm-screen');
-  const post = (down, points) => {
-    // The one request this page makes besides its own assets and stream:
-    // same origin, relative URL, no credentials, no referrer.
-    fetch('point', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cols: term.cols, rows: term.rows, down, points }),
-      credentials: 'omit',
-      referrerPolicy: 'no-referrer',
-      cache: 'no-store',
-    }).catch(() => {});
-  };
+  const post = (down, points) => send({ cols: term.cols, rows: term.rows, down, points });
   const flush = (down) => {
     if (!stroke) {
       return;
@@ -290,7 +296,9 @@ function pointerMode(term, stage, hint) {
     if (stroke) {
       flush(false);
     }
-    clearInterval(timer);
+    if (timer !== null) {
+      stop(timer);
+    }
     timer = null;
     stroke = null;
   };
@@ -307,7 +315,7 @@ function pointerMode(term, stage, hint) {
     end();
     stroke = { last: null, pending: [c] };
     flush(true);
-    timer = setInterval(() => flush(true), 50);
+    timer = every(() => flush(true), 50);
   });
   stage.addEventListener('pointermove', (e) => {
     if (!stroke) {
