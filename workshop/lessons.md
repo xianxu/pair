@@ -648,3 +648,10 @@ proof; record the surprising case so the next change starts from evidence.
   session (#399). Run unsandboxed tests with every `PAIR_*`/`COUCH_*`/`ZELLIJ*`
   variable unset and `TMPDIR` pointed at a short, dedicated directory. Short,
   because nvim sockets and some size-bounded fixtures break on a long one.
+- Test a projection through the seam that feeds it, with the seam's real
+  contract. #214 BR-1/BR-2: the real resolver returns its resolution TOGETHER
+  with a typed refusal, but the evidence pass assumed a refusal carried none.
+  Two of the three new reasons were unreachable in production while every
+  classify test, built from hand-made evidence, stayed green. For each value a
+  projector can produce, keep at least one test that drives it through the
+  real input contract.

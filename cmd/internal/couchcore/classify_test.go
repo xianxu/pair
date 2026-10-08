@@ -202,6 +202,49 @@ func everyThreadShape(t *testing.T) []classifyCase {
 			evidence:  resolved(ThreadEvidence{}),
 			wantState: ThreadUnusable, wantReason: ReasonBindingLost,
 		},
+		// pair#214: the refusal the evidence pass resolved is named, with or
+		// without a park receipt (operator decision D2).
+		{
+			name: "verified park, two conversations claim it", record: parked(),
+			evidence:  resolved(ThreadEvidence{ParkedRefusal: ResumeBindingAmbiguous}),
+			wantState: ThreadUnusable, wantReason: ReasonConversationAmbiguous,
+		},
+		{
+			name: "no receipt, two conversations claim it", record: detached(),
+			evidence:  resolved(ThreadEvidence{ParkedRefusal: ResumeBindingAmbiguous}),
+			wantState: ThreadUnusable, wantReason: ReasonConversationAmbiguous,
+		},
+		{
+			name: "verified park, no turn taken", record: parked(),
+			evidence:  resolved(ThreadEvidence{ParkedRefusal: ResumeBindingUnbound}),
+			wantState: ThreadUnusable, wantReason: ReasonNoTurn,
+		},
+		{
+			name: "no receipt, no turn taken", record: detached(),
+			evidence:  resolved(ThreadEvidence{ParkedRefusal: ResumeBindingUnbound}),
+			wantState: ThreadUnusable, wantReason: ReasonNoTurn,
+		},
+		{
+			name: "verified park, conversation not confirmed yet", record: parked(),
+			evidence:  resolved(ThreadEvidence{ParkedRefusal: ResumeBindingProvisional}),
+			wantState: ThreadUnusable, wantReason: ReasonUnconfirmed,
+		},
+		{
+			name: "no receipt, conversation not confirmed yet", record: detached(),
+			evidence:  resolved(ThreadEvidence{ParkedRefusal: ResumeBindingProvisional}),
+			wantState: ThreadUnusable, wantReason: ReasonUnconfirmed,
+		},
+		{
+			// Root-missing keeps today's reasons: binding-lost with a receipt.
+			name: "verified park, root missing", record: parked(),
+			evidence:  resolved(ThreadEvidence{ParkedRefusal: ResumeBindingRootMissing}),
+			wantState: ThreadUnusable, wantReason: ReasonBindingLost,
+		},
+		{
+			name: "no receipt, root missing", record: detached(),
+			evidence:  resolved(ThreadEvidence{ParkedRefusal: ResumeBindingRootMissing}),
+			wantState: ThreadUnusable, wantReason: ReasonSessionGone,
+		},
 		{
 			name: "verified park whose proof could not be resolved", record: parked(),
 			evidence:  ThreadEvidence{Session: SessionObservation{State: SessionAbsent}},
