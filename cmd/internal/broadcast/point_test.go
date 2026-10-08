@@ -93,3 +93,34 @@ func TestRateLimit(t *testing.T) {
 		t.Fatal("a clock going backwards refilled the bucket")
 	}
 }
+
+// Whatever the parser accepts is inside its limits, and nothing makes it
+// panic: run with `go test -fuzz FuzzParsePointBatch ./cmd/internal/broadcast`.
+func FuzzParsePointBatch(f *testing.F) {
+	for _, seed := range []string{
+		`{"cols":80,"rows":24,"down":true,"points":[[3,4]]}`,
+		`{"cols":1,"rows":1,"down":false,"points":[[0,0],[0,0]]}`,
+		`{"cols":80,"rows":24,"down":true,"points":[[1e300,1]]}`,
+		`{"cols":-1,"rows":24,"down":true,"points":[[0,0]]}`,
+		`[]`, `null`, `{"points":[[]]}`, "",
+	} {
+		f.Add([]byte(seed))
+	}
+	f.Fuzz(func(t *testing.T, body []byte) {
+		b, err := ParsePointBatch(body)
+		if err != nil {
+			return
+		}
+		if b.Cols < 1 || b.Rows < 1 || b.Cols > maxPointGrid || b.Rows > maxPointGrid {
+			t.Fatalf("accepted grid %dx%d", b.Cols, b.Rows)
+		}
+		if len(b.Points) < 1 || len(b.Points) > MaxPointsPerBatch {
+			t.Fatalf("accepted %d points", len(b.Points))
+		}
+		for _, p := range b.Points {
+			if p[0] < 0 || p[0] >= b.Cols || p[1] < 0 || p[1] >= b.Rows {
+				t.Fatalf("accepted point %v on %dx%d", p, b.Cols, b.Rows)
+			}
+		}
+	})
+}

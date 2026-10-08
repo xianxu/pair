@@ -624,12 +624,16 @@ func TestHubPointerWatch(t *testing.T) {
 
 func TestHubCurrent(t *testing.T) {
 	p := newPointerHub(t)
-	if _, _, ok := p.h.Current(); ok {
+	if p.h.Current().OK {
 		t.Fatal("Current before any frame")
 	}
 	offer(p.h, live(t, "a"), terminal.FramePrivate)
-	g, class, ok := p.h.Current()
-	if !ok || g != (terminal.Geometry{Cols: 40, Rows: 4}) || class != terminal.FramePrivate {
-		t.Fatalf("Current %v %v %v", g, class, ok)
+	c := p.h.Current()
+	if !c.OK || c.Geometry != (terminal.Geometry{Cols: 40, Rows: 4}) || c.Class != terminal.FramePrivate || c.PointerShown {
+		t.Fatalf("Current %+v", c)
+	}
+	offer(p.h, livePointer(t, "b"), terminal.FramePublic)
+	if c := p.h.Current(); !c.PointerShown || c.Class != terminal.FramePublic {
+		t.Fatalf("Current %+v", c)
 	}
 }

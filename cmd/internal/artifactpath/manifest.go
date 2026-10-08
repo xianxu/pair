@@ -642,6 +642,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/broadcast/theme.go",
 	"cmd/internal/broadcast/marks.go",
 	"cmd/internal/broadcast/point.go",
+	"cmd/internal/broadcast/pointer.go",
 	"cmd/internal/broadcast/guard.go",
 	"cmd/internal/broadcast/cloudflared.go",
 	"cmd/internal/broadcast/records.go",

@@ -99,12 +99,8 @@ type Hub struct {
 	pointerGraceC    <-chan time.Time
 	stopPointerGrace func() bool
 
-	// current is the operator's latest frame: its geometry and class.
-	current struct {
-		geometry terminal.Geometry
-		class    terminal.FrameClass
-		ok       bool
-	}
+	// current is the operator's latest frame, as Current reports it.
+	current CurrentFrame
 }
 
 // Subscription is one viewer's queue. Messages closes when the broadcast ends
@@ -303,8 +299,8 @@ func (h *Hub) takePending() {
 }
 
 func (h *Hub) accept(o offered) {
-	h.current.geometry, h.current.class, h.current.ok = o.frame.Geometry, o.class, true
 	h.pointerShown = PointerShown(o.frame)
+	h.current = CurrentFrame{Geometry: o.frame.Geometry, Class: o.class, PointerShown: h.pointerShown, OK: true}
 	switch {
 	case !h.pointerShown && h.pointerWatch == watchShown:
 		h.pointerWatch = watchHidden
@@ -445,9 +441,16 @@ func (h *Hub) disarmPointerGrace() {
 	h.pointerGraceC, h.stopPointerGrace = nil, nil
 }
 
-// Current is the operator's latest frame geometry and class; ok is false
-// before any frame.
-func (h *Hub) Current() (g terminal.Geometry, class terminal.FrameClass, ok bool) {
-	h.do(func() { g, class, ok = h.current.geometry, h.current.class, h.current.ok })
+// CurrentFrame describes the operator's latest frame.
+type CurrentFrame struct {
+	Geometry     terminal.Geometry
+	Class        terminal.FrameClass
+	PointerShown bool // the active pointer marker was drawn
+	OK           bool // false before any frame
+}
+
+// Current is the operator's latest frame, for checking pointer input against.
+func (h *Hub) Current() (c CurrentFrame) {
+	h.do(func() { c = h.current })
 	return
 }

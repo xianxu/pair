@@ -14,6 +14,10 @@ const (
 	MaxPointsPerBatch = 64
 	maxPointGrid      = 1000 // cols or rows; far past any real terminal
 	PointRatePerSec   = 30
+	// MaxPointInFlight bounds concurrent point requests per broadcast; more
+	// get 429 before their body is read.
+	MaxPointInFlight = 4
+	pointReadBudget  = 5 * time.Second
 )
 
 var (
