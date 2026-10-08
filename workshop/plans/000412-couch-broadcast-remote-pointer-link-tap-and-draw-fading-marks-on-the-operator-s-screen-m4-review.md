@@ -104,3 +104,84 @@ findings:
     title: |
       Console's SetBlend(palette...) wiring has no test; a mutation to false stays green
 ```
+
+---
+
+## Re-review — 2026-10-08T12:21:24-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 412 — Couch broadcast: remote pointer link (tap and draw fading marks on the operator's screen) |
+| repo | pair |
+| issue file | workshop/issues/000412-couch-broadcast-remote-pointer-link-tap-and-draw-fading-marks-on-the-operator-s-screen.md |
+| boundary | milestone M4 |
+| milestone | M4 |
+| window | fab9e3e7547b9f5e744c0494e7c84c12cdfc2ba8..2ec6764c919634baaa782cbd72155d5870365081 |
+| command | sdlc milestone-close --issue 412 --milestone M4 |
+| reviewer | claude |
+| timestamp | 2026-10-08T12:21:24-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+**Verdict: SHIP.** The three blocking findings from round 7 (BR-13, BR-14, BR-15) are fixed in `2ec6764c`, and I checked each against the code. Nothing new and serious turned up in the M4 window. Two Minor findings stay open: BR-1 and BR-16. Neither blocks the boundary.
+
+`go test ./cmd/internal/broadcast/` passes. That run includes `TestViewerNode`, which picks up every `tests/broadcast-viewer/*.test.mjs` file, including the new one. Running `node --test` on the two pointer test files directly also passes (9 of 9).
+
+1. **What's done well**
+   - `pointerMode` (`viewer.js:271`) now receives its network call and timer functions from the caller, and the real network call lives alone in `postPoint`. `server_test.go:162` still requires exactly one `fetch(` in the page, aimed at the relative `point` with credentials omitted. Making the page testable didn't loosen that security check.
+   - `StatusGuardCols` (`indicator.go:78`) is defined once. Both the point filter and the overlay use it through `guarded()` (`marks.go:34`), and `TestStatusGuardMatchesDrawnControls` checks it against the status row as actually drawn.
+   - The fade logic in `Marks.tint` is a pure function. The test checks the hold, the step count, the end state, and that a truecolor fade finishes near the background, in both colour modes.
+   - `TestMarksLiveAndNextChange` checks both repaint schedules, the hold and the fade steps.
+
+2. **Critical:** none.
+
+3. **Important:** none new.
+
+4. **Minor**
+   - BR-1 (prose that lists test cases) and BR-16 (no test for the `SetBlend` call) are still open. Details in the dispositions below.
+
+5. **Test coverage**
+   - `pointermode.test.mjs` covers toggling pointing on and off (the CSS class and the hint), no posts while off or outside the screen, overlapping batches with repeated cells skipped, stopping the timer on release, and turning pointing off mid-stroke.
+   - Removing the `flush(false)` from `end` would break the third and fourth tests, so they do catch that bug.
+
+6. **Architecture, by principle**
+   - **ARCH-DRY: pass.** The guard is defined once; the post is defined once.
+   - **ARCH-PURE: pass.** `pointerMode`'s input and timers are injected; `Marks` takes its clock from the caller.
+   - **ARCH-PURPOSE: pass.** The class each finding named was swept, not just the one site: the issue Spec, the Done-when list, the atlas and the plan Revisions all changed, and every symbol in the Core concepts table was re-checked. `PointBatch`, `ParsePointBatch`, `RateLimit`, `Overlay` and `BroadcastCell` exist where the table says; the renames are recorded in Revisions.
+   - **ARCH-MOCK: pass, nothing external added.**
+   - **ARCH-CONSTRAINTS: pass.** The fade repaints every 50ms only while marks are fading; the hold costs a single wake-up.
+   - **ARCH-SECURE: pass.** The fetch check is unchanged and still enforced.
+   - **ARCH-ORDER:** turning pointing off mid-stroke is now tested. The earlier Minor findings about stale callbacks from an old broadcast (BR-9, BR-11) are unchanged and remain Minor.
+   - **ARCH-FUNERAL: pass.** Only in-memory state was added; the stroke timer is stopped in `end()`.
+
+7. **Plan revisions:** none needed. The plan body still says "3s" and "batchPoints" in places, but CLAUDE.md asks for revisions to be appended rather than overwritten, and the BR-14 Revisions entry records the new values.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      Task 4.1 still lists test cases in prose; Minor, does not block.
+  - id: BR-13
+    disposition: addressed
+    note: |
+      Spec Marks/Repaint bullets, Done-when and the controls decision now say hold 1.5s + 0.5s fade and controls-only guard; atlas/broadcast.md:259 rewritten consistently; issue Revisions entry added. Plan body keeps old text under an appended Revisions entry, as CLAUDE.md asks.
+  - id: BR-14
+    disposition: addressed
+    note: |
+      Plan Revisions (BR-14) records Live/NextChange/SetBlend, chunkStroke, pointerMode, MarkHold/MarkFade; the remaining table rows (PointBatch, ParsePointBatch, RateLimit, terminal.Overlay, BroadcastCell) exist at the stated paths.
+  - id: BR-15
+    disposition: addressed
+    note: |
+      pointerMode is exported with injected post/every/stop (viewer.js:271); pointermode.test.mjs drives setOn, the .pointer class, the hint, batch overlap, flush on pointerup and turning off mid-stroke; picked up by TestViewerNode's glob; removing end()'s flush(false) fails tests 3 and 4.
+  - id: BR-16
+    disposition: not-addressed
+    note: |
+      console_pointer.go:169 SetBlend call still has no couchtty test; Minor.
+```
