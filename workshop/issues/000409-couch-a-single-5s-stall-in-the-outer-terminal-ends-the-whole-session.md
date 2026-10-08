@@ -1,15 +1,25 @@
 ---
 id: 000409
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-07
 updated: 2026-10-07
-estimate_hours:
-card_mirror: 'f76904259515b8bb913f65a640aa8f722bed6702' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 2.87
+card_mirror: 'e76cc254e1d72dbf24de857823fcc31ba0b84458' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-07T21:52:21-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
+actual_hours: 1.80
 ---
 
-# couch: a single 5s stall in the outer terminal ends the whole session
+# couch: full-screen repaint per frame overruns a backgrounded terminal, and the resulting exit is silent
 
 ## Problem
 
@@ -52,7 +62,38 @@ Two independent changes:
 - Rerun the original scenario (couch in the background behind a browser, agent spinner running, capture on): repaint volume while idle drops by more than 10×. If couch still exits, the next start says why.
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000409-couch-a-single-5s-stall-in-the-outer-terminal-ends-the-whole-session-plan.md`.
+
+- [x] M1 — the exit says why: a recorded-exit kind in `crashreport`; couchcmd writes the parent-output `WriteFailure` reason, and the next start reports it once
+- [x] M2 — repaint only the rows that changed: #262's cheaper fast path in `HistoryRender.Emit` (unwrapped rows only), checked against the full rebuild with the xterm oracle, with bytes per idle minute measured
+
+## Estimate
+
+Items in plan order. M1: the `crashreport` recorded-exit kind and `RecordExit`,
+`terminal.ExitReason`, the console accessor with couchcmd's hook and its test, then
+docs and the milestone review. M2: `changedPlainRows` and the `Emit` fast path, the
+generative oracle test, the byte measurement, then docs and the close review.
+Design is v2 ×0.2 (the durable plan pre-resolves decisions); impl is 40% of v2
+(v3.1).
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module design=0.06 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.04 impl=0.2
+item: greenfield-go-module design=0.4 impl=0.32
+item: smaller-go-module design=0.06 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.04 impl=0.2
+design-buffer: 0.15
+total: 2.87
+```
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*
 
 ## Revisions
 
@@ -64,6 +105,43 @@ Two independent changes:
 ## Log
 
 ### 2026-10-07
+- 2026-10-07: closed — M1 closed SHIP (673162c8): recorded exit reason (crashreport Exited kind, terminal.ExitReason, Console.TerminalFailure = teardown's classification, couchcmd records after Run); tests incl. a real stalled parent and the stop-during-paint classification. M2 (reviewed at this close): HistoryRender row diff for frames changing only unwrapped rows (changedPlainRows). TestHistoryRowDiffEqualsFullRebuild: 80 seeds, 48 row-diffed / 32 refused, all equal to the full rebuild under the xterm oracle and (PAIR_TERMINAL_NATIVE=1) the native zellij oracle; mutations caught (gate removed: wrap flags diverge); TestChangedPlainRowsGate pins the gate; spinner tick 134 B vs 10,440 B full rebuild. Live (capture session-2858329706, c3440fcc): idle 120 writes/min, ~63 KB/min vs ~2 MB/min before (~32x); streaming 217-563 KB/min vs ~8.5 MB/min (15-35x); slowest write 2 ms. Forced Ghostty stall did not take effect (writes continued), so the live exit-reason check did not happen; that path rests on its tests. Full suite unsandboxed with PAIR_TERMINAL_ORACLE=1: only failures match origin/main (artifactpath set identical).; review verdict: SHIP
+
+- **M2 byte measurement** (`TestHistoryEmitSpinnerTickWritesOnlyTheChangedRow`,
+  191×52 plus chrome): one elapsed-time tick on the history path is **134 bytes**
+  with the row diff, against 10,440 bytes for the full rebuild of the same frame.
+  - The capture's full repaints were about 17 KB, because its rows were fuller.
+  - At the capture's idle rate (about 120 ticks a minute), parent output while
+    couch looks idle goes from about 2 MB a minute to about 16 KB a minute, a
+    reduction of more than 100×. This is computed, not measured live; the live
+    rerun with capture on is Done-when 3, for the operator.
+- **Live rerun (Done-when 3)** with `c3440fcc`, capture
+  `~/.local/share/pair/captures/session-2858329706`, 191×54. Couch ran in the
+  background behind a browser from 05:40 to 05:45 UTC on 2026-10-08, with an
+  agent's spinner selected.
+  - Rate: 120 to 122 host writes a minute, about 63 KB a minute (about 525 bytes
+    per write).
+  - Size: every write was under 1 KB except one full rebuild (new history) in six
+    minutes.
+  - Speed: the slowest write took 0.5 ms, and no write was short.
+  - Against the issue's capture (about 120 writes a minute at about 17 KB, so
+    about 2 MB a minute, with 50 to 230 ms per write before the stall): idle
+    volume is down about 32×, past the >10× target.
+- **Live while streaming** (same capture, 06:01–06:05 UTC, an active Claude
+  session selected): 337 to 593 host writes a minute at 217 to 563 KB a minute,
+  mostly row diffs under 1 KB. The slowest write took 2 ms. Against the issue's
+  about 500 writes a minute at about 17 KB (about 8.5 MB a minute), that is 15 to
+  35× lighter.
+- **Forced stall, not achieved.** Two attempts to freeze Ghostty
+  (`kill -STOP <pid>; sleep 8|30; kill -CONT`) did not take effect: the capture
+  shows writes continuing throughout, with no write blocked. The live check of the
+  recorded exit reason therefore did not happen. That path rests on its tests: a
+  real stalled parent produces the reason, the console's own classification
+  records it, and the next start reports it once.
+- **Generative check:** over 80 seeds, 48 took the row diff and 32 were refused
+  into the full rebuild. Every case matched the full rebuild under the xterm
+  oracle, and the row-diffed ones also matched under the native zellij oracle.
+- 2026-10-07: closed M1 — Round 1 FIX-THEN-SHIP fixed: BR-1 (rule: one classification) — teardown stores its filtered failure and Console.TerminalFailure returns exactly it; TestConsoleStopDuringPaintClassifiesJoinedFailure now asserts the exit reason is recorded iff a real host failure occurred (mutation returning the unfiltered presenter failure records a cancelled paint: caught). Minors: the Exited notice names the file (a panic during exit lands there); stall wording 'a write waited up to 5s' (no overclaim). M1: crashreport Exited kind + RecordExit + Summary, terminal.ExitReason, couchcmd recordConsoleExit after Run; tests TestRecordedExitIsReportedOnceWithItsReason, TestExitReason, TestAStalledParentReadsAsTheTerminalStopping, TestConsoleTerminalFailureIsRecordedAsTheExitReason; atlas updated. Affected packages pass unsandboxed except TestContinuationWriterPublishesExactCheckpointAcrossWorktrees (fails on main).; review verdict: SHIP
 
 - Filed from a brain-session crash investigation. The capture file is 1.2 GB and stays local; the excerpts above are the evidence. Also noted, not investigated: `wrap-events-1-pair-8.jsonl` is 647 MB.
 - Row diff was deliberately deferred in #262 (2026-09-17, with the operator) on the premise that a local terminal parses faster than a person types. That missed spinner/streaming repaints with no input from the operator (2–9/s), and a background, throttled Ghostty (50–230 ms per frame, then a 5s stall). The operator reports these exits always happen while not interacting with couch, which supports the throttling hypothesis.

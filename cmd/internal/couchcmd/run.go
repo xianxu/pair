@@ -37,6 +37,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/runtimebundle"
 	"github.com/xianxu/pair/cmd/internal/scrollbackcmd"
+	pairterminal "github.com/xianxu/pair/cmd/internal/terminal"
 	"github.com/xianxu/pair/cmd/internal/terminalcapture"
 	"github.com/xianxu/pair/cmd/internal/threadactivity"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
@@ -729,7 +730,18 @@ func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.S
 	if messages != nil {
 		defer messages.Close()
 	}
-	return console.Run()
+	code := console.Run()
+	recordConsoleExit(console.TerminalFailure())
+	return code
+}
+
+// recordConsoleExit leaves the reason a console ended on a failed write to
+// the terminal in this run's crash file, so the next start reports it once
+// (pair#409). The exit itself is deliberate; only its silence was wrong.
+func recordConsoleExit(failure error) {
+	if reason, ok := pairterminal.ExitReason(failure); ok {
+		_ = crashreport.RecordExit(reason)
+	}
 }
 
 // beginConsole attaches the startup child and, only once that has committed,
