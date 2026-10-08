@@ -1,12 +1,20 @@
 ---
 id: 000412
-status: open
+status: working
 deps: [pair#395]
 github_issue:
 created: 2026-10-08
 updated: 2026-10-08
 estimate_hours:
-card_mirror: '5489d1d7c2fab58d317bd3709998139f36264e27' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '64909a604af8ffe163e9692dbd5910ea7cce397a' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-08T09:21:13-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Couch broadcast: remote pointer link (tap and draw fading marks on the operator's screen)
