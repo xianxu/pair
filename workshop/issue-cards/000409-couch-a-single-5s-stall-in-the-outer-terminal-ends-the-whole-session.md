@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000409-couch-a-single-5s-stall-in-the-outer-terminal-ends-the-whole-session.md
         source_blob: c3c7b585811684aba99fc403cb783730a859853e
         destination: workshop/issues/000409-couch-a-single-5s-stall-in-the-outer-terminal-ends-the-whole-session.md
+        main_commit: 3d84cd5133544b1515845a505b25ef12fc028101
 ---
 
 # couch: a single 5s stall in the outer terminal ends the whole session
