@@ -60,6 +60,8 @@ func NormalizeNativeEvent(agent Agent, record []byte) ([]NativeEvent, EventDispo
 		return normalizeAgyEvent(record)
 	case AgentMuse:
 		return normalizeMuseEvent(record)
+	case AgentGrok:
+		return normalizeGrokEvent(record)
 	default:
 		return nil, EventNearMiss
 	}
@@ -385,4 +387,79 @@ func normalizeMuseEvent(record []byte) ([]NativeEvent, EventDisposition) {
 	default:
 		return nil, EventNearMiss
 	}
+}
+
+// grokMappedKinds are the ACP session-update kinds a Grok transcript turns into
+// causal events (measured on grok 1.0.46 TUI and headless sessions). Text is
+// retained only for the operator's prompt; round qualification matches it.
+var grokMappedKinds = map[string]NativeEventKind{
+	"user_message_chunk":  EventOperator,
+	"agent_message_chunk": EventAssistant,
+	"tool_call":           EventToolCall,
+	"tool_call_update":    EventToolResult,
+	"turn_completed":      EventTerminal,
+}
+
+// grokIgnoredKinds are ACP bookkeeping kinds: documented session updates that
+// carry no causal turn evidence. Listing them keeps the near-miss signal for
+// genuinely new shapes rather than for ordinary kinds a sample happened to
+// miss.
+var grokIgnoredKinds = map[string]bool{
+	"agent_thought_chunk":       true,
+	"plan":                      true,
+	"available_commands_update": true,
+	"current_mode_update":       true,
+	"config_option_update":      true,
+	"usage_update":              true,
+	"session_info_update":       true,
+}
+
+// normalizeGrokEvent reads one updates.jsonl record. Grok writes a whole
+// prompt — multi-line included — as one user_message_chunk (measured), so the
+// normalizer stays per-record and stateless.
+func normalizeGrokEvent(record []byte) ([]NativeEvent, EventDisposition) {
+	var envelope struct {
+		Method string `json:"method"`
+		Params struct {
+			Update map[string]json.RawMessage `json:"update"`
+		} `json:"params"`
+	}
+	if decodeStrictJSON(record, &envelope) != nil {
+		return nil, EventNearMiss
+	}
+	if envelope.Method != "session/update" && envelope.Method != "_x.ai/session/update" {
+		return nil, EventNearMiss
+	}
+	update := envelope.Params.Update
+	var kind string
+	if json.Unmarshal(update["sessionUpdate"], &kind) != nil {
+		return nil, EventNearMiss
+	}
+	if grokIgnoredKinds[kind] {
+		return nil, EventIgnored
+	}
+	eventKind, mapped := grokMappedKinds[kind]
+	if !mapped {
+		return nil, EventNearMiss
+	}
+	source := "grok." + kind
+	switch eventKind {
+	case EventOperator:
+		var content textBlock
+		if json.Unmarshal(update["content"], &content) != nil {
+			return nil, EventNearMiss
+		}
+		event, ok := nativeTextEvent(EventOperator, content.Text, source)
+		if !ok {
+			return nil, EventNearMiss
+		}
+		return []NativeEvent{event}, EventAccepted
+	case EventToolResult:
+		// A tool update that has not finished is progress noise, not a result.
+		var status string
+		if json.Unmarshal(update["status"], &status) != nil || (status != "completed" && status != "failed") {
+			return nil, EventIgnored
+		}
+	}
+	return []NativeEvent{{Kind: eventKind, SourceKind: source}}, EventAccepted
 }

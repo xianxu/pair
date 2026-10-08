@@ -216,6 +216,11 @@ func observationNativeID(agent Agent, artifact Artifact) string {
 		if ok && role == RoleRoot && artifact.StorageRoot == "qoder-projects" {
 			return id
 		}
+	case AgentGrok:
+		id, ok := grokPathFact(artifact.RelativePath)
+		if ok && artifact.StorageRoot == grokSessionsRoot {
+			return id
+		}
 	case AgentAgy:
 		if artifact.StorageRoot == "agy-conversations" {
 			id, _ := agyDatabasePathID(artifact.RelativePath)

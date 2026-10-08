@@ -1000,6 +1000,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/sessioninventory/scan.go",
 	"cmd/internal/sessioninventory/scan_agy.go",
 	"cmd/internal/sessioninventory/scan_codex.go",
+	"cmd/internal/sessioninventory/scan_grok.go",
 	"cmd/internal/sessioninventory/scan_helpers.go",
 	"cmd/internal/sessioninventory/scan_muse.go",
 	"cmd/internal/sessioninventory/scan_qoder.go",

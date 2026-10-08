@@ -14,13 +14,11 @@ import (
 // landed: the session-side list, scanner, event adapter, provider contract and
 // watcher membership land together in one milestone (the bring-up guide's item
 // 4), so the interim shape is "inventory wholly absent". Ledger membership is
-// NOT part of the gap: every launch encodes a ledger record for its agent, so a
-// registered agent the ledger rejects cannot launch at all (#410 M1). The
-// parity test asserts each gap is still exactly this shape, so the milestone
-// that closes it must delete the entry.
-var sessionInventoryKnownGaps = map[string]string{
-	"grok": "#410 M1: session-side list, scanner and watcher membership land together in M2",
-}
+// NOT part of a gap: every launch encodes a ledger record for its agent, so a
+// registered agent the ledger rejects cannot launch at all (#410). The parity
+// test asserts each gap is still exactly this shape, so the milestone that
+// closes it must delete the entry. Empty as of #410 M1.
+var sessionInventoryKnownGaps = map[string]string{}
 
 func TestAgentInventoryParityWithSessionTables(t *testing.T) {
 	for _, agent := range AgentInventory() {

@@ -34,7 +34,7 @@ type ObserveInput = WatcherInventory
 
 func SupportsAgent(agent string) bool {
 	switch agent {
-	case "claude", "codex", "agy", "muse", "qoder":
+	case "claude", "codex", "agy", "muse", "qoder", "grok":
 		return true
 	default:
 		return false

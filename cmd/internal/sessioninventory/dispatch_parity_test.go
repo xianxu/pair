@@ -225,6 +225,8 @@ func agentFixtureRoot(agent sessioninventory.Agent) string {
 		return "muse-sessions"
 	case sessioninventory.AgentQoder:
 		return "qoder-projects"
+	case sessioninventory.AgentGrok:
+		return "grok-sessions"
 	case sessioninventory.AgentAgy:
 		return "agy-brain"
 	}
@@ -241,6 +243,8 @@ func agentSchema(agent sessioninventory.Agent) string {
 		return "muse-v1"
 	case sessioninventory.AgentQoder:
 		return "qoder-v1"
+	case sessioninventory.AgentGrok:
+		return "grok-v1"
 	case sessioninventory.AgentAgy:
 		return "agy-transcript-v1"
 	}
@@ -249,7 +253,7 @@ func agentSchema(agent sessioninventory.Agent) string {
 
 func agentFixtureNativeID(agent sessioninventory.Agent) string {
 	switch agent {
-	case sessioninventory.AgentClaude, sessioninventory.AgentQoder:
+	case sessioninventory.AgentClaude, sessioninventory.AgentQoder, sessioninventory.AgentGrok:
 		return "11111111-1111-4111-8111-111111111111"
 	case sessioninventory.AgentCodex:
 		return "019d1111-1111-7111-8111-111111111111"
@@ -269,6 +273,8 @@ func agentFixtureRelative(agent sessioninventory.Agent) string {
 		return "2026/08/28/77777777-7777-4777-8777-777777777777/session.jsonl"
 	case sessioninventory.AgentQoder:
 		return "-repo/11111111-1111-4111-8111-111111111111.jsonl"
+	case sessioninventory.AgentGrok:
+		return "%2Frepo/11111111-1111-4111-8111-111111111111/updates.jsonl"
 	}
 	return ""
 }
@@ -283,6 +289,8 @@ func agentAppendRecord(agent sessioninventory.Agent, nativeID string) []byte {
 		return []byte(`{"type":"user","timestamp":"2026-08-28T09:02:00Z","sessionId":"` + nativeID + `","isSidechain":false}` + "\n")
 	case sessioninventory.AgentCodex:
 		return []byte(`{"timestamp":"2026-08-28T10:05:00Z","type":"event_msg","payload":{"type":"user_message","message":"next"}}` + "\n")
+	case sessioninventory.AgentGrok:
+		return []byte(`{"timestamp":1791400100,"method":"session/update","params":{"sessionId":"` + nativeID + `","update":{"sessionUpdate":"user_message_chunk","content":{"type":"text","text":"next"}}}}` + "\n")
 	case sessioninventory.AgentMuse:
 		return []byte(`{"payload_type":"agent.message","payload":{"kind":"text","run_id":"` + nativeID + `","text":"next","sender":"human"}}` + "\n")
 	}
