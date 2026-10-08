@@ -29,9 +29,18 @@ emoji it picks Apple Color Emoji. Found in the #412 smoke on 2026-10-08.
   only when such a symbol is on screen and all other text stays JetBrains Mono.
 - List it in the viewer's font stack after JetBrains Mono and before any emoji
   fallback.
-- Cover at least the symbols Couch and common agent output use: `⏸ ⏺ ⏵ ⏹ ⏳
-  ⏱ ↩ ✔ ✓ ✗ ⚠` (exact set decided from the font's coverage and a scan of
-  typical Claude Code output). Keep each glyph's width as Couch counts it.
+- **Coverage is a set, not two characters.** Agents hosted in Couch draw
+  with many symbols for their ASCII-art UI (bullets, spinners, arrows,
+  checkmarks, box and block elements). Expect fewer than 100 code points.
+  Derive the set reproducibly: scan recorded agent output (Pair's raw
+  scrollback recordings) for code points JetBrains Mono lacks, union them with
+  the symbols Couch draws itself (`⏸ ⏺ ⏵ ⏹ ⏳ ⏱ ↩ ✔ ✓ ✗ ⚠` and so on), and
+  keep those the chosen font covers. Check the result into the repository as a
+  list, with the script that produced it, so it can be regenerated as agents
+  change.
+- Subset the font to that list (fewer than 100 glyphs, a few KB as WOFF2) and
+  set `unicode-range` to exactly the list. Keep each glyph's width as Couch
+  counts it.
 - Optionally, also send the text-presentation selector (U+FE0E) for these
   symbols in the viewer. Measure whether it changes anything on iOS before
   keeping it.
@@ -45,6 +54,9 @@ emoji it picks Apple Color Emoji. Found in the #412 smoke on 2026-10-08.
   server test covers the route, and the page lint still allows no other
   origin.
 - A width test shows these symbols keep the column width Couch counts.
+- The code-point list and the script that derives it are checked in; the
+  vendored subset covers exactly that list (a test compares the font's cmap
+  with the list).
 
 ## Plan
 
@@ -56,3 +68,7 @@ emoji it picks Apple Color Emoji. Found in the #412 smoke on 2026-10-08.
 ### 2026-10-08
 
 - Filed from #412's smoke, kept out of #412 to avoid scope creep.
+- Operator: agents in Couch will use more such characters for ASCII art;
+  expect fewer than 100 code points. The spec now plans for a derived set
+  (scan of recorded agent output, plus Couch's own symbols) and a subset
+  font.
