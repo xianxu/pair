@@ -68,7 +68,11 @@ embedded in the binary. The viewer:
 - keeps the sender's grid and scales the font to fit (`nextFontSize`,
   node-tested via `TestViewerFit`);
 - sends nothing back and uses no storage;
-- on `end`, resets the screen and shows the reason.
+- on `end`, resets the screen and shows the reason, and never retries;
+- never leaves a dead connection looking live. `connect(deps)` is a state
+  machine, node-tested against a fake EventSource. A lost connection dims the
+  screen and says so; one closed for good is retried at 2, 4, 8, 15 and 30s,
+  and then the screen shows "Disconnected".
 
 `TestManualViewerServer` (`BROADCAST_MANUAL=1`) serves a sample broadcast on
 loopback for checking the page in a real browser.
@@ -81,8 +85,10 @@ loopback for checking the page in a real browser.
   200.
 - **Stop:** ends viewers at once. The listener (`Shutdown`, 2s) and the tunnel
   close in the background, and `Done` closes when they have.
-- **Ends on its own** when the hub ends (indicator hidden) or the tunnel exits
-  (`ErrTunnelExited`).
+- **Ends on its own** when the hub ends (indicator hidden), the tunnel exits
+  (`ErrTunnelExited`), or its HTTP server stops serving (`ErrServerFailed`).
+  The hub publishes its end reason before closing any viewer queue, so every
+  viewer is told the real reason.
 - **Cancelling a start** closes whatever was opened, including a tunnel that
   finishes opening after the cancel.
 
