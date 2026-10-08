@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000410-grok-harness-integration-for-pair-and-couch.md
         source_blob: 3058d266e957b5f05bef729ddbdf4d5c720a74b4
         destination: workshop/issues/000410-grok-harness-integration-for-pair-and-couch.md
+        main_commit: fcce4b21c9cbfc3c6203df98259d34c1d4c5f191
 ---
 
 # Grok harness integration for pair and couch
