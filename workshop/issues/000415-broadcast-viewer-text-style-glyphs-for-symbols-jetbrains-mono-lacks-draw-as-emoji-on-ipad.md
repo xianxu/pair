@@ -1,21 +1,22 @@
 ---
 id: 000415
-status: working
+status: codecomplete
 deps: [pair#412]
 github_issue:
 created: 2026-10-08
 updated: 2026-10-08
 estimate_hours:
-card_mirror: 'f89573f4925b0cdc02001040dbf9bf57b04f4bfb' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '46bd1c6f5fefbb33a7e69aafea5ee11d33f64d0e' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-08T12:59:16-07:00
 claimant:
     operator: T
     machine: 4716879978a7b90f6b583da1716fd0e9
     machine_name: Xian’s MacBook Pro
-    workspace: pair:6
-    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    workspace: pair:0
+    worktree: /Users/xianxu/workspace/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 0.67
 ---
 
 # Broadcast viewer: text-style glyphs for symbols JetBrains Mono lacks (⏸ ⏺ draw as emoji on iPad)
