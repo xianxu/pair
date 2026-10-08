@@ -36,6 +36,12 @@ type HubOptions struct {
 	After func(d time.Duration) (<-chan time.Time, func() bool)
 	// Ticks, when set, replaces the hub's own resync ticker.
 	Ticks <-chan time.Time
+	// PointerAfter is After for the pointer watch's grace; nil uses After.
+	PointerAfter func(d time.Duration) (<-chan time.Time, func() bool)
+	// OnPointerHidden is called when the armed pointer marker stayed off the
+	// operator's screen past the grace (#412). It runs on the hub goroutine:
+	// it must not block or call back into the hub.
+	OnPointerHidden func()
 }
 
 // watch is the indicator watch. Its transitions:
@@ -84,6 +90,21 @@ type Hub struct {
 	watch     watch
 	graceC    <-chan time.Time
 	stopGrace func() bool
+
+	// The pointer watch (#412): the same states as watch, for the active
+	// pointer marker. Hidden past the grace, it disarms and reports through
+	// OnPointerHidden; it never ends the hub.
+	pointerShown     bool
+	pointerWatch     watch
+	pointerGraceC    <-chan time.Time
+	stopPointerGrace func() bool
+
+	// current is the operator's latest frame: its geometry and class.
+	current struct {
+		geometry terminal.Geometry
+		class    terminal.FrameClass
+		ok       bool
+	}
 }
 
 // Subscription is one viewer's queue. Messages closes when the broadcast ends
@@ -125,6 +146,9 @@ func NewHub(opts HubOptions) *Hub {
 			t := time.NewTimer(d)
 			return t.C, t.Stop
 		}
+	}
+	if opts.PointerAfter == nil {
+		opts.PointerAfter = opts.After
 	}
 	h := &Hub{opts: opts, wake: make(chan struct{}, 1), reqs: make(chan func()), done: make(chan struct{}), subs: make(map[*Subscription]struct{})}
 	go h.run()
@@ -246,6 +270,14 @@ func (h *Hub) run() {
 			if h.watch == watchHidden {
 				h.end(ErrIndicatorHidden)
 			}
+		case <-h.pointerGraceC:
+			h.pointerGraceC = nil
+			if h.pointerWatch == watchHidden {
+				h.pointerWatch = watchOff
+				if h.opts.OnPointerHidden != nil {
+					h.opts.OnPointerHidden()
+				}
+			}
 		case <-tickC:
 			h.onTick()
 		}
@@ -271,6 +303,16 @@ func (h *Hub) takePending() {
 }
 
 func (h *Hub) accept(o offered) {
+	h.current.geometry, h.current.class, h.current.ok = o.frame.Geometry, o.class, true
+	h.pointerShown = PointerShown(o.frame)
+	switch {
+	case !h.pointerShown && h.pointerWatch == watchShown:
+		h.pointerWatch = watchHidden
+		h.pointerGraceC, h.stopPointerGrace = h.opts.PointerAfter(h.opts.Grace)
+	case h.pointerShown && h.pointerWatch == watchHidden:
+		h.pointerWatch = watchShown
+		h.disarmPointerGrace()
+	}
 	h.shown = IndicatorShown(o.frame)
 	switch {
 	case !h.shown && h.watch == watchShown:
@@ -361,6 +403,7 @@ func (h *Hub) end(reason error) {
 	if h.err != nil {
 		return
 	}
+	h.disarmPointerGrace()
 	h.err = reason
 	h.reason.Store(hubEnd{reason})
 	h.disarmGrace()
@@ -368,4 +411,43 @@ func (h *Hub) end(reason error) {
 		close(sub.c)
 	}
 	h.subs = nil
+}
+
+// ArmPointer starts the pointer watch, when pointing turns on: the active
+// pointer marker must be on the operator's screen, or return to it within the
+// grace. Idempotent while armed.
+func (h *Hub) ArmPointer() {
+	h.do(func() {
+		if h.pointerWatch != watchOff {
+			return
+		}
+		if h.pointerShown {
+			h.pointerWatch = watchShown
+		} else {
+			h.pointerWatch = watchHidden
+			h.pointerGraceC, h.stopPointerGrace = h.opts.PointerAfter(h.opts.Grace)
+		}
+	})
+}
+
+// DisarmPointer stops the pointer watch, when pointing turns off.
+func (h *Hub) DisarmPointer() {
+	h.do(func() {
+		h.pointerWatch = watchOff
+		h.disarmPointerGrace()
+	})
+}
+
+func (h *Hub) disarmPointerGrace() {
+	if h.stopPointerGrace != nil {
+		h.stopPointerGrace()
+	}
+	h.pointerGraceC, h.stopPointerGrace = nil, nil
+}
+
+// Current is the operator's latest frame geometry and class; ok is false
+// before any frame.
+func (h *Hub) Current() (g terminal.Geometry, class terminal.FrameClass, ok bool) {
+	h.do(func() { g, class, ok = h.current.geometry, h.current.class, h.current.ok })
+	return
 }

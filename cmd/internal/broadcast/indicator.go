@@ -50,3 +50,24 @@ func IndicatorShown(f terminal.Frame) bool {
 	}
 	return true
 }
+
+// pointerBackground is the cell background PointerSGR produces.
+var pointerBackground = ansi.IndexedColor(214)
+
+// pointerColumn is where Couch draws PointerLabel: right after LiveLabel and
+// one space.
+var pointerColumn = textwidthOf(LiveLabel) + 1
+
+// PointerShown reports whether f's last row shows the active pointer marker:
+// PointerLabel on the pointer background at pointerColumn, after LIVE. It is
+// the pointer's visible-capability check, as IndicatorShown is LIVE's (#412).
+func PointerShown(f terminal.Frame) bool {
+	cols, rows := f.Geometry.Cols, f.Geometry.Rows
+	if !IndicatorShown(f) || pointerColumn+2 > cols || len(f.Cells) != cols*rows {
+		return false
+	}
+	c := f.Cells[(rows-1)*cols+pointerColumn]
+	return c.Content == PointerLabel && c.Width == 2 && c.Style.Bg == pointerBackground
+}
+
+func textwidthOf(s string) int { return ansi.StringWidth(s) }
