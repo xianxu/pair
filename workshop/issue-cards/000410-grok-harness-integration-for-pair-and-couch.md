@@ -3,7 +3,7 @@ id: 000410
 status: working
 created: 2026-10-07
 updated: 2026-10-07
-estimate_hours:
+estimate_hours: 5.25
 github_issue:
 tracker:
     version: 1
