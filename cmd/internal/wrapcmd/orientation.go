@@ -218,17 +218,21 @@ func (p *proxy) orientationComposerActive(snapshot terminalSnapshot) bool {
 	return false
 }
 
+// promptGlyphAuthorities maps a harness to the ONE glyph set its Return
+// remap's recognizer also reads, so the recognizer and the orientation gate
+// cannot disagree about what a composer looks like.
+var promptGlyphAuthorities = map[string]map[string]bool{
+	"muse":  musePromptGlyphs,
+	"qoder": qoderPromptGlyphs,
+	"grok":  grokPromptGlyphs,
+}
+
 func orientationPromptOK(agent, content string) bool {
-	// Muse shares the Return remap's prompt authority (musePromptGlyphs) and
-	// Qoder shares qoderPromptGlyphs, so the two gates cannot disagree about
-	// what a composer looks like; the row-content guard below this call stays
-	// layered on top, and it is what keeps a menu from reading as a composer.
-	// Every other harness has one captured glyph.
-	if agent == "muse" {
-		return musePromptGlyphs[content]
-	}
-	if agent == "qoder" {
-		return qoderPromptGlyphs[content]
+	// The row-content guard below this call stays layered on top, and it is
+	// what keeps a menu from reading as a composer. Harnesses without a shared
+	// authority have one captured glyph.
+	if glyphs, ok := promptGlyphAuthorities[agent]; ok {
+		return glyphs[content]
 	}
 	prompt := map[string]string{"claude": "❯", "codex": "›", "agy": ">"}[agent]
 	return content == prompt

@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"context"
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"sync/atomic"
 	"time"
 
@@ -72,6 +73,33 @@ func (c *Console) awaitDown(s *broadcast.Session) {
 // SetBroadcast enables the broadcast control with this configuration. Without
 // it the tab bar never shows the cell and Ctrl+Alt+b only explains why.
 func (c *Console) SetBroadcast(cfg broadcast.Config) { c.broadcastCfg = &cfg }
+
+// BroadcastStatus is the broadcast as `couch --broadcast-list` reports it
+// (pair#413); false when none is running. Never the link: the status type has
+// no field for it. The viewer count is read after c.mu is released, so the
+// console lock never waits on the hub's loop.
+func (c *Console) BroadcastStatus() (couchmessage.BroadcastStatus, bool) {
+	c.mu.Lock()
+	phase, session := c.bcast.phase, c.bcast.session
+	c.mu.Unlock()
+	var state string
+	switch phase {
+	case broadcastStarting:
+		state = "starting"
+	case broadcastLive:
+		state = "live"
+	case broadcastStopping:
+		state = "stopping"
+	default:
+		return couchmessage.BroadcastStatus{}, false
+	}
+	status := couchmessage.BroadcastStatus{State: state}
+	if session != nil {
+		described := session.Status()
+		status.StartedAt, status.Mode, status.Viewers = described.StartedAt, described.Mode, described.Viewers
+	}
+	return status, true
+}
 
 // broadcastCellLocked is what the status row draws for the current phase.
 func (c *Console) broadcastCellLocked() BroadcastCell {

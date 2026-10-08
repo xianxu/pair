@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 )
@@ -27,6 +28,19 @@ type Response struct {
 	Actors      []Candidate
 	// Operation is a resume/reboot request's receipt (pair#367 M2).
 	Operation *OperationReceipt `json:",omitempty"`
+	// Broadcast answers broadcast-status (pair#413); nil means no broadcast.
+	Broadcast *BroadcastStatus `json:",omitempty"`
+}
+
+// BroadcastStatus is the running console's broadcast, as `couch
+// --broadcast-list` prints it (pair#413). It has no field for the link or its
+// token -- the token is the broadcast's only credential, so a listing can
+// never print it (operator decision).
+type BroadcastStatus struct {
+	State     string    `json:"state"`
+	StartedAt time.Time `json:"started_at,omitzero"`
+	Mode      string    `json:"mode,omitempty"`
+	Viewers   int       `json:"viewers"`
 }
 
 func validMessageID(id string) bool {
@@ -46,6 +60,15 @@ func ValidateRequest(r Request) error {
 			return errors.New("wrapper operation requires only an exact binding")
 		}
 		return r.Binding.Validate()
+	}
+	if r.Op == "broadcast-status" {
+		// The operator's query from any shell (pair#413): no conversation
+		// identity, no message fields. The socket's owner-only store is the
+		// access control, and the answer is read-only.
+		if r.Binding != nil || r.Scope != "" || r.Tag != "" || r.Session != "" || r.Nonce != "" || r.ID != "" || r.Target != "" || r.Body != "" || r.Agent != "" || r.Confirmed {
+			return errors.New("broadcast-status takes no fields")
+		}
+		return nil
 	}
 	if r.Binding != nil || r.Scope == "" || r.Tag == "" || r.Session == "" || r.Nonce == "" {
 		return errors.New("operation requires the calling conversation identity")

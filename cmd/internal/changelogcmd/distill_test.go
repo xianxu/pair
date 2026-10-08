@@ -280,6 +280,36 @@ func TestTrimLiveTail(t *testing.T) {
 	if got := trimLiveTail(meter, "claude"); !reflect.DeepEqual(got, content) {
 		t.Fatalf("context-meter footer: got %v", got)
 	}
+	// grok --minimal settled footer, rows verbatim from the frozen
+	// finished-turn capture (cmd/internal/wrapcmd/testdata/prompt-echo/grok/
+	// 1.0.46/echo.raw rendered 120x38): a hint row, the bare prompt, and the
+	// status row with its churning context meter. None matched an existing
+	// case, so the whole footer would leak into the anchor (#58 class, grok
+	// shape). The echo, the reply and "Worked for 2.0s" are committed content.
+	gcontent := []string{"❯ reply with just the word ok", "", "ok", "Worked for 2.0s"}
+	gfooter := append(append([]string{}, gcontent...),
+		"minimal · /help",
+		"❯",
+		"Grok 4.7 (high) · always-approve · 18K / 256K (7%) · ctrl+o transcript")
+	if got := trimLiveTail(gfooter, "grok"); !reflect.DeepEqual(got, gcontent) {
+		t.Fatalf("grok settled footer: got %q", got)
+	}
+	// While grok works, a braille spinner row sits above the hint row, and the
+	// meter's numbers change (captured in the driven runs).
+	gworking := append(append([]string{}, gcontent...),
+		"⠙ Waiting for response… 0.0s 0.0s ⇣1.36k",
+		"minimal · /help",
+		"❯",
+		"Grok 4.7 (high) · default · 1.4K / 256K (1%) · ctrl+o transcript")
+	if got := trimLiveTail(gworking, "grok"); !reflect.DeepEqual(got, gcontent) {
+		t.Fatalf("grok working footer: got %q", got)
+	}
+	// Prose that mentions the mode or a ratio is content, not footer.
+	for _, line := range []string{"minimal changes only", "We used 18K of the budget · roughly 7%"} {
+		if isFooterChrome(line, "❯") {
+			t.Errorf("grok footer case ate prose %q", line)
+		}
+	}
 	// qoder settled footer (M5 Task 17 live capture): none of these rows matched
 	// any case as of M4, so the whole volatile footer leaked into the anchor and
 	// locate found it flush with the tail on the next press → the new turn was

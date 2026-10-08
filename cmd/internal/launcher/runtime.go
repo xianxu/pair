@@ -277,17 +277,17 @@ type Runtime interface {
 // the launch environment (Env), the asset root (PairHome, for zellij/nvim/bin
 // paths + PAIR_HOME), and the two create-flow flags the shell reads from env.
 type LaunchOptions struct {
-	Args                 LaunchArgs
-	Env                  Env
-	PairHome             string
-	GlobalDataDir        string
-	ContinueCheckpoint   checkpoint.Checkpoint
-	RestartSession       string
-	RestartAttempt       RestartMarker
-	ContinueDoc          string // seed the draft to read this continuation (create-only)
-	ContinueText         string // seed the draft with generated continuation instructions
-	CodexAltScreenOptOut bool   // PAIR_CODEX_ALT_SCREEN=1: leave codex in alt-screen
-	ParkPromptTimeout    int    // PAIR_PARK_PROMPT_TIMEOUT (default 5): the quit park-nudge [y/N] bound
+	Args               LaunchArgs
+	Env                Env
+	PairHome           string
+	GlobalDataDir      string
+	ContinueCheckpoint checkpoint.Checkpoint
+	RestartSession     string
+	RestartAttempt     RestartMarker
+	ContinueDoc        string          // seed the draft to read this continuation (create-only)
+	ContinueText       string          // seed the draft with generated continuation instructions
+	InlineOptOut       map[string]bool // PAIR_<AGENT>_ALT_SCREEN=1: leave that agent in alt-screen (inlineModes)
+	ParkPromptTimeout  int             // PAIR_PARK_PROMPT_TIMEOUT (default 5): the quit park-nudge [y/N] bound
 
 	// #55 in-session compaction (#99 M5b). ContinueSlug != "" marks a `continue`
 	// launch; the rest come from the pane env + the (test-only) force/fake seams.

@@ -11,6 +11,7 @@ const (
 	ProviderMuseJSONLV1          ProviderContract = "muse-jsonl-v1"
 	ProviderAgyTranscriptJSONLV1 ProviderContract = "agy-transcript-jsonl-v1"
 	ProviderQoderJSONLV1         ProviderContract = "qoder-jsonl-v1"
+	ProviderGrokACPJSONLV1       ProviderContract = "grok-acp-jsonl-v1"
 )
 
 func ProviderContractFor(agent Agent, storageRoot, scannerSchema string) (ProviderContract, bool) {
@@ -26,6 +27,8 @@ func ProviderContractFor(agent Agent, storageRoot, scannerSchema string) (Provid
 		contract = ProviderAgyTranscriptJSONLV1
 	case agent == AgentQoder && storageRoot == "qoder-projects" && scannerSchema == "qoder-v1":
 		contract = ProviderQoderJSONLV1
+	case agent == AgentGrok && storageRoot == grokSessionsRoot && scannerSchema == grokSchema:
+		contract = ProviderGrokACPJSONLV1
 	}
 	return contract, contract != ""
 }

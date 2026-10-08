@@ -22,12 +22,12 @@ func consumeRepoDefaultPolicy(getenv func(string) string, unsetenv func(string) 
 
 func newLaunchOptions(args LaunchArgs, env Env, pairHome, dataDir string, useRepoDefault bool, getenv func(string) string, parkTimeout int) LaunchOptions {
 	return LaunchOptions{
-		Args:                 args,
-		Env:                  env,
-		PairHome:             pairHome,
-		GlobalDataDir:        dataDir,
-		CodexAltScreenOptOut: getenv("PAIR_CODEX_ALT_SCREEN") == "1",
-		ParkPromptTimeout:    parkTimeout,
+		Args:              args,
+		Env:               env,
+		PairHome:          pairHome,
+		GlobalDataDir:     dataDir,
+		InlineOptOut:      InlineOptOuts(getenv),
+		ParkPromptTimeout: parkTimeout,
 		// #55 compaction env, read from the pane (only consulted when a `continue`
 		// launch sets ContinueSlug below).
 		PairTag:          getenv("PAIR_TAG"),

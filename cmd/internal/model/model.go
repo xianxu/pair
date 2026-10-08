@@ -18,8 +18,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -36,6 +38,9 @@ const (
 	// `qoder --list-models` (#300 M4, 2026-09-21). A tier alias rather than a
 	// specific model id so the pin survives qoder's model-generation churn.
 	DefaultQoderModel = "Efficient"
+	// DefaultGrokModel is grok's fast tier, pinned live from `grok models`
+	// (#410, 2026-10-08; grok 1.0.46). Grok publishes no tier alias.
+	DefaultGrokModel = "grok-4.7-build-fast"
 )
 
 // Request is one model call.
@@ -47,7 +52,7 @@ const (
 // exactly as the original runAgyModel did. Fixing that is out of scope for the
 // #53 extraction; revisit if agy change-log quality suffers.
 type Request struct {
-	Agent           string        // "claude" | "codex" | "agy" | "muse" | "qoder"
+	Agent           string        // "claude" | "codex" | "agy" | "muse" | "qoder" | "grok"
 	Model           string        // "" → DefaultModel(Agent)
 	Prompt          string        // instructions / system prompt
 	Input           string        // content on stdin
@@ -75,6 +80,9 @@ func DefaultModel(agent string) string {
 	if agent == "qoder" {
 		return DefaultQoderModel
 	}
+	if agent == "grok" {
+		return DefaultGrokModel
+	}
 	return DefaultClaudeModel
 }
 
@@ -99,6 +107,8 @@ func Run(r Request) (string, error) {
 		return runAgy(r)
 	case "qoder":
 		return runQoder(r)
+	case "grok":
+		return runGrok(r)
 	case "muse":
 		if os.Getenv("OPENAI_API_KEY") != "" {
 			return runOpenAI(r)
@@ -156,6 +166,71 @@ func runQoder(r Request) (string, error) {
 	cmd.Env = append(os.Environ(), "PAIR_SLUG_NESTED=1")
 	out, err := cmd.Output()
 	return string(out), err
+}
+
+// runGrok invokes grok headless for summarization. Two measured grok 1.0.46
+// facts shape it: `-p` ignores stdin, so the instructions and the input travel
+// together in a prompt file; and grok has no way to skip persistence, so every
+// call leaves a session dir plus a prompt_history.jsonl line under
+// ~/.grok/sessions/<url-encoded resolved cwd>/. The slug fires at every turn
+// end, so that is unbounded residue unless removed. Each call therefore runs in
+// a fresh pair-owned temp dir (which also keeps the workspace's agent context
+// out), and afterwards removes exactly that dir's entry. The deletion target is
+// derived only from the directory pair just created, never from grok's output.
+// --max-turns 1 keeps a summarizer call from starting a tool loop.
+func runGrok(r Request) (string, error) {
+	dir, err := os.MkdirTemp("", "pair-model-grok-")
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(dir)
+	cwd, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return "", err
+	}
+	promptPath := filepath.Join(cwd, "prompt.txt")
+	if err := os.WriteFile(promptPath, []byte(r.Prompt+"\n\n"+r.Input), 0o600); err != nil {
+		return "", err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), r.timeout())
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "grok", "--prompt-file", promptPath, "-m", r.Model, "--max-turns", "1", "--no-subagents")
+	cmd.Dir = cwd
+	cmd.Env = append(os.Environ(), "PAIR_SLUG_NESTED=1")
+	out, runErr := cmd.Output()
+	if home, err := os.UserHomeDir(); err == nil {
+		if err := removeGrokSessionResidue(home, cwd); err != nil {
+			fmt.Fprintf(os.Stderr, "pair: grok session residue left in place: %v\n", err)
+		}
+	}
+	return string(out), runErr
+}
+
+// removeGrokSessionResidue removes ~/.grok/sessions/<url-encoded cwd>: the
+// directory grok persists a headless call's session and prompt history under.
+// It refuses anything that is not a plain directory directly under the
+// sessions root (a symlink is never followed), so a malformed cwd or a
+// planted entry cannot widen the deletion.
+func removeGrokSessionResidue(home, cwd string) error {
+	if !filepath.IsAbs(cwd) || filepath.Clean(cwd) == "/" {
+		return fmt.Errorf("refusing grok residue cleanup for cwd %q", cwd)
+	}
+	root := filepath.Join(home, ".grok", "sessions")
+	target := filepath.Join(root, url.PathEscape(filepath.Clean(cwd)))
+	if filepath.Dir(target) != root {
+		return fmt.Errorf("refusing grok residue %q outside %q", target, root)
+	}
+	info, err := os.Lstat(target)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("refusing grok residue %q: not a plain directory", target)
+	}
+	return os.RemoveAll(target)
 }
 
 // runMuse invokes `muse exec` for headless summarization. Setting Dir to

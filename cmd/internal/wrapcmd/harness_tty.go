@@ -104,6 +104,22 @@ var harnessTTYProfiles = map[string]harnessTTYProfile{
 		orientationPromptCol:        qoderPromptCol,
 		orientationRuleCellTolerant: true,
 	},
+	// Grok submits on bare CR and inserts a newline on Alt+Enter (its own
+	// shortcut sheet: "Shift+Enter or Alt+Enter — Insert newline"), so plain
+	// Return is translated into ESC CR. Grok only queries the Kitty keyboard
+	// flags (CSI ? u) and pushes none unless the terminal answers, so the
+	// legacy ESC-prefixed Alt+Enter is the encoding it parses.
+	"grok": {
+		keymap: sendKeymap{
+			plainCR: []byte{0x1b, '\r'},
+			altCR:   []byte{'\r'},
+			altBS:   []byte{0x15},
+		},
+		overlay:              detectGrokOverlayOpen,
+		composerGate:         composerGatePositive,
+		recognize:            grokComposerActive,
+		orientationPromptCol: grokPromptCol,
+	},
 }
 
 // profileForHarness returns a copy whose mutable keymap slices are the

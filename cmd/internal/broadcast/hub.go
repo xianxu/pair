@@ -240,6 +240,14 @@ func (h *Hub) do(f func()) {
 	}
 }
 
+// Viewers is how many viewers are subscribed now, read on the loop so it is a
+// consistent count (pair#413). A viewer resyncing after falling behind still
+// counts; an ended hub has none.
+func (h *Hub) Viewers() (n int) {
+	h.do(func() { n = len(h.subs) })
+	return n
+}
+
 // sync waits until the loop has processed everything offered so far.
 func (h *Hub) sync() { h.do(func() {}) }
 

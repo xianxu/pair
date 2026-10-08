@@ -371,8 +371,12 @@ end
 --            The qoder row is DERIVED from the qoderPromptGlyphs +
 --            qoderPromptCol authority in cmd/internal/wrapcmd/
 --            composer_recognizers.go and kept honest by
---            TestScrollbackQoderPatternTracksPromptAuthority (wrapcmd),
+--            TestScrollbackPatternsTrackPromptAuthority (wrapcmd),
 --            which fails on any drift.
+--   grok   — ❯ at column 0 in --minimal mode (the mode Pair runs it in),
+--            for the transcript echo and the live composer alike, like
+--            claude's. DERIVED from grokPromptGlyphs + grokPromptCol, pinned
+--            by the same TestScrollbackPatternsTrackPromptAuthority.
 -- Lookup falls back to claude's pattern so unknown agents still get a
 -- useful default.
 local PROMPT_PATTERN_BY_AGENT = {
@@ -381,6 +385,7 @@ local PROMPT_PATTERN_BY_AGENT = {
   agy    = [[\(──.*\n\)\zs>]],
   muse   = [[^>]],
   qoder  = [=[^ [*>]]=],
+  grok   = [=[^[❯]]=],
 }
 
 -- Adaptation flight recorder (atlas §3). Load the sibling emitter by this

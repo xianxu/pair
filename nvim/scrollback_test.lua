@@ -131,13 +131,22 @@ if vim and vim.api then
   -- in cmd/internal/wrapcmd/composer_recognizers.go), so the submitted echo
   -- renders as ` > text` — one leading space. `>` is the default-mode glyph,
   -- `*` the yolo glyph. The row's derivation from that Go authority is pinned
-  -- by TestScrollbackQoderPatternTracksPromptAuthority (wrapcmd).
+  -- by TestScrollbackPatternsTrackPromptAuthority (wrapcmd).
   test_agent_pattern('qoder', {
     " > hello",            -- 1: match
     " * yolo prompt",      -- 2: match (yolo glyph)
     "  > indented",        -- 3: no match (glyph must sit at column 1)
     "> flush left",        -- 4: no match (qoder indents its prompt)
   }, { true, true, false, false })
+
+  -- 4b. Grok pattern (--minimal): the submitted prompt is echoed as
+  -- `❯ text` at column 0 (grokPromptCol, captured in
+  -- testdata/prompt-echo/grok/1.0.46/echo.raw), like claude's.
+  test_agent_pattern('grok', {
+    "❯ reply with just the word ok",  -- 1: match (transcript echo)
+    "  ❯ indented",                    -- 2: no match (wrong column)
+    "minimal · /help",                 -- 3: no match (hint row)
+  }, { true, false, false })
 
   -- 5. Refresh helper: re-renders the backing .ansi file, reloads this buffer,
   -- strips ANSI escapes back to text, and preserves read-only viewer state.

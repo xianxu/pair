@@ -19,7 +19,7 @@ type SessionInventoryCLI struct{}
 // supportedAgents is the single per-agent list on the session side: CLI
 // --agent validation (validAgent), the usage line, and the default scan set
 // all derive from it.
-var supportedAgents = []Agent{AgentAgy, AgentClaude, AgentCodex, AgentMuse, AgentQoder}
+var supportedAgents = []Agent{AgentAgy, AgentClaude, AgentCodex, AgentMuse, AgentQoder, AgentGrok}
 
 // SupportedAgents returns the session-side agent inventory. Every per-agent
 // dispatch (scanner, provider contract, delta validator, event adapter,

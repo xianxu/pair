@@ -296,3 +296,30 @@ table.
   the loop. `TestPointerStressNoDeadlock` paints, posts and toggles together
   under `-race`.
 
+## Listing (`couch --broadcast-list`, pair#413)
+
+`couch --broadcast-list [--json]` prints the running couch's broadcast from any
+shell:
+- its state (starting, live or stopping);
+- when it started;
+- its mode (`tunnel` or `local-only`);
+- the viewers connected now.
+
+With no broadcast it prints `no broadcast`.
+
+**It never prints the link or its token** (operator decision: the token is the
+broadcast's only credential). `broadcast.Status` and
+`couchmessage.BroadcastStatus` have no field that could carry either, and
+`TestBroadcastListNeverPrintsTheLink` checks both formats against a real
+session's token.
+
+The path:
+1. The CLI sends a `broadcast-status` request to the broker socket, found
+   through the store, not a slot's identity.
+2. `messageService` answers it before any caller check, from
+   `Console.BroadcastStatus`.
+3. The viewer count is `Hub.Viewers`, read on the hub's loop, so the answer
+   comes from memory.
+
+It is the one identity-free broker op. The socket's directory is `0700` and
+owned by the uid, and the socket is `0600`, so only the operator can ask.

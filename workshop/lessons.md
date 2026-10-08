@@ -729,3 +729,26 @@ proof; record the surprising case so the next change starts from evidence.
   resize moved an existing mark onto the new last row, where the overlay
   tinted `LIVE ⏸` and would have tripped the broadcast's fail-safe. The
   overlay itself now refuses the last row, whatever put a mark there.
+- Every argv reader and editor sees only the flag region before the first
+  `--` (`resumeform.FlagRegion`). #410 BR-3/BR-6: the boundary was honored by
+  the inserter, ignored by the strippers (they ate prompt text), and ignored by
+  `hasFlag` (prompt text `--fork-session` suppressed the session-id mint). One
+  helper, every site routed through it, and a test that places every managed
+  spelling after `--` for every agent.
+- A launcher registry row implies ledger membership and the whole session side
+  in the same boundary. #410: every launch encodes a ledger record for its
+  agent, so "registered, session side pending" is not a launchable state; a
+  known-gap interim that only the parity test tolerates hides that the agent
+  cannot start.
+- Amend `## Done when` with a `## Revisions` entry the moment an item is
+  dropped or moved, not only in Log prose. #410's close review (BR-7) blocked
+  on three Done-when items the operator had moved to a follow-up in
+  conversation and the Log, because the contract itself still promised them.
+  Name where each item went (issue id) and add it to that issue's Done-when.
+- A test that drives input through an async gate must wait on the gate's own
+  view, not on a neighbour that updates first. #412's pointer tests posted a
+  point once the active marker was on the operator's screen, but the hub,
+  which admits points, sees that frame a moment later; under `-race` load the
+  point was dropped and the test hung. Retry the input until its effect shows
+  (a helper re-taps), and make a "dropped" test first prove the path accepts
+  input, so its drop can't be the race.

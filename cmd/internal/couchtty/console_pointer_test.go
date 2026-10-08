@@ -61,6 +61,30 @@ func postPoint(t *testing.T, link string, col, row int) int {
 	return resp.StatusCode
 }
 
+// tapUntilMarked posts a tap until its mark is on the operator's screen. A
+// point is dropped until the hub has seen a frame showing the active pointer
+// marker, which can trail the operator's screen by a moment, so a single post
+// right after the marker appears can be dropped; a helper would simply tap
+// again.
+func tapUntilMarked(t *testing.T, f *consoleFixture, link string, col, row int) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		if code := postPoint(t, link, col, row); code != http.StatusNoContent {
+			t.Fatalf("POST %d", code)
+		}
+		for range 5 {
+			if f.screenBg(col, row) == markTint {
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("no mark at %d,%d", col, row)
+		}
+	}
+}
+
 // pointerOnFixture is a live broadcast with pointing turned on by a click.
 func pointerOnFixture(t *testing.T, mutate func(*broadcast.Config)) (*consoleFixture, *broadcast.Session, string) {
 	t.Helper()
@@ -86,10 +110,7 @@ func TestPointerClickMarksOperatorAndViewers(t *testing.T) {
 	}
 	v := openViewer(t, s.Link())
 	before := len(bytes.Join(f.child.Writes(), nil))
-	if code := postPoint(t, link, 5, 3); code != http.StatusNoContent {
-		t.Fatalf("POST %d", code)
-	}
-	waitFor(t, "mark on the operator's screen", func() bool { return f.screenBg(5, 3) == markTint })
+	tapUntilMarked(t, f, link, 5, 3)
 	v.until("mark in the broadcast", func(string) bool {
 		c := v.emu.CellAt(5, 3)
 		return c != nil && c.Style.Bg == markTint
@@ -101,8 +122,7 @@ func TestPointerClickMarksOperatorAndViewers(t *testing.T) {
 
 func TestPointerToggleOffAndOnKeepsTheLink(t *testing.T) {
 	f, _, link := pointerOnFixture(t, nil)
-	postPoint(t, link, 5, 3)
-	waitFor(t, "mark", func() bool { return f.screenBg(5, 3) == markTint })
+	tapUntilMarked(t, f, link, 5, 3)
 	f.clickPointer(t, 0)
 	waitFor(t, "pointing off", func() bool { return f.pointerPhase() == pointerOff })
 	waitFor(t, "marks cleared", func() bool { return f.screenBg(5, 3) != markTint })
@@ -143,6 +163,14 @@ func TestRemoteClickIsANoticeOnly(t *testing.T) {
 
 func TestPointerDroppedWhileSwitcherOpen(t *testing.T) {
 	f, _, link := pointerOnFixture(t, nil)
+	// First prove points land, so the drop below is the switcher's doing;
+	// then let that mark fade.
+	tapUntilMarked(t, f, link, 9, 4)
+	waitFor(t, "probe mark faded", func() bool {
+		f.con.pmarks.mu.Lock()
+		defer f.con.pmarks.mu.Unlock()
+		return !f.con.pmarks.marks.Live(time.Now())
+	})
 	_, _ = f.stdin.Write([]byte{0})
 	waitFor(t, "switcher open", func() bool { f.con.mu.Lock(); defer f.con.mu.Unlock(); return f.con.focus.IsPanel() })
 	postPoint(t, link, 5, 3)
@@ -188,8 +216,7 @@ func TestPointerClippedTurnsOff(t *testing.T) {
 
 func TestPointerMarksFade(t *testing.T) {
 	f, _, link := pointerOnFixture(t, nil)
-	postPoint(t, link, 7, 2)
-	waitFor(t, "mark", func() bool { return f.screenBg(7, 2) == markTint })
+	tapUntilMarked(t, f, link, 7, 2)
 	deadline := time.Now().Add(broadcast.MarkLife + 3*time.Second)
 	// Fading steps through dimmer tints; gone means the default background.
 	for f.screenBg(7, 2) != nil {
@@ -202,8 +229,7 @@ func TestPointerMarksFade(t *testing.T) {
 
 func TestPointerEndsWithBroadcast(t *testing.T) {
 	f, _, link := pointerOnFixture(t, nil)
-	postPoint(t, link, 5, 3)
-	waitFor(t, "mark", func() bool { return f.screenBg(5, 3) == markTint })
+	tapUntilMarked(t, f, link, 5, 3)
 	f.clickStatus(1)
 	waitFor(t, "broadcast off", func() bool { return f.phase() == broadcastOff })
 	waitFor(t, "pointer forgotten", func() bool { return f.pointerPhase() == pointerNone })
@@ -270,8 +296,7 @@ func TestPointerStressNoDeadlock(t *testing.T) {
 func TestPointerOnTabBar(t *testing.T) {
 	f, _, link := pointerOnFixture(t, nil)
 	tab := broadcast.StatusGuardCols + 4
-	postPoint(t, link, tab, 23)
-	waitFor(t, "mark on the tab bar", func() bool { return f.screenBg(tab, 23) == markTint })
+	tapUntilMarked(t, f, link, tab, 23)
 	postPoint(t, link, 2, 23)
 	time.Sleep(100 * time.Millisecond)
 	if f.screenBg(2, 23) == markTint {

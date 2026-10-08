@@ -102,6 +102,9 @@ func artifactScannerShape(agent Agent, artifact Artifact) (string, ArtifactKind,
 	case AgentQoder:
 		_, _, _, ok := claudePathFact(artifact.RelativePath)
 		return "qoder-v1", ArtifactTranscript, ok && artifact.StorageRoot == "qoder-projects"
+	case AgentGrok:
+		_, ok := grokPathFact(artifact.RelativePath)
+		return grokSchema, ArtifactTranscript, ok && artifact.StorageRoot == grokSessionsRoot
 	case AgentAgy:
 		if artifact.StorageRoot == "agy-conversations" {
 			_, ok := agyDatabasePathID(artifact.RelativePath)
@@ -144,6 +147,8 @@ func ValidateTargetWork(runtime Runtime, agent Agent, eligible []ArtifactObserva
 			state, found, err = ValidateMuseDelta(observation.Entry, nil, observed.Records)
 		case AgentQoder:
 			state, found, err = ValidateQoderDelta(observation.Entry, nil, observed.Records)
+		case AgentGrok:
+			state, found, err = ValidateGrokDelta(observation.Entry, nil, observed.Records)
 		default:
 			err = fmt.Errorf("unsupported agent for target validation: %s", agent)
 			diagnostics = append(diagnostics, artifactDiagnostic(DiagnosticSchemaNearMiss, agent, nil, observation.Entry.Artifact, "unsupported agent for target validation"))
@@ -207,6 +212,8 @@ func AdvanceTargetValidation(runtime Runtime, prior TargetValidation, current []
 		state, diagnostics, err = ValidateMuseDelta(observation.Entry, &state, observed.Records)
 	case AgentQoder:
 		state, diagnostics, err = ValidateQoderDelta(observation.Entry, &state, observed.Records)
+	case AgentGrok:
+		state, diagnostics, err = ValidateGrokDelta(observation.Entry, &state, observed.Records)
 	default:
 		err = fmt.Errorf("unsupported agent for advance validation: %s", state.Agent)
 		diagnostics = append(diagnostics, artifactDiagnostic(DiagnosticSchemaNearMiss, state.Agent, nil, observation.Entry.Artifact, "unsupported agent for advance validation"))

@@ -924,6 +924,13 @@ var qoderPickerMarkers = []string{
 }
 
 func detectQoderOverlayOpen(p *proxy, data, rolling []byte) (bool, string) {
+	return detectRawCarryOverlay(p, data, qoderPickerMarkers)
+}
+
+// detectRawCarryOverlay scans the proxy-owned raw carry plus this chunk for
+// markers. Qoder and Grok share it: both paint pickers whose marker strings a
+// chunk boundary can cut inside an escape sequence.
+func detectRawCarryOverlay(p *proxy, data []byte, markers []string) (bool, string) {
 	// The raw haystack is byte-contiguous, so a chunk boundary inside an
 	// escape sequence cannot corrupt it the way per-chunk stripping can. This
 	// is not hypothetical: replaying selection.raw split 6426/6616 cut the
@@ -943,7 +950,7 @@ func detectQoderOverlayOpen(p *proxy, data, rolling []byte) (bool, string) {
 	// off its own consumed bytes (BR-28).
 	if p != nil {
 		haystack := append(append([]byte(nil), p.overlayRawTail...), data...)
-		open, reason := detectQoderOverlayText(stripTerminalControls(haystack))
+		open, reason := firstMarker(stripTerminalControls(haystack), markers)
 		if len(haystack) > rollingTailLen {
 			haystack = haystack[len(haystack)-rollingTailLen:]
 		}
@@ -952,11 +959,41 @@ func detectQoderOverlayOpen(p *proxy, data, rolling []byte) (bool, string) {
 			return true, reason
 		}
 	}
-	return detectQoderOverlayText(p.overlayVisible(data))
+	return firstMarker(p.overlayVisible(data), markers)
 }
 
 func detectQoderOverlayText(visible string) (bool, string) {
 	return firstMarker(visible, qoderPickerMarkers)
+}
+
+// grokPickerMarkers are verbatim strings from Grok's --minimal picker chrome,
+// captured live in grok/1.0.46. Each picker is painted twice: a first paint
+// with real spaces, then repaints that place each word at an absolute column,
+// so the stripped text glues them (the qoder shape). Both spellings are
+// markers. Every one is picker furniture — the arrows, the parenthetical, the
+// free-text row's placeholder — rather than prose an agent might write (the
+// qoder BR-38 rule).
+//
+// The permission picker (overlay.raw, a `--permission-mode default` Bash
+// approval) carries a scope hint row and a reject option. The question picker
+// (selection.raw, the ask-user tool) paints no key-hint footer in minimal
+// mode; its free-text option row is the stable chrome. Plain Enter must
+// confirm the highlighted choice on both.
+var grokPickerMarkers = []string{
+	"← → narrow scope",
+	"←→ narrow scope",
+	"No, reject (type to add feedback)",
+	"No,reject(typetoaddfeedback)",
+	"Type your answer here",
+	"Typeyouranswerhere",
+}
+
+func detectGrokOverlayOpen(p *proxy, data, rolling []byte) (bool, string) {
+	return detectRawCarryOverlay(p, data, grokPickerMarkers)
+}
+
+func detectGrokOverlayText(visible string) (bool, string) {
+	return firstMarker(visible, grokPickerMarkers)
 }
 
 func stripTerminalControls(raw []byte) string {
@@ -1408,7 +1445,7 @@ var holdbackPatterns = [][]byte{
 // completed into a known marker. Real terminals dispatch chorded
 // keystrokes (Alt+Enter, KKP CSI sequences) in microseconds, so 30 ms
 // safely catches a split chord. A standalone ESC (e.g. nvim's
-// send_esc_to_agent writes a lone \x1b for "interrupt the agent") waits
+// send_interrupt_to_agent writes a lone \x1b for "interrupt the agent") waits
 // at most this long before being flushed verbatim to the child.
 const pendingFlushAfter = 30 * time.Millisecond
 
@@ -2695,6 +2732,7 @@ argsDone:
 	}
 
 	p.agentBasename = filepath.Base(argv[0])
+	p.notificationRewriter.BellAttention = bellAttentionHarnesses[p.agentBasename]
 	childEnv := withoutOrientation(os.Environ())
 	if fromLaunchEnv {
 		request, clean, err := consumeOrientation(os.Environ(), p.agentBasename)

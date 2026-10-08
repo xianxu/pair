@@ -21,7 +21,11 @@ func TestLiveJSONLProviderBehaviorMatchesStatefulFake(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, agent := range []sessioninventory.Agent{sessioninventory.AgentClaude, sessioninventory.AgentCodex, sessioninventory.AgentMuse, sessioninventory.AgentQoder} {
+	// Every JSONL provider: agy's SQLite store has its own append-state check.
+	for _, agent := range sessioninventory.SupportedAgents() {
+		if agent == sessioninventory.AgentAgy {
+			continue
+		}
 		agent := agent
 		t.Run(string(agent), func(t *testing.T) {
 			observations, diagnostics := sessioninventory.ObserveAgentMetadata(runtime, agent)

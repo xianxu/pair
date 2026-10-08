@@ -394,6 +394,36 @@ func TestOSRuntimeAgentSessionExistsFindsQoderTranscript(t *testing.T) {
 	}
 }
 
+// Grok's transcript is <url-encoded cwd>/<uuid>/updates.jsonl under
+// ~/.grok/sessions; a session directory with only summary.json (a stub) is not
+// a conversation.
+func TestOSRuntimeAgentSessionExistsFindsGrokTranscript(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	sid := "12345678-1234-4234-8234-123456789abc"
+	dir := filepath.Join(home, ".grok", "sessions", "%2Frepo", sid)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "summary.json"), []byte(`{"info":{"id":"`+sid+`"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if (OSRuntime{}).AgentSessionExists("grok", sid, "/repo") {
+		t.Fatal("AgentSessionExists(grok) accepted a stub session with no updates.jsonl")
+	}
+	first := fmt.Sprintf(`{"timestamp":1791400000,"method":"session/update","params":{"sessionId":%q,"update":{"sessionUpdate":"user_message_chunk","content":{"type":"text","text":"sanitized"}}}}`+"\n", sid)
+	if err := os.WriteFile(filepath.Join(dir, "updates.jsonl"), []byte(first), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !(OSRuntime{}).AgentSessionExists("grok", sid, "/repo") {
+		t.Fatal("AgentSessionExists(grok) did not find the transcript")
+	}
+	t.Setenv("HOME", t.TempDir())
+	if (OSRuntime{}).AgentSessionExists("grok", sid, "/repo") {
+		t.Fatal("AgentSessionExists(grok) accepted an empty native root")
+	}
+}
+
 func TestOSRuntimeSessionNameIndexStore(t *testing.T) {
 	dataDir := t.TempDir()
 	rt := NewOSRuntime(dataDir, "/pair")
@@ -770,7 +800,14 @@ func TestParkScrollbackPreservesSelectedAliasInReturnedBase(t *testing.T) {
 // Exercise the native metadata adapter, ledger reader and Alt+n marker together.
 func TestOSLedgerChosenRestartUsesOnlyMaterializedRoot(t *testing.T) {
 	const id = "11111111-1111-4111-8111-111111111111"
-	for _, agent := range []string{"claude", "qoder"} {
+	nativePath := map[string]func(home string) string{
+		"claude": func(home string) string { return filepath.Join(home, ".claude", "projects", "-repo", id+".jsonl") },
+		"qoder":  func(home string) string { return filepath.Join(home, ".qoder", "projects", "-repo", id+".jsonl") },
+		"grok": func(home string) string {
+			return filepath.Join(home, ".grok", "sessions", "%2Frepo", id, "updates.jsonl")
+		},
+	}
+	for agent, nativeAt := range nativePath {
 		t.Run(agent, func(t *testing.T) {
 			home, data := t.TempDir(), t.TempDir()
 			t.Setenv("HOME", home)
@@ -781,7 +818,7 @@ func TestOSLedgerChosenRestartUsesOnlyMaterializedRoot(t *testing.T) {
 			if err := os.WriteFile(filepath.Join(data, "ledger-work.jsonl"), append(launch, '\n'), 0600); err != nil {
 				t.Fatal(err)
 			}
-			native := filepath.Join(home, "."+agent, "projects", "-repo", id+".jsonl")
+			native := nativeAt(home)
 			for _, present := range []bool{false, true} {
 				if present {
 					if err := os.MkdirAll(filepath.Dir(native), 0700); err != nil {

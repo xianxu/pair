@@ -89,7 +89,7 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 		switch args[0] {
 		case "--adopt-store":
 			return parseAdoptionCLI(args)
-		case "--actors", "--send-to", "--message-status", "--skill", "--resume", "--reboot", "--reap", "--recover":
+		case "--actors", "--send-to", "--message-status", "--skill", "--resume", "--reboot", "--reap", "--recover", "--broadcast-list":
 			return parseMessageCLI(args)
 		}
 	}
@@ -284,6 +284,11 @@ func parseMessageCLI(args []string) (cliInvocation, error) {
 			return bad()
 		}
 		return cliInvocation{kind: cliMessage, messageOp: "actors", jsonOutput: len(args) == 2}, nil
+	case "--broadcast-list":
+		if len(args) != 1 && !(len(args) == 2 && args[1] == "--json") {
+			return bad()
+		}
+		return cliInvocation{kind: cliMessage, messageOp: "broadcast-status", jsonOutput: len(args) == 2}, nil
 	case "--message-status":
 		if (len(args) != 2 && !(len(args) == 3 && args[2] == "--json")) || args[1] == "" || strings.HasPrefix(args[1], "-") {
 			return bad()
