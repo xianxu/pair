@@ -194,10 +194,16 @@ Viewers see the operator's colours and font.
   cloudflared PIDs with `procutil.StrictIdentity`. A named tunnel's record has
   a fixed name, `named-<tunnel>.json`, and is its lock (`ErrTunnelBusy`): two
   connectors of one tunnel are replicas, and Cloudflare would split viewers
-  between two tokens. `ReapOrphans` (at Couch startup and before each open)
-  acts only on records whose owner is dead. It kills a process only if its
-  identity and command match, and removes a directory only if it is a
-  `couch-broadcast-` private directory.
+  between two tokens. Reaping and claiming run under one `flock` on the
+  records directory, so two Couches starting together can't both take a
+  stale lock. `ReapOrphans` (at Couch startup and before each open) acts only
+  on records whose owner is dead; a record without an owner identity is
+  cleared when its owner PID is gone, with nothing killed. It kills a process only if its
+  identity and command match. It removes a directory only if it sits directly
+  in the run directory, carries the `couch-broadcast-` prefix, and is a real
+  0700 directory, not a symlink. The quick-tunnel URL pattern requires the
+  hyphenated random host, so cloudflared's API host in a failure line never
+  passes for a tunnel, and the probe gives up as soon as the tunnel exits.
 - **Conformance:** `TestCloudflaredLive` (`BROADCAST_LIVE_CLOUDFLARED=1`,
   `BROADCAST_LIVE_NAMED=<tunnel>@<hostname>`) runs the real binary end to end.
   Rerun it after any cloudflared upgrade. Measured with 2026.7.3: named link
