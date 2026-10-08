@@ -19,6 +19,6 @@ tracker:
         main_commit: 3d84cd5133544b1515845a505b25ef12fc028101
 ---
 
-# couch: a single 5s stall in the outer terminal ends the whole session
+# couch: full-screen repaint per frame overruns a backgrounded terminal, and the resulting exit is silent
 
 ## Problem
