@@ -35,7 +35,12 @@ broadcast ships first.
 
 ## Plan
 
-- [ ]
+- [ ] Decide the cipher and framing (AES-GCM per SSE payload, fresh nonce per
+      frame) and how the fragment carries the key (base64url, never sent)
+- [ ] Encrypt in the hub's delivery path behind an opt-in; decrypt in the
+      viewer with WebCrypto before `term.write`
+- [ ] Tests: a capture of the stream holds no plaintext frame bytes; a wrong or
+      missing key shows an error
 
 ## Log
 

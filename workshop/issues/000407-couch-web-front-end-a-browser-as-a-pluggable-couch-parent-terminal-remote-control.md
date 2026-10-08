@@ -41,11 +41,19 @@ Open questions raised in #395's discussion:
 
 ## Done when
 
--
+- A remote helper granted control (a separate grant from any view-only link,
+  with the operator's explicit approval) can type into the operator's Couch
+  from a browser, and the operator can revoke it at once.
+- A #395 view-only link can never send input, shown by a test.
+- Control requires authentication stronger than a capability link (SSO or
+  Cloudflare Access), shown by a test of the refusal without it.
 
 ## Plan
 
-- [ ]
+- [ ] Reconcile with #121 (remote Pair control relay) and settle the trust
+      model: grant, approval, revocation, authentication
+- [ ] Measure browser keyboard fidelity for Couch's enhanced chords (#279)
+- [ ] Design the control transport (WebSocket on its own URL) over the #395 hub
 
 ## Log
 
