@@ -15,7 +15,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "2ca728e3", done: "7f68d96c"}
+flow: {kind: quick, provenance: inferred, spec: "fb0f9114", done: "39ada342"}
 ---
 
 # Turn-end text flashes at focused pane cursor
