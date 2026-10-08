@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000413-couch-broadcast-list.md
         source_blob: 921b6e9d8e7e788e341f14044e35dd0f5774ef00
         destination: workshop/issues/000413-couch-broadcast-list.md
+        main_commit: f904c1172c6bb4e2093bfef4e494e0dc0c6c26bb
 ---
 
 # couch --broadcast-list: print the current broadcast session and its viewer count
