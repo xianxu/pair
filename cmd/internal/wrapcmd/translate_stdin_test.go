@@ -127,7 +127,7 @@ func TestTranslateStdin_RewritesEnter(t *testing.T) {
 
 // TestTranslateStdin_HeldBackEscFlushesAfterTimeout is the core
 // invariant from commit 6b657e4. A lone \x1b on stdin (e.g. nvim's
-// send_esc_to_agent writes a bare ESC for "interrupt the agent")
+// send_interrupt_to_agent writes a bare ESC for "interrupt the agent")
 // gets held back as agentPending — there's no way to know in advance
 // whether more bytes are coming to form an Alt+Enter chord or a CSI.
 // After `pendingFlushAfter` of idle time, the timer fires and the

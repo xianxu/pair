@@ -164,7 +164,7 @@ one-line description can't carry.
 | **Alt+n** / **Alt+Shift+N** (or **]m** / **[m**) | review buffer (normal) | Next / previous 🤖 marker, wrapping, including human comments. These local actions override restart behavior while reviewing, including under Couch. |
 | **gl** / **Ctrl+w d**, **]d** / **[d** | review buffer (normal) | Open the diagnostic explanation, or move to the next / previous diagnostic. |
 | **Shift+Alt+d** | review pane (visual) | Define the selected term inline. The pair agent answers through `pair review definition`, and the pane stores the result as a durable footnote. |
-| **Ctrl+C** | nvim (normal/insert) | Send ESC (0x1b) to the agent pane — interrupts claude's in-flight stream without leaving the draft |
+| **Ctrl+C** | nvim (normal/insert) | Interrupt the agent's in-flight turn without leaving the draft: sends ESC (0x1b) to the agent pane, or Ctrl+C (0x03) for Grok, which cancels on Ctrl+C and treats ESC as input |
 | **Alt+←** / **Alt+→** | nvim (normal/insert) | Walk through prompt history (`-N`) and queued prompts (`+N`) one slot at a time. |
 | **Alt+↑** / **Alt+↓** | draft only | Step the draft along a `minimized` ↔ `12 lines` ↔ `1/3` ladder one rung at a time. Minimizing focuses the agent; click the draft to grow it again. |
 | **Alt+i** | nvim (normal/insert) | Attach clipboard image to the agent and insert anchor text at cursor location |

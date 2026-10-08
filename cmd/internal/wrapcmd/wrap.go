@@ -1445,7 +1445,7 @@ var holdbackPatterns = [][]byte{
 // completed into a known marker. Real terminals dispatch chorded
 // keystrokes (Alt+Enter, KKP CSI sequences) in microseconds, so 30 ms
 // safely catches a split chord. A standalone ESC (e.g. nvim's
-// send_esc_to_agent writes a lone \x1b for "interrupt the agent") waits
+// send_interrupt_to_agent writes a lone \x1b for "interrupt the agent") waits
 // at most this long before being flushed verbatim to the child.
 const pendingFlushAfter = 30 * time.Millisecond
 
