@@ -86,3 +86,86 @@ dispose:
     note: |
       console_pointer_test.go has no blend/truecolor assertion; SetBlend at console_pointer.go:169 stays unpinned.
 ```
+
+---
+
+## Re-review — 2026-10-08T12:52:23-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 412 — Couch broadcast: remote pointer link (tap and draw fading marks on the operator's screen) |
+| repo | pair |
+| issue file | workshop/issues/000412-couch-broadcast-remote-pointer-link-tap-and-draw-fading-marks-on-the-operator-s-screen.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 7d1e4441d026b584f8efd72ebb221f268997842b..b4ac23aec8214d51375dece9dee94c23eda39f66 |
+| command | sdlc close --issue 412 |
+| reviewer | claude |
+| timestamp | 2026-10-08T12:52:23-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+Round 9 passed with SHIP at `d73e5ba5`. Since then the window has added three commits: the close commit, the card mirror, and a merge of main (#410, #413). Main's #413 changes (`Hub.Viewers`, `Session.Status`, `Console.BroadcastStatus`) sit alongside the #412 pointer code without touching its state. `BroadcastStatus` reads `c.bcast.phase` and session under `c.mu`, and only then calls the hub, after the lock is released. The merge commit also changes #412's pointer tests. The merged load exposed a race: a test posted a point before the hub had seen the frame with the active-pointer marker. The fix is a `tapUntilMarked` helper, and the switcher-drop test now first proves that points land. This is a correct test fix, not a hidden product bug. Dropping points until the hub's last frame shows the marker is the documented consent rule (`atlas/broadcast.md:242`), and a real viewer recovers by tapping again. Tests are green: broadcast in full, the couchtty Pointer/Broadcast/Remote tests run 3 times, and the terminal Overlay/Oracle tests. The other couchtty and terminal failures are the sandbox blocking pty-child tests, a known environment issue. All six open findings are Minor and none was touched in this window, so none blocks.
+
+1. **Strengths**
+   - `console_pointer_test.go:64` `tapUntilMarked` waits on the observable outcome (the mark tint on the operator's screen) rather than a sleep, and is bounded by a 3s deadline.
+   - `TestPointerDroppedWhileSwitcherOpen` now first proves that points land and waits for `Marks.Live` to go false. That makes the drop assertion causal: without the probe, the test could pass because no point ever lands.
+   - The merge kept #413's rule that the link never appears in a status: `Status` has no field that could carry the link or its token.
+   - The documented consent rule (a point is dropped unless the hub's last frame shows the active marker) matches the race the merge exposed.
+
+2. **Critical findings:** none.
+
+3. **Important findings:** none.
+
+4. **Minor findings**
+   - The race fix is in the merge commit (`b4ac23ae`), not in its own `#412:` commit. It is still discoverable through the merge message, but a separate commit is the cleaner pattern.
+   - Open findings BR-1, 5, 6, 11, 12 and 16 are unchanged; see the dispositions below.
+
+5. **Test coverage notes:** The pointer tests now tolerate the timing gap between the operator's screen and the hub, which is the right place for that tolerance. Still unpinned: the `SetBlend` wiring (BR-16) and the viewer loading the Unicode 11 add-on (BR-6).
+
+6. **Architectural notes**
+   - **ARCH-DRY:** pass.
+   - **ARCH-PURE:** pass. Marks, PointerState and the point parser are pure, and their tests do no IO.
+   - **ARCH-PURPOSE:** pass.
+   - **ARCH-MOCK:** pass. Viewer tests use the stateful emulator and real HTTP; no new external dependency.
+   - **ARCH-CONSTRAINTS:** pass. Rate limits, caps and read deadlines are unchanged.
+   - **ARCH-SECURE:** pass. The merged `Status` cannot represent the token.
+   - **ARCH-ORDER:** BR-11 is still open; the session-layer generation fix (BR-9) holds.
+   - **ARCH-FUNERAL:** BR-12 is still open. It is harmless today but does not meet the plan's stated lifetimes contract.
+   - BR-11 and BR-12 are worth folding into whichever issue next touches `console_broadcast.go`.
+
+7. **Plan revision recommendations:** none new.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      Plan unchanged in this window; tasks still enumerate test cases in prose. Minor, doc-only.
+  - id: BR-5
+    disposition: not-addressed
+    note: |
+      marks_test.go:216 still ends with var _ = terminal.FramePrivate.
+  - id: BR-6
+    disposition: not-addressed
+    note: |
+      No test references Unicode11Addon in tests/broadcast-viewer or the broadcast Go tests.
+  - id: BR-11
+    disposition: not-addressed
+    note: |
+      startBroadcast still binds the pointer callbacks without capturing the attempt; applyPoints and pointerOffByWatch never check it.
+  - id: BR-12
+    disposition: not-addressed
+    note: |
+      endBroadcastForShutdown (console_broadcast.go:266) and the SetTap-failure branch (line 200) still skip detachBroadcastScreen.
+  - id: BR-16
+    disposition: not-addressed
+    note: |
+      No couchtty test asserts the pointer SetBlend wiring; the only blend tests cover the idle shade.
+```

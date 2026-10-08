@@ -275,6 +275,36 @@ rounds:
           round: 9
       recipe: milestone-review
       blocked: false
+    - "n": 10
+      timestamp: "2026-10-08T12:52:24-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: Plan unchanged in this window; tasks still enumerate test cases in prose. Minor, doc-only.
+          round: 10
+        - id: BR-5
+          disposition: not-addressed
+          note: marks_test.go:216 still ends with var _ = terminal.FramePrivate.
+          round: 10
+        - id: BR-6
+          disposition: not-addressed
+          note: No test references Unicode11Addon in tests/broadcast-viewer or the broadcast Go tests.
+          round: 10
+        - id: BR-11
+          disposition: not-addressed
+          note: startBroadcast still binds the pointer callbacks without capturing the attempt; applyPoints and pointerOffByWatch never check it.
+          round: 10
+        - id: BR-12
+          disposition: not-addressed
+          note: endBroadcastForShutdown (console_broadcast.go:266) and the SetTap-failure branch (line 200) still skip detachBroadcastScreen.
+          round: 10
+        - id: BR-16
+          disposition: not-addressed
+          note: No couchtty test asserts the pointer SetBlend wiring; the only blend tests cover the idle shade.
+          round: 10
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#412 (boundary-review)
@@ -395,6 +425,17 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-11 — not-addressed — console_broadcast.go:117-122 still binds c.onPoints/c.pointerOffByWatch without capturing the attempt; applyPoints and pointerOffByWatch never check the generation.
 - BR-12 — not-addressed — endBroadcastForShutdown (console_broadcast.go:238) and the SetTap-failure branch of broadcastStarted still skip detachBroadcastScreen.
 - BR-16 — not-addressed — console_pointer_test.go has no blend/truecolor assertion; SetBlend at console_pointer.go:169 stays unpinned.
+
+## Round 10 — 2026-10-08T12:52:24-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — not-addressed — Plan unchanged in this window; tasks still enumerate test cases in prose. Minor, doc-only.
+- BR-5 — not-addressed — marks_test.go:216 still ends with var _ = terminal.FramePrivate.
+- BR-6 — not-addressed — No test references Unicode11Addon in tests/broadcast-viewer or the broadcast Go tests.
+- BR-11 — not-addressed — startBroadcast still binds the pointer callbacks without capturing the attempt; applyPoints and pointerOffByWatch never check it.
+- BR-12 — not-addressed — endBroadcastForShutdown (console_broadcast.go:266) and the SetTap-failure branch (line 200) still skip detachBroadcastScreen.
+- BR-16 — not-addressed — No couchtty test asserts the pointer SetBlend wiring; the only blend tests cover the idle shade.
 
 ## Open findings
 
