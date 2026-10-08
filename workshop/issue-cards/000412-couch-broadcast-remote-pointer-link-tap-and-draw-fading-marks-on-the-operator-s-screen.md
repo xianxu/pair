@@ -1,6 +1,6 @@
 ---
 id: 000412
-status: codecomplete
+status: done
 created: 2026-10-08
 updated: 2026-10-08
 estimate_hours: 4.85
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: b4ac23aec8214d51375dece9dee94c23eda39f66
         evidence_commit: 370df0e1607c65959e60bbb9832be27ee13cc50f
+        landed_commit: 33969c10b60e9192ab0a1c028a678d819cf2540a
 ---
 
 # Couch broadcast: remote pointer link (tap and draw fading marks on the operator's screen)
