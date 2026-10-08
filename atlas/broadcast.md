@@ -210,3 +210,56 @@ Viewers see the operator's colours and font.
   Rerun it after any cloudflared upgrade. Measured with 2026.7.3: named link
   ready in about 1s, quick in about 6s, both 530 after stop.
 
+## Pointer link (#412)
+
+A broadcast can carry a second capability link that lets a helper point at the
+operator's screen. It is the only input a broadcast accepts from the internet,
+and it is kept narrow.
+
+- **State:** `PointerState` (`pointer.go`) holds a 256-bit token, minted on
+  first `Session.EnablePointer` and kept for the broadcast's life, plus a
+  `pointing` switch. `DisablePointer` downgrades the link to view-only; enabling
+  again restores the same link. Its mutex is a leaf: callbacks run after it is
+  released.
+- **Routes:** `/<pointer-token>/…` serves the same page and stream as the view
+  link, plus `POST /<pointer-token>/point`, the only route that reads a body.
+  Everything else is GET-only, as in #395: the view link answers a POST with
+  405.
+- **The POST**, in order:
+  1. pointing must be on (403);
+  2. `Content-Type: application/json` (415);
+  3. an in-flight cap of 4 (429);
+  4. a token bucket of 30/s per link (429);
+  5. a 5s read deadline for this request only;
+  6. a body capped at 4 KB (`MaxBytesReader`, 413);
+  7. `ParsePointBatch`: strict JSON, known fields only, 1..64 integer cell
+     pairs inside a stated grid of at most 1000×1000, fixed errors that echo
+     nothing (400).
+
+  Accepted and dropped batches both answer 204.
+- **Landing:** `acceptPoint` passes a batch to `Config.OnPoints` only if
+  pointing is on and the hub's `Current()` frame matches the batch's grid, is
+  public, and shows the active pointer marker. Otherwise it is dropped.
+  Nothing else consumes points.
+- **Visible capability:** the hub's second watch (`ArmPointer`,
+  `DisarmPointer`, `OnPointerHidden`) checks `PointerShown`. That means
+  `PointerLabel` on `PointerSGR`'s amber background, right after `LIVE ⏸ `.
+  Hidden past the grace, the watch turns pointing off (`Config.OnPointerOff`)
+  without ending the broadcast.
+- **Pointer pages** get `event: caps` (`{"pointer":bool}`) on join and on
+  every flip; view pages never do. Stopping the broadcast ends both links.
+- **Server timeouts:** `ReadHeaderTimeout` 10s, `IdleTimeout` 60s, 8 KB
+  headers, and a read deadline only in the POST handler. There is no
+  server-wide `ReadTimeout`: it would also time out the disconnect watch on
+  long-lived event streams.
+- **Marks** (`marks.go`): pure. A batch's points are joined by line fill; an
+  off-grid point is dropped before any line reaches it. The status row is never
+  marked and never tinted (the overlay refuses the last row whatever put a mark
+  there). At most 1/8 of the grid is marked, oldest first. Marks fade in 3 steps
+  over `MarkLife` (3s). The Presenter's overlay hook draws them
+  (terminal.md).
+- **Tests:** a method × route × token table; rejections that echo nothing; drops
+  for a stale grid, a private frame and a hidden marker; rate and in-flight
+  limits, including slow bodies; re-entrant callbacks; `caps` on pointer streams
+  only; `FuzzParsePointBatch`; the hub property test models the pointer watch.
+
