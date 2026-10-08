@@ -213,6 +213,12 @@ func TestConsoleStopDuringPaintClassifiesJoinedFailure(t *testing.T) {
 					if realFailure && !strings.Contains(diagnostic.String(), "physical write failed") {
 						t.Errorf("lost host failure: %q", diagnostic.String())
 					}
+					// pair#409: the exit reason couchcmd records reads the same
+					// classification. A stop that only cancelled a paint records
+					// nothing; a real host failure is recorded.
+					if _, recorded := terminal.ExitReason(c.TerminalFailure()); recorded != realFailure {
+						t.Errorf("exit reason recorded=%t want %t: %v", recorded, realFailure, c.TerminalFailure())
+					}
 					if !realFailure && diagnostic.Len() != 0 {
 						t.Errorf("shutdown reported failure: %q", diagnostic.String())
 					}

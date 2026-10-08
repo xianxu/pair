@@ -26,7 +26,13 @@ import (
 const (
 	unreported = ".log"
 	reported   = ".crash"
-	stampForm  = "20060102T150405Z"
+	// exitMarker opens a file this process wrote itself with RecordExit: a
+	// deliberate exit's reason, not a runtime panic (pair#409).
+	exitMarker = "couch-exit: "
+	// headBytes is how much of a file Classify sees: enough for the marker and
+	// a one-line reason.
+	headBytes = 256
+	stampForm = "20060102T150405Z"
 	// MaxEntries bounds the startup scan and the gc walk: one file per console
 	// run, so a directory this large is debris, not history.
 	MaxEntries = 4096
@@ -68,16 +74,23 @@ const (
 	Abrupt
 	// Reported: a crash already shown once, kept for retention.
 	Reported
+	// Exited: the process recorded why it chose to exit (RecordExit), e.g. the
+	// terminal stopped accepting output.
+	Exited
 )
 
 type File struct {
 	Name string
 	Size int64
+	// Head is the start of a non-empty unreported file (at most headBytes).
+	Head string
 }
 
 type Finding struct {
 	Name string
 	Kind Kind
+	// Reason is an Exited file's recorded reason.
+	Reason string
 }
 
 // Classify is the pure decision over a directory listing. Names outside the
@@ -89,11 +102,14 @@ func Classify(files []File) []Finding {
 		switch {
 		case !ok:
 		case ext == reported:
-			out = append(out, Finding{f.Name, Reported})
+			out = append(out, Finding{Name: f.Name, Kind: Reported})
+		case f.Size > 0 && strings.HasPrefix(f.Head, exitMarker):
+			reason, _, _ := strings.Cut(strings.TrimPrefix(f.Head, exitMarker), "\n")
+			out = append(out, Finding{Name: f.Name, Kind: Exited, Reason: reason})
 		case f.Size > 0:
-			out = append(out, Finding{f.Name, Crashed})
+			out = append(out, Finding{Name: f.Name, Kind: Crashed})
 		default:
-			out = append(out, Finding{f.Name, Abrupt})
+			out = append(out, Finding{Name: f.Name, Kind: Abrupt})
 		}
 	}
 	return out
@@ -103,24 +119,41 @@ func Classify(files []File) []Finding {
 type Report struct {
 	Kind Kind
 	Path string
+	// Reason is an Exited report's recorded reason.
+	Reason string
 }
 
 // Summary folds every previous ending into ONE status-row sentence: each
 // standing control notice holds the row until displaced, so N reports would
 // stack N notices.
 func Summary(reports []Report) string {
-	var latest string
-	crashes, abrupt := 0, 0
+	var latest, latestExit, latestExitPath string
+	crashes, exits, abrupt := 0, 0, 0
 	for _, r := range reports {
 		switch r.Kind {
 		case Crashed:
 			crashes++
 			latest = r.Path // names sort by timestamp: the last is the newest
+		case Exited:
+			exits++
+			latestExit, latestExitPath = r.Reason, r.Path
 		case Abrupt:
 			abrupt++
 		}
 	}
 	var parts []string
+	if exits > 0 {
+		// The path is named too: anything written after the reason (a panic
+		// during the exit) is in the same file.
+		s := "previous couch exited: " + latestExit
+		if latestExitPath != "" {
+			s += " — see " + latestExitPath
+		}
+		if exits > 1 {
+			s += fmt.Sprintf(" (+%d earlier)", exits-1)
+		}
+		parts = append(parts, s)
+	}
 	if crashes > 0 {
 		s := "previous couch crashed — see " + latest
 		if crashes > 1 {
@@ -172,7 +205,7 @@ func Install(dir string, now time.Time, pid int, alive func(pid int) bool) (*Cap
 			continue
 		}
 		switch f.Kind {
-		case Crashed:
+		case Crashed, Exited:
 			// Renamed first, reported second: a report whose rename failed
 			// would come back on every start.
 			next := strings.TrimSuffix(path, unreported) + reported
@@ -180,7 +213,7 @@ func Install(dir string, now time.Time, pid int, alive func(pid int) bool) (*Cap
 				problems = append(problems, err)
 				continue
 			}
-			reports = append(reports, Report{Kind: Crashed, Path: next})
+			reports = append(reports, Report{Kind: f.Kind, Path: next, Reason: f.Reason})
 		case Abrupt:
 			if err := os.Remove(path); err != nil {
 				problems = append(problems, err)
@@ -214,6 +247,24 @@ func Install(dir string, now time.Time, pid int, alive func(pid int) bool) (*Cap
 		previous.file = nil
 	}
 	return capture, reports, errors.Join(problems...)
+}
+
+// RecordExit writes why this process is about to exit into its crash file,
+// so the next start reports it once, as it would a panic (pair#409). A run
+// that ends silently on purpose -- the terminal stopped accepting output --
+// otherwise leaves nothing. With no capture installed it does nothing. Finish
+// keeps the file: only an empty one is removed.
+func RecordExit(reason string) error {
+	activeMu.Lock()
+	defer activeMu.Unlock()
+	if active == nil || active.file == nil {
+		return nil
+	}
+	line := exitMarker + strings.ReplaceAll(reason, "\n", " ") + "\n"
+	if _, err := active.file.WriteString(line); err != nil {
+		return err
+	}
+	return active.file.Sync()
 }
 
 // Finish ends the installed capture after a NORMAL return from the program's
@@ -278,7 +329,11 @@ func list(dir string) ([]File, error) {
 		if err != nil || !info.Mode().IsRegular() {
 			continue
 		}
-		out = append(out, File{Name: name, Size: info.Size()})
+		file := File{Name: name, Size: info.Size()}
+		if filepath.Ext(name) == unreported && info.Size() > 0 {
+			file.Head = readHead(filepath.Join(dir, name))
+		}
+		out = append(out, file)
 	}
 	return out, overflow
 }
@@ -329,4 +384,17 @@ func Sweep(dir string, now time.Time, alive func(pid int) bool, apply bool, limi
 		rows = append(rows, row)
 	}
 	return rows, nil
+}
+
+// readHead is the start of a file, at most headBytes; unreadable reads as
+// empty, which classifies as a crash rather than hiding the file.
+func readHead(path string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	buf := make([]byte, headBytes)
+	n, _ := io.ReadFull(f, buf)
+	return string(buf[:n])
 }

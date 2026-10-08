@@ -68,6 +68,15 @@ func shutdownCancellation(err error) bool {
 	return err == context.Canceled
 }
 
+// TerminalFailure is why the console's terminal failed, as teardown classified
+// it: the same failure Run reported, with an owner shutdown's cancellation
+// filtered out (pair#409 reads it after Run). It is nil before Run returns.
+func (c *Console) TerminalFailure() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.exitFailure
+}
+
 func (c *Console) terminalError(err error) {
 	if err != nil && !(c.lifetime.Err() != nil && shutdownCancellation(err)) {
 		c.mu.Lock()
@@ -91,6 +100,7 @@ func (c *Console) chrome() (RenderedStatusRow, []terminal.Cell, error) {
 func (c *Console) commitChrome(row RenderedStatusRow) {
 	c.mu.Lock()
 	c.statusChips = row.Chips
+	c.statusControl = row.Control
 	first := !c.framePainted
 	c.framePainted = true
 	var shown couchcore.ThreadAddress

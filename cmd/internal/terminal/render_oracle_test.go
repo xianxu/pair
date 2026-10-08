@@ -226,7 +226,8 @@ func TestRendererIndependentInterruptedPresentationRelease(t *testing.T) {
 		if screen.Modes["wraparoundMode"] != true || screen.Modes["mouseTrackingMode"] != "none" {
 			t.Errorf("prefix %d: modes=%v", prefix, screen.Modes)
 		}
-		if screen.CursorStyle != "block" || !screen.CursorBlink {
+		// Release leaves the parent cursor at no preference (shape 0, #283).
+		if screen.CursorStyle != "default" {
 			t.Errorf("prefix %d: cursor style=%s blink=%v", prefix, screen.CursorStyle, screen.CursorBlink)
 		}
 		cell := screen.Cells[0][0]
@@ -267,5 +268,30 @@ func TestRendererIndependentCombiningClusters(t *testing.T) {
 	screen := runOracle(t, 8, 3, []string{string(wire)})[0]
 	if screen.Cells[0][0].Text != "e\u0301" || screen.Cells[0][0].Width != 1 || screen.Cells[0][1].Text != "界" || screen.Cells[0][1].Width != 2 || screen.Cells[2][0].Text != "e\u0301" {
 		t.Fatalf("combining cells=%+v chrome=%+v", screen.Cells[0], screen.Cells[2])
+	}
+}
+
+// The oracle reports the effective DECSCUSR state, so a cursor assertion
+// can't pass vacuously on "default" (the driver read @xterm 5's options
+// until 6.0 moved this state into the core).
+func TestOracleReadsCursorShape(t *testing.T) {
+	cases := []struct {
+		wire  string
+		style string
+		blink bool
+	}{
+		{"\x1b[5 q", "bar", true},
+		{"\x1b[2 q", "block", false},
+		{"\x1b[4 q", "underline", false},
+		{"\x1b[5 q\x1b[0 q", "default", false},
+	}
+	chunks := make([]string, len(cases))
+	for i, c := range cases {
+		chunks[i] = c.wire
+	}
+	for i, screen := range runOracle(t, 8, 3, chunks) {
+		if screen.CursorStyle != cases[i].style || screen.CursorBlink != cases[i].blink {
+			t.Errorf("%q: cursor %s blink=%v, want %s blink=%v", cases[i].wire, screen.CursorStyle, screen.CursorBlink, cases[i].style, cases[i].blink)
+		}
 	}
 }

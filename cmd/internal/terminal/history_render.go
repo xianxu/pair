@@ -33,6 +33,9 @@ type HistoryRender struct {
 	state                            HistoryState
 	rows                             []historyPaintRow
 	reset, dirty, enterAlt, leaveAlt bool
+	// diff: repaint only diffRows (pair#409); see changedPlainRows.
+	diff     bool
+	diffRows []int
 }
 
 func RenderWithHistory(previous, next Frame, history HistoryWindow, installed HistoryState) (HistoryRender, error) {
@@ -54,6 +57,14 @@ func RenderWithHistory(previous, next Frame, history HistoryWindow, installed Hi
 	p.dirty = p.reset || p.enterAlt || p.leaveAlt || installed.Cursor != history.Cursor || !sameHistoryFrame(previous, next)
 	if !p.dirty {
 		return p, nil
+	}
+	// Nothing reset and nothing new for history: when every changed row is a
+	// plain (unwrapped) row, repaint just those rows (pair#409).
+	if !p.reset && !p.enterAlt && !p.leaveAlt && installed.Cursor == history.Cursor {
+		if rows, ok := changedPlainRows(previous, next); ok {
+			p.diff, p.diffRows = true, rows
+			return p, nil
+		}
 	}
 	if !next.AltScreen {
 		start := 0
@@ -104,6 +115,39 @@ func RenderWithHistory(previous, next Frame, history HistoryWindow, installed Hi
 	return p, nil
 }
 func (p HistoryRender) NextState() HistoryState { return p.state }
+
+// changedPlainRows lists the rows that differ between two frames of the same
+// screen, and says whether repainting only those rows reaches the same parent
+// state as the full rebuild (pair#409, #262's cheaper first step). That holds
+// when no changed row is wrapped in either frame. A row's incoming wrap flag
+// comes only from autowrapping through the row above, zellij keeps it across
+// EL2, and only IL yields a pristine row, so repainting a wrapped row could
+// diverge. An unwrapped row has no incoming flag to lose, and repainting it
+// leaves the next row's own flag (where an outgoing soft link is stored)
+// untouched, so CUP + EL2 + its cells is exact. TestHistoryRowDiffEqualsFullRebuild
+// checks this against the xterm and the native zellij oracles.
+func changedPlainRows(previous, next Frame) ([]int, bool) {
+	cols, rows := next.Geometry.Cols, next.Geometry.Rows
+	if previous.EndpointID != next.EndpointID || previous.Geometry != next.Geometry || previous.AltScreen != next.AltScreen || len(previous.Cells) != cols*rows || len(next.Cells) != cols*rows {
+		return nil, false
+	}
+	plain := func(y int) bool { return !previous.rowMetadata(y).Wrapped && !next.rowMetadata(y).Wrapped }
+	changed := []int{}
+	for y := 0; y < rows; y++ {
+		same := previous.rowMetadata(y) == next.rowMetadata(y)
+		for x := y * cols; same && x < (y+1)*cols; x++ {
+			same = previous.Cells[x].Equal(&next.Cells[x])
+		}
+		if same {
+			continue
+		}
+		if !plain(y) {
+			return nil, false
+		}
+		changed = append(changed, y)
+	}
+	return changed, true
+}
 func sameHistoryFrame(a, b Frame) bool {
 	if a.EndpointID != b.EndpointID || a.Geometry != b.Geometry || a.Cursor != b.Cursor || a.AltScreen != b.AltScreen || len(a.Cells) != len(b.Cells) {
 		return false
@@ -319,6 +363,22 @@ func (p HistoryRender) Emit(write func([]byte) error) error {
 	e.add("\x1b[?25l\x1b[?6l\x1b[r\x1b[?7h")
 	e.resetStyle()
 	cols, height := p.next.Geometry.Cols, p.next.Geometry.Rows
+	if p.diff {
+		for _, y := range p.diffRows {
+			row := p.next.Cells[y*cols : (y+1)*cols]
+			used := p.next.rowMetadata(y).UsedColumns
+			e.cup(0, y)
+			e.add("\x1b[2K")
+			e.cells(row, used)
+			e.blankTail(row, used, cols, y, false)
+		}
+		e.resetStyle()
+		e.add("\x1b[?7h")
+		e.add(cursorEpilogue(p.next.Cursor))
+		e.add(syncEnd)
+		e.flush()
+		return e.err
+	}
 	cleanTop := p.reset || p.enterAlt
 	if p.reset || p.enterAlt {
 		if !p.next.AltScreen {
