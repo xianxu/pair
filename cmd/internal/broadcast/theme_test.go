@@ -80,7 +80,16 @@ func TestServerServesFontsUnderToken(t *testing.T) {
 			t.Fatalf("font served without the token: %d", rec.Code)
 		}
 	}
-	if rec := serve(t, srv, http.MethodGet, "/"+testToken+"/fonts/OFL.txt"); rec.Code != http.StatusNotFound {
-		t.Fatalf("unlisted vendor file served: %d", rec.Code)
+	symbols := "/" + testToken + "/fonts/NotoSansSymbols2-Couch.woff"
+	if rec := serve(t, srv, http.MethodGet, symbols); rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "font/woff" || !strings.HasPrefix(rec.Body.String(), "wOFF") {
+		t.Fatalf("GET %s = %d %q", symbols, rec.Code, rec.Header().Get("Content-Type"))
+	}
+	if rec := serve(t, srv, http.MethodGet, "/wrong/fonts/NotoSansSymbols2-Couch.woff"); rec.Code != http.StatusNotFound {
+		t.Fatalf("symbol font served without the token: %d", rec.Code)
+	}
+	for _, unlisted := range []string{"OFL.txt", "OFL-NotoSansSymbols2.txt", "symbols.txt", "symbols.py"} {
+		if rec := serve(t, srv, http.MethodGet, "/"+testToken+"/fonts/"+unlisted); rec.Code != http.StatusNotFound {
+			t.Fatalf("unlisted vendor file %s served: %d", unlisted, rec.Code)
+		}
 	}
 }

@@ -752,3 +752,13 @@ proof; record the surprising case so the next change starts from evidence.
   point was dropped and the test hung. Retry the input until its effect shows
   (a helper re-taps), and make a "dropped" test first prove the path accepts
   input, so its drop can't be the race.
+
+- **When a doc claims "X isn't needed because Y", test the claim on the real
+  client, not in theory (#415).** I wrote "no preload needed, every glyph has
+  the cell advance" for the broadcast symbol font. The iPad smoke disproved it:
+  xterm.js's DOM renderer measures each character on first draw and keeps a
+  `letter-spacing` correction, so a `unicode-range` face fetched by that draw
+  is measured as its fallback, and the real glyph collapses to zero width. Any
+  font xterm.js may draw with must load before the first frame. A
+  correction must reach every place that repeated the claim (atlas, CSS
+  comment, VENDOR.md), not just the first one found.

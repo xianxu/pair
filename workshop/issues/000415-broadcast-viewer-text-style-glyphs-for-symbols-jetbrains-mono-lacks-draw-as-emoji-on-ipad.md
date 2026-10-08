@@ -1,12 +1,22 @@
 ---
 id: 000415
-status: open
+status: codecomplete
 deps: [pair#412]
 github_issue:
 created: 2026-10-08
 updated: 2026-10-08
 estimate_hours:
-card_mirror: '5bad09ec0ab0437f2fa8a7d703630c8940f97031' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '46bd1c6f5fefbb33a7e69aafea5ee11d33f64d0e' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-08T12:59:16-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:0
+    worktree: /Users/xianxu/workspace/pair
+    repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
+actual_hours: 0.67
 ---
 
 # Broadcast viewer: text-style glyphs for symbols JetBrains Mono lacks (⏸ ⏺ draw as emoji on iPad)
@@ -50,7 +60,8 @@ emoji it picks Apple Color Emoji. Found in the #412 smoke on 2026-10-08.
 - On an iPad (manual smoke), `LIVE ⏸` and Claude Code's `⏺` bullets draw as
   plain text symbols in the viewer, matching the operator's terminal.
 - The font file is vendored with source, licence and checksum (`VENDOR.md`),
-  served only under the token, and loaded only for its `unicode-range`; a
+  served only under the token, and used only for its `unicode-range` (loaded
+  up front before xterm.js measures, see Revisions); a
   server test covers the route, and the page lint still allows no other
   origin.
 - A width test shows these symbols keep the column width Couch counts.
@@ -60,15 +71,64 @@ emoji it picks Apple Color Emoji. Found in the #412 smoke on 2026-10-08.
 
 ## Plan
 
-- [ ] Pick the font and check its cmap; vendor a subset or the whole file
-- [ ] `@font-face` with `unicode-range`, route, tests; iPad smoke
+- [x] Pick the font and check its cmap: Noto Sans Symbols 2 v2.008 (55 of 67
+      wanted code points; Math, Symbols, DejaVu Sans Mono cover fewer)
+- [x] `symbols.py scan|build`, `symbols.txt`, subset WOFF with cell advances,
+      VENDOR.md
+- [x] "Couch Symbols" `@font-face` + `unicode-range`, viewer font stack, route
+- [x] Tests: route + unlisted-file 404s, cmap == list == CSS range, Couch
+      width 1 and 600-unit advance per symbol
+- [x] iPad smoke (operator): passed on the second build (6706f8e3)
 
 ## Log
 
 ### 2026-10-08
+- 2026-10-08: closed — iPad Safari smoke passed (operator, 6706f8e3): ⏸ ⏺ draw as text in-cell, no column loss; go test ./cmd/internal/broadcast green (route, cmap==list==CSS range, Couch width 1 + 600-unit advance, preload guard; mutation caught); node viewer tests 28/28; make -k test failures pre-existing on main or session-env (logged); actual measured by sdlc actual from pair:6 (transcript cwd); review verdict: FIX-THEN-SHIP
+- 2026-10-08: flow upgraded quick → full — 349 added lines in code files (limit 100)
 
 - Filed from #412's smoke, kept out of #412 to avoid scope creep.
 - Operator: agents in Couch will use more such characters for ASCII art;
   expect fewer than 100 code points. The spec now plans for a derived set
   (scan of recorded agent output, plus Couch's own symbols) and a subset
   font.
+- Scan (66 recordings, 1.7 GB, plus non-test Go sources): 67 non-wide
+  symbol/punctuation code points JetBrains Mono lacks; braille spinner frames
+  dominate. Noto Sans Symbols 2 covers 55 → `symbols.txt`. Uncovered, left to
+  system fallback: `※ ⅓ ⅔ ↳ ↵ ⇄ ⇣ ⎿ ⚙ ⟹ ⧈ ⧉`. Of those, only `⚙` has an emoji form.
+- Wide (Emoji_Presentation) characters such as `⏳ ✅ ❌` are excluded on
+  purpose: the operator's terminal draws them as emoji too.
+- U+FE0E (optional in Spec) not done: once the font supplies the glyph, the
+  selector has nothing left to fix, and measuring it on iOS needs the device.
+- Verification: `go test ./cmd/internal/broadcast` green; mutation (drop
+  U+2733 from symbols.txt) fails `TestSymbolFontCoversExactlyTheList`. The
+  build is reproducible (two runs, same SHA-256). Broadcast's dependents
+  (`cmd/couch`, `couchcmd`, `couchtty`) pass unsandboxed except
+  `TestContinuationWriterPublishesExactCheckpointAcrossWorktrees`, which fails
+  on this agent session's inherited `PAIR_DATA_DIR` scope (unrelated).
+  `make -k test`: `test-review` fails the same 7 checks on origin/main (pre-existing);
+  `test-lua` and `test-changelog` pass with the env scrubbed;
+  `test-pair-embedded-runtime` hits the same inherited-scope conflict.
+- iPad smoke 1 (operator): no more emoji, but `⏺` swallowed the next column
+  (`●The`) and `⏸` drew just outside LIVE's red background. Cause: xterm.js
+  6's DOM renderer `WidthCache` measures a character on first draw and keeps
+  `letter-spacing = cell − measured`. The unicode-range face was fetched by
+  that same first draw, so the fallback was measured. Once the real one-cell
+  glyph arrived, the stale negative spacing collapsed it to zero advance, and
+  the next cell drew under it. Fix: `loadFont` also loads "Couch Symbols"
+  (`SYMBOL_SAMPLE` ⏺) before the terminal opens. `TestViewerPreloadsSymbolFont`
+  guards it. The atlas's "no preload needed" claim was wrong and is corrected.
+- iPad smoke 2 (operator, 6706f8e3): `LIVE ⏸` sits inside the red background
+  with its gap before 👆, `⏺ The` keeps its space. Operator: "beautifully now".
+
+## Revisions
+
+- 2026-10-08: subset ships as **WOFF 1.0**, not WOFF2 (Spec said "a few KB as
+  WOFF2"). Reason: the cmap/advance test reads the font with Go's stdlib
+  (zlib); WOFF2 needs brotli, which isn't a dependency. Cost: ~3.9 KB instead
+  of ~3 KB. Glyphs are **modified** (re-advanced to JetBrains Mono's 600-unit
+  cell, scaled only on overflow) to honour "keep each glyph's width"; OFL
+  allows it, Noto has no Reserved Font Name.
+- 2026-10-08: the symbol font is **preloaded** at page start (4 KB) rather
+  than fetched on first use. Done-when's "loaded only for its unicode-range"
+  still holds in that only those code points draw from it, but the file is
+  always fetched. Reason: xterm.js's per-character width measurement (see Log).
