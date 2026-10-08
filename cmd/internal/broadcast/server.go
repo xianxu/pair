@@ -25,6 +25,9 @@ type ServerOptions struct {
 	Token string
 	Hub   *Hub
 	Ping  time.Duration
+	// Theme, when set, is read for each new viewer and sent before its
+	// first frame.
+	Theme func() Theme
 }
 
 type asset struct{ file, contentType string }
@@ -36,6 +39,12 @@ var assets = map[string]asset{
 	"viewer.css": {"web/viewer.css", "text/css; charset=utf-8"},
 	"xterm.js":   {"web/vendor/xterm/xterm.js", "text/javascript; charset=utf-8"},
 	"xterm.css":  {"web/vendor/xterm/xterm.css", "text/css; charset=utf-8"},
+	// JetBrains Mono, the font the operator's terminal draws (OFL; see
+	// web/vendor/fonts/VENDOR.md).
+	"fonts/JetBrainsMono-Regular.woff2":    {"web/vendor/fonts/JetBrainsMono-Regular.woff2", "font/woff2"},
+	"fonts/JetBrainsMono-Bold.woff2":       {"web/vendor/fonts/JetBrainsMono-Bold.woff2", "font/woff2"},
+	"fonts/JetBrainsMono-Italic.woff2":     {"web/vendor/fonts/JetBrainsMono-Italic.woff2", "font/woff2"},
+	"fonts/JetBrainsMono-BoldItalic.woff2": {"web/vendor/fonts/JetBrainsMono-BoldItalic.woff2", "font/woff2"},
 }
 
 // Server is the view-only endpoint. It serves GET only, never reads a request
@@ -127,6 +136,12 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	}
 	if !send(": connected\n\n") {
 		return
+	}
+	if s.opts.Theme != nil {
+		theme, _ := json.Marshal(s.opts.Theme())
+		if !send("event: theme\ndata: " + string(theme) + "\n\n") {
+			return
+		}
 	}
 	ping := time.NewTicker(s.opts.Ping)
 	defer ping.Stop()

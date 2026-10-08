@@ -1,3 +1,32 @@
+/* JetBrains Mono, packed with the broadcast (OFL); see vendor/fonts/VENDOR.md. */
+@font-face {
+  font-family: "JetBrains Mono";
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+  src: url("fonts/JetBrainsMono-Regular.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+  src: url("fonts/JetBrainsMono-Bold.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-weight: 400;
+  font-style: italic;
+  font-display: block;
+  src: url("fonts/JetBrainsMono-Italic.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-weight: 700;
+  font-style: italic;
+  font-display: block;
+  src: url("fonts/JetBrainsMono-BoldItalic.woff2") format("woff2");
+}
 :root {
   --bg: #000;
   --status-bg: rgba(40, 40, 40, 0.85);

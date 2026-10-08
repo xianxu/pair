@@ -24,6 +24,7 @@ function harness() {
   h.deps = {
     open: () => { const es = new FakeEventSource(); h.sources.push(es); return es; },
     render: (m) => h.rendered.push(m),
+    theme: (t) => { h.theme = t; },
     reset: () => { h.resets++; },
     show: (text) => { h.status = text; },
     setStale: (on) => { h.stale = on; },
@@ -101,4 +102,10 @@ test('end resets the screen, shows the reason and never retries', () => {
   assert.equal(h.timers.length, 0);
   assert.equal(h.status, 'Broadcast ended: the operator stopped broadcasting');
   assert.equal(h.stale, false);
+});
+
+test('a theme event reaches the renderer', () => {
+  const h = harness();
+  h.es().emit('theme', { foreground: '#eeeeee' });
+  assert.deepEqual(h.theme, { foreground: '#eeeeee' });
 });

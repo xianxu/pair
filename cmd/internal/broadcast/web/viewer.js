@@ -20,6 +20,35 @@ export function nextFontSize(current, screenW, screenH, viewW, viewH) {
   return fits && size < current ? current : size;
 }
 
+// The operator's palette arrives as `event: theme`. xterm.js names the 16
+// ANSI colours; index order is SGR 30–37 then 90–97.
+const ANSI_NAMES = [
+  'black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white',
+  'brightBlack', 'brightRed', 'brightGreen', 'brightYellow',
+  'brightBlue', 'brightMagenta', 'brightCyan', 'brightWhite',
+];
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+
+// xtermTheme maps the operator's palette onto xterm.js theme keys. Only
+// well-formed #rrggbb values pass; anything else (unknown, or not a colour)
+// is left out, so xterm.js keeps its default for it.
+export function xtermTheme(palette) {
+  const theme = {};
+  const put = (key, value) => {
+    if (typeof value === 'string' && HEX_COLOR.test(value)) {
+      theme[key] = value;
+    }
+  };
+  put('foreground', palette.foreground);
+  put('background', palette.background);
+  (palette.ansi || []).forEach((value, i) => {
+    if (i < ANSI_NAMES.length) {
+      put(ANSI_NAMES[i], value);
+    }
+  });
+  return theme;
+}
+
 // Backoff for a connection closed for good (the server refused it or is
 // gone). A broadcast that ended says so with `end` and is never retried.
 export const RETRY_DELAYS = [2000, 4000, 8000, 15000, 30000];
@@ -37,8 +66,8 @@ function endText(data) {
 
 // connect runs the viewer's connection state machine. The screen is never
 // left looking live while it isn't: any lost connection dims it and says so.
-// deps: open() → EventSource-like; render(frame); reset(); show(text);
-// setStale(bool); later(fn, ms).
+// deps: open() → EventSource-like; render(frame); theme(palette); reset();
+// show(text); setStale(bool); later(fn, ms).
 export function connect(deps) {
   let attempt = 0;
   let ended = false;
@@ -49,6 +78,9 @@ export function connect(deps) {
       deps.setStale(false);
       deps.show('');
       deps.render(JSON.parse(ev.data));
+    });
+    events.addEventListener('theme', (ev) => {
+      deps.theme(JSON.parse(ev.data));
     });
     events.addEventListener('end', (ev) => {
       ended = true;
@@ -84,7 +116,24 @@ function decode(b64) {
   return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 }
 
-function start() {
+const FONT = '"JetBrains Mono"';
+
+// loadFont waits, briefly, for the packed font, so xterm.js measures its
+// cells with it rather than a fallback. If it doesn't load, the stack falls
+// back and the screen still works.
+async function loadFont() {
+  try {
+    await Promise.race([
+      Promise.all([document.fonts.load(`16px ${FONT}`), document.fonts.load(`bold 16px ${FONT}`)]),
+      new Promise((resolve) => setTimeout(resolve, 3000)),
+    ]);
+  } catch {
+    // Fall back to the rest of the stack.
+  }
+}
+
+async function start() {
+  await loadFont();
   const status = document.getElementById('status');
   const stage = document.getElementById('stage');
   const show = (text) => {
@@ -96,7 +145,7 @@ function start() {
     disableStdin: true,
     cursorBlink: false,
     fontSize: 16,
-    fontFamily: 'ui-monospace, Menlo, Monaco, Consolas, monospace',
+    fontFamily: `${FONT}, ui-monospace, Menlo, Monaco, Consolas, monospace`,
   });
   term.open(document.getElementById('term'));
   let size = 16;
@@ -126,6 +175,13 @@ function start() {
       term.write(decode(m.b));
       if (resized) {
         fit();
+      }
+    },
+    theme: (palette) => {
+      const theme = xtermTheme(palette);
+      term.options.theme = theme;
+      if (theme.background) {
+        document.documentElement.style.setProperty('--bg', theme.background);
       }
     },
     reset: () => term.reset(),

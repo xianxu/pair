@@ -28,6 +28,9 @@ type Config struct {
 	Ping time.Duration
 	// ProbeTimeout bounds waiting for the public link to answer.
 	ProbeTimeout time.Duration
+	// Theme supplies the operator's palette for each new viewer; nil sends
+	// none and viewers keep xterm.js's colours.
+	Theme func() Theme
 }
 
 // Session is one broadcast: a hub, a server on the tunnel's listener, the
@@ -65,7 +68,7 @@ func Start(ctx context.Context, cfg Config) (*Session, error) {
 	}
 	hub := NewHub(cfg.Hub)
 	srv := &http.Server{
-		Handler:           NewServer(ServerOptions{Token: token, Hub: hub, Ping: cfg.Ping}),
+		Handler:           NewServer(ServerOptions{Token: token, Hub: hub, Ping: cfg.Ping, Theme: cfg.Theme}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	served := make(chan error, 1)
