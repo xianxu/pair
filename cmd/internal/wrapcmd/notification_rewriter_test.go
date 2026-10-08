@@ -222,3 +222,49 @@ func TestProxyUnknownOSCPassthrough(t *testing.T) {
 		t.Fatalf("stdout = %q, want %q", stdout.Bytes(), input)
 	}
 }
+
+// A harness that signals attention with a bare terminal bell (grok) has it
+// translated like OSC 9: a BEL in ground state becomes pair's canonical
+// attention notification and leaves the stream (so the terminal never marks
+// the pane). A BEL that terminates an OSC, or sits inside a DCS/APC string —
+// #14's false-positive class — is never a bell, at any chunk split.
+func TestNotificationRewriterBellAttentionEverySplit(t *testing.T) {
+	cases := []struct {
+		name         string
+		bell         bool
+		normalize    bool
+		input        []byte
+		wantOutput   []byte
+		wantMessages []string
+	}{
+		{"bare bell", true, true, []byte("a\x07b"), []byte("ab"), []string{"agent attention"}},
+		{"bell after a title", true, true, []byte("\x1b]0;grok\x07ok\x07"), []byte("\x1b]0;grok\x07ok"), []string{"agent attention"}},
+		{"title terminator only", true, true, []byte("\x1b]0;grok\x07"), []byte("\x1b]0;grok\x07"), nil},
+		{"hyperlink terminators", true, true, []byte("\x1b]8;;https://x\x07link\x1b]8;;\x07"), []byte("\x1b]8;;https://x\x07link\x1b]8;;\x07"), nil},
+		{"bel inside apc", true, true, []byte("\x1b_Ga=d\x07x\x1b\\"), []byte("\x1b_Ga=d\x07x\x1b\\"), nil},
+		{"bel inside dcs", true, true, []byte("\x1bPq\x07\x1b\\"), []byte("\x1bPq\x07\x1b\\"), nil},
+		{"bell inside csi stays raw", true, true, []byte("\x1b[1\x07m"), []byte("\x1b[1\x07m"), nil},
+		{"agent without bell attention", false, true, []byte("a\x07b"), []byte("a\x07b"), nil},
+		{"not normalizing", true, false, []byte("a\x07b"), []byte("a\x07b"), nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			for split := 0; split <= len(tc.input); split++ {
+				r := NotificationRewriter{BellAttention: tc.bell}
+				var output []byte
+				var messages []string
+				for _, chunk := range [][]byte{tc.input[:split], tc.input[split:]} {
+					result := r.Feed(chunk, tc.normalize)
+					output = append(output, result.Passthrough...)
+					for _, n := range result.Notifications {
+						messages = append(messages, n.Message)
+					}
+				}
+				output = append(output, r.Finish()...)
+				if !bytes.Equal(output, tc.wantOutput) || !equalStrings(messages, tc.wantMessages) {
+					t.Fatalf("split %d: output=%q messages=%q; want %q %q", split, output, messages, tc.wantOutput, tc.wantMessages)
+				}
+			}
+		})
+	}
+}

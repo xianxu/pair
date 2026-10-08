@@ -282,3 +282,8 @@ Durable plan: [000410-grok-harness-integration-for-pair-and-couch-plan.md](../pl
   - Distill footer rows were replaced with minimal-mode ones (hint, meter-keyed status, braille spinner).
 - **`:PairDoctor` run (grok tag):** the perf half shows a healthy host (pipe_hop 0.006 ms, fork_exec 2.1 ms, zellij 17.9 ms). The adapt log `adapt-grok.jsonl` is absent on disk (only its diagnostics sidecar remains), so there is no drift tally for that session; the wrapper's `wrap-events` trace has only I/O labels. The next smoke should rerun `doctor/doctor.sh` while the session is live.
 
+### 2026-10-08 — operator smoke round 2
+
+- **Context meter verified live:** the title reads `grok (31k)`.
+- **`[!]` after the title is zellij's bell mark.** Grok rang 3 bare BELs in that session; Claude rings none, since every one of its 48 BELs terminates an OSC. Grok's `[ui.notifications] method = auto` falls back to BEL inside zellij. Measured: `osc9` set in a `config.toml` makes Grok emit `OSC 9 "Turn complete in 2.2s. · Grok"`, but the project file, `GROK_CONFIG` and `GROK_CONFIG_PATH` all ignore `ui.*` (`grok inspect`: "set but ignored"), and no `GROK_*` env var exists for it. Pair therefore translates the bell itself: `bellAttentionHarnesses` (grok) makes the notification rewriter turn a ground-state BEL into the canonical attention notification and drop it from the stream. #14's false-positive class can't recur: `outputBoundary` tracks string state across chunk splits. Replaying the real grok2 session: 3 notifications, 3 bytes dropped, the OSC-terminating BEL kept.
+

@@ -2732,6 +2732,7 @@ argsDone:
 	}
 
 	p.agentBasename = filepath.Base(argv[0])
+	p.notificationRewriter.BellAttention = bellAttentionHarnesses[p.agentBasename]
 	childEnv := withoutOrientation(os.Environ())
 	if fromLaunchEnv {
 		request, clean, err := consumeOrientation(os.Environ(), p.agentBasename)

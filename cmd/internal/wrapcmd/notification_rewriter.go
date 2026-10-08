@@ -33,9 +33,21 @@ func (r *RewriteResult) pass(data []byte) {
 	}
 }
 
+// bellAttentionHarnesses are the agents that signal attention (turn done,
+// approval needed) with a bare terminal bell rather than OSC 9/777. Grok
+// (1.0.46+) does inside zellij: its notification method `auto` cannot detect
+// a known terminal brand there, falls back to BEL, and no per-launch override
+// reaches that setting (measured, #410). Every other agent keeps #14's default
+// — bare bells are not attention — because none of them signals that way.
+var bellAttentionHarnesses = map[string]bool{"grok": true}
+
 type NotificationRewriter struct {
-	pending  []byte
-	boundary outputBoundary
+	// BellAttention translates a ground-state BEL into the canonical
+	// attention notification, like OSC 9, and drops it from the stream so the
+	// terminal never marks the pane. Set from bellAttentionHarnesses.
+	BellAttention bool
+	pending       []byte
+	boundary      outputBoundary
 }
 
 func (r *NotificationRewriter) Feed(chunk []byte, normalize bool) RewriteResult {
@@ -50,6 +62,12 @@ func (r *NotificationRewriter) Feed(chunk []byte, normalize bool) RewriteResult 
 		if len(r.pending) == 0 {
 			if c == 0x1b && r.boundary.safe() {
 				r.pending = append(r.pending, c)
+			} else if c == 0x07 && r.BellAttention && normalize && r.boundary.safe() {
+				// A bell in ground state: never an OSC terminator nor string
+				// data (#14's false positives), since boundary tracks both.
+				notification := notifyosc.Notification{Message: "agent attention"}
+				result.Notifications = append(result.Notifications, notification)
+				result.Events = append(result.Events, RewriteEvent{Notification: &notification})
 			} else {
 				pass([]byte{c})
 			}
