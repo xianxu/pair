@@ -2,8 +2,8 @@
 
 `cmd/internal/broadcast` streams the composed Couch screen, view-only, to remote
 browser viewers (#395). Status: the frame tap, hub, server, viewer page,
-session and Couch control are built (M1–M3). Broadcasts are local-only until
-the `cloudflared` tunnel lands (M4).
+session, Couch control, and the viewer's theme and font are built (M1–M4).
+Broadcasts are local-only until the `cloudflared` tunnel lands (M5).
 
 ## Source: the Presenter tap
 
@@ -140,4 +140,24 @@ header comment; all transitions happen on the Run loop.
   `COUCH_BROADCAST_TUNNEL=off`. An unknown value refuses startup, and both
   are parsed before anything opens. Without a configured broadcaster the cell
   never shows, and the key explains why.
+
+## Theme and font
+
+Viewers see the operator's colours and font.
+
+- **Palette:** Couch's startup `paletteQuery` asks for OSC 10/11 (default
+  fg/bg, also used by idle fading) and OSC 4 for colours 0–15. ultraviolet
+  returns OSC 4 replies as `UnknownOscEvent`; `parseOSC4Reply` reads them, and
+  the decoder classifies them as replies, never child input.
+  `Console.broadcastTheme` builds a `broadcast.Theme` (`#rrggbb` strings,
+  empty for anything unreported). The session's server sends it as
+  `event: theme` to each viewer before its first frame. The viewer
+  (`xtermTheme`) accepts only `#rrggbb` values and applies them as xterm.js's
+  theme and the page background.
+- **Font:** JetBrains Mono 2.304 (OFL) is vendored in `web/vendor/fonts/` and
+  served under `/<token>/fonts/`. That is what the operator's Ghostty draws,
+  as its built-in fallback when the configured family isn't installed. The page
+  waits up to 3s for it before xterm.js measures its cells, then falls back to
+  the system monospace stack. Only fonts whose licence allows redistribution
+  are vendored.
 
