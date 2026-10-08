@@ -263,3 +263,32 @@ and it is kept narrow.
   limits, including slow bodies; re-entrant callbacks; `caps` on pointer streams
   only; `FuzzParsePointBatch`; the hub property test models the pointer watch.
 
+### Couch side of the pointer
+
+`couchtty/console_pointer.go` owns the pointer phase: `none | on | off`,
+under `c.mu`, with transitions on the Run loop; the header comment has the
+table.
+
+- **Status row:** while live it reads `LIVE ⏸ 👆 👽`. `👆` is dim when off and
+  on `PointerSGR` amber when on (`StatusModel.Pointer`). Its span
+  (`RenderedStatusRow.Pointer`) takes a left click (toggle) and a right click
+  (re-copy the link). A click on `👽` only gives a notice (#407).
+  `routeMouseEvent` checks these spans before anything else on the row.
+- **Toggling:** the first click calls `Session.EnablePointer` and copies the
+  link (the notice never shows it). Later clicks flip pointing for the same
+  link. The watch's `OnPointerOff` reaches the loop as `pointerOffByWatch`.
+  Turning off clears every mark at once.
+- **Points:** `Config.OnPoints` → `onPoints` → `runTerminalCommand` →
+  `applyPoints`, which re-checks on the loop that the phase is on, the
+  broadcast is live and the switcher isn't open, then calls `Marks.Add`.
+  Coordinates go nowhere else, and no byte reaches a child.
+- **Drawing:** `markOverlay` is installed with the tap when the broadcast goes
+  live and removed when it ends (`detachBroadcastScreen`, which also forgets
+  the pointer). It skips private frames. A timer driven by
+  `Marks.NextChange` calls `Presenter.Refresh` while marks live, so the fade
+  advances with no child output.
+- **Locks:** `pointerMarks.mu` is a leaf. It guards only the marks and their
+  timer, and is never held across a call into the Presenter, the session or
+  the loop. `TestPointerStressNoDeadlock` paints, posts and toggles together
+  under `-race`.
+
