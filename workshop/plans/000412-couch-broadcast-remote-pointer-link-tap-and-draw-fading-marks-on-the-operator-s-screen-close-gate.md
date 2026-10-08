@@ -114,6 +114,36 @@ rounds:
       boundary: M2
       recipe: milestone-review
       blocked: false
+    - "n": 5
+      timestamp: "2026-10-08T10:13:47-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: Plan Task 3.2 still enumerates console test cases in prose; the plan file is unchanged in this window.
+          round: 5
+      findings:
+        - id: BR-10
+          severity: Important
+          title: "README.md doesn't document the new status-row controls (left-click \U0001F446 toggles pointing and copies the link, right-click re-copies, \U0001F47D inert)"
+          detail: README.md:808-819 describes only LIVE ⏸. M3 adds mouse controls an operator clicks, and no plan task (including 4.2) updates the README. Add a short paragraph now, or add an explicit M4 README step via a plan Revisions entry.
+          family: readme-covers-new-surface
+          round: 5
+        - id: BR-11
+          severity: Minor
+          title: The Console's OnPoints and OnPointerOff aren't tied to the session that triggered them, so a late callback from an old broadcast can act on the next one
+          detail: 'This is the 2nd finding in this family; BR-9 fixed the session-layer instance. The rule: every deferred report (watch fire, point batch, timer) carries the generation it observed, and its consumer compares that with the current generation before acting. Sweep: startBroadcast binds cfg.OnPoints/OnPointerOff to the Console unconditionally (console_broadcast.go:117-122). Bind a closure capturing the attempt and check c.bcast.attempt in applyPoints and pointerOffByWatch, as broadcastEnded already does with s. Reaching it needs a request goroutine descheduled across an operator stop, start and enable; the impact is a transient mark or a fail-safe ''off''.'
+          family: stale-observation-acts-on-new-generation
+          round: 5
+        - id: BR-12
+          severity: Minor
+          title: endBroadcastForShutdown and a failed SetTap in broadcastStarted bypass detachBroadcastScreen, leaving the fade timer armed and the overlay installed
+          detail: ARCH-FUNERAL. The plan's lifetimes section says the fade timer stops at Console teardown, but only stopBroadcast and broadcastEnded call resetPointer and SetOverlay(nil). Every path that ends or abandons a broadcast should go through detachBroadcastScreen. It's harmless today (no marks means the overlay does nothing, and the timer's command fails once stopped), but the contract isn't met as written.
+          family: teardown-path-skips-detach
+          round: 5
+      boundary: M3
+      recipe: milestone-review
+      blocked: true
 ---
 
 # Gate ledger — pair#412 (boundary-review)
@@ -170,6 +200,21 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-9** [Minor] `stale-observation-acts-on-new-generation` PointerState has no stopped/generation state: EnablePointer after Stop mints a link, and a late pointerHidden can turn off a re-enabled pointing
   ARCH-ORDER. pointerHidden runs in a spawned goroutine and applies set(false) to whatever generation is current; EnablePointer after Stop succeeds against a shutting-down server. Practically unreachable today (needs M3 phase guard / sub-ms double click); fix by refusing set(true) once stopped and tagging the hub fire with an arm generation.
 
+## Round 5 — 2026-10-08T10:13:47-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — not-addressed — Plan Task 3.2 still enumerates console test cases in prose; the plan file is unchanged in this window.
+
+### Raised
+
+- **BR-10** [Important] `readme-covers-new-surface` README.md doesn't document the new status-row controls (left-click 👆 toggles pointing and copies the link, right-click re-copies, 👽 inert)
+  README.md:808-819 describes only LIVE ⏸. M3 adds mouse controls an operator clicks, and no plan task (including 4.2) updates the README. Add a short paragraph now, or add an explicit M4 README step via a plan Revisions entry.
+- **BR-11** [Minor] `stale-observation-acts-on-new-generation` The Console's OnPoints and OnPointerOff aren't tied to the session that triggered them, so a late callback from an old broadcast can act on the next one
+  This is the 2nd finding in this family; BR-9 fixed the session-layer instance. The rule: every deferred report (watch fire, point batch, timer) carries the generation it observed, and its consumer compares that with the current generation before acting. Sweep: startBroadcast binds cfg.OnPoints/OnPointerOff to the Console unconditionally (console_broadcast.go:117-122). Bind a closure capturing the attempt and check c.bcast.attempt in applyPoints and pointerOffByWatch, as broadcastEnded already does with s. Reaching it needs a request goroutine descheduled across an operator stop, start and enable; the impact is a transient mark or a fail-safe 'off'.
+- **BR-12** [Minor] `teardown-path-skips-detach` endBroadcastForShutdown and a failed SetTap in broadcastStarted bypass detachBroadcastScreen, leaving the fade timer armed and the overlay installed
+  ARCH-FUNERAL. The plan's lifetimes section says the fade timer stops at Console teardown, but only stopBroadcast and broadcastEnded call resetPointer and SetOverlay(nil). Every path that ends or abandons a broadcast should go through detachBroadcastScreen. It's harmless today (no marks means the overlay does nothing, and the timer's command fails once stopped), but the contract isn't met as written.
+
 ## Open findings
 
 - **BR-1** [Minor] `enumerated-test-prose` Tasks 1.3, 2.2, 2.3, 3.2 enumerate test cases in prose, restating Done-when
@@ -179,3 +224,6 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-7** [Minor] `untrusted-input-work-unbounded` Marks.Add walks Bresenham over raw coordinates before the off-grid filter, so its cost bound holds only if M2's parser validates range
 - **BR-8** [Minor] `docs-match-code` atlas/broadcast.md says the POST read deadline is 5s; code (pointReadBudget) is 2s
 - **BR-9** [Minor] `stale-observation-acts-on-new-generation` PointerState has no stopped/generation state: EnablePointer after Stop mints a link, and a late pointerHidden can turn off a re-enabled pointing
+- **BR-10** [Important] `readme-covers-new-surface` README.md doesn't document the new status-row controls (left-click 👆 toggles pointing and copies the link, right-click re-copies, 👽 inert)
+- **BR-11** [Minor] `stale-observation-acts-on-new-generation` The Console's OnPoints and OnPointerOff aren't tied to the session that triggered them, so a late callback from an old broadcast can act on the next one
+- **BR-12** [Minor] `teardown-path-skips-detach` endBroadcastForShutdown and a failed SetTap in broadcastStarted bypass detachBroadcastScreen, leaving the fade timer armed and the overlay installed
