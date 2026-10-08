@@ -49,6 +49,44 @@ export function xtermTheme(palette) {
   return theme;
 }
 
+// The pointer link (#412): a helper's taps and drags become cell coordinates
+// posted to the relative URL `point`. Couch only draws them as fading marks.
+export const MAX_POINTS = 64;
+
+// cellAt maps a viewport point to the grid cell under it, or null outside the
+// screen.
+export function cellAt(x, y, rect, cols, rows) {
+  if (!(rect.width > 0 && rect.height > 0) || !Number.isFinite(x) || !Number.isFinite(y)) {
+    return null;
+  }
+  const col = Math.floor(((x - rect.left) / rect.width) * cols);
+  const row = Math.floor(((y - rect.top) / rect.height) * rows);
+  if (col < 0 || col >= cols || row < 0 || row >= rows) {
+    return null;
+  }
+  return [col, row];
+}
+
+// chunkStroke cuts a stroke's new points into requests of at most MAX_POINTS.
+// Each request starts at the point the previous one ended on (or `last`, the
+// end of the previous batch), so Couch's line fill joins them seamlessly.
+export function chunkStroke(last, points) {
+  if (points.length === 0) {
+    return [];
+  }
+  const chunks = [];
+  let prev = last;
+  let i = 0;
+  while (i < points.length) {
+    const room = prev ? MAX_POINTS - 1 : MAX_POINTS;
+    const part = points.slice(i, i + room);
+    chunks.push(prev ? [prev, ...part] : part);
+    prev = part[part.length - 1];
+    i += part.length;
+  }
+  return chunks;
+}
+
 // Backoff for a connection closed for good (the server refused it or is
 // gone). A broadcast that ended says so with `end` and is never retried.
 export const RETRY_DELAYS = [2000, 4000, 8000, 15000, 30000];
@@ -67,7 +105,7 @@ function endText(data) {
 // connect runs the viewer's connection state machine. The screen is never
 // left looking live while it isn't: any lost connection dims it and says so.
 // deps: open() → EventSource-like; render(frame); theme(palette); reset();
-// show(text); setStale(bool); later(fn, ms).
+// show(text); setStale(bool); later(fn, ms); caps(capabilities), optional.
 export function connect(deps) {
   let attempt = 0;
   let ended = false;
@@ -81,6 +119,11 @@ export function connect(deps) {
     });
     events.addEventListener('theme', (ev) => {
       deps.theme(JSON.parse(ev.data));
+    });
+    events.addEventListener('caps', (ev) => {
+      if (deps.caps) {
+        deps.caps(JSON.parse(ev.data));
+      }
     });
     events.addEventListener('end', (ev) => {
       ended = true;
@@ -143,6 +186,7 @@ async function start() {
   await loadFont();
   const status = document.getElementById('status');
   const stage = document.getElementById('stage');
+  const hint = document.getElementById('hint');
   const show = (text) => {
     status.textContent = text || '';
     status.classList.toggle('hidden', !text);
@@ -177,6 +221,7 @@ async function start() {
     }
   };
 
+  const pointer = pointerMode(term, stage, hint);
   connect({
     open: () => new EventSource('events'),
     render: (m) => {
@@ -200,9 +245,93 @@ async function start() {
     show,
     setStale: (on) => stage.classList.toggle('stale', on),
     later: (fn, ms) => setTimeout(fn, ms),
+    caps: (c) => pointer.setOn(Boolean(c.pointer)),
   });
   window.addEventListener('resize', fit);
   fit();
+}
+
+// pointerMode turns the helper's taps and drags into point batches while
+// the broadcast says pointing is on. Strokes are flushed every 50ms.
+function pointerMode(term, stage, hint) {
+  let on = false;
+  let stroke = null;
+  let timer = null;
+  const screen = () => stage.querySelector('.xterm-screen');
+  const post = (down, points) => {
+    // The one request this page makes besides its own assets and stream:
+    // same origin, relative URL, no credentials, no referrer.
+    fetch('point', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cols: term.cols, rows: term.rows, down, points }),
+      credentials: 'omit',
+      referrerPolicy: 'no-referrer',
+      cache: 'no-store',
+    }).catch(() => {});
+  };
+  const flush = (down) => {
+    if (!stroke) {
+      return;
+    }
+    for (const chunk of chunkStroke(stroke.last, stroke.pending)) {
+      post(down, chunk);
+    }
+    if (stroke.pending.length) {
+      stroke.last = stroke.pending[stroke.pending.length - 1];
+    }
+    stroke.pending = [];
+  };
+  const cell = (e) => {
+    const el = screen();
+    return el ? cellAt(e.clientX, e.clientY, el.getBoundingClientRect(), term.cols, term.rows) : null;
+  };
+  const end = () => {
+    if (stroke) {
+      flush(false);
+    }
+    clearInterval(timer);
+    timer = null;
+    stroke = null;
+  };
+  stage.addEventListener('pointerdown', (e) => {
+    if (!on) {
+      return;
+    }
+    const c = cell(e);
+    if (!c) {
+      return;
+    }
+    e.preventDefault();
+    stage.setPointerCapture?.(e.pointerId);
+    end();
+    stroke = { last: null, pending: [c] };
+    flush(true);
+    timer = setInterval(() => flush(true), 50);
+  });
+  stage.addEventListener('pointermove', (e) => {
+    if (!stroke) {
+      return;
+    }
+    const c = cell(e);
+    const tail = stroke.pending[stroke.pending.length - 1] || stroke.last;
+    if (c && !(tail && tail[0] === c[0] && tail[1] === c[1])) {
+      stroke.pending.push(c);
+    }
+  });
+  stage.addEventListener('pointerup', end);
+  stage.addEventListener('pointercancel', end);
+  return {
+    setOn(value) {
+      on = value;
+      if (!on) {
+        end();
+      }
+      stage.classList.toggle('pointer', on);
+      hint.textContent = on ? 'You can point: tap or drag on the screen' : 'Pointing is off';
+      hint.classList.remove('hidden');
+    },
+  };
 }
 
 if (typeof document !== 'undefined') {

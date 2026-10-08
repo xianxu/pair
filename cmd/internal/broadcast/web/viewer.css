@@ -63,3 +63,22 @@ html, body {
   opacity: 0.35;
   filter: grayscale(1);
 }
+/* Pointer links (#412): the screen takes taps and drags instead of scrolling
+   or zooming, and a hint says whether pointing is on. */
+#stage.pointer {
+  touch-action: none;
+  cursor: crosshair;
+}
+#hint {
+  position: fixed;
+  bottom: 8px;
+  right: 8px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font: 13px/1.4 system-ui, sans-serif;
+  background: var(--status-bg);
+  color: var(--status-fg);
+}
+#hint.hidden {
+  display: none;
+}

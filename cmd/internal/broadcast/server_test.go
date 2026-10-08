@@ -152,10 +152,18 @@ func TestViewerPageLoadsOnlySameOrigin(t *testing.T) {
 		t.Error("page has an inline event handler")
 	}
 	viewer := string(mustAsset(t, "viewer.js"))
-	for _, api := range []string{"localStorage", "sessionStorage", "indexedDB", "caches", "serviceWorker", "document.cookie", "fetch(", "XMLHttpRequest", "WebSocket", "sendBeacon"} {
+	for _, api := range []string{"localStorage", "sessionStorage", "indexedDB", "caches", "serviceWorker", "document.cookie", "XMLHttpRequest", "WebSocket", "sendBeacon", "EventSource(\"http", "EventSource('http"} {
 		if strings.Contains(viewer, api) {
 			t.Errorf("viewer.js uses %s", api)
 		}
+	}
+	// Exactly one request besides the page's own assets and stream: the
+	// pointer POST (#412), to the relative 'point', without credentials.
+	if n := strings.Count(viewer, "fetch("); n != 1 {
+		t.Errorf("viewer.js has %d fetch calls, want exactly the pointer POST", n)
+	}
+	if !strings.Contains(viewer, "fetch('point', {") || !strings.Contains(viewer, "credentials: 'omit'") {
+		t.Error("the pointer POST must target the relative 'point' and omit credentials")
 	}
 }
 
