@@ -95,6 +95,15 @@ emoji it picks Apple Color Emoji. Found in the #412 smoke on 2026-10-08.
   purpose: the operator's terminal draws them as emoji too.
 - U+FE0E (optional in Spec) not done: once the font supplies the glyph, the
   selector has nothing left to fix, and measuring it on iOS needs the device.
+- Verification: `go test ./cmd/internal/broadcast` green; mutation (drop
+  U+2733 from symbols.txt) fails `TestSymbolFontCoversExactlyTheList`. The
+  build is reproducible (two runs, same SHA-256). Broadcast's dependents
+  (`cmd/couch`, `couchcmd`, `couchtty`) pass unsandboxed except
+  `TestContinuationWriterPublishesExactCheckpointAcrossWorktrees`, which fails
+  on this agent session's inherited `PAIR_DATA_DIR` scope (unrelated).
+  `make -k test`: `test-review` fails the same 7 checks on origin/main (pre-existing);
+  `test-lua` and `test-changelog` pass with the env scrubbed;
+  `test-pair-embedded-runtime` hits the same inherited-scope conflict.
 
 ## Revisions
 
