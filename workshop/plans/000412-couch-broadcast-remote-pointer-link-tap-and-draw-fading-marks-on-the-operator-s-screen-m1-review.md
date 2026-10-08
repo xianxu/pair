@@ -100,3 +100,108 @@ findings:
     title: |
       No test covers the viewer loading the Unicode 11 add-on; a wrong global would break all viewing
 ```
+
+---
+
+## Re-review — 2026-10-08T09:43:51-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 412 — Couch broadcast: remote pointer link (tap and draw fading marks on the operator's screen) |
+| repo | pair |
+| issue file | workshop/issues/000412-couch-broadcast-remote-pointer-link-tap-and-draw-fading-marks-on-the-operator-s-screen.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 58c6dadacbf4a039d42c73cd362a8791b3b506cf..864ce607aef81b908546882cf6a823eed77be927 |
+| command | sdlc milestone-close --issue 412 --milestone M1 |
+| reviewer | claude |
+| timestamp | 2026-10-08T09:43:51-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+M1 delivers what the plan promises. It adds the 👆/👽 marker constants with width checks in all three measurers (`textwidth`, `ansi`, the vt emulator), and the Unicode 11 add-on in both the viewer and the oracle. It adds a pure `Marks` model and the Presenter's `Overlay`/`SetOverlay`/`Refresh` hook. Every test the plan names for Tasks 1.1–1.3 exists and passes. The two Important findings from the earlier rounds are fixed, and I checked each fix by mutation, not by reading the commit message:
+- **BR-3:** I reverted the overlay's `rows-1` guard to `rows` in a scratch copy, and `TestMarksOverlayNeverTintsStatusRow` failed ("status-row cell 0 tinted after a resize").
+- **BR-2:** I put the pre-fix `Add` back (from `aba2176b`), and `TestMarksAddWorstCaseIsCheap` failed at 200ms per batch. With the fix it takes about 0.3ms, so the 20ms bound has roughly 60× headroom.
+
+The four Minor findings still open are bookkeeping and don't block. I raise one new Minor below, about a precondition.
+
+**1. Strengths**
+- `marks.go:41-82`: `Add` now cuts the batch down to the cap before inserting, and evicts with a single sort. It is bounded at O(n log n), where n ≤ cols·rows/8. Because the batch is cut first and earlier cells are older, cells from the same stroke are evicted only when two `Add` calls share a timestamp.
+- `marks.go:170-174`: the status-row guard now applies where the tint is drawn, not only where input enters. The new lesson in `lessons.md` states the general rule.
+- `tap.go:27-46`: `Overlay` and `Refresh` both go through `p.call`, so they are ordered with paints. `Panel` clones its frame before keeping it in `p.panel` (`presenter.go:461`), so `Refresh` can't repaint a frame the caller has since changed. `Select` resets `p.panel`.
+- `presenter.go:330-335`: the overlaid frame is checked with `Validate` again before painting. `TestIdentityOverlayIsByteIdentical` and `TestOverlayNeverReachesScrollback` check, through the oracle, that the overlay adds nothing to the bytes and never reaches scrollback.
+- The marker widths are checked in every measurer (`TestCapabilityMarkerWidths`, `TestOracleCapabilityMarkersAreWide`). That is the right way to catch drift between Couch and the viewer.
+
+**2. Critical findings**
+None.
+
+**3. Important findings**
+None.
+
+**4. Minor findings**
+- **BR-1 (not addressed):** the plan's task prose still restates the test cases.
+- **BR-4 (not addressed):** the plan's Core concepts table still lists `Expired`, and there is no Revisions entry.
+- **BR-5 (not addressed):** `marks_test.go` still has `var _ = terminal.FramePrivate`.
+- **BR-6 (not addressed):** no test covers the viewer loading the add-on. The M4 smoke test is the intended backstop.
+- **New, Minor — a precondition that isn't enforced:** `Add`'s doc comment says its cost is bounded, but the line walk (`line`) runs once per cell between the two raw coordinates, before the off-grid filter. A point like `[1e9, 0]` therefore costs about 10⁹ iterations under the paint-path lock. The plan relies on M2's parser rejecting out-of-range points, but `Add`'s own comment says off-grid points are "dropped".
+
+**5. Test coverage notes**
+- Every M1 test listed in the plan is present and passing.
+- The BR-2 and BR-3 regression tests are confirmed to fail without their fixes.
+- The worst-case timing test uses a wall-clock bound. Its headroom is large, so it isn't flaky in practice.
+
+**6. Architectural notes**
+- **ARCH-DRY: pass.** One model decides mark geometry, fading and the cap. The marker constants sit next to `LiveLabel`.
+- **ARCH-PURE: pass.** The clock is passed in as an argument, and there is no IO in `Marks`.
+- **ARCH-PURPOSE: pass** for M1's scope.
+- **ARCH-MOCK: N/A.** No new external call; the vendored add-on is run by the oracle.
+- **ARCH-CONSTRAINTS: pass.** BR-2 is fixed and tested at the worst case. The new Minor above is a precondition on that envelope.
+- **ARCH-SECURE: pass with one note.** The status row is now protected where it is drawn. Bounding the cost against raw coordinates is left to M2. When M2 lands, make sure the coordinate validation actually runs before `Add`.
+- **ARCH-ORDER: pass.** `SetOverlay` and `Refresh` are serialized on the Presenter goroutine.
+- **ARCH-FUNERAL: pass.** Everything is in memory and capped. Expired cells are removed on `Add`, and `Live`/`Overlay` ignore them.
+- **For M3:** keep `marksMu` a leaf lock. A `Refresh` on a panel bumps the view token on every fade step; keep that in mind if anything keys off re-selection.
+
+**7. Plan revision recommendations**
+- Add a `## Revisions` entry (BR-4): the real `Marks` surface is `Add(points, cols, rows, now)`, `Clear`, `Overlay(frame, now)`, `Live(now)` and `NextChange(now)`; `Expired` was never built. Note there that `Overlay` also drops the last row (BR-3).
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      Task prose in the plan unchanged; still Minor, non-blocking.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Add now truncates batch to cap and evicts via one sort; restoring aba2176b's Add makes TestMarksAddWorstCaseIsCheap fail at 200ms/batch, fixed runs ~0.3ms.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Overlay skips row >= rows-1 (marks.go:174); mutating to rows makes TestMarksOverlayNeverTintsStatusRow fail; test also asserts IndicatorShown.
+  - id: BR-4
+    disposition: not-addressed
+    note: |
+      Plan Core concepts still lists Expired; no Revisions entry records Live/NextChange or Add's signature.
+  - id: BR-5
+    disposition: not-addressed
+    note: |
+      var _ = terminal.FramePrivate still present in marks_test.go.
+  - id: BR-6
+    disposition: not-addressed
+    note: |
+      No test of viewer add-on wiring; M4 smoke remains the intended backstop.
+findings:
+  - id: new
+    severity: Minor
+    family: untrusted-input-work-unbounded
+    title: |
+      Marks.Add walks Bresenham over raw coordinates before the off-grid filter, so its cost bound holds only if M2's parser validates range
+    detail: |
+      This is the 2nd finding in family untrusted-input-work-unbounded. Rule: work derived from untrusted input is bounded at the entity doing the work, not by an upstream validator. A point like [1e9,0] costs ~1e9 iterations under the paint lock despite the doc's "cost is bounded". Fix at the rule: in Add, drop (or clip to the grid) any off-grid point before line(), and add the case to TestMarksAddWorstCaseIsCheap.
+```

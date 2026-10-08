@@ -223,7 +223,7 @@ total: 4.85
 
 Durable plan: `workshop/plans/000412-couch-broadcast-remote-pointer-link-tap-and-draw-fading-marks-on-the-operator-s-screen-plan.md`.
 
-- [ ] M1 — emoji width check; `Marks` model; Presenter overlay hook and `Refresh`
+- [x] M1 — emoji width check; `Marks` model; Presenter overlay hook and `Refresh`
 - [ ] M2 — `PointBatch`/`RateLimit`; hub pointer watch and `Current`; session
       pointer token, `pointing` switch, `POST point`, `caps` events
 - [ ] M3 — status row `LIVE ⏸ 👆 👽`; Console clicks, marks, fade, fail-safe
@@ -233,6 +233,7 @@ Durable plan: `workshop/plans/000412-couch-broadcast-remote-pointer-link-tap-and
 ## Log
 
 ### 2026-10-08
+- 2026-10-08: closed M1 — Round-1 fixes: BR-2 Marks.Add bounded (batch truncated to the cap, one sort per call; TestMarksAddWorstCaseIsCheap 300x100 grid, 64 far-apart points at a full cap, ~2ms per batch vs the 20ms bound); BR-3 overlay never tints the frame last row (TestMarksOverlayNeverTintsStatusRow: a mark moved onto the status row by a resize leaves LIVE intact). Earlier evidence stands: marker widths incl. headless xterm.js with the unicode11 add-on, Marks table tests, Presenter overlay/Refresh/scrollback oracle tests; go test -race ./cmd/internal/{terminal,couchtty,broadcast} ok.; review verdict: SHIP
 
 - Filed from the operator's idea after #395 landed: a narrow remote-pointer
   channel short of full remote control. Status-row design (`LIVE ⏸ 👆 👽`)

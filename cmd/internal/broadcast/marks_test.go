@@ -219,3 +219,20 @@ func TestMarksAddWorstCaseIsCheap(t *testing.T) {
 		t.Fatalf("%d cells marked, cap %d", n, cols*rows/8)
 	}
 }
+
+// Add's cost holds without trusting its caller: an off-grid point is dropped
+// before any line is drawn to it, so a huge coordinate can't make it walk a
+// huge line.
+func TestMarksAddIgnoresHugeCoordinates(t *testing.T) {
+	m := NewMarks()
+	start := time.Now()
+	m.Add([][2]int{{0, 0}, {1 << 30, 1 << 30}, {2, 0}}, 20, 10, t0)
+	if d := time.Since(start); d > 50*time.Millisecond {
+		t.Fatalf("Add took %v on a huge coordinate", d)
+	}
+	for _, c := range markedCells(m) {
+		if c[0] >= 20 || c[1] >= 9 {
+			t.Fatalf("marked %v", c)
+		}
+	}
+}

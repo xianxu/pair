@@ -43,12 +43,22 @@ func (m *Marks) Add(points [][2]int, cols, rows int, now time.Time) {
 			batch = append(batch, c)
 		}
 	}
-	for i, p := range points {
-		if i == 0 {
-			put(cell{p[0], p[1]})
+	// An off-grid point is dropped before any line reaches it, so a line is
+	// never longer than the grid, whatever the caller passed.
+	onGrid := func(p [2]int) bool { return p[0] >= 0 && p[0] < cols && p[1] >= 0 && p[1] < rows }
+	var prev *[2]int
+	for i := range points {
+		p := points[i]
+		if !onGrid(p) {
+			prev = nil
 			continue
 		}
-		line(points[i-1], p, put)
+		if prev == nil {
+			put(cell{p[0], p[1]})
+		} else {
+			line(*prev, p, put)
+		}
+		prev = &points[i]
 	}
 	if len(batch) > limit {
 		batch = batch[len(batch)-limit:]

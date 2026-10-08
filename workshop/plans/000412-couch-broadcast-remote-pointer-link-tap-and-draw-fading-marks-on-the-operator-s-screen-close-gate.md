@@ -52,6 +52,44 @@ rounds:
       boundary: M1
       recipe: milestone-review
       blocked: true
+    - "n": 3
+      timestamp: "2026-10-08T09:43:51-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: Task prose in the plan unchanged; still Minor, non-blocking.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: Add now truncates batch to cap and evicts via one sort; restoring aba2176b's Add makes TestMarksAddWorstCaseIsCheap fail at 200ms/batch, fixed runs ~0.3ms.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: Overlay skips row >= rows-1 (marks.go:174); mutating to rows makes TestMarksOverlayNeverTintsStatusRow fail; test also asserts IndicatorShown.
+          round: 3
+        - id: BR-4
+          disposition: not-addressed
+          note: Plan Core concepts still lists Expired; no Revisions entry records Live/NextChange or Add's signature.
+          round: 3
+        - id: BR-5
+          disposition: not-addressed
+          note: var _ = terminal.FramePrivate still present in marks_test.go.
+          round: 3
+        - id: BR-6
+          disposition: not-addressed
+          note: No test of viewer add-on wiring; M4 smoke remains the intended backstop.
+          round: 3
+      findings:
+        - id: BR-7
+          severity: Minor
+          title: Marks.Add walks Bresenham over raw coordinates before the off-grid filter, so its cost bound holds only if M2's parser validates range
+          detail: 'This is the 2nd finding in family untrusted-input-work-unbounded. Rule: work derived from untrusted input is bounded at the entity doing the work, not by an upstream validator. A point like [1e9,0] costs ~1e9 iterations under the paint lock despite the doc''s "cost is bounded". Fix at the rule: in Add, drop (or clip to the grid) any off-grid point before line(), and add the case to TestMarksAddWorstCaseIsCheap.'
+          family: untrusted-input-work-unbounded
+          round: 3
+      boundary: M1
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#412 (boundary-review)
@@ -79,11 +117,26 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-5** [Minor] `test-filler` marks_test.go ends with var _ = terminal.FramePrivate, which asserts nothing
 - **BR-6** [Minor] `untested-page-wiring` No test covers the viewer loading the Unicode 11 add-on; a wrong global would break all viewing
 
+## Round 3 — 2026-10-08T09:43:51-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — not-addressed — Task prose in the plan unchanged; still Minor, non-blocking.
+- BR-2 — addressed — Add now truncates batch to cap and evicts via one sort; restoring aba2176b's Add makes TestMarksAddWorstCaseIsCheap fail at 200ms/batch, fixed runs ~0.3ms.
+- BR-3 — addressed — Overlay skips row >= rows-1 (marks.go:174); mutating to rows makes TestMarksOverlayNeverTintsStatusRow fail; test also asserts IndicatorShown.
+- BR-4 — not-addressed — Plan Core concepts still lists Expired; no Revisions entry records Live/NextChange or Add's signature.
+- BR-5 — not-addressed — var _ = terminal.FramePrivate still present in marks_test.go.
+- BR-6 — not-addressed — No test of viewer add-on wiring; M4 smoke remains the intended backstop.
+
+### Raised
+
+- **BR-7** [Minor] `untrusted-input-work-unbounded` Marks.Add walks Bresenham over raw coordinates before the off-grid filter, so its cost bound holds only if M2's parser validates range
+  This is the 2nd finding in family untrusted-input-work-unbounded. Rule: work derived from untrusted input is bounded at the entity doing the work, not by an upstream validator. A point like [1e9,0] costs ~1e9 iterations under the paint lock despite the doc's "cost is bounded". Fix at the rule: in Add, drop (or clip to the grid) any off-grid point before line(), and add the case to TestMarksAddWorstCaseIsCheap.
+
 ## Open findings
 
 - **BR-1** [Minor] `enumerated-test-prose` Tasks 1.3, 2.2, 2.3, 3.2 enumerate test cases in prose, restating Done-when
-- **BR-2** [Important] `untrusted-input-work-unbounded` Marks.Add cap eviction is O(excess x n), up to ~250-850ms per batch under the paint-path lock
-- **BR-3** [Important] `invariant-enforced-at-paint-time` Marks.Overlay can tint the status row after a resize, failing IndicatorShown
 - **BR-4** [Minor] `plan-table-matches-code` Plan Core concepts lists Marks.Expired; the code has Live/NextChange and Add(points, cols, rows, now)
 - **BR-5** [Minor] `test-filler` marks_test.go ends with var _ = terminal.FramePrivate, which asserts nothing
 - **BR-6** [Minor] `untested-page-wiring` No test covers the viewer loading the Unicode 11 add-on; a wrong global would break all viewing
+- **BR-7** [Minor] `untrusted-input-work-unbounded` Marks.Add walks Bresenham over raw coordinates before the off-grid filter, so its cost bound holds only if M2's parser validates range
