@@ -285,6 +285,14 @@ Durable plan: `workshop/plans/000395-couch-broadcast-stream-the-composed-couch-s
   - Crash test: `kill -9` of Couch stopped the URL. Afterwards there was no
     guard or cloudflared process and the private directory was gone. The
     restarted Couch's startup sweep removed the dead owner's run record.
+- M5 smoke, round 2 (xterm.js 6.0.0): the shifted rows persisted, and the
+  operator pinned them to Claude's gray italic recap lines. The cause was in
+  the viewer. It waited only for the regular and bold faces, so italic runs
+  drew in a fallback face whose advance differs, and xterm.js's in-flow row
+  layout pushed the rest of the row left (the pane border, nvim's line
+  numbers). The operator also saw the view scroll as lines were added. After
+  the viewer waited for all four faces (ba425fc8), the operator confirmed it
+  fixed.
 
 ## Revisions
 
