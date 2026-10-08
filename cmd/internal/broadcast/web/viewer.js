@@ -118,13 +118,20 @@ function decode(b64) {
 
 const FONT = '"JetBrains Mono"';
 
-// loadFont waits, briefly, for the packed font, so xterm.js measures its
-// cells with it rather than a fallback. If it doesn't load, the stack falls
-// back and the screen still works.
+// FONT_FACES is every face the screen can draw in. All of them must be
+// loaded before the first frame: xterm.js lays a row's styled runs out in
+// flow, so a run drawn in a fallback face with a different advance (say,
+// italic text before the italic face arrives) shifts the rest of its row.
+// (#395 M5 smoke: Claude's italic recap lines pushed the pane border left.)
+export const FONT_FACES = ['', 'bold ', 'italic ', 'italic bold '];
+
+// loadFont waits, briefly, for every face of the packed font, so xterm.js
+// measures and draws with it rather than a fallback. If it doesn't load, the
+// stack falls back and the screen still works.
 async function loadFont() {
   try {
     await Promise.race([
-      Promise.all([document.fonts.load(`16px ${FONT}`), document.fonts.load(`bold 16px ${FONT}`)]),
+      Promise.all(FONT_FACES.map((face) => document.fonts.load(`${face}16px ${FONT}`))),
       new Promise((resolve) => setTimeout(resolve, 3000)),
     ]);
   } catch {
