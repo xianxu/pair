@@ -184,6 +184,8 @@ Durable plan: `workshop/plans/000395-couch-broadcast-stream-the-composed-couch-s
 
 ## Log
 
+
+- 2026-10-08: closed — All five milestones closed with fresh-context reviews (M1 SHIP r2, M2 FIX-THEN-SHIP r3, M3 SHIP r2, M4 SHIP r1, M5 SHIP r2). Done-when: operator live smoke on pair:0 via named tunnel live.functeer.com in Safari (composed screen live at sender grid, font fit, late joiner, switcher placeholder, LIVE click stop ends viewers); IndicatorShown gate + grace stop tested (TestHubStopsWhenIndicatorHiddenPastGrace, TestBroadcastStopsWhenIndicatorCannotBeDrawn); switcher placeholder/ShowSwitcher frame-level tests; TestSessionPersistsNoFrameData; clear propagates (TestStreamClearClearsViewer); viewer endpoint GET-only/token-gated/revoked after stop; page same-origin with CSP (operator browser check, no CSP errors). Full verification: make -k test fails only test-pair-embedded-runtime (identical on a main archive) and test-changelog (passes with scratchpad TMPDIR); go test ./... failures (artifactpath inventory, couchcmd TestColdResume*/TestContinuationWriter*, couchcore TestSpawnComposes*, gcruntime TestCouchReferencesLocalArchive*, launcher checkpoint/scoped-data-dir tests) all fail identically on a main archive with the same scrubbed env; inventory names no #395 file. TestCloudflaredLive passes for named and quick tunnels. Actual not recorded: sdlc actual reads 1.79h for the whole issue (less than M1 alone measured at 1.75h) after the pre-move rebase and slot moves; see Log.; review verdict: SHIP
 ### 2026-10-06
 
 - Operator idea: "couch broadcast", stream the tty verbatim to a couch player over

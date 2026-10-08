@@ -325,6 +325,44 @@ rounds:
       boundary: M5
       recipe: milestone-review
       blocked: false
+    - "n": 11
+      timestamp: "2026-10-08T00:22:45-07:00"
+      agent: claude
+      dispose:
+        - id: BR-10
+          disposition: addressed
+          note: atlas/broadcast.md, the plan and lessons.md no longer mention TestViewerFit (grep finds nothing).
+          round: 11
+        - id: BR-16
+          disposition: addressed
+          note: tunnel.go:23-25 now says callers may cancel ctx once Start returns (Couch does).
+          round: 11
+        - id: BR-17
+          disposition: addressed
+          note: console_broadcast_test.go:403 drives abandon-before-adopt deterministically.
+          round: 11
+        - id: BR-18
+          disposition: addressed
+          note: The issue's M4 Plan row now says the font-file setting was dropped. Line 354 is the historical Revisions entry, so it can stay.
+          round: 11
+        - id: BR-19
+          disposition: addressed
+          note: console_palette.go:104-108 explains why it keeps its own strict parser, and TestParseOSC4ReplyAgreesWithXParseColor pins that the two agree.
+          round: 11
+        - id: BR-20
+          disposition: addressed
+          note: The input_test.go:99 row now expects the full uv.UnknownOscEvent from the real decoder.
+          round: 11
+        - id: BR-27
+          disposition: addressed
+          note: The afterRecordRead hook makes the race deterministic. With the lock removed in a scratch copy, the test failed 3 of 3 runs. lessons.md is corrected.
+          round: 11
+        - id: BR-28
+          disposition: addressed
+          note: Rewrites now hold the lock. reapLocked removes *.json.tmp, pinned by TestReapRemovesLeftoverTempRecords.
+          round: 11
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#395 (boundary-review)
@@ -465,13 +503,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-28** [Minor] `artifact-without-removal-path` A crash between WriteFile and Rename in runRecord.record leaves a .tmp file nothing removes
   reapLocked globs only *.json, so named-x.json.tmp left by a crash or a failed rename stays forever; reaping should also remove stale *.json.tmp files.
 
+## Round 11 — 2026-10-08T00:22:45-07:00 (claude) — passed
+
+### Disposed
+
+- BR-10 — addressed — atlas/broadcast.md, the plan and lessons.md no longer mention TestViewerFit (grep finds nothing).
+- BR-16 — addressed — tunnel.go:23-25 now says callers may cancel ctx once Start returns (Couch does).
+- BR-17 — addressed — console_broadcast_test.go:403 drives abandon-before-adopt deterministically.
+- BR-18 — addressed — The issue's M4 Plan row now says the font-file setting was dropped. Line 354 is the historical Revisions entry, so it can stay.
+- BR-19 — addressed — console_palette.go:104-108 explains why it keeps its own strict parser, and TestParseOSC4ReplyAgreesWithXParseColor pins that the two agree.
+- BR-20 — addressed — The input_test.go:99 row now expects the full uv.UnknownOscEvent from the real decoder.
+- BR-27 — addressed — The afterRecordRead hook makes the race deterministic. With the lock removed in a scratch copy, the test failed 3 of 3 runs. lessons.md is corrected.
+- BR-28 — addressed — Rewrites now hold the lock. reapLocked removes *.json.tmp, pinned by TestReapRemovesLeftoverTempRecords.
+
 ## Open findings
 
-- **BR-10** [Minor] `plan-code-drift` atlas/broadcast.md:69 still cites TestViewerFit after the rename to TestViewerNode
-- **BR-16** [Minor] `plan-code-drift` Tunnel.Open doc says Start cancels its context; the Console caller does
-- **BR-17** [Minor] `cross-channel-state-read` No deterministic test drives the late-closure-after-abandon ordering behind BR-11
-- **BR-18** [Minor] `plan-code-drift` Issue Plan M4 row still names COUCH_BROADCAST_FONT_FILE after the bundled-font revision
-- **BR-19** [Minor] `duplicate-color-parser` parseOSC4Reply writes its own rgb: parser while OSC 10/11 use ansi.XParseColor
-- **BR-20** [Minor] `plan-test-coverage-gap` The input_test OSC 4 row pins only Reply, not the UnknownOscEvent with the full prefix that capturePalette needs
-- **BR-27** [Minor] `race-test-no-ordering-seam` BR-22 concurrency test rarely fails without the lock, and lessons.md overstates it
-- **BR-28** [Minor] `artifact-without-removal-path` A crash between WriteFile and Rename in runRecord.record leaves a .tmp file nothing removes
+(none — every finding has been disposed)
