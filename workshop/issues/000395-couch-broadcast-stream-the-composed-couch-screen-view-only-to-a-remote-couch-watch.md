@@ -273,6 +273,18 @@ Durable plan: `workshop/plans/000395-couch-broadcast-stream-the-composed-couch-s
     `https://live.functeer.com/x` served through the system DNS on the first
     request, another Host got the catch-all, and `cloudflared` exited 4s after
     SIGTERM.
+- M5 live smoke (operator, pair:0 at 498f7773, named tunnel
+  `couch-broadcast` → `live.functeer.com`): Ctrl+Alt+b, then the link
+  `https://live.functeer.com/<token>/` in Safari follows the screen live.
+  - One transient glitch: a few rows were briefly offset by about 2 columns,
+    with stale cells at their ends, and healed on the next update. This fits a
+    frame painted half-way, since xterm.js 5.5.0 ignores DECSET 2026, and
+    xterm.js 6.0.0 (2025-12-22) implements it.
+  - Process chain while live: Couch, then the guard (`couch __broadcast-guard`,
+    in its own process group), then cloudflared (in its own group).
+  - Crash test: `kill -9` of Couch stopped the URL. Afterwards there was no
+    guard or cloudflared process and the private directory was gone. The
+    restarted Couch's startup sweep removed the dead owner's run record.
 
 ## Revisions
 
