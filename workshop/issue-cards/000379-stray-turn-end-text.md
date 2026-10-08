@@ -1,6 +1,6 @@
 ---
 id: 000379
-status: codecomplete
+status: done
 created: 2026-10-01
 updated: 2026-10-07
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: c3bf44c9c3bf805adceef0b6b53a91041b7e8418
         evidence_commit: 4b566e9395eda8891db7bcd6cf8551424c2acdc6
+        landed_commit: 17a836467b4e6bfaa8c17b096f6549de37a3902b
 ---
 
 # Turn-end text flashes at focused pane cursor
