@@ -23,16 +23,16 @@ import (
 // glyph, because the box row itself is matched on its trimmed form. Its yolo
 // `*` glyph is a deliberate omission like agy's above: the captured echo
 // evidence covers default mode only, and a missed boundary degrades gracefully
-// (extra lookback), never corrupts the log. grok's value is its transcript
-// echo — `❯` at column 5 (grokEchoPromptCol, captured in testdata/prompt-echo/grok/
-// 1.0.46/echo.raw) — one column right of its composer glyph, which sits inside
-// the box's `│` and so never reads as a boundary.
+// (extra lookback), never corrupts the log. grok's value is its --minimal
+// transcript echo — `❯` at column 0 (grokPromptCol, captured in wrapcmd
+// testdata/prompt-echo/grok/1.0.46/echo.raw) — the same glyph and column as
+// claude's.
 var promptGlyphChar = map[string]string{
 	"claude": "❯",
 	"codex":  "›",
 	"agy":    ">",
 	"qoder":  " >",
-	"grok":   "     ❯",
+	"grok":   "❯",
 }
 
 // promptGlyphByAgent — line-start regex per agent, derived from promptGlyphChar
@@ -73,22 +73,25 @@ var (
 	// "2 AGENTS.md files · 1 MCP server · 44 skills" — counts churn as the
 	// project's agent files / MCP servers / skills change.
 	qoderHintsRe = regexp.MustCompile(`^\d+ AGENTS\.md files? · `)
-	// grokBoxEdgeRe matches the top and bottom edges of grok's rounded
-	// composer box — the bottom one carries the model label, e.g.
-	// "╰──── Grok 4.7 (high) ─╯" (captured in wrapcmd testdata/prompt-echo/grok/1.0.46/echo.raw).
-	grokBoxEdgeRe = regexp.MustCompile(`^(╭─.*╮|╰─.*╯)$`)
-	// grokHintsRe matches grok's key-hint row below the box: idle
-	// "Shift+Tab:mode  │  Ctrl+x:shortcuts", working
-	// "Shift+Tab :mode │ Ctrl+c :cancel │ Ctrl+. :shortcuts".
-	grokHintsRe = regexp.MustCompile(`^Shift\+Tab ?:mode\b`)
+	// grokHintRe matches grok --minimal's hint row above the composer,
+	// "minimal · /help" (captured in wrapcmd testdata/prompt-echo/grok/
+	// 1.0.46/echo.raw).
+	grokHintRe = regexp.MustCompile(`^minimal · `)
+	// grokStatusRe matches grok's status row below the composer, e.g.
+	// "Grok 4.7 (high) · default · 18K / 256K (7%) · ctrl+o transcript" — keyed
+	// on its context meter, which churns every turn.
+	grokStatusRe = regexp.MustCompile(` · \d+(\.\d+)?K ?/ ?\d+K ?\(\d+%\)`)
+	// grokSpinnerRe matches grok's working row ("⠙ Waiting for response… 0.0s
+	// ⇣1.36k"): a braille spinner frame opening the line.
+	grokSpinnerRe = regexp.MustCompile(`^[⠀-⣿] `)
 )
 
 // isFooterChrome reports whether line belongs to the live UI footer — none of
 // which is committed scrollback (#58). The footer is multi-block when the agent
 // is working: a thinking spinner + rule ABOVE the input box, then the box + rule
 // + status below. Claude-shaped, plus qoder's rows (captured live, M5 Task 17)
-// and grok's (captured in wrapcmd testdata/prompt-echo/grok/1.0.46/echo.raw); other agents still get the
-// generic blank / box / rule cases.
+// and grok's (--minimal, captured in wrapcmd testdata/prompt-echo/grok/1.0.46/
+// echo.raw); other agents still get the generic blank / box / rule cases.
 func isFooterChrome(line, glyph string) bool {
 	t := strings.TrimSpace(line)
 	switch {
@@ -118,27 +121,14 @@ func isFooterChrome(line, glyph string) bool {
 		return true
 	case strings.Contains(t, "esc to cancel"): // "⠋ Generating... (esc to cancel, 2s)"
 		return true
-	case grokBoxEdgeRe.MatchString(t): // grok "╭───╮" / "╰─── Grok 4.7 (high) ─╯"
+	case grokHintRe.MatchString(t): // grok "minimal · /help"
 		return true
-	case grokBoxPromptRow(t, glyph): // grok "│ ❯ … │" (empty or live draft)
+	case grokStatusRe.MatchString(t): // grok "Grok 4.7 (high) · … · 18K / 256K (7%) · …"
 		return true
-	case grokHintsRe.MatchString(t): // grok "Shift+Tab:mode  │  Ctrl+x:shortcuts"
-		return true
-	case strings.HasSuffix(t, "[stop]"): // grok "⠋ Waiting for response… [stop]"
+	case grokSpinnerRe.MatchString(t): // grok "⠙ Waiting for response… 0.0s"
 		return true
 	}
 	return false
-}
-
-// grokBoxPromptRow reports a row of grok's composer box whose content opens
-// with the prompt glyph: `│ ❯ … │`. Only the live composer draws that shape.
-func grokBoxPromptRow(t, glyph string) bool {
-	inner, ok := strings.CutPrefix(t, "│")
-	if !ok {
-		return false
-	}
-	inner, ok = strings.CutSuffix(inner, "│")
-	return ok && strings.HasPrefix(strings.TrimSpace(inner), glyph)
 }
 
 // trimLiveTail drops the live UI footer from the end of the cleaned text so the

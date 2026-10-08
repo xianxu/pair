@@ -139,16 +139,14 @@ if vim and vim.api then
     "> flush left",        -- 4: no match (qoder indents its prompt)
   }, { true, true, false, false })
 
-  -- 4b. Grok pattern: the submitted prompt is echoed as `❯ text` at column 5
-  -- (grokEchoPromptCol, captured in testdata/prompt-echo/grok/1.0.46/echo.raw). The
-  -- live composer's own `❯` sits at column 4 inside the box's `│`, so it must
-  -- never read as a turn — nor may Claude's flush-left `❯`.
+  -- 4b. Grok pattern (--minimal): the submitted prompt is echoed as
+  -- `❯ text` at column 0 (grokPromptCol, captured in
+  -- testdata/prompt-echo/grok/1.0.46/echo.raw), like claude's.
   test_agent_pattern('grok', {
-    "     ❯ reply with just the word ok",  -- 1: match (transcript echo)
-    "  │ ❯                          │",   -- 2: no match (live composer box)
-    "❯ claude-shaped prompt",              -- 3: no match (flush left)
-    "      ❯ indented further",            -- 4: no match (wrong column)
-  }, { true, false, false, false })
+    "❯ reply with just the word ok",  -- 1: match (transcript echo)
+    "  ❯ indented",                    -- 2: no match (wrong column)
+    "minimal · /help",                 -- 3: no match (hint row)
+  }, { true, false, false })
 
   -- 5. Refresh helper: re-renders the backing .ansi file, reloads this buffer,
   -- strips ANSI escapes back to text, and preserves read-only viewer state.

@@ -270,3 +270,15 @@ Durable plan: [000410-grok-harness-integration-for-pair-and-couch-plan.md](../pl
 - **Follow-up filed:** #411, a Couch peer-delivery receiver profile for grok (Done-when item).
 - **Docs:** README (M1 round), atlas (`architecture`, `session-identity`, `index`, `couch`, the bring-up guide), `doctor/README.md` + `SKILL.md`, and CHANGELOG all list Grok.
 
+### 2026-10-08 — operator smoke round 1
+
+- **Verified by the operator:** Return/Alt+Return (1), the question picker (3), Alt+n and resume (5). Live session `grok` launch 9 bound to the minted id `ec6f0528…` by correlation through the grok scanner; the agent ran as `grok --minimal --resume ec6f0528… --no-alt-screen`.
+- **Issue 1, status line showed `grok [!]`:** `ParseTokenUsage` had no grok case. Measured on the live session: the last update's `params._meta.totalTokens` (56912) equals grok's `signals.json` `contextTokensUsed`. `turn_completed` usage is per-turn billing summed over model calls (262k), so it is not occupancy. Fixed; `pair context grok grok` now prints `57k` live.
+- **Issue 2, `--no-alt-screen` is not enough:** grok's inline mode stays off the alternate screen but repaints its whole UI in place, so nothing reaches scrollback. `--minimal` (scrollback-native) works, and alone it never enters the alternate screen (0 × `?1049h`, measured), so the inline flag is now `--minimal`. Minimal mode is a different UI: no box, `❯` at column 0 for the composer and the echo alike, a faint `minimal · /help` row above and a `·`-separated status row below.
+  - The recognizer is rewritten (status row as discriminator); the box spec fields `ruleCol`/`sideGlyph` were removed (dead).
+  - `grokEchoPromptCol` was merged back into `grokPromptCol = 0`; scrollback, distill and orientation derive from it.
+  - Pickers repaint word-by-word at absolute columns, so markers carry both spellings. The question picker has no footer in minimal mode, so its free-text row is the marker.
+  - All four captures were retaken in minimal mode from a fresh directory (`harnessTTYCaptureDir`), because the minimal welcome card prints the absolute cwd. `echo.raw` is now 5.9 KB.
+  - Distill footer rows were replaced with minimal-mode ones (hint, meter-keyed status, braille spinner).
+- **`:PairDoctor` run (grok tag):** the perf half shows a healthy host (pipe_hop 0.006 ms, fork_exec 2.1 ms, zellij 17.9 ms). The adapt log `adapt-grok.jsonl` is absent on disk (only its diagnostics sidecar remains), so there is no drift tally for that session; the wrapper's `wrap-events` trace has only I/O labels. The next smoke should rerun `doctor/doctor.sh` while the session is live.
+

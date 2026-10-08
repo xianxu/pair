@@ -977,9 +977,9 @@ pair version, --version          # print launcher version metadata
 pair -h, --help                  # show full help
 ```
 
-Codex and Grok run in inline mode (`--no-alt-screen`) under Pair, so their
-conversation reaches the pane's scrollback; pair inserts the flag before any
-`--`. Set `PAIR_CODEX_ALT_SCREEN=1` or `PAIR_GROK_ALT_SCREEN=1` to leave that
+Codex runs inline (`--no-alt-screen`) and Grok in its scrollback-native
+`--minimal` mode under Pair, so their conversation reaches the pane's
+scrollback; pair inserts the flag before any `--`. Set `PAIR_CODEX_ALT_SCREEN=1` or `PAIR_GROK_ALT_SCREEN=1` to leave that
 agent on its alternate screen.
 
 Inventory uses `provisional` for an unconfirmed association, `established` for

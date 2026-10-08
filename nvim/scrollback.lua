@@ -373,10 +373,10 @@ end
 --            composer_recognizers.go and kept honest by
 --            TestScrollbackPatternsTrackPromptAuthority (wrapcmd),
 --            which fails on any drift.
---   grok   — ❯, echoed at column 5 above the live composer box (whose own
---            ❯ sits at column 4 inside `│`, so it never matches). DERIVED
---            from grokPromptGlyphs + grokEchoPromptCol, pinned by the same
---            TestScrollbackPatternsTrackPromptAuthority.
+--   grok   — ❯ at column 0 in --minimal mode (the mode Pair runs it in),
+--            for the transcript echo and the live composer alike, like
+--            claude's. DERIVED from grokPromptGlyphs + grokPromptCol, pinned
+--            by the same TestScrollbackPatternsTrackPromptAuthority.
 -- Lookup falls back to claude's pattern so unknown agents still get a
 -- useful default.
 local PROMPT_PATTERN_BY_AGENT = {
@@ -385,7 +385,7 @@ local PROMPT_PATTERN_BY_AGENT = {
   agy    = [[\(──.*\n\)\zs>]],
   muse   = [[^>]],
   qoder  = [=[^ [*>]]=],
-  grok   = [=[^     [❯]]=],
+  grok   = [=[^[❯]]=],
 }
 
 -- Adaptation flight recorder (atlas §3). Load the sibling emitter by this

@@ -550,7 +550,7 @@ func TestHarnessTTYLiveConformance(t *testing.T) {
 		"codex":  {"codex", "--no-alt-screen", "-c", "check_for_update_on_startup=false"},
 		"muse":   {"muse"},
 		"qoder":  {"qoder"},
-		"grok":   {"grok", "--no-alt-screen"},
+		"grok":   {"grok", "--minimal"},
 	}
 	command, ok := commands[harness]
 	if !ok {
@@ -589,7 +589,7 @@ func TestHarnessTTYLiveConformance(t *testing.T) {
 		Executable: executable,
 		Args:       command[1:],
 		Env:        env,
-		Dir:        repoRoot,
+		Dir:        harnessTTYCaptureDir(t, harness, repoRoot),
 	}, classifier.Observe)
 	if err != nil {
 		t.Fatalf("capture %s startup: state=%s: %v", harness, state, err)
@@ -805,35 +805,48 @@ var harnessTTYDrivenScenarios = map[string][]harnessTTYDrivenScenario{
 	// confirm. Captured 1.0.46; the command never runs, since the picker is
 	// never answered.
 	"grok": {
-		{name: "permission prompt", args: []string{"--no-alt-screen", "--permission-mode", "default"},
+		{name: "permission prompt", args: []string{"--minimal", "--permission-mode", "default"},
 			send:  "use your shell tool to run exactly this command: chmod 600 pair-grok-capture-probe.txt\r",
-			until: "Yes, proceed", wantComposer: false, file: "overlay.raw",
+			until: "proceed", wantComposer: false, file: "overlay.raw",
 			timeout: 120 * time.Second,
 		},
 		// Grok's question picker (its ask-user tool): the question over
 		// numbered options and a free-text row, closed by a footer whose
 		// "Enter :submit" is why a missing marker reproduces as "Enter
 		// inserts newline" (the #000042 muse shape).
-		{name: "selection prompt", args: []string{"--no-alt-screen"},
+		{name: "selection prompt", args: []string{"--minimal"},
 			send:  "Use your question tool (ask the user a multiple-choice question) to ask me which fruit I prefer: apple or banana.\r",
-			until: "Enter:submit", wantComposer: false, file: "selection.raw",
+			until: "Typeyouranswerhere", wantComposer: false, file: "selection.raw",
 			timeout: 150 * time.Second,
 		},
 		// A finished turn: the submitted prompt is echoed into the transcript
-		// as `❯ text` at grokEchoPromptCol (one column right of the composer's
-		// glyph), above a live composer box the gate must still select. It is
+		// as `❯ text` at grokPromptCol, above the live composer the gate must
+		// still select. It is
 		// the evidence the scrollback and distill prompt patterns derive from
 		// (TestGrokEchoPromptColMatchesCapture). The stream cannot be trimmed
 		// (its final paint block alone decides differently) and replaying 65KB
 		// at every byte split cost the fixture oracle 49s, so the capture lives
 		// outside the tty fixture set: recapture with PAIR_LIVE_CAPTURE_OUT=
 		// cmd/internal/wrapcmd/testdata/prompt-echo/grok/<version>/echo.raw.
-		{name: "submitted prompt", args: []string{"--no-alt-screen"},
+		{name: "submitted prompt", args: []string{"--minimal"},
 			send:  "reply with just the word ok\r",
 			until: "Worked for", wantComposer: true, file: "echo.raw",
 			timeout: 120 * time.Second,
 		},
 	},
+}
+
+// harnessTTYCaptureDir is where a live capture runs. Grok's --minimal welcome
+// card prints the absolute cwd, so capturing in the checkout would freeze the
+// operator's home path into every fixture (assertFixtureIsMachineNeutral);
+// grok starts cleanly in a fresh directory (no workspace-trust step), so it
+// captures from one. Every other harness keeps the repository root — Muse,
+// for one, enters workspace-trust anywhere else (ttyFixtureEnvironmentGaps).
+func harnessTTYCaptureDir(t *testing.T, harness, repoRoot string) string {
+	if harness == "grok" {
+		return t.TempDir()
+	}
+	return repoRoot
 }
 
 // TestHarnessTTYLiveDrivenConformance drives the installed harness one
@@ -887,7 +900,7 @@ func driveHarnessTTYScenario(t *testing.T, harness, executable, repoRoot string,
 		Executable:     executable,
 		Args:           scenario.args,
 		Env:            os.Environ(),
-		Dir:            repoRoot,
+		Dir:            harnessTTYCaptureDir(t, harness, repoRoot),
 		StartupTimeout: scenario.timeout,
 		Classify: func(chunk, retained []byte) harnessTTYConformanceState {
 			recognized := composer.Observe(chunk, retained) == harnessTTYRecognized

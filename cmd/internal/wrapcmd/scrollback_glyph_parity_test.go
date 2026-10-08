@@ -13,8 +13,7 @@ import (
 
 // promptPatternAuthorities lists every harness whose prompt glyph authority
 // lives in Go, with the column its submitted prompt is echoed at in the
-// transcript. Qoder echoes at its composer column; Grok one column right of
-// it. The out-of-package consumers (nvim/scrollback.lua's Alt+b pattern and
+// transcript. Qoder and Grok (--minimal) both echo at their composer column. The out-of-package consumers (nvim/scrollback.lua's Alt+b pattern and
 // changelogcmd's distill glyph) must derive from these rows.
 var promptPatternAuthorities = []struct {
 	agent       string
@@ -23,7 +22,7 @@ var promptPatternAuthorities = []struct {
 	distillWith string // the default-mode glyph distill keys on
 }{
 	{"qoder", qoderPromptGlyphs, qoderPromptCol, ">"},
-	{"grok", grokPromptGlyphs, grokEchoPromptCol, "❯"},
+	{"grok", grokPromptGlyphs, grokPromptCol, "❯"},
 }
 
 // scrollbackPatternRe extracts an agent's row of nvim/scrollback.lua's
@@ -103,9 +102,9 @@ func TestDistillGlyphsTrackPromptAuthority(t *testing.T) {
 	}
 }
 
-// TestGrokEchoPromptColMatchesCapture pins grokEchoPromptCol against the
-// frozen finished-turn capture: the submitted prompt's echo row carries a
-// grokPromptGlyphs glyph at exactly that column, above the live composer box.
+// TestGrokEchoPromptColMatchesCapture pins grokPromptCol against the frozen
+// finished-turn capture: the submitted prompt's transcript echo carries a
+// grokPromptGlyphs glyph at exactly that column, with text after it.
 func TestGrokEchoPromptColMatchesCapture(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("testdata", "prompt-echo", "grok", "1.0.46", "echo.raw"))
 	if err != nil {
@@ -120,20 +119,14 @@ func TestGrokEchoPromptColMatchesCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	snapshot := model.Snapshot()
-	found := false
 	for y := 0; y < snapshot.Height; y++ {
-		cell := snapshot.CellAt(grokEchoPromptCol, y)
-		if cell == nil || !grokPromptGlyphs[cell.Content] {
+		cell := snapshot.CellAt(grokPromptCol, y)
+		if cell == nil || !grokPromptGlyphs[cell.Content] || y == snapshot.Cursor.Y {
 			continue
 		}
-		for x := 0; x < grokEchoPromptCol; x++ {
-			if c := snapshot.CellAt(x, y); c != nil && strings.TrimSpace(c.Content) != "" {
-				t.Fatalf("echo row %d paints column %d before the glyph: %q", y, x, c.Content)
-			}
+		if text := snapshot.CellAt(grokPromptCol+2, y); text != nil && strings.TrimSpace(text.Content) != "" {
+			return // an echo row: glyph, space, prompt text
 		}
-		found = true
 	}
-	if !found {
-		t.Fatalf("no %v glyph at echo column %d in echo.raw", grokPromptGlyphs, grokEchoPromptCol)
-	}
+	t.Fatalf("no echoed %v prompt at column %d in echo.raw", grokPromptGlyphs, grokPromptCol)
 }

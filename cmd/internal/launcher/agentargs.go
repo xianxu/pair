@@ -199,7 +199,10 @@ type inlineMode struct{ flag, optOutEnv string }
 
 var inlineModes = map[string]inlineMode{
 	"codex": {flag: "--no-alt-screen", optOutEnv: "PAIR_CODEX_ALT_SCREEN"},
-	"grok":  {flag: "--no-alt-screen", optOutEnv: "PAIR_GROK_ALT_SCREEN"},
+	// grok's --no-alt-screen stays off the alternate screen but still
+	// repaints its whole UI in place, so nothing reaches scrollback; --minimal
+	// prints finalized blocks into native scrollback (operator smoke, #410).
+	"grok": {flag: "--minimal", optOutEnv: "PAIR_GROK_ALT_SCREEN"},
 }
 
 // InlineOptOuts reads every harness's opt-out env once, at launch.

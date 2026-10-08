@@ -261,10 +261,10 @@ func TestStripHelpersStopAtDoubleDash(t *testing.T) {
 	if got := stripFlagAllForms(args, "--session-id"); !reflect.DeepEqual(got, []string{"--no-alt-screen", "--", "--no-alt-screen", "--session-id", "v"}) {
 		t.Errorf("stripFlagAllForms = %v", got)
 	}
-	if got := inlineModeArgs("grok", []string{"--", "explain --no-alt-screen"}, nil); !reflect.DeepEqual(got, []string{"--no-alt-screen", "--", "explain --no-alt-screen"}) {
+	if got := inlineModeArgs("codex", []string{"--", "explain --no-alt-screen"}, nil); !reflect.DeepEqual(got, []string{"--no-alt-screen", "--", "explain --no-alt-screen"}) {
 		t.Errorf("inlineModeArgs = %v", got)
 	}
-	if got := inlineModeArgs("grok", []string{"--", "--no-alt-screen"}, map[string]bool{"grok": true}); !reflect.DeepEqual(got, []string{"--", "--no-alt-screen"}) {
+	if got := inlineModeArgs("grok", []string{"--", "--minimal"}, map[string]bool{"grok": true}); !reflect.DeepEqual(got, []string{"--", "--minimal"}) {
 		t.Errorf("opted-out inlineModeArgs ate prompt text: %v", got)
 	}
 	if got := persistedConfigArgs("grok", []string{"-c", "--", "-c", "--resume", "x"}); !reflect.DeepEqual(got, []string{"--", "-c", "--resume", "x"}) {

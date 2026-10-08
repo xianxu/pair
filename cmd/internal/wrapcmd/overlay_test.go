@@ -188,42 +188,49 @@ func TestOverlayDetectorByAgent(t *testing.T) {
 			wantMatch: "Allowthiscommandtorun?",
 		},
 		{
-			// Grok's permission picker scope hint, verbatim from
-			// grok/1.0.46/overlay.raw: styled runs, real spaces.
+			// Grok's --minimal permission picker repaint, verbatim from
+			// grok/1.0.46/overlay.raw: words placed at absolute columns.
 			name:      "grok permission picker scope hint opens overlay",
 			agent:     "grok",
-			raw:       []byte("\x1b[38;2;200;200;200;48;2;36;36;36m\u2190 \u2192\x1b[2m narrow scope  \u00b7  \x1b[22me\x1b[2m edit pattern\x1b[22m"),
+			raw:       []byte("\x1b[24;1H\u2503\x1b[24;4H\u2190\x1b[24;6H\u2192\x1b[2m narrow scope  \u00b7  \x1b[22me\x1b[2m edit pattern"),
 			wantOpen:  true,
-			wantMatch: "\u2190 \u2192 narrow scope",
+			wantMatch: "\u2190\u2192 narrow scope",
 		},
 		{
 			name:      "grok permission picker reject option opens overlay",
 			agent:     "grok",
-			raw:       []byte("\x1b[38;2;108;108;108;48;2;36;36;36m(\u25cb) No, reject (type to add feedback)\x1b[39m"),
+			raw:       []byte("\x1b[29;1H\u2503\x1b[29;4H4\x1b[29;6H(\u25cb)\x1b[29;10HNo,\x1b[29;14Hreject\x1b[29;21H(type\x1b[29;27Hto\x1b[29;30Hadd\x1b[29;34Hfeedback)"),
+			wantOpen:  true,
+			wantMatch: "No,reject(typetoaddfeedback)",
+		},
+		{
+			// The first paint carries real spaces.
+			name:      "grok permission picker spaced first paint opens overlay",
+			agent:     "grok",
+			raw:       []byte("4 (\u25cb) No, reject (type to add feedback)"),
 			wantOpen:  true,
 			wantMatch: "No, reject (type to add feedback)",
 		},
 		{
-			// Grok's question picker footer, verbatim from selection.raw.
-			name:      "grok question picker footer opens overlay",
+			// Grok's --minimal question picker: its free-text option row.
+			name:      "grok question picker free-text row opens overlay",
 			agent:     "grok",
-			raw:       []byte("\x1b[38;2;200;200;200;48;2;36;36;36m\u2191/\u2193\x1b[38;2;108;108;108;48;2;36;36;36m navigate \u00b7 \x1b[38;2;200;200;200;48;2;36;36;36my\x1b[38;2;108;108;108;48;2;36;36;36m copy"),
+			raw:       []byte("\x1b[27;1H\u2503\x1b[27;4Hz\x1b[27;6H(\u25cb)\x1b[27;10HType\x1b[27;15Hyour\x1b[27;20Hanswer\x1b[27;27Hhere"),
 			wantOpen:  true,
-			wantMatch: "\u2191/\u2193 navigate \u00b7 y copy",
+			wantMatch: "Typeyouranswerhere",
 		},
 		{
-			// Grok paints prose with real spaces, so agent output about the
-			// same topics must not arm the overlay: the markers are the
-			// picker's chrome (arrows, the parenthetical), not its words.
-			name:     "grok prose about scope, rejecting and navigating does not open overlay",
+			// Agent prose about the same topics must not arm the overlay:
+			// the markers are the picker's chrome, not its words.
+			name:     "grok prose about scope, rejecting and answering does not open overlay",
 			agent:    "grok",
-			raw:      []byte("We can narrow scope here. No, reject that idea; navigate to the file and copy it.\r\n"),
+			raw:      []byte("We can narrow scope here. No, reject that idea; type your answer below.\r\n"),
 			wantOpen: false,
 		},
 		{
 			name:     "grok composer does not open overlay",
 			agent:    "grok",
-			raw:      []byte("\x1b[24;3H\u256d\u2500\u2500\u2500\u256e\x1b[25;3H\u2502 \u276f fix the bug \u2502\x1b[26;3H\u2570\u2500\u2500\u2500\u256f"),
+			raw:      []byte("\x1b[20;1H\x1b[2mminimal \u00b7 /help\x1b[22m\x1b[21;1H\u276f fix the bug\x1b[22;1HGrok 4.7 (high) \u00b7 default \u00b7 18K / 256K (7%) \u00b7 ctrl+o transcript"),
 			wantOpen: false,
 		},
 		{

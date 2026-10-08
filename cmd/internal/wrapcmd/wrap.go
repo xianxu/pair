@@ -966,21 +966,26 @@ func detectQoderOverlayText(visible string) (bool, string) {
 	return firstMarker(visible, qoderPickerMarkers)
 }
 
-// grokPickerMarkers are verbatim strings from Grok's picker chrome, captured
-// live in grok/1.0.46. Every one is UI furniture rather than English prose an
-// agent might write (the qoder BR-38 rule): Grok paints its option text with
-// real spaces, so prose markers would arm off ordinary agent output.
+// grokPickerMarkers are verbatim strings from Grok's --minimal picker chrome,
+// captured live in grok/1.0.46. Each picker is painted twice: a first paint
+// with real spaces, then repaints that place each word at an absolute column,
+// so the stripped text glues them (the qoder shape). Both spellings are
+// markers. Every one is picker furniture — the arrows, the parenthetical, the
+// free-text row's placeholder — rather than prose an agent might write (the
+// qoder BR-38 rule).
 //
 // The permission picker (overlay.raw, a `--permission-mode default` Bash
-// approval) carries a scope hint row and a reject option whose parenthetical
-// is Grok's own. The question picker (selection.raw, the ask-user tool) closes
-// with a keybinding footer; its "Enter:submit" is why the wrapper must not
-// rewrite Enter to a newline there (#000042's muse shape). Plain Enter must
+// approval) carries a scope hint row and a reject option. The question picker
+// (selection.raw, the ask-user tool) paints no key-hint footer in minimal
+// mode; its free-text option row is the stable chrome. Plain Enter must
 // confirm the highlighted choice on both.
 var grokPickerMarkers = []string{
 	"← → narrow scope",
+	"←→ narrow scope",
 	"No, reject (type to add feedback)",
-	"↑/↓ navigate · y copy",
+	"No,reject(typetoaddfeedback)",
+	"Type your answer here",
+	"Typeyouranswerhere",
 }
 
 func detectGrokOverlayOpen(p *proxy, data, rolling []byte) (bool, string) {

@@ -143,14 +143,6 @@ type ruledBoxComposerSpec struct {
 	// qualify. The zero value requires the visible cursor — the prior behaviour
 	// of every spec — so a spec that forgets the field fails closed.
 	allowHiddenCursor bool
-	// ruleCol is the column the box's rules are read at: zero for the bare
-	// full-width rules of Claude, Muse and Qoder; Grok draws a full box whose
-	// left edge sits at grokBoxCol.
-	ruleCol int
-	// sideGlyph, when set, is the box's vertical side. A row painting it at
-	// ruleCol is the box's interior (a multi-line draft), not its closing rule,
-	// so the closing-rule scan passes over it. Empty for rule-only boxes.
-	sideGlyph string
 }
 
 // ruledBoxComposerActive reports whether the cursor rests inside a ruled box.
@@ -186,7 +178,7 @@ func ruledBoxComposerBounds(snapshot terminalSnapshot, spec ruledBoxComposerSpec
 			continue
 		}
 		if spec.rulesMatch != nil {
-			top, closing := snapshot.CellAt(spec.ruleCol, promptY-1), snapshot.CellAt(spec.ruleCol, bottom)
+			top, closing := snapshot.CellAt(0, promptY-1), snapshot.CellAt(0, bottom)
 			if top == nil || closing == nil || !spec.rulesMatch(*top, *closing) {
 				continue
 			}
@@ -196,16 +188,15 @@ func ruledBoxComposerBounds(snapshot terminalSnapshot, spec ruledBoxComposerSpec
 	return 0, 0, false
 }
 
-// ruledBoxBottomRule finds the first row below the prompt that paints the
-// rule column (other than with the box's side glyph) and reports whether it is
-// the box's closing rule.
+// ruledBoxBottomRule finds the first row below the prompt that paints column 0
+// and reports whether it is the box's closing rule.
 func ruledBoxBottomRule(snapshot terminalSnapshot, spec ruledBoxComposerSpec, promptY int) (int, bool) {
 	for y := promptY + 1; y < snapshot.Height; y++ {
 		if spec.maxRows > 0 && y-promptY > spec.maxRows {
 			break
 		}
-		cell := snapshot.CellAt(spec.ruleCol, y)
-		if cell == nil || strings.TrimSpace(cell.Content) == "" || (spec.sideGlyph != "" && cell.Content == spec.sideGlyph) {
+		cell := snapshot.CellAt(0, y)
+		if cell == nil || strings.TrimSpace(cell.Content) == "" {
 			continue
 		}
 		return y, spec.ruleAt(snapshot, y)
@@ -342,51 +333,71 @@ func qoderComposerActive(snapshot terminalSnapshot) bool {
 	})
 }
 
-// grokBoxCol is the ONE authority for the column Grok's composer box starts
-// at (its `╭`/`│`/`╰` edge); grokPromptCol is where the prompt glyph sits
-// inside it (edge, space, glyph). Captured at 1.0.46 (testdata/tty/grok/).
-const (
-	grokBoxCol    = 2
-	grokPromptCol = grokBoxCol + 2
-)
-
-// grokEchoPromptCol is the ONE authority for the column Grok echoes a
-// submitted prompt at in its transcript (`❯ text`), one column right of the
-// composer's glyph. The scrollback and distill prompt patterns derive from it
-// and grokPromptGlyphs; TestGrokEchoPromptColMatchesCapture pins it against
-// testdata/prompt-echo/grok/1.0.46/echo.raw.
-const grokEchoPromptCol = 5
+// grokPromptCol is the ONE authority for the column Grok paints its prompt
+// glyph at in `--minimal` mode, the mode Pair runs it in (its inline mode
+// still repaints the whole UI in place, so only --minimal reaches native
+// scrollback). The composer and the transcript echo of a submitted prompt
+// share it; the scrollback, distill and orientation consumers derive from it
+// and grokPromptGlyphs. Captured at 1.0.46 (testdata/tty/grok/).
+const grokPromptCol = 0
 
 // grokPromptGlyphs is the ONE authority for what may sit at grokPromptCol of a
-// Grok composer prompt row; the Return remap's recognizer and the orientation
-// gate both read it. `❯` is the captured default-mode glyph.
+// Grok prompt row; the Return remap's recognizer and the orientation gate both
+// read it. `❯` is the captured glyph.
 var grokPromptGlyphs = map[string]bool{"❯": true}
 
 // grokComposerActive reports whether the cursor rests inside Grok's live
-// composer: a rounded box (`╭…╮` / `│ ❯ … │` / `╰…╯`) whose left edge sits at
-// grokBoxCol, the prompt glyph at grokPromptCol on the row below the top edge,
-// and the cursor inside the box. The top and bottom edges must be the box's
-// own corners — `╭` over `╰` — so the welcome card above (whose corners sit one
-// column further right) and a picker's chrome cannot pair into a composer.
-// Heights are unbounded like Claude's: interior `│` rows are skipped and the
-// first other painted edge cell below the prompt must be the closing corner.
+// `--minimal` composer. Minimal mode draws no box: the prompt row is the
+// glyph at grokPromptCol with its next column blank, continuation rows are
+// indented (both leading columns blank), and the first row below the draft
+// that paints column 0 is Grok's status line — `Grok 4.7 (high) · … ·
+// ctrl+o transcript`, `·`-separated — with the cursor inside the draft. The
+// status row is the discriminator: the transcript's echo of an earlier prompt
+// is followed by the reply, never by the status line, and a picker paints `┃`
+// rather than the glyph. Heights are unbounded like Claude's.
 func grokComposerActive(snapshot terminalSnapshot) bool {
-	return ruledBoxComposerActive(snapshot, ruledBoxComposerSpec{
-		promptOK: func(c uv.Cell) bool {
-			return grokPromptGlyphs[c.Content]
-		},
-		ruleAt: func(s terminalSnapshot, y int) bool {
-			cell := s.CellAt(grokBoxCol, y)
-			return cell != nil && (cell.Content == "╭" || cell.Content == "╰")
-		},
-		rulesMatch: func(top, bottom uv.Cell) bool {
-			return top.Content == "╭" && bottom.Content == "╰"
-		},
-		promptCol:  grokPromptCol,
-		minCursorX: grokPromptCol + 2,
-		ruleCol:    grokBoxCol,
-		sideGlyph:  "│",
-	})
+	if !snapshotCoordinatesValid(snapshot) || !snapshot.CursorVisible || snapshot.Cursor.X < grokPromptCol+2 {
+		return false
+	}
+	painted := func(x, y int) bool {
+		cell := snapshot.CellAt(x, y)
+		return cell != nil && strings.TrimSpace(cell.Content) != ""
+	}
+	for promptY := snapshot.Cursor.Y; promptY >= 0; promptY-- {
+		prompt := snapshot.CellAt(grokPromptCol, promptY)
+		if prompt == nil || !grokPromptGlyphs[prompt.Content] {
+			if painted(grokPromptCol, promptY) || painted(grokPromptCol+1, promptY) {
+				return false // a non-continuation row between prompt and cursor
+			}
+			continue
+		}
+		if painted(grokPromptCol+1, promptY) {
+			return false
+		}
+		for y := promptY + 1; y < snapshot.Height; y++ {
+			if !painted(0, y) {
+				continue
+			}
+			return y > snapshot.Cursor.Y && grokStatusRow(snapshot, y)
+		}
+		return false
+	}
+	return false
+}
+
+// grokStatusRow reports whether row y reads as Grok's minimal-mode status
+// line: text from column 0 carrying its ` · ` separators.
+func grokStatusRow(snapshot terminalSnapshot, y int) bool {
+	var row strings.Builder
+	for x := 0; x < snapshot.Width; x++ {
+		cell := snapshot.CellAt(x, y)
+		if cell == nil || cell.Content == "" {
+			row.WriteString(" ") // a cursor jump leaves the cell unpainted
+			continue
+		}
+		row.WriteString(cell.Content)
+	}
+	return strings.Count(row.String(), " · ") >= 2
 }
 
 func agyComposerActive(snapshot terminalSnapshot) bool {

@@ -1,11 +1,11 @@
 {
   "agent": "grok",
   "version": "grok 1.0.46 (2765805b9442) [stable]",
-  "captured_at": "2026-10-08T06:52:29Z",
-  "command": ["grok", "--no-alt-screen"],
+  "captured_at": "2026-10-08T16:16:20Z",
+  "command": ["grok", "--minimal"],
   "files": {
-    "composer.raw": "109a549ae15382d752886f5a6011b8e9536968d0abc5940dec6ebf80cee24f0d",
-    "overlay.raw": "3bc67cb8fab78200ad2e99a1fb65dade676c818c9a802cf9bb1125dd9f078012",
-    "selection.raw": "f76245744a0faec2f15555bbbeea7580b7413397fe88280086ab8e52b4756162"
+    "composer.raw": "5f508fb3ab91c2fe9f1a3660f0c5b119f7253f7b428dfcdf0c3abd2bf106d423",
+    "overlay.raw": "8f69c73d134b562ffe3f279c867ec84f93a5ed56c71edf5c61f9f519245ecc47",
+    "selection.raw": "946fc03071ec4fb80b4d988f24a824554f120238bc37f9dd2afc9aa402cdf132"
   }
 }

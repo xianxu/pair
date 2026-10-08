@@ -952,7 +952,7 @@ func TestRunLaunchForcedCreateGrokMintProbesGrokSessions(t *testing.T) {
 	if rt.env["PAIR_SESSION_ID"] != "MINTED-2" {
 		t.Fatalf("PAIR_SESSION_ID = %q, want MINTED-2 (grok collision retries; a claude session does not block grok)", rt.env["PAIR_SESSION_ID"])
 	}
-	if got := launchArgsText(t, rt.env); got != "--model m --session-id MINTED-2 --no-alt-screen -- fix it" {
+	if got := launchArgsText(t, rt.env); got != "--model m --session-id MINTED-2 --minimal -- fix it" {
 		t.Fatalf("AgentCommand = %q", got)
 	}
 }

@@ -12,8 +12,10 @@ tagged in git (`vN.M`) and tracked in the homebrew formula at
   its composer keys (Return inserts a newline, Alt+Return sends), permission and
   question picker confirmation, native session inventory and resume, prompt
   navigation (Alt+b), slug generation, and a repo permission allowlist
-  (`.grok/config.toml`). Grok runs inline (`--no-alt-screen`) so its
-  conversation reaches the pane's scrollback; `PAIR_GROK_ALT_SCREEN=1` opts out.
+  (`.grok/config.toml`). Grok runs in its `--minimal` scrollback-native mode
+  so its conversation reaches the pane's scrollback (its `--no-alt-screen`
+  still repaints in place); `PAIR_GROK_ALT_SCREEN=1` opts out. The status
+  line shows Grok's context use.
 
 ### Fixes
 
