@@ -1,8 +1,9 @@
 # Couch broadcast
 
 `cmd/internal/broadcast` streams the composed Couch screen, view-only, to remote
-browser viewers (#395). Status: the frame tap, hub, server, viewer page and
-session are built (M1–M2); the tab-bar control and `cloudflared` tunnel follow.
+browser viewers (#395). Status: the frame tap, hub, server, viewer page,
+session and Couch control are built (M1–M3). Broadcasts are local-only until
+the `cloudflared` tunnel lands (M4).
 
 ## Source: the Presenter tap
 
@@ -100,4 +101,38 @@ depends on what exposes it. There are three:
 
 `TestSessionPersistsNoFrameData` walks home, temp, XDG and the working
 directory after a session and finds no frame content.
+
+## Couch control
+
+`couchtty/console_broadcast.go` owns the console's side as a tagged phase:
+`off | starting | live | stopping`. The transition table is in the file's
+header comment; all transitions happen on the Run loop.
+
+- **Start:** Ctrl+Alt+b (`couchkeys.ActionBroadcast`). It is enhanced-encoding
+  only, because the legacy `ESC ^B` is also nvim's Esc-then-page-up.
+  `broadcast.Start` runs off the loop (`GoTracked`). A start that completes after
+  it was cancelled or superseded is stopped, not adopted (the `attempt` counter).
+- **Going live:** the tap goes in before the chrome shows `LIVE ⏸`, so the
+  first LIVE frame streams. `Activate` comes after, so the grace watch starts
+  with the indicator on screen. The link goes to the clipboard (OSC 52) and is
+  never drawn; the notice only says "link copied".
+- **Status row:** `RenderStatusRow` draws `LIVE …` (starting) or `LIVE ⏸`
+  (live) in `broadcast.LiveSGR` before the `REC` badge, through the same
+  clipping pass. Its span is `RenderedStatusRow.Control`. A click anywhere in
+  it (`routeMouseEvent`, checked before the actor chips) toggles.
+  `TestStatusRowLiveCellSatisfiesIndicator` feeds the drawn row to
+  `broadcast.IndicatorShown`, so the drawer and the checker can't drift.
+- **Stop:** removes the tap (ordered with paints) and stops the session, which
+  tells viewers at once. The phase is `stopping` until the listener and
+  tunnel are down, off the input path. A toggle during `stopping` gets a
+  notice.
+- **Ends on its own** (indicator hidden past grace, tunnel exit, server
+  failure): back to `off`, with a notice drawn from the same vocabulary
+  viewers see (`broadcast.EndReason`).
+- **Shutdown:** `teardown` calls `endBroadcastForShutdown` before the presenter
+  is released, and waits up to 6s.
+- **Options** (`couchcmd/broadcast.go`): `COUCH_BROADCAST_SWITCHER=show` and
+  `COUCH_BROADCAST_TUNNEL=off`. An unknown value refuses startup, and both
+  are parsed before anything opens. Without a configured broadcaster the cell
+  never shows, and the key explains why.
 
