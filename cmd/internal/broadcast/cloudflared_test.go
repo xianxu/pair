@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -435,32 +436,57 @@ func TestQuickTunnelAPIFailureIsNotAURL(t *testing.T) {
 	}
 }
 
-// BR-22: two Couches judging the same stale named-tunnel lock at once; only
-// one may take the tunnel.
+// BR-22: two Couches judge the same stale named-tunnel lock. A reads it and
+// is held there (afterRecordRead) while B runs; without one lock around
+// reap+claim, B claims and A then deletes B's fresh lock and claims too.
+// With it, B waits for A and finds the tunnel taken. Deterministic.
 func TestRunRecordsConcurrentClaimHasOneWinner(t *testing.T) {
-	for i := range 100 {
-		records := shortDir(t)
-		owner, ownerID := deadPID(t)
-		writeRecord(t, records, "named-shared.json", recordData{Owner: owner, OwnerID: ownerID})
-		results := make(chan error, 2)
-		for range 2 {
-			go func() {
-				r := &runRecords{dir: records}
-				_, err := r.reapAndClaim("named-shared", "")
-				results <- err
-			}()
+	records := shortDir(t)
+	owner, ownerID := deadPID(t)
+	writeRecord(t, records, "named-shared.json", recordData{Owner: owner, OwnerID: ownerID})
+	aRead := make(chan struct{})
+	release := make(chan struct{})
+	// Only the first reader (A) is held. Not sync.Once: its Do makes later
+	// callers wait for the first, which would serialize B behind A and hide
+	// the race this test exists to show.
+	var first atomic.Bool
+	afterRecordRead = func() {
+		if first.CompareAndSwap(false, true) {
+			close(aRead)
+			<-release
 		}
-		won := 0
-		for range 2 {
-			if err := <-results; err == nil {
-				won++
-			} else if !errors.Is(err, ErrTunnelBusy) {
-				t.Fatal(err)
-			}
+	}
+	t.Cleanup(func() { afterRecordRead = nil })
+	results := make(chan error, 2)
+	go func() {
+		_, err := (&runRecords{dir: records}).reapAndClaim("named-shared", "")
+		results <- err
+	}()
+	<-aRead
+	bDone := make(chan error, 1)
+	go func() {
+		_, err := (&runRecords{dir: records}).reapAndClaim("named-shared", "")
+		bDone <- err
+	}()
+	// Give B every chance to run to completion if nothing stops it.
+	select {
+	case err := <-bDone:
+		results <- err
+		close(release)
+	case <-time.After(300 * time.Millisecond):
+		close(release)
+		results <- <-bDone
+	}
+	won := 0
+	for range 2 {
+		if err := <-results; err == nil {
+			won++
+		} else if !errors.Is(err, ErrTunnelBusy) {
+			t.Fatal(err)
 		}
-		if won != 1 {
-			t.Fatalf("iteration %d: %d claimers took one tunnel", i, won)
-		}
+	}
+	if won != 1 {
+		t.Fatalf("%d claimers took one tunnel", won)
 	}
 }
 
@@ -468,5 +494,23 @@ func TestRunRecordWriteFailureIsAnError(t *testing.T) {
 	rec := &runRecord{path: filepath.Join(shortDir(t), "missing", "named-x.json")}
 	if err := rec.record(1, 2); err == nil {
 		t.Fatal("record into a missing directory reported success")
+	}
+}
+
+// A crash between a record's write and rename leaves a .tmp; the next reap
+// removes it, and a live record beside it stays.
+func TestReapRemovesLeftoverTempRecords(t *testing.T) {
+	records := shortDir(t)
+	tmp := filepath.Join(records, "named-x.json.tmp")
+	if err := os.WriteFile(tmp, []byte("{"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	live := writeRecord(t, records, "named-y.json", recordData{Owner: os.Getpid(), OwnerID: identity(os.Getpid())})
+	ReapOrphans(records, "")
+	if _, err := os.Stat(tmp); !os.IsNotExist(err) {
+		t.Fatal("leftover .tmp survived reaping")
+	}
+	if _, err := os.Stat(live); err != nil {
+		t.Fatal("live record removed")
 	}
 }

@@ -40,9 +40,14 @@ type recordData struct {
 	PrivateDir string `json:"private_dir"`
 }
 
+// afterRecordRead, when set by a test, runs after reaping has read a record
+// and before it acts on it: the seam that lets a test hold that window open.
+var afterRecordRead func()
+
 type runRecord struct {
 	path string
 	data recordData
+	in   *runRecords // its directory, whose lock the rewrite takes
 }
 
 func identity(pid int) string { return procutil.StrictIdentity(strconv.Itoa(pid)) }
@@ -90,6 +95,7 @@ func (r *runRecords) claimLocked(key, dir string) (*runRecord, error) {
 		key = "quick-" + strconv.Itoa(os.Getpid()) + "-" + hex.EncodeToString(b[:])
 	}
 	rec := &runRecord{
+		in:   r,
 		path: filepath.Join(r.dir, key+".json"),
 		data: recordData{Owner: os.Getpid(), OwnerID: identity(os.Getpid()), PrivateDir: dir},
 	}
@@ -126,11 +132,23 @@ func (rec *runRecord) record(guard, tunnel int) error {
 	if err != nil {
 		return err
 	}
-	tmp := rec.path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+	write := func() error {
+		tmp := rec.path + ".tmp"
+		if err := os.WriteFile(tmp, b, 0o600); err != nil {
+			return err
+		}
+		return os.Rename(tmp, rec.path)
+	}
+	if rec.in == nil {
+		return write()
+	}
+	// Under the directory lock, so a reaper never sees a .tmp mid-write and
+	// can remove any it finds as a crash's leftover.
+	var werr error
+	if err := rec.in.locked(func() { werr = write() }); err != nil {
 		return err
 	}
-	return os.Rename(tmp, rec.path)
+	return werr
 }
 
 func (rec *runRecord) release() {
@@ -152,11 +170,20 @@ func ReapOrphans(dir, runDir string) {
 }
 
 func (r *runRecords) reapLocked() {
+	// A .tmp is only ever mid-write under this lock; one found here was left
+	// by a crash between write and rename.
+	leftovers, _ := filepath.Glob(filepath.Join(r.dir, "*.json.tmp"))
+	for _, tmp := range leftovers {
+		_ = os.Remove(tmp)
+	}
 	paths, _ := filepath.Glob(filepath.Join(r.dir, "*.json"))
 	for _, path := range paths {
 		b, err := os.ReadFile(path)
 		if err != nil {
 			continue
+		}
+		if afterRecordRead != nil {
+			afterRecordRead()
 		}
 		var d recordData
 		if json.Unmarshal(b, &d) != nil {

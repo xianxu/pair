@@ -700,10 +700,20 @@ proof; record the surprising case so the next change starts from evidence.
   run records reaped a stale named-tunnel lock and then claimed with
   O_EXCL, each safe alone; two Couches starting together could both judge the
   same stale lock, and the slower one deleted the faster one's fresh claim. A
-  flock around reap+claim makes the decision atomic; the test races two
-  claimers 100 times and fails within a few iterations without the lock.
+  flock around reap+claim makes the decision atomic. The window is narrow:
+  racing two claimers 1000 times caught the unlocked version in only 2 of 3
+  runs. The test holds the window open with a hook between reading a record
+  and acting on it (`afterRecordRead`), which makes the bad ordering happen
+  every time.
 - A pattern that scrapes a URL from a tool's output must not match the
   tool's own hosts. #395's quick-tunnel regex took
   `https://api.trycloudflare.com` out of cloudflared's failure line as the
   tunnel. Anchor on what only a success can produce, and test with the real
   failure text.
+- A test hook that holds one goroutine must not use sync.Once. `Once.Do`
+  makes concurrent callers wait until the first call returns, so a hook that
+  parks the first caller inside `Do` also parks every other caller, and the
+  test serializes the race it was written to show. #395's deterministic
+  claim-race test passed against the unlocked mutant until the hook used an
+  atomic first-caller flag. Mutation-check a race test; an ordering hook can
+  silently remove the ordering.
