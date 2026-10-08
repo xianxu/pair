@@ -269,3 +269,11 @@ Durable plan: `workshop/plans/000395-couch-broadcast-stream-the-composed-couch-s
   - `TestProductionArtifactReferencesAreExactlyClassified` still fails on
     pre-existing couchcmd/couchmessage files; no broadcast or tap file is
     named.
+- M2 real-browser check (operator, Chrome, `TestManualViewerServer` on
+  loopback): the frame renders (colours, `界面`, box drawing, `LIVE ⏸` on red,
+  `⏸` one cell); the font refits on window resize with no reflow; the
+  DevTools console shows no CSP errors under the shipped policy (`style-src
+  'self' 'unsafe-inline'`, strict `script-src`). The only console line is the
+  browser's own `/favicon.ico` request, which gets 404: it carries no token.
+  xterm.js 5.5.0 ignores DECSET 2026; frames go out whole, one `term.write`
+  each.
