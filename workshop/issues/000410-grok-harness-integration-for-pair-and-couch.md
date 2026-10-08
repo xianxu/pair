@@ -255,3 +255,8 @@ Durable plan: [000410-grok-harness-integration-for-pair-and-couch-plan.md](../pl
   - `couchcmd` `TestColdResumeOfAParkedPrimaryRegistersFromBothOrigins` fails with grok removed from the registry too.
   - PTY-spawning tests fail inside the sandbox ("operation not permitted"). They pass unsandboxed with a clean env (`env -i`), per the memory note on session env leaks.
 - **Aspect 6 finding:** Grok falls back to Claude Code's `.claude/settings.json` permission rules when it has no TOML rules. Pair's repo allowlist already applies, as seen live in the capture work. M2 Task 11 verifies it rather than adding config.
+- **M1 full-suite evidence (2026-10-08):**
+  - `make -k test` (five-var scrub): every target passes except `test-pair-embedded-runtime` (expected Couch-slot env noise, per memory) and `test-changelog` under the default `TMPDIR`. `test-changelog` with a scratchpad `TMPDIR` passes (exit 0).
+  - `go test ./...` (clean `env -i`): failures only in `artifactpath`, `couchcmd`, `couchsingleton` (selection-size fixture) and `gcruntime` (`TestCouchReferencesLocalArchiveLocatorRoundTrip`). All four fail identically on a clean `main` worktree.
+  - `couchcore` hit Go's default 10-minute package timeout. The test it was in (`TestSetAsideHoldsMatchThePlan`) passes alone on both branch and main, and a 30-minute whole-package run is in progress.
+
