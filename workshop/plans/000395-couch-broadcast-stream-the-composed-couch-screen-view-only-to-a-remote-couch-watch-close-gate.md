@@ -136,6 +136,43 @@ rounds:
       boundary: M2
       recipe: milestone-review
       blocked: false
+    - "n": 6
+      timestamp: "2026-10-07T21:02:31-07:00"
+      agent: claude
+      findings:
+        - id: BR-11
+          severity: Critical
+          title: startBroadcast reads the captured adopted flag after runTerminalCommand may have returned early; reproduced -race failure
+          detail: 'console_broadcast.go:94-102. runTerminalCommand (terminal.go:37-44) returns on ctx/stop while the queued closure may still run on the loop, so the goroutine reads adopted at :100 unsynchronised with the write at :97 (go test -race -count=8 -run TestBroadcast failed TestBroadcastStoppedOnShutdown). Logically the goroutine can stop a session the loop then adopts. 2nd in family. Rule: a caller that can return early must not read state written by work it handed to another goroutine; a single claim (atomic CAS) owns disposal of produced resources. Sweep done: only this call site captures a result.'
+          family: cross-channel-state-read
+          round: 6
+        - id: BR-12
+          severity: Important
+          title: Shutdown's 6s broadcast wait is defeated by workers.Wait on GoTracked waiters blocked on s.Done()
+          detail: The Done watcher (console_broadcast.go:146) and the late-start stop (:100) wait unbounded; teardown's c.workers.Wait (console.go:970) joins them after endBroadcastForShutdown's 6s, so a slow or stuck tunnel Close hangs Couch exit. Select on c.stop as well; add a shutdown test with FakeTunnel CloseBlock asserting a bounded return.
+          family: declared-bound-unenforced
+          round: 6
+        - id: BR-13
+          severity: Minor
+          title: TestBroadcastOffHasNoClickTarget from Task 3.3 is absent with no Revision
+          detail: '2nd in family. Rule: every test named in a plan step exists or a Revision explains its absence.'
+          family: plan-test-coverage-gap
+          round: 6
+        - id: BR-14
+          severity: Minor
+          title: Start context is never cancelled after adoption or a SetTap failure
+          detail: Each broadcast leaves a child context registered on c.lifetime until Couch exits; cancel it once the start completes, or document why it must outlive the session (M4 cloudflared).
+          family: context-lifetime-leak
+          round: 6
+        - id: BR-15
+          severity: Minor
+          title: README describes a remote link, but M3 broadcasts are local-only, and the M3 local smoke is not recorded in the Log
+          detail: '4th in plan-code-drift; rule: docs and the Log state the milestone''s actual delivered state. Add an M4 note to the README, or make sure M4 updates it; record the operator smoke in the Log or in --verified.'
+          family: plan-code-drift
+          round: 6
+      boundary: M3
+      recipe: milestone-review
+      blocked: true
 ---
 
 # Gate ledger — pair#395 (boundary-review)
@@ -198,6 +235,26 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-9 — addressed — server.go:156-181 closed endReasons table via errors.Is plus generic fallback; TestEndReasonIsAClosedVocabulary feeds wrapped secret-bearing errors and would fail under the old TrimPrefix(err.Error()) path; other viewer-facing writes (http.Error at server.go:60,79,112,115) are fixed literals.
 - BR-10 — not-addressed — atlas/broadcast.md:69 still reads "node-tested via TestViewerFit" at c4c000ad; lessons.md Revisions bullet was not extended to cover renames/atlas references (4th plan-code-drift instance, fix the rule not the site).
 
+## Round 6 — 2026-10-07T21:02:31-07:00 (claude) — BLOCKED
+
+### Raised
+
+- **BR-11** [Critical] `cross-channel-state-read` startBroadcast reads the captured adopted flag after runTerminalCommand may have returned early; reproduced -race failure
+  console_broadcast.go:94-102. runTerminalCommand (terminal.go:37-44) returns on ctx/stop while the queued closure may still run on the loop, so the goroutine reads adopted at :100 unsynchronised with the write at :97 (go test -race -count=8 -run TestBroadcast failed TestBroadcastStoppedOnShutdown). Logically the goroutine can stop a session the loop then adopts. 2nd in family. Rule: a caller that can return early must not read state written by work it handed to another goroutine; a single claim (atomic CAS) owns disposal of produced resources. Sweep done: only this call site captures a result.
+- **BR-12** [Important] `declared-bound-unenforced` Shutdown's 6s broadcast wait is defeated by workers.Wait on GoTracked waiters blocked on s.Done()
+  The Done watcher (console_broadcast.go:146) and the late-start stop (:100) wait unbounded; teardown's c.workers.Wait (console.go:970) joins them after endBroadcastForShutdown's 6s, so a slow or stuck tunnel Close hangs Couch exit. Select on c.stop as well; add a shutdown test with FakeTunnel CloseBlock asserting a bounded return.
+- **BR-13** [Minor] `plan-test-coverage-gap` TestBroadcastOffHasNoClickTarget from Task 3.3 is absent with no Revision
+  2nd in family. Rule: every test named in a plan step exists or a Revision explains its absence.
+- **BR-14** [Minor] `context-lifetime-leak` Start context is never cancelled after adoption or a SetTap failure
+  Each broadcast leaves a child context registered on c.lifetime until Couch exits; cancel it once the start completes, or document why it must outlive the session (M4 cloudflared).
+- **BR-15** [Minor] `plan-code-drift` README describes a remote link, but M3 broadcasts are local-only, and the M3 local smoke is not recorded in the Log
+  4th in plan-code-drift; rule: docs and the Log state the milestone's actual delivered state. Add an M4 note to the README, or make sure M4 updates it; record the operator smoke in the Log or in --verified.
+
 ## Open findings
 
 - **BR-10** [Minor] `plan-code-drift` atlas/broadcast.md:69 still cites TestViewerFit after the rename to TestViewerNode
+- **BR-11** [Critical] `cross-channel-state-read` startBroadcast reads the captured adopted flag after runTerminalCommand may have returned early; reproduced -race failure
+- **BR-12** [Important] `declared-bound-unenforced` Shutdown's 6s broadcast wait is defeated by workers.Wait on GoTracked waiters blocked on s.Done()
+- **BR-13** [Minor] `plan-test-coverage-gap` TestBroadcastOffHasNoClickTarget from Task 3.3 is absent with no Revision
+- **BR-14** [Minor] `context-lifetime-leak` Start context is never cancelled after adoption or a SetTap failure
+- **BR-15** [Minor] `plan-code-drift` README describes a remote link, but M3 broadcasts are local-only, and the M3 local smoke is not recorded in the Log
