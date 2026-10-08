@@ -216,20 +216,38 @@ func probe(ctx context.Context, link string, timeout time.Duration, resolve func
 	}
 }
 
-// publicResolver asks Cloudflare's resolver directly, bypassing the system's.
-var publicResolver = &net.Resolver{
-	PreferGo: true,
-	Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
-		var d net.Dialer
-		return d.DialContext(ctx, network, "1.1.1.1:53")
-	},
+// publicResolvers are asked directly, bypassing the system's resolver.
+var publicResolvers = []string{"1.1.1.1:53", "1.0.0.1:53"}
+
+func resolverAt(server string) *net.Resolver {
+	return &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
+			var d net.Dialer
+			return d.DialContext(ctx, network, server)
+		},
+	}
 }
 
-// PublicResolve resolves host through 1.1.1.1, falling back to the system
-// resolver when that fails (no route to it, or a name only local DNS knows).
+// PublicResolve resolves host through Cloudflare's public resolvers. Their
+// "not found" stands: a quick-tunnel hostname is briefly unknown everywhere
+// while it propagates (about 1.5s, measured), and asking the system then
+// would only teach it a negative answer to cache. The system resolver is used
+// only when no public resolver can be reached at all.
 func PublicResolve(ctx context.Context, host string) ([]string, error) {
-	if addrs, err := publicResolver.LookupHost(ctx, host); err == nil && len(addrs) > 0 {
-		return addrs, nil
+	var notFound error
+	for _, server := range publicResolvers {
+		addrs, err := resolverAt(server).LookupHost(ctx, host)
+		if err == nil && len(addrs) > 0 {
+			return addrs, nil
+		}
+		var dnsErr *net.DNSError
+		if errors.As(err, &dnsErr) && dnsErr.IsNotFound {
+			notFound = err
+		}
+	}
+	if notFound != nil {
+		return nil, notFound
 	}
 	return net.DefaultResolver.LookupHost(ctx, host)
 }

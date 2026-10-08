@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/broadcast"
 	"github.com/xianxu/pair/cmd/internal/couchidentity"
 	"github.com/xianxu/pair/cmd/internal/couchsingleton"
 	"io"
@@ -253,6 +254,11 @@ func Dispatch() map[string]couchcore.Operation {
 }
 
 func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
+	// The broadcast guard (#395) runs a tunnel on Couch's behalf and touches
+	// none of Couch's state; it is not an operation and never reaches the CLI.
+	if len(args) > 0 && args[0] == broadcast.GuardSubcommand {
+		return broadcast.RunGuard(args[1:], stdin, stderr)
+	}
 	invocation, err := ParseCLI(args, couchcore.Operations())
 	if err != nil {
 		fmt.Fprintf(stderr, "couch: %v\n", err)
@@ -601,9 +607,18 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 		return nil, nil, err
 	}
 	// Parsed before anything is opened, so a bad value leaks nothing.
-	broadcastConfig, err := broadcastSettings(getenv)
+	store := ""
+	if len(settings) > 0 {
+		store = settings[0].store
+	}
+	broadcastConfig, err := broadcastSettings(getenv, store, guardArgv())
 	if err != nil {
 		return nil, nil, err
+	}
+	// A tunnel whose Couch and guard both died is cleared now, not at the
+	// next broadcast.
+	if c, ok := broadcastConfig.Tunnel.(broadcast.Cloudflared); ok && c.Records != "" {
+		broadcast.ReapOrphans(c.Records)
 	}
 	var recorder *terminalcapture.Recorder
 	if path != "" {
@@ -665,10 +680,11 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 type consoleTraceConfig struct {
 	getenv func(string) string
 	root   string
+	store  string
 }
 
 func tracesForRuntime(rt Runtime) consoleTraceConfig {
-	return consoleTraceConfig{getenv: rt.Getenv, root: runtimePairDataDir(rt)}
+	return consoleTraceConfig{getenv: rt.Getenv, root: runtimePairDataDir(rt), store: rt.StoreDir()}
 }
 
 // installCrashReport keeps this console's fatal panics on disk (#397): its
