@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-07
 updated: 2026-10-07
-estimate_hours:
-card_mirror: 'f7cda1d084c97ad69d9c80fe79aa470e0c469995' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 2.87
+card_mirror: '22cb9da4fd36836bd46ab37d66dcdf9cc7ac1a9c' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-07T21:52:21-07:00
 claimant:
     operator: T
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
 ---
 
 # couch: full-screen repaint per frame overruns a backgrounded terminal, and the resulting exit is silent
@@ -64,6 +65,34 @@ Durable plan: `workshop/plans/000409-couch-a-single-5s-stall-in-the-outer-termin
 
 - [ ] M1 — the exit says why: a recorded-exit kind in `crashreport`; couchcmd writes the parent-output `WriteFailure` reason, and the next start reports it once
 - [ ] M2 — repaint only the rows that changed: #262's cheaper fast path in `HistoryRender.Emit` (unwrapped rows only), checked against the full rebuild with the xterm oracle, with bytes per idle minute measured
+
+## Estimate
+
+Items in plan order. M1: the `crashreport` recorded-exit kind and `RecordExit`,
+`terminal.ExitReason`, the console accessor with couchcmd's hook and its test, then
+docs and the milestone review. M2: `changedPlainRows` and the `Emit` fast path, the
+generative oracle test, the byte measurement, then docs and the close review.
+Design is v2 ×0.2 (the durable plan pre-resolves decisions); impl is 40% of v2
+(v3.1).
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module design=0.06 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.04 impl=0.2
+item: greenfield-go-module design=0.4 impl=0.32
+item: smaller-go-module design=0.06 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.04 impl=0.2
+design-buffer: 0.15
+total: 2.87
+```
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*
 
 ## Revisions
 
