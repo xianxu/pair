@@ -291,3 +291,9 @@ Durable plan: [000410-grok-harness-integration-for-pair-and-couch-plan.md](../pl
 
 - The draft pane's Ctrl+C wrote ESC (27) to every agent. Grok cancels a turn on Ctrl+C (its own `Ctrl+c :cancel` hint) and treats ESC as input. `nvim/interrupt.lua` now holds the per-agent interrupt byte (ESC by default, Ctrl+C for grok), read against the tag's current agent file at keypress so a switch-agent is followed. Tested by `nvim/interrupt_test.lua` (in `make test-lua`). The wrapper passes `0x03` through untouched. This was missing from the bring-up checklist: added as "Set the interrupt byte", plus "Check the attention signal" from the bell work.
 
+### 2026-10-08 — Couch smoke and close decision
+
+- **Couch, operator-verified:** Grok is offered by Couch and runs hosted. pair:5's thread was switched Claude → Grok and is live (`pair --couch-session-v1 resume 1-pair-20` → `grok --minimal --session-id …`), the context count shows in the title, and the `[!]` bell mark is translated.
+- **Not met here, filed as #414:** switch-agent to Grok left the console attach refused (`attach record/handle process identity mismatch`, then `start handle is unavailable`) and the orientation prompt undelivered. A Codex → Claude switch did not reproduce it. Root cause is in Couch's switch/attach path (not localized); the operator chose to file it and close #410.
+- **Follow-ups:** #411 (Grok Couch peer delivery), #414 (switch-agent attach/orientation).
+
