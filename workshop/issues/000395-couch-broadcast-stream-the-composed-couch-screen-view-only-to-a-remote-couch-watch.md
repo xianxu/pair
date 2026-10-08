@@ -1,21 +1,22 @@
 ---
 id: 000395
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-06
-updated: 2026-10-07
+updated: 2026-10-08
 estimate_hours: 7.78
-card_mirror: '6ffa19d88031e882ed0d5513f4869a83e94a381a' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '8b53cca89acd40bdc787574ed40708569c5db4a5' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-07T14:20:51-07:00
 claimant:
     operator: T
     machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: MacBook Pro
+    machine_name: Xian’s MacBook Pro
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: N/A
 ---
 
 # Couch broadcast: stream the composed Couch screen, view-only, to a browser viewer
