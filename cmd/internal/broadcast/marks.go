@@ -1,6 +1,7 @@
 package broadcast
 
 import (
+	"image/color"
 	"sort"
 	"time"
 
@@ -8,14 +9,23 @@ import (
 	"github.com/xianxu/pair/cmd/internal/terminal"
 )
 
+// A mark holds at full amber, then fades fast (#412: the operator found a
+// slow, stepped fade clumsy).
 const (
-	// MarkLife is how long a mark stays after its last input (#412).
-	MarkLife = 3 * time.Second
-	markStep = MarkLife / 3
+	MarkHold      = 1500 * time.Millisecond
+	MarkFade      = 500 * time.Millisecond
+	MarkLife      = MarkHold + MarkFade
+	markFadeSteps = 10
+	markFadeStep  = MarkFade / markFadeSteps
 )
 
-// markTints fade a mark from strong to faint amber, one per markStep.
-var markTints = [3]ansi.IndexedColor{214, 172, 94}
+var (
+	markAmberIndex = ansi.IndexedColor(214)
+	markAmberRGB   = color.RGBA{0xff, 0xaf, 0x00, 0xff} // xterm 214
+	// markFadeLadder is the fade without truecolor: darker ambers, toward a
+	// dark background.
+	markFadeLadder = []ansi.IndexedColor{178, 172, 136, 94, 58}
+)
 
 type cell struct{ col, row int }
 
@@ -27,6 +37,31 @@ func guarded(c cell, rows int) bool { return c.row == rows-1 && c.col < StatusGu
 // Pure: the caller supplies the clock, and owns locking.
 type Marks struct {
 	cells map[cell]time.Time
+	// With truecolor and a known background, the fade blends amber into the
+	// operator's real background; otherwise it walks markFadeLadder.
+	blend bool
+	bg    color.RGBA
+}
+
+// SetBlend gives the fade the operator's background, for terminals with
+// truecolor.
+func (m *Marks) SetBlend(bg color.RGBA, truecolor bool) { m.bg, m.blend = bg, truecolor }
+
+// tint is a mark's background at age.
+func (m *Marks) tint(age time.Duration) color.Color {
+	if age < MarkHold {
+		if m.blend {
+			return markAmberRGB
+		}
+		return markAmberIndex
+	}
+	k := int((age - MarkHold) / markFadeStep) // 0..markFadeSteps-1
+	if !m.blend {
+		return markFadeLadder[min(k*len(markFadeLadder)/markFadeSteps, len(markFadeLadder)-1)]
+	}
+	t := float64(k+1) / float64(markFadeSteps+1)
+	mix := func(a, b uint8) uint8 { return uint8(float64(a) + (float64(b)-float64(a))*t + 0.5) }
+	return color.RGBA{mix(markAmberRGB.R, m.bg.R), mix(markAmberRGB.G, m.bg.G), mix(markAmberRGB.B, m.bg.B), 0xff}
 }
 
 func NewMarks() *Marks { return &Marks{cells: make(map[cell]time.Time)} }
@@ -167,7 +202,12 @@ func (m *Marks) NextChange(now time.Time) (time.Duration, bool) {
 		if age >= MarkLife {
 			continue
 		}
-		d := markStep - age%markStep
+		var d time.Duration
+		if age < MarkHold {
+			d = MarkHold - age
+		} else {
+			d = markFadeStep - (age-MarkHold)%markFadeStep
+		}
 		if !ok || d < next {
 			next, ok = d, true
 		}
@@ -192,7 +232,7 @@ func (m *Marks) Overlay(f terminal.Frame, now time.Time) terminal.Frame {
 		if age >= MarkLife || c.col >= cols || c.row >= rows || guarded(c, rows) {
 			continue
 		}
-		tint := markTints[min(int(age/markStep), len(markTints)-1)]
+		tint := m.tint(age)
 		i := c.row*cols + c.col
 		// A continuation cell belongs to the wide character before it.
 		if out.Cells[i].Width == 0 && c.col > 0 && out.Cells[i-1].Width == 2 {

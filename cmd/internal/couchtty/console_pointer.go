@@ -154,6 +154,7 @@ func (c *Console) onPoints(b broadcast.PointBatch) {
 func (c *Console) applyPoints(b broadcast.PointBatch) {
 	c.mu.Lock()
 	ok := c.pointer == pointerOn && c.bcast.phase == broadcastLive && !c.focus.IsPanel()
+	palette := c.menu.Palette
 	c.mu.Unlock()
 	if !ok {
 		return
@@ -163,6 +164,9 @@ func (c *Console) applyPoints(b broadcast.PointBatch) {
 	if c.pmarks.marks == nil {
 		c.pmarks.marks = broadcast.NewMarks()
 	}
+	// Fade into the operator's real background when the terminal can show
+	// it (truecolor, and the background reported by OSC 11).
+	c.pmarks.marks.SetBlend(palette.BG, palette.Known && palette.TrueColor && !palette.NoColor)
 	c.pmarks.marks.Add(b.Points, b.Cols, b.Rows, now)
 	c.pmarks.mu.Unlock()
 	c.refreshMarks()

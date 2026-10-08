@@ -264,3 +264,8 @@ Durable plan: `workshop/plans/000412-couch-broadcast-remote-pointer-link-tap-and
   the overlay), so a helper can point at a thread chip. Right-click on
   `LIVE ⏸` now re-copies the view-only link (left-click still stops),
   mirroring `👆`.
+- M4 smoke round 2 (operator): the 3-step, one-shade-a-second fade felt
+  clumsy. Marks now hold 1.5s at full amber, then fade fast over 0.5s in 10
+  steps (50ms each). With truecolor and a known background they blend into
+  the operator's real background; otherwise they walk a short 256-colour
+  ladder. Repaints follow the steps.

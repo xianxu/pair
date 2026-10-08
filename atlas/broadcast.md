@@ -257,7 +257,7 @@ and it is kept narrow.
   (`StatusGuardCols`, the width of `LIVE ⏸ 👆 👽` at the left of the last row)
   are never marked or tinted: the overlay refuses them whatever put a mark
   there. The rest of the tab bar can be marked. At most 1/8 of the grid is marked, oldest first. Marks fade in 3 steps
-  over `MarkLife` (3s). The Presenter's overlay hook draws them
+  after a 1.5s hold at full amber, fast over 0.5s (`MarkHold`, `MarkFade`; 10 steps, blending into the operator's real background with truecolor, else a 256-colour ladder). The Presenter's overlay hook draws them
   (terminal.md).
 - **Tests:** a method × route × token table; rejections that echo nothing; drops
   for a stale grid, a private frame and a hidden marker; rate and in-flight

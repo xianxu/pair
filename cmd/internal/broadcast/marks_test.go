@@ -104,33 +104,55 @@ func TestMarksCoverageCapDropsOldest(t *testing.T) {
 	}
 }
 
-func TestMarksOverlayTintsBackgroundsAndFades(t *testing.T) {
+func TestMarksOverlayHoldsThenFades(t *testing.T) {
 	f := textFrame(t, 10, 4, "abcdefghij\nklmnopqrst", liveChrome(""))
-	m := NewMarks()
-	m.Add([][2]int{{2, 1}}, 10, 4, t0)
 	idx := 1*10 + 2
-	var seen []color.Color
-	for _, age := range []time.Duration{0, 1500 * time.Millisecond, 2500 * time.Millisecond} {
+	bgAt := func(m *Marks, age time.Duration) color.Color {
+		t.Helper()
 		o := m.Overlay(f, t0.Add(age))
 		c := o.Cells[idx]
 		if c.Content != f.Cells[idx].Content || c.Style.Fg != f.Cells[idx].Style.Fg {
 			t.Fatalf("age %v: overlay changed text or foreground", age)
 		}
-		if c.Style.Bg == f.Cells[idx].Style.Bg {
-			t.Fatalf("age %v: no tint", age)
-		}
-		seen = append(seen, c.Style.Bg)
 		for i := range o.Cells {
 			if i != idx && !o.Cells[i].Equal(&f.Cells[i]) {
 				t.Fatalf("age %v: overlay touched cell %d", age, i)
 			}
 		}
+		return c.Style.Bg
 	}
-	if seen[0] == seen[1] || seen[1] == seen[2] {
-		t.Fatalf("no fade steps: %v", seen)
-	}
-	if o := m.Overlay(f, t0.Add(3*time.Second)); !o.Cells[idx].Equal(&f.Cells[idx]) {
-		t.Fatal("mark still drawn after 3s")
+	for _, truecolor := range []bool{false, true} {
+		m := NewMarks()
+		if truecolor {
+			m.SetBlend(color.RGBA{0x1e, 0x1e, 0x1e, 0xff}, true)
+		}
+		m.Add([][2]int{{2, 1}}, 10, 4, t0)
+		hold := bgAt(m, 0)
+		if bgAt(m, MarkHold-time.Millisecond) != hold {
+			t.Fatalf("truecolor=%v: tint changed during the hold", truecolor)
+		}
+		var steps []color.Color
+		for age := MarkHold; age < MarkLife; age += 10 * time.Millisecond {
+			c := bgAt(m, age)
+			if len(steps) == 0 || c != steps[len(steps)-1] {
+				steps = append(steps, c)
+			}
+		}
+		if len(steps) < 4 {
+			t.Fatalf("truecolor=%v: only %d fade steps", truecolor, len(steps))
+		}
+		if steps[0] == hold {
+			t.Fatalf("truecolor=%v: fade starts at the hold tint", truecolor)
+		}
+		if o := m.Overlay(f, t0.Add(MarkLife)); !o.Cells[idx].Equal(&f.Cells[idx]) {
+			t.Fatalf("truecolor=%v: mark still drawn at MarkLife", truecolor)
+		}
+		if truecolor {
+			last := steps[len(steps)-1].(color.RGBA)
+			if d := int(last.R) - 0x1e; d > 40 {
+				t.Fatalf("truecolor fade ends far from the background: %v", last)
+			}
+		}
 	}
 }
 
@@ -173,11 +195,16 @@ func TestMarksLiveAndNextChange(t *testing.T) {
 		t.Fatal("empty marks schedule a repaint")
 	}
 	m.Add([][2]int{{0, 0}}, 10, 4, t0)
-	if !m.Live(t0.Add(2900*time.Millisecond)) || m.Live(t0.Add(3*time.Second)) {
-		t.Fatal("liveness doesn't match the 3s fade")
+	if !m.Live(t0.Add(MarkLife-time.Millisecond)) || m.Live(t0.Add(MarkLife)) {
+		t.Fatal("liveness doesn't match MarkLife")
 	}
-	if d, ok := m.NextChange(t0.Add(300 * time.Millisecond)); !ok || d != 700*time.Millisecond {
-		t.Fatalf("next fade step in %v %v, want 700ms", d, ok)
+	// During the hold, nothing changes until the fade starts.
+	if d, ok := m.NextChange(t0.Add(300 * time.Millisecond)); !ok || d != MarkHold-300*time.Millisecond {
+		t.Fatalf("next change during the hold in %v %v, want %v", d, ok, MarkHold-300*time.Millisecond)
+	}
+	// During the fade, one repaint per step.
+	if d, ok := m.NextChange(t0.Add(MarkHold + 10*time.Millisecond)); !ok || d != markFadeStep-10*time.Millisecond {
+		t.Fatalf("next fade step in %v %v, want %v", d, ok, markFadeStep-10*time.Millisecond)
 	}
 	m.Clear()
 	if m.Live(t0) {
