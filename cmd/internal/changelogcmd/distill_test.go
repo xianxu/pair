@@ -280,6 +280,45 @@ func TestTrimLiveTail(t *testing.T) {
 	if got := trimLiveTail(meter, "claude"); !reflect.DeepEqual(got, content) {
 		t.Fatalf("context-meter footer: got %v", got)
 	}
+	// grok settled footer, rows verbatim from the frozen finished-turn capture
+	// (cmd/internal/wrapcmd/testdata/prompt-echo/prompt-echo/grok/1.0.46/echo.raw rendered 120x38):
+	// a rounded composer box whose bottom edge carries the model label, then a
+	// key-hint row. None matched an existing case, so the whole footer would
+	// leak into the anchor (#58 class, grok shape). The transcript's own rows —
+	// the `❯` echo, the reply, "Worked for 22s" — are committed content.
+	gcontent := []string{
+		"     ❯ reply with just the word ok                                                                          12:35 AM",
+		"     ok                                                                                                     12:35 AM",
+		"     Worked for 22s",
+	}
+	gfooter := append(append([]string{}, gcontent...),
+		"",
+		"  ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮",
+		"  │ ❯                                                                                                                │",
+		"  ╰──────────────────────────────────────────────────────────────────────────────────────────────── Grok 4.7 (high) ─╯",
+		"",
+		"  Shift+Tab:mode  │  Ctrl+x:shortcuts")
+	if got := trimLiveTail(gfooter, "grok"); !reflect.DeepEqual(got, gcontent) {
+		t.Fatalf("grok settled footer: got %q", got)
+	}
+	// While grok works, a spinner row ending in its `[stop]` control sits above
+	// the box and the hint row names the cancel key (captured in overlay.raw /
+	// the driven runs).
+	gworking := append(append([]string{}, gcontent...),
+		"  ⠋ Waiting for response… 0.0s 0.0s ⇣1.36k [stop]",
+		"  ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮",
+		"  │ ❯                                                                                                                │",
+		"  ╰──────────────────────────────────────────────────────────────────────────────────────────────── Grok 4.7 (high) ─╯",
+		"  Shift+Tab :mode │ Ctrl+c :cancel │ Ctrl+. :shortcuts")
+	if got := trimLiveTail(gworking, "grok"); !reflect.DeepEqual(got, gcontent) {
+		t.Fatalf("grok working footer: got %q", got)
+	}
+	// A draft in the box is the user's live input, still footer; but a box
+	// drawn by agent OUTPUT mid-transcript is content and must not be eaten
+	// once committed content follows it.
+	if got := trimLiveTail(append(append([]string{}, gcontent...), "  │ ❯ half-typed draft                                   │"), "grok"); !reflect.DeepEqual(got, gcontent) {
+		t.Fatalf("grok draft box row: got %q", got)
+	}
 	// qoder settled footer (M5 Task 17 live capture): none of these rows matched
 	// any case as of M4, so the whole volatile footer leaked into the anchor and
 	// locate found it flush with the tail on the next press → the new turn was

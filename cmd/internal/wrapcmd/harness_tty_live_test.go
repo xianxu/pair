@@ -819,6 +819,20 @@ var harnessTTYDrivenScenarios = map[string][]harnessTTYDrivenScenario{
 			until: "Enter:submit", wantComposer: false, file: "selection.raw",
 			timeout: 150 * time.Second,
 		},
+		// A finished turn: the submitted prompt is echoed into the transcript
+		// as `❯ text` at grokEchoPromptCol (one column right of the composer's
+		// glyph), above a live composer box the gate must still select. It is
+		// the evidence the scrollback and distill prompt patterns derive from
+		// (TestGrokEchoPromptColMatchesCapture). The stream cannot be trimmed
+		// (its final paint block alone decides differently) and replaying 65KB
+		// at every byte split cost the fixture oracle 49s, so the capture lives
+		// outside the tty fixture set: recapture with PAIR_LIVE_CAPTURE_OUT=
+		// cmd/internal/wrapcmd/testdata/prompt-echo/grok/<version>/echo.raw.
+		{name: "submitted prompt", args: []string{"--no-alt-screen"},
+			send:  "reply with just the word ok\r",
+			until: "Worked for", wantComposer: true, file: "echo.raw",
+			timeout: 120 * time.Second,
+		},
 	},
 }
 

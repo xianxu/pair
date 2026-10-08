@@ -350,6 +350,13 @@ const (
 	grokPromptCol = grokBoxCol + 2
 )
 
+// grokEchoPromptCol is the ONE authority for the column Grok echoes a
+// submitted prompt at in its transcript (`❯ text`), one column right of the
+// composer's glyph. The scrollback and distill prompt patterns derive from it
+// and grokPromptGlyphs; TestGrokEchoPromptColMatchesCapture pins it against
+// testdata/prompt-echo/grok/1.0.46/echo.raw.
+const grokEchoPromptCol = 5
+
 // grokPromptGlyphs is the ONE authority for what may sit at grokPromptCol of a
 // Grok composer prompt row; the Return remap's recognizer and the orientation
 // gate both read it. `❯` is the captured default-mode glyph.
