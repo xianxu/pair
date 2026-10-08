@@ -39,9 +39,12 @@ Couch peer delivery is out of scope (follow-up issue).
   full-screen TUI. It has `--no-alt-screen` and `--minimal` modes.
 - **Keys:** Enter sends; Shift+Enter or Alt+Enter inserts a newline. This is the
   opposite of pair's convention, so Grok needs the Return remap.
-- **Resume:** the TUI takes `-r/--resume <id-or-title>` and `-c/--continue`.
-  `-s/--session-id` works headless only, so pair discovers the session ID after
-  launch rather than assigning it.
+- **Session ID:** the TUI honors `-s/--session-id <uuid>` for a new
+  conversation: `grok -s <uuid>` with no prompt created
+  `~/.grok/sessions/<cwd>/<uuid>/` immediately. The README's "headless only" note
+  is wrong for 1.0.46. Pair therefore mints the ID, as for claude and qoder
+  (`MintsSessionID`, `cmd/internal/launcher/agentargs.go`). Resume is
+  `-r/--resume <id-or-title>`; `-c/--continue` resumes the cwd's latest session.
 - **Sessions:** stored at `~/.grok/sessions/<url-encoded-cwd>/<uuidv7>/`.
   `summary.json` holds `info.id`, `info.cwd`, `created_at` and `updated_at`;
   `updates.jsonl` is an ACP `session/update` stream with `params.sessionId` on
@@ -54,11 +57,14 @@ Couch peer delivery is out of scope (follow-up issue).
 ### Bring-up loop
 
 Grok is developed in pair first, not in Couch. Plain `pair-dev grok` already runs
-an unregistered agent (only the fresh-launch, continuation and Couch-profile paths
-check `IsSupportedAgent`), and each aspect that misbehaves there is a checklist
-item. The work is done from an existing Claude slot. Couch enters at M3: once
+an unregistered agent (only the fresh-launch, continuation, restart-marker
+(`markers.go`, so Alt+n) and Couch-profile paths check `IsSupportedAgent`), and
+each aspect that misbehaves there is a checklist item. The work is done from an existing Claude slot. Couch enters at M3: once
 `grok` is registered and has a scanner, Couch's start and switch-agent menus pick
 it up (guide §0), and switching a slot to Grok is the acceptance test.
+Registering in M1 does list Grok in Couch's menus early: a Couch launch works
+from M1, but park and resume only after M2. That interim is acceptable, and the
+M1 known-gap entry (below) records it.
 
 ### Design: follow the per-harness pattern
 
@@ -68,21 +74,54 @@ no new mechanism, with one exception: Codex's forced inline mode
 per-harness field ("inline flag + opt-out env") that both Codex and Grok use, so
 the alt-screen handling is not copied (ARCH-DRY).
 
-- **M1, usable in pair:** registry entries (launcher `supportedAgents`,
-  sessioninventory `Agent` enum and `supportedAgents`), the inline flag, Return
-  remap (pair Enter becomes Grok newline, pair Alt+Enter becomes Grok send), an
-  overlay detector for Grok's permission and selection pickers if plain Enter
-  doesn't confirm them, and captured TTY fixtures under
-  `cmd/internal/wrapcmd/testdata/tty/grok/<version>/`.
-- **M2, Couch-resumable:** a versioned scanner over `summary.json` +
-  `updates.jsonl` with a conformance fixture. A stub session without
-  `updates.jsonl` reads as "no conversation", not an error. Also: the resume
-  token (`--resume <id>`, with the `-r` and inline/glued spellings, in
-  `resumeform.Forms`), `pair-slug` through `grok -p`, and the parity test passing
-  with no known-gap entry.
-- **M3, polish + live check:** the permission allowlist, the user-prompt glyph
-  for Alt+b in `nvim/scrollback.lua`, the atlas guide listing Grok, and a live
-  operator smoke test under Couch.
+- **M1, usable in pair:**
+  - Registry: launcher `supportedAgents`, sessioninventory `Agent` enum and
+    `supportedAgents`. Add a `sessionInventoryKnownGaps["grok"]` entry
+    (`cmd/internal/launcher/agent_parity_test.go`) so the parity test passes
+    while the session side is still missing. M2 deletes it.
+  - Fresh-launch tables (`freshAgentSpecs`, `freshValueOption`,
+    `freshVariadicOption` in `fresh_args.go`): reject `-c/--continue`,
+    `-r/--resume`, `-s/--session-id` and `--fork-session` on a fresh launch, and
+    declare Grok's value flags (`--agent`, `-m`, `--cwd`, `--permission-mode`, …)
+    so their values are not mistaken for the positional `[PROMPT]`.
+  - Inline mode becomes a per-harness `{flag, optOutEnv}` field. Codex keeps
+    `--no-alt-screen` with `PAIR_CODEX_ALT_SCREEN`; Grok gets `--no-alt-screen`
+    with `PAIR_GROK_ALT_SCREEN`. The `CodexAltScreenOptOut` option becomes
+    agent-keyed. The flag must go **before** any `--`, because Grok reads
+    trailing words as `[PROMPT]`. Today's Codex placement after `--`
+    (`peer_launch_test.go`) changes, and a test pins the new order for both.
+  - TTY profile in `harnessTTYProfiles`: a composer recognizer
+    (`composerGatePositive`; without one the profile fails closed and Enter is
+    never remapped), the Return remap (pair Enter → Grok Alt+Enter newline, pair
+    Alt+Enter → Grok Enter send), and an overlay detector for Grok's permission
+    and selection pickers. Captured fixtures under
+    `cmd/internal/wrapcmd/testdata/tty/grok/1.0.46/` are required for the
+    composer, the remap and each overlay.
+- **M2, Couch-resumable:** the session side, landing together as the guide's
+  item 4 requires:
+  - A versioned scanner over `summary.json` + `updates.jsonl` with a conformance
+    fixture. A stub session without `updates.jsonl` reads as "no conversation",
+    not an error.
+  - `sessionwatch.SupportsAgent`, the ledger's `isSupportedAgent`,
+    `NormalizeNativeEvent`/`ProviderContractFor`, the completed-round watcher and
+    the provisional launch baseline.
+  - A `grok` case in `observationNativeID` (`sessioninventory/target.go`), plus
+    tests proving `OSRuntime.AgentSessionExists` and `EstablishedSessionID` read
+    the scanner inventory.
+  - `MintsSessionID` includes grok; the resume token (`--resume <id>`, `-r`,
+    inline and glued spellings) goes in `resumeform.Forms`; `-c/--continue` is
+    stripped from persisted config like the other resume selectors.
+  - `pair-slug` through `grok -p`.
+  - Delete the known-gap entry, so the parity test passes on real wiring.
+- **M3, polish + live check:**
+  - The permission allowlist in `~/.grok/config.toml`.
+  - Grok's user-prompt glyph in `nvim/scrollback.lua` (Alt+b) with its
+    `nvim/scrollback_test.lua` row, and in `orientationPromptOK`
+    (`wrapcmd/orientation.go`). Without the latter, switch-agent's orientation
+    auto-submit never fires on Grok.
+  - Add the orientation glyph to the guide's §2 checklist (the guide is missing
+    it), and list Grok among the supported harnesses.
+  - Operator live smoke test under Couch.
 
 ### Alternatives considered
 
@@ -108,19 +147,28 @@ are versioned test data, replaced when the harness version moves.
 
 - `grok` is in the launcher `supportedAgents`, the sessioninventory `Agent` enum
   and its `supportedAgents`, and `TestAgentInventoryParityWithSessionTables`
-  passes with no known-gap entry.
-- Codex and Grok share one per-harness inline-mode field; Codex behavior,
-  including the `PAIR_CODEX_ALT_SCREEN` opt-out, is unchanged.
-- Captured fixtures under `cmd/internal/wrapcmd/testdata/tty/grok/` pin the
-  Return remap (and the overlay detector, if Grok needs one).
-- The Grok scanner has a conformance fixture covering a stub session; the resume
-  token round-trips `--resume`, `-r` and the inline/glued spellings; `pair-slug`
-  generates a slug for a Grok session.
-- Operator live smoke test: `pair-dev grok` works with the Return remap and
-  scrollback; Couch's start and switch-agent menus list Grok; a Couch-hosted Grok
-  thread launches, parks and cold-resumes.
+  passes with `sessionInventoryKnownGaps` empty again.
+- A fresh launch of grok rejects `-c`, `-r`, `-s` and `--fork-session`, and a
+  test parses a value flag (`--agent X`) as a flag, not as the prompt.
+- Codex and Grok share one per-harness inline-mode field. The flag lands before
+  `--` for both (test-pinned), and `PAIR_CODEX_ALT_SCREEN` and
+  `PAIR_GROK_ALT_SCREEN` each opt out.
+- Captured 1.0.46 fixtures under `cmd/internal/wrapcmd/testdata/tty/grok/` pin
+  the composer recognizer, the Return remap and each overlay detector.
+- The Grok scanner's conformance fixture covers a full session and a stub
+  session. `AgentSessionExists` and `EstablishedSessionID` tests read the
+  inventory. A launch mints `--session-id`. The resume token round-trips
+  `--resume`, `-r` and the inline/glued spellings, and persisted config drops
+  `-c`. `pair-slug` produces a slug for a Grok session.
+- `nvim/scrollback_test.lua` and an orientation test cover Grok's prompt glyph.
+- Operator live smoke test in `pair-dev grok`: a multi-line prompt (Enter
+  inserts a newline, Alt+Enter sends), a permission picker confirms with plain
+  Enter, mouse scroll moves through scrollback, Alt+b jumps to the prompt, and
+  `doctor/doctor.sh` shows grok `return-remap`, `session-id` and `slug-parse`
+  firing. Then under Couch: the start and switch-agent menus list Grok, switching
+  a slot to Grok auto-submits orientation, and the thread parks and cold-resumes.
 - A follow-up issue for a Grok Couch peer-delivery receiver profile is filed.
-- The atlas guide lists Grok among the supported harnesses.
+- The atlas guide lists Grok and includes the orientation-glyph checklist item.
 
 ## Plan
 
@@ -131,3 +179,4 @@ are versioned test data, replaced when the harness version moves.
 ### 2026-10-07
 
 - Brainstorm: scope is full parity in three milestones; peer delivery goes to a follow-up. Bring-up loop is `pair-dev grok` from a Claude slot; Couch at M3. Provisional Couch attach deferred. Grok login confirmed; session layout measured live (stub session without updates.jsonl observed).
+- Spec review (fresh eyes): 10 findings, all folded in. Measured `grok -s <uuid>` in the TUI: it creates the session dir, so pair mints the ID. Added an M1 known-gap entry, the fresh-launch tables, inline flag before `--`, M2 session-side wiring, the orientation glyph, and concrete smoke observations.
