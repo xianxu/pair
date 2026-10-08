@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -353,5 +354,35 @@ func TestEndReasonIsAClosedVocabulary(t *testing.T) {
 		if strings.Contains(got, "/") || strings.Contains(got, "127.0.0.1") {
 			t.Errorf("EndReason(%v) leaks local detail: %q", c.err, got)
 		}
+	}
+}
+
+// A viewer that stops reading is dropped once a write can't finish, freeing
+// its slot; it can't hold the stream and a viewer slot forever.
+func TestServerDropsStalledViewer(t *testing.T) {
+	h, srv := testServer(t, HubOptions{MaxViewers: 1, QueueDepth: 1000}, 20*time.Millisecond)
+	ts := httpServer(t, srv)
+	conn, err := net.Dial("tcp", strings.TrimPrefix(ts.URL, "http://"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	if tcp, ok := conn.(*net.TCPConn); ok {
+		tcp.SetReadBuffer(4096)
+	}
+	fmt.Fprintf(conn, "GET /%s/events HTTP/1.1\r\nHost: x\r\n\r\n", testToken)
+	// Never read; push frames until the server's writes back up.
+	deadline := time.Now().Add(15 * time.Second)
+	for i := 0; ; i++ {
+		offer(h, live(t, fmt.Sprintf("%d %s", i, strings.Repeat("x", 30))), terminal.FramePublic)
+		var n int
+		h.do(func() { n = len(h.subs) })
+		if n == 0 && i > 0 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("a viewer that stopped reading still holds its slot after %d frames", i)
+		}
+		time.Sleep(time.Millisecond)
 	}
 }

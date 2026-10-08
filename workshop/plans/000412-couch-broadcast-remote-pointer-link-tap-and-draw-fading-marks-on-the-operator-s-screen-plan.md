@@ -312,3 +312,15 @@ or the hub.
   `VENDOR.md`). `@xterm/addon-unicode-graphemes` 0.4.0 was measured and
   rejected: it counted plain emoji as one column. This also fixes emoji
   placement for #395 viewers.
+- **2026-10-08 (M2 security review)** — a dedicated fresh-context security
+  review of the input path found no blocking issues. Taken: 413 only for a
+  real `MaxBytesError` (else 400); body read budget 2s (was 5s); content type
+  via `mime.ParseMediaType`; event-stream writes get a deadline of two pings,
+  so a viewer that stops reading is dropped and frees its slot (a #395 gap,
+  `TestServerDropsStalledViewer`, mutation-checked); `Marks.Add` trims the
+  batch to the cap as it grows. **Contract for M3 (finding L1):** a batch can
+  pass the session's checks and then reach the Console after pointing turned
+  off or the screen turned private. The Console re-checks its pointer phase
+  and the frame class under `marksMu` before `Marks.Add`, the overlay skips
+  `FramePrivate`, and turning pointing off clears marks. `OnPoints` does
+  bounded work and routes coordinates only to `Marks`.

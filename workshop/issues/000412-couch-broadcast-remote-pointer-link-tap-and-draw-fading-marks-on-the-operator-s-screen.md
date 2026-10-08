@@ -251,3 +251,8 @@ Durable plan: `workshop/plans/000412-couch-broadcast-remote-pointer-link-tap-and
   the oracle: 61/65 sample glyphs now agree. The residual mismatch is VS16
   emoji (`❤️`, `⚠️`) and ZWJ/skin-tone sequences, recorded as known. The
   graphemes add-on was measured and was worse.
+- M2: the pointer link is built (strict parser, rate limit and in-flight cap,
+  per-request read deadline, routes, caps, session checks, hub pointer watch).
+  At the operator's request, a dedicated security review of the input path
+  found no blocking issues; its hardening was taken (see the plan's
+  Revisions). `FuzzParsePointBatch` ran 60s (815k inputs) with no failures.

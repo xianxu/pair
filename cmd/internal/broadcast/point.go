@@ -17,7 +17,7 @@ const (
 	// MaxPointInFlight bounds concurrent point requests per broadcast; more
 	// get 429 before their body is read.
 	MaxPointInFlight = 4
-	pointReadBudget  = 5 * time.Second
+	pointReadBudget  = 2 * time.Second
 )
 
 var (

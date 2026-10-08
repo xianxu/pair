@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"strings"
 	"time"
@@ -128,7 +129,7 @@ func (s *Server) point(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "pointing is off", http.StatusForbidden)
 		return
 	}
-	if mt := r.Header.Get("Content-Type"); mt != "application/json" && !strings.HasPrefix(mt, "application/json;") {
+	if mt, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || mt != "application/json" {
 		http.Error(w, "unsupported content type", http.StatusUnsupportedMediaType)
 		return
 	}
@@ -145,8 +146,13 @@ func (s *Server) point(w http.ResponseWriter, r *http.Request) {
 	// hold a slot.
 	_ = http.NewResponseController(w).SetReadDeadline(time.Now().Add(pointReadBudget))
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, MaxPointBody))
-	if err != nil {
+	var tooLarge *http.MaxBytesError
+	switch {
+	case errors.As(err, &tooLarge):
 		http.Error(w, "request too large", http.StatusRequestEntityTooLarge)
+		return
+	case err != nil:
+		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
 	batch, err := ParsePointBatch(body)
@@ -187,6 +193,9 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, pointer bool) {
 	w.WriteHeader(http.StatusOK)
 	rc := http.NewResponseController(w)
 	send := func(chunk string) bool {
+		// A viewer that stops reading must not hold its goroutine and viewer
+		// slot forever: every write gets a deadline, two pings long.
+		_ = rc.SetWriteDeadline(time.Now().Add(2 * s.opts.Ping))
 		if _, err := fmt.Fprint(w, chunk); err != nil {
 			return false
 		}

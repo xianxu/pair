@@ -365,3 +365,49 @@ func TestPointerLinkEndsWithBroadcast(t *testing.T) {
 		t.Fatal("pointer link still answers after the broadcast ended")
 	}
 }
+
+func TestPointerContentTypeParsing(t *testing.T) {
+	p := startPointerSession(t)
+	link, _ := p.s.EnablePointer()
+	p.showPointer(t)
+	for _, ct := range []string{"Application/JSON", "application/json; charset=utf-8"} {
+		if code, _ := post(t, link+"point", ct, tapBody); code != http.StatusNoContent {
+			t.Errorf("%q: %d", ct, code)
+		}
+	}
+	for _, ct := range []string{"application/jsonx", "text/json", "application/json;;;"} {
+		if code, _ := post(t, link+"point", ct, tapBody); code != http.StatusUnsupportedMediaType {
+			t.Errorf("%q: %d, want 415", ct, code)
+		}
+	}
+}
+
+// A body that doesn't arrive in time is a bad request, not "too large".
+func TestPointerSlowBodyIsBadRequest(t *testing.T) {
+	p := startPointerSession(t)
+	link, _ := p.s.EnablePointer()
+	p.showPointer(t)
+	pr, pw := io.Pipe()
+	defer pw.Close()
+	req, _ := http.NewRequest(http.MethodPost, link+"point", pr)
+	req.Header.Set("Content-Type", "application/json")
+	codes := make(chan int, 1)
+	go func() {
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			codes <- 0
+			return
+		}
+		resp.Body.Close()
+		codes <- resp.StatusCode
+	}()
+	pw.Write([]byte(`{"cols":`))
+	select {
+	case code := <-codes:
+		if code != http.StatusBadRequest && code != 0 {
+			t.Fatalf("slow body: %d, want 400", code)
+		}
+	case <-time.After(pointReadBudget + 5*time.Second):
+		t.Fatal("slow body never timed out")
+	}
+}

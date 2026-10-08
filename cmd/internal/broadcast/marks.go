@@ -58,6 +58,10 @@ func (m *Marks) Add(points [][2]int, cols, rows int, now time.Time) {
 		} else {
 			line(*prev, p, put)
 		}
+		// Keep only the cap's worth, the latest, as the batch grows.
+		if len(batch) > 2*limit {
+			batch = append(batch[:0], batch[len(batch)-limit:]...)
+		}
 		prev = &points[i]
 	}
 	if len(batch) > limit {
