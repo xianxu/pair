@@ -244,3 +244,9 @@ Durable plan: `workshop/plans/000412-couch-broadcast-remote-pointer-link-tap-and
   states were undefined, and Done-when had gaps. All folded into the Spec as
   decisions, and Done-when was rewritten as automated tests plus one manual
   smoke.
+- Task 1.1 width check: headless xterm.js 6.0.0 counted `👆`/`👽` as 1 column
+  (Unicode 6 tables), against Couch's 2, and the same was true for most emoji
+  in viewers today. Vendored `@xterm/addon-unicode11` 0.9.0 in the viewer and
+  the oracle: 61/65 sample glyphs now agree. The residual mismatch is VS16
+  emoji (`❤️`, `⚠️`) and ZWJ/skin-tone sequences, recorded as known. The
+  graphemes add-on was measured and was worse.

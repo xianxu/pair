@@ -39,6 +39,8 @@ var assets = map[string]asset{
 	"viewer.css": {"web/viewer.css", "text/css; charset=utf-8"},
 	"xterm.js":   {"web/vendor/xterm/xterm.js", "text/javascript; charset=utf-8"},
 	"xterm.css":  {"web/vendor/xterm/xterm.css", "text/css; charset=utf-8"},
+	// Unicode 11 widths, so emoji are two columns in the viewer as in Couch.
+	"addon-unicode11.js": {"web/vendor/xterm/addon-unicode11.js", "text/javascript; charset=utf-8"},
 	// JetBrains Mono, the font the operator's terminal draws (OFL; see
 	// web/vendor/fonts/VENDOR.md).
 	"fonts/JetBrainsMono-Regular.woff2":    {"web/vendor/fonts/JetBrainsMono-Regular.woff2", "font/woff2"},

@@ -153,7 +153,12 @@ async function start() {
     cursorBlink: false,
     fontSize: 16,
     fontFamily: `${FONT}, ui-monospace, Menlo, Monaco, Consolas, monospace`,
+    // The Unicode API is "proposed" in xterm.js; it is what sets widths.
+    allowProposedApi: true,
   });
+  // Unicode 11 widths: emoji are two columns, as Couch draws them (#412).
+  term.loadAddon(new globalThis.Unicode11Addon.Unicode11Addon());
+  term.unicode.activeVersion = '11';
   term.open(document.getElementById('term'));
   let size = 16;
   const fit = () => {

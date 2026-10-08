@@ -19,7 +19,7 @@ import (
 
 const testToken = "tok_abcdefghijklmnopqrstuvwxyz0123456789ABCD"
 
-var routes = []string{"", "viewer.js", "viewer.css", "xterm.js", "xterm.css", "events"}
+var routes = []string{"", "viewer.js", "viewer.css", "xterm.js", "xterm.css", "addon-unicode11.js", "events"}
 
 func testServer(t *testing.T, opts HubOptions, ping time.Duration) (*Hub, http.Handler) {
 	t.Helper()
@@ -109,11 +109,12 @@ func TestServerIsGetOnly(t *testing.T) {
 func TestServerServesAssetsWithHeaders(t *testing.T) {
 	_, srv := testServer(t, HubOptions{}, 0)
 	types := map[string]string{
-		"":           "text/html; charset=utf-8",
-		"viewer.js":  "text/javascript; charset=utf-8",
-		"viewer.css": "text/css; charset=utf-8",
-		"xterm.js":   "text/javascript; charset=utf-8",
-		"xterm.css":  "text/css; charset=utf-8",
+		"":                   "text/html; charset=utf-8",
+		"viewer.js":          "text/javascript; charset=utf-8",
+		"viewer.css":         "text/css; charset=utf-8",
+		"xterm.js":           "text/javascript; charset=utf-8",
+		"xterm.css":          "text/css; charset=utf-8",
+		"addon-unicode11.js": "text/javascript; charset=utf-8",
 	}
 	for route, ctype := range types {
 		path := "/" + testToken + "/" + route

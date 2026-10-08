@@ -299,3 +299,16 @@ or the hub.
 - [ ] Full verification (`make -k test`, scratchpad-TMPDIR changelog,
       `go test ./...`, compared against a main archive), `sdlc close`,
       `sdlc pr`, `sdlc merge` on the operator's word.
+
+## Revisions
+
+- **2026-10-08 (Task 1.1)** — the width check failed in the viewer:
+  xterm.js 6.0.0 defaults to Unicode 6 widths and counts `👆`/`👽` (and most
+  emoji) as one column, while Couch counts two. Per the plan's decision point,
+  the fix is in the viewer, not the markers. `@xterm/addon-unicode11` 0.9.0
+  is vendored and loaded (with `allowProposedApi`), and the oracle pins and
+  loads the same add-on. On a 65-glyph sample it agrees with Couch except for
+  emoji with a variation selector and joined/skin-tone sequences (recorded in
+  `VENDOR.md`). `@xterm/addon-unicode-graphemes` 0.4.0 was measured and
+  rejected: it counted plain emoji as one column. This also fixes emoji
+  placement for #395 viewers.

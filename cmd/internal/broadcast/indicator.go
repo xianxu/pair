@@ -13,6 +13,14 @@ const (
 	// LiveSGR is the style both labels are drawn in: a red background and the
 	// terminal's own foreground.
 	LiveSGR = "\x1b[41m"
+
+	// PointerLabel is the pointer-link control, drawn right after
+	// LiveLabel + " " (#412); ControlLabel is reserved for remote control
+	// (#407). Both are emoji, two columns wide.
+	PointerLabel = "👆"
+	ControlLabel = "👽"
+	// PointerSGR marks pointing as on: an amber background.
+	PointerSGR = "\x1b[48;5;214m"
 )
 
 // liveBackground is the cell background LiveSGR produces.
