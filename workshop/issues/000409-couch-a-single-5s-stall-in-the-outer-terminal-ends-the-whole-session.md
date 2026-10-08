@@ -125,6 +125,17 @@ total: 2.87
   - Against the issue's capture (about 120 writes a minute at about 17 KB, so
     about 2 MB a minute, with 50 to 230 ms per write before the stall): idle
     volume is down about 32×, past the >10× target.
+- **Live while streaming** (same capture, 06:01–06:05 UTC, an active Claude
+  session selected): 337 to 593 host writes a minute at 217 to 563 KB a minute,
+  mostly row diffs under 1 KB. The slowest write took 2 ms. Against the issue's
+  about 500 writes a minute at about 17 KB (about 8.5 MB a minute), that is 15 to
+  35× lighter.
+- **Forced stall, not achieved.** Two attempts to freeze Ghostty
+  (`kill -STOP <pid>; sleep 8|30; kill -CONT`) did not take effect: the capture
+  shows writes continuing throughout, with no write blocked. The live check of the
+  recorded exit reason therefore did not happen. That path rests on its tests: a
+  real stalled parent produces the reason, the console's own classification
+  records it, and the next start reports it once.
 - **Generative check:** over 80 seeds, 48 took the row diff and 32 were refused
   into the full rebuild. Every case matched the full rebuild under the xterm
   oracle, and the row-diffed ones also matched under the native zellij oracle.
