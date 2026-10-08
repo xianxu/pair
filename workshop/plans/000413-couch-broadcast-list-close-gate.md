@@ -37,6 +37,32 @@ rounds:
           round: 1
       recipe: milestone-review
       blocked: true
+    - "n": 2
+      timestamp: "2026-10-08T10:16:34-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: README.md:388 command-list line and README.md:822 broadcast-section paragraph, including that the link is never printed; verified in the 38253a18 diff.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: Issue Spec line 42 now reads starting, live, stopping, matching the plan and code.
+          round: 2
+        - id: BR-3
+          disposition: addressed
+          note: broadcast_list.go:31-34 matches the base refusal text (protocol.go:51 at f904c117); TestBroadcastListAgainstAnOlderCouchSaysRestart covers both refusal shapes, and the identity case fails without the fix.
+          round: 2
+        - id: BR-4
+          disposition: withdrawn
+          note: h.do returns once the hub is done, and the loop only runs non-blocking closures, so the wait is bounded; the rationale in the Log is accepted.
+          round: 2
+        - id: BR-5
+          disposition: addressed
+          note: TestSessionStatusReportsLocalOnly pins the local-only mode; hub_test.go:508-512 asserts resyncing >= 1 before checking the count.
+          round: 2
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#413 (boundary-review)
@@ -57,10 +83,16 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   The transport contract says handlers honor their deadline; h.do has no ctx case. Bounded in practice because the hub loop never blocks.
 - **BR-5** [Minor] `test-asserts-precondition` Mode derives from a LocalOnly type assertion with no local-only test; hub test never asserts the slow viewer resynced
 
+## Round 2 — 2026-10-08T10:16:34-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — addressed — README.md:388 command-list line and README.md:822 broadcast-section paragraph, including that the link is never printed; verified in the 38253a18 diff.
+- BR-2 — addressed — Issue Spec line 42 now reads starting, live, stopping, matching the plan and code.
+- BR-3 — addressed — broadcast_list.go:31-34 matches the base refusal text (protocol.go:51 at f904c117); TestBroadcastListAgainstAnOlderCouchSaysRestart covers both refusal shapes, and the identity case fails without the fix.
+- BR-4 — withdrawn — h.do returns once the hub is done, and the loop only runs non-blocking closures, so the wait is bounded; the rationale in the Log is accepted.
+- BR-5 — addressed — TestSessionStatusReportsLocalOnly pins the local-only mode; hub_test.go:508-512 asserts resyncing >= 1 before checking the count.
+
 ## Open findings
 
-- **BR-1** [Important] `readme-tracks-cli-surface` README couch command list and broadcast section omit couch --broadcast-list [--json]
-- **BR-2** [Minor] `spec-matches-implementation` Spec lists broadcast states as starting/live/ending; code and atlas use stopping
-- **BR-3** [Minor] `version-skew-detection` The predates-couch hint in broadcast_list.go never fires for a real pre-#413 couch
-- **BR-4** [Minor] `handler-honors-context` handleBroadcastStatus calls Hub.Viewers without the request context
-- **BR-5** [Minor] `test-asserts-precondition` Mode derives from a LocalOnly type assertion with no local-only test; hub test never asserts the slow viewer resynced
+(none — every finding has been disposed)

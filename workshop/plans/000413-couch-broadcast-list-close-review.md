@@ -97,3 +97,82 @@ findings:
     title: |
       Mode derives from a LocalOnly type assertion with no local-only test; hub test never asserts the slow viewer resynced
 ```
+
+---
+
+## Re-review — 2026-10-08T10:16:34-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 413 — couch --broadcast-list: print the current broadcast session and its viewer count |
+| repo | pair |
+| issue file | workshop/issues/000413-couch-broadcast-list.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | f904c1172c6bb4e2093bfef4e494e0dc0c6c26bb..38253a18c998681462aefebafe7e486bded61006 |
+| command | sdlc close --issue 413 |
+| reviewer | claude |
+| timestamp | 2026-10-08T10:16:34-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+All five prior findings are dealt with, and this round adds nothing new. The README now covers `couch --broadcast-list [--json]` in both places it was missing: the command list (README.md:388) and the broadcasting section (README.md:822). The Spec's state names now match the code (`starting`, `live`, `stopping`). The CLI now gives the restart hint when it reaches an older couch. I checked that the string it matches is the real refusal at base: `ValidateRequest` returns "operation requires the calling conversation identity" (protocol.go:51 at f904c117) for any op that has no identity fields, and an op added in #413 has none. A table test covers both kinds of refusal. The hub test now asserts that its slow viewer really is resyncing, and there is a new test for local-only mode. The targeted tests pass in `couchcmd` and `broadcast`.
+
+1. **Strengths**
+   - `broadcast_list.go:31-37`: the restart hint covers both older shapes, the identity refusal and the unknown-op error. `TestBroadcastListAgainstAnOlderCouchSaysRestart` feeds it the exact text from base.
+   - `hub_test.go:508-512`: the test checks its own setup first, so it can't pass without actually covering a resyncing viewer.
+   - No status type has a field that could carry the link (`protocol.go:38-44`), so the rule that the link is never printed holds by construction.
+   - `ValidateRequest` refuses any populated field on `broadcast-status`, so the request has exactly one valid shape.
+
+2. **Critical:** none.
+3. **Important:** none.
+4. **Minor:** two leftovers from last round's prose, neither tracked:
+   - The plan still says the provider is wired in `run.go`; it is actually wired in `startMessageService`.
+   - The `couchmessage` import in `console_broadcast.go` is in the standard-library group.
+
+5. **Test coverage:** every layer has a test: hub, session (tunnel and local-only), console, service, and the CLI's parsing, formatting, no-link rule, no running couch, and older couch.
+
+6. **Architecture:**
+
+   | Principle | Result | Why |
+   |---|---|---|
+   | ARCH-DRY | pass | The error mapping still mirrors `messages.go:183`. Pull out a shared helper if a third caller appears. |
+   | ARCH-PURE | pass | `formatBroadcastStatus` is pure. |
+   | ARCH-PURPOSE | pass | Every Done-when item is delivered, including the README. |
+   | ARCH-MOCK | pass | Tests use the `messageCall` seam and `FakeTunnel`. |
+   | ARCH-CONSTRAINTS | pass | The count is an O(1) read from memory on the hub loop. |
+   | ARCH-SECURE | pass | The socket is owner-only and no type can carry the token. |
+   | ARCH-ORDER | pass | It holds no state between events; it takes one snapshot and then makes one hub read. |
+   | ARCH-FUNERAL | pass | It creates nothing durable. |
+
+7. **Plan revisions:** optionally add a `## Revisions` line saying the provider is wired in `startMessageService`.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      README.md:388 command-list line and README.md:822 broadcast-section paragraph, including that the link is never printed; verified in the 38253a18 diff.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Issue Spec line 42 now reads starting, live, stopping, matching the plan and code.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      broadcast_list.go:31-34 matches the base refusal text (protocol.go:51 at f904c117); TestBroadcastListAgainstAnOlderCouchSaysRestart covers both refusal shapes, and the identity case fails without the fix.
+  - id: BR-4
+    disposition: withdrawn
+    note: |
+      h.do returns once the hub is done, and the loop only runs non-blocking closures, so the wait is bounded; the rationale in the Log is accepted.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      TestSessionStatusReportsLocalOnly pins the local-only mode; hub_test.go:508-512 asserts resyncing >= 1 before checking the count.
+```

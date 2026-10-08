@@ -15,7 +15,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "d06aeb32", done: "397a2fb3"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # couch --broadcast-list: print the current broadcast session and its viewer count
@@ -87,6 +87,8 @@ Durable plan: `workshop/plans/000413-couch-broadcast-list-plan.md`.
 ## Log
 
 ### 2026-10-08
+- 2026-10-08: closed — couch --broadcast-list [--json] plus close-review fixes: README command list and broadcast section document it (BR-1); older-couch identity refusal maps to the restart hint (tested); hub test asserts its resyncing precondition; local-only mode test. All broadcast/couchmessage/couchcmd/couchtty tests green unsandboxed; link/token never in text or JSON (tested against a real session); socket owner-only (0700 uid dir, 0600 socket). Full-suite residue pre-existing/environmental; side-quest fixed main's stacked-godoc lint.; review verdict: SHIP
+- 2026-10-08: flow upgraded quick → full — 203 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 Filed at the operator's request: "make a task to have a couch command, `couch
 --broadcast-list` to print out current session, and how many viewers are
