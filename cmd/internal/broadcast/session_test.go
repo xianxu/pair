@@ -326,3 +326,15 @@ func TestSessionStatusReportsModeStartAndViewers(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 }
+
+// A local-only session reports its mode as such (pair#413).
+func TestSessionStatusReportsLocalOnly(t *testing.T) {
+	s, err := Start(context.Background(), Config{Tunnel: LocalOnly{}, Ping: 20 * time.Millisecond})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Stop(nil); <-s.Done() })
+	if got := s.Status().Mode; got != ModeLocalOnly {
+		t.Fatalf("mode = %q, want %q", got, ModeLocalOnly)
+	}
+}

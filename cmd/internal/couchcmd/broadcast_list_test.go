@@ -122,3 +122,19 @@ func TestBroadcastStatusNeedsNoSlotIdentity(t *testing.T) {
 		t.Fatalf("live broadcast: %+v", got)
 	}
 }
+
+// A couch older than #413 refuses the identity-free request with its generic
+// identity check; the CLI says to restart rather than print that raw error.
+func TestBroadcastListAgainstAnOlderCouchSaysRestart(t *testing.T) {
+	for _, refusal := range []string{"operation requires the calling conversation identity", `unknown message operation "broadcast-status"`} {
+		call := func(_ context.Context, _ string, _ any, response any) error {
+			*response.(*couchmessage.Response) = couchmessage.Response{Code: "invalid-request", Error: refusal}
+			return nil
+		}
+		var out, errout bytes.Buffer
+		inv := cliInvocation{kind: cliMessage, messageOp: "broadcast-status"}
+		if code := runMessageCLIWithCall(inv, broadcastListRuntime(), &out, &errout, call); code == 0 || !strings.Contains(errout.String(), "restart Couch") {
+			t.Errorf("%q: code %d, stderr %q; want the restart hint", refusal, code, errout.String())
+		}
+	}
+}

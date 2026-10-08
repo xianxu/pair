@@ -385,6 +385,7 @@ couch --reconcile repo:N converge a slot's workspace now and show what it did
 couch --peek repo:N [--lines N] [--json]   read-only: a slot's recent terminal and transcript paths
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
+couch --broadcast-list [--json]   the running broadcast and its viewer count (never the link)
 couch --recover-plan-from-sdlc   per-slot recovery report (JSON), see below
 couch --resume repo:N [--json]   from a live slot: resume that slot's agent
 couch --reboot repo:N --confirm [--json]   from a live slot: archive and replace it
@@ -817,6 +818,11 @@ terminal is too narrow) for a second, the broadcast stops. The switcher, which
 lists the whole fleet, is replaced for viewers by a placeholder unless
 `COUCH_BROADCAST_SWITCHER=show`. Nothing is recorded at either end; the link
 dies with the broadcast.
+
+`couch --broadcast-list [--json]`, from any shell, reports whether a broadcast is
+running and how many viewers are watching: its state, start time, mode and
+viewer count. It never prints the link or its token, because the token is the
+broadcast's only credential.
 
 Broadcasts reach viewers through [`cloudflared`](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/)
 (`brew install cloudflared`):

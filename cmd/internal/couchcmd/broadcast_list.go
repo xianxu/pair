@@ -28,7 +28,10 @@ func runBroadcastListCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer
 		return 1
 	}
 	switch {
-	case result.Code == "invalid-request" && strings.Contains(result.Error, "unknown message operation"),
+	// A couch older than this command refuses the identity-free request with
+	// its generic identity check (or, older still, the unknown-op error).
+	case result.Code == "invalid-request" && (strings.Contains(result.Error, "unknown message operation") ||
+		strings.Contains(result.Error, "requires the calling conversation identity")),
 		result.Code == "unsupported":
 		fmt.Fprintln(stderr, "couch: the running Couch predates `couch --broadcast-list`; restart Couch to use it")
 		return 1

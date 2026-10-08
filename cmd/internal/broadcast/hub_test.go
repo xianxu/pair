@@ -505,6 +505,11 @@ func TestHubViewersCountsLiveSubscribers(t *testing.T) {
 		offer(h, live(t, fmt.Sprintf("frame %d", i)), terminal.FramePublic)
 	}
 	keep.drain(t)
+	var resyncing int
+	h.do(func() { resyncing = h.resyncing })
+	if resyncing < 1 {
+		t.Fatal("setup: the undrained viewer is not resyncing, so the test would not cover it")
+	}
 	if got := h.Viewers(); got != 2 {
 		t.Fatalf("viewers = %d, want 2 (one left, one resyncing still counts)", got)
 	}

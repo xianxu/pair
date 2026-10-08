@@ -39,7 +39,7 @@ broadcast session, if any, and the number of connected viewers.
   says so and exits non-zero. With no broadcast running it says
   "no broadcast" and exits zero.
 - **Output.** One line per session (today there is at most one):
-  - state (starting, live, ending);
+  - state (starting, live, stopping);
   - since when;
   - mode (tunnel or local-only);
   - the viewer count.
@@ -71,7 +71,8 @@ broadcast session, if any, and the number of connected viewers.
   session's token.
 - With no couch running, the command refuses with a clear message and a
   non-zero exit.
-- `atlas/broadcast.md` documents the command.
+- `atlas/broadcast.md` and the README (command list and broadcast section)
+  document the command and its never-the-link rule.
 
 ## Plan
 
@@ -90,3 +91,16 @@ Durable plan: `workshop/plans/000413-couch-broadcast-list-plan.md`.
 Filed at the operator's request: "make a task to have a couch command, `couch
 --broadcast-list` to print out current session, and how many viewers are
 there." The details stay local until the operator asks to publish them.
+
+### 2026-10-08: close review (FIX-THEN-SHIP) addressed
+
+- **BR-1:** the README command list and broadcast section document
+  `--broadcast-list`. Done-when now names the README.
+- **Minors:**
+  - The Spec's states read starting, live and stopping, matching the code.
+  - An older couch answers with its identity refusal, so the CLI now
+    recognises that and gives the restart hint (tested).
+  - The hub test asserts its slow viewer really is resyncing.
+  - A local-only mode test was added.
+- **Context finding, no change:** `Hub.Viewers` is bounded because the hub
+  loop never blocks, so the handler needs no extra context wiring.
