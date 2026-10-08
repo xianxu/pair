@@ -99,21 +99,89 @@ Design (proposed 2026-10-08):
   but inert (#407). The hub checks each frame for the active-`👆` marker, the
   way it checks `LIVE ⏸`; hidden for a second turns pointing off.
 
+- **Spec review decisions (2026-10-08):**
+  - **Marks never touch the status row.** Points on Couch's chrome row are
+    dropped, so a helper can't cover `LIVE ⏸` or `👆` and trip a fail-safe.
+  - **Strokes:** the page sends a stroke as short batches (each repeating the
+    previous batch's last point); line fill happens only within one request, so
+    two helpers' strokes never join.
+  - **Coverage cap:** at most 1/8 of the grid's cells are marked at once,
+    oldest dropped first. The rate limit (about 30 requests/s) is per link.
+  - **Off clears:** turning pointing off, by a click or by the `👆` fail-safe,
+    removes every mark at once.
+  - **The `👆` watch:** the Session owns `pointing`. The hub gains a second
+    watch, for the active-`👆` marker (`PointerLabel`/`PointerSGR`, at a fixed
+    column right after `LIVE ⏸ `, shared by the drawer and the checker). It
+    arms when pointing turns on. Hidden past the 1s grace, it turns pointing off
+    without ending anything and tells the Console, which redraws `👆` dim.
+    Points are dropped while the marker is hidden.
+  - **State on join:** a pointer-link stream gets `event: caps` on join (after
+    `theme`) and on every flip; view-link streams never get it.
+  - **Repaint and history:** the Presenter keeps the frame without marks and
+    paints that frame plus the current marks, repainting while marks fade (3
+    steps over about 3s). Marks never enter the parent's scrollback: history rows
+    come from the endpoint, not the overlaid frame.
+  - **Private frames:** while the switcher is open (a private frame), points
+    are dropped. Helpers see the placeholder and must not mark the fleet list.
+  - **Smaller states:**
+    - `👆` and `👽` show only while live (not while starting or stopping).
+    - A click on `👽` gives "Remote control isn't available yet".
+    - Toggles give "Pointing on — link copied" and "Pointing off".
+    - Each turn-on re-copies the link.
+    - Each request carries the grid size the page saw (cols×rows); points sent
+      against a stale size are dropped, not clamped.
+  - **Server hygiene:** #395's "GET only, no body read" holds for every path
+    except `POST /<pointer-token>/point`. That route reads through
+    `http.MaxBytesReader`, requires `Content-Type: application/json`, and
+    rejects unknown fields. Both tokens are compared in constant time and keep
+    `no-referrer`/`no-store`. The pointer token never reaches a notice or log.
+    Cross-site request forgery is moot: the token in the path is the secret,
+    and the page sends no cookies.
+  - **Emoji width:** a test asserts `👆` (U+1F446) and `👽` (U+1F47D) are 2
+    columns in `textwidth.Width`, `ansi.GraphemeWidth`, Couch's emulator and
+    the headless xterm.js oracle. A narrow-width status-row test shows `👆`
+    clipping before `LIVE ⏸` does, and its own fail-safe firing.
+  - **iPad page:** pointer-link pages set `touch-action: none` on the screen
+    and use Pointer Events, so a drag draws instead of scrolling or zooming.
+
 ## Done when
 
-- While broadcasting, a click on `👆` copies a pointer link; a helper opening
-  it on an iPad can tap and drag, and fading marks appear on the operator's
-  screen and every viewer's, at the touched cells.
-- A second click on `👆` turns pointing off at once: the helper's input has no
-  effect and their page says pointing is off, while they keep watching. A
-  third click turns pointing back on for the same link, with no new link.
-- Stopping the broadcast ends the pointer link along with the view-only
-  link: open pointer pages show the broadcast ended, and both links then
-  refuse every request, shown by a test.
-- The view-only link accepts no input (unchanged from #395), shown by a test.
-- Pointer input never reaches a child program, shown by a test.
-- A test shows that if the active `👆` can't be drawn, pointing turns off and
-  the link stays usable as view-only.
+Automated (each a test):
+
+- A POST to the pointer link, while pointing is on, puts the mark tint on
+  exactly those cells in the frame the operator's terminal is painted with and
+  in the broadcast. The tint fades in steps and is gone about 3s after the last
+  input.
+- The first click on `👆` mints a pointer token distinct from the view token
+  and copies its link; right-click re-copies it; a new broadcast mints a new
+  pointer link.
+- A second click on `👆` turns pointing off at once: marks clear, POSTs get 403,
+  and open pointer pages get `caps` off but keep streaming. A third click turns
+  pointing on for the same link, with no new link.
+- Stopping the broadcast ends the pointer link along with the view-only link:
+  open pointer pages get `end`, and both links then refuse every request (404,
+  or no connection once the listener is down).
+- The view-only link accepts no input (unchanged from #395).
+- Pointer input never reaches a child program.
+- Limits: over 4 KB, more than 64 points, a wrong content type, unknown
+  fields, or a stale grid size each get rejected or dropped, with nothing
+  echoed. The rate limit holds, and the coverage cap keeps marked cells at or
+  under 1/8 of the grid.
+- Points on the status row and points while the switcher is open are
+  dropped; a stroke over `LIVE ⏸ 👆` leaves both indicators intact.
+- If the active `👆` can't be drawn, pointing turns off (marks cleared) and the
+  link stays usable as view-only.
+- A pointer page learns its state on join (`caps` after `theme`); a view page
+  never gets `caps`.
+- Marks never appear in the parent terminal's scrollback.
+- `👆` and `👽` are 2 columns everywhere (the width test above). A click on
+  `👽` changes nothing but a notice.
+
+Manual smoke (operator):
+
+- While broadcasting through the named tunnel, a click on `👆` copies a
+  pointer link. A helper on an iPad taps and draws circles, and fading marks
+  appear on the operator's screen and on every viewer's.
 
 ## Plan
 
@@ -126,3 +194,10 @@ Design (proposed 2026-10-08):
 - Filed from the operator's idea after #395 landed: a narrow remote-pointer
   channel short of full remote control. Status-row design (`LIVE ⏸ 👆 👽`)
   by the operator; 👽 waits for #407.
+- Spec review (fresh context): found marks could cover the LIVE/👆
+  indicators, strokes could join across helpers, there was no coverage bound,
+  off didn't clear marks, the 👆 watch path was undefined, there was no state
+  on join, no repaint/history mechanism, private frames and several smaller
+  states were undefined, and Done-when had gaps. All folded into the Spec as
+  decisions, and Done-when was rewritten as automated tests plus one manual
+  smoke.
