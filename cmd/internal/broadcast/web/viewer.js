@@ -196,7 +196,7 @@ async function start() {
     disableStdin: true,
     cursorBlink: false,
     fontSize: 16,
-    fontFamily: `${FONT}, ui-monospace, Menlo, Monaco, Consolas, monospace`,
+    fontFamily: `${FONT}, "Couch Symbols", ui-monospace, Menlo, Monaco, Consolas, monospace`,
     // The Unicode API is "proposed" in xterm.js; it is what sets widths.
     allowProposedApi: true,
   });

@@ -27,6 +27,16 @@
   font-display: block;
   src: url("fonts/JetBrainsMono-BoldItalic.woff2") format("woff2");
 }
+/* Symbols JetBrains Mono lacks (#415), which iPad Safari would otherwise
+   draw as emoji: a subset of Noto Sans Symbols 2 (OFL), fetched only when one
+   is on screen. unicode-range is exactly vendor/fonts/symbols.txt. */
+@font-face {
+  font-family: "Couch Symbols";
+  font-weight: 100 900;
+  font-display: block;
+  src: url("fonts/NotoSansSymbols2-Couch.woff") format("woff");
+  unicode-range: U+23F1, U+23F5, U+23F8, U+23F9, U+23FA, U+25D0, U+25D1, U+25D2, U+25D3, U+2610, U+2612, U+2702, U+2714, U+2716, U+2718, U+2722, U+2726, U+2733, U+273B, U+273D, U+2764, U+2800, U+2801, U+2802, U+2803, U+2804, U+2807, U+2808, U+2809, U+280B, U+280F, U+2810, U+2817, U+2819, U+2820, U+2826, U+2827, U+2834, U+2838, U+2839, U+283C, U+2840, U+2847, U+284E, U+2860, U+287E, U+2880, U+2881, U+2888, U+28B4, U+28B8, U+28C0, U+28E0, U+28E4, U+28FF;
+}
 :root {
   --bg: #000;
   --status-bg: rgba(40, 40, 40, 0.85);

@@ -162,6 +162,16 @@ Viewers see the operator's colours and font.
   draws in a fallback with a different advance, and xterm.js's in-flow row
   layout then shifts the rest of the row (#395 M5 smoke). Only fonts whose licence allows redistribution
   are vendored.
+- **Symbols (#415):** symbols JetBrains Mono lacks (`⏺ ⏸ ✳ ✔`, braille
+  spinner frames) come from "Couch Symbols", a subset of Noto Sans Symbols 2
+  listed after JetBrains Mono. Without it, iPad Safari draws several of them as
+  colour emoji. Its `unicode-range` is exactly `web/vendor/fonts/symbols.txt`,
+  so the browser fetches it lazily, and no preload is needed because every
+  glyph has JetBrains Mono's cell advance: late arrival cannot shift a row.
+  `symbols.py` derives the list from recorded agent output and builds the
+  subset. The tests hold the font, the list and the CSS range in agreement.
+  Wide (emoji-presentation) characters are left out on purpose and stay
+  emoji, as in the operator's terminal.
 
 ## Tunnels (cloudflared)
 

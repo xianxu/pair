@@ -30,3 +30,50 @@ Only fonts whose licence allows redistribution may be added here. To update:
 download the release zip, compare its size with the release API, extract into
 an empty directory, copy the four webfont files and the licence, and update
 this file.
+
+## Noto Sans Symbols 2 2.008, subset (`NotoSansSymbols2-Couch.woff`)
+
+- License: SIL Open Font License 1.1 (`OFL-NotoSansSymbols2.txt`, copied from
+  the release zip); no Reserved Font Name, so a modified subset may keep its
+  name.
+- Source: https://github.com/notofonts/symbols/releases/download/NotoSansSymbols2-v2.008/NotoSansSymbols2-v2.008.zip
+  - SHA-256 of the zip: `346c930bbe8eb946701a05c54e9c11a2094dee1d93c387bf1771c0a3e335688f`
+    (2331441 bytes, matching the release API's asset size on download,
+    2026-10-08; GitHub publishes no digest).
+  - Input: `NotoSansSymbols2/unhinted/ttf/NotoSansSymbols2-Regular.ttf`,
+    SHA-256 `c4a0a80f0041ce4be81e2478faad22776d23edb98ae3f0d19bd37044820ecf9d`
+    (`symbols.py` refuses any other file).
+- Output, built by `symbols.py build` (reproducible):
+
+```
+2afe0898aa8b2fbfe6c10cac6573515191bb53474cafe6a0ca7cffea1edd5a4a  NotoSansSymbols2-Couch.woff
+```
+
+Why (#415): JetBrains Mono lacks some symbols agents draw, among them `⏺`
+`⏸` `✳` `✔` and the braille spinner frames. iPad Safari falls back per
+character and draws several of them as Apple Color Emoji. The viewer lists
+this font as "Couch Symbols" after JetBrains Mono, with a `unicode-range` of
+exactly `symbols.txt`, so the browser fetches it only when one of those
+symbols is on screen.
+
+The subset is **modified**: each glyph is moved into JetBrains Mono's 600-unit
+cell, centred by its own advance box, and scaled down only if it would
+overflow, so every symbol keeps the one column Couch counts. It is WOFF 1.0,
+not WOFF2, so the Go tests can read its cmap and advances with the standard
+library (`symbols_test.go`); at 55 glyphs it is under 4 KB.
+
+`symbols.txt` is derived, not hand-picked. `symbols.py scan` reads recorded
+agent output and Couch's own sources, keeps symbols and punctuation that
+JetBrains Mono lacks and that are not wide (wide ones are emoji by default, as
+in the operator's terminal), and adds those Noto Sans Symbols 2 covers to the
+list. Scans only add; remove a code point by hand. It reports the symbols the
+font lacks (2026-10-08: `※ ⅓ ⅔ ↳ ↵ ⇄ ⇣ ⎿ ⚙ ⟹ ⧈ ⧉`), which fall back to the
+viewer's system fonts. To regenerate, with `pip install fonttools brotli`:
+
+```
+symbols.py scan  NOTO_TTF ~/.local/share/pair/**/scrollback-*.raw $(git ls-files 'cmd/*.go')
+symbols.py build NOTO_TTF   # then paste the printed unicode-range into viewer.css
+```
+
+`go test ./cmd/internal/broadcast` fails until the font, the list and the
+stylesheet's `unicode-range` agree.

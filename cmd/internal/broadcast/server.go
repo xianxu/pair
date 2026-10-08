@@ -54,6 +54,9 @@ var assets = map[string]asset{
 	"fonts/JetBrainsMono-Bold.woff2":       {"web/vendor/fonts/JetBrainsMono-Bold.woff2", "font/woff2"},
 	"fonts/JetBrainsMono-Italic.woff2":     {"web/vendor/fonts/JetBrainsMono-Italic.woff2", "font/woff2"},
 	"fonts/JetBrainsMono-BoldItalic.woff2": {"web/vendor/fonts/JetBrainsMono-BoldItalic.woff2", "font/woff2"},
+	// Symbols JetBrains Mono lacks, which iPad Safari would draw as emoji
+	// (#415; web/vendor/fonts/symbols.py).
+	"fonts/NotoSansSymbols2-Couch.woff": {"web/vendor/fonts/NotoSansSymbols2-Couch.woff", "font/woff"},
 }
 
 // Server is the view-only endpoint. It serves GET only, never reads a request
