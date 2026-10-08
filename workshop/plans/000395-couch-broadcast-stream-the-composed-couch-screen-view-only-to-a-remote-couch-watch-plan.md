@@ -863,3 +863,10 @@ func (s *Stream) Join() (Message, bool, error) {
     record and directory. The guard makes this a backstop.
   - The listener returned by `Listen` removes its private directory on
     `Close`, so an abandoned start leaves nothing behind.
+- **2026-10-08 (M5 smoke)** — the viewer and the oracle move to xterm.js
+  **6.0.0**. 5.5.0 ignored synchronized output (DECSET 2026), and the
+  operator saw a half-painted frame in Safari; 6.0.0 implements it. 6.0 keeps
+  DECSCUSR state in the core and reads `CSI 0 SP q` as no preference, so the
+  oracle driver reports the effective state ("default" for no preference),
+  matching Pair's shape 0 (#283). The M2 steps above still name 5.5.0 as
+  history.

@@ -62,7 +62,7 @@ is the current one, for late joiners.
   - A `: ping` every 15s keeps Cloudflare from closing an idle stream (it does
     at 100s). A failed ping ends that viewer, which frees its slot.
 
-The page (`web/`) and a vendored `@xterm/xterm` 5.5.0
+The page (`web/`) and a vendored `@xterm/xterm` 6.0.0
 (`web/vendor/xterm/VENDOR.md`, the same version as the headless oracle) are
 embedded in the binary. The viewer:
 - keeps the sender's grid and scales the font to fit (`nextFontSize`,
