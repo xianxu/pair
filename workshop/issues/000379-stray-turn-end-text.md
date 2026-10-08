@@ -72,7 +72,7 @@ investigation.
 
 - [x] Preserve operator observations, isolation audits and negative replay results in the Log.
 - [x] Transfer tracing implementation and its durable plan to #404 for independent delivery.
-- [ ] Capture and diagnose a real occurrence using reliable tracing from #404.
+- [x] Capture and diagnose a real occurrence using reliable tracing from #404.
 - [ ] Reduce the incident to a regression reproducer and fix or upstream report.
 
 ## Log
@@ -414,6 +414,15 @@ implementation or a reproduction of the reported misplaced text.
 - `session-2834647007/events.jsonl` ended at 18:30:03.961 PDT with seq 2,015,319, status incomplete, error `terminal capture file limit reached`; size 4,294,963,014 bytes. Its 4 GiB budget lasted about 4h18m from 14:12:09. If the new occurrence was contemporaneous with the report, its Couch ingress/host-write evidence is unavailable. The earlier completed recording and this capped prefix remain intact.
 - Preserved fixed-length snapshots of raw Claude output, timestamp sidecars and wrapper-event logs for the three recently active Claude sources (`11873b98e33bf004/1-pair-7`, `5749d0ffa92b055d/1-pair-6`, `2e51fcf9799b1d8f/couch-6b111ea230c149dc`) under private `/tmp/p379-incident-20261007-1934/`: nine files, 215,152,829 bytes, SHA-256 manifest with source sizes/mtimes. These source logs may narrow the emitted sequence but cannot establish its actual placement in Ghostty. No causal claim or reproduction yet.
 
+### 2026-10-07 — Captured brain:0 occurrence and isolated parser defect
+
+- Operator reported a new occurrence in brain:0’s right-hand nvim pane, approximately 19:58 PDT and several seconds before reporting; wording not remembered. New 16 GiB recording `session-1484782486` was active and not full. Preserved a fixed 254,011,507-byte prefix under private `/tmp/p379-incident-1958/events.jsonl`, SHA-256 `0ea9ba3bc94a91d1a31f6827f3e8aa33ea03657b78ebf46e57308b8bdcfa2e26`, through seq 113424. No sequence gaps or recorded errors in the readable prefix. Full source capture remains live; this is not a finalized capture-end claim.
+- Independent xterm replay of 1,909 accepted host writes reproduces `Crunched for 12s · done 7:57 PM` in the right pane at host seq 108130, 19:57:49.201027 PDT, screen row 40 / text column 104, beside nvim line number 74. Endpoint `couch-pty-1` binds scope `2e51fcf9799b1d8f`, tag `couch-6b111ea230c149dc`; pane metadata confirms `/Users/xianxu/workspace/brain`. Source raw-output, sidecar, wrapper logs and hashes also preserved under the incident directory.
+- Preceding ingress seq 108117 at 19:57:49.181598 contains exactly a synchronized-output-wrapped OSC9 notification: `ESC ] 9 ; pair: ✻ Crunched for 12s · done 7:57 PM BEL`. Separately, seq 108127 paints the legitimate left footer. Independent xterm replay of the entire brain endpoint feed shows no right-pane footer, while recorded Couch host output does. This isolates the observed corruption to Couch’s terminal processing/output boundary, not a requirement for Ghostty-specific rendering behavior.
+- Reduced to a deterministic production Endpoint probe with geometry 191×53 and cursor row 40/column 103. Feed only the notification, then snapshot: ASCII `*` and `ready; café` controls leave the screen empty and emit intact notification effects; `✻` leaks the suffix onto the screen and emits a truncated replacement-character notification plus a bell. The temporary overlay regression fails as expected. Files: `minimal_test.go`, `minimal-overlay.json`, `minimal-result.log` under `/tmp/p379-incident-1958/`. Run `go test -overlay /tmp/p379-incident-1958/minimal-overlay.json ./cmd/internal/terminal -run '^TestIncident379OSCUnicode$' -count=1 -v`.
+- Root mechanism independently audited: `third_party/vt/emulator.go:311` feeds raw bytes to x/ansi v0.11.7. Its `parser/transition_table.go:264–269` collects OSC bytes but overrides `0x9c` as C1 ST → Ground. UTF-8 `✻` is `e2 9c bb`: the continuation byte prematurely ends OSC; remaining notification text prints at the saved cursor, often nvim’s cursor. SGR2 and redraw timing are not necessary triggers. Cursor position controls where the leaked text appears.
+- Repair scope should cover control-string parsing, not strip Claude’s marker or patch only notification handlers (ARCH-PURPOSE). Audit found the same 0x9c collision for DCS; SOS/PM/APC also inherit UTF-8 transitions that escape string state. Those related families are static findings pending runtime regression coverage. Fix must preserve valid UTF-8 payloads across chunk splits, retain intended standalone C1 handling, and honor existing bounds. No production fix has been made yet.
+
 ## Revisions
 
 - 2026-10-07 — Corrected the interpretation of “isolated session”: operator wants
@@ -444,3 +453,5 @@ implementation or a reproduction of the reported misplaced text.
 ## Revisions — scope separation
 
 - 2026-10-07 — Operator requested independent tracing delivery. Current Spec, Done when and Plan now cover diagnosis only; tracing and its outstanding queue-overflow/visibility/retention work move to #404. Historical Log entries and prior revision records are retained, including earlier instrumentation acceptance decisions that this revision supersedes.
+
+- 2026-10-07 — Actual incident and deterministic reduction supersede the timing-only hypothesis: notification UTF-8 is misparsed as a control terminator in Couch’s terminal backend. The remaining step is a parser-level regression and repair covering related control-string families; instrumentation is sufficient.
