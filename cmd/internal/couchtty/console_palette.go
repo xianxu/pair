@@ -100,6 +100,12 @@ func (c *Console) capturePalette(event uv.Event) bool {
 // parseOSC4Reply reads a terminal's answer to `OSC 4;N;?`, which is
 // `OSC 4;N;rgb:R/G/B` ended by BEL or ST, each component 1–4 hex digits. Only
 // indices 0–15 are kept: they are the colours SGR 30–37/90–97 name.
+//
+// It parses the colour itself rather than through ansi.XParseColor (which the
+// OSC 10/11 path uses via ultraviolet): XParseColor ignores hex errors, so
+// `zz` reads as 0 instead of refusing, and keeps only each component's high
+// byte, so `f` reads as 15 instead of 255. For the 4-digit form terminals
+// actually send, the two agree (TestParseOSC4ReplyAgreesWithXParseColor).
 func parseOSC4Reply(raw string) (int, color.RGBA, bool) {
 	body, ok := strings.CutPrefix(raw, "\x1b]4;")
 	if !ok {

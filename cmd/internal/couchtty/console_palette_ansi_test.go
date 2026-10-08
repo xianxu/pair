@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	uv "github.com/charmbracelet/ultraviolet"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/xianxu/pair/cmd/internal/terminal"
 )
@@ -60,5 +61,19 @@ func TestOSC4ReplyFeedsBroadcastThemeNotChild(t *testing.T) {
 	}
 	if len(f.child.Writes()) != before {
 		t.Fatal("the reply reached the child")
+	}
+}
+
+// Terminals reply with 4-digit components; there this parser and the one the
+// OSC 10/11 path uses must agree, so fg/bg and the ANSI colours can't drift.
+func TestParseOSC4ReplyAgreesWithXParseColor(t *testing.T) {
+	for _, spec := range []string{"rgb:0000/0000/0000", "rgb:ffff/ffff/ffff", "rgb:cccc/3737/2e2e", "rgb:1e1e/1f1f/2929", "rgb:0a0a/8484/ffff"} {
+		_, got, ok := parseOSC4Reply("\x1b]4;1;" + spec + "\x1b\\")
+		if !ok {
+			t.Fatalf("%s refused", spec)
+		}
+		if want := toRGBA(ansi.XParseColor(spec)); got != want {
+			t.Errorf("%s: parseOSC4Reply %v, XParseColor %v", spec, got, want)
+		}
 	}
 }

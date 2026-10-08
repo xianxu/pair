@@ -178,7 +178,8 @@ Durable plan: `workshop/plans/000395-couch-broadcast-stream-the-composed-couch-s
       `COUCH_BROADCAST_*` options; local smoke; atlas
 - [x] M4 — viewer theme and font: the operator's palette (default fg/bg and
       the 16 ANSI colours, queried from the terminal) applied as xterm.js's
-      theme; `COUCH_BROADCAST_FONT_FILE` served same-origin via `@font-face`
+      theme; the packed JetBrains Mono (OFL) served same-origin via
+      `@font-face` (the font-file setting was dropped; see Revisions)
 - [ ] M5 — `cloudflared` quick tunnel with orphan reaping; live smoke; close
 
 ## Log
