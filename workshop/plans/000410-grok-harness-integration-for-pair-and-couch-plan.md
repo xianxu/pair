@@ -243,3 +243,14 @@ Follow pair#300 Task 9 exactly (its plan is archived; the rules it states are bi
 - **Drift signal**: documented ACP bookkeeping kinds are ignored, not near-miss. The chunk-join state location and flush rule are stated (Core concepts).
 - **Fixture** cwd dir is real-shaped (`%2Frepo`).
 - **Operating envelope** section added.
+
+### 2026-10-07 — M1 execution: milestones re-cut (M1+M2 merged), deltas as landed
+
+- **Re-cut (milestone-boundary-granularity):** the "registry joined, session side absent" interim is not a coherent state in today's tree. Every launch encodes a session-ledger record for its agent, so a registered agent the ledger rejects cannot launch through the fresh path or Alt+n (`agent_restart_test.go`). `TestFreshAgentInvocationHandsTheWatcherToTheReplacementWrap` requires a watcher for every registry agent. Adding grok to the session-side list early breaks every table that ranges `SupportedAgents()`. So **M1 now covers Chunk 1 and Chunk 2** (registry, arg plumbing, TTY, the full session side) and closes once, with no known-gap entry at the boundary. The old M3 (Chunk 3) becomes **M2**, closed by the final `sdlc close`. There are two review boundaries instead of three.
+- **Ledger membership** (`sessionledger.isSupportedAgent`) landed with the registry row, for the reason above.
+- **Inline mode as landed:** the plan's `inlineModeFor` is an `inlineModes` table plus `inlineModeArgs` and `InlineOptOuts` (`agentargs.go`); `LaunchOptions.InlineOptOut map[string]bool` replaced `CodexAltScreenOptOut`.
+- **Selector groups:** `resumeform.Form` gained `SessionID`/`Continue` for grok only. Claude's and qoder's selectors stay in their fresh specs (migrating them would change sibling persisted-arg behavior). `persistedConfigArgs` keeps its agent-agnostic `--session-id` floor.
+- **Fresh-args fuzz:** no fresh-args fuzz existed to join. `TestGrokFreshClusterRule` enumerates every cluster up to length 3 over `cspmwrv` instead. `TestFreshValidatorRefusesResumeLettersInClusters` now skips rows led by a value letter (grok's `-p` takes a value).
+- **Optional-value flags** became a per-agent `freshAgentSpec.optionalValue` field, replacing the `agent ==` branches (claude/qoder behavior unchanged).
+- **TTY:** Grok's composer is a full rounded box at column 2. `ruledBoxComposerSpec` gained `ruleCol` and `sideGlyph` (zero values keep every existing spec's behavior), so grok is a spec registration (`grokComposerActive`), not a new loop. Grok pushes no Kitty keyboard flags unless the terminal answers its `CSI ? u` query, so plain Return maps to `ESC CR` (Alt+Enter). `ttyFixtureVersionDir` now prefers the last dotted token, because grok's version string ends in a build hash.
+- **Orientation glyph pulled forward from Task 10:** `promptGlyphAuthorities` (muse, qoder, grok) replaces the per-agent `if` chain in `orientationPromptOK`. Grok's profile sets `orientationPromptCol: grokPromptCol`.
