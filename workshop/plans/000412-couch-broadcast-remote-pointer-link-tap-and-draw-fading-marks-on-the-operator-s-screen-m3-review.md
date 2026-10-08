@@ -89,3 +89,66 @@ findings:
     detail: |
       ARCH-FUNERAL. The plan's lifetimes section says the fade timer stops at Console teardown, but only stopBroadcast and broadcastEnded call resetPointer and SetOverlay(nil). Every path that ends or abandons a broadcast should go through detachBroadcastScreen. It's harmless today (no marks means the overlay does nothing, and the timer's command fails once stopped), but the contract isn't met as written.
 ```
+
+---
+
+## Re-review — 2026-10-08T10:14:43-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 412 — Couch broadcast: remote pointer link (tap and draw fading marks on the operator's screen) |
+| repo | pair |
+| issue file | workshop/issues/000412-couch-broadcast-remote-pointer-link-tap-and-draw-fading-marks-on-the-operator-s-screen.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | e8b6d73dbaf176db9ccfec0530db78e51353e25d..768c4d702f2d29ba09873656a1dc564c9905e5d5 |
+| command | sdlc milestone-close --issue 412 --milestone M3 |
+| reviewer | claude |
+| timestamp | 2026-10-08T10:14:43-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+Since the last round, the window has one change: the README commit `ed2e412e`. The other commit is the review ledger. That README paragraph closes the only Important finding, BR-10. I checked what it says against the code. The overlay skips private frames (`console_pointer.go` `markOverlay`). `Marks.Add` and `Marks.Overlay` both leave out the last row (`marks.go:42`, `:185-188`). The right-click re-copies the link. Clicking `👽` only shows a notice. Turning pointing off and on again keeps the same link (`TestPointerToggleOffAndOnKeepsTheLink`). The three Minor findings still open (BR-1, BR-11, BR-12) are unchanged in this window. They are not-addressed, but none of them blocks the gate. I found nothing new.
+
+1. **Strengths**
+   - `README.md:840-851` matches how the code behaves. It also states the safety guarantees: marks never send input to any program, never cover the status row, and the link is never drawn on screen.
+   - `detachBroadcastScreen` (`console_broadcast.go:301`) is now the one place where both the operator stop and an unexpected end detach the screen. Because it is shared, closing BR-12 only means calling it from two more places.
+   - The two pointer generation guards, `offIfGeneration` and `stopped` (`pointer.go:100-148`), each have a test that targets them directly.
+2. **Critical:** none.
+3. **Important:** none.
+4. **Minor:** BR-1, BR-11 and BR-12 carry over unchanged (see the dispositions below).
+5. **Test coverage:** no new code or tests in this window. The earlier round's coverage notes still apply. A README wording change needs no test of its own.
+6. **Architecture:**
+   - ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK, ARCH-CONSTRAINTS and ARCH-SECURE: pass. The README now covers the surface ARCH-PURPOSE requires.
+   - ARCH-ORDER: pass, with BR-11 still open.
+   - ARCH-FUNERAL: flagged, with BR-12 still open.
+   - Fixing BR-11 and BR-12 is cheap, and doing it before M4 adds the viewer-side surface would keep those two families from coming back.
+7. **Plan revisions:**
+   - Make plan Task 3.2 (and Tasks 1.3, 2.2 and 2.3) a one-line pointer to the Test strategy section (BR-1).
+   - Optionally, add a Revisions note recording that the README step was done in M3 rather than M4.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      Plan Task 3.2 still enumerates test cases in prose; the plan file is unchanged in this window.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      README.md:840-851 (ed2e412e) documents the three click behaviours of 👆 and 👽 and the end-of-broadcast rule; the claims match markOverlay, Marks.Add/Overlay and the existing pointer tests.
+  - id: BR-11
+    disposition: not-addressed
+    note: |
+      startBroadcast still binds c.onPoints and c.pointerOffByWatch unconditionally (console_broadcast.go:116-122); no attempt check in applyPoints or pointerOffByWatch.
+  - id: BR-12
+    disposition: not-addressed
+    note: |
+      endBroadcastForShutdown and the failed-SetTap branch of broadcastStarted still skip detachBroadcastScreen; unchanged in this window.
+```

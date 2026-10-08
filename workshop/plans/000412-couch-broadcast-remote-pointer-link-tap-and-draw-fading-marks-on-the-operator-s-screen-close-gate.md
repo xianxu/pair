@@ -144,6 +144,29 @@ rounds:
       boundary: M3
       recipe: milestone-review
       blocked: true
+    - "n": 6
+      timestamp: "2026-10-08T10:14:43-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: Plan Task 3.2 still enumerates test cases in prose; the plan file is unchanged in this window.
+          round: 6
+        - id: BR-10
+          disposition: addressed
+          note: "README.md:840-851 (ed2e412e) documents the three click behaviours of \U0001F446 and \U0001F47D and the end-of-broadcast rule; the claims match markOverlay, Marks.Add/Overlay and the existing pointer tests."
+          round: 6
+        - id: BR-11
+          disposition: not-addressed
+          note: startBroadcast still binds c.onPoints and c.pointerOffByWatch unconditionally (console_broadcast.go:116-122); no attempt check in applyPoints or pointerOffByWatch.
+          round: 6
+        - id: BR-12
+          disposition: not-addressed
+          note: endBroadcastForShutdown and the failed-SetTap branch of broadcastStarted still skip detachBroadcastScreen; unchanged in this window.
+          round: 6
+      boundary: M3
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#412 (boundary-review)
@@ -215,6 +238,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-12** [Minor] `teardown-path-skips-detach` endBroadcastForShutdown and a failed SetTap in broadcastStarted bypass detachBroadcastScreen, leaving the fade timer armed and the overlay installed
   ARCH-FUNERAL. The plan's lifetimes section says the fade timer stops at Console teardown, but only stopBroadcast and broadcastEnded call resetPointer and SetOverlay(nil). Every path that ends or abandons a broadcast should go through detachBroadcastScreen. It's harmless today (no marks means the overlay does nothing, and the timer's command fails once stopped), but the contract isn't met as written.
 
+## Round 6 — 2026-10-08T10:14:43-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — not-addressed — Plan Task 3.2 still enumerates test cases in prose; the plan file is unchanged in this window.
+- BR-10 — addressed — README.md:840-851 (ed2e412e) documents the three click behaviours of 👆 and 👽 and the end-of-broadcast rule; the claims match markOverlay, Marks.Add/Overlay and the existing pointer tests.
+- BR-11 — not-addressed — startBroadcast still binds c.onPoints and c.pointerOffByWatch unconditionally (console_broadcast.go:116-122); no attempt check in applyPoints or pointerOffByWatch.
+- BR-12 — not-addressed — endBroadcastForShutdown and the failed-SetTap branch of broadcastStarted still skip detachBroadcastScreen; unchanged in this window.
+
 ## Open findings
 
 - **BR-1** [Minor] `enumerated-test-prose` Tasks 1.3, 2.2, 2.3, 3.2 enumerate test cases in prose, restating Done-when
@@ -224,6 +256,5 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-7** [Minor] `untrusted-input-work-unbounded` Marks.Add walks Bresenham over raw coordinates before the off-grid filter, so its cost bound holds only if M2's parser validates range
 - **BR-8** [Minor] `docs-match-code` atlas/broadcast.md says the POST read deadline is 5s; code (pointReadBudget) is 2s
 - **BR-9** [Minor] `stale-observation-acts-on-new-generation` PointerState has no stopped/generation state: EnablePointer after Stop mints a link, and a late pointerHidden can turn off a re-enabled pointing
-- **BR-10** [Important] `readme-covers-new-surface` README.md doesn't document the new status-row controls (left-click 👆 toggles pointing and copies the link, right-click re-copies, 👽 inert)
 - **BR-11** [Minor] `stale-observation-acts-on-new-generation` The Console's OnPoints and OnPointerOff aren't tied to the session that triggered them, so a late callback from an old broadcast can act on the next one
 - **BR-12** [Minor] `teardown-path-skips-detach` endBroadcastForShutdown and a failed SetTap in broadcastStarted bypass detachBroadcastScreen, leaving the fade timer armed and the overlay installed
