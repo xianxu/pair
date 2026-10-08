@@ -298,3 +298,15 @@ Durable plan: [000410-grok-harness-integration-for-pair-and-couch-plan.md](../pl
 - **Follow-ups:** #411 (Grok Couch peer delivery), #414 (switch-agent attach/orientation).
 - **Close window and actual (ariadne#269/#270/#304):** `origin/main` was merged into this branch before the slot move. The whole-issue review is still correct: the reviewer diffs `merge-base(main, HEAD)` = main's tip against HEAD, which is exactly #410's net change (86 files, M1 + M2, nothing of main's), even though close prints a short commit range. A milestone close for M2 would have over-covered (its base predates the merge), so M2 closes with the issue close. The actual is measured from pair:6, where this session's transcripts live (pair:0 saw only 0.26 h): 2.72 h. That is known low by roughly an hour: ariadne#270 attribution credited the 23:00–01:00 M2 segment to #411, which was filed inside it.
 
+## Revisions
+
+### 2026-10-08 — Done-when amended at close (operator decision; close review BR-7)
+
+The operator chose to close #410 with three Done-when items not shown; each is moved, not dropped:
+
+- "switching a slot to Grok auto-submits orientation" → **#414**. The switch-agent attach was refused and orientation was not delivered; the root cause is in Couch's switch/attach path.
+- "the thread parks and cold-resumes" (under Couch) → **#414**. Standalone Alt+n and `pair resume` were operator-verified on grok; Couch park/cold-resume was not shown in this session.
+- "`doctor/doctor.sh` shows grok `return-remap`, `session-id` and `slug-parse` firing" → **#414's smoke**. The smoke sessions' adapt logs were absent on disk (only diagnostics sidecars), so no tally was produced; the rerun belongs with the next live Couch grok session.
+
+Delivered beyond the original Done-when, and recorded in the plan's Revisions: the context meter, bell translation (`bellAttentionHarnesses`), the per-agent draft interrupt key (`nvim/interrupt.lua`), and the `--minimal` inline mode.
+

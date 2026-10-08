@@ -73,6 +73,35 @@ rounds:
       boundary: M1
       recipe: milestone-review
       blocked: false
+    - "n": 3
+      timestamp: "2026-10-08T11:33:24-07:00"
+      agent: claude
+      dispose:
+        - id: BR-6
+          disposition: addressed
+          note: hasFlag routes through resumeform.FlagRegion (agentargs.go:17-24), every argv editor uses it, and TestStripHelpersStopAtDoubleDash now asserts shouldMintSessionID ignores --fork-session/--session-id/-s after -- for claude, qoder and grok.
+          round: 3
+      findings:
+        - id: BR-7
+          severity: Important
+          title: Done-when still promises orientation auto-submit, park/cold-resume and doctor firing that did not ship; no Revisions entry
+          detail: '2nd in family. Rule: every deviation from a committed contract (Done-when, plan design or Durable state) gets a Revisions entry when decided, not just Log prose. Sweep all Done-when items and plan design claims in one pass: orientation goes to #414; park/cold-resume is verified or goes to #414; the doctor rerun is logged or moved out of scope; residue-refusal reporting changed from adapt near-miss to stderr; bellAttentionHarnesses and nvim/interrupt.lua are new M2 surfaces.'
+          family: plan-code-drift
+          round: 3
+        - id: BR-8
+          severity: Minor
+          title: Accepted grok update methods differ across scanner, normalizer and ParseTokenUsage
+          detail: applyGrokRecord accepts any non-empty method, normalizeGrokEvent accepts session/update and _x.ai/session/update, and usage accepts only session/update. These should share one set (ARCH-DRY).
+          family: grok-envelope-single-source
+          round: 3
+        - id: BR-9
+          severity: Minor
+          title: interrupt.lua current_agent duplicates the agent-file read in init.lua pair_read_saved_config
+          detail: nvim/init.lua:3099-3103 reads PAIR_AGENT_PATH the same way; it could call PairInterrupt.current_agent, or both could use a shared helper (ARCH-DRY).
+          family: agent-file-read-duplicated
+          round: 3
+      recipe: milestone-review
+      blocked: true
 ---
 
 # Gate ledger — pair#410 (boundary-review)
@@ -109,6 +138,23 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-6** [Minor] `double-dash-boundary` hasFlag in shouldMintSessionID reads prompt text after --, so the -- boundary has no single source
   2nd finding in this family. agentargs.go:17,259-260 scan the whole argv; measured shouldMintSessionID claude with args [--, --fork-session] returns false, so prompt text suppresses the mint. Rule: every argv reader or editor sees only the flag region before the first --. Fix by exporting one FlagRegion helper (today written five ways across resumeform.beforeDoubleDash, Strip, stripValuelessFlag, stripFlagAllForms, insertBeforeDoubleDash), route hasFlag through it, and extend TestStripHelpersStopAtDoubleDash to readers.
 
+## Round 3 — 2026-10-08T11:33:24-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-6 — addressed — hasFlag routes through resumeform.FlagRegion (agentargs.go:17-24), every argv editor uses it, and TestStripHelpersStopAtDoubleDash now asserts shouldMintSessionID ignores --fork-session/--session-id/-s after -- for claude, qoder and grok.
+
+### Raised
+
+- **BR-7** [Important] `plan-code-drift` Done-when still promises orientation auto-submit, park/cold-resume and doctor firing that did not ship; no Revisions entry
+  2nd in family. Rule: every deviation from a committed contract (Done-when, plan design or Durable state) gets a Revisions entry when decided, not just Log prose. Sweep all Done-when items and plan design claims in one pass: orientation goes to #414; park/cold-resume is verified or goes to #414; the doctor rerun is logged or moved out of scope; residue-refusal reporting changed from adapt near-miss to stderr; bellAttentionHarnesses and nvim/interrupt.lua are new M2 surfaces.
+- **BR-8** [Minor] `grok-envelope-single-source` Accepted grok update methods differ across scanner, normalizer and ParseTokenUsage
+  applyGrokRecord accepts any non-empty method, normalizeGrokEvent accepts session/update and _x.ai/session/update, and usage accepts only session/update. These should share one set (ARCH-DRY).
+- **BR-9** [Minor] `agent-file-read-duplicated` interrupt.lua current_agent duplicates the agent-file read in init.lua pair_read_saved_config
+  nvim/init.lua:3099-3103 reads PAIR_AGENT_PATH the same way; it could call PairInterrupt.current_agent, or both could use a shared helper (ARCH-DRY).
+
 ## Open findings
 
-- **BR-6** [Minor] `double-dash-boundary` hasFlag in shouldMintSessionID reads prompt text after --, so the -- boundary has no single source
+- **BR-7** [Important] `plan-code-drift` Done-when still promises orientation auto-submit, park/cold-resume and doctor firing that did not ship; no Revisions entry
+- **BR-8** [Minor] `grok-envelope-single-source` Accepted grok update methods differ across scanner, normalizer and ParseTokenUsage
+- **BR-9** [Minor] `agent-file-read-duplicated` interrupt.lua current_agent duplicates the agent-file read in init.lua pair_read_saved_config

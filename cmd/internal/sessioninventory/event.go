@@ -427,7 +427,7 @@ func normalizeGrokEvent(record []byte) ([]NativeEvent, EventDisposition) {
 	if decodeStrictJSON(record, &envelope) != nil {
 		return nil, EventNearMiss
 	}
-	if envelope.Method != "session/update" && envelope.Method != "_x.ai/session/update" {
+	if !grokUpdateMethods[envelope.Method] {
 		return nil, EventNearMiss
 	}
 	update := envelope.Params.Update

@@ -86,7 +86,7 @@ func ParseTokenUsage(agent Agent, line []byte) (TokenUsage, bool) {
 				} `json:"_meta"`
 			} `json:"params"`
 		}
-		if json.Unmarshal(line, &record) != nil || record.Method != "session/update" || record.Params.Meta == nil || record.Params.Meta.TotalTokens == nil || *record.Params.Meta.TotalTokens < 0 {
+		if json.Unmarshal(line, &record) != nil || !grokUpdateMethods[record.Method] || record.Params.Meta == nil || record.Params.Meta.TotalTokens == nil || *record.Params.Meta.TotalTokens < 0 {
 			return TokenUsage{}, false
 		}
 		return TokenUsage{InputTokens: *record.Params.Meta.TotalTokens}, true

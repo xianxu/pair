@@ -58,6 +58,7 @@ func TestValidateGrokDelta(t *testing.T) {
 		"foreign session id": grokRecord("99999999-9999-4999-8999-999999999999", "agent_message_chunk"),
 		"malformed json":     []byte(`{"timestamp":1791400000,"method":`),
 		"missing session id": []byte(`{"timestamp":1791400000,"method":"session/update","params":{"update":{"sessionUpdate":"plan"}}}`),
+		"unknown method":     []byte(`{"timestamp":1791400000,"method":"session/request","params":{"sessionId":"` + grokFixtureID + `","update":{"sessionUpdate":"plan"}}}`),
 	} {
 		got, diagnostics, err := sessioninventory.ValidateGrokDelta(entry, &state, []sessioninventory.FramedJSONLRecord{{Bytes: record}})
 		if err != nil || !got.Disputed || len(diagnostics) == 0 {

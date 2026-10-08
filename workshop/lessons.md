@@ -735,3 +735,8 @@ proof; record the surprising case so the next change starts from evidence.
   agent, so "registered, session side pending" is not a launchable state; a
   known-gap interim that only the parity test tolerates hides that the agent
   cannot start.
+- Amend `## Done when` with a `## Revisions` entry the moment an item is
+  dropped or moved, not only in Log prose. #410's close review (BR-7) blocked
+  on three Done-when items the operator had moved to a follow-up in
+  conversation and the Log, because the contract itself still promised them.
+  Name where each item went (issue id) and add it to that issue's Done-when.

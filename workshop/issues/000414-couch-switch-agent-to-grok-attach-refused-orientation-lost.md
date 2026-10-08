@@ -59,6 +59,10 @@ visible as an orientation notice.
   orientation prompt).
 - A regression test pins the root cause in couchcore/couchtty.
 - If the cause is not grok-specific, the same switch to another agent is covered.
+- Carried from #410's Done-when: a Couch-hosted grok thread parks and
+  cold-resumes, and `doctor/doctor.sh` on a live grok session shows
+  `return-remap`, `session-id` and `slug-parse` firing (the #410 smoke sessions'
+  adapt logs were absent, so no tally exists yet).
 
 ## Plan
 

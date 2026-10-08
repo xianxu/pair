@@ -3096,11 +3096,8 @@ local function pair_read_saved_config()
   local tag = vim.env.PAIR_TAG
   if not tag or tag == '' then return nil end
 
-  local af = io.open(vim.env.PAIR_AGENT_PATH or '', 'r')
-  if not af then return nil end
-  local agent = af:read('*l')
-  af:close()
-  if not agent or agent == '' then return nil end
+  local agent = _G.PairInterrupt.read_agent_file(vim.env.PAIR_AGENT_PATH)
+  if not agent then return nil end
 
   local cfg = { tag = tag, agent = agent }
   local cf = io.open(vim.env.PAIR_AGENT_CONFIG_PATH or '', 'r')

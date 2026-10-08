@@ -24,6 +24,12 @@ const (
 	grokTranscript   = "updates.jsonl"
 )
 
+// grokUpdateMethods are the JSON-RPC methods a grok updates.jsonl record may
+// carry (measured at 1.0.46): standard ACP updates and grok's own extension
+// (turn_completed). The ONE set the scanner, the event normalizer and the
+// context-meter parser accept.
+var grokUpdateMethods = map[string]bool{"session/update": true, "_x.ai/session/update": true}
+
 // grokTimestampBounds keeps a record's epoch-seconds chronology inside the
 // window the rest of the pipeline can marshal (the qoder BR-19 rule).
 var grokTimestampBounds = [2]int64{
@@ -134,7 +140,7 @@ func applyGrokRecord(state *ScannerState, entry FileEntry, line []byte, diagnost
 		*diagnostics = append(*diagnostics, artifactDiagnostic(code, AgentGrok, &state.NativeID, artifact, detail))
 	}
 	var record grokRecord
-	if err := decodeStrictJSON(line, &record); err != nil || record.Method == "" || record.Params.Update.SessionUpdate == "" {
+	if err := decodeStrictJSON(line, &record); err != nil || !grokUpdateMethods[record.Method] || record.Params.Update.SessionUpdate == "" {
 		dispute(DiagnosticSchemaNearMiss, "malformed Grok JSONL record")
 		return
 	}
