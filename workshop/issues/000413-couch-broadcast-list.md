@@ -1,12 +1,12 @@
 ---
 id: 000413
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-08
 updated: 2026-10-08
 estimate_hours:
-card_mirror: '98f2786b5309d429ade2edf34028788c8f104348' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'efd62d28d2615127361329bcc8f52e41173447a7' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-08T09:47:46-07:00
 claimant:
     operator: T
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 0.67
 ---
 
 # couch --broadcast-list: print the current broadcast session and its viewer count
