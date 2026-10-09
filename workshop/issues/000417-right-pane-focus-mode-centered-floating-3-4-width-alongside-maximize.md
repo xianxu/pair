@@ -95,7 +95,7 @@ Single pass (no Mx), so one review runs at close.
 - [x] Task 4: layout classifier accepts focus mode
 - [x] Task 5: wrap dimming (sgrDimmer + SIGWINCH observer)
 - [x] Task 6: live conformance test, help text, atlas
-- [ ] Task 7: full verification + operator smoke test in pair:0
+- [x] Task 7: full verification + operator smoke test in pair:0
 
 ## Log
 
@@ -123,6 +123,8 @@ Single pass (no Mx), so one review runs at close.
   expectation that is now fixed; `test-changelog`, which passes with the
   scratchpad TMPDIR; and `test-pair-embedded-runtime`, which passes with the
   full env scrub (the Couch-slot leak).
+- Operator smoke test in pair:0 on a fresh thread at 177707a5: "works well". The
+  cycle, the restore, the pinned centered pane and the dim all hold up live.
 
 ## Revisions
 
