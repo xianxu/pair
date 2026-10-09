@@ -433,22 +433,52 @@ be dragged off position by its frame with no config gate, so the terminal
 moved into the tiled tree: tiled panes have no mouse-move operation at all,
 making the workbench drag-immune while keeping the agent pane's frame and full mouse support. (Since `#199` M4 the layout-3 terminal is borderless; drag-immunity comes from the tiled pivot, not from the frame.)
 The filler (and its key-swallowing focus trap) is gone. `Alt+Shift+Enter`
-invokes `pair layout toggle-focused` from any Pair pane. It uses Zellij's native
-`toggle-fullscreen --pane-id` to maximize one selected right terminal, retaining
-Zellij's bars. A split expands only that half. The second press restores the
-existing tiling and focuses the invoking pane; without a right terminal it is a
-no-op. This replaces the old three-resize width toggle.
+invokes `pair layout toggle-focused` from any Pair pane and cycles the right
+pane through three modes (#417):
+- **normal**: the tiled layout.
+- **focus**: one right terminal floats, pinned, centered at 75% width and full
+  height, over the dimmed agent pane.
+- **maximize**: Zellij's native `toggle-fullscreen --pane-id`, which keeps
+  Zellij's bars.
 
-`cmd/internal/layoutcmd/fullscreen.go` owns pure selection (`PlanFullscreen`)
-and the effect/result transition model (`FullscreenTransition`); its executor
-observes panes through `zellijpane` and runs the declared effects. Observed
-`is_fullscreen` determines direction, while the invoking process's
-`ZELLIJ_PANE_ID` identifies where focus should return. Missing or malformed
-fullscreen observations fail before a toggle. The scoped
-`workbenchshortcut.FullscreenReturnStore` stores the return pane and serializes
-operations; it is not evidence that a pane is currently fullscreen. Collapse
-falls back to the draft if the recorded pane is gone. Errors are logged
-internally, without shortcut messages in the terminal or editor.
+A split acts on one half only. Leaving maximize restores the tiling and focuses
+the invoking pane. Without a right terminal the press is a no-op.
+
+`cmd/internal/layoutcmd/rightpane.go` owns the cycle. `ObserveRightPaneMode`
+derives the mode from the pane report alone: a floating right terminal means
+focus, a fullscreen tiled one means maximize. Zellij owns that state, so a
+native change such as a focus-away that ends fullscreen is never contradicted.
+`PlanRightPane` reuses `PlanFullscreen`'s selection (the invoking half, else the
+recorded half, else the focused one) and returns one ordered step list per
+transition. The executor runs those steps and stops at the first failure. This
+step list replaced the old `FullscreenTransition` phase machine as the one owner
+of ordering.
+
+**Re-embedding a floated pane does not restore its tiled slot.** Measured on
+zellij 0.45.1, it splits whichever pane has focus. So entering focus records the
+tab's `active_swap_layout_name` (from `current-tab-info --json`) and the split
+halves' top-to-bottom order. Leaving focus cycles `next-swap-layout` until that
+name is active and clean, then fixes swapped halves with `move-pane`. A dirty
+rung, which is the Alt+Shift+d shape, is recorded as its clean `<rung>-split`
+twin. Rung changes made while in focus are therefore undone on exit. A failed
+re-tile is logged and degrades only the layout, never the press.
+
+The record is `workbenchshortcut.FullscreenReturnStore`'s single line,
+`<return> swap=<name> order=<id>,<id>` (`ExpandRecord`). A bare `<id>` written
+by an older binary still decodes, and no new artifact family was added. The
+store also serializes presses through its lock. The record is not evidence of
+the current mode. Errors are logged internally, without shortcut messages in
+the terminal or editor.
+
+**Dimming** belongs to `pair wrap`. On SIGWINCH, before the resize reaches the
+child, it asks Zellij whether focus is on, using `layoutcmd.FocusModeActive`,
+the same predicate the cycle plans by. While focus is on, `sgrDimmer`
+re-asserts faint (SGR 2) after every SGR in the visible stream. Entering focus
+widens the agent pane, so the agent's redraw comes out dimmed; leaving focus
+redraws it plain. The scrollback log and the terminal model keep the raw bytes.
+Each transition also sends pair-wrap a SIGWINCH (its pid comes from the scoped
+`pair-wrap-pid`). In a split the agent pane keeps its size, so wrap forwards
+the signal to the child whenever the dim flips.
 
 Draft-height rungs remain swap-layout operations, independent of fullscreen.
 Their Alt+Up/Down bindings are draft-only; terminals, agents and editor overlays
@@ -825,7 +855,7 @@ Loaded via `nvim -u`, fully isolated from the user's main nvim config. Provides:
 - **`!` tag line (#337).** When the comment-stripped draft is a single line starting with `!`, `_G.submit_operator_text` sends only the text after the `!` (the Pair log keeps the authored `!` line). Inside a couch thread (`COUCH_THREAD_SCOPE` and `COUCH_THREAD_TAG` both set), it then publishes that text as the thread's description with a detached `couch --internal publish-description --description=<text>`, after dispatch is confirmed, so couch never delays or fails a send. Pure parse: `nvim/bang_tag.lua`; boundary test: `tests/bang-tag-nvim-test.sh` (stub `couch` on PATH).
 - **`!!` describe line (#358).** `!!` publishes the newest Pair log entry (comment-stripped, a leading `!` tag dropped) as the description; `!! text` publishes `text`. Both reduce to one line (`bang_tag.one_line`: first non-blank line, whitespace collapsed, 120-character cap) and never reach the agent or the log. The publish is synchronous (`vim.system`, 5 s timeout) so its result decides whether the draft clears; outside couch, with no usable previous prompt, or on failure it notifies and keeps the draft.
 - **Bare `!` clear line (#357).** A bare `!` takes the same synchronous, no-send path with an empty description: `publish-description --description=` clears only the thread's `PublishedSummary`, so `ThreadSummary.DisplaySummary` falls back to the operator-typed `Description`.
-- `<S-M-CR>` (Alt+Shift+Return, normal+insert) — generated global right-terminal fullscreen action. It executes `pair layout toggle-focused` directly, without reading, logging or clearing the draft. The former append-without-send map and `no_submit` chain are removed; normal submission retains its staged-write, indeterminate-outcome and commit-only retry behavior.
+- `<S-M-CR>` (Alt+Shift+Return, normal+insert) — generated global right-pane cycle (normal → focus → maximize, #417). It executes `pair layout toggle-focused` directly, without reading, logging or clearing the draft. The former append-without-send map and `no_submit` chain are removed; normal submission retains its staged-write, indeterminate-outcome and commit-only retry behavior.
 - `<M-Left>` / `<M-Right>` — navigate the prompt-history / queue position one slot at a time (see below).
 - `<S-M-Left>` / `<S-M-Right>` — switch the RIGHT terminal's tabs, from any pane, without moving focus (#216). These are workbench globals, not draft navigation; they replaced a region-boundary jump that was deleted with them.
 - `<M-b>` — `pair_scrollback_prev_prompt`: open the scrollback viewer already positioned on the previous agent-conversation prompt — a one-key shortcut for `Alt+/` then `Alt+b`. Shells out `zellij run --floating … -- pair-scrollback-open --jump prev`. See the scrollback section's "Jump-on-open shortcut".

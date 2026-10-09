@@ -276,20 +276,50 @@ func TestFullscreenChordZellijLive(t *testing.T) {
 			strip(bottom)
 		}
 		original := observe()
-		input(chord)
+		input(chord) // normal → focus (#417)
+		var focusObs string
+		defer func() {
+			if t.Failed() {
+				diag, _ := os.ReadFile(paths.FullscreenDiagnostics())
+				t.Logf("last focus observation: %s\ndiagnostics: %s", focusObs, diag)
+			}
+		}()
+		fullscreenLiveWait(t, ctx, tc.name+" focus", func() bool {
+			p := observe()[tc.target]
+			out, err := rt.command("are-floating-panes-visible")
+			focusObs = fmt.Sprintf("%+v visible=%q err=%v", p, out, err)
+			tab, _ := rt.command("current-tab-info", "--json")
+			var display struct {
+				Columns int `json:"display_area_columns"`
+				Rows    int `json:"display_area_rows"`
+			}
+			_ = json.Unmarshal(tab, &display)
+			near := func(got, want int) bool { return got >= want-1 && got <= want+1 }
+			// 75% of the width, centered; full height.
+			return p.IsFloating && err == nil && strings.TrimSpace(string(out)) == "true" && display.Columns > 0 &&
+				near(p.Columns, display.Columns*3/4) && near(p.X, display.Columns/8) && near(p.Rows, display.Rows)
+		})
+		fullscreenLiveWait(t, ctx, "focus client focus", func() bool { return focused(tc.target) })
+		if got, err := store.Read(); err != nil || DecodeExpandRecord(got).Return != tc.caller {
+			t.Fatalf("focus return record = %q, %v; want %s", got, err, tc.caller)
+		}
+		if tc.nvimChild {
+			childReady()
+		}
+		input(chord) // focus → maximize
 		fullscreenLiveWait(t, ctx, tc.name+" fullscreen", func() bool {
 			p := observe()[tc.target]
-			return p.IsFullscreen != nil && *p.IsFullscreen && p.Columns > original[tc.target].Columns && p.Rows > original[tc.target].Rows
+			return !p.IsFloating && p.IsFullscreen != nil && *p.IsFullscreen && p.Columns > original[tc.target].Columns && p.Rows > original[tc.target].Rows
 		})
 		fullscreenLiveWait(t, ctx, "fullscreen client focus", func() bool { return focused(tc.target) })
-		if got, err := store.Read(); err != nil || got != tc.caller {
+		if got, err := store.Read(); err != nil || DecodeExpandRecord(got).Return != tc.caller {
 			t.Fatalf("return record = %q, %v; want %s", got, err, tc.caller)
 		}
 		strip(tc.target)
 		if tc.nvimChild {
 			childReady()
 		}
-		input(chord) // Collapse is always received by the real fullscreen pair term.
+		input(chord) // maximize → normal; always received by the real fullscreen pair term.
 		fullscreenLiveWait(t, ctx, tc.name+" restored geometry", func() bool {
 			got := observe()
 			for _, id := range []string{agent, draft, top, bottom} {

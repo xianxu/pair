@@ -191,16 +191,28 @@ func TestFullscreenZellijConformance(t *testing.T) {
 		})
 		assertFocus(target)
 	}
+	assertFocusMode := func(target string) {
+		t.Helper()
+		fullscreenLiveWait(t, ctx, "observed focus mode "+target, func() bool {
+			p, ok := observe()[target]
+			out, err := rt.command("are-floating-panes-visible")
+			return ok && p.IsFloating && err == nil && strings.TrimSpace(string(out)) == "true"
+		})
+		assertFocus(target)
+	}
+	// One Alt+Shift+Enter cycle (#417): normal → focus → maximize → normal.
 	roundTrip := func(caller, target string) {
 		action("focus-pane-id", panes[caller].ID)
 		assertFocus(caller)
 		original := observe()
 		toggle(caller)
-		assertExpanded(target, original)
-		if got, err := rt.store.Read(); err != nil || got != panes[caller].ID {
+		assertFocusMode(target)
+		if got, err := rt.store.Read(); err != nil || DecodeExpandRecord(got).Return != panes[caller].ID {
 			t.Fatalf("return record %q, %v", got, err)
 		}
-		// The second press originates in the now-focused fullscreen terminal.
+		// Later presses originate in the now-focused right terminal.
+		toggle(target)
+		assertExpanded(target, original)
 		toggle(target)
 		assertTiled(original)
 		assertFocus(caller)
@@ -221,25 +233,26 @@ func TestFullscreenZellijConformance(t *testing.T) {
 		t.Log(tc.name)
 		roundTrip(tc.caller, tc.target)
 	}
-	t.Log("manually-resized-split")
-	{
-		before := observe()
-		action("resize", "increase", "down", "--pane-id", panes["terminal-top"].ID)
-		fullscreenLiveWait(t, ctx, "manual split resize", func() bool { return observe()["terminal-top"].Rows != before["terminal-top"].Rows })
-		roundTrip("draft", "terminal-bottom")
-	}
+	// No manually-resized case since #417: focus mode re-tiles onto the recorded
+	// swap layout, which drops a manual resize, and Pair's zellij config offers
+	// none (keybinds clear-defaults, mouse_scroll_resize false).
 	t.Log("native-focus-away-exits-fullscreen")
 	{
-		assertFocus("draft") // The preceding round trip restored this pane.
+		action("focus-pane-id", panes["draft"].ID)
+		assertFocus("draft")
 		original := observe()
 		toggle("draft")
+		assertFocusMode("terminal-bottom")
+		toggle("terminal-bottom")
 		assertExpanded("terminal-bottom", original)
 		action("focus-pane-id", panes["agent"].ID)
 		assertTiled(original)
 		assertFocus("agent")
 		// The record intentionally survives native focus-away; the next actual
-		// executor invocation must derive direction from the tiled observation.
+		// executor invocation must derive the mode from the tiled observation.
 		toggle("agent")
+		assertFocusMode("terminal-bottom")
+		toggle("terminal-bottom")
 		assertExpanded("terminal-bottom", original)
 		toggle("terminal-bottom")
 		assertTiled(original)

@@ -168,6 +168,16 @@ func TestPlanRightPaneCycle(t *testing.T) {
 		{"normal-to-focus-split-caller-half", RightPaneInput{Panes: split(), Caller: "4", Last: "3", Registered: registered, Swap: "small-split"}, ModeNormal, ModeFocus,
 			ExpandRecord{Return: "4", Swap: "small-split", Order: []string{"3", "4"}},
 			[]Step{{StepSave, ""}, {StepFloat, "4"}, {StepPlace, "4"}, {StepShow, ""}, {StepNudge, ""}}},
+		// Alt+Shift+d leaves the 3-pane rung's name active and dirty: record the
+		// clean split variant with that geometry.
+		{"normal-to-focus-dirty-split", RightPaneInput{Panes: split(), Caller: "2", Last: "4", Registered: registered, Swap: "third", SwapDirty: true}, ModeNormal, ModeFocus,
+			ExpandRecord{Return: "2", Swap: "third-split", Order: []string{"3", "4"}},
+			[]Step{{StepSave, ""}, {StepFloat, "4"}, {StepPlace, "4"}, {StepShow, ""}, {StepNudge, ""}}},
+		// A clean name is kept as is, even BASE on a split tab: some other
+		// layout file defined it, and it is reachable by construction.
+		{"normal-to-focus-clean-base-split", RightPaneInput{Panes: split(), Caller: "2", Last: "4", Registered: registered, Swap: "BASE"}, ModeNormal, ModeFocus,
+			ExpandRecord{Return: "2", Swap: "BASE", Order: []string{"3", "4"}},
+			[]Step{{StepSave, ""}, {StepFloat, "4"}, {StepPlace, "4"}, {StepShow, ""}, {StepNudge, ""}}},
 		{"focus-to-maximize", RightPaneInput{Panes: floating(modePanes(), "3"), Caller: "3", Record: ExpandRecord{Return: "2", Swap: "third"}}, ModeFocus, ModeMaximize,
 			ExpandRecord{Return: "2", Swap: "third"},
 			[]Step{{StepEmbed, "3"}, {StepRestore, "3"}, {StepFullscreen, "3"}, {StepNudge, ""}}},

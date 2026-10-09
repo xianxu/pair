@@ -283,7 +283,7 @@ func TestRightPaneRuntimeCycleRestoresWorkbench(t *testing.T) {
 			if p := w.pane(tc.target); !p.IsFloating || !w.visible || w.current != tc.target || w.nudges != 1 {
 				t.Fatalf("focus: %+v visible=%v current=%s nudges=%d", p, w.visible, w.current, w.nudges)
 			}
-			if got := DecodeExpandRecord(w.record); got.Return != tc.caller || got.Swap != tc.swap || strings.Join(got.Order, ",") != "3,4" {
+			if got := DecodeExpandRecord(w.record); got.Return != tc.caller || got.Swap != wantSwap || strings.Join(got.Order, ",") != "3,4" {
 				t.Fatalf("record %q", w.record)
 			}
 			press() // focus → maximize

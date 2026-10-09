@@ -79,8 +79,11 @@ layout {
         }
         // The user terminal. Alt+Shift+d splits it into two stacked tiled
         // terminals (see the *-split swap variants below); Alt+Shift+Enter
-        // re-tiles the column boundary between 50% and 2/3 width via
-        // `pair layout toggle-focused`.
+        // cycles it normal → focus (floating, centered) → maximize via
+        // `pair layout toggle-focused` (#417). Leaving focus re-applies the
+        // swap layout recorded on entry, so the rung names below are part of
+        // that contract: a dirty rung maps to "<rung>-split" ("small-split"
+        // for the base layout).
         pane name="terminal" borderless=true {
             command "sh"
             args "-c" "zellij action rename-pane --pane-id \"$ZELLIJ_PANE_ID\" terminal 2>/dev/null; exec pair term"

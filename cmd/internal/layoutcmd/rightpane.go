@@ -143,8 +143,10 @@ type RightPaneInput struct {
 	Caller, Last string
 	Registered   []string
 	Record       ExpandRecord
-	// Swap is the tab's active swap layout name now; only Normal→Focus records it.
-	Swap string
+	// Swap is the tab's active swap layout name now, and SwapDirty whether a
+	// pane operation has drifted from it; only Normal→Focus records them.
+	Swap      string
+	SwapDirty bool
 }
 
 func PlanRightPane(in RightPaneInput) (RightPanePlan, error) {
@@ -169,7 +171,12 @@ func PlanRightPane(in RightPaneInput) (RightPanePlan, error) {
 		}
 		return RightPanePlan{From: ModeMaximize, To: ModeNormal, Record: in.Record, Steps: append(steps, Step{StepClear, ""})}, nil
 	case FullscreenExpand:
-		record := ExpandRecord{Return: fp.ReturnID, Swap: in.Swap, Order: splitOrder(in.Panes, in.Registered)}
+		order := splitOrder(in.Panes, in.Registered)
+		swap := in.Swap
+		if in.SwapDirty {
+			swap = restoreTarget(swap, len(order))
+		}
+		record := ExpandRecord{Return: fp.ReturnID, Swap: swap, Order: order}
 		return RightPanePlan{From: ModeNormal, To: ModeFocus, Record: record, Steps: []Step{
 			{StepSave, ""}, {StepFloat, fp.TerminalID}, {StepPlace, fp.TerminalID}, {StepShow, ""}, {StepNudge, ""},
 		}}, nil
@@ -198,11 +205,12 @@ func splitOrder(panes []zellijpane.Pane, registered []string) []string {
 	return ids
 }
 
-// restoreTarget maps the recorded swap layout onto the one that fits the pane
-// count after the re-embed. Pair's own Alt+Shift+d split leaves the 3-pane
-// rung's name active (and dirty) on a 4-pane tab, a name the 4-pane swap cycle
-// never reaches; zellij/layouts/main-3.kdl names each rung's split variant
-// "<rung>-split", with the base rung's variant called "small-split".
+// restoreTarget maps a DIRTY swap layout onto the clean one with the same
+// geometry. Pair's own Alt+Shift+d split leaves the 3-pane rung's name active
+// (and dirty) on a 4-pane tab, a name the 4-pane swap cycle never reaches;
+// zellij/layouts/main-3.kdl names each rung's split variant "<rung>-split",
+// with the base rung's variant called "small-split". A clean name is restored
+// as is: it is reachable by construction, whatever layout file defined it.
 func restoreTarget(name string, halves int) string {
 	if name == "" {
 		return ""
@@ -247,7 +255,7 @@ const maxSwapCycle = 4
 // swap layout restores the geometry exactly; next-then-previous does not,
 // because floating disturbs zellij's swap index.
 func restoreTiling(rt FullscreenRuntime, terminal string, record ExpandRecord) error {
-	if target := restoreTarget(record.Swap, len(record.Order)); target != "" {
+	if target := record.Swap; target != "" {
 		for i := 0; ; i++ {
 			raw, err := rt.CurrentTabJSON()
 			if err != nil {
@@ -364,10 +372,10 @@ func RunToggleFocused(args []string, rt FullscreenRuntime, stderr io.Writer) int
 		// re-embed cannot re-tile, which degrades the restore, not the press.
 		if tab, err := rt.CurrentTabJSON(); err != nil {
 			store.LogFailure(fmt.Errorf("pair layout toggle-focused: tab info: %w", err))
-		} else if name, _, err := ParseTabLayout(tab); err != nil {
+		} else if name, dirty, err := ParseTabLayout(tab); err != nil {
 			store.LogFailure(fmt.Errorf("pair layout toggle-focused: tab info: %w", err))
 		} else {
-			in.Swap = name
+			in.Swap, in.SwapDirty = name, dirty
 		}
 	}
 	plan, err := PlanRightPane(in)
