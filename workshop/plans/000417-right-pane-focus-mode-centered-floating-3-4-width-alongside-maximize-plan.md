@@ -246,3 +246,18 @@ comment, `atlas/architecture.md` (~436-450, 828)
   those.
 - Partial-dim risk acknowledged by the operator; the fallback stays out of scope unless
   the smoke test shows it.
+
+### 2026-10-09 — implementation deltas
+- Normal→Focus has no `FocusPane(T)` step. Float already focuses the floated
+  pane, and `focus-pane-id` on an already-focused pane exits 2.
+- Focus→Maximize does not rewrite the record. Maximize→Normal reads only `Return`
+  and then clears the record, so the leftover `swap`/`order` tokens do no harm.
+- The dirty→`<rung>-split` mapping (`restoreTarget`) runs at **record time** and
+  only when the layout was dirty. A clean name is restored exactly. Mapping
+  every name broke the chord fixture, whose layout has no Pair swap layouts.
+- The `manually-resized-split` live case was removed: the operator confirmed
+  Pair offers no manual resize.
+- Live coverage lives in the existing chord/conformance tests, now converted to
+  the 3-press cycle, plus `rightpane_rungs_live_test.go`, which runs the real
+  main-3.kdl on every rung, split and unsplit. The fake tests and the rungs test
+  both fail when restoreTiling is mutated to a no-op.

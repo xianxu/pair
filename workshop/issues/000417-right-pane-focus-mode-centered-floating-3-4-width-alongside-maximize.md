@@ -89,12 +89,12 @@ Open questions for the design pass:
 Durable plan: `workshop/plans/000417-right-pane-focus-mode-centered-floating-3-4-width-alongside-maximize-plan.md`.
 Single pass (no Mx), so one review runs at close.
 
-- [ ] Task 1: ExpandRecord encode/decode
-- [ ] Task 2: mode observation + PlanRightPane; retire the FullscreenTransition phase machine
-- [ ] Task 3: executor + restoreTiling against the stateful fake
-- [ ] Task 4: layout classifier accepts focus mode
-- [ ] Task 5: wrap dimming (sgrDimmer + SIGWINCH observer)
-- [ ] Task 6: live conformance test, help text, atlas
+- [x] Task 1: ExpandRecord encode/decode
+- [x] Task 2: mode observation + PlanRightPane; retire the FullscreenTransition phase machine
+- [x] Task 3: executor + restoreTiling against the stateful fake
+- [x] Task 4: layout classifier accepts focus mode
+- [x] Task 5: wrap dimming (sgrDimmer + SIGWINCH observer)
+- [x] Task 6: live conformance test, help text, atlas
 - [ ] Task 7: full verification + operator smoke test in pair:0
 
 ## Log
@@ -111,6 +111,18 @@ Single pass (no Mx), so one review runs at close.
 - Design: no new artifact family. The restore info rides the existing
   fullscreen-return record (ARCH-FUNERAL), and wrap derives the dim state from
   zellij on SIGWINCH (zellij owns mode state, as with fullscreen today).
+
+- Implementation done (Tasks 1–6). Live, unsandboxed:
+  - `TestFullscreenChordZellijLive`: the real Shift+Alt+Return through real Pair
+    panes (draft, agent, both split halves, an nvim child). Three presses each,
+    with exact geometry, focus and record restored.
+  - `TestFullscreenZellijConformance`: passes.
+  - `TestRightPaneRungsZellijConformance`: every rung, the dirty split, the top
+    half, and half order surviving a later rung change.
+- Suite: `make -k test` failures were `test-term-pane-shortcuts`, a stale
+  expectation that is now fixed; `test-changelog`, which passes with the
+  scratchpad TMPDIR; and `test-pair-embedded-runtime`, which passes with the
+  full env scrub (the Couch-slot leak).
 
 ## Revisions
 
