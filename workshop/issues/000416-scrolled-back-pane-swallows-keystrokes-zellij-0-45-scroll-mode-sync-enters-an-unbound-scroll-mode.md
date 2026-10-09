@@ -1,12 +1,22 @@
 ---
 id: 000416
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-08
 updated: 2026-10-08
 estimate_hours:
-card_mirror: '35a93ae2e28b5eaaed98c84701d8e6ad77d74012' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'bc7b41a1ce212aa9ecf021ef8f3737819d2c6d1a' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-08T17:35:52-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "e03aca96", done: "087d4249"}
+actual_hours: 0.27
 ---
 
 # Scrolled-back pane swallows keystrokes: zellij 0.45 scroll_mode_sync enters an unbound Scroll mode
@@ -44,13 +54,25 @@ bottom. 0.44.x ignores unknown option names, as it does `pane_frame_style`.
 
 ## Plan
 
-- [ ] Add `scroll_mode_sync false` with a why-comment; regenerate the bundle.
-- [ ] Regression test beside `TestConfigStatesFullPaneFrames`.
+- [x] Add `scroll_mode_sync false` with a why-comment; regenerate the bundle.
+- [x] Regression test beside `TestConfigStatesFullPaneFrames`.
 - [ ] Operator smoke test on a rebuilt binary.
 
 ## Log
 
 ### 2026-10-08
+- 2026-10-08: closed — TestConfigDisablesScrollModeSync fails on stale bundle mirror, passes after regen; zellij 0.45.1 setup --check: well defined. Root cause read from zellij v0.45.1 source (scroll_mode_sync -> Scroll mode drops unbound keys; Write path ClearScrolls). Full make -k test (scrubbed env): only test-review fails, identically on origin/main; test-changelog green w/ scratchpad TMPDIR; unsandboxed go test ./...: 4 failures also on main, couchcmd ColdResume fails in this slot with config reverted (environmental). --no-atlas: config-only bugfix, no new surface. --no-plan-check: remaining item is the operator live smoke test, which needs pair:0 rebuilt after merge.; review verdict: SHIP
 
 - Diagnosed from zellij v0.45.1 source (route.rs `Action::Write`, screen.rs
   `sync_scroll_mode_on_focus`, input_handler.rs Normal/Locked passthrough).
+- Fix: `scroll_mode_sync false` (1a63116c). `TestConfigDisablesScrollModeSync`
+  failed on the stale bundle mirror, then passed after regeneration;
+  `zellij setup --check` (0.45.1) reports the config well defined.
+- Full suite: `make -k test` with a scrubbed env fails only `test-review`, which
+  fails identically on origin/main. `test-changelog` passes with a scratchpad
+  TMPDIR. Unsandboxed `go test ./...` fails 5 tests: artifactpath,
+  couchsingleton x2 and gcruntime fail on main too, and couchcmd
+  `TestColdResumeOfAParkedPrimaryRegistersFromBothOrigins` fails in this slot
+  even with config.kdl reverted to main (it passes in a fresh main worktree),
+  so it is environmental, not this change.
+- Operator smoke test pending: rebuild pair:0 and start a fresh session.
