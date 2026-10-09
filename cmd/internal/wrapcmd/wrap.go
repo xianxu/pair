@@ -194,6 +194,11 @@ var (
 // loop don't need locking; the few touched from signal goroutines (capture
 // window, notify-mode flags) are guarded explicitly.
 type proxy struct {
+	// Focus-mode dim (#417): observeFocus is read on SIGWINCH, dim is the
+	// result the master pump applies through dimmer.
+	observeFocus         func() (bool, error)
+	dim                  atomic.Bool
+	dimmer               sgrDimmer
 	inputAdmission       sync.Mutex
 	automaticInput       automaticInputTransaction
 	automaticRenderEpoch atomic.Uint64
@@ -2900,6 +2905,10 @@ argsDone:
 	}
 
 	// Initial winsize copy + SIGWINCH handler.
+	if p.observeFocus == nil {
+		p.observeFocus = zellijFocusObserver()
+	}
+	p.refreshDim()
 	p.setWinsize()
 
 	// Install signal delivery before publishing pair-wrap-pid. The pidfile is a
@@ -2912,7 +2921,17 @@ argsDone:
 		for s := range sigCh {
 			switch s {
 			case syscall.SIGWINCH:
+				// Read the mode BEFORE the resize reaches the child, so the
+				// redraw it triggers already passes through the right dim. A
+				// flip without a size change (the layoutcmd nudge, or a split
+				// whose agent pane kept its size) gets an explicit redraw.
+				changed := p.refreshDim()
 				p.setWinsize()
+				if changed && p.cmd != nil && p.cmd.Process != nil {
+					if err := syscall.Kill(-p.cmd.Process.Pid, syscall.SIGWINCH); err != nil {
+						_ = p.cmd.Process.Signal(syscall.SIGWINCH)
+					}
+				}
 			case syscall.SIGUSR1:
 				p.armCapture()
 			case syscall.SIGUSR2:
@@ -3102,7 +3121,8 @@ func (p *proxy) masterPump() {
 	defer stdoutFlushTick.Stop()
 	p.output()
 	defer func() {
-		p.stdoutPump.queue(p.notificationRewriter.Finish())
+		// Off: flush any held CSI tail and leave the outer pane un-dimmed.
+		p.stdoutPump.queue(p.dimmer.Feed(p.notificationRewriter.Finish(), false))
 		p.stdoutPump.finish()
 		p.flushStdout("eof")
 	}()
@@ -3249,7 +3269,7 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 	p.output()
 	for _, event := range rewritten.Events {
 		if len(event.Passthrough) > 0 {
-			p.stdoutPump.queue(event.Passthrough)
+			p.stdoutPump.queue(p.dimmer.Feed(event.Passthrough, p.dim.Load()))
 		}
 		if event.Observation != nil && progressOSCAuthorized(p.agentBasename) {
 			p.processLifecycleObservation(*event.Observation)
