@@ -1,12 +1,12 @@
 ---
 id: 000416
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-08
 updated: 2026-10-08
 estimate_hours:
-card_mirror: 'b5df0ba63d90d0ef822ae1417499daa281957ba2' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'bc7b41a1ce212aa9ecf021ef8f3737819d2c6d1a' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-08T17:35:52-07:00
 claimant:
     operator: T
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "e03aca96", done: "087d4249"}
+actual_hours: 0.27
 ---
 
 # Scrolled-back pane swallows keystrokes: zellij 0.45 scroll_mode_sync enters an unbound Scroll mode
