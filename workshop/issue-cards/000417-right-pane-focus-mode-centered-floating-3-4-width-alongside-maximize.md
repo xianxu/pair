@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000417-right-pane-focus-mode-centered-floating-3-4-width-alongside-maximize.md
         source_blob: 72644c25e6c6887aa6892aa1e4131c10b1be8796
         destination: workshop/issues/000417-right-pane-focus-mode-centered-floating-3-4-width-alongside-maximize.md
+        main_commit: 566cd1ecef3245d5638c36b1f2d3f715cbf6db33
 ---
 
 # Right pane focus mode: centered floating ~3/4 width, alongside maximize
