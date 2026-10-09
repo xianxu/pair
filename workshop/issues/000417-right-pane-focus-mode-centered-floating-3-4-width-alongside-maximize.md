@@ -15,7 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "9ec5fc91", done: "07bee90f"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # Right pane focus mode: centered floating ~3/4 width, alongside maximize
@@ -100,6 +100,8 @@ Single pass (no Mx), so one review runs at close.
 ## Log
 
 ### 2026-10-09
+- 2026-10-09: closed — Operator smoke-tested in pair:0 on a fresh thread (177707a5): cycle normal→focus→maximize→normal, restore, pinned centered pane, agent dim all work. Live zellij (unsandboxed): TestFullscreenChordZellijLive (real Shift+Alt+Return via real pair panes), TestFullscreenZellijConformance, TestRightPaneRungsZellijConformance (main-3.kdl every rung, split+dirty split, half order survives rung change); restoreTiling no-op mutation fails live and fake tests. Round-1 fixes (ec51c477): dimmer frames in both modes, never delays bytes, transitions at the first sequence boundary (chunk-invariance test over every split point incl. ST-terminated OSC 52), 1s-bounded zellij observer, handleWinch ordering test via signalChild seam, README synced; wrapcmd/layoutcmd/termcmd/keyhelp green, launcher green under clean env. make -k test green except test-changelog (passes with scratchpad TMPDIR) and test-pair-embedded-runtime (passes with full env scrub). go test ./...: artifactpath list identical to merge base, gcruntime pre-existing, couchcore passes standalone on branch and base (only the 10m default timeout), terminal lacks node module @xterm/addon-unicode11. Actual N/A: session ran from the slot-1 worktree cwd, no transcript events for this window.; review verdict: SHIP
+- 2026-10-09: flow upgraded quick → full — 723 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 - Live probes on zellij 0.45.1 (see the plan's "Probe findings"):
   - Re-embed doesn't restore the slot. Cycling `next-swap-layout` to the recorded
