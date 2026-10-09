@@ -43,10 +43,10 @@ func restoreLayoutRecord(rt FSOps, dataDir, tag string, snapshot layoutRecordSna
 }
 
 // ClassifyLiveLayout recognizes the two supported workbench pane signatures.
-// Layout3's signature is a right terminal in the tiled tree (#123 pivot); the
-// pre-pivot signature — invisible filler covered by a floating terminal — is
-// still recognized so probing a live session started by an older binary
-// doesn't misclassify it as Layout2.
+// Layout3's signature is a right terminal, tiled (#123 pivot) or floating: the
+// #417 focus mode floats it over the workbench, and the pre-pivot signature —
+// invisible filler covered by a floating terminal — floats it too, so probing
+// a live session in either state doesn't misclassify it.
 func ClassifyLiveLayout(panes []zellijpane.Pane) (LayoutMode, bool) {
 	var agent, draft, filler, floatingTerminal, tiledTerminal bool
 	for _, pane := range panes {
@@ -77,7 +77,7 @@ func ClassifyLiveLayout(panes []zellijpane.Pane) (LayoutMode, bool) {
 			}
 		}
 	}
-	if agent && draft && (tiledTerminal || (filler && floatingTerminal)) {
+	if agent && draft && (tiledTerminal || floatingTerminal) {
 		return Layout3, true
 	}
 	if agent && draft && !tiledTerminal && !filler && !floatingTerminal {

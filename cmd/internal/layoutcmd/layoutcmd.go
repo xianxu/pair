@@ -237,7 +237,11 @@ func isRightTerminal(pane zellijpane.Pane, terminalPaneIDs []string) bool {
 type OSRuntime struct{}
 
 func (OSRuntime) ListPanesJSON() ([]byte, error) {
-	return exec.Command("zellij", "action", "list-panes", "--json", "--command", "--state", "--geometry").Output()
+	return execZellij("list-panes", "--json", "--command", "--state", "--geometry")
+}
+
+func execZellij(args ...string) ([]byte, error) {
+	return exec.Command("zellij", append([]string{"action"}, args...)...).Output()
 }
 
 func (OSRuntime) LastTerminalPaneID() (string, error) {

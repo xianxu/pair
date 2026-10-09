@@ -32,6 +32,8 @@ type Runtime interface {
 	CachedDraftPaneID() (string, bool)
 	CurrentPaneID() string
 	FullscreenStore() workbenchshortcut.FullscreenStore
+	CurrentTabJSON() ([]byte, error)
+	NudgeWrap() error
 	ListPanesJSON() ([]byte, error)
 	LastLeftPaneID() (string, error)
 	RecordLastLeftPaneID(string) error
@@ -725,7 +727,8 @@ func isSGRMousePrefix(data []byte) bool { return mouseinput.IsPrefix(data) }
 type OSRuntime struct{}
 
 func (OSRuntime) ListPanesJSON() ([]byte, error) {
-	return exec.Command("zellij", "action", "list-panes", "--json", "--command", "--state").Output()
+	// --geometry: the right-pane cycle orders split halves by row (#417).
+	return exec.Command("zellij", "action", "list-panes", "--json", "--command", "--state", "--geometry").Output()
 }
 
 func (OSRuntime) CachedDraftPaneID() (string, bool) {
@@ -739,6 +742,9 @@ func (OSRuntime) CurrentPaneID() string {
 func (OSRuntime) FullscreenStore() workbenchshortcut.FullscreenStore {
 	return layoutcmd.OSRuntime{}.FullscreenStore()
 }
+
+func (OSRuntime) CurrentTabJSON() ([]byte, error) { return layoutcmd.OSRuntime{}.CurrentTabJSON() }
+func (OSRuntime) NudgeWrap() error                { return layoutcmd.OSRuntime{}.NudgeWrap() }
 
 func (OSRuntime) LastLeftPaneID() (string, error) {
 	store := workbenchshortcut.LastLeftPaneStore{DataDir: workbenchshortcut.DataDirFromEnv(), Tag: os.Getenv("PAIR_TAG")}

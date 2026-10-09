@@ -275,6 +275,10 @@ func (r *fullscreenLiveRuntime) RunZellijAction(args ...string) error {
 	_, err := r.command(args...)
 	return err
 }
+func (r *fullscreenLiveRuntime) CurrentTabJSON() ([]byte, error) {
+	return r.command("current-tab-info", "--json")
+}
+func (r *fullscreenLiveRuntime) NudgeWrap() error                                   { return nil }
 func (r *fullscreenLiveRuntime) CurrentPaneID() string                              { return r.caller }
 func (r *fullscreenLiveRuntime) LastTerminalPaneID() (string, error)                { return r.last, nil }
 func (r *fullscreenLiveRuntime) TerminalPaneIDs() ([]string, error)                 { return r.terminals, nil }

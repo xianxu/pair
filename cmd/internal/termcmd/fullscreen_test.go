@@ -13,6 +13,10 @@ func (f *fakeRuntime) Read() (string, error)                              { retu
 func (f *fakeRuntime) Write(id string) error                              { f.fullscreenRecord = id; return nil }
 func (f *fakeRuntime) Clear() error                                       { f.fullscreenRecord = ""; return nil }
 func (f *fakeRuntime) TryLock() (func(), bool, error)                     { return func() {}, true, nil }
+func (f *fakeRuntime) CurrentTabJSON() ([]byte, error) {
+	return []byte(`{"active_swap_layout_name":"BASE","is_swap_layout_dirty":false}`), nil
+}
+func (f *fakeRuntime) NudgeWrap() error { return nil }
 func (f *fakeRuntime) LogFailure(err error) {
 	f.fullscreenErrors = append(f.fullscreenErrors, err.Error())
 }
