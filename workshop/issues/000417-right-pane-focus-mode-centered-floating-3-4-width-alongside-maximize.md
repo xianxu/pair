@@ -15,6 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "9ec5fc91", done: "07bee90f"}
 ---
 
 # Right pane focus mode: centered floating ~3/4 width, alongside maximize
