@@ -1,21 +1,22 @@
 ---
 id: 000417
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-09
 updated: 2026-10-09
 estimate_hours:
-card_mirror: '743cebfe481ed9d7fde1a089c34c50183936ec55' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'b9b45d2c87a1fa85ca798656397f9182ebcc0bbb' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-09T09:42:52-07:00
 claimant:
     operator: T
     machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: MacBook Pro
-    workspace: pair:1
-    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:0
+    worktree: /Users/xianxu/workspace/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: N/A
 ---
 
 # Right pane focus mode: centered floating ~3/4 width, alongside maximize
