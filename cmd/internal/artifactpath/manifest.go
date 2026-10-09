@@ -1066,6 +1066,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/wrapcmd/notification_output.go",
 	"cmd/internal/wrapcmd/lifecycle_journal.go",
 	"cmd/internal/wrapcmd/terminal_model.go",
+	"cmd/internal/wrapcmd/dim.go",
 	"cmd/internal/zellijpane/zellijpane.go",
 	"cmd/pair-go/main.go",
 	"cmd/pair-launch-helper/main.go",
