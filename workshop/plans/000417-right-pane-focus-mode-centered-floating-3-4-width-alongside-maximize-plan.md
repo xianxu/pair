@@ -232,3 +232,17 @@ comment, `atlas/architecture.md` (~436-450, 828)
   targets the pre-focus rung). This is acceptable and is documented in the atlas.
 - Manual resizes (dirty swap layout) are not restored. That matches what a rung
   change already does.
+
+## Revisions
+
+### 2026-10-09 — operator review
+- Focus geometry: **75% width × 100% height**, centered horizontally
+  (`-x 12% -y 0 --width 75% --height 100%`), replacing 75% × 90%. Task 6's
+  conformance test asserts full height.
+- Dropped the "manual resizes are not restored" risk. Pair's zellij config clears all
+  default keybinds (`zellij/config.kdl:96`) and disables mouse resize (`:37`), so the
+  operator cannot resize panes manually. The only source of a dirty swap layout is
+  Pair's own actions (e.g. the Alt+Shift+d split), and restoreTiling's cycle covers
+  those.
+- Partial-dim risk acknowledged by the operator; the fallback stays out of scope unless
+  the smoke test shows it.

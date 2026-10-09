@@ -75,8 +75,8 @@ Open questions for the design pass:
 
 ## Done when
 
-- shift+alt+return cycles normal → focus (centered, ~75% width, agent pane
-  dimmed) → maximize → normal, restoring the split on return to normal.
+- shift+alt+return cycles normal → focus (centered, 75% width × full height,
+  agent pane dimmed) → maximize → normal, restoring the split on return to normal.
 - **Maximize** behaves as before; switching between focus and maximize
   converges without leaving a stray floating or fullscreen pane.
 - Relaunch/reattach while in focus mode doesn't misclassify the layout.
@@ -110,3 +110,9 @@ Single pass (no Mx), so one review runs at close.
 - Design: no new artifact family. The restore info rides the existing
   fullscreen-return record (ARCH-FUNERAL), and wrap derives the dim state from
   zellij on SIGWINCH (zellij owns mode state, as with fullscreen today).
+
+## Revisions
+
+### 2026-10-09
+- Focus geometry is 75% width × 100% height (operator), not 75% × 90% as the
+  Spec's sketch had it. Done-when updated.
