@@ -46,8 +46,11 @@ func TestRunTestShortcutRightTerminalActions(t *testing.T) {
 		{name: "alt j swallowed", chord: "Alt+j"},
 		{name: "alt k last left", chord: "Alt+k", last: "1", wantOps: []string{"focus-pane-id 1"}},
 		{name: "alt k draft fallback", chord: "Alt+k", wantOps: []string{"focus-pane-id 2"}},
-		{name: "alt shift enter uses native fullscreen", chord: "Alt+Shift+Enter", wantOps: []string{
-			"toggle-fullscreen --pane-id 4",
+		{name: "alt shift enter enters focus", chord: "Alt+Shift+Enter", wantOps: []string{
+			// First press of the #417 cycle: normal → focus.
+			"toggle-pane-embed-or-floating --pane-id 4",
+			"change-floating-pane-coordinates --pane-id 4 -x 12% -y 0 --width 75% --height 100% --pinned true",
+			"show-floating-panes",
 		}},
 	}
 
@@ -121,8 +124,10 @@ func TestRunTestShortcutGlobalLayoutToggle(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code = %d stderr=%q", code, stderr.String())
 	}
-	if len(rt.ops) != 1 || rt.ops[0] != "toggle-fullscreen --pane-id 3" || rt.fullscreenRecord != "1" {
-		t.Fatalf("ops = %v, return=%s; want native toggle and agent return", rt.ops, rt.fullscreenRecord)
+	// First press of the #417 cycle: normal → focus, recording the agent as the
+	// return pane and the swap layout to re-tile onto.
+	if len(rt.ops) != 3 || rt.ops[0] != "toggle-pane-embed-or-floating --pane-id 3" || rt.fullscreenRecord != "1 swap=BASE" {
+		t.Fatalf("ops = %v, return=%s; want focus float and agent return", rt.ops, rt.fullscreenRecord)
 	}
 }
 
@@ -167,7 +172,7 @@ func TestPumpStdinHandlesTerminalTabActions(t *testing.T) {
 		{name: "alt up passes through outside draft", chunks: [][]byte{[]byte("\x1b[1;3A")}, wantMux: "write:\x1b[1;3A"},
 		{name: "alt down passes through outside draft", chunks: [][]byte{[]byte("\x1b[1;3B")}, wantMux: "write:\x1b[1;3B"},
 		{name: "alt c routes review toggle to draft", chunks: [][]byte{[]byte("\x1b[99;3u")}, wantRTOps: "write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua PairReviewToggle(),write --pane-id 2 13"},
-		{name: "layout toggle", chunks: [][]byte{[]byte("\x1b[13;4u")}, wantRTOps: "toggle-fullscreen --pane-id 4"},
+		{name: "layout toggle", chunks: [][]byte{[]byte("\x1b[13;4u")}, wantRTOps: "toggle-pane-embed-or-floating --pane-id 4,change-floating-pane-coordinates --pane-id 4 -x 12% -y 0 --width 75% --height 100% --pinned true,show-floating-panes"},
 		{name: "mouse top row passes to child", chunks: [][]byte{[]byte("\x1b[<0;8;1M")}, wantMux: "write:\x1b[<0;8;1M"},
 		{name: "mouse shell row passes through", chunks: [][]byte{[]byte("\x1b[<0;8;2M")}, wantMux: "write:\x1b[<0;8;2M"},
 		{name: "mouse wheel up scrolls zellij viewport", chunks: [][]byte{[]byte("\x1b[<64;8;5M")}, wantRTOps: "scroll-up"},

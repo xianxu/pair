@@ -762,3 +762,18 @@ proof; record the surprising case so the next change starts from evidence.
   font xterm.js may draw with must load before the first frame. A
   correction must reach every place that repeated the claim (atlas, CSS
   comment, VENDOR.md), not just the first one found.
+
+- **A byte-stream rewriter frames sequences in every mode and injects only at
+  sequence boundaries (#417).** The focus-mode dimmer tracked escape
+  sequences only while dimming. A mode flip could land between two halves of
+  the agent's own CSI, and that split the sequence, so its remainder printed as
+  text. My test pinned the corrupt output as expected. Hold a split sequence's
+  tail in both modes, emit a transition only before the held tail, and test
+  chunk invariance: for every split point, two feeds equal one.
+- **Optional IO on a shared signal loop gets a deadline (#417).** The dim
+  observer ran `zellij list-panes` with no timeout on the goroutine that also
+  delivers wrap's capture and restart signals. A cosmetic feature must not be
+  able to stall those; bound it with a context deadline.
+- **A user-visible behavior change updates README too, not just help and atlas
+  (#417).** grep the old phrasing ("toggle ... fullscreen") across README,
+  atlas and help strings before close.

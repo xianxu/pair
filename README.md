@@ -27,8 +27,8 @@ Launches a `zellij` workbench in one of two layouts:
   remains available: `Alt+k` still returns to the left
   stack, and the global `Shift+Alt+←`/`→`/`Shift+Alt+t` still switch and create
   tabs from anywhere (#243 delivers them as globals so they survive the
-  passthrough). `Alt+Shift+Return` toggles right-terminal fullscreen from any
-  Pair pane, including the agent and editor overlays. At
+  passthrough). `Alt+Shift+Return` cycles the right terminal through focus and
+  maximize from any Pair pane, including the agent and editor overlays. At
   a shell prompt terminal-local chords are intercepted; draft-only Alt+Up/Down
   pass through to the shell.
 
@@ -145,7 +145,7 @@ one-line description can't carry.
 | **Alt+Return** | nvim (normal/insert) | Send buffer to agent. Note for consistency, claude's keybinding also changed to Alt+return as send, and return as newline |
 | **Return** | agent pane | Insert a newline in Claude, Codex, Agy, and Qoder composers; Pair translates it to Muse's native Shift+Return and Grok's native Alt+Enter. The rewrite is *positively gated* for every agent: Pair rewrites only while it can see a live composer on screen, so in a permission picker, a selection menu, or any state it doesn't recognize, Return stays a plain Enter and the dialog confirms. Set `PAIR_WRAP_REMAP_RETURN=0` to turn the rewrite off entirely (that also disables overlay detection and its telemetry). |
 | **Alt+Return** | agent pane | Always submits, in every state. |
-| **Alt+Shift+Return** | any Pair pane | Toggle native fullscreen for the selected right terminal; a split expands only the selected half. Press again to restore the tiling and focus the invoking pane. Zellij's bars remain visible. No-op without a right terminal. |
+| **Alt+Shift+Return** | any Pair pane | Cycle the selected right terminal: **focus** (floating, centered at 75% width and full height, agent pane dimmed) → **maximize** (native fullscreen; Zellij's bars remain visible) → back to the tiling, focusing the invoking pane. A split acts only on the selected half. No-op without a right terminal. |
 | **Alt+j** | draft | Focus the agent pane. Click the draft to return from the agent. |
 | **Alt+k** | layout 3 draft/terminal | Move between the last-focused left Pair pane and the right terminal. |
 | **Alt+t** | layout 3 terminal | Create a Pair-owned local terminal tab. |
@@ -188,7 +188,7 @@ one-line description can't carry.
 
 The focused agent receives all workbench shortcuts except **Shift+Alt+T**,
 **Shift+Alt+Left/Right**, and **Alt+Shift+Return**, which create/switch
-right-terminal tabs or toggle right-terminal fullscreen. Under
+right-terminal tabs or cycle the right terminal's focus/maximize views. Under
 Couch, **Ctrl+Space**, **Ctrl+Backspace** (the Mac Delete key), and
 **Ctrl+Return** remain Couch navigation shortcuts. Couch owns Alt+n/Ctrl+Alt+n
 outside the right terminal, except Alt+n in the review pane (next marker in normal mode). In a right-terminal full-screen TUI, Pair retains

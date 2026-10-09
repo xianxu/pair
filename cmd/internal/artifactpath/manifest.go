@@ -286,6 +286,7 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/artifactpath/manifest.go", Kind: Constructor, Families: familyNames()},
 	{Path: "cmd/internal/adapt/adapt.go", Kind: ResolvedConsumer, Families: []string{"adapt"}, BindingNames: []string{"scoped-adapt"}},
 	{Path: "cmd/internal/agentcmd/restart.go", Kind: ResolvedConsumer, Families: []string{"pair-wrap-pid"}, BindingNames: []string{"scoped-pair-wrap-pid"}},
+	{Path: "cmd/internal/layoutcmd/rightpane.go", Kind: ResolvedConsumer, Families: []string{"pair-wrap-pid"}, BindingNames: []string{"scoped-pair-wrap-pid"}},
 	{Path: "cmd/internal/clipcmd/clipcmd.go", Kind: ResolvedConsumer, Families: []string{"quote"}, BindingNames: []string{"scoped-quote"}},
 	{Path: "cmd/internal/sessioninventory/scan_claude.go", Kind: VocabularyConsumer, Families: []string{"agent"}, Vocabulary: []VocabularyAllowance{
 		goComparisonVocabulary("agent", "agent-", "claudePathFact", 1),
@@ -1065,6 +1066,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/wrapcmd/notification_output.go",
 	"cmd/internal/wrapcmd/lifecycle_journal.go",
 	"cmd/internal/wrapcmd/terminal_model.go",
+	"cmd/internal/wrapcmd/dim.go",
 	"cmd/internal/zellijpane/zellijpane.go",
 	"cmd/pair-go/main.go",
 	"cmd/pair-launch-helper/main.go",

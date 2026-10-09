@@ -178,7 +178,7 @@ type GlobalBinding struct {
 // every future field a silent shift of the one before it.
 var globalBindings = []GlobalBinding{
 	{Chord: ChordAltShiftEnter, Action: ActionToggleFocusedLayout, NvimKey: "<S-M-CR>", HandledInPane: true, AgentReserved: true,
-		DirectCommand: []string{"layout", "toggle-focused"}, Help: "toggle right terminal fullscreen; return focus on exit"},
+		DirectCommand: []string{"layout", "toggle-focused"}, Help: "cycle right terminal: focus (centered) → maximize → normal"},
 	{Chord: ChordAltD, Action: ActionConfirmDetach, LuaFunction: "PairConfirmDetach", NvimKey: "<M-d>", FocusDraft: true,
 		Help:       "detach from the session (re-attach with `pair`)",
 		HostedHelp: "detach only this Zellij client, not the Couch thread"},

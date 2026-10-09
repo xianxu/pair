@@ -165,6 +165,27 @@ func TestClassifyLiveLayout(t *testing.T) {
 			ok:   true,
 		},
 		{
+			// #417 focus mode: the right terminal floats over the workbench and
+			// no filler exists. A relaunch/reattach during focus must not
+			// misread that as a broken signature.
+			name: "layout3 focus mode floating terminal",
+			panes: []zellijpane.Pane{
+				{Title: "codex", TerminalCommand: "pair wrap codex"},
+				{Title: "draft", TerminalCommand: "nvim /data/draft-work.md"},
+				{Title: "terminal", TerminalCommand: "pair term", IsFloating: true},
+			},
+			want: Layout3,
+			ok:   true,
+		},
+		{
+			name: "filler without terminal is not layout2",
+			panes: []zellijpane.Pane{
+				{Title: "codex", TerminalCommand: "pair wrap codex"},
+				{Title: "draft", TerminalCommand: "nvim /data/draft-work.md"},
+				{Title: "terminal-filler", TerminalCommand: "tail -f /dev/null"},
+			},
+		},
+		{
 			name:  "unknown signature",
 			panes: []zellijpane.Pane{{Title: "shell", TerminalCommand: "zsh"}},
 		},

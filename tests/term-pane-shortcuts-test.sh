@@ -141,11 +141,15 @@ write_panes terminal
 run_shortcut "Alt+j"
 check_eq "right Alt+j is no-op" "$(actions)" ""
 
-# #297: expand from the draft, then collapse from the fullscreen terminal and
-# restore the original caller. The fake pane report models each observed state.
+# #297/#417: from normal the draft press enters focus (the tab info records the
+# swap layout to re-tile onto); collapse from the fullscreen terminal restores
+# the original caller. The fake pane report models each observed state.
 write_panes draft
 ZELLIJ_PANE_ID=2 run_shortcut "Alt+Shift+Enter"
-check_eq "draft Alt+Shift+Enter fullscreens the right terminal" "$(actions)" "toggle-fullscreen --pane-id 4"
+check_eq "draft Alt+Shift+Enter enters focus on the right terminal" "$(actions)" "current-tab-info --json
+toggle-pane-embed-or-floating --pane-id 4
+change-floating-pane-coordinates --pane-id 4 -x 12% -y 0 --width 75% --height 100% --pinned true
+show-floating-panes"
 
 write_panes terminal true
 ZELLIJ_PANE_ID=4 run_shortcut "Alt+Shift+Enter"
