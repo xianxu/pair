@@ -1,6 +1,6 @@
 ---
 id: 000417
-status: codecomplete
+status: done
 created: 2026-10-09
 updated: 2026-10-09
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: ec51c47747ee97fbf2e19999def4fff201f9ec70
         evidence_commit: e33a7e9e8382309c0e91d28c51c9c79e2ea0819d
+        landed_commit: bc507383a3172578d6c91f2d8074fbb541cb1fa7
 ---
 
 # Right pane focus mode: centered floating ~3/4 width, alongside maximize
