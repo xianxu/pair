@@ -3,6 +3,7 @@
 package layoutcmd
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -236,12 +237,22 @@ func isRightTerminal(pane zellijpane.Pane, terminalPaneIDs []string) bool {
 
 type OSRuntime struct{}
 
-func (OSRuntime) ListPanesJSON() ([]byte, error) {
-	return execZellij("list-panes", "--json", "--command", "--state", "--geometry")
+func (r OSRuntime) ListPanesJSON() ([]byte, error) {
+	return r.ListPanesJSONContext(context.Background())
+}
+
+// ListPanesJSONContext lets a caller off the keypress path (pair-wrap's dim
+// observer) bound the query.
+func (OSRuntime) ListPanesJSONContext(ctx context.Context) ([]byte, error) {
+	return execZellijContext(ctx, "list-panes", "--json", "--command", "--state", "--geometry")
 }
 
 func execZellij(args ...string) ([]byte, error) {
-	return exec.Command("zellij", append([]string{"action"}, args...)...).Output()
+	return execZellijContext(context.Background(), args...)
+}
+
+func execZellijContext(ctx context.Context, args ...string) ([]byte, error) {
+	return exec.CommandContext(ctx, "zellij", append([]string{"action"}, args...)...).Output()
 }
 
 func (OSRuntime) LastTerminalPaneID() (string, error) {

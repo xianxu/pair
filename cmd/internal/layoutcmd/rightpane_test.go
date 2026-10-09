@@ -124,6 +124,11 @@ func TestObserveRightPaneMode(t *testing.T) {
 	if FocusModeActive(panes, nil) {
 		t.Fatal("ambiguous observation reported as focus")
 	}
+	panes = append(modePanes(), zellijpane.Pane{ID: "4", Title: "terminal 2", IsFullscreen: &on})
+	panes[3].IsFloating = true
+	if _, _, err := ObserveRightPaneMode(panes, nil); err == nil {
+		t.Fatal("floating plus a fullscreen half accepted")
+	}
 	// Floating panes that are not right terminals (review, key help) are not focus mode.
 	panes = append(modePanes(), zellijpane.Pane{ID: "9", Title: "review", TerminalCommand: "nvim review", IsFloating: true})
 	if mode, _, err := ObserveRightPaneMode(panes, nil); err != nil || mode != ModeNormal {

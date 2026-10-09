@@ -52,6 +52,10 @@ func ObserveRightPaneMode(panes []zellijpane.Pane, registered []string) (RightPa
 		}
 	}
 	switch {
+	case floating != "" && fullscreen != "":
+		// Pair never produces both; refuse rather than plan steps that would
+		// leave the other half fullscreen behind the cycle.
+		return ModeNormal, "", fmt.Errorf("right terminal %s floats while %s is fullscreen", floating, fullscreen)
 	case floating != "":
 		return ModeFocus, floating, nil
 	case fullscreen != "":

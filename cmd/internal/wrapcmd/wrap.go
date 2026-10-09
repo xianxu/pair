@@ -197,6 +197,7 @@ type proxy struct {
 	// Focus-mode dim (#417): observeFocus is read on SIGWINCH, dim is the
 	// result the master pump applies through dimmer.
 	observeFocus         func() (bool, error)
+	signalChild          func(syscall.Signal) // test seam; nil signals the child group
 	dim                  atomic.Bool
 	dimmer               sgrDimmer
 	inputAdmission       sync.Mutex
@@ -2921,17 +2922,7 @@ argsDone:
 		for s := range sigCh {
 			switch s {
 			case syscall.SIGWINCH:
-				// Read the mode BEFORE the resize reaches the child, so the
-				// redraw it triggers already passes through the right dim. A
-				// flip without a size change (the layoutcmd nudge, or a split
-				// whose agent pane kept its size) gets an explicit redraw.
-				changed := p.refreshDim()
-				p.setWinsize()
-				if changed && p.cmd != nil && p.cmd.Process != nil {
-					if err := syscall.Kill(-p.cmd.Process.Pid, syscall.SIGWINCH); err != nil {
-						_ = p.cmd.Process.Signal(syscall.SIGWINCH)
-					}
-				}
+				p.handleWinch()
 			case syscall.SIGUSR1:
 				p.armCapture()
 			case syscall.SIGUSR2:
