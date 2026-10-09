@@ -1,12 +1,20 @@
 ---
 id: 000417
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-09
 updated: 2026-10-09
 estimate_hours:
-card_mirror: '2682d075e2e09454b873270b8fae702d979009a6' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '743cebfe481ed9d7fde1a089c34c50183936ec55' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-09T09:42:52-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Right pane focus mode: centered floating ~3/4 width, alongside maximize
@@ -77,8 +85,28 @@ Open questions for the design pass:
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000417-right-pane-focus-mode-centered-floating-3-4-width-alongside-maximize-plan.md`.
+Single pass (no Mx), so one review runs at close.
+
+- [ ] Task 1: ExpandRecord encode/decode
+- [ ] Task 2: mode observation + PlanRightPane; retire the FullscreenTransition phase machine
+- [ ] Task 3: executor + restoreTiling against the stateful fake
+- [ ] Task 4: layout classifier accepts focus mode
+- [ ] Task 5: wrap dimming (sgrDimmer + SIGWINCH observer)
+- [ ] Task 6: live conformance test, help text, atlas
+- [ ] Task 7: full verification + operator smoke test in pair:0
 
 ## Log
 
 ### 2026-10-09
+
+- Live probes on zellij 0.45.1 (see the plan's "Probe findings"):
+  - Re-embed doesn't restore the slot. Cycling `next-swap-layout` to the recorded
+    `active_swap_layout_name` restores every rung exactly, and `move-pane` fixes the
+    order of split halves.
+  - A floated pane needs `show-floating-panes`.
+  - Focusing a tiled pane hides the floating layer. Pinning should prevent that; the
+    smoke test checks it.
+- Design: no new artifact family. The restore info rides the existing
+  fullscreen-return record (ARCH-FUNERAL), and wrap derives the dim state from
+  zellij on SIGWINCH (zellij owns mode state, as with fullscreen today).
