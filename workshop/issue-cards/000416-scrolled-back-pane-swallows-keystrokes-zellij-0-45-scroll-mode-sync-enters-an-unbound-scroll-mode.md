@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000416-scrolled-back-pane-swallows-keystrokes-zellij-0-45-scroll-mode-sync-enters-an-unbound-scroll-mode.md
         source_blob: dfd27b620d885f64f9443106a0561375d66cc11d
         destination: workshop/issues/000416-scrolled-back-pane-swallows-keystrokes-zellij-0-45-scroll-mode-sync-enters-an-unbound-scroll-mode.md
+        main_commit: 7d5e6cf3c616da6dfe5256d36a10e7c95d020c57
 ---
 
 # Scrolled-back pane swallows keystrokes: zellij 0.45 scroll_mode_sync enters an unbound Scroll mode
