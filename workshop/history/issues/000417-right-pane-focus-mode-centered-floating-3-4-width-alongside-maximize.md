@@ -1,12 +1,12 @@
 ---
 id: 000417
-status: codecomplete
+status: done
 deps: []
 github_issue:
 created: 2026-10-09
 updated: 2026-10-09
 estimate_hours:
-card_mirror: 'b9b45d2c87a1fa85ca798656397f9182ebcc0bbb' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f62d8e480669569a25512737288ca890c2462380' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-09T09:42:52-07:00
 claimant:
     operator: T
