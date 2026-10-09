@@ -1,6 +1,6 @@
 ---
 id: 000416
-status: codecomplete
+status: done
 created: 2026-10-08
 updated: 2026-10-08
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 1a63116cc981f1c387248aad979c9c2c12c08531
         evidence_commit: 8a733ad02622183553be22f4ff5ed879f51581da
+        landed_commit: 6033cb98a63628e63237105f6ace334583987f35
 ---
 
 # Scrolled-back pane swallows keystrokes: zellij 0.45 scroll_mode_sync enters an unbound Scroll mode
