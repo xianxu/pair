@@ -1,12 +1,21 @@
 ---
 id: 000416
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-08
 updated: 2026-10-08
 estimate_hours:
-card_mirror: '35a93ae2e28b5eaaed98c84701d8e6ad77d74012' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'b5df0ba63d90d0ef822ae1417499daa281957ba2' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-08T17:35:52-07:00
+claimant:
+    operator: T
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "e03aca96", done: "087d4249"}
 ---
 
 # Scrolled-back pane swallows keystrokes: zellij 0.45 scroll_mode_sync enters an unbound Scroll mode
