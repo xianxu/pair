@@ -391,6 +391,12 @@ couch --resume repo:N [--json]   from a live slot: resume that slot's agent
 couch --reboot repo:N --confirm [--json]   from a live slot: archive and replace it
 couch --reap repo:N --confirm [--json]     from a live slot: end an orphaned server's tree
 couch --recover repo:N [--json]               from a live slot: run the report's steps for it
+couch --relaunch repo:N --confirm [--same-binary] [--force-unknown] [--json]
+                         from a live slot: restart an idle slot on the current binary, same conversation (Alt+n);
+                         refuses busy, dirty or an unchanged binary, naming the fix
+couch --reload-context repo:N --confirm [--force-unknown] [--json]
+                         from a live slot: a fresh agent conversation in an idle slot's Pair (Shift+Alt+N);
+                         same busy/dirty refusals; succeeds only once the restarted wrapper reconnects
 couch --send-to repo:N --message TEXT   send to an exact live slot
 couch --send-to repo --message TEXT     select an eligible slot in that family
 couch --send-to repo --agent NAME --message TEXT   ...running that agent
@@ -527,9 +533,13 @@ images, menus and unknown states prevent automatic submission. Unchanged text
 in the separate draft pane does not block delivery. Claude Code and Codex CLI
 receive at any installed version; fixtures and live checks were captured on
 Claude Code 2.1.286 and Codex CLI 0.159.2, and evidence for newer versions is
-tracked in #368. Short messages submit
-automatically. A collapsed paste summary cannot prove the complete message, so
-that attempt expires without submission and leaves the text for inspection.
+tracked in #368. Messages submit automatically once the composer shows them in
+a layout Pair can verify: plain text with single spaces between words wraps
+predictably, and so do over-long words. That includes long messages that
+Claude collapses to a `[Pasted text #N +M lines]` summary. Tabs and leading,
+trailing or repeated spaces cannot be verified after wrapping; such a message
+waits for a human to submit it. A collapsed summary is accepted only when it alone fills a composer
+that was empty before the paste, and its line count matches the message.
 Prefer short coordination messages pointing to repository artifacts. Human
 Couch acceptance is separate from these receiver checks.
 
@@ -1113,7 +1123,7 @@ public `📁...` name, `pair resume <public-name>` and `pair rename <public-name
 <new-tag>` resolve it through the ledger. The new rename target is always a bare
 tag, not a public session name.
 
-**Hacking on pair?** Use `pair-dev` instead of `pair` — same arguments, but it rebuilds the `pair` binary from source (`make build`) on launch and on every Alt+n whole-workbench reload, so the zellij-spawned `pair wrap` always matches your working tree. Shift+Alt+N restarts only the already-running wrapper's agent child. (Deployed installs run `pair`, which uses the prebuilt binary and needs no Go toolchain.)
+**Hacking on pair?** Use `pair-dev` instead of `pair` — same arguments, but it rebuilds the `pair` binary from source (`make build`) on launch and on every Alt+n whole-workbench reload, so the zellij-spawned `pair wrap` always matches your working tree. Shift+Alt+N restarts only the already-running wrapper's agent child. (Deployed installs run `pair`, which uses the prebuilt binary and needs no Go toolchain.) Under Couch, start it with `couch-dev` instead of `couch`: it rebuilds once and runs Couch with dev mode on, so every slot it launches rebuilds Pair the same way.
 
 When `pair` runs and there's anything to pick — a detached Pair session owned by this repo **or** a tag from this repo used within the last 14 days — it shows an `fzf` picker. Detached rows come first, then historical rows annotated `(Nd ago, no live session)`, then a `+ new <agent> session` sentinel. A historical row whose session has prompts parked in its queue also carries an amber `[⏎ N queued]` badge, so you don't resume a session without remembering the work you queued up in it. Picking a historical row reuses the repo-local tag and any surviving draft / saved agent config (same path as `pair resume <tag>`). Override the 14-day window with `PAIR_HISTORY_DAYS`; `PAIR_DEBUG_HISTORY=1 pair` prints the scan and exits without launching.
 

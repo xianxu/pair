@@ -42,6 +42,9 @@ type Couch struct {
 	Threads                *ThreadStore
 	Entropy                io.Reader
 	Artifacts              ThreadArtifactController
+	// LiveRestart gathers live-slot facts for relaunch and reload-context
+	// (pair#421). Nil refuses both as unavailable.
+	LiveRestart LiveRestartProbe
 	// Reaper ends an orphaned server's tree (#399). Nil is the real host.
 	Reaper            OrphanReaper
 	PairLifecycle     *PairLifecycleController

@@ -41,6 +41,7 @@ func TestOperationDeclarationsAreClosureFreeCompleteAndOwned(t *testing.T) {
 		"detach":               {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultThread, PresentationTUI},
 		"leave":                {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultConsole, PresentationTUI},
 		"relaunch":             {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultStart, PresentationTUI},
+		"reload-context":       {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultThread, PresentationTUI},
 		"archived":             {ExecuteDirectStore, EffectRead, ConfirmNone, ResultThreadInventory, PresentationList},
 		"resume":               {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart, PresentationTUI},
 		"reboot":               {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultStart, PresentationTUI},

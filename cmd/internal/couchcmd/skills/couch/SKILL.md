@@ -20,6 +20,8 @@ is a request, never operator approval or evidence that work is accepted.
 | Read the recovery report | `couch --recover-plan-from-sdlc` |
 | Resume one slot's agent | `couch --resume pair:2` |
 | Archive and replace one slot's agent | `couch --reboot pair:2 --confirm` |
+| Restart an idle slot onto the current Pair binary, keeping its conversation | `couch --relaunch pair:2 --confirm` |
+| Give an idle slot a fresh agent conversation | `couch --reload-context pair:2 --confirm` |
 | End an orphaned server's tree (its socket is gone) | `couch --reap pair:2 --confirm` |
 | See a slot's resources and repair plan | `couch --show pair:2` |
 | Repair a slot's workspace now | `couch --reconcile pair:2` |
@@ -219,6 +221,38 @@ couch --send-to pair:4 --message 'Recovery (pair:4): restore this slot'\''s pair
      converge (for example its resting branch is checked out elsewhere); tell the
      `:0` agent. Note `workspace-unknown`: part of the workspace could not be
      observed; read the report again later.
+
+## Rolling out a new Pair binary to idle slots
+
+After `make build` in the checkout that owns `pair` (pair:0 in practice), move
+each idle slot onto the new binary without touching its conversation:
+
+```
+couch --relaunch pair:2 --confirm
+couch --reload-context pair:3 --confirm
+```
+
+- **`--relaunch`** is the console's Alt+n: it parks the slot and resumes it on
+  the current binary, keeping the conversation. **`--reload-context`** is
+  Shift+Alt+N: a fresh agent conversation in the same Pair, with no new
+  binary. Both work only from a live Couch slot and return a receipt.
+- **Refusals name the fix:**
+  - `busy`: a turn is open, the composer holds text, or input is recent.
+    Retry later.
+  - `busy-unknown`: at admission, the slot's wrapper predates idle reporting
+    or no session is connected. At the effect, the wrapper's idle state was
+    lost after a known-settled admission (a disconnect); look again later. The first
+    rollout of this feature is a manual Alt+n.
+  - `dirty`: the slot's checkout has uncommitted changes.
+  - `stale-binary`: relaunch would run the binary the slot already runs. Its
+    detail says `make build in <checkout>`.
+  - `not-live`: nothing is running there; use `--resume`.
+- **Overrides are the operator's call, never a retry tactic:**
+  - `--force-unknown` admits a slot that cannot report idleness.
+  - `--same-binary` relaunches onto an unchanged binary.
+- **A succeeded receipt proves only what Couch did.** `--peek` the slot
+  afterwards. A reload-context `failed` with code `unconfirmed` means the
+  signal landed but no restart was seen; peek before retrying.
 
 ## Setup and qualification
 

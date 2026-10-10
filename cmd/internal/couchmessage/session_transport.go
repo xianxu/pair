@@ -3,9 +3,12 @@ package couchmessage
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"net"
 	"os"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -13,9 +16,16 @@ import (
 // the ack; a refusal closes the connection without a Closed call. Frame and
 // Closed follow in the connection's own order.
 type SessionHandler struct {
-	Open   func(SessionToken, Binding) error
+	Open   func(SessionToken, SessionHello) error
 	Frame  func(SessionToken, SessionFrame)
 	Closed func(SessionToken)
+}
+
+// SessionHello is what a wrapper said when it connected. Build is non-nil
+// exactly for a hello-v2 session, the only kind that may report Settled.
+type SessionHello struct {
+	Binding Binding
+	Build   *BuildIdentity
 }
 
 // SessionServer holds long-lived wrapper connections on the registry socket.
@@ -95,9 +105,10 @@ func (s *SessionServer) serve(conn *net.UnixConn, token SessionToken, full bool)
 		return
 	}
 	hello, err := readSessionFrame(conn)
-	if err != nil || hello.Op != FrameHello {
+	if err != nil || (hello.Op != FrameHello && hello.Op != FrameHelloV2) {
 		return
 	}
+	v2 := hello.Op == FrameHelloV2
 	refuse := func(code string, err error) {
 		_ = writeSessionFrame(conn, SessionFrame{Op: FrameAck, Code: code, Error: err.Error()})
 	}
@@ -111,7 +122,7 @@ func (s *SessionServer) serve(conn *net.UnixConn, token SessionToken, full bool)
 		refuse("refused", errors.New("session peer is not the binding's process"))
 		return
 	}
-	if err := s.handler.Open(token, *hello.Binding); err != nil {
+	if err := s.handler.Open(token, SessionHello{Binding: *hello.Binding, Build: hello.Build}); err != nil {
 		refuse("refused", err)
 		return
 	}
@@ -124,7 +135,7 @@ func (s *SessionServer) serve(conn *net.UnixConn, token SessionToken, full bool)
 	}
 	for {
 		f, err := readSessionFrame(conn)
-		if err != nil || (f.Op != FrameActivity && f.Op != FrameSubmit) {
+		if err != nil || (f.Op != FrameActivity && f.Op != FrameSubmit) || (!v2 && f.Settled != nil) {
 			return // EOF is the wrapper's departure; a malformed frame ends only this session
 		}
 		s.handler.Frame(token, f)
@@ -163,6 +174,8 @@ type SessionClient struct {
 	have      bool
 	dirty     bool // activity not yet sent on the current connection
 	submit    bool // a submission not yet sent
+	build     *BuildIdentity
+	settled   bool
 	wake      chan struct{}
 	connected chan struct{} // test hook: signalled after each ack
 }
@@ -176,6 +189,24 @@ func (c *SessionClient) signal() {
 	case c.wake <- struct{}{}:
 	default:
 	}
+}
+
+// SetBuild opts the client into hello-v2 (#421). Call before Run.
+func (c *SessionClient) SetBuild(b BuildIdentity) {
+	c.mu.Lock()
+	c.build = &b
+	c.mu.Unlock()
+}
+
+// Settle records whether the wrapper is settled; it rides the next activity
+// frame, and only on a hello-v2 session.
+func (c *SessionClient) Settle(settled bool) {
+	c.mu.Lock()
+	if c.settled != settled {
+		c.settled, c.dirty = settled, c.have || c.dirty
+	}
+	c.mu.Unlock()
+	c.signal()
 }
 
 // Update records the wrapper's current observation; the sender coalesces.
@@ -219,6 +250,35 @@ func (c *SessionClient) Run(ctx context.Context, socket string, b Binding, backo
 	}
 }
 
+var errNoAck = errors.New("broker closed before acknowledging hello")
+
+// sessionHandshake sends hello (build == nil) or hello-v2 and reads the ack.
+func sessionHandshake(conn net.Conn, b Binding, build *BuildIdentity) error {
+	if err := conn.SetDeadline(time.Now().Add(AdmissionTimeout)); err != nil {
+		return err
+	}
+	hello := SessionFrame{Op: FrameHello, Binding: &b}
+	if build != nil {
+		hello = SessionFrame{Op: FrameHelloV2, Binding: &b, Build: build}
+	}
+	if err := writeSessionFrame(conn, hello); err != nil {
+		return err
+	}
+	ack, err := readSessionFrame(conn)
+	if err != nil {
+		// Only a close is an old broker's answer to hello-v2; a timeout is a
+		// slow broker, and downgrading it would cost the session Settled.
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, syscall.ECONNRESET) {
+			return fmt.Errorf("%w: %v", errNoAck, err)
+		}
+		return err
+	}
+	if ack.Op != FrameAck || ack.Code != "ok" {
+		return errors.New("session refused: " + ack.Error)
+	}
+	return nil
+}
+
 func (c *SessionClient) session(ctx context.Context, socket string, b Binding, minInterval time.Duration) error {
 	dialCtx, cancel := context.WithTimeout(ctx, AdmissionTimeout)
 	conn, err := (&net.Dialer{}).DialContext(dialCtx, "unix", socket)
@@ -227,18 +287,28 @@ func (c *SessionClient) session(ctx context.Context, socket string, b Binding, m
 		return err
 	}
 	defer conn.Close()
-	if err := conn.SetDeadline(time.Now().Add(AdmissionTimeout)); err != nil {
-		return err
-	}
-	if err := writeSessionFrame(conn, SessionFrame{Op: FrameHello, Binding: &b}); err != nil {
-		return err
-	}
-	ack, err := readSessionFrame(conn)
-	if err != nil {
-		return err
-	}
-	if ack.Op != FrameAck || ack.Code != "ok" {
-		return errors.New("session refused: " + ack.Error)
+	c.mu.Lock()
+	build := c.build
+	c.mu.Unlock()
+	v2 := build != nil
+	if err := sessionHandshake(conn, b, build); err != nil {
+		if !v2 || !errors.Is(err, errNoAck) {
+			return err
+		}
+		// An old broker drops an unknown hello without an ack: redial once
+		// with plain hello, and never send Settled on this connection.
+		conn.Close()
+		dialCtx, cancel := context.WithTimeout(ctx, AdmissionTimeout)
+		conn, err = (&net.Dialer{}).DialContext(dialCtx, "unix", socket)
+		cancel()
+		if err != nil {
+			return err
+		}
+		defer conn.Close()
+		if err := sessionHandshake(conn, b, nil); err != nil {
+			return err
+		}
+		v2 = false
 	}
 	if err := conn.SetDeadline(time.Time{}); err != nil {
 		return err
@@ -275,15 +345,20 @@ func (c *SessionClient) session(ctx context.Context, socket string, b Binding, m
 		c.mu.Lock()
 		f := SessionFrame{}
 		obs := c.latest
+		var settled *bool
+		if v2 {
+			v := c.settled
+			settled = &v
+		}
 		switch {
 		case c.submit:
-			f = SessionFrame{Op: FrameSubmit, Observation: &obs}
+			f = SessionFrame{Op: FrameSubmit, Observation: &obs, Settled: settled}
 			c.submit, c.dirty = false, false
 		case c.dirty && throttle == nil:
 			if wait := minInterval - time.Since(last); !last.IsZero() && wait > 0 {
 				throttle = time.After(wait)
 			} else {
-				f = SessionFrame{Op: FrameActivity, Observation: &obs}
+				f = SessionFrame{Op: FrameActivity, Observation: &obs, Settled: settled}
 				c.dirty = false
 			}
 		}

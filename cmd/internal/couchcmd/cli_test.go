@@ -151,6 +151,8 @@ func TestParseSlotOperationCLI(t *testing.T) {
 		// recover never asks: no --confirm (#399, 2026-10-07).
 		{args: []string{"--recover", "pair:2"}, op: "recover", ref: "pair:2"},
 		{args: []string{"--recover", "pa:0", "--json"}, op: "recover", ref: "pa:0", json: true},
+		// relaunch (pair#421) confirms: it stops a running agent.
+		{args: []string{"--relaunch", "pair:3", "--confirm"}, op: "relaunch", ref: "pair:3", confirmed: true},
 	} {
 		got, err := ParseCLI(tc.args, couchcore.Operations())
 		if err != nil || got.kind != cliMessage || got.messageOp != tc.op || got.ref != tc.ref || got.confirmed != tc.confirmed || got.jsonOutput != tc.json {
@@ -178,10 +180,24 @@ func TestParseSlotOperationCLIRejectsMalformedArgv(t *testing.T) {
 		{"a repeated confirmation", []string{"--reboot", "pair:1", "--confirm", "--confirm"}},
 		{"a layout flag", []string{"--resume", "pair:1", "--layout2"}},
 		{"a layout flag first", []string{"--layout2", "--resume", "pair:1"}},
+		{"relaunch without its declared confirmation", []string{"--relaunch", "pair:1"}},
+		{"relaunch overrides on another verb", []string{"--resume", "pair:1", "--force-unknown"}},
+		{"a repeated override", []string{"--relaunch", "pair:1", "--confirm", "--same-binary", "--same-binary"}},
 	} {
 		if got, err := ParseCLI(tc.args, couchcore.Operations()); err == nil || got.kind != cliInvalid {
 			t.Errorf("%s: accepted %q: %#v", tc.why, tc.args, got)
 		}
+	}
+}
+
+func TestParseRelaunchOverrides(t *testing.T) {
+	got, err := ParseCLI([]string{"--relaunch", "pair:1", "--force-unknown", "--confirm", "--same-binary", "--json"}, couchcore.Operations())
+	if err != nil || got.messageOp != "relaunch" || !got.confirmed || !got.jsonOutput || !got.sameBinary || !got.forceUnknown {
+		t.Fatalf("%#v %v", got, err)
+	}
+	plain, err := ParseCLI([]string{"--relaunch", "pair:1", "--confirm"}, couchcore.Operations())
+	if err != nil || plain.sameBinary || plain.forceUnknown {
+		t.Fatalf("overrides set without flags: %#v %v", plain, err)
 	}
 }
 

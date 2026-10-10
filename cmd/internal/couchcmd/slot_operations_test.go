@@ -26,11 +26,12 @@ type fakeSlotRunner struct {
 
 type fakeSlotJob struct {
 	key, op, target string
+	opts            couchcore.LiveRestartOptions
 	started         func()
 	finished        func(any, error)
 }
 
-func (f *fakeSlotRunner) run(key, op, target string, started func(), finished func(any, error)) error {
+func (f *fakeSlotRunner) run(key, op, target string, opts couchcore.LiveRestartOptions, started func(), finished func(any, error)) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.err != nil {
@@ -49,7 +50,7 @@ func (f *fakeSlotRunner) run(key, op, target string, started func(), finished fu
 		f.mu.Unlock()
 		finished(value, err)
 	}
-	f.jobs = append(f.jobs, fakeSlotJob{key, op, target, started, done})
+	f.jobs = append(f.jobs, fakeSlotJob{key, op, target, opts, started, done})
 	return nil
 }
 
@@ -415,5 +416,23 @@ func TestSlotOperationRecoverNeedsNoConfirmation(t *testing.T) {
 	outcome := slotOperationOutcome(nil, &couchcore.RecoverRefusal{Code: couchcore.RecoverHeld, Detail: "conflict:claim-elsewhere: claimed in pair:3"})
 	if outcome.Status != couchmessage.ReceiptRefused || outcome.Code != couchcore.RecoverHeld || !strings.Contains(outcome.Detail, "claim-elsewhere") {
 		t.Fatalf("outcome = %+v", outcome)
+	}
+}
+
+// pair#421: relaunch's overrides travel from the request to the queued job.
+func TestSlotOperationRelaunchCarriesOverrides(t *testing.T) {
+	r, runner, _ := slotRig(t)
+	b := r.world.add(0)
+	req := slotRequest(b, "relaunch", "id", "pair:1")
+	req.Confirmed, req.SameBinary, req.ForceUnknown = true, true, true
+	if resp := r.s.handle(context.Background(), req); resp.Code != "accepted" {
+		t.Fatalf("relaunch: %+v", resp)
+	}
+	if job := runner.job(0); job.op != "relaunch" || !job.opts.SameBinary || !job.opts.ForceUnknown {
+		t.Fatalf("job = %+v", job)
+	}
+	unconfirmed := slotRequest(b, "relaunch", "id2", "pair:1")
+	if resp := r.s.handle(context.Background(), unconfirmed); resp.Code != "confirmation-required" {
+		t.Fatalf("unconfirmed relaunch: %+v", resp)
 	}
 }

@@ -264,7 +264,11 @@ func TestSlotOperationCLIPollLoop(t *testing.T) {
 		}, 1, "", "couch: unavailable: caller not live", 1},
 		{"an older Couch without slot operations says to restart it", func(int, couchmessage.Request) (couchmessage.Response, error) {
 			return couchmessage.Response{Code: "invalid-request", Error: "unknown message operation"}, nil
-		}, 1, "", "the running Couch predates `couch --resume`/`--reboot`; restart Couch (switcher Alt+d, then `couch`) to use them", 1},
+		}, 1, "", "the running Couch predates `couch --resume`; restart Couch (switcher Alt+d, then `couch`) on the new binary to use it", 1},
+		// pair#421: a pre-421 Couch strict-decodes relaunch's override fields.
+		{"an older Couch rejecting new request fields says to restart it", func(int, couchmessage.Request) (couchmessage.Response, error) {
+			return couchmessage.Response{Code: "invalid-request", Error: `json: unknown field "SameBinary"`}, nil
+		}, 1, "", "the running Couch predates `couch --resume`", 1},
 		{"polling past the budget is uncertain", admitThen(running), 1, "", uncertainLine, 0},
 		{"a receipt Couch no longer holds is uncertain", admitThen(receiptResponse("ok", couchmessage.ReceiptUnknown)), 1, "", uncertainLine, 2},
 		{"a dial error mid-poll is uncertain", func(n int, r couchmessage.Request) (couchmessage.Response, error) {
@@ -430,4 +434,41 @@ func skillCommands(skill string) []string {
 		commands = append(commands, m[1])
 	}
 	return commands
+}
+
+// pair#424: the ROUTER, not runSlotOperationCLI, decides which path a verb
+// takes. Drive every declared slot operation from parsed argv through
+// runMessageCLIWithCall: each must reach the broker as an operation request
+// with an ID (the message path sends none).
+func TestEverySlotOperationIsRoutedToTheSlotPath(t *testing.T) {
+	n := 0
+	for _, op := range couchcore.Operations() {
+		if !couchcore.IsSlotOperation(op.Name) {
+			continue
+		}
+		n++
+		argv := []string{"--" + op.Name, "pair:1"}
+		if confirms, _ := couchcore.OperationConfirms(op.Name); confirms {
+			argv = append(argv, "--confirm")
+		}
+		inv, err := ParseCLI(argv, couchcore.Operations())
+		if err != nil {
+			t.Fatalf("%s: parse: %v", op.Name, err)
+		}
+		var requests []couchmessage.Request
+		call := func(_ context.Context, _ string, request any, response any) error {
+			r := request.(couchmessage.Request)
+			requests = append(requests, r)
+			*(response.(*couchmessage.Response)) = receiptResponse("accepted", couchmessage.ReceiptSucceeded, func(rc *couchmessage.OperationReceipt) { rc.Op = r.Op })
+			return nil
+		}
+		var out, errout bytes.Buffer
+		code := runMessageCLIWithCall(inv, messageRuntime(), &out, &errout, call)
+		if code != 0 || len(requests) != 1 || requests[0].Op != op.Name || requests[0].ID == "" || requests[0].Target != "pair:1" {
+			t.Errorf("%s: exit %d, requests %+v, stderr %q", op.Name, code, requests, errout.String())
+		}
+	}
+	if n < 6 {
+		t.Fatalf("only %d slot operations enumerated", n)
+	}
 }

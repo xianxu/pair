@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 )
 
@@ -19,7 +20,9 @@ func runMessageCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer) int 
 }
 
 func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, call messageCall) int {
-	if inv.messageOp == "resume" || inv.messageOp == "reboot" || inv.messageOp == "reap" || inv.messageOp == "recover" {
+	// The one verb list (pair#424): a hand-kept list here let relaunch and
+	// reload-context fall through to the message path, which sends no ID.
+	if couchcore.IsSlotOperation(inv.messageOp) {
 		return runSlotOperationCLI(inv, rt, stdout, stderr, call, slotPollClock{now: time.Now, sleep: time.Sleep})
 	}
 	if inv.messageOp == "broadcast-status" {
@@ -159,6 +162,7 @@ func runSlotOperationCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer
 	}
 	admit := callerIdentity(rt, inv.messageOp)
 	admit.Target, admit.Confirmed = inv.ref, inv.confirmed
+	admit.SameBinary, admit.ForceUnknown = inv.sameBinary, inv.forceUnknown
 	if admit.ID, err = newRequestID(); err != nil {
 		fmt.Fprintln(stderr, "couch: create request ID:", err)
 		return 1
@@ -183,9 +187,9 @@ func runSlotOperationCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer
 		return uncertain(err.Error())
 	case result.Code == "uncertain":
 		return uncertain(result.Error)
-	case result.Code == "invalid-request" && strings.Contains(result.Error, "unknown message operation"):
+	case result.Code == "invalid-request" && (strings.Contains(result.Error, "unknown message operation") || strings.Contains(result.Error, "unknown field")):
 		// The running Couch is older than this CLI: it has no slot operations.
-		fmt.Fprintln(stderr, "couch: the running Couch predates `couch --resume`/`--reboot`; restart Couch (switcher Alt+d, then `couch`) to use them")
+		fmt.Fprintf(stderr, "couch: the running Couch predates `couch --%s`; restart Couch (switcher Alt+d, then `couch`) on the new binary to use it\n", inv.messageOp)
 		return 1
 	case result.Code != "accepted" || result.Operation == nil:
 		fmt.Fprintf(stderr, "couch: %s: %s\n", result.Code, result.Error)

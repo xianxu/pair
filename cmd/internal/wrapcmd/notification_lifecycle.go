@@ -241,6 +241,11 @@ func (p *proxy) publishLifecycleObservation(observation TurnObservation) {
 func (p *proxy) processLifecycleObservation(observation TurnObservation) {
 	state, decision := Reduce(p.notificationLifecycle, observation)
 	p.notificationLifecycle = state
+	// The settle check reads turnActive off this goroutine (#421), and a turn
+	// can open or close here with no output to re-arm it.
+	if p.turnActive.Swap(state.Active) != state.Active && p.peer != nil {
+		p.peer.lifecycleTurnChanged(state.Active)
+	}
 	if decision.Notify {
 		p.emitOuter(decision.Message)
 	}

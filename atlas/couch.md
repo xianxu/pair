@@ -230,6 +230,28 @@ verification window are gone. Wrappers from older binaries still send
 `register` and are answered `unsupported` at no cost; their slots receive again
 after a relaunch.
 
+**Settled and build identity (#421).** A wrapper also reports whether a restart
+now would interrupt nothing (`Settled`) and which executable it runs (`Build`:
+content sha256, vcs revision and dirty bit, via
+`couchmessage.BuildIdentityOfFile`).
+- **What Settled means:** no turn is open (an atomic mirror of the
+  notification lifecycle), no overlay is up, the composer reads empty through
+  the recognizer peer delivery uses, and nothing is pending.
+- **When it is checked:** only after `wrapcmd.SettleInterval` (3s) without
+  output or input (`peer_settle.go`), so a streaming agent pays nothing. Any
+  activity unsettles the wrapper at once.
+- **Negotiated per connection, because every session frame decodes strictly:**
+  - A wrapper with a known build sends `hello-v2` (binding plus `Build`).
+  - An old broker drops that without an ack, and the wrapper redials with
+    plain `hello`.
+  - Only a hello-v2 session may put `Settled` on activity and submit frames.
+    A legacy session that does is ended as malformed.
+- **Field placement:** neither `Binding` (the actor key) nor `Observation`
+  (which also crosses the delivery endpoint) carries the new fields.
+- **Reading it:** the registry keeps the newest admitted incarnation's claims,
+  and `messageService.SlotLiveness(slot)` reads them lock-free. A nil `Build`
+  or `Settled` means unknown, never idle.
+
 **What delivery does and does not promise (#365).** Messaging promises
 at-most-once input to the wrapper's PTY, not exactly-once task execution. The
 remaining uncertainty is stated, never papered over:
@@ -263,9 +285,17 @@ exact-version allowlist was removed in #360 after auto-updates silently dropped
 slots). Fixtures under `wrapcmd/testdata/peer/` and `TestPeerLiveConformance`
 were captured on Claude Code 2.1.286 and Codex CLI 0.159.2; per-version
 evidence from daily use is #368. Short-message submission
-has live evidence for both; deterministic wrapping is matched conservatively.
-Collapsed paste summaries remain unsubmitted and expire. Human Couch acceptance
-remains a separate step.
+has live evidence for both; deterministic wrapping is matched conservatively,
+per harness. Claude's rule is `peerSpaceWordwrap`'s doc comment (the one
+statement of it), while Codex uses `ansi.Wordwrap`, which also breaks after
+hyphens. Projecting Claude
+with `ansi.Wordwrap` failed every long message whose hyphenated path straddled
+the wrap column (#418). Claude collapses a long paste to `[Pasted text #N +M
+lines]`. That marker is accepted only in its strict form: it is the composer's
+whole content, the cursor sits right after it, `M` equals the envelope's newline
+count, and the composer was verified empty before the paste. The body itself
+can't be checked; that trade was the operator's decision in #418. Human Couch
+acceptance remains a separate step.
 
 Single-line suggested prompts in recognized agent composers use shared ANSI faint styling
 and the cursor at the input origin, independent of wording or RGB color.
@@ -381,6 +411,75 @@ evidence dimension and proves the defensive `no-rule` class unreachable. The
 report writes nothing. Each step's `command` is `SlotOperationCommand` (adds
 `--confirm` exactly when the declaration requires it) or `SendToCommand` with
 the shell-quoted restore message; tests shell-split and parse every one.
+
+**Relaunching a live idle slot (pair#421).** `couch --relaunch repo:N
+--confirm [--same-binary] [--force-unknown]` does from another agent's shell
+what Alt+n does in the console. It parks the slot and cold-resumes it on the
+current binary, keeping the conversation, and rides the slot-operation path
+below. The verb is in the one list (`couchcore.IsSlotOperation`) that the
+protocol, the socket and admission all read.
+
+**Admission.** Relaunch acts on LIVE rows, which `ActorActions` never offers
+anything for. So `PrepareSlotOperation` hands it to `prepareLiveRestart`:
+`DecideLiveRestart` over the facts a `LiveRestartProbe` gathers on the console
+queue (`couchcmd.liveRestartProbe`). The checks run in order, so the receipt
+names the first thing to fix:
+
+| Code | When |
+|------|------|
+| `not-live` | Nothing is running in the slot; use `--resume`. |
+| `busy-unknown` | No wrapper session, or one that predates Settled. `--force-unknown` overrides, and the receipt notes it. |
+| `busy` | The slot's wrapper reports it is not Settled. |
+| `dirty` | `git status --porcelain` on the slot's checkout is non-empty or unreadable. |
+| `stale-binary` | `pair` on Couch's PATH has the same content hash as the slot's running executable. |
+| `unavailable` | This Couch cannot probe live slots. |
+
+**Freshness.** The stale-binary refusal names the fix: `make build in
+<checkout>`, where the checkout is bin/pair's parent and pair:0 in practice.
+It is skipped under `PAIR_DEV`, which slots inherit from Couch's environment
+(`mergeChildEnvironment`), because the relaunch's `dev_rebuild` rebuilds
+anyway. `--same-binary` also overrides it. When the binary is newer but
+behind its checkout's HEAD, or was built from a dirty tree, the note says so
+without refusing.
+
+**Reload-context (pair#421 M3).** `couch --reload-context repo:N --confirm
+[--force-unknown]` does what Shift+Alt+N (`pair agent restart`) does: a fresh
+agent conversation in the same Pair process. It does not pick up a new binary;
+use relaunch for that.
+- **Admission:** the same rule as relaunch, minus freshness.
+- **Effect:** `Couch.ReloadContext` re-checks liveness under the thread's
+  hold, then calls `LiveRestartProbe.RestartConversation`. That signals the
+  wrapper the broker holds for the thread, never a pid file. It first
+  re-checks `ProcOps.Identity(Binding.PID) == Binding.Start`, then sends
+  SIGUSR2.
+- **Confirmation:** a SIGUSR2 re-exec keeps the binding byte-identical, so
+  success means a new session token (`SlotLiveness.Session`) within 20s.
+  Otherwise the receipt is `failed` with code `unconfirmed`, saying to peek
+  before retrying. A finish cannot be "unknown".
+- **Admission note:** it reaches the receipt on success and on failure
+  (`withAdmissionNote`).
+
+**Admission to effect (pair#421).** The console queue runs between
+admission and effect, so both verbs re-check the busy guard at the effect.
+Admission records its evidence in the implicit `require-settled` argument:
+`known` (the wrapper said settled) or `forced` (`--force-unknown` admitted an
+unknown).
+- **At the effect** (`LiveRestartProbe.ConfirmNotBusy` before relaunch's
+  park, and inside `RestartConversation` before reload's signal):
+  - a wrapper that now says it is NOT settled is refused (`busy`);
+  - unknown (session gone, or no claim) passes only when admission was
+    `forced`, so a disconnect after a known-settled admission is refused
+    (`busy-unknown`).
+- **Scope:** the console's own Alt+n carries no `require-settled` and is
+  ungated, because the operator is looking at the slot.
+- **Rollout workflow** for agents: `couch --skill`, section "Rolling out a new
+  Pair binary to idle slots".
+
+**Arguments and the receipt.** The admitted call addresses the row by thread
+(`repo-scope` and `tag`), the dialect the relaunch dispatch reads. The probe
+finds the slot's wrapper the same way, by thread rather than by the
+`repo:N` spelling (`messageService.LivenessForThread`). The admission note
+reaches the receipt's `Warning` through `couchcmd.notedResult`.
 
 **Slot operations through the running Couch (M2).** `couch --resume repo:N`
 and `couch --reboot repo:N --confirm` act on one slot from a live Couch slot:
