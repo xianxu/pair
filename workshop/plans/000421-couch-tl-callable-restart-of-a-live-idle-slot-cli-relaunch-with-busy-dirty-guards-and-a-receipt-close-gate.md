@@ -161,6 +161,46 @@ rounds:
       recipe: milestone-review
       reviewed: 2c3a0ad9d21a94272f7a19857f735c03ebd9e333
       blocked: false
+    - "n": 6
+      timestamp: "2026-10-10T00:50:56-07:00"
+      agent: claude
+      findings:
+        - id: BR-14
+          severity: Important
+          title: reload-context dispatch case and its not-live check are untested (deleting the executor case fails no reload-context test)
+          detail: '3rd in family. Rule: every ExecuteLiveOwner operation in Operations() must be reachable through CouchLiveOwnerExecutor. Add a table test that dispatches each one via DispatchOperation and asserts no unknown-operation error, plus a ReloadContext not-live case (LiveRestartNotLive, no probe restart). Mutation run: with the case removed, couchcore''s only failures were sandbox pty denials and a git-less scratch tree.'
+          family: safety-guard-wiring-untested
+          round: 6
+        - id: BR-15
+          severity: Important
+          title: Settled (busy) guard is checked at admission but not re-checked under the thread hold before SIGUSR2 or relaunch
+          detail: The ReloadContext comment admits the queue runs between admission and effect, yet it re-checks only liveness. RestartConversation already holds before.Settled; refuse unless known true, apply the same check to Relaunch, and add a test where the snapshot flips to unsettled between admission and effect.
+          family: guard-rechecked-at-effect
+          round: 6
+        - id: BR-16
+          severity: Important
+          title: Plan still places ReloadContext in reload_context.go and describes a shared SignalWrapper helper and helper-extraction tests
+          detail: '3rd in family. Rule: each Revisions delta names the identifiers and paths it replaces, and its commit greps the plan body and marks every hit superseded (table rows, prose, milestone rows). Sweep reload_context.go, SignalWrapper/SignalVerifiedWrapper, and "helper extraction".'
+          family: revision-supersedes-body-unmarked
+          round: 6
+        - id: BR-17
+          severity: Minor
+          title: A reload-context success receipt carries no Tag, unlike the documented "names the thread left running"
+          family: typed-outcome-survives-boundary
+          round: 6
+        - id: BR-18
+          severity: Minor
+          title: --same-binary is silently accepted with --reload-context; refuse it instead
+          family: override-accepted-without-effect
+          round: 6
+        - id: BR-19
+          severity: Minor
+          title: RestartConversation's cancelled-context path has no test
+          family: safety-guard-wiring-untested
+          round: 6
+      boundary: M3
+      recipe: milestone-review
+      blocked: true
 ---
 
 # Gate ledger — pair#421 (boundary-review)
@@ -232,7 +272,27 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-13** [Minor] `safety-guard-wiring-untested` Admission note surviving a failed slot operation (message_service.go:338) has no regression test
   2nd finding in this family. Rule: every closure that adapts a queue result into a receipt needs a test driving it with err != nil. Restoring the `&& err == nil` guard leaves all tests green.
 
+## Round 6 — 2026-10-10T00:50:56-07:00 (claude) — BLOCKED
+
+### Raised
+
+- **BR-14** [Important] `safety-guard-wiring-untested` reload-context dispatch case and its not-live check are untested (deleting the executor case fails no reload-context test)
+  3rd in family. Rule: every ExecuteLiveOwner operation in Operations() must be reachable through CouchLiveOwnerExecutor. Add a table test that dispatches each one via DispatchOperation and asserts no unknown-operation error, plus a ReloadContext not-live case (LiveRestartNotLive, no probe restart). Mutation run: with the case removed, couchcore's only failures were sandbox pty denials and a git-less scratch tree.
+- **BR-15** [Important] `guard-rechecked-at-effect` Settled (busy) guard is checked at admission but not re-checked under the thread hold before SIGUSR2 or relaunch
+  The ReloadContext comment admits the queue runs between admission and effect, yet it re-checks only liveness. RestartConversation already holds before.Settled; refuse unless known true, apply the same check to Relaunch, and add a test where the snapshot flips to unsettled between admission and effect.
+- **BR-16** [Important] `revision-supersedes-body-unmarked` Plan still places ReloadContext in reload_context.go and describes a shared SignalWrapper helper and helper-extraction tests
+  3rd in family. Rule: each Revisions delta names the identifiers and paths it replaces, and its commit greps the plan body and marks every hit superseded (table rows, prose, milestone rows). Sweep reload_context.go, SignalWrapper/SignalVerifiedWrapper, and "helper extraction".
+- **BR-17** [Minor] `typed-outcome-survives-boundary` A reload-context success receipt carries no Tag, unlike the documented "names the thread left running"
+- **BR-18** [Minor] `override-accepted-without-effect` --same-binary is silently accepted with --reload-context; refuse it instead
+- **BR-19** [Minor] `safety-guard-wiring-untested` RestartConversation's cancelled-context path has no test
+
 ## Open findings
 
 - **BR-6** [Minor] `derived-state-misses-source-transitions` A silent turn change does not advance the settle generation, so an in-flight check can re-assert Settled=true
 - **BR-13** [Minor] `safety-guard-wiring-untested` Admission note surviving a failed slot operation (message_service.go:338) has no regression test
+- **BR-14** [Important] `safety-guard-wiring-untested` reload-context dispatch case and its not-live check are untested (deleting the executor case fails no reload-context test)
+- **BR-15** [Important] `guard-rechecked-at-effect` Settled (busy) guard is checked at admission but not re-checked under the thread hold before SIGUSR2 or relaunch
+- **BR-16** [Important] `revision-supersedes-body-unmarked` Plan still places ReloadContext in reload_context.go and describes a shared SignalWrapper helper and helper-extraction tests
+- **BR-17** [Minor] `typed-outcome-survives-boundary` A reload-context success receipt carries no Tag, unlike the documented "names the thread left running"
+- **BR-18** [Minor] `override-accepted-without-effect` --same-binary is silently accepted with --reload-context; refuse it instead
+- **BR-19** [Minor] `safety-guard-wiring-untested` RestartConversation's cancelled-context path has no test

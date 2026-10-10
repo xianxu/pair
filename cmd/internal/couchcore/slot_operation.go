@@ -38,9 +38,12 @@ func IsSlotOperation(op string) bool { return slices.Contains(slotOperations, op
 
 // SlotOperationTakesOverrides reports whether op accepts the pair#421
 // live-restart overrides (--same-binary, --force-unknown).
-// --same-binary only changes relaunch's outcome, but both live verbs accept
-// --force-unknown; the request carries both and admission reads each.
-func SlotOperationTakesOverrides(op string) bool { return op == OpRelaunch || op == OpReloadContext }
+// SlotOperationTakesForceUnknown: both live verbs accept --force-unknown.
+func SlotOperationTakesForceUnknown(op string) bool { return op == OpRelaunch || op == OpReloadContext }
+
+// SlotOperationTakesSameBinary: only relaunch has a freshness rule to override,
+// so --same-binary anywhere else is refused rather than silently ignored.
+func SlotOperationTakesSameBinary(op string) bool { return op == OpRelaunch }
 
 // SelectSlotRow picks the one actionable row that stands for a slot: a :N
 // slot row by its host checkout, or, for :0, the row IsPrimaryRow accepts (a

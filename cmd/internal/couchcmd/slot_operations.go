@@ -184,6 +184,9 @@ func slotOperationOutcome(value any, err error) couchmessage.ReceiptOutcome {
 			out.Tag = string(started.Record.Thread.Tag)
 		}
 	}
+	if tagged, ok := value.(interface{ ReceiptTag() string }); ok && out.Tag == "" {
+		out.Tag = tagged.ReceiptTag()
+	}
 	if reboot, ok := value.(couchcore.RebootResult); ok {
 		out.Archived = string(reboot.Archived.Tag)
 	}
@@ -206,6 +209,13 @@ func (n notedResult) Started() (couchcore.StartResult, bool) {
 		return child.Started()
 	}
 	return couchcore.StartResult{}, false
+}
+
+func (n notedResult) ReceiptTag() string {
+	if tagged, ok := n.value.(interface{ ReceiptTag() string }); ok {
+		return tagged.ReceiptTag()
+	}
+	return ""
 }
 
 func (n notedResult) ReceiptCode() string {

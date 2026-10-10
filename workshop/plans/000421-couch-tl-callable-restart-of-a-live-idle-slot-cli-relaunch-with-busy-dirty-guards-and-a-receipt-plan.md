@@ -82,7 +82,7 @@ no turn is open. The supervisor reads that fact at admission, alongside
 | `SlotLiveness` lookup *(superseded: `messageService.LivenessForThread(scope, tag)`; M2 deltas)* | `cmd/internal/couchcmd/message_service.go` | new | registry liveness snapshot by thread |
 | `ProbeSlotGit` | `cmd/internal/couchcore/slotgit.go` | existing | `git status` |
 | `BinaryProbe` *(superseded: `liveRestartProbe.binaryFacts`, behind the `LiveRestartProbe` interface; M2 deltas)* | `cmd/internal/couchcmd/live_restart_probe.go` | new | `exec.LookPath`, `debug/buildinfo`, `git rev-parse` |
-| `ReloadContext` | `cmd/internal/couchcore/reload_context.go` | new | SIGUSR2 to the broker-verified wrapper PID *(superseded the pid file; Revisions PQ-1)* |
+| `ReloadContext` *(superseded location: `Couch.ReloadContext` in `cmd/internal/couchcore/live_restart.go`; the signal in `couchcmd/live_restart_probe.go` `RestartConversation`; M3 deltas)* | `cmd/internal/couchcore/reload_context.go` | new | SIGUSR2 to the broker-verified wrapper PID *(superseded the pid file; Revisions PQ-1)* |
 
 - **SlotLiveness** is injected into `Couch` (an interface with
   `Liveness(slot string) (Observation, Binding, bool)`), so admission tests use a
@@ -91,7 +91,8 @@ no turn is open. The supervisor reads that fact at admission, alongside
 - **ReloadContext** resolves the row's tag and data dir to the scoped
   `PairWrapPID` *(superseded: the broker's verified Binding PID; Revisions PQ-1)* (the same artifact family `agentcmd.RunRestart` reads) and sends
   SIGUSR2. It shares one helper with `agentcmd` (ARCH-DRY: extract
-  `artifactpath`-scoped `SignalWrapper(dataDir, tag, sig)`).
+  `artifactpath`-scoped `SignalWrapper(dataDir, tag, sig)`). *(Superseded: no shared helper; the verified
+  signal is `liveRestartProbe.RestartConversation`, and `agentcmd` is unchanged; M3 deltas.)*
 - **Fakes:** the existing `slot_operations` and console fakes take the new
   ops. The wrapper settle has a clock seam (`now`, timer injection) as
   `peerDelivery` does.
@@ -122,10 +123,13 @@ wrapper.
     behind HEAD, unknown build info), CLI parse cases, and dispatch through
     the existing slot-operation fake, end to end to a receipt.
 - [ ] **M3 — `couch --reload-context repo:N`.** The same admission without the
-  freshness rule; execution signals the slot's pair-wrap via the shared helper.
+  freshness rule; execution signals the slot's pair-wrap via the shared helper *(superseded: via
+  `LiveRestartProbe.RestartConversation`, no shared helper; M3 deltas)*.
   The receipt is `succeeded` once the signal is delivered *(superseded: succeeded only on a new Binding within 20s, else unknown/unconfirmed; Revisions PQ-4)*. Verifying that a
   fresh conversation actually started is via `--peek`; the receipt says so.
-  - Tests: helper extraction, keeping `agentcmd` tests green; dispatch with a
+  - Tests: helper extraction, keeping `agentcmd` tests green *(superseded: no extraction; the tests are
+    `TestRestartConversationVerifiedAndConfirmed`, `TestReloadContextAdmissionAndEffect`,
+    `TestEveryLiveOwnerOperationIsDispatched`; M3 deltas)*; dispatch with a
     fake signaller.
 - [ ] **M4 — live check, docs.** A live relaunch and reload of a real idle slot
   through the socket: `pair:2` if free, else a disposable Couch, confirmed
@@ -159,7 +163,7 @@ wrapper.
   the broker's live `Binding` for the exact slot, re-checks
   `OSProcOps.Identity(Binding.PID) == Binding.Start` (the identity the wrapper
   published, `peer_runtime.go:136`), and only then sends SIGUSR2. The shared
-  helper is `SignalVerifiedWrapper(proc, binding, sig)`; `agentcmd` keeps its
+  helper is `SignalVerifiedWrapper(proc, binding, sig)` *(superseded: `RestartConversation`, no shared helper; M3 deltas)*; `agentcmd` keeps its
   in-slot pid-file path, which is correct there.
 - **PQ-2 (wire contract).** Neither `Binding` (the broker actor key) nor any
   frame an old peer can see changes. Session frames decode strictly (unknown
@@ -250,3 +254,20 @@ wrapper.
 - **Overrides:** `--force-unknown` applies to reload-context too
   (`SlotOperationTakesOverrides`). `--same-binary` is accepted but has no
   effect there.
+
+### 2026-10-10 — M3 close review round 1 (BR-14..16)
+- **Guard at effect (BR-15):** both verbs re-check the busy guard at the
+  effect, because the console queue runs between admission and effect.
+  Reload-context does it before its signal; relaunch does it through
+  `LiveRestartProbe.ConfirmNotBusy`, reached via the implicit
+  `require-settled` argument that only remote admission sets. The console's
+  own Alt+n is ungated. Relaunch's arity is now 4.
+- **Dispatch coverage (BR-14):** `TestEveryLiveOwnerOperationIsDispatched`
+  covers every live-owner declaration.
+- **Plan sweep (BR-16):** every identifier this delta and M3's replaced
+  (`reload_context.go`, `SignalWrapper`, `SignalVerifiedWrapper`, helper
+  extraction) is marked inline in the body above.
+- **Minors:**
+  - `--same-binary` is refused on reload-context.
+  - Reload success receipts carry the thread tag (`ReceiptTag`).
+  - The cancelled-wait path is tested.

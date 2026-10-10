@@ -239,3 +239,47 @@ func TestParseReloadContext(t *testing.T) {
 		t.Fatal("reload-context without --confirm")
 	}
 }
+
+// BR-15: a wrapper that is busy NOW is refused at the effect, before any
+// signal; unknown passes (admission gated it); a cancelled wait is unconfirmed.
+func TestRestartEffectRechecksBusyAndCancellation(t *testing.T) {
+	addr := couchcore.ThreadAddress{RepoScope: "s1", Tag: "t1"}
+	binding := couchmessage.Binding{Slot: "pair:1", Scope: "s1", Tag: "t1", PID: 4242, Start: "start-4242"}
+	no := false
+	probe := func(settled *bool) (*liveRestartProbe, *couchcore.FakeProcOps) {
+		svc := &messageService{}
+		live := map[string]couchmessage.SlotLiveness{"pair:1": {Binding: binding, Session: 7, Settled: settled}}
+		svc.liveness.Store(&live)
+		proc := couchcore.NewFakeProcOps()
+		proc.Set(4242, "start-4242")
+		p := &liveRestartProbe{proc: proc, confirmWithin: time.Second, pollEvery: 5 * time.Millisecond}
+		p.service.Store(svc)
+		return p, proc
+	}
+	p, proc := probe(&no)
+	if err := p.RestartConversation(context.Background(), addr); err == nil || len(proc.Signals[4242]) != 0 {
+		t.Fatalf("busy at effect: %v signals %v", err, proc.Signals[4242])
+	}
+	if err := p.ConfirmNotBusy(context.Background(), addr); err == nil {
+		t.Fatal("relaunch re-check passed a busy slot")
+	}
+	p, _ = probe(nil)
+	if err := p.ConfirmNotBusy(context.Background(), addr); err != nil {
+		t.Fatalf("unknown at effect must pass (admission gated it): %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	var unconfirmed *couchcore.ReloadUnconfirmed
+	if err := p.RestartConversation(ctx, addr); !errors.As(err, &unconfirmed) || !strings.Contains(err.Error(), "cancelled") {
+		t.Fatalf("cancelled wait: %v", err)
+	}
+	if out := slotOperationOutcome(couchcore.ReloadContextResult{Address: addr}, nil); out.Tag != "t1" {
+		t.Fatalf("reload success names no thread: %+v", out)
+	}
+}
+
+func TestReloadContextRefusesSameBinary(t *testing.T) {
+	if _, err := ParseCLI([]string{"--reload-context", "pair:2", "--confirm", "--same-binary"}, couchcore.Operations()); err == nil {
+		t.Fatal("--same-binary accepted on reload-context")
+	}
+}

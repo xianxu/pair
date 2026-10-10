@@ -84,8 +84,11 @@ func ValidateRequest(r Request) error {
 	if r.Confirmed && !couchcore.IsSlotOperation(r.Op) {
 		return errors.New("a confirmation applies only to slot operations")
 	}
-	if (r.SameBinary || r.ForceUnknown) && !couchcore.SlotOperationTakesOverrides(r.Op) {
-		return errors.New("--same-binary and --force-unknown apply only to relaunch")
+	if r.SameBinary && !couchcore.SlotOperationTakesSameBinary(r.Op) {
+		return errors.New("--same-binary applies only to relaunch")
+	}
+	if r.ForceUnknown && !couchcore.SlotOperationTakesForceUnknown(r.Op) {
+		return errors.New("--force-unknown applies only to relaunch and reload-context")
 	}
 	switch {
 	case couchcore.IsSlotOperation(r.Op):

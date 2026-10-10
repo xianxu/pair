@@ -99,6 +99,9 @@ func (p *liveRestartProbe) RestartConversation(ctx context.Context, address couc
 	if p.proc == nil {
 		return &couchcore.SlotOperationError{Code: couchcore.LiveRestartUnavailable, Detail: "this Couch cannot signal processes"}
 	}
+	if err := refuseKnownBusy(before, tag); err != nil {
+		return err
+	}
 	pid := before.Binding.PID
 	if identity, err := p.proc.Identity(pid); err != nil || identity != before.Binding.Start {
 		return &couchcore.SlotOperationError{Code: couchcore.LiveRestartBusyUnknown,
@@ -135,4 +138,23 @@ func withAdmissionNote(note *string, finished func(any, error)) func(any, error)
 		}
 		finished(value, err)
 	}
+}
+
+// ConfirmNotBusy is relaunch's effect-time re-check (pair#421 M3 review): the
+// same rule reload-context applies just before its signal.
+func (p *liveRestartProbe) ConfirmNotBusy(_ context.Context, address couchcore.ThreadAddress) error {
+	live, ok := p.service.Load().LivenessForThread(address.RepoScope, string(address.Tag))
+	if !ok {
+		return nil // unknown: admission gated it behind --force-unknown
+	}
+	return refuseKnownBusy(live, string(address.Tag))
+}
+
+// refuseKnownBusy is the one effect-time rule for both verbs: a slot whose
+// wrapper now says it is NOT settled is refused; no claim at all passes.
+func refuseKnownBusy(live couchmessage.SlotLiveness, tag string) error {
+	if live.Settled != nil && !*live.Settled {
+		return &couchcore.SlotOperationError{Code: couchcore.LiveRestartBusy, Detail: tag + " became busy after it was admitted; nothing was done"}
+	}
+	return nil
 }

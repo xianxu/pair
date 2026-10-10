@@ -160,7 +160,17 @@ type LiveRestartProbe interface {
 	// a fresh agent conversation, re-checking the process identity first, and
 	// returns once a new session proves the restart (ReloadUnconfirmed if not).
 	RestartConversation(ctx context.Context, address ThreadAddress) error
+	// ConfirmNotBusy re-checks, at the effect, the Settled claim admission
+	// read: the console queue ran in between (pair#421 M3 review). A known
+	// busy refuses; unknown passes, because admission gated it behind
+	// --force-unknown.
+	ConfirmNotBusy(ctx context.Context, address ThreadAddress) error
 }
+
+// requireSettledArg marks a relaunch admitted by prepareLiveRestart, so its
+// dispatch re-checks the guard at the effect. The console's own Alt+n never
+// sets it: the operator is looking at the slot.
+const requireSettledArg = "require-settled"
 
 // ReloadUnconfirmed: the signal was delivered but no new wrapper session was
 // seen in time. The restart may still be under way, so the caller peeks before
@@ -171,6 +181,9 @@ func (e *ReloadUnconfirmed) Error() string { return "unconfirmed: " + e.Detail }
 
 // ReloadContextResult is a confirmed reload-context.
 type ReloadContextResult struct{ Address ThreadAddress }
+
+// ReceiptTag names the thread left running, like a start's tag.
+func (r ReloadContextResult) ReceiptTag() string { return string(r.Address.Tag) }
 
 // ReloadContext is Shift+Alt+N from outside the slot (pair#421): a fresh agent
 // conversation in the same Pair process. Admission (prepareLiveRestart) already
@@ -218,5 +231,8 @@ func (c *Couch) prepareLiveRestart(ctx context.Context, op, target string, row A
 		return OperationCall{}, "", &SlotOperationError{Code: d.Code, Detail: detail}
 	}
 	args := map[string]string{"repo-scope": row.Address.RepoScope, "tag": string(row.Address.Tag)}
+	if op == OpRelaunch {
+		args[requireSettledArg] = "true"
+	}
 	return OperationCall{Name: op, Args: args, Implicit: true, Context: ctx}, d.Note, nil
 }

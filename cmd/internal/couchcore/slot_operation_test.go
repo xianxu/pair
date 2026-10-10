@@ -187,6 +187,13 @@ type fakeLiveRestartProbe struct {
 	asked      []string
 	restarts   []ThreadAddress
 	restartErr error
+	busyErr    error
+	busyChecks []ThreadAddress
+}
+
+func (f *fakeLiveRestartProbe) ConfirmNotBusy(_ context.Context, a ThreadAddress) error {
+	f.busyChecks = append(f.busyChecks, a)
+	return f.busyErr
 }
 
 func (f *fakeLiveRestartProbe) RestartConversation(_ context.Context, a ThreadAddress) error {
@@ -229,7 +236,7 @@ func TestPrepareSlotOperationRelaunchLive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]string{"repo-scope": scope.Key, "tag": string(created.Address.Tag)}
+	want := map[string]string{"repo-scope": scope.Key, "tag": string(created.Address.Tag), "require-settled": "true"}
 	if call.Name != "relaunch" || !call.Implicit || !maps.Equal(call.Args, want) {
 		t.Fatalf("call = %+v", call)
 	}
@@ -306,5 +313,83 @@ func TestReloadContextAdmissionAndEffect(t *testing.T) {
 	// Dispatch reaches it through the declared operation.
 	if confirms, _ := OperationConfirms(OpReloadContext); !confirms {
 		t.Fatal("reload-context must require confirmation: it ends a conversation")
+	}
+}
+
+// BR-14 rule (M3 review, 3rd in the safety-guard-wiring family): EVERY
+// live-owner operation is reachable through the live-owner executor. With a
+// cancelled context each fails early, but never as "not a live-owner
+// operation", which is what a missing dispatch case looks like.
+func TestEveryLiveOwnerOperationIsDispatched(t *testing.T) {
+	env, _, _ := liveSlotFixture(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	exec := CouchLiveOwnerExecutor(env.Couch)
+	n := 0
+	for _, op := range Operations() {
+		if op.Execution != ExecuteLiveOwner {
+			continue
+		}
+		n++
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Errorf("%s panicked with empty args: %v", op.Name, r)
+				}
+			}()
+			_, err := exec(OperationCall{Name: op.Name, Operation: op, Args: map[string]string{}, Context: ctx})
+			if err != nil && strings.Contains(err.Error(), "is not a live-owner operation") {
+				t.Errorf("%s has no live-owner dispatch case", op.Name)
+			}
+		}()
+	}
+	if n == 0 {
+		t.Fatal("no live-owner operations enumerated")
+	}
+}
+
+// BR-15: the busy guard is re-checked at the effect. A slot that turns busy
+// between admission and the queue running is refused, and nothing is done.
+func TestLiveRestartGuardRecheckedAtEffect(t *testing.T) {
+	env, address, created := liveSlotFixture(t)
+	ctx := context.Background()
+	probe := &fakeLiveRestartProbe{facts: LiveRestartFacts{Live: true, Session: true, SettledKnown: true, Settled: true, GitKnown: true,
+		Binary: BinaryFacts{RunningSHA: "a", OnDiskSHA: "b"}}}
+	env.Couch.LiveRestart = probe
+	call, _, err := env.Couch.PrepareSlotOperation(ctx, OpRelaunch, address, LiveRestartOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	probe.busyErr = &SlotOperationError{Code: LiveRestartBusy, Detail: "became busy"}
+	op, _ := operationByName(OpRelaunch)
+	call.Operation, call.Context = op, ctx
+	if _, err := CouchLiveOwnerExecutor(env.Couch)(call); slotOperationCode(err) != LiveRestartBusy {
+		t.Fatalf("relaunch after turning busy: %v", err)
+	}
+	if len(probe.busyChecks) != 1 || probe.busyChecks[0] != created.Address {
+		t.Fatalf("busy re-check not asked: %v", probe.busyChecks)
+	}
+	if thread, err := env.Couch.Threads.GetThread(created.Address); err != nil || thread.Park != nil {
+		t.Fatalf("a refused relaunch parked the thread: %+v %v", thread.Park, err)
+	}
+	// The console's own Alt+n (no require-settled) is not gated.
+	probe.busyChecks = nil
+	delete(call.Args, requireSettledArg)
+	_, _ = CouchLiveOwnerExecutor(env.Couch)(call)
+	if len(probe.busyChecks) != 0 {
+		t.Fatal("console relaunch consulted the remote busy guard")
+	}
+}
+
+func TestReloadContextRefusesWhenNoLongerLive(t *testing.T) {
+	env, _, created := liveSlotFixture(t)
+	probe := &fakeLiveRestartProbe{}
+	env.Couch.LiveRestart = probe
+	env.Proc.Kill(5151)
+	if _, err := env.Couch.Threads.RetireProvedDeadIncarnations(created.Address, created.Revision); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.Couch.ReloadContext(context.Background(), created.Address); slotOperationCode(err) != LiveRestartNotLive || len(probe.restarts) != 0 {
+		t.Fatalf("not live: %v restarts=%v", err, probe.restarts)
 	}
 }

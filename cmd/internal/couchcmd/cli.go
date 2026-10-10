@@ -312,9 +312,8 @@ func parseMessageCLI(args []string) (cliInvocation, error) {
 		}
 		seen := map[string]bool{}
 		allowed := map[string]bool{"--json": true, "--confirm": true}
-		if couchcore.SlotOperationTakesOverrides(op) {
-			allowed["--same-binary"], allowed["--force-unknown"] = true, true
-		}
+		allowed["--same-binary"] = couchcore.SlotOperationTakesSameBinary(op)
+		allowed["--force-unknown"] = couchcore.SlotOperationTakesForceUnknown(op)
 		for _, flag := range args[2:] {
 			if !allowed[flag] || seen[flag] {
 				return bad()

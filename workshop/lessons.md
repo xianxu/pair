@@ -793,3 +793,13 @@ proof; record the surprising case so the next change starts from evidence.
   which left an idle slot looking busy, or a working one looking settled. When
   state X is derived from Y, list every writer of Y and make each one notify
   X, with a test per direction.
+
+- **Three review families recurred on #421; their rules:**
+  - **A guard checked at admission is checked again at the effect.** Anything
+    queued between them can change the fact. Re-check just before the
+    irreversible step, with a test that flips the fact in between.
+  - **Every declared operation is reachable through its executor.** Keep one
+    table test over all declarations, so a missing dispatch case fails a
+    test rather than shipping.
+  - **A plan revision sweeps the body.** For every identifier or path a delta
+    replaces, grep the plan and mark each hit superseded in the same commit.

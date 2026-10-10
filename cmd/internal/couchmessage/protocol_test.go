@@ -163,11 +163,16 @@ func TestValidateRequestOverridesOnlyOnRelaunch(t *testing.T) {
 	if err := ValidateRequest(base); err != nil {
 		t.Fatalf("relaunch with overrides: %v", err)
 	}
-	for _, op := range []string{"resume", "reboot", "send"} {
+	for _, op := range []string{"resume", "reboot", "send", "reload-context"} {
 		r := base
 		r.Op = op
 		if err := ValidateRequest(r); err == nil {
-			t.Fatalf("%s accepted relaunch overrides", op)
+			t.Fatalf("%s accepted --same-binary", op)
 		}
+	}
+	reload := base
+	reload.Op, reload.SameBinary = "reload-context", false
+	if err := ValidateRequest(reload); err != nil {
+		t.Fatalf("reload-context with --force-unknown: %v", err)
 	}
 }
