@@ -168,7 +168,8 @@ func TestRestartConversationVerifiedAndConfirmed(t *testing.T) {
 	binding := couchmessage.Binding{Slot: "pair:1", Scope: "s1", Tag: "t1", PID: 4242, Start: "start-4242"}
 	setup := func(identity string) (*liveRestartProbe, *messageService, *couchcore.FakeProcOps) {
 		svc := &messageService{}
-		live := map[string]couchmessage.SlotLiveness{"pair:1": {Binding: binding, Session: 7}}
+		settled := true // admission's real case: the wrapper said settled
+		live := map[string]couchmessage.SlotLiveness{"pair:1": {Binding: binding, Session: 7, Settled: &settled}}
 		svc.liveness.Store(&live)
 		proc := couchcore.NewFakeProcOps()
 		proc.Set(4242, identity)
@@ -178,17 +179,17 @@ func TestRestartConversationVerifiedAndConfirmed(t *testing.T) {
 	}
 	// The PID now names another process: nothing is signalled.
 	p, _, proc := setup("someone-else")
-	if err := p.RestartConversation(context.Background(), addr); err == nil || len(proc.Signals[4242]) != 0 {
+	if err := p.RestartConversation(context.Background(), addr, false); err == nil || len(proc.Signals[4242]) != 0 {
 		t.Fatalf("mismatched identity: %v, signals %v", err, proc.Signals[4242])
 	}
 	// Verified, signalled, and a new session appears: confirmed.
 	p, svc, proc := setup("start-4242")
 	go func() {
 		time.Sleep(20 * time.Millisecond)
-		next := map[string]couchmessage.SlotLiveness{"pair:1": {Binding: binding, Session: 8}}
+		next := map[string]couchmessage.SlotLiveness{"pair:1": {Binding: binding, Session: 8}} // a fresh session has not judged yet
 		svc.liveness.Store(&next)
 	}()
-	if err := p.RestartConversation(context.Background(), addr); err != nil {
+	if err := p.RestartConversation(context.Background(), addr, false); err != nil {
 		t.Fatalf("confirmed restart: %v", err)
 	}
 	if got := proc.Signals[4242]; len(got) != 1 || got[0] != syscall.SIGUSR2 {
@@ -197,7 +198,7 @@ func TestRestartConversationVerifiedAndConfirmed(t *testing.T) {
 	// Signalled but the same session stays: unconfirmed, never success.
 	p, _, _ = setup("start-4242")
 	var unconfirmed *couchcore.ReloadUnconfirmed
-	if err := p.RestartConversation(context.Background(), addr); !errors.As(err, &unconfirmed) {
+	if err := p.RestartConversation(context.Background(), addr, false); !errors.As(err, &unconfirmed) {
 		t.Fatalf("no new session: %v", err)
 	}
 	if out := slotOperationOutcome(nil, &couchcore.ReloadUnconfirmed{Detail: "x"}); out.Status != couchmessage.ReceiptFailed || out.Code != "unconfirmed" {
@@ -206,7 +207,7 @@ func TestRestartConversationVerifiedAndConfirmed(t *testing.T) {
 	// No session at all: refused, nothing signalled.
 	empty := &liveRestartProbe{proc: couchcore.NewFakeProcOps()}
 	empty.service.Store(&messageService{})
-	if err := empty.RestartConversation(context.Background(), addr); err == nil {
+	if err := empty.RestartConversation(context.Background(), addr, false); err == nil {
 		t.Fatal("restart without a session")
 	}
 }
@@ -257,20 +258,27 @@ func TestRestartEffectRechecksBusyAndCancellation(t *testing.T) {
 		return p, proc
 	}
 	p, proc := probe(&no)
-	if err := p.RestartConversation(context.Background(), addr); err == nil || len(proc.Signals[4242]) != 0 {
+	if err := p.RestartConversation(context.Background(), addr, false); err == nil || len(proc.Signals[4242]) != 0 {
 		t.Fatalf("busy at effect: %v signals %v", err, proc.Signals[4242])
 	}
-	if err := p.ConfirmNotBusy(context.Background(), addr); err == nil {
-		t.Fatal("relaunch re-check passed a busy slot")
+	if err := p.ConfirmNotBusy(context.Background(), addr, true); err == nil {
+		t.Fatal("relaunch re-check passed a busy slot, even forced")
 	}
 	p, _ = probe(nil)
-	if err := p.ConfirmNotBusy(context.Background(), addr); err != nil {
-		t.Fatalf("unknown at effect must pass (admission gated it): %v", err)
+	if err := p.ConfirmNotBusy(context.Background(), addr, true); err != nil {
+		t.Fatalf("unknown at effect after a forced admission must pass: %v", err)
+	}
+	// Admission saw it known-settled; now it is unknown: never assumed idle.
+	if err := p.ConfirmNotBusy(context.Background(), addr, false); err == nil {
+		t.Fatal("unknown at effect passed without a forced admission")
+	}
+	if err := p.RestartConversation(context.Background(), addr, false); err == nil {
+		t.Fatal("reload signalled an unknown wrapper without a forced admission")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	var unconfirmed *couchcore.ReloadUnconfirmed
-	if err := p.RestartConversation(ctx, addr); !errors.As(err, &unconfirmed) || !strings.Contains(err.Error(), "cancelled") {
+	if err := p.RestartConversation(ctx, addr, true); !errors.As(err, &unconfirmed) || !strings.Contains(err.Error(), "cancelled") {
 		t.Fatalf("cancelled wait: %v", err)
 	}
 	if out := slotOperationOutcome(couchcore.ReloadContextResult{Address: addr}, nil); out.Tag != "t1" {

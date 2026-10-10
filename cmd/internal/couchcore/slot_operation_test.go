@@ -189,14 +189,17 @@ type fakeLiveRestartProbe struct {
 	restartErr error
 	busyErr    error
 	busyChecks []ThreadAddress
+	forced     []bool
 }
 
-func (f *fakeLiveRestartProbe) ConfirmNotBusy(_ context.Context, a ThreadAddress) error {
+func (f *fakeLiveRestartProbe) ConfirmNotBusy(_ context.Context, a ThreadAddress, forced bool) error {
+	f.forced = append(f.forced, forced)
 	f.busyChecks = append(f.busyChecks, a)
 	return f.busyErr
 }
 
-func (f *fakeLiveRestartProbe) RestartConversation(_ context.Context, a ThreadAddress) error {
+func (f *fakeLiveRestartProbe) RestartConversation(_ context.Context, a ThreadAddress, forced bool) error {
+	f.forced = append(f.forced, forced)
 	f.restarts = append(f.restarts, a)
 	return f.restartErr
 }
@@ -236,7 +239,7 @@ func TestPrepareSlotOperationRelaunchLive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]string{"repo-scope": scope.Key, "tag": string(created.Address.Tag), "require-settled": "true"}
+	want := map[string]string{"repo-scope": scope.Key, "tag": string(created.Address.Tag), "require-settled": "known"}
 	if call.Name != "relaunch" || !call.Implicit || !maps.Equal(call.Args, want) {
 		t.Fatalf("call = %+v", call)
 	}
@@ -289,7 +292,7 @@ func liveSlotFixture(t *testing.T) (*testEnv, string, ThreadRecord) {
 func TestReloadContextAdmissionAndEffect(t *testing.T) {
 	env, address, created := liveSlotFixture(t)
 	ctx := context.Background()
-	if _, err := env.Couch.ReloadContext(ctx, created.Address); slotOperationCode(err) != LiveRestartUnavailable {
+	if _, err := env.Couch.ReloadContext(ctx, created.Address, false); slotOperationCode(err) != LiveRestartUnavailable {
 		t.Fatalf("no probe: %v", err)
 	}
 	// An unchanged binary does not matter to reload-context.
@@ -301,13 +304,13 @@ func TestReloadContextAdmissionAndEffect(t *testing.T) {
 	if err != nil || call.Name != OpReloadContext || call.Args["tag"] != string(created.Address.Tag) {
 		t.Fatalf("admission: %+v %v", call, err)
 	}
-	res, err := env.Couch.ReloadContext(ctx, created.Address)
+	res, err := env.Couch.ReloadContext(ctx, created.Address, false)
 	if err != nil || res.Address != created.Address || len(probe.restarts) != 1 || probe.restarts[0] != created.Address {
 		t.Fatalf("effect: %+v %v restarts=%v", res, err, probe.restarts)
 	}
 	probe.restartErr = &ReloadUnconfirmed{Detail: "no new session"}
 	var unconfirmed *ReloadUnconfirmed
-	if _, err := env.Couch.ReloadContext(ctx, created.Address); !errors.As(err, &unconfirmed) {
+	if _, err := env.Couch.ReloadContext(ctx, created.Address, false); !errors.As(err, &unconfirmed) {
 		t.Fatalf("unconfirmed collapsed: %v", err)
 	}
 	// Dispatch reaches it through the declared operation.
@@ -389,7 +392,32 @@ func TestReloadContextRefusesWhenNoLongerLive(t *testing.T) {
 	if _, err := env.Couch.Threads.RetireProvedDeadIncarnations(created.Address, created.Revision); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := env.Couch.ReloadContext(context.Background(), created.Address); slotOperationCode(err) != LiveRestartNotLive || len(probe.restarts) != 0 {
+	if _, err := env.Couch.ReloadContext(context.Background(), created.Address, false); slotOperationCode(err) != LiveRestartNotLive || len(probe.restarts) != 0 {
 		t.Fatalf("not live: %v restarts=%v", err, probe.restarts)
+	}
+}
+
+// M3 advisory: the effect reads admission's decision. A forced admission (no
+// Settled claim) is marked "forced"; a known-settled one "known".
+func TestLiveRestartAdmissionRecordsItsEvidence(t *testing.T) {
+	env, address, _ := liveSlotFixture(t)
+	ctx := context.Background()
+	unknown := LiveRestartFacts{Live: true, Session: true, GitKnown: true, Binary: BinaryFacts{RunningSHA: "a", OnDiskSHA: "b"}}
+	env.Couch.LiveRestart = &fakeLiveRestartProbe{facts: unknown}
+	for _, op := range []string{OpRelaunch, OpReloadContext} {
+		call, _, err := env.Couch.PrepareSlotOperation(ctx, op, address, LiveRestartOptions{ForceUnknown: true})
+		if err != nil || call.Args[requireSettledArg] != settledForcedValue {
+			t.Fatalf("%s forced: %+v %v", op, call.Args, err)
+		}
+	}
+	known := unknown
+	known.SettledKnown, known.Settled = true, true
+	env.Couch.LiveRestart = &fakeLiveRestartProbe{facts: known}
+	for _, op := range []string{OpRelaunch, OpReloadContext} {
+		// --force-unknown on a slot that WAS known stays "known": it changed nothing.
+		call, _, err := env.Couch.PrepareSlotOperation(ctx, op, address, LiveRestartOptions{ForceUnknown: true})
+		if err != nil || call.Args[requireSettledArg] != settledKnownValue {
+			t.Fatalf("%s known: %+v %v", op, call.Args, err)
+		}
 	}
 }

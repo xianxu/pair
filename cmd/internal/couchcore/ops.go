@@ -379,7 +379,7 @@ func Operations() []Operation {
 				{Name: "ref", Summary: "thread tag or path", Required: false},
 				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
 				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
-				{Name: "require-settled", Summary: "re-check the live slot is not busy before parking (remote relaunch, pair#421)", Implicit: true},
+				{Name: "require-settled", Summary: "admission's idle evidence, known or forced; re-checked before parking (pair#421)", Implicit: true},
 			},
 		},
 		{
@@ -395,6 +395,7 @@ func Operations() []Operation {
 				{Name: "ref", Summary: "thread tag or path", Required: false},
 				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
 				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
+				{Name: "require-settled", Summary: "admission's idle evidence, known or forced (pair#421)", Implicit: true},
 			},
 		},
 		{

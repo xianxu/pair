@@ -233,7 +233,8 @@ wrapper.
   `binaryFacts`). It replaces the planned `SlotLiveness` interface and
   `BinaryProbe`.
 - **One verb list:** `couchcore.IsSlotOperation` /
-  `SlotOperationTakesOverrides` is now the single list the protocol, the
+  `SlotOperationTakesOverrides` *(superseded: split into `SlotOperationTakesForceUnknown` /
+  `SlotOperationTakesSameBinary`; M3 review)* is now the single list the protocol, the
   socket and the CLI read (close review Minor).
 - **Receipts:** a failed relaunch keeps its typed outcome (`park-incomplete`,
   `park-ok-resume-failed`) as the receipt `Code` (`RelaunchResult.ReceiptCode`),
@@ -252,7 +253,8 @@ wrapper.
   (the one seam that holds the broker's binding), and `agentcmd` keeps its
   in-slot pid-file path. A shared helper would have had one caller.
 - **Overrides:** `--force-unknown` applies to reload-context too
-  (`SlotOperationTakesOverrides`). `--same-binary` is accepted but has no
+  (`SlotOperationTakesOverrides` *(superseded: `SlotOperationTakesForceUnknown`; M3 review)*).
+  `--same-binary` *(superseded: refused on reload-context, `SlotOperationTakesSameBinary`; M3 review)* is accepted but has no
   effect there.
 
 ### 2026-10-10 — M3 close review round 1 (BR-14..16)
@@ -271,3 +273,13 @@ wrapper.
   - `--same-binary` is refused on reload-context.
   - Reload success receipts carry the thread tag (`ReceiptTag`).
   - The cancelled-wait path is tested.
+
+### 2026-10-10 — M3 close advisories
+- **Identifier sweep:** `SlotOperationTakesOverrides` is gone. Every hit in
+  code and the plan body was found by `git grep` and removed or marked. The
+  review records are historical and stay as written.
+- **Effect re-check reads admission's decision:** `require-settled` now
+  carries `known` or `forced` and is set for BOTH verbs. At the effect,
+  "unknown" (session gone, or no Settled claim) passes only when admission
+  was forced. A wrapper that disconnects in between, where admission saw it
+  settled, is refused rather than assumed idle.

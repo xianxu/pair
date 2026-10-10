@@ -803,3 +803,10 @@ proof; record the surprising case so the next change starts from evidence.
     test rather than shipping.
   - **A plan revision sweeps the body.** For every identifier or path a delta
     replaces, grep the plan and mark each hit superseded in the same commit.
+  - **An effect-time re-check reads admission's decision, not a fresh
+    default.** Pass what admission concluded (here `known` or `forced`) to
+    the effect. Otherwise a fact that turns unknown in between is silently
+    treated as the forced case.
+  - **A removal sweeps its identifier.** In the commit that deletes or renames
+    one, `git grep` it across code and the plan body, then remove or mark every
+    hit. The review records are history and stay as written.

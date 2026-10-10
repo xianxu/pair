@@ -159,18 +159,22 @@ type LiveRestartProbe interface {
 	// RestartConversation signals the thread's broker-verified wrapper to start
 	// a fresh agent conversation, re-checking the process identity first, and
 	// returns once a new session proves the restart (ReloadUnconfirmed if not).
-	RestartConversation(ctx context.Context, address ThreadAddress) error
+	RestartConversation(ctx context.Context, address ThreadAddress, forced bool) error
 	// ConfirmNotBusy re-checks, at the effect, the Settled claim admission
 	// read: the console queue ran in between (pair#421 M3 review). A known
-	// busy refuses; unknown passes, because admission gated it behind
-	// --force-unknown.
-	ConfirmNotBusy(ctx context.Context, address ThreadAddress) error
+	// busy refuses; unknown refuses unless admission was forced.
+	ConfirmNotBusy(ctx context.Context, address ThreadAddress, forced bool) error
 }
 
-// requireSettledArg marks a relaunch admitted by prepareLiveRestart, so its
-// dispatch re-checks the guard at the effect. The console's own Alt+n never
-// sets it: the operator is looking at the slot.
-const requireSettledArg = "require-settled"
+// requireSettledArg carries admission's decision to the effect: "known" (the
+// wrapper said settled) or "forced" (--force-unknown admitted an unknown).
+// Remote admission sets it for both verbs; the console's own Alt+n never does,
+// because the operator is looking at the slot.
+const (
+	requireSettledArg  = "require-settled"
+	settledKnownValue  = "known"
+	settledForcedValue = "forced"
+)
 
 // ReloadUnconfirmed: the signal was delivered but no new wrapper session was
 // seen in time. The restart may still be under way, so the caller peeks before
@@ -189,7 +193,7 @@ func (r ReloadContextResult) ReceiptTag() string { return string(r.Address.Tag) 
 // conversation in the same Pair process. Admission (prepareLiveRestart) already
 // required a settled, clean, live slot; this re-checks liveness under the
 // thread's hold, because the queue ran between admission and now.
-func (c *Couch) ReloadContext(ctx context.Context, address ThreadAddress) (ReloadContextResult, error) {
+func (c *Couch) ReloadContext(ctx context.Context, address ThreadAddress, forced bool) (ReloadContextResult, error) {
 	if c.LiveRestart == nil {
 		return ReloadContextResult{}, &SlotOperationError{Code: LiveRestartUnavailable, Detail: "this Couch cannot observe live slots"}
 	}
@@ -205,7 +209,7 @@ func (c *Couch) ReloadContext(ctx context.Context, address ThreadAddress) (Reloa
 	if !hasOccupiedIncarnation(thread) {
 		return ReloadContextResult{}, &SlotOperationError{Code: LiveRestartNotLive, Detail: string(address.Tag) + " is no longer running"}
 	}
-	if err := c.LiveRestart.RestartConversation(ctx, address); err != nil {
+	if err := c.LiveRestart.RestartConversation(ctx, address, forced); err != nil {
 		return ReloadContextResult{}, err
 	}
 	return ReloadContextResult{Address: address}, nil
@@ -231,8 +235,9 @@ func (c *Couch) prepareLiveRestart(ctx context.Context, op, target string, row A
 		return OperationCall{}, "", &SlotOperationError{Code: d.Code, Detail: detail}
 	}
 	args := map[string]string{"repo-scope": row.Address.RepoScope, "tag": string(row.Address.Tag)}
-	if op == OpRelaunch {
-		args[requireSettledArg] = "true"
+	args[requireSettledArg] = settledKnownValue
+	if opts.ForceUnknown && (!facts.Session || !facts.SettledKnown) {
+		args[requireSettledArg] = settledForcedValue
 	}
 	return OperationCall{Name: op, Args: args, Implicit: true, Context: ctx}, d.Note, nil
 }

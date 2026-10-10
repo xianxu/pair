@@ -89,18 +89,18 @@ func (p *liveRestartProbe) binaryFacts(ctx context.Context, live couchmessage.Sl
 // is its kernel start token). SIGUSR2 is `pair agent restart`'s mechanism: the
 // wrapper ends its agent and re-execs into a fresh conversation. The re-exec
 // keeps the binding byte-identical, so a NEW session token is the evidence.
-func (p *liveRestartProbe) RestartConversation(ctx context.Context, address couchcore.ThreadAddress) error {
+func (p *liveRestartProbe) RestartConversation(ctx context.Context, address couchcore.ThreadAddress, forced bool) error {
 	svc := p.service.Load()
 	scope, tag := address.RepoScope, string(address.Tag)
 	before, ok := svc.LivenessForThread(scope, tag)
 	if !ok {
 		return &couchcore.SlotOperationError{Code: couchcore.LiveRestartBusyUnknown, Detail: "no wrapper session is connected for " + tag + "; nothing was signalled"}
 	}
+	if err := refuseUnlessIdle(before, true, tag, forced); err != nil {
+		return err
+	}
 	if p.proc == nil {
 		return &couchcore.SlotOperationError{Code: couchcore.LiveRestartUnavailable, Detail: "this Couch cannot signal processes"}
-	}
-	if err := refuseKnownBusy(before, tag); err != nil {
-		return err
 	}
 	pid := before.Binding.PID
 	if identity, err := p.proc.Identity(pid); err != nil || identity != before.Binding.Start {
@@ -142,19 +142,21 @@ func withAdmissionNote(note *string, finished func(any, error)) func(any, error)
 
 // ConfirmNotBusy is relaunch's effect-time re-check (pair#421 M3 review): the
 // same rule reload-context applies just before its signal.
-func (p *liveRestartProbe) ConfirmNotBusy(_ context.Context, address couchcore.ThreadAddress) error {
+func (p *liveRestartProbe) ConfirmNotBusy(_ context.Context, address couchcore.ThreadAddress, forced bool) error {
 	live, ok := p.service.Load().LivenessForThread(address.RepoScope, string(address.Tag))
-	if !ok {
-		return nil // unknown: admission gated it behind --force-unknown
-	}
-	return refuseKnownBusy(live, string(address.Tag))
+	return refuseUnlessIdle(live, ok, string(address.Tag), forced)
 }
 
-// refuseKnownBusy is the one effect-time rule for both verbs: a slot whose
-// wrapper now says it is NOT settled is refused; no claim at all passes.
-func refuseKnownBusy(live couchmessage.SlotLiveness, tag string) error {
-	if live.Settled != nil && !*live.Settled {
+// refuseUnlessIdle is the one effect-time rule for both verbs, reading the
+// decision admission made: a wrapper that now says it is NOT settled is
+// refused; unknown (no session, or no claim) passes only when admission was
+// forced, so a disconnect after a known-settled admission is never assumed idle.
+func refuseUnlessIdle(live couchmessage.SlotLiveness, session bool, tag string, forced bool) error {
+	switch {
+	case session && live.Settled != nil && !*live.Settled:
 		return &couchcore.SlotOperationError{Code: couchcore.LiveRestartBusy, Detail: tag + " became busy after it was admitted; nothing was done"}
+	case (!session || live.Settled == nil) && !forced:
+		return &couchcore.SlotOperationError{Code: couchcore.LiveRestartBusyUnknown, Detail: tag + "'s idle state became unknown after it was admitted; nothing was done"}
 	}
 	return nil
 }

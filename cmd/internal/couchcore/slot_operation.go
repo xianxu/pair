@@ -36,8 +36,6 @@ var slotOperations = []string{"resume", "reboot", "reap", "recover", OpRelaunch,
 // IsSlotOperation reports whether op is a remote slot operation.
 func IsSlotOperation(op string) bool { return slices.Contains(slotOperations, op) }
 
-// SlotOperationTakesOverrides reports whether op accepts the pair#421
-// live-restart overrides (--same-binary, --force-unknown).
 // SlotOperationTakesForceUnknown: both live verbs accept --force-unknown.
 func SlotOperationTakesForceUnknown(op string) bool { return op == OpRelaunch || op == OpReloadContext }
 

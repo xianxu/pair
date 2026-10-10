@@ -408,11 +408,11 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			if err != nil {
 				return nil, err
 			}
-			if a[requireSettledArg] == "true" {
+			if guard := a[requireSettledArg]; guard != "" {
 				if c.LiveRestart == nil {
 					return nil, &SlotOperationError{Code: LiveRestartUnavailable, Detail: "this Couch cannot observe live slots"}
 				}
-				if err := c.LiveRestart.ConfirmNotBusy(ctx, address); err != nil {
+				if err := c.LiveRestart.ConfirmNotBusy(ctx, address, guard == settledForcedValue); err != nil {
 					return nil, err
 				}
 			}
@@ -422,7 +422,7 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			if err != nil {
 				return nil, err
 			}
-			return c.ReloadContext(ctx, address)
+			return c.ReloadContext(ctx, address, a[requireSettledArg] == settledForcedValue)
 		case "leave":
 			// Mirrors park's mode argument rather than minting a second verb:
 			// leaving is one operation whose disposition the pressed key picks.
