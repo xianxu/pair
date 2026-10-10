@@ -57,3 +57,4 @@ asserts that each one reaches the broker as an operation request with an ID.
 ## Log
 
 ### 2026-10-10
+- 2026-10-10: closed — Pure routing bugfix, no new surface (--no-atlas): the atlas already documents both verbs. TestEverySlotOperationIsRoutedToTheSlotPath drives every declared slot verb from parsed argv through runMessageCLIWithCall to the broker; it failed for exactly relaunch and reload-context with the TL-reported error before the fix and passes after. couchcmd and couchmessage green under clean env. Other hand-kept verb lists swept: run.go (local CLI scope/ownership), menu_slot.go (switcher arg shape), menu.go (hosted-child ending) correctly exclude the new verbs. Full suite ran on the #421 tree under an hour ago; this diff is one routing line plus a test.; review verdict: SHIP
