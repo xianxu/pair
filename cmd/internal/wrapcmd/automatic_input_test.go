@@ -101,6 +101,10 @@ func TestAutomaticInputSubmittedOwnerWaitsForEmptyRepaint(t *testing.T) {
 				paint := "\x1b[2J" + claudeBox(5, "❯", "136;136;136", strings.Split(peerEnvelope(d.receipt().Message), "\n")...) + "\x1b[?25h\x1b[7;3H"
 				d.observeOutput([]byte(paint))
 				f.output(paint)
+				// pair#427: submit after the fixed delay, confirm on the clear.
+				time.Sleep(PeerSubmitDelay)
+				p.dispatchPeer(&out)
+				peerRender(f, d, peerEmptyComposer())
 				p.dispatchPeer(&out)
 				if d.receipt().Status != couchmessage.Submitted {
 					t.Fatal("peer not submitted")

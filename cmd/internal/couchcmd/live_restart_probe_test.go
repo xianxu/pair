@@ -291,3 +291,98 @@ func TestReloadContextRefusesSameBinary(t *testing.T) {
 		t.Fatal("--same-binary accepted on reload-context")
 	}
 }
+
+// pair#427 Spec 3: a relaunch or reload-context receipt reports success only
+// once a NEW session says it is settled. Driven from admission (prepare's
+// readinessAfter) through awaitReadiness to the receipt the CLI polls.
+func TestRestartReceiptWaitsForReadiness(t *testing.T) {
+	binding := couchmessage.Binding{Slot: "pair:1", Scope: "s1", Tag: "t1", PID: 4242, Start: "start-4242"}
+	args := map[string]string{"repo-scope": "s1", "tag": "t1"}
+	yes, no := true, false
+	store := func(svc *messageService, l couchmessage.SlotLiveness) {
+		live := map[string]couchmessage.SlotLiveness{"pair:1": l}
+		svc.liveness.Store(&live)
+	}
+	setup := func(t *testing.T, op string) (*liveRestartProbe, *messageService, func() couchmessage.OperationReceipt, func(any, error)) {
+		svc := &messageService{}
+		store(svc, couchmessage.SlotLiveness{Binding: binding, Session: 7, Build: &couchmessage.BuildIdentity{}, Settled: &yes})
+		p := &liveRestartProbe{readyWithin: time.Second, pollEvery: 2 * time.Millisecond}
+		p.service.Store(svc)
+		r, runner, _ := slotRig(t)
+		b := r.world.add(0)
+		req := slotRequest(b, op, "id", "pair:1")
+		req.Confirmed = op != "resume"
+		if resp := r.s.handle(context.Background(), req); resp.Code != "accepted" {
+			t.Fatalf("admit %+v", resp)
+		}
+		job := runner.job(0)
+		job.started()
+		await := p.readinessAfter(op, args) // prepare, before the effect
+		status := func() couchmessage.OperationReceipt {
+			return *r.s.handle(context.Background(), statusRequest(b, "id")).Operation
+		}
+		return p, svc, status, awaitReadiness(&await, job.finished)
+	}
+	relaunched := couchcore.RelaunchResult{Outcome: couchcore.Relaunched}
+
+	for _, op := range []string{couchcore.OpRelaunch, couchcore.OpReloadContext} {
+		t.Run(op+" ready", func(t *testing.T) {
+			_, svc, status, finish := setup(t, op)
+			finish(relaunched, nil)
+			time.Sleep(20 * time.Millisecond)
+			if got := status(); got.Status != couchmessage.ReceiptRunning {
+				t.Fatalf("the old session's settled counted: %+v", got)
+			}
+			store(svc, couchmessage.SlotLiveness{Binding: binding, Session: 8, Build: &couchmessage.BuildIdentity{}, Settled: &no})
+			time.Sleep(20 * time.Millisecond)
+			if got := status(); got.Status != couchmessage.ReceiptRunning {
+				t.Fatalf("a busy new session counted: %+v", got)
+			}
+			store(svc, couchmessage.SlotLiveness{Binding: binding, Session: 8, Build: &couchmessage.BuildIdentity{}, Settled: &yes})
+			if !restartWaitFor(func() bool { return status().Status == couchmessage.ReceiptSucceeded }) {
+				t.Fatalf("settled new session: %+v", status())
+			}
+		})
+	}
+	t.Run("unready", func(t *testing.T) {
+		p, svc, status, finish := setup(t, couchcore.OpRelaunch)
+		p.readyWithin = 30 * time.Millisecond
+		store(svc, couchmessage.SlotLiveness{Binding: binding, Session: 8, Build: &couchmessage.BuildIdentity{}, Settled: &no})
+		finish(relaunched, nil)
+		if !restartWaitFor(func() bool { return status().Status.Terminal() }) {
+			t.Fatal("the readiness wait is unbounded")
+		}
+		if got := status(); got.Status != couchmessage.ReceiptFailed || got.Code != "unready" || !strings.Contains(got.Detail, "do not restart it again") {
+			t.Fatalf("%+v", got)
+		}
+	})
+	t.Run("wrapper cannot report", func(t *testing.T) {
+		_, svc, status, finish := setup(t, couchcore.OpReloadContext)
+		store(svc, couchmessage.SlotLiveness{Binding: binding, Session: 8})
+		finish(couchcore.ReloadContextResult{}, nil)
+		if !restartWaitFor(func() bool { return status().Status.Terminal() }) || status().Code != "unready" {
+			t.Fatalf("%+v", status())
+		}
+	})
+	t.Run("other verbs and failures do not wait", func(t *testing.T) {
+		p := &liveRestartProbe{}
+		p.service.Store(&messageService{})
+		if p.readinessAfter("resume", args) != nil || p.readinessAfter(couchcore.OpRelaunch, map[string]string{}) != nil || (*liveRestartProbe)(nil).readinessAfter(couchcore.OpRelaunch, args) != nil {
+			t.Fatal("a wait for a verb that is not a restart")
+		}
+		_, _, status, finish := setup(t, couchcore.OpRelaunch)
+		finish(nil, errors.New("park did not complete"))
+		if got := status(); got.Status != couchmessage.ReceiptFailed || got.Code == "unready" {
+			t.Fatalf("a failed restart waited: %+v", got)
+		}
+	})
+}
+
+func restartWaitFor(ok func() bool) bool {
+	for deadline := time.Now().Add(time.Second); time.Now().Before(deadline); time.Sleep(2 * time.Millisecond) {
+		if ok() {
+			return true
+		}
+	}
+	return ok()
+}

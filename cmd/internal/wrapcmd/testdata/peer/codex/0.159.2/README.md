@@ -21,14 +21,12 @@ allowlist. Existing lowercase/boxed startup fixtures remain regression coverage.
 `paste-wrapped.raw` records the successful no-submit wrapped-body experiment,
 with the accidental trailing space removed from the generated payload. Codex
 wraps at word boundaries, removing the single separating space at each boundary.
-The complete 382-byte visible envelope matches deterministic word wrapping.
 Captured using the command above with `-peer-live-scenario=paste-wrapped`.
 SHA-256: `d035de627391ffecab182f16e1e3ad9617f640eded317427fc7c83bb66a06988`.
 
-The matcher uses word wrapping only for lines with single ordinary inter-word
-spaces; leading/trailing spaces, repeated spaces, tabs and other whitespace
-cannot be normalized through this route. The test rejects adding a trailing
-space even though that invisible suffix would look identical in the terminal.
+Since pair#427 delivery no longer matches a rendered paste against the
+envelope; each paste capture must read as an occupied composer
+(`TestPeerComposerCapturedPastesReadOccupied`).
 This capture still establishes no submission outcome.
 
 Main-session live submission on 2026-09-30 passed using `-peer-live-submit`:

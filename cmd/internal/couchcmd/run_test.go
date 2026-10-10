@@ -593,7 +593,7 @@ func TestEveryOperationHasASummaryAndDescribedArgs(t *testing.T) {
 func TestOperationArityMatchesExpectation(t *testing.T) {
 	// Declared in the test rather than read from the operation itself, so
 	// this cannot degrade into asserting X == X.
-	want := map[string]int{"provision-workspace": 3, "request-continuation": 7, "continue-thread": 3, "retry-continuation": 4, "dismiss-continuation": 4, "continuation-status": 4, "prepare-switch-agent": 4, "switch-agent": 5, "orientation-status": 4, "prepare-start": 3, "start": 5, "list": 0, "show": 2, "reconcile": 1, "peek": 4, "stop": 1, "alias": 3, "publish-description": 3, "switch": 2, "attach": 3, "park": 4, "detach": 3, "leave": 1, "resume": 5, "reboot": 4, "reap": 3, "recover": 3, "archived": 0, "relaunch": 4, "reload-context": 4}
+	want := map[string]int{"provision-workspace": 3, "request-continuation": 7, "continue-thread": 3, "retry-continuation": 4, "dismiss-continuation": 4, "continuation-status": 4, "prepare-switch-agent": 4, "switch-agent": 5, "orientation-status": 4, "prepare-start": 3, "start": 5, "list": 0, "show": 2, "reconcile": 1, "peek": 5, "stop": 1, "alias": 3, "publish-description": 3, "switch": 2, "attach": 3, "park": 4, "detach": 3, "leave": 1, "resume": 5, "reboot": 4, "reap": 3, "recover": 3, "archived": 0, "relaunch": 4, "reload-context": 4}
 	for _, op := range couchcore.Operations() {
 		if got := len(op.Args); got != want[op.Name] {
 			t.Errorf("%s has %d args, want %d", op.Name, got, want[op.Name])
@@ -625,8 +625,13 @@ func TestPublishDescriptionUsesCompositeThreadEnvironment(t *testing.T) {
 	rt.env["COUCH_THREAD_SCOPE"] = created.Address.RepoScope
 	rt.env["COUCH_THREAD_TAG"] = string(created.Address.Tag)
 
-	if _, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "publish-description", Args: map[string]string{"description": "agent summary"}}); code != 0 {
+	out, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "publish-description", Args: map[string]string{"description": "agent summary"}})
+	if code != 0 {
 		t.Fatalf("publish-description: code=%d stderr=%q", code, errw)
+	}
+	// An agent runs this from its shell (#419), so it reads one line, not a record dump.
+	if want := "published summary for " + string(created.Address.Tag) + ": agent summary\n"; out != want {
+		t.Fatalf("publish-description stdout = %q, want %q", out, want)
 	}
 	got, err := c.Threads.GetThread(created.Address)
 	if err != nil {
@@ -635,8 +640,12 @@ func TestPublishDescriptionUsesCompositeThreadEnvironment(t *testing.T) {
 	if got.PublishedSummary != "agent summary" || got.Description != "" {
 		t.Fatalf("published thread = %+v", got)
 	}
-	if _, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "publish-description", Args: map[string]string{"description": ""}}); code != 0 {
+	out, errw, code = runTypedRT(rt, couchcore.OperationCall{Name: "publish-description", Args: map[string]string{"description": ""}})
+	if code != 0 {
 		t.Fatalf("clear publish-description: code=%d stderr=%q", code, errw)
+	}
+	if want := "cleared published summary for " + string(created.Address.Tag) + "\n"; out != want {
+		t.Fatalf("clear publish-description stdout = %q, want %q", out, want)
 	}
 	got, err = c.Threads.GetThread(created.Address)
 	if err != nil {

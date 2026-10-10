@@ -154,7 +154,7 @@ func TestPeerIntegrationSpacesThenHomeWaitsForSettling(t *testing.T) {
 	}
 }
 
-func TestPeerIntegrationBeforePasteObstaclesWaitAndAfterPasteCancel(t *testing.T) {
+func TestPeerIntegrationBeforePasteObstaclesWaitAndAfterPasteAreUncertain(t *testing.T) {
 	for _, kind := range []string{"image", "menu"} {
 		t.Run(kind, func(t *testing.T) {
 			f, d := peerIntegrationFixture(t)
@@ -187,8 +187,9 @@ func TestPeerIntegrationBeforePasteObstaclesWaitAndAfterPasteCancel(t *testing.T
 				f.proxy.pickerActive.Store(true)
 			}
 			f.proxy.dispatchPeer(&out)
-			if out.String() != before || d.receipt().Status != couchmessage.Cancelled {
-				t.Fatalf("afterpaste obstacle did not cancel: %q %+v", out.String(), d.receipt())
+			// After the paste the text may sit in the composer: uncertain (pair#427).
+			if out.String() != before || d.receipt().Status != couchmessage.Indeterminate {
+				t.Fatalf("afterpaste obstacle did not stop as uncertain: %q %+v", out.String(), d.receipt())
 			}
 		})
 	}

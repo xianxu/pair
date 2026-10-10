@@ -90,7 +90,7 @@ func TestSlotOperationSocketAcceptance(t *testing.T) {
 		}
 	})
 
-	r := &serviceRig{t: t, world: newMessageWorld(), slotGit: map[string]couchcore.SlotGitStatus{}, slotOps: consoleSlotOperations(console, c)}
+	r := &serviceRig{t: t, world: newMessageWorld(), slotGit: map[string]couchcore.SlotGitStatus{}, slotOps: consoleSlotOperations(console, c, nil)}
 	r.init()
 	caller := r.connect(0)
 	callerEnv := testRT{env: map[string]string{"COUCH_STORE_DIR": "/couch/namespace", "COUCH_THREAD_SCOPE": caller.Scope, "COUCH_THREAD_TAG": caller.Tag,

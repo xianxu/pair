@@ -46,6 +46,10 @@ type messageAuthority struct {
 	// operation's caller can be checked against that launch's recorded files
 	// without a messaging binding (pair#367).
 	agent func(context.Context, couchcore.ThreadAddress) (string, error)
+	// record reads a thread's record, so a tail read by slot (pair#429)
+	// names its agent and working path as the typed peek does; nil names the
+	// binding's agent only.
+	record func(couchcore.ThreadAddress) (couchcore.ThreadRecord, error)
 }
 
 // live is the full check, run once per admission: a lifecycle event, never a
@@ -230,6 +234,12 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 			return messageFamilies(names), nil
 		},
 		thread: console.MessageBinding, workspace: resolver.ResolveWorkspace,
+		record: func(address couchcore.ThreadAddress) (couchcore.ThreadRecord, error) {
+			if c.Threads == nil {
+				return couchcore.ThreadRecord{}, errors.New("no thread store")
+			}
+			return c.Threads.GetThread(address)
+		},
 		agent: func(ctx context.Context, address couchcore.ThreadAddress) (string, error) {
 			if err := ctx.Err(); err != nil {
 				return "", err
@@ -308,7 +318,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	panes := couchmessage.NewPaneMailbox()
 	probe := newLiveRestartProbe(c.Git, c.Proc)
 	c.LiveRestart = probe // before the socket opens: no request can race this write
-	service, err := newMessageService(context.Background(), brokerSocket, registrySocket, authority, panes, console.MessageSlotGit, consoleSlotOperations(console, c))
+	service, err := newMessageService(context.Background(), brokerSocket, registrySocket, authority, panes, console.MessageSlotGit, consoleSlotOperations(console, c, probe))
 	if err != nil {
 		return nil, err
 	}
@@ -325,16 +335,21 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 // PrepareSlotOperation runs on it, so admission is judged against the
 // inventory at execution time, and the queue key resolves repository names
 // from the thread store.
-func consoleSlotOperations(console *couchtty.Console, c *couchcore.Couch) *slotOperations {
+func consoleSlotOperations(console *couchtty.Console, c *couchcore.Couch, probe *liveRestartProbe) *slotOperations {
 	return newSlotOperations(func(key, op, target string, opts couchcore.LiveRestartOptions, started func(), finished func(any, error)) error {
-		// The admission note is written on the queue goroutine by prepare
-		// and read by finished after the job; the queue orders the two.
+		// The admission note and readiness wait are written on the queue
+		// goroutine by prepare and read by finished after the job; the queue
+		// orders the two.
 		var note string
+		var await func(context.Context) error
 		return console.EnqueueRemoteOperation(key, op, func(ctx context.Context) (couchcore.OperationCall, error) {
 			call, n, err := c.PrepareSlotOperation(ctx, op, target, opts)
 			note = n
+			if err == nil {
+				await = probe.readinessAfter(op, call.Args)
+			}
 			return call, err
-		}, started, withAdmissionNote(&note, finished))
+		}, started, awaitReadiness(&await, withAdmissionNote(&note, finished)))
 	}, func(ctx context.Context) ([]couchcore.RepositoryName, error) {
 		if c.Threads == nil {
 			return nil, errors.New("no thread store")
@@ -600,6 +615,8 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		return s.handleSlotOperation(ctx, request)
 	case request.Op == "broadcast-status":
 		return s.handleBroadcastStatus(request)
+	case request.Op == "tail":
+		return s.handleTail(ctx, request)
 	}
 	if request.Binding == nil && couchmessage.ValidateRequest(request) == nil {
 		binding, err := s.broker.Caller(request.Scope, request.Tag, request.Session, request.Nonce)
@@ -640,6 +657,96 @@ func (s *messageService) handleBroadcastStatus(request couchmessage.Request) cou
 		return couchmessage.Response{Code: "ok"}
 	}
 	return couchmessage.Response{Code: "ok", Broadcast: &snapshot}
+}
+
+// handleTail answers a peek's tail read (pair#425) from the connected
+// wrapper running the thread: named by scope + exact tag, as
+// LivenessForThread matches, or by its slot as a send names one (pair#429).
+// Like broadcast-status it needs no slot identity: the socket lives in the
+// operator-only store, and the answer is read-only.
+func (s *messageService) handleTail(ctx context.Context, request couchmessage.Request) couchmessage.Response {
+	if err := couchmessage.ValidateRequest(request); err != nil {
+		return couchmessage.Response{Code: "invalid-request", Error: err.Error()}
+	}
+	var bindings []couchmessage.Binding
+	if connected := s.connected.Load(); connected != nil {
+		for b, live := range *connected {
+			if live {
+				bindings = append(bindings, b)
+			}
+		}
+	}
+	binding, code, err := s.tailBinding(ctx, request, bindings)
+	if err != nil {
+		return couchmessage.Response{Code: code, Error: err.Error()}
+	}
+	var reader couchmessage.TailReader
+	if s.authority.endpoint != nil {
+		reader, _ = s.authority.endpoint(binding).(couchmessage.TailReader)
+	}
+	if reader == nil {
+		return couchmessage.Response{Code: "unsupported", Error: "this wrapper's endpoint reads no tail"}
+	}
+	tail, err := reader.Tail(ctx, request.Lines)
+	if err != nil {
+		return couchmessage.Response{Code: "unavailable", Error: err.Error()}
+	}
+	return couchmessage.Response{Code: "ok", Tail: &tail, TailThread: s.tailThread(binding)}
+}
+
+// tailThread names whose tail it is with what the typed peek reads from the
+// thread record -- its agent (couchcore.RecordAgent) and working path -- so a
+// fast peek answers in the same shape (pair#429). Without a readable record
+// it names the wrapper's own agent and no path.
+func (s *messageService) tailThread(b couchmessage.Binding) *couchmessage.TailThread {
+	thread := &couchmessage.TailThread{Slot: b.Slot, Tag: b.Tag, Agent: b.Agent}
+	if s.authority.record == nil {
+		return thread
+	}
+	record, err := s.authority.record(couchcore.ThreadAddress{RepoScope: b.Scope, Tag: couchcore.ThreadTag(b.Tag)})
+	if err != nil {
+		return thread
+	}
+	if agent := couchcore.RecordAgent(record); agent != "" {
+		thread.Agent = agent
+	}
+	thread.WorkingPath = record.WorkingPath
+	return thread
+}
+
+// tailBinding is the one connected wrapper a tail request names, or the
+// response code and reason it names none.
+func (s *messageService) tailBinding(ctx context.Context, request couchmessage.Request, bindings []couchmessage.Binding) (couchmessage.Binding, string, error) {
+	if request.Target != "" {
+		var families map[string]string
+		if s.authority.families != nil {
+			var err error
+			if families, err = s.authority.families(ctx); err != nil {
+				return couchmessage.Binding{}, "unavailable", fmt.Errorf("repository names: %w", err)
+			}
+		}
+		binding, err := couchmessage.ResolveTailSlot(request.Target, bindings, families)
+		switch {
+		case errors.Is(err, couchmessage.ErrAmbiguous):
+			return couchmessage.Binding{}, "ambiguous", err
+		case err != nil:
+			return couchmessage.Binding{}, "unavailable", err
+		}
+		return binding, "", nil
+	}
+	var matches []couchmessage.Binding
+	for _, b := range bindings {
+		if b.Scope == request.TailScope && b.Tag == request.TailTag {
+			matches = append(matches, b)
+		}
+	}
+	switch len(matches) {
+	case 0:
+		return couchmessage.Binding{}, "unavailable", errors.New("no wrapper is connected for this thread")
+	case 1:
+		return matches[0], "", nil
+	}
+	return couchmessage.Binding{}, "ambiguous", fmt.Errorf("%d wrappers are connected for this thread", len(matches))
 }
 
 // SetBroadcastStatus installs the console's broadcast snapshot.

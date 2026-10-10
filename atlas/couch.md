@@ -235,8 +235,10 @@ now would interrupt nothing (`Settled`) and which executable it runs (`Build`:
 content sha256, vcs revision and dirty bit, via
 `couchmessage.BuildIdentityOfFile`).
 - **What Settled means:** no turn is open (an atomic mirror of the
-  notification lifecycle), no overlay is up, the composer reads empty through
-  the recognizer peer delivery uses, and nothing is pending.
+  notification lifecycle), no overlay is up, the startup orientation has
+  finalized (pair#427: a fresh session is not ready until it has been briefed;
+  finalizing re-arms the check), the composer reads empty through the
+  recognizer peer delivery uses, and nothing is pending.
 - **When it is checked:** only after `wrapcmd.SettleInterval` (3s) without
   output or input (`peer_settle.go`), so a streaming agent pays nothing. Any
   activity unsettles the wrapper at once.
@@ -255,9 +257,10 @@ content sha256, vcs revision and dirty bit, via
 **What delivery does and does not promise (#365).** Messaging promises
 at-most-once input to the wrapper's PTY, not exactly-once task execution. The
 remaining uncertainty is stated, never papered over:
-- **Wrapper receipt.** A wrapper's receipt says the envelope was pasted and
-  submitted to the agent's composer. It says nothing about whether the agent
-  read or acted on it. Check the transcript or the issue state for that.
+- **Wrapper receipt.** A `submitted` receipt says the envelope was pasted,
+  submitted, and the submission was seen to land (below). It says nothing
+  about whether the agent read or acted on it. Check the transcript or the
+  issue state for that.
 - **Death mid-delivery.** A wrapper, broker or Zellij crash during delivery
   ends the receipt `Indeterminate`. The paste may or may not have landed, and
   it is never retried.
@@ -277,39 +280,58 @@ remaining uncertainty is stated, never papered over:
 Each wrapper endpoint conditionally reserves its observed input generation,
 then accepts one delivery commit. The broker polls outcome receipts; it never
 retries PTY input after uncertainty. Pair's input owner arbitrates ordinary
-typing, image admission and automatic paste/submit. Unknown or occupied
-composers wait within the delivery deadline. Interference cancels automatic
-submission and leaves visible text for inspection. Receiver profiles exist for
-Claude Code and Codex CLI at any installed version (`peerReceiverAgents`; the
-exact-version allowlist was removed in #360 after auto-updates silently dropped
-slots). Fixtures under `wrapcmd/testdata/peer/` and `TestPeerLiveConformance`
-were captured on Claude Code 2.1.286 and Codex CLI 0.159.2; per-version
-evidence from daily use is #368. Short-message submission
-has live evidence for both; deterministic wrapping is matched conservatively,
-per harness. Claude's rule is `peerSpaceWordwrap`'s doc comment (the one
-statement of it), while Codex uses `ansi.Wordwrap`, which also breaks after
-hyphens. Projecting Claude
-with `ansi.Wordwrap` failed every long message whose hyphenated path straddled
-the wrap column (#418). Claude collapses a long paste to `[Pasted text #N +M
-lines]`. That marker is accepted only in its strict form: it is the composer's
-whole content, the cursor sits right after it, `M` equals the envelope's newline
-count, and the composer was verified empty before the paste. The body itself
-can't be checked; that trade was the operator's decision in #418. Human Couch
-acceptance remains a separate step.
+typing, image admission and automatic paste/submit.
+
+**Delivery: submit like the draft pane, confirm after (pair#427).** Pair
+renders, never classifies: nothing compares what the agent drew with the
+envelope. That comparison (exact text, word-wrap projections, Claude's
+collapsed marker) broke for #418's long pastes and again for a paste into a
+still-booting Claude.
+- **Before the paste** the gates are unchanged. No other automatic input is in
+  flight, no operator keystroke arrived in the last second, bracketed paste is
+  on, and a recognized composer reads empty. Unknown or occupied composers wait.
+- **Paste, fixed delay, submit:** after the bracketed paste the wrapper waits
+  `wrapcmd.PeerSubmitDelay` (150ms; the draft pane uses 100ms), then sends the
+  submit key. Past the paste, the poll runs every 50ms instead of every second.
+- **Confirm after the fact, agent-agnostically:** a delivery ends `submitted`
+  when the composer was seen occupied after the paste and now reads empty, or
+  when a turn opens that was not open at the submit. Otherwise it ends
+  `indeterminate`, with a detail that starts `uncertain:` and states the
+  evidence. Examples: "composer still holds text; no turn started", or
+  "composer empty but never showed the paste".
+- **Stops after the paste:** operator input, an image, a dialog, the deadline
+  or exit ends the delivery `indeterminate` (`uncertain: … after the
+  paste/submit`). It never ends `expired` or `cancelled` while text may still
+  sit in the composer.
+- **The deadline starts at paste.** `Message.Deadline` is the paste-by time:
+  admission plus `PasteTimeout` (90s), which a booting or busy recipient may
+  use up. From the paste, the wrapper bounds submit and confirmation by
+  `DeliveryTimeout` (30s). `Message.Horizon()` (deadline plus window) is the
+  one outer bound the broker reads, in its model expiry, its job context and
+  the endpoint's receipt wait.
+
+Receiver profiles exist for Claude Code and Codex CLI at any installed version
+(`peerReceiverAgents`; the exact-version allowlist was removed in #360 after
+auto-updates silently dropped slots). Fixtures under `wrapcmd/testdata/peer/`
+and `TestPeerLiveConformance` were captured on Claude Code 2.1.286 and Codex
+CLI 0.159.2; per-version evidence from daily use is #368. Every captured paste
+shape must read as an occupied composer
+(`TestPeerComposerCapturedPastesReadOccupied`), since that is all delivery reads
+after a paste. Human Couch acceptance remains a separate step.
 
 Single-line suggested prompts in recognized agent composers use shared ANSI faint styling
 and the cursor at the input origin, independent of wording or RGB color.
 Delivery reads the current composer, not a sticky human-draft flag. Buffered
 input/output blocks inspection; newly forwarded human input gets one second to
 settle before inspecting the screen. Visible draft text still blocks delivery,
-while an erased draft can become eligible without submitting it. A one-second
-polling timer exists only while a message is pending; events also wake checks.
-After the input deadline, the broker allows two seconds for read-only receipt
-collection; this never extends the wrapper's paste/submit deadline. Waiting
+while an erased draft can become eligible without submitting it. A polling timer exists only while a message is pending (1s queued, 50ms
+past the paste); events also wake checks. After the horizon, the broker allows
+two seconds for read-only receipt collection; this never extends the wrapper's
+deadlines. Waiting
 receipts report the blocking guard and retain that reason on expiry. Senders
 query `--message-status` for final outcomes; admission returns before delivery.
 Orientation and peer delivery share automatic-input ownership across the entire
-paste/render/submit transaction. The next automatic writer waits for a fresh,
+paste/submit/confirm transaction. The next automatic writer waits for a fresh,
 empty composer after that transaction terminates, including cancellation.
 
 Transport frames are bounded at 577 KiB to carry all 128 actors with bounded
@@ -458,6 +480,24 @@ use relaunch for that.
   before retrying. A finish cannot be "unknown".
 - **Admission note:** it reaches the receipt on success and on failure
   (`withAdmissionNote`).
+
+**Restarts return when ready (pair#427).** A `--relaunch` or
+`--reload-context` receipt reports `succeeded` only once a NEW wrapper
+session for the thread reports Settled. Settled means booted, briefed by its
+orientation, and idle, so a message sent right after it is pasted into a ready
+composer.
+- **Before the effect:** admission's prepare step records the session to
+  replace (`liveRestartProbe.readinessAfter`).
+- **After a successful operation:** `awaitReadiness` waits off the console
+  queue, so other slots' operations keep running. `AwaitReady` polls
+  liveness, bounded by 2 minutes.
+- **On expiry:** the receipt is `failed` with code `unready`. The restart
+  took; restarting again would interrupt it, so peek the slot. A wrapper
+  that predates Settled reports (no `Build`) gives `unready` at once.
+- **CLI wait:** the poll budget is 5 minutes, which covers the operation plus
+  the readiness wait.
+- **Scope:** the console's own Alt+n is not routed through slot operations
+  and does not wait.
 
 **Admission to effect (pair#421).** The console queue runs between
 admission and effect, so both verbs re-check the busy guard at the effect.
@@ -788,18 +828,58 @@ proves the public test target generates it before every consumer.
 `couchcore.Operations()` is the closure-free capability schema: typed
 argument/result family, effect, confirmation, execution owner, and presentation.
 `list`, `show` and `archived` project as public `--list`, `--show` and
-`--archived`. `peek` (pair#362) projects as `--peek repo:N [--lines N]
-[--json]`, a read-only look at another slot. It returns the plain-text tail of the
-thread's live terminal recording (`scrollbackcmd.RenderOwnedLines`, under the same
-retention lease `pair scrollback render` takes), the Pair sent-prompt log, and
-native transcript paths from the switcher's `OSSwitchContextResolver`. Transcripts
-are paths, never parsed, and every unreadable source is named in `unavailable`.
+`--archived`. `peek` (pair#362) projects as `--peek repo:N[:M…][,repo:N…]
+[--lines N] [--json] [--transcripts]`, a read-only look at other slots. Its lines come first from
+the slot's **live tail** (pair#425), else from the plain-text render of the
+thread's terminal recording (`scrollbackcmd.RenderOwnedLines`, under the same
+retention lease `pair scrollback render` takes); `source` says which, and a
+failed live read is named in `unavailable`. With `--transcripts` it also returns
+the Pair sent-prompt log and native transcript paths from the switcher's
+`OSSwitchContextResolver`; by default it resolves none (pair#429), and the
+recording fallback takes the agent from the thread record (`RecordAgent`).
+Transcripts are paths, never parsed, and every unreadable source is named in
+`unavailable`.
+
+**Fast path (pair#429).** Building a Couch and resolving a `repo:N` to its thread
+costs about 1.5s each. So when every reference is a slot and `--transcripts` is
+absent, the CLI (`couchcmd.fastPeek`) builds no Couch and asks the running
+Couch's broker for each slot's tail by name, concurrently: `tail` {`Target`
+repo:N, lines}. The broker resolves the slot as a send's exact target resolves
+(`couchmessage.ResolveTailSlot`: alias or unique prefix, against the connected
+bindings' `Slot`), and answers with the tail plus `TailThread` {slot, tag,
+agent, working path}, which it reads from the thread record as the typed peek does
+(`RecordAgent`), so both paths give the same JSON. The fast path answers only when every slot does. Otherwise (no Couch, a
+Couch older than the by-slot form, a reference that isn't a slot, or a slot
+that can't be read) the typed `peek` operation runs the whole request and names
+each failure.
+
+The **live tail** is not a new store. Each claude/codex wrapper already keeps its
+agent pane in a vt emulator (`wrapcmd.terminalModel`: screen + 10k-line
+scrollback); `terminalModel.Tail(n)` renders its last rows on request. The path:
+peek's `SlotTail` → identity-free broker op `tail` {thread scope, tag, lines}, or {slot, lines} on the fast path
+(like `broadcast-status`: the store dir is the access control, the answer is
+read-only) → `messageService.handleTail` picks the connected wrapper bound to that
+thread → wrapper endpoint op `tail` → `peerDelivery.tailProbe`. Bounds: 200 lines
+per request (more is refused, and the recording answers instead), 128 KiB per
+answer (oldest lines dropped, counted in `truncated`).
+**Markup** (generic terminal bookkeeping, never agent knowledge): `‹dim›…‹/dim›`
+faint runs, `‹rev›…‹/rev›` reverse video, `‹cursor›` before a visible cursor's
+cell, a literal `‹` doubled to `‹‹`, and a `cursor` summary (`ROW,COL SHAPE [steady]`, `hidden at ROW,COL`, or
+`outside the tail`; rows count the returned lines). Pair renders and never
+classifies: whether a slot is busy is the caller's judgement, and the couch skill
+tells callers so. **Multi-slot:** `,` separates groups and `repo:1:2:3` expands to
+three slots (`couchcore.ExpandPeekReferences`, at most 32); one reference keeps the single
+`PeekResult`, several return `PeekSnapshot{slots}` read concurrently, and a slot
+that does not resolve becomes a section whose `unavailable` says why.
 Any operation that declares a `json` flag prints its result as JSON.
 
 The hosted-agent hook `publish-description` projects only through hidden
 `couch --internal publish-description <text>`, which pair's draft calls for a `!`
 tag line (#337), a `!!` describe line (#358), and a bare `!` clear line (#357),
-which publishes an empty summary. `prepare-start`, `start`,
+which publishes an empty summary. A recipient agent also runs it from its shell
+after claiming dispatched work, publishing `repo#N <title>` so the sender sees
+which slot holds the issue (#419; the `couch --skill` receiving step); the op
+prints one confirmation line. `prepare-start`, `start`,
 `attach`, `switch`, `park`, `resume`, `relaunch`, `prepare-switch-agent`,
 `switch-agent`, `leave`, `stop`, `alias` and `reboot` are TUI/in-process
 operations. `orientation-status` is an internal owner operation for one launch

@@ -97,18 +97,19 @@ func TestPeerRuntimeBrokerToWrapperSubmitsOnce(t *testing.T) {
 	}
 	f.proxy.dispatchPeer(&input)
 	if input.String() != paste {
-		t.Fatal("submitted without child rendering the envelope")
+		t.Fatal("submitted before the post-paste delay")
 	}
-	// The fake child now acknowledges the actual admitted envelope by rendering
-	// it in the recognized composer, exactly as a native harness would.
-	paint := "\x1b[2J" + claudeBox(5, "❯", "136;136;136", strings.Split(peerEnvelope(accepted.Message), "\n")...) + "\x1b[?25h\x1b[7;3H"
-	receiver.observeOutput([]byte(paint))
-	f.output(paint)
+	// The fake child shows the paste; the wrapper submits after the fixed
+	// delay without comparing it (pair#427), then confirms on the clear.
+	peerRender(f, receiver, peerFilledComposer(strings.Split(peerEnvelope(accepted.Message), "\n")...))
+	time.Sleep(PeerSubmitDelay)
 	f.proxy.dispatchPeer(&input)
 	f.proxy.dispatchPeer(&input)
 	if input.String() != paste+"\r" {
-		t.Fatalf("want exactly one submit after matching render: %q", input.String())
+		t.Fatalf("want exactly one submit after the delay: %q", input.String())
 	}
+	peerRender(f, receiver, peerEmptyComposer())
+	f.proxy.dispatchPeer(&input)
 	var receipt couchmessage.Receipt
 	if !waitFor(2*time.Second, func() bool {
 		var e error

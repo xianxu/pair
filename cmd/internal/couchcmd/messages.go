@@ -132,7 +132,8 @@ func newRequestID() (string, error) {
 // exchange, so the CLI polls the receipt within this budget (pair#367 M2).
 const (
 	slotOperationPollInterval = 500 * time.Millisecond
-	slotOperationPollBudget   = 3 * time.Minute
+	// Covers the operation plus a restart's readiness wait (pair#427).
+	slotOperationPollBudget = 5 * time.Minute
 )
 
 // slotPollClock is the poll loop's time: the budget is measured on now and

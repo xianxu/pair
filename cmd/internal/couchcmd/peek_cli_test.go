@@ -14,7 +14,7 @@ func TestRenderPeek(t *testing.T) {
 	renderPeek(&out, couchcore.PeekResult{Ref: "pair:1", Tag: "couch-1", Agent: "claude",
 		Lines: []string{"[Couch peer from pair:0; delivery abc]", "❯ "}, SentPrompts: "/d/log.md",
 		Transcripts: []string{"/h/s.jsonl"}, Unavailable: []string{"terminal recording: x"}})
-	want := "peek pair:1  agent claude  tag couch-1\n--- recent terminal ---\n[Couch peer from pair:0; delivery abc]\n❯ \n---\n" +
+	want := "peek pair:1  agent claude  tag couch-1  source none\n--- recent terminal ---\n[Couch peer from pair:0; delivery abc]\n❯ \n---\n" +
 		"sent prompts: /d/log.md\ntranscript: /h/s.jsonl\nunavailable: terminal recording: x\n"
 	if out.String() != want {
 		t.Fatalf("got:\n%s\nwant:\n%s", out.String(), want)

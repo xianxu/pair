@@ -6,8 +6,9 @@ type PeerDeliveryPhase string
 const (
 	PeerDeliveryWaiting       PeerDeliveryPhase = ""
 	PeerDeliveryPasting       PeerDeliveryPhase = "pasting"
-	PeerDeliveryRendering     PeerDeliveryPhase = "rendering"
+	PeerDeliveryPasted        PeerDeliveryPhase = "pasted"
 	PeerDeliverySubmitting    PeerDeliveryPhase = "submitting"
+	PeerDeliveryConfirming    PeerDeliveryPhase = "confirming"
 	PeerDeliverySubmitted     PeerDeliveryPhase = "submitted"
 	PeerDeliveryCancelled     PeerDeliveryPhase = "cancelled"
 	PeerDeliveryExpired       PeerDeliveryPhase = "expired"
@@ -48,13 +49,17 @@ const (
 	PeerOverlayObserved
 	PeerDeadlineElapsed
 	PeerChildExited
+	PeerConfirmObserved
 )
 
-// Matches is positive evidence from a fresh post-paste render. The adapter
-// owns render generations and arbitration; a pre-paste snapshot cannot match.
+// Ready is the adapter's verdict for the event's phase: on ComposerObserved,
+// the pre-paste gates hold; on RenderObserved, the fixed post-paste delay has
+// passed; on ConfirmObserved, agent-agnostic evidence shows the submission
+// landed. Pair renders, never classifies (pair#427): nothing here inspects
+// how the agent drew the pasted text.
 type PeerDeliveryEvent struct {
 	Kind              PeerDeliveryEventKind
-	Ready, Matches    bool
+	Ready             bool
 	Written, Expected int
 	Failed            bool
 }
@@ -74,11 +79,23 @@ func AdvancePeerDelivery(s PeerDeliveryState, e PeerDeliveryEvent) (PeerDelivery
 	}
 	switch e.Kind {
 	case PeerOperatorInput, PeerImageInput, PeerOverlayObserved, PeerDeadlineElapsed, PeerChildExited:
-		s.Phase = PeerDeliveryCancelled
-		if e.Kind == PeerDeadlineElapsed {
+		reason := map[PeerDeliveryEventKind]string{PeerOperatorInput: "operator input interrupted delivery", PeerImageInput: "image input interrupted delivery", PeerOverlayObserved: "dialog interrupted delivery", PeerDeadlineElapsed: "delivery deadline elapsed", PeerChildExited: "recipient exited"}[e.Kind]
+		switch {
+		case s.BodyWritten:
+			// The text may sit in the recipient's composer or may have been
+			// submitted: never a plain expired or cancelled (pair#427).
+			after := " after the paste"
+			if s.Phase == PeerDeliveryConfirming {
+				after = " after the submit"
+			}
+			s.Phase = PeerDeliveryIndeterminate
+			reason = "uncertain: " + reason + after
+		case e.Kind == PeerDeadlineElapsed:
 			s.Phase = PeerDeliveryExpired
+		default:
+			s.Phase = PeerDeliveryCancelled
 		}
-		s.Reason = map[PeerDeliveryEventKind]string{PeerOperatorInput: "operator input interrupted delivery", PeerImageInput: "image input interrupted delivery", PeerOverlayObserved: "dialog interrupted delivery", PeerDeadlineElapsed: "delivery deadline elapsed", PeerChildExited: "recipient exited"}[e.Kind]
+		s.Reason = reason
 		return s, PeerPublish
 	}
 	switch s.Phase {
@@ -98,21 +115,26 @@ func AdvancePeerDelivery(s PeerDeliveryState, e PeerDeliveryEvent) (PeerDelivery
 				s.Reason = "paste incomplete; inspect composer before retrying"
 				return s, PeerPublish
 			}
-			s.Phase = PeerDeliveryRendering
+			s.Phase = PeerDeliveryPasted
 			return s, PeerAwaitRender
 		}
-	case PeerDeliveryRendering:
-		if e.Kind == PeerRenderObserved && e.Ready && e.Matches {
+	case PeerDeliveryPasted:
+		if e.Kind == PeerRenderObserved && e.Ready {
 			s.Phase = PeerDeliverySubmitting
 			return s, PeerSubmit
 		}
 	case PeerDeliverySubmitting:
 		if e.Kind == PeerSubmitCompleted {
-			s.Phase = PeerDeliverySubmitted
 			if e.Failed || e.Expected <= 0 || e.Written != e.Expected {
 				s.Phase = PeerDeliveryIndeterminate
-				s.Reason = "submission uncertain; inspect recipient before retrying"
+				s.Reason = "uncertain: submit write incomplete; inspect recipient before retrying"
+				return s, PeerPublish
 			}
+			s.Phase = PeerDeliveryConfirming
+		}
+	case PeerDeliveryConfirming:
+		if e.Kind == PeerConfirmObserved && e.Ready {
+			s.Phase = PeerDeliverySubmitted
 			return s, PeerPublish
 		}
 	}

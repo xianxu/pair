@@ -170,6 +170,9 @@ func (p *proxy) advanceOrientation(event orientation.DeliveryEvent, out io.Write
 			d.publish(state)
 		}
 		close(d.finalized)
+		if p.peer != nil {
+			p.peer.settleSourceChanged() // Settled reads orientationPending
+		}
 	}
 }
 

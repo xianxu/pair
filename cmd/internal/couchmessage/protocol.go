@@ -24,7 +24,13 @@ type Request struct {
 	// (pair#421); each is recorded in the receipt when it changed the outcome.
 	SameBinary   bool `json:",omitempty"`
 	ForceUnknown bool `json:",omitempty"`
-	Binding      *Binding
+	// TailScope and TailTag name the thread whose in-memory terminal tail
+	// reads, Lines how much of it (pair#425); tail only. A tail may instead
+	// name its slot in Target (pair#429), resolved as a send's exact slot is.
+	TailScope string `json:",omitempty"`
+	TailTag   string `json:",omitempty"`
+	Lines     int    `json:",omitempty"`
+	Binding   *Binding
 }
 
 type Response struct {
@@ -35,6 +41,9 @@ type Response struct {
 	Operation *OperationReceipt `json:",omitempty"`
 	// Broadcast answers broadcast-status (pair#413); nil means no broadcast.
 	Broadcast *BroadcastStatus `json:",omitempty"`
+	// Tail answers tail (pair#425); TailThread names whose it is (pair#429).
+	Tail       *Tail       `json:",omitempty"`
+	TailThread *TailThread `json:",omitempty"`
 }
 
 // BroadcastStatus is the running console's broadcast, as `couch
@@ -54,7 +63,7 @@ func validMessageID(id string) bool {
 
 func ValidateRequest(r Request) error {
 	// Caller identity and target fields cannot exceed a complete binding's budget.
-	for _, field := range []string{r.Op, r.Scope, r.Tag, r.Session, r.Nonce, r.Target, r.Agent} {
+	for _, field := range []string{r.Op, r.Scope, r.Tag, r.Session, r.Nonce, r.Target, r.Agent, r.TailScope, r.TailTag} {
 		if len(field) > MaxBindingBytes {
 			return errors.New("request identity exceeds limit")
 		}
@@ -65,6 +74,28 @@ func ValidateRequest(r Request) error {
 			return errors.New("wrapper operation requires only an exact binding")
 		}
 		return r.Binding.Validate()
+	}
+	if r.Op == "tail" || r.TailScope != "" || r.TailTag != "" || r.Lines != 0 {
+		// The operator's peek from any shell (pair#425): like
+		// broadcast-status, no conversation identity, and a read-only answer.
+		if r.Op != "tail" {
+			return errors.New("a tail target applies only to tail")
+		}
+		if r.Binding != nil || r.Scope != "" || r.Tag != "" || r.Session != "" || r.Nonce != "" || r.ID != "" || r.Body != "" || r.Agent != "" || r.Confirmed || r.SameBinary || r.ForceUnknown {
+			return errors.New("tail takes only a thread and a line count")
+		}
+		byThread := r.TailScope != "" && r.TailTag != ""
+		if r.Target != "" {
+			if r.TailScope != "" || r.TailTag != "" {
+				return errors.New("tail names its thread by scope and tag or by slot, not both")
+			}
+			if _, _, err := parseSlot(r.Target); err != nil {
+				return errors.New("tail requires an exact slot (repo:N)")
+			}
+		} else if !byThread {
+			return errors.New("tail requires a thread scope and tag")
+		}
+		return ValidTailLines(r.Lines)
 	}
 	if r.Op == "broadcast-status" {
 		// The operator's query from any shell (pair#413): no conversation

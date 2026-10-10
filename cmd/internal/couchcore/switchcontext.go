@@ -36,14 +36,20 @@ type OSSwitchContextResolver struct {
 	NativePath                 func(sessioninventory.Runtime, sessioninventory.Artifact) (string, error)
 }
 
-func (r OSSwitchContextResolver) Resolve(ctx context.Context, record ThreadRecord) (orientation.OrientationContext, error) {
-	result := orientation.OrientationContext{Tag: string(record.Address.Tag), WorkingPath: record.WorkingPath, Renderer: r.Renderer}
-	if record.LatestLaunchProfile != nil {
-		result.SourceAgent = record.LatestLaunchProfile.Agent
-	}
+// RecordAgent is the agent a thread record says it runs: its only
+// incarnation's, else its latest launch's; "" when it records none.
+func RecordAgent(record ThreadRecord) string {
 	if len(record.Incarnations) == 1 && record.Incarnations[0].LaunchProfile != nil {
-		result.SourceAgent = record.Incarnations[0].LaunchProfile.Agent
+		return record.Incarnations[0].LaunchProfile.Agent
 	}
+	if record.LatestLaunchProfile != nil {
+		return record.LatestLaunchProfile.Agent
+	}
+	return ""
+}
+
+func (r OSSwitchContextResolver) Resolve(ctx context.Context, record ThreadRecord) (orientation.OrientationContext, error) {
+	result := orientation.OrientationContext{Tag: string(record.Address.Tag), WorkingPath: record.WorkingPath, Renderer: r.Renderer, SourceAgent: RecordAgent(record)}
 	if err := ctx.Err(); err != nil {
 		return result, err
 	}

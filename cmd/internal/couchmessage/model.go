@@ -51,12 +51,20 @@ func ValidateBody(body string) error {
 	return nil
 }
 
+// Deadline is the paste-by time: the latest moment the recipient's wrapper may
+// begin the paste. The delivery window (DeliveryTimeout) starts at the paste,
+// so a slot still booting spends PasteTimeout, not the window (pair#427).
 type Message struct {
 	ID       string
 	From, To Binding
 	Body     string
 	Deadline time.Time
 }
+
+// Horizon is the latest a delivery can still be in flight: a paste at the
+// deadline plus its full window. It is the one outer bound the broker side
+// reads; the wrapper bounds its own window from the actual paste.
+func (m Message) Horizon() time.Time { return m.Deadline.Add(DeliveryTimeout) }
 
 type Status string
 
@@ -190,7 +198,7 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 		return s, effects, nil
 	}
 	if e.Kind == Tick {
-		if s.pending.ID != "" && !e.At.Before(s.pending.Deadline) {
+		if s.pending.ID != "" && !e.At.Before(s.pending.Horizon()) {
 			status := Expired
 			if s.phase == Delivering {
 				status = Indeterminate
@@ -248,7 +256,7 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 		if e.Status == Submitted && s.phase != Delivering {
 			return fail(errors.New("submission requires delivery ownership"))
 		}
-		if !e.At.Before(s.pending.Deadline) && e.Status == Submitted {
+		if !e.At.Before(s.pending.Horizon()) && e.Status == Submitted {
 			finish(Indeterminate, "delivery completion arrived after deadline")
 			break
 		}

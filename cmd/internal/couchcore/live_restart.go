@@ -188,6 +188,13 @@ type ReloadUnconfirmed struct{ Detail string }
 
 func (e *ReloadUnconfirmed) Error() string { return "unconfirmed: " + e.Detail }
 
+// RestartUnready: the restart took, but its new session did not report
+// settled in time (pair#427). Restarting again would interrupt it; the
+// caller peeks the slot. It is never reported as success.
+type RestartUnready struct{ Detail string }
+
+func (e *RestartUnready) Error() string { return "unready: " + e.Detail }
+
 // ReloadContextResult is a confirmed reload-context.
 type ReloadContextResult struct{ Address ThreadAddress }
 
