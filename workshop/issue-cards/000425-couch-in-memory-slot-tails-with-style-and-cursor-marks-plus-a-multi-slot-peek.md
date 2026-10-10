@@ -17,6 +17,14 @@ tracker:
         source_blob: fd0ee4962d21904d0ed2721b32bb09ecd6a3ebbc
         destination: workshop/issues/000425-couch-in-memory-slot-tails-with-style-and-cursor-marks-plus-a-multi-slot-peek.md
         main_commit: d7ade9b1e57fadb44e50c92224cb975a9190fd67
+started: 2026-10-10T11:13:55-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch: in-memory slot tails with style and cursor marks, plus a multi-slot peek
