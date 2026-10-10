@@ -88,6 +88,7 @@ calls `peerComposerText`/`peerComposerMatches`.
       the operator (option a).
 - [x] Live `TestPeerLiveConformance -peer-live-body=hyphen-wrap|collapsed` submit.
 - [x] Docs: atlas/couch.md, README, fixture README.
+- [x] Over-width words hard-break like wrap-ansi (close review BR-1), captured live.
 
 ## Log
 
@@ -109,3 +110,11 @@ calls `peerComposerText`/`peerComposerMatches`.
   misplaced cursor, the marker on a second line, and an image marker.
 
 ### 2026-10-09
+- Close review round 1 (BR-1): the Spec promised hard-breaking over-width
+  tokens, but the first cut declined them. Captured live on 2.1.296
+  (`-peer-live-body=overwidth`): Claude starts a 160-column token on the
+  current line and breaks it at the width, which is wrap-ansi's `hard` rule
+  (start on the next line only if that needs fewer breaks). Implemented exactly
+  and pinned by `TestPeerComposerClaudeCapturedOverwidthWord`. Live submit
+  re-run: overwidth, hyphen-wrap and collapsed all submit. README no longer
+  overstates: unverifiable whitespace still waits for a human.

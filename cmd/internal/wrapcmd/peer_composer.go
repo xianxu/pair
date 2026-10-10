@@ -210,35 +210,59 @@ func peerComposerMatches(agent string, s terminalSnapshot, expected string) bool
 	return actual == b.String()
 }
 
-// peerSpaceWordwrap wraps greedily at single spaces only, as Claude Code's
-// composer does. A word wider than the line is declined: how Claude hard-breaks
-// one is uncaptured, and the character-wrap projection still covers it.
+// peerSpaceWordwrap projects Claude Code's composer wrapping, which is
+// wrap-ansi's hard mode: break only at single spaces; a word wider than the
+// line is hard-broken, starting on the current line unless starting on the
+// next one needs fewer breaks (pair#418, captured on 2.1.296). The bool is false
+// only for a width that cannot hold one grapheme.
 func peerSpaceWordwrap(text string, width int) (string, bool) {
-	var b strings.Builder
-	for i, line := range strings.Split(text, "\n") {
-		if i > 0 {
-			b.WriteByte('\n')
+	var out []string
+	for _, line := range strings.Split(text, "\n") {
+		row, column := "", 0
+		// The composer trims a row's trailing space, so a break drops it.
+		breakRow := func() {
+			out = append(out, strings.TrimSuffix(row, " "))
+			row, column = "", 0
 		}
-		column := 0
 		for j, word := range strings.Split(line, " ") {
 			n := ansi.StringWidth(word)
+			if j > 0 && column > 0 {
+				if column >= width {
+					breakRow()
+				} else {
+					row += " "
+					column++
+				}
+			}
 			if n > width {
-				return "", false
+				thisLine := 1 + (n-(width-column)-1)/width
+				nextLine := (n - 1) / width
+				if nextLine < thisLine && column > 0 {
+					breakRow()
+				}
+				for rest := word; rest != ""; {
+					cluster, w := ansi.FirstGraphemeCluster(rest, ansi.GraphemeWidth)
+					if w > width {
+						return "", false
+					}
+					if column+w > width {
+						breakRow()
+					}
+					row += cluster
+					column += w
+					rest = rest[len(cluster):]
+				}
+				continue
 			}
-			switch {
-			case j == 0:
-			case column+1+n <= width:
-				b.WriteByte(' ')
-				column++
-			default:
-				b.WriteByte('\n')
-				column = 0
+			if column > 0 && column+n > width {
+				breakRow()
 			}
-			b.WriteString(word)
+			row += word
 			column += n
 		}
+		out = append(out, row)
 	}
-	return b.String(), true
+	return strings.Join(out, "\n"), true
 }
 
 // peerClaudeCollapsedMarker is Claude Code's summary of a long or multi-line
@@ -256,7 +280,8 @@ func peerClaudeCollapsedPaste(s terminalSnapshot, actual, expected string) bool 
 	if m == nil || m[1] != strconv.Itoa(strings.Count(expected, "\n")) {
 		return false
 	}
-	return s.Cursor.X == 2+ansi.StringWidth(actual) && s.CellAt(0, s.Cursor.Y) != nil && s.CellAt(0, s.Cursor.Y).Content == "❯"
+	prompt := s.CellAt(0, s.Cursor.Y)
+	return s.Cursor.X == 2+ansi.StringWidth(actual) && prompt != nil && prompt.Content == "❯"
 }
 
 // Newer Codex paints a bare startup title and working path instead of the old

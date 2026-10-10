@@ -20,7 +20,7 @@ var (
 	peerLiveScenarioFlag = flag.String("peer-live-scenario", "", "startup, paste-short, paste-multiline, paste-wrapped, draft, menu, or image-admission")
 	peerLiveSubmitFlag   = flag.Bool("peer-live-submit", false, "permit one harmless no-tools prompt submission in a new isolated PTY")
 	peerLiveCaptureFlag  = flag.String("peer-live-capture-dir", "", "absolute directory for successful live captures")
-	peerLiveBodyFlag     = flag.String("peer-live-body", "", "submit body: short (default), hyphen-wrap (about 600 chars, rendered wrapped) or collapsed (about 1200 chars, which Claude summarizes)")
+	peerLiveBodyFlag     = flag.String("peer-live-body", "", "submit body: short (default), hyphen-wrap (about 625 chars, rendered wrapped), collapsed (about 1300 chars, which Claude summarizes) or overwidth (a 160-column token)")
 	peerLiveAuthFlag     = flag.Bool("peer-live-use-local-auth", false, "use existing login in a fresh session (Claude uses native keychain; Codex copies login into a disposable home)")
 )
 
@@ -146,6 +146,10 @@ func TestPeerLiveConformance(t *testing.T) {
 	// never submitted (hyphen wrap projection; collapsed paste marker).
 	switch *peerLiveBodyFlag {
 	case "", "short":
+	case "overwidth":
+		// A token wider than any composer line, mid-sentence.
+		m.Body = "Reply PEER_SMOKE_OK only. Do not use tools. See " + strings.Repeat("abcdefghij", 16) + " then stop."
+		m.Deadline = time.Now().Add(30 * time.Second)
 	case "hyphen-wrap", "collapsed":
 		repeat := 6
 		if *peerLiveBodyFlag == "collapsed" {

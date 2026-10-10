@@ -317,6 +317,28 @@ func TestPeerComposerClaudeCapturedHyphenWrap(t *testing.T) {
 	}
 }
 
+// pair#418: Claude Code 2.1.296 at 120 columns (wrap width 116), captured
+// with TestPeerLiveConformance -peer-live-body=overwidth. A 160-column token
+// starts on the current line and hard-breaks at the width.
+func TestPeerComposerClaudeCapturedOverwidthWord(t *testing.T) {
+	token := strings.Repeat("abcdefghij", 16)
+	lines := []string{
+		"[Couch peer from peer:0; delivery peer-live-conformance]",
+		"Reply PEER_SMOKE_OK only. Do not use tools. See " + token[:68],
+		token[68:] + " then stop.",
+	}
+	last := lines[len(lines)-1]
+	s := peerSnapshot(t, claudeBox(5, "❯", "136;136;136", lines...)+fmt.Sprintf("\x1b[?25h\x1b[%d;%dH", 7+len(lines)-1, 3+len(last)))
+	expected := lines[0] + "\nReply PEER_SMOKE_OK only. Do not use tools. See " + token + " then stop."
+	if !peerComposerMatches("claude", s, expected) {
+		text, known := peerComposerText("claude", s)
+		t.Fatalf("captured over-width wrap did not match: known=%t text=%q", known, text)
+	}
+	if peerComposerMatches("claude", s, strings.Replace(expected, token, token[:159], 1)) {
+		t.Fatal("a shortened token matched")
+	}
+}
+
 func TestPeerSpaceWordwrap(t *testing.T) {
 	for _, tc := range []struct {
 		text  string
@@ -327,7 +349,13 @@ func TestPeerSpaceWordwrap(t *testing.T) {
 		{"aaa bbb ccc", 7, "aaa bbb\nccc", true},
 		{"a-b-c d-e", 5, "a-b-c\nd-e", true},
 		{"x\ny z", 3, "x\ny z", true},
-		{"toolongword x", 5, "", false},
+		// Over-width words hard-break from the current line (wrap-ansi hard
+		// mode) unless starting on the next line needs fewer breaks.
+		{"ab cdefghij k", 5, "ab\ncdefg\nhij k", true}, // next line: fewer breaks
+		{"abc defghijklm", 7, "abc def\nghijklm", true}, // this line: no worse
+		{"abcd efghijk", 5, "abcd\nefghi\njk", true},
+		{"toolongword x", 5, "toolo\nngwor\nd x", true},
+		{"界", 1, "", false},
 	} {
 		got, ok := peerSpaceWordwrap(tc.text, tc.width)
 		if got != tc.want || ok != tc.ok {
