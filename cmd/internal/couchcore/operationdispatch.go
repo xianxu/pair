@@ -164,6 +164,16 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 				}
 				lines = n
 			}
+			refs, err := ExpandPeekReferences(a["ref"])
+			if err != nil {
+				return nil, err
+			}
+			if len(refs) > 1 && a["tag"] == "" {
+				resolve := func(ref string) (ThreadAddress, error) {
+					return resolveOperationThread(c, map[string]string{"repo-scope": a["repo-scope"], "ref": ref})
+				}
+				return c.PeekSlots(call.Context, resolve, refs, lines), nil
+			}
 			address, err := resolveOperationThread(c, a)
 			if err != nil {
 				return nil, err

@@ -182,6 +182,7 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.Cou
 	c.SlotTerminal = func(address couchcore.ThreadAddress, agent string, maxLines int) ([]string, error) {
 		return scrollbackcmd.RenderOwnedLines(dataDir, address.RepoScope, string(address.Tag), agent, maxLines)
 	}
+	c.SlotTail = slotTailReader(namespace.Dir())
 	c.Slug = couchcore.OSSlugReader{DataDir: dataDir}.Read
 	c.SwitchLaunchCheck = func(agent string) error {
 		if !launcher.IsSupportedAgent(agent) {
@@ -360,8 +361,21 @@ func runTypedOperation(op couchcore.Operation, parsed, prepareArgs map[string]st
 
 type consoleFinisher func(*couchtty.Console, *couchcore.Couch, couchcore.StartResult, io.Writer) int
 
+// singleReference is the reference the router resolves a repository scope
+// from. A multi-slot peek (pair#425) names several, each resolved by the
+// executor, so the router treats it as no workspace reference and supplies
+// the current repository for any that are not slots.
+func singleReference(op couchcore.Operation, ref string) string {
+	if op.Name == "peek" {
+		if refs, err := couchcore.ExpandPeekReferences(ref); err == nil && len(refs) > 1 {
+			return ""
+		}
+	}
+	return ref
+}
+
 func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs map[string]string, forceConsole bool, layout couchcore.Layout, inFile, outFile *os.File, stdin io.Reader, stdout, stderr io.Writer, rt Runtime, finishConsole consoleFinisher) (code int) {
-	_, workspaceRef, referenceErr := couchcore.ParseWorkspaceReference(parsed["ref"])
+	_, workspaceRef, referenceErr := couchcore.ParseWorkspaceReference(singleReference(op, parsed["ref"]))
 	if referenceErr != nil {
 		renderError(stderr, referenceErr)
 		return 1
@@ -932,9 +946,26 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 			return 0
 		}
 	}
+	// An agent runs publish-description from its shell after claiming
+	// dispatched work (#419), so it reads one line, not a record dump.
+	if record, ok := result.(couchcore.ThreadRecord); ok && op.Name == "publish-description" {
+		if record.PublishedSummary == "" {
+			fmt.Fprintf(w, "cleared published summary for %s\n", record.Address.Tag)
+		} else {
+			fmt.Fprintf(w, "published summary for %s: %s\n", record.Address.Tag, record.PublishedSummary)
+		}
+		return 0
+	}
 	switch v := result.(type) {
 	case couchcore.PeekResult:
 		renderPeek(w, v)
+	case couchcore.PeekSnapshot:
+		for i, slot := range v.Slots {
+			if i > 0 {
+				fmt.Fprintln(w)
+			}
+			renderPeek(w, slot)
+		}
 	case couchcore.ProvisionResult:
 		if op.Name == "reconcile" {
 			renderReconcile(w, v)
@@ -999,19 +1030,31 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 	return 0
 }
 
-// renderPeek prints a peek: a header naming the thread, the slot's recent
-// terminal lines, then where its logs live and what could not be read.
+// renderPeek prints a peek: a header naming the thread and where its lines
+// came from, the slot's recent terminal lines (live ones carry ‹dim›, ‹rev›
+// and ‹cursor› markup), the cursor, then where its logs live and what could
+// not be read. A multi-slot peek prints one such section per slot.
 func renderPeek(w io.Writer, r couchcore.PeekResult) {
 	agent := r.Agent
 	if agent == "" {
 		agent = "unknown"
 	}
-	fmt.Fprintf(w, "peek %s  agent %s  tag %s\n", r.Ref, agent, r.Tag)
+	source := r.Source
+	if source == "" {
+		source = "none"
+	}
+	fmt.Fprintf(w, "peek %s  agent %s  tag %s  source %s\n", r.Ref, agent, r.Tag, source)
 	fmt.Fprintln(w, "--- recent terminal ---")
 	for _, line := range r.Lines {
 		fmt.Fprintln(w, line)
 	}
 	fmt.Fprintln(w, "---")
+	if r.Cursor != "" {
+		fmt.Fprintf(w, "cursor: %s\n", r.Cursor)
+	}
+	if r.Truncated > 0 {
+		fmt.Fprintf(w, "truncated: %d older lines\n", r.Truncated)
+	}
 	if r.SentPrompts != "" {
 		fmt.Fprintf(w, "sent prompts: %s\n", r.SentPrompts)
 	}
@@ -1163,7 +1206,7 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "       couch --list")
 	fmt.Fprintln(w, "       couch --show <thread>")
 	fmt.Fprintln(w, "       couch --reconcile repo:N")
-	fmt.Fprintln(w, "       couch --peek repo:N [--lines N] [--json]")
+	fmt.Fprintln(w, "       couch --peek repo:N[:M...][,repo:N...] [--lines N] [--json]")
 	fmt.Fprintln(w, "             Read-only: a slot's recent terminal and where its transcripts live.")
 	fmt.Fprintln(w, "       couch --archived")
 	fmt.Fprintln(w, "       couch --recover-plan-from-sdlc")

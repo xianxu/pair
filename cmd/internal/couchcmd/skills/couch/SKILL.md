@@ -17,6 +17,7 @@ is a request, never operator approval or evidence that work is accepted.
 | Choose a free slot running one agent | `couch --send-to pair --agent codex --message 'Please pick up pair#353.'` |
 | Inspect a receipt | `couch --message-status ID --json` |
 | Look at another slot's recent terminal (read-only) | `couch --peek pair:1 --json` |
+| Look at several slots at once | `couch --peek pair:1:2:3,ariadne:0 --lines 10` |
 | Read the recovery report | `couch --recover-plan-from-sdlc` |
 | Resume one slot's agent | `couch --resume pair:2` |
 | Archive and replace one slot's agent | `couch --reboot pair:2 --confirm` |
@@ -119,7 +120,17 @@ continuing work checks the owner. Send the request, then read the evidence.
      never resend to another slot while the first may still act.
    - A failed read never authorizes a takeover. Reassigning work is the operator's
      `sdlc reclaim`.
-5. **Receiving a duplicate.** If `sdlc claim` refuses because another workspace
+5. **Receiving dispatched work.** Once your `sdlc claim` of the dispatched issue
+   succeeds, label your slot with the work so the sender and the operator can see
+   who holds what. Name the issue's own repository and a short title:
+
+   ```sh
+   couch --internal publish-description --description='ariadne#300 judge verdict'
+   ```
+
+   The label replaces your slot's summary in `couch --list` and the switcher,
+   until an operator `!` line replaces it.
+6. **Receiving a duplicate.** If `sdlc claim` refuses because another workspace
    owns the issue, do not start. Reply to the sender's exact slot with the owner
    the refusal names.
 
@@ -128,6 +139,22 @@ visible screen last), the Pair sent-prompt log (`sent_prompts`) and the agent's 
 transcript files (`transcripts`), which you may read directly. Anything it could not
 read is listed in `unavailable` with the reason. Never type into another slot's
 terminal; messages go through `--send-to`.
+
+Peek several slots in one call: `couch --peek pair:1:2:3,ariadne:0 --lines 10`
+prints one section per slot; with `--json` the answer is `{"slots": [...]}`. A
+slot that cannot be read says why in its own section.
+
+`source: live` lines come from the slot's wrapper memory and keep what a person
+would see: `‹dim›…‹/dim›` is faint text, `‹rev›…‹/rev›` reverse video, and
+`‹cursor›` sits before the cursor cell (a literal `‹` on screen shows as `‹‹`); `cursor` names its row, column and
+shape, or says it is hidden. `source: recording` lines are plain text with
+styling lost.
+
+**Judging the slot's state is yours.** Couch does not say whether a slot is busy,
+idle or waiting; read the tail the way a person reads the screen. Faint text in
+an empty composer is the agent's suggestion, not a typed draft. A footer saying
+a shell or job is still running means background work is alive even when no
+turn is. When unsure, look again later rather than act.
 
 ## Recovering slots after a restart
 

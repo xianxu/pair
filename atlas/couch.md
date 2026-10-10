@@ -828,18 +828,43 @@ proves the public test target generates it before every consumer.
 `couchcore.Operations()` is the closure-free capability schema: typed
 argument/result family, effect, confirmation, execution owner, and presentation.
 `list`, `show` and `archived` project as public `--list`, `--show` and
-`--archived`. `peek` (pair#362) projects as `--peek repo:N [--lines N]
-[--json]`, a read-only look at another slot. It returns the plain-text tail of the
-thread's live terminal recording (`scrollbackcmd.RenderOwnedLines`, under the same
-retention lease `pair scrollback render` takes), the Pair sent-prompt log, and
-native transcript paths from the switcher's `OSSwitchContextResolver`. Transcripts
-are paths, never parsed, and every unreadable source is named in `unavailable`.
+`--archived`. `peek` (pair#362) projects as `--peek repo:N[:M…][,repo:N…]
+[--lines N] [--json]`, a read-only look at other slots. Its lines come first from
+the slot's **live tail** (pair#425), else from the plain-text render of the
+thread's terminal recording (`scrollbackcmd.RenderOwnedLines`, under the same
+retention lease `pair scrollback render` takes); `source` says which, and a
+failed live read is named in `unavailable`. It also returns the Pair sent-prompt
+log and native transcript paths from the switcher's `OSSwitchContextResolver`.
+Transcripts are paths, never parsed, and every unreadable source is named in
+`unavailable`.
+
+The **live tail** is not a new store. Each claude/codex wrapper already keeps its
+agent pane in a vt emulator (`wrapcmd.terminalModel`: screen + 10k-line
+scrollback); `terminalModel.Tail(n)` renders its last rows on request. The path:
+peek's `SlotTail` → identity-free broker op `tail` {thread scope, tag, lines}
+(like `broadcast-status`: the store dir is the access control, the answer is
+read-only) → `messageService.handleTail` picks the connected wrapper bound to that
+thread → wrapper endpoint op `tail` → `peerDelivery.tailProbe`. Bounds: 200 lines
+per request (more is refused, and the recording answers instead), 128 KiB per
+answer (oldest lines dropped, counted in `truncated`).
+**Markup** (generic terminal bookkeeping, never agent knowledge): `‹dim›…‹/dim›`
+faint runs, `‹rev›…‹/rev›` reverse video, `‹cursor›` before a visible cursor's
+cell, a literal `‹` doubled to `‹‹`, and a `cursor` summary (`ROW,COL SHAPE [steady]`, `hidden at ROW,COL`, or
+`outside the tail`; rows count the returned lines). Pair renders and never
+classifies: whether a slot is busy is the caller's judgement, and the couch skill
+tells callers so. **Multi-slot:** `,` separates groups and `repo:1:2:3` expands to
+three slots (`couchcore.ExpandPeekReferences`, at most 32); one reference keeps the single
+`PeekResult`, several return `PeekSnapshot{slots}` read concurrently, and a slot
+that does not resolve becomes a section whose `unavailable` says why.
 Any operation that declares a `json` flag prints its result as JSON.
 
 The hosted-agent hook `publish-description` projects only through hidden
 `couch --internal publish-description <text>`, which pair's draft calls for a `!`
 tag line (#337), a `!!` describe line (#358), and a bare `!` clear line (#357),
-which publishes an empty summary. `prepare-start`, `start`,
+which publishes an empty summary. A recipient agent also runs it from its shell
+after claiming dispatched work, publishing `repo#N <title>` so the sender sees
+which slot holds the issue (#419; the `couch --skill` receiving step); the op
+prints one confirmation line. `prepare-start`, `start`,
 `attach`, `switch`, `park`, `resume`, `relaunch`, `prepare-switch-agent`,
 `switch-agent`, `leave`, `stop`, `alias` and `reboot` are TUI/in-process
 operations. `orientation-status` is an internal owner operation for one launch

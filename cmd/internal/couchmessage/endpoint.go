@@ -15,12 +15,15 @@ type EndpointRequest struct {
 	ID       string
 	Sequence uint64
 	Message  *Message
+	// Lines is a tail request's line count (pair#425); tail only.
+	Lines int `json:",omitempty"`
 }
 
 type EndpointResponse struct {
 	Error       string
 	Observation Observation
 	Receipt     *Receipt
+	Tail        *Tail `json:",omitempty"`
 }
 
 // ReceiptTimeout permits read-only outcome collection after input stops.
@@ -31,7 +34,15 @@ func ValidateEndpointRequest(r EndpointRequest) error {
 	if err := r.Binding.Validate(); err != nil {
 		return err
 	}
+	if r.Lines != 0 && r.Op != "tail" {
+		return errors.New("a line count applies only to tail")
+	}
 	switch r.Op {
+	case "tail":
+		if r.ID != "" || r.Sequence != 0 || r.Message != nil {
+			return errors.New("tail requires only a binding and a line count")
+		}
+		return ValidTailLines(r.Lines)
 	case "observe":
 		if r.ID != "" || r.Sequence != 0 || r.Message != nil {
 			return errors.New("observe requires only a binding")
@@ -130,6 +141,25 @@ func (e RemoteEndpoint) Observe(ctx context.Context) (Observation, error) {
 	r, err := e.call(ctx, EndpointRequest{Op: "observe"})
 	return r.Observation, err
 }
+
+// TailReader reads a wrapper's in-memory terminal tail (pair#425).
+type TailReader interface {
+	Tail(context.Context, int) (Tail, error)
+}
+
+var _ TailReader = RemoteEndpoint{}
+
+func (e RemoteEndpoint) Tail(ctx context.Context, lines int) (Tail, error) {
+	r, err := e.call(ctx, EndpointRequest{Op: "tail", Lines: lines})
+	if err != nil {
+		return Tail{}, err
+	}
+	if r.Tail == nil {
+		return Tail{}, errors.New("wrapper returned no tail")
+	}
+	return BoundTail(*r.Tail), nil
+}
+
 func (e RemoteEndpoint) Reserve(ctx context.Context, id string, sequence uint64) error {
 	_, err := e.call(ctx, EndpointRequest{Op: "reserve", ID: id, Sequence: sequence})
 	return err
