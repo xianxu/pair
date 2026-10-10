@@ -6,7 +6,15 @@ github_issue:
 created: 2026-10-10
 updated: 2026-10-10
 estimate_hours:
-card_mirror: 'a7d13edc39cf720736ae1e4f33f714ecaaa393e3' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'fcfe213dfadfd35f513583a6a29eba0c7a94e6e8' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-10T13:16:30-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # peer delivery: only real keystrokes interrupt a delivery; mouse and terminal reports don't
@@ -56,6 +64,10 @@ keeps pair#427's "pair renders, never classifies" principle.
 - A real keystroke during a delivery still interrupts it, as before.
 - The kink 47 byte sequence (once identified) is a regression test.
 - `atlas/couch.md` names what counts as operator input for delivery.
+- **Other panes never block (operator, 10-10):** typing in the slot's draft nvim (or any non-agent pane) never delays or interrupts a delivery to the agent pane. Test: drive draft-pane keystrokes during a delivery; it submits.
+- **The composer must be visible:** while the operator has the agent pane scrolled up (the input box off screen), a delivery waits, and goes as soon as the composer is visible again. A delivery must never yank the viewport away from scrollback the operator is reading. Test: scrolled-up state holds the delivery; scrolling back releases it.
+- **Mouse that leaves the composer visible doesn't block:** motion, clicks and wheel events that don't scroll the composer out of view don't delay a delivery.
+- **A short mutual lock with the draft pane:** between paste and submit of a robot delivery, a draft-pane send waits (about a second) instead of interleaving, and a robot delivery waits for an in-flight draft-pane send. Test: concurrent draft send and peer delivery both submit, in order, unmixed.
 
 ## Plan
 
@@ -64,3 +76,10 @@ keeps pair#427's "pair renders, never classifies" principle.
 ## Log
 
 ### 2026-10-10
+
+## Revisions
+
+### 2026-10-10 — operator scope fold (via the ops TL)
+- **Why:** the operator types and watches in ops:0 more than any other slot, so over-eager "operator input" gating delays the TL's incoming reports most. A live test showed a delivery submitting while the agent pane was scrolled up, which snapped the viewport to the bottom and would interrupt reading.
+- **Delta:** four Done-when items added: other panes never block; the composer must be visible (wait while scrolled up); mouse that keeps the composer visible doesn't block; a short mutual lock with the draft pane's send.
+
