@@ -790,3 +790,34 @@ proof; record the surprising case so the next change starts from evidence.
   in one session I implemented straight after `start-plan` and ran change-code
   afterwards. The flow is claim, start-plan, plan commit, **change-code**, then
   code. Run it before the first test edit, even on the quick flow.
+
+- **Derived state subscribes to every source transition, not just the noisy
+  ones (#421 M1).** The settle check re-armed only on output and input. A turn
+  can also open or close silently (watchdog, grace expiry, transcript record),
+  which left an idle slot looking busy, or a working one looking settled. When
+  state X is derived from Y, list every writer of Y and make each one notify
+  X, with a test per direction.
+
+- **Three review families recurred on #421; their rules:**
+  - **A guard checked at admission is checked again at the effect.** Anything
+    queued between them can change the fact. Re-check just before the
+    irreversible step, with a test that flips the fact in between.
+  - **Every declared operation is reachable through its executor.** Keep one
+    table test over all declarations, so a missing dispatch case fails a
+    test rather than shipping.
+  - **A plan revision sweeps the body.** For every identifier or path a delta
+    replaces, grep the plan and mark each hit superseded in the same commit.
+  - **An effect-time re-check reads admission's decision, not a fresh
+    default.** Pass what admission concluded (here `known` or `forced`) to
+    the effect. Otherwise a fact that turns unknown in between is silently
+    treated as the forced case.
+  - **A removal sweeps its identifier.** In the commit that deletes or renames
+    one, `git grep` it across code and the plan body, then remove or mark every
+    hit. The review records are history and stay as written.
+  - **An implicit argument is tested from producer to consumer.** A value
+    admission writes for the effect to read (#421's `require-settled`) gets one
+    table through the whole path: admit, dispatch, then the consumer. The table
+    covers every verb and every value, including absent. Testing each end alone
+    let a hard-coded `false` pass.
+  - **A scope change marks every line that states the scope:** the Done-when,
+    the issue's Plan row, and the plan body, all in the same commit.

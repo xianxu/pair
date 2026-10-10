@@ -155,3 +155,24 @@ func TestValidateSlotOperationRequests(t *testing.T) {
 		}
 	}
 }
+
+// pair#421: the relaunch overrides are refused on any other operation.
+func TestValidateRequestOverridesOnlyOnRelaunch(t *testing.T) {
+	base := Request{Scope: "scope", Tag: "pair:0", Session: "session", Nonce: "launch",
+		Op: "relaunch", ID: "id", Target: "pair:1", Confirmed: true, SameBinary: true, ForceUnknown: true}
+	if err := ValidateRequest(base); err != nil {
+		t.Fatalf("relaunch with overrides: %v", err)
+	}
+	for _, op := range []string{"resume", "reboot", "send", "reload-context"} {
+		r := base
+		r.Op = op
+		if err := ValidateRequest(r); err == nil {
+			t.Fatalf("%s accepted --same-binary", op)
+		}
+	}
+	reload := base
+	reload.Op, reload.SameBinary = "reload-context", false
+	if err := ValidateRequest(reload); err != nil {
+		t.Fatalf("reload-context with --force-unknown: %v", err)
+	}
+}

@@ -43,16 +43,32 @@ type peerDelivery struct {
 	// status query after a broker restart still has an answer and a reused
 	// ID is refused rather than pasted again (#365).
 	recent couchmessage.RecentDeliveries
+	// Settle state (#421, peer_settle.go). settleProbe is nil when the
+	// wrapper cannot judge (no terminal model), and then nothing settles.
+	settled     bool
+	settleGen   uint64 // advanced by every source transition (armSettleLocked)
+	settleProbe func() bool
+	settleTimer settleTimer
+	afterFunc   func(time.Duration, func()) settleTimer
 }
 
 type peerSessionSink interface {
 	Update(couchmessage.Observation)
 	Submit(couchmessage.Observation)
+	Settle(bool)
 }
 
 // observationLocked is the wrapper's current evidence; d.mu must be held.
 func (d *peerDelivery) observationLocked() couchmessage.Observation {
 	return couchmessage.Observation{LastActivity: d.lastActivity, Sequence: d.sequence, Submission: d.submissions}
+}
+
+// publishUnsettled tells the session it is no longer settled, before the
+// activity frame that caused it.
+func (d *peerDelivery) publishUnsettled(sink peerSessionSink, changed bool) {
+	if changed && sink != nil {
+		sink.Settle(false)
+	}
 }
 
 // publish hands the session an observation taken under d.mu, after release.
@@ -108,8 +124,9 @@ func (d *peerDelivery) observeOutput(data []byte) {
 	d.outputPending++
 	d.lastActivity = d.now()
 	d.replies.observeQueries(data)
-	o, sink := d.observationLocked(), d.session
+	o, sink, unsettled := d.observationLocked(), d.session, d.unsettleLocked()
 	d.mu.Unlock()
+	d.publishUnsettled(sink, unsettled)
 	d.publish(sink, o, false)
 	d.signal()
 }
@@ -125,8 +142,10 @@ func (d *peerDelivery) admitInput(data []byte) bool {
 	d.mu.Lock()
 	var sink peerSessionSink
 	var o couchmessage.Observation
+	unsettled := false
 	defer func() {
 		d.mu.Unlock()
+		d.publishUnsettled(sink, unsettled)
 		d.publish(sink, o, false)
 	}()
 	d.replies.inFlight++
@@ -136,7 +155,7 @@ func (d *peerDelivery) admitInput(data []byte) bool {
 		d.sequence++
 		d.lastActivity = d.now()
 		d.interrupted = d.interrupted || d.current.Status == couchmessage.Delivering
-		o, sink = d.observationLocked(), d.session
+		o, sink, unsettled = d.observationLocked(), d.session, d.unsettleLocked()
 	}
 	if bytes.Contains(data, []byte{0x16}) {
 		d.image = true
@@ -161,8 +180,9 @@ func (d *peerDelivery) admitImage() {
 	d.interrupted = d.interrupted || d.current.Status == couchmessage.Delivering
 	d.sequence++
 	d.lastActivity = d.now()
-	o, sink := d.observationLocked(), d.session
+	o, sink, unsettled := d.observationLocked(), d.session, d.unsettleLocked()
 	d.mu.Unlock()
+	d.publishUnsettled(sink, unsettled)
 	d.publish(sink, o, false)
 	d.signal()
 }
@@ -175,8 +195,9 @@ func (d *peerDelivery) humanSubmit() {
 	d.sequence++
 	d.submissions++
 	d.lastActivity = d.now()
-	o, sink := d.observationLocked(), d.session
+	o, sink, unsettled := d.observationLocked(), d.session, d.unsettleLocked()
 	d.mu.Unlock()
+	d.publishUnsettled(sink, unsettled)
 	d.publish(sink, o, true)
 }
 

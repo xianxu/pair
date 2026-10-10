@@ -49,6 +49,10 @@ var RetryDelays = []time.Duration{500 * time.Millisecond, time.Second, 2 * time.
 
 type registrySession struct {
 	binding Binding
+	// build and settled are the wrapper's self-report (#421): build is nil
+	// for a pre-hello-v2 wrapper, settled nil until a hello-v2 session says.
+	build   *BuildIdentity
+	settled *bool
 	phase   AdmissionPhase
 	pane    PaneHandle // Admitting/Admitted: the pane the admission checked
 	attempt int        // failed admissions since the last event that reset it
@@ -83,6 +87,8 @@ type RegistryEvent struct {
 	Err         error      // AdmissionDone, ConnectFailed
 	Attempt     int        // RetryDue
 	Observation Observation
+	Build       *BuildIdentity // SessionOpened: non-nil for a hello-v2 session
+	Settled     *bool          // SessionActivity/SessionSubmit on a hello-v2 session
 }
 
 type RegistryEffectKind int
@@ -137,7 +143,7 @@ func (r *Registry) Advance(e RegistryEvent) ([]RegistryEffect, error) {
 				fx = r.displace(t, s, fx)
 			}
 		}
-		s := &registrySession{binding: e.Binding, phase: AwaitingPane}
+		s := &registrySession{binding: e.Binding, build: e.Build, phase: AwaitingPane}
 		r.sessions[e.Token] = s
 		fx = r.readmit(e.Token, s, fx)
 	case SessionClosed:
@@ -215,6 +221,10 @@ func (r *Registry) Advance(e RegistryEvent) ([]RegistryEffect, error) {
 		s := r.sessions[e.Token]
 		if s == nil {
 			return nil, nil
+		}
+		if s.build != nil && e.Settled != nil {
+			v := *e.Settled
+			s.settled = &v
 		}
 		if s.phase == Admitted {
 			fx = append(fx, RegistryEffect{Kind: EffectObserve, Token: e.Token, Binding: s.binding, Observation: e.Observation})
@@ -319,4 +329,42 @@ func (r *Registry) Phase(t SessionToken) (AdmissionPhase, bool) {
 		return 0, false
 	}
 	return s.phase, true
+}
+
+// SlotLiveness is what a slot's admitted wrapper last said about itself
+// (#421). Build is nil for a wrapper that predates hello-v2; Settled is nil
+// until a hello-v2 session reports it. Both being nil reads as "unknown",
+// which is never "idle".
+type SlotLiveness struct {
+	Binding Binding
+	Build   *BuildIdentity
+	Settled *bool
+	// Session is the admitted connection. A SIGUSR2 re-exec keeps the binding
+	// byte-identical (PID, start time, nonce), so a new token is the evidence
+	// that the wrapper restarted (pair#421 reload-context).
+	Session SessionToken
+}
+
+// Liveness snapshots every admitted session by slot. Admission already keeps
+// one admitted session per slot (a new incarnation displaces the old); should
+// two ever coexist, the slot is omitted, because a restart must not guess.
+func (r *Registry) Liveness() map[string]SlotLiveness {
+	out := map[string]SlotLiveness{}
+	ambiguous := map[string]bool{}
+	for _, t := range r.tokens() {
+		s := r.sessions[t]
+		if s.phase != Admitted {
+			continue
+		}
+		slot := s.binding.Slot
+		if _, seen := out[slot]; seen {
+			ambiguous[slot] = true
+			continue
+		}
+		out[slot] = SlotLiveness{Binding: s.binding, Build: s.build, Settled: s.settled, Session: t}
+	}
+	for slot := range ambiguous {
+		delete(out, slot)
+	}
+	return out
 }

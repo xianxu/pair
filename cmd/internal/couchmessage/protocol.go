@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"strings"
 	"time"
 	"unicode"
@@ -19,7 +20,11 @@ type Request struct {
 	// Confirmed declares the operator's confirmation for an operation whose
 	// declaration requires one (reboot); resume and reboot only.
 	Confirmed bool `json:",omitempty"`
-	Binding   *Binding
+	// SameBinary and ForceUnknown are relaunch/reload-context overrides
+	// (pair#421); each is recorded in the receipt when it changed the outcome.
+	SameBinary   bool `json:",omitempty"`
+	ForceUnknown bool `json:",omitempty"`
+	Binding      *Binding
 }
 
 type Response struct {
@@ -76,11 +81,17 @@ func ValidateRequest(r Request) error {
 	if r.Agent != "" && (r.Op != "send" || !validFamily(r.Agent)) {
 		return errors.New("an agent filter applies only to send and must be a plain agent name")
 	}
-	if r.Confirmed && r.Op != "resume" && r.Op != "reboot" && r.Op != "reap" && r.Op != "recover" {
-		return errors.New("a confirmation applies only to resume, reboot, reap and recover")
+	if r.Confirmed && !couchcore.IsSlotOperation(r.Op) {
+		return errors.New("a confirmation applies only to slot operations")
 	}
-	switch r.Op {
-	case "resume", "reboot", "reap", "recover":
+	if r.SameBinary && !couchcore.SlotOperationTakesSameBinary(r.Op) {
+		return errors.New("--same-binary applies only to relaunch")
+	}
+	if r.ForceUnknown && !couchcore.SlotOperationTakesForceUnknown(r.Op) {
+		return errors.New("--force-unknown applies only to relaunch and reload-context")
+	}
+	switch {
+	case couchcore.IsSlotOperation(r.Op):
 		// One exact slot: a primitive acts on one slot, never a family.
 		if !validMessageID(r.ID) || r.Body != "" {
 			return errors.New(r.Op + " requires only a request ID and an exact slot")
@@ -89,19 +100,19 @@ func ValidateRequest(r Request) error {
 		if _, _, err := parseSlot(r.Target); err != nil {
 			return err
 		}
-	case "operation-status":
+	case r.Op == "operation-status":
 		if !validMessageID(r.ID) || r.Target != "" || r.Body != "" {
 			return errors.New("operation-status requires only a request ID")
 		}
-	case "actors":
+	case r.Op == "actors":
 		if r.ID != "" || r.Target != "" || r.Body != "" {
 			return errors.New("actors takes no message fields")
 		}
-	case "status":
+	case r.Op == "status":
 		if !validMessageID(r.ID) || r.Target != "" || r.Body != "" {
 			return errors.New("status requires only a message ID")
 		}
-	case "send":
+	case r.Op == "send":
 		if !validMessageID(r.ID) {
 			return errors.New("invalid message ID")
 		}
