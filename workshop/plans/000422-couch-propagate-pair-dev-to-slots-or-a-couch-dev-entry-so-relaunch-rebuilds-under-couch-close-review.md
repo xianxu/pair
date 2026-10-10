@@ -75,3 +75,61 @@ findings:
     detail: |
       Instances: the header comment (pair-dev then bin/pair is described as the caller), and the three echo lines prefixed "pair-dev:" with a "fix, then Alt+n" hint. couch-dev now calls the hook too, so the prefix and hint are misleading on a Couch launch.
 ```
+
+---
+
+## Re-review — 2026-10-09T23:41:20-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 422 — couch: propagate PAIR_DEV to slots (or a couch dev entry) so relaunch rebuilds under couch |
+| repo | pair |
+| issue file | workshop/issues/000422-couch-propagate-pair-dev-to-slots-or-a-couch-dev-entry-so-relaunch-rebuilds-under-couch.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 53ec05c9bd8c99d1dfeacb682e3a24606a3b02fc..c2f5ce78b305ee9d7c676b8208ab54e3152959f4 |
+| command | sdlc close --issue 422 |
+| reviewer | claude |
+| timestamp | 2026-10-09T23:41:20-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The change is ready to ship. `bin/couch-dev` follows `pair-dev`'s design: it sets `PAIR_DEV=1`, rebuilds once through the shared `dev_rebuild` hook, and then runs the sibling `couch`. Slots pick up dev mode by inheriting Couch's environment. Two Go tests pin that inheritance (`couchcore` `buildExecCommand` and `couchcmd` `childEnv`), and the shell test covers the launch through a symlink, passing every argument, and a failed build. I re-ran `tests/dev-rebuild-test.sh` and all 6 cases pass.
+
+**Prior findings:**
+- **BR-2 is fixed.** Commits 5924e039 and 4d898f76 change the hook's header to name both callers. The three `echo` lines now start with `dev-rebuild:`, and the failure hint says "relaunch" instead of "Alt+n". I grepped the tree and nothing parses the old `pair-dev:` prefix, so changing it breaks nothing. This was a wording fix, so no regression test is needed.
+- **BR-1 is still open.** `bin/couch-dev:17-23` is still a word-for-word copy of the symlink-resolving loop in `bin/pair-dev:23-29`. It is Minor and doesn't block shipping.
+
+1. **Strengths**
+   - Couch got no new propagation code. Instead, tests pin the environment inheritance that already exists (`cmd/internal/couchcore/runner_test.go:177`, `cmd/internal/couchcmd/singleton_runtime_test.go:249`).
+   - Both scripts reuse the one `dev_rebuild` hook rather than adding a second build path.
+   - The new launcher is fully wired: the `.gitignore` exception, `SHELL_BINS`, `NonArtifactSources`, the install-layout symlink check, the README and the atlas.
+   - The hook's messages are now neutral about which script called them. That fixes the whole BR-2 family (header plus all three `echo` lines), not just one line.
+
+2. **Critical:** none.
+3. **Important:** none.
+4. **Minor:** BR-1 is still open (see the findings block below).
+5. **Test coverage:** Done-when has two states, dev and deployed, and both are covered. Dev mode is covered by the new couch-dev shell cases and the two Go pins. Deployed mode doing nothing is covered by the existing `dev_rebuild` case 1, and plain `couch` has no code change. The build-failure path is tested for couch-dev too.
+6. **Architecture:**
+   - **ARCH-DRY: flagged, Minor.** This is BR-1, the duplicated loop.
+   - **ARCH-PURE: pass.** The new code is only launcher glue, and the environment-merge logic it relies on already has unit tests.
+   - **ARCH-PURPOSE: pass.** Slot create, Alt+n and `couch --relaunch` all get dev mode through inheritance.
+7. **Plan revisions:** none needed.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      bin/couch-dev:17-23 still copies bin/pair-dev:23-29 verbatim; no bin/lib resolve helper landed. Minor, non-blocking.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      5924e039/4d898f76: header names both callers; all three echo lines now "dev-rebuild:" with a "relaunch" hint; grep shows no consumer of the old prefix.
+```
