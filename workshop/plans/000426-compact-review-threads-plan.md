@@ -42,14 +42,27 @@ verbatim. New float saves emit single-line encoded turns.
 | Thread lines and save/close transition model | `nvim/review/comment_thread.lua` | new |
 | Turn resolution | `nvim/review/resolve.lua` | modified |
 
-The newline codec ports Parley's odd/even backslash rule around `<br>`.
-Keep delimiter escaping in `nvim/marker_codec.lua`. Define the composition
-explicitly: human text -> newline encode -> delimiter escape -> raw turn;
-raw turn -> delimiter unescape -> newline decode -> human text. Parser sections
-must retain the encoded representation needed to distinguish literal `<br>`
-from a newline; never decode an anchor. Existing callers receiving section text
-must be enumerated before choosing a raw/decoded field, and their contract
-pinned with regression tests. No second marker grammar.
+The turn codec preserves the canonical odd/even backslash rule around `<br>`
+while supporting Pair's delimiter escapes. Add `raw_text` to parsed sections,
+retaining `text` with its existing delimiter-decoded contract. `decode_turn`
+reads raw_text directly: recognize slash runs plus `<br>` BEFORE generic
+backslash unescaping; 2n slashes mean n literal slashes followed by newline,
+2n+1 mean n slashes followed by literal `<br>`. Elsewhere use existing delimiter
+escape semantics. `encode_turn` is the inverse, escaping bracket delimiters
+without re-escaping the already encoded `<br>` runs. Factor any shared generic
+escape primitive through `nvim/marker_codec.lua`; do not concatenate two whole
+string encoders/decoders whose escape alphabets overlap.
+
+Single-line markers use this canonical interpretation regardless of producer;
+there is no version bit to distinguish a formerly literal unescaped `<br>`.
+This deliberate compatibility change applies only to turn-derived text. Legacy
+multiline markers retain the existing section-text/resolve path. Anchors always
+retain current delimiter decoding and literal `<br>` behavior. Thread conversion
+and single-line turn resolution use raw_text through the same turn codec.
+Enumerate existing section consumers and pin their contracts with regression
+tests. Independently authored canonical raw fixtures with 0–4 slashes before
+`<br>` must test float decoding and resolution; paired round trips alone cannot
+prove compatibility with agents/Parley.
 
 The view consumes full-buffer parser output, not an independent line scan:
 inline/fenced code exclusions and multiline eligibility apply equally to all
@@ -119,12 +132,13 @@ source files and generated mirrors.
 ### Task 1: Codec and thread representation
 
 Files: new `nvim/review/comment_codec.lua`, `comment_thread.lua` and colocated
-`*_test.lua`; modify `nvim/review/markers.lua`, `resolve.lua` and their tests.
+`*_test.lua`; modify `nvim/review/markers.lua`, `resolve.lua`, shared
+`nvim/marker_codec.lua` only for reusable primitives, and their tests.
 
 - [ ] Enumerate section-text consumers with `rg 'sections|last.text' nvim/review nvim/review.lua`; pin existing anchor/delimiter/resolve behavior.
 - [ ] Add failing table and seeded property tests: backslash runs, all bracket delimiters, `<br>`, literal `<br>`, actual newlines, emoji, empty turns, role-like continuation prefixes and trailing blank lines. Assert decode(encode(text)) equals text, and parse/serialize preserves intended roles/content and surrounding bytes.
 - [ ] Run `nvim -l nvim/review/comment_codec_test.lua` and `nvim -l nvim/review/comment_thread_test.lua`; verify behavioral failures before implementation.
-- [ ] Implement the composition above, adapting upstream codec/thread code through Pair's parser. Add newline decoding only for turn-derived resolution, preserving anchors literally.
+- [ ] Implement the canonical raw-turn codec above, adapting upstream codec/thread code through Pair's parser. Add newline decoding only for turn-derived resolution, preserving anchors literally.
 - [ ] Run the new tests plus `nvim -l nvim/review/markers_test.lua` and `nvim -l nvim/review/resolve_test.lua`; commit this coherent component with an issue reference.
 
 ### Task 2: Shared compact projection and attachment
@@ -166,3 +180,14 @@ After approval, run `sdlc change-code --issue 426 --flow full --worktree=no`
 before any test or production edit. Address the plan gate's findings, derive the
 estimate only after plan-quality passes, and set it through the issue setter.
 The boundary judge owns the code review; do not dispatch a redundant one.
+
+## Revisions
+
+### 2026-10-10 — fresh-eyes review: canonical wire compatibility
+
+Supersedes the initial whole-string newline/delimiter codec composition, which
+lost canonical slash parity. Preserve raw turn payloads and decode the `<br>`
+rule before generic escapes; encode with one coordinated scanner. Specify
+single-line canonical precedence and retain legacy multiline resolution. Add
+independent 0–4 slash fixtures alongside round-trip properties. The reviewer
+found no other Critical/Important issues in the draft.

@@ -97,8 +97,8 @@ Open questions, to settle at start-plan:
 
 Resolve the Spec's open questions as follows (pending operator approval):
 review pane only; port standalone Lua modules from Parley's landed commit;
-compose newline encoding with Pair's existing delimiter codec rather than
-replacing that codec. Compact only complete single-line markers. Preserve
+coordinate newline and delimiter escaping through a raw-turn codec rather
+than composing whole-string encoders (see the correction below). Compact only complete single-line markers. Preserve
 legacy multiline parsing, highlighting, resolution, and reconciliation output
 in this issue: a multiline quoted hunk cannot be converted to an encoded anchor
 without changing its meaning. Such markers stay fully visible, with no compact
@@ -110,3 +110,11 @@ rendering, cursor protection and float targeting agree on marker eligibility;
 float save refuses a changed source marker without losing the edited thread;
 repeated saves, undo/redo and teardown are covered. The original three
 Done-when requirements remain in force.
+
+### 2026-10-10 — correct raw-turn encoding after plan review
+
+The fresh-eyes reviewer found that delimiter unescape before newline decode
+loses the canonical odd/even slash rule. The plan now retains raw turn text,
+uses one coordinated turn encoder/decoder, and pins canonical wire fixtures
+independently of paired round trips. Single-line turns follow canonical `<br>`
+semantics; anchors and legacy multiline resolution retain existing behavior.

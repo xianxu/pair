@@ -829,3 +829,9 @@ proof; record the surprising case so the next change starts from evidence.
   chain. When adding a verb, drive it from parsed argv through the top-level
   dispatcher in a test that enumerates every declared verb. Sweep every
   spelling of the old list, `switch` cases and `||` chains alike.
+
+- **Round trips do not prove wire compatibility (#426 plan review).** Two
+  encoders with overlapping escape alphabets can invert each other while
+  disagreeing with every external writer. Test independently authored raw
+  protocol fixtures before composing codecs; preserve escape parity until the
+  grammar that owns it has interpreted it.
