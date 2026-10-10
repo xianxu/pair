@@ -3,6 +3,7 @@ package keyhelp
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
@@ -107,11 +108,15 @@ func sections(src SourceReader, hosted bool) ([]Section, error) {
 		sort.SliceStable(rows, func(i, j int) bool { return rows[i].Order < rows[j].Order })
 		out = append(out, Section{Title: g, Bindings: rows})
 	}
-	reviewLua, err := src.Read("nvim/review.lua")
-	if err != nil {
-		return nil, fmt.Errorf("read nvim/review.lua: %w", err)
+	var reviewSources []string
+	for _, path := range reviewSourcePaths {
+		lua, err := src.Read(path)
+		if err != nil {
+			return nil, fmt.Errorf("read %s: %w", path, err)
+		}
+		reviewSources = append(reviewSources, string(lua))
 	}
-	review, err := reviewSections(string(reviewLua))
+	review, err := reviewSections(strings.Join(reviewSources, "\n"))
 	if err != nil {
 		return nil, err
 	}

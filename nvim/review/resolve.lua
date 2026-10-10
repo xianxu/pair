@@ -16,6 +16,8 @@
 --   🤖~D~[N]         accept → N       reject → D
 --   longer []{} chain accept → ''     reject → ''
 local M = {}
+local here = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
+local codec = dofile(here .. 'comment_codec.lua')
 
 -- @param marker table  a parse_markers record: { quoted?, strike?, sections }
 -- @param action string 'accept' | 'reject'
@@ -27,7 +29,7 @@ function M.resolve(marker, action)
   -- Strike (deletion / replacement proposals): 🤖~D~ / ~D~{N} / ~D~[N].
   if marker.strike then
     if action == 'reject' then return marker.strike.text end -- keep D
-    return last and last.text or '' -- accept: the new text, or delete (bare ~D~)
+    return last and codec.turn_text(marker, last) or '' -- accept: the new text, or delete (bare ~D~)
   end
 
   -- Quoted instruction/comment/replacement:
@@ -35,14 +37,14 @@ function M.resolve(marker, action)
   --   🤖<X>[H] accept/reject both keep X while removing the markup.
   if marker.quoted then
     if action == 'accept' and #sections == 1 and last and last.type == 'agent' then
-      return last.text
+      return codec.turn_text(marker, last)
     end
     return marker.quoted.text
   end
 
   -- Lone agent suggestion: 🤖{R} — accept applies R, reject discards it.
   if #sections == 1 and last and last.type == 'agent' then
-    return action == 'accept' and last.text or ''
+    return action == 'accept' and codec.turn_text(marker, last) or ''
   end
 
   -- 🤖[H], mixed chains, longer chains: remove the markup; there is no plain-text

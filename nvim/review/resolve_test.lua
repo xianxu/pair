@@ -64,5 +64,21 @@ local chain = { sections = { agent('R'), user('H'), agent('R2') } }
 eq(R.resolve(chain, 'accept'), '', 'longer chain accept (discard)')
 eq(R.resolve(chain, 'reject'), '', 'longer chain reject (remove markup)')
 
+
+-- Canonical fixtures authored independently of the encoder (#426).
+local parser = dofile(here .. 'markers.lua')
+for slashes = 0, 4 do
+  local wire = string.rep('\\', slashes) .. '<br>'
+  local want = string.rep('\\', math.floor(slashes / 2)) .. (slashes % 2 == 0 and '\n' or '<br>')
+  for _, prefix in ipairs({ '🤖', '🤖<anchor>', '🤖~old~' }) do
+    local parsed = parser.parse_markers({ prefix .. '{' .. wire .. '}' })[1]
+    eq(R.resolve(parsed, 'accept'), want, 'canonical resolution parity ' .. slashes)
+  end
+end
+local anchor = parser.parse_markers({ '🤖<literal <br>>{a<br>b}' })[1]
+eq(R.resolve(anchor, 'reject'), 'literal <br>', 'anchor stays literal')
+local legacy = parser.parse_markers({ '🤖{a<br>', 'b}' })[1]
+eq(R.resolve(legacy, 'accept'), 'a<br>\nb', 'legacy multiline stays literal')
+
 if fails > 0 then os.exit(1) end
 print('resolve_test ok')

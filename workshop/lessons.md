@@ -840,6 +840,31 @@ proof; record the surprising case so the next change starts from evidence.
   dispatcher in a test that enumerates every declared verb. Sweep every
   spelling of the old list, `switch` cases and `||` chains alike.
 
+- **Round trips do not prove wire compatibility (#426 plan review).** Two
+  encoders with overlapping escape alphabets can invert each other while
+  disagreeing with every external writer. Test independently authored raw
+  protocol fixtures before composing codecs; preserve escape parity until the
+  grammar that owns it has interpreted it.
+
+- **Conceal replacement cells need their own role highlight (#426).** Coloring
+  a turn's text span did not color the extmark's replacement brackets; only the
+  PTY screenattr check caught it. Check actual painted cells when layering
+  conceal marks over syntax/highlight spans.
+
+- **Input guards belong before mutation, and handle mode entry (#426 BR-1).**
+  CursorMoved/TextChanged cannot protect hidden text when `i` enters insert at
+  a visible closing delimiter. Admit Insert/Replace entry and each character,
+  including queued keys, and verify through actual editor input events.
+- **Window identity includes its current buffer (#426 BR-2).** A float window
+  can survive `:enew` after its scratch is wiped. Release ownership on scratch
+  departure and check the window/buffer pair before both focus and cleanup;
+  the replacement is user-owned.
+
+- InsertCharPre is not a general pre-edit hook: newline, deletion and register
+  insertion have distinct input paths. For protected geometry, test a matrix
+  of mutation mechanisms after queued cursor movement before declaring the
+  admission rule complete.
+
 - **A changed outcome contract sweeps every test that asserts the old one
   (#427).** Making "submitted" mean "confirmed after the submit", not "the
   submit write completed", broke a test in a file no targeted `-run` pattern

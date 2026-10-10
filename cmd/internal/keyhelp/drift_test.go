@@ -86,7 +86,7 @@ func TestEveryCatalogEntryStillExists(t *testing.T) {
 // regenerates it, so without this a stale embedded snapshot would silently weaken
 // every assertion above while `pair keys` rendered yesterday's bindings.
 func TestEmbeddedSourcesMatchTree(t *testing.T) {
-	for _, path := range []string{"nvim/init.lua", "nvim/review.lua", "zellij/config.kdl"} {
+	for _, path := range append([]string{"nvim/init.lua", "zellij/config.kdl"}, reviewSourcePaths...) {
 		tree := mustReadTreeSource(t, path)
 		embedded, err := runtimebundle.EmbeddedAsset(path)
 		if err != nil {

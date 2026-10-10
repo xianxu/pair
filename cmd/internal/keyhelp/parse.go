@@ -1,6 +1,7 @@
 package keyhelp
 
 import (
+	"regexp"
 	"strings"
 )
 
@@ -147,17 +148,12 @@ func argAt(body string, n int) string {
 
 // prefixedDesc strips the owning pane's prefix and surrounding whitespace.
 func prefixedDesc(body, prefix string) (string, bool) {
-	descMarker := "desc = '" + prefix + ": "
-	i := strings.Index(body, descMarker)
-	if i < 0 {
+	pattern := regexp.MustCompile(`\bdesc\s*=\s*'` + regexp.QuoteMeta(prefix) + `: ([^']*)'`)
+	match := pattern.FindStringSubmatch(body)
+	if match == nil {
 		return "", false
 	}
-	rest := body[i+len(descMarker):]
-	end := strings.IndexByte(rest, '\'')
-	if end < 0 {
-		return "", false
-	}
-	return strings.TrimSpace(rest[:end]), true
+	return strings.TrimSpace(match[1]), true
 }
 
 // isQuotedLiteral reports whether an argument is a plain quoted string with no

@@ -218,6 +218,7 @@ local review = dofile(here .. 'review/init.lua')
 local poke = dofile(here .. 'pair_poke.lua')
 local workbench_route = dofile(here .. 'workbench_route.lua')
 local markers = dofile(here .. 'review/markers.lua')
+local comments = dofile(here .. 'review/comment.lua')
 local seam = dofile(here .. 'review/seam.lua')
 local poke_bodies = dofile(here .. 'review/poke_bodies.lua')
 local resolve = dofile(here .. 'review/resolve.lua')
@@ -238,21 +239,14 @@ local function setup_review_marker_hl()
   vim.api.nvim_set_hl(0, 'ParleyReviewAgent', { link = 'DiagnosticInfo' })
   vim.api.nvim_set_hl(0, 'ParleyReviewQuoted', { reverse = true, bold = true })
   vim.api.nvim_set_hl(0, 'ParleyReviewStrike', { strikethrough = true })
+  vim.api.nvim_set_hl(0, 'ParleyReviewBroken', { link = 'DiagnosticError' })
+  vim.api.nvim_set_hl(0, 'ParleyCommentUser', { link = 'DiffChange' })
+  vim.api.nvim_set_hl(0, 'ParleyCommentAgent', { link = 'DiffAdd' })
 end
 setup_review_marker_hl()
 vim.api.nvim_create_autocmd('ColorScheme', { callback = setup_review_marker_hl })
 
-local MARK_NS = vim.api.nvim_create_namespace('review_markers')
-local function render_markers(buf)
-  if not vim.api.nvim_buf_is_valid(buf) then return end
-  local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-  vim.api.nvim_buf_clear_namespace(buf, MARK_NS, 0, -1)
-  for _, s in ipairs(markers.spans_multiline(lines)) do
-    pcall(vim.api.nvim_buf_set_extmark, buf, MARK_NS, s.row, s.col, {
-      end_row = s.end_row, end_col = s.end_col, hl_group = s.hl_group,
-    })
-  end
-end
+local function render_markers(buf) comments.render(buf) end
 
 local REVIEW_MARKER = '🤖'
 
@@ -722,6 +716,7 @@ local recovery_dir
 local recovery_observer
 local render_group=vim.api.nvim_create_augroup('PairReviewActivationRender',{clear=true})
 local function stop_review(buf)
+  comments.detach(buf)
   if recovery_observer then recovery_observer:cancel(buf) end
   vim.api.nvim_clear_autocmds({group=render_group,buffer=buf})
   review.stop(buf)
@@ -781,6 +776,7 @@ local function start_review(buf, file, resolved)
   vim.keymap.set('n', '[m', function() jump_marker(buf, -1) end,
     { buffer = buf, silent = true, desc = 'review: prev 🤖 marker' })
 
+  comments.attach(buf)
   render_markers(buf)
   render_active_diagnostic(buf)
   -- Rendering belongs to the current activation, including rollback/restart.
