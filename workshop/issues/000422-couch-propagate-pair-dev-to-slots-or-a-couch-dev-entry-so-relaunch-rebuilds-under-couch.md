@@ -72,6 +72,7 @@ starts Couch with `PAIR_DEV` set.
 ## Log
 
 ### 2026-10-09
+- 2026-10-09: closed — tests/dev-rebuild-test.sh: 3 new couch-dev cases (PAIR_DEV=1 + args reach couch via a symlinked entry; make -C tree build; failed build still launches) red before bin/couch-dev, green after. Go pins TestExecRunnerChildInheritsPairDev + TestConfiguredRunnerChildEnvKeepsPairDev pass. Install layout test asserts the couch-dev symlink, passes. make -k test green in a clean env (env -i; the two failures under the session env were PAIR/COUCH var leaks). go test ./... in clean env: artifactpath + gcruntime fail identically on main (artifactpath couch-dev entry added; remaining entries pre-existing); couchsingleton passes with default TMPDIR (fixture grows with the long scratchpad path); TestColdResume.../switcher is a 3/6 timing flake unrelated to env/launch scripts (logged). Dogfood: bin/couch-dev --list rebuilt the tree and listed threads. pair:1 confirmed #421 relaunch inherits PAIR_DEV.; review verdict: SHIP
 
 - Claimed from TL ariadne:1 (operator-approved dispatch); labelled the slot per
   the #419 skill step. Asked pair:1 to keep `PAIR_DEV` in #421's relaunch env.
