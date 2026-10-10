@@ -1,12 +1,20 @@
 ---
 id: 000425
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-10
 updated: 2026-10-10
 estimate_hours:
-card_mirror: 'ee1357eec74417ee4f04431afacbf1ee0d346a3c' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '105fe1ad951c6770782b7d3ae68612b74d8e57bc' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-10T11:13:55-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch: in-memory slot tails with style and cursor marks, plus a multi-slot peek
@@ -41,8 +49,16 @@ A TL (in the `ops` slot) and the operator drive several slots at once, and need 
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000425-couch-in-memory-slot-tails-with-style-and-cursor-marks-plus-a-multi-slot-peek-plan.md`.
+
+- [ ] terminal tail renderer (wrapper emulator → markup) + tests
+- [ ] endpoint + broker `tail` ops, message_service handler + tests
+- [ ] couchcore peek live-first, multi-slot snapshot + tests
+- [ ] CLI wiring/rendering + router test
+- [ ] atlas + couch skill docs
+- [ ] live check on 3+ slots
 
 ## Log
 
 ### 2026-10-10
+- Design: the wrapper's vt emulator already keeps screen + 10k scrollback in memory, so the tail is a render on request, not a new store. Reached through an identity-free read-only broker op (`broadcast-status` precedent), because only the broker knows the wrapper endpoint's binding-hashed socket. Recording render stays as the fallback, reason inline.
