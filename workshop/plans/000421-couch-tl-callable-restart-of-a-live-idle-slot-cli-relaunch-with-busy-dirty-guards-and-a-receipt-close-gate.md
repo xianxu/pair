@@ -277,6 +277,30 @@ rounds:
       boundary: M4
       recipe: milestone-review
       blocked: true
+    - "n": 9
+      timestamp: "2026-10-10T01:26:03-07:00"
+      agent: claude
+      dispose:
+        - id: BR-22
+          disposition: addressed
+          note: TestRequireSettledProducerToConsumer covers both verbs x known/forced/absent through PrepareSlotOperation, CouchLiveOwnerExecutor and the probe. A scratch mutation hard-coding false at the reload dispatch turns it red. The rule is in lessons.md.
+          round: 9
+        - id: BR-23
+          disposition: addressed
+          note: The issue Done-when (lines 65-68), the issue M4 row (line 101) and the plan M4 row (line 134) all mark the deferral. The lesson extends to Done-when.
+          round: 9
+        - id: BR-24
+          disposition: addressed
+          note: DecideLiveRestart returns Forced, and prepareLiveRestart writes d.Forced; the duplicate predicate is gone.
+          round: 9
+        - id: BR-25
+          disposition: addressed
+          note: SKILL.md busy-unknown now names the admission causes and the effect-time disconnect, each with its fix.
+          round: 9
+      boundary: M4
+      recipe: milestone-review
+      reviewed: 77b1f23cebdb4acfaeba1b258638faa4c9a9b9d7
+      blocked: false
 ---
 
 # Gate ledger — pair#421 (boundary-review)
@@ -393,13 +417,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-25** [Minor] `docs-surface-lags-cli` SKILL.md busy-unknown names only the old-wrapper cause, not the disconnect-after-admission refusal added here
   Rule: each refusal code's doc lists every site that emits it, and the fix for each.
 
+## Round 9 — 2026-10-10T01:26:03-07:00 (claude) — passed
+
+### Disposed
+
+- BR-22 — addressed — TestRequireSettledProducerToConsumer covers both verbs x known/forced/absent through PrepareSlotOperation, CouchLiveOwnerExecutor and the probe. A scratch mutation hard-coding false at the reload dispatch turns it red. The rule is in lessons.md.
+- BR-23 — addressed — The issue Done-when (lines 65-68), the issue M4 row (line 101) and the plan M4 row (line 134) all mark the deferral. The lesson extends to Done-when.
+- BR-24 — addressed — DecideLiveRestart returns Forced, and prepareLiveRestart writes d.Forced; the duplicate predicate is gone.
+- BR-25 — addressed — SKILL.md busy-unknown now names the admission causes and the effect-time disconnect, each with its fix.
+
 ## Open findings
 
 - **BR-6** [Minor] `derived-state-misses-source-transitions` A silent turn change does not advance the settle generation, so an in-flight check can re-assert Settled=true
 - **BR-13** [Minor] `safety-guard-wiring-untested` Admission note surviving a failed slot operation (message_service.go:338) has no regression test
 - **BR-20** [Minor] `revision-supersedes-body-unmarked` Deleted SlotOperationTakesOverrides still named in a code doc comment and in the M3 Revisions bullets
 - **BR-21** [Minor] `guard-rechecked-at-effect` ConfirmNotBusy passes "unknown" at the effect even when admission saw a known-settled wrapper
-- **BR-22** [Important] `safety-guard-wiring-untested` Dispatch translation of require-settled into the probe's forced flag is untested; the fake's forced field has no reader
-- **BR-23** [Important] `revision-supersedes-body-unmarked` M4 live-check deferral leaves the issue Done-when and plan M4 row unmarked
-- **BR-24** [Minor] `typed-outcome-survives-boundary` Admission recomputes the unknown predicate for the forced evidence instead of taking it from DecideLiveRestart
-- **BR-25** [Minor] `docs-surface-lags-cli` SKILL.md busy-unknown names only the old-wrapper cause, not the disconnect-after-admission refusal added here
