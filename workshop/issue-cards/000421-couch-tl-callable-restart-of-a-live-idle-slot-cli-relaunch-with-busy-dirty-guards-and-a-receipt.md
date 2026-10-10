@@ -13,7 +13,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
-actual_hours: 4.01
+actual_hours: 4.20
 tracker:
     version: 1
     handoff:
@@ -27,10 +27,10 @@ tracker:
         destination: workshop/issues/000421-couch-tl-callable-restart-of-a-live-idle-slot-cli-relaunch-with-busy-dirty-guards-and-a-receipt.md
         main_commit: fa6c2152494d727d2354286af20d0158a317ec0a
     completion:
-        token: close-d3979f21fc93
+        token: close-692f2676632e
         repository: github.com/xianxu/pair
-        reviewed_head: e157ce9ae95b9f33820983f13e92c2056e4e61cf
-        evidence_commit: e6c9f9ea2949bf6b9a3b0def51f81c38faecee32
+        reviewed_head: e57a658a4e18dd7a2074d0ba9e7476aba601b8ba
+        evidence_commit: 878ee76ee6a43d76708c9e9325d24687b8693a1f
 ---
 
 # couch: TL-callable restart of a live idle slot (CLI relaunch with busy/dirty guards and a receipt)
