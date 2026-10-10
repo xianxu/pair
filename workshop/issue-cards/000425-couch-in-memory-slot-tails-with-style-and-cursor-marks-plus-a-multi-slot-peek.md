@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000425-couch-in-memory-slot-tails-with-style-and-cursor-marks-plus-a-multi-slot-peek.md
         source_blob: fd0ee4962d21904d0ed2721b32bb09ecd6a3ebbc
         destination: workshop/issues/000425-couch-in-memory-slot-tails-with-style-and-cursor-marks-plus-a-multi-slot-peek.md
+        main_commit: d7ade9b1e57fadb44e50c92224cb975a9190fd67
 ---
 
 # couch: in-memory slot tails with style and cursor marks, plus a multi-slot peek
