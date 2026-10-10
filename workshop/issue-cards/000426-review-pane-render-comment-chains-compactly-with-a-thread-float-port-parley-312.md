@@ -17,6 +17,14 @@ tracker:
         source_blob: d2c210eee5b7abf6b485937e8fb8e1fb950e4f83
         destination: workshop/issues/000426-review-pane-render-comment-chains-compactly-with-a-thread-float-port-parley-312.md
         main_commit: 78d8609079842a9cd3d1f745379aba30d3504460
+started: 2026-10-10T11:43:09-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:0
+    worktree: /Users/xianxu/workspace/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Review pane: render 🤖 comment chains compactly with a thread float (port parley#312)
