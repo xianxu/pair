@@ -263,9 +263,17 @@ exact-version allowlist was removed in #360 after auto-updates silently dropped
 slots). Fixtures under `wrapcmd/testdata/peer/` and `TestPeerLiveConformance`
 were captured on Claude Code 2.1.286 and Codex CLI 0.159.2; per-version
 evidence from daily use is #368. Short-message submission
-has live evidence for both; deterministic wrapping is matched conservatively.
-Collapsed paste summaries remain unsubmitted and expire. Human Couch acceptance
-remains a separate step.
+has live evidence for both; deterministic wrapping is matched conservatively,
+per harness. Claude's rule is `peerSpaceWordwrap`'s doc comment (the one
+statement of it), while Codex uses `ansi.Wordwrap`, which also breaks after
+hyphens. Projecting Claude
+with `ansi.Wordwrap` failed every long message whose hyphenated path straddled
+the wrap column (#418). Claude collapses a long paste to `[Pasted text #N +M
+lines]`. That marker is accepted only in its strict form: it is the composer's
+whole content, the cursor sits right after it, `M` equals the envelope's newline
+count, and the composer was verified empty before the paste. The body itself
+can't be checked; that trade was the operator's decision in #418. Human Couch
+acceptance remains a separate step.
 
 Single-line suggested prompts in recognized agent composers use shared ANSI faint styling
 and the cursor at the input origin, independent of wording or RGB color.

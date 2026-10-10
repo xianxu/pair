@@ -1,12 +1,22 @@
 ---
 id: 000418
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-09
 updated: 2026-10-09
 estimate_hours:
-card_mirror: '679cdbe15a2e7c5b758135a84b43dcc2ad79195b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '5b72fd2f6b64d16de17f9a75afffc97412d05c71' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-09T20:15:12-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "a2c55c9d", done: "c19cec0c"}
+actual_hours: 0.48
 ---
 
 # Couch peer delivery never submits long pastes: wordwrap projection breaks at hyphens; collapsed paste never matches
@@ -73,8 +83,41 @@ calls `peerComposerText`/`peerComposerMatches`.
 
 ## Plan
 
-- [ ]
+- [x] Claude projection wraps at spaces only (`peerSpaceWordwrap`); Codex keeps
+      `ansi.Wordwrap`. Fixture: the captured ariadne:2 composer.
+- [x] Strict collapsed-marker acceptance (`peerClaudeCollapsedPaste`), chosen by
+      the operator (option a).
+- [x] Live `TestPeerLiveConformance -peer-live-body=hyphen-wrap|collapsed` submit.
+- [x] Docs: atlas/couch.md, README, fixture README.
+- [x] Over-width words hard-break like wrap-ansi (close review BR-1), captured live.
 
 ## Log
 
+### 2026-10-09 (implementation)
+- 2026-10-09: closed — Re-close for the post-close delta only: docs state the Claude wrap rule once on peerSpaceWordwrap (atlas/couch.md, fixture README, one code comment) plus a lessons.md entry; no behavior change. Prior evidence stands: live Claude Code 2.1.296 submit for overwidth, hyphen-wrap and collapsed bodies; wrapcmd and couchmessage green under clean env.; review verdict: SHIP
+- 2026-10-09: closed — Live Claude Code 2.1.296 (isolated PTY, safe mode, no tools, production dispatcher), TestPeerLiveConformance -peer-live-submit: -peer-live-body=overwidth (160-col token) render=wrapped submitted; hyphen-wrap (~625 chars) render=wrapped submitted; collapsed (~1300 chars) render=collapsed submitted. The hyphen-wrap run with the Claude branch reverted to ansi.Wordwrap never submits (harness timeout). Over-width rule captured live (wrap-ansi hard: start on current line unless next line needs fewer breaks) and pinned by TestPeerComposerClaudeCapturedOverwidthWord; hyphen fixture from the captured ariadne:2 composer; strict collapsed-marker cases; peerSpaceWordwrap table. wrapcmd and couchmessage green under clean env (unsandboxed); couchcmd cold-resume flake passed on rerun and does not import wrapcmd. Root cause evidence: recipient scrollback replays in the issue Problem.; review verdict: SHIP
+- Operator chose option (a): accept the collapsed marker strictly. It must be the
+  composer's whole content, with the cursor right after it, `+M` equal to the
+  envelope's newline count, and the composer verified empty before the paste.
+  This reverses #353's deliberate "collapsed stays unsupported".
+- Live, Claude Code 2.1.296, isolated PTY, safe mode, no tools:
+  - `-peer-live-submit -peer-live-body=hyphen-wrap` (about 630 chars):
+    render=wrapped, submitted.
+  - `-peer-live-body=collapsed` (about 1,300 chars): render=collapsed,
+    submitted.
+  - The same hyphen-wrap run with the Claude branch switched back to
+    `ansi.Wordwrap` never submitted (harness timeout), so the live check
+    detects the bug.
+- Unit: the captured hyphen-wrap fixture asserts that it distinguishes the two
+  projections. The collapsed tests cover a wrong line count, extra text, a
+  misplaced cursor, the marker on a second line, and an image marker.
+
 ### 2026-10-09
+- Close review round 1 (BR-1): the Spec promised hard-breaking over-width
+  tokens, but the first cut declined them. Captured live on 2.1.296
+  (`-peer-live-body=overwidth`): Claude starts a 160-column token on the
+  current line and breaks it at the width, which is wrap-ansi's `hard` rule
+  (start on the next line only if that needs fewer breaks). Implemented exactly
+  and pinned by `TestPeerComposerClaudeCapturedOverwidthWord`. Live submit
+  re-run: overwidth, hyphen-wrap and collapsed all submit. README no longer
+  overstates: unverifiable whitespace still waits for a human.

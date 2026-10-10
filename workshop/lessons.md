@@ -777,3 +777,12 @@ proof; record the surprising case so the next change starts from evidence.
 - **A user-visible behavior change updates README too, not just help and atlas
   (#417).** grep the old phrasing ("toggle ... fullscreen") across README,
   atlas and help strings before close.
+
+- **A projection of another program's rendering is a claim about that program;
+  capture it, don't assume it (#418).** Peer delivery modeled Claude's composer
+  wrapping with `ansi.Wordwrap`. That function also breaks after hyphens, and
+  Claude does not, so every long message with a hyphenated path expired. The
+  first fix guessed again, declining over-width words, until a live capture
+  showed wrap-ansi's hard rule. Pin each rendering rule with a captured
+  fixture that asserts it distinguishes the alternatives. State the rule once,
+  on the function, and point every doc there.
