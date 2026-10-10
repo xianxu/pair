@@ -88,6 +88,7 @@ function M.detach(buf)
   floats.close(buf)
   for win,w in pairs(s.windows) do restore(win,w,true) end
   active[buf]=nil
+  vim.on_key(nil,s.key_listener)
   pcall(vim.api.nvim_del_augroup_by_id,s.group)
   if vim.api.nvim_buf_is_valid(buf) then
     pcall(vim.api.nvim_buf_del_keymap,buf,'n','<CR>')
@@ -109,10 +110,11 @@ function M.attach(buf)
   watch({'TextChanged','TextChangedI','InsertLeave','FileChangedShellPost'},function() M.render(buf) end)
   watch({'CursorMoved','CursorMovedI','BufEnter','WinEnter'},function() M.render(buf);cursor(buf) end)
   -- Admission event classes: entry (i/a/I/A/gi, R/gR and :startinsert),
-  -- each typed character (including queued motion + text), and post-edit
-  -- refresh above. CursorMovedI alone runs too late for queued iX. InsertEnter
-  -- restores the old cursor unless v:char is nonempty; InsertCharPre permits
-  -- cursor movement under textlock, but we never mutate text here.
+  -- every input key (including queued motion + newline/delete/register paste),
+  -- and post-edit refresh above. InsertCharPre misses non-character mutations.
+  -- on_key runs after mappings but before processing each resulting key. This
+  -- admits insertion points; native range edits from visible points stay native.
+  -- InsertEnter restores the cursor unless v:char is nonempty.
   watch('InsertEnter',function()
     local before=vim.api.nvim_win_get_cursor(0)
     M.render(buf)
@@ -120,7 +122,11 @@ function M.attach(buf)
     local after=vim.api.nvim_win_get_cursor(0)
     if before[1]~=after[1] or before[2]~=after[2] then vim.v.char=' ' end
   end)
-  watch('InsertCharPre',function() M.render(buf);cursor(buf,true) end)
+  s.key_listener=vim.on_key(function()
+    if vim.api.nvim_get_current_buf()~=buf then return end
+    local mode=vim.api.nvim_get_mode().mode:sub(1,1)
+    if mode=='i' or mode=='R' then M.render(buf);cursor(buf,true) end
+  end)
   watch('BufLeave',function()
     local win=vim.api.nvim_get_current_win();if s.windows[win] then restore(win,s.windows[win],false) end
   end)

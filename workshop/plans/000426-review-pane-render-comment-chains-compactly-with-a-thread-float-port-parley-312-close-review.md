@@ -81,3 +81,75 @@ findings:
     detail: |
       nvim/review/comment_float.lua:131-134 does not handle scratch-buffer replacement. After :enew in a clean thread, line 88 treats the surviving window as a live thread, so reopening focuses an ordinary buffer and later cleanup closes that replacement window. Release ownership on scratch departure and verify buffer identity before focus/close; test replacement, reopening, and cleanup. ARCH-ORDER, ARCH-FUNERAL.
 ```
+
+---
+
+## Re-review — 2026-10-10T12:41:10-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 426 — Review pane: render 🤖 comment chains compactly with a thread float (port parley#312) |
+| repo | pair |
+| issue file | workshop/issues/000426-review-pane-render-comment-chains-compactly-with-a-thread-float-port-parley-312.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 78d8609079842a9cd3d1f745379aba30d3504460..f3ebcb63dfd0efff68f2265a9e1f8a96c2a7874c |
+| command | sdlc close --issue 426 |
+| reviewer | codex |
+| timestamp | 2026-10-10T12:41:10-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The compact rendering, codec, and thread lifecycle have substantial coverage. BR-2 is fixed and independently regression-verified. BR-1 remains blocking: insertion admission still permits a queued newline inside concealed history.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      nvim/review/comment.lua:116-123 protects mode entry and InsertCharPre, but Enter bypasses the latter. In the real PTY fixture, use 🤖[old]{answer}[reply], position at byte column 8, then queue i<Left><Left><Left><CR>X<Esc>. The concealed agent turn splits, leaving the first line 🤖[old]{answe. The existing typed-character regressions pass, but this added probe fails. Enumerate insertion mechanisms and enforce admission before every supported mutation, including newline insertion; add real queued-input regressions. ARCH-PURPOSE, ARCH-ORDER.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      comment_float.lua checks window/buffer identity before focus and close, and releases ownership on scratch departure. Current replacement/reopen/cleanup tests pass. Running the same regression against the pre-fix controller in a temporary copy fails at “reopen must create a real thread,” confirming meaningful regression coverage.
+```
+
+1. **Strengths**
+   - Shared projection keeps rendering, cursor policy, and thread targeting consistent.
+   - Canonical codec fixtures supplement delimiter-generated round-trip tests.
+   - Source range identity and byte comparison prevent stale thread saves from overwriting changed text.
+   - README, atlas, and derived keyboard help document the new controls.
+
+2. **Critical findings**
+   - **BR-1 remains open**, [comment.lua:116](/Users/xianxu/workspace/pair/nvim/review/comment.lua:116). Cover the insertion-admission rule across mutation mechanisms, rather than adding another character-only guard. The reproduced newline bypass belongs to the existing `insertion-admission-before-mutation` family; it is not a new finding.
+
+3. **Important findings**
+   - None newly raised.
+
+4. **Minor findings**
+   - None.
+
+5. **Test coverage**
+   - Passed: shipped PTY test; all comment codec/thread/view/float/attachment tests; marker and resolution tests; key-help package tests; diff whitespace check.
+   - BR-2 pre-fix mutation correctly fails.
+   - Additional real-PTY queued-newline probe fails at HEAD.
+   - Broader `make test-lua` stopped in unchanged `scrollback_test.lua` with a sandbox storage permission error; full-suite success was not independently established.
+
+6. **Architecture**
+   - **ARCH-DRY — pass:** shared scanner, projection, and codec.
+   - **ARCH-PURE — pass:** deterministic core separated from Neovim effects.
+   - **ARCH-PURPOSE — flag:** concealed-history edit protection remains incomplete.
+   - **ARCH-MOCK — pass:** no new external dependency; UI tests exercise real isolated Neovim.
+   - **ARCH-CONSTRAINTS — pass:** explicit projection limits and bounded float geometry.
+   - **ARCH-SECURE — pass:** serialized text and source identity validated before replacement.
+   - **ARCH-ORDER — flag:** newline mutation can precede cursor admission.
+   - **ARCH-FUNERAL — pass:** scratch departure releases ownership; cleanup preserves replacement windows.
+
+7. **Plan revision recommendation**
+   - Append a `## Revisions` entry recording the newline bypass, enumerating insertion event classes, and requiring queued-input tests for mechanisms that do not trigger `InsertCharPre`.

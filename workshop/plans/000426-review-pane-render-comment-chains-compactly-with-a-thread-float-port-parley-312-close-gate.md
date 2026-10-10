@@ -21,6 +21,20 @@ rounds:
           round: 1
       recipe: milestone-review
       blocked: true
+    - "n": 2
+      timestamp: "2026-10-10T12:41:10-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: "nvim/review/comment.lua:116-123 protects mode entry and InsertCharPre, but Enter bypasses the latter. In the real PTY fixture, use \U0001F916[old]{answer}[reply], position at byte column 8, then queue i<Left><Left><Left><CR>X<Esc>. The concealed agent turn splits, leaving the first line \U0001F916[old]{answe. The existing typed-character regressions pass, but this added probe fails. Enumerate insertion mechanisms and enforce admission before every supported mutation, including newline insertion; add real queued-input regressions. ARCH-PURPOSE, ARCH-ORDER."
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: comment_float.lua checks window/buffer identity before focus and close, and releases ownership on scratch departure. Current replacement/reopen/cleanup tests pass. Running the same regression against the pre-fix controller in a temporary copy fails at “reopen must create a real thread,” confirming meaningful regression coverage.
+          round: 2
+      recipe: milestone-review
+      blocked: true
 ---
 
 # Gate ledger — pair#426 (boundary-review)
@@ -37,7 +51,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-2** [Critical] `owned-resource-identity-on-retarget` Replacing the thread scratch buffer leaves stale window ownership
   nvim/review/comment_float.lua:131-134 does not handle scratch-buffer replacement. After :enew in a clean thread, line 88 treats the surviving window as a live thread, so reopening focuses an ordinary buffer and later cleanup closes that replacement window. Release ownership on scratch departure and verify buffer identity before focus/close; test replacement, reopening, and cleanup. ARCH-ORDER, ARCH-FUNERAL.
 
+## Round 2 — 2026-10-10T12:41:10-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — not-addressed — nvim/review/comment.lua:116-123 protects mode entry and InsertCharPre, but Enter bypasses the latter. In the real PTY fixture, use 🤖[old]{answer}[reply], position at byte column 8, then queue i<Left><Left><Left><CR>X<Esc>. The concealed agent turn splits, leaving the first line 🤖[old]{answe. The existing typed-character regressions pass, but this added probe fails. Enumerate insertion mechanisms and enforce admission before every supported mutation, including newline insertion; add real queued-input regressions. ARCH-PURPOSE, ARCH-ORDER.
+- BR-2 — addressed — comment_float.lua checks window/buffer identity before focus and close, and releases ownership on scratch departure. Current replacement/reopen/cleanup tests pass. Running the same regression against the pre-fix controller in a temporary copy fails at “reopen must create a real thread,” confirming meaningful regression coverage.
+
 ## Open findings
 
 - **BR-1** [Critical] `insertion-admission-before-mutation` Entering insert mode permits edits to concealed historical turns
-- **BR-2** [Critical] `owned-resource-identity-on-retarget` Replacing the thread scratch buffer leaves stale window ownership

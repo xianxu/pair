@@ -236,3 +236,12 @@ belongs to the user and is never closed by later thread cleanup. Test clean and
 forced dirty replacement, reopening, source/window teardown and off-marker Enter
 while a thread already exists. These address the event classes named by BR-1
 and BR-2; verification of Tasks 2–3 includes these new regressions.
+
+### 2026-10-10 — insertion mechanisms beyond typed characters
+
+Close round 2 verified BR-2 but reproduced BR-1 with queued
+`i<Left><Left><Left><CR>X<Esc>`: Enter does not trigger InsertCharPre.
+The insertion contract applies before mutation across input mechanisms,
+including newline, backward/forward deletion and register insertion; character
+callbacks alone are insufficient. Extend real queued-input coverage and use a
+single admission path across those mechanisms (ARCH-ORDER, ARCH-PURPOSE).

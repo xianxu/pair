@@ -146,6 +146,23 @@ suite passed again. Regenerated runtime assets; keyhelp tests, `make build`,
 and `git diff --check` passed. The previously measured 53 baseline artifact
 classification findings remain unrelated to this issue.
 
+
+### 2026-10-10 — close round 2 input-path correction
+
+Round 2 confirmed BR-2 and reproduced BR-1 with queued Enter, which bypasses
+InsertCharPre. Replaced the character hook with one activation-owned on_key
+admission callback, after mapping and before input processing, scoped to the
+current review buffer in Insert/Replace mode. InsertEnter handles initial
+entry. Real PTY cases cover newline, backward/forward deletion, word/line
+deletion, and ordinary/literal multiline register insertion after queued
+movement. Attachment tests verify listener ownership/idempotence and no effect
+in unrelated buffers. The policy protects insertion points; native range edits
+starting at visible points retain ordinary editor behavior.
+Final correction validation: full `make test-review test-runtimebundle`,
+attachment/view tests, regenerated-assets keyhelp tests, `make build`, and
+`git diff --check` all pass. Full `test-lua` passed before this focused input
+callback correction; its affected attachment/view tests were rerun.
+
 ## Revisions
 
 ### 2026-10-10 — proposed port boundaries for approval

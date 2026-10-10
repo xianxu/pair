@@ -849,3 +849,8 @@ proof; record the surprising case so the next change starts from evidence.
   can survive `:enew` after its scratch is wiped. Release ownership on scratch
   departure and check the window/buffer pair before both focus and cleanup;
   the replacement is user-owned.
+
+- InsertCharPre is not a general pre-edit hook: newline, deletion and register
+  insertion have distinct input paths. For protected geometry, test a matrix
+  of mutation mechanisms after queued cursor movement before declaring the
+  admission rule complete.

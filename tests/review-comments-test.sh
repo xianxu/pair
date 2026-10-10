@@ -169,6 +169,23 @@ local function run()
   end
   reset_insertion(8)
   press('i<Left>X<Esc>');paint();preserved('queued insert cursor movement')
+  reset_insertion(8)
+  press('i<Left><Left><Left><CR>X<Esc>');paint()
+  local all_inserted=table.concat(vim.api.nvim_buf_get_lines(source,14,-1,false),'\n')
+  assert(all_inserted:find('🤖[old]{answer}',1,true), 'queued newline changed hidden turns: '..all_inserted)
+  vim.api.nvim_buf_set_lines(source,15,-1,false,{})
+  -- Non-character mutations bypass InsertCharPre: admit each queued key,
+  -- including both ordinary and literal register insertion. Native edits
+  -- starting at a visible boundary may remove a visible delimiter.
+  vim.fn.setreg('z','PASTE\nMORE')
+  for _, mechanism in ipairs({'<BS>','<Del>','<C-w>','<C-u>','<C-r>z','<C-r><C-o>z','<C-r><C-p>z'}) do
+    vim.api.nvim_buf_set_lines(source,13,-1,false,{original[14],insertion_line})
+    reset_insertion(8)
+    press('i<Left><Left><Left>' .. mechanism .. 'X<Esc>');paint()
+    local raw=table.concat(vim.api.nvim_buf_get_lines(source,0,-1,false),'\n')
+    assert(raw:find('[old]{answer}',1,true), 'queued '..mechanism..' mutated from a concealed point: '..raw)
+  end
+  vim.api.nvim_buf_set_lines(source,13,-1,false,{original[14],insertion_line})
   reset_insertion(#insertion_line-1)
   press('iX<Esc>');paint()
   assert(vim.api.nvim_buf_get_lines(source,14,15,false)[1]=='🤖[old]{answer}[replyX]', 'visible final reply no longer editable')
