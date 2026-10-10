@@ -15,7 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "e0df146d", done: "f397c2b6"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # couch delivery: submit like the draft pane, confirm after; restarts return when ready; deadline starts at paste
@@ -58,6 +58,8 @@ Durable plan: `workshop/plans/000427-couch-delivery-submit-like-the-draft-pane-c
 ## Log
 
 ### 2026-10-10
+- 2026-10-10: closed — Targeted: couchmessage (reducer table, Horizon expiry), wrapcmd (submit-after-delay+confirm table, simulated boot past old 30s, never-consumed → indeterminate with evidence, collapsed multi-line, settle waits for orientation + re-arm with mutation check), couchcmd TestRestartReceiptWaitsForReadiness (relaunch/reload succeed only on a settled NEW session; unready on expiry; caught+fixed empty ReceiptCode overwrite). Live: TestPeerLiveConformance -peer-live-submit vs real Claude Code 2.1.296, short (render=exact) and collapsed #418 body (render=collapsed), both submitted+confirmed. Full: make -k test green with PAIR_/COUCH_ env scrubbed + scratch TMPDIR; go test ./... — remaining failures (artifactpath inventory, couchsingleton SelectionSize x2, gcruntime ArchiveLocator, couchcmd ColdResume switcher flake 5/10 on main) all fail identically on main. Pending: live couch --reload-context + send on a real slot needs Couch on the new binary (ops).; review verdict: SHIP
+- 2026-10-10: flow upgraded quick → full — 266 added lines in code files (limit 100)
 
 - Design: `workshop/plans/000427-…-plan.md`. "uncertain" is the existing
   `indeterminate` status with a detail that starts `uncertain:`. A new enum
