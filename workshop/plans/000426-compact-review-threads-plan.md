@@ -224,3 +224,15 @@ exclusion is extended to ordinary tilde/indented fences so all compact consumers
 honor the stated literal-code contract. Canonical writers escape backticks to
 keep arbitrary editable turn content from manufacturing cross-turn code spans.
 The fresh close review remains the single implementation review boundary.
+
+### 2026-10-10 — close review BR-1/BR-2
+
+Insertion admission must run before every Insert/Replace entry and before each
+inserted character, not only after cursor/text changes. Production-event tests
+cover queued input and separate input-loop turns, with visible edits preserved.
+Scratch-buffer departure/wipe ends float ownership; every focus/close effect
+checks that the window still contains the owned scratch. Window replacement
+belongs to the user and is never closed by later thread cleanup. Test clean and
+forced dirty replacement, reopening, source/window teardown and off-marker Enter
+while a thread already exists. These address the event classes named by BR-1
+and BR-2; verification of Tasks 2–3 includes these new regressions.

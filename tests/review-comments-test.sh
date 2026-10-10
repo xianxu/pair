@@ -139,7 +139,43 @@ local function run()
   assert(not vim.api.nvim_win_is_valid(thread_win), 'forced close left thread window')
   assert(vim.fn.getreg('"'):find('preserve my unsaved reply', 1, true), 'forced teardown did not rescue unsaved thread')
   no_submit()
-  vim.fn.writefile({'ok painted compact comments, literal fallback, speaker colors, native Enter, thread save/discard and undo/redo repaint'},
+  -- Admission must run before the first edit, including queued keys where
+  -- CursorMovedI/TextChangedI have not yet returned to the main loop (BR-1).
+  local insertion_line = '🤖[old]{answer}[reply]'
+  local function reset_insertion(col, literal)
+    vim.api.nvim_set_current_win(source_win)
+    vim.api.nvim_buf_set_lines(source, 14, 15, false, {insertion_line})
+    vim.api.nvim_win_set_cursor(source_win, {15, col})
+    paint()
+    if literal then vim.wo[source_win].conceallevel = 0 end
+  end
+  local function preserved(label)
+    local raw = vim.api.nvim_buf_get_lines(source, 14, 15, false)[1]
+    assert(raw:find('🤖[old]{answer}', 1, true), label .. ' changed concealed turns: ' .. raw)
+    assert(raw:find('X', 1, true), label .. ' swallowed the typed character: ' .. raw)
+  end
+  for _, case in ipairs({{'i',8}, {'a',4}, {'R',8}, {'gR',8}}) do
+    reset_insertion(case[2])
+    press(case[1] .. 'X<Esc>')
+    paint()
+    preserved('queued ' .. case[1])
+    reset_insertion(case[2])
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes(case[1],true,false,true),'t',false)
+    paint()
+    assert(vim.api.nvim_get_mode().mode:match('^[iR]'), 'entry did not reach editing mode: '..case[1])
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('X<Esc>',true,false,true),'t',false)
+    paint()
+    preserved('separate event turns ' .. case[1])
+  end
+  reset_insertion(8)
+  press('i<Left>X<Esc>');paint();preserved('queued insert cursor movement')
+  reset_insertion(#insertion_line-1)
+  press('iX<Esc>');paint()
+  assert(vim.api.nvim_buf_get_lines(source,14,15,false)[1]=='🤖[old]{answer}[replyX]', 'visible final reply no longer editable')
+  reset_insertion(8,true)
+  press('iX<Esc>');paint()
+  assert(vim.api.nvim_buf_get_lines(source,14,15,false)[1]=='🤖[oldX]{answer}[reply]', 'literal mode blocked native insertion')
+  vim.fn.writefile({'ok painted compact comments, literal fallback, speaker colors, native Enter, thread save/discard, undo/redo repaint and pre-edit cursor admission'},
     os.getenv('REVIEW_COMMENT_TEST_ROOT') .. '/result')
 end
 local task = coroutine.create(run)

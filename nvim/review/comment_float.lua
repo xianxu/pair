@@ -32,7 +32,11 @@ local function paint(st)
     })
   end
 end
-local function cleanup(st,discard)
+local function owns_window(st)
+  return st.win and vim.api.nvim_win_is_valid(st.win)
+    and vim.api.nvim_win_get_buf(st.win)==st.buf
+end
+local function cleanup(st,discard,departing)
   if active[st.src] ~= st then return end
   local dirty = vim.api.nvim_buf_is_valid(st.buf) and vim.bo[st.buf].modified
   local effect = st.session:transition({kind='close',dirty=dirty,discard=discard})
@@ -44,7 +48,7 @@ local function cleanup(st,discard)
   if st.group then pcall(vim.api.nvim_del_augroup_by_id,st.group) end
   if vim.api.nvim_buf_is_valid(st.src) then pcall(vim.api.nvim_buf_del_extmark,st.src,NS,st.mark) end
   local function release()
-    if vim.api.nvim_win_is_valid(st.win) then
+    if not departing and owns_window(st) then
       local ok=pcall(vim.api.nvim_win_close,st.win,true)
       if not ok then return false end
     end
@@ -53,7 +57,11 @@ local function cleanup(st,discard)
   end
   -- Buffer teardown may hold Neovim's text/window lock. Ownership is already
   -- ended; finish releasing that exact resource set on the next event turn.
-  if not release() then vim.schedule(release) end
+  if departing then
+    -- BufWinLeave runs before the replacement becomes current. Preserve that
+    -- user-owned window, and release only our scratch after the switch ends.
+    vim.schedule(release)
+  elseif not release() then vim.schedule(release) end
 end
 function M.close(src) local st=active[src]; if st then cleanup(st,false) end end
 
@@ -83,12 +91,12 @@ end
 
 -- m is the shared compact projection record, never an independent line lookup.
 function M.open_thread(src,m,changed)
+  if not m or m.broken or not m.marker then return false end
   local old=active[src]
   if old then
-    if vim.api.nvim_win_is_valid(old.win) then vim.api.nvim_set_current_win(old.win); return true end
+    if owns_window(old) then vim.api.nvim_set_current_win(old.win); return true end
     cleanup(old,false)
   end
-  if not m or m.broken or not m.marker then return false end
   local marker=m.marker
   if marker.complete==false or marker.raw:find('\n',1,true) then return false end
   local lines,meta=thread.to_lines(marker)
@@ -132,6 +140,9 @@ function M.open_thread(src,m,changed)
     cleanup(st,st.quitting==true)
   end})
   vim.api.nvim_create_autocmd('BufWipeout',{group=st.group,buffer=src,callback=function() cleanup(st,false) end})
+  vim.api.nvim_create_autocmd({'BufWinLeave','BufWipeout'},{group=st.group,buffer=buf,callback=function()
+    cleanup(st,st.quitting==true,true)
+  end})
   vim.keymap.set('n','q','<Cmd>x<CR>',{buffer=buf,silent=true,desc='review: save and close thread'})
   paint(st)
   vim.api.nvim_win_set_cursor(st.win,{#lines,#lines[#lines]})

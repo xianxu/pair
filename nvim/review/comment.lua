@@ -13,7 +13,7 @@ local function restore(win,w,all)
   if w.forced then vim.wo[win].concealcursor=w.cc;w.forced=false end
   if all then vim.wo[win].conceallevel=w.level end
 end
-local function cursor(buf)
+local function cursor(buf, entering)
   local s=active[buf]
   local win=vim.api.nvim_get_current_win()
   if not s or vim.api.nvim_win_get_buf(win)~=buf then return end
@@ -33,7 +33,8 @@ local function cursor(buf)
   elseif not rendered then restore(win,w,false) end
   if rendered and vim.wo[win].conceallevel>0 then
     local line=s.lines[row+1] or ''
-    local insert=vim.api.nvim_get_mode().mode:sub(1,1)=='i'
+    local mode=vim.api.nvim_get_mode().mode:sub(1,1)
+    local insert=entering or mode=='i' or mode=='R'
     local to=view.snap(rows,w.col or 0,col,insert and #line or math.max(0,#line-1),line,insert)
     if to then vim.api.nvim_win_set_cursor(win,{row+1,to});col=to end
   end
@@ -107,6 +108,19 @@ function M.attach(buf)
   end
   watch({'TextChanged','TextChangedI','InsertLeave','FileChangedShellPost'},function() M.render(buf) end)
   watch({'CursorMoved','CursorMovedI','BufEnter','WinEnter'},function() M.render(buf);cursor(buf) end)
+  -- Admission event classes: entry (i/a/I/A/gi, R/gR and :startinsert),
+  -- each typed character (including queued motion + text), and post-edit
+  -- refresh above. CursorMovedI alone runs too late for queued iX. InsertEnter
+  -- restores the old cursor unless v:char is nonempty; InsertCharPre permits
+  -- cursor movement under textlock, but we never mutate text here.
+  watch('InsertEnter',function()
+    local before=vim.api.nvim_win_get_cursor(0)
+    M.render(buf)
+    cursor(buf,true)
+    local after=vim.api.nvim_win_get_cursor(0)
+    if before[1]~=after[1] or before[2]~=after[2] then vim.v.char=' ' end
+  end)
+  watch('InsertCharPre',function() M.render(buf);cursor(buf,true) end)
   watch('BufLeave',function()
     local win=vim.api.nvim_get_current_win();if s.windows[win] then restore(win,s.windows[win],false) end
   end)

@@ -840,3 +840,12 @@ proof; record the surprising case so the next change starts from evidence.
   a turn's text span did not color the extmark's replacement brackets; only the
   PTY screenattr check caught it. Check actual painted cells when layering
   conceal marks over syntax/highlight spans.
+
+- **Input guards belong before mutation, and handle mode entry (#426 BR-1).**
+  CursorMoved/TextChanged cannot protect hidden text when `i` enters insert at
+  a visible closing delimiter. Admit Insert/Replace entry and each character,
+  including queued keys, and verify through actual editor input events.
+- **Window identity includes its current buffer (#426 BR-2).** A float window
+  can survive `:enew` after its scratch is wiped. Release ownership on scratch
+  departure and check the window/buffer pair before both focus and cleanup;
+  the replacement is user-owned.

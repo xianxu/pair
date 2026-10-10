@@ -129,6 +129,23 @@ Open questions, to settle at start-plan:
   prerequisite; local build sentinel skips its duplicate build).
   `git diff --check` passed. Ready for the binary-owned close review.
 
+### 2026-10-10 — close review fixes
+
+Close round 1 returned REWORK: BR-1 insertion admission occurred after mutation;
+BR-2 scratch replacement left stale float ownership. Both reproduced with new
+regressions. A separate reproducer also caught off-marker Enter refocusing an
+existing float. Float cleanup now observes scratch departure and checks exact
+window/buffer identity; clean/dirty replacement and reopened-thread cleanup pass.
+Insertion admission now runs in InsertEnter and InsertCharPre before mutation.
+Real PTY queued and separate-event i/a/R/gR, insert cursor movement, visible
+final replies, and literal conceallevel=0 regressions pass. No editing-key maps
+were introduced. The scratch tests cover clean/dirty replacement, rescue,
+reopen, source teardown, and preservation of the replacement window.
+After both fixes, the complete `make test-lua test-review test-runtimebundle`
+suite passed again. Regenerated runtime assets; keyhelp tests, `make build`,
+and `git diff --check` passed. The previously measured 53 baseline artifact
+classification findings remain unrelated to this issue.
+
 ## Revisions
 
 ### 2026-10-10 — proposed port boundaries for approval
