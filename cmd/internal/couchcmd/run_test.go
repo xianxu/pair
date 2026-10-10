@@ -625,8 +625,13 @@ func TestPublishDescriptionUsesCompositeThreadEnvironment(t *testing.T) {
 	rt.env["COUCH_THREAD_SCOPE"] = created.Address.RepoScope
 	rt.env["COUCH_THREAD_TAG"] = string(created.Address.Tag)
 
-	if _, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "publish-description", Args: map[string]string{"description": "agent summary"}}); code != 0 {
+	out, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "publish-description", Args: map[string]string{"description": "agent summary"}})
+	if code != 0 {
 		t.Fatalf("publish-description: code=%d stderr=%q", code, errw)
+	}
+	// An agent runs this from its shell (#419), so it reads one line, not a record dump.
+	if want := "published summary for " + string(created.Address.Tag) + ": agent summary\n"; out != want {
+		t.Fatalf("publish-description stdout = %q, want %q", out, want)
 	}
 	got, err := c.Threads.GetThread(created.Address)
 	if err != nil {
@@ -635,8 +640,12 @@ func TestPublishDescriptionUsesCompositeThreadEnvironment(t *testing.T) {
 	if got.PublishedSummary != "agent summary" || got.Description != "" {
 		t.Fatalf("published thread = %+v", got)
 	}
-	if _, errw, code := runTypedRT(rt, couchcore.OperationCall{Name: "publish-description", Args: map[string]string{"description": ""}}); code != 0 {
+	out, errw, code = runTypedRT(rt, couchcore.OperationCall{Name: "publish-description", Args: map[string]string{"description": ""}})
+	if code != 0 {
 		t.Fatalf("clear publish-description: code=%d stderr=%q", code, errw)
+	}
+	if want := "cleared published summary for " + string(created.Address.Tag) + "\n"; out != want {
+		t.Fatalf("clear publish-description stdout = %q, want %q", out, want)
 	}
 	got, err = c.Threads.GetThread(created.Address)
 	if err != nil {

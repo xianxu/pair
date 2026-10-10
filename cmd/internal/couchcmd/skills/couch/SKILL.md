@@ -117,7 +117,13 @@ continuing work checks the owner. Send the request, then read the evidence.
      never resend to another slot while the first may still act.
    - A failed read never authorizes a takeover. Reassigning work is the operator's
      `sdlc reclaim`.
-5. **Receiving a duplicate.** If `sdlc claim` refuses because another workspace
+5. **Receiving dispatched work.** Once your `sdlc claim` of the dispatched issue
+   succeeds, label your slot with the work so the sender and the operator can see
+   who holds what: `couch --internal publish-description --description='pair#N
+   <short title>'`, for example `pair#300 judge verdict`. The label replaces your
+   slot's summary in `couch --list` and the switcher, until an operator `!` line
+   replaces it.
+6. **Receiving a duplicate.** If `sdlc claim` refuses because another workspace
    owns the issue, do not start. Reply to the sender's exact slot with the owner
    the refusal names.
 

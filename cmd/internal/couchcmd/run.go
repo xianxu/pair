@@ -932,6 +932,16 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 			return 0
 		}
 	}
+	// An agent runs publish-description from its shell after claiming
+	// dispatched work (#419), so it reads one line, not a record dump.
+	if record, ok := result.(couchcore.ThreadRecord); ok && op.Name == "publish-description" {
+		if record.PublishedSummary == "" {
+			fmt.Fprintf(w, "cleared published summary for %s\n", record.Address.Tag)
+		} else {
+			fmt.Fprintf(w, "published summary for %s: %s\n", record.Address.Tag, record.PublishedSummary)
+		}
+		return 0
+	}
 	switch v := result.(type) {
 	case couchcore.PeekResult:
 		renderPeek(w, v)
