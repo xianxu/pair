@@ -1,0 +1,168 @@
+# Compact review threads implementation plan
+
+> **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy). Use superpowers-executing-plans for the integrated pane work; delegate bounded codec work if useful. Track the steps below.
+
+**Goal:** Port parley.nvim#312's compact comment chains and editable thread float to Pair's review pane.
+
+**Architecture:** Adapt the landed Parley implementation at `420b2b3109fb`, retaining Pair's parser and edit semantics. One buffer-aware projection of parsed markers supplies conceal geometry, cursor protection, and float targeting. A pure thread model owns serialization and save/close decisions; Neovim glue performs edits and owns temporary resources.
+
+**Tech Stack:** Lua, Neovim extmarks/acwrite buffers, existing shell/headless tests, Go runtime bundle tooling.
+
+Status: draft awaiting operator approval. This exceeds 100 added production lines and requires the full flow. One atomic implementation and one close review; no artificial milestone boundary.
+
+## Scope and choices
+
+The issue's existing spec defines the UI: anchors remain visible, earlier turns
+collapse to colored brackets around an ellipsis, and a last human turn remains
+editable. Enter opens a chat-like thread, with `:w` saving, `q`/`:x` saving and
+closing, and `:q!` discarding. Enter elsewhere retains native counted behavior.
+
+Port standalone modules rather than adding a runtime dependency on Parley.
+Using raw text plus a read-only popup would be smaller but would omit the
+requested editing behavior. Loading Parley's plugin would couple standalone
+Pair sessions to the user's editor installation. The local port fits existing
+`markers.lua` and `projection.lua` practice (ARCH-DRY).
+
+Only the review pane is included. Scrollback/changelog annotation behavior is
+unchanged. Legacy multiline markers, including Pair's reconciliation hunks,
+remain raw and retain current parsing/highlighting/resolution; they are not
+partially concealed or opened in this line-local editor. Migrating these
+writers requires a separate representation decision because anchors must stay
+verbatim. New float saves emit single-line encoded turns.
+
+## Core concepts
+
+### Pure entities
+
+| Name | Lives in | Status |
+|---|---|---|
+| Turn newline codec | `nvim/review/comment_codec.lua` | new |
+| Parsed marker turn representation | `nvim/review/markers.lua` | modified |
+| Compact layout and cursor policy | `nvim/review/comment_view.lua` | new |
+| Thread lines and save/close transition model | `nvim/review/comment_thread.lua` | new |
+| Turn resolution | `nvim/review/resolve.lua` | modified |
+
+The newline codec ports Parley's odd/even backslash rule around `<br>`.
+Keep delimiter escaping in `nvim/marker_codec.lua`. Define the composition
+explicitly: human text -> newline encode -> delimiter escape -> raw turn;
+raw turn -> delimiter unescape -> newline decode -> human text. Parser sections
+must retain the encoded representation needed to distinguish literal `<br>`
+from a newline; never decode an anchor. Existing callers receiving section text
+must be enumerated before choosing a raw/decoded field, and their contract
+pinned with regression tests. No second marker grammar.
+
+The view consumes full-buffer parser output, not an independent line scan:
+inline/fenced code exclusions and multiline eligibility apply equally to all
+three consumers. It yields byte ranges for hidden text, visible anchor, colored
+brackets, editable final human turn, and malformed-marker warnings. Warnings
+must not conceal malformed input. UTF-8 cursor landing respects character starts.
+
+Thread conversion uses `💬:`/`🤖:` prefixes and escaped prefix-like continuation
+lines. Preserve all intentional content, including trailing newlines, rather
+than inheriting upstream's lossy trailing-blank normalization. An appended empty
+reply slot is omitted on save; a pre-existing empty human turn remains. Save
+re-parses the whole serialization and checks turn count/types/content, prefix,
+and exact consumption; malformed thread structure is refused visibly.
+
+### Integration points
+
+| Name | Lives in | Status | Wraps |
+|---|---|---|---|
+| Thread float controller | `nvim/review/comment_float.lua` | new | Neovim buffer/window/extmark/write events |
+| Compact view attachment | `nvim/review/comment.lua` | new | window options and buffer autocmds |
+| Review pane wiring | `nvim/review.lua` | modified | existing activation/render/keymap lifecycle |
+| Runtime packaging/inventory | `Makefile.local`, `cmd/internal/artifactpath/manifest.go`, generated runtime bundle | modified | test discovery and embedded assets |
+
+Use real isolated Neovim for UI integration and reuse the stateful pane host in
+`tests/review-controls-test.sh` for review handoff. No new external service or
+binary dependency (ARCH-MOCK). Runtime resource classification must include
+source files and generated mirrors.
+
+## Architecture and operating envelope
+
+- **ARCH-PURE:** codec/layout/thread conversion and lifecycle decisions are
+  deterministic; API calls remain in the controller and attachment.
+- **ARCH-PURPOSE:** prove actual painted cells and actual pane keymaps, then
+  save the human round through the existing handoff. Extmark assertions alone
+  do not prove the requested rendering.
+- **ARCH-CONSTRAINTS:** keystroke path operates on the active line's cached
+  layout; reparse on content changes, not every cursor move. No IO/process
+  launch on cursor movement. One live float per review activation. Clamp float
+  dimensions to usable editor space, including small terminals; wrapping and
+  scrolling handle long threads. Test a 1,000-line document with 100 markers
+  and a 100-turn thread; record timings rather than inventing a latency claim.
+- **ARCH-SECURE:** document and float text are untrusted data, never commands.
+  Validate the serialized marker and source range immediately before replacing
+  bytes. Anchor the opened instance with a range extmark, not a text search
+  that could select another identical marker. Source disappearance/refusal
+  cannot write to another buffer or silently discard user text. Tests isolate
+  PAIR/COUCH/ZELLIJ variables and use an owned short temporary directory.
+- **ARCH-ORDER:** pure lifecycle states are closed, editing, and conflicted;
+  source identity and last-saved raw bytes belong to the active state. Open
+  creates one resource set. Save with a matching source emits replace; success
+  updates the expected raw bytes and clears dirty state. Changed/missing source
+  emits refusal and preserves float edits; retry requires revalidation, never
+  overwrites unknown text. Close-after-save happens only on confirmed success.
+  Discard closes explicitly. Forced source/activation/window teardown rescues
+  unsaved text to the unnamed register and notifies, then closes. Duplicate
+  cleanup is harmless; a second open focuses the existing float. Pure transition
+  tests and real event tests exercise changed source, repeated save, undo,
+  source wipe, retarget, and late/duplicate close.
+- **ARCH-FUNERAL:** activation owns the float, scratch buffer, tracking mark,
+  maps/autocmds, caches, and saved window options. Stop/retarget, source wipe and
+  window close release them; restore window options on leave. No durable new
+  file or background process is created. Existing recovery owns document edits;
+  thread text pending save lives only in the float or rescue register.
+
+## Chunk 1: Implement and verify the port
+
+### Task 1: Codec and thread representation
+
+Files: new `nvim/review/comment_codec.lua`, `comment_thread.lua` and colocated
+`*_test.lua`; modify `nvim/review/markers.lua`, `resolve.lua` and their tests.
+
+- [ ] Enumerate section-text consumers with `rg 'sections|last.text' nvim/review nvim/review.lua`; pin existing anchor/delimiter/resolve behavior.
+- [ ] Add failing table and seeded property tests: backslash runs, all bracket delimiters, `<br>`, literal `<br>`, actual newlines, emoji, empty turns, role-like continuation prefixes and trailing blank lines. Assert decode(encode(text)) equals text, and parse/serialize preserves intended roles/content and surrounding bytes.
+- [ ] Run `nvim -l nvim/review/comment_codec_test.lua` and `nvim -l nvim/review/comment_thread_test.lua`; verify behavioral failures before implementation.
+- [ ] Implement the composition above, adapting upstream codec/thread code through Pair's parser. Add newline decoding only for turn-derived resolution, preserving anchors literally.
+- [ ] Run the new tests plus `nvim -l nvim/review/markers_test.lua` and `nvim -l nvim/review/resolve_test.lua`; commit this coherent component with an issue reference.
+
+### Task 2: Shared compact projection and attachment
+
+Files: new `nvim/review/comment_view.lua`, `comment.lua`, colocated view tests;
+modify `nvim/review.lua`; new `tests/review-comments-test.sh`.
+
+- [ ] Add failing tests for all marker forms, multiple same-line markers, inline/fenced code, malformed and legacy multiline input, UTF-8, normal/insert cursor positions, visible final human turn and restoration of window options.
+- [ ] Build the real-render test around existing `tests/lib/run-headless.sh`/isolated test environment, attaching a real UI/pty before `screenstring()` assertions. Assert actual colored bracket/ellipsis cells, visible anchor and final reply, not only extmark metadata.
+- [ ] Run the failing view/render tests, then implement the shared projection, conceal and directional cursor policy. Reuse Pair parser exclusions, original multiline highlight fallback, and existing highlight setup; update on TextChangedI as well as ordinary review events.
+- [ ] Attach/detach through start_review/stop_review, including restore rollback. Rendering must not enter the undo history or mutate source bytes. Verify undo/redo, buffer switch, theme change and small-window rendering; commit.
+
+### Task 3: Float lifecycle and review handoff
+
+Files: new `nvim/review/comment_float.lua` and colocated lifecycle tests;
+modify `nvim/review.lua`, `tests/review-comments-test.sh`,
+`tests/review-controls-test.sh` or a dedicated thread handoff test.
+
+- [ ] Add failing pure lifecycle tests and real keymap tests: Enter opens only an eligible marker; counted Enter elsewhere remains native; source marker movement, same-line sibling edits, changed marker, duplicate identical markers, source wipe, failed serialization, repeated save, q/:x/:q!, undo and forced close.
+- [ ] Implement acwrite float with role highlighting and editable final reply. API glue executes pure model effects, preserving text on conflict/forced close and refusing close-after-failed-save. Escape exits insert mode normally; review pane float dismissal must use the same cleanup path.
+- [ ] Save a multiline reply, assert exactly one encoded marker line in the source, submit via the actual Alt+Return mapping and inspect the saved document read by the stateful agent host. Assert no automatic agent submission from :w alone.
+- [ ] Rerun existing accept/reject, diagnostic floats, navigation, controls and restore tests. Commit.
+
+### Task 4: Packaging, documentation and final verification
+
+Files: `Makefile.local`, `cmd/internal/artifactpath/manifest.go`, generated assets,
+`README.md`, `atlas/review-workbench.md`, `atlas/index.md` if a new map is added,
+and the issue/plan Log and checkboxes.
+
+- [ ] Register every new test in test-lua/test-review; classify every production source/mirror and regenerate via `make runtimebundle-generate`.
+- [ ] Document compact display, Enter/thread save/discard controls, literal/multiline fallback and rescue behavior in README and the existing atlas page. Preserve the existing index link if no new atlas file is needed.
+- [ ] In an environment cleared of PAIR_*, COUCH_* and ZELLIJ* with a short dedicated TMPDIR, run `make test-lua test-review`, `make test-runtimebundle`, `go test ./cmd/internal/artifactpath/...`, `make build` and `git diff --check`. Inspect every failure, including pre-existing ones that name new files.
+- [ ] Mutation-check core properties (break newline parity, remove source compare guard, bypass fence eligibility); tests must fail for their own asserted outcome. Record representative render/performance evidence and restore mutants via overlays/temporary copies, not tracked-file churn.
+- [ ] Tick completed steps and record test evidence. Run `sdlc close --issue 426 --verified '<concrete evidence>'` for the mandatory fresh-context review; fix findings and record prevention rules in lessons. Publish through sdlc pr/merge when authorized.
+
+## Approval and implementation entry
+
+After approval, run `sdlc change-code --issue 426 --flow full --worktree=no`
+before any test or production edit. Address the plan gate's findings, derive the
+estimate only after plan-quality passes, and set it through the issue setter.
+The boundary judge owns the code review; do not dispatch a redundant one.

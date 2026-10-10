@@ -1,12 +1,20 @@
 ---
 id: 000426
-status: open
+status: working
 deps: [parley.nvim#312, ariadne#316]
 github_issue:
 created: 2026-10-10
 updated: 2026-10-10
 estimate_hours:
-card_mirror: 'cc5681722319be5dc662eecb9a5b1686b7f30029' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '58d6e0a97fefbf7e515a496f688a3f1ef7c8d7c6' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-10T11:43:09-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:0
+    worktree: /Users/xianxu/workspace/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Review pane: render 🤖 comment chains compactly with a thread float (port parley#312)
@@ -71,8 +79,34 @@ Open questions, to settle at start-plan:
 
 ## Plan
 
-- [ ]
+- [ ] Implement the reviewed plan in `workshop/plans/000426-compact-review-threads-plan.md`, including property, real-render, and review-round integration tests.
 
 ## Log
 
 ### 2026-10-10
+
+- Claimed in pair:0 and ran start-plan. Both dependencies have landed:
+  parley.nvim#312 at `420b2b3109fb`, ariadne#316 at `4164e66ece11`.
+- Read the actual issue file after discovering `issue show` prints section
+  headings, not bodies. No implementation changes made.
+- Drafted the durable plan; implementation awaits operator approval.
+
+## Revisions
+
+### 2026-10-10 — proposed port boundaries for approval
+
+Resolve the Spec's open questions as follows (pending operator approval):
+review pane only; port standalone Lua modules from Parley's landed commit;
+compose newline encoding with Pair's existing delimiter codec rather than
+replacing that codec. Compact only complete single-line markers. Preserve
+legacy multiline parsing, highlighting, resolution, and reconciliation output
+in this issue: a multiline quoted hunk cannot be converted to an encoded anchor
+without changing its meaning. Such markers stay fully visible, with no compact
+cursor snapping or thread float. Newly saved thread turns use the canonical
+single-line encoding. No broad migration of existing writers or other viewers.
+
+Additional acceptance criteria: code-fenced/inline examples stay literal;
+rendering, cursor protection and float targeting agree on marker eligibility;
+float save refuses a changed source marker without losing the edited thread;
+repeated saves, undo/redo and teardown are covered. The original three
+Done-when requirements remain in force.
