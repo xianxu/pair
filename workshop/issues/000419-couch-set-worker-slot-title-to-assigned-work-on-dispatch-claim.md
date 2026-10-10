@@ -54,7 +54,8 @@ record, no sdlc polling, no new thread field.
 ## Done when
 
 - `couch --skill` tells a recipient to publish `repo#N <title>` after its claim
-  of dispatched work succeeds.
+  of dispatched work succeeds. The label names the issue's own repository, and the
+  command is a single copyable line.
 - `couch --internal publish-description` prints one confirmation line (test:
   `TestPublishDescriptionUsesCompositeThreadEnvironment`).
 - The atlas notes the use (`atlas/couch.md`, the publish-description paragraph).
