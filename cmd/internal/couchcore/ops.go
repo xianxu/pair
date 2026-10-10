@@ -386,8 +386,10 @@ func Operations() []Operation {
 			// a fresh agent conversation in the same Pair process. Confirmed
 			// because it ends a conversation; remote callers only (no row key).
 			Name: OpReloadContext, Summary: "Start a fresh agent conversation in a live slot's Pair",
+			// TUI presentation like the other socket slot verbs (its home is
+			// atlas/couch.md); not a row action, so the switcher never offers it.
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultThread,
-			Presentation: PresentationInternal,
+			Presentation: PresentationTUI,
 			Args: []ArgSpec{
 				{Name: "ref", Summary: "thread tag or path", Required: false},
 				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
