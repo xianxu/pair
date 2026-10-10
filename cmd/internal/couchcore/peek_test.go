@@ -139,7 +139,8 @@ func TestExpandPeekReferences(t *testing.T) {
 			t.Errorf("%q = %q %v, want %q", raw, got, err, want)
 		}
 	}
-	for _, raw := range []string{"pair:1,", ",pair:1", "pair:1,,pair:2"} {
+	many := "pair:" + strings.Repeat("1:", MaxPeekSlots) + "1"
+	for _, raw := range []string{"pair:1,", ",pair:1", "pair:1,,pair:2", many} {
 		if _, err := ExpandPeekReferences(raw); err == nil {
 			t.Errorf("%q accepted", raw)
 		}

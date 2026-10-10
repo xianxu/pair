@@ -805,14 +805,15 @@ peek's `SlotTail` → identity-free broker op `tail` {thread scope, tag, lines}
 (like `broadcast-status`: the store dir is the access control, the answer is
 read-only) → `messageService.handleTail` picks the connected wrapper bound to that
 thread → wrapper endpoint op `tail` → `peerDelivery.tailProbe`. Bounds: 200 lines
-per request, 128 KiB per answer (oldest lines dropped, counted in `truncated`).
+per request (more is refused, and the recording answers instead), 128 KiB per
+answer (oldest lines dropped, counted in `truncated`).
 **Markup** (generic terminal bookkeeping, never agent knowledge): `‹dim›…‹/dim›`
 faint runs, `‹rev›…‹/rev›` reverse video, `‹cursor›` before a visible cursor's
-cell, and a `cursor` summary (`ROW,COL SHAPE [steady]`, `hidden at ROW,COL`, or
+cell, a literal `‹` doubled to `‹‹`, and a `cursor` summary (`ROW,COL SHAPE [steady]`, `hidden at ROW,COL`, or
 `outside the tail`; rows count the returned lines). Pair renders and never
 classifies: whether a slot is busy is the caller's judgement, and the couch skill
 tells callers so. **Multi-slot:** `,` separates groups and `repo:1:2:3` expands to
-three slots (`couchcore.ExpandPeekReferences`); one reference keeps the single
+three slots (`couchcore.ExpandPeekReferences`, at most 32); one reference keeps the single
 `PeekResult`, several return `PeekSnapshot{slots}` read concurrently, and a slot
 that does not resolve becomes a section whose `unavailable` says why.
 Any operation that declares a `json` flag prints its result as JSON.

@@ -136,7 +136,7 @@ slot that cannot be read says why in its own section.
 
 `source: live` lines come from the slot's wrapper memory and keep what a person
 would see: `‹dim›…‹/dim›` is faint text, `‹rev›…‹/rev›` reverse video, and
-`‹cursor›` sits before the cursor cell; `cursor` names its row, column and
+`‹cursor›` sits before the cursor cell (a literal `‹` on screen shows as `‹‹`); `cursor` names its row, column and
 shape, or says it is hidden. `source: recording` lines are plain text with
 styling lost.
 

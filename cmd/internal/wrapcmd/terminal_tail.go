@@ -154,7 +154,8 @@ func renderTailRow(row []uv.Cell, marker int) string {
 		}
 		b.WriteString(pending.String())
 		pending.Reset()
-		b.WriteString(c.Content)
+		// A literal ‹ is doubled, so screen text cannot spoof the markup.
+		b.WriteString(strings.ReplaceAll(c.Content, "‹", "‹‹"))
 	}
 	closeSpans()
 	b.WriteString(strings.TrimRight(pending.String(), " "))

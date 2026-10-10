@@ -58,6 +58,9 @@ type PeekSnapshot struct {
 	Slots []PeekResult `json:"slots"`
 }
 
+// MaxPeekSlots bounds one multi-slot peek, and with it the reads it runs at once.
+const MaxPeekSlots = 32
+
 // ExpandPeekReferences splits a peek's reference into slots: "," separates
 // groups, and "repo:1:2:3" is repo:1, repo:2, repo:3. Anything else is one
 // reference, passed through for the thread resolver.
@@ -82,6 +85,9 @@ func ExpandPeekReferences(raw string) ([]string, error) {
 		for _, number := range parts[1:] {
 			refs = append(refs, parts[0]+":"+number)
 		}
+	}
+	if len(refs) > MaxPeekSlots {
+		return nil, fmt.Errorf("peek reference %q names %d slots; at most %d", raw, len(refs), MaxPeekSlots)
 	}
 	return refs, nil
 }

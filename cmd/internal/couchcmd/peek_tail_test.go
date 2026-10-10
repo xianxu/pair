@@ -82,7 +82,7 @@ func TestReadSlotTail(t *testing.T) {
 	answer := func(r couchmessage.Response, err error) messageCall {
 		return func(_ context.Context, _ string, request any, response any) error {
 			got := request.(couchmessage.Request)
-			if got.Op != "tail" || got.TailScope != "scope" || got.TailTag != "tag" || got.Lines != couchmessage.MaxTailLines || couchmessage.ValidateRequest(got) != nil {
+			if got.Op != "tail" || got.TailScope != "scope" || got.TailTag != "tag" || got.Lines != 30 || couchmessage.ValidateRequest(got) != nil {
 				t.Fatalf("request %+v", got)
 			}
 			*response.(*couchmessage.Response) = r
@@ -90,7 +90,7 @@ func TestReadSlotTail(t *testing.T) {
 		}
 	}
 	ok := couchmessage.Response{Code: "ok", Tail: &couchmessage.Tail{Lines: []string{"x"}, Cursor: &couchmessage.TailCursor{Row: 1, Col: 2, Shape: "bar"}, Truncated: 1}}
-	tail, err := readSlotTail(context.Background(), answer(ok, nil), "/store", address, 1000)
+	tail, err := readSlotTail(context.Background(), answer(ok, nil), "/store", address, 30)
 	if err != nil || tail.Cursor != "1,2 bar" || tail.Truncated != 1 || tail.Lines[0] != "x" {
 		t.Fatalf("%+v %v", tail, err)
 	}
@@ -103,11 +103,17 @@ func TestReadSlotTail(t *testing.T) {
 		{couchmessage.Response{Code: "unavailable", Error: "no wrapper"}, "unavailable: no wrapper"},
 		{couchmessage.Response{Code: "ok"}, "returned no tail"},
 	} {
-		if _, err := readSlotTail(context.Background(), answer(tc.r, nil), "/store", address, 1000); err == nil || !strings.Contains(err.Error(), tc.want) {
+		if _, err := readSlotTail(context.Background(), answer(tc.r, nil), "/store", address, 30); err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("%+v: %v, want %q", tc.r, err, tc.want)
 		}
 	}
-	if _, err := readSlotTail(context.Background(), answer(couchmessage.Response{}, errors.New("dial: refused")), "/store", address, 1000); err == nil || !strings.Contains(err.Error(), "no running couch answered") {
+	// More than a live tail holds is refused before any call, so the peek
+	// falls back to the recording, which honours the count.
+	refused := func(context.Context, string, any, any) error { t.Fatal("called"); return nil }
+	if _, err := readSlotTail(context.Background(), refused, "/store", address, couchmessage.MaxTailLines+1); err == nil {
+		t.Error("over-long tail accepted")
+	}
+	if _, err := readSlotTail(context.Background(), answer(couchmessage.Response{}, errors.New("dial: refused")), "/store", address, 30); err == nil || !strings.Contains(err.Error(), "no running couch answered") {
 		t.Errorf("transport: %v", err)
 	}
 }

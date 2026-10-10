@@ -120,6 +120,14 @@ func TestTailReadsScrollbackThenScreen(t *testing.T) {
 	}
 }
 
+// Screen text that looks like markup cannot pass for it.
+func TestTailEscapesLiteralMarkup(t *testing.T) {
+	tail := tailModel(t, 40, 4, "a‹dim›b\x1b[2mc\x1b[0m").Tail(10)
+	if got, want := tail.Lines[0], "a‹‹dim›b‹dim›c‹/dim›‹cursor›"; got != want {
+		t.Fatalf("line = %q, want %q", got, want)
+	}
+}
+
 func TestTailWideGlyphsAndTrailingBlankRows(t *testing.T) {
 	tail := tailModel(t, 20, 6, "你好x\x1b[H").Tail(10)
 	if len(tail.Lines) != 1 || tail.Lines[0] != "‹cursor›你好x" {
@@ -130,6 +138,8 @@ func TestTailWideGlyphsAndTrailingBlankRows(t *testing.T) {
 // A tail request travels the real endpoint socket to the wrapper's terminal
 // model; a wrapper without one says so instead of answering empty.
 func TestTailOverEndpointSocket(t *testing.T) {
+	// /tmp, not t.TempDir(): a Unix socket path must stay under ~104 bytes,
+	// and the package's other socket tests use the same short root.
 	namespace, err := os.MkdirTemp("/tmp", "pair-tail-")
 	if err != nil {
 		t.Fatal(err)

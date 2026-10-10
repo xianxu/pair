@@ -7,7 +7,8 @@ import (
 
 // A slot's tail (pair#425) is its wrapper's in-memory terminal rendered as
 // text with light markup: faint runs as ‹dim›…‹/dim›, reverse video as
-// ‹rev›…‹/rev›, and ‹cursor› before the cursor cell. Pair renders and never
+// ‹rev›…‹/rev›, and ‹cursor› before the cursor cell; a literal ‹ in the
+// text is written ‹‹. Pair renders and never
 // classifies: whether the slot is busy is the reader's judgement.
 const (
 	// MaxTailLines bounds one tail request.

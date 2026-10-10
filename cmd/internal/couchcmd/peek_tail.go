@@ -26,9 +26,14 @@ func readSlotTail(ctx context.Context, call messageCall, storeDir string, addres
 	if err != nil {
 		return couchcore.TerminalTail{}, err
 	}
+	// More lines than a live tail holds is refused, not clamped: the peek
+	// then answers from the recording, which honours the count, and names why.
+	if err := couchmessage.ValidTailLines(maxLines); err != nil {
+		return couchcore.TerminalTail{}, err
+	}
 	ctx, cancel := context.WithTimeout(ctx, couchmessage.AdmissionTimeout)
 	defer cancel()
-	request := couchmessage.Request{Op: "tail", TailScope: address.RepoScope, TailTag: string(address.Tag), Lines: min(maxLines, couchmessage.MaxTailLines)}
+	request := couchmessage.Request{Op: "tail", TailScope: address.RepoScope, TailTag: string(address.Tag), Lines: maxLines}
 	var result couchmessage.Response
 	if err := call(ctx, socket, request, &result); err != nil {
 		return couchcore.TerminalTail{}, fmt.Errorf("no running couch answered (%v)", err)
