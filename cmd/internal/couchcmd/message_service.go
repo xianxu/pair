@@ -127,6 +127,9 @@ type messageService struct {
 	inbox     chan messageInput
 	admitting chan struct{}
 	connected atomic.Pointer[map[couchmessage.Binding]bool]
+	// liveness is the registry's per-slot self-report snapshot (#421),
+	// republished after every step like connected.
+	liveness atomic.Pointer[map[string]couchmessage.SlotLiveness]
 	// after schedules a retry; tests replace it to fire retries on demand.
 	after func(time.Duration, func())
 	// slotOps answers resume, reboot and operation-status (pair#367 M2);
@@ -389,15 +392,15 @@ func newMessageService(parent context.Context, brokerSocket, registrySocket stri
 	}
 	s.server = server
 	sessions, err := couchmessage.StartSessionServer(lifetime, registrySocket, couchmessage.SessionHandler{
-		Open: func(t couchmessage.SessionToken, b couchmessage.Binding) error {
-			return s.post(couchmessage.RegistryEvent{Kind: couchmessage.SessionOpened, Token: t, Binding: b}, true)
+		Open: func(t couchmessage.SessionToken, h couchmessage.SessionHello) error {
+			return s.post(couchmessage.RegistryEvent{Kind: couchmessage.SessionOpened, Token: t, Binding: h.Binding, Build: h.Build}, true)
 		},
 		Frame: func(t couchmessage.SessionToken, f couchmessage.SessionFrame) {
 			kind := couchmessage.SessionActivity
 			if f.Op == couchmessage.FrameSubmit {
 				kind = couchmessage.SessionSubmit
 			}
-			_ = s.post(couchmessage.RegistryEvent{Kind: kind, Token: t, Observation: *f.Observation}, false)
+			_ = s.post(couchmessage.RegistryEvent{Kind: kind, Token: t, Observation: *f.Observation, Settled: f.Settled}, false)
 		},
 		Closed: func(t couchmessage.SessionToken) {
 			_ = s.post(couchmessage.RegistryEvent{Kind: couchmessage.SessionClosed, Token: t}, false)
@@ -447,6 +450,8 @@ func (s *messageService) loop() {
 		// is about to drop, nor refuse one it is about to register.
 		connected := registry.Connected()
 		s.connected.Store(&connected)
+		liveness := registry.Liveness()
+		s.liveness.Store(&liveness)
 		var followUps []couchmessage.RegistryEvent
 		for _, effect := range fx {
 			if next := s.execute(effect); next != nil {
@@ -797,4 +802,18 @@ func messageFamilies(names []couchcore.RepositoryName) map[string]string {
 		families[family] = ""
 	}
 	return families
+}
+
+// SlotLiveness reads the latest self-report of the slot's one admitted wrapper.
+// False: no admitted session (or several) stands for the slot.
+func (s *messageService) SlotLiveness(slot string) (couchmessage.SlotLiveness, bool) {
+	if s == nil {
+		return couchmessage.SlotLiveness{}, false
+	}
+	m := s.liveness.Load()
+	if m == nil {
+		return couchmessage.SlotLiveness{}, false
+	}
+	l, ok := (*m)[slot]
+	return l, ok
 }

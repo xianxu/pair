@@ -1,0 +1,119 @@
+package wrapcmd
+
+import (
+	"reflect"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
+)
+
+func peerTestBinding() couchmessage.Binding { return couchmessage.Binding{Slot: "pair:1"} }
+
+func TestWrapperSettledRule(t *testing.T) {
+	// Exhaustive over the fact space: settled only when every fact is clear.
+	for _, composer := range []PeerComposerState{PeerComposerUnknown, PeerComposerOccupied, PeerComposerEmpty} {
+		for _, turn := range []bool{false, true} {
+			for _, picker := range []bool{false, true} {
+				want := composer == PeerComposerEmpty && !turn && !picker
+				if got := wrapperSettled(composer, turn, picker); got != want {
+					t.Errorf("composer=%v turn=%v picker=%v: got %v", composer, turn, picker, got)
+				}
+			}
+		}
+	}
+}
+
+// fakeTimers is an injected clock: armed callbacks run only when the test fires
+// them, so interleavings are exact rather than timing-dependent.
+type fakeTimers struct {
+	mu    sync.Mutex
+	armed []*fakeTimer
+}
+type fakeTimer struct {
+	f       func()
+	stopped bool
+}
+
+func (t *fakeTimer) Stop() bool { was := !t.stopped; t.stopped = true; return was }
+func (c *fakeTimers) after(d time.Duration, f func()) settleTimer {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if d != SettleInterval {
+		panic("unexpected interval")
+	}
+	t := &fakeTimer{f: f}
+	c.armed = append(c.armed, t)
+	return t
+}
+
+// fireAll runs every armed timer, stopped ones included: a Stop that loses the
+// race to the callback must still be harmless.
+func (c *fakeTimers) fireAll() {
+	c.mu.Lock()
+	armed := c.armed
+	c.armed = nil
+	c.mu.Unlock()
+	for _, t := range armed {
+		t.f()
+	}
+}
+
+func TestSettleTimerInterleavedActivity(t *testing.T) {
+	clock := &fakeTimers{}
+	sink := &recordingPeerSink{}
+	idle := true
+	d := newPeerDelivery(peerTestBinding(), time.Now)
+	d.afterFunc = clock.after
+	d.settleProbe = func() bool { return idle }
+	d.session = sink
+	d.mu.Lock()
+	d.armSettleLocked()
+	d.mu.Unlock()
+
+	clock.fireAll() // quiet through the interval, probe idle: settles
+	d.observeOutput([]byte("x"))
+	d.outputForwarded() // production: handleChunk forwards, then reports it
+	// The pre-activity timer (already armed for the old sequence) firing late
+	// must not re-settle; only the timer armed by the activity may.
+	d.settleFired(0)
+	idle = false
+	clock.fireAll() // busy at check time: stays unsettled
+	d.admitInput([]byte("a"))
+	d.inputForwarded(true, false)
+	idle = true
+	d.observeOutput([]byte("y")) // activity inside the interval re-arms
+	clock.mu.Lock()
+	early := len(clock.armed)
+	clock.mu.Unlock()
+	if early == 0 {
+		t.Fatal("activity did not re-arm the settle check")
+	}
+	d.mu.Lock()
+	if d.settled {
+		t.Fatal("settled while output is unforwarded")
+	}
+	d.mu.Unlock()
+	d.outputForwarded()
+	clock.fireAll()
+
+	sink.mu.Lock()
+	got := append([]bool(nil), sink.settles...)
+	sink.mu.Unlock()
+	if want := []bool{true, false, true}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("settle transitions %v, want %v", got, want)
+	}
+}
+
+func TestSettleNeverWithoutProbe(t *testing.T) {
+	clock := &fakeTimers{}
+	d := newPeerDelivery(peerTestBinding(), time.Now)
+	d.afterFunc = clock.after
+	d.mu.Lock()
+	d.armSettleLocked()
+	d.mu.Unlock()
+	if len(clock.armed) != 0 {
+		t.Fatal("armed a settle check with no probe")
+	}
+}

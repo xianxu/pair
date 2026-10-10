@@ -27,6 +27,13 @@ type recordingPeerSink struct {
 	mu               sync.Mutex
 	updates, submits int
 	last             couchmessage.Observation
+	settles          []bool
+}
+
+func (s *recordingPeerSink) Settle(v bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.settles = append(s.settles, v)
 }
 
 func (s *recordingPeerSink) Update(o couchmessage.Observation) {

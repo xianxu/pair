@@ -241,6 +241,7 @@ func (p *proxy) publishLifecycleObservation(observation TurnObservation) {
 func (p *proxy) processLifecycleObservation(observation TurnObservation) {
 	state, decision := Reduce(p.notificationLifecycle, observation)
 	p.notificationLifecycle = state
+	p.turnActive.Store(state.Active) // the settle check reads it off this goroutine (#421)
 	if decision.Notify {
 		p.emitOuter(decision.Message)
 	}

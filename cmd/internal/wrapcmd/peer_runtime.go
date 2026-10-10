@@ -153,8 +153,21 @@ func (p *proxy) startPeerRuntime(executable string) (*peerRuntime, error) {
 	// wrapper exists from the hello and that it is gone from the close —
 	// including the close-on-exec of a SIGUSR2 re-exec. Idle, it sends nothing.
 	session := couchmessage.NewSessionClient()
+	// hello-v2 (#421): the build identity lets Couch tell whether a relaunch
+	// would change anything; without it the session stays plain hello.
+	if executable, err := os.Executable(); err != nil {
+		p.debug("PEER-build-fail", err.Error())
+	} else if build, err := couchmessage.BuildIdentityOfFile(executable); err != nil {
+		p.debug("PEER-build-fail", err.Error())
+	} else {
+		session.SetBuild(build)
+	}
 	d.mu.Lock()
 	d.session = session
+	if p.terminal != nil {
+		d.settleProbe = p.settledNow
+	}
+	d.armSettleLocked()
 	initial := d.observationLocked()
 	d.mu.Unlock()
 	session.Update(initial)

@@ -12,7 +12,12 @@ import (
 // connection itself is the lifecycle fact: it closes when the wrapper dies or
 // execs (Go sockets are close-on-exec), so no frame announces departure.
 const (
-	FrameHello    = "hello"    // wrapper → broker, first frame, carries the binding
+	FrameHello = "hello" // wrapper → broker, first frame, carries the binding
+	// FrameHelloV2 is hello plus the wrapper's build identity, and it opts the
+	// session into Settled on activity frames (#421). Frames decode strictly,
+	// so an old broker drops the connection without an ack and the wrapper
+	// falls back to FrameHello; an old wrapper never sends it.
+	FrameHelloV2  = "hello-v2"
 	FrameAck      = "ack"      // broker → wrapper, once, answers hello
 	FrameActivity = "activity" // wrapper → broker, coalesced observation change
 	FrameSubmit   = "submit"   // wrapper → broker, a genuine operator submission
@@ -28,21 +33,57 @@ type SessionFrame struct {
 	Observation *Observation `json:",omitempty"`
 	Code        string       `json:",omitempty"` // ack: "ok" or a protocol code
 	Error       string       `json:",omitempty"`
+	// Build rides hello-v2 only; Settled rides activity and submit frames on a
+	// hello-v2 session only. Neither is part of Binding (the broker's actor
+	// key) nor of Observation (which also crosses the delivery endpoint).
+	Build   *BuildIdentity `json:",omitempty"`
+	Settled *bool          `json:",omitempty"`
+}
+
+// BuildIdentity names the executable a wrapper runs: its content hash is the
+// identity (two dirty builds at one revision differ), the revision and dirty
+// bit explain it.
+type BuildIdentity struct {
+	SHA256   string
+	Revision string `json:",omitempty"`
+	Modified bool   `json:",omitempty"`
+}
+
+const maxBuildField = 128
+
+func (b BuildIdentity) Validate() error {
+	if len(b.SHA256) != 64 || len(b.Revision) > maxBuildField {
+		return errors.New("invalid build identity")
+	}
+	for _, c := range b.SHA256 {
+		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f') {
+			return errors.New("invalid build identity")
+		}
+	}
+	return nil
 }
 
 func (f SessionFrame) Validate() error {
 	switch f.Op {
 	case FrameHello:
-		if f.Binding == nil || f.Observation != nil {
+		if f.Binding == nil || f.Observation != nil || f.Build != nil || f.Settled != nil {
 			return errors.New("hello carries exactly a binding")
 		}
 		return f.Binding.Validate()
+	case FrameHelloV2:
+		if f.Binding == nil || f.Build == nil || f.Observation != nil || f.Settled != nil {
+			return errors.New("hello-v2 carries exactly a binding and a build")
+		}
+		if err := f.Build.Validate(); err != nil {
+			return err
+		}
+		return f.Binding.Validate()
 	case FrameAck:
-		if f.Code == "" || f.Binding != nil || f.Observation != nil {
+		if f.Code == "" || f.Binding != nil || f.Observation != nil || f.Build != nil || f.Settled != nil {
 			return errors.New("ack carries only a code")
 		}
 	case FrameActivity, FrameSubmit:
-		if f.Observation == nil || f.Binding != nil {
+		if f.Observation == nil || f.Binding != nil || f.Build != nil {
 			return errors.New("observation frames carry exactly an observation")
 		}
 	default:

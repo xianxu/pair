@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"strings"
 	"testing"
 )
 
@@ -338,5 +339,39 @@ func TestRegistryInterleavingsKeepInvariants(t *testing.T) {
 	}
 	if displacedConnected < 10 {
 		t.Fatalf("displacement of a connected session exercised %d times", displacedConnected)
+	}
+}
+
+// #421: Liveness reports an admitted session's own claims, unknown for a
+// legacy session, and nothing for a slot it cannot pin to one incarnation.
+func TestRegistryLiveness(t *testing.T) {
+	r := NewRegistry()
+	admit := func(token SessionToken, b Binding, build *BuildIdentity, pane PaneHandle) {
+		step(t, r, RegistryEvent{Kind: SessionOpened, Token: token, Binding: b, Build: build})
+		step(t, r, RegistryEvent{Kind: PaneChanged, Thread: b.Thread(), Pane: pane})
+		step(t, r, RegistryEvent{Kind: AdmissionDone, Token: token, Pane: pane})
+	}
+	modern := registryBinding("pair:1", "a", 101)
+	legacy := registryBinding("pair:2", "b", 102)
+	admit(1, modern, &BuildIdentity{SHA256: strings.Repeat("0", 64)}, "h1")
+	admit(2, legacy, nil, "h2")
+	if l := r.Liveness()["pair:1"]; l.Build == nil || l.Settled != nil {
+		t.Fatalf("modern before any report: %+v", l)
+	}
+	yes := true
+	step(t, r, RegistryEvent{Kind: SessionActivity, Token: 1, Settled: &yes})
+	step(t, r, RegistryEvent{Kind: SessionActivity, Token: 2, Settled: &yes}) // ignored: legacy
+	if l := r.Liveness()["pair:1"]; l.Settled == nil || !*l.Settled || l.Binding != modern {
+		t.Fatalf("modern after report: %+v", l)
+	}
+	if l, ok := r.Liveness()["pair:2"]; !ok || l.Build != nil || l.Settled != nil {
+		t.Fatalf("legacy must stay unknown: %+v %v", l, ok)
+	}
+	// A new incarnation for pair:1 displaces the old one (one admitted session
+	// per slot), and its own claims replace the old ones: no inherited Settled.
+	next := registryBinding("pair:1", "c", 103)
+	admit(3, next, nil, "h3")
+	if l, ok := r.Liveness()["pair:1"]; !ok || l.Binding != next || l.Build != nil || l.Settled != nil {
+		t.Fatalf("new incarnation: %+v %v", l, ok)
 	}
 }

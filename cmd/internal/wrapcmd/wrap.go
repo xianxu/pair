@@ -302,10 +302,13 @@ type proxy struct {
 	lastEmit              time.Time
 	notificationRewriter  NotificationRewriter
 	notificationLifecycle NotificationLifecycle
-	lifecycleEvents       chan TurnObservation
-	lifecycleTimer        *time.Timer
-	lifecycleTimerKind    ObservationKind
-	lifecycleTimerToken   uint64
+	// turnActive mirrors notificationLifecycle.Active for the settle timer
+	// (#421); only processLifecycleObservation writes it.
+	turnActive          atomic.Bool
+	lifecycleEvents     chan TurnObservation
+	lifecycleTimer      *time.Timer
+	lifecycleTimerKind  ObservationKind
+	lifecycleTimerToken uint64
 	// The idle floor's own timer (#171). Separate from lifecycleTimer because
 	// its deadline is reset by every output chunk, while the watchdog/grace
 	// deadlines are set only by reducer transitions. Arming is still owned by

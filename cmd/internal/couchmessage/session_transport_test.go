@@ -53,6 +53,7 @@ type sessionLog struct {
 	events []string
 	opened map[SessionToken]Binding
 	frames []SessionFrame
+	builds []BuildIdentity
 	refuse error
 	notify chan struct{}
 }
@@ -66,13 +67,16 @@ func (l *sessionLog) add(s string) {
 }
 func (l *sessionLog) handler() SessionHandler {
 	return SessionHandler{
-		Open: func(t SessionToken, b Binding) error {
+		Open: func(t SessionToken, h SessionHello) error {
 			l.mu.Lock()
 			defer l.mu.Unlock()
 			if l.refuse != nil {
 				return l.refuse
 			}
-			l.opened[t] = b
+			l.opened[t] = h.Binding
+			if h.Build != nil {
+				l.builds = append(l.builds, *h.Build)
+			}
 			l.add(fmt.Sprintf("open %d", t))
 			return nil
 		},

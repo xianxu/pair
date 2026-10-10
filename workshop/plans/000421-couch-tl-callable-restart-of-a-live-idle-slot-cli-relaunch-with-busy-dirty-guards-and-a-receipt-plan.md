@@ -199,3 +199,16 @@ wrapper.
   - No durable receipts (the existing 5-minute in-memory ones).
   - No re-check of Settled between admission and park.
   - No change to Alt+n or Shift+Alt+N behavior.
+
+### 2026-10-09 — M1 implementation deltas
+- `Settled` and `Build` are not on `Observation`. Observation also crosses the
+  per-wrapper delivery endpoint, which an old broker decodes strictly. Both
+  ride `SessionFrame` instead: `Build` on `hello-v2` and `Settled *bool` on
+  activity and submit frames of a v2 session. A legacy session that claims
+  Settled is ended as malformed.
+- **Dropped:** the `settled` column in `couch --actors --json`. Its response
+  also decodes strictly in the CLI, so a newer Couch would break an older
+  `couch` CLI. Receipts carry the refusal reason, which is what a TL needs.
+- One admitted session per slot is already a registry invariant (a new
+  incarnation displaces the old), so `Liveness` reports the newest
+  incarnation's own claims; it never inherits an old Settled.
