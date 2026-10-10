@@ -131,7 +131,8 @@ wrapper.
     `TestRestartConversationVerifiedAndConfirmed`, `TestReloadContextAdmissionAndEffect`,
     `TestEveryLiveOwnerOperationIsDispatched`; M3 deltas)*; dispatch with a
     fake signaller.
-- [ ] **M4 — live check, docs.** A live relaunch and reload of a real idle slot
+- [x] **M4 — live check, docs.** *(Live check deferred to the TL after landing;
+  Revisions "M4: live check deferred to the TL". Docs done.)* A live relaunch and reload of a real idle slot
   through the socket: `pair:2` if free, else a disposable Couch, confirmed
   with the TL. A busy refusal while the agent works; a dirty refusal with a
   touched file. Update `atlas/couch.md` and the `couch --skill` text (the
@@ -304,3 +305,16 @@ wrapper.
      `succeeded` with its tag, and a fresh conversation on `--peek`.
 - **Docs:** `couch --skill` gains the verbs table rows and a "Rolling out a
   new Pair binary" section; README and atlas/couch.md were updated in M2/M3.
+
+### 2026-10-10 — M4 close review round 1 (BR-22, BR-23)
+- **BR-22:** one producer-to-consumer table over verb × {known, forced,
+  absent}: PrepareSlotOperation → CouchLiveOwnerExecutor → probe.
+- **BR-23:** the scope change (the live check deferred) is now marked on every
+  line that stated it: the issue's Done-when, the issue's M4 row, and the plan
+  body's M4 row.
+- **Minor (decision crosses the seam):** `LiveRestartDecision.Forced` carries
+  the decision's own verdict into `require-settled`, instead of admission
+  recomputing the predicate.
+- **Minor (refusal docs):** the SKILL.md `busy-unknown` entry lists both
+  emitting sites: the legacy wrapper at admission, and the
+  disconnect-after-admission check at the effect.

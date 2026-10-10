@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -418,6 +419,48 @@ func TestLiveRestartAdmissionRecordsItsEvidence(t *testing.T) {
 		call, _, err := env.Couch.PrepareSlotOperation(ctx, op, address, LiveRestartOptions{ForceUnknown: true})
 		if err != nil || call.Args[requireSettledArg] != settledKnownValue {
 			t.Fatalf("%s known: %+v %v", op, call.Args, err)
+		}
+	}
+}
+
+// BR-22 (M4 review): require-settled is tested from producer to consumer.
+// PrepareSlotOperation writes it, CouchLiveOwnerExecutor translates it, the
+// probe receives the forced flag. Verb x {known, forced, absent}.
+func TestRequireSettledProducerToConsumer(t *testing.T) {
+	known := LiveRestartFacts{Live: true, Session: true, SettledKnown: true, Settled: true, GitKnown: true, Binary: BinaryFacts{RunningSHA: "a", OnDiskSHA: "b"}}
+	unknown := known
+	unknown.SettledKnown, unknown.Settled = false, false
+	stop := &SlotOperationError{Code: LiveRestartBusy, Detail: "stop before any effect"}
+	for _, op := range []string{OpRelaunch, OpReloadContext} {
+		for _, tc := range []struct {
+			name      string
+			facts     LiveRestartFacts
+			opts      LiveRestartOptions
+			absent    bool
+			wantCalls []bool // forced flags the probe saw
+		}{
+			{"known", known, LiveRestartOptions{}, false, []bool{false}},
+			{"forced", unknown, LiveRestartOptions{ForceUnknown: true}, false, []bool{true}},
+			// Absent: the console's own Alt+n never gates relaunch; a
+			// reload-context without evidence is treated as not forced.
+			{"absent", known, LiveRestartOptions{}, true, map[string][]bool{OpRelaunch: nil, OpReloadContext: {false}}[op]},
+		} {
+			env, address, _ := liveSlotFixture(t)
+			probe := &fakeLiveRestartProbe{facts: tc.facts, busyErr: stop, restartErr: stop}
+			env.Couch.LiveRestart = probe
+			call, _, err := env.Couch.PrepareSlotOperation(context.Background(), op, address, tc.opts)
+			if err != nil {
+				t.Fatalf("%s/%s admission: %v", op, tc.name, err)
+			}
+			if tc.absent {
+				delete(call.Args, requireSettledArg)
+			}
+			declared, _ := operationByName(op)
+			call.Operation, call.Context = declared, context.Background()
+			_, _ = CouchLiveOwnerExecutor(env.Couch)(call)
+			if !reflect.DeepEqual(probe.forced, tc.wantCalls) {
+				t.Errorf("%s/%s: probe saw forced=%v, want %v", op, tc.name, probe.forced, tc.wantCalls)
+			}
 		}
 	}
 }

@@ -62,7 +62,10 @@ Decided by TL ariadne:1 on 2026-10-09:
   the one the slot is running (decide the exact rule in design).
 - It returns a receipt id; a status query shows the outcome and why.
 - Tests cover the guard decisions (pure) and the dispatch through a fake; a
-  live check restarts a real idle slot.
+  live check restarts a real idle slot. *(Revised 2026-10-10: the live check is
+  deferred to the TL after landing, because it needs Couch restarted on the new
+  binary, which disconnects every slot. The checklist is in the plan's "M4:
+  live check deferred" revision.)*
 
 ## Estimate
 

@@ -62,8 +62,11 @@ type LiveRestartOptions struct {
 }
 
 // LiveRestartDecision: Code "" admits; Note is told to the caller either way.
+// Forced: the admission rested on --force-unknown (no Settled evidence), the
+// verdict the effect-time re-check must honor.
 type LiveRestartDecision struct {
 	Code, Detail, Note string
+	Forced             bool
 }
 
 // DecideLiveRestart is the one admission rule for both verbs. Pure. The checks
@@ -71,6 +74,7 @@ type LiveRestartDecision struct {
 // must fix.
 func DecideLiveRestart(op string, f LiveRestartFacts, o LiveRestartOptions) LiveRestartDecision {
 	var notes []string
+	forced := false
 	refuse := func(code, detail string) LiveRestartDecision {
 		return LiveRestartDecision{Code: code, Detail: detail, Note: strings.Join(notes, "; ")}
 	}
@@ -86,6 +90,7 @@ func DecideLiveRestart(op string, f LiveRestartFacts, o LiveRestartOptions) Live
 			return refuse(LiveRestartBusyUnknown, "cannot tell whether the slot is idle: "+why+"; --force-unknown overrides")
 		}
 		notes = append(notes, "idle state unverified (--force-unknown)")
+		forced = true
 	case !f.Settled:
 		return refuse(LiveRestartBusy, "the agent has a turn open, the composer holds text, or input was seen in the last few seconds")
 	}
@@ -104,7 +109,7 @@ func DecideLiveRestart(op string, f LiveRestartFacts, o LiveRestartOptions) Live
 			return refuse(LiveRestartStaleBinary, detail)
 		}
 	}
-	return LiveRestartDecision{Note: strings.Join(notes, "; ")}
+	return LiveRestartDecision{Note: strings.Join(notes, "; "), Forced: forced}
 }
 
 // DecideBinaryFreshness: refuse a relaunch onto the very binary the slot runs
@@ -236,7 +241,7 @@ func (c *Couch) prepareLiveRestart(ctx context.Context, op, target string, row A
 	}
 	args := map[string]string{"repo-scope": row.Address.RepoScope, "tag": string(row.Address.Tag)}
 	args[requireSettledArg] = settledKnownValue
-	if opts.ForceUnknown && (!facts.Session || !facts.SettledKnown) {
+	if d.Forced {
 		args[requireSettledArg] = settledForcedValue
 	}
 	return OperationCall{Name: op, Args: args, Implicit: true, Context: ctx}, d.Note, nil

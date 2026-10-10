@@ -246,6 +246,37 @@ rounds:
       recipe: milestone-review
       reviewed: e804157197c3868fa4a95604851f5ff4ef046afd
       blocked: false
+    - "n": 8
+      timestamp: "2026-10-10T01:22:59-07:00"
+      agent: claude
+      findings:
+        - id: BR-22
+          severity: Important
+          title: Dispatch translation of require-settled into the probe's forced flag is untested; the fake's forced field has no reader
+          detail: 'operationdispatch.go:415 and :425 map known/forced into a bool, and no test asserts it. Hard-coding false at :425 makes reload-context''s --force-unknown always refused, and every test stays green. Fifth in this family. Rule: a value admission writes into an implicit argument is tested from producer to consumer, one table through PrepareSlotOperation, CouchLiveOwnerExecutor and the probe, over verb x {known, forced, absent}. Add the rule to lessons.md.'
+          family: safety-guard-wiring-untested
+          round: 8
+        - id: BR-23
+          severity: Important
+          title: M4 live-check deferral leaves the issue Done-when and plan M4 row unmarked
+          detail: 'Issue Done-when line 65 still requires a live check; plan line 134 still promises it with no deferred marker. Fifth in this family. Rule: a scope-changing revision marks every line that states the scope (Done-when, issue Plan, plan body) in the same commit. Extend the existing lesson to cover Done-when.'
+          family: revision-supersedes-body-unmarked
+          round: 8
+        - id: BR-24
+          severity: Minor
+          title: Admission recomputes the unknown predicate for the forced evidence instead of taking it from DecideLiveRestart
+          detail: 'live_restart.go:239 duplicates :80, and the value is a free string. Rule: a decision''s outcome crosses the seam as the value the decision produced, not one recomputed from the inputs.'
+          family: typed-outcome-survives-boundary
+          round: 8
+        - id: BR-25
+          severity: Minor
+          title: SKILL.md busy-unknown names only the old-wrapper cause, not the disconnect-after-admission refusal added here
+          detail: 'Rule: each refusal code''s doc lists every site that emits it, and the fix for each.'
+          family: docs-surface-lags-cli
+          round: 8
+      boundary: M4
+      recipe: milestone-review
+      blocked: true
 ---
 
 # Gate ledger — pair#421 (boundary-review)
@@ -349,9 +380,26 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-21** [Minor] `guard-rechecked-at-effect` ConfirmNotBusy passes "unknown" at the effect even when admission saw a known-settled wrapper
   2nd in family. The comment assumes admission required --force-unknown, but a wrapper that disconnects between admission and effect turns known into unknown without operator consent (ARCH-ORDER: uncertainty collapsed into a pass). Rule: the effect re-check reads the same decision admission made. Carry whether admission was forced in require-settled (for example "known" or "forced") and refuse unknown unless it was forced.
 
+## Round 8 — 2026-10-10T01:22:59-07:00 (claude) — BLOCKED
+
+### Raised
+
+- **BR-22** [Important] `safety-guard-wiring-untested` Dispatch translation of require-settled into the probe's forced flag is untested; the fake's forced field has no reader
+  operationdispatch.go:415 and :425 map known/forced into a bool, and no test asserts it. Hard-coding false at :425 makes reload-context's --force-unknown always refused, and every test stays green. Fifth in this family. Rule: a value admission writes into an implicit argument is tested from producer to consumer, one table through PrepareSlotOperation, CouchLiveOwnerExecutor and the probe, over verb x {known, forced, absent}. Add the rule to lessons.md.
+- **BR-23** [Important] `revision-supersedes-body-unmarked` M4 live-check deferral leaves the issue Done-when and plan M4 row unmarked
+  Issue Done-when line 65 still requires a live check; plan line 134 still promises it with no deferred marker. Fifth in this family. Rule: a scope-changing revision marks every line that states the scope (Done-when, issue Plan, plan body) in the same commit. Extend the existing lesson to cover Done-when.
+- **BR-24** [Minor] `typed-outcome-survives-boundary` Admission recomputes the unknown predicate for the forced evidence instead of taking it from DecideLiveRestart
+  live_restart.go:239 duplicates :80, and the value is a free string. Rule: a decision's outcome crosses the seam as the value the decision produced, not one recomputed from the inputs.
+- **BR-25** [Minor] `docs-surface-lags-cli` SKILL.md busy-unknown names only the old-wrapper cause, not the disconnect-after-admission refusal added here
+  Rule: each refusal code's doc lists every site that emits it, and the fix for each.
+
 ## Open findings
 
 - **BR-6** [Minor] `derived-state-misses-source-transitions` A silent turn change does not advance the settle generation, so an in-flight check can re-assert Settled=true
 - **BR-13** [Minor] `safety-guard-wiring-untested` Admission note surviving a failed slot operation (message_service.go:338) has no regression test
 - **BR-20** [Minor] `revision-supersedes-body-unmarked` Deleted SlotOperationTakesOverrides still named in a code doc comment and in the M3 Revisions bullets
 - **BR-21** [Minor] `guard-rechecked-at-effect` ConfirmNotBusy passes "unknown" at the effect even when admission saw a known-settled wrapper
+- **BR-22** [Important] `safety-guard-wiring-untested` Dispatch translation of require-settled into the probe's forced flag is untested; the fake's forced field has no reader
+- **BR-23** [Important] `revision-supersedes-body-unmarked` M4 live-check deferral leaves the issue Done-when and plan M4 row unmarked
+- **BR-24** [Minor] `typed-outcome-survives-boundary` Admission recomputes the unknown predicate for the forced evidence instead of taking it from DecideLiveRestart
+- **BR-25** [Minor] `docs-surface-lags-cli` SKILL.md busy-unknown names only the old-wrapper cause, not the disconnect-after-admission refusal added here

@@ -810,3 +810,10 @@ proof; record the surprising case so the next change starts from evidence.
   - **A removal sweeps its identifier.** In the commit that deletes or renames
     one, `git grep` it across code and the plan body, then remove or mark every
     hit. The review records are history and stay as written.
+  - **An implicit argument is tested from producer to consumer.** A value
+    admission writes for the effect to read (#421's `require-settled`) gets one
+    table through the whole path: admit, dispatch, then the consumer. The table
+    covers every verb and every value, including absent. Testing each end alone
+    let a hard-coded `false` pass.
+  - **A scope change marks every line that states the scope:** the Done-when,
+    the issue's Plan row, and the plan body, all in the same commit.

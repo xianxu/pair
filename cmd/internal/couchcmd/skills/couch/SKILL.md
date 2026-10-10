@@ -229,7 +229,9 @@ couch --reload-context pair:3 --confirm
 - **Refusals name the fix:**
   - `busy`: a turn is open, the composer holds text, or input is recent.
     Retry later.
-  - `busy-unknown`: the slot's wrapper predates idle reporting. The first
+  - `busy-unknown`: at admission, the slot's wrapper predates idle reporting
+    or no session is connected. At the effect, the wrapper's idle state was
+    lost after a known-settled admission (a disconnect); look again later. The first
     rollout of this feature is a manual Alt+n.
   - `dirty`: the slot's checkout has uncommitted changes.
   - `stale-binary`: relaunch would run the binary the slot already runs. Its
