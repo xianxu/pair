@@ -45,7 +45,14 @@ asserts that each one reaches the broker as an operation request with an ID.
 
 ## Plan
 
-- [ ]
+- [x] Router asks `couchcore.IsSlotOperation` (`messages.go`).
+- [x] `TestEverySlotOperationIsRoutedToTheSlotPath`: argv → router → broker,
+      for every declared slot verb; it failed for exactly relaunch and
+      reload-context before the fix.
+- [x] Swept the other hand-kept verb lists. They are different concepts and
+      correctly exclude the new verbs: local-CLI scope and live ownership
+      (`run.go`), switcher argument shape (`menu_slot.go`), and hosted-child
+      ending (`menu.go`, where reload re-execs inside its pane).
 
 ## Log
 
