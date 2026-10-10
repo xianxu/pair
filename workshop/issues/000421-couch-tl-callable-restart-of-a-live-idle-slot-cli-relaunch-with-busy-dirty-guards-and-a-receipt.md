@@ -91,7 +91,7 @@ Durable plan: `workshop/plans/000421-couch-tl-callable-restart-of-a-live-idle-sl
 
 - [x] M1 — the wrapper reports `Settled` (no open turn, empty composer,
       quiet), plus its own build revision, to the broker
-- [ ] M2 — `couch --relaunch repo:N --confirm`: busy/dirty/stale-binary guards
+- [x] M2 — `couch --relaunch repo:N --confirm`: busy/dirty/stale-binary guards
       and a receipt
 - [ ] M3 — `couch --reload-context repo:N --confirm`: same guards, signals
       pair-wrap like `pair agent restart`
