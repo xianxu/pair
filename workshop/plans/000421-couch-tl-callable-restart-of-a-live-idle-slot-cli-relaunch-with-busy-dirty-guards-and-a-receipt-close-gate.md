@@ -301,6 +301,29 @@ rounds:
       recipe: milestone-review
       reviewed: 77b1f23cebdb4acfaeba1b258638faa4c9a9b9d7
       blocked: false
+    - "n": 10
+      timestamp: "2026-10-10T01:36:31-07:00"
+      agent: claude
+      dispose:
+        - id: BR-6
+          disposition: addressed
+          note: armSettleLocked bumps settleGen on every source incl. lifecycleTurnChanged; settleFired rechecks seq after probe; TestSettleInFlightCheckInvalidatedBySilentTurn.
+          round: 10
+        - id: BR-13
+          disposition: addressed
+          note: TestWithAdmissionNoteOnSuccessAndFailure drives withAdmissionNote with a non-nil error and asserts the note survives.
+          round: 10
+        - id: BR-20
+          disposition: addressed
+          note: slot_operation.go:39 comment now names SlotOperationTakesForceUnknown; remaining plan hits are marked superseded inline.
+          round: 10
+        - id: BR-21
+          disposition: addressed
+          note: refuseUnlessIdle refuses unknown unless forced; require-settled carries known/forced; tested in TestRestartEffectRechecksBusyAndCancellation and the BR-22 dispatch matrix.
+          round: 10
+      recipe: milestone-review
+      reviewed: e157ce9ae95b9f33820983f13e92c2056e4e61cf
+      blocked: false
 ---
 
 # Gate ledger — pair#421 (boundary-review)
@@ -426,9 +449,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-24 — addressed — DecideLiveRestart returns Forced, and prepareLiveRestart writes d.Forced; the duplicate predicate is gone.
 - BR-25 — addressed — SKILL.md busy-unknown now names the admission causes and the effect-time disconnect, each with its fix.
 
+## Round 10 — 2026-10-10T01:36:31-07:00 (claude) — passed
+
+### Disposed
+
+- BR-6 — addressed — armSettleLocked bumps settleGen on every source incl. lifecycleTurnChanged; settleFired rechecks seq after probe; TestSettleInFlightCheckInvalidatedBySilentTurn.
+- BR-13 — addressed — TestWithAdmissionNoteOnSuccessAndFailure drives withAdmissionNote with a non-nil error and asserts the note survives.
+- BR-20 — addressed — slot_operation.go:39 comment now names SlotOperationTakesForceUnknown; remaining plan hits are marked superseded inline.
+- BR-21 — addressed — refuseUnlessIdle refuses unknown unless forced; require-settled carries known/forced; tested in TestRestartEffectRechecksBusyAndCancellation and the BR-22 dispatch matrix.
+
 ## Open findings
 
-- **BR-6** [Minor] `derived-state-misses-source-transitions` A silent turn change does not advance the settle generation, so an in-flight check can re-assert Settled=true
-- **BR-13** [Minor] `safety-guard-wiring-untested` Admission note surviving a failed slot operation (message_service.go:338) has no regression test
-- **BR-20** [Minor] `revision-supersedes-body-unmarked` Deleted SlotOperationTakesOverrides still named in a code doc comment and in the M3 Revisions bullets
-- **BR-21** [Minor] `guard-rechecked-at-effect` ConfirmNotBusy passes "unknown" at the effect even when admission saw a known-settled wrapper
+(none — every finding has been disposed)
