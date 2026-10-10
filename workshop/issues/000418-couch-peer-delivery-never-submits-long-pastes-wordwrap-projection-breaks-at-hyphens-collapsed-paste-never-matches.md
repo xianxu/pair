@@ -1,12 +1,21 @@
 ---
 id: 000418
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-09
 updated: 2026-10-09
 estimate_hours:
-card_mirror: '679cdbe15a2e7c5b758135a84b43dcc2ad79195b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'b9b6a78ec09a3d49882d353dc077de0520cce794' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-09T20:15:12-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "a2c55c9d", done: "c19cec0c"}
 ---
 
 # Couch peer delivery never submits long pastes: wordwrap projection breaks at hyphens; collapsed paste never matches
