@@ -1,6 +1,6 @@
 ---
 id: 000421
-status: codecomplete
+status: done
 created: 2026-10-09
 updated: 2026-10-10
 estimate_hours: 2.26
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: e57a658a4e18dd7a2074d0ba9e7476aba601b8ba
         evidence_commit: 878ee76ee6a43d76708c9e9325d24687b8693a1f
+        landed_commit: 1335c231904b9926764590f98d383506e902495a
 ---
 
 # couch: TL-callable restart of a live idle slot (CLI relaunch with busy/dirty guards and a receipt)
