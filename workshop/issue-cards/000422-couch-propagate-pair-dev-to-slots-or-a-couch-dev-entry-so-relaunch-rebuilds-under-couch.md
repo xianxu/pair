@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000422-couch-propagate-pair-dev-to-slots-or-a-couch-dev-entry-so-relaunch-rebuilds-under-couch.md
         source_blob: dcdd0be9a02e7a7995746828baff268e5a89c6b2
         destination: workshop/issues/000422-couch-propagate-pair-dev-to-slots-or-a-couch-dev-entry-so-relaunch-rebuilds-under-couch.md
+        main_commit: 53ec05c9bd8c99d1dfeacb682e3a24606a3b02fc
 ---
 
 # couch: propagate PAIR_DEV to slots (or a couch dev entry) so relaunch rebuilds under couch
