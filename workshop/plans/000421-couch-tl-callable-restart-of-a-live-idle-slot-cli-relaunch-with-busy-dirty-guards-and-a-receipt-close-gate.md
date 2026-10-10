@@ -324,6 +324,12 @@ rounds:
       recipe: milestone-review
       reviewed: e157ce9ae95b9f33820983f13e92c2056e4e61cf
       blocked: false
+    - "n": 11
+      timestamp: "2026-10-10T01:59:22-07:00"
+      agent: claude
+      recipe: milestone-review
+      blocked: true
+      protocol_error: no valid findings block
 ---
 
 # Gate ledger — pair#421 (boundary-review)
@@ -457,6 +463,10 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-13 — addressed — TestWithAdmissionNoteOnSuccessAndFailure drives withAdmissionNote with a non-nil error and asserts the note survives.
 - BR-20 — addressed — slot_operation.go:39 comment now names SlotOperationTakesForceUnknown; remaining plan hits are marked superseded inline.
 - BR-21 — addressed — refuseUnlessIdle refuses unknown unless forced; require-settled carries known/forced; tested in TestRestartEffectRechecksBusyAndCancellation and the BR-22 dispatch matrix.
+
+## Round 11 — 2026-10-10T01:59:22-07:00 (claude) — BLOCKED
+
+**Protocol error:** no valid findings block — this round contributed no findings.
 
 ## Open findings
 
