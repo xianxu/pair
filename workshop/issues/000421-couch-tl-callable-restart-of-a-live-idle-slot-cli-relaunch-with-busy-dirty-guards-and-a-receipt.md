@@ -65,7 +65,15 @@ Decided by TL ariadne:1 on 2026-10-09:
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000421-couch-tl-callable-restart-of-a-live-idle-slot-cli-relaunch-with-busy-dirty-guards-and-a-receipt-plan.md`.
+
+- [ ] M1 — the wrapper reports `Settled` (no open turn, empty composer,
+      quiet), plus its own build revision, to the broker
+- [ ] M2 — `couch --relaunch repo:N --confirm`: busy/dirty/stale-binary guards
+      and a receipt
+- [ ] M3 — `couch --reload-context repo:N --confirm`: same guards, signals
+      pair-wrap like `pair agent restart`
+- [ ] M4 — live check on a real idle slot; atlas and `couch --skill` docs
 
 ## Log
 
