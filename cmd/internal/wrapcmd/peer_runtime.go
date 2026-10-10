@@ -58,6 +58,16 @@ func (d *peerDelivery) handleEndpoint(_ context.Context, raw []byte) ([]byte, er
 	}
 	var err error
 	switch request.Op {
+	case "tail":
+		d.mu.Lock()
+		probe := d.tailProbe
+		d.mu.Unlock()
+		if probe == nil {
+			err = errors.New("this wrapper keeps no terminal model")
+			break
+		}
+		tail := probe(request.Lines)
+		response.Tail = &tail
 	case "observe":
 		d.mu.Lock()
 		response.Observation = d.observationLocked()
@@ -164,6 +174,7 @@ func (p *proxy) startPeerRuntime(executable string) (*peerRuntime, error) {
 	d.session = session
 	if p.terminal != nil {
 		d.settleProbe = p.settledNow
+		d.tailProbe = p.agentTail
 	}
 	d.armSettleLocked()
 	initial := d.observationLocked()

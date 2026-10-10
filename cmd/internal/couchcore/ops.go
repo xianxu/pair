@@ -183,8 +183,8 @@ func Operations() []Operation {
 			Execution: ExecuteDirectStore, Effect: EffectRead, Confirmation: ConfirmNone,
 			Result: ResultPeek, Presentation: PresentationShow,
 			Args: []ArgSpec{
-				{Name: "ref", Summary: "slot reference (repo:N), thread tag or path", Required: true},
-				{Name: "lines", Summary: "how many recent lines to show (default 40)", FlagOnly: true, ValueRequired: true},
+				{Name: "ref", Summary: "slot reference (repo:N; several as repo:1:2,other:0), thread tag or path", Required: true},
+				{Name: "lines", Summary: "how many recent lines to show per slot (default 40)", FlagOnly: true, ValueRequired: true},
 				{Name: "json", Summary: "print the result as JSON", FlagOnly: true},
 				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
 			},

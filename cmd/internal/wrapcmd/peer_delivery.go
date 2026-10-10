@@ -50,6 +50,9 @@ type peerDelivery struct {
 	settleProbe func() bool
 	settleTimer settleTimer
 	afterFunc   func(time.Duration, func()) settleTimer
+	// tailProbe renders the agent pane's tail (pair#425); nil without a
+	// terminal model, and then a tail request says so.
+	tailProbe func(lines int) couchmessage.Tail
 }
 
 type peerSessionSink interface {

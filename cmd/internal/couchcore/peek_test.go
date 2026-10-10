@@ -125,3 +125,94 @@ func containsPrefix(list []string, prefix string) bool {
 	}
 	return false
 }
+
+func TestExpandPeekReferences(t *testing.T) {
+	for raw, want := range map[string][]string{
+		"pair:3":                   {"pair:3"},
+		"pair:1:2:3,ariadne:0:1:2": {"pair:1", "pair:2", "pair:3", "ariadne:0", "ariadne:1", "ariadne:2"},
+		"pair:1, brain:0":          {"pair:1", "brain:0"},
+		"my-thread":                {"my-thread"},
+		"a:b:c":                    {"a:b:c"},
+	} {
+		got, err := ExpandPeekReferences(raw)
+		if err != nil || !reflect.DeepEqual(got, want) {
+			t.Errorf("%q = %q %v, want %q", raw, got, err, want)
+		}
+	}
+	for _, raw := range []string{"pair:1,", ",pair:1", "pair:1,,pair:2"} {
+		if _, err := ExpandPeekReferences(raw); err == nil {
+			t.Errorf("%q accepted", raw)
+		}
+	}
+}
+
+// The live tail answers without touching the recording; when it fails, the
+// recording answers and the live reason is named (pair#425).
+func TestPeekPrefersTheLiveTail(t *testing.T) {
+	env, record := peekEnv(t)
+	recordingRead := false
+	env.Couch.SlotTerminal = func(ThreadAddress, string, int) ([]string, error) {
+		recordingRead = true
+		return []string{"plain"}, nil
+	}
+	var asked int
+	env.Couch.SlotTail = func(_ context.Context, address ThreadAddress, n int) (TerminalTail, error) {
+		if address != record.Address {
+			t.Fatalf("tail of %v", address)
+		}
+		asked = n
+		return TerminalTail{Lines: []string{"old", "❯ ‹cursor›‹dim›Try it‹/dim›"}, Cursor: "2,3 default", Truncated: 4}, nil
+	}
+	r, err := env.Couch.PeekThread(context.Background(), "pair:1", record.Address, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recordingRead || asked != 1 || r.Source != "live" || r.Cursor != "2,3 default" || r.Truncated != 4 ||
+		!reflect.DeepEqual(r.Lines, []string{"❯ ‹cursor›‹dim›Try it‹/dim›"}) || len(r.Unavailable) != 0 {
+		t.Fatalf("recording read %v asked %d: %+v", recordingRead, asked, r)
+	}
+
+	env.Couch.SlotTail = func(context.Context, ThreadAddress, int) (TerminalTail, error) {
+		return TerminalTail{}, errors.New("no running couch answered")
+	}
+	r, err = env.Couch.PeekThread(context.Background(), "pair:1", record.Address, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !recordingRead || r.Source != "recording" || r.Cursor != "" || !reflect.DeepEqual(r.Lines, []string{"plain"}) ||
+		!containsPrefix(r.Unavailable, "live tail: no running couch answered") {
+		t.Fatalf("%+v", r)
+	}
+}
+
+// A multi-slot peek is one snapshot in request order; a slot that does not
+// resolve reports why in its own section, through the operation dispatcher.
+func TestPeekSnapshotOverSeveralSlots(t *testing.T) {
+	env, record := peekEnv(t)
+	env.Couch.SlotTail = func(_ context.Context, address ThreadAddress, _ int) (TerminalTail, error) {
+		return TerminalTail{Lines: []string{"tail of " + string(address.Tag)}}, nil
+	}
+	tag := string(record.Address.Tag)
+	value, err := dispatchTestOperation(env.Couch, "peek", map[string]string{"repo-scope": record.Address.RepoScope, "ref": tag + ",nope," + tag, "lines": "5"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, ok := value.(PeekSnapshot)
+	if !ok || len(snapshot.Slots) != 3 {
+		t.Fatalf("%#v", value)
+	}
+	for _, i := range []int{0, 2} {
+		if s := snapshot.Slots[i]; s.Ref != tag || s.Source != "live" || s.Lines[0] != "tail of "+tag {
+			t.Fatalf("slot %d: %+v", i, s)
+		}
+	}
+	if s := snapshot.Slots[1]; s.Ref != "nope" || len(s.Unavailable) != 1 || s.Lines == nil {
+		t.Fatalf("unresolved slot: %+v", s)
+	}
+
+	// One reference keeps the single-slot answer.
+	value, err = dispatchTestOperation(env.Couch, "peek", map[string]string{"repo-scope": record.Address.RepoScope, "ref": tag})
+	if _, ok := value.(PeekResult); err != nil || !ok {
+		t.Fatalf("single: %#v %v", value, err)
+	}
+}

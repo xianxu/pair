@@ -600,6 +600,8 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		return s.handleSlotOperation(ctx, request)
 	case request.Op == "broadcast-status":
 		return s.handleBroadcastStatus(request)
+	case request.Op == "tail":
+		return s.handleTail(ctx, request)
 	}
 	if request.Binding == nil && couchmessage.ValidateRequest(request) == nil {
 		binding, err := s.broker.Caller(request.Scope, request.Tag, request.Session, request.Nonce)
@@ -640,6 +642,42 @@ func (s *messageService) handleBroadcastStatus(request couchmessage.Request) cou
 		return couchmessage.Response{Code: "ok"}
 	}
 	return couchmessage.Response{Code: "ok", Broadcast: &snapshot}
+}
+
+// handleTail answers a peek's tail read (pair#425) from the connected
+// wrapper running the thread (scope + exact tag, as LivenessForThread
+// matches). Like broadcast-status it needs no slot identity: the socket lives
+// in the operator-only store, and the answer is read-only.
+func (s *messageService) handleTail(ctx context.Context, request couchmessage.Request) couchmessage.Response {
+	if err := couchmessage.ValidateRequest(request); err != nil {
+		return couchmessage.Response{Code: "invalid-request", Error: err.Error()}
+	}
+	var matches []couchmessage.Binding
+	if connected := s.connected.Load(); connected != nil {
+		for b, live := range *connected {
+			if live && b.Scope == request.TailScope && b.Tag == request.TailTag {
+				matches = append(matches, b)
+			}
+		}
+	}
+	switch {
+	case len(matches) == 0:
+		return couchmessage.Response{Code: "unavailable", Error: "no wrapper is connected for this thread"}
+	case len(matches) > 1:
+		return couchmessage.Response{Code: "ambiguous", Error: fmt.Sprintf("%d wrappers are connected for this thread", len(matches))}
+	}
+	var reader couchmessage.TailReader
+	if s.authority.endpoint != nil {
+		reader, _ = s.authority.endpoint(matches[0]).(couchmessage.TailReader)
+	}
+	if reader == nil {
+		return couchmessage.Response{Code: "unsupported", Error: "this wrapper's endpoint reads no tail"}
+	}
+	tail, err := reader.Tail(ctx, request.Lines)
+	if err != nil {
+		return couchmessage.Response{Code: "unavailable", Error: err.Error()}
+	}
+	return couchmessage.Response{Code: "ok", Tail: &tail}
 }
 
 // SetBroadcastStatus installs the console's broadcast snapshot.
