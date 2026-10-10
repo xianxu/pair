@@ -31,16 +31,19 @@ func (p *proxy) settledNow() bool {
 
 type settleTimer interface{ Stop() bool }
 
-// armSettleLocked (d.mu held) cancels any pending check and arms one for the
-// current sequence; any activity before it fires makes it a no-op.
+// armSettleLocked (d.mu held) is the ONE entry for every source transition of
+// Settled (output, input, image, submit, a silent turn change). It advances the
+// settle generation, which invalidates any check already armed or in flight,
+// then arms a fresh one. A check publishes only if no source moved since.
 func (d *peerDelivery) armSettleLocked() {
+	d.settleGen++
 	if d.settleProbe == nil {
 		return
 	}
 	if d.settleTimer != nil {
 		d.settleTimer.Stop()
 	}
-	seq := d.sequence
+	seq := d.settleGen
 	after := d.afterFunc
 	if after == nil {
 		after = func(dur time.Duration, f func()) settleTimer { return time.AfterFunc(dur, f) }
@@ -59,7 +62,7 @@ func (d *peerDelivery) unsettleLocked() bool {
 
 func (d *peerDelivery) settleFired(seq uint64) {
 	d.mu.Lock()
-	if seq != d.sequence || d.settleProbe == nil {
+	if seq != d.settleGen || d.settleProbe == nil {
 		d.mu.Unlock()
 		return
 	}
@@ -68,7 +71,7 @@ func (d *peerDelivery) settleFired(seq uint64) {
 	d.mu.Unlock()
 	settled := !pending && probe()
 	d.mu.Lock()
-	if seq != d.sequence || d.settled == settled {
+	if seq != d.settleGen || d.settled == settled {
 		d.mu.Unlock()
 		return
 	}

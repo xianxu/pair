@@ -77,7 +77,7 @@ func TestSettleTimerInterleavedActivity(t *testing.T) {
 	d.outputForwarded() // production: handleChunk forwards, then reports it
 	// The pre-activity timer (already armed for the old sequence) firing late
 	// must not re-settle; only the timer armed by the activity may.
-	d.settleFired(0)
+	d.settleFired(1) // the generation armed before the output: stale
 	idle = false
 	clock.fireAll() // busy at check time: stays unsettled
 	d.admitInput([]byte("a"))
@@ -158,5 +158,39 @@ func TestSettleFollowsSilentTurnTransitions(t *testing.T) {
 	sink.mu.Unlock()
 	if want := []bool{true, false, true}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("settle transitions %v, want %v", got, want)
+	}
+}
+
+// The rule behind both M1 review findings: a check in flight when ANY source
+// moves must not publish. Here the turn opens silently while the probe runs.
+func TestSettleInFlightCheckInvalidatedBySilentTurn(t *testing.T) {
+	clock := &fakeTimers{}
+	sink := &recordingPeerSink{}
+	var d *peerDelivery
+	d = newPeerDelivery(peerTestBinding(), time.Now)
+	d.afterFunc = clock.after
+	d.settleProbe = func() bool {
+		d.lifecycleTurnChanged(true) // races in between probe and publish
+		return true
+	}
+	d.session = sink
+	d.mu.Lock()
+	d.armSettleLocked()
+	timers := clock.armed
+	clock.armed = nil
+	d.mu.Unlock()
+	timers[0].f()
+	d.mu.Lock()
+	settled := d.settled
+	d.mu.Unlock()
+	if settled {
+		t.Fatal("a check in flight across a silent turn open published Settled")
+	}
+	sink.mu.Lock()
+	defer sink.mu.Unlock()
+	for _, v := range sink.settles {
+		if v {
+			t.Fatalf("published Settled=true: %v", sink.settles)
+		}
 	}
 }

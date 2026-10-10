@@ -46,6 +46,7 @@ type peerDelivery struct {
 	// Settle state (#421, peer_settle.go). settleProbe is nil when the
 	// wrapper cannot judge (no terminal model), and then nothing settles.
 	settled     bool
+	settleGen   uint64 // advanced by every source transition (armSettleLocked)
 	settleProbe func() bool
 	settleTimer settleTimer
 	afterFunc   func(time.Duration, func()) settleTimer
