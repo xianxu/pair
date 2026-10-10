@@ -2,6 +2,7 @@ package wrapcmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -171,5 +172,45 @@ func TestTailOverEndpointSocket(t *testing.T) {
 	}
 	if strings.Join(tail.Lines, "|") != "one|‹dim›two‹/dim›‹cursor›" || tail.Cursor.String() != "2,4 default" {
 		t.Fatalf("tail = %q cursor %v", tail.Lines, tail.Cursor)
+	}
+}
+
+// A full scrollback answers a maximal tail over the real socket well under a
+// second (Done-when 1's budget for the wrapper hop).
+func TestTailOverEndpointSocketIsFast(t *testing.T) {
+	namespace, err := os.MkdirTemp("/tmp", "pair-tail-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(namespace) })
+	binding := couchmessage.Binding{Slot: "pair:1", Repository: "/fixture/.git", Scope: "fixture-scope", Tag: "t", Session: "s", Nonce: "n", Agent: "claude", Version: "v", PID: os.Getpid(), Start: "start"}
+	d := newPeerDelivery(binding, time.Now)
+	socket, err := couchmessage.EndpointSocket(namespace, binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server, err := couchmessage.StartServer(context.Background(), socket, d.handleEndpoint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = server.Close() })
+	var paint strings.Builder
+	for i := range 12000 {
+		paint.WriteString(fmt.Sprintf("\x1b[2mline %d of the agent's output, long enough to fill a row\x1b[0m\r\n", i))
+	}
+	m := tailModel(t, 120, 40, paint.String())
+	d.mu.Lock()
+	d.tailProbe = m.Tail
+	d.mu.Unlock()
+	endpoint := couchmessage.RemoteEndpoint{Namespace: namespace, Binding: binding}
+	start := time.Now()
+	tail, err := endpoint.Tail(context.Background(), couchmessage.MaxTailLines)
+	elapsed := time.Since(start)
+	if err != nil || len(tail.Lines) != couchmessage.MaxTailLines || !strings.Contains(tail.Lines[0], "‹dim›line ") {
+		t.Fatalf("%d lines, err %v", len(tail.Lines), err)
+	}
+	t.Logf("200-line tail over the endpoint socket: %v", elapsed)
+	if elapsed > 250*time.Millisecond {
+		t.Fatalf("tail took %v", elapsed)
 	}
 }

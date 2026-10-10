@@ -43,7 +43,7 @@ A TL (in the `ops` slot) and the operator drive several slots at once, and need 
 
 ## Done when
 
-- `couch --peek pair:3 --lines 10` returns the tail from the wrapper's memory, with dim spans and the cursor marked, in well under a second.
+- `couch --peek pair:3 --lines 10` returns the tail from the wrapper's memory, with dim spans and the cursor marked, in well under a second. *(Revision 2026-10-10: the live end-to-end run is deferred to the TL at rollout; see Revisions.)*
 - A Claude Code ghost suggestion and a typed draft render differently in the tail (a test with captured bytes from `wrapcmd/testdata/tty/`).
 - A multi-slot peek over at least 3 slots returns one sectioned snapshot, and an unreadable slot reports its reason inline.
 - `atlas/couch.md` documents the tail store, the markup, and the multi-slot syntax; the `couch --skill` text tells callers that judging state is theirs.
@@ -58,6 +58,10 @@ Durable plan: `workshop/plans/000425-couch-in-memory-slot-tails-with-style-and-c
 - [x] CLI wiring/rendering + router test
 - [x] atlas + couch skill docs
 - [x] live check on 3+ slots (CLI + fallback; live path needs Couch restart)
+
+## Revisions
+
+- **2026-10-10 — Done-when 1 live check deferred to the TL (ops decision, option b).** Why: the running Couch and slot wrappers predate the new `tail` op, so an end-to-end live run needs the operator to restart Couch on this build and relaunch a slot, which this slot must not do. Delta: the issue lands with each hop proven separately: the wrapper render plus the real endpoint socket (`TestTailOverEndpointSocketIsFast`: 200-line tail over 12k lines of scrollback in about 1 ms), the broker handler (`TestTailReadsTheThreadsConnectedWrapper`), the CLI broker call (`TestReadSlotTail`) and the router (`TestMultiSlotPeekRunsThroughTheRouter`). The TL runs `couch --peek pair:N --lines 10` live at rollout, and the issue isn't counted done until that passes.
 
 ## Log
 
