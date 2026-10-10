@@ -140,3 +140,13 @@ wrapper.
 - **Codex turn tracking:** Codex has no progress OSC, so turn-active
   falls back to the composer and quiet interval for Codex. That's acceptable:
   Codex's composer is read from the same recognizer.
+
+## Revisions
+
+### 2026-10-09 — TL ariadne:1 approval notes
+- "Behind" compares against the source the launcher builds from: the checkout
+  that owns the `pair` binary on Couch's PATH (pair:0 in practice, built from
+  `cmd/pair-go`), not the slot's checkout. Both the `stale-binary` refusal and
+  the behind-HEAD note name the fix verbatim: `make build in <that checkout>`.
+- `--force-unknown` stays. The first rollout of #421 itself is a manual Alt+n
+  once per slot.
