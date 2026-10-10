@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000423-test-testcoldresumeofaparkedprimaryregistersfrombothorigins-switcher-flakes-enter-races-row-load.md
         source_blob: ef718ec19d5f9a50ce467910f30c9967693c1731
         destination: workshop/issues/000423-test-testcoldresumeofaparkedprimaryregistersfrombothorigins-switcher-flakes-enter-races-row-load.md
+        main_commit: 65fab6e7bce72817eec481d07d83c7ed586ad55f
 ---
 
 # test: TestColdResumeOfAParkedPrimaryRegistersFromBothOrigins/switcher flakes, Enter races row load
