@@ -1,12 +1,12 @@
 ---
 id: 000421
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-09
-updated: 2026-10-09
+updated: 2026-10-10
 estimate_hours: 2.26
-card_mirror: 'aa35024978bfcaa4019b284ec69367715b913a2a' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f4b60f228523fe2cb8a0d1e48bf17caea8a76759' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-09T22:53:53-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 4.01
 ---
 
 # couch: TL-callable restart of a live idle slot (CLI relaunch with busy/dirty guards and a receipt)
