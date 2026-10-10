@@ -201,6 +201,51 @@ rounds:
       boundary: M3
       recipe: milestone-review
       blocked: true
+    - "n": 7
+      timestamp: "2026-10-10T00:56:29-07:00"
+      agent: claude
+      dispose:
+        - id: BR-14
+          disposition: addressed
+          note: TestEveryLiveOwnerOperationIsDispatched enumerates Operations(); mutation removing the OpReloadContext case goes red; TestReloadContextRefusesWhenNoLongerLive covers not-live.
+          round: 7
+        - id: BR-15
+          disposition: addressed
+          note: refuseKnownBusy in RestartConversation (under hold) and ConfirmNotBusy via require-settled for relaunch; mutation removing ConfirmNotBusy fails TestLiveRestartGuardRecheckedAtEffect.
+          round: 7
+        - id: BR-16
+          disposition: addressed
+          note: Plan lines 85, 94, 130 now mark reload_context.go, SignalWrapper and helper extraction superseded inline.
+          round: 7
+        - id: BR-17
+          disposition: addressed
+          note: ReloadContextResult.ReceiptTag plus notedResult passthrough; asserted in TestRestartEffectRechecksBusyAndCancellation.
+          round: 7
+        - id: BR-18
+          disposition: addressed
+          note: SlotOperationTakesSameBinary gates CLI and ValidateRequest; TestReloadContextRefusesSameBinary and protocol_test cover it.
+          round: 7
+        - id: BR-19
+          disposition: addressed
+          note: Cancelled-context path asserts ReloadUnconfirmed containing "cancelled".
+          round: 7
+      findings:
+        - id: BR-20
+          severity: Minor
+          title: Deleted SlotOperationTakesOverrides still named in a code doc comment and in the M3 Revisions bullets
+          detail: '4th in family. slot_operation.go:39 keeps the old function''s doc comment, and the plan''s M3 deltas still say SlotOperationTakesOverrides is the single list and --same-binary is accepted without effect. Rule: when a commit removes or renames an identifier, run git grep for it across code and plan in that commit, then delete or mark superseded every remaining hit.'
+          family: revision-supersedes-body-unmarked
+          round: 7
+        - id: BR-21
+          severity: Minor
+          title: ConfirmNotBusy passes "unknown" at the effect even when admission saw a known-settled wrapper
+          detail: '2nd in family. The comment assumes admission required --force-unknown, but a wrapper that disconnects between admission and effect turns known into unknown without operator consent (ARCH-ORDER: uncertainty collapsed into a pass). Rule: the effect re-check reads the same decision admission made. Carry whether admission was forced in require-settled (for example "known" or "forced") and refuse unknown unless it was forced.'
+          family: guard-rechecked-at-effect
+          round: 7
+      boundary: M3
+      recipe: milestone-review
+      reviewed: e804157197c3868fa4a95604851f5ff4ef046afd
+      blocked: false
 ---
 
 # Gate ledger — pair#421 (boundary-review)
@@ -286,13 +331,27 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-18** [Minor] `override-accepted-without-effect` --same-binary is silently accepted with --reload-context; refuse it instead
 - **BR-19** [Minor] `safety-guard-wiring-untested` RestartConversation's cancelled-context path has no test
 
+## Round 7 — 2026-10-10T00:56:29-07:00 (claude) — passed
+
+### Disposed
+
+- BR-14 — addressed — TestEveryLiveOwnerOperationIsDispatched enumerates Operations(); mutation removing the OpReloadContext case goes red; TestReloadContextRefusesWhenNoLongerLive covers not-live.
+- BR-15 — addressed — refuseKnownBusy in RestartConversation (under hold) and ConfirmNotBusy via require-settled for relaunch; mutation removing ConfirmNotBusy fails TestLiveRestartGuardRecheckedAtEffect.
+- BR-16 — addressed — Plan lines 85, 94, 130 now mark reload_context.go, SignalWrapper and helper extraction superseded inline.
+- BR-17 — addressed — ReloadContextResult.ReceiptTag plus notedResult passthrough; asserted in TestRestartEffectRechecksBusyAndCancellation.
+- BR-18 — addressed — SlotOperationTakesSameBinary gates CLI and ValidateRequest; TestReloadContextRefusesSameBinary and protocol_test cover it.
+- BR-19 — addressed — Cancelled-context path asserts ReloadUnconfirmed containing "cancelled".
+
+### Raised
+
+- **BR-20** [Minor] `revision-supersedes-body-unmarked` Deleted SlotOperationTakesOverrides still named in a code doc comment and in the M3 Revisions bullets
+  4th in family. slot_operation.go:39 keeps the old function's doc comment, and the plan's M3 deltas still say SlotOperationTakesOverrides is the single list and --same-binary is accepted without effect. Rule: when a commit removes or renames an identifier, run git grep for it across code and plan in that commit, then delete or mark superseded every remaining hit.
+- **BR-21** [Minor] `guard-rechecked-at-effect` ConfirmNotBusy passes "unknown" at the effect even when admission saw a known-settled wrapper
+  2nd in family. The comment assumes admission required --force-unknown, but a wrapper that disconnects between admission and effect turns known into unknown without operator consent (ARCH-ORDER: uncertainty collapsed into a pass). Rule: the effect re-check reads the same decision admission made. Carry whether admission was forced in require-settled (for example "known" or "forced") and refuse unknown unless it was forced.
+
 ## Open findings
 
 - **BR-6** [Minor] `derived-state-misses-source-transitions` A silent turn change does not advance the settle generation, so an in-flight check can re-assert Settled=true
 - **BR-13** [Minor] `safety-guard-wiring-untested` Admission note surviving a failed slot operation (message_service.go:338) has no regression test
-- **BR-14** [Important] `safety-guard-wiring-untested` reload-context dispatch case and its not-live check are untested (deleting the executor case fails no reload-context test)
-- **BR-15** [Important] `guard-rechecked-at-effect` Settled (busy) guard is checked at admission but not re-checked under the thread hold before SIGUSR2 or relaunch
-- **BR-16** [Important] `revision-supersedes-body-unmarked` Plan still places ReloadContext in reload_context.go and describes a shared SignalWrapper helper and helper-extraction tests
-- **BR-17** [Minor] `typed-outcome-survives-boundary` A reload-context success receipt carries no Tag, unlike the documented "names the thread left running"
-- **BR-18** [Minor] `override-accepted-without-effect` --same-binary is silently accepted with --reload-context; refuse it instead
-- **BR-19** [Minor] `safety-guard-wiring-untested` RestartConversation's cancelled-context path has no test
+- **BR-20** [Minor] `revision-supersedes-body-unmarked` Deleted SlotOperationTakesOverrides still named in a code doc comment and in the M3 Revisions bullets
+- **BR-21** [Minor] `guard-rechecked-at-effect` ConfirmNotBusy passes "unknown" at the effect even when admission saw a known-settled wrapper
