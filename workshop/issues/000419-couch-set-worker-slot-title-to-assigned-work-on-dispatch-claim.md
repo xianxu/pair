@@ -43,8 +43,8 @@ record, no sdlc polling, no new thread field.
   focus view). An operator `!` line later replaces it, which is acceptable
   because the operator outranks the label.
 - `publish-description` printed a raw Go `ThreadRecord` dump (`%v` default
-  render). Nobody saw it, because nvim runs the op detached, but an agent
-  following the skill would. It now prints one line: `published summary for
+  render). Nobody saw it, because nvim discards the op's stdout (detached for
+  `!` tags, waited for `!!` and clear), but an agent following the skill would. It now prints one line: `published summary for
   <tag>: <text>` / `cleared published summary for <tag>`. The rendering is keyed
   on the op name, because `Detach` also returns a bare `ThreadRecord`.
 - Layering: no pair→sdlc call. The agent bridges sdlc and couch from its shell.
@@ -80,3 +80,7 @@ record, no sdlc polling, no new thread field.
   publish-description`, which is fixed here. `Detach` also returns `ThreadRecord`,
   so the render is keyed on the op name, not the type.
 - Process slip: implemented before running `change-code`; I ran it afterwards.
+- Close review round 1 (FIX-THEN-SHIP): BR-1, the skill hardcoded `pair#N` for a
+  cross-repo label, so it now names the issue's own repository with an `ariadne#300`
+  example. Minor: the command wrapped inside its quotes, so it is now a one-line
+  code block. Minor: the Spec's "detached" reason is corrected.
