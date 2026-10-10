@@ -90,6 +90,9 @@ Open questions, to settle at start-plan:
 - Read the actual issue file after discovering `issue show` prints section
   headings, not bodies. No implementation changes made.
 - Drafted the durable plan; implementation awaits operator approval.
+- Fresh-eyes spec/plan review approved after correcting canonical escape parity;
+  no remaining Critical/Important findings. Issue schema validation and committed
+  diff whitespace checks pass. Plan checkpoint: `8885b6b2`.
 
 ## Revisions
 
