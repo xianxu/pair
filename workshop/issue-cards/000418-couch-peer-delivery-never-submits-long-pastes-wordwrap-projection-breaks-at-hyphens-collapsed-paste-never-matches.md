@@ -1,6 +1,6 @@
 ---
 id: 000418
-status: codecomplete
+status: done
 created: 2026-10-09
 updated: 2026-10-09
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 717273c735811b7160f6b569024c8ad37ce22412
         evidence_commit: ef28dc83c6fc2d1007c070ab16f72b09b998c57d
+        landed_commit: 3465076d7768905071c58595d077e039b8392f87
 ---
 
 # Couch peer delivery never submits long pastes: wordwrap projection breaks at hyphens; collapsed paste never matches
