@@ -1,10 +1,13 @@
 package wrapcmd
 
 import (
-	uv "github.com/charmbracelet/ultraviolet"
-	ansi "github.com/charmbracelet/x/ansi"
+	"regexp"
+	"strconv"
 	"strings"
 	"unicode"
+
+	uv "github.com/charmbracelet/ultraviolet"
+	ansi "github.com/charmbracelet/x/ansi"
 )
 
 type PeerComposerState uint8
@@ -142,15 +145,19 @@ func peerCodexFooter(s terminalSnapshot, row int) bool {
 }
 
 // peerComposerMatches projects the known composer width without collapsing
-// arbitrary whitespace or accepting a summarized paste marker. Captured harness
-// word wrapping additionally permits a single separating space to become a line
-// break. Ambiguous whitespace and other layouts remain unsupported.
+// arbitrary whitespace. Captured harness word wrapping additionally permits a
+// single separating space to become a line break. Ambiguous whitespace and other
+// layouts remain unsupported. Claude's collapsed paste marker is accepted only
+// in its strict form (peerClaudeCollapsedPaste).
 func peerComposerMatches(agent string, s terminalSnapshot, expected string) bool {
 	actual, ok := peerComposerText(agent, s)
 	if !ok || expected == "" {
 		return false
 	}
 	if actual == expected {
+		return true
+	}
+	if agent == "claude" && peerClaudeCollapsedPaste(s, actual, expected) {
 		return true
 	}
 	width := s.Width - 2
@@ -161,8 +168,20 @@ func peerComposerMatches(agent string, s terminalSnapshot, expected string) bool
 	if agent == "claude" {
 		wordWidth = s.Width - 4
 	}
-	if (agent == "codex" || agent == "claude") && wordWidth > 0 && peerWordwrapSafe(expected) && actual == ansi.Wordwrap(expected, wordWidth, "") {
-		return true
+	if wordWidth > 0 && peerWordwrapSafe(expected) {
+		switch agent {
+		case "codex":
+			if actual == ansi.Wordwrap(expected, wordWidth, "") {
+				return true
+			}
+		case "claude":
+			// Claude Code breaks only at spaces; ansi.Wordwrap also breaks
+			// after hyphens, which split `ariadne-robustness-1.md` where
+			// Claude moved it whole (pair#418, captured on 2.1.295/2.1.296).
+			if projected, ok := peerSpaceWordwrap(expected, wordWidth); ok && actual == projected {
+				return true
+			}
+		}
 	}
 	var b strings.Builder
 	column := 0
@@ -189,6 +208,55 @@ func peerComposerMatches(agent string, s terminalSnapshot, expected string) bool
 		expected = expected[len(cluster):]
 	}
 	return actual == b.String()
+}
+
+// peerSpaceWordwrap wraps greedily at single spaces only, as Claude Code's
+// composer does. A word wider than the line is declined: how Claude hard-breaks
+// one is uncaptured, and the character-wrap projection still covers it.
+func peerSpaceWordwrap(text string, width int) (string, bool) {
+	var b strings.Builder
+	for i, line := range strings.Split(text, "\n") {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		column := 0
+		for j, word := range strings.Split(line, " ") {
+			n := ansi.StringWidth(word)
+			if n > width {
+				return "", false
+			}
+			switch {
+			case j == 0:
+			case column+1+n <= width:
+				b.WriteByte(' ')
+				column++
+			default:
+				b.WriteByte('\n')
+				column = 0
+			}
+			b.WriteString(word)
+			column += n
+		}
+	}
+	return b.String(), true
+}
+
+// peerClaudeCollapsedMarker is Claude Code's summary of a long or multi-line
+// paste, the composer's whole content in place of the text.
+var peerClaudeCollapsedMarker = regexp.MustCompile(`^\[Pasted text #[1-9][0-9]* \+([1-9][0-9]*) lines\]$`)
+
+// peerClaudeCollapsedPaste accepts Claude's collapsed marker as evidence that
+// our paste rendered (pair#418, operator decision). It cannot check the body,
+// so it demands everything else: the marker is the composer's only content,
+// the cursor sits right after it, and its line count is the envelope's. The
+// delivery separately required an empty composer before pasting and a render
+// after it, so the marker cannot be a human draft's.
+func peerClaudeCollapsedPaste(s terminalSnapshot, actual, expected string) bool {
+	m := peerClaudeCollapsedMarker.FindStringSubmatch(actual)
+	if m == nil || m[1] != strconv.Itoa(strings.Count(expected, "\n")) {
+		return false
+	}
+	return s.Cursor.X == 2+ansi.StringWidth(actual) && s.CellAt(0, s.Cursor.Y) != nil && s.CellAt(0, s.Cursor.Y).Content == "❯"
 }
 
 // Newer Codex paints a bare startup title and working path instead of the old

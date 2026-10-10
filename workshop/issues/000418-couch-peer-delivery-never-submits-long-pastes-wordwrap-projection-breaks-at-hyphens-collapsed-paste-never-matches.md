@@ -82,8 +82,30 @@ calls `peerComposerText`/`peerComposerMatches`.
 
 ## Plan
 
-- [ ]
+- [x] Claude projection wraps at spaces only (`peerSpaceWordwrap`); Codex keeps
+      `ansi.Wordwrap`. Fixture: the captured ariadne:2 composer.
+- [x] Strict collapsed-marker acceptance (`peerClaudeCollapsedPaste`), chosen by
+      the operator (option a).
+- [x] Live `TestPeerLiveConformance -peer-live-body=hyphen-wrap|collapsed` submit.
+- [x] Docs: atlas/couch.md, README, fixture README.
 
 ## Log
+
+### 2026-10-09 (implementation)
+- Operator chose option (a): accept the collapsed marker strictly. It must be the
+  composer's whole content, with the cursor right after it, `+M` equal to the
+  envelope's newline count, and the composer verified empty before the paste.
+  This reverses #353's deliberate "collapsed stays unsupported".
+- Live, Claude Code 2.1.296, isolated PTY, safe mode, no tools:
+  - `-peer-live-submit -peer-live-body=hyphen-wrap` (about 630 chars):
+    render=wrapped, submitted.
+  - `-peer-live-body=collapsed` (about 1,300 chars): render=collapsed,
+    submitted.
+  - The same hyphen-wrap run with the Claude branch switched back to
+    `ansi.Wordwrap` never submitted (harness timeout), so the live check
+    detects the bug.
+- Unit: the captured hyphen-wrap fixture asserts that it distinguishes the two
+  projections. The collapsed tests cover a wrong line count, extra text, a
+  misplaced cursor, the marker on a second line, and an image marker.
 
 ### 2026-10-09

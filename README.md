@@ -527,9 +527,10 @@ images, menus and unknown states prevent automatic submission. Unchanged text
 in the separate draft pane does not block delivery. Claude Code and Codex CLI
 receive at any installed version; fixtures and live checks were captured on
 Claude Code 2.1.286 and Codex CLI 0.159.2, and evidence for newer versions is
-tracked in #368. Short messages submit
-automatically. A collapsed paste summary cannot prove the complete message, so
-that attempt expires without submission and leaves the text for inspection.
+tracked in #368. Messages submit automatically once the composer shows them,
+including long ones that Claude collapses to a `[Pasted text #N +M lines]`
+summary. A collapsed summary is accepted only when it alone fills a composer
+that was empty before the paste, and its line count matches the message.
 Prefer short coordination messages pointing to repository artifacts. Human
 Couch acceptance is separate from these receiver checks.
 
