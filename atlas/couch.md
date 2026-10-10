@@ -459,6 +459,22 @@ use relaunch for that.
 - **Admission note:** it reaches the receipt on success and on failure
   (`withAdmissionNote`).
 
+**Admission to effect (pair#421).** The console queue runs between
+admission and effect, so both verbs re-check the busy guard at the effect.
+Admission records its evidence in the implicit `require-settled` argument:
+`known` (the wrapper said settled) or `forced` (`--force-unknown` admitted an
+unknown).
+- **At the effect** (`LiveRestartProbe.ConfirmNotBusy` before relaunch's
+  park, and inside `RestartConversation` before reload's signal):
+  - a wrapper that now says it is NOT settled is refused (`busy`);
+  - unknown (session gone, or no claim) passes only when admission was
+    `forced`, so a disconnect after a known-settled admission is refused
+    (`busy-unknown`).
+- **Scope:** the console's own Alt+n carries no `require-settled` and is
+  ungated, because the operator is looking at the slot.
+- **Rollout workflow** for agents: `couch --skill`, section "Rolling out a new
+  Pair binary to idle slots".
+
 **Arguments and the receipt.** The admitted call addresses the row by thread
 (`repo-scope` and `tag`), the dialect the relaunch dispatch reads. The probe
 finds the slot's wrapper the same way, by thread rather than by the
