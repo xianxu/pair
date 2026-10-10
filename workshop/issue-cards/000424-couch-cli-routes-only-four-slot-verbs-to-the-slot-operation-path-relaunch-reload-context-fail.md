@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000424-couch-cli-routes-only-four-slot-verbs-to-the-slot-operation-path-relaunch-reload-context-fail.md
         source_blob: 222c55622ce8941cda96278c77c424ccad3deba9
         destination: workshop/issues/000424-couch-cli-routes-only-four-slot-verbs-to-the-slot-operation-path-relaunch-reload-context-fail.md
+        main_commit: 39f17871f56fc3f0404c3c71e0165ac31abf63e4
 ---
 
 # couch CLI routes only four slot verbs to the slot-operation path; --relaunch/--reload-context fail
