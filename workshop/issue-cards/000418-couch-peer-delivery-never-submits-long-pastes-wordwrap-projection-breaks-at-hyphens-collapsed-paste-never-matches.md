@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000418-couch-peer-delivery-never-submits-long-pastes-wordwrap-projection-breaks-at-hyphens-collapsed-paste-never-matches.md
         source_blob: 3224a0c918c165dd16bf92c81710d29e06bb90bb
         destination: workshop/issues/000418-couch-peer-delivery-never-submits-long-pastes-wordwrap-projection-breaks-at-hyphens-collapsed-paste-never-matches.md
+        main_commit: c5b19184c667b41c8a4ae38fa7a7517202b48137
 ---
 
 # Couch peer delivery never submits long pastes: wordwrap projection breaks at hyphens; collapsed paste never matches
