@@ -799,7 +799,10 @@ Any operation that declares a `json` flag prints its result as JSON.
 The hosted-agent hook `publish-description` projects only through hidden
 `couch --internal publish-description <text>`, which pair's draft calls for a `!`
 tag line (#337), a `!!` describe line (#358), and a bare `!` clear line (#357),
-which publishes an empty summary. `prepare-start`, `start`,
+which publishes an empty summary. A recipient agent also runs it from its shell
+after claiming dispatched work, publishing `repo#N <title>` so the sender sees
+which slot holds the issue (#419; the `couch --skill` receiving step); the op
+prints one confirmation line. `prepare-start`, `start`,
 `attach`, `switch`, `park`, `resume`, `relaunch`, `prepare-switch-agent`,
 `switch-agent`, `leave`, `stop`, `alias` and `reboot` are TUI/in-process
 operations. `orientation-status` is an internal owner operation for one launch
