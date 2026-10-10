@@ -58,7 +58,7 @@ func fastPeek(inv cliInvocation, storeDir string, stdout io.Writer, call message
 				failed[i] = true
 				return
 			}
-			results[i] = couchcore.PeekResult{Ref: ref, Tag: thread.Tag, Agent: thread.Agent, Lines: tail.Lines,
+			results[i] = couchcore.PeekResult{Ref: ref, Tag: thread.Tag, Agent: thread.Agent, WorkingPath: thread.WorkingPath, Lines: tail.Lines,
 				Source: "live", Cursor: tail.Cursor, Truncated: tail.Truncated}
 		}()
 	}

@@ -49,6 +49,8 @@ type fakeTails struct {
 	mu    sync.Mutex
 	asked []string
 	fail  map[string]bool
+	// old answers as a Couch from before the by-slot form does.
+	old bool
 }
 
 func (f *fakeTails) call(_ context.Context, _ string, request any, response any) error {
@@ -58,6 +60,10 @@ func (f *fakeTails) call(_ context.Context, _ string, request any, response any)
 	f.mu.Unlock()
 	if couchmessage.ValidateRequest(r) != nil || r.TailScope != "" {
 		return errors.New("bad request")
+	}
+	if f.old {
+		*response.(*couchmessage.Response) = couchmessage.Response{Code: "invalid-request", Error: "tail takes only a thread and a line count"}
+		return nil
 	}
 	if f.fail[r.Target] {
 		*response.(*couchmessage.Response) = couchmessage.Response{Code: "unavailable", Error: "no wrapper"}
@@ -99,15 +105,17 @@ func TestFastPeekAnswersOnlyWhenEverySlotIsLive(t *testing.T) {
 		ref    string
 		args   []string
 		fail   map[string]bool
+		old    bool
 		called bool
 	}{
-		"a slot fails":     {"pair:1:2", nil, map[string]bool{"pair:2": true}, true},
-		"not a slot":       {"pair:1,couch-0102030405060708", nil, nil, false},
-		"transcripts":      {"pair:1", []string{"--transcripts"}, nil, false},
-		"over a live tail": {"pair:1", []string{"--lines=" + "201"}, nil, false},
-		"bad lines":        {"pair:1", []string{"--lines=x"}, nil, false},
+		"a slot fails":     {"pair:1:2", nil, map[string]bool{"pair:2": true}, false, true},
+		"an older couch":   {"pair:1", nil, nil, true, true},
+		"not a slot":       {"pair:1,couch-0102030405060708", nil, nil, false, false},
+		"transcripts":      {"pair:1", []string{"--transcripts"}, nil, false, false},
+		"over a live tail": {"pair:1", []string{"--lines=" + "201"}, nil, false, false},
+		"bad lines":        {"pair:1", []string{"--lines=x"}, nil, false, false},
 	} {
-		tails := &fakeTails{fail: tc.fail}
+		tails := &fakeTails{fail: tc.fail, old: tc.old}
 		ok, out := peek(tc.ref, tc.args, tails)
 		if ok || out != "" || (len(tails.asked) > 0) != tc.called {
 			t.Errorf("%s: answered %v, wrote %q, asked %q", name, ok, out, tails.asked)
@@ -152,5 +160,46 @@ func TestPeekAnswersFromTheRunningCouch(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "peek pair:1  agent claude  tag tag-pair:1  source live") || !strings.Contains(out.String(), "tail of pair:2") {
 		t.Fatalf("%s", out.String())
+	}
+}
+
+// A fast peek answers in the typed peek's shape (pair#429): the same thread
+// peeked both ways gives the same JSON, agent and working path included.
+func TestFastPeekMatchesTheTypedPeek(t *testing.T) {
+	rt := newRT(t, "/repo")
+	record := seedVerifiedPark(t, rt, "/repo")
+	c, err := rt.NewCouch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tail := couchmessage.Tail{Lines: []string{"❯ ‹cursor›"}, Cursor: &couchmessage.TailCursor{Row: 1, Col: 3, Shape: "bar"}, Truncated: 2}
+	c.SlotTail = func(context.Context, couchcore.ThreadAddress, int) (couchcore.TerminalTail, error) {
+		return couchcore.TerminalTail{Lines: tail.Lines, Cursor: tail.Cursor.String(), Truncated: tail.Truncated}, nil
+	}
+	typed, err := c.PeekThread(context.Background(), "pair:1", record.Address, 10, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	b := couchmessage.Binding{Slot: "pair:1", Scope: record.Address.RepoScope, Tag: string(record.Address.Tag), Agent: "wrapper-basename", PID: 7}
+	s := &messageService{}
+	s.authority.endpoint = func(couchmessage.Binding) couchmessage.DeliveryEndpoint { return &fakeTailEndpoint{tail: tail} }
+	s.authority.record = c.Threads.GetThread
+	connected := map[couchmessage.Binding]bool{b: true}
+	s.connected.Store(&connected)
+	call := func(ctx context.Context, _ string, request any, response any) error {
+		*response.(*couchmessage.Response) = s.handle(ctx, request.(couchmessage.Request))
+		return nil
+	}
+	var out bytes.Buffer
+	if !fastPeek(cliInvocation{kind: cliPeek, ref: "pair:1", args: []string{"--json", "--lines=10"}}, t.TempDir(), &out, call) {
+		t.Fatal("fast peek did not answer")
+	}
+	want, err := json.Marshal(typed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(out.String()) != string(want) || typed.WorkingPath == "" || typed.Agent != "claude" {
+		t.Fatalf("fast:  %s\ntyped: %s", out.String(), want)
 	}
 }

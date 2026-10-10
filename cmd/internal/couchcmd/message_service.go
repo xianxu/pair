@@ -46,6 +46,10 @@ type messageAuthority struct {
 	// operation's caller can be checked against that launch's recorded files
 	// without a messaging binding (pair#367).
 	agent func(context.Context, couchcore.ThreadAddress) (string, error)
+	// record reads a thread's record, so a tail read by slot (pair#429)
+	// names its agent and working path as the typed peek does; nil names the
+	// binding's agent only.
+	record func(couchcore.ThreadAddress) (couchcore.ThreadRecord, error)
 }
 
 // live is the full check, run once per admission: a lifecycle event, never a
@@ -230,6 +234,12 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 			return messageFamilies(names), nil
 		},
 		thread: console.MessageBinding, workspace: resolver.ResolveWorkspace,
+		record: func(address couchcore.ThreadAddress) (couchcore.ThreadRecord, error) {
+			if c.Threads == nil {
+				return couchcore.ThreadRecord{}, errors.New("no thread store")
+			}
+			return c.Threads.GetThread(address)
+		},
 		agent: func(ctx context.Context, address couchcore.ThreadAddress) (string, error) {
 			if err := ctx.Err(); err != nil {
 				return "", err
@@ -681,7 +691,27 @@ func (s *messageService) handleTail(ctx context.Context, request couchmessage.Re
 	if err != nil {
 		return couchmessage.Response{Code: "unavailable", Error: err.Error()}
 	}
-	return couchmessage.Response{Code: "ok", Tail: &tail, TailThread: &couchmessage.TailThread{Slot: binding.Slot, Tag: binding.Tag, Agent: binding.Agent}}
+	return couchmessage.Response{Code: "ok", Tail: &tail, TailThread: s.tailThread(binding)}
+}
+
+// tailThread names whose tail it is with what the typed peek reads from the
+// thread record -- its agent (couchcore.RecordAgent) and working path -- so a
+// fast peek answers in the same shape (pair#429). Without a readable record
+// it names the wrapper's own agent and no path.
+func (s *messageService) tailThread(b couchmessage.Binding) *couchmessage.TailThread {
+	thread := &couchmessage.TailThread{Slot: b.Slot, Tag: b.Tag, Agent: b.Agent}
+	if s.authority.record == nil {
+		return thread
+	}
+	record, err := s.authority.record(couchcore.ThreadAddress{RepoScope: b.Scope, Tag: couchcore.ThreadTag(b.Tag)})
+	if err != nil {
+		return thread
+	}
+	if agent := couchcore.RecordAgent(record); agent != "" {
+		thread.Agent = agent
+	}
+	thread.WorkingPath = record.WorkingPath
+	return thread
 }
 
 // tailBinding is the one connected wrapper a tail request names, or the

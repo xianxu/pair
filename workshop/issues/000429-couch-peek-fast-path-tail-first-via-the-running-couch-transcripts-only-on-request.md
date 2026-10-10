@@ -57,6 +57,14 @@ Durable plan: `workshop/plans/000429-couch-peek-fast-path-tail-first-via-the-run
 - **Reason:** the fast path needs the running Couch on the new build: the broker side (`tail` by slot) lives in Couch. The live Couch predates it and refuses the request, and this slot can't restart Couch. Ops chose to defer, as for pair#421 and pair#425.
 - **Delta:** Done-when 1 is checked by the TL at rollout. Restart Couch on the new build (no wrapper relaunch: the wrapper side is #425's unchanged `tail` endpoint), then time `couch --peek pair:1:2:3,ariadne:1:2:3 --lines 10` and `couch --peek pair:1 --lines 10` with the binary. The issue isn't counted done until that passes. Evidence available now: the component measurements and tests in the Log.
 
+### 2026-10-10 — close round 1 findings (FIX-THEN-SHIP)
+
+- **BR-1 (fixed, class: fast and typed peek must answer alike):** the broker now reads the thread record (`authority.record`) and names the tail's agent (`RecordAgent`) and working path exactly as the typed peek does (`TailThread.WorkingPath`). `TestFastPeekMatchesTheTypedPeek` peeks one thread both ways and requires byte-identical JSON (mutation-checked: dropping the path fails it).
+- **Plan item 4 prose:** the recording fallback never calls the resolver. `RecordAgent` is the only agent source, and the resolver would return the same value. Default peeks make no `Resolve` call, as the test asserts.
+- **Alias and prefix refs:** the fast path resolves a slot as `--send-to` does, so `pa:1` works there. The typed fallback resolves through `ResolveThreadReference`, so the fast path accepts a superset; a ref the fallback can't resolve says so in `unavailable`. Accepted, because the shortcut matches the messaging verbs.
+- **Older-Couch fallback:** now tested (`an older couch` case: the refusal leads to the typed peek, with nothing written).
+- **Flag re-parse in `fastPeek`:** kept. The flags arrive pre-normalized by `ParseCLI` (`--lines=N`, `--json`, `--transcripts`), and anything unrecognized falls back to the typed path, so a mismatch can't produce a wrong answer, only a slower one.
+
 ## Log
 
 ### 2026-10-10

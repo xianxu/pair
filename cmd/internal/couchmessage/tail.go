@@ -46,9 +46,10 @@ func (c TailCursor) String() string {
 // TailThread names the thread a tail was read from (pair#429), so a peek
 // can label it without reading Couch's store.
 type TailThread struct {
-	Slot  string `json:"slot"`
-	Tag   string `json:"tag"`
-	Agent string `json:"agent"`
+	Slot        string `json:"slot"`
+	Tag         string `json:"tag"`
+	Agent       string `json:"agent"`
+	WorkingPath string `json:"working_path,omitempty"`
 }
 
 // ResolveTailSlot finds the connected wrapper serving an exact slot. The
