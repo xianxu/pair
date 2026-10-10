@@ -49,12 +49,30 @@ Meanwhile the operator's draft pane pastes, sleeps 100ms and sends Alt+Enter (`n
 
 Durable plan: `workshop/plans/000427-couch-delivery-submit-like-the-draft-pane-confirm-after-restarts-return-when-ready-deadline-starts-at-paste-plan.md`.
 
-- [ ] D1 reducer: paste → fixed delay → submit → confirm; drop the render match and its helpers; post-paste interrupts give `uncertain` (Indeterminate)
-- [ ] D2 deadline: `Message.Deadline` = paste-by (90s); the 30s window starts at paste; `Message.Horizon()` bounds the broker side
-- [ ] D3 restarts: Settled waits for orientation; relaunch/reload-context receipts wait for a settled new session (2m, `unready` on expiry)
-- [ ] Tests per the plan; live peer conformance against real Claude
-- [ ] atlas/couch.md delivery + restart-readiness contract
+- [x] D1 reducer: paste → fixed delay → submit → confirm; drop the render match and its helpers; post-paste interrupts give `uncertain` (Indeterminate)
+- [x] D2 deadline: `Message.Deadline` = paste-by (90s); the 30s window starts at paste; `Message.Horizon()` bounds the broker side
+- [x] D3 restarts: Settled waits for orientation; relaunch/reload-context receipts wait for a settled new session (2m, `unready` on expiry)
+- [x] Tests per the plan; live peer conformance against real Claude
+- [x] atlas/couch.md delivery + restart-readiness contract
 
 ## Log
 
 ### 2026-10-10
+
+- Design: `workshop/plans/000427-…-plan.md`. "uncertain" is the existing
+  `indeterminate` status with a detail that starts `uncertain:`. A new enum
+  value would ripple through the broker model and CLI for nothing (ARCH-DRY).
+- Restart readiness waits off the console queue (`awaitReadiness`), so a
+  2-minute wait never blocks other slots' operations. It is bounded, and it
+  is in-memory only (ARCH-FUNERAL: nothing durable).
+- Found while testing: `slotOperationOutcome` let a completed relaunch's
+  empty `ReceiptCode()` overwrite the error's code. That would have hidden
+  `unready`. Now only a non-empty partial code overrides.
+- Settled now also waits for the startup orientation to finalize. Finalizing
+  re-arms the settle check (lessons: every writer of a derived state notifies
+  it). A mutation check confirmed the test fails without the re-arm.
+- Live: `TestPeerLiveConformance -peer-live-submit -peer-live-use-local-auth`
+  against Claude Code 2.1.296. Short body: render=exact, submitted and
+  confirmed. Collapsed long body (#418): render=collapsed, submitted and
+  confirmed.
+

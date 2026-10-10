@@ -308,7 +308,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	panes := couchmessage.NewPaneMailbox()
 	probe := newLiveRestartProbe(c.Git, c.Proc)
 	c.LiveRestart = probe // before the socket opens: no request can race this write
-	service, err := newMessageService(context.Background(), brokerSocket, registrySocket, authority, panes, console.MessageSlotGit, consoleSlotOperations(console, c))
+	service, err := newMessageService(context.Background(), brokerSocket, registrySocket, authority, panes, console.MessageSlotGit, consoleSlotOperations(console, c, probe))
 	if err != nil {
 		return nil, err
 	}
@@ -325,16 +325,21 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 // PrepareSlotOperation runs on it, so admission is judged against the
 // inventory at execution time, and the queue key resolves repository names
 // from the thread store.
-func consoleSlotOperations(console *couchtty.Console, c *couchcore.Couch) *slotOperations {
+func consoleSlotOperations(console *couchtty.Console, c *couchcore.Couch, probe *liveRestartProbe) *slotOperations {
 	return newSlotOperations(func(key, op, target string, opts couchcore.LiveRestartOptions, started func(), finished func(any, error)) error {
-		// The admission note is written on the queue goroutine by prepare
-		// and read by finished after the job; the queue orders the two.
+		// The admission note and readiness wait are written on the queue
+		// goroutine by prepare and read by finished after the job; the queue
+		// orders the two.
 		var note string
+		var await func(context.Context) error
 		return console.EnqueueRemoteOperation(key, op, func(ctx context.Context) (couchcore.OperationCall, error) {
 			call, n, err := c.PrepareSlotOperation(ctx, op, target, opts)
 			note = n
+			if err == nil {
+				await = probe.readinessAfter(op, call.Args)
+			}
 			return call, err
-		}, started, withAdmissionNote(&note, finished))
+		}, started, awaitReadiness(&await, withAdmissionNote(&note, finished)))
 	}, func(ctx context.Context) ([]couchcore.RepositoryName, error) {
 		if c.Threads == nil {
 			return nil, errors.New("no thread store")

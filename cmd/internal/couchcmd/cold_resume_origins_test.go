@@ -176,7 +176,7 @@ func TestColdResumeOfAParkedPrimaryRegistersFromBothOrigins(t *testing.T) {
 	})
 	t.Run("remote", func(t *testing.T) {
 		r := newColdResumeRig(t)
-		service := &serviceRig{t: t, world: newMessageWorld(), slotGit: map[string]couchcore.SlotGitStatus{}, slotOps: consoleSlotOperations(r.console, r.c)}
+		service := &serviceRig{t: t, world: newMessageWorld(), slotGit: map[string]couchcore.SlotGitStatus{}, slotOps: consoleSlotOperations(r.console, r.c, nil)}
 		service.init()
 		caller := service.connect(1)
 		env := testRT{env: map[string]string{"COUCH_STORE_DIR": "/couch/namespace", "COUCH_THREAD_SCOPE": caller.Scope, "COUCH_THREAD_TAG": caller.Tag,
