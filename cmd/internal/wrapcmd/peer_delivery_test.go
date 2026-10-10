@@ -103,12 +103,16 @@ func TestPeerDeliverySubmitsAfterDelayThenConfirms(t *testing.T) {
 		confirm  func(*harnessSessionFake, *peerDelivery)
 		want     couchmessage.Status
 		evidence string
+		busy     bool // a turn is already running at the submit
 	}{
-		{"composer clears", []string{"unrelated boot-time text"}, func(f *harnessSessionFake, d *peerDelivery) { peerRender(f, d, peerEmptyComposer()) }, couchmessage.Submitted, ""},
-		{"collapsed multi-line", []string{"[Pasted text #1 +5 lines]"}, func(f *harnessSessionFake, d *peerDelivery) { peerRender(f, d, peerEmptyComposer()) }, couchmessage.Submitted, ""},
-		{"turn opens", nil, func(f *harnessSessionFake, d *peerDelivery) { f.proxy.turnActive.Store(true) }, couchmessage.Submitted, ""},
-		{"never consumed", []string{"unrelated boot-time text"}, nil, couchmessage.Indeterminate, "composer still holds text; no turn started"},
-		{"empty, paste never shown", nil, func(f *harnessSessionFake, d *peerDelivery) { peerRender(f, d, peerEmptyComposer()) }, couchmessage.Indeterminate, "never showed the paste"},
+		{"composer clears", []string{"unrelated boot-time text"}, func(f *harnessSessionFake, d *peerDelivery) { peerRender(f, d, peerEmptyComposer()) }, couchmessage.Submitted, "", false},
+		{"collapsed multi-line", []string{"[Pasted text #1 +5 lines]"}, func(f *harnessSessionFake, d *peerDelivery) { peerRender(f, d, peerEmptyComposer()) }, couchmessage.Submitted, "", false},
+		{"turn opens", nil, func(f *harnessSessionFake, d *peerDelivery) { f.proxy.turnActive.Store(true) }, couchmessage.Submitted, "", false},
+		{"never consumed", []string{"unrelated boot-time text"}, nil, couchmessage.Indeterminate, "composer still holds text; no turn started", false},
+		{"empty, paste never shown", nil, func(f *harnessSessionFake, d *peerDelivery) { peerRender(f, d, peerEmptyComposer()) }, couchmessage.Indeterminate, "never showed the paste", false},
+		// A running turn is no evidence for our submit; the composer clear is.
+		{"queued behind a running turn", []string{"unrelated boot-time text"}, func(f *harnessSessionFake, d *peerDelivery) { peerRender(f, d, peerEmptyComposer()) }, couchmessage.Submitted, "", true},
+		{"running turn, text stays", []string{"unrelated boot-time text"}, nil, couchmessage.Indeterminate, "a turn was already running", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			now := time.Now()
@@ -141,6 +145,7 @@ func TestPeerDeliverySubmitsAfterDelayThenConfirms(t *testing.T) {
 			}
 			// Past the original paste-by deadline: the window runs from the paste.
 			now = now.Add(PeerSubmitDelay + time.Second)
+			f.proxy.turnActive.Store(tc.busy)
 			f.proxy.dispatchPeer(&out)
 			if out.String() != paste+"\r" {
 				t.Fatalf("missing single submit: %q", out.String())

@@ -136,3 +136,15 @@ code).
 
 Readiness/quiet checks on exact-route sends: the paste-by budget covers a
 booting slot. The console Alt+n readiness.
+
+## Revisions
+
+- 2026-10-10 (close review advisory). There are two deltas from the design
+  above, and the code and atlas follow both:
+  - A pre-hello-v2 wrapper (no `Build`) does not return "at once with a
+    warning". It ends the receipt `failed`/`unready` immediately. Settled
+    never comes from such a wrapper, so reporting success would be false.
+  - The past-paste poll is 50ms, not 100ms.
+  - The other advisory is not taken. The readiness goroutine stays on
+    `context.Background`: `readyWithin` (2m) bounds it, and Couch exiting
+    ends it.
