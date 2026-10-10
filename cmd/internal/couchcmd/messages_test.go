@@ -435,3 +435,40 @@ func skillCommands(skill string) []string {
 	}
 	return commands
 }
+
+// pair#424: the ROUTER, not runSlotOperationCLI, decides which path a verb
+// takes. Drive every declared slot operation from parsed argv through
+// runMessageCLIWithCall: each must reach the broker as an operation request
+// with an ID (the message path sends none).
+func TestEverySlotOperationIsRoutedToTheSlotPath(t *testing.T) {
+	n := 0
+	for _, op := range couchcore.Operations() {
+		if !couchcore.IsSlotOperation(op.Name) {
+			continue
+		}
+		n++
+		argv := []string{"--" + op.Name, "pair:1"}
+		if confirms, _ := couchcore.OperationConfirms(op.Name); confirms {
+			argv = append(argv, "--confirm")
+		}
+		inv, err := ParseCLI(argv, couchcore.Operations())
+		if err != nil {
+			t.Fatalf("%s: parse: %v", op.Name, err)
+		}
+		var requests []couchmessage.Request
+		call := func(_ context.Context, _ string, request any, response any) error {
+			r := request.(couchmessage.Request)
+			requests = append(requests, r)
+			*(response.(*couchmessage.Response)) = receiptResponse("accepted", couchmessage.ReceiptSucceeded, func(rc *couchmessage.OperationReceipt) { rc.Op = r.Op })
+			return nil
+		}
+		var out, errout bytes.Buffer
+		code := runMessageCLIWithCall(inv, messageRuntime(), &out, &errout, call)
+		if code != 0 || len(requests) != 1 || requests[0].Op != op.Name || requests[0].ID == "" || requests[0].Target != "pair:1" {
+			t.Errorf("%s: exit %d, requests %+v, stderr %q", op.Name, code, requests, errout.String())
+		}
+	}
+	if n < 6 {
+		t.Fatalf("only %d slot operations enumerated", n)
+	}
+}

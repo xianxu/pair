@@ -821,3 +821,11 @@ proof; record the surprising case so the next change starts from evidence.
     let a hard-coded `false` pass.
   - **A scope change marks every line that states the scope:** the Done-when,
     the issue's Plan row, and the plan body, all in the same commit.
+
+- **Test the router, not just the handler (#424).** #421's slot-operation tests
+  called `runSlotOperationCLI` directly. The CLI router in front of it kept its
+  own four-verb list, so `couch --relaunch` broke on first live use. #421's
+  "one verb list" sweep also grepped only for `case` lists and missed the `==`
+  chain. When adding a verb, drive it from parsed argv through the top-level
+  dispatcher in a test that enumerates every declared verb. Sweep every
+  spelling of the old list, `switch` cases and `||` chains alike.

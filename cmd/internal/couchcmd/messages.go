@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 )
 
@@ -19,7 +20,9 @@ func runMessageCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer) int 
 }
 
 func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, call messageCall) int {
-	if inv.messageOp == "resume" || inv.messageOp == "reboot" || inv.messageOp == "reap" || inv.messageOp == "recover" {
+	// The one verb list (pair#424): a hand-kept list here let relaunch and
+	// reload-context fall through to the message path, which sends no ID.
+	if couchcore.IsSlotOperation(inv.messageOp) {
 		return runSlotOperationCLI(inv, rt, stdout, stderr, call, slotPollClock{now: time.Now, sleep: time.Sleep})
 	}
 	if inv.messageOp == "broadcast-status" {
