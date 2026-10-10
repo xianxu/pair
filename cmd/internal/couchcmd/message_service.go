@@ -306,10 +306,13 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 		},
 	}
 	panes := couchmessage.NewPaneMailbox()
+	probe := newLiveRestartProbe(c.Git)
+	c.LiveRestart = probe // before the socket opens: no request can race this write
 	service, err := newMessageService(context.Background(), brokerSocket, registrySocket, authority, panes, console.MessageSlotGit, consoleSlotOperations(console, c))
 	if err != nil {
 		return nil, err
 	}
+	probe.service.Store(service)
 	console.SetMessageBroker(service.broker)
 	service.SetBroadcastStatus(console.BroadcastStatus)
 	// After the loop runs: the replay of already-attached panes lands in the
@@ -323,10 +326,20 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 // inventory at execution time, and the queue key resolves repository names
 // from the thread store.
 func consoleSlotOperations(console *couchtty.Console, c *couchcore.Couch) *slotOperations {
-	return newSlotOperations(func(key, op, target string, started func(), finished func(any, error)) error {
+	return newSlotOperations(func(key, op, target string, opts couchcore.LiveRestartOptions, started func(), finished func(any, error)) error {
+		// The admission note is written on the queue goroutine by prepare
+		// and read by finished after the job; the queue orders the two.
+		var note string
 		return console.EnqueueRemoteOperation(key, op, func(ctx context.Context) (couchcore.OperationCall, error) {
-			return c.PrepareSlotOperation(ctx, op, target)
-		}, started, finished)
+			call, n, err := c.PrepareSlotOperation(ctx, op, target, opts)
+			note = n
+			return call, err
+		}, started, func(value any, err error) {
+			if note != "" && err == nil {
+				value = notedResult{value: value, note: note}
+			}
+			finished(value, err)
+		})
 	}, func(ctx context.Context) ([]couchcore.RepositoryName, error) {
 		if c.Threads == nil {
 			return nil, errors.New("no thread store")
@@ -587,10 +600,10 @@ func (s *messageService) connectedWorkspace(ctx context.Context, b couchmessage.
 }
 
 func (s *messageService) handle(ctx context.Context, request couchmessage.Request) couchmessage.Response {
-	switch request.Op {
-	case "resume", "reboot", "reap", "recover", "operation-status":
+	switch {
+	case couchcore.IsSlotOperation(request.Op) || request.Op == "operation-status":
 		return s.handleSlotOperation(ctx, request)
-	case "broadcast-status":
+	case request.Op == "broadcast-status":
 		return s.handleBroadcastStatus(request)
 	}
 	if request.Binding == nil && couchmessage.ValidateRequest(request) == nil {
@@ -804,9 +817,11 @@ func messageFamilies(names []couchcore.RepositoryName) map[string]string {
 	return families
 }
 
-// SlotLiveness reads the latest self-report of the slot's one admitted wrapper.
-// False: no admitted session (or several) stands for the slot.
-func (s *messageService) SlotLiveness(slot string) (couchmessage.SlotLiveness, bool) {
+// LivenessForThread reads the latest self-report of the admitted wrapper
+// running the thread (scope + exact tag, which its Binding carries from
+// COUCH_THREAD_SCOPE/TAG). Matching the thread rather than the address string
+// avoids alias and prefix spellings of repo:N. False: no admitted session.
+func (s *messageService) LivenessForThread(scope, tag string) (couchmessage.SlotLiveness, bool) {
 	if s == nil {
 		return couchmessage.SlotLiveness{}, false
 	}
@@ -814,6 +829,10 @@ func (s *messageService) SlotLiveness(slot string) (couchmessage.SlotLiveness, b
 	if m == nil {
 		return couchmessage.SlotLiveness{}, false
 	}
-	l, ok := (*m)[slot]
-	return l, ok
+	for _, l := range *m {
+		if l.Binding.Scope == scope && l.Binding.Tag == tag {
+			return l, true
+		}
+	}
+	return couchmessage.SlotLiveness{}, false
 }

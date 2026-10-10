@@ -412,6 +412,42 @@ report writes nothing. Each step's `command` is `SlotOperationCommand` (adds
 `--confirm` exactly when the declaration requires it) or `SendToCommand` with
 the shell-quoted restore message; tests shell-split and parse every one.
 
+**Relaunching a live idle slot (pair#421).** `couch --relaunch repo:N
+--confirm [--same-binary] [--force-unknown]` does from another agent's shell
+what Alt+n does in the console. It parks the slot and cold-resumes it on the
+current binary, keeping the conversation, and rides the slot-operation path
+below. The verb is in the one list (`couchcore.IsSlotOperation`) that the
+protocol, the socket and admission all read.
+
+**Admission.** Relaunch acts on LIVE rows, which `ActorActions` never offers
+anything for. So `PrepareSlotOperation` hands it to `prepareLiveRestart`:
+`DecideLiveRestart` over the facts a `LiveRestartProbe` gathers on the console
+queue (`couchcmd.liveRestartProbe`). The checks run in order, so the receipt
+names the first thing to fix:
+
+| Code | When |
+|------|------|
+| `not-live` | Nothing is running in the slot; use `--resume`. |
+| `busy-unknown` | No wrapper session, or one that predates Settled. `--force-unknown` overrides, and the receipt notes it. |
+| `busy` | The slot's wrapper reports it is not Settled. |
+| `dirty` | `git status --porcelain` on the slot's checkout is non-empty or unreadable. |
+| `stale-binary` | `pair` on Couch's PATH has the same content hash as the slot's running executable. |
+| `unavailable` | This Couch cannot probe live slots. |
+
+**Freshness.** The stale-binary refusal names the fix: `make build in
+<checkout>`, where the checkout is bin/pair's parent and pair:0 in practice.
+It is skipped under `PAIR_DEV`, which slots inherit from Couch's environment
+(`mergeChildEnvironment`), because the relaunch's `dev_rebuild` rebuilds
+anyway. `--same-binary` also overrides it. When the binary is newer but
+behind its checkout's HEAD, or was built from a dirty tree, the note says so
+without refusing.
+
+**Arguments and the receipt.** The admitted call addresses the row by thread
+(`repo-scope` and `tag`), the dialect the relaunch dispatch reads. The probe
+finds the slot's wrapper the same way, by thread rather than by the
+`repo:N` spelling (`messageService.LivenessForThread`). The admission note
+reaches the receipt's `Warning` through `couchcmd.notedResult`.
+
 **Slot operations through the running Couch (M2).** `couch --resume repo:N`
 and `couch --reboot repo:N --confirm` act on one slot from a live Couch slot:
 

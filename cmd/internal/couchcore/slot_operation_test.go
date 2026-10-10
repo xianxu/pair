@@ -106,15 +106,15 @@ func TestPrepareSlotOperation(t *testing.T) {
 	env, local := slotRecoveryOperationFixture(t)
 	address := WorkspaceReference{Repo: local.slot.Repo, Number: local.slot.Number}.String()
 	ctx := context.Background()
-	if _, err := env.Couch.PrepareSlotOperation(ctx, "resume", "nosuchrepo:1"); slotOperationCode(err) != SlotOpUnknownSlot {
+	if _, _, err := env.Couch.PrepareSlotOperation(ctx, "resume", "nosuchrepo:1", LiveRestartOptions{}); slotOperationCode(err) != SlotOpUnknownSlot {
 		t.Fatalf("unknown repo: %v", err)
 	}
-	if _, err := env.Couch.PrepareSlotOperation(ctx, "park", address); err == nil {
+	if _, _, err := env.Couch.PrepareSlotOperation(ctx, "park", address, LiveRestartOptions{}); err == nil {
 		t.Fatal("park admitted as a slot operation")
 	}
 	// An enrolled slot with no record is offered reboot (never-started).
 	slotRecordFixture(t, env, local)
-	call, err := env.Couch.PrepareSlotOperation(ctx, "resume", address)
+	call, _, err := env.Couch.PrepareSlotOperation(ctx, "resume", address, LiveRestartOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestPrepareSlotOperation(t *testing.T) {
 		t.Fatal(err)
 	}
 	env.Proc.Set(5151, "slot-live")
-	_, err = env.Couch.PrepareSlotOperation(ctx, "resume", address)
+	_, _, err = env.Couch.PrepareSlotOperation(ctx, "resume", address, LiveRestartOptions{})
 	var refusal *SlotOperationError
 	if !errors.As(err, &refusal) || refusal.Code != SlotOpNotOffered || refusal.Detail != address+" is live" {
 		t.Fatalf("live slot: %v", err)
@@ -167,13 +167,84 @@ func TestPrepareSlotOperationRefusesResumeOfALostConversation(t *testing.T) {
 		t.Fatal(err)
 	}
 	// No native binding: the parked conversation cannot be resolved.
-	_, err = env.Couch.PrepareSlotOperation(context.Background(), "resume", address)
+	_, _, err = env.Couch.PrepareSlotOperation(context.Background(), "resume", address, LiveRestartOptions{})
 	var refusal *SlotOperationError
 	if !errors.As(err, &refusal) || refusal.Code != SlotOpNotOffered || !strings.Contains(refusal.Detail, "binding-lost") {
 		t.Fatalf("resume of a lost conversation: %v", err)
 	}
-	if call, err := env.Couch.PrepareSlotOperation(context.Background(), "reboot", address); err != nil || call.Name != "reboot" {
+	if call, _, err := env.Couch.PrepareSlotOperation(context.Background(), "reboot", address, LiveRestartOptions{}); err != nil || call.Name != "reboot" {
 		t.Fatalf("reboot of a lost conversation: %+v %v", call, err)
+	}
+	if n := len(env.Runner.Ops); n != 0 {
+		t.Fatalf("admission launched %d children", n)
+	}
+}
+
+// fakeLiveRestartProbe returns fixed facts and records what it was asked.
+type fakeLiveRestartProbe struct {
+	facts LiveRestartFacts
+	err   error
+	asked []string
+}
+
+func (f *fakeLiveRestartProbe) LiveRestartFacts(_ context.Context, op string, row ActionableThreadSummary, path string) (LiveRestartFacts, error) {
+	f.asked = append(f.asked, op+" "+string(row.Address.Tag)+" "+path)
+	return f.facts, f.err
+}
+
+// pair#421: relaunch admits a LIVE slot through DecideLiveRestart instead of
+// the offer table, addresses it by thread, and carries the note to the caller.
+func TestPrepareSlotOperationRelaunchLive(t *testing.T) {
+	env, local := slotRecoveryOperationFixture(t)
+	address := WorkspaceReference{Repo: local.slot.Repo, Number: local.slot.Number}.String()
+	scope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
+	live := validThreadRecord(t)
+	live.Address.RepoScope = scope.Key
+	live.StartingPath, live.WorkingPath = local.slot.WorktreeRoot, local.slot.WorktreeRoot
+	live.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
+	live.Incarnations = []ThreadIncarnation{{PID: 5151, Identity: "slot-live", State: IncarnationLive, RepoIdentity: local.slot.RepoIdentity, LaunchProfile: live.LatestLaunchProfile}}
+	created, err := local.CreateThread(live)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env.Proc.Set(5151, "slot-live")
+	ctx := context.Background()
+
+	// No probe wired: refused as unavailable, never guessed.
+	if _, _, err := env.Couch.PrepareSlotOperation(ctx, "relaunch", address, LiveRestartOptions{}); slotOperationCode(err) != LiveRestartUnavailable {
+		t.Fatalf("no probe: %v", err)
+	}
+	idle := LiveRestartFacts{Live: true, Session: true, SettledKnown: true, Settled: true, GitKnown: true,
+		Binary: BinaryFacts{RunningSHA: "a", OnDiskSHA: "b", OnDiskRevision: "r1", CheckoutHEAD: "r2", Checkout: "/w/pair"}}
+	probe := &fakeLiveRestartProbe{facts: idle}
+	env.Couch.LiveRestart = probe
+	call, note, err := env.Couch.PrepareSlotOperation(ctx, "relaunch", address, LiveRestartOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{"repo-scope": scope.Key, "tag": string(created.Address.Tag)}
+	if call.Name != "relaunch" || !call.Implicit || !maps.Equal(call.Args, want) {
+		t.Fatalf("call = %+v", call)
+	}
+	if !strings.Contains(note, "make build in /w/pair") {
+		t.Fatalf("freshness note lost: %q", note)
+	}
+	if len(probe.asked) != 1 || probe.asked[0] != "relaunch "+string(created.Address.Tag)+" "+local.slot.WorktreeRoot {
+		t.Fatalf("probe asked %v", probe.asked)
+	}
+	// A refusal reaches the caller as a typed code with its reason.
+	busy := idle
+	busy.Settled = false
+	probe.facts = busy
+	_, _, err = env.Couch.PrepareSlotOperation(ctx, "relaunch", address, LiveRestartOptions{})
+	var refusal *SlotOperationError
+	if !errors.As(err, &refusal) || refusal.Code != LiveRestartBusy || !strings.HasPrefix(refusal.Detail, address+": ") {
+		t.Fatalf("busy slot: %v", err)
+	}
+	// The probe failing is an error, not an admission.
+	probe.err = errors.New("probe broke")
+	if _, _, err := env.Couch.PrepareSlotOperation(ctx, "relaunch", address, LiveRestartOptions{}); err == nil || slotOperationCode(err) != "" {
+		t.Fatalf("probe error admitted or typed: %v", err)
 	}
 	if n := len(env.Runner.Ops); n != 0 {
 		t.Fatalf("admission launched %d children", n)

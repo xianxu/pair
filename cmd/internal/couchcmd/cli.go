@@ -34,14 +34,16 @@ type adoptionArgs struct {
 }
 
 type cliInvocation struct {
-	adoption    adoptionArgs
-	kind        cliKind
-	path        string
-	ref         string
-	operation   string
-	args        []string
-	messageOp   string
-	messageBody string
+	// relaunch overrides (pair#421)
+	sameBinary, forceUnknown bool
+	adoption                 adoptionArgs
+	kind                     cliKind
+	path                     string
+	ref                      string
+	operation                string
+	args                     []string
+	messageOp                string
+	messageBody              string
 	// messageAgent narrows --send-to to slots running that agent.
 	messageAgent string
 	// confirmed is --confirm on a slot operation whose declaration requires
@@ -89,7 +91,7 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 		switch args[0] {
 		case "--adopt-store":
 			return parseAdoptionCLI(args)
-		case "--actors", "--send-to", "--message-status", "--skill", "--resume", "--reboot", "--reap", "--recover", "--broadcast-list":
+		case "--actors", "--send-to", "--message-status", "--skill", "--resume", "--reboot", "--reap", "--recover", "--relaunch", "--broadcast-list":
 			return parseMessageCLI(args)
 		}
 	}
@@ -294,8 +296,9 @@ func parseMessageCLI(args []string) (cliInvocation, error) {
 			return bad()
 		}
 		return cliInvocation{kind: cliMessage, messageOp: "status", ref: args[1], jsonOutput: len(args) == 3}, nil
-	case "--resume", "--reboot", "--reap", "--recover":
+	case "--resume", "--reboot", "--reap", "--recover", "--relaunch":
 		// One exact slot, then --json and the declared --confirm, each once.
+		// relaunch (pair#421) also takes its two overrides.
 		op := strings.TrimPrefix(args[0], "--")
 		if len(args) < 2 {
 			return bad()
@@ -304,8 +307,12 @@ func parseMessageCLI(args []string) (cliInvocation, error) {
 			return cliInvocation{}, fmt.Errorf("%s requires one exact repo:N slot, not %q", args[0], args[1])
 		}
 		seen := map[string]bool{}
+		allowed := map[string]bool{"--json": true, "--confirm": true}
+		if op == "relaunch" {
+			allowed["--same-binary"], allowed["--force-unknown"] = true, true
+		}
 		for _, flag := range args[2:] {
-			if (flag != "--json" && flag != "--confirm") || seen[flag] {
+			if !allowed[flag] || seen[flag] {
 				return bad()
 			}
 			seen[flag] = true
@@ -316,7 +323,8 @@ func parseMessageCLI(args []string) (cliInvocation, error) {
 			}
 			return cliInvocation{}, fmt.Errorf("%s takes no --confirm", args[0])
 		}
-		return cliInvocation{kind: cliMessage, messageOp: op, ref: args[1], confirmed: seen["--confirm"], jsonOutput: seen["--json"]}, nil
+		return cliInvocation{kind: cliMessage, messageOp: op, ref: args[1], confirmed: seen["--confirm"], jsonOutput: seen["--json"],
+			sameBinary: seen["--same-binary"], forceUnknown: seen["--force-unknown"]}, nil
 	case "--send-to":
 		agent := ""
 		if len(args) == 6 && args[2] == "--agent" {

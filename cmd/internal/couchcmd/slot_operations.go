@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,7 +16,7 @@ import (
 // slotOperationRunner enqueues one slot operation on the console's queue
 // (couchtty.Console.EnqueueRemoteOperation with Couch.PrepareSlotOperation).
 // When it returns an error it never calls started or finished.
-type slotOperationRunner func(key, op, target string, started func(), finished func(any, error)) error
+type slotOperationRunner func(key, op, target string, opts couchcore.LiveRestartOptions, started func(), finished func(any, error)) error
 
 // maxSlotOperationReceipts bounds the receipts held at once (about 1 KiB each);
 // the next admission is refused overloaded.
@@ -84,7 +85,8 @@ func (s *slotOperations) handle(ctx context.Context, caller couchmessage.Binding
 	s.receipts[key] = receipt
 	// Enqueue never blocks, so holding the lock is safe; a job that starts at
 	// once waits in started until this admission returns.
-	err = s.run(queueKey, r.Op, r.Target, func() { s.apply(key, couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptStart, ID: r.ID}) },
+	opts := couchcore.LiveRestartOptions{SameBinary: r.SameBinary, ForceUnknown: r.ForceUnknown}
+	err = s.run(queueKey, r.Op, r.Target, opts, func() { s.apply(key, couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptStart, ID: r.ID}) },
 		func(value any, err error) {
 			s.apply(key, couchmessage.ReceiptEvent{Kind: couchmessage.ReceiptFinish, ID: r.ID, Outcome: slotOperationOutcome(value, err), At: s.now()})
 		})
@@ -176,4 +178,30 @@ func slotOperationOutcome(value any, err error) couchmessage.ReceiptOutcome {
 		out.Warning = warned.Warning()
 	}
 	return out
+}
+
+// notedResult carries an admission note (pair#421: freshness, an override
+// used) to the receipt next to the operation's own result. It forwards
+// Started and Warning, which slotOperationOutcome reads.
+type notedResult struct {
+	value any
+	note  string
+}
+
+func (n notedResult) Started() (couchcore.StartResult, bool) {
+	if child, ok := n.value.(couchcore.StartedChild); ok {
+		return child.Started()
+	}
+	return couchcore.StartResult{}, false
+}
+
+func (n notedResult) Warning() string {
+	var parts []string
+	if warned, ok := n.value.(interface{ Warning() string }); ok && warned.Warning() != "" {
+		parts = append(parts, warned.Warning())
+	}
+	if n.note != "" {
+		parts = append(parts, n.note)
+	}
+	return strings.Join(parts, "; ")
 }

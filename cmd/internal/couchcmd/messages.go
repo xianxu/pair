@@ -159,6 +159,7 @@ func runSlotOperationCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer
 	}
 	admit := callerIdentity(rt, inv.messageOp)
 	admit.Target, admit.Confirmed = inv.ref, inv.confirmed
+	admit.SameBinary, admit.ForceUnknown = inv.sameBinary, inv.forceUnknown
 	if admit.ID, err = newRequestID(); err != nil {
 		fmt.Fprintln(stderr, "couch: create request ID:", err)
 		return 1

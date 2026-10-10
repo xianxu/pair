@@ -1171,6 +1171,7 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "             slot verdicts with Couch's threads, with a suggested next step.")
 	fmt.Fprintln(w, "       couch --resume repo:N [--json]")
 	fmt.Fprintln(w, "       couch --reboot repo:N --confirm [--json]")
+	fmt.Fprintln(w, "       couch --relaunch repo:N --confirm [--same-binary] [--force-unknown] [--json]")
 	fmt.Fprintln(w, "       couch --reap repo:N --confirm [--json]")
 	fmt.Fprintln(w, "       couch --recover repo:N [--json]")
 	fmt.Fprintln(w, "             From a live Couch slot only: run the report's step on one slot")

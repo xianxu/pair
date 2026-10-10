@@ -226,7 +226,7 @@ func TestRecoverPlanStepsConverge(t *testing.T) {
 			if step.Action == "ask-agent-restore" {
 				continue // a message to the slot's agent, not a Couch primitive
 			}
-			call, err := w.env.Couch.PrepareSlotOperation(ctx, step.Action, row.Address)
+			call, _, err := w.env.Couch.PrepareSlotOperation(ctx, step.Action, row.Address, LiveRestartOptions{})
 			if err != nil {
 				t.Fatalf("%s %s: %v", row.Address, step.Action, err)
 			}
@@ -270,7 +270,7 @@ func TestRecoverPlanStepsConverge(t *testing.T) {
 		t.Errorf(":5's slot store changed: %v -> %v", untouched, after)
 	}
 	// A resend converges: the slot is live, so resume is not offered.
-	_, err = w.env.Couch.PrepareSlotOperation(ctx, "resume", w.address(1))
+	_, _, err = w.env.Couch.PrepareSlotOperation(ctx, "resume", w.address(1), LiveRestartOptions{})
 	var refusal *SlotOperationError
 	if !errors.As(err, &refusal) || refusal.Code != SlotOpNotOffered {
 		t.Fatalf("resend: %v", err)

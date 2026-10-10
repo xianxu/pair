@@ -28,8 +28,17 @@ type SlotOperationError struct {
 
 func (e *SlotOperationError) Error() string { return e.Code + ": " + e.Detail }
 
-// slotOperations are the actor operations a slot target may request.
-var slotOperations = []string{"resume", "reboot", "reap", "recover"}
+// slotOperations are the actor operations a slot target may request: the ONE
+// list the protocol, the socket and admission all read (IsSlotOperation), so a
+// new verb cannot be half-added.
+var slotOperations = []string{"resume", "reboot", "reap", "recover", opRelaunch}
+
+// IsSlotOperation reports whether op is a remote slot operation.
+func IsSlotOperation(op string) bool { return slices.Contains(slotOperations, op) }
+
+// SlotOperationTakesOverrides reports whether op accepts the pair#421
+// live-restart overrides (--same-binary, --force-unknown).
+func SlotOperationTakesOverrides(op string) bool { return op == opRelaunch }
 
 // SelectSlotRow picks the one actionable row that stands for a slot: a :N
 // slot row by its host checkout, or, for :0, the row IsPrimaryRow accepts (a
@@ -105,13 +114,23 @@ func ShellQuote(s string) string {
 // the inventory as it stands now: the address must name a slot, exactly one
 // row must stand for it, and ActorActions must offer op on that row, the same
 // table the switcher offers from. It returns the call to dispatch.
-func (c *Couch) PrepareSlotOperation(ctx context.Context, op, target string) (OperationCall, error) {
+//
+// relaunch and reload-context (pair#421) act on LIVE rows, which ActorActions
+// never offers anything for; DecideLiveRestart replaces the offer check for
+// them, over facts the injected LiveRestartProbe gathers now. The returned
+// note (freshness, an override used) belongs on the caller's receipt.
+func (c *Couch) PrepareSlotOperation(ctx context.Context, op, target string, opts LiveRestartOptions) (OperationCall, string, error) {
 	if !slices.Contains(slotOperations, op) {
-		return OperationCall{}, fmt.Errorf("%q is not a slot operation", op)
+		return OperationCall{}, "", fmt.Errorf("%q is not a slot operation", op)
 	}
+	call, note, err := c.prepareSlotOperation(ctx, op, target, opts)
+	return call, note, err
+}
+
+func (c *Couch) prepareSlotOperation(ctx context.Context, op, target string, opts LiveRestartOptions) (OperationCall, string, error) {
 	ref, recognized, err := ParseWorkspaceReference(target)
 	if err != nil || !recognized || ref.Repo == "" {
-		return OperationCall{}, &SlotOperationError{Code: SlotOpUnknownSlot, Detail: target + " is not an exact repo:N address"}
+		return OperationCall{}, "", &SlotOperationError{Code: SlotOpUnknownSlot, Detail: target + " is not an exact repo:N address"}
 	}
 	path, recognized, err := c.WorkspaceReferencePath(ctx, target)
 	if err != nil || !recognized || path == "" {
@@ -119,15 +138,18 @@ func (c *Couch) PrepareSlotOperation(ctx context.Context, op, target string) (Op
 		if err != nil {
 			detail += ": " + err.Error()
 		}
-		return OperationCall{}, &SlotOperationError{Code: SlotOpUnknownSlot, Detail: detail}
+		return OperationCall{}, "", &SlotOperationError{Code: SlotOpUnknownSlot, Detail: detail}
 	}
 	rows, err := c.ActionableThreadInventoryContext(ctx, nil)
 	if err != nil {
-		return OperationCall{}, err
+		return OperationCall{}, "", err
 	}
 	row, err := SelectSlotRow(rows, ref.Number, path)
 	if err != nil {
-		return OperationCall{}, err
+		return OperationCall{}, "", err
+	}
+	if op == opRelaunch || op == opReloadContext {
+		return c.prepareLiveRestart(ctx, op, target, row, path, opts)
 	}
 	offered := ActorActions(ActorRowFactsOf(row))
 	if !slices.Contains(offered, op) && !(op == "recover" && RecoverOffered(offered)) {
@@ -135,7 +157,7 @@ func (c *Couch) PrepareSlotOperation(ctx context.Context, op, target string) (Op
 		if row.Reason != "" {
 			state += " (" + string(row.Reason) + ")"
 		}
-		return OperationCall{}, &SlotOperationError{Code: SlotOpNotOffered, Detail: target + " is " + state}
+		return OperationCall{}, "", &SlotOperationError{Code: SlotOpNotOffered, Detail: target + " is " + state}
 	}
-	return OperationCall{Name: op, Args: ActorOperationArgs(row, op), Implicit: true, Context: ctx}, nil
+	return OperationCall{Name: op, Args: ActorOperationArgs(row, op), Implicit: true, Context: ctx}, "", nil
 }
