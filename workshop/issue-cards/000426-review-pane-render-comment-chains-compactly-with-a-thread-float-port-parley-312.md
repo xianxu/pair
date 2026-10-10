@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000426-review-pane-render-comment-chains-compactly-with-a-thread-float-port-parley-312.md
         source_blob: d2c210eee5b7abf6b485937e8fb8e1fb950e4f83
         destination: workshop/issues/000426-review-pane-render-comment-chains-compactly-with-a-thread-float-port-parley-312.md
+        main_commit: 78d8609079842a9cd3d1f745379aba30d3504460
 ---
 
 # Review pane: render 🤖 comment chains compactly with a thread float (port parley#312)
