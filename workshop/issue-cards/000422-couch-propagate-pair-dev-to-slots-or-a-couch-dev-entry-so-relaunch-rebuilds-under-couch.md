@@ -1,6 +1,6 @@
 ---
 id: 000422
-status: codecomplete
+status: done
 created: 2026-10-09
 updated: 2026-10-09
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: c2f5ce78b305ee9d7c676b8208ab54e3152959f4
         evidence_commit: 29b58ea9116c6d9882b7c0fde22503636c7cafce
+        landed_commit: f55c365dcb0e0d7c7c76973946ee1826e505f2dd
 ---
 
 # couch: propagate PAIR_DEV to slots (or a couch dev entry) so relaunch rebuilds under couch
