@@ -95,7 +95,7 @@ Durable plan: `workshop/plans/000421-couch-tl-callable-restart-of-a-live-idle-sl
       and a receipt
 - [x] M3 — `couch --reload-context repo:N --confirm`: same guards, signals
       pair-wrap like `pair agent restart`
-- [ ] M4 — live check on a real idle slot; atlas and `couch --skill` docs
+- [x] M4 — live check on a real idle slot *(deferred to the TL after landing; see Revisions)*; atlas and `couch --skill` docs
 
 ## Log
 

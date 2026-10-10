@@ -283,3 +283,24 @@ wrapper.
   "unknown" (session gone, or no Settled claim) passes only when admission
   was forced. A wrapper that disconnects in between, where admission saw it
   settled, is refused rather than assumed idle.
+
+### 2026-10-10 — M4: live check deferred to the TL
+- **Why deferred:** the verbs run inside the Couch server, and the running
+  server (and every slot's wrapper) is a pre-#421 binary. A live check needs
+  Couch restarted on the new build, which disconnects every slot on the
+  machine, the TL's included. That is the operator's or TL's call. The
+  automated coverage (exhaustive admission table, the four hello-v2
+  pairings, effect-time re-checks, dispatch coverage, the verified signal
+  and confirmation wait) stands in until then.
+- **Post-landing checklist for the TL:**
+  1. `make build` in pair:0, restart Couch, and give each slot a manual Alt+n
+     once (pre-#421 wrappers report `busy-unknown`).
+  2. Pick an idle slot and run `couch --relaunch pair:N --confirm`. Expect
+     `stale-binary`, naming `make build in <pair:0>`, because the slot now
+     runs that very build.
+  3. Touch a file in that slot's checkout and repeat: expect `dirty`.
+  4. Start a turn in a slot and relaunch it: expect `busy`.
+  5. Run `couch --reload-context pair:N --confirm` on an idle slot: expect
+     `succeeded` with its tag, and a fresh conversation on `--peek`.
+- **Docs:** `couch --skill` gains the verbs table rows and a "Rolling out a
+  new Pair binary" section; README and atlas/couch.md were updated in M2/M3.
