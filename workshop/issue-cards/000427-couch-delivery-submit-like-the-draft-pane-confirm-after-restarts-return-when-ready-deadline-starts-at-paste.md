@@ -1,10 +1,19 @@
 ---
 id: 000427
-status: working
+status: codecomplete
 created: 2026-10-10
 updated: 2026-10-10
 estimate_hours:
 github_issue:
+started: 2026-10-10T11:51:07-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
+actual_hours: 0.91
 tracker:
     version: 1
     handoff:
@@ -17,14 +26,11 @@ tracker:
         source_blob: 9c43fff40fb277470c4485e5bb590f4daca05fbc
         destination: workshop/issues/000427-couch-delivery-submit-like-the-draft-pane-confirm-after-restarts-return-when-ready-deadline-starts-at-paste.md
         main_commit: 57932d262e985497c942d0f60f8988ba1ad709b4
-started: 2026-10-10T11:51:07-07:00
-claimant:
-    operator: Xian Xu
-    machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: MacBook Pro
-    workspace: pair:3
-    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
-    repository: github.com/xianxu/pair
+    completion:
+        token: close-9106cb08056f
+        repository: github.com/xianxu/pair
+        reviewed_head: 6e18ca97788703205fdd8671531d3039945c1a0f
+        evidence_commit: 18059cf21ef9934e5e3de6f7949ad0f7fd6a47c4
 ---
 
 # couch delivery: submit like the draft pane, confirm after; restarts return when ready; deadline starts at paste
