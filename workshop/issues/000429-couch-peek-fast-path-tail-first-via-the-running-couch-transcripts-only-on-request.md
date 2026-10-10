@@ -15,7 +15,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "aa538020", done: "07091856"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # couch --peek fast path: tail first via the running Couch, transcripts only on request
@@ -68,6 +68,8 @@ Durable plan: `workshop/plans/000429-couch-peek-fast-path-tail-first-via-the-run
 ## Log
 
 ### 2026-10-10
+- 2026-10-10: closed — Round 2: BR-1 fixed (broker names agent+working_path from the thread record; TestFastPeekMatchesTheTypedPeek requires byte-identical JSON both ways, mutation-checked), older-Couch fallback tested; minors disposed in issue Revisions. Earlier: TestDefaultPeekResolvesNoTranscripts (Done-when 3), TestPeekAnswersFromTheRunningCouch (argv over real socket, Couch build forbidden). make -k test (known TMPDIR/env noise only, reruns pass), go test ./... 84 ok + 2 pre-existing (artifactpath, gcruntime); couchcmd ColdResume flake fails on main too. Done-when 1 live timing deferred to TL at rollout per ops (Revision).; review verdict: SHIP
+- 2026-10-10: flow upgraded quick → full — 307 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 - Design: `Binding.Slot` already names each connected wrapper's `repo:N`, so the broker maps a slot ref to its wrapper with no store read; the CLI fast path is one socket round trip per slot, like `--message-status`.
 - Measured where the cold peek's time goes (temporary timers in `runTypedOperationWithConsole`, live, single slot `pair:1`): ~1.55s in the router's `WorkspaceReferencePath`, ~1.64s in the executor (`resolveOperationThread` → `ResolveThreadReference` for `repo:N`, plus the tail). Resolving a `repo:N` to its thread costs ~1.5s each time; the transcript resolution the issue suspected is cheap here (skipping it changed 3.3s little). The fast path avoids both; the typed fallback still pays them (follow-up candidate: the slot resolver's cost, not this issue's).
