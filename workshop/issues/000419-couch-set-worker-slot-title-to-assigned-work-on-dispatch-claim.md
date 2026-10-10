@@ -72,6 +72,7 @@ record, no sdlc polling, no new thread field.
 ## Log
 
 ### 2026-10-09
+- 2026-10-09: closed — go test ./cmd/internal/couchcmd -run TestPublishDescription passes (new one-line stdout assertions, set+clear; failed before the render fix). Full go test ./... with session env scrubbed + make build: remaining fails are pre-existing/env-only — artifactpath, launcher (5), gcruntime reproduce identically on a clean main worktree; couchcmd continuation-writer fails on missing origin remote in its fixture, unrelated to render. Dogfood: couch --internal publish-description from this agent shell set pair:2 summary; couch --list shows "pair#419 slot title on dispatch claim". Round-1 BR-1 fixed (repo-generic label).; review verdict: SHIP
 
 - Filed only (not implemented) at ariadne:1's request.
 - Design fork put to the operator. They chose recipient self-labelling over a TL
