@@ -150,3 +150,51 @@ wrapper.
   the behind-HEAD note name the fix verbatim: `make build in <that checkout>`.
 - `--force-unknown` stays. The first rollout of #421 itself is a manual Alt+n
   once per slot.
+
+### 2026-10-09 — plan-quality round 1 (PQ-1..PQ-6)
+- **PQ-1 (signal target).** reload-context never reads the pid file. It takes
+  the broker's live `Binding` for the exact slot, re-checks
+  `OSProcOps.Identity(Binding.PID) == Binding.Start` (the identity the wrapper
+  published, `peer_runtime.go:136`), and only then sends SIGUSR2. The shared
+  helper is `SignalVerifiedWrapper(proc, binding, sig)`; `agentcmd` keeps its
+  in-slot pid-file path, which is correct there.
+- **PQ-2 (wire contract).** Neither `Binding` (the broker actor key) nor any
+  frame an old peer can see changes. Session frames decode strictly (unknown
+  fields and ops are rejected), and an old wrapper treats any byte after the
+  ack as a lost session. Negotiation is therefore try-new-then-fall-back:
+  - A new wrapper first sends `hello-v2`, which carries the Binding plus
+    `Build` (its executable's sha256 and vcs revision).
+  - An old Couch refuses the unknown op with an error ack. The new wrapper
+    then reconnects with plain `hello` and never sends Settled.
+  - A new Couch acks `hello-v2` and accepts `Observation.Settled*` on that
+    session only.
+  - An old wrapper keeps sending plain `hello`; a new Couch reports it as
+    unknown.
+  - Tests cover all four pairings over the in-memory transport.
+- **PQ-3 (freshness rule).** Identity is the executable's **content hash**,
+  computed by the wrapper once at startup, compared with the hash of
+  `exec.LookPath("pair")` in Couch's environment.
+  - Equal hashes → `stale-binary` refusal, naming `make build in <checkout>`.
+  - Differing hashes → allowed. The note "built from X, checkout at Y" uses
+    vcs.revision against the checkout HEAD; a vcs.modified build adds "from a
+    dirty tree".
+  - Unknown build info or an unreadable binary → no refusal; the receipt says
+    freshness was unverified.
+- **PQ-4 (uncertain outcome).** reload-context waits, up to 20s, for the
+  slot's session to re-establish with a new Binding (a new Start or Nonce).
+  It reports `succeeded` only then; otherwise the receipt is `unknown` with
+  code `unconfirmed`. relaunch already gets its evidence from `ResumeContext`.
+- **PQ-5 (test strategy, one line each).**
+  - `DecideLiveRestart`: an exhaustive table over the product of facts
+    (settled × known × dirty × live × op).
+  - `DecideBinaryFreshness`: a table over hash equal/unequal ×
+    revision/HEAD × modified × unknown.
+  - Settle timer: injected clock and timer with interleaved activity events,
+    asserting it never settles inside the interval.
+  - Negotiation: the four old/new pairings.
+- **PQ-6 (non-goals).**
+  - No fleet or batch verb (the TL loops over slots).
+  - No automatic `make build`.
+  - No durable receipts (the existing 5-minute in-memory ones).
+  - No re-check of Settled between admission and park.
+  - No change to Alt+n or Shift+Alt+N behavior.
