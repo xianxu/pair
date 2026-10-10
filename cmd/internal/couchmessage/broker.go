@@ -11,6 +11,10 @@ import (
 )
 
 const AdmissionTimeout = 2 * time.Second
+// PasteTimeout bounds admission to paste: the recipient may still be booting
+// or busy. DeliveryTimeout is the window from the paste to its outcome
+// (pair#427); Message.Horizon combines them.
+const PasteTimeout = 90 * time.Second
 const DeliveryTimeout = 30 * time.Second
 const MaxActors = 128
 const MaxReceipts = 256
@@ -561,7 +565,7 @@ func (b *Broker) tryAdmission(ctx context.Context, a *SlotActor, seq uint64, fro
 		return Receipt{}, ErrRecipientBusy
 	}
 	now := b.now()
-	m := Message{ID: id, From: from, To: to, Body: body, Deadline: now.Add(DeliveryTimeout)}
+	m := Message{ID: id, From: from, To: to, Body: body, Deadline: now.Add(PasteTimeout)}
 	if err = b.apply(a, Event{Kind: Admit, Binding: to, Message: m, At: now}); err != nil {
 		return Receipt{}, err
 	}
@@ -693,7 +697,8 @@ func (b *Broker) runActor(ctx context.Context, a *SlotActor) {
 		case <-ctx.Done():
 			return
 		case m := <-a.inbox:
-			deliveryCtx, cancel := context.WithTimeout(ctx, DeliveryTimeout+ReceiptTimeout)
+			// The broker's clock dates the horizon; the job's timer is real.
+			deliveryCtx, cancel := context.WithTimeout(ctx, m.Horizon().Sub(b.now())+ReceiptTimeout)
 			job := &deliveryJob{cancel: cancel}
 			b.mu.Lock()
 			pending, ok := a.state.Pending()

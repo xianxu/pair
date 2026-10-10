@@ -24,7 +24,7 @@ type EndpointResponse struct {
 }
 
 // ReceiptTimeout permits read-only outcome collection after input stops.
-// It never extends Message.Deadline or authorizes another commit/paste.
+// It never extends Message.Horizon or authorizes another commit/paste.
 const ReceiptTimeout = 2 * time.Second
 
 func ValidateEndpointRequest(r EndpointRequest) error {
@@ -144,7 +144,7 @@ func matchingReceipt(r Receipt, m Message) bool {
 }
 
 func (e RemoteEndpoint) Deliver(parent context.Context, m Message) (Receipt, error) {
-	ctx, cancel := context.WithDeadline(parent, m.Deadline.Add(ReceiptTimeout))
+	ctx, cancel := context.WithDeadline(parent, m.Horizon().Add(ReceiptTimeout))
 	defer cancel()
 	commitCtx, stopCommit := context.WithDeadline(ctx, m.Deadline)
 	r, err := e.call(commitCtx, EndpointRequest{Op: "commit", ID: m.ID, Message: &m})

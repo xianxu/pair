@@ -46,8 +46,8 @@ func TestPeerPollingExistsOnlyForPendingDelivery(t *testing.T) {
 			t.Fatal("queued delivery has no polling timer")
 		}
 		d.current.Status = couchmessage.Delivering
-		if poll.update(d) != ch {
-			t.Fatal("events restarted the periodic timer")
+		if poll.update(d) != ch || poll.every != peerPastedPoll {
+			t.Fatal("a pasted delivery lost its timer or kept the slow pace")
 		}
 		d.current.Status = end
 		if poll.update(d) != nil || poll.ticker != nil {

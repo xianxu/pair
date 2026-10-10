@@ -13,10 +13,12 @@ import (
 const SettleInterval = 3 * time.Second
 
 // wrapperSettled is the one rule for "an automatic restart would interrupt
-// nothing": no turn is open, no overlay is up, and the composer reads empty
-// through the same recognizer peer delivery trusts. Pure.
-func wrapperSettled(composer PeerComposerState, turnActive, picker bool) bool {
-	return !turnActive && !picker && composer == PeerComposerEmpty
+// nothing": no turn is open, no overlay is up, the startup orientation is no
+// longer pending (pair#427: a restart reports ready only once its new session
+// has been briefed), and the composer reads empty through the same recognizer
+// peer delivery trusts. Pure.
+func wrapperSettled(composer PeerComposerState, turnActive, picker, orienting bool) bool {
+	return !turnActive && !picker && !orienting && composer == PeerComposerEmpty
 }
 
 // settledNow evaluates wrapperSettled against live proxy state. It runs on the
@@ -26,7 +28,29 @@ func (p *proxy) settledNow() bool {
 	if p.terminal == nil {
 		return false
 	}
-	return wrapperSettled(peerComposerState(p.agentBasename, p.terminal.Snapshot()), p.turnActive.Load(), p.pickerActive.Load())
+	return wrapperSettled(peerComposerState(p.agentBasename, p.terminal.Snapshot()), p.turnActive.Load(), p.pickerActive.Load(), p.orientationPending())
+}
+
+// orientationPending reports a startup orientation not yet finalized. The
+// pointer is set before the peer runtime starts; finalized only closes.
+func (p *proxy) orientationPending() bool {
+	if p.orientation == nil {
+		return false
+	}
+	select {
+	case <-p.orientation.finalized:
+		return false
+	default:
+		return true
+	}
+}
+
+// settleSourceChanged re-arms the settle check for a source that changes
+// without output or input: orientation finalizing, possibly at its deadline.
+func (d *peerDelivery) settleSourceChanged() {
+	d.mu.Lock()
+	d.armSettleLocked()
+	d.mu.Unlock()
 }
 
 type settleTimer interface{ Stop() bool }
