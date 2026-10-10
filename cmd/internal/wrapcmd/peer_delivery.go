@@ -16,22 +16,22 @@ import (
 // drives its reducer or writes to the PTY. The admission mutex fences reader
 // observations against automatic writes, including observations not rendered yet.
 type peerDelivery struct {
-	mu               sync.Mutex
-	binding          couchmessage.Binding
-	now              func() time.Time
-	lastActivity     time.Time
-	sequence         uint64
-	lastInput        time.Time
-	inputBuffered    bool
-	submissions      uint64
-	pasteSequence    uint64
+	mu            sync.Mutex
+	binding       couchmessage.Binding
+	now           func() time.Time
+	lastActivity  time.Time
+	sequence      uint64
+	lastInput     time.Time
+	inputBuffered bool
+	submissions   uint64
+	pasteSequence uint64
 	// The post-paste half of a delivery (pair#427). deliverBy is the paste
 	// time plus DeliveryTimeout; Message.Deadline only bounds the paste.
-	pastedAt       time.Time
-	deliverBy      time.Time
-	sawOccupied    bool   // the composer read occupied after the paste
-	submitSequence uint64 // output sequence at the submit write
-	turnAtSubmit   bool   // a turn was already open when we submitted
+	pastedAt         time.Time
+	deliverBy        time.Time
+	sawOccupied      bool   // the composer read occupied after the paste
+	submitSequence   uint64 // output sequence at the submit write
+	turnAtSubmit     bool   // a turn was already open when we submitted
 	outputPending    int
 	reservation      string
 	reservationUntil time.Time

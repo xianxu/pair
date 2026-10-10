@@ -11,6 +11,7 @@ import (
 )
 
 const AdmissionTimeout = 2 * time.Second
+
 // PasteTimeout bounds admission to paste: the recipient may still be booting
 // or busy. DeliveryTimeout is the window from the paste to its outcome
 // (pair#427); Message.Horizon combines them.
