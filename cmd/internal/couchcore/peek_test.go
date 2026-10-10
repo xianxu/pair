@@ -48,7 +48,7 @@ func TestPeekShowsTheSlotsRecentTerminal(t *testing.T) {
 		asked = maxLines
 		return []string{"old", "[Couch peer from pair:0; delivery abc]", "please pick up pair#9", "❯ "}, nil
 	}
-	r, err := env.Couch.PeekThread(context.Background(), "pair:1", record.Address, 3)
+	r, err := env.Couch.PeekThread(context.Background(), "pair:1", record.Address, 3, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestPeekNamesEveryUnreadableSource(t *testing.T) {
 	env.Couch.SlotTerminal = func(ThreadAddress, string, int) ([]string, error) {
 		return nil, errors.New("read raw: no such file")
 	}
-	r, err := env.Couch.PeekThread(context.Background(), "pair:1", record.Address, 0)
+	r, err := env.Couch.PeekThread(context.Background(), "pair:1", record.Address, 0, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,25 +75,62 @@ func TestPeekNamesEveryUnreadableSource(t *testing.T) {
 		t.Fatalf("%+v", r)
 	}
 
+	// The resolver's own gaps are named; the record still names the agent.
 	env.Couch.SwitchContext = switchContextFunc(func(context.Context, ThreadRecord) (orientation.OrientationContext, error) {
 		return orientation.OrientationContext{Unavailable: []string{"native session has no exact established outgoing binding"}}, nil
 	})
-	r, err = env.Couch.PeekThread(context.Background(), "pair:1", record.Address, 0)
+	r, err = env.Couch.PeekThread(context.Background(), "pair:1", record.Address, 0, true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !containsPrefix(r.Unavailable, "native session has no exact") || !containsPrefix(r.Unavailable, "terminal recording: the thread's agent is unknown") {
+	if r.Agent != "claude" || !containsPrefix(r.Unavailable, "native session has no exact") || !containsPrefix(r.Unavailable, "terminal recording: read raw") {
 		t.Fatalf("%+v", r)
 	}
 
 	env.Couch.SwitchContext, env.Couch.SlotTerminal = nil, nil
-	r, err = env.Couch.PeekThread(context.Background(), "pair:1", record.Address, 0)
-	if err != nil || !containsPrefix(r.Unavailable, "transcript resolver is not configured") {
+	r, err = env.Couch.PeekThread(context.Background(), "pair:1", record.Address, 0, true)
+	if err != nil || !containsPrefix(r.Unavailable, "transcript resolver is not configured") || !containsPrefix(r.Unavailable, "terminal recording: no reader") {
 		t.Fatalf("%+v %v", r, err)
 	}
 
-	if _, err := env.Couch.PeekThread(context.Background(), "pair:9", ThreadAddress{RepoScope: record.Address.RepoScope, Tag: "missing"}, 0); err == nil {
+	if _, err := env.Couch.PeekThread(context.Background(), "pair:9", ThreadAddress{RepoScope: record.Address.RepoScope, Tag: "missing"}, 0, false); err == nil {
 		t.Fatal("an unknown thread was peeked")
+	}
+}
+
+// A default peek resolves no transcripts (pair#429): that resolution costs
+// seconds, and the agent the recording fallback needs is on the record.
+// --transcripts resolves them once.
+func TestDefaultPeekResolvesNoTranscripts(t *testing.T) {
+	env, record := peekEnv(t)
+	resolved := 0
+	env.Couch.SwitchContext = switchContextFunc(func(_ context.Context, r ThreadRecord) (orientation.OrientationContext, error) {
+		resolved++
+		return orientation.OrientationContext{SourceAgent: "claude", PairLog: "/data/log.md"}, nil
+	})
+	env.Couch.SlotTerminal = func(_ ThreadAddress, agent string, _ int) ([]string, error) { return []string{"plain " + agent}, nil }
+	env.Couch.SlotTail = func(context.Context, ThreadAddress, int) (TerminalTail, error) {
+		return TerminalTail{Lines: []string{"live"}}, nil
+	}
+	args := map[string]string{"repo-scope": record.Address.RepoScope, "ref": string(record.Address.Tag)}
+	value, err := dispatchTestOperation(env.Couch, "peek", args)
+	if r, ok := value.(PeekResult); err != nil || !ok || resolved != 0 || r.Source != "live" || r.Agent != "claude" || r.SentPrompts != "" {
+		t.Fatalf("resolved %d: %#v %v", resolved, value, err)
+	}
+
+	env.Couch.SlotTail = func(context.Context, ThreadAddress, int) (TerminalTail, error) {
+		return TerminalTail{}, errors.New("no wrapper is connected")
+	}
+	value, err = dispatchTestOperation(env.Couch, "peek", args)
+	if r, ok := value.(PeekResult); err != nil || !ok || resolved != 0 || r.Source != "recording" || r.Lines[0] != "plain claude" ||
+		!containsPrefix(r.Unavailable, "live tail: no wrapper is connected") {
+		t.Fatalf("fallback resolved %d: %#v %v", resolved, value, err)
+	}
+
+	args["transcripts"] = "true"
+	value, err = dispatchTestOperation(env.Couch, "peek", args)
+	if r, ok := value.(PeekResult); err != nil || !ok || resolved != 1 || r.SentPrompts != "/data/log.md" {
+		t.Fatalf("--transcripts resolved %d: %#v %v", resolved, value, err)
 	}
 }
 
@@ -105,7 +142,7 @@ func TestPeekIsReadOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := env.Couch.PeekThread(context.Background(), "pair:1", record.Address, 0); err != nil {
+	if _, err := env.Couch.PeekThread(context.Background(), "pair:1", record.Address, 0, true); err != nil {
 		t.Fatal(err)
 	}
 	after, err := env.Couch.Threads.Snapshot()
@@ -164,7 +201,7 @@ func TestPeekPrefersTheLiveTail(t *testing.T) {
 		asked = n
 		return TerminalTail{Lines: []string{"old", "❯ ‹cursor›‹dim›Try it‹/dim›"}, Cursor: "2,3 default", Truncated: 4}, nil
 	}
-	r, err := env.Couch.PeekThread(context.Background(), "pair:1", record.Address, 1)
+	r, err := env.Couch.PeekThread(context.Background(), "pair:1", record.Address, 1, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +213,7 @@ func TestPeekPrefersTheLiveTail(t *testing.T) {
 	env.Couch.SlotTail = func(context.Context, ThreadAddress, int) (TerminalTail, error) {
 		return TerminalTail{}, errors.New("no running couch answered")
 	}
-	r, err = env.Couch.PeekThread(context.Background(), "pair:1", record.Address, 0)
+	r, err = env.Couch.PeekThread(context.Background(), "pair:1", record.Address, 0, false)
 	if err != nil {
 		t.Fatal(err)
 	}

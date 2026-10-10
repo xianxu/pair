@@ -829,19 +829,34 @@ proves the public test target generates it before every consumer.
 argument/result family, effect, confirmation, execution owner, and presentation.
 `list`, `show` and `archived` project as public `--list`, `--show` and
 `--archived`. `peek` (pair#362) projects as `--peek repo:N[:M…][,repo:N…]
-[--lines N] [--json]`, a read-only look at other slots. Its lines come first from
+[--lines N] [--json] [--transcripts]`, a read-only look at other slots. Its lines come first from
 the slot's **live tail** (pair#425), else from the plain-text render of the
 thread's terminal recording (`scrollbackcmd.RenderOwnedLines`, under the same
 retention lease `pair scrollback render` takes); `source` says which, and a
-failed live read is named in `unavailable`. It also returns the Pair sent-prompt
-log and native transcript paths from the switcher's `OSSwitchContextResolver`.
+failed live read is named in `unavailable`. With `--transcripts` it also returns
+the Pair sent-prompt log and native transcript paths from the switcher's
+`OSSwitchContextResolver`; by default it resolves none (pair#429), and the
+recording fallback takes the agent from the thread record (`RecordAgent`).
 Transcripts are paths, never parsed, and every unreadable source is named in
 `unavailable`.
+
+**Fast path (pair#429).** Building a Couch and resolving a `repo:N` to its thread
+costs about 1.5s each. So when every reference is a slot and `--transcripts` is
+absent, the CLI (`couchcmd.fastPeek`) builds no Couch and asks the running
+Couch's broker for each slot's tail by name, concurrently: `tail` {`Target`
+repo:N, lines}. The broker resolves the slot as a send's exact target resolves
+(`couchmessage.ResolveTailSlot`: alias or unique prefix, against the connected
+bindings' `Slot`), and answers with the tail plus `TailThread` {slot, tag,
+agent, working path}, which it reads from the thread record as the typed peek does
+(`RecordAgent`), so both paths give the same JSON. The fast path answers only when every slot does. Otherwise (no Couch, a
+Couch older than the by-slot form, a reference that isn't a slot, or a slot
+that can't be read) the typed `peek` operation runs the whole request and names
+each failure.
 
 The **live tail** is not a new store. Each claude/codex wrapper already keeps its
 agent pane in a vt emulator (`wrapcmd.terminalModel`: screen + 10k-line
 scrollback); `terminalModel.Tail(n)` renders its last rows on request. The path:
-peek's `SlotTail` → identity-free broker op `tail` {thread scope, tag, lines}
+peek's `SlotTail` → identity-free broker op `tail` {thread scope, tag, lines}, or {slot, lines} on the fast path
 (like `broadcast-status`: the store dir is the access control, the answer is
 read-only) → `messageService.handleTail` picks the connected wrapper bound to that
 thread → wrapper endpoint op `tail` → `peerDelivery.tailProbe`. Bounds: 200 lines

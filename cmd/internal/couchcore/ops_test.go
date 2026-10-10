@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"testing"
 	"time"
 )
@@ -33,7 +34,7 @@ func dispatchTestOperation(c *Couch, name string, args map[string]string) (any, 
 	return DispatchOperation(OperationExecutors{
 		DirectStore: DirectStoreExecutor(c),
 		LiveOwner:   CouchLiveOwnerExecutor(c),
-	}, OperationCall{Name: name, Args: args, Implicit: true})
+	}, OperationCall{Name: name, Args: args, Implicit: true, Context: context.Background()})
 }
 
 func createOperationThread(t *testing.T, c *Couch) ThreadRecord {

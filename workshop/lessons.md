@@ -852,3 +852,10 @@ proof; record the surprising case so the next change starts from evidence.
   pre-parses `ref` as one `repo:N` to derive the repository scope. A test of
   argument shapes must run `RunWithRuntime(argv)` end to end; any stage that
   reads an argument before the executor is part of the router.
+
+- **A fast path answers in the slow path's exact shape (#429).** The fast
+  `--peek` built its result from what the broker happened to know (the
+  wrapper's agent, no working path), so `--json` changed with whether a Couch
+  was running. When a shortcut and a fallback return the same type, derive the
+  fields from the same source (here the thread record, `RecordAgent`) and pin
+  it with a test that runs both on one input and requires identical output.
