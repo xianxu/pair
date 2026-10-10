@@ -15,6 +15,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "9556cadd", done: "397aad23"}
 ---
 
 # couch: propagate PAIR_DEV to slots (or a couch dev entry) so relaunch rebuilds under couch
@@ -64,10 +65,21 @@ starts Couch with `PAIR_DEV` set.
 
 ## Plan
 
-- [ ] Tests: couch-dev shell cases plus the Go childEnv inheritance pin (red first).
-- [ ] `bin/couch-dev`, `.gitignore` negation, `SHELL_BINS`.
-- [ ] README dev note and atlas (architecture dev-mode bullet, couch).
+- [x] Tests: couch-dev shell cases plus the Go childEnv inheritance pin (red first).
+- [x] `bin/couch-dev`, `.gitignore` negation, `SHELL_BINS`.
+- [x] README dev note and atlas (architecture dev-mode bullet, couch).
 
 ## Log
 
 ### 2026-10-09
+
+- Claimed from TL ariadne:1 (operator-approved dispatch); labelled the slot per
+  the #419 skill step. Asked pair:1 to keep `PAIR_DEV` in #421's relaunch env.
+- No Couch propagation code needed: the inheritance already holds and is now
+  pinned by two Go tests. The work is the dev entry plus wiring:
+  `.gitignore` negation, `SHELL_BINS`, the artifactpath inventory (pre-existing
+  failures there are unrelated), and the install-layout test.
+- Dogfood: `bin/couch-dev --list` ran `make build` on this tree, then listed
+  threads.
+- Process slip, repeated from #419: implemented before `change-code`. A lesson
+  was added.
