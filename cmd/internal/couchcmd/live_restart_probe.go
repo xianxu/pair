@@ -23,16 +23,17 @@ type liveRestartProbe struct {
 	service atomic.Pointer[messageService]
 	git     couchcore.GitRunner
 	proc    couchcore.ProcOps
-	// reload-context's confirmation wait (pair#421 PQ-4): bounded, polled.
-	confirmWithin, pollEvery time.Duration
-	lookPath                 func(string) (string, error)
-	getenv                   func(string) string
-	build                    func(string) (couchmessage.BuildIdentity, error)
+	// reload-context's confirmation wait (pair#421 PQ-4) and the restarts'
+	// readiness wait (pair#427): bounded, polled.
+	confirmWithin, readyWithin, pollEvery time.Duration
+	lookPath                              func(string) (string, error)
+	getenv                                func(string) string
+	build                                 func(string) (couchmessage.BuildIdentity, error)
 }
 
 func newLiveRestartProbe(git couchcore.GitRunner, proc couchcore.ProcOps) *liveRestartProbe {
 	return &liveRestartProbe{git: git, proc: proc, lookPath: exec.LookPath, getenv: os.Getenv, build: couchmessage.BuildIdentityOfFile,
-		confirmWithin: 20 * time.Second, pollEvery: 100 * time.Millisecond}
+		confirmWithin: 20 * time.Second, readyWithin: 2 * time.Minute, pollEvery: 100 * time.Millisecond}
 }
 
 func (p *liveRestartProbe) LiveRestartFacts(ctx context.Context, op string, row couchcore.ActionableThreadSummary, path string) (couchcore.LiveRestartFacts, error) {
@@ -125,6 +126,62 @@ func (p *liveRestartProbe) RestartConversation(ctx context.Context, address couc
 			return &couchcore.ReloadUnconfirmed{Detail: fmt.Sprintf("the signal was delivered but no new wrapper session appeared within %s; peek the slot before retrying", p.confirmWithin)}
 		case <-tick.C:
 		}
+	}
+}
+
+// readinessAfter is called at admission, on the queue before the effect, for
+// a restart verb (pair#427). It records the session the restart will replace
+// and returns the wait for its successor; other verbs return nil. A restart
+// reports success only once the new session is settled: booted and briefed,
+// with nothing running.
+func (p *liveRestartProbe) readinessAfter(op string, args map[string]string) func(context.Context) error {
+	scope, tag := args["repo-scope"], args["tag"]
+	if p == nil || (op != couchcore.OpRelaunch && op != couchcore.OpReloadContext) || tag == "" {
+		return nil
+	}
+	before, _ := p.service.Load().LivenessForThread(scope, tag)
+	return func(ctx context.Context) error { return p.AwaitReady(ctx, scope, tag, before.Session) }
+}
+
+// AwaitReady waits, bounded by readyWithin, for a session other than before
+// to report Settled for the thread.
+func (p *liveRestartProbe) AwaitReady(ctx context.Context, scope, tag string, before couchmessage.SessionToken) error {
+	svc := p.service.Load()
+	deadline := time.NewTimer(p.readyWithin)
+	defer deadline.Stop()
+	tick := time.NewTicker(p.pollEvery)
+	defer tick.Stop()
+	for {
+		if live, ok := svc.LivenessForThread(scope, tag); ok && live.Session != before {
+			if live.Build == nil {
+				return &couchcore.RestartUnready{Detail: "the restart took, but " + tag + "'s wrapper predates readiness reports; peek the slot"}
+			}
+			if live.Settled != nil && *live.Settled {
+				return nil
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return &couchcore.RestartUnready{Detail: "the restart took, but the readiness wait was cancelled; peek the slot"}
+		case <-deadline.C:
+			return &couchcore.RestartUnready{Detail: fmt.Sprintf("the restart took, but %s did not settle within %s; do not restart it again, peek the slot (a message sent now waits for its composer)", tag, p.readyWithin)}
+		case <-tick.C:
+		}
+	}
+}
+
+// awaitReadiness defers a restart's finish until its readiness wait ends,
+// off the console queue so other slots' operations keep running. *await is
+// written by prepare on the queue and read here after the job; the queue
+// orders the two, as for the admission note.
+func awaitReadiness(await *func(context.Context) error, finished func(any, error)) func(any, error) {
+	return func(value any, err error) {
+		wait := *await
+		if err != nil || wait == nil {
+			finished(value, err)
+			return
+		}
+		go func() { finished(value, wait(context.Background())) }()
 	}
 }
 

@@ -19,18 +19,12 @@ scenario flags below.
   once through the production dispatcher and observed the composer clear after
   submission. This establishes transport submission, not task completion.
 - `paste-multiline.raw`: `-peer-live-scenario=paste-multiline` rendered a collapsed
-  paste marker, `[Pasted text #1 +5 lines]`. Until #418 such messages expired
-  unsubmitted, because the marker does not prove the complete body. Since #418,
-  by operator decision, the strict form submits: the marker is the composer's
-  whole content, the cursor sits right after it, and `+5` equals the envelope's
-  newline count.
+  paste marker, `[Pasted text #1 +5 lines]`.
 - `paste-wrapped.raw`: `-peer-live-scenario=paste-wrapped` shows native word
-  wrapping at the captured width minus four columns. The matching projection
-  permits only single ordinary inter-word spaces; leading/trailing, repeated,
-  tab or other ambiguous whitespace is never normalized through this route.
+  wrapping at the captured width minus four columns.
 
-Small messages, qualified word wrapping and the strict collapsed marker are
-supported. Claude's wrap rule is stated once, on `peerSpaceWordwrap` (#418),
-and pinned by `TestPeerComposerClaudeCapturedHyphenWrap` (ariadne:2, 2.1.295)
-and `TestPeerComposerClaudeCapturedOverwidthWord` (2.1.296).
-No generic faint-text acceptance or loose marker fallback was introduced.
+Since pair#427, delivery no longer matches the rendered paste against the
+envelope (pair renders, never classifies). It reads only whether the composer
+holds anything, so each paste capture must read as an occupied composer
+(`TestPeerComposerCapturedPastesReadOccupied`). The word-wrap projection and
+the strict collapsed-marker rule of #418 were removed with the matcher.

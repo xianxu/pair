@@ -1,12 +1,22 @@
 ---
 id: 000427
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-10
 updated: 2026-10-10
 estimate_hours:
-card_mirror: '75f9d1a1b47ff98c05c3ccb877f05573b22b1d44' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '4c11b2c40eaf3181a5dcc2e879641a3fa9563e5f' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-10T11:51:07-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
+actual_hours: 1.12
 ---
 
 # couch delivery: submit like the draft pane, confirm after; restarts return when ready; deadline starts at paste
@@ -38,8 +48,36 @@ Meanwhile the operator's draft pane pastes, sleeps 100ms and sends Alt+Enter (`n
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000427-couch-delivery-submit-like-the-draft-pane-confirm-after-restarts-return-when-ready-deadline-starts-at-paste-plan.md`.
+
+- [x] D1 reducer: paste → fixed delay → submit → confirm; drop the render match and its helpers; post-paste interrupts give `uncertain` (Indeterminate)
+- [x] D2 deadline: `Message.Deadline` = paste-by (90s); the 30s window starts at paste; `Message.Horizon()` bounds the broker side
+- [x] D3 restarts: Settled waits for orientation; relaunch/reload-context receipts wait for a settled new session (2m, `unready` on expiry)
+- [x] Tests per the plan; live peer conformance against real Claude
+- [x] atlas/couch.md delivery + restart-readiness contract
 
 ## Log
 
 ### 2026-10-10
+- 2026-10-10: closed — Merged origin/main (#425): only conflict was workshop/lessons.md, both sides appended a lesson, kept both. Post-merge: go build ./... ok; couchmessage + wrapcmd Peer/Settle/Delivery/Automatic tests ok; couchcmd Restart/SlotOperation/LiveRestart/Peek tests ok. Prior evidence unchanged.; review verdict: SHIP
+- 2026-10-10: closed — Post-close: added turn-already-running confirmation cases (queued behind a running turn → submitted on composer clear; running turn with text staying → indeterminate "a turn was already running"); wrapcmd TestPeerDeliverySubmitsAfterDelayThenConfirms passes 7/7. Plan Revisions records the pre-Build unready and 50ms poll deltas. Prior evidence unchanged (make -k test green with env scrubbed; go test ./... residual failures identical on main; live Claude 2.1.296 short+collapsed submitted+confirmed).; review verdict: SHIP
+- 2026-10-10: closed — Targeted: couchmessage (reducer table, Horizon expiry), wrapcmd (submit-after-delay+confirm table, simulated boot past old 30s, never-consumed → indeterminate with evidence, collapsed multi-line, settle waits for orientation + re-arm with mutation check), couchcmd TestRestartReceiptWaitsForReadiness (relaunch/reload succeed only on a settled NEW session; unready on expiry; caught+fixed empty ReceiptCode overwrite). Live: TestPeerLiveConformance -peer-live-submit vs real Claude Code 2.1.296, short (render=exact) and collapsed #418 body (render=collapsed), both submitted+confirmed. Full: make -k test green with PAIR_/COUCH_ env scrubbed + scratch TMPDIR; go test ./... — remaining failures (artifactpath inventory, couchsingleton SelectionSize x2, gcruntime ArchiveLocator, couchcmd ColdResume switcher flake 5/10 on main) all fail identically on main. Pending: live couch --reload-context + send on a real slot needs Couch on the new binary (ops).; review verdict: SHIP
+- 2026-10-10: flow upgraded quick → full — 266 added lines in code files (limit 100)
+
+- Design: `workshop/plans/000427-…-plan.md`. "uncertain" is the existing
+  `indeterminate` status with a detail that starts `uncertain:`. A new enum
+  value would ripple through the broker model and CLI for nothing (ARCH-DRY).
+- Restart readiness waits off the console queue (`awaitReadiness`), so a
+  2-minute wait never blocks other slots' operations. It is bounded, and it
+  is in-memory only (ARCH-FUNERAL: nothing durable).
+- Found while testing: `slotOperationOutcome` let a completed relaunch's
+  empty `ReceiptCode()` overwrite the error's code. That would have hidden
+  `unready`. Now only a non-empty partial code overrides.
+- Settled now also waits for the startup orientation to finalize. Finalizing
+  re-arms the settle check (lessons: every writer of a derived state notifies
+  it). A mutation check confirmed the test fails without the re-arm.
+- Live: `TestPeerLiveConformance -peer-live-submit -peer-live-use-local-auth`
+  against Claude Code 2.1.296. Short body: render=exact, submitted and
+  confirmed. Collapsed long body (#418): render=collapsed, submitted and
+  confirmed.
+

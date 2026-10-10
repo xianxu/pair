@@ -16,15 +16,22 @@ import (
 // drives its reducer or writes to the PTY. The admission mutex fences reader
 // observations against automatic writes, including observations not rendered yet.
 type peerDelivery struct {
-	mu               sync.Mutex
-	binding          couchmessage.Binding
-	now              func() time.Time
-	lastActivity     time.Time
-	sequence         uint64
-	lastInput        time.Time
-	inputBuffered    bool
-	submissions      uint64
-	pasteSequence    uint64
+	mu            sync.Mutex
+	binding       couchmessage.Binding
+	now           func() time.Time
+	lastActivity  time.Time
+	sequence      uint64
+	lastInput     time.Time
+	inputBuffered bool
+	submissions   uint64
+	pasteSequence uint64
+	// The post-paste half of a delivery (pair#427). deliverBy is the paste
+	// time plus DeliveryTimeout; Message.Deadline only bounds the paste.
+	pastedAt         time.Time
+	deliverBy        time.Time
+	sawOccupied      bool   // the composer read occupied after the paste
+	submitSequence   uint64 // output sequence at the submit write
+	turnAtSubmit     bool   // a turn was already open when we submitted
 	outputPending    int
 	reservation      string
 	reservationUntil time.Time
@@ -89,8 +96,20 @@ func newPeerDelivery(binding couchmessage.Binding, now func() time.Time) *peerDe
 	return &peerDelivery{binding: binding, now: now, lastActivity: now(), wake: make(chan struct{}, 1), notices: make(chan string, 1)}
 }
 
+// PeerSubmitDelay is the fixed pause between the paste and the submit key,
+// the draft pane's rule (nvim/draft_send.lua) with margin. Nothing reads how
+// the agent rendered the paste: pair renders, never classifies (pair#427).
+const PeerSubmitDelay = 150 * time.Millisecond
+
+// peerPastedPoll paces a delivery past its paste, so the submit delay and the
+// confirmation are not quantized to the queued poll's second.
+const peerPastedPoll = 50 * time.Millisecond
+
 // Owned by the input writer. Idle wrappers allocate no polling timer.
-type peerDeliveryPoll struct{ ticker *time.Ticker }
+type peerDeliveryPoll struct {
+	ticker *time.Ticker
+	every  time.Duration
+}
 
 func (p *peerDeliveryPoll) stop() {
 	if p.ticker != nil {
@@ -100,19 +119,28 @@ func (p *peerDeliveryPoll) stop() {
 }
 
 func (p *peerDeliveryPoll) update(d *peerDelivery) <-chan time.Time {
-	active := false
+	active, pasted := false, false
 	if d != nil {
 		d.mu.Lock()
 		active = d.current.Message.ID != "" && !d.current.Status.Terminal()
+		pasted = d.current.Status == couchmessage.Delivering
 		d.mu.Unlock()
 	}
 	if !active {
 		p.stop()
 		return nil
 	}
-	if p.ticker == nil {
-		p.ticker = time.NewTicker(time.Second)
+	every := time.Second
+	if pasted {
+		every = peerPastedPoll
 	}
+	switch {
+	case p.ticker == nil:
+		p.ticker = time.NewTicker(every)
+	case p.every != every:
+		p.ticker.Reset(every) // the same channel: a caller's select stays valid
+	}
+	p.every = every
 	return p.ticker.C
 }
 func (d *peerDelivery) signal() {
@@ -270,7 +298,8 @@ func (p *proxy) peerComposerSubmission() bool {
 }
 
 // dispatchPeer is called only by the existing PTY input writer. It checks the
-// original deadline before every automatic effect, even after a successful paste.
+// phase's deadline before every automatic effect: paste-by before the paste,
+// the paste-relative window after it (pair#427).
 func (p *proxy) dispatchPeer(out io.Writer) {
 	d := p.peer
 	if d == nil {
@@ -287,7 +316,7 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 	switch {
 	case d.exited:
 		event.Kind = couchmessage.PeerChildExited
-	case !d.now().Before(d.current.Message.Deadline):
+	case !d.now().Before(d.deadlineLocked()):
 		event.Kind = couchmessage.PeerDeadlineElapsed
 	case d.image && d.current.Status == couchmessage.Delivering:
 		event.Kind = couchmessage.PeerImageInput
@@ -345,11 +374,23 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 				d.current.Detail = ""
 			}
 		} else {
-			event.Kind = couchmessage.PeerRenderObserved
-			_, known := peerComposerText(p.agentBasename, snapshot)
-			event.Ready = known && d.sequence > d.pasteSequence
-			event.Matches = known && peerComposerMatches(p.agentBasename, snapshot, peerEnvelope(d.current.Message))
-			d.current.Detail = "waiting for pasted envelope to render"
+			// Agent-agnostic evidence only: whether the composer holds
+			// anything, and whether a turn opened. Never what it holds.
+			composer := peerComposerState(p.agentBasename, snapshot)
+			if composer == PeerComposerOccupied && d.sequence > d.pasteSequence {
+				d.sawOccupied = true
+			}
+			if d.state.Phase == couchmessage.PeerDeliveryConfirming {
+				event.Kind = couchmessage.PeerConfirmObserved
+				turn := p.turnActive.Load()
+				cleared := d.sawOccupied && composer == PeerComposerEmpty && d.sequence > d.submitSequence
+				event.Ready = cleared || (turn && !d.turnAtSubmit)
+				d.current.Detail = peerConfirmEvidence(composer, d.sawOccupied, turn, d.turnAtSubmit)
+			} else {
+				event.Kind = couchmessage.PeerRenderObserved
+				event.Ready = !d.now().Before(d.pastedAt.Add(PeerSubmitDelay))
+				d.current.Detail = "pasted; submit pending"
+			}
 		}
 	}
 	p.advancePeer(event, out)
@@ -358,7 +399,7 @@ func (p *proxy) advancePeer(event couchmessage.PeerDeliveryEvent, out io.Writer)
 	d := p.peer
 	state, effect := couchmessage.AdvancePeerDelivery(d.state, event)
 	d.state = state
-	if (effect == couchmessage.PeerPaste || effect == couchmessage.PeerSubmit) && !d.now().Before(d.current.Message.Deadline) {
+	if (effect == couchmessage.PeerPaste || effect == couchmessage.PeerSubmit) && !d.now().Before(d.deadlineLocked()) {
 		p.advancePeer(couchmessage.PeerDeliveryEvent{Kind: couchmessage.PeerDeadlineElapsed}, out)
 		return
 	}
@@ -372,6 +413,8 @@ func (p *proxy) advancePeer(event couchmessage.PeerDeliveryEvent, out io.Writer)
 		data := []byte(workbenchshortcut.PasteStart + peerEnvelope(d.current.Message) + workbenchshortcut.PasteEnd)
 		d.current.Status = couchmessage.Delivering
 		d.pasteSequence = d.sequence
+		d.pastedAt, d.sawOccupied = d.now(), false
+		d.deliverBy = d.pastedAt.Add(couchmessage.DeliveryTimeout)
 		n, err := out.Write(data)
 		p.advancePeer(couchmessage.PeerDeliveryEvent{Kind: couchmessage.PeerPasteCompleted, Written: n, Expected: len(data), Failed: err != nil}, out)
 	case couchmessage.PeerSubmit:
@@ -379,12 +422,13 @@ func (p *proxy) advancePeer(event couchmessage.PeerDeliveryEvent, out io.Writer)
 			return
 		}
 		data := p.ttyProfile.keymap.altCR
+		d.submitSequence, d.turnAtSubmit = d.sequence, p.turnActive.Load()
 		n, err := out.Write(data)
 		p.advancePeer(couchmessage.PeerDeliveryEvent{Kind: couchmessage.PeerSubmitCompleted, Written: n, Expected: len(data), Failed: err != nil}, out)
 	case couchmessage.PeerPublish:
 		p.finishAutomaticInput(automaticInputPeer)
 		d.current.Status = state.Outcome()
-		if event.Kind == couchmessage.PeerDeadlineElapsed && d.current.Detail != "" {
+		if d.current.Detail != "" && (event.Kind == couchmessage.PeerDeadlineElapsed || state.Outcome() == couchmessage.Indeterminate) {
 			d.current.Detail = state.Reason + ": " + d.current.Detail
 		} else {
 			d.current.Detail = state.Reason
@@ -394,4 +438,29 @@ func (p *proxy) advancePeer(event couchmessage.PeerDeliveryEvent, out io.Writer)
 		default:
 		}
 	}
+}
+
+// deadlineLocked (d.mu held) is the bound for the delivery's current half.
+func (d *peerDelivery) deadlineLocked() time.Time {
+	if d.current.Status == couchmessage.Delivering {
+		return d.deliverBy
+	}
+	return d.current.Message.Deadline
+}
+
+// peerConfirmEvidence is what an uncertain receipt reports: the composer and
+// turn as the wrapper last saw them after the submit.
+func peerConfirmEvidence(composer PeerComposerState, sawOccupied, turn, turnAtSubmit bool) string {
+	c := map[PeerComposerState]string{PeerComposerUnknown: "unrecognized", PeerComposerOccupied: "still holds text", PeerComposerEmpty: "empty"}[composer]
+	if composer == PeerComposerEmpty && !sawOccupied {
+		c = "empty but never showed the paste"
+	}
+	t := "no turn started"
+	switch {
+	case turn && turnAtSubmit:
+		t = "a turn was already running"
+	case turn:
+		t = "a turn started"
+	}
+	return "submitted; composer " + c + "; " + t
 }

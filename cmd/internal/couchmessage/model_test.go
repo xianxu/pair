@@ -92,7 +92,7 @@ func TestDeadlineAndDisconnectAfterDeliveryAreIndeterminate(t *testing.T) {
 			m := Message{ID: "m", From: binding("brain:0"), To: b, Body: "work", Deadline: now.Add(time.Second)}
 			s, _ = advance(t, s, Event{Kind: Admit, Binding: b, Message: m, At: now})
 			s, _ = advance(t, s, Event{Kind: DeliveryStarted, Binding: b, Message: m, At: now})
-			_, fx := advance(t, s, Event{Kind: event, Binding: b, At: now.Add(time.Second)})
+			_, fx := advance(t, s, Event{Kind: event, Binding: b, At: m.Horizon()})
 			if len(fx) != 1 || fx[0].Receipt.Status != Indeterminate {
 				t.Fatalf("effects %#v", fx)
 			}
@@ -154,9 +154,34 @@ func TestLateCompletionCannotClaimSubmission(t *testing.T) {
 	m := Message{ID: "late", From: binding("brain:0"), To: b, Body: "work", Deadline: now.Add(time.Second)}
 	s, _ = advance(t, s, Event{Kind: Admit, Binding: b, Message: m, At: now})
 	s, _ = advance(t, s, Event{Kind: DeliveryStarted, Binding: b, Message: m, At: now})
-	_, fx := advance(t, s, Event{Kind: DeliveryFinished, Binding: b, Message: m, Status: Submitted, At: m.Deadline})
+	_, fx := advance(t, s, Event{Kind: DeliveryFinished, Binding: b, Message: m, Status: Submitted, At: m.Horizon()})
 	if len(fx) != 1 || fx[0].Receipt.Status != Indeterminate {
 		t.Fatal("late completion upgraded to submitted")
+	}
+}
+
+// pair#427: the deadline is paste-by; the window runs from the paste. A
+// submission completing after the paste-by time but inside the horizon stands,
+// and the broker's own expiry waits for the horizon.
+func TestDeliveryWindowRunsPastThePasteDeadline(t *testing.T) {
+	now := time.Unix(100, 0)
+	b := binding("pair:1")
+	s := registered(t, b, now)
+	m := Message{ID: "window", From: binding("brain:0"), To: b, Body: "work", Deadline: now.Add(time.Second)}
+	if m.Horizon() != m.Deadline.Add(DeliveryTimeout) {
+		t.Fatal(m.Horizon())
+	}
+	s, _ = advance(t, s, Event{Kind: Admit, Binding: b, Message: m, At: now})
+	s, _ = advance(t, s, Event{Kind: DeliveryStarted, Binding: b, Message: m, At: now})
+	ticked, fx := advance(t, s, Event{Kind: Tick, At: m.Deadline.Add(time.Second)})
+	if len(fx) != 0 {
+		t.Fatalf("expired at the paste deadline: %+v", fx)
+	}
+	if _, fx = advance(t, ticked, Event{Kind: Tick, At: m.Horizon()}); len(fx) != 1 || fx[0].Receipt.Status != Indeterminate {
+		t.Fatalf("no expiry at the horizon: %+v", fx)
+	}
+	if _, fx = advance(t, ticked, Event{Kind: DeliveryFinished, Binding: b, Message: m, Status: Submitted, At: m.Deadline.Add(time.Second)}); len(fx) != 1 || fx[0].Receipt.Status != Submitted {
+		t.Fatalf("in-window submission downgraded: %+v", fx)
 	}
 }
 

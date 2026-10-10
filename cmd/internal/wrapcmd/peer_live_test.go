@@ -230,7 +230,7 @@ func TestPeerLiveConformance(t *testing.T) {
 			}
 			if sent && !finished {
 				text, known := peerComposerText(agent, snapshot)
-				if scenario == "submit" && expectedWrites == 2 && known && text == "" {
+				if scenario == "submit" && expectedWrites == 2 && d.receipt().Status.Terminal() {
 					finished = true
 				}
 				if known && strings.TrimSpace(text) == strings.TrimSpace(peerEnvelope(m)) {
@@ -247,8 +247,10 @@ func TestPeerLiveConformance(t *testing.T) {
 						finished = true
 					}
 				}
-				if known && renderClass == "unobserved" && peerComposerMatches(agent, snapshot, peerEnvelope(m)) {
-					renderClass = "wrapped"
+				// pair#427: delivery reads only that the composer holds
+				// something; any other shape is recorded, not matched.
+				if known && renderClass == "unobserved" && text != "" {
+					renderClass = "occupied"
 					rendered = text
 					if scenario != "submit" {
 						finished = true
@@ -320,7 +322,7 @@ func TestPeerLiveConformance(t *testing.T) {
 				p.dispatchPeer(&writes)
 				if writes.Len() > 0 {
 					expectedWrites++
-					if d.receipt().Status != couchmessage.Submitted {
+					if expectedWrites > 2 || strings.Contains(writes.String(), peerEnvelope(m)) {
 						failure = fmt.Errorf("unexpected post-paste write")
 					}
 					return writes.Bytes()

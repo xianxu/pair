@@ -165,12 +165,17 @@ func slotOperationOutcome(value any, err error) couchmessage.ReceiptOutcome {
 	case err != nil:
 		out := couchmessage.ReceiptOutcome{Status: couchmessage.ReceiptFailed, Detail: err.Error(), Diagnostic: string(couchcore.ResumeDiagnosticOf(err))}
 		var unconfirmed *couchcore.ReloadUnconfirmed
-		if errors.As(err, &unconfirmed) {
+		var unready *couchcore.RestartUnready
+		switch {
+		case errors.As(err, &unconfirmed):
 			out.Code = "unconfirmed"
+		case errors.As(err, &unready):
+			out.Code = "unready"
 		}
 		// A typed partial outcome (a relaunch that parked but did not
 		// resume) and the admission note survive the failure (pair#421).
-		if coded, ok := value.(interface{ ReceiptCode() string }); ok {
+		// A completed relaunch has no partial code; keep the error's (unready).
+		if coded, ok := value.(interface{ ReceiptCode() string }); ok && coded.ReceiptCode() != "" {
 			out.Code = coded.ReceiptCode()
 		}
 		if warned, ok := value.(interface{ Warning() string }); ok {

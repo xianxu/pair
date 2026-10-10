@@ -40,7 +40,8 @@ func TestPeerDeliveryPreservesHumanInputAndDeadline(t *testing.T) {
 			case "image":
 				d.admitImage()
 			case "deadline":
-				now = now.Add(2 * time.Second)
+				// The window runs from the paste (pair#427).
+				now = now.Add(couchmessage.DeliveryTimeout)
 			}
 			f.proxy.dispatchPeer(&out)
 			// A later matching render must not revive automatic submission.
@@ -76,12 +77,113 @@ func TestPeerDeliveryOccupiedComposerWritesNothing(t *testing.T) {
 	}
 }
 
-func TestPeerDeliveryRequiresFreshMatchingRenderThenSubmitsOnce(t *testing.T) {
+// peerEmptyComposer and peerFilledComposer repaint the fake Claude's whole
+// screen, as an agent does on each frame.
+func peerEmptyComposer() string {
+	return "\x1b[2J\x1b[?2004h" + strings.Replace(claudeLiveComposerPaint(), "alpha", "", 1) + "\x1b[21;3H"
+}
+func peerFilledComposer(lines ...string) string {
+	return "\x1b[2J" + claudeBox(5, "❯", "136;136;136", lines...) + "\x1b[?25h\x1b[7;3H"
+}
+
+// peerRender delivers one frame the way the wrapper sees agent output.
+func peerRender(f *harnessSessionFake, d *peerDelivery, paint string) {
+	d.observeOutput([]byte(paint))
+	f.output(paint)
+}
+
+// pair#427 Spec 1-2: paste, wait the fixed delay, submit, then confirm after
+// the fact. What the agent drew is never compared with the envelope: the
+// boot-time case rendered the text unlike any projection, and the multi-line
+// case (#418) collapses it.
+func TestPeerDeliverySubmitsAfterDelayThenConfirms(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		rendered []string // the composer after the paste; nil leaves it unrecognized
+		confirm  func(*harnessSessionFake, *peerDelivery)
+		want     couchmessage.Status
+		evidence string
+		busy     bool // a turn is already running at the submit
+	}{
+		{"composer clears", []string{"unrelated boot-time text"}, func(f *harnessSessionFake, d *peerDelivery) { peerRender(f, d, peerEmptyComposer()) }, couchmessage.Submitted, "", false},
+		{"collapsed multi-line", []string{"[Pasted text #1 +5 lines]"}, func(f *harnessSessionFake, d *peerDelivery) { peerRender(f, d, peerEmptyComposer()) }, couchmessage.Submitted, "", false},
+		{"turn opens", nil, func(f *harnessSessionFake, d *peerDelivery) { f.proxy.turnActive.Store(true) }, couchmessage.Submitted, "", false},
+		{"never consumed", []string{"unrelated boot-time text"}, nil, couchmessage.Indeterminate, "composer still holds text; no turn started", false},
+		{"empty, paste never shown", nil, func(f *harnessSessionFake, d *peerDelivery) { peerRender(f, d, peerEmptyComposer()) }, couchmessage.Indeterminate, "never showed the paste", false},
+		// A running turn is no evidence for our submit; the composer clear is.
+		{"queued behind a running turn", []string{"unrelated boot-time text"}, func(f *harnessSessionFake, d *peerDelivery) { peerRender(f, d, peerEmptyComposer()) }, couchmessage.Submitted, "", true},
+		{"running turn, text stays", []string{"unrelated boot-time text"}, nil, couchmessage.Indeterminate, "a turn was already running", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			now := time.Now()
+			f := newHarnessSessionFake(t, "claude", true)
+			defer f.close()
+			f.output(peerEmptyComposer())
+			m := peerTestMessage(now)
+			d := newPeerDelivery(m.To, func() time.Time { return now })
+			f.proxy.peer = d
+			if err := d.reserve(m.ID, 0); err != nil {
+				t.Fatal(err)
+			}
+			if err := d.enqueue(m); err != nil {
+				t.Fatal(err)
+			}
+			var out bytes.Buffer
+			f.proxy.dispatchPeer(&out)
+			paste := out.String()
+			if !strings.Contains(paste, "hello") {
+				t.Fatalf("no paste: %q", paste)
+			}
+			if tc.rendered != nil {
+				peerRender(f, d, peerFilledComposer(tc.rendered...))
+			} else {
+				peerRender(f, d, "\x1b[2J")
+			}
+			f.proxy.dispatchPeer(&out)
+			if out.String() != paste {
+				t.Fatal("submitted before the delay")
+			}
+			// Past the original paste-by deadline: the window runs from the paste.
+			now = now.Add(PeerSubmitDelay + time.Second)
+			f.proxy.turnActive.Store(tc.busy)
+			f.proxy.dispatchPeer(&out)
+			if out.String() != paste+"\r" {
+				t.Fatalf("missing single submit: %q", out.String())
+			}
+			if r := d.receipt(); r.Status != couchmessage.Delivering {
+				t.Fatalf("a submit write is not a landed submission: %+v", r)
+			}
+			if tc.confirm != nil {
+				tc.confirm(f, d)
+			}
+			f.proxy.dispatchPeer(&out)
+			if tc.want == couchmessage.Indeterminate {
+				if d.receipt().Status.Terminal() {
+					t.Fatalf("decided before the window: %+v", d.receipt())
+				}
+				now = now.Add(couchmessage.DeliveryTimeout)
+				f.proxy.dispatchPeer(&out)
+			}
+			r := d.receipt()
+			if r.Status != tc.want || !strings.Contains(r.Detail, tc.evidence) || (tc.want == couchmessage.Indeterminate && !strings.HasPrefix(r.Detail, "uncertain: ")) {
+				t.Fatalf("receipt %+v, want %s with %q", r, tc.want, tc.evidence)
+			}
+			if out.String() != paste+"\r" {
+				t.Fatalf("extra automatic bytes: %q", out.String())
+			}
+		})
+	}
+}
+
+// pair#427 Done-when: a send right after a restart, while the agent is still
+// booting. The composer appears only after the old 30s admission deadline;
+// the paste-by budget covers it and the window starts at the paste.
+func TestPeerDeliveryDuringSimulatedBoot(t *testing.T) {
 	now := time.Now()
 	f := newHarnessSessionFake(t, "claude", true)
 	defer f.close()
-	f.output("\x1b[?2004h" + strings.Replace(claudeLiveComposerPaint(), "alpha", "", 1) + "\x1b[21;3H")
 	m := peerTestMessage(now)
+	m.Deadline = now.Add(couchmessage.PasteTimeout)
 	d := newPeerDelivery(m.To, func() time.Time { return now })
 	f.proxy.peer = d
 	if err := d.reserve(m.ID, 0); err != nil {
@@ -91,22 +193,29 @@ func TestPeerDeliveryRequiresFreshMatchingRenderThenSubmitsOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
+	peerRender(f, d, "\x1b[2J  Claude Code starting…")
 	f.proxy.dispatchPeer(&out)
-	paste := out.String()
+	now = now.Add(40 * time.Second)
 	f.proxy.dispatchPeer(&out)
-	if out.String() != paste {
-		t.Fatal("submit without fresh render")
+	if out.Len() != 0 || d.receipt().Status != couchmessage.Queued {
+		t.Fatalf("pasted into a booting agent: %q %+v", out.String(), d.receipt())
 	}
-	paint := "\x1b[2J" + claudeBox(5, "❯", "136;136;136", strings.Split(peerEnvelope(m), "\n")...) + "\x1b[?25h\x1b[7;3H"
-	d.observeOutput([]byte(paint))
-	f.output(paint)
+	peerRender(f, d, peerEmptyComposer())
 	f.proxy.dispatchPeer(&out)
-	if out.String() != paste+"\r" {
-		t.Fatalf("missing single submit: %q", out.String())
+	if !strings.Contains(out.String(), "hello") {
+		t.Fatalf("no paste once the composer came up: %q %+v", out.String(), d.receipt())
 	}
+	// The booting agent echoes the paste as plain text.
+	peerRender(f, d, peerFilledComposer("[Couch peer from brain:0; delivery test-353]", "hello"))
+	now = now.Add(PeerSubmitDelay)
 	f.proxy.dispatchPeer(&out)
-	if out.String() != paste+"\r" || d.receipt().Status != couchmessage.Submitted {
-		t.Fatal("submission repeated or status missing")
+	if !strings.HasSuffix(out.String(), "\r") {
+		t.Fatalf("no submit: %q", out.String())
+	}
+	f.proxy.turnActive.Store(true)
+	f.proxy.dispatchPeer(&out)
+	if r := d.receipt(); r.Status != couchmessage.Submitted {
+		t.Fatalf("receipt %+v", r)
 	}
 }
 
@@ -151,7 +260,8 @@ func TestPeerDeliveryUsesStdinOwnerAndDoesNotSubmitAfterTyping(t *testing.T) {
 	if !waitFor(time.Second, func() bool { return d.receipt().Status.Terminal() }) {
 		t.Fatal("interruption did not terminate delivery")
 	}
-	if bytes.Contains(out.Bytes(), []byte{'\r'}) || d.receipt().Status != couchmessage.Cancelled {
+	// Typing after the paste leaves the text's fate unknown (pair#427).
+	if bytes.Contains(out.Bytes(), []byte{'\r'}) || d.receipt().Status != couchmessage.Indeterminate {
 		t.Fatalf("auto-submit after typing: %q %+v", out.Bytes(), d.receipt())
 	}
 }

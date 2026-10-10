@@ -1,12 +1,15 @@
 package wrapcmd
 
 import (
+	"io"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/orientation"
 )
 
 func peerTestBinding() couchmessage.Binding { return couchmessage.Binding{Slot: "pair:1"} }
@@ -16,9 +19,11 @@ func TestWrapperSettledRule(t *testing.T) {
 	for _, composer := range []PeerComposerState{PeerComposerUnknown, PeerComposerOccupied, PeerComposerEmpty} {
 		for _, turn := range []bool{false, true} {
 			for _, picker := range []bool{false, true} {
-				want := composer == PeerComposerEmpty && !turn && !picker
-				if got := wrapperSettled(composer, turn, picker); got != want {
-					t.Errorf("composer=%v turn=%v picker=%v: got %v", composer, turn, picker, got)
+				for _, orienting := range []bool{false, true} {
+					want := composer == PeerComposerEmpty && !turn && !picker && !orienting
+					if got := wrapperSettled(composer, turn, picker, orienting); got != want {
+						t.Errorf("composer=%v turn=%v picker=%v orienting=%v: got %v", composer, turn, picker, orienting, got)
+					}
 				}
 			}
 		}
@@ -192,5 +197,34 @@ func TestSettleInFlightCheckInvalidatedBySilentTurn(t *testing.T) {
 		if v {
 			t.Fatalf("published Settled=true: %v", sink.settles)
 		}
+	}
+}
+
+// pair#427: a restart reports ready only once its session is briefed, so a
+// pending orientation keeps the wrapper unsettled. Orientation can finalize
+// with no output (its deadline), so finalizing must re-arm the check.
+func TestSettleWaitsForOrientationAndFinalizeRearms(t *testing.T) {
+	p, _ := orientationProxy(t)
+	var rolling []byte
+	p.handleChunk([]byte(strings.Replace(claudeLiveComposerPaint(), "alpha", "", 1)+"\x1b[21;3H"), &rolling)
+	if p.settledNow() {
+		t.Fatal("settled while the orientation is pending")
+	}
+	clock := &fakeTimers{}
+	d := newPeerDelivery(peerTestBinding(), time.Now)
+	d.afterFunc = clock.after
+	d.settleProbe = p.settledNow
+	p.peer = d
+	settle := time.NewTimer(time.Hour)
+	defer settle.Stop()
+	p.advanceOrientation(orientation.DeliveryEvent{Kind: orientation.ChildExited}, io.Discard, settle)
+	clock.mu.Lock()
+	armed := len(clock.armed)
+	clock.mu.Unlock()
+	if armed == 0 {
+		t.Fatal("finalizing the orientation did not re-arm the settle check")
+	}
+	if !p.settledNow() {
+		t.Fatal("still unsettled after the orientation finalized")
 	}
 }

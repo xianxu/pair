@@ -1,13 +1,11 @@
 package wrapcmd
 
 import (
-	"fmt"
 	"os"
 	"strings"
 	"testing"
 
 	uv "github.com/charmbracelet/ultraviolet"
-	"github.com/charmbracelet/x/ansi"
 )
 
 func peerSnapshot(t *testing.T, paint string) terminalSnapshot {
@@ -97,19 +95,6 @@ func TestPeerComposerSharedFaintSuggestion(t *testing.T) {
 	}
 }
 
-func TestPeerComposerMatchesWrapAndWhitespace(t *testing.T) {
-	body := "[Couch peer]\n" + strings.Repeat("x", 118) + "tail"
-	s := peerSnapshot(t, claudeBox(5, "❯", "136;136;136", "[Couch peer]", strings.Repeat("x", 118), "tail")+"\x1b[?25h\x1b[9;7H")
-	if !peerComposerMatches("claude", s, body) {
-		t.Fatal("complete hardwrapped body did not match")
-	}
-	for _, wrong := range []string{body + " ", " " + body, strings.Replace(body, "peer", " peer", 1), body + "\n"} {
-		if peerComposerMatches("claude", s, wrong) {
-			t.Fatalf("changed body matched: %q", wrong)
-		}
-	}
-}
-
 func TestPeerComposerDeclinesCapturedStartupAndMenus(t *testing.T) {
 	for _, path := range []string{"testdata/orientation/codex/0.154.0/loading.raw", "testdata/orientation/codex/0.154.0/trust.raw", "testdata/tty/codex/0.147.0/overlay.raw"} {
 		raw, err := os.ReadFile(path)
@@ -134,40 +119,6 @@ func TestPeerComposerModernCodexStartup(t *testing.T) {
 	} {
 		if got := peerComposerState("codex", peerSnapshot(t, unsafe)); got == PeerComposerEmpty {
 			t.Fatal("unresolved startup accepted")
-		}
-	}
-}
-
-func TestPeerComposerModernCodexCapturedPasteMatches(t *testing.T) {
-	raw, err := os.ReadFile("testdata/peer/codex/0.159.2/paste-short.raw")
-	if err != nil {
-		t.Fatal(err)
-	}
-	s := peerSnapshot(t, string(raw))
-	expected := "[Couch peer from peer:0; delivery peer-live-conformance]\nReply PEER_SMOKE_OK only. Do not use tools."
-	if !peerComposerMatches("codex", s, expected) {
-		text, known := peerComposerText("codex", s)
-		t.Fatalf("captured paste mismatch known=%t text=%q", known, text)
-	}
-	if peerComposerMatches("codex", s, expected+" ") {
-		t.Fatal("changed content matched")
-	}
-}
-
-func TestPeerComposerModernCodexCapturedWordwrap(t *testing.T) {
-	raw, err := os.ReadFile("testdata/peer/codex/0.159.2/paste-wrapped.raw")
-	if err != nil {
-		t.Fatal(err)
-	}
-	s := peerSnapshot(t, string(raw))
-	expected := "[Couch peer from peer:0; delivery peer-live-conformance]\nDo not use tools. " + strings.TrimSuffix(strings.Repeat("harmless wrapped text ", 14), " ")
-	if !peerComposerMatches("codex", s, expected) {
-		actual, known := peerComposerText("codex", s)
-		t.Fatalf("wordwrap match failed known=%t actual=%q expected=%q", known, actual, expected)
-	}
-	for _, changed := range []string{expected + " ", " " + expected, strings.Replace(expected, "harmless wrapped", "harmless  wrapped", 1), strings.Replace(expected, "harmless wrapped", "harmless\twrapped", 1)} {
-		if peerComposerMatches("codex", s, changed) {
-			t.Fatalf("ambiguous altered whitespace matched: %q", changed)
 		}
 	}
 }
@@ -220,164 +171,31 @@ func TestPeerComposerClaudeSuggestionDoesNotDependOnColor(t *testing.T) {
 	}
 }
 
-func TestPeerComposerClaudeCapturedPasteMatches(t *testing.T) {
-	raw, err := os.ReadFile("testdata/peer/claude/2.1.286/paste-short.raw")
-	if err != nil {
-		t.Fatal(err)
-	}
-	s := peerSnapshot(t, string(raw))
-	expected := "[Couch peer from peer:0; delivery peer-live-conformance]\nReply PEER_SMOKE_OK only. Do not use tools."
-	if !peerComposerMatches("claude", s, expected) {
-		text, known := peerComposerText("claude", s)
-		t.Fatalf("captured paste mismatch known=%t text=%q", known, text)
-	}
-}
-
-// pair#418 (operator decision): Claude's collapsed paste marker proves our paste
-// rendered only in its strict form. The marker is the composer's whole
-// content, the cursor sits right after it, and its "+M lines" equals the
-// envelope's newline count.
-func TestPeerComposerClaudeCollapsedPasteStrict(t *testing.T) {
-	raw, err := os.ReadFile("testdata/peer/claude/2.1.286/paste-multiline.raw")
-	if err != nil {
-		t.Fatal(err)
-	}
-	s := peerSnapshot(t, string(raw))
-	expected := "[Couch peer from peer:0; delivery peer-live-conformance]\nReply PEER_SMOKE_OK only.\nDo not use tools.\nThis is harmless test text.\nFourth line.\nFifth line."
-	if text, known := peerComposerText("claude", s); !known || text != "[Pasted text #1 +5 lines]" {
-		t.Fatalf("captured collapsed marker changed: known=%t text=%q", known, text)
-	}
-	if !peerComposerMatches("claude", s, expected) {
-		t.Fatal("captured collapsed marker with the envelope's line count did not match")
-	}
-	for _, wrong := range []string{
-		strings.Replace(expected, "\nFifth line.", "", 1), // +4 lines
-		expected + "\nSixth line.",                        // +6 lines
-	} {
-		if peerComposerMatches("claude", s, wrong) {
-			t.Fatalf("marker accepted for a different line count: %q", wrong)
-		}
-	}
-	twoLine := "[Couch peer from ariadne:1; delivery x]\n" + strings.Repeat("long body ", 110)
-	for _, tc := range []struct {
-		name  string
-		paint string
-		want  bool
-	}{
-		{"pair:1 capture shape", claudeBox(5, "❯", "136;136;136", "[Pasted text #3 +1 lines]") + "\x1b[?25h\x1b[7;28H", true},
-		{"marker plus typed text", claudeBox(5, "❯", "136;136;136", "[Pasted text #3 +1 lines] and more") + "\x1b[?25h\x1b[7;38H", false},
-		{"cursor not after marker", claudeBox(5, "❯", "136;136;136", "[Pasted text #3 +1 lines]") + "\x1b[?25h\x1b[7;10H", false},
-		{"marker on a second line", claudeBox(5, "❯", "136;136;136", "hi", "[Pasted text #3 +1 lines]") + "\x1b[?25h\x1b[8;28H", false},
-		{"image marker", claudeBox(5, "❯", "136;136;136", "[Image #1]") + "\x1b[?25h\x1b[7;13H", false},
-	} {
-		if got := peerComposerMatches("claude", peerSnapshot(t, tc.paint), twoLine); got != tc.want {
-			t.Errorf("%s: matches=%v want %v", tc.name, got, tc.want)
-		}
-	}
-	if peerClaudeCollapsedMarker.MatchString("[Pasted text #1 +1 line]") {
-		t.Fatal("singular form was never observed and must not match")
-	}
-}
-
-// pair#418: ariadne:2's composer on Claude Code 2.1.295 at 94 columns, captured
-// from its scrollback. Claude wraps at spaces only, moving the hyphenated path
-// whole to the next line where ansi.Wordwrap would break it after "ariadne-".
-func TestPeerComposerClaudeCapturedHyphenWrap(t *testing.T) {
-	lines := []string{
-		"[Couch peer from ariadne:1; delivery 80a1b3c3-1d5d-478d-b2f6-a440e98adf8f]",
-		"TL (ariadne:1) dispatch for project ariadne-robustness-1",
-		"(workshop/projects/ariadne-robustness-1.md): please work on ariadne#300. Its branch was",
-		"handed off from ariadne:1 and is pushed; claiming resumes there. Scope per the 2026-10-09",
-		"Log entry and the project detail block: absorbs #271 (backgrounded reviewer, no verdict)",
-		"plus evidence D2 (sandbox blocks the judge API; ledger records the failed round as passed)",
-		"and D3 (30-minute timeout). Evidence:",
-		"workshop/pensive/2026-10-09-01-pensive-sdlc-robustness-evidence.md, Part 2 section D. When",
-		"done, #189 is next in this slot. Send blocking questions to ariadne:1.",
-	}
-	m, err := newTerminalModel(94, 39)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { m.Close() })
-	last := lines[len(lines)-1]
-	if err := m.Feed([]byte(claudeBox(5, "❯", "136;136;136", lines...) + fmt.Sprintf("\x1b[?25h\x1b[%d;%dH", 7+len(lines)-1, 3+len(last)))); err != nil {
-		t.Fatal(err)
-	}
-	s := m.Snapshot()
-	expected := lines[0] + "\n" + strings.Join(lines[1:], " ")
-	if !peerComposerMatches("claude", s, expected) {
-		text, known := peerComposerText("claude", s)
-		t.Fatalf("captured hyphen wrap did not match: known=%t text=%q", known, text)
-	}
-	if ansi.Wordwrap(expected, s.Width-4, "") == strings.Join(lines, "\n") {
-		t.Fatal("fixture no longer distinguishes hyphen breaking; it proves nothing")
-	}
-	if peerComposerMatches("claude", s, strings.Replace(expected, "Evidence: workshop", "Evidence:  workshop", 1)) {
-		t.Fatal("changed whitespace accepted")
-	}
-}
-
-// pair#418: Claude Code 2.1.296 at 120 columns (wrap width 116), captured
-// with TestPeerLiveConformance -peer-live-body=overwidth. A 160-column token
-// starts on the current line and hard-breaks at the width.
-func TestPeerComposerClaudeCapturedOverwidthWord(t *testing.T) {
+// pair#427: delivery no longer matches the pasted text. The one thing it reads
+// after a paste is whether the composer holds anything, so every captured
+// paste shape (plain, word-wrapped, hyphen-wrapped, over-width, Claude's
+// collapsed marker) must read occupied, never empty or unknown.
+func TestPeerComposerCapturedPastesReadOccupied(t *testing.T) {
 	token := strings.Repeat("abcdefghij", 16)
-	lines := []string{
-		"[Couch peer from peer:0; delivery peer-live-conformance]",
-		"Reply PEER_SMOKE_OK only. Do not use tools. See " + token[:68],
-		token[68:] + " then stop.",
-	}
-	last := lines[len(lines)-1]
-	s := peerSnapshot(t, claudeBox(5, "❯", "136;136;136", lines...)+fmt.Sprintf("\x1b[?25h\x1b[%d;%dH", 7+len(lines)-1, 3+len(last)))
-	expected := lines[0] + "\nReply PEER_SMOKE_OK only. Do not use tools. See " + token + " then stop."
-	if !peerComposerMatches("claude", s, expected) {
-		text, known := peerComposerText("claude", s)
-		t.Fatalf("captured over-width wrap did not match: known=%t text=%q", known, text)
-	}
-	if peerComposerMatches("claude", s, strings.Replace(expected, token, token[:159], 1)) {
-		t.Fatal("a shortened token matched")
-	}
-}
-
-func TestPeerSpaceWordwrap(t *testing.T) {
-	for _, tc := range []struct {
-		text  string
-		width int
-		want  string
-		ok    bool
-	}{
-		{"aaa bbb ccc", 7, "aaa bbb\nccc", true},
-		{"a-b-c d-e", 5, "a-b-c\nd-e", true},
-		{"x\ny z", 3, "x\ny z", true},
-		// Over-width words hard-break from the current line (wrap-ansi hard
-		// mode) unless starting on the next line needs fewer breaks.
-		{"ab cdefghij k", 5, "ab\ncdefg\nhij k", true},  // next line: fewer breaks
-		{"abc defghijklm", 7, "abc def\nghijklm", true}, // this line: no worse
-		{"abcd efghijk", 5, "abcd\nefghi\njk", true},
-		{"toolongword x", 5, "toolo\nngwor\nd x", true},
-		{"界", 1, "", false},
+	for _, tc := range []struct{ name, agent, paint string }{
+		{"codex short", "codex", "testdata/peer/codex/0.159.2/paste-short.raw"},
+		{"codex wrapped", "codex", "testdata/peer/codex/0.159.2/paste-wrapped.raw"},
+		{"claude short", "claude", "testdata/peer/claude/2.1.286/paste-short.raw"},
+		{"claude collapsed", "claude", "testdata/peer/claude/2.1.286/paste-multiline.raw"},
+		{"claude wrapped", "claude", "testdata/peer/claude/2.1.286/paste-wrapped.raw"},
+		{"claude collapsed marker", "claude", claudeBox(5, "❯", "136;136;136", "[Pasted text #3 +1 lines]") + "\x1b[?25h\x1b[7;28H"},
+		{"claude over-width", "claude", claudeBox(5, "❯", "136;136;136", "[Couch peer from peer:0; delivery x]", "See "+token[:68], token[68:]+" then stop.") + "\x1b[?25h\x1b[9;14H"},
 	} {
-		got, ok := peerSpaceWordwrap(tc.text, tc.width)
-		if got != tc.want || ok != tc.ok {
-			t.Errorf("peerSpaceWordwrap(%q,%d)=%q,%v want %q,%v", tc.text, tc.width, got, ok, tc.want, tc.ok)
+		paint := tc.paint
+		if strings.HasPrefix(paint, "testdata/") {
+			raw, err := os.ReadFile(paint)
+			if err != nil {
+				t.Fatal(err)
+			}
+			paint = string(raw)
 		}
-	}
-}
-
-func TestPeerComposerClaudeCapturedWordwrap(t *testing.T) {
-	raw, err := os.ReadFile("testdata/peer/claude/2.1.286/paste-wrapped.raw")
-	if err != nil {
-		t.Fatal(err)
-	}
-	s := peerSnapshot(t, string(raw))
-	expected := "[Couch peer from peer:0; delivery peer-live-conformance]\nDo not use tools. " + strings.TrimSuffix(strings.Repeat("harmless wrapped text ", 14), " ")
-	if !peerComposerMatches("claude", s, expected) {
-		actual, known := peerComposerText("claude", s)
-		t.Fatalf("Claude wordwrap mismatch known=%t actual=%q", known, actual)
-	}
-	for _, changed := range []string{expected + " ", " " + expected, strings.Replace(expected, "harmless wrapped", "harmless  wrapped", 1)} {
-		if peerComposerMatches("claude", s, changed) {
-			t.Fatalf("changed whitespace accepted: %q", changed)
+		if got := peerComposerState(tc.agent, peerSnapshot(t, paint)); got != PeerComposerOccupied {
+			t.Errorf("%s: composer = %v, want occupied", tc.name, got)
 		}
 	}
 }
