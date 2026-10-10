@@ -5,8 +5,8 @@ deps: [parley.nvim#312, ariadne#316]
 github_issue:
 created: 2026-10-10
 updated: 2026-10-10
-estimate_hours:
-card_mirror: '58d6e0a97fefbf7e515a496f688a3f1ef7c8d7c6' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 2.806
+card_mirror: 'fcc8217fb03747a2d0d725af557cf531e10510c8' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-10T11:43:09-07:00
 claimant:
     operator: Xian Xu
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:0
     worktree: /Users/xianxu/workspace/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: operator}
 ---
 
 # Review pane: render 🤖 comment chains compactly with a thread float (port parley#312)
@@ -121,3 +122,34 @@ loses the canonical odd/even slash rule. The plan now retains raw turn text,
 uses one coordinated turn encoder/decoder, and pins canonical wire fixtures
 independently of paired round trips. Single-line turns follow canonical `<br>`
 semantics; anchors and legacy multiline resolution retain existing behavior.
+
+### 2026-10-10 — implementation approval and gate refinement
+
+Operator approved implementation ("continue"). Plan gate requested a concrete
+malformed-marker scanner contract and function-level test strategies; both are
+now specified, together with a bounded compact-render envelope. Full flow,
+one atomic close boundary.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only; calibration source is marked stale, so these
+are provisional. Three focused Lua/Neovim units: codec/thread representation,
+compact projection/attachment, and float lifecycle/handoff. Each uses table
+midpoint design 2h × 0.2 for the approved detailed plan, and implementation
+1h × 0.4 v3.1 scaling. Familiarity 1.0: existing Lua/Neovim patterns and landed
+Parley implementation; no novel library needed. Docs use 0.1h × 0.2 design and
+0.1h × 0.4 implementation. One close review uses 0.1h × 0.2 design and
+0.35h × 0.4 implementation. Design buffer 15% for the thorough plan.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: lua-neovim design=0.4 impl=0.4
+item: lua-neovim design=0.4 impl=0.4
+item: lua-neovim design=0.4 impl=0.4
+item: atlas-docs design=0.02 impl=0.04
+item: milestone-review design=0.02 impl=0.14
+design-buffer: 0.15
+total: 2.806
+```
