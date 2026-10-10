@@ -1,12 +1,12 @@
 ---
 id: 000424
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-10
 updated: 2026-10-10
 estimate_hours:
-card_mirror: '22f9e830b74ffa58f224e72ef4eb043ca7b87ce4' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '7ade17eaf8e7aeddd048cb81e6f1ec2b4a03895b' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-10T09:55:49-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "7201e287", done: "9817e9e2"}
+actual_hours: 0.02
 ---
 
 # couch CLI routes only four slot verbs to the slot-operation path; --relaunch/--reload-context fail
