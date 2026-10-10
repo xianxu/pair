@@ -20,7 +20,7 @@ transcripts unless asked.
    a family (`pair`) is refused. The response gains `TailThread{Slot, Tag,
    Agent}` so the CLI can print the header without the store. No session nonce
    or PID crosses: the answer stays read-only and identity-free.
-   `couchmessage.ResolveSlotBinding(target, bindings, families)` is the pure
+   `couchmessage.ResolveTailSlot(target, bindings, families)` is the pure
    resolver (exported for the broker handler, unit-tested).
 2. **Broker (couchcmd handleTail).** A `Target` request resolves against the
    connected bindings plus the enrolled families (`authority.families`), then
@@ -47,9 +47,9 @@ not to amortize).
 
 ## Steps
 
-- [ ] couchmessage: `Target` form of `tail` (validation), `TailThread`, `ResolveSlotBinding` + tests.
-- [ ] couchcmd handleTail: resolve `Target`, fill `TailThread` + tests (fake endpoint).
-- [ ] couchcore: `--transcripts` arg; PeekThread transcript-free by default, record agent for fallback; test asserting no `Resolve` call by default, one with `--transcripts`.
-- [ ] couchcmd fast path + CLI flag; tests: fast path answers without building a Couch; falls back on no Couch / older Couch / failed slot / non-slot ref / `--transcripts`.
-- [ ] Docs: atlas/couch.md, couch SKILL.md, README peek line.
+- [x] couchmessage: `Target` form of `tail` (validation), `TailThread`, `ResolveTailSlot` + tests.
+- [x] couchcmd handleTail: resolve `Target`, fill `TailThread` + tests (fake endpoint).
+- [x] couchcore: `--transcripts` arg; PeekThread transcript-free by default, record agent for fallback; test asserting no `Resolve` call by default, one with `--transcripts`.
+- [x] couchcmd fast path + CLI flag; tests: fast path answers without building a Couch; falls back on no Couch / older Couch / failed slot / non-slot ref / `--transcripts`.
+- [x] Docs: atlas/couch.md, couch SKILL.md, README peek line.
 - [ ] Measure on the live workbench (binary, not shell function) — needs a Couch on the new build, so it is the TL's live check like #425's; record the timed real-socket test result here.

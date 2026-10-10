@@ -169,7 +169,7 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 		}
 		return cliInvocation{kind: cliReconcile, ref: args[1]}, nil
 	case "--peek":
-		// couch --peek ref [--lines N] [--json]: each option at most once.
+		// couch --peek ref [--lines N] [--json] [--transcripts]: each option at most once.
 		if len(args) < 2 || args[1] == "" || strings.HasPrefix(args[1], "-") {
 			return invalid("--peek requires exactly one slot reference (repo:N)")
 		}
@@ -181,17 +181,17 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 		for i := 2; i < len(args); i++ {
 			flag := args[i]
 			if seen[flag] {
-				return invalid("--peek takes a slot reference, then optional --lines N and --json, each once")
+				return invalid("--peek takes a slot reference, then optional --lines N, --json and --transcripts, each once")
 			}
 			seen[flag] = true
 			switch {
-			case flag == "--json":
-				inv.args = append(inv.args, "--json")
+			case flag == "--json" || flag == "--transcripts":
+				inv.args = append(inv.args, flag)
 			case flag == "--lines" && i+1 < len(args):
 				i++
 				inv.args = append(inv.args, "--lines="+args[i])
 			default:
-				return invalid("--peek takes a slot reference, then optional --lines N and --json, each once")
+				return invalid("--peek takes a slot reference, then optional --lines N, --json and --transcripts, each once")
 			}
 		}
 		return inv, nil

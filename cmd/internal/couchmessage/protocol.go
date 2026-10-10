@@ -25,7 +25,8 @@ type Request struct {
 	SameBinary   bool `json:",omitempty"`
 	ForceUnknown bool `json:",omitempty"`
 	// TailScope and TailTag name the thread whose in-memory terminal tail
-	// reads, Lines how much of it (pair#425); tail only.
+	// reads, Lines how much of it (pair#425); tail only. A tail may instead
+	// name its slot in Target (pair#429), resolved as a send's exact slot is.
 	TailScope string `json:",omitempty"`
 	TailTag   string `json:",omitempty"`
 	Lines     int    `json:",omitempty"`
@@ -40,8 +41,9 @@ type Response struct {
 	Operation *OperationReceipt `json:",omitempty"`
 	// Broadcast answers broadcast-status (pair#413); nil means no broadcast.
 	Broadcast *BroadcastStatus `json:",omitempty"`
-	// Tail answers tail (pair#425).
-	Tail *Tail `json:",omitempty"`
+	// Tail answers tail (pair#425); TailThread names whose it is (pair#429).
+	Tail       *Tail       `json:",omitempty"`
+	TailThread *TailThread `json:",omitempty"`
 }
 
 // BroadcastStatus is the running console's broadcast, as `couch
@@ -79,10 +81,18 @@ func ValidateRequest(r Request) error {
 		if r.Op != "tail" {
 			return errors.New("a tail target applies only to tail")
 		}
-		if r.Binding != nil || r.Scope != "" || r.Tag != "" || r.Session != "" || r.Nonce != "" || r.ID != "" || r.Target != "" || r.Body != "" || r.Agent != "" || r.Confirmed || r.SameBinary || r.ForceUnknown {
+		if r.Binding != nil || r.Scope != "" || r.Tag != "" || r.Session != "" || r.Nonce != "" || r.ID != "" || r.Body != "" || r.Agent != "" || r.Confirmed || r.SameBinary || r.ForceUnknown {
 			return errors.New("tail takes only a thread and a line count")
 		}
-		if r.TailScope == "" || r.TailTag == "" {
+		byThread := r.TailScope != "" && r.TailTag != ""
+		if r.Target != "" {
+			if r.TailScope != "" || r.TailTag != "" {
+				return errors.New("tail names its thread by scope and tag or by slot, not both")
+			}
+			if _, _, err := parseSlot(r.Target); err != nil {
+				return errors.New("tail requires an exact slot (repo:N)")
+			}
+		} else if !byThread {
 			return errors.New("tail requires a thread scope and tag")
 		}
 		return ValidTailLines(r.Lines)

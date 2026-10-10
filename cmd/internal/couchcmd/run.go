@@ -29,6 +29,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchkeys"
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/crashreport"
 	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
@@ -313,6 +314,15 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		op, _ = Resolve("reconcile")
 		argv = []string{invocation.ref}
 	case cliPeek:
+		// The running Couch answers live tails in milliseconds (pair#429);
+		// the typed peek below is the fallback and the --transcripts form.
+		if prepared, lease, err := prepareRuntime(rt, false); err == nil {
+			answered := fastPeek(invocation, prepared.StoreDir(), stdout, couchmessage.Call)
+			_ = lease.Close()
+			if answered {
+				return 0
+			}
+		}
 		op, _ = Resolve("peek")
 		argv = append([]string{invocation.ref}, invocation.args...)
 	case cliInternal:
@@ -1206,7 +1216,7 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "       couch --list")
 	fmt.Fprintln(w, "       couch --show <thread>")
 	fmt.Fprintln(w, "       couch --reconcile repo:N")
-	fmt.Fprintln(w, "       couch --peek repo:N[:M...][,repo:N...] [--lines N] [--json]")
+	fmt.Fprintln(w, "       couch --peek repo:N[:M...][,repo:N...] [--lines N] [--json] [--transcripts]")
 	fmt.Fprintln(w, "             Read-only: a slot's recent terminal and where its transcripts live.")
 	fmt.Fprintln(w, "       couch --archived")
 	fmt.Fprintln(w, "       couch --recover-plan-from-sdlc")

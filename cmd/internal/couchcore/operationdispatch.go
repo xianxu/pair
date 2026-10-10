@@ -172,13 +172,13 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 				resolve := func(ref string) (ThreadAddress, error) {
 					return resolveOperationThread(c, map[string]string{"repo-scope": a["repo-scope"], "ref": ref})
 				}
-				return c.PeekSlots(call.Context, resolve, refs, lines), nil
+				return c.PeekSlots(call.Context, resolve, refs, lines, a["transcripts"] == "true"), nil
 			}
 			address, err := resolveOperationThread(c, a)
 			if err != nil {
 				return nil, err
 			}
-			return c.PeekThread(call.Context, a["ref"], address, lines)
+			return c.PeekThread(call.Context, a["ref"], address, lines, a["transcripts"] == "true")
 		case "list":
 			return c.ThreadInventoryContext(call.Context)
 		case "recover-plan":

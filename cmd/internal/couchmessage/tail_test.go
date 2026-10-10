@@ -1,6 +1,7 @@
 package couchmessage
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -70,6 +71,10 @@ func TestTailRequestIsIdentityFree(t *testing.T) {
 	if err := ValidateRequest(ok); err != nil {
 		t.Fatal(err)
 	}
+	// Or by slot (pair#429).
+	if err := ValidateRequest(Request{Op: "tail", Target: "pair:1", Lines: 10}); err != nil {
+		t.Fatal(err)
+	}
 	b := protocolBinding("pair:1")
 	for name, r := range map[string]Request{
 		"no thread":       {Op: "tail", Lines: 10},
@@ -80,9 +85,35 @@ func TestTailRequestIsIdentityFree(t *testing.T) {
 		"tail on send":    {Op: "send", Scope: "s", Tag: "t", Session: "x", Nonce: "n", ID: "id", Target: "pair", Body: "hi", TailScope: "scope"},
 		"lines on actors": {Op: "actors", Scope: "s", Tag: "t", Session: "x", Nonce: "n", Lines: 3},
 		"over-long tag":   {Op: "tail", TailScope: "scope", TailTag: strings.Repeat("t", MaxBindingBytes+1), Lines: 10},
+		"slot and thread": {Op: "tail", Target: "pair:1", TailScope: "scope", TailTag: "tag", Lines: 10},
+		"family":          {Op: "tail", Target: "pair", Lines: 10},
+		"scope only":      {Op: "tail", TailScope: "scope", Lines: 10},
 	} {
 		if ValidateRequest(r) == nil {
 			t.Errorf("%s accepted", name)
 		}
+	}
+}
+
+// A tail's slot resolves as a send's exact slot does: by family, alias or
+// unique prefix, to the one connected wrapper serving it (pair#429).
+func TestResolveTailSlot(t *testing.T) {
+	one, two, ops := protocolBinding("pair:1"), protocolBinding("pair:2"), protocolBinding("ops:0")
+	ops.Repository = "ops-identity"
+	bindings := []Binding{one, two, ops}
+	families := map[string]string{"pair": "p", "ops": ""}
+	for target, want := range map[string]Binding{"pair:1": one, "p:2": two, "pa:1": one, "ops:0": ops} {
+		got, err := ResolveTailSlot(target, bindings, families)
+		if err != nil || got != want {
+			t.Errorf("%s: %+v %v", target, got, err)
+		}
+	}
+	for target, want := range map[string]error{"pair:3": ErrUnavailable, "pair": ErrInvalidTarget, "nope:1": ErrUnavailable} {
+		if _, err := ResolveTailSlot(target, bindings, families); !errors.Is(err, want) {
+			t.Errorf("%s: %v, want %v", target, err, want)
+		}
+	}
+	if _, err := ResolveTailSlot("pair:1", append(bindings, one), families); !errors.Is(err, ErrAmbiguous) {
+		t.Errorf("two wrappers on one slot: %v", err)
 	}
 }

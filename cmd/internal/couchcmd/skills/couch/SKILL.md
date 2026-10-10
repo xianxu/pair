@@ -134,10 +134,11 @@ continuing work checks the owner. Send the request, then read the evidence.
    owns the issue, do not start. Reply to the sender's exact slot with the owner
    the refusal names.
 
-`couch --peek pair:1` is read-only. It shows the slot's recent terminal (`lines`, the
-visible screen last), the Pair sent-prompt log (`sent_prompts`) and the agent's own
-transcript files (`transcripts`), which you may read directly. Anything it could not
-read is listed in `unavailable` with the reason. Never type into another slot's
+`couch --peek pair:1` is read-only and fast (milliseconds, from the running Couch).
+It shows the slot's recent terminal (`lines`, the visible screen last). Add
+`--transcripts` for the Pair sent-prompt log (`sent_prompts`) and the agent's own
+transcript files (`transcripts`), which you may read directly; that costs a few
+seconds. Anything it could not read is listed in `unavailable` with the reason. Never type into another slot's
 terminal; messages go through `--send-to`.
 
 Peek several slots in one call: `couch --peek pair:1:2:3,ariadne:0 --lines 10`

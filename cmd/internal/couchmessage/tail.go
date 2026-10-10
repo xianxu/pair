@@ -43,6 +43,44 @@ func (c TailCursor) String() string {
 	return fmt.Sprintf("%d,%d %s", c.Row, c.Col, shape)
 }
 
+// TailThread names the thread a tail was read from (pair#429), so a peek
+// can label it without reading Couch's store.
+type TailThread struct {
+	Slot  string `json:"slot"`
+	Tag   string `json:"tag"`
+	Agent string `json:"agent"`
+}
+
+// ResolveTailSlot finds the connected wrapper serving an exact slot. The
+// repository part may be an alias or unique prefix, as in a send's target
+// (canonicalTarget); a family alone is refused.
+func ResolveTailSlot(target string, bindings []Binding, families map[string]string) (Binding, error) {
+	if _, _, err := parseSlot(target); err != nil {
+		return Binding{}, err
+	}
+	candidates := make([]Candidate, len(bindings))
+	for i, b := range bindings {
+		candidates[i] = Candidate{Binding: b}
+	}
+	slot, _, err := canonicalTarget(target, candidates, families)
+	if err != nil {
+		return Binding{}, err
+	}
+	var matches []Binding
+	for _, b := range bindings {
+		if b.Slot == slot {
+			matches = append(matches, b)
+		}
+	}
+	switch len(matches) {
+	case 0:
+		return Binding{}, fmt.Errorf("%w: no wrapper is connected for %s", ErrUnavailable, target)
+	case 1:
+		return matches[0], nil
+	}
+	return Binding{}, fmt.Errorf("%w: %d wrappers are connected for %s", ErrAmbiguous, len(matches), target)
+}
+
 type Tail struct {
 	Lines     []string    `json:"lines"`
 	Cursor    *TailCursor `json:"cursor,omitempty"`

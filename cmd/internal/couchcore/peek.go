@@ -95,7 +95,7 @@ func ExpandPeekReferences(raw string) ([]string, error) {
 // PeekSlots peeks every reference concurrently. A reference that does not
 // resolve, or whose peek fails, becomes a section naming why; the snapshot as
 // a whole never fails.
-func (c *Couch) PeekSlots(ctx context.Context, resolve func(ref string) (ThreadAddress, error), refs []string, lines int) PeekSnapshot {
+func (c *Couch) PeekSlots(ctx context.Context, resolve func(ref string) (ThreadAddress, error), refs []string, lines int, transcripts bool) PeekSnapshot {
 	snapshot := PeekSnapshot{Slots: make([]PeekResult, len(refs))}
 	var wg sync.WaitGroup
 	for i, ref := range refs {
@@ -110,7 +110,7 @@ func (c *Couch) PeekSlots(ctx context.Context, resolve func(ref string) (ThreadA
 				failed(err)
 				return
 			}
-			result, err := c.PeekThread(ctx, ref, address, lines)
+			result, err := c.PeekThread(ctx, ref, address, lines, transcripts)
 			if err != nil {
 				failed(err)
 				return
@@ -137,29 +137,35 @@ func peekTail(lines []string, n int) []string {
 	return append([]string{}, lines...)
 }
 
-// PeekThread looks at one thread read-only: the transcript resolver (the same
-// one the agent switcher uses) names the agent and its logs, and the terminal
-// reader renders the recording.
-func (c *Couch) PeekThread(ctx context.Context, ref string, address ThreadAddress, lines int) (PeekResult, error) {
+// PeekThread looks at one thread read-only: the live tail first, the
+// recording when it cannot be read. The agent comes from the thread record;
+// where its logs live -- the transcript resolver the agent switcher uses --
+// only when transcripts asks (pair#429), since resolving them costs seconds
+// and a tail is read for its lines.
+func (c *Couch) PeekThread(ctx context.Context, ref string, address ThreadAddress, lines int, transcripts bool) (PeekResult, error) {
 	record, err := c.Threads.GetThread(address)
 	if err != nil {
 		return PeekResult{}, err
 	}
-	result := PeekResult{Ref: ref, Tag: string(address.Tag), WorkingPath: record.WorkingPath, Lines: []string{}}
-	if c.SwitchContext == nil {
-		result.Unavailable = append(result.Unavailable, "transcript resolver is not configured")
-	} else {
-		orientation, err := c.SwitchContext.Resolve(ctx, record)
-		if err != nil {
-			if ctx.Err() != nil {
-				return PeekResult{}, ctx.Err()
+	result := PeekResult{Ref: ref, Tag: string(address.Tag), Agent: RecordAgent(record), WorkingPath: record.WorkingPath, Lines: []string{}}
+	if transcripts {
+		if c.SwitchContext == nil {
+			result.Unavailable = append(result.Unavailable, "transcript resolver is not configured")
+		} else {
+			orientation, err := c.SwitchContext.Resolve(ctx, record)
+			if err != nil {
+				if ctx.Err() != nil {
+					return PeekResult{}, ctx.Err()
+				}
+				result.Unavailable = append(result.Unavailable, "transcripts: "+err.Error())
 			}
-			result.Unavailable = append(result.Unavailable, "transcripts: "+err.Error())
+			if orientation.SourceAgent != "" {
+				result.Agent = orientation.SourceAgent
+			}
+			result.SentPrompts = orientation.PairLog
+			result.Transcripts = orientation.NativeTranscripts
+			result.Unavailable = append(result.Unavailable, orientation.Unavailable...)
 		}
-		result.Agent = orientation.SourceAgent
-		result.SentPrompts = orientation.PairLog
-		result.Transcripts = orientation.NativeTranscripts
-		result.Unavailable = append(result.Unavailable, orientation.Unavailable...)
 	}
 	n := lines
 	if n <= 0 {

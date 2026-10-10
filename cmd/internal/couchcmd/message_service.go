@@ -650,30 +650,29 @@ func (s *messageService) handleBroadcastStatus(request couchmessage.Request) cou
 }
 
 // handleTail answers a peek's tail read (pair#425) from the connected
-// wrapper running the thread (scope + exact tag, as LivenessForThread
-// matches). Like broadcast-status it needs no slot identity: the socket lives
-// in the operator-only store, and the answer is read-only.
+// wrapper running the thread: named by scope + exact tag, as
+// LivenessForThread matches, or by its slot as a send names one (pair#429).
+// Like broadcast-status it needs no slot identity: the socket lives in the
+// operator-only store, and the answer is read-only.
 func (s *messageService) handleTail(ctx context.Context, request couchmessage.Request) couchmessage.Response {
 	if err := couchmessage.ValidateRequest(request); err != nil {
 		return couchmessage.Response{Code: "invalid-request", Error: err.Error()}
 	}
-	var matches []couchmessage.Binding
+	var bindings []couchmessage.Binding
 	if connected := s.connected.Load(); connected != nil {
 		for b, live := range *connected {
-			if live && b.Scope == request.TailScope && b.Tag == request.TailTag {
-				matches = append(matches, b)
+			if live {
+				bindings = append(bindings, b)
 			}
 		}
 	}
-	switch {
-	case len(matches) == 0:
-		return couchmessage.Response{Code: "unavailable", Error: "no wrapper is connected for this thread"}
-	case len(matches) > 1:
-		return couchmessage.Response{Code: "ambiguous", Error: fmt.Sprintf("%d wrappers are connected for this thread", len(matches))}
+	binding, code, err := s.tailBinding(ctx, request, bindings)
+	if err != nil {
+		return couchmessage.Response{Code: code, Error: err.Error()}
 	}
 	var reader couchmessage.TailReader
 	if s.authority.endpoint != nil {
-		reader, _ = s.authority.endpoint(matches[0]).(couchmessage.TailReader)
+		reader, _ = s.authority.endpoint(binding).(couchmessage.TailReader)
 	}
 	if reader == nil {
 		return couchmessage.Response{Code: "unsupported", Error: "this wrapper's endpoint reads no tail"}
@@ -682,7 +681,42 @@ func (s *messageService) handleTail(ctx context.Context, request couchmessage.Re
 	if err != nil {
 		return couchmessage.Response{Code: "unavailable", Error: err.Error()}
 	}
-	return couchmessage.Response{Code: "ok", Tail: &tail}
+	return couchmessage.Response{Code: "ok", Tail: &tail, TailThread: &couchmessage.TailThread{Slot: binding.Slot, Tag: binding.Tag, Agent: binding.Agent}}
+}
+
+// tailBinding is the one connected wrapper a tail request names, or the
+// response code and reason it names none.
+func (s *messageService) tailBinding(ctx context.Context, request couchmessage.Request, bindings []couchmessage.Binding) (couchmessage.Binding, string, error) {
+	if request.Target != "" {
+		var families map[string]string
+		if s.authority.families != nil {
+			var err error
+			if families, err = s.authority.families(ctx); err != nil {
+				return couchmessage.Binding{}, "unavailable", fmt.Errorf("repository names: %w", err)
+			}
+		}
+		binding, err := couchmessage.ResolveTailSlot(request.Target, bindings, families)
+		switch {
+		case errors.Is(err, couchmessage.ErrAmbiguous):
+			return couchmessage.Binding{}, "ambiguous", err
+		case err != nil:
+			return couchmessage.Binding{}, "unavailable", err
+		}
+		return binding, "", nil
+	}
+	var matches []couchmessage.Binding
+	for _, b := range bindings {
+		if b.Scope == request.TailScope && b.Tag == request.TailTag {
+			matches = append(matches, b)
+		}
+	}
+	switch len(matches) {
+	case 0:
+		return couchmessage.Binding{}, "unavailable", errors.New("no wrapper is connected for this thread")
+	case 1:
+		return matches[0], "", nil
+	}
+	return couchmessage.Binding{}, "ambiguous", fmt.Errorf("%d wrappers are connected for this thread", len(matches))
 }
 
 // SetBroadcastStatus installs the console's broadcast snapshot.

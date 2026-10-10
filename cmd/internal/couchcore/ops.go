@@ -179,13 +179,14 @@ func Operations() []Operation {
 			// recording, and each replay parks one emulator goroutine for the
 			// life of the process (scrollbackcmd.RenderLines), so it is a CLI
 			// operation: the long-running console must not dispatch it.
-			Name: "peek", Summary: "Show a slot's recent terminal and where its transcripts live (read-only)",
+			Name: "peek", Summary: "Show a slot's recent terminal, and with --transcripts where its logs live (read-only)",
 			Execution: ExecuteDirectStore, Effect: EffectRead, Confirmation: ConfirmNone,
 			Result: ResultPeek, Presentation: PresentationShow,
 			Args: []ArgSpec{
 				{Name: "ref", Summary: "slot reference (repo:N; several as repo:1:2,other:0), thread tag or path", Required: true},
 				{Name: "lines", Summary: "how many recent lines to show per slot (default 40)", FlagOnly: true, ValueRequired: true},
 				{Name: "json", Summary: "print the result as JSON", FlagOnly: true},
+				{Name: "transcripts", Summary: "also name the sent-prompt log and native transcripts (slower)", FlagOnly: true},
 				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
 			},
 		},
