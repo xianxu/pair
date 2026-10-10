@@ -51,6 +51,16 @@ rounds:
           round: 2
       recipe: small-diff-review
       blocked: false
+    - "n": 3
+      timestamp: "2026-10-09T20:34:06-07:00"
+      agent: claude
+      dispose:
+        - id: BR-4
+          disposition: addressed
+          note: All three named sites now point to peerSpaceWordwrap; one more copy remains in a test comment (peer_composer_test.go:283), minor and not blocking.
+          round: 3
+      recipe: small-diff-review
+      blocked: false
 ---
 
 # Gate ledger — pair#418 (boundary-review)
@@ -81,6 +91,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-4** [Minor] `doc-claim-overstates-behavior` Three prose sites say Claude wraps "at spaces only", omitting the over-width hard-break
   2nd in family. Rule: state Claude's wrap rule once in full (single spaces; over-width words hard-break at the width) or point to peerSpaceWordwrap. Instances: atlas/couch.md (~L267), testdata/peer/claude/2.1.286/README.md last paragraph, peer_composer.go case "claude" comment. README.md is already correct.
 
+## Round 3 — 2026-10-09T20:34:06-07:00 (claude) — passed
+
+### Disposed
+
+- BR-4 — addressed — All three named sites now point to peerSpaceWordwrap; one more copy remains in a test comment (peer_composer_test.go:283), minor and not blocking.
+
 ## Open findings
 
-- **BR-4** [Minor] `doc-claim-overstates-behavior` Three prose sites say Claude wraps "at spaces only", omitting the over-width hard-break
+(none — every finding has been disposed)

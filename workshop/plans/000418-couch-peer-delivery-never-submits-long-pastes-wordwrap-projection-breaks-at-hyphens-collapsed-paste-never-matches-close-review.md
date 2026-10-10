@@ -176,3 +176,65 @@ findings:
     detail: |
       2nd in family. Rule: state Claude's wrap rule once in full (single spaces; over-width words hard-break at the width) or point to peerSpaceWordwrap. Instances: atlas/couch.md (~L267), testdata/peer/claude/2.1.286/README.md last paragraph, peer_composer.go case "claude" comment. README.md is already correct.
 ```
+
+---
+
+## Re-review — 2026-10-09T20:34:06-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 418 — Couch peer delivery never submits long pastes: wordwrap projection breaks at hyphens; collapsed paste never matches |
+| repo | pair |
+| issue file | workshop/issues/000418-couch-peer-delivery-never-submits-long-pastes-wordwrap-projection-breaks-at-hyphens-collapsed-paste-never-matches.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | c5b19184c667b41c8a4ae38fa7a7517202b48137..717273c735811b7160f6b569024c8ad37ce22412 |
+| command | sdlc close --issue 418 |
+| reviewer | claude |
+| timestamp | 2026-10-09T20:34:06-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+This change is ready to ship. The diff does what the Spec and Done-when ask for:
+- **Wrapping:** Claude's composer now wraps on Claude's own rule (`peerSpaceWordwrap`: break only at single spaces, and hard-break over-wide words the way wrap-ansi does). Codex keeps `ansi.Wordwrap`.
+- **Collapsed pastes:** Claude's `[Pasted text #N +M lines]` marker is accepted only in a strict form, which the operator chose.
+
+The prior round's only open finding, BR-4, is fixed at all three sites it named: the atlas, the fixture README and the `case "claude"` comment now point to the doc comment on `peerSpaceWordwrap` instead of repeating the rule. One more copy turned up in a test comment (`peer_composer_test.go:283`). It is minor and doesn't block. The targeted tests pass (`go test -run 'PeerComposer|PeerSpaceWordwrap'` → ok).
+
+1. **Strengths**
+   - `TestPeerComposerClaudeCapturedHyphenWrap` checks that its fixture actually tells the two wrap rules apart (`ansi.Wordwrap(...) == lines` makes it fail). Without that check, the test could pass while proving nothing.
+   - The collapsed-marker check is tight. It requires an exact regex match on the whole composer content, the cursor directly after the marker, `+M` equal to the message's newline count, and the `❯` prompt. Negative cases cover a wrong line count, extra text after the marker, a misplaced cursor, the marker on a second line, and an image marker.
+   - The over-wide-word rule was captured from a live run (`-peer-live-body=overwidth`) and pinned in a fixture; it wasn't guessed. The table tests cover the "start on the next line if that needs fewer breaks" boundary in both directions.
+   - The live harness is extended (`-peer-live-body`) so the regression shows up end to end. The log records that the reverted code never submits.
+
+2. **Critical findings:** none.
+
+3. **Important findings:** none.
+
+4. **Minor findings**
+   - `peer_composer_test.go:283`: a test comment still says "Claude wraps at spaces only". It's correct about hyphens but leaves out the hard-break rule. It belongs to BR-4's family (rule: state Claude's wrap rule only on `peerSpaceWordwrap`, everything else points there). Fix: reword it to "Claude never breaks after hyphens (peerSpaceWordwrap)". I searched README, atlas and wrapcmd for "spaces only" / "at spaces"; this is the only remaining copy.
+
+5. **Test coverage notes**
+   - Each Done-when clause has a test or live run: hyphen wrap (captured fixture plus live), collapsed paste (strict-form unit tests plus live), and a body over 1,000 characters with paths and UUIDs (live `collapsed`).
+   - `peerSpaceWordwrap`'s inputs with repeated, leading or trailing spaces are only reachable after `peerWordwrapSafe` filters them out, so they're correctly not tested through the matcher.
+
+6. **Architecture**
+   - **ARCH-DRY: pass.** The wrap rule is stated once and the docs point to it. Codex and Claude projections are separate functions on purpose, because their wrap rules really differ.
+   - **ARCH-PURE: pass.** `peerSpaceWordwrap` and the marker check are pure functions of the snapshot and text. The tests use terminal snapshots, not mocks.
+   - **ARCH-PURPOSE: pass.** Both root causes are fixed, with live evidence, and nothing that matters was deferred.
+
+7. **Plan revision recommendations:** none.
+
+```findings
+dispose:
+  - id: BR-4
+    disposition: addressed
+    note: |
+      All three named sites now point to peerSpaceWordwrap; one more copy remains in a test comment (peer_composer_test.go:283), minor and not blocking.
+```
