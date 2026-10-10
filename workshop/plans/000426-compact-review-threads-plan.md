@@ -184,7 +184,7 @@ and the issue/plan Log and checkboxes.
 
 - [x] Register every new test in test-lua/test-review; classify every production source/mirror and regenerate via `make runtimebundle-generate`.
 - [x] Document compact display, Enter/thread save/discard controls, literal/multiline fallback and rescue behavior in README and the existing atlas page. Preserve the existing index link if no new atlas file is needed.
-- [ ] In an environment cleared of PAIR_*, COUCH_* and ZELLIJ* with a short dedicated TMPDIR, run `make test-lua test-review`, `make test-runtimebundle`, `go test ./cmd/internal/artifactpath/...`, `make build` and `git diff --check`. Inspect every failure, including pre-existing ones that name new files.
+- [x] In an environment cleared of PAIR_*, COUCH_* and ZELLIJ* with a short dedicated TMPDIR, run `make test-lua test-review`, `make test-runtimebundle`, `go test ./cmd/internal/artifactpath/...`, `make build` and `git diff --check`. Inspect every failure, including pre-existing ones that name new files.
 - [x] Mutation-check core properties (break newline parity, remove source compare guard, bypass fence eligibility); tests must fail for their own asserted outcome. Record representative render/performance evidence and restore mutants via overlays/temporary copies, not tracked-file churn.
 - [ ] Tick completed steps and record test evidence. Run `sdlc close --issue 426 --verified '<concrete evidence>'` for the mandatory fresh-context review; fix findings and record prevention rules in lessons. Publish through sdlc pr/merge when authorized.
 

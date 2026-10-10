@@ -80,7 +80,7 @@ Open questions, to settle at start-plan:
 
 ## Plan
 
-- [ ] Implement the reviewed plan in `workshop/plans/000426-compact-review-threads-plan.md`, including property, real-render, and review-round integration tests.
+- [x] Implement the reviewed plan in `workshop/plans/000426-compact-review-threads-plan.md`, including property, real-render, and review-round integration tests.
 
 ## Log
 
@@ -122,6 +122,12 @@ Open questions, to settle at start-plan:
   initial 4.10ms; 50 redraws median 2.33ms, p95 2.85ms, max 2.87ms.
 - Keyboard help derives Enter/thread-q descriptions from the new Lua modules;
   its package tests pass, including embedded-source drift.
+
+- Final rerun after parser integration: `make test-lua test-review
+  test-runtimebundle` exited 0; `go test ./cmd/internal/keyhelp -count=1`
+  exited 0; `make build` exited 0 (Pair binary rebuilt by test-review's
+  prerequisite; local build sentinel skips its duplicate build).
+  `git diff --check` passed. Ready for the binary-owned close review.
 
 ## Revisions
 
