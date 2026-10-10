@@ -30,6 +30,7 @@ scenario flags below.
   tab or other ambiguous whitespace is never normalized through this route.
 
 Small messages, qualified word wrapping and the strict collapsed marker are
-supported. Claude wraps at spaces only, never after a hyphen (#418, captured
-from ariadne:2 on 2.1.295 and pinned in `TestPeerComposerClaudeCapturedHyphenWrap`).
+supported. Claude's wrap rule is stated once, on `peerSpaceWordwrap` (#418),
+and pinned by `TestPeerComposerClaudeCapturedHyphenWrap` (ariadne:2, 2.1.295)
+and `TestPeerComposerClaudeCapturedOverwidthWord` (2.1.296).
 No generic faint-text acceptance or loose marker fallback was introduced.

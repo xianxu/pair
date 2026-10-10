@@ -175,9 +175,8 @@ func peerComposerMatches(agent string, s terminalSnapshot, expected string) bool
 				return true
 			}
 		case "claude":
-			// Claude Code breaks only at spaces; ansi.Wordwrap also breaks
-			// after hyphens, which split `ariadne-robustness-1.md` where
-			// Claude moved it whole (pair#418, captured on 2.1.295/2.1.296).
+			// Claude's rule is peerSpaceWordwrap's (pair#418). ansi.Wordwrap
+			// also breaks after hyphens, which Claude never does.
 			if projected, ok := peerSpaceWordwrap(expected, wordWidth); ok && actual == projected {
 				return true
 			}

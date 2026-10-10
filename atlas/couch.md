@@ -264,8 +264,9 @@ slots). Fixtures under `wrapcmd/testdata/peer/` and `TestPeerLiveConformance`
 were captured on Claude Code 2.1.286 and Codex CLI 0.159.2; per-version
 evidence from daily use is #368. Short-message submission
 has live evidence for both; deterministic wrapping is matched conservatively,
-per harness. Claude breaks lines at spaces only (`peerSpaceWordwrap`), while
-Codex uses `ansi.Wordwrap`, which also breaks after hyphens. Projecting Claude
+per harness. Claude's rule is `peerSpaceWordwrap`'s doc comment (the one
+statement of it), while Codex uses `ansi.Wordwrap`, which also breaks after
+hyphens. Projecting Claude
 with `ansi.Wordwrap` failed every long message whose hyphenated path straddled
 the wrap column (#418). Claude collapses a long paste to `[Pasted text #N +M
 lines]`. That marker is accepted only in its strict form: it is the composer's
