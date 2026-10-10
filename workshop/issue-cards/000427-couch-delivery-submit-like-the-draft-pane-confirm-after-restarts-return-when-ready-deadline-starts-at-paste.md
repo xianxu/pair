@@ -1,6 +1,6 @@
 ---
 id: 000427
-status: codecomplete
+status: done
 created: 2026-10-10
 updated: 2026-10-10
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 912e77368735c004b4e79f406bdd7127f6891cdb
         evidence_commit: b187f995c408471136589aa85782cb0572eedf9e
+        landed_commit: 30925115afd931ec215b8631739c437dab094889
 ---
 
 # couch delivery: submit like the draft pane, confirm after; restarts return when ready; deadline starts at paste
