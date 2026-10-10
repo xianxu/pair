@@ -225,6 +225,7 @@ test-review: $(BIN_DIR)/pair
 	bash tests/review-poke-test.sh
 	bash tests/review-window-test.sh
 	bash tests/review-controls-test.sh
+	bash tests/review-comments-test.sh
 	bash tests/overlay-return-test.sh
 	bash tests/review-toggle-test.sh
 	bash tests/pair-review-target-test.sh
@@ -276,6 +277,11 @@ test-lua:
 	nvim -l nvim/review/reconstruct_test.lua
 	nvim -l nvim/review/define_test.lua
 	nvim -l nvim/review/markers_test.lua
+	nvim -l nvim/review/comment_codec_test.lua
+	nvim -l nvim/review/comment_thread_test.lua
+	nvim -l nvim/review/comment_view_test.lua
+	nvim -l nvim/review/comment_float_test.lua
+	nvim -l nvim/review/comment_test.lua
 	nvim -l nvim/review/seam_test.lua
 	nvim -l nvim/review/mode_test.lua
 	nvim -l nvim/review/poke_bodies_test.lua

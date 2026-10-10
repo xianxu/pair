@@ -356,3 +356,36 @@ underneath. The review stays alive and can be shown again with Alt+c.
 Recovery write failures leave buffers modified and block ordinary non-bang quit.
 Explicit `:qa!` retains Neovim's discard semantics if storage fails; callback
 errors cannot prevent that forced exit.
+
+
+## Compact comment threads (#426)
+
+The pane uses `review/comment.lua` for activation-owned rendering and window
+options. `markers.scan` supplies successful markers, completeness and malformed
+ranges to `comment_view.layout`; the same cached geometry drives conceal,
+cursor snapping and Enter targeting. Earlier turns collapse to role-colored
+brackets around an ellipsis; anchors and the final human turn remain visible.
+Malformed ranges, code examples and legacy multiline reconciliation markers
+stay raw. Above 1,000 lines/128 KiB, the activation reports a raw-view fallback.
+Cursor movement reads the cache; text edits refresh it, including insert mode.
+
+`comment_codec` interprets canonical `<br>` slash parity directly from each
+section's raw payload. Generic delimiter unescape cannot run first: it erases
+that parity. Only single-line turn-derived text gets newline decoding; anchors
+and legacy multiline resolution retain their previous behavior. `apply.lua`
+uses that same codec when shortening displayed replacements.
+
+`comment_thread` converts raw markers to editable `💬:`/`🤖:` lines and owns an
+encapsulated save/close state. `comment_float` runs its effects in an acwrite
+scratch window. Enter opens it; `:w` saves to the source buffer, `q`/`:x` saves
+and closes, `:q!` discards. The entire thread is editable. A range extmark plus
+exact byte comparison protects the opened instance from concurrent edits;
+refusals keep the float dirty. Save is an ordinary undoable human edit and sends
+no agent message; Alt+Return in the pane saves the document and submits it.
+Forced teardown rescues unsaved text to the unnamed register, then removes the
+float, scratch buffer, tracking mark and autocmds. Deactivation restores window
+options and Enter's previous mapping.
+
+Tests: colocated comment codec/thread/view/float/attachment tests,
+`tests/review-comments-test.sh` (real PTY painted cells and thread controls), and
+`tests/review-controls-test.sh` (saved thread through the human-round handoff).

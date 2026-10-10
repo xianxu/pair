@@ -117,5 +117,69 @@ do
   eq(bm[1].quoted ~= nil, true, '60-line quoted body closes (budget ≥ 60)')
 end
 
+-- An escaped opening backtick is text, including encoded turn payloads.
+local escaped_tick = M.parse_markers({ '🤖{\\`}[\\`]' })
+eq(escaped_tick[1] and #escaped_tick[1].sections, 2, 'escaped ticks cannot mask a section boundary')
+
+-- #426: raw payloads and scanner diagnostics share all parser exclusions.
+eq(m[1].sections[1].raw_text, 'fix this', 'raw turn retained')
+eq(type(M.scan), 'function', 'shared scanner exists')
+if M.scan then
+  local raw = 'xx 🤖<anchor>[ok]{broken'
+  local scan = M.scan({ raw })
+  eq(#scan.markers, 1, 'successful prefix retained')
+  eq(scan.markers[1].complete, false, 'unfinished continuation ineligible')
+  eq(scan.markers[1].end_row, 0, 'exclusive marker end row')
+  eq(scan.markers[1].end_col, #('xx 🤖<anchor>[ok]'), 'exclusive successful end col')
+  eq(#scan.diagnostics, 1, 'broken continuation diagnosed')
+  eq(scan.diagnostics[1].col, 3, 'diagnostic starts at marker')
+  eq(scan.diagnostics[1].end_col, #raw, 'diagnostic through EOL')
+  eq(scan.diagnostics[1].kind, 'malformed', 'diagnostic kind')
+  for _, opener in ipairs({ '[', '{', '<' }) do
+    local bad = M.scan({ '🤖' .. opener .. 'broken' })
+    eq(#bad.markers, 0, 'wholly malformed excluded ' .. opener)
+    eq(#bad.diagnostics, 1, 'wholly malformed diagnosed ' .. opener)
+  end
+  local excluded = M.scan({ '```', '🤖{broken', '```', '`🤖{broken`', '🤖[okay]' })
+  eq(#excluded.diagnostics, 0, 'code malformed markers excluded')
+  eq(#excluded.markers, 1, 'code context shared')
+  eq(excluded.markers[1].complete, true, 'valid complete flag')
+  local legacy = M.scan({ '🤖[old', 'multiline]' })
+  eq(legacy.markers[1].complete, true, 'legacy multiline complete')
+  eq(legacy.markers[1].end_row, 1, 'legacy end row')
+  eq(legacy.markers[1].end_col, #'multiline]', 'legacy end col')
+  eq(#legacy.diagnostics, 0, 'legacy is not malformed')
+  for n = 0, 30 do
+    local prefix = string.rep('字', n)
+    local document = { prefix .. '🤖[done]{bad', '`🤖[bad`', '```', '🤖{bad', '```' }
+    local generated = M.scan(document)
+    eq(#generated.markers, 1, 'generated successful prefix')
+    eq(generated.markers[1].complete, false, 'generated ineligible prefix')
+    eq(#generated.diagnostics, 1, 'generated exclusion consistency')
+    eq(generated.diagnostics[1].col, #prefix, 'generated UTF-8 byte col')
+  end
+end
+
+-- Markdown fences: up to three spaces, same delimiter, matching run length.
+for _, char in ipairs({ '`', '~' }) do
+  for indent = 0, 3 do
+    for width = 3, 6 do
+      local pad, fence = string.rep(' ', indent), string.rep(char, width)
+      local other = char == '`' and '~~~' or '```'
+      local lines = { pad .. fence .. 'lua', '🤖[hidden]', other, '🤖{broken',
+        string.rep(char, width - 1), '🤖[still hidden]', fence .. ' not a close',
+        '🤖[also hidden]', pad .. fence .. char .. '  ', '🤖[visible]' }
+      local scan = M.scan(lines)
+      eq(#scan.markers, 1, 'matching Markdown fence retains inner markers as code')
+      eq(scan.markers[1] and scan.markers[1].line, 9, 'only outside Markdown fence parses')
+      eq(#scan.diagnostics, 0, 'malformed marker inside Markdown fence ignored')
+    end
+  end
+end
+local unclosed_fence = M.scan({ '   ~~~~text', '🤖[hidden]' })
+eq(#unclosed_fence.markers, 0, 'unclosed tilde fence excludes through EOF')
+eq(#M.scan({ '    ~~~', '🤖[ordinary]' }).markers, 1, 'four spaces do not open fence')
+eq(#M.scan({ '```info`invalid', '🤖[ordinary]' }).markers, 1, 'backtick info cannot contain backticks')
+
 if fails > 0 then os.exit(1) end
 print('markers_test ok')

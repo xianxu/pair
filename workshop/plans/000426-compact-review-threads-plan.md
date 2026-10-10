@@ -8,7 +8,7 @@
 
 **Tech Stack:** Lua, Neovim extmarks/acwrite buffers, existing shell/headless tests, Go runtime bundle tooling.
 
-Status: draft awaiting operator approval. This exceeds 100 added production lines and requires the full flow. One atomic implementation and one close review; no artificial milestone boundary.
+Status: approved by the operator on 2026-10-10 ("continue"). This exceeds 100 added production lines and requires the full flow. One atomic implementation and one close review; no artificial milestone boundary.
 
 ## Scope and choices
 
@@ -64,7 +64,16 @@ tests. Independently authored canonical raw fixtures with 0–4 slashes before
 `<br>` must test float decoding and resolution; paired round trips alone cannot
 prove compatibility with agents/Parley.
 
-The view consumes full-buffer parser output, not an independent line scan:
+Add `markers.scan(lines)` returning `{markers, diagnostics}`. `markers` carries
+the same successful records as `parse_markers`; add `complete=false` when the
+next byte is an unmatched section opener, plus an exclusive end position.
+Diagnostics are `{row,col,end_row,end_col,kind="malformed"}` from the first
+marker byte to that line's end for an unclosed opening/continuation; code
+exclusions are applied by the same scanner. Wholly malformed chains produce a
+diagnostic even without a successful record. Multiline successful records are
+legacy, not malformed. `parse_markers(lines)` remains a wrapper returning only
+successful records, preserving legacy callers. All compact consumers accept
+only complete single-line records. The view consumes this scan, not an independent line scan:
 inline/fenced code exclusions and multiline eligibility apply equally to all
 three consumers. It yields byte ranges for hidden text, visible anchor, colored
 brackets, editable final human turn, and malformed-marker warnings. Warnings
@@ -103,7 +112,12 @@ source files and generated mirrors.
   launch on cursor movement. One live float per review activation. Clamp float
   dimensions to usable editor space, including small terminals; wrapping and
   scrolling handle long threads. Test a 1,000-line document with 100 markers
-  and a 100-turn thread; record timings rather than inventing a latency claim.
+  and a 100-turn thread. Initial supported compact envelope: <=1,000 lines and
+  <=128 KiB (conservative UI assumption); larger buffers retain raw highlighting,
+  with one notice per activation, no compact cache or float. Within the envelope,
+  target <=50ms per refresh; measure the representative workload and investigate
+  any breach. Cursor moves use cached layout only. These limits bound the new
+  projection; they do not promise to improve the legacy parser's own costs.
 - **ARCH-SECURE:** document and float text are untrusted data, never commands.
   Validate the serialized marker and source range immediately before replacing
   bytes. Anchor the opened instance with a range extmark, not a text search
@@ -136,7 +150,7 @@ Files: new `nvim/review/comment_codec.lua`, `comment_thread.lua` and colocated
 `nvim/marker_codec.lua` only for reusable primitives, and their tests.
 
 - [ ] Enumerate section-text consumers with `rg 'sections|last.text' nvim/review nvim/review.lua`; pin existing anchor/delimiter/resolve behavior.
-- [ ] Add failing table and seeded property tests: backslash runs, all bracket delimiters, `<br>`, literal `<br>`, actual newlines, emoji, empty turns, role-like continuation prefixes and trailing blank lines. Assert decode(encode(text)) equals text, and parse/serialize preserves intended roles/content and surrounding bytes.
+- [ ] Test `encode_turn`/`decode_turn` with seeded delimiter-alphabet properties plus independent canonical wire fixtures; test `to_lines`/`from_lines` by role/content preservation and full parser consumption; test `resolve` by literal anchor preservation versus canonical turn decoding.
 - [ ] Run `nvim -l nvim/review/comment_codec_test.lua` and `nvim -l nvim/review/comment_thread_test.lua`; verify behavioral failures before implementation.
 - [ ] Implement the canonical raw-turn codec above, adapting upstream codec/thread code through Pair's parser. Add newline decoding only for turn-derived resolution, preserving anchors literally.
 - [ ] Run the new tests plus `nvim -l nvim/review/markers_test.lua` and `nvim -l nvim/review/resolve_test.lua`; commit this coherent component with an issue reference.
@@ -146,7 +160,7 @@ Files: new `nvim/review/comment_codec.lua`, `comment_thread.lua` and colocated
 Files: new `nvim/review/comment_view.lua`, `comment.lua`, colocated view tests;
 modify `nvim/review.lua`; new `tests/review-comments-test.sh`.
 
-- [ ] Add failing tests for all marker forms, multiple same-line markers, inline/fenced code, malformed and legacy multiline input, UTF-8, normal/insert cursor positions, visible final human turn and restoration of window options.
+- [ ] Test `markers.scan` with malformed/code-context generated documents, asserting diagnostics and completeness never conceal a broken prefix. Test `comment_view.layout`/`marker_at` with eligibility invariants; test `snap` over every byte/insertion point, asserting legal UTF-8 destinations and unchanged visible input.
 - [ ] Build the real-render test around existing `tests/lib/run-headless.sh`/isolated test environment, attaching a real UI/pty before `screenstring()` assertions. Assert actual colored bracket/ellipsis cells, visible anchor and final reply, not only extmark metadata.
 - [ ] Run the failing view/render tests, then implement the shared projection, conceal and directional cursor policy. Reuse Pair parser exclusions, original multiline highlight fallback, and existing highlight setup; update on TextChangedI as well as ordinary review events.
 - [ ] Attach/detach through start_review/stop_review, including restore rollback. Rendering must not enter the undo history or mutate source bytes. Verify undo/redo, buffer switch, theme change and small-window rendering; commit.
@@ -157,7 +171,7 @@ Files: new `nvim/review/comment_float.lua` and colocated lifecycle tests;
 modify `nvim/review.lua`, `tests/review-comments-test.sh`,
 `tests/review-controls-test.sh` or a dedicated thread handoff test.
 
-- [ ] Add failing pure lifecycle tests and real keymap tests: Enter opens only an eligible marker; counted Enter elsewhere remains native; source marker movement, same-line sibling edits, changed marker, duplicate identical markers, source wipe, failed serialization, repeated save, q/:x/:q!, undo and forced close.
+- [ ] Test `comment_thread.new_session().transition` using generated event sequences and independent no-overwrite/no-loss/resource-count invariants. Test `comment_float.open_thread`/save/close effects with real Neovim source edits and teardown; drive Enter/save/discard through real keymaps and commands.
 - [ ] Implement acwrite float with role highlighting and editable final reply. API glue executes pure model effects, preserving text on conflict/forced close and refusing close-after-failed-save. Escape exits insert mode normally; review pane float dismissal must use the same cleanup path.
 - [ ] Save a multiline reply, assert exactly one encoded marker line in the source, submit via the actual Alt+Return mapping and inspect the saved document read by the stateful agent host. Assert no automatic agent submission from :w alone.
 - [ ] Rerun existing accept/reject, diagnostic floats, navigation, controls and restore tests. Commit.
@@ -191,3 +205,22 @@ rule before generic escapes; encode with one coordinated scanner. Specify
 single-line canonical precedence and retain legacy multiline resolution. Add
 independent 0–4 slash fixtures alongside round-trip properties. The reviewer
 found no other Critical/Important issues in the draft.
+
+### 2026-10-10 — plan gate PQ-1/PQ-2 and envelope refinement
+
+PQ-1: introduce markers.scan completeness and diagnostic records with shared
+code exclusions; parse_markers retains its successful-prefix legacy API. PQ-2:
+replace test inventories with named risky functions and adversarial strategies.
+PQ-3: bound compact projection to 1,000 lines/128 KiB with visible raw fallback
+and a measured 50ms refresh target. These refine implementation/testing without
+changing the approved user interaction. Operator approved the plan before the
+gate. No implementation edits occurred before acceptance.
+
+### 2026-10-10 — integration refinements
+
+Keyboard help reads only review.lua; extend its source discovery to the new
+comment modules so Enter and thread q are discoverable. The parser's fenced-code
+exclusion is extended to ordinary tilde/indented fences so all compact consumers
+honor the stated literal-code contract. Canonical writers escape backticks to
+keep arbitrary editable turn content from manufacturing cross-turn code spans.
+The fresh close review remains the single implementation review boundary.

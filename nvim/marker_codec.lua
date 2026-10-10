@@ -1,17 +1,25 @@
 -- nvim/marker_codec.lua — shared escaping for 🤖 marker delimiter text.
 -- Pure: string in/string out; no vim dependency.
 local M = {}
+local quote_delimiters = {
+  ['<'] = true, ['>'] = true, ['['] = true,
+  [']'] = true, ['{'] = true, ['}'] = true,
+}
+local function escape_byte(ch, delims)
+  return (ch == '\\' or delims[ch]) and ('\\' .. ch) or ch
+end
+-- A single-byte primitive lets payload codecs recognize their tokens first,
+-- then share generic delimiter escaping without composing overlapping codecs.
+function M.escape_quote_byte(ch)
+  return escape_byte(ch, quote_delimiters)
+end
 
 local function escape_for(s, delims)
   s = s or ''
   local out = {}
   for i = 1, #s do
     local ch = s:sub(i, i)
-    if ch == '\\' or delims[ch] then
-      out[#out + 1] = '\\' .. ch
-    else
-      out[#out + 1] = ch
-    end
+    out[#out + 1] = escape_byte(ch, delims)
   end
   return table.concat(out)
 end
@@ -25,11 +33,7 @@ function M.esc_y(s)
 end
 
 function M.esc_quote(s)
-  return escape_for(s, {
-    ['<'] = true, ['>'] = true,
-    ['['] = true, [']'] = true,
-    ['{'] = true, ['}'] = true,
-  })
+  return escape_for(s, quote_delimiters)
 end
 
 function M.unescape(s)

@@ -270,6 +270,16 @@ local mrd = vim.diagnostic.get(bmr, { namespace = apply.DIAG })
 ok(#mrd == 1 and mrd[1].message == 'emphasis',
   'render embedded marker proposal keeps diagnostic')
 
+-- Canonical turn newlines survive the display-span shrinking consumer.
+for slashes = 0, 4 do
+  local wire = string.rep('\\', slashes) .. '<br>'
+  local canonical = newbuf({ 'old suffix' })
+  apply.apply(canonical, { { old = 'old suffix', occurrence = 1,
+    new = '🤖<old suffix>{new' .. wire .. 'text suffix}' } })
+  ok(content(canonical) == '🤖<old>{new' .. wire .. 'text} suffix',
+    'shrunk canonical slash parity ' .. slashes)
+end
+
 -- (p) Empty direct deletions have no new span to highlight. Agents should use
 -- 🤖~deleted~ when a deletion needs visible review, but diagnostics still carry
 -- the reason if a direct deletion lands.

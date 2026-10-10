@@ -95,6 +95,24 @@ Open questions, to settle at start-plan:
   no remaining Critical/Important findings. Issue schema validation and committed
   diff whitespace checks pass. Plan checkpoint: `8885b6b2`.
 
+### 2026-10-10 — implementation and verification
+
+- Full change-code gate accepted; plan validity/testing findings addressed.
+  Estimate-quality was advisory: runtime packaging and final suites are absorbed
+  by the projection/float implementation rows, mutation checks by their component
+  rows. The midpoint estimate remains provisional; actual work is measured.
+- Implemented canonical raw-turn codec, shared completeness/diagnostics scanner,
+  compact projection, cursor protection, full editable thread and encapsulated
+  save/close model. Initial failing tests covered missing behavior before code.
+- Corrected painted bracket colors after the real PTY assertion failed; assigning
+  role highlights to conceal replacement marks fixes the actual screen cells.
+- `make test-lua test-review` passed with isolated session variables and TMPDIR.
+  `make test-runtimebundle` passed. Inventory suite failure is being compared to
+  the base; none of the new comment modules appears in its current failure list.
+- Mutation checks caught canonical parity, missing source comparison, and missing
+  fence exclusion. Pure layout: 1,000 lines/100 markers p95 0.836ms (max 0.972ms),
+  100-turn marker p95 0.222ms (max 0.287ms), 100 samples each.
+
 ## Revisions
 
 ### 2026-10-10 — proposed port boundaries for approval

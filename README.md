@@ -90,6 +90,16 @@ on a line and ships it to the draft on exit, same as the scrollback viewer.
 
 **A review pane for documents (`Alt+c`)**
 
+Comment chains display compactly: earlier turns become `[…]` / `{…}` and the
+last human turn stays editable. Press **Enter** on a marker to edit its full
+thread. In the thread, `:w` saves to the document buffer, `q` saves and closes,
+and `:q!` discards; **Alt+Return** in the review pane submits the human round.
+Multiline replies are stored as `<br>` inside one marker line. Legacy multiline
+markers and code examples stay literal. Compact display falls back to raw above
+1,000 lines or 128 KiB. A changed source marker refuses a thread save; forced
+closure preserves unsaved thread text in the unnamed register.
+
+
 An embedded Neovim pane for reviewing a markdown document *with* the agent: the
 agent proposes edits as records, nvim applies them undo-ably, and each round is
 journaled. Select a term and `Shift+Alt+d` to have the agent define it inline as
@@ -157,6 +167,7 @@ one-line description can't carry.
 | **Shift+Alt+t** | any pane | Create a new right-terminal tab from wherever you are, without moving focus — works even while a full-screen app (nvim) owns the right pane. |
 | **Alt+c** | non-agent panes | Open/show/hide review. From the draft, restore the current review branch's document before toggling; pending work blocks switching documents. Without a review identity, offers `:PairReview`. |
 | **Alt+c** | review buffer (normal/insert) | Hide review and return to the draft. Esc keeps review open; insert/visual Esc leaves that mode, and normal Esc dismisses internal floats. |
+| **Enter** | review buffer (normal), on a compact marker | Open the editable comment thread (`:w` save, `q` save/close, `:q!` discard). |
 | **Alt+a** / **Alt+r** (or **Leader+a** / **Leader+r**) | review buffer (normal) | Accept / reject the 🤖 suggestion at the cursor. |
 | **Alt+Shift+A** / **Alt+Shift+R** | review buffer (normal) | Accept / reject paragraph suggestions through the cursor. |
 | **Alt+q** | review buffer | Insert a human comment marker in normal/insert mode; quote the selection in visual mode. |

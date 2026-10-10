@@ -79,12 +79,12 @@ local function parse_marker_sections(text, pos, byte_len, opts)
     if ch == "[" then
       local close = find_matching_bracket(text, cursor, "[", "]", opts)
       if not close then break end
-        table.insert(sections, { type = "user", text = marker_codec.unescape(text:sub(cursor + 1, close - 1)), byte_start = cursor, byte_end = close })
+        table.insert(sections, { type = "user", raw_text = text:sub(cursor + 1, close - 1), text = marker_codec.unescape(text:sub(cursor + 1, close - 1)), byte_start = cursor, byte_end = close })
       cursor = close + 1
     elseif ch == "{" then
       local close = find_matching_bracket(text, cursor, "{", "}", opts)
       if not close then break end
-      table.insert(sections, { type = "agent", text = marker_codec.unescape(text:sub(cursor + 1, close - 1)), byte_start = cursor, byte_end = close })
+      table.insert(sections, { type = "agent", raw_text = text:sub(cursor + 1, close - 1), text = marker_codec.unescape(text:sub(cursor + 1, close - 1)), byte_start = cursor, byte_end = close })
       cursor = close + 1
     else
       break
@@ -102,18 +102,23 @@ local function in_code_fence(fence_ranges, line_idx)
 end
 
 local function compute_fence_ranges(lines)
-  local ranges = {}
-  local fence_start = nil
+  local ranges, opening = {}, nil
   for i, line in ipairs(lines) do
-    if line:match("^```") then
-      if fence_start then
-        table.insert(ranges, { fence_start, i - 1 }); fence_start = nil
-      else
-        fence_start = i - 1
+    local indent, run, tail = line:match('^( *)(`+)(.*)$')
+    if not run then indent, run, tail = line:match('^( *)(~+)(.*)$') end
+    if run and #indent <= 3 and #run >= 3 then
+      local char = run:sub(1, 1)
+      if opening then
+        if char == opening.char and #run >= opening.width and tail:match('^[ \t]*$') then
+          ranges[#ranges + 1] = { opening.row, i - 1 }
+          opening = nil
+        end
+      elseif char ~= '`' or not tail:find('`', 1, true) then
+        opening = { row = i - 1, char = char, width = #run }
       end
     end
   end
-  if fence_start then table.insert(ranges, { fence_start, #lines - 1 }) end
+  if opening then ranges[#ranges + 1] = { opening.row, #lines - 1 } end
   return ranges
 end
 
@@ -122,12 +127,19 @@ local function inline_code_ranges(line)
   local ranges = {}
   local i = 1
   while i <= #line do
+    if line:sub(i, i) == '`' and marker_codec.is_escaped(line, i) then
+      i = i + 1
+      goto next_byte
+    end
     local bt_start = i
     while i <= #line and line:sub(i, i) == "`" do i = i + 1 end
     local bt_len = i - bt_start
     if bt_len > 0 then
       local delimiter = string.rep("`", bt_len)
       local close = line:find(delimiter, i, true)
+      while close and marker_codec.is_escaped(line, close) do
+        close = line:find(delimiter, close + 1, true)
+      end
       if close then
         table.insert(ranges, { bt_start, close + bt_len - 1 })
         i = close + bt_len
@@ -135,12 +147,13 @@ local function inline_code_ranges(line)
     else
       i = i + 1
     end
+    ::next_byte::
   end
   return ranges
 end
 
 -- Parse 🤖 markers over the whole buffer (sections may span lines, bounded).
-M.parse_markers = function(lines)
+M.scan = function(lines)
   local fence_ranges = compute_fence_ranges(lines)
   local doc = table.concat(lines, "\n")
 
@@ -166,7 +179,7 @@ M.parse_markers = function(lines)
   end
 
   local opts = { budget = MULTILINE_LINE_BUDGET, is_excluded = is_excluded }
-  local markers = {}
+  local markers, diagnostics = {}, {}
   local search_start = 1
   while true do
     local pos = doc:find(MARKER_CHAR, search_start, true)
@@ -177,14 +190,25 @@ M.parse_markers = function(lines)
     end
 
     local sections, end_pos, quoted, strike = parse_marker_sections(doc, pos, MARKER_BYTE_LEN, opts)
+    local next_byte = doc:sub(end_pos, end_pos)
+    local complete = next_byte ~= '[' and next_byte ~= '{'
+    if #sections == 0 and not quoted and not strike and next_byte == '<' then
+      complete = false
+    end
+    local line0, col0 = reconstruct.pos_of(line_starts, pos)
+    local end_row, end_col = reconstruct.pos_of(line_starts, end_pos)
+    if not complete then
+      diagnostics[#diagnostics + 1] = {
+        row = line0, col = col0, end_row = line0, end_col = #lines[line0 + 1], kind = 'malformed',
+      }
+    end
     if strike and strike.text == "" then strike = nil end
     if #sections > 0 or quoted or strike then
       local last = sections[#sections]
-      local line0, col0 = reconstruct.pos_of(line_starts, pos)
       local ready = (not strike) and last and last.type == "user" and last.text ~= "" or false
       local pending = last and last.type == "agent" and last.text ~= "" or false
       table.insert(markers, {
-        line = line0, col = col0,
+        line = line0, col = col0, end_row = end_row, end_col = end_col, complete = complete,
         quoted = quoted, strike = strike, sections = sections,
         ready = ready, pending = pending,
         raw = doc:sub(pos, end_pos - 1),
@@ -194,7 +218,12 @@ M.parse_markers = function(lines)
     ::continue::
   end
 
-return markers
+  return { markers = markers, diagnostics = diagnostics }
+end
+
+-- Legacy successful-prefix API; compact consumers use scan and completeness.
+M.parse_markers = function(lines)
+  return M.scan(lines).markers
 end
 
 M.esc_quote = marker_codec.esc_quote

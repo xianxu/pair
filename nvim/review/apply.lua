@@ -16,6 +16,7 @@ local M = {}
 local here = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
 local reconstruct = dofile(here .. 'reconstruct.lua')
 local markers = dofile(here .. 'markers.lua')
+local comment_codec = dofile(here .. 'comment_codec.lua')
 local wrap = dofile(here .. 'wrap.lua')
 
 local HL = vim.api.nvim_create_namespace('review')
@@ -53,7 +54,7 @@ local function exact_replacement_marker(rec)
   if marker.strike or #marker.sections ~= 1 then return nil end
   local section = marker.sections[1]
   if section.type ~= 'agent' then return nil end
-  return section.text
+  return comment_codec.turn_text(marker, section)
 end
 
 local function is_word_byte(s, idx)
@@ -104,7 +105,7 @@ local function display_new_for_record(rec)
   local span = shrink_replacement_span(rec.old, replacement)
   if not span then return rec.new end
   return span.prefix
-    .. '🤖<' .. markers.esc_quote(span.old) .. '>{' .. markers.esc_quote(span.new) .. '}'
+    .. '🤖<' .. markers.esc_quote(span.old) .. '>{' .. comment_codec.encode_turn(span.new) .. '}'
     .. span.suffix
 end
 

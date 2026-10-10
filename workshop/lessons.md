@@ -835,3 +835,8 @@ proof; record the surprising case so the next change starts from evidence.
   disagreeing with every external writer. Test independently authored raw
   protocol fixtures before composing codecs; preserve escape parity until the
   grammar that owns it has interpreted it.
+
+- **Conceal replacement cells need their own role highlight (#426).** Coloring
+  a turn's text span did not color the extmark's replacement brackets; only the
+  PTY screenattr check caught it. Check actual painted cells when layering
+  conceal marks over syntax/highlight spans.

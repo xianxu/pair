@@ -26,6 +26,7 @@ elif a[:2] == ['action','focus-pane-id']:
 elif a[:2] in [['action','write-chars'],['action','send-keys']]:
     assert a[2:4] == ['--pane-id','7'], 'review submission must target agent 7'
     s.setdefault('messages', []).append(a[1])
+    s['document']=(Path(os.environ['REVIEW_TEST_ROOT'])/'doc.md').read_text()
 else:
     raise Exception('unexpected command '+repr(a))
 p.write_text(json.dumps(s))
@@ -51,9 +52,21 @@ local function run()
     assert(bar:find('Alt+a/r', 1, true), 'missing accept/reject hint: ' .. bar)
   end
   hints()
+  -- Thread save edits only the human buffer. The actual submit mapping saves
+  -- the encoded document before the stateful agent host reads it.
+  vim.api.nvim_win_set_cursor(0,{1,#'one '})
+  press('<CR><Esc>')
+  local thread=vim.api.nvim_get_current_buf()
+  assert(thread~=buf and vim.bo[thread].buftype=='acwrite','thread mapping')
+  vim.api.nvim_buf_set_lines(thread,0,-1,false,{'💬: first','second line'})
+  vim.cmd('write')
+  assert(not host().messages,'thread save must not submit')
+  vim.cmd('q')
+  assert(vim.api.nvim_get_current_buf()==buf)
   -- Exercise the real send mapping to enter awaiting, including disk save.
   press('<M-CR>'); hints()
   assert(vim.deep_equal(host().messages, {'write-chars', 'send-keys'}), 'body and submit must reach agent')
+  assert(host().document:find('🤖[first<br>second line]',1,true),'agent host did not read saved encoded reply')
   press('<M-n>'); assert(vim.api.nvim_win_get_cursor(0)[1] == 3, 'next marker')
   press('<M-n>'); assert(vim.api.nvim_win_get_cursor(0)[1] == 1, 'next wraps')
   press('<M-N>'); assert(vim.api.nvim_win_get_cursor(0)[1] == 3, 'previous wraps')
