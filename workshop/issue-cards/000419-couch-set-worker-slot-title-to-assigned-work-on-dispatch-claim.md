@@ -1,8 +1,8 @@
 ---
 id: 000419
-status: codecomplete
+status: done
 created: 2026-10-09
-updated: 2026-10-09
+updated: 2026-10-10
 estimate_hours:
 github_issue:
 started: 2026-10-09T20:21:09-07:00
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: c3a7d4d02b79a81b60076b03daee41e364ca92d6
         evidence_commit: 0bb7814d459d23b88db9757ac64ac29d873d4f73
+        landed_commit: ee3f998d2304acca6f0072436b65769f188939bf
 ---
 
 # couch: set worker slot title to assigned work on dispatch claim
