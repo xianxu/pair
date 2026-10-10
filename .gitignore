@@ -113,6 +113,7 @@ __pycache__/
 bin/*
 !bin/*.sh
 !bin/pair-dev
+!bin/couch-dev
 !bin/pair-help
 !bin/pair-notify
 !bin/lib/

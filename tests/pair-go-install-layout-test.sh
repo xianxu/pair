@@ -19,6 +19,7 @@ HOME="$tmp_home" GOMODCACHE="$gomodcache" GOCACHE="$gocache" make -C "$repo_root
 test -x "$install_bin/pair"
 test ! -L "$install_bin/pair"
 test -L "$install_bin/pair-dev"
+test -L "$install_bin/couch-dev"
 # #104 M3: the single binary — no separate pair-go; the only busybox symlink is
 # pair-slug (external Stop hook), pointing at pair.
 test ! -e "$install_bin/pair-go"

@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# couch-dev — dev-mode Couch, as pair-dev is for pair (#422).
+#
+# Couch's slots inherit its environment, so a Couch started without PAIR_DEV
+# launches slots whose Alt+n and `couch --relaunch` never rebuild Pair: they
+# keep the stale bin/pair until a manual `make build`. couch-dev exports
+# PAIR_DEV=1, rebuilds this tree once through the same gated hook pair uses
+# (bin/lib/dev-rebuild.sh), so the couch binary itself is fresh too, then
+# execs the sibling `couch`. Every slot's Pair then rebuilds on create and
+# restart. Deployed users keep running `couch`, with no toolchain dependency.
+#
+# Usage: exactly `couch`'s — all args forward through.
+set -euo pipefail
+
+# Resolve this script's real directory (following symlinks) so the
+# ~/.local/bin symlink `make install` creates still finds the source tree.
+src="${BASH_SOURCE[0]}"
+while [ -L "$src" ]; do
+    dir="$(cd -P "$(dirname "$src")" && pwd)"
+    src="$(readlink "$src")"
+    case "$src" in /*) ;; *) src="$dir/$src" ;; esac
+done
+here="$(cd -P "$(dirname "$src")" && pwd)"
+
+export PAIR_DEV=1
+# shellcheck source=lib/dev-rebuild.sh
+. "$here/lib/dev-rebuild.sh"
+PAIR_HOME="$(cd -P "$here/.." && pwd)" dev_rebuild
+exec "$here/couch" "$@"
