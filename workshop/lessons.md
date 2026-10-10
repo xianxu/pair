@@ -829,3 +829,9 @@ proof; record the surprising case so the next change starts from evidence.
   chain. When adding a verb, drive it from parsed argv through the top-level
   dispatcher in a test that enumerates every declared verb. Sweep every
   spelling of the old list, `switch` cases and `||` chains alike.
+
+- **A changed outcome contract sweeps every test that asserts the old one
+  (#427).** Making "submitted" mean "confirmed after the submit", not "the
+  submit write completed", broke a test in a file no targeted `-run` pattern
+  reached (`automatic_input_test.go`). Before the first targeted run, `git grep`
+  the status or field across `*_test.go`, and run the whole package once.
