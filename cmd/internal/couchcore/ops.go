@@ -382,6 +382,19 @@ func Operations() []Operation {
 			},
 		},
 		{
+			// Reload-context (pair#421) is Shift+Alt+N from outside the slot:
+			// a fresh agent conversation in the same Pair process. Confirmed
+			// because it ends a conversation; remote callers only (no row key).
+			Name: OpReloadContext, Summary: "Start a fresh agent conversation in a live slot's Pair",
+			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultThread,
+			Presentation: PresentationInternal,
+			Args: []ArgSpec{
+				{Name: "ref", Summary: "thread tag or path", Required: false},
+				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
+				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
+			},
+		},
+		{
 			// Reboot is the operator's way out of a conversation that cannot
 			// come back (pair#363): it archives the record with its evidence,
 			// so it is reversible in the way archive was, and confirmed because

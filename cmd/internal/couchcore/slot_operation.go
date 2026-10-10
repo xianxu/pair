@@ -31,14 +31,16 @@ func (e *SlotOperationError) Error() string { return e.Code + ": " + e.Detail }
 // slotOperations are the actor operations a slot target may request: the ONE
 // list the protocol, the socket and admission all read (IsSlotOperation), so a
 // new verb cannot be half-added.
-var slotOperations = []string{"resume", "reboot", "reap", "recover", OpRelaunch}
+var slotOperations = []string{"resume", "reboot", "reap", "recover", OpRelaunch, OpReloadContext}
 
 // IsSlotOperation reports whether op is a remote slot operation.
 func IsSlotOperation(op string) bool { return slices.Contains(slotOperations, op) }
 
 // SlotOperationTakesOverrides reports whether op accepts the pair#421
 // live-restart overrides (--same-binary, --force-unknown).
-func SlotOperationTakesOverrides(op string) bool { return op == OpRelaunch }
+// --same-binary only changes relaunch's outcome, but both live verbs accept
+// --force-unknown; the request carries both and admission reads each.
+func SlotOperationTakesOverrides(op string) bool { return op == OpRelaunch || op == OpReloadContext }
 
 // SelectSlotRow picks the one actionable row that stands for a slot: a :N
 // slot row by its host checkout, or, for :0, the row IsPrimaryRow accepts (a
@@ -148,7 +150,7 @@ func (c *Couch) prepareSlotOperation(ctx context.Context, op, target string, opt
 	if err != nil {
 		return OperationCall{}, "", err
 	}
-	if op == OpRelaunch || op == opReloadContext {
+	if op == OpRelaunch || op == OpReloadContext {
 		return c.prepareLiveRestart(ctx, op, target, row, path, opts)
 	}
 	offered := ActorActions(ActorRowFactsOf(row))

@@ -339,6 +339,10 @@ type SlotLiveness struct {
 	Binding Binding
 	Build   *BuildIdentity
 	Settled *bool
+	// Session is the admitted connection. A SIGUSR2 re-exec keeps the binding
+	// byte-identical (PID, start time, nonce), so a new token is the evidence
+	// that the wrapper restarted (pair#421 reload-context).
+	Session SessionToken
 }
 
 // Liveness snapshots every admitted session by slot. Admission already keeps
@@ -357,7 +361,7 @@ func (r *Registry) Liveness() map[string]SlotLiveness {
 			ambiguous[slot] = true
 			continue
 		}
-		out[slot] = SlotLiveness{Binding: s.binding, Build: s.build, Settled: s.settled}
+		out[slot] = SlotLiveness{Binding: s.binding, Build: s.build, Settled: s.settled, Session: t}
 	}
 	for slot := range ambiguous {
 		delete(out, slot)

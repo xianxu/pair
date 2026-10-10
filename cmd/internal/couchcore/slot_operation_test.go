@@ -182,9 +182,16 @@ func TestPrepareSlotOperationRefusesResumeOfALostConversation(t *testing.T) {
 
 // fakeLiveRestartProbe returns fixed facts and records what it was asked.
 type fakeLiveRestartProbe struct {
-	facts LiveRestartFacts
-	err   error
-	asked []string
+	facts      LiveRestartFacts
+	err        error
+	asked      []string
+	restarts   []ThreadAddress
+	restartErr error
+}
+
+func (f *fakeLiveRestartProbe) RestartConversation(_ context.Context, a ThreadAddress) error {
+	f.restarts = append(f.restarts, a)
+	return f.restartErr
 }
 
 func (f *fakeLiveRestartProbe) LiveRestartFacts(_ context.Context, op string, row ActionableThreadSummary, path string) (LiveRestartFacts, error) {
@@ -248,5 +255,56 @@ func TestPrepareSlotOperationRelaunchLive(t *testing.T) {
 	}
 	if n := len(env.Runner.Ops); n != 0 {
 		t.Fatalf("admission launched %d children", n)
+	}
+}
+
+// liveSlotFixture is a slot whose one live thread is running.
+func liveSlotFixture(t *testing.T) (*testEnv, string, ThreadRecord) {
+	t.Helper()
+	env, local := slotRecoveryOperationFixture(t)
+	address := WorkspaceReference{Repo: local.slot.Repo, Number: local.slot.Number}.String()
+	scope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
+	live := validThreadRecord(t)
+	live.Address.RepoScope = scope.Key
+	live.StartingPath, live.WorkingPath = local.slot.WorktreeRoot, local.slot.WorktreeRoot
+	live.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
+	live.Incarnations = []ThreadIncarnation{{PID: 5151, Identity: "slot-live", State: IncarnationLive, RepoIdentity: local.slot.RepoIdentity, LaunchProfile: live.LatestLaunchProfile}}
+	created, err := local.CreateThread(live)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env.Proc.Set(5151, "slot-live")
+	return env, address, created
+}
+
+// pair#421 M3: reload-context shares relaunch's admission minus freshness, and
+// its effect goes through the probe's verified restart.
+func TestReloadContextAdmissionAndEffect(t *testing.T) {
+	env, address, created := liveSlotFixture(t)
+	ctx := context.Background()
+	if _, err := env.Couch.ReloadContext(ctx, created.Address); slotOperationCode(err) != LiveRestartUnavailable {
+		t.Fatalf("no probe: %v", err)
+	}
+	// An unchanged binary does not matter to reload-context.
+	idle := LiveRestartFacts{Live: true, Session: true, SettledKnown: true, Settled: true, GitKnown: true,
+		Binary: BinaryFacts{RunningSHA: "same", OnDiskSHA: "same"}}
+	probe := &fakeLiveRestartProbe{facts: idle}
+	env.Couch.LiveRestart = probe
+	call, _, err := env.Couch.PrepareSlotOperation(ctx, OpReloadContext, address, LiveRestartOptions{})
+	if err != nil || call.Name != OpReloadContext || call.Args["tag"] != string(created.Address.Tag) {
+		t.Fatalf("admission: %+v %v", call, err)
+	}
+	res, err := env.Couch.ReloadContext(ctx, created.Address)
+	if err != nil || res.Address != created.Address || len(probe.restarts) != 1 || probe.restarts[0] != created.Address {
+		t.Fatalf("effect: %+v %v restarts=%v", res, err, probe.restarts)
+	}
+	probe.restartErr = &ReloadUnconfirmed{Detail: "no new session"}
+	var unconfirmed *ReloadUnconfirmed
+	if _, err := env.Couch.ReloadContext(ctx, created.Address); !errors.As(err, &unconfirmed) {
+		t.Fatalf("unconfirmed collapsed: %v", err)
+	}
+	// Dispatch reaches it through the declared operation.
+	if confirms, _ := OperationConfirms(OpReloadContext); !confirms {
+		t.Fatal("reload-context must require confirmation: it ends a conversation")
 	}
 }

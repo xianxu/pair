@@ -17,7 +17,7 @@ const (
 	LiveRestartStaleBinary = "stale-binary" // relaunch would run the binary the slot already runs
 	LiveRestartUnavailable = "unavailable"  // this Couch cannot probe live slots
 	OpRelaunch             = "relaunch"
-	opReloadContext        = "reload-context"
+	OpReloadContext        = "reload-context"
 )
 
 // LiveRestartFacts is everything the admission rule reads, gathered by a
@@ -151,11 +151,51 @@ func short(rev string) string {
 	return rev
 }
 
-// LiveRestartProbe gathers facts about one live row (pair#421). Couch's
-// message service implements it, since only it holds the wrapper sessions;
-// tests use a fake. path is the slot's checkout.
+// LiveRestartProbe gathers facts about one live row (pair#421) and performs
+// reload-context's restart. Couch's message service implements it, since only
+// it holds the wrapper sessions; tests use a fake. path is the slot's checkout.
 type LiveRestartProbe interface {
 	LiveRestartFacts(ctx context.Context, op string, row ActionableThreadSummary, path string) (LiveRestartFacts, error)
+	// RestartConversation signals the thread's broker-verified wrapper to start
+	// a fresh agent conversation, re-checking the process identity first, and
+	// returns once a new session proves the restart (ReloadUnconfirmed if not).
+	RestartConversation(ctx context.Context, address ThreadAddress) error
+}
+
+// ReloadUnconfirmed: the signal was delivered but no new wrapper session was
+// seen in time. The restart may still be under way, so the caller peeks before
+// retrying; it is never reported as success.
+type ReloadUnconfirmed struct{ Detail string }
+
+func (e *ReloadUnconfirmed) Error() string { return "unconfirmed: " + e.Detail }
+
+// ReloadContextResult is a confirmed reload-context.
+type ReloadContextResult struct{ Address ThreadAddress }
+
+// ReloadContext is Shift+Alt+N from outside the slot (pair#421): a fresh agent
+// conversation in the same Pair process. Admission (prepareLiveRestart) already
+// required a settled, clean, live slot; this re-checks liveness under the
+// thread's hold, because the queue ran between admission and now.
+func (c *Couch) ReloadContext(ctx context.Context, address ThreadAddress) (ReloadContextResult, error) {
+	if c.LiveRestart == nil {
+		return ReloadContextResult{}, &SlotOperationError{Code: LiveRestartUnavailable, Detail: "this Couch cannot observe live slots"}
+	}
+	ctx, release, err := c.hold(ctx, address, OpReloadContext)
+	if err != nil {
+		return ReloadContextResult{}, err
+	}
+	defer release()
+	thread, err := c.Threads.GetThread(address)
+	if err != nil {
+		return ReloadContextResult{}, err
+	}
+	if !hasOccupiedIncarnation(thread) {
+		return ReloadContextResult{}, &SlotOperationError{Code: LiveRestartNotLive, Detail: string(address.Tag) + " is no longer running"}
+	}
+	if err := c.LiveRestart.RestartConversation(ctx, address); err != nil {
+		return ReloadContextResult{}, err
+	}
+	return ReloadContextResult{Address: address}, nil
 }
 
 // prepareLiveRestart admits relaunch or reload-context on a live row. The row

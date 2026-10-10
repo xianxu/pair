@@ -234,3 +234,19 @@ wrapper.
 - **Receipts:** a failed relaunch keeps its typed outcome (`park-incomplete`,
   `park-ok-resume-failed`) as the receipt `Code` (`RelaunchResult.ReceiptCode`),
   and the admission note survives failures (BR-7).
+
+### 2026-10-10 — M3 implementation deltas
+- **Unconfirmed:** an unconfirmed reload is `failed` with code `unconfirmed`,
+  not `unknown` (PQ-4's wording). A receipt finish may only be succeeded,
+  refused or failed (`ReceiptStatus.Terminal`). The detail says the signal was
+  delivered and to peek before retrying, so it is never reported as success.
+- **Restart evidence:** a new session token. A SIGUSR2 re-exec keeps PID,
+  start time and nonce, so "a new Binding (Start or Nonce)" could never
+  change. `SlotLiveness.Session` carries the registry token.
+- **No signal helper:** there is no `SignalVerifiedWrapper` shared with
+  `agentcmd`. The verified signal lives in `liveRestartProbe.RestartConversation`
+  (the one seam that holds the broker's binding), and `agentcmd` keeps its
+  in-slot pid-file path. A shared helper would have had one caller.
+- **Overrides:** `--force-unknown` applies to reload-context too
+  (`SlotOperationTakesOverrides`). `--same-binary` is accepted but has no
+  effect there.

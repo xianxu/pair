@@ -442,6 +442,23 @@ anyway. `--same-binary` also overrides it. When the binary is newer but
 behind its checkout's HEAD, or was built from a dirty tree, the note says so
 without refusing.
 
+**Reload-context (pair#421 M3).** `couch --reload-context repo:N --confirm
+[--force-unknown]` does what Shift+Alt+N (`pair agent restart`) does: a fresh
+agent conversation in the same Pair process. It does not pick up a new binary;
+use relaunch for that.
+- **Admission:** the same rule as relaunch, minus freshness.
+- **Effect:** `Couch.ReloadContext` re-checks liveness under the thread's
+  hold, then calls `LiveRestartProbe.RestartConversation`. That signals the
+  wrapper the broker holds for the thread, never a pid file. It first
+  re-checks `ProcOps.Identity(Binding.PID) == Binding.Start`, then sends
+  SIGUSR2.
+- **Confirmation:** a SIGUSR2 re-exec keeps the binding byte-identical, so
+  success means a new session token (`SlotLiveness.Session`) within 20s.
+  Otherwise the receipt is `failed` with code `unconfirmed`, saying to peek
+  before retrying. A finish cannot be "unknown".
+- **Admission note:** it reaches the receipt on success and on failure
+  (`withAdmissionNote`).
+
 **Arguments and the receipt.** The admitted call addresses the row by thread
 (`repo-scope` and `tag`), the dialect the relaunch dispatch reads. The probe
 finds the slot's wrapper the same way, by thread rather than by the

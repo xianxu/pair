@@ -6,7 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
@@ -155,5 +157,85 @@ func TestRelaunchFailureOutcomeIsTyped(t *testing.T) {
 	}
 	if out := slotOperationOutcome(couchcore.RelaunchResult{Outcome: couchcore.Relaunched}, nil); out.Code != "" {
 		t.Fatalf("success carried a failure code: %+v", out)
+	}
+}
+
+// pair#421 M3: reload-context signals the broker-held wrapper only after its
+// identity re-checks, and succeeds only on a NEW session (a re-exec keeps the
+// binding byte-identical).
+func TestRestartConversationVerifiedAndConfirmed(t *testing.T) {
+	addr := couchcore.ThreadAddress{RepoScope: "s1", Tag: "t1"}
+	binding := couchmessage.Binding{Slot: "pair:1", Scope: "s1", Tag: "t1", PID: 4242, Start: "start-4242"}
+	setup := func(identity string) (*liveRestartProbe, *messageService, *couchcore.FakeProcOps) {
+		svc := &messageService{}
+		live := map[string]couchmessage.SlotLiveness{"pair:1": {Binding: binding, Session: 7}}
+		svc.liveness.Store(&live)
+		proc := couchcore.NewFakeProcOps()
+		proc.Set(4242, identity)
+		p := &liveRestartProbe{proc: proc, confirmWithin: 200 * time.Millisecond, pollEvery: 5 * time.Millisecond}
+		p.service.Store(svc)
+		return p, svc, proc
+	}
+	// The PID now names another process: nothing is signalled.
+	p, _, proc := setup("someone-else")
+	if err := p.RestartConversation(context.Background(), addr); err == nil || len(proc.Signals[4242]) != 0 {
+		t.Fatalf("mismatched identity: %v, signals %v", err, proc.Signals[4242])
+	}
+	// Verified, signalled, and a new session appears: confirmed.
+	p, svc, proc := setup("start-4242")
+	go func() {
+		time.Sleep(20 * time.Millisecond)
+		next := map[string]couchmessage.SlotLiveness{"pair:1": {Binding: binding, Session: 8}}
+		svc.liveness.Store(&next)
+	}()
+	if err := p.RestartConversation(context.Background(), addr); err != nil {
+		t.Fatalf("confirmed restart: %v", err)
+	}
+	if got := proc.Signals[4242]; len(got) != 1 || got[0] != syscall.SIGUSR2 {
+		t.Fatalf("signals %v", got)
+	}
+	// Signalled but the same session stays: unconfirmed, never success.
+	p, _, _ = setup("start-4242")
+	var unconfirmed *couchcore.ReloadUnconfirmed
+	if err := p.RestartConversation(context.Background(), addr); !errors.As(err, &unconfirmed) {
+		t.Fatalf("no new session: %v", err)
+	}
+	if out := slotOperationOutcome(nil, &couchcore.ReloadUnconfirmed{Detail: "x"}); out.Status != couchmessage.ReceiptFailed || out.Code != "unconfirmed" {
+		t.Fatalf("receipt %+v", out)
+	}
+	// No session at all: refused, nothing signalled.
+	empty := &liveRestartProbe{proc: couchcore.NewFakeProcOps()}
+	empty.service.Store(&messageService{})
+	if err := empty.RestartConversation(context.Background(), addr); err == nil {
+		t.Fatal("restart without a session")
+	}
+}
+
+// M2 review advisory: the adapter that attaches the admission note must keep
+// it on a failed job too.
+func TestWithAdmissionNoteOnSuccessAndFailure(t *testing.T) {
+	for _, failed := range []error{nil, errors.New("park did not complete")} {
+		var got couchmessage.ReceiptOutcome
+		note := "built from x"
+		withAdmissionNote(&note, func(v any, err error) { got = slotOperationOutcome(v, err) })(couchcore.RelaunchResult{Outcome: couchcore.ParkIncomplete}, failed)
+		if got.Warning != "built from x" {
+			t.Errorf("err=%v: note lost: %+v", failed, got)
+		}
+	}
+	none := ""
+	var raw any
+	withAdmissionNote(&none, func(v any, _ error) { raw = v })("plain", nil)
+	if raw != "plain" {
+		t.Fatalf("empty note wrapped the value: %#v", raw)
+	}
+}
+
+func TestParseReloadContext(t *testing.T) {
+	got, err := ParseCLI([]string{"--reload-context", "pair:2", "--confirm", "--force-unknown"}, couchcore.Operations())
+	if err != nil || got.messageOp != "reload-context" || !got.confirmed || !got.forceUnknown {
+		t.Fatalf("%#v %v", got, err)
+	}
+	if _, err := ParseCLI([]string{"--reload-context", "pair:2"}, couchcore.Operations()); err == nil {
+		t.Fatal("reload-context without --confirm")
 	}
 }

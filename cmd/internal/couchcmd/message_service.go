@@ -306,7 +306,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 		},
 	}
 	panes := couchmessage.NewPaneMailbox()
-	probe := newLiveRestartProbe(c.Git)
+	probe := newLiveRestartProbe(c.Git, c.Proc)
 	c.LiveRestart = probe // before the socket opens: no request can race this write
 	service, err := newMessageService(context.Background(), brokerSocket, registrySocket, authority, panes, console.MessageSlotGit, consoleSlotOperations(console, c))
 	if err != nil {
@@ -334,12 +334,7 @@ func consoleSlotOperations(console *couchtty.Console, c *couchcore.Couch) *slotO
 			call, n, err := c.PrepareSlotOperation(ctx, op, target, opts)
 			note = n
 			return call, err
-		}, started, func(value any, err error) {
-			if note != "" {
-				value = notedResult{value: value, note: note}
-			}
-			finished(value, err)
-		})
+		}, started, withAdmissionNote(&note, finished))
 	}, func(ctx context.Context) ([]couchcore.RepositoryName, error) {
 		if c.Threads == nil {
 			return nil, errors.New("no thread store")

@@ -13,7 +13,7 @@ func TestDecideLiveRestartExhaustive(t *testing.T) {
 	stale := BinaryFacts{RunningSHA: "same", OnDiskSHA: "same"}
 	bools := []bool{false, true}
 	checks := 0
-	for _, op := range []string{OpRelaunch, opReloadContext} {
+	for _, op := range []string{OpRelaunch, OpReloadContext} {
 		for _, live := range bools {
 			for _, session := range bools {
 				for _, known := range bools {

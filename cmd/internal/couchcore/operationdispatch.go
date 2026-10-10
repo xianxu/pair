@@ -409,6 +409,12 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				return nil, err
 			}
 			return c.Relaunch(ctx, address)
+		case OpReloadContext:
+			address, err := resolveOperationThread(c, a)
+			if err != nil {
+				return nil, err
+			}
+			return c.ReloadContext(ctx, address)
 		case "leave":
 			// Mirrors park's mode argument rather than minting a second verb:
 			// leaving is one operation whose disposition the pressed key picks.
