@@ -100,3 +100,8 @@ Durable plan: `workshop/plans/000421-couch-tl-callable-restart-of-a-live-idle-sl
 ## Log
 
 ### 2026-10-09
+- TL finding (2026-10-09): relaunch under Couch never rebuilds, because Couch
+  does not propagate `PAIR_DEV`. Propagation is independent work, filed as
+  #422. #421's share: the `stale-binary` refusal is skipped when the slot's
+  launch environment has `PAIR_DEV` set, because `dev_rebuild` will rebuild
+  during the relaunch. Folded into M2.
