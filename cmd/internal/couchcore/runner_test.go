@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -170,6 +171,20 @@ func TestExecRunnerBuildsCommandWithUniqueAuthoritativeChildEnvironment(t *testi
 	}
 	if !reflect.DeepEqual(entries, []string{"PAIR_USE_REPO_DEFAULT="}) {
 		t.Fatalf("raw exec.Cmd policy environment = %q, want one authoritative empty entry", entries)
+	}
+}
+
+// A Couch started by couch-dev passes PAIR_DEV to every slot it launches, so
+// the slot's Pair rebuilds on create and Alt+n (#422). The inheritance is the
+// whole mechanism: no code names PAIR_DEV, so pin it.
+func TestExecRunnerChildInheritsPairDev(t *testing.T) {
+	t.Setenv("PAIR_DEV", "1")
+	cmd, err := buildExecCommand(t.TempDir(), []string{"env"}, []string{"PAIR_USE_REPO_DEFAULT="}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(cmd.Env, "PAIR_DEV=1") {
+		t.Fatalf("child environment dropped PAIR_DEV: %q", cmd.Env)
 	}
 }
 

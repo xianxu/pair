@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -242,5 +243,21 @@ func TestSingletonBlockedChildRetainsActorPathsAndSelectedRoots(t *testing.T) {
 	}
 	if runner.Child(child.ID()).ExecCount != 0 {
 		t.Fatal("blocked child executed before acknowledgement")
+	}
+}
+
+// childEnv blanks inherited per-session destinations, never PAIR_DEV: a
+// couch-dev Couch's slots must keep dev mode so Alt+n rebuilds Pair (#422).
+func TestConfiguredRunnerChildEnvKeepsPairDev(t *testing.T) {
+	t.Setenv("PAIR_DEV", "1")
+	t.Setenv("PAIR_STALE_PATH", "/old")
+	got := configuredRunner{environment: []string{"PAIR_DATA_DIR="}}.childEnv([]string{"COUCH_THREAD_TAG=t"})
+	for _, entry := range got {
+		if strings.HasPrefix(entry, "PAIR_DEV=") {
+			t.Fatalf("childEnv overrides inherited PAIR_DEV: %q", got)
+		}
+	}
+	if !slices.Contains(got, "PAIR_STALE_PATH=") {
+		t.Fatalf("childEnv did not blank the inherited per-session path: %q", got)
 	}
 }
