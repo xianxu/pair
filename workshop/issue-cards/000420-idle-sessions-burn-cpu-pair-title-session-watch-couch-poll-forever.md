@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000420-idle-sessions-burn-cpu-pair-title-session-watch-couch-poll-forever.md
         source_blob: b90587d60cc1f96a11f08d1d5a30c9b475adca47
         destination: workshop/issues/000420-idle-sessions-burn-cpu-pair-title-session-watch-couch-poll-forever.md
+        main_commit: 88011634fb9827f1964089946081dcc6fd4381fc
 ---
 
 # idle sessions burn CPU: pair title / session-watch / couch poll forever
