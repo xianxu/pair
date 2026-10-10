@@ -163,7 +163,16 @@ func slotOperationOutcome(value any, err error) couchmessage.ReceiptOutcome {
 	case errors.As(err, &reapRefusal):
 		return couchmessage.ReceiptOutcome{Status: couchmessage.ReceiptRefused, Code: "reap-refused", Detail: reapRefusal.Detail}
 	case err != nil:
-		return couchmessage.ReceiptOutcome{Status: couchmessage.ReceiptFailed, Detail: err.Error(), Diagnostic: string(couchcore.ResumeDiagnosticOf(err))}
+		out := couchmessage.ReceiptOutcome{Status: couchmessage.ReceiptFailed, Detail: err.Error(), Diagnostic: string(couchcore.ResumeDiagnosticOf(err))}
+		// A typed partial outcome (a relaunch that parked but did not
+		// resume) and the admission note survive the failure (pair#421).
+		if coded, ok := value.(interface{ ReceiptCode() string }); ok {
+			out.Code = coded.ReceiptCode()
+		}
+		if warned, ok := value.(interface{ Warning() string }); ok {
+			out.Warning = warned.Warning()
+		}
+		return out
 	}
 	out := couchmessage.ReceiptOutcome{Status: couchmessage.ReceiptSucceeded}
 	if child, ok := value.(couchcore.StartedChild); ok {
@@ -193,6 +202,13 @@ func (n notedResult) Started() (couchcore.StartResult, bool) {
 		return child.Started()
 	}
 	return couchcore.StartResult{}, false
+}
+
+func (n notedResult) ReceiptCode() string {
+	if coded, ok := n.value.(interface{ ReceiptCode() string }); ok {
+		return coded.ReceiptCode()
+	}
+	return ""
 }
 
 func (n notedResult) Warning() string {

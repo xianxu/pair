@@ -391,6 +391,9 @@ couch --resume repo:N [--json]   from a live slot: resume that slot's agent
 couch --reboot repo:N --confirm [--json]   from a live slot: archive and replace it
 couch --reap repo:N --confirm [--json]     from a live slot: end an orphaned server's tree
 couch --recover repo:N [--json]               from a live slot: run the report's steps for it
+couch --relaunch repo:N --confirm [--same-binary] [--force-unknown] [--json]
+                         from a live slot: restart an idle slot on the current binary, same conversation (Alt+n);
+                         refuses busy, dirty or an unchanged binary, naming the fix
 couch --send-to repo:N --message TEXT   send to an exact live slot
 couch --send-to repo --message TEXT     select an eligible slot in that family
 couch --send-to repo --agent NAME --message TEXT   ...running that agent

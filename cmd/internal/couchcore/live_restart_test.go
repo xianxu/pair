@@ -13,7 +13,7 @@ func TestDecideLiveRestartExhaustive(t *testing.T) {
 	stale := BinaryFacts{RunningSHA: "same", OnDiskSHA: "same"}
 	bools := []bool{false, true}
 	checks := 0
-	for _, op := range []string{opRelaunch, opReloadContext} {
+	for _, op := range []string{OpRelaunch, opReloadContext} {
 		for _, live := range bools {
 			for _, session := range bools {
 				for _, known := range bools {
@@ -33,7 +33,7 @@ func TestDecideLiveRestartExhaustive(t *testing.T) {
 											want = LiveRestartBusy
 										case !gitKnown || dirty:
 											want = LiveRestartDirty
-										case op == opRelaunch && binary == stale:
+										case op == OpRelaunch && binary == stale:
 											want = LiveRestartStaleBinary
 										}
 										got := DecideLiveRestart(op, f, LiveRestartOptions{ForceUnknown: force})

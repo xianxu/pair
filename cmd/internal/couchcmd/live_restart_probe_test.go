@@ -12,12 +12,23 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 )
 
-type fakeProbeGit struct{ head string }
+type fakeProbeGit struct {
+	head   string
+	status string // porcelain v2; "" makes status fail
+}
 
 func (g fakeProbeGit) Run(dir string, args ...string) (string, error) {
 	return g.RunContext(context.Background(), dir, args...)
 }
 func (g fakeProbeGit) RunContext(_ context.Context, dir string, args ...string) (string, error) {
+	for _, a := range args {
+		if a == "status" {
+			if g.status == "" {
+				return "", errors.New("not a work tree")
+			}
+			return g.status, nil
+		}
+	}
 	if len(args) >= 2 && args[0] == "rev-parse" && args[1] == "HEAD" {
 		if g.head == "" {
 			return "", errors.New("not a repository")
@@ -76,5 +87,73 @@ func TestNotedResultForwardsAndJoins(t *testing.T) {
 	out := slotOperationOutcome(n, nil)
 	if out.Status != couchmessage.ReceiptSucceeded || out.Warning != "built from x" {
 		t.Fatalf("outcome %+v", out)
+	}
+}
+
+// BR-8 (M2 review): the safety guard's wiring. The probe must find the slot's
+// wrapper by THREAD (scope + tag), carry its Settled claim only when the
+// wrapper made one, and read dirtiness from the slot's checkout.
+func TestLiveRestartProbeFactsMapping(t *testing.T) {
+	yes, no := true, false
+	svc := &messageService{}
+	live := map[string]couchmessage.SlotLiveness{
+		"pair:1": {Binding: couchmessage.Binding{Slot: "pair:1", Scope: "s1", Tag: "t1"}, Settled: &yes},
+		"pair:2": {Binding: couchmessage.Binding{Slot: "pair:2", Scope: "s1", Tag: "t2"}, Settled: &no},
+		"pair:3": {Binding: couchmessage.Binding{Slot: "pair:3", Scope: "s1", Tag: "t3"}}, // legacy: no claim
+	}
+	svc.liveness.Store(&live)
+	clean := "# branch.head main\n"
+	dirty := clean + "1 .M N... 100644 100644 100644 a a file\n"
+	row := func(tag string, liveRow bool) couchcore.ActionableThreadSummary {
+		r := couchcore.ActionableThreadSummary{Address: couchcore.ThreadAddress{RepoScope: "s1", Tag: couchcore.ThreadTag(tag)}}
+		if liveRow {
+			r.State = couchcore.ThreadLive
+		}
+		return r
+	}
+	for _, tc := range []struct {
+		name   string
+		row    couchcore.ActionableThreadSummary
+		status string
+		want   couchcore.LiveRestartFacts
+	}{
+		{"settled clean", row("t1", true), clean, couchcore.LiveRestartFacts{Live: true, Session: true, SettledKnown: true, Settled: true, GitKnown: true}},
+		{"busy dirty", row("t2", true), dirty, couchcore.LiveRestartFacts{Live: true, Session: true, SettledKnown: true, GitKnown: true, Dirty: true}},
+		{"legacy wrapper", row("t3", true), clean, couchcore.LiveRestartFacts{Live: true, Session: true, GitKnown: true}},
+		{"no session, git unreadable", row("t9", true), "", couchcore.LiveRestartFacts{Live: true}},
+		{"not live", row("t1", false), clean, couchcore.LiveRestartFacts{Session: true, SettledKnown: true, Settled: true, GitKnown: true}},
+	} {
+		// reload-context: the probe gathers no binary facts, so no lookPath.
+		p := &liveRestartProbe{git: fakeProbeGit{status: tc.status}}
+		p.service.Store(svc)
+		got, err := p.LiveRestartFacts(context.Background(), "reload-context", tc.row, "/slot")
+		if err != nil || got != tc.want {
+			t.Errorf("%s: got %+v %v\nwant %+v", tc.name, got, err, tc.want)
+		}
+	}
+	// No service attached yet (requests racing startup): no session, never idle.
+	p := &liveRestartProbe{git: fakeProbeGit{status: clean}}
+	if got, _ := p.LiveRestartFacts(context.Background(), "reload-context", row("t1", true), "/slot"); got.Session || got.SettledKnown {
+		t.Fatalf("detached probe invented a session: %+v", got)
+	}
+	// A different scope with the same tag is a different thread.
+	if _, ok := svc.LivenessForThread("s2", "t1"); ok {
+		t.Fatal("matched across scopes")
+	}
+}
+
+// BR-7 (M2 review): a relaunch that parked but did not resume needs a
+// different recovery than one that never parked; the receipt carries which,
+// and the admission note survives the failure.
+func TestRelaunchFailureOutcomeIsTyped(t *testing.T) {
+	for _, outcome := range []couchcore.RelaunchOutcome{couchcore.ParkIncomplete, couchcore.ParkedNotResumed} {
+		value := notedResult{value: couchcore.RelaunchResult{Outcome: outcome}, note: "built from x"}
+		out := slotOperationOutcome(value, errors.New("relaunch failed"))
+		if out.Status != couchmessage.ReceiptFailed || out.Code != string(outcome) || out.Warning != "built from x" {
+			t.Errorf("%s: %+v", outcome, out)
+		}
+	}
+	if out := slotOperationOutcome(couchcore.RelaunchResult{Outcome: couchcore.Relaunched}, nil); out.Code != "" {
+		t.Fatalf("success carried a failure code: %+v", out)
 	}
 }

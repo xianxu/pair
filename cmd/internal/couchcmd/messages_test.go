@@ -264,7 +264,11 @@ func TestSlotOperationCLIPollLoop(t *testing.T) {
 		}, 1, "", "couch: unavailable: caller not live", 1},
 		{"an older Couch without slot operations says to restart it", func(int, couchmessage.Request) (couchmessage.Response, error) {
 			return couchmessage.Response{Code: "invalid-request", Error: "unknown message operation"}, nil
-		}, 1, "", "the running Couch predates `couch --resume`/`--reboot`; restart Couch (switcher Alt+d, then `couch`) to use them", 1},
+		}, 1, "", "the running Couch predates `couch --resume`; restart Couch (switcher Alt+d, then `couch`) on the new binary to use it", 1},
+		// pair#421: a pre-421 Couch strict-decodes relaunch's override fields.
+		{"an older Couch rejecting new request fields says to restart it", func(int, couchmessage.Request) (couchmessage.Response, error) {
+			return couchmessage.Response{Code: "invalid-request", Error: `json: unknown field "SameBinary"`}, nil
+		}, 1, "", "the running Couch predates `couch --resume`", 1},
 		{"polling past the budget is uncertain", admitThen(running), 1, "", uncertainLine, 0},
 		{"a receipt Couch no longer holds is uncertain", admitThen(receiptResponse("ok", couchmessage.ReceiptUnknown)), 1, "", uncertainLine, 2},
 		{"a dial error mid-poll is uncertain", func(n int, r couchmessage.Request) (couchmessage.Response, error) {

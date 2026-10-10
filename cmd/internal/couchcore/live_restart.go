@@ -16,7 +16,7 @@ const (
 	LiveRestartDirty       = "dirty"        // the checkout has uncommitted changes
 	LiveRestartStaleBinary = "stale-binary" // relaunch would run the binary the slot already runs
 	LiveRestartUnavailable = "unavailable"  // this Couch cannot probe live slots
-	opRelaunch             = "relaunch"
+	OpRelaunch             = "relaunch"
 	opReloadContext        = "reload-context"
 )
 
@@ -95,7 +95,7 @@ func DecideLiveRestart(op string, f LiveRestartFacts, o LiveRestartOptions) Live
 	case f.Dirty:
 		return refuse(LiveRestartDirty, "the checkout has uncommitted changes")
 	}
-	if op == opRelaunch {
+	if op == OpRelaunch {
 		stale, detail, note := DecideBinaryFreshness(f.Binary, o.SameBinary)
 		if note != "" {
 			notes = append(notes, note)

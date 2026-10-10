@@ -91,7 +91,11 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 		switch args[0] {
 		case "--adopt-store":
 			return parseAdoptionCLI(args)
-		case "--actors", "--send-to", "--message-status", "--skill", "--resume", "--reboot", "--reap", "--recover", "--relaunch", "--broadcast-list":
+		case "--actors", "--send-to", "--message-status", "--skill", "--broadcast-list":
+			return parseMessageCLI(args)
+		}
+		// Slot operations come from the one verb list (couchcore.IsSlotOperation).
+		if strings.HasPrefix(args[0], "--") && couchcore.IsSlotOperation(strings.TrimPrefix(args[0], "--")) {
 			return parseMessageCLI(args)
 		}
 	}
@@ -296,7 +300,7 @@ func parseMessageCLI(args []string) (cliInvocation, error) {
 			return bad()
 		}
 		return cliInvocation{kind: cliMessage, messageOp: "status", ref: args[1], jsonOutput: len(args) == 3}, nil
-	case "--resume", "--reboot", "--reap", "--recover", "--relaunch":
+	case slotOperationFlag(args[0]):
 		// One exact slot, then --json and the declared --confirm, each once.
 		// relaunch (pair#421) also takes its two overrides.
 		op := strings.TrimPrefix(args[0], "--")
@@ -308,7 +312,7 @@ func parseMessageCLI(args []string) (cliInvocation, error) {
 		}
 		seen := map[string]bool{}
 		allowed := map[string]bool{"--json": true, "--confirm": true}
-		if op == "relaunch" {
+		if couchcore.SlotOperationTakesOverrides(op) {
 			allowed["--same-binary"], allowed["--force-unknown"] = true, true
 		}
 		for _, flag := range args[2:] {
@@ -340,4 +344,13 @@ func parseMessageCLI(args []string) (cliInvocation, error) {
 		return cliInvocation{kind: cliMessage, messageOp: "send", ref: args[1], messageAgent: agent, messageBody: args[3]}, nil
 	}
 	return bad()
+}
+
+// slotOperationFlag returns flag when it names a slot operation ("--relaunch"),
+// so a switch on the flag can match the one verb list; "" never matches a flag.
+func slotOperationFlag(flag string) string {
+	if strings.HasPrefix(flag, "--") && couchcore.IsSlotOperation(strings.TrimPrefix(flag, "--")) {
+		return flag
+	}
+	return "\x00not-a-slot-operation"
 }

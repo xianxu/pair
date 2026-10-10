@@ -45,6 +45,16 @@ type RelaunchResult struct {
 	Handle  Handle
 }
 
+// ReceiptCode is the outcome a caller's receipt carries when the relaunch did
+// not complete (pair#421): park-incomplete and park-ok-resume-failed need
+// different recoveries, so they must not collapse into free text.
+func (r RelaunchResult) ReceiptCode() string {
+	if r.Outcome == Relaunched {
+		return ""
+	}
+	return string(r.Outcome)
+}
+
 // Started reports the resumed child for console adoption. Only a completed
 // relaunch has one: every other outcome either never parked or never resumed,
 // and handing back a half-finished relaunch as a startable child would attach

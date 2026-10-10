@@ -40,7 +40,7 @@ func (p *liveRestartProbe) LiveRestartFacts(ctx context.Context, op string, row 
 	if status, err := couchcore.ProbeSlotGit(ctx, p.git, path); err == nil {
 		f.GitKnown, f.Dirty = true, status.Dirty
 	}
-	if op == "relaunch" {
+	if op == couchcore.OpRelaunch {
 		f.Binary = p.binaryFacts(ctx, live)
 	}
 	return f, nil

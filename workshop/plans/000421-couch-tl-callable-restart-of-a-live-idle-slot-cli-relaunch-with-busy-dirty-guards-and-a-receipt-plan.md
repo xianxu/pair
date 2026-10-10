@@ -27,14 +27,14 @@ no turn is open. The supervisor reads that fact at admission, alongside
 
 | Name | Lives in | Status |
 |------|----------|--------|
-| `Observation.Settled` | `cmd/internal/couchmessage/broker.go` | modified |
+| `Observation.Settled` *(superseded: `SessionFrame.Settled *bool` + `SessionFrame.Build`, hello-v2 only; M1 deltas)* | `cmd/internal/couchmessage/session_protocol.go` | modified |
 | `wrapperSettled` | `cmd/internal/wrapcmd/peer_settle.go` | new |
 | `LiveRestartFacts` / `DecideLiveRestart` | `cmd/internal/couchcore/live_restart.go` | new |
-| `BinaryFreshness` / `DecideBinaryFreshness` | `cmd/internal/couchcore/live_restart.go` | new |
-| `slotOperations` | `cmd/internal/couchcore/slot_operation.go` | modified (+relaunch, reload-context) |
+| `BinaryFacts` / `DecideBinaryFreshness` *(was `BinaryFreshness`; M2 deltas)* | `cmd/internal/couchcore/live_restart.go` | new |
+| `slotOperations` / `IsSlotOperation` | `cmd/internal/couchcore/slot_operation.go` | modified (+relaunch, reload-context; now the one verb list the protocol, socket and CLI read — M2 deltas) |
 | `ParseCLI` slot-op case | `cmd/internal/couchcmd/cli.go` | modified |
 
-- **Observation.Settled** — the wrapper's claim "an automatic restart would
+- **Observation.Settled** *(superseded: it rides `SessionFrame.Settled`, not `Observation`; M1 deltas)* — the wrapper's claim "an automatic restart would
   interrupt nothing". It is true only if all of these hold:
   - output and input have been quiet for `SettleInterval` (3s);
   - no turn is open (`notificationLifecycle.Active == false`);
@@ -45,10 +45,11 @@ no turn is open. The supervisor reads that fact at admission, alongside
     the quiet interval (debounced timer), so streaming output costs nothing
     extra.
   - **Compatibility:** a pre-#421 wrapper never sets it. The field is
-    `SettledKnown`+`Settled`, so "unknown" is distinguishable from "busy".
+    `SettledKnown`+`Settled`, so "unknown" is distinguishable from "busy". *(Superseded: a nil `*bool` on the frame
+    is unknown; M1 deltas.)*
   - **DRY rationale:** it reuses the exact composer reader peer delivery
     trusts (`peerComposerState`), so "empty composer" means one thing.
-- **DecideLiveRestart(facts) → (ok, code, detail)** — pure admission for both
+- **DecideLiveRestart(facts) → (ok, code, detail)** *(superseded: `DecideLiveRestart(op, facts, opts) LiveRestartDecision{Code, Detail, Note}`; M2 deltas)* — pure admission for both
   verbs.
   - **Refusal codes:** `busy` (Settled false), `busy-unknown` (an old wrapper or
     no session), `dirty` (git porcelain non-empty), `not-live` (no occupied
@@ -58,7 +59,7 @@ no turn is open. The supervisor reads that fact at admission, alongside
     binaries refuse `busy-unknown` until they have been relaunched once by hand
     (or they pass `--force-unknown`, which the receipt records). A wrong guess
     would kill a draft.
-- **DecideBinaryFreshness(running, onDisk, sourceHEAD)** — pure.
+- **DecideBinaryFreshness(running, onDisk, sourceHEAD)** *(superseded: `DecideBinaryFreshness(b BinaryFacts, sameBinaryOK bool) (stale bool, detail, note string)`, with a PAIR_DEV skip; M2 deltas)* — pure.
   - `running` is the wrapper's own `vcs.revision`/`vcs.modified`, sent once
     in a new `Binding.PairRevision`. *(Superseded: the executable's content hash, sent on
     `hello-v2` and never in `Binding`; see Revisions PQ-2 and PQ-3.)*
@@ -78,14 +79,15 @@ no turn is open. The supervisor reads that fact at admission, alongside
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
 | wrapper settle timer | `cmd/internal/wrapcmd/peer_settle.go` | new | pair-wrap clock + terminal snapshot |
-| `SlotLiveness` lookup | `cmd/internal/couchcmd/message_service.go` | new | broker actor observation by slot |
+| `SlotLiveness` lookup *(superseded: `messageService.LivenessForThread(scope, tag)`; M2 deltas)* | `cmd/internal/couchcmd/message_service.go` | new | registry liveness snapshot by thread |
 | `ProbeSlotGit` | `cmd/internal/couchcore/slotgit.go` | existing | `git status` |
-| `BinaryProbe` | `cmd/internal/couchcore/live_restart.go` | new | `exec.LookPath`, `debug/buildinfo`, `git rev-parse` |
+| `BinaryProbe` *(superseded: `liveRestartProbe.binaryFacts`, behind the `LiveRestartProbe` interface; M2 deltas)* | `cmd/internal/couchcmd/live_restart_probe.go` | new | `exec.LookPath`, `debug/buildinfo`, `git rev-parse` |
 | `ReloadContext` | `cmd/internal/couchcore/reload_context.go` | new | SIGUSR2 to the broker-verified wrapper PID *(superseded the pid file; Revisions PQ-1)* |
 
 - **SlotLiveness** is injected into `Couch` (an interface with
   `Liveness(slot string) (Observation, Binding, bool)`), so admission tests use a
-  fake. Production reads the broker's `SlotActor` for the exact slot.
+  fake. Production reads the broker's `SlotActor` for the exact slot. *(Superseded: `Couch.LiveRestart` is a
+  `LiveRestartProbe`; `couchcmd.liveRestartProbe` reads `LivenessForThread`, git and the binary; M2 deltas.)*
 - **ReloadContext** resolves the row's tag and data dir to the scoped
   `PairWrapPID` *(superseded: the broker's verified Binding PID; Revisions PQ-1)* (the same artifact family `agentcmd.RunRestart` reads) and sends
   SIGUSR2. It shares one helper with `agentcmd` (ARCH-DRY: extract
@@ -212,3 +214,23 @@ wrapper.
 - One admitted session per slot is already a registry invariant (a new
   incarnation displaces the old), so `Liveness` reports the newest
   incarnation's own claims; it never inherits an old Settled.
+
+### 2026-10-10 — M2 implementation deltas (close review BR-10)
+- **Admission:** `DecideLiveRestart(op, facts, opts) LiveRestartDecision{Code,
+  Detail, Note}` replaces `(facts) → (ok, code, detail)`. The note carries
+  freshness and any override used.
+- **Freshness:** `DecideBinaryFreshness(b BinaryFacts, sameBinaryOK bool)
+  (stale, detail, note)` replaces the three-argument form. `PAIR_DEV` skips the
+  refusal: slots inherit Couch's environment, so the relaunch's `dev_rebuild`
+  rebuilds (#422, TL note).
+- **Probe:** the injected seam is `Couch.LiveRestart LiveRestartProbe`,
+  implemented by `couchcmd.liveRestartProbe` (liveness by thread via
+  `messageService.LivenessForThread`, git via `ProbeSlotGit`, binary via
+  `binaryFacts`). It replaces the planned `SlotLiveness` interface and
+  `BinaryProbe`.
+- **One verb list:** `couchcore.IsSlotOperation` /
+  `SlotOperationTakesOverrides` is now the single list the protocol, the
+  socket and the CLI read (close review Minor).
+- **Receipts:** a failed relaunch keeps its typed outcome (`park-incomplete`,
+  `park-ok-resume-failed`) as the receipt `Code` (`RelaunchResult.ReceiptCode`),
+  and the admission note survives failures (BR-7).

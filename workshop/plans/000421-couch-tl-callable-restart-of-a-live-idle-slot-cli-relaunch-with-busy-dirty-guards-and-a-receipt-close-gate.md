@@ -82,6 +82,46 @@ rounds:
       recipe: milestone-review
       reviewed: ef0e61f28c9909674768fce988a66a9412ecd63e
       blocked: false
+    - "n": 4
+      timestamp: "2026-10-10T00:05:59-07:00"
+      agent: claude
+      findings:
+        - id: BR-7
+          severity: Important
+          title: Relaunch failure outcomes (park-incomplete vs park-ok-resume-failed) reach the receipt as untyped text, and the admission note is dropped on failure
+          detail: slotOperationOutcome maps any err to failed with err text only; the plan promised the receipt maps RelaunchResult.Outcome, and notedResult wraps only when err == nil, so a forced-unknown failure no longer records --force-unknown. Set the receipt Code from the outcome, keep the note on failure, and test each outcome.
+          family: typed-outcome-survives-boundary
+          round: 4
+        - id: BR-8
+          severity: Important
+          title: liveRestartProbe.LiveRestartFacts (settled/session/git mapping) and messageService.LivenessForThread have no tests
+          detail: Only binaryFacts is tested. Settled nil→unknown, git error→GitKnown=false, and the scope/tag match are unpinned; a wrong match field silently makes every relaunch busy-unknown. Add a table test with a seeded liveness map and a fake git.
+          family: safety-guard-wiring-untested
+          round: 4
+        - id: BR-9
+          severity: Important
+          title: README.md slot-operation verb list (lines 389-393) is missing couch --relaunch and its overrides
+          family: docs-surface-lags-cli
+          round: 4
+        - id: BR-10
+          severity: Important
+          title: 'Core concepts table contradicts code: BinaryProbe location, SlotLiveness rename, DecideBinaryFreshness signature, PAIR_DEV skip absent from plan'
+          detail: '2nd in family. Rule: every delta from a Core concepts row or milestone body lands as a dated Revisions entry in the same commit as the diverging code, and each milestone close diffs the table against the tree. M2 has no deltas entry.'
+          family: revision-supersedes-body-unmarked
+          round: 4
+        - id: BR-11
+          severity: Minor
+          title: A relaunch sent to a pre-421 Couch prints the misleading "predates --resume/--reboot"; with overrides set, the strict-decode error is unmapped
+          family: version-skew-refusal-names-fix
+          round: 4
+        - id: BR-12
+          severity: Minor
+          title: '"relaunch" literal restated in live_restart_probe.go:43 and cli.go:311, and the CLI verb lists do not read slotOperations'
+          family: single-source-verb-list
+          round: 4
+      boundary: M2
+      recipe: milestone-review
+      blocked: true
 ---
 
 # Gate ledger — pair#421 (boundary-review)
@@ -123,6 +163,26 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-6** [Minor] `derived-state-misses-source-transitions` A silent turn change does not advance the settle generation, so an in-flight check can re-assert Settled=true
   This is the 2nd finding in this family. The rule: every source transition of Settled (output, input, lifecycle open/close) must both re-arm the check AND invalidate any check already in flight. lifecycleTurnChanged re-arms but leaves d.sequence alone, so a settleFired whose probe ran before turnActive.Swap still passes its seq check and publishes Settled=true during an open turn, for up to SettleInterval. Fix: give settle its own counter that every source bumps, and check it in settleFired.
 
+## Round 4 — 2026-10-10T00:05:59-07:00 (claude) — BLOCKED
+
+### Raised
+
+- **BR-7** [Important] `typed-outcome-survives-boundary` Relaunch failure outcomes (park-incomplete vs park-ok-resume-failed) reach the receipt as untyped text, and the admission note is dropped on failure
+  slotOperationOutcome maps any err to failed with err text only; the plan promised the receipt maps RelaunchResult.Outcome, and notedResult wraps only when err == nil, so a forced-unknown failure no longer records --force-unknown. Set the receipt Code from the outcome, keep the note on failure, and test each outcome.
+- **BR-8** [Important] `safety-guard-wiring-untested` liveRestartProbe.LiveRestartFacts (settled/session/git mapping) and messageService.LivenessForThread have no tests
+  Only binaryFacts is tested. Settled nil→unknown, git error→GitKnown=false, and the scope/tag match are unpinned; a wrong match field silently makes every relaunch busy-unknown. Add a table test with a seeded liveness map and a fake git.
+- **BR-9** [Important] `docs-surface-lags-cli` README.md slot-operation verb list (lines 389-393) is missing couch --relaunch and its overrides
+- **BR-10** [Important] `revision-supersedes-body-unmarked` Core concepts table contradicts code: BinaryProbe location, SlotLiveness rename, DecideBinaryFreshness signature, PAIR_DEV skip absent from plan
+  2nd in family. Rule: every delta from a Core concepts row or milestone body lands as a dated Revisions entry in the same commit as the diverging code, and each milestone close diffs the table against the tree. M2 has no deltas entry.
+- **BR-11** [Minor] `version-skew-refusal-names-fix` A relaunch sent to a pre-421 Couch prints the misleading "predates --resume/--reboot"; with overrides set, the strict-decode error is unmapped
+- **BR-12** [Minor] `single-source-verb-list` "relaunch" literal restated in live_restart_probe.go:43 and cli.go:311, and the CLI verb lists do not read slotOperations
+
 ## Open findings
 
 - **BR-6** [Minor] `derived-state-misses-source-transitions` A silent turn change does not advance the settle generation, so an in-flight check can re-assert Settled=true
+- **BR-7** [Important] `typed-outcome-survives-boundary` Relaunch failure outcomes (park-incomplete vs park-ok-resume-failed) reach the receipt as untyped text, and the admission note is dropped on failure
+- **BR-8** [Important] `safety-guard-wiring-untested` liveRestartProbe.LiveRestartFacts (settled/session/git mapping) and messageService.LivenessForThread have no tests
+- **BR-9** [Important] `docs-surface-lags-cli` README.md slot-operation verb list (lines 389-393) is missing couch --relaunch and its overrides
+- **BR-10** [Important] `revision-supersedes-body-unmarked` Core concepts table contradicts code: BinaryProbe location, SlotLiveness rename, DecideBinaryFreshness signature, PAIR_DEV skip absent from plan
+- **BR-11** [Minor] `version-skew-refusal-names-fix` A relaunch sent to a pre-421 Couch prints the misleading "predates --resume/--reboot"; with overrides set, the strict-decode error is unmapped
+- **BR-12** [Minor] `single-source-verb-list` "relaunch" literal restated in live_restart_probe.go:43 and cli.go:311, and the CLI verb lists do not read slotOperations

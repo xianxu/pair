@@ -335,7 +335,7 @@ func consoleSlotOperations(console *couchtty.Console, c *couchcore.Couch) *slotO
 			note = n
 			return call, err
 		}, started, func(value any, err error) {
-			if note != "" && err == nil {
+			if note != "" {
 				value = notedResult{value: value, note: note}
 			}
 			finished(value, err)
