@@ -829,3 +829,10 @@ proof; record the surprising case so the next change starts from evidence.
   chain. When adding a verb, drive it from parsed argv through the top-level
   dispatcher in a test that enumerates every declared verb. Sweep every
   spelling of the old list, `switch` cases and `||` chains alike.
+
+- **"Router" means the entry function, not the arg binder (#425).** A new
+  argument shape (a multi-slot `--peek` ref) passed `ParseCLI` and `bindArgs`
+  in a test, then died on first live run: `runTypedOperationWithConsole`
+  pre-parses `ref` as one `repo:N` to derive the repository scope. A test of
+  argument shapes must run `RunWithRuntime(argv)` end to end; any stage that
+  reads an argument before the executor is part of the router.

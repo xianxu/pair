@@ -52,14 +52,18 @@ A TL (in the `ops` slot) and the operator drive several slots at once, and need 
 
 Durable plan: `workshop/plans/000425-couch-in-memory-slot-tails-with-style-and-cursor-marks-plus-a-multi-slot-peek-plan.md`.
 
-- [ ] terminal tail renderer (wrapper emulator → markup) + tests
-- [ ] endpoint + broker `tail` ops, message_service handler + tests
-- [ ] couchcore peek live-first, multi-slot snapshot + tests
-- [ ] CLI wiring/rendering + router test
-- [ ] atlas + couch skill docs
-- [ ] live check on 3+ slots
+- [x] terminal tail renderer (wrapper emulator → markup) + tests
+- [x] endpoint + broker `tail` ops, message_service handler + tests
+- [x] couchcore peek live-first, multi-slot snapshot + tests
+- [x] CLI wiring/rendering + router test
+- [x] atlas + couch skill docs
+- [x] live check on 3+ slots (CLI + fallback; live path needs Couch restart)
 
 ## Log
 
 ### 2026-10-10
 - Design: the wrapper's vt emulator already keeps screen + 10k scrollback in memory, so the tail is a render on request, not a new store. Reached through an identity-free read-only broker op (`broadcast-status` precedent), because only the broker knows the wrapper endpoint's binding-hashed socket. Recording render stays as the fallback, reason inline.
+- Implemented: `terminalModel.Tail` (wrapcmd/terminal_tail.go), endpoint op `tail`, identity-free broker op `tail` → `messageService.handleTail`, `couchcore.PeekSlots`/`ExpandPeekReferences`, `readSlotTail`. Ghost vs typed test uses `testdata/tty/claude/2.1.237/composer.raw` (ghost renders `‹dim›Try …‹/dim›`; the same cells unfaint and the captured `paste-short.raw` draft render without it). Claude's prompt glyph is followed by U+00A0, not a space.
+- Live run caught a router gap (lesson #424 again): `runTypedOperationWithConsole` parsed the whole ref as one `repo:N` before dispatch, refusing `pair:0:3,ops:0`. My first "router" test stopped at `bindArgs`. Fixed with `singleReference` + `TestMultiSlotPeekRunsThroughTheRouter` via `RunWithRuntime`.
+- Live (new CLI, running couch predates the op): `couch --peek pair:0:3,ops:0,nope:9 --lines 4` → 4 sections, `nope:9` reason inline, live tail falls back to the recording with `live tail: invalid-request: json: unknown field "TailScope"` (now mapped to "restart Couch"). The live path end to end needs a Couch restart and relaunched slots on this build.
+
