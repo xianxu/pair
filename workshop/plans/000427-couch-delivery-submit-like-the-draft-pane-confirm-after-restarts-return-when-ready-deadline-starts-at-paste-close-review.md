@@ -166,3 +166,93 @@ dispose:
     note: |
       peer_delivery_test.go adds "queued behind a running turn" and "running turn, text stays" with turnActive set before the submit write; both pass.
 ```
+
+---
+
+## Re-review — 2026-10-10T13:08:20-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 427 — couch delivery: submit like the draft pane, confirm after; restarts return when ready; deadline starts at paste |
+| repo | pair |
+| issue file | workshop/issues/000427-couch-delivery-submit-like-the-draft-pane-confirm-after-restarts-return-when-ready-deadline-starts-at-paste.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 4e28a464c7f78aea68acdaeba8170d0397d7bf50..912e77368735c004b4e79f406bdd7127f6891cdb |
+| command | sdlc close --issue 427 |
+| reviewer | claude |
+| timestamp | 2026-10-10T13:08:20-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Meanwhile, verify the BR-1 and BR-3 fixes are in place.
+
+Tests are failing only from sandbox restrictions on `/tmp` and pty. I'm re-running them unsandboxed to check the real results.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+All three earlier findings are settled, and nothing new blocks the close. The code in this window has not changed since the last round. The only additions are the close and mirror commits, plus a merge of `origin/main` (the window's base) whose one conflict was in `workshop/lessons.md` and was resolved by keeping both lessons. `go build ./...` passes. In a clean environment (`env -i`, unsandboxed), the tests pass for `couchmessage`, `wrapcmd` and `couchcmd`.
+
+The failures I saw first did not come from this change:
+- **Sandbox:** in the sandbox, tests failed with `mkdir /tmp/...` and `ptychild: operation not permitted`.
+- **Session environment:** unsandboxed but inside the live pair session, `TestColdResumeOfAParkedPrimaryRegistersFromBothOrigins/switcher` and `TestContinuationWriterPublishesExactCheckpointAcrossWorktrees` failed. They pass once the environment is cleared, and the switcher subtest is not part of this diff.
+- **couchcore:** this package failed only on the sandbox pty errors. I did not re-run it unsandboxed.
+
+1. **Strengths**
+   - `couchmessage/delivery.go:79-100`: once the body has been written, any interruption ends as `Indeterminate` ("uncertain: … after the paste/submit"), never `Expired` or `Cancelled`. That matches ARCH-ORDER: an unknown outcome is not reported as a failure.
+   - The paste and confirm steps no longer look at what the agent drew. The delivery state machine now carries only a `Ready` verdict per event, and the agent-specific matching in `peer_composer.go` is gone (net −160 lines).
+   - `Message.Horizon()` (`model.go:67`) gives the broker side one outer bound, while the wrapper times its own window from the actual paste (`deadlineLocked`).
+   - In `live_restart_probe.go:146-170`, `AwaitReady` is bounded, can be cancelled, and gives a distinct result for a wrapper too old to report readiness. `LivenessForThread` is nil-safe (`message_service.go:863`).
+   - `slot_operations.go:178` keeps the `unready` code when a completed relaunch has no partial-outcome code.
+
+2. **Critical:** none.
+
+3. **Important:** none.
+
+4. **Minor**
+   - The plan body still says a 100ms poll and "returns with a warning". It is corrected only in `## Revisions`, which is the convention, but a reader of the body alone will be misled.
+
+5. **Test coverage**
+   - The BR-3 fix is pinned: `peer_delivery_test.go:106-115` has a "running turn, text stays" case that expects "a turn was already running".
+   - `TestRestartReceiptWaitsForReadiness` covers ready, unready, a wrapper that cannot report, and verbs that should not wait.
+   - The state-machine tests in `delivery_test.go` exercise the production `AdvancePeerDelivery`.
+
+6. **Architecture**
+   - **ARCH-DRY:** pass. The fixed submit delay replaces the per-agent matchers instead of adding to them.
+   - **ARCH-PURE:** pass. Phase logic stays in the pure `AdvancePeerDelivery`; the wrapper only gathers evidence.
+   - **ARCH-PURPOSE:** pass. The issue title's three parts — submit like the draft pane, a deadline that starts at the paste, and restarts that return when ready — are all delivered.
+   - **ARCH-MOCK:** pass. Tests run through the existing liveness and peer fakes.
+   - **ARCH-CONSTRAINTS:** pass. Waits are bounded by `readyWithin` (2m) and `DeliveryTimeout`, and the 50ms poll runs only while a delivery is past its paste.
+   - **ARCH-SECURE:** N/A. No new untrusted input or secrets.
+   - **ARCH-ORDER:** pass. The new phases (`Pasted`, `Confirming`) go through the transition function, and uncertainty is kept rather than collapsed.
+   - **ARCH-FUNERAL:** pass. Nothing durable is created; the readiness goroutine ends at `readyWithin`.
+
+7. **Plan revisions:** none needed beyond the existing `## Revisions` entries.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Plan Revisions record that a pre-Build wrapper ends the receipt failed/unready and that the poll is 50ms; code matches (live_restart_probe.go AwaitReady, peer_delivery.go peerPastedPoll).
+  - id: BR-2
+    disposition: withdrawn
+    note: |
+      Still withdrawn; readyWithin bounds the goroutine, and the plan Revisions say so.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      peer_delivery_test.go:106-115 covers busy-at-submit ("a turn was already running"); passes in a clean environment.
+findings:
+  - id: new
+    severity: Minor
+    family: plan-code-drift
+    title: |
+      Plan body still states the 100ms poll and pre-Build warning; only Revisions correct it
+    detail: |
+      This is the 2nd finding in family plan-code-drift. Rule: when a Revisions entry contradicts a body line, annotate that line with a pointer to the revision. Informational only; the append-only convention is being followed.
+```
