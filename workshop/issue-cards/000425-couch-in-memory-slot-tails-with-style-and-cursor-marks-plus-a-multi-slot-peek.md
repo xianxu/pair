@@ -1,6 +1,6 @@
 ---
 id: 000425
-status: codecomplete
+status: done
 created: 2026-10-10
 updated: 2026-10-10
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: b754b12eab635306f23915fc492ee48ee50b0cef
         evidence_commit: 0d9e49051225f701e3fa53eebc55af754c548ef5
+        landed_commit: 5e6f9e0efd143086359aaa3d71540a73d029f82e
 ---
 
 # couch: in-memory slot tails with style and cursor marks, plus a multi-slot peek
