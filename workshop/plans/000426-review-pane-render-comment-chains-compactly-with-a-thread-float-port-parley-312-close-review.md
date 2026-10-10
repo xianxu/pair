@@ -153,3 +153,74 @@ dispose:
 
 7. **Plan revision recommendation**
    - Append a `## Revisions` entry recording the newline bypass, enumerating insertion event classes, and requiring queued-input tests for mechanisms that do not trigger `InsertCharPre`.
+
+---
+
+## Re-review — 2026-10-10T12:46:25-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 426 — Review pane: render 🤖 comment chains compactly with a thread float (port parley#312) |
+| repo | pair |
+| issue file | workshop/issues/000426-review-pane-render-comment-chains-compactly-with-a-thread-float-port-parley-312.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 78d8609079842a9cd3d1f745379aba30d3504460..320c2a53e080eb288c34dabbf131d97f7fc9f895 |
+| command | sdlc close --issue 426 |
+| reviewer | codex |
+| timestamp | 2026-10-10T12:46:25-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation matches the revised Spec and Plan. BR-1 is addressed with pre-mutation admission and meaningful regression coverage; BR-2 remains addressed. Targeted verification passed, and I found no new blocking issues. Repository files were unchanged.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      InsertEnter and the activation-owned on_key callback admit insertion points before processing input. Current PTY regressions pass; reverting comment.lua to f3ebcb63 in a temporary copy makes the queued-newline regression fail by splitting concealed {answer} text.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Scratch departure ends ownership, and focus/cleanup check the exact window-buffer pair. Clean and dirty replacement, rescue, reopening, and replacement-window preservation tests pass.
+```
+
+1. **Strengths**
+
+   - Rendering, cursor protection, and thread targeting share the same projection in `nvim/review/comment_view.lua`.
+   - Canonical escape fixtures independently verify wire compatibility; generated round trips additionally cover delimiters and Unicode.
+   - Float saves validate both serialization and the anchored source bytes before replacement.
+   - PTY tests assert painted cells and actual input behavior. The handoff test verifies the agent host reads the saved encoded reply.
+   - README, atlas, runtime classification, and keyboard-help discovery cover the new surface.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Passed seven targeted Lua suites: codec, thread model, projection, attachment, float lifecycle, markers, and resolution. Also passed `review-comments-test.sh`, `review-apply-test.sh`, `review-controls-test.sh`, keyhelp package tests, and pinned-range whitespace checks.
+
+   The temporary guard reversion failed on the intended hidden-text corruption assertion. This review ran targeted verification, not the entire repository suite.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — Pass:** Shared projection, codec, and help-source inventory avoid competing definitions.
+   - **ARCH-PURE — Pass:** Parsing, layout, serialization, and save decisions remain separate from Neovim effects; core-concept classifications match implementation.
+   - **ARCH-PURPOSE — Pass:** Compact rendering, editable threads, protection, and review handoff are delivered.
+   - **ARCH-MOCK — Pass:** No new external dependency; handoff uses the stateful host fixture and editor integration uses isolated Neovim.
+   - **ARCH-CONSTRAINTS — Pass:** Projection limits, cached cursor handling, raw fallback, and clamped float geometry implement the declared envelope.
+   - **ARCH-SECURE — Pass:** Document content remains data; serialization and exact source identity are validated before writes.
+   - **ARCH-ORDER — Pass:** Encapsulated save transitions and real queued-input regressions cover the relevant event ordering.
+   - **ARCH-FUNERAL — Pass:** Activation and float cleanup release listeners, mappings, marks, windows, and buffers while preserving unsaved text.
+
+7. **Plan revision recommendations:** None.

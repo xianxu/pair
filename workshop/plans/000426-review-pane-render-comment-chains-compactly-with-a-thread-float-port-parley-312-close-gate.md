@@ -35,6 +35,21 @@ rounds:
           round: 2
       recipe: milestone-review
       blocked: true
+    - "n": 3
+      timestamp: "2026-10-10T12:46:25-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: InsertEnter and the activation-owned on_key callback admit insertion points before processing input. Current PTY regressions pass; reverting comment.lua to f3ebcb63 in a temporary copy makes the queued-newline regression fail by splitting concealed {answer} text.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: Scratch departure ends ownership, and focus/cleanup check the exact window-buffer pair. Clean and dirty replacement, rescue, reopening, and replacement-window preservation tests pass.
+          round: 3
+      recipe: milestone-review
+      reviewed: 320c2a53e080eb288c34dabbf131d97f7fc9f895
+      blocked: false
 ---
 
 # Gate ledger — pair#426 (boundary-review)
@@ -58,6 +73,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-1 — not-addressed — nvim/review/comment.lua:116-123 protects mode entry and InsertCharPre, but Enter bypasses the latter. In the real PTY fixture, use 🤖[old]{answer}[reply], position at byte column 8, then queue i<Left><Left><Left><CR>X<Esc>. The concealed agent turn splits, leaving the first line 🤖[old]{answe. The existing typed-character regressions pass, but this added probe fails. Enumerate insertion mechanisms and enforce admission before every supported mutation, including newline insertion; add real queued-input regressions. ARCH-PURPOSE, ARCH-ORDER.
 - BR-2 — addressed — comment_float.lua checks window/buffer identity before focus and close, and releases ownership on scratch departure. Current replacement/reopen/cleanup tests pass. Running the same regression against the pre-fix controller in a temporary copy fails at “reopen must create a real thread,” confirming meaningful regression coverage.
 
+## Round 3 — 2026-10-10T12:46:25-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — InsertEnter and the activation-owned on_key callback admit insertion points before processing input. Current PTY regressions pass; reverting comment.lua to f3ebcb63 in a temporary copy makes the queued-newline regression fail by splitting concealed {answer} text.
+- BR-2 — addressed — Scratch departure ends ownership, and focus/cleanup check the exact window-buffer pair. Clean and dirty replacement, rescue, reopening, and replacement-window preservation tests pass.
+
 ## Open findings
 
-- **BR-1** [Critical] `insertion-admission-before-mutation` Entering insert mode permits edits to concealed historical turns
+(none — every finding has been disposed)
