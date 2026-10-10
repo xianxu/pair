@@ -50,6 +50,21 @@ rounds:
       recipe: milestone-review
       reviewed: 320c2a53e080eb288c34dabbf131d97f7fc9f895
       blocked: false
+    - "n": 4
+      timestamp: "2026-10-10T16:42:43-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Unchanged since round 3; InsertEnter plus on_key admission at comment.lua:118-131, PTY suite passes at 68dc64e8.
+          round: 4
+        - id: BR-2
+          disposition: addressed
+          note: Unchanged since round 3; owns_window identity check and departure release at comment_float.lua:36-60, float tests pass.
+          round: 4
+      recipe: milestone-review
+      reviewed: 68dc64e8fdce3b9b9282b4b7ed55e6d1a7cb2737
+      blocked: false
 ---
 
 # Gate ledger — pair#426 (boundary-review)
@@ -79,6 +94,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - BR-1 — addressed — InsertEnter and the activation-owned on_key callback admit insertion points before processing input. Current PTY regressions pass; reverting comment.lua to f3ebcb63 in a temporary copy makes the queued-newline regression fail by splitting concealed {answer} text.
 - BR-2 — addressed — Scratch departure ends ownership, and focus/cleanup check the exact window-buffer pair. Clean and dirty replacement, rescue, reopening, and replacement-window preservation tests pass.
+
+## Round 4 — 2026-10-10T16:42:43-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — addressed — Unchanged since round 3; InsertEnter plus on_key admission at comment.lua:118-131, PTY suite passes at 68dc64e8.
+- BR-2 — addressed — Unchanged since round 3; owns_window identity check and departure release at comment_float.lua:36-60, float tests pass.
 
 ## Open findings
 

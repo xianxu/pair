@@ -224,3 +224,76 @@ dispose:
    - **ARCH-FUNERAL — Pass:** Activation and float cleanup release listeners, mappings, marks, windows, and buffers while preserving unsaved text.
 
 7. **Plan revision recommendations:** None.
+
+---
+
+## Re-review — 2026-10-10T16:42:43-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 426 — Review pane: render 🤖 comment chains compactly with a thread float (port parley#312) |
+| repo | pair |
+| issue file | workshop/issues/000426-review-pane-render-comment-chains-compactly-with-a-thread-float-port-parley-312.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | a877e265041f1676b427fcf4b81297f1a8f8bc4a..68dc64e8fdce3b9b9282b4b7ed55e6d1a7cb2737 |
+| command | sdlc close --issue 426 |
+| reviewer | claude |
+| timestamp | 2026-10-10T16:42:43-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Prior rounds' fixes are confirmed in the code and the merge from main didn't touch any of the issue's files. Now I'm running the review test suites.
+
+The PTY test hit a sandbox write denial on /tmp, which the project memory says is expected for pty-child tests. Re-running it unsandboxed.
+
+The artifact classifier test fails; checking whether that failure also exists at the base commit.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+Both earlier findings are fixed and stay fixed, and the issue is ready to close. This window is the round-3-approved code (`320c2a53`) plus the close and card commits and a merge from `origin/main`. I checked every non-workshop file the issue touches: its diff is the same before and after the merge, and main changed none of those files since the merge base `78d86090`. So the merge brought no new risk. The two fixes are in place:
+- **BR-1:** an `InsertEnter` hook plus an `on_key` listener that the activation owns check the insertion point before any edit (`nvim/review/comment.lua:118-131`).
+- **BR-2:** the float checks it still owns both the window and the buffer (`owns_window`) and lets go when the scratch buffer is replaced (`nvim/review/comment_float.lua:36-39,159-161`).
+
+The pure Lua tests pass: `comment_codec`, `comment_thread`, `comment_view`, `comment_float`, `comment`, `markers` and `resolve`. The real-PTY test `tests/review-comments-test.sh` passes when run outside the sandbox, which blocks pty-child tests. `go test ./cmd/internal/keyhelp` passes. `TestProductionArtifactReferencesAreExactlyClassified` fails, but it fails the same way at base: I diffed the sorted failure lines from a base worktree against head and got 58 lines each, with no difference.
+
+1. **Strengths**
+   - The merge carried no regressions: for every file this issue touches, the change from main is byte-for-byte the change the issue made before the merge.
+   - The input-admission rule is one listener that the activation owns. `detach` removes it (`comment.lua:89`), and it ignores other buffers (`comment.lua:127`). That holds the rule in one place instead of mapping each key.
+   - The float's ownership checks compare exact identities (`owns_window`). Cleanup when the scratch buffer is replaced is scheduled, so the user's replacement window is kept (`comment_float.lua:55-60`).
+   - The save path refuses a changed source marker and keeps the edited text through a recorded state change (`session:transition`). Forced closes save the text to the unnamed register.
+   - README, atlas and keyhelp were updated in the same range, and keyhelp builds its descriptions from the Lua modules.
+
+2. **Critical:** none.
+3. **Important:** none.
+4. **Minor:** none new.
+
+5. **Test coverage:** pure tests for the codec, thread, view and float, plus a real-PTY screen probe covering painted compact chains, speaker colors, native Enter, thread save and discard, undo/redo repaint and edit admission. A mutation check reverting the fix to `f3ebcb63` was recorded as failing in round 3, so the BR-1 regression test has teeth.
+
+6. **Architecture:**
+   - **ARCH-DRY:** pass. One codec handles each delimiter set, and one shared projection drives rendering, snapping and float targeting.
+   - **ARCH-PURE:** pass. View, thread and codec are pure; `comment.lua` and `comment_float.lua` are the thin IO layer.
+   - **ARCH-PURPOSE:** pass. All three Done-when items are delivered.
+   - **ARCH-MOCK:** not applicable. Neovim is the runtime under test, not an outside service.
+   - **ARCH-CONSTRAINTS:** pass. There is a 1,000-line / 128 KiB fallback, and the render timings are measured and logged.
+   - **ARCH-SECURE:** pass. A malformed marker paints as broken instead of being trusted.
+   - **ARCH-ORDER:** pass. The thread session is an explicit state machine, and event ordering is tested through queued PTY input.
+   - **ARCH-FUNERAL:** pass. The scratch buffer is wiped (`bufhidden=wipe`), its augroups are deleted, and detach clears the listener, extmarks and keymap.
+
+7. **Plan revisions:** none.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Unchanged since round 3; InsertEnter plus on_key admission at comment.lua:118-131, PTY suite passes at 68dc64e8.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Unchanged since round 3; owns_window identity check and departure release at comment_float.lua:36-60, float tests pass.
+```

@@ -86,6 +86,7 @@ Open questions, to settle at start-plan:
 ## Log
 
 ### 2026-10-10
+- 2026-10-10: closed — Re-close after merging origin/main (pair#425/#427/#429): only conflict was workshop/lessons.md, two append-only lesson lists, both kept verbatim. go build ./... ok; tests/review-comments-test.sh, review-apply-test.sh, review-controls-test.sh pass on 68dc64e8. No Go overlap with main changes.; review verdict: SHIP
 - 2026-10-10: closed — BR-1 real PTY queued newline, BS/Delete, Ctrl-W/U and multiline register insertion pass with scoped pre-key admission; listener lifecycle and unrelated buffers pass. BR-2 scratch replacement/rescue/reopen tests pass. Full test-review test-runtimebundle, affected attachment/view tests, regenerated-assets keyhelp tests, make build and diff check pass. Full test-lua passed before final input callback correction. Original paint/undo/handoff/property/mutation evidence remains valid. Artifact classifier retains 53 identical baseline findings.; review verdict: SHIP
 
 - Claimed in pair:0 and ran start-plan. Both dependencies have landed:
