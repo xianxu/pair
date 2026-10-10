@@ -122,6 +122,45 @@ rounds:
       boundary: M2
       recipe: milestone-review
       blocked: true
+    - "n": 5
+      timestamp: "2026-10-10T00:19:02-07:00"
+      agent: claude
+      dispose:
+        - id: BR-7
+          disposition: addressed
+          note: ReceiptCode carried through notedResult to slotOperationOutcome; TestRelaunchFailureOutcomeIsTyped fails without it. Note-on-failure in message_service.go:338 is unpinned (Minor).
+          round: 5
+        - id: BR-8
+          disposition: addressed
+          note: TestLiveRestartProbeFactsMapping covers settled/legacy/no-session/git-error/scope mismatch and the detached probe.
+          round: 5
+        - id: BR-9
+          disposition: addressed
+          note: README.md:394-396 lists --relaunch with --confirm, --same-binary, --force-unknown and its refusals.
+          round: 5
+        - id: BR-10
+          disposition: addressed
+          note: Plan core-concepts rows are marked superseded inline, plus a dated 2026-10-10 M2 deltas revision.
+          round: 5
+        - id: BR-11
+          disposition: addressed
+          note: messages.go:187 maps unknown-field and names the verb; covered by a new case in TestSlotOperationCLIPollLoop.
+          round: 5
+        - id: BR-12
+          disposition: addressed
+          note: OpRelaunch exported and used at live_restart_probe.go:43; cli.go reads IsSlotOperation/SlotOperationTakesOverrides.
+          round: 5
+      findings:
+        - id: BR-13
+          severity: Minor
+          title: Admission note surviving a failed slot operation (message_service.go:338) has no regression test
+          detail: '2nd finding in this family. Rule: every closure that adapts a queue result into a receipt needs a test driving it with err != nil. Restoring the `&& err == nil` guard leaves all tests green.'
+          family: safety-guard-wiring-untested
+          round: 5
+      boundary: M2
+      recipe: milestone-review
+      reviewed: 2c3a0ad9d21a94272f7a19857f735c03ebd9e333
+      blocked: false
 ---
 
 # Gate ledger — pair#421 (boundary-review)
@@ -177,12 +216,23 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-11** [Minor] `version-skew-refusal-names-fix` A relaunch sent to a pre-421 Couch prints the misleading "predates --resume/--reboot"; with overrides set, the strict-decode error is unmapped
 - **BR-12** [Minor] `single-source-verb-list` "relaunch" literal restated in live_restart_probe.go:43 and cli.go:311, and the CLI verb lists do not read slotOperations
 
+## Round 5 — 2026-10-10T00:19:02-07:00 (claude) — passed
+
+### Disposed
+
+- BR-7 — addressed — ReceiptCode carried through notedResult to slotOperationOutcome; TestRelaunchFailureOutcomeIsTyped fails without it. Note-on-failure in message_service.go:338 is unpinned (Minor).
+- BR-8 — addressed — TestLiveRestartProbeFactsMapping covers settled/legacy/no-session/git-error/scope mismatch and the detached probe.
+- BR-9 — addressed — README.md:394-396 lists --relaunch with --confirm, --same-binary, --force-unknown and its refusals.
+- BR-10 — addressed — Plan core-concepts rows are marked superseded inline, plus a dated 2026-10-10 M2 deltas revision.
+- BR-11 — addressed — messages.go:187 maps unknown-field and names the verb; covered by a new case in TestSlotOperationCLIPollLoop.
+- BR-12 — addressed — OpRelaunch exported and used at live_restart_probe.go:43; cli.go reads IsSlotOperation/SlotOperationTakesOverrides.
+
+### Raised
+
+- **BR-13** [Minor] `safety-guard-wiring-untested` Admission note surviving a failed slot operation (message_service.go:338) has no regression test
+  2nd finding in this family. Rule: every closure that adapts a queue result into a receipt needs a test driving it with err != nil. Restoring the `&& err == nil` guard leaves all tests green.
+
 ## Open findings
 
 - **BR-6** [Minor] `derived-state-misses-source-transitions` A silent turn change does not advance the settle generation, so an in-flight check can re-assert Settled=true
-- **BR-7** [Important] `typed-outcome-survives-boundary` Relaunch failure outcomes (park-incomplete vs park-ok-resume-failed) reach the receipt as untyped text, and the admission note is dropped on failure
-- **BR-8** [Important] `safety-guard-wiring-untested` liveRestartProbe.LiveRestartFacts (settled/session/git mapping) and messageService.LivenessForThread have no tests
-- **BR-9** [Important] `docs-surface-lags-cli` README.md slot-operation verb list (lines 389-393) is missing couch --relaunch and its overrides
-- **BR-10** [Important] `revision-supersedes-body-unmarked` Core concepts table contradicts code: BinaryProbe location, SlotLiveness rename, DecideBinaryFreshness signature, PAIR_DEV skip absent from plan
-- **BR-11** [Minor] `version-skew-refusal-names-fix` A relaunch sent to a pre-421 Couch prints the misleading "predates --resume/--reboot"; with overrides set, the strict-decode error is unmapped
-- **BR-12** [Minor] `single-source-verb-list` "relaunch" literal restated in live_restart_probe.go:43 and cli.go:311, and the CLI verb lists do not read slotOperations
+- **BR-13** [Minor] `safety-guard-wiring-untested` Admission note surviving a failed slot operation (message_service.go:338) has no regression test

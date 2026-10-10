@@ -99,6 +99,8 @@ Durable plan: `workshop/plans/000421-couch-tl-callable-restart-of-a-live-idle-sl
 
 ## Log
 
+
+- 2026-10-10: closed M2 — Round 2. BR-7: RelaunchResult.ReceiptCode keeps park-incomplete / park-ok-resume-failed as the receipt Code, note survives failure (TestRelaunchFailureOutcomeIsTyped). BR-8: TestLiveRestartProbeFactsMapping (settled/busy/legacy/no-session/not-live, git clean/dirty/unreadable, detached probe, cross-scope miss) and probe binary facts. BR-9: README lists --relaunch. BR-10: plan table superseded lines marked inline + M2 deltas revision. Minors: CLI reads IsSlotOperation; version-skew hint names the verb incl. strict-decode unknown field (test). Prior: DecideLiveRestart exhaustive 512, freshness table, TestPrepareSlotOperationRelaunchLive, CLI/protocol override tests. couchcore/couchcmd/couchmessage/couchtty green under clean env. Actual: measured window minus M1.; review verdict: SHIP
 ### 2026-10-09
 - 2026-10-09: closed M1 — Round 2. BR-2 fixed: lifecycleTurnChanged unsettles on a silent open and re-arms on a silent close (TestSettleFollowsSilentTurnTransitions, both directions). Minors fixed: build hashed first in run (~10ms measured); only EOF/reset falls back (TestNegotiationTimeoutDoesNotFallBack). Prior: four hello-v2 pairings, TestRegistryLiveness, wrapperSettled table, interleaved settle timer. wrapcmd/couchmessage/couchcmd green under clean env. Actual is the measured window value.; review verdict: SHIP
 - TL finding (2026-10-09): relaunch under Couch never rebuilds, because Couch
