@@ -1,12 +1,20 @@
 ---
 id: 000427
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-10
 updated: 2026-10-10
 estimate_hours:
-card_mirror: '75f9d1a1b47ff98c05c3ccb877f05573b22b1d44' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '0432c209510cadfe25f8e72ca8f4cd4d98a10bdc' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-10T11:51:07-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch delivery: submit like the draft pane, confirm after; restarts return when ready; deadline starts at paste
@@ -38,7 +46,13 @@ Meanwhile the operator's draft pane pastes, sleeps 100ms and sends Alt+Enter (`n
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000427-couch-delivery-submit-like-the-draft-pane-confirm-after-restarts-return-when-ready-deadline-starts-at-paste-plan.md`.
+
+- [ ] D1 reducer: paste → fixed delay → submit → confirm; drop the render match and its helpers; post-paste interrupts give `uncertain` (Indeterminate)
+- [ ] D2 deadline: `Message.Deadline` = paste-by (90s); the 30s window starts at paste; `Message.Horizon()` bounds the broker side
+- [ ] D3 restarts: Settled waits for orientation; relaunch/reload-context receipts wait for a settled new session (2m, `unready` on expiry)
+- [ ] Tests per the plan; live peer conformance against real Claude
+- [ ] atlas/couch.md delivery + restart-readiness contract
 
 ## Log
 
