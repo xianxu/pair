@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000419-couch-set-worker-slot-title-to-assigned-work-on-dispatch-claim.md
         source_blob: fef6d6fbab0ca889447760054e6a6d249910bdc0
         destination: workshop/issues/000419-couch-set-worker-slot-title-to-assigned-work-on-dispatch-claim.md
+        main_commit: 49d967ad974155f5c4f093169789de078797d433
 ---
 
 # couch: set worker slot title to assigned work on dispatch claim
