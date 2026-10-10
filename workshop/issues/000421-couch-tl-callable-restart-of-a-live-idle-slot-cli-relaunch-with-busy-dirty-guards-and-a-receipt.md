@@ -100,6 +100,7 @@ Durable plan: `workshop/plans/000421-couch-tl-callable-restart-of-a-live-idle-sl
 ## Log
 
 ### 2026-10-09
+- 2026-10-09: closed M1 — Round 2. BR-2 fixed: lifecycleTurnChanged unsettles on a silent open and re-arms on a silent close (TestSettleFollowsSilentTurnTransitions, both directions). Minors fixed: build hashed first in run (~10ms measured); only EOF/reset falls back (TestNegotiationTimeoutDoesNotFallBack). Prior: four hello-v2 pairings, TestRegistryLiveness, wrapperSettled table, interleaved settle timer. wrapcmd/couchmessage/couchcmd green under clean env. Actual is the measured window value.; review verdict: SHIP
 - TL finding (2026-10-09): relaunch under Couch never rebuilds, because Couch
   does not propagate `PAIR_DEV`. Propagation is independent work, filed as
   #422. #421's share: the `stale-binary` refusal is skipped when the slot's
