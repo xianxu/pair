@@ -98,3 +98,71 @@ findings:
     title: |
       No test for confirmation when a turn was already running at submit (turnAtSubmit true)
 ```
+
+---
+
+## Re-review — 2026-10-10T12:53:41-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 427 — couch delivery: submit like the draft pane, confirm after; restarts return when ready; deadline starts at paste |
+| repo | pair |
+| issue file | workshop/issues/000427-couch-delivery-submit-like-the-draft-pane-confirm-after-restarts-return-when-ready-deadline-starts-at-paste.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 57932d262e985497c942d0f60f8988ba1ad709b4..45eb3e60e59fc52035b4191acb6f7d061e58a846 |
+| command | sdlc close --issue 427 |
+| reviewer | claude |
+| timestamp | 2026-10-10T12:53:41-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Prior round dispositions focus on the last commit. Let me see it.
+
+Those failures are sandbox /tmp denials, not regressions; checking the non-sandbox subset passes.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+All three prior findings are resolved. The plan now has a `## Revisions` entry that matches the code: a wrapper too old to report readiness fails the restart receipt as `unready`, and the poll after the paste runs every 50ms. The confirmation table has two new cases with `busy` set before the submit write, so `turnAtSubmit` is true. I ran `TestPeerDeliverySubmitsAfterDelayThenConfirms` and it passes, both new cases included. The one advisory the implementer declined (the readiness goroutine on `context.Background`) is minor; their reasoning is recorded and holds up. I re-read the main changes and found nothing that blocks shipping. Some tests failed in my sandbox, but only with `mkdir /tmp/...: operation not permitted` and socket-bind denials. That is the sandbox's `/tmp` restriction, not a fault in the code.
+
+1. **Strengths**
+   - `couchmessage/delivery.go:79-100`: once the paste is written, an interruption (input, dialog, deadline or the recipient exiting) ends the delivery as `Indeterminate`, never `Expired` or `Cancelled`. This removes the false-negative receipt.
+   - Readiness now comes from signals that don't depend on which agent is running. `peer_delivery.go:374-390` checks only whether the composer is occupied, empty or unknown, plus whether a turn opened since the submit. The old envelope-matching step `peerComposerMatches` is gone, so nothing inspects how the agent drew the pasted text any more.
+   - The timing has one clear structure. `Message.Horizon()` is the broker's single outer bound (`model.go:67`), and `deadlineLocked()` (`peer_delivery.go:440`) picks the bound for the current half of the delivery: the paste-by deadline before the paste, the paste-relative window after it.
+   - Readiness is pure and testable. `wrapperSettled` (`peer_settle.go:20`) gained an orientation term, and restart readiness keys on a new session (`live.Session != before`), so a stale settled report from the old session can't be mistaken for success.
+   - `slot_operations.go:178`: an empty partial-outcome code no longer overwrites the error's `unready` code.
+
+2. **Critical:** none.
+3. **Important:** none.
+4. **Minor:** `AwaitReady` reads `p.service` once at entry. If that read happened before `probe.service.Store` (a narrow startup race), the wait would time out as `unready` instead of panicking. It fails safe, so I'm only noting it.
+5. **Test coverage:** the confirmation outcomes are covered as a table, now including the case where a turn was already running at submit. The restart readiness tests cover ready, unready, a wrapper that can't report, and the verbs that don't wait. Those readiness tests need `/tmp` access, so I couldn't run them inside the sandbox.
+6. **Architecture:**
+   - **ARCH-DRY: pass.** The duplicate composer-matching code was deleted.
+   - **ARCH-PURE: pass.** The reducer and `wrapperSettled` are pure.
+   - **ARCH-PURPOSE: pass.** Delivery submits like the draft pane, confirms afterwards, and the window starts at the paste; restarts return only when ready.
+   - **ARCH-MOCK: pass.** The tests drive harness fakes.
+   - **ARCH-CONSTRAINTS: pass.** The 50ms poll runs only while a delivery is in flight, and the 2-minute readiness bound is stated.
+   - **ARCH-SECURE: N/A.** No new untrusted input or secrets.
+   - **ARCH-ORDER: pass.** The new `Pasted` and `Confirming` phases go through `AdvancePeerDelivery`, and uncertainty is kept as `Indeterminate`, never collapsed into success or failure.
+   - **ARCH-FUNERAL: pass.** Nothing durable is created; the readiness goroutine is bounded by `readyWithin`.
+7. **Plan revisions:** none beyond the one already added.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The plan's Revisions entry (2026-10-10) records the failed/unready outcome and the 50ms poll, matching live_restart_probe.go:157 and peer_delivery.go:103.
+  - id: BR-2
+    disposition: withdrawn
+    note: |
+      Declined in Revisions with a sound reason: readyWithin (2m) bounds the goroutine and process exit ends it, so its lifetime is bounded and this is not a leak.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      peer_delivery_test.go adds "queued behind a running turn" and "running turn, text stays" with turnActive set before the submit write; both pass.
+```

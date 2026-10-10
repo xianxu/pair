@@ -27,6 +27,25 @@ rounds:
       recipe: milestone-review
       reviewed: 6e18ca97788703205fdd8671531d3039945c1a0f
       blocked: false
+    - "n": 2
+      timestamp: "2026-10-10T12:53:41-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The plan's Revisions entry (2026-10-10) records the failed/unready outcome and the 50ms poll, matching live_restart_probe.go:157 and peer_delivery.go:103.
+          round: 2
+        - id: BR-2
+          disposition: withdrawn
+          note: 'Declined in Revisions with a sound reason: readyWithin (2m) bounds the goroutine and process exit ends it, so its lifetime is bounded and this is not a leak.'
+          round: 2
+        - id: BR-3
+          disposition: addressed
+          note: peer_delivery_test.go adds "queued behind a running turn" and "running turn, text stays" with turnActive set before the submit write; both pass.
+          round: 2
+      recipe: milestone-review
+      reviewed: 45eb3e60e59fc52035b4191acb6f7d061e58a846
+      blocked: false
 ---
 
 # Gate ledger — pair#427 (boundary-review)
@@ -44,8 +63,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   Bounded by readyWithin (2m), so it cannot leak forever; passing the console lifetime context would end it on shutdown.
 - **BR-3** [Minor] `test-gap-turn-already-running` No test for confirmation when a turn was already running at submit (turnAtSubmit true)
 
+## Round 2 — 2026-10-10T12:53:41-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — addressed — The plan's Revisions entry (2026-10-10) records the failed/unready outcome and the 50ms poll, matching live_restart_probe.go:157 and peer_delivery.go:103.
+- BR-2 — withdrawn — Declined in Revisions with a sound reason: readyWithin (2m) bounds the goroutine and process exit ends it, so its lifetime is bounded and this is not a leak.
+- BR-3 — addressed — peer_delivery_test.go adds "queued behind a running turn" and "running turn, text stays" with turnActive set before the submit write; both pass.
+
 ## Open findings
 
-- **BR-1** [Minor] `plan-code-drift` Plan says a pre-Build wrapper returns with a warning; code fails the receipt as unready (and the poll is 50ms, not 100ms)
-- **BR-2** [Minor] `unbounded-goroutine-extent` awaitReadiness goroutine runs on context.Background, so Couch shutdown does not cancel it
-- **BR-3** [Minor] `test-gap-turn-already-running` No test for confirmation when a turn was already running at submit (turnAtSubmit true)
+(none — every finding has been disposed)
