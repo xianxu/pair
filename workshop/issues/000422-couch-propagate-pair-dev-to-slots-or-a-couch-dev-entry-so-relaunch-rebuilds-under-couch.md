@@ -96,5 +96,9 @@ starts Couch with `PAIR_DEV` set.
   - Declined: the DRY finding about couch-dev's symlink loop. Each entry script
     needs that loop to locate `bin/lib`, so a helper kept in `bin/lib` can't
     supply it.
+- Landing: PR #222 CI `conformance` was red on `TestNativeConsoleWrapperZellij`
+  (its direct-zellij-baseline subtest times out waiting for CPR). main fails the
+  same way: the known runner CPR timeout, pair#324. `merge-check` passed. TL
+  ops:0 approved merging despite the red check.
 - Process slip, repeated from #419: implemented before `change-code`. A lesson
   was added.
