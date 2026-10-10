@@ -1,12 +1,20 @@
 ---
 id: 000429
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-10
 updated: 2026-10-10
 estimate_hours:
-card_mirror: 'eaceb1faa08aa8599cbdaf1baf518bbba997a330' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '16a2e0197deca504c69510c5edafce1ea8520cbb' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-10T13:37:15-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch --peek fast path: tail first via the running Couch, transcripts only on request
@@ -34,8 +42,15 @@ Where the time goes (code read):
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000429-couch-peek-fast-path-tail-first-via-the-running-couch-transcripts-only-on-request-plan.md`.
+
+- [ ] Broker `tail` by slot reference (`Target`, resolved like `--send-to`), answering the thread's tag and agent.
+- [ ] `PeekThread` transcript-free by default; `--transcripts` restores the footer; record agent for the recording fallback.
+- [ ] CLI fast path: every `repo:N` ref read concurrently over the broker socket, no Couch build; anything else runs the typed path.
+- [ ] Docs (atlas/couch.md, couch skill, README).
 
 ## Log
 
 ### 2026-10-10
+
+- Design: `Binding.Slot` already names each connected wrapper's `repo:N`, so the broker maps a slot ref to its wrapper with no store read; the CLI fast path is one socket round trip per slot, like `--message-status`.
