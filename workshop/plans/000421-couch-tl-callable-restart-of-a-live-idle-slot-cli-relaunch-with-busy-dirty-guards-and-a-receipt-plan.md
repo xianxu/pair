@@ -60,7 +60,8 @@ no turn is open. The supervisor reads that fact at admission, alongside
     would kill a draft.
 - **DecideBinaryFreshness(running, onDisk, sourceHEAD)** — pure.
   - `running` is the wrapper's own `vcs.revision`/`vcs.modified`, sent once
-    in a new `Binding.PairRevision`.
+    in a new `Binding.PairRevision`. *(Superseded: the executable's content hash, sent on
+    `hello-v2` and never in `Binding`; see Revisions PQ-2 and PQ-3.)*
   - `onDisk` is the build info of `exec.LookPath("pair")` in Couch's
     environment, the same binary `launch_existing.go:91` runs.
   - `sourceHEAD` is `git rev-parse HEAD` of the binary's checkout (the
@@ -80,13 +81,13 @@ no turn is open. The supervisor reads that fact at admission, alongside
 | `SlotLiveness` lookup | `cmd/internal/couchcmd/message_service.go` | new | broker actor observation by slot |
 | `ProbeSlotGit` | `cmd/internal/couchcore/slotgit.go` | existing | `git status` |
 | `BinaryProbe` | `cmd/internal/couchcore/live_restart.go` | new | `exec.LookPath`, `debug/buildinfo`, `git rev-parse` |
-| `ReloadContext` | `cmd/internal/couchcore/reload_context.go` | new | pair-wrap pid file + SIGUSR2 (`pair agent restart`'s mechanism) |
+| `ReloadContext` | `cmd/internal/couchcore/reload_context.go` | new | SIGUSR2 to the broker-verified wrapper PID *(superseded the pid file; Revisions PQ-1)* |
 
 - **SlotLiveness** is injected into `Couch` (an interface with
   `Liveness(slot string) (Observation, Binding, bool)`), so admission tests use a
   fake. Production reads the broker's `SlotActor` for the exact slot.
 - **ReloadContext** resolves the row's tag and data dir to the scoped
-  `PairWrapPID` (the same artifact family `agentcmd.RunRestart` reads) and sends
+  `PairWrapPID` *(superseded: the broker's verified Binding PID; Revisions PQ-1)* (the same artifact family `agentcmd.RunRestart` reads) and sends
   SIGUSR2. It shares one helper with `agentcmd` (ARCH-DRY: extract
   `artifactpath`-scoped `SignalWrapper(dataDir, tag, sig)`).
 - **Fakes:** the existing `slot_operations` and console fakes take the new
@@ -100,7 +101,7 @@ wrapper.
 ## Milestones
 
 - [ ] **M1 — the wrapper reports Settled.** `Observation.SettledKnown/Settled`
-  and `Binding.PairRevision`, with validation and size bounds. pair-wrap's
+  and `Binding.PairRevision` *(superseded: `hello-v2` negotiation; Revisions PQ-2)*, with validation and size bounds. pair-wrap's
   settle timer and its predicate (`wrapperSettled`, pure over a snapshot plus
   flags). The broker keeps the latest observation per actor, and `--actors
   --json` shows `settled` per slot (a cheap debugging aid for TLs).
@@ -120,7 +121,7 @@ wrapper.
     the existing slot-operation fake, end to end to a receipt.
 - [ ] **M3 — `couch --reload-context repo:N`.** The same admission without the
   freshness rule; execution signals the slot's pair-wrap via the shared helper.
-  The receipt is `succeeded` once the signal is delivered. Verifying that a
+  The receipt is `succeeded` once the signal is delivered *(superseded: succeeded only on a new Binding within 20s, else unknown/unconfirmed; Revisions PQ-4)*. Verifying that a
   fresh conversation actually started is via `--peek`; the receipt says so.
   - Tests: helper extraction, keeping `agentcmd` tests green; dispatch with a
     fake signaller.
