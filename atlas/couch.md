@@ -847,7 +847,8 @@ Couch's broker for each slot's tail by name, concurrently: `tail` {`Target`
 repo:N, lines}. The broker resolves the slot as a send's exact target resolves
 (`couchmessage.ResolveTailSlot`: alias or unique prefix, against the connected
 bindings' `Slot`), and answers with the tail plus `TailThread` {slot, tag,
-agent}. The fast path answers only when every slot does. Otherwise (no Couch, a
+agent, working path}, which it reads from the thread record as the typed peek does
+(`RecordAgent`), so both paths give the same JSON. The fast path answers only when every slot does. Otherwise (no Couch, a
 Couch older than the by-slot form, a reference that isn't a slot, or a slot
 that can't be read) the typed `peek` operation runs the whole request and names
 each failure.

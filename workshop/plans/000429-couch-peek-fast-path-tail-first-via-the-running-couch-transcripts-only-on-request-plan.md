@@ -53,3 +53,18 @@ not to amortize).
 - [x] couchcmd fast path + CLI flag; tests: fast path answers without building a Couch; falls back on no Couch / older Couch / failed slot / non-slot ref / `--transcripts`.
 - [x] Docs: atlas/couch.md, couch SKILL.md, README peek line.
 - [ ] Measure on the live workbench (binary, not shell function) — needs a Couch on the new build, so it is the TL's live check like #425's; record the timed real-socket test result here.
+
+## Revisions
+
+### 2026-10-10 — after close round 1 (BR-1)
+
+- **Design 1:** `TailThread` is {slot, tag, agent, working path}. The broker
+  reads agent and working path from the thread record (`authority.record`,
+  `couchcore.RecordAgent`) so the fast peek's JSON equals the typed peek's
+  (`TestFastPeekMatchesTheTypedPeek`). The wrapper's own agent is used only
+  when the record can't be read.
+- **Design 4:** `RecordAgent` prefers the thread's only incarnation's agent,
+  else its latest launch's: the order the resolver used. The fallback never
+  calls the resolver.
+- **Design 1 resolver name:** shipped as `couchmessage.ResolveTailSlot`.
+
