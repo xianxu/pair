@@ -81,5 +81,12 @@ starts Couch with `PAIR_DEV` set.
   failures there are unrelated), and the install-layout test.
 - Dogfood: `bin/couch-dev --list` ran `make build` on this tree, then listed
   threads.
+- pair:1 confirmed #421: `couch --relaunch` runs `Couch.Relaunch` (park, then
+  ResumeContext) through `buildExecCommand` with `mergeChildEnvironment`, so
+  `PAIR_DEV` reaches the relaunched pair and `dev_rebuild` runs. When the slot
+  has `PAIR_DEV`, #421 skips its stale-binary refusal.
+- Unrelated flake found: `TestColdResumeOfAParkedPrimaryRegistersFromBothOrigins/switcher`
+  fails about 3 in 6 under load. It presses Enter after the "threads" header but
+  before the row loads, giving "no selection". It passed on clean main once.
 - Process slip, repeated from #419: implemented before `change-code`. A lesson
   was added.
