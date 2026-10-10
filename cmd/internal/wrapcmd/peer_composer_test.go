@@ -351,7 +351,7 @@ func TestPeerSpaceWordwrap(t *testing.T) {
 		{"x\ny z", 3, "x\ny z", true},
 		// Over-width words hard-break from the current line (wrap-ansi hard
 		// mode) unless starting on the next line needs fewer breaks.
-		{"ab cdefghij k", 5, "ab\ncdefg\nhij k", true}, // next line: fewer breaks
+		{"ab cdefghij k", 5, "ab\ncdefg\nhij k", true},  // next line: fewer breaks
 		{"abc defghijklm", 7, "abc def\nghijklm", true}, // this line: no worse
 		{"abcd efghijk", 5, "abcd\nefghi\njk", true},
 		{"toolongword x", 5, "toolo\nngwor\nd x", true},
