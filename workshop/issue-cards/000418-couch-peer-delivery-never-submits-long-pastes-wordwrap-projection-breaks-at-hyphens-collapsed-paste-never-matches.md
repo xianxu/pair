@@ -13,7 +13,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
-actual_hours: 0.41
+actual_hours: 0.48
 tracker:
     version: 1
     handoff:
@@ -27,10 +27,10 @@ tracker:
         destination: workshop/issues/000418-couch-peer-delivery-never-submits-long-pastes-wordwrap-projection-breaks-at-hyphens-collapsed-paste-never-matches.md
         main_commit: c5b19184c667b41c8a4ae38fa7a7517202b48137
     completion:
-        token: close-b399d7300306
+        token: close-ff85eff33e7d
         repository: github.com/xianxu/pair
-        reviewed_head: 03beb29511cd4ca4dcc4501260597ad0c992a409
-        evidence_commit: a15e75a8c8c6cc7a48be25479adcd162d9a62419
+        reviewed_head: 717273c735811b7160f6b569024c8ad37ce22412
+        evidence_commit: ef28dc83c6fc2d1007c070ab16f72b09b998c57d
 ---
 
 # Couch peer delivery never submits long pastes: wordwrap projection breaks at hyphens; collapsed paste never matches
