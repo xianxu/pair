@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-09
 updated: 2026-10-09
-estimate_hours:
-card_mirror: '7d2de9e8a25c278b4e080d1049602c34b57ed94b' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 2.26
+card_mirror: 'aa35024978bfcaa4019b284ec69367715b913a2a' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-09T22:53:53-07:00
 claimant:
     operator: Xian Xu
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
 ---
 
 # couch: TL-callable restart of a live idle slot (CLI relaunch with busy/dirty guards and a receipt)
@@ -62,6 +63,27 @@ Decided by TL ariadne:1 on 2026-10-09:
 - It returns a receipt id; a status query shows the outcome and why.
 - Tests cover the guard decisions (pure) and the dispatch through a fake; a
   live check restarts a real idle slot.
+
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module   design=0.2 impl=0.3
+item: greenfield-go-module   design=0.2 impl=0.3
+item: smaller-go-module      design=0.05 impl=0.2
+item: atlas-docs             design=0.05 impl=0.08
+item: milestone-review       design=0.0 impl=0.2
+item: milestone-review       design=0.0 impl=0.2
+item: milestone-review       design=0.0 impl=0.2
+item: milestone-review       design=0.0 impl=0.2
+design-buffer: 0.15
+total: 2.26
+```
+
+M1 settle signal + hello-v2 negotiation and M2 relaunch admission/freshness/CLI
+are greenfield single-concern Go; M3 mirrors M2's path; M4 docs; one review per
+milestone. Design is low because the durable plan pre-resolves the decisions.
 
 ## Plan
 
