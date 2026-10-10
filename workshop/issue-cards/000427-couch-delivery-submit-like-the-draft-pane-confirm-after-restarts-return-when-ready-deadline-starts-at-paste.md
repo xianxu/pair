@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000427-couch-delivery-submit-like-the-draft-pane-confirm-after-restarts-return-when-ready-deadline-starts-at-paste.md
         source_blob: 9c43fff40fb277470c4485e5bb590f4daca05fbc
         destination: workshop/issues/000427-couch-delivery-submit-like-the-draft-pane-confirm-after-restarts-return-when-ready-deadline-starts-at-paste.md
+        main_commit: 57932d262e985497c942d0f60f8988ba1ad709b4
 ---
 
 # couch delivery: submit like the draft pane, confirm after; restarts return when ready; deadline starts at paste
