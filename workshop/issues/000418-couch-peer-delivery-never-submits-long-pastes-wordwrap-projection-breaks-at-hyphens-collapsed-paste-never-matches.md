@@ -93,6 +93,7 @@ calls `peerComposerText`/`peerComposerMatches`.
 ## Log
 
 ### 2026-10-09 (implementation)
+- 2026-10-09: closed — Live Claude Code 2.1.296 (isolated PTY, safe mode, no tools, production dispatcher), TestPeerLiveConformance -peer-live-submit: -peer-live-body=overwidth (160-col token) render=wrapped submitted; hyphen-wrap (~625 chars) render=wrapped submitted; collapsed (~1300 chars) render=collapsed submitted. The hyphen-wrap run with the Claude branch reverted to ansi.Wordwrap never submits (harness timeout). Over-width rule captured live (wrap-ansi hard: start on current line unless next line needs fewer breaks) and pinned by TestPeerComposerClaudeCapturedOverwidthWord; hyphen fixture from the captured ariadne:2 composer; strict collapsed-marker cases; peerSpaceWordwrap table. wrapcmd and couchmessage green under clean env (unsandboxed); couchcmd cold-resume flake passed on rerun and does not import wrapcmd. Root cause evidence: recipient scrollback replays in the issue Problem.; review verdict: SHIP
 - Operator chose option (a): accept the collapsed marker strictly. It must be the
   composer's whole content, with the cursor right after it, `+M` equal to the
   envelope's newline count, and the composer verified empty before the paste.
