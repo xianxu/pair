@@ -6,7 +6,7 @@ github_issue:
 created: 2026-10-10
 updated: 2026-10-10
 estimate_hours:
-card_mirror: 'e54a9948f20481a1e4dd23d4e009561174a59fe7' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '839f3f7dfa28cf46b55594f38e44d9ef1a62d4df' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-10T11:51:07-07:00
 claimant:
     operator: Xian Xu
@@ -16,7 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
-actual_hours: 0.91
+actual_hours: 1.10
 ---
 
 # couch delivery: submit like the draft pane, confirm after; restarts return when ready; deadline starts at paste
