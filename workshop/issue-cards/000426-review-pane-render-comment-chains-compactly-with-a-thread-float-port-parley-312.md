@@ -1,6 +1,6 @@
 ---
 id: 000426
-status: codecomplete
+status: done
 created: 2026-10-10
 updated: 2026-10-10
 estimate_hours: 2.806
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 68dc64e8fdce3b9b9282b4b7ed55e6d1a7cb2737
         evidence_commit: fe9b482888011d31d7f828e1c018dd445f0bb81f
+        landed_commit: e8dd61ca186a1b8a9e5d8461e703a9c14fea106c
 ---
 
 # Review pane: render 🤖 comment chains compactly with a thread float (port parley#312)
