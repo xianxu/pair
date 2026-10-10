@@ -3,6 +3,7 @@ package couchmessage
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net"
 	"strings"
 	"sync"
@@ -194,5 +195,18 @@ func TestHelloV2FrameValidation(t *testing.T) {
 		if err := tc.f.Validate(); (err == nil) != tc.ok {
 			t.Errorf("%+v: err=%v want ok=%v", tc.f, err, tc.ok)
 		}
+	}
+}
+
+// A slow new broker that does not ack in time is not an old broker: the client
+// must not downgrade to plain hello (#421 M1 review).
+func TestNegotiationTimeoutDoesNotFallBack(t *testing.T) {
+	client, server := net.Pipe()
+	defer client.Close()
+	defer server.Close()
+	go func() { _, _ = transportReadFrameLimit(server, MaxSessionFrameBytes) }() // read hello-v2, never ack
+	err := sessionHandshake(client, selfBinding("pair:1"), &testBuild)
+	if err == nil || errors.Is(err, errNoAck) {
+		t.Fatalf("timeout handled as an old broker: %v", err)
 	}
 }

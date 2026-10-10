@@ -63,6 +63,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/draftroute"
 	"github.com/xianxu/pair/cmd/internal/gcruntime"
 	"github.com/xianxu/pair/cmd/internal/launcher"
@@ -304,7 +305,10 @@ type proxy struct {
 	notificationLifecycle NotificationLifecycle
 	// turnActive mirrors notificationLifecycle.Active for the settle timer
 	// (#421); only processLifecycleObservation writes it.
-	turnActive          atomic.Bool
+	turnActive atomic.Bool
+	// selfBuild is this executable\'s identity, taken at startup (#421).
+	selfBuild           *couchmessage.BuildIdentity
+	selfBuildErr        error
 	lifecycleEvents     chan TurnObservation
 	lifecycleTimer      *time.Timer
 	lifecycleTimerKind  ObservationKind
@@ -2683,9 +2687,15 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 }
 
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer) (int, error) {
+	// Hash this executable first, before anything is spawned (#421): the hash
+	// is read by path, so the earlier it runs the smaller the window in which a
+	// rebuild could replace the file under a still-running old image. ~10ms.
+	selfBuild, selfBuildErr := selfBuildIdentity()
 	stdinFile, _ := stdin.(*os.File)
 	stdoutFile, _ := stdout.(*os.File)
 	p := &proxy{
+		selfBuild:       selfBuild,
+		selfBuildErr:    selfBuildErr,
 		stdin:           stdin,
 		stdinFile:       stdinFile,
 		stdout:          stdout,

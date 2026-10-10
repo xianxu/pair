@@ -786,3 +786,10 @@ proof; record the surprising case so the next change starts from evidence.
   showed wrap-ansi's hard rule. Pin each rendering rule with a captured
   fixture that asserts it distinguishes the alternatives. State the rule once,
   on the function, and point every doc there.
+
+- **Derived state subscribes to every source transition, not just the noisy
+  ones (#421 M1).** The settle check re-armed only on output and input. A turn
+  can also open or close silently (watchdog, grace expiry, transcript record),
+  which left an idle slot looking busy, or a working one looking settled. When
+  state X is derived from Y, list every writer of Y and make each one notify
+  X, with a test per direction.

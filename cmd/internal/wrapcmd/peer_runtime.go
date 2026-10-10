@@ -155,12 +155,10 @@ func (p *proxy) startPeerRuntime(executable string) (*peerRuntime, error) {
 	session := couchmessage.NewSessionClient()
 	// hello-v2 (#421): the build identity lets Couch tell whether a relaunch
 	// would change anything; without it the session stays plain hello.
-	if executable, err := os.Executable(); err != nil {
-		p.debug("PEER-build-fail", err.Error())
-	} else if build, err := couchmessage.BuildIdentityOfFile(executable); err != nil {
-		p.debug("PEER-build-fail", err.Error())
-	} else {
-		session.SetBuild(build)
+	if p.selfBuild != nil {
+		session.SetBuild(*p.selfBuild)
+	} else if p.selfBuildErr != nil {
+		p.debug("PEER-build-fail", p.selfBuildErr.Error())
 	}
 	d.mu.Lock()
 	d.session = session

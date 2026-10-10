@@ -117,3 +117,46 @@ func TestSettleNeverWithoutProbe(t *testing.T) {
 		t.Fatal("armed a settle check with no probe")
 	}
 }
+
+// #421 M1 review BR-2: a turn can open or close with no PTY bytes (watchdog,
+// grace, transcript). Opening must unsettle at once; closing must re-arm.
+func TestSettleFollowsSilentTurnTransitions(t *testing.T) {
+	clock := &fakeTimers{}
+	sink := &recordingPeerSink{}
+	turn := false
+	d := newPeerDelivery(peerTestBinding(), time.Now)
+	d.afterFunc = clock.after
+	d.settleProbe = func() bool { return !turn }
+	d.session = sink
+	d.mu.Lock()
+	d.armSettleLocked()
+	d.mu.Unlock()
+	clock.fireAll() // idle: settled
+
+	turn = true
+	d.lifecycleTurnChanged(true) // opened silently
+	d.mu.Lock()
+	settled := d.settled
+	d.mu.Unlock()
+	if settled {
+		t.Fatal("a silently opened turn left the wrapper settled")
+	}
+	clock.fireAll() // the re-armed check sees the open turn: stays unsettled
+
+	turn = false
+	d.lifecycleTurnChanged(false) // closed silently: re-armed
+	clock.mu.Lock()
+	armed := len(clock.armed)
+	clock.mu.Unlock()
+	if armed == 0 {
+		t.Fatal("a silently closed turn did not re-arm the settle check")
+	}
+	clock.fireAll()
+
+	sink.mu.Lock()
+	got := append([]bool(nil), sink.settles...)
+	sink.mu.Unlock()
+	if want := []bool{true, false, true}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("settle transitions %v, want %v", got, want)
+	}
+}

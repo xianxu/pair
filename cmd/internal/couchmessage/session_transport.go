@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -264,7 +266,12 @@ func sessionHandshake(conn net.Conn, b Binding, build *BuildIdentity) error {
 	}
 	ack, err := readSessionFrame(conn)
 	if err != nil {
-		return fmt.Errorf("%w: %v", errNoAck, err)
+		// Only a close is an old broker's answer to hello-v2; a timeout is a
+		// slow broker, and downgrading it would cost the session Settled.
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, syscall.ECONNRESET) {
+			return fmt.Errorf("%w: %v", errNoAck, err)
+		}
+		return err
 	}
 	if ack.Op != FrameAck || ack.Code != "ok" {
 		return errors.New("session refused: " + ack.Error)

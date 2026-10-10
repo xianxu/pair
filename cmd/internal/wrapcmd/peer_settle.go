@@ -1,6 +1,11 @@
 package wrapcmd
 
-import "time"
+import (
+	"os"
+	"time"
+
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
+)
 
 // SettleInterval is how long output and input must be quiet before the wrapper
 // asks whether it is settled (#421). Streaming output keeps re-arming it, so a
@@ -73,4 +78,35 @@ func (d *peerDelivery) settleFired(seq uint64) {
 	if sink != nil {
 		sink.Settle(settled)
 	}
+}
+
+// selfBuildIdentity hashes the running executable. Called once, first thing in
+// run, so the path still names the image this process loaded.
+func selfBuildIdentity() (*couchmessage.BuildIdentity, error) {
+	path, err := os.Executable()
+	if err != nil {
+		return nil, err
+	}
+	b, err := couchmessage.BuildIdentityOfFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return &b, nil
+}
+
+// lifecycleTurnChanged keeps Settled true to the turn state when the turn
+// opens or closes WITHOUT any output: a watchdog, grace expiry or transcript
+// record changes Active silently (#421 M1 review). Opening unsettles at once;
+// closing re-arms the check, which reads the new state through turnActive.
+func (d *peerDelivery) lifecycleTurnChanged(active bool) {
+	d.mu.Lock()
+	var unsettled bool
+	if active {
+		unsettled = d.settled
+		d.settled = false
+	}
+	d.armSettleLocked()
+	sink := d.session
+	d.mu.Unlock()
+	d.publishUnsettled(sink, unsettled)
 }
