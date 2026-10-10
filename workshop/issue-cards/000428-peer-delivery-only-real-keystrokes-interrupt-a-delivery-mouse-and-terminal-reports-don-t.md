@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000428-peer-delivery-only-real-keystrokes-interrupt-a-delivery-mouse-and-terminal-reports-don-t.md
         source_blob: ac001eabc6f62ee0bc262e1e6cd58a3b9c3e8637
         destination: workshop/issues/000428-peer-delivery-only-real-keystrokes-interrupt-a-delivery-mouse-and-terminal-reports-don-t.md
+        main_commit: 16ba04be3719382e6ccb51985ab2e58775b50689
 ---
 
 # peer delivery: only real keystrokes interrupt a delivery; mouse and terminal reports don't
