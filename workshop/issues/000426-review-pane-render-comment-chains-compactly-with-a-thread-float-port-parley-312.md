@@ -1,12 +1,12 @@
 ---
 id: 000426
-status: working
+status: codecomplete
 deps: [parley.nvim#312, ariadne#316]
 github_issue:
 created: 2026-10-10
 updated: 2026-10-10
 estimate_hours: 2.806
-card_mirror: 'fcc8217fb03747a2d0d725af557cf531e10510c8' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '32e4fd09050ed6db4be541a2c5236a1c529bf03d' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-10T11:43:09-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: operator}
+actual_hours: 2.03
 ---
 
 # Review pane: render 🤖 comment chains compactly with a thread float (port parley#312)
