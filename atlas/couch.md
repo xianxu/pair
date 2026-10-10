@@ -230,6 +230,28 @@ verification window are gone. Wrappers from older binaries still send
 `register` and are answered `unsupported` at no cost; their slots receive again
 after a relaunch.
 
+**Settled and build identity (#421).** A wrapper also reports whether a restart
+now would interrupt nothing (`Settled`) and which executable it runs (`Build`:
+content sha256, vcs revision and dirty bit, via
+`couchmessage.BuildIdentityOfFile`).
+- **What Settled means:** no turn is open (an atomic mirror of the
+  notification lifecycle), no overlay is up, the composer reads empty through
+  the recognizer peer delivery uses, and nothing is pending.
+- **When it is checked:** only after `wrapcmd.SettleInterval` (3s) without
+  output or input (`peer_settle.go`), so a streaming agent pays nothing. Any
+  activity unsettles the wrapper at once.
+- **Negotiated per connection, because every session frame decodes strictly:**
+  - A wrapper with a known build sends `hello-v2` (binding plus `Build`).
+  - An old broker drops that without an ack, and the wrapper redials with
+    plain `hello`.
+  - Only a hello-v2 session may put `Settled` on activity and submit frames.
+    A legacy session that does is ended as malformed.
+- **Field placement:** neither `Binding` (the actor key) nor `Observation`
+  (which also crosses the delivery endpoint) carries the new fields.
+- **Reading it:** the registry keeps the newest admitted incarnation's claims,
+  and `messageService.SlotLiveness(slot)` reads them lock-free. A nil `Build`
+  or `Settled` means unknown, never idle.
+
 **What delivery does and does not promise (#365).** Messaging promises
 at-most-once input to the wrapper's PTY, not exactly-once task execution. The
 remaining uncertainty is stated, never papered over:
