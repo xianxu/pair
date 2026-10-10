@@ -1,12 +1,20 @@
 ---
 id: 000422
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-09
 updated: 2026-10-09
 estimate_hours:
-card_mirror: '8514de997b185b1e345d2fc1d6be11277ec4a66e' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '122bb2a71751d384aa2316d965a79fe2fbd54cbe' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-09T23:05:41-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch: propagate PAIR_DEV to slots (or a couch dev entry) so relaunch rebuilds under couch
@@ -27,6 +35,28 @@ launches, or there is a `couch` dev entry (as `pair-dev` is for `pair`) that
 exports it. Relaunch (#421's `couch --relaunch`) then rebuilds through the
 existing `dev-rebuild.sh` path.
 
+Design (2026-10-09, pair:2): **a `couch-dev` entry**. No propagation code is
+needed: slots already inherit Couch's environment (`couchcore`
+`mergeChildEnvironment` starts from `os.Environ()`, and `couchcmd`
+`configuredRunner.childEnv` blanks only `PAIR_*_PATH`). The gap is that nothing
+starts Couch with `PAIR_DEV` set.
+
+- `bin/couch-dev` mirrors `bin/pair-dev`. It resolves its real directory,
+  exports `PAIR_DEV=1`, runs `dev_rebuild` from `bin/lib/dev-rebuild.sh` (so the
+  couch binary itself is fresh, ARCH-DRY: one rebuild hook), then execs the sibling
+  `couch` with every argument.
+- Install wiring: `SHELL_BINS += couch-dev`, plus a `.gitignore` negation so the
+  script is tracked (the blanket `bin/*` ignore).
+- A deployed `couch` is untouched: no `PAIR_DEV`, so `dev_rebuild` is a no-op.
+- Test: `tests/dev-rebuild-test.sh` gains couch-dev cases with fake `make` and
+  `couch`: `PAIR_DEV=1` reaches the exec'd couch, args forward, and a build
+  failure still execs. A Go test pins that a Couch child inherits `PAIR_DEV`
+  through `childEnv`, because that inheritance is load-bearing.
+- #421 (`couch --relaunch`, pair:1) relaunches through the launcher's create
+  path, so it inherits the env. I asked pair:1 to keep `PAIR_DEV` if they build a
+  custom env.
+- ARCH-FUNERAL: creates nothing durable. It is a launcher script and an env var.
+
 ## Done when
 
 - A Couch started in dev mode launches slots whose Alt+n and `couch --relaunch`
@@ -34,7 +64,9 @@ existing `dev-rebuild.sh` path.
 
 ## Plan
 
-- [ ]
+- [ ] Tests: couch-dev shell cases plus the Go childEnv inheritance pin (red first).
+- [ ] `bin/couch-dev`, `.gitignore` negation, `SHELL_BINS`.
+- [ ] README dev note and atlas (architecture dev-mode bullet, couch).
 
 ## Log
 
