@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000421-couch-tl-callable-restart-of-a-live-idle-slot-cli-relaunch-with-busy-dirty-guards-and-a-receipt.md
         source_blob: 45d3cf7684129d24a0eed93f45179dca565f5ad5
         destination: workshop/issues/000421-couch-tl-callable-restart-of-a-live-idle-slot-cli-relaunch-with-busy-dirty-guards-and-a-receipt.md
+        main_commit: fa6c2152494d727d2354286af20d0158a317ec0a
 ---
 
 # couch: TL-callable restart of a live idle slot (CLI relaunch with busy/dirty guards and a receipt)
