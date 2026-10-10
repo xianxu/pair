@@ -15,6 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "e0df146d", done: "f397c2b6"}
 ---
 
 # couch delivery: submit like the draft pane, confirm after; restarts return when ready; deadline starts at paste
