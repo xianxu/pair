@@ -777,3 +777,13 @@ proof; record the surprising case so the next change starts from evidence.
 - **A user-visible behavior change updates README too, not just help and atlas
   (#417).** grep the old phrasing ("toggle ... fullscreen") across README,
   atlas and help strings before close.
+- **Protocol text that crosses repositories names no host repo (#419).** The
+  Couch skill is read by agents in every repository, but my dispatch-label step
+  hardcoded `pair#N`. Write the generic form (`repo#N`), use a foreign repo in
+  the example, and keep a copyable command on one line, never wrapped inside
+  its quotes.
+- **An op an agent may run gets a human-readable render (#419).**
+  `publish-description` fell through `render`'s `%v` default and dumped a raw
+  struct; nobody saw it because nvim discards the output. Key a new render
+  case on the op name, not the result type (`Detach` also returns a bare
+  `ThreadRecord`).
