@@ -5,9 +5,13 @@ import (
 	"strings"
 )
 
+// All modules owning review-local mappings; shared by composition and drift tests.
+var reviewSourcePaths = []string{"nvim/review.lua", "nvim/review/comment.lua", "nvim/review/comment_float.lua"}
+
 // Review rows have their own source identity: draft and review deliberately
 // bind the same keys to different actions. Wording stays in the actual keymaps.
 var reviewCatalog = []struct{ key, display string }{
+	{"<CR>", "Enter (on comment; normal)"}, {"q", "q (thread float; normal)"},
 	{"<Esc>", "Esc (normal)"}, {"<M-c>", "Alt+c"},
 	{"<M-a>", "Alt+a (normal)"}, {"<M-r>", "Alt+r (normal)"},
 	{"<leader>a", "Leader+a (normal)"}, {"<leader>r", "Leader+r (normal)"},

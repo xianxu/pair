@@ -113,6 +113,16 @@ Open questions, to settle at start-plan:
   fence exclusion. Pure layout: 1,000 lines/100 markers p95 0.836ms (max 0.972ms),
   100-turn marker p95 0.222ms (max 0.287ms), 100 samples each.
 
+- Baseline comparison proved the artifact classifier's 53 findings are identical
+  at base `78d860907984` and current HEAD; no new modules are unclassified.
+  Both isolated checkouts generated runtime assets before the comparison.
+- PTY tests pass including actual undo/redo repaint after yielding to Neovim's
+  input loop; no synthetic render/autocmd is used as an oracle repair.
+- Complete rendering (API decorations included), 1,000 lines/100 markers:
+  initial 4.10ms; 50 redraws median 2.33ms, p95 2.85ms, max 2.87ms.
+- Keyboard help derives Enter/thread-q descriptions from the new Lua modules;
+  its package tests pass, including embedded-source drift.
+
 ## Revisions
 
 ### 2026-10-10 — proposed port boundaries for approval

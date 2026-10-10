@@ -149,21 +149,21 @@ Files: new `nvim/review/comment_codec.lua`, `comment_thread.lua` and colocated
 `*_test.lua`; modify `nvim/review/markers.lua`, `resolve.lua`, shared
 `nvim/marker_codec.lua` only for reusable primitives, and their tests.
 
-- [ ] Enumerate section-text consumers with `rg 'sections|last.text' nvim/review nvim/review.lua`; pin existing anchor/delimiter/resolve behavior.
-- [ ] Test `encode_turn`/`decode_turn` with seeded delimiter-alphabet properties plus independent canonical wire fixtures; test `to_lines`/`from_lines` by role/content preservation and full parser consumption; test `resolve` by literal anchor preservation versus canonical turn decoding.
-- [ ] Run `nvim -l nvim/review/comment_codec_test.lua` and `nvim -l nvim/review/comment_thread_test.lua`; verify behavioral failures before implementation.
-- [ ] Implement the canonical raw-turn codec above, adapting upstream codec/thread code through Pair's parser. Add newline decoding only for turn-derived resolution, preserving anchors literally.
-- [ ] Run the new tests plus `nvim -l nvim/review/markers_test.lua` and `nvim -l nvim/review/resolve_test.lua`; commit this coherent component with an issue reference.
+- [x] Enumerate section-text consumers with `rg 'sections|last.text' nvim/review nvim/review.lua`; pin existing anchor/delimiter/resolve behavior.
+- [x] Test `encode_turn`/`decode_turn` with seeded delimiter-alphabet properties plus independent canonical wire fixtures; test `to_lines`/`from_lines` by role/content preservation and full parser consumption; test `resolve` by literal anchor preservation versus canonical turn decoding.
+- [x] Run `nvim -l nvim/review/comment_codec_test.lua` and `nvim -l nvim/review/comment_thread_test.lua`; verify behavioral failures before implementation.
+- [x] Implement the canonical raw-turn codec above, adapting upstream codec/thread code through Pair's parser. Add newline decoding only for turn-derived resolution, preserving anchors literally.
+- [x] Run the new tests plus `nvim -l nvim/review/markers_test.lua` and `nvim -l nvim/review/resolve_test.lua`; commit this coherent component with an issue reference.
 
 ### Task 2: Shared compact projection and attachment
 
 Files: new `nvim/review/comment_view.lua`, `comment.lua`, colocated view tests;
 modify `nvim/review.lua`; new `tests/review-comments-test.sh`.
 
-- [ ] Test `markers.scan` with malformed/code-context generated documents, asserting diagnostics and completeness never conceal a broken prefix. Test `comment_view.layout`/`marker_at` with eligibility invariants; test `snap` over every byte/insertion point, asserting legal UTF-8 destinations and unchanged visible input.
-- [ ] Build the real-render test around existing `tests/lib/run-headless.sh`/isolated test environment, attaching a real UI/pty before `screenstring()` assertions. Assert actual colored bracket/ellipsis cells, visible anchor and final reply, not only extmark metadata.
-- [ ] Run the failing view/render tests, then implement the shared projection, conceal and directional cursor policy. Reuse Pair parser exclusions, original multiline highlight fallback, and existing highlight setup; update on TextChangedI as well as ordinary review events.
-- [ ] Attach/detach through start_review/stop_review, including restore rollback. Rendering must not enter the undo history or mutate source bytes. Verify undo/redo, buffer switch, theme change and small-window rendering; commit.
+- [x] Test `markers.scan` with malformed/code-context generated documents, asserting diagnostics and completeness never conceal a broken prefix. Test `comment_view.layout`/`marker_at` with eligibility invariants; test `snap` over every byte/insertion point, asserting legal UTF-8 destinations and unchanged visible input.
+- [x] Build the real-render test around existing `tests/lib/run-headless.sh`/isolated test environment, attaching a real UI/pty before `screenstring()` assertions. Assert actual colored bracket/ellipsis cells, visible anchor and final reply, not only extmark metadata.
+- [x] Run the failing view/render tests, then implement the shared projection, conceal and directional cursor policy. Reuse Pair parser exclusions, original multiline highlight fallback, and existing highlight setup; update on TextChangedI as well as ordinary review events.
+- [x] Attach/detach through start_review/stop_review, including restore rollback. Rendering must not enter the undo history or mutate source bytes. Verify undo/redo, buffer switch, theme change and small-window rendering; commit.
 
 ### Task 3: Float lifecycle and review handoff
 
@@ -171,10 +171,10 @@ Files: new `nvim/review/comment_float.lua` and colocated lifecycle tests;
 modify `nvim/review.lua`, `tests/review-comments-test.sh`,
 `tests/review-controls-test.sh` or a dedicated thread handoff test.
 
-- [ ] Test `comment_thread.new_session().transition` using generated event sequences and independent no-overwrite/no-loss/resource-count invariants. Test `comment_float.open_thread`/save/close effects with real Neovim source edits and teardown; drive Enter/save/discard through real keymaps and commands.
-- [ ] Implement acwrite float with role highlighting and editable final reply. API glue executes pure model effects, preserving text on conflict/forced close and refusing close-after-failed-save. Escape exits insert mode normally; review pane float dismissal must use the same cleanup path.
-- [ ] Save a multiline reply, assert exactly one encoded marker line in the source, submit via the actual Alt+Return mapping and inspect the saved document read by the stateful agent host. Assert no automatic agent submission from :w alone.
-- [ ] Rerun existing accept/reject, diagnostic floats, navigation, controls and restore tests. Commit.
+- [x] Test `comment_thread.new_session().transition` using generated event sequences and independent no-overwrite/no-loss/resource-count invariants. Test `comment_float.open_thread`/save/close effects with real Neovim source edits and teardown; drive Enter/save/discard through real keymaps and commands.
+- [x] Implement acwrite float with role highlighting and editable final reply. API glue executes pure model effects, preserving text on conflict/forced close and refusing close-after-failed-save. Escape exits insert mode normally; review pane float dismissal must use the same cleanup path.
+- [x] Save a multiline reply, assert exactly one encoded marker line in the source, submit via the actual Alt+Return mapping and inspect the saved document read by the stateful agent host. Assert no automatic agent submission from :w alone.
+- [x] Rerun existing accept/reject, diagnostic floats, navigation, controls and restore tests. Commit.
 
 ### Task 4: Packaging, documentation and final verification
 
@@ -182,10 +182,10 @@ Files: `Makefile.local`, `cmd/internal/artifactpath/manifest.go`, generated asse
 `README.md`, `atlas/review-workbench.md`, `atlas/index.md` if a new map is added,
 and the issue/plan Log and checkboxes.
 
-- [ ] Register every new test in test-lua/test-review; classify every production source/mirror and regenerate via `make runtimebundle-generate`.
-- [ ] Document compact display, Enter/thread save/discard controls, literal/multiline fallback and rescue behavior in README and the existing atlas page. Preserve the existing index link if no new atlas file is needed.
+- [x] Register every new test in test-lua/test-review; classify every production source/mirror and regenerate via `make runtimebundle-generate`.
+- [x] Document compact display, Enter/thread save/discard controls, literal/multiline fallback and rescue behavior in README and the existing atlas page. Preserve the existing index link if no new atlas file is needed.
 - [ ] In an environment cleared of PAIR_*, COUCH_* and ZELLIJ* with a short dedicated TMPDIR, run `make test-lua test-review`, `make test-runtimebundle`, `go test ./cmd/internal/artifactpath/...`, `make build` and `git diff --check`. Inspect every failure, including pre-existing ones that name new files.
-- [ ] Mutation-check core properties (break newline parity, remove source compare guard, bypass fence eligibility); tests must fail for their own asserted outcome. Record representative render/performance evidence and restore mutants via overlays/temporary copies, not tracked-file churn.
+- [x] Mutation-check core properties (break newline parity, remove source compare guard, bypass fence eligibility); tests must fail for their own asserted outcome. Record representative render/performance evidence and restore mutants via overlays/temporary copies, not tracked-file churn.
 - [ ] Tick completed steps and record test evidence. Run `sdlc close --issue 426 --verified '<concrete evidence>'` for the mandatory fresh-context review; fix findings and record prevention rules in lessons. Publish through sdlc pr/merge when authorized.
 
 ## Approval and implementation entry

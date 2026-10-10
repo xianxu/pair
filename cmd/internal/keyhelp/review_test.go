@@ -7,7 +7,11 @@ import (
 )
 
 func TestReviewHelpDerivesEveryMappingAndSurvivesHostLayer(t *testing.T) {
-	src := mustReadTreeSource(t, "nvim/review.lua")
+	var sources []string
+	for _, path := range reviewSourcePaths {
+		sources = append(sources, mustReadTreeSource(t, path))
+	}
+	src := strings.Join(sources, "\n")
 	scan := ParseReviewKeymaps(src)
 	if n := len(scan.Resolved) + len(scan.Dynamic) + len(scan.Unresolved); n != strings.Count(src, keymapCall) {
 		t.Fatalf("review keymaps without review: desc: documented %d calls of %d", n, strings.Count(src, keymapCall))
@@ -37,5 +41,52 @@ func TestReviewHelpDerivesEveryMappingAndSurvivesHostLayer(t *testing.T) {
 	}
 	if !strings.Contains(Render(changed), "changed accept behavior") {
 		t.Fatal("help wording did not follow mapping desc")
+	}
+}
+
+// Thread controls live in modules, and q applies only inside the thread float.
+// Override their descriptions to prove the composed help reads both sources.
+type reviewTreeSources struct{ t *testing.T }
+
+func (s reviewTreeSources) Read(path string) ([]byte, error) {
+	text := mustReadTreeSource(s.t, path)
+	if path == "nvim/review/comment.lua" {
+		text = strings.ReplaceAll(text, "review: open comment thread", "review: open edited thread")
+	}
+	if path == "nvim/review/comment_float.lua" {
+		text = strings.ReplaceAll(text, "review: save and close thread", "review: save edited thread")
+	}
+	return []byte(text), nil
+}
+func TestCommentHelpReadsModuleDescriptionsAndScopes(t *testing.T) {
+	sections, err := Sections(reviewTreeSources{t})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wants := map[string]string{
+		"Enter (on comment; normal)": "open edited thread",
+		"q (thread float; normal)":   "save edited thread",
+	}
+	for _, section := range sections {
+		for _, binding := range section.Bindings {
+			if want, ok := wants[binding.Key]; ok {
+				if binding.Desc != want || binding.Context != ContextReview {
+					t.Errorf("%s: got %+v, want review scope and %q", binding.Key, binding, want)
+				}
+				delete(wants, binding.Key)
+			}
+		}
+	}
+	for key := range wants {
+		t.Errorf("missing scoped help: %s", key)
+	}
+}
+
+func TestReviewDescriptionsAllowCompactLuaAssignment(t *testing.T) {
+	for _, assignment := range []string{"desc='review: thread'", "desc = 'review: thread'", "desc\t=\t'review: thread'"} {
+		scan := ParseReviewKeymaps("vim.keymap.set('n','q',action,{" + assignment + "})")
+		if len(scan.Resolved) != 1 || scan.Resolved[0].Desc != "thread" {
+			t.Errorf("%s: got %+v", assignment, scan)
+		}
 	}
 }
