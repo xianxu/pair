@@ -13,7 +13,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
-actual_hours: 0.47
+actual_hours: 0.30
 tracker:
     version: 1
     handoff:
@@ -27,10 +27,10 @@ tracker:
         destination: workshop/issues/000422-couch-propagate-pair-dev-to-slots-or-a-couch-dev-entry-so-relaunch-rebuilds-under-couch.md
         main_commit: 53ec05c9bd8c99d1dfeacb682e3a24606a3b02fc
     completion:
-        token: close-7bdaa07325fb
+        token: close-d171d3e3e886
         repository: github.com/xianxu/pair
-        reviewed_head: 9e1c0d0040b505f285a320dd6d156af464622aee
-        evidence_commit: 9ba5ad25ad29669937ba825870df4cff7b706444
+        reviewed_head: c2f5ce78b305ee9d7c676b8208ab54e3152959f4
+        evidence_commit: 29b58ea9116c6d9882b7c0fde22503636c7cafce
 ---
 
 # couch: propagate PAIR_DEV to slots (or a couch dev entry) so relaunch rebuilds under couch
