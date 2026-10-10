@@ -15,6 +15,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "aa538020", done: "07091856"}
 ---
 
 # couch --peek fast path: tail first via the running Couch, transcripts only on request
