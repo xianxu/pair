@@ -1,6 +1,6 @@
 ---
 id: 000429
-status: codecomplete
+status: done
 created: 2026-10-10
 updated: 2026-10-10
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 4cc7d076da3196e3757340c1753029687abc6650
         evidence_commit: 5d1b154bf1c657f91eb3fbfaac8c66ab30fa6a5c
+        landed_commit: 77e9b7bd90a1e3a1b073136473a8dc86230f8e7d
 ---
 
 # couch --peek fast path: tail first via the running Couch, transcripts only on request
