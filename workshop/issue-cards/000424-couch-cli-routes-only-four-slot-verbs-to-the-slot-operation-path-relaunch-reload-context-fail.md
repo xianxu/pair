@@ -1,6 +1,6 @@
 ---
 id: 000424
-status: codecomplete
+status: done
 created: 2026-10-10
 updated: 2026-10-10
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 54dbb545bd9501e9eda792a4e441749f8957e0a3
         evidence_commit: f7ad17e533646d8fd6b3ebe480b97cfca949ccb2
+        landed_commit: 86e2fd19ecb711c656efae140dc57f0597911612
 ---
 
 # couch CLI routes only four slot verbs to the slot-operation path; --relaunch/--reload-context fail
