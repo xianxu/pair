@@ -4,10 +4,11 @@
 # before execing couch, and its slots inherit PAIR_DEV. `pair-dev` execs `pair`;
 # bin/pair sources this and calls dev_rebuild once on the create path, just
 # before the zellij layout execs pair-wrap. In dev mode it recompiles the Go
-# binaries from source into $PAIR_HOME/bin (which is first on PATH), so the layout's `exec pair-wrap` — a
-# PATH lookup that neither .zshenv nor construct/dev-aliases.sh's rebuild
-# function can reach — resolves to a fresh build instead of a stale (or absent,
-# since bin/ is gitignored) ~/.local/bin copy. See atlas/architecture.md.
+# binaries from source into $PAIR_HOME/bin (which is first on PATH), so the
+# layout's `exec pair-wrap` — a PATH lookup that neither .zshenv nor
+# construct/dev-aliases.sh's rebuild function can reach — resolves to a fresh
+# build instead of a stale (or absent, since bin/ is gitignored) ~/.local/bin
+# copy. See atlas/architecture.md.
 #
 # Restart-safe: Alt+n / Shift+Alt+N re-exec $0=bin/pair, and PAIR_DEV rides
 # through exec in the environment, so the rebuild re-fires on every restart —
