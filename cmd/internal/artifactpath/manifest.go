@@ -741,6 +741,7 @@ var NonArtifactSources = []string{
 	"bin/lib/adapt-log.sh",
 	"bin/lib/dev-rebuild.sh",
 	"bin/pair-dev",
+	"bin/couch-dev",
 	"bin/pair-help",
 	"bin/pair-notify",
 	"cmd/couch/main.go",

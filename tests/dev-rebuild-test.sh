@@ -63,6 +63,42 @@ else
     fail "build failure aborted under set -e (got: '${out:-<empty>}')"
 fi
 
+# 4) couch-dev (#422): a Couch launched in dev mode exports PAIR_DEV to the
+#    slots it starts, so their Alt+n rebuilds Pair. Run a copy of the entry in a
+#    throwaway tree, through a symlink as ~/.local/bin installs it, with a fake
+#    sibling `couch` that records what it received.
+TREE="$(cd -P "$RT" && pwd)/tree"
+mkdir -p "$TREE/bin/lib" "$RT/links"
+cp "$ROOT/bin/couch-dev" "$TREE/bin/couch-dev" 2>/dev/null
+cp "$LIB" "$TREE/bin/lib/dev-rebuild.sh"
+cat > "$TREE/bin/couch" <<EOF
+#!/usr/bin/env bash
+printf 'PAIR_DEV=%s args=%s\n' "\${PAIR_DEV:-}" "\$*" > "$RT/couch-called"
+EOF
+chmod +x "$TREE/bin/couch"
+ln -sf "$TREE/bin/couch-dev" "$RT/links/couch-dev"
+
+rm -f "$RT/make-called" "$RT/couch-called"
+( unset PAIR_DEV; "$RT/links/couch-dev" --list two words ) >/dev/null 2>&1
+if [ "$(cat "$RT/couch-called" 2>/dev/null)" = "PAIR_DEV=1 args=--list two words" ]; then
+    pass "couch-dev execs the sibling couch with PAIR_DEV=1 and every argument"
+else
+    fail "couch-dev handoff wrong (got: '$(cat "$RT/couch-called" 2>/dev/null)')"
+fi
+if [ "$(cat "$RT/make-called" 2>/dev/null)" = "-C $TREE build" ]; then
+    pass "couch-dev rebuilds its own tree before launching"
+else
+    fail "couch-dev did not 'make build' its tree (sentinel: $(cat "$RT/make-called" 2>/dev/null))"
+fi
+
+rm -f "$RT/couch-called"
+( unset PAIR_DEV; FAKE_MAKE_EXIT=1 "$RT/links/couch-dev" ) >/dev/null 2>&1
+if [ -f "$RT/couch-called" ]; then
+    pass "couch-dev still launches couch when the build fails"
+else
+    fail "a failed build stopped couch-dev from launching couch"
+fi
+
 if [ "$fails" -ne 0 ]; then
     printf '\n%d failure(s)\n' "$fails"
     exit 1

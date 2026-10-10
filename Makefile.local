@@ -37,7 +37,7 @@ GO_BINS     := pair couch pair-launch-helper
 # rebuilds via `make build` (not install) and the session PATH fronts the repo
 # bin/, while `install` covers ~/.local/bin.
 BUSYBOX_LINKS := pair-slug
-SHELL_BINS  := pair-dev
+SHELL_BINS  := pair-dev couch-dev
 PAIR_HOME_LDFLAGS := -X main.defaultPairHome=$(CURDIR)
 RUNTIMEBUNDLE_ASSETS := cmd/internal/runtimebundle/assets/runtime/manifest.json
 
@@ -396,7 +396,7 @@ test-term-pane-shortcuts: $(BIN_DIR)/pair
 test-adapt-schema:
 	bash tests/adapt-schema-test.sh
 
-# pair-dev rebuild hook (#000046): deployed mode (PAIR_DEV unset) must invoke
+# pair-dev / couch-dev rebuild hook (#000046, #422): deployed mode (PAIR_DEV unset) must invoke
 # no toolchain; dev mode builds; build failure is errexit-safe. See
 # tests/dev-rebuild-test.sh.
 test-dev-rebuild:

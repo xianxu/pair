@@ -786,3 +786,7 @@ proof; record the surprising case so the next change starts from evidence.
   showed wrap-ansi's hard rule. Pin each rendering rule with a captured
   fixture that asserts it distinguishes the alternatives. State the rule once,
   on the function, and point every doc there.
+- **Run `sdlc change-code` the moment the plan is committed (#419, #422).** Twice
+  in one session I implemented straight after `start-plan` and ran change-code
+  afterwards. The flow is claim, start-plan, plan commit, **change-code**, then
+  code. Run it before the first test edit, even on the quick flow.
