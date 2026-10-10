@@ -15,6 +15,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "f2d38fda", done: "40e9e042"}
 ---
 
 # couch: in-memory slot tails with style and cursor marks, plus a multi-slot peek
