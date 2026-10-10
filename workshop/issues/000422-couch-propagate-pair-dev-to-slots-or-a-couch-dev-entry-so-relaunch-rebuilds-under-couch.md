@@ -90,5 +90,11 @@ starts Couch with `PAIR_DEV` set.
 - Unrelated flake found: `TestColdResumeOfAParkedPrimaryRegistersFromBothOrigins/switcher`
   fails about 3 in 6 under load. It presses Enter after the "threads" header but
   before the row loads, giving "no selection". It passed on clean main once.
+- Close review (SHIP) had 2 advisories:
+  - Fixed: `dev-rebuild.sh` named only pair-dev. Its messages now say
+    `dev-rebuild:` and "fix, then relaunch", and the header names couch-dev.
+  - Declined: the DRY finding about couch-dev's symlink loop. Each entry script
+    needs that loop to locate `bin/lib`, so a helper kept in `bin/lib` can't
+    supply it.
 - Process slip, repeated from #419: implemented before `change-code`. A lesson
   was added.
