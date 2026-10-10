@@ -15,7 +15,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "f2d38fda", done: "40e9e042"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # couch: in-memory slot tails with style and cursor marks, plus a multi-slot peek
@@ -66,6 +66,8 @@ Durable plan: `workshop/plans/000425-couch-in-memory-slot-tails-with-style-and-c
 ## Log
 
 ### 2026-10-10
+- 2026-10-10: closed — Targeted: wrapcmd TestTail* (ghost vs typed from testdata/tty/claude/2.1.237/composer.raw + peer paste-short.raw, literal-markup escape, reverse, cursor shape, scrollback/alt, real endpoint socket; TestTailOverEndpointSocketIsFast: 200-line tail over 12k scrollback via real socket ~0.7-1.3ms; -race clean), couchmessage all, couchcmd handleTail + readSlotTail + TestMultiSlotPeekRunsThroughTheRouter (RunWithRuntime argv), couchcore live-first/fallback + PeekSnapshot + 32-slot cap. make -k test: all pass except test-pair-embedded-runtime/test-changelog, which pass with session PAIR_/COUCH_ env scrubbed (+scratch TMPDIR). go test ./...: 83 ok; 3 FAIL unrelated (couchcmd TestColdResume... fails on main too; artifactpath inventory lists many pre-existing main files; gcruntime reads live Couch slot metadata). Live: new CLI multi-slot peek on pair:0:3,ops:0,nope:9 -> 4 sections, reasons inline, falls back to recording against the pre-#425 Couch. BR-1 (Done-when 1 live e2e): explicitly deferred to the TL at rollout by ops decision, recorded as a Revision on the Done-when (as #421); each hop proven by tests incl. timed real-socket test.; review verdict: SHIP
+- 2026-10-10: flow upgraded quick → full — 589 added lines in code files (limit 100); an earlier round of this close already ran the full review
 - Design: the wrapper's vt emulator already keeps screen + 10k scrollback in memory, so the tail is a render on request, not a new store. Reached through an identity-free read-only broker op (`broadcast-status` precedent), because only the broker knows the wrapper endpoint's binding-hashed socket. Recording render stays as the fallback, reason inline.
 - Implemented: `terminalModel.Tail` (wrapcmd/terminal_tail.go), endpoint op `tail`, identity-free broker op `tail` → `messageService.handleTail`, `couchcore.PeekSlots`/`ExpandPeekReferences`, `readSlotTail`. Ghost vs typed test uses `testdata/tty/claude/2.1.237/composer.raw` (ghost renders `‹dim›Try …‹/dim›`; the same cells unfaint and the captured `paste-short.raw` draft render without it). Claude's prompt glyph is followed by U+00A0, not a space.
 - Live run caught a router gap (lesson #424 again): `runTypedOperationWithConsole` parsed the whole ref as one `repo:N` before dispatch, refusing `pair:0:3,ops:0`. My first "router" test stopped at `bindArgs`. Fixed with `singleReference` + `TestMultiSlotPeekRunsThroughTheRouter` via `RunWithRuntime`.
