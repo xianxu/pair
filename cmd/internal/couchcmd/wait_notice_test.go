@@ -1,9 +1,15 @@
 package couchcmd
 
 import (
+	"context"
+	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
 )
 
 // Tails below are shaped on live `couch --peek` captures (2026-10-11).
@@ -141,5 +147,186 @@ func TestParseWaitOptOut(t *testing.T) {
 	got := parseWaitOptOut("# muted\nariadne:2\n  pair:4  # noisy\n\n")
 	if len(got) != 2 || !got["ariadne:2"] || !got["pair:4"] {
 		t.Fatalf("opt-out %v", got)
+	}
+}
+
+// tailEndpoint serves a fixed screen; hubInbox records what reaches the hub.
+type tailEndpoint struct {
+	serviceEndpointFake
+	lines *[]string
+	mu    *sync.Mutex
+}
+
+func (e tailEndpoint) Tail(context.Context, int) (couchmessage.Tail, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return couchmessage.Tail{Lines: append([]string(nil), *e.lines...)}, nil
+}
+
+// The hub itself sits on a dialog, so a watcher that forgot to skip it would
+// notify itself in every test.
+type hubInbox struct {
+	tailEndpoint
+	got *[]couchmessage.Message
+}
+
+func (e hubInbox) Deliver(ctx context.Context, m couchmessage.Message, _ func(couchmessage.Receipt)) (couchmessage.Receipt, error) {
+	e.tailEndpoint.mu.Lock()
+	*e.got = append(*e.got, m)
+	e.tailEndpoint.mu.Unlock()
+	return couchmessage.Receipt{Status: couchmessage.Submitted}, ctx.Err()
+}
+
+type waitRig struct {
+	*serviceRig
+	hub, worker couchmessage.Binding
+	client      *couchmessage.SessionClient
+	watcher     *waitWatcher
+	mu          sync.Mutex
+	screen      []string
+	delivered   []couchmessage.Message
+}
+
+// newWaitRig runs hub pair:1 and a hello-v2 worker pair:2 showing screen.
+func newWaitRig(t *testing.T, settled, resting bool, screen []string) *waitRig {
+	w := &waitRig{serviceRig: newServiceRig(t), screen: screen}
+	w.world.hub = "/repo1"
+	w.restart(nil)
+	w.hub = w.world.add(1)
+	w.worker = w.world.add(2)
+	hubScreen := claudePermissionTail
+	w.world.endpoints[w.hub] = hubInbox{tailEndpoint: tailEndpoint{lines: &hubScreen, mu: &w.mu}, got: &w.delivered}
+	w.world.endpoints[w.worker] = tailEndpoint{lines: &w.screen, mu: &w.mu}
+	w.serviceRig.mu.Lock()
+	w.slotGit["/repo1"] = couchcore.SlotGitStatus{Branch: "main-slot1"}
+	branch := "main-slot2"
+	if !resting {
+		branch = "000451-issue"
+	}
+	w.slotGit["/repo2"] = couchcore.SlotGitStatus{Branch: branch}
+	w.serviceRig.mu.Unlock()
+	w.v2wrapper(w.hub, "h1", false)
+	w.waitSettled(w.hub, false)
+	w.client = w.v2wrapper(w.worker, "h2", settled)
+	w.waitSettled(w.worker, settled)
+	w.watcher = newWaitWatcher(w.s, 10*time.Minute, t.TempDir())
+	return w
+}
+
+// v2wrapper runs a hello-v2 session for b, the kind that reports Settled.
+func (w *waitRig) v2wrapper(b couchmessage.Binding, pane couchmessage.PaneHandle, settled bool) *couchmessage.SessionClient {
+	c := couchmessage.NewSessionClient()
+	c.SetBuild(couchmessage.BuildIdentity{SHA256: strings.Repeat("a", 64)})
+	c.Update(couchmessage.Observation{LastActivity: time.Now(), Sequence: 1})
+	c.Settle(settled)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		c.Run(ctx, w.regSock, b, couchmessage.DefaultReconnectBackoff, 10*time.Millisecond)
+	}()
+	w.t.Cleanup(func() { cancel(); <-done })
+	w.attach(b, pane)
+	w.waitConnected(b, true)
+	return c
+}
+
+func (w *waitRig) waitSettled(b couchmessage.Binding, want bool) {
+	w.t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		if live, ok := w.s.LivenessForThread(b.Scope, b.Tag); ok && live.Settled != nil && *live.Settled == want {
+			return
+		}
+		if time.Now().After(deadline) {
+			w.t.Fatalf("worker never reported Settled=%v", want)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// tickAt runs one watcher pass at offset past now and returns every notice
+// the hub has received, after giving deliveries time to land.
+func (w *waitRig) tickAt(offset time.Duration) []couchmessage.Message {
+	w.watcher.tick(context.Background(), time.Now().Add(offset))
+	time.Sleep(150 * time.Millisecond)
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return append([]couchmessage.Message(nil), w.delivered...)
+}
+
+// #451 Done-when 1: a permission dialog left past the threshold produces
+// exactly one hub notice, from the waiting slot, naming the dialog.
+func TestWaitNoticeDialogNotifiesTheHubOncePerEpisode(t *testing.T) {
+	w := newWaitRig(t, false, false, claudePermissionTail)
+	if got := w.tickAt(9 * time.Minute); len(got) != 0 {
+		t.Fatalf("notice before the threshold: %+v", got)
+	}
+	got := w.tickAt(11 * time.Minute)
+	got = w.tickAt(12 * time.Minute)
+	if len(got) != 1 {
+		t.Fatalf("want exactly one notice, got %d: %+v", len(got), got)
+	}
+	m := got[0]
+	if m.From != w.worker || m.To != w.hub || !strings.HasPrefix(m.Body, "slot pair:2 waiting 1") || !strings.Contains(m.Body, "on a prompt: Do you want to proceed?") {
+		t.Fatalf("notice %+v", m)
+	}
+	// The slot works again, then waits again: a new episode, one more notice.
+	w.client.Update(couchmessage.Observation{LastActivity: time.Now().Add(time.Second), Sequence: 2})
+	deadline := time.Now().Add(3 * time.Second)
+	for len(w.tickAt(11*time.Minute)) != 2 {
+		if time.Now().After(deadline) {
+			t.Fatal("a new waiting episode sent no notice")
+		}
+	}
+	if got := w.tickAt(13 * time.Minute); len(got) != 2 {
+		t.Fatalf("second episode notified %d times", len(got)-1)
+	}
+}
+
+// #451 Done-when 2: a turn that ended with a question notifies once; one that
+// ended normally on the resting branch does not.
+func TestWaitNoticeQuestionNotifiesNormalEndDoesNot(t *testing.T) {
+	q := newWaitRig(t, true, true, claudeQuestionTail)
+	q.tickAt(11 * time.Minute)
+	if got := q.tickAt(12 * time.Minute); len(got) != 1 || !strings.Contains(got[0].Body, "after asking: Should I merge it now?") {
+		t.Fatalf("question notices %+v", got)
+	}
+	done := newWaitRig(t, true, true, claudeDoneTail)
+	if got := done.tickAt(30 * time.Minute); len(got) != 0 {
+		t.Fatalf("normal end on resting branch notified: %+v", got)
+	}
+}
+
+func TestWaitNoticeIdleOffRestingBranchNotifies(t *testing.T) {
+	w := newWaitRig(t, true, false, claudeDoneTail)
+	if got := w.tickAt(11 * time.Minute); len(got) != 1 || !strings.Contains(got[0].Body, "idle off its resting branch") {
+		t.Fatalf("idle notices %+v", got)
+	}
+}
+
+func TestWaitNoticeMutedSlotAndHubAreSilent(t *testing.T) {
+	w := newWaitRig(t, false, false, claudePermissionTail)
+	if err := os.WriteFile(w.watcher.optOut, []byte("# muted\npair:2\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := w.tickAt(11 * time.Minute); len(got) != 0 {
+		t.Fatalf("muted slot notified: %+v", got)
+	}
+	// With no hub connected there is no one to tell.
+	w.world.hub = ""
+	w.restart(map[couchmessage.ThreadKey]couchmessage.PaneHandle{w.hub.Thread(): "h1", w.worker.Thread(): "h2"})
+	w.waitConnected(w.worker, true)
+	w.watcher = newWaitWatcher(w.s, 10*time.Minute, t.TempDir())
+	if got := w.tickAt(11 * time.Minute); len(got) != 0 {
+		t.Fatalf("notice without a hub: %+v", got)
+	}
+}
+
+func TestWaitNoticeThreshold(t *testing.T) {
+	for v, want := range map[string]time.Duration{"": 10 * time.Minute, "2m": 2 * time.Minute, "30s": 10 * time.Minute, "junk": 10 * time.Minute} {
+		if got := waitNoticeThreshold(func(string) string { return v }); got != want {
+			t.Errorf("threshold %q = %v, want %v", v, got, want)
+		}
 	}
 }

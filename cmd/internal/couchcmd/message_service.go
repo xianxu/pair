@@ -348,6 +348,9 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	console.SetMessageBroker(service.broker)
 	service.SetBroadcastStatus(console.BroadcastStatus)
 	service.recordDeliveries(namespace)
+	watcher := newWaitWatcher(service, waitNoticeThreshold(os.Getenv), namespace)
+	service.workers.Add(1)
+	go func() { defer service.workers.Done(); watcher.run(service.lifetime, time.Minute) }()
 	// After the loop runs: the replay of already-attached panes lands in the
 	// mailbox the loop drains.
 	console.SubscribeMessageLifecycle(panes)

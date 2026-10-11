@@ -1,10 +1,15 @@
 package couchcmd
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
 )
 
 // A waiting notice (pair#451) tells the hub that a slot has sat waiting for
@@ -171,4 +176,149 @@ func parseWaitOptOut(text string) map[string]bool {
 		}
 	}
 	return out
+}
+
+// waitNoticeThreshold reads COUCH_WAIT_NOTICE_AFTER (a Go duration of at
+// least a minute); anything else is the 10 minute default.
+func waitNoticeThreshold(getenv func(string) string) time.Duration {
+	if d, err := time.ParseDuration(getenv("COUCH_WAIT_NOTICE_AFTER")); err == nil && d >= time.Minute {
+		return d
+	}
+	return 10 * time.Minute
+}
+
+// waitTailLines is enough screen for a dialog or a turn's last paragraph.
+const waitTailLines = 60
+
+// waitWatcher sends the hub one notice per waiting episode (pair#451). It
+// reads the service's memory every tick; only a slot quiet past the threshold
+// costs IO, one tail read from its own wrapper per episode.
+type waitWatcher struct {
+	svc       *messageService
+	threshold time.Duration
+	optOut    string // the operator's mute list; Couch only reads it
+	newID     func() (string, error)
+	// seen is the last judged episode per connected binding, pruned to the
+	// listing each tick; it dies with the service.
+	seen map[couchmessage.Binding]waitEpisode
+}
+
+// waitEpisode: an episode is the quiet since one LastActivity. notified holds
+// for the whole episode; judgedNot only for the exact facts it judged.
+type waitEpisode struct {
+	key       waitKey
+	notified  bool
+	judgedNot bool
+}
+
+type waitKey struct {
+	activity                  time.Time
+	settled, resting, pending bool
+}
+
+func newWaitWatcher(svc *messageService, threshold time.Duration, storeDir string) *waitWatcher {
+	return &waitWatcher{svc: svc, threshold: threshold, optOut: filepath.Join(storeDir, "wait-notice-off"),
+		newID: newRequestID, seen: map[couchmessage.Binding]waitEpisode{}}
+}
+
+// run ticks until ctx ends.
+func (w *waitWatcher) run(ctx context.Context, every time.Duration) {
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case now := <-t.C:
+			w.tick(ctx, now)
+		}
+	}
+}
+
+// hubBinding is the connected wrapper in the worktree Couch started from.
+func (s *messageService) hubBinding() (couchmessage.Binding, bool) {
+	if s.authority.hub == "" {
+		return couchmessage.Binding{}, false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for b, identity := range s.workspaces {
+		if identity.WorktreeRoot == s.authority.hub {
+			return b, true
+		}
+	}
+	return couchmessage.Binding{}, false
+}
+
+func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
+	hub, ok := w.svc.hubBinding()
+	if !ok {
+		return
+	}
+	rows, err := w.svc.broker.Actors(ctx, hub)
+	if err != nil {
+		return
+	}
+	liveness := map[string]couchmessage.SlotLiveness{}
+	if m := w.svc.liveness.Load(); m != nil {
+		liveness = *m
+	}
+	listed := map[couchmessage.Binding]bool{}
+	var muted map[string]bool
+	for _, row := range rows {
+		b := row.Binding
+		listed[b] = true
+		if b == hub || !row.Known {
+			continue
+		}
+		f := waitFacts{Quiet: now.Sub(row.LastActivity), Resting: row.Resting, Pending: row.Pending}
+		if live, ok := liveness[b.Slot]; ok && live.Binding == b {
+			f.Settled = live.Settled
+		}
+		if !needsTail(f, w.threshold) {
+			continue
+		}
+		key := waitKey{activity: row.LastActivity, settled: *f.Settled, resting: f.Resting, pending: f.Pending}
+		if ep, ok := w.seen[b]; ok && ((ep.notified && ep.key.activity == key.activity) || (ep.judgedNot && ep.key == key)) {
+			continue
+		}
+		if muted == nil {
+			text, _ := os.ReadFile(w.optOut)
+			muted = parseWaitOptOut(string(text))
+		}
+		if muted[b.Slot] {
+			continue
+		}
+		reader, ok := w.svc.authority.endpoint(b).(couchmessage.TailReader)
+		if !ok {
+			continue
+		}
+		tctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		tail, err := reader.Tail(tctx, waitTailLines)
+		cancel()
+		if err != nil {
+			continue // unreadable now; the next tick asks again
+		}
+		reason, summary, waiting := classifyWait(f, w.threshold, tail.Lines)
+		if !waiting {
+			w.seen[b] = waitEpisode{key: key, judgedNot: true}
+			continue
+		}
+		id, err := w.newID()
+		if err != nil {
+			continue
+		}
+		body := waitNoticeBody(b.Slot, f.Quiet, reason, summary, w.optOut)
+		// From the waiting slot to the hub's exact slot: the notice is an
+		// ordinary message, so it gets the hub's breaker, delivery and ledger.
+		if _, err := w.svc.broker.Send(ctx, b, id, couchmessage.Route{Target: hub.Slot}, body); err != nil {
+			continue // hub busy or out of allowance: retried next tick
+		}
+		w.seen[b] = waitEpisode{key: key, notified: true}
+	}
+	for b := range w.seen {
+		if !listed[b] {
+			delete(w.seen, b)
+		}
+	}
 }
