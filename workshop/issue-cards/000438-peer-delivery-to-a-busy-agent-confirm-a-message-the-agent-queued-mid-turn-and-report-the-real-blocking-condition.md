@@ -1,6 +1,6 @@
 ---
 id: 000438
-status: codecomplete
+status: done
 created: 2026-10-10
 updated: 2026-10-11
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: de62fe63fe6f1030609437c55db3b8b33251191d
         evidence_commit: df65531b043e2d0f2687325801bfdda6ea434ac4
+        landed_commit: 09834f340b920d1a90ab47e80d3ade27073073af
 ---
 
 # Peer delivery to a busy agent: confirm a message the agent queued mid-turn, and report the real blocking condition
