@@ -37,7 +37,14 @@ end
 function C:serve()
   if self.endpoint or not self.opts.open_path then return end
   self.socket_dir=vim.fn.tempname(); vim.fn.mkdir(self.socket_dir,'p',448)
-  self.endpoint=vim.fn.serverstart(self.socket_dir..'/review.sock')
+  -- A host that refuses the socket (a sandboxed shell) still gets the review:
+  -- publish without an endpoint, which restore_client reads as a legacy pane.
+  local ok,endpoint=pcall(vim.fn.serverstart,self.socket_dir..'/review.sock')
+  if ok then self.endpoint=endpoint
+  else
+    vim.fn.delete(self.socket_dir,'d'); self.socket_dir=nil
+    notify('branch restoration unavailable: '..tostring(endpoint))
+  end
   self:publish()
 end
 local function decoded_snapshot(observed)

@@ -88,6 +88,9 @@ Integration seams (headless shell tests, `make test-review`):
   effects, blocks pending work, retains buffers/undo and reconstructs the selected
   document from a resolver-captured snapshot on both initial opening and later
   activation. Neovim's normal buffer load supplies editor setup, not byte authority.
+  A host that refuses the restore socket (an agent sandbox) still gets the review:
+  the pane warns and publishes its open state without an endpoint, which
+  `restore_client` reads as a legacy pane that cannot restore branches (pair#450).
 - `identity.lua` / `restore_client.lua` — resolver adapter and asynchronous draft
   activation client; verify acknowledgments before target publication or visibility.
 - `recovery.lua` — private bounded unsaved-text snapshots for checkout mismatch;
