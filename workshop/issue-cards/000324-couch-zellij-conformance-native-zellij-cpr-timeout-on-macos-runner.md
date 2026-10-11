@@ -1,6 +1,6 @@
 ---
 id: 000324
-status: working
+status: codecomplete
 created: 2026-09-24
 updated: 2026-10-10
 estimate_hours:
@@ -13,6 +13,14 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+actual_hours: 1.37
+tracker:
+    version: 1
+    completion:
+        token: close-40c5f169df1d
+        repository: github.com/xianxu/pair
+        reviewed_head: 04729d0e110766fd19d2afa845d71f70d337e148
+        evidence_commit: 092ec8313d094efc3cd57c9219251e54a74dd57b
 ---
 
 # couch-zellij-conformance: native zellij CPR timeout on macOS runner
