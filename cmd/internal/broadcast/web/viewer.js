@@ -1,7 +1,10 @@
 // Couch broadcast viewer (#395). Renders the operator's composed screen,
 // view-only, at the sender's grid, with the font scaled to fit the window.
 // A view link sends nothing back and keeps nothing; a pointer link (#412)
-// posts points and remembers its viewer's color pick (#446).
+// posts points and sticky notes (#447) and remembers its viewer's color
+// pick (#446).
+
+import { noteAt, noteCell, guardedCell, parseNotes, noteDialog } from './notes.js';
 
 export const MIN_FONT = 4;
 export const MAX_FONT = 64;
@@ -168,7 +171,8 @@ function endText(data) {
 // connect runs the viewer's connection state machine. The screen is never
 // left looking live while it isn't: any lost connection dims it and says so.
 // deps: open() → EventSource-like; render(frame); theme(palette); reset();
-// show(text); setStale(bool); later(fn, ms); caps(capabilities), optional.
+// show(text); setStale(bool); later(fn, ms); caps(capabilities) and
+// notes(list), optional.
 export function connect(deps) {
   let attempt = 0;
   let ended = false;
@@ -186,6 +190,11 @@ export function connect(deps) {
     events.addEventListener('caps', (ev) => {
       if (deps.caps) {
         deps.caps(JSON.parse(ev.data));
+      }
+    });
+    events.addEventListener('notes', (ev) => {
+      if (deps.notes) {
+        deps.notes(JSON.parse(ev.data));
       }
     });
     events.addEventListener('end', (ev) => {
@@ -320,7 +329,26 @@ async function start() {
     stage.style.bottom = `${Math.ceil(controls.getBoundingClientRect().height) + 12}px`;
     fit();
   };
-  const pointer = pointerMode(term, stage, hint, {
+  const modeButton = document.getElementById('mode');
+  let notes = { guard: 0, notes: [] };
+  let pointer = null;
+  const byId = (id) => document.getElementById(id);
+  const dialog = noteDialog({
+    root: byId('note'), text: byId('note-text'), input: byId('note-input'), count: byId('note-count'),
+    msg: byId('note-msg'), save: byId('note-save'), cancel: byId('note-cancel'), resolve: byId('note-resolve'),
+  }, { post: postJSON, color: () => pointer.color() });
+  pointer = pointerMode(term, stage, hint, {
+    notes: () => notes,
+    dialog,
+    modeButton: {
+      show: (mode, toggle) => {
+        modeButton.textContent = mode === 'comment' ? '💭' : '👆';
+        modeButton.setAttribute('aria-label', mode === 'comment' ? 'Comment mode: tap to place a note' : 'Pointer mode: tap or drag to point');
+        modeButton.onclick = toggle;
+        modeButton.classList.remove('hidden');
+      },
+      hide: () => modeButton.classList.add('hidden'),
+    },
     store: colorStore(storage),
     swatches: {
       show: (palette, current, pick) => {
@@ -361,34 +389,58 @@ async function start() {
       pointer.setOn(Boolean(c.pointer));
       band();
     },
+    notes: (data) => {
+      notes = parseNotes(data);
+      dialog.update(notes);
+    },
   });
   window.addEventListener('resize', () => (banded ? band() : fit()));
   fit();
 }
 
-// postPoint is the one request this page makes besides its own assets and
-// stream: same origin, relative URL, no credentials, no referrer.
-function postPoint(body) {
-  fetch('point', {
+// POST_ROUTES is every request this page makes besides its own assets and
+// stream (#412, #447).
+const POST_ROUTES = ['point', 'note', 'resolve'];
+
+// postJSON is the page's one request function: same origin, a relative
+// route from POST_ROUTES, no credentials, no referrer. It resolves to the
+// status and the response text (a refusal sentence, for the note dialog).
+function postJSON(route, body) {
+  if (!POST_ROUTES.includes(route)) {
+    return Promise.reject(new Error('unknown route'));
+  }
+  return fetch(route, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
     credentials: 'omit',
     referrerPolicy: 'no-referrer',
     cache: 'no-store',
-  }).catch(() => {});
+  }).then(async (r) => ({ status: r.status, text: await r.text() }));
 }
 
-// pointerMode turns the helper's taps and drags into point batches while
-// the broadcast says pointing is on. Strokes are flushed every 50ms. deps:
-// store (colorStore), swatches {show(palette, current, pick), hide()}, and
-// for tests post(body), every(fn, ms) → id, stop(id).
+function postPoint(body) {
+  postJSON('point', body).catch(() => {});
+}
+
+// pointerMode routes the viewer's taps. A tap on a 💭 opens that note, on
+// any page (#447). While the broadcast says pointing is on, the mode button
+// switches between pointer mode, where taps and drags become point batches
+// (flushed every 50ms), and comment mode, where a tap on an empty cell opens
+// a draft. deps: notes() → {guard, notes}, dialog (noteDialog), modeButton
+// {show(mode, toggle), hide()}, store (colorStore), swatches
+// {show(palette, current, pick), hide()}, and for tests post(body),
+// every(fn, ms) → id, stop(id).
 export function pointerMode(term, stage, hint, deps = {}) {
   const send = deps.post || postPoint;
   const every = deps.every || ((fn, ms) => setInterval(fn, ms));
   const stop = deps.stop || ((id) => clearInterval(id));
   const store = deps.store || colorStore(null);
   const swatches = deps.swatches || { show() {}, hide() {} };
+  const notes = deps.notes || (() => ({ guard: 0, notes: [] }));
+  const dialog = deps.dialog || { draft() {}, view() {}, close() {} };
+  const modeButton = deps.modeButton || { show() {}, hide() {} };
+  let mode = 'point';
   let on = false;
   let stroke = null;
   let timer = null;
@@ -396,6 +448,18 @@ export function pointerMode(term, stage, hint, deps = {}) {
   let assigned = 0;
   let picked = store.get();
   const color = () => pointerColor(picked, assigned, palette.length);
+  const drawMode = () => {
+    if (on) {
+      modeButton.show(mode, () => {
+        mode = mode === 'point' ? 'comment' : 'point';
+        drawMode();
+      });
+    } else {
+      modeButton.hide();
+    }
+    stage.classList.toggle('comment', on && mode === 'comment');
+    hint.textContent = !on ? 'Pointing is off' : mode === 'comment' ? 'Tap the screen to leave a note' : 'You can point: tap or drag on the screen';
+  };
   const drawSwatches = () => {
     if (on && palette.length) {
       swatches.show(palette, color(), (i) => {
@@ -436,14 +500,28 @@ export function pointerMode(term, stage, hint, deps = {}) {
     stroke = null;
   };
   stage.addEventListener('pointerdown', (e) => {
-    if (!on) {
-      return;
-    }
     const c = cell(e);
     if (!c) {
       return;
     }
+    const hit = noteAt(notes(), c[0], c[1], term.cols, term.rows);
+    if (hit) {
+      e.preventDefault();
+      end();
+      dialog.view(hit, { resolvable: on });
+      return;
+    }
+    if (!on) {
+      return;
+    }
     e.preventDefault();
+    if (mode === 'comment') {
+      const at = noteCell(c, term.cols);
+      if (!guardedCell(at[0], at[1], term.rows, notes().guard)) {
+        dialog.draft(at, { cols: term.cols, rows: term.rows });
+      }
+      return;
+    }
     stage.setPointerCapture?.(e.pointerId);
     end();
     stroke = { last: null, pending: [c] };
@@ -467,12 +545,16 @@ export function pointerMode(term, stage, hint, deps = {}) {
       on = value;
       if (!on) {
         end();
+        mode = 'point';
+        dialog.close();
       }
       stage.classList.toggle('pointer', on);
-      hint.textContent = on ? 'You can point: tap or drag on the screen' : 'Pointing is off';
       hint.classList.remove('hidden');
+      drawMode();
       drawSwatches();
     },
+    // color is the palette index this viewer posts with.
+    color,
     // setColors takes the palette and assigned color from caps. A palette
     // with anything but #rrggbb values offers no swatches.
     setColors(p, a) {

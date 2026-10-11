@@ -161,3 +161,100 @@ html, body {
     height: 14px;
   }
 }
+/* Mode switch (#447): one button below the swatches in the rail, 👆 for
+   pointing and 💭 for comments. Only the button takes pointer events. */
+#mode {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  font-size: 16px;
+  line-height: 30px;
+  background: rgba(40, 40, 40, 0.45);
+  cursor: pointer;
+  pointer-events: auto;
+}
+#mode.hidden {
+  display: none;
+}
+#stage.pointer.comment {
+  cursor: cell;
+}
+/* The sticky note (#447): one fixed-size dialog in a sticky-note yellow,
+   centered over the screen; a draft shows the text box, a viewed note its
+   text, which is set only as textContent. */
+#note {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  box-sizing: border-box;
+  width: min(280px, calc(100vw - 32px));
+  height: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 4px;
+  background: #fff59d;
+  color: #2b2b2b;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  font: 14px/1.4 system-ui, sans-serif;
+  z-index: 10;
+}
+#note.hidden,
+#note .hidden,
+#note.draft #note-text,
+#note.view #note-input,
+#note.view #note-count {
+  display: none;
+}
+#note-text {
+  flex: 1;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+#note-input {
+  flex: 1;
+  resize: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+#note-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 1.2em;
+  font-size: 12px;
+}
+#note-msg {
+  color: #8a1c00;
+}
+#note-count {
+  margin-left: auto;
+  opacity: 0.6;
+}
+#note-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+#note-buttons button {
+  padding: 4px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.55);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+#note-buttons button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}

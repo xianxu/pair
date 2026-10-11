@@ -194,3 +194,87 @@ test('renderSwatches draws one pressed-state button per color', () => {
   el.kids[1].click();
   assert.equal(picked, 1);
 });
+
+// Tap routing (#447): a 💭 opens its note on any page; comment mode drafts
+// on an empty cell and never posts; turning pointing off resets the mode.
+function noteFakes() {
+  const listeners = {};
+  const classes = new Set();
+  const stage = {
+    addEventListener: (n, f) => { listeners[n] = f; },
+    querySelector: () => ({ getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 240 }) }),
+    setPointerCapture() {},
+    classList: { toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)) },
+  };
+  const hint = { textContent: '', classList: { remove() {} } };
+  const posts = [];
+  const calls = [];
+  let shownMode = null;
+  let toggle = null;
+  const list = { guard: 12, notes: [{ id: 7, col: 10, row: 5, color: 0, text: 'hi' }] };
+  const mode = pointerMode({ cols: 80, rows: 24 }, stage, hint, {
+    post: (b) => posts.push(b),
+    every: () => 1,
+    stop() {},
+    notes: () => list,
+    dialog: {
+      draft: (cell, grid) => calls.push(['draft', cell, grid]),
+      view: (note, opts) => calls.push(['view', note.id, opts]),
+      close: () => calls.push(['close']),
+    },
+    modeButton: { show: (m, t) => { shownMode = m; toggle = t; }, hide: () => { shownMode = null; } },
+  });
+  const at = (col, row) => ({ clientX: col * 10 + 5, clientY: row * 10 + 5, pointerId: 1, preventDefault() {} });
+  const fire = (name, e) => listeners[name](e);
+  return { mode, classes, hint, posts, calls, fire, at, shownMode: () => shownMode, toggle: () => toggle() };
+}
+
+test('a view page opens a 💭 read-only and posts nothing', () => {
+  const f = noteFakes();
+  f.fire('pointerdown', f.at(11, 5));
+  assert.deepEqual(f.calls, [['view', 7, { resolvable: false }]]);
+  assert.equal(f.posts.length, 0);
+  f.fire('pointerdown', f.at(3, 3));
+  assert.equal(f.calls.length, 1, 'a tap elsewhere does nothing on a view page');
+  assert.equal(f.shownMode(), null, 'no mode button without pointing');
+});
+
+test('pointer mode: a 💭 opens resolvable and is not pointed at', () => {
+  const f = noteFakes();
+  f.mode.setOn(true);
+  assert.equal(f.shownMode(), 'point');
+  f.fire('pointerdown', f.at(10, 5));
+  assert.deepEqual(f.calls.at(-1), ['view', 7, { resolvable: true }]);
+  assert.equal(f.posts.length, 0);
+  f.fire('pointerdown', f.at(3, 3));
+  assert.equal(f.posts.length, 1, 'elsewhere it still points');
+});
+
+test('comment mode drafts on an empty cell without posting', () => {
+  const f = noteFakes();
+  f.mode.setOn(true);
+  f.toggle();
+  assert.equal(f.shownMode(), 'comment');
+  assert.ok(f.classes.has('comment'));
+  assert.match(f.hint.textContent, /leave a note/);
+  f.fire('pointerdown', f.at(79, 3));
+  assert.deepEqual(f.calls.at(-1), ['draft', [78, 3], { cols: 80, rows: 24 }]);
+  f.fire('pointerdown', f.at(10, 5));
+  assert.deepEqual(f.calls.at(-1), ['view', 7, { resolvable: true }], 'a 💭 opens rather than drafts');
+  const n = f.calls.length;
+  f.fire('pointerdown', f.at(3, 23));
+  assert.equal(f.calls.length, n, 'no draft on the guarded controls');
+  assert.equal(f.posts.length, 0, 'comment mode never posts a point or a note');
+});
+
+test('turning pointing off resets to pointer mode and closes the dialog', () => {
+  const f = noteFakes();
+  f.mode.setOn(true);
+  f.toggle();
+  f.mode.setOn(false);
+  assert.deepEqual(f.calls.at(-1), ['close']);
+  assert.equal(f.shownMode(), null);
+  assert.ok(!f.classes.has('comment'));
+  f.mode.setOn(true);
+  assert.equal(f.shownMode(), 'point');
+});

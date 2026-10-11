@@ -114,6 +114,7 @@ func TestServerServesAssetsWithHeaders(t *testing.T) {
 	types := map[string]string{
 		"":                   "text/html; charset=utf-8",
 		"viewer.js":          "text/javascript; charset=utf-8",
+		"notes.js":           "text/javascript; charset=utf-8",
 		"viewer.css":         "text/css; charset=utf-8",
 		"xterm.js":           "text/javascript; charset=utf-8",
 		"xterm.css":          "text/css; charset=utf-8",
@@ -160,18 +161,26 @@ func TestViewerPageLoadsOnlySameOrigin(t *testing.T) {
 		!strings.Contains(viewer, "const COLOR_KEY = 'couch.pointerColor';") || !strings.Contains(viewer, "getItem(COLOR_KEY)") || !strings.Contains(viewer, "setItem(COLOR_KEY, String(i))") {
 		t.Error("viewer.js may keep only the pointer color pick in localStorage")
 	}
-	for _, api := range []string{"sessionStorage", "indexedDB", "caches", "serviceWorker", "document.cookie", "XMLHttpRequest", "WebSocket", "sendBeacon", "EventSource(\"http", "EventSource('http"} {
-		if strings.Contains(viewer, api) {
-			t.Errorf("viewer.js uses %s", api)
+	notes := string(mustAsset(t, "notes.js"))
+	for name, src := range map[string]string{"viewer.js": viewer, "notes.js": notes} {
+		for _, api := range []string{"sessionStorage", "indexedDB", "caches", "serviceWorker", "document.cookie", "XMLHttpRequest", "WebSocket", "sendBeacon", "EventSource(\"http", "EventSource('http", "innerHTML", "outerHTML", "insertAdjacentHTML", "document.write"} {
+			if strings.Contains(src, api) {
+				t.Errorf("%s uses %s", name, api)
+			}
 		}
 	}
-	// Exactly one request besides the page's own assets and stream: the
-	// pointer POST (#412), to the relative 'point', without credentials.
-	if n := strings.Count(viewer, "fetch("); n != 1 {
-		t.Errorf("viewer.js has %d fetch calls, want exactly the pointer POST", n)
+	if strings.Contains(notes, "fetch(") || strings.Contains(notes, "localStorage") {
+		t.Error("notes.js makes no request and keeps nothing; viewer.js's postJSON does the posting")
 	}
-	if !strings.Contains(viewer, "fetch('point', {") || !strings.Contains(viewer, "credentials: 'omit'") {
-		t.Error("the pointer POST must target the relative 'point' and omit credentials")
+	// Exactly one request function besides the page's own assets and stream:
+	// postJSON, to a relative route from a fixed list (the pointer POST,
+	// #412, and the note routes, #447), without credentials.
+	if n := strings.Count(viewer, "fetch("); n != 1 {
+		t.Errorf("viewer.js has %d fetch calls, want exactly postJSON's", n)
+	}
+	if !strings.Contains(viewer, "const POST_ROUTES = ['point', 'note', 'resolve'];") || !strings.Contains(viewer, "if (!POST_ROUTES.includes(route)) {") ||
+		!strings.Contains(viewer, "return fetch(route, {") || !strings.Contains(viewer, "credentials: 'omit'") {
+		t.Error("postJSON must target a relative route from POST_ROUTES and omit credentials")
 	}
 }
 

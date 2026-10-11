@@ -109,3 +109,13 @@ test('a theme event reaches the renderer', () => {
   h.es().emit('theme', { foreground: '#eeeeee' });
   assert.deepEqual(h.theme, { foreground: '#eeeeee' });
 });
+
+test('a notes event reaches its handler, and is harmless without one (#447)', () => {
+  const h = harness();
+  h.es().emit('notes', { guard: 12, notes: [] });
+  let got = null;
+  const g = { ...h.deps, notes: (n) => { got = n; } };
+  connect(g);
+  h.es().emit('notes', { guard: 12, notes: [{ id: 1 }] });
+  assert.deepEqual(got, { guard: 12, notes: [{ id: 1 }] });
+});
