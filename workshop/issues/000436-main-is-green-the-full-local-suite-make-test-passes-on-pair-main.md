@@ -15,6 +15,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "cd7688a9", done: "5fa541c3"}
 ---
 
 # Main is green: the full local suite (make test) passes on pair main
