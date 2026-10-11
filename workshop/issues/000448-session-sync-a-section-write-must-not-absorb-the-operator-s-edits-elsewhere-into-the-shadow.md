@@ -1,12 +1,21 @@
 ---
 id: 000448
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
-card_mirror: '3e0629762fd0e785bbe587f5d9ce2c501116f5ae' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '39962065257f776460cbe4a3e06fe855d29fe120' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-11T12:26:20-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "e2304f79", done: "a3b93419"}
 ---
 
 # session-sync: a section write must not absorb the operator's edits elsewhere into the shadow
@@ -26,8 +35,10 @@ The shadow means "the file as the agent last saw it". A section write updates on
 
 ## Plan
 
-- [ ] Section-scoped shadow update; tests for the Done-when rows; atlas couch.md.
+- [x] Section-scoped shadow update; tests for the Done-when rows; atlas couch.md.
 
 ## Log
 
 ### 2026-10-11
+
+- Design: `shadowAfter` in `sync.go` replaces only the written section in the old shadow and restamps it; `write --all` stores the whole file. `read --all` also refreshes the shadow (decided yes: it is the agent seeing every edit). Hazard found: a sidecar-less file's owed horizon is the shadow's mtime, so the first shadow `read --all` writes would silently drop owed events. `saveShadow` pins the horizon in the sidecar first (test, mutation-checked). A shadow without the written section (the operator added it) stays unchanged, so `diff` shows noise, never loses an edit. Without any shadow the write stores the whole file, as before.
