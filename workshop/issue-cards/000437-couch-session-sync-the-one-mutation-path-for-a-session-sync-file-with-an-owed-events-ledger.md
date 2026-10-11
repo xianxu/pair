@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000437-couch-session-sync-the-one-mutation-path-for-a-session-sync-file-with-an-owed-events-ledger.md
         source_blob: d67b72499068694a4fe57e0b151de42c60e3b9c7
         destination: workshop/issues/000437-couch-session-sync-the-one-mutation-path-for-a-session-sync-file-with-an-owed-events-ledger.md
+        main_commit: f6e650f0ebfda91bdd5ab119e39638d88932219e
 ---
 
 # couch --session-sync: the one mutation path for a session-sync file, with an owed-events ledger
