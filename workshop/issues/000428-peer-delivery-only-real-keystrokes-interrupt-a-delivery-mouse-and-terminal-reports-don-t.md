@@ -15,6 +15,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "c3a43590", done: "6429af50"}
 ---
 
 # peer delivery: only real keystrokes interrupt a delivery; mouse and terminal reports don't
