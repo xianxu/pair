@@ -1019,6 +1019,17 @@ proof; record the surprising case so the next change starts from evidence.
 - **A privacy test that bans an API gets narrowed, not deleted (#446).** The viewer test forbade
   `localStorage` because a view link keeps nothing; the color pick needs one key. Pin the exception exactly:
   one key, one reader and one writer, so a later "just remember this too" still fails the test.
+- **Rule out the host before bisecting a "regression" (#450).** Four workers called `test-review` a regression since
+  #436 and the issue asked for a bisect, but the failure reproduced at #436's own merge: they ran the suite inside the
+  agent sandbox, which refuses unix sockets and PTYs, while #436 was verified outside it. Before bisecting, rerun the
+  failing test at the "known-good" commit in the same shell; if it fails there too, the variable is the environment.
+  A suite that cannot run on a host should say so first (`tests/host-preflight.sh`), not fail 150 tests that read
+  like code bugs.
+- **A test's hand-pinned env list rots when production gains a new env input (#450).** The launcher tests pinned
+  `COUCH_THREAD_*` but not `COUCH_PAIR_DATA_DIR`, added later by #366, so raw `go test ./...` in a Couch shell
+  failed. Clear an ambient input that changes every call's behaviour once per package, in `TestMain`, rather than
+  in each test; a child process built from `os.Environ()` needs the same pin in its env builder, since `TestMain`
+  does not reach a package that only launches the binary.
 - **A screen scan for "the dialog" reads from the bottom and keys on the selection cursor (#451).** `dialogTitle`
   took the first `1.` line from the top, so a numbered list in the agent's earlier prose became the dialog's title.
   A live dialog is the newest thing on screen and its selected option carries the cursor glyph; prose lists don't.
