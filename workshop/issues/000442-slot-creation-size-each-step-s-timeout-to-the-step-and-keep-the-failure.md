@@ -1,12 +1,20 @@
 ---
 id: 000442
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
-card_mirror: '060051f6eec7e990987f865162817293509e49d7' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '66d0f0eeb76f84fabefd19e6b0e40d2375b46c60' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-11T10:00:28-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Slot creation: size each step's timeout to the step, and keep the failure
@@ -32,11 +40,27 @@ Likely cause, from the code: slot creation runs `git worktree add` through `Work
 
 ## Plan
 
-- [ ] Confirm the failing step (the operator's error text, or reproduce under load); classify each creation step's budget.
-- [ ] Write budget for checkout-writing steps; identity probe after compile or with a build-sized budget.
-- [ ] Persist creation failures; show the step in the UI.
-- [ ] Tests for the Done-when rows; create parley.nvim:3 live.
+Durable plan: `workshop/plans/000442-slot-creation-size-each-step-s-timeout-to-the-step-and-keep-the-failure-plan.md`.
+
+- [x] Confirm the failing step (forensics on the live repository, see Log); classify each creation step's budget.
+- [x] Write budget (`WriteTimeout`, 2 min) for `worktree add` / `worktree repair`; identity probe unchanged (see Revisions).
+- [x] `ProvisionCommandError` names command + budget + timed-out; the advice names the step; a blocking outcome is recorded at `<common>/couch-workspaces/N/last-failure.json`, cleared on success, shown by `couch --show`.
+- [x] Tests for the Done-when rows (`provision_budget_test.go`).
+- [ ] Full `make test`; create parley.nvim:3 live.
+
+## Revisions
+
+### 2026-10-11 — design landed (pair:2)
+- **Identity probe:** no change. Couch execs the PATH `sdlc` (`~/.local/bin/sdlc` → a prebuilt binary); the self-building `sdlc` is the agent shell's function, which `exec` never runs. And the new slot's identity probe (`verifyHost`) already runs after compile.
+- **Branch creation:** its only heavy command (the fetch) already has `FetchTimeout`; `update-ref` / `config` stay probes.
+- **Record location:** the slot's directory in the Git common dir (beside the creation lease), not `~/.local/share/pair/couch`. The provisioner owns slot records and that directory survives a failure that never made the environment. It holds one record per slot (bounded), written under the creation lease.
+- **Retry:** already clean by design (pair#387). An environment without a host is `ErrSlotNeedsReconcile`, a number to reuse, and the next reconcile re-runs `worktree add`. Now proved by a test.
 
 ## Log
+
+### 2026-10-11 — failing step confirmed (forensics, parley.nvim)
+- `main-slot3` reflog: `couch-slot-create` at 09:56:29; `branch.main-slot3.{remote,merge}` set → create-branch and set-upstream completed.
+- `worktree/parley.nvim-slot3/` empty (mtime 09:56); no `.git/worktrees` entry for slot 3 → `git worktree add` was killed. On SIGTERM (OSProvisionIO's group stop at the 5 s probe budget), git's junk handler removes the half-made checkout and its registration, which matches this state exactly.
+- No other step between set-upstream and worktree-add runs a command that could take 5 s.
 
 ### 2026-10-11
