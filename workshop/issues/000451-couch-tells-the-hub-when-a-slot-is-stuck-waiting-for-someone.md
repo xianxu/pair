@@ -15,7 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "64437f8d", done: "1637714c"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # Couch tells the hub when a slot is stuck waiting for someone
@@ -46,6 +46,8 @@ Durable plan: `workshop/plans/000451-couch-tells-the-hub-when-a-slot-is-stuck-wa
 ## Log
 
 ### 2026-10-11
+- 2026-10-11: closed — go test ./cmd/internal/couchcmd: classifier table tests + serviceRig integration (real sockets/broker, hello-v2 Settled): permission dialog -> exactly one hub notice naming "Do you want to proceed?", new episode re-notifies, question -> one, normal end on resting -> none, idle off resting -> one, muted/no-hub silent, refused admission retries next tick, unreadable mute list named; mutation-checked hub skip, once-per-episode, mark-after-send. Full scrubbed make -k test incl. go test ./... green. Live TL check moved to #452 (needs an operator-owned Couch restart).; review verdict: SHIP
+- 2026-10-11: flow upgraded quick → full — 378 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 - Design: supervisor-side watcher, no wrapper protocol change. Waiting = quiet (LastActivity) past threshold AND (unsettled | turn ended with `?` | idle off resting with nothing pending). Hub is not watched (#441 strict form). Opt-out file `<store>/wait-notice-off`; threshold `COUCH_WAIT_NOTICE_AFTER`. ARCH-FUNERAL: episode map in memory, pruned per tick.
 - Measured before designing: `LastActivity` moves on any output or keystroke; live `couch --actors --json` showed idle Claude/Codex slots 6–45 min quiet, so a dialog or an idle composer is byte-quiet. ariadne:1 was a real stuck slot at the time (off resting, settled, "waiting on the operator to commit").
