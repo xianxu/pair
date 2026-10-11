@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -24,6 +25,7 @@ type ControlledZellij struct {
 	command *exec.Cmd
 	pty     *os.File
 	startup *zellijStartupCapture
+	stubDir string
 }
 
 // ZellijOptions selects fixture configuration without changing the operator's config.
@@ -136,12 +138,48 @@ func (f *ControlledZellij) Close() error {
 		result = errors.Join(result, f.pty.Close())
 		f.pty = nil
 	}
+	if f.stubDir != "" {
+		result = errors.Join(result, os.RemoveAll(f.stubDir))
+		f.stubDir = ""
+	}
 	if f.command != nil && f.command.Process != nil {
 		_ = f.command.Process.Kill()
 		_, _ = f.command.Process.Wait()
 		f.command = nil
 	}
 	return result
+}
+
+// AddOwnerWrapperPane opens a pane whose live process is `pair wrap
+// --scrollback-log <raw>`. Ownership probes accept only that live-command
+// evidence (launcher.ClassifySessionOwner, #355), and a bare fixture session
+// holds nothing but a shell. Zellij reports the pane's running argv, so the
+// stub must stay that process: `pair` is /bin/sh, which reads the script file
+// `wrap` from the pane's cwd and keeps the argv intact while it sleeps.
+func (f *ControlledZellij) AddOwnerWrapperPane(ctx context.Context, rawPath string) error {
+	if f == nil || f.Session == "" {
+		return errors.New("controlled zellij has no session")
+	}
+	if f.stubDir == "" {
+		dir, err := os.MkdirTemp("", "pair-owner-stub-")
+		if err != nil {
+			return err
+		}
+		f.stubDir = dir
+		if err := os.Symlink("/bin/sh", filepath.Join(dir, "pair")); err != nil {
+			return err
+		}
+		// No exec: replacing the shell would replace the argv the probe reads.
+		if err := os.WriteFile(filepath.Join(dir, "wrap"), []byte("sleep 3600\n"), 0o600); err != nil {
+			return err
+		}
+	}
+	out, err := exec.CommandContext(ctx, "zellij", "--session", f.Session, "action", "new-pane", "--cwd", f.stubDir, "--",
+		filepath.Join(f.stubDir, "pair"), "wrap", "--scrollback-log", rawPath).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("controlled zellij owner pane: %s: %w", out, err)
+	}
+	return nil
 }
 
 // WriteInput sends terminal input through the real attached client, so Zellij's

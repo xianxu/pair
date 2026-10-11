@@ -63,6 +63,9 @@ func TestContinuationZellijSeedTransportLive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := fixture.AddOwnerWrapperPane(ctx, paths.ScrollbackRaw("claude")); err != nil {
+		t.Fatal(err)
+	}
 	readyPath, err := paths.AgentReadyChecked("claude")
 	if err != nil {
 		t.Fatal(err)
@@ -73,6 +76,7 @@ func TestContinuationZellijSeedTransportLive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	scriptDir := t.TempDir()
 	env.Runner.AfterAcknowledge = func(id string) error {
 		child := env.Runner.Child(id)
 		raw := ""
@@ -94,12 +98,16 @@ func TestContinuationZellijSeedTransportLive(t *testing.T) {
 		if raw == "" {
 			return fmt.Errorf("fresh target received no orientation request")
 		}
-		args := []string{"--session", session, "action", "new-pane", "--", "env",
+		script, err := standInPaneScript(scriptDir, []string{
 			"PAIR_CONTINUATION_LIVE_HELPER=1", orientation.Env + "=" + raw,
 			"PAIR_CONTINUATION_LIVE_SEED=" + mustContinuationPath(t, env.Couch, source.Address),
 			"PAIR_CONTINUATION_LIVE_READY=" + readyPath, "PAIR_CONTINUATION_LIVE_CAPTURE=" + captured,
 			"PAIR_CONTINUATION_LIVE_RELEASE=" + release,
-			executable, "-test.run=^TestContinuationZellijAgentStandIn$"}
+		}, executable, "TestContinuationZellijAgentStandIn")
+		if err != nil {
+			return err
+		}
+		args := []string{"--session", session, "action", "new-pane", "--", script}
 		if out, err := exec.CommandContext(ctx, "zellij", args...).CombinedOutput(); err != nil {
 			return fmt.Errorf("start pane: %w: %s", err, out)
 		}

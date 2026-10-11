@@ -315,6 +315,9 @@ func newRealParkConformance(t *testing.T, ctx context.Context, intentOnly bool) 
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := zellij.AddOwnerWrapperPane(ctx, address.ScrollbackRaw(profile.Agent)); err != nil {
+		t.Fatal(err)
+	}
 	scoped := launcher.NewScopedPaths(dataDir, launcher.RepoScope{Key: record.Address.RepoScope}, string(record.Address.Tag))
 	if err := os.MkdirAll(scoped.ScopeDir(), 0o700); err != nil {
 		t.Fatal(err)

@@ -154,6 +154,9 @@ func runRecoveryLiveFixture(t *testing.T, warm bool) {
 		t.Fatal(err)
 	}
 	indexSessionForConformance(t, data, source.Address, session)
+	if err := fixture.AddOwnerWrapperPane(ctx, paths.ScrollbackRaw("claude")); err != nil {
+		t.Fatal(err)
+	}
 	checker := NewScopedThreadArtifactCollisionChecker(data)
 	c.Artifacts = checker
 	ledger := sessionledger.LedgerStore{Runtime: sessionledger.OSRuntime{}}
@@ -233,6 +236,9 @@ func runRecoveryLiveFixture(t *testing.T, warm bool) {
 		if err != nil {
 			return err
 		}
+		if err := fixture.AddOwnerWrapperPane(ctx, paths.ScrollbackRaw("claude")); err != nil {
+			return err
+		}
 		var profile launcher.TrustedLaunchProfile
 		for _, entry := range env.Runner.Child(id).Env {
 			if strings.HasPrefix(entry, launcher.CouchLaunchProfileEnv+"=") {
@@ -260,7 +266,11 @@ func runRecoveryLiveFixture(t *testing.T, warm bool) {
 		if err != nil {
 			return err
 		}
-		args := []string{"--session", session, "action", "new-pane", "--", "env", "PAIR_RECOVERY_LIVE_AGENT=1", orientation.Env + "=" + string(encoded), "PAIR_RECOVERY_LIVE_READY=" + readyPath, "PAIR_RECOVERY_LIVE_ORDINAL=" + strconv.FormatUint(target.Ordinal, 10), "PAIR_RECOVERY_LIVE_CAPTURE=" + filepath.Join(base, "target-seed"), executable, "-test.run=^TestRecoveryLiveAgentStandIn$"}
+		script, err := standInPaneScript(base, []string{"PAIR_RECOVERY_LIVE_AGENT=1", orientation.Env + "=" + string(encoded), "PAIR_RECOVERY_LIVE_READY=" + readyPath, "PAIR_RECOVERY_LIVE_ORDINAL=" + strconv.FormatUint(target.Ordinal, 10), "PAIR_RECOVERY_LIVE_CAPTURE=" + filepath.Join(base, "target-seed")}, executable, "TestRecoveryLiveAgentStandIn")
+		if err != nil {
+			return err
+		}
+		args := []string{"--session", session, "action", "new-pane", "--", script}
 		if out, err := exec.CommandContext(ctx, "zellij", args...).CombinedOutput(); err != nil {
 			return fmt.Errorf("target pane: %w %s", err, out)
 		}
