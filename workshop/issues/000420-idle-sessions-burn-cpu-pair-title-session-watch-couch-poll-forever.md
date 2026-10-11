@@ -92,9 +92,10 @@ stat, not a walk.
 - **Send-gated unbound watcher (root cause 2).** Before a Pair-log turn exists
   past the effective launch's `PairLogOffset` (the log size is at most that
   offset), the watcher skips native validation and round matching, because
-  nothing can correlate. It keeps the cheap metadata paths: epoch acquisition
-  and the chosen-id filename handshake. `waitForScan` already wakes within
-  `ActivePoll` of a send.
+  nothing can correlate. It keeps the metadata paths: epoch acquisition and
+  the chosen-id filename handshake. The handshake walks once, then again only
+  after the agent pane's recording (`ScrollbackRaw`) moves (review round 1).
+  `waitForScan` already wakes within `ActivePoll` of a send.
 - **mtime floor on candidates.** Once a turn is pending, an untracked
   candidate is validated only if its mtime is at or after the last moment the
   watcher saw no turn, minus one minute of slack. A round's native events are
@@ -120,8 +121,9 @@ ARCH-FUNERAL lines:
 
 - An idle session (no operator input, no agent output) costs near-zero CPU in
   `pair title` and `session-watch`:
-  - An unbound watcher with no pending Pair turn does no native walk or
-    validation.
+  - An unbound watcher with no pending Pair turn does no validation.
+  - Its only native walks are a chosen-id launch's first handshake walk and
+    one after each burst of agent output.
   - A title tick reads its bound session by stat, not a store walk.
   - Both are measured by operation-counting tests and a live probe.
   - The couch server's CPU is endpoint emulation of live output, not idle
