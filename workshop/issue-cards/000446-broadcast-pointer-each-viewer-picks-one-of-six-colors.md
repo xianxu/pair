@@ -1,6 +1,6 @@
 ---
 id: 000446
-status: codecomplete
+status: done
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 1fad8ca5665ba6550c0179c005c0d06df22caa1c
         evidence_commit: 6ccab1687f47047f092dcb8289881b4dda4722c0
+        landed_commit: 8330a981142ed1e87b10976f9d8f37df06c013ef
 ---
 
 # Broadcast pointer: each viewer picks one of six colors
