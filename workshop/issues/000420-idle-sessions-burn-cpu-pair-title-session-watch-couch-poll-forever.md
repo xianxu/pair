@@ -6,7 +6,7 @@ github_issue:
 created: 2026-10-09
 updated: 2026-10-10
 estimate_hours:
-card_mirror: '1099ad94ec5969c9a05886f54a12e617888e34d8' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '29585e225bff574a6b3e730428e4b8a44d8f9fb5' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-10T17:48:03-07:00
 claimant:
     operator: Xian Xu
@@ -16,7 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
-actual_hours: 1.04
+actual_hours: 1.13
 ---
 
 # idle sessions burn CPU: pair title / session-watch / couch poll forever
