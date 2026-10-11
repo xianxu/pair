@@ -1,10 +1,19 @@
 ---
 id: 000442
-status: working
+status: codecomplete
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
 github_issue:
+started: 2026-10-11T10:00:28-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
+actual_hours: 0.75
 tracker:
     version: 1
     handoff:
@@ -17,14 +26,11 @@ tracker:
         source_blob: 33427f8d8e91d7a70074d1ab9a74a9bea5b5f4c6
         destination: workshop/issues/000442-slot-creation-size-each-step-s-timeout-to-the-step-and-keep-the-failure.md
         main_commit: 98cc5f83cf8a7049adb56a9bdf103b7a8541c860
-started: 2026-10-11T10:00:28-07:00
-claimant:
-    operator: Xian Xu
-    machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: MacBook Pro
-    workspace: pair:2
-    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
-    repository: github.com/xianxu/pair
+    completion:
+        token: close-eff95b446ce2
+        repository: github.com/xianxu/pair
+        reviewed_head: 06f754f4e34ff179fbc369e19ea9cafb42327738
+        evidence_commit: a25f3d344c8a04f9d73746b37b636a9e4766b44c
 ---
 
 # Slot creation: size each step's timeout to the step, and keep the failure
