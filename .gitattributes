@@ -1,3 +1,6 @@
+# BEGIN weave generated
+workshop/lessons.md merge=union
+# END weave generated
 # Literal PTY captures: byte-exact evidence, not text. Marking them binary stops
 # whitespace/EOL normalisation from silently corrupting a fixture whose SHA-256
 # is pinned in metadata.json.
