@@ -89,6 +89,7 @@ Durable plan: `workshop/plans/000428-peer-delivery-only-real-keystrokes-interrup
 - Live alignment check: zellij's `dump-screen` of this slot's Claude pane, matched against a vt model fed its scrollback raw, aligns at shift 0. Slicing `dump-screen --full` at k = 1…300 rows gives consistent shifts, with a constant offset from output that landed between the two captures. Whitespace normalization absorbs the NBSP and padding differences.
 - Full `go test -race` on wrapcmd: the only failures are sandbox `/tmp` denials and a race inside `codexCouchRendered`'s test helper, unrelated to this change.
 - zellij 0.45 `dump-screen -p` returns the *scrolled* viewport, while `list-panes` cursor coordinates don't change with scroll. Output while scrolled does not snap zellij's viewport (probed in a background session).
+- **Close review round 1 (FIX-THEN-SHIP):** BR-1 fixed: the draft-hold test waits for the hold to end and for the replayed focus-out tail, instead of reading `holding` once (it was flaky about 1 in 20; now 30/30 under -race). BR-2 fixed: the atlas now says a keystroke never starts a hold, but input during a hold queues behind it. BR-3 (Minor) taken: dispatch doesn't paste while held input is queued (an explicit gate). BR-4/5 (Minor) accepted as-is. The zellij seam has a fake via `viewProbe`, and its 0.45 behaviour is measured in the Log. The viewport scan runs at most once per 500ms, and only while a delivery waits.
 
 ## Revisions
 

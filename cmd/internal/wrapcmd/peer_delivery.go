@@ -441,6 +441,12 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 				d.current.Detail = "waiting for input to settle"
 				return
 			}
+			// Held operator input goes before the next automatic paste
+			// (pair#428): it is not admitted yet, so lastInput can't say so.
+			if d.holding {
+				d.current.Detail = "waiting for held operator input"
+				return
+			}
 			pasteReady := p.childAcceptsPaste()
 			composer := peerComposerState(p.agentBasename, snapshot)
 			event.Ready = pasteReady && composer == PeerComposerEmpty

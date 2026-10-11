@@ -247,11 +247,12 @@ func TestPeerDraftPasteWaitsForDelivery(t *testing.T) {
 	if !waitFor(time.Second, func() bool { return strings.Count(string(out.Bytes()), "\r") == 2 }) {
 		t.Fatalf("draft submit lost: %q", string(out.Bytes()))
 	}
-	d.mu.Lock()
-	holding := d.holding
-	d.mu.Unlock()
-	if holding {
+	// The hold ends only after the last held chunk (the focus-out) replays.
+	if !waitFor(time.Second, func() bool { d.mu.Lock(); defer d.mu.Unlock(); return !d.holding }) {
 		t.Fatal("hold outlived its queue")
+	}
+	if !bytes.HasSuffix(out.Bytes(), []byte("\x1b[O")) {
+		t.Fatalf("held tail not replayed: %q", out.Bytes())
 	}
 }
 

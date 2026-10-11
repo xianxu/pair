@@ -317,7 +317,7 @@ still-booting Claude.
   spacing, so the draft's paste, settle and Alt+Enter keep their rhythm. Both
   messages submit, in order. Past the cap the paste counts as operator input.
   In the other direction, a delivery already waits for a draft send through the
-  1s settle and the occupied composer. Typed keystrokes are never held.
+  1s settle and the occupied composer, and it never pastes while held input is still queued. A typed keystroke never starts a hold. Any input that arrives during a hold, keystrokes included, queues behind the held paste to keep order.
 - **Paste, fixed delay, submit:** after the bracketed paste the wrapper waits
   `wrapcmd.PeerSubmitDelay` (150ms; the draft pane uses 100ms), then sends the
   submit key. Past the paste, the poll runs every 50ms instead of every second.
