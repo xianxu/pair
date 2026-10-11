@@ -6,7 +6,7 @@ github_issue:
 created: 2026-10-10
 updated: 2026-10-10
 estimate_hours:
-card_mirror: 'e6d03eb888a242b00530db9f7e716f0e274d1100' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '498a924fbe39aba94259f9dbe832b1e74f3e7414' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-10T17:47:17-07:00
 claimant:
     operator: Xian Xu
@@ -16,7 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
-actual_hours: 1.21
+actual_hours: 1.25
 ---
 
 # couch exits when the outer terminal stalls 5s: degrade the view, keep the sessions
