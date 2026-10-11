@@ -275,7 +275,11 @@ back naming the hash you read. You hold no lock and have nothing to release.
   operator's submits (`submitted: <path>`). Each stays owed by your
   session-sync file until a `write --fold ID[,ID]` says the file reflects it;
   a write without `--fold` clears nothing. Folding an ID that isn't owed
-  refuses.
+  refuses. With nothing to change, fold by writing the section back as `read`
+  printed it.
+- Your write restamps the file's first `Updated` line; if that line sits in
+  a section, that section's hash changes too, and a held hash for it goes
+  `stale`: read again.
 - `status` refuses with `not-recording` when Couch predates the ledger, and
   with `delivery-gap` when Couch failed to record a delivery to your slot: owed
   events are then unknown, not zero. Check your recent messages, then pass

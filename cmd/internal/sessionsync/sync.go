@@ -126,8 +126,10 @@ func readOptional(p string) (string, bool, error) {
 // takes no flock; its edits are fenced by the operator's .lock instead.
 func locked[T any](path string, fn func(*file) (T, error)) (T, error) {
 	var zero T
-	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-		return zero, refuse("%s does not exist", path)
+	// Validate before creating the flock file, so a wrong path leaves
+	// nothing behind; load re-reads under the lock.
+	if _, err := load(path); err != nil {
+		return zero, err
 	}
 	fl, err := os.OpenFile(PathsOf(path).Flock, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {

@@ -88,7 +88,7 @@ func TestWriteUnderAnOperatorLockRefusesAndChangesNothing(t *testing.T) {
 	before := []string{r.read(r.p.File), r.read(r.p.Shadow), r.read(r.p.State), r.read(r.p.Lock)}
 	_, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Needs you", Body: "new", IfHash: r.hash("Needs you"), Fold: []string{"d1"}})
 	wantRefusal(t, err, ExitOperatorLock, "operator-lock")
-	// A legacy agent lock beside it changes nothing: the operator's still wins.
+	// Reading under the operator's lock works and reports the holder.
 	if res, err := r.sync.Read(r.p.File, "Needs you"); err != nil || res.Holder != HolderOperator {
 		t.Fatalf("read under the lock: %+v %v", res, err)
 	}
@@ -252,6 +252,17 @@ func TestWriteAllKeepsGuardsAndFrontmatter(t *testing.T) {
 	}
 	if got := r.read(r.p.File); !strings.Contains(got, "all new") || !strings.Contains(got, "Updated 2026-10-10 13:00") {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestAWrongFileLeavesNoFlockBehind(t *testing.T) {
+	r := newRig(t)
+	r.put(r.p.File, "# plain markdown\n")
+	if _, err := r.sync.Read(r.p.File, ""); err == nil {
+		t.Fatal("a non-session-sync file must refuse")
+	}
+	if _, err := os.Stat(r.p.Flock); !os.IsNotExist(err) {
+		t.Fatal("a refused command must not create the flock file")
 	}
 }
 

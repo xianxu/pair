@@ -134,6 +134,10 @@ func runSessionSyncCLI(a *sessionSyncArgs, rt Runtime, stdout, stderr io.Writer)
 		return exit
 	}
 	if a.verb == "release" {
+		// A fold the caller asked for did not happen; say so with a failure.
+		if len(a.fold) > 0 {
+			return fail(fmt.Errorf("release is retired (pair#439) and folds nothing; fold with `write --fold ID --if-hash H`"))
+		}
 		fmt.Fprintln(stderr, "couch: release is retired and did nothing: the agent holds no lock (pair#439); fold events with `write --fold ID`")
 		return 0
 	}

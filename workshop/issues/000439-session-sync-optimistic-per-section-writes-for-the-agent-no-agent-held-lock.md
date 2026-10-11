@@ -80,3 +80,4 @@ Design (2026-10-11):
 - Diff left the quick-flow shell (~260 added code lines), so close runs the full review.
 - Follow-up: remove the `release` no-op after one release (ARCH-FUNERAL), and the TL updates ops `skills-draft/xx-tl/SKILL.md` to `read` + `write --if-hash`.
 - Verification: `make -k test` green (240 packages ok, no FAIL).
+- Close review round 1: SHIP, 6 Minor. Fixed in a follow-up commit: release --fold now refuses; locked() validates before creating the flock file; SKILL.md documents fold-with-no-change and restamp staleness; test comment fixed; #440 filed to remove release. Restamp changing another section's hash is by design (a stale retry).

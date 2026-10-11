@@ -189,10 +189,14 @@ func TestSessionSyncStaleAndReadJSON(t *testing.T) {
 func TestSessionSyncReleaseIsARetiredNoOp(t *testing.T) {
 	rt, file := sessionSyncRT(t)
 	before, _ := os.ReadFile(file)
-	code, out, errout := runSS(t, rt, "release", file, "--accept-edits", "--fold", "d1")
+	code, out, errout := runSS(t, rt, "release", file, "--accept-edits")
 	after, _ := os.ReadFile(file)
 	if code != 0 || out != "" || !strings.Contains(errout, "retired") || string(before) != string(after) {
 		t.Fatalf("exit %d out %q err %q", code, out, errout)
+	}
+	// A requested fold that does not happen is a failure, not a silent 0.
+	if code, _, errout = runSS(t, rt, "release", file, "--fold", "d1"); code == 0 || !strings.Contains(errout, "write --fold") {
+		t.Fatalf("exit %d err %q", code, errout)
 	}
 	if _, out, _ = runSS(t, rt, "status", file); !strings.Contains(out, "owed: 1") || !strings.Contains(out, "lock: none") {
 		t.Fatalf("release must fold nothing: %q", out)
