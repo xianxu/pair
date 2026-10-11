@@ -8,6 +8,12 @@ import (
 )
 
 func WriteAtomic(path string, raw []byte, pattern string) error {
+	return WriteAtomicMode(path, raw, pattern, 0600)
+}
+
+// WriteAtomicMode is WriteAtomic publishing with the given permissions, for a
+// file someone else also reads (a shared document keeps its mode).
+func WriteAtomicMode(path string, raw []byte, pattern string, perm os.FileMode) error {
 	if e := EnsureDirectory(filepath.Dir(path)); e != nil {
 		return e
 	}
@@ -15,7 +21,7 @@ func WriteAtomic(path string, raw []byte, pattern string) error {
 	if e != nil {
 		return e
 	}
-	return publish(path, raw, f)
+	return publish(path, raw, f, perm)
 }
 
 // WriteAtomicStaged requires exclusive caller ownership of the stage pathname.
@@ -37,12 +43,12 @@ func WriteAtomicStaged(path string, raw []byte, stage string) error {
 	if e != nil {
 		return e
 	}
-	return publish(path, raw, f)
+	return publish(path, raw, f, 0600)
 }
-func publish(path string, raw []byte, f *os.File) error {
+func publish(path string, raw []byte, f *os.File, perm os.FileMode) error {
 	defer os.Remove(f.Name())
 	defer f.Close()
-	if e := f.Chmod(0600); e != nil {
+	if e := f.Chmod(perm); e != nil {
 		return e
 	}
 	if _, e := f.Write(raw); e != nil {

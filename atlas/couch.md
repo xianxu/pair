@@ -432,9 +432,12 @@ CLI. It runs in-process against the store and needs no supervisor.
   writers can't both pass the check; parley takes no flock (its lock fences
   it). `release` is a retired no-op (one release, then removed). Sections match
   whole `## HEADING` lines only (`section()` in `file.go`, shared by read and
-  replace). Writes are in place, because parley watches the inode; the shadow
-  (`.<file>.shadow`, the agent's last write, shown by `diff`) and sidecar use
-  temp+rename.
+  replace). Every file a write touches is published by temp+fsync+rename, so a
+  reader outside the flock (parley reloading a clean buffer) never sees a torn
+  file (pair#445): the file itself (`replaceShared`, through a symlink to its
+  target, keeping its mode; parley and nvim follow the path's mtime), the
+  shadow (`.<file>.shadow`, the agent's last write, shown by `diff`) and the
+  state sidecar.
 - **Ledger:** the message service's `messageEndpoint.Deliver`
   (`message_deliveries.go`) appends one row per delivery that may have
   reached the agent: submitted, indeterminate, an endpoint error, or a
