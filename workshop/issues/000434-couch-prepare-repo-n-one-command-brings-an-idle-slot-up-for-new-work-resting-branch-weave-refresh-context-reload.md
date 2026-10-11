@@ -1,12 +1,20 @@
 ---
 id: 000434
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-10
 updated: 2026-10-10
 estimate_hours:
-card_mirror: 'd4208e4aef05abba085b30d9470d4f9220fd12ae' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '1d3cf9c20860c1eed29948274b335863349442f7' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-10T23:14:04-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch --prepare repo:N: one command brings an idle slot up for new work (resting branch, weave refresh, context reload)
