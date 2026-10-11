@@ -15,6 +15,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "a95453dc", done: "1cff5ae0"}
 ---
 
 # Broadcast pointer: each viewer picks one of six colors
