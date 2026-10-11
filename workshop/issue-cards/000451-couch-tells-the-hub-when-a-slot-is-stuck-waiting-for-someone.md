@@ -17,6 +17,14 @@ tracker:
         source_blob: 5c1cf8417d439f3fdd2122f5600b9ae367cfc546
         destination: workshop/issues/000451-couch-tells-the-hub-when-a-slot-is-stuck-waiting-for-someone.md
         main_commit: 536ad9671d39bfb86934fdabd4eae78856ff34da
+started: 2026-10-11T13:19:29-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Couch tells the hub when a slot is stuck waiting for someone
