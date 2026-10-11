@@ -15,6 +15,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "969b4fcb", done: "e5c24005"}
 ---
 
 # couch --session-sync: the one mutation path for a session-sync file, with an owed-events ledger
