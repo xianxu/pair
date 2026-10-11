@@ -13,7 +13,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
-actual_hours: 0.38
+actual_hours: 0.44
 tracker:
     version: 1
     handoff:
@@ -27,10 +27,10 @@ tracker:
         destination: workshop/issues/000446-broadcast-pointer-each-viewer-picks-one-of-six-colors.md
         main_commit: 06d6d4de0b96195217280f70b004f6357f7d75de
     completion:
-        token: close-b962326e0277
+        token: close-ed6c12d1249f
         repository: github.com/xianxu/pair
-        reviewed_head: bc0137b13d3cca228f2c18b9b42c0ad230cd4a5b
-        evidence_commit: dae6db629607063600a4ef63b78d7bf6e811bcad
+        reviewed_head: 1fad8ca5665ba6550c0179c005c0d06df22caa1c
+        evidence_commit: 6ccab1687f47047f092dcb8289881b4dda4722c0
 ---
 
 # Broadcast pointer: each viewer picks one of six colors
