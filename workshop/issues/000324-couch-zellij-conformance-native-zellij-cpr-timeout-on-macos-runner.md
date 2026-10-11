@@ -15,6 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "822a7291", done: "4ee62c6c"}
 ---
 
 # couch-zellij-conformance: native zellij CPR timeout on macOS runner
