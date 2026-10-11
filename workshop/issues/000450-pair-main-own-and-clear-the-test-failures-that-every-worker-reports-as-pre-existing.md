@@ -15,6 +15,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "31818637", done: "1b0aa7ea"}
 ---
 
 # pair main: own and clear the test failures that every worker reports as pre-existing
