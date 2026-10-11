@@ -1,0 +1,65 @@
+# Pre-existing artifact-ownership violations, quarantined by pair#436 and
+# owned by pair#348. This list may only shrink: TestProductionArtifactReferencesAreExactlyClassified
+# fails on any violation absent from it (NEW) and on any line here that no
+# longer occurs (STALE). Line numbers are stripped so unrelated edits do not churn it.
+# Regenerate (then review the diff; it must not grow):
+#   PAIR_ARTIFACT_VIOLATIONS_UPDATE=1 go test ./cmd/internal/artifactpath -run TestProductionArtifactReferencesAreExactlyClassified -count=1
+cmd/internal/couchcmd/message_service.go: production source is absent from the exhaustive inventory
+cmd/internal/couchcmd/messages.go: production source is absent from the exhaustive inventory
+cmd/internal/couchcmd/peek_fast.go: production source is absent from the exhaustive inventory
+cmd/internal/couchcmd/peek_tail.go: production source is absent from the exhaustive inventory
+cmd/internal/couchcmd/skill.go: production source is absent from the exhaustive inventory
+cmd/internal/couchcore/launch_existing.go: non-artifact source contains constant pane vocabulary
+cmd/internal/couchcore/launch_existing.go: pane
+cmd/internal/couchcore/recoverplan.go: agent
+cmd/internal/couchcore/recoverplan.go: non-artifact source contains constant agent vocabulary
+cmd/internal/couchmessage/broker.go: production source is absent from the exhaustive inventory
+cmd/internal/couchmessage/delivery.go: production source is absent from the exhaustive inventory
+cmd/internal/couchmessage/endpoint.go: production source is absent from the exhaustive inventory
+cmd/internal/couchmessage/model.go: agent
+cmd/internal/couchmessage/model.go: production source is absent from the exhaustive inventory
+cmd/internal/couchmessage/protocol.go: production source is absent from the exhaustive inventory
+cmd/internal/couchmessage/routing.go: production source is absent from the exhaustive inventory
+cmd/internal/couchmessage/socket_cleanup.go: production source is absent from the exhaustive inventory
+cmd/internal/couchmessage/tail.go: production source is absent from the exhaustive inventory
+cmd/internal/couchmessage/transport.go: production source is absent from the exhaustive inventory
+cmd/internal/couchtty/console_messages.go: production source is absent from the exhaustive inventory
+cmd/internal/reviewcmd/identity.go: production source is absent from the exhaustive inventory
+cmd/internal/reviewcmd/run.go: resolved consumer contains review assembled construction "pair-review-definition: context requires repo, branch, file and activation strings"
+cmd/internal/reviewcmd/run.go: resolved consumer contains review assembled construction "pair-review-open: a live review pane exists; use Alt+C to activate it, or finish and close it first"
+cmd/internal/reviewcmd/run.go: review vocabulary "pair-review-definition: context requires repo, branch, file and activation strings" is not at a closed use site
+cmd/internal/reviewcmd/run.go: review vocabulary "pair-review-open: a live review pane exists; use Alt+C to activate it, or finish and close it first" is not at a closed use site
+cmd/internal/runtimebundle/assets/runtime/files/nvim/review.lua: missing family review
+cmd/internal/runtimebundle/assets/runtime/files/nvim/review/artifact.lua: generated mirror is not exactly classified
+cmd/internal/runtimebundle/assets/runtime/files/nvim/review/artifact.lua: production source is absent from the exhaustive inventory
+cmd/internal/runtimebundle/assets/runtime/files/nvim/review/document_bytes.lua: generated mirror is not exactly classified
+cmd/internal/runtimebundle/assets/runtime/files/nvim/review/document_bytes.lua: production source is absent from the exhaustive inventory
+cmd/internal/runtimebundle/assets/runtime/files/nvim/review/identity.lua: generated mirror is not exactly classified
+cmd/internal/runtimebundle/assets/runtime/files/nvim/review/identity.lua: production source is absent from the exhaustive inventory
+cmd/internal/runtimebundle/assets/runtime/files/nvim/review/recovery.lua: generated mirror is not exactly classified
+cmd/internal/runtimebundle/assets/runtime/files/nvim/review/recovery.lua: production source is absent from the exhaustive inventory
+cmd/internal/runtimebundle/assets/runtime/files/nvim/review/recovery_observer.lua: generated mirror is not exactly classified
+cmd/internal/runtimebundle/assets/runtime/files/nvim/review/recovery_observer.lua: production source is absent from the exhaustive inventory
+cmd/internal/runtimebundle/assets/runtime/files/nvim/review/restore.lua: generated mirror is not exactly classified
+cmd/internal/runtimebundle/assets/runtime/files/nvim/review/restore.lua: production source is absent from the exhaustive inventory
+cmd/internal/runtimebundle/assets/runtime/files/nvim/review/restore_client.lua: generated mirror is not exactly classified
+cmd/internal/runtimebundle/assets/runtime/files/nvim/review/restore_client.lua: production source is absent from the exhaustive inventory
+cmd/internal/runtimebundle/assets/runtime/files/nvim/review/restore_controller.lua: generated mirror is not exactly classified
+cmd/internal/runtimebundle/assets/runtime/files/nvim/review/restore_controller.lua: production source is absent from the exhaustive inventory
+cmd/internal/wrapcmd/automatic_input.go: production source is absent from the exhaustive inventory
+cmd/internal/wrapcmd/peer_composer.go: production source is absent from the exhaustive inventory
+cmd/internal/wrapcmd/peer_delivery.go: production source is absent from the exhaustive inventory
+cmd/internal/wrapcmd/peer_input.go: production source is absent from the exhaustive inventory
+cmd/internal/wrapcmd/peer_runtime.go: production source is absent from the exhaustive inventory
+cmd/internal/wrapcmd/peer_viewport.go: production source is absent from the exhaustive inventory
+cmd/internal/wrapcmd/terminal_tail.go: production source is absent from the exhaustive inventory
+nvim/review.lua: non-artifact source contains review vocabulary
+nvim/review.lua: review
+nvim/review/artifact.lua: production source is absent from the exhaustive inventory
+nvim/review/document_bytes.lua: production source is absent from the exhaustive inventory
+nvim/review/identity.lua: production source is absent from the exhaustive inventory
+nvim/review/recovery.lua: production source is absent from the exhaustive inventory
+nvim/review/recovery_observer.lua: production source is absent from the exhaustive inventory
+nvim/review/restore.lua: production source is absent from the exhaustive inventory
+nvim/review/restore_client.lua: production source is absent from the exhaustive inventory
+nvim/review/restore_controller.lua: production source is absent from the exhaustive inventory
