@@ -77,3 +77,8 @@ Durable plan: `workshop/plans/000442-slot-creation-size-each-step-s-timeout-to-t
 - BR-2: a cause with a 64 KiB stderr tail exceeded the 16 KiB record limit, so the record was silently dropped. Fix: `boundCause` keeps head + tail within 8 KiB (`TestSlotFailureRecordFitsTheStore`, mutation-checked).
 - Minors: the record is now cleared only after `verifyHost` and the marker read; every advice branch names the step; an unreadable record shows as `last failure: unreadable: …`; render test `TestRenderSlotReportLastFailure`.
 
+### 2026-10-11 — close review round 2: BR-2 reopened, BR-4 needed a test, BR-7 raised
+- BR-2 rule: bound by *encoded* size and never drop. JSON escaping grows a cause up to 6×, so `fitSlotFailure` halves the cause until `json.Marshal` fits 16 KiB. A write that still fails is named in `SlotReconcileError` (`RecordErr`). Tests: plain and escaped 64 KiB stderr; `TestUnrecordedFailureIsSaid`.
+- BR-4: `TestReconcileAdviceText` asserts the step for every class × hold cause.
+- BR-7: `atlas/workspace-provisioning.md` documents the step-class budgets and `last-failure.json`.
+

@@ -131,23 +131,41 @@ func TestCommandErrorTimedOutIsTheCommandsOwnBudget(t *testing.T) {
 }
 
 // TestSlotFailureRecordFitsTheStore: a cause with a full 64 KiB stderr tail
-// is still recorded, keeping its head and the end of its stderr.
+// is still recorded, keeping its head and the end of its stderr, however
+// much JSON escaping grows it.
 func TestSlotFailureRecordFitsTheStore(t *testing.T) {
 	t.Parallel()
-	common, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
+	for name, filler := range map[string]string{"plain": "x", "escaped": "\x1b[0m<"} {
+		t.Run(name, func(t *testing.T) {
+			common, err := filepath.EvalSymlinks(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			layout := NewSlotLayout("/fleet/repo", common, 1)
+			stderr := strings.Repeat(filler, (64<<10)/len(filler)) + "fatal: the last line"
+			cmdErr := &ProvisionCommandError{Command: "git worktree add", Timeout: time.Second, TimedOut: true, Err: errors.New(stderr)}
+			p := &WorkspaceProvisioner{Store: ProvisionStore{}}
+			if err := p.recordSlotFailure(layout, &SlotReconcileError{Failure: ReconcileFailure{Resource: ResourceHost, Step: StepWorktreeAdd}, Err: cmdErr}); err != nil {
+				t.Fatalf("an oversized cause was not recorded: %v", err)
+			}
+			rec, rerr := ReadSlotFailure(layout)
+			if rerr != nil || rec == nil {
+				t.Fatalf("read back: %v", rerr)
+			}
+			if !strings.HasPrefix(rec.Cause, "git worktree add: timed out after 1s") || !strings.HasSuffix(rec.Cause, "fatal: the last line") {
+				t.Fatalf("cause %d bytes lost its head or tail", len(rec.Cause))
+			}
+		})
 	}
-	layout := NewSlotLayout("/fleet/repo", common, 1)
-	stderr := strings.Repeat("x", 64<<10) + "fatal: the last line"
-	cmdErr := &ProvisionCommandError{Command: "git worktree add", Timeout: time.Second, TimedOut: true, Err: errors.New(stderr)}
-	p := &WorkspaceProvisioner{Store: ProvisionStore{}}
-	p.recordSlotFailure(layout, &SlotReconcileError{Failure: ReconcileFailure{Resource: ResourceHost, Step: StepWorktreeAdd}, Err: cmdErr})
-	rec, rerr := ReadSlotFailure(layout)
-	if rerr != nil || rec == nil {
-		t.Fatalf("an oversized cause dropped the record: %v", rerr)
-	}
-	if !strings.HasPrefix(rec.Cause, "git worktree add: timed out after 1s") || !strings.HasSuffix(rec.Cause, "fatal: the last line") || len(rec.Cause) > slotFailureCauseLimit {
-		t.Fatalf("cause %d bytes: %.80q … %.40q", len(rec.Cause), rec.Cause, rec.Cause[len(rec.Cause)-40:])
+}
+
+// TestUnrecordedFailureIsSaid: a failure record that cannot be written is
+// named in the caller's error, never dropped silently.
+func TestUnrecordedFailureIsSaid(t *testing.T) {
+	t.Parallel()
+	e := &SlotReconcileError{Address: "repo:1", Repo: "repo", Failure: ReconcileFailure{Resource: ResourceHost, Step: StepWorktreeAdd, Class: FailureRetryable, Cause: "c"},
+		RecordErr: errors.New("host creation busy")}
+	if !strings.Contains(e.Error(), "slot repo:1: this failure could not be recorded: host creation busy") {
+		t.Fatalf("%q", e.Error())
 	}
 }

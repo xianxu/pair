@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -95,19 +96,30 @@ type SlotFailure struct {
 	Cause         string         `json:"cause"`
 }
 
-// slotFailureCauseLimit keeps the record inside the provision store's record
-// limit: a cause carries up to 64 KiB of stderr tail, the store takes 16 KiB.
-const slotFailureCauseLimit = 8 << 10
-
 // boundCause keeps a cause's head (what failed) and tail (the end of its
-// stderr), eliding the middle.
-func boundCause(cause string) string {
-	if len(cause) <= slotFailureCauseLimit {
+// stderr) within limit bytes, eliding the middle.
+func boundCause(cause string, limit int) string {
+	if len(cause) <= limit {
 		return cause
 	}
 	const marker = "\n…\n"
-	head := slotFailureCauseLimit / 4
-	return strings.ToValidUTF8(cause[:head]+marker+cause[len(cause)-(slotFailureCauseLimit-head-len(marker)):], "")
+	head := limit / 4
+	return strings.ToValidUTF8(cause[:head]+marker+cause[len(cause)-(limit-head-len(marker)):], "")
+}
+
+// fitSlotFailure shrinks the cause until the encoded record fits the
+// provision store's record limit: a cause carries up to 64 KiB of stderr
+// tail, and JSON escaping can grow it sixfold. It never drops the record.
+func fitSlotFailure(r SlotFailure) SlotFailure {
+	full := r.Cause
+	for limit := provisionRecordLimit; limit > 0; limit /= 2 {
+		r.Cause = boundCause(full, limit)
+		if raw, err := json.Marshal(r); err == nil && len(raw) <= provisionRecordLimit {
+			return r
+		}
+	}
+	r.Cause = ""
+	return r
 }
 
 func newSlotFailure(e *SlotReconcileError, at time.Time) SlotFailure {
@@ -115,7 +127,6 @@ func newSlotFailure(e *SlotReconcileError, at time.Time) SlotFailure {
 	if e.Err != nil {
 		r.Cause = e.Err.Error()
 	}
-	r.Cause = boundCause(r.Cause)
 	var cmd *ProvisionCommandError
 	if errors.As(e.Err, &cmd) {
 		r.Command, r.TimedOut = cmd.Command, cmd.TimedOut
@@ -123,18 +134,19 @@ func newSlotFailure(e *SlotReconcileError, at time.Time) SlotFailure {
 			r.Timeout = cmd.Timeout.String()
 		}
 	}
-	return r
+	return fitSlotFailure(r)
 }
 
 // recordSlotFailure keeps a blocking outcome under the creation lease, like
-// every slot record. Best effort: the error itself still reaches the caller.
-func (p *WorkspaceProvisioner) recordSlotFailure(l SlotLayout, e *SlotReconcileError) {
+// every slot record. A record that cannot be written is not dropped silently:
+// the caller's error says so.
+func (p *WorkspaceProvisioner) recordSlotFailure(l SlotLayout, e *SlotReconcileError) error {
 	lease, err := AcquireHostCreationLease(l.common)
 	if err != nil {
-		return
+		return err
 	}
 	defer lease.Close()
-	_ = p.Store.Write(SlotFailurePath(l), newSlotFailure(e, time.Now()))
+	return p.Store.Write(SlotFailurePath(l), newSlotFailure(e, time.Now()))
 }
 
 // clearSlotFailure removes the record once the slot converges.

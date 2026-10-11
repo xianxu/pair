@@ -124,7 +124,9 @@ func (p *WorkspaceProvisioner) Ensure(ctx context.Context, req ProvisionRequest)
 	setAside := SavedWorkManifests(result.SetAside)
 	if blocking != nil {
 		blocking.SetAside = setAside
-		p.recordSlotFailure(layout, blocking)
+		if err := p.recordSlotFailure(layout, blocking); err != nil {
+			blocking.RecordErr = err
+		}
 		return ProvisionResult{}, blocking
 	}
 	host, err := p.verifyHost(ctx, primary, req.Slot, nil)

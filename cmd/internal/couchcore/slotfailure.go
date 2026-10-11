@@ -174,10 +174,15 @@ type SlotReconcileError struct {
 	// SetAside are the checkouts the run moved into saved work before it
 	// stopped: a failure still names what to restore.
 	SetAside []SavedWorkManifest
+	// RecordErr says why the failure could not be kept (pair#442).
+	RecordErr error
 }
 
 func (e *SlotReconcileError) Error() string {
 	text := ReconcileAdvice(e.Address, e.Repo, e.Failure)
+	if e.RecordErr != nil {
+		text += fmt.Sprintf("\nslot %s: this failure could not be recorded: %v", e.Address, e.RecordErr)
+	}
 	for _, m := range e.SetAside {
 		text += fmt.Sprintf("\nslot %s: set aside %s (it could not be read); restore with: %s", e.Address, m.Path, m.Restore)
 	}
