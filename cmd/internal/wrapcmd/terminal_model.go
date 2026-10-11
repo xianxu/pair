@@ -42,9 +42,12 @@ type terminalResize struct {
 }
 
 type terminalControlObserver struct {
-	visible  bool
-	parser   *ansiparser.Parser
-	csiBytes uint8
+	visible bool
+	// Synchronized output (DECSET 2026, pair#438): framed once the stream
+	// has closed an update, open while it is inside one.
+	framed, frameOpen bool
+	parser            *ansiparser.Parser
+	csiBytes          uint8
 }
 
 type terminalSnapshot struct {
@@ -221,6 +224,12 @@ func (o *terminalControlObserver) handleCSI(command xansi.Cmd, params xansi.Para
 	}
 
 	touchesVisibility := false
+	for i := range params {
+		if param, _, ok := params.Param(i, 0); ok && param == 2026 {
+			o.frameOpen = command.Final() == 'h'
+			o.framed = o.framed || !o.frameOpen
+		}
+	}
 	// csiBytes == 5 pins the canonical "\x1b[?25h" spelling. A zero-padded
 	// variant ("\x1b[?025h") therefore does not count as a standalone show and
 	// leaves visibility unauthorized — the fail-closed direction, and the
@@ -253,6 +262,7 @@ func terminalCSIState(state xparser.State) bool {
 func (o *terminalControlObserver) handleESC(command xansi.Cmd) {
 	if command.Prefix() == 0 && command.Intermediate() == 0 && command.Final() == 'c' {
 		o.visible = false
+		o.framed, o.frameOpen = false, false
 	}
 }
 
@@ -265,6 +275,15 @@ func (m *terminalModel) BracketedPaste() bool {
 		return false
 	}
 	return m.emulator.Mode(xansi.DECMode(2004)).IsSet()
+}
+
+// FrameComplete reports whether the model holds a whole frame: the child
+// frames its output with synchronized updates and is not inside one. A
+// stream that never framed one cannot say, and reports false.
+func (m *terminalModel) FrameComplete() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return !m.closed && m.observer.framed && !m.observer.frameOpen
 }
 
 func (m *terminalModel) Snapshot() terminalSnapshot {
