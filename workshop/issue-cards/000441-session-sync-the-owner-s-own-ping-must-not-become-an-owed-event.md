@@ -1,6 +1,6 @@
 ---
 id: 000441
-status: codecomplete
+status: done
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 648509047e31c2f71b39bfd289f5da7c6467563b
         evidence_commit: 7fc9c7f06720b742abf1496849df306bdd99c0d3
+        landed_commit: cd592f590bbf90b07ab2f63594e9a98d4bbecd10
 ---
 
 # session-sync: the owner's own ping must not become an owed event
