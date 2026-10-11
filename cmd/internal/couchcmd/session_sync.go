@@ -16,15 +16,16 @@ import (
 // sessionSyncArgs is one `couch --session-sync` invocation (pair#437).
 type sessionSyncArgs struct {
 	verb, file, section, bodyFile string
-	all, acceptEdits, json        bool
+	all, json                     bool
+	accepts                       sessionsync.Accepts
 	fold                          []string
 }
 
 const sessionSyncUsage = `couch --session-sync diff FILE
 couch --session-sync status [--json] FILE
-couch --session-sync write --section HEADING BODYFILE FILE [--accept-edits] [--fold ID[,ID]]
-couch --session-sync write --all BODYFILE FILE [--accept-edits] [--fold ID[,ID]]
-couch --session-sync release FILE [--fold ID[,ID]]`
+couch --session-sync write --section HEADING BODYFILE FILE [--accept-edits] [--accept-gap] [--fold ID[,ID]]
+couch --session-sync write --all BODYFILE FILE [--accept-edits] [--accept-gap] [--fold ID[,ID]]
+couch --session-sync release FILE [--accept-edits] [--accept-gap] [--fold ID[,ID]]`
 
 // parseSessionSyncCLI reads the closed forms above. Values (a heading, a
 // path) are taken verbatim even when they start with "--".
@@ -39,8 +40,8 @@ func parseSessionSyncCLI(args []string) (cliInvocation, error) {
 	allowed := map[string][]string{
 		"diff":    {},
 		"status":  {"--json"},
-		"write":   {"--section", "--all", "--accept-edits", "--fold"},
-		"release": {"--fold"},
+		"write":   {"--section", "--all", "--accept-edits", "--accept-gap", "--fold"},
+		"release": {"--accept-edits", "--accept-gap", "--fold"},
 	}
 	flags, ok := allowed[a.verb]
 	if !ok {
@@ -81,7 +82,9 @@ func parseSessionSyncCLI(args []string) (cliInvocation, error) {
 		case "--all":
 			a.all = true
 		case "--accept-edits":
-			a.acceptEdits = true
+			a.accepts.Edits = true
+		case "--accept-gap":
+			a.accepts.Gap = true
 		case "--json":
 			a.json = true
 		}
@@ -154,7 +157,7 @@ func runSessionSyncCLI(a *sessionSyncArgs, rt Runtime, stdout, stderr io.Writer)
 			return fail(fmt.Errorf("reading the body: %w", err))
 		}
 		res, err := s.Write(sessionsync.WriteRequest{File: file, Section: a.section, Body: string(raw),
-			AcceptEdits: a.acceptEdits, Fold: a.fold})
+			Accepts: a.accepts, Fold: a.fold})
 		if err != nil {
 			return fail(err)
 		}
@@ -165,7 +168,7 @@ func runSessionSyncCLI(a *sessionSyncArgs, rt Runtime, stdout, stderr io.Writer)
 		}
 		reportFolds(stdout, stderr, res)
 	case "release":
-		res, err := s.Release(file, a.fold)
+		res, err := s.Release(sessionsync.ReleaseRequest{File: file, Accepts: a.accepts, Fold: a.fold})
 		if err != nil {
 			return fail(err)
 		}

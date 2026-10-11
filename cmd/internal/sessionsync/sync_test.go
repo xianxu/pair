@@ -76,9 +76,9 @@ func TestWriteUnderAnOperatorLockRefusesAndChangesNothing(t *testing.T) {
 	r.put(r.p.Lock, "holder: operator\nat: 2026-10-10T23:50\n")
 	r.deliver("d1", "report")
 	before := []string{r.read(r.p.File), r.read(r.p.Shadow), r.read(r.p.State), r.read(r.p.Lock)}
-	_, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Needs you", Body: "new", AcceptEdits: true, Fold: []string{"d1"}})
+	_, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Needs you", Body: "new", Accepts: Accepts{Edits: true}, Fold: []string{"d1"}})
 	wantRefusal(t, err, ExitOperatorLock, "operator-lock")
-	_, err = r.sync.Release(r.p.File, nil)
+	_, err = r.sync.Release(ReleaseRequest{File: r.p.File, Accepts: Accepts{Edits: true}})
 	wantRefusal(t, err, ExitOperatorLock, "operator-lock")
 	after := []string{r.read(r.p.File), r.read(r.p.Shadow), r.read(r.p.State), r.read(r.p.Lock)}
 	for i := range before {
@@ -97,14 +97,14 @@ func TestWriteOverUnreadEditsRefusesUntilAcceptEdits(t *testing.T) {
 	if r.read(r.p.File) != edited {
 		t.Fatal("a refused write changed the file")
 	}
-	_, err = r.sync.Release(r.p.File, nil)
+	_, err = r.sync.Release(ReleaseRequest{File: r.p.File})
 	wantRefusal(t, err, ExitUnreadEdits, "unread-edits")
 
 	_, diff, err := r.sync.DiffText(r.p.File)
 	if err != nil || !strings.Contains(diff, "+old 🤖[why?]") || !strings.HasPrefix(diff, "--- shadow") {
 		t.Fatalf("diff=%q err=%v", diff, err)
 	}
-	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Needs you", Body: "answered", AcceptEdits: true}); err != nil {
+	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Needs you", Body: "answered", Accepts: Accepts{Edits: true}}); err != nil {
 		t.Fatal(err)
 	}
 	got := r.read(r.p.File)
@@ -153,7 +153,7 @@ func TestReleaseFoldsSubmitsNotDeliveriesAndDeletesAnAgentLock(t *testing.T) {
 	r.deliver("s1", SubmitPrefix+r.p.File)
 	r.deliver("d1", "report")
 	r.put(r.p.Lock, "holder: agent\n")
-	res, err := r.sync.Release(r.p.File, nil)
+	res, err := r.sync.Release(ReleaseRequest{File: r.p.File})
 	if err != nil || !res.Released {
 		t.Fatalf("res=%+v err=%v", res, err)
 	}
@@ -163,7 +163,7 @@ func TestReleaseFoldsSubmitsNotDeliveriesAndDeletesAnAgentLock(t *testing.T) {
 	if ids := r.owedIDs(); len(ids) != 1 || ids[0] != "d1:delivery" {
 		t.Fatalf("owed %v", ids)
 	}
-	if res, err := r.sync.Release(r.p.File, []string{"d1"}); err != nil || res.Released {
+	if res, err := r.sync.Release(ReleaseRequest{File: r.p.File, Fold: []string{"d1"}}); err != nil || res.Released {
 		t.Fatalf("a free file has nothing to release: %+v %v", res, err)
 	}
 	if ids := r.owedIDs(); len(ids) != 0 {
@@ -215,5 +215,78 @@ func TestStatusBeforeAnyWrite(t *testing.T) {
 	r.sync.Ledger.Append("ops:0", Entry{ID: "early", At: t0.Add(-time.Second)})
 	if ids := r.owedIDs(); len(ids) != 0 {
 		t.Fatalf("owed %v", ids)
+	}
+}
+
+func TestReleaseAcceptsReadEditsWithoutAWrite(t *testing.T) {
+	r := newRig(t)
+	edited := strings.Replace(statusDoc, "old", "old, fine as is", 1)
+	r.put(r.p.File, edited)
+	r.put(r.p.Lock, "holder: agent\n")
+	if _, err := r.sync.Release(ReleaseRequest{File: r.p.File, Accepts: Accepts{Edits: true}}); err != nil {
+		t.Fatal(err)
+	}
+	if r.read(r.p.File) != edited || r.read(r.p.Shadow) != edited {
+		t.Fatal("release must leave the file alone and record its edits as read")
+	}
+	if _, err := os.Stat(r.p.Lock); !os.IsNotExist(err) {
+		t.Fatal("lock not released")
+	}
+}
+
+func TestALedgerGapRefusesUntilAcceptedPerFile(t *testing.T) {
+	r := newRig(t)
+	r.sync.Ledger.Now = func() time.Time { return r.now }
+	if err := r.sync.Ledger.MarkGap("ops:0", errors.New("disk full")); err != nil {
+		t.Fatal(err)
+	}
+	_, err := r.sync.Status(r.p.File)
+	wantRefusal(t, err, ExitRefused, "ledger-gap")
+	_, err = r.sync.Write(WriteRequest{File: r.p.File, Section: "Trains", Body: "x"})
+	wantRefusal(t, err, ExitRefused, "ledger-gap")
+	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Trains", Body: "x", Accepts: Accepts{Gap: true}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.sync.Status(r.p.File); err != nil {
+		t.Fatalf("an accepted gap stops refusing: %v", err)
+	}
+	// A later gap refuses again.
+	r.now = r.now.Add(time.Minute)
+	r.sync.Ledger.MarkGap("ops:0", errors.New("again"))
+	_, err = r.sync.Status(r.p.File)
+	wantRefusal(t, err, ExitRefused, "ledger-gap")
+	if _, err := r.sync.Release(ReleaseRequest{File: r.p.File, Accepts: Accepts{Gap: true}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.sync.Status(r.p.File); err != nil {
+		t.Fatal(err)
+	}
+	// Another owner's file never sees this slot's gap.
+	r.put(r.p.File, strings.Replace(r.read(r.p.File), "owner: ops:0", "owner: ops:1", 1))
+	r.put(r.p.Shadow, r.read(r.p.File))
+	os.Remove(r.p.State)
+	if _, err := r.sync.Status(r.p.File); err != nil {
+		t.Fatalf("ops:1 must not inherit ops:0's gap: %v", err)
+	}
+}
+
+func TestAGapBeforeTheHorizonOrExpiredIsIgnored(t *testing.T) {
+	r := newRig(t)
+	at := t0.Add(-time.Hour) // before the shadow's mtime (t0)
+	r.sync.Ledger.Now = func() time.Time { return at }
+	r.sync.Ledger.MarkGap("ops:0", errors.New("old"))
+	r.sync.Ledger.Now = func() time.Time { return r.now }
+	if _, err := r.sync.Status(r.p.File); err != nil {
+		t.Fatalf("a gap before the file's horizon hides nothing it owes: %v", err)
+	}
+	r.sync.Ledger.Now = func() time.Time { return t0.Add(keepFor + 2*time.Hour) }
+	if g, _ := r.sync.Ledger.Gap("ops:0"); g != nil {
+		t.Fatal("an expired gap is gone")
+	}
+	if err := r.sync.Ledger.Append("ops:0", Entry{ID: "y", At: t0}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(r.sync.Ledger.Dir, "ops%3A0.gap")); !os.IsNotExist(err) {
+		t.Fatal("the next append removes an expired gap record")
 	}
 }

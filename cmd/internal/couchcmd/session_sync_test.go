@@ -22,9 +22,10 @@ func TestParseSessionSyncForms(t *testing.T) {
 		{[]string{"diff", "f.md"}, sessionSyncArgs{verb: "diff", file: "f.md"}},
 		{[]string{"status", "--json", "f.md"}, sessionSyncArgs{verb: "status", file: "f.md", json: true}},
 		{[]string{"write", "--section", "--odd heading", "b", "f.md", "--fold", "a, b", "--accept-edits"},
-			sessionSyncArgs{verb: "write", section: "--odd heading", bodyFile: "b", file: "f.md", fold: []string{"a", "b"}, acceptEdits: true}},
+			sessionSyncArgs{verb: "write", section: "--odd heading", bodyFile: "b", file: "f.md", fold: []string{"a", "b"}, accepts: sessionsync.Accepts{Edits: true}}},
 		{[]string{"write", "--all", "b", "f.md"}, sessionSyncArgs{verb: "write", all: true, bodyFile: "b", file: "f.md"}},
 		{[]string{"release", "f.md", "--fold", "x"}, sessionSyncArgs{verb: "release", file: "f.md", fold: []string{"x"}}},
+		{[]string{"release", "--accept-edits", "--accept-gap", "f.md"}, sessionSyncArgs{verb: "release", file: "f.md", accepts: sessionsync.Accepts{Edits: true, Gap: true}}},
 	} {
 		inv, err := ParseCLI(append([]string{"--session-sync"}, c.args...), couchcore.Operations())
 		if err != nil {

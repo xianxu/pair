@@ -3,9 +3,9 @@ package couchcmd
 import (
 	"context"
 	"errors"
+	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -111,29 +111,30 @@ func TestDeliveryRecordingKeepsEverythingThatMayHaveLanded(t *testing.T) {
 	}
 }
 
-// A failed append keeps the delivery's outcome and makes every reader refuse
-// until Couch restarts, so a lost row can't read as "nothing owed".
-func TestALedgerAppendFailureMarksTheRecordIncomplete(t *testing.T) {
+// A failed append keeps the delivery's outcome and records a gap for that
+// slot only; other slots' files keep working (BR-2), and a restart does not
+// clear it (BR-3).
+func TestALedgerAppendFailureRecordsAGapForThatSlotOnly(t *testing.T) {
 	r := newServiceRig(t)
 	store := t.TempDir()
 	r.s.recordDeliveries(store)
-	b := r.connect(1)
+	b, other := r.connect(1), r.connect(2)
 	ledgerDir := sessionsync.LedgerDir(store)
+	ledger := &sessionsync.Ledger{Dir: ledgerDir}
 	// The slot's file becomes a directory: appends to it fail.
-	slotFile := filepath.Join(ledgerDir, strings.Replace(b.Slot, ":", "_", 1)+".jsonl")
-	os.MkdirAll(slotFile, 0o700)
+	os.MkdirAll(filepath.Join(ledgerDir, url.QueryEscape(b.Slot)+".jsonl"), 0o700)
 	e := messageEndpoint{service: r.s, binding: b, endpoint: answeringEndpoint{receipt: couchmessage.Receipt{Status: couchmessage.Submitted}}}
-	if receipt, err := e.Deliver(context.Background(), couchmessage.Message{ID: "x", From: b, To: b}); err != nil || receipt.Status != couchmessage.Submitted {
+	if receipt, err := e.Deliver(context.Background(), couchmessage.Message{ID: "x", From: other, To: b}); err != nil || receipt.Status != couchmessage.Submitted {
 		t.Fatalf("the delivery outcome must survive: %+v %v", receipt, err)
 	}
-	err := (&sessionsync.Ledger{Dir: ledgerDir}).Recording()
-	var refusal *sessionsync.Refusal
-	if !errors.As(err, &refusal) || refusal.Code != "not-recording" {
-		t.Fatalf("got %v", err)
+	if g, err := ledger.Gap(b.Slot); err != nil || g == nil {
+		t.Fatalf("gap %+v %v", g, err)
 	}
-	// A restart starts a fresh record.
-	r.s.recordDeliveries(store)
-	if err := (&sessionsync.Ledger{Dir: ledgerDir}).Recording(); err != nil {
-		t.Fatal(err)
+	r.s.recordDeliveries(store) // a Couch restart
+	if g, _ := ledger.Gap(b.Slot); g == nil {
+		t.Fatal("a restart recovers no row, so it must not clear the gap")
+	}
+	if g, _ := ledger.Gap(other.Slot); g != nil || ledger.Recording() != nil {
+		t.Fatalf("another slot is unaffected: %+v", g)
 	}
 }

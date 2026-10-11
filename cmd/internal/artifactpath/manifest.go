@@ -674,6 +674,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/message_deliveries.go",
 	"cmd/internal/couchcmd/session_sync.go",
 	"cmd/internal/sessionsync/file.go",
+	"cmd/internal/sessionsync/gap.go",
 	"cmd/internal/sessionsync/ledger.go",
 	"cmd/internal/sessionsync/owed.go",
 	"cmd/internal/sessionsync/state.go",

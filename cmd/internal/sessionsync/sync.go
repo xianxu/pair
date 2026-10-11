@@ -42,11 +42,27 @@ type Status struct {
 	Owed      []OwedEvent
 }
 
+// Accepts are the agent's acknowledgements, shared by write and release so
+// every refusal's remedy is reachable from either verb.
+type Accepts struct {
+	// Edits: the agent has read the operator's edits (`diff`).
+	Edits bool
+	// Gap: the agent has checked its messages past a ledger gap.
+	Gap bool
+}
+
 // WriteRequest replaces one section (Section != "") or the whole file.
 type WriteRequest struct {
 	File, Section, Body string
-	AcceptEdits         bool
-	Fold                []string
+	Accepts
+	Fold []string
+}
+
+// ReleaseRequest hands the turn back.
+type ReleaseRequest struct {
+	File string
+	Accepts
+	Fold []string
 }
 
 // Result reports what a write or release did beyond the write itself.
@@ -150,10 +166,24 @@ func (f *file) guard(acceptEdits bool) error {
 	return nil
 }
 
-// owed reads the owner's ledger rows and what this file owes from them.
-func (s *Sync) owed(f *file) ([]Entry, []OwedEvent, error) {
-	if !slotAddress.MatchString(f.owner) {
+// owed reads the owner's ledger rows and what this file owes from them. A
+// ledger gap reaching past the file's horizon refuses until the agent
+// accepts it: then the owed list is incomplete, never silently short.
+func (s *Sync) owed(f *file, acceptGap bool) ([]Entry, []OwedEvent, error) {
+	if !ValidSlot(f.owner) {
 		return nil, nil, refuse("frontmatter `owner: %s` is not a Couch slot address (repo:N, as `couch --actors` lists it)", f.owner)
+	}
+	gap, err := s.Ledger.Gap(f.owner)
+	if err != nil {
+		return nil, nil, err
+	}
+	if gap != nil && !gap.Last.Before(f.state.Since) && (f.state.GapAccepted == nil || gap.Last.After(*f.state.GapAccepted)) {
+		if !acceptGap {
+			return nil, nil, &Refusal{Exit: ExitRefused, Code: "ledger-gap", Reason: fmt.Sprintf(
+				"Couch failed to record a delivery to %s at %s (%s), so owed events may be incomplete; check your recent messages, then pass --accept-gap to write or release",
+				f.owner, gap.Last.Local().Format(time.DateTime), gap.Cause)}
+		}
+		f.state.GapAccepted = &gap.Last
 	}
 	rows, err := s.Ledger.Read(f.owner)
 	if err != nil {
@@ -188,7 +218,7 @@ func (s *Sync) Status(path string) (Status, error) {
 	if err := s.Ledger.Recording(); err != nil {
 		return Status{}, err
 	}
-	_, owed, err := s.owed(f)
+	_, owed, err := s.owed(f, false)
 	if err != nil {
 		return Status{}, err
 	}
@@ -222,10 +252,10 @@ func (s *Sync) Write(req WriteRequest) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	if err := f.guard(req.AcceptEdits); err != nil {
+	if err := f.guard(req.Edits); err != nil {
 		return Result{}, err
 	}
-	rows, owed, err := s.owed(f)
+	rows, owed, err := s.owed(f, req.Gap)
 	if err != nil {
 		return Result{}, err
 	}
@@ -266,23 +296,30 @@ func (s *Sync) Write(req WriteRequest) (Result, error) {
 
 // Release hands the turn back: it deletes an agent-held lock and folds the
 // owed submits (handing the turn back answers them) plus the given IDs. It
-// keeps the write guards, so an unread edit can't be released past.
-func (s *Sync) Release(path string, fold []string) (Result, error) {
-	f, err := load(path)
+// keeps the write guards, so an unread edit can't be released past; with
+// Accepts.Edits it records the operator's edits as read (the shadow takes
+// the file as it is) without a write.
+func (s *Sync) Release(req ReleaseRequest) (Result, error) {
+	f, err := load(req.File)
 	if err != nil {
 		return Result{}, err
 	}
-	if err := f.guard(false); err != nil {
+	if err := f.guard(req.Edits); err != nil {
 		return Result{}, err
 	}
-	rows, owed, err := s.owed(f)
+	rows, owed, err := s.owed(f, req.Gap)
 	if err != nil {
 		return Result{}, err
 	}
-	if err := folds(fold, owed); err != nil {
+	if err := folds(req.Fold, owed); err != nil {
 		return Result{}, err
 	}
-	all := append([]string{}, fold...)
+	if f.content != f.shadow {
+		if err := writeAtomic(f.paths.Shadow, []byte(f.content)); err != nil {
+			return Result{}, err
+		}
+	}
+	all := append([]string{}, req.Fold...)
 	for _, e := range owed {
 		if e.Kind == KindSubmit {
 			all = append(all, e.ID)
@@ -308,9 +345,6 @@ func (s *Sync) Release(path string, fold []string) (Result, error) {
 type Recording struct {
 	PID     int
 	Started time.Time
-	// Failed is set when an append failed: a row is missing, so "nothing
-	// owed" can't be trusted until a restart starts a fresh record.
-	Failed string `json:",omitempty"`
 }
 
 func (l *Ledger) recordingPath() string { return filepath.Join(l.Dir, "recording.json") }
@@ -327,25 +361,12 @@ func (l *Ledger) MarkRecording(r Recording) error {
 	return writeAtomic(l.recordingPath(), raw)
 }
 
-// MarkFailed records that a delivery could not be appended. Only the next
-// MarkRecording (a Couch start) clears it.
-func (l *Ledger) MarkFailed(r Recording, cause error) error {
-	r.Failed = cause.Error()
-	return l.MarkRecording(r)
-}
-
-// Recording refuses unless a Couch has marked this store as recording and
-// no append has failed since.
+// Recording refuses unless a Couch has marked this store as recording. A
+// failed append is a per-slot Gap, not a store-wide state.
 func (l *Ledger) Recording() error {
-	raw, err := os.ReadFile(l.recordingPath())
-	if err != nil {
+	if _, err := os.Stat(l.recordingPath()); err != nil {
 		return &Refusal{Exit: ExitRefused, Code: "not-recording",
 			Reason: "this Couch store has no delivery ledger yet; restart Couch on a build with pair#437 so owed events are recorded"}
-	}
-	var r Recording
-	if json.Unmarshal(raw, &r) != nil || r.Failed != "" {
-		return &Refusal{Exit: ExitRefused, Code: "not-recording",
-			Reason: fmt.Sprintf("the delivery ledger lost a row (%s); owed events are incomplete until Couch restarts", r.Failed)}
 	}
 	return nil
 }

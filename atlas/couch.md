@@ -394,10 +394,17 @@ CLI. It runs in-process against the store and needs no supervisor.
   the time and the body's first line (a submit's path line is kept whole).
   `couchmessage` is untouched.
 - **Ledger bound:** a file past 256 KiB is rewritten keeping at most 512 rows
-  younger than 14 days. `recording.json` marks a recording Couch. An append
-  failure stamps `Failed` there, and only the next Couch start clears it.
-  `status` refuses `not-recording` without the marker or with a failure, so
-  "nothing owed" is never a blind spot.
+  younger than 14 days, within half the size bound.
+- **Missing data refuses:** `recording.json` marks a recording Couch, and
+  `status` refuses `not-recording` without it.
+  - An append failure writes a per-slot `<slot>.gap` record. A restart does not
+    clear it. It expires 14 days after the last failure, and the next append
+    deletes it.
+  - Any verb on a file whose horizon reaches past a gap refuses `ledger-gap`
+    until `--accept-gap`. The sidecar's `GapAccepted` records that per file.
+  - So "nothing owed" is never a blind spot.
+  - The slot is validated by couch's own grammar
+    (`couchcore.ParseWorkspaceReference`) and query-escaped into the filename.
 - **Owed:** rows for the file's `owner:` slot from the sidecar's `Since`
   (`.<file>.sync`; without a sidecar, the shadow's mtime), minus folded IDs,
   minus submits naming another file. A body `submitted: <abs path>` is a

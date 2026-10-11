@@ -15,6 +15,9 @@ type State struct {
 	Since     time.Time
 	LastWrite *time.Time `json:",omitempty"`
 	Folded    []string
+	// GapAccepted is the latest ledger gap the agent acknowledged for this
+	// file (--accept-gap); a later gap refuses again.
+	GapAccepted *time.Time `json:",omitempty"`
 }
 
 // LoadState reads the sidecar. Without one, the horizon starts at the

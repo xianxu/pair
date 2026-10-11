@@ -80,6 +80,15 @@ Durable plan: [`workshop/plans/000437-…-plan.md`](../plans/000437-couch-sessio
 - **`owner:` must be an exact `repo:N`**; anything else refuses rather than matching nothing.
 - **Ledger bound:** by size (256 KiB → ≤512 rows younger than 14 days), one stat per append.
 
+### 2026-10-11 — close review round 1 (FIX-THEN-SHIP)
+- `release` takes `--accept-edits` (records read edits without a write) and both verbs take `--accept-gap`, so every
+  refusal's remedy is reachable (BR-1).
+- Slot addresses use couch's grammar (`couchcore.ParseWorkspaceReference`), escaped into the filename (BR-2).
+- A failed append is a per-slot, restart-proof gap record; files acknowledge it with `--accept-gap` (BR-2, BR-3).
+- README lists the verb (BR-4).
+- **Done-when 5 moves to ops:** the xx-tl skill switch is the TL's edit in ops (the TL owns ops; this slot never edits
+  it). The hand-off (gitignore line, command mapping) went to ops:0 (delivery 3c7ff078); the row is tracked there.
+
 ## Log
 
 ### 2026-10-10

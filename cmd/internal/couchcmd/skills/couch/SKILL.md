@@ -254,7 +254,7 @@ write that follows it.
 | `diff FILE` | The operator's edits since your last write, and the lock holder |
 | `write --section HEADING BODYFILE FILE` | Replaces one `## HEADING` section (whole heading lines only) |
 | `write --all BODYFILE FILE` | Replaces the whole file (keep the frontmatter) |
-| `release FILE` | Deletes your (`holder: agent`) lock and folds the operator's submits |
+| `release FILE` | Deletes your (`holder: agent`) lock and folds the operator's submits; with `--accept-edits`, records edits you read and leave as they are |
 | `status [--json] FILE` | The lock, your last write, and the events you still owe the file |
 
 - **Refusals:** exit 3 = the operator holds the lock: queue the update until
@@ -265,8 +265,10 @@ write that follows it.
   --fold`) says the file reflects it; a write without `--fold` clears
   nothing. A submit (`submitted: <path>`) is folded by `release`. Folding an ID
   that isn't owed refuses.
-- `status` refuses with `not-recording` when Couch predates the ledger or lost
-  a row; then owed events are unknown, not zero.
+- `status` refuses with `not-recording` when Couch predates the ledger, and
+  with `ledger-gap` when Couch failed to record a delivery to your slot: owed
+  events are then unknown, not zero. Check your recent messages, then pass
+  `--accept-gap` to `write` or `release`. A restart does not clear a gap.
 
 ## Rolling out a new Pair binary to idle slots
 

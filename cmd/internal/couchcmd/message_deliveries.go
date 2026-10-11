@@ -41,8 +41,8 @@ func (r *deliveryRecorder) record(m couchmessage.Message, receipt couchmessage.R
 	e := sessionsync.Entry{ID: m.ID, From: m.From.Slot, At: r.now(), Head: m.Body,
 		Uncertain: err != nil || receipt.Status != couchmessage.Submitted}
 	if aerr := r.ledger.Append(m.To.Slot, e); aerr != nil {
-		// Delivery succeeded; the record did not. Make the gap visible to
-		// every reader instead of failing the message.
-		_ = r.ledger.MarkFailed(r.marker, aerr)
+		// Delivery succeeded; the record did not. Record the gap for that
+		// slot's readers instead of failing the message.
+		_ = r.ledger.MarkGap(m.To.Slot, aerr)
 	}
 }

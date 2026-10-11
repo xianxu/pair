@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 )
 
 // Entry is one landed delivery to a slot. Head is the body's first line,
@@ -51,13 +53,20 @@ type Ledger struct {
 // LedgerDir is where a Couch store keeps the ledger.
 func LedgerDir(storeDir string) string { return filepath.Join(storeDir, "session-sync") }
 
-var slotAddress = regexp.MustCompile(`^[A-Za-z0-9._-]+:[0-9]+$`)
+// ValidSlot reports whether slot is an exact Couch slot address (repo:N),
+// by couch's own workspace-reference grammar: one grammar, not a copy.
+func ValidSlot(slot string) bool {
+	ref, matched, err := couchcore.ParseWorkspaceReference(slot)
+	return matched && err == nil && ref.Repo != "" && ref.String() == slot
+}
 
-func (l *Ledger) path(slot string) (string, error) {
-	if !slotAddress.MatchString(slot) || strings.HasPrefix(slot, ".") {
+// path is the slot's ledger file plus suffix. The address is escaped into
+// one safe filename component, whatever characters its family uses.
+func (l *Ledger) path(slot, suffix string) (string, error) {
+	if !ValidSlot(slot) {
 		return "", fmt.Errorf("invalid slot address %q", slot)
 	}
-	return filepath.Join(l.Dir, strings.Replace(slot, ":", "_", 1)+".jsonl"), nil
+	return filepath.Join(l.Dir, url.QueryEscape(slot)+suffix), nil
 }
 
 // Head truncates a message body to the line a ledger row keeps. A submit
@@ -77,7 +86,7 @@ func Head(body string) string {
 
 // Append records a delivery to slot.
 func (l *Ledger) Append(slot string, e Entry) error {
-	p, err := l.path(slot)
+	p, err := l.path(slot, ".jsonl")
 	if err != nil {
 		return err
 	}
@@ -102,6 +111,9 @@ func (l *Ledger) Append(slot string, e Entry) error {
 	if werr != nil {
 		return werr
 	}
+	if err := l.expireGap(slot); err != nil {
+		return err
+	}
 	return l.trim(p)
 }
 
@@ -124,16 +136,24 @@ func (l *Ledger) trim(p string) error {
 			kept = append(kept, r)
 		}
 	}
-	if len(kept) > keepRows {
-		kept = kept[len(kept)-keepRows:]
-	}
-	var b strings.Builder
-	for _, r := range kept {
-		line, err := json.Marshal(r)
+	// Newest first, until the row cap or half the size bound: the result is
+	// always well under trimBytes, so a trim never repeats on the next append.
+	var lines [][]byte
+	size := 0
+	for i := len(kept) - 1; i >= 0 && len(lines) < keepRows; i-- {
+		line, err := json.Marshal(kept[i])
 		if err != nil {
 			return err
 		}
-		b.Write(line)
+		if size+len(line)+1 > trimBytes/2 {
+			break
+		}
+		size += len(line) + 1
+		lines = append(lines, line)
+	}
+	var b strings.Builder
+	for i := len(lines) - 1; i >= 0; i-- {
+		b.Write(lines[i])
 		b.WriteByte('\n')
 	}
 	return writeAtomic(p, []byte(b.String()))
@@ -148,7 +168,7 @@ func (l *Ledger) now() time.Time {
 
 // Read returns slot's rows, oldest first. A missing file is no deliveries.
 func (l *Ledger) Read(slot string) ([]Entry, error) {
-	p, err := l.path(slot)
+	p, err := l.path(slot, ".jsonl")
 	if err != nil {
 		return nil, err
 	}
