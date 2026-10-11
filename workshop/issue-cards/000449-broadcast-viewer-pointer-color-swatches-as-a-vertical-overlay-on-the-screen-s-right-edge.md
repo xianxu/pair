@@ -1,6 +1,6 @@
 ---
 id: 000449
-status: codecomplete
+status: done
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 859f6bd37268dd1f1652e02ce261383baf3e46d2
         evidence_commit: 644300eafeef56c3efe3750ce4b4954fda52d043
+        landed_commit: cad4e27436624e258d7583d0ec5dd7faf1af3716
 ---
 
 # Broadcast viewer: pointer color swatches as a vertical overlay on the screen's right edge
