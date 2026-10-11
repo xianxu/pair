@@ -15,7 +15,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "3fb43775", done: "4043411e"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # Slot creation: size each step's timeout to the step, and keep the failure
@@ -60,6 +60,8 @@ Durable plan: `workshop/plans/000442-slot-creation-size-each-step-s-timeout-to-t
 ## Log
 
 ### 2026-10-11 — failing step confirmed (forensics, parley.nvim)
+- 2026-10-11: closed — New tests: provision_budget_test.go (slow worktree add completes under the write budget, mutation-checked; timed-out creation records step/command/timeout/stderr; retry creates without cleanup; caller deadline is not the command timeout; plain and JSON-escaped 64 KiB causes still recorded; unrecorded failure is named) + TestRenderSlotReportLastFailure + TestReconcileAdviceText step assertions. go test couchcore green; remaining go test fails are pre-existing on origin/main (launcher, sessionsync) or environmental (couchcmd TestContinuationWriter fixture: no origin remote / inherited PAIR_DATA_DIR). make -k test: only test-review fails, identically on main. Live: couch --reconcile parley.nvim:3 created the slot from the leftover env with no manual cleanup. Atlas: workspace-provisioning.md updated.; review verdict: SHIP
+- 2026-10-11: flow upgraded quick → full — 194 added lines in code files (limit 100); an earlier round of this close already ran the full review
 - `main-slot3` reflog: `couch-slot-create` at 09:56:29; `branch.main-slot3.{remote,merge}` set → create-branch and set-upstream completed.
 - `worktree/parley.nvim-slot3/` empty (mtime 09:56); no `.git/worktrees` entry for slot 3 → `git worktree add` was killed. On SIGTERM (OSProvisionIO's group stop at the 5 s probe budget), git's junk handler removes the half-made checkout and its registration, which matches this state exactly.
 - No other step between set-upstream and worktree-add runs a command that could take 5 s.
