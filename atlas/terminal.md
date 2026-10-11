@@ -67,6 +67,15 @@ Presenter and `InputWriter`. Release therefore needs no caller deadline: drag
 cancellation is bounded by the child's `InputWriter`, the mode reset by Presenter.
 A reset that does not fully reach the host returns `ErrModesNotRestored`; the
 host may keep mouse, paste and keyboard modes until `reset` (#383).
+A presenter write whose own budget runs out (`WriteFailure.Expired`; the
+caller's context still live) means the host is slow, not gone. The presenter
+then *stalls* and does not fail (#430):
+- It forgets what the host shows (previous frame, history state, modes) and
+  keeps admitting frames.
+- It drops effects and copies, and writes nothing but a `CAN ST syncEnd`
+  probe (100 ms budget, retried every 250 ms).
+- The first probe that gets through is followed by one full repaint.
+- EIO, EPIPE and a caller's own deadline still fail the presenter.
 `InputWriter` preserves packet order and accepted-prefix
 failures, with 128 packets / 1MiB including the packet currently being written.
 

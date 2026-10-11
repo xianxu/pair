@@ -2218,7 +2218,10 @@ standing notice:
   notice `previous couch exited: <reason>`, and the file is renamed `.crash` like a
   panic. Today the one writer is couchcmd. After `console.Run` returns, it
   records `terminal.ExitReason(console.TerminalFailure())`, which is set when a
-  write to the outer terminal failed. A write past `terminal.WriteTimeout` reads as
+  write to the outer terminal failed. Since #430 a write past
+  `terminal.WriteTimeout` on its own budget stalls the presenter and does not
+  end couch (see terminal.md). The stall wording below is left for a write
+  bounded by a caller's deadline, which reads as
   `terminal stopped accepting output (a write waited up to 5s; wrote A of N bytes)`,
   and the notice names the file, since a panic during the exit lands there too.
   The reason comes from teardown's own classification (`Console.TerminalFailure`),
