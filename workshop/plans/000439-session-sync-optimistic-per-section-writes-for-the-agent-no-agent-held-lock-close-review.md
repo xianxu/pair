@@ -110,3 +110,90 @@ findings:
     title: |
       Removing the release no-op is recorded only in the Log, with no tracked issue
 ```
+
+---
+
+## Re-review — 2026-10-11T09:34:56-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 439 — session-sync: optimistic per-section writes for the agent, no agent-held lock |
+| repo | pair |
+| issue file | workshop/issues/000439-session-sync-optimistic-per-section-writes-for-the-agent-no-agent-held-lock.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | be20fd8d5a21101c65a0787d3a43799ae5b1db2f..89591551f1a40c6701f584ef8c1b327ac9426cda |
+| command | sdlc close --issue 439 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-11T09:34:56-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Checking whether the old `release --accept-gap` had a lasting effect that the no-op now drops.
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The fix commit deals with five of the six earlier findings. One is partly open (BR-1), and it is Minor, so nothing blocks the gate.
+
+**What I checked:**
+- I ran the stat, name-status and full-patch commands on the window.
+- Tests for `sessionsync` pass at the pinned head.
+- I removed the BR-4 fix and ran its new test, `TestAWrongFileLeavesNoFlockBehind`. It fails without the fix, so the regression check works.
+- I could not run the `couchcmd` tests here. The `runtimebundle` embed setup fails because the generated assets are missing from this checkout, as in the earlier round. I checked the new `release --fold` test by reading it.
+
+**Scope:** The issue file changed only in its Log and frontmatter (status, flow, hours). `## Spec` and `## Done when` are unchanged. #440 is a new issue file. Nothing was added that no earlier finding asked for.
+
+**The partial finding (BR-1):** `release --fold` now refuses, but the rule behind BR-1 is broader. That rule appears in the new lesson in `workshop/lessons.md`: "refuse those [arguments] whose effect it silently drops." Two old effects are still dropped while `release` exits 0:
+- **`--accept-gap`:** the old `Release` saved the gap acceptance (`GapAccepted`). It is still accepted as a no-op flag and still exits 0 (`session_sync.go:48`). An old skill thinks the gap was accepted, and its next `status` refuses with `delivery-gap`.
+- **Automatic fold of submits:** the old bare `release` folded every owed submit. It now folds nothing. Exit 0 here is the stated compatibility choice for bare `release`, so this is a note rather than a demand.
+
+The fix is to refuse `--accept-gap` on `release` too, keeping only `--accept-edits`. That flag no longer means anything, since the unread-edits guard is gone, so a no-op is honest for it.
+
+1. **Strengths**
+   - `locked()` now calls `load()` before it creates the flock file (`sync.go:129-132`). That reuses the full check ("exists" and `type: session-sync`) instead of adding a second one (ARCH-DRY), and the test catches a regression.
+   - The `release --fold` refusal names the command to use instead, `write --fold ID --if-hash H`, and the CLI test checks for that text.
+   - BR-6 now has a tracked issue, #440, with a concrete Done-when.
+   - The SKILL doc covers the gaps in prose: how to fold when nothing changes (write the section back as `read` printed it), and that the timestamp update can make a held hash go `stale`.
+
+2. **Critical:** none.
+3. **Important:** none.
+4. **Minor:** BR-1 is still partly open; see above.
+5. **Test coverage:** BR-4's regression test was checked by mutation and it works. BR-1's test covers only `--fold`; nothing shows that `release --accept-gap` refuses.
+6. **Architecture**
+   - **ARCH-DRY:** pass.
+   - **ARCH-PURE:** pass; no logic was added to the IO layer.
+   - **ARCH-PURPOSE:** flagged. BR-1 was fixed at the named `--fold` site, but the rule stated in the lesson was not applied to `--accept-gap`, a flag of the same kind.
+7. **Plan revisions:** none.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      Only --fold refuses; release --accept-gap still exits 0 though the old Release persisted GapAccepted (also old bare-release submit auto-fold is dropped). Apply the lesson's rule: refuse every effect flag except --accept-edits.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      SKILL.md:278-279 documents folding by writing the section back as read printed it; write accepts a non-empty unchanged body.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Documented in SKILL.md:280-282 (restamp in a section makes its held hash stale; read again); by-design stale retry recorded in issue Log.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      locked() runs load() before creating .flock (sync.go:129-132); TestAWrongFileLeavesNoFlockBehind goes red when the precheck is reverted.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      sync_test.go:91 comment now describes the read-under-operator-lock assertion.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      workshop/issues/000440 tracks removal of the release verb with Spec and Done-when.
+```

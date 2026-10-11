@@ -70,6 +70,7 @@ Design (2026-10-11):
 ## Log
 
 ### 2026-10-11
+- 2026-10-11: closed — review fixes covered by new tests: TestAWrongFileLeavesNoFlockBehind, release --fold refusal in TestSessionSyncReleaseIsARetiredNoOp; go test ./cmd/internal/sessionsync ./cmd/internal/couchcmd (session-sync, delivery, skill) green; full make -k test green at the prior close (fixed-then-ship); review verdict: SHIP
 - 2026-10-11: closed — make -k test green (240 ok, 0 FAIL); new tests pin every Done-when row: section write over an edit elsewhere + stale refusal with current hash, two-process race (one wins, one stale), flock-under-check (mutation-checked), no-release turn leaves no lock, operator lock still refuses; CLI read/stale/release-no-op tests.; review verdict: SHIP
 - 2026-10-11: flow upgraded quick → full — 262 added lines in code files (limit 100)
 
