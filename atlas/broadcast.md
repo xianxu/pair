@@ -236,7 +236,7 @@ and it is kept narrow.
   again restores the same link. Its mutex is a leaf: callbacks run after it is
   released.
 - **Routes:** `/<pointer-token>/…` serves the same page and stream as the view
-  link, plus `POST /<pointer-token>/point`, the only route that reads a body.
+  link, plus `POST /<pointer-token>/point` (and the note routes below), the only routes that read a body.
   Everything else is GET-only, as in #395: the view link answers a POST with
   405.
 - **The POST**, in order:
@@ -326,6 +326,47 @@ table.
   timer, and is never held across a call into the Presenter, the session or
   the loop. `TestPointerStressNoDeadlock` paints, posts and toggles together
   under `-race`.
+
+## Sticky notes (#447)
+
+Notes are the pointer link's second collaboration layer: a viewer pins a
+plain-text note to a screen cell and Couch draws `💭` (`NoteGlyph`) there.
+A note stays at its cell whatever scrolls underneath (no anchoring). Notes live
+in memory and are deleted whenever pointing turns off (click or the 👆-hidden
+watch) or the broadcast ends.
+
+- **Model** (`notes.go`, pure): `Note{ID, Col, Row, Color, Text}`. `NoteBoard`
+  holds the limits: 8 open notes per pointer color, no two notes sharing a cell.
+  `ParseNote` is strict like `ParsePointBatch`: 1–1024 bytes of valid UTF-8, no
+  control characters except `\n`/`\t`, no format characters (bidi, zero-width);
+  the cell must leave room for the glyph's second column and sit off the
+  controls (`NoteVisible`, which reuses the marks' `guarded`). `DrawNotes` puts
+  the glyph on two cells, blanks any wide character it cuts in half (keeping
+  its style), and widens the row's used columns, since the renderer draws text
+  only that far. `FuzzParseNote`; a property test over random wide rows.
+- **State** (`pointer_notes.go`): the board lives inside `PointerState`, under
+  its one lock, so a flip to off and the clear are one critical section.
+  `notesVersion` only increases. `addNote(n, gen)` refuses unless pointing is on
+  and hasn't flipped since `gen`, which `Session.acceptNote` reads before its
+  unlocked screen check (`landsNow`: same grid, public frame, 👆 shown).
+  Nothing called under `p.mu` takes it or waits on another goroutine.
+- **Routes:** `POST /<pointer-token>/note` and `/resolve` share `point`'s
+  admission (`readPointerBody`: pointing on, JSON, in-flight slot, the route's
+  rate budget, then a prompt body), with their own budget (2/s, burst 5) and an
+  8 KB body cap. A refusal is one of a closed set of sentences
+  (`refuse*` in `server.go`) that the viewer shows as-is. Resolving an unknown
+  id answers 204. The view link still reads no body.
+- **Stream:** every page, view and pointer alike, gets
+  `event: notes` (`{"guard":StatusGuardCols,"notes":[…]}`) on join and after
+  each change, so a view-only viewer can open and read notes.
+- **Couch side** (`couchtty/console_notes.go`): `Config.OnNotes` delivers
+  `(session, notes, version)`; `onNotes` hands it to the Run loop without
+  waiting (a 👆 click runs there and reports the emptied board). `applyNotes`
+  keeps it only from the live session while pointing is on and only if newer;
+  every pointer-phase change resyncs from `Session.Notes()`. One snapshot under
+  the leaf lock `pointerNotes.mu` feeds both `screenOverlay` (notes, then marks,
+  public frames only) and the status row's `💭N` count after `👽`
+  (`StatusModel.Notes`, not a click target, and outside the guarded columns).
 
 ## Listing (`couch --broadcast-list`, pair#413)
 
