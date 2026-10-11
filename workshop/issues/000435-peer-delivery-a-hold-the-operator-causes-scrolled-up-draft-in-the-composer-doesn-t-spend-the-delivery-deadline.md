@@ -15,7 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "332e6b2d", done: "0f828cc3"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # Peer delivery: a hold the operator causes (scrolled up, draft in the composer) doesn't spend the delivery deadline
@@ -79,6 +79,8 @@ Design (settled; ARCH-SIMPLE — one static cap both sides read, no new protocol
 ## Log
 
 ### 2026-10-10
+- 2026-10-10: closed — Tests: model TestDeliveryProgressReportsHeld; broker TestBrokerStatusShowsRecipientHold; endpoint TestRemoteEndpointStatefulExchange (held interim -> progress); wrapper peer_hold_test.go (draft, scrollback, non-operator keeps deadline incl. credited time, cap naming the hold incl. after it closed, typing keeps the hold open [BR-1]). Mutation-checked each. couchmessage + wrapcmd green after the BR-1 fix. Full suite before: make -k test (5-var scrub) failed only test-changelog + test-pair-embedded-runtime, both green rerun (scratchpad TMPDIR; env -i). go test ./... (env -i): artifactpath TestProductionArtifactReferencesAreExactlyClassified pre-existing on main (no new production files); couchcore + gcruntime hit the 10m timeout under suite load and do not depend on couchmessage/wrapcmd (go list -deps).; review verdict: SHIP
+- 2026-10-10: flow upgraded quick → full — 111 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 - Coordination: pair#433 (pair:2) also edits `couchmessage/model.go` (allowance). This change touches the const
   block, `Message`/`Horizon`, `Status`, `EventKind` and adds one `Advance` case; no allowance code.
