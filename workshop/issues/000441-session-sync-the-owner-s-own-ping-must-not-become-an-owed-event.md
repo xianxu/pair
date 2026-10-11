@@ -40,8 +40,7 @@ A delivery whose sender is the owner slot itself and whose text is a session-syn
 ## Log
 
 ### 2026-10-11
+- 2026-10-11: closed — TestTheOwnersOwnPingIsNotOwed: owner ping not recorded; owner submit, peer ping, peer report recorded (red before fix; mutation on identity check fails peer-ping). make -k test green with session env scrubbed. TestContinuationWriterPublishesExactCheckpointAcrossWorktrees fails under bare go test on main too (pre-existing). Round 1 BR-1 (atlas) and Minor (test errors) fixed.; review verdict: SHIP
 - The skip lives in `deliveryRecorder.record` (`cmd/internal/couchcmd/message_deliveries.go`), the one ledger write path; `Owed` stays a pure reader. Identity = `m.From == m.To` on the full binding, the breaker's own predicate (#433), not slot equality. `sessionsync.PingPrefix` sits beside `SubmitPrefix`.
 - `TestTheOwnersOwnPingIsNotOwed`: own ping not recorded; own submit, peer ping, peer report recorded. Mutation: dropping the identity check makes `peer-ping` fail.
 - `TestContinuationWriterPublishesExactCheckpointAcrossWorktrees` fails with and without this change (pre-existing).
-
-### 2026-10-11
