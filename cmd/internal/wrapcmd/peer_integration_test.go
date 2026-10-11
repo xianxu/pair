@@ -293,7 +293,7 @@ func TestPeerIntegrationFocusReportsDoNotOwnDraft(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			d := newPeerDelivery(peerTestMessage(time.Now()).To, time.Now)
 			for _, chunk := range tc.chunks {
-				human := d.admitInput([]byte(chunk))
+				human, _ := d.admitInput([]byte(chunk))
 				d.inputForwarded(human, false)
 			}
 			d.mu.Lock()

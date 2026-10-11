@@ -120,6 +120,22 @@ thresholds. Repeated matches remain ambiguous; newest-file order is no tie-break
 A Pair-chosen UUID also permits a newly created matching root filename to serve
 as acknowledgment when its absence at launch was known.
 
+**Cost follows sends (pair#420).** An unbound watcher does native work only
+when it can bind. Before a Pair-log turn exists past the launch offset, it
+neither walks nor validates the native store: correlation has nothing to match,
+and other sessions keep that store growing. A chosen-UUID launch (every fresh
+Claude) walks once for its filename handshake. After that it walks only when the
+agent pane's recording (`ScrollbackRaw`) has moved, because the transcript
+appears with the agent's first round. Without a recording it falls back to one
+walk per pass. An unchanged Pair log is not re-read. Once a turn is pending, an
+untracked candidate is validated only if it was written after the watcher's
+last quiet moment (`quietAt`, less a minute of slack); an older file cannot
+hold the round. An unbound watcher exits after `IdleExpiry` (24h) with neither
+a send nor agent output, and the next relaunch spawns a fresh one. Reads of a bound session
+(`QuerySession`'s proof validation, `ActivityForSession`) stat only the
+proof's artifacts through `Runtime.StatFile`, never `ListFiles`. The remaining
+per-query cost is the ledger parse (pair#431).
+
 The watcher commits confirmation only while that launch is current. Requested
 A and observed D are separate ledger facts, preserving both the effective
 identity and debugging history. Same-root confirmation is idempotent; competing

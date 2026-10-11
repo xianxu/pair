@@ -39,10 +39,17 @@ type peerDelivery struct {
 	state            couchmessage.PeerDeliveryState
 	image            bool
 	interrupted      bool
-	exited           bool
-	replies          orientationReplies
-	wake             chan struct{}
-	notices          chan string
+	// A draft-pane paste held while a delivery is in flight (pair#428).
+	holding   bool
+	holdUntil time.Time
+	// The operator's view of the pane (pair#428, peer_viewport.go);
+	// viewProbe is nil outside zellij-observable setups and then never gates.
+	view      peerView
+	viewProbe func() bool
+	exited    bool
+	replies   orientationReplies
+	wake      chan struct{}
+	notices   chan string
 	// session receives every observation change (#365); nil outside Couch.
 	// Both methods only record state and wake a sender: no IO on these paths.
 	session peerSessionSink
@@ -169,7 +176,56 @@ func (d *peerDelivery) outputForwarded() {
 	d.mu.Unlock()
 	d.signal()
 }
-func (d *peerDelivery) admitInput(data []byte) bool {
+
+// admitInput observes one stdin chunk before it is forwarded. A draft-pane
+// send that arrives while a delivery is between its paste and confirmation
+// is held instead (pair#428): held is true, and the input writer forwards
+// the chunk once releaseHold allows, through admitReleased.
+func (d *peerDelivery) admitInput(data []byte) (human, held bool) {
+	d.mu.Lock()
+	held = d.holdLocked(data)
+	d.mu.Unlock()
+	if held {
+		d.signal()
+		return false, true
+	}
+	return d.admitReleased(data), false
+}
+
+// PeerDraftHold bounds how long an operator paste waits for a delivery in
+// flight: about the draft pane's own paste-to-submit rhythm, with margin.
+const PeerDraftHold = time.Second
+
+func (d *peerDelivery) holdLocked(data []byte) bool {
+	if d.holding {
+		return true // everything after a held chunk queues behind it
+	}
+	for bytes.HasPrefix(data, []byte("\x1b[I")) || bytes.HasPrefix(data, []byte("\x1b[O")) {
+		data = data[3:]
+	}
+	if d.current.Status != couchmessage.Delivering || !bytes.HasPrefix(data, []byte(workbenchshortcut.PasteStart)) {
+		return false
+	}
+	d.holding, d.holdUntil = true, d.now().Add(PeerDraftHold)
+	return true
+}
+
+// releaseHold reports whether held input may go: the delivery left its
+// paste-to-confirm half, or the hold reached its bound.
+func (d *peerDelivery) releaseHold() bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return !d.holding || d.current.Status != couchmessage.Delivering || !d.now().Before(d.holdUntil)
+}
+
+// endHold is called by the input writer once every held chunk is forwarded.
+func (d *peerDelivery) endHold() {
+	d.mu.Lock()
+	d.holding = false
+	d.mu.Unlock()
+}
+
+func (d *peerDelivery) admitReleased(data []byte) bool {
 	d.mu.Lock()
 	var sink peerSessionSink
 	var o couchmessage.Observation
@@ -180,13 +236,9 @@ func (d *peerDelivery) admitInput(data []byte) bool {
 		d.publish(sink, o, false)
 	}()
 	d.replies.inFlight++
-	human := d.replies.operatorDataWithoutFocus(data)
+	human := d.replies.operatorKeystrokes(data)
 	if human {
-		d.lastInput = d.now()
-		d.sequence++
-		d.lastActivity = d.now()
-		d.interrupted = d.interrupted || d.current.Status == couchmessage.Delivering
-		o, sink, unsettled = d.observationLocked(), d.session, d.unsettleLocked()
+		o, sink, unsettled = d.operatorInputLocked()
 	}
 	if bytes.Contains(data, []byte{0x16}) {
 		d.image = true
@@ -195,15 +247,44 @@ func (d *peerDelivery) admitInput(data []byte) bool {
 	d.signal()
 	return human
 }
-func (d *peerDelivery) inputForwarded(human, buffered bool) {
+
+// operatorInputLocked records a keystroke (d.mu held).
+func (d *peerDelivery) operatorInputLocked() (couchmessage.Observation, peerSessionSink, bool) {
+	d.lastInput = d.now()
+	d.sequence++
+	d.lastActivity = d.now()
+	d.interrupted = d.interrupted || d.current.Status == couchmessage.Delivering
+	return d.observationLocked(), d.session, d.unsettleLocked()
+}
+
+// flushPartialInput resolves a frame left unfinished when the input writer's
+// flush interval passed with no continuation: a lone ESC is a keystroke, and
+// must not hold a delivery at "incomplete terminal input" until the next byte.
+func (d *peerDelivery) flushPartialInput() {
+	d.mu.Lock()
+	if !d.replies.flushPartial() {
+		d.mu.Unlock()
+		return
+	}
+	o, sink, unsettled := d.operatorInputLocked()
+	d.mu.Unlock()
+	d.publishUnsettled(sink, unsettled)
+	d.publish(sink, o, false)
+	d.signal()
+}
+
+// inputForwarded reports whether a partial input frame is still pending.
+func (d *peerDelivery) inputForwarded(human, buffered bool) bool {
 	d.mu.Lock()
 	d.replies.inFlight--
 	d.inputBuffered = buffered
 	if human {
 		d.lastInput = d.now()
 	}
+	partial := len(d.replies.input) > 0
 	d.mu.Unlock()
 	d.signal()
+	return partial
 }
 func (d *peerDelivery) admitImage() {
 	d.mu.Lock()
@@ -360,6 +441,12 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 				d.current.Detail = "waiting for input to settle"
 				return
 			}
+			// Held operator input goes before the next automatic paste
+			// (pair#428): it is not admitted yet, so lastInput can't say so.
+			if d.holding {
+				d.current.Detail = "waiting for held operator input"
+				return
+			}
 			pasteReady := p.childAcceptsPaste()
 			composer := peerComposerState(p.agentBasename, snapshot)
 			event.Ready = pasteReady && composer == PeerComposerEmpty
@@ -370,6 +457,10 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 				d.current.Detail = "waiting for recognized composer"
 			case !event.Ready:
 				d.current.Detail = "waiting for empty composer"
+			case !d.viewReadyLocked():
+				// Never yank the view from scrollback the operator is reading.
+				event.Ready = false
+				d.current.Detail = "waiting for the composer to be in view"
 			default:
 				d.current.Detail = ""
 			}

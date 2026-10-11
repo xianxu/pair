@@ -9,22 +9,8 @@ import (
 // OSRuntime IO methods (SessionBlocksReuse, ShowFamilyExisting, ProbeSessionName)
 // exec zellij then delegate the classification here so the historically
 // bug-prone #54/#67 logic is unit-tested without a live daemon (ARCH-PURE) and
-// the row scan isn't duplicated across those methods (ARCH-DRY).
-
-// sessionRowState scans `zellij list-sessions --no-formatting` output for the row
-// whose first field is session, reporting whether it is present and whether it
-// is an EXITED (resurrectable) row. Absent → (false, false); a running/detached
-// row → (true, false); an EXITED row → (true, true).
-func sessionRowState(raw, session string) (present, exited bool) {
-	for _, line := range strings.Split(raw, "\n") {
-		fields := strings.Fields(line)
-		if len(fields) == 0 || fields[0] != session {
-			continue
-		}
-		return true, strings.Contains(line, "EXITED")
-	}
-	return false, false
-}
+// the row scan isn't duplicated across those methods (ARCH-DRY). The single-row
+// classification lives in zellijsession, shared with the title poller (#420).
 
 // familyRows returns the list-sessions rows whose session name is exactly
 // familyPrefix or begins with familyPrefix+"-" (the pair-<base>* family), in
