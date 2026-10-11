@@ -1,10 +1,19 @@
 ---
 id: 000446
-status: working
+status: codecomplete
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
 github_issue:
+started: 2026-10-11T11:57:39-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
+actual_hours: 0.38
 tracker:
     version: 1
     handoff:
@@ -17,14 +26,11 @@ tracker:
         source_blob: d860741b077260f07755bd7d2638dc4e0414085e
         destination: workshop/issues/000446-broadcast-pointer-each-viewer-picks-one-of-six-colors.md
         main_commit: 06d6d4de0b96195217280f70b004f6357f7d75de
-started: 2026-10-11T11:57:39-07:00
-claimant:
-    operator: Xian Xu
-    machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: MacBook Pro
-    workspace: pair:2
-    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
-    repository: github.com/xianxu/pair
+    completion:
+        token: close-b962326e0277
+        repository: github.com/xianxu/pair
+        reviewed_head: bc0137b13d3cca228f2c18b9b42c0ad230cd4a5b
+        evidence_commit: dae6db629607063600a4ef63b78d7bf6e811bcad
 ---
 
 # Broadcast pointer: each viewer picks one of six colors
