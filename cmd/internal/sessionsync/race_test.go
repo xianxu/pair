@@ -2,6 +2,7 @@ package sessionsync
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,6 +24,9 @@ func TestHelperSessionSyncWriter(t *testing.T) {
 	}
 	s := &Sync{Ledger: &Ledger{Dir: os.Getenv("SESSIONSYNC_RACE_STORE")}, Now: time.Now, Diff: UnifiedDiff, Canonical: Canonical}
 	_, err := s.Write(WriteRequest{File: file, Section: "Trains", Body: os.Getenv("SESSIONSYNC_RACE_BODY"), IfHash: os.Getenv("SESSIONSYNC_RACE_HASH")})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "writer %q: %T: %v\n", os.Getenv("SESSIONSYNC_RACE_BODY"), err, err)
+	}
 	var r *Refusal
 	switch {
 	case err == nil:
@@ -41,10 +45,12 @@ func TestTwoProcessWritersExactlyOneWins(t *testing.T) {
 	h := r.hash("Trains")
 	start := filepath.Join(t.TempDir(), "go")
 	var cmds []*exec.Cmd
-	for _, body := range []string{"writer one", "writer two"} {
+	var stderr [2]strings.Builder
+	for i, body := range []string{"writer one", "writer two"} {
 		cmd := exec.Command(os.Args[0], "-test.run=^TestHelperSessionSyncWriter$")
 		cmd.Env = append(os.Environ(), "SESSIONSYNC_RACE_FILE="+r.p.File, "SESSIONSYNC_RACE_GO="+start,
 			"SESSIONSYNC_RACE_STORE="+r.sync.Ledger.Dir, "SESSIONSYNC_RACE_HASH="+h, "SESSIONSYNC_RACE_BODY="+body)
+		cmd.Stderr = &stderr[i]
 		if err := cmd.Start(); err != nil {
 			t.Fatal(err)
 		}
@@ -66,7 +72,7 @@ func TestTwoProcessWritersExactlyOneWins(t *testing.T) {
 	}
 	sort.Ints(codes)
 	if codes[0] != 0 || codes[1] != ExitStale {
-		t.Fatalf("exit codes %v, want one winner and one stale", codes)
+		t.Fatalf("exit codes %v, want one winner and one stale; writers said:\n%s", codes, stderr[0].String()+stderr[1].String())
 	}
 	got := r.read(r.p.File)
 	if strings.Contains(got, "writer one") == strings.Contains(got, "writer two") {
