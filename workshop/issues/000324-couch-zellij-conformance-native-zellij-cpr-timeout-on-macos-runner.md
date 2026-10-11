@@ -1,12 +1,22 @@
 ---
 id: 000324
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-24
-updated: 2026-09-24
+updated: 2026-10-10
 estimate_hours:
-card_mirror: 'b972d5f78bc86def79140318286f878855076d5f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '37ef71af452d2a679503c2caaf1a0cb588ec4793' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-10T17:22:24-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "822a7291", done: "4ee62c6c"}
+actual_hours: 1.44
 ---
 
 # couch-zellij-conformance: native zellij CPR timeout on macOS runner
@@ -61,9 +71,28 @@ then either fix the harness or bound the check so it stops red-flagging PRs:
 - The root cause is recorded in `## Log` with the runner evidence that proves it.
 - Any stopgap (non-blocking job) is removed in the same issue.
 
+## Revisions
+
+- **2026-10-10, scope (ops:0).** Fixing step 1 exposed step 2's stale couchcore
+  live fixtures (since #355 M1, CI run 38099182884). ops:0 first folded them in
+  (fixture-only). It then narrowed the scope, because three cases fail past
+  ownership on product semantics. #324 now covers the step-1 root cause and the
+  fixture modernization. The three by-name exclusions
+  (`TestParkLifecycleLive`, `TestContinuationZellijSeedTransportLive`,
+  Recovery/checkpoint) and their resolution move to pair#432, whose Done-when
+  removes them. The job stays blocking (no continue-on-error).
+
 ## Plan
 
-- [ ]
+- [x] Capture zellij's own log on the runner (failure-only workflow step).
+- [x] Probe layout application on the runner across argv/env/order variants.
+- [x] Reproduce locally with a fresh HOME; fix the fixture with `--config-dir`.
+- [x] Verify on CI: step 1 (native terminal conformance) green.
+- [x] Modernize the couchcore live fixtures for #355 ownership evidence
+      (`AddOwnerWrapperPane`, `standInPaneScript`).
+- [x] Exclude the three cases that still fail by name, pointing to pair#432.
+- [x] `couch-zellij-conformance` green on the branch (dispatch run 38102384802);
+      the PR check gates the merge, without `--no-validate`.
 
 ## Log
 
@@ -72,3 +101,49 @@ then either fix the harness or bound the check so it stops red-flagging PRs:
 - Filed from the #321 ship session. Diagnosis via `gh run list/view` across
   runs 36088997227, 36066248730, 35966937282, 35914082673, 35453653409, plus a
   local run of `TestNativeConsoleWrapperZellij` with `PAIR_LIVE_COUCH_NATIVE=1`.
+
+### 2026-10-10
+- 2026-10-10: closed — Re-close after close-review advisory fixes (wording, stubDir set only after setup succeeds). Root cause: a fresh runner HOME has no ~/.config/zellij, so zellij runs as first-run, starts its default layout and ignores --new-session-with-layout; fixture now pins --config-dir (runs 38098381103, 38098825873, local HOME=$(mktemp -d) repro). #355 fixture modernization; three cases excluded by name pending pair#432. PR #232 checks green: conformance run 38104095120 (both steps), merge-check pass. Local make test-couch-zellij-live green after the fixes. Remaining make test / go test ./... failures reproduce identically on origin/main.; review verdict: SHIP
+- 2026-10-10: closed — Root cause proven on CI and locally. A fresh runner HOME has no ~/.config/zellij, so zellij runs as first-run and starts its default layout, ignoring --new-session-with-layout. Evidence: run 38098381103 (zellij.log loads tab-bar/status-bar), probe run 38098825873, local HOME=$(mktemp -d) reproduces both timeouts. Fix: fixture passes --config-dir. CI run 38099182884: step 1 green. #355 fixture modernization (AddOwnerWrapperPane, standInPaneScript): Recovery/warm green; three cases excluded by name pending pair#432 (ops:0 direction). Dispatch run 38102384802: whole couch-zellij-conformance job green (both steps). Local make test-couch-zellij-live green 2/2. Full make -k test: only test-changelog (green with scratchpad TMPDIR) and test-pair-embedded-runtime (same PAIR_DATA_DIR conflict on origin/main) fail. go test ./...: only failures reproduced identically on origin/main (artifactpath classification, couchcmd continuation writer, couchcore spawn boundary, gcruntime locator, 5 launcher tests); TestConformanceWorkflowRunsWithoutSiblingMakefile regressed by my recipe comment, now fixed and passing.; review verdict: SHIP
+
+- **Root cause (step 1).** Zellij 0.45.1 on macOS resolves its config dir from
+  HOME (`~/.config/zellij`), ignoring XDG_CONFIG_HOME. On a fresh runner HOME
+  that dir is absent, which zellij treats as a first run: it starts its
+  **default layout** (tab-bar + status-bar + `$SHELL`) and ignores
+  `--new-session-with-layout`, even with `--config FILE`. The fixture never
+  ran, so no receipts and no CPR. Not slowness: the default layout was up in
+  under 0.2s.
+  - Evidence: run 38098381103's zellij.log loads `tab-bar`/`status-bar`
+    plugins (local log loads only `link`); the child bytes show
+    `bash-3.2$` under a `Zellij (pcn-…) Tab #1` bar.
+  - Run 38098825873 (probe, test argv repeated): the first two launches got
+    the default layout; one launch *without* `--config` wrote
+    `~/.config/zellij/config.kdl`, and every later launch with the exact test
+    argv applied the layout. Locally, `HOME=$(mktemp -d)` reproduces both
+    subtest timeouts exactly; a private `--config-dir` (even empty) fixes it.
+  - It was never the binary: the release tarball zellij passes locally.
+  - Production is unaffected: `launcher.OSRuntime.LaunchSession` already
+    passes `--config-dir`. Only the native fixture omitted it.
+- **Fix:** `terminal_native_test.go` passes `--config-dir` to a private dir
+  holding its config. Verified locally (fresh HOME, release zellij, `-race`:
+  both subtests PASS) and on CI run 38099182884: step 1 green, both
+  `TestNativeConsoleWrapperZellij` subtests PASS. Kept a failure-only
+  "Dump Zellij logs" step as permanent diagnostics.
+- **Discovery (step 2).** With step 1 green, `test-couch-zellij-live` ran on CI
+  for the first time in weeks and fails: `TestParkLifecycleLive`,
+  `TestContinuationZellijSeedTransportLive`,
+  `TestRecoveryRealHelperAndSessionConformanceLive` — "ownership unresolved:
+  no live Pair wrapper or draft owner evidence". They fail locally with a real
+  HOME too, so this is code, not runner: #355 M1 (df48593b, 2026-09-30) made
+  `ClassifySessionOwner` require a live `pair wrap`/`nvim` pane command, and
+  these fixtures were never updated because step 1 masked step 2.
+- Fixture modernization: `pairlifecycletest.ControlledZellij.AddOwnerWrapperPane`
+  opens a live `pair wrap --scrollback-log <raw>` pane. Zellij reports the
+  running argv, so `pair` is a symlink to /bin/sh that runs a sleeping `wrap`
+  script and keeps that argv. Stand-in agent panes now launch through
+  `standInPaneScript`, so neither JSON nor `$` reaches the argv parser.
+  Recovery/warm passes. The remaining three are filed as pair#432 with their
+  evidence, and excluded by name in `Makefile.local`.
+- Local `make -f Makefile.local test-couch-zellij-live`: green 2 of 2 with the
+  exclusions. One earlier run failed Recovery/warm with no captured message. It
+  passed 3/3 alone and 4/4 in the combined selection. Watch for flakiness on CI.

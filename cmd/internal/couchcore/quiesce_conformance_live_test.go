@@ -18,6 +18,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -96,4 +98,22 @@ func indexSessionForConformance(t *testing.T, dataDir string, address ThreadAddr
 	if _, err := f.WriteString(line + "\n"); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// standInPaneScript writes a launcher for a test-binary stand-in agent pane.
+// Session ownership probes parse each pane's running argv: they refuse shell
+// operators and `$`, and read JSON's quotes as shell quoting, which splits the
+// argv wrongly (launcher.ClassifySessionOwner, #355). The
+// script carries the environment and execs the binary, so the pane's argv is
+// only the binary and an unanchored -test.run prefix.
+func standInPaneScript(dir string, env []string, executable, test string) (string, error) {
+	quote := func(v string) string { return "'" + strings.ReplaceAll(v, "'", `'\''`) + "'" }
+	var b strings.Builder
+	b.WriteString("#!/bin/sh\nexec env")
+	for _, entry := range env {
+		b.WriteString(" " + quote(entry))
+	}
+	b.WriteString(" " + quote(executable) + " " + quote("-test.run=^"+test) + "\n")
+	path := filepath.Join(dir, "stand-in-"+test+".sh")
+	return path, os.WriteFile(path, []byte(b.String()), 0o700)
 }

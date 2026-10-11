@@ -87,7 +87,15 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	}
 	receipts := filepath.Join(dir, "receipts")
 	fixture := write("codex", "#!"+python+"\n"+nativeAgentFixture, 0700)
-	config := write("config.kdl", "host_notification_protocol \"osc9\"\npane_frames false\nshow_startup_tips false\nshow_release_notes false\non_force_close \"quit\"\n", 0600)
+	// Zellij resolves its config dir from HOME, not XDG, on macOS. When that
+	// dir does not exist (a fresh CI runner, pair#324) it treats the launch as
+	// a first run and starts its default layout, ignoring
+	// --new-session-with-layout. Production pins --config-dir
+	// (launcher.OSRuntime.LaunchSession), so this fixture does the same.
+	if err := os.Mkdir(filepath.Join(dir, "zellij-config"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	config := write("zellij-config/config.kdl", "host_notification_protocol \"osc9\"\npane_frames false\nshow_startup_tips false\nshow_release_notes false\non_force_close \"quit\"\n", 0600)
 	layoutBody := fmt.Sprintf("layout { pane borderless=true command=%q { args \"wrap\" \"--scrollback-log\" %q %q %q; }; }\n", binary, filepath.Join(dir, "scrollback"), fixture, receipts)
 	if !wrapped {
 		layoutBody = fmt.Sprintf("layout { pane borderless=true command=%q { args %q; }; }\n", fixture, receipts)
@@ -121,7 +129,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	runner := &couchcore.PtyRunner{Size: con.ChildSize, Sink: con.Deliver, Environment: func() ([]string, error) {
 		return profileEnv, nil
 	}}
-	handle, err := runner.Start(dir, []string{zellij, "--session", session, "--config", config, "--new-session-with-layout", layout, "--data-dir", filepath.Join(dir, "data")}, env)
+	handle, err := runner.Start(dir, []string{zellij, "--session", session, "--config-dir", filepath.Dir(config), "--config", config, "--new-session-with-layout", layout, "--data-dir", filepath.Join(dir, "data")}, env)
 	if err != nil {
 		t.Fatal(err)
 	}
