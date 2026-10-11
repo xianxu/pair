@@ -1,6 +1,6 @@
 ---
 id: 000428
-status: codecomplete
+status: done
 created: 2026-10-10
 updated: 2026-10-10
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 6beabf6c64e7a709616082178e224af0b65d073c
         evidence_commit: 0558e592776a9f635322b616cc28fb71c6420e48
+        landed_commit: 79c8b06234b4a949b7d3e007f9517c572622cf58
 ---
 
 # peer delivery: only real keystrokes interrupt a delivery; mouse and terminal reports don't
