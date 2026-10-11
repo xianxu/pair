@@ -47,7 +47,7 @@ Durable plan: `workshop/plans/000442-slot-creation-size-each-step-s-timeout-to-t
 - [x] Write budget (`WriteTimeout`, 2 min) for `worktree add` / `worktree repair`; identity probe unchanged (see Revisions).
 - [x] `ProvisionCommandError` names command + budget + timed-out; the advice names the step; a blocking outcome is recorded at `<common>/couch-workspaces/N/last-failure.json`, cleared on success, shown by `couch --show`.
 - [x] Tests for the Done-when rows (`provision_budget_test.go`).
-- [ ] Full `make test`; create parley.nvim:3 live.
+- [x] Full `make test`; create parley.nvim:3 live.
 
 ## Revisions
 
@@ -65,3 +65,10 @@ Durable plan: `workshop/plans/000442-slot-creation-size-each-step-s-timeout-to-t
 - No other step between set-upstream and worktree-add runs a command that could take 5 s.
 
 ### 2026-10-11
+
+### 2026-10-11 — verification
+- New tests pass; mutation (worktree add back on the probe budget) fails `TestWorktreeAddUsesWriteBudget`.
+- Full `go test ./...` unsandboxed: couchcore green after moving the record path off `SlotLayout` (`TestSlotLayoutMethodsBelongToOneResource` caught a method that isn't a resource location). Remaining failures are pre-existing or environmental: launcher `TestLaunchNative*`/`TestCheckpoint*` and sessionsync `TestTwoProcessWritersExactlyOneWins` fail on origin/main too; couchcmd `TestContinuationWriterPublishesExactCheckpointAcrossWorktrees` fails on its fixture's missing `origin` and the inherited `PAIR_DATA_DIR` scope.
+- `make -k test`: only `test-review` (Lua review-window) fails, and it fails identically on origin/main.
+- Live: `couch --show parley.nvim:3` (this branch's binary) showed env/branch/upstream present with the plan `worktree-add host on main-slot3`, matching the forensics. `couch --reconcile parley.nvim:3` → `parley.nvim:3 created` in 23 s (worktree add + weave compile), with no manual cleanup.
+
