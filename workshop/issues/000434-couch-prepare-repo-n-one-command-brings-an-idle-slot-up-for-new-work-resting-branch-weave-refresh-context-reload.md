@@ -15,7 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "4b07914a", done: "dd4e623d"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # couch --prepare repo:N: one command brings an idle slot up for new work (resting branch, weave refresh, context reload)
@@ -59,6 +59,10 @@ Durable plan: `workshop/plans/000434-couch-prepare-repo-n-one-command-brings-an-
 
 ## Log
 
+
+
+- 2026-10-11: closed — Round 2 after FIX-THEN-SHIP round 1: BR-1 README listing added; minors fixed (recheck uses ProbeSlotGit status+ParseSlotGitStatus so untracked counts, new pure SlotGitChangedPaths + test, prepare-specific uncertain admission text + CLI test, stale comment). Tests: couchcore prepare/admission/slotgit subset ok, full couchcore ok earlier (1166s standalone, exceeds go test ./... default timeout), couchcmd full package ok, couchmessage/couchtty/wrapcmd ok after merging origin/main. make -k test: only known test-changelog (passes with scratchpad TMPDIR). Pre-existing on main: artifactpath inventory (new files now inventoried), gcruntime TestCouchReferencesLocalArchiveLocatorRoundTrip, couchcmd TestColdResumeOfAParkedPrimaryRegistersFromBothOrigins (flaky, failed twice on clean origin/main).; review verdict: SHIP
+- 2026-10-11: flow upgraded quick → full — 461 added lines in code files (limit 100); an earlier round of this close already ran the full review
 ### 2026-10-10
 - Design: weave refresh runs in the CLI process, not on Couch's serial console queue (it would block every console operation for minutes). The remote half is an admission-only `prepare` slot operation plus the existing `reload-context`.
 
