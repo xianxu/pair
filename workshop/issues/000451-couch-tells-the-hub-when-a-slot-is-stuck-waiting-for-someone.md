@@ -38,8 +38,8 @@ Couch already watches each slot's terminal (`--peek`, `LastActivity`, composer s
 
 Durable plan: `workshop/plans/000451-couch-tells-the-hub-when-a-slot-is-stuck-waiting-for-someone-plan.md`.
 
-- [ ] Pure waiting classifier over memory facts + the slot's screen tail (Task 1).
-- [ ] Watcher on the message service; one notice per episode, from the waiting slot to the hub (Task 2).
+- [x] Pure waiting classifier over memory facts + the slot's screen tail (Task 1).
+- [x] Watcher on the message service; one notice per episode, from the waiting slot to the hub (Task 2).
 - [ ] Atlas + couch skill; full tests; live check that ops:0 receives a notice (Task 3).
 
 ## Log
@@ -47,3 +47,9 @@ Durable plan: `workshop/plans/000451-couch-tells-the-hub-when-a-slot-is-stuck-wa
 ### 2026-10-11
 
 - Design: supervisor-side watcher, no wrapper protocol change. Waiting = quiet (LastActivity) past threshold AND (unsettled | turn ended with `?` | idle off resting with nothing pending). Hub is not watched (#441 strict form). Opt-out file `<store>/wait-notice-off`; threshold `COUCH_WAIT_NOTICE_AFTER`. ARCH-FUNERAL: episode map in memory, pruned per tick.
+- Measured before designing: `LastActivity` moves on any output or keystroke; live `couch --actors --json` showed idle Claude/Codex slots 6–45 min quiet, so a dialog or an idle composer is byte-quiet. ariadne:1 was a real stuck slot at the time (off resting, settled, "waiting on the operator to commit").
+- Implemented `cmd/internal/couchcmd/wait_notice.go`: pure `classifyWait`/`lastProseLine`/`dialogTitle` and `waitWatcher` (1-min tick, started in `startMessageService`). The notice is a `Broker.Send` from the waiting slot to the hub's exact slot. Invalid `COUCH_WAIT_NOTICE_AFTER` falls back to 10m without a log line (no supervisor log seam on this path).
+- Tests: table tests on live-shaped Claude/Codex tails; `serviceRig` integration tests (real sockets and broker, hello-v2 wrappers reporting Settled, hub also sitting on a dialog): one notice per episode for a dialog, a new episode re-notifies, question notifies, normal end on resting doesn't, idle off resting notifies, muted slot and no-hub are silent. Mutation-checked: dropping the hub skip fails 4 tests; dropping the once-per-episode check fails 2.
+- Added `wait_notice.go` to the artifactpath exhaustive inventory (reads the mute list, writes nothing).
+- Full run: five-var scrub `make -k test` (Go included) is green except `TestProductionArtifactReferencesAreExactlyClassified`, which passes after the inventory entry.
+
