@@ -1,20 +1,22 @@
 ---
 id: 000428
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-10
 updated: 2026-10-10
 estimate_hours:
-card_mirror: 'fcfe213dfadfd35f513583a6a29eba0c7a94e6e8' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '9566bd440fba65998299e85e5f9de5a18ecdada4' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-10T13:16:30-07:00
 claimant:
     operator: Xian Xu
     machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: Xian’s MacBook Pro
-    workspace: pair:3
-    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    machine_name: MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
+actual_hours: 0.93
 ---
 
 # peer delivery: only real keystrokes interrupt a delivery; mouse and terminal reports don't
@@ -71,11 +73,26 @@ keeps pair#427's "pair renders, never classifies" principle.
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000428-peer-delivery-only-real-keystrokes-interrupt-a-delivery-mouse-and-terminal-reports-don-t-plan.md`.
+
+- [x] keystroke classifier (peer mode) + table tests + kink 47 regression
+- [x] lone-ESC flush resolves the partial frame + test
+- [x] viewport probe (zellij dump-screen aligned to the model; cursor row visible) gates the paste + tests
+- [x] draft-paste hold during Delivering (≤1 s) with ordered, gap-preserving release + tests
+- [x] atlas/couch.md: operator input for delivery, viewport and draft-hold rules
+- [x] full make test (see Log); the live smoke (scroll up → held, scroll back → delivered; draft send mid-delivery) is handed to the ops TL with the landing report, since it needs relaunched wrappers
 
 ## Log
 
 ### 2026-10-10
+- 2026-10-10: closed — Round 1 fixes landed (BR-1 test waits for hold end + tail, 30/30 -race; BR-2 atlas reworded; BR-3 explicit held-input paste gate). wrapcmd full package green unsandboxed. Earlier: classifier table x29 through admitInput+dispatchPeer, kink-47 regression, lone-ESC flush, draft hold ordered+bounded, viewport gate; live zellij dump aligns with vt model at k=0..300. make -k test shell suites green except known test-changelog TMPDIR + embedded-runtime env leak (both pass clean); go test ./... failures only in packages not importing wrapcmd.; review verdict: SHIP
+- 2026-10-10: flow upgraded quick → full — 487 added lines in code files (limit 100); an earlier round of this close already ran the full review
+
+- **Kink 47 measured (pair:2).** In ops:0's wrap-events (stdin is hashed), during delivery `4d5ff954` (queued 13:05:35.69): `ESC[I` at 13:05:40.853, **`ESC[13;3u` (kitty Alt+Enter) at 13:05:46.656**, and `ESC[O` at 13:05:47.364. Claude logged the message 26 ms after the Alt+Enter. So the "interrupt" was the operator's own submit after the pre-#427 stall. That pane had no mouse reports all day: its Claude never enables mouse tracking (output modes `?2004 ?1004 ?2031 ?2026 ?25` only), so zellij scrolls natively. `?2031h` does invite unsolicited color-scheme reports (`ESC[?997;Nn`), which the classifier now covers.
+- Live alignment check: zellij's `dump-screen` of this slot's Claude pane, matched against a vt model fed its scrollback raw, aligns at shift 0. Slicing `dump-screen --full` at k = 1…300 rows gives consistent shifts, with a constant offset from output that landed between the two captures. Whitespace normalization absorbs the NBSP and padding differences.
+- Full `go test -race` on wrapcmd: the only failures are sandbox `/tmp` denials and a race inside `codexCouchRendered`'s test helper, unrelated to this change.
+- zellij 0.45 `dump-screen -p` returns the *scrolled* viewport, while `list-panes` cursor coordinates don't change with scroll. Output while scrolled does not snap zellij's viewport (probed in a background session).
+- **Close review round 1 (FIX-THEN-SHIP):** BR-1 fixed: the draft-hold test waits for the hold to end and for the replayed focus-out tail, instead of reading `holding` once (it was flaky about 1 in 20; now 30/30 under -race). BR-2 fixed: the atlas now says a keystroke never starts a hold, but input during a hold queues behind it. BR-3 (Minor) taken: dispatch doesn't paste while held input is queued (an explicit gate). BR-4/5 (Minor) accepted as-is. The zellij seam has a fake via `viewProbe`, and its 0.45 behaviour is measured in the Log. The viewport scan runs at most once per 500ms, and only while a delivery waits.
 
 ## Revisions
 

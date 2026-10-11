@@ -290,6 +290,34 @@ still-booting Claude.
 - **Before the paste** the gates are unchanged. No other automatic input is in
   flight, no operator keystroke arrived in the last second, bracketed paste is
   on, and a recognized composer reads empty. Unknown or occupied composers wait.
+- **Operator input means keystrokes (pair#428).** The wrapper classifies its
+  own stdin (`orientationReplies.operatorKeystrokes`), never the agent's screen.
+  Text, control and editing keys, kitty/legacy key encodings and an operator's
+  bracketed paste count. Focus events, mouse reports (SGR, urxvt, X10) and
+  terminal reports do not, whether solicited or not. Those reports are
+  DA/DECRPM/DSR, color-scheme `?997;N n`, kitty flags, window `t`, and OSC/DCS
+  replies. A CPR (`CSI r;c R`) is a report only when solicited, because
+  modified F3 looks the same. Those bytes still reach the agent unchanged. A
+  lone ESC resolves as a key at the 30ms flush, so it no longer stalls a
+  delivery. Orientation keeps its stricter rule, where anything unsolicited is
+  input. Other panes can't block: each has its own PTY. A draft send reaches
+  this stdin only as focus events and its paste.
+- **The composer must be in view (pair#428).** Before pasting, the wrapper
+  aligns zellij's scrolled viewport (`dump-screen -p terminal_$ZELLIJ_PANE_ID`)
+  with its own model's scrollback and screen (`peer_viewport.go`). It pastes
+  only while the cursor row is in view, so a small scroll doesn't block. A
+  delivery never yanks the view from scrollback the operator is reading: it
+  waits and goes when they scroll back. One reading lasts 500ms and is taken
+  off the dispatch locks. When the wrapper can't judge (no zellij, a failed
+  dump, no alignment), the composer counts as in view.
+- **A draft send waits for a delivery in flight (pair#428).** Between the
+  robot's paste and its confirmation, an operator chunk that opens a bracketed
+  paste is held, along with everything after it. The hold lasts at most
+  `PeerDraftHold` (1s). The held input is then replayed with its original
+  spacing, so the draft's paste, settle and Alt+Enter keep their rhythm. Both
+  messages submit, in order. Past the cap the paste counts as operator input.
+  In the other direction, a delivery already waits for a draft send through the
+  1s settle and the occupied composer, and it never pastes while held input is still queued. A typed keystroke never starts a hold. Any input that arrives during a hold, keystrokes included, queues behind the held paste to keep order.
 - **Paste, fixed delay, submit:** after the bracketed paste the wrapper waits
   `wrapcmd.PeerSubmitDelay` (150ms; the draft pane uses 100ms), then sends the
   submit key. Past the paste, the poll runs every 50ms instead of every second.
