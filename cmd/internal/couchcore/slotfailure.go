@@ -33,8 +33,10 @@ func AllFailureClasses() []FailureClass {
 // verbatim.
 type ReconcileFailure struct {
 	Resource SlotResourceID
-	Class    FailureClass
-	Cause    string
+	// Step is the converge step that failed (empty for a plan stop).
+	Step  ConvergeStep
+	Class FailureClass
+	Cause string
 }
 
 // weaveSetupActive is weave's own line for a setup already running in the
@@ -46,7 +48,7 @@ const weaveSetupActive = "environment setup is active in"
 // cause shown verbatim (weave's last "Error:" line when it printed one,
 // matched anywhere in a line because weave may prefix the owner).
 func ClassifyConvergeError(step PlannedStep, err error) ReconcileFailure {
-	f := ReconcileFailure{Resource: step.Resource, Class: FailureHandoff, Cause: errorCause(err)}
+	f := ReconcileFailure{Resource: step.Resource, Step: step.Step, Class: FailureHandoff, Cause: errorCause(err)}
 	switch {
 	case errors.Is(err, errAgentAppeared):
 		f.Class, f.Cause = FailureHold, StopReasonAgentLive
@@ -101,25 +103,29 @@ func stopFailure(s PlanStop) ReconcileFailure {
 // when that can help, and otherwise hands the slot to the repository's :0
 // agent. Never "fix it", never a bare "retry".
 func ReconcileAdvice(address, repo string, f ReconcileFailure) string {
+	resource := string(f.Resource)
+	if f.Step != "" {
+		resource += " (step " + string(f.Step) + ")"
+	}
 	switch f.Class {
 	case FailureRetryable:
-		return fmt.Sprintf("slot %s: %s did not converge: %s; run it again when that finishes", address, f.Resource, f.Cause)
+		return fmt.Sprintf("slot %s: %s did not converge: %s; run it again when that finishes", address, resource, f.Cause)
 	case FailureUnknown:
-		return fmt.Sprintf("slot %s: %s could not be observed: %s; nothing depending on it was changed", address, f.Resource, f.Cause)
+		return fmt.Sprintf("slot %s: %s could not be observed: %s; nothing depending on it was changed", address, resource, f.Cause)
 	case FailureHold:
 		switch f.Cause {
 		case StopReasonAgentLive:
-			return fmt.Sprintf("slot %s: %s needs repair, but an agent is working in the slot; reboot the slot to repair it", address, f.Resource)
+			return fmt.Sprintf("slot %s: %s needs repair, but an agent is working in the slot; reboot the slot to repair it", address, resource)
 		case StopReasonAgentUnknown:
 			// Reboot cannot act on an agent it cannot observe either, so the
 			// only action that can succeed is looking again.
-			return fmt.Sprintf("slot %s: %s needs repair, but the slot's agent could not be observed; look again later (couch --show %s)", address, f.Resource, address)
+			return fmt.Sprintf("slot %s: %s needs repair, but the slot's agent could not be observed; look again later (couch --show %s)", address, resource, address)
 		case StopReasonSavedWorkFull:
-			return fmt.Sprintf("slot %s: %s needs repair, but its saved work is full; restore or remove old entries (couch --show %s lists the slot)", address, f.Resource, address)
+			return fmt.Sprintf("slot %s: %s needs repair, but its saved work is full; restore or remove old entries (couch --show %s lists the slot)", address, resource, address)
 		}
-		return fmt.Sprintf("slot %s: %s is on hold: %s", address, f.Resource, f.Cause)
+		return fmt.Sprintf("slot %s: %s is on hold: %s", address, resource, f.Cause)
 	}
-	return fmt.Sprintf("slot %s: %s did not converge: %s. Reconcile cannot fix this; ask the %s:0 agent to investigate (couch --show %s lists every resource)", address, f.Resource, f.Cause, repo, address)
+	return fmt.Sprintf("slot %s: %s did not converge: %s. Reconcile cannot fix this; ask the %s:0 agent to investigate (couch --show %s lists every resource)", address, resource, f.Cause, repo, address)
 }
 
 // Severity says whether an outcome lets an agent work in the slot.
@@ -168,10 +174,15 @@ type SlotReconcileError struct {
 	// SetAside are the checkouts the run moved into saved work before it
 	// stopped: a failure still names what to restore.
 	SetAside []SavedWorkManifest
+	// RecordErr says why the failure could not be kept (pair#442).
+	RecordErr error
 }
 
 func (e *SlotReconcileError) Error() string {
 	text := ReconcileAdvice(e.Address, e.Repo, e.Failure)
+	if e.RecordErr != nil {
+		text += fmt.Sprintf("\nslot %s: this failure could not be recorded: %v", e.Address, e.RecordErr)
+	}
 	for _, m := range e.SetAside {
 		text += fmt.Sprintf("\nslot %s: set aside %s (it could not be read); restore with: %s", e.Address, m.Path, m.Restore)
 	}

@@ -12,15 +12,37 @@ import (
 	"time"
 )
 
+// WorkspaceProvisioner budgets each command by its class (pair#442): a
+// read-only probe gets ProbeTimeout, a git step that writes a checkout
+// (worktree add, worktree repair) WriteTimeout, a fetch FetchTimeout, and
+// weave compile SetupTimeout.
 type WorkspaceProvisioner struct {
-	IO                                       ProvisionIO
-	Store                                    ProvisionStorage
-	ProbeTimeout, FetchTimeout, SetupTimeout time.Duration
+	IO                                                     ProvisionIO
+	Store                                                  ProvisionStorage
+	ProbeTimeout, WriteTimeout, FetchTimeout, SetupTimeout time.Duration
 }
 
 func NewWorkspaceProvisioner(commandIO ProvisionIO) *WorkspaceProvisioner {
-	return &WorkspaceProvisioner{IO: commandIO, Store: ProvisionStore{}, ProbeTimeout: 5 * time.Second, FetchTimeout: 120 * time.Second, SetupTimeout: 20 * time.Minute}
+	return &WorkspaceProvisioner{IO: commandIO, Store: ProvisionStore{}, ProbeTimeout: 5 * time.Second, WriteTimeout: 2 * time.Minute, FetchTimeout: 120 * time.Second, SetupTimeout: 20 * time.Minute}
 }
+
+// ProvisionCommandError names the command that failed and its budget, so a
+// failure report says which command ran out of time (pair#442). Err keeps
+// the cause (with its stderr tail) for errors.Is/As.
+type ProvisionCommandError struct {
+	Command  string
+	Timeout  time.Duration
+	TimedOut bool // the command's own budget expired, not the caller's context
+	Err      error
+}
+
+func (e *ProvisionCommandError) Error() string {
+	if e.TimedOut {
+		return fmt.Sprintf("%s: timed out after %s: %v", e.Command, e.Timeout, e.Err)
+	}
+	return fmt.Sprintf("%s: %v", e.Command, e.Err)
+}
+func (e *ProvisionCommandError) Unwrap() error { return e.Err }
 
 type provisionHost struct {
 	identity        WorkspaceIdentity
@@ -35,10 +57,23 @@ func (p *WorkspaceProvisioner) command(ctx context.Context, dir, program string,
 	if lease != nil && program == "git" {
 		c.Lease = lease.File()
 	}
-	return p.IO.Run(ctx, c)
+	out, err := p.IO.Run(ctx, c)
+	if err != nil {
+		err = &ProvisionCommandError{Command: strings.Join(append([]string{program}, args...), " "), Timeout: timeout,
+			TimedOut: timeout > 0 && ctx.Err() == nil && errors.Is(err, context.DeadlineExceeded), Err: err}
+	}
+	return out, err
 }
 func (p *WorkspaceProvisioner) git(ctx context.Context, dir string, lease *HostCreationLease, args ...string) (string, error) {
-	raw, err := p.command(ctx, dir, "git", args, lease, nil, p.ProbeTimeout)
+	return p.gitWithin(ctx, p.ProbeTimeout, dir, lease, args...)
+}
+
+// gitWrite runs a git step that writes a checkout: it gets the write budget.
+func (p *WorkspaceProvisioner) gitWrite(ctx context.Context, dir string, lease *HostCreationLease, args ...string) (string, error) {
+	return p.gitWithin(ctx, p.WriteTimeout, dir, lease, args...)
+}
+func (p *WorkspaceProvisioner) gitWithin(ctx context.Context, timeout time.Duration, dir string, lease *HostCreationLease, args ...string) (string, error) {
+	raw, err := p.command(ctx, dir, "git", args, lease, nil, timeout)
 	return strings.TrimSuffix(string(raw), "\n"), err
 }
 func (p *WorkspaceProvisioner) identity(ctx context.Context, path string) (WorkspaceIdentity, error) {
@@ -89,6 +124,9 @@ func (p *WorkspaceProvisioner) Ensure(ctx context.Context, req ProvisionRequest)
 	setAside := SavedWorkManifests(result.SetAside)
 	if blocking != nil {
 		blocking.SetAside = setAside
+		if err := p.recordSlotFailure(layout, blocking); err != nil {
+			blocking.RecordErr = err
+		}
 		return ProvisionResult{}, blocking
 	}
 	host, err := p.verifyHost(ctx, primary, req.Slot, nil)
@@ -100,6 +138,9 @@ func (p *WorkspaceProvisioner) Ensure(ctx context.Context, req ProvisionRequest)
 		return ProvisionResult{}, err
 	}
 	host.baseline = marker.BaselineSHA
+	if err := p.clearSlotFailure(layout); err != nil { // converged and verified
+		warnings = append(warnings, fmt.Sprintf("slot %s: its last failure record could not be cleared: %v", address, err))
+	}
 	disposition := "reused"
 	switch {
 	case !existed:

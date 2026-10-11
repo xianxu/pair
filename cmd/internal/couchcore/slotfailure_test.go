@@ -86,6 +86,15 @@ func TestReconcileAdviceText(t *testing.T) {
 	if text := ReconcileAdvice("tools:1", "tools", ReconcileFailure{Resource: ResourceHost, Class: FailureHold, Cause: StopReasonAgentLive}); !strings.Contains(text, "reboot the slot") {
 		t.Errorf("an agent hold must name reboot: %q", text)
 	}
+	// Every class names the failed step when there is one (pair#442).
+	for _, class := range AllFailureClasses() {
+		for _, cause := range []string{"cause text", StopReasonAgentLive, StopReasonAgentUnknown, StopReasonSavedWorkFull} {
+			f := ReconcileFailure{Resource: ResourceHost, Step: StepWorktreeAdd, Class: class, Cause: cause}
+			if text := ReconcileAdvice("tools:1", "tools", f); !strings.HasPrefix(text, "slot tools:1: host (step worktree-add) ") {
+				t.Errorf("%s/%s: %q does not name the step", class, cause, text)
+			}
+		}
+	}
 }
 
 // TestSetupFailureThroughRealSeam: a weave that prints its missing-substrate

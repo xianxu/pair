@@ -135,9 +135,19 @@ remove it.
 - `<host-git-admin-dir>/couch-setup-success.json` stores initial setup success.
   Publication and owned temporary cleanup briefly reacquire the same creation lock.
   A concurrent valid marker wins. Weave runs outside this lock under its own lock.
-- Commands run sequentially with bounded cancellation. Local probes have 5-second
-  ceilings, fetch 120 seconds, compile 20 minutes. Structured output is capped at
-  1 MiB, records at 16 KiB, in-memory diagnostic tails at 64 KiB.
+- Commands run sequentially with bounded cancellation, budgeted by step class
+  (#442): read-only probes 5 seconds, git steps that write a checkout
+  (`worktree add`, `worktree repair`) 2 minutes, fetch 120 seconds, compile 20
+  minutes. A failed command's error names the command, its budget and whether
+  that budget expired, and the advice names the converge step. Structured output
+  is capped at 1 MiB, records at 16 KiB, in-memory diagnostic tails at 64 KiB.
+- `<common-git-dir>/couch-workspaces/<N>/last-failure.json` keeps the slot's last
+  blocking reconcile (#442): step, resource, class, command, budget, timed-out,
+  and the cause with its stderr tail (head and tail kept, shrunk until the
+  encoded record fits 16 KiB). It is written under the creation lock, replaced
+  by the next failure, and removed once the slot converges and verifies.
+  `couch --show repo:N` prints it as `last failure <time> at <step>: <cause>`.
+  A write that fails is named in the error, never dropped.
 
 Couch never resets, prunes or deletes a worktree, branch, clone or directory. It
 adopts what it finds at a slot's conventional place (#387), removes only its own
