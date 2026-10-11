@@ -158,3 +158,8 @@ parent write blocked well past `WriteTimeout`, then the terminal drains.
   deadline keep failing the presenter, which is correct: the caller asked for
   a bound. `Presenter.Stalls()` counts stalls; wiring a visible notice is left
   out of scope.
+- Considered: the stall-inducing write still holds the presenter for its 5s
+  budget, and probes cost at most 100 ms per painting call. Admission can't
+  overflow into `ErrBackpressure`, which Couch treats as fatal: `p.call` blocks
+  each caller until done, so each calling goroutine holds at most one queued
+  request, and `Present` (endpoint output) is a flag, not a request.
