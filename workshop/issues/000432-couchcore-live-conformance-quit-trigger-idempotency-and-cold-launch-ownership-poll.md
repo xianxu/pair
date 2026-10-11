@@ -83,8 +83,3 @@ conformance job (it runs only live `-run` selections):
 
 - Filed from pair#324 at ops:0's direction, with evidence from CI run
   38099182884 and local runs of the live tests (`PAIR_LIVE_COUCH=1`).
-- #324 close review (advisory): the cold Recovery/checkpoint path reassigns
-  `fixture` (`recovery_conformance_live_test.go`, the restart in
-  `AfterAcknowledge`), so `t.Cleanup` closes only the second session. The first
-  fixture's stub directory leaks. Close both when this case is re-enabled.
-
