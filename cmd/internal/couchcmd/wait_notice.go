@@ -2,6 +2,7 @@ package couchcmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -63,10 +64,12 @@ func classifyWait(f waitFacts, threshold time.Duration, tail []string) (waitReas
 }
 
 var (
-	tailMarkup  = regexp.MustCompile(`‹(/?dim|/?rev|cursor)›`)
-	dimRun      = regexp.MustCompile(`‹dim›.*?(‹/dim›|$)`)
-	optionLine  = regexp.MustCompile(`^[❯›>]?\s*1\.\s`)
-	separatorRe = regexp.MustCompile(`^[─━\-═]+$`)
+	tailMarkup = regexp.MustCompile(`‹(/?dim|/?rev|cursor)›`)
+	dimRun     = regexp.MustCompile(`‹dim›.*?(‹/dim›|$)`)
+	// A dialog's options are numbered; its cursor glyph marks the selected one.
+	selectedOption = regexp.MustCompile(`^[❯›>]\s*\d+\.\s`)
+	optionLine     = regexp.MustCompile(`^[❯›>]?\s*\d+\.\s`)
+	separatorRe    = regexp.MustCompile(`^[─━\-═]+$`)
 )
 
 // stripTailMarkup renders one tail line (tail.go's grammar) as plain text,
@@ -83,17 +86,20 @@ func dimOnly(line string) bool {
 	return stripTailMarkup(dimRun.ReplaceAllString(line, "")) == ""
 }
 
-// dialogTitle is the line above a dialog's first option, or "" without one.
+// dialogTitle is the line above the options of the screen's last dialog (its
+// selected option, scanned from the bottom, so a numbered list earlier in the
+// agent's prose is never taken for one), or "" without a dialog.
 func dialogTitle(tail []string) string {
-	for i, raw := range tail {
-		if !optionLine.MatchString(stripTailMarkup(raw)) {
+	for i := len(tail) - 1; i >= 0; i-- {
+		if !selectedOption.MatchString(stripTailMarkup(tail[i])) {
 			continue
 		}
 		for j := i - 1; j >= 0; j-- {
-			if t := stripTailMarkup(tail[j]); t != "" {
+			if t := stripTailMarkup(tail[j]); t != "" && !optionLine.MatchString(t) {
 				return t
 			}
 		}
+		return ""
 	}
 	return ""
 }
@@ -178,13 +184,18 @@ func parseWaitOptOut(text string) map[string]bool {
 	return out
 }
 
-// waitNoticeThreshold reads COUCH_WAIT_NOTICE_AFTER (a Go duration of at
-// least a minute); anything else is the 10 minute default.
-func waitNoticeThreshold(getenv func(string) string) time.Duration {
-	if d, err := time.ParseDuration(getenv("COUCH_WAIT_NOTICE_AFTER")); err == nil && d >= time.Minute {
-		return d
+// waitNoticeThreshold reads COUCH_WAIT_NOTICE_AFTER, a Go duration of at
+// least a minute; unset is 10 minutes. Anything else refuses Couch's start,
+// so a typo is seen instead of silently becoming the default.
+func waitNoticeThreshold(getenv func(string) string) (time.Duration, error) {
+	v := getenv("COUCH_WAIT_NOTICE_AFTER")
+	if v == "" {
+		return 10 * time.Minute, nil
 	}
-	return 10 * time.Minute
+	if d, err := time.ParseDuration(v); err == nil && d >= time.Minute {
+		return d, nil
+	}
+	return 0, fmt.Errorf("COUCH_WAIT_NOTICE_AFTER=%q: want a Go duration of at least 1m (e.g. 10m), or unset it", v)
 }
 
 // waitTailLines is enough screen for a dialog or a turn's last paragraph.
@@ -235,19 +246,28 @@ func (w *waitWatcher) run(ctx context.Context, every time.Duration) {
 	}
 }
 
-// hubBinding is the connected wrapper in the worktree Couch started from.
+// hubBinding is the connected wrapper in the worktree Couch started from:
+// the registry's newest admitted incarnation of that slot, so a replacement
+// still settling never makes the choice arbitrary.
 func (s *messageService) hubBinding() (couchmessage.Binding, bool) {
-	if s.authority.hub == "" {
-		return couchmessage.Binding{}, false
-	}
+	slot := ""
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	for b, identity := range s.workspaces {
-		if identity.WorktreeRoot == s.authority.hub {
-			return b, true
+		if s.authority.isHub(identity) {
+			slot = b.Slot
+			break
 		}
 	}
-	return couchmessage.Binding{}, false
+	s.mu.Unlock()
+	liveness := s.liveness.Load()
+	if slot == "" || liveness == nil {
+		return couchmessage.Binding{}, false
+	}
+	live, ok := (*liveness)[slot]
+	if !ok || !s.isConnected(live.Binding) {
+		return couchmessage.Binding{}, false
+	}
+	return live.Binding, true
 }
 
 func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
@@ -265,6 +285,7 @@ func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 	}
 	listed := map[couchmessage.Binding]bool{}
 	var muted map[string]bool
+	var muteErr string // a mute list that can't be read is said in the notice
 	for _, row := range rows {
 		b := row.Binding
 		listed[b] = true
@@ -283,7 +304,10 @@ func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 			continue
 		}
 		if muted == nil {
-			text, _ := os.ReadFile(w.optOut)
+			text, err := os.ReadFile(w.optOut)
+			if err != nil && !errors.Is(err, os.ErrNotExist) {
+				muteErr = fmt.Sprintf(" [mute list unreadable: %v]", err)
+			}
 			muted = parseWaitOptOut(string(text))
 		}
 		if muted[b.Slot] {
@@ -308,7 +332,7 @@ func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 		if err != nil {
 			continue
 		}
-		body := waitNoticeBody(b.Slot, f.Quiet, reason, summary, w.optOut)
+		body := waitNoticeBody(b.Slot, f.Quiet, reason, summary, w.optOut) + muteErr
 		// From the waiting slot to the hub's exact slot: the notice is an
 		// ordinary message, so it gets the hub's breaker, delivery and ledger.
 		if _, err := w.svc.broker.Send(ctx, b, id, couchmessage.Route{Target: hub.Slot}, body); err != nil {

@@ -41,7 +41,7 @@ Durable plan: `workshop/plans/000451-couch-tells-the-hub-when-a-slot-is-stuck-wa
 - [x] Pure waiting classifier over memory facts + the slot's screen tail (Task 1).
 - [x] Watcher on the message service; one notice per episode, from the waiting slot to the hub (Task 2).
 - [x] Atlas + couch skill; full tests (Task 3).
-- [ ] Live check that ops:0 receives a notice: needs the operator to restart Couch on the new binary (Task 3).
+- [x] ~~Live check that ops:0 receives a notice~~ moved to #452 (needs an operator-owned Couch restart on the new binary).
 
 ## Log
 
@@ -53,4 +53,9 @@ Durable plan: `workshop/plans/000451-couch-tells-the-hub-when-a-slot-is-stuck-wa
 - Tests: table tests on live-shaped Claude/Codex tails; `serviceRig` integration tests (real sockets and broker, hello-v2 wrappers reporting Settled, hub also sitting on a dialog): one notice per episode for a dialog, a new episode re-notifies, question notifies, normal end on resting doesn't, idle off resting notifies, muted slot and no-hub are silent. Mutation-checked: dropping the hub skip fails 4 tests; dropping the once-per-episode check fails 2.
 - Added `wait_notice.go` to the artifactpath exhaustive inventory (reads the mute list, writes nothing).
 - Full run: five-var scrub `make -k test` (Go included) is green except `TestProductionArtifactReferencesAreExactlyClassified`, which passes after the inventory entry.
+- Close review round 1 (FIX-THEN-SHIP, 4 blocking): BR-1 `dialogTitle` scanned from the top, so a numbered list in prose became the title. It now finds the screen's last *selected* option (cursor glyph) from the bottom and walks above all option lines. BR-2: added a refused-admission retry test (mutation "mark before Send" fails it). BR-3: the live check moved to #452. BR-4: an invalid `COUCH_WAIT_NOTICE_AFTER` now refuses Couch's start before any socket is taken, instead of silently falling back. Minors: `messageAuthority.isHub` is the one hub predicate (allowance + watcher); `hubBinding` takes the registry's newest incarnation; an unreadable mute list is named in the notice.
+
+## Revisions
+
+- 2026-10-11 (close review round 1): Done-when 3 (live TL check) moved to #452, because it needs the operator to restart Couch on the new binary. Spec delta: an invalid threshold refuses the start (it was a silent fallback in the plan).
 

@@ -167,7 +167,18 @@ func (e tailEndpoint) Tail(context.Context, int) (couchmessage.Tail, error) {
 // notify itself in every test.
 type hubInbox struct {
 	tailEndpoint
-	got *[]couchmessage.Message
+	got    *[]couchmessage.Message
+	refuse *int // admissions to refuse before accepting
+}
+
+func (e hubInbox) Reserve(ctx context.Context, _ string, _ uint64) error {
+	e.tailEndpoint.mu.Lock()
+	defer e.tailEndpoint.mu.Unlock()
+	if *e.refuse > 0 {
+		*e.refuse--
+		return couchmessage.ErrRecipientBusy
+	}
+	return ctx.Err()
 }
 
 func (e hubInbox) Deliver(ctx context.Context, m couchmessage.Message, _ func(couchmessage.Receipt)) (couchmessage.Receipt, error) {
@@ -185,6 +196,7 @@ type waitRig struct {
 	mu          sync.Mutex
 	screen      []string
 	delivered   []couchmessage.Message
+	refuse      int
 }
 
 // newWaitRig runs hub pair:1 and a hello-v2 worker pair:2 showing screen.
@@ -195,7 +207,7 @@ func newWaitRig(t *testing.T, settled, resting bool, screen []string) *waitRig {
 	w.hub = w.world.add(1)
 	w.worker = w.world.add(2)
 	hubScreen := claudePermissionTail
-	w.world.endpoints[w.hub] = hubInbox{tailEndpoint: tailEndpoint{lines: &hubScreen, mu: &w.mu}, got: &w.delivered}
+	w.world.endpoints[w.hub] = hubInbox{tailEndpoint: tailEndpoint{lines: &hubScreen, mu: &w.mu}, got: &w.delivered, refuse: &w.refuse}
 	w.world.endpoints[w.worker] = tailEndpoint{lines: &w.screen, mu: &w.mu}
 	w.serviceRig.mu.Lock()
 	w.slotGit["/repo1"] = couchcore.SlotGitStatus{Branch: "main-slot1"}
@@ -324,9 +336,60 @@ func TestWaitNoticeMutedSlotAndHubAreSilent(t *testing.T) {
 }
 
 func TestWaitNoticeThreshold(t *testing.T) {
-	for v, want := range map[string]time.Duration{"": 10 * time.Minute, "2m": 2 * time.Minute, "30s": 10 * time.Minute, "junk": 10 * time.Minute} {
-		if got := waitNoticeThreshold(func(string) string { return v }); got != want {
-			t.Errorf("threshold %q = %v, want %v", v, got, want)
+	for v, want := range map[string]time.Duration{"": 10 * time.Minute, "2m": 2 * time.Minute, "30s": 0, "junk": 0} {
+		got, err := waitNoticeThreshold(func(string) string { return v })
+		if got != want || (err != nil) != (want == 0) {
+			t.Errorf("threshold %q = %v, %v; want %v", v, got, err, want)
+		}
+	}
+}
+
+// A refused admission (hub busy, out of allowance) leaves the episode
+// unannounced; the next tick sends it.
+func TestWaitNoticeRetriesAfterARefusedAdmission(t *testing.T) {
+	w := newWaitRig(t, false, false, claudePermissionTail)
+	w.mu.Lock()
+	w.refuse = 1
+	w.mu.Unlock()
+	if got := w.tickAt(11 * time.Minute); len(got) != 0 {
+		t.Fatalf("refused admission delivered: %+v", got)
+	}
+	if got := w.tickAt(12 * time.Minute); len(got) != 1 {
+		t.Fatalf("retry sent %d notices, want 1", len(got))
+	}
+}
+
+// A mute list Couch cannot read mutes nothing, and the notice says so.
+func TestWaitNoticeSaysWhenTheMuteListIsUnreadable(t *testing.T) {
+	w := newWaitRig(t, false, false, claudePermissionTail)
+	if err := os.Mkdir(w.watcher.optOut, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if got := w.tickAt(11 * time.Minute); len(got) != 1 || !strings.Contains(got[0].Body, "[mute list unreadable: ") {
+		t.Fatalf("notices %+v", got)
+	}
+}
+
+func TestDialogTitleIgnoresNumberedProse(t *testing.T) {
+	cursorOnTwo := []string{
+		"Plan:",
+		"1. run tests",
+		"2. push",
+		"",
+		"Do you want to proceed?",
+		"  1. Yes",
+		"❯ 2. No, and tell Claude what to do (esc)",
+	}
+	for _, c := range []struct {
+		tail []string
+		want string
+	}{
+		{cursorOnTwo, "Do you want to proceed?"},
+		{append([]string{"Plan:", "1. run tests", "2. push", ""}, claudePermissionTail...), "Do you want to proceed?"},
+		{[]string{"Plan:", "1. run tests", "2. push"}, ""},
+	} {
+		if got := dialogTitle(c.tail); got != c.want {
+			t.Errorf("dialogTitle(%q) = %q, want %q", c.tail, got, c.want)
 		}
 	}
 }

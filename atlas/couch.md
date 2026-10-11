@@ -417,7 +417,8 @@ report it. `waitWatcher` (`couchcmd/wait_notice.go`) ticks once a minute on
 the message service and tells the hub instead.
 - **Inputs are memory:** the broker listing (`LastActivity`, `Pending`, the
   slot-git resting view) and the registry's `Settled` (#421). A slot quiet past
-  the threshold (`COUCH_WAIT_NOTICE_AFTER`, at least 1m, default 10m) with a
+  the threshold (`COUCH_WAIT_NOTICE_AFTER`, at least 1m, default 10m; any
+  other value refuses Couch's start) with a
   Settled claim costs one tail read from its own wrapper (the peek path); a
   nil Settled (pre-hello-v2 wrapper) is unknown and never waiting.
 - **Waiting (`classifyWait`):** unsettled (a dialog, a draft, a stuck
@@ -426,7 +427,8 @@ the message service and tells the hub instead.
   in flight. Settled on the resting branch after a normal ending is not.
   `lastProseLine` reads above the composer prompt (`❯`/`›`) and skips chrome
   paragraphs (`✻` summary, `※` recap, all-faint runs, separators);
-  `dialogTitle` is the line above a `1.` option. Couch judges; Pair still only
+  `dialogTitle` is the line above the options of the last selected option
+  (`❯ N.`), scanned from the bottom so numbered prose never counts. Couch judges; Pair still only
   renders (tail.go).
 - **Episode:** keyed by the slot's `LastActivity`; one notice per episode once
   admitted, a failed admission retries next tick. Not-waiting verdicts are
@@ -435,12 +437,14 @@ the message service and tells the hub instead.
   the service; a Couch restart re-announces a slot still waiting, once.
 - **Delivery:** `Broker.Send` from the waiting slot's binding to the hub's
   exact slot (`messageService.hubBinding`, the connected binding in
-  `messageAuthority.hub`), so the hub's breaker, delivery and ledger apply
+  `messageAuthority.hub`; the registry's newest incarnation of that slot),
+  so the hub's breaker, delivery and ledger apply
   unchanged. The body puts `slot repo:N waiting M min <reason>` first (pair#211).
 - **Not watched:** the hub itself (its operator is the one it would tell;
   the strict form of #441's self-addressed rule), and slots listed in
   `<store>/wait-notice-off` (one `repo:N` per line, `#` comments; the
-  operator's file, Couch only reads it). No hub connected, no notices.
+  operator's file, Couch only reads it; if unreadable it mutes nothing and
+  the notice says so). No hub connected, no notices.
 
 ### Session-sync files and the delivery ledger (#437, #439)
 

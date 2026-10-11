@@ -100,3 +100,7 @@ Evaluate each connected, non-hub actor whose broker row is `Known` and whose `Se
 - [ ] `cmd/internal/couchcmd/skills/couch/SKILL.md`: tell the TL what a `slot X waiting …` notice is and how to mute a slot.
 - [ ] `make build`, full `make -k test` + `go test ./...` (scratchpad TMPDIR), compare failures with main.
 - [ ] Live: in pair:0 build, restart Couch (operator), leave a slot on a question/dialog past the threshold (or `COUCH_WAIT_NOTICE_AFTER=1m`), confirm ops:0 receives one notice. Ask the operator to confirm.
+
+## Revisions
+
+- 2026-10-11 (close review round 1): `COUCH_WAIT_NOTICE_AFTER` that is not a duration ≥1m refuses Couch's start, validated before any socket is taken. This replaces "fall back to the default with a log line": the start path has no log seam, and a silent fallback hides a typo. `dialogTitle` keys on the last selected option (`[❯›>] N.`), scanned from the bottom. The live check moved to #452.
