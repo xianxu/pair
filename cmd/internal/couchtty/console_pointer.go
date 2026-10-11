@@ -34,8 +34,15 @@ type pointerMarks struct {
 	timer *time.Timer
 }
 
-// overlay draws the marks on a public frame; a private frame (the switcher)
-// is never marked. It runs on the Presenter goroutine.
+// screenOverlay draws what the collaboration layer adds to a public frame:
+// sticky notes, then marks over them. A private frame (the switcher) gets
+// neither. It runs on the Presenter goroutine.
+func (c *Console) screenOverlay(f terminal.Frame, class terminal.FrameClass) terminal.Frame {
+	return c.markOverlay(c.noteOverlay(f, class), class)
+}
+
+// markOverlay draws the marks on a public frame; a private frame (the
+// switcher) is never marked. It runs on the Presenter goroutine.
 func (c *Console) markOverlay(f terminal.Frame, class terminal.FrameClass) terminal.Frame {
 	if class != terminal.FramePublic {
 		return f
@@ -85,6 +92,7 @@ func (c *Console) onPointerClick(right bool) {
 	c.mu.Lock()
 	c.pointer = pointerOn
 	c.mu.Unlock()
+	c.resyncNotes(s)
 	c.copyLink(link)
 	// The notice never contains the link: it would be drawn into the frames
 	// being broadcast.
@@ -121,7 +129,10 @@ func (c *Console) pointerOff(notice string) {
 	if c.pointer == pointerOn {
 		c.pointer = pointerOff
 	}
+	s := c.bcast.session
 	c.mu.Unlock()
+	// The session already emptied its board; take that, notes and version.
+	c.resyncNotes(s)
 	c.clearMarks()
 	c.setNotice(notice)
 }
@@ -224,4 +235,5 @@ func (c *Console) resetPointer() {
 		c.pmarks.timer = nil
 	}
 	c.pmarks.mu.Unlock()
+	c.forgetNotes()
 }

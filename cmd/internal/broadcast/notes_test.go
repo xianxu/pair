@@ -322,3 +322,21 @@ func TestDrawNotesProperty(t *testing.T) {
 		}
 	}
 }
+
+// The renderer draws text only up to a row's used columns, so a note on an
+// empty row or past its text widens them (#447 M1 smoke: the 💭 was missing
+// on blank rows while marks, which are background only, showed).
+func TestDrawNotesWidensUsedColumns(t *testing.T) {
+	f := textFrame(t, 10, 3, "ab", "")
+	f.Rows = []terminal.RowMetadata{{UsedColumns: 2}, {UsedColumns: 0}, {UsedColumns: 0}}
+	out := DrawNotes(f, []Note{{Col: 5, Row: 1}, {Col: 0, Row: 0}})
+	if out.Rows[1].UsedColumns != 7 {
+		t.Fatalf("empty row used columns %d, want 7", out.Rows[1].UsedColumns)
+	}
+	if out.Rows[0].UsedColumns != 2 {
+		t.Fatalf("a note inside the text changed used columns to %d", out.Rows[0].UsedColumns)
+	}
+	if f.Rows[1].UsedColumns != 0 {
+		t.Fatal("input row metadata mutated")
+	}
+}

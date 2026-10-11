@@ -143,6 +143,9 @@ type Console struct {
 	// marks state the Presenter's overlay reads, behind its own leaf lock.
 	pointer pointerPhase
 	pmarks  pointerMarks
+	// pnotes is the sticky notes the overlay and status row read (#447),
+	// behind its own leaf lock.
+	pnotes pointerNotes
 	// statusPointer and statusRemote are the 👆 and 👽 spans on the last
 	// drawn row.
 	statusPointer ColumnSpan

@@ -193,6 +193,11 @@ func DrawNotes(f terminal.Frame, notes []Note) terminal.Frame {
 		}
 		out.Cells[i] = terminal.Cell{Content: NoteGlyph, Width: 2}
 		out.Cells[i+1] = terminal.Cell{}
+		// The renderer draws a row's text only up to its used columns; past
+		// them is blank tail. Widen them to cover the glyph.
+		if n.Row < len(out.Rows) && out.Rows[n.Row].UsedColumns < n.Col+2 {
+			out.Rows[n.Row].UsedColumns = n.Col + 2
+		}
 	}
 	if !copied {
 		return f

@@ -85,9 +85,12 @@ const dimSGR = "\x1b[2m"
 type StatusModel struct {
 	Broadcast BroadcastCell
 	Pointer   PointerCell
-	Capture   terminalcapture.Status
-	Actors    []StatusActor
-	Notice    string
+	// Notes is the broadcast's open sticky notes (#447), drawn as 💭N after
+	// the capability controls; not a click target.
+	Notes   int
+	Capture terminalcapture.Status
+	Actors  []StatusActor
+	Notice  string
 	// Spinner is the loading placeholder's spinner frame (pair#206).
 	Spinner uint8
 	// Palette is what the host terminal told couch about its colours, which
@@ -221,6 +224,10 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		}
 		pointer = capability(broadcast.PointerLabel, pointerSGR)
 		remote = capability(broadcast.ControlLabel, dimSGR)
+		if m.Notes > 0 {
+			appendText(" ", "")
+			appendText(broadcast.NoteGlyph+strconv.Itoa(m.Notes), "")
+		}
 	}
 	// Capture follows so actor chips and transient notices cannot hide a
 	// stopped recorder. It never receives an actor click target.
