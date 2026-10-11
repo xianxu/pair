@@ -38,9 +38,9 @@ hides new breakage. The operator (batch-2 recap, 10-10): "let's ensure ariadne a
 
 ## Done when
 
-- [ ] `make test` passes on main from a clean slot, twice in a row, with the wall time recorded.
-- [ ] No package takes over 5 minutes in the default lane.
-- [ ] Every quarantined test has an owning issue.
+- [x] `make test` passes on main from a clean slot, twice in a row, with the wall time recorded.
+- [x] No package takes over 5 minutes in the default lane.
+- [x] Every quarantined test has an owning issue.
 
 ## Plan
 
@@ -51,7 +51,7 @@ hides new breakage. The operator (batch-2 recap, 10-10): "let's ensure ariadne a
 - [x] couchcore: find what makes it slow; fix or move to an explicit lane.
 - [x] `TestSpawnComposesProductionPairRegistrationBoundary`: root-cause and fix.
 - [x] Fix the other failures the baseline surfaced (artifactpath, gcruntime, couchcmd, host-creation lease).
-- [ ] `make test` green twice from a clean slot, wall time recorded.
+- [x] `make test` green twice from a clean slot, wall time recorded.
 
 ## Log
 
@@ -103,4 +103,15 @@ hides new breakage. The operator (batch-2 recap, 10-10): "let's ensure ariadne a
   environment-origin PAIR_*/COUCH_*/ZELLIJ* name (GNU Make 3.81 has no target-scoped unexport). Workflow goals keep
   the slot identity. `make test-pair-embedded-runtime` from a live slot: passes; with the scrub disabled it fails
   "PAIR_DATA_DIR … conflicts with selected repository scope".
+- Under load, parallel couchcore exposed two timing-fragile tests: the lease settle test (its 20ms timer fired after
+  the 100ms window at load 30; it now takes the window as a parameter) and 1s event-wait guards (five now allow 10s).
+  The tests mostly wait on subprocesses (1.9 of 12 cores busy), so couchcore's TestMain defaults `-test.parallel` to
+  3x GOMAXPROCS: 236s → 139s.
+- **Wall time, before → after** (branch tip merged with main 8d7c50ef):
+  - Before: `make -k test` on main stopped at test-changelog after 214s, so the Go suite never ran. `go test ./...`
+    took 645s with 3 failures and couchcore timing out at 10m. couchcore solo, serial: 1,315s.
+  - After, clean env: `make test` passed twice, 1,076s (first build, concurrent with verification runs) and 429s.
+  - After, from the live slot (session env present), final tip: `make test` passed twice, **434s and 438s**. Largest
+    package couchcore 207s / 205s; no other package over 100s. `go test -race ./cmd/internal/couchcore`: clean, 201s.
+- Quarantined: artifactpath's 59 known violations → **pair#348** (ratchet). No other test is skipped or excluded.
 
