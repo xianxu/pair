@@ -216,3 +216,74 @@ findings:
     detail: |
       2nd instance in this family (after the alt-screen kitty-push window). Rule: recovery must restore everything the presenter knows the outer terminal should show (screen, modes, keyboard stack, alt push, title), which is the deferred single parent-screen value that stall() resets whole. Measured prevalence: 2 instances (alt push, title); bell, notification and clipboard are one-shot events, not state.
 ```
+
+---
+
+## Re-review — 2026-10-10T19:02:36-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 430 — couch exits when the outer terminal stalls 5s: degrade the view, keep the sessions |
+| repo | pair |
+| issue file | workshop/issues/000430-couch-exits-when-the-outer-terminal-stalls-5s-degrade-the-view-keep-the-sessions.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 33e002c665fe7efcfa3ac4911def26eeded34c03..eeaf310ea1b82ef695bd380dd86a7851f9b7b67b |
+| command | sdlc close --issue 430 |
+| reviewer | claude |
+| timestamp | 2026-10-10T19:02:36-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Reviewing the round-3 window now: checking whether the merge from main touched the terminal package and how the probe-error fix is tested.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+This change ships. A parent-terminal write that runs out of its own 5 s budget now stalls the presenter instead of failing it, so Couch stays up. A caller's own deadline, EIO and EPIPE still fail as before. The round-3 fix holds: the probe used to treat any error as "still slow", so a terminal that stalled and then went away was never failed. Now only the probe's own deadline counts as "still slow" (`presenter.go:285-297`), and `TestPresenterStalledThenGoneFails` covers it. The merge from main (`eeaf310e`) doesn't touch `cmd/internal/terminal`, so the terminal code at HEAD is the same as at `2017402e`. Both open findings (BR-4, BR-5) are Minor and still true. They belong to the parent-screen refactor the Log already defers, so neither blocks.
+
+1. **Strengths**
+   - The presenter tells its own budget apart from a caller's deadline by comparing deadlines (`presenter.go:227-229`), not by racing `ctx.Err()`. The #383/#409 tests with a caller deadline keep failing correctly.
+   - Only a completed full paint clears `stalled` (`presenter.go:484-486`). One-shot writes (effects, copies) drop their bytes while stalled and never probe (`writeUnlessStalled`). That closes BR-2's whole class.
+   - A retry timer repaints during a stall (`case <-retry` in `run`), so recovery doesn't wait for new child output. `armRetry` skips a Failed view.
+   - After a stall, modes are set again without a second kitty-keyboard push (the `keyboardOwned` parameter of `parentModeDelta`), and a test pins it.
+   - The atlas is updated (`terminal.md`, `couch.md`), and the Revisions entry records the reduced diagnostic honestly.
+
+2. **Critical:** none.
+
+3. **Important:** none.
+
+4. **Minor**
+   - BR-4 and BR-5 are still open (dispositions below).
+   - **`stall-recovery-must-repaint`:** the rule still to implement is "everything known about the outer terminal is one value that `stall()` resets whole and recovery re-emits". The value covers screen, modes, keyboard stacks, the alt-screen push and the title. It counts 2 instances so far (the alt push and the title). No 3rd instance is raised this round.
+
+5. **Test coverage**
+   - Passed under the sandbox: `TestPresenterStallPastWriteTimeoutDegradesThenRepaints`, `TestPresenterStalledThenGoneFails`, `TestPresenterFailsWhenTheParentIsGone` and `TestPresenterReleaseRestoresOnlyOwnedKeyboardPush`.
+   - The four real-PTY tests fail here with "operation not permitted". That is the sandbox blocking PTY children, not a regression. The implementor's close log reports them passing unsandboxed.
+
+6. **Architecture, per principle**
+   - ARCH-DRY: pass. `repaint` is shared by `Refresh` and the retry.
+   - ARCH-PURE: pass. `parentModeDelta` stays pure.
+   - ARCH-PURPOSE: pass. Every Done-when item is delivered or scoped down in Revisions.
+   - ARCH-MOCK: pass. The ttyio fake writer and a real-PTY test sit behind the same `ttyio.Writer` seam.
+   - ARCH-CONSTRAINTS: pass. The probe is bounded at 100 ms and the retry runs every 250 ms. Admission can't overflow because each `call` blocks its caller.
+   - ARCH-SECURE: N/A. The change handles no untrusted input and no secrets.
+   - ARCH-ORDER: flag (Minor, BR-4). `stalled`, `modesKnown`, `previous`, `history` and `alt*` stay loose fields outside the `ViewEvent` machine. The out-of-order cases that apply are tested: a stall followed by EIO, and a copy right after the drain.
+   - ARCH-FUNERAL: pass. The change creates nothing durable: the retry timer belongs to the run loop, and `stalls` is an in-memory counter.
+
+7. **Plan revisions:** none needed. The Revisions and Log already record the deferral of the diagnostic and of the parent-screen refactor.
+
+```findings
+dispose:
+  - id: BR-4
+    disposition: not-addressed
+    note: |
+      Still loose fields (stalled/modesKnown/previous/history/alt*); deferred to the parent-screen refactor per Log; Minor, non-blocking.
+  - id: BR-5
+    disposition: not-addressed
+    note: |
+      No title state is kept or re-emitted on recovery (presenter.go:827 path drops it while stalled); same deferred parent-screen value; Minor.
+```

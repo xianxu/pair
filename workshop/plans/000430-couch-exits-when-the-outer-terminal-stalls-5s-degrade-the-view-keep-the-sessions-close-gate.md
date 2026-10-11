@@ -62,6 +62,21 @@ rounds:
       recipe: milestone-review
       reviewed: 2017402e181f25f85af9c992ff8edae5e6794ee9
       blocked: false
+    - "n": 3
+      timestamp: "2026-10-10T19:02:36-07:00"
+      agent: claude
+      dispose:
+        - id: BR-4
+          disposition: not-addressed
+          note: Still loose fields (stalled/modesKnown/previous/history/alt*); deferred to the parent-screen refactor per Log; Minor, non-blocking.
+          round: 3
+        - id: BR-5
+          disposition: not-addressed
+          note: No title state is kept or re-emitted on recovery (presenter.go:827 path drops it while stalled); same deferred parent-screen value; Minor.
+          round: 3
+      recipe: milestone-review
+      reviewed: eeaf310ea1b82ef695bd380dd86a7851f9b7b67b
+      blocked: false
 ---
 
 # Gate ledger — pair#430 (boundary-review)
@@ -94,6 +109,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - **BR-5** [Minor] `stall-recovery-must-repaint` A TitleEffect dropped during a stall is never re-emitted on recovery, so the outer title stays stale
   2nd instance in this family (after the alt-screen kitty-push window). Rule: recovery must restore everything the presenter knows the outer terminal should show (screen, modes, keyboard stack, alt push, title), which is the deferred single parent-screen value that stall() resets whole. Measured prevalence: 2 instances (alt push, title); bell, notification and clipboard are one-shot events, not state.
+
+## Round 3 — 2026-10-10T19:02:36-07:00 (claude) — passed
+
+### Disposed
+
+- BR-4 — not-addressed — Still loose fields (stalled/modesKnown/previous/history/alt*); deferred to the parent-screen refactor per Log; Minor, non-blocking.
+- BR-5 — not-addressed — No title state is kept or re-emitted on recovery (presenter.go:827 path drops it while stalled); same deferred parent-screen value; Minor.
 
 ## Open findings
 
