@@ -273,6 +273,12 @@ and it is kept narrow.
   in `localStorage` (`colorStore`, try/catch, so blocked storage only stops the
   remembering) and outranks the assignment. Couch never learns picks, so
   assignment counts streams, not picks.
+- **Pointer rail (#449):** the swatches are a column (`#rail`) overlaid on the
+  screen's right edge, vertically centered; `fit()` docks it to the drawn
+  screen (`railAt`). It sits outside `#stage`, and only its buttons take
+  pointer events, so a swatch tap never starts a stroke and a point anywhere
+  else reaches the screen. #447's mode icon joins the column. The hint stays in
+  the band below the screen.
 - **Server timeouts:** `ReadHeaderTimeout` 10s, `IdleTimeout` 60s, 8 KB
   headers, and a read deadline only in the POST handler. There is no
   server-wide `ReadTimeout`: it would also time out the disconnect watch on

@@ -1,12 +1,20 @@
 ---
 id: 000449
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
-card_mirror: '355f29149e76ecb033f3852cb8ce2adf8e1d7b8b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'c642f8643943a7cf52d7553735882e03643cb986' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-11T12:41:18-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Broadcast viewer: pointer color swatches as a vertical overlay on the screen's right edge
