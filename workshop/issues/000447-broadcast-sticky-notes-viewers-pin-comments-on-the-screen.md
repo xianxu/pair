@@ -5,8 +5,8 @@ deps: [000446, 000449]
 github_issue:
 created: 2026-10-11
 updated: 2026-10-11
-estimate_hours:
-card_mirror: '515a89685d2e5d152b15897e849573c3fe9579c1' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 3.89
+card_mirror: '6e3adbb1b0520eb3ce0b53ce451c34b87a3e81c7' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-11T12:25:03-07:00
 claimant:
     operator: Xian Xu
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
 ---
 
 # Broadcast sticky notes: viewers pin comments on the screen
@@ -72,6 +73,28 @@ Durable plan: `workshop/plans/000447-broadcast-sticky-notes-viewers-pin-comments
 - [x] Design session with the operator in the slot: settle the open questions, then fix Spec and Done when.
 - [ ] M1 — Notes in Couch: note board and strict parsing, `note`/`resolve` routes, `notes` event to every stream, session checks, 💭 overlay and `💭N` in the tab bar.
 - [ ] M2 — The viewer page: tap routing, comment mode, the sticky-note dialog and the mode switch below the swatches; live check with two viewers and a view-only one.
+
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec            design=0.8 impl=0.04
+item: smaller-go-module     design=0.2 impl=0.2
+item: smaller-go-module     design=0.2 impl=0.2
+item: smaller-go-module     design=0.1 impl=0.16
+item: tui-screen            design=0.5 impl=0.32
+item: atlas-docs            design=0.1 impl=0.04
+item: milestone-review      design=0.0 impl=0.16
+item: milestone-review      design=0.0 impl=0.16
+item: ux-rename-iteration   design=0.3 impl=0.08
+design-buffer: 0.15
+total: 3.89
+```
+
+Items, in order: the design session with the operator and the plan with three plan-quality rounds; the note board, parsing and drawing (`notes.go`); notes in `PointerState`, the routes and session wiring; the console overlay and the `💭N` count; the viewer page (tap routing, comment mode, dialog, mode switch — the closest primitive is a screen with a state machine and tests); atlas; two milestone reviews; one live-smoke iteration round with the operator. Impl values are at 40% of the v2 table (v3.1); +15% design buffer for a thorough plan doc.
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* The calibration doc is flagged stale by `sdlc estimate-source`; per-primitive hours are provisional.
 
 ## Log
 
