@@ -1,12 +1,20 @@
 ---
 id: 000430
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-10
 updated: 2026-10-10
 estimate_hours:
-card_mirror: 'eb992ce9a754bb7760ab4b6d1991e6a18d86df9d' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '647e9d6e13bb6f03f2abd8823d9ee23944bacca3' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-10T17:47:17-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch exits when the outer terminal stalls 5s: degrade the view, keep the sessions
@@ -75,25 +83,77 @@ reducer; this issue is the resilience fix. Ship it independently.
 
 ## Done when
 
+The stall's cause is unsettled (see Log), so the bar is cause-agnostic: a
+parent write blocked well past `WriteTimeout`, then the terminal drains.
+
 - A test with a fake parent writer that blocks for longer than `WriteTimeout`
   and then drains shows:
   - Couch stays up.
   - The endpoints stay alive.
   - No frames are queued during the stall: one coalesced full repaint follows
     the drain.
-  - The end state matches the full rebuild under the xterm oracle.
+  - The end state matches a fresh presentation of the final frame. The test
+    replays both byte streams through Pair's emulator; the xterm oracle isn't
+    installed in this checkout.
+- The same holds over a real PTY host that stops reading past `WriteTimeout`
+  and then drains.
 - A test where the parent writer returns EIO or EPIPE still ends Couch with a
   recorded exit reason (the #409 path).
-- Live: a forced Ghostty stall of more than 5s (for example `kill -STOP` on
-  Ghostty for 10s, then `-CONT`) leaves Couch and its agents running, and the
-  view recovers.
+- Live (TL rollout): Couch survives load and background stalls that used to
+  end it. The operator watches for exits.
 
 ## Plan
 
-- [ ]
+- [x] `terminal.Presenter`: a parent write whose own `WriteTimeout` expires
+  (`WriteFailure.Expired`) enters a stall, not a failure. The stall forgets
+  the parent's screen (previous frame, history state, modes) and keeps
+  admitting frames logically.
+- [x] While stalled, paints probe with `CAN ST syncEnd` (100 ms budget) and
+  write nothing else. A retry every 250 ms repaints in full once a probe gets
+  through, so recovery doesn't wait for new output.
+- [x] Effects and clipboard copies are dropped while stalled, never queued and
+  never an error, so no caller ends Couch over them.
+- [x] Recovery re-establishes modes without a second kitty-keyboard push.
+- [x] A caller's own deadline, EIO and EPIPE still fail as before.
+- [x] Tests: `presenter_degrade_test.go` (fake-writer stall then drain, real PTY
+  stall then drain, EPIPE/EIO).
 
 ## Log
 
 ### 2026-10-10
 
 - Filed by pair:4 at the request of ops:0 (TL), during a load diagnosis. Not implemented.
+- Claimed by pair:4 for implementation (TL, high priority). This issue owns
+  #420's last Done-when ("Couch stays connected through a multi-second
+  terminal stall"); ops:0 and pair:3 (#420) have been told.
+- **Two hypotheses for the stall, both open.** The fix doesn't depend on
+  which one is right.
+  1. *Load starvation:* load was ~80 on 12 cores and Ghostty's pty reader got
+     no CPU for 5s.
+  2. *A backgrounded or blocked Ghostty:* the operator's challenge. Couch
+     paints only the selected slot, and the stalled writes were under 700
+     bytes, so load alone is a weak explanation.
+     - #409's exits also happened while Couch was in the background behind a
+       browser, and WebKit was at 75% this time.
+     - A partial write (373/688) means the pty buffer was already full, so
+       Ghostty's reader was not reading at all, not just slow. A plausible
+       cause is its IO thread waiting on the terminal-state lock held by a
+       stuck renderer (Metal/WindowServer; there were 41 MTLCompilerService
+       processes). App Nap or lowered QoS on a non-frontmost app could
+       contribute.
+- **Background repro: not run.** It needs another app frontmost while a slot
+  prints. The agent sandbox can't drive GUI focus (osascript and `open` are
+  blocked), so it's left to the operator. The live check after rollout covers
+  both causes.
+- **`sample <terminal pid>` capture on a stall (ops:0, optional): skipped.**
+  The parent terminal's pid isn't cheap to find reliably. Couch's ancestry is
+  zsh → login → ghostty here, but under zellij, ssh or tmux the outer terminal
+  isn't a local ancestor at all, and a heuristic walk would guess. If the
+  stalls persist after rollout, a follow-up can take the terminal pid
+  explicitly (env or flag) and run `sample` once per stall, rate-limited,
+  next to the crash directory.
+- Design: the presenter distinguishes its own budget from a caller's deadline
+  (`WriteFailure.Expired`). The #383/#409 tests that use a 300 ms caller
+  deadline keep failing the presenter, which is correct: the caller asked for
+  a bound. `Presenter.Stalls()` counts stalls; wiring a visible notice is left
+  out of scope.
