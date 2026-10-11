@@ -928,3 +928,11 @@ proof; record the surprising case so the next change starts from evidence.
   runner, because a fresh HOME has no `~/.config/zellij`, which zellij treats
   as a first run. Run the failing command under `HOME=$(mktemp -d)` early, and
   have the job dump the tool's own log on failure.
+
+- **A paused clock resumes only on evidence that can judge the pause (#435).**
+  The first version of the operator hold closed on every dispatch that did
+  not see the hold, including the input-settle wait that typing the draft
+  causes. That restarted the paste-by clock mid-draft. When a state stops or
+  starts a timer, let only the observation that can decide it (here, a full
+  composer reading) change it; transient waits leave it as is. Test the side
+  path (keystrokes during the hold) that reaches the state machine first.

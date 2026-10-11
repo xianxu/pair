@@ -30,11 +30,12 @@ type Observation struct {
 
 // DeliveryEndpoint must honor cancellation and bind every operation to the
 // same wrapper incarnation. Reserve conditionally checks Observe's sequence.
+// Deliver hands progress each interim receipt it observes (pair#435).
 type DeliveryEndpoint interface {
 	Observe(context.Context) (Observation, error)
 	Reserve(context.Context, string, uint64) error
 	Release(context.Context, string) error
-	Deliver(context.Context, Message) (Receipt, error)
+	Deliver(ctx context.Context, m Message, progress func(Receipt)) (Receipt, error)
 }
 type SlotActor struct {
 	binding     Binding
@@ -713,8 +714,13 @@ func (b *Broker) runActor(ctx context.Context, a *SlotActor) {
 			b.mu.Unlock()
 			var result Receipt
 			var err error
+			progress := func(r Receipt) {
+				b.mu.Lock()
+				defer b.mu.Unlock()
+				_ = b.apply(a, Event{Kind: DeliveryProgress, Binding: m.To, Message: m, Status: r.Status, Detail: r.Detail, At: b.now()})
+			}
 			if valid {
-				result, err = a.endpoint.Deliver(deliveryCtx, m)
+				result, err = a.endpoint.Deliver(deliveryCtx, m, progress)
 			} else {
 				result.Status = Cancelled
 				result.Detail = "delivery binding unavailable"
