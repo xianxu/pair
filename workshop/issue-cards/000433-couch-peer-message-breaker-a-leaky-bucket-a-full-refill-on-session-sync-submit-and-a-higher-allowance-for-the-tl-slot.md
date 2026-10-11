@@ -1,6 +1,6 @@
 ---
 id: 000433
-status: codecomplete
+status: done
 created: 2026-10-10
 updated: 2026-10-11
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: c79b08680f27dc6994b26e640e98cb776082c697
         evidence_commit: 14370025393280e1a6de773a07842a53748e650a
+        landed_commit: 6f96cf454de142015912b91daad6280be51d9955
 ---
 
 # Couch peer-message breaker: a leaky bucket, a full refill on session-sync submit, and a higher allowance for the TL slot
