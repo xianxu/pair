@@ -1114,6 +1114,20 @@ blocked launch helper; real composer recognition and actual agent submission
 remain operator smoke tests. The conformance workflow runs on relevant changes
 and weekly.
 
+Live Zellij fixtures have two traps (pair#324):
+- **Zellij's config dir.** On macOS, zellij resolves its config dir from HOME
+  and ignores `XDG_CONFIG_HOME`. A fresh HOME, such as a CI runner, counts as a
+  first run: zellij starts its default layout and silently ignores
+  `--new-session-with-layout`. Pin `--config-dir`, as `LaunchSession` does.
+- **Ownership evidence.** Session ownership needs live command evidence
+  (#355), so a bare `ControlledZellij` session (just a shell) is never owned.
+  - `ControlledZellij.AddOwnerWrapperPane` adds a pane whose running argv is
+    `pair wrap --scrollback-log <raw>`.
+  - The ownership probe parses each pane's argv and refuses JSON, quotes and
+    `$`. Stand-in agent panes therefore launch through a script that `exec`s
+    the binary (`standInPaneScript`).
+  - pair#432 tracks three cases excluded from `test-couch-zellij-live`.
+
 `relaunch` uses the current ledger resume target. A confirmed UUID or a requested
 UUID under probation is sufficient for cold resume; transcript parsing does not
 gate startup. An early Alt+n retries that target while current-launch observation
