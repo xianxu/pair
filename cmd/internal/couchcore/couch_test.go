@@ -390,6 +390,14 @@ func testComposedPairRegistrationBoundary(t *testing.T, freshSlot bool) {
 		home = physical
 	}
 	pairData := launcher.ResolveDataDir(home, "")
+	// Production Couch publishes its selected global root to every Pair child
+	// as COUCH_PAIR_DATA_DIR (couchcmd OSRuntime.runtimeRunner), and the
+	// launcher requires it to name an existing physical directory. Select this
+	// fixture's root the same way so an inherited operator value cannot steer
+	// LaunchNative away from the store the collision checker reads.
+	if err := os.MkdirAll(pairData, 0o700); err != nil {
+		t.Fatal(err)
+	}
 	binDir := t.TempDir()
 	ready := filepath.Join(t.TempDir(), "zellij-ready")
 	release := filepath.Join(t.TempDir(), "zellij-release")
@@ -416,6 +424,7 @@ exit 0
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_DATA_HOME", "")
 	t.Setenv("PAIR_DATA_DIR", "")
+	t.Setenv("COUCH_PAIR_DATA_DIR", pairData)
 	t.Setenv("PAIR_TEST_ZELLIJ_READY", ready)
 	t.Setenv("PAIR_TEST_ZELLIJ_RELEASE", release)
 	t.Setenv("PAIR_TEST_ZELLIJ_LOG", zellijLog)
