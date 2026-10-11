@@ -15,6 +15,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "3fb43775", done: "4043411e"}
 ---
 
 # Slot creation: size each step's timeout to the step, and keep the failure
