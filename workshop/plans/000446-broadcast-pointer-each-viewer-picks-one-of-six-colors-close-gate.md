@@ -74,6 +74,23 @@ rounds:
       isolation: fenced
       reviewed: bc0137b13d3cca228f2c18b9b42c0ad230cd4a5b
       blocked: false
+    - "n": 3
+      timestamp: "2026-10-11T12:29:02-07:00"
+      dispatched: "2026-10-11T12:28:06-07:00"
+      agent: claude
+      dispose:
+        - id: BR-5
+          disposition: addressed
+          note: Done-when now cites TestPointerStreamsGetDistinctColors (pointer_test.go:455, which runs through the real server) and the Revisions entry records why the live check was deferred; this records the deferral and adds no behavior.
+          round: 3
+        - id: BR-6
+          disposition: addressed
+          note: '#swatches and #hint now share one fixed #controls box laid out as a wrapping row (index.html, viewer.css), and viewer.js band() sets the screen''s bottom from the box''s measured height on caps and on resize, so the general rule is fixed.'
+          round: 3
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 1fad8ca5665ba6550c0179c005c0d06df22caa1c
+      blocked: false
 ---
 
 # Gate ledger — pair#446 (boundary-review)
@@ -108,7 +125,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-6** [Minor] `ui-overlay-occludes-content` Hint and swatches are positioned separately in the band and overlap on phone-width screens
   2nd in this family. Rule: every fixed control on a pointer page lives in one reserved band container laid out as a wrapping flex row, never positioned independently over the stage or another control. Put #swatches and #hint in one band element and size #stage.controls bottom from it. At about 390px wide, the swatches (about 182px from the left) and the hint (about 280px from the right) overlap by about 80px.
 
+## Round 3 — 2026-10-11T12:29:02-07:00 (claude) — passed
+
+### Disposed
+
+- BR-5 — addressed — Done-when now cites TestPointerStreamsGetDistinctColors (pointer_test.go:455, which runs through the real server) and the Revisions entry records why the live check was deferred; this records the deferral and adds no behavior.
+- BR-6 — addressed — #swatches and #hint now share one fixed #controls box laid out as a wrapping row (index.html, viewer.css), and viewer.js band() sets the screen's bottom from the box's measured height on caps and on resize, so the general rule is fixed.
+
 ## Open findings
 
-- **BR-5** [Minor] `done-when-live-check` Done-when live two-viewer broadcast check was replaced by an in-process test and left to the operator
-- **BR-6** [Minor] `ui-overlay-occludes-content` Hint and swatches are positioned separately in the band and overlap on phone-width screens
+(none — every finding has been disposed)

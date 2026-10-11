@@ -207,3 +207,70 @@ findings:
     detail: |
       2nd in this family. Rule: every fixed control on a pointer page lives in one reserved band container laid out as a wrapping flex row, never positioned independently over the stage or another control. Put #swatches and #hint in one band element and size #stage.controls bottom from it. At about 390px wide, the swatches (about 182px from the left) and the hint (about 280px from the right) overlap by about 80px.
 ```
+
+---
+
+## Re-review — 2026-10-11T12:29:02-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 446 — Broadcast pointer: each viewer picks one of six colors |
+| repo | pair |
+| issue file | workshop/issues/000446-broadcast-pointer-each-viewer-picks-one-of-six-colors.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 1bc6f630fc9cdaefff27ed23fcdd4d3dd67a78a9..1fad8ca5665ba6550c0179c005c0d06df22caa1c |
+| command | sdlc close --issue 446 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-11T12:29:02-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Checking the last few references, then I'll write up the verdict.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The fixes close both open findings and stay in scope. For BR-6, the swatches and the hint now sit together in one `#controls` box: a fixed row along the bottom of the page that wraps onto a second line when it runs out of width. `viewer.js` measures that box and moves the bottom of the screen above it, so the terminal never sits under a control, whatever the window width. That fixes the general problem, not just the one overlap that was reported. For BR-5, the Done-when change records the deferral and the reason in `## Revisions`. It cites a real in-process test, `TestPointerStreamsGetDistinctColors` (`cmd/internal/broadcast/pointer_test.go:455`), and adds no new behavior, so this is not a scope change. The broadcast package tests pass at the head (`go test ./cmd/internal/broadcast/...` → ok).
+
+1. **Strengths**
+   - `index.html:17-20` and `viewer.css:97-106`: one control box for the whole pointer page, a fixed row that wraps, replaces each control placing itself in its own corner. This is the general fix the family `ui-overlay-occludes-content` asked for.
+   - `viewer.js:298-302`: the gap under the screen is measured from the box's real height (`getBoundingClientRect`), not hard-coded as the old `bottom: 40px` was. A wrapped two-line row therefore still clears the screen.
+   - `viewer.js:342`: on resize, the page re-measures the gap only on pointer pages. View pages keep the whole window, as before.
+   - The old `#stage.controls` class is fully removed from the CSS and JS. No stale references are left.
+   - `workshop/lessons.md` records the general rule (one shared box for overlay controls) and the 390px/300px check method.
+
+2. **Critical:** none.
+
+3. **Important:** none.
+
+4. **Minor**
+   - The gap is measured only when the server's capabilities message arrives and on window resize. The box's height can change at only one other moment: picking a swatch, which redraws the same six swatches. So the measurement stays correct today. A future control that shows or hides on its own would need to call `band()` again.
+   - `#status` is still placed on its own at the top right. It is a connection-status label, not a pointer control, and it was outside this window, so I'm not raising it.
+
+5. **Test coverage**
+   - Nothing tests the layout automatically. The page has no browser or DOM test setup, and per the lessons entry the widths were checked by hand in an iframe. That's acceptable for a CSS layout fix.
+   - The Go tests at the head pass.
+
+6. **Architecture (this window only)**
+   - **ARCH-DRY: pass.** The duplicated positioning (each control's own `position: fixed`) is now one container rule.
+   - **ARCH-PURE: pass.** `band()` is a small DOM-only helper that belongs in `start()`. No business logic was added there.
+   - **ARCH-PURPOSE: pass.** BR-6 was fixed as a class. Every control on the page is in the box, rather than the hint just being moved out of the swatches' way.
+
+7. **Plan revisions:** none beyond the 2026-10-11 Revisions entry already recorded.
+
+```findings
+dispose:
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Done-when now cites TestPointerStreamsGetDistinctColors (pointer_test.go:455, which runs through the real server) and the Revisions entry records why the live check was deferred; this records the deferral and adds no behavior.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      #swatches and #hint now share one fixed #controls box laid out as a wrapping row (index.html, viewer.css), and viewer.js band() sets the screen's bottom from the box's measured height on caps and on resize, so the general rule is fixed.
+```
