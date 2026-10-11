@@ -179,7 +179,7 @@ func (s *Sync) owed(f *file, acceptGap bool) ([]Entry, []OwedEvent, error) {
 	}
 	if gap != nil && !gap.Last.Before(f.state.Since) && (f.state.GapAccepted == nil || gap.Last.After(*f.state.GapAccepted)) {
 		if !acceptGap {
-			return nil, nil, &Refusal{Exit: ExitRefused, Code: "ledger-gap", Reason: fmt.Sprintf(
+			return nil, nil, &Refusal{Exit: ExitRefused, Code: "delivery-gap", Reason: fmt.Sprintf(
 				"Couch failed to record a delivery to %s at %s (%s), so owed events may be incomplete; check your recent messages, then pass --accept-gap to write or release",
 				f.owner, gap.Last.Local().Format(time.DateTime), gap.Cause)}
 		}

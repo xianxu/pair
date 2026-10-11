@@ -400,7 +400,7 @@ CLI. It runs in-process against the store and needs no supervisor.
   - An append failure writes a per-slot `<slot>.gap` record. A restart does not
     clear it. It expires 14 days after the last failure, and the next append
     deletes it.
-  - Any verb on a file whose horizon reaches past a gap refuses `ledger-gap`
+  - Any verb on a file whose horizon reaches past a gap refuses `delivery-gap`
     until `--accept-gap`. The sidecar's `GapAccepted` records that per file.
   - So "nothing owed" is never a blind spot.
   - The slot is validated by couch's own grammar

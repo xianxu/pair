@@ -266,7 +266,7 @@ write that follows it.
   nothing. A submit (`submitted: <path>`) is folded by `release`. Folding an ID
   that isn't owed refuses.
 - `status` refuses with `not-recording` when Couch predates the ledger, and
-  with `ledger-gap` when Couch failed to record a delivery to your slot: owed
+  with `delivery-gap` when Couch failed to record a delivery to your slot: owed
   events are then unknown, not zero. Check your recent messages, then pass
   `--accept-gap` to `write` or `release`. A restart does not clear a gap.
 

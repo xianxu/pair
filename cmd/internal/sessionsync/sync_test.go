@@ -241,9 +241,9 @@ func TestALedgerGapRefusesUntilAcceptedPerFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err := r.sync.Status(r.p.File)
-	wantRefusal(t, err, ExitRefused, "ledger-gap")
+	wantRefusal(t, err, ExitRefused, "delivery-gap")
 	_, err = r.sync.Write(WriteRequest{File: r.p.File, Section: "Trains", Body: "x"})
-	wantRefusal(t, err, ExitRefused, "ledger-gap")
+	wantRefusal(t, err, ExitRefused, "delivery-gap")
 	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Trains", Body: "x", Accepts: Accepts{Gap: true}}); err != nil {
 		t.Fatal(err)
 	}
@@ -254,7 +254,7 @@ func TestALedgerGapRefusesUntilAcceptedPerFile(t *testing.T) {
 	r.now = r.now.Add(time.Minute)
 	r.sync.Ledger.MarkGap("ops:0", errors.New("again"))
 	_, err = r.sync.Status(r.p.File)
-	wantRefusal(t, err, ExitRefused, "ledger-gap")
+	wantRefusal(t, err, ExitRefused, "delivery-gap")
 	if _, err := r.sync.Release(ReleaseRequest{File: r.p.File, Accepts: Accepts{Gap: true}}); err != nil {
 		t.Fatal(err)
 	}
