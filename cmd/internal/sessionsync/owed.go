@@ -19,7 +19,7 @@ const (
 	KindDelivery Kind = "delivery"
 )
 
-// OwedEvent is a delivery to the file's owner that no write or release has
+// OwedEvent is a delivery to the file's owner that no write has
 // folded yet. The JSON shape is agreed with parley.nvim#314.
 type OwedEvent struct {
 	ID        string

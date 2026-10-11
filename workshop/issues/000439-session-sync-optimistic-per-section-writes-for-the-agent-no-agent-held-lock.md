@@ -61,11 +61,19 @@ Design (2026-10-11):
 - **`release`:** accepted no-op for one release: takes its old flags, changes nothing, prints a deprecation note (folds are `write --fold`). Removal is a follow-up.
 - **status:** `Holder` is `operator` or `""` (text: `lock: none`); Code/Owed unchanged for parley.nvim#314/#315.
 
-- [ ] Sidecar `flock` around every command; `read --section/--all` with hashes.
-- [ ] `write --if-hash` compare-and-replace; drop the whole-file unread-edits gate and `--accept-edits`; refuse a write without `--if-hash`.
-- [ ] Remove the agent-held lock: submits only record owed events; `status` reports holder operator or none; `release` a no-op.
-- [ ] Tests for the Done-when rows (incl. a two-process race); update atlas, SKILL.md, README, usage.
+- [x] Sidecar `flock` around every command; `read --section/--all` with hashes.
+- [x] `write --if-hash` compare-and-replace; drop the whole-file unread-edits gate and `--accept-edits`; refuse a write without `--if-hash`.
+- [x] Remove the agent-held lock: submits only record owed events; `status` reports holder operator or none; `release` a no-op.
+- [x] Tests for the Done-when rows (incl. a two-process race); update atlas, SKILL.md, README, usage.
 
 ## Log
 
 ### 2026-10-11
+
+- Claimed from the TL dispatch (ops:0, receipt 563f892e verified). Design in `## Plan`.
+- Shadow stays "the file as the agent last wrote it" (whole file), so `diff` shows operator edits since the last write; a per-section shadow merge was considered and dropped (Simplicity First: the owed submit, not the diff, makes the agent read the file).
+- Couch never deletes a legacy `holder: agent` lock: parley may rewrite `.lock` as `operator` between couch's read and its delete, and deleting that would break the human's pessimistic lock. Legacy agent locks are parsed as none; parley.nvim#315 owns its file.
+- Tests: `TestASectionWriteSucceedsOverAnEditElsewhereAndRefusesStale`, `TestWriteWithoutIfHashRefuses`, `TestAWriteChecksItsHashUnderTheFlock`, `TestTwoProcessWritersExactlyOneWins` (two helper processes), `TestATurnWithoutReleaseLeavesNoLock`, operator-lock test kept; CLI: read text/JSON, stale exit 6 + hash, release no-op. Mutation check: replacing the flock with LOCK_UN fails the flock test 5/5 and the two-process test 1/5.
+- Diff left the quick-flow shell (~260 added code lines), so close runs the full review.
+- Follow-up: remove the `release` no-op after one release (ARCH-FUNERAL), and the TL updates ops `skills-draft/xx-tl/SKILL.md` to `read` + `write --if-hash`.
+- Verification: `make -k test` green (240 packages ok, no FAIL).

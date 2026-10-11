@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -18,6 +19,8 @@ type Refusal struct {
 	Exit   int
 	Code   string
 	Reason string
+	// Hash is the current hash on a `stale` refusal.
+	Hash string
 }
 
 func (r *Refusal) Error() string { return r.Reason }
@@ -25,7 +28,9 @@ func (r *Refusal) Error() string { return r.Reason }
 const (
 	ExitRefused      = 1
 	ExitOperatorLock = 3
-	ExitUnreadEdits  = 4
+	// ExitStale: the section changed since the agent read it. (4 was
+	// unread-edits, retired by pair#439; not reused.)
+	ExitStale = 6
 )
 
 func refuse(format string, args ...any) error {
@@ -42,33 +47,25 @@ type Status struct {
 	Owed      []OwedEvent
 }
 
-// Accepts are the agent's acknowledgements, shared by write and release so
-// every refusal's remedy is reachable from either verb.
+// Accepts are the agent's acknowledgements.
 type Accepts struct {
-	// Edits: the agent has read the operator's edits (`diff`).
-	Edits bool
 	// Gap: the agent has checked its messages past a ledger gap.
 	Gap bool
 }
 
-// WriteRequest replaces one section (Section != "") or the whole file.
+// WriteRequest replaces one section (Section != "") or the whole file, if
+// that section (or file) still has IfHash, the hash `read` gave.
 type WriteRequest struct {
-	File, Section, Body string
+	File, Section, Body, IfHash string
 	Accepts
 	Fold []string
 }
 
-// ReleaseRequest hands the turn back.
-type ReleaseRequest struct {
-	File string
-	Accepts
-	Fold []string
-}
-
-// Result reports what a write or release did beyond the write itself.
+// Result reports what a write did beyond the write itself.
 type Result struct {
-	Folded   []string
-	Released bool
+	Folded []string
+	// Hash is the written section's (or file's) new hash, for a next write.
+	Hash string
 	// Warning is set when the operator took the lock while the write was in
 	// flight: the write landed, and their buffer will reload under them.
 	Warning string
@@ -124,6 +121,29 @@ func readOptional(p string) (string, bool, error) {
 	return string(raw), err == nil, err
 }
 
+// locked runs fn on a fresh read of path under couch's exclusive flock, so
+// no other couch command lands between fn's checks and its writes. parley
+// takes no flock; its edits are fenced by the operator's .lock instead.
+func locked[T any](path string, fn func(*file) (T, error)) (T, error) {
+	var zero T
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		return zero, refuse("%s does not exist", path)
+	}
+	fl, err := os.OpenFile(PathsOf(path).Flock, os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return zero, err
+	}
+	defer fl.Close()
+	if err := syscall.Flock(int(fl.Fd()), syscall.LOCK_EX); err != nil {
+		return zero, err
+	}
+	f, err := load(path)
+	if err != nil {
+		return zero, err
+	}
+	return fn(f)
+}
+
 func load(path string) (*file, error) {
 	f := &file{paths: PathsOf(path)}
 	content, ok, err := readOptional(path)
@@ -152,18 +172,45 @@ func load(path string) (*file, error) {
 	return f, nil
 }
 
-// guard is the turn rule: the operator's lock blocks every write, and the
-// operator's unread edits block until the agent says it has read them.
-func (f *file) guard(acceptEdits bool) error {
+// guard is the human's pessimistic lock: the operator's lock blocks every
+// write.
+func (f *file) guard() error {
 	if f.holder == HolderOperator {
 		return &Refusal{Exit: ExitOperatorLock, Code: "operator-lock",
 			Reason: "the operator holds the lock; queue the update until their submit"}
 	}
-	if f.content != f.shadow && !acceptEdits {
-		return &Refusal{Exit: ExitUnreadEdits, Code: "unread-edits",
-			Reason: "the file has edits you haven't read; run `couch --session-sync diff`, resolve them, then pass --accept-edits"}
-	}
 	return nil
+}
+
+// target is the section's body (or the whole file) that a hash names.
+func (f *file) target(section string) (string, error) {
+	if section == "" {
+		return f.content, nil
+	}
+	body, err := SectionBody(f.content, section)
+	if err != nil {
+		return "", refuse("%v", err)
+	}
+	return body, nil
+}
+
+// ReadResult is one section (or the whole file) and the hash a write
+// must name.
+type ReadResult struct {
+	File, Section, Hash string
+	Holder              Holder
+	Body                string
+}
+
+// Read returns a section (Section != "") or the whole file with its hash.
+func (s *Sync) Read(path, section string) (ReadResult, error) {
+	return locked(path, func(f *file) (ReadResult, error) {
+		body, err := f.target(section)
+		if err != nil {
+			return ReadResult{}, err
+		}
+		return ReadResult{File: path, Section: section, Hash: Hash(body), Holder: f.holder, Body: body}, nil
+	})
 }
 
 // owed reads the owner's ledger rows and what this file owes from them. A
@@ -180,7 +227,7 @@ func (s *Sync) owed(f *file, acceptGap bool) ([]Entry, []OwedEvent, error) {
 	if gap != nil && !gap.Last.Before(f.state.Since) && (f.state.GapAccepted == nil || gap.Last.After(*f.state.GapAccepted)) {
 		if !acceptGap {
 			return nil, nil, &Refusal{Exit: ExitRefused, Code: "delivery-gap", Reason: fmt.Sprintf(
-				"Couch failed to record a delivery to %s at %s (%s), so owed events may be incomplete; check your recent messages, then pass --accept-gap to write or release",
+				"Couch failed to record a delivery to %s at %s (%s), so owed events may be incomplete; check your recent messages, then pass --accept-gap to write",
 				f.owner, gap.Last.Local().Format(time.DateTime), gap.Cause)}
 		}
 		f.state.GapAccepted = &gap.Last
@@ -211,49 +258,60 @@ func folds(ids []string, owed []OwedEvent) error {
 // when Couch is not recording deliveries, so "nothing owed" is never a
 // blind spot.
 func (s *Sync) Status(path string) (Status, error) {
-	f, err := load(path)
-	if err != nil {
-		return Status{}, err
-	}
-	if err := s.Ledger.Recording(); err != nil {
-		return Status{}, err
-	}
-	_, owed, err := s.owed(f, false)
-	if err != nil {
-		return Status{}, err
-	}
-	return Status{File: path, Owner: f.owner, Holder: f.holder, LastWrite: f.state.LastWrite, Owed: owed}, nil
+	return locked(path, func(f *file) (Status, error) {
+		if err := s.Ledger.Recording(); err != nil {
+			return Status{}, err
+		}
+		_, owed, err := s.owed(f, false)
+		if err != nil {
+			return Status{}, err
+		}
+		return Status{File: path, Owner: f.owner, Holder: f.holder, LastWrite: f.state.LastWrite, Owed: owed}, nil
+	})
 }
 
-// DiffText is the operator's edits since the agent's last write.
+// DiffText is the operator's edits since the agent's last write. It is
+// information, not a gate: a write checks only its own section's hash.
 func (s *Sync) DiffText(path string) (Holder, string, error) {
-	f, err := load(path)
-	if err != nil {
-		return "", "", err
-	}
-	if f.content == f.shadow {
-		return f.holder, "", nil
-	}
-	shadow := f.paths.Shadow
-	if _, err := os.Stat(shadow); err != nil {
-		shadow = os.DevNull
-	}
-	out, err := s.Diff(shadow, path)
-	return f.holder, out, err
+	var holder Holder
+	out, err := locked(path, func(f *file) (string, error) {
+		holder = f.holder
+		if f.content == f.shadow {
+			return "", nil
+		}
+		shadow := f.paths.Shadow
+		if _, err := os.Stat(shadow); err != nil {
+			shadow = os.DevNull
+		}
+		return s.Diff(shadow, path)
+	})
+	return holder, out, err
 }
 
-// Write replaces a section or the whole file, restamps it, refreshes the
-// shadow, and folds the given owed events, all behind the guards.
+// Write replaces a section or the whole file if it still has the hash the
+// agent read, restamps it, refreshes the shadow, and folds the given owed
+// events. Edits elsewhere in the file don't block a section write.
 func (s *Sync) Write(req WriteRequest) (Result, error) {
 	if strings.TrimSpace(req.Body) == "" {
 		return Result{}, refuse("the body is empty")
 	}
-	f, err := load(req.File)
+	if req.IfHash == "" {
+		return Result{}, refuse("write needs --if-hash: `couch --session-sync read` the section first and pass its hash")
+	}
+	return locked(req.File, func(f *file) (Result, error) { return s.write(f, req) })
+}
+
+func (s *Sync) write(f *file, req WriteRequest) (Result, error) {
+	if err := f.guard(); err != nil {
+		return Result{}, err
+	}
+	current, err := f.target(req.Section)
 	if err != nil {
 		return Result{}, err
 	}
-	if err := f.guard(req.Edits); err != nil {
-		return Result{}, err
+	if h := Hash(current); h != req.IfHash {
+		return Result{}, &Refusal{Exit: ExitStale, Code: "stale", Hash: h, Reason: fmt.Sprintf(
+			"it changed since you read it (hash now %s, you passed %s); read it again, recompute, and retry", h, req.IfHash)}
 	}
 	rows, owed, err := s.owed(f, req.Gap)
 	if err != nil {
@@ -285,56 +343,16 @@ func (s *Sync) Write(req WriteRequest) (Result, error) {
 	if err := saveState(f.paths, f.state); err != nil {
 		return Result{}, err
 	}
-	res := Result{Folded: req.Fold}
-	// The guard and the write can't be one step; say so when the operator
-	// took their turn in between.
+	f.content = next
+	written, err := f.target(req.Section)
+	if err != nil {
+		return Result{}, err
+	}
+	res := Result{Folded: req.Fold, Hash: Hash(written)}
+	// The guard and the write can't be one step against parley, which takes
+	// no flock; say so when the operator took their turn in between.
 	if lock, exists, _ := readOptional(f.paths.Lock); ParseHolder(lock, exists) == HolderOperator {
 		res.Warning = "the operator took the lock during this write; their buffer reloads with it"
-	}
-	return res, nil
-}
-
-// Release hands the turn back: it deletes an agent-held lock and folds the
-// owed submits (handing the turn back answers them) plus the given IDs. It
-// keeps the write guards, so an unread edit can't be released past; with
-// Accepts.Edits it records the operator's edits as read (the shadow takes
-// the file as it is) without a write.
-func (s *Sync) Release(req ReleaseRequest) (Result, error) {
-	f, err := load(req.File)
-	if err != nil {
-		return Result{}, err
-	}
-	if err := f.guard(req.Edits); err != nil {
-		return Result{}, err
-	}
-	rows, owed, err := s.owed(f, req.Gap)
-	if err != nil {
-		return Result{}, err
-	}
-	if err := folds(req.Fold, owed); err != nil {
-		return Result{}, err
-	}
-	if f.content != f.shadow {
-		if err := writeAtomic(f.paths.Shadow, []byte(f.content)); err != nil {
-			return Result{}, err
-		}
-	}
-	all := append([]string{}, req.Fold...)
-	for _, e := range owed {
-		if e.Kind == KindSubmit {
-			all = append(all, e.ID)
-		}
-	}
-	f.state.Fold(all, rows)
-	if err := saveState(f.paths, f.state); err != nil {
-		return Result{}, err
-	}
-	res := Result{Folded: all}
-	if f.holder == HolderAgent {
-		if err := os.Remove(f.paths.Lock); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return res, err
-		}
-		res.Released = true
 	}
 	return res, nil
 }

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -45,6 +46,15 @@ func (r *rig) read(p string) string {
 	return string(raw)
 }
 
+// hash is what `read` hands out for a section ("" = the whole file).
+func (r *rig) hash(section string) string {
+	res, err := r.sync.Read(r.p.File, section)
+	if err != nil {
+		r.t.Fatal(err)
+	}
+	return res.Hash
+}
+
 func (r *rig) deliver(id, head string) {
 	if err := r.sync.Ledger.Append("ops:0", Entry{ID: id, From: "pair:5", At: t0.Add(time.Minute), Head: head}); err != nil {
 		r.t.Fatal(err)
@@ -76,10 +86,12 @@ func TestWriteUnderAnOperatorLockRefusesAndChangesNothing(t *testing.T) {
 	r.put(r.p.Lock, "holder: operator\nat: 2026-10-10T23:50\n")
 	r.deliver("d1", "report")
 	before := []string{r.read(r.p.File), r.read(r.p.Shadow), r.read(r.p.State), r.read(r.p.Lock)}
-	_, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Needs you", Body: "new", Accepts: Accepts{Edits: true}, Fold: []string{"d1"}})
+	_, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Needs you", Body: "new", IfHash: r.hash("Needs you"), Fold: []string{"d1"}})
 	wantRefusal(t, err, ExitOperatorLock, "operator-lock")
-	_, err = r.sync.Release(ReleaseRequest{File: r.p.File, Accepts: Accepts{Edits: true}})
-	wantRefusal(t, err, ExitOperatorLock, "operator-lock")
+	// A legacy agent lock beside it changes nothing: the operator's still wins.
+	if res, err := r.sync.Read(r.p.File, "Needs you"); err != nil || res.Holder != HolderOperator {
+		t.Fatalf("read under the lock: %+v %v", res, err)
+	}
 	after := []string{r.read(r.p.File), r.read(r.p.Shadow), r.read(r.p.State), r.read(r.p.Lock)}
 	for i := range before {
 		if before[i] != after[i] {
@@ -88,30 +100,71 @@ func TestWriteUnderAnOperatorLockRefusesAndChangesNothing(t *testing.T) {
 	}
 }
 
-func TestWriteOverUnreadEditsRefusesUntilAcceptEdits(t *testing.T) {
+func TestASectionWriteSucceedsOverAnEditElsewhereAndRefusesStale(t *testing.T) {
 	r := newRig(t)
+	trains := r.hash("Trains")
+	needs := r.hash("Needs you")
+	// The operator edits another section; the agent hasn't read it.
 	edited := strings.Replace(statusDoc, "old", "old 🤖[why?]", 1)
 	r.put(r.p.File, edited)
-	_, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Trains", Body: "new trains"})
-	wantRefusal(t, err, ExitUnreadEdits, "unread-edits")
-	if r.read(r.p.File) != edited {
-		t.Fatal("a refused write changed the file")
+	if r.hash("Trains") != trains {
+		t.Fatal("an edit elsewhere must not change this section's hash")
 	}
-	_, err = r.sync.Release(ReleaseRequest{File: r.p.File})
-	wantRefusal(t, err, ExitUnreadEdits, "unread-edits")
-
-	_, diff, err := r.sync.DiffText(r.p.File)
-	if err != nil || !strings.Contains(diff, "+old 🤖[why?]") || !strings.HasPrefix(diff, "--- shadow") {
-		t.Fatalf("diff=%q err=%v", diff, err)
-	}
-	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Needs you", Body: "answered", Accepts: Accepts{Edits: true}}); err != nil {
+	res, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Trains", Body: "new trains", IfHash: trains})
+	if err != nil {
 		t.Fatal(err)
 	}
 	got := r.read(r.p.File)
-	if got != r.read(r.p.Shadow) || !strings.Contains(got, "## Needs you\n\nanswered\n\n## Trains") ||
-		!strings.Contains(got, "Updated 2026-10-10 13:00") {
-		t.Fatalf("got %q", got)
+	if !strings.Contains(got, "old 🤖[why?]") || !strings.Contains(got, "## Trains\n\nnew trains\n") ||
+		!strings.Contains(got, "Updated 2026-10-10 13:00") || got != r.read(r.p.Shadow) || res.Hash != r.hash("Trains") {
+		t.Fatalf("res %+v got %q", res, got)
 	}
+	// The edited section's old hash is stale: refused with the current one.
+	_, err = r.sync.Write(WriteRequest{File: r.p.File, Section: "Needs you", Body: "answered", IfHash: needs})
+	wantRefusal(t, err, ExitStale, "stale")
+	var ref *Refusal
+	if errors.As(err, &ref); ref.Hash != r.hash("Needs you") || r.read(r.p.File) != got {
+		t.Fatalf("stale refusal %+v must name the current hash and change nothing", ref)
+	}
+	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Needs you", Body: "answered", IfHash: ref.Hash}); err != nil {
+		t.Fatalf("a retry with the current hash wins: %v", err)
+	}
+}
+
+func TestWriteWithoutIfHashRefuses(t *testing.T) {
+	r := newRig(t)
+	_, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Trains", Body: "x"})
+	wantRefusal(t, err, ExitRefused, "refused")
+	if err == nil || !strings.Contains(err.Error(), "--if-hash") || r.read(r.p.File) != statusDoc {
+		t.Fatalf("got %v", err)
+	}
+}
+
+// The hash check and the write are one step under the flock: a write that
+// waited for another couch command sees what that command wrote.
+func TestAWriteChecksItsHashUnderTheFlock(t *testing.T) {
+	r := newRig(t)
+	h := r.hash("Trains")
+	fl, err := os.OpenFile(r.p.Flock, os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := syscall.Flock(int(fl.Fd()), syscall.LOCK_EX); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Trains", Body: "late", IfHash: h})
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		t.Fatalf("the write ran while another command held the flock: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+	r.put(r.p.File, strings.Replace(statusDoc, "trains", "first", 1))
+	fl.Close()
+	wantRefusal(t, <-done, ExitStale, "stale")
 }
 
 func TestADeliveryStaysOwedUntilAWriteFoldsIt(t *testing.T) {
@@ -121,66 +174,80 @@ func TestADeliveryStaysOwedUntilAWriteFoldsIt(t *testing.T) {
 		t.Fatalf("owed %v", ids)
 	}
 	// A write that doesn't fold leaves it owed: no implicit clear.
-	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Trains", Body: "x"}); err != nil {
+	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Trains", Body: "x", IfHash: r.hash("Trains")}); err != nil {
 		t.Fatal(err)
 	}
 	if ids := r.owedIDs(); len(ids) != 1 {
 		t.Fatalf("an unfolded delivery must stay owed: %v", ids)
 	}
-	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Trains", Body: "y", Fold: []string{"d1"}}); err != nil {
+	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Trains", Body: "y", IfHash: r.hash("Trains"), Fold: []string{"d1"}}); err != nil {
 		t.Fatal(err)
 	}
 	if ids := r.owedIDs(); len(ids) != 0 {
 		t.Fatalf("owed %v", ids)
 	}
 	st, _ := r.sync.Status(r.p.File)
-	if st.LastWrite == nil || !st.LastWrite.Equal(r.now) || st.Owner != "ops:0" || st.Holder != HolderFree {
+	if st.LastWrite == nil || !st.LastWrite.Equal(r.now) || st.Owner != "ops:0" || st.Holder != HolderNone {
 		t.Fatalf("status %+v", st)
 	}
 }
 
 func TestFoldingAnUnknownIDRefusesAndWritesNothing(t *testing.T) {
 	r := newRig(t)
-	_, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Trains", Body: "x", Fold: []string{"nope"}})
+	_, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Trains", Body: "x", IfHash: r.hash("Trains"), Fold: []string{"nope"}})
 	wantRefusal(t, err, ExitRefused, "refused")
 	if r.read(r.p.File) != statusDoc {
 		t.Fatal("changed")
 	}
 }
 
-func TestReleaseFoldsSubmitsNotDeliveriesAndDeletesAnAgentLock(t *testing.T) {
+// A TL turn that never runs release leaves the operator free to edit:
+// a submit is a ledger row, the agent folds it with a write, and no lock
+// appears. A legacy agent lock left by an old parley counts as none.
+func TestATurnWithoutReleaseLeavesNoLock(t *testing.T) {
 	r := newRig(t)
 	r.deliver("s1", SubmitPrefix+r.p.File)
-	r.deliver("d1", "report")
-	r.put(r.p.Lock, "holder: agent\n")
-	res, err := r.sync.Release(ReleaseRequest{File: r.p.File})
-	if err != nil || !res.Released {
-		t.Fatalf("res=%+v err=%v", res, err)
-	}
-	if _, err := os.Stat(r.p.Lock); !os.IsNotExist(err) {
-		t.Fatal("the agent lock must be gone")
-	}
-	if ids := r.owedIDs(); len(ids) != 1 || ids[0] != "d1:delivery" {
+	if ids := r.owedIDs(); len(ids) != 1 || ids[0] != "s1:submit" {
 		t.Fatalf("owed %v", ids)
 	}
-	if res, err := r.sync.Release(ReleaseRequest{File: r.p.File, Fold: []string{"d1"}}); err != nil || res.Released {
-		t.Fatalf("a free file has nothing to release: %+v %v", res, err)
+	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Needs you", Body: "answered",
+		IfHash: r.hash("Needs you"), Fold: []string{"s1"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(r.p.Lock); !os.IsNotExist(err) {
+		t.Fatal("no couch path may create a lock")
 	}
 	if ids := r.owedIDs(); len(ids) != 0 {
 		t.Fatalf("owed %v", ids)
+	}
+	r.put(r.p.Lock, "holder: agent\n")
+	if st, _ := r.sync.Status(r.p.File); st.Holder != HolderNone {
+		t.Fatalf("a legacy agent lock is no lock: %q", st.Holder)
+	}
+	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Trains", Body: "x", IfHash: r.hash("Trains")}); err != nil {
+		t.Fatal(err)
+	}
+	if r.read(r.p.Lock) != "holder: agent\n" {
+		t.Fatal("couch never touches parley's lock file")
 	}
 }
 
 func TestWriteAllKeepsGuardsAndFrontmatter(t *testing.T) {
 	r := newRig(t)
-	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Body: "# no frontmatter\n"}); err == nil {
+	h := r.hash("")
+	if h != Hash(statusDoc) {
+		t.Fatal("--all hashes the whole file")
+	}
+	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Body: "# no frontmatter\n", IfHash: h}); err == nil {
 		t.Fatal("dropping the frontmatter must refuse")
 	}
-	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Body: "  \n"}); err == nil {
+	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Body: "  \n", IfHash: h}); err == nil {
 		t.Fatal("an empty body must refuse")
 	}
 	next := strings.Replace(statusDoc, "trains", "all new", 1)
-	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Body: next}); err != nil {
+	_, err := r.sync.Write(WriteRequest{File: r.p.File, Body: next, IfHash: Hash("other")})
+	wantRefusal(t, err, ExitStale, "stale")
+	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Body: next, IfHash: h}); err != nil {
 		t.Fatal(err)
 	}
 	if got := r.read(r.p.File); !strings.Contains(got, "all new") || !strings.Contains(got, "Updated 2026-10-10 13:00") {
@@ -218,22 +285,6 @@ func TestStatusBeforeAnyWrite(t *testing.T) {
 	}
 }
 
-func TestReleaseAcceptsReadEditsWithoutAWrite(t *testing.T) {
-	r := newRig(t)
-	edited := strings.Replace(statusDoc, "old", "old, fine as is", 1)
-	r.put(r.p.File, edited)
-	r.put(r.p.Lock, "holder: agent\n")
-	if _, err := r.sync.Release(ReleaseRequest{File: r.p.File, Accepts: Accepts{Edits: true}}); err != nil {
-		t.Fatal(err)
-	}
-	if r.read(r.p.File) != edited || r.read(r.p.Shadow) != edited {
-		t.Fatal("release must leave the file alone and record its edits as read")
-	}
-	if _, err := os.Stat(r.p.Lock); !os.IsNotExist(err) {
-		t.Fatal("lock not released")
-	}
-}
-
 func TestALedgerGapRefusesUntilAcceptedPerFile(t *testing.T) {
 	r := newRig(t)
 	r.sync.Ledger.Now = func() time.Time { return r.now }
@@ -242,9 +293,9 @@ func TestALedgerGapRefusesUntilAcceptedPerFile(t *testing.T) {
 	}
 	_, err := r.sync.Status(r.p.File)
 	wantRefusal(t, err, ExitRefused, "delivery-gap")
-	_, err = r.sync.Write(WriteRequest{File: r.p.File, Section: "Trains", Body: "x"})
+	_, err = r.sync.Write(WriteRequest{File: r.p.File, Section: "Trains", Body: "x", IfHash: r.hash("Trains")})
 	wantRefusal(t, err, ExitRefused, "delivery-gap")
-	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Trains", Body: "x", Accepts: Accepts{Gap: true}}); err != nil {
+	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Trains", Body: "x", IfHash: r.hash("Trains"), Accepts: Accepts{Gap: true}}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := r.sync.Status(r.p.File); err != nil {
@@ -255,7 +306,7 @@ func TestALedgerGapRefusesUntilAcceptedPerFile(t *testing.T) {
 	r.sync.Ledger.MarkGap("ops:0", errors.New("again"))
 	_, err = r.sync.Status(r.p.File)
 	wantRefusal(t, err, ExitRefused, "delivery-gap")
-	if _, err := r.sync.Release(ReleaseRequest{File: r.p.File, Accepts: Accepts{Gap: true}}); err != nil {
+	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Trains", Body: "y", IfHash: r.hash("Trains"), Accepts: Accepts{Gap: true}}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := r.sync.Status(r.p.File); err != nil {
@@ -300,7 +351,7 @@ func TestAnUnreadableGapIsDatedByItsFileSoItCanBeAccepted(t *testing.T) {
 	os.Chtimes(gap, at, at)
 	_, err := r.sync.Status(r.p.File)
 	wantRefusal(t, err, ExitRefused, "delivery-gap")
-	if _, err := r.sync.Release(ReleaseRequest{File: r.p.File, Accepts: Accepts{Gap: true}}); err != nil {
+	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Trains", Body: "x", IfHash: r.hash("Trains"), Accepts: Accepts{Gap: true}}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := r.sync.Status(r.p.File); err != nil {

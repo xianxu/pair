@@ -61,7 +61,11 @@ func TestADeliveryToTheOwnerSlotIsOwedByItsSessionSyncFile(t *testing.T) {
 	if len(st.Owed) != 1 || st.Owed[0].ID != "id-owed" || st.Owed[0].From != from.Slot || st.Owed[0].Kind != sessionsync.KindDelivery {
 		t.Fatalf("owed %+v", st.Owed)
 	}
-	if _, err := s.Write(sessionsync.WriteRequest{File: file, Section: "Needs you", Body: "noted", Fold: []string{"id-owed"}}); err != nil {
+	read, err := s.Read(file, "Needs you")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Write(sessionsync.WriteRequest{File: file, Section: "Needs you", Body: "noted", IfHash: read.Hash, Fold: []string{"id-owed"}}); err != nil {
 		t.Fatal(err)
 	}
 	if st, _ = s.Status(file); len(st.Owed) != 0 {

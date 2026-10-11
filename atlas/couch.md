@@ -410,17 +410,27 @@ outside Couch. Loading or installing it is explicit; runtime does not change
 agent configuration. Ordinary messages carry follow-up context in their body;
 there is no reply protocol or availability toggle.
 
-### Session-sync files and the delivery ledger (#437)
+### Session-sync files and the delivery ledger (#437, #439)
 
-`couch --session-sync diff|write|release|status FILE` is the one mutation path
+`couch --session-sync read|write|diff|status FILE` is the one mutation path
 for a `type: session-sync` file (parley.nvim#313's turn-based operator/agent
 file). Package `sessionsync` owns the rules; `couchcmd/session_sync.go` is the
 CLI. It runs in-process against the store and needs no supervisor.
-- **Guards:** a lock whose holder is not `agent` refuses every write (exit 3).
-  A file that differs from its shadow (`.<file>.shadow`, the agent's last
-  write) refuses until `--accept-edits` (exit 4). `release` keeps both guards.
-  Sections match whole `## HEADING` lines only. Writes are in place, because
-  parley watches the inode; the shadow and sidecar use temp+rename.
+- **Pessimistic for the human, optimistic for the agent (#439):** parley's
+  `<file>.lock` (holder `operator`) refuses every write (exit 3); a legacy
+  `holder: agent` lock counts as none, and Couch never writes or deletes the
+  lock. The agent holds no lock: `read --section|--all` prints a hash (sha256,
+  16 hex) of the section body as stored (or the whole file), and `write
+  --if-hash H` replaces it only if it still hashes to H, else refuses `stale`
+  (exit 6, current hash in `Refusal.Hash` / JSON `Hash`). A write without
+  `--if-hash` refuses. Edits in other sections never block. Every verb holds
+  `flock(LOCK_EX)` on `.<file>.flock` from read to last write, so two couch
+  writers can't both pass the check; parley takes no flock (its lock fences
+  it). `release` is a retired no-op (one release, then removed). Sections match
+  whole `## HEADING` lines only (`section()` in `file.go`, shared by read and
+  replace). Writes are in place, because parley watches the inode; the shadow
+  (`.<file>.shadow`, the agent's last write, shown by `diff`) and sidecar use
+  temp+rename.
 - **Ledger:** the message service's `messageEndpoint.Deliver`
   (`message_deliveries.go`) appends one row per delivery that may have
   reached the agent: submitted, indeterminate, an endpoint error, or a
@@ -443,12 +453,13 @@ CLI. It runs in-process against the store and needs no supervisor.
 - **Owed:** rows for the file's `owner:` slot from the sidecar's `Since`
   (`.<file>.sync`; without a sidecar, the shadow's mtime), minus folded IDs,
   minus submits naming another file. A body `submitted: <abs path>` is a
-  submit. Only `write --fold ID` / `release --fold ID` clear a delivery, never
-  a plain write. `release` also folds the file's submits. The sidecar's
+  submit. Only `write --fold ID` clears a delivery or a submit, never a plain
+  write. The sidecar's
   `Folded` is pruned to IDs still in the ledger.
 - **`status --json`:** the Couch envelope
   `{"Code","Error","Status":{File,Owner,Holder,LastWrite,Owed[{ID,Kind,From,At}]}}`,
-  agreed with parley.nvim#314. `Owed` is never null, and a refusal exits
+  agreed with parley.nvim#314; `Holder` is `operator` or `""`. `read --json`
+  answers `{"Code","Error","Read":{File,Section,Hash,Holder,Body}}`. `Owed` is never null, and a refusal exits
   non-zero with a `Code` other than `ok`.
 
 ### Recover plan after a restart (#367)
