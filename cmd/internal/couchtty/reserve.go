@@ -151,6 +151,8 @@ type RenderedStatusRow struct {
 	// (#412); empty otherwise or when clipped.
 	Pointer ColumnSpan
 	Remote  ColumnSpan
+	// Notes is the 💭N count's span (#447 M4): a click opens the notes menu.
+	Notes ColumnSpan
 }
 
 // ColumnToActor maps a ZERO-BASED column on the drawn row to the actor whose
@@ -201,7 +203,7 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 	}
 	// The broadcast cell leads (#395): it is the indicator the broadcast
 	// checks every frame for, so nothing may push it off the row.
-	var control, pointer, remote ColumnSpan
+	var control, pointer, remote, notes ColumnSpan
 	if label := broadcastLabel(m.Broadcast); label != "" {
 		appendText(label, broadcast.LiveSGR)
 		control = ColumnSpan{Start: 0, End: used}
@@ -226,7 +228,11 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		remote = capability(broadcast.ControlLabel, dimSGR)
 		if m.Notes > 0 {
 			appendText(" ", "")
+			start := used
 			appendText(broadcast.NoteGlyph+strconv.Itoa(m.Notes), "")
+			if used > start {
+				notes = ColumnSpan{Start: start, End: used}
+			}
 		}
 	}
 	// Capture follows so actor chips and transient notices cannot hide a
@@ -298,7 +304,7 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		}
 		appendText(n, "")
 	}
-	return RenderedStatusRow{Body: row.String(), Chips: chips, Control: control, Pointer: pointer, Remote: remote}
+	return RenderedStatusRow{Body: row.String(), Chips: chips, Control: control, Pointer: pointer, Remote: remote, Notes: notes}
 }
 
 func broadcastLabel(c BroadcastCell) string {

@@ -264,3 +264,108 @@ func TestNotesTakeANewPalette(t *testing.T) {
 		t.Fatalf("style not refreshed: %+v", style)
 	}
 }
+
+func (f *consoleFixture) notesSpan() ColumnSpan {
+	f.con.mu.Lock()
+	defer f.con.mu.Unlock()
+	return f.con.statusNotes
+}
+
+func (f *consoleFixture) notesMenu() (bool, NotesMenu, int) {
+	f.con.pnotes.mu.Lock()
+	defer f.con.pnotes.mu.Unlock()
+	return f.con.pnotes.menuOpen, f.con.pnotes.menu, f.con.pnotes.style.Hover
+}
+
+func (f *consoleFixture) mouse(button, x, y int, release bool) {
+	end := "M"
+	if release {
+		end = "m"
+	}
+	// SGR reports are one-based.
+	_, _ = fmt.Fprintf(f.stdin, "\x1b[<%d;%d;%d%s", button, x+1, y+1, end)
+}
+
+func (f *consoleFixture) childGot(report string) bool {
+	for _, w := range f.child.Writes() {
+		if strings.Contains(string(w), report) {
+			return true
+		}
+	}
+	return false
+}
+
+// M4: 💭N opens the notes menu; hovering an item highlights it and holds its
+// 💭 at full glow; a click copies its text; nothing over the menu reaches a
+// child that tracks the mouse, while a click elsewhere still does.
+func TestNotesMenuOpenHoverCopy(t *testing.T) {
+	f, _, link := pointerOnFixture(t, nil)
+	f.child.Feed([]byte("\x1b[?1003;1006h"))
+	waitFor(t, "child tracks the mouse", func() bool { return f.child.Endpoint().Modes().Tracking != 0 })
+	noteUntilSaved(t, link, 10, 5, "copy me please")
+	var span ColumnSpan
+	waitFor(t, "💭1 drawn", func() bool { span = f.notesSpan(); return span != (ColumnSpan{}) })
+	f.clickStatus(span.Start + 1)
+	var m NotesMenu
+	waitFor(t, "menu open and drawn", func() bool { open, mm, _ := f.notesMenu(); m = mm; return open && m.Open() })
+	waitFor(t, "item text on screen", func() bool { return strings.Contains(f.screenText(), "copy me please") })
+	item := m.items[0]
+	// Hover.
+	f.mouse(35, m.X+8, item.Top, false)
+	waitFor(t, "hovered", func() bool { _, _, h := f.notesMenu(); return h != 0 })
+	// Click copies the full text.
+	f.mouse(0, m.X+8, item.Top, false)
+	f.mouse(0, m.X+8, item.Top, true)
+	waitFor(t, "copied", func() bool { return copies(f, "copy me please") == 1 })
+	waitFor(t, "notice", func() bool { return strings.Contains(f.notice(), "Note copied") })
+	for _, r := range []string{fmt.Sprintf(";%d;%dM", m.X+9, item.Top+1), fmt.Sprintf(";%d;%dm", m.X+9, item.Top+1)} {
+		if f.childGot(r) {
+			t.Fatalf("a report over the menu reached the child: %q", r)
+		}
+	}
+	// Control: a click outside the menu still reaches the child.
+	f.mouse(0, 2, 2, false)
+	f.mouse(0, 2, 2, true)
+	waitFor(t, "a click elsewhere reaches the child", func() bool { return f.childGot("\x1b[<0;3;3M") })
+	// Motion off the items clears the hover.
+	f.mouse(35, 2, 2, false)
+	waitFor(t, "hover cleared", func() bool { _, _, h := f.notesMenu(); return h == 0 })
+	// The close mark closes it.
+	f.mouse(0, m.X+m.W-1, m.Y, false)
+	f.mouse(0, m.X+m.W-1, m.Y, true)
+	waitFor(t, "menu closed", func() bool { open, _, _ := f.notesMenu(); return !open })
+}
+
+func TestNotesMenuToggleAndLifecycle(t *testing.T) {
+	f, s, link := pointerOnFixture(t, nil)
+	noteUntilSaved(t, link, 10, 5, "a")
+	var span ColumnSpan
+	waitFor(t, "💭1 drawn", func() bool { span = f.notesSpan(); return span != (ColumnSpan{}) })
+	f.clickStatus(span.Start + 1)
+	waitFor(t, "open", func() bool { open, _, _ := f.notesMenu(); return open })
+	f.clickStatus(span.Start + 1)
+	waitFor(t, "closed by a second click", func() bool { open, _, _ := f.notesMenu(); return !open })
+	// Resolving the last note closes it.
+	f.clickStatus(span.Start + 1)
+	waitFor(t, "open again", func() bool { open, _, _ := f.notesMenu(); return open })
+	notes, _ := s.Notes()
+	resp, err := http.Post(link+"resolve", "application/json", strings.NewReader(fmt.Sprintf(`{"id":%d}`, notes[0].ID)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	waitFor(t, "closed when the last note goes", func() bool { open, _, _ := f.notesMenu(); return !open })
+	// Pointer-off closes it too.
+	noteUntilSaved(t, link, 20, 5, "b")
+	// As an operator would: click 💭1 once the new note is drawn, not on a
+	// span left over from before the resolve.
+	waitFor(t, "💭1 again", func() bool {
+		held, _ := f.heldNotes()
+		span = f.notesSpan()
+		return len(held) == 1 && span != (ColumnSpan{}) && strings.Contains(f.lastRow(), broadcast.NoteGlyph+"1")
+	})
+	f.clickStatus(span.Start + 1)
+	waitFor(t, "open a third time", func() bool { open, _, _ := f.notesMenu(); return open })
+	f.clickPointer(t, 0)
+	waitFor(t, "closed on pointer-off", func() bool { open, _, _ := f.notesMenu(); return !open })
+}

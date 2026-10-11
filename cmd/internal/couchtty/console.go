@@ -150,6 +150,7 @@ type Console struct {
 	// drawn row.
 	statusPointer ColumnSpan
 	statusRemote  ColumnSpan
+	statusNotes   ColumnSpan
 	// ansiPalette is the terminal's 16 ANSI colours from OSC 4 replies, for
 	// broadcast viewers; ansiKnown marks which arrived. Under mu.
 	ansiPalette [16]color.RGBA

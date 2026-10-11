@@ -195,3 +195,14 @@ func TestStatusRowNoteCount(t *testing.T) {
 		t.Fatalf("count not clipped: %q", narrow)
 	}
 }
+
+// M4: the 💭N count is a click target spanning exactly its cells.
+func TestStatusRowNotesSpan(t *testing.T) {
+	r := RenderStatusRow(80, StatusModel{Broadcast: BroadcastLive, Pointer: PointerOn, Notes: 12})
+	if r.Notes.Start != r.Remote.End+1 || r.Notes.End-r.Notes.Start != textwidth.Width(broadcast.NoteGlyph+"12") {
+		t.Fatalf("notes span %+v after remote %+v", r.Notes, r.Remote)
+	}
+	if RenderStatusRow(80, StatusModel{Broadcast: BroadcastLive}).Notes != (ColumnSpan{}) {
+		t.Fatal("no notes, no span")
+	}
+}

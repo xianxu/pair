@@ -1,10 +1,12 @@
 package couchtty
 
 import (
+	"slices"
 	"sync"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
+	"github.com/xianxu/pair/cmd/internal/mouseinput"
 	"github.com/xianxu/pair/cmd/internal/terminal"
 )
 
@@ -22,6 +24,12 @@ type pointerNotes struct {
 	// taken when a snapshot is accepted; timer repaints the next flash step.
 	style broadcast.NoteStyle
 	timer *time.Timer
+	// The notes menu (M4): whether it is open, its layout as last drawn
+	// (for hit-testing), and whether a press inside it awaits its release.
+	// The hovered note is style.Hover.
+	menuOpen bool
+	menu     NotesMenu
+	pressed  bool
 }
 
 // onNotes is the session reporting a change. It runs on the changing
@@ -55,10 +63,24 @@ func (c *Console) applyNotes(s *broadcast.Session, notes []broadcast.Note, versi
 		c.pnotes.mu.Unlock()
 		return
 	}
+	hover := c.pnotes.style.Hover
 	c.pnotes.session, c.pnotes.notes, c.pnotes.version, c.pnotes.style = s, notes, version, style
+	c.pnotes.style.Hover = hover
+	c.settleMenuLocked()
 	c.pnotes.mu.Unlock()
 	c.repaint()
 	c.scheduleNotes()
+}
+
+// settleMenuLocked keeps the menu consistent with the notes: closed with
+// none left, and no hover on a note that is gone. Callers hold pnotes.mu.
+func (c *Console) settleMenuLocked() {
+	if len(c.pnotes.notes) == 0 {
+		c.pnotes.menuOpen, c.pnotes.menu = false, NotesMenu{}
+	}
+	if !slices.ContainsFunc(c.pnotes.notes, func(n broadcast.Note) bool { return n.ID == c.pnotes.style.Hover }) {
+		c.pnotes.style.Hover = 0
+	}
 }
 
 // noteStyleLocked is the background the chip and glow blend into, as marks
@@ -122,7 +144,10 @@ func (c *Console) resyncNotes(s *broadcast.Session) {
 	style := c.noteStyleLocked()
 	c.mu.Unlock()
 	c.pnotes.mu.Lock()
+	hover := c.pnotes.style.Hover
 	c.pnotes.session, c.pnotes.notes, c.pnotes.version, c.pnotes.style = s, notes, version, style
+	c.pnotes.style.Hover = hover
+	c.settleMenuLocked()
 	c.pnotes.mu.Unlock()
 	c.scheduleNotes()
 }
@@ -131,6 +156,7 @@ func (c *Console) resyncNotes(s *broadcast.Session) {
 func (c *Console) forgetNotes() {
 	c.pnotes.mu.Lock()
 	c.pnotes.session, c.pnotes.notes, c.pnotes.version = nil, nil, 0
+	c.pnotes.menuOpen, c.pnotes.menu, c.pnotes.pressed, c.pnotes.style.Hover = false, NotesMenu{}, false, 0
 	if c.pnotes.timer != nil {
 		c.pnotes.timer.Stop()
 		c.pnotes.timer = nil
@@ -154,8 +180,99 @@ func (c *Console) noteOverlay(f terminal.Frame, class terminal.FrameClass) termi
 		return f
 	}
 	c.pnotes.mu.Lock()
-	notes, style := c.pnotes.notes, c.pnotes.style
-	c.pnotes.mu.Unlock()
+	defer c.pnotes.mu.Unlock()
+	style := c.pnotes.style
 	style.Now = c.now()
-	return broadcast.DrawNotes(f, notes, style)
+	f = broadcast.DrawNotes(f, c.pnotes.notes, style)
+	if !c.pnotes.menuOpen {
+		return f
+	}
+	// The menu is laid out against the frame it is drawn on, and kept for
+	// hit-testing the mouse.
+	c.pnotes.menu = RenderNotesMenu(c.pnotes.notes, f.Geometry.Cols, f.Geometry.Rows)
+	return c.pnotes.menu.Draw(f, style.Hover, style)
+}
+
+// toggleNotesMenu is a click on 💭N.
+func (c *Console) toggleNotesMenu() {
+	c.pnotes.mu.Lock()
+	c.pnotes.menuOpen = !c.pnotes.menuOpen && len(c.pnotes.notes) > 0
+	if !c.pnotes.menuOpen {
+		c.pnotes.menu, c.pnotes.style.Hover = NotesMenu{}, 0
+	}
+	c.pnotes.mu.Unlock()
+	c.refreshNotes()
+}
+
+// refreshNotes repaints the overlay and re-plans the flash timer (a hover
+// changes which note is steady).
+func (c *Console) refreshNotes() {
+	c.terminalError(c.presenter.Refresh(c.lifetime))
+	c.scheduleNotes()
+}
+
+// routeNotesMenu takes the mouse while it is over the open menu: motion
+// hovers an item, a click copies it or closes the menu, and nothing over the
+// menu reaches the child -- a press's release included. It reports whether
+// it took the event. Motion outside the menu clears the hover and goes on.
+func (c *Console) routeNotesMenu(raw []byte) bool {
+	hit, _, _, ok := mouseinput.ParsePrefix(raw)
+	if !ok {
+		return false
+	}
+	x, y := hit.X-1, hit.Y-1
+	c.pnotes.mu.Lock()
+	open, menu, pressed := c.pnotes.menuOpen, c.pnotes.menu, c.pnotes.pressed
+	if hit.Release {
+		c.pnotes.pressed = false
+		c.pnotes.mu.Unlock()
+		return pressed
+	}
+	if !open {
+		c.pnotes.mu.Unlock()
+		return false
+	}
+	motion := hit.Button&32 != 0
+	if !menu.Contains(x, y) {
+		changed := motion && c.pnotes.style.Hover != 0
+		if changed {
+			c.pnotes.style.Hover = 0
+		}
+		c.pnotes.mu.Unlock()
+		if changed {
+			c.refreshNotes()
+		}
+		return false
+	}
+	id := menu.ItemAt(x, y)
+	switch {
+	case motion:
+		changed := c.pnotes.style.Hover != id
+		c.pnotes.style.Hover = id
+		c.pnotes.mu.Unlock()
+		if changed {
+			c.refreshNotes()
+		}
+	case hit.Button == 0:
+		c.pnotes.pressed = true
+		text := ""
+		for _, n := range c.pnotes.notes {
+			if n.ID == id {
+				text = n.Text
+			}
+		}
+		closing := menu.CloseAt(x, y)
+		c.pnotes.mu.Unlock()
+		switch {
+		case closing:
+			c.toggleNotesMenu()
+		case text != "":
+			c.copyLink(text)
+			c.setNotice("Note copied.")
+		}
+	default: // wheel, other buttons: the menu's, not the child's
+		c.pnotes.pressed = hit.Button < 64
+		c.pnotes.mu.Unlock()
+	}
+	return true
 }
