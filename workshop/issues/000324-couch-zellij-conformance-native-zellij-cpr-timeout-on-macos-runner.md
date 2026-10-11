@@ -90,7 +90,8 @@ then either fix the harness or bound the check so it stops red-flagging PRs:
 - [x] Modernize the couchcore live fixtures for #355 ownership evidence
       (`AddOwnerWrapperPane`, `standInPaneScript`).
 - [x] Exclude the three cases that still fail by name, pointing to pair#432.
-- [ ] `couch-zellij-conformance` green on this PR, without `--no-validate`.
+- [x] `couch-zellij-conformance` green on the branch (dispatch run 38102384802);
+      the PR check gates the merge, without `--no-validate`.
 
 ## Log
 
