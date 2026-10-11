@@ -69,13 +69,27 @@ then either fix the harness or bound the check so it stops red-flagging PRs:
 - The root cause is recorded in `## Log` with the runner evidence that proves it.
 - Any stopgap (non-blocking job) is removed in the same issue.
 
+## Revisions
+
+- **2026-10-10, scope (ops:0).** Fixing step 1 exposed step 2's stale couchcore
+  live fixtures (since #355 M1, CI run 38099182884). ops:0 first folded them in
+  (fixture-only). It then narrowed the scope, because three cases fail past
+  ownership on product semantics. #324 now covers the step-1 root cause and the
+  fixture modernization. The three by-name exclusions
+  (`TestParkLifecycleLive`, `TestContinuationZellijSeedTransportLive`,
+  Recovery/checkpoint) and their resolution move to pair#432, whose Done-when
+  removes them. The job stays blocking (no continue-on-error).
+
 ## Plan
 
 - [x] Capture zellij's own log on the runner (failure-only workflow step).
 - [x] Probe layout application on the runner across argv/env/order variants.
 - [x] Reproduce locally with a fresh HOME; fix the fixture with `--config-dir`.
 - [x] Verify on CI: step 1 (native terminal conformance) green.
-- [ ] Step 2 (`test-couch-zellij-live`) red on stale couchcore live tests — scope pending ops:0.
+- [x] Modernize the couchcore live fixtures for #355 ownership evidence
+      (`AddOwnerWrapperPane`, `standInPaneScript`).
+- [x] Exclude the three cases that still fail by name, pointing to pair#432.
+- [ ] `couch-zellij-conformance` green on this PR, without `--no-validate`.
 
 ## Log
 
@@ -118,3 +132,13 @@ then either fix the harness or bound the check so it stops red-flagging PRs:
   HOME too, so this is code, not runner: #355 M1 (df48593b, 2026-09-30) made
   `ClassifySessionOwner` require a live `pair wrap`/`nvim` pane command, and
   these fixtures were never updated because step 1 masked step 2.
+- Fixture modernization: `pairlifecycletest.ControlledZellij.AddOwnerWrapperPane`
+  opens a live `pair wrap --scrollback-log <raw>` pane. Zellij reports the
+  running argv, so `pair` is a symlink to /bin/sh that runs a sleeping `wrap`
+  script and keeps that argv. Stand-in agent panes now launch through
+  `standInPaneScript`, so neither JSON nor `$` reaches the argv parser.
+  Recovery/warm passes. The remaining three are filed as pair#432 with their
+  evidence, and excluded by name in `Makefile.local`.
+- Local `make -f Makefile.local test-couch-zellij-live`: green 2 of 2 with the
+  exclusions. One earlier run failed Recovery/warm with no captured message. It
+  passed 3/3 alone and 4/4 in the combined selection. Watch for flakiness on CI.

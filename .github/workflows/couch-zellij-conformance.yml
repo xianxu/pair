@@ -164,6 +164,8 @@ jobs:
           echo "$install_dir" >> "$GITHUB_PATH"
       - name: Exercise native terminal, nvim, and notification PTY conformance
         run: make -f Makefile.local test-native-terminal-ci
+      # Three couchcore live cases are excluded by name in Makefile.local until
+      # pair#432 (duplicate-quit idempotency, cold-launch ownership poll).
       - name: Exercise Zellij teardown, continuation transport, and shortcut input
         run: make -f Makefile.local test-couch-zellij-live
       # Zellij's own log is the only record of which layout it applied
