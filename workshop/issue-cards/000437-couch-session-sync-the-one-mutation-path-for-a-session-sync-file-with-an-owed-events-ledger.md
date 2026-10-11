@@ -1,6 +1,6 @@
 ---
 id: 000437
-status: codecomplete
+status: done
 created: 2026-10-10
 updated: 2026-10-11
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 7335c4b96df1bb05898dd5c3c48fcee69255bb97
         evidence_commit: fac2213e2c162940244e5e326f63b03a21708f17
+        landed_commit: aedacc9e8ad10ec111b7a4cb97e7e4dd194dd2a4
 ---
 
 # couch --session-sync: the one mutation path for a session-sync file, with an owed-events ledger
