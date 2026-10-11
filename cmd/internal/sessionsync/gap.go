@@ -85,8 +85,13 @@ func readGap(p string) (*Gap, error) {
 	}
 	var g Gap
 	if err := json.Unmarshal(raw, &g); err != nil {
-		// An unreadable gap record is still a gap.
-		return &Gap{Cause: "unreadable gap record: " + err.Error(), Last: time.Now()}, nil
+		// An unreadable gap record is still a gap, dated by the file itself so
+		// it expires and can be accepted like any other.
+		info, serr := os.Stat(p)
+		if serr != nil {
+			return nil, serr
+		}
+		return &Gap{First: info.ModTime(), Last: info.ModTime(), Cause: "unreadable gap record: " + err.Error()}, nil
 	}
 	return &g, nil
 }

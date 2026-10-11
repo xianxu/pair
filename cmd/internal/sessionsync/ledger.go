@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/durablefile"
 )
 
 // Entry is one landed delivery to a slot. Head is the body's first line,
@@ -198,20 +199,7 @@ func readRows(p string) ([]Entry, error) {
 	return rows, sc.Err()
 }
 
+// writeAtomic publishes an agent-private file durably (temp, fsync, rename).
 func writeAtomic(p string, data []byte) error {
-	tmp, err := os.CreateTemp(filepath.Dir(p), "."+filepath.Base(p)+".tmp-*")
-	if err != nil {
-		return err
-	}
-	_, werr := tmp.Write(data)
-	if cerr := tmp.Close(); werr == nil {
-		werr = cerr
-	}
-	if werr == nil {
-		werr = os.Rename(tmp.Name(), p)
-	}
-	if werr != nil {
-		_ = os.Remove(tmp.Name())
-	}
-	return werr
+	return durablefile.WriteAtomic(p, data, "."+filepath.Base(p)+".tmp-*")
 }

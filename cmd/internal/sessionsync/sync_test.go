@@ -290,3 +290,24 @@ func TestAGapBeforeTheHorizonOrExpiredIsIgnored(t *testing.T) {
 		t.Fatal("the next append removes an expired gap record")
 	}
 }
+
+func TestAnUnreadableGapIsDatedByItsFileSoItCanBeAccepted(t *testing.T) {
+	r := newRig(t)
+	r.sync.Ledger.Now = func() time.Time { return r.now }
+	gap := filepath.Join(r.sync.Ledger.Dir, "ops%3A0.gap")
+	r.put(gap, "{torn")
+	at := t0.Add(30 * time.Minute)
+	os.Chtimes(gap, at, at)
+	_, err := r.sync.Status(r.p.File)
+	wantRefusal(t, err, ExitRefused, "delivery-gap")
+	if _, err := r.sync.Release(ReleaseRequest{File: r.p.File, Accepts: Accepts{Gap: true}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.sync.Status(r.p.File); err != nil {
+		t.Fatalf("an accepted unreadable gap stops refusing: %v", err)
+	}
+	r.sync.Ledger.Now = func() time.Time { return at.Add(keepFor + time.Hour) }
+	if g, _ := r.sync.Ledger.Gap("ops:0"); g != nil {
+		t.Fatal("an unreadable gap expires by its mtime")
+	}
+}
