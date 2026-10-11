@@ -1,12 +1,20 @@
 ---
 id: 000451
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
-card_mirror: '322427ae476be34b6fff523d7fbe405b0f6ef60b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'c4f2ac6edb3aa6b37da3a8e4da7f3d8871172a14' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-11T13:19:29-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Couch tells the hub when a slot is stuck waiting for someone
@@ -27,9 +35,14 @@ Couch already watches each slot's terminal (`--peek`, `LastActivity`, composer s
 
 ## Plan
 
-- [ ] Design the waiting classifier from existing signals (terminal state, LastActivity, resting branch, dialogs); threshold and episode rules.
-- [ ] Notice delivery to the hub; tests; live check.
+Durable plan: `workshop/plans/000451-couch-tells-the-hub-when-a-slot-is-stuck-waiting-for-someone-plan.md`.
+
+- [ ] Pure waiting classifier over memory facts + the slot's screen tail (Task 1).
+- [ ] Watcher on the message service; one notice per episode, from the waiting slot to the hub (Task 2).
+- [ ] Atlas + couch skill; full tests; live check that ops:0 receives a notice (Task 3).
 
 ## Log
 
 ### 2026-10-11
+
+- Design: supervisor-side watcher, no wrapper protocol change. Waiting = quiet (LastActivity) past threshold AND (unsettled | turn ended with `?` | idle off resting with nothing pending). Hub is not watched (#441 strict form). Opt-out file `<store>/wait-notice-off`; threshold `COUCH_WAIT_NOTICE_AFTER`. ARCH-FUNERAL: episode map in memory, pruned per tick.
