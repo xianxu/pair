@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000451-couch-tells-the-hub-when-a-slot-is-stuck-waiting-for-someone.md
         source_blob: 5c1cf8417d439f3fdd2122f5600b9ae367cfc546
         destination: workshop/issues/000451-couch-tells-the-hub-when-a-slot-is-stuck-waiting-for-someone.md
+        main_commit: 536ad9671d39bfb86934fdabd4eae78856ff34da
 ---
 
 # Couch tells the hub when a slot is stuck waiting for someone
