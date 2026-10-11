@@ -31,7 +31,7 @@ type Options struct {
 	SlowPoll        time.Duration
 	ActivePoll      time.Duration // cadence while a Pair send awaits its round (#316)
 	ActiveWindow    time.Duration // how long after a send ActivePoll applies
-	IdleExpiry      time.Duration // an unbound watcher with no send for this long exits (#420)
+	IdleExpiry      time.Duration // an unbound watcher with no send or agent output for this long exits (#420)
 	PIDNotBefore    time.Time
 	FollowLifecycle bool
 	AppendLifecycle func(string, LifecycleRecord) error
@@ -103,6 +103,12 @@ func Run(opts Options, rt Runtime) error {
 	// writes output, so an idle chosen launch walks again only after output.
 	// Without a recording it keeps walking each pass (#420).
 	var outputSeen time.Time
+	// outputActivitySeen/lastOutput feed the idle expiry. The first observation
+	// sets only the baseline; output that existed before launch is not activity.
+	var outputActivitySeen, lastOutput time.Time
+	if mod, err := rt.ModTime(paths.ScrollbackRaw(opts.Agent)); err == nil {
+		outputActivitySeen = mod
+	}
 	outputMoved := func() bool {
 		mod, err := rt.ModTime(paths.ScrollbackRaw(opts.Agent))
 		if err != nil {
@@ -124,7 +130,16 @@ func Run(opts Options, rt Runtime) error {
 		if mod, err := rt.ModTime(paths.Log()); err == nil && !mod.Equal(logSeen) {
 			logSeen, lastSend = mod, rt.Now()
 		}
-		if idleExpired(rt.Now(), watchStart, lastSend, opts.IdleExpiry) {
+		// Agent output is activity too: an operator typing straight into the
+		// pane binds a chosen launch through the handshake, with no send.
+		if mod, err := rt.ModTime(paths.ScrollbackRaw(opts.Agent)); err == nil && !mod.Equal(outputActivitySeen) {
+			outputActivitySeen, lastOutput = mod, rt.Now()
+		}
+		lastActivity := lastSend
+		if lastOutput.After(lastActivity) {
+			lastActivity = lastOutput
+		}
+		if idleExpired(rt.Now(), watchStart, lastActivity, opts.IdleExpiry) {
 			rt.Log(adapt.NearMiss, "unbound watcher idle past expiry; exiting (agent="+opts.Agent+")")
 			return true
 		}
@@ -347,12 +362,13 @@ func Run(opts Options, rt Runtime) error {
 const candidateMTimeSlack = time.Minute
 
 // idleExpired is the unbound watcher's end (#420, ARCH-FUNERAL): a day with no
-// send since the later of launch and the last send. A thread used after that
+// activity (a send or agent output) since the later of launch and the last
+// activity. A thread used after that
 // binds on its next relaunch, which spawns a fresh watcher.
-func idleExpired(now, watchStart, lastSend time.Time, expiry time.Duration) bool {
+func idleExpired(now, watchStart, lastActivity time.Time, expiry time.Duration) bool {
 	since := watchStart
-	if lastSend.After(since) {
-		since = lastSend
+	if lastActivity.After(since) {
+		since = lastActivity
 	}
 	return !now.Before(since.Add(expiry))
 }

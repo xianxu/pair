@@ -897,3 +897,8 @@ proof; record the surprising case so the next change starts from evidence.
   bare root name, so a root-scoped `ListFiles` count is always 0 and the
   assertion passes vacuously. Mutation-check every new "count == 0"
   assertion: revert the fix and watch the test fail.
+- **A new seam method on the real runtime gets its own conformance test (#420
+  BR-1).** Adding `Runtime.StatFile` with only the fake pinning its contract
+  left the `os.ErrNotExist` branch untested against the OS. Callers depended
+  on that branch. When a seam gains a method, add a temp-dir test of the real
+  implementation, compared against the existing method it mirrors.

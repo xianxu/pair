@@ -240,3 +240,36 @@ func TestRunIdleChosenWatcherWalksOnlyAfterAgentOutput(t *testing.T) {
 		t.Fatalf("records=%+v", runtime.store.records)
 	}
 }
+
+// #420 review: agent output counts as activity for the idle expiry, so a pane
+// someone types into directly keeps its watcher.
+func TestRunAgentOutputDefersIdleExpiry(t *testing.T) {
+	t.Parallel()
+	dataDir := t.TempDir()
+	native := sessioninventorytest.NewFakeRuntime()
+	native.AddRoot(sessioninventory.StorageRoot{Agent: sessioninventory.AgentClaude, Name: "claude-projects", Path: "/home/.claude/projects"})
+	paths := mustScopedPaths(t, dataDir, "work")
+	runtime := newWatcherRuntime(native)
+	runtime.files[paths.Ledger()] = mustLaunchRecord(t, sessionledger.Record{Version: 2, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "claude", LaunchArtifactBoundaries: []sessionledger.LaunchArtifactBoundary{}})
+	runtime.files[paths.AgentPID()] = []byte("1234\n")
+	runtime.modTimes[paths.AgentPID()] = runtime.now
+	runtime.identities["1234"] = "pair-identity"
+	start := runtime.now
+	runtime.modTimes[paths.ScrollbackRaw("claude")] = start
+	outputAt := start.Add(20 * time.Hour)
+	runtime.onSleep = func() {
+		if runtime.now.Before(outputAt) {
+			return
+		}
+		runtime.modTimes[paths.ScrollbackRaw("claude")] = outputAt
+		runtime.onSleep = nil
+	}
+	opts := Options{Agent: "claude", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Second,
+		Timeout: time.Second, Poll: 100 * time.Millisecond, ActivePoll: time.Second, ActiveWindow: 30 * time.Minute, SlowPoll: time.Minute, IdleExpiry: 24 * time.Hour}
+	if err := Run(opts, runtime); err != nil {
+		t.Fatal(err)
+	}
+	if elapsed := runtime.now.Sub(start); elapsed < 44*time.Hour || elapsed > 44*time.Hour+2*opts.SlowPoll {
+		t.Fatalf("watcher exited after %v, want a day after the 20h output (about 44h)", elapsed)
+	}
+}

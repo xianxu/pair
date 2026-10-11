@@ -208,6 +208,28 @@ ARCH-FUNERAL lines:
     `clear` empties only the in-memory tracking. The catalog merges published
     validations and never authorizes a binding by itself, so stale entries
     are harmless.
+- Close review round 2 (FIX-THEN-SHIP):
+  - **BR-1 Important: no conformance test for the real `StatFile` (fixed).**
+    `TestOSRuntimeStatFileMatchesListFiles` (temp dir) checks five cases:
+    - A regular file yields the same entry as `ListFiles`.
+    - A missing file is `os.ErrNotExist`.
+    - A directory is `ErrNotRegularArtifact`.
+    - A symlink is refused, and is not mistaken for missing.
+    - An unknown root is `ErrRootUnknown`.
+  - **Minor: idle expiry counted only sends (fixed).** Agent output
+    (`ScrollbackRaw` mtime movement after launch) now counts as activity.
+    `TestRunAgentOutputDefersIdleExpiry` exits at about 44h with output at
+    20h, and at 24h with output ignored.
+  - **Minor: symlink parity of walk versus stat (no change; parity holds).**
+    The old walk refused a symlinked transcript with a `ListingIssuesError`.
+    When the root transcript was not among the regular files, it returned
+    that error, and `StatFile` returns an error too. The new conformance test
+    pins both refusals.
+  - **Minor: `OperationCountForRoot` stays vacuous (fixed in the helper).**
+    The count now includes root-level keys.
+    `TestOperationCountForRootIncludesRootLevelOperations` fails without the
+    fix.
+  - **Minor: ARCH-ORDER phase enum (deferred, as in round 1).**
 - Not changed: the bound Codex lifecycle follower still observes the store
   each pass. Measured at about 5 CPU-min per 44h (pid 26613), so not a
   hotspot.

@@ -173,7 +173,9 @@ func (f *FakeRuntime) OperationCountForRoot(operation Operation, storageRoot str
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	prefix := errorKey(operation, storageRoot+":")
-	total := 0
+	// Root-level operations (ListFiles) are keyed by the bare root name; a
+	// prefix-only match made their root count silently 0 (#420).
+	total := f.counts[errorKey(operation, storageRoot)]
 	for key, count := range f.counts {
 		if strings.HasPrefix(key, prefix) {
 			total += count
