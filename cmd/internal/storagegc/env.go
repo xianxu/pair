@@ -2,7 +2,9 @@ package storagegc
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
@@ -36,7 +38,8 @@ func SelectedOwner(dataDir, scopeKey, tag string) (artifactpath.StorageOwner, er
 
 // OwnerFramePath names an absolute path in the frame SelectedOwner resolves the
 // owner in: its deepest existing ancestor with symlinks evaluated, the missing
-// rest (which cannot be a symlink) and the base kept. A caller's spelling of
+// rest and the base kept. A dangling symlink on the way is refused, so the kept
+// rest is genuinely absent and cannot redirect. A caller's spelling of
 // PAIR_DATA_DIR may be a symlink (macOS TMPDIR=/var/... is /private/var/...),
 // so every path compared against a selected owner, or recorded for the
 // collector to match capture paths against, goes through this.
@@ -53,6 +56,11 @@ func OwnerFramePath(path string) (string, error) {
 		parent := filepath.Dir(dir)
 		if !errors.Is(err, fs.ErrNotExist) || parent == dir {
 			return "", err
+		}
+		// dir exists yet does not resolve: a dangling symlink, whose target the
+		// spelling cannot name. Only a truly missing component is kept as written.
+		if _, lerr := os.Lstat(dir); lerr == nil {
+			return "", fmt.Errorf("owner path crosses a dangling symlink: %s", dir)
 		}
 		dir, rest = parent, filepath.Join(filepath.Base(dir), rest)
 	}

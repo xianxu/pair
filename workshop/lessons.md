@@ -974,3 +974,8 @@ proof; record the surprising case so the next change starts from evidence.
   by the reload, with the wrong code and fix. When a step pre-checks a
   condition another gate will judge, call that gate's probe and parser. Do not
   write a second definition of the same predicate.
+- **Scrub by owner, not by prefix (#436).** Dropping every inherited `PAIR_*` from test recipes also dropped the
+  operator's opt-in knobs (`PAIR_PROBE_SETTLE`, `PAIR_LIVE_*`), which share the prefix. Name the caller-owned
+  families explicitly, and derive the regression check's knob list from the docs, so a new knob is covered without
+  anyone remembering to add it.
+

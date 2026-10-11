@@ -239,14 +239,18 @@ func TestNormalizeArtifactViolationStripsLineNumbers(t *testing.T) {
 
 func checkKnownArtifactViolations(t *testing.T, violations []string) {
 	t.Helper()
-	current := map[string]bool{}
+	// Counted, not a set: line numbers are stripped, so a second identical
+	// violation in a known file differs only in its count.
+	current := map[string]int{}
 	for _, violation := range violations {
-		current[normalizeArtifactViolation(violation)] = true
+		current[normalizeArtifactViolation(violation)]++
 	}
 	if os.Getenv("PAIR_ARTIFACT_VIOLATIONS_UPDATE") == "1" {
-		lines := make([]string, 0, len(current))
-		for violation := range current {
-			lines = append(lines, violation)
+		var lines []string
+		for violation, n := range current {
+			for range n {
+				lines = append(lines, violation)
+			}
 		}
 		sort.Strings(lines)
 		body := knownArtifactViolationsHeader + strings.Join(lines, "\n") + "\n"
@@ -262,21 +266,21 @@ func checkKnownArtifactViolations(t *testing.T, violations []string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	known := map[string]bool{}
+	known := map[string]int{}
 	for _, line := range strings.Split(string(raw), "\n") {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		known[line] = true
+		known[line]++
 	}
 	var fresh, stale []string
-	for violation := range current {
-		if !known[violation] {
+	for violation, n := range current {
+		for range n - known[violation] {
 			fresh = append(fresh, violation)
 		}
 	}
-	for violation := range known {
-		if !current[violation] {
+	for violation, n := range known {
+		for range n - current[violation] {
 			stale = append(stale, violation)
 		}
 	}

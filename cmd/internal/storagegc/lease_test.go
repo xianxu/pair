@@ -235,6 +235,13 @@ func TestOwnerFramePathResolvesTheExistingPrefixOnly(t *testing.T) {
 			t.Fatalf("OwnerFramePath(%s) = %s, %v; want %s", in, got, err, want)
 		}
 	}
+	dangling := filepath.Join(real, "dangling")
+	if err := os.Symlink(filepath.Join(t.TempDir(), "gone", "away"), dangling); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := OwnerFramePath(filepath.Join(dangling, "t.raw")); err == nil {
+		t.Fatalf("OwnerFramePath through a dangling symlink = %s, want refusal", got)
+	}
 	for _, bad := range []string{"relative/x", filepath.Join(alias, "..", "x") + "/"} {
 		if _, err := OwnerFramePath(bad); err == nil {
 			t.Fatalf("OwnerFramePath(%q) accepted a non-exact path", bad)

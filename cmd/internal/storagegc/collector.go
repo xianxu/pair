@@ -53,6 +53,7 @@ type CollectionReport struct {
 	BatchComplete     bool             `json:"batch_complete"`
 	OwnersProcessed   int              `json:"owners_processed"`
 }
+
 // DefaultMaxEntries is the per-pass inventory budget a zero Collector.MaxEntries
 // selects: past it an inventory is incomplete and collection is retained.
 const DefaultMaxEntries = 100000

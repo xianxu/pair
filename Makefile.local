@@ -6,8 +6,11 @@
 # values, most of them paths to the session's own files; a test reading one
 # fails spuriously or writes into the operator's session. Only environment-origin
 # names are dropped, and only when every goal is a test, so workflow targets
-# (weave, merge, ...) keep the slot identity they may read.
-SESSION_ENV := $(foreach v,$(.VARIABLES),$(if $(filter environment,$(origin $(v))),$(filter PAIR_% COUCH_% ZELLIJ%,$(v))))
+# (weave, merge, ...) keep the slot identity they may read. Opt-in test knobs
+# (TEST_ENV_KNOBS) are the caller's, not the session's, and pass through;
+# tests/make-test-env-test.sh checks every knob the docs pass to make or go test.
+TEST_ENV_KNOBS := PAIR_TEST_% PAIR_LIVE_% PAIR_PERF_% PAIR_PROBE_% PAIR_NATIVE_% PAIR_ARTIFACT_% PAIR_COUCH_PRESSURE PAIR_TERMINAL_ORACLE
+SESSION_ENV := $(filter-out $(TEST_ENV_KNOBS),$(foreach v,$(.VARIABLES),$(if $(filter environment,$(origin $(v))),$(filter PAIR_% COUCH_% ZELLIJ%,$(v)))))
 ifneq ($(MAKECMDGOALS),)
 ifeq ($(filter-out test test-%,$(MAKECMDGOALS)),)
 unexport $(SESSION_ENV)
@@ -91,6 +94,14 @@ test-native-session-live:
 test-session-inventory-conformance:
 	PAIR_LIVE_SESSION_INVENTORY=1 go test -p 20 ./cmd/internal/sessioninventory -run '^TestLiveIncrementalInventoryPrelaunch$$' -count=1 -v
 	PAIR_LIVE_NATIVE_SESSIONS=1 go test -p 20 ./cmd/internal/sessioninventory -run '^TestLive(ProviderContractConformance|JSONLProviderBehaviorMatchesStatefulFake)$$' -count=1 -v
+
+.PHONY: test-make-env test-make-env-probe
+# The session-env scrub keeps opt-in knobs and drops session identity (pair#436).
+test-make-env:
+	bash tests/make-test-env-test.sh
+# Prints the recipe environment for test-make-env; a test goal, so it is scrubbed.
+test-make-env-probe:
+	@env
 
 .PHONY: test-perf-budgets
 # Wall-clock budgets (ARCH-CONSTRAINTS) flake on a loaded host, so the default
@@ -190,7 +201,7 @@ pair: $(BIN_DIR)/pair
 #                     inside the vt.Emulator library API itself, which is
 #                     outside our scope to fix — exclude that package
 #                     here rather than chase a library-level race.
-test: runtimebundle-generate test-retention test-run-headless test-lua test-lifecycle-command test-perf-capture test-queue test-submission-transaction test-bang-tag test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-plan-superseded test-paint-gate-consumers test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review
+test: runtimebundle-generate test-retention test-run-headless test-lua test-lifecycle-command test-perf-capture test-queue test-submission-transaction test-bang-tag test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-plan-superseded test-paint-gate-consumers test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review test-make-env
 	go test ./... -count=1
 
 # Expensive, explicit boundary regression: prove make test from a no-.git

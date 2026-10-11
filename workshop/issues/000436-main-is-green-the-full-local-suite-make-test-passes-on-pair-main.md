@@ -114,4 +114,15 @@ hides new breakage. The operator (batch-2 recap, 10-10): "let's ensure ariadne a
   - After, from the live slot (session env present), final tip: `make test` passed twice, **434s and 438s**. Largest
     package couchcore 207s / 205s; no other package over 100s. `go test -race ./cmd/internal/couchcore`: clean, 201s.
 - Quarantined: artifactpath's 59 known violations → **pair#348** (ratchet). No other test is skipped or excluded.
+- Close review round 1 (FIX-THEN-SHIP, not finalized), fixed by class:
+  - BR-1 Important: the session-env scrub also dropped opt-in knobs (PAIR_PROBE_*, PAIR_PERF_BUDGETS, PAIR_LIVE_*,
+    PAIR_ARTIFACT_VIOLATIONS_UPDATE). Makefile.local now keeps `TEST_ENV_KNOBS` (PAIR_TEST_/LIVE_/PERF_/PROBE_/NATIVE_/
+    ARTIFACT_ families, PAIR_COUCH_PRESSURE, PAIR_TERMINAL_ORACLE). `tests/make-test-env-test.sh` (`make
+    test-make-env`, in `make test`) derives the knob list from every `NAME=… make|go test` in README/atlas/Makefile.local/
+    doctor, so a newly documented knob is checked automatically. It asserts that each knob reaches a test recipe and
+    that session identity does not. Both mutations fail it: an empty keep-list, and no scrub.
+  - Minor: `OwnerFramePath` kept a dangling symlink's name as if missing; it now refuses (test added).
+  - Minor: the artifact ratchet deduped normalized lines, masking a second identical violation; it now compares
+    counts (duplicate known line → STALE, mutation-checked).
+  - Also gofmt'd `storagegc/collector.go` (my DefaultMaxEntries edit had dropped a blank line).
 
