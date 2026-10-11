@@ -20,7 +20,9 @@ import (
 
 const testToken = "tok_abcdefghijklmnopqrstuvwxyz0123456789ABCD"
 
-var routes = []string{"", "viewer.js", "viewer.css", "xterm.js", "xterm.css", "addon-unicode11.js", "events"}
+// The view link refuses every method but GET on every route, the pointer
+// link's POST routes included, without reading a body.
+var routes = []string{"", "viewer.js", "viewer.css", "xterm.js", "xterm.css", "addon-unicode11.js", "events", "point", "note", "resolve"}
 
 func testServer(t *testing.T, opts HubOptions, ping time.Duration) (*Hub, http.Handler) {
 	t.Helper()

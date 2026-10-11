@@ -87,11 +87,17 @@ func (b *NoteBoard) Clear() { b.notes = nil }
 // List is a copy of the open notes, oldest first.
 func (b *NoteBoard) List() []Note { return append([]Note{}, b.notes...) }
 
+// NoteRequest is a page asking to open Note, placed on a Cols×Rows grid.
+type NoteRequest struct {
+	Cols, Rows int
+	Note       Note
+}
+
 // ParseNote reads a note request strictly, as ParsePointBatch does: one
 // JSON object with exactly these fields, integers in range, a cell with room
 // for the glyph's second column and off the broadcast's controls, and plain
 // text. Its errors are fixed values that never echo the input.
-func ParseNote(body []byte) (Note, error) {
+func ParseNote(body []byte) (NoteRequest, error) {
 	var raw struct {
 		Cols  *int    `json:"cols"`
 		Rows  *int    `json:"rows"`
@@ -102,21 +108,21 @@ func ParseNote(body []byte) (Note, error) {
 	}
 	// The decoder would turn invalid UTF-8 into U+FFFD; refuse it instead.
 	if !utf8.Valid(body) || !decodeStrict(body, &raw) {
-		return Note{}, ErrNoteShape
+		return NoteRequest{}, ErrNoteShape
 	}
 	if raw.Cols == nil || raw.Rows == nil || raw.Col == nil || raw.Row == nil || raw.Color == nil || raw.Text == nil {
-		return Note{}, ErrNoteShape
+		return NoteRequest{}, ErrNoteShape
 	}
 	cols, rows := *raw.Cols, *raw.Rows
 	n := Note{Col: *raw.Col, Row: *raw.Row, Color: *raw.Color, Text: *raw.Text}
 	if cols < 1 || rows < 1 || cols > maxPointGrid || rows > maxPointGrid || n.Col < 0 || n.Row < 0 ||
 		n.Color < 0 || n.Color >= PointerColors || !NoteVisible(n, cols, rows) {
-		return Note{}, ErrNoteRange
+		return NoteRequest{}, ErrNoteRange
 	}
 	if !plainText(n.Text) {
-		return Note{}, ErrNoteText
+		return NoteRequest{}, ErrNoteText
 	}
-	return n, nil
+	return NoteRequest{Cols: cols, Rows: rows, Note: n}, nil
 }
 
 // ParseResolve reads a resolve request: {"id": n}, n a positive integer.

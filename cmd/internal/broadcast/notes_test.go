@@ -86,7 +86,7 @@ func TestParseNote(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := Note{Col: 3, Row: 4, Color: 2, Text: "hi\nthere"}
+	want := NoteRequest{Cols: 80, Rows: 24, Note: Note{Col: 3, Row: 4, Color: 2, Text: "hi\nthere"}}
 	if n != want {
 		t.Fatalf("got %+v, want %+v", n, want)
 	}
@@ -154,7 +154,8 @@ func FuzzParseNote(f *testing.F) {
 		f.Add(s)
 	}
 	f.Fuzz(func(t *testing.T, body string) {
-		n, err := ParseNote([]byte(body))
+		req, err := ParseNote([]byte(body))
+		n := req.Note
 		if err != nil {
 			for _, known := range []error{ErrNoteShape, ErrNoteRange, ErrNoteText} {
 				if errors.Is(err, known) {
@@ -163,7 +164,7 @@ func FuzzParseNote(f *testing.F) {
 			}
 			t.Fatalf("unexpected error %v", err)
 		}
-		if n.Col < 0 || n.Row < 0 || n.Color < 0 || n.Color >= PointerColors {
+		if n.Col < 0 || n.Row < 0 || n.Col+1 >= req.Cols || n.Row >= req.Rows || n.Color < 0 || n.Color >= PointerColors {
 			t.Fatalf("accepted out-of-range %+v", n)
 		}
 		if n.Text == "" || len(n.Text) > MaxNoteBytes || !utf8.ValidString(n.Text) {

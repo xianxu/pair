@@ -45,6 +45,11 @@ type Config struct {
 	// because the active marker stayed hidden; not on the operator's own
 	// DisablePointer.
 	OnPointerOff func()
+	// OnNotes receives the open notes and their version after every change
+	// (#447): a note saved or resolved, or the board emptied because pointing
+	// turned off. Versions only increase, so a receiver keeps the newest. It
+	// is called on the changing goroutine, holding no session lock.
+	OnNotes func(s *Session, notes []Note, version uint64)
 }
 
 // Session is one broadcast: a hub, a server on the tunnel's listener, the
@@ -101,7 +106,7 @@ func Start(ctx context.Context, cfg Config) (*Session, error) {
 	hub := NewHub(hubOpts)
 	srv := &http.Server{
 		Handler: NewServer(ServerOptions{Token: token, Hub: hub, Ping: cfg.Ping, Theme: cfg.Theme,
-			Pointer: s.pointer, OnPoint: s.acceptPoint}),
+			Pointer: s.pointer, OnPoint: s.acceptPoint, OnNote: s.acceptNote, OnResolve: s.resolveNote}),
 		// Bounds on what an internet client can hold open: headers must
 		// arrive promptly, and the one body (the pointer POST) gets its own
 		// read deadline in its handler. No server-wide ReadTimeout: it would
@@ -358,8 +363,10 @@ func (s *Session) EnablePointer() (string, error) {
 // DisablePointer turns pointing off: the pointer link stays valid as
 // view-only, and its open pages are told.
 func (s *Session) DisablePointer() {
+	_, before := s.Notes()
 	if _, changed, _ := s.pointer.set(false, nil); changed {
 		s.hub.DisarmPointer()
+		s.notesChangedSince(before)
 	}
 }
 
@@ -374,7 +381,12 @@ func (s *Session) PointerLink() string {
 // pointerHidden turns pointing off because the active marker stayed off the
 // operator's screen (the hub has already disarmed its watch).
 func (s *Session) pointerHidden(gen uint64) {
-	if s.pointer.offIfGeneration(gen) && s.cfg.OnPointerOff != nil {
+	_, before := s.Notes()
+	if !s.pointer.offIfGeneration(gen) {
+		return
+	}
+	s.notesChangedSince(before)
+	if s.cfg.OnPointerOff != nil {
 		s.cfg.OnPointerOff()
 	}
 }
@@ -386,11 +398,70 @@ func (s *Session) acceptPoint(b PointBatch) {
 	if on, _ := s.pointer.On(); !on {
 		return
 	}
-	cur := s.hub.Current()
-	if !cur.OK || cur.Geometry != (terminal.Geometry{Cols: b.Cols, Rows: b.Rows}) || cur.Class != terminal.FramePublic || !cur.PointerShown {
+	if !s.landsNow(b.Cols, b.Rows) {
 		return
 	}
 	if s.cfg.OnPoints != nil {
 		s.cfg.OnPoints(b)
+	}
+}
+
+// landsNow reports whether input made on a cols×rows grid lands on what the
+// operator sees now: that grid, a public screen, and the active pointer
+// marker drawn. Hub.Current waits on the hub loop, so no lock may be held.
+func (s *Session) landsNow(cols, rows int) bool {
+	cur := s.hub.Current()
+	return cur.OK && cur.Geometry == (terminal.Geometry{Cols: cols, Rows: rows}) && cur.Class == terminal.FramePublic && cur.PointerShown
+}
+
+// ErrScreenChanged refuses a note placed on a screen the operator no longer
+// shows.
+var ErrScreenChanged = errors.New("broadcast: the screen changed")
+
+// acceptNote opens a note placed on what the operator sees now (#447). The
+// generation is read before the screen check, which runs unlocked; the add
+// refuses if pointing turned off or flipped since.
+func (s *Session) acceptNote(req NoteRequest) error {
+	gen := s.pointer.generation()
+	if on, _ := s.pointer.On(); !on {
+		return ErrPointerOff
+	}
+	if !s.landsNow(req.Cols, req.Rows) {
+		return ErrScreenChanged
+	}
+	if _, err := s.pointer.addNote(req.Note, gen); err != nil {
+		return err
+	}
+	s.notesChanged()
+	return nil
+}
+
+// resolveNote removes a note; an unknown id is already resolved.
+func (s *Session) resolveNote(id int) error {
+	changed, err := s.pointer.resolveNote(id)
+	if changed {
+		s.notesChanged()
+	}
+	return err
+}
+
+// Notes is the open notes and their version.
+func (s *Session) Notes() ([]Note, uint64) {
+	notes, version, _ := s.pointer.Notes()
+	return notes, version
+}
+
+// notesChangedSince reports the notes if they changed since version: a flip
+// to off reports only when it emptied the board.
+func (s *Session) notesChangedSince(version uint64) {
+	if _, now := s.Notes(); now != version {
+		s.notesChanged()
+	}
+}
+
+func (s *Session) notesChanged() {
+	if s.cfg.OnNotes != nil {
+		notes, version := s.Notes()
+		s.cfg.OnNotes(s, notes, version)
 	}
 }

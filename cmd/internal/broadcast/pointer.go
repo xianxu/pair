@@ -9,8 +9,10 @@ import (
 // PointerState is a broadcast's pointer capability (#412): a token minted on
 // first use and kept for the broadcast's life, and whether pointing is on.
 // Turning pointing off downgrades the link to view-only; turning it on again
-// restores the same link. mu is a leaf lock: nothing is called while holding
-// it.
+// restores the same link. Its sticky notes (#447) are the same
+// collaboration layer: every flip to off empties the board in the same
+// critical section, so "off" and "no notes" are one state. mu is a leaf lock:
+// nothing called while holding it takes mu or waits on another goroutine.
 type PointerState struct {
 	mu      sync.Mutex
 	token   string
@@ -24,11 +26,18 @@ type PointerState struct {
 	inFlight chan struct{}
 	// held counts the pointer streams holding each palette color (#446).
 	held [PointerColors]int
+	// The note board (#447). notesVersion only increases, across flips too,
+	// so a snapshot from before a clear is always older than the clear.
+	board        NoteBoard
+	notesVersion uint64
+	notesChanged chan struct{} // closed and replaced on every board change
+	noteLimit    *RateLimit
 }
 
 func newPointerState() *PointerState {
 	return &PointerState{limit: NewRateLimit(PointRatePerSec, PointRatePerSec), changed: make(chan struct{}),
-		inFlight: make(chan struct{}, MaxPointInFlight)}
+		inFlight: make(chan struct{}, MaxPointInFlight), notesChanged: make(chan struct{}),
+		noteLimit: NewRateLimit(NoteRatePerSec, NoteBurst)}
 }
 
 // enter takes an in-flight slot without waiting; leave returns it.
@@ -91,6 +100,9 @@ func (p *PointerState) set(on bool, mint func() (string, error)) (string, bool, 
 	p.gen++
 	close(p.changed)
 	p.changed = make(chan struct{})
+	if !on {
+		p.clearNotesLocked()
+	}
 	return p.token, true, nil
 }
 
@@ -120,6 +132,7 @@ func (p *PointerState) offIfGeneration(gen uint64) bool {
 	p.gen++
 	close(p.changed)
 	p.changed = make(chan struct{})
+	p.clearNotesLocked()
 	return true
 }
 
