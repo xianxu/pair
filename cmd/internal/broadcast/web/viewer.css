@@ -81,9 +81,7 @@ html, body {
   cursor: crosshair;
 }
 #hint {
-  position: fixed;
-  bottom: 8px;
-  right: 8px;
+  margin-left: auto;
   padding: 4px 10px;
   border-radius: 4px;
   font: 13px/1.4 system-ui, sans-serif;
@@ -93,17 +91,22 @@ html, body {
 #hint.hidden {
   display: none;
 }
-/* A pointer page keeps a band below the screen for its controls, so the
-   swatches and the hint never cover a cell someone may want to point at. */
-#stage.controls {
-  bottom: 40px;
+/* Every pointer-page control lives in one band below the screen, a wrapping
+   row; viewer.js lifts the stage above the band's height, so no control
+   covers a cell someone may want to point at, at any width. */
+#controls {
+  position: fixed;
+  left: 8px;
+  right: 8px;
+  bottom: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
 }
 /* Pointer colors (#446): one swatch per palette color, the current one
    ringed. */
 #swatches {
-  position: fixed;
-  bottom: 6px;
-  left: 8px;
   display: flex;
   gap: 6px;
   padding: 4px 6px;

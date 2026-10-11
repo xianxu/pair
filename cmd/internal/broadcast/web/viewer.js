@@ -291,6 +291,15 @@ async function start() {
     // Blocked site data: picks aren't remembered.
   }
   const swatches = document.getElementById('swatches');
+  // band lifts the screen above the pointer controls, however tall their
+  // wrapped row is; a view page has none and keeps the whole window.
+  const controls = document.getElementById('controls');
+  let banded = false;
+  const band = () => {
+    banded = true;
+    stage.style.bottom = `${Math.ceil(controls.getBoundingClientRect().height) + 12}px`;
+    fit();
+  };
   const pointer = pointerMode(term, stage, hint, {
     store: colorStore(storage),
     swatches: {
@@ -325,15 +334,12 @@ async function start() {
     setStale: (on) => stage.classList.toggle('stale', on),
     later: (fn, ms) => setTimeout(fn, ms),
     caps: (c) => {
-      if (!stage.classList.contains('controls')) {
-        stage.classList.add('controls');
-        fit();
-      }
       pointer.setColors(c.palette, c.color);
       pointer.setOn(Boolean(c.pointer));
+      band();
     },
   });
-  window.addEventListener('resize', fit);
+  window.addEventListener('resize', () => (banded ? band() : fit()));
   fit();
 }
 

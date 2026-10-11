@@ -1005,3 +1005,10 @@ proof; record the surprising case so the next change starts from evidence.
   pointing at another component's behavior goes stale when that component changes. Read the other side's code (or
   probe it live) before keeping the weaker choice, and when replacing a file someone else edits, resolve symlinks and
   keep its mode, since a rename changes both.
+- **Overlay controls share one layout container (#446).** The pointer page's swatches and hint were each
+  `position: fixed` at their own corner, so they covered terminal cells and, at phone width, each other. Put
+  every fixed control in one wrapping band and size the content area from the band's measured height, then
+  check it at 390px and 300px in an iframe, because headless Chrome won't open a window under about 500px.
+- **A privacy test that bans an API gets narrowed, not deleted (#446).** The viewer test forbade
+  `localStorage` because a view link keeps nothing; the color pick needs one key. Pin the exception exactly:
+  one key, one reader and one writer, so a later "just remember this too" still fails the test.

@@ -37,7 +37,7 @@ Every broadcast viewer's laser-pointer marks draw in the same amber (xterm 214, 
 
 - A batch with `color: 3` draws in palette color 3; `color: 6`, `-1` or a string is refused (tests).
 - Each color fades correctly with and without truecolor (tests on the ladder and the blend).
-- Two live viewers pointing at once show two different colors on the operator's terminal and on each other's view (checked live in a broadcast).
+- Two viewers pointing at once land in two different colors and draw distinct marks (`TestPointerStreamsGetDistinctColors`, through the real server; see Revisions). A browser check on a live broadcast is the operator's smoke test.
 - The picker persists across a page reload, and works when storage is blocked.
 
 ## Plan
@@ -56,3 +56,8 @@ Every broadcast viewer's laser-pointer marks draw in the same amber (xterm 214, 
 - Implemented. The new monotone-fade test caught two ladders that brightened mid-fade (green 29→30, vermillion 52→234); fixed with darker steps. `TestViewerPageLoadsOnlySameOrigin` banned `localStorage` outright (the view page's "keeps nothing" promise); narrowed to exactly one key, read and written only by `colorStore`, so the promise still holds for everything else. The termcmd doc-comment lint caught `claimColor` inserted between `stop`'s doc and its func.
 - Verification: `go test ./cmd/internal/broadcast/` (Go + 34 node viewer tests), `make -k test` (scrubbed env) green after the doc fix; `make test-changelog` green. Raw `go test ./...` fails only couchcmd/launcher tests on inherited session env (`'origin' does not appear to be a git repository`), untouched packages that pass under `make test`.
 - Close review round 1 (FIX-THEN-SHIP): BR-1 README still said amber; fixed. Minors: swatches covered the top-left cells, so a pointer page now reserves a 40px band below the screen for the swatches and the hint (fit measures `#stage`, not the window), so no control covers a cell; palette test now checks all six. Without truecolor the ladders darken toward a dark background, as amber's always did; on a light terminal the hold colors still read, and truecolor terminals blend into the real background. Kept as designed. The live two-viewer browser check is left to the operator (broadcast in use for a demo); the server path is covered in-process.
+- Post-close (round-2 advisory, real at phone width): the hint and the swatches were positioned separately in the band and overlapped at about 390px. Both now live in one `#controls` wrapping row, and `band()` lifts `#stage` above its measured height. Checked in headless Chrome inside 390px and 300px iframes: the row wraps and the screen ends above it.
+
+## Revisions
+
+- 2026-10-11 (close): Done-when's "checked live in a broadcast" became the in-process two-stream test plus an operator smoke. The operator's broadcast was in use for a live demo, and the dispatch said to leave it undisturbed until landing.
