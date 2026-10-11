@@ -120,9 +120,13 @@ func Run(opts Options, rt Runtime) error {
 		outputSeen = mod
 		return true
 	}
-	// wait ends one unbound pass: the startup deadline, the idle expiry, then
-	// the send-aware sleep. It reports whether the watcher should exit.
-	wait := func() bool {
+	// waitFor ends one unbound pass: the startup deadline, the idle expiry, then
+	// the send-aware sleep (delay 0 means the scanDelay cadence). Every unbound
+	// pass that sleeps goes through it, so the funeral covers each one. It
+	// reports whether the watcher should exit.
+	var waitFor func(time.Duration) bool
+	wait := func() bool { return waitFor(0) }
+	waitFor = func(delay time.Duration) bool {
 		if rootPID == "" && !rt.Now().Before(deadline) {
 			rt.Log(adapt.Fail, "no completed native round within startup deadline (agent="+opts.Agent+")")
 			return true
@@ -143,7 +147,10 @@ func Run(opts Options, rt Runtime) error {
 			rt.Log(adapt.NearMiss, "unbound watcher idle past expiry; exiting (agent="+opts.Agent+")")
 			return true
 		}
-		waitForScan(rt, paths.Log(), logSeen, scanDelay(rt.Now(), watchStart, lastSend, opts), opts.ActivePoll)
+		if delay == 0 {
+			delay = scanDelay(rt.Now(), watchStart, lastSend, opts)
+		}
+		waitForScan(rt, paths.Log(), logSeen, delay, opts.ActivePoll)
 		return false
 	}
 	for {
@@ -214,8 +221,7 @@ func Run(opts Options, rt Runtime) error {
 					epoch.RequestedNativeID = ""
 					observationEpoch = &epoch
 				}
-				rt.Sleep(opts.SlowPoll)
-				if rootPID == "" && !rt.Now().Before(deadline) {
+				if waitFor(opts.SlowPoll) {
 					return nil
 				}
 				continue

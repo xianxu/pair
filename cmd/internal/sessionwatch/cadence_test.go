@@ -1,6 +1,7 @@
 package sessionwatch
 
 import (
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -271,5 +272,31 @@ func TestRunAgentOutputDefersIdleExpiry(t *testing.T) {
 	}
 	if elapsed := runtime.now.Sub(start); elapsed < 44*time.Hour || elapsed > 44*time.Hour+2*opts.SlowPoll {
 		t.Fatalf("watcher exited after %v, want a day after the 20h output (about 44h)", elapsed)
+	}
+}
+
+// #420 review: an epoch that never completes (the store stays unreadable)
+// still ends at IdleExpiry; every sleeping unbound pass shares the funeral.
+func TestRunIncompleteEpochStillExpires(t *testing.T) {
+	t.Parallel()
+	dataDir := t.TempDir()
+	native := sessioninventorytest.NewFakeRuntime()
+	root := sessioninventory.StorageRoot{Agent: sessioninventory.AgentClaude, Name: "claude-projects", Path: "/home/.claude/projects"}
+	native.AddRoot(root)
+	native.SetError(sessioninventorytest.OperationListFiles, root.Name, errors.New("EIO"))
+	paths := mustScopedPaths(t, dataDir, "work")
+	runtime := newWatcherRuntime(native)
+	runtime.files[paths.Ledger()] = mustLaunchRecord(t, sessionledger.Record{Version: 3, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "claude", RequestedNativeID: "11111111-1111-4111-8111-111111111111", RequestOrigin: sessionledger.RequestOriginChosen, BaselineComplete: false})
+	runtime.files[paths.AgentPID()] = []byte("1234\n")
+	runtime.modTimes[paths.AgentPID()] = runtime.now
+	runtime.identities["1234"] = "pair-identity"
+	start := runtime.now
+	opts := Options{Agent: "claude", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Second,
+		Timeout: time.Second, Poll: 100 * time.Millisecond, ActivePoll: time.Second, ActiveWindow: 30 * time.Minute, SlowPoll: time.Minute, IdleExpiry: 2 * time.Hour}
+	if err := Run(opts, runtime); err != nil {
+		t.Fatal(err)
+	}
+	if elapsed := runtime.now.Sub(start); elapsed < opts.IdleExpiry || elapsed > opts.IdleExpiry+2*opts.SlowPoll {
+		t.Fatalf("incomplete-epoch watcher exited after %v, want about IdleExpiry %v", elapsed, opts.IdleExpiry)
 	}
 }

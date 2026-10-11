@@ -233,6 +233,13 @@ ARCH-FUNERAL lines:
     `TestOperationCountForRootIncludesRootLevelOperations` fails without the
     fix.
   - **Minor: ARCH-ORDER phase enum (deferred, as in round 1).**
+- Close review round 3: SHIP. Advisory finding fixed after the close, in one
+  commit:
+  - The v3 epoch-acquisition branch slept outside `wait()`, so idle expiry
+    never reached a store that stays unreadable.
+  - Rule: every sleeping unbound pass goes through `waitFor`.
+  - `TestRunIncompleteEpochStillExpires` exits at `IdleExpiry`. Without the
+    fix it never exits (test timeout).
 - Not changed: the bound Codex lifecycle follower still observes the store
   each pass. Measured at about 5 CPU-min per 44h (pid 26613), so not a
   hotspot.
