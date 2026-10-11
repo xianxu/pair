@@ -66,3 +66,6 @@ hides new breakage. The operator (batch-2 recap, 10-10): "let's ensure ariadne a
   collector match a reader target against capture paths. It also refuses a target that escapes the owner
   through a symlinked subdirectory. Tests: `TestRoleTargetThroughSymlinkedDataDirIsRecordedPhysically`
   (failed before the fix), `TestOwnerFramePathResolvesTheExistingPrefixOnly`.
+- TL relay (pair:3 during #435): artifactpath fails and couchcore/gcruntime hit the 10m go test timeout under load
+  on main. All three are in this inventory: artifactpath ratchet (78172266), gcruntime 100k-file test scaled
+  (732b28a3, 396s → ~5s), couchcore parallelization (below).
