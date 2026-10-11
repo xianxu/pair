@@ -39,6 +39,10 @@ type peerDelivery struct {
 	state            couchmessage.PeerDeliveryState
 	image            bool
 	interrupted      bool
+	// Operator holds before the paste (pair#435): heldFor is the closed
+	// hold time credited to the paste-by, heldSince the open hold's start.
+	heldFor   time.Duration
+	heldSince time.Time
 	// A draft-pane paste held while a delivery is in flight (pair#428).
 	holding   bool
 	holdUntil time.Time
@@ -358,6 +362,7 @@ func (d *peerDelivery) enqueue(m couchmessage.Message) error {
 	d.current = couchmessage.Receipt{Message: m, Status: couchmessage.Queued}
 	d.state = couchmessage.PeerDeliveryState{}
 	d.interrupted = false
+	d.heldFor, d.heldSince = 0, time.Time{}
 	d.signal()
 	return nil
 }
@@ -393,12 +398,17 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 	if d.current.Message.ID == "" || d.current.Status.Terminal() {
 		return
 	}
+	operatorHold := false
+	defer func() { d.operatorHoldLocked(operatorHold) }()
 	event := couchmessage.PeerDeliveryEvent{Kind: couchmessage.PeerComposerObserved}
 	switch {
 	case d.exited:
 		event.Kind = couchmessage.PeerChildExited
 	case !d.now().Before(d.deadlineLocked()):
 		event.Kind = couchmessage.PeerDeadlineElapsed
+		if !d.heldSince.IsZero() {
+			d.current.Detail = "held past " + couchmessage.MaxHold.String() + ", " + d.current.Detail
+		}
 	case d.image && d.current.Status == couchmessage.Delivering:
 		event.Kind = couchmessage.PeerImageInput
 	case d.interrupted:
@@ -434,7 +444,7 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 			return
 		}
 		snapshot := p.terminal.Snapshot()
-		if d.current.Status == couchmessage.Queued {
+		if d.current.Status != couchmessage.Delivering {
 			// Let just-forwarded keystrokes repaint before reading the source.
 			// This bounded settle interval cannot retain stale draft ownership.
 			if !d.lastInput.IsZero() && d.now().Before(d.lastInput.Add(time.Second)) {
@@ -457,10 +467,13 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 				d.current.Detail = "waiting for recognized composer"
 			case !event.Ready:
 				d.current.Detail = "waiting for empty composer"
+				operatorHold = true
 			case !d.viewReadyLocked():
 				// Never yank the view from scrollback the operator is reading.
 				event.Ready = false
 				d.current.Detail = "waiting for the composer to be in view"
+				// The first reading in flight is not yet the operator's hold.
+				operatorHold = !d.view.at.IsZero() && !d.view.visible
 			default:
 				d.current.Detail = ""
 			}
@@ -532,11 +545,37 @@ func (p *proxy) advancePeer(event couchmessage.PeerDeliveryEvent, out io.Writer)
 }
 
 // deadlineLocked (d.mu held) is the bound for the delivery's current half.
+// Before the paste, time the operator held the delivery is added back, up to
+// the message's hold limit; an open hold stops the clock (pair#435).
 func (d *peerDelivery) deadlineLocked() time.Time {
-	if d.current.Status == couchmessage.Delivering {
+	m := d.current.Message
+	switch {
+	case d.current.Status == couchmessage.Delivering:
 		return d.deliverBy
+	case !d.heldSince.IsZero():
+		return m.HoldLimit()
 	}
-	return d.current.Message.Deadline
+	if by := m.Deadline.Add(d.heldFor); by.Before(m.HoldLimit()) {
+		return by
+	}
+	return m.HoldLimit()
+}
+
+// operatorHoldLocked (d.mu held) opens or closes the operator hold as this dispatch
+// observed it, and reports it on the receipt as Held.
+func (d *peerDelivery) operatorHoldLocked(held bool) {
+	now := d.now()
+	switch {
+	case held && d.heldSince.IsZero() && d.current.Status == couchmessage.Queued:
+		d.heldSince = now
+		d.current.Status = couchmessage.Held
+	case !held && !d.heldSince.IsZero():
+		d.heldFor += now.Sub(d.heldSince)
+		d.heldSince = time.Time{}
+		if d.current.Status == couchmessage.Held {
+			d.current.Status = couchmessage.Queued
+		}
+	}
 }
 
 // peerConfirmEvidence is what an uncertain receipt reports: the composer and

@@ -173,7 +173,11 @@ func matchingReceipt(r Receipt, m Message) bool {
 	return r.Message.ID == m.ID && r.Message.From == m.From && r.Message.To == m.To && r.Message.Body == m.Body && r.Message.Deadline.Equal(m.Deadline)
 }
 
-func (e RemoteEndpoint) Deliver(parent context.Context, m Message) (Receipt, error) {
+// peerHeldPoll paces the status poll while the recipient holds a delivery,
+// which may last MaxHold.
+const peerHeldPoll = time.Second
+
+func (e RemoteEndpoint) Deliver(parent context.Context, m Message, progress func(Receipt)) (Receipt, error) {
 	ctx, cancel := context.WithDeadline(parent, m.Horizon().Add(ReceiptTimeout))
 	defer cancel()
 	commitCtx, stopCommit := context.WithDeadline(ctx, m.Deadline)
@@ -184,6 +188,7 @@ func (e RemoteEndpoint) Deliver(parent context.Context, m Message) (Receipt, err
 	}
 	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
+	var last Receipt
 	for {
 		if r.Receipt != nil {
 			if !matchingReceipt(*r.Receipt, m) {
@@ -192,8 +197,17 @@ func (e RemoteEndpoint) Deliver(parent context.Context, m Message) (Receipt, err
 			if r.Receipt.Status.Terminal() {
 				return *r.Receipt, nil
 			}
-			if r.Receipt.Status != Queued && r.Receipt.Status != Delivering {
+			if r.Receipt.Status != Queued && r.Receipt.Status != Held && r.Receipt.Status != Delivering {
 				return Receipt{}, errors.New("endpoint returned an invalid delivery status")
+			}
+			if progress != nil && (r.Receipt.Status != last.Status || r.Receipt.Detail != last.Detail) {
+				progress(*r.Receipt)
+			}
+			last = *r.Receipt
+			if last.Status == Held {
+				ticker.Reset(peerHeldPoll)
+			} else {
+				ticker.Reset(50 * time.Millisecond)
 			}
 		}
 		select {

@@ -27,7 +27,7 @@ func (e *controlledEndpoint) Observe(ctx context.Context) (couchmessage.Observat
 }
 func (e *controlledEndpoint) Reserve(ctx context.Context, _ string, _ uint64) error { return ctx.Err() }
 func (e *controlledEndpoint) Release(context.Context, string) error                 { return nil }
-func (e *controlledEndpoint) Deliver(ctx context.Context, m couchmessage.Message) (couchmessage.Receipt, error) {
+func (e *controlledEndpoint) Deliver(ctx context.Context, m couchmessage.Message, _ func(couchmessage.Receipt)) (couchmessage.Receipt, error) {
 	e.mu.Lock()
 	e.delivered++
 	e.mu.Unlock()

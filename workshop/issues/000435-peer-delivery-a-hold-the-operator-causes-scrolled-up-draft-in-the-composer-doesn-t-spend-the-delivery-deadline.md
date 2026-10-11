@@ -1,12 +1,20 @@
 ---
 id: 000435
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-10
 updated: 2026-10-10
 estimate_hours:
-card_mirror: '107fbea96d7b55e6b29079ecf1a0dc72521bf730' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'ac56b6722613a2ce3d1376570233c0a4c3b06138' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-10T23:14:33-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Peer delivery: a hold the operator causes (scrolled up, draft in the composer) doesn't spend the delivery deadline
@@ -42,8 +50,36 @@ polling the receipt (ops learnings kinks 56, 58). It hurts the TL's effectivenes
 
 ## Plan
 
-- [ ]
+Design (settled; ARCH-SIMPLE — one static cap both sides read, no new protocol op):
+
+- **Cap:** `couchmessage.MaxHold = 30m`; `Message.HoldLimit() = Deadline + MaxHold`; `Horizon()` becomes
+  `HoldLimit + DeliveryTimeout`, so the broker's Tick backstop, the job context and `RemoteEndpoint.Deliver`'s
+  context all cover the longest hold without the broker learning each hold. 30 min, not `ReceiptLifetime`: the
+  recipient takes one message at a time, so the cap is also how long a scrolled-up pane can refuse other
+  senders (`recipient-busy`, an immediate, retryable answer).
+- **Wrapper clock** (`wrapcmd/peer_delivery.go`): `dispatchPeer` flags an operator hold on the two details
+  ("waiting for empty composer"; "waiting for the composer to be in view" once a reading said out of view, not
+  while the first reading is in flight). `operatorHoldLocked` opens/closes it (`heldSince`, `heldFor`);
+  `deadlineLocked` before the paste is `HoldLimit` while a hold is open, else `Deadline + heldFor` capped at
+  `HoldLimit`. Every other hold keeps the clock running. Reaching the cap expires with
+  "delivery deadline elapsed: held past 30m0s, <hold detail>".
+- **`held` status:** new non-terminal `couchmessage.Held`, the wrapper receipt's status while a hold is open.
+  `DeliveryEndpoint.Deliver` gains a `progress func(Receipt)`; `RemoteEndpoint.Deliver` hands it each changed
+  interim receipt (and polls at 1 s while held instead of 50 ms); the broker applies a `DeliveryProgress`
+  actor event, so `couch` status shows `held` + reason (Queued interim → `delivering` + its detail).
+  Sender disconnect while held → `cancelled` (held = not pasted), as for any non-`delivering` receipt.
+- Lifecycle: creates nothing durable — two in-memory fields per delivery, reset by the next enqueue.
+
+- [x] Model: `MaxHold`, `HoldLimit`, `Horizon`, `Held`, `DeliveryProgress` (+ model test)
+- [x] Endpoint/broker: `Deliver` progress, Held accepted, held poll pacing (+ endpoint + broker tests)
+- [x] Wrapper: hold accounting + Held receipt (`peer_hold_test.go`: draft, scrollback, non-operator, cap)
+- [ ] Full `make test`, close
 
 ## Log
 
 ### 2026-10-10
+
+- Coordination: pair#433 (pair:2) also edits `couchmessage/model.go` (allowance). This change touches the const
+  block, `Message`/`Horizon`, `Status`, `EventKind` and adds one `Advance` case; no allowance code.
+- Mutation-checked: returning `Deadline` while held fails the draft/scrollback/non-operator tests; dropping
+  the `heldFor` credit fails the non-operator test.

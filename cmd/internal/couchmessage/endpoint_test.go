@@ -84,11 +84,11 @@ func TestRemoteEndpointStatefulExchange(t *testing.T) {
 			}
 		case "status":
 			polls++
-			status := Delivering
+			// A held delivery reports its hold before the outcome (pair#435).
+			out.Receipt = &Receipt{Message: *stored, Status: Held, Detail: "waiting for empty composer"}
 			if polls > 1 {
-				status = Submitted
+				out.Receipt = &Receipt{Message: *stored, Status: Submitted}
 			}
-			out.Receipt = &Receipt{Message: *stored, Status: status}
 		}
 		return json.Marshal(out)
 	})
@@ -104,9 +104,13 @@ func TestRemoteEndpointStatefulExchange(t *testing.T) {
 	if err := e.Reserve(context.Background(), m.ID, obs.Sequence); err != nil {
 		t.Fatal(err)
 	}
-	r, err := e.Deliver(context.Background(), m)
+	var interim []Receipt
+	r, err := e.Deliver(context.Background(), m, func(r Receipt) { interim = append(interim, r) })
 	if err != nil || r.Status != Submitted {
 		t.Fatalf("deliver: %#v %v", r, err)
+	}
+	if len(interim) != 2 || interim[0].Status != Queued || interim[1].Status != Held || interim[1].Detail != "waiting for empty composer" {
+		t.Fatalf("interim receipts: %+v", interim)
 	}
 	if err := e.Release(context.Background(), m.ID); err != nil {
 		t.Fatal(err)
@@ -152,7 +156,7 @@ func TestRemoteEndpointRejectsWrongReceiptAndNeverRetriesCommit(t *testing.T) {
 			}
 			defer s.Close()
 			e := RemoteEndpoint{Binding: m.To, socket: socket}
-			if _, err := e.Deliver(context.Background(), m); err == nil {
+			if _, err := e.Deliver(context.Background(), m, nil); err == nil {
 				t.Fatal("bad delivery accepted")
 			}
 			// Close joins the handler before reading its counter.
@@ -204,7 +208,7 @@ func TestRemoteEndpointPollingStopsAtContextDeadline(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 125*time.Millisecond)
 	defer cancel()
 	e := RemoteEndpoint{Binding: m.To, socket: socket}
-	if _, err := e.Deliver(ctx, m); !errors.Is(err, context.DeadlineExceeded) {
+	if _, err := e.Deliver(ctx, m, nil); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("deadline: %v", err)
 	}
 	mu.Lock()
@@ -241,7 +245,7 @@ func TestRemoteEndpointCollectsOutcomeAfterInputDeadline(t *testing.T) {
 			}
 			defer s.Close()
 			e := RemoteEndpoint{Binding: m.To, socket: socket}
-			r, err := e.Deliver(context.Background(), m)
+			r, err := e.Deliver(context.Background(), m, nil)
 			s.Close()
 			if err != nil || r.Status != outcome {
 				t.Fatalf("outcome=%s err=%v", r.Status, err)
