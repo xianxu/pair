@@ -60,21 +60,21 @@ and a streaming agent nearly always has output in flight, so the detail hides wh
 Measured cause (Log 2026-10-11): the `outputPending > 0` gate starves a streaming agent. Fix the gate, keep
 the agent-agnostic confirm, and make the expiry detail name the dominant wait.
 
-- [ ] Frame-complete gate: the terminal model's control observer tracks synchronized output (DECSET 2026);
+- [x] Frame-complete gate: the terminal model's control observer tracks synchronized output (DECSET 2026);
   `FrameComplete()` is true once the stream has closed a synchronized update and is not inside one. In
   `dispatchPeer`, output in flight waits only when the model is not at a complete frame. Streams that never
   frame keep today's rule. (ARCH: one observer owns terminal-control facts; no agent-specific code.)
-- [ ] Busy-agent policy: **paste mid-turn** (today's rule, now reachable). Claude Code and Codex queue
+- [x] Busy-agent policy: **paste mid-turn** (today's rule, now reachable). Claude Code and Codex queue
   mid-turn input natively; the recorded queued screen clears the composer, which is the existing confirm
   evidence (occupied after the paste, then empty) — so a queued message reads `submitted` with no new
   recognizer. Holding to turn end would spend minutes of a 90 s paste-by on a long turn.
-- [ ] Wait accounting: each dispatch charges the time since the previous one to the detail that stood
+- [x] Wait accounting: each dispatch charges the time since the previous one to the detail that stood
   during it, per delivery half (reset at enqueue and at the paste). On expiry, the receipt detail lists the
   conditions longest first with their seconds; the `held past` prefix stays. In memory, bounded by the fixed
   detail set, dies with the delivery (ARCH-FUNERAL: nothing durable).
-- [ ] Fixtures: three screens re-rendered from the recorded parley.nvim:1 stream (2026-10-10 23:45–23:46,
+- [x] Fixtures: three screens re-rendered from the recorded parley.nvim:1 stream (2026-10-10 23:45–23:46,
   Claude Code 2.1.29x): mid-turn empty composer, the paste mid-turn, the queued message.
-- [ ] Tests: queued screen reads Empty; framed continuous output with a chunk always in flight delivers and
+- [x] Tests: queued screen reads Empty; framed continuous output with a chunk always in flight delivers and
   confirms `submitted` from the queued screen; 3+ min of streaming lands; unframed starvation expires naming
   `rendered output`; a not-ready composer under continuous output is named on expiry; observer unit test.
 
