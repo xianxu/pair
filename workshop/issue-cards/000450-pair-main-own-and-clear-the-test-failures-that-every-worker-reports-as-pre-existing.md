@@ -1,6 +1,6 @@
 ---
 id: 000450
-status: codecomplete
+status: done
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: b049190c7215d3d51fe7e62826ccadaecf922244
         evidence_commit: ea3e2bdb9630d1b3bbc28e8f2a990fc07fce9d6b
+        landed_commit: 4d40b23fd9b7d2f622a4bbfd54f8f4cd17f20f89
 ---
 
 # pair main: own and clear the test failures that every worker reports as pre-existing
