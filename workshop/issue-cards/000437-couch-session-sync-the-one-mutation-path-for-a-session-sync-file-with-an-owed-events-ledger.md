@@ -13,7 +13,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
-actual_hours: 0.88
+actual_hours: 0.90
 tracker:
     version: 1
     handoff:
@@ -27,10 +27,10 @@ tracker:
         destination: workshop/issues/000437-couch-session-sync-the-one-mutation-path-for-a-session-sync-file-with-an-owed-events-ledger.md
         main_commit: f6e650f0ebfda91bdd5ab119e39638d88932219e
     completion:
-        token: close-cee2d4dd30c5
+        token: close-0a7653f90daf
         repository: github.com/xianxu/pair
-        reviewed_head: b7c433831a5125b2d39992bc7ac223432a36c078
-        evidence_commit: b171654952c843e43f4a13b76d5e3e2ae4f6e584
+        reviewed_head: 7335c4b96df1bb05898dd5c3c48fcee69255bb97
+        evidence_commit: fac2213e2c162940244e5e326f63b03a21708f17
 ---
 
 # couch --session-sync: the one mutation path for a session-sync file, with an owed-events ledger
