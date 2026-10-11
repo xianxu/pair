@@ -2,6 +2,7 @@ package storagegc
 
 import (
 	"errors"
+	"io/fs"
 	"path/filepath"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
@@ -31,4 +32,28 @@ func SelectedOwner(dataDir, scopeKey, tag string) (artifactpath.StorageOwner, er
 		}
 	}
 	return artifactpath.NewStorageOwner(root, scope, tag)
+}
+
+// OwnerFramePath names an absolute path in the frame SelectedOwner resolves the
+// owner in: its deepest existing ancestor with symlinks evaluated, the missing
+// rest (which cannot be a symlink) and the base kept. A caller's spelling of
+// PAIR_DATA_DIR may be a symlink (macOS TMPDIR=/var/... is /private/var/...),
+// so every path compared against a selected owner, or recorded for the
+// collector to match capture paths against, goes through this.
+func OwnerFramePath(path string) (string, error) {
+	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
+		return "", errors.New("owner path must be an exact absolute path")
+	}
+	dir, rest := filepath.Dir(path), filepath.Base(path)
+	for {
+		physical, err := filepath.EvalSymlinks(dir)
+		if err == nil {
+			return filepath.Join(physical, rest), nil
+		}
+		parent := filepath.Dir(dir)
+		if !errors.Is(err, fs.ErrNotExist) || parent == dir {
+			return "", err
+		}
+		dir, rest = parent, filepath.Join(filepath.Base(dir), rest)
+	}
 }

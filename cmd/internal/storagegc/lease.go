@@ -3,6 +3,7 @@ package storagegc
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -65,6 +66,13 @@ func (c *Coordinator) AcquireRoleProcess(ctx context.Context, owner artifactpath
 // AcquireRoleProcessTarget optionally limits a reader registration to one exact
 // file. Empty Target preserves the existing owner-wide lifetime contract.
 func (c *Coordinator) AcquireRoleProcessTarget(ctx context.Context, owner artifactpath.StorageOwner, process ProcessIdentity, role, startID, target string) (string, error) {
+	if target != "" {
+		physical, err := OwnerFramePath(target)
+		if err != nil {
+			return "", fmt.Errorf("process target: %w", err)
+		}
+		target = physical
+	}
 	if err := validateProcessTarget(owner, target); err != nil {
 		return "", err
 	}

@@ -82,7 +82,11 @@ func runWithEnv(args []string, getenv func(string) string, stderr io.Writer) err
 			return fmt.Errorf("retention owner: %w", err)
 		}
 		for _, path := range []string{cleanedPath, logPath, anchorPath, readyPath} {
-			member, err := artifactpath.MatchArtifact(path, []artifactpath.StorageOwner{owner}, []string{agent})
+			physical, err := storagegc.OwnerFramePath(path)
+			if err != nil {
+				return fmt.Errorf("retention: distiller path: %w", err)
+			}
+			member, err := artifactpath.MatchArtifact(physical, []artifactpath.StorageOwner{owner}, []string{agent})
 			if err != nil || member.Family != "changelog" {
 				return fmt.Errorf("retention: distiller path is outside selected changelog")
 			}

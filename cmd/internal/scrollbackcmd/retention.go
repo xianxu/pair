@@ -70,11 +70,7 @@ func canonicalSource(path string) (string, error) {
 	if !filepath.IsAbs(path) {
 		return "", errors.New("managed source must be absolute")
 	}
-	parent, err := filepath.EvalSymlinks(filepath.Dir(path))
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(parent, filepath.Base(path)), nil
+	return storagegc.OwnerFramePath(filepath.Clean(path))
 }
 
 func acknowledgeRenderHandoff(lease *storagegc.ProcessLease, id, raw string) error {
