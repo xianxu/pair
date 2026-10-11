@@ -74,6 +74,19 @@ and ordinary reconnects do not. Never message your own slot to refill it: that
 path exists for the operator's session-sync editor. Do not manufacture operator input, restart, or change IDs
 to evade this breaker.
 
+## Waiting notices (TL)
+
+Couch watches every connected slot except the TL's own. When one has sat quiet
+past 10 minutes (`COUCH_WAIT_NOTICE_AFTER` at Couch start) while waiting for
+someone, Couch sends the TL one message from that slot, once per waiting
+episode: `slot repo:N waiting M min <reason>: <screen line> (…)`. The reasons
+are `on a prompt` (a dialog, a draft or anything else holding the screen),
+`after asking` (its turn ended with a question) and `idle off its resting
+branch`. Couch writes the notice under the slot's sender identity; the slot's
+agent did not write it and does not know it was sent. Peek the slot and unblock
+it, or tell the operator. The slot's next activity ends the episode. To mute a slot, add its `repo:N` on its own line to the
+`wait-notice-off` file the notice names.
+
 ## Scheduling work on another slot
 
 Scheduling is a message plus verification. SDLC enforces the workflow, so do not
