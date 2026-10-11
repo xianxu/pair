@@ -80,11 +80,11 @@ test-session-inventory-conformance:
 	PAIR_LIVE_NATIVE_SESSIONS=1 go test -p 20 ./cmd/internal/sessioninventory -run '^TestLive(ProviderContractConformance|JSONLProviderBehaviorMatchesStatefulFake)$$' -count=1 -v
 
 .PHONY: test-couch-zellij-live
+# pair#432 excludes TestParkLifecycleLive, TestContinuationZellijSeedTransportLive
+# and Recovery/checkpoint until it settles duplicate-quit idempotency and the
+# cold-launch ownership poll. Restore them to -run and drop -skip there.
 test-couch-zellij-live:
 	PAIR_LIVE_COUCH=1 go test -p 20 ./cmd/internal/launcher -run '^(TestSessionQuiescenceLive|TestSessionDetachLive|TestQuitLifecycleLive|TestTheAcceptorAgreesWithRealZellijLive)$$' -count=1 -v
-	# pair#432 excludes TestParkLifecycleLive, TestContinuationZellijSeedTransportLive
-	# and Recovery/checkpoint until it settles duplicate-quit idempotency and the
-	# cold-launch ownership poll. Restore them to -run and drop -skip there.
 	PAIR_LIVE_COUCH=1 go test -p 20 ./cmd/internal/couchcore -run '^(TestParkLifecycleLiveIntentOnlyMutation|TestRecoveryRealHelperAndSessionConformanceLive)$$' -skip '^TestRecoveryRealHelperAndSessionConformanceLive$$/^checkpoint$$' -count=1 -v
 	PAIR_LIVE_COUCH=1 go test -p 20 ./cmd/internal/couchcmd -run '^TestAgentShortcutInputConformanceLive$$' -count=1 -v
 
