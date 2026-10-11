@@ -13,7 +13,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
-actual_hours: 0.16
+actual_hours: 0.17
 tracker:
     version: 1
     handoff:
@@ -27,10 +27,10 @@ tracker:
         destination: workshop/issues/000438-peer-delivery-to-a-busy-agent-confirm-a-message-the-agent-queued-mid-turn-and-report-the-real-blocking-condition.md
         main_commit: bea1c74b3b7df5bed934a9bc010ecb230aa99173
     completion:
-        token: close-3ed65c494436
+        token: close-7eea3ba52acc
         repository: github.com/xianxu/pair
-        reviewed_head: 9f2c7f0b3e1fcddd02cadb4b2c0102c5fd538def
-        evidence_commit: 441cdb5789c208c5590332215fcd8262de143504
+        reviewed_head: de62fe63fe6f1030609437c55db3b8b33251191d
+        evidence_commit: df65531b043e2d0f2687325801bfdda6ea434ac4
 ---
 
 # Peer delivery to a busy agent: confirm a message the agent queued mid-turn, and report the real blocking condition
