@@ -121,6 +121,20 @@ export function colorStore(storage) {
   };
 }
 
+// RAIL_INSET is the gap between the rail and the screen's right edge.
+export const RAIL_INSET = 6;
+
+// railAt docks the rail (#449) to the drawn screen: its right edge
+// RAIL_INSET inside the screen's, its middle on the screen's (the CSS
+// translates it up by half its height). rect is the screen's client rect;
+// viewW the window's width.
+export function railAt(rect, viewW) {
+  return {
+    top: rect.top + rect.height / 2,
+    right: Math.max(0, viewW - rect.right) + RAIL_INSET,
+  };
+}
+
 // renderSwatches draws one button per palette color into el, marking the
 // current one. make(tag) creates an element.
 export function renderSwatches(el, palette, current, pick, make) {
@@ -268,6 +282,9 @@ async function start() {
   term.unicode.activeVersion = '11';
   term.open(document.getElementById('term'));
   let size = 16;
+  const rail = document.getElementById('rail');
+  // fit scales the font to the stage, then docks the rail to the screen it
+  // drew.
   const fit = () => {
     const screen = document.querySelector('#term .xterm-screen');
     if (!screen) {
@@ -282,6 +299,9 @@ async function start() {
       size = next;
       term.options.fontSize = size;
     }
+    const at = railAt(screen.getBoundingClientRect(), document.documentElement.clientWidth);
+    rail.style.top = `${at.top}px`;
+    rail.style.right = `${at.right}px`;
   };
 
   let storage = null;
@@ -291,8 +311,8 @@ async function start() {
     // Blocked site data: picks aren't remembered.
   }
   const swatches = document.getElementById('swatches');
-  // band lifts the screen above the pointer controls, however tall their
-  // wrapped row is; a view page has none and keeps the whole window.
+  // band lifts the screen above the hint, however tall its row is; a view
+  // page has none and keeps the whole window.
   const controls = document.getElementById('controls');
   let banded = false;
   const band = () => {
@@ -331,7 +351,10 @@ async function start() {
     },
     reset: () => term.reset(),
     show,
-    setStale: (on) => stage.classList.toggle('stale', on),
+    setStale: (on) => {
+      stage.classList.toggle('stale', on);
+      rail.classList.toggle('stale', on);
+    },
     later: (fn, ms) => setTimeout(fn, ms),
     caps: (c) => {
       pointer.setColors(c.palette, c.color);

@@ -69,8 +69,10 @@ html, body {
 #status.hidden {
   display: none;
 }
-/* A screen that is no longer receiving updates must not look live. */
-#stage.stale {
+/* A screen that is no longer receiving updates must not look live, nor
+   must the rail on it (#449). */
+#stage.stale,
+#rail.stale {
   opacity: 0.35;
   filter: grayscale(1);
 }
@@ -91,9 +93,9 @@ html, body {
 #hint.hidden {
   display: none;
 }
-/* Every pointer-page control lives in one band below the screen, a wrapping
-   row; viewer.js lifts the stage above the band's height, so no control
-   covers a cell someone may want to point at, at any width. */
+/* The hint lives in one band below the screen; viewer.js lifts the stage
+   above the band's height, so it covers no cell someone may want to point
+   at, at any width. */
 #controls {
   position: fixed;
   left: 8px;
@@ -104,26 +106,58 @@ html, body {
   align-items: center;
   gap: 6px;
 }
+/* The rail (#449) is a column overlaid on the screen's right edge, centered
+   on its height; viewer.js docks it to the drawn screen (railAt). It sits
+   outside #stage, so a tap on a swatch never starts a stroke, and only the
+   buttons take pointer events: a point or drag over the rest of the rail,
+   backing included, falls through to the screen. Pointer colors are its
+   first group; #447's mode icon joins the column. */
+#rail {
+  position: fixed;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
 /* Pointer colors (#446): one swatch per palette color, the current one
    ringed. */
 #swatches {
   display: flex;
-  gap: 6px;
-  padding: 4px 6px;
-  border-radius: 4px;
-  background: var(--status-bg);
+  flex-direction: column;
+  gap: 5px;
+  padding: 5px 4px;
+  border-radius: 12px;
+  background: rgba(40, 40, 40, 0.45);
 }
 #swatches.hidden {
   display: none;
 }
 .swatch {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   padding: 0;
   border: 2px solid transparent;
   border-radius: 50%;
   cursor: pointer;
+  opacity: 0.8;
+  pointer-events: auto;
+}
+.swatch:hover,
+.swatch.on {
+  opacity: 1;
 }
 .swatch.on {
   border-color: var(--status-fg);
+}
+@media (max-width: 480px) {
+  #swatches {
+    gap: 4px;
+    padding: 4px 3px;
+  }
+  .swatch {
+    width: 14px;
+    height: 14px;
+  }
 }
