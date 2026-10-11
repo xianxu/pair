@@ -1,6 +1,6 @@
 ---
 id: 000448
-status: codecomplete
+status: done
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: b26fec8c997d7ec790d11b10630416a80b517c0c
         evidence_commit: 7c34832283fbedc8706bc1c7e8e1c2b4ad305cc4
+        landed_commit: 78807037bb34a29a54fbaa0c93087c5a18947232
 ---
 
 # session-sync: a section write must not absorb the operator's edits elsewhere into the shadow
