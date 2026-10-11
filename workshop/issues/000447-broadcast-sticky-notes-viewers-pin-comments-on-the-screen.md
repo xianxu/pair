@@ -71,7 +71,7 @@ Depends on pair#446 (colors) and pair#449 (swatch column at the right edge) land
 Durable plan: `workshop/plans/000447-broadcast-sticky-notes-viewers-pin-comments-on-the-screen-plan.md`.
 
 - [x] Design session with the operator in the slot: settle the open questions, then fix Spec and Done when.
-- [ ] M1 — Notes in Couch: note board and strict parsing, `note`/`resolve` routes, `notes` event to every stream, session checks, 💭 overlay and `💭N` in the tab bar.
+- [x] M1 — Notes in Couch: note board and strict parsing, `note`/`resolve` routes, `notes` event to every stream, session checks, 💭 overlay and `💭N` in the tab bar.
 - [ ] M2 — The viewer page: tap routing, comment mode, the sticky-note dialog and the mode switch below the swatches; live check with two viewers and a view-only one.
 
 ## Estimate
@@ -99,6 +99,7 @@ Items, in order: the design session with the operator and the plan with three pl
 ## Log
 
 ### 2026-10-11
+- 2026-10-11: closed M1 — As before (unit+property+fuzz; PointerState ordering, injected interleavings, -race stress; real-session route tests; console integration test with real session+console+viewer emulator). Review round 1 fixes in 1c3a0b16: README notes paragraph (BR-2), ParsePointBatch uses decodeStrict (FuzzParsePointBatch 10s green), forget-at-broadcast-end tested with notes held, drawnNotes comment. broadcast + couchtty (-race, notes/pointer/status) green after the fixes. Client-chosen color for the per-color limit is the accepted collaborative design (Spec).; review verdict: SHIP
 - Design session with the operator: anchoring option A (fixed cell), 💭 not 💬 (💬 is the review threads'), view link read-only but sees notes, pointing off deletes every note, 8 notes per color, `💭N` after 👽, mode switch under the #449 swatch rail.
 - change-code: plan-quality took 3 rounds, all ordering (ARCH-ORDER): the board moved inside `PointerState` so off and clear are one critical section; `addNote` carries the flip generation; no foreign call under `p.mu` (`Hub.Current` waits on the hub loop, which takes `p.mu`).
 - M1 discoveries: (1) Go's JSON decoder turns invalid UTF-8 into U+FFFD, so `ParseNote` refuses a non-UTF-8 body up front. (2) The renderer draws a row's text only up to its used columns, so a 💭 on a blank row vanished while marks (background only) showed; `DrawNotes` widens them (test added). (3) A 👆 click runs on the Run loop and `DisablePointer` reports the emptied board through `OnNotes`; a waiting `onNotes` deadlocked it, so it hands off without waiting. (4) New sources need entries in `artifactpath/manifest.go`.
