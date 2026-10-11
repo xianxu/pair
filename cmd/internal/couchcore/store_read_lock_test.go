@@ -40,6 +40,8 @@ func storeReadLockFixture(t *testing.T) *testEnv {
 // smoke test's reboot failed once with "read launch preference: resource
 // temporarily unavailable" while something held store.lock for a moment.
 func TestStoreReadWaitsForABrieflyHeldLock(t *testing.T) {
+	t.Parallel()
+
 	env := storeReadLockFixture(t)
 	release := holdStoreLock(t, env.Couch.Threads)
 	go func() { time.Sleep(50 * time.Millisecond); release() }()

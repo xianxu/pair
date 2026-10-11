@@ -8,6 +8,8 @@ import (
 )
 
 func TestThreadRecordLifecycleConvertersAndClonesAreDefensive(t *testing.T) {
+	t.Parallel()
+
 	record := validThreadRecord(t)
 	record.Incarnations = []ThreadIncarnation{{
 		PID: 42, Identity: "helper", State: IncarnationLive,
@@ -64,6 +66,8 @@ func validThreadRecord(t *testing.T) ThreadRecord {
 }
 
 func TestThreadStoreValidateThreadRecordRejectsInvalidBoundaries(t *testing.T) {
+	t.Parallel()
+
 	base := validThreadRecord(t)
 	tests := []struct {
 		name   string
@@ -90,6 +94,8 @@ func TestThreadStoreValidateThreadRecordRejectsInvalidBoundaries(t *testing.T) {
 }
 
 func TestThreadStoreValidateThreadRecordAcceptsLegacyTag(t *testing.T) {
+	t.Parallel()
+
 	record := validThreadRecord(t)
 	record.Address.Tag = "pair-work_2"
 	if err := ValidateThreadRecord(record); err != nil {
@@ -101,6 +107,8 @@ func TestThreadStoreValidateThreadRecordAcceptsLegacyTag(t *testing.T) {
 }
 
 func TestValidateThreadRecordAcceptsRecoverableStartBoundaries(t *testing.T) {
+	t.Parallel()
+
 	base := validThreadRecord(t)
 	base.Reservation = false
 	base.Incarnations = []ThreadIncarnation{{
@@ -137,6 +145,8 @@ func TestValidateThreadRecordAcceptsRecoverableStartBoundaries(t *testing.T) {
 }
 
 func TestValidateThreadRecordRejectsUnrecoverableStartBoundaries(t *testing.T) {
+	t.Parallel()
+
 	base := validThreadRecord(t)
 	base.Reservation = false
 	base.Incarnations = []ThreadIncarnation{{

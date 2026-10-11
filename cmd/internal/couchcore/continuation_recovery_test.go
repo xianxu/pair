@@ -70,6 +70,8 @@ func newContinuationFixture(t *testing.T) *continuationFixture {
 	return f
 }
 func TestContinuationRetryAfterProvedTargetDeath(t *testing.T) {
+	t.Parallel()
+
 	f := newContinuationFixture(t)
 	c := f.env.Couch
 	first, err := c.Continue(context.Background(), f.source.Address, f.status.RequestID)
@@ -103,6 +105,8 @@ func TestContinuationRetryAfterProvedTargetDeath(t *testing.T) {
 	}
 }
 func TestContinuationRegistrationCrashReconcilesWithoutSpawn(t *testing.T) {
+	t.Parallel()
+
 	f := newContinuationFixture(t)
 	c := f.env.Couch
 	first, err := c.Continue(context.Background(), f.source.Address, f.status.RequestID)
@@ -123,6 +127,8 @@ func TestContinuationRegistrationCrashReconcilesWithoutSpawn(t *testing.T) {
 	}
 }
 func TestContinuationForkFailureRetainsParkAndSnapshot(t *testing.T) {
+	t.Parallel()
+
 	f := newContinuationFixture(t)
 	c := f.env.Couch
 	f.env.Runner.FailNextStart(errors.New("fork unavailable"))
@@ -145,6 +151,8 @@ func TestContinuationForkFailureRetainsParkAndSnapshot(t *testing.T) {
 }
 
 func TestContinuationWarmTargetRecoveryAfterOwnerDeath(t *testing.T) {
+	t.Parallel()
+
 	f := newContinuationFixture(t)
 	c := f.env.Couch
 	first, err := c.Continue(context.Background(), f.source.Address, f.status.RequestID)
@@ -184,6 +192,8 @@ func TestContinuationWarmTargetRecoveryAfterOwnerDeath(t *testing.T) {
 }
 
 func TestContinuationWarmSourceRecoveryHandsOffHelperBeforePark(t *testing.T) {
+	t.Parallel()
+
 	f := newContinuationFixture(t)
 	c := f.env.Couch
 	f.env.Proc.Kill(42)
@@ -221,6 +231,8 @@ func TestContinuationWarmSourceRecoveryHandsOffHelperBeforePark(t *testing.T) {
 }
 
 func TestContinuationArchivePreservesSnapshotRemovesDerivedCopy(t *testing.T) {
+	t.Parallel()
+
 	f := newContinuationFixture(t)
 	c := f.env.Couch
 	started, err := c.Continue(context.Background(), f.source.Address, f.status.RequestID)
@@ -248,6 +260,8 @@ func TestContinuationArchivePreservesSnapshotRemovesDerivedCopy(t *testing.T) {
 }
 
 func TestContinuationRetryDoesNotStealUnrecordedHelperFromLiveOwner(t *testing.T) {
+	t.Parallel()
+
 	f := newContinuationFixture(t)
 	c := f.env.Couch
 	f.env.Runner.FailNextStart(errors.New("fork unavailable"))
@@ -277,6 +291,8 @@ func TestContinuationRetryDoesNotStealUnrecordedHelperFromLiveOwner(t *testing.T
 }
 
 func TestContinuationUnconfirmedSubmissionTimesOutDurably(t *testing.T) {
+	t.Parallel()
+
 	f := newContinuationFixture(t)
 	c := f.env.Couch
 	result, err := c.Continue(context.Background(), f.source.Address, f.status.RequestID)
@@ -295,6 +311,8 @@ func TestContinuationUnconfirmedSubmissionTimesOutDurably(t *testing.T) {
 }
 
 func TestContinuationRetrySessionObservationHonorsCancellation(t *testing.T) {
+	t.Parallel()
+
 	f := newContinuationFixture(t)
 	c := f.env.Couch
 	first, err := c.Continue(context.Background(), f.source.Address, f.status.RequestID)
@@ -329,6 +347,8 @@ func TestContinuationRetrySessionObservationHonorsCancellation(t *testing.T) {
 }
 
 func TestRegisteredUnknownTargetRecoveryInterruptionAndProofRefusals(t *testing.T) {
+	t.Parallel()
+
 	for _, mode := range []string{"cancel-after-retirement", "receipt-lost", "helper-live-again", "revision-changed"} {
 		t.Run(mode, func(t *testing.T) {
 			f := newContinuationFixture(t)
@@ -450,6 +470,8 @@ func (f *continuationFixture) sessionName(t *testing.T) string {
 }
 
 func TestContinuationRegisteredTargetUsesNewTerminalBinding(t *testing.T) {
+	t.Parallel()
+
 	f := newContinuationFixture(t)
 	first, err := f.env.Couch.Continue(context.Background(), f.source.Address, f.status.RequestID)
 	if err != nil {

@@ -11,6 +11,8 @@ import (
 )
 
 func TestFailedUnacceptedPTYCleanupCancelsBlockedPublication(t *testing.T) {
+	t.Parallel()
+
 	entered := make(chan struct{}, 1)
 	runner := &PtyRunner{Sink: func(ctx context.Context, _ string, _ ptychild.OutputBatch) error {
 		select {

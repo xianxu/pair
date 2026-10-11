@@ -36,6 +36,8 @@ const liveManifest = `{
 }`
 
 func TestPreM4ManifestStillLoads(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	if err := os.MkdirAll(store.root, 0o700); err != nil {
 		t.Fatal(err)
@@ -98,6 +100,8 @@ const livePreM4RecordWithOpenStart = `{
 }`
 
 func TestPreM4StartCarriesItsRepositoryIdentityForward(t *testing.T) {
+	t.Parallel()
+
 	address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
 	persisted, err := threadrecord.DecodePersisted([]byte(livePreM4RecordWithOpenStart),
 		threadrecord.Address{RepoScope: address.RepoScope, Tag: string(address.Tag)},
@@ -129,6 +133,8 @@ func TestPreM4StartCarriesItsRepositoryIdentityForward(t *testing.T) {
 // binary that it never had, and that binary would import the registry a second
 // time.
 func TestManifestTombstonesSurviveAWrite(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	if err := os.MkdirAll(store.root, 0o700); err != nil {
 		t.Fatal(err)

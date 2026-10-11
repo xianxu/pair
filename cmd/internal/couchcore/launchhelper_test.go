@@ -3,10 +3,13 @@ package couchcore
 import (
 	"bytes"
 	"errors"
+	"flag"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -28,7 +31,21 @@ func TestMain(m *testing.M) {
 	if os.Getenv("PAIR_TEST_RUNNER_HELPER") == "1" {
 		os.Exit(LaunchHelperMain(os.Args[1:], os.Stderr))
 	}
+	defaultParallelForSubprocessTests()
 	os.Exit(m.Run())
+}
+
+// defaultParallelForSubprocessTests raises -test.parallel unless the caller set
+// it. couchcore's parallel tests mostly wait on git and helper subprocesses: at
+// the GOMAXPROCS default the package kept about 2 of 12 cores busy, and 3x
+// GOMAXPROCS took it from 236s to ~150s under a loaded host (pair#436).
+func defaultParallelForSubprocessTests() {
+	flag.Parse()
+	set := false
+	flag.Visit(func(f *flag.Flag) { set = set || f.Name == "test.parallel" })
+	if !set {
+		_ = flag.Set("test.parallel", strconv.Itoa(3*runtime.GOMAXPROCS(0)))
+	}
 }
 
 func (r *observedReadCloser) Close() error {
@@ -37,6 +54,8 @@ func (r *observedReadCloser) Close() error {
 }
 
 func TestRunLaunchHelperExecsExactlyOnceAfterAcknowledgement(t *testing.T) {
+	t.Parallel()
+
 	ack := &observedReadCloser{Reader: bytes.NewReader([]byte{launchAckByte})}
 	var calls int
 	err := RunLaunchHelper(ack, time.Second, []string{"target", "arg"}, []string{"K=V"}, func(argv, env []string) error {
@@ -55,6 +74,8 @@ func TestRunLaunchHelperExecsExactlyOnceAfterAcknowledgement(t *testing.T) {
 }
 
 func TestRunLaunchHelperNeverExecsWithoutExactAcknowledgement(t *testing.T) {
+	t.Parallel()
+
 	for _, tt := range []struct {
 		name string
 		ack  io.Reader
@@ -77,6 +98,8 @@ func TestRunLaunchHelperNeverExecsWithoutExactAcknowledgement(t *testing.T) {
 }
 
 func TestRunLaunchHelperTimeoutClosesAcknowledgementWithoutExec(t *testing.T) {
+	t.Parallel()
+
 	reader, writer := io.Pipe()
 	t.Cleanup(func() { _ = writer.Close() })
 	calls := 0
@@ -94,6 +117,8 @@ func TestRunLaunchHelperTimeoutClosesAcknowledgementWithoutExec(t *testing.T) {
 }
 
 func TestLaunchHelperSubprocess(t *testing.T) {
+	t.Parallel()
+
 	mode := os.Getenv("PAIR_TEST_LAUNCH_HELPER_MODE")
 	if mode == "helper" {
 		ack := os.NewFile(3, "launch-ack")

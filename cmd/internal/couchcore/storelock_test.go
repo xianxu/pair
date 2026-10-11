@@ -6,6 +6,8 @@ import (
 )
 
 func TestThreadStoreLockSerializesIndependentHandles(t *testing.T) {
+	t.Parallel()
+
 	_, ns := newTestThreadStore(t)
 	root := NewThreadStore(ns).root
 	first, err := acquireThreadStoreLockMode(root, false)
@@ -38,7 +40,7 @@ func TestThreadStoreLockSerializesIndependentHandles(t *testing.T) {
 		defer second.Close()
 	case err := <-errs:
 		t.Fatalf("second lock after release: %v", err)
-	case <-time.After(time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("second lock did not acquire after release")
 	}
 }

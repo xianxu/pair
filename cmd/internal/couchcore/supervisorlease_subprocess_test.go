@@ -13,6 +13,8 @@ import (
 const supervisorLeaseHelperEnv = "PAIR_TEST_SUPERVISOR_LEASE_HELPER"
 
 func TestSupervisorLeaseSubprocessHelper(t *testing.T) {
+	t.Parallel()
+
 	mode := os.Getenv(supervisorLeaseHelperEnv)
 	if mode == "" {
 		return
@@ -69,6 +71,8 @@ func startSupervisorLeaseHelper(t *testing.T, ns CouchNamespace, mode string) (*
 }
 
 func TestSupervisorLeaseOwnerCrashReleasesLock(t *testing.T) {
+	t.Parallel()
+
 	ns := testCouchNamespace(t)
 	cmd, _ := startSupervisorLeaseHelper(t, ns, "hold")
 	if err := cmd.Process.Kill(); err != nil {

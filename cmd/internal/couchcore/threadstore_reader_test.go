@@ -11,6 +11,8 @@ import (
 )
 
 func TestLocalCurrentReadersRejectSymlink(t *testing.T) {
+	t.Parallel()
+
 	for _, operation := range []string{"get", "metadata", "snapshot", "locked", "start", "park"} {
 		t.Run(operation, func(t *testing.T) {
 			s := testLocalThreadStore(t)
@@ -70,6 +72,8 @@ func TestLocalCurrentReadersRejectSymlink(t *testing.T) {
 }
 
 func TestLocalJournalRejectsSymlinkAuthorityAndTargets(t *testing.T) {
+	t.Parallel()
+
 	for _, kind := range []string{"journal", "current", "parent"} {
 		t.Run(kind, func(t *testing.T) {
 			s := testLocalThreadStore(t)
@@ -119,6 +123,8 @@ func TestLocalJournalRejectsSymlinkAuthorityAndTargets(t *testing.T) {
 }
 
 func TestLocalReaderRejectsNonregularAndOversizedMetadata(t *testing.T) {
+	t.Parallel()
+
 	for _, kind := range []string{"directory", "fifo", "oversized-journal", "environment-sibling"} {
 		t.Run(kind, func(t *testing.T) {
 			s := testLocalThreadStore(t)
@@ -159,6 +165,8 @@ func TestLocalReaderRejectsNonregularAndOversizedMetadata(t *testing.T) {
 }
 
 func TestLocalJournalRecoversImagesLargerThanPayloadReadLimit(t *testing.T) {
+	t.Parallel()
+
 	s := testLocalThreadStore(t)
 	if err := os.MkdirAll(s.root, 0700); err != nil {
 		t.Fatal(err)
@@ -192,6 +200,8 @@ func TestLocalJournalRecoversImagesLargerThanPayloadReadLimit(t *testing.T) {
 }
 
 func TestLocalJournalRefusesOversizedImagesBeforePublication(t *testing.T) {
+	t.Parallel()
+
 	s := testLocalThreadStore(t)
 	oversized := make([]byte, localPayloadLimit+1)
 	err := s.withLock(func() error {

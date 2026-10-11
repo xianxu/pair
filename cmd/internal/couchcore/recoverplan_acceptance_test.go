@@ -139,6 +139,8 @@ func (w *recoverWorld) expect(t *testing.T, plan RecoverPlan, n int, class Recov
 // seeded "before the restart" read back through the real recover-plan
 // dispatch, then re-read after sdlc's state changes.
 func TestRecoverPlanAfterRestart(t *testing.T) {
+	t.Parallel()
+
 	w := newRecoverWorld(t)
 	address, fleet := w.address, w.fleet
 	report := func() RecoverPlan { return w.report(t) }
@@ -184,6 +186,8 @@ func TestRecoverPlanAfterRestart(t *testing.T) {
 // again. Rows converge to live with nothing left to run, and a resend is
 // refused (pair#367 Task 2.7).
 func TestRecoverPlanStepsConverge(t *testing.T) {
+	t.Parallel()
+
 	w := newRecoverWorld(t)
 	ctx := context.Background()
 	untouched, err := os.ReadDir(w.locals[5].root)

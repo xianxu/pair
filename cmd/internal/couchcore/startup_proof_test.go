@@ -108,6 +108,8 @@ func threadCounter(suffix string) uint64 {
 
 // Startup's proof work must not grow with the threads it cannot act on.
 func TestStartupProvesOnlyTheThreadsItsReadersConsume(t *testing.T) {
+	t.Parallel()
+
 	for _, others := range []int{2, 12} {
 		t.Run(fmt.Sprintf("others=%d", others), func(t *testing.T) {
 			env, cwd := startupFixture(t, others, "")
@@ -168,6 +170,8 @@ func (a *parkAfterSnapshotArtifacts) SessionPresence(ctx context.Context, addres
 }
 
 func TestStartupWarmSelectionCannotBecomeColdResume(t *testing.T) {
+	t.Parallel()
+
 	env, address := startupFixture(t, 0, "")
 	var parked ThreadRecord
 	env.Couch.Artifacts = &parkAfterSnapshotArtifacts{
@@ -196,6 +200,8 @@ func TestStartupWarmSelectionCannotBecomeColdResume(t *testing.T) {
 // of conflict: a valid different layout, and one this binary cannot read
 // (NormalizeLayout's unknown, which conflicts with everything).
 func TestStartupStillRefusesAConflictingLayoutAnywhere(t *testing.T) {
+	t.Parallel()
+
 	for _, other := range []Layout{NormalizeLayout("layout3"), NormalizeLayout("layout1")} {
 		t.Run(string(other), func(t *testing.T) {
 			env, _ := startupFixture(t, 1, other)
@@ -219,6 +225,8 @@ func TestStartupStillRefusesAConflictingLayoutAnywhere(t *testing.T) {
 // in production is pinned separately, at the real checker, by
 // TestDetachedSessionsCountsALegacyThreadOnceAcrossScopes.
 func TestNarrowedStartupAnswersAsAFullProofWould(t *testing.T) {
+	t.Parallel()
+
 	for _, tt := range []struct {
 		name  string
 		build func(t *testing.T, env *testEnv)
@@ -373,6 +381,8 @@ func conflictAddresses(layout Layout, rows []ActionableThreadSummary) []ThreadAd
 // before a scope derivation changed). The selectors skip it either way, so
 // proving it is a list-clients and a ledger read that nothing consults.
 func TestStartupDoesNotProveAForeignScopeRecordAtTheCwdPath(t *testing.T) {
+	t.Parallel()
+
 	env, _ := startupFixture(t, 0, "")
 	detachedThreadAt(t, env, "/repo", "second")
 	// Same working path, a scope that is not this repository's.

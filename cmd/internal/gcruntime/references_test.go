@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
 	"os"
 	"path/filepath"
@@ -320,7 +321,13 @@ func TestCouchReferencesLocalArchiveLocatorRoundTrip(t *testing.T) {
 	}
 	now := time.Now().UTC()
 	c.Now = func() time.Time { return now }
-	address := couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0000000000000001"}
+	// Slot routing requires the record's scope to name the host checkout
+	// (couchcore.CheckoutMembership); path containment alone is not authority.
+	scope, err := launcher.ResolveRepoScope(host)
+	if err != nil {
+		t.Fatal(err)
+	}
+	address := couchcore.ThreadAddress{RepoScope: scope.Key, Tag: "couch-0000000000000001"}
 	record := couchcore.ThreadRecord{SchemaVersion: couchcore.ThreadSchemaVersion, Address: address, StartingPath: host, WorkingPath: host, CreatedAt: now, Revision: 1, LastActiveAt: now, LatestLaunchProfile: &couchcore.LaunchProfile{Agent: "claude", Argv: []string{}}}
 	if _, err := store.CreateThread(record); err != nil {
 		t.Fatal(err)

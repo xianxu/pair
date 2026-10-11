@@ -11,6 +11,8 @@ import (
 // console goroutine. Every write goes through mutateRegistry, so none is lost
 // in memory or on disk.
 func TestConcurrentRegistryWritersLoseNoUpdate(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	c := env.Couch
 	const n = 16

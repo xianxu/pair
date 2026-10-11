@@ -24,6 +24,8 @@ func testContinuationRequest(t *testing.T, record ThreadRecord) checkpoint.Reque
 	return checkpoint.Request{Version: 1, ID: checkpoint.RequestID(record.Address.RepoScope, string(record.Address.Tag), 2, cp.Digest), Checkpoint: cp, Source: checkpoint.Source{Agent: agent, Session: "pair-source", LaunchOrdinal: 2, Helper: checkpoint.Process{PID: 42, Identity: "source"}}, CreatedAt: record.CreatedAt, Phase: checkpoint.Pending}
 }
 func TestContinuationRecordRoundTripAndCAS(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	record := validThreadRecord(t)
 	created, err := store.CreateThread(record)
@@ -68,6 +70,8 @@ func TestContinuationRecordRoundTripAndCAS(t *testing.T) {
 }
 
 func TestContinuationRequestScanIsolatesUnreadableSlot(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	first := validThreadRecord(t)
 	first, err := store.CreateThread(first)
@@ -94,6 +98,8 @@ func TestContinuationRequestScanIsolatesUnreadableSlot(t *testing.T) {
 }
 
 func TestContinuationRequestsBoundedOwnedSet(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	var addresses []ThreadAddress
 	wanted := map[ThreadAddress]string{}
@@ -170,6 +176,8 @@ func failedContinuation(t *testing.T, store *ThreadStore, record ThreadRecord) (
 // Dismissal retires ONLY the exact failed request, and every refusal writes
 // nothing -- asserted by the unchanged revision, not a bare error (#280).
 func TestDismissFailedContinuationRetiresOnlyTheExactFailedRequest(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	created, err := store.CreateThread(validThreadRecord(t))
 	if err != nil {
@@ -215,6 +223,8 @@ func TestDismissFailedContinuationRetiresOnlyTheExactFailedRequest(t *testing.T)
 // Retry and dismissal race through the revision CAS: whichever commits first
 // wins, and the other refuses on what it finds -- both orders, driven.
 func TestRetryAndDismissalSerializeInEitherOrder(t *testing.T) {
+	t.Parallel()
+
 	for _, dismissFirst := range []bool{false, true} {
 		t.Run(map[bool]string{false: "retry-first", true: "dismiss-first"}[dismissFirst], func(t *testing.T) {
 			store, _ := newTestThreadStore(t)

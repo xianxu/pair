@@ -3,6 +3,8 @@ package couchcore
 import "testing"
 
 func TestContinuationOperationsDeclared(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range []string{"request-continuation", "continue-thread", "retry-continuation", "dismiss-continuation", "continuation-status"} {
 		op, ok := operationByName(name)
 		if !ok {

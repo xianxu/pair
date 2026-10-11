@@ -6,6 +6,8 @@ import (
 )
 
 func TestDecideRecoveryNeverInfersDeathFromMissingAttachment(t *testing.T) {
+	t.Parallel()
+
 	for _, helper := range []Liveness{Live, Unknown, Dead} {
 		for _, presence := range []SessionPresence{PresenceUnobserved, PresenceAbsent, PresencePresent} {
 			for _, detached := range []bool{false, true} {
@@ -26,6 +28,8 @@ func TestDecideRecoveryNeverInfersDeathFromMissingAttachment(t *testing.T) {
 }
 
 func TestDecideRecoveryMissingCheckpointLeavesArchive(t *testing.T) {
+	t.Parallel()
+
 	got := DecideRecovery(RecoveryEvidence{Presence: PresenceAbsent, Helper: Dead})
 	if got.Recover || !got.FromCheckpoint || !got.Archive || got.Diagnosis == "" {
 		t.Fatalf("decision %+v", got)

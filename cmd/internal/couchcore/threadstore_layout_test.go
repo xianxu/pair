@@ -24,6 +24,8 @@ func testLocalThreadStore(t *testing.T) *ThreadStore {
 }
 
 func TestLocalThreadStoreSingleCurrentAndSharedMutation(t *testing.T) {
+	t.Parallel()
+
 	s := testLocalThreadStore(t)
 	r := recordAtCheckout(t, s.slot.WorktreeRoot, s.slot.WorktreeRoot, "couch-0123456789abcdef")
 	r.StartingPath = s.slot.WorktreeRoot
@@ -60,6 +62,8 @@ func TestLocalThreadStoreSingleCurrentAndSharedMutation(t *testing.T) {
 }
 
 func TestLocalThreadStoreRejectsCorruptMembership(t *testing.T) {
+	t.Parallel()
+
 	s := testLocalThreadStore(t)
 	if err := os.MkdirAll(s.root, 0700); err != nil {
 		t.Fatal(err)
@@ -84,6 +88,8 @@ func TestLocalThreadStoreRejectsCorruptMembership(t *testing.T) {
 }
 
 func TestLocalThreadStoreRejectsForeignPath(t *testing.T) {
+	t.Parallel()
+
 	s := testLocalThreadStore(t)
 	r := validThreadRecord(t)
 	if _, err := s.CreateThread(r); err == nil {
@@ -92,6 +98,8 @@ func TestLocalThreadStoreRejectsForeignPath(t *testing.T) {
 }
 
 func TestLocalThreadStoreArchiveRejectsOtherCurrentTag(t *testing.T) {
+	t.Parallel()
+
 	s := testLocalThreadStore(t)
 	r := recordAtCheckout(t, s.slot.WorktreeRoot, s.slot.WorktreeRoot, "couch-0123456789abcdef")
 	r.StartingPath = s.slot.WorktreeRoot
@@ -123,6 +131,8 @@ func TestLocalThreadStoreArchiveRejectsOtherCurrentTag(t *testing.T) {
 }
 
 func TestLocalThreadStoreRefusesSymlinkBackend(t *testing.T) {
+	t.Parallel()
+
 	s := testLocalThreadStore(t)
 	outside := t.TempDir()
 	if err := os.Symlink(outside, s.root); err != nil {
@@ -141,6 +151,8 @@ func TestLocalThreadStoreRefusesSymlinkBackend(t *testing.T) {
 }
 
 func TestSlotManifestVersionPreservedByPrimaryCreate(t *testing.T) {
+	t.Parallel()
+
 	s, _ := newTestThreadStore(t)
 	if err := os.MkdirAll(s.root, 0700); err != nil {
 		t.Fatal(err)
@@ -166,6 +178,8 @@ func TestSlotManifestVersionPreservedByPrimaryCreate(t *testing.T) {
 }
 
 func TestLocalSnapshotDoesNotInitializeAbsentState(t *testing.T) {
+	t.Parallel()
+
 	s := testLocalThreadStore(t)
 	if _, err := s.Snapshot(); err != nil {
 		t.Fatal(err)
@@ -176,6 +190,8 @@ func TestLocalSnapshotDoesNotInitializeAbsentState(t *testing.T) {
 }
 
 func TestLocalSuccessfulStartRecoversRecordAndPreferencesTogether(t *testing.T) {
+	t.Parallel()
+
 	s := testLocalThreadStore(t)
 	r := recordAtCheckout(t, s.slot.WorktreeRoot, s.slot.WorktreeRoot, "couch-0123456789abcdef")
 	r.StartingPath = s.slot.WorktreeRoot
@@ -218,6 +234,8 @@ func TestLocalSuccessfulStartRecoversRecordAndPreferencesTogether(t *testing.T) 
 }
 
 func TestLocalThreadStoreRetainsSubdirectoryAndMissingCWD(t *testing.T) {
+	t.Parallel()
+
 	s := testLocalThreadStore(t)
 	r := recordAtCheckout(t, s.slot.WorktreeRoot, s.slot.WorktreeRoot, "couch-0123456789abcdef")
 	r.StartingPath = filepath.Join(s.slot.WorktreeRoot, "competition", "arc-agi-3")
@@ -238,6 +256,8 @@ func TestLocalThreadStoreRetainsSubdirectoryAndMissingCWD(t *testing.T) {
 }
 
 func TestLocalThreadStoreRejectsSymlinkEscapeAndSiblingPrefix(t *testing.T) {
+	t.Parallel()
+
 	s := testLocalThreadStore(t)
 	outside := t.TempDir()
 	link := filepath.Join(s.slot.WorktreeRoot, "escape")

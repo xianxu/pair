@@ -52,6 +52,8 @@ func orphanedEnv(t *testing.T) (*testEnv, ThreadAddress, launcher.SessionServerI
 // Reap ends an orphaned thread's server tree; the thread then reads like any
 // other thread whose session ended, and resume is its ordinary next step.
 func TestReapEndsAnOrphanedServer(t *testing.T) {
+	t.Parallel()
+
 	env, address, server, reaper := orphanedEnv(t)
 	result, err := env.Couch.Reap(context.Background(), ReapTarget{Address: address})
 	if err != nil {
@@ -75,6 +77,8 @@ func TestReapEndsAnOrphanedServer(t *testing.T) {
 // before its socket exists. Reap re-observes after an interval and refuses if
 // the orphan verdict did not hold for the same server identity.
 func TestReapRequiresTheOrphanToHoldAcrossTwoObservations(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name  string
 		later SessionObservation
@@ -98,6 +102,8 @@ func TestReapRequiresTheOrphanToHoldAcrossTwoObservations(t *testing.T) {
 
 // Reap acts only on orphans: a parked or live thread is refused untouched.
 func TestReapRefusesAThreadThatIsNotOrphaned(t *testing.T) {
+	t.Parallel()
+
 	env, address, _, reaper := orphanedEnv(t)
 	env.Artifacts.SetSessionPresence(address, SessionObservation{State: SessionAbsent})
 	_, err := env.Couch.Reap(context.Background(), ReapTarget{Address: address})
@@ -109,6 +115,8 @@ func TestReapRefusesAThreadThatIsNotOrphaned(t *testing.T) {
 
 // ActorActions offers reap, and only reap, on an orphaned row.
 func TestActorActionsOffersReapOnAnOrphan(t *testing.T) {
+	t.Parallel()
+
 	got := ActorActions(ActorRowFacts{State: ThreadUnusable, Reason: ReasonOrphanedServer})
 	if len(got) != 1 || got[0] != "reap" {
 		t.Fatalf("ActorActions(orphan) = %v", got)

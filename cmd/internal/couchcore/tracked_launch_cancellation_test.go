@@ -9,6 +9,8 @@ import (
 )
 
 func TestTrackedLaunchCancellationBeforeAcknowledgementReapsAndRollsBack(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	prepared, err := env.Couch.PrepareStart(context.Background(), StartArgs{Worktree: "/repo"})
 	if err != nil {
@@ -32,6 +34,8 @@ func TestTrackedLaunchCancellationBeforeAcknowledgementReapsAndRollsBack(t *test
 }
 
 func TestTrackedLaunchCancellationRestoresVerifiedParkOnResume(t *testing.T) {
+	t.Parallel()
+
 	for _, phase := range []string{"before-ack", "after-ack"} {
 		t.Run(phase, func(t *testing.T) {
 			env := newTestEnv(t, "/repo")
@@ -73,6 +77,8 @@ func TestTrackedLaunchCancellationRestoresVerifiedParkOnResume(t *testing.T) {
 // tag derives from, the address collided with the real record, and the vacuum
 // showed. Asserting over the whole snapshot is what keeps it honest.
 func TestTrackedLaunchCancellationAfterAcknowledgementReapsAndKeepsRecordOccupied(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	prepared, err := env.Couch.PrepareStart(context.Background(), StartArgs{Worktree: "/repo"})
 	if err != nil {

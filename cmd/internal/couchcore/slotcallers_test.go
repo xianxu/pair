@@ -13,6 +13,8 @@ import (
 // only from leftovers is a candidate marked ErrSlotNeedsReconcile, never
 // missing and never a repository-wide failure.
 func TestDiscoverUnionsNumberSources(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	p := NewWorkspaceProvisioner(f)
 	for _, n := range []int{1, 2} {
@@ -47,6 +49,8 @@ func TestDiscoverUnionsNumberSources(t *testing.T) {
 // identity, so an open of a verified host whose marker is gone must still
 // converge setup before the agent starts (red before pair#387 Task 2.5).
 func TestOpenReconcilesAVerifiedSlotWhoseSetupIsMissing(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	if _, err := NewWorkspaceProvisioner(f).Ensure(context.Background(), ProvisionRequest{Path: f.Primary, Slot: 1}); err != nil {
 		t.Fatal(err)
@@ -74,6 +78,8 @@ func TestOpenReconcilesAVerifiedSlotWhoseSetupIsMissing(t *testing.T) {
 // dependency with no clone source) refuses with the :0 hand-off and starts no
 // agent.
 func TestOpenRefusesWithTheHandoffWhenSetupCannotConverge(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	if _, err := NewWorkspaceProvisioner(f).Ensure(context.Background(), ProvisionRequest{Path: f.Primary, Slot: 1}); err != nil {
 		t.Fatal(err)
@@ -100,6 +106,8 @@ func TestOpenRefusesWithTheHandoffWhenSetupCannotConverge(t *testing.T) {
 // reboot's first pass must get past exactly that hold, stop the agent, and let
 // its post-stop pass repair. A hand-off still refuses before anything stops.
 func TestRebootGetsPastAHoldItsAdviceNames(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name     string
 		first    ReconcileFailure
@@ -148,6 +156,8 @@ func TestRebootGetsPastAHoldItsAdviceNames(t *testing.T) {
 // the agent, and its post-stop pass sets the host aside, re-adds it and
 // starts fresh. The slot record lives in <env>/.couch, so it survives.
 func TestRebootRepairsABrokenHostUnderALiveAgent(t *testing.T) {
+	t.Parallel()
+
 	env, local := slotRecoveryOperationFixture(t)
 	old := slotRecordFixture(t, env, local)
 	f := env.Couch.Slots.(*OSSlotCatalog).IO.(*ProvisionFixture)

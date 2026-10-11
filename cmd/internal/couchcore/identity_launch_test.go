@@ -10,6 +10,8 @@ import (
 )
 
 func TestSpawnUsesStoreConversationAndTerminalCounters(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	env.Couch.Identities = couchidentity.IdentityStore{HostDir: t.TempDir(), StoreDir: env.Dir}
 	first, _ := env.spawn(t, StartArgs{Worktree: "/repo", Stack: "claude"})
@@ -26,6 +28,8 @@ func TestSpawnUsesStoreConversationAndTerminalCounters(t *testing.T) {
 }
 
 func TestSpawnRefusesMissingIdentityAllocator(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	env.Couch.Identities = nil
 	_, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo", Stack: "claude"})
@@ -35,6 +39,8 @@ func TestSpawnRefusesMissingIdentityAllocator(t *testing.T) {
 }
 
 func TestManagedTerminalLifetimesThroughColdAndWarmResume(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	env.Couch.Identities = couchidentity.IdentityStore{HostDir: t.TempDir(), StoreDir: env.Dir}
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})

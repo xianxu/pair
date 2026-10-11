@@ -18,6 +18,8 @@ import (
 // check's result, so a failure says where to look (pair#367 smoke test: a
 // remote cold resume timed out with only "context deadline exceeded").
 func TestColdResumeRegistrationTimeoutNamesThePaneBirthPhase(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	env.Couch.resumeRegistrationTimeout = 150 * time.Millisecond
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})

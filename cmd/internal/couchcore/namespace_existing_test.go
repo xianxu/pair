@@ -7,6 +7,8 @@ import (
 )
 
 func TestExistingCouchNamespaceNeverCreatesOrReinterprets(t *testing.T) {
+	t.Parallel()
+
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

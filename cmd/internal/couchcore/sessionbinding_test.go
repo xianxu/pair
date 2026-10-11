@@ -7,6 +7,8 @@ import (
 )
 
 func TestStartBindingSurvivesRegistrationAndUnknownRecovery(t *testing.T) {
+	t.Parallel()
+
 	for _, kind := range []StartEventKind{StartRegistered, StartRecoveredUnknown} {
 		t.Run(string(kind), func(t *testing.T) {
 			r := admittedStartRecord(t)
@@ -55,6 +57,8 @@ func TestStartBindingSurvivesRegistrationAndUnknownRecovery(t *testing.T) {
 }
 
 func TestStartBindingRejectsWrongAddressAndReplacement(t *testing.T) {
+	t.Parallel()
+
 	r := admittedStartRecord(t)
 	r, err := AdvanceStartTransaction(r, StartEvent{Kind: StartClaimed, Nonce: "start-0123456789abcdef", Owner: SupervisorOwner{PID: 41, Identity: "owner"}})
 	if err != nil {
@@ -75,6 +79,8 @@ func TestStartBindingRejectsWrongAddressAndReplacement(t *testing.T) {
 }
 
 func TestReconcilePendingTerminalRequiresAbsenceBeforeRollback(t *testing.T) {
+	t.Parallel()
+
 	r := admittedStartRecord(t)
 	nonce := "start-0123456789abcdef"
 	r, _ = AdvanceStartTransaction(r, StartEvent{Kind: StartClaimed, Nonce: nonce, Owner: SupervisorOwner{PID: 41, Identity: "owner"}})
@@ -94,6 +100,8 @@ func TestReconcilePendingTerminalRequiresAbsenceBeforeRollback(t *testing.T) {
 }
 
 func TestReconcilePendingTerminalDoesNotReuseHistoricalRegistration(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	r := admittedStartRecord(t)
 	r.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}

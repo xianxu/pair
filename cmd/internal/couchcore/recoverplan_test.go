@@ -559,6 +559,8 @@ func recoverPlanCases() []recoverPlanCase {
 }
 
 func TestDeriveRecoverPlanCoversEveryClassHoldAndNote(t *testing.T) {
+	t.Parallel()
+
 	seen := map[string]bool{}
 	for _, c := range recoverPlanCases() {
 		t.Run(c.name, func(t *testing.T) {
@@ -680,6 +682,8 @@ func withDependencyFacts(e SlotEvidence, dep EvidenceDepClaims, tree EvidenceDep
 }
 
 func TestDeriveRecoverPlanIsTotalOverTheEvidenceDomain(t *testing.T) {
+	t.Parallel()
+
 	start := time.Now()
 	points := 0
 	forEachEvidence(func(e SlotEvidence) {
@@ -756,6 +760,8 @@ func TestDeriveRecoverPlanIsTotalOverTheEvidenceDomain(t *testing.T) {
 // consistent's exclusions are physical facts, each pinned here so the domain
 // cannot shrink silently.
 func TestConsistentExcludesOnlyImpossibleEvidence(t *testing.T) {
+	t.Parallel()
+
 	base := SlotEvidence{Dir: DirPresent, Couch: CouchOK, Agent: AgentParked, Threads: ThreadsOne, Offer: OfferResumeReboot, Branch: BranchOpenIssue,
 		Claims: ClaimsOneActive, DepClaims: DepNone, DepTree: DepTreeClean, Quality: QualityPresent, GitSource: GitSourceSDLC, Dirty: TriNo, Unlanded: TriNo, Operation: TriNo}
 	if !consistent(base) {
@@ -785,6 +791,8 @@ func TestConsistentExcludesOnlyImpossibleEvidence(t *testing.T) {
 }
 
 func TestOneWeakSourceNeverHoldsARepo(t *testing.T) {
+	t.Parallel()
+
 	p := newPlanFixture(t)
 	claimedOnBranch(p)
 	p.thread("pair:1", ThreadParked, "")
@@ -805,6 +813,8 @@ func TestOneWeakSourceNeverHoldsARepo(t *testing.T) {
 }
 
 func TestUnsupportedFleetUsesLocalProbe(t *testing.T) {
+	t.Parallel()
+
 	p := newPlanFixture(t)
 	p.fleetState = FleetObservationUnsupported
 	p.candidates = []RecoverSlotCandidate{
@@ -835,6 +845,8 @@ func TestUnsupportedFleetUsesLocalProbe(t *testing.T) {
 }
 
 func TestJoinUsesThePrimaryRowDefinition(t *testing.T) {
+	t.Parallel()
+
 	p := newPlanFixture(t)
 	p.fleet.AddSlot("pair:0")
 	p.thread("pair:0", ThreadParked, "")
@@ -857,6 +869,8 @@ func TestJoinUsesThePrimaryRowDefinition(t *testing.T) {
 }
 
 func TestClaimsAttachToTheirSlotPath(t *testing.T) {
+	t.Parallel()
+
 	p := newPlanFixture(t)
 	p.fleet.AddSlot("pair:1")
 	p.fleet.SetBranch("pair:1", "000011-x")
@@ -888,6 +902,8 @@ func TestClaimsAttachToTheirSlotPath(t *testing.T) {
 }
 
 func TestDeriveRecoverPlanDedupesSlotsAcrossFleets(t *testing.T) {
+	t.Parallel()
+
 	p := newPlanFixture(t)
 	claimedOnBranch(p)
 	in := p.input()
@@ -981,6 +997,8 @@ func assertReasonMatchesDecision(t *testing.T, row RecoverRow) {
 // operation) never changes a judgment about the host -- hostAtRest, the
 // issue-terminal conflict fact, or whether a host-only row is idle or landed.
 func TestHostJudgmentsReadOnlyHostFacts(t *testing.T) {
+	t.Parallel()
+
 	checked := 0
 	forEachEvidence(func(e SlotEvidence) {
 		if e.DepClaims != DepNone || e.DepTree != DepTreeClean {
@@ -1020,6 +1038,8 @@ func TestHostJudgmentsReadOnlyHostFacts(t *testing.T) {
 // The host's git facts in the row are the host's own; the dependency's dirt
 // shows only in the evidence union and the disk members (BR-14).
 func TestDependencyFactsStayOnTheDependency(t *testing.T) {
+	t.Parallel()
+
 	p := newPlanFixture(t)
 	activeDependency(p, "pair:1", false)
 	p.fleet.SetMemberDirty(dependencyPath(p), 2)
@@ -1033,6 +1053,8 @@ func TestDependencyFactsStayOnTheDependency(t *testing.T) {
 // caller's extra notes: a caller slice with spare capacity must survive a
 // later append untouched in the decision (M1 review round 4, slice alias).
 func TestRestoreWorkspaceNotesDoNotAliasExtra(t *testing.T) {
+	t.Parallel()
+
 	e := SlotEvidence{Dir: DirPresent, Couch: CouchOK, Agent: AgentParked, Threads: ThreadsOne, Offer: OfferResumeReboot, Branch: BranchResting,
 		Claims: ClaimsOneInactive, DepClaims: DepResting, Quality: QualityPresent, GitSource: GitSourceSDLC, Dirty: TriYes, Unlanded: TriNo, Operation: TriNo}
 	for dirt, want := range map[TriState][]RecoverNote{
@@ -1057,6 +1079,8 @@ func TestRestoreWorkspaceNotesDoNotAliasExtra(t *testing.T) {
 // turns idle or a missing directory (and nothing else) into the reconcile step; held and unknown add
 // their note and change nothing else; reconcile is never stepped otherwise.
 func TestRecoverReconcileReadingIsMetamorphic(t *testing.T) {
+	t.Parallel()
+
 	earlier := map[RecoverClass]bool{RecoverDirectoryMissing: true, RecoverAgentUnknown: true, RecoverOrphanedServer: true, RecoverStartUnreconciled: true, RecoverAmbiguousThreads: true}
 	points := 0
 	index := 0
@@ -1111,6 +1135,8 @@ func TestRecoverReconcileReadingIsMetamorphic(t *testing.T) {
 // for :0 only when the callers' own SlotOutcome would refuse it, and never
 // holds one they would open.
 func TestRecoverSlotClassAgreesWithTheCallers(t *testing.T) {
+	t.Parallel()
+
 	for _, agent := range AllEvidenceAgents() {
 		for _, p := range slotPerturbations() {
 			o := perturb(healthyObservation(), p)
@@ -1136,6 +1162,8 @@ func TestRecoverSlotClassAgreesWithTheCallers(t *testing.T) {
 // confirmed reap, then resume -- never reboot, which would archive a running
 // conversation (#399).
 func TestRecoverPlanNamesAnOrphanedAgent(t *testing.T) {
+	t.Parallel()
+
 	p := newPlanFixture(t)
 	claimedOnBranch(p)
 	p.orphanedThread("pair:1", 4242)
@@ -1159,6 +1187,8 @@ func TestRecoverPlanNamesAnOrphanedAgent(t *testing.T) {
 // live, but its server lost its socket. The report reads it as agent orphaned
 // with the same steps, reap then resume.
 func TestRecoverPlanNamesALiveOrphan(t *testing.T) {
+	t.Parallel()
+
 	p := newPlanFixture(t)
 	claimedOnBranch(p)
 	p.thread("pair:1", ThreadLive, "")
@@ -1179,6 +1209,8 @@ func TestRecoverPlanNamesALiveOrphan(t *testing.T) {
 // A many-thread slot keeps its most urgent attention state by the one
 // agentRank: an orphan outranks an unknown row (#399 M1 review).
 func TestManyThreadsWithAnOrphanReadOrphaned(t *testing.T) {
+	t.Parallel()
+
 	p := newPlanFixture(t)
 	claimedOnBranch(p)
 	p.thread("pair:1", ThreadUnusable, ReasonUnknown)
@@ -1191,6 +1223,8 @@ func TestManyThreadsWithAnOrphanReadOrphaned(t *testing.T) {
 
 // After the reap the same slot reads like any parked thread: resume only.
 func TestRecoverPlanAfterReapIsResumeOnly(t *testing.T) {
+	t.Parallel()
+
 	p := newPlanFixture(t)
 	claimedOnBranch(p)
 	p.thread("pair:1", ThreadParked, "")

@@ -162,6 +162,8 @@ func (orphanOwnerProbe) Revalidate(context.Context, launcher.SessionOwnerObserva
 // Resume, startup and the switcher all read this refusal: one coded sentence
 // naming the server, never a raw zellij exit status (#399).
 func TestNamedPairSessionRefusesAnOrphanWithItsDiagnostic(t *testing.T) {
+	t.Parallel()
+
 	checker := NewScopedThreadArtifactCollisionChecker(t.TempDir())
 	checker.OwnerProbe = orphanOwnerProbe{server: launcher.SessionServerIdentity{PID: 4321, Identity: "t", Session: "📁1-37"}}
 	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0000000000000001"}

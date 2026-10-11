@@ -9,6 +9,8 @@ import (
 // TestSlotGlyphParts is a truth table over the two independent parts: branch
 // position/divergence, then `*` for a dirty tree on any branch (pair#319).
 func TestSlotGlyphParts(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name string
 		s    SlotGitStatus
@@ -37,6 +39,8 @@ func TestSlotGlyphParts(t *testing.T) {
 }
 
 func TestRestingBranch(t *testing.T) {
+	t.Parallel()
+
 	if got := RestingBranch(0); got != "main" {
 		t.Fatalf("RestingBranch(0) = %q", got)
 	}
@@ -46,6 +50,8 @@ func TestRestingBranch(t *testing.T) {
 }
 
 func TestParseSlotGitStatus(t *testing.T) {
+	t.Parallel()
+
 	head := "# branch.oid ad5c735d925a3095c5632d9a99603d33e490e19a\n# branch.head main-slot1\n"
 	upstream := "# branch.upstream origin/main\n"
 	for _, tc := range []struct {
@@ -100,6 +106,8 @@ func TestParseSlotGitStatus(t *testing.T) {
 }
 
 func TestProbeSlotGitRunsInDirWithNoOptionalLocks(t *testing.T) {
+	t.Parallel()
+
 	git := NewFakeGit(map[GitCall]string{
 		{Dir: "/w/pair-slot2/pair", Args: "--no-optional-locks status --porcelain=v2 --branch"}: "# branch.head main-slot2\n? x\n",
 	})

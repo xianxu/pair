@@ -42,6 +42,8 @@ func neverTurnedThread(t *testing.T) (*testEnv, ThreadRecord) {
 // fresh under a nonce Pair never learns and waiting out the registration
 // budget (pair#367 smoke test, operator decision).
 func TestResumeRefusesAThreadThatNeverTookATurn(t *testing.T) {
+	t.Parallel()
+
 	env, parked := neverTurnedThread(t)
 	start := time.Now()
 	_, _, err := env.Couch.ResumeContext(context.Background(), parked.Address)
@@ -65,6 +67,8 @@ func TestResumeRefusesAThreadThatNeverTookATurn(t *testing.T) {
 // Relaunch is park then resume, so it is refused before its park for the same
 // thread: there is nothing to come back to.
 func TestRelaunchRefusesAThreadThatNeverTookATurn(t *testing.T) {
+	t.Parallel()
+
 	env, live := envWithLiveThread(t)
 	native := sessioninventorytest.NewFakeRuntime()
 	pair := sessioninventory.StorageRoot{Name: "pair-data", Path: "/pair"}
@@ -86,6 +90,8 @@ func TestRelaunchRefusesAThreadThatNeverTookATurn(t *testing.T) {
 // Pair learns a Couch nonce only through the orientation's attempt, so a fresh
 // launch without one (or with another) is refused before any child starts.
 func TestFreshLaunchMustHandPairItsNonce(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		name string
 		in   trackedThreadLaunch

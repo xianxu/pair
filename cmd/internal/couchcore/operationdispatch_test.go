@@ -11,6 +11,8 @@ import (
 )
 
 func TestDispatchOperationRoutesOnlyThroughDeclaredExecutor(t *testing.T) {
+	t.Parallel()
+
 	var direct, live []OperationCall
 	executors := OperationExecutors{
 		DirectStore: func(call OperationCall) (any, error) {
@@ -40,6 +42,8 @@ func TestDispatchOperationRoutesOnlyThroughDeclaredExecutor(t *testing.T) {
 }
 
 func TestLifecycleOperationContextReachesParkLeaveAndResume(t *testing.T) {
+	t.Parallel()
+
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
 
@@ -120,6 +124,8 @@ func installLifecycleForContextTest(t *testing.T, env *testEnv, address ThreadAd
 }
 
 func TestDispatchOperationMissingOwnerRefusesWithoutFallback(t *testing.T) {
+	t.Parallel()
+
 	directCalls := 0
 	_, err := DispatchOperation(OperationExecutors{
 		DirectStore: func(OperationCall) (any, error) {
@@ -137,6 +143,8 @@ func TestDispatchOperationMissingOwnerRefusesWithoutFallback(t *testing.T) {
 }
 
 func TestDispatchOperationValidatesSchemaAndPreservesTypedPayload(t *testing.T) {
+	t.Parallel()
+
 	payload := struct{ Token string }{Token: "terminal"}
 	var received OperationCall
 	executors := OperationExecutors{LiveOwner: func(call OperationCall) (any, error) {
@@ -170,6 +178,8 @@ func TestDispatchOperationValidatesSchemaAndPreservesTypedPayload(t *testing.T) 
 }
 
 func TestDispatchOperationRejectsEmptyValueRequiredArgumentBeforeExecutor(t *testing.T) {
+	t.Parallel()
+
 	calls := 0
 	_, err := DispatchOperation(OperationExecutors{
 		LiveOwner: func(OperationCall) (any, error) {
@@ -200,6 +210,8 @@ func TestDispatchOperationRejectsEmptyValueRequiredArgumentBeforeExecutor(t *tes
 // What the fingerprint must still do is refuse a resolution that drifted, and
 // that is TestSpawnPreparedRefusesDriftByFingerprint.
 func TestPreparedStartResolvesThenCommitsByFingerprint(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	executor := CouchLiveOwnerExecutor(env.Couch)
 	preparedValue, err := DispatchOperation(OperationExecutors{LiveOwner: executor}, OperationCall{
@@ -226,6 +238,8 @@ func TestPreparedStartResolvesThenCommitsByFingerprint(t *testing.T) {
 }
 
 func TestResumeOperationResolutionBoundary(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	first := validThreadRecord(t)
 	first.Name = "shared"
@@ -268,6 +282,8 @@ func TestResumeOperationResolutionBoundary(t *testing.T) {
 }
 
 func TestRebootRequiresOwner(t *testing.T) {
+	t.Parallel()
+
 	args := map[string]string{"repo-scope": "scope", "tag": "tag"}
 	calls := 0
 	executors := OperationExecutors{DirectStore: func(OperationCall) (any, error) { t.Fatal("lifecycle bypassed owner"); return nil, nil }, LiveOwner: func(OperationCall) (any, error) { calls++; return nil, nil }}

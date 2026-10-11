@@ -86,6 +86,8 @@ func narratesRetirement(line string) bool {
 }
 
 func TestRetiredClaimsAreNotRestatedAsCurrent(t *testing.T) {
+	t.Parallel()
+
 	root := repoRootFrom(t)
 	// The homes of a referent, as #256's own rule enumerates them: production
 	// code comments, the atlas, and the README. Review sidecars, gate ledgers,

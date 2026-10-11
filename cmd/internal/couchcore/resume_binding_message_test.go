@@ -14,6 +14,8 @@ import (
 // not answered yet, and relaunch is something you do to a session you just
 // started, so that is the refusal it meets most.
 func TestEachBindingRefusalSaysSomethingDifferentAndUsable(t *testing.T) {
+	t.Parallel()
+
 	seen := map[string]sessioninventory.BindingStatus{}
 	for _, status := range []sessioninventory.BindingStatus{
 		sessioninventory.BindingProvisional,
@@ -45,6 +47,8 @@ func TestEachBindingRefusalSaysSomethingDifferentAndUsable(t *testing.T) {
 // catch-all it replaced, so every actual refusal still read "native session
 // binding is not one exact established root".
 func TestTheResolverAndItsFakeRefuseWithTheActionableSentence(t *testing.T) {
+	t.Parallel()
+
 	fake := NewFakeThreadArtifactCollisionChecker()
 	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
 	fake.SetNativeBinding(address, "claude", sessioninventory.BindingProvisional, "")

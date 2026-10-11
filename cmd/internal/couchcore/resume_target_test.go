@@ -11,6 +11,8 @@ import (
 // Exercise the production resolver: admission must not depend on a native file
 // being readable, or on optional transcript proof surviving a reboot.
 func TestNativeResolverRetainsProbationTargetWithoutTranscript(t *testing.T) {
+	t.Parallel()
+
 	runtime := sessioninventorytest.NewFakeRuntime()
 	runtime.SetPairDataRoot(sessioninventory.StorageRoot{Name: "pair-data", Path: "/pair"})
 	artifact := sessioninventory.Artifact{StorageRoot: "pair-data", RelativePath: "ledger-work.jsonl"}

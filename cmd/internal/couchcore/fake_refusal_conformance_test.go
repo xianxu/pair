@@ -26,6 +26,8 @@ import (
 // named the way every existing one already is. If the convention changes, the
 // count check below fails rather than silently covering nothing.
 func TestFakesWrapEverySentinelTheirProductionSeamWraps(t *testing.T) {
+	t.Parallel()
+
 	dir := filepath.Join(repoRootFrom(t), "cmd", "internal", "couchcore")
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -79,6 +81,8 @@ func TestFakesWrapEverySentinelTheirProductionSeamWraps(t *testing.T) {
 // The source guard above proves the fake WRAPS it; this proves the fake can be
 // driven into the state that returns it, which is what a caller's test needs.
 func TestTheFakeCanProduceAnAbsentBindingErrorsIsCanSee(t *testing.T) {
+	t.Parallel()
+
 	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0102030405060708"}
 	fake := NewFakeThreadArtifactCollisionChecker()
 

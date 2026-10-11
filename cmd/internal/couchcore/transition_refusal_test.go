@@ -37,6 +37,8 @@ import (
 // means: a refusal that advanced the revision, or wrote half a record, would
 // pass a bare `err != nil` and still be the bug.
 func TestEveryLifecycleTransitionIsDrivenIntoItsOwnRefusal(t *testing.T) {
+	t.Parallel()
+
 	domain := lifecycleTransitionsReachingTheDoor(t)
 
 	type refusal struct {
@@ -387,6 +389,8 @@ func lifecycleTransitionsReachingTheDoor(t *testing.T) []string {
 // own rollback, silently; so "fails where it previously wrote" was never
 // reachable either, and the one path that could have written refuses first.
 func TestAbsentSourceRecoveryRefusesAnOpenStartClaimBeforeTheStoreDoes(t *testing.T) {
+	t.Parallel()
+
 	f := newContinuationFixture(t)
 	c := f.env.Couch
 	pid := f.source.Incarnations[0].PID

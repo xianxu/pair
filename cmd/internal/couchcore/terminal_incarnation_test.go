@@ -54,6 +54,8 @@ func incarnationFixture(t *testing.T) (*testEnv, ThreadRecord, *incarnationWorld
 }
 
 func TestColdAttachedConversationCannotCreateSecondTerminal(t *testing.T) {
+	t.Parallel()
+
 	env, record, world := incarnationFixture(t)
 	world.live[world.index] = true
 	launches := 0
@@ -80,6 +82,8 @@ func TestColdAttachedConversationCannotCreateSecondTerminal(t *testing.T) {
 }
 
 func TestColdRegistrationAndCleanupIgnoreOldIndexedTerminal(t *testing.T) {
+	t.Parallel()
+
 	env, record, world := incarnationFixture(t)
 	var proposed string
 	env.Runner.AfterAcknowledge = func(id string) error {
@@ -118,6 +122,8 @@ func TestColdRegistrationAndCleanupIgnoreOldIndexedTerminal(t *testing.T) {
 }
 
 func TestColdLegacyMissingIndexIsNotTerminalAbsence(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	record := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
 	env.Artifacts.SetNativeBinding(record.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
@@ -131,6 +137,8 @@ func TestColdLegacyMissingIndexIsNotTerminalAbsence(t *testing.T) {
 }
 
 func TestInterruptedBoundStartIgnoresOldRegistrationBeforeHelper(t *testing.T) {
+	t.Parallel()
+
 	env, record, world := incarnationFixture(t)
 	world.live[world.index] = true
 	const nonce = "start-0123456789abcdef"

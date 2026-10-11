@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/commitoutcome"
@@ -35,7 +34,7 @@ func managedLogWrite(getenv func(string) string, path string, write func(Session
 	if err != nil {
 		return fmt.Errorf("retention owner: %w", err)
 	}
-	parent, err := filepath.EvalSymlinks(filepath.Dir(path))
+	physical, err := storagegc.OwnerFramePath(path)
 	if err != nil {
 		return fmt.Errorf("retention log directory: %w", err)
 	}
@@ -44,7 +43,7 @@ func managedLogWrite(getenv func(string) string, path string, write func(Session
 	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	path = filepath.Join(parent, filepath.Base(path))
+	path = physical
 	paths, _ := artifactpath.ResolveScoped(owner.Directory(), owner.Tag)
 	if path != paths.Log() {
 		return fmt.Errorf("retention: log path does not match selected owner")

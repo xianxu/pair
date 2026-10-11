@@ -22,6 +22,8 @@ import (
 // identity token that READS and differs (a recycled pid), are both CONFIRMED
 // answers and must keep falling through, or #272 comes back.
 func TestAnUnprovableRecordedProcessIsNotConfirmedAbsence(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name           string
 		arrange        func(*FakeProcOps)

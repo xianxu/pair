@@ -9,6 +9,8 @@ import (
 )
 
 func TestSlotIdentityFromWorkspace(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	f.git(f.Primary, "worktree", "add", "-b", "main-slot1", f.host(1), "main")
 	p := NewWorkspaceProvisioner(f)
@@ -27,6 +29,8 @@ func TestSlotIdentityFromWorkspace(t *testing.T) {
 }
 
 func TestSlotCatalogPreservesIncompleteAndRegisteredMissing(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	f.git(f.Primary, "worktree", "add", "-b", "main-slot1", f.host(1), "main")
 	f.git(f.Primary, "worktree", "add", "-b", "main-slot3", f.host(3), "main")
@@ -60,6 +64,8 @@ func TestSlotCatalogPreservesIncompleteAndRegisteredMissing(t *testing.T) {
 }
 
 func TestEnumerateSlotCandidatesSafetyAndBound(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	if err := os.MkdirAll(f.host(2), 0700); err != nil {
 		t.Fatal(err)
@@ -88,6 +94,8 @@ func TestEnumerateSlotCandidatesSafetyAndBound(t *testing.T) {
 }
 
 func TestSlotCatalogFakeMutableSnapshot(t *testing.T) {
+	t.Parallel()
+
 	f := &SlotCatalogFake{Repositories: map[string]SlotRepository{"/repo": {Slots: []SlotCandidate{{Identity: SlotIdentity{Number: 1}}}}}}
 	got, err := f.Discover(context.Background(), "/repo")
 	if err != nil {
@@ -105,6 +113,8 @@ func TestSlotCatalogFakeMutableSnapshot(t *testing.T) {
 }
 
 func TestSlotCatalogRefusesForeignAndReplacedHost(t *testing.T) {
+	t.Parallel()
+
 	t.Run("foreign", func(t *testing.T) {
 		f := newProvisionFixture(t)
 		if err := os.MkdirAll(f.host(1), 0700); err != nil {
@@ -134,6 +144,8 @@ func TestSlotCatalogRefusesForeignAndReplacedHost(t *testing.T) {
 }
 
 func TestEnumerateSlotCandidatesRequiresPrimary(t *testing.T) {
+	t.Parallel()
+
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -144,6 +156,8 @@ func TestEnumerateSlotCandidatesRequiresPrimary(t *testing.T) {
 }
 
 func TestSlotCatalogCancellationDuringLastProbe(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	f.git(f.Primary, "worktree", "add", "-b", "main-slot1", f.host(1), "main")
 	ctx, cancel := context.WithCancel(context.Background())

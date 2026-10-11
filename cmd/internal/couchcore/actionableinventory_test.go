@@ -11,6 +11,8 @@ import (
 )
 
 func TestProjectActionableThreadsRequiresExactLifecycleProof(t *testing.T) {
+	t.Parallel()
+
 	now := time.Unix(100, 0).UTC()
 	live := actionableTestThread("couch-0000000000000002", now)
 	live.Incarnations = []ThreadIncarnation{{
@@ -49,6 +51,8 @@ func TestProjectActionableThreadsRequiresExactLifecycleProof(t *testing.T) {
 }
 
 func TestProjectActionableThreadsOmitsVerifiedParkWithoutResumeAuthority(t *testing.T) {
+	t.Parallel()
+
 	now := time.Unix(100, 0).UTC()
 	parked := actionableTestThread("couch-0000000000000001", now)
 	parked.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
@@ -60,6 +64,8 @@ func TestProjectActionableThreadsOmitsVerifiedParkWithoutResumeAuthority(t *test
 }
 
 func TestProjectActionableThreadsRequiresOneMatchingSupportedResumeProof(t *testing.T) {
+	t.Parallel()
+
 	now := time.Unix(100, 0).UTC()
 	base := actionableTestThread("couch-0000000000000001", now)
 	base.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
@@ -98,6 +104,8 @@ func TestProjectActionableThreadsRequiresOneMatchingSupportedResumeProof(t *test
 }
 
 func TestProjectActionableThreadsFailsClosedOnContradictoryEvidence(t *testing.T) {
+	t.Parallel()
+
 	now := time.Unix(100, 0).UTC()
 	tests := []struct {
 		name        string
@@ -172,6 +180,8 @@ func TestProjectActionableThreadsFailsClosedOnContradictoryEvidence(t *testing.T
 }
 
 func TestActionableThreadSummaryOwnsDisplayMetadata(t *testing.T) {
+	t.Parallel()
+
 	row := ActionableThreadSummary{
 		Address:          ThreadAddress{Tag: "couch-0000000000000001"},
 		Name:             "compiler",
@@ -187,6 +197,8 @@ func TestActionableThreadSummaryOwnsDisplayMetadata(t *testing.T) {
 }
 
 func TestActionableThreadInventorySnapshotsAndOwnsRows(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	record := validThreadRecord(t)
 	record.Name = "compiler"
@@ -215,6 +227,8 @@ func TestActionableThreadInventorySnapshotsAndOwnsRows(t *testing.T) {
 }
 
 func TestActionableThreadInventoryIncludesOnlyEstablishedParkedBinding(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	record := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
 	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
@@ -234,6 +248,8 @@ func TestActionableThreadInventoryIncludesOnlyEstablishedParkedBinding(t *testin
 }
 
 func TestActionableThreadInventoryProjectsPhysicalParkedWorkingPath(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	record := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
 	record.WorkingPath = "/link/repo"
@@ -259,6 +275,8 @@ func TestActionableThreadInventoryProjectsPhysicalParkedWorkingPath(t *testing.T
 // could be auto-selected. Since #181 it is still not offered, but it is no
 // longer invisible: it is a row that says path-missing.
 func TestActionableThreadInventoryRefusesParkedThreadWithUnavailableWorkingPath(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	record := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
 	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
@@ -283,6 +301,8 @@ func TestActionableThreadInventoryRefusesParkedThreadWithUnavailableWorkingPath(
 }
 
 func TestActionableThreadInventoryExposesContextBoundQuery(t *testing.T) {
+	t.Parallel()
+
 	type contextInventory interface {
 		ActionableThreadInventoryContext(context.Context, []LiveTTYObservation) ([]ActionableThreadSummary, error)
 	}
@@ -303,6 +323,8 @@ func (a *cancelingNativeBindingArtifacts) ResolveEstablished(ctx context.Context
 }
 
 func TestActionableThreadInventoryCancelsBlockedBindingResolution(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	record := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
 	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
@@ -341,6 +363,8 @@ func TestActionableThreadInventoryCancelsBlockedBindingResolution(t *testing.T) 
 }
 
 func TestActionableThreadInventoryDistinguishesSnapshotFailureFromEmpty(t *testing.T) {
+	t.Parallel()
+
 	rows, err := (&Couch{}).ActionableThreadInventory(nil)
 	if err == nil || rows != nil {
 		t.Fatalf("snapshot failure = %+v, %v; want nil rows and error", rows, err)
@@ -385,6 +409,8 @@ func markActionableParked(record *ThreadRecord, parkedAt time.Time) {
 // detached session matches it, so a couch that died without detaching cannot
 // masquerade as a clean detach.
 func TestProjectActionableThreadsDetached(t *testing.T) {
+	t.Parallel()
+
 	address := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
 	profile := &LaunchProfile{Agent: "claude", Argv: []string{}}
 	detached := []DetachedSessionObservation{{Address: address, SessionName: "pair-one", Agent: "claude"}}
@@ -483,6 +509,8 @@ func TestProjectActionableThreadsDetached(t *testing.T) {
 
 // A detached observation must not disturb the live or parked verdicts.
 func TestProjectActionableThreadsDetachedDoesNotDisturbOtherStates(t *testing.T) {
+	t.Parallel()
+
 	address := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
 	live := ThreadRecord{
 		SchemaVersion: ThreadSchemaVersion, Address: address,
@@ -502,6 +530,8 @@ func TestProjectActionableThreadsDetachedDoesNotDisturbOtherStates(t *testing.T)
 // happened to filter candidates: a row whose saved agent is unsupported, or
 // whose argv was never recorded, offers an Enter that cannot work.
 func TestProjectActionableThreadsDetachedRequiresAUsableProfile(t *testing.T) {
+	t.Parallel()
+
 	address := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
 	detached := []DetachedSessionObservation{{Address: address, SessionName: "pair-one", Agent: "claude"}}
 
@@ -536,6 +566,8 @@ func TestProjectActionableThreadsDetachedRequiresAUsableProfile(t *testing.T) {
 // starts in. Only visible on a symlinked checkout, which is
 // exactly why it needs a test rather than a reading.
 func TestActionableInventoryPhysicalizesDetachedRowsLikeParkedOnes(t *testing.T) {
+	t.Parallel()
+
 	ns := testCouchNamespace(t)
 	store := NewThreadStore(ns)
 	profile := &LaunchProfile{Agent: "claude", Argv: []string{}}
@@ -582,6 +614,8 @@ func TestActionableInventoryPhysicalizesDetachedRowsLikeParkedOnes(t *testing.T)
 
 // The pure projector checks warm session evidence independently of native binding.
 func TestProjectActionableThreadsDetachedRequiresTheResumeProof(t *testing.T) {
+	t.Parallel()
+
 	address := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
 	record := ThreadRecord{
 		SchemaVersion: ThreadSchemaVersion, Address: address,
@@ -640,6 +674,8 @@ func TestProjectActionableThreadsDetachedRequiresTheResumeProof(t *testing.T) {
 // proof, and the incarnation -- which names a launcher that dies with couch --
 // is not consulted. The record does not get a vote on what couch can see.
 func TestCouchsOwnObservationIsTheProof(t *testing.T) {
+	t.Parallel()
+
 	record := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
 	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
 	record.Incarnations = []ThreadIncarnation{{PID: 42, Identity: "live-process", State: IncarnationLive}}
@@ -657,6 +693,8 @@ func TestCouchsOwnObservationIsTheProof(t *testing.T) {
 // A slot row labels repo:N (or alias:N), never a stored name: the tab bar and
 // the switcher must agree on what a slot is called (pair#363).
 func TestSlotRowLabelIgnoresStoredName(t *testing.T) {
+	t.Parallel()
+
 	target := ThreadTarget{Kind: ThreadTargetSlot, Slot: SlotIdentity{Repo: "repo", PrimaryRoot: "/w/repo", WorktreeRoot: "/w/worktree/repo-slot1/repo", Number: 1}}
 	row := ActionableThreadSummary{Target: target, Name: "renamed", WorkingPath: target.Slot.WorktreeRoot}
 	if got := row.Label(); got != "repo:1" {
@@ -673,6 +711,8 @@ func TestSlotRowLabelIgnoresStoredName(t *testing.T) {
 }
 
 func TestPrimaryRowLabelIgnoresStoredName(t *testing.T) {
+	t.Parallel()
+
 	row := ActionableThreadSummary{Address: ThreadAddress{RepoScope: "s", Tag: "couch-1"}, Name: "renamed", WorkingPath: "/w/repo"}
 	if got := row.Label(); got != "repo" {
 		t.Fatalf("primary label = %q, want the working-path basename", got)
@@ -690,6 +730,8 @@ func TestPrimaryRowLabelIgnoresStoredName(t *testing.T) {
 // Only the agent's own published summary is displayed; the operator
 // description left with describe (pair#363).
 func TestDisplaySummaryIsThePublishedSummaryOnly(t *testing.T) {
+	t.Parallel()
+
 	if got := (ActionableThreadSummary{Description: "operator"}).DisplaySummary(); got != "" {
 		t.Fatalf("actionable summary = %q, want empty", got)
 	}

@@ -28,6 +28,8 @@ func archivableThread(t *testing.T, store *ThreadStore, tag ThreadTag) ThreadRec
 // be complete -- gone from the manifest, so gone from every projection -- and
 // reversible, because "start anew" should not mean "destroy the evidence".
 func TestArchiveThreadRemovesItFromTheWorkingSetAndKeepsTheRecord(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	kept := archivableThread(t, store, "couch-0000000000000001")
 	retired := archivableThread(t, store, "couch-0000000000000002")
@@ -74,6 +76,8 @@ func TestArchiveThreadRemovesItFromTheWorkingSetAndKeepsTheRecord(t *testing.T) 
 // to answer that question. TestArchiveRefusesEveryOccupiedIncarnationNotJustLive
 // is where the protection lives now.
 func TestStoreArchiveRefusesAnUnfinishedTransaction(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 
 	// A park in flight is a teardown already underway.
@@ -141,6 +145,8 @@ func TestStoreArchiveRefusesAnUnfinishedTransaction(t *testing.T) {
 // An unusable thread is exactly what the operator wants gone, so no reason
 // blocks the move -- the whole point is that debris leaves on their say-so.
 func TestArchiveThreadAcceptsAnUnusableThread(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	broken := archivableThread(t, store, "couch-0000000000000001")
 	if err := store.ArchiveThread(broken.Address); err != nil {
@@ -149,6 +155,8 @@ func TestArchiveThreadAcceptsAnUnusableThread(t *testing.T) {
 }
 
 func TestArchiveThreadRefusesAnUnknownAddress(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	err := store.ArchiveThread(ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0000000000000009"})
 	if err == nil {
@@ -160,6 +168,8 @@ func TestArchiveThreadRefusesAnUnknownAddress(t *testing.T) {
 // its agent keeps running is the forgotten thread couch exists to prevent, and
 // the one-time cleanup produced exactly one of those before this existed.
 func TestCouchArchiveStopsTheSessionBeforeMovingTheRecord(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	thread := archivableThread(t, store, "couch-0000000000000001")
 	artifacts := NewFakeThreadArtifactCollisionChecker()
@@ -183,6 +193,8 @@ func TestCouchArchiveStopsTheSessionBeforeMovingTheRecord(t *testing.T) {
 // stopping second would leave a record in the archive with a live session
 // behind it -- the exact state this action removes.
 func TestCouchArchiveRefusesWhenTheSessionCannotBeStopped(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	thread := archivableThread(t, store, "couch-0000000000000001")
 	artifacts := NewFakeThreadArtifactCollisionChecker()
@@ -227,6 +239,8 @@ func writeCorruptRecord(t *testing.T, store *ThreadStore, sibling ThreadRecord, 
 // and must be archivable. It previously did none of those -- one corrupt file
 // made `couch --list` exit 1 and the switcher show nothing.
 func TestAnUndecodableRecordIsAVisibleRowAndCanBeArchived(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	healthy := archivableThread(t, store, "couch-0000000000000001")
 	corrupt := writeCorruptRecord(t, store, healthy, "couch-0000000000000002")
@@ -284,6 +298,8 @@ func TestAnUndecodableRecordIsAVisibleRowAndCanBeArchived(t *testing.T) {
 // NOT stopped. Quiescing there would kill an agent couch cannot identify, which
 // is the version-skew harm the unreadable/invalid split exists to prevent.
 func TestArchivingAnUnreadableRecordNeverStopsItsSession(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	healthy := archivableThread(t, store, "couch-0000000000000001")
 	corrupt := writeCorruptRecord(t, store, healthy, "couch-0000000000000002")
@@ -311,6 +327,8 @@ func TestArchivingAnUnreadableRecordNeverStopsItsSession(t *testing.T) {
 // Quiesce, so a park-in-flight thread had its session killed and was then
 // refused: agent dead, record still listed.
 func TestARefusedArchiveStopsNothing(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	thread := archivableThread(t, store, "couch-0000000000000001")
 	live, err := store.updateExistingThread(thread.Address, thread.Revision, func(record *ThreadRecord) error {
@@ -341,6 +359,8 @@ func TestARefusedArchiveStopsNothing(t *testing.T) {
 // whatever lifecycle state the record claims for it, which is the half this
 // test's name has always insisted on.
 func TestArchiveRefusesEveryOccupiedIncarnationNotJustLive(t *testing.T) {
+	t.Parallel()
+
 	for _, state := range []IncarnationState{IncarnationLive, IncarnationCreating, IncarnationUnknown} {
 		t.Run(string(state), func(t *testing.T) {
 			store, _ := newTestThreadStore(t)
@@ -382,6 +402,8 @@ func TestArchiveRefusesEveryOccupiedIncarnationNotJustLive(t *testing.T) {
 // treating it as absent starts a second thread in a tree that may already hold
 // live work, silently, where the old code failed loudly.
 func TestAnUnreadableRecordBlocksStartsInItsRepository(t *testing.T) {
+	t.Parallel()
+
 	rows := []ActionableThreadSummary{{
 		Address: ThreadAddress{RepoScope: "scope", Tag: "couch-0000000000000001"},
 		State:   ThreadUnusable, Reason: ReasonUnreadable,
@@ -412,6 +434,8 @@ func TestAnUnreadableRecordBlocksStartsInItsRepository(t *testing.T) {
 // Spawn is the seam every creation entry funnels through, so this is the one
 // place that covers `couch <path>`, the TUI start form and SpawnPrepared alike.
 func TestSpawnRefusesWhileAnUnreadableRecordIsInTheRepository(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	healthy := archivableThread(t, env.Couch.Threads, "couch-0000000000000001")
 	corrupt := writeCorruptRecord(t, env.Couch.Threads, healthy, "couch-0000000000000002")
@@ -431,6 +455,8 @@ func TestSpawnRefusesWhileAnUnreadableRecordIsInTheRepository(t *testing.T) {
 }
 
 func TestRecoveryArchivePreservesPendingCheckpointAndHistory(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	record := archivableThread(t, store, "couch-0000000000000250")
 	request := testContinuationRequest(t, record)
@@ -458,6 +484,8 @@ func TestRecoveryArchivePreservesPendingCheckpointAndHistory(t *testing.T) {
 }
 
 func TestRecoveryArchiveRetiresOnlyExactDeadSettledHelper(t *testing.T) {
+	t.Parallel()
+
 	for _, mode := range []string{"dead", "pid-reused", "live", "unknown", "session-unknown", "creating"} {
 		t.Run(mode, func(t *testing.T) {
 			store, _ := newTestThreadStore(t)
@@ -507,6 +535,8 @@ func TestRecoveryArchiveRetiresOnlyExactDeadSettledHelper(t *testing.T) {
 }
 
 func TestRecoveryArchiveRejectsRecordChangedDuringQuiesce(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	record := archivableThread(t, store, "couch-0000000000000250")
 	artifacts := NewFakeThreadArtifactCollisionChecker()
@@ -527,6 +557,8 @@ func TestRecoveryArchiveRejectsRecordChangedDuringQuiesce(t *testing.T) {
 }
 
 func TestRecoveryArchiveRefusesSessionAppearingBeforeStop(t *testing.T) {
+	t.Parallel()
+
 	for _, initiallyPresent := range []bool{false, true} {
 		t.Run(map[bool]string{false: "absent-to-present", true: "session-replaced"}[initiallyPresent], func(t *testing.T) {
 			store, _ := newTestThreadStore(t)
@@ -558,6 +590,8 @@ func TestRecoveryArchiveRefusesSessionAppearingBeforeStop(t *testing.T) {
 }
 
 func TestRecoveryArchiveRefusesLiveContinuationReferences(t *testing.T) {
+	t.Parallel()
+
 	for _, actor := range []string{"source", "target", "target-unknown", "session"} {
 		t.Run(actor, func(t *testing.T) {
 			store, _ := newTestThreadStore(t)
@@ -601,6 +635,8 @@ func TestRecoveryArchiveRefusesLiveContinuationReferences(t *testing.T) {
 }
 
 func TestArchiveExpectedUnreadableObservationDoesNotArchiveRepairedRecord(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	record := archivableThread(t, store, "couch-0000000000000250")
 	// Revision zero represents an unreadable observation. A repaired record must
@@ -615,6 +651,8 @@ func TestArchiveExpectedUnreadableObservationDoesNotArchiveRepairedRecord(t *tes
 }
 
 func TestCouchArchiveNeverBoundThreadDoesNotSignal(t *testing.T) {
+	t.Parallel()
+
 	for _, corrupt := range []bool{false, true} {
 		t.Run(fmt.Sprintf("unreadable-index=%v", corrupt), func(t *testing.T) {
 			store, _ := newTestThreadStore(t)
@@ -681,6 +719,8 @@ func (a *archiveScopedChecker) Quiesce(address ThreadAddress) error {
 }
 
 func TestCouchArchiveMissingBindingDoesNotBypassRequestOrRevision(t *testing.T) {
+	t.Parallel()
+
 	for _, mode := range []string{"request", "revision-race", "index-race"} {
 		t.Run(mode, func(t *testing.T) {
 			store, _ := newTestThreadStore(t)

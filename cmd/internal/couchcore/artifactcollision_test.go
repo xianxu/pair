@@ -25,6 +25,8 @@ func (d *triggerSessionDeleter) DeleteSession(session string) error {
 }
 
 func TestAllocateThreadTagAtomicallyClaimsAgainstArtifactProducers(t *testing.T) {
+	t.Parallel()
+
 	dataDir := t.TempDir()
 	scope := launcher.RepoScope{Key: "0123456789abcdef"}
 	producer, err := launcher.ClaimNewThreadAddress(dataDir, scope, "couch-0000000000000000")
@@ -44,6 +46,8 @@ func TestAllocateThreadTagAtomicallyClaimsAgainstArtifactProducers(t *testing.T)
 }
 
 func TestScopedArtifactCheckerReportsPairRegistrationEvidence(t *testing.T) {
+	t.Parallel()
+
 	dataDir := t.TempDir()
 	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
 	checker := NewScopedThreadArtifactCollisionChecker(dataDir)
@@ -64,6 +68,8 @@ func TestScopedArtifactCheckerReportsPairRegistrationEvidence(t *testing.T) {
 }
 
 func TestScopedArtifactCheckerRegistrationRequiresExactEstablishedMarker(t *testing.T) {
+	t.Parallel()
+
 	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
 	tests := []struct {
 		name    string
@@ -148,6 +154,8 @@ func (d *fakeSessionDeleter) DeleteSession(name string) error {
 }
 
 func TestScopedArtifactCheckerQuiescesExactIndexedSession(t *testing.T) {
+	t.Parallel()
+
 	global := t.TempDir()
 	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
 	entry := launcher.SessionNameEntry{SessionName: "📁pair-couch", ScopeKey: address.RepoScope, RepoRoot: "/repo", RepoName: "repo", Tag: string(address.Tag)}
@@ -175,6 +183,8 @@ func TestScopedArtifactCheckerQuiescesExactIndexedSession(t *testing.T) {
 }
 
 func TestScopedArtifactCollisionCheckerFindsEveryTagNameShape(t *testing.T) {
+	t.Parallel()
+
 	dataDir := t.TempDir()
 	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
 	paths := launcher.NewScopedPaths(dataDir, launcher.RepoScope{Key: address.RepoScope}, string(address.Tag))
@@ -217,6 +227,8 @@ func TestScopedArtifactCollisionCheckerFindsEveryTagNameShape(t *testing.T) {
 }
 
 func TestScopedArtifactCollisionCheckerFindsDetachedSessionBinding(t *testing.T) {
+	t.Parallel()
+
 	dataDir := t.TempDir()
 	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
 	paths := launcher.NewScopedPaths(dataDir, launcher.RepoScope{Key: address.RepoScope}, string(address.Tag))
@@ -268,6 +280,8 @@ func TestTriggerQuitCommitsIntentBeforeQuiescingExactSession(t *testing.T) {
 }
 
 func TestScopedArtifactClaimerRejectsNonScopedPathsAndFutureFamilies(t *testing.T) {
+	t.Parallel()
+
 	dataDir := t.TempDir()
 	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
 	paths := launcher.NewScopedPaths(dataDir, launcher.RepoScope{Key: address.RepoScope}, string(address.Tag))

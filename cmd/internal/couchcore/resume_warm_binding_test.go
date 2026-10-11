@@ -31,6 +31,8 @@ func (w *warmPathResolverProbe) ResolveEstablished(context.Context, string, stri
 // before DecideResume could decide anything. The path check is shared; the
 // resolution is not, because only the cold path passes `--resume <native-id>`.
 func TestWarmReattachNeitherConsultsNorIsFailedByTheBindingResolver(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	profile := LaunchProfile{Agent: "claude", Argv: []string{}}
 	// No verified park and no incarnation: the shape an alt+d detach leaves.

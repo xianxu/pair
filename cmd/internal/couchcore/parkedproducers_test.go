@@ -39,6 +39,8 @@ import (
 // `TestSwitchAgentOfferedImpliesPermitted`; this test asks the complementary
 // question, whether every way of REACHING the state survives those guards.
 func TestEveryParkedProducerIsAcceptedByResumeSwitchAndArchive(t *testing.T) {
+	t.Parallel()
+
 	producers := map[string]func(*testing.T, *testEnv) ThreadRecord{
 		"park receipt": func(t *testing.T, env *testEnv) ThreadRecord {
 			return createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
@@ -216,6 +218,8 @@ func keysOf(m map[string]bool) []string {
 // earlier version set the other channel and so proved nothing about the guard
 // that exists: a test must read the same world fact the same way the code does.
 func TestSwitchAgentRefusesARowWhoseSessionSurvives(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name    string
 		present bool
@@ -270,6 +274,8 @@ var errTestSessionUnanswerable = errors.New("zellij is not answering")
 // The classification says `live`; the guard consumes it and then demands
 // something to park.
 func TestSwitchAgentRefusesAThreadCouchHostsWithNoIncarnation(t *testing.T) {
+	t.Parallel()
+
 	// Couch hosts a pty child for it; the record names no incarnation. The
 	// registry, probed live, is what classifyForAction reads as live proof, so
 	// this is the production shape rather than an injected observation.
@@ -310,6 +316,8 @@ func TestSwitchAgentRefusesAThreadCouchHostsWithNoIncarnation(t *testing.T) {
 // The classification the preview was ADMITTED on is now carried to the commit,
 // so both rest on one observation.
 func TestSwitchAgentCommitAcceptsWhatItsPreviewAccepted(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return true, nil }
 	record := validThreadRecord(t)
@@ -363,6 +371,8 @@ func TestSwitchAgentCommitAcceptsWhatItsPreviewAccepted(t *testing.T) {
 // into. Neither is an obstacle to starting a DIFFERENT agent, so both must reach
 // `started` — with the stale incarnation cleared on the way, not tripped over.
 func TestSwitchAgentOnTheUnusableStatesItPermits(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name       string
 		withRecipt bool

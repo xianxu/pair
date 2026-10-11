@@ -1,6 +1,28 @@
 # Repo-specific Makefile targets.
 # This file is included by Makefile — add your own targets here.
 
+# Test goals never inherit a live session's identity (pair#436). Agents run
+# `make test` inside Couch slots, whose shells export ~80 PAIR_*/COUCH_*/ZELLIJ*
+# values, most of them paths to the session's own files; a test reading one
+# fails spuriously or writes into the operator's session. The session's names
+# are the ones production code mentions (any syntax: SetEnv, constants, KDL,
+# shell), plus zellij's own ZELLIJ*. A name only tests read is a caller's knob
+# and passes through, as do TEST_ENV_KNOBS, the families a production tool
+# reads as an operator knob (doctor/perf.sh's PAIR_PERF_*). Only
+# environment-origin names are dropped, and only when every goal is a test, so
+# workflow targets (weave, merge, ...) keep the slot identity they may read.
+# tests/make-test-env-test.sh derives every test-read and documented knob and
+# proves each reaches a test recipe.
+TEST_ENV_KNOBS := PAIR_TEST_% PAIR_LIVE_% PAIR_PERF_% PAIR_PROBE_% PAIR_NATIVE_% PAIR_ARTIFACT_% PAIR_COUCH_PRESSURE% PAIR_TERMINAL_ORACLE
+PRODUCTION_ENV_NAMES_CMD := grep -rIhoE '\b(PAIR|COUCH)_[A-Z0-9_]+' cmd bin nvim zellij doctor --exclude='*_test.*' --exclude='*test*.sh' --exclude='*.md' --exclude-dir=testdata --exclude-dir=probes 2>/dev/null | sort -u
+ifneq ($(MAKECMDGOALS),)
+ifeq ($(filter-out test test-%,$(MAKECMDGOALS)),)
+PRODUCTION_ENV_NAMES := $(shell $(PRODUCTION_ENV_NAMES_CMD))
+SESSION_ENV := $(filter-out $(TEST_ENV_KNOBS),$(foreach v,$(.VARIABLES),$(if $(filter environment,$(origin $(v))),$(filter ZELLIJ% $(PRODUCTION_ENV_NAMES),$(v)))))
+unexport $(SESSION_ENV)
+endif
+endif
+
 .PHONY: build install pair runtimebundle-generate runtimebundle-drift-check test-runtimebundle test-clean-bootstrap test test-race test-run-headless test-lua test-lifecycle-command test-queue test-bang-tag test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-plan-superseded test-paint-gate-consumers test-cr test-statusline test-doctor test-perf-capture test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review
 
 # Cross-cutting Go-binary targets. Every Go binary lives under cmd/<name>/
@@ -78,6 +100,23 @@ test-native-session-live:
 test-session-inventory-conformance:
 	PAIR_LIVE_SESSION_INVENTORY=1 go test -p 20 ./cmd/internal/sessioninventory -run '^TestLiveIncrementalInventoryPrelaunch$$' -count=1 -v
 	PAIR_LIVE_NATIVE_SESSIONS=1 go test -p 20 ./cmd/internal/sessioninventory -run '^TestLive(ProviderContractConformance|JSONLProviderBehaviorMatchesStatefulFake)$$' -count=1 -v
+
+.PHONY: test-make-env test-make-env-probe test-make-env-production-names
+# The session-env scrub keeps opt-in knobs and drops session identity (pair#436).
+test-make-env:
+	bash tests/make-test-env-test.sh
+# Prints the recipe environment for test-make-env; a test goal, so it is scrubbed.
+test-make-env-probe:
+	@env
+# The production-mentioned names the scrub is built from, for the check above.
+test-make-env-production-names:
+	@$(PRODUCTION_ENV_NAMES_CMD)
+
+.PHONY: test-perf-budgets
+# Wall-clock budgets (ARCH-CONSTRAINTS) flake on a loaded host, so the default
+# lane runs their scenarios without asserting the clock (pair#436). Run on a quiet host.
+test-perf-budgets:
+	PAIR_PERF_BUDGETS=1 go test ./cmd/internal/couchcore -run '^TestAcceptance(ObserveBudget|ReportBudgetTenSlots)$$' -count=1 -v
 
 .PHONY: test-couch-zellij-live
 # pair#432 excludes TestParkLifecycleLive, TestContinuationZellijSeedTransportLive
@@ -171,7 +210,7 @@ pair: $(BIN_DIR)/pair
 #                     inside the vt.Emulator library API itself, which is
 #                     outside our scope to fix — exclude that package
 #                     here rather than chase a library-level race.
-test: runtimebundle-generate test-retention test-run-headless test-lua test-lifecycle-command test-perf-capture test-queue test-submission-transaction test-bang-tag test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-plan-superseded test-paint-gate-consumers test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review
+test: runtimebundle-generate test-retention test-run-headless test-lua test-lifecycle-command test-perf-capture test-queue test-submission-transaction test-bang-tag test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-plan-superseded test-paint-gate-consumers test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review test-make-env
 	go test ./... -count=1
 
 # Expensive, explicit boundary regression: prove make test from a no-.git

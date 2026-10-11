@@ -7,6 +7,8 @@ func targetTestSlot(number int) SlotIdentity {
 }
 
 func TestThreadTargetStableSlotKey(t *testing.T) {
+	t.Parallel()
+
 	slot := targetTestSlot(1)
 	target := ThreadTarget{Kind: ThreadTargetSlot, Slot: slot}
 	key, err := target.RowKey()
@@ -32,6 +34,8 @@ func TestThreadTargetStableSlotKey(t *testing.T) {
 }
 
 func TestThreadTargetRejectsAmbiguousOrInvalidChoice(t *testing.T) {
+	t.Parallel()
+
 	address := ThreadAddress{RepoScope: "scope", Tag: "native"}
 	for _, target := range []ThreadTarget{
 		{}, {Kind: ThreadTargetKind("unknown")},

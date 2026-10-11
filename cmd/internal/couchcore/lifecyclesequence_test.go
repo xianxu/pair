@@ -29,6 +29,8 @@ import (
 // events: it is a pure function of (record, evidence), which is what the re-cut
 // bought.
 func TestTheWorldDecidesWhateverTheRecordSaysAboutItself(t *testing.T) {
+	t.Parallel()
+
 	active := time.Unix(1000, 0).UTC()
 	base := func(tag ThreadTag) ThreadRecord {
 		record := actionableTestThread(tag, active)
@@ -145,6 +147,8 @@ func TestTheWorldDecidesWhateverTheRecordSaysAboutItself(t *testing.T) {
 // and `unknown` is not, so a collapse in that direction offers to retire live
 // work. Every evidence field that can be unresolved gets a row.
 func TestUnknownNeverBecomesGone(t *testing.T) {
+	t.Parallel()
+
 	record := actionableTestThread("couch-0000000000000105", time.Unix(1000, 0).UTC())
 	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
 

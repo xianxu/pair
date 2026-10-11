@@ -9,6 +9,8 @@ import (
 // stated from the rule's order (not-live, then idle evidence, then the
 // checkout, then freshness), never by calling the rule.
 func TestDecideLiveRestartExhaustive(t *testing.T) {
+	t.Parallel()
+
 	fresh := BinaryFacts{RunningSHA: "old", OnDiskSHA: "new"}
 	stale := BinaryFacts{RunningSHA: "same", OnDiskSHA: "same"}
 	bools := []bool{false, true}
@@ -71,6 +73,8 @@ func TestDecideLiveRestartExhaustive(t *testing.T) {
 }
 
 func TestDecideBinaryFreshness(t *testing.T) {
+	t.Parallel()
+
 	const checkout = "/w/pair"
 	for _, tc := range []struct {
 		name      string

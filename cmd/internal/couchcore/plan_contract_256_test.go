@@ -139,6 +139,8 @@ func declaredIdentifiers(t *testing.T, path string) map[string]bool {
 // split or skipped rather than guessed at — the check must be honest about what
 // it can decide.
 func TestIssue256PlanTablesMatchTheTree(t *testing.T) {
+	t.Parallel()
+
 	root := repoRootFrom(t)
 	planBytes, err := os.ReadFile(filepath.Join(root, issue256PlanPath))
 	if err != nil {
@@ -245,6 +247,8 @@ func TestIssue256PlanTablesMatchTheTree(t *testing.T) {
 // to cite the enumerating test instead of listing consumers, which the third
 // check then keeps honest.
 func TestIssue256CoreConceptsProseCitesTestsNotCoordinates(t *testing.T) {
+	t.Parallel()
+
 	root := repoRootFrom(t)
 	planBytes, err := os.ReadFile(filepath.Join(root, issue256PlanPath))
 	if err != nil {

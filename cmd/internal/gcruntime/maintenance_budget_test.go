@@ -100,8 +100,16 @@ func TestMaintenanceBusyRootReturnsWithoutWaitingForForeground(t *testing.T) {
 	}
 }
 
-func TestMaintenanceHundredThousandFilenamesBoundsOwnerWork(t *testing.T) {
+// The inventory budget's behavior is independent of its size, so this pins it
+// at a scaled cap: 100,000 real hard links cost ~400s under a parallel suite
+// (pair#436), and the default is exercised by every production pass.
+func TestMaintenanceInventoryBudgetBoundsOwnerWork(t *testing.T) {
+	const budget = 1000
+	if storagegc.DefaultMaxEntries < budget {
+		t.Fatalf("scaled budget %d exceeds the production default %d", budget, storagegc.DefaultMaxEntries)
+	}
 	s, owner := scheduleFixture(t)
+	s.Collector.MaxEntries = budget
 	for n := 0; n < 6; n++ {
 		if err := os.WriteFile(filepath.Join(owner.Directory(), fmt.Sprintf("draft-owner%02d.md", n)), []byte("keep"), 0600); err != nil {
 			t.Fatal(err)
@@ -111,11 +119,11 @@ func TestMaintenanceHundredThousandFilenamesBoundsOwnerWork(t *testing.T) {
 	if err := os.Mkdir(queue, 0700); err != nil {
 		t.Fatal(err)
 	}
-	// Hard links reduce fixture allocation while retaining 100,000 real payload
+	// Hard links reduce fixture allocation while retaining budget-many real payload
 	// filenames for production directory enumeration and classification. Spread
 	// links across seeds to stay below filesystems' per-inode hard-link limits.
 	source := filepath.Join(owner.Directory(), "draft-tag.md")
-	for n := 0; n < 99993; n++ {
+	for n := 0; n < budget-7; n++ {
 		seed := filepath.Join(owner.Directory(), fmt.Sprintf("draft-owner%02d.md", n%6))
 		if err := os.Link(seed, filepath.Join(queue, fmt.Sprintf("%06d.md", n))); err != nil {
 			t.Fatal(err)
@@ -155,7 +163,7 @@ func TestMaintenanceHundredThousandFilenamesBoundsOwnerWork(t *testing.T) {
 		t.Fatalf("unbounded owner effects: probes%d persists%d", probes, persists)
 	}
 	if report.Complete || report.Collected != 0 {
-		t.Fatalf("100k cap authorized incomplete inventory: complete=%v collected=%d", report.Complete, report.Collected)
+		t.Fatalf("inventory budget authorized incomplete inventory: complete=%v collected=%d", report.Complete, report.Collected)
 	}
 	for n := 0; n < 2; n++ {
 		if _, err := os.Stat(filepath.Join(owner.Directory(), fmt.Sprintf("draft-owner%02d.md", n))); err != nil {

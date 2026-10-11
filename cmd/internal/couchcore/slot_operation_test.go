@@ -33,6 +33,8 @@ func slotOperationCode(err error) string {
 }
 
 func TestSelectSlotRow(t *testing.T) {
+	t.Parallel()
+
 	primary, host := "/fleet/pair", "/fleet/worktree/pair-slot1/pair"
 	root := primaryRow(primary, "root", ThreadParked)
 	sub := primaryRow(primary, "sub", ThreadParked)
@@ -62,6 +64,8 @@ func TestSelectSlotRow(t *testing.T) {
 // reboot effects carried before the mapping moved to couchcore (literal
 // copies of dispatchMenuRow / dispatchThreadOperation / the warm-only block).
 func TestActorOperationArgs(t *testing.T) {
+	t.Parallel()
+
 	host := "/fleet/worktree/pair-slot1/pair"
 	slot := slotRow(host, 1, ThreadDetached)
 	parked := primaryRow("/fleet/pair", "root", ThreadParked)
@@ -95,6 +99,8 @@ func TestActorOperationArgs(t *testing.T) {
 }
 
 func TestSlotOperationCommandText(t *testing.T) {
+	t.Parallel()
+
 	if got := SlotOperationCommand("resume", "pair:2"); got != "couch --resume pair:2" {
 		t.Fatalf("resume = %q", got)
 	}
@@ -104,6 +110,8 @@ func TestSlotOperationCommandText(t *testing.T) {
 }
 
 func TestPrepareSlotOperation(t *testing.T) {
+	t.Parallel()
+
 	env, local := slotRecoveryOperationFixture(t)
 	address := WorkspaceReference{Repo: local.slot.Repo, Number: local.slot.Number}.String()
 	ctx := context.Background()
@@ -146,6 +154,8 @@ func TestPrepareSlotOperation(t *testing.T) {
 // is not offered resume: the socket refuses at admission, nothing launches,
 // and reboot is still offered (pair#367 smoke test).
 func TestPrepareSlotOperationRefusesResumeOfALostConversation(t *testing.T) {
+	t.Parallel()
+
 	env, local := slotRecoveryOperationFixture(t)
 	address := WorkspaceReference{Repo: local.slot.Repo, Number: local.slot.Number}.String()
 	scope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
@@ -213,6 +223,8 @@ func (f *fakeLiveRestartProbe) LiveRestartFacts(_ context.Context, op string, ro
 // pair#421: relaunch admits a LIVE slot through DecideLiveRestart instead of
 // the offer table, addresses it by thread, and carries the note to the caller.
 func TestPrepareSlotOperationRelaunchLive(t *testing.T) {
+	t.Parallel()
+
 	env, local := slotRecoveryOperationFixture(t)
 	address := WorkspaceReference{Repo: local.slot.Repo, Number: local.slot.Number}.String()
 	scope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
@@ -291,6 +303,8 @@ func liveSlotFixture(t *testing.T) (*testEnv, string, ThreadRecord) {
 // pair#421 M3: reload-context shares relaunch's admission minus freshness, and
 // its effect goes through the probe's verified restart.
 func TestReloadContextAdmissionAndEffect(t *testing.T) {
+	t.Parallel()
+
 	env, address, created := liveSlotFixture(t)
 	ctx := context.Background()
 	if _, err := env.Couch.ReloadContext(ctx, created.Address, false); slotOperationCode(err) != LiveRestartUnavailable {
@@ -351,6 +365,8 @@ func TestPrepareAdmissionNamesTheCheckout(t *testing.T) {
 // cancelled context each fails early, but never as "not a live-owner
 // operation", which is what a missing dispatch case looks like.
 func TestEveryLiveOwnerOperationIsDispatched(t *testing.T) {
+	t.Parallel()
+
 	env, _, _ := liveSlotFixture(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -381,6 +397,8 @@ func TestEveryLiveOwnerOperationIsDispatched(t *testing.T) {
 // BR-15: the busy guard is re-checked at the effect. A slot that turns busy
 // between admission and the queue running is refused, and nothing is done.
 func TestLiveRestartGuardRecheckedAtEffect(t *testing.T) {
+	t.Parallel()
+
 	env, address, created := liveSlotFixture(t)
 	ctx := context.Background()
 	probe := &fakeLiveRestartProbe{facts: LiveRestartFacts{Live: true, Session: true, SettledKnown: true, Settled: true, GitKnown: true,
@@ -412,6 +430,8 @@ func TestLiveRestartGuardRecheckedAtEffect(t *testing.T) {
 }
 
 func TestReloadContextRefusesWhenNoLongerLive(t *testing.T) {
+	t.Parallel()
+
 	env, _, created := liveSlotFixture(t)
 	probe := &fakeLiveRestartProbe{}
 	env.Couch.LiveRestart = probe
@@ -427,6 +447,8 @@ func TestReloadContextRefusesWhenNoLongerLive(t *testing.T) {
 // M3 advisory: the effect reads admission's decision. A forced admission (no
 // Settled claim) is marked "forced"; a known-settled one "known".
 func TestLiveRestartAdmissionRecordsItsEvidence(t *testing.T) {
+	t.Parallel()
+
 	env, address, _ := liveSlotFixture(t)
 	ctx := context.Background()
 	unknown := LiveRestartFacts{Live: true, Session: true, GitKnown: true, Binary: BinaryFacts{RunningSHA: "a", OnDiskSHA: "b"}}
@@ -453,6 +475,8 @@ func TestLiveRestartAdmissionRecordsItsEvidence(t *testing.T) {
 // PrepareSlotOperation writes it, CouchLiveOwnerExecutor translates it, the
 // probe receives the forced flag. Verb x {known, forced, absent}.
 func TestRequireSettledProducerToConsumer(t *testing.T) {
+	t.Parallel()
+
 	known := LiveRestartFacts{Live: true, Session: true, SettledKnown: true, Settled: true, GitKnown: true, Binary: BinaryFacts{RunningSHA: "a", OnDiskSHA: "b"}}
 	unknown := known
 	unknown.SettledKnown, unknown.Settled = false, false

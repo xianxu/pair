@@ -32,6 +32,8 @@ func archiveDebrisCouch(t *testing.T, store *ThreadStore, proc *FakeProcOps, add
 // before any evidence was read -- "a park transaction is still open; let
 // lifecycle recovery finish" -- naming a recovery that had nothing left to run.
 func TestArchiveClearsAnOrphanedPark(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	record := actionableTestThread("couch-e1a31510b7033d08", time.Unix(100, 0).UTC())
 	record.LatestLaunchProfile = &LaunchProfile{Agent: "muse", Argv: []string{}}
@@ -72,6 +74,8 @@ func TestArchiveClearsAnOrphanedPark(t *testing.T) {
 // the park names a process that is not an incarnation at all, which
 // validateLifecycle permits through its `replacementUnknown` escape.
 func TestArchiveRefusesAParkItCannotProveOrphaned(t *testing.T) {
+	t.Parallel()
+
 	const helperPID, foreignOwnerPID = 64734, 42
 	for _, tc := range []struct {
 		name    string
@@ -133,6 +137,8 @@ func TestArchiveRefusesAParkItCannotProveOrphaned(t *testing.T) {
 // archive; without this the offer is an action that always fails, which is the
 // anti-pattern the menu's own comments name.
 func TestArchiveClearsADriverlessStartClaim(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	record := actionableTestThread("couch-3b82bfd593cac896", time.Unix(100, 0).UTC())
 	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
@@ -161,6 +167,8 @@ func TestArchiveClearsADriverlessStartClaim(t *testing.T) {
 // behind proof: a couch that may still be starting this thread must not have
 // its session quiesced out from under it.
 func TestArchiveRefusesAStartItCannotProveAbandoned(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name  string
 		setup func(*FakeProcOps)
@@ -218,6 +226,8 @@ func TestArchiveRefusesAStartItCannotProveAbandoned(t *testing.T) {
 // The rule: an absent session binding is not a reason to skip retiring a
 // provably-dead incarnation -- it is corroborating evidence the thread is gone.
 func TestSpawnedButNeverBoundThreadIsArchivable(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	record := actionableTestThread("couch-3b82bfd593cac896", time.Time{})
 	record.LatestLaunchProfile = &LaunchProfile{Agent: "muse", Argv: []string{}}
@@ -247,6 +257,8 @@ func TestSpawnedButNeverBoundThreadIsArchivable(t *testing.T) {
 // means gone". A binding can be absent because the launch has not published one
 // YET, and a process that is alive or unprovable may still publish it.
 func TestAbsentBindingProvesNothingAboutALiveHelper(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name  string
 		setup func(*FakeProcOps)
@@ -297,6 +309,8 @@ func TestAbsentBindingProvesNothingAboutALiveHelper(t *testing.T) {
 // review kept finding (a vocabulary value with no producer is a claim no test
 // can check).
 func TestArchivingAHuskReportsTheRollback(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	record := actionableTestThread("couch-00000000000000d1", time.Unix(100, 0).UTC())
 	// No LatestLaunchProfile, no name, no park: nothing durable to preserve.
@@ -347,6 +361,8 @@ func TestArchivingAHuskReportsTheRollback(t *testing.T) {
 // fail the run between AbandonPark and RetireIncarnation, so the interleaving is
 // reproducible rather than argued.
 func TestClearingDebrisResumesSafelyAfterACrashBetweenItsWrites(t *testing.T) {
+	t.Parallel()
+
 	_, ns := newTestThreadStore(t)
 	writes := 0
 	crashing := newThreadStoreWithHooks(ns, threadStoreHooks{

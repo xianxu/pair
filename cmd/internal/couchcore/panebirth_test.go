@@ -6,6 +6,8 @@ import (
 )
 
 func TestPaneMarksBornIn(t *testing.T) {
+	t.Parallel()
+
 	old := time.Unix(100, 0)
 	fresh := time.Unix(200, 0)
 	const ours, twin = "/s/pane-T-claude.json", "/s/pane-T-codex.json"

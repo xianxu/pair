@@ -38,6 +38,8 @@ func bindAuthorityThread(t *testing.T, s *ThreadStore, r ThreadRecord) ThreadRec
 	return next
 }
 func TestParkUsesDurableSessionInsteadOfStaleIndex(t *testing.T) {
+	t.Parallel()
+
 	store, _, thread := createControllerThread(t)
 	thread = bindAuthorityThread(t, store, thread)
 	now := time.Unix(100, 0)
@@ -56,6 +58,8 @@ func TestParkUsesDurableSessionInsteadOfStaleIndex(t *testing.T) {
 	}
 }
 func TestDetachUsesDurableSessionWithoutIndex(t *testing.T) {
+	t.Parallel()
+
 	f := newDetachFixture(t)
 	thread, err := f.store.GetThread(f.address)
 	if err != nil {
@@ -73,6 +77,8 @@ func TestDetachUsesDurableSessionWithoutIndex(t *testing.T) {
 	}
 }
 func TestDetachedProofRejectsStaleDurableName(t *testing.T) {
+	t.Parallel()
+
 	r := validThreadRecord(t)
 	r.LatestLaunchProfile = &LaunchProfile{Agent: "codex", Argv: []string{}}
 	r.SessionBinding = &couchidentity.SessionBinding{C: 9, M: 4, Name: "📁9-4", ScopeKey: r.Address.RepoScope, Tag: string(r.Address.Tag), StartNonce: "original"}
@@ -87,6 +93,8 @@ func TestDetachedProofRejectsStaleDurableName(t *testing.T) {
 }
 
 func TestSlotAdmissionProbesDurableNameEvenWhenIndexSaysAbsent(t *testing.T) {
+	t.Parallel()
+
 	s := testLocalThreadStore(t)
 	env := newTestEnv(t, s.slot.WorktreeRoot)
 	env.Couch.Threads = s
@@ -125,6 +133,8 @@ func (o *detachedNameRequestObserver) DetachedSessions(ctx context.Context, cand
 	return nil, errors.New("stop after detached observation")
 }
 func TestResumePassesDurableNameToDetachedObserver(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	r := validThreadRecord(t)
 	r.StartingPath = "/repo"
@@ -144,6 +154,8 @@ func TestResumePassesDurableNameToDetachedObserver(t *testing.T) {
 	}
 }
 func TestDetachUnknownDurableOwnerRefusesBeforeSignal(t *testing.T) {
+	t.Parallel()
+
 	f := newDetachFixture(t)
 	r, err := f.store.GetThread(f.address)
 	if err != nil {
@@ -161,6 +173,8 @@ func TestDetachUnknownDurableOwnerRefusesBeforeSignal(t *testing.T) {
 }
 
 func TestSlotAdmissionChecksRetainedCurrentWhenPendingIsAbsent(t *testing.T) {
+	t.Parallel()
+
 	s := testLocalThreadStore(t)
 	env := newTestEnv(t, s.slot.WorktreeRoot)
 	env.Couch.Threads = s
@@ -198,6 +212,8 @@ func TestSlotAdmissionChecksRetainedCurrentWhenPendingIsAbsent(t *testing.T) {
 }
 
 func TestSlotAdmissionRetainsUnknownBindingFromDamagedRecord(t *testing.T) {
+	t.Parallel()
+
 	s := testLocalThreadStore(t)
 	env := newTestEnv(t, s.slot.WorktreeRoot)
 	env.Couch.Threads = s

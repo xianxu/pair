@@ -114,6 +114,8 @@ func cleanupFailureCompletion(request pairlifecycle.QuitRequest, at time.Time) p
 }
 
 func TestParkCoordinatorOrdering(t *testing.T) {
+	t.Parallel()
+
 	store, _, thread := createControllerThread(t)
 	now := time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC)
 	model := pairlifecycletest.New(now)
@@ -175,6 +177,8 @@ func TestParkCoordinatorOrdering(t *testing.T) {
 }
 
 func TestParkWaitsForCompletionAndExactChildDeath(t *testing.T) {
+	t.Parallel()
+
 	store, _, thread := createControllerThread(t)
 	now := time.Date(2026, 8, 30, 12, 30, 0, 0, time.UTC)
 	lifecycle := &fakeControllerLifecycle{model: pairlifecycletest.New(now)}
@@ -213,6 +217,8 @@ func TestParkWaitsForCompletionAndExactChildDeath(t *testing.T) {
 }
 
 func TestParkRetainsOccupiedTransactionWhenCompletionPrecedesChildDeathDeadline(t *testing.T) {
+	t.Parallel()
+
 	store, _, thread := createControllerThread(t)
 	now := time.Date(2026, 8, 30, 12, 45, 0, 0, time.UTC)
 	lifecycle := &fakeControllerLifecycle{model: pairlifecycletest.New(now)}
@@ -251,6 +257,8 @@ func TestParkRetainsOccupiedTransactionWhenCompletionPrecedesChildDeathDeadline(
 // including any mid-turn. The partial-failure property is unchanged -- a failure
 // mid-sweep preserves what already succeeded and leaves the rest occupied.
 func TestLeaveDetachesLiveThreadsSequentiallyAndRetainsPartialFailure(t *testing.T) {
+	t.Parallel()
+
 	store, ns, first := createControllerThread(t)
 	second := validThreadRecord(t)
 	second.Address.Tag = "couch-fedcba9876543210"
@@ -302,6 +310,8 @@ func TestLeaveDetachesLiveThreadsSequentiallyAndRetainsPartialFailure(t *testing
 
 // Recorded-live is a claim to recheck, not proof that a client can detach.
 func TestLeaveRechecksRecordedLiveBeforeDetaching(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name    string
 		process string
@@ -391,6 +401,8 @@ func TestLeaveRechecksRecordedLiveBeforeDetaching(t *testing.T) {
 }
 
 func TestLeaveObservationErrorPreservesRecordedLive(t *testing.T) {
+	t.Parallel()
+
 	store, _, thread := createControllerThread(t)
 	proc := NewFakeProcOps()
 	proc.Set(42, "pair-helper")
@@ -409,6 +421,8 @@ func TestLeaveObservationErrorPreservesRecordedLive(t *testing.T) {
 }
 
 func TestLeaveCanceledDoesNotRetireDeadIncarnation(t *testing.T) {
+	t.Parallel()
+
 	store, _, thread := createControllerThread(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -425,6 +439,8 @@ func TestLeaveCanceledDoesNotRetireDeadIncarnation(t *testing.T) {
 // An unknown incarnation is skipped, not parked. Parking is the destructive
 // option and Couch cannot vouch for what that thread is doing.
 func TestLeaveSkipsUnknownIncarnationsRatherThanParkingThem(t *testing.T) {
+	t.Parallel()
+
 	ns := testCouchNamespace(t)
 	store := NewThreadStore(ns)
 	unknown := validThreadRecord(t)
@@ -457,6 +473,8 @@ func TestLeaveSkipsUnknownIncarnationsRatherThanParkingThem(t *testing.T) {
 }
 
 func TestParkCoordinatorTransitionMatrix(t *testing.T) {
+	t.Parallel()
+
 	t.Run("request-publish-failed", func(t *testing.T) {
 		store, _, thread := createControllerThread(t)
 		now := time.Unix(100, 0).UTC()
@@ -765,6 +783,8 @@ func TestParkCoordinatorTransitionMatrix(t *testing.T) {
 }
 
 func TestParkCoordinatorRestartInspectionAndRecoveryAreSeparate(t *testing.T) {
+	t.Parallel()
+
 	store, ns, active := createControllerThread(t)
 	identity := ParkIdentity{
 		Nonce: "park-restart", Address: active.Address, PID: 42, ProcessIdentity: "pair-helper",
@@ -898,7 +918,7 @@ func TestParkCoordinatorConstructorDoesNotQueryPairSession(t *testing.T) {
 	case <-queryEntered:
 	case err := <-recoveryDone:
 		t.Fatalf("recovery returned before querying Pair session: %v", err)
-	case <-time.After(time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("recovery did not query Pair session")
 	}
 	close(releaseQuery)
@@ -914,6 +934,8 @@ func TestParkCoordinatorConstructorDoesNotQueryPairSession(t *testing.T) {
 // to stop every agent, so Leave has to perform the same verified teardown the
 // per-thread park does -- not a detach wearing park's name.
 func TestLeaveParkStopsEveryLiveThreadWithVerifiedParks(t *testing.T) {
+	t.Parallel()
+
 	store, _, thread := createControllerThread(t)
 	now := time.Date(2026, 9, 3, 9, 0, 0, 0, time.UTC)
 	model := pairlifecycletest.New(now)
@@ -964,6 +986,8 @@ func TestLeaveParkStopsEveryLiveThreadWithVerifiedParks(t *testing.T) {
 // would silently keep alive the agents a caller asked to stop, and defaulting
 // to park would kill the ones it asked to keep.
 func TestLeaveRefusesAnUnknownDisposition(t *testing.T) {
+	t.Parallel()
+
 	store, _, _ := createControllerThread(t)
 	couch := &Couch{Threads: store, Proc: NewFakeProcOps(), Artifacts: NewFakeThreadArtifactCollisionChecker()}
 	result, err := couch.Leave(context.Background(), LeaveDisposition("evict"))
@@ -1005,6 +1029,8 @@ func (o *capturedParkOps) PreservedScrollback() *pairlifecycle.PreservedScrollba
 }
 
 func TestExactParkCaptureSurvivesCompletionAndReopen(t *testing.T) {
+	t.Parallel()
+
 	store, namespace, thread := createControllerThread(t)
 	dataDir := t.TempDir()
 	paths, err := artifactpath.Resolve(artifactpath.Address{DataDir: dataDir, RepoScope: thread.Address.RepoScope, Tag: string(thread.Address.Tag)})

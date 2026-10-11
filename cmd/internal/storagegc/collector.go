@@ -53,6 +53,11 @@ type CollectionReport struct {
 	BatchComplete     bool             `json:"batch_complete"`
 	OwnersProcessed   int              `json:"owners_processed"`
 }
+
+// DefaultMaxEntries is the per-pass inventory budget a zero Collector.MaxEntries
+// selects: past it an inventory is incomplete and collection is retained.
+const DefaultMaxEntries = 100000
+
 type Collector struct {
 	Coordinator   *Coordinator
 	Agents        []string
@@ -163,7 +168,7 @@ func (c *Collector) snapshotWithInventory(ctx context.Context, held *Locked, aft
 		dir := filepath.Join(c.Coordinator.Root, ".retention", "owners")
 		limit := c.MaxEntries
 		if limit == 0 {
-			limit = 100000
+			limit = DefaultMaxEntries
 		}
 		entries, e := boundedOwnerEntries(dir, limit)
 		if errors.Is(e, errMetadataBudget) {

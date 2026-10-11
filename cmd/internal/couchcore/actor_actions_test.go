@@ -84,6 +84,8 @@ func (r actorActionRule) matches(kind ThreadTargetKind, state ActionableThreadSt
 // own enumeration) and fails any combination the literal table does not
 // cover, so a new state or reason cannot slip past the admission table.
 func TestActorActionsFollowsTheSpecOverTheDerivedDomain(t *testing.T) {
+	t.Parallel()
+
 	// No request, plus every phase from the one vocabulary (a complete request
 	// is not unfinished).
 	phases := append(make([]checkpoint.Phase, 1), checkpoint.AllPhases()...)
@@ -126,6 +128,8 @@ func TestActorActionsFollowsTheSpecOverTheDerivedDomain(t *testing.T) {
 
 // A completed request is not unfinished: it routes nothing.
 func TestActorRowFactsIgnoresACompletedRequest(t *testing.T) {
+	t.Parallel()
+
 	row := ActionableThreadSummary{State: ThreadUnusable, Reason: ReasonSessionGone, Target: ThreadTarget{Kind: ThreadTargetOrdinary},
 		Continuation: &ContinuationStatus{Phase: checkpoint.Complete}}
 	if got := ActorActions(ActorRowFactsOf(row)); !slices.Equal(got, []string{"reboot"}) {

@@ -3,6 +3,8 @@ package couchcore
 import "testing"
 
 func TestThreadLabelIsTheDirectoryThenTheTag(t *testing.T) {
+	t.Parallel()
+
 	tag := ThreadTag("couch-0123456789abcdef")
 	for _, tc := range []struct{ path, want string }{
 		{"/Users/x/workspace/brain", "brain"},
@@ -19,6 +21,8 @@ func TestThreadLabelIsTheDirectoryThenTheTag(t *testing.T) {
 // Six rows reading `brain` is readable and useless. The operator's store has
 // exactly that shape, so a colliding label has to stay actionable.
 func TestDisambiguateLabelsOnlyQualifiesCollisions(t *testing.T) {
+	t.Parallel()
+
 	rows := []LabelRow{
 		{Address: ThreadAddress{RepoScope: "s", Tag: "couch-000000000000aaaa"}, Label: "brain"},
 		{Address: ThreadAddress{RepoScope: "s", Tag: "couch-000000000000bbbb"}, Label: "brain"},

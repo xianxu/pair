@@ -7,6 +7,8 @@ import (
 )
 
 func TestCouchNamespaceResolvesRelativeStoreOnceAgainstStartupCWD(t *testing.T) {
+	t.Parallel()
+
 	startup := t.TempDir()
 
 	ns, err := ResolveCouchNamespace(filepath.Join("state", "couch"), startup)
@@ -30,6 +32,8 @@ func TestCouchNamespaceResolvesRelativeStoreOnceAgainstStartupCWD(t *testing.T) 
 }
 
 func TestCouchNamespaceCollapsesPhysicalAliases(t *testing.T) {
+	t.Parallel()
+
 	realParent := t.TempDir()
 	aliasParent := filepath.Join(t.TempDir(), "alias")
 	if err := os.Symlink(realParent, aliasParent); err != nil {
@@ -50,6 +54,8 @@ func TestCouchNamespaceCollapsesPhysicalAliases(t *testing.T) {
 }
 
 func TestCouchNamespaceRejectsEmptyStorePath(t *testing.T) {
+	t.Parallel()
+
 	if _, err := ResolveCouchNamespace("", t.TempDir()); err == nil {
 		t.Fatal("empty store path must not silently select the startup directory")
 	}

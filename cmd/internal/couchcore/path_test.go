@@ -7,6 +7,8 @@ import (
 )
 
 func TestNormalizePathCollapsesSpellings(t *testing.T) {
+	t.Parallel()
+
 	base := "/Users/x/workspace/pair"
 	want := NormalizePath(base)
 	for _, s := range []string{
@@ -24,6 +26,8 @@ func TestNormalizePathCollapsesSpellings(t *testing.T) {
 }
 
 func TestNormalizePathPreservesCase(t *testing.T) {
+	t.Parallel()
+
 	// Case is preserved on purpose: pair feeds ResolveRepoScope a raw path, so
 	// a folded path would derive a different scope key for the same tree.
 	// Folding belongs to the lookup key only.
@@ -33,6 +37,8 @@ func TestNormalizePathPreservesCase(t *testing.T) {
 }
 
 func TestNormalizePathIsAbsolute(t *testing.T) {
+	t.Parallel()
+
 	if got := NormalizePath("relative/path"); !filepath.IsAbs(got) {
 		t.Fatalf("non-absolute %q", got)
 	}
@@ -41,6 +47,8 @@ func TestNormalizePathIsAbsolute(t *testing.T) {
 // foldWith is tested directly so both directions are asserted on every
 // platform. FoldKey itself can only exercise the host's branch.
 func TestFoldWithBothDirections(t *testing.T) {
+	t.Parallel()
+
 	const upper, lower = "/Users/x/Pair", "/users/x/pair"
 	if got := foldWith(upper, true); got != lower {
 		t.Errorf("foldWith(insensitive) = %q, want %q", got, lower)
@@ -51,6 +59,8 @@ func TestFoldWithBothDirections(t *testing.T) {
 }
 
 func TestFoldKeyUsesPlatformSensitivity(t *testing.T) {
+	t.Parallel()
+
 	got := FoldKey("/Users/x/Pair")
 	want := foldWith("/Users/x/Pair", caseInsensitiveFS())
 	if got != want {

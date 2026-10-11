@@ -182,3 +182,69 @@ func TestRoleTargetsKeepIndependentCaptureReaders(t *testing.T) {
 		t.Fatal("foreign reader target accepted")
 	}
 }
+
+// pair#436: SelectedOwner resolves PAIR_DATA_DIR to its physical path, so a
+// target named through a symlinked spelling of the same directory (macOS
+// TMPDIR=/var/... → /private/var/...) is the owner's file, and is recorded in
+// the physical frame the collector compares capture paths in.
+func TestRoleTargetThroughSymlinkedDataDirIsRecordedPhysically(t *testing.T) {
+	c, o := coordinatorFixture(t)
+	ctx := context.Background()
+	p, err := CurrentProcessIdentity(os.Getpid())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(o.Directory(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	alias := filepath.Join(t.TempDir(), "alias")
+	if err := os.Symlink(o.Directory(), alias); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.AcquireRoleProcessTarget(ctx, o, p, "changelog-viewer", "", filepath.Join(alias, "changelog-t-claude.md")); err != nil {
+		t.Fatalf("aliased owner target refused: %v", err)
+	}
+	state, err := c.ReadOwner(o)
+	want := filepath.Join(o.Directory(), "changelog-t-claude.md")
+	if err != nil || len(state.Processes) != 1 || state.Processes[0].Target != want {
+		t.Fatalf("target = %+v %v, want %s", state.Processes, err, want)
+	}
+	escape := filepath.Join(o.Directory(), "escape")
+	if err := os.Symlink(t.TempDir(), escape); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.AcquireRoleProcessTarget(ctx, o, p, "capture-reader", "", filepath.Join(escape, "foreign.raw")); err == nil {
+		t.Fatal("target escaping the owner through a symlink accepted")
+	}
+}
+
+func TestOwnerFramePathResolvesTheExistingPrefixOnly(t *testing.T) {
+	real := t.TempDir()
+	if physical, err := filepath.EvalSymlinks(real); err == nil {
+		real = physical
+	}
+	alias := filepath.Join(t.TempDir(), "alias")
+	if err := os.Symlink(real, alias); err != nil {
+		t.Fatal(err)
+	}
+	for in, want := range map[string]string{
+		filepath.Join(alias, "log.md"):              filepath.Join(real, "log.md"),
+		filepath.Join(alias, "repos", "k", "t.raw"): filepath.Join(real, "repos", "k", "t.raw"),
+	} {
+		if got, err := OwnerFramePath(in); err != nil || got != want {
+			t.Fatalf("OwnerFramePath(%s) = %s, %v; want %s", in, got, err, want)
+		}
+	}
+	dangling := filepath.Join(real, "dangling")
+	if err := os.Symlink(filepath.Join(t.TempDir(), "gone", "away"), dangling); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := OwnerFramePath(filepath.Join(dangling, "t.raw")); err == nil {
+		t.Fatalf("OwnerFramePath through a dangling symlink = %s, want refusal", got)
+	}
+	for _, bad := range []string{"relative/x", filepath.Join(alias, "..", "x") + "/"} {
+		if _, err := OwnerFramePath(bad); err == nil {
+			t.Fatalf("OwnerFramePath(%q) accepted a non-exact path", bad)
+		}
+	}
+}

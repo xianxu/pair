@@ -15,6 +15,8 @@ import (
 // started, and diagnosing it cost hours. The discriminator is an observation
 // couch already had and did not make.
 func TestARegistrationTimeoutSaysWhetherPairStarted(t *testing.T) {
+	t.Parallel()
+
 	address := ThreadAddress{RepoScope: "e108517d46ab4575", Tag: "couch-7bd0c2986975082c"}
 	const budget = 15 * time.Second
 

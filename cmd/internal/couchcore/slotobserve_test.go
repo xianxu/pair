@@ -101,6 +101,8 @@ func assertObserved(t *testing.T, got SlotObservation, want ...wantObservation) 
 }
 
 func TestObserveHealthySlot(t *testing.T) {
+	t.Parallel()
+
 	s := newObservedSlot(t)
 	if err := os.MkdirAll(s.layout.Store(), 0o700); err != nil {
 		t.Fatal(err)
@@ -109,6 +111,8 @@ func TestObserveHealthySlot(t *testing.T) {
 }
 
 func TestObserveEachBrokenResource(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		break_ func(t *testing.T, s *observedSlot)
@@ -155,6 +159,8 @@ func TestObserveEachBrokenResource(t *testing.T) {
 }
 
 func TestObserveHostBrokenKeepsTheRecordedBranch(t *testing.T) {
+	t.Parallel()
+
 	s := newObservedSlot(t)
 	s.f.git(s.layout.Host(), "switch", "-q", "-c", "issue-work")
 	write(t, filepath.Join(s.layout.Host(), ".git"), "gitdir: /nonexistent/admin\n")
@@ -165,6 +171,8 @@ func TestObserveHostBrokenKeepsTheRecordedBranch(t *testing.T) {
 }
 
 func TestObserveDependencies(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		break_ func(t *testing.T, s *observedSlot, dep string)
@@ -197,6 +205,8 @@ func TestObserveDependencies(t *testing.T) {
 // (here a linked worktree of another repository) is a readable checkout, never
 // "unreadable" (which would set it aside).
 func TestObserveGitfileDependencyIsReadable(t *testing.T) {
+	t.Parallel()
+
 	s := newObservedSlot(t)
 	os.MkdirAll(s.layout.Store(), 0o700)
 	origin := filepath.Join(t.TempDir(), "ariadne-origin")
@@ -215,6 +225,8 @@ func TestObserveGitfileDependencyIsReadable(t *testing.T) {
 }
 
 func TestObserveHalfClonedDependency(t *testing.T) {
+	t.Parallel()
+
 	s := newObservedSlot(t)
 	os.MkdirAll(s.layout.Store(), 0o700)
 	write(t, filepath.Join(s.layout.Host(), "construct", "deps"), "substrate ../ariadne\n")
@@ -238,6 +250,8 @@ func (f failingGit) Run(ctx context.Context, c ProvisionCommand) ([]byte, error)
 }
 
 func TestObserveFailedProbesAreUnknownNeverAbsent(t *testing.T) {
+	t.Parallel()
+
 	t.Run("worktree list", func(t *testing.T) {
 		s := newObservedSlot(t)
 		os.MkdirAll(s.layout.Store(), 0o700)
@@ -273,6 +287,8 @@ func holdLock(t *testing.T, path string) {
 }
 
 func TestParseWorktreeList(t *testing.T) {
+	t.Parallel()
+
 	raw := "worktree /a\x00HEAD 1111111111111111111111111111111111111111\x00branch refs/heads/main\x00\x00" +
 		"worktree /b\x00HEAD 2222222222222222222222222222222222222222\x00detached\x00prunable gitdir file points to non-existent location\x00\x00" +
 		"worktree /c\x00HEAD 3333333333333333333333333333333333333333\x00branch refs/heads/main-slot1\x00locked\x00\x00"
@@ -296,6 +312,8 @@ func TestParseWorktreeList(t *testing.T) {
 // in SlotResourceOrder (instances under their template), so --show and the
 // plan read one order with no second list.
 func TestObserveSlotFollowsTheResourceOrder(t *testing.T) {
+	t.Parallel()
+
 	s := newObservedSlot(t)
 	os.MkdirAll(s.layout.Store(), 0o700)
 	s.addDep(t, "ariadne")

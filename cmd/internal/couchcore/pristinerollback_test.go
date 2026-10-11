@@ -20,6 +20,8 @@ import (
 // Admission owned this rollback before pair#170 M4 deleted it, and the two
 // tests that pinned it went with it.
 func TestStartFailuresAfterTagAllocationRollBackTheReservation(t *testing.T) {
+	t.Parallel()
+
 	for _, test := range []struct {
 		name   string
 		break_ func(*testEnv)
@@ -77,6 +79,8 @@ func (r *budgetedReader) Read(p []byte) (int, error) {
 // TestGitConformance_LinkedWorktree. This pins all three without needing
 // PAIR_LIVE_COUCH, so a future simplification of the join reddens here first.
 func TestRepoIdentityJoinsGitsAnswerAgainstTheQueryDirectory(t *testing.T) {
+	t.Parallel()
+
 	for _, test := range []struct {
 		name    string
 		dir     string
@@ -108,6 +112,8 @@ func TestRepoIdentityJoinsGitsAnswerAgainstTheQueryDirectory(t *testing.T) {
 // that replaced it must carry the caller's context or a hung git hangs the
 // start form with no way out.
 func TestRepoIdentityResolutionHonoursCancellation(t *testing.T) {
+	t.Parallel()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	couch := &Couch{Git: NewFakeGit(map[GitCall]string{
@@ -146,6 +152,8 @@ func (g *blockingGit) RunContext(ctx context.Context, _ string, _ ...string) (st
 // cancellation, not of a deadline, and nothing reddened when the deadline was
 // absent.
 func TestRepoIdentityResolutionIsBoundedEvenWithAnUncancelledContext(t *testing.T) {
+	t.Parallel()
+
 	couch := &Couch{Git: &blockingGit{entered: make(chan struct{}, 1)}}
 
 	done := make(chan error, 1)

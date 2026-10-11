@@ -14,6 +14,8 @@ import (
 )
 
 func TestSlotFreshTransactionPreservesHistoryAndRefusesConcurrentChange(t *testing.T) {
+	t.Parallel()
+
 	s := testLocalThreadStore(t)
 	old := recordAtCheckout(t, s.slot.WorktreeRoot, s.slot.WorktreeRoot, "couch-0123456789abcdef")
 	old.Name = "keep"
@@ -42,6 +44,8 @@ func TestSlotFreshTransactionPreservesHistoryAndRefusesConcurrentChange(t *testi
 }
 
 func TestStartCreateReuseRefusesAnOccupiedCurrent(t *testing.T) {
+	t.Parallel()
+
 	env, local := slotRecoveryOperationFixture(t)
 	scope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
 	old := validThreadRecord(t)
@@ -56,6 +60,8 @@ func TestStartCreateReuseRefusesAnOccupiedCurrent(t *testing.T) {
 }
 
 func TestSlotFreshTransactionPreservesCorruptBytesAndRejectsFuture(t *testing.T) {
+	t.Parallel()
+
 	for _, raw := range []string{"broken", `{}`, `{"schema_version":0}`, `{"schema_version":999}`} {
 		t.Run(raw, func(t *testing.T) {
 			s := testLocalThreadStore(t)
@@ -93,6 +99,8 @@ func TestSlotFreshTransactionPreservesCorruptBytesAndRejectsFuture(t *testing.T)
 }
 
 func TestObserveSlotSessionsIncludesLostRecordArtifacts(t *testing.T) {
+	t.Parallel()
+
 	s := testLocalThreadStore(t)
 	env := newTestEnv(t, s.slot.WorktreeRoot)
 	env.Couch.Threads = s
@@ -134,6 +142,8 @@ func slotRecoveryOperationFixture(t *testing.T) (*testEnv, *ThreadStore) {
 }
 
 func TestStartFreshSlotReplacesStoppedCurrentAndKeepsPreferences(t *testing.T) {
+	t.Parallel()
+
 	env, local := slotRecoveryOperationFixture(t)
 	scope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
 	old := validThreadRecord(t)
@@ -187,6 +197,8 @@ func TestStartFreshSlotReplacesStoppedCurrentAndKeepsPreferences(t *testing.T) {
 }
 
 func TestSlotOpenDoesNotFreshOnLostRecordAndFreshRefusesUncertainty(t *testing.T) {
+	t.Parallel()
+
 	env, local := slotRecoveryOperationFixture(t)
 	if _, err := env.Couch.OpenSlot(context.Background(), local.slot.WorktreeRoot, "claude"); err == nil {
 		t.Fatal("missing current silently launched")
@@ -207,6 +219,8 @@ func TestSlotOpenDoesNotFreshOnLostRecordAndFreshRefusesUncertainty(t *testing.T
 }
 
 func TestSlotFreshRefusesMutationDuringObservation(t *testing.T) {
+	t.Parallel()
+
 	env, local := slotRecoveryOperationFixture(t)
 	scope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
 	old := validThreadRecord(t)
@@ -234,6 +248,8 @@ func TestSlotFreshRefusesMutationDuringObservation(t *testing.T) {
 }
 
 func TestSlotOpenReconstructsSingleDetachedSurvivor(t *testing.T) {
+	t.Parallel()
+
 	env, local := slotRecoveryOperationFixture(t)
 	scope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
 	address := ThreadAddress{RepoScope: scope.Key, Tag: "couch-1111111111111111"}
@@ -254,6 +270,8 @@ func TestSlotOpenReconstructsSingleDetachedSurvivor(t *testing.T) {
 }
 
 func TestSlotFreshFailedLaunchRetainsDamagedEvidence(t *testing.T) {
+	t.Parallel()
+
 	env, local := slotRecoveryOperationFixture(t)
 	// Establish family authority before damage so fresh tests launch rollback,
 	// rather than refusing to infer a family from unreadable legacy evidence.
@@ -282,6 +300,8 @@ func TestSlotFreshFailedLaunchRetainsDamagedEvidence(t *testing.T) {
 }
 
 func TestSlotFreshBackupCapAndJournalRecovery(t *testing.T) {
+	t.Parallel()
+
 	t.Run("cap", func(t *testing.T) {
 		s := testLocalThreadStore(t)
 		if err := os.MkdirAll(filepath.Join(s.root, "recovery"), 0700); err != nil {
@@ -339,6 +359,8 @@ func TestSlotFreshBackupCapAndJournalRecovery(t *testing.T) {
 }
 
 func TestSlotOpenRefusesCompetingLiveSurvivor(t *testing.T) {
+	t.Parallel()
+
 	env, local := slotRecoveryOperationFixture(t)
 	scope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
 	first := ThreadAddress{RepoScope: scope.Key, Tag: "first"}
@@ -357,6 +379,8 @@ func TestSlotOpenRefusesCompetingLiveSurvivor(t *testing.T) {
 }
 
 func TestSlotFreshRechecksOldOwnershipAfterReadiness(t *testing.T) {
+	t.Parallel()
+
 	env, local := slotRecoveryOperationFixture(t)
 	scope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
 	old := ThreadAddress{RepoScope: scope.Key, Tag: "surprise"}
@@ -373,6 +397,8 @@ func TestSlotFreshRechecksOldOwnershipAfterReadiness(t *testing.T) {
 }
 
 func TestSlotFreshRefusesReplacedHost(t *testing.T) {
+	t.Parallel()
+
 	s := testLocalThreadStore(t)
 	old, err := s.observeSlotCurrent()
 	if err != nil {
@@ -391,6 +417,8 @@ func TestSlotFreshRefusesReplacedHost(t *testing.T) {
 }
 
 func TestSlotFreshRetryAfterFailedLaunchWithLiveSupervisor(t *testing.T) {
+	t.Parallel()
+
 	env, local := slotRecoveryOperationFixture(t)
 	env.Runner.FailNextStart(errors.New("spawn failed"))
 	if _, err := env.Couch.StartFreshSlot(context.Background(), local.slot.WorktreeRoot, "claude"); err == nil {
@@ -402,6 +430,8 @@ func TestSlotFreshRetryAfterFailedLaunchWithLiveSupervisor(t *testing.T) {
 }
 
 func TestSlotNativeScopeScannerIncludesClaimsAndHistory(t *testing.T) {
+	t.Parallel()
+
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -431,6 +461,8 @@ func TestSlotNativeScopeScannerIncludesClaimsAndHistory(t *testing.T) {
 }
 
 func TestSlotFreshPreservesExistingArchiveWhenRecoveredCurrentRetires(t *testing.T) {
+	t.Parallel()
+
 	s := testLocalThreadStore(t)
 	old := recordAtCheckout(t, s.slot.WorktreeRoot, s.slot.WorktreeRoot, "couch-0123456789abcdef")
 	old, err := s.CreateThread(old)
@@ -461,6 +493,8 @@ func TestSlotFreshPreservesExistingArchiveWhenRecoveredCurrentRetires(t *testing
 }
 
 func TestSlotFreshRefusesUnreadableDurableRegistry(t *testing.T) {
+	t.Parallel()
+
 	env, local := slotRecoveryOperationFixture(t)
 	if err := os.WriteFile(env.Couch.Store.registryPath(), []byte("unreadable registry"), 0600); err != nil {
 		t.Fatal(err)
@@ -474,6 +508,8 @@ func TestSlotFreshRefusesUnreadableDurableRegistry(t *testing.T) {
 }
 
 func TestSlotFreshRetainsProcessEvidenceFromDamagedRecord(t *testing.T) {
+	t.Parallel()
+
 	env, local := slotRecoveryOperationFixture(t)
 	scope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
 	record := validThreadRecord(t)
@@ -506,6 +542,8 @@ func TestSlotFreshRetainsProcessEvidenceFromDamagedRecord(t *testing.T) {
 }
 
 func TestSlotFreshSkipsLocalConversationTagWithoutNativeMarker(t *testing.T) {
+	t.Parallel()
+
 	env, local := slotRecoveryOperationFixture(t)
 	scope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
 	old := validThreadRecord(t)

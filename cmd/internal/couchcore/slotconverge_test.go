@@ -45,6 +45,8 @@ func resource(t *testing.T, s *observedSlot, id SlotResourceID) ResourceObservat
 }
 
 func TestConvergeMkdirEnv(t *testing.T) {
+	t.Parallel()
+
 	s := newObservedSlot(t)
 	os.RemoveAll(s.layout.Env())
 	convergeTwice(t, s, PlannedStep{Step: StepMkdirEnv, Resource: ResourceEnv})
@@ -54,6 +56,8 @@ func TestConvergeMkdirEnv(t *testing.T) {
 }
 
 func TestConvergeRemoveIntent(t *testing.T) {
+	t.Parallel()
+
 	s := newObservedSlot(t)
 	write(t, s.layout.Intent(), "{}")
 	convergeTwice(t, s, PlannedStep{Step: StepRemoveIntent, Resource: ResourceIntent})
@@ -63,6 +67,8 @@ func TestConvergeRemoveIntent(t *testing.T) {
 }
 
 func TestConvergeCreateBranch(t *testing.T) {
+	t.Parallel()
+
 	s := newObservedSlot(t)
 	s.f.git(s.layout.Host(), "switch", "-q", "-c", "issue-work")
 	s.f.git(s.f.Primary, "branch", "-D", s.layout.RestingBranch())
@@ -73,6 +79,8 @@ func TestConvergeCreateBranch(t *testing.T) {
 }
 
 func TestConvergeCreateBranchAdoptsAConcurrentCreator(t *testing.T) {
+	t.Parallel()
+
 	s := newObservedSlot(t)
 	s.f.git(s.layout.Host(), "switch", "-q", "-c", "issue-work")
 	s.f.git(s.f.Primary, "branch", "-D", s.layout.RestingBranch())
@@ -93,6 +101,8 @@ func TestConvergeCreateBranchAdoptsAConcurrentCreator(t *testing.T) {
 }
 
 func TestConvergeSetUpstream(t *testing.T) {
+	t.Parallel()
+
 	s := newObservedSlot(t)
 	rest := s.layout.RestingBranch()
 	s.f.git(s.f.Primary, "config", "--unset", "branch."+rest+".merge")
@@ -106,6 +116,8 @@ func TestConvergeSetUpstream(t *testing.T) {
 }
 
 func TestConvergeRepairHost(t *testing.T) {
+	t.Parallel()
+
 	s := newObservedSlot(t)
 	admin := s.admin(t)
 	write(t, filepath.Join(s.layout.Host(), ".git"), "gitdir: /nonexistent/admin\n")
@@ -119,6 +131,8 @@ func TestConvergeRepairHost(t *testing.T) {
 // directory was deleted comes back on the branch its registration names, and
 // another slot's stale registration is left alone (no repository-wide prune).
 func TestConvergeWorktreeAddOverAStaleRegistration(t *testing.T) {
+	t.Parallel()
+
 	s := newObservedSlot(t)
 	if _, err := NewWorkspaceProvisioner(s.f).Ensure(context.Background(), ProvisionRequest{Path: s.f.Primary, Slot: 2}); err != nil {
 		t.Fatal(err)
@@ -145,6 +159,8 @@ func TestConvergeWorktreeAddOverAStaleRegistration(t *testing.T) {
 }
 
 func TestConvergeWorktreeAddFallsBackWhenTheBranchIsElsewhere(t *testing.T) {
+	t.Parallel()
+
 	s := newObservedSlot(t)
 	s.f.git(s.layout.Host(), "switch", "-q", "-c", "issue-work")
 	os.RemoveAll(s.layout.Env())
@@ -164,6 +180,8 @@ func TestConvergeWorktreeAddFallsBackWhenTheBranchIsElsewhere(t *testing.T) {
 }
 
 func TestConvergeCompileWritesTheMarker(t *testing.T) {
+	t.Parallel()
+
 	s := newObservedSlot(t)
 	os.Remove(SetupMarkerPath(s.admin(t)))
 	calls := s.f.WeaveCalls

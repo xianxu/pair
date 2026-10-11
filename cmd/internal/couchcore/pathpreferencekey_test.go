@@ -25,6 +25,8 @@ import (
 // system actually produced is what makes this a regression guard rather than a
 // restatement of the implementation.
 func TestPathLaunchPreferenceKeyIsStable(t *testing.T) {
+	t.Parallel()
+
 	const (
 		repoIdentity = "/Users/xianxu/workspace/tools/.git"
 		physicalPath = "/Users/xianxu/workspace/tools"
@@ -41,6 +43,8 @@ func TestPathLaunchPreferenceKeyIsStable(t *testing.T) {
 // the name: a preference written under a repository identity must come back
 // under the identical one.
 func TestPathLaunchPreferenceRoundTripsUnderItsIdentity(t *testing.T) {
+	t.Parallel()
+
 	const (
 		repoIdentity = "/Users/xianxu/workspace/tools/.git"
 		physicalPath = "/Users/xianxu/workspace/tools"

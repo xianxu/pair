@@ -32,6 +32,8 @@ func subdirectoryFamilyFixture(t *testing.T) (*testEnv, *ProvisionFixture, strin
 }
 
 func TestRepositoryFamilyLaunchKeepsRelativeDirectoryAcrossSlots(t *testing.T) {
+	t.Parallel()
+
 	env, f, relative := subdirectoryFamilyFixture(t)
 	start := filepath.Join(f.Primary, relative)
 	primary, _, err := env.Couch.Spawn(StartArgs{Cwd: start})
@@ -63,6 +65,8 @@ func TestRepositoryFamilyLaunchKeepsRelativeDirectoryAcrossSlots(t *testing.T) {
 }
 
 func TestRepositoryFamilyConflictingDirectoryRefusedAfterParkAndRestart(t *testing.T) {
+	t.Parallel()
+
 	env, f, relative := subdirectoryFamilyFixture(t)
 	actor, _, err := env.Couch.Spawn(StartArgs{Cwd: filepath.Join(f.Primary, relative)})
 	if err != nil {
@@ -104,6 +108,8 @@ func TestRepositoryFamilyConflictingDirectoryRefusedAfterParkAndRestart(t *testi
 }
 
 func TestRepositoryFamilyProvisionedSlotMissingStartingDirectoryRefusesSpawn(t *testing.T) {
+	t.Parallel()
+
 	for _, escape := range []bool{false, true} {
 		t.Run(map[bool]string{false: "missing", true: "symlink escape"}[escape], func(t *testing.T) {
 			env, f, relative := subdirectoryFamilyFixture(t)
@@ -137,6 +143,8 @@ func TestRepositoryFamilyProvisionedSlotMissingStartingDirectoryRefusesSpawn(t *
 }
 
 func TestRepositoryFamilyAmbiguousLegacySlotOpensRecordedDirectory(t *testing.T) {
+	t.Parallel()
+
 	env, f, relative := subdirectoryFamilyFixture(t)
 	env.Couch.Slots = nil
 	if _, _, err := env.Couch.Spawn(StartArgs{Cwd: filepath.Join(f.Primary, relative)}); err != nil {
@@ -182,6 +190,8 @@ func TestRepositoryFamilyAmbiguousLegacySlotOpensRecordedDirectory(t *testing.T)
 }
 
 func TestRepositoryFamilyBareRelativeDirectoryIsExplicit(t *testing.T) {
+	t.Parallel()
+
 	env, f, relative := subdirectoryFamilyFixture(t)
 	if _, _, err := env.Couch.Spawn(StartArgs{Cwd: filepath.Join(f.Primary, relative)}); err != nil {
 		t.Fatal(err)
@@ -224,6 +234,8 @@ func parkFamilyActor(t *testing.T, env *testEnv, actor ActorRecord) {
 }
 
 func TestRepositoryFamilySlotOpenResumeAndFreshKeepStartingDirectory(t *testing.T) {
+	t.Parallel()
+
 	env, f, relative := subdirectoryFamilyFixture(t)
 	start := filepath.Join(f.Primary, relative)
 	if _, _, err := env.Couch.Spawn(StartArgs{Cwd: start}); err != nil {
@@ -265,6 +277,8 @@ func TestRepositoryFamilySlotOpenResumeAndFreshKeepStartingDirectory(t *testing.
 }
 
 func TestRepositoryFamilyDependencyCannotStartConflictingDirectory(t *testing.T) {
+	t.Parallel()
+
 	env, f, _ := subdirectoryFamilyFixture(t)
 	environment := filepath.Dir(f.host(1))
 	if err := os.MkdirAll(environment, 0700); err != nil {

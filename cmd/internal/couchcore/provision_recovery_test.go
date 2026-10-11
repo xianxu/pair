@@ -41,6 +41,8 @@ func recoverySuccessPath(f *ProvisionFixture) string {
 }
 
 func TestProvisionRecoveryLostSuccessPublication(t *testing.T) {
+	t.Parallel()
+
 	for _, published := range []bool{false, true} {
 		t.Run(fmt.Sprintf("published=%t", published), func(t *testing.T) {
 			f := newProvisionFixture(t)
@@ -86,6 +88,8 @@ func TestProvisionRecoveryLostSuccessPublication(t *testing.T) {
 }
 
 func TestProvisionRecoveryCanceledAfterSetup(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -113,6 +117,8 @@ func TestProvisionRecoveryCanceledAfterSetup(t *testing.T) {
 }
 
 func TestProvisionRecoveryExternalHostPreservesFeature(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	f.git(f.Primary, "branch", "main-slot1", f.Base)
 	f.git(f.Primary, "worktree", "add", f.host(1), "main-slot1")
@@ -140,6 +146,8 @@ func TestProvisionRecoveryExternalHostPreservesFeature(t *testing.T) {
 }
 
 func TestProvisionRecoveryInterruptedUpstreamConfiguration(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	interrupted := false
 	f.AfterGit = func(c ProvisionCommand, _ []byte) error {
@@ -194,6 +202,8 @@ func awaitRecoveryBarrier(t *testing.T, ready <-chan struct{}) {
 }
 
 func TestProvisionRecoveryConcurrentWeaveBusy(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	entered := make(chan struct{})
 	release := make(chan struct{})
@@ -254,6 +264,8 @@ func TestProvisionRecoveryConcurrentWeaveBusy(t *testing.T) {
 }
 
 func TestProvisionRecoveryMarkerPublicationExcludesCleanup(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	f.FailWeave = true
 	req := ProvisionRequest{Path: f.Primary, Slot: 1}
@@ -321,6 +333,8 @@ func TestProvisionRecoveryMarkerPublicationExcludesCleanup(t *testing.T) {
 }
 
 func TestProvisionRecoveryConcurrentPublishedMarkerWins(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	entered := make(chan struct{})
 	release := make(chan struct{})

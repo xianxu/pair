@@ -24,6 +24,8 @@ func presenceAddress(tag ThreadTag) ThreadAddress {
 // `session-gone` is archive-eligible. Collapsing an unresolved question into
 // absence would offer to retire a thread whose agent is still running.
 func TestSessionPresenceIsThreeValued(t *testing.T) {
+	t.Parallel()
+
 	live := presenceAddress("couch-0000000000000001")
 	exited := presenceAddress("couch-0000000000000002")
 	unlisted := presenceAddress("couch-0000000000000003")
@@ -75,6 +77,8 @@ func TestSessionPresenceIsThreeValued(t *testing.T) {
 // value, a gather branch that silently stopped running would assert "no session"
 // for every thread it skipped -- which is the shape of the refusals #181 removed.
 func TestUnresolvedIsTheZeroValue(t *testing.T) {
+	t.Parallel()
+
 	var zero SessionObservation
 	if zero.State != SessionUnresolved {
 		t.Fatalf("zero value is %v; an unpopulated observation must not claim absence", zero.State)
@@ -88,6 +92,8 @@ func TestUnresolvedIsTheZeroValue(t *testing.T) {
 // happened. That caller-side branch is covered against the production checker in
 // TestSessionPresenceAnswersThroughTheProductionChecker.
 func TestProjectionAnswersOnlyForBindingsItWasGiven(t *testing.T) {
+	t.Parallel()
+
 	address := presenceAddress("couch-0000000000000007")
 	got := ProjectSessionPresence(nil, []launcher.Session{{Name: "something", State: launcher.SessionLive}}, nil, nil)
 	if state := got[address].State; state != SessionUnresolved {
@@ -121,6 +127,8 @@ func claimsFromSessionBindings(bindings []SessionNameBinding) map[string]int {
 // record -- otherwise the fix trades a correctness bug for a startup that scales
 // with the store.
 func TestSessionEvidenceReachesEveryRecord(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	artifacts := NewFakeThreadArtifactCollisionChecker()
 
@@ -197,6 +205,8 @@ func TestSessionEvidenceReachesEveryRecord(t *testing.T) {
 // sessions -- `session-gone` is archive-eligible, so that collapse would offer
 // to retire live work.
 func TestSessionPresenceFailureLeavesEveryThreadUnresolved(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	record := actionableTestThread("couch-00000000000000b1", time.Unix(100, 0).UTC())
 	created, err := store.CreateThread(record)
@@ -246,6 +256,8 @@ func wedgedParkFixture(address ThreadAddress) *ParkTransaction {
 // that consults evidence, so the row read `parking…` for ~18 hours while the
 // switcher offered it exactly two actions: name and describe.
 func TestWedgedParkDoesNotWedgeClassification(t *testing.T) {
+	t.Parallel()
+
 	record := actionableTestThread("couch-e1a31510b7033d08", time.Unix(100, 0).UTC())
 	// The live record's own profile: muse, which is what made its rows
 	// unarchivable rather than merely unlabelled.
@@ -279,6 +291,8 @@ func TestWedgedParkDoesNotWedgeClassification(t *testing.T) {
 // thing that used to distinguish them was whether couch survived long enough to
 // clear the incarnation. Both must classify the same.
 func TestDeadLauncherWithLiveSessionIsDetached(t *testing.T) {
+	t.Parallel()
+
 	crashed := actionableTestThread("couch-95293a9b6c0d459a", time.Unix(100, 0).UTC())
 	crashed.LatestLaunchProfile = &LaunchProfile{Agent: "muse", Argv: []string{}}
 	crashed.Incarnations = []ThreadIncarnation{{
@@ -305,6 +319,8 @@ func TestDeadLauncherWithLiveSessionIsDetached(t *testing.T) {
 // TestAbsentLiveEvidenceProvesNothing is the rule stated directly. The Live
 // union stays POSITIVE-ONLY: a thread couch does not host is not thereby dead.
 func TestAbsentLiveEvidenceProvesNothing(t *testing.T) {
+	t.Parallel()
+
 	record := actionableTestThread("couch-00000000000000c1", time.Unix(100, 0).UTC())
 	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
 	record.Incarnations = []ThreadIncarnation{{PID: 9999, Identity: "gone", State: IncarnationLive}}
@@ -323,6 +339,8 @@ func TestAbsentLiveEvidenceProvesNothing(t *testing.T) {
 // park tore that session down on purpose. Refusing it because one
 // `list-sessions` failed would demote every parked row in the store at once.
 func TestParkedRowSurvivesAnUnresolvedSessionQuestion(t *testing.T) {
+	t.Parallel()
+
 	record := actionableTestThread("couch-00000000000000d2", time.Unix(100, 0).UTC())
 	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
 	markActionableParked(&record, record.LastActiveAt)
@@ -367,6 +385,8 @@ func TestParkedRowSurvivesAnUnresolvedSessionQuestion(t *testing.T) {
 // It fails whenever a new exit appears, which is what the hand-written tests it
 // replaced could not do.
 func TestReAdoptionExitsAreTotalAndCoded(t *testing.T) {
+	t.Parallel()
+
 	type liveness int
 	const (
 		dead liveness = iota
@@ -566,6 +586,8 @@ func TestReAdoptionExitsAreTotalAndCoded(t *testing.T) {
 // which startup cannot decorate, so `couch` refused to start in that tree at all.
 // The same fixture spawns normally at the milestone's base commit.
 func TestUnobservableLauncherWithLiveSessionRefusesLegibly(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	record := actionableTestThread("couch-00000000000000e2", time.Unix(100, 0).UTC())
 	record.LatestLaunchProfile = &LaunchProfile{Agent: "muse", Argv: []string{}}
@@ -598,6 +620,8 @@ func TestUnobservableLauncherWithLiveSessionRefusesLegibly(t *testing.T) {
 // distinction. The guidance does not depend on the code, so it is given
 // unconditionally and the code goes back to meaning one thing.
 func TestEveryStartupResumeFailureIsActionable(t *testing.T) {
+	t.Parallel()
+
 	address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-00000000000000f1"}
 	for _, tc := range []struct {
 		name string
@@ -632,6 +656,8 @@ func TestEveryStartupResumeFailureIsActionable(t *testing.T) {
 // the background reattach pass renders the error's first line only when the code
 // is empty -- starts showing "resume-unknown" instead of what went wrong.
 func TestResumeCodeStillMeansAStructuredRefusal(t *testing.T) {
+	t.Parallel()
+
 	if got := ResumeDiagnosticOf(errors.New("thread already has 1 incarnation(s)")); got != "" {
 		t.Fatalf("an internal error reports code %q; callers use an empty code to mean \"render the message\"", got)
 	}
@@ -656,6 +682,8 @@ func TestResumeCodeStillMeansAStructuredRefusal(t *testing.T) {
 // "park abandon identity does not match active transaction", so the park never
 // completes and #275's audit trail for it is gone.
 func TestForeignOwnedParkIsRepresentableAndRefused(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	record := actionableTestThread("couch-00000000000000f9", time.Unix(100, 0).UTC())
 	record.LatestLaunchProfile = &LaunchProfile{Agent: "muse", Argv: []string{}}
@@ -712,6 +740,8 @@ func TestForeignOwnedParkIsRepresentableAndRefused(t *testing.T) {
 // {orphaned, unresolved, none} x the list-sessions row {live, exited, missing},
 // plus a contested name.
 func TestProjectSessionPresenceSeesAnOrphan(t *testing.T) {
+	t.Parallel()
+
 	orphan := launcher.SessionServerIdentity{PID: 9, Identity: "t9", Session: "orphan", Socket: "/s/orphan"}
 	servers := map[string]launcher.ServerState{
 		"orphan":          {Server: orphan, Verdict: launcher.ServerOrphaned},
@@ -756,6 +786,8 @@ func TestProjectSessionPresenceSeesAnOrphan(t *testing.T) {
 // An orphan and a fresh server for the same name: the name is contested, so it
 // is unresolved -- never "present", which would hide the orphan (#399 M1 review).
 func TestAContestedServerNameIsNeverPresent(t *testing.T) {
+	t.Parallel()
+
 	a := presenceAddress("couch-0000000000000031")
 	bindings := []SessionNameBinding{{Address: a, SessionName: "twice"}}
 	sessions := []launcher.Session{{Name: "twice", State: launcher.SessionLive}}

@@ -33,6 +33,8 @@ func parseIdentityMap(t *testing.T, m map[string]any) error {
 	return err
 }
 func TestParseWorkspaceIdentity(t *testing.T) {
+	t.Parallel()
+
 	for _, slot := range []bool{false, true} {
 		if err := parseIdentityMap(t, identityJSON(t, slot)); err != nil {
 			t.Fatal(err)
@@ -92,6 +94,8 @@ func TestParseWorkspaceIdentity(t *testing.T) {
 	}
 }
 func TestValidWorkspaceOID(t *testing.T) {
+	t.Parallel()
+
 	for _, n := range []int{40, 64} {
 		if !validWorkspaceOID(strings.Repeat("a", n)) {
 			t.Fatal(n)
@@ -105,6 +109,8 @@ func TestValidWorkspaceOID(t *testing.T) {
 }
 
 func TestParseWorkspaceIdentityDependencyAndFeatureWorktree(t *testing.T) {
+	t.Parallel()
+
 	dependency := func() map[string]any {
 		m := identityJSON(t, true)
 		m["kind"] = "dependency"

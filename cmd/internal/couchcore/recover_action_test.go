@@ -32,6 +32,8 @@ func resumableOrphanEnv(t *testing.T) (*testEnv, ThreadAddress, launcher.Session
 // can meet -- a step list, a hold, steps it does not run, nothing at all -- and
 // one per ActorActions answer for a thread the report has no row for.
 func TestDeriveRecoverSteps(t *testing.T) {
+	t.Parallel()
+
 	parked := ActionableThreadSummary{Address: ThreadAddress{RepoScope: "s", Tag: "t"}, WorkingPath: "/w/p", State: ThreadParked}
 	orphan := ActionableThreadSummary{Address: ThreadAddress{RepoScope: "s", Tag: "t"}, WorkingPath: "/w/p", State: ThreadUnusable,
 		Reason: ReasonOrphanedServer, Orphan: &launcher.SessionServerIdentity{PID: 812, Session: "📁p-1"}}
@@ -82,6 +84,8 @@ func TestDeriveRecoverSteps(t *testing.T) {
 // Strategy (recoverReportRowFor, pure): a slot row by its host checkout, a
 // :0 row by its primary path and scope, and a thread no report row stands for.
 func TestRecoverReportRowFor(t *testing.T) {
+	t.Parallel()
+
 	scope, err := launcher.ResolveRepoScope("/src/pair")
 	if err != nil {
 		t.Fatal(err)
@@ -107,6 +111,8 @@ func TestRecoverReportRowFor(t *testing.T) {
 // reap precedes resume, and the result is resume's own started child. Recover
 // asks nothing: choosing it is the consent (#399, 2026-10-07).
 func TestRecoverReapsThenResumes(t *testing.T) {
+	t.Parallel()
+
 	env, address, server, reaper := resumableOrphanEnv(t)
 	startsAtReap := -1
 	reaper.hook = func() { startsAtReap = countStarts(env.Runner) }
@@ -134,6 +140,8 @@ func assertResumedChild(t *testing.T, env *testEnv, value any, before int) {
 
 // A held row refuses, typed and naming the hold, before any step runs.
 func TestRecoverRefusesAHeldRowWithNoEffect(t *testing.T) {
+	t.Parallel()
+
 	env, address, _, reaper := resumableOrphanEnv(t)
 	env.Artifacts.SetSessionPresence(address, SessionObservation{State: SessionUnresolved})
 	before := countStarts(env.Runner)
@@ -184,6 +192,8 @@ func liveOrphanEnv(t *testing.T) (env *testEnv, address ThreadAddress, server la
 
 // Reap admits a live orphan: the row carries Orphan though it stays live.
 func TestReapAdmitsALiveOrphan(t *testing.T) {
+	t.Parallel()
+
 	env, address, server, reaper, _ := liveOrphanEnv(t)
 	if _, err := env.Couch.Reap(context.Background(), ReapTarget{Address: address}); err != nil {
 		t.Fatal(err)
@@ -197,6 +207,8 @@ func TestReapAdmitsALiveOrphan(t *testing.T) {
 // (it does a moment after the reap returns), then resumes, returning resume's
 // child. Without the wait the row still reads live and resume is refused.
 func TestRecoverOnALiveOrphanReapsWaitsThenResumes(t *testing.T) {
+	t.Parallel()
+
 	env, address, server, reaper, exit := liveOrphanEnv(t)
 	polls := 0
 	env.Couch.sleep = func(d time.Duration) {
@@ -220,6 +232,8 @@ func TestRecoverOnALiveOrphanReapsWaitsThenResumes(t *testing.T) {
 // A hosted client that never exits bounds the wait: recover stops before
 // resume, typed, having reaped.
 func TestRecoverStopsWhenTheRowNeverAdmitsTheNextStep(t *testing.T) {
+	t.Parallel()
+
 	env, address, _, reaper, _ := liveOrphanEnv(t)
 	before := countStarts(env.Runner)
 	_, err := env.Couch.Recover(context.Background(), RecoverTarget{Address: address})
@@ -236,6 +250,8 @@ func TestRecoverStopsWhenTheRowNeverAdmitsTheNextStep(t *testing.T) {
 // (#399 live acceptance: "very slowly, recovered"). Each step reports its
 // position, and reap reports its own phases inside its step.
 func TestRecoverReportsEachStepAsItRuns(t *testing.T) {
+	t.Parallel()
+
 	env, address, _, _ := resumableOrphanEnv(t)
 	var seen []string
 	ctx := WithOperationProgress(context.Background(), func(text string) { seen = append(seen, text) })
@@ -261,6 +277,8 @@ func TestRecoverReportsEachStepAsItRuns(t *testing.T) {
 
 // Without a reporter, progress is a no-op.
 func TestProgressWithoutAReporterIsSilent(t *testing.T) {
+	t.Parallel()
+
 	reportProgress(context.Background(), "nothing listens")
 	reportProgress(nil, "nothing listens")
 }

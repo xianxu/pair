@@ -41,6 +41,8 @@ func slotRetentionFixture(t *testing.T) (*ThreadStore, *ThreadStore, *storagegc.
 }
 
 func TestSlotRetentionSnapshotFindsLocalOnlyCurrent(t *testing.T) {
+	t.Parallel()
+
 	global, local, c, r := slotRetentionFixture(t)
 	if err := c.WithReadLock(context.Background(), func(l *storagegc.Locked) error {
 		got, err := ReadStoreRetention(global.namespace, c, l)
@@ -60,6 +62,8 @@ func TestSlotRetentionSnapshotFindsLocalOnlyCurrent(t *testing.T) {
 }
 
 func TestSlotRetentionSnapshotBlocksUncertainMembership(t *testing.T) {
+	t.Parallel()
+
 	for _, kind := range []string{"missing-current", "bad-current", "missing-root", "missing-global-manifest", "missing-local-store"} {
 		t.Run(kind, func(t *testing.T) {
 			global, local, c, _ := slotRetentionFixture(t)
@@ -113,6 +117,8 @@ func slotRetentionArchive(t *testing.T) (*ThreadStore, *ThreadStore, *storagegc.
 }
 
 func TestSlotRetentionEntrypointsRouteIndependentOfSnapshot(t *testing.T) {
+	t.Parallel()
+
 	for _, op := range []string{"onboard", "recover", "detach", "forget"} {
 		t.Run(op, func(t *testing.T) {
 			global, local, c, request := slotRetentionArchive(t)
@@ -169,6 +175,8 @@ func TestSlotRetentionEntrypointsRouteIndependentOfSnapshot(t *testing.T) {
 }
 
 func TestSlotArchiveLocatorAndReceiptCannotReachReplacement(t *testing.T) {
+	t.Parallel()
+
 	global, local, c, request := slotRetentionArchive(t)
 	wrong := request
 	wrong.SlotEnvironment = filepath.Join(filepath.Dir(request.SlotEnvironment), "pair-slot99")
@@ -196,6 +204,8 @@ func TestSlotArchiveLocatorAndReceiptCannotReachReplacement(t *testing.T) {
 }
 
 func TestSlotRetentionEveryMutationBlocksMissingCurrent(t *testing.T) {
+	t.Parallel()
+
 	for _, op := range []string{"onboard", "recover", "detach", "forget"} {
 		t.Run(op, func(t *testing.T) {
 			global, local, c, request := slotRetentionArchive(t)
@@ -225,6 +235,8 @@ func TestSlotRetentionEveryMutationBlocksMissingCurrent(t *testing.T) {
 }
 
 func TestSlotRestoreRoutesArchivedConversation(t *testing.T) {
+	t.Parallel()
+
 	global, local, _, request := slotRetentionArchive(t)
 	if err := global.RestoreThread(request.Address); err == nil {
 		t.Fatal("restore replaced current conversation")

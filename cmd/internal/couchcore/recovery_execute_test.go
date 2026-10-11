@@ -18,6 +18,8 @@ import (
 )
 
 func TestRecoverThreadWarmPreservesSessionWithoutNativeBinding(t *testing.T) {
+	t.Parallel()
+
 	env, source := switchEnvWithLiveThread(t)
 	env.Proc.Kill(source.Incarnations[0].PID)
 	env.Artifacts.SetDetachedSession(source.Address, "pair-exact")
@@ -42,6 +44,8 @@ func TestRecoverThreadWarmPreservesSessionWithoutNativeBinding(t *testing.T) {
 }
 
 func TestRecoverThreadAbsentSourceRetainsExactSnapshot(t *testing.T) {
+	t.Parallel()
+
 	f := newContinuationFixture(t)
 	c := f.env.Couch
 	before, err := c.Threads.GetThread(f.source.Address)
@@ -67,6 +71,8 @@ func TestRecoverThreadAbsentSourceRetainsExactSnapshot(t *testing.T) {
 }
 
 func TestRecoverThreadImportsLegacyCheckpointAfterRetirement(t *testing.T) {
+	t.Parallel()
+
 	f := newContinuationFixture(t)
 	c := f.env.Couch
 	old, _ := c.Threads.GetThread(f.source.Address)
@@ -89,6 +95,8 @@ func TestRecoverThreadImportsLegacyCheckpointAfterRetirement(t *testing.T) {
 }
 
 func TestRecoverThreadRefusesUnprovedOwnershipBeforeMutation(t *testing.T) {
+	t.Parallel()
+
 	for _, kind := range []string{"live-helper", "active-client", "observer-error", "missing-checkpoint", "unreadable-checkpoint", "wrong-agent-checkpoint"} {
 		t.Run(kind, func(t *testing.T) {
 			f := newContinuationFixture(t)
@@ -140,6 +148,8 @@ func TestRecoverThreadRefusesUnprovedOwnershipBeforeMutation(t *testing.T) {
 }
 
 func TestAdmitRecoveryGenerationRejectsUnownedAdvancement(t *testing.T) {
+	t.Parallel()
+
 	f := newContinuationFixture(t)
 	r, _ := f.env.Couch.Threads.GetThread(f.source.Address)
 	r.Continuation.PreviousTargetGeneration = &checkpoint.TargetGeneration{Agent: "claude", Session: "pair-exact", Attempt: "previous", LaunchOrdinal: 4}
@@ -155,6 +165,8 @@ func TestAdmitRecoveryGenerationRejectsUnownedAdvancement(t *testing.T) {
 }
 
 func TestRecoverContinuationRetryDistinguishesOwnTargetGeneration(t *testing.T) {
+	t.Parallel()
+
 	for _, scenario := range []string{"owned", "foreign", "foreign-session", "registration-crash"} {
 		t.Run(scenario, func(t *testing.T) {
 			f := newContinuationFixture(t)
@@ -233,6 +245,8 @@ func TestRecoverContinuationRetryDistinguishesOwnTargetGeneration(t *testing.T) 
 }
 
 func TestRecoveryRetirementBoundedConflictsAndCancellation(t *testing.T) {
+	t.Parallel()
+
 	for _, conflicts := range []int{7, 8} {
 		t.Run(fmt.Sprint(conflicts), func(t *testing.T) {
 			env, source := switchEnvWithLiveThread(t)
@@ -286,6 +300,8 @@ func TestRecoveryRetirementBoundedConflictsAndCancellation(t *testing.T) {
 }
 
 func TestRecoveryProcessIdentityRejectsUnknownAndAcceptsReusedPID(t *testing.T) {
+	t.Parallel()
+
 	for _, unknown := range []bool{true, false} {
 		t.Run(fmt.Sprint(unknown), func(t *testing.T) {
 			env, source := switchEnvWithLiveThread(t)
@@ -308,6 +324,8 @@ func TestRecoveryProcessIdentityRejectsUnknownAndAcceptsReusedPID(t *testing.T) 
 }
 
 func TestRecoverCheckpointRechecksAbsenceAfterSourceRead(t *testing.T) {
+	t.Parallel()
+
 	f := newContinuationFixture(t)
 	c := f.env.Couch
 	f.env.Proc.Kill(f.source.Incarnations[0].PID)
@@ -328,6 +346,8 @@ func TestRecoverCheckpointRechecksAbsenceAfterSourceRead(t *testing.T) {
 }
 
 func TestRecoveryInventoryUsesExistingEvidenceWithoutSourceReads(t *testing.T) {
+	t.Parallel()
+
 	f := newContinuationFixture(t)
 	c := f.env.Couch
 	f.env.Proc.Kill(f.source.Incarnations[0].PID)
@@ -375,6 +395,8 @@ func TestRecoveryInventoryUsesExistingEvidenceWithoutSourceReads(t *testing.T) {
 }
 
 func TestContinuationRecoveryRefusesMultipleDeadIncarnations(t *testing.T) {
+	t.Parallel()
+
 	f := newContinuationFixture(t)
 	c := f.env.Couch
 	first, err := c.Continue(context.Background(), f.source.Address, f.status.RequestID)
@@ -427,6 +449,8 @@ func (a recoveryContextArtifacts) NamedPairSessionContext(ctx context.Context, a
 }
 
 func TestRecoveryObservationDeadlineCancelsBlockingObserver(t *testing.T) {
+	t.Parallel()
+
 	for _, parentBudget := range []time.Duration{30 * time.Second, 30 * time.Millisecond} {
 		t.Run(parentBudget.String(), func(t *testing.T) {
 			env, source := switchEnvWithLiveThread(t)
@@ -472,6 +496,8 @@ func TestRecoveryObservationDeadlineCancelsBlockingObserver(t *testing.T) {
 }
 
 func TestRecoveryCancellationBetweenRevisionAttemptsStopsReobservation(t *testing.T) {
+	t.Parallel()
+
 	env, source := switchEnvWithLiveThread(t)
 	c := env.Couch
 	env.Proc.Kill(source.Incarnations[0].PID)
@@ -511,6 +537,8 @@ func TestRecoveryCancellationBetweenRevisionAttemptsStopsReobservation(t *testin
 }
 
 func TestCanceledParkAwaitStillBlocksRecoveryAndArchiveUntilWorkerSettles(t *testing.T) {
+	t.Parallel()
+
 	env, source := switchEnvWithLiveThread(t)
 	c := env.Couch
 	reached, release := make(chan struct{}), make(chan struct{})

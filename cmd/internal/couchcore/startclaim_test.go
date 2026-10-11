@@ -35,6 +35,8 @@ func startClaimFixture(t *testing.T, store *ThreadStore, tag ThreadTag, ownerPID
 // couch that died mid-start left a row reading `starting...` with no timeout, no
 // owner check and no way out -- the #271 wedge one level down.
 func TestStartOwnerLivenessReachesTheClassifier(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name  string
 		setup func(*FakeProcOps)
@@ -101,6 +103,8 @@ func TestStartOwnerLivenessReachesTheClassifier(t *testing.T) {
 // value is Unknown, so an unwritten StartOwner keeps the row busy rather than
 // releasing it to archive.
 func TestStartClaimDomainsCoincideAndTheGapFailsClosed(t *testing.T) {
+	t.Parallel()
+
 	if Liveness(0) != Unknown {
 		t.Fatalf("Liveness zero value = %v; ThreadEvidence.StartOwner relies on it being Unknown", Liveness(0))
 	}
@@ -162,6 +166,8 @@ func TestStartClaimDomainsCoincideAndTheGapFailsClosed(t *testing.T) {
 // classifies `session-gone` -- archive-eligible. Probing the owner must not
 // reopen that.
 func TestOwnStartInFlightIsNotReleased(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	created := startClaimFixture(t, store, "couch-00000000000000c3", 4242)
 

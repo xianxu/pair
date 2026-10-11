@@ -8,6 +8,8 @@ import (
 )
 
 func TestStoreInspectionAuthorityExpiresAndRejectsReplacedSlotLock(t *testing.T) {
+	t.Parallel()
+
 	s, repository, _ := migrationFixture(t)
 	if e := s.EnrollSlotRepository(context.Background(), repository); e != nil {
 		t.Fatal(e)
@@ -38,6 +40,8 @@ func TestStoreInspectionAuthorityExpiresAndRejectsReplacedSlotLock(t *testing.T)
 	}
 }
 func TestMigrationProcessesIncludesCreatingOwnersAndUnknownIdentity(t *testing.T) {
+	t.Parallel()
+
 	for _, state := range []IncarnationState{IncarnationLive, IncarnationUnknown, IncarnationCreating} {
 		proc := NewFakeProcOps()
 		proc.Set(123, "wrapper")

@@ -420,6 +420,8 @@ func everyThreadShape(t *testing.T) []classifyCase {
 // The cross product, not a sample -- a future branch that forgets to classify
 // something fails here instead of silently vanishing.
 func TestClassifyThreadIsTotalOverEveryRecordShape(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range everyThreadShape(t) {
 		t.Run(tc.name, func(t *testing.T) {
 			state, reason := ClassifyThread(tc.record, tc.evidence)
@@ -447,6 +449,8 @@ func TestClassifyThreadIsTotalOverEveryRecordShape(t *testing.T) {
 // ledger-parked producers). The data is the declaration -- each shape states its
 // own flag, and the reason next to it -- and this test holds the classifier to it.
 func TestClassifyThreadAcceptsTheOldProjectorsSetPlusDeclaredAdmissions(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range everyThreadShape(t) {
 		state, _ := ClassifyThread(tc.record, tc.evidence)
 		actionable := state == ThreadLive || state == ThreadParked || state == ThreadDetached
@@ -464,6 +468,8 @@ func TestClassifyThreadAcceptsTheOldProjectorsSetPlusDeclaredAdmissions(t *testi
 // Today a record carrying an incarnation never reaches path physicalization or
 // a profile read (actionableinventory.go:237), and M1 keeps that true.
 func TestClassifyThreadDoesNotApplyResumeShapedRefusalsToALiveRow(t *testing.T) {
+	t.Parallel()
+
 	record := actionableTestThread("couch-000000000000000c", time.Unix(1000, 0).UTC())
 	record.Incarnations = []ThreadIncarnation{{PID: 42, Identity: "pair-live", State: IncarnationLive}}
 	record.LatestLaunchProfile = nil
@@ -486,6 +492,8 @@ func TestClassifyThreadDoesNotApplyResumeShapedRefusalsToALiveRow(t *testing.T) 
 // answers about a record, and the projector answers about a manifest entry that
 // never became one. Exempting the second would be the same drift one layer up.
 func TestEveryReasonIsProducedBySomeShape(t *testing.T) {
+	t.Parallel()
+
 	produced := map[ThreadReason]bool{}
 	for _, tc := range everyThreadShape(t) {
 		if _, reason := ClassifyThread(tc.record, tc.evidence); reason != "" {
@@ -514,6 +522,8 @@ func TestEveryReasonIsProducedBySomeShape(t *testing.T) {
 // session, none for anything else -- so a second read per record, or a read for a
 // row that cannot use the answer, fails here rather than slowing every refresh.
 func TestColdLedgerReadsAreOnePerColdCandidate(t *testing.T) {
+	t.Parallel()
+
 	couch, addresses := couchWithOneRecordOfEveryShape(t)
 	artifacts, ok := couch.Artifacts.(*FakeThreadArtifactCollisionChecker)
 	if !ok {
@@ -554,6 +564,8 @@ func TestColdLedgerReadsAreOnePerColdCandidate(t *testing.T) {
 // state its one actionability change never saw the row. Derived by reflection,
 // so a field added later fails here until a shape exercises it.
 func TestEveryEvidenceFieldIsExercisedByTheCorpus(t *testing.T) {
+	t.Parallel()
+
 	shapes := everyThreadShape(t)
 	evidenceType := reflect.TypeOf(ThreadEvidence{})
 	for i := 0; i < evidenceType.NumField(); i++ {
@@ -582,6 +594,8 @@ func TestEveryEvidenceFieldIsExercisedByTheCorpus(t *testing.T) {
 // BuildArchivedInventory, which projects retired records WITHOUT classifying
 // them, so the classifying projection must never emit it.
 func TestProjectionNeverProducesArchived(t *testing.T) {
+	t.Parallel()
+
 	produced := map[ActionableThreadState]bool{}
 	for _, tc := range everyThreadShape(t) {
 		state, _ := ClassifyThread(tc.record, tc.evidence)
@@ -678,6 +692,8 @@ func couchWithOneRecordOfEveryShape(t *testing.T) (*Couch, []ThreadAddress) {
 // Asserted as an identity between the store and the projection -- not a count
 // of the rows we expect to be actionable, but of the records that exist.
 func TestInventoryEmitsOneRowPerManifestRecord(t *testing.T) {
+	t.Parallel()
+
 	couch, addresses := couchWithOneRecordOfEveryShape(t)
 
 	rows, err := couch.ActionableThreadInventoryContext(context.Background(), nil)
@@ -703,6 +719,8 @@ func TestInventoryEmitsOneRowPerManifestRecord(t *testing.T) {
 // Every row that is NOT actionable carries a reason the operator can read, and
 // the actionable ones carry none.
 func TestInventoryRowsCarryAReasonExactlyWhenUnusable(t *testing.T) {
+	t.Parallel()
+
 	couch, _ := couchWithOneRecordOfEveryShape(t)
 	rows, err := couch.ActionableThreadInventoryContext(context.Background(), nil)
 	if err != nil {
@@ -816,6 +834,8 @@ func (c *countingArtifacts) DetachedSessions(ctx context.Context, candidates []D
 // zellij, so it could not see per-record work at all. This can: resume-shaped
 // records pay, and every other record is free.
 func TestEvidencePassAsksOnlyAboutResumeShapedRecords(t *testing.T) {
+	t.Parallel()
+
 	couch, _ := couchWithOneRecordOfEveryShape(t)
 	paths := &countingPathOps{PathOps: couch.Path}
 	artifacts := &countingArtifacts{
@@ -861,6 +881,8 @@ func TestEvidencePassAsksOnlyAboutResumeShapedRecords(t *testing.T) {
 // The other half of the bound: with nothing detachable, the zellij query does
 // not run at all.
 func TestEvidencePassSkipsTheSessionQueryWithNoDetachCandidates(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	record := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
 	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
@@ -883,6 +905,8 @@ func TestEvidencePassSkipsTheSessionQueryWithNoDetachCandidates(t *testing.T) {
 // switcher showed four, and nothing reconciled them -- the operator found that
 // discrepancy before any test did, because no test compared them.
 func TestBothInventoriesReportTheSamePopulationAndStates(t *testing.T) {
+	t.Parallel()
+
 	couch, addresses := couchWithOneRecordOfEveryShape(t)
 
 	switcher, err := couch.ActionableThreadInventoryContext(context.Background(), nil)
@@ -932,6 +956,8 @@ func detachedThreadStore(t *testing.T) (*ThreadStore, ThreadAddress) {
 // UNRESOLVED -- asserting session-gone here hands retirement a reason to act on
 // because one subprocess call failed.
 func TestAFailedSessionQueryLeavesTheRowUnknownRatherThanGone(t *testing.T) {
+	t.Parallel()
+
 	store, address := detachedThreadStore(t)
 	artifacts := NewFakeThreadArtifactCollisionChecker()
 	artifacts.SetNativeBinding(address, "claude", sessioninventory.BindingEstablished, "native-root-1")
@@ -955,6 +981,8 @@ func TestAFailedSessionQueryLeavesTheRowUnknownRatherThanGone(t *testing.T) {
 // The same rule one configuration down: a couch that cannot observe sessions at
 // all has not learned that they are gone.
 func TestACouchThatCannotObserveSessionsSaysUnknownRatherThanGone(t *testing.T) {
+	t.Parallel()
+
 	store, address := detachedThreadStore(t)
 	_ = address
 	artifacts := bindingOnlyArtifacts{binding: NativeBindingResolution{
@@ -1000,6 +1028,8 @@ func (b bindingOnlyArtifacts) ResolveEstablished(context.Context, string, string
 // session outlived its launcher, both reattach onto something that is already
 // there -- so neither may pay for a per-record file read on every refresh.
 func TestWarmRowsAskNoLedgerQuestion(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	active := time.Unix(100, 0).UTC()
 
@@ -1048,6 +1078,8 @@ func TestWarmRowsAskNoLedgerQuestion(t *testing.T) {
 // `session-gone` and the switcher offered to archive a resumable conversation
 // without a word about what would be lost.
 func TestSessionAbsentWithResolvableLedgerIsResumable(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	record := actionableTestThread("couch-00000000000000f5", time.Unix(100, 0).UTC())
 	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
@@ -1079,6 +1111,8 @@ func TestSessionAbsentWithResolvableLedgerIsResumable(t *testing.T) {
 
 // An orphan's agent may still be writing: never archive-eligible (#399).
 func TestAnOrphanedServerIsNeverArchivable(t *testing.T) {
+	t.Parallel()
+
 	if ArchivableState(ThreadUnusable, ReasonOrphanedServer) || RebootableState(ThreadUnusable, ReasonOrphanedServer) {
 		t.Fatal("an orphaned server's thread is archivable")
 	}
@@ -1086,6 +1120,8 @@ func TestAnOrphanedServerIsNeverArchivable(t *testing.T) {
 
 // The row carries the orphaned server so every surface can name its pid (#399).
 func TestProjectionCarriesTheOrphanedServer(t *testing.T) {
+	t.Parallel()
+
 	record := actionableTestThread("couch-0000000000000021", time.Unix(1000, 0).UTC())
 	record.LatestLaunchProfile = classifyProfile()
 	server := launcher.SessionServerIdentity{PID: 55, Identity: "t55", Session: "📁1-55"}
@@ -1105,6 +1141,8 @@ func TestProjectionCarriesTheOrphanedServer(t *testing.T) {
 // is busy or unknown carries no Orphan: a starting server is socketless for a
 // moment, and ignorance is not a verdict.
 func TestALiveThreadWhoseSessionIsOrphanedCarriesTheOrphan(t *testing.T) {
+	t.Parallel()
+
 	record := actionableTestThread("couch-0000000000000022", time.Unix(1000, 0).UTC())
 	record.LatestLaunchProfile = classifyProfile()
 	server := launcher.SessionServerIdentity{PID: 56, Identity: "t56", Session: "📁1-56"}

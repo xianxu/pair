@@ -15,6 +15,8 @@ func admittedStartRecord(t *testing.T) ThreadRecord {
 }
 
 func TestAdvanceStartTransactionClaimHelperAndRegistrationSequence(t *testing.T) {
+	t.Parallel()
+
 	original := admittedStartRecord(t)
 	profile := LaunchProfile{Agent: "codex", Argv: []string{"--sandbox", "workspace-write"}}
 	claimed, err := AdvanceStartTransaction(original, StartEvent{
@@ -62,6 +64,8 @@ func TestAdvanceStartTransactionClaimHelperAndRegistrationSequence(t *testing.T)
 }
 
 func TestAdvanceStartTransactionRejectsOutOfOrderOrWrongNonce(t *testing.T) {
+	t.Parallel()
+
 	base := admittedStartRecord(t)
 	claim := StartEvent{Kind: StartClaimed, Nonce: "start-0123456789abcdef", Owner: SupervisorOwner{PID: 41, Identity: "owner-token"}}
 	claimed, err := AdvanceStartTransaction(base, claim)
@@ -84,6 +88,8 @@ func TestAdvanceStartTransactionRejectsOutOfOrderOrWrongNonce(t *testing.T) {
 }
 
 func TestReconcileStartPreservesOccupiedOrProvenFreeInvariant(t *testing.T) {
+	t.Parallel()
+
 	base := admittedStartRecord(t)
 	claimed, _ := AdvanceStartTransaction(base, StartEvent{
 		Kind: StartClaimed, Nonce: "start-0123456789abcdef",
@@ -121,6 +127,8 @@ func TestReconcileStartPreservesOccupiedOrProvenFreeInvariant(t *testing.T) {
 }
 
 func TestAdvanceStartTransactionCanRecoverEstablishedDeadHelperAsUnknown(t *testing.T) {
+	t.Parallel()
+
 	record := admittedStartRecord(t)
 	record, _ = AdvanceStartTransaction(record, StartEvent{
 		Kind: StartClaimed, Nonce: "start-0123456789abcdef",
@@ -139,6 +147,8 @@ func TestAdvanceStartTransactionCanRecoverEstablishedDeadHelperAsUnknown(t *test
 }
 
 func TestStartRegisteredCopiesLatestLaunchProfile(t *testing.T) {
+	t.Parallel()
+
 	record := admittedStartRecord(t)
 	profile := LaunchProfile{Agent: "codex", Argv: []string{"--sandbox", "workspace-write"}}
 	record, _ = AdvanceStartTransaction(record, StartEvent{
@@ -163,6 +173,8 @@ func TestStartRegisteredCopiesLatestLaunchProfile(t *testing.T) {
 }
 
 func TestFailedStartDoesNotReplaceLatestLaunchProfile(t *testing.T) {
+	t.Parallel()
+
 	oldProfile := LaunchProfile{Agent: "claude", Argv: []string{"--resume", "old"}}
 	newProfile := LaunchProfile{Agent: "codex", Argv: []string{"--sandbox", "workspace-write"}}
 	record := admittedStartRecord(t)
@@ -191,6 +203,8 @@ func TestFailedStartDoesNotReplaceLatestLaunchProfile(t *testing.T) {
 }
 
 func TestReconcileRegisteredTargetRetiresUnknownAtomically(t *testing.T) {
+	t.Parallel()
+
 	record := validThreadRecord(t)
 	cp, err := checkpoint.New("/checkpoint.md", "---\ntype: continuation\nagent: claude\n---\n## NEXT ACTION\nResume exact task.\n")
 	if err != nil {

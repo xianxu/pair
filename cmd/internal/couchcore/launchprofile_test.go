@@ -6,6 +6,8 @@ import (
 )
 
 func TestLaunchProfileResolutionKeepsAgentAndArgvProvenanceIndependent(t *testing.T) {
+	t.Parallel()
+
 	path := &PathLaunchPreference{
 		SchemaVersion: 1,
 		RepoIdentity:  "repo-identity",
@@ -78,6 +80,8 @@ func TestLaunchProfileResolutionKeepsAgentAndArgvProvenanceIndependent(t *testin
 }
 
 func TestLaunchProfileResolutionReturnsDefensiveValuesAndRejectsCrossAgentDefault(t *testing.T) {
+	t.Parallel()
+
 	pathArgv := []string{"--model", "opus"}
 	path := &PathLaunchPreference{LastAgent: "claude", ArgvByAgent: map[string][]string{"claude": pathArgv}}
 	got, err := ResolveLaunchProfile(LaunchProfileInputs{Path: path, RootAgent: "codex"})
@@ -100,6 +104,8 @@ func TestLaunchProfileResolutionReturnsDefensiveValuesAndRejectsCrossAgentDefaul
 }
 
 func TestRecordSuccessfulLaunchPreservesOtherAgentHistory(t *testing.T) {
+	t.Parallel()
+
 	current := &PathLaunchPreference{
 		SchemaVersion: 1, RepoIdentity: "repo", PhysicalPath: "/repo/task",
 		LastAgent: "claude", ArgvByAgent: map[string][]string{"claude": {"--model", "opus"}}, Revision: 4,

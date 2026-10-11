@@ -275,6 +275,8 @@ var issue149M5RetiredConceptRequirements = []issue149ConceptRequirement{
 }
 
 func TestIssue149M5DeclarationDispositionSourceSetMatchesMilestoneDiff(t *testing.T) {
+	t.Parallel()
+
 	root := filepath.Join("..", "..", "..")
 	if _, err := os.Stat(filepath.Join(root, ".git")); err != nil {
 		t.Skip("source archive has no Git metadata; the checked-in disposition set remains the oracle")
@@ -293,6 +295,8 @@ func TestIssue149M5DeclarationDispositionSourceSetMatchesMilestoneDiff(t *testin
 }
 
 func TestIssue149M5DeclarationDispositionSetIsClosed(t *testing.T) {
+	t.Parallel()
+
 	root := filepath.Join("..", "..", "..")
 	if got := issue149M5SourceDeclarationDigest(t, root); got != issue149M5DeclarationDigest {
 		t.Fatalf("M5 declaration set changed without an explicit concept/detail disposition: got %s, want %s", got, issue149M5DeclarationDigest)
@@ -300,6 +304,8 @@ func TestIssue149M5DeclarationDispositionSetIsClosed(t *testing.T) {
 }
 
 func TestIssue149M5CoreConceptInventoryContract(t *testing.T) {
+	t.Parallel()
+
 	root := filepath.Join("..", "..", "..")
 	raw, err := os.ReadFile(findPlanArtifact(t, root, "000149-couch-opaque-tags-and-a-human-naming-layer-plan.md"))
 	if err != nil {
@@ -312,6 +318,8 @@ func TestIssue149M5CoreConceptInventoryContract(t *testing.T) {
 }
 
 func TestIssue149M5UnmarkedExportedAuthorityFailsClosed(t *testing.T) {
+	t.Parallel()
+
 	file, err := parser.ParseFile(token.NewFileSet(), "migration.go", "package couchcore\ntype ReviewAddedAuthority struct{}\n", parser.ParseComments)
 	if err != nil {
 		t.Fatal(err)
@@ -323,6 +331,8 @@ func TestIssue149M5UnmarkedExportedAuthorityFailsClosed(t *testing.T) {
 }
 
 func TestIssue149M5CoreConceptInventoryRejectsRowMutation(t *testing.T) {
+	t.Parallel()
+
 	root := filepath.Join("..", "..", "..")
 	raw, err := os.ReadFile(findPlanArtifact(t, root, "000149-couch-opaque-tags-and-a-human-naming-layer-plan.md"))
 	if err != nil {
@@ -677,6 +687,8 @@ func issue149ReceiverName(expr ast.Expr) string {
 }
 
 func TestIssue149CurrentCoreConceptKinds(t *testing.T) {
+	t.Parallel()
+
 	root := filepath.Join("..", "..", "..")
 	path := findPlanArtifact(t, root, "000149-couch-opaque-tags-and-a-human-naming-layer-plan.md")
 	f, err := os.Open(path)
@@ -763,6 +775,8 @@ func findPlanArtifact(t *testing.T, root, name string) string {
 }
 
 func TestOpaqueIdentityCommentDoesNotReintroducePathDerivedContract(t *testing.T) {
+	t.Parallel()
+
 	raw, err := os.ReadFile("couch.go")
 	if err != nil {
 		t.Fatal(err)
@@ -775,6 +789,8 @@ func TestOpaqueIdentityCommentDoesNotReintroducePathDerivedContract(t *testing.T
 }
 
 func TestIssue149PureCoreTestsStayAtPureBoundary(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range []string{
 		// admission_test.go was in this set until pair#170 M4 deleted admission.
 		// The rule it was here to enforce -- #149's PURE direct tests do not
@@ -798,6 +814,8 @@ func TestIssue149PureCoreTestsStayAtPureBoundary(t *testing.T) {
 }
 
 func TestIssue149BlockedRunnersDelegateToOneHandshakeAuthority(t *testing.T) {
+	t.Parallel()
+
 	want := map[string]string{
 		"runner.go":    "return startBlockedChild(ctx, startExecChild, r.LaunchHelper, dir, argv, env, timeout)",
 		"ptyrunner.go": "return startBlockedChild(ctx, r.start, r.LaunchHelper, dir, argv, env, timeout)",
@@ -829,6 +847,8 @@ var issue152RetiredDeliveredConcepts = map[string]string{
 }
 
 func TestIssue152DeliveredCoreConceptsResolveToGoDeclarations(t *testing.T) {
+	t.Parallel()
+
 	root := filepath.Clean(filepath.Join("..", "..", ".."))
 	planPath := findPlanArtifact(t, root, "000152-couch-verified-park-resume-plan.md")
 	raw, err := os.ReadFile(planPath)
@@ -876,6 +896,8 @@ func TestIssue152DeliveredCoreConceptsResolveToGoDeclarations(t *testing.T) {
 }
 
 func TestIssue151CoreConceptsMatchCurrentBoundary(t *testing.T) {
+	t.Parallel()
+
 	root := filepath.Clean(filepath.Join("..", "..", ".."))
 	planPath := findPlanArtifact(t, root, "000151-hierarchical-thread-menu-plan.md")
 	raw, err := os.ReadFile(planPath)
@@ -906,6 +928,8 @@ func TestIssue151CoreConceptsMatchCurrentBoundary(t *testing.T) {
 }
 
 func TestIssue151M3ChecklistMatchesCurrentBoundary(t *testing.T) {
+	t.Parallel()
+
 	root := filepath.Clean(filepath.Join("..", "..", ".."))
 	planPath := findPlanArtifact(t, root, "000151-hierarchical-thread-menu-plan.md")
 	raw, err := os.ReadFile(planPath)
@@ -928,6 +952,8 @@ func TestIssue151M3ChecklistMatchesCurrentBoundary(t *testing.T) {
 }
 
 func TestIssue151M3SourceConceptsAppearAtExactPlanPaths(t *testing.T) {
+	t.Parallel()
+
 	root := filepath.Clean(filepath.Join("..", "..", ".."))
 	planPath := findPlanArtifact(t, root, "000151-hierarchical-thread-menu-plan.md")
 	raw, err := os.ReadFile(planPath)
@@ -948,6 +974,8 @@ func TestIssue151M3SourceConceptsAppearAtExactPlanPaths(t *testing.T) {
 }
 
 func TestIssue151M3DeclarationDispositionSourceSetMatchesMilestoneDiff(t *testing.T) {
+	t.Parallel()
+
 	root := filepath.Clean(filepath.Join("..", "..", ".."))
 	if _, err := os.Stat(filepath.Join(root, ".git")); err != nil {
 		t.Skip("source archive has no Git metadata; the checked-in disposition set remains the oracle")
@@ -967,6 +995,8 @@ func TestIssue151M3DeclarationDispositionSourceSetMatchesMilestoneDiff(t *testin
 }
 
 func TestIssue151M3DeclarationDispositionSetIsClosed(t *testing.T) {
+	t.Parallel()
+
 	root := filepath.Clean(filepath.Join("..", "..", ".."))
 	got, err := issue151M3SourceDeclarationDigest(root, nil, nil)
 	if err != nil {
@@ -978,6 +1008,8 @@ func TestIssue151M3DeclarationDispositionSetIsClosed(t *testing.T) {
 }
 
 func TestIssue151M3ArchitecturalLedgerIsClosed(t *testing.T) {
+	t.Parallel()
+
 	if got := issue151M3ArchitecturalLedgerFingerprint("", ""); got != issue151M3ArchitecturalLedgerDigest {
 		t.Fatalf("M3 architectural ledger changed without an explicit entity/dependency disposition: got %s, want %s", got, issue151M3ArchitecturalLedgerDigest)
 	}
@@ -987,6 +1019,8 @@ func TestIssue151M3ArchitecturalLedgerIsClosed(t *testing.T) {
 }
 
 func TestIssue151M3IntegrationDependenciesMatchPinnedSource(t *testing.T) {
+	t.Parallel()
+
 	root := filepath.Clean(filepath.Join("..", "..", ".."))
 	index, err := buildIssue151DeclarationIndex(root)
 	if err != nil {
@@ -1026,6 +1060,8 @@ func TestIssue151M3IntegrationDependenciesMatchPinnedSource(t *testing.T) {
 }
 
 func TestIssue151M3ImplementationDependencyRemovalFails(t *testing.T) {
+	t.Parallel()
+
 	root := filepath.Clean(filepath.Join("..", "..", ".."))
 	index, err := buildIssue151DeclarationIndex(root)
 	if err != nil {
@@ -1306,6 +1342,8 @@ func issue151M3ArchitecturalLedgerFingerprint(removeEntity, removePath string) s
 }
 
 func TestIssue151M3HistoricalOracleRejectsMovingHeadAndWorktreeBytes(t *testing.T) {
+	t.Parallel()
+
 	root := filepath.Clean(filepath.Join("..", "..", ".."))
 	path := "cmd/internal/couchcore/plan_contract_test.go"
 	if _, err := issue151M3SourceAtRef(root, "HEAD", path); err == nil {
@@ -1322,6 +1360,8 @@ func TestIssue151M3HistoricalOracleRejectsMovingHeadAndWorktreeBytes(t *testing.
 }
 
 func TestIssue151M3DeclarationDispositionMutationsFailClosed(t *testing.T) {
+	t.Parallel()
+
 	root := filepath.Clean(filepath.Join("..", "..", ".."))
 	path := "cmd/internal/couchcore/actionableinventory.go"
 	raw, err := issue151M3SourceAtHead(root, path)

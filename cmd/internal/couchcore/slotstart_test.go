@@ -12,6 +12,8 @@ import (
 )
 
 func TestStartResolutionPreservesSlotIntent(t *testing.T) {
+	t.Parallel()
+
 	input := validStartResolutionInput()
 	input.OriginalInput = "pair:2"
 	input.Action = StartOpen
@@ -32,6 +34,8 @@ func TestStartResolutionPreservesSlotIntent(t *testing.T) {
 }
 
 func TestSortReuseNoticesOrdersMixedKindsBySlotNumber(t *testing.T) {
+	t.Parallel()
+
 	notices := []StartReuseNotice{
 		{Kind: StartReuseNoticeLost, Label: "repo:10", Slot: 10},
 		{Kind: StartReuseNoticeParked, Label: "repo:2", Slot: 2},
@@ -43,6 +47,8 @@ func TestSortReuseNoticesOrdersMixedKindsBySlotNumber(t *testing.T) {
 	}
 }
 func TestSlotContextReferencesRejectDependencyAndSelectExactNumber(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	primary, err := NewWorkspaceProvisioner(f).identity(context.Background(), f.Primary)
 	if err != nil {
@@ -74,6 +80,8 @@ func managedStartFixture(t *testing.T) (*testEnv, *ProvisionFixture) {
 	return env, f
 }
 func TestManagedCreatePreviewDoesNotProvisionAndCommitsExactSlot(t *testing.T) {
+	t.Parallel()
+
 	env, f := managedStartFixture(t)
 	prepared, err := env.Couch.PrepareStart(context.Background(), StartArgs{Cwd: f.Primary, Action: StartCreate})
 	if err != nil {
@@ -101,6 +109,8 @@ func TestManagedCreatePreviewDoesNotProvisionAndCommitsExactSlot(t *testing.T) {
 	}
 }
 func TestManagedCreateRefusesNumberDriftBeforeProvision(t *testing.T) {
+	t.Parallel()
+
 	env, f := managedStartFixture(t)
 	args := StartArgs{Cwd: f.Primary, Action: StartCreate}
 	prepared, err := env.Couch.PrepareStart(context.Background(), args)
@@ -133,6 +143,8 @@ func (h startReadinessHook) Ensure(ctx context.Context, req ProvisionRequest) (P
 	return result, err
 }
 func TestManagedCreateRefusesProfileDriftDuringSetup(t *testing.T) {
+	t.Parallel()
+
 	env, f := managedStartFixture(t)
 	version := "before"
 	env.Couch.RepoAgentDefault = func(string, string) (LaunchProfile, bool, error) {
@@ -160,6 +172,8 @@ func TestManagedCreateRefusesProfileDriftDuringSetup(t *testing.T) {
 }
 
 func TestManagedCreateReuseRefusesProfileDriftDuringSetup(t *testing.T) {
+	t.Parallel()
+
 	env, f := managedStartFixture(t)
 	version := "before"
 	env.Couch.RepoAgentDefault = func(string, string) (LaunchProfile, bool, error) {
@@ -183,6 +197,8 @@ func TestManagedCreateReuseRefusesProfileDriftDuringSetup(t *testing.T) {
 }
 
 func TestManagedCreateReuseLaunchesAcceptedTransientProfile(t *testing.T) {
+	t.Parallel()
+
 	env, f := managedStartFixture(t)
 	args := StartArgs{Cwd: f.Primary, Action: StartCreate}
 	reads := 0
@@ -229,6 +245,8 @@ func TestManagedCreateReuseLaunchesAcceptedTransientProfile(t *testing.T) {
 // #332: parked work is a reminder, not a blocker, so a park that appears
 // during setup does not stop the accepted launch.
 func TestManagedCreateParkAppearingDuringSetupStillLaunches(t *testing.T) {
+	t.Parallel()
+
 	env, f := managedStartFixture(t)
 	args := StartArgs{Cwd: f.Primary, Action: StartCreate}
 	prepared, err := env.Couch.PrepareStart(context.Background(), args)
@@ -270,6 +288,8 @@ func TestManagedCreateParkAppearingDuringSetupStillLaunches(t *testing.T) {
 	t.Fatal("accepted slot launched no thread")
 }
 func TestManagedFirstCreateStaysPrimaryAndKeepsSubdirectory(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	sub := filepath.Join(f.Primary, "sub")
 	if err := os.Mkdir(sub, 0700); err != nil {
@@ -289,6 +309,8 @@ func TestManagedFirstCreateStaysPrimaryAndKeepsSubdirectory(t *testing.T) {
 }
 
 func TestQualifiedSlotReferenceUsesEnrolledRootOutsideRepository(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	f.git(f.Primary, "worktree", "add", "-b", "main-slot2", f.host(2), "main")
 	repository, err := NewOSSlotCatalog(f).Discover(context.Background(), f.Primary)
@@ -310,6 +332,8 @@ func TestQualifiedSlotReferenceUsesEnrolledRootOutsideRepository(t *testing.T) {
 	}
 }
 func TestManagedPartialSlotPathPreviewsWithoutCreatingHost(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	if err := os.MkdirAll(filepath.Dir(f.host(1)), 0700); err != nil {
 		t.Fatal(err)
@@ -331,6 +355,8 @@ func TestManagedPartialSlotPathPreviewsWithoutCreatingHost(t *testing.T) {
 }
 
 func TestStartInteractiveRepairsPartialSlotWithoutCreatingConversation(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	// A creation interrupted after its environment directory was made: the
 	// directory exists, nothing else does (no branch, no checkout).
@@ -358,6 +384,8 @@ func TestStartInteractiveRepairsPartialSlotWithoutCreatingConversation(t *testin
 }
 
 func TestPrimaryStartupEnrollsExistingDirectoriesBeforeInventory(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	f.git(f.Primary, "worktree", "add", "-b", "main-slot1", f.host(1), "main")
 	env := newTestEnv(t, f.Primary)
@@ -379,6 +407,8 @@ func TestPrimaryStartupEnrollsExistingDirectoriesBeforeInventory(t *testing.T) {
 }
 
 func TestCanonicalThreadReferenceNeverFallsBackToTag(t *testing.T) {
+	t.Parallel()
+
 	env, f := managedStartFixture(t)
 	primary, err := NewWorkspaceProvisioner(f).identity(context.Background(), f.Primary)
 	if err != nil {
@@ -399,6 +429,8 @@ func TestCanonicalThreadReferenceNeverFallsBackToTag(t *testing.T) {
 }
 
 func TestManagedLaunchThenParkNamesParkedWorkAndAllowsExistingOpen(t *testing.T) {
+	t.Parallel()
+
 	env, f := managedStartFixture(t)
 	args := StartArgs{Cwd: f.Primary, Action: StartCreate}
 	created, _, err := env.Couch.Spawn(args)
@@ -452,6 +484,8 @@ func TestManagedLaunchThenParkNamesParkedWorkAndAllowsExistingOpen(t *testing.T)
 // :0 occupied. Once the primary's own thread is archived, a create on the
 // primary path starts there again instead of allocating another slot.
 func TestManagedCreateReturnsToPrimaryOnceItsThreadIsArchived(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	env := newTestEnv(t, f.Primary)
 	env.Couch.Git = ExecGit{}
@@ -490,6 +524,8 @@ func TestManagedCreateReturnsToPrimaryOnceItsThreadIsArchived(t *testing.T) {
 // fills it -- a fresh conversation in the existing checkout, leftover files
 // and all -- instead of allocating a directory past the live ones.
 func TestManagedCreateReusesArchivedSlotBeforeAllocating(t *testing.T) {
+	t.Parallel()
+
 	env, f := managedStartFixture(t)
 	args := StartArgs{Cwd: f.Primary, Action: StartCreate}
 	first, _ := env.spawn(t, args)
@@ -527,6 +563,8 @@ func TestManagedCreateReusesArchivedSlotBeforeAllocating(t *testing.T) {
 }
 
 func TestManagedCreateReusesHoleWithParkedSiblingNotice(t *testing.T) {
+	t.Parallel()
+
 	env, f := managedStartFixture(t)
 	args := StartArgs{Cwd: f.Primary, Action: StartCreate}
 	first, _ := env.spawn(t, args)
@@ -563,6 +601,8 @@ func TestManagedCreateReusesHoleWithParkedSiblingNotice(t *testing.T) {
 }
 
 func TestManagedCreateRefusesUnreadableSiblingSlot(t *testing.T) {
+	t.Parallel()
+
 	env, f := managedStartFixture(t)
 	args := StartArgs{Cwd: f.Primary, Action: StartCreate}
 	first, _ := env.spawn(t, args)

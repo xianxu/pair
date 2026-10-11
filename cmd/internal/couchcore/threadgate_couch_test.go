@@ -18,6 +18,8 @@ import (
 // keeps a future entry from skipping the gate: add the entry here when adding
 // it to couchcore.
 func TestEveryLifecycleEntryRefusesAHeldThread(t *testing.T) {
+	t.Parallel()
+
 	env, live := envWithLiveThread(t)
 	c := env.Couch
 	c.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return true, nil }
@@ -68,6 +70,8 @@ func TestEveryLifecycleEntryRefusesAHeldThread(t *testing.T) {
 // a relaunch is mid-park is refused naming the relaunch, and the relaunch
 // completes undisturbed.
 func TestAResumeDuringARelaunchIsRefusedAndTheThreadStaysResumable(t *testing.T) {
+	t.Parallel()
+
 	env, live := envWithLiveThread(t)
 	c := env.Couch
 	reached, proceed := make(chan struct{}), make(chan struct{})
@@ -107,6 +111,8 @@ func TestAResumeDuringARelaunchIsRefusedAndTheThreadStaysResumable(t *testing.T)
 // The resume-then-relaunch order the Done-when names: a relaunch on a thread a
 // resume holds is refused naming the resume.
 func TestARelaunchDuringAResumeIsRefused(t *testing.T) {
+	t.Parallel()
+
 	env, live := envWithLiveThread(t)
 	c := env.Couch
 	_, release, err := c.hold(context.Background(), live.Address, "resume")
@@ -126,6 +132,8 @@ func TestARelaunchDuringAResumeIsRefused(t *testing.T) {
 }
 
 func TestTheGateDoesNotSerialiseDifferentThreads(t *testing.T) {
+	t.Parallel()
+
 	env, live := envWithLiveThread(t)
 	c := env.Couch
 	_, release, err := c.hold(context.Background(), live.Address, "relaunch")
@@ -155,6 +163,8 @@ func leaveEnv(t *testing.T) (*Couch, ThreadRecord) {
 // Leave is a drain: it waits for a thread's holder instead of refusing or
 // skipping it.
 func TestLeaveWaitsForAHolder(t *testing.T) {
+	t.Parallel()
+
 	c, thread := leaveEnv(t)
 	_, release, err := c.hold(context.Background(), thread.Address, "resume")
 	if err != nil {
@@ -184,6 +194,8 @@ func TestLeaveWaitsForAHolder(t *testing.T) {
 // Leave decides from the record as it is after the wait, not from its
 // snapshot: a thread archived while Leave waited is skipped, not acted on.
 func TestLeaveDecidesFromTheRecordAfterWaiting(t *testing.T) {
+	t.Parallel()
+
 	c, thread := leaveEnv(t)
 	_, release, err := c.hold(context.Background(), thread.Address, "archive")
 	if err != nil {
@@ -215,6 +227,8 @@ func TestLeaveDecidesFromTheRecordAfterWaiting(t *testing.T) {
 // An abort whose thread now carries another incarnation ends only its own
 // helper and terminal; the newer session and record are left alone.
 func TestAMismatchedAbortStillClosesItsOwnHandle(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	record, handle, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
 	if err != nil {
@@ -256,6 +270,8 @@ func TestAMismatchedAbortStillClosesItsOwnHandle(t *testing.T) {
 // Inside a composite that already holds the thread, AbortStarted re-enters
 // through the caller's context instead of waiting on its own caller.
 func TestAbortStartedInsideAComposite(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	record, handle, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
 	if err != nil {
@@ -280,6 +296,8 @@ func TestAbortStartedInsideAComposite(t *testing.T) {
 // Joining an open park transaction without the gate may only drive that
 // transaction: a mode that could begin a new one becomes retry (BR-1).
 func TestParkJoinModeNeverBegins(t *testing.T) {
+	t.Parallel()
+
 	for mode, want := range map[string]string{"": "retry", "normal": "retry", "retry": "retry", "recover": "recover", "abandon": "abandon"} {
 		if got := parkJoinMode(mode); got != want {
 			t.Errorf("parkJoinMode(%q) = %q, want %q", mode, got, want)
@@ -290,6 +308,8 @@ func TestParkJoinModeNeverBegins(t *testing.T) {
 // RecoverActiveParks is a drain: it waits for a thread's holder, then
 // recovers the open park (BR-4).
 func TestParkRecoveryWaitsForAHolderThenRecovers(t *testing.T) {
+	t.Parallel()
+
 	store, _, thread := createControllerThread(t)
 	identity := ParkIdentity{Nonce: "park-wait", Address: thread.Address, PID: 42, ProcessIdentity: "pair-helper"}
 	thread, err := store.BeginPark(thread.Address, thread.Revision, identity)
@@ -340,6 +360,8 @@ func TestParkRecoveryWaitsForAHolderThenRecovers(t *testing.T) {
 // AbortStarted waits for a holder; once released, a start that still owns its
 // thread is cleaned up in full, session included (BR-4).
 func TestAbortStartedWaitsForAHolderThenQuiesces(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	record, handle, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
 	if err != nil {
@@ -374,6 +396,8 @@ func TestAbortStartedWaitsForAHolderThenQuiesces(t *testing.T) {
 // A cancelled abort wait still ends the start's own helper and terminal, and
 // touches nothing address-scoped (BR-4).
 func TestACancelledAbortWaitEndsOnlyItsOwnHelper(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	record, handle, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
 	if err != nil {
@@ -409,6 +433,8 @@ func TestACancelledAbortWaitEndsOnlyItsOwnHelper(t *testing.T) {
 // incarnation another operation already retired is not this abort's, so only
 // the start's own helper and terminal are ended.
 func TestAnAbortOnARetiredThreadLeavesTheSessionAlone(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	record, handle, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
 	if err != nil {
@@ -443,6 +469,8 @@ func TestAnAbortOnARetiredThreadLeavesTheSessionAlone(t *testing.T) {
 // returns a zero resolution on a real error, which used to read as "unbound";
 // the row must say couch could not check, not name a binding failure.
 func TestAResolverIOFailureProjectsUnknownNotABindingReason(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	record := validThreadRecord(t)
 	record.StartingPath, record.WorkingPath = "/repo", "/repo"
@@ -473,6 +501,8 @@ func TestAResolverIOFailureProjectsUnknownNotABindingReason(t *testing.T) {
 // A named binding reason is never a guess (pair#214): only a refusal the
 // resolution proves survives into the evidence.
 func TestProvenBindingRefusalNamesOnlyWhatTheResolutionProves(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		code    ResumeDiagnosticCode
@@ -510,6 +540,8 @@ func (r *contractResolver) ResolveEstablished(context.Context, string, string, s
 }
 
 func TestNamedBindingReasonsAreProducedThroughTheResolver(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name       string
 		resolution NativeBindingResolution

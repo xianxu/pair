@@ -333,11 +333,20 @@ func TestMessageWrapperExitDisconnectsAndForgetsWorkspace(t *testing.T) {
 	r.waitConnected(b, true)
 	stop()
 	r.waitConnected(b, false)
-	r.s.mu.Lock()
-	workspaces, prepared := len(r.s.workspaces), len(r.s.prepared)
-	r.s.mu.Unlock()
-	if workspaces != 0 || prepared != 0 {
-		t.Fatalf("exited wrapper left workspaces=%d prepared=%d", workspaces, prepared)
+	// The loop publishes the connected set before it runs the Disconnect effect
+	// (message_service.go: "Publish first"), so the forget lands just after.
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		r.s.mu.Lock()
+		workspaces, prepared := len(r.s.workspaces), len(r.s.prepared)
+		r.s.mu.Unlock()
+		if workspaces == 0 && prepared == 0 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("exited wrapper left workspaces=%d prepared=%d", workspaces, prepared)
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }
 

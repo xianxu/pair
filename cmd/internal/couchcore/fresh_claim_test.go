@@ -45,6 +45,8 @@ func (r *recordingClaims) releasedAddresses() []ThreadAddress {
 // claim must survive the error; a refusal before any journal published
 // nothing, and holding its claim would leak it.
 func TestRefusedReplaceKeepsTheClaimOnceTheJournalIsDurable(t *testing.T) {
+	t.Parallel()
+
 	claimFor := func(t *testing.T, env *testEnv, old ThreadRecord, revision uint64) (*recordingClaims, error) {
 		claims := &recordingClaims{ThreadArtifactController: env.Couch.Artifacts}
 		env.Couch.Artifacts = claims

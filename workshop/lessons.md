@@ -950,6 +950,16 @@ proof; record the surprising case so the next change starts from evidence.
   composer reading) change it; transient waits leave it as is. Test the side
   path (keystrokes during the hold) that reaches the state machine first.
 
+- **A suite that only passes in a clean env is not green for the agents who run it (#436).** Workers run `make test`
+  inside live Couch slots, which export `COUCH_*`/`PAIR_*`. A test that isolates `HOME`/`PAIR_DATA_DIR` goes stale
+  the day production starts reading a new variable. When a launcher learns a new env input, grep the tests that
+  isolate its siblings and set the new one too, the way production hands it to the child.
+- **Releasing a `flock` while another goroutine forks is not a release (#436).** The forked child holds a copy of
+  every descriptor, CLOEXEC included, until its exec closes it, so a `LOCK_NB` retake right after `Close` can fail
+  for a few ms. Retake with a short bounded settle, and test it with a `dup`ed descriptor closed late.
+- **A wall-clock budget in the default lane measures the host (#436).** On a shared machine it flakes with load.
+  Run the scenario in the default lane, log the time, and assert the budget in an explicit perf lane.
+
 - **A rule proven in the pure model is not proven on the request path (#433 BR-1).** The self-addressed refill
   passed its model test, but nothing showed the broker would route a send to the sender's own slot, reserve on
   its own endpoint and admit it. When a model rule depends on an input only one caller path produces, add one
@@ -964,3 +974,8 @@ proof; record the surprising case so the next change starts from evidence.
   by the reload, with the wrong code and fix. When a step pre-checks a
   condition another gate will judge, call that gate's probe and parser. Do not
   write a second definition of the same predicate.
+- **Scrub by owner, not by prefix (#436).** Dropping every inherited `PAIR_*` from test recipes also dropped the
+  operator's opt-in knobs (`PAIR_PROBE_SETTLE`, `PAIR_LIVE_*`), which share the prefix. Name the caller-owned
+  families explicitly, and derive the regression check's knob list from the docs, so a new knob is covered without
+  anyone remembering to add it.
+

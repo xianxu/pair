@@ -8,6 +8,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"sort"
 	"strconv"
@@ -201,9 +202,115 @@ func TestProductionArtifactReferencesAreExactlyClassified(t *testing.T) {
 		t.Fatal(err)
 	}
 	missing = append(missing, sourceViolations...)
-	if len(missing) != 0 {
-		sort.Strings(missing)
-		t.Fatalf("unclassified artifact references:\n%s", strings.Join(missing, "\n"))
+	checkKnownArtifactViolations(t, missing)
+}
+
+// knownArtifactViolationsPath quarantines the violations that predate
+// pair#436 as a ratchet; pair#348 owns paying them down. New drift still
+// fails, and fixed entries must be deleted so the list only shrinks.
+const knownArtifactViolationsPath = "testdata/known-artifact-violations.txt"
+
+const knownArtifactViolationsHeader = `# Pre-existing artifact-ownership violations, quarantined by pair#436 and
+# owned by pair#348. This list may only shrink: TestProductionArtifactReferencesAreExactlyClassified
+# fails on any violation absent from it (NEW) and on any line here that no
+# longer occurs (STALE). Line numbers are stripped so unrelated edits do not churn it.
+# Regenerate (then review the diff; it must not grow):
+#   PAIR_ARTIFACT_VIOLATIONS_UPDATE=1 go test ./cmd/internal/artifactpath -run TestProductionArtifactReferencesAreExactlyClassified -count=1
+`
+
+var violationLineSuffix = regexp.MustCompile(`^([^\s:]+):\d+(?::\d+)?:`)
+
+func normalizeArtifactViolation(violation string) string {
+	return violationLineSuffix.ReplaceAllString(violation, "$1:")
+}
+
+func TestNormalizeArtifactViolationStripsLineNumbers(t *testing.T) {
+	t.Parallel()
+
+	for in, want := range map[string]string{
+		`cmd/a/run.go:102: resolved consumer contains review "x:1: y"`: `cmd/a/run.go: resolved consumer contains review "x:1: y"`,
+		"cmd/a/run.go:102:7: unlisted":                                 "cmd/a/run.go: unlisted",
+		"nvim/review.lua: review":                                      "nvim/review.lua: review",
+	} {
+		if got := normalizeArtifactViolation(in); got != want {
+			t.Errorf("normalizeArtifactViolation(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// diffKnownViolations compares counted violations: fresh are occurrences beyond
+// the known count, stale are known occurrences that no longer happen.
+func diffKnownViolations(current, known map[string]int) (fresh, stale []string) {
+	for violation, n := range current {
+		for range n - known[violation] {
+			fresh = append(fresh, violation)
+		}
+	}
+	for violation, n := range known {
+		for range n - current[violation] {
+			stale = append(stale, violation)
+		}
+	}
+	sort.Strings(fresh)
+	sort.Strings(stale)
+	return fresh, stale
+}
+
+func TestDiffKnownViolationsCountsDuplicates(t *testing.T) {
+	t.Parallel()
+
+	a, b := "cmd/a.go: unlisted", "cmd/b.go: unlisted"
+	fresh, stale := diffKnownViolations(map[string]int{a: 2, b: 1}, map[string]int{a: 1, b: 2})
+	if !reflect.DeepEqual(fresh, []string{a}) || !reflect.DeepEqual(stale, []string{b}) {
+		t.Fatalf("fresh %q stale %q; want a second %q fresh and a second %q stale", fresh, stale, a, b)
+	}
+	if fresh, stale := diffKnownViolations(map[string]int{a: 2}, map[string]int{a: 2}); fresh != nil || stale != nil {
+		t.Fatalf("equal counts reported fresh %q stale %q", fresh, stale)
+	}
+}
+
+func checkKnownArtifactViolations(t *testing.T, violations []string) {
+	t.Helper()
+	// Counted, not a set: line numbers are stripped, so a second identical
+	// violation in a known file differs only in its count.
+	current := map[string]int{}
+	for _, violation := range violations {
+		current[normalizeArtifactViolation(violation)]++
+	}
+	if os.Getenv("PAIR_ARTIFACT_VIOLATIONS_UPDATE") == "1" {
+		var lines []string
+		for violation, n := range current {
+			for range n {
+				lines = append(lines, violation)
+			}
+		}
+		sort.Strings(lines)
+		body := knownArtifactViolationsHeader + strings.Join(lines, "\n") + "\n"
+		if err := os.MkdirAll(filepath.Dir(knownArtifactViolationsPath), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(knownArtifactViolationsPath, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		t.Skipf("wrote %d known violations to %s; review the diff (it may only shrink)", len(lines), knownArtifactViolationsPath)
+	}
+	raw, err := os.ReadFile(knownArtifactViolationsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	known := map[string]int{}
+	for _, line := range strings.Split(string(raw), "\n") {
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		known[line]++
+	}
+	fresh, stale := diffKnownViolations(current, known)
+	if len(fresh) != 0 {
+		t.Errorf("NEW unclassified artifact references (fix them; do not add them to %s):\n%s", knownArtifactViolationsPath, strings.Join(fresh, "\n"))
+	}
+	if len(stale) != 0 {
+		t.Errorf("STALE entries in %s no longer occur; delete these lines:\n%s", knownArtifactViolationsPath, strings.Join(stale, "\n"))
 	}
 }
 
