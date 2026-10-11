@@ -429,6 +429,7 @@ func (s *Session) acceptNote(req NoteRequest) error {
 	if !s.landsNow(req.Cols, req.Rows) {
 		return ErrScreenChanged
 	}
+	req.Note.At = time.Now()
 	if _, err := s.pointer.addNote(req.Note, gen); err != nil {
 		return err
 	}

@@ -82,22 +82,33 @@ type Marks struct {
 // truecolor.
 func (m *Marks) SetBlend(bg color.RGBA, truecolor bool) { m.bg, m.blend = bg, truecolor }
 
-// tint is the background of a mark in palette color c at age.
+// tint is the background of a mark in palette color c at age: full color
+// while it holds, then each fade step a little further toward the
+// background.
 func (m *Marks) tint(c int, age time.Duration) color.Color {
-	p := markPalette[c]
 	if age < MarkHold {
-		if m.blend {
+		return paletteTint(c, 0, m.bg, m.blend)
+	}
+	k := int((age - MarkHold) / markFadeStep) // 0..markFadeSteps-1
+	return paletteTint(c, float64(k+1)/float64(markFadeSteps+1), m.bg, m.blend)
+}
+
+// paletteTint is palette color c weakened by t, from 0 (the full color) to
+// 1 (the background): blended into bg with truecolor, or else a step down
+// the color's ladder. It is the one place marks and notes (#447) fade.
+func paletteTint(c int, t float64, bg color.RGBA, blend bool) color.Color {
+	p := markPalette[c]
+	if t <= 0 {
+		if blend {
 			return p.rgb
 		}
 		return p.index
 	}
-	k := int((age - MarkHold) / markFadeStep) // 0..markFadeSteps-1
-	if !m.blend {
-		return p.ladder[min(k*len(p.ladder)/markFadeSteps, len(p.ladder)-1)]
+	if !blend {
+		return p.ladder[min(int(t*float64(len(p.ladder))), len(p.ladder)-1)]
 	}
-	t := float64(k+1) / float64(markFadeSteps+1)
 	mix := func(a, b uint8) uint8 { return uint8(float64(a) + (float64(b)-float64(a))*t + 0.5) }
-	return color.RGBA{mix(p.rgb.R, m.bg.R), mix(p.rgb.G, m.bg.G), mix(p.rgb.B, m.bg.B), 0xff}
+	return color.RGBA{mix(p.rgb.R, bg.R), mix(p.rgb.G, bg.G), mix(p.rgb.B, bg.B), 0xff}
 }
 
 func NewMarks() *Marks { return &Marks{cells: make(map[cell]mark)} }
@@ -272,16 +283,21 @@ func (m *Marks) Overlay(f terminal.Frame, now time.Time) terminal.Frame {
 		if age >= MarkLife || c.col >= cols || c.row >= rows || guarded(c, rows) {
 			continue
 		}
-		tint := m.tint(mk.color, age)
-		i := c.row*cols + c.col
-		// A continuation cell belongs to the wide character before it.
-		if out.Cells[i].Width == 0 && c.col > 0 && out.Cells[i-1].Width == 2 {
-			i--
-		}
-		out.Cells[i].Style.Bg = tint
-		if out.Cells[i].Width == 2 && c.col+1 < cols {
-			out.Cells[i+1].Style.Bg = tint
-		}
+		tintCell(out, c, m.tint(mk.color, age))
 	}
 	return out
+}
+
+// tintCell sets one cell's background; both cells of a wide character are
+// tinted alike, a continuation cell belonging to the character before it.
+func tintCell(f terminal.Frame, c cell, bg color.Color) {
+	cols := f.Geometry.Cols
+	i := c.row*cols + c.col
+	if f.Cells[i].Width == 0 && c.col > 0 && f.Cells[i-1].Width == 2 {
+		i--
+	}
+	f.Cells[i].Style.Bg = bg
+	if f.Cells[i].Width == 2 && i%cols+1 < cols {
+		f.Cells[i+1].Style.Bg = bg
+	}
 }

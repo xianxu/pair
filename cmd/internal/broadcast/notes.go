@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/xianxu/pair/cmd/internal/terminal"
 )
 
@@ -33,14 +35,16 @@ var (
 )
 
 // Note is one sticky note. Col, Row is the left of the two cells NoteGlyph
-// covers. Color is the author's pointer palette index, kept for the
-// per-color limit; it isn't drawn.
+// covers. Color is the author's pointer palette index: the per-color limit
+// counts it, and the 💭's chip and glow are drawn in it (M3). At is when it
+// was saved, which sets its flash phase; it isn't sent to pages.
 type Note struct {
-	ID    int    `json:"id"`
-	Col   int    `json:"col"`
-	Row   int    `json:"row"`
-	Color int    `json:"color"`
-	Text  string `json:"text"`
+	ID    int       `json:"id"`
+	Col   int       `json:"col"`
+	Row   int       `json:"row"`
+	Color int       `json:"color"`
+	Text  string    `json:"text"`
+	At    time.Time `json:"-"`
 }
 
 // NoteBoard is a broadcast's open notes. Pure: the caller owns locking.
@@ -168,13 +172,34 @@ func NoteVisible(n Note, cols, rows int) bool {
 	return n.Col >= 0 && n.Row >= 0 && n.Col+1 < cols && n.Row < rows && !guarded(cell{n.Col, n.Row}, rows)
 }
 
-// DrawNotes returns f with NoteGlyph on each visible note's two cells. A wide
-// character the glyph cuts in half leaves its other half as a space in its
-// own style. With nothing to draw it returns f itself, uncopied.
-func DrawNotes(f terminal.Frame, notes []Note) terminal.Frame {
+// DrawNotes returns f with each visible note drawn: NoteGlyph on its two
+// cells, on a chip of its author's color, inside a round glow that flashes
+// (notehalo.go). A wide character the glyph cuts in half leaves its other
+// half as a space in its own style. The glow changes only backgrounds, never
+// covers another note's chip, and where two glows meet the stronger wins.
+// With nothing to draw it returns f itself, uncopied.
+func DrawNotes(f terminal.Frame, notes []Note, style NoteStyle) terminal.Frame {
 	cols, rows := f.Geometry.Cols, f.Geometry.Rows
 	var out terminal.Frame
 	copied := false
+	glow := map[cell]float64{}
+	glowColor := map[cell]int{}
+	chips := map[cell]bool{}
+	for _, n := range notes {
+		if !NoteVisible(n, cols, rows) || len(f.Cells) != cols*rows {
+			continue
+		}
+		chips[cell{n.Col, n.Row}], chips[cell{n.Col + 1, n.Row}] = true, true
+		flash := noteFlash(style.Now.Sub(n.At))
+		if n.ID == style.Hover {
+			flash = 1
+		}
+		for c, t := range noteGlow(n, cols, rows, flash) {
+			if old, seen := glow[c]; !seen || t < old || (t == old && n.Color < glowColor[c]) {
+				glow[c], glowColor[c] = t, n.Color
+			}
+		}
+	}
 	for _, n := range notes {
 		if !NoteVisible(n, cols, rows) || len(f.Cells) != cols*rows {
 			continue
@@ -191,8 +216,9 @@ func DrawNotes(f terminal.Frame, notes []Note) terminal.Frame {
 		if out.Cells[i+1].Width == 2 && n.Col+2 < cols {
 			blank(&out.Cells[i+2])
 		}
-		out.Cells[i] = terminal.Cell{Content: NoteGlyph, Width: 2}
-		out.Cells[i+1] = terminal.Cell{}
+		chip := paletteTint(n.Color, 0, style.BG, style.Blend)
+		out.Cells[i] = terminal.Cell{Content: NoteGlyph, Width: 2, Style: uv.Style{Bg: chip}}
+		out.Cells[i+1] = terminal.Cell{Style: uv.Style{Bg: chip}}
 		// The renderer draws a row's text only up to its used columns; past
 		// them is blank tail. Widen them to cover the glyph.
 		if n.Row < len(out.Rows) && out.Rows[n.Row].UsedColumns < n.Col+2 {
@@ -201,6 +227,28 @@ func DrawNotes(f terminal.Frame, notes []Note) terminal.Frame {
 	}
 	if !copied {
 		return f
+	}
+	// Both halves of a wide character take one tint, the stronger of the
+	// two, so the result never depends on map order.
+	type tint struct {
+		t     float64
+		color int
+	}
+	leads := map[cell]tint{}
+	for c, t := range glow {
+		if chips[c] {
+			continue
+		}
+		color := glowColor[c]
+		if i := c.row*cols + c.col; out.Cells[i].Width == 0 && c.col > 0 && out.Cells[i-1].Width == 2 {
+			c.col--
+		}
+		if old, seen := leads[c]; !seen || t < old.t || (t == old.t && color < old.color) {
+			leads[c] = tint{t, color}
+		}
+	}
+	for c, tn := range leads {
+		tintCell(out, c, paletteTint(tn.color, tn.t, style.BG, style.Blend))
 	}
 	return out
 }

@@ -210,7 +210,7 @@ func cellsText(f terminal.Frame, row int) string {
 
 func TestDrawNotes(t *testing.T) {
 	f := textFrame(t, 10, 3, "abcdefghij\n漢字漢字漢\nxyz", "")
-	out := DrawNotes(f, []Note{{Col: 2, Row: 0}})
+	out := DrawNotes(f, []Note{{Col: 2, Row: 0}}, NoteStyle{})
 	if got := cellsText(out, 0); got != "ab💭efghij" {
 		t.Fatalf("row 0: %q", got)
 	}
@@ -221,10 +221,10 @@ func TestDrawNotes(t *testing.T) {
 	if cellsText(f, 0) != "abcdefghij" {
 		t.Fatal("input frame mutated")
 	}
-	if same := DrawNotes(f, nil); &same.Cells[0] != &f.Cells[0] {
+	if same := DrawNotes(f, nil, NoteStyle{}); &same.Cells[0] != &f.Cells[0] {
 		t.Fatal("no notes must return the frame uncopied")
 	}
-	if same := DrawNotes(f, []Note{{Col: 9, Row: 0}}); &same.Cells[0] != &f.Cells[0] {
+	if same := DrawNotes(f, []Note{{Col: 9, Row: 0}}, NoteStyle{}); &same.Cells[0] != &f.Cells[0] {
 		t.Fatal("only hidden notes must return the frame uncopied")
 	}
 }
@@ -234,7 +234,7 @@ func TestDrawNotesCutsWideCharacters(t *testing.T) {
 	f := textFrame(t, 10, 3, "\n漢字漢字漢\n", "")
 	// At col 3 the note covers the right half of 字 (cols 2-3) and the left
 	// half of 漢 (cols 4-5): both leftovers become spaces.
-	out := DrawNotes(f, []Note{{Col: 3, Row: 1}})
+	out := DrawNotes(f, []Note{{Col: 3, Row: 1}}, NoteStyle{})
 	if got := cellsText(out, 1); got != "漢 💭 字漢" {
 		t.Fatalf("row 1: %q", got)
 	}
@@ -246,14 +246,16 @@ func TestDrawNotesCutsWideCharacters(t *testing.T) {
 }
 
 func TestDrawNotesBlankKeepsStyle(t *testing.T) {
-	f := textFrame(t, 10, 3, "\n\x1b[44m漢字漢字漢\x1b[0m\n", "")
-	bg := f.Cells[1*10+2].Style.Bg
-	if bg == nil {
-		t.Fatal("fixture has no background")
+	// The blanked half sits in the glow, which sets its background (M3); the
+	// rest of its style, here the foreground, is its own.
+	f := textFrame(t, 10, 3, "\n\x1b[34m漢字漢字漢\x1b[0m\n", "")
+	fg := f.Cells[1*10+2].Style.Fg
+	if fg == nil {
+		t.Fatal("fixture has no foreground")
 	}
-	out := DrawNotes(f, []Note{{Col: 3, Row: 1}})
-	if out.Cells[1*10+2].Style.Bg != bg {
-		t.Fatal("blanked half lost its background")
+	out := DrawNotes(f, []Note{{Col: 3, Row: 1}}, NoteStyle{})
+	if c := out.Cells[1*10+2]; c.Style.Fg != fg || c.Content != " " {
+		t.Fatalf("blanked half lost its style: %+v", c)
 	}
 }
 
@@ -285,12 +287,12 @@ func TestDrawNotesProperty(t *testing.T) {
 			board.Add(Note{Col: rng.Intn(cols), Row: rng.Intn(rows - 1), Text: "x"})
 		}
 		notes := board.List()
-		a := DrawNotes(f, notes)
+		a := DrawNotes(f, notes, NoteStyle{})
 		rev := append([]Note(nil), notes...)
 		for i, j := 0, len(rev)-1; i < j; i, j = i+1, j-1 {
 			rev[i], rev[j] = rev[j], rev[i]
 		}
-		b := DrawNotes(f, rev)
+		b := DrawNotes(f, rev, NoteStyle{})
 		for i := range a.Cells {
 			if a.Cells[i].Content != b.Cells[i].Content || a.Cells[i].Width != b.Cells[i].Width {
 				t.Fatalf("iter %d: order matters at cell %d", iter, i)
@@ -329,7 +331,7 @@ func TestDrawNotesProperty(t *testing.T) {
 func TestDrawNotesWidensUsedColumns(t *testing.T) {
 	f := textFrame(t, 10, 3, "ab", "")
 	f.Rows = []terminal.RowMetadata{{UsedColumns: 2}, {UsedColumns: 0}, {UsedColumns: 0}}
-	out := DrawNotes(f, []Note{{Col: 5, Row: 1}, {Col: 0, Row: 0}})
+	out := DrawNotes(f, []Note{{Col: 5, Row: 1}, {Col: 0, Row: 0}}, NoteStyle{})
 	if out.Rows[1].UsedColumns != 7 {
 		t.Fatalf("empty row used columns %d, want 7", out.Rows[1].UsedColumns)
 	}

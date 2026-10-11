@@ -652,6 +652,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/broadcast/pointer.go",
 	// #447 sticky notes: in-memory board and drawing; no artifact paths.
 	"cmd/internal/broadcast/notes.go",
+	"cmd/internal/broadcast/notehalo.go",
 	"cmd/internal/broadcast/pointer_notes.go",
 	"cmd/internal/broadcast/guard.go",
 	"cmd/internal/broadcast/cloudflared.go",

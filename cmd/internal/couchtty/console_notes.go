@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"sync"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
 	"github.com/xianxu/pair/cmd/internal/terminal"
@@ -17,6 +18,10 @@ type pointerNotes struct {
 	session *broadcast.Session
 	notes   []broadcast.Note
 	version uint64
+	// style is the operator's background facts for the chip and glow (M3),
+	// taken when a snapshot is accepted; timer repaints the next flash step.
+	style broadcast.NoteStyle
+	timer *time.Timer
 }
 
 // onNotes is the session reporting a change. It runs on the changing
@@ -40,6 +45,7 @@ func (c *Console) onNotes(s *broadcast.Session, notes []broadcast.Note, version 
 func (c *Console) applyNotes(s *broadcast.Session, notes []broadcast.Note, version uint64) {
 	c.mu.Lock()
 	ok := c.bcast.phase == broadcastLive && c.bcast.session == s && c.pointer == pointerOn
+	style := c.noteStyleLocked()
 	c.mu.Unlock()
 	if !ok {
 		return
@@ -49,9 +55,41 @@ func (c *Console) applyNotes(s *broadcast.Session, notes []broadcast.Note, versi
 		c.pnotes.mu.Unlock()
 		return
 	}
-	c.pnotes.session, c.pnotes.notes, c.pnotes.version = s, notes, version
+	c.pnotes.session, c.pnotes.notes, c.pnotes.version, c.pnotes.style = s, notes, version, style
 	c.pnotes.mu.Unlock()
 	c.repaint()
+	c.scheduleNotes()
+}
+
+// noteStyleLocked is the background the chip and glow blend into, as marks
+// fade into it: the operator's real background when the terminal reported
+// it and has truecolor. Callers hold c.mu.
+func (c *Console) noteStyleLocked() broadcast.NoteStyle {
+	p := c.menu.Palette
+	return broadcast.NoteStyle{BG: p.BG, Blend: p.Known && p.TrueColor && !p.NoColor}
+}
+
+// scheduleNotes arms one timer for the notes' next flash step, replacing
+// any earlier one; with no notes there is none. The timer repaints through
+// the overlay and schedules the next.
+func (c *Console) scheduleNotes() {
+	c.pnotes.mu.Lock()
+	defer c.pnotes.mu.Unlock()
+	if c.pnotes.timer != nil {
+		c.pnotes.timer.Stop()
+		c.pnotes.timer = nil
+	}
+	d, ok := broadcast.NoteNextChange(c.pnotes.notes, c.now(), c.pnotes.style.Hover)
+	if !ok {
+		return
+	}
+	c.pnotes.timer = time.AfterFunc(d, func() {
+		_ = c.runTerminalCommand(c.lifetime, func() error {
+			c.terminalError(c.presenter.Refresh(c.lifetime))
+			c.scheduleNotes()
+			return nil
+		})
+	})
 }
 
 // resyncNotes takes the session's current notes on a pointer-phase change.
@@ -63,15 +101,23 @@ func (c *Console) resyncNotes(s *broadcast.Session) {
 		return
 	}
 	notes, version := s.Notes()
+	c.mu.Lock()
+	style := c.noteStyleLocked()
+	c.mu.Unlock()
 	c.pnotes.mu.Lock()
-	c.pnotes.session, c.pnotes.notes, c.pnotes.version = s, notes, version
+	c.pnotes.session, c.pnotes.notes, c.pnotes.version, c.pnotes.style = s, notes, version, style
 	c.pnotes.mu.Unlock()
+	c.scheduleNotes()
 }
 
 // forgetNotes drops the snapshot when the broadcast ends.
 func (c *Console) forgetNotes() {
 	c.pnotes.mu.Lock()
 	c.pnotes.session, c.pnotes.notes, c.pnotes.version = nil, nil, 0
+	if c.pnotes.timer != nil {
+		c.pnotes.timer.Stop()
+		c.pnotes.timer = nil
+	}
 	c.pnotes.mu.Unlock()
 }
 
@@ -90,5 +136,9 @@ func (c *Console) noteOverlay(f terminal.Frame, class terminal.FrameClass) termi
 	if class != terminal.FramePublic {
 		return f
 	}
-	return broadcast.DrawNotes(f, c.drawnNotes())
+	c.pnotes.mu.Lock()
+	notes, style := c.pnotes.notes, c.pnotes.style
+	c.pnotes.mu.Unlock()
+	style.Now = c.now()
+	return broadcast.DrawNotes(f, notes, style)
 }

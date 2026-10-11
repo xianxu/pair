@@ -66,7 +66,7 @@ func TestManualViewerServer(t *testing.T) {
 			"wide: 界面  box: ┌─┐  ligature check: -> != === www\n"+
 			"%s", i, time.Now().Format(time.TimeOnly))
 		mu.Lock()
-		f := DrawNotes(textFrame(t, 100, 30, body, chrome), notes)
+		f := DrawNotes(textFrame(t, 100, 30, body, chrome), notes, NoteStyle{Now: time.Now()})
 		mu.Unlock()
 		s.Offer(f, terminal.FramePublic)
 		time.Sleep(time.Second)

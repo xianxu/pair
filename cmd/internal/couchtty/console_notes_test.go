@@ -164,3 +164,24 @@ func TestNoteOverlayOnlyOnPublicFrames(t *testing.T) {
 		t.Fatal("💭 drawn on a private frame")
 	}
 }
+
+func (f *consoleFixture) notesTimer() bool {
+	f.con.pnotes.mu.Lock()
+	defer f.con.pnotes.mu.Unlock()
+	return f.con.pnotes.timer != nil
+}
+
+// M3: the 💭 sits on a chip of its author's color (color 0 here, the amber
+// marks use), and a flash timer runs while notes are open, stopped when
+// pointing turns off.
+func TestNoteChipAndFlashTimer(t *testing.T) {
+	f, _, link := pointerOnFixture(t, nil)
+	noteUntilSaved(t, link, 10, 5, "a")
+	waitFor(t, "chip drawn", func() bool { return f.screenBg(10, 5) == markTint })
+	waitFor(t, "glow beside the chip", func() bool { return f.screenBg(9, 5) != nil })
+	waitFor(t, "flash timer armed", f.notesTimer)
+	f.clickPointer(t, 0)
+	waitFor(t, "pointing off", func() bool { return f.pointerPhase() == pointerOff })
+	waitFor(t, "timer stopped", func() bool { return !f.notesTimer() })
+	waitFor(t, "chip gone", func() bool { return f.screenBg(10, 5) != markTint })
+}
