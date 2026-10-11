@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000432-couchcore-live-conformance-quit-trigger-idempotency-and-cold-launch-ownership-poll.md
         source_blob: 192d20244b601b8ab71b705ee11726ab5adbb4d5
         destination: workshop/issues/000432-couchcore-live-conformance-quit-trigger-idempotency-and-cold-launch-ownership-poll.md
+        main_commit: d81b069e6293ce2e045c2adf32833d51b029290e
 ---
 
 # couchcore live conformance: quit-trigger idempotency and cold-launch ownership poll
