@@ -936,3 +936,14 @@ proof; record the surprising case so the next change starts from evidence.
   starts a timer, let only the observation that can decide it (here, a full
   composer reading) change it; transient waits leave it as is. Test the side
   path (keystrokes during the hold) that reaches the state machine first.
+
+- **A suite that only passes in a clean env is not green for the agents who run it (#436).** Workers run `make test`
+  inside live Couch slots, which export `COUCH_*`/`PAIR_*`. A test that isolates `HOME`/`PAIR_DATA_DIR` goes stale
+  the day production starts reading a new variable. When a launcher learns a new env input, grep the tests that
+  isolate its siblings and set the new one too, the way production hands it to the child.
+- **Releasing a `flock` while another goroutine forks is not a release (#436).** The forked child holds a copy of
+  every descriptor, CLOEXEC included, until its exec closes it, so a `LOCK_NB` retake right after `Close` can fail
+  for a few ms. Retake with a short bounded settle, and test it with a `dup`ed descriptor closed late.
+- **A wall-clock budget in the default lane measures the host (#436).** On a shared machine it flakes with load.
+  Run the scenario in the default lane, log the time, and assert the budget in an explicit perf lane.
+

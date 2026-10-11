@@ -46,9 +46,10 @@ hides new breakage. The operator (batch-2 recap, 10-10): "let's ensure ariadne a
 - [x] Baseline `make -k test` on main in a scrubbed env (`env -i HOME PATH TMPDIR USER`, default `/var` TMPDIR).
 - [x] Fix `test-changelog` at the root (owner-frame paths).
 - [x] Commit weave's ariadne#320 union-merge `.gitattributes` block (TL fold-in).
-- [ ] Baseline `go test ./...`: per-package times, failures.
-- [ ] couchcore: find what makes it slow; fix or move to an explicit lane.
-- [ ] `TestSpawnComposesProductionPairRegistrationBoundary`: root-cause and fix.
+- [x] Baseline `go test ./...`: per-package times, failures.
+- [x] couchcore: find what makes it slow; fix or move to an explicit lane.
+- [x] `TestSpawnComposesProductionPairRegistrationBoundary`: root-cause and fix.
+- [x] Fix the other failures the baseline surfaced (artifactpath, gcruntime, couchcmd, host-creation lease).
 - [ ] `make test` green twice from a clean slot, wall time recorded.
 
 ## Log
@@ -69,3 +70,28 @@ hides new breakage. The operator (batch-2 recap, 10-10): "let's ensure ariadne a
 - TL relay (pair:3 during #435): artifactpath fails and couchcore/gcruntime hit the 10m go test timeout under load
   on main. All three are in this inventory: artifactpath ratchet (78172266), gcruntime 100k-file test scaled
   (732b28a3, 396s → ~5s), couchcore parallelization (below).
+- Go baseline (clean env, `go test ./... -json`): rc=1, 645s. Failures: artifactpath
+  `TestProductionArtifactReferencesAreExactlyClassified`, couchcmd `TestColdResumeOfAParkedPrimaryRegistersFromBothOrigins`
+  (switcher, ~1 in 3), gcruntime `TestCouchReferencesLocalArchiveLocatorRoundTrip`; couchcore hit the 10m timeout
+  (601.7s). Over 5 min: couchcore; gcruntime 408s (one test, `…HundredThousandFilenames…`, 396s).
+- couchcore solo, serial (`-timeout 40m`): 1,315s, all pass. 1,084 tests, none parallel; heavy tail (matrix/property/
+  real-git), no shared wait to remove.
+- Fixes (one commit each):
+  - gcruntime 100k-file budget test → injected `Collector.MaxEntries` at 1,000 (`DefaultMaxEntries` names the 100k);
+    mutation under budget fails. 396s → ~5s.
+  - gcruntime local-archive fixture: stale since #355 M2 (471a2056) made slot routing require the record's scope to
+    name its checkout; it hard-coded a scope (subagent root cause).
+  - couchcmd cold-resume: Enter raced the first inventory (header paints first); wait for the parked row, as
+    warm_reattach_test does. 8/8 after, ~1/3 failing before.
+  - artifactpath: 59 known violations quarantined as a shrink-only ratchet
+    (`testdata/known-artifact-violations.txt`), owned by **pair#348**. New violations and stale lines both fail;
+    mutation-checked both ways. This is the one quarantine.
+  - couchcore `TestSpawnComposes…`: fails only inside a live Couch session, because it inherited
+    `COUCH_PAIR_DATA_DIR` (read by LaunchNative since #366, cc2f3ce1). The test now selects its own root as Couch does.
+  - couchcore parallelism exposed a **production race**: `AcquireHostCreationLease`'s `LOCK_NB` retake failed
+    "workspace host creation is busy" when a fork in another goroutine still held a copy of the released descriptor
+    (cleared in 2-9ms, measured). Couch forks git from other goroutines constantly. The retake now settles for up to
+    100ms (500ms first; it doubled the scenarios that hold the lease on purpose). Test: `TestProvisionLeaseOutlastsATransientForkCopy`.
+  - couchcore: 1,026 tests `t.Parallel()` per a static audit (helpers followed); serial: env/chdir/global/real-signal/
+    wall-clock. Package 159s / 174s, `-race` clean (258s). Wall-clock budgets (#387 ARCH-CONSTRAINTS, 94-182ms vs
+    150ms by host load) assert only under `make test-perf-budgets` (`PAIR_PERF_BUDGETS=1`); documented in atlas/couch.md.
