@@ -1,12 +1,12 @@
 ---
 id: 000430
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-10
 updated: 2026-10-10
 estimate_hours:
-card_mirror: '647e9d6e13bb6f03f2abd8823d9ee23944bacca3' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'e6d03eb888a242b00530db9f7e716f0e274d1100' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-10T17:47:17-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 1.21
 ---
 
 # couch exits when the outer terminal stalls 5s: degrade the view, keep the sessions
