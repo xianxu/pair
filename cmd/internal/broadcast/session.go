@@ -50,6 +50,9 @@ type Config struct {
 	// turned off. Versions only increase, so a receiver keeps the newest. It
 	// is called on the changing goroutine, holding no session lock.
 	OnNotes func(s *Session, notes []Note, version uint64)
+	// Now stamps when a note was saved; nil is time.Now. Couch passes the
+	// clock it draws with, so flash timing has one source.
+	Now func() time.Time
 }
 
 // Session is one broadcast: a hub, a server on the tunnel's listener, the
@@ -429,7 +432,7 @@ func (s *Session) acceptNote(req NoteRequest) error {
 	if !s.landsNow(req.Cols, req.Rows) {
 		return ErrScreenChanged
 	}
-	req.Note.At = time.Now()
+	req.Note.At = s.now()
 	if _, err := s.pointer.addNote(req.Note, gen); err != nil {
 		return err
 	}
@@ -444,6 +447,13 @@ func (s *Session) resolveNote(id int) error {
 		s.notesChanged()
 	}
 	return err
+}
+
+func (s *Session) now() time.Time {
+	if s.cfg.Now != nil {
+		return s.cfg.Now()
+	}
+	return time.Now()
 }
 
 // Notes is the open notes and their version.

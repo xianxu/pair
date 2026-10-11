@@ -1061,3 +1061,11 @@ proof; record the surprising case so the next change starts from evidence.
 - **An async answer names the request it answers (#447 M2 review).** The note dialog applied a save's 204 to
   whatever dialog was open when it arrived, so cancel-then-new-draft lost the new text. Tag each open with a
   generation and drop answers from an older one.
+- **Test a timer's teardown at once, not eventually (#447 M3 review).** A stale self-rescheduling timer clears
+  itself when it next fires, so `waitFor(timer == nil)` passed with the teardown deleted; only an immediate
+  assertion after the teardown step caught it. For every timer the console arms, test that it re-arms after firing
+  and is gone *immediately* after each way its owner ends, and mutation-check both (drop the reschedule, drop the
+  stop).
+- **State the envelope at the bound, not per unit (#447 M3 review).** "About 11 repaints per note per 15s" hid
+  35 repaints a second to every viewer at the 48-note limit. When a cost scales with a capped count, write the
+  total at the cap, and prefer a design (one shared beat) whose cost doesn't scale at all.

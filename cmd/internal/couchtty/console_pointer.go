@@ -177,7 +177,7 @@ func (c *Console) applyPoints(b broadcast.PointBatch) {
 	}
 	// Fade into the operator's real background when the terminal can show
 	// it (truecolor, and the background reported by OSC 11).
-	c.pmarks.marks.SetBlend(palette.BG, palette.Known && palette.TrueColor && !palette.NoColor)
+	c.pmarks.marks.SetBlend(palette.BG, blendable(palette))
 	c.pmarks.marks.Add(b.Points, b.Cols, b.Rows, b.Color, now)
 	c.pmarks.mu.Unlock()
 	c.refreshMarks()

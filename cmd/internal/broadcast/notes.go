@@ -190,7 +190,7 @@ func DrawNotes(f terminal.Frame, notes []Note, style NoteStyle) terminal.Frame {
 			continue
 		}
 		chips[cell{n.Col, n.Row}], chips[cell{n.Col + 1, n.Row}] = true, true
-		flash := noteFlash(style.Now.Sub(n.At))
+		flash := noteFlash(n.At, style.Now)
 		if n.ID == style.Hover {
 			flash = 1
 		}

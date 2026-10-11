@@ -7,9 +7,12 @@ import (
 
 // A note's 💭 sits on a chip of its author's color inside a round glow
 // (#447 M3): on a full screen a bare emoji is easy to miss. The glow flashes
-// at full color when the note is saved and again every NoteFlashEvery until
-// it is resolved; each note's phase is its own age, so notes don't pulse
-// together.
+// at full color when the note is saved, and every open note flashes together
+// on one shared beat every NoteFlashEvery until it is resolved. One beat for
+// all notes bounds the repaints the flashes cost: about 11 per beat plus 11
+// per arrival (saves are rate limited), whatever the number of notes, where
+// per-note phases would cost 11 per note per beat (about 35 repaints a second
+// to every viewer at the 48-note limit).
 const (
 	NoteFlashEvery = 15 * time.Second
 	NoteFlashHold  = 1500 * time.Millisecond
@@ -39,18 +42,34 @@ type NoteStyle struct {
 	Hover int
 }
 
-// noteFlash is how much of the flash shows at age: 1 while it holds, then
-// stepping down to 0, the resting glow, until the next flash.
-func noteFlash(age time.Duration) float64 {
-	p := max(age, 0) % NoteFlashEvery
+// flashShape is how much of a flash shows p into it: 1 while it holds, then
+// stepping down, 0 once it is over; next is how long until that changes
+// (ok false once over).
+func flashShape(p time.Duration) (level float64, next time.Duration, ok bool) {
 	switch {
 	case p < NoteFlashHold:
-		return 1
+		return 1, NoteFlashHold - p, true
 	case p < NoteFlashHold+NoteFlashFade:
 		k := int((p - NoteFlashHold) / noteFadeStep) // 0..noteFadeSteps-1
-		return 1 - float64(k+1)/float64(noteFadeSteps+1)
+		return 1 - float64(k+1)/float64(noteFadeSteps+1), noteFadeStep - (p-NoteFlashHold)%noteFadeStep, true
 	}
-	return 0
+	return 0, 0, false
+}
+
+// beatPhase is how far now is into the shared beat.
+func beatPhase(now time.Time) time.Duration {
+	return time.Duration(now.UnixNano() % int64(NoteFlashEvery))
+}
+
+// noteFlash is how much flash a note saved at at shows at now: its arrival
+// flash or the shared beat, whichever is stronger.
+func noteFlash(at, now time.Time) float64 {
+	arrival := 0.0
+	if age := now.Sub(at); age >= 0 {
+		arrival, _, _ = flashShape(age)
+	}
+	beat, _, _ := flashShape(beatPhase(now))
+	return max(arrival, beat)
 }
 
 // noteGlow is the glow around n on a cols×rows grid: each cell's t (0 is the
@@ -84,28 +103,32 @@ func noteGlow(n Note, cols, rows int, flash float64) map[cell]float64 {
 	return out
 }
 
-// NoteNextChange is how long until the notes' drawing next changes (a flash
-// starting, stepping or ending); ok is false when nothing changes. A hovered
-// note is steady.
+// NoteNextChange is how long until the notes' drawing next changes: an
+// arrival flash stepping or ending, or the shared beat starting, stepping or
+// ending. ok is false when nothing would change: no notes, or only the
+// hovered one, which is steady.
 func NoteNextChange(notes []Note, now time.Time, hover int) (time.Duration, bool) {
 	var next time.Duration
 	ok := false
+	take := func(d time.Duration) {
+		if !ok || d < next {
+			next, ok = d, true
+		}
+	}
 	for _, n := range notes {
 		if n.ID == hover {
 			continue
 		}
-		p := max(now.Sub(n.At), 0) % NoteFlashEvery
-		var d time.Duration
-		switch {
-		case p < NoteFlashHold:
-			d = NoteFlashHold - p
-		case p < NoteFlashHold+NoteFlashFade:
-			d = noteFadeStep - (p-NoteFlashHold)%noteFadeStep
-		default:
-			d = NoteFlashEvery - p
+		if age := now.Sub(n.At); age >= 0 {
+			if _, d, live := flashShape(age); live {
+				take(d)
+			}
 		}
-		if !ok || d < next {
-			next, ok = d, true
+		p := beatPhase(now)
+		if _, d, live := flashShape(p); live {
+			take(d)
+		} else {
+			take(NoteFlashEvery - p)
 		}
 	}
 	return next, ok

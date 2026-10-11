@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
 	"github.com/xianxu/pair/cmd/internal/terminal"
@@ -184,4 +185,62 @@ func TestNoteChipAndFlashTimer(t *testing.T) {
 	waitFor(t, "pointing off", func() bool { return f.pointerPhase() == pointerOff })
 	waitFor(t, "timer stopped", func() bool { return !f.notesTimer() })
 	waitFor(t, "chip gone", func() bool { return f.screenBg(10, 5) != markTint })
+}
+
+// Every timer the console arms for the collaboration layer re-arms after it
+// fires and is torn down on each way the layer ends (#447 M3 review, BR-14):
+// the marks' fade timer and the notes' flash timer, on pointer-off and on
+// broadcast end.
+func TestCollaborationTimersRearmAndTearDown(t *testing.T) {
+	marksTimer := func(f *consoleFixture) *time.Timer {
+		f.con.pmarks.mu.Lock()
+		defer f.con.pmarks.mu.Unlock()
+		return f.con.pmarks.timer
+	}
+	notesTimer := func(f *consoleFixture) *time.Timer {
+		f.con.pnotes.mu.Lock()
+		defer f.con.pnotes.mu.Unlock()
+		return f.con.pnotes.timer
+	}
+	timers := map[string]struct {
+		arm   func(*testing.T, *consoleFixture, string)
+		timer func(*consoleFixture) *time.Timer
+	}{
+		"marks": {func(t *testing.T, f *consoleFixture, link string) { tapUntilMarked(t, f, link, 5, 3) }, marksTimer},
+		"notes": {func(t *testing.T, f *consoleFixture, link string) { noteUntilSaved(t, link, 10, 5, "a") }, notesTimer},
+	}
+	ends := map[string]func(*testing.T, *consoleFixture){
+		"pointer off": func(t *testing.T, f *consoleFixture) {
+			f.clickPointer(t, 0)
+			waitFor(t, "pointing off", func() bool { return f.pointerPhase() == pointerOff })
+		},
+		"broadcast end": func(t *testing.T, f *consoleFixture) {
+			_, _ = f.stdin.Write([]byte(ctrlAltB))
+			waitFor(t, "broadcast off", func() bool { return f.phase() == broadcastOff })
+		},
+	}
+	for tname, tm := range timers {
+		t.Run(tname+"/re-arms after firing", func(t *testing.T) {
+			f, _, link := pointerOnFixture(t, nil)
+			tm.arm(t, f, link)
+			var first *time.Timer
+			waitFor(t, "timer armed", func() bool { first = tm.timer(f); return first != nil })
+			// The first step comes at the end of the hold (1.5s); the timer
+			// that fires arms the next one.
+			waitFor(t, "timer re-armed", func() bool { next := tm.timer(f); return next != nil && next != first })
+		})
+		for ename, end := range ends {
+			t.Run(tname+"/"+ename, func(t *testing.T) {
+				f, _, link := pointerOnFixture(t, nil)
+				tm.arm(t, f, link)
+				waitFor(t, "timer armed", func() bool { return tm.timer(f) != nil })
+				end(t, f)
+				// At once, not eventually: a stale timer would clear itself
+				// when it next fires, which a wait would mistake for teardown.
+				if tm.timer(f) != nil {
+					t.Fatal("timer still armed after the layer ended")
+				}
+			})
+		}
+	}
 }

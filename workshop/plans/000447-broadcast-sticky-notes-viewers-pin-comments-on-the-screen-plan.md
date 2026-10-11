@@ -284,8 +284,8 @@ The operator's smoke: a 💭 is easy to miss on a full screen. Each 💭 gets it
 
 - **paletteTint(c, strength, bg, blend) color.Color:** the one place a palette color is weakened. Strength 1 is the full color (truecolor RGB, or the xterm index). Below 1 it is blended into `bg` with truecolor, or else picked from the color's five-step ladder by strength. `Marks.tint` becomes "age → strength → paletteTint", so marks and notes fade the same way (ARCH-DRY). The existing mark tests pin that marks are unchanged.
 - **Glow geometry:** the glow is centered on the 💭's two cells, with rows −2..+2. Columns are scaled by the cell aspect (2:1) so the glow looks round: a cell is in it when `(dx/2)² + dy² ≤ 2.5²`, with dx measured from the nearer chip cell. Strength by distance: chip 1.0, `d ≤ 1.5` 0.5, otherwise 0.25. Where glows overlap, the stronger wins. The glow never covers the guarded cells and never paints another note's chip.
-- **Flash:** a note is *flashing* when `(now − At) mod 15s < 1.5s`. Arrival is phase 0, and each note's phase is its own age, so notes don't pulse together. While flashing, the glow's strengths are all 1.0, then they step down to rest over 0.5s in 10 steps (`MarkFade`'s shape). A hovered note (M4) is held at the flash level.
-- **NoteNextChange(notes, now)** gives the next instant the drawing changes (a flash start, a fade step, a flash end), so the console schedules exactly one repaint timer while notes are open, as `Marks.NextChange` does. Its cost is one timer, plus about 11 repaints per note per 15s.
+- **Flash:** a note flashes at full color when it is saved (its arrival flash), and every open note flashes together on one shared beat every 15s (`now mod 15s`), until it is resolved. A flash holds 1.5s, then steps down to rest over 0.5s in 10 steps (`MarkFade`'s shape); arrival and beat take the stronger. A hovered note (M4) is held at the flash level. *Revised at the M3 review:* per-note phases cost about 11 repaints per note per 15s, about 35 full repaints a second to every viewer at the 48-note limit; one shared beat bounds it at about 11 per 15s plus 11 per arrival (saves are rate limited at 2/s), whatever the number of notes (ARCH-CONSTRAINTS).
+- **NoteNextChange(notes, now)** gives the next instant the drawing changes (a flash start, a fade step, a flash end), so the console schedules exactly one repaint timer while notes are open, as `Marks.NextChange` does. Its cost is one timer, plus about 11 repaints per beat and per arrival.
 - **The console** passes `NoteStyle{BG, Blend, Hover, Now}` from the same palette facts marks use, and adds a notes timer next to `pmarks.timer`, stopped in `resetPointer` and on pointer-off.
 - **Viewer:** `#controls`, `#hint` and `band()` go. The stage takes the whole window again (as it did before #446). The swatches keep `aria-label` and gain `title`, "Pointer color N". `#mode` gets `title` and `aria-label`: "Pointer mode: tap or drag to point" or "Comment mode: tap to place a note". When pointing is off, the rail shows nothing, which already says it.
 
@@ -381,6 +381,8 @@ The operator's smoke: a 💭 is easy to miss on a full screen. Each 💭 gets it
 - [ ] `sdlc move :0`, `make build`, then the operator's full Done-when walk; then `sdlc close`.
 
 ## Revisions
+
+- 2026-10-11 — M3 review: one shared flash beat instead of per-note phases (bounds repaints at the 48-note limit); `Config.Now` gives notes the console's clock; `blendable` shared by marks and notes; timer tests cover re-arm and both teardowns for both timers, asserted at once.
 
 - 2026-10-11 — operator smoke on pair:0 → scope revision: Chunk 3 (M3: chip, round glow, arrival and 15s flash; the viewer's hint bar becomes tooltips) and Chunk 4 (M4: a `💭N` notes menu in the terminal with hover highlight and glow, and click-to-copy; read and copy only; Esc not taken). M2 closes on the headless-Chrome smoke plus the operator's pair:0 smoke, which placed and saw notes.
 

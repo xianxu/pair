@@ -152,6 +152,9 @@ func (c *Console) startBroadcast(cfg broadcast.Config) {
 	if cfg.OnNotes == nil {
 		cfg.OnNotes = c.onNotes
 	}
+	if cfg.Now == nil {
+		cfg.Now = c.now
+	}
 	ctx, cancel := context.WithCancel(c.lifetime)
 	c.mu.Lock()
 	c.bcast = broadcastState{phase: broadcastStarting, attempt: c.bcast.attempt + 1, cancel: cancel}

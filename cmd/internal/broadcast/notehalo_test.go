@@ -68,64 +68,106 @@ func TestNoteGlowStaysOffTheControlsAndTheGrid(t *testing.T) {
 	}
 }
 
+// beat0 is the start of a shared beat (Unix seconds divisible by 15).
+var beat0 = time.Unix(1500, 0)
+
+func flashName(f float64) string {
+	switch f {
+	case 1:
+		return "full"
+	case 0:
+		return "rest"
+	}
+	return "fading"
+}
+
 func TestNoteFlashTiming(t *testing.T) {
-	cases := []struct {
-		age  time.Duration
-		want string
+	old := beat0.Add(-time.Hour) // long past its arrival: the beat alone
+	beat := []struct {
+		phase time.Duration
+		want  string
 	}{
 		{0, "full"}, {1400 * time.Millisecond, "full"}, {1600 * time.Millisecond, "fading"},
 		{1950 * time.Millisecond, "fading"}, {2100 * time.Millisecond, "rest"}, {14 * time.Second, "rest"},
-		{15 * time.Second, "full"}, {16600 * time.Millisecond, "fading"}, {18 * time.Second, "rest"},
+		{15 * time.Second, "full"},
 	}
-	for _, c := range cases {
-		f := noteFlash(c.age)
-		got := "fading"
-		switch f {
-		case 1:
-			got = "full"
-		case 0:
-			got = "rest"
+	for _, c := range beat {
+		if got := flashName(noteFlash(old, beat0.Add(c.phase))); got != c.want {
+			t.Errorf("beat phase %v: %s, want %s", c.phase, got, c.want)
 		}
-		if got != c.want {
-			t.Errorf("age %v: %v (%v), want %s", c.age, got, f, c.want)
+	}
+	// A note saved mid-beat flashes on arrival, on its own.
+	saved := beat0.Add(5 * time.Second)
+	arrival := []struct {
+		age  time.Duration
+		want string
+	}{
+		{0, "full"}, {1400 * time.Millisecond, "full"}, {1600 * time.Millisecond, "fading"}, {2100 * time.Millisecond, "rest"},
+		{10 * time.Second, "full"}, // the next shared beat
+	}
+	for _, c := range arrival {
+		if got := flashName(noteFlash(saved, saved.Add(c.age))); got != c.want {
+			t.Errorf("arrival age %v: %s, want %s", c.age, got, c.want)
 		}
 	}
 }
 
 func TestNoteNextChange(t *testing.T) {
-	t0 := time.Unix(1000, 0)
-	at := func(time.Duration) []Note { return []Note{{ID: 1, At: t0}} }
-	cases := []struct{ age, want time.Duration }{
+	old := []Note{{ID: 1, At: beat0.Add(-time.Hour)}}
+	for _, c := range []struct{ phase, want time.Duration }{
 		{0, NoteFlashHold},
 		{time.Second, 500 * time.Millisecond},
 		{1600 * time.Millisecond, 50 * time.Millisecond},
 		{3 * time.Second, 12 * time.Second},
-		{15 * time.Second, NoteFlashHold},
-	}
-	for _, c := range cases {
-		d, ok := NoteNextChange(at(c.age), t0.Add(c.age), 0)
-		if !ok || d != c.want {
-			t.Errorf("age %v: %v %v, want %v", c.age, d, ok, c.want)
+	} {
+		if d, ok := NoteNextChange(old, beat0.Add(c.phase), 0); !ok || d != c.want {
+			t.Errorf("beat phase %v: %v %v, want %v", c.phase, d, ok, c.want)
 		}
 	}
-	if _, ok := NoteNextChange(nil, t0, 0); ok {
+	// An arrival mid-beat: its own flash ends before the next beat.
+	saved := beat0.Add(5 * time.Second)
+	if d, _ := NoteNextChange([]Note{{ID: 2, At: saved}}, saved, 0); d != NoteFlashHold {
+		t.Fatalf("arrival: %v, want %v", d, NoteFlashHold)
+	}
+	if d, _ := NoteNextChange([]Note{{ID: 2, At: saved}}, saved.Add(3*time.Second), 0); d != 7*time.Second {
+		t.Fatalf("after the arrival flash: %v, want the beat in 7s", d)
+	}
+	if _, ok := NoteNextChange(nil, beat0, 0); ok {
 		t.Fatal("no notes, no change")
 	}
-	if _, ok := NoteNextChange([]Note{{ID: 1, At: t0}}, t0, 1); ok {
+	if _, ok := NoteNextChange(old, beat0, 1); ok {
 		t.Fatal("a hovered note is steady")
 	}
-	// The soonest of several notes: at t0+3s note 1 is 3s into its cycle
-	// (12s to its next flash) and note 2 is 17s old, 2s into its cycle (13s).
-	d, _ := NoteNextChange([]Note{{ID: 1, At: t0}, {ID: 2, At: t0.Add(-14 * time.Second)}}, t0.Add(3*time.Second), 0)
-	if d != 12*time.Second {
-		t.Fatalf("soonest %v, want 12s", d)
+}
+
+// One beat for every note: the number of repaints the flashes cost doesn't
+// grow with the number of notes (the envelope at the 48-note limit).
+func TestNoteFlashRepaintsDontGrowWithNotes(t *testing.T) {
+	count := func(notes []Note) int {
+		n := 0
+		for now := beat0; now.Before(beat0.Add(NoteFlashEvery)); n++ {
+			d, ok := NoteNextChange(notes, now, 0)
+			if !ok {
+				break
+			}
+			now = now.Add(d)
+		}
+		return n
+	}
+	var many []Note
+	for i := 0; i < MaxNotesPerColor*PointerColors; i++ {
+		many = append(many, Note{ID: i + 1, At: beat0.Add(-time.Hour - time.Duration(i)*time.Second)})
+	}
+	one, all := count(many[:1]), count(many)
+	if one != all || all > 13 {
+		t.Fatalf("repaints per beat: one note %d, 48 notes %d", one, all)
 	}
 }
 
 func TestDrawNotesChipAndGlow(t *testing.T) {
 	f := textFrame(t, 30, 10, "\n\n\n\n\nsome text on row five here", "")
 	bg := color.RGBA{0x10, 0x10, 0x10, 0xff}
-	t0 := time.Unix(1000, 0)
+	t0 := beat0 // saved on a beat: flashing at t0, resting 5s later
 	n := Note{ID: 1, Col: 10, Row: 5, Color: 1, At: t0}
 	resting := DrawNotes(f, []Note{n}, NoteStyle{BG: bg, Blend: true, Now: t0.Add(5 * time.Second)})
 	chip := markPalette[1].rgb

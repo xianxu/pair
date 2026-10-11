@@ -65,9 +65,12 @@ func (c *Console) applyNotes(s *broadcast.Session, notes []broadcast.Note, versi
 // fade into it: the operator's real background when the terminal reported
 // it and has truecolor. Callers hold c.mu.
 func (c *Console) noteStyleLocked() broadcast.NoteStyle {
-	p := c.menu.Palette
-	return broadcast.NoteStyle{BG: p.BG, Blend: p.Known && p.TrueColor && !p.NoColor}
+	return broadcast.NoteStyle{BG: c.menu.Palette.BG, Blend: blendable(c.menu.Palette)}
 }
+
+// blendable reports whether marks and notes can fade into the operator's
+// real background: the terminal reported it (OSC 11) and has truecolor.
+func blendable(p Palette) bool { return p.Known && p.TrueColor && !p.NoColor }
 
 // scheduleNotes arms one timer for the notes' next flash step, replacing
 // any earlier one; with no notes there is none. The timer repaints through
