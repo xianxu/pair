@@ -260,6 +260,116 @@ rounds:
       isolation: checkout
       reviewed: dede99b74396ddbf01d0c52dd008126121560b52
       blocked: false
+    - "n": 8
+      timestamp: "2026-10-11T16:22:35-07:00"
+      dispatched: "2026-10-11T16:15:38-07:00"
+      agent: claude
+      findings:
+        - id: BR-20
+          severity: Critical
+          title: 'The notes menu''s click area outlives its drawing: under a private panel it swallows clicks and copies a note nobody can see'
+          detail: 'noteOverlay returns early on FramePrivate but leaves pnotes.menu and menuOpen set, so routeNotesMenu (terminal_input.go:131) keeps hit-testing the old box. Reproduced: open the menu, showMenu(), click in the old box: the note is copied, "Note copied." appears, and the panel gets nothing. Fix: reset pnotes.menu on non-public frames (the menu stays open and the layout returns on the next public frame), and add a regression test. ARCH-ORDER: replace the loose open/layout fields with closed | open(layout of the visible frame).'
+          family: hit-region-tracks-drawn-frame
+          round: 8
+        - id: BR-21
+          severity: Important
+          title: Marks are drawn over the notes menu, though the atlas and plan say the menu is drawn last
+          detail: 'console_pointer.go:41 runs markOverlay after noteOverlay, and noteOverlay draws the menu, so marks tint the menu''s cells. 2nd in this family. Rule: a draw-order claim in docs needs a test that fails if the order is wrong. Move the menu into its own overlay after markOverlay and test that a mark inside the box leaves it untinted.'
+          family: comment-claims-unenforced-invariant
+          round: 8
+        - id: BR-22
+          severity: Minor
+          title: Plan Chunk 4 gives a RenderNotesMenu signature with hover and a reverse-video hover; the code takes hover in Draw and uses a background color
+          detail: '2nd in this family. Rule: a commit that departs from a Core concepts signature or visual spec updates that row in the same commit.'
+          family: plan-tracks-code
+          round: 8
+        - id: BR-23
+          severity: Minor
+          title: Saving and restoring Hover around a style replacement is repeated in applyNotes, resyncNotes and restyleNotes
+          detail: '3rd in this family. Rule: view state must not live inside a value that is replaced wholesale. Keep hover in pnotes.hover and add it to the style at draw time, which removes all three sites.'
+          family: shared-helper-not-reused
+          round: 8
+        - id: BR-24
+          severity: Minor
+          title: No test that the notes menu closes when the broadcast ends (forgetNotes)
+          detail: '3rd in this family. Rule: every teardown that resets menu state (resolve-last, pointer-off, broadcast-end) is one row of a single table-driven lifecycle test.'
+          family: untested-cleanup-path
+          round: 8
+      boundary: M4
+      recipe: milestone-review
+      isolation: checkout
+      blocked: true
+    - "n": 9
+      timestamp: "2026-10-11T16:29:56-07:00"
+      dispatched: "2026-10-11T16:25:10-07:00"
+      agent: claude
+      dispose:
+        - id: BR-20
+          disposition: addressed
+          note: menuOverlay clears the layout on non-public frames; TestNotesMenuTakesNoClickUnderAPanel goes red with the clearing reverted. The tagged-state refactor was not adopted, but every reachable field combination is legal.
+          round: 9
+        - id: BR-21
+          disposition: addressed
+          note: menuOverlay runs after markOverlay (console_pointer.go:42); TestNotesMenuDrawnOverMarks goes red when the order is swapped.
+          round: 9
+        - id: BR-22
+          disposition: not-addressed
+          note: The Core concepts row was fixed, but Task 16 still says "Hover in reverse video" and the bullet still says it "returns the box's cells".
+          round: 9
+        - id: BR-23
+          disposition: addressed
+          note: Hover lives in pnotes.hover and is added to the style at draw time by drawStyleLocked; no hover save or restore is left in applyNotes, resyncNotes or restyleNotes.
+          round: 9
+        - id: BR-24
+          disposition: addressed
+          note: TestNotesMenuLifecycle is one table covering resolve-last, pointer-off and broadcast end; the broadcast_end row goes red when the reset in forgetNotes is removed.
+          round: 9
+      findings:
+        - id: BR-25
+          severity: Important
+          title: The Done-when says the hover glow and highlight are tested, but removing their console wiring leaves every test green
+          detail: 'Dropping style.Hover in drawStyleLocked (console_notes.go:204) passes all notes, menu, pointer and mark tests; TestNotesMenuOpenHoverCopy only checks pnotes.hover. 3rd in this family. Rule: every behavior a milestone''s Done-when, atlas or plan claims has a console-level test that goes red when its wiring is removed. Map each M4 Done-when clause to a test and add the missing one: hover an item, then assert the note''s chip and glow cells match DrawNotes with Hover set (at a time off the flash beat) and the item rows use notesMenuHover.'
+          family: comment-claims-unenforced-invariant
+          round: 9
+        - id: BR-26
+          severity: Minor
+          title: A press inside the menu followed by a drag outside it sends button-held motion to the presenter or child, which never saw the press
+          detail: 'routeNotesMenu returns false for motion outside the box even while pnotes.pressed is set. 2nd in this family. Rule: a gesture that starts in a hit region belongs to that region until its release. Take all motion while pressed is set.'
+          family: hit-region-tracks-drawn-frame
+          round: 9
+      boundary: M4
+      recipe: milestone-review
+      isolation: checkout
+      blocked: true
+    - "n": 10
+      timestamp: "2026-10-11T16:35:46-07:00"
+      dispatched: "2026-10-11T16:32:09-07:00"
+      agent: claude
+      dispose:
+        - id: BR-22
+          disposition: addressed
+          note: Plan Core concepts now state RenderNotesMenu(notes, cols, rows) plus NotesMenu.Draw(f, hover, style) and the notesMenuHover background, matching notes_menu.go.
+          round: 10
+        - id: BR-25
+          disposition: addressed
+          note: TestNotesMenuHoverGlowsItsNote drives hover via console mouse input; reverting style.Hover in drawStyleLocked or the hover bg in Draw turns it red (verified).
+          round: 10
+        - id: BR-26
+          disposition: addressed
+          note: motion-while-pressed guard at console_notes.go:250; removing it fails TestNotesMenuDragStaysTheMenus (verified).
+          round: 10
+      findings:
+        - id: BR-27
+          severity: Minor
+          title: A drag that starts outside the notes menu loses its motion while crossing the box
+          detail: '3rd in this family. routeNotesMenu takes button-held motion over the box as hover whenever the press was elsewhere, so a child''s drag-select passing over the menu loses those events. Rule: the press decides who owns a gesture, and that owner keeps it until the release. Make pnotes.pressed an owner value (none/menu/elsewhere), set elsewhere on a press outside the box, pass motion and release through while it is elsewhere, and extend TestNotesMenuDragStaysTheMenus.'
+          family: hit-region-tracks-drawn-frame
+          round: 10
+      boundary: M4
+      recipe: milestone-review
+      isolation: checkout
+      reviewed: 826bd20866b4eec74189ab3c63377679ccdc7484
+      blocked: false
 ---
 
 # Gate ledger — pair#447 (boundary-review)
@@ -374,6 +484,51 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-19** [Minor] `snapshot-captures-mutable-input` The notes' blend background is captured only when a snapshot is accepted, so a later OSC 11 report or theme change is ignored until the next note change
   console_notes.go:49,107 cache noteStyleLocked() into pnotes.style; marks re-read the palette on every batch. Read the style in noteOverlay at draw time (check the c.mu lock order on the Presenter goroutine).
 
+## Round 8 — 2026-10-11T16:22:35-07:00 (claude) — BLOCKED
+
+### Raised
+
+- **BR-20** [Critical] `hit-region-tracks-drawn-frame` The notes menu's click area outlives its drawing: under a private panel it swallows clicks and copies a note nobody can see
+  noteOverlay returns early on FramePrivate but leaves pnotes.menu and menuOpen set, so routeNotesMenu (terminal_input.go:131) keeps hit-testing the old box. Reproduced: open the menu, showMenu(), click in the old box: the note is copied, "Note copied." appears, and the panel gets nothing. Fix: reset pnotes.menu on non-public frames (the menu stays open and the layout returns on the next public frame), and add a regression test. ARCH-ORDER: replace the loose open/layout fields with closed | open(layout of the visible frame).
+- **BR-21** [Important] `comment-claims-unenforced-invariant` Marks are drawn over the notes menu, though the atlas and plan say the menu is drawn last
+  console_pointer.go:41 runs markOverlay after noteOverlay, and noteOverlay draws the menu, so marks tint the menu's cells. 2nd in this family. Rule: a draw-order claim in docs needs a test that fails if the order is wrong. Move the menu into its own overlay after markOverlay and test that a mark inside the box leaves it untinted.
+- **BR-22** [Minor] `plan-tracks-code` Plan Chunk 4 gives a RenderNotesMenu signature with hover and a reverse-video hover; the code takes hover in Draw and uses a background color
+  2nd in this family. Rule: a commit that departs from a Core concepts signature or visual spec updates that row in the same commit.
+- **BR-23** [Minor] `shared-helper-not-reused` Saving and restoring Hover around a style replacement is repeated in applyNotes, resyncNotes and restyleNotes
+  3rd in this family. Rule: view state must not live inside a value that is replaced wholesale. Keep hover in pnotes.hover and add it to the style at draw time, which removes all three sites.
+- **BR-24** [Minor] `untested-cleanup-path` No test that the notes menu closes when the broadcast ends (forgetNotes)
+  3rd in this family. Rule: every teardown that resets menu state (resolve-last, pointer-off, broadcast-end) is one row of a single table-driven lifecycle test.
+
+## Round 9 — 2026-10-11T16:29:56-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-20 — addressed — menuOverlay clears the layout on non-public frames; TestNotesMenuTakesNoClickUnderAPanel goes red with the clearing reverted. The tagged-state refactor was not adopted, but every reachable field combination is legal.
+- BR-21 — addressed — menuOverlay runs after markOverlay (console_pointer.go:42); TestNotesMenuDrawnOverMarks goes red when the order is swapped.
+- BR-22 — not-addressed — The Core concepts row was fixed, but Task 16 still says "Hover in reverse video" and the bullet still says it "returns the box's cells".
+- BR-23 — addressed — Hover lives in pnotes.hover and is added to the style at draw time by drawStyleLocked; no hover save or restore is left in applyNotes, resyncNotes or restyleNotes.
+- BR-24 — addressed — TestNotesMenuLifecycle is one table covering resolve-last, pointer-off and broadcast end; the broadcast_end row goes red when the reset in forgetNotes is removed.
+
+### Raised
+
+- **BR-25** [Important] `comment-claims-unenforced-invariant` The Done-when says the hover glow and highlight are tested, but removing their console wiring leaves every test green
+  Dropping style.Hover in drawStyleLocked (console_notes.go:204) passes all notes, menu, pointer and mark tests; TestNotesMenuOpenHoverCopy only checks pnotes.hover. 3rd in this family. Rule: every behavior a milestone's Done-when, atlas or plan claims has a console-level test that goes red when its wiring is removed. Map each M4 Done-when clause to a test and add the missing one: hover an item, then assert the note's chip and glow cells match DrawNotes with Hover set (at a time off the flash beat) and the item rows use notesMenuHover.
+- **BR-26** [Minor] `hit-region-tracks-drawn-frame` A press inside the menu followed by a drag outside it sends button-held motion to the presenter or child, which never saw the press
+  routeNotesMenu returns false for motion outside the box even while pnotes.pressed is set. 2nd in this family. Rule: a gesture that starts in a hit region belongs to that region until its release. Take all motion while pressed is set.
+
+## Round 10 — 2026-10-11T16:35:46-07:00 (claude) — passed
+
+### Disposed
+
+- BR-22 — addressed — Plan Core concepts now state RenderNotesMenu(notes, cols, rows) plus NotesMenu.Draw(f, hover, style) and the notesMenuHover background, matching notes_menu.go.
+- BR-25 — addressed — TestNotesMenuHoverGlowsItsNote drives hover via console mouse input; reverting style.Hover in drawStyleLocked or the hover bg in Draw turns it red (verified).
+- BR-26 — addressed — motion-while-pressed guard at console_notes.go:250; removing it fails TestNotesMenuDragStaysTheMenus (verified).
+
+### Raised
+
+- **BR-27** [Minor] `hit-region-tracks-drawn-frame` A drag that starts outside the notes menu loses its motion while crossing the box
+  3rd in this family. routeNotesMenu takes button-held motion over the box as hover whenever the press was elsewhere, so a child's drag-select passing over the menu loses those events. Rule: the press decides who owns a gesture, and that owner keeps it until the release. Make pnotes.pressed an owner value (none/menu/elsewhere), set elsewhere on a press outside the box, pass motion and release through while it is elsewhere, and extend TestNotesMenuDragStaysTheMenus.
+
 ## Open findings
 
 - **BR-7** [Minor] `docs-gate-user-surface` README describes viewer-page note actions that only land in M2
@@ -381,3 +536,4 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-16** [Minor] `single-clock-source` Note.At stamped with wall-clock time.Now in session.go while the console draws with injectable c.now
 - **BR-18** [Minor] `plan-tracks-code` Plan Core concepts describe paletteTint with a strength argument (1 = full) but the code takes t (0 = full)
 - **BR-19** [Minor] `snapshot-captures-mutable-input` The notes' blend background is captured only when a snapshot is accepted, so a later OSC 11 report or theme change is ignored until the next note change
+- **BR-27** [Minor] `hit-region-tracks-drawn-frame` A drag that starts outside the notes menu loses its motion while crossing the box
