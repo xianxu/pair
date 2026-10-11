@@ -165,14 +165,13 @@ func (f *ControlledZellij) AddOwnerWrapperPane(ctx context.Context, rawPath stri
 		if err != nil {
 			return err
 		}
-		f.stubDir = dir
-		if err := os.Symlink("/bin/sh", filepath.Join(dir, "pair")); err != nil {
-			return err
-		}
 		// No exec: replacing the shell would replace the argv the probe reads.
-		if err := os.WriteFile(filepath.Join(dir, "wrap"), []byte("sleep 3600\n"), 0o600); err != nil {
+		if err := errors.Join(os.Symlink("/bin/sh", filepath.Join(dir, "pair")),
+			os.WriteFile(filepath.Join(dir, "wrap"), []byte("sleep 3600\n"), 0o600)); err != nil {
+			_ = os.RemoveAll(dir)
 			return err
 		}
+		f.stubDir = dir
 	}
 	out, err := exec.CommandContext(ctx, "zellij", "--session", f.Session, "action", "new-pane", "--cwd", f.stubDir, "--",
 		filepath.Join(f.stubDir, "pair"), "wrap", "--scrollback-log", rawPath).CombinedOutput()

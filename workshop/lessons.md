@@ -884,3 +884,14 @@ proof; record the surprising case so the next change starts from evidence.
   was running. When a shortcut and a fallback return the same type, derive the
   fields from the same source (here the thread record, `RecordAgent`) and pin
   it with a test that runs both on one input and requires identical output.
+
+- **A red early CI step hides every later step (#324).** Step 1 of
+  `couch-zellij-conformance` failed on every run for weeks, so step 2 never
+  executed. It went stale under #355 unnoticed. When a step is red, check which
+  later steps were `skipped`, and budget for what they show once it is fixed.
+
+- **Reproduce a CI-only failure by matching the runner's *state*, not just its
+  binaries (#324).** The same zellij 0.45.1 passed locally and failed on the
+  runner, because a fresh HOME has no `~/.config/zellij`, which zellij treats
+  as a first run. Run the failing command under `HOME=$(mktemp -d)` early, and
+  have the job dump the tool's own log on failure.

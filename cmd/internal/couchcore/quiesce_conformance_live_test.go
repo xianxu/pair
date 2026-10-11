@@ -101,8 +101,9 @@ func indexSessionForConformance(t *testing.T, dataDir string, address ThreadAddr
 }
 
 // standInPaneScript writes a launcher for a test-binary stand-in agent pane.
-// Session ownership probes parse each pane's running argv and refuse JSON,
-// quotes and `$` as ambiguous (launcher.ClassifySessionOwner, #355). The
+// Session ownership probes parse each pane's running argv: they refuse shell
+// operators and `$`, and read JSON's quotes as shell quoting, which splits the
+// argv wrongly (launcher.ClassifySessionOwner, #355). The
 // script carries the environment and execs the binary, so the pane's argv is
 // only the binary and an unanchored -test.run prefix.
 func standInPaneScript(dir string, env []string, executable, test string) (string, error) {
