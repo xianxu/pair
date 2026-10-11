@@ -153,3 +153,33 @@ test('Escape closes the dialog', () => {
   f.els.root.fire('keydown', { key: 'Escape' });
   assert.ok(!f.d.open);
 });
+
+test('an answer applies only to the dialog that sent it (#447 M2 review)', async () => {
+  let release;
+  const els = { root: el(), text: el(), input: el(), count: el(), msg: el(), save: el(), cancel: el(), resolve: el() };
+  const d = noteDialog(els, { post: () => new Promise((r) => { release = r; }), color: () => 0 });
+  d.draft([0, 0], { cols: 80, rows: 24 });
+  els.input.value = 'first';
+  els.input.fire('input');
+  els.save.fire('click');
+  els.cancel.fire('click');
+  d.draft([5, 5], { cols: 80, rows: 24 });
+  els.input.value = 'second draft';
+  els.input.fire('input');
+  release({ status: 204, text: '' });
+  await new Promise((r) => setTimeout(r, 0));
+  assert.ok(d.open, 'the old 204 must not close the new draft');
+  assert.equal(els.input.value, 'second draft');
+  assert.equal(els.msg.textContent, '');
+});
+
+test('viewing a note moves focus into the dialog so Escape reaches it', () => {
+  const els = { root: el(), text: el(), input: el(), count: el(), msg: el(), save: el(), cancel: el(), resolve: el() };
+  let focused = null;
+  els.cancel.focus = () => { focused = 'cancel'; };
+  const d = noteDialog(els, { post: () => Promise.resolve({ status: 204 }), color: () => 0 });
+  d.view({ id: 1, text: 'x' }, { resolvable: false });
+  assert.equal(focused, 'cancel');
+  els.root.fire('keydown', { key: 'Escape' });
+  assert.ok(!d.open);
+});

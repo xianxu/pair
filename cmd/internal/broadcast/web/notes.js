@@ -57,6 +57,9 @@ export function parseNotes(data) {
 //   close()
 export function noteDialog(els, deps) {
   let state = null; // {kind: 'draft', cell, grid} | {kind: 'view', id}
+  // Each open bumps the generation; a request's answer applies only to the
+  // dialog that sent it, not to one opened since.
+  let gen = 0;
   const show = (on) => els.root.classList.toggle('hidden', !on);
   const say = (text) => {
     els.msg.textContent = text || '';
@@ -67,19 +70,25 @@ export function noteDialog(els, deps) {
     els.save.disabled = n === 0 || n > MAX_NOTE_BYTES || els.input.value.trim() === '';
   };
   const close = () => {
+    gen++;
     state = null;
     els.input.value = '';
     say('');
     show(false);
   };
-  const answer = (req, onDone) =>
-    req.then((r) => {
+  const answer = (req, onDone) => {
+    const sent = gen;
+    return req.then((r) => {
+      if (sent !== gen) {
+        return;
+      }
       if (r.status === 204) {
         onDone();
       } else {
         say((r.text || '').trim() || "That didn't work. Try again.");
       }
-    }).catch(() => say("Couldn't reach the broadcast. Try again."));
+    }).catch(() => sent === gen && say("Couldn't reach the broadcast. Try again."));
+  };
   els.input.addEventListener('input', refreshCount);
   els.cancel.addEventListener('click', close);
   els.save.addEventListener('click', () => {
@@ -103,6 +112,7 @@ export function noteDialog(els, deps) {
   });
   return {
     draft(cell, grid) {
+      gen++;
       state = { kind: 'draft', cell, grid };
       els.root.classList.add('draft');
       els.root.classList.remove('view');
@@ -117,6 +127,7 @@ export function noteDialog(els, deps) {
       els.input.focus?.();
     },
     view(note, { resolvable }) {
+      gen++;
       state = { kind: 'view', id: note.id };
       els.root.classList.add('view');
       els.root.classList.remove('draft');
@@ -126,6 +137,8 @@ export function noteDialog(els, deps) {
       els.save.classList.add('hidden');
       els.cancel.textContent = 'Close';
       show(true);
+      // Focus inside the dialog, so Escape reaches it as it does a draft.
+      els.cancel.focus?.();
     },
     update(list) {
       if (state?.kind === 'view' && !list.notes.some((n) => n.id === state.id)) {

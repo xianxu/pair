@@ -229,7 +229,7 @@ Also: IDs are unique and increasing, including after a resolve, and `List` retur
 - Modify: `server.go` (`assets["notes.js"]`), `server_test.go` (served with a JS content type)
 
 - [ ] **Step 1: Failing node tests:**
-  - `noteAt(notes, col, row, cols, rows, guard)` hits `col` and `col+1`, misses `col+2`, misses hidden notes;
+  - `noteAt` (signature in Core concepts: it takes the parsed list, guard included) hits `col` and `col+1`, misses `col+2`, misses hidden notes;
   - `noteCell(79, 80)` gives 78, and `noteCell(5, 80)` gives 5;
   - `noteBytes('é')` is 2, so 512 × 'é' is allowed (1024 bytes) and 513 isn't;
   - `parseNotes` drops entries with non-integer fields or a non-string text, and returns `{guard: 0, notes: []}` for junk.

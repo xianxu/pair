@@ -1052,3 +1052,11 @@ proof; record the surprising case so the next change starts from evidence.
   as long as the default is plausible. Validate env knobs before taking resources and refuse the start, naming the
   variable and the accepted form.
 
+- **A stream's end resets everything the stream gave the page, not just the screen (#447 M2 review).** The
+  viewer's `end` handler reset the terminal and left notes tappable, Resolve live and comment mode drafting on a
+  dead broadcast, because the server's `select` sends end, caps and notes in no fixed order. When a stream feeds
+  several derived states, its terminal event clears every one through the same handlers that set them, and a test
+  pins it.
+- **An async answer names the request it answers (#447 M2 review).** The note dialog applied a save's 204 to
+  whatever dialog was open when it arrived, so cancel-then-new-draft lost the new text. Tag each open with a
+  generation and drop answers from an older one.

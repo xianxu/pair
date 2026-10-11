@@ -201,6 +201,12 @@ export function connect(deps) {
       ended = true;
       events.close();
       deps.reset();
+      // Everything the stream gave a page goes with it: pointing off (which
+      // closes a dialog and hides the rail) and no notes to tap (#447). The
+      // server sends end, caps and notes in no fixed order, so the end can't
+      // rely on a last caps or notes event.
+      deps.caps?.({ pointer: false });
+      deps.notes?.({ guard: 0, notes: [] });
       deps.setStale(false);
       deps.show(endText(ev.data));
     });

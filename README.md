@@ -892,7 +892,8 @@ broadcast ends every link. `👽` is reserved for remote control and does
 nothing yet.
 
 **Sticky notes (#447).** People on the pointer link can also pin a short
-plain-text note to a spot on the screen. Couch draws a `💭` there, on your
+plain-text note to a spot on the screen: the button under the color swatches
+switches between pointing (👆) and placing notes (💭). Couch draws a `💭` there, on your
 screen and every viewer's, and the status row shows the open count after the
 controls (`LIVE ⏸ 👆 👽 💭2`). You can't open notes from the terminal; anyone
 on either link can tap a `💭` to read it, and anyone on the pointer link can
