@@ -39,8 +39,11 @@ pair#446 put the pointer color swatches in a band below the terminal screen. The
 
 ## Plan
 
-- [ ] Move the swatch band into a stage overlay; CSS for position, size and translucency; viewer tests; headless width checks.
+- [x] Move the swatch band into a stage overlay; CSS for position, size and translucency; viewer tests; headless width checks.
 
 ## Log
 
 ### 2026-10-11
+
+- Design: the swatches move into `#rail`, a fixed column outside `#stage` that `fit()` docks to the drawn `.xterm-screen` rect (`railAt`, pure, tested). Outside the stage, a swatch tap never reaches the stage's pointerdown (no stroke); `pointer-events: none` on the rail with `auto` on the buttons lets a point over the translucent backing fall through to the screen. #447's mode icon becomes another rail child. The hint keeps the bottom band. This deliberately reverses #446's lesson (controls covering cells), which the operator asked for: small, translucent, edge-docked.
+- Verified: `node --test tests/broadcast-viewer/*.test.mjs` 38/38 (new rail.test.mjs). Headless Chrome with a fake event stream in 1280×720, 390×844 and 844×390 iframes: the column sits on the screen's right edge, vertically centered, with 14px swatches at phone width and no overflow.
