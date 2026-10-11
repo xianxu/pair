@@ -52,9 +52,11 @@ type OperationReceipt struct {
 	Diagnostic string `json:",omitempty"`
 	// Tag is the thread tag a success left running; Archived is the tag a
 	// reboot retired; Warning is a success's advisory.
-	Tag      string    `json:",omitempty"`
-	Archived string    `json:",omitempty"`
-	Warning  string    `json:",omitempty"`
+	Tag      string `json:",omitempty"`
+	Archived string `json:",omitempty"`
+	Warning  string `json:",omitempty"`
+	// Path is the checkout a prepare admission resolved (pair#434).
+	Path     string    `json:",omitempty"`
 	Admitted time.Time `json:",omitzero"`
 	Finished time.Time `json:",omitzero"`
 }
@@ -80,8 +82,8 @@ const (
 
 // ReceiptOutcome is a finish event's terminal result.
 type ReceiptOutcome struct {
-	Status                                           ReceiptStatus
-	Code, Detail, Diagnostic, Tag, Archived, Warning string
+	Status                                                 ReceiptStatus
+	Code, Detail, Diagnostic, Tag, Archived, Warning, Path string
 }
 
 // ReceiptEvent drives ApplyReceiptEvent.
@@ -132,7 +134,7 @@ func ApplyReceiptEvent(r OperationReceipt, e ReceiptEvent) (OperationReceipt, er
 			return refuse("finish without a terminal outcome")
 		}
 		o := e.Outcome
-		r.Status, r.Code, r.Detail, r.Diagnostic, r.Tag, r.Archived, r.Warning, r.Finished = o.Status, o.Code, o.Detail, o.Diagnostic, o.Tag, o.Archived, o.Warning, e.At
+		r.Status, r.Code, r.Detail, r.Diagnostic, r.Tag, r.Archived, r.Warning, r.Path, r.Finished = o.Status, o.Code, o.Detail, o.Diagnostic, o.Tag, o.Archived, o.Warning, o.Path, e.At
 		return r, nil
 	case ReceiptExpire:
 		switch {

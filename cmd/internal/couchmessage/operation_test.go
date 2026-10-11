@@ -161,8 +161,8 @@ func TestReceiptSequences(t *testing.T) {
 		t.Fatalf("duplicate admit changed the receipt: %+v", r)
 	}
 	step(ReceiptEvent{Kind: ReceiptStart, ID: "id", At: at.Add(2 * time.Second)})
-	step(ReceiptEvent{Kind: ReceiptFinish, ID: "id", At: at.Add(3 * time.Second), Outcome: ReceiptOutcome{Status: ReceiptSucceeded, Tag: "t9", Archived: "t1", Warning: "w"}})
-	if r.Status != ReceiptSucceeded || r.Tag != "t9" || r.Archived != "t1" || r.Warning != "w" || !r.Finished.Equal(at.Add(3*time.Second)) {
+	step(ReceiptEvent{Kind: ReceiptFinish, ID: "id", At: at.Add(3 * time.Second), Outcome: ReceiptOutcome{Status: ReceiptSucceeded, Tag: "t9", Archived: "t1", Warning: "w", Path: "/slot"}})
+	if r.Status != ReceiptSucceeded || r.Tag != "t9" || r.Archived != "t1" || r.Warning != "w" || r.Path != "/slot" || !r.Finished.Equal(at.Add(3*time.Second)) {
 		t.Fatalf("finish = %+v", r)
 	}
 	step(ReceiptEvent{Kind: ReceiptStatusQuery, ID: "id"})

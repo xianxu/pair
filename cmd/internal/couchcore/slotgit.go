@@ -74,6 +74,29 @@ func ProbeSlotGit(ctx context.Context, git GitRunner, dir string) (SlotGitStatus
 	return ParseSlotGitStatus(out)
 }
 
+// SlotGitChangedPaths names the entries of `git status --porcelain=v2` that
+// ParseSlotGitStatus counts as dirty, in output order, for a report. A rename
+// names its new path. Pure.
+func SlotGitChangedPaths(out string) []string {
+	// Fields before the path: ordinary 8, rename/copy 9, unmerged 10, untracked 1.
+	before := map[byte]int{'1': 8, '2': 9, 'u': 10, '?': 1}
+	var paths []string
+	for _, line := range strings.Split(out, "\n") {
+		if len(line) < 3 || line[1] != ' ' {
+			continue
+		}
+		n, ok := before[line[0]]
+		if !ok {
+			continue
+		}
+		if fields := strings.SplitN(line, " ", n+1); len(fields) == n+1 {
+			path, _, _ := strings.Cut(fields[n], "\t")
+			paths = append(paths, path)
+		}
+	}
+	return paths
+}
+
 // ParseSlotGitStatus reads `git status --porcelain=v2 --branch` as a closed
 // grammar: branch.head is required, a malformed branch.ab or an unknown entry
 // line is an error, and unknown `#` headers are future extensions to ignore.

@@ -185,10 +185,19 @@ identity. The override is not persisted into saved agent arguments.
 `couch --actors`, `--send-to repo[:N] [--agent NAME] --message TEXT` and `--message-status ID`
 use bounded Unix stream RPC, without constructing another mutable supervisor.
 `--actors` and `--message-status` support JSON. One pending delivery per actor,
-eight inbound admissions between genuine operator submissions, and bounded
-receipt retention limit the runtime. Family selection requires fresh resting
+the inbound breaker, and bounded receipt retention limit the runtime. Family selection requires fresh resting
 branch and quiet-wrapper observations; exact sends allow occupied-slot
 coordination. Quietness is never acceptance of repository work.
+
+**The breaker is a leaky bucket (#433).** Each actor's pure `ActorState` holds
+a burst (`InboundAllowance` 8) that regains one message per `RefillInterval`
+(3 min), so a ping-pong empties it while reports at least that far apart never
+do. A genuine
+operator submission refills it, and so does a self-addressed message: the
+operator's parley session-sync submit runs `couch --send-to` inside the slot's
+own session, so the broker resolves the sender to the recipient. The slot whose
+worktree Couch started from is the TL hub (`messageAuthority.hub`) and registers
+with `HubAllowance` 64. `--actors` prints `allowance=remaining/capacity`.
 
 **Registration follows lifecycle events, not polling (#365).** Each wrapper
 holds one long-lived session on the namespace's `registry` socket
@@ -290,6 +299,16 @@ still-booting Claude.
 - **Before the paste** the gates are unchanged. No other automatic input is in
   flight, no operator keystroke arrived in the last second, bracketed paste is
   on, and a recognized composer reads empty. Unknown or occupied composers wait.
+- **A busy agent is read between frames and pasted mid-turn (pair#438).**
+  A streaming agent nearly always has output in flight, so waiting for none
+  starved deliveries for whole turns. Claude Code frames each repaint as a
+  synchronized update (DECSET 2026; Codex's captured screens do too), and the
+  terminal model tracks it, forgetting it on a reset
+  (`terminalModel.FrameComplete`). Output in flight waits only when the model is
+  mid-frame or the stream never framed one. The policy is to paste mid-turn:
+  Claude Code (measured; Codex unmeasured) queues the message behind its turn ("Press up to edit queued
+  messages"), and the composer clears. That is the ordinary confirm evidence,
+  so a queued message ends `submitted`.
 - **Operator input means keystrokes (pair#428).** The wrapper classifies its
   own stdin (`orientationReplies.operatorKeystrokes`), never the agent's screen.
   Text, control and editing keys, kitty/legacy key encodings and an operator's
@@ -334,7 +353,9 @@ still-booting Claude.
 - **The deadline starts at paste.** `Message.Deadline` is the paste-by time:
   admission plus `PasteTimeout` (90s), which a booting or busy recipient may
   use up. From the paste, the wrapper bounds submit and confirmation by
-  `DeliveryTimeout` (30s). `Message.Horizon()` (hold limit plus window) is
+  `DeliveryTimeout` (30s). An expiry names what held each half longest,
+  longest first with seconds (`waiting for empty composer (62s) | …`; at most
+  three, each a second or more), not the check that ran last (pair#438). `Message.Horizon()` (hold limit plus window) is
   the one outer bound the broker reads, in its model expiry, its job context
   and the endpoint's receipt wait.
 - **Operator holds stop the clock (pair#435).** While the wrapper waits only
@@ -388,6 +409,47 @@ skill is `couchcmd/skills/couch/SKILL.md`, embedded for `couch --skill` even
 outside Couch. Loading or installing it is explicit; runtime does not change
 agent configuration. Ordinary messages carry follow-up context in their body;
 there is no reply protocol or availability toggle.
+
+### Session-sync files and the delivery ledger (#437)
+
+`couch --session-sync diff|write|release|status FILE` is the one mutation path
+for a `type: session-sync` file (parley.nvim#313's turn-based operator/agent
+file). Package `sessionsync` owns the rules; `couchcmd/session_sync.go` is the
+CLI. It runs in-process against the store and needs no supervisor.
+- **Guards:** a lock whose holder is not `agent` refuses every write (exit 3).
+  A file that differs from its shadow (`.<file>.shadow`, the agent's last
+  write) refuses until `--accept-edits` (exit 4). `release` keeps both guards.
+  Sections match whole `## HEADING` lines only. Writes are in place, because
+  parley watches the inode; the shadow and sidecar use temp+rename.
+- **Ledger:** the message service's `messageEndpoint.Deliver`
+  (`message_deliveries.go`) appends one row per delivery that may have
+  reached the agent: submitted, indeterminate, an endpoint error, or a
+  non-terminal answer. It skips explicit cancel and expiry. The row goes to
+  `<store>/session-sync/<repo>_<N>.jsonl` and holds the ID, the sender slot,
+  the time and the body's first line (a submit's path line is kept whole).
+  `couchmessage` is untouched.
+- **Ledger bound:** a file past 256 KiB is rewritten keeping at most 512 rows
+  younger than 14 days, within half the size bound.
+- **Missing data refuses:** `recording.json` marks a recording Couch, and
+  `status` refuses `not-recording` without it.
+  - An append failure writes a per-slot `<slot>.gap` record. A restart does not
+    clear it. It expires 14 days after the last failure, and the next append
+    deletes it.
+  - Any verb on a file whose horizon reaches past a gap refuses `delivery-gap`
+    until `--accept-gap`. The sidecar's `GapAccepted` records that per file.
+  - So "nothing owed" is never a blind spot.
+  - The slot is validated by couch's own grammar
+    (`couchcore.ParseWorkspaceReference`) and query-escaped into the filename.
+- **Owed:** rows for the file's `owner:` slot from the sidecar's `Since`
+  (`.<file>.sync`; without a sidecar, the shadow's mtime), minus folded IDs,
+  minus submits naming another file. A body `submitted: <abs path>` is a
+  submit. Only `write --fold ID` / `release --fold ID` clear a delivery, never
+  a plain write. `release` also folds the file's submits. The sidecar's
+  `Folded` is pruned to IDs still in the ledger.
+- **`status --json`:** the Couch envelope
+  `{"Code","Error","Status":{File,Owner,Holder,LastWrite,Owed[{ID,Kind,From,At}]}}`,
+  agreed with parley.nvim#314. `Owed` is never null, and a refusal exits
+  non-zero with a `Code` other than `ok`.
 
 ### Recover plan after a restart (#367)
 
@@ -522,6 +584,30 @@ use relaunch for that.
   before retrying. A finish cannot be "unknown".
 - **Admission note:** it reaches the receipt on success and on failure
   (`withAdmissionNote`).
+
+**Prepare (pair#434).** `couch --prepare repo:N --confirm [--force-unknown]
+[--json]` brings an idle slot up for new work. The TL runs it before
+dispatching an issue. Four steps, each stopping the run when it does not succeed
+(`couchcore.RunPrepare`, one `PrepareReport` row per step):
+- **admit:** an admission-only slot operation `prepare` through the running
+  Couch. It applies reload-context's rule plus the resting branch
+  (`main-slotN`, `main` for `:0`; refusal `not-resting`), changes nothing, and
+  hands back the checkout in the receipt's `Path`.
+- **refresh:** `weave refresh` in that checkout, run in the CLI process,
+  streaming to stderr. Weave fast-forwards the resting branch and the slot's
+  substrates, then compiles. It never runs on the console's serial operation
+  queue, which a refresh would hold for minutes.
+- **recheck:** the checkout must still be clean. A refresh that rewrote a
+  tracked file stops here as `refresh-dirty`, naming the paths. The known case
+  is compile's `.gitattributes` union-merge block (ariadne#320) in a repo that
+  has not committed it to main. Couch never commits it.
+- **reload:** a confirmed `reload-context`, which re-admits at its own effect,
+  so a turn that started during the refresh refuses it.
+
+The report ends with the checkout's HEAD against `origin/main` and the commit of
+each declared substrate (`layergraph.DeclaredSubstrates`), which is what the
+slot's `sdlc` and `weave` build from. Re-running converges: the refresh is
+idempotent, and nothing is journaled.
 
 **Restarts return when ready (pair#427).** A `--relaunch` or
 `--reload-context` receipt reports `succeeded` only once a NEW wrapper

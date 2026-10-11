@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -43,6 +45,10 @@ type peerDelivery struct {
 	// hold time credited to the paste-by, heldSince the open hold's start.
 	heldFor   time.Duration
 	heldSince time.Time
+	// What held this half of the delivery, and for how long (pair#438):
+	// each dispatch charges the time since waitAt to the standing Detail.
+	waits  map[string]time.Duration
+	waitAt time.Time
 	// A draft-pane paste held while a delivery is in flight (pair#428).
 	holding   bool
 	holdUntil time.Time
@@ -363,6 +369,7 @@ func (d *peerDelivery) enqueue(m couchmessage.Message) error {
 	d.state = couchmessage.PeerDeliveryState{}
 	d.interrupted = false
 	d.heldFor, d.heldSince = 0, time.Time{}
+	d.waits, d.waitAt = nil, time.Time{}
 	d.signal()
 	return nil
 }
@@ -398,6 +405,7 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 	if d.current.Message.ID == "" || d.current.Status.Terminal() {
 		return
 	}
+	d.chargeWaitLocked()
 	// Only a full composer reading opens or closes an operator hold; a wait
 	// that can't judge it (input settling, forwarded input) leaves it as is.
 	judged, operatorHold := false, false
@@ -412,6 +420,7 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 		event.Kind = couchmessage.PeerChildExited
 	case !d.now().Before(d.deadlineLocked()):
 		event.Kind = couchmessage.PeerDeadlineElapsed
+		d.current.Detail = d.waitSummaryLocked()
 		if !d.now().Before(d.current.Message.HoldLimit()) {
 			d.current.Detail = "held past " + couchmessage.MaxHold.String() + ", " + d.current.Detail
 		}
@@ -430,7 +439,9 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 	case len(d.replies.input) > 0:
 		d.current.Detail = "waiting for incomplete terminal input"
 		return
-	case d.outputPending > 0:
+	case d.outputPending > 0 && (p.terminal == nil || !p.terminal.FrameComplete()):
+		// A streaming agent nearly always has output in flight (pair#438);
+		// a whole synchronized frame is as coherent a reading as a quiet one.
 		d.current.Detail = "waiting for rendered output"
 		return
 	case d.inputBuffered:
@@ -525,6 +536,7 @@ func (p *proxy) advancePeer(event couchmessage.PeerDeliveryEvent, out io.Writer)
 		d.current.Status = couchmessage.Delivering
 		d.pasteSequence = d.sequence
 		d.pastedAt, d.sawOccupied = d.now(), false
+		d.waits, d.waitAt = nil, d.now()
 		d.deliverBy = d.pastedAt.Add(couchmessage.DeliveryTimeout)
 		n, err := out.Write(data)
 		p.advancePeer(couchmessage.PeerDeliveryEvent{Kind: couchmessage.PeerPasteCompleted, Written: n, Expected: len(data), Failed: err != nil}, out)
@@ -568,6 +580,45 @@ func (d *peerDelivery) deadlineLocked() time.Time {
 	return m.HoldLimit()
 }
 
+// chargeWaitLocked (d.mu held) charges the time since the last dispatch to
+// the condition that stood through it.
+func (d *peerDelivery) chargeWaitLocked() {
+	now := d.now()
+	if !d.waitAt.IsZero() && d.current.Detail != "" {
+		if d.waits == nil {
+			d.waits = map[string]time.Duration{}
+		}
+		d.waits[d.current.Detail] += now.Sub(d.waitAt)
+	}
+	d.waitAt = now
+}
+
+// waitSummaryLocked (d.mu held) names what held this half of the delivery,
+// longest first, rather than whichever check ran last (pair#438): at most
+// three conditions of a second or more, else the standing Detail.
+func (d *peerDelivery) waitSummaryLocked() string {
+	details := make([]string, 0, len(d.waits))
+	for detail, held := range d.waits {
+		if held >= time.Second {
+			details = append(details, detail)
+		}
+	}
+	if len(details) == 0 {
+		return d.current.Detail
+	}
+	sort.Slice(details, func(i, j int) bool {
+		a, b := d.waits[details[i]], d.waits[details[j]]
+		return a > b || (a == b && details[i] < details[j])
+	})
+	if len(details) > 3 {
+		details = details[:3]
+	}
+	for i, detail := range details {
+		details[i] = fmt.Sprintf("%s (%s)", detail, d.waits[detail].Round(time.Second))
+	}
+	return strings.Join(details, " | ")
+}
+
 // operatorHoldLocked (d.mu held) opens or closes the operator hold as this dispatch
 // observed it, and reports it on the receipt as Held.
 func (d *peerDelivery) operatorHoldLocked(held bool) {
@@ -585,8 +636,9 @@ func (d *peerDelivery) operatorHoldLocked(held bool) {
 	}
 }
 
-// peerConfirmEvidence is what an uncertain receipt reports: the composer and
-// turn as the wrapper last saw them after the submit.
+// peerConfirmEvidence is the confirm phase's standing Detail: the composer
+// and turn as the wrapper last saw them after the submit. An expiry ranks
+// these readings with the other waits (waitSummaryLocked).
 func peerConfirmEvidence(composer PeerComposerState, sawOccupied, turn, turnAtSubmit bool) string {
 	c := map[PeerComposerState]string{PeerComposerUnknown: "unrecognized", PeerComposerOccupied: "still holds text", PeerComposerEmpty: "empty"}[composer]
 	if composer == PeerComposerEmpty && !sawOccupied {

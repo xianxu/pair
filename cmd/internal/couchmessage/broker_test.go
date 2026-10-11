@@ -470,7 +470,7 @@ func TestCancelledQueuedMessageStillOccupiesWorkerInbox(t *testing.T) {
 	// consumes the queued item. Admission must not block on that stale inbox.
 	a := &SlotActor{state: registered(t, brokerBinding("pair:1"), time.Unix(1000, 0)), inbox: make(chan Message, 1), endpoint: newFakeEndpoint(time.Unix(1000, 0))}
 	a.inbox <- Message{ID: "cancelled-before-worker-start"}
-	if !actorCandidate(a).Pending {
+	if !actorCandidate(a, time.Unix(1000, 0)).Pending {
 		t.Fatal("cancelled queued item could block next admission under broker mutex")
 	}
 }
@@ -574,6 +574,52 @@ func TestSubmissionGenerationIsReconciledBeforeAdmissionAndOnlyOnce(t *testing.T
 	}
 	if _, err := b.Send(context.Background(), from, "ninth-after-human", Route{Target: to.Slot}, "work"); !errors.Is(err, ErrBudgetExhausted) {
 		t.Fatalf("ninth admission after one human submission: %v", err)
+	}
+}
+
+// #433 BR-1: the session-sync submit end to end through the broker. A slot
+// whose bucket is spent sends to its own exact address (parley's
+// couch --send-to from the slot's editor); routing, reservation and admission
+// accept it, and it refills the bucket for the next peer.
+func TestSelfAddressedSendRefillsThroughTheBroker(t *testing.T) {
+	now := time.Unix(1000, 0)
+	b := NewBroker(context.Background(), func() time.Time { return now }, nil)
+	defer b.Close()
+	peer, owner := brokerBinding("brain:0"), brokerBinding("pair:1")
+	ep := newFakeEndpoint(now)
+	_ = b.Register(peer, newFakeEndpoint(now))
+	_ = b.Register(owner, ep)
+	send := func(from Binding, id string) error {
+		t.Helper()
+		ep.outcomes <- Receipt{Status: Submitted}
+		r, err := b.Send(context.Background(), from, id, Route{Target: owner.Slot}, "work")
+		if err != nil {
+			<-ep.outcomes
+			return err
+		}
+		<-ep.delivered
+		for deadline := time.Now().Add(time.Second); ; time.Sleep(time.Millisecond) {
+			if r, err = b.Status(from, id); err == nil && r.Status == Submitted {
+				return nil
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("receipt %+v %v", r, err)
+			}
+		}
+	}
+	for i := 0; i < InboundAllowance; i++ {
+		if err := send(peer, fmt.Sprintf("peer-%d", i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := send(peer, "over"); !errors.Is(err, ErrBudgetExhausted) {
+		t.Fatalf("burst past allowance: %v", err)
+	}
+	if err := send(owner, "session-sync"); err != nil {
+		t.Fatalf("self-addressed send refused: %v", err)
+	}
+	if err := send(peer, "after-sync"); err != nil {
+		t.Fatalf("session-sync did not refill: %v", err)
 	}
 }
 

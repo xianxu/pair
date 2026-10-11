@@ -50,6 +50,10 @@ type messageAuthority struct {
 	// names its agent and working path as the typed peek does; nil names the
 	// binding's agent only.
 	record func(couchcore.ThreadAddress) (couchcore.ThreadRecord, error)
+	// hub is the worktree root Couch started from: the TL slot, which gets
+	// the larger peer-message bucket (#433). "" when Couch started outside a
+	// checkout.
+	hub string
 }
 
 // live is the full check, run once per admission: a lifecycle event, never a
@@ -142,6 +146,9 @@ type messageService struct {
 	// broadcastStatus answers broadcast-status (pair#413). Installed after the
 	// service is serving, so it is an atomic pointer; nil answers unsupported.
 	broadcastStatus atomic.Pointer[func() (couchmessage.BroadcastStatus, bool)]
+	// deliveries records each landed delivery for session-sync owed events
+	// (pair#437); nil records nothing.
+	deliveries atomic.Pointer[deliveryRecorder]
 
 	mu sync.Mutex
 	// workspaces holds each connected binding's verified workspace, for the
@@ -175,6 +182,20 @@ func (s *messageService) Close() {
 	_ = s.sessions.Close()
 	_ = s.broker.Close()
 	s.workers.Wait()
+}
+
+// hubWorktree is the worktree root Couch started in: the TL slot (#433). A
+// start outside any checkout has no hub, so every slot gets the ordinary bucket.
+func hubWorktree(getwd func() (string, error), resolve func(string) (couchcore.Worktree, error)) string {
+	cwd, err := getwd()
+	if err != nil {
+		return ""
+	}
+	tree, err := resolve(cwd)
+	if err != nil {
+		return ""
+	}
+	return string(tree)
 }
 
 // startMessageService is called only while the existing supervisor lease is
@@ -223,6 +244,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 		sessionName = source.PairSessionName
 	}
 	authority := messageAuthority{
+		hub: hubWorktree(os.Getwd, c.ResolveTree),
 		families: func(ctx context.Context) (map[string]string, error) {
 			if c.Threads == nil {
 				return nil, nil
@@ -325,6 +347,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	probe.service.Store(service)
 	console.SetMessageBroker(service.broker)
 	service.SetBroadcastStatus(console.BroadcastStatus)
+	service.recordDeliveries(namespace)
 	// After the loop runs: the replay of already-attached panes lands in the
 	// mailbox the loop drains.
 	console.SubscribeMessageLifecycle(panes)
@@ -532,7 +555,11 @@ func (s *messageService) execute(e couchmessage.RegistryEffect) *couchmessage.Re
 			// Unreachable: Connect follows the AdmissionDone the worker prepared.
 			return &couchmessage.RegistryEvent{Kind: couchmessage.ConnectFailed, Token: e.Token, Pane: e.Pane, Err: errors.New("admission evidence missing")}
 		}
-		if err := s.broker.Register(e.Binding, messageEndpoint{service: s, binding: e.Binding, endpoint: p.endpoint}); err != nil {
+		allowance := couchmessage.InboundAllowance
+		if s.authority.hub != "" && p.identity.WorktreeRoot == s.authority.hub {
+			allowance = couchmessage.HubAllowance
+		}
+		if err := s.broker.RegisterWithAllowance(e.Binding, messageEndpoint{service: s, binding: e.Binding, endpoint: p.endpoint}, allowance); err != nil {
 			return &couchmessage.RegistryEvent{Kind: couchmessage.ConnectFailed, Token: e.Token, Pane: e.Pane, Err: err}
 		}
 		s.mu.Lock()
@@ -841,7 +868,11 @@ func (e messageEndpoint) Deliver(ctx context.Context, m couchmessage.Message, pr
 	if err := e.check(ctx); err != nil {
 		return couchmessage.Receipt{Status: couchmessage.Cancelled, Detail: err.Error()}, nil
 	}
-	return e.endpoint.Deliver(ctx, m, progress)
+	receipt, err := e.endpoint.Deliver(ctx, m, progress)
+	if r := e.service.deliveries.Load(); r != nil {
+		r.record(m, receipt, err)
+	}
+	return receipt, err
 }
 
 func readMessageWrapperPID(path string) (int, error) {

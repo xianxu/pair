@@ -334,6 +334,32 @@ func TestReloadContextAdmissionAndEffect(t *testing.T) {
 	}
 }
 
+// pair#434: prepare's admission is reload-context's plus the resting branch,
+// read from the slot's number; its dispatch changes nothing and names the
+// admitted checkout for the CLI's refresh.
+func TestPrepareAdmissionNamesTheCheckout(t *testing.T) {
+	env, address, created := liveSlotFixture(t)
+	ctx := context.Background()
+	ref, _, _ := ParseWorkspaceReference(address)
+	probe := &fakeLiveRestartProbe{facts: LiveRestartFacts{Live: true, Session: true, SettledKnown: true, Settled: true, GitKnown: true, Branch: "feature"}}
+	env.Couch.LiveRestart = probe
+	if _, _, err := env.Couch.PrepareSlotOperation(ctx, OpPrepare, address, LiveRestartOptions{}); slotOperationCode(err) != LiveRestartNotResting {
+		t.Fatalf("off the resting branch: %v", err)
+	}
+	probe.facts.Branch = RestingBranch(ref.Number)
+	call, _, err := env.Couch.PrepareSlotOperation(ctx, OpPrepare, address, LiveRestartOptions{})
+	if err != nil || call.Name != OpPrepare || call.Args["path"] != created.StartingPath {
+		t.Fatalf("admission: %+v %v", call, err)
+	}
+	op, _ := operationByName(OpPrepare)
+	call.Operation = op
+	value, err := CouchLiveOwnerExecutor(env.Couch)(call)
+	admitted, ok := value.(PrepareAdmission)
+	if err != nil || !ok || admitted.Path != created.StartingPath || admitted.Address != created.Address || len(probe.restarts) != 0 {
+		t.Fatalf("dispatch: %#v %v restarts=%v", value, err, probe.restarts)
+	}
+}
+
 // BR-14 rule (M3 review, 3rd in the safety-guard-wiring family): EVERY
 // live-owner operation is reachable through the live-owner executor. With a
 // cancelled context each fails early, but never as "not a live-owner
