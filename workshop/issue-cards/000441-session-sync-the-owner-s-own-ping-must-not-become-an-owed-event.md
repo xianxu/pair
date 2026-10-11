@@ -17,6 +17,14 @@ tracker:
         source_blob: 7df9380ef7db694356d945a30892f3312e5c1dbc
         destination: workshop/issues/000441-session-sync-the-owner-s-own-ping-must-not-become-an-owed-event.md
         main_commit: 33dbe6ac447df53a7c945d142c9c11b28c493be7
+started: 2026-10-11T09:43:01-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:5
+    worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
+    repository: github.com/xianxu/pair
 ---
 
 # session-sync: the owner's own ping must not become an owed event
