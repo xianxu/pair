@@ -125,7 +125,7 @@ func (p *Presenter) run() {
 	var scheduled time.Time
 	var retry <-chan time.Time
 	armRetry := func() {
-		if p.stalled && retry == nil {
+		if p.stalled && retry == nil && p.View().State != Failed {
 			retry = time.After(StallRetry)
 		}
 	}

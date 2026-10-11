@@ -186,6 +186,17 @@ parent write blocked well past `WriteTimeout`, then the terminal drains.
     new state machine. Moving parent-screen knowledge into `View` belongs in
     a separate refactor.
 
+- Close review round 2 (SHIP), minor findings:
+  - Fixed: a presenter that failed while stalled re-armed the retry forever;
+    `armRetry` now skips a Failed view.
+  - Disposed: a stall landing exactly between the alt-screen enter and its
+    kitty push leaves the alt screen without the push after recovery (#279's
+    legacy keys). Both are tiny consecutive control packets, so the window is
+    one packet boundary. The general fix is the reviewer's rule: make
+    everything known about the outer terminal one value that `stall()`
+    resets whole. That is the parent-screen refactor noted above, not this
+    narrow fix.
+
 ## Revisions
 
 - 2026-10-10: the Spec's "stall recorded as a notice or diagnostic" is reduced
@@ -194,4 +205,3 @@ parent write blocked well past `WriteTimeout`, then the terminal drains.
   exits, which is the property that matters. If stalls need to be visible, a
   follow-up can trace each stall (with duration) through Couch's trace or
   crash directory, together with the optional `sample` capture noted above.
-
