@@ -3,13 +3,16 @@
 // agent named in its `owner:` frontmatter (parley.nvim#313).
 //
 // The rules the agent used to keep from its prompt are gates here: a write
-// refuses while the operator holds the lock, refuses unread operator edits,
-// and finds sections by whole heading lines only. Couch records every
+// refuses while the operator holds the lock, replaces a section only if it
+// still has the hash the agent read (pair#439: pessimistic for the human,
+// optimistic for the agent), and finds sections by whole heading lines only. Couch records every
 // delivery to a slot in a ledger (ledger.go), so the owner can be shown what
 // it still owes the file (owed.go).
 package sessionsync
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -18,10 +21,11 @@ import (
 )
 
 // Paths are a session-sync file's companions. The lock is parley's; the
-// shadow (the file as the agent last wrote it) and the state sidecar are the
-// agent's, and die with the file.
+// shadow (the file as the agent last wrote it), the state sidecar and the
+// flock file (serializing couch's own commands) are the agent's, and die
+// with the file.
 type Paths struct {
-	File, Lock, Shadow, State string
+	File, Lock, Shadow, State, Flock string
 }
 
 func PathsOf(file string) Paths {
@@ -31,31 +35,39 @@ func PathsOf(file string) Paths {
 		Lock:   file + ".lock",
 		Shadow: filepath.Join(dir, "."+base+".shadow"),
 		State:  filepath.Join(dir, "."+base+".sync"),
+		Flock:  filepath.Join(dir, "."+base+".flock"),
 	}
 }
 
-// Holder is whose turn the lock gives.
+// Holder is who holds the lock: the operator, or nobody. The agent never
+// holds one (pair#439).
 type Holder string
 
 const (
-	HolderFree     Holder = "free"
-	HolderAgent    Holder = "agent"
+	HolderNone     Holder = ""
 	HolderOperator Holder = "operator"
 )
 
-// ParseHolder reads a lock body. Only an explicit `holder: agent` is the
-// agent's turn; any other lock blocks, because a lock nobody can read is not
-// permission to write.
+// ParseHolder reads a lock body. A legacy `holder: agent` lock (parley
+// before parley.nvim#315) is no lock; any other lock blocks, because a lock
+// nobody can read is not permission to write.
 func ParseHolder(lock string, exists bool) Holder {
 	if !exists {
-		return HolderFree
+		return HolderNone
 	}
 	for _, line := range strings.Split(lock, "\n") {
 		if v, ok := strings.CutPrefix(line, "holder:"); ok && strings.TrimSpace(v) == "agent" {
-			return HolderAgent
+			return HolderNone
 		}
 	}
 	return HolderOperator
+}
+
+// Hash names one version of a section body or a whole file, for `read` to
+// hand out and `write --if-hash` to compare.
+func Hash(s string) string {
+	sum := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(sum[:8])
 }
 
 // ParseOwner returns the frontmatter's `owner:` (the owning agent's Couch
@@ -100,28 +112,49 @@ func Restamp(s string, at time.Time) string {
 	})
 }
 
-// ReplaceSection replaces the body of the one `## heading` section. Headings
-// match whole lines only, so a heading quoted in prose can never misplace a
-// write; zero or several matches refuse.
-func ReplaceSection(s, heading, body string) (string, error) {
-	lines := strings.Split(s, "\n")
+// section finds the one `## heading` line i and the end j of its body
+// (the next `## ` line, or len(lines)). Headings match whole lines only, so
+// a heading quoted in prose can never misplace a write; zero or several
+// matches refuse.
+func section(lines []string, heading string) (i, j int, err error) {
 	target := "## " + heading
 	var starts []int
-	for i, l := range lines {
+	for k, l := range lines {
 		if strings.TrimRight(l, " \t") == target {
-			starts = append(starts, i)
+			starts = append(starts, k)
 		}
 	}
 	if len(starts) != 1 {
-		return "", fmt.Errorf("expected exactly one `%s` heading line, found %d", target, len(starts))
+		return 0, 0, fmt.Errorf("expected exactly one `%s` heading line, found %d", target, len(starts))
 	}
-	i := starts[0]
-	j := len(lines)
+	i, j = starts[0], len(lines)
 	for k := i + 1; k < len(lines); k++ {
 		if strings.HasPrefix(lines[k], "## ") {
 			j = k
 			break
 		}
+	}
+	return i, j, nil
+}
+
+// SectionBody is the body of the one `## heading` section as stored: every
+// line after the heading up to the next section, so any edit to it, even
+// whitespace, changes its Hash.
+func SectionBody(s, heading string) (string, error) {
+	lines := strings.Split(s, "\n")
+	i, j, err := section(lines, heading)
+	if err != nil {
+		return "", err
+	}
+	return strings.Join(lines[i+1:j], "\n"), nil
+}
+
+// ReplaceSection replaces the body of the one `## heading` section.
+func ReplaceSection(s, heading, body string) (string, error) {
+	lines := strings.Split(s, "\n")
+	i, j, err := section(lines, heading)
+	if err != nil {
+		return "", err
 	}
 	tail := lines[j:]
 	if j == len(lines) {

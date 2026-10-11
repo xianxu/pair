@@ -81,8 +81,9 @@ func TestParseHolder(t *testing.T) {
 		ok   bool
 		want Holder
 	}{
-		{"", false, HolderFree},
-		{"holder: agent\nat: x\n", true, HolderAgent},
+		{"", false, HolderNone},
+		// A legacy agent-held lock (parley before parley.nvim#315) is no lock.
+		{"holder: agent\nat: x\n", true, HolderNone},
 		{"holder: operator\n", true, HolderOperator},
 		{"garbage\n", true, HolderOperator},
 		{"", true, HolderOperator},
@@ -95,7 +96,24 @@ func TestParseHolder(t *testing.T) {
 
 func TestPathsNameTheSidecars(t *testing.T) {
 	p := PathsOf("/a/b/tl-status-x.md")
-	if p.Lock != "/a/b/tl-status-x.md.lock" || p.Shadow != "/a/b/.tl-status-x.md.shadow" || p.State != "/a/b/.tl-status-x.md.sync" {
+	if p.Lock != "/a/b/tl-status-x.md.lock" || p.Shadow != "/a/b/.tl-status-x.md.shadow" || p.State != "/a/b/.tl-status-x.md.sync" ||
+		p.Flock != "/a/b/.tl-status-x.md.flock" {
 		t.Fatalf("got %+v", p)
+	}
+}
+
+func TestSectionBodyIsTheStoredBodyAndItsHashSeesWhitespace(t *testing.T) {
+	doc := "---\nx\n---\n\n## A\n\none\n\n## B\n\ntwo\n"
+	if got, err := SectionBody(doc, "A"); err != nil || got != "\none\n" {
+		t.Fatalf("A = %q, %v", got, err)
+	}
+	if got, err := SectionBody(doc, "B"); err != nil || got != "\ntwo\n" {
+		t.Fatalf("B = %q, %v", got, err)
+	}
+	if _, err := SectionBody(doc, "C"); err == nil {
+		t.Fatal("a missing heading must refuse")
+	}
+	if Hash("one") == Hash("one ") || len(Hash("x")) != 16 {
+		t.Fatal("a whitespace-only edit must change the hash")
 	}
 }

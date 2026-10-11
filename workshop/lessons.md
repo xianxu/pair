@@ -978,4 +978,9 @@ proof; record the surprising case so the next change starts from evidence.
   operator's opt-in knobs (`PAIR_PROBE_SETTLE`, `PAIR_LIVE_*`), which share the prefix. Name the caller-owned
   families explicitly, and derive the regression check's knob list from the docs, so a new knob is covered without
   anyone remembering to add it.
-
+- **A retired verb that still takes an effect's flag must fail when it is passed (#439).** `release` became a no-op
+  but still accepted `--fold`, so an old skill would see exit 0 and believe its events were folded. When a verb is
+  kept only for compatibility, exit 0 for the arguments it can honor as a no-op and refuse those whose effect it
+  silently drops, naming the replacement.
+- **Validate before creating companions (#439).** The flock helper created `.<file>.flock` before checking the file
+  was a session-sync file, so a wrong path left residue. Run the cheap validity check first, then create sidecars.

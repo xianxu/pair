@@ -21,11 +21,14 @@ func TestParseSessionSyncForms(t *testing.T) {
 	}{
 		{[]string{"diff", "f.md"}, sessionSyncArgs{verb: "diff", file: "f.md"}},
 		{[]string{"status", "--json", "f.md"}, sessionSyncArgs{verb: "status", file: "f.md", json: true}},
-		{[]string{"write", "--section", "--odd heading", "b", "f.md", "--fold", "a, b", "--accept-edits"},
-			sessionSyncArgs{verb: "write", section: "--odd heading", bodyFile: "b", file: "f.md", fold: []string{"a", "b"}, accepts: sessionsync.Accepts{Edits: true}}},
-		{[]string{"write", "--all", "b", "f.md"}, sessionSyncArgs{verb: "write", all: true, bodyFile: "b", file: "f.md"}},
+		{[]string{"write", "--section", "--odd heading", "b", "f.md", "--fold", "a, b", "--if-hash", "h1", "--accept-gap"},
+			sessionSyncArgs{verb: "write", section: "--odd heading", bodyFile: "b", file: "f.md", ifHash: "h1", fold: []string{"a", "b"}, accepts: sessionsync.Accepts{Gap: true}}},
+		{[]string{"write", "--all", "b", "f.md", "--if-hash", "h"}, sessionSyncArgs{verb: "write", all: true, bodyFile: "b", file: "f.md", ifHash: "h"}},
+		{[]string{"read", "--section", "Needs you", "f.md", "--json"}, sessionSyncArgs{verb: "read", section: "Needs you", file: "f.md", json: true}},
+		{[]string{"read", "--all", "f.md"}, sessionSyncArgs{verb: "read", all: true, file: "f.md"}},
+		// release is a retired no-op that still takes its old flags.
 		{[]string{"release", "f.md", "--fold", "x"}, sessionSyncArgs{verb: "release", file: "f.md", fold: []string{"x"}}},
-		{[]string{"release", "--accept-edits", "--accept-gap", "f.md"}, sessionSyncArgs{verb: "release", file: "f.md", accepts: sessionsync.Accepts{Edits: true, Gap: true}}},
+		{[]string{"release", "--accept-edits", "--accept-gap", "f.md"}, sessionSyncArgs{verb: "release", file: "f.md", accepts: sessionsync.Accepts{Gap: true}}},
 	} {
 		inv, err := ParseCLI(append([]string{"--session-sync"}, c.args...), couchcore.Operations())
 		if err != nil {
@@ -37,8 +40,12 @@ func TestParseSessionSyncForms(t *testing.T) {
 	}
 	for _, bad := range [][]string{
 		{}, {"nope", "f"}, {"diff"}, {"diff", "a", "b"}, {"status", "--fold", "x", "f"},
-		{"write", "b", "f"}, {"write", "--all", "--section", "h", "b", "f"}, {"write", "--all", "f"},
-		{"write", "--section"}, {"release", "f", "--fold"}, {"status", "--json", "--json", "f"},
+		{"write", "b", "f", "--if-hash", "h"}, {"write", "--all", "--section", "h", "b", "f", "--if-hash", "h"},
+		{"write", "--all", "f", "--if-hash", "h"}, {"write", "--section"}, {"release", "f", "--fold"},
+		{"status", "--json", "--json", "f"},
+		// An unconditional write, and the retired --accept-edits.
+		{"write", "--all", "b", "f"}, {"write", "--all", "b", "f", "--if-hash", "h", "--accept-edits"},
+		{"read", "f"}, {"read", "--all", "--section", "h", "f"}, {"read", "--all", "f", "--if-hash", "h"},
 	} {
 		if _, err := ParseCLI(append([]string{"--session-sync"}, bad...), couchcore.Operations()); err == nil {
 			t.Fatalf("%v must be a usage error", bad)
@@ -101,7 +108,7 @@ func TestSessionSyncStatusJSONIsTheAgreedEnvelope(t *testing.T) {
 			t.Fatalf("Status lacks %s: %v", k, keys)
 		}
 	}
-	if st["LastWrite"] != nil || st["Holder"] != "free" || st["Owner"] != "ops:0" || st["File"] != file {
+	if st["LastWrite"] != nil || st["Holder"] != "" || st["Owner"] != "ops:0" || st["File"] != file {
 		t.Fatalf("status %v", st)
 	}
 	owed := st["Owed"].([]any)
@@ -119,7 +126,7 @@ func TestSessionSyncRefusalsExitNonZeroWithACode(t *testing.T) {
 	os.WriteFile(file+".lock", []byte("holder: operator\n"), 0o644)
 	body := filepath.Join(t.TempDir(), "body")
 	os.WriteFile(body, []byte("new"), 0o644)
-	code, _, errout := runSS(t, rt, "write", "--section", "Needs you", body, file)
+	code, _, errout := runSS(t, rt, "write", "--section", "Needs you", body, file, "--if-hash", sessionsync.Hash("\nold\n"))
 	if code != sessionsync.ExitOperatorLock || !strings.Contains(errout, "operator holds the lock") {
 		t.Fatalf("exit %d: %s", code, errout)
 	}
@@ -144,11 +151,54 @@ func TestSessionSyncWriteFoldsAndStatusTextShowsIt(t *testing.T) {
 	}
 	body := filepath.Join(t.TempDir(), "body")
 	os.WriteFile(body, []byte("handled d1"), 0o644)
-	code, out, errout := runSS(t, rt, "write", "--section", "Needs you", body, file, "--fold", "d1")
-	if code != 0 || !strings.Contains(out, "wrote ## Needs you") || !strings.Contains(out, "folded d1") {
+	_, out, _ = runSS(t, rt, "read", "--section", "Needs you", file)
+	hash, rest, _ := strings.Cut(strings.TrimPrefix(out, "hash: "), "\n")
+	if rest != "\nold\n" || hash != sessionsync.Hash(rest) {
+		t.Fatalf("read text %q", out)
+	}
+	code, out, errout := runSS(t, rt, "write", "--section", "Needs you", body, file, "--fold", "d1", "--if-hash", hash)
+	if code != 0 || !strings.Contains(out, "wrote ## Needs you") || !strings.Contains(out, "folded d1") ||
+		!strings.Contains(out, "hash: "+sessionsync.Hash("\nhandled d1\n")) {
 		t.Fatalf("exit %d out %q err %q", code, out, errout)
 	}
 	if _, out, _ = runSS(t, rt, "status", file); !strings.Contains(out, "owed: 0") {
 		t.Fatalf("status text %q", out)
+	}
+}
+
+func TestSessionSyncStaleAndReadJSON(t *testing.T) {
+	rt, file := sessionSyncRT(t)
+	code, out, _ := runSS(t, rt, "read", "--section", "Needs you", "--json", file)
+	var got struct {
+		Code string
+		Read sessionsync.ReadResult
+		Hash string
+	}
+	if err := json.Unmarshal([]byte(out), &got); err != nil || code != 0 || got.Code != "ok" ||
+		got.Read.Body != "\nold\n" || got.Read.Hash != sessionsync.Hash("\nold\n") || got.Read.Section != "Needs you" {
+		t.Fatalf("exit %d out %s", code, out)
+	}
+	body := filepath.Join(t.TempDir(), "body")
+	os.WriteFile(body, []byte("new"), 0o644)
+	code, out, errout := runSS(t, rt, "write", "--section", "Needs you", body, file, "--if-hash", "0000000000000000")
+	if code != sessionsync.ExitStale || out != "hash: "+got.Read.Hash+"\n" || !strings.Contains(errout, "changed since you read it") {
+		t.Fatalf("exit %d out %q err %q", code, out, errout)
+	}
+}
+
+func TestSessionSyncReleaseIsARetiredNoOp(t *testing.T) {
+	rt, file := sessionSyncRT(t)
+	before, _ := os.ReadFile(file)
+	code, out, errout := runSS(t, rt, "release", file, "--accept-edits")
+	after, _ := os.ReadFile(file)
+	if code != 0 || out != "" || !strings.Contains(errout, "retired") || string(before) != string(after) {
+		t.Fatalf("exit %d out %q err %q", code, out, errout)
+	}
+	// A requested fold that does not happen is a failure, not a silent 0.
+	if code, _, errout = runSS(t, rt, "release", file, "--fold", "d1"); code == 0 || !strings.Contains(errout, "write --fold") {
+		t.Fatalf("exit %d err %q", code, errout)
+	}
+	if _, out, _ = runSS(t, rt, "status", file); !strings.Contains(out, "owed: 1") || !strings.Contains(out, "lock: none") {
+		t.Fatalf("release must fold nothing: %q", out)
 	}
 }

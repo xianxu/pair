@@ -1,12 +1,22 @@
 ---
 id: 000439
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
-card_mirror: 'a86807074f21953ae29606f1471cf27e6f1d6a8b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'c215c8538d0de234de7086189f655630254a78b4' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-11T09:11:08-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:5
+    worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
+    repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
+actual_hours: 0.31
 ---
 
 # session-sync: optimistic per-section writes for the agent, no agent-held lock
@@ -42,12 +52,33 @@ Design principle, the operator's (10-11): **pessimistic locking for the human, o
 
 ## Plan
 
-- [ ] Design: hash function and exit code; `read` output and `--json` shape; the `release` deprecation path; legacy `holder: agent` handling.
-- [ ] Sidecar `flock` around every command; `read --section/--all` with hashes.
-- [ ] `write --if-hash` compare-and-replace; drop the whole-file unread-edits gate and `--accept-edits`; refuse a write without `--if-hash`.
-- [ ] Remove the agent-held lock: submits only record owed events; `status` reports holder operator or none.
-- [ ] Tests for the Done-when rows; update the session-sync atlas page and `couch --help`.
+Design (2026-10-11):
+- **Hash:** sha256 hex, first 16 chars, of the section body as stored (the lines after the `## HEADING` line up to the next `## ` line or EOF; `--all`: the whole file). Pure function `Hash`, `SectionBody` beside `ReplaceSection` (ARCH-DRY: one section scanner shared by read and replace).
+- **Exit code:** `stale` = 6 (a new `Refusal.Current` carries the current hash; JSON envelope gains `Hash`). 4 (`unread-edits`) is retired, not reused.
+- **`read`:** `read --section HEADING FILE [--json]` / `read --all FILE [--json]`; text = `hash: H` line, then the body; JSON = `{Code,Error,Read:{File,Section,Hash,Holder,Body}}`. Read is pure (no shadow/state change).
+- **`write`:** requires `--if-hash H` (no `--force`); `--accept-edits` removed. The shadow still takes the whole written file, so `diff` shows operator edits since the agent's last write (informational only, no gate). A successful write prints the new hash.
+- **Atomicity:** every verb holds `flock(LOCK_EX)` on `.<file>.flock` from load to the last write. ARCH-FUNERAL: one empty file per session-sync file, same lifetime as `.shadow`/`.sync` (dies with the file's directory); creates nothing per event.
+- **Agent lock:** `HolderAgent` is gone; `ParseHolder` returns `operator` for any lock whose holder isn't `agent`, and `""` (no lock) for none or a legacy `holder: agent`. Couch never writes or deletes `.lock` (parley owns it; deleting a lock parley may have just rewritten as `operator` would break the human's pessimistic lock).
+- **`release`:** accepted no-op for one release: takes its old flags, changes nothing, prints a deprecation note (folds are `write --fold`). Removal is a follow-up.
+- **status:** `Holder` is `operator` or `""` (text: `lock: none`); Code/Owed unchanged for parley.nvim#314/#315.
+
+- [x] Sidecar `flock` around every command; `read --section/--all` with hashes.
+- [x] `write --if-hash` compare-and-replace; drop the whole-file unread-edits gate and `--accept-edits`; refuse a write without `--if-hash`.
+- [x] Remove the agent-held lock: submits only record owed events; `status` reports holder operator or none; `release` a no-op.
+- [x] Tests for the Done-when rows (incl. a two-process race); update atlas, SKILL.md, README, usage.
 
 ## Log
 
 ### 2026-10-11
+- 2026-10-11: closed — review fixes covered by new tests: TestAWrongFileLeavesNoFlockBehind, release --fold refusal in TestSessionSyncReleaseIsARetiredNoOp; go test ./cmd/internal/sessionsync ./cmd/internal/couchcmd (session-sync, delivery, skill) green; full make -k test green at the prior close (fixed-then-ship); review verdict: SHIP
+- 2026-10-11: closed — make -k test green (240 ok, 0 FAIL); new tests pin every Done-when row: section write over an edit elsewhere + stale refusal with current hash, two-process race (one wins, one stale), flock-under-check (mutation-checked), no-release turn leaves no lock, operator lock still refuses; CLI read/stale/release-no-op tests.; review verdict: SHIP
+- 2026-10-11: flow upgraded quick → full — 262 added lines in code files (limit 100)
+
+- Claimed from the TL dispatch (ops:0, receipt 563f892e verified). Design in `## Plan`.
+- Shadow stays "the file as the agent last wrote it" (whole file), so `diff` shows operator edits since the last write; a per-section shadow merge was considered and dropped (Simplicity First: the owed submit, not the diff, makes the agent read the file).
+- Couch never deletes a legacy `holder: agent` lock: parley may rewrite `.lock` as `operator` between couch's read and its delete, and deleting that would break the human's pessimistic lock. Legacy agent locks are parsed as none; parley.nvim#315 owns its file.
+- Tests: `TestASectionWriteSucceedsOverAnEditElsewhereAndRefusesStale`, `TestWriteWithoutIfHashRefuses`, `TestAWriteChecksItsHashUnderTheFlock`, `TestTwoProcessWritersExactlyOneWins` (two helper processes), `TestATurnWithoutReleaseLeavesNoLock`, operator-lock test kept; CLI: read text/JSON, stale exit 6 + hash, release no-op. Mutation check: replacing the flock with LOCK_UN fails the flock test 5/5 and the two-process test 1/5.
+- Diff left the quick-flow shell (~260 added code lines), so close runs the full review.
+- Follow-up: remove the `release` no-op after one release (ARCH-FUNERAL), and the TL updates ops `skills-draft/xx-tl/SKILL.md` to `read` + `write --if-hash`.
+- Verification: `make -k test` green (240 packages ok, no FAIL).
+- Close review round 1: SHIP, 6 Minor. Fixed in a follow-up commit: release --fold now refuses; locked() validates before creating the flock file; SKILL.md documents fold-with-no-change and restamp staleness; test comment fixed; #440 filed to remove release. Restamp changing another section's hash is by design (a stale retry).

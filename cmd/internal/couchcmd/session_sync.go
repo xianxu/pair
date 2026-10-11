@@ -15,17 +15,18 @@ import (
 
 // sessionSyncArgs is one `couch --session-sync` invocation (pair#437).
 type sessionSyncArgs struct {
-	verb, file, section, bodyFile string
-	all, json                     bool
-	accepts                       sessionsync.Accepts
-	fold                          []string
+	verb, file, section, bodyFile, ifHash string
+	all, json                             bool
+	accepts                               sessionsync.Accepts
+	fold                                  []string
 }
 
 const sessionSyncUsage = `couch --session-sync diff FILE
 couch --session-sync status [--json] FILE
-couch --session-sync write --section HEADING BODYFILE FILE [--accept-edits] [--accept-gap] [--fold ID[,ID]]
-couch --session-sync write --all BODYFILE FILE [--accept-edits] [--accept-gap] [--fold ID[,ID]]
-couch --session-sync release FILE [--accept-edits] [--accept-gap] [--fold ID[,ID]]`
+couch --session-sync read --section HEADING FILE [--json]
+couch --session-sync read --all FILE [--json]
+couch --session-sync write --section HEADING BODYFILE FILE --if-hash H [--accept-gap] [--fold ID[,ID]]
+couch --session-sync write --all BODYFILE FILE --if-hash H [--accept-gap] [--fold ID[,ID]]`
 
 // parseSessionSyncCLI reads the closed forms above. Values (a heading, a
 // path) are taken verbatim even when they start with "--".
@@ -38,9 +39,12 @@ func parseSessionSyncCLI(args []string) (cliInvocation, error) {
 	}
 	a := &sessionSyncArgs{verb: args[1]}
 	allowed := map[string][]string{
-		"diff":    {},
-		"status":  {"--json"},
-		"write":   {"--section", "--all", "--accept-edits", "--accept-gap", "--fold"},
+		"diff":   {},
+		"status": {"--json"},
+		"read":   {"--section", "--all", "--json"},
+		"write":  {"--section", "--all", "--if-hash", "--accept-gap", "--fold"},
+		// Retired by pair#439 (no agent-held lock); accepted as a no-op
+		// with its old flags for one release so older skills don't break.
 		"release": {"--accept-edits", "--accept-gap", "--fold"},
 	}
 	flags, ok := allowed[a.verb]
@@ -65,13 +69,15 @@ func parseSessionSyncCLI(args []string) (cliInvocation, error) {
 		}
 		seen[arg] = true
 		switch arg {
-		case "--section", "--fold":
+		case "--section", "--fold", "--if-hash":
 			if i+1 >= len(rest) || rest[i+1] == "" {
 				return usage("%s needs a value", arg)
 			}
 			i++
 			if arg == "--section" {
 				a.section = rest[i]
+			} else if arg == "--if-hash" {
+				a.ifHash = rest[i]
 			} else {
 				for _, id := range strings.Split(rest[i], ",") {
 					if id = strings.TrimSpace(id); id != "" {
@@ -81,8 +87,6 @@ func parseSessionSyncCLI(args []string) (cliInvocation, error) {
 			}
 		case "--all":
 			a.all = true
-		case "--accept-edits":
-			a.accepts.Edits = true
 		case "--accept-gap":
 			a.accepts.Gap = true
 		case "--json":
@@ -90,9 +94,12 @@ func parseSessionSyncCLI(args []string) (cliInvocation, error) {
 		}
 	}
 	want := 1
+	if (a.verb == "write" || a.verb == "read") && seen["--section"] == a.all {
+		return usage("%s takes exactly one of --section HEADING or --all", a.verb)
+	}
 	if a.verb == "write" {
-		if seen["--section"] == a.all {
-			return usage("write takes exactly one of --section HEADING or --all")
+		if a.ifHash == "" {
+			return usage("write needs --if-hash H, the hash `read` printed (an unconditional write could overwrite an edit you never saw)")
 		}
 		want = 2
 	}
@@ -117,11 +124,22 @@ func runSessionSyncCLI(a *sessionSyncArgs, rt Runtime, stdout, stderr io.Writer)
 			code, exit = r.Code, r.Exit
 		}
 		if a.json {
-			_ = json.NewEncoder(stdout).Encode(sessionSyncResponse{Code: code, Error: err.Error()})
+			_ = json.NewEncoder(stdout).Encode(sessionSyncResponse{Code: code, Error: err.Error(), Hash: refusalHash(err)})
 		} else {
 			fmt.Fprintln(stderr, "couch: refused:", err)
+			if h := refusalHash(err); h != "" {
+				fmt.Fprintln(stdout, "hash:", h)
+			}
 		}
 		return exit
+	}
+	if a.verb == "release" {
+		// A fold the caller asked for did not happen; say so with a failure.
+		if len(a.fold) > 0 {
+			return fail(fmt.Errorf("release is retired (pair#439) and folds nothing; fold with `write --fold ID --if-hash H`"))
+		}
+		fmt.Fprintln(stderr, "couch: release is retired and did nothing: the agent holds no lock (pair#439); fold events with `write --fold ID`")
+		return 0
 	}
 	file, err := filepath.Abs(a.file)
 	if err != nil {
@@ -150,14 +168,26 @@ func runSessionSyncCLI(a *sessionSyncArgs, rt Runtime, stdout, stderr io.Writer)
 		if err != nil {
 			return fail(err)
 		}
-		fmt.Fprintf(stdout, "lock: %s\n%s", holder, diff)
+		fmt.Fprintf(stdout, "lock: %s\n%s", lockText(holder), diff)
+	case "read":
+		r, err := s.Read(file, a.section)
+		if err != nil {
+			return fail(err)
+		}
+		if a.json {
+			if err := json.NewEncoder(stdout).Encode(sessionSyncResponse{Code: "ok", Read: &r}); err != nil {
+				return fail(err)
+			}
+			return 0
+		}
+		fmt.Fprintf(stdout, "hash: %s\n%s", r.Hash, r.Body)
 	case "write":
 		raw, err := os.ReadFile(a.bodyFile)
 		if err != nil {
 			return fail(fmt.Errorf("reading the body: %w", err))
 		}
 		res, err := s.Write(sessionsync.WriteRequest{File: file, Section: a.section, Body: string(raw),
-			Accepts: a.accepts, Fold: a.fold})
+			IfHash: a.ifHash, Accepts: a.accepts, Fold: a.fold})
 		if err != nil {
 			return fail(err)
 		}
@@ -166,17 +196,7 @@ func runSessionSyncCLI(a *sessionSyncArgs, rt Runtime, stdout, stderr io.Writer)
 		} else {
 			fmt.Fprintln(stdout, "rewrote the file")
 		}
-		reportFolds(stdout, stderr, res)
-	case "release":
-		res, err := s.Release(sessionsync.ReleaseRequest{File: file, Accepts: a.accepts, Fold: a.fold})
-		if err != nil {
-			return fail(err)
-		}
-		if res.Released {
-			fmt.Fprintln(stdout, "released the lock")
-		} else {
-			fmt.Fprintln(stdout, "no agent-held lock to release")
-		}
+		fmt.Fprintln(stdout, "hash:", res.Hash)
 		reportFolds(stdout, stderr, res)
 	}
 	return 0
@@ -187,7 +207,24 @@ func runSessionSyncCLI(a *sessionSyncArgs, rt Runtime, stdout, stderr io.Writer)
 type sessionSyncResponse struct {
 	Code   string
 	Error  string
+	Hash   string `json:",omitempty"` // the current hash, on a stale refusal
 	Status *sessionsync.Status
+	Read   *sessionsync.ReadResult `json:",omitempty"`
+}
+
+func refusalHash(err error) string {
+	var r *sessionsync.Refusal
+	if errors.As(err, &r) {
+		return r.Hash
+	}
+	return ""
+}
+
+func lockText(h sessionsync.Holder) string {
+	if h == sessionsync.HolderNone {
+		return "none"
+	}
+	return string(h)
 }
 
 func reportFolds(stdout, stderr io.Writer, res sessionsync.Result) {
@@ -205,7 +242,7 @@ func formatSessionSyncStatus(st sessionsync.Status) string {
 	if st.LastWrite != nil {
 		last = st.LastWrite.Local().Format("2006-01-02 15:04:05")
 	}
-	fmt.Fprintf(&b, "lock: %s\nowner: %s\nlast write: %s\nowed: %d\n", st.Holder, st.Owner, last, len(st.Owed))
+	fmt.Fprintf(&b, "lock: %s\nowner: %s\nlast write: %s\nowed: %d\n", lockText(st.Holder), st.Owner, last, len(st.Owed))
 	for _, e := range st.Owed {
 		note := ""
 		if e.Uncertain {
@@ -214,7 +251,7 @@ func formatSessionSyncStatus(st sessionsync.Status) string {
 		fmt.Fprintf(&b, "  %s  %-8s %s from %s%s\n", e.At.Local().Format(time.DateTime), e.Kind, e.ID, e.From, note)
 	}
 	if len(st.Owed) > 0 {
-		fmt.Fprintln(&b, "fold each with `write --fold ID` once the file reflects it (release folds submits)")
+		fmt.Fprintln(&b, "fold each with `write --fold ID` once the file reflects it")
 	}
 	return b.String()
 }

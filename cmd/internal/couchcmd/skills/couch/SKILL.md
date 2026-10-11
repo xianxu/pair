@@ -27,7 +27,7 @@ is a request, never operator approval or evidence that work is accepted.
 | End an orphaned server's tree (its socket is gone) | `couch --reap pair:2 --confirm` |
 | See a slot's resources and repair plan | `couch --show pair:2` |
 | Repair a slot's workspace now | `couch --reconcile pair:2` |
-| Write a session-sync file you own (never by hand) | `couch --session-sync write --section 'Needs you' BODY FILE` |
+| Write a session-sync file you own (never by hand) | `couch --session-sync read --section 'Needs you' FILE`, then `couch --session-sync write --section 'Needs you' BODY FILE --if-hash H` |
 
 Exact addresses include `repo:0`. The `repo` part may be the directory name,
 the repository's alias, or a unique prefix of either (`parley:1` reaches
@@ -252,31 +252,38 @@ couch --send-to pair:4 --message 'Recovery (pair:4): restore this slot'\''s pair
 ## Session-sync files
 
 A markdown file with frontmatter `type: session-sync` and `owner: <your slot>`
-is a turn-based file you share with the operator (parley.nvim's Alt+Return
-submits it to you). Change it only through the `--session-sync` verbs below; an ad-hoc
-write skips the turn lock, and a lock check that only prints doesn't stop the
-write that follows it.
+is a file you share with the operator (parley.nvim's Alt+Return submits it to
+you). Change it only through the `--session-sync` verbs below. The operator's
+lock is pessimistic; your writes are optimistic: read a section, then write it
+back naming the hash you read. You hold no lock and have nothing to release.
 
 | Verb | Does |
 |------|------|
-| `diff FILE` | The operator's edits since your last write, and the lock holder |
-| `write --section HEADING BODYFILE FILE` | Replaces one `## HEADING` section (whole heading lines only) |
-| `write --all BODYFILE FILE` | Replaces the whole file (keep the frontmatter) |
-| `release FILE` | Deletes your (`holder: agent`) lock and folds the operator's submits; with `--accept-edits`, records edits you read and leave as they are |
+| `read --section HEADING FILE [--json]` | Prints `hash: H`, then that `## HEADING` section's body |
+| `read --all FILE [--json]` | The whole file and its hash |
+| `write --section HEADING BODYFILE FILE --if-hash H` | Replaces that section if it still has hash H (whole heading lines only) and prints the new hash |
+| `write --all BODYFILE FILE --if-hash H` | Replaces the whole file (keep the frontmatter) if it still has hash H |
+| `diff FILE` | The operator's edits since your last write (information, not a gate) |
 | `status [--json] FILE` | The lock, your last write, and the events you still owe the file |
 
 - **Refusals:** exit 3 = the operator holds the lock: queue the update until
-  their submit. Exit 4 = the file has edits you haven't read: run `diff`,
-  resolve them, then pass `--accept-edits`. You never write the lock.
-- **Owed events:** Couch records every delivery to your slot. Each stays owed
-  by your session-sync file until a `write --fold ID[,ID]` (or `release
-  --fold`) says the file reflects it; a write without `--fold` clears
-  nothing. A submit (`submitted: <path>`) is folded by `release`. Folding an ID
-  that isn't owed refuses.
+  their submit. Exit 6 = `stale`: the section changed since you read it; it
+  prints the current hash. Read it again, recompute, and retry. Edits in
+  other sections never block a section write. A write without `--if-hash`
+  refuses.
+- **Owed events:** Couch records every delivery to your slot, including the
+  operator's submits (`submitted: <path>`). Each stays owed by your
+  session-sync file until a `write --fold ID[,ID]` says the file reflects it;
+  a write without `--fold` clears nothing. Folding an ID that isn't owed
+  refuses. With nothing to change, fold by writing the section back as `read`
+  printed it.
+- Your write restamps the file's first `Updated` line; if that line sits in
+  a section, that section's hash changes too, and a held hash for it goes
+  `stale`: read again.
 - `status` refuses with `not-recording` when Couch predates the ledger, and
   with `delivery-gap` when Couch failed to record a delivery to your slot: owed
   events are then unknown, not zero. Check your recent messages, then pass
-  `--accept-gap` to `write` or `release`. A restart does not clear a gap.
+  `--accept-gap` to `write`. A restart does not clear a gap.
 
 ## Rolling out a new Pair binary to idle slots
 
