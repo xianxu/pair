@@ -1,12 +1,20 @@
 ---
 id: 000446
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
-card_mirror: '9ab5e77b8b6015ccdc0e2c9f13845f94746d2748' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '62cf9a34529ebb0bb1e2d6225e391b9a9b18f4e7' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-11T11:57:39-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Broadcast pointer: each viewer picks one of six colors
@@ -40,3 +48,4 @@ Every broadcast viewer's laser-pointer marks draw in the same amber (xterm 214, 
 ## Log
 
 ### 2026-10-11
+- Design (ARCH-DRY): the palette is single-sourced in Go (`marks.go`); the pointer stream's `caps` event carries it as `palette` (hex list) plus this connection's assigned `color`, so viewer.js hard-codes no colors. `PointerState` counts the colors held by live pointer streams and assigns the least-held (lowest index on ties); a stream releases its color when it ends. A viewer's own pick only overrides locally (Couch never learns picks except through batches), so assignment counts connections, not picks. `Marks` keeps a color per cell; `Add` takes the batch's color. `color` parses into `*int`, which refuses strings and non-integers outright; the range check refuses the rest.
