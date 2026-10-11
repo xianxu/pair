@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000443-session-sync-read-couch-owner-owner-stays-accepted.md
         source_blob: 58e869212e2a7b0f1b2a1e3e2c2038984a2d137f
         destination: workshop/issues/000443-session-sync-read-couch-owner-owner-stays-accepted.md
+        main_commit: eec42b544419f2798670537cdae7548df6ab8a32
 ---
 
 # session-sync: read couch-owner (owner stays accepted)
