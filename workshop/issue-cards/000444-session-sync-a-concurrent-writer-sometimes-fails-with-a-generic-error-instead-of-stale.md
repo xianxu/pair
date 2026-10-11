@@ -1,6 +1,6 @@
 ---
 id: 000444
-status: codecomplete
+status: done
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: fcf20d5bca09db2c82a83e790518b2629f1cf7a2
         evidence_commit: 64f4a8aa092882bee50ec83242b981423dd46968
+        landed_commit: 9a1187a98c0fc8f8a45334dac2c1fe6e9f3011f2
 ---
 
 # session-sync: a concurrent writer sometimes fails with a generic error instead of stale
