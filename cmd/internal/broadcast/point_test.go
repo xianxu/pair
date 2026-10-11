@@ -15,6 +15,8 @@ func TestParsePointBatch(t *testing.T) {
 	}{
 		{"tap", `{"cols":80,"rows":24,"down":true,"points":[[3,4]]}`, PointBatch{Cols: 80, Rows: 24, Down: true, Points: [][2]int{{3, 4}}}},
 		{"stroke", `{"cols":80,"rows":24,"down":false,"points":[[0,0],[79,22]]}`, PointBatch{Cols: 80, Rows: 24, Points: [][2]int{{0, 0}, {79, 22}}}},
+		{"color", `{"cols":80,"rows":24,"down":true,"color":3,"points":[[3,4]]}`, PointBatch{Cols: 80, Rows: 24, Down: true, Color: 3, Points: [][2]int{{3, 4}}}},
+		{"last color", `{"cols":80,"rows":24,"down":true,"color":5,"points":[[3,4]]}`, PointBatch{Cols: 80, Rows: 24, Down: true, Color: 5, Points: [][2]int{{3, 4}}}},
 	}
 	for _, c := range ok {
 		t.Run(c.name, func(t *testing.T) {
@@ -22,7 +24,7 @@ func TestParsePointBatch(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got.Cols != c.want.Cols || got.Rows != c.want.Rows || got.Down != c.want.Down || len(got.Points) != len(c.want.Points) {
+			if got.Cols != c.want.Cols || got.Rows != c.want.Rows || got.Down != c.want.Down || got.Color != c.want.Color || len(got.Points) != len(c.want.Points) {
 				t.Fatalf("got %+v", got)
 			}
 			for i := range got.Points {
@@ -53,6 +55,11 @@ func TestParsePointBatch(t *testing.T) {
 		{"past rows", `{"cols":80,"rows":24,"down":true,"points":[[1,24]]}`, ErrPointRange},
 		{"huge", `{"cols":80,"rows":24,"down":true,"points":[[1e300,1]]}`, ErrPointShape},
 		{"zero grid", `{"cols":0,"rows":0,"down":true,"points":[[0,0]]}`, ErrPointRange},
+		{"color past the palette", `{"cols":80,"rows":24,"down":true,"color":6,"points":[[1,1]]}`, ErrPointRange},
+		{"negative color", `{"cols":80,"rows":24,"down":true,"color":-1,"points":[[1,1]]}`, ErrPointRange},
+		{"color as string", `{"cols":80,"rows":24,"down":true,"color":"3","points":[[1,1]]}`, ErrPointShape},
+		{"fractional color", `{"cols":80,"rows":24,"down":true,"color":2.5,"points":[[1,1]]}`, ErrPointShape},
+		{"raw color", `{"cols":80,"rows":24,"down":true,"color":"#ff0000","points":[[1,1]]}`, ErrPointShape},
 		{"huge grid", `{"cols":100000,"rows":100000,"down":true,"points":[[0,0]]}`, ErrPointRange},
 	}
 	for _, c := range bad {
@@ -99,6 +106,8 @@ func TestRateLimit(t *testing.T) {
 func FuzzParsePointBatch(f *testing.F) {
 	for _, seed := range []string{
 		`{"cols":80,"rows":24,"down":true,"points":[[3,4]]}`,
+		`{"cols":80,"rows":24,"down":true,"color":5,"points":[[3,4]]}`,
+		`{"cols":80,"rows":24,"down":true,"color":"6","points":[[3,4]]}`,
 		`{"cols":1,"rows":1,"down":false,"points":[[0,0],[0,0]]}`,
 		`{"cols":80,"rows":24,"down":true,"points":[[1e300,1]]}`,
 		`{"cols":-1,"rows":24,"down":true,"points":[[0,0]]}`,
@@ -113,6 +122,9 @@ func FuzzParsePointBatch(f *testing.F) {
 		}
 		if b.Cols < 1 || b.Rows < 1 || b.Cols > maxPointGrid || b.Rows > maxPointGrid {
 			t.Fatalf("accepted grid %dx%d", b.Cols, b.Rows)
+		}
+		if b.Color < 0 || b.Color >= PointerColors {
+			t.Fatalf("accepted color %d", b.Color)
 		}
 		if len(b.Points) < 1 || len(b.Points) > MaxPointsPerBatch {
 			t.Fatalf("accepted %d points", len(b.Points))

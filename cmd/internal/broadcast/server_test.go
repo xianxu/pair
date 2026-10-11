@@ -152,7 +152,13 @@ func TestViewerPageLoadsOnlySameOrigin(t *testing.T) {
 		t.Error("page has an inline event handler")
 	}
 	viewer := string(mustAsset(t, "viewer.js"))
-	for _, api := range []string{"localStorage", "sessionStorage", "indexedDB", "caches", "serviceWorker", "document.cookie", "XMLHttpRequest", "WebSocket", "sendBeacon", "EventSource(\"http", "EventSource('http"} {
+	// The one thing a page keeps (#446): a pointer viewer's color pick, a
+	// palette index under one key, read and written only by colorStore.
+	if strings.Count(viewer, "localStorage") != 1 || strings.Count(viewer, "getItem(") != 1 || strings.Count(viewer, "setItem(") != 1 ||
+		!strings.Contains(viewer, "const COLOR_KEY = 'couch.pointerColor';") || !strings.Contains(viewer, "getItem(COLOR_KEY)") || !strings.Contains(viewer, "setItem(COLOR_KEY, String(i))") {
+		t.Error("viewer.js may keep only the pointer color pick in localStorage")
+	}
+	for _, api := range []string{"sessionStorage", "indexedDB", "caches", "serviceWorker", "document.cookie", "XMLHttpRequest", "WebSocket", "sendBeacon", "EventSource(\"http", "EventSource('http"} {
 		if strings.Contains(viewer, api) {
 			t.Errorf("viewer.js uses %s", api)
 		}

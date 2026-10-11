@@ -1,12 +1,22 @@
 ---
 id: 000446
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
-card_mirror: '9ab5e77b8b6015ccdc0e2c9f13845f94746d2748' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '0a35b8b2fb6372e6e3ea5c3de8d4e3cd0025faf9' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-11T11:57:39-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
+actual_hours: 0.44
 ---
 
 # Broadcast pointer: each viewer picks one of six colors
@@ -27,16 +37,28 @@ Every broadcast viewer's laser-pointer marks draw in the same amber (xterm 214, 
 
 - A batch with `color: 3` draws in palette color 3; `color: 6`, `-1` or a string is refused (tests).
 - Each color fades correctly with and without truecolor (tests on the ladder and the blend).
-- Two live viewers pointing at once show two different colors on the operator's terminal and on each other's view (checked live in a broadcast).
+- Two viewers pointing at once land in two different colors and draw distinct marks (`TestPointerStreamsGetDistinctColors`, through the real server; see Revisions). A browser check on a live broadcast is the operator's smoke test.
 - The picker persists across a page reload, and works when storage is blocked.
 
 ## Plan
 
-- [ ] Palette with truecolor values, 256-color indexes and fade ladders; `color` in `PointBatch` with strict parsing; tests.
-- [ ] Draw marks by palette color; per-connection default assignment.
-- [ ] Viewer swatches and remembered choice; viewer.js tests.
-- [ ] Live check with two viewers; atlas broadcast page.
+- [x] Palette with truecolor values, 256-color indexes and fade ladders; `color` in `PointBatch` with strict parsing; tests.
+- [x] Draw marks by palette color; per-connection default assignment.
+- [x] Viewer swatches and remembered choice; viewer.js tests.
+- [x] Two-viewer check (in-process, through the real server: `TestPointerStreamsGetDistinctColors`); atlas broadcast page. Browser smoke on the operator's live broadcast is left to the operator, who was demoing on it.
 
 ## Log
 
 ### 2026-10-11
+- 2026-10-11: closed — pointer controls moved into one wrapping #controls band; band() lifts #stage above its measured height; headless Chrome at 390px and 300px iframes: row wraps, screen ends above band, no overlap; broadcast tests + 34 node viewer tests green (fixed-then-ship; full suite: make -k test green on 99b1f4e4 (only change since: viewer html/css/js layout, covered by go test ./cmd/internal/broadcast incl. node viewer tests, green)); review verdict: SHIP
+- 2026-10-11: closed — ParsePointBatch accepts color 0-5, refuses 6/-1/"3"/2.5 (point_test); each of 6 colors holds then fades monotonically on its own ladder and via blend (marks_test); two pointer streams through the real server get colors 0,1, their batches land with those colors and draw distinct marks (TestPointerStreamsGetDistinctColors); viewer pick persists across reload and works with throwing/absent storage (34 node tests); make -k test green; review verdict: SHIP
+- 2026-10-11: flow upgraded quick → full — 261 added lines in code files (limit 100); an earlier round of this close already ran the full review
+- Design (ARCH-DRY): the palette is single-sourced in Go (`marks.go`); the pointer stream's `caps` event carries it as `palette` (hex list) plus this connection's assigned `color`, so viewer.js hard-codes no colors. `PointerState` counts the colors held by live pointer streams and assigns the least-held (lowest index on ties); a stream releases its color when it ends. A viewer's own pick only overrides locally (Couch never learns picks except through batches), so assignment counts connections, not picks. `Marks` keeps a color per cell; `Add` takes the batch's color. `color` parses into `*int`, which refuses strings and non-integers outright; the range check refuses the rest.
+- Implemented. The new monotone-fade test caught two ladders that brightened mid-fade (green 29→30, vermillion 52→234); fixed with darker steps. `TestViewerPageLoadsOnlySameOrigin` banned `localStorage` outright (the view page's "keeps nothing" promise); narrowed to exactly one key, read and written only by `colorStore`, so the promise still holds for everything else. The termcmd doc-comment lint caught `claimColor` inserted between `stop`'s doc and its func.
+- Verification: `go test ./cmd/internal/broadcast/` (Go + 34 node viewer tests), `make -k test` (scrubbed env) green after the doc fix; `make test-changelog` green. Raw `go test ./...` fails only couchcmd/launcher tests on inherited session env (`'origin' does not appear to be a git repository`), untouched packages that pass under `make test`.
+- Close review round 1 (FIX-THEN-SHIP): BR-1 README still said amber; fixed. Minors: swatches covered the top-left cells, so a pointer page now reserves a 40px band below the screen for the swatches and the hint (fit measures `#stage`, not the window), so no control covers a cell; palette test now checks all six. Without truecolor the ladders darken toward a dark background, as amber's always did; on a light terminal the hold colors still read, and truecolor terminals blend into the real background. Kept as designed. The live two-viewer browser check is left to the operator (broadcast in use for a demo); the server path is covered in-process.
+- Post-close (round-2 advisory, real at phone width): the hint and the swatches were positioned separately in the band and overlapped at about 390px. Both now live in one `#controls` wrapping row, and `band()` lifts `#stage` above its measured height. Checked in headless Chrome inside 390px and 300px iframes: the row wraps and the screen ends above it.
+
+## Revisions
+
+- 2026-10-11 (close): Done-when's "checked live in a broadcast" became the in-process two-stream test plus an operator smoke. The operator's broadcast was in use for a live demo, and the dispatch said to leave it undisturbed until landing.

@@ -3,7 +3,7 @@
 // end a stroke.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { pointerMode } from '../../cmd/internal/broadcast/web/viewer.js';
+import { pointerMode, pointerColor, colorStore, renderSwatches } from '../../cmd/internal/broadcast/web/viewer.js';
 
 function fakes() {
   const listeners = {};
@@ -51,15 +51,15 @@ test('a stroke posts overlapping batches and ends on release', () => {
   const f = fakes();
   f.mode.setOn(true);
   f.fire('pointerdown', f.at(1, 1));
-  assert.deepEqual(f.posts[0], { cols: 80, rows: 24, down: true, points: [[1, 1]] });
+  assert.deepEqual(f.posts[0], { cols: 80, rows: 24, down: true, color: 0, points: [[1, 1]] });
   f.fire('pointermove', f.at(2, 1));
   f.fire('pointermove', f.at(2, 1)); // same cell: not repeated
   f.fire('pointermove', f.at(3, 2));
   f.ticks[0]();
-  assert.deepEqual(f.posts[1], { cols: 80, rows: 24, down: true, points: [[1, 1], [2, 1], [3, 2]] });
+  assert.deepEqual(f.posts[1], { cols: 80, rows: 24, down: true, color: 0, points: [[1, 1], [2, 1], [3, 2]] });
   f.fire('pointermove', f.at(4, 2));
   f.fire('pointerup', f.at(4, 2));
-  assert.deepEqual(f.posts[2], { cols: 80, rows: 24, down: false, points: [[3, 2], [4, 2]] });
+  assert.deepEqual(f.posts[2], { cols: 80, rows: 24, down: false, color: 0, points: [[3, 2], [4, 2]] });
   assert.equal(f.stopped(), 1);
 });
 
@@ -75,4 +75,122 @@ test('turning pointing off mid-stroke ends the stroke', () => {
   f.fire('pointermove', f.at(6, 1));
   f.fire('pointerup', f.at(6, 1));
   assert.equal(f.posts.length, n);
+});
+
+// Pointer colors (#446).
+const PALETTE = ['#ffaf00', '#56b4e9', '#009e73', '#f0e442', '#d55e00', '#cc79a7'];
+
+function colorFakes(storage) {
+  const f = {};
+  const listeners = {};
+  const stage = {
+    addEventListener: (n, fn) => { listeners[n] = fn; },
+    querySelector: () => ({ getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 240 }) }),
+    setPointerCapture() {},
+    classList: { toggle() {} },
+  };
+  f.posts = [];
+  f.shown = null;
+  f.mode = pointerMode({ cols: 80, rows: 24 }, stage, { textContent: '', classList: { remove() {} } }, {
+    post: (b) => f.posts.push(b),
+    every: () => 1,
+    stop() {},
+    store: colorStore(storage),
+    swatches: {
+      show: (palette, current, pick) => { f.shown = { palette, current, pick }; },
+      hide: () => { f.shown = null; },
+    },
+  });
+  f.tap = () => {
+    listeners.pointerdown({ clientX: 15, clientY: 15, pointerId: 1, preventDefault() {} });
+    listeners.pointerup({});
+  };
+  return f;
+}
+
+function memoryStorage() {
+  const m = new Map();
+  return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)) };
+}
+
+test('an unpicked viewer posts the color Couch assigned', () => {
+  const f = colorFakes(memoryStorage());
+  f.mode.setColors(PALETTE, 2);
+  f.mode.setOn(true);
+  assert.deepEqual(f.shown.palette, PALETTE);
+  assert.equal(f.shown.current, 2);
+  f.tap();
+  assert.equal(f.posts[0].color, 2);
+});
+
+test('a pick is posted, survives a reload, and outranks the assignment', () => {
+  const storage = memoryStorage();
+  const f = colorFakes(storage);
+  f.mode.setColors(PALETTE, 0);
+  f.mode.setOn(true);
+  f.shown.pick(4);
+  assert.equal(f.shown.current, 4);
+  f.tap();
+  assert.equal(f.posts[0].color, 4);
+  const reloaded = colorFakes(storage);
+  reloaded.mode.setColors(PALETTE, 1);
+  reloaded.mode.setOn(true);
+  assert.equal(reloaded.shown.current, 4);
+  reloaded.tap();
+  assert.equal(reloaded.posts[0].color, 4);
+});
+
+test('blocked storage still lets the viewer pick', () => {
+  const throwing = { getItem() { throw new Error('denied'); }, setItem() { throw new Error('denied'); } };
+  for (const storage of [throwing, null]) {
+    const f = colorFakes(storage);
+    f.mode.setColors(PALETTE, 1);
+    f.mode.setOn(true);
+    f.shown.pick(5);
+    f.tap();
+    assert.equal(f.posts[0].color, 5);
+  }
+});
+
+test('swatches show only while pointing is on, and never for a bad palette', () => {
+  const f = colorFakes(memoryStorage());
+  f.mode.setColors(PALETTE, 0);
+  assert.equal(f.shown, null);
+  f.mode.setOn(true);
+  assert.ok(f.shown);
+  f.mode.setOn(false);
+  assert.equal(f.shown, null);
+  f.mode.setColors(['#ffaf00', 'url(x)'], 0);
+  f.mode.setOn(true);
+  assert.equal(f.shown, null);
+  f.tap();
+  assert.equal(f.posts[0].color, 0);
+});
+
+test('pointerColor and colorStore refuse out-of-range values', () => {
+  assert.equal(pointerColor(6, 1, 6), 1);
+  assert.equal(pointerColor(-1, 1, 6), 1);
+  assert.equal(pointerColor(null, 3, 6), 3);
+  const storage = memoryStorage();
+  storage.setItem('couch.pointerColor', 'red');
+  assert.equal(colorStore(storage).get(), null);
+});
+
+test('renderSwatches draws one pressed-state button per color', () => {
+  const made = [];
+  const el = { replaceChildren: (...kids) => { el.kids = kids; } };
+  const make = () => {
+    const attrs = {};
+    const b = { style: {}, attrs, setAttribute: (k, v) => { attrs[k] = v; }, addEventListener: (n, fn) => { b.click = fn; } };
+    made.push(b);
+    return b;
+  };
+  let picked = null;
+  renderSwatches(el, PALETTE, 3, (i) => { picked = i; }, make);
+  assert.equal(el.kids.length, 6);
+  assert.equal(el.kids[3].className, 'swatch on');
+  assert.equal(el.kids[3].attrs['aria-pressed'], 'true');
+  assert.equal(el.kids[0].style.background, '#ffaf00');
+  el.kids[1].click();
+  assert.equal(picked, 1);
 });

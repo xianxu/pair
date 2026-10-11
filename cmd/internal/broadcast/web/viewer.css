@@ -81,9 +81,7 @@ html, body {
   cursor: crosshair;
 }
 #hint {
-  position: fixed;
-  bottom: 8px;
-  right: 8px;
+  margin-left: auto;
   padding: 4px 10px;
   border-radius: 4px;
   font: 13px/1.4 system-ui, sans-serif;
@@ -92,4 +90,40 @@ html, body {
 }
 #hint.hidden {
   display: none;
+}
+/* Every pointer-page control lives in one band below the screen, a wrapping
+   row; viewer.js lifts the stage above the band's height, so no control
+   covers a cell someone may want to point at, at any width. */
+#controls {
+  position: fixed;
+  left: 8px;
+  right: 8px;
+  bottom: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+/* Pointer colors (#446): one swatch per palette color, the current one
+   ringed. */
+#swatches {
+  display: flex;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  background: var(--status-bg);
+}
+#swatches.hidden {
+  display: none;
+}
+.swatch {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.swatch.on {
+  border-color: var(--status-fg);
 }

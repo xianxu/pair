@@ -3,6 +3,9 @@ package broadcast
 import (
 	"bufio"
 	"context"
+	"encoding/json"
+	"fmt"
+	"image/color"
 	"io"
 	"net/http"
 	"strings"
@@ -322,15 +325,16 @@ func TestPointerCapsEvents(t *testing.T) {
 	}
 	defer resp.Body.Close()
 	pr := bufio.NewReader(resp.Body)
-	if got := readEvent(t, pr, "caps"); got != `{"pointer":true}` {
+	palette := `"palette":["#ffaf00","#56b4e9","#009e73","#f0e442","#d55e00","#cc79a7"]`
+	if got := readEvent(t, pr, "caps"); got != `{"pointer":true,"color":0,`+palette+`}` {
 		t.Fatalf("caps on join %q", got)
 	}
 	p.s.DisablePointer()
-	if got := readEvent(t, pr, "caps"); got != `{"pointer":false}` {
+	if got := readEvent(t, pr, "caps"); got != `{"pointer":false,"color":0,`+palette+`}` {
 		t.Fatalf("caps after off %q", got)
 	}
 	p.s.EnablePointer()
-	if got := readEvent(t, pr, "caps"); got != `{"pointer":true}` {
+	if got := readEvent(t, pr, "caps"); got != `{"pointer":true,"color":0,`+palette+`}` {
 		t.Fatalf("caps after on %q", got)
 	}
 	// A view stream never hears of the pointer.
@@ -442,5 +446,83 @@ func TestPointerLateHiddenReportIgnored(t *testing.T) {
 	p.s.pointerHidden(p.s.pointer.generation())
 	if on, _ := p.s.pointer.On(); on {
 		t.Fatal("a current watch report didn't turn pointing off")
+	}
+}
+
+// Each pointer stream is assigned the color fewest live streams hold (#446):
+// a second viewer gets the next color, and a color comes back when its
+// stream ends.
+func TestPointerStreamsGetDistinctColors(t *testing.T) {
+	p := startPointerSession(t)
+	link, _ := p.s.EnablePointer()
+	p.showPointer(t)
+	join := func() (int, func()) {
+		t.Helper()
+		ctx, cancel := context.WithCancel(context.Background())
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, link+"events", nil)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var caps struct{ Color int }
+		if err := json.Unmarshal([]byte(readEvent(t, bufio.NewReader(resp.Body), "caps")), &caps); err != nil {
+			t.Fatal(err)
+		}
+		return caps.Color, func() { cancel(); resp.Body.Close() }
+	}
+	a, leaveA := join()
+	b, leaveB := join()
+	defer leaveB()
+	if a != 0 || b != 1 {
+		t.Fatalf("two streams got colors %d and %d, want 0 and 1", a, b)
+	}
+	// Each viewer points in its assigned color; both land, and the marks
+	// draw them apart.
+	for i, c := range []int{a, b} {
+		body := fmt.Sprintf(`{"cols":40,"rows":4,"down":false,"color":%d,"points":[[%d,1]]}`, c, 3+10*i)
+		if code, _ := post(t, link+"point", "application/json", body); code != http.StatusNoContent {
+			t.Fatalf("POST %d", code)
+		}
+	}
+	got := p.batches()
+	if len(got) != 2 || got[0].Color != a || got[1].Color != b {
+		t.Fatalf("landed %+v", got)
+	}
+	m := NewMarks()
+	for _, batch := range got {
+		m.Add(batch.Points, batch.Cols, batch.Rows, batch.Color, t0)
+	}
+	frame := m.Overlay(livePointer(t, "operator screen"), t0)
+	if x, y := frame.Cells[40+3].Style.Bg, frame.Cells[40+13].Style.Bg; x == y || x != color.Color(markPalette[a].index) {
+		t.Fatalf("two viewers' marks drew %v and %v", x, y)
+	}
+	leaveA()
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		c, leaveC := join()
+		leaveC()
+		if c == 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("a freed color was not reassigned: got %d", c)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func TestClaimColorPrefersLeastHeld(t *testing.T) {
+	p := newPointerState()
+	for i := range PointerColors {
+		if c := p.claimColor(); c != i {
+			t.Fatalf("claim %d got color %d", i, c)
+		}
+	}
+	if c := p.claimColor(); c != 0 {
+		t.Fatalf("with every color held once, got %d, want 0", c)
+	}
+	p.releaseColor(3)
+	if c := p.claimColor(); c != 3 {
+		t.Fatalf("after releasing 3, got %d", c)
 	}
 }
