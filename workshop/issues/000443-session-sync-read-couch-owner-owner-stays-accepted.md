@@ -1,12 +1,20 @@
 ---
 id: 000443
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
-card_mirror: 'dfd26ab7c7fc229c5e24aa3d2a6e43fee1220b33' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '5dc4a666cc6318dffb656b105fb85a66c83b1f1a' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-11T10:12:09-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:5
+    worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
+    repository: github.com/xianxu/pair
 ---
 
 # session-sync: read couch-owner (owner stays accepted)
@@ -26,8 +34,9 @@ parley.nvim#316 renames the frontmatter key that names a document's Couch slot f
 
 ## Plan
 
-- [ ] `ParseOwner`: `couch-owner` with the `owner` fallback; tests for the Done-when rows; atlas couch.md.
+- [x] `ParseOwner`: `couch-owner` with the `owner` fallback; tests for the Done-when rows; atlas couch.md.
 
 ## Log
 
 ### 2026-10-11
+- `ParseOwner` tries `couch-owner` then `owner`; the line-wise frontmatter reader already handled hyphenated keys and non-YAML lines, so only a doc comment pinned that. Refusal texts now name `couch-owner:`. Tests: `TestParseOwnerPrefersCouchOwnerOverTheLegacyAlias` (unit, incl. owner-first ordering + process-instruction), `TestStatusReportsCouchOwnerOrTheLegacyOwner` (the `status` path). Mutation (couch-owner lookup disabled) fails both.

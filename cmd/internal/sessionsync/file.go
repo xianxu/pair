@@ -1,6 +1,6 @@
 // Package sessionsync is the one mutation path for a `type: session-sync`
 // file (pair#437): a turn-based markdown file shared by the operator and the
-// agent named in its `owner:` frontmatter (parley.nvim#313).
+// agent named in its `couch-owner:` frontmatter (parley.nvim#313, parley.nvim#316).
 //
 // The rules the agent used to keep from its prompt are gates here: a write
 // refuses while the operator holds the lock, replaces a section only if it
@@ -70,13 +70,23 @@ func Hash(s string) string {
 	return hex.EncodeToString(sum[:8])
 }
 
-// ParseOwner returns the frontmatter's `owner:` (the owning agent's Couch
-// slot), or "" when the file has no frontmatter or no owner.
-func ParseOwner(s string) string { return frontmatter(s, "owner") }
+// ParseOwner returns the frontmatter's `couch-owner:` (the owning agent's
+// Couch slot), or "" when the file has no frontmatter or no owner. A bare
+// `owner:` is a legacy alias (parley.nvim#316 renamed it, pair#443): read
+// only when `couch-owner:` is absent, until no session-sync file uses it.
+func ParseOwner(s string) string {
+	if v := frontmatter(s, "couch-owner"); v != "" {
+		return v
+	}
+	return frontmatter(s, "owner")
+}
 
 // IsSessionSync reports whether the frontmatter says `type: session-sync`.
 func IsSessionSync(s string) bool { return frontmatter(s, "type") == "session-sync" }
 
+// frontmatter reads key's value from the leading `---` block line by line,
+// not as YAML: a line like `process-instruction: [copy-edit] text` is not
+// valid YAML and must not stop the read.
 func frontmatter(s, key string) string {
 	lines := strings.Split(s, "\n")
 	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
