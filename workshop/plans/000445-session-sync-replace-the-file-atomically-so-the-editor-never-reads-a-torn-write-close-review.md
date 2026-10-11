@@ -69,3 +69,61 @@ findings:
     detail: |
       It was verified against a copy with the real nvim config. The close should cite the post-merge ops:0 report that covers the real-file clause.
 ```
+
+---
+
+## Re-review — 2026-10-11T11:36:00-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 445 — session-sync: replace the file atomically, so the editor never reads a torn write |
+| repo | pair |
+| issue file | workshop/issues/000445-session-sync-replace-the-file-atomically-so-the-editor-never-reads-a-torn-write.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | c9d79337b1b1d211f71304edd620829cc402782f..f2c8f0e18f3dba0fc18553fa8e1cfe789d306b55 |
+| command | sdlc close --issue 445 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-11T11:36:00-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+Ship it. The changes since the close review are small: one 2-line comment edit in `cmd/internal/sessionsync/ledger.go`, the generated gate ledger and close-review files, and close bookkeeping in the issue file (`status: codecomplete`, `actual_hours`, two `## Log` entries). `## Spec`, `## Revisions` and `## Done when` are untouched and no behavior was added, so scope did not change. There are no conflict resolutions to judge. The only code change is inside a comment, so the existing tests cover behavior the same as before.
+
+1. **Strengths**
+   - `cmd/internal/sessionsync/ledger.go:211-213` now says plainly what an atomic rename gives up (a hard link, a foreign owner, xattrs, ACLs) and why that's acceptable here: the file is one path owned by the operator. It accepts the cost instead of leaving it out.
+   - The close log (issue `## Log`) records both Minors and how each was disposed. Anyone tracing the close can see them.
+
+2. **Critical:** none.
+
+3. **Important:** none.
+
+4. **Minor:** none new. The old one about the mtime wording isn't in the ledger, so I haven't raised it again.
+
+5. **Test coverage:** the window changes no behavior, so no new regression evidence is needed. The torn-read test that the earlier review reverted and confirmed still stands.
+
+6. **Architecture (interdiff only)**
+   - **ARCH-DRY: pass.** Only a comment changed. No duplicated logic.
+   - **ARCH-PURE: pass.** No logic changed.
+   - **ARCH-PURPOSE: pass.** BR-1 asked for the whole class of metadata a rename loses to be covered, not just symlinks and mode. The comment now lists that class. The lesson at `workshop/lessons.md:1006-1007` tells you what to keep ("resolve symlinks and keep its mode"). It doesn't claim to be a complete list of losses, so it doesn't contradict the comment.
+
+7. **Plan revisions:** none.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      ledger.go:211-213 now names hard link, foreign owner, xattrs and ACLs and accepts them explicitly (one path owned by the operator); the finding allowed this option, and it is a prose-only fix.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The close Log records that the real-file live check runs after merge and is reported to ops:0; the report can't exist before merge, so recording the commitment is all that can be done pre-merge.
+```

@@ -46,6 +46,7 @@ TL writes. This is recorded in the report to ops:0, since it can only run after 
 ## Log
 
 ### 2026-10-11
+- 2026-10-11: closed — post-close delta is a comment-only change to replaceShared (ledger.go) naming the accepted rename losses (hard links, foreign owner, xattrs, ACLs) per close-review Minor; go build ./cmd/... ok, gofmt clean (fixed-then-ship); review verdict: SHIP
 - 2026-10-11: closed — make -k test exit 0 incl. go test ./... (scrubbed env, sandbox off); new replace_test.go: torn-read test fails 3/3 with os.WriteFile restored (reader saw 0 bytes), mode and symlink assertions each fail under their own mutation; live headless nvim+parley (operator config) on a copy of ops tl-status: 8 couch writes -> 8 silent reloads, buffer==disk, mode kept, no prompt/.clobbered; operator-lock race -> operator copy restored, agent copy in .clobbered; review verdict: SHIP
 
 - `os.WriteFile` truncates and then writes, so a reader can see 0 bytes. The comment "parley watches this file's inode"
