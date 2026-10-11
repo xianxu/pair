@@ -15,6 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "4b07914a", done: "dd4e623d"}
 ---
 
 # couch --prepare repo:N: one command brings an idle slot up for new work (resting branch, weave refresh, context reload)
