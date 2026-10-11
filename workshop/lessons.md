@@ -1028,4 +1028,5 @@ proof; record the surprising case so the next change starts from evidence.
 - **A test's hand-pinned env list rots when production gains a new env input (#450).** The launcher tests pinned
   `COUCH_THREAD_*` but not `COUCH_PAIR_DATA_DIR`, added later by #366, so raw `go test ./...` in a Couch shell
   failed. Clear an ambient input that changes every call's behaviour once per package, in `TestMain`, rather than
-  in each test.
+  in each test; a child process built from `os.Environ()` needs the same pin in its env builder, since `TestMain`
+  does not reach a package that only launches the binary.

@@ -11,6 +11,7 @@ local function scenario(config)
   local sf=root..'/pane.open'
   local metadata={version=1,endpoint='/private/socket',token='secret',session='session-a',context=context}
   if config.foreign then metadata.session='session-b' end
+  if config.unserved then metadata.endpoint=nil end
   if config.pane ~= false then
     vim.fn.writefile({tostring(vim.fn.getpid()),'/repo/old.md',config.legacy and '' or vim.json.encode(metadata)}, sf)
   else vim.fn.delete(sf) end
@@ -111,11 +112,15 @@ for _,mode in ipairs({'visibility_error','visibility_malformed'}) do
 end
 r=scenario({pane=false})
 assert(vim.deep_equal(r.effects,{'resolve','open','rpc','resolve','publish','show'}))
-for _, mode in ipairs({'foreign','legacy','timeout','blocked','drift','sessiondrift','panedrift','badack'}) do
+for _, mode in ipairs({'foreign','legacy','unserved','timeout','blocked','drift','sessiondrift','panedrift','badack'}) do
   r=scenario({[mode]=true})
   assert(not r.published and not vim.tbl_contains(r.effects,'show') and not vim.tbl_contains(r.effects,'open'),mode)
   assert(#r.notifications>0,mode..' must diagnose refusal')
 end
+-- pair#450: a pane whose host refused its restore socket says so, rather than
+-- asking for a reopen that would be refused the same way.
+r=scenario({unserved=true})
+assert(r.notifications[1]:find('restore socket',1,true),'unserved pane must name the missing socket: '..r.notifications[1])
 r=scenario({nonreview=true,target={status='ready',file='/stale.md'}})
 assert(vim.deep_equal(r.effects,{'resolve','prompt'}))
 r=scenario({missing=true,pane=false,target={status='ready',file='/repo/'..identity.file}})

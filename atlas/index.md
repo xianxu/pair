@@ -19,9 +19,10 @@
   with the cache off, so it covers every package. Inside a Couch shell it drops
   the session's environment-origin names first (pair#436); a raw `go test ./...`
   keeps them, so a test that reads one pins it. Its first step,
-  `tests/host-preflight.sh`, refuses a host that cannot bind a unix socket or
-  open a PTY (an agent sandbox), because the suite then fails in ~150 places
-  that look like code bugs (pair#450).
+  `tests/host-preflight.sh`, refuses a host that cannot bind a unix socket, open
+  a PTY or exec `ps` (an agent sandbox), because the suite then fails in ~150
+  places that look like code bugs (pair#450). A refusal it does not probe still
+  fails as an ordinary test; add the probe there.
 - `probes/` — committed probe drivers that exercise real binaries end to end.
   `make test-smoke` runs **every** directory under `probes/`, so a new probe is
   covered by existing it rather than by remembering to add a line. A probe earns

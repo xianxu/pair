@@ -54,3 +54,10 @@ On 10-11 four workers each reported the same failures on pair main as "pre-exist
 - Coverage decision: `make test` already ends in `go test ./... -count=1`, so it covers every package and is the single gate. No new target.
 - Follow-up (ariadne): the machine-wide full-suite lock (`Makefile.workflow`, #319) is taken at parse time, so the preflight runs only after the lock wait. A base-layer pre-lock hook would let a sandboxed run fail before queueing. Not built here (base layer).
 
+## Revisions
+
+### 2026-10-11 — close review round 1
+- Plan item 3 overstated the preflight ("cannot be mistaken"). The review sandbox also refuses exec of `ps` (`TestPublicPairCommandFamiliesIgnoreCouchStore`: `fork/exec /bin/ps: operation not permitted`), which socket+PTY probes missed. Delta: the preflight now probes socket, PTY and `exec ps`; it reports a missing python3 separately; the atlas and script header name the probed capabilities and say an unprobed refusal still fails as an ordinary test.
+- A pane published without an endpoint now gets its own message ("no restore socket … host refused it") instead of the generic "finish and close it before reopening", which a reopen on the same host could not satisfy.
+- Makefile comment notes that `make -k test` runs past the preflight; the lesson now covers the child-env pin as well as `TestMain`.
+
