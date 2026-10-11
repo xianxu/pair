@@ -321,3 +321,60 @@ findings:
     detail: |
       fitSlotFailure halves limit down to 1; once limit is about 6 or less, len(cause)-(limit-head-len(marker)) is past the end of the string. Only reachable if the rest of the record is over about 16 KiB. Guard with: if limit <= len(marker), return "".
 ```
+
+---
+
+## Re-review — 2026-10-11T10:56:04-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 442 — Slot creation: size each step's timeout to the step, and keep the failure |
+| repo | pair |
+| issue file | workshop/issues/000442-slot-creation-size-each-step-s-timeout-to-the-step-and-keep-the-failure.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 77822bc7d32039ac934a25f9c92c5bc05776955c..60314eb2eabfb8564ebc435c6196ddf0feceecf3 |
+| command | sdlc close --issue 442 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-11T10:56:04-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Both fixes hold up. Reverting each one turns its regression test red, and the couchcore package passes at the pinned head.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+This change only fixes the two Minor findings from the last round, BR-8 and BR-9. Both are done for the whole family, not just the cited line. `clearSlotFailure` now returns its errors (the lease error, the remove error, and an Lstat error other than "not exist"), and `Ensure` turns them into a `ProvisionResult.Warning`. That means both places that write the slot-failure record, `recordSlotFailure` and `clearSlotFailure`, now report failures, which is the rule the `best-effort-write-silently-dropped` family asked for. `boundCause` now returns `""` when `limit <= 2*len(marker)` (limit ≤ 10 bytes). At the smallest limit that passes the guard (11), head is 2 and the tail is 4, so the slice can no longer go out of range. The issue-file changes only record the status, the flow upgrade and Log entries. The Spec, Revisions and Done-when sections are unchanged, so this is not a scope change.
+
+1. **Strengths**
+   - `cmd/internal/couchcore/slotmemo.go:155-167` fixes the failure-reporting rule for both sites at once, not just the line the finding named.
+   - `TestBoundCauseIsTotal` checks every limit from 0 to 120 against a 100-byte cause, so it proves the function never fails for any limit. One fixed case wouldn't show that.
+   - `TestUnclearedFailureIsWarned` causes a real remove failure: it puts a directory where the record file should be, so no mock is involved.
+   - I checked both tests against the old code. With the old `slotmemo.go`, `TestBoundCauseIsTotal` panics. With the old `provision.go`, `TestUnclearedFailureIsWarned` fails with `warning ""`.
+
+2. **Critical findings:** none.
+3. **Important findings:** none.
+4. **Minor findings:** none new. The lease-acquire error path in `clearSlotFailure` has no test, but it goes through the same return-and-warn path that is tested.
+5. **Test coverage:** `go test ./internal/couchcore/ -run 'Slot|Provision|TestBoundCauseIsTotal|TestUnclearedFailureIsWarned'` passes at head (40.9s). Both new tests go red when their fix is reverted.
+6. **Architecture:**
+   - **ARCH-DRY: pass.** There is no duplicated logic; the warning is added through the existing `warnings` slice.
+   - **ARCH-PURE: pass.** `boundCause` stays pure and is tested without IO. The IO error is passed up to the caller, which only formats it.
+   - **ARCH-PURPOSE: pass.** Both sites in the family are fixed, so none are left over.
+7. **Plan revisions:** none needed.
+
+```findings
+dispose:
+  - id: BR-8
+    disposition: addressed
+    note: |
+      clearSlotFailure returns lease/remove/stat errors; Ensure warns (provision.go:141-143); TestUnclearedFailureIsWarned red without fix.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Guard limit <= 2*len(marker) returns ""; min passing limit 11 slices safely; TestBoundCauseIsTotal panics without fix.
+```

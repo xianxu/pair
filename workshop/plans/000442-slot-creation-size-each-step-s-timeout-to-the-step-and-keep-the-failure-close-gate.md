@@ -116,6 +116,23 @@ rounds:
       isolation: fenced
       reviewed: 06f754f4e34ff179fbc369e19ea9cafb42327738
       blocked: false
+    - "n": 4
+      timestamp: "2026-10-11T10:56:04-07:00"
+      dispatched: "2026-10-11T10:54:28-07:00"
+      agent: claude
+      dispose:
+        - id: BR-8
+          disposition: addressed
+          note: clearSlotFailure returns lease/remove/stat errors; Ensure warns (provision.go:141-143); TestUnclearedFailureIsWarned red without fix.
+          round: 4
+        - id: BR-9
+          disposition: addressed
+          note: Guard limit <= 2*len(marker) returns ""; min passing limit 11 slices safely; TestBoundCauseIsTotal panics without fix.
+          round: 4
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 60314eb2eabfb8564ebc435c6196ddf0feceecf3
+      blocked: false
 ---
 
 # Gate ledger — pair#442 (boundary-review)
@@ -167,7 +184,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-9** [Minor] `bound-helper-total-over-input` boundCause panics with a slice index out of range when limit is smaller than head plus the elision marker
   fitSlotFailure halves limit down to 1; once limit is about 6 or less, len(cause)-(limit-head-len(marker)) is past the end of the string. Only reachable if the rest of the record is over about 16 KiB. Guard with: if limit <= len(marker), return "".
 
+## Round 4 — 2026-10-11T10:56:04-07:00 (claude) — passed
+
+### Disposed
+
+- BR-8 — addressed — clearSlotFailure returns lease/remove/stat errors; Ensure warns (provision.go:141-143); TestUnclearedFailureIsWarned red without fix.
+- BR-9 — addressed — Guard limit <= 2*len(marker) returns ""; min passing limit 11 slices safely; TestBoundCauseIsTotal panics without fix.
+
 ## Open findings
 
-- **BR-8** [Minor] `best-effort-write-silently-dropped` clearSlotFailure ignores lease and remove errors, so --show can keep showing an old failure after the slot converged
-- **BR-9** [Minor] `bound-helper-total-over-input` boundCause panics with a slice index out of range when limit is smaller than head plus the elision marker
+(none — every finding has been disposed)
