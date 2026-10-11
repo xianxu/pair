@@ -131,3 +131,13 @@ test('end clears pointing and notes whatever order the stream sent them in (#447
   assert.equal(got.caps.at(-1).pointer, false);
   assert.deepEqual(got.notes.at(-1), { guard: 0, notes: [] });
 });
+
+test('a view page, which never hears caps, gets none at its end', () => {
+  const h = harness();
+  const got = { caps: [], notes: [] };
+  connect({ ...h.deps, caps: (c) => got.caps.push(c), notes: (n) => got.notes.push(n) });
+  h.es().emit('notes', { guard: 12, notes: [{ id: 1 }] });
+  h.es().emit('end', { reason: 'x' });
+  assert.equal(got.caps.length, 0, 'no made-up caps on a view page');
+  assert.deepEqual(got.notes.at(-1), { guard: 0, notes: [] });
+});

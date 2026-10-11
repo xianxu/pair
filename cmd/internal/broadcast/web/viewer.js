@@ -176,6 +176,9 @@ function endText(data) {
 export function connect(deps) {
   let attempt = 0;
   let ended = false;
+  // A pointer page hears caps; a view page never does. The end puts each
+  // back to its own join state.
+  let sawCaps = false;
   const open = () => {
     const events = deps.open();
     events.addEventListener('frame', (ev) => {
@@ -188,6 +191,7 @@ export function connect(deps) {
       deps.theme(JSON.parse(ev.data));
     });
     events.addEventListener('caps', (ev) => {
+      sawCaps = true;
       if (deps.caps) {
         deps.caps(JSON.parse(ev.data));
       }
@@ -201,11 +205,15 @@ export function connect(deps) {
       ended = true;
       events.close();
       deps.reset();
-      // Everything the stream gave a page goes with it: pointing off (which
-      // closes a dialog and hides the rail) and no notes to tap (#447). The
-      // server sends end, caps and notes in no fixed order, so the end can't
-      // rely on a last caps or notes event.
-      deps.caps?.({ pointer: false });
+      // Everything the stream gave a page goes back to the page's join
+      // state (#447): no notes to tap, and on a pointer page pointing off
+      // (which closes a dialog and hides the rail). The server sends end,
+      // caps and notes in no fixed order, so the end can't rely on a last
+      // caps or notes event, and it never replays an event this page
+      // variant doesn't receive.
+      if (sawCaps) {
+        deps.caps?.({ pointer: false });
+      }
       deps.notes?.({ guard: 0, notes: [] });
       deps.setStale(false);
       deps.show(endText(ev.data));
