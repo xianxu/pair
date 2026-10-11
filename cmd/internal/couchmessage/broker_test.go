@@ -18,6 +18,9 @@ type FakeDeliveryEndpoint struct {
 	reserved    string
 	delivered   chan Message
 	outcomes    chan Receipt
+	// interim receipts are handed to Deliver's progress, as the wrapper's
+	// status poll would (pair#435).
+	interim chan Receipt
 	// retained models the wrapper's memory of past deliveries; silent makes
 	// it never answer a status query.
 	retained RecentDeliveries
@@ -40,7 +43,7 @@ func (f *FakeDeliveryEndpoint) Retained(ctx context.Context, id string) (Receipt
 }
 
 func newFakeEndpoint(at time.Time) *FakeDeliveryEndpoint {
-	return &FakeDeliveryEndpoint{observation: Observation{LastActivity: at, Sequence: 1}, delivered: make(chan Message, 1), outcomes: make(chan Receipt, 1)}
+	return &FakeDeliveryEndpoint{observation: Observation{LastActivity: at, Sequence: 1}, delivered: make(chan Message, 1), outcomes: make(chan Receipt, 1), interim: make(chan Receipt, 1)}
 }
 func (f *FakeDeliveryEndpoint) Observe(context.Context) (Observation, error) {
 	f.mu.Lock()
@@ -67,17 +70,21 @@ func (f *FakeDeliveryEndpoint) Release(_ context.Context, id string) error {
 	}
 	return nil
 }
-func (f *FakeDeliveryEndpoint) Deliver(ctx context.Context, m Message) (Receipt, error) {
+func (f *FakeDeliveryEndpoint) Deliver(ctx context.Context, m Message, progress func(Receipt)) (Receipt, error) {
 	select {
 	case f.delivered <- m:
 	case <-ctx.Done():
 		return Receipt{}, ctx.Err()
 	}
-	select {
-	case r := <-f.outcomes:
-		return r, nil
-	case <-ctx.Done():
-		return Receipt{}, ctx.Err()
+	for {
+		select {
+		case r := <-f.interim:
+			progress(r)
+		case r := <-f.outcomes:
+			return r, nil
+		case <-ctx.Done():
+			return Receipt{}, ctx.Err()
+		}
 	}
 }
 func brokerBinding(slot string) Binding {
@@ -121,6 +128,39 @@ func TestBrokerAdmissionIsImmediateAndMailboxIsBounded(t *testing.T) {
 	if _, err = b.Status(brokerBinding("other:0"), r.Message.ID); err == nil {
 		t.Fatal("unregistered status caller accepted")
 	}
+}
+
+// pair#435: a sender polling its receipt sees the recipient's hold.
+func TestBrokerStatusShowsRecipientHold(t *testing.T) {
+	now := time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC)
+	b := NewBroker(context.Background(), func() time.Time { return now }, func(context.Context, Binding) (bool, error) { return true, nil })
+	defer b.Close()
+	a, z := brokerBinding("brain:0"), brokerBinding("pair:1")
+	fa, fz := newFakeEndpoint(now.Add(-time.Minute)), newFakeEndpoint(now.Add(-time.Minute))
+	if err := b.Register(a, fa); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Register(z, fz); err != nil {
+		t.Fatal(err)
+	}
+	r, err := b.Send(context.Background(), a, "id-held", Route{Target: "pair:1"}, "hello")
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-fz.delivered
+	fz.interim <- Receipt{Message: r.Message, Status: Held, Detail: "waiting for the composer to be in view"}
+	deadline := time.Now().Add(time.Second)
+	for {
+		got, err := b.Status(a, "id-held")
+		if err == nil && got.Status == Held && got.Detail == "waiting for the composer to be in view" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("status never showed the hold: %+v %v", got, err)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	fz.outcomes <- Receipt{Status: Submitted}
 }
 
 func TestBrokerFamilyObservationInvalidatedByOperatorInput(t *testing.T) {

@@ -165,7 +165,7 @@ func (serviceEndpointFake) Observe(ctx context.Context) (couchmessage.Observatio
 }
 func (serviceEndpointFake) Reserve(ctx context.Context, _ string, _ uint64) error { return ctx.Err() }
 func (serviceEndpointFake) Release(context.Context, string) error                 { return nil }
-func (serviceEndpointFake) Deliver(ctx context.Context, _ couchmessage.Message) (couchmessage.Receipt, error) {
+func (serviceEndpointFake) Deliver(ctx context.Context, _ couchmessage.Message, _ func(couchmessage.Receipt)) (couchmessage.Receipt, error) {
 	return couchmessage.Receipt{Status: couchmessage.Submitted}, ctx.Err()
 }
 
@@ -443,7 +443,7 @@ func TestMessageEndpointUseTimeCheckIsCheapAndRefusesMovedOn(t *testing.T) {
 		if err := endpoint.Reserve(context.Background(), "id", 1); err == nil {
 			t.Fatalf("%s: reserved a moved-on wrapper", name)
 		}
-		if receipt, err := endpoint.Deliver(context.Background(), couchmessage.Message{ID: "id"}); err != nil || receipt.Status != couchmessage.Cancelled {
+		if receipt, err := endpoint.Deliver(context.Background(), couchmessage.Message{ID: "id"}, nil); err != nil || receipt.Status != couchmessage.Cancelled {
 			t.Fatalf("%s: delivery %+v %v", name, receipt, err)
 		}
 		r.world.set(b, func(s *worldSlot) { s.pidFile, s.recorded, s.live = b.PID, true, true })
