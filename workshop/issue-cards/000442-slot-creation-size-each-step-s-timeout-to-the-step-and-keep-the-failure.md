@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000442-slot-creation-size-each-step-s-timeout-to-the-step-and-keep-the-failure.md
         source_blob: 33427f8d8e91d7a70074d1ab9a74a9bea5b5f4c6
         destination: workshop/issues/000442-slot-creation-size-each-step-s-timeout-to-the-step-and-keep-the-failure.md
+        main_commit: 98cc5f83cf8a7049adb56a9bdf103b7a8541c860
 ---
 
 # Slot creation: size each step's timeout to the step, and keep the failure
