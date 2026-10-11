@@ -995,3 +995,7 @@ proof; record the surprising case so the next change starts from evidence.
   bugfix, so close ran with `--no-atlas`, but `atlas/couch.md` enumerates exactly what the ledger skips, and the
   prose went stale. Before passing `--no-atlas`, grep the atlas for the function or rule you changed; if it lists
   the cases, add yours.
+- **An unlocked check before a lock can read a torn file (#444, qualifies #439).** The #439 pre-flock validation read
+  the file without the lock while another writer rewrote it in place, so the loser refused a valid file instead of
+  reporting `stale`. A check done outside the lock may only gate side effects such as creating sidecars. Skip it
+  when the sidecar already exists, and when it fails, let the read under the lock decide.

@@ -167,6 +167,50 @@ func TestAWriteChecksItsHashUnderTheFlock(t *testing.T) {
 	wantRefusal(t, <-done, ExitStale, "stale")
 }
 
+// A write that meets another writer's torn file (truncated mid-rewrite)
+// waits for its flock and judges what it wrote, rather than refusing the
+// file as not session-sync (pair#444).
+func TestAWriteJudgesATornFileUnderTheFlock(t *testing.T) {
+	r := newRig(t)
+	h := r.hash("Trains")
+	fl, err := os.OpenFile(r.p.Flock, os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := syscall.Flock(int(fl.Fd()), syscall.LOCK_EX); err != nil {
+		t.Fatal(err)
+	}
+	r.put(r.p.File, "")
+	done := make(chan error, 1)
+	go func() {
+		_, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Trains", Body: "late", IfHash: h})
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		t.Fatalf("the write judged the torn file without waiting for the flock: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+	r.put(r.p.File, strings.Replace(statusDoc, "trains", "first", 1))
+	fl.Close()
+	wantRefusal(t, <-done, ExitStale, "stale")
+}
+
+// A first writer can create the flock file and tear the file between
+// another command's flock-file probe and its unlocked check; the failed
+// check then defers to the lock instead of refusing (pair#444).
+func TestAFailedCheckDefersToAFlockCreatedMeanwhile(t *testing.T) {
+	r := newRig(t)
+	fl, err := openFlock(r.p.File, func() error {
+		r.put(r.p.Flock, "")
+		return refuse("torn")
+	})
+	if err != nil {
+		t.Fatalf("a check that failed after another writer created the flock file must defer to the lock: %v", err)
+	}
+	fl.Close()
+}
+
 func TestADeliveryStaysOwedUntilAWriteFoldsIt(t *testing.T) {
 	r := newRig(t)
 	r.deliver("d1", "pair#437 done")
