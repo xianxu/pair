@@ -1,6 +1,6 @@
 ---
 id: 000434
-status: codecomplete
+status: done
 created: 2026-10-10
 updated: 2026-10-11
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 4686716e8ea06f41ddcad409b99075e6ec5398be
         evidence_commit: 64f1ff28770f6582906122981b2c95f668817e40
+        landed_commit: 5fb1559aad67600558119d35bfada4b50f26f8f1
 ---
 
 # couch --prepare repo:N: one command brings an idle slot up for new work (resting branch, weave refresh, context reload)
