@@ -1,6 +1,6 @@
 ---
 id: 000428
-status: working
+status: codecomplete
 created: 2026-10-10
 updated: 2026-10-10
 estimate_hours:
@@ -13,6 +13,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+actual_hours: 0.93
 tracker:
     version: 1
     handoff:
@@ -25,6 +26,11 @@ tracker:
         source_blob: ac001eabc6f62ee0bc262e1e6cd58a3b9c3e8637
         destination: workshop/issues/000428-peer-delivery-only-real-keystrokes-interrupt-a-delivery-mouse-and-terminal-reports-don-t.md
         main_commit: 16ba04be3719382e6ccb51985ab2e58775b50689
+    completion:
+        token: close-b4ac885029e3
+        repository: github.com/xianxu/pair
+        reviewed_head: 6beabf6c64e7a709616082178e224af0b65d073c
+        evidence_commit: 0558e592776a9f635322b616cc28fb71c6420e48
 ---
 
 # peer delivery: only real keystrokes interrupt a delivery; mouse and terminal reports don't
