@@ -1,12 +1,21 @@
 ---
 id: 000444
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
-card_mirror: 'b923ebd93545651dc72a808b60b908c22a75fee0' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f6834c13809ff05e29669482b913d4af63bff2b2' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-11T10:58:27-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:5
+    worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "fb8f300a", done: "bfdd3abf"}
 ---
 
 # session-sync: a concurrent writer sometimes fails with a generic error instead of stale
@@ -26,8 +35,11 @@ Find the non-Refusal error the loser hits under contention (suspects: creating t
 
 ## Plan
 
-- [ ] Reproduce with `-count=200`, capture the loser's error; fix the path; prove with the repeated run.
+- [x] Reproduce with `-count=200`, capture the loser's error; fix the path; prove with the repeated run.
 
 ## Log
 
 ### 2026-10-11
+- Cause (measured, `-count=200` with the race helper now printing its error): the loser got `*Refusal` "tl.md is not a session-sync file". `locked` validated the file with an **unlocked** `load` before taking the flock (so a wrong path leaves no flock file), but the winner rewrites the file in place (`os.WriteFile` truncates, then writes) for parley's inode watch, so the loser's unlocked read could catch it torn. `ExitRefused` is 1, the same exit as the helper's generic-error branch, which is why it looked like a "non-Refusal" error.
+- Fix: `openFlock` (sync.go). When the flock file already exists, skip the unlocked check: only the read under the lock judges the file, and nothing would be left behind. Otherwise validate, then create it. If that validation fails, open the flock file again without O_CREATE: a writer that created it meanwhile may be mid-write, so the lock judges. This is sound because a torn read implies a writer holding the flock file, and the flock file is never removed. No sleeps.
+- Tests: `TestAWriteJudgesATornFileUnderTheFlock` (holds the flock over a truncated file; it fails on the old code); the race helper prints each writer's error on failure. `-count=200` race: 200/200 pass (it failed within 200 before the fix).
