@@ -298,7 +298,7 @@ func (s *Sync) Status(path string) (Status, error) {
 	})
 }
 
-// DiffText is the operator's edits since the agent's last write. It is
+// DiffText is the operator's edits the agent hasn't seen. It is
 // information, not a gate: a write checks only its own section's hash.
 func (s *Sync) DiffText(path string) (Holder, string, error) {
 	var holder Holder
@@ -347,9 +347,9 @@ func (f *file) shadowAfter(section, body, next string, now time.Time) string {
 	return Restamp(shadow, now)
 }
 
-// saveShadow records that the agent has seen content whole. The first
-// shadow would move a sidecar-less file's horizon (the shadow's mtime), so
-// the horizon is pinned in the sidecar first.
+// saveShadow is the one writer of the shadow. Rewriting it would move a
+// sidecar-less file's horizon (the shadow's mtime), so the horizon is pinned
+// in the sidecar first.
 func (f *file) saveShadow(content string) error {
 	if _, err := os.Stat(f.paths.State); errors.Is(err, os.ErrNotExist) {
 		if err := saveState(f.paths, f.state); err != nil {
@@ -398,7 +398,7 @@ func (s *Sync) write(f *file, req WriteRequest) (Result, error) {
 	if err := replaceShared(req.File, []byte(next)); err != nil {
 		return Result{}, err
 	}
-	if err := writeAtomic(f.paths.Shadow, []byte(f.shadowAfter(req.Section, req.Body, next, now))); err != nil {
+	if err := f.saveShadow(f.shadowAfter(req.Section, req.Body, next, now)); err != nil {
 		return Result{}, err
 	}
 	f.state.LastWrite = &now

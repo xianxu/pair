@@ -261,10 +261,10 @@ back naming the hash you read. You hold no lock and have nothing to release.
 | Verb | Does |
 |------|------|
 | `read --section HEADING FILE [--json]` | Prints `hash: H`, then that `## HEADING` section's body |
-| `read --all FILE [--json]` | The whole file and its hash |
+| `read --all FILE [--json]` | The whole file and its hash; you have now seen every edit, so `diff` goes empty |
 | `write --section HEADING BODYFILE FILE --if-hash H` | Replaces that section if it still has hash H (whole heading lines only) and prints the new hash |
 | `write --all BODYFILE FILE --if-hash H` | Replaces the whole file (keep the frontmatter) if it still has hash H |
-| `diff FILE` | The operator's edits since your last write (information, not a gate) |
+| `diff FILE` | The operator's edits you haven't seen: anything outside what you last wrote or read with `--all` (information, not a gate) |
 | `status [--json] FILE` | The lock, your last write, and the events you still owe the file |
 
 - **Refusals:** exit 3 = the operator holds the lock: queue the update until
@@ -281,6 +281,10 @@ back naming the hash you read. You hold no lock and have nothing to release.
 - Your write restamps the file's first `Updated` line; if that line sits in
   a section, that section's hash changes too, and a held hash for it goes
   `stale`: read again.
+- **Unseen edits:** a section write takes in only its own section, so the
+  operator's edits elsewhere (a `🤖[…]` marker under another heading) stay in
+  `diff`. Run `diff` after a submit and answer what it shows; `read --all`
+  marks everything seen.
 - `status` refuses with `not-recording` when Couch predates the ledger, and
   with `delivery-gap` when Couch failed to record a delivery to your slot: owed
   events are then unknown, not zero. Check your recent messages, then pass

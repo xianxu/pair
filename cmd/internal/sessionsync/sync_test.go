@@ -181,6 +181,17 @@ func TestReadAllWithoutASidecarKeepsTheHorizon(t *testing.T) {
 	}
 }
 
+func TestASectionWriteWithoutAShadowStoresTheWholeFile(t *testing.T) {
+	r := newRig(t)
+	os.Remove(r.p.Shadow)
+	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Trains", Body: "new trains", IfHash: r.hash("Trains")}); err != nil {
+		t.Fatal(err)
+	}
+	if d := r.diffText(); d != "" || r.read(r.p.Shadow) != r.read(r.p.File) {
+		t.Fatalf("diff %q", d)
+	}
+}
+
 func TestASectionTheShadowLacksLeavesTheShadowAlone(t *testing.T) {
 	r := newRig(t)
 	added := strings.Replace(statusDoc, "## Trains", "## Asks\n\nfrom the operator\n\n## Trains", 1)
