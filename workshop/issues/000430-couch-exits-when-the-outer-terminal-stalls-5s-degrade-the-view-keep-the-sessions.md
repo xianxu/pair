@@ -15,6 +15,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "c96f59ae", done: "74201a5d"}
 ---
 
 # couch exits when the outer terminal stalls 5s: degrade the view, keep the sessions
