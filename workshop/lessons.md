@@ -1077,3 +1077,8 @@ proof; record the surprising case so the next change starts from evidence.
   last frame it drew, so under the switcher (a private frame, where it isn't drawn) it still took clicks and copied
   a note nobody could see. Record a hit-test layout only from the frame actually shown and clear it on every frame
   that doesn't show the thing; test it by covering the thing and clicking where it was.
+- **Test the wiring, not the state field (#447 M4 review).** `TestNotesMenuOpenHoverCopy` asserted `pnotes.hover`
+  was set, so dropping the hover from the drawing style left every test green. For each behavior a Done-when
+  claims, assert its visible effect through the console (the drawn cells), with a control that differs only by the
+  input, and mutation-check by deleting the wiring line. When the visible path can't show a difference (the
+  presenter dropping a stray drag), assert the routing decision directly and say why.

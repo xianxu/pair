@@ -246,6 +246,12 @@ func (c *Console) routeNotesMenu(raw []byte) bool {
 		return false
 	}
 	motion := hit.Button&32 != 0
+	// A gesture that starts in the menu is the menu's until its release:
+	// drag motion after a press there never reaches anything else.
+	if motion && pressed {
+		c.pnotes.mu.Unlock()
+		return true
+	}
 	if !menu.Contains(x, y) {
 		changed := motion && c.pnotes.hover != 0
 		if changed {

@@ -424,3 +424,93 @@ func TestNotesMenuDrawnOverMarks(t *testing.T) {
 		t.Fatal("a mark was drawn over the notes menu")
 	}
 }
+
+// offBeat waits until the shared flash beat isn't showing, so a full glow can
+// only come from the hover.
+func offBeat() {
+	every := int64(broadcast.NoteFlashEvery)
+	quiet := int64(broadcast.NoteFlashHold + broadcast.NoteFlashFade + 200*time.Millisecond)
+	if phase := time.Now().UnixNano() % every; phase < quiet {
+		time.Sleep(time.Duration(quiet - phase))
+	}
+	if phase := time.Now().UnixNano() % every; phase > every-int64(time.Second) {
+		time.Sleep(time.Duration(every-phase) + time.Duration(quiet))
+	}
+}
+
+// Hovering a menu item, by mouse motion through the console, highlights its
+// rows and holds its 💭 at full glow; without the hover the same note rests
+// (M4 review: the wiring, not just the state, is tested).
+func TestNotesMenuHoverGlowsItsNote(t *testing.T) {
+	f, s, _ := pointerOnFixture(t, nil)
+	old := time.Now().Add(-time.Hour) // long past its arrival flash
+	_ = f.con.runTerminalCommand(f.con.lifetime, func() error {
+		f.con.applyNotes(s, []broadcast.Note{{ID: 1, Col: 10, Row: 5, Color: 1, Text: "x", At: old}}, 99)
+		return nil
+	})
+	var span ColumnSpan
+	waitFor(t, "💭1 drawn", func() bool { span = f.notesSpan(); return span != (ColumnSpan{}) })
+	f.clickStatus(span.Start + 1)
+	var m NotesMenu
+	waitFor(t, "menu drawn", func() bool { _, mm, _ := f.notesMenu(); m = mm; return m.Open() })
+	f.mouse(35, m.X+8, m.items[0].Top, false)
+	waitFor(t, "hovered", func() bool { _, _, h := f.notesMenu(); return h == 1 })
+
+	frame := menuFrame(t, 80, 24)
+	f.con.pnotes.mu.Lock()
+	style := f.con.pnotes.style
+	f.con.pnotes.mu.Unlock()
+	full := broadcast.NoteChipColor(1, style)
+	offBeat()
+	hovered := f.con.screenOverlay(frame, terminal.FramePublic)
+	if bg := hovered.Cells[5*80+9].Style.Bg; bg != full {
+		t.Fatalf("hovered note's glow %v, want the full color %v", bg, full)
+	}
+	if bg := hovered.Cells[m.items[0].Top*80+m.X+6].Style.Bg; bg != notesMenuHover {
+		t.Fatalf("hovered item row %v, want the hover background", bg)
+	}
+	// Control: the same note, unhovered, at the same moment of the beat rests.
+	f.mouse(35, 2, 2, false)
+	waitFor(t, "hover cleared", func() bool { _, _, h := f.notesMenu(); return h == 0 })
+	offBeat()
+	resting := f.con.screenOverlay(frame, terminal.FramePublic)
+	if bg := resting.Cells[5*80+9].Style.Bg; bg == full {
+		t.Fatal("an unhovered note glowed at full color off the beat")
+	}
+}
+
+// A press in the menu owns the gesture until its release: drag motion out of
+// the box is the menu's (M4 review). The presenter happens to drop motion
+// from a press it never saw, so the child can't show the difference; the
+// routing decision is what is asserted.
+func TestNotesMenuDragStaysTheMenus(t *testing.T) {
+	f, _, link := pointerOnFixture(t, nil)
+	openMenuWith(t, f, link, 10)
+	_, m, _ := f.notesMenu()
+	took := func(button, x, y int, release bool) (got bool) {
+		end := "M"
+		if release {
+			end = "m"
+		}
+		_ = f.con.runTerminalCommand(f.con.lifetime, func() error {
+			got = f.con.routeNotesMenu([]byte(fmt.Sprintf("\x1b[<%d;%d;%d%s", button, x+1, y+1, end)))
+			return nil
+		})
+		return got
+	}
+	if took(32, 3, 3, false) {
+		t.Fatal("motion outside the menu, with no press in it, is not the menu's")
+	}
+	if !took(0, m.X+8, m.items[0].Top, false) {
+		t.Fatal("a press in the menu is the menu's")
+	}
+	if !took(32, 3, 3, false) {
+		t.Fatal("drag motion after a press in the menu is the menu's")
+	}
+	if !took(0, 3, 3, true) {
+		t.Fatal("the press's release is the menu's")
+	}
+	if took(32, 3, 3, false) {
+		t.Fatal("after the release, motion outside goes on")
+	}
+}

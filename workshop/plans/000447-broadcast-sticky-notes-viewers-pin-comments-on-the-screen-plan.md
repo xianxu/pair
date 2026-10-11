@@ -332,7 +332,7 @@ The operator's smoke: a 💭 is easy to miss on a full screen. Each 💭 gets it
 | `RenderedStatusRow.Notes` | `cmd/internal/couchtty/reserve.go` | modified (span of `💭N`) |
 | console notes menu state and routing | `cmd/internal/couchtty/console_notes.go`, `terminal_input.go` | modified |
 
-- **RenderNotesMenu(notes, cols, rows) NotesMenu** is pure; `NotesMenu.Draw(f, hover, style)` draws it. It returns the box's cells and placement, plus each item's row span and note ID.
+- **RenderNotesMenu(notes, cols, rows) NotesMenu** is pure; `NotesMenu.Draw(f, hover, style)` draws it. It returns the box's placement, its lines, and each item's row span and note ID; `Draw` renders the lines onto a frame.
   - **Placement:** the box sits bottom-right, directly above the status row. Its width is `min(48, cols − 2)`. Its height fits as many items as there is room for, up to `rows − 3`, with a final "+k more" line when they don't all fit.
   - **Header:** `Notes` on the left and a close mark `×` on the right.
   - **Items:** each item is a two-cell chip in the author's color (background), then the text, wrapped to the box width. An item shows at most 3 lines, the last ending in `…` if cut; a copy still takes the full text.
@@ -356,7 +356,7 @@ The operator's smoke: a 💭 is easy to miss on a full screen. Each 💭 gets it
   - Placement at 80×24 and at 40×10.
   - Wrapping, and the 3-line cap with `…`.
   - "+k more" when items overflow.
-  - Hover in reverse video.
+  - Hover on the lighter `notesMenuHover` background.
   - A chip in each author's color.
   - Text with an escape character drawn literally, never as a control.
   - `ItemAt(x, y)` and `CloseAt(x, y)` hit-tests.
@@ -381,6 +381,8 @@ The operator's smoke: a 💭 is easy to miss on a full screen. Each 💭 gets it
 - [ ] `sdlc move :0`, `make build`, then the operator's full Done-when walk; then `sdlc close`.
 
 ## Revisions
+
+- 2026-10-11 — M4 review round 2: a console-level hover test (glow at full color and row highlight, against an unhovered control off the beat; mutation-checked); a gesture that starts in the menu is the menu's until its release; Task 16 wording matches the code.
 
 - 2026-10-11 — M4 review (REWORK): the menu's hit-test layout is the layout on the frame now on screen and is cleared on any frame that doesn't show it (a private panel); the menu is its own overlay step after the marks; hover lives in `pnotes.hover`, apart from the wholesale-replaced style; one table-driven lifecycle test (resolve-last, pointer-off, broadcast end); Core concepts match the code.
 
