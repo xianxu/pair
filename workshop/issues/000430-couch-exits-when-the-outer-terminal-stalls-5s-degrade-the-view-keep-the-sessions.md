@@ -96,8 +96,14 @@ parent write blocked well past `WriteTimeout`, then the terminal drains.
   - The end state matches a fresh presentation of the final frame. The test
     replays both byte streams through Pair's emulator; the xterm oracle isn't
     installed in this checkout.
+  - Effects emitted during the stall are still handled and delivered, so
+    attention marks survive; only their bytes are dropped.
+  - A one-shot write (copy) right after the drain does not end the stall
+    without the full repaint.
 - The same holds over a real PTY host that stops reading past `WriteTimeout`
   and then drains.
+- A stall is counted (`Presenter.Stalls()`). A Couch-visible notice is out of
+  scope (see Revisions).
 - A test where the parent writer returns EIO or EPIPE still ends Couch with a
   recorded exit reason (the #409 path).
 - Live (TL rollout): Couch survives load and background stalls that used to
