@@ -929,6 +929,19 @@ proof; record the surprising case so the next change starts from evidence.
   as a first run. Run the failing command under `HOME=$(mktemp -d)` early, and
   have the job dump the tool's own log on failure.
 
+- **A refusal's remedy must be reachable from the verb that refused (#437 BR-1).**
+  `release` refused unread edits with "pass --accept-edits", a flag only
+  `write` took. When several verbs share a guard, share the acknowledgement
+  type too (one `Accepts` struct), and test each verb's refusal by following
+  its own instruction.
+- **Validate an address with the owner's grammar, never a regex copy (#437 BR-2).**
+  A narrower slot regex turned one valid-but-unusual family into a store-wide
+  outage. Call the parser that defines the address (`ParseWorkspaceReference`)
+  and escape it into filenames rather than restricting it.
+- **Degraded state clears only by repair, and a restart is not a repair (#437 BR-3).**
+  A lost ledger row stays lost across restarts, so a restart-cleared failure flag
+  turns "incomplete" back into "complete". Scope the record to what it taints
+  (the slot), persist it, and clear it by explicit acknowledgement or expiry.
 - **A paused clock resumes only on evidence that can judge the pause (#435).**
   The first version of the operator hold closed on every dispatch that did
   not see the hold, including the input-settle wait that typing the draft
@@ -937,6 +950,13 @@ proof; record the surprising case so the next change starts from evidence.
   composer reading) change it; transient waits leave it as is. Test the side
   path (keystrokes during the hold) that reaches the state machine first.
 
+- **A rule proven in the pure model is not proven on the request path (#433 BR-1).** The self-addressed refill
+  passed its model test, but nothing showed the broker would route a send to the sender's own slot, reserve on
+  its own endpoint and admit it. When a model rule depends on an input only one caller path produces, add one
+  test through that path (here `Broker.Send` from a binding to itself), and mutation-check it.
+- **Glue that reads process state gets a seam (#433 BR-2).** The hub came from `os.Getwd` + tree resolution
+  inline in `startMessageService`, so no test ran it. Extract a function taking the readers
+  (`hubWorktree(getwd, resolve)`) and test it in a checkout, in a subdirectory, and outside any checkout.
 - **A re-check before an effect uses the gate's own predicate (#434).** The
   prepare recheck read `git status --untracked-files=no`, while the reload's
   admission (`ProbeSlotGit`) counts untracked files as dirty. A refresh that

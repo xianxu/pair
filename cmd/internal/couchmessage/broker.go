@@ -135,6 +135,12 @@ func (b *Broker) apply(a *SlotActor, e Event) error {
 	return nil
 }
 func (b *Broker) Register(binding Binding, endpoint DeliveryEndpoint) error {
+	return b.RegisterWithAllowance(binding, endpoint, InboundAllowance)
+}
+
+// RegisterWithAllowance sizes a new incarnation's bucket; a reconnecting one
+// keeps its own (#433).
+func (b *Broker) RegisterWithAllowance(binding Binding, endpoint DeliveryEndpoint, allowance int) error {
 	if err := binding.Validate(); err != nil {
 		return err
 	}
@@ -167,7 +173,7 @@ func (b *Broker) Register(binding Binding, endpoint DeliveryEndpoint) error {
 	if old != nil {
 		state = old.state
 	}
-	next, _, err := Advance(state, Event{Kind: Register, Binding: binding, At: b.now()})
+	next, _, err := Advance(state, Event{Kind: Register, Binding: binding, Allowance: allowance, At: b.now()})
 	if err != nil {
 		return err
 	}
@@ -327,13 +333,13 @@ func (b *Broker) Status(caller Binding, id string) (Receipt, error) {
 	}
 	return r, nil
 }
-func actorCandidate(a *SlotActor) Candidate {
+func actorCandidate(a *SlotActor, now time.Time) Candidate {
 	_, pending := a.state.Pending()
-	return Candidate{Binding: a.state.Binding(), LastActivity: a.state.LastActivity(), Pending: pending || a.reservation != "" || len(a.inbox) != 0, Remaining: a.state.Remaining(), Supported: a.endpoint != nil}
+	return Candidate{Binding: a.state.Binding(), LastActivity: a.state.LastActivity(), Pending: pending || a.reservation != "" || len(a.inbox) != 0, Remaining: a.state.RemainingAt(now), Capacity: a.state.Capacity(), Supported: a.endpoint != nil}
 }
 func (b *Broker) observe(ctx context.Context, a *SlotActor) (Candidate, Observation, error) {
 	b.mu.Lock()
-	c := actorCandidate(a)
+	c := actorCandidate(a, b.now())
 	sequence := a.sequence
 	b.mu.Unlock()
 	if !c.Supported {
@@ -360,7 +366,7 @@ func (b *Broker) observe(ctx context.Context, a *SlotActor) (Candidate, Observat
 	if err := b.reconcileObservation(a, obs); err != nil {
 		return c, obs, err
 	}
-	c = actorCandidate(a)
+	c = actorCandidate(a, b.now())
 	c.Resting = resting
 	c.Known = !obs.LastActivity.IsZero()
 	if obs.LastActivity.After(c.LastActivity) {
@@ -385,7 +391,7 @@ func (b *Broker) Actors(parent context.Context, caller Binding) ([]Candidate, er
 		if !a.state.Connected() {
 			continue
 		}
-		c := actorCandidate(a)
+		c := actorCandidate(a, b.now())
 		if a.observed.LastActivity.After(c.LastActivity) {
 			c.LastActivity = a.observed.LastActivity
 		}
@@ -487,7 +493,7 @@ func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route
 			if !a.state.Connected() {
 				continue
 			}
-			c := actorCandidate(a)
+			c := actorCandidate(a, b.now())
 			// A fresh wrapper observation may contain an unseen human submission.
 			// Probe exhausted actors before applying the authoritative budget check.
 			c.Remaining = InboundAllowance

@@ -398,6 +398,9 @@ couch --peek repo:N[:M...][,repo:N...] [--lines N] [--json] [--transcripts]
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
 couch --broadcast-list [--json]   the running broadcast and its viewer count (never the link)
+couch --session-sync diff|status [--json]|write|release ... FILE
+                         the one way an agent changes a session-sync file it owns: refuses under the
+                         operator's lock or over unread edits, and lists owed deliveries (see couch --skill)
 couch --recover-plan-from-sdlc   per-slot recovery report (JSON), see below
 couch --resume repo:N [--json]   from a live slot: resume that slot's agent
 couch --reboot repo:N --confirm [--json]   from a live slot: archive and replace it

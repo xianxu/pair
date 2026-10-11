@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -26,6 +27,7 @@ type messageWorld struct {
 	// endpoints overrides a binding's delivery endpoint (default: one that
 	// submits at once).
 	endpoints map[couchmessage.Binding]couchmessage.DeliveryEndpoint
+	hub       string
 }
 
 type worldSlot struct {
@@ -69,6 +71,7 @@ func (w *messageWorld) counts() [4]int {
 func (w *messageWorld) authority() messageAuthority {
 	slot := func(b couchmessage.Binding) *worldSlot { return w.slots[b.Thread()] }
 	return messageAuthority{
+		hub: w.hub,
 		thread: func(ctx context.Context, b couchmessage.Binding) (string, error) {
 			w.mu.Lock()
 			defer w.mu.Unlock()
@@ -451,6 +454,60 @@ func TestMessageEndpointUseTimeCheckIsCheapAndRefusesMovedOn(t *testing.T) {
 	r.waitConnected(b, false)
 	if _, err := endpoint.Observe(context.Background()); !errors.Is(err, couchmessage.ErrUnavailable) {
 		t.Fatalf("detached observe %v", err)
+	}
+}
+
+// #433: the slot Couch started from is the TL hub; it registers with the
+// larger bucket, every other slot with the ordinary one.
+func TestMessageHubSlotGetsTheLargerAllowance(t *testing.T) {
+	r := newServiceRig(t)
+	r.world.hub = "/repo1"
+	r.restart(nil)
+	hub, worker := r.connect(1), r.connect(2)
+	resp := r.s.handle(context.Background(), callerRequest(worker, "actors"))
+	if resp.Code != "ok" || len(resp.Actors) != 2 {
+		t.Fatalf("listing %+v", resp)
+	}
+	for _, a := range resp.Actors {
+		want := couchmessage.InboundAllowance
+		if a.Binding == hub {
+			want = couchmessage.HubAllowance
+		}
+		if a.Capacity != want || a.Remaining != want {
+			t.Fatalf("%s allowance %d/%d, want %d", a.Binding.Slot, a.Remaining, a.Capacity, want)
+		}
+	}
+}
+
+// #433 BR-2: the hub is the worktree Couch started in, found from a
+// subdirectory too, and absent outside any checkout.
+func TestHubWorktreeIsTheStartupCheckout(t *testing.T) {
+	root := t.TempDir()
+	repo := filepath.Join(root, "repo")
+	if out, err := exec.Command("git", "init", "-q", repo).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v %s", err, out)
+	}
+	sub := filepath.Join(repo, "a", "b")
+	outside := filepath.Join(root, "outside")
+	for _, dir := range []string{sub, outside} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	resolve := func(path string) (couchcore.Worktree, error) {
+		return couchcore.Resolve(path, couchcore.ExecGit{}, couchcore.OSPathOps{})
+	}
+	want, err := resolve(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for dir, expect := range map[string]string{repo: string(want), sub: string(want), outside: ""} {
+		if got := hubWorktree(func() (string, error) { return dir, nil }, resolve); got != expect {
+			t.Fatalf("hub from %s = %q, want %q", dir, got, expect)
+		}
+	}
+	if got := hubWorktree(func() (string, error) { return "", errors.New("no cwd") }, resolve); got != "" {
+		t.Fatalf("hub without cwd = %q", got)
 	}
 }
 

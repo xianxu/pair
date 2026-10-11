@@ -20,6 +20,7 @@ type Candidate struct {
 	LastActivity   time.Time
 	Pending        bool
 	Remaining      int
+	Capacity       int `json:",omitempty"`
 	Supported      bool
 	Alias          string `json:",omitempty"`
 }
