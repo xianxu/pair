@@ -1747,7 +1747,8 @@ func operationNeedsProjectionRefresh(operation string) bool {
 	switch operation {
 	case "start", "park", "detach", "resume", "reboot", "reap", "recover", "alias", "relaunch", "reload-context", "switch-agent", "retry-continuation", "dismiss-continuation", "continue-thread":
 		return true
-	case "switch", "leave":
+	case "switch", "leave", "prepare":
+		// prepare is an admission check; it changes nothing.
 		return false
 	default:
 		// Fail safe: a new successful operation may have changed the inventory.

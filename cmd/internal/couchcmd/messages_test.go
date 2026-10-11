@@ -464,7 +464,13 @@ func TestEverySlotOperationIsRoutedToTheSlotPath(t *testing.T) {
 		}
 		var out, errout bytes.Buffer
 		code := runMessageCLIWithCall(inv, messageRuntime(), &out, &errout, call)
-		if code != 0 || len(requests) != 1 || requests[0].Op != op.Name || requests[0].ID == "" || requests[0].Target != "pair:1" {
+		want := 0
+		if op.Name == couchcore.OpPrepare {
+			// This receipt names no checkout, so prepare stops after its
+			// admission: the one request is still the routed operation.
+			want = 1
+		}
+		if code != want || len(requests) != 1 || requests[0].Op != op.Name || requests[0].ID == "" || requests[0].Target != "pair:1" {
 			t.Errorf("%s: exit %d, requests %+v, stderr %q", op.Name, code, requests, errout.String())
 		}
 	}

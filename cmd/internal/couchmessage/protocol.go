@@ -119,7 +119,7 @@ func ValidateRequest(r Request) error {
 		return errors.New("--same-binary applies only to relaunch")
 	}
 	if r.ForceUnknown && !couchcore.SlotOperationTakesForceUnknown(r.Op) {
-		return errors.New("--force-unknown applies only to relaunch and reload-context")
+		return errors.New("--force-unknown applies only to relaunch, reload-context and prepare")
 	}
 	switch {
 	case couchcore.IsSlotOperation(r.Op):

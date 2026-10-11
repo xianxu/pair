@@ -252,6 +252,15 @@ func TestSlotOperationTypedOutcomes(t *testing.T) {
 			t.Fatalf("%+v", got)
 		}
 	})
+	t.Run("prepare admission names its checkout", func(t *testing.T) {
+		admitted := couchcore.PrepareAdmission{Address: couchcore.ThreadAddress{RepoScope: "scope", Tag: "t1"}, Path: "/slot"}
+		for _, value := range []any{admitted, notedResult{value: admitted, note: "n"}} {
+			got := finishWith(value, nil)(t)
+			if got.Status != couchmessage.ReceiptSucceeded || got.Tag != "t1" || got.Path != "/slot" {
+				t.Fatalf("%T: %+v", value, got)
+			}
+		}
+	})
 	t.Run("busy", func(t *testing.T) {
 		r, runner, _ := slotRig(t)
 		b := r.connect(0)

@@ -16,8 +16,13 @@ const (
 	LiveRestartDirty       = "dirty"        // the checkout has uncommitted changes
 	LiveRestartStaleBinary = "stale-binary" // relaunch would run the binary the slot already runs
 	LiveRestartUnavailable = "unavailable"  // this Couch cannot probe live slots
+	LiveRestartNotResting  = "not-resting"  // prepare: the checkout is off its resting branch
 	OpRelaunch             = "relaunch"
 	OpReloadContext        = "reload-context"
+	// OpPrepare is `couch --prepare`'s admission (pair#434): reload-context's
+	// rules plus the resting branch, and no effect. The CLI runs the refresh
+	// and then reload-context itself.
+	OpPrepare = "prepare"
 )
 
 // LiveRestartFacts is everything the admission rule reads, gathered by a
@@ -32,6 +37,10 @@ type LiveRestartFacts struct {
 	SettledKnown, Settled bool
 	// GitKnown: the checkout's status could be read; Dirty is the result.
 	GitKnown, Dirty bool
+	// Branch and Detached are the checkout's, read with Dirty; Resting is the
+	// slot's resting branch (prepare only).
+	Branch, Resting string
+	Detached        bool
 	Binary          BinaryFacts
 }
 
@@ -99,6 +108,12 @@ func DecideLiveRestart(op string, f LiveRestartFacts, o LiveRestartOptions) Live
 		return refuse(LiveRestartDirty, "the checkout's status could not be read")
 	case f.Dirty:
 		return refuse(LiveRestartDirty, "the checkout has uncommitted changes")
+	case op == OpPrepare && (f.Detached || f.Branch != f.Resting):
+		on := "a detached HEAD"
+		if !f.Detached {
+			on = f.Branch
+		}
+		return refuse(LiveRestartNotResting, "the checkout is on "+on+", not its resting branch "+f.Resting+"; land or set aside that work first")
 	}
 	if op == OpRelaunch {
 		stale, detail, note := DecideBinaryFreshness(f.Binary, o.SameBinary)
@@ -230,7 +245,7 @@ func (c *Couch) ReloadContext(ctx context.Context, address ThreadAddress, forced
 // prepareLiveRestart admits relaunch or reload-context on a live row. The row
 // is addressed by its thread (repo scope + exact tag), the dialect both
 // operations' dispatch reads, never by the slot path.
-func (c *Couch) prepareLiveRestart(ctx context.Context, op, target string, row ActionableThreadSummary, path string, opts LiveRestartOptions) (OperationCall, string, error) {
+func (c *Couch) prepareLiveRestart(ctx context.Context, op, target string, row ActionableThreadSummary, path, resting string, opts LiveRestartOptions) (OperationCall, string, error) {
 	if c.LiveRestart == nil {
 		return OperationCall{}, "", &SlotOperationError{Code: LiveRestartUnavailable, Detail: "this Couch cannot observe live slots"}
 	}
@@ -238,6 +253,7 @@ func (c *Couch) prepareLiveRestart(ctx context.Context, op, target string, row A
 	if err != nil {
 		return OperationCall{}, "", err
 	}
+	facts.Resting = resting
 	d := DecideLiveRestart(op, facts, opts)
 	if d.Code != "" {
 		detail := target + ": " + d.Detail
@@ -250,6 +266,9 @@ func (c *Couch) prepareLiveRestart(ctx context.Context, op, target string, row A
 	args[requireSettledArg] = settledKnownValue
 	if d.Forced {
 		args[requireSettledArg] = settledForcedValue
+	}
+	if op == OpPrepare {
+		args["path"] = path
 	}
 	return OperationCall{Name: op, Args: args, Implicit: true, Context: ctx}, d.Note, nil
 }

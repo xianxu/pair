@@ -94,7 +94,7 @@ func TestNotedResultForwardsAndJoins(t *testing.T) {
 
 // BR-8 (M2 review): the safety guard's wiring. The probe must find the slot's
 // wrapper by THREAD (scope + tag), carry its Settled claim only when the
-// wrapper made one, and read dirtiness from the slot's checkout.
+// wrapper made one, and read dirtiness and the branch from the slot's checkout.
 func TestLiveRestartProbeFactsMapping(t *testing.T) {
 	yes, no := true, false
 	svc := &messageService{}
@@ -119,11 +119,11 @@ func TestLiveRestartProbeFactsMapping(t *testing.T) {
 		status string
 		want   couchcore.LiveRestartFacts
 	}{
-		{"settled clean", row("t1", true), clean, couchcore.LiveRestartFacts{Live: true, Session: true, SettledKnown: true, Settled: true, GitKnown: true}},
-		{"busy dirty", row("t2", true), dirty, couchcore.LiveRestartFacts{Live: true, Session: true, SettledKnown: true, GitKnown: true, Dirty: true}},
-		{"legacy wrapper", row("t3", true), clean, couchcore.LiveRestartFacts{Live: true, Session: true, GitKnown: true}},
+		{"settled clean", row("t1", true), clean, couchcore.LiveRestartFacts{Live: true, Session: true, SettledKnown: true, Settled: true, GitKnown: true, Branch: "main"}},
+		{"busy dirty", row("t2", true), dirty, couchcore.LiveRestartFacts{Live: true, Session: true, SettledKnown: true, GitKnown: true, Dirty: true, Branch: "main"}},
+		{"legacy wrapper", row("t3", true), clean, couchcore.LiveRestartFacts{Live: true, Session: true, GitKnown: true, Branch: "main"}},
 		{"no session, git unreadable", row("t9", true), "", couchcore.LiveRestartFacts{Live: true}},
-		{"not live", row("t1", false), clean, couchcore.LiveRestartFacts{Session: true, SettledKnown: true, Settled: true, GitKnown: true}},
+		{"not live", row("t1", false), clean, couchcore.LiveRestartFacts{Session: true, SettledKnown: true, Settled: true, GitKnown: true, Branch: "main"}},
 	} {
 		// reload-context: the probe gathers no binary facts, so no lookPath.
 		p := &liveRestartProbe{git: fakeProbeGit{status: tc.status}}
