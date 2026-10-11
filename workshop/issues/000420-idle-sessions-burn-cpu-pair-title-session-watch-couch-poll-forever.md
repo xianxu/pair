@@ -140,8 +140,10 @@ ARCH-FUNERAL lines:
   a fake-clock test. With no send: no validation, and an exit after expiry.
   A send past the offset still binds. An artifact older than the floor is
   never validated.
-- [ ] Live: rebuild `pair:0`, measure pollers over an idle window, and confirm
-  orphaned title pollers exit.
+- [x] Live probe of the new code against the real stores (see Log).
+  Post-land rollout is handed to ops:0: `make build` on `pair:0`, then
+  relaunch. Running pollers keep the old binary; orphaned title pollers exit
+  once they are restarted under the new binary.
 
 ## Log
 
@@ -180,6 +182,12 @@ ARCH-FUNERAL lines:
   hotspot.
 
 ## Revisions
+
+### 2026-10-10 — live Plan item split (pair:3)
+
+- The fleet rollout cannot happen before landing: running pollers hold the old
+  binary. The Plan item now covers the pre-land live probe. The rollout is a
+  handoff to ops:0.
 
 ### 2026-10-10 — scope (pair:3, settled by ops:0 with pair:4)
 
