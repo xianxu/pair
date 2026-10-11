@@ -8,6 +8,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"sort"
 	"strconv"
@@ -237,6 +238,37 @@ func TestNormalizeArtifactViolationStripsLineNumbers(t *testing.T) {
 	}
 }
 
+// diffKnownViolations compares counted violations: fresh are occurrences beyond
+// the known count, stale are known occurrences that no longer happen.
+func diffKnownViolations(current, known map[string]int) (fresh, stale []string) {
+	for violation, n := range current {
+		for range n - known[violation] {
+			fresh = append(fresh, violation)
+		}
+	}
+	for violation, n := range known {
+		for range n - current[violation] {
+			stale = append(stale, violation)
+		}
+	}
+	sort.Strings(fresh)
+	sort.Strings(stale)
+	return fresh, stale
+}
+
+func TestDiffKnownViolationsCountsDuplicates(t *testing.T) {
+	t.Parallel()
+
+	a, b := "cmd/a.go: unlisted", "cmd/b.go: unlisted"
+	fresh, stale := diffKnownViolations(map[string]int{a: 2, b: 1}, map[string]int{a: 1, b: 2})
+	if !reflect.DeepEqual(fresh, []string{a}) || !reflect.DeepEqual(stale, []string{b}) {
+		t.Fatalf("fresh %q stale %q; want a second %q fresh and a second %q stale", fresh, stale, a, b)
+	}
+	if fresh, stale := diffKnownViolations(map[string]int{a: 2}, map[string]int{a: 2}); fresh != nil || stale != nil {
+		t.Fatalf("equal counts reported fresh %q stale %q", fresh, stale)
+	}
+}
+
 func checkKnownArtifactViolations(t *testing.T, violations []string) {
 	t.Helper()
 	// Counted, not a set: line numbers are stripped, so a second identical
@@ -273,19 +305,7 @@ func checkKnownArtifactViolations(t *testing.T, violations []string) {
 		}
 		known[line]++
 	}
-	var fresh, stale []string
-	for violation, n := range current {
-		for range n - known[violation] {
-			fresh = append(fresh, violation)
-		}
-	}
-	for violation, n := range known {
-		for range n - current[violation] {
-			stale = append(stale, violation)
-		}
-	}
-	sort.Strings(fresh)
-	sort.Strings(stale)
+	fresh, stale := diffKnownViolations(current, known)
 	if len(fresh) != 0 {
 		t.Errorf("NEW unclassified artifact references (fix them; do not add them to %s):\n%s", knownArtifactViolationsPath, strings.Join(fresh, "\n"))
 	}

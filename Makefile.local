@@ -4,15 +4,21 @@
 # Test goals never inherit a live session's identity (pair#436). Agents run
 # `make test` inside Couch slots, whose shells export ~80 PAIR_*/COUCH_*/ZELLIJ*
 # values, most of them paths to the session's own files; a test reading one
-# fails spuriously or writes into the operator's session. Only environment-origin
-# names are dropped, and only when every goal is a test, so workflow targets
-# (weave, merge, ...) keep the slot identity they may read. Opt-in test knobs
-# (TEST_ENV_KNOBS) are the caller's, not the session's, and pass through;
-# tests/make-test-env-test.sh checks every knob the docs pass to make or go test.
-TEST_ENV_KNOBS := PAIR_TEST_% PAIR_LIVE_% PAIR_PERF_% PAIR_PROBE_% PAIR_NATIVE_% PAIR_ARTIFACT_% PAIR_COUCH_PRESSURE PAIR_TERMINAL_ORACLE
-SESSION_ENV := $(filter-out $(TEST_ENV_KNOBS),$(foreach v,$(.VARIABLES),$(if $(filter environment,$(origin $(v))),$(filter PAIR_% COUCH_% ZELLIJ%,$(v)))))
+# fails spuriously or writes into the operator's session. The session's names
+# are the ones production code mentions (any syntax: SetEnv, constants, KDL,
+# shell), plus zellij's own ZELLIJ*. A name only tests read is a caller's knob
+# and passes through, as do TEST_ENV_KNOBS, the families a production tool
+# reads as an operator knob (doctor/perf.sh's PAIR_PERF_*). Only
+# environment-origin names are dropped, and only when every goal is a test, so
+# workflow targets (weave, merge, ...) keep the slot identity they may read.
+# tests/make-test-env-test.sh derives every test-read and documented knob and
+# proves each reaches a test recipe.
+TEST_ENV_KNOBS := PAIR_TEST_% PAIR_LIVE_% PAIR_PERF_% PAIR_PROBE_% PAIR_NATIVE_% PAIR_ARTIFACT_% PAIR_COUCH_PRESSURE% PAIR_TERMINAL_ORACLE
+PRODUCTION_ENV_NAMES_CMD := grep -rIhoE '\b(PAIR|COUCH)_[A-Z0-9_]+' cmd bin nvim zellij doctor --exclude='*_test.*' --exclude='*test*.sh' --exclude='*.md' --exclude-dir=testdata --exclude-dir=probes 2>/dev/null | sort -u
 ifneq ($(MAKECMDGOALS),)
 ifeq ($(filter-out test test-%,$(MAKECMDGOALS)),)
+PRODUCTION_ENV_NAMES := $(shell $(PRODUCTION_ENV_NAMES_CMD))
+SESSION_ENV := $(filter-out $(TEST_ENV_KNOBS),$(foreach v,$(.VARIABLES),$(if $(filter environment,$(origin $(v))),$(filter ZELLIJ% $(PRODUCTION_ENV_NAMES),$(v)))))
 unexport $(SESSION_ENV)
 endif
 endif
@@ -95,13 +101,16 @@ test-session-inventory-conformance:
 	PAIR_LIVE_SESSION_INVENTORY=1 go test -p 20 ./cmd/internal/sessioninventory -run '^TestLiveIncrementalInventoryPrelaunch$$' -count=1 -v
 	PAIR_LIVE_NATIVE_SESSIONS=1 go test -p 20 ./cmd/internal/sessioninventory -run '^TestLive(ProviderContractConformance|JSONLProviderBehaviorMatchesStatefulFake)$$' -count=1 -v
 
-.PHONY: test-make-env test-make-env-probe
+.PHONY: test-make-env test-make-env-probe test-make-env-production-names
 # The session-env scrub keeps opt-in knobs and drops session identity (pair#436).
 test-make-env:
 	bash tests/make-test-env-test.sh
 # Prints the recipe environment for test-make-env; a test goal, so it is scrubbed.
 test-make-env-probe:
 	@env
+# The production-mentioned names the scrub is built from, for the check above.
+test-make-env-production-names:
+	@$(PRODUCTION_ENV_NAMES_CMD)
 
 .PHONY: test-perf-budgets
 # Wall-clock budgets (ARCH-CONSTRAINTS) flake on a loaded host, so the default

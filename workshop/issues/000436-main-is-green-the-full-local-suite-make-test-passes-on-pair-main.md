@@ -125,4 +125,14 @@ hides new breakage. The operator (batch-2 recap, 10-10): "let's ensure ariadne a
   - Minor: the artifact ratchet deduped normalized lines, masking a second identical violation; it now compares
     counts (duplicate known line → STALE, mutation-checked).
   - Also gofmt'd `storagegc/collector.go` (my DefaultMaxEntries edit had dropped a blank line).
+- Close review round 2 (BR-4, same family): the prefix keep-list still dropped knobs that only tests read
+  (PAIR_UPDATE_GROUPED_FIXTURES, PAIR_TERMINAL_*, PAIR_MENU_PERF_TARGET, PAIR_PARK_LATENCY_SMOKE). The rule is now
+  structural. A session's names are the ones production code mentions, in any syntax (SetEnv, constants, KDL, shell),
+  plus zellij's ZELLIJ*. The scrub drops exactly those environment-origin names, minus TEST_ENV_KNOBS (families a
+  production tool reads as an operator knob, e.g. doctor/perf.sh's PAIR_PERF_*). A name only tests read passes
+  through by construction. `tests/make-test-env-test.sh` derives the knobs (every name test code reads that production
+  never mentions, plus every documented `NAME=… make|go test`) and requires each of the 165 to reach a test recipe.
+  It also requires session identity not to. It works without .git (find, not git ls-files) for test-clean-bootstrap.
+  Mutations: scrub-all and no-scrub both fail it. The live slot has 0 session names left in a test recipe.
+  - BR-3: the counted ratchet's comparison is now a pure `diffKnownViolations` with a duplicate-count test.
 
