@@ -162,14 +162,13 @@ jobs:
           expected=$(cut -d " " -f 1 "${asset}.sha256sum")
           echo "$expected  zellij" | shasum -a 256 -c -
           echo "$install_dir" >> "$GITHUB_PATH"
-      - name: "pair#324 experiment: layout probe"
-        run: python3 tests/zellij-layout-probe.py
       - name: Exercise native terminal, nvim, and notification PTY conformance
         run: make -f Makefile.local test-native-terminal-ci
-      - name: "pair#324 experiment: dump zellij logs"
+      # Zellij's own log is the only record of which layout it applied
+      # (pair#324: a fresh runner HOME made it start the default layout).
+      - name: Dump Zellij logs on failure
         if: failure()
         run: |
-          echo "TMPDIR=$TMPDIR uid=$(id -u) SHELL=$SHELL"
           find "${TMPDIR:-/tmp}" /tmp /private/tmp -path '*zellij-log*' -type f 2>/dev/null | sort -u | while read -r f; do echo "=== $f"; tail -n 300 "$f"; done
       - name: Exercise Zellij teardown, continuation transport, and shortcut input
         run: make -f Makefile.local test-couch-zellij-live
