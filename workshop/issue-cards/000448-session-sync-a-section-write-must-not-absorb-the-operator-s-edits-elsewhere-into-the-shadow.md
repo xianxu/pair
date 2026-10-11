@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000448-session-sync-a-section-write-must-not-absorb-the-operator-s-edits-elsewhere-into-the-shadow.md
         source_blob: b667138c1815894b644e84f2fa1fa80cb33e7e5c
         destination: workshop/issues/000448-session-sync-a-section-write-must-not-absorb-the-operator-s-edits-elsewhere-into-the-shadow.md
+        main_commit: f49da745bcf9261c9169a13f1c524976544fe48a
 ---
 
 # session-sync: a section write must not absorb the operator's edits elsewhere into the shadow
