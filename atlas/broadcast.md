@@ -350,12 +350,16 @@ watch) or the broadcast ends.
   color as a chip; a round glow around it (rows ±2, columns scaled by the 2:1
   cell aspect, stronger in the inner ring) tints backgrounds only, never the
   controls or another note's chip, the stronger glow winning where two meet.
-  It flashes at full color on arrival and every `NoteFlashEvery` (15s) for
-  `NoteFlashHold`, then steps down over `NoteFlashFade`; each note's phase is
-  its own age (`Note.At`, set at save, not sent to pages). `NoteStyle.Hover`
+  It flashes at full color on arrival (`Note.At`, stamped at save with the
+  console's clock via `Config.Now`, not sent to pages) and, for every open
+  note together, on one shared beat every `NoteFlashEvery` (15s), holding
+  `NoteFlashHold` then stepping down over `NoteFlashFade`. One beat bounds the
+  repaints at about 11 per beat plus 11 per arrival, whatever the number of
+  notes. `NoteStyle.Hover`
   holds a note at full glow. `paletteTint(c, t, bg, blend)` is the one place a
   pointer color is weakened, for marks and notes alike (blend into the real
-  background with truecolor, else the color's 256-colour ladder), and
+  background with truecolor, else the color's 256-colour ladder; `blendable`
+  is the one predicate for that), and
   `tintCell` tints both halves of a wide character. The console arms one
   timer from `NoteNextChange` and stops it on pointer-off and broadcast end.
 - **State** (`pointer_notes.go`): the board lives inside `PointerState`, under
