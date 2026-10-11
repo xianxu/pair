@@ -79,3 +79,89 @@ findings:
     detail: |
       live_zellij.go:163-174: assign f.stubDir only after Symlink and WriteFile succeed, so a failed setup is retried. recovery_conformance_live_test.go:235 reassigns fixture, so the Cleanup closes only the new one and the first stub dir is left behind (that path is currently excluded under pair#432).
 ```
+
+---
+
+## Re-review — 2026-10-10T19:11:13-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 324 — couch-zellij-conformance: native zellij CPR timeout on macOS runner |
+| repo | pair |
+| issue file | workshop/issues/000324-couch-zellij-conformance-native-zellij-cpr-timeout-on-macos-runner.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 61d85762959a6d39bc80961a379ca09cc8bb3183..c17bc6b33cc376eb4da79cc1960476c870a88d5a |
+| command | sdlc close --issue 324 |
+| reviewer | claude |
+| timestamp | 2026-10-10T19:11:13-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Checking the prior BR-3 leak and whether the cold recovery path still runs in CI.
+
+Prior findings checked; one doc-claim instance left to confirm. Writing up the verdict.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The window does what the issue set out to do. It finds the root cause of the CI-only failure: zellij falls back to its first-run default layout when HOME is fresh. It fixes the native fixture the way production does, by pinning `--config-dir`. It updates the stale couchcore live fixtures so they present the ownership evidence #355 requires: a `pair wrap` stand-in pane, plus a script launcher so JSON env values don't break the argv parser. It also names the three still-failing cases and hands them to pair#432. That handoff is recorded in the issue's `## Revisions`, the Makefile, the workflow and the atlas. Round 1's fixes hold:
+- **BR-1:** the prose now matches `splitObservedCommand`.
+- **BR-2:** the atlas wording is narrowed.
+- **BR-3:** `stubDir` is now assigned only after setup succeeds.
+
+Two Minor items are left: the cold-path stub leak (that path is currently excluded), and one tree site that breaks the atlas's "any launch must" rule. Neither blocks.
+
+1. **Strengths**
+   - `terminal_native_test.go:90-98,132`: the fix mirrors production's `--config-dir` pin (`launcher/osruntime.go`) instead of inventing a workaround, and the comment records why.
+   - `live_zellij.go:153-182`: the owner stand-in uses `/bin/sh` symlinked as `pair`, reading a `wrap` script, with no `exec`. This keeps the observed argv exactly `pair wrap --scrollback-log <raw>`. It is clever but documented, and setup is now atomic (`errors.Join` plus `RemoveAll` on failure).
+   - `standInPaneScript` (`quiesce_conformance_live_test.go:103-119`) is one shared helper used by both continuation and recovery. Its single-quote escaping is correct (`'\''`). (ARCH-DRY pass.)
+   - Scope narrowing is honest and enforced in one place: the `-run`/`-skip` in `Makefile.local`. Comments point to pair#432 and say how to restore.
+   - The workflow adds a failure-only zellij log dump, which is good for future diagnosability.
+
+2. **Critical:** none.
+
+3. **Important:** none.
+
+4. **Minor**
+   - **BR-3 cold leak (still open):** at `recovery_conformance_live_test.go:235`, `fixture` is reassigned, but the Cleanup at line 88 captures the variable, so the first fixture's stub dir is never removed. Fix by registering a `t.Cleanup` that removes the first fixture's stub, or by having the helper take a `testing.TB`.
+   - **New, family `zellij-fixture-config-dir-pin`:** `cmd/probes/couchnestedrows/main.go:126-129` launches with `--new-session-with-layout` but no `--config-dir`, which contradicts the atlas's "Any launch that passes that flag must pin `--config-dir`."
+
+5. **Test coverage**
+   - These are live-fixture changes; the CI run on the branch is the evidence.
+   - `standInPaneScript` has no direct unit test. Its quoting is exercised by the recovery path, which passes JSON in env, but that path's `checkpoint` subtest is excluded. The `warm` subtest takes the same `AfterAcknowledge`-less path, so in CI only the continuation case would exercise the script, and that case is also excluded.
+   - So in this window the script launcher has no running exerciser in CI. That is acceptable because pair#432 restores those cases, but worth knowing.
+
+6. **Architecture**
+   - **ARCH-DRY:** pass. The shared helpers are `AddOwnerWrapperPane` and `standInPaneScript`.
+   - **ARCH-PURE:** pass. This is test-fixture IO glue with no business logic.
+   - **ARCH-PURPOSE:** pass. The Done-when's native-terminal goal is delivered. The deferred cases are separable product semantics, formally moved to #432 with an owning Done-when, not a hidden easy-subset deferral.
+
+7. **Plan revisions:** none. The `## Revisions` entry already matches the code.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Comment (quiesce_conformance_live_test.go:104-106) and atlas/couch.md now say it refuses shell operators and $, and reads JSON quotes as shell quoting; matches splitObservedCommand (session_owner.go:166).
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Atlas narrowed to launches passing --new-session-with-layout; StartControlledZellijWithOptions does not pass it (live_zellij.go:48-52).
+  - id: BR-3
+    disposition: not-addressed
+    note: |
+      First half fixed (stubDir assigned after setup, RemoveAll on failure). Cold path still reassigns fixture at recovery_conformance_live_test.go:235 while the line-88 Cleanup closes only the latest, so the first stub dir leaks; path is excluded under pair#432, so Minor.
+findings:
+  - id: new
+    severity: Minor
+    family: zellij-fixture-config-dir-pin
+    title: |
+      cmd/probes/couchnestedrows launches --new-session-with-layout without --config-dir, contradicting the atlas "any launch must pin" rule
+    detail: |
+      This is the 2nd finding in family zellij-fixture-config-dir-pin. Rule: every zellij launch that passes --new-session-with-layout pins --config-dir (alongside --config, as terminal_native_test does, which keeps show_startup_tips false). Enumerated sites: launcher/osruntime.go:147 (pinned), couchtty/terminal_native_test.go:132 (pinned), probes/couchnestedrows/main.go:126-129 (unpinned; its comment rejects --config-dir alone for the startup-tips reason, which passing both avoids). Either pin it there or scope the atlas claim to CI and production launches.
+```
