@@ -679,6 +679,9 @@ var NonArtifactSources = []string{
 	"cmd/internal/sessionsync/owed.go",
 	"cmd/internal/sessionsync/state.go",
 	"cmd/internal/sessionsync/sync.go",
+	// #451 waiting notices: reads the operator's mute list in the Couch
+	// store; writes nothing.
+	"cmd/internal/couchcmd/wait_notice.go",
 	"cmd/internal/terminal/endpoint_input.go",
 	"cmd/internal/terminal/history.go",
 	"cmd/internal/terminal/history_render.go",
