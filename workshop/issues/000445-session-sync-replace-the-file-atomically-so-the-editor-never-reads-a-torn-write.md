@@ -38,7 +38,9 @@ Write the session-sync file the way the shadow already is: a temp file in the sa
 - [x] Switch the file write to an atomic replace (`replaceShared`: `durablefile.WriteAtomicMode` with the file's own mode,
   through a symlink to its target so the link survives); add the torn-read test and a mode/symlink test.
 - [x] Check parley's reload and `.clobbered` path against a copy of the ops status file (headless nvim, real config).
-- [ ] After landing and `make build` on pair:0, watch the real ops status file across live TL writes.
+
+After landing: `make build` on pair:0 (whose couch the ops TL runs), then watch the real ops status file across live
+TL writes. This is recorded in the report to ops:0, since it can only run after the merge.
 
 ## Log
 
@@ -58,3 +60,4 @@ Write the session-sync file the way the shadow already is: a temp file in the sa
   the inode changed on every write, mode 0644 kept, no prompt, no `.clobbered`. The `.clobbered` path (operator lock
   taken, then an agent rename lands, owner set to a dead `nobody:9` so no real message is sent): the operator's copy
   was written back, the agent's copy was kept in `.clobbered`, and the notice was the usual one.
+- `make -k test` (default TMPDIR, five-var scrub, sandbox off) exits 0, including its `go test ./... -count=1` recipe.
