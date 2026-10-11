@@ -154,6 +154,11 @@ func TestViewerPageLoadsOnlySameOrigin(t *testing.T) {
 	if regexp.MustCompile(`(?i)\bon[a-z]+\s*=`).MatchString(page) {
 		t.Error("page has an inline event handler")
 	}
+	// No hint bar (#447 M3): the screen keeps the whole window; the rail's
+	// controls explain themselves in tooltips.
+	if strings.Contains(page, `id="hint"`) || strings.Contains(page, `id="controls"`) {
+		t.Error("the page has a hint bar")
+	}
 	viewer := string(mustAsset(t, "viewer.js"))
 	// The one thing a page keeps (#446): a pointer viewer's color pick, a
 	// palette index under one key, read and written only by colorStore.

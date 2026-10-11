@@ -147,6 +147,7 @@ export function renderSwatches(el, palette, current, pick, make) {
     b.className = i === current ? 'swatch on' : 'swatch';
     b.style.background = hex;
     b.setAttribute('aria-label', `Pointer color ${i + 1}`);
+    b.title = `Pointer color ${i + 1}`;
     b.setAttribute('aria-pressed', String(i === current));
     b.addEventListener('click', () => pick(i));
     return b;
@@ -286,7 +287,6 @@ async function start() {
   await loadFont();
   const status = document.getElementById('status');
   const stage = document.getElementById('stage');
-  const hint = document.getElementById('hint');
   const show = (text) => {
     status.textContent = text || '';
     status.classList.toggle('hidden', !text);
@@ -334,15 +334,6 @@ async function start() {
     // Blocked site data: picks aren't remembered.
   }
   const swatches = document.getElementById('swatches');
-  // band lifts the screen above the hint, however tall its row is; a view
-  // page has none and keeps the whole window.
-  const controls = document.getElementById('controls');
-  let banded = false;
-  const band = () => {
-    banded = true;
-    stage.style.bottom = `${Math.ceil(controls.getBoundingClientRect().height) + 12}px`;
-    fit();
-  };
   const modeButton = document.getElementById('mode');
   let notes = { guard: 0, notes: [] };
   let pointer = null;
@@ -351,13 +342,14 @@ async function start() {
     root: byId('note'), text: byId('note-text'), input: byId('note-input'), count: byId('note-count'),
     msg: byId('note-msg'), save: byId('note-save'), cancel: byId('note-cancel'), resolve: byId('note-resolve'),
   }, { post: postJSON, color: () => pointer.color() });
-  pointer = pointerMode(term, stage, hint, {
+  pointer = pointerMode(term, stage, {
     notes: () => notes,
     dialog,
     modeButton: {
-      show: (mode, toggle) => {
+      show: (mode, toggle, tip) => {
         modeButton.textContent = mode === 'comment' ? '💭' : '👆';
-        modeButton.setAttribute('aria-label', mode === 'comment' ? 'Comment mode: tap to place a note' : 'Pointer mode: tap or drag to point');
+        modeButton.title = tip;
+        modeButton.setAttribute('aria-label', tip);
         modeButton.onclick = toggle;
         modeButton.classList.remove('hidden');
       },
@@ -401,14 +393,13 @@ async function start() {
     caps: (c) => {
       pointer.setColors(c.palette, c.color);
       pointer.setOn(Boolean(c.pointer));
-      band();
     },
     notes: (data) => {
       notes = parseNotes(data);
       dialog.update(notes);
     },
   });
-  window.addEventListener('resize', () => (banded ? band() : fit()));
+  window.addEventListener('resize', fit);
   fit();
 }
 
@@ -437,15 +428,23 @@ function postPoint(body) {
   postJSON('point', body).catch(() => {});
 }
 
+// MODE_TIPS explain the mode button on hover (#447 M3): the page has no hint
+// bar, so the screen keeps the whole window. Touch devices show no tooltips;
+// the icons stand alone there.
+export const MODE_TIPS = {
+  point: 'Pointer mode: tap or drag to point. Click for comment mode.',
+  comment: 'Comment mode: tap the screen to leave a note. Click for pointer mode.',
+};
+
 // pointerMode routes the viewer's taps. A tap on a 💭 opens that note, on
 // any page (#447). While the broadcast says pointing is on, the mode button
 // switches between pointer mode, where taps and drags become point batches
 // (flushed every 50ms), and comment mode, where a tap on an empty cell opens
 // a draft. deps: notes() → {guard, notes}, dialog (noteDialog), modeButton
-// {show(mode, toggle), hide()}, store (colorStore), swatches
+// {show(mode, toggle, tip), hide()}, store (colorStore), swatches
 // {show(palette, current, pick), hide()}, and for tests post(body),
 // every(fn, ms) → id, stop(id).
-export function pointerMode(term, stage, hint, deps = {}) {
+export function pointerMode(term, stage, deps = {}) {
   const send = deps.post || postPoint;
   const every = deps.every || ((fn, ms) => setInterval(fn, ms));
   const stop = deps.stop || ((id) => clearInterval(id));
@@ -467,12 +466,11 @@ export function pointerMode(term, stage, hint, deps = {}) {
       modeButton.show(mode, () => {
         mode = mode === 'point' ? 'comment' : 'point';
         drawMode();
-      });
+      }, MODE_TIPS[mode]);
     } else {
       modeButton.hide();
     }
     stage.classList.toggle('comment', on && mode === 'comment');
-    hint.textContent = !on ? 'Pointing is off' : mode === 'comment' ? 'Tap the screen to leave a note' : 'You can point: tap or drag on the screen';
   };
   const drawSwatches = () => {
     if (on && palette.length) {
@@ -563,7 +561,6 @@ export function pointerMode(term, stage, hint, deps = {}) {
         dialog.close();
       }
       stage.classList.toggle('pointer', on);
-      hint.classList.remove('hidden');
       drawMode();
       drawSwatches();
     },

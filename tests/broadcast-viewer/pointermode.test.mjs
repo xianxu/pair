@@ -1,5 +1,5 @@
 // The pointer page's wiring (#412 M4 review, BR-15): caps toggles capture
-// and the hint; strokes become overlapping batches; release and turning off
+// (#447: no hint bar; the mode button carries a tooltip); strokes become overlapping batches; release and turning off
 // end a stroke.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -14,28 +14,25 @@ function fakes() {
     setPointerCapture() {},
     classList: { toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)) },
   };
-  const hint = { textContent: '', classList: { remove() {} } };
   const posts = [];
   const ticks = [];
   let stopped = 0;
-  const mode = pointerMode({ cols: 80, rows: 24 }, stage, hint, {
+  const mode = pointerMode({ cols: 80, rows: 24 }, stage, {
     post: (b) => posts.push(b),
     every: (fn) => { ticks.push(fn); return ticks.length; },
     stop: () => { stopped++; },
   });
   const at = (col, row) => ({ clientX: col * 10 + 5, clientY: row * 10 + 5, pointerId: 1, preventDefault() {} });
   const fire = (name, e) => listeners[name](e);
-  return { mode, classes, hint, posts, ticks, fire, at, stopped: () => stopped };
+  return { mode, classes, posts, ticks, fire, at, stopped: () => stopped };
 }
 
-test('caps toggles capture and the hint', () => {
+test('caps toggles capture', () => {
   const f = fakes();
   f.mode.setOn(true);
   assert.ok(f.classes.has('pointer'));
-  assert.match(f.hint.textContent, /You can point/);
   f.mode.setOn(false);
   assert.ok(!f.classes.has('pointer'));
-  assert.match(f.hint.textContent, /off/);
 });
 
 test('nothing is posted while pointing is off or outside the screen', () => {
@@ -91,7 +88,7 @@ function colorFakes(storage) {
   };
   f.posts = [];
   f.shown = null;
-  f.mode = pointerMode({ cols: 80, rows: 24 }, stage, { textContent: '', classList: { remove() {} } }, {
+  f.mode = pointerMode({ cols: 80, rows: 24 }, stage, {
     post: (b) => f.posts.push(b),
     every: () => 1,
     stop() {},
@@ -191,6 +188,7 @@ test('renderSwatches draws one pressed-state button per color', () => {
   assert.equal(el.kids[3].className, 'swatch on');
   assert.equal(el.kids[3].attrs['aria-pressed'], 'true');
   assert.equal(el.kids[0].style.background, '#ffaf00');
+  assert.equal(el.kids[2].title, 'Pointer color 3', 'each swatch explains itself on hover (#447 M3)');
   el.kids[1].click();
   assert.equal(picked, 1);
 });
@@ -206,13 +204,13 @@ function noteFakes() {
     setPointerCapture() {},
     classList: { toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)) },
   };
-  const hint = { textContent: '', classList: { remove() {} } };
   const posts = [];
   const calls = [];
   let shownMode = null;
+  let shownTip = null;
   let toggle = null;
   const list = { guard: 12, notes: [{ id: 7, col: 10, row: 5, color: 0, text: 'hi' }] };
-  const mode = pointerMode({ cols: 80, rows: 24 }, stage, hint, {
+  const mode = pointerMode({ cols: 80, rows: 24 }, stage, {
     post: (b) => posts.push(b),
     every: () => 1,
     stop() {},
@@ -222,11 +220,11 @@ function noteFakes() {
       view: (note, opts) => calls.push(['view', note.id, opts]),
       close: () => calls.push(['close']),
     },
-    modeButton: { show: (m, t) => { shownMode = m; toggle = t; }, hide: () => { shownMode = null; } },
+    modeButton: { show: (m, t, tip) => { shownMode = m; toggle = t; shownTip = tip; }, hide: () => { shownMode = null; } },
   });
   const at = (col, row) => ({ clientX: col * 10 + 5, clientY: row * 10 + 5, pointerId: 1, preventDefault() {} });
   const fire = (name, e) => listeners[name](e);
-  return { mode, classes, hint, posts, calls, fire, at, shownMode: () => shownMode, toggle: () => toggle() };
+  return { mode, classes, posts, calls, fire, at, shownMode: () => shownMode, shownTip: () => shownTip, toggle: () => toggle() };
 }
 
 test('a view page opens a 💭 read-only and posts nothing', () => {
@@ -256,7 +254,7 @@ test('comment mode drafts on an empty cell without posting', () => {
   f.toggle();
   assert.equal(f.shownMode(), 'comment');
   assert.ok(f.classes.has('comment'));
-  assert.match(f.hint.textContent, /leave a note/);
+  assert.match(f.shownTip(), /leave a note/, 'the mode button explains itself in its tooltip');
   f.fire('pointerdown', f.at(79, 3));
   assert.deepEqual(f.calls.at(-1), ['draft', [78, 3], { cols: 80, rows: 24 }]);
   f.fire('pointerdown', f.at(10, 5));

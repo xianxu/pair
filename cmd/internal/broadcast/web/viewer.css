@@ -77,41 +77,18 @@ html, body {
   filter: grayscale(1);
 }
 /* Pointer links (#412): the screen takes taps and drags instead of scrolling
-   or zooming, and a hint says whether pointing is on. */
+   or zooming. There is no hint bar (#447 M3): the rail's controls explain
+   themselves in tooltips, and the screen keeps the whole window. */
 #stage.pointer {
   touch-action: none;
   cursor: crosshair;
-}
-#hint {
-  margin-left: auto;
-  padding: 4px 10px;
-  border-radius: 4px;
-  font: 13px/1.4 system-ui, sans-serif;
-  background: var(--status-bg);
-  color: var(--status-fg);
-}
-#hint.hidden {
-  display: none;
-}
-/* The hint lives in one band below the screen; viewer.js lifts the stage
-   above the band's height, so it covers no cell someone may want to point
-   at, at any width. */
-#controls {
-  position: fixed;
-  left: 8px;
-  right: 8px;
-  bottom: 6px;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
 }
 /* The rail (#449) is a column overlaid on the screen's right edge, centered
    on its height; viewer.js docks it to the drawn screen (railAt). It sits
    outside #stage, so a tap on a swatch never starts a stroke, and only the
    buttons take pointer events: a point or drag over the rest of the rail,
    backing included, falls through to the screen. Pointer colors are its
-   first group; #447's mode icon joins the column. */
+   first group; #447's mode button sits below them. */
 #rail {
   position: fixed;
   transform: translateY(-50%);
