@@ -35,10 +35,11 @@ type pointerMarks struct {
 }
 
 // screenOverlay draws what the collaboration layer adds to a public frame:
-// sticky notes, then marks over them. A private frame (the switcher) gets
-// neither. It runs on the Presenter goroutine.
+// sticky notes, marks over them, and the notes menu over everything. A
+// private frame (the switcher) gets none of it. It runs on the Presenter
+// goroutine.
 func (c *Console) screenOverlay(f terminal.Frame, class terminal.FrameClass) terminal.Frame {
-	return c.markOverlay(c.noteOverlay(f, class), class)
+	return c.menuOverlay(c.markOverlay(c.noteOverlay(f, class), class), class)
 }
 
 // markOverlay draws the marks on a public frame; a private frame (the

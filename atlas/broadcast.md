@@ -390,8 +390,10 @@ watch) or the broadcast ends.
   above the status row (`RenderNotesMenu`: width ≤ 48, each note a chip of its
   author's color via `broadcast.NoteChipColor` plus its text wrapped to ≤ 3
   rows with `…`, "+k more" when they don't fit, a `×` close mark). It is drawn
-  last in `screenOverlay`, so viewers see it; its layout is kept for
-  hit-testing. `routeNotesMenu` runs first in `routeMouseEvent`: over the open
+  last in `screenOverlay` (`menuOverlay`, after the marks), so viewers see it.
+  Its layout on the frame now on screen is the only thing the mouse is
+  hit-tested against, and it is cleared on any frame that doesn't show the
+  menu (a private panel), so a hidden menu takes no clicks. `routeNotesMenu` runs first in `routeMouseEvent`: over the open
   box it takes press, motion, wheel and a press's release, so nothing there
   reaches a child that tracks the mouse. Motion over an item sets
   `NoteStyle.Hover` (row highlight; its 💭 held at full glow), a click copies

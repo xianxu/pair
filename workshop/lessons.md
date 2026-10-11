@@ -1073,3 +1073,7 @@ proof; record the surprising case so the next change starts from evidence.
   child that requested tracking, so asserting "no report reached the child" with a default fixture child passes
   whatever the routing does. Feed the child its tracking mode first, and pair the negative assertion with a
   positive control (a click outside the menu that does arrive).
+- **A hit region lives and dies with its drawing (#447 M4 review).** The notes menu kept its click area from the
+  last frame it drew, so under the switcher (a private frame, where it isn't drawn) it still took clicks and copied
+  a note nobody could see. Record a hit-test layout only from the frame actually shown and clear it on every frame
+  that doesn't show the thing; test it by covering the thing and clicking where it was.

@@ -274,7 +274,7 @@ func (f *consoleFixture) notesSpan() ColumnSpan {
 func (f *consoleFixture) notesMenu() (bool, NotesMenu, int) {
 	f.con.pnotes.mu.Lock()
 	defer f.con.pnotes.mu.Unlock()
-	return f.con.pnotes.menuOpen, f.con.pnotes.menu, f.con.pnotes.style.Hover
+	return f.con.pnotes.menuOpen, f.con.pnotes.menu, f.con.pnotes.hover
 }
 
 func (f *consoleFixture) mouse(button, x, y int, release bool) {
@@ -336,36 +336,91 @@ func TestNotesMenuOpenHoverCopy(t *testing.T) {
 	waitFor(t, "menu closed", func() bool { open, _, _ := f.notesMenu(); return !open })
 }
 
-func TestNotesMenuToggleAndLifecycle(t *testing.T) {
-	f, s, link := pointerOnFixture(t, nil)
-	noteUntilSaved(t, link, 10, 5, "a")
+// openMenuWith saves a note, waits until 💭1 is drawn for it, and opens the
+// menu with a click, as the operator would.
+func openMenuWith(t *testing.T, f *consoleFixture, link string, col int) {
+	t.Helper()
+	noteUntilSaved(t, link, col, 5, "a")
 	var span ColumnSpan
-	waitFor(t, "💭1 drawn", func() bool { span = f.notesSpan(); return span != (ColumnSpan{}) })
-	f.clickStatus(span.Start + 1)
-	waitFor(t, "open", func() bool { open, _, _ := f.notesMenu(); return open })
-	f.clickStatus(span.Start + 1)
-	waitFor(t, "closed by a second click", func() bool { open, _, _ := f.notesMenu(); return !open })
-	// Resolving the last note closes it.
-	f.clickStatus(span.Start + 1)
-	waitFor(t, "open again", func() bool { open, _, _ := f.notesMenu(); return open })
-	notes, _ := s.Notes()
-	resp, err := http.Post(link+"resolve", "application/json", strings.NewReader(fmt.Sprintf(`{"id":%d}`, notes[0].ID)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp.Body.Close()
-	waitFor(t, "closed when the last note goes", func() bool { open, _, _ := f.notesMenu(); return !open })
-	// Pointer-off closes it too.
-	noteUntilSaved(t, link, 20, 5, "b")
-	// As an operator would: click 💭1 once the new note is drawn, not on a
-	// span left over from before the resolve.
-	waitFor(t, "💭1 again", func() bool {
+	waitFor(t, "💭1 drawn", func() bool {
 		held, _ := f.heldNotes()
 		span = f.notesSpan()
 		return len(held) == 1 && span != (ColumnSpan{}) && strings.Contains(f.lastRow(), broadcast.NoteGlyph+"1")
 	})
 	f.clickStatus(span.Start + 1)
-	waitFor(t, "open a third time", func() bool { open, _, _ := f.notesMenu(); return open })
-	f.clickPointer(t, 0)
-	waitFor(t, "closed on pointer-off", func() bool { open, _, _ := f.notesMenu(); return !open })
+	waitFor(t, "menu open and drawn", func() bool { open, m, _ := f.notesMenu(); return open && m.Open() })
+}
+
+func TestNotesMenuToggles(t *testing.T) {
+	f, _, link := pointerOnFixture(t, nil)
+	openMenuWith(t, f, link, 10)
+	f.clickStatus(f.notesSpan().Start + 1)
+	waitFor(t, "closed by a second click", func() bool { open, m, _ := f.notesMenu(); return !open && !m.Open() })
+}
+
+// Every way the menu's world ends closes it, layout included (M4 review).
+func TestNotesMenuLifecycle(t *testing.T) {
+	ends := map[string]func(*testing.T, *consoleFixture, *broadcast.Session, string){
+		"last note resolved": func(t *testing.T, f *consoleFixture, s *broadcast.Session, link string) {
+			notes, _ := s.Notes()
+			resp, err := http.Post(link+"resolve", "application/json", strings.NewReader(fmt.Sprintf(`{"id":%d}`, notes[0].ID)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp.Body.Close()
+		},
+		"pointer off": func(t *testing.T, f *consoleFixture, _ *broadcast.Session, _ string) { f.clickPointer(t, 0) },
+		"broadcast end": func(t *testing.T, f *consoleFixture, _ *broadcast.Session, _ string) {
+			_, _ = f.stdin.Write([]byte(ctrlAltB))
+		},
+	}
+	for name, end := range ends {
+		t.Run(name, func(t *testing.T) {
+			f, s, link := pointerOnFixture(t, nil)
+			openMenuWith(t, f, link, 10)
+			end(t, f, s, link)
+			waitFor(t, "menu closed", func() bool { open, m, h := f.notesMenu(); return !open && !m.Open() && h == 0 })
+		})
+	}
+}
+
+// Under a private panel the menu isn't drawn, so it takes no clicks: a click
+// where it was must not copy a note nobody can see (M4 review, Critical).
+func TestNotesMenuTakesNoClickUnderAPanel(t *testing.T) {
+	f, _, link := pointerOnFixture(t, nil)
+	openMenuWith(t, f, link, 10)
+	_, m, _ := f.notesMenu()
+	item := m.items[0]
+	_, _ = f.stdin.Write([]byte{0}) // the switcher: a private frame
+	waitFor(t, "switcher open", func() bool { f.con.mu.Lock(); defer f.con.mu.Unlock(); return f.con.focus.IsPanel() })
+	waitFor(t, "menu layout cleared", func() bool { _, mm, _ := f.notesMenu(); return !mm.Open() })
+	f.mouse(0, m.X+8, item.Top, false)
+	f.mouse(0, m.X+8, item.Top, true)
+	time.Sleep(100 * time.Millisecond)
+	if copies(f, "a") != 0 || strings.Contains(f.notice(), "Note copied") {
+		t.Fatal("a hidden menu copied a note")
+	}
+}
+
+// The menu is drawn over everything the collaboration layer adds: a mark
+// inside its box leaves the box untinted (M4 review).
+func TestNotesMenuDrawnOverMarks(t *testing.T) {
+	f, s, _ := pointerOnFixture(t, nil)
+	_ = f.con.runTerminalCommand(f.con.lifetime, func() error {
+		f.con.applyNotes(s, []broadcast.Note{{ID: 1, Col: 4, Row: 4, Text: "x"}}, 99)
+		return nil
+	})
+	f.con.pnotes.mu.Lock()
+	f.con.pnotes.menuOpen = true
+	f.con.pnotes.mu.Unlock()
+	frame := menuFrame(t, 80, 24)
+	m := RenderNotesMenu([]broadcast.Note{{ID: 1, Text: "x"}}, 80, 24)
+	f.con.pmarks.mu.Lock()
+	f.con.pmarks.marks = broadcast.NewMarks()
+	f.con.pmarks.marks.Add([][2]int{{m.X + 10, m.Y + 1}}, 80, 24, 0, f.con.now())
+	f.con.pmarks.mu.Unlock()
+	out := f.con.screenOverlay(frame, terminal.FramePublic)
+	if bg := out.Cells[(m.Y+1)*80+m.X+10].Style.Bg; bg == markTint {
+		t.Fatal("a mark was drawn over the notes menu")
+	}
 }

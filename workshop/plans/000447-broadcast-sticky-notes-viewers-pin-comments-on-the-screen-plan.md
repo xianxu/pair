@@ -332,13 +332,13 @@ The operator's smoke: a 💭 is easy to miss on a full screen. Each 💭 gets it
 | `RenderedStatusRow.Notes` | `cmd/internal/couchtty/reserve.go` | modified (span of `💭N`) |
 | console notes menu state and routing | `cmd/internal/couchtty/console_notes.go`, `terminal_input.go` | modified |
 
-- **RenderNotesMenu(notes, cols, rows, hover) NotesMenu** is pure. It returns the box's cells and placement, plus each item's row span and note ID.
+- **RenderNotesMenu(notes, cols, rows) NotesMenu** is pure; `NotesMenu.Draw(f, hover, style)` draws it. It returns the box's cells and placement, plus each item's row span and note ID.
   - **Placement:** the box sits bottom-right, directly above the status row. Its width is `min(48, cols − 2)`. Its height fits as many items as there is room for, up to `rows − 3`, with a final "+k more" line when they don't all fit.
   - **Header:** `Notes` on the left and a close mark `×` on the right.
   - **Items:** each item is a two-cell chip in the author's color (background), then the text, wrapped to the box width. An item shows at most 3 lines, the last ending in `…` if cut; a copy still takes the full text.
-  - **Hover:** the hovered item is drawn in reverse video.
+  - **Hover:** the hovered item's rows are drawn on a lighter background (`notesMenuHover`).
   - **Text safety:** text goes through `rowtext.Sanitize`. It is already plain text, but this is defence in depth, since it is drawn into the operator's terminal.
-- **The box is an overlay.** `screenOverlay` draws notes, then marks, then the menu, on public frames only, so viewers see the menu as they see the rest of the operator's screen. It never covers the status row.
+- **The box is an overlay.** `screenOverlay` draws notes, then marks, then the menu (`menuOverlay`, its own step, last), on public frames only, so viewers see the menu as they see the rest of the operator's screen. It never covers the status row.
 - **Routing, in `routeMouseEvent`, before the child gets the event:**
   - A left click on the `💭N` span toggles the menu.
   - While the menu is open, every mouse event inside its rectangle (press, motion, wheel) is Couch's and never reaches the child.
@@ -381,6 +381,8 @@ The operator's smoke: a 💭 is easy to miss on a full screen. Each 💭 gets it
 - [ ] `sdlc move :0`, `make build`, then the operator's full Done-when walk; then `sdlc close`.
 
 ## Revisions
+
+- 2026-10-11 — M4 review (REWORK): the menu's hit-test layout is the layout on the frame now on screen and is cleared on any frame that doesn't show it (a private panel); the menu is its own overlay step after the marks; hover lives in `pnotes.hover`, apart from the wholesale-replaced style; one table-driven lifecycle test (resolve-last, pointer-off, broadcast end); Core concepts match the code.
 
 - 2026-10-11 — M3 close review (Minors): Core concepts state `paletteTint` in `t` (0 = full color), matching the code; a palette reply restyles notes at once (`restyleNotes`).
 

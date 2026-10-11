@@ -24,11 +24,15 @@ type pointerNotes struct {
 	// taken when a snapshot is accepted; timer repaints the next flash step.
 	style broadcast.NoteStyle
 	timer *time.Timer
-	// The notes menu (M4): whether it is open, its layout as last drawn
-	// (for hit-testing), and whether a press inside it awaits its release.
-	// The hovered note is style.Hover.
+	// The notes menu (M4). menuOpen is the operator's choice; menu is its
+	// layout on the frame now on screen, the only thing the mouse is
+	// hit-tested against, and zero whenever that frame doesn't show it (a
+	// private panel), so the menu never takes a click it isn't drawn under.
+	// hover is view state, kept apart from style, which is replaced
+	// wholesale; pressed is a press inside the menu awaiting its release.
 	menuOpen bool
 	menu     NotesMenu
+	hover    int
 	pressed  bool
 }
 
@@ -63,9 +67,7 @@ func (c *Console) applyNotes(s *broadcast.Session, notes []broadcast.Note, versi
 		c.pnotes.mu.Unlock()
 		return
 	}
-	hover := c.pnotes.style.Hover
 	c.pnotes.session, c.pnotes.notes, c.pnotes.version, c.pnotes.style = s, notes, version, style
-	c.pnotes.style.Hover = hover
 	c.settleMenuLocked()
 	c.pnotes.mu.Unlock()
 	c.repaint()
@@ -78,8 +80,8 @@ func (c *Console) settleMenuLocked() {
 	if len(c.pnotes.notes) == 0 {
 		c.pnotes.menuOpen, c.pnotes.menu = false, NotesMenu{}
 	}
-	if !slices.ContainsFunc(c.pnotes.notes, func(n broadcast.Note) bool { return n.ID == c.pnotes.style.Hover }) {
-		c.pnotes.style.Hover = 0
+	if !slices.ContainsFunc(c.pnotes.notes, func(n broadcast.Note) bool { return n.ID == c.pnotes.hover }) {
+		c.pnotes.hover = 0
 	}
 }
 
@@ -103,8 +105,7 @@ func (c *Console) restyleNotes() {
 	style := c.noteStyleLocked()
 	c.mu.Unlock()
 	c.pnotes.mu.Lock()
-	hover := c.pnotes.style.Hover
-	c.pnotes.style, c.pnotes.style.Hover = style, hover
+	c.pnotes.style = style
 	c.pnotes.mu.Unlock()
 }
 
@@ -118,7 +119,7 @@ func (c *Console) scheduleNotes() {
 		c.pnotes.timer.Stop()
 		c.pnotes.timer = nil
 	}
-	d, ok := broadcast.NoteNextChange(c.pnotes.notes, c.now(), c.pnotes.style.Hover)
+	d, ok := broadcast.NoteNextChange(c.pnotes.notes, c.now(), c.pnotes.hover)
 	if !ok {
 		return
 	}
@@ -144,9 +145,7 @@ func (c *Console) resyncNotes(s *broadcast.Session) {
 	style := c.noteStyleLocked()
 	c.mu.Unlock()
 	c.pnotes.mu.Lock()
-	hover := c.pnotes.style.Hover
 	c.pnotes.session, c.pnotes.notes, c.pnotes.version, c.pnotes.style = s, notes, version, style
-	c.pnotes.style.Hover = hover
 	c.settleMenuLocked()
 	c.pnotes.mu.Unlock()
 	c.scheduleNotes()
@@ -156,7 +155,7 @@ func (c *Console) resyncNotes(s *broadcast.Session) {
 func (c *Console) forgetNotes() {
 	c.pnotes.mu.Lock()
 	c.pnotes.session, c.pnotes.notes, c.pnotes.version = nil, nil, 0
-	c.pnotes.menuOpen, c.pnotes.menu, c.pnotes.pressed, c.pnotes.style.Hover = false, NotesMenu{}, false, 0
+	c.pnotes.menuOpen, c.pnotes.menu, c.pnotes.pressed, c.pnotes.hover = false, NotesMenu{}, false, 0
 	if c.pnotes.timer != nil {
 		c.pnotes.timer.Stop()
 		c.pnotes.timer = nil
@@ -181,16 +180,30 @@ func (c *Console) noteOverlay(f terminal.Frame, class terminal.FrameClass) termi
 	}
 	c.pnotes.mu.Lock()
 	defer c.pnotes.mu.Unlock()
-	style := c.pnotes.style
-	style.Now = c.now()
-	f = broadcast.DrawNotes(f, c.pnotes.notes, style)
-	if !c.pnotes.menuOpen {
+	return broadcast.DrawNotes(f, c.pnotes.notes, c.drawStyleLocked())
+}
+
+// menuOverlay draws the open notes menu on a public frame, over everything
+// else, and records its layout on that frame for hit-testing. On any other
+// frame the layout is cleared: the menu is not on screen, so it takes no
+// clicks. It runs on the Presenter goroutine.
+func (c *Console) menuOverlay(f terminal.Frame, class terminal.FrameClass) terminal.Frame {
+	c.pnotes.mu.Lock()
+	defer c.pnotes.mu.Unlock()
+	if class != terminal.FramePublic || !c.pnotes.menuOpen {
+		c.pnotes.menu = NotesMenu{}
 		return f
 	}
-	// The menu is laid out against the frame it is drawn on, and kept for
-	// hit-testing the mouse.
 	c.pnotes.menu = RenderNotesMenu(c.pnotes.notes, f.Geometry.Cols, f.Geometry.Rows)
-	return c.pnotes.menu.Draw(f, style.Hover, style)
+	return c.pnotes.menu.Draw(f, c.pnotes.hover, c.drawStyleLocked())
+}
+
+// drawStyleLocked is the style to draw with now: the palette facts, the
+// clock and the hovered note. Callers hold pnotes.mu.
+func (c *Console) drawStyleLocked() broadcast.NoteStyle {
+	style := c.pnotes.style
+	style.Now, style.Hover = c.now(), c.pnotes.hover
+	return style
 }
 
 // toggleNotesMenu is a click on 💭N.
@@ -198,7 +211,7 @@ func (c *Console) toggleNotesMenu() {
 	c.pnotes.mu.Lock()
 	c.pnotes.menuOpen = !c.pnotes.menuOpen && len(c.pnotes.notes) > 0
 	if !c.pnotes.menuOpen {
-		c.pnotes.menu, c.pnotes.style.Hover = NotesMenu{}, 0
+		c.pnotes.menu, c.pnotes.hover = NotesMenu{}, 0
 	}
 	c.pnotes.mu.Unlock()
 	c.refreshNotes()
@@ -234,9 +247,9 @@ func (c *Console) routeNotesMenu(raw []byte) bool {
 	}
 	motion := hit.Button&32 != 0
 	if !menu.Contains(x, y) {
-		changed := motion && c.pnotes.style.Hover != 0
+		changed := motion && c.pnotes.hover != 0
 		if changed {
-			c.pnotes.style.Hover = 0
+			c.pnotes.hover = 0
 		}
 		c.pnotes.mu.Unlock()
 		if changed {
@@ -247,8 +260,8 @@ func (c *Console) routeNotesMenu(raw []byte) bool {
 	id := menu.ItemAt(x, y)
 	switch {
 	case motion:
-		changed := c.pnotes.style.Hover != id
-		c.pnotes.style.Hover = id
+		changed := c.pnotes.hover != id
+		c.pnotes.hover = id
 		c.pnotes.mu.Unlock()
 		if changed {
 			c.refreshNotes()
