@@ -73,6 +73,8 @@ Quick flow (one close). Decisions:
 
 ## Log
 
+
+- 2026-10-11: closed — model tests per Done-when + broker-path TestSelfAddressedSendRefillsThroughTheBroker (mutation-checked) + service TestMessageHubSlotGetsTheLargerAllowance + TestHubWorktreeIsTheStartupCheckout pass; couchmessage ok; couchcmd only TestColdResumeOfAParkedPrimaryRegistersFromBothOrigins + TestContinuationWriterPublishesExactCheckpointAcrossWorktrees fail, identically with the diff stashed; after merging main (#435) make -k test green except test-pair-embedded-runtime (fails identically on origin/main: PAIR_DATA_DIR scope env) and test-changelog (passes with scratchpad TMPDIR per #360); review verdict: SHIP
 ### 2026-10-10
 
 - Dispatched by ops:0. Overlap with #435 (deadline vs holds in the same `model.go`): this change touches only the
