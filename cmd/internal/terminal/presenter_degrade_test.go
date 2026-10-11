@@ -111,10 +111,25 @@ func TestPresenterStallPastWriteTimeoutDegradesThenRepaints(t *testing.T) {
 	if err := p.Copy(context.Background(), []byte("dropped")); err != nil {
 		t.Fatalf("copy during stall: %v", err)
 	}
+	// A stalled batch is still handled: a bell that writes nothing (inactive
+	// slot) and a title whose bytes are dropped both come back delivered, so
+	// attention marks survive the stall and nothing is replayed after it.
+	if err := p.Register(context.Background(), e); err != nil {
+		t.Fatal(err)
+	}
+	batch := []Effect{{EndpointID: e.id, Sequence: 1, Kind: BellEffect}, {EndpointID: e.id, Sequence: 2, Kind: TitleEffect, Text: "dropped"}}
+	effects, err := p.EmitEffects(context.Background(), batch, EffectPolicy{Title: true})
+	if err != nil || len(effects) != 2 {
+		t.Fatalf("stalled batch delivered %d effects, err %v; want 2, nil", len(effects), err)
+	}
 	if got := len(parent.Bytes()); got != stalledBytes {
 		t.Fatalf("parent accepted %d bytes while stalled", got-stalledBytes)
 	}
 	close(gate)
+	// A copy right after the drain must not end the stall without the repaint.
+	if err := p.Copy(context.Background(), []byte("after")); err != nil {
+		t.Fatal(err)
+	}
 	waitFor(t, "repaint after drain", func() bool { return strings.Contains(string(parent.Bytes()), "three") })
 	if presenterFailed(p) {
 		t.Fatal("presenter failed after recovery")
@@ -123,7 +138,7 @@ func TestPresenterStallPastWriteTimeoutDegradesThenRepaints(t *testing.T) {
 	if !bytes.HasPrefix(recovered, []byte(stallProbe)) {
 		t.Fatalf("recovery does not begin with the probe: %q", recovered)
 	}
-	if strings.Contains(string(recovered), "two") {
+	if strings.Contains(string(recovered), "two") || strings.Contains(string(recovered), "dropped") {
 		t.Fatal("a frame published during the stall was queued, not coalesced")
 	}
 	if got := bytes.Count(parent.Bytes(), []byte(keyboardPush)); got != 1 {

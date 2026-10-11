@@ -224,8 +224,10 @@ func (p *Presenter) write(ctx context.Context, data []byte, normal bool) error {
 	if len(data) > 0 {
 		p.parentTouched = true
 	}
-	caller := ctx
-	ctx, cancel := context.WithTimeout(ctx, WriteTimeout)
+	budget := time.Now().Add(WriteTimeout)
+	deadline, bounded := ctx.Deadline()
+	own := !bounded || deadline.After(budget) // which deadline binds this write
+	ctx, cancel := context.WithDeadline(ctx, budget)
 	defer cancel()
 	if normal {
 		stop := context.AfterFunc(p.life, cancel)
@@ -233,7 +235,7 @@ func (p *Presenter) write(ctx context.Context, data []byte, normal bool) error {
 	}
 	accepted, err := writeComplete(ctx, p.writer, data)
 	if err != nil {
-		expired := errors.Is(err, context.DeadlineExceeded) && caller.Err() == nil
+		expired := own && errors.Is(err, context.DeadlineExceeded)
 		return &WriteFailure{Op: "parent output", Accepted: accepted, Total: len(data), Err: err, Expired: expired}
 	}
 	return nil
@@ -276,31 +278,26 @@ func (p *Presenter) stall(err error) bool {
 // probe asks a stalled parent whether it accepts output again. Its bytes are
 // harmless in any parser state: CAN/ST abort whatever control the abandoned
 // write cut off, and synchronized output closes. A probe that times out
-// leaves at most a prefix of that, which the next probe aborts in turn.
+// leaves at most a prefix of that, which the next probe aborts in turn. Only
+// a full paint that completes ends the stall, never the probe alone.
 func (p *Presenter) probe(ctx context.Context) bool {
 	ctx, cancel := context.WithTimeout(ctx, StallProbeTimeout)
 	defer cancel()
-	if err := p.write(ctx, []byte(stallProbe), true); err != nil {
-		return false
-	}
-	p.stalled = false
-	return true
+	return p.write(ctx, []byte(stallProbe), true) == nil
 }
 
 // writeUnlessStalled writes a one-shot control (an effect, a clipboard copy).
-// While the parent is stalled the control is dropped, not queued: it reports
-// delivered=false and no error, so no caller ends couch over it.
-func (p *Presenter) writeUnlessStalled(ctx context.Context, data []byte) (delivered bool, err error) {
-	if p.stalled && !p.probe(ctx) {
-		return false, nil
+// While the parent is stalled its bytes are dropped, not queued, and it is no
+// error, so no caller ends couch over it; the caller's own bookkeeping (an
+// effect's sequence, its attention mark) proceeds either way.
+func (p *Presenter) writeUnlessStalled(ctx context.Context, data []byte) error {
+	if p.stalled {
+		return nil
 	}
-	if err := p.write(ctx, data, true); err != nil {
-		if p.stall(err) {
-			return false, nil
-		}
-		return false, p.fail(err)
+	if err := p.write(ctx, data, true); err != nil && !p.stall(err) {
+		return p.fail(err)
 	}
-	return true, nil
+	return nil
 }
 
 // Stalls counts the stalls the parent has recovered from or is in.
@@ -472,6 +469,7 @@ func (p *Presenter) paintPublication(ctx context.Context, f Frame, history *Hist
 	}
 	painted := err == nil
 	if painted {
+		p.stalled = false
 		p.confirmedModes = desired
 		p.modesKnown = true
 		p.previous = f.Clone()
@@ -831,8 +829,10 @@ func (p *Presenter) EmitEffects(ctx context.Context, effects []Effect, policy Ef
 			default:
 				return errors.New("terminal: unknown effect")
 			}
-			if ok, err := p.writeUnlessStalled(ctx, []byte(s)); err != nil || !ok {
-				return err
+			if s != "" {
+				if err := p.writeUnlessStalled(ctx, []byte(s)); err != nil {
+					return err
+				}
 			}
 			p.effects[e.EndpointID] = e.Sequence
 			delivered = append(delivered, e)
@@ -948,8 +948,7 @@ func (p *Presenter) Copy(ctx context.Context, data []byte) error {
 	}
 	encoded := base64.StdEncoding.EncodeToString(data)
 	return p.call(ctx, func(ctx context.Context) error {
-		_, err := p.writeUnlessStalled(ctx, []byte("\x1b]52;c;"+encoded+"\x1b\\"))
-		return err
+		return p.writeUnlessStalled(ctx, []byte("\x1b]52;c;"+encoded+"\x1b\\"))
 	})
 }
 

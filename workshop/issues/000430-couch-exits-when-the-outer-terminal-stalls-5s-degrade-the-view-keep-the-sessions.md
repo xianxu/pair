@@ -163,3 +163,29 @@ parent write blocked well past `WriteTimeout`, then the terminal drains.
   overflow into `ErrBackpressure`, which Couch treats as fatal: `p.call` blocks
   each caller until done, so each calling goroutine holds at most one queued
   request, and `Present` (endpoint output) is a flag, not a request.
+- Close review round 1 (FIX-THEN-SHIP) found two Important issues, both fixed:
+  - BR-1: a stalled `EmitEffects` returned early and lost non-writing effects
+    (attention marks). Now only the bytes are dropped; every effect is handled
+    and delivered.
+  - BR-2: a probe inside a copy or effect cleared the stall without the
+    repaint. Now only a completed full paint clears `stalled`, and one-shot
+    writes drop while stalled without probing. The test now copies right after
+    the drain; a mutation check reintroducing the bug fails it.
+  - Also fixed: `Expired` raced `ctx.Err()` (a poll can see the deadline
+    first), so it now compares the caller's deadline with the write's budget.
+- Minor dispositions:
+  - `Stalls()` is a test-facing counter only; see Revisions.
+  - Flag constellation: `stalled` is the one new flag. `modesKnown` and
+    `previous` predate it and are reset together by `stall()`, so it isn't a
+    new state machine. Moving parent-screen knowledge into `View` belongs in
+    a separate refactor.
+
+## Revisions
+
+- 2026-10-10: the Spec's "stall recorded as a notice or diagnostic" is reduced
+  to `Presenter.Stalls()`, which only tests read; no Couch notice yet. Reason:
+  keep the high-priority fix narrow. The rollout's live check watches for
+  exits, which is the property that matters. If stalls need to be visible, a
+  follow-up can trace each stall (with duration) through Couch's trace or
+  crash directory, together with the optional `sample` capture noted above.
+

@@ -884,3 +884,19 @@ proof; record the surprising case so the next change starts from evidence.
   was running. When a shortcut and a fallback return the same type, derive the
   fields from the same source (here the thread record, `RecordAgent`) and pin
   it with a test that runs both on one input and requires identical output.
+
+- **A degraded mode ends only through the operation that repairs it (#430).**
+  The first stall design let any successful probe clear `stalled`, including
+  one inside a clipboard copy. The copy then got through and the screen kept
+  the abandoned half-frame, because the repaint retry only fires while
+  stalled. When a flag stands for "this needs repair", clear it only where the
+  repair completes (here, a full paint), and test a side path that gets
+  through first.
+- **Dropping output is not dropping the event (#430).** Skipping a stalled
+  write also skipped `EmitEffects`' bookkeeping, so attention marks for bells
+  that write nothing were lost. When a mode suppresses I/O, suppress only the
+  bytes; sequence numbers, "delivered" lists and caller-visible state proceed.
+- **Classify a timeout by which deadline was binding, not by `ctx.Err()` (#430).**
+  A poll can return DeadlineExceeded slightly before the caller's context
+  reports `Err()`, so "caller still live" raced. Compare the deadlines up front
+  (`ctx.Deadline()` vs. your own budget).
