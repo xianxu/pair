@@ -283,6 +283,22 @@ func TestStatusRefusesWithoutARecordingCouchOrAValidOwner(t *testing.T) {
 	}
 }
 
+func TestStatusReportsCouchOwnerOrTheLegacyOwner(t *testing.T) {
+	for _, c := range []struct{ name, fm, want string }{
+		{"couch-owner", "couch-owner: ops:2", "ops:2"},
+		{"legacy owner", "owner: ops:0", "ops:0"},
+		{"both: couch-owner wins", "owner: ops:0\ncouch-owner: ops:2", "ops:2"},
+		{"process-instruction line", "process-instruction: [copy-edit] tighten the prose\ncouch-owner: ops:2", "ops:2"},
+	} {
+		r := newRig(t)
+		r.put(r.p.File, strings.Replace(statusDoc, "owner: ops:0", c.fm, 1))
+		st, err := r.sync.Status(r.p.File)
+		if err != nil || st.Owner != c.want {
+			t.Errorf("%s: owner %q err %v, want %q", c.name, st.Owner, err, c.want)
+		}
+	}
+}
+
 func TestStatusBeforeAnyWrite(t *testing.T) {
 	r := newRig(t)
 	st, err := r.sync.Status(r.p.File)

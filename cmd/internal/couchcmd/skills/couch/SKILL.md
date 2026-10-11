@@ -251,8 +251,9 @@ couch --send-to pair:4 --message 'Recovery (pair:4): restore this slot'\''s pair
 
 ## Session-sync files
 
-A markdown file with frontmatter `type: session-sync` and `owner: <your slot>`
-is a file you share with the operator (parley.nvim's Alt+Return submits it to
+A markdown file with frontmatter `type: session-sync` and `couch-owner: <your
+slot>` (older files say `owner:`, still read when `couch-owner:` is absent) is
+a file you share with the operator (parley.nvim's Alt+Return submits it to
 you). Change it only through the `--session-sync` verbs below. The operator's
 lock is pessimistic; your writes are optimistic: read a section, then write it
 back naming the hash you read. You hold no lock and have nothing to release.

@@ -416,6 +416,10 @@ there is no reply protocol or availability toggle.
 for a `type: session-sync` file (parley.nvim#313's turn-based operator/agent
 file). Package `sessionsync` owns the rules; `couchcmd/session_sync.go` is the
 CLI. It runs in-process against the store and needs no supervisor.
+- **Owner (#443):** the frontmatter's `couch-owner:` names the owning slot
+  (parley.nvim#316); a bare `owner:` is a legacy alias read only when
+  `couch-owner:` is absent. `ParseOwner` reads the frontmatter line by line,
+  not as YAML, so a `process-instruction: [copy-edit] …` line is harmless.
 - **Pessimistic for the human, optimistic for the agent (#439):** parley's
   `<file>.lock` (holder `operator`) refuses every write (exit 3); a legacy
   `holder: agent` lock counts as none, and Couch never writes or deletes the
@@ -453,7 +457,7 @@ CLI. It runs in-process against the store and needs no supervisor.
   - So "nothing owed" is never a blind spot.
   - The slot is validated by couch's own grammar
     (`couchcore.ParseWorkspaceReference`) and query-escaped into the filename.
-- **Owed:** rows for the file's `owner:` slot from the sidecar's `Since`
+- **Owed:** rows for the file's owner slot (`couch-owner:`) from the sidecar's `Since`
   (`.<file>.sync`; without a sidecar, the shadow's mtime), minus folded IDs,
   minus submits naming another file (the owner's own pings never reach the
   ledger; see Ledger). A body `submitted: <abs path>` is a

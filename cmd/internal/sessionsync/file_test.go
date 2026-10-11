@@ -75,6 +75,21 @@ func TestParseOwnerReadsFrontmatterOnly(t *testing.T) {
 	}
 }
 
+func TestParseOwnerPrefersCouchOwnerOverTheLegacyAlias(t *testing.T) {
+	for _, c := range []struct{ name, fm, want string }{
+		{"couch-owner", "couch-owner: ops:0\n", "ops:0"},
+		{"legacy owner alone", "owner: ops:1\n", "ops:1"},
+		{"both, couch-owner first", "couch-owner: ops:0\nowner: ops:1\n", "ops:0"},
+		{"both, owner first", "owner: ops:1\ncouch-owner: ops:0\n", "ops:0"},
+		{"process-instruction is not YAML and is skipped",
+			"process-instruction: [copy-edit] tighten: the prose, keep #refs\ncouch-owner: ops:0\n", "ops:0"},
+	} {
+		if got := ParseOwner("---\ntype: session-sync\n" + c.fm + "---\n\n# body\n"); got != c.want {
+			t.Errorf("%s: got %q want %q", c.name, got, c.want)
+		}
+	}
+}
+
 func TestParseHolder(t *testing.T) {
 	for _, c := range []struct {
 		lock string
