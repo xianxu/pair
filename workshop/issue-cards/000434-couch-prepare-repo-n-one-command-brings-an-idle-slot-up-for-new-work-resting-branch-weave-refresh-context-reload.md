@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000434-couch-prepare-repo-n-one-command-brings-an-idle-slot-up-for-new-work-resting-branch-weave-refresh-context-reload.md
         source_blob: 56891850cb1c8b6d5017779474f24e2e466ee230
         destination: workshop/issues/000434-couch-prepare-repo-n-one-command-brings-an-idle-slot-up-for-new-work-resting-branch-weave-refresh-context-reload.md
+        main_commit: e1a70b69316bb4de495662f5537e075cba872d05
 ---
 
 # couch --prepare repo:N: one command brings an idle slot up for new work (resting branch, weave refresh, context reload)
