@@ -1019,3 +1019,13 @@ proof; record the surprising case so the next change starts from evidence.
 - **A privacy test that bans an API gets narrowed, not deleted (#446).** The viewer test forbade
   `localStorage` because a view link keeps nothing; the color pick needs one key. Pin the exception exactly:
   one key, one reader and one writer, so a later "just remember this too" still fails the test.
+- **A callback a verb triggers can run on the caller's own loop (#447).** `Config.OnNotes` looked like a
+  request-goroutine callback, so the console's handler waited on the Run loop, but a 👆 click runs on that loop
+  and `DisablePointer` now reports the emptied board: a deadlock no plan review caught, found by the first console
+  test that clicked. Before a callback waits on a loop, list every caller of the function that fires it, the
+  operator's own input path included, and hand off without waiting when one of them is that loop.
+- **An overlay that writes text must widen the row's used columns (#447).** The renderer draws a row's text only
+  up to `RowMetadata.UsedColumns` and treats the rest as blank tail, so a 💭 on an empty row vanished while marks
+  (background only) showed. A frame edit that adds content past the old text updates the metadata too.
+- **A user-visible addition to the tab bar is a README change (#447).** The M1 review blocked on it; grep the
+  README for the row's current spelling (`LIVE ⏸ 👆 👽`) whenever the row gains a cell.

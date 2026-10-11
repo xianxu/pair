@@ -75,8 +75,9 @@ func (c *Console) forgetNotes() {
 	c.pnotes.mu.Unlock()
 }
 
-// drawnNotes is the snapshot the overlay and the status row read: empty
-// unless pointing is on.
+// drawnNotes is the snapshot the overlay and the status row read. It is
+// empty while pointing is off only because every pointer-phase change
+// resyncs it from the session, whose board a flip to off empties.
 func (c *Console) drawnNotes() []broadcast.Note {
 	c.pnotes.mu.Lock()
 	defer c.pnotes.mu.Unlock()

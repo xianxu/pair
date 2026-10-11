@@ -109,6 +109,19 @@ func TestNotesNewestVersionWins(t *testing.T) {
 	}
 }
 
+// Stopping the broadcast forgets notes the console holds: no 💭, no count.
+func TestNotesForgottenWhenBroadcastEnds(t *testing.T) {
+	f, _, link := pointerOnFixture(t, nil)
+	noteUntilSaved(t, link, 10, 5, "a")
+	waitFor(t, "count drawn", func() bool { return strings.Contains(f.screenText(), broadcast.NoteGlyph+"1") })
+	_, _ = f.stdin.Write([]byte(ctrlAltB))
+	waitFor(t, "broadcast off", func() bool { return f.phase() == broadcastOff })
+	if notes, v := f.heldNotes(); len(notes) != 0 || v != 0 {
+		t.Fatalf("console still holds %d notes (v%d)", len(notes), v)
+	}
+	waitFor(t, "💭 gone", func() bool { return !strings.Contains(f.screenText(), broadcast.NoteGlyph) })
+}
+
 func TestNotesIgnoredAfterBroadcastEndsOrFromAnotherSession(t *testing.T) {
 	f, s, _ := pointerOnFixture(t, nil)
 	other := &broadcast.Session{}

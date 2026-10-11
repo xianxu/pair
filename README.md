@@ -891,6 +891,15 @@ Right-click `LIVE ⏸` to copy the view-only link again. Stopping the
 broadcast ends every link. `👽` is reserved for remote control and does
 nothing yet.
 
+**Sticky notes (#447).** People on the pointer link can also pin a short
+plain-text note to a spot on the screen. Couch draws a `💭` there, on your
+screen and every viewer's, and the status row shows the open count after the
+controls (`LIVE ⏸ 👆 👽 💭2`). You can't open notes from the terminal; anyone
+on either link can tap a `💭` to read it, and anyone on the pointer link can
+resolve it. A note stays on the cell where it was placed, whatever scrolls
+underneath. Turning pointing off deletes every note, as it clears the marks,
+and stopping the broadcast ends them too; nothing is saved to disk.
+
 With an empty root filter, **Space** toggles the **normal view** and **focus view**.
 Focus view shows only live threads with a published summary, in normal-view
 order, as `label ◆ summary`. Tag a thread with `! …` in its Pair draft. An empty
