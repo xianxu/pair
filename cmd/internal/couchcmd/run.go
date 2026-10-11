@@ -278,6 +278,15 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 	if invocation.kind == cliAdopt {
 		return runAdoptionCLI(invocation, rt, stdout, stderr)
 	}
+	if invocation.kind == cliSessionSync {
+		prepared, lease, err := prepareRuntime(rt, false)
+		if err != nil {
+			fmt.Fprintln(stderr, "couch:", err)
+			return 1
+		}
+		defer lease.Close()
+		return runSessionSyncCLI(invocation.sessionSync, prepared, stdout, stderr)
+	}
 	if invocation.kind == cliMessage {
 		prepared, lease, err := prepareRuntime(rt, false)
 		if err != nil {

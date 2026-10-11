@@ -142,6 +142,9 @@ type messageService struct {
 	// broadcastStatus answers broadcast-status (pair#413). Installed after the
 	// service is serving, so it is an atomic pointer; nil answers unsupported.
 	broadcastStatus atomic.Pointer[func() (couchmessage.BroadcastStatus, bool)]
+	// deliveries records each landed delivery for session-sync owed events
+	// (pair#437); nil records nothing.
+	deliveries atomic.Pointer[deliveryRecorder]
 
 	mu sync.Mutex
 	// workspaces holds each connected binding's verified workspace, for the
@@ -325,6 +328,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	probe.service.Store(service)
 	console.SetMessageBroker(service.broker)
 	service.SetBroadcastStatus(console.BroadcastStatus)
+	service.recordDeliveries(namespace)
 	// After the loop runs: the replay of already-attached panes lands in the
 	// mailbox the loop drains.
 	console.SubscribeMessageLifecycle(panes)
@@ -841,7 +845,11 @@ func (e messageEndpoint) Deliver(ctx context.Context, m couchmessage.Message) (c
 	if err := e.check(ctx); err != nil {
 		return couchmessage.Receipt{Status: couchmessage.Cancelled, Detail: err.Error()}, nil
 	}
-	return e.endpoint.Deliver(ctx, m)
+	receipt, err := e.endpoint.Deliver(ctx, m)
+	if r := e.service.deliveries.Load(); r != nil {
+		r.record(m, receipt, err)
+	}
+	return receipt, err
 }
 
 func readMessageWrapperPID(path string) (int, error) {

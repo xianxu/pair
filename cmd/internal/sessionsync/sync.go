@@ -308,6 +308,9 @@ func (s *Sync) Release(path string, fold []string) (Result, error) {
 type Recording struct {
 	PID     int
 	Started time.Time
+	// Failed is set when an append failed: a row is missing, so "nothing
+	// owed" can't be trusted until a restart starts a fresh record.
+	Failed string `json:",omitempty"`
 }
 
 func (l *Ledger) recordingPath() string { return filepath.Join(l.Dir, "recording.json") }
@@ -324,11 +327,25 @@ func (l *Ledger) MarkRecording(r Recording) error {
 	return writeAtomic(l.recordingPath(), raw)
 }
 
-// Recording refuses unless a Couch has marked this store as recording.
+// MarkFailed records that a delivery could not be appended. Only the next
+// MarkRecording (a Couch start) clears it.
+func (l *Ledger) MarkFailed(r Recording, cause error) error {
+	r.Failed = cause.Error()
+	return l.MarkRecording(r)
+}
+
+// Recording refuses unless a Couch has marked this store as recording and
+// no append has failed since.
 func (l *Ledger) Recording() error {
-	if _, err := os.Stat(l.recordingPath()); err != nil {
+	raw, err := os.ReadFile(l.recordingPath())
+	if err != nil {
 		return &Refusal{Exit: ExitRefused, Code: "not-recording",
 			Reason: "this Couch store has no delivery ledger yet; restart Couch on a build with pair#437 so owed events are recorded"}
+	}
+	var r Recording
+	if json.Unmarshal(raw, &r) != nil || r.Failed != "" {
+		return &Refusal{Exit: ExitRefused, Code: "not-recording",
+			Reason: fmt.Sprintf("the delivery ledger lost a row (%s); owed events are incomplete until Couch restarts", r.Failed)}
 	}
 	return nil
 }
