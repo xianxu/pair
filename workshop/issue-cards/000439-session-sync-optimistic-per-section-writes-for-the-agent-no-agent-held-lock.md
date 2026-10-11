@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000439-session-sync-optimistic-per-section-writes-for-the-agent-no-agent-held-lock.md
         source_blob: e014576eaffb92de4d2652362e4441e84800f73e
         destination: workshop/issues/000439-session-sync-optimistic-per-section-writes-for-the-agent-no-agent-held-lock.md
+        main_commit: 2d1e81f7750cf27a43cf5e225402cc21be5ec7fe
 ---
 
 # session-sync: optimistic per-section writes for the agent, no agent-held lock
