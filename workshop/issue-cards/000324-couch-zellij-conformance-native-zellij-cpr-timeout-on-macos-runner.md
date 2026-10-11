@@ -1,6 +1,6 @@
 ---
 id: 000324
-status: open
+status: working
 created: 2026-09-24
 updated: 2026-10-10
 estimate_hours:
