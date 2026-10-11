@@ -72,6 +72,20 @@ func (c *Console) noteStyleLocked() broadcast.NoteStyle {
 // real background: the terminal reported it (OSC 11) and has truecolor.
 func blendable(p Palette) bool { return p.Known && p.TrueColor && !p.NoColor }
 
+// restyleNotes takes a new palette (an OSC 10/11 reply, a theme change) into
+// the notes' style, as marks take it on their next batch. The overlay can't
+// read c.mu itself: it runs on the Presenter goroutine, which callers holding
+// c.mu may wait on.
+func (c *Console) restyleNotes() {
+	c.mu.Lock()
+	style := c.noteStyleLocked()
+	c.mu.Unlock()
+	c.pnotes.mu.Lock()
+	hover := c.pnotes.style.Hover
+	c.pnotes.style, c.pnotes.style.Hover = style, hover
+	c.pnotes.mu.Unlock()
+}
+
 // scheduleNotes arms one timer for the notes' next flash step, replacing
 // any earlier one; with no notes there is none. The timer repaints through
 // the overlay and schedules the next.

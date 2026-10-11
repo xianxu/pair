@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"fmt"
+	"image/color"
 	"net/http"
 	"strings"
 	"testing"
@@ -242,5 +243,24 @@ func TestCollaborationTimersRearmAndTearDown(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// A palette reply after a note is up restyles it at once (M3 review): the
+// blend background isn't frozen at the last note change.
+func TestNotesTakeANewPalette(t *testing.T) {
+	f, _, link := pointerOnFixture(t, nil)
+	noteUntilSaved(t, link, 10, 5, "a")
+	waitFor(t, "note held", func() bool { n, _ := f.heldNotes(); return len(n) == 1 })
+	f.con.mu.Lock()
+	f.con.menu.Palette.TrueColor, f.con.menu.Palette.Known = true, true
+	f.con.menu.Palette.BG = color.RGBA{0x20, 0x20, 0x20, 0xff}
+	f.con.mu.Unlock()
+	f.con.restyleNotes()
+	f.con.pnotes.mu.Lock()
+	style := f.con.pnotes.style
+	f.con.pnotes.mu.Unlock()
+	if !style.Blend || style.BG != (color.RGBA{0x20, 0x20, 0x20, 0xff}) {
+		t.Fatalf("style not refreshed: %+v", style)
 	}
 }

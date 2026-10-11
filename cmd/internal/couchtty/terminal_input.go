@@ -63,6 +63,7 @@ func (c *Console) routeInputEvent(event terminal.InputEvent) {
 		// A reply is never a child's input. The terminal's colour answers are
 		// the one kind couch asked for itself (pair#247).
 		if c.capturePalette(event.Event) {
+			c.restyleNotes()
 			c.repaintVisible()
 		}
 		return
