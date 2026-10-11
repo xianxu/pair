@@ -672,6 +672,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/console_broadcast.go",
 	"cmd/internal/couchtty/console_pointer.go",
 	"cmd/internal/couchtty/console_notes.go",
+	"cmd/internal/couchtty/notes_menu.go",
 	"cmd/internal/couchcmd/broadcast.go",
 	"cmd/internal/couchcmd/broadcast_list.go",
 	// #437 session-sync: a delivery ledger under the Couch store and sidecars

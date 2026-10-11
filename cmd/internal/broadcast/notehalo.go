@@ -42,6 +42,12 @@ type NoteStyle struct {
 	Hover int
 }
 
+// NoteChipColor is a note's author color at full strength, as its chip is
+// drawn; the terminal's notes menu (M4) draws each item's chip with it.
+func NoteChipColor(c int, style NoteStyle) color.Color {
+	return paletteTint(c, 0, style.BG, style.Blend)
+}
+
 // flashShape is how much of a flash shows p into it: 1 while it holds, then
 // stepping down, 0 once it is over; next is how long until that changes
 // (ok false once over).
