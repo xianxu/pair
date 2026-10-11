@@ -1,10 +1,19 @@
 ---
 id: 000450
-status: working
+status: codecomplete
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
 github_issue:
+started: 2026-10-11T13:19:20-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
+actual_hours: 1.04
 tracker:
     version: 1
     handoff:
@@ -17,14 +26,11 @@ tracker:
         source_blob: 8f832a7cd9b71c604ecc2f555114197792509cf8
         destination: workshop/issues/000450-pair-main-own-and-clear-the-test-failures-that-every-worker-reports-as-pre-existing.md
         main_commit: 1a6d8ea2a2bc17bc9c9037dcad5a83714f7647b0
-started: 2026-10-11T13:19:20-07:00
-claimant:
-    operator: Xian Xu
-    machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: MacBook Pro
-    workspace: pair:4
-    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
-    repository: github.com/xianxu/pair
+    completion:
+        token: close-bee0c8f53e2c
+        repository: github.com/xianxu/pair
+        reviewed_head: b049190c7215d3d51fe7e62826ccadaecf922244
+        evidence_commit: ea3e2bdb9630d1b3bbc28e8f2a990fc07fce9d6b
 ---
 
 # pair main: own and clear the test failures that every worker reports as pre-existing
