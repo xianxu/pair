@@ -1,12 +1,20 @@
 ---
 id: 000436
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-10
 updated: 2026-10-10
 estimate_hours:
-card_mirror: 'cfa553d8fa9f9ce2fc384bff4a84e7fb2b1d880d' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '50f0cf3701629a4a926afddca93746a52b976430' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-10T23:14:06-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Main is green: the full local suite (make test) passes on pair main
@@ -35,8 +43,26 @@ hides new breakage. The operator (batch-2 recap, 10-10): "let's ensure ariadne a
 
 ## Plan
 
-- [ ]
+- [x] Baseline `make -k test` on main in a scrubbed env (`env -i HOME PATH TMPDIR USER`, default `/var` TMPDIR).
+- [x] Fix `test-changelog` at the root (owner-frame paths).
+- [x] Commit weave's ariadne#320 union-merge `.gitattributes` block (TL fold-in).
+- [ ] Baseline `go test ./...`: per-package times, failures.
+- [ ] couchcore: find what makes it slow; fix or move to an explicit lane.
+- [ ] `TestSpawnComposesProductionPairRegistrationBoundary`: root-cause and fix.
+- [ ] `make test` green twice from a clean slot, wall time recorded.
 
 ## Log
 
 ### 2026-10-10
+
+- Baseline (main c7ee1a33 + weave block, scrubbed env, default TMPDIR): `make -k test` rc=2 in 214s.
+  Only failure: `test-changelog` (`viewer: process target is outside selected owner directory`). make then
+  skips `test`'s own recipe, so the Go suite never ran — main had no green `make test` at all.
+- `test-changelog` root cause: `storagegc.SelectedOwner` evaluates `PAIR_DATA_DIR`'s symlinks, but the
+  changelog viewer target (`AcquireRoleProcessTarget`) and the distiller paths (`changelogcmd`) were matched in
+  the caller's spelling; macOS `/var` is a symlink to `/private/var`. scrollbackcmd and pairlog already resolved
+  their paths, each with a private copy. Fixed with one `storagegc.OwnerFramePath` (deepest existing ancestor
+  resolved) used at all four sites (ARCH-DRY). The lease now records targets physically, which also lets the
+  collector match a reader target against capture paths. It also refuses a target that escapes the owner
+  through a symlinked subdirectory. Tests: `TestRoleTargetThroughSymlinkedDataDirIsRecordedPhysically`
+  (failed before the fix), `TestOwnerFramePathResolvesTheExistingPrefixOnly`.
