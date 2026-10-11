@@ -101,3 +101,81 @@ findings:
     detail: |
       restore_client.lua:113. On a host that refuses the socket, every reopened pane is also legacy. Consider a host-specific message.
 ```
+
+---
+
+## Re-review — 2026-10-11T14:29:50-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 450 — pair main: own and clear the test failures that every worker reports as pre-existing |
+| repo | pair |
+| issue file | workshop/issues/000450-pair-main-own-and-clear-the-test-failures-that-every-worker-reports-as-pre-existing.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 536ad9671d39bfb86934fdabd4eae78856ff34da..b049190c7215d3d51fe7e62826ccadaecf922244 |
+| command | sdlc close --issue 450 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-11T14:29:50-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Both fixes go red when reverted, and the checkout is restored. Next I'm checking the launcher env pin.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+All five findings from round 1 are fixed, and I checked each against the code, not the commit messages. The preflight now probes for running `ps`, which round 1 called "exec of `ps`". In this review sandbox it fails at once and names the right cause: `exec ps: [Errno 1] Operation not permitted`. Both Lua fixes have regression tests that fail when the fix is reverted. The `COUCH_PAIR_DATA_DIR` reset in launcher's `TestMain` is needed: without it, 5 `TestLaunchNative*`/`TestCheckpoint*` tests fail when the variable leaks in, and with it they pass. Nothing blocks shipping.
+
+Done-when: current. The Spec/Revisions changes after change-code only made the preflight and the pane message more accurate. Both clauses still cover the diff: `make test` and `go test ./...` passing, and the Log naming what broke `test-review` (the Log says no landing did; the cause was the sandbox host).
+
+1. **Strengths**
+   - `nvim/review/restore_controller.lua:40-48`: a refused socket is caught, its private directory is removed, and the pane still publishes, so review still works on such a host. The test at `restore_controller_test.lua:86-103` checks the endpoint is nil, the token is still published, the warning names the cause and nothing is left behind. It fails at line 96 without the fix.
+   - `nvim/review/restore_client.lua:103-105`: separating `unserved` from `legacy` is a minimal change, and the client test fails at line 123 without it.
+   - The investigation rules out the host before bisecting, which avoided a false "regression" bisect. The lesson at `workshop/lessons.md:1022` records that method.
+   - `tests/host-preflight.sh` checks for `python3` before blaming the sandbox, and lists each refused capability on its own line.
+
+2. **Critical:** none.
+3. **Important:** none.
+4. **Minor:** none new. One wording point, not raised as a finding: the lesson says the sandbox "refuses unix sockets and PTYs" but leaves out `ps`. That sentence describes the original investigation, so it is acceptable.
+5. **Test coverage**
+   - I reverted each fix in the disposable checkout:
+     - the restore_controller change made its test fail;
+     - the restore_client change made its test fail;
+     - removing the launcher `TestMain` reset made 5 tests fail with `COUCH_PAIR_DATA_DIR` set.
+   - All three passed again at head. `git status` was clean afterwards.
+   - I did not run the couchcmd child-env pin, because this sandbox refuses running `ps`. By inspection it follows the same pattern.
+   - I could not check `make test` passing on main here (the sandbox host is the documented blocker). That rests on the implementor's unsandboxed run recorded in the Log.
+6. **Architecture**
+   - ARCH-DRY: pass. The script header, the atlas and the Makefile comment each list the probed capabilities. That is three copies, all accurate now. If they drift, the script header is the one to keep as the source.
+   - ARCH-PURE: pass. The Lua changes are local guards; the preflight is a thin IO probe.
+   - ARCH-PURPOSE: pass. Every failure the issue lists is dealt with (fixed, pinned, or explained as the host), and the coverage decision is recorded. The pre-lock hook left for later is genuinely base-layer (ariadne) work, not the purpose of this issue.
+7. **Plan revisions:** none. Round 1's `## Revisions` entry already matches the code.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      host-preflight.sh now probes running ps -p; it fails in this sandbox naming "exec ps"; atlas, header and Makefile comment name the three probed capabilities and say an unprobed refusal still fails as an ordinary test.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      command -v python3 is checked first with its own message (host-preflight.sh:13-16).
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Makefile.local:216-219 documents that make -k runs past the preflight; plain make (no -j in the makefiles) stops at the first prerequisite.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      lessons.md now covers the child-env pin as well as TestMain; the launcher TestMain reset is shown to be needed (5 tests fail without it).
+  - id: BR-5
+    disposition: addressed
+    note: |
+      restore_client.lua:105,114 adds the unserved state with a host-specific message; the client test fails at line 123 when it is reverted.
+```

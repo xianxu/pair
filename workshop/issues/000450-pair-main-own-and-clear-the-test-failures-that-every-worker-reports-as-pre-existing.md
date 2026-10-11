@@ -47,6 +47,7 @@ On 10-11 four workers each reported the same failures on pair main as "pre-exist
 ## Log
 
 ### 2026-10-11
+- 2026-10-11: closed — At b049190c: unsandboxed make -k test exit 0 (host-preflight ok incl. exec ps probe, review-window-test ok, go test ./... -count=1 inside it green); raw go test ./... -count=1 from a live Couch shell (COUCH_PAIR_DATA_DIR set) exit 0, was 6 failures. Sandboxed: restore_controller_test.lua, restore_client_test.lua (new unserved case, red before fix) and tests/review-window-test.sh pass (was 8 FAIL); host-preflight names socket+pty+exec-ps refusals; PATH without python3 reports python3 missing separately. Bisect: test-review fails identically at #436 merge 80cc80af sandboxed, passes unsandboxed -> environment, not a landing. pair#423 20/20 isolated. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 
 - What broke `test-review`: no landing. It fails identically at #436's merge (80cc80af) when run sandboxed and passes there unsandboxed. The sandbox-sensitive code is #341's restore controller (e5dd82c4, 09-28: `serverstart` at VimEnter). #436 was verified outside the sandbox; the four 10-11 workers ran inside it. Baseline unsandboxed `make -k test` on unmodified main exits 0.
 - Sandboxed `go test ./...` fails ~150 tests across 14 packages (unix sockets, PTYs: couchmessage, notifytransport, ptychild, wrapcmd, terminal, ...). These are the host, not the code; `tests/host-preflight.sh` now says so first.
