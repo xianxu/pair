@@ -14,6 +14,8 @@ type SlotReport struct {
 	Observation SlotObservation
 	Plan        SlotPlan
 	PlanError   string
+	// LastFailure is the slot's last blocking reconcile, if any (pair#442).
+	LastFailure *SlotFailure
 }
 
 // ShowResult is couch --show's answer: the matching threads, and the slot's
@@ -148,6 +150,9 @@ func (c *Couch) slotReportWithAgent(ctx context.Context, slot SlotIdentity, agen
 		report.PlanError = err.Error()
 	}
 	report.Plan = plan
+	if last, err := ReadSlotFailure(LayoutOf(slot)); err == nil {
+		report.LastFailure = last
+	}
 	return report
 }
 

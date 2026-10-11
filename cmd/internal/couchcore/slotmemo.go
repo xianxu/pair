@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"os"
 	"path/filepath"
 	"time"
@@ -74,4 +75,70 @@ func knownFailedSetup(ctx context.Context, io ProvisionIO, layout SlotLayout, ad
 		return "", false
 	}
 	return attempt.Failure, true
+}
+
+// SlotFailure records a slot's last blocking reconcile (pair#442): the step,
+// the command and its budget, and the full cause with the command's stderr
+// tail, so a failure the operator saw only on screen can be read afterward
+// (couch --show). One per slot: the next failure replaces it and the next
+// success removes it.
+type SlotFailure struct {
+	SchemaVersion int            `json:"schema_version"`
+	At            time.Time      `json:"at"`
+	Resource      SlotResourceID `json:"resource"`
+	Step          ConvergeStep   `json:"step,omitempty"`
+	Class         FailureClass   `json:"class"`
+	Command       string         `json:"command,omitempty"`
+	Timeout       string         `json:"timeout,omitempty"`
+	TimedOut      bool           `json:"timed_out,omitempty"`
+	Cause         string         `json:"cause"`
+}
+
+func newSlotFailure(e *SlotReconcileError, at time.Time) SlotFailure {
+	r := SlotFailure{SchemaVersion: 1, At: at.UTC(), Resource: e.Failure.Resource, Step: e.Failure.Step, Class: e.Failure.Class, Cause: e.Failure.Cause}
+	if e.Err != nil {
+		r.Cause = e.Err.Error()
+	}
+	var cmd *ProvisionCommandError
+	if errors.As(e.Err, &cmd) {
+		r.Command, r.TimedOut = cmd.Command, cmd.TimedOut
+		if cmd.Timeout > 0 {
+			r.Timeout = cmd.Timeout.String()
+		}
+	}
+	return r
+}
+
+// recordSlotFailure keeps a blocking outcome under the creation lease, like
+// every slot record. Best effort: the error itself still reaches the caller.
+func (p *WorkspaceProvisioner) recordSlotFailure(l SlotLayout, e *SlotReconcileError) {
+	lease, err := AcquireHostCreationLease(l.common)
+	if err != nil {
+		return
+	}
+	defer lease.Close()
+	_ = p.Store.Write(l.LastFailure(), newSlotFailure(e, time.Now()))
+}
+
+// clearSlotFailure removes the record once the slot converges.
+func (p *WorkspaceProvisioner) clearSlotFailure(l SlotLayout) {
+	if _, err := os.Lstat(l.LastFailure()); err != nil {
+		return
+	}
+	lease, err := AcquireHostCreationLease(l.common)
+	if err != nil {
+		return
+	}
+	defer lease.Close()
+	_ = p.Store.Remove(l.LastFailure())
+}
+
+// ReadSlotFailure reads a slot's last-failure record (nil when none).
+func ReadSlotFailure(l SlotLayout) (*SlotFailure, error) {
+	var r SlotFailure
+	exists, err := (ProvisionStore{}).Read(l.LastFailure(), &r)
+	if err != nil || !exists {
+		return nil, err
+	}
+	return &r, nil
 }

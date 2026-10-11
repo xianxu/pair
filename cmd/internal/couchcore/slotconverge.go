@@ -52,7 +52,7 @@ func (cv *slotConverger) converge(ctx context.Context, s PlannedStep) error {
 		// rewrites a broken .git file and still exits 1, reporting the
 		// breakage it found (git 2.54, TestConvergeRepairHost). Its status is
 		// evidence of nothing; a cancelled context still is.
-		_, _ = cv.git(ctx, cv.layout.primary, "worktree", "repair", cv.layout.Host())
+		_, _ = cv.p.gitWrite(ctx, cv.layout.primary, cv.lease, "worktree", "repair", cv.layout.Host())
 		return ctx.Err()
 	case StepWorktreeAdd:
 		return cv.worktreeAdd(ctx, s)
@@ -173,7 +173,7 @@ func (cv *slotConverger) worktreeAdd(ctx context.Context, s PlannedStep) error {
 		args = append(args, "--force")
 	}
 	args = append(args, l.Host(), branch)
-	_, err = cv.git(ctx, l.primary, args...)
+	_, err = cv.p.gitWrite(ctx, l.primary, cv.lease, args...)
 	return err
 }
 

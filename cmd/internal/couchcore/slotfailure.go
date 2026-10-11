@@ -33,8 +33,10 @@ func AllFailureClasses() []FailureClass {
 // verbatim.
 type ReconcileFailure struct {
 	Resource SlotResourceID
-	Class    FailureClass
-	Cause    string
+	// Step is the converge step that failed (empty for a plan stop).
+	Step  ConvergeStep
+	Class FailureClass
+	Cause string
 }
 
 // weaveSetupActive is weave's own line for a setup already running in the
@@ -46,7 +48,7 @@ const weaveSetupActive = "environment setup is active in"
 // cause shown verbatim (weave's last "Error:" line when it printed one,
 // matched anywhere in a line because weave may prefix the owner).
 func ClassifyConvergeError(step PlannedStep, err error) ReconcileFailure {
-	f := ReconcileFailure{Resource: step.Resource, Class: FailureHandoff, Cause: errorCause(err)}
+	f := ReconcileFailure{Resource: step.Resource, Step: step.Step, Class: FailureHandoff, Cause: errorCause(err)}
 	switch {
 	case errors.Is(err, errAgentAppeared):
 		f.Class, f.Cause = FailureHold, StopReasonAgentLive
@@ -101,9 +103,13 @@ func stopFailure(s PlanStop) ReconcileFailure {
 // when that can help, and otherwise hands the slot to the repository's :0
 // agent. Never "fix it", never a bare "retry".
 func ReconcileAdvice(address, repo string, f ReconcileFailure) string {
+	resource := string(f.Resource)
+	if f.Step != "" {
+		resource += " (step " + string(f.Step) + ")"
+	}
 	switch f.Class {
 	case FailureRetryable:
-		return fmt.Sprintf("slot %s: %s did not converge: %s; run it again when that finishes", address, f.Resource, f.Cause)
+		return fmt.Sprintf("slot %s: %s did not converge: %s; run it again when that finishes", address, resource, f.Cause)
 	case FailureUnknown:
 		return fmt.Sprintf("slot %s: %s could not be observed: %s; nothing depending on it was changed", address, f.Resource, f.Cause)
 	case FailureHold:
@@ -119,7 +125,7 @@ func ReconcileAdvice(address, repo string, f ReconcileFailure) string {
 		}
 		return fmt.Sprintf("slot %s: %s is on hold: %s", address, f.Resource, f.Cause)
 	}
-	return fmt.Sprintf("slot %s: %s did not converge: %s. Reconcile cannot fix this; ask the %s:0 agent to investigate (couch --show %s lists every resource)", address, f.Resource, f.Cause, repo, address)
+	return fmt.Sprintf("slot %s: %s did not converge: %s. Reconcile cannot fix this; ask the %s:0 agent to investigate (couch --show %s lists every resource)", address, resource, f.Cause, repo, address)
 }
 
 // Severity says whether an outcome lets an agent work in the slot.
