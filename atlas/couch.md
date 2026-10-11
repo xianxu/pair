@@ -436,8 +436,14 @@ CLI. It runs in-process against the store and needs no supervisor.
   reader outside the flock (parley reloading a clean buffer) never sees a torn
   file (pair#445): the file itself (`replaceShared`, through a symlink to its
   target, keeping its mode; parley and nvim follow the path's mtime), the
-  shadow (`.<file>.shadow`, the agent's last write, shown by `diff`) and the
-  state sidecar.
+  shadow (`.<file>.shadow`) and the state sidecar.
+- **Shadow (#448):** the file as the agent last saw it; `diff` shows the file
+  against it. A section write updates only that section (and the restamp) in
+  the shadow, so the operator's edits elsewhere stay in `diff` until the agent
+  takes them in. `write --all` and `read --all` set it to the whole file. A
+  shadow lacking the written section (the operator added it) stays unchanged.
+  The first shadow written by `read --all` pins a sidecar-less file's horizon
+  in the sidecar, since the horizon falls back to the shadow's mtime.
 - **Ledger:** the message service's `messageEndpoint.Deliver`
   (`message_deliveries.go`) appends one row per delivery that may have
   reached the agent: submitted, indeterminate, an endpoint error, or a
