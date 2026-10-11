@@ -1029,3 +1029,26 @@ proof; record the surprising case so the next change starts from evidence.
   (background only) showed. A frame edit that adds content past the old text updates the metadata too.
 - **A user-visible addition to the tab bar is a README change (#447).** The M1 review blocked on it; grep the
   README for the row's current spelling (`LIVE ⏸ 👆 👽`) whenever the row gains a cell.
+- **Rule out the host before bisecting a "regression" (#450).** Four workers called `test-review` a regression since
+  #436 and the issue asked for a bisect, but the failure reproduced at #436's own merge: they ran the suite inside the
+  agent sandbox, which refuses unix sockets and PTYs, while #436 was verified outside it. Before bisecting, rerun the
+  failing test at the "known-good" commit in the same shell; if it fails there too, the variable is the environment.
+  A suite that cannot run on a host should say so first (`tests/host-preflight.sh`), not fail 150 tests that read
+  like code bugs.
+- **A test's hand-pinned env list rots when production gains a new env input (#450).** The launcher tests pinned
+  `COUCH_THREAD_*` but not `COUCH_PAIR_DATA_DIR`, added later by #366, so raw `go test ./...` in a Couch shell
+  failed. Clear an ambient input that changes every call's behaviour once per package, in `TestMain`, rather than
+  in each test; a child process built from `os.Environ()` needs the same pin in its env builder, since `TestMain`
+  does not reach a package that only launches the binary.
+- **A screen scan for "the dialog" reads from the bottom and keys on the selection cursor (#451).** `dialogTitle`
+  took the first `1.` line from the top, so a numbered list in the agent's earlier prose became the dialog's title.
+  A live dialog is the newest thing on screen and its selected option carries the cursor glyph; prose lists don't.
+  When classifying a terminal tail, anchor on the most recent, most specific marker, and test with distractor
+  text above it.
+- **A retry-on-failure path needs a test that fails once, then succeeds (#451).** Marking an episode notified
+  before `Send` kept every test green and silently dropped notices after one refusal. When a state update must
+  follow an effect's success, add a fake that refuses the first attempt, and mutation-check the ordering.
+- **An operator knob that fails to parse refuses, it doesn't default (#451).** A silent fallback hides a typo for
+  as long as the default is plausible. Validate env knobs before taking resources and refuse the start, naming the
+  variable and the accepted form.
+

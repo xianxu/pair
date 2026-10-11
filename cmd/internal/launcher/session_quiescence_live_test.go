@@ -18,6 +18,10 @@ func TestMain(m *testing.M) {
 			time.Sleep(time.Hour)
 		}
 	}
+	// A Couch shell exports its selected global root, and LaunchNative refuses
+	// any PAIR_DATA_DIR outside it (pair#450). Tests that exercise a selected
+	// root set it themselves.
+	os.Unsetenv("COUCH_PAIR_DATA_DIR")
 	os.Exit(m.Run())
 }
 

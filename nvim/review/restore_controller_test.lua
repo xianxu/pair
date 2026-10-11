@@ -81,5 +81,24 @@ ctl.opts.resolve=function()local value=vim.deepcopy(a);value.snapshot=nil;return
 req.identity=a
 assert(not ctl:request(req).ok,'activation accepted an identity without bounded captured bytes')
 assert(vim.api.nvim_get_current_line()=='B captured','missing snapshot changed active document')
-ctl:close(); vim.fn.delete(tmp,'rf')
+ctl:close()
+
+-- #450: a host that refuses the restore socket (a sandboxed shell) still gets a
+-- review pane. The pane publishes without an endpoint, which restore_client reads
+-- as a legacy pane, and says why branch restoration is unavailable.
+local open_path=tmp..'/review-open'
+local original_serverstart=vim.fn.serverstart
+vim.fn.serverstart=function() error('Vim:Failed to start server: operation not permitted') end
+local warned={}; vim.notify=function(message) warned[#warned+1]=message end
+local nosock=C.new({open_path=open_path})
+local served,serve_err=pcall(nosock.init,nosock,abuf,nil)
+vim.fn.serverstart=original_serverstart; vim.notify=original_notify
+assert(served,'a refused restore socket aborted review startup: '..tostring(serve_err))
+assert(nosock.endpoint==nil,'endpoint recorded for a socket that never started')
+local meta=vim.json.decode(vim.fn.readfile(open_path)[3])
+assert(meta.endpoint==nil and meta.token==nosock.token,'open state must publish without an endpoint')
+assert(warned[1] and warned[1]:find('operation not permitted',1,true),'refused socket must be reported with its cause')
+nosock:close()
+assert(vim.fn.isdirectory(nosock.socket_dir or '')==0,'refused socket left its private directory behind')
+vim.fn.delete(tmp,'rf')
 print('restore_controller_test ok')

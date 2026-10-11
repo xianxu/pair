@@ -100,8 +100,9 @@ function C:pane()
   if not pid or pid<1 or not (vim.uv or vim.loop).kill(pid,0) then return nil end
   local decoded,meta=pcall(vim.json.decode,lines[3] or '')
   if not decoded or type(meta)~='table' then return {legacy=true} end
-  if meta.version~=1 or type(meta.endpoint)~='string' or meta.endpoint==''
-    or type(meta.token)~='string' or meta.token=='' then return {legacy=true} end
+  if meta.version~=1 or type(meta.token)~='string' or meta.token=='' then return {legacy=true} end
+  -- A tokened pane without an endpoint ran on a host that refused its socket.
+  if type(meta.endpoint)~='string' or meta.endpoint=='' then return {legacy=true,unserved=true} end
   return meta
 end
 function C:show()
@@ -110,6 +111,7 @@ function C:show()
   end)
 end
 function C:activate(pane,wanted,opened)
+  if pane.unserved then self:finish('existing review pane has no restore socket (this host refused it), so it cannot switch branches; finish and close it to review another'); return end
   if pane.legacy then self:finish('existing review pane cannot restore branches; finish and close it before reopening'); return end
   local session=self.opts.session() or ''
   if pane.session~=session then self:finish('existing review pane belongs to another conversation; finish and close it first'); return end
