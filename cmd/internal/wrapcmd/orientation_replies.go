@@ -176,9 +176,6 @@ func inputFrame(data []byte) (int, ansi.Status) {
 		}
 		return 6, ansi.Complete
 	}
-	if len(data) < 3 && bytes.HasPrefix([]byte("\x1b[M"), data) {
-		return 0, ansi.Incomplete
-	}
 	return orientationEscape(data)
 }
 
