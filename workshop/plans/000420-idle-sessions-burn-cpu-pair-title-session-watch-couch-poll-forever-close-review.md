@@ -212,3 +212,70 @@ findings:
     detail: |
       When launchBoundaries stays incomplete (any unreadable or invalid-path artifact in the store), run.go's observationEpoch==nil branch Observes the whole store every SlowPoll for the agent's lifetime with no IdleExpiry. Rule: every unbound pass that sleeps goes through wait(); replace the rt.Sleep plus deadline check there with wait().
 ```
+
+---
+
+## Re-review — 2026-10-10T18:51:52-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 420 — idle sessions burn CPU: pair title / session-watch / couch poll forever |
+| repo | pair |
+| issue file | workshop/issues/000420-idle-sessions-burn-cpu-pair-title-session-watch-couch-poll-forever.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 7afffc58f430c44b8b705e25dd2846c3df1bc3bd..109e22ba4f4987500d03d0268a123c72500e9724 |
+| command | sdlc close --issue 420 |
+| reviewer | claude |
+| timestamp | 2026-10-10T18:51:52-07:00 |
+| verdict | SHIP |
+
+## Review
+
+The tests pass and the BR-6 fix holds up, so I'm writing the verdict now.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+This round's only new change is the post-close commit `99565c83`, which answers BR-6. It is ready to ship. The epoch-acquisition branch at `cmd/internal/sessionwatch/run.go:224` now goes through `waitFor(opts.SlowPoll)`, the same funeral (startup deadline, then idle expiry, then a send-aware sleep) that `wait()` uses. That makes the rule from the prior round hold structurally: every unbound pass that sleeps goes through `waitFor`. I checked every sleep site. The remaining direct `rt.Sleep` calls are at lines 189, 300 and 357, which are bound lifecycle-following passes, and in `waitForPairProcess`, which ends at `PIDWait`. None of them is an unbound pass. BR-4 is the only open item. It is Minor, was already deferred in the issue Log, and does not block. The targeted packages pass: `sessionwatch`, `sessioninventory/...`, `zellijsession` and `titlepoller`.
+
+1. **Strengths**
+   - The BR-6 fix covers the whole class, not just the one site. `waitFor(delay)` with `wait()` as its zero-delay alias leaves one funeral for every unbound sleep (`run.go:123-155`). The comment states the rule.
+   - `TestRunIncompleteEpochStillExpires` (`cadence_test.go:278-302`) drives the real `Run` against the stateful fake runtime. It makes `ListFiles` fail with EIO so the baseline never completes, then checks that the watcher exits within `IdleExpiry + 2*SlowPoll`. Without the fix, `rootPID` is set, so the deadline never fires and the old loop runs forever. The test would hang to the go test timeout, so it really fails without the fix. I reasoned this from the code; I did not revert the fix to watch it fail.
+   - As a side effect, the epoch-acquisition pass now also wakes early when a send lands, through `waitForScan`.
+
+2. **Critical:** none.
+
+3. **Important:** none.
+
+4. **Minor**
+   - Behaviour change worth noting in the Log: if the startup deadline passes during epoch acquisition, the watcher now logs `adapt.Fail` ("no completed native round within startup deadline"). The old path returned `nil` silently. This is consistent with the other unbound passes and is probably an improvement.
+   - BR-4 is still open: there is no phase enum for the `quietAt`, `quietLogMod`, `outputSeen` and `turnPending` flags, and the new `waitFor` delay parameter adds one more input to that state.
+
+5. **Test coverage:** the new test covers the incomplete-epoch expiry path. The earlier rounds' tests cover expiry deferred by agent output, deferred by sends, and the `StatFile` conformance.
+
+6. **Architecture**
+   - ARCH-DRY: pass. There is one funeral helper.
+   - ARCH-PURE: pass. `idleExpired` and `scanDelay` stay pure.
+   - ARCH-PURPOSE: pass. The class sweep was done.
+   - ARCH-MOCK: pass. The test runs against the fake runtime through the production seam.
+   - ARCH-CONSTRAINTS: pass. The epoch pass now runs at the `SlowPoll` cadence and is bounded by expiry.
+   - ARCH-SECURE: N/A. The fix adds no new untrusted input.
+   - ARCH-ORDER: flagged, but only through the existing deferral, BR-4.
+   - ARCH-FUNERAL: pass. Every unbound pass now ends at `IdleExpiry`.
+
+7. **Plan revisions:** none needed beyond the Log entry the commit already added.
+
+```findings
+dispose:
+  - id: BR-4
+    disposition: not-addressed
+    note: |
+      Still deferred per the issue Log (Minor, non-blocking); waitFor's delay parameter adds another input to the same loop state, so the phase enum should lead the next watcher change.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      run.go:224 now calls waitFor(opts.SlowPoll); every unbound sleep goes through waitFor, and TestRunIncompleteEpochStillExpires (cadence_test.go:278) would hang without the fix.
+```

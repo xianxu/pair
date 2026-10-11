@@ -71,6 +71,21 @@ rounds:
       recipe: milestone-review
       reviewed: 53f20aded2b8d5cd83cc0e440389cfd3bee59b1d
       blocked: false
+    - "n": 3
+      timestamp: "2026-10-10T18:51:52-07:00"
+      agent: claude
+      dispose:
+        - id: BR-4
+          disposition: not-addressed
+          note: Still deferred per the issue Log (Minor, non-blocking); waitFor's delay parameter adds another input to the same loop state, so the phase enum should lead the next watcher change.
+          round: 3
+        - id: BR-6
+          disposition: addressed
+          note: run.go:224 now calls waitFor(opts.SlowPoll); every unbound sleep goes through waitFor, and TestRunIncompleteEpochStillExpires (cadence_test.go:278) would hang without the fix.
+          round: 3
+      recipe: milestone-review
+      reviewed: 109e22ba4f4987500d03d0268a123c72500e9724
+      blocked: false
 ---
 
 # Gate ledger — pair#420 (boundary-review)
@@ -106,7 +121,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-6** [Minor] `funeral-covers-every-wait-path` The v3 epoch-acquisition branch walks the store each SlowPoll and bypasses wait(), so idle expiry never applies there
   When launchBoundaries stays incomplete (any unreadable or invalid-path artifact in the store), run.go's observationEpoch==nil branch Observes the whole store every SlowPoll for the agent's lifetime with no IdleExpiry. Rule: every unbound pass that sleeps goes through wait(); replace the rt.Sleep plus deadline check there with wait().
 
+## Round 3 — 2026-10-10T18:51:52-07:00 (claude) — passed
+
+### Disposed
+
+- BR-4 — not-addressed — Still deferred per the issue Log (Minor, non-blocking); waitFor's delay parameter adds another input to the same loop state, so the phase enum should lead the next watcher change.
+- BR-6 — addressed — run.go:224 now calls waitFor(opts.SlowPoll); every unbound sleep goes through waitFor, and TestRunIncompleteEpochStillExpires (cadence_test.go:278) would hang without the fix.
+
 ## Open findings
 
 - **BR-4** [Minor] `loop-state-flag-constellation` The sessionwatch loop adds quietAt, quietLogMod, outputSeen and turnPending flags without an explicit phase enum (ARCH-ORDER)
-- **BR-6** [Minor] `funeral-covers-every-wait-path` The v3 epoch-acquisition branch walks the store each SlowPoll and bypasses wait(), so idle expiry never applies there
