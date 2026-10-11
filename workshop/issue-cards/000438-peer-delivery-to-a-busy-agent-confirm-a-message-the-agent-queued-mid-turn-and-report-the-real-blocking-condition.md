@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000438-peer-delivery-to-a-busy-agent-confirm-a-message-the-agent-queued-mid-turn-and-report-the-real-blocking-condition.md
         source_blob: 5fddb2bf6a0e1cb67b7fb9eafa4a154a9ed3b6f4
         destination: workshop/issues/000438-peer-delivery-to-a-busy-agent-confirm-a-message-the-agent-queued-mid-turn-and-report-the-real-blocking-condition.md
+        main_commit: bea1c74b3b7df5bed934a9bc010ecb230aa99173
 ---
 
 # Peer delivery to a busy agent: confirm a message the agent queued mid-turn, and report the real blocking condition
