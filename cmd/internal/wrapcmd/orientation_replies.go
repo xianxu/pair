@@ -90,17 +90,10 @@ func orientationEscape(data []byte) (int, ansi.Status) {
 	}
 	return ansi.Frame(data)
 }
+
+// operatorData is orientation's conservative reading: any input that is not
+// a reply to a query this wrapper forwarded is operator input.
 func (t *orientationReplies) operatorData(data []byte) bool {
-	return t.operatorDataWithFocus(data, false)
-}
-
-// Focus reports do not edit a composer. Peer ownership ignores them while
-// orientation retains its existing conservative input-interruption policy.
-func (t *orientationReplies) operatorDataWithoutFocus(data []byte) bool {
-	return t.operatorDataWithFocus(data, true)
-}
-
-func (t *orientationReplies) operatorDataWithFocus(data []byte, ignoreFocus bool) bool {
 	t.input = append(t.input, data...)
 	for len(t.input) > 0 {
 		if t.input[0] != 0x1b {
@@ -115,25 +108,108 @@ func (t *orientationReplies) operatorDataWithFocus(data []byte, ignoreFocus bool
 			}
 			return false
 		}
+		if n == 0 || !t.solicited(string(t.input[:n])) {
+			t.input = nil
+			return true
+		}
+		t.input = t.input[n:]
+	}
+	return false
+}
+
+// operatorKeystrokes is peer delivery's reading (pair#428): whether the input
+// holds a real keystroke. Focus, mouse and terminal reports are not
+// keystrokes, solicited or not; a solicited reply still settles its query.
+func (t *orientationReplies) operatorKeystrokes(data []byte) bool {
+	t.input = append(t.input, data...)
+	for len(t.input) > 0 {
+		if t.input[0] != 0x1b {
+			t.input = nil
+			return true
+		}
+		n, status := inputFrame(t.input)
+		if status == ansi.Incomplete {
+			if len(t.input) > 4096 {
+				t.input = nil
+				return true
+			}
+			return false
+		}
 		if n == 0 {
 			t.input = nil
 			return true
 		}
 		frame := string(t.input[:n])
-		if ignoreFocus && (frame == "\x1b[I" || frame == "\x1b[O") {
-			t.input = t.input[n:]
-			continue
-		}
-		key := orientationReplyKind(frame)
-		if key == "" || t.queries[key] == 0 {
+		if !t.solicited(frame) && !terminalReport(frame) {
 			t.input = nil
 			return true
 		}
-		t.queries[key]--
 		t.input = t.input[n:]
 	}
 	return false
 }
+
+// flushPartial resolves a frame the input stream left unfinished once no
+// continuation arrived: a lone ESC, or Alt+] read as an OSC opener, is a key.
+func (t *orientationReplies) flushPartial() bool {
+	partial := len(t.input) > 0
+	t.input = nil
+	return partial
+}
+
+// solicited consumes one outstanding query when frame answers it.
+func (t *orientationReplies) solicited(frame string) bool {
+	key := orientationReplyKind(frame)
+	if key == "" || t.queries[key] == 0 {
+		return false
+	}
+	t.queries[key]--
+	return true
+}
+
+// inputFrame is orientationEscape plus the X10 mouse report, whose three
+// coordinate bytes follow a bare CSI M.
+func inputFrame(data []byte) (int, ansi.Status) {
+	if bytes.HasPrefix(data, []byte("\x1b[M")) {
+		if len(data) < 6 {
+			return 0, ansi.Incomplete
+		}
+		return 6, ansi.Complete
+	}
+	return orientationEscape(data)
+}
+
+// terminalReport is a complete input frame the terminal, not the operator,
+// produced. A cursor position report (CSI r;c R) is absent on purpose:
+// modified F3 has the same shape, so only a solicited CPR is a report.
+func terminalReport(frame string) bool {
+	switch {
+	case frame == "\x1b[I" || frame == "\x1b[O":
+		return true // focus
+	case strings.HasPrefix(frame, "\x1b[M") && len(frame) == 6:
+		return true // X10 mouse
+	case strings.HasPrefix(frame, "\x1b]") || strings.HasPrefix(frame, "\x1bP"):
+		return len(frame) > 2 // OSC or DCS reply, not a bare Alt+] / Alt+P
+	case !strings.HasPrefix(frame, "\x1b[") || len(frame) < 4:
+		return false
+	}
+	params, final := frame[2:len(frame)-1], frame[len(frame)-1]
+	private := params[0] == '?' || params[0] == '>' || params[0] == '<'
+	switch {
+	case params[0] == '<' && (final == 'M' || final == 'm'):
+		return decimalFields(params[1:], 3) // SGR mouse
+	case final == 'M':
+		return decimalFields(params, 3) // urxvt mouse
+	case strings.HasSuffix(params, "$"):
+		return final == 'y' // DECRPM / RPM
+	case final == 'c' || (final == 'u' && params[0] == '?') || (final == 'R' && params[0] == '?'):
+		return private // DA1/DA2, kitty flags, DECXCPR
+	case final == 'n' || final == 't':
+		return true // DSR, color-scheme notice, window reports
+	}
+	return false
+}
+
 func orientationReplyKind(reply string) string {
 	// DECRPM is a response to DECRQM for one exact private mode. Mode
 	// reports are terminal negotiation, but unsolicited reports remain input.
