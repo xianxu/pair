@@ -117,12 +117,12 @@ func (p *WorkspaceProvisioner) recordSlotFailure(l SlotLayout, e *SlotReconcileE
 		return
 	}
 	defer lease.Close()
-	_ = p.Store.Write(l.LastFailure(), newSlotFailure(e, time.Now()))
+	_ = p.Store.Write(SlotFailurePath(l), newSlotFailure(e, time.Now()))
 }
 
 // clearSlotFailure removes the record once the slot converges.
 func (p *WorkspaceProvisioner) clearSlotFailure(l SlotLayout) {
-	if _, err := os.Lstat(l.LastFailure()); err != nil {
+	if _, err := os.Lstat(SlotFailurePath(l)); err != nil {
 		return
 	}
 	lease, err := AcquireHostCreationLease(l.common)
@@ -130,13 +130,13 @@ func (p *WorkspaceProvisioner) clearSlotFailure(l SlotLayout) {
 		return
 	}
 	defer lease.Close()
-	_ = p.Store.Remove(l.LastFailure())
+	_ = p.Store.Remove(SlotFailurePath(l))
 }
 
 // ReadSlotFailure reads a slot's last-failure record (nil when none).
 func ReadSlotFailure(l SlotLayout) (*SlotFailure, error) {
 	var r SlotFailure
-	exists, err := (ProvisionStore{}).Read(l.LastFailure(), &r)
+	exists, err := (ProvisionStore{}).Read(SlotFailurePath(l), &r)
 	if err != nil || !exists {
 		return nil, err
 	}

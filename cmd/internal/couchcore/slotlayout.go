@@ -73,16 +73,6 @@ func (l SlotLayout) Intent() string {
 	return filepath.Join(l.common, CouchWorkspacesDir, strconv.Itoa(l.n), "creation.json")
 }
 
-// LastFailure is the record of the slot's last blocking reconcile
-// (pair#442). It lives in the common directory, beside the creation lease,
-// so it survives a failure that never made the environment.
-func (l SlotLayout) LastFailure() string {
-	if l.common == "" {
-		return ""
-	}
-	return filepath.Join(l.common, CouchWorkspacesDir, strconv.Itoa(l.n), "last-failure.json")
-}
-
 // Registrations is git's directory of worktree registrations in the common
 // directory; a slot's registration is one entry in it ("" when the common
 // directory is unknown).
@@ -110,6 +100,17 @@ func SetupMarkerPath(admin string) string { return filepath.Join(admin, "couch-s
 // SetupAttemptPath is the remembered failed setup attempt beside the marker
 // (R5: a known failure is not recompiled until an input changes).
 func SetupAttemptPath(admin string) string { return filepath.Join(admin, "couch-setup-attempt.json") }
+
+// SlotFailurePath is the record of a slot's last blocking reconcile
+// (pair#442): a diagnostic, not a slot resource. It lives in the common
+// directory, beside the creation lease, so it survives a failure that never
+// made the environment ("" when the common directory is unknown).
+func SlotFailurePath(l SlotLayout) string {
+	if l.common == "" {
+		return ""
+	}
+	return filepath.Join(l.common, CouchWorkspacesDir, strconv.Itoa(l.n), "last-failure.json")
+}
 
 // WorktreesRoot is the directory under a fleet root holding every slot
 // environment.
