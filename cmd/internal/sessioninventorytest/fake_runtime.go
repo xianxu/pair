@@ -4,6 +4,7 @@ package sessioninventorytest
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -15,6 +16,7 @@ type Operation string
 
 const (
 	OperationListFiles Operation = "list_files"
+	OperationStatFile  Operation = "stat_file"
 	OperationReadFile  Operation = "read_file"
 	OperationReadAt    Operation = "read_at"
 	OperationSQLite    Operation = "sqlite"
@@ -171,7 +173,9 @@ func (f *FakeRuntime) OperationCountForRoot(operation Operation, storageRoot str
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	prefix := errorKey(operation, storageRoot+":")
-	total := 0
+	// Root-level operations (ListFiles) are keyed by the bare root name; a
+	// prefix-only match made their root count silently 0 (#420).
+	total := f.counts[errorKey(operation, storageRoot)]
 	for key, count := range f.counts {
 		if strings.HasPrefix(key, prefix) {
 			total += count
@@ -258,6 +262,21 @@ func (f *FakeRuntime) ListFiles(root sessioninventory.StorageRoot) ([]sessioninv
 		result = append(result, byPath[relativePath])
 	}
 	return result, listingErr
+}
+
+func (f *FakeRuntime) StatFile(artifact sessioninventory.Artifact) (sessioninventory.FileEntry, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	key := artifactKey(artifact)
+	f.recordOperation(OperationStatFile, key)
+	if err := f.errors[errorKey(OperationStatFile, key)]; err != nil {
+		return sessioninventory.FileEntry{}, err
+	}
+	stored, ok := f.files[key]
+	if !ok {
+		return sessioninventory.FileEntry{}, fmt.Errorf("stat %s: %w", key, os.ErrNotExist)
+	}
+	return cloneFileEntry(stored.entry), nil
 }
 
 func (f *FakeRuntime) ReadFile(artifact sessioninventory.Artifact, limit int64) ([]byte, error) {

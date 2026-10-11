@@ -167,3 +167,50 @@ func TestOSRuntimeSQLiteReadOnlyAdapter(t *testing.T) {
 		t.Fatalf("unlimited stdout must retain bounded error diagnostics: %v", err)
 	}
 }
+
+// #420 review BR-1: StatFile is ListFiles for one named artifact. Callers
+// branch on os.ErrNotExist, and non-regular entries are refused as a listing
+// refuses them.
+func TestOSRuntimeStatFileMatchesListFiles(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	runtime := NewOSRuntime(home, filepath.Join(t.TempDir(), "pair-data"))
+	root := runtime.NativeRoots(AgentClaude)[0]
+	project := filepath.Join(root.Path, "-repo")
+	if err := os.MkdirAll(filepath.Join(project, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(project, "s.jsonl"), []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	listed, err := runtime.ListFiles(root)
+	if err != nil || len(listed) != 1 {
+		t.Fatalf("listed=%#v err=%v", listed, err)
+	}
+	got, err := runtime.StatFile(Artifact{StorageRoot: root.Name, RelativePath: "-repo/s.jsonl"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Artifact != listed[0].Artifact || got.StableFileID != listed[0].StableFileID || got.GenerationToken != listed[0].GenerationToken ||
+		got.MutationToken != listed[0].MutationToken || got.Size != listed[0].Size || !got.ModTime.Equal(*listed[0].ModTime) {
+		t.Fatalf("StatFile = %#v, ListFiles entry = %#v", got, listed[0])
+	}
+	if _, err := runtime.StatFile(Artifact{StorageRoot: root.Name, RelativePath: "-repo/missing.jsonl"}); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("missing artifact err = %v, want os.ErrNotExist", err)
+	}
+	if _, err := runtime.StatFile(Artifact{StorageRoot: root.Name, RelativePath: "-repo/sub"}); !errors.Is(err, ErrNotRegularArtifact) {
+		t.Fatalf("directory err = %v, want ErrNotRegularArtifact", err)
+	}
+	if err := os.Symlink(filepath.Join(project, "s.jsonl"), filepath.Join(project, "link.jsonl")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runtime.StatFile(Artifact{StorageRoot: root.Name, RelativePath: "-repo/link.jsonl"}); err == nil || errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("symlink err = %v, want a refusal that is not ErrNotExist", err)
+	}
+	if _, err := runtime.ListFiles(root); err == nil {
+		t.Fatal("ListFiles accepted the symlink; StatFile parity assumes a listing refuses it")
+	}
+	if _, err := runtime.StatFile(Artifact{StorageRoot: "nope", RelativePath: "-repo/s.jsonl"}); !errors.Is(err, ErrRootUnknown) {
+		t.Fatalf("unknown root err = %v", err)
+	}
+}

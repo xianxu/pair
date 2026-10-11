@@ -3,6 +3,7 @@ package sessionwatch
 import (
 	"encoding/json"
 	"errors"
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"os"
 	"path/filepath"
 	"strings"
@@ -640,6 +641,15 @@ func mustScopedPaths(t *testing.T, dataDir, tag string) scopedTestPaths {
 func (p scopedTestPaths) Ledger() string   { return filepath.Join(p.dataDir, "ledger-"+p.tag+".jsonl") }
 func (p scopedTestPaths) Log() string      { return filepath.Join(p.dataDir, "log-"+p.tag+".md") }
 func (p scopedTestPaths) AgentPID() string { return filepath.Join(p.dataDir, "agent-pid-"+p.tag) }
+
+// ScrollbackRaw resolves through artifactpath, the watcher's own source.
+func (p scopedTestPaths) ScrollbackRaw(agent string) string {
+	paths, err := artifactpath.ResolveScoped(p.dataDir, p.tag)
+	if err != nil {
+		panic(err)
+	}
+	return paths.ScrollbackRaw(agent)
+}
 func (p scopedTestPaths) Catalog() string {
 	return filepath.Join(p.dataDir, "session-inventory-catalog.json")
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/zellijsession"
 	"os"
 
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
@@ -122,7 +123,7 @@ func (osSessionOwnerIO) SessionPresent(ctx context.Context, name string) (bool, 
 	if err != nil {
 		return false, err
 	}
-	present, exited := sessionRowState(string(raw), name)
+	present, exited := zellijsession.RowState(string(raw), name)
 	return present && !exited, nil
 }
 func (osSessionOwnerIO) Socket(path string) SocketState {
