@@ -1,6 +1,6 @@
 ---
 id: 000439
-status: codecomplete
+status: done
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 89591551f1a40c6701f584ef8c1b327ac9426cda
         evidence_commit: ffc674ea1c0f32ddaccb82bc2e2d47c342f6d614
+        landed_commit: df2e7798c7e3d1c3e7f13572e6239ec280e7be8c
 ---
 
 # session-sync: optimistic per-section writes for the agent, no agent-held lock
