@@ -40,7 +40,8 @@ Durable plan: `workshop/plans/000451-couch-tells-the-hub-when-a-slot-is-stuck-wa
 
 - [x] Pure waiting classifier over memory facts + the slot's screen tail (Task 1).
 - [x] Watcher on the message service; one notice per episode, from the waiting slot to the hub (Task 2).
-- [ ] Atlas + couch skill; full tests; live check that ops:0 receives a notice (Task 3).
+- [x] Atlas + couch skill; full tests (Task 3).
+- [ ] Live check that ops:0 receives a notice: needs the operator to restart Couch on the new binary (Task 3).
 
 ## Log
 
