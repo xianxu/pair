@@ -135,4 +135,7 @@ hides new breakage. The operator (batch-2 recap, 10-10): "let's ensure ariadne a
   It also requires session identity not to. It works without .git (find, not git ls-files) for test-clean-bootstrap.
   Mutations: scrub-all and no-scrub both fail it. The live slot has 0 session names left in a test recipe.
   - BR-3: the counted ratchet's comparison is now a pure `diffKnownViolations` with a duplicate-count test.
+- New flake from main (#433, landed 10-11): couchcmd `TestMessageWrapperExitDisconnectsAndForgetsWorkspace` read the
+  workspace map the instant the binding showed disconnected. The service loop publishes the connected set before it
+  runs the Disconnect effect, by design ("Publish first"). The test now waits, bounded, for the forget (20/20).
 
