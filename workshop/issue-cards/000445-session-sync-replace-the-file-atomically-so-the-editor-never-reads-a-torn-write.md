@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000445-session-sync-replace-the-file-atomically-so-the-editor-never-reads-a-torn-write.md
         source_blob: c86ea36a0c9dfff530dc8c1d719815b2409fa390
         destination: workshop/issues/000445-session-sync-replace-the-file-atomically-so-the-editor-never-reads-a-torn-write.md
+        main_commit: 8f440c876a91d17224e1df2d015197d721ff7cc1
 ---
 
 # session-sync: replace the file atomically, so the editor never reads a torn write
