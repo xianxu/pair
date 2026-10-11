@@ -165,7 +165,12 @@ func TestColdResumeOfAParkedPrimaryRegistersFromBothOrigins(t *testing.T) {
 		if _, err := r.input.Write([]byte{0}); err != nil {
 			t.Fatal(err)
 		}
-		waitWarmAcceptance(t, "switcher row", func() bool { return strings.Contains(r.host.Written(), "threads") })
+		// The header paints before the first inventory lands; Enter on that
+		// empty menu is "no selection". Wait for the parked row itself (pair#436);
+		// its long temp path is truncated, so match its state.
+		waitWarmAcceptance(t, "switcher row", func() bool {
+			return strings.Contains(r.host.Written(), "threads") && strings.Contains(r.host.Written(), "parked ·")
+		})
 		if _, err := r.input.Write([]byte{'\r'}); err != nil {
 			t.Fatal(err)
 		}
