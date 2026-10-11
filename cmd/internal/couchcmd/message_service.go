@@ -184,6 +184,11 @@ func (s *messageService) Close() {
 	s.workers.Wait()
 }
 
+// isHub reports whether a verified workspace is the TL hub's.
+func (a messageAuthority) isHub(identity couchcore.WorkspaceIdentity) bool {
+	return a.hub != "" && identity.WorktreeRoot == a.hub
+}
+
 // hubWorktree is the worktree root Couch started in: the TL slot (#433). A
 // start outside any checkout has no hub, so every slot gets the ordinary bucket.
 func hubWorktree(getwd func() (string, error), resolve func(string) (couchcore.Worktree, error)) string {
@@ -208,6 +213,11 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	artifacts, ok := c.Artifacts.(couchcore.PairLifecycleEnvironment)
 	if !ok || c.Proc == nil || c.Git == nil {
 		return nil, nil
+	}
+	// Validated before any socket is taken: a bad knob refuses the start.
+	threshold, err := waitNoticeThreshold(os.Getenv)
+	if err != nil {
+		return nil, err
 	}
 	namespace := c.Namespace.Dir()
 	brokerSocket, err := couchmessage.SocketPath(namespace, "broker")
@@ -348,6 +358,9 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	console.SetMessageBroker(service.broker)
 	service.SetBroadcastStatus(console.BroadcastStatus)
 	service.recordDeliveries(namespace)
+	watcher := newWaitWatcher(service, threshold, namespace)
+	service.workers.Add(1)
+	go func() { defer service.workers.Done(); watcher.run(service.lifetime, time.Minute) }()
 	// After the loop runs: the replay of already-attached panes lands in the
 	// mailbox the loop drains.
 	console.SubscribeMessageLifecycle(panes)
@@ -556,7 +569,7 @@ func (s *messageService) execute(e couchmessage.RegistryEffect) *couchmessage.Re
 			return &couchmessage.RegistryEvent{Kind: couchmessage.ConnectFailed, Token: e.Token, Pane: e.Pane, Err: errors.New("admission evidence missing")}
 		}
 		allowance := couchmessage.InboundAllowance
-		if s.authority.hub != "" && p.identity.WorktreeRoot == s.authority.hub {
+		if s.authority.isHub(p.identity) {
 			allowance = couchmessage.HubAllowance
 		}
 		if err := s.broker.RegisterWithAllowance(e.Binding, messageEndpoint{service: s, binding: e.Binding, endpoint: p.endpoint}, allowance); err != nil {

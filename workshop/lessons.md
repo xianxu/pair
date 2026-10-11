@@ -1019,3 +1019,15 @@ proof; record the surprising case so the next change starts from evidence.
 - **A privacy test that bans an API gets narrowed, not deleted (#446).** The viewer test forbade
   `localStorage` because a view link keeps nothing; the color pick needs one key. Pin the exception exactly:
   one key, one reader and one writer, so a later "just remember this too" still fails the test.
+- **A screen scan for "the dialog" reads from the bottom and keys on the selection cursor (#451).** `dialogTitle`
+  took the first `1.` line from the top, so a numbered list in the agent's earlier prose became the dialog's title.
+  A live dialog is the newest thing on screen and its selected option carries the cursor glyph; prose lists don't.
+  When classifying a terminal tail, anchor on the most recent, most specific marker, and test with distractor
+  text above it.
+- **A retry-on-failure path needs a test that fails once, then succeeds (#451).** Marking an episode notified
+  before `Send` kept every test green and silently dropped notices after one refusal. When a state update must
+  follow an effect's success, add a fake that refuses the first attempt, and mutation-check the ordering.
+- **An operator knob that fails to parse refuses, it doesn't default (#451).** A silent fallback hides a typo for
+  as long as the default is plausible. Validate env knobs before taking resources and refuse the start, naming the
+  variable and the accepted form.
+

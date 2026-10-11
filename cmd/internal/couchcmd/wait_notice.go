@@ -1,0 +1,348 @@
+package couchcmd
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
+)
+
+// A waiting notice (pair#451) tells the hub that a slot has sat waiting for
+// someone past a threshold. Pair renders and never classifies (tail.go); the
+// judgement is Couch's, as the tail's reader.
+
+// waitFacts is what Couch already holds in memory about one slot.
+type waitFacts struct {
+	Quiet   time.Duration // since the wrapper's last output or keystroke
+	Settled *bool         // the wrapper's #421 self-report; nil is unknown
+	Resting bool          // on its resting branch
+	Pending bool          // a message to it is in flight
+}
+
+type waitReason string
+
+const (
+	waitPrompt   waitReason = "on a prompt"
+	waitQuestion waitReason = "after asking"
+	waitIdle     waitReason = "idle off its resting branch"
+)
+
+// needsTail reports whether the slot can be waiting at all, before any IO:
+// quiet past the threshold, with a Settled claim to judge by.
+func needsTail(f waitFacts, threshold time.Duration) bool {
+	return f.Quiet >= threshold && f.Settled != nil
+}
+
+// classifyWait is the one definition of "waiting for someone". An unsettled
+// slot that has been byte-quiet that long has something on screen asking for
+// input (a dialog, a draft, a stuck orientation); a settled one waits if its
+// turn ended with a question, or if it stopped off its resting branch with
+// nothing in flight to it.
+func classifyWait(f waitFacts, threshold time.Duration, tail []string) (waitReason, string, bool) {
+	if !needsTail(f, threshold) {
+		return "", "", false
+	}
+	prose := lastProseLine(tail)
+	switch {
+	case !*f.Settled:
+		if title := dialogTitle(tail); title != "" {
+			return waitPrompt, title, true
+		}
+		return waitPrompt, prose, true
+	case isQuestion(prose):
+		return waitQuestion, prose, true
+	case !f.Resting && !f.Pending:
+		return waitIdle, prose, true
+	}
+	return "", "", false
+}
+
+var (
+	tailMarkup = regexp.MustCompile(`‹(/?dim|/?rev|cursor)›`)
+	dimRun     = regexp.MustCompile(`‹dim›.*?(‹/dim›|$)`)
+	// A dialog's options are numbered; its cursor glyph marks the selected one.
+	selectedOption = regexp.MustCompile(`^[❯›>]\s*\d+\.\s`)
+	optionLine     = regexp.MustCompile(`^[❯›>]?\s*\d+\.\s`)
+	separatorRe    = regexp.MustCompile(`^[─━\-═]+$`)
+)
+
+// stripTailMarkup renders one tail line (tail.go's grammar) as plain text,
+// without a dialog box's side borders.
+func stripTailMarkup(line string) string {
+	const escaped = "\x00"
+	line = strings.ReplaceAll(line, "‹‹", escaped)
+	line = tailMarkup.ReplaceAllString(line, "")
+	return strings.Trim(strings.ReplaceAll(line, escaped, "‹"), " \t│┃")
+}
+
+// dimOnly reports a line whose only text is faint: agent chrome.
+func dimOnly(line string) bool {
+	return stripTailMarkup(dimRun.ReplaceAllString(line, "")) == ""
+}
+
+// dialogTitle is the line above the options of the screen's last dialog (its
+// selected option, scanned from the bottom, so a numbered list earlier in the
+// agent's prose is never taken for one), or "" without a dialog.
+func dialogTitle(tail []string) string {
+	for i := len(tail) - 1; i >= 0; i-- {
+		if !selectedOption.MatchString(stripTailMarkup(tail[i])) {
+			continue
+		}
+		for j := i - 1; j >= 0; j-- {
+			if t := stripTailMarkup(tail[j]); t != "" && !optionLine.MatchString(t) {
+				return t
+			}
+		}
+		return ""
+	}
+	return ""
+}
+
+// lastProseLine is the agent's last line of prose above its composer: chrome
+// paragraphs (a turn summary ✻, a recap ※, all-faint runs, separators) are
+// skipped.
+func lastProseLine(tail []string) string {
+	end := len(tail)
+	for i := len(tail) - 1; i >= 0; i-- {
+		if t := stripTailMarkup(tail[i]); strings.HasPrefix(t, "❯") || strings.HasPrefix(t, "›") {
+			end = i
+			break
+		}
+	}
+	var last string
+	var para []string
+	flush := func() {
+		if len(para) == 0 {
+			return
+		}
+		first := stripTailMarkup(para[0])
+		chrome := strings.HasPrefix(first, "✻") || strings.HasPrefix(first, "※")
+		allDim := true
+		for _, l := range para {
+			allDim = allDim && dimOnly(l)
+		}
+		if !chrome && !allDim {
+			last = stripTailMarkup(para[len(para)-1])
+		}
+		para = nil
+	}
+	for _, raw := range tail[:end] {
+		t := stripTailMarkup(raw)
+		if t == "" || separatorRe.MatchString(t) {
+			flush()
+			continue
+		}
+		para = append(para, raw)
+	}
+	flush()
+	return last
+}
+
+func isQuestion(line string) bool {
+	return strings.HasSuffix(strings.TrimRight(line, " *_`)\"'"), "?")
+}
+
+// maxWaitSummary bounds the quoted screen line in a notice.
+const maxWaitSummary = 200
+
+// waitNoticeBody puts the slot and reason first: a truncated send keeps its
+// head (pair#211).
+func waitNoticeBody(slot string, quiet time.Duration, reason waitReason, summary, optOutPath string) string {
+	if len(summary) > maxWaitSummary {
+		cut := maxWaitSummary
+		for cut > 0 && !utf8RuneStart(summary[cut]) {
+			cut--
+		}
+		summary = summary[:cut] + "…"
+	}
+	if summary == "" {
+		summary = "(no text on screen)"
+	}
+	return fmt.Sprintf("slot %s waiting %d min %s: %s (couch --peek %s; mute: add %s to %s)",
+		slot, int(quiet/time.Minute), reason, summary, slot, slot, optOutPath)
+}
+
+func utf8RuneStart(b byte) bool { return b&0xC0 != 0x80 }
+
+// parseWaitOptOut reads the operator's mute list: one slot per line, # comments.
+func parseWaitOptOut(text string) map[string]bool {
+	out := map[string]bool{}
+	for _, line := range strings.Split(text, "\n") {
+		if i := strings.IndexByte(line, '#'); i >= 0 {
+			line = line[:i]
+		}
+		if line = strings.TrimSpace(line); line != "" {
+			out[line] = true
+		}
+	}
+	return out
+}
+
+// waitNoticeThreshold reads COUCH_WAIT_NOTICE_AFTER, a Go duration of at
+// least a minute; unset is 10 minutes. Anything else refuses Couch's start,
+// so a typo is seen instead of silently becoming the default.
+func waitNoticeThreshold(getenv func(string) string) (time.Duration, error) {
+	v := getenv("COUCH_WAIT_NOTICE_AFTER")
+	if v == "" {
+		return 10 * time.Minute, nil
+	}
+	if d, err := time.ParseDuration(v); err == nil && d >= time.Minute {
+		return d, nil
+	}
+	return 0, fmt.Errorf("COUCH_WAIT_NOTICE_AFTER=%q: want a Go duration of at least 1m (e.g. 10m), or unset it", v)
+}
+
+// waitTailLines is enough screen for a dialog or a turn's last paragraph.
+const waitTailLines = 60
+
+// waitWatcher sends the hub one notice per waiting episode (pair#451). It
+// reads the service's memory every tick; only a slot quiet past the threshold
+// costs IO, one tail read from its own wrapper per episode.
+type waitWatcher struct {
+	svc       *messageService
+	threshold time.Duration
+	optOut    string // the operator's mute list; Couch only reads it
+	newID     func() (string, error)
+	// seen is the last judged episode per connected binding, pruned to the
+	// listing each tick; it dies with the service.
+	seen map[couchmessage.Binding]waitEpisode
+}
+
+// waitEpisode: an episode is the quiet since one LastActivity. notified holds
+// for the whole episode; judgedNot only for the exact facts it judged.
+type waitEpisode struct {
+	key       waitKey
+	notified  bool
+	judgedNot bool
+}
+
+type waitKey struct {
+	activity                  time.Time
+	settled, resting, pending bool
+}
+
+func newWaitWatcher(svc *messageService, threshold time.Duration, storeDir string) *waitWatcher {
+	return &waitWatcher{svc: svc, threshold: threshold, optOut: filepath.Join(storeDir, "wait-notice-off"),
+		newID: newRequestID, seen: map[couchmessage.Binding]waitEpisode{}}
+}
+
+// run ticks until ctx ends.
+func (w *waitWatcher) run(ctx context.Context, every time.Duration) {
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case now := <-t.C:
+			w.tick(ctx, now)
+		}
+	}
+}
+
+// hubBinding is the connected wrapper in the worktree Couch started from:
+// the registry's newest admitted incarnation of that slot, so a replacement
+// still settling never makes the choice arbitrary.
+func (s *messageService) hubBinding() (couchmessage.Binding, bool) {
+	slot := ""
+	s.mu.Lock()
+	for b, identity := range s.workspaces {
+		if s.authority.isHub(identity) {
+			slot = b.Slot
+			break
+		}
+	}
+	s.mu.Unlock()
+	liveness := s.liveness.Load()
+	if slot == "" || liveness == nil {
+		return couchmessage.Binding{}, false
+	}
+	live, ok := (*liveness)[slot]
+	if !ok || !s.isConnected(live.Binding) {
+		return couchmessage.Binding{}, false
+	}
+	return live.Binding, true
+}
+
+func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
+	hub, ok := w.svc.hubBinding()
+	if !ok {
+		return
+	}
+	rows, err := w.svc.broker.Actors(ctx, hub)
+	if err != nil {
+		return
+	}
+	liveness := map[string]couchmessage.SlotLiveness{}
+	if m := w.svc.liveness.Load(); m != nil {
+		liveness = *m
+	}
+	listed := map[couchmessage.Binding]bool{}
+	var muted map[string]bool
+	var muteErr string // a mute list that can't be read is said in the notice
+	for _, row := range rows {
+		b := row.Binding
+		listed[b] = true
+		if b == hub || !row.Known {
+			continue
+		}
+		f := waitFacts{Quiet: now.Sub(row.LastActivity), Resting: row.Resting, Pending: row.Pending}
+		if live, ok := liveness[b.Slot]; ok && live.Binding == b {
+			f.Settled = live.Settled
+		}
+		if !needsTail(f, w.threshold) {
+			continue
+		}
+		key := waitKey{activity: row.LastActivity, settled: *f.Settled, resting: f.Resting, pending: f.Pending}
+		if ep, ok := w.seen[b]; ok && ((ep.notified && ep.key.activity == key.activity) || (ep.judgedNot && ep.key == key)) {
+			continue
+		}
+		if muted == nil {
+			text, err := os.ReadFile(w.optOut)
+			if err != nil && !errors.Is(err, os.ErrNotExist) {
+				muteErr = fmt.Sprintf(" [mute list unreadable: %v]", err)
+			}
+			muted = parseWaitOptOut(string(text))
+		}
+		if muted[b.Slot] {
+			continue
+		}
+		reader, ok := w.svc.authority.endpoint(b).(couchmessage.TailReader)
+		if !ok {
+			continue
+		}
+		tctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		tail, err := reader.Tail(tctx, waitTailLines)
+		cancel()
+		if err != nil {
+			continue // unreadable now; the next tick asks again
+		}
+		reason, summary, waiting := classifyWait(f, w.threshold, tail.Lines)
+		if !waiting {
+			w.seen[b] = waitEpisode{key: key, judgedNot: true}
+			continue
+		}
+		id, err := w.newID()
+		if err != nil {
+			continue
+		}
+		body := waitNoticeBody(b.Slot, f.Quiet, reason, summary, w.optOut) + muteErr
+		// From the waiting slot to the hub's exact slot: the notice is an
+		// ordinary message, so it gets the hub's breaker, delivery and ledger.
+		if _, err := w.svc.broker.Send(ctx, b, id, couchmessage.Route{Target: hub.Slot}, body); err != nil {
+			continue // hub busy or out of allowance: retried next tick
+		}
+		w.seen[b] = waitEpisode{key: key, notified: true}
+	}
+	for b := range w.seen {
+		if !listed[b] {
+			delete(w.seen, b)
+		}
+	}
+}
