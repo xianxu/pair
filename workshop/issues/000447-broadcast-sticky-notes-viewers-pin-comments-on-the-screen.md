@@ -1,12 +1,12 @@
 ---
 id: 000447
-status: open
+status: working
 deps: [000446, 000449]
 github_issue:
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
-card_mirror: 'b6ddd4ba261b9761e87b4b688dc37448630fd5c9' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '515a89685d2e5d152b15897e849573c3fe9579c1' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-11T12:25:03-07:00
 claimant:
     operator: Xian Xu
@@ -67,8 +67,11 @@ Depends on pair#446 (colors) and pair#449 (swatch column at the right edge) land
 
 ## Plan
 
-- [ ] Design session with the operator in the slot: settle the open questions, then fix Spec and Done when.
-- [ ] Implementation plan (durable plan if it leaves the quick-flow shell), after pair#446 lands.
+Durable plan: `workshop/plans/000447-broadcast-sticky-notes-viewers-pin-comments-on-the-screen-plan.md`.
+
+- [x] Design session with the operator in the slot: settle the open questions, then fix Spec and Done when.
+- [ ] M1 — Notes in Couch: note board and strict parsing, `note`/`resolve` routes, `notes` event to every stream, session checks, 💭 overlay and `💭N` in the tab bar.
+- [ ] M2 — The viewer page: tap routing, comment mode, the sticky-note dialog and the mode switch below the swatches; live check with two viewers and a view-only one.
 
 ## Log
 
