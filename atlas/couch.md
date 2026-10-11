@@ -410,6 +410,47 @@ outside Couch. Loading or installing it is explicit; runtime does not change
 agent configuration. Ordinary messages carry follow-up context in their body;
 there is no reply protocol or availability toggle.
 
+### Session-sync files and the delivery ledger (#437)
+
+`couch --session-sync diff|write|release|status FILE` is the one mutation path
+for a `type: session-sync` file (parley.nvim#313's turn-based operator/agent
+file). Package `sessionsync` owns the rules; `couchcmd/session_sync.go` is the
+CLI. It runs in-process against the store and needs no supervisor.
+- **Guards:** a lock whose holder is not `agent` refuses every write (exit 3).
+  A file that differs from its shadow (`.<file>.shadow`, the agent's last
+  write) refuses until `--accept-edits` (exit 4). `release` keeps both guards.
+  Sections match whole `## HEADING` lines only. Writes are in place, because
+  parley watches the inode; the shadow and sidecar use temp+rename.
+- **Ledger:** the message service's `messageEndpoint.Deliver`
+  (`message_deliveries.go`) appends one row per delivery that may have
+  reached the agent: submitted, indeterminate, an endpoint error, or a
+  non-terminal answer. It skips explicit cancel and expiry. The row goes to
+  `<store>/session-sync/<repo>_<N>.jsonl` and holds the ID, the sender slot,
+  the time and the body's first line (a submit's path line is kept whole).
+  `couchmessage` is untouched.
+- **Ledger bound:** a file past 256 KiB is rewritten keeping at most 512 rows
+  younger than 14 days, within half the size bound.
+- **Missing data refuses:** `recording.json` marks a recording Couch, and
+  `status` refuses `not-recording` without it.
+  - An append failure writes a per-slot `<slot>.gap` record. A restart does not
+    clear it. It expires 14 days after the last failure, and the next append
+    deletes it.
+  - Any verb on a file whose horizon reaches past a gap refuses `delivery-gap`
+    until `--accept-gap`. The sidecar's `GapAccepted` records that per file.
+  - So "nothing owed" is never a blind spot.
+  - The slot is validated by couch's own grammar
+    (`couchcore.ParseWorkspaceReference`) and query-escaped into the filename.
+- **Owed:** rows for the file's `owner:` slot from the sidecar's `Since`
+  (`.<file>.sync`; without a sidecar, the shadow's mtime), minus folded IDs,
+  minus submits naming another file. A body `submitted: <abs path>` is a
+  submit. Only `write --fold ID` / `release --fold ID` clear a delivery, never
+  a plain write. `release` also folds the file's submits. The sidecar's
+  `Folded` is pruned to IDs still in the ledger.
+- **`status --json`:** the Couch envelope
+  `{"Code","Error","Status":{File,Owner,Holder,LastWrite,Owed[{ID,Kind,From,At}]}}`,
+  agreed with parley.nvim#314. `Owed` is never null, and a refusal exits
+  non-zero with a `Code` other than `ok`.
+
 ### Recover plan after a restart (#367)
 
 `couch --recover-plan-from-sdlc` (operation `recover-plan`, `ExecuteDirectStore`,
@@ -543,6 +584,30 @@ use relaunch for that.
   before retrying. A finish cannot be "unknown".
 - **Admission note:** it reaches the receipt on success and on failure
   (`withAdmissionNote`).
+
+**Prepare (pair#434).** `couch --prepare repo:N --confirm [--force-unknown]
+[--json]` brings an idle slot up for new work. The TL runs it before
+dispatching an issue. Four steps, each stopping the run when it does not succeed
+(`couchcore.RunPrepare`, one `PrepareReport` row per step):
+- **admit:** an admission-only slot operation `prepare` through the running
+  Couch. It applies reload-context's rule plus the resting branch
+  (`main-slotN`, `main` for `:0`; refusal `not-resting`), changes nothing, and
+  hands back the checkout in the receipt's `Path`.
+- **refresh:** `weave refresh` in that checkout, run in the CLI process,
+  streaming to stderr. Weave fast-forwards the resting branch and the slot's
+  substrates, then compiles. It never runs on the console's serial operation
+  queue, which a refresh would hold for minutes.
+- **recheck:** the checkout must still be clean. A refresh that rewrote a
+  tracked file stops here as `refresh-dirty`, naming the paths. The known case
+  is compile's `.gitattributes` union-merge block (ariadne#320) in a repo that
+  has not committed it to main. Couch never commits it.
+- **reload:** a confirmed `reload-context`, which re-admits at its own effect,
+  so a turn that started during the refresh refuses it.
+
+The report ends with the checkout's HEAD against `origin/main` and the commit of
+each declared substrate (`layergraph.DeclaredSubstrates`), which is what the
+slot's `sdlc` and `weave` build from. Re-running converges: the refresh is
+idempotent, and nothing is journaled.
 
 **Restarts return when ready (pair#427).** A `--relaunch` or
 `--reload-context` receipt reports `succeeded` only once a NEW wrapper

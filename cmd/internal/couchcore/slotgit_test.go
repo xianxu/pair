@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -113,5 +114,22 @@ func TestProbeSlotGitRunsInDirWithNoOptionalLocks(t *testing.T) {
 	cancel()
 	if _, err := ProbeSlotGit(ctx, git, "/w/pair-slot2/pair"); err == nil {
 		t.Fatal("cancelled probe succeeded")
+	}
+}
+
+func TestSlotGitChangedPaths(t *testing.T) {
+	out := "# branch.oid abc\n# branch.head main-slot1\n" +
+		"1 .M N... 100644 100644 100644 aaa aaa .gitattributes\n" +
+		"1 M. N... 100644 100644 100644 aaa bbb dir/with space.go\n" +
+		"2 R. N... 100644 100644 100644 aaa aaa R100 new.go\told.go\n" +
+		"u UU N... 100644 100644 100644 100644 aaa bbb ccc both.go\n" +
+		"? generated.txt\n" +
+		"! ignored.log\n"
+	got := strings.Join(SlotGitChangedPaths(out), "|")
+	if want := ".gitattributes|dir/with space.go|new.go|both.go|generated.txt"; got != want {
+		t.Fatalf("got %q want %q", got, want)
+	}
+	if status, err := ParseSlotGitStatus(out); err != nil || !status.Dirty {
+		t.Fatalf("the parse must agree the same output is dirty: %+v %v", status, err)
 	}
 }

@@ -26,6 +26,7 @@ const (
 	cliSkill
 	cliAdopt
 	cliHelp
+	cliSessionSync
 )
 
 type adoptionArgs struct {
@@ -50,6 +51,8 @@ type cliInvocation struct {
 	// a confirmation (reboot).
 	confirmed  bool
 	jsonOutput bool
+	// sessionSync is set on cliSessionSync (pair#437).
+	sessionSync *sessionSyncArgs
 	// layout is the couch-wide pair layout to launch threads in. Set only on
 	// cliLaunch -- it is a property of the session being started, so the
 	// read-only forms reject the flag rather than carrying a meaningless value.
@@ -91,6 +94,8 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 		switch args[0] {
 		case "--adopt-store":
 			return parseAdoptionCLI(args)
+		case "--session-sync":
+			return parseSessionSyncCLI(args)
 		case "--actors", "--send-to", "--message-status", "--skill", "--broadcast-list":
 			return parseMessageCLI(args)
 		}

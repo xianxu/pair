@@ -400,6 +400,22 @@ func Operations() []Operation {
 			},
 		},
 		{
+			// Prepare (pair#434) is `couch --prepare`'s admission and nothing
+			// else: the CLI then runs weave refresh itself, off the console's
+			// serial queue, and reload-context. Confirmed because the verb it
+			// admits ends a conversation; a read, since this half changes nothing.
+			Name: OpPrepare, Summary: "Admit an idle, clean slot on its resting branch for couch --prepare",
+			Execution: ExecuteLiveOwner, Effect: EffectRead, Confirmation: ConfirmRequired, Result: ResultThread,
+			Presentation: PresentationTUI,
+			Args: []ArgSpec{
+				{Name: "ref", Summary: "thread tag or path", Required: false},
+				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
+				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
+				{Name: "require-settled", Summary: "admission's idle evidence, known or forced (pair#421)", Implicit: true},
+				{Name: "path", Summary: "the slot's checkout, as admission resolved it", Implicit: true},
+			},
+		},
+		{
 			// Reboot is the operator's way out of a conversation that cannot
 			// come back (pair#363): it archives the record with its evidence,
 			// so it is reversible in the way archive was, and confirmed because

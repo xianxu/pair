@@ -398,6 +398,9 @@ couch --peek repo:N[:M...][,repo:N...] [--lines N] [--json] [--transcripts]
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
 couch --broadcast-list [--json]   the running broadcast and its viewer count (never the link)
+couch --session-sync diff|status [--json]|write|release ... FILE
+                         the one way an agent changes a session-sync file it owns: refuses under the
+                         operator's lock or over unread edits, and lists owed deliveries (see couch --skill)
 couch --recover-plan-from-sdlc   per-slot recovery report (JSON), see below
 couch --resume repo:N [--json]   from a live slot: resume that slot's agent
 couch --reboot repo:N --confirm [--json]   from a live slot: archive and replace it
@@ -409,6 +412,10 @@ couch --relaunch repo:N --confirm [--same-binary] [--force-unknown] [--json]
 couch --reload-context repo:N --confirm [--force-unknown] [--json]
                          from a live slot: a fresh agent conversation in an idle slot's Pair (Shift+Alt+N);
                          same busy/dirty refusals; succeeds only once the restarted wrapper reconnects
+couch --prepare repo:N --confirm [--force-unknown] [--json]
+                         from a live slot: bring an idle, clean slot on its resting branch up for new work:
+                         weave refresh there, then a fresh agent conversation; reports the substrate
+                         commits its sdlc/weave build from; refuses (refresh-dirty) a refresh that changed files
 couch --send-to repo:N --message TEXT   send to an exact live slot
 couch --send-to repo --message TEXT     select an eligible slot in that family
 couch --send-to repo --agent NAME --message TEXT   ...running that agent

@@ -278,6 +278,15 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 	if invocation.kind == cliAdopt {
 		return runAdoptionCLI(invocation, rt, stdout, stderr)
 	}
+	if invocation.kind == cliSessionSync {
+		prepared, lease, err := prepareRuntime(rt, false)
+		if err != nil {
+			fmt.Fprintln(stderr, "couch:", err)
+			return 1
+		}
+		defer lease.Close()
+		return runSessionSyncCLI(invocation.sessionSync, prepared, stdout, stderr)
+	}
 	if invocation.kind == cliMessage {
 		prepared, lease, err := prepareRuntime(rt, false)
 		if err != nil {
@@ -1226,6 +1235,9 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "       couch --reboot repo:N --confirm [--json]")
 	fmt.Fprintln(w, "       couch --relaunch repo:N --confirm [--same-binary] [--force-unknown] [--json]")
 	fmt.Fprintln(w, "       couch --reload-context repo:N --confirm [--force-unknown] [--json]")
+	fmt.Fprintln(w, "       couch --prepare repo:N --confirm [--force-unknown] [--json]")
+	fmt.Fprintln(w, "             Bring an idle, clean slot on its resting branch up for new work:")
+	fmt.Fprintln(w, "             weave refresh in it, then a fresh agent conversation.")
 	fmt.Fprintln(w, "       couch --reap repo:N --confirm [--json]")
 	fmt.Fprintln(w, "       couch --recover repo:N [--json]")
 	fmt.Fprintln(w, "             From a live Couch slot only: run the report's step on one slot")
@@ -1233,6 +1245,9 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "             the report again; an uncertain outcome means read it before resending.")
 	fmt.Fprintln(w, "       couch --actors [--json]")
 	fmt.Fprintln(w, "       couch --broadcast-list [--json]   the running broadcast and its viewer count (never the link)")
+	fmt.Fprintln(w, "       couch --session-sync diff|status [--json]|write|release ... FILE")
+	fmt.Fprintln(w, "             The one way an agent changes a session-sync file it owns: refuses under the")
+	fmt.Fprintln(w, "             operator's lock or over unread edits, and lists owed deliveries. See couch --skill.")
 	fmt.Fprintln(w, "       couch --adopt-store <absolute-path> [--pair-data <path>] [--identity-dir <path>]")
 	fmt.Fprintln(w, "             [--legacy-store <path>]... [--exclude-store <path>]... [--apply <digest>]")
 	fmt.Fprintln(w, "             Preview legacy stores as JSON; apply the current digest to select in place.")

@@ -23,9 +23,11 @@ is a request, never operator approval or evidence that work is accepted.
 | Archive and replace one slot's agent | `couch --reboot pair:2 --confirm` |
 | Restart an idle slot onto the current Pair binary, keeping its conversation | `couch --relaunch pair:2 --confirm` |
 | Give an idle slot a fresh agent conversation | `couch --reload-context pair:2 --confirm` |
+| Bring an idle slot up for new work (refresh, then a fresh conversation) | `couch --prepare pair:2 --confirm` |
 | End an orphaned server's tree (its socket is gone) | `couch --reap pair:2 --confirm` |
 | See a slot's resources and repair plan | `couch --show pair:2` |
 | Repair a slot's workspace now | `couch --reconcile pair:2` |
+| Write a session-sync file you own (never by hand) | `couch --session-sync write --section 'Needs you' BODY FILE` |
 
 Exact addresses include `repo:0`. The `repo` part may be the directory name,
 the repository's alias, or a unique prefix of either (`parley:1` reaches
@@ -78,8 +80,13 @@ Scheduling is a message plus verification. SDLC enforces the workflow, so do not
 restate its rules in the message: claim refuses work another workspace owns, and
 continuing work checks the owner. Send the request, then read the evidence.
 
-1. **Dispatch.** The issue exists and its details are published in the owning
-   repository. Send `couch --send-to pair:1 --message 'Please work on pair#N.'`, or a
+1. **Prepare, then dispatch.** The issue exists and its details are published in the owning
+   repository. Run `couch --prepare pair:1 --confirm` first: it refuses a busy or dirty
+   slot, or one off its resting branch, without changing anything. Otherwise it runs
+   `weave refresh` there and reloads the agent onto the new skills and tools, and its
+   report names the substrate commits the slot's `sdlc` now builds from. A
+   `refresh-dirty` refusal means the refresh rewrote a tracked file; commit that output on
+   main rather than in the slot. Then send `couch --send-to pair:1 --message 'Please work on pair#N.'`, or a
    family (`pair`) to let Couch pick a free slot. Keep the printed ID and the
    resolved recipient.
 2. **Read the evidence, rung by rung.** Each rung is stronger than the one before;
@@ -241,6 +248,35 @@ couch --send-to pair:4 --message 'Recovery (pair:4): restore this slot'\''s pair
      converge (for example its resting branch is checked out elsewhere); tell the
      `:0` agent. Note `workspace-unknown`: part of the workspace could not be
      observed; read the report again later.
+
+## Session-sync files
+
+A markdown file with frontmatter `type: session-sync` and `owner: <your slot>`
+is a turn-based file you share with the operator (parley.nvim's Alt+Return
+submits it to you). Change it only through the `--session-sync` verbs below; an ad-hoc
+write skips the turn lock, and a lock check that only prints doesn't stop the
+write that follows it.
+
+| Verb | Does |
+|------|------|
+| `diff FILE` | The operator's edits since your last write, and the lock holder |
+| `write --section HEADING BODYFILE FILE` | Replaces one `## HEADING` section (whole heading lines only) |
+| `write --all BODYFILE FILE` | Replaces the whole file (keep the frontmatter) |
+| `release FILE` | Deletes your (`holder: agent`) lock and folds the operator's submits; with `--accept-edits`, records edits you read and leave as they are |
+| `status [--json] FILE` | The lock, your last write, and the events you still owe the file |
+
+- **Refusals:** exit 3 = the operator holds the lock: queue the update until
+  their submit. Exit 4 = the file has edits you haven't read: run `diff`,
+  resolve them, then pass `--accept-edits`. You never write the lock.
+- **Owed events:** Couch records every delivery to your slot. Each stays owed
+  by your session-sync file until a `write --fold ID[,ID]` (or `release
+  --fold`) says the file reflects it; a write without `--fold` clears
+  nothing. A submit (`submitted: <path>`) is folded by `release`. Folding an ID
+  that isn't owed refuses.
+- `status` refuses with `not-recording` when Couch predates the ledger, and
+  with `delivery-gap` when Couch failed to record a delivery to your slot: owed
+  events are then unknown, not zero. Check your recent messages, then pass
+  `--accept-gap` to `write` or `release`. A restart does not clear a gap.
 
 ## Rolling out a new Pair binary to idle slots
 

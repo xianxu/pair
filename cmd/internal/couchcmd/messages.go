@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -22,6 +23,9 @@ func runMessageCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer) int 
 func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, call messageCall) int {
 	// The one verb list (pair#424): a hand-kept list here let relaunch and
 	// reload-context fall through to the message path, which sends no ID.
+	if inv.messageOp == couchcore.OpPrepare {
+		return runPrepareCLI(inv, rt, stdout, stderr, call, slotPollClock{now: time.Now, sleep: time.Sleep}, couchcore.OSProvisionIO{})
+	}
 	if couchcore.IsSlotOperation(inv.messageOp) {
 		return runSlotOperationCLI(inv, rt, stdout, stderr, call, slotPollClock{now: time.Now, sleep: time.Sleep})
 	}
@@ -145,32 +149,56 @@ type slotPollClock struct {
 }
 
 // runSlotOperationCLI admits resume/reboot <slot> through the running Couch
-// and polls its receipt. Each call gets a fresh AdmissionTimeout context; the
-// 3-minute budget is the outer deadline. After admission any lost or
-// unreadable outcome (dial failure, timeout, an unavailable caller after a
-// Couch restart, a receipt no longer held) is uncertain: the report, not the
-// receipt, is the evidence.
+// and polls its receipt (exchangeSlotOperation), then reports it.
 func runSlotOperationCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, call messageCall, clock slotPollClock) int {
+	receipt, err := exchangeSlotOperation(inv, inv.messageOp, rt, call, clock)
+	var uncertain *slotOperationUncertain
+	switch {
+	case errors.As(err, &uncertain):
+		printUncertainSlotOperation(stderr, uncertain.request, uncertain.detail)
+		return 1
+	case err != nil:
+		fmt.Fprintln(stderr, "couch:", err)
+		return 1
+	}
+	return reportSlotOperation(stdout, stderr, receipt, inv.jsonOutput)
+}
+
+// slotOperationUncertain: the request was (or may have been) admitted, and
+// its outcome was lost. The report, not a resend, is the next step.
+type slotOperationUncertain struct {
+	request couchmessage.Request
+	detail  string
+}
+
+func (e *slotOperationUncertain) Error() string {
+	return fmt.Sprintf("%s %s (request %s): %s; outcome uncertain, verify with couch --recover-plan-from-sdlc before resending", e.request.Op, e.request.Target, e.request.ID, e.detail)
+}
+
+// exchangeSlotOperation admits op on inv's slot through the running Couch
+// and polls its receipt to a terminal status. Each call gets a fresh
+// AdmissionTimeout context; the poll budget is the outer deadline. After
+// admission any lost or unreadable outcome (dial failure, timeout, an
+// unavailable caller after a Couch restart, a receipt no longer held) is a
+// *slotOperationUncertain: the report, not the receipt, is the evidence.
+func exchangeSlotOperation(inv cliInvocation, op string, rt Runtime, call messageCall, clock slotPollClock) (couchmessage.OperationReceipt, error) {
+	var none couchmessage.OperationReceipt
 	namespace := rt.Getenv("COUCH_STORE_DIR")
 	if namespace == "" {
-		fmt.Fprintf(stderr, "couch: --%s requires a live Couch slot\n", inv.messageOp)
-		return 1
+		return none, fmt.Errorf("--%s requires a live Couch slot", inv.messageOp)
 	}
 	socket, err := couchmessage.SocketPath(namespace, "broker")
 	if err != nil {
-		fmt.Fprintln(stderr, "couch:", err)
-		return 1
+		return none, err
 	}
-	admit := callerIdentity(rt, inv.messageOp)
+	admit := callerIdentity(rt, op)
 	admit.Target, admit.Confirmed = inv.ref, inv.confirmed
 	admit.SameBinary, admit.ForceUnknown = inv.sameBinary, inv.forceUnknown
 	if admit.ID, err = newRequestID(); err != nil {
-		fmt.Fprintln(stderr, "couch: create request ID:", err)
-		return 1
+		return none, fmt.Errorf("create request ID: %w", err)
 	}
 	if err := couchmessage.ValidateRequest(admit); err != nil {
-		fmt.Fprintln(stderr, "couch:", err)
-		return 1
+		return none, err
 	}
 	exchange := func(r couchmessage.Request) (couchmessage.Response, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), couchmessage.AdmissionTimeout)
@@ -178,9 +206,8 @@ func runSlotOperationCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer
 		var result couchmessage.Response
 		return result, call(ctx, socket, r, &result)
 	}
-	uncertain := func(detail string) int {
-		printUncertainSlotOperation(stderr, admit, detail)
-		return 1
+	uncertain := func(detail string) (couchmessage.OperationReceipt, error) {
+		return none, &slotOperationUncertain{request: admit, detail: detail}
 	}
 	result, err := exchange(admit)
 	switch {
@@ -189,12 +216,10 @@ func runSlotOperationCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer
 	case result.Code == "uncertain":
 		return uncertain(result.Error)
 	case result.Code == "invalid-request" && (strings.Contains(result.Error, "unknown message operation") || strings.Contains(result.Error, "unknown field")):
-		// The running Couch is older than this CLI: it has no slot operations.
-		fmt.Fprintf(stderr, "couch: the running Couch predates `couch --%s`; restart Couch (switcher Alt+d, then `couch`) on the new binary to use it\n", inv.messageOp)
-		return 1
+		// The running Couch is older than this CLI: it has no such operation.
+		return none, fmt.Errorf("the running Couch predates `couch --%s`; restart Couch (switcher Alt+d, then `couch`) on the new binary to use it", inv.messageOp)
 	case result.Code != "accepted" || result.Operation == nil:
-		fmt.Fprintf(stderr, "couch: %s: %s\n", result.Code, result.Error)
-		return 1
+		return none, fmt.Errorf("%s: %s", result.Code, result.Error)
 	}
 	receipt := *result.Operation
 	status := callerIdentity(rt, "operation-status")
@@ -215,7 +240,7 @@ func runSlotOperationCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer
 		}
 		receipt = *result.Operation
 	}
-	return reportSlotOperation(stdout, stderr, receipt, inv.jsonOutput)
+	return receipt, nil
 }
 
 // reportSlotOperation prints a terminal receipt: JSON, or one line naming the
