@@ -183,6 +183,83 @@ rounds:
       isolation: checkout
       reviewed: 706a32676d10c63478c5fdae9f61984e62812423
       blocked: false
+    - "n": 6
+      timestamp: "2026-10-11T15:47:45-07:00"
+      dispatched: "2026-10-11T15:38:20-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Plan Task 3 Step 3 now reads "Implement DrawNotes per Core concepts" (diff 75f2e1ac..f7a574e5); the uv.EmptyCell wording appears only in Core concepts' rationale (plan line 37).
+          round: 6
+      findings:
+        - id: BR-14
+          severity: Important
+          title: 'Task 13 tests missing: flash-timer re-arm after firing and notes timer cleared on broadcast stop'
+          detail: '2nd finding in this family. Rule: every timer the console arms needs a test for each way it is torn down plus a test that it re-arms after firing; today that is pmarks.timer and pnotes.timer, each on pointer-off and on broadcast end (resetPointer). Only notes-on-pointer-off is tested (console_notes_test.go:177). Dropping the scheduleNotes call from the AfterFunc callback, or the timer stop from forgetNotes, keeps the suite green. Add one table-driven test over both timers and both teardown paths, plus a re-arm check through the test clock or a delay seam.'
+          family: untested-cleanup-path
+          round: 6
+        - id: BR-15
+          severity: Minor
+          title: Blend predicate Known && TrueColor && !NoColor duplicated in noteStyleLocked and applyPoints
+          detail: '2nd finding in this family. Rule: when a new helper encodes a predicate that already exists inline, the old site calls the new helper in the same change. A grep finds exactly two sites: console_notes.go:69 and console_pointer.go:180. applyPoints should take its blend from noteStyleLocked, or both should use a shared paletteBlendLocked.'
+          family: shared-helper-not-reused
+          round: 6
+        - id: BR-16
+          severity: Minor
+          title: Note.At stamped with wall-clock time.Now in session.go while the console draws with injectable c.now
+          detail: With a fake console clock, note ages come out negative, are clamped to 0, and the note looks permanently flashing; flash timing can't be driven from tests. Stamp At from the same clock the drawing uses.
+          family: single-clock-source
+          round: 6
+        - id: BR-17
+          severity: Minor
+          title: Notes flash timer repaint ceiling at the 48-note bound (about 35 full repaints/s to every viewer) is not stated
+          detail: The plan states the per-note cost (about 11 repaints per 15s) but not the total at the 6x8 note limit. Write that ceiling into the plan, or snap flash phases to a coarser grid so repaints for several notes coincide.
+          family: envelope-unstated-at-bound
+          round: 6
+      boundary: M3
+      recipe: milestone-review
+      isolation: checkout
+      blocked: true
+    - "n": 7
+      timestamp: "2026-10-11T15:56:38-07:00"
+      dispatched: "2026-10-11T15:51:47-07:00"
+      agent: claude
+      dispose:
+        - id: BR-14
+          disposition: addressed
+          note: TestCollaborationTimersRearmAndTearDown covers both timers on re-arm, pointer-off and broadcast end; reverting the AfterFunc re-arm or the forgetNotes Stop turns it red (verified).
+          round: 7
+        - id: BR-15
+          disposition: addressed
+          note: blendable(Palette) at console_notes.go:73 is now the only site; applyPoints (console_pointer.go:180) and noteStyleLocked both call it, and a grep finds no other inline copy.
+          round: 7
+        - id: BR-16
+          disposition: not-addressed
+          note: Config.Now is wired to c.now, but reverting both the wiring and the stamp leaves every broadcast and couchtty test green; no regression test drives stamp and draw through the fake clock.
+          round: 7
+        - id: BR-17
+          disposition: addressed
+          note: The plan Flash bullet states the 48-note ceiling (about 35/s per-note) and the shared beat bounds it; TestNoteFlashRepaintsDontGrowWithNotes pins it.
+          round: 7
+      findings:
+        - id: BR-18
+          severity: Minor
+          title: Plan Core concepts describe paletteTint with a strength argument (1 = full) but the code takes t (0 = full)
+          detail: Plan line 285 and the glow strengths (0.5 and 0.25) are the inverse of notehalo.go:29-30 and marks.go:98 (t 0.5 and 0.75). The colors match but the stated API is inverted; add a Revisions entry and fix Core concepts. The atlas already says t.
+          family: plan-tracks-code
+          round: 7
+        - id: BR-19
+          severity: Minor
+          title: The notes' blend background is captured only when a snapshot is accepted, so a later OSC 11 report or theme change is ignored until the next note change
+          detail: console_notes.go:49,107 cache noteStyleLocked() into pnotes.style; marks re-read the palette on every batch. Read the style in noteOverlay at draw time (check the c.mu lock order on the Presenter goroutine).
+          family: snapshot-captures-mutable-input
+          round: 7
+      boundary: M3
+      recipe: milestone-review
+      isolation: checkout
+      reviewed: dede99b74396ddbf01d0c52dd008126121560b52
+      blocked: false
 ---
 
 # Gate ledger — pair#447 (boundary-review)
@@ -264,8 +341,43 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-13** [Minor] `stream-end-resets-derived-state` End sends a made-up caps-off to view links, which never get caps, so they show the "Pointing is off" hint band
   viewer.js:208 calls deps.caps({pointer:false}) on every page. server.go:325-340 sends caps only to pointer pages, so on a view link setOn(false) un-hides #hint and band() lifts the stage after the end. 2nd in family. Rule: an end puts stream-derived state back to the page variant's join state and never replays events that variant does not receive. Fix: only send caps-off when a caps event was seen (or use one ended() dep), and add a view-link end test.
 
+## Round 6 — 2026-10-11T15:47:45-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Plan Task 3 Step 3 now reads "Implement DrawNotes per Core concepts" (diff 75f2e1ac..f7a574e5); the uv.EmptyCell wording appears only in Core concepts' rationale (plan line 37).
+
+### Raised
+
+- **BR-14** [Important] `untested-cleanup-path` Task 13 tests missing: flash-timer re-arm after firing and notes timer cleared on broadcast stop
+  2nd finding in this family. Rule: every timer the console arms needs a test for each way it is torn down plus a test that it re-arms after firing; today that is pmarks.timer and pnotes.timer, each on pointer-off and on broadcast end (resetPointer). Only notes-on-pointer-off is tested (console_notes_test.go:177). Dropping the scheduleNotes call from the AfterFunc callback, or the timer stop from forgetNotes, keeps the suite green. Add one table-driven test over both timers and both teardown paths, plus a re-arm check through the test clock or a delay seam.
+- **BR-15** [Minor] `shared-helper-not-reused` Blend predicate Known && TrueColor && !NoColor duplicated in noteStyleLocked and applyPoints
+  2nd finding in this family. Rule: when a new helper encodes a predicate that already exists inline, the old site calls the new helper in the same change. A grep finds exactly two sites: console_notes.go:69 and console_pointer.go:180. applyPoints should take its blend from noteStyleLocked, or both should use a shared paletteBlendLocked.
+- **BR-16** [Minor] `single-clock-source` Note.At stamped with wall-clock time.Now in session.go while the console draws with injectable c.now
+  With a fake console clock, note ages come out negative, are clamped to 0, and the note looks permanently flashing; flash timing can't be driven from tests. Stamp At from the same clock the drawing uses.
+- **BR-17** [Minor] `envelope-unstated-at-bound` Notes flash timer repaint ceiling at the 48-note bound (about 35 full repaints/s to every viewer) is not stated
+  The plan states the per-note cost (about 11 repaints per 15s) but not the total at the 6x8 note limit. Write that ceiling into the plan, or snap flash phases to a coarser grid so repaints for several notes coincide.
+
+## Round 7 — 2026-10-11T15:56:38-07:00 (claude) — passed
+
+### Disposed
+
+- BR-14 — addressed — TestCollaborationTimersRearmAndTearDown covers both timers on re-arm, pointer-off and broadcast end; reverting the AfterFunc re-arm or the forgetNotes Stop turns it red (verified).
+- BR-15 — addressed — blendable(Palette) at console_notes.go:73 is now the only site; applyPoints (console_pointer.go:180) and noteStyleLocked both call it, and a grep finds no other inline copy.
+- BR-16 — not-addressed — Config.Now is wired to c.now, but reverting both the wiring and the stamp leaves every broadcast and couchtty test green; no regression test drives stamp and draw through the fake clock.
+- BR-17 — addressed — The plan Flash bullet states the 48-note ceiling (about 35/s per-note) and the shared beat bounds it; TestNoteFlashRepaintsDontGrowWithNotes pins it.
+
+### Raised
+
+- **BR-18** [Minor] `plan-tracks-code` Plan Core concepts describe paletteTint with a strength argument (1 = full) but the code takes t (0 = full)
+  Plan line 285 and the glow strengths (0.5 and 0.25) are the inverse of notehalo.go:29-30 and marks.go:98 (t 0.5 and 0.75). The colors match but the stated API is inverted; add a Revisions entry and fix Core concepts. The atlas already says t.
+- **BR-19** [Minor] `snapshot-captures-mutable-input` The notes' blend background is captured only when a snapshot is accepted, so a later OSC 11 report or theme change is ignored until the next note change
+  console_notes.go:49,107 cache noteStyleLocked() into pnotes.style; marks re-read the palette on every batch. Read the style in noteOverlay at draw time (check the c.mu lock order on the Presenter goroutine).
+
 ## Open findings
 
-- **BR-1** [Minor] `plan-self-consistency` Task 3 Step 3 says to blank cells with uv.EmptyCell; Core concepts says EmptyCell drops the background and blanking must keep style
 - **BR-7** [Minor] `docs-gate-user-surface` README describes viewer-page note actions that only land in M2
 - **BR-13** [Minor] `stream-end-resets-derived-state` End sends a made-up caps-off to view links, which never get caps, so they show the "Pointing is off" hint band
+- **BR-16** [Minor] `single-clock-source` Note.At stamped with wall-clock time.Now in session.go while the console draws with injectable c.now
+- **BR-18** [Minor] `plan-tracks-code` Plan Core concepts describe paletteTint with a strength argument (1 = full) but the code takes t (0 = full)
+- **BR-19** [Minor] `snapshot-captures-mutable-input` The notes' blend background is captured only when a snapshot is accepted, so a later OSC 11 report or theme change is ignored until the next note change

@@ -76,7 +76,7 @@ Durable plan: `workshop/plans/000447-broadcast-sticky-notes-viewers-pin-comments
 - [x] Design session with the operator in the slot: settle the open questions, then fix Spec and Done when.
 - [x] M1 — Notes in Couch: note board and strict parsing, `note`/`resolve` routes, `notes` event to every stream, session checks, 💭 overlay and `💭N` in the tab bar.
 - [x] M2 — The viewer page: tap routing, comment mode, the sticky-note dialog and the mode switch below the swatches; live check with two viewers and a view-only one.
-- [ ] M3 — Visibility: each 💭 on a chip of its author's color with a soft round glow, flashing on arrival and every 15s until resolved; the viewer's hint bar becomes tooltips on the rail controls.
+- [x] M3 — Visibility: each 💭 on a chip of its author's color with a soft round glow, flashing on arrival and every 15s until resolved; the viewer's hint bar becomes tooltips on the rail controls.
 - [ ] M4 — Notes in the terminal: click `💭N` to open a notes menu over the screen; hovering an item highlights it and makes its 💭 glow; clicking copies the text; read and copy only.
 
 ## Estimate
@@ -112,6 +112,7 @@ Revision (2026-10-11, operator smoke): the second block of items is the scope re
 ## Log
 
 ### 2026-10-11
+- 2026-10-11: closed M3 — As round 1 (full suite green at f7a574e5; unit/property/console/CDP evidence). Round 1 fixes in 725bfa3a + atlas: BR-14 table test over marks and notes timers x {re-arm after firing, pointer-off, broadcast end}, teardown asserted immediately; mutation-checked (dropping scheduleNotes in the timer callback fails re-arm; dropping the stop in forgetNotes fails broadcast end). Shared 15s flash beat + arrival flash; TestNoteFlashRepaintsDontGrowWithNotes pins repaints per beat equal for 1 and 48 notes. Config.Now single clock; blendable shared. broadcast + couchtty (-race x3) green.; review verdict: FIX-THEN-SHIP
 - 2026-10-11: closed M2 — As in round 1 (node tests via TestViewerNode, page test, headless-Chrome CDP smoke incl. 390px, operator smoke on pair:0). Round 1 fixes in 706a3267: BR-8 end delivers pointer-off and empty notes through the same handlers (connect test, order-independent); dialog answers bound to their open generation (test: old 204 does not close a new draft); view focuses Close so Escape works (test); README names the mode button; plan Task 8 cites Core concepts. 59 node tests green.; review verdict: FIX-THEN-SHIP
 - 2026-10-11: closed M1 — As before (unit+property+fuzz; PointerState ordering, injected interleavings, -race stress; real-session route tests; console integration test with real session+console+viewer emulator). Review round 1 fixes in 1c3a0b16: README notes paragraph (BR-2), ParsePointBatch uses decodeStrict (FuzzParsePointBatch 10s green), forget-at-broadcast-end tested with notes held, drawnNotes comment. broadcast + couchtty (-race, notes/pointer/status) green after the fixes. Client-chosen color for the per-color limit is the accepted collaborative design (Spec).; review verdict: SHIP
 - Design session with the operator: anchoring option A (fixed cell), 💭 not 💬 (💬 is the review threads'), view link read-only but sees notes, pointing off deletes every note, 8 notes per color, `💭N` after 👽, mode switch under the #449 swatch rail.
