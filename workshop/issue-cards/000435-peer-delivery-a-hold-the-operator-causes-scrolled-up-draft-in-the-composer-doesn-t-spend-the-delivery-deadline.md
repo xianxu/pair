@@ -1,6 +1,6 @@
 ---
 id: 000435
-status: codecomplete
+status: done
 created: 2026-10-10
 updated: 2026-10-10
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: a577977b8e3f5f46a004d1c78ac136afc2897c7d
         evidence_commit: 35e6d56e7ce5dd9892a056ef32c9d39b3f26e0e0
+        landed_commit: c2612ada79525857ab24e3a2e2ca004e0f50d4d4
 ---
 
 # Peer delivery: a hold the operator causes (scrolled up, draft in the composer) doesn't spend the delivery deadline
