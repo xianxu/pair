@@ -1,12 +1,20 @@
 ---
 id: 000437
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-10
 updated: 2026-10-10
 estimate_hours:
-card_mirror: 'a911781addcc081e27a23122736ea85a9ddfe560' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '35d652538aa556479eee46910ea564c66962fde9' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-10T23:41:16-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:5
+    worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch --session-sync: the one mutation path for a session-sync file, with an owed-events ledger
