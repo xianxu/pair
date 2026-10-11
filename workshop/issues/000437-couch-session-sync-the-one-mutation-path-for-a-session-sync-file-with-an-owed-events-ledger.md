@@ -55,8 +55,20 @@ agent has to learn and can't sensibly bypass, as `sdlc` is, and keep it agent-ne
 
 ## Plan
 
-- [ ]
+Durable plan: [`workshop/plans/000437-…-plan.md`](../plans/000437-couch-session-sync-the-one-mutation-path-for-a-session-sync-file-with-an-owed-events-ledger-plan.md)
+(decisions on ledger location, submit recognition, owed semantics, JSON shape).
+
+- [ ] File rules: sections by whole heading, restamp, owner/holder parse (`sessionsync/file.go`)
+- [ ] Per-slot delivery ledger in the Couch store, bounded trim (`sessionsync/ledger.go`)
+- [ ] Owed computation + per-file sidecar state (`sessionsync/owed.go`, `state.go`)
+- [ ] `Sync` diff/write/release/status with the guards (`sessionsync/sync.go`)
+- [ ] `couch --session-sync` CLI verb + JSON envelope (`couchcmd/session_sync.go`)
+- [ ] Daemon appends a ledger row per landed delivery (`couchcmd/message_service.go`)
+- [ ] Couch skill text, atlas, hand-off to ops:0 (gitignore line, tl-status.py mapping)
 
 ## Log
 
 ### 2026-10-10
+- Claimed from the TL's dispatch (ops:0). Confirmed parley.nvim#314's `status --json` shape via ops:0 (delivery 4ce3cdf0).
+- Couch persists no deliveries today (atlas: memory-only receipts); the ledger hooks the daemon's `messageEndpoint.Deliver` in couchcmd, not `couchmessage`, to stay out of #433/#435.
+- parley#313's submit is a plain `couch --send-to <owner>` with body `submitted: <abs path>`; recognized by body, no wire change.
