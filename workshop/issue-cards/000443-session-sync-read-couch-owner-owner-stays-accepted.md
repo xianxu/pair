@@ -1,6 +1,6 @@
 ---
 id: 000443
-status: codecomplete
+status: done
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 2e7510bec3ec01cf046d0bd96f389b48603f1d82
         evidence_commit: 536fe08aa748dbe86ae153beaa91399a85e2bff9
+        landed_commit: b91711debe53b7ec976309d940caa3c18b7caa89
 ---
 
 # session-sync: read couch-owner (owner stays accepted)
