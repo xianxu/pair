@@ -43,10 +43,21 @@ def run(name, extra, use_config=True, env_extra=None):
         pass
     return ok
 
-print(subprocess.run(["zellij", "--version"], capture_output=True, text=True).stdout.strip())
-print({k: v for k, v in os.environ.items() if "ZELLIJ" in k.upper()})
-run("A-test-argv", lambda l, d: ["--new-session-with-layout", l, "--data-dir", os.path.join(d, "data")])
-run("B-no-data-dir", lambda l, d: ["--new-session-with-layout", l])
-run("C-layout-flag", lambda l, d: ["--layout", l, "--data-dir", os.path.join(d, "data")])
-run("D-no-config", lambda l, d: ["--new-session-with-layout", l, "--data-dir", os.path.join(d, "data")], use_config=False)
-run("E-shell-sh", lambda l, d: ["--new-session-with-layout", l], env_extra={"SHELL": "/bin/zsh"})
+def snapshot(tag):
+    home = os.path.expanduser("~")
+    roots = [os.path.join(home, "Library/Caches/org.Zellij-Contributors.Zellij"),
+             os.path.join(home, "Library/Application Support/org.Zellij-Contributors.Zellij"),
+             os.path.join(home, ".config/zellij"), os.path.join(home, ".cache/zellij")]
+    files = []
+    for r in roots:
+        for dp, _, fns in os.walk(r):
+            for f in fns:
+                p = os.path.join(dp, f)
+                files.append(f"{p.replace(home, '~')}({os.path.getsize(p)})")
+    print(f"  [{tag}] zellij state files: {files[:40]}", flush=True)
+
+A = lambda l, d: ["--new-session-with-layout", l, "--data-dir", os.path.join(d, "data")]
+snapshot("start")
+for i, (name, kw) in enumerate([("E-zsh", {"env_extra": {"SHELL": "/bin/zsh"}}), ("A", {}), ("D-noconfig", {"use_config": False}), ("A", {}), ("A", {}), ("A-zsh", {"env_extra": {"SHELL": "/bin/zsh"}}), ("A", {})]):
+    run(f"{i}-{name}", A, **kw)
+    snapshot(f"after {i}")
