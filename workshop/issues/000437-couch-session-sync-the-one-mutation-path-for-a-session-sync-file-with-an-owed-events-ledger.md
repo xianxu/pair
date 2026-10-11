@@ -48,10 +48,10 @@ agent has to learn and can't sensibly bypass, as `sdlc` is, and keep it agent-ne
 
 ## Done when
 
-- [ ] A write under an operator lock refuses and changes nothing (test).
-- [ ] A write over unread operator edits refuses until `--accept-edits` (test).
-- [ ] A delivery to the owner slot appears in `status` as owed until a write folds it (test).
-- [ ] A section write never matches a heading quoted in prose (test).
+- [x] A write under an operator lock refuses and changes nothing (test).
+- [x] A write over unread operator edits refuses until `--accept-edits` (test).
+- [x] A delivery to the owner slot appears in `status` as owed until a write folds it (test).
+- [x] A section write never matches a heading quoted in prose (test).
 - [ ] The xx-tl skill (ops) switches from `tl-status.py` to this verb.
 
 ## Plan
@@ -59,13 +59,26 @@ agent has to learn and can't sensibly bypass, as `sdlc` is, and keep it agent-ne
 Durable plan: [`workshop/plans/000437-…-plan.md`](../plans/000437-couch-session-sync-the-one-mutation-path-for-a-session-sync-file-with-an-owed-events-ledger-plan.md)
 (decisions on ledger location, submit recognition, owed semantics, JSON shape).
 
-- [ ] File rules: sections by whole heading, restamp, owner/holder parse (`sessionsync/file.go`)
-- [ ] Per-slot delivery ledger in the Couch store, bounded trim (`sessionsync/ledger.go`)
-- [ ] Owed computation + per-file sidecar state (`sessionsync/owed.go`, `state.go`)
-- [ ] `Sync` diff/write/release/status with the guards (`sessionsync/sync.go`)
-- [ ] `couch --session-sync` CLI verb + JSON envelope (`couchcmd/session_sync.go`)
-- [ ] Daemon appends a ledger row per landed delivery (`couchcmd/message_service.go`)
+- [x] File rules: sections by whole heading, restamp, owner/holder parse (`sessionsync/file.go`)
+- [x] Per-slot delivery ledger in the Couch store, bounded trim (`sessionsync/ledger.go`)
+- [x] Owed computation + per-file sidecar state (`sessionsync/owed.go`, `state.go`)
+- [x] `Sync` diff/write/release/status with the guards (`sessionsync/sync.go`)
+- [x] `couch --session-sync` CLI verb + JSON envelope (`couchcmd/session_sync.go`)
+- [x] Daemon appends a ledger row per landed delivery (`couchcmd/message_service.go`)
 - [ ] Couch skill text, atlas, hand-off to ops:0 (gitignore line, tl-status.py mapping)
+
+## Revisions
+
+### 2026-10-11 — plan review (fresh-eyes subagent) and implementation
+- **Owed is not "since its last write"** (the Spec's wording): a plain write never clears a delivery; only
+  `write --fold` / `release --fold` do, and `release` folds the file's submits. An implicit clear on every write is
+  the liveness hole this issue closes. The horizon is the sidecar's `Since` (shadow mtime on first use).
+- **What counts as delivered:** submitted, indeterminate, an endpoint error or a non-terminal answer; only explicit
+  cancel/expiry is skipped. Uncertain rows say so.
+- **`status` refuses `not-recording`** when Couch predates the ledger or an append failed (`recording.json`), so an
+  old or broken Couch never reads as "nothing owed". `release` keeps the unread-edits guard (exit 4).
+- **`owner:` must be an exact `repo:N`**; anything else refuses rather than matching nothing.
+- **Ledger bound:** by size (256 KiB → ≤512 rows younger than 14 days), one stat per append.
 
 ## Log
 

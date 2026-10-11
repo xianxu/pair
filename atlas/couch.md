@@ -375,6 +375,40 @@ outside Couch. Loading or installing it is explicit; runtime does not change
 agent configuration. Ordinary messages carry follow-up context in their body;
 there is no reply protocol or availability toggle.
 
+### Session-sync files and the delivery ledger (#437)
+
+`couch --session-sync diff|write|release|status FILE` is the one mutation path
+for a `type: session-sync` file (parley.nvim#313's turn-based operator/agent
+file). Package `sessionsync` owns the rules; `couchcmd/session_sync.go` is the
+CLI. It runs in-process against the store and needs no supervisor.
+- **Guards:** a lock whose holder is not `agent` refuses every write (exit 3).
+  A file that differs from its shadow (`.<file>.shadow`, the agent's last
+  write) refuses until `--accept-edits` (exit 4). `release` keeps both guards.
+  Sections match whole `## HEADING` lines only. Writes are in place, because
+  parley watches the inode; the shadow and sidecar use temp+rename.
+- **Ledger:** the message service's `messageEndpoint.Deliver`
+  (`message_deliveries.go`) appends one row per delivery that may have
+  reached the agent: submitted, indeterminate, an endpoint error, or a
+  non-terminal answer. It skips explicit cancel and expiry. The row goes to
+  `<store>/session-sync/<repo>_<N>.jsonl` and holds the ID, the sender slot,
+  the time and the body's first line (a submit's path line is kept whole).
+  `couchmessage` is untouched.
+- **Ledger bound:** a file past 256 KiB is rewritten keeping at most 512 rows
+  younger than 14 days. `recording.json` marks a recording Couch. An append
+  failure stamps `Failed` there, and only the next Couch start clears it.
+  `status` refuses `not-recording` without the marker or with a failure, so
+  "nothing owed" is never a blind spot.
+- **Owed:** rows for the file's `owner:` slot from the sidecar's `Since`
+  (`.<file>.sync`; without a sidecar, the shadow's mtime), minus folded IDs,
+  minus submits naming another file. A body `submitted: <abs path>` is a
+  submit. Only `write --fold ID` / `release --fold ID` clear a delivery, never
+  a plain write. `release` also folds the file's submits. The sidecar's
+  `Folded` is pruned to IDs still in the ledger.
+- **`status --json`:** the Couch envelope
+  `{"Code","Error","Status":{File,Owner,Holder,LastWrite,Owed[{ID,Kind,From,At}]}}`,
+  agreed with parley.nvim#314. `Owed` is never null, and a refusal exits
+  non-zero with a `Code` other than `ok`.
+
 ### Recover plan after a restart (#367)
 
 `couch --recover-plan-from-sdlc` (operation `recover-plan`, `ExecuteDirectStore`,

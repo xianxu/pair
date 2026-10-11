@@ -199,3 +199,17 @@
 - Before close: full `make -k test` + `go test ./...` (per memory: scratchpad TMPDIR, log to file).
 - Live: rebuild, run `couch --session-sync status --json` on ops' `tl-status-xian-xu.md` (read-only). Then send a
   message to a scratch slot that owns a scratch session-sync file and watch it appear as owed, then fold it.
+
+## Revisions
+
+### 2026-10-11 — from the plan review
+- Decision 4: `release` keeps the unread-edits guard (exit 4), as `tl-status.py` did.
+- Decision 5: also record endpoint errors and non-terminal answers (the broker reads both as indeterminate);
+  skip only explicit cancel/expiry.
+- New: `recording.json` marker written at message-service start; `status` refuses `not-recording` without it or
+  after an append failure (`Failed`), cleared only by the next Couch start.
+- Decision 3: `owner:` must match `repo:N` exactly or the verb refuses.
+- Ledger bound by size (256 KiB, one stat per append) instead of a row count read on every append; a submit's head
+  line is kept up to 4096 bytes so long paths still match.
+- Deferred (advisory): a flock on the sidecar (single agent per file; the race costs a re-fold), and a shared
+  `ParseSubmit` with pair#433 (its model is out of bounds here; offered to the TL).

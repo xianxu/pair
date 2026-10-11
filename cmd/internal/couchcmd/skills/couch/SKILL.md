@@ -26,6 +26,7 @@ is a request, never operator approval or evidence that work is accepted.
 | End an orphaned server's tree (its socket is gone) | `couch --reap pair:2 --confirm` |
 | See a slot's resources and repair plan | `couch --show pair:2` |
 | Repair a slot's workspace now | `couch --reconcile pair:2` |
+| Write a session-sync file you own (never by hand) | `couch --session-sync write --section 'Needs you' BODY FILE` |
 
 Exact addresses include `repo:0`. The `repo` part may be the directory name,
 the repository's alias, or a unique prefix of either (`parley:1` reaches
@@ -239,6 +240,33 @@ couch --send-to pair:4 --message 'Recovery (pair:4): restore this slot'\''s pair
      converge (for example its resting branch is checked out elsewhere); tell the
      `:0` agent. Note `workspace-unknown`: part of the workspace could not be
      observed; read the report again later.
+
+## Session-sync files
+
+A markdown file with frontmatter `type: session-sync` and `owner: <your slot>`
+is a turn-based file you share with the operator (parley.nvim's Alt+Return
+submits it to you). Change it only through the `--session-sync` verbs below; an ad-hoc
+write skips the turn lock, and a lock check that only prints doesn't stop the
+write that follows it.
+
+| Verb | Does |
+|------|------|
+| `diff FILE` | The operator's edits since your last write, and the lock holder |
+| `write --section HEADING BODYFILE FILE` | Replaces one `## HEADING` section (whole heading lines only) |
+| `write --all BODYFILE FILE` | Replaces the whole file (keep the frontmatter) |
+| `release FILE` | Deletes your (`holder: agent`) lock and folds the operator's submits |
+| `status [--json] FILE` | The lock, your last write, and the events you still owe the file |
+
+- **Refusals:** exit 3 = the operator holds the lock: queue the update until
+  their submit. Exit 4 = the file has edits you haven't read: run `diff`,
+  resolve them, then pass `--accept-edits`. You never write the lock.
+- **Owed events:** Couch records every delivery to your slot. Each stays owed
+  by your session-sync file until a `write --fold ID[,ID]` (or `release
+  --fold`) says the file reflects it; a write without `--fold` clears
+  nothing. A submit (`submitted: <path>`) is folded by `release`. Folding an ID
+  that isn't owed refuses.
+- `status` refuses with `not-recording` when Couch predates the ledger or lost
+  a row; then owed events are unknown, not zero.
 
 ## Rolling out a new Pair binary to idle slots
 
