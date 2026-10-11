@@ -142,3 +142,37 @@ func TestALedgerAppendFailureRecordsAGapForThatSlotOnly(t *testing.T) {
 		t.Fatalf("another slot is unaffected: %+v", g)
 	}
 }
+
+// pair#441: the owner's own session-sync ping is not owed, or each ping
+// would seed the next. The rule keys on sender identity, as the breaker does
+// (#433): the same text from another slot stays owed, and the owner's own
+// submit stays owed (it ends the operator's turn).
+func TestTheOwnersOwnPingIsNotOwed(t *testing.T) {
+	r := newServiceRig(t)
+	store := t.TempDir()
+	r.s.recordDeliveries(store)
+	owner, peer := r.connect(1), r.connect(2)
+	ping := "session-sync ping: /x/tl.md owes a response since 09:36"
+	for _, c := range []struct {
+		id   string
+		from couchmessage.Binding
+		body string
+		want bool
+	}{
+		{"own-ping", owner, ping, false},
+		{"own-submit", owner, "submitted: /x/tl.md", true},
+		{"peer-ping", peer, ping, true},
+		{"peer-report", peer, "pair#441 done", true},
+	} {
+		e := messageEndpoint{service: r.s, binding: owner, endpoint: answeringEndpoint{receipt: couchmessage.Receipt{Status: couchmessage.Submitted}}}
+		_, _ = e.Deliver(context.Background(), couchmessage.Message{ID: c.id, From: c.from, To: owner, Body: c.body}, nil)
+		rows, _ := (&sessionsync.Ledger{Dir: sessionsync.LedgerDir(store)}).Read(owner.Slot)
+		found := false
+		for _, row := range rows {
+			found = found || row.ID == c.id
+		}
+		if found != c.want {
+			t.Fatalf("%s: recorded=%v want %v", c.id, found, c.want)
+		}
+	}
+}

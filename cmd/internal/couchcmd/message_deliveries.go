@@ -2,6 +2,7 @@ package couchcmd
 
 import (
 	"os"
+	"strings"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
@@ -34,8 +35,16 @@ func (s *messageService) recordDeliveries(storeDir string) {
 // reads the last two as indeterminate). Only an explicit cancel or expiry
 // proves nothing was pasted. A spurious owed row costs one fold; a missing
 // one is the liveness bug the ledger exists for.
+//
+// The owner's own session-sync ping is not recorded (pair#441): it asks for
+// a fold, so recording it would seed the next ping. It is recognized by
+// sender identity, as the breaker recognizes the owner's submit (#433), so a
+// peer imitating the prefix stays owed.
 func (r *deliveryRecorder) record(m couchmessage.Message, receipt couchmessage.Receipt, err error) {
 	if err == nil && (receipt.Status == couchmessage.Cancelled || receipt.Status == couchmessage.Expired) {
+		return
+	}
+	if m.From == m.To && strings.HasPrefix(m.Body, sessionsync.PingPrefix) {
 		return
 	}
 	e := sessionsync.Entry{ID: m.ID, From: m.From.Slot, At: r.now(), Head: m.Body,
