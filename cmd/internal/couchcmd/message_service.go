@@ -837,11 +837,11 @@ func (e messageEndpoint) Retained(ctx context.Context, id string) (couchmessage.
 func (e messageEndpoint) Release(ctx context.Context, id string) error {
 	return e.endpoint.Release(ctx, id)
 }
-func (e messageEndpoint) Deliver(ctx context.Context, m couchmessage.Message) (couchmessage.Receipt, error) {
+func (e messageEndpoint) Deliver(ctx context.Context, m couchmessage.Message, progress func(couchmessage.Receipt)) (couchmessage.Receipt, error) {
 	if err := e.check(ctx); err != nil {
 		return couchmessage.Receipt{Status: couchmessage.Cancelled, Detail: err.Error()}, nil
 	}
-	return e.endpoint.Deliver(ctx, m)
+	return e.endpoint.Deliver(ctx, m, progress)
 }
 
 func readMessageWrapperPID(path string) (int, error) {

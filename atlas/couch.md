@@ -334,9 +334,23 @@ still-booting Claude.
 - **The deadline starts at paste.** `Message.Deadline` is the paste-by time:
   admission plus `PasteTimeout` (90s), which a booting or busy recipient may
   use up. From the paste, the wrapper bounds submit and confirmation by
-  `DeliveryTimeout` (30s). `Message.Horizon()` (deadline plus window) is the
-  one outer bound the broker reads, in its model expiry, its job context and
-  the endpoint's receipt wait.
+  `DeliveryTimeout` (30s). `Message.Horizon()` (hold limit plus window) is
+  the one outer bound the broker reads, in its model expiry, its job context
+  and the endpoint's receipt wait.
+- **Operator holds stop the clock (pair#435).** While the wrapper waits only
+  because of the operator — a draft in the composer, or the composer scrolled
+  out of view — the paste-by doesn't advance: the held time is added back to
+  `Deadline`, up to `Message.HoldLimit()` (`Deadline + MaxHold`, 30m). The cap
+  bounds how long a scrolled-up pane can keep refusing other senders
+  (`recipient-busy`); reaching it expires with "held past 30m0s, <hold>".
+  Its cost: a recipient wrapper that hangs while still connected now keeps
+  the sender's delivery pending up to the full horizon (about 32m), not 2m.
+  Waits that can't judge the hold (input settling, forwarded input) leave
+  it as it is, so typing a draft doesn't spend the clock.
+  Other waits (paste mode, an unrecognized composer, a booting slot) keep the
+  clock running. While held the wrapper's receipt is `held` with the reason;
+  `RemoteEndpoint.Deliver` hands each interim receipt to the broker
+  (`DeliveryProgress`), so the sender's `couch` status reads `held` too.
 
 Receiver profiles exist for Claude Code and Codex CLI at any installed version
 (`peerReceiverAgents`; the exact-version allowlist was removed in #360 after
