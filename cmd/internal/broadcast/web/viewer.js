@@ -275,7 +275,7 @@ async function start() {
     }
     for (let i = 0; i < 3; i++) {
       const r = screen.getBoundingClientRect();
-      const next = nextFontSize(size, r.width, r.height, window.innerWidth, window.innerHeight);
+      const next = nextFontSize(size, r.width, r.height, stage.clientWidth, stage.clientHeight);
       if (next === size) {
         break;
       }
@@ -325,6 +325,10 @@ async function start() {
     setStale: (on) => stage.classList.toggle('stale', on),
     later: (fn, ms) => setTimeout(fn, ms),
     caps: (c) => {
+      if (!stage.classList.contains('controls')) {
+        stage.classList.add('controls');
+        fit();
+      }
       pointer.setColors(c.palette, c.color);
       pointer.setOn(Boolean(c.pointer));
     },

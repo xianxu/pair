@@ -93,11 +93,16 @@ html, body {
 #hint.hidden {
   display: none;
 }
+/* A pointer page keeps a band below the screen for its controls, so the
+   swatches and the hint never cover a cell someone may want to point at. */
+#stage.controls {
+  bottom: 40px;
+}
 /* Pointer colors (#446): one swatch per palette color, the current one
    ringed. */
 #swatches {
   position: fixed;
-  top: 8px;
+  bottom: 6px;
   left: 8px;
   display: flex;
   gap: 6px;

@@ -348,7 +348,13 @@ func TestMarksKeepEachBatchColor(t *testing.T) {
 
 func TestPointerPaletteMatchesMarks(t *testing.T) {
 	got := PointerPalette()
-	if len(got) != PointerColors || got[0] != "#ffaf00" || got[5] != "#cc79a7" {
+	want := []string{"#ffaf00", "#56b4e9", "#009e73", "#f0e442", "#d55e00", "#cc79a7"}
+	if len(got) != len(want) || PointerColors != len(want) {
 		t.Fatalf("palette %v", got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("palette %v, want %v", got, want)
+		}
 	}
 }

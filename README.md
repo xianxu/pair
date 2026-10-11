@@ -877,8 +877,11 @@ if Couch crashes or is killed.
 `LIVE ⏸ 👆 👽`. Clicking `👆` creates a separate **pointer link**, copies it to
 your clipboard, and turns pointing on (`👆` turns amber). Give that link to the
 person helping you. Anyone holding it sees the same live view and can tap or
-drag on it (an iPad works well), leaving amber marks that hold for a moment and
-then fade quickly on your screen and every viewer's. Marks are only drawn: they never
+drag on it (an iPad works well), leaving colored marks that hold for a moment and
+then fade quickly on your screen and every viewer's. Each viewer draws in one of
+six colorblind-safe colors (#446): Couch gives a new viewer a color nobody else
+is using, and the swatches below the screen let them pick another, which their
+browser remembers. Marks are only drawn: they never
 type or click anything in your programs, never cover the `LIVE ⏸ 👆 👽`
 controls (the rest of the tab bar can be pointed at), and aren't drawn while
 the switcher is open. Clicking `👆` again turns pointing
