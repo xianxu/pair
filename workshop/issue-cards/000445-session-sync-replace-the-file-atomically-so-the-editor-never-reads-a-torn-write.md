@@ -1,6 +1,6 @@
 ---
 id: 000445
-status: codecomplete
+status: done
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: f2c8f0e18f3dba0fc18553fa8e1cfe789d306b55
         evidence_commit: 3ff570703b03bca8927b0c2447477186073e7c29
+        landed_commit: ec01d0c959b33d77e2cbb0994474c3c850397f7e
 ---
 
 # session-sync: replace the file atomically, so the editor never reads a torn write
