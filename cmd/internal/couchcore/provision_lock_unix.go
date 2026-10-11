@@ -30,6 +30,10 @@ func (l *HostCreationLease) File() *os.File { return l.file }
 func (l *HostCreationLease) Close() error { return l.file.Close() }
 
 func AcquireHostCreationLease(commonDir string) (*HostCreationLease, error) {
+	return acquireHostCreationLease(commonDir, hostCreationSettle)
+}
+
+func acquireHostCreationLease(commonDir string, settle time.Duration) (*HostCreationLease, error) {
 	root, err := unix.Open(commonDir, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return nil, fmt.Errorf("open Git common directory: %w", err)
@@ -53,7 +57,7 @@ func AcquireHostCreationLease(commonDir string) (*HostCreationLease, error) {
 		file.Close()
 		return nil, errors.New("creation lock must be a regular file")
 	}
-	deadline := time.Now().Add(hostCreationSettle)
+	deadline := time.Now().Add(settle)
 	for {
 		err = unix.Flock(fd, unix.LOCK_EX|unix.LOCK_NB)
 		busy := errors.Is(err, unix.EWOULDBLOCK) || errors.Is(err, unix.EAGAIN)

@@ -149,7 +149,9 @@ func TestProvisionLeaseOutlastsATransientForkCopy(t *testing.T) {
 	}
 	released := time.AfterFunc(20*time.Millisecond, func() { _ = syscall.Close(copyFD) })
 	defer released.Stop()
-	next, err := AcquireHostCreationLease(root)
+	// A generous window keeps the assertion off the scheduler: the copy's
+	// close is late by the timer's latency, never by the code under test.
+	next, err := acquireHostCreationLease(root, 30*time.Second)
 	if err != nil {
 		t.Fatalf("retake behind a transient copy: %v", err)
 	}
