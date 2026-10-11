@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/zellijsession"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -120,7 +121,7 @@ func (osSessionQuiescenceOps) SessionPresent(ctx context.Context, session string
 	if err != nil {
 		return false, err
 	}
-	present, _ := sessionRowState(string(out), session)
+	present, _ := zellijsession.RowState(string(out), session)
 	return present, nil
 }
 

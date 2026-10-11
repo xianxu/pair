@@ -58,6 +58,11 @@ func TestQuerySessionEstablishesProofAfterCatalogLossWithoutTranscriptRead(t *te
 	if got := runtime.OperationCount(sessioninventorytest.OperationReadAt, transcript.StorageRoot+":"+transcript.RelativePath); got != 0 {
 		t.Fatalf("transcript ReadAt count=%d, want 0", got)
 	}
+	// A bound query stats the proof's artifacts; it never walks the native
+	// store, whose size is every session on the machine (pair#420).
+	if got := runtime.OperationCount(sessioninventorytest.OperationListFiles, transcript.StorageRoot); got != 0 {
+		t.Fatalf("native ListFiles count=%d, want 0", got)
+	}
 	// The ledger is read through the record-bounded chunked reader, so it
 	// shows up as ReadAt on the Pair root — not as a transcript body read.
 	if got := runtime.OperationCount(sessioninventorytest.OperationReadAt, ledger.StorageRoot+":"+ledger.RelativePath); got == 0 {

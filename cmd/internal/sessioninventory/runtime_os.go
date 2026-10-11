@@ -20,6 +20,9 @@ var (
 	ErrPathEscape    = errors.New("session inventory path escapes its storage root")
 	ErrRootUnknown   = errors.New("session inventory storage root is unknown")
 	ErrStorageAbsent = errors.New("session inventory storage root is absent")
+	// ErrNotRegularArtifact is a named artifact that is not a regular file; a
+	// listing rejects the same entry as a ListingIssuesError.
+	ErrNotRegularArtifact = errors.New("session inventory artifact is not a regular file")
 )
 
 // pair:155-concept integration new M1
@@ -111,20 +114,11 @@ func (r OSRuntime) ListFiles(requested StorageRoot) ([]FileEntry, error) {
 		if !validArtifact(artifact) {
 			return fmt.Errorf("%w: %s", ErrPathEscape, relativePath)
 		}
-		modTime := info.ModTime().UTC()
-		metadata, metadataErr := readFileMetadata(filePath, info)
-		if metadataErr != nil {
-			return metadataErr
+		fileEntry, entryErr := fileEntryFor(artifact, filePath, info)
+		if entryErr != nil {
+			return entryErr
 		}
-		result = append(result, FileEntry{
-			Artifact:        artifact,
-			StableFileID:    metadata.StableFileID,
-			GenerationToken: metadata.GenerationToken,
-			MutationToken:   metadata.MutationToken,
-			Size:            info.Size(),
-			BirthTime:       metadata.BirthTime,
-			ModTime:         &modTime,
-		})
+		result = append(result, fileEntry)
 		return nil
 	})
 	if os.IsNotExist(err) {
@@ -137,6 +131,41 @@ func (r OSRuntime) ListFiles(requested StorageRoot) ([]FileEntry, error) {
 		return result, &ListingIssuesError{Artifacts: rejected}
 	}
 	return result, nil
+}
+
+// StatFile describes one named artifact exactly as ListFiles would, without
+// walking its storage root (pair#420): reads of a bound session need only the
+// artifacts its proof names.
+func (r OSRuntime) StatFile(artifact Artifact) (FileEntry, error) {
+	filePath, err := r.resolveArtifact(artifact)
+	if err != nil {
+		return FileEntry{}, err
+	}
+	info, err := os.Lstat(filePath)
+	if err != nil {
+		return FileEntry{}, err
+	}
+	if !info.Mode().IsRegular() {
+		return FileEntry{}, fmt.Errorf("%w: %s", ErrNotRegularArtifact, artifact.RelativePath)
+	}
+	return fileEntryFor(artifact, filePath, info)
+}
+
+func fileEntryFor(artifact Artifact, filePath string, info os.FileInfo) (FileEntry, error) {
+	modTime := info.ModTime().UTC()
+	metadata, err := readFileMetadata(filePath, info)
+	if err != nil {
+		return FileEntry{}, err
+	}
+	return FileEntry{
+		Artifact:        artifact,
+		StableFileID:    metadata.StableFileID,
+		GenerationToken: metadata.GenerationToken,
+		MutationToken:   metadata.MutationToken,
+		Size:            info.Size(),
+		BirthTime:       metadata.BirthTime,
+		ModTime:         &modTime,
+	}, nil
 }
 
 // ReadFile accepts -1 for unlimited artifact bytes; nonnegative limits remain

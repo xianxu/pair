@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/zellijsession"
 	"io"
 
 	"github.com/xianxu/pair/cmd/internal/textwidth"
@@ -74,7 +75,7 @@ func buildListRowsForScope(names []string, raw string, index SessionNameIndex, s
 			tag, _ = TagForSessionName(index, name)
 		}
 		row := ListRow{Session: name, Agent: inferAgent(tag), State: SessionDetached}
-		if _, exited := sessionRowState(raw, name); exited {
+		if _, exited := zellijsession.RowState(raw, name); exited {
 			row.State = SessionExited
 		} else if row.Clients = clientCount(name); row.Clients > 0 {
 			row.State = SessionAttached

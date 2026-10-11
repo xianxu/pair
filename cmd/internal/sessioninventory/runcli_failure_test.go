@@ -96,6 +96,7 @@ func (failureWriter) Write([]byte) (int, error) { return 0, errors.New("write fa
 func (emptyCLIRuntime) NativeRoots(Agent) []StorageRoot            { return nil }
 func (emptyCLIRuntime) PairDataRoot() StorageRoot                  { return StorageRoot{} }
 func (emptyCLIRuntime) ListFiles(StorageRoot) ([]FileEntry, error) { return nil, nil }
+func (emptyCLIRuntime) StatFile(Artifact) (FileEntry, error)       { return FileEntry{}, os.ErrNotExist }
 func (emptyCLIRuntime) ReadFile(Artifact, int64) ([]byte, error)   { return nil, errors.New("unused") }
 func (emptyCLIRuntime) ReadAt(Artifact, int64, int64) ([]byte, bool, error) {
 	return nil, true, errors.New("unused")

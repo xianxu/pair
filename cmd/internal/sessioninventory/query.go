@@ -149,13 +149,14 @@ func (inventory IncrementalInventory) ValidateBindingProof(agent Agent, proof se
 	if err != nil || state.Agent != agent || state.NativeID != proof.RootNativeID || state.Role != RoleRoot || state.ScannerSchema != proof.ScannerSchema {
 		return TargetValidation{}, nil, errors.New("binding proof scanner state disagrees with owner")
 	}
-	snapshot := inventory.Observe(agent)
-	diagnostics := snapshot.Diagnostics
 	artifacts := make([]Artifact, 0, len(proof.Artifacts))
 	for _, artifact := range proof.Artifacts {
 		artifacts = append(artifacts, Artifact{StorageRoot: artifact.StorageRoot, RelativePath: artifact.RelativePath})
 	}
-	selected := inventory.Select(TargetRequest{Mode: TargetEstablished, Agent: agent, NativeID: proof.RootNativeID, AuthorizedArtifacts: artifacts}, snapshot)
+	// Established selection keeps only the proof's artifacts, so observing just
+	// those is the same answer as a walk of the whole store, at O(proof) cost.
+	observations, diagnostics := ObserveNamedArtifacts(inventory.runtime, agent, artifacts)
+	selected := inventory.Select(TargetRequest{Mode: TargetEstablished, Agent: agent, NativeID: proof.RootNativeID, AuthorizedArtifacts: artifacts}, IncrementalSnapshot{Observations: observations})
 	if selected.Unavailable || len(selected.Eligible) != len(proof.Artifacts) {
 		return TargetValidation{}, diagnostics, ErrArtifactChanged
 	}

@@ -1,7 +1,9 @@
 package sessioninventory
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"time"
 )
 
@@ -25,33 +27,32 @@ func ActivityForSession(runtime Runtime, query SessionQuery) (SessionActivity, b
 	if err != nil {
 		return SessionActivity{}, false, err
 	}
-	var storage StorageRoot
+	known := false
 	for _, candidate := range runtime.NativeRoots(query.Root.Agent) {
 		if candidate.Name == transcript.StorageRoot {
-			storage = candidate
+			known = true
 			break
 		}
 	}
-	if storage.Name == "" {
+	if !known {
 		return SessionActivity{}, false, fmt.Errorf("%w: %s", ErrRootUnknown, transcript.StorageRoot)
 	}
-	files, listErr := runtime.ListFiles(storage)
-	for _, file := range files {
-		if file.Artifact.StorageRoot != transcript.StorageRoot || file.Artifact.RelativePath != transcript.RelativePath {
-			continue
-		}
-		if file.ModTime == nil || file.ModTime.IsZero() {
-			return SessionActivity{}, false, nil
-		}
-		activity := SessionActivity{LastActivityAt: file.ModTime.UTC(), LastActivityTimeSource: TimeSourceMTime}
-		if query.Root.Time != nil {
-			activity.CreatedAt = query.Root.Time.Value.UTC()
-			activity.CreatedTimeSource = query.Root.Time.Source
-		}
-		return activity, true, nil
+	// One stat of the bound transcript, not a walk of its store (pair#420):
+	// title pollers and Couch's idle fading ask this of every thread.
+	file, err := runtime.StatFile(Artifact{StorageRoot: transcript.StorageRoot, RelativePath: transcript.RelativePath})
+	if errors.Is(err, os.ErrNotExist) {
+		return SessionActivity{}, false, nil
 	}
-	if listErr != nil {
-		return SessionActivity{}, false, listErr
+	if err != nil {
+		return SessionActivity{}, false, err
 	}
-	return SessionActivity{}, false, nil
+	if file.ModTime == nil || file.ModTime.IsZero() {
+		return SessionActivity{}, false, nil
+	}
+	activity := SessionActivity{LastActivityAt: file.ModTime.UTC(), LastActivityTimeSource: TimeSourceMTime}
+	if query.Root.Time != nil {
+		activity.CreatedAt = query.Root.Time.Value.UTC()
+		activity.CreatedTimeSource = query.Root.Time.Source
+	}
+	return activity, true, nil
 }

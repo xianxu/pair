@@ -21,8 +21,13 @@ const (
 	MaxPasteBytes    = 1 << 20
 	MaxPendingEvents = 128
 	WriteTimeout     = 5 * time.Second
-	FrameInterval    = 16 * time.Millisecond
-	SyncTimeout      = 150 * time.Millisecond
+	// A parent write that outlives WriteTimeout stalls the presenter (#430).
+	// While stalled it probes every StallRetry, each probe bounded by
+	// StallProbeTimeout so the presenter's FIFO stays responsive.
+	StallRetry        = 250 * time.Millisecond
+	StallProbeTimeout = 100 * time.Millisecond
+	FrameInterval     = 16 * time.Millisecond
+	SyncTimeout       = 150 * time.Millisecond
 )
 
 // Geometry contains virtual cells, excluding any compositor chrome.

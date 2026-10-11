@@ -885,6 +885,39 @@ proof; record the surprising case so the next change starts from evidence.
   fields from the same source (here the thread record, `RecordAgent`) and pin
   it with a test that runs both on one input and requires identical output.
 
+- **A load gate's test uses the dominant production shape (#420).** The send
+  gate was pinned only by a v2, non-chosen launch. Every fresh Claude launch
+  is chosen-id, which took the ungated walk path, so the common idle watcher
+  kept walking the store. When a cost fix branches on launch shape, origin or
+  agent, list the shapes production actually mints (`createflow` mints
+  `--session-id` for every fresh minting agent) and pin each branch with an
+  operation-counting test.
+- **A count helper's key shape is part of the assertion (#420).**
+  `OperationCountForRoot` matches a `root:` prefix, but `ListFiles` records the
+  bare root name, so a root-scoped `ListFiles` count is always 0 and the
+  assertion passes vacuously. Mutation-check every new "count == 0"
+  assertion: revert the fix and watch the test fail.
+- **A new seam method on the real runtime gets its own conformance test (#420
+  BR-1).** Adding `Runtime.StatFile` with only the fake pinning its contract
+  left the `os.ErrNotExist` branch untested against the OS. Callers depended
+  on that branch. When a seam gains a method, add a temp-dir test of the real
+  implementation, compared against the existing method it mirrors.
+- **A degraded mode ends only through the operation that repairs it (#430).**
+  The first stall design let any successful probe clear `stalled`, including
+  one inside a clipboard copy. The copy then got through and the screen kept
+  the abandoned half-frame, because the repaint retry only fires while
+  stalled. When a flag stands for "this needs repair", clear it only where the
+  repair completes (here, a full paint), and test a side path that gets
+  through first.
+- **Dropping output is not dropping the event (#430).** Skipping a stalled
+  write also skipped `EmitEffects`' bookkeeping, so attention marks for bells
+  that write nothing were lost. When a mode suppresses I/O, suppress only the
+  bytes; sequence numbers, "delivered" lists and caller-visible state proceed.
+- **Classify a timeout by which deadline was binding, not by `ctx.Err()` (#430).**
+  A poll can return DeadlineExceeded slightly before the caller's context
+  reports `Err()`, so "caller still live" raced. Compare the deadlines up front
+  (`ctx.Deadline()` vs. your own budget).
+
 - **A red early CI step hides every later step (#324).** Step 1 of
   `couch-zellij-conformance` failed on every run for weeks, so step 2 never
   executed. It went stale under #355 unnoticed. When a step is red, check which

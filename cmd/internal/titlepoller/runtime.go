@@ -3,6 +3,7 @@ package titlepoller
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/xianxu/pair/cmd/internal/zellijsession"
 	"io"
 	"os"
 	"os/exec"
@@ -31,19 +32,15 @@ func (OSRuntime) Getpid() string                 { return strconv.Itoa(os.Getpid
 func (OSRuntime) ProcessAlive(p string) bool     { return procutil.Alive(p) }
 func (OSRuntime) ProcessCommand(p string) string { return procutil.Command(p) }
 
-// SessionAlive reports whether `zellij list-sessions --short` lists an exact
-// match for session (the shell's `grep -qx "$SESSION"`).
+// SessionAlive reports whether a zellij server is running session. An EXITED
+// (resurrectable) row is gone: `--short` lists those too, which kept pollers
+// ticking for days after their session ended (pair#420).
 func (OSRuntime) SessionAlive(session string) bool {
-	out, err := exec.Command("zellij", "list-sessions", "--short").Output()
+	out, err := exec.Command("zellij", "list-sessions", "--no-formatting").Output()
 	if err != nil {
 		return false
 	}
-	for _, line := range strings.Split(string(out), "\n") {
-		if strings.TrimSpace(line) == session {
-			return true
-		}
-	}
-	return false
+	return zellijsession.Live(string(out), session)
 }
 
 func (OSRuntime) RenamePane(session, paneID, title string) error {

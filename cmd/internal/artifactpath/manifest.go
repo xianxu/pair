@@ -1078,6 +1078,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/live_restart_probe.go",
 	"cmd/internal/couchmessage/build.go",
 	"cmd/internal/zellijpane/zellijpane.go",
+	"cmd/internal/zellijsession/zellijsession.go",
 	"cmd/pair-go/main.go",
 	"cmd/pair-launch-helper/main.go",
 	"cmd/probes/couchnestedrows/layout.kdl",
