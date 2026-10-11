@@ -6,11 +6,20 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
 
 var ErrHostCreationBusy = errors.New("workspace host creation is busy")
+
+// hostCreationSettle bounds how long a retake waits out a transient holder. A
+// fork in any goroutine copies every descriptor, this lease's included, into a
+// child that holds the lock until its exec closes the copy; a release and
+// retake inside that window (reconcile around compile) must not read as a
+// peer's creation. Measured at 2-9ms under a parallel suite (pair#436); a real
+// peer still reports busy, only this much later.
+const hostCreationSettle = 500 * time.Millisecond
 
 type HostCreationLease struct{ file *os.File }
 
@@ -44,12 +53,22 @@ func AcquireHostCreationLease(commonDir string) (*HostCreationLease, error) {
 		file.Close()
 		return nil, errors.New("creation lock must be a regular file")
 	}
-	if err = unix.Flock(fd, unix.LOCK_EX|unix.LOCK_NB); err != nil {
-		file.Close()
-		if errors.Is(err, unix.EWOULDBLOCK) || errors.Is(err, unix.EAGAIN) {
-			return nil, ErrHostCreationBusy
+	deadline := time.Now().Add(hostCreationSettle)
+	for {
+		err = unix.Flock(fd, unix.LOCK_EX|unix.LOCK_NB)
+		busy := errors.Is(err, unix.EWOULDBLOCK) || errors.Is(err, unix.EAGAIN)
+		if busy && time.Now().Before(deadline) {
+			time.Sleep(2 * time.Millisecond)
+			continue
 		}
-		return nil, err
+		if err != nil {
+			file.Close()
+			if busy {
+				return nil, ErrHostCreationBusy
+			}
+			return nil, err
+		}
+		break
 	}
 	return &HostCreationLease{file: file}, nil
 }

@@ -123,3 +123,29 @@ func TestProvisionLeaseParentDeath(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 }
+
+// A fork in another goroutine copies every descriptor, the lease's included,
+// into a child that holds the lock until its exec closes the copy (pair#436:
+// 2-9ms, measured under a parallel suite). Releasing and retaking the lease
+// inside that window must not read as a peer's host creation.
+func TestProvisionLeaseOutlastsATransientForkCopy(t *testing.T) {
+	root := t.TempDir()
+	lease, err := AcquireHostCreationLease(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	copyFD, err := syscall.Dup(int(lease.File().Fd()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := lease.Close(); err != nil {
+		t.Fatal(err)
+	}
+	released := time.AfterFunc(20*time.Millisecond, func() { _ = syscall.Close(copyFD) })
+	defer released.Stop()
+	next, err := AcquireHostCreationLease(root)
+	if err != nil {
+		t.Fatalf("retake behind a transient copy: %v", err)
+	}
+	next.Close()
+}
