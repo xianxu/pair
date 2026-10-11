@@ -13,7 +13,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
-actual_hours: 0.29
+actual_hours: 0.30
 tracker:
     version: 1
     handoff:
@@ -27,10 +27,10 @@ tracker:
         destination: workshop/issues/000445-session-sync-replace-the-file-atomically-so-the-editor-never-reads-a-torn-write.md
         main_commit: 8f440c876a91d17224e1df2d015197d721ff7cc1
     completion:
-        token: close-2bfb3ef57807
+        token: close-64f8dd70fef3
         repository: github.com/xianxu/pair
-        reviewed_head: f7dd5eb0d1c1678747e603407bf84a93b54af87a
-        evidence_commit: 33a46e0a067dbe370fbc58ca3df294675b83796a
+        reviewed_head: f2c8f0e18f3dba0fc18553fa8e1cfe789d306b55
+        evidence_commit: 3ff570703b03bca8927b0c2447477186073e7c29
 ---
 
 # session-sync: replace the file atomically, so the editor never reads a torn write
