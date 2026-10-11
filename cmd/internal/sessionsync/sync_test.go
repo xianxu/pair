@@ -196,6 +196,21 @@ func TestAWriteJudgesATornFileUnderTheFlock(t *testing.T) {
 	wantRefusal(t, <-done, ExitStale, "stale")
 }
 
+// A first writer can create the flock file and tear the file between
+// another command's flock-file probe and its unlocked check; the failed
+// check then defers to the lock instead of refusing (pair#444).
+func TestAFailedCheckDefersToAFlockCreatedMeanwhile(t *testing.T) {
+	r := newRig(t)
+	fl, err := openFlock(r.p.File, func() error {
+		r.put(r.p.Flock, "")
+		return refuse("torn")
+	})
+	if err != nil {
+		t.Fatalf("a check that failed after another writer created the flock file must defer to the lock: %v", err)
+	}
+	fl.Close()
+}
+
 func TestADeliveryStaysOwedUntilAWriteFoldsIt(t *testing.T) {
 	r := newRig(t)
 	r.deliver("d1", "pair#437 done")

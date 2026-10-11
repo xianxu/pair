@@ -126,7 +126,7 @@ func readOptional(p string) (string, bool, error) {
 // takes no flock; its edits are fenced by the operator's .lock instead.
 func locked[T any](path string, fn func(*file) (T, error)) (T, error) {
 	var zero T
-	fl, err := openFlock(path)
+	fl, err := openFlock(path, func() error { _, err := load(path); return err })
 	if err != nil {
 		return zero, err
 	}
@@ -141,18 +141,18 @@ func locked[T any](path string, fn func(*file) (T, error)) (T, error) {
 	return fn(f)
 }
 
-// openFlock opens path's flock file, creating it only for a valid
-// session-sync file so a wrong path leaves nothing behind. Only the read
-// under the lock judges the file: a writer rewrites it in place (truncate,
-// then write), so an unlocked read can catch it torn, and that writer holds
-// the flock file, which is never removed (pair#444).
-func openFlock(path string) (*os.File, error) {
+// openFlock opens path's flock file, creating it only when check (the
+// unlocked validation) passes, so a wrong path leaves nothing behind. Only
+// the read under the lock judges the file: a couch writer rewrites it in
+// place (truncate, then write), so an unlocked read can catch it torn, and
+// that writer holds the flock file, which is never removed (pair#444).
+func openFlock(path string, check func() error) (*os.File, error) {
 	p := PathsOf(path).Flock
 	fl, err := os.OpenFile(p, os.O_RDWR, 0)
 	if !errors.Is(err, os.ErrNotExist) {
 		return fl, err
 	}
-	if _, err := load(path); err != nil {
+	if err := check(); err != nil {
 		// A writer that created the flock file since may be mid-write.
 		if fl, ferr := os.OpenFile(p, os.O_RDWR, 0); ferr == nil {
 			return fl, nil
