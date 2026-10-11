@@ -5,13 +5,13 @@ deps: [000446, 000449]
 github_issue:
 created: 2026-10-11
 updated: 2026-10-11
-estimate_hours: 3.89
-card_mirror: '6e3adbb1b0520eb3ce0b53ce451c34b87a3e81c7' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 6.3
+card_mirror: 'a5ca5962240f2637e8522d6c0e41f218b96ffb65' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-11T12:25:03-07:00
 claimant:
     operator: Xian Xu
     machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: MacBook Pro
+    machine_name: Xian’s MacBook Pro
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
@@ -65,6 +65,9 @@ Depends on pair#446 (colors) and pair#449 (swatch column at the right edge) land
 - A draft never reaches Couch before Save (viewer.js test: no request until Save).
 - Note text renders as plain text; over 1 KB, a 9th note in one color, or a malformed note request is refused, with a short message in the dialog (tests).
 - Notes are never drawn on the guarded control cells or on a private frame, are hidden when their cell is off the grid, and are gone when pointing turns off or the broadcast ends (tests).
+- (M3) A 💭 sits on a chip of its author's pointer color with a round glow (about 5 rows by 10 columns, stronger near the chip) that blends into the operator's background, or uses the 256-color ladders without truecolor; the glow never covers the controls; it flashes at full color on arrival and every 15s until resolved (tests on the pure styling and the timing).
+- (M3) The viewer page has no hint bar: the screen uses the whole window, and the rail controls carry their explanation as tooltips.
+- (M4) Clicking `💭N` opens a notes menu over the screen listing each note with its color; hovering an item highlights it and makes its 💭 glow; clicking an item copies its text and says so; clicking `💭N` or the menu's close mark closes it; the menu closes when the last note goes or pointing turns off; mouse events over the open menu never reach the child (tests).
 
 ## Plan
 
@@ -73,6 +76,8 @@ Durable plan: `workshop/plans/000447-broadcast-sticky-notes-viewers-pin-comments
 - [x] Design session with the operator in the slot: settle the open questions, then fix Spec and Done when.
 - [x] M1 — Notes in Couch: note board and strict parsing, `note`/`resolve` routes, `notes` event to every stream, session checks, 💭 overlay and `💭N` in the tab bar.
 - [ ] M2 — The viewer page: tap routing, comment mode, the sticky-note dialog and the mode switch below the swatches; live check with two viewers and a view-only one.
+- [ ] M3 — Visibility: each 💭 on a chip of its author's color with a soft round glow, flashing on arrival and every 15s until resolved; the viewer's hint bar becomes tooltips on the rail controls.
+- [ ] M4 — Notes in the terminal: click `💭N` to open a notes menu over the screen; hovering an item highlights it and makes its 💭 glow; clicking copies the text; read and copy only.
 
 ## Estimate
 
@@ -88,11 +93,19 @@ item: atlas-docs            design=0.1 impl=0.04
 item: milestone-review      design=0.0 impl=0.16
 item: milestone-review      design=0.0 impl=0.16
 item: ux-rename-iteration   design=0.3 impl=0.08
+item: scope-pivot           design=0.3 impl=0.08
+item: smaller-go-module     design=0.1 impl=0.2
+item: smaller-go-module     design=0.1 impl=0.16
+item: tui-screen            design=0.3 impl=0.32
+item: ux-rename-iteration   design=0.2 impl=0.08
+item: atlas-docs            design=0.05 impl=0.04
+item: milestone-review      design=0.0 impl=0.16
+item: milestone-review      design=0.0 impl=0.16
 design-buffer: 0.15
-total: 3.89
+total: 6.30
 ```
 
-Items, in order: the design session with the operator and the plan with three plan-quality rounds; the note board, parsing and drawing (`notes.go`); notes in `PointerState`, the routes and session wiring; the console overlay and the `💭N` count; the viewer page (tap routing, comment mode, dialog, mode switch — the closest primitive is a screen with a state machine and tests); atlas; two milestone reviews; one live-smoke iteration round with the operator. Impl values are at 40% of the v2 table (v3.1); +15% design buffer for a thorough plan doc.
+Revision (2026-10-11, operator smoke): the second block of items is the scope revision — the revision itself, the glow and flash timing (`notehalo.go` + `paletteTint`), the menu renderer, the menu interaction (routing, hover, copy; a screen-plus-state-machine), the tooltip change on the viewer, atlas, and two more milestone reviews. Items, in order: the design session with the operator and the plan with three plan-quality rounds; the note board, parsing and drawing (`notes.go`); notes in `PointerState`, the routes and session wiring; the console overlay and the `💭N` count; the viewer page (tap routing, comment mode, dialog, mode switch — the closest primitive is a screen with a state machine and tests); atlas; two milestone reviews; one live-smoke iteration round with the operator. Impl values are at 40% of the v2 table (v3.1); +15% design buffer for a thorough plan doc.
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* The calibration doc is flagged stale by `sdlc estimate-source`; per-primitive hours are provisional.
 
@@ -105,3 +118,10 @@ Items, in order: the design session with the operator and the plan with three pl
 - M1 discoveries: (1) Go's JSON decoder turns invalid UTF-8 into U+FFFD, so `ParseNote` refuses a non-UTF-8 body up front. (2) The renderer draws a row's text only up to its used columns, so a 💭 on a blank row vanished while marks (background only) showed; `DrawNotes` widens them (test added). (3) A 👆 click runs on the Run loop and `DisablePointer` reports the emptied board through `OnNotes`; a waiting `onNotes` deadlocked it, so it hands off without waiting. (4) New sources need entries in `artifactpath/manifest.go`.
 - M1 verification: `make -k test` (default TMPDIR, five-var scrub, unsandboxed) runs every shell/lua target green; its only failure was the Go recipe's `artifactpath` inventory (fixed). `TMPDIR=<scratchpad> make test-changelog` passes. `go test ./... -count=1`: green except `couchsingleton`'s selection-size fixture, which embeds TMPDIR and passes under the default TMPDIR. The end-to-end check is `TestNoteDrawnOnOperatorAndViewers`: a real session and console, a note POSTed over HTTP, the 💭 on the operator's screen and in a viewer's emulator, `💭1` in the tab bar, resolve removes both. The live two-browser check is M2's.
 - M2: the page test allowed exactly one `fetch`, the pointer POST; following the #446 lesson it was narrowed, not dropped: one `postJSON` limited to `POST_ROUTES`, and HTML sinks banned in `viewer.js` and `notes.js`. Real-browser smoke via `BROADCAST_MANUAL_POINTER=1 TestManualViewerServer` + headless Chrome driven over CDP: a curl-posted note shows as 💭 and opens read-only text (`<b>` literal), the mode button switches to 💭 and the hint follows, a tap drafts, typed text counts bytes (31/1024), Save closes and a second 💭 appears in the stream, it opens, Resolve removes it; no console errors. At 390px the dialog sits inside the viewport (55–335px), no horizontal scroll.
+
+## Revisions
+
+- 2026-10-11 — operator smoke on pair:0 (scope revision, folded in as M3 and M4, from "1. in a full page of text, 💭 is really not quite visible", "2. … we should display those sticky notes on the terminal as well"):
+  - Visibility reverses "no tint": the 💭's two cells get its author's color as a chip, with a radial glow around it blended into the background, an arrival flash, and a flash every 15s until resolved (staggered naturally by each note's age). Notes now record when they were saved (not sent on the wire).
+  - Rule 8 is lifted for reading and copying: `💭N` opens a notes menu drawn over the screen (viewers see it, as they see everything the operator sees). Hover highlights an item and makes its 💭 glow; a click copies the note's text (OSC 52, as links are copied). Read and copy only: no Resolve from the terminal (operator didn't ask for it; the default). The menu does not take Esc, which agents use; it closes by clicking `💭N` or its close mark. Free-form selection works with the terminal's own selection override (Shift- or Option-drag).
+  - The viewer's hint bar goes: its text moves into tooltips on the swatches and the mode button, so the screen gets the whole window. Touch devices show no tooltips; the icons stand alone there.

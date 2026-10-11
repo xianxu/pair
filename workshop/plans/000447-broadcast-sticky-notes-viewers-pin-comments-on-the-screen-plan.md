@@ -270,7 +270,119 @@ Also: IDs are unique and increasing, including after a resolve, and `List` retur
 - [ ] Atlas update for the viewer side (mode switch, dialog).
 - [ ] Full suite as in Task 7; then `sdlc close --issue 447 --verified '<evidence>'`.
 
+## Chunk 3: M3 — visibility (scope revision, 2026-10-11)
+
+The operator's smoke: a 💭 is easy to miss on a full screen. Each 💭 gets its author's color as a chip and a round glow, flashing on arrival and every 15s until resolved. The viewer's hint bar becomes tooltips.
+
+| Name | Lives in | Status |
+|------|----------|--------|
+| `paletteTint` | `cmd/internal/broadcast/marks.go` | new (factored out of `Marks.tint`) |
+| `Note.At` | `cmd/internal/broadcast/notes.go` | modified (save time, `json:"-"`) |
+| `NoteStyle` / `noteGlow` / `NoteNextChange` | `cmd/internal/broadcast/notehalo.go` | new |
+| `DrawNotes` | `cmd/internal/broadcast/notes.go` | modified (takes a `NoteStyle`; draws chip and glow) |
+| viewer rail tooltips | `cmd/internal/broadcast/web/viewer.js`, `index.html`, `viewer.css` | modified (hint bar and band removed) |
+
+- **paletteTint(c, strength, bg, blend) color.Color:** the one place a palette color is weakened. Strength 1 is the full color (truecolor RGB, or the xterm index). Below 1 it is blended into `bg` with truecolor, or else picked from the color's five-step ladder by strength. `Marks.tint` becomes "age → strength → paletteTint", so marks and notes fade the same way (ARCH-DRY). The existing mark tests pin that marks are unchanged.
+- **Glow geometry:** the glow is centered on the 💭's two cells, with rows −2..+2. Columns are scaled by the cell aspect (2:1) so the glow looks round: a cell is in it when `(dx/2)² + dy² ≤ 2.5²`, with dx measured from the nearer chip cell. Strength by distance: chip 1.0, `d ≤ 1.5` 0.5, otherwise 0.25. Where glows overlap, the stronger wins. The glow never covers the guarded cells and never paints another note's chip.
+- **Flash:** a note is *flashing* when `(now − At) mod 15s < 1.5s`. Arrival is phase 0, and each note's phase is its own age, so notes don't pulse together. While flashing, the glow's strengths are all 1.0, then they step down to rest over 0.5s in 10 steps (`MarkFade`'s shape). A hovered note (M4) is held at the flash level.
+- **NoteNextChange(notes, now)** gives the next instant the drawing changes (a flash start, a fade step, a flash end), so the console schedules exactly one repaint timer while notes are open, as `Marks.NextChange` does. Its cost is one timer, plus about 11 repaints per note per 15s.
+- **The console** passes `NoteStyle{BG, Blend, Hover, Now}` from the same palette facts marks use, and adds a notes timer next to `pmarks.timer`, stopped in `resetPointer` and on pointer-off.
+- **Viewer:** `#controls`, `#hint` and `band()` go. The stage takes the whole window again (as it did before #446). The swatches keep `aria-label` and gain `title`, "Pointer color N". `#mode` gets `title` and `aria-label`: "Pointer mode: tap or drag to point" or "Comment mode: tap to place a note". When pointing is off, the rail shows nothing, which already says it.
+
+### Task 12: paletteTint and the glow
+
+**Files:** `marks.go`, `notehalo.go` (new), `notes.go`; tests `marks_test.go`, `notehalo_test.go` (new), `notes_test.go`.
+
+- [ ] **Step 1: Failing tests.**
+  - `paletteTint` at strength 1 equals today's mark colors; at 0.5 with blend it is the midpoint RGB, and without blend a ladder index.
+  - The mark-fade tests stay green unchanged, which pins the refactor.
+  - Glow cells for a note at (10,5) on 80×24: the exact cell set, the strengths per ring, and the guard excluded when the note is near the last row.
+  - Overlap: the stronger strength wins, and another note's chip is untouched.
+  - Flash timing: at ages 0, 1.4s, 1.6s, 1.95s, 2.1s, 15.0s and 16.6s the strength is full, full, fading, fading, rest, full and rest.
+  - `NoteNextChange` returns the right boundary for each of those ages, and false with no notes.
+  - `DrawNotes` keeps the M1 properties: order-independent, no orphan halves, input not mutated, uncopied with nothing visible. The chip cells get the full color. Glow cells change only `Style.Bg`.
+- [ ] **Step 2:** FAIL. **Step 3: Implement.** **Step 4:** `go test ./cmd/internal/broadcast` PASS. **Step 5:** commit `#447 M3: note chip, round glow and flash timing`.
+
+### Task 13: Console timing
+
+**Files:** `couchtty/console_notes.go`, `console_pointer.go`; test `console_notes_test.go`.
+
+- [ ] **Step 1: Failing tests.** A saved note's chip cells show the author's color on the operator's screen (truecolor fixture). The timer repaints at the flash boundary: drive `c.now` with the console's test clock, if the harness has one, else assert the scheduled duration through a seam. After pointer-off or a broadcast stop, no notes timer is left (`pnotes.timer == nil`).
+- [ ] **Step 2:** FAIL. **Step 3: Implement** `refreshNotes` (repaint, then schedule from `NoteNextChange`), mirroring `refreshMarks`. **Step 4:** PASS with `-race`. **Step 5:** commit.
+
+### Task 14: Tooltips instead of the hint bar
+
+**Files:** `web/viewer.js`, `web/index.html`, `web/viewer.css`; tests `tests/broadcast-viewer/pointermode.test.mjs`, `rail.test.mjs`.
+
+- [ ] **Step 1: Failing tests.**
+  - `pointerMode` no longer takes a `hint`. The mode button's `show` receives the mode and the tooltip text.
+  - `renderSwatches` sets `title`.
+  - The page has no `#hint`/`#controls`, and the stage is not lifted (a `start` wiring assertion through the existing fakes, or a page-asset check in `server_test.go`).
+- [ ] **Step 2:** FAIL. **Step 3: Implement.** **Step 4:** node tests and `TestViewerNode` PASS. Check in headless Chrome over CDP (the M2 smoke script) that the screen fills the window at 1200×800 and 390×844. **Step 5:** commit.
+
+### Task 15: M3 boundary
+
+- [ ] Atlas (broadcast page: chip, glow, flash, tooltips); README sentence on the glow; full suite as in Task 7; `sdlc milestone-close --issue 447 --milestone M3`.
+
+## Chunk 4: M4 — notes in the terminal
+
+| Name | Lives in | Status |
+|------|----------|--------|
+| `RenderNotesMenu` / `NotesMenu` | `cmd/internal/couchtty/notes_menu.go` | new (pure) |
+| `RenderedStatusRow.Notes` | `cmd/internal/couchtty/reserve.go` | modified (span of `💭N`) |
+| console notes menu state and routing | `cmd/internal/couchtty/console_notes.go`, `terminal_input.go` | modified |
+
+- **RenderNotesMenu(notes, cols, rows, hover) NotesMenu** is pure. It returns the box's cells and placement, plus each item's row span and note ID.
+  - **Placement:** the box sits bottom-right, directly above the status row. Its width is `min(48, cols − 2)`. Its height fits as many items as there is room for, up to `rows − 3`, with a final "+k more" line when they don't all fit.
+  - **Header:** `Notes` on the left and a close mark `×` on the right.
+  - **Items:** each item is a two-cell chip in the author's color (background), then the text, wrapped to the box width. An item shows at most 3 lines, the last ending in `…` if cut; a copy still takes the full text.
+  - **Hover:** the hovered item is drawn in reverse video.
+  - **Text safety:** text goes through `rowtext.Sanitize`. It is already plain text, but this is defence in depth, since it is drawn into the operator's terminal.
+- **The box is an overlay.** `screenOverlay` draws notes, then marks, then the menu, on public frames only, so viewers see the menu as they see the rest of the operator's screen. It never covers the status row.
+- **Routing, in `routeMouseEvent`, before the child gets the event:**
+  - A left click on the `💭N` span toggles the menu.
+  - While the menu is open, every mouse event inside its rectangle (press, motion, wheel) is Couch's and never reaches the child.
+    - Motion over an item sets `hover` to its note ID; motion off the items clears it. The status row's existing motion handling is untouched.
+    - A click on an item calls `presenter.Copy` with its text and gives the notice "Note copied."
+    - A click on `×` closes the menu.
+  - Outside the box everything routes as today.
+  - Esc is not taken: agents use it.
+- **Lifecycle:** the menu is closed by a toggle, by `×`, when the snapshot has no notes, when pointing turns off, or when the broadcast ends. A hover whose note has gone is cleared.
+- **Hover glow:** `NoteStyle.Hover` holds the hovered note at the flash level while the menu shows it.
+
+### Task 16: Menu rendering (pure)
+
+- [ ] Tests:
+  - Placement at 80×24 and at 40×10.
+  - Wrapping, and the 3-line cap with `…`.
+  - "+k more" when items overflow.
+  - Hover in reverse video.
+  - A chip in each author's color.
+  - Text with an escape character drawn literally, never as a control.
+  - `ItemAt(x, y)` and `CloseAt(x, y)` hit-tests.
+  - Nothing drawn on the last row.
+- [ ] Implement; PASS; commit `#447 M4: notes menu rendering`.
+
+### Task 17: Count span, routing, copy, hover glow
+
+- [ ] **Tests** (console fixture):
+  - Clicking `💭1` opens the menu and the item text is on screen; clicking again closes it.
+  - Motion over the item highlights it and holds its 💭 at the flash color.
+  - A click copies: OSC 52 carries the full text, with the notice "Note copied."
+  - A click and motion inside the box never reach the child (`f.child.Writes()` unchanged).
+  - Resolving the last note closes the menu, and so does pointer-off.
+  - Status-row spans: `RenderedStatusRow.Notes` covers exactly `💭N`, and the pointer and remote spans are unchanged.
+- [ ] Implement; PASS with `-race`; commit `#447 M4: notes menu in the terminal: open, hover, copy`.
+
+### Task 18: M4 boundary and final smoke
+
+- [ ] Atlas (couch side: the menu and routing), README (Sticky notes paragraph: the menu, click-to-copy, hover glow, and Shift/Option-drag selection), lessons, and the full suite.
+- [ ] `sdlc milestone-close --issue 447 --milestone M4`.
+- [ ] `sdlc move :0`, `make build`, then the operator's full Done-when walk; then `sdlc close`.
+
 ## Revisions
+
+- 2026-10-11 — operator smoke on pair:0 → scope revision: Chunk 3 (M3: chip, round glow, arrival and 15s flash; the viewer's hint bar becomes tooltips) and Chunk 4 (M4: a `💭N` notes menu in the terminal with hover highlight and glow, and click-to-copy; read and copy only; Esc not taken). M2 closes on the headless-Chrome smoke plus the operator's pair:0 smoke, which placed and saw notes.
 
 - 2026-10-11 — plan-quality PQ-6 (Critical, lock held across a foreign call): `addNote` no longer runs a frame check under `p.mu`; the session reads the flip generation, checks the frame with no lock held, then `addNote(n, gen)` refuses if pointing is off or flipped since. `landsNow` checks only the frame. Lock rule written into `pointer.go`; hub-loop deadlock test added.
 
