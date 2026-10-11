@@ -261,3 +261,73 @@ findings:
     detail: |
       Each read gets a fresh Last, so GapAccepted never covers it and expireGap never removes it; status refuses delivery-gap forever until the file is deleted by hand. Use the record's mtime as First/Last (and l.now, not time.Now).
 ```
+
+---
+
+## Re-review — 2026-10-11T01:15:02-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 437 — couch --session-sync: the one mutation path for a session-sync file, with an owed-events ledger |
+| repo | pair |
+| issue file | workshop/issues/000437-couch-session-sync-the-one-mutation-path-for-a-session-sync-file-with-an-owed-events-ledger.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | cd2839c70420fb14119058522000ffb6024e77cf..7335c4b96df1bb05898dd5c3c48fcee69255bb97 |
+| command | sdlc close --issue 437 |
+| reviewer | claude |
+| timestamp | 2026-10-11T01:15:02-07:00 |
+| verdict | SHIP |
+
+## Review
+
+I've confirmed the build and focused tests pass. Next I'm checking for leftover temp+rename copies in sessionsync (BR-7) and how the BR-6/BR-9 notes were dispositioned.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+**Verdict: SHIP.** This fix window does two things. It fixes the last two open findings, BR-7 and BR-10, each with real coverage. It also resolves the two merge conflicts with main correctly. Both conflicted files at the base commit `cd2839c` had committed conflict markers. At the head commit `7335c4b` the markers are gone, both sides' intent is kept, and the code builds. BR-6 and BR-9 have no change in this window; they stay open as Minor and do not block. The window does not touch `## Spec`, `## Done when` or `## Revisions`; it only records the fixes.
+
+**What I checked**
+- `go build ./...` and `go vet` on `sessionsync` and `couchcmd` both pass.
+- `go test ./cmd/internal/sessionsync` passes.
+- The focused delivery, ledger, gap and message tests in `go test ./cmd/internal/couchcmd -run 'Deliver|Ledger|Gap|SessionSync|Message'` pass when run outside the sandbox.
+- The full `couchcmd` run failed inside the sandbox. The errors were "operation not permitted" from `mkdir /tmp/…` and a launcher helper, which is the sandbox blocking those calls, not a code fault.
+
+1. **Strengths**
+   - **Conflict in `message_service.go:848`:** the resolution keeps main's `progress` callback and this branch's delivery recording (`r.record(m, receipt, err)`). The test fakes in `message_deliveries_test.go` were updated to the new `Deliver` signature, so they compile and pass.
+   - **Conflict in `workshop/lessons.md`:** both the #435 lesson and the #437 lessons are kept, and no markers remain.
+   - **BR-10 (`gap.go:86-94`):** an unreadable gap record is now dated by the file's modification time instead of the current time. Its expiry and acceptance therefore go through the same `l.now()` check as a normal gap. The test `TestAnUnreadableGapIsDatedByItsFileSoItCanBeAccepted` pins three things: the refusal, that accepting the gap makes it durable, and that it expires. With the old `time.Now()` stamp this test would fail, because the stamp would be later than both the injected clock and the acceptance.
+   - **BR-7 (`ledger.go:202-205`):** `writeAtomic` now hands off to `durablefile.WriteAtomic`. This covers the whole package: all six write sites in `sessionsync` (in `gap.go`, `ledger.go`, `state.go` and `sync.go`) go through the shared helper, and no `CreateTemp`/`Rename` copy is left in the package.
+
+2. **Critical findings:** none.
+3. **Important findings:** none.
+4. **Minor findings:** none new.
+5. **Test coverage:** the BR-10 test covers the refusal, the acceptance and the expiry. The conflict resolution is exercised by `TestDeliveryRecordingKeepsEverythingThatMayHaveLanded` and `TestALedgerAppendFailureRecordsAGapForThatSlotOnly`, which both pass.
+6. **Architecture (interdiff only)**
+   - **ARCH-DRY: pass.** The local copy of the atomic-write code is gone in favour of the shared helper.
+   - **ARCH-PURE: pass.** The one new piece of file IO, an `os.Stat` call, sits in `readGap`, which already reads the file.
+   - **ARCH-PURPOSE: pass.** BR-10 is fixed at the cause (the unreadable record now has a real date), not by special-casing the expiry check.
+7. **Plan revisions:** none.
+
+```findings
+dispose:
+  - id: BR-6
+    disposition: not-addressed
+    note: |
+      No change in this window; LoadState still yields zero Since with no sidecar or shadow. Minor, non-blocking.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      ledger.go:203 writeAtomic now delegates to durablefile.WriteAtomic; every sessionsync write site (gap, ledger, state, sync shadow and recording) uses it, so no temp+rename copy is left in the package.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      No change to the order in sync.go Write; the file is still written before the shadow. Minor, non-blocking.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      gap.go:86-94 dates an unparseable record by its mtime (First and Last), so Gap and expireGap judge it with l.now(); TestAnUnreadableGapIsDatedByItsFileSoItCanBeAccepted pins the refusal, the acceptance and the expiry, and would fail under the old time.Now() stamp.
+```

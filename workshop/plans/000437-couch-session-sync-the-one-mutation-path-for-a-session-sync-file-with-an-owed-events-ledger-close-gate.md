@@ -111,6 +111,30 @@ rounds:
       recipe: milestone-review
       reviewed: b7c433831a5125b2d39992bc7ac223432a36c078
       blocked: false
+    - "n": 3
+      timestamp: "2026-10-11T01:15:02-07:00"
+      dispatched: "2026-10-11T01:13:01-07:00"
+      agent: claude
+      dispose:
+        - id: BR-6
+          disposition: not-addressed
+          note: No change in this window; LoadState still yields zero Since with no sidecar or shadow. Minor, non-blocking.
+          round: 3
+        - id: BR-7
+          disposition: addressed
+          note: ledger.go:203 writeAtomic now delegates to durablefile.WriteAtomic; every sessionsync write site (gap, ledger, state, sync shadow and recording) uses it, so no temp+rename copy is left in the package.
+          round: 3
+        - id: BR-9
+          disposition: not-addressed
+          note: No change to the order in sync.go Write; the file is still written before the shadow. Minor, non-blocking.
+          round: 3
+        - id: BR-10
+          disposition: addressed
+          note: gap.go:86-94 dates an unparseable record by its mtime (First and Last), so Gap and expireGap judge it with l.now(); TestAnUnreadableGapIsDatedByItsFileSoItCanBeAccepted pins the refusal, the acceptance and the expiry, and would fail under the old time.Now() stamp.
+          round: 3
+      recipe: fix-review
+      reviewed: 7335c4b96df1bb05898dd5c3c48fcee69255bb97
+      blocked: false
 ---
 
 # Gate ledger — pair#437 (boundary-review)
@@ -156,9 +180,16 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-10** [Minor] `fabricated-evidence-on-parse-failure` readGap fabricates Last=time.Now() for an unparseable gap record, so it never expires and cannot be durably accepted
   Each read gets a fresh Last, so GapAccepted never covers it and expireGap never removes it; status refuses delivery-gap forever until the file is deleted by hand. Use the record's mtime as First/Last (and l.now, not time.Now).
 
+## Round 3 — 2026-10-11T01:15:02-07:00 (claude) — passed
+
+### Disposed
+
+- BR-6 — not-addressed — No change in this window; LoadState still yields zero Since with no sidecar or shadow. Minor, non-blocking.
+- BR-7 — addressed — ledger.go:203 writeAtomic now delegates to durablefile.WriteAtomic; every sessionsync write site (gap, ledger, state, sync shadow and recording) uses it, so no temp+rename copy is left in the package.
+- BR-9 — not-addressed — No change to the order in sync.go Write; the file is still written before the shadow. Minor, non-blocking.
+- BR-10 — addressed — gap.go:86-94 dates an unparseable record by its mtime (First and Last), so Gap and expireGap judge it with l.now(); TestAnUnreadableGapIsDatedByItsFileSoItCanBeAccepted pins the refusal, the acceptance and the expiry, and would fail under the old time.Now() stamp.
+
 ## Open findings
 
 - **BR-6** [Minor] `owed-horizon-default` a fresh file with no sidecar or shadow owes the slot's whole ledger history
-- **BR-7** [Minor] `shared-atomic-write-helper` writeAtomic is about the fifth copy of temp+rename in cmd/internal
 - **BR-9** [Minor] `write-order-self-edit` Write writes the file before the shadow; a failed shadow write turns the agent's own write into unread edits
-- **BR-10** [Minor] `fabricated-evidence-on-parse-failure` readGap fabricates Last=time.Now() for an unparseable gap record, so it never expires and cannot be durably accepted
