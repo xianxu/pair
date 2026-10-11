@@ -1,12 +1,20 @@
 ---
 id: 000439
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
-card_mirror: 'a86807074f21953ae29606f1471cf27e6f1d6a8b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'fcbfbcf04060b0416a839a49f52ffacfd2f3f9fb' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-11T09:11:08-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:5
+    worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
+    repository: github.com/xianxu/pair
 ---
 
 # session-sync: optimistic per-section writes for the agent, no agent-held lock
@@ -42,11 +50,20 @@ Design principle, the operator's (10-11): **pessimistic locking for the human, o
 
 ## Plan
 
-- [ ] Design: hash function and exit code; `read` output and `--json` shape; the `release` deprecation path; legacy `holder: agent` handling.
+Design (2026-10-11):
+- **Hash:** sha256 hex, first 16 chars, of the section body as stored (the lines after the `## HEADING` line up to the next `## ` line or EOF; `--all`: the whole file). Pure function `Hash`, `SectionBody` beside `ReplaceSection` (ARCH-DRY: one section scanner shared by read and replace).
+- **Exit code:** `stale` = 6 (a new `Refusal.Current` carries the current hash; JSON envelope gains `Hash`). 4 (`unread-edits`) is retired, not reused.
+- **`read`:** `read --section HEADING FILE [--json]` / `read --all FILE [--json]`; text = `hash: H` line, then the body; JSON = `{Code,Error,Read:{File,Section,Hash,Holder,Body}}`. Read is pure (no shadow/state change).
+- **`write`:** requires `--if-hash H` (no `--force`); `--accept-edits` removed. The shadow still takes the whole written file, so `diff` shows operator edits since the agent's last write (informational only, no gate). A successful write prints the new hash.
+- **Atomicity:** every verb holds `flock(LOCK_EX)` on `.<file>.flock` from load to the last write. ARCH-FUNERAL: one empty file per session-sync file, same lifetime as `.shadow`/`.sync` (dies with the file's directory); creates nothing per event.
+- **Agent lock:** `HolderAgent` is gone; `ParseHolder` returns `operator` for any lock whose holder isn't `agent`, and `""` (no lock) for none or a legacy `holder: agent`. Couch never writes or deletes `.lock` (parley owns it; deleting a lock parley may have just rewritten as `operator` would break the human's pessimistic lock).
+- **`release`:** accepted no-op for one release: takes its old flags, changes nothing, prints a deprecation note (folds are `write --fold`). Removal is a follow-up.
+- **status:** `Holder` is `operator` or `""` (text: `lock: none`); Code/Owed unchanged for parley.nvim#314/#315.
+
 - [ ] Sidecar `flock` around every command; `read --section/--all` with hashes.
 - [ ] `write --if-hash` compare-and-replace; drop the whole-file unread-edits gate and `--accept-edits`; refuse a write without `--if-hash`.
-- [ ] Remove the agent-held lock: submits only record owed events; `status` reports holder operator or none.
-- [ ] Tests for the Done-when rows; update the session-sync atlas page and `couch --help`.
+- [ ] Remove the agent-held lock: submits only record owed events; `status` reports holder operator or none; `release` a no-op.
+- [ ] Tests for the Done-when rows (incl. a two-process race); update atlas, SKILL.md, README, usage.
 
 ## Log
 
