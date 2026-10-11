@@ -1,12 +1,12 @@
 ---
 id: 000437
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-10
-updated: 2026-10-10
+updated: 2026-10-11
 estimate_hours:
-card_mirror: '35d652538aa556479eee46910ea564c66962fde9' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'db409b76e2509d8465623cc1b6711fffc371dc10' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-10T23:41:16-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 0.88
 ---
 
 # couch --session-sync: the one mutation path for a session-sync file, with an owed-events ledger
