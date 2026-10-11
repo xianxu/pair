@@ -1,12 +1,12 @@
 ---
 id: 000442
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
-card_mirror: '66d0f0eeb76f84fabefd19e6b0e40d2375b46c60' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '059f180d23abd10f7bb86acddcade47c47d8eaee' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-11T10:00:28-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 0.75
 ---
 
 # Slot creation: size each step's timeout to the step, and keep the failure
