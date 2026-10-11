@@ -1,12 +1,12 @@
 ---
 id: 000449
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
-card_mirror: 'c642f8643943a7cf52d7553735882e03643cb986' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'd71fb1541f958df0cb3376c7171fed60eeec6c77' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-11T12:41:18-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "aa93a095", done: "584677b8"}
+actual_hours: 0.07
 ---
 
 # Broadcast viewer: pointer color swatches as a vertical overlay on the screen's right edge
