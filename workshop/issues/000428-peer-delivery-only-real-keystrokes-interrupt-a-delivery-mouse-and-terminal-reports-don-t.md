@@ -1,19 +1,19 @@
 ---
 id: 000428
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-10
 updated: 2026-10-10
 estimate_hours:
-card_mirror: 'fcfe213dfadfd35f513583a6a29eba0c7a94e6e8' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '303722dba6405c2d631130af81dfed0de8971ef4' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-10T13:16:30-07:00
 claimant:
     operator: Xian Xu
     machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: Xian’s MacBook Pro
-    workspace: pair:3
-    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    machine_name: MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
 ---
 
@@ -71,11 +71,21 @@ keeps pair#427's "pair renders, never classifies" principle.
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000428-peer-delivery-only-real-keystrokes-interrupt-a-delivery-mouse-and-terminal-reports-don-t-plan.md`.
+
+- [ ] keystroke classifier (peer mode) + table tests + kink 47 regression
+- [ ] lone-ESC flush resolves the partial frame + test
+- [ ] viewport probe (zellij dump-screen aligned to the model; cursor row visible) gates the paste + tests
+- [ ] draft-paste hold during Delivering (≤1 s) with ordered, gap-preserving release + tests
+- [ ] atlas/couch.md: operator input for delivery, viewport and draft-hold rules
+- [ ] full make test; live smoke via ops:0
 
 ## Log
 
 ### 2026-10-10
+
+- **Kink 47 measured (pair:2).** In ops:0's wrap-events (stdin is hashed), during delivery `4d5ff954` (queued 13:05:35.69): `ESC[I` at 13:05:40.853, **`ESC[13;3u` (kitty Alt+Enter) at 13:05:46.656**, and `ESC[O` at 13:05:47.364. Claude logged the message 26 ms after the Alt+Enter. So the "interrupt" was the operator's own submit after the pre-#427 stall. That pane had no mouse reports all day: its Claude never enables mouse tracking (output modes `?2004 ?1004 ?2031 ?2026 ?25` only), so zellij scrolls natively. `?2031h` does invite unsolicited color-scheme reports (`ESC[?997;Nn`), which the classifier now covers.
+- zellij 0.45 `dump-screen -p` returns the *scrolled* viewport, while `list-panes` cursor coordinates don't change with scroll. Output while scrolled does not snap zellij's viewport (probed in a background session).
 
 ## Revisions
 
