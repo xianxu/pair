@@ -262,6 +262,7 @@ func terminalCSIState(state xparser.State) bool {
 func (o *terminalControlObserver) handleESC(command xansi.Cmd) {
 	if command.Prefix() == 0 && command.Intermediate() == 0 && command.Final() == 'c' {
 		o.visible = false
+		o.framed, o.frameOpen = false, false
 	}
 }
 

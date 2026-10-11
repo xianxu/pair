@@ -58,6 +58,7 @@ func TestTerminalModelFrameComplete(t *testing.T) {
 		{"between frames", true},
 		{"\x1b[?25;2026h", false},
 		{"\x1b[?2026;25l", true},
+		{"\x1bc", false}, // a reset forgets the framing
 	} {
 		if err := m.Feed([]byte(step.feed)); err != nil {
 			t.Fatal(err)
@@ -169,7 +170,7 @@ func TestPeerExpiryNamesTheLongestWait(t *testing.T) {
 	}
 	f.proxy.dispatchPeer(&out)
 	r := d.receipt()
-	if r.Status != couchmessage.Expired || !strings.HasPrefix(r.Detail, "delivery deadline elapsed: waiting for recognized composer (") || !strings.Contains(r.Detail, "; waiting for rendered output (") {
+	if r.Status != couchmessage.Expired || !strings.HasPrefix(r.Detail, "delivery deadline elapsed: waiting for recognized composer (") || !strings.Contains(r.Detail, " | waiting for rendered output (") {
 		t.Fatalf("expiry detail: %+v", r)
 	}
 }

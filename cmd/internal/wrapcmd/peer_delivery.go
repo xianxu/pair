@@ -594,7 +594,8 @@ func (d *peerDelivery) chargeWaitLocked() {
 }
 
 // waitSummaryLocked (d.mu held) names what held this half of the delivery,
-// longest first, rather than whichever check ran last (pair#438).
+// longest first, rather than whichever check ran last (pair#438): at most
+// three conditions of a second or more, else the standing Detail.
 func (d *peerDelivery) waitSummaryLocked() string {
 	details := make([]string, 0, len(d.waits))
 	for detail, held := range d.waits {
@@ -615,7 +616,7 @@ func (d *peerDelivery) waitSummaryLocked() string {
 	for i, detail := range details {
 		details[i] = fmt.Sprintf("%s (%s)", detail, d.waits[detail].Round(time.Second))
 	}
-	return strings.Join(details, "; ")
+	return strings.Join(details, " | ")
 }
 
 // operatorHoldLocked (d.mu held) opens or closes the operator hold as this dispatch
@@ -635,8 +636,9 @@ func (d *peerDelivery) operatorHoldLocked(held bool) {
 	}
 }
 
-// peerConfirmEvidence is what an uncertain receipt reports: the composer and
-// turn as the wrapper last saw them after the submit.
+// peerConfirmEvidence is the confirm phase's standing Detail: the composer
+// and turn as the wrapper last saw them after the submit. An expiry ranks
+// these readings with the other waits (waitSummaryLocked).
 func peerConfirmEvidence(composer PeerComposerState, sawOccupied, turn, turnAtSubmit bool) string {
 	c := map[PeerComposerState]string{PeerComposerUnknown: "unrecognized", PeerComposerOccupied: "still holds text", PeerComposerEmpty: "empty"}[composer]
 	if composer == PeerComposerEmpty && !sawOccupied {

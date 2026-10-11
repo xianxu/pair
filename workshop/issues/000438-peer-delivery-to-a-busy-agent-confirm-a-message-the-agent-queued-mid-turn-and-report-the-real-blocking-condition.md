@@ -66,7 +66,7 @@ the agent-agnostic confirm, and make the expiry detail name the dominant wait.
   `dispatchPeer`, output in flight waits only when the model is not at a complete frame. Streams that never
   frame keep today's rule. (ARCH: one observer owns terminal-control facts; no agent-specific code.)
 - [x] Busy-agent policy: **paste mid-turn** (today's rule, now reachable). Claude Code and Codex queue
-  mid-turn input natively; the recorded queued screen clears the composer, which is the existing confirm
+  mid-turn input natively (Claude Code measured; Codex's captured screens frame, its queueing unmeasured); the recorded queued screen clears the composer, which is the existing confirm
   evidence (occupied after the paste, then empty) — so a queued message reads `submitted` with no new
   recognizer. Holding to turn end would spend minutes of a 90 s paste-by on a long turn.
 - [x] Wait accounting: each dispatch charges the time since the previous one to the detail that stood

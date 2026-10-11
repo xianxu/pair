@@ -301,11 +301,12 @@ still-booting Claude.
   on, and a recognized composer reads empty. Unknown or occupied composers wait.
 - **A busy agent is read between frames and pasted mid-turn (pair#438).**
   A streaming agent nearly always has output in flight, so waiting for none
-  starved deliveries for whole turns. Claude Code and Codex frame each repaint
-  as a synchronized update (DECSET 2026), and the terminal model tracks it
+  starved deliveries for whole turns. Claude Code frames each repaint as a
+  synchronized update (DECSET 2026; Codex's captured screens do too), and the
+  terminal model tracks it, forgetting it on a reset
   (`terminalModel.FrameComplete`). Output in flight waits only when the model is
-  mid-frame or the stream never framed one. The policy is to paste mid-turn: the
-  agent queues the message behind its turn ("Press up to edit queued
+  mid-frame or the stream never framed one. The policy is to paste mid-turn:
+  Claude Code (measured; Codex unmeasured) queues the message behind its turn ("Press up to edit queued
   messages"), and the composer clears. That is the ordinary confirm evidence,
   so a queued message ends `submitted`.
 - **Operator input means keystrokes (pair#428).** The wrapper classifies its
@@ -353,8 +354,8 @@ still-booting Claude.
   admission plus `PasteTimeout` (90s), which a booting or busy recipient may
   use up. From the paste, the wrapper bounds submit and confirmation by
   `DeliveryTimeout` (30s). An expiry names what held each half longest,
-  longest first with seconds (`waiting for empty composer (62s); …`), not the
-  check that ran last (pair#438). `Message.Horizon()` (hold limit plus window) is
+  longest first with seconds (`waiting for empty composer (62s) | …`; at most
+  three, each a second or more), not the check that ran last (pair#438). `Message.Horizon()` (hold limit plus window) is
   the one outer bound the broker reads, in its model expiry, its job context
   and the endpoint's receipt wait.
 - **Operator holds stop the clock (pair#435).** While the wrapper waits only
