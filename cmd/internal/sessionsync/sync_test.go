@@ -116,7 +116,7 @@ func TestASectionWriteSucceedsOverAnEditElsewhereAndRefusesStale(t *testing.T) {
 	}
 	got := r.read(r.p.File)
 	if !strings.Contains(got, "old 🤖[why?]") || !strings.Contains(got, "## Trains\n\nnew trains\n") ||
-		!strings.Contains(got, "Updated 2026-10-10 13:00") || got != r.read(r.p.Shadow) || res.Hash != r.hash("Trains") {
+		!strings.Contains(got, "Updated 2026-10-10 13:00") || res.Hash != r.hash("Trains") {
 		t.Fatalf("res %+v got %q", res, got)
 	}
 	// The edited section's old hash is stale: refused with the current one.
@@ -128,6 +128,82 @@ func TestASectionWriteSucceedsOverAnEditElsewhereAndRefusesStale(t *testing.T) {
 	}
 	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Needs you", Body: "answered", IfHash: ref.Hash}); err != nil {
 		t.Fatalf("a retry with the current hash wins: %v", err)
+	}
+}
+
+// diffText is `diff`'s output, failing the test on an error.
+func (r *rig) diffText() string {
+	_, out, err := r.sync.DiffText(r.p.File)
+	if err != nil {
+		r.t.Fatal(err)
+	}
+	return out
+}
+
+func TestASectionWriteKeepsEditsElsewhereInDiff(t *testing.T) {
+	r := newRig(t)
+	trains := r.hash("Trains")
+	r.put(r.p.File, strings.Replace(statusDoc, "old", "old 🤖[done]", 1))
+	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Trains", Body: "new trains", IfHash: trains}); err != nil {
+		t.Fatal(err)
+	}
+	// The operator's marker is still unread; the agent's own write and its
+	// restamp are not edits.
+	d := r.diffText()
+	if !strings.Contains(d, "+old 🤖[done]") || strings.Contains(d, "trains") || strings.Contains(d, "Updated") {
+		t.Fatalf("diff %q", d)
+	}
+}
+
+func TestAWholeFileWriteOrReadEmptiesDiff(t *testing.T) {
+	for _, viaRead := range []bool{false, true} {
+		r := newRig(t)
+		edited := strings.Replace(statusDoc, "old", "old 🤖[done]", 1)
+		r.put(r.p.File, edited)
+		if viaRead {
+			r.hash("") // `read --all`
+		} else if _, err := r.sync.Write(WriteRequest{File: r.p.File, Body: strings.Replace(edited, "trains", "all new", 1), IfHash: Hash(edited)}); err != nil {
+			t.Fatal(err)
+		}
+		if d := r.diffText(); d != "" || r.read(r.p.Shadow) != r.read(r.p.File) {
+			t.Fatalf("viaRead=%v: diff %q", viaRead, d)
+		}
+	}
+}
+
+func TestReadAllWithoutASidecarKeepsTheHorizon(t *testing.T) {
+	r := newRig(t)
+	r.deliver("d1", "report") // after the shadow's mtime (t0): owed
+	r.put(r.p.File, strings.Replace(statusDoc, "old", "edited", 1))
+	r.hash("") // rewrites the shadow, whose mtime was the horizon
+	if ids := r.owedIDs(); len(ids) != 1 || ids[0] != "d1:delivery" {
+		t.Fatalf("owed %v", ids)
+	}
+}
+
+func TestASectionWriteWithoutAShadowStoresTheWholeFile(t *testing.T) {
+	r := newRig(t)
+	os.Remove(r.p.Shadow)
+	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Trains", Body: "new trains", IfHash: r.hash("Trains")}); err != nil {
+		t.Fatal(err)
+	}
+	if d := r.diffText(); d != "" || r.read(r.p.Shadow) != r.read(r.p.File) {
+		t.Fatalf("diff %q", d)
+	}
+}
+
+func TestASectionTheShadowLacksLeavesTheShadowAlone(t *testing.T) {
+	r := newRig(t)
+	added := strings.Replace(statusDoc, "## Trains", "## Asks\n\nfrom the operator\n\n## Trains", 1)
+	r.put(r.p.File, added)
+	if _, err := r.sync.Write(WriteRequest{File: r.p.File, Section: "Asks", Body: "answered", IfHash: r.hash("Asks")}); err != nil {
+		t.Fatal(err)
+	}
+	if r.read(r.p.Shadow) != statusDoc {
+		t.Fatal("the shadow must keep its baseline")
+	}
+	if d := r.diffText(); !strings.Contains(d, "+## Asks") {
+		t.Fatalf("diff %q", d)
 	}
 }
 

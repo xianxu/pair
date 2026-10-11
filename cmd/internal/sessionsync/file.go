@@ -21,7 +21,7 @@ import (
 )
 
 // Paths are a session-sync file's companions. The lock is parley's; the
-// shadow (the file as the agent last wrote it), the state sidecar and the
+// shadow (the file as the agent last saw it), the state sidecar and the
 // flock file (serializing couch's own commands) are the agent's, and die
 // with the file.
 type Paths struct {

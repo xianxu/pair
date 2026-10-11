@@ -107,7 +107,10 @@ func UnifiedDiff(shadow, file string) (string, error) {
 type file struct {
 	paths   Paths
 	content string
-	shadow  string
+	// shadow is the file as the agent last saw it: what it wrote, plus
+	// what it read whole. hasShadow is false before the first write.
+	shadow    string
+	hasShadow bool
 	holder  Holder
 	owner   string
 	state   State
@@ -175,7 +178,7 @@ func load(path string) (*file, error) {
 		return nil, refuse("%s is not a session-sync file (frontmatter `type: session-sync`)", path)
 	}
 	f.content = content
-	if f.shadow, _, err = readOptional(f.paths.Shadow); err != nil {
+	if f.shadow, f.hasShadow, err = readOptional(f.paths.Shadow); err != nil {
 		return nil, err
 	}
 	lock, exists, err := readOptional(f.paths.Lock)
@@ -221,11 +224,18 @@ type ReadResult struct {
 }
 
 // Read returns a section (Section != "") or the whole file with its hash.
+// Reading the whole file is the agent seeing every edit in it, so it
+// refreshes the shadow and `diff` goes empty (pair#448).
 func (s *Sync) Read(path, section string) (ReadResult, error) {
 	return locked(path, func(f *file) (ReadResult, error) {
 		body, err := f.target(section)
 		if err != nil {
 			return ReadResult{}, err
+		}
+		if section == "" && (!f.hasShadow || f.shadow != f.content) {
+			if err := f.saveShadow(f.content); err != nil {
+				return ReadResult{}, err
+			}
 		}
 		return ReadResult{File: path, Section: section, Hash: Hash(body), Holder: f.holder, Body: body}, nil
 	})
@@ -288,7 +298,7 @@ func (s *Sync) Status(path string) (Status, error) {
 	})
 }
 
-// DiffText is the operator's edits since the agent's last write. It is
+// DiffText is the operator's edits the agent hasn't seen. It is
 // information, not a gate: a write checks only its own section's hash.
 func (s *Sync) DiffText(path string) (Holder, string, error) {
 	var holder Holder
@@ -307,8 +317,9 @@ func (s *Sync) DiffText(path string) (Holder, string, error) {
 }
 
 // Write replaces a section or the whole file if it still has the hash the
-// agent read, restamps it, refreshes the shadow, and folds the given owed
-// events. Edits elsewhere in the file don't block a section write.
+// agent read, restamps it, records what it wrote in the shadow, and folds
+// the given owed events. Edits elsewhere in the file don't block a section
+// write, and stay in `diff` until the agent reads or writes them.
 func (s *Sync) Write(req WriteRequest) (Result, error) {
 	if strings.TrimSpace(req.Body) == "" {
 		return Result{}, refuse("the body is empty")
@@ -317,6 +328,41 @@ func (s *Sync) Write(req WriteRequest) (Result, error) {
 		return Result{}, refuse("write needs --if-hash: `couch --session-sync read` the section first and pass its hash")
 	}
 	return locked(req.File, func(f *file) (Result, error) { return s.write(f, req) })
+}
+
+// shadowAfter is the shadow once the agent has written next: a whole-file
+// write is all of it, a section write changes only that section (and the
+// stamp it restamped), so the operator's edits elsewhere stay unread in
+// `diff` (pair#448). Without a shadow there is no baseline to keep. A shadow
+// without that section (the operator added it) stays as it is: `diff` then
+// shows the agent's own write too, which is noise, never a lost edit.
+func (f *file) shadowAfter(section, body, next string, now time.Time) string {
+	if section == "" || !f.hasShadow {
+		return next
+	}
+	shadow, err := ReplaceSection(f.shadow, section, body)
+	if err != nil {
+		return f.shadow
+	}
+	return Restamp(shadow, now)
+}
+
+// saveShadow is the one writer of the shadow. Rewriting it would move a
+// sidecar-less file's horizon (the shadow's mtime), so the horizon is pinned
+// in the sidecar first.
+func (f *file) saveShadow(content string) error {
+	if _, err := os.Stat(f.paths.State); errors.Is(err, os.ErrNotExist) {
+		if err := saveState(f.paths, f.state); err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
+	}
+	if err := writeAtomic(f.paths.Shadow, []byte(content)); err != nil {
+		return err
+	}
+	f.shadow, f.hasShadow = content, true
+	return nil
 }
 
 func (s *Sync) write(f *file, req WriteRequest) (Result, error) {
@@ -352,7 +398,7 @@ func (s *Sync) write(f *file, req WriteRequest) (Result, error) {
 	if err := replaceShared(req.File, []byte(next)); err != nil {
 		return Result{}, err
 	}
-	if err := writeAtomic(f.paths.Shadow, []byte(next)); err != nil {
+	if err := f.saveShadow(f.shadowAfter(req.Section, req.Body, next, now)); err != nil {
 		return Result{}, err
 	}
 	f.state.LastWrite = &now

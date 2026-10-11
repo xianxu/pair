@@ -1005,6 +1005,13 @@ proof; record the surprising case so the next change starts from evidence.
   pointing at another component's behavior goes stale when that component changes. Read the other side's code (or
   probe it live) before keeping the weaker choice, and when replacing a file someone else edits, resolve symlinks and
   keep its mode, since a rename changes both.
+- **A file whose mtime is another rule's fallback is not free to rewrite (#448).** Making `read --all` refresh the
+  session-sync shadow looked like a pure cache update, but a sidecar-less file's owed horizon is the shadow's mtime,
+  so the first refresh would have silently un-owed every earlier delivery. Before adding a writer to a file, grep for
+  readers of its metadata (`Stat`, `ModTime`), not just its content, and pin whatever they derive first.
+- **A change to what a verb shows is a change to the agent skill that explains it (#448).** The shadow fix made
+  `diff` mean "edits you haven't seen", while `couch/SKILL.md` still said "since your last write". The review caught
+  it; grep the shipped skills for the verb whenever its output's meaning moves.
 - **Overlay controls share one layout container (#446).** The pointer page's swatches and hint were each
   `position: fixed` at their own corner, so they covered terminal cells and, at phone width, each other. Put
   every fixed control in one wrapping band and size the content area from the band's measured height, then
