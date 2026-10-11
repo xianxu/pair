@@ -15,7 +15,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "c96f59ae", done: "74201a5d"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # couch exits when the outer terminal stalls 5s: degrade the view, keep the sessions
@@ -128,6 +128,8 @@ parent write blocked well past `WriteTimeout`, then the terminal drains.
 ## Log
 
 ### 2026-10-10
+- 2026-10-10: closed — make -k test green except two env-leak targets (test-pair-embedded-runtime, test-changelog: PAIR_DATA_DIR scope conflict from the hosting pair session), both PASS under env -i. go test ./... (env -i, -p 2): terminal incl. presenter_degrade_test (stall past WriteTimeout then drain: stays up, no queued frames, stalled effect batch delivered, copy right after drain still gets the full repaint, end screen equals a fresh presentation, one keyboard push; real-PTY stall then drain; EPIPE/EIO fail with exit reason; stalled-then-EIO fails) PASS; BR-2 and stalled-then-gone mutations fail their tests. couchtty/termcmd/crashreport/couch PASS. couchcore PASS with -timeout 20m (1052s under load ~30). Not this change: couchsingleton TestSelectionSizeContract* and gcruntime TestCouchReferencesLocalArchiveLocatorRoundTrip fail on an origin/main export too; artifactpath/diagnosticlog do not depend on cmd/internal/terminal; couchcmd TestColdResumeOfAParkedPrimaryRegistersFromBothOrigins is the #423 flake (main export fails 3/5 and 1/5). Live: TL rollout + operator watch.; review verdict: SHIP
+- 2026-10-10: flow upgraded quick → full — 149 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 - Filed by pair:4 at the request of ops:0 (TL), during a load diagnosis. Not implemented.
 - Claimed by pair:4 for implementation (TL, high priority). This issue owns
