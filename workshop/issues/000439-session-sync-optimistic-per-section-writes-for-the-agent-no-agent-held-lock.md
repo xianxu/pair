@@ -15,7 +15,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "d67b2f80", done: "ee733606"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # session-sync: optimistic per-section writes for the agent, no agent-held lock
@@ -69,6 +69,8 @@ Design (2026-10-11):
 ## Log
 
 ### 2026-10-11
+- 2026-10-11: closed — make -k test green (240 ok, 0 FAIL); new tests pin every Done-when row: section write over an edit elsewhere + stale refusal with current hash, two-process race (one wins, one stale), flock-under-check (mutation-checked), no-release turn leaves no lock, operator lock still refuses; CLI read/stale/release-no-op tests.; review verdict: SHIP
+- 2026-10-11: flow upgraded quick → full — 262 added lines in code files (limit 100)
 
 - Claimed from the TL dispatch (ops:0, receipt 563f892e verified). Design in `## Plan`.
 - Shadow stays "the file as the agent last wrote it" (whole file), so `diff` shows operator edits since the last write; a per-section shadow merge was considered and dropped (Simplicity First: the owed submit, not the diff, makes the agent read the file).
