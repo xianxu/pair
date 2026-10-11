@@ -79,7 +79,7 @@ Durable plan: `workshop/plans/000428-peer-delivery-only-real-keystrokes-interrup
 - [x] viewport probe (zellij dump-screen aligned to the model; cursor row visible) gates the paste + tests
 - [x] draft-paste hold during Delivering (≤1 s) with ordered, gap-preserving release + tests
 - [x] atlas/couch.md: operator input for delivery, viewport and draft-hold rules
-- [ ] full make test; live smoke via ops:0
+- [x] full make test (see Log); the live smoke (scroll up → held, scroll back → delivered; draft send mid-delivery) is handed to the ops TL with the landing report, since it needs relaunched wrappers
 
 ## Log
 
