@@ -57,7 +57,7 @@
 
 ### Decisions this plan makes (beyond the Spec)
 
-- **Pointing off:** `note` and `resolve` answer 403 like `point`. Open notes stay drawn until the broadcast ends or pointing comes back on and someone resolves them. Rationale: notes are a record of the session; turning pointing off stops new input, as with marks.
+- **Pointing off clears the collaboration layer (operator, 10-11):** turning pointing off, by the operator's click or by the 👆-hidden watch, deletes every note, as it clears marks. `Session` empties the board in `DisablePointer` and in `pointerHidden` when it actually flips, bumps the version and calls `OnNotes`; every stream gets an empty list. The console also draws notes only while its pointer phase is on, so the 💭s and `💭N` go away on the same Run-loop step as the marks. `note` and `resolve` answer 403 while off. Turning pointing back on starts with no notes.
 - **Refusal text** is a closed set of server sentences: "Pointing is off.", "This color already has 8 notes. Resolve one first.", "A note is already there.", "The screen changed. Try again.", "Too many requests. Wait a moment.", "That note isn't valid." Like `endReasons`, the set is closed and never echoes input.
 - **Mode switch** is one button (`#mode`) below `#swatches` in `#rail`, showing 👆 or 💭 for the current mode. It is shown only on a pointer page while pointing is on, and it resets to pointer mode when pointing turns off.
 - **Known overlaps:** the `💭N` count sits outside `StatusGuardCols`, so a note or a mark can cover it on the last row; only the control cells are guarded, as the Spec says. While a private frame is up Couch draws no 💭, but the viewer's hit-test still opens a note at its cell; acceptable, since the switcher is momentary.
@@ -181,10 +181,12 @@ Also: IDs are unique and increasing, including after a resolve, and `List` retur
 - [ ] **Step 1: Failing tests** (with the fake tunnel `session_test.go` already uses):
   - a note posted while the operator's current frame is private, has another grid, or lacks the pointer marker → 409 "The screen changed. Try again.", and `OnNotes` is not called;
   - a landed note → `OnNotes` is called once with the snapshot and version 1, then resolve → version 2 and an empty list;
-  - resolve with pointing off → 403 and no `OnNotes`.
+  - resolve with pointing off → 403 and no `OnNotes`;
+  - with two notes open, `DisablePointer` → `OnNotes` with an empty list and a newer version, and both streams get an empty `notes` event; the same through the 👆-hidden watch (`pointerHidden`); a stale watch report (older generation) clears nothing; `EnablePointer` again starts empty.
 - [ ] **Step 2:** FAIL.
 - [ ] **Step 3: Implement.**
   - Factor `landsNow(cols, rows) bool` out of `acceptPoint`.
+  - `DisablePointer` and `pointerHidden` (only when they flip) call `s.notes.clear()` and, if it removed anything, `OnNotes`.
   - Add `acceptNote(n Note) error` and `resolveNote(id int) error`.
   - Add `Config.OnNotes func(*Session, []Note, uint64)`, documented like `OnPoints` (request goroutine, no session lock held).
   - `Start` creates `NoteState` and passes it plus both callbacks to `NewServer`.
@@ -198,7 +200,7 @@ Also: IDs are unique and increasing, including after a resolve, and `List` retur
 
 - [ ] **Step 1: Failing tests.**
   - `reserve_test.go`: live with `Notes: 3` draws `LIVE ⏸ 👆 👽 💭3` at the start of the row; `Notes: 0` draws no 💭; not live with `Notes: 3` draws no 💭; at a narrow width it clips through `appendText` like every other segment; `Pointer` and `Remote` spans are unchanged.
-  - `console_notes_test.go`, with the console test harness `console_pointer_test.go` uses: `onNotes(v2)` then `onNotes(v1)` keeps v2; a public frame gets the 💭 and a private frame doesn't; after the broadcast stops the overlay draws nothing and the count is 0; an `onNotes` delivered **after** stop, or naming a previous session, is ignored; the overlay and the count read the same snapshot. Run with `-race`.
+  - `console_notes_test.go`, with the console test harness `console_pointer_test.go` uses: `onNotes(v2)` then `onNotes(v1)` keeps v2; a public frame gets the 💭 and a private frame doesn't; after the broadcast stops the overlay draws nothing and the count is 0; an `onNotes` delivered **after** stop, or naming a previous session, is ignored; after `pointerOff` (click or watch) the overlay draws no 💭 and the count is 0, and an `onNotes` arriving while pointing is off is ignored; the overlay and the count read the same snapshot. Run with `-race`.
 - [ ] **Step 2:** FAIL. **Step 3: Implement.** **Step 4:** `go test ./cmd/internal/couchtty ./cmd/internal/broadcast`. Expect PASS.
 - [ ] **Step 5:** commit `#447 M1: Couch draws 💭 notes and counts them in the tab bar`.
 
@@ -261,4 +263,5 @@ Also: IDs are unique and increasing, including after a resolve, and `List` retur
 
 ## Revisions
 
+- 2026-10-11 — operator: turning pointing off deletes every note (the whole collaboration layer goes), replacing "notes stay until the broadcast ends"; session clears the board on the flip, the console gates drawing on its pointer phase; tests added.
 - 2026-10-11 — fresh-eyes plan review folded in before approval: the console gates `onNotes` on live + same session and keeps the snapshot under a leaf lock shared with the count; `readPointerBody` keeps the rate check before the body read and holds the slot through handling; `MaxNoteBody` 8 KB; nil `Notes` and unknown-id resolve specified; `DrawNotes` blanking keeps style and reads the output frame; known overlaps recorded; added tests for each.

@@ -45,7 +45,7 @@ Decisions from the design session with the operator (10-11):
 - **Anchoring: none (option A).** A note stays on the screen cell where it was clicked, whatever scrolls underneath. Scrollback stays closed. Following the text and a dock were discussed and dropped to keep it simple; they can come later.
 - **Drawing:** Couch draws the 💭 in its overlay, like pointer marks, so the operator's terminal and every viewer get the same picture from the stream. The viewer page draws nothing itself: it gets the list of notes (id, cell, text) as a stream event and turns a tap on a 💭 into "open that note". No tint: the emoji keeps its own colors.
 - **Two layers:** the view-only link stays read-only (no request body, #395) but sees every 💭 and can open and read notes. The pointer link adds pointing, notes and Resolve. Within that layer anyone can add or resolve any note; the setting is collaborative. Length cap, plain text and rate limits stay as hygiene.
-- **Lifetime:** in memory, one broadcast. Cleared when the broadcast ends. Never on disk.
+- **Lifetime:** in memory, one broadcast. Never on disk. Turning pointing off (click or the 👆-hidden watch) turns off the whole collaboration layer: every note is deleted, as marks are cleared. The broadcast ending clears them too.
 - **Operator visibility:** a `💭N` open-notes count in the broadcast group of the Couch tab bar, between 👽 and the slot name. Not interactive (rule 8).
 - **Mode switch:** the pointer/comment icon sits directly below the color swatches, in the same column at the screen's right edge (pair#449).
 - **Taps on a 💭:** in pointer mode a tap on a 💭 opens the note instead of pointing; in comment mode it opens the note instead of placing a second one on top.
@@ -63,7 +63,7 @@ Depends on pair#446 (colors) and pair#449 (swatch column at the right edge) land
 - A view-only viewer sees the 💭, opens it read-only, and has no Resolve; the view-only link still refuses every request body (test).
 - A draft never reaches Couch before Save (viewer.js test: no request until Save).
 - Note text renders as plain text; over 1 KB, a 9th note in one color, or a malformed note request is refused, with a short message in the dialog (tests).
-- Notes are never drawn on the guarded control cells or on a private frame, are hidden when their cell is off the grid, and are gone when the broadcast ends (tests).
+- Notes are never drawn on the guarded control cells or on a private frame, are hidden when their cell is off the grid, and are gone when pointing turns off or the broadcast ends (tests).
 
 ## Plan
 
