@@ -2,8 +2,10 @@ package wrapcmd
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -291,5 +293,100 @@ func TestHeldInputKeepsGaps(t *testing.T) {
 	<-h.timerC()
 	if data, ok := h.next(d); !ok || string(data) != "b" || time.Since(start) < 50*time.Millisecond {
 		t.Fatalf("second chunk %q after %s", data, time.Since(start))
+	}
+}
+
+func TestViewportShift(t *testing.T) {
+	var rows []string
+	for i := 0; i < 30; i++ {
+		rows = append(rows, fmt.Sprintf("line %02d", i))
+	}
+	view := func(shift int) []string { return append([]string(nil), rows[30-10-shift:30-shift]...) }
+	spaced := view(0)
+	spaced[4] = "  line   24  " // padding and wide-cell spacing differ
+	repainted := view(0)
+	repainted[9], repainted[8] = "spinner ⠋", "spinner ⠙"
+	for _, tc := range []struct {
+		name  string
+		view  []string
+		shift int
+		ok    bool
+	}{
+		{"at the bottom", view(0), 0, true},
+		{"scrolled three", view(3), 3, true},
+		{"scrolled to the top", view(20), 20, true},
+		{"whitespace ignored", spaced, 0, true},
+		{"two repainted rows", repainted, 0, true},
+		{"short dump padded", view(0)[:10], 0, true},
+		{"unrelated", []string{"x", "y", "z", "w"}, 0, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			shift, ok := viewportShift(rows, 10, tc.view)
+			if shift != tc.shift || ok != tc.ok {
+				t.Fatalf("shift=%d ok=%t", shift, ok)
+			}
+		})
+	}
+}
+
+// pair#428 Done-when: scrolled up (composer out of view) holds the paste;
+// scrolling back releases it.
+func TestPeerDeliveryWaitsForComposerInView(t *testing.T) {
+	f, d := peerIntegrationFixture(t)
+	now := time.Now()
+	d.now = func() time.Time { return now }
+	var inView atomic.Bool
+	probes := make(chan struct{}, 8)
+	d.viewProbe = func() bool { probes <- struct{}{}; return inView.Load() }
+	peerIntegrationEnqueue(t, d)
+	var out bytes.Buffer
+	settle := func() {
+		t.Helper()
+		select {
+		case <-probes:
+		case <-time.After(time.Second):
+			t.Fatal("no viewport probe")
+		}
+		waitFor(time.Second, func() bool { d.mu.Lock(); defer d.mu.Unlock(); return !d.view.checking })
+	}
+	f.proxy.dispatchPeer(&out)
+	settle()
+	f.proxy.dispatchPeer(&out)
+	if out.Len() != 0 || !strings.Contains(d.receipt().Detail, "in view") {
+		t.Fatalf("pasted while scrolled: %q %+v", out.String(), d.receipt())
+	}
+	inView.Store(true)
+	now = now.Add(peerViewFresh)
+	f.proxy.dispatchPeer(&out)
+	settle()
+	f.proxy.dispatchPeer(&out)
+	if !strings.Contains(out.String(), "hello") {
+		t.Fatalf("scrolling back did not release: %+v", d.receipt())
+	}
+}
+
+func TestCursorRowInView(t *testing.T) {
+	var rows []string
+	for i := 0; i < 30; i++ {
+		rows = append(rows, fmt.Sprintf("line %02d", i))
+	}
+	dump := func(shift int) string { return strings.Join(rows[20-shift:30-shift], "\n") + "\n" }
+	for _, tc := range []struct {
+		name   string
+		dump   string
+		inView bool
+	}{
+		{"bottom", dump(0), true},
+		{"small scroll keeps the cursor row", dump(4), true},
+		{"cursor row scrolled off", dump(5), false},
+		{"far up", dump(20), false},
+		{"unjudgeable reads as in view", "something else\n", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// The cursor sits on screen row 5 of 10.
+			if got := cursorRowInView(rows, 10, 5, tc.dump); got != tc.inView {
+				t.Fatalf("inView=%t", got)
+			}
+		})
 	}
 }

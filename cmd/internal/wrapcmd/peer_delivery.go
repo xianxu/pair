@@ -42,6 +42,10 @@ type peerDelivery struct {
 	// A draft-pane paste held while a delivery is in flight (pair#428).
 	holding   bool
 	holdUntil time.Time
+	// The operator's view of the pane (pair#428, peer_viewport.go);
+	// viewProbe is nil outside zellij-observable setups and then never gates.
+	view      peerView
+	viewProbe func() bool
 	exited    bool
 	replies   orientationReplies
 	wake      chan struct{}
@@ -447,6 +451,10 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 				d.current.Detail = "waiting for recognized composer"
 			case !event.Ready:
 				d.current.Detail = "waiting for empty composer"
+			case !d.viewReadyLocked():
+				// Never yank the view from scrollback the operator is reading.
+				event.Ready = false
+				d.current.Detail = "waiting for the composer to be in view"
 			default:
 				d.current.Detail = ""
 			}

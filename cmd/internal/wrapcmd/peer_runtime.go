@@ -175,6 +175,7 @@ func (p *proxy) startPeerRuntime(executable string) (*peerRuntime, error) {
 	if p.terminal != nil {
 		d.settleProbe = p.settledNow
 		d.tailProbe = p.agentTail
+		d.viewProbe = p.composerInView
 	}
 	d.armSettleLocked()
 	initial := d.observationLocked()
