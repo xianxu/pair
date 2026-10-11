@@ -1,12 +1,12 @@
 ---
 id: 000444
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
-card_mirror: 'f6834c13809ff05e29669482b913d4af63bff2b2' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '8d6dffc00bb012bd957a435c5aba4d6f03428ca7' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-11T10:58:27-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "fb8f300a", done: "bfdd3abf"}
+actual_hours: 0.21
 ---
 
 # session-sync: a concurrent writer sometimes fails with a generic error instead of stale
