@@ -277,8 +277,10 @@ and it is kept narrow.
   screen's right edge, vertically centered; `fit()` docks it to the drawn
   screen (`railAt`). It sits outside `#stage`, and only its buttons take
   pointer events, so a swatch tap never starts a stroke and a point anywhere
-  else reaches the screen. The mode button (`#mode`, 👆/💭, #447) sits below the swatches. The hint stays in
-  the band below the screen.
+  else reaches the screen. The mode button (`#mode`, 👆/💭, #447) sits below the swatches. There is
+  no hint bar (#447 M3): the swatches and the mode button explain themselves
+  in tooltips (`title`, `MODE_TIPS`), so the screen keeps the whole window;
+  touch devices show no tooltips.
 - **Server timeouts:** `ReadHeaderTimeout` 10s, `IdleTimeout` 60s, 8 KB
   headers, and a read deadline only in the POST handler. There is no
   server-wide `ReadTimeout`: it would also time out the disconnect watch on
@@ -344,6 +346,18 @@ watch) or the broadcast ends.
   the glyph on two cells, blanks any wide character it cuts in half (keeping
   its style), and widens the row's used columns, since the renderer draws text
   only that far. `FuzzParseNote`; a property test over random wide rows.
+- **Chip, glow, flash** (`notehalo.go`, M3): the 💭's cells get its author's
+  color as a chip; a round glow around it (rows ±2, columns scaled by the 2:1
+  cell aspect, stronger in the inner ring) tints backgrounds only, never the
+  controls or another note's chip, the stronger glow winning where two meet.
+  It flashes at full color on arrival and every `NoteFlashEvery` (15s) for
+  `NoteFlashHold`, then steps down over `NoteFlashFade`; each note's phase is
+  its own age (`Note.At`, set at save, not sent to pages). `NoteStyle.Hover`
+  holds a note at full glow. `paletteTint(c, t, bg, blend)` is the one place a
+  pointer color is weakened, for marks and notes alike (blend into the real
+  background with truecolor, else the color's 256-colour ladder), and
+  `tintCell` tints both halves of a wide character. The console arms one
+  timer from `NoteNextChange` and stops it on pointer-off and broadcast end.
 - **State** (`pointer_notes.go`): the board lives inside `PointerState`, under
   its one lock, so a flip to off and the clear are one critical section.
   `notesVersion` only increases. `addNote(n, gen)` refuses unless pointing is on

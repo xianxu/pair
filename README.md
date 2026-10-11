@@ -893,9 +893,11 @@ nothing yet.
 
 **Sticky notes (#447).** People on the pointer link can also pin a short
 plain-text note to a spot on the screen: the button under the color swatches
-switches between pointing (👆) and placing notes (💭). Couch draws a `💭` there, on your
-screen and every viewer's, and the status row shows the open count after the
-controls (`LIVE ⏸ 👆 👽 💭2`). You can't open notes from the terminal; anyone
+switches between pointing (👆) and placing notes (💭); hover a control for
+what it does. Couch draws a `💭` there, on your screen and every viewer's, on a
+chip of its author's color inside a soft glow that flashes when the note
+arrives and every 15 seconds until it is resolved, and the status row shows
+the open count after the controls (`LIVE ⏸ 👆 👽 💭2`). You can't open notes from the terminal; anyone
 on either link can tap a `💭` to read it, and anyone on the pointer link can
 resolve it. A note stays on the cell where it was placed, whatever scrolls
 underneath. Turning pointing off deletes every note, as it clears the marks,
