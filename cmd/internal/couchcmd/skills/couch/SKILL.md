@@ -65,9 +65,11 @@ After an uncertain send, query its printed ID and inspect the recipient; do not
 automatically resend. An unknown receipt after expiry/restart is not proof that
 the original message failed. If input needs intervention, leave it for inspection.
 
-Each slot admits at most eight inbound peer messages between genuine operator
-submissions. Peer messages, output, idle time, and ordinary reconnects do not
-reset the allowance. Do not manufacture operator input, restart, or change IDs
+Each slot admits a burst of eight inbound peer messages, then one more every
+three minutes; the slot Couch started from (the TL) gets 64. A genuine operator
+submission, including a session-sync submit, refills it. Peer messages, output,
+and ordinary reconnects do not. Never message your own slot to refill it: that
+path exists for the operator's session-sync editor. Do not manufacture operator input, restart, or change IDs
 to evade this breaker.
 
 ## Scheduling work on another slot

@@ -12,7 +12,14 @@ import (
 )
 
 const (
+	// The breaker is a leaky bucket (#433): a burst of InboundAllowance, one
+	// message back per RefillInterval. A runaway exchange arrives seconds
+	// apart and empties the burst long before it refills; reports minutes apart
+	// never drain it. HubAllowance is the TL slot's burst: the slot Couch
+	// started from, which every worker reports to.
 	InboundAllowance = 8
+	HubAllowance     = 64
+	RefillInterval   = 3 * time.Minute
 	QuietInterval    = 30 * time.Second
 	ReceiptLifetime  = time.Hour
 	MaxBodyBytes     = 8 * 1024
@@ -116,7 +123,8 @@ var (
 type ActorState struct {
 	binding                    Binding
 	connected                  bool
-	remaining                  int
+	remaining, capacity        int
+	refilledAt                 time.Time
 	pending                    Message
 	phase                      Status
 	registeredAt, lastActivity time.Time
@@ -125,9 +133,25 @@ type ActorState struct {
 func (s ActorState) Binding() Binding         { return s.binding }
 func (s ActorState) Connected() bool          { return s.connected }
 func (s ActorState) Remaining() int           { return s.remaining }
+func (s ActorState) Capacity() int            { return s.capacity }
 func (s ActorState) Pending() (Message, bool) { return s.pending, s.pending.ID != "" }
 func (s ActorState) LastActivity() time.Time  { return s.lastActivity }
 func (s ActorState) RegisteredAt() time.Time  { return s.registeredAt }
+
+// RemainingAt is the allowance at now, crediting refills no event has applied.
+func (s ActorState) RemainingAt(now time.Time) int { return s.refill(now).remaining }
+
+func (s ActorState) refill(now time.Time) ActorState {
+	if s.remaining >= s.capacity {
+		s.refilledAt = now
+		return s
+	}
+	if n := int(now.Sub(s.refilledAt) / RefillInterval); n > 0 {
+		s.remaining = min(s.capacity, s.remaining+n)
+		s.refilledAt = s.refilledAt.Add(time.Duration(n) * RefillInterval)
+	}
+	return s
+}
 
 type EventKind string
 
@@ -149,10 +173,12 @@ const (
 type Event struct {
 	Kind    EventKind
 	Binding Binding
-	Message Message
-	At      time.Time
-	Status  Status
-	Detail  string
+	// Allowance is a Register's bucket size; zero means InboundAllowance.
+	Allowance int
+	Message   Message
+	At        time.Time
+	Status    Status
+	Detail    string
 }
 type Effect struct{ Receipt Receipt }
 
@@ -196,7 +222,11 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 		}
 		if s.binding != e.Binding {
 			interrupt("wrapper incarnation replaced")
-			s = ActorState{binding: e.Binding, remaining: InboundAllowance}
+			allowance := e.Allowance
+			if allowance <= 0 {
+				allowance = InboundAllowance
+			}
+			s = ActorState{binding: e.Binding, remaining: allowance, capacity: allowance, refilledAt: e.At}
 		}
 		s.connected = true
 		s.registeredAt = e.At
@@ -226,11 +256,14 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 	if !s.connected {
 		return fail(ErrUnavailable)
 	}
+	if e.At.After(s.refilledAt) {
+		s = s.refill(e.At)
+	}
 	switch e.Kind {
 	case OperatorInput, AgentOutput:
 		activity()
 	case OperatorSubmit:
-		s.remaining = InboundAllowance
+		s.remaining, s.refilledAt = s.capacity, e.At
 		activity()
 	case Admit:
 		m := e.Message
@@ -243,12 +276,18 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 			}
 			return fail(ErrRecipientBusy)
 		}
-		if s.remaining <= 0 {
+		// A self-addressed message comes from inside the recipient's own
+		// session: the operator's session-sync submit (parley.nvim#313). It
+		// is an operator submit, not a peer message (#433).
+		if m.From == s.binding {
+			s.remaining, s.refilledAt = s.capacity, e.At
+		} else if s.remaining <= 0 {
 			return fail(ErrBudgetExhausted)
+		} else {
+			s.remaining--
 		}
 		s.pending = m
 		s.phase = Queued
-		s.remaining--
 		emit(Queued, "")
 	case DeliveryStarted:
 		if s.pending.ID == "" || e.Message != s.pending {
