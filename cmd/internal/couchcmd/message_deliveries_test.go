@@ -165,8 +165,13 @@ func TestTheOwnersOwnPingIsNotOwed(t *testing.T) {
 		{"peer-report", peer, "pair#441 done", true},
 	} {
 		e := messageEndpoint{service: r.s, binding: owner, endpoint: answeringEndpoint{receipt: couchmessage.Receipt{Status: couchmessage.Submitted}}}
-		_, _ = e.Deliver(context.Background(), couchmessage.Message{ID: c.id, From: c.from, To: owner, Body: c.body}, nil)
-		rows, _ := (&sessionsync.Ledger{Dir: sessionsync.LedgerDir(store)}).Read(owner.Slot)
+		if _, err := e.Deliver(context.Background(), couchmessage.Message{ID: c.id, From: c.from, To: owner, Body: c.body}, nil); err != nil {
+			t.Fatalf("%s: deliver %v", c.id, err)
+		}
+		rows, err := (&sessionsync.Ledger{Dir: sessionsync.LedgerDir(store)}).Read(owner.Slot)
+		if err != nil {
+			t.Fatalf("%s: read %v", c.id, err)
+		}
 		found := false
 		for _, row := range rows {
 			found = found || row.ID == c.id
