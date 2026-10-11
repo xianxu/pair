@@ -1,6 +1,7 @@
 package broadcast
 
 import (
+	"fmt"
 	"image/color"
 	"sort"
 	"time"
@@ -9,7 +10,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/terminal"
 )
 
-// A mark holds at full amber, then fades fast (#412: the operator found a
+// A mark holds at its full color, then fades fast (#412: the operator found a
 // slow, stepped fade clumsy).
 const (
 	MarkHold      = 1500 * time.Millisecond
@@ -19,13 +20,40 @@ const (
 	markFadeStep  = MarkFade / markFadeSteps
 )
 
-var (
-	markAmberIndex = ansi.IndexedColor(214)
-	markAmberRGB   = color.RGBA{0xff, 0xaf, 0x00, 0xff} // xterm 214
-	// markFadeLadder is the fade without truecolor: darker ambers, toward a
-	// dark background.
-	markFadeLadder = []ansi.IndexedColor{178, 172, 136, 94, 58}
-)
+// markColor is one pointer color (#446): its truecolor value, its xterm-256
+// index, and its fade without truecolor, darker steps toward a dark
+// background.
+type markColor struct {
+	rgb    color.RGBA
+	index  ansi.IndexedColor
+	ladder [5]ansi.IndexedColor
+}
+
+// markPalette is the pointer's six colors, Okabe–Ito based so they stay
+// apart for colorblind viewers. Index 0, orange, is the default and keeps
+// the amber the pointer always drew (xterm 214). A batch names its color by
+// index, so nothing a viewer sends reaches the terminal as a raw color.
+var markPalette = [...]markColor{
+	{color.RGBA{0xff, 0xaf, 0x00, 0xff}, 214, [5]ansi.IndexedColor{178, 172, 136, 94, 58}},  // orange
+	{color.RGBA{0x56, 0xb4, 0xe9, 0xff}, 74, [5]ansi.IndexedColor{67, 31, 24, 23, 17}},      // sky blue
+	{color.RGBA{0x00, 0x9e, 0x73, 0xff}, 36, [5]ansi.IndexedColor{35, 29, 23, 22, 234}},     // bluish green
+	{color.RGBA{0xf0, 0xe4, 0x42, 0xff}, 221, [5]ansi.IndexedColor{185, 142, 100, 58, 236}}, // yellow
+	{color.RGBA{0xd5, 0x5e, 0x00, 0xff}, 166, [5]ansi.IndexedColor{130, 94, 88, 52, 233}},   // vermillion
+	{color.RGBA{0xcc, 0x79, 0xa7, 0xff}, 175, [5]ansi.IndexedColor{139, 132, 96, 89, 53}},   // reddish purple
+}
+
+// PointerColors is how many colors a batch can name: 0..PointerColors-1.
+const PointerColors = len(markPalette)
+
+// PointerPalette is the colors as #rrggbb, in index order, for the pointer
+// page's swatches.
+func PointerPalette() []string {
+	out := make([]string, PointerColors)
+	for i, c := range markPalette {
+		out[i] = fmt.Sprintf("#%02x%02x%02x", c.rgb.R, c.rgb.G, c.rgb.B)
+	}
+	return out
+}
 
 type cell struct{ col, row int }
 
@@ -33,12 +61,19 @@ type cell struct{ col, row int }
 // StatusGuardCols columns of the last row), which marks must never cover.
 func guarded(c cell, rows int) bool { return c.row == rows-1 && c.col < StatusGuardCols }
 
-// Marks is the remote pointer's state: which cells a helper marked, and when.
-// Pure: the caller supplies the clock, and owns locking.
+// mark is when a cell was marked, and in which palette color.
+type mark struct {
+	at    time.Time
+	color int
+}
+
+// Marks is the remote pointer's state: which cells a helper marked, when,
+// and in which color. Pure: the caller supplies the clock, and owns locking.
 type Marks struct {
-	cells map[cell]time.Time
-	// With truecolor and a known background, the fade blends amber into the
-	// operator's real background; otherwise it walks markFadeLadder.
+	cells map[cell]mark
+	// With truecolor and a known background, the fade blends the mark's
+	// color into the operator's real background; otherwise it walks the
+	// color's ladder.
 	blend bool
 	bg    color.RGBA
 }
@@ -47,26 +82,28 @@ type Marks struct {
 // truecolor.
 func (m *Marks) SetBlend(bg color.RGBA, truecolor bool) { m.bg, m.blend = bg, truecolor }
 
-// tint is a mark's background at age.
-func (m *Marks) tint(age time.Duration) color.Color {
+// tint is the background of a mark in palette color c at age.
+func (m *Marks) tint(c int, age time.Duration) color.Color {
+	p := markPalette[c]
 	if age < MarkHold {
 		if m.blend {
-			return markAmberRGB
+			return p.rgb
 		}
-		return markAmberIndex
+		return p.index
 	}
 	k := int((age - MarkHold) / markFadeStep) // 0..markFadeSteps-1
 	if !m.blend {
-		return markFadeLadder[min(k*len(markFadeLadder)/markFadeSteps, len(markFadeLadder)-1)]
+		return p.ladder[min(k*len(p.ladder)/markFadeSteps, len(p.ladder)-1)]
 	}
 	t := float64(k+1) / float64(markFadeSteps+1)
 	mix := func(a, b uint8) uint8 { return uint8(float64(a) + (float64(b)-float64(a))*t + 0.5) }
-	return color.RGBA{mix(markAmberRGB.R, m.bg.R), mix(markAmberRGB.G, m.bg.G), mix(markAmberRGB.B, m.bg.B), 0xff}
+	return color.RGBA{mix(p.rgb.R, m.bg.R), mix(p.rgb.G, m.bg.G), mix(p.rgb.B, m.bg.B), 0xff}
 }
 
-func NewMarks() *Marks { return &Marks{cells: make(map[cell]time.Time)} }
+func NewMarks() *Marks { return &Marks{cells: make(map[cell]mark)} }
 
-// Add marks the cells of one batch of points on a cols×rows grid at now.
+// Add marks the cells of one batch of points on a cols×rows grid at now, in
+// palette color c (out of range draws the default).
 // Consecutive points within the batch are joined by a line; separate batches
 // never are. Points off the grid and on the broadcast's controls (the left of
 // the last row) are dropped; the rest of the tab bar can be marked. At most cols*rows/8 cells stay marked, the oldest dropped first.
@@ -74,7 +111,10 @@ func NewMarks() *Marks { return &Marks{cells: make(map[cell]time.Time)} }
 // Its cost is bounded (it runs under the lock the paint path takes): a batch
 // contributes at most the cap's worth of cells, its last ones, and eviction
 // is one sort per call.
-func (m *Marks) Add(points [][2]int, cols, rows int, now time.Time) {
+func (m *Marks) Add(points [][2]int, cols, rows, c int, now time.Time) {
+	if c < 0 || c >= PointerColors {
+		c = 0
+	}
 	limit := max(1, cols*rows/8)
 	var batch []cell
 	put := func(c cell) {
@@ -107,8 +147,8 @@ func (m *Marks) Add(points [][2]int, cols, rows int, now time.Time) {
 		batch = batch[len(batch)-limit:]
 	}
 	m.prune(now)
-	for _, c := range batch {
-		m.cells[c] = now
+	for _, at := range batch {
+		m.cells[at] = mark{now, c}
 	}
 	if excess := len(m.cells) - limit; excess > 0 {
 		type aged struct {
@@ -116,8 +156,8 @@ func (m *Marks) Add(points [][2]int, cols, rows int, now time.Time) {
 			at time.Time
 		}
 		all := make([]aged, 0, len(m.cells))
-		for c, t := range m.cells {
-			all = append(all, aged{c, t})
+		for c, mk := range m.cells {
+			all = append(all, aged{c, mk.at})
 		}
 		sort.Slice(all, func(i, j int) bool {
 			a, b := all[i], all[j]
@@ -172,8 +212,8 @@ func abs(v int) int {
 }
 
 func (m *Marks) prune(now time.Time) {
-	for c, t := range m.cells {
-		if now.Sub(t) >= MarkLife {
+	for c, mk := range m.cells {
+		if now.Sub(mk.at) >= MarkLife {
 			delete(m.cells, c)
 		}
 	}
@@ -184,8 +224,8 @@ func (m *Marks) Clear() { clear(m.cells) }
 
 // Live reports whether any mark is still drawn at now.
 func (m *Marks) Live(now time.Time) bool {
-	for _, t := range m.cells {
-		if now.Sub(t) < MarkLife {
+	for _, mk := range m.cells {
+		if now.Sub(mk.at) < MarkLife {
 			return true
 		}
 	}
@@ -197,8 +237,8 @@ func (m *Marks) Live(now time.Time) bool {
 func (m *Marks) NextChange(now time.Time) (time.Duration, bool) {
 	var next time.Duration
 	ok := false
-	for _, t := range m.cells {
-		age := now.Sub(t)
+	for _, mk := range m.cells {
+		age := now.Sub(mk.at)
 		if age >= MarkLife {
 			continue
 		}
@@ -224,15 +264,15 @@ func (m *Marks) Overlay(f terminal.Frame, now time.Time) terminal.Frame {
 	}
 	cols, rows := f.Geometry.Cols, f.Geometry.Rows
 	out := f.Clone()
-	for c, t := range m.cells {
-		age := now.Sub(t)
+	for c, mk := range m.cells {
+		age := now.Sub(mk.at)
 		// Never the broadcast's controls on the last row, whose LIVE and
 		// pointer indicators the fail-safes read (a resize can move a mark
 		// there).
 		if age >= MarkLife || c.col >= cols || c.row >= rows || guarded(c, rows) {
 			continue
 		}
-		tint := m.tint(age)
+		tint := m.tint(mk.color, age)
 		i := c.row*cols + c.col
 		// A continuation cell belongs to the wide character before it.
 		if out.Cells[i].Width == 0 && c.col > 0 && out.Cells[i-1].Width == 2 {

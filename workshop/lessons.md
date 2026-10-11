@@ -1012,3 +1012,10 @@ proof; record the surprising case so the next change starts from evidence.
 - **A change to what a verb shows is a change to the agent skill that explains it (#448).** The shadow fix made
   `diff` mean "edits you haven't seen", while `couch/SKILL.md` still said "since your last write". The review caught
   it; grep the shipped skills for the verb whenever its output's meaning moves.
+- **Overlay controls share one layout container (#446).** The pointer page's swatches and hint were each
+  `position: fixed` at their own corner, so they covered terminal cells and, at phone width, each other. Put
+  every fixed control in one wrapping band and size the content area from the band's measured height, then
+  check it at 390px and 300px in an iframe, because headless Chrome won't open a window under about 500px.
+- **A privacy test that bans an API gets narrowed, not deleted (#446).** The viewer test forbade
+  `localStorage` because a view link keeps nothing; the color pick needs one key. Pin the exception exactly:
+  one key, one reader and one writer, so a later "just remember this too" still fails the test.

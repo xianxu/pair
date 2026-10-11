@@ -121,8 +121,13 @@ func splitPath(path string) (segment, rest string, ok bool) {
 	return segment, rest, ok && segment != ""
 }
 
+// wireCaps tells a pointer page whether pointing is on, the palette its
+// swatches offer, and the color Couch assigned this stream, which the page
+// uses until its viewer picks one (#446).
 type wireCaps struct {
-	Pointer bool `json:"pointer"`
+	Pointer bool     `json:"pointer"`
+	Color   int      `json:"color"`
+	Palette []string `json:"palette"`
 }
 
 // point takes one batch from a pointer page. Only well-formed input is
@@ -216,10 +221,15 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, pointer bool) {
 	// A pointer page learns whether pointing is on when it joins and at
 	// every flip; a view page never hears of it.
 	var capsChanged <-chan struct{}
+	color := 0
+	if pointer {
+		color = s.opts.Pointer.claimColor()
+		defer s.opts.Pointer.releaseColor(color)
+	}
 	sendCaps := func() bool {
 		on, changed := s.opts.Pointer.On()
 		capsChanged = changed
-		caps, _ := json.Marshal(wireCaps{Pointer: on})
+		caps, _ := json.Marshal(wireCaps{Pointer: on, Color: color, Palette: PointerPalette()})
 		return send("event: caps\ndata: " + string(caps) + "\n\n")
 	}
 	if pointer && !sendCaps() {

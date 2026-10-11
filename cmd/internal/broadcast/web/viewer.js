@@ -1,6 +1,7 @@
 // Couch broadcast viewer (#395). Renders the operator's composed screen,
 // view-only, at the sender's grid, with the font scaled to fit the window.
-// It sends nothing back and keeps nothing: closing the tab leaves no trace.
+// A view link sends nothing back and keeps nothing; a pointer link (#412)
+// posts points and remembers its viewer's color pick (#446).
 
 export const MIN_FONT = 4;
 export const MAX_FONT = 64;
@@ -85,6 +86,54 @@ export function chunkStroke(last, points) {
     i += part.length;
   }
   return chunks;
+}
+
+// Pointer colors (#446). Couch sends the palette and this stream's assigned
+// color in `caps`; the page keeps no colors of its own and posts only an
+// index. A viewer's pick is remembered in this browser.
+const COLOR_KEY = 'couch.pointerColor';
+
+// pointerColor is the color a page posts: the viewer's pick when it is in
+// the palette, else the one Couch assigned.
+export function pointerColor(picked, assigned, size) {
+  return Number.isInteger(picked) && picked >= 0 && picked < size ? picked : assigned;
+}
+
+// colorStore remembers the pick. Storage can be missing or throw (a private
+// window, blocked site data); the page then works without remembering.
+export function colorStore(storage) {
+  return {
+    get() {
+      try {
+        const v = storage ? storage.getItem(COLOR_KEY) : null;
+        return /^[0-9]$/.test(v || '') ? Number(v) : null;
+      } catch {
+        return null;
+      }
+    },
+    set(i) {
+      try {
+        storage?.setItem(COLOR_KEY, String(i));
+      } catch {
+        // Not remembered; the pick still holds for this page.
+      }
+    },
+  };
+}
+
+// renderSwatches draws one button per palette color into el, marking the
+// current one. make(tag) creates an element.
+export function renderSwatches(el, palette, current, pick, make) {
+  el.replaceChildren(...palette.map((hex, i) => {
+    const b = make('button');
+    b.type = 'button';
+    b.className = i === current ? 'swatch on' : 'swatch';
+    b.style.background = hex;
+    b.setAttribute('aria-label', `Pointer color ${i + 1}`);
+    b.setAttribute('aria-pressed', String(i === current));
+    b.addEventListener('click', () => pick(i));
+    return b;
+  }));
 }
 
 // Backoff for a connection closed for good (the server refused it or is
@@ -226,7 +275,7 @@ async function start() {
     }
     for (let i = 0; i < 3; i++) {
       const r = screen.getBoundingClientRect();
-      const next = nextFontSize(size, r.width, r.height, window.innerWidth, window.innerHeight);
+      const next = nextFontSize(size, r.width, r.height, stage.clientWidth, stage.clientHeight);
       if (next === size) {
         break;
       }
@@ -235,7 +284,32 @@ async function start() {
     }
   };
 
-  const pointer = pointerMode(term, stage, hint);
+  let storage = null;
+  try {
+    storage = window.localStorage;
+  } catch {
+    // Blocked site data: picks aren't remembered.
+  }
+  const swatches = document.getElementById('swatches');
+  // band lifts the screen above the pointer controls, however tall their
+  // wrapped row is; a view page has none and keeps the whole window.
+  const controls = document.getElementById('controls');
+  let banded = false;
+  const band = () => {
+    banded = true;
+    stage.style.bottom = `${Math.ceil(controls.getBoundingClientRect().height) + 12}px`;
+    fit();
+  };
+  const pointer = pointerMode(term, stage, hint, {
+    store: colorStore(storage),
+    swatches: {
+      show: (palette, current, pick) => {
+        renderSwatches(swatches, palette, current, pick, (tag) => document.createElement(tag));
+        swatches.classList.remove('hidden');
+      },
+      hide: () => swatches.classList.add('hidden'),
+    },
+  });
   connect({
     open: () => new EventSource('events'),
     render: (m) => {
@@ -259,9 +333,13 @@ async function start() {
     show,
     setStale: (on) => stage.classList.toggle('stale', on),
     later: (fn, ms) => setTimeout(fn, ms),
-    caps: (c) => pointer.setOn(Boolean(c.pointer)),
+    caps: (c) => {
+      pointer.setColors(c.palette, c.color);
+      pointer.setOn(Boolean(c.pointer));
+      band();
+    },
   });
-  window.addEventListener('resize', fit);
+  window.addEventListener('resize', () => (banded ? band() : fit()));
   fit();
 }
 
@@ -279,17 +357,35 @@ function postPoint(body) {
 }
 
 // pointerMode turns the helper's taps and drags into point batches while
-// the broadcast says pointing is on. Strokes are flushed every 50ms. deps
-// (for tests): post(body), every(fn, ms) → id, stop(id).
+// the broadcast says pointing is on. Strokes are flushed every 50ms. deps:
+// store (colorStore), swatches {show(palette, current, pick), hide()}, and
+// for tests post(body), every(fn, ms) → id, stop(id).
 export function pointerMode(term, stage, hint, deps = {}) {
   const send = deps.post || postPoint;
   const every = deps.every || ((fn, ms) => setInterval(fn, ms));
   const stop = deps.stop || ((id) => clearInterval(id));
+  const store = deps.store || colorStore(null);
+  const swatches = deps.swatches || { show() {}, hide() {} };
   let on = false;
   let stroke = null;
   let timer = null;
+  let palette = [];
+  let assigned = 0;
+  let picked = store.get();
+  const color = () => pointerColor(picked, assigned, palette.length);
+  const drawSwatches = () => {
+    if (on && palette.length) {
+      swatches.show(palette, color(), (i) => {
+        picked = i;
+        store.set(i);
+        drawSwatches();
+      });
+    } else {
+      swatches.hide();
+    }
+  };
   const screen = () => stage.querySelector('.xterm-screen');
-  const post = (down, points) => send({ cols: term.cols, rows: term.rows, down, points });
+  const post = (down, points) => send({ cols: term.cols, rows: term.rows, down, color: color(), points });
   const flush = (down) => {
     if (!stroke) {
       return;
@@ -352,6 +448,15 @@ export function pointerMode(term, stage, hint, deps = {}) {
       stage.classList.toggle('pointer', on);
       hint.textContent = on ? 'You can point: tap or drag on the screen' : 'Pointing is off';
       hint.classList.remove('hidden');
+      drawSwatches();
+    },
+    // setColors takes the palette and assigned color from caps. A palette
+    // with anything but #rrggbb values offers no swatches.
+    setColors(p, a) {
+      const valid = Array.isArray(p) && p.every((v) => typeof v === 'string' && HEX_COLOR.test(v));
+      palette = valid ? p : [];
+      assigned = pointerColor(a, 0, palette.length);
+      drawSwatches();
     },
   };
 }

@@ -28,22 +28,25 @@ var (
 
 // PointBatch is one request from a pointer page: points in grid cells, on
 // the cols×rows grid the page was showing. Down is true while a stroke
-// continues (finger or button still down).
+// continues (finger or button still down). Color is the marks' palette
+// index, 0..PointerColors-1; absent means 0 (#446).
 type PointBatch struct {
 	Cols   int      `json:"cols"`
 	Rows   int      `json:"rows"`
 	Down   bool     `json:"down"`
+	Color  int      `json:"color"`
 	Points [][2]int `json:"points"`
 }
 
 // ParsePointBatch reads a request body strictly: one JSON object with only
 // these fields, 1..MaxPointsPerBatch integer pairs, each inside the stated
-// grid. Its errors are fixed values that never echo the input.
+// grid, and an optional integer color inside the palette. Its errors are fixed values that never echo the input.
 func ParsePointBatch(body []byte) (PointBatch, error) {
 	var raw struct {
 		Cols   *int             `json:"cols"`
 		Rows   *int             `json:"rows"`
 		Down   *bool            `json:"down"`
+		Color  *int             `json:"color"` // *int refuses strings and fractions
 		Points *[][]json.Number `json:"points"`
 	}
 	dec := json.NewDecoder(bytes.NewReader(body))
@@ -64,6 +67,12 @@ func ParsePointBatch(body []byte) (PointBatch, error) {
 	b := PointBatch{Cols: *raw.Cols, Rows: *raw.Rows, Down: *raw.Down}
 	if b.Cols < 1 || b.Rows < 1 || b.Cols > maxPointGrid || b.Rows > maxPointGrid {
 		return PointBatch{}, ErrPointRange
+	}
+	if raw.Color != nil {
+		if *raw.Color < 0 || *raw.Color >= PointerColors {
+			return PointBatch{}, ErrPointRange
+		}
+		b.Color = *raw.Color
 	}
 	for _, p := range *raw.Points {
 		if len(p) != 2 {
