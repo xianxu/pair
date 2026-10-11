@@ -15,7 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "00404941", done: "e14f1eab"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # idle sessions burn CPU: pair title / session-watch / couch poll forever
@@ -165,6 +165,8 @@ ARCH-FUNERAL lines:
 - Filed only (not implemented) at ariadne:1's request.
 
 ### 2026-10-10
+- 2026-10-10: closed — Mutation-checked tests: send gate (262 walks without it), idle chosen-id gate (190 walks/3h without it), output defers idle expiry, mtime floor, StatFile OS conformance + no-walk QuerySession/ActivityForSession, root-count helper, zellijsession EXITED table. Live probe vs real stores: SessionAlive(EXITED 1-43)=false; SessionActivity 1.94s->0.84s; ContextCount 2.04s->0.59s; remainder is ledger parse -> pair#431. make -k test + go test ./...: remaining failures reproduce on origin/main (embedded-runtime scope, launcher x5 scope, couch live/continuation, artifactpath couch* inventory) or are env (changelog passes with scratchpad TMPDIR). Couch-stall Done-when covered by pair#430 per Revisions.; review verdict: SHIP
+- 2026-10-10: flow upgraded quick → full — 317 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 - Claimed by pair:3 on ops:0's dispatch. Diagnosis is in Problem (root causes
   1–4). Probes: `sample` on 7939 (lstat, fstatat and open dominate), a
