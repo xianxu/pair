@@ -15,6 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "ab1c1655", done: "3100e153"}
 ---
 
 # Peer delivery to a busy agent: confirm a message the agent queued mid-turn, and report the real blocking condition
