@@ -15,7 +15,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "c3a43590", done: "6429af50"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # peer delivery: only real keystrokes interrupt a delivery; mouse and terminal reports don't
@@ -84,6 +84,8 @@ Durable plan: `workshop/plans/000428-peer-delivery-only-real-keystrokes-interrup
 ## Log
 
 ### 2026-10-10
+- 2026-10-10: closed — Round 1 fixes landed (BR-1 test waits for hold end + tail, 30/30 -race; BR-2 atlas reworded; BR-3 explicit held-input paste gate). wrapcmd full package green unsandboxed. Earlier: classifier table x29 through admitInput+dispatchPeer, kink-47 regression, lone-ESC flush, draft hold ordered+bounded, viewport gate; live zellij dump aligns with vt model at k=0..300. make -k test shell suites green except known test-changelog TMPDIR + embedded-runtime env leak (both pass clean); go test ./... failures only in packages not importing wrapcmd.; review verdict: SHIP
+- 2026-10-10: flow upgraded quick → full — 487 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 - **Kink 47 measured (pair:2).** In ops:0's wrap-events (stdin is hashed), during delivery `4d5ff954` (queued 13:05:35.69): `ESC[I` at 13:05:40.853, **`ESC[13;3u` (kitty Alt+Enter) at 13:05:46.656**, and `ESC[O` at 13:05:47.364. Claude logged the message 26 ms after the Alt+Enter. So the "interrupt" was the operator's own submit after the pre-#427 stall. That pane had no mouse reports all day: its Claude never enables mouse tracking (output modes `?2004 ?1004 ?2031 ?2026 ?25` only), so zellij scrolls natively. `?2031h` does invite unsolicited color-scheme reports (`ESC[?997;Nn`), which the classifier now covers.
 - Live alignment check: zellij's `dump-screen` of this slot's Claude pane, matched against a vt model fed its scrollback raw, aligns at shift 0. Slicing `dump-screen --full` at k = 1…300 rows gives consistent shifts, with a constant offset from output that landed between the two captures. Whitespace normalization absorbs the NBSP and padding differences.

@@ -105,3 +105,96 @@ findings:
     detail: |
       Capped at one reading per 500ms while a delivery waits; no measurement recorded for a long scrollback (ARCH-CONSTRAINTS).
 ```
+
+---
+
+## Re-review — 2026-10-10T18:19:43-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 428 — peer delivery: only real keystrokes interrupt a delivery; mouse and terminal reports don't |
+| repo | pair |
+| issue file | workshop/issues/000428-peer-delivery-only-real-keystrokes-interrupt-a-delivery-mouse-and-terminal-reports-don-t.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 4c147e5d0f099458bdda2c706414bf5cb8212b6b..6beabf6c64e7a709616082178e224af0b65d073c |
+| command | sdlc close --issue 428 |
+| reviewer | claude |
+| timestamp | 2026-10-10T18:19:43-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Focus on the last fix commit for disposition, then the full code.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+Both Important findings from round 1 are fixed, and I checked each one against the code at HEAD 6beabf6c.
+- **BR-1 (flaky test):** `TestPeerDraftPasteWaitsForDelivery` now waits for the hold to end and checks that the replayed focus-out tail arrived, instead of reading `holding` once. The keystroke, hold, viewport and cursor tests passed 20 times in a row (`-count=20`) and again 3 times under `-race`.
+- **BR-2 (atlas wording):** `atlas/couch.md` now says what `holdLocked` does: a keystroke never starts a hold, and anything that arrives during a hold queues behind it.
+
+The three Minor findings remain open. None of them blocks the gate:
+- **BR-3:** the new `d.holding` gate in `dispatchPeer` is correct, but no test fails without it.
+- **BR-4 and BR-5:** the implementor accepted these as they are and logged that in the issue.
+
+The only test failures (`TestPeerLostReceiptRecoveredAfterBrokerRestart`, `TestPeerRuntimeBrokerToWrapperSubmitsOnce`) came from the sandbox refusing writes under `/tmp` ("operation not permitted"). They are not caused by this diff. `go vet` reports nothing.
+
+1. **Strengths**
+   - `orientation_replies.go` gives orientation and peer delivery separate readers of input. Orientation keeps treating anything unsolicited as operator input. Peer delivery uses `terminalReport` to set aside focus, mouse and terminal reports. The shared `solicited()` helper removes the old flag-switched function (ARCH-DRY).
+   - `terminalReport` deliberately leaves out a bare cursor position report, because modified F3 sends the same bytes. It also treats a bare Alt+] or Alt+P as a keystroke. Both are careful edge-case calls.
+   - `heldInput` replays held chunks with their original gaps. This keeps the draft pane's paste, settle and submit rhythm intact, and the hold has a time limit (`PeerDraftHold`).
+   - `viewReadyLocked` runs the `zellij` subprocess away from the input-admission lock, caches the result for 500ms, and treats any reading it cannot judge as "in view". The gate therefore never holds a delivery because of its own uncertainty.
+   - `viewportShift` and `cursorRowInView` are pure functions with direct unit tests (ARCH-PURE).
+
+2. **Critical:** none.
+
+3. **Important:** none.
+
+4. **Minor**
+   - BR-3 is still open: no test pins the `d.holding` paste gate at `peer_delivery.go:444`.
+   - The `viewReadyLocked` goroutine can finish after the delivery has exited and write to `d.view` anyway. That is harmless, and the 1s timeout on the `zellij` call caps how long it can run.
+
+5. **Test coverage notes**
+   - Covered: keystroke classification, a lone ESC resolved at the flush interval, the draft-paste hold and its time limit, gap-preserving replay, viewport alignment, and the composer-in-view gate.
+   - Missing: a test where held input is still queued after the delivery confirms, asserting that the next message's paste waits behind it (BR-3).
+
+6. **Architectural notes**
+   - The hold state (`holding`, `holdUntil`, and the writer's `heldInput.base`) is spread across two owners: the delivery and the input writer. It works today because the writer always calls `endHold` once the queue drains. If more hold states are added, merge them into one hold-state enum owned by the delivery (ARCH-ORDER).
+   - Each principle, at the review lens:
+     - ARCH-DRY: pass.
+     - ARCH-PURE: pass.
+     - ARCH-PURPOSE: pass. Both halves of the Spec are delivered: only keystrokes interrupt a delivery, and a delivery waits while the composer is out of view.
+     - ARCH-MOCK: pass with the BR-4 caveat. `viewProbe` is a fake behind the same seam.
+     - ARCH-CONSTRAINTS: pass with the BR-5 caveat.
+     - ARCH-SECURE: pass. Partial frames over 4096 bytes are bounded, and the subprocess gets its arguments as an argv array.
+     - ARCH-ORDER: pass, with the note above.
+     - ARCH-FUNERAL: pass. The change creates nothing durable: the held queue and the viewport reading live in memory and die with the wrapper.
+
+7. **Plan revisions:** none.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Test now waits on !holding and the focus-out suffix; passed 20x and 3x under -race.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      atlas/couch.md now says a keystroke never starts a hold and input during a hold queues behind it, which matches holdLocked.
+  - id: BR-3
+    disposition: not-addressed
+    note: |
+      The d.holding gate in dispatchPeer is correct, but no test fails without it; add one where held input is still queued after confirm.
+  - id: BR-4
+    disposition: not-addressed
+    note: |
+      Accepted as Minor; the zellij behaviour is still recorded only in the Log, with no conformance check.
+  - id: BR-5
+    disposition: not-addressed
+    note: |
+      Accepted as Minor; no measurement on a long scrollback.
+```
