@@ -44,11 +44,23 @@ reason and the fix. The TL's dispatch flow becomes prepare, then send.
 - [ ] `couch --prepare` on an idle, clean, stale slot leaves it at origin/main with refreshed substrates and a reloaded agent (test with a fake weave).
 - [ ] It refuses a busy or dirty slot without changing anything (test).
 - [ ] The report names the live sdlc commit (test).
+- [ ] A refresh that leaves the checkout dirty (compile's `.gitattributes` block, pre-#436) stops before the reload with `refresh-dirty`, naming the paths (test).
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000434-couch-prepare-repo-n-one-command-brings-an-idle-slot-up-for-new-work-resting-branch-weave-refresh-context-reload-plan.md`.
+
+- [ ] Admission rule (`not-resting`) and the admission-only `prepare` slot operation
+- [ ] Receipt carries the slot path
+- [ ] `RunPrepare` sequence with a fake weave over real git
+- [ ] `couch --prepare` CLI over the two remote exchanges
+- [ ] atlas, couch skill (TL flow: prepare, then send), CHANGELOG
 
 ## Log
 
 ### 2026-10-10
+- Design: weave refresh runs in the CLI process, not on Couch's serial console queue (it would block every console operation for minutes). The remote half is an admission-only `prepare` slot operation plus the existing `reload-context`.
+
+## Revisions
+
+- 2026-10-10 — Spec: the surface is `couch --prepare repo:N --confirm [--force-unknown] [--json]`. It ends the agent's conversation, as reload-context does, so it takes the same `--confirm`. Added the `refresh-dirty` refusal for weave refresh dirtying its own checkout (ariadne#320's `.gitattributes` block until pair#436 lands); Couch never commits that file.
