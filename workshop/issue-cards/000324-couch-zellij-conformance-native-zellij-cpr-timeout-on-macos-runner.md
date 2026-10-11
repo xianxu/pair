@@ -1,6 +1,6 @@
 ---
 id: 000324
-status: codecomplete
+status: done
 created: 2026-09-24
 updated: 2026-10-10
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: c17bc6b33cc376eb4da79cc1960476c870a88d5a
         evidence_commit: 530793a2c06f892f8349dc031ff6594917d7a14a
+        landed_commit: b96981f71d956c2d58eb6f4bb411772401860d4f
 ---
 
 # couch-zellij-conformance: native zellij CPR timeout on macOS runner
