@@ -1,6 +1,6 @@
 ---
 id: 000451
-status: codecomplete
+status: done
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: a0a0eb1bb45a9c5476ab94fd468f043af471fb0c
         evidence_commit: af1b6ea31e6ff46f4d5a6e980250e0a7bb306908
+        landed_commit: bb28fe079e755d9723f08aa69b136db3ab9be5a3
 ---
 
 # Couch tells the hub when a slot is stuck waiting for someone
