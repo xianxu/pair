@@ -220,7 +220,7 @@ func (s *Sync) Read(path, section string) (ReadResult, error) {
 // accepts it: then the owed list is incomplete, never silently short.
 func (s *Sync) owed(f *file, acceptGap bool) ([]Entry, []OwedEvent, error) {
 	if !ValidSlot(f.owner) {
-		return nil, nil, refuse("frontmatter `couch-owner: %s` is not a Couch slot address (repo:N, as `couch --actors` lists it)", f.owner)
+		return nil, nil, refuse("frontmatter owner %q (`couch-owner:`, or legacy `owner:`) is not a Couch slot address (repo:N, as `couch --actors` lists it)", f.owner)
 	}
 	gap, err := s.Ledger.Gap(f.owner)
 	if err != nil {
@@ -329,7 +329,7 @@ func (s *Sync) write(f *file, req WriteRequest) (Result, error) {
 		}
 	}
 	if !IsSessionSync(next) || ParseOwner(next) != f.owner {
-		return Result{}, refuse("the new content must keep the frontmatter (`type: session-sync`, `couch-owner: %s`)", f.owner)
+		return Result{}, refuse("the new content must keep the frontmatter (`type: session-sync` and owner %q, as `couch-owner:` or legacy `owner:`)", f.owner)
 	}
 	now := s.Now()
 	next = Restamp(next, now)

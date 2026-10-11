@@ -40,3 +40,4 @@ parley.nvim#316 renames the frontmatter key that names a document's Couch slot f
 
 ### 2026-10-11
 - `ParseOwner` tries `couch-owner` then `owner`; the line-wise frontmatter reader already handled hyphenated keys and non-YAML lines, so only a doc comment pinned that. Refusal texts now name `couch-owner:`. Tests: `TestParseOwnerPrefersCouchOwnerOverTheLegacyAlias` (unit, incl. owner-first ordering + process-instruction), `TestStatusReportsCouchOwnerOrTheLegacyOwner` (the `status` path). Mutation (couch-owner lookup disabled) fails both.
+- Close review round 1 (FIX-THEN-SHIP): BR-1 couch SKILL.md still taught `owner:` — swept every live restatement of the key (SKILL.md, atlas Owed bullet), and the two refusal texts now name the value with both keys instead of asserting `couch-owner:`.
