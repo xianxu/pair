@@ -277,7 +277,7 @@ and it is kept narrow.
   screen's right edge, vertically centered; `fit()` docks it to the drawn
   screen (`railAt`). It sits outside `#stage`, and only its buttons take
   pointer events, so a swatch tap never starts a stroke and a point anywhere
-  else reaches the screen. #447's mode icon joins the column. The hint stays in
+  else reaches the screen. The mode button (`#mode`, 👆/💭, #447) sits below the swatches. The hint stays in
   the band below the screen.
 - **Server timeouts:** `ReadHeaderTimeout` 10s, `IdleTimeout` 60s, 8 KB
   headers, and a read deadline only in the POST handler. There is no
@@ -367,6 +367,21 @@ watch) or the broadcast ends.
   the leaf lock `pointerNotes.mu` feeds both `screenOverlay` (notes, then marks,
   public frames only) and the status row's `💭N` count after `👽`
   (`StatusModel.Notes`, not a click target, and outside the guarded columns).
+- **Viewer page** (`web/notes.js`): keeps the list from `event: notes`
+  (`parseNotes`) and hit-tests a tap against both cells of each visible 💭
+  (`noteAt`, using the event's `guard`), so a tap on a 💭 opens it on any page:
+  read-only on a view link, with Resolve on a pointer link. `pointerMode`
+  routes taps: 💭 → open; pointing off → nothing; comment mode → a draft at
+  the tapped cell (`noteCell` moves a last-column tap one left; none on the
+  controls); pointer mode → a stroke. Turning pointing off resets to pointer
+  mode and closes the dialog. `noteDialog` is one fixed-size sticky note: the
+  draft exists only in its text box until Save (a byte counter mirrors the
+  1 KB cap), a refusal shows Couch's sentence, and a viewed note that leaves
+  the list closes. Text is only ever set as `textContent`. All requests go
+  through `viewer.js`'s single `postJSON` (`POST_ROUTES`: point, note,
+  resolve); the page test pins that and bans HTML sinks in both scripts.
+  `BROADCAST_MANUAL_POINTER=1` makes `TestManualViewerServer` serve a pointer
+  link that draws notes, for checking the page in a real browser.
 
 ## Listing (`couch --broadcast-list`, pair#413)
 
