@@ -13,7 +13,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
-actual_hours: 1.21
+actual_hours: 1.25
 tracker:
     version: 1
     handoff:
@@ -27,10 +27,10 @@ tracker:
         destination: workshop/issues/000430-couch-exits-when-the-outer-terminal-stalls-5s-degrade-the-view-keep-the-sessions.md
         main_commit: c39ed7243b1765b44d173f6063abe37f98d93998
     completion:
-        token: close-4d179f72642f
+        token: close-4cb6e85f55fc
         repository: github.com/xianxu/pair
-        reviewed_head: 2017402e181f25f85af9c992ff8edae5e6794ee9
-        evidence_commit: 076052c477f64ac4ede33555bdedea096198694a
+        reviewed_head: eeaf310ea1b82ef695bd380dd86a7851f9b7b67b
+        evidence_commit: 1f938a2ed7bb067fcc353915b59971ad505e1e7f
 ---
 
 # couch exits when the outer terminal stalls 5s: degrade the view, keep the sessions
