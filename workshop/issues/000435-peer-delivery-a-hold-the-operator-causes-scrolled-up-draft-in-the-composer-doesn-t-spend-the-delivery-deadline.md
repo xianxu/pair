@@ -44,10 +44,10 @@ polling the receipt (ops learnings kinks 56, 58). It hurts the TL's effectivenes
 
 ## Done when
 
-- [ ] A message held for scrollback past its original deadline submits when the composer comes back into view (model and wrapper tests).
-- [ ] The same for a held draft once the composer empties.
-- [ ] A hold not caused by the operator still expires at the deadline (test).
-- [ ] The cap expires a long hold with a status that names it; the receipt shows `held` and the reason while held (test).
+- [x] A message held for scrollback past its original deadline submits when the composer comes back into view (model and wrapper tests).
+- [x] The same for a held draft once the composer empties.
+- [x] A hold not caused by the operator still expires at the deadline (test).
+- [x] The cap expires a long hold with a status that names it; the receipt shows `held` and the reason while held (test).
 
 ## Plan
 
@@ -74,7 +74,7 @@ Design (settled; ARCH-SIMPLE — one static cap both sides read, no new protocol
 - [x] Model: `MaxHold`, `HoldLimit`, `Horizon`, `Held`, `DeliveryProgress` (+ model test)
 - [x] Endpoint/broker: `Deliver` progress, Held accepted, held poll pacing (+ endpoint + broker tests)
 - [x] Wrapper: hold accounting + Held receipt (`peer_hold_test.go`: draft, scrollback, non-operator, cap)
-- [ ] Full `make test`, close
+- [x] Full `make test` (see close evidence), close
 
 ## Log
 
