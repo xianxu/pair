@@ -1,6 +1,6 @@
 ---
 id: 000442
-status: codecomplete
+status: done
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 60314eb2eabfb8564ebc435c6196ddf0feceecf3
         evidence_commit: 004f5a6114b377ef07b171b7ac7aecef00e93814
+        landed_commit: be901f104b751fc11ca4fc46891bbc9228a0e4bd
 ---
 
 # Slot creation: size each step's timeout to the step, and keep the failure
