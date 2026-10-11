@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000446-broadcast-pointer-each-viewer-picks-one-of-six-colors.md
         source_blob: d860741b077260f07755bd7d2638dc4e0414085e
         destination: workshop/issues/000446-broadcast-pointer-each-viewer-picks-one-of-six-colors.md
+        main_commit: 06d6d4de0b96195217280f70b004f6357f7d75de
 ---
 
 # Broadcast pointer: each viewer picks one of six colors
