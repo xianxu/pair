@@ -1,6 +1,6 @@
 ---
 id: 000420
-status: codecomplete
+status: done
 created: 2026-10-09
 updated: 2026-10-10
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 109e22ba4f4987500d03d0268a123c72500e9724
         evidence_commit: fb9891fc53f859ce1dd16dbccf5df06e5cc9895e
+        landed_commit: fd830f3cd396961ff0fe419c6a2d61dfe9da1eb5
 ---
 
 # idle sessions burn CPU: pair title / session-watch / couch poll forever
