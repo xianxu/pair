@@ -181,6 +181,20 @@ func (s *messageService) Close() {
 	s.workers.Wait()
 }
 
+// hubWorktree is the worktree root Couch started in: the TL slot (#433). A
+// start outside any checkout has no hub, so every slot gets the ordinary bucket.
+func hubWorktree(getwd func() (string, error), resolve func(string) (couchcore.Worktree, error)) string {
+	cwd, err := getwd()
+	if err != nil {
+		return ""
+	}
+	tree, err := resolve(cwd)
+	if err != nil {
+		return ""
+	}
+	return string(tree)
+}
+
 // startMessageService is called only while the existing supervisor lease is
 // held. Socket cleanup and all child registration live inside that lifetime.
 func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messageService, error) {
@@ -226,14 +240,8 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	}); ok {
 		sessionName = source.PairSessionName
 	}
-	hub := ""
-	if cwd, err := os.Getwd(); err == nil {
-		if tree, err := c.ResolveTree(cwd); err == nil {
-			hub = string(tree)
-		}
-	}
 	authority := messageAuthority{
-		hub: hub,
+		hub: hubWorktree(os.Getwd, c.ResolveTree),
 		families: func(ctx context.Context) (map[string]string, error) {
 			if c.Threads == nil {
 				return nil, nil

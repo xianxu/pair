@@ -88,3 +88,8 @@ Quick flow (one close). Decisions:
   since <ts>`. No marker needed: both kinds are self-addressed when sent from the owner slot's session, so both
   refill (a ping refilling is harmless; only that session can send it). Text prefixes are not trusted. Replied
   to ops:0.
+- Merged main after #435 landed: no conflict, builds, couch tests unchanged.
+- Close round 1 FIX-THEN-SHIP: BR-1 (self-send refill only proven in the model) → added
+  `TestSelfAddressedSendRefillsThroughTheBroker`, mutation-checked (fails with the rule disabled). BR-2 (hub glue
+  untested) → extracted `hubWorktree(getwd, resolve)` + `TestHubWorktreeIsTheStartupCheckout` (checkout, subdir,
+  outside, no cwd). Minor (self-messaging evasion) → couch skill text forbids it. Lessons added.

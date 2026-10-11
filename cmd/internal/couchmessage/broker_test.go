@@ -577,6 +577,52 @@ func TestSubmissionGenerationIsReconciledBeforeAdmissionAndOnlyOnce(t *testing.T
 	}
 }
 
+// #433 BR-1: the session-sync submit end to end through the broker. A slot
+// whose bucket is spent sends to its own exact address (parley's
+// couch --send-to from the slot's editor); routing, reservation and admission
+// accept it, and it refills the bucket for the next peer.
+func TestSelfAddressedSendRefillsThroughTheBroker(t *testing.T) {
+	now := time.Unix(1000, 0)
+	b := NewBroker(context.Background(), func() time.Time { return now }, nil)
+	defer b.Close()
+	peer, owner := brokerBinding("brain:0"), brokerBinding("pair:1")
+	ep := newFakeEndpoint(now)
+	_ = b.Register(peer, newFakeEndpoint(now))
+	_ = b.Register(owner, ep)
+	send := func(from Binding, id string) error {
+		t.Helper()
+		ep.outcomes <- Receipt{Status: Submitted}
+		r, err := b.Send(context.Background(), from, id, Route{Target: owner.Slot}, "work")
+		if err != nil {
+			<-ep.outcomes
+			return err
+		}
+		<-ep.delivered
+		for deadline := time.Now().Add(time.Second); ; time.Sleep(time.Millisecond) {
+			if r, err = b.Status(from, id); err == nil && r.Status == Submitted {
+				return nil
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("receipt %+v %v", r, err)
+			}
+		}
+	}
+	for i := 0; i < InboundAllowance; i++ {
+		if err := send(peer, fmt.Sprintf("peer-%d", i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := send(peer, "over"); !errors.Is(err, ErrBudgetExhausted) {
+		t.Fatalf("burst past allowance: %v", err)
+	}
+	if err := send(owner, "session-sync"); err != nil {
+		t.Fatalf("self-addressed send refused: %v", err)
+	}
+	if err := send(peer, "after-sync"); err != nil {
+		t.Fatalf("session-sync did not refill: %v", err)
+	}
+}
+
 func TestFamilyObservesHumanGenerationWithoutInventingRecentActivity(t *testing.T) {
 	base := time.Unix(1000, 0)
 	var nanos atomic.Int64

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -475,6 +476,38 @@ func TestMessageHubSlotGetsTheLargerAllowance(t *testing.T) {
 		if a.Capacity != want || a.Remaining != want {
 			t.Fatalf("%s allowance %d/%d, want %d", a.Binding.Slot, a.Remaining, a.Capacity, want)
 		}
+	}
+}
+
+// #433 BR-2: the hub is the worktree Couch started in, found from a
+// subdirectory too, and absent outside any checkout.
+func TestHubWorktreeIsTheStartupCheckout(t *testing.T) {
+	root := t.TempDir()
+	repo := filepath.Join(root, "repo")
+	if out, err := exec.Command("git", "init", "-q", repo).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v %s", err, out)
+	}
+	sub := filepath.Join(repo, "a", "b")
+	outside := filepath.Join(root, "outside")
+	for _, dir := range []string{sub, outside} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	resolve := func(path string) (couchcore.Worktree, error) {
+		return couchcore.Resolve(path, couchcore.ExecGit{}, couchcore.OSPathOps{})
+	}
+	want, err := resolve(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for dir, expect := range map[string]string{repo: string(want), sub: string(want), outside: ""} {
+		if got := hubWorktree(func() (string, error) { return dir, nil }, resolve); got != expect {
+			t.Fatalf("hub from %s = %q, want %q", dir, got, expect)
+		}
+	}
+	if got := hubWorktree(func() (string, error) { return "", errors.New("no cwd") }, resolve); got != "" {
+		t.Fatalf("hub without cwd = %q", got)
 	}
 }
 

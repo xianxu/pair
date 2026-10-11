@@ -68,7 +68,8 @@ the original message failed. If input needs intervention, leave it for inspectio
 Each slot admits a burst of eight inbound peer messages, then one more every
 three minutes; the slot Couch started from (the TL) gets 64. A genuine operator
 submission, including a session-sync submit, refills it. Peer messages, output,
-and ordinary reconnects do not. Do not manufacture operator input, restart, or change IDs
+and ordinary reconnects do not. Never message your own slot to refill it: that
+path exists for the operator's session-sync editor. Do not manufacture operator input, restart, or change IDs
 to evade this breaker.
 
 ## Scheduling work on another slot

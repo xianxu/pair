@@ -936,3 +936,11 @@ proof; record the surprising case so the next change starts from evidence.
   starts a timer, let only the observation that can decide it (here, a full
   composer reading) change it; transient waits leave it as is. Test the side
   path (keystrokes during the hold) that reaches the state machine first.
+
+- **A rule proven in the pure model is not proven on the request path (#433 BR-1).** The self-addressed refill
+  passed its model test, but nothing showed the broker would route a send to the sender's own slot, reserve on
+  its own endpoint and admit it. When a model rule depends on an input only one caller path produces, add one
+  test through that path (here `Broker.Send` from a binding to itself), and mutation-check it.
+- **Glue that reads process state gets a seam (#433 BR-2).** The hub came from `os.Getwd` + tree resolution
+  inline in `startMessageService`, so no test ran it. Extract a function taking the readers
+  (`hubWorktree(getwd, resolve)`) and test it in a checkout, in a subdirectory, and outside any checkout.
