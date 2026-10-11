@@ -1,6 +1,6 @@
 ---
 id: 000430
-status: codecomplete
+status: done
 created: 2026-10-10
 updated: 2026-10-10
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: eeaf310ea1b82ef695bd380dd86a7851f9b7b67b
         evidence_commit: 1f938a2ed7bb067fcc353915b59971ad505e1e7f
+        landed_commit: c829b05323d912a5370947e50646af4240be52a7
 ---
 
 # couch exits when the outer terminal stalls 5s: degrade the view, keep the sessions
