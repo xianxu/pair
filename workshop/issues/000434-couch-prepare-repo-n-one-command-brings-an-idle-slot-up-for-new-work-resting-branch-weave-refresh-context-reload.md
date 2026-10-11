@@ -51,11 +51,11 @@ reason and the fix. The TL's dispatch flow becomes prepare, then send.
 
 Durable plan: `workshop/plans/000434-couch-prepare-repo-n-one-command-brings-an-idle-slot-up-for-new-work-resting-branch-weave-refresh-context-reload-plan.md`.
 
-- [ ] Admission rule (`not-resting`) and the admission-only `prepare` slot operation
-- [ ] Receipt carries the slot path
-- [ ] `RunPrepare` sequence with a fake weave over real git
-- [ ] `couch --prepare` CLI over the two remote exchanges
-- [ ] atlas, couch skill (TL flow: prepare, then send), CHANGELOG
+- [x] Admission rule (`not-resting`) and the admission-only `prepare` slot operation
+- [x] Receipt carries the slot path
+- [x] `RunPrepare` sequence with a fake weave over real git
+- [x] `couch --prepare` CLI over the two remote exchanges
+- [x] atlas, couch skill (TL flow: prepare, then send), CHANGELOG
 
 ## Log
 
