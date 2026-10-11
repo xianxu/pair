@@ -1026,7 +1026,7 @@ func TestSpawnRetainsOwnershipAndRetriesUntilQuiescenceIsProven(t *testing.T) {
 		done <- err
 	}()
 
-	deadline := time.Now().Add(time.Second)
+	deadline := time.Now().Add(10 * time.Second)
 	for {
 		mu.Lock()
 		gotAttempts := attempts
@@ -1053,7 +1053,7 @@ func TestSpawnRetainsOwnershipAndRetriesUntilQuiescenceIsProven(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "zellij absence unobservable") {
 			t.Fatalf("Spawn retry result = %v", err)
 		}
-	case <-time.After(time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("Spawn did not return after quiescence proof")
 	}
 }

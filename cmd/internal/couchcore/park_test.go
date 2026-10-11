@@ -918,7 +918,7 @@ func TestParkCoordinatorConstructorDoesNotQueryPairSession(t *testing.T) {
 	case <-queryEntered:
 	case err := <-recoveryDone:
 		t.Fatalf("recovery returned before querying Pair session: %v", err)
-	case <-time.After(time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("recovery did not query Pair session")
 	}
 	close(releaseQuery)

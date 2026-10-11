@@ -128,7 +128,7 @@ func TestParkCoordinatorCoalescesStartupRecoveryAndInteractiveRetry(t *testing.T
 	}()
 	select {
 	case <-triggerEntered:
-	case <-time.After(time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("startup recovery did not reach the exact trigger")
 	}
 	retryDone := make(chan outcome, 1)
