@@ -19,6 +19,11 @@ const (
 	// MaxBindingBytes bounds the complete JSON-encoded identity, including escaping.
 	MaxBindingBytes       = 4 * 1024
 	MaxReceiptDetailBytes = 1024
+	// MaxHold bounds how far holds the operator causes (the composer
+	// scrolled out of view, a draft in it) can push the paste-by back
+	// (pair#435). The recipient takes one message at a time, so a pane left
+	// scrolled up blocks other senders for at most this long.
+	MaxHold = 30 * time.Minute
 )
 
 // Binding identifies one wrapper incarnation in one verified checkout. Slot is
@@ -54,6 +59,8 @@ func ValidateBody(body string) error {
 // Deadline is the paste-by time: the latest moment the recipient's wrapper may
 // begin the paste. The delivery window (DeliveryTimeout) starts at the paste,
 // so a slot still booting spends PasteTimeout, not the window (pair#427).
+// Time the operator holds the delivery doesn't count against it, up to
+// HoldLimit (pair#435).
 type Message struct {
 	ID       string
 	From, To Binding
@@ -61,16 +68,22 @@ type Message struct {
 	Deadline time.Time
 }
 
+// HoldLimit is the latest paste-by that operator holds can reach.
+func (m Message) HoldLimit() time.Time { return m.Deadline.Add(MaxHold) }
+
 // Horizon is the latest a delivery can still be in flight: a paste at the
-// deadline plus its full window. It is the one outer bound the broker side
-// reads; the wrapper bounds its own window from the actual paste.
-func (m Message) Horizon() time.Time { return m.Deadline.Add(DeliveryTimeout) }
+// hold limit plus its full window. It is the one outer bound the broker side
+// reads; the wrapper bounds its own paste-by and window.
+func (m Message) Horizon() time.Time { return m.HoldLimit().Add(DeliveryTimeout) }
 
 type Status string
 
 const (
-	Queued        Status = "queued"
-	Delivering    Status = "delivering"
+	Queued     Status = "queued"
+	Delivering Status = "delivering"
+	// Held: not pasted, and the paste-by clock is stopped while the operator
+	// holds it (pair#435); the detail names the hold.
+	Held          Status = "held"
 	Submitted     Status = "submitted"
 	Expired       Status = "expired"
 	Cancelled     Status = "cancelled"
@@ -127,6 +140,9 @@ const (
 	Admit            EventKind = "admit"
 	DeliveryStarted  EventKind = "delivery-started"
 	DeliveryFinished EventKind = "delivery-finished"
+	// DeliveryProgress carries the recipient's interim receipt (Queued, Held
+	// or Delivering) to the sender's view of a delivery in flight.
+	DeliveryProgress EventKind = "delivery-progress"
 	Tick             EventKind = "tick"
 )
 
@@ -246,6 +262,19 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 			s.phase = Delivering
 			emit(Delivering, "")
 		}
+	case DeliveryProgress:
+		if s.pending.ID == "" || e.Message != s.pending || s.phase != Delivering {
+			return s, nil, nil
+		}
+		status := Delivering
+		switch e.Status {
+		case Held:
+			status = Held
+		case Queued, Delivering:
+		default:
+			return fail(fmt.Errorf("invalid interim delivery status %q", e.Status))
+		}
+		emit(status, e.Detail)
 	case DeliveryFinished:
 		if s.pending.ID == "" || e.Message != s.pending {
 			return s, nil, nil
