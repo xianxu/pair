@@ -15,7 +15,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "cd7688a9", done: "5fa541c3"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # Main is green: the full local suite (make test) passes on pair main
@@ -55,6 +55,10 @@ hides new breakage. The operator (batch-2 recap, 10-10): "let's ensure ariadne a
 
 ## Log
 
+
+
+- 2026-10-11: closed — make test green from a live Couch slot (session env present) on the final tip (424s; prior tips 434s, 438s, 420s, 444s); clean env twice earlier (1076s incl. first build, 429s). Largest package couchcore 204-215s (was 1,315s solo / 10m timeout); go test -race ./cmd/internal/couchcore clean. Before: make -k test stopped at test-changelog (214s), Go suite never ran; go test ./... rc=1 645s. Round-2 BR-4 fixed by rule: scrub = environment-origin names production mentions + ZELLIJ*, minus operator-knob families; make-test-env derives 165 test-only/documented knobs and requires each to reach a test recipe (scrub-all and no-scrub mutations fail; works without .git). BR-3: pure diffKnownViolations with duplicate-count test. One quarantine: artifactpath known violations -> pair#348.; review verdict: SHIP
+- 2026-10-11: flow upgraded quick → full — 126 added lines in code files (limit 100); an earlier round of this close already ran the full review
 ### 2026-10-10
 
 - Baseline (main c7ee1a33 + weave block, scrubbed env, default TMPDIR): `make -k test` rc=2 in 214s.
