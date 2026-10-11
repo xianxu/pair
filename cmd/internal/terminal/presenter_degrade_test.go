@@ -206,3 +206,23 @@ func TestPresenterSurvivesARealStallPastWriteTimeout(t *testing.T) {
 		t.Fatal("the frame never reached the host after it drained")
 	}
 }
+
+// A terminal that stalls and then goes away fails: the probe's EIO is not
+// "still slow", so the stall cannot hide a dead terminal behind retries.
+func TestPresenterStalledThenGoneFails(t *testing.T) {
+	p, parent, e, _ := presenterFixture(t, AnyMotion)
+	selectPresenter(t, p, e)
+	parent.Enqueue(ttyio.WriteStep{Block: make(chan struct{})})
+	parent.Enqueue(ttyio.WriteStep{Err: syscall.EIO})
+	e.Feed([]byte("\x1b[Hlost"), time.Now())
+	if err := p.Present(context.Background(), e); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Flush(context.Background()); err != nil {
+		t.Fatalf("stalled paint: %v", err)
+	}
+	waitFor(t, "the probe's EIO to fail the presenter", func() bool { return presenterFailed(p) })
+	if reason, ok := ExitReason(p.Failure()); !ok || !strings.Contains(reason, "input/output error") {
+		t.Fatalf("ExitReason = %q, %v", reason, ok)
+	}
+}

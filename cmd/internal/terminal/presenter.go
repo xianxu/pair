@@ -279,11 +279,21 @@ func (p *Presenter) stall(err error) bool {
 // harmless in any parser state: CAN/ST abort whatever control the abandoned
 // write cut off, and synchronized output closes. A probe that times out
 // leaves at most a prefix of that, which the next probe aborts in turn. Only
-// a full paint that completes ends the stall, never the probe alone.
-func (p *Presenter) probe(ctx context.Context) bool {
-	ctx, cancel := context.WithTimeout(ctx, StallProbeTimeout)
+// a full paint that completes ends the stall, never the probe alone. Only the
+// probe's own deadline means "still slow": any other error (EIO, EPIPE) means
+// the terminal is gone, and fails.
+func (p *Presenter) probe(ctx context.Context) (bool, error) {
+	probeCtx, cancel := context.WithTimeout(ctx, StallProbeTimeout)
 	defer cancel()
-	return p.write(ctx, []byte(stallProbe), true) == nil
+	err := p.write(probeCtx, []byte(stallProbe), true)
+	var failure *WriteFailure
+	if err == nil {
+		return true, nil
+	}
+	if errors.As(err, &failure) && errors.Is(failure.Err, context.DeadlineExceeded) && ctx.Err() == nil {
+		return false, nil
+	}
+	return false, p.fail(err)
 }
 
 // writeUnlessStalled writes a one-shot control (an effect, a clipboard copy).
@@ -431,10 +441,14 @@ func (p *Presenter) paintPublication(ctx context.Context, f Frame, history *Hist
 		childModes = p.selected.Modes()
 	}
 	desired := desiredParentModes(p.policy, childModes)
-	if p.stalled && !p.probe(ctx) {
-		// The frame is admitted but not painted; the retry repaints it whole.
-		_, err := p.transition(ViewEvent{Kind: PresentView, EndpointID: f.EndpointID, Token: v.Token, Generation: f.Generation, GeometryEpoch: f.GeometryEpoch})
-		return err
+	if p.stalled {
+		if ok, err := p.probe(ctx); err != nil {
+			return err
+		} else if !ok {
+			// The frame is admitted but not painted; the retry repaints it whole.
+			_, err := p.transition(ViewEvent{Kind: PresentView, EndpointID: f.EndpointID, Token: v.Token, Generation: f.Generation, GeometryEpoch: f.GeometryEpoch})
+			return err
+		}
 	}
 	delta := parentModeDelta(p.confirmedModes, desired, p.modesKnown, p.keyboardOwned)
 	err := p.write(ctx, []byte(delta), true)

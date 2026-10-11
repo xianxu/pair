@@ -197,6 +197,12 @@ parent write blocked well past `WriteTimeout`, then the terminal drains.
     resets whole. That is the parent-screen refactor noted above, not this
     narrow fix.
 
+- Close review round 3 (FIX-THEN-SHIP), fixed: a terminal that stalled and
+  then went away (EIO on the probe) counted as still slow, so it never failed.
+  Now only the probe's own deadline means "still stalled", and any other error
+  fails with its exit reason. `TestPresenterStalledThenGoneFails` covers it,
+  and a mutation check (the probe swallowing errors) fails that test.
+
 ## Revisions
 
 - 2026-10-10: the Spec's "stall recorded as a notice or diagnostic" is reduced
