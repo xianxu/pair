@@ -1,12 +1,20 @@
 ---
 id: 000450
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
-card_mirror: 'b60729638cecd6c3dcbbadf5be6dbfc8a26ffb1d' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '528f9bd31d63111f5d90aa3d39b54956b6087ffc' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-11T13:19:20-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
 ---
 
 # pair main: own and clear the test failures that every worker reports as pre-existing
@@ -29,9 +37,11 @@ On 10-11 four workers each reported the same failures on pair main as "pre-exist
 
 ## Plan
 
-- [ ] Bisect `test-review`; fix.
-- [ ] Triage each `go test ./...` failure: fix or quarantine with an issue.
-- [ ] Decide `make test` coverage; record in the Log.
+- [x] Bisect `test-review`: no landing broke it. The 8 failures reproduce at #436's merge (80cc80af) and pass there unsandboxed. `review.lua`'s restore controller (#341, 09-28) calls `serverstart`, the agent sandbox refuses the unix socket, the error aborts VimEnter, and `start_review` never runs. #436 was verified unsandboxed; today's workers ran sandboxed.
+- [x] Fix: a refused restore socket warns and publishes the open state without an endpoint (restore_client already reads that as a legacy pane), so review still works on such a host. Unit test in `restore_controller_test.lua`.
+- [ ] Preflight: `make test` first probes that the host can bind a unix socket and open a PTY; if not, it fails at once naming the cause, so a sandboxed run cannot be mistaken for ~150 code failures.
+- [ ] `go test ./...` triage. Unsandboxed, raw `go test ./...` fails 6: launcher `TestLaunchNative*`/`TestCheckpoint*` and couchcmd `TestContinuationWriter…`, all from the Couch shell's `COUCH_PAIR_DATA_DIR` (read since #366) that their hand-pinned env lists miss. Pin it. Under `make test`'s scrub they already pass. pair#423 passed 20/20 isolated and in the full run; it stays under its own issue, no quarantine.
+- [x] Coverage decision: `make test` already ends with `go test ./... -count=1` (Makefile.local), so it covers every package and is the one gate. The raw command inherits the session env; the tests pin what they read.
 
 ## Log
 
