@@ -85,3 +85,8 @@ Durable plan: `workshop/plans/000442-slot-creation-size-each-step-s-timeout-to-t
 - BR-4: `TestReconcileAdviceText` asserts the step for every class × hold cause.
 - BR-7: `atlas/workspace-provisioning.md` documents the step-class budgets and `last-failure.json`.
 
+### 2026-10-11 — close round 3 SHIP; advisory BR-8/BR-9 fixed post-close
+- BR-8: `clearSlotFailure` returns its error; a converged slot whose record cannot be removed gets a `ProvisionResult.Warning` (`TestUnclearedFailureIsWarned`).
+- BR-9: `boundCause` is total for any limit (`TestBoundCauseIsTotal`).
+- couchcore full package green after the fix (one earlier run had a single unidentified failure that did not recur in two re-runs).
+

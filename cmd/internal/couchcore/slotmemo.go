@@ -103,6 +103,9 @@ func boundCause(cause string, limit int) string {
 		return cause
 	}
 	const marker = "\n…\n"
+	if limit <= 2*len(marker) {
+		return ""
+	}
 	head := limit / 4
 	return strings.ToValidUTF8(cause[:head]+marker+cause[len(cause)-(limit-head-len(marker)):], "")
 }
@@ -149,17 +152,18 @@ func (p *WorkspaceProvisioner) recordSlotFailure(l SlotLayout, e *SlotReconcileE
 	return p.Store.Write(SlotFailurePath(l), newSlotFailure(e, time.Now()))
 }
 
-// clearSlotFailure removes the record once the slot converges.
-func (p *WorkspaceProvisioner) clearSlotFailure(l SlotLayout) {
-	if _, err := os.Lstat(SlotFailurePath(l)); err != nil {
-		return
+// clearSlotFailure removes the record once the slot converges. A record it
+// cannot remove is reported (the caller warns): --show would keep showing it.
+func (p *WorkspaceProvisioner) clearSlotFailure(l SlotLayout) error {
+	if _, err := os.Lstat(SlotFailurePath(l)); errors.Is(err, os.ErrNotExist) {
+		return nil
 	}
 	lease, err := AcquireHostCreationLease(l.common)
 	if err != nil {
-		return
+		return err
 	}
 	defer lease.Close()
-	_ = p.Store.Remove(SlotFailurePath(l))
+	return p.Store.Remove(SlotFailurePath(l))
 }
 
 // ReadSlotFailure reads a slot's last-failure record (nil when none).

@@ -169,3 +169,38 @@ func TestUnrecordedFailureIsSaid(t *testing.T) {
 		t.Fatalf("%q", e.Error())
 	}
 }
+
+// TestBoundCauseIsTotal: any limit yields a cause within it, never a panic.
+func TestBoundCauseIsTotal(t *testing.T) {
+	t.Parallel()
+	cause := strings.Repeat("y", 100)
+	for limit := 0; limit <= 120; limit++ {
+		got := boundCause(cause, limit)
+		if (limit >= len(cause) && got != cause) || (limit < len(cause) && len(got) > limit) {
+			t.Fatalf("limit %d: %d bytes", limit, len(got))
+		}
+	}
+}
+
+// TestUnclearedFailureIsWarned: a converged slot whose old record cannot be
+// removed says so instead of leaving --show to show a stale failure.
+func TestUnclearedFailureIsWarned(t *testing.T) {
+	t.Parallel()
+	f := newProvisionFixture(t)
+	p := NewWorkspaceProvisioner(f)
+	if _, err := p.Ensure(context.Background(), ProvisionRequest{Path: f.Primary, Slot: 1}); err != nil {
+		t.Fatal(err)
+	}
+	common := f.git(f.Primary, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	path := SlotFailurePath(NewSlotLayout(f.Primary, common, 1))
+	if err := os.MkdirAll(path, 0o700); err != nil { // not a regular file: Remove refuses it
+		t.Fatal(err)
+	}
+	r, err := p.Ensure(context.Background(), ProvisionRequest{Path: f.Primary, Slot: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(r.Warning, "last failure record could not be cleared") {
+		t.Fatalf("warning %q", r.Warning)
+	}
+}

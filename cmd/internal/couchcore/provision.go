@@ -138,7 +138,9 @@ func (p *WorkspaceProvisioner) Ensure(ctx context.Context, req ProvisionRequest)
 		return ProvisionResult{}, err
 	}
 	host.baseline = marker.BaselineSHA
-	p.clearSlotFailure(layout) // converged and verified
+	if err := p.clearSlotFailure(layout); err != nil { // converged and verified
+		warnings = append(warnings, fmt.Sprintf("slot %s: its last failure record could not be cleared: %v", address, err))
+	}
 	disposition := "reused"
 	switch {
 	case !existed:
