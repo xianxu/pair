@@ -95,3 +95,11 @@ hides new breakage. The operator (batch-2 recap, 10-10): "let's ensure ariadne a
   - couchcore: 1,026 tests `t.Parallel()` per a static audit (helpers followed); serial: env/chdir/global/real-signal/
     wall-clock. Package 159s / 174s, `-race` clean (258s). Wall-clock budgets (#387 ARCH-CONSTRAINTS, 94-182ms vs
     150ms by host load) assert only under `make test-perf-budgets` (`PAIR_PERF_BUDGETS=1`); documented in atlas/couch.md.
+- TL relay (pair:2): couchcmd cold-resume (fixed above), `TestContinuationWriterPublishesExactCheckpointAcrossWorktrees`
+  and `make test-pair-embedded-runtime` fail on main from agent shells. Both pass in a clean env: they are the
+  session-env leak class. A live slot's shell exports ~80 PAIR_*/COUCH_*/ZELLIJ* values, most of them paths to the
+  session's own files. Root fix in Makefile.local: when every goal is `test`/`test-*`, `unexport` each
+  environment-origin PAIR_*/COUCH_*/ZELLIJ* name (GNU Make 3.81 has no target-scoped unexport). Workflow goals keep
+  the slot identity. `make test-pair-embedded-runtime` from a live slot: passes; with the scrub disabled it fails
+  "PAIR_DATA_DIR … conflicts with selected repository scope".
+

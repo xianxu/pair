@@ -1,6 +1,19 @@
 # Repo-specific Makefile targets.
 # This file is included by Makefile — add your own targets here.
 
+# Test goals never inherit a live session's identity (pair#436). Agents run
+# `make test` inside Couch slots, whose shells export ~80 PAIR_*/COUCH_*/ZELLIJ*
+# values, most of them paths to the session's own files; a test reading one
+# fails spuriously or writes into the operator's session. Only environment-origin
+# names are dropped, and only when every goal is a test, so workflow targets
+# (weave, merge, ...) keep the slot identity they may read.
+SESSION_ENV := $(foreach v,$(.VARIABLES),$(if $(filter environment,$(origin $(v))),$(filter PAIR_% COUCH_% ZELLIJ%,$(v))))
+ifneq ($(MAKECMDGOALS),)
+ifeq ($(filter-out test test-%,$(MAKECMDGOALS)),)
+unexport $(SESSION_ENV)
+endif
+endif
+
 .PHONY: build install pair runtimebundle-generate runtimebundle-drift-check test-runtimebundle test-clean-bootstrap test test-race test-run-headless test-lua test-lifecycle-command test-queue test-bang-tag test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-plan-superseded test-paint-gate-consumers test-cr test-statusline test-doctor test-perf-capture test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review
 
 # Cross-cutting Go-binary targets. Every Go binary lives under cmd/<name>/
