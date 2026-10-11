@@ -434,7 +434,10 @@ CLI. It runs in-process against the store and needs no supervisor.
 - **Ledger:** the message service's `messageEndpoint.Deliver`
   (`message_deliveries.go`) appends one row per delivery that may have
   reached the agent: submitted, indeterminate, an endpoint error, or a
-  non-terminal answer. It skips explicit cancel and expiry. The row goes to
+  non-terminal answer. It skips explicit cancel and expiry, and the owner's
+  own `session-sync ping: ` (pair#441): a ping whose sender binding equals the
+  recipient, the breaker's identity rule (#433), so it cannot seed the next
+  ping. A peer sending the same text is still recorded. The row goes to
   `<store>/session-sync/<repo>_<N>.jsonl` and holds the ID, the sender slot,
   the time and the body's first line (a submit's path line is kept whole).
   `couchmessage` is untouched.
@@ -452,7 +455,8 @@ CLI. It runs in-process against the store and needs no supervisor.
     (`couchcore.ParseWorkspaceReference`) and query-escaped into the filename.
 - **Owed:** rows for the file's `owner:` slot from the sidecar's `Since`
   (`.<file>.sync`; without a sidecar, the shadow's mtime), minus folded IDs,
-  minus submits naming another file. A body `submitted: <abs path>` is a
+  minus submits naming another file (the owner's own pings never reach the
+  ledger; see Ledger). A body `submitted: <abs path>` is a
   submit. Only `write --fold ID` clears a delivery or a submit, never a plain
   write. The sidecar's
   `Folded` is pruned to IDs still in the ledger.

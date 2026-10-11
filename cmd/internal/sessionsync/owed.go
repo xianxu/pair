@@ -11,6 +11,10 @@ import (
 // (parley.nvim#313): `submitted: <absolute path>`.
 const SubmitPrefix = "submitted: "
 
+// PingPrefix opens the reminder parley.nvim sends the owner slot when a file
+// has been owed too long (parley.nvim#314): `session-sync ping: <path> …`.
+const PingPrefix = "session-sync ping: "
+
 // Kind is why an event is owed.
 type Kind string
 

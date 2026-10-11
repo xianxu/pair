@@ -984,3 +984,7 @@ proof; record the surprising case so the next change starts from evidence.
   silently drops, naming the replacement.
 - **Validate before creating companions (#439).** The flock helper created `.<file>.flock` before checking the file
   was a session-sync file, so a wrong path left residue. Run the cheap validity check first, then create sidecars.
+- **A new exception to a rule the atlas states is new surface (#441).** The ledger skip looked like a one-line
+  bugfix, so close ran with `--no-atlas`, but `atlas/couch.md` enumerates exactly what the ledger skips, and the
+  prose went stale. Before passing `--no-atlas`, grep the atlas for the function or rule you changed; if it lists
+  the cases, add yours.
