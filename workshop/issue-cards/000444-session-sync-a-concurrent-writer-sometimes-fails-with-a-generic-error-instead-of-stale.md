@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000444-session-sync-a-concurrent-writer-sometimes-fails-with-a-generic-error-instead-of-stale.md
         source_blob: fec3c9357ce1cc6b40ef490a3cefa7f5c1d59ed1
         destination: workshop/issues/000444-session-sync-a-concurrent-writer-sometimes-fails-with-a-generic-error-instead-of-stale.md
+        main_commit: 59aca179292392050cbb279f1133d64607e1425a
 ---
 
 # session-sync: a concurrent writer sometimes fails with a generic error instead of stale
