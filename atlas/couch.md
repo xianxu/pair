@@ -2400,7 +2400,8 @@ Wall-clock budgets (`TestAcceptanceObserveBudget`, `TestAcceptanceReportBudgetTe
 run their scenarios in the default lane but assert the clock only under
 `make test-perf-budgets` (`PAIR_PERF_BUDGETS=1`) on a quiet host (pair#436). Most
 couchcore tests are `t.Parallel()`; ones that set process env, chdir, mutate a
-package global, signal real processes or measure wall time stay serial.
+package global, signal real processes or measure wall time stay serial. Its `TestMain` defaults
+`-test.parallel` to 3x GOMAXPROCS (the tests mostly wait on subprocesses); an explicit flag wins.
 (`make test-couch-policy-live` checked couch's policy consumer against Ariadne's
 real provider; it went with admission in `pair#170` M4, along with the weekly
 workflow that ran it.) The process check found a
