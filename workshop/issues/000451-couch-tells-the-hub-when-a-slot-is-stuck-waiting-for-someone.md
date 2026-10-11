@@ -15,6 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "64437f8d", done: "1637714c"}
 ---
 
 # Couch tells the hub when a slot is stuck waiting for someone
