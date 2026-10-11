@@ -15,6 +15,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "d67b2f80", done: "ee733606"}
 ---
 
 # session-sync: optimistic per-section writes for the agent, no agent-held lock
