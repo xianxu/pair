@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000447-broadcast-sticky-notes-viewers-pin-comments-on-the-screen.md
         source_blob: 2ead5fd005c59150ec00ef5e38ccaeaad56d8b08
         destination: workshop/issues/000447-broadcast-sticky-notes-viewers-pin-comments-on-the-screen.md
+        main_commit: 047e83e4ff2fc1a869c93f34f37fd4efe5bdeedd
 ---
 
 # Broadcast sticky notes: viewers pin comments on the screen
