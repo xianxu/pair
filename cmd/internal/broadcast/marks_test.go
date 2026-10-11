@@ -39,7 +39,7 @@ func TestMarksAddFillsLinesWithinABatch(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			m := NewMarks()
-			m.Add(c.points, 20, 10, t0)
+			m.Add(c.points, 20, 10, 0, t0)
 			got := markedCells(m)
 			if len(got) != len(c.want) {
 				t.Fatalf("marked %v, want %v", got, c.want)
@@ -57,8 +57,8 @@ func TestMarksAddFillsLinesWithinABatch(t *testing.T) {
 // doesn't draw a line from the last batch's end.
 func TestMarksBatchesAreNotJoined(t *testing.T) {
 	m := NewMarks()
-	m.Add([][2]int{{0, 0}}, 20, 10, t0)
-	m.Add([][2]int{{9, 5}}, 20, 10, t0)
+	m.Add([][2]int{{0, 0}}, 20, 10, 0, t0)
+	m.Add([][2]int{{9, 5}}, 20, 10, 0, t0)
 	if got := markedCells(m); len(got) != 2 {
 		t.Fatalf("separate batches were joined: %v", got)
 	}
@@ -68,8 +68,8 @@ func TestMarksBatchesAreNotJoined(t *testing.T) {
 // controls at its left; off-grid points are dropped.
 func TestMarksGuardControlsAndGrid(t *testing.T) {
 	m := NewMarks()
-	m.Add([][2]int{{0, 8}, {0, 9}, {-1, 2}, {20, 2}, {5, 10}}, 20, 10, t0)
-	m.Add([][2]int{{StatusGuardCols + 3, 9}}, 20, 10, t0)
+	m.Add([][2]int{{0, 8}, {0, 9}, {-1, 2}, {20, 2}, {5, 10}}, 20, 10, 0, t0)
+	m.Add([][2]int{{StatusGuardCols + 3, 9}}, 20, 10, 0, t0)
 	gotTabBar := false
 	for _, c := range markedCells(m) {
 		if c[0] < 0 || c[0] >= 20 || c[1] > 9 {
@@ -91,7 +91,7 @@ func TestMarksCoverageCapDropsOldest(t *testing.T) {
 	m := NewMarks()
 	cols, rows := 16, 8 // cap: 16*8/8 = 16 cells
 	for i := range 20 {
-		m.Add([][2]int{{i % cols, i / cols}}, cols, rows, t0.Add(time.Duration(i)*time.Millisecond))
+		m.Add([][2]int{{i % cols, i / cols}}, cols, rows, 0, t0.Add(time.Duration(i)*time.Millisecond))
 	}
 	got := markedCells(m)
 	if len(got) != 16 {
@@ -126,7 +126,7 @@ func TestMarksOverlayHoldsThenFades(t *testing.T) {
 		if truecolor {
 			m.SetBlend(color.RGBA{0x1e, 0x1e, 0x1e, 0xff}, true)
 		}
-		m.Add([][2]int{{2, 1}}, 10, 4, t0)
+		m.Add([][2]int{{2, 1}}, 10, 4, 0, t0)
 		hold := bgAt(m, 0)
 		if bgAt(m, MarkHold-time.Millisecond) != hold {
 			t.Fatalf("truecolor=%v: tint changed during the hold", truecolor)
@@ -164,7 +164,7 @@ func TestMarksOverlayWithoutMarksIsIdentity(t *testing.T) {
 	if &o.Cells[0] != &f.Cells[0] {
 		t.Fatal("overlay copied a frame it didn't change")
 	}
-	m.Add([][2]int{{0, 0}}, 10, 4, t0)
+	m.Add([][2]int{{0, 0}}, 10, 4, 0, t0)
 	if o := m.Overlay(f, t0.Add(5*time.Second)); &o.Cells[0] != &f.Cells[0] {
 		t.Fatal("overlay copied a frame whose marks had all expired")
 	}
@@ -176,7 +176,7 @@ func TestMarksOverlayWithoutMarksIsIdentity(t *testing.T) {
 func TestMarksOverlayCoversWideCellContinuation(t *testing.T) {
 	f := textFrame(t, 10, 3, "a界b", liveChrome(""))
 	m := NewMarks()
-	m.Add([][2]int{{1, 0}}, 10, 3, t0)
+	m.Add([][2]int{{1, 0}}, 10, 3, 0, t0)
 	o := m.Overlay(f, t0)
 	if o.Cells[1].Style.Bg == f.Cells[1].Style.Bg || o.Cells[2].Style.Bg == f.Cells[2].Style.Bg {
 		t.Fatal("wide character's two cells not tinted alike")
@@ -194,7 +194,7 @@ func TestMarksLiveAndNextChange(t *testing.T) {
 	if _, ok := m.NextChange(t0); ok {
 		t.Fatal("empty marks schedule a repaint")
 	}
-	m.Add([][2]int{{0, 0}}, 10, 4, t0)
+	m.Add([][2]int{{0, 0}}, 10, 4, 0, t0)
 	if !m.Live(t0.Add(MarkLife-time.Millisecond)) || m.Live(t0.Add(MarkLife)) {
 		t.Fatal("liveness doesn't match MarkLife")
 	}
@@ -221,8 +221,8 @@ var _ = terminal.FramePrivate
 // bar can be marked.
 func TestMarksOverlayNeverTintsControls(t *testing.T) {
 	m := NewMarks()
-	m.Add([][2]int{{0, 7}, {StatusGuardCols - 1, 7}}, 20, 10, t0) // a line across the future controls
-	m.Add([][2]int{{StatusGuardCols + 2, 7}}, 20, 10, t0)
+	m.Add([][2]int{{0, 7}, {StatusGuardCols - 1, 7}}, 20, 10, 0, t0) // a line across the future controls
+	m.Add([][2]int{{StatusGuardCols + 2, 7}}, 20, 10, 0, t0)
 	chrome := LiveSGR + LiveLabel + "\x1b[0m " + PointerSGR + PointerLabel + "\x1b[0m " + ControlLabel + " tabs"
 	f := textFrame(t, 20, 8, "body", chrome)
 	o := m.Overlay(f, t0)
@@ -250,11 +250,11 @@ func TestMarksAddWorstCaseIsCheap(t *testing.T) {
 		points = append(points, [2]int{(i * 97) % cols, (i * 31) % (rows - 1)})
 	}
 	for i := range 10 {
-		m.Add(points, cols, rows, t0.Add(time.Duration(i)*time.Millisecond))
+		m.Add(points, cols, rows, 0, t0.Add(time.Duration(i)*time.Millisecond))
 	}
 	start := time.Now()
 	for i := range 20 {
-		m.Add(points, cols, rows, t0.Add(time.Duration(20+i)*time.Millisecond))
+		m.Add(points, cols, rows, 0, t0.Add(time.Duration(20+i)*time.Millisecond))
 	}
 	if per := time.Since(start) / 20; per > 20*time.Millisecond {
 		t.Fatalf("Add took %v per batch at the cap", per)
@@ -270,7 +270,7 @@ func TestMarksAddWorstCaseIsCheap(t *testing.T) {
 func TestMarksAddIgnoresHugeCoordinates(t *testing.T) {
 	m := NewMarks()
 	start := time.Now()
-	m.Add([][2]int{{0, 0}, {1 << 30, 1 << 30}, {2, 0}}, 20, 10, t0)
+	m.Add([][2]int{{0, 0}, {1 << 30, 1 << 30}, {2, 0}}, 20, 10, 0, t0)
 	if d := time.Since(start); d > 50*time.Millisecond {
 		t.Fatalf("Add took %v on a huge coordinate", d)
 	}
@@ -278,5 +278,77 @@ func TestMarksAddIgnoresHugeCoordinates(t *testing.T) {
 		if c[0] >= 20 || c[1] >= 9 {
 			t.Fatalf("marked %v", c)
 		}
+	}
+}
+
+// A batch draws in its palette color, which holds and then fades on its own
+// ladder without truecolor, or blends into the background with it (#446).
+func TestMarksDrawInTheBatchColor(t *testing.T) {
+	f := terminal.Frame{Geometry: terminal.Geometry{Cols: 10, Rows: 4}, Cells: make([]terminal.Cell, 40)}
+	for i := range f.Cells {
+		f.Cells[i] = terminal.Cell{Content: " ", Width: 1}
+	}
+	bg := color.RGBA{0x1e, 0x1e, 0x1e, 0xff}
+	for c, p := range markPalette {
+		for _, truecolor := range []bool{false, true} {
+			m := NewMarks()
+			m.SetBlend(bg, truecolor)
+			m.Add([][2]int{{2, 1}}, 10, 4, c, t0)
+			at := func(age time.Duration) color.Color { return m.Overlay(f, t0.Add(age)).Cells[12].Style.Bg }
+			want := color.Color(p.index)
+			if truecolor {
+				want = p.rgb
+			}
+			if got := at(0); got != want {
+				t.Fatalf("color %d truecolor=%v: hold %v, want %v", c, truecolor, got, want)
+			}
+			prev := luma(want)
+			seen := map[color.Color]bool{}
+			for age := MarkHold; age < MarkLife; age += markFadeStep {
+				got := at(age)
+				if l := luma(got); l > prev {
+					t.Fatalf("color %d truecolor=%v: fade brightened at %v (%v)", c, truecolor, age, got)
+				} else {
+					prev = l
+				}
+				seen[got] = true
+				if !truecolor {
+					ok := false
+					for _, step := range p.ladder {
+						ok = ok || got == color.Color(step)
+					}
+					if !ok {
+						t.Fatalf("color %d: fade %v is not on its ladder", c, got)
+					}
+				}
+			}
+			if !truecolor && len(seen) != len(p.ladder) {
+				t.Fatalf("color %d walked %d of %d ladder steps", c, len(seen), len(p.ladder))
+			}
+		}
+	}
+}
+
+func luma(c color.Color) float64 {
+	r, g, b, _ := c.RGBA()
+	return 0.2126*float64(r) + 0.7152*float64(g) + 0.0722*float64(b)
+}
+
+// Two batches in different colors keep their own colors.
+func TestMarksKeepEachBatchColor(t *testing.T) {
+	f := terminal.Frame{Geometry: terminal.Geometry{Cols: 10, Rows: 4}, Cells: make([]terminal.Cell, 40)}
+	m := NewMarks()
+	m.Add([][2]int{{0, 0}}, 10, 4, 1, t0)
+	m.Add([][2]int{{5, 2}}, 10, 4, 4, t0)
+	o := m.Overlay(f, t0)
+	if o.Cells[0].Style.Bg != color.Color(markPalette[1].index) || o.Cells[25].Style.Bg != color.Color(markPalette[4].index) {
+		t.Fatalf("colors %v and %v", o.Cells[0].Style.Bg, o.Cells[25].Style.Bg)
+	}
+}
+
+func TestPointerPaletteMatchesMarks(t *testing.T) {
+	got := PointerPalette()
+	if len(got) != PointerColors || got[0] != "#ffaf00" || got[5] != "#cc79a7" {
+		t.Fatalf("palette %v", got)
 	}
 }

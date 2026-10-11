@@ -68,7 +68,8 @@ The page (`web/`), a vendored `@xterm/xterm` 6.0.0 with `@xterm/addon-unicode11`
 embedded in the binary. The viewer:
 - keeps the sender's grid and scales the font to fit (`nextFontSize`,
   node-tested via `TestViewerNode`);
-- sends nothing back and uses no storage;
+- sends nothing back and uses no storage on a view link (a pointer link posts
+  points and remembers one value, the viewer's color pick, #446);
 - on `end`, resets the screen and shows the reason, and never retries;
 - never leaves a dead connection looking live. `connect(deps)` is a state
   machine, node-tested against a fake EventSource. A lost connection dims the
@@ -246,8 +247,9 @@ and it is kept narrow.
   5. a 2s read deadline for this request only;
   6. a body capped at 4 KB (`MaxBytesReader`, 413);
   7. `ParsePointBatch`: strict JSON, known fields only, 1..64 integer cell
-     pairs inside a stated grid of at most 1000×1000, fixed errors that echo
-     nothing (400).
+     pairs inside a stated grid of at most 1000×1000, an optional integer
+     `color` 0..5 (strings, fractions and anything outside the palette are
+     refused), fixed errors that echo nothing (400).
 
   Accepted and dropped batches both answer 204.
 - **Landing:** `acceptPoint` passes a batch to `Config.OnPoints` only if
@@ -259,8 +261,18 @@ and it is kept narrow.
   `PointerLabel` on `PointerSGR`'s amber background, right after `LIVE ⏸ `.
   Hidden past the grace, the watch turns pointing off (`Config.OnPointerOff`)
   without ending the broadcast.
-- **Pointer pages** get `event: caps` (`{"pointer":bool}`) on join and on
-  every flip; view pages never do. Stopping the broadcast ends both links.
+- **Pointer pages** get `event: caps` (`{"pointer":bool,"color":n,"palette":[…]}`)
+  on join and on every flip; view pages never do. Stopping the broadcast ends
+  both links.
+- **Pointer colors (#446):** six Okabe–Ito-based colors (`markPalette` in
+  `marks.go`, the single source; orange, index 0, is the old amber). `caps`
+  carries them as `#rrggbb` (`PointerPalette`), so viewer.js hard-codes none.
+  Each pointer stream claims the color fewest live streams hold
+  (`PointerState.claimColor`, lowest on a tie) and releases it when it ends.
+  The page posts that color until its viewer picks a swatch; the pick is kept
+  in `localStorage` (`colorStore`, try/catch, so blocked storage only stops the
+  remembering) and outranks the assignment. Couch never learns picks, so
+  assignment counts streams, not picks.
 - **Server timeouts:** `ReadHeaderTimeout` 10s, `IdleTimeout` 60s, 8 KB
   headers, and a read deadline only in the POST handler. There is no
   server-wide `ReadTimeout`: it would also time out the disconnect watch on
@@ -270,10 +282,10 @@ and it is kept narrow.
   (`StatusGuardCols`, the width of `LIVE ⏸ 👆 👽` at the left of the last row)
   are never marked or tinted: the overlay refuses them whatever put a mark
   there. The rest of the tab bar can be marked. At most 1/8 of the grid is
-  marked, oldest first. A mark holds 1.5s at full amber (`MarkHold`), then
-  fades fast over 0.5s (`MarkFade`, 10 steps): with truecolor it blends into
-  the operator's real background, otherwise it walks a short 256-colour
-  ladder. The Presenter's overlay hook draws marks (terminal.md).
+  marked, oldest first. A cell keeps its batch's color. A mark holds 1.5s at
+  its full color (`MarkHold`), then fades fast over 0.5s (`MarkFade`, 10
+  steps): with truecolor it blends into the operator's real background,
+  otherwise it walks that color's five-step 256-colour ladder. The Presenter's overlay hook draws marks (terminal.md).
 - **Tests:** a method × route × token table; rejections that echo nothing; drops
   for a stale grid, a private frame and a hidden marker; rate and in-flight
   limits, including slow bodies; re-entrant callbacks; `caps` on pointer streams

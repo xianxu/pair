@@ -22,6 +22,8 @@ type PointerState struct {
 	// inFlight is a semaphore: a request holds a slot while it is read and
 	// handled.
 	inFlight chan struct{}
+	// held counts the pointer streams holding each palette color (#446).
+	held [PointerColors]int
 }
 
 func newPointerState() *PointerState {
@@ -122,6 +124,28 @@ func (p *PointerState) offIfGeneration(gen uint64) bool {
 }
 
 // stop turns pointing off for good.
+// claimColor gives a new pointer stream the palette color fewest live
+// streams hold, the lowest on a tie, so two viewers that haven't picked
+// rarely share one. The stream returns it with releaseColor when it ends.
+func (p *PointerState) claimColor() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	best := 0
+	for i, n := range p.held {
+		if n < p.held[best] {
+			best = i
+		}
+	}
+	p.held[best]++
+	return best
+}
+
+func (p *PointerState) releaseColor(c int) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.held[c]--
+}
+
 func (p *PointerState) stop() {
 	_, _, _ = p.set(false, nil)
 	p.mu.Lock()
