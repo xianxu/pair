@@ -164,5 +164,10 @@ jobs:
           echo "$install_dir" >> "$GITHUB_PATH"
       - name: Exercise native terminal, nvim, and notification PTY conformance
         run: make -f Makefile.local test-native-terminal-ci
+      - name: "pair#324 experiment: dump zellij logs"
+        if: failure()
+        run: |
+          echo "TMPDIR=$TMPDIR uid=$(id -u) SHELL=$SHELL"
+          find "${TMPDIR:-/tmp}" /tmp /private/tmp -path '*zellij-log*' -type f 2>/dev/null | sort -u | while read -r f; do echo "=== $f"; tail -n 300 "$f"; done
       - name: Exercise Zellij teardown, continuation transport, and shortcut input
         run: make -f Makefile.local test-couch-zellij-live
