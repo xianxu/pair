@@ -127,7 +127,6 @@ func (p *WorkspaceProvisioner) Ensure(ctx context.Context, req ProvisionRequest)
 		p.recordSlotFailure(layout, blocking)
 		return ProvisionResult{}, blocking
 	}
-	p.clearSlotFailure(layout)
 	host, err := p.verifyHost(ctx, primary, req.Slot, nil)
 	if err != nil {
 		return ProvisionResult{}, err
@@ -137,6 +136,7 @@ func (p *WorkspaceProvisioner) Ensure(ctx context.Context, req ProvisionRequest)
 		return ProvisionResult{}, err
 	}
 	host.baseline = marker.BaselineSHA
+	p.clearSlotFailure(layout) // converged and verified
 	disposition := "reused"
 	switch {
 	case !existed:

@@ -1126,6 +1126,9 @@ func renderSlotReport(w io.Writer, r couchcore.SlotReport) {
 		}
 		fmt.Fprintf(w, "last failure %s at %s: %s\n", f.At.Format(time.RFC3339), at, f.Cause)
 	}
+	if r.LastFailureError != "" {
+		fmt.Fprintln(w, "last failure: unreadable: "+r.LastFailureError)
+	}
 }
 
 // renderThreads consumes the same one-row-per-composite-thread inventory as

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -94,11 +95,27 @@ type SlotFailure struct {
 	Cause         string         `json:"cause"`
 }
 
+// slotFailureCauseLimit keeps the record inside the provision store's record
+// limit: a cause carries up to 64 KiB of stderr tail, the store takes 16 KiB.
+const slotFailureCauseLimit = 8 << 10
+
+// boundCause keeps a cause's head (what failed) and tail (the end of its
+// stderr), eliding the middle.
+func boundCause(cause string) string {
+	if len(cause) <= slotFailureCauseLimit {
+		return cause
+	}
+	const marker = "\n…\n"
+	head := slotFailureCauseLimit / 4
+	return strings.ToValidUTF8(cause[:head]+marker+cause[len(cause)-(slotFailureCauseLimit-head-len(marker)):], "")
+}
+
 func newSlotFailure(e *SlotReconcileError, at time.Time) SlotFailure {
 	r := SlotFailure{SchemaVersion: 1, At: at.UTC(), Resource: e.Failure.Resource, Step: e.Failure.Step, Class: e.Failure.Class, Cause: e.Failure.Cause}
 	if e.Err != nil {
 		r.Cause = e.Err.Error()
 	}
+	r.Cause = boundCause(r.Cause)
 	var cmd *ProvisionCommandError
 	if errors.As(e.Err, &cmd) {
 		r.Command, r.TimedOut = cmd.Command, cmd.TimedOut

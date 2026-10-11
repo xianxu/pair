@@ -5,6 +5,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 )
@@ -119,4 +120,21 @@ func runTypedRTWith(rt Runtime, call couchcore.OperationCall) (string, string, i
 	}
 	code := runTypedOperation(op, call.Args, nil, false, "", nil, nil, strings.NewReader(""), &out, &errw, rt)
 	return out.String(), errw.String(), code
+}
+
+// TestRenderSlotReportLastFailure: --show prints the kept failure with its
+// step, and says so when the record exists but cannot be read (pair#442).
+func TestRenderSlotReportLastFailure(t *testing.T) {
+	at := time.Date(2026, 10, 11, 16, 56, 31, 0, time.UTC)
+	var out bytes.Buffer
+	renderSlotReport(&out, couchcore.SlotReport{Address: "parley.nvim:3", LastFailure: &couchcore.SlotFailure{
+		At: at, Resource: couchcore.ResourceHost, Step: couchcore.StepWorktreeAdd, Cause: "git worktree add: timed out after 5s: signal: terminated"}})
+	if want := "last failure 2026-10-11T16:56:31Z at worktree-add: git worktree add: timed out after 5s: signal: terminated"; !strings.Contains(out.String(), want+"\n") {
+		t.Fatalf("missing %q in:\n%s", want, out.String())
+	}
+	out.Reset()
+	renderSlotReport(&out, couchcore.SlotReport{Address: "parley.nvim:3", LastFailureError: "invalid provision record"})
+	if !strings.Contains(out.String(), "last failure: unreadable: invalid provision record") {
+		t.Fatalf("an unreadable record is hidden:\n%s", out.String())
+	}
 }

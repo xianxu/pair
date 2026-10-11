@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -90,7 +91,7 @@ func TestFailedCreationIsRecordedAndRetryIsClean(t *testing.T) {
 		t.Fatalf("the failed run should leave its environment, as production does: %v", err)
 	}
 
-	slow.delay = 0
+	slow.delay, p.WriteTimeout = 0, time.Minute // the retry runs real git
 	r, err := p.Ensure(context.Background(), ProvisionRequest{Path: slow.Primary, Slot: 1})
 	if err != nil {
 		t.Fatalf("retry: %v", err)
@@ -126,5 +127,27 @@ func TestCommandErrorTimedOutIsTheCommandsOwnBudget(t *testing.T) {
 	_, err = p.gitWithin(ctx, time.Hour, "/", nil, "status")
 	if !errors.As(err, &cmd) || cmd.TimedOut || strings.Contains(err.Error(), "timed out") {
 		t.Fatalf("caller deadline read as the command's timeout: %v", err)
+	}
+}
+
+// TestSlotFailureRecordFitsTheStore: a cause with a full 64 KiB stderr tail
+// is still recorded, keeping its head and the end of its stderr.
+func TestSlotFailureRecordFitsTheStore(t *testing.T) {
+	t.Parallel()
+	common, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	layout := NewSlotLayout("/fleet/repo", common, 1)
+	stderr := strings.Repeat("x", 64<<10) + "fatal: the last line"
+	cmdErr := &ProvisionCommandError{Command: "git worktree add", Timeout: time.Second, TimedOut: true, Err: errors.New(stderr)}
+	p := &WorkspaceProvisioner{Store: ProvisionStore{}}
+	p.recordSlotFailure(layout, &SlotReconcileError{Failure: ReconcileFailure{Resource: ResourceHost, Step: StepWorktreeAdd}, Err: cmdErr})
+	rec, rerr := ReadSlotFailure(layout)
+	if rerr != nil || rec == nil {
+		t.Fatalf("an oversized cause dropped the record: %v", rerr)
+	}
+	if !strings.HasPrefix(rec.Cause, "git worktree add: timed out after 1s") || !strings.HasSuffix(rec.Cause, "fatal: the last line") || len(rec.Cause) > slotFailureCauseLimit {
+		t.Fatalf("cause %d bytes: %.80q … %.40q", len(rec.Cause), rec.Cause, rec.Cause[len(rec.Cause)-40:])
 	}
 }

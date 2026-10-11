@@ -72,3 +72,8 @@ Durable plan: `workshop/plans/000442-slot-creation-size-each-step-s-timeout-to-t
 - `make -k test`: only `test-review` (Lua review-window) fails, and it fails identically on origin/main.
 - Live: `couch --show parley.nvim:3` (this branch's binary) showed env/branch/upstream present with the plan `worktree-add host on main-slot3`, matching the forensics. `couch --reconcile parley.nvim:3` → `parley.nvim:3 created` in 23 s (worktree add + weave compile), with no manual cleanup.
 
+### 2026-10-11 — close review round 1 (FIX-THEN-SHIP, 2 Important + 4 Minor), all fixed
+- BR-1: the retry in `TestFailedCreationIsRecordedAndRetryIsClean` ran real git under the 200 ms budget. Fix: restore the budget before the retry.
+- BR-2: a cause with a 64 KiB stderr tail exceeded the 16 KiB record limit, so the record was silently dropped. Fix: `boundCause` keeps head + tail within 8 KiB (`TestSlotFailureRecordFitsTheStore`, mutation-checked).
+- Minors: the record is now cleared only after `verifyHost` and the marker read; every advice branch names the step; an unreadable record shows as `last failure: unreadable: …`; render test `TestRenderSlotReportLastFailure`.
+

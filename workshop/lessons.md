@@ -7,6 +7,13 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- Budget a subprocess by what it does, not by who calls it: a step that writes
+  a checkout is not a probe. A failure the operator saw only on screen should be
+  recorded where the owner keeps its records, bounded to the store's own record
+  limit, and cleared only after the success has been verified. A test that
+  shrinks a budget to force a failure restores it before the step that has to
+  succeed. (#442)
+
 - When opt-in diagnostics add configuration, update README as well as the detailed
   runbook. Bound repeated-launch storage through admission or evidence-preserving
   retention, not only individual files. Keep lifecycle phase authority in the pure

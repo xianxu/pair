@@ -111,19 +111,19 @@ func ReconcileAdvice(address, repo string, f ReconcileFailure) string {
 	case FailureRetryable:
 		return fmt.Sprintf("slot %s: %s did not converge: %s; run it again when that finishes", address, resource, f.Cause)
 	case FailureUnknown:
-		return fmt.Sprintf("slot %s: %s could not be observed: %s; nothing depending on it was changed", address, f.Resource, f.Cause)
+		return fmt.Sprintf("slot %s: %s could not be observed: %s; nothing depending on it was changed", address, resource, f.Cause)
 	case FailureHold:
 		switch f.Cause {
 		case StopReasonAgentLive:
-			return fmt.Sprintf("slot %s: %s needs repair, but an agent is working in the slot; reboot the slot to repair it", address, f.Resource)
+			return fmt.Sprintf("slot %s: %s needs repair, but an agent is working in the slot; reboot the slot to repair it", address, resource)
 		case StopReasonAgentUnknown:
 			// Reboot cannot act on an agent it cannot observe either, so the
 			// only action that can succeed is looking again.
-			return fmt.Sprintf("slot %s: %s needs repair, but the slot's agent could not be observed; look again later (couch --show %s)", address, f.Resource, address)
+			return fmt.Sprintf("slot %s: %s needs repair, but the slot's agent could not be observed; look again later (couch --show %s)", address, resource, address)
 		case StopReasonSavedWorkFull:
-			return fmt.Sprintf("slot %s: %s needs repair, but its saved work is full; restore or remove old entries (couch --show %s lists the slot)", address, f.Resource, address)
+			return fmt.Sprintf("slot %s: %s needs repair, but its saved work is full; restore or remove old entries (couch --show %s lists the slot)", address, resource, address)
 		}
-		return fmt.Sprintf("slot %s: %s is on hold: %s", address, f.Resource, f.Cause)
+		return fmt.Sprintf("slot %s: %s is on hold: %s", address, resource, f.Cause)
 	}
 	return fmt.Sprintf("slot %s: %s did not converge: %s. Reconcile cannot fix this; ask the %s:0 agent to investigate (couch --show %s lists every resource)", address, resource, f.Cause, repo, address)
 }
