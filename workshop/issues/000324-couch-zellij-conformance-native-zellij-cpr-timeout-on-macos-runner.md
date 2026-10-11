@@ -1,12 +1,20 @@
 ---
 id: 000324
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-24
-updated: 2026-09-24
+updated: 2026-10-10
 estimate_hours:
-card_mirror: 'b972d5f78bc86def79140318286f878855076d5f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '566714dbadda3dfb80fc8afd68c597c9d57bb06c' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-10T17:22:24-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch-zellij-conformance: native zellij CPR timeout on macOS runner
@@ -63,7 +71,11 @@ then either fix the harness or bound the check so it stops red-flagging PRs:
 
 ## Plan
 
-- [ ]
+- [x] Capture zellij's own log on the runner (failure-only workflow step).
+- [x] Probe layout application on the runner across argv/env/order variants.
+- [x] Reproduce locally with a fresh HOME; fix the fixture with `--config-dir`.
+- [x] Verify on CI: step 1 (native terminal conformance) green.
+- [ ] Step 2 (`test-couch-zellij-live`) red on stale couchcore live tests — scope pending ops:0.
 
 ## Log
 
@@ -72,3 +84,37 @@ then either fix the harness or bound the check so it stops red-flagging PRs:
 - Filed from the #321 ship session. Diagnosis via `gh run list/view` across
   runs 36088997227, 36066248730, 35966937282, 35914082673, 35453653409, plus a
   local run of `TestNativeConsoleWrapperZellij` with `PAIR_LIVE_COUCH_NATIVE=1`.
+
+### 2026-10-10
+
+- **Root cause (step 1).** Zellij 0.45.1 on macOS resolves its config dir from
+  HOME (`~/.config/zellij`), ignoring XDG_CONFIG_HOME. On a fresh runner HOME
+  that dir is absent, which zellij treats as a first run: it starts its
+  **default layout** (tab-bar + status-bar + `$SHELL`) and ignores
+  `--new-session-with-layout`, even with `--config FILE`. The fixture never
+  ran, so no receipts and no CPR. Not slowness: the default layout was up in
+  under 0.2s.
+  - Evidence: run 38098381103's zellij.log loads `tab-bar`/`status-bar`
+    plugins (local log loads only `link`); the child bytes show
+    `bash-3.2$` under a `Zellij (pcn-…) Tab #1` bar.
+  - Run 38098825873 (probe, test argv repeated): the first two launches got
+    the default layout; one launch *without* `--config` wrote
+    `~/.config/zellij/config.kdl`, and every later launch with the exact test
+    argv applied the layout. Locally, `HOME=$(mktemp -d)` reproduces both
+    subtest timeouts exactly; a private `--config-dir` (even empty) fixes it.
+  - It was never the binary: the release tarball zellij passes locally.
+  - Production is unaffected: `launcher.OSRuntime.LaunchSession` already
+    passes `--config-dir`. Only the native fixture omitted it.
+- **Fix:** `terminal_native_test.go` passes `--config-dir` to a private dir
+  holding its config. Verified locally (fresh HOME, release zellij, `-race`:
+  both subtests PASS) and on CI run 38099182884: step 1 green, both
+  `TestNativeConsoleWrapperZellij` subtests PASS. Kept a failure-only
+  "Dump Zellij logs" step as permanent diagnostics.
+- **Discovery (step 2).** With step 1 green, `test-couch-zellij-live` ran on CI
+  for the first time in weeks and fails: `TestParkLifecycleLive`,
+  `TestContinuationZellijSeedTransportLive`,
+  `TestRecoveryRealHelperAndSessionConformanceLive` — "ownership unresolved:
+  no live Pair wrapper or draft owner evidence". They fail locally with a real
+  HOME too, so this is code, not runner: #355 M1 (df48593b, 2026-09-30) made
+  `ClassifySessionOwner` require a live `pair wrap`/`nvim` pane command, and
+  these fixtures were never updated because step 1 masked step 2.
