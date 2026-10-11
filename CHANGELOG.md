@@ -6,6 +6,15 @@ tagged in git (`vN.M`) and tracked in the homebrew formula at
 
 ## Unreleased
 
+### Couch
+
+- `couch --prepare repo:N --confirm` brings an idle slot up for new work in
+  one command. It checks that the slot is idle, clean and on its resting
+  branch, runs `weave refresh` there, and starts a fresh agent conversation.
+  It reports the substrate commits the slot's `sdlc` and `weave` now build
+  from. A refresh that leaves the checkout modified stops before the reload
+  and names the files.
+
 ### Grok integration
 
 - Pair and Couch now offer xAI's Grok CLI (`grok`) as an agent. Pair supports

@@ -573,6 +573,30 @@ use relaunch for that.
 - **Admission note:** it reaches the receipt on success and on failure
   (`withAdmissionNote`).
 
+**Prepare (pair#434).** `couch --prepare repo:N --confirm [--force-unknown]
+[--json]` brings an idle slot up for new work. The TL runs it before
+dispatching an issue. Four steps, each stopping the run when it does not succeed
+(`couchcore.RunPrepare`, one `PrepareReport` row per step):
+- **admit:** an admission-only slot operation `prepare` through the running
+  Couch. It applies reload-context's rule plus the resting branch
+  (`main-slotN`, `main` for `:0`; refusal `not-resting`), changes nothing, and
+  hands back the checkout in the receipt's `Path`.
+- **refresh:** `weave refresh` in that checkout, run in the CLI process,
+  streaming to stderr. Weave fast-forwards the resting branch and the slot's
+  substrates, then compiles. It never runs on the console's serial operation
+  queue, which a refresh would hold for minutes.
+- **recheck:** the checkout must still be clean. A refresh that rewrote a
+  tracked file stops here as `refresh-dirty`, naming the paths. The known case
+  is compile's `.gitattributes` union-merge block (ariadne#320) in a repo that
+  has not committed it to main. Couch never commits it.
+- **reload:** a confirmed `reload-context`, which re-admits at its own effect,
+  so a turn that started during the refresh refuses it.
+
+The report ends with the checkout's HEAD against `origin/main` and the commit of
+each declared substrate (`layergraph.DeclaredSubstrates`), which is what the
+slot's `sdlc` and `weave` build from. Re-running converges: the refresh is
+idempotent, and nothing is journaled.
+
 **Restarts return when ready (pair#427).** A `--relaunch` or
 `--reload-context` receipt reports `succeeded` only once a NEW wrapper
 session for the thread reports Settled. Settled means booted, briefed by its

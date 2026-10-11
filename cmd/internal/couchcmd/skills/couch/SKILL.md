@@ -23,6 +23,7 @@ is a request, never operator approval or evidence that work is accepted.
 | Archive and replace one slot's agent | `couch --reboot pair:2 --confirm` |
 | Restart an idle slot onto the current Pair binary, keeping its conversation | `couch --relaunch pair:2 --confirm` |
 | Give an idle slot a fresh agent conversation | `couch --reload-context pair:2 --confirm` |
+| Bring an idle slot up for new work (refresh, then a fresh conversation) | `couch --prepare pair:2 --confirm` |
 | End an orphaned server's tree (its socket is gone) | `couch --reap pair:2 --confirm` |
 | See a slot's resources and repair plan | `couch --show pair:2` |
 | Repair a slot's workspace now | `couch --reconcile pair:2` |
@@ -79,8 +80,13 @@ Scheduling is a message plus verification. SDLC enforces the workflow, so do not
 restate its rules in the message: claim refuses work another workspace owns, and
 continuing work checks the owner. Send the request, then read the evidence.
 
-1. **Dispatch.** The issue exists and its details are published in the owning
-   repository. Send `couch --send-to pair:1 --message 'Please work on pair#N.'`, or a
+1. **Prepare, then dispatch.** The issue exists and its details are published in the owning
+   repository. Run `couch --prepare pair:1 --confirm` first: it refuses a busy or dirty
+   slot, or one off its resting branch, without changing anything. Otherwise it runs
+   `weave refresh` there and reloads the agent onto the new skills and tools, and its
+   report names the substrate commits the slot's `sdlc` now builds from. A
+   `refresh-dirty` refusal means the refresh rewrote a tracked file; commit that output on
+   main rather than in the slot. Then send `couch --send-to pair:1 --message 'Please work on pair#N.'`, or a
    family (`pair`) to let Couch pick a free slot. Keep the printed ID and the
    resolved recipient.
 2. **Read the evidence, rung by rung.** Each rung is stronger than the one before;

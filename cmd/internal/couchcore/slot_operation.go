@@ -31,13 +31,15 @@ func (e *SlotOperationError) Error() string { return e.Code + ": " + e.Detail }
 // slotOperations are the actor operations a slot target may request: the ONE
 // list the protocol, the socket and admission all read (IsSlotOperation), so a
 // new verb cannot be half-added.
-var slotOperations = []string{"resume", "reboot", "reap", "recover", OpRelaunch, OpReloadContext}
+var slotOperations = []string{"resume", "reboot", "reap", "recover", OpRelaunch, OpReloadContext, OpPrepare}
 
 // IsSlotOperation reports whether op is a remote slot operation.
 func IsSlotOperation(op string) bool { return slices.Contains(slotOperations, op) }
 
-// SlotOperationTakesForceUnknown: both live verbs accept --force-unknown.
-func SlotOperationTakesForceUnknown(op string) bool { return op == OpRelaunch || op == OpReloadContext }
+// SlotOperationTakesForceUnknown: the live verbs accept --force-unknown.
+func SlotOperationTakesForceUnknown(op string) bool {
+	return op == OpRelaunch || op == OpReloadContext || op == OpPrepare
+}
 
 // SlotOperationTakesSameBinary: only relaunch has a freshness rule to override,
 // so --same-binary anywhere else is refused rather than silently ignored.
@@ -151,8 +153,8 @@ func (c *Couch) prepareSlotOperation(ctx context.Context, op, target string, opt
 	if err != nil {
 		return OperationCall{}, "", err
 	}
-	if op == OpRelaunch || op == OpReloadContext {
-		return c.prepareLiveRestart(ctx, op, target, row, path, opts)
+	if op == OpRelaunch || op == OpReloadContext || op == OpPrepare {
+		return c.prepareLiveRestart(ctx, op, target, row, path, RestingBranch(ref.Number), opts)
 	}
 	offered := ActorActions(ActorRowFactsOf(row))
 	if !slices.Contains(offered, op) && !(op == "recover" && RecoverOffered(offered)) {

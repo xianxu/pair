@@ -13,7 +13,7 @@ func TestDecideLiveRestartExhaustive(t *testing.T) {
 	stale := BinaryFacts{RunningSHA: "same", OnDiskSHA: "same"}
 	bools := []bool{false, true}
 	checks := 0
-	for _, op := range []string{OpRelaunch, OpReloadContext} {
+	for _, op := range []string{OpRelaunch, OpReloadContext, OpPrepare} {
 		for _, live := range bools {
 			for _, session := range bools {
 				for _, known := range bools {
@@ -22,30 +22,39 @@ func TestDecideLiveRestartExhaustive(t *testing.T) {
 							for _, dirty := range bools {
 								for _, binary := range []BinaryFacts{fresh, stale} {
 									for _, force := range bools {
-										f := LiveRestartFacts{Live: live, Session: session, SettledKnown: known, Settled: settled, GitKnown: gitKnown, Dirty: dirty, Binary: binary}
-										want := ""
-										switch {
-										case !live:
-											want = LiveRestartNotLive
-										case (!session || !known) && !force:
-											want = LiveRestartBusyUnknown
-										case session && known && !settled:
-											want = LiveRestartBusy
-										case !gitKnown || dirty:
-											want = LiveRestartDirty
-										case op == OpRelaunch && binary == stale:
-											want = LiveRestartStaleBinary
-										}
-										got := DecideLiveRestart(op, f, LiveRestartOptions{ForceUnknown: force})
-										checks++
-										if got.Code != want {
-											t.Fatalf("op=%s facts=%+v force=%v: code %q want %q", op, f, force, got.Code, want)
-										}
-										if got.Code != "" && got.Detail == "" {
-											t.Fatalf("refusal without a reason: %+v", got)
-										}
-										if (!session || !known) && force && live && got.Code != LiveRestartBusyUnknown && !strings.Contains(got.Note, "--force-unknown") {
-											t.Fatalf("forced unknown not recorded: %+v", got)
+										for _, branch := range []struct {
+											name     string
+											detached bool
+										}{{"main-slot1", false}, {"feature", false}, {"", true}} {
+											f := LiveRestartFacts{Live: live, Session: session, SettledKnown: known, Settled: settled, GitKnown: gitKnown, Dirty: dirty, Binary: binary,
+												Branch: branch.name, Detached: branch.detached, Resting: "main-slot1"}
+											resting := !branch.detached && branch.name == "main-slot1"
+											want := ""
+											switch {
+											case !live:
+												want = LiveRestartNotLive
+											case (!session || !known) && !force:
+												want = LiveRestartBusyUnknown
+											case session && known && !settled:
+												want = LiveRestartBusy
+											case !gitKnown || dirty:
+												want = LiveRestartDirty
+											case op == OpPrepare && !resting:
+												want = LiveRestartNotResting
+											case op == OpRelaunch && binary == stale:
+												want = LiveRestartStaleBinary
+											}
+											got := DecideLiveRestart(op, f, LiveRestartOptions{ForceUnknown: force})
+											checks++
+											if got.Code != want {
+												t.Fatalf("op=%s facts=%+v force=%v: code %q want %q", op, f, force, got.Code, want)
+											}
+											if got.Code != "" && got.Detail == "" {
+												t.Fatalf("refusal without a reason: %+v", got)
+											}
+											if (!session || !known) && force && live && got.Code != LiveRestartBusyUnknown && !strings.Contains(got.Note, "--force-unknown") {
+												t.Fatalf("forced unknown not recorded: %+v", got)
+											}
 										}
 									}
 								}
@@ -56,7 +65,7 @@ func TestDecideLiveRestartExhaustive(t *testing.T) {
 			}
 		}
 	}
-	if checks != 2*2*2*2*2*2*2*2*2 {
+	if checks != 3*2*2*2*2*2*2*2*2*3 {
 		t.Fatalf("enumeration incomplete: %d", checks)
 	}
 }

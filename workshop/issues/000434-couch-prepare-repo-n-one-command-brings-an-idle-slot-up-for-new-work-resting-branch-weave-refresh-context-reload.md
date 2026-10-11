@@ -1,12 +1,22 @@
 ---
 id: 000434
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-10
-updated: 2026-10-10
+updated: 2026-10-11
 estimate_hours:
-card_mirror: 'd4208e4aef05abba085b30d9470d4f9220fd12ae' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '18d511d16c2035d83bf4797ea72a01457b2b9f02' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-10T23:14:04-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
+actual_hours: 2.32
 ---
 
 # couch --prepare repo:N: one command brings an idle slot up for new work (resting branch, weave refresh, context reload)
@@ -36,11 +46,27 @@ reason and the fix. The TL's dispatch flow becomes prepare, then send.
 - [ ] `couch --prepare` on an idle, clean, stale slot leaves it at origin/main with refreshed substrates and a reloaded agent (test with a fake weave).
 - [ ] It refuses a busy or dirty slot without changing anything (test).
 - [ ] The report names the live sdlc commit (test).
+- [ ] A refresh that leaves the checkout dirty (compile's `.gitattributes` block, pre-#436) stops before the reload with `refresh-dirty`, naming the paths (test).
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000434-couch-prepare-repo-n-one-command-brings-an-idle-slot-up-for-new-work-resting-branch-weave-refresh-context-reload-plan.md`.
+
+- [x] Admission rule (`not-resting`) and the admission-only `prepare` slot operation
+- [x] Receipt carries the slot path
+- [x] `RunPrepare` sequence with a fake weave over real git
+- [x] `couch --prepare` CLI over the two remote exchanges
+- [x] atlas, couch skill (TL flow: prepare, then send), CHANGELOG
 
 ## Log
 
+
+
+- 2026-10-11: closed — Round 2 after FIX-THEN-SHIP round 1: BR-1 README listing added; minors fixed (recheck uses ProbeSlotGit status+ParseSlotGitStatus so untracked counts, new pure SlotGitChangedPaths + test, prepare-specific uncertain admission text + CLI test, stale comment). Tests: couchcore prepare/admission/slotgit subset ok, full couchcore ok earlier (1166s standalone, exceeds go test ./... default timeout), couchcmd full package ok, couchmessage/couchtty/wrapcmd ok after merging origin/main. make -k test: only known test-changelog (passes with scratchpad TMPDIR). Pre-existing on main: artifactpath inventory (new files now inventoried), gcruntime TestCouchReferencesLocalArchiveLocatorRoundTrip, couchcmd TestColdResumeOfAParkedPrimaryRegistersFromBothOrigins (flaky, failed twice on clean origin/main).; review verdict: SHIP
+- 2026-10-11: flow upgraded quick → full — 461 added lines in code files (limit 100); an earlier round of this close already ran the full review
 ### 2026-10-10
+- Design: weave refresh runs in the CLI process, not on Couch's serial console queue (it would block every console operation for minutes). The remote half is an admission-only `prepare` slot operation plus the existing `reload-context`.
+
+## Revisions
+
+- 2026-10-10 — Spec: the surface is `couch --prepare repo:N --confirm [--force-unknown] [--json]`. It ends the agent's conversation, as reload-context does, so it takes the same `--confirm`. Added the `refresh-dirty` refusal for weave refresh dirtying its own checkout (ariadne#320's `.gitattributes` block until pair#436 lands); Couch never commits that file.

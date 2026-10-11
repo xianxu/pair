@@ -957,3 +957,10 @@ proof; record the surprising case so the next change starts from evidence.
 - **Glue that reads process state gets a seam (#433 BR-2).** The hub came from `os.Getwd` + tree resolution
   inline in `startMessageService`, so no test ran it. Extract a function taking the readers
   (`hubWorktree(getwd, resolve)`) and test it in a checkout, in a subdirectory, and outside any checkout.
+- **A re-check before an effect uses the gate's own predicate (#434).** The
+  prepare recheck read `git status --untracked-files=no`, while the reload's
+  admission (`ProbeSlotGit`) counts untracked files as dirty. A refresh that
+  left an untracked file would have passed the recheck and then been refused
+  by the reload, with the wrong code and fix. When a step pre-checks a
+  condition another gate will judge, call that gate's probe and parser. Do not
+  write a second definition of the same predicate.
