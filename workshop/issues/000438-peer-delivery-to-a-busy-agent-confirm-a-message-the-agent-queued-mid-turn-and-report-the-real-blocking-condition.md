@@ -1,12 +1,20 @@
 ---
 id: 000438
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-10
-updated: 2026-10-10
+updated: 2026-10-11
 estimate_hours:
-card_mirror: 'ff8f8a1671f85f5da9e4277d4648d7aaecabc1b8' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'da21019cd96e8356df754ab5059411e0dafd53a6' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-11T01:01:02-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Peer delivery to a busy agent: confirm a message the agent queued mid-turn, and report the real blocking condition
@@ -48,8 +56,40 @@ and a streaming agent nearly always has output in flight, so the detail hides wh
 
 ## Plan
 
-- [ ]
+Measured cause (Log 2026-10-11): the `outputPending > 0` gate starves a streaming agent. Fix the gate, keep
+the agent-agnostic confirm, and make the expiry detail name the dominant wait.
+
+- [ ] Frame-complete gate: the terminal model's control observer tracks synchronized output (DECSET 2026);
+  `FrameComplete()` is true once the stream has closed a synchronized update and is not inside one. In
+  `dispatchPeer`, output in flight waits only when the model is not at a complete frame. Streams that never
+  frame keep today's rule. (ARCH: one observer owns terminal-control facts; no agent-specific code.)
+- [ ] Busy-agent policy: **paste mid-turn** (today's rule, now reachable). Claude Code and Codex queue
+  mid-turn input natively; the recorded queued screen clears the composer, which is the existing confirm
+  evidence (occupied after the paste, then empty) — so a queued message reads `submitted` with no new
+  recognizer. Holding to turn end would spend minutes of a 90 s paste-by on a long turn.
+- [ ] Wait accounting: each dispatch charges the time since the previous one to the detail that stood
+  during it, per delivery half (reset at enqueue and at the paste). On expiry, the receipt detail lists the
+  conditions longest first with their seconds; the `held past` prefix stays. In memory, bounded by the fixed
+  detail set, dies with the delivery (ARCH-FUNERAL: nothing durable).
+- [ ] Fixtures: three screens re-rendered from the recorded parley.nvim:1 stream (2026-10-10 23:45–23:46,
+  Claude Code 2.1.29x): mid-turn empty composer, the paste mid-turn, the queued message.
+- [ ] Tests: queued screen reads Empty; framed continuous output with a chunk always in flight delivers and
+  confirms `submitted` from the queued screen; 3+ min of streaming lands; unframed starvation expires naming
+  `rendered output`; a not-ready composer under continuous output is named on expiry; observer unit test.
 
 ## Log
 
 ### 2026-10-10
+
+### 2026-10-11
+
+- Replayed `scrollback-1-parley-nvim-25-claude.raw` (pair repo dir 475fc7ba…) through the composer
+  recognizer at the recorded chunk boundaries (wrap-events master-chunk offsets). Claude Code brackets every
+  frame in `ESC[?2026h … ESC[?2026l`; 1111 of 1153 chunk ends in 23:44–23:47 land outside a synchronized
+  update, and at every such boundary the composer read is clean: empty through the turn, occupied from the
+  paste (23:45:45) to 23:46:03, empty after with "Press up to edit queued messages" (faint, reads Empty).
+- So 034cf323 would have pasted at any framed boundary; de593285's submit was held behind output in flight
+  (receipt: "uncertain: delivery deadline elapsed after the submit: waiting for rendered output"). The
+  resend 42e4e03e at 23:48:23 cleared in about 1 s: Claude Code queues mid-turn input at once.
+- The wrapper's handleChunk ran about 150 ms per chunk with tracing on, so a new chunk is nearly always read
+  before the previous one is forwarded.
