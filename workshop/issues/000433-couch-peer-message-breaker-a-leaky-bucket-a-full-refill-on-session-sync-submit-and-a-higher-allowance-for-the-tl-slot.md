@@ -1,12 +1,20 @@
 ---
 id: 000433
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-10
 updated: 2026-10-10
 estimate_hours:
-card_mirror: 'f8a75f766cc2adad145c4631e9bb5f103f4d2255' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'ac9056eec2d330fdd44b9b4b19c564a9fe2a607a' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-10T23:14:06-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # Couch peer-message breaker: a leaky bucket, a full refill on session-sync submit, and a higher allowance for the TL slot
