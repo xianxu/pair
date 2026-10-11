@@ -191,7 +191,8 @@ coordination. Quietness is never acceptance of repository work.
 
 **The breaker is a leaky bucket (#433).** Each actor's pure `ActorState` holds
 a burst (`InboundAllowance` 8) that regains one message per `RefillInterval`
-(3 min), so a ping-pong empties it while spaced reports never do. A genuine
+(3 min), so a ping-pong empties it while reports at least that far apart never
+do. A genuine
 operator submission refills it, and so does a self-addressed message: the
 operator's parley session-sync submit runs `couch --send-to` inside the slot's
 own session, so the broker resolves the sender to the recipient. The slot whose
