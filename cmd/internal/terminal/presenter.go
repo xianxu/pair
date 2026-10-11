@@ -75,6 +75,10 @@ type Presenter struct {
 	class            FrameClass // of what is on screen: Select → public, Panel → its argument
 	modesKnown       bool
 	parentTouched    bool // actor-owned; even an interrupted first write requires release
+	// stalled: a parent write ran out of its deadline, so the parent's screen
+	// is unknown and nothing is painted until a probe gets through (#430).
+	stalled bool
+	stalls  uint64
 }
 
 func NewPresenter(w ttyio.Writer, policy ParentMousePolicy) *Presenter {
@@ -119,6 +123,12 @@ func (p *Presenter) run() {
 	var timer *time.Timer
 	var tick <-chan time.Time
 	var scheduled time.Time
+	var retry <-chan time.Time
+	armRetry := func() {
+		if p.stalled && retry == nil {
+			retry = time.After(StallRetry)
+		}
+	}
 	schedule := func(d time.Duration) {
 		next := time.Now().Add(d)
 		if tick != nil && !next.Before(scheduled) {
@@ -170,6 +180,7 @@ func (p *Presenter) run() {
 			stop()
 			cancel()
 			r.done <- err
+			armRetry()
 			if p.selected != nil && p.View().State == Ready {
 				if deadline := p.selected.NextPublication(); !deadline.IsZero() {
 					schedule(time.Until(deadline))
@@ -177,6 +188,14 @@ func (p *Presenter) run() {
 			}
 		case <-p.wake:
 			schedule(FrameInterval)
+		case <-retry:
+			// Nothing may change on screen after a stall, so the repaint that
+			// repairs it cannot wait for new output.
+			retry = nil
+			if p.stalled && p.View().State == Ready {
+				_ = p.repaint(p.life)
+			}
+			armRetry()
 		case <-tick:
 			tick = nil
 			p.mu.Lock()
@@ -192,6 +211,7 @@ func (p *Presenter) run() {
 			if e != nil && e == p.selected && p.View().State == Ready {
 				_ = p.paintEndpoint(p.life, e, false)
 			}
+			armRetry()
 			if p.selected != nil && p.View().State == Ready {
 				if deadline := p.selected.NextPublication(); !deadline.IsZero() {
 					schedule(time.Until(deadline))
@@ -204,6 +224,7 @@ func (p *Presenter) write(ctx context.Context, data []byte, normal bool) error {
 	if len(data) > 0 {
 		p.parentTouched = true
 	}
+	caller := ctx
 	ctx, cancel := context.WithTimeout(ctx, WriteTimeout)
 	defer cancel()
 	if normal {
@@ -212,7 +233,8 @@ func (p *Presenter) write(ctx context.Context, data []byte, normal bool) error {
 	}
 	accepted, err := writeComplete(ctx, p.writer, data)
 	if err != nil {
-		return &WriteFailure{Op: "parent output", Accepted: accepted, Total: len(data), Err: err}
+		expired := errors.Is(err, context.DeadlineExceeded) && caller.Err() == nil
+		return &WriteFailure{Op: "parent output", Accepted: accepted, Total: len(data), Err: err, Expired: expired}
 	}
 	return nil
 }
@@ -227,6 +249,65 @@ func (p *Presenter) fail(err error) error {
 	p.transition(ViewEvent{Kind: FailView})
 	p.failureOnce.Do(func() { p.mu.Lock(); p.failureErr = errors.Join(err, cancelErr); p.mu.Unlock(); close(p.failed) })
 	return errors.Join(err, cancelErr)
+}
+
+// stall turns a parent write that ran out of its own budget into a stall rather
+// than a failure (#430): a slow terminal is not a gone one, and ending the
+// presentation would take every hosted session with it. The abandoned write
+// left the parent mid-frame, so what it shows is forgotten: the next paint
+// that gets through re-establishes modes and repaints in full. Any other
+// write error (EIO, EPIPE: the terminal is gone), or a caller's own deadline,
+// still fails.
+func (p *Presenter) stall(err error) bool {
+	var failure *WriteFailure
+	if p.life.Err() != nil || !errors.As(err, &failure) || failure.Op != "parent output" || !failure.Expired {
+		return false
+	}
+	if !p.stalled {
+		p.stalls++
+	}
+	p.stalled = true
+	p.modesKnown = false
+	p.previous = Frame{}
+	p.history = HistoryState{AltScreen: p.altOwned}
+	return true
+}
+
+// probe asks a stalled parent whether it accepts output again. Its bytes are
+// harmless in any parser state: CAN/ST abort whatever control the abandoned
+// write cut off, and synchronized output closes. A probe that times out
+// leaves at most a prefix of that, which the next probe aborts in turn.
+func (p *Presenter) probe(ctx context.Context) bool {
+	ctx, cancel := context.WithTimeout(ctx, StallProbeTimeout)
+	defer cancel()
+	if err := p.write(ctx, []byte(stallProbe), true); err != nil {
+		return false
+	}
+	p.stalled = false
+	return true
+}
+
+// writeUnlessStalled writes a one-shot control (an effect, a clipboard copy).
+// While the parent is stalled the control is dropped, not queued: it reports
+// delivered=false and no error, so no caller ends couch over it.
+func (p *Presenter) writeUnlessStalled(ctx context.Context, data []byte) (delivered bool, err error) {
+	if p.stalled && !p.probe(ctx) {
+		return false, nil
+	}
+	if err := p.write(ctx, data, true); err != nil {
+		if p.stall(err) {
+			return false, nil
+		}
+		return false, p.fail(err)
+	}
+	return true, nil
+}
+
+// Stalls counts the stalls the parent has recovered from or is in.
+func (p *Presenter) Stalls() uint64 {
+	var n uint64
+	_ = p.call(context.Background(), func(context.Context) error { n = p.stalls; return nil })
+	return n
 }
 
 // cancelDrag revokes the gesture before enqueueing its one synthetic release.
@@ -301,10 +382,16 @@ func desiredParentModes(policy ParentMousePolicy, child Modes) parentModes {
 	}
 	return parentModes{child.Tracking}
 }
-func parentModeDelta(before, after parentModes, known bool) string {
+
+// keyboardOwned skips the push when re-establishing modes after a stall: the
+// stack already holds setup's entry, and release pops exactly one.
+func parentModeDelta(before, after parentModes, known, keyboardOwned bool) string {
 	var s string
 	if !known {
-		s = "\x1b[?9l\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1004h\x1b[?2004h" + keyboardPush
+		s = "\x1b[?9l\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1004h\x1b[?2004h"
+		if !keyboardOwned {
+			s += keyboardPush
+		}
 	} else if before.tracking == after.tracking {
 		return ""
 	} else if before.tracking != 0 {
@@ -347,7 +434,12 @@ func (p *Presenter) paintPublication(ctx context.Context, f Frame, history *Hist
 		childModes = p.selected.Modes()
 	}
 	desired := desiredParentModes(p.policy, childModes)
-	delta := parentModeDelta(p.confirmedModes, desired, p.modesKnown)
+	if p.stalled && !p.probe(ctx) {
+		// The frame is admitted but not painted; the retry repaints it whole.
+		_, err := p.transition(ViewEvent{Kind: PresentView, EndpointID: f.EndpointID, Token: v.Token, Generation: f.Generation, GeometryEpoch: f.GeometryEpoch})
+		return err
+	}
+	delta := parentModeDelta(p.confirmedModes, desired, p.modesKnown, p.keyboardOwned)
 	err := p.write(ctx, []byte(delta), true)
 	accepted := len(delta)
 	var failure *WriteFailure
@@ -375,17 +467,20 @@ func (p *Presenter) paintPublication(ctx context.Context, f Frame, history *Hist
 		}
 	}
 
-	if err != nil {
+	if err != nil && !p.stall(err) {
 		return p.fail(err)
 	}
-	p.confirmedModes = desired
-	p.modesKnown = true
-	p.previous = f.Clone()
-	if history != nil {
-		p.history = nextHistory
+	painted := err == nil
+	if painted {
+		p.confirmedModes = desired
+		p.modesKnown = true
+		p.previous = f.Clone()
+		if history != nil {
+			p.history = nextHistory
+		}
 	}
 	_, err = p.transition(ViewEvent{Kind: PresentView, EndpointID: f.EndpointID, Token: v.Token, Generation: f.Generation, GeometryEpoch: f.GeometryEpoch})
-	if err == nil && p.tap != nil {
+	if err == nil && painted && p.tap != nil {
 		p.tap(f.Clone(), p.class)
 	}
 	return err
@@ -736,8 +831,8 @@ func (p *Presenter) EmitEffects(ctx context.Context, effects []Effect, policy Ef
 			default:
 				return errors.New("terminal: unknown effect")
 			}
-			if err := p.write(ctx, []byte(s), true); err != nil {
-				return p.fail(err)
+			if ok, err := p.writeUnlessStalled(ctx, []byte(s)); err != nil || !ok {
+				return err
 			}
 			p.effects[e.EndpointID] = e.Sequence
 			delivered = append(delivered, e)
@@ -853,10 +948,8 @@ func (p *Presenter) Copy(ctx context.Context, data []byte) error {
 	}
 	encoded := base64.StdEncoding.EncodeToString(data)
 	return p.call(ctx, func(ctx context.Context) error {
-		if err := p.write(ctx, []byte("\x1b]52;c;"+encoded+"\x1b\\"), true); err != nil {
-			return p.fail(err)
-		}
-		return nil
+		_, err := p.writeUnlessStalled(ctx, []byte("\x1b]52;c;"+encoded+"\x1b\\"))
+		return err
 	})
 }
 
@@ -872,8 +965,9 @@ func (p *Presenter) releaseAlt() []byte {
 }
 
 const (
-	altEnter = "\x1b[?1049h"
-	altLeave = "\x1b[?1049l"
+	stallProbe = "\x18\x1b\\" + syncEnd
+	altEnter   = "\x1b[?1049h"
+	altLeave   = "\x1b[?1049l"
 	// keyboardPush is the presenter's keyboard-stack entry: disambiguate (1)
 	// and report event types (2). keyboardPop removes exactly that entry.
 	keyboardPush = "\x1b[>3u"

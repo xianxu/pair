@@ -401,7 +401,7 @@ func TestPresenterRequestsKeyEventsAndEndpointFiltersReleases(t *testing.T) {
 }
 
 func TestPresenterReleaseRestoresOnlyOwnedKeyboardPush(t *testing.T) {
-	setup := parentModeDelta(parentModes{}, parentModes{}, false)
+	setup := parentModeDelta(parentModes{}, parentModes{}, false, false)
 	pushEnd := strings.Index(setup, "\x1b[>3u") + len("\x1b[>3u")
 	for _, tc := range []struct {
 		name       string

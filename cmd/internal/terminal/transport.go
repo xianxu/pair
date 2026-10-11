@@ -17,6 +17,9 @@ type WriteFailure struct {
 	Op              string // "parent output" or "child input"
 	Accepted, Total int
 	Err             error
+	// Expired: the write's own WriteTimeout ran out while its caller still
+	// waited -- the writer was slow, not cancelled (#430).
+	Expired bool
 }
 
 func (e *WriteFailure) Error() string {
