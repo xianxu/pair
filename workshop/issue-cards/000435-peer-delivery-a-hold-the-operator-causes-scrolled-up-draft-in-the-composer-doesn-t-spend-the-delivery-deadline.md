@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000435-peer-delivery-a-hold-the-operator-causes-scrolled-up-draft-in-the-composer-doesn-t-spend-the-delivery-deadline.md
         source_blob: 962ef2f7d7fcee8808e1fb1bffa63b81e2e2c3d5
         destination: workshop/issues/000435-peer-delivery-a-hold-the-operator-causes-scrolled-up-draft-in-the-composer-doesn-t-spend-the-delivery-deadline.md
+        main_commit: 9c09df29472cab16f9b6c48169fceed936a41fea
 ---
 
 # Peer delivery: a hold the operator causes (scrolled up, draft in the composer) doesn't spend the delivery deadline
