@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000436-main-is-green-the-full-local-suite-make-test-passes-on-pair-main.md
         source_blob: 1c22d1570c085e2ceeecbb5fdc798a41a52fb1e5
         destination: workshop/issues/000436-main-is-green-the-full-local-suite-make-test-passes-on-pair-main.md
+        main_commit: c08a527d1db7b1a736e96c4888b1e9a9b5cd109c
 ---
 
 # Main is green: the full local suite (make test) passes on pair main
