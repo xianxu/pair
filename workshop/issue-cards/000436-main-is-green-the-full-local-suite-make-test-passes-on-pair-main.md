@@ -1,6 +1,6 @@
 ---
 id: 000436
-status: codecomplete
+status: done
 created: 2026-10-10
 updated: 2026-10-11
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 85403b9e88fbafbe6dd10b17f0902b85e90b320e
         evidence_commit: 6675a7877580855cb5aefa4bcad4f2660590e935
+        landed_commit: 80cc80afdb130a02bde57def3b537ec915dfab61
 ---
 
 # Main is green: the full local suite (make test) passes on pair main
