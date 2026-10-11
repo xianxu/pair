@@ -242,9 +242,10 @@ func (c *Couch) ReloadContext(ctx context.Context, address ThreadAddress, forced
 	return ReloadContextResult{Address: address}, nil
 }
 
-// prepareLiveRestart admits relaunch or reload-context on a live row. The row
-// is addressed by its thread (repo scope + exact tag), the dialect both
-// operations' dispatch reads, never by the slot path.
+// prepareLiveRestart admits relaunch, reload-context or prepare on a live row.
+// The row is addressed by its thread (repo scope + exact tag), the dialect
+// their dispatch reads, never by the slot path; prepare's call also carries
+// the checkout, for the CLI's refresh.
 func (c *Couch) prepareLiveRestart(ctx context.Context, op, target string, row ActionableThreadSummary, path, resting string, opts LiveRestartOptions) (OperationCall, string, error) {
 	if c.LiveRestart == nil {
 		return OperationCall{}, "", &SlotOperationError{Code: LiveRestartUnavailable, Detail: "this Couch cannot observe live slots"}

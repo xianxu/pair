@@ -24,7 +24,10 @@ func (p *prepareCommands) Run(_ context.Context, c couchcore.ProvisionCommand) (
 	if len(c.Args) > 0 && c.Args[0] == "rev-parse" {
 		return []byte("0123456789abcdef\n"), nil
 	}
-	return nil, nil // status: clean
+	if strings.Contains(strings.Join(c.Args, " "), "status") {
+		return []byte("# branch.head main-slot1\n"), nil // clean
+	}
+	return nil, nil
 }
 
 // prepareScript answers the admission and the reload, each admitted then
@@ -103,6 +106,18 @@ func TestPrepareCLI(t *testing.T) {
 		var report couchcore.PrepareReport
 		if err := json.Unmarshal([]byte(run.stdout), &report); err != nil || !report.OK() || report.Path != admitted.Path {
 			t.Fatalf("exit %d %v: %q", run.code, err, run.stdout)
+		}
+	})
+
+	t.Run("an admission whose outcome was lost says to prepare again, not to verify a resend", func(t *testing.T) {
+		run, commands := runPrepareScript(t, inv, func(n int, r couchmessage.Request) (couchmessage.Response, error) {
+			if n == 0 {
+				return couchmessage.Response{Code: "accepted", Operation: &couchmessage.OperationReceipt{ID: "id", Op: r.Op, Target: "pair:1", Status: couchmessage.ReceiptQueued}}, nil
+			}
+			return couchmessage.Response{Code: "ok", Operation: &couchmessage.OperationReceipt{ID: "id", Status: couchmessage.ReceiptUnknown}}, nil
+		})
+		if run.code != 1 || len(commands.weave) != 0 || !strings.Contains(run.stdout, "run couch --prepare again") || strings.Contains(run.stdout, "recover-plan") {
+			t.Fatalf("exit %d weave %v\n%s", run.code, commands.weave, run.stdout)
 		}
 	})
 

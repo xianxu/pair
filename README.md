@@ -409,6 +409,10 @@ couch --relaunch repo:N --confirm [--same-binary] [--force-unknown] [--json]
 couch --reload-context repo:N --confirm [--force-unknown] [--json]
                          from a live slot: a fresh agent conversation in an idle slot's Pair (Shift+Alt+N);
                          same busy/dirty refusals; succeeds only once the restarted wrapper reconnects
+couch --prepare repo:N --confirm [--force-unknown] [--json]
+                         from a live slot: bring an idle, clean slot on its resting branch up for new work:
+                         weave refresh there, then a fresh agent conversation; reports the substrate
+                         commits its sdlc/weave build from; refuses (refresh-dirty) a refresh that changed files
 couch --send-to repo:N --message TEXT   send to an exact live slot
 couch --send-to repo --message TEXT     select an eligible slot in that family
 couch --send-to repo --agent NAME --message TEXT   ...running that agent

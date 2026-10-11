@@ -120,25 +120,19 @@ func RunPrepare(ctx context.Context, run PrepareRun) PrepareReport {
 	}
 	report.Steps = append(report.Steps, PrepareStep{Name: PrepareRefresh, Status: PrepareOK})
 
-	// -z: entries are NUL-terminated and never quoted; each is "XY path", and
-	// a rename or copy is followed by its source path as a field of its own.
-	status, err := run.IO.Run(ctx, ProvisionCommand{Dir: report.Path, Program: "git", Args: []string{"status", "--porcelain=v1", "-z", "--untracked-files=no"}, Timeout: 10 * time.Second})
-	var paths []string
-	fields := strings.Split(string(status), "\x00")
-	for i := 0; i < len(fields); i++ {
-		if entry := fields[i]; len(entry) > 3 {
-			paths = append(paths, entry[3:])
-			if entry[0] == 'R' || entry[0] == 'C' {
-				i++
-			}
-		}
+	// The admission's own dirty predicate (ProbeSlotGit's status and parse),
+	// so the reload's re-admission cannot judge the checkout differently.
+	raw, err := run.IO.Run(ctx, ProvisionCommand{Dir: report.Path, Program: "git", Args: slotGitStatusArgs, Timeout: 10 * time.Second})
+	var status SlotGitStatus
+	if err == nil {
+		status, err = ParseSlotGitStatus(string(raw))
 	}
 	switch {
 	case err != nil:
 		return stop(PrepareStep{Name: PrepareRecheck, Status: PrepareFailed, Detail: "read the checkout's status: " + err.Error()})
-	case len(paths) > 0:
+	case status.Dirty:
 		return stop(PrepareStep{Name: PrepareRecheck, Status: PrepareRefused, Code: PrepareRefreshDirty,
-			Detail: "weave refresh left " + strings.Join(paths, ", ") + " modified; commit that compile output on main, then prepare again (the agent was not reloaded)"})
+			Detail: "weave refresh left " + strings.Join(SlotGitChangedPaths(string(raw)), ", ") + " changed; commit that compile output on main, then prepare again (the agent was not reloaded)"})
 	}
 	report.Steps = append(report.Steps, PrepareStep{Name: PrepareRecheck, Status: PrepareOK, Detail: "clean"})
 

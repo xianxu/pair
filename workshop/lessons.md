@@ -936,3 +936,11 @@ proof; record the surprising case so the next change starts from evidence.
   starts a timer, let only the observation that can decide it (here, a full
   composer reading) change it; transient waits leave it as is. Test the side
   path (keystrokes during the hold) that reaches the state machine first.
+
+- **A re-check before an effect uses the gate's own predicate (#434).** The
+  prepare recheck read `git status --untracked-files=no`, while the reload's
+  admission (`ProbeSlotGit`) counts untracked files as dirty. A refresh that
+  left an untracked file would have passed the recheck and then been refused
+  by the reload, with the wrong code and fix. When a step pre-checks a
+  condition another gate will judge, call that gate's probe and parser. Do not
+  write a second definition of the same predicate.

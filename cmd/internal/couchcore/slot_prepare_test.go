@@ -185,6 +185,27 @@ func TestRunPrepareRefreshDirtyStopsBeforeReload(t *testing.T) {
 	}
 }
 
+// The recheck's dirty predicate is the admission's: an untracked file the
+// refresh leaves behind is refresh-dirty here, never a reload refused dirty.
+func TestRunPrepareUntrackedOutputIsRefreshDirty(t *testing.T) {
+	r := newPrepareRig(t)
+	r.run.IO = untrackedWeave{r.weave}
+	report := RunPrepare(context.Background(), r.run)
+	if report.Steps[2].Code != PrepareRefreshDirty || !strings.Contains(report.Steps[2].Detail, "generated.txt") || r.reloads != 0 {
+		t.Fatalf("%+v reloads %d", report, r.reloads)
+	}
+}
+
+type untrackedWeave struct{ *fakeWeave }
+
+func (u untrackedWeave) Run(ctx context.Context, c ProvisionCommand) ([]byte, error) {
+	out, err := u.fakeWeave.Run(ctx, c)
+	if c.Program == "weave" && err == nil {
+		writePrepareFile(u.t, filepath.Join(c.Dir, "generated.txt"), "x\n")
+	}
+	return out, err
+}
+
 func TestRunPrepareRefreshFailureSkipsReload(t *testing.T) {
 	r := newPrepareRig(t)
 	r.weave.fail = errors.New("weave: checkouts must be clean")

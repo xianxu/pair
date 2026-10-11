@@ -37,6 +37,11 @@ func runPrepareCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, call
 		fmt.Fprintln(stderr, "couch:", admitErr)
 		return 1
 	}
+	if uncertain != nil {
+		// Unlike the restarts, the admission has no effect, so the remedy is
+		// simply to prepare again, not to verify before resending.
+		admitErr = fmt.Errorf("prepare %s: admission outcome unknown (%s); it changes nothing, so run couch --prepare again", inv.ref, uncertain.detail)
+	}
 	report := couchcore.RunPrepare(context.Background(), couchcore.PrepareRun{
 		Target: inv.ref, IO: commands, Progress: stderr, Timeout: prepareRefreshTimeout,
 		Admit: func(context.Context) (couchcore.PrepareAdmission, error) {
