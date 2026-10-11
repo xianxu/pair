@@ -15,6 +15,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "c6fb6451", done: "640d27d9"}
 ---
 
 # Couch peer-message breaker: a leaky bucket, a full refill on session-sync submit, and a higher allowance for the TL slot
