@@ -34,7 +34,7 @@
   - **DRY rationale:** the one place the limits live. The server and the session never re-check them.
 - **ParseNote / ParseResolve:** strict JSON body parsing in the style of `ParsePointBatch`: unknown fields refused, integers only, and errors that never echo the input. A note body is `{cols, rows, col, row, color, text}`. Text must be valid UTF-8, between 1 and 1024 bytes, with no control characters except `\n` and `\t`. `col` must leave room for the second cell (`col+1 < cols`), and the cell must not be guarded. A resolve body is `{id}`.
 - **NoteVisible(n, cols, rows):** whether a note draws on this grid: both cells on the grid and not guarded (`guarded` from `marks.go`, so marks and notes share one rule).
-- **DrawNotes(f, notes) Frame:** a copy of `f` with each visible note's two cells replaced by a width-2 `💭` and its continuation cell. A wide character cut in half on either side is blanked to a space, so no orphan half is left. With no visible note it returns `f` uncopied, as `Marks.Overlay` does.
+- **DrawNotes(f, notes) Frame:** a copy of `f` with each visible note's two cells replaced by a width-2 `💭` and its continuation cell. A wide character cut in half on either side is blanked to a space, so no orphan half is left. Blanking keeps the cell's style and sets only content `" "` and width 1 (`uv.EmptyCell` would drop its background). A continuation is recognised as `Cells[i-1].Width == 2` (a zero cell is also the backend's ordinary blank, `terminal/render.go:129`). The checks read the **output** frame, so two nearby notes draw the same whatever their order. With no visible note it returns `f` uncopied, as `Marks.Overlay` does.
 - **StatusModel.Notes:** an open-note count. While live and when it is above 0, the row draws ` 💭N` right after 👽, with no click target (rule 8).
 - **notes.js helpers:** the viewer's mirror of `NoteVisible` and its hit-test. `noteAt` hits both cells of a 💭. `noteCell` snaps a tap on the last column to `cols-2`. `noteBytes` counts UTF-8 bytes so the 1 KB cap matches Go's. `parseNotes` keeps only well-formed entries. The guard width arrives in the notes event (`guard`), so JS never hardcodes `StatusGuardCols`.
   - **DRY rationale:** the visibility rule necessarily exists in Go (drawing) and in JS (hit-testing). The guard width is the only constant they share, and it crosses the wire rather than being copied.
@@ -50,9 +50,9 @@
 | `noteDialog` | `cmd/internal/broadcast/web/notes.js` | new | DOM, `fetch` |
 
 - **NoteState:** `mu` is a leaf lock. It holds the board, `version uint64`, a `changed` channel closed and replaced on every change, and a note `RateLimit` (2/s, burst 5) shared by `note` and `resolve`. Methods: `Snapshot() (notes []Note, version uint64, changed <-chan struct{})`, `add`, `resolve`, `allow`. It is created by `Session` and dies with it (ARCH-FUNERAL: in memory only, bounded at 6 colors × 8 notes × 1 KB ≈ 48 KB, gone when the broadcast ends).
-- **Server:** `ServeHTTP` dispatches POSTs on the pointer token to `point`, `note` or `resolve` through one shared `readPointerBody` (pointing on → content type → in-flight slot → read deadline → `MaxBytesReader`). The view token still never reads a body (#395). A refused note gets a fixed human sentence as its body (`noteRefusal`), which the dialog shows as plain text. `events` sends `event: notes` to **every** stream: on join, then on each `changed`.
+- **Server:** `ServeHTTP` dispatches POSTs on the pointer token to `point`, `note` or `resolve` through one shared `readPointerBody` (pointing on → content type → in-flight slot → read deadline → `MaxBytesReader`). The view token still never reads a body (#395). `readPointerBody(w, r, limit *RateLimit-check func, max) (body []byte, release func(), ok bool)` keeps today's order for all three routes (pointing on → content type → in-flight slot → rate check → read deadline → body), and the caller defers `release`, so the slot is held while the request is read **and handled**, as `point` does now. `point` keeps its 30/s limit; `note` and `resolve` use the note limit. `MaxNoteBody = 8 KB` (a 1 KB note escaped as `\uXXXX` is about 6 KB). A nil `Notes` (existing tests' `ServerOptions`) serves no note routes (404) and sends no notes event. `resolve` of an unknown id answers 204, the idempotent case. A refused note gets a fixed human sentence as its body (`noteRefusal`), which the dialog shows as plain text. `events` sends `event: notes` to **every** stream: on join, then on each `changed`.
 - **Session.acceptNote(n) error:** a note lands only on what the operator sees now: pointing on, the same grid, a public frame and the pointer marker shown (the checks `acceptPoint` makes, factored into `landsNow(cols, rows)`). Then `NoteState.add`. `resolve` needs only pointing on. After each successful change it calls `cfg.OnNotes(snapshot, version)` on the request goroutine.
-- **Console:** `onNotes` hops onto the Run loop and keeps the snapshot only if its version is newer than the one it has (two request goroutines can deliver out of order, ARCH-ORDER). It then repaints. The overlay becomes `screenOverlay`: `DrawNotes` first, then marks, both only on public frames. `resetPointer` also clears the notes when the broadcast ends.
+- **Console:** `onNotes(s *Session, notes, version)` hops onto the Run loop and keeps the snapshot only if (1) the broadcast is still live **and** `s` is the current session (as `applyPoints` checks the phase), so a request in flight at Stop, or a stale snapshot from the previous broadcast, can't bring notes back, and (2) its version is newer than the one it holds (two request goroutines can deliver out of order, ARCH-ORDER). The snapshot sits in `pointerNotes{mu, notes, version}`, a leaf lock like `pmarks.mu`, because the Run loop writes it and the Presenter goroutine reads it in the overlay. The status row's count reads the same struct, so the 💭s and `💭N` can't disagree. It then repaints. The overlay becomes `screenOverlay`: `DrawNotes` first, then marks, both only on public frames. `resetPointer` also clears the notes when the broadcast ends.
 - **noteDialog:** one fixed-size sticky-note dialog in two modes: draft (textarea, byte counter, Save and Cancel) and view (text through `textContent`, Resolve when allowed, Close). Save posts `note`. A 204 closes the dialog; any other status shows the response text. The draft exists only in the textarea until Save (rule 11).
 
 ### Decisions this plan makes (beyond the Spec)
@@ -60,6 +60,7 @@
 - **Pointing off:** `note` and `resolve` answer 403 like `point`. Open notes stay drawn until the broadcast ends or pointing comes back on and someone resolves them. Rationale: notes are a record of the session; turning pointing off stops new input, as with marks.
 - **Refusal text** is a closed set of server sentences: "Pointing is off.", "This color already has 8 notes. Resolve one first.", "A note is already there.", "The screen changed. Try again.", "Too many requests. Wait a moment.", "That note isn't valid." Like `endReasons`, the set is closed and never echoes input.
 - **Mode switch** is one button (`#mode`) below `#swatches` in `#rail`, showing 👆 or 💭 for the current mode. It is shown only on a pointer page while pointing is on, and it resets to pointer mode when pointing turns off.
+- **Known overlaps:** the `💭N` count sits outside `StatusGuardCols`, so a note or a mark can cover it on the last row; only the control cells are guarded, as the Spec says. While a private frame is up Couch draws no 💭, but the viewer's hit-test still opens a note at its cell; acceptable, since the switcher is momentary.
 - **Two-boundary split:** M1 delivers the whole Couch side, testable with `curl`. M2 is the viewer page. Each closes on its own review.
 
 ## Chunk 1: M1 — notes in Couch
@@ -138,7 +139,9 @@ Also: IDs are unique and increasing, including after a resolve, and `List` retur
   - a wide char whose left half sat at `col+1` leaves its right half at `col+2` blanked to a space;
   - a wide char whose left half sat at `col-1` (so `col` was its continuation) is blanked to a space at `col-1`;
   - no visible notes → the same frame value, uncopied (compare `&f.Cells[0]`);
-  - the input frame is never mutated.
+  - the input frame is never mutated;
+  - a cut wide character's blank keeps its background style;
+  - two notes two columns apart over wide text give the same frame in either order.
 - [ ] **Step 2:** FAIL. **Step 3: Implement** using `f.Clone()` and `uv.EmptyCell` for blanks. **Step 4:** PASS. **Step 5:** commit `#447 M1: draw notes as 💭 on a frame`.
 
 ### Task 4: NoteState and the server routes
@@ -151,18 +154,21 @@ Also: IDs are unique and increasing, including after a resolve, and `List` retur
   - `notestate_test.go`: `add` bumps the version and closes the channel `Snapshot` returned earlier; a refused add changes neither; `resolve` of an unknown ID changes neither.
   - `server_test.go`, using the existing httptest helpers for the pointer token:
     - (a) POST `note` on the **view** token → 405, and the handler never reads the body (reuse the existing "view link never reads a body" test's body-reader probe);
-    - (b) with pointing off → 403 "Pointing is off.";
+    - (b) with pointing off → 403 "Pointing is off." for both `note` and `resolve`;
     - (c) a well-formed note → 204, and an open pointer stream **and** an open view stream each receive `event: notes` whose data lists it with `guard` = `StatusGuardCols`;
     - (d) a 9th note in one color → 409 with the fixed sentence;
     - (e) a malformed body → 400 "That note isn't valid.";
     - (f) `resolve` → 204, and both streams get a list without the note;
     - (g) a new stream gets the current list right after connecting;
-    - (h) the shared rate limit: a burst past 5 → 429.
+    - (h) the shared rate limit: a burst past 5 → 429;
+    - (i) `resolve` of an unknown id → 204;
+    - (j) a `ServerOptions` without `Notes` serves 404 on `note`/`resolve` and sends no notes event; existing `point` tests still pass unchanged (rate check before body read, slot held through handling).
+  - The test server's `OnNote`/`OnResolve` fakes call `Notes.add`/`Notes.resolve`, so the limits in (d) and the events in (c)/(f) are the real ones.
 - [ ] **Step 2:** FAIL.
 - [ ] **Step 3: Implement.**
   - `NoteState` as in Core concepts.
   - `ServerOptions` gains `Notes *NoteState`, `OnNote func(Note) error` and `OnResolve func(id int) error`.
-  - Factor `point`'s guard sequence into `readPointerBody(w, r, max) ([]byte, bool)` and use it in all three handlers.
+  - Factor `point`'s guard sequence into `readPointerBody` (returns the body and a `release` the caller defers; takes the route's rate check and body cap) and use it in all three handlers. Add `MaxNoteBody = 8 << 10`.
   - `noteRefusal(err) (status int, text string)` maps errors to the fixed sentences.
   - In `events`, add `notesChanged` alongside `capsChanged`, plus `sendNotes()` marshalling `{guard, notes:[{id,col,row,color,text}]}`; call it on join for every stream.
 - [ ] **Step 4:** `go test ./cmd/internal/broadcast`. Expect PASS, and existing tests still pass.
@@ -174,12 +180,13 @@ Also: IDs are unique and increasing, including after a resolve, and `List` retur
 
 - [ ] **Step 1: Failing tests** (with the fake tunnel `session_test.go` already uses):
   - a note posted while the operator's current frame is private, has another grid, or lacks the pointer marker → 409 "The screen changed. Try again.", and `OnNotes` is not called;
-  - a landed note → `OnNotes` is called once with the snapshot and version 1, then resolve → version 2 and an empty list.
+  - a landed note → `OnNotes` is called once with the snapshot and version 1, then resolve → version 2 and an empty list;
+  - resolve with pointing off → 403 and no `OnNotes`.
 - [ ] **Step 2:** FAIL.
 - [ ] **Step 3: Implement.**
   - Factor `landsNow(cols, rows) bool` out of `acceptPoint`.
   - Add `acceptNote(n Note) error` and `resolveNote(id int) error`.
-  - Add `Config.OnNotes func([]Note, uint64)`, documented like `OnPoints` (request goroutine, no session lock held).
+  - Add `Config.OnNotes func(*Session, []Note, uint64)`, documented like `OnPoints` (request goroutine, no session lock held).
   - `Start` creates `NoteState` and passes it plus both callbacks to `NewServer`.
 - [ ] **Step 4:** PASS. **Step 5:** commit `#447 M1: session accepts notes on the live screen`.
 
@@ -191,7 +198,7 @@ Also: IDs are unique and increasing, including after a resolve, and `List` retur
 
 - [ ] **Step 1: Failing tests.**
   - `reserve_test.go`: live with `Notes: 3` draws `LIVE ⏸ 👆 👽 💭3` at the start of the row; `Notes: 0` draws no 💭; not live with `Notes: 3` draws no 💭; at a narrow width it clips through `appendText` like every other segment; `Pointer` and `Remote` spans are unchanged.
-  - `console_notes_test.go`, with the console test harness `console_pointer_test.go` uses: `onNotes(v2)` then `onNotes(v1)` keeps v2; a public frame gets the 💭 and a private frame doesn't; after the broadcast stops the overlay draws nothing and the count is 0.
+  - `console_notes_test.go`, with the console test harness `console_pointer_test.go` uses: `onNotes(v2)` then `onNotes(v1)` keeps v2; a public frame gets the 💭 and a private frame doesn't; after the broadcast stops the overlay draws nothing and the count is 0; an `onNotes` delivered **after** stop, or naming a previous session, is ignored; the overlay and the count read the same snapshot. Run with `-race`.
 - [ ] **Step 2:** FAIL. **Step 3: Implement.** **Step 4:** `go test ./cmd/internal/couchtty ./cmd/internal/broadcast`. Expect PASS.
 - [ ] **Step 5:** commit `#447 M1: Couch draws 💭 notes and counts them in the tab bar`.
 
@@ -225,6 +232,7 @@ Also: IDs are unique and increasing, including after a resolve, and `List` retur
   - pointing off (a view page): a tap on a 💭 calls `dialog.view(note, {resolvable: false})` and posts nothing;
   - pointer mode, pointing on: a tap on a 💭 opens it (`resolvable: true`) and posts no point; a tap elsewhere strokes as before;
   - comment mode: a tap on an empty cell calls `dialog.draft([col,row])` with the snapped cell, and **nothing is posted** (rule 11); a tap on a 💭 opens it rather than drafting;
+  - comment mode on a guarded cell (last row, inside the guard) opens no draft;
   - `setOn(false)` resets to pointer mode and closes a draft;
   - `connect` forwards `event: notes` to `deps.notes`, and its absence is tolerated.
 - [ ] **Step 2:** FAIL. **Step 3: Implement.** `pointerMode` gains `deps.notes()` (returns the parsed list plus the guard) and `deps.dialog`, `mode` state, and `setMode`. The `pointerdown` order is: cell → `noteAt` → open; else if not on → return; else if comment → draft; else stroke.
@@ -239,7 +247,8 @@ Also: IDs are unique and increasing, including after a resolve, and `List` retur
   - Save is disabled at 0 bytes and over 1024 bytes, and the counter shows bytes;
   - `view` renders text with `<b>x</b>` as literal characters (assert `textContent`, and that `innerHTML` is never assigned);
   - Resolve is present only when `resolvable` and posts `resolve {id}`;
-  - Cancel discards the draft without a request.
+  - Cancel discards the draft without a request;
+  - an open view dialog closes when a `notes` event no longer lists its note (resolved elsewhere).
 - [ ] **Step 2:** FAIL. **Step 3: Implement.** CSS: a fixed 280×200px sticky note (`min(280px, calc(100vw - 32px))` wide on phones), a yellow `#fff59d` background, dark text, a soft shadow, centered over the stage; `#mode` styled like the swatch group (same backing, `pointer-events: auto` on the button only).
 - [ ] **Step 4:** `go test ./cmd/internal/broadcast -run TestViewerNode`. Expect PASS.
 - [ ] **Step 5:** commit `#447 M2: sticky-note dialog and mode switch`.
@@ -249,3 +258,7 @@ Also: IDs are unique and increasing, including after a resolve, and `List` retur
 - [ ] `make build` in this slot, then start a broadcast with pointing on. Ask the operator to run the Done-when walk with two viewers (desktop and phone width) plus one view-only viewer: place, open, resolve, the count, a draft never posted (check the browser network tab), the 1 KB and 9th-note refusals.
 - [ ] Atlas update for the viewer side (mode switch, dialog).
 - [ ] Full suite as in Task 7; then `sdlc close --issue 447 --verified '<evidence>'`.
+
+## Revisions
+
+- 2026-10-11 — fresh-eyes plan review folded in before approval: the console gates `onNotes` on live + same session and keeps the snapshot under a leaf lock shared with the count; `readPointerBody` keeps the rate check before the body read and holds the slot through handling; `MaxNoteBody` 8 KB; nil `Notes` and unknown-id resolve specified; `DrawNotes` blanking keeps style and reads the output frame; known overlaps recorded; added tests for each.
