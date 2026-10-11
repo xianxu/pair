@@ -65,7 +65,7 @@ Durable plan: [`workshop/plans/000437-…-plan.md`](../plans/000437-couch-sessio
 - [x] `Sync` diff/write/release/status with the guards (`sessionsync/sync.go`)
 - [x] `couch --session-sync` CLI verb + JSON envelope (`couchcmd/session_sync.go`)
 - [x] Daemon appends a ledger row per landed delivery (`couchcmd/message_service.go`)
-- [ ] Couch skill text, atlas, hand-off to ops:0 (gitignore line, tl-status.py mapping)
+- [x] Couch skill text, atlas, hand-off to ops:0 (gitignore line, tl-status.py mapping)
 
 ## Revisions
 
