@@ -999,3 +999,9 @@ proof; record the surprising case so the next change starts from evidence.
   the file without the lock while another writer rewrote it in place, so the loser refused a valid file instead of
   reporting `stale`. A check done outside the lock may only gate side effects such as creating sidecars. Skip it
   when the sidecar already exists, and when it fails, let the read under the lock decide.
+- **Re-measure a constraint a comment states before you design around it (#445).** "In place, not rename: parley
+  watches this file's inode" kept the session-sync write non-atomic, but parley polls the path's mtime and nvim
+  compares mtime and size, so a rename was always visible to both. A comment that justifies a weaker mechanism by
+  pointing at another component's behavior goes stale when that component changes. Read the other side's code (or
+  probe it live) before keeping the weaker choice, and when replacing a file someone else edits, resolve symlinks and
+  keep its mode, since a rename changes both.

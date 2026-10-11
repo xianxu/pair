@@ -349,8 +349,7 @@ func (s *Sync) write(f *file, req WriteRequest) (Result, error) {
 	}
 	now := s.Now()
 	next = Restamp(next, now)
-	// In place, not rename: parley watches this file's inode.
-	if err := os.WriteFile(req.File, []byte(next), 0o644); err != nil {
+	if err := replaceShared(req.File, []byte(next)); err != nil {
 		return Result{}, err
 	}
 	if err := writeAtomic(f.paths.Shadow, []byte(next)); err != nil {

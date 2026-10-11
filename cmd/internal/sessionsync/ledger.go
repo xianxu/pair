@@ -203,3 +203,20 @@ func readRows(p string) ([]Entry, error) {
 func writeAtomic(p string, data []byte) error {
 	return durablefile.WriteAtomic(p, data, "."+filepath.Base(p)+".tmp-*")
 }
+
+// replaceShared publishes the operator's file atomically, so a reader outside
+// the flock (the operator's editor reloading a clean buffer) sees the old or
+// the new content, never a truncated one. Parley and nvim notice the change by
+// the path's mtime, which a rename moves too. It writes through a symlink to
+// its target, so the link survives, and keeps the file's mode.
+func replaceShared(p string, data []byte) error {
+	real, err := filepath.EvalSymlinks(p)
+	if err != nil {
+		return err
+	}
+	info, err := os.Stat(real)
+	if err != nil {
+		return err
+	}
+	return durablefile.WriteAtomicMode(real, data, "."+filepath.Base(real)+".tmp-*", info.Mode().Perm())
+}
