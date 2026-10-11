@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000449-broadcast-viewer-pointer-color-swatches-as-a-vertical-overlay-on-the-screen-s-right-edge.md
         source_blob: 2378a56a46b0e4a1df300efab0dd16940191610e
         destination: workshop/issues/000449-broadcast-viewer-pointer-color-swatches-as-a-vertical-overlay-on-the-screen-s-right-edge.md
+        main_commit: ca3544b71d744023ae9d7d23c0e6fafff7b7ec24
 ---
 
 # Broadcast viewer: pointer color swatches as a vertical overlay on the screen's right edge
