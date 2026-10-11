@@ -118,13 +118,22 @@ ARCH-FUNERAL lines:
 
 ## Done when
 
-- An idle session (no operator input, no agent output) costs near-zero CPU:
-  `pair title`, `session-watch` and the couch server stop polling or back off
-  to a bounded slow cadence, measured over an idle window.
-- Polling resumes promptly after real user input.
-- Process count is bounded: no orphaned pollers outlive their session
-  (ARCH-FUNERAL).
-- Couch stays connected through a multi-second terminal stall.
+- An idle session (no operator input, no agent output) costs near-zero CPU in
+  `pair title` and `session-watch`:
+  - An unbound watcher with no pending Pair turn does no native walk or
+    validation.
+  - A title tick reads its bound session by stat, not a store walk.
+  - Both are measured by operation-counting tests and a live probe.
+  - The couch server's CPU is endpoint emulation of live output, not idle
+    polling (see Revisions).
+- Polling resumes promptly after real user input: a send wakes the watcher
+  within `ActivePoll`, and a turn pending after a long idle still binds
+  (tested).
+- Process count is bounded (ARCH-FUNERAL):
+  - A title poller exits when its session is EXITED or absent.
+  - An unbound watcher exits after `IdleExpiry` without a send.
+- ~~Couch stays connected through a multi-second terminal stall.~~ Covered by
+  pair#430 (see Revisions).
 
 ## Plan
 
