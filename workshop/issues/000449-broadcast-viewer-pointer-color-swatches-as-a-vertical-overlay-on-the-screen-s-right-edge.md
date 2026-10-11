@@ -15,6 +15,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "aa93a095", done: "584677b8"}
 ---
 
 # Broadcast viewer: pointer color swatches as a vertical overlay on the screen's right edge
