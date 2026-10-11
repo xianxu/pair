@@ -40,10 +40,17 @@ On 10-11 four workers each reported the same failures on pair main as "pre-exist
 
 - [x] Bisect `test-review`: no landing broke it. The 8 failures reproduce at #436's merge (80cc80af) and pass there unsandboxed. `review.lua`'s restore controller (#341, 09-28) calls `serverstart`, the agent sandbox refuses the unix socket, the error aborts VimEnter, and `start_review` never runs. #436 was verified unsandboxed; today's workers ran sandboxed.
 - [x] Fix: a refused restore socket warns and publishes the open state without an endpoint (restore_client already reads that as a legacy pane), so review still works on such a host. Unit test in `restore_controller_test.lua`.
-- [ ] Preflight: `make test` first probes that the host can bind a unix socket and open a PTY; if not, it fails at once naming the cause, so a sandboxed run cannot be mistaken for ~150 code failures.
-- [ ] `go test ./...` triage. Unsandboxed, raw `go test ./...` fails 6: launcher `TestLaunchNative*`/`TestCheckpoint*` and couchcmd `TestContinuationWriter…`, all from the Couch shell's `COUCH_PAIR_DATA_DIR` (read since #366) that their hand-pinned env lists miss. Pin it. Under `make test`'s scrub they already pass. pair#423 passed 20/20 isolated and in the full run; it stays under its own issue, no quarantine.
+- [x] Preflight: `make test` first probes that the host can bind a unix socket and open a PTY; if not, it fails at once naming the cause, so a sandboxed run cannot be mistaken for ~150 code failures.
+- [x] `go test ./...` triage. Unsandboxed, raw `go test ./...` fails 6: launcher `TestLaunchNative*`/`TestCheckpoint*` and couchcmd `TestContinuationWriter…`, all from the Couch shell's `COUCH_PAIR_DATA_DIR` (read since #366) that their hand-pinned env lists miss. Pin it. Under `make test`'s scrub they already pass. pair#423 passed 20/20 isolated and in the full run; it stays under its own issue, no quarantine.
 - [x] Coverage decision: `make test` already ends with `go test ./... -count=1` (Makefile.local), so it covers every package and is the one gate. The raw command inherits the session env; the tests pin what they read.
 
 ## Log
 
 ### 2026-10-11
+
+- What broke `test-review`: no landing. It fails identically at #436's merge (80cc80af) when run sandboxed and passes there unsandboxed. The sandbox-sensitive code is #341's restore controller (e5dd82c4, 09-28: `serverstart` at VimEnter). #436 was verified outside the sandbox; the four 10-11 workers ran inside it. Baseline unsandboxed `make -k test` on unmodified main exits 0.
+- Sandboxed `go test ./...` fails ~150 tests across 14 packages (unix sockets, PTYs: couchmessage, notifytransport, ptychild, wrapcmd, terminal, ...). These are the host, not the code; `tests/host-preflight.sh` now says so first.
+- Unsandboxed raw `go test ./...` in a Couch shell: 6 failures, all `COUCH_PAIR_DATA_DIR` leaking (read since #366; launcher's `LaunchNative` refuses a `PAIR_DATA_DIR` outside the selected root). Fixed: launcher `TestMain` unsets it; the continuation acceptance child env pins it empty. pair#423 (`TestColdResume…`) passed 20/20 isolated and in the full run: no quarantine, stays under #423.
+- Coverage decision: `make test` already ends in `go test ./... -count=1`, so it covers every package and is the single gate. No new target.
+- Follow-up (ariadne): the machine-wide full-suite lock (`Makefile.workflow`, #319) is taken at parse time, so the preflight runs only after the lock wait. A base-layer pre-lock hook would let a sandboxed run fail before queueing. Not built here (base layer).
+
