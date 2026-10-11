@@ -19,7 +19,7 @@ var ErrHostCreationBusy = errors.New("workspace host creation is busy")
 // retake inside that window (reconcile around compile) must not read as a
 // peer's creation. Measured at 2-9ms under a parallel suite (pair#436); a real
 // peer still reports busy, only this much later.
-const hostCreationSettle = 500 * time.Millisecond
+const hostCreationSettle = 100 * time.Millisecond
 
 type HostCreationLease struct{ file *os.File }
 
