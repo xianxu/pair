@@ -32,7 +32,7 @@ Couch already watches each slot's terminal (`--peek`, `LastActivity`, composer s
 
 - A slot left on a permission dialog for longer than the threshold produces exactly one hub notice naming the dialog (test with a fake terminal).
 - A slot whose turn ended with a question produces one notice; one that ended normally on its resting branch produces none (tests).
-- Checked live: the TL receives a notice for a slot left waiting.
+- ~~Checked live: the TL receives a notice for a slot left waiting.~~ Moved to pair#452 (needs an operator-owned Couch restart on the new binary; see Revisions).
 
 ## Plan
 
