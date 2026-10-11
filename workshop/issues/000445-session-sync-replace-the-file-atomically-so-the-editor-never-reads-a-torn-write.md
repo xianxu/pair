@@ -63,3 +63,4 @@ TL writes. This is recorded in the report to ops:0, since it can only run after 
   taken, then an agent rename lands, owner set to a dead `nobody:9` so no real message is sent): the operator's copy
   was written back, the agent's copy was kept in `.clobbered`, and the notice was the usual one.
 - `make -k test` (default TMPDIR, five-var scrub, sandbox off) exits 0, including its `go test ./... -count=1` recipe.
+- Close review (SHIP, round 1): two advisory Minors. Hard links, a foreign owner, xattrs and ACLs are lost on rename; this is accepted and stated in the `replaceShared` comment. The real-file live check runs after the merge and is reported to ops:0.

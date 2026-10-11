@@ -208,7 +208,9 @@ func writeAtomic(p string, data []byte) error {
 // the flock (the operator's editor reloading a clean buffer) sees the old or
 // the new content, never a truncated one. Parley and nvim notice the change by
 // the path's mtime, which a rename moves too. It writes through a symlink to
-// its target, so the link survives, and keeps the file's mode.
+// its target, so the link survives, and keeps the file's mode. A rename still
+// breaks a hard link and drops a foreign owner, xattrs and ACLs; a session-sync
+// file is one path owned by the operator, so that is accepted.
 func replaceShared(p string, data []byte) error {
 	real, err := filepath.EvalSymlinks(p)
 	if err != nil {
