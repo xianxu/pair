@@ -669,6 +669,16 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/console_pointer.go",
 	"cmd/internal/couchcmd/broadcast.go",
 	"cmd/internal/couchcmd/broadcast_list.go",
+	// #437 session-sync: a delivery ledger under the Couch store and sidecars
+	// beside the operator's own file; no Pair artifact filenames.
+	"cmd/internal/couchcmd/message_deliveries.go",
+	"cmd/internal/couchcmd/session_sync.go",
+	"cmd/internal/sessionsync/file.go",
+	"cmd/internal/sessionsync/gap.go",
+	"cmd/internal/sessionsync/ledger.go",
+	"cmd/internal/sessionsync/owed.go",
+	"cmd/internal/sessionsync/state.go",
+	"cmd/internal/sessionsync/sync.go",
 	"cmd/internal/terminal/endpoint_input.go",
 	"cmd/internal/terminal/history.go",
 	"cmd/internal/terminal/history_render.go",

@@ -929,6 +929,19 @@ proof; record the surprising case so the next change starts from evidence.
   as a first run. Run the failing command under `HOME=$(mktemp -d)` early, and
   have the job dump the tool's own log on failure.
 
+- **A refusal's remedy must be reachable from the verb that refused (#437 BR-1).**
+  `release` refused unread edits with "pass --accept-edits", a flag only
+  `write` took. When several verbs share a guard, share the acknowledgement
+  type too (one `Accepts` struct), and test each verb's refusal by following
+  its own instruction.
+- **Validate an address with the owner's grammar, never a regex copy (#437 BR-2).**
+  A narrower slot regex turned one valid-but-unusual family into a store-wide
+  outage. Call the parser that defines the address (`ParseWorkspaceReference`)
+  and escape it into filenames rather than restricting it.
+- **Degraded state clears only by repair, and a restart is not a repair (#437 BR-3).**
+  A lost ledger row stays lost across restarts, so a restart-cleared failure flag
+  turns "incomplete" back into "complete". Scope the record to what it taints
+  (the slot), persist it, and clear it by explicit acknowledgement or expiry.
 - **A paused clock resumes only on evidence that can judge the pause (#435).**
   The first version of the operator hold closed on every dispatch that did
   not see the hold, including the input-settle wait that typing the draft
