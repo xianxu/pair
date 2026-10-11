@@ -15,7 +15,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "969b4fcb", done: "e5c24005"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # couch --session-sync: the one mutation path for a session-sync file, with an owed-events ledger
@@ -91,6 +91,10 @@ Durable plan: [`workshop/plans/000437-…-plan.md`](../plans/000437-couch-sessio
 
 ## Log
 
+
+
+- 2026-10-11: closed — Round-1 fixes (BR-1..4) each pinned by a test and mutation-checked: release --accept-edits/--accept-gap reachable remedies, couch ParseWorkspaceReference slot grammar with escaped filenames (non-ASCII family test), per-slot restart-proof gap record acknowledged per file, README line. go test sessionsync/couchcmd/cmd/couch: only TestContinuationWriterPublishesExactCheckpointAcrossWorktrees fails (pre-existing: fails identically on the merge base in this env); artifactpath lists none of the #437 files (its remaining violations are identical to the merge base). Earlier full suite: every other failure reproduced on a merge-base worktree. Live read-only: status --json on ops tl-status refuses not-recording against the pre-#437 Couch; diff reports lock free. Done-when 5 moved to ops by Revision (TL owns ops; hand-off delivery 3c7ff078).; review verdict: SHIP
+- 2026-10-11: flow upgraded quick → full — 1289 added lines in code files (limit 100); an earlier round of this close already ran the full review
 ### 2026-10-10
 - Claimed from the TL's dispatch (ops:0). Confirmed parley.nvim#314's `status --json` shape via ops:0 (delivery 4ce3cdf0).
 - Couch persists no deliveries today (atlas: memory-only receipts); the ledger hooks the daemon's `messageEndpoint.Deliver` in couchcmd, not `couchmessage`, to stay out of #433/#435.

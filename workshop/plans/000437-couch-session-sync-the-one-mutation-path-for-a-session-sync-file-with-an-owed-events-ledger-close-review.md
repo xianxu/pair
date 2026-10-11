@@ -144,3 +144,120 @@ findings:
     title: |
       Write writes the file before the shadow; a failed shadow write turns the agent's own write into unread edits
 ```
+
+---
+
+## Re-review — 2026-10-11T00:42:44-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 437 — couch --session-sync: the one mutation path for a session-sync file, with an owed-events ledger |
+| repo | pair |
+| issue file | workshop/issues/000437-couch-session-sync-the-one-mutation-path-for-a-session-sync-file-with-an-owed-events-ledger.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | f6e650f0ebfda91bdd5ab119e39638d88932219e..b7c433831a5125b2d39992bc7ac223432a36c078 |
+| command | sdlc close --issue 437 |
+| reviewer | claude |
+| timestamp | 2026-10-11T00:42:44-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Round 1 fix commit is e77a5d8e + b7c43383. Let me look at those and the core files.
+
+Reviewing the round-1 fixes now; the sandbox blocks some couchcmd tests (mkdir /tmp), so I'll re-run the targeted ones scoped.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The round-1 fixes hold up, and every Important finding from that round is resolved. `release` now accepts `--accept-edits` and `--accept-gap`, so each refusal names a remedy the verb it came from takes. Slot validation now goes through couch's own `ParseWorkspaceReference`, and the address is escaped into the filename. The store-wide "failed" marker is gone. In its place each slot gets a `<slot>.gap` record that survives a Couch restart and is accepted per file. README, the atlas and the couch skill all describe the new surface. `go test ./cmd/internal/sessionsync/` passes. The couchcmd session-sync and delivery tests pass when run outside the sandbox; inside it they fail only on `mkdir /tmp/...`, which is the sandbox blocking the test socket directory. Three Minor findings from round 1 are still open (BR-6, BR-7, BR-9), and I found one new Minor issue. None of them blocks the close.
+
+**1. Strengths**
+- `sessionsync/sync.go:47` `Accepts` is one struct used by both `WriteRequest` and `ReleaseRequest`. That fixes the whole class of "refusal names a flag this verb doesn't take", not just the one site BR-1 named.
+- `ledger.go:58` `ValidSlot` uses couchcore's grammar and adds a round-trip check (`ref.String() == slot`). `url.QueryEscape` keeps the filename safe whatever characters the repo family uses (ARCH-DRY).
+- `gap.go` reasons correctly about uncertainty. The gap only matters for files whose horizon reaches it (`!gap.Last.Before(Since)`). A later failure makes it refuse again (`GapAccepted` vs `Last`). It expires after `keepFor`, the same window after which any row it could hide would have been trimmed anyway (ARCH-ORDER, ARCH-FUNERAL).
+- `TestALedgerAppendFailureRecordsAGapForThatSlotOnly` drives the real `messageEndpoint.Deliver` path, simulates a restart with `recordDeliveries`, and checks that other slots are unaffected. That is real regression evidence for BR-2 and BR-3.
+- `trim` now stops at `trimBytes/2` newest-first, so a trim can't be triggered again by the very next append. `TestLedgerTrimEndsWellUnderTheBound` pins this.
+
+**2. Critical findings**
+None.
+
+**3. Important findings**
+None.
+
+**4. Minor findings**
+- `gap.go:83`: if a gap record fails to parse, `readGap` makes one up with `Last: time.Now()`, and uses the wall clock rather than `l.now`.
+  - Because `Last` changes on every read, `GapAccepted` can never catch up and `expireGap` never removes the record.
+  - Result: `status` refuses with `delivery-gap` forever, and the only fix is the operator deleting the file by hand.
+  - Fix: use the record's mtime for both `First` and `Last`, so the gap is stable and can expire.
+  - The odds are low because `writeAtomic` prevents torn writes, but it is the ARCH-SECURE "fabricated value read as evidence" pattern.
+- BR-6, BR-7 and BR-9 are still open; see the dispositions below.
+
+**5. Test coverage notes**
+- Write, release and status are each tested against the gap: it refuses, `--accept-gap` is accepted, a later gap refuses again, another owner is unaffected, a gap before the file's horizon is ignored, and an expired gap is removed.
+- Delivery recording is tested for every receipt status.
+- Not tested: a gap record that fails to parse (the Minor above), and a gap whose `First` is before `Since` while `Last` is after it. The code handles the second case correctly; there's just no explicit fixture for it.
+
+**6. Architectural notes**
+- **ARCH-DRY:** flag (Minor, BR-7). The shared helper `durablefile.WriteAtomic` already exists, but `sessionsync` still keeps its own `writeAtomic`. The slot grammar now has a single source.
+- **ARCH-PURE:** pass. `Owed`, `ReplaceSection` and `Fold` are pure; `Canonical` is injected.
+- **ARCH-PURPOSE:** pass. The purpose was a guarded mutation path plus an owed-events list, and both are delivered. Done-when row 5 moved to ops through a Revision.
+- **ARCH-MOCK:** pass. The ledger is a portable folder of files. `diff` is injected through `Sync.Diff`.
+- **ARCH-CONSTRAINTS:** pass. Each append costs one stat, and the size bound is enforced.
+- **ARCH-SECURE:** flag (Minor, the fabricated gap time above). Slot names are now escaped before reaching the filesystem.
+- **ARCH-ORDER:** pass. Gap, accept and later-gap states are explicit and tested in sequence. The window between the guard and the write is reported as a warning, which is acceptable.
+- **ARCH-FUNERAL:** pass with a note. A `.gap` file expires only when that slot receives another append. A slot that never receives one leaves its record (and its `.jsonl`) behind; this is bounded by the number of slot addresses.
+
+**7. Plan revision recommendations**
+None needed. The round-1 Revision correctly supersedes the earlier line saying "`status` refuses `not-recording` … or an append failed (`recording.json`)".
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      parseSessionSyncCLI allows --accept-edits/--accept-gap on release; TestReleaseAcceptsReadEditsWithoutAWrite pins it.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      ValidSlot delegates to couchcore.ParseWorkspaceReference; QueryEscape filename; TestLedgerUsesCouchsSlotGrammar plus per-slot gap test.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Per-slot .gap survives recordDeliveries restart (TestALedgerAppendFailureRecordsAGapForThatSlotOnly); refuses delivery-gap until accepted per file.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      README.md:401 lists couch --session-sync.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Round-1 Revision moves Done-when 5 to ops, citing hand-off delivery 3c7ff078.
+  - id: BR-6
+    disposition: not-addressed
+    note: |
+      LoadState still returns zero Since with no sidecar or shadow, so a new file owes up to 14 days of rows; Minor, non-blocking.
+  - id: BR-7
+    disposition: not-addressed
+    note: |
+      sessionsync/ledger.go:201 writeAtomic is still a local copy; durablefile.WriteAtomic is the shared helper to reuse.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      trim stops at trimBytes/2 newest-first; TestLedgerTrimEndsWellUnderTheBound.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      Write still writes the file before the shadow; Minor, non-blocking.
+findings:
+  - id: new
+    severity: Minor
+    family: fabricated-evidence-on-parse-failure
+    title: |
+      readGap fabricates Last=time.Now() for an unparseable gap record, so it never expires and cannot be durably accepted
+    detail: |
+      Each read gets a fresh Last, so GapAccepted never covers it and expireGap never removes it; status refuses delivery-gap forever until the file is deleted by hand. Use the record's mtime as First/Last (and l.now, not time.Now).
+```
