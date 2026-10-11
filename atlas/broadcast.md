@@ -384,7 +384,20 @@ watch) or the broadcast ends.
   every pointer-phase change resyncs from `Session.Notes()`. One snapshot under
   the leaf lock `pointerNotes.mu` feeds both `screenOverlay` (notes, then marks,
   public frames only) and the status row's `💭N` count after `👽`
-  (`StatusModel.Notes`, not a click target, and outside the guarded columns).
+  (`StatusModel.Notes`, outside the guarded columns).
+- **Notes menu** (`couchtty/notes_menu.go` pure, `console_notes.go`, M4): a left
+  click on `💭N` (`RenderedStatusRow.Notes`) toggles a box over the bottom right,
+  above the status row (`RenderNotesMenu`: width ≤ 48, each note a chip of its
+  author's color via `broadcast.NoteChipColor` plus its text wrapped to ≤ 3
+  rows with `…`, "+k more" when they don't fit, a `×` close mark). It is drawn
+  last in `screenOverlay`, so viewers see it; its layout is kept for
+  hit-testing. `routeNotesMenu` runs first in `routeMouseEvent`: over the open
+  box it takes press, motion, wheel and a press's release, so nothing there
+  reaches a child that tracks the mouse. Motion over an item sets
+  `NoteStyle.Hover` (row highlight; its 💭 held at full glow), a click copies
+  the note's text (OSC 52, "Note copied."), `×` or another `💭N` click closes
+  it. It closes when the last note goes, pointing turns off or the broadcast
+  ends (`settleMenuLocked`, `forgetNotes`). Esc is not taken: agents use it.
 - **Viewer page** (`web/notes.js`): keeps the list from `event: notes`
   (`parseNotes`) and hit-tests a tap against both cells of each visible 💭
   (`noteAt`, using the event's `guard`), so a tap on a 💭 opens it on any page:

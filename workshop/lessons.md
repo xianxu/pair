@@ -1069,3 +1069,7 @@ proof; record the surprising case so the next change starts from evidence.
 - **State the envelope at the bound, not per unit (#447 M3 review).** "About 11 repaints per note per 15s" hid
   35 repaints a second to every viewer at the 48-note limit. When a cost scales with a capped count, write the
   total at the cap, and prefer a design (one shared beat) whose cost doesn't scale at all.
+- **A "never reaches the child" test needs a child that asks (#447 M4).** Couch forwards mouse reports only to a
+  child that requested tracking, so asserting "no report reached the child" with a default fixture child passes
+  whatever the routing does. Feed the child its tracking mode first, and pair the negative assertion with a
+  positive control (a click outside the menu that does arrive).
