@@ -20,7 +20,7 @@ type answeringEndpoint struct {
 	err     error
 }
 
-func (e answeringEndpoint) Deliver(context.Context, couchmessage.Message) (couchmessage.Receipt, error) {
+func (e answeringEndpoint) Deliver(context.Context, couchmessage.Message, func(couchmessage.Receipt)) (couchmessage.Receipt, error) {
 	return e.receipt, e.err
 }
 
@@ -94,7 +94,7 @@ func TestDeliveryRecordingKeepsEverythingThatMayHaveLanded(t *testing.T) {
 		{"expired", couchmessage.Receipt{Status: couchmessage.Expired}, nil, false, false},
 	} {
 		e := messageEndpoint{service: r.s, binding: b, endpoint: answeringEndpoint{receipt: c.receipt, err: c.err}}
-		_, _ = e.Deliver(context.Background(), couchmessage.Message{ID: c.id, From: b, To: b, Body: "x"})
+		_, _ = e.Deliver(context.Background(), couchmessage.Message{ID: c.id, From: b, To: b, Body: "x"}, nil)
 		rows, _ := (&sessionsync.Ledger{Dir: sessionsync.LedgerDir(store)}).Read(b.Slot)
 		found := false
 		for _, row := range rows {
@@ -124,7 +124,7 @@ func TestALedgerAppendFailureRecordsAGapForThatSlotOnly(t *testing.T) {
 	// The slot's file becomes a directory: appends to it fail.
 	os.MkdirAll(filepath.Join(ledgerDir, url.QueryEscape(b.Slot)+".jsonl"), 0o700)
 	e := messageEndpoint{service: r.s, binding: b, endpoint: answeringEndpoint{receipt: couchmessage.Receipt{Status: couchmessage.Submitted}}}
-	if receipt, err := e.Deliver(context.Background(), couchmessage.Message{ID: "x", From: other, To: b}); err != nil || receipt.Status != couchmessage.Submitted {
+	if receipt, err := e.Deliver(context.Background(), couchmessage.Message{ID: "x", From: other, To: b}, nil); err != nil || receipt.Status != couchmessage.Submitted {
 		t.Fatalf("the delivery outcome must survive: %+v %v", receipt, err)
 	}
 	if g, err := ledger.Gap(b.Slot); err != nil || g == nil {

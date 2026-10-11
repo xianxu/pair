@@ -18,9 +18,9 @@ func (f *routingEffectsEndpoint) Reserve(ctx context.Context, id string, sequenc
 	f.reservations.Add(1)
 	return f.FakeDeliveryEndpoint.Reserve(ctx, id, sequence)
 }
-func (f *routingEffectsEndpoint) Deliver(ctx context.Context, m Message) (Receipt, error) {
+func (f *routingEffectsEndpoint) Deliver(ctx context.Context, m Message, progress func(Receipt)) (Receipt, error) {
 	f.deliveries.Add(1)
-	return f.FakeDeliveryEndpoint.Deliver(ctx, m)
+	return f.FakeDeliveryEndpoint.Deliver(ctx, m, progress)
 }
 
 func TestBrokerFamilyAmbiguityIncludesSender(t *testing.T) {

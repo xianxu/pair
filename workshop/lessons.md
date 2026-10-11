@@ -942,3 +942,10 @@ proof; record the surprising case so the next change starts from evidence.
   A lost ledger row stays lost across restarts, so a restart-cleared failure flag
   turns "incomplete" back into "complete". Scope the record to what it taints
   (the slot), persist it, and clear it by explicit acknowledgement or expiry.
+- **A paused clock resumes only on evidence that can judge the pause (#435).**
+  The first version of the operator hold closed on every dispatch that did
+  not see the hold, including the input-settle wait that typing the draft
+  causes. That restarted the paste-by clock mid-draft. When a state stops or
+  starts a timer, let only the observation that can decide it (here, a full
+  composer reading) change it; transient waits leave it as is. Test the side
+  path (keystrokes during the hold) that reaches the state machine first.
