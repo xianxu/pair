@@ -123,7 +123,6 @@ func (p *PointerState) offIfGeneration(gen uint64) bool {
 	return true
 }
 
-// stop turns pointing off for good.
 // claimColor gives a new pointer stream the palette color fewest live
 // streams hold, the lowest on a tie, so two viewers that haven't picked
 // rarely share one. The stream returns it with releaseColor when it ends.
@@ -146,6 +145,7 @@ func (p *PointerState) releaseColor(c int) {
 	p.held[c]--
 }
 
+// stop turns pointing off for good.
 func (p *PointerState) stop() {
 	_, _, _ = p.set(false, nil)
 	p.mu.Lock()
