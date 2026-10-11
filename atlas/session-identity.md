@@ -123,8 +123,11 @@ as acknowledgment when its absence at launch was known.
 **Cost follows sends (pair#420).** An unbound watcher does native work only
 when it can bind. Before a Pair-log turn exists past the launch offset, it
 neither walks nor validates the native store: correlation has nothing to match,
-and other sessions keep that store growing. A chosen-UUID launch still takes a
-metadata walk per pass for its filename handshake. Once a turn is pending, an
+and other sessions keep that store growing. A chosen-UUID launch (every fresh
+Claude) walks once for its filename handshake. After that it walks only when the
+agent pane's recording (`ScrollbackRaw`) has moved, because the transcript
+appears with the agent's first round. Without a recording it falls back to one
+walk per pass. An unchanged Pair log is not re-read. Once a turn is pending, an
 untracked candidate is validated only if it was written after the watcher's
 last quiet moment (`quietAt`, less a minute of slack); an older file cannot
 hold the round. An unbound watcher exits after `IdleExpiry` (24h) without a

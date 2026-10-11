@@ -95,6 +95,25 @@ func Run(opts Options, rt Runtime) error {
 	// the launch offset. A round's native events are written after its turn,
 	// so a candidate last modified before it cannot hold one (#420).
 	var quietAt time.Time
+	// quietLogMod is the Pair log's mtime when it was last read with no turn
+	// pending; an unchanged log is not re-read (#420).
+	var quietLogMod time.Time
+	// outputSeen is the agent pane recording's mtime at the last chosen-id
+	// walk. The chosen transcript appears with the agent's first round, which
+	// writes output, so an idle chosen launch walks again only after output.
+	// Without a recording it keeps walking each pass (#420).
+	var outputSeen time.Time
+	outputMoved := func() bool {
+		mod, err := rt.ModTime(paths.ScrollbackRaw(opts.Agent))
+		if err != nil {
+			return true
+		}
+		if mod.Equal(outputSeen) {
+			return false
+		}
+		outputSeen = mod
+		return true
+	}
 	// wait ends one unbound pass: the startup deadline, the idle expiry, then
 	// the send-aware sleep. It reports whether the watcher should exit.
 	wait := func() bool {
@@ -188,16 +207,25 @@ func Run(opts Options, rt Runtime) error {
 			}
 			effectiveLaunch = *observationEpoch
 		}
-		pairLog, logDiagnostics := readPairLog(rt, paths.Log(), agent)
 		// Send gate (#420): correlation matches Pair-log turns past the launch
 		// offset, so before one exists nothing can bind and the native store is
 		// not worth validating. An unreadable log stays on the full path.
-		turnPending := len(logDiagnostics) != 0 || uint64(len(pairLog)) > effectiveLaunch.PairLogOffset
+		var pairLog []byte
+		var logDiagnostics []sessioninventory.Diagnostic
+		turnPending := false
+		logMod, logModErr := rt.ModTime(paths.Log())
+		if logModErr != nil || quietLogMod.IsZero() || !logMod.Equal(quietLogMod) || boundRootNodeID != "" {
+			pairLog, logDiagnostics = readPairLog(rt, paths.Log(), agent)
+			turnPending = len(logDiagnostics) != 0 || uint64(len(pairLog)) > effectiveLaunch.PairLogOffset
+			if !turnPending && logModErr == nil {
+				quietLogMod = logMod
+			}
+		}
 		chosen := effectiveLaunch.Version == 3 && effectiveLaunch.RequestOrigin == sessionledger.RequestOriginChosen
 		if !turnPending && boundRootNodeID == "" {
 			quietAt = scanStart
 			clear(trackedTargets)
-			if !chosen {
+			if !chosen || !outputMoved() {
 				if wait() {
 					return nil
 				}

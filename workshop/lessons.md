@@ -884,3 +884,16 @@ proof; record the surprising case so the next change starts from evidence.
   was running. When a shortcut and a fallback return the same type, derive the
   fields from the same source (here the thread record, `RecordAgent`) and pin
   it with a test that runs both on one input and requires identical output.
+
+- **A load gate's test uses the dominant production shape (#420).** The send
+  gate was pinned only by a v2, non-chosen launch. Every fresh Claude launch
+  is chosen-id, which took the ungated walk path, so the common idle watcher
+  kept walking the store. When a cost fix branches on launch shape, origin or
+  agent, list the shapes production actually mints (`createflow` mints
+  `--session-id` for every fresh minting agent) and pin each branch with an
+  operation-counting test.
+- **A count helper's key shape is part of the assertion (#420).**
+  `OperationCountForRoot` matches a `root:` prefix, but `ListFiles` records the
+  bare root name, so a root-scoped `ListFiles` count is always 0 and the
+  assertion passes vacuously. Mutation-check every new "count == 0"
+  assertion: revert the fix and watch the test fail.

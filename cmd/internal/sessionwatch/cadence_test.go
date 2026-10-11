@@ -195,3 +195,48 @@ func TestRunPendingTurnSkipsCandidatesOlderThanQuietFloor(t *testing.T) {
 		t.Fatalf("validated a transcript older than the quiet floor %d times", got)
 	}
 }
+
+// #420 review: a fresh Claude launch is chosen-id, so an idle chosen watcher
+// must not walk the native store each SlowPoll. It walks once, then again only
+// after the agent pane writes output, and its first round still binds through
+// the filename handshake.
+func TestRunIdleChosenWatcherWalksOnlyAfterAgentOutput(t *testing.T) {
+	t.Parallel()
+	dataDir := t.TempDir()
+	native := sessioninventorytest.NewFakeRuntime()
+	root := sessioninventory.StorageRoot{Agent: sessioninventory.AgentClaude, Name: "claude-projects", Path: "/home/.claude/projects"}
+	native.AddRoot(root)
+	const sid = "11111111-1111-4111-8111-111111111111"
+	paths := mustScopedPaths(t, dataDir, "work")
+	runtime := newWatcherRuntime(native)
+	runtime.files[paths.Ledger()] = mustLaunchRecord(t, sessionledger.Record{Version: 3, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "claude", RequestedNativeID: sid, RequestOrigin: sessionledger.RequestOriginChosen, BaselineComplete: true})
+	runtime.files[paths.AgentPID()] = []byte("1234\n")
+	runtime.modTimes[paths.AgentPID()] = runtime.now
+	runtime.identities["1234"] = "pair-identity"
+	runtime.modTimes[paths.ScrollbackRaw("claude")] = runtime.now
+
+	opts := Options{Agent: "claude", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Second,
+		Timeout: time.Second, Poll: 100 * time.Millisecond, ActivePoll: time.Second, ActiveWindow: 30 * time.Minute, SlowPoll: time.Minute}
+	typedAt := runtime.now.Add(3 * time.Hour)
+	walksBeforeOutput := -1
+	runtime.onSleep = func() {
+		if runtime.now.Before(typedAt) {
+			return
+		}
+		// The operator types straight into the agent pane: no Pair send, but
+		// the agent answers and creates its chosen transcript.
+		walksBeforeOutput = native.OperationCount(sessioninventorytest.OperationListFiles, root.Name)
+		runtime.modTimes[paths.ScrollbackRaw("claude")] = typedAt
+		native.PutFile(sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: root.Name, RelativePath: "-repo/" + sid + ".jsonl"}}, []byte("{}\n"))
+		runtime.onSleep = nil
+	}
+	if err := Run(opts, runtime); err != nil {
+		t.Fatal(err)
+	}
+	if walksBeforeOutput != 1 {
+		t.Fatalf("idle chosen watcher walked the native store %d times in 3h, want once", walksBeforeOutput)
+	}
+	if len(runtime.store.records) != 1 || runtime.store.records[0].ConfirmationReason != "chosen-id" {
+		t.Fatalf("records=%+v", runtime.store.records)
+	}
+}

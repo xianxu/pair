@@ -137,9 +137,11 @@ ARCH-FUNERAL lines:
 
 ## Plan
 
-- [x] `zellijsession.RowState`, a pure parser with table tests; `launcher`
-  delegates to it; `titlepoller` `SessionAlive` treats EXITED as gone. Test: a
-  poller whose session row is EXITED exits after `MissThreshold`.
+- [x] `zellijsession.RowState`/`Live`, a pure parser with table tests,
+  including an EXITED row; `launcher` delegates to it; `titlepoller`
+  `SessionAlive` is a thin exec wrapper over `Live`. The exit after
+  `MissThreshold` misses is the poller's existing, unchanged loop, so no new
+  poller test was needed.
 - [x] `Runtime.StatFile` on `OSRuntime`, sharing per-file entry construction
   with `ListFiles`, plus the fake runtime and the test runtimes.
 - [x] `ValidateBindingProof` and `ActivityForSession` use named-artifact
@@ -186,6 +188,24 @@ ARCH-FUNERAL lines:
     embed a whole-store baseline (3150 entries per launch), filed as pair#431.
 - The diff (269 added code lines) leaves the quick-flow shell, so close runs
   the full review.
+- Close review round 1 (FIX-THEN-SHIP):
+  - **Important (fixed).** A chosen-id launch (every fresh Claude) still
+    walked the store each SlowPoll while idle. It now walks once, then only
+    after `ScrollbackRaw` moves. `TestRunIdleChosenWatcherWalksOnlyAfterAgentOutput`
+    counts one walk in 3h; with the gate disabled it counts 190.
+  - **Minor: Plan item 1 claimed a poller test (fixed).** The item now names
+    what shipped: the pure `Live` table test, and the existing loop does the
+    exiting.
+  - **Minor: idle pass re-read the whole Pair log (fixed).** An unchanged log
+    mtime since the last quiet read skips the read.
+  - **Minor: loop-state flags, ARCH-ORDER (deferred).** Naming the phases
+    (epoch, quiet, pending, bound) as an enum restructures the whole loop,
+    which is a refactor beyond this load fix. Recorded here for the next
+    change to the watcher.
+  - **Note: the on-disk catalog is not cleared on a quiet pass (no change).**
+    `clear` empties only the in-memory tracking. The catalog merges published
+    validations and never authorizes a binding by itself, so stale entries
+    are harmless.
 - Not changed: the bound Codex lifecycle follower still observes the store
   each pass. Measured at about 5 CPU-min per 44h (pid 26613), so not a
   hotspot.
