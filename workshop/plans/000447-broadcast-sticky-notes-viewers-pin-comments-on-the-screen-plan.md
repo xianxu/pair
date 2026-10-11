@@ -144,7 +144,7 @@ Also: IDs are unique and increasing, including after a resolve, and `List` retur
   - a cut wide character's blank keeps its background style;
   - two notes two columns apart over wide text give the same frame in either order;
   - **property** (seeded `math/rand`, 500 cases): random rows mixing narrow and wide characters × random note sets → the result is the same for every note order, no wide character is left without its other half, and cells outside notes' and their neighbours' columns are unchanged.
-- [ ] **Step 2:** FAIL. **Step 3: Implement** using `f.Clone()` and `uv.EmptyCell` for blanks. **Step 4:** PASS. **Step 5:** commit `#447 M1: draw notes as 💭 on a frame`.
+- [ ] **Step 2:** FAIL. **Step 3: Implement** `DrawNotes` per Core concepts. **Step 4:** PASS. **Step 5:** commit `#447 M1: draw notes as 💭 on a frame`.
 
 ### Task 4: Notes in PointerState and the server routes
 
