@@ -430,7 +430,7 @@ func TestCancelledQueuedMessageStillOccupiesWorkerInbox(t *testing.T) {
 	// consumes the queued item. Admission must not block on that stale inbox.
 	a := &SlotActor{state: registered(t, brokerBinding("pair:1"), time.Unix(1000, 0)), inbox: make(chan Message, 1), endpoint: newFakeEndpoint(time.Unix(1000, 0))}
 	a.inbox <- Message{ID: "cancelled-before-worker-start"}
-	if !actorCandidate(a).Pending {
+	if !actorCandidate(a, time.Unix(1000, 0)).Pending {
 		t.Fatal("cancelled queued item could block next admission under broker mutex")
 	}
 }

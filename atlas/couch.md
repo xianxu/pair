@@ -185,10 +185,18 @@ identity. The override is not persisted into saved agent arguments.
 `couch --actors`, `--send-to repo[:N] [--agent NAME] --message TEXT` and `--message-status ID`
 use bounded Unix stream RPC, without constructing another mutable supervisor.
 `--actors` and `--message-status` support JSON. One pending delivery per actor,
-eight inbound admissions between genuine operator submissions, and bounded
-receipt retention limit the runtime. Family selection requires fresh resting
+the inbound breaker, and bounded receipt retention limit the runtime. Family selection requires fresh resting
 branch and quiet-wrapper observations; exact sends allow occupied-slot
 coordination. Quietness is never acceptance of repository work.
+
+**The breaker is a leaky bucket (#433).** Each actor's pure `ActorState` holds
+a burst (`InboundAllowance` 8) that regains one message per `RefillInterval`
+(3 min), so a ping-pong empties it while spaced reports never do. A genuine
+operator submission refills it, and so does a self-addressed message: the
+operator's parley session-sync submit runs `couch --send-to` inside the slot's
+own session, so the broker resolves the sender to the recipient. The slot whose
+worktree Couch started from is the TL hub (`messageAuthority.hub`) and registers
+with `HubAllowance` 64. `--actors` prints `allowance=remaining/capacity`.
 
 **Registration follows lifecycle events, not polling (#365).** Each wrapper
 holds one long-lived session on the namespace's `registry` socket

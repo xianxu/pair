@@ -195,3 +195,118 @@ func TestBodyValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// #433 Done-when 1: past the burst a message is refused; one RefillInterval
+// later exactly one more is admitted. The listing's RemainingAt agrees.
+func TestBucketRefillsOneMessagePerInterval(t *testing.T) {
+	now := time.Unix(100, 0)
+	b := binding("pair:1")
+	s := drain(t, registered(t, b, now), b, now)
+	late := now.Add(RefillInterval - time.Second)
+	if _, _, err := Advance(s, admitEvent(b, "early", late)); !errors.Is(err, ErrBudgetExhausted) {
+		t.Fatalf("before the interval: %v", err)
+	}
+	refilled := now.Add(RefillInterval)
+	if got := s.RemainingAt(refilled); got != 1 {
+		t.Fatalf("RemainingAt = %d, want 1", got)
+	}
+	s, _ = advance(t, s, admitEvent(b, "one", refilled))
+	s, _ = advance(t, s, Event{Kind: DeliveryFinished, Binding: b, Message: mustPending(t, s), Status: Cancelled, At: refilled})
+	if _, _, err := Advance(s, admitEvent(b, "two", refilled.Add(time.Second))); !errors.Is(err, ErrBudgetExhausted) {
+		t.Fatalf("second after one interval: %v", err)
+	}
+	if got := s.RemainingAt(now.Add(time.Hour)); got != InboundAllowance {
+		t.Fatalf("refill exceeded capacity: %d", got)
+	}
+}
+
+// #433 Done-when 2: a self-addressed message (the operator's session-sync
+// submit) refills the bucket and spends nothing.
+func TestSelfAddressedMessageRefillsFully(t *testing.T) {
+	now := time.Unix(100, 0)
+	b := binding("pair:1")
+	s := drain(t, registered(t, b, now), b, now)
+	self := Message{ID: "sync", From: b, To: b, Body: "submitted: x.md", Deadline: now.Add(time.Minute)}
+	s, fx := advance(t, s, Event{Kind: Admit, Binding: b, Message: self, At: now})
+	if s.Remaining() != InboundAllowance || len(fx) != 1 || fx[0].Receipt.Status != Queued {
+		t.Fatalf("self-addressed admit: remaining %d, %+v", s.Remaining(), fx)
+	}
+}
+
+// #433 Done-when 3: the hub's bucket admits well past the ordinary burst with
+// no operator keystroke.
+func TestHubAllowanceAdmitsPastTheOrdinaryBurst(t *testing.T) {
+	now := time.Unix(100, 0)
+	b := binding("ops:0")
+	s, _, err := Advance(ActorState{}, Event{Kind: Register, Binding: b, Allowance: HubAllowance, At: now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 4*InboundAllowance; i++ {
+		s, _ = advance(t, s, admitEvent(b, strconv.Itoa(i), now))
+		s, _ = advance(t, s, Event{Kind: DeliveryFinished, Binding: b, Message: mustPending(t, s), Status: Cancelled, At: now})
+	}
+	if s.Capacity() != HubAllowance || s.Remaining() != HubAllowance-4*InboundAllowance {
+		t.Fatalf("hub %d/%d", s.Remaining(), s.Capacity())
+	}
+}
+
+// #433 Done-when 4: two agents answering each other a second apart are cut
+// off within seconds, even when one of them is the hub.
+func TestPingPongIsCutOffWithinSeconds(t *testing.T) {
+	for _, hub := range []bool{false, true} {
+		now := time.Unix(100, 0)
+		a, w := binding("ops:0"), binding("pair:1")
+		allowance := 0
+		if hub {
+			allowance = HubAllowance
+		}
+		sa, _, _ := Advance(ActorState{}, Event{Kind: Register, Binding: a, Allowance: allowance, At: now})
+		sw := registered(t, w, now)
+		states := map[Binding]*ActorState{a: &sa, w: &sw}
+		from, to := a, w
+		var err error
+		for i := 0; err == nil; i++ {
+			at := now.Add(time.Duration(i) * time.Second)
+			if at.Sub(now) > 20*time.Second {
+				t.Fatalf("hub=%v: ping-pong still running after %v", hub, at.Sub(now))
+			}
+			m := Message{ID: strconv.Itoa(i), From: from, To: to, Body: "ping", Deadline: at.Add(time.Minute)}
+			var next ActorState
+			if next, _, err = Advance(*states[to], Event{Kind: Admit, Binding: to, Message: m, At: at}); err == nil {
+				next, _ = advance(t, next, Event{Kind: DeliveryFinished, Binding: to, Message: m, Status: Cancelled, At: at})
+				*states[to] = next
+			}
+			from, to = to, from
+		}
+		if !errors.Is(err, ErrBudgetExhausted) {
+			t.Fatalf("hub=%v: %v", hub, err)
+		}
+	}
+}
+
+func admitEvent(b Binding, id string, at time.Time) Event {
+	return Event{Kind: Admit, Binding: b, Message: Message{ID: id, From: binding("brain:0"), To: b, Body: "work", Deadline: at.Add(time.Minute)}, At: at}
+}
+
+func mustPending(t *testing.T, s ActorState) Message {
+	t.Helper()
+	m, ok := s.Pending()
+	if !ok {
+		t.Fatal("no pending message")
+	}
+	return m
+}
+
+// drain spends b's whole bucket at now and confirms the next one is refused.
+func drain(t *testing.T, s ActorState, b Binding, now time.Time) ActorState {
+	t.Helper()
+	for i := 0; i < s.Capacity(); i++ {
+		s, _ = advance(t, s, admitEvent(b, "drain"+strconv.Itoa(i), now))
+		s, _ = advance(t, s, Event{Kind: DeliveryFinished, Binding: b, Message: mustPending(t, s), Status: Cancelled, At: now})
+	}
+	if _, _, err := Advance(s, admitEvent(b, "over", now)); !errors.Is(err, ErrBudgetExhausted) {
+		t.Fatalf("burst past allowance: %v", err)
+	}
+	return s
+}

@@ -90,7 +90,7 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 			if a.Alias != "" {
 				slot += " (" + a.Alias + ")"
 			}
-			fmt.Fprintf(stdout, "%s\t%s\t%s\tallowance=%d\n", slot, a.Binding.Agent, messageActorAvailability(a, now), a.Remaining)
+			fmt.Fprintf(stdout, "%s\t%s\t%s\tallowance=%d/%d\n", slot, a.Binding.Agent, messageActorAvailability(a, now), a.Remaining, a.Capacity)
 		}
 	} else if result.Receipt != nil {
 		receipt := result.Receipt

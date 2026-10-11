@@ -50,6 +50,10 @@ type messageAuthority struct {
 	// names its agent and working path as the typed peek does; nil names the
 	// binding's agent only.
 	record func(couchcore.ThreadAddress) (couchcore.ThreadRecord, error)
+	// hub is the worktree root Couch started from: the TL slot, which gets
+	// the larger peer-message bucket (#433). "" when Couch started outside a
+	// checkout.
+	hub string
 }
 
 // live is the full check, run once per admission: a lifecycle event, never a
@@ -222,7 +226,14 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	}); ok {
 		sessionName = source.PairSessionName
 	}
+	hub := ""
+	if cwd, err := os.Getwd(); err == nil {
+		if tree, err := c.ResolveTree(cwd); err == nil {
+			hub = string(tree)
+		}
+	}
 	authority := messageAuthority{
+		hub: hub,
 		families: func(ctx context.Context) (map[string]string, error) {
 			if c.Threads == nil {
 				return nil, nil
@@ -532,7 +543,11 @@ func (s *messageService) execute(e couchmessage.RegistryEffect) *couchmessage.Re
 			// Unreachable: Connect follows the AdmissionDone the worker prepared.
 			return &couchmessage.RegistryEvent{Kind: couchmessage.ConnectFailed, Token: e.Token, Pane: e.Pane, Err: errors.New("admission evidence missing")}
 		}
-		if err := s.broker.Register(e.Binding, messageEndpoint{service: s, binding: e.Binding, endpoint: p.endpoint}); err != nil {
+		allowance := couchmessage.InboundAllowance
+		if s.authority.hub != "" && p.identity.WorktreeRoot == s.authority.hub {
+			allowance = couchmessage.HubAllowance
+		}
+		if err := s.broker.RegisterWithAllowance(e.Binding, messageEndpoint{service: s, binding: e.Binding, endpoint: p.endpoint}, allowance); err != nil {
 			return &couchmessage.RegistryEvent{Kind: couchmessage.ConnectFailed, Token: e.Token, Pane: e.Pane, Err: err}
 		}
 		s.mu.Lock()

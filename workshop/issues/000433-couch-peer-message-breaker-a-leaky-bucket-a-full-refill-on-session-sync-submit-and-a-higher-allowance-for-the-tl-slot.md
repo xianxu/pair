@@ -44,19 +44,19 @@ learned of the landing two hours later (ops learnings kink 57).
 
 ## Done when
 
-- [ ] A burst beyond the allowance is refused; after the refill interval, one more is admitted (model test).
-- [ ] A session-sync submit refills the recipient's allowance fully (test).
-- [ ] The TL slot admits well past the ordinary burst without an operator keystroke (test).
-- [ ] A two-agent ping-pong is still cut off within seconds (test).
+- [x] A burst beyond the allowance is refused; after the refill interval, one more is admitted (model test).
+- [x] A session-sync submit refills the recipient's allowance fully (test).
+- [x] The TL slot admits well past the ordinary burst without an operator keystroke (test).
+- [x] A two-agent ping-pong is still cut off within seconds (test).
 
 ## Plan
 
 Quick flow (one close). Decisions:
 - **Bucket in the pure model.** `ActorState` keeps `remaining`, `capacity` and `refilledAt`; every event first
   credits `floor(elapsed / RefillInterval)` (capped at capacity; the clock restarts when full). `RemainingAt(now)`
-  is the same arithmetic for listings, which have no event. `RefillInterval = 3m`: a ping-pong delivers about one
-  message per QuietInterval (30 s) per side, so an 8-burst still empties in minutes, while worker reports minutes
-  apart never drain it.
+  is the same arithmetic for listings, which have no event. `RefillInterval = 3m`: a runaway exchange of exact
+  sends arrives seconds apart and empties the 8-burst long before a refill, while worker reports minutes apart
+  never drain it.
 - **Session-sync submit = a self-addressed message.** Parley shells `couch --send-to <owner>` from the operator's
   editor, which inherits the slot's launch env, so the broker resolves the caller to the recipient's own binding
   (`From == To`). The model treats a self-addressed admission as `OperatorSubmit`: full refill, nothing spent.
@@ -67,10 +67,20 @@ Quick flow (one close). Decisions:
   the hub is still cut by the worker's 8. Couch started outside a checkout has no hub.
 - **Visible.** `couch --list` prints `allowance=N/CAP` from `Candidate.Capacity`.
 
-- [ ] model: bucket + self-send refill + register allowance; tests for each Done-when row
-- [ ] broker/service: register with an allowance, hub root on `messageAuthority`, listing shows remaining/capacity
-- [ ] atlas note; targeted tests, then full `make test`
+- [x] model: bucket + self-send refill + register allowance; tests for each Done-when row
+- [x] broker/service: register with an allowance, hub root on `messageAuthority`, listing shows remaining/capacity
+- [x] atlas note + couch skill text; targeted tests, then full `make test`
 
 ## Log
 
 ### 2026-10-10
+
+- Dispatched by ops:0. Overlap with #435 (deadline vs holds in the same `model.go`): this change touches only the
+  budget fields and the Admit spend, not the deadline/horizon logic.
+- Session-sync provenance: parley.nvim `session_sync.lua` runs `couch --send-to <owner>` from the editor; the slot's
+  launch env (`PAIR_LAUNCH_NONCE` etc.) is session-wide, so the caller resolves to the recipient's own binding.
+  Telling the editor from the agent would need a process-ancestry check against `Binding.PID`; not worth it for a
+  one-agent self-continuation (see Plan).
+- `go test ./cmd/internal/couchcmd/`: `TestColdResumeOfAParkedPrimaryRegistersFromBothOrigins` and
+  `TestContinuationWriterPublishesExactCheckpointAcrossWorktrees` fail identically with this diff stashed
+  (pre-existing).
