@@ -15,6 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "332e6b2d", done: "0f828cc3"}
 ---
 
 # Peer delivery: a hold the operator causes (scrolled up, draft in the composer) doesn't spend the delivery deadline
