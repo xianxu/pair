@@ -69,8 +69,10 @@ html, body {
 #status.hidden {
   display: none;
 }
-/* A screen that is no longer receiving updates must not look live. */
-#stage.stale {
+/* A screen that is no longer receiving updates must not look live, nor
+   must the rail on it (#449). */
+#stage.stale,
+#rail.stale {
   opacity: 0.35;
   filter: grayscale(1);
 }

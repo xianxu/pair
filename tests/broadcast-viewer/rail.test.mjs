@@ -32,3 +32,8 @@ test('the rail is outside the stage and only its buttons take pointer events', (
   assert.match(block('#rail'), /pointer-events: none/);
   assert.match(block('\\.swatch'), /pointer-events: auto/);
 });
+
+test('a stale screen dims the rail with it', () => {
+  const css = readFileSync(new URL('viewer.css', web), 'utf8');
+  assert.match(css, /#stage\.stale,\s*#rail\.stale \{[^}]*opacity/);
+});

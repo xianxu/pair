@@ -351,7 +351,10 @@ async function start() {
     },
     reset: () => term.reset(),
     show,
-    setStale: (on) => stage.classList.toggle('stale', on),
+    setStale: (on) => {
+      stage.classList.toggle('stale', on);
+      rail.classList.toggle('stale', on);
+    },
     later: (fn, ms) => setTimeout(fn, ms),
     caps: (c) => {
       pointer.setColors(c.palette, c.color);
