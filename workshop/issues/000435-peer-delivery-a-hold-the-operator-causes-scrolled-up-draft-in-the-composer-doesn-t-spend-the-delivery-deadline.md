@@ -84,3 +84,15 @@ Design (settled; ARCH-SIMPLE — one static cap both sides read, no new protocol
   block, `Message`/`Horizon`, `Status`, `EventKind` and adds one `Advance` case; no allowance code.
 - Mutation-checked: returning `Deadline` while held fails the draft/scrollback/non-operator tests; dropping
   the `heldFor` credit fails the non-operator test.
+- Close review round 1 (FIX-THEN-SHIP): BR-1 Important — the waits a keystroke causes (input settle, forwarded,
+  incomplete or held input) closed the hold, so typing a draft spent the paste-by. Fixed the class: only a full
+  composer reading (`judged`) opens or closes an operator hold; every wait that can't judge it leaves it as is.
+  `TestPeerTypingKeepsTheHoldOpen` (mutation-checked: always judging fails it). Minors: the cap expiry names the
+  hold whenever `HoldLimit` is reached, also after the hold closed (`TestPeerHoldLimitAfterTheHoldClosed`); the
+  endpoint resets its poll ticker only on a status change; atlas states the longer-horizon cost for a hung
+  recipient.
+
+## Revisions
+
+- 2026-10-10 (close review BR-1): waits that can't judge the hold (input settling, forwarded/held input) keep an
+  open operator hold open; only the composer reading decides it.

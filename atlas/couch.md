@@ -343,6 +343,10 @@ still-booting Claude.
   `Deadline`, up to `Message.HoldLimit()` (`Deadline + MaxHold`, 30m). The cap
   bounds how long a scrolled-up pane can keep refusing other senders
   (`recipient-busy`); reaching it expires with "held past 30m0s, <hold>".
+  Its cost: a recipient wrapper that hangs while still connected now keeps
+  the sender's delivery pending up to the full horizon (about 32m), not 2m.
+  Waits that can't judge the hold (input settling, forwarded input) leave
+  it as it is, so typing a draft doesn't spend the clock.
   Other waits (paste mode, an unrecognized composer, a booting slot) keep the
   clock running. While held the wrapper's receipt is `held` with the reason;
   `RemoteEndpoint.Deliver` hands each interim receipt to the broker

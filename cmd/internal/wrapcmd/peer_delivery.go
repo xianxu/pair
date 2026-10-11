@@ -398,15 +398,21 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 	if d.current.Message.ID == "" || d.current.Status.Terminal() {
 		return
 	}
-	operatorHold := false
-	defer func() { d.operatorHoldLocked(operatorHold) }()
+	// Only a full composer reading opens or closes an operator hold; a wait
+	// that can't judge it (input settling, forwarded input) leaves it as is.
+	judged, operatorHold := false, false
+	defer func() {
+		if judged {
+			d.operatorHoldLocked(operatorHold)
+		}
+	}()
 	event := couchmessage.PeerDeliveryEvent{Kind: couchmessage.PeerComposerObserved}
 	switch {
 	case d.exited:
 		event.Kind = couchmessage.PeerChildExited
 	case !d.now().Before(d.deadlineLocked()):
 		event.Kind = couchmessage.PeerDeadlineElapsed
-		if !d.heldSince.IsZero() {
+		if !d.now().Before(d.current.Message.HoldLimit()) {
 			d.current.Detail = "held past " + couchmessage.MaxHold.String() + ", " + d.current.Detail
 		}
 	case d.image && d.current.Status == couchmessage.Delivering:
@@ -457,6 +463,7 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 				d.current.Detail = "waiting for held operator input"
 				return
 			}
+			judged = true
 			pasteReady := p.childAcceptsPaste()
 			composer := peerComposerState(p.agentBasename, snapshot)
 			event.Ready = pasteReady && composer == PeerComposerEmpty

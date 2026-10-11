@@ -117,3 +117,43 @@ func TestPeerHoldLimitExpiresNamingTheHold(t *testing.T) {
 		t.Fatalf("pasted at the hold limit: %q", out.String())
 	}
 }
+
+// Typing the draft is part of the operator's hold (BR-1): the waits a
+// keystroke causes leave an open hold open.
+func TestPeerTypingKeepsTheHoldOpen(t *testing.T) {
+	f, d, now := peerHoldFixture(t)
+	var out bytes.Buffer
+	f.proxy.dispatchPeer(&out)
+	for i := 0; i < 4; i++ {
+		*now = now.Add(time.Minute)
+		human, _ := d.admitInput([]byte("x"))
+		d.inputForwarded(human, false)
+		f.proxy.dispatchPeer(&out)
+		if r := d.receipt(); r.Status != couchmessage.Held || r.Detail != "waiting for input to settle" {
+			t.Fatalf("typing closed the hold or spent the deadline: %+v", r)
+		}
+	}
+	f.output(peerEmptyComposer())
+	*now = now.Add(time.Second)
+	f.proxy.dispatchPeer(&out)
+	if !strings.Contains(out.String(), "hello") {
+		t.Fatalf("draft cleared but no paste: %+v", d.receipt())
+	}
+}
+
+// Reaching the hold limit on credited time, after the hold closed, still
+// names the hold.
+func TestPeerHoldLimitAfterTheHoldClosed(t *testing.T) {
+	f, d, now := peerHoldFixture(t)
+	var out bytes.Buffer
+	f.proxy.dispatchPeer(&out)
+	limit := d.receipt().Message.HoldLimit()
+	*now = limit.Add(-time.Second)
+	f.output("\x1b[2Jno composer here")
+	f.proxy.dispatchPeer(&out) // closes the hold with nearly MaxHold credited
+	*now = limit
+	f.proxy.dispatchPeer(&out)
+	if r := d.receipt(); r.Status != couchmessage.Expired || !strings.Contains(r.Detail, "held past 30m0s") {
+		t.Fatalf("closed-hold limit: %+v", r)
+	}
+}

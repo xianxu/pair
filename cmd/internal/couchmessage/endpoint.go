@@ -200,15 +200,17 @@ func (e RemoteEndpoint) Deliver(parent context.Context, m Message, progress func
 			if r.Receipt.Status != Queued && r.Receipt.Status != Held && r.Receipt.Status != Delivering {
 				return Receipt{}, errors.New("endpoint returned an invalid delivery status")
 			}
+			if r.Receipt.Status != last.Status {
+				poll := 50 * time.Millisecond
+				if r.Receipt.Status == Held {
+					poll = peerHeldPoll
+				}
+				ticker.Reset(poll)
+			}
 			if progress != nil && (r.Receipt.Status != last.Status || r.Receipt.Detail != last.Detail) {
 				progress(*r.Receipt)
 			}
 			last = *r.Receipt
-			if last.Status == Held {
-				ticker.Reset(peerHeldPoll)
-			} else {
-				ticker.Reset(50 * time.Millisecond)
-			}
 		}
 		select {
 		case <-ctx.Done():
