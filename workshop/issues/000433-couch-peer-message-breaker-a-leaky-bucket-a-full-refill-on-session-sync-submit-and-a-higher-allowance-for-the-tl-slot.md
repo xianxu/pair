@@ -84,3 +84,7 @@ Quick flow (one close). Decisions:
 - `go test ./cmd/internal/couchcmd/`: `TestColdResumeOfAParkedPrimaryRegistersFromBothOrigins` and
   `TestContinuationWriterPublishesExactCheckpointAcrossWorktrees` fail identically with this diff stashed
   (pre-existing).
+- TL (ops:0) relayed parley.nvim#314: session-sync will also send `session-sync ping: <path> owes a response
+  since <ts>`. No marker needed: both kinds are self-addressed when sent from the owner slot's session, so both
+  refill (a ping refilling is harmless; only that session can send it). Text prefixes are not trusted. Replied
+  to ops:0.
