@@ -5,6 +5,17 @@ created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
 github_issue:
+tracker:
+    version: 1
+    handoff:
+        token: move-9a8e023c1b5f
+        repository: github.com/xianxu/pair
+        source_branch: refs/heads/main
+        source_base: 27466d59808bb3cceb3d41073eca84fff004b5e2
+        source_head: 27466d59808bb3cceb3d41073eca84fff004b5e2
+        source_path: workshop/issues/000449-broadcast-viewer-pointer-color-swatches-as-a-vertical-overlay-on-the-screen-s-right-edge.md
+        source_blob: 2378a56a46b0e4a1df300efab0dd16940191610e
+        destination: workshop/issues/000449-broadcast-viewer-pointer-color-swatches-as-a-vertical-overlay-on-the-screen-s-right-edge.md
 ---
 
 # Broadcast viewer: pointer color swatches as a vertical overlay on the screen's right edge
