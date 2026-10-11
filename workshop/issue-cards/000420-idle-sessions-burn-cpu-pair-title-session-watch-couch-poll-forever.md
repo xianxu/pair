@@ -1,10 +1,19 @@
 ---
 id: 000420
-status: working
+status: codecomplete
 created: 2026-10-09
 updated: 2026-10-10
 estimate_hours:
 github_issue:
+started: 2026-10-10T17:48:03-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
+actual_hours: 1.04
 tracker:
     version: 1
     handoff:
@@ -17,14 +26,11 @@ tracker:
         source_blob: b90587d60cc1f96a11f08d1d5a30c9b475adca47
         destination: workshop/issues/000420-idle-sessions-burn-cpu-pair-title-session-watch-couch-poll-forever.md
         main_commit: 88011634fb9827f1964089946081dcc6fd4381fc
-started: 2026-10-10T17:48:03-07:00
-claimant:
-    operator: Xian Xu
-    machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: Xian’s MacBook Pro
-    workspace: pair:3
-    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
-    repository: github.com/xianxu/pair
+    completion:
+        token: close-0923568ef65a
+        repository: github.com/xianxu/pair
+        reviewed_head: 53f20aded2b8d5cd83cc0e440389cfd3bee59b1d
+        evidence_commit: d8c330448d18a1ea3b4b01c3c128c1353f008cd3
 ---
 
 # idle sessions burn CPU: pair title / session-watch / couch poll forever
