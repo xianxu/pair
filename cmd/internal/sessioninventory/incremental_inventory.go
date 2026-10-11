@@ -3,6 +3,7 @@ package sessioninventory
 import (
 	"errors"
 	"fmt"
+	"os"
 )
 
 var ErrArtifactChanged = errors.New("session inventory artifact changed during observation")
@@ -76,16 +77,52 @@ func ObserveAgentMetadata(runtime Runtime, agent Agent) ([]ArtifactObservation, 
 			continue
 		}
 		for _, entry := range files {
-			schema, kind, recognized := artifactScannerShape(agent, entry.Artifact)
-			if !recognized {
-				continue
+			if observation, recognized := observeEntry(agent, entry); recognized {
+				observations = append(observations, observation)
 			}
-			entry.Artifact.Kind = kind
-			contract, _ := ProviderContractFor(agent, entry.Artifact.StorageRoot, schema)
-			observations = append(observations, ArtifactObservation{Agent: agent, Entry: entry, ScannerSchema: schema, ProviderContract: contract})
 		}
 	}
 	return sortedTargetObservations(observations, agent), diagnostics
+}
+
+// ObserveNamedArtifacts is ObserveAgentMetadata restricted to the named
+// artifacts: one stat each instead of a walk of every storage root (pair#420).
+// A missing or unrecognized artifact yields no observation, exactly as it
+// would be absent from a walk; callers selecting named artifacts already treat
+// that as changed.
+func ObserveNamedArtifacts(runtime Runtime, agent Agent, artifacts []Artifact) ([]ArtifactObservation, []Diagnostic) {
+	roots := map[string]bool{}
+	for _, root := range runtime.NativeRoots(agent) {
+		roots[root.Name] = true
+	}
+	var observations []ArtifactObservation
+	var diagnostics []Diagnostic
+	for _, artifact := range artifacts {
+		if !roots[artifact.StorageRoot] {
+			continue
+		}
+		entry, err := runtime.StatFile(Artifact{StorageRoot: artifact.StorageRoot, RelativePath: artifact.RelativePath})
+		if err != nil {
+			if !errors.Is(err, os.ErrNotExist) {
+				diagnostics = append(diagnostics, artifactDiagnostic(DiagnosticStorageUnreadable, agent, nil, artifact, "named native artifact is unreadable"))
+			}
+			continue
+		}
+		if observation, recognized := observeEntry(agent, entry); recognized {
+			observations = append(observations, observation)
+		}
+	}
+	return sortedTargetObservations(observations, agent), diagnostics
+}
+
+func observeEntry(agent Agent, entry FileEntry) (ArtifactObservation, bool) {
+	schema, kind, recognized := artifactScannerShape(agent, entry.Artifact)
+	if !recognized {
+		return ArtifactObservation{}, false
+	}
+	entry.Artifact.Kind = kind
+	contract, _ := ProviderContractFor(agent, entry.Artifact.StorageRoot, schema)
+	return ArtifactObservation{Agent: agent, Entry: entry, ScannerSchema: schema, ProviderContract: contract}, true
 }
 
 func artifactScannerShape(agent Agent, artifact Artifact) (string, ArtifactKind, bool) {

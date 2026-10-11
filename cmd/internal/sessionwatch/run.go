@@ -31,6 +31,7 @@ type Options struct {
 	SlowPoll        time.Duration
 	ActivePoll      time.Duration // cadence while a Pair send awaits its round (#316)
 	ActiveWindow    time.Duration // how long after a send ActivePoll applies
+	IdleExpiry      time.Duration // an unbound watcher with no send for this long exits (#420)
 	PIDNotBefore    time.Time
 	FollowLifecycle bool
 	AppendLifecycle func(string, LifecycleRecord) error
@@ -90,7 +91,29 @@ func Run(opts Options, rt Runtime) error {
 	// confirmation ends probation and optionally follows lifecycle telemetry.
 	// No epoch or parser state can replace the durable requested identity.
 	var observationEpoch *sessionledger.Record
+	// quietAt is the last scan start at which the Pair log held no turn past
+	// the launch offset. A round's native events are written after its turn,
+	// so a candidate last modified before it cannot hold one (#420).
+	var quietAt time.Time
+	// wait ends one unbound pass: the startup deadline, the idle expiry, then
+	// the send-aware sleep. It reports whether the watcher should exit.
+	wait := func() bool {
+		if rootPID == "" && !rt.Now().Before(deadline) {
+			rt.Log(adapt.Fail, "no completed native round within startup deadline (agent="+opts.Agent+")")
+			return true
+		}
+		if mod, err := rt.ModTime(paths.Log()); err == nil && !mod.Equal(logSeen) {
+			logSeen, lastSend = mod, rt.Now()
+		}
+		if idleExpired(rt.Now(), watchStart, lastSend, opts.IdleExpiry) {
+			rt.Log(adapt.NearMiss, "unbound watcher idle past expiry; exiting (agent="+opts.Agent+")")
+			return true
+		}
+		waitForScan(rt, paths.Log(), logSeen, scanDelay(rt.Now(), watchStart, lastSend, opts), opts.ActivePoll)
+		return false
+	}
 	for {
+		scanStart := rt.Now()
 		if rootIdentity != "" && rt.ProcessIdentity(rootPID) != rootIdentity {
 			rt.Log(adapt.NearMiss, "process identity changed before completed round")
 			return nil
@@ -131,17 +154,21 @@ func Run(opts Options, rt Runtime) error {
 			rt.Log(adapt.NearMiss, "legacy unbound launch has no metadata boundary; watcher failed closed")
 			return nil
 		}
-		catalog := sessioninventory.Catalog{Version: sessioninventory.CatalogVersion}
-		if saved, readErr := rt.CatalogStore().Read(paths.SessionInventoryCatalog()); readErr == nil {
-			catalog = saved
-		} else if !errors.Is(readErr, os.ErrNotExist) && !errors.Is(readErr, sessioninventory.ErrCatalogCorrupt) {
-			rt.Log(adapt.NearMiss, "session inventory catalog unavailable: "+readErr.Error())
+		// The catalog is read only by passes that observe the native store; a
+		// gated pass skips it with the walk (#420).
+		newIncremental := func() sessioninventory.IncrementalInventory {
+			catalog := sessioninventory.Catalog{Version: sessioninventory.CatalogVersion}
+			if saved, readErr := rt.CatalogStore().Read(paths.SessionInventoryCatalog()); readErr == nil {
+				catalog = saved
+			} else if !errors.Is(readErr, os.ErrNotExist) && !errors.Is(readErr, sessioninventory.ErrCatalogCorrupt) {
+				rt.Log(adapt.NearMiss, "session inventory catalog unavailable: "+readErr.Error())
+			}
+			return sessioninventory.NewIncrementalInventory(nativeRuntime, catalog)
 		}
-		incremental := sessioninventory.NewIncrementalInventory(nativeRuntime, catalog)
-		snapshot := incremental.Observe(agent)
 		effectiveLaunch := current.Launch
 		if current.Launch.Version == 3 && !current.Launch.BaselineComplete {
 			if observationEpoch == nil {
+				snapshot := newIncremental().Observe(agent)
 				boundaries, complete := launchBoundaries(snapshot)
 				pairLog, readErr := rt.ReadFile(paths.Log())
 				if complete && (readErr == nil || errors.Is(readErr, os.ErrNotExist)) {
@@ -161,7 +188,25 @@ func Run(opts Options, rt Runtime) error {
 			}
 			effectiveLaunch = *observationEpoch
 		}
-		if effectiveLaunch.Version == 3 && effectiveLaunch.RequestOrigin == sessionledger.RequestOriginChosen {
+		pairLog, logDiagnostics := readPairLog(rt, paths.Log(), agent)
+		// Send gate (#420): correlation matches Pair-log turns past the launch
+		// offset, so before one exists nothing can bind and the native store is
+		// not worth validating. An unreadable log stays on the full path.
+		turnPending := len(logDiagnostics) != 0 || uint64(len(pairLog)) > effectiveLaunch.PairLogOffset
+		chosen := effectiveLaunch.Version == 3 && effectiveLaunch.RequestOrigin == sessionledger.RequestOriginChosen
+		if !turnPending && boundRootNodeID == "" {
+			quietAt = scanStart
+			clear(trackedTargets)
+			if !chosen {
+				if wait() {
+					return nil
+				}
+				continue
+			}
+		}
+		incremental := newIncremental()
+		snapshot := incremental.Observe(agent)
+		if chosen {
 			_, complete := launchBoundaries(snapshot)
 			if complete && sessioninventory.ChosenFilenameHandshake(agent, effectiveLaunch.RequestedNativeID, targetBoundaries(effectiveLaunch), snapshot.Observations) != nil {
 				confirmer, ok := rt.LedgerAppender().(interface {
@@ -178,11 +223,21 @@ func Run(opts Options, rt Runtime) error {
 				return nil
 			}
 		}
+		if !turnPending && boundRootNodeID == "" {
+			if wait() {
+				return nil
+			}
+			continue
+		}
 		var inventory sessioninventory.Inventory
 		var events []sessioninventory.NativeEventFact
 		proofs := map[string]sessionledger.AuthorizationProof{}
 
-		inventory, events, proofs = incrementalWatcherInventorySnapshot(nativeRuntime, incremental, agent, effectiveLaunch, trackedTargets, snapshot)
+		floor := time.Time{}
+		if boundRootNodeID == "" && !quietAt.IsZero() {
+			floor = quietAt.Add(-candidateMTimeSlack)
+		}
+		inventory, events, proofs = incrementalWatcherInventorySnapshot(nativeRuntime, incremental, agent, effectiveLaunch, trackedTargets, snapshot, floor)
 		if err := persistTrackedCatalog(rt.CatalogStore(), paths.SessionInventoryCatalog(), trackedTargets); err != nil {
 
 			inventory.Diagnostics = append(inventory.Diagnostics, sessioninventory.DiagnosticWithSource(sessioninventory.DiagnosticStorageUnreadable, agent, nil, "session inventory catalog", "catalog publication failed; durable observation remains usable"))
@@ -197,7 +252,6 @@ func Run(opts Options, rt Runtime) error {
 			continue
 		}
 		beforeRoots, beforeAvailable := processAuthorizedRoots(nativeRuntime, inventory, agent, corroborationPID)
-		pairLog, logDiagnostics := readPairLog(rt, paths.Log(), agent)
 		inventory.Diagnostics = append(inventory.Diagnostics, logDiagnostics...)
 		for _, diagnostic := range logDiagnostics {
 			rt.Log(adapt.NearMiss, string(diagnostic.Code)+": Pair log unavailable for causal matching")
@@ -254,15 +308,25 @@ func Run(opts Options, rt Runtime) error {
 			rt.Sleep(opts.Poll)
 			continue
 		}
-		if rootPID == "" && !rt.Now().Before(deadline) {
-			rt.Log(adapt.Fail, "no completed native round within startup deadline (agent="+opts.Agent+")")
+		if wait() {
 			return nil
 		}
-		if mod, err := rt.ModTime(paths.Log()); err == nil && !mod.Equal(logSeen) {
-			logSeen, lastSend = mod, rt.Now()
-		}
-		waitForScan(rt, paths.Log(), logSeen, scanDelay(rt.Now(), watchStart, lastSend, opts), opts.ActivePoll)
 	}
+}
+
+// candidateMTimeSlack widens the quiet-moment floor for filesystem timestamp
+// granularity and for a turn whose native write races the log append.
+const candidateMTimeSlack = time.Minute
+
+// idleExpired is the unbound watcher's end (#420, ARCH-FUNERAL): a day with no
+// send since the later of launch and the last send. A thread used after that
+// binds on its next relaunch, which spawns a fresh watcher.
+func idleExpired(now, watchStart, lastSend time.Time, expiry time.Duration) bool {
+	since := watchStart
+	if lastSend.After(since) {
+		since = lastSend
+	}
+	return !now.Before(since.Add(expiry))
 }
 
 // scanDelay is the watcher's cadence. A proof needs a Pair send and then the
@@ -343,10 +407,10 @@ func persistTrackedCatalog(store sessioninventory.CatalogStore, path string, tra
 
 func incrementalWatcherInventory(runtime sessioninventory.Runtime, incremental sessioninventory.IncrementalInventory, agent sessioninventory.Agent, launch sessionledger.Record, tracked map[string]sessioninventory.TargetValidation) (sessioninventory.Inventory, []sessioninventory.NativeEventFact, map[string]sessionledger.AuthorizationProof) {
 	snapshot := incremental.Observe(agent)
-	return incrementalWatcherInventorySnapshot(runtime, incremental, agent, launch, tracked, snapshot)
+	return incrementalWatcherInventorySnapshot(runtime, incremental, agent, launch, tracked, snapshot, time.Time{})
 }
 
-func incrementalWatcherInventorySnapshot(runtime sessioninventory.Runtime, incremental sessioninventory.IncrementalInventory, agent sessioninventory.Agent, launch sessionledger.Record, tracked map[string]sessioninventory.TargetValidation, snapshot sessioninventory.IncrementalSnapshot) (sessioninventory.Inventory, []sessioninventory.NativeEventFact, map[string]sessionledger.AuthorizationProof) {
+func incrementalWatcherInventorySnapshot(runtime sessioninventory.Runtime, incremental sessioninventory.IncrementalInventory, agent sessioninventory.Agent, launch sessionledger.Record, tracked map[string]sessioninventory.TargetValidation, snapshot sessioninventory.IncrementalSnapshot, floor time.Time) (sessioninventory.Inventory, []sessioninventory.NativeEventFact, map[string]sessionledger.AuthorizationProof) {
 	diagnostics := snapshot.Diagnostics
 	baseline := targetBoundaries(launch)
 	selection := incremental.Select(sessioninventory.TargetRequest{Mode: sessioninventory.TargetNewLaunch, Agent: agent, Baseline: baseline}, snapshot)
@@ -374,9 +438,15 @@ func incrementalWatcherInventorySnapshot(runtime sessioninventory.Runtime, incre
 	}
 	var untracked []sessioninventory.ArtifactObservation
 	for _, observation := range selection.Eligible {
-		if !handled[observation.Entry.Artifact.StorageRoot+"\x00"+observation.Entry.Artifact.RelativePath] {
-			untracked = append(untracked, observation)
+		if handled[observation.Entry.Artifact.StorageRoot+"\x00"+observation.Entry.Artifact.RelativePath] {
+			continue
 		}
+		// Older than the floor: written before any pending turn, so it holds
+		// no round. Its next write brings it back.
+		if modTime := observation.Entry.ModTime; !floor.IsZero() && modTime != nil && modTime.Before(floor) {
+			continue
+		}
+		untracked = append(untracked, observation)
 	}
 	validated, found := sessioninventory.ValidateTargetWork(runtime, agent, untracked)
 	diagnostics = append(diagnostics, found...)
@@ -418,6 +488,9 @@ func applyWatcherDefaults(opts *Options) {
 	}
 	if opts.ActiveWindow <= 0 {
 		opts.ActiveWindow = 30 * time.Minute
+	}
+	if opts.IdleExpiry <= 0 {
+		opts.IdleExpiry = 24 * time.Hour
 	}
 }
 

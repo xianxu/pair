@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
+	"github.com/xianxu/pair/cmd/internal/zellijsession"
 	"io"
 	"os"
 	"os/exec"
@@ -91,7 +92,7 @@ func (OSRuntime) SessionLiveness() ([]Session, error) {
 }
 
 func (OSRuntime) SessionBlocksReuse(session string) bool {
-	present, exited := sessionRowState(zj("list-sessions", "--no-formatting"), session)
+	present, exited := zellijsession.RowState(zj("list-sessions", "--no-formatting"), session)
 	if !present {
 		return false // no such session — reuse is free.
 	}

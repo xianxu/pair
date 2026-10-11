@@ -128,15 +128,15 @@ ARCH-FUNERAL lines:
 
 ## Plan
 
-- [ ] `zellijsession.RowState`, a pure parser with table tests; `launcher`
+- [x] `zellijsession.RowState`, a pure parser with table tests; `launcher`
   delegates to it; `titlepoller` `SessionAlive` treats EXITED as gone. Test: a
   poller whose session row is EXITED exits after `MissThreshold`.
-- [ ] `Runtime.StatFile` on `OSRuntime`, sharing per-file entry construction
+- [x] `Runtime.StatFile` on `OSRuntime`, sharing per-file entry construction
   with `ListFiles`, plus the fake runtime and the test runtimes.
-- [ ] `ValidateBindingProof` and `ActivityForSession` use named-artifact
+- [x] `ValidateBindingProof` and `ActivityForSession` use named-artifact
   observation. Test: a counting fake shows no `ListFiles`, and the results
   match the walk.
-- [ ] `sessionwatch`: send gate, mtime floor and `IdleExpiry`, each pinned by
+- [x] `sessionwatch`: send gate, mtime floor and `IdleExpiry`, each pinned by
   a fake-clock test. With no send: no validation, and an exit after expiry.
   A send past the offset still binds. An artifact older than the floor is
   never validated.
@@ -155,6 +155,29 @@ ARCH-FUNERAL lines:
   1–4). Probes: `sample` on 7939 (lstat, fstatat and open dominate), a
   70-second `ps` CPU-delta trace, and throwaway timing tests replaying one
   astro scan and one title tick against the real stores.
+- Implemented. Tests pin each mechanism, and each was mutation-checked
+  (reverted or disabled, the test fails):
+  - `TestRunUnsentWatcherSkipsNativeStoreAndExpires`: with the gate forced
+    open, the store is walked 262 times.
+  - `TestRunPendingTurnSkipsCandidatesOlderThanQuietFloor`: with no floor,
+    the foreign transcript is validated.
+  - `query_test` and `activity_test`: with the old code, `ListFiles` is
+    called once.
+  - `zellijsession` table tests.
+- An existing harness gap surfaced: `OperationCountForRoot` matches a `root:`
+  prefix, but `ListFiles` records the bare root name, so a root-scoped
+  `ListFiles` count is always 0. The tests use `OperationCount(op, root)`.
+- Live probe with the new code against the real stores:
+  - `SessionAlive(📁1-43)` is false; that session has been EXITED for 9 days.
+  - `SessionActivity` fell from 1.94s to 0.84s wall.
+  - `ContextCount` fell from 2.04s to 0.59s.
+  - pprof: the remainder is 74% `sessionledger.ParseLedger`. Launch records
+    embed a whole-store baseline (3150 entries per launch), filed as pair#431.
+- The diff (269 added code lines) leaves the quick-flow shell, so close runs
+  the full review.
+- Not changed: the bound Codex lifecycle follower still observes the store
+  each pass. Measured at about 5 CPU-min per 44h (pid 26613), so not a
+  hotspot.
 
 ## Revisions
 

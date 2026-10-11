@@ -58,6 +58,9 @@ type Runtime interface {
 	NativeRoots(Agent) []StorageRoot
 	PairDataRoot() StorageRoot
 	ListFiles(StorageRoot) ([]FileEntry, error)
+	// StatFile is one ListFiles entry by name; a missing artifact is an
+	// os.ErrNotExist error.
+	StatFile(Artifact) (FileEntry, error)
 	ReadFile(Artifact, int64) ([]byte, error)
 	ReadAt(Artifact, int64, int64) ([]byte, bool, error)
 	QuerySQLite(Artifact, string, int64) (SQLiteResult, error)

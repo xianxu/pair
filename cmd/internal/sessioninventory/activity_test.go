@@ -28,4 +28,11 @@ func TestSessionActivityUsesOnlyEstablishedAuthorizedRoot(t *testing.T) {
 	if err != nil || !ok || !got.CreatedAt.Equal(created) || !got.LastActivityAt.Equal(latest) || got.CreatedTimeSource != sessioninventory.TimeSourceMetadata || got.LastActivityTimeSource != sessioninventory.TimeSourceMTime {
 		t.Fatalf("established activity = %#v,%v err=%v", got, ok, err)
 	}
+	if got := runtime.OperationCount(sessioninventorytest.OperationListFiles, ""); got != 0 {
+		t.Fatalf("activity walked the native store %d times; want one stat (pair#420)", got)
+	}
+	runtime.DeleteFile(transcript)
+	if got, ok, err := sessioninventory.ActivityForSession(runtime, sessioninventory.SessionQuery{Status: sessioninventory.BindingEstablished, Root: &node}); err != nil || ok || got != (sessioninventory.SessionActivity{}) {
+		t.Fatalf("missing transcript activity = %#v,%v err=%v", got, ok, err)
+	}
 }
