@@ -24,6 +24,23 @@ rounds:
       isolation: fenced
       reviewed: 93616acc7c4a32dc82e7a676332d389c66e24a2a
       blocked: false
+    - "n": 2
+      timestamp: "2026-10-11T13:00:18-07:00"
+      dispatched: "2026-10-11T12:59:49-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: 'Left unfixed on purpose and still Minor and non-blocking: node cannot hit-test, the pass-through is pinned structurally, and headless Chrome checked the layout per the Log.'
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: 'viewer.css shares the rule as #stage.stale, #rail.stale and setStale (viewer.js:354-357) toggles both; rail.test.mjs:36-39 pins the CSS; #rail is the only stage sibling that overlays the screen.'
+          round: 2
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 859f6bd37268dd1f1652e02ce261383baf3e46d2
+      blocked: false
 ---
 
 # Gate ledger — pair#449 (boundary-review)
@@ -40,7 +57,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-2** [Minor] `stale-state-styling-scope` Rail is outside the stage, so the stale dimming does not apply to the swatches
   The #stage.stale opacity and grayscale (viewer.css) skip #rail. If wanted, add a body-level stale class or a matching #rail rule. #rail is the only sibling of the stage that overlays the screen.
 
+## Round 2 — 2026-10-11T13:00:18-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — not-addressed — Left unfixed on purpose and still Minor and non-blocking: node cannot hit-test, the pass-through is pinned structurally, and headless Chrome checked the layout per the Log.
+- BR-2 — addressed — viewer.css shares the rule as #stage.stale, #rail.stale and setStale (viewer.js:354-357) toggles both; rail.test.mjs:36-39 pins the CSS; #rail is the only stage sibling that overlays the screen.
+
 ## Open findings
 
 - **BR-1** [Minor] `done-when-clause-behavioral-evidence` Point-through-the-rail Done-when clause is pinned only by a CSS/HTML regex test
-- **BR-2** [Minor] `stale-state-styling-scope` Rail is outside the stage, so the stale dimming does not apply to the swatches

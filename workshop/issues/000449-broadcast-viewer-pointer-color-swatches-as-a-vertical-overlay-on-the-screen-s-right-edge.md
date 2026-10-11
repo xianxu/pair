@@ -45,6 +45,7 @@ pair#446 put the pointer color swatches in a band below the terminal screen. The
 ## Log
 
 ### 2026-10-11
+- 2026-10-11: closed — Post-close fix for advisory 2: #rail gets .stale with #stage (setStale), same CSS rule; node --test tests/broadcast-viewer 39/39 incl. new stale assertion. (fixed-then-ship); review verdict: SHIP
 - 2026-10-11: closed — node --test tests/broadcast-viewer 38/38 incl. new rail.test.mjs (railAt dock math; rail outside #stage; pointer-events none on rail, auto on swatches); go test ./cmd/internal/broadcast ok; headless Chrome w/ fake event stream at 1280x720, 390x844, 844x390: column on screen's right edge, vertically centered, no overflow. make -k test: only test-review's 8 nvim failures, identical on origin/main; go test ./... failures (couchcmd continuation, launcher checkpoint/native) identical on origin/main. Operator live smoke test pending a Couch restart.; review verdict: SHIP
 
 - Design: the swatches move into `#rail`, a fixed column outside `#stage` that `fit()` docks to the drawn `.xterm-screen` rect (`railAt`, pure, tested). Outside the stage, a swatch tap never reaches the stage's pointerdown (no stroke); `pointer-events: none` on the rail with `auto` on the buttons lets a point over the translucent backing fall through to the screen. #447's mode icon becomes another rail child. The hint keeps the bottom band. This deliberately reverses #446's lesson (controls covering cells), which the operator asked for: small, translucent, edge-docked.

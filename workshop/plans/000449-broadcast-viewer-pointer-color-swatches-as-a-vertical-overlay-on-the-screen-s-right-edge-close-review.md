@@ -66,3 +66,63 @@ findings:
     detail: |
       The #stage.stale opacity and grayscale (viewer.css) skip #rail. If wanted, add a body-level stale class or a matching #rail rule. #rail is the only sibling of the stage that overlays the screen.
 ```
+
+---
+
+## Re-review — 2026-10-11T13:00:17-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 449 — Broadcast viewer: pointer color swatches as a vertical overlay on the screen's right edge |
+| repo | pair |
+| issue file | workshop/issues/000449-broadcast-viewer-pointer-color-swatches-as-a-vertical-overlay-on-the-screen-s-right-edge.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 4f08a427063b4914be1acd76f531e3c9ab612405..859f6bd37268dd1f1652e02ce261383baf3e46d2 |
+| command | sdlc close --issue 449 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-11T13:00:17-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+This fix window is small and correct. It covers commits 3d6142be and 859f6bd3: a card-mirror update, plus one change that dims the rail whenever the screen goes stale. BR-2 is fixed properly. The CSS rule now applies to `#stage.stale, #rail.stale` together (`viewer.css:72-78`), and `setStale` in `viewer.js:354-357` toggles `stale` on both elements. `rail` is defined in the same `start()` scope at `viewer.js:285`, so the toggle can reach it. The finding's class is "siblings of the stage that overlay the screen". I swept that class against `viewer.html:15-19`. `#rail` is the only member: `#status` is the stale indicator itself, and `#controls`/`#hint` sit in the bottom band. BR-1 has no fix, and the Log says so on purpose. It stays a non-blocking Minor. There are no conflict resolutions in this window. The issue-file change adds a status flip, `actual_hours` and Log entries, and leaves `## Spec` and `## Done when` alone, so the scope did not change. `node --test tests/broadcast-viewer/*.test.mjs` passes 39/39.
+
+1. **Strengths**
+   - `viewer.css:72-75` uses one shared selector list instead of a copied `#rail.stale` block, so the stale look is defined in one place (ARCH-DRY).
+   - `viewer.js:354-357`: the fix lives in the injected `setStale` glue. The tested `connect` logic that decides *when* a screen is stale is untouched.
+   - `rail.test.mjs:36-39` pins the shared rule. Deleting `#rail.stale` from the CSS turns the test red.
+
+2. **Critical:** none.
+
+3. **Important:** none.
+
+4. **Minor**
+   - The JS half of the fix, `rail.classList.toggle`, has no test. That matches the untested `stage.classList.toggle` glue it sits beside, since `connect.test.mjs` injects a fake `setStale`. Two lines of DOM glue aren't worth adding a DOM harness for, so I'm not raising it as a finding.
+
+5. **Test coverage:** The CSS half of the BR-2 fix has a regression test. The stale timing is still covered behaviourally by `connect.test.mjs`.
+
+6. **Architecture (interdiff only)**
+   - **ARCH-DRY: pass.** The fix extends one selector list rather than duplicating the rule.
+   - **ARCH-PURE: pass.** The change is confined to the IO glue (`setStale`). No logic moved into it.
+   - **ARCH-PURPOSE: pass.** The class sweep is done, and the rail is the only overlaying sibling.
+
+7. **Plan revisions:** none.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: not-addressed
+    note: |
+      Left unfixed on purpose and still Minor and non-blocking: node cannot hit-test, the pass-through is pinned structurally, and headless Chrome checked the layout per the Log.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      viewer.css shares the rule as #stage.stale, #rail.stale and setStale (viewer.js:354-357) toggles both; rail.test.mjs:36-39 pins the CSS; #rail is the only stage sibling that overlays the screen.
+```
