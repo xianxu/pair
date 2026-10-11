@@ -88,7 +88,16 @@ rounds:
           family: plan-self-consistency
           round: 4
       blocked: false
-content_hash: 8fd700d06749f01a5f825c172ca5b44925811d1c453b691f070df62d6067d717
+    - "n": 5
+      timestamp: "2026-10-11T15:16:51-07:00"
+      agent: claude
+      dispose:
+        - id: PQ-7
+          disposition: not-addressed
+          note: Task 3 Step 3 still reads "uv.EmptyCell for blanks"; apply the rule (steps point to Core concepts, never restate mechanism) and drop it. Minor, M1 already closed with the style-keeping test.
+          round: 5
+      blocked: false
+content_hash: ab28f46617eca5221a2335e3480c4022bbfee15e8ac7163cc8c39972820edc88
 ---
 
 # Gate ledger — pair#447 (plan-quality)
@@ -137,6 +146,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - **PQ-7** [Minor] `plan-self-consistency` Task 3 Step 3 says to blank cells with uv.EmptyCell; Core concepts says EmptyCell drops the background and blanking must keep style
   2nd finding in this family. Rule: a task step names what to build and points to its Core concepts entry for how, without restating the mechanism. Follow Core concepts (set content " " and width 1, keep the style) and drop the uv.EmptyCell wording in Task 3.
+
+## Round 5 — 2026-10-11T15:16:51-07:00 (claude) — passed
+
+### Disposed
+
+- PQ-7 — not-addressed — Task 3 Step 3 still reads "uv.EmptyCell for blanks"; apply the rule (steps point to Core concepts, never restate mechanism) and drop it. Minor, M1 already closed with the style-keeping test.
 
 ## Open findings
 
