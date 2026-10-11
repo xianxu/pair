@@ -1493,9 +1493,9 @@ func (p *proxy) translateStdin() {
 // thin wrapper above.
 func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter time.Duration) {
 	type readEv struct {
-		data  []byte
-		err   error
-		human bool
+		data        []byte
+		err         error
+		human, held bool
 	}
 	ch := make(chan readEv, 4)
 	go func() {
@@ -1503,18 +1503,10 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 		for {
 			n, err := stdin.Read(buf)
 			if n > 0 {
-				human := false
-				p.inputAdmission.Lock()
-				if p.peer != nil {
-					human = p.peer.admitInput(buf[:n])
-				}
-				if p.orientation != nil {
-					p.orientation.admitOperatorInput(buf[:n])
-				}
-				p.inputAdmission.Unlock()
+				human, held := p.admitStdin(buf[:n], false)
 				cp := make([]byte, n)
 				copy(cp, buf[:n])
-				ch <- readEv{data: cp, human: human}
+				ch <- readEv{data: cp, human: human, held: held}
 			}
 			if err != nil {
 				ch <- readEv{err: err}
@@ -1604,6 +1596,12 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 		disarmTimer()
 	}
 
+	// Input held behind a delivery in flight (pair#428), replayed in order
+	// with its original gaps once released: a draft send's paste, settle and
+	// submit keep their rhythm.
+	var held heldInput
+	defer held.stop()
+
 	// Timer receipt and deadline dispatch are separate: giving queued input
 	// priority must not discard the consumed deadline (BR-1, ARCH-ORDER).
 	settleDue := false
@@ -1611,6 +1609,11 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 		peerTick := peerPoll.update(p.peer)
 		var ev readEv
 		var ok bool
+		if data, due := held.next(p.peer); due {
+			human, _ := p.admitStdin(data, true)
+			ev, ok = readEv{data: data, human: human}, true
+			goto ordinaryInput
+		}
 		if settleDue {
 			select {
 			case ev, ok = <-ch:
@@ -1647,12 +1650,21 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 			p.advanceOrientation(orientation.DeliveryEvent{Kind: orientation.DeadlineElapsed}, out, settleTimer)
 			orientationDeadline = nil
 			continue
+		case <-held.timerC():
+			continue
 		case <-flushTimer.C:
 			p.cancelIncompleteOrientationReply(out, settleTimer)
+			if p.peer != nil {
+				p.peer.flushPartialInput()
+			}
 			timerArmed = false
 			flushPending()
 			continue
 		case ev, ok = <-ch:
+			if ok && ev.held {
+				held.add(ev.data)
+				continue
+			}
 		}
 	ordinaryInput:
 		if !ok || ev.err != nil {
@@ -1664,6 +1676,9 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 			// EOF / read error: flush whatever was held over —
 			// nothing more is coming to complete the sequence.
 			flushPending()
+			if rest := held.drain(); len(rest) > 0 {
+				_, _ = out.Write(rest)
+			}
 			return
 		}
 		if p.orientation != nil {
@@ -1738,14 +1753,14 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 			}
 			data = rest
 		}
-		orientationPending := false
+		orientationPending, peerPartial := false, false
 		if p.peer != nil {
-			p.peer.inputForwarded(ev.human, len(pending) > 0 || inPaste)
+			peerPartial = p.peer.inputForwarded(ev.human, len(pending) > 0 || inPaste)
 		}
 		if p.orientation != nil {
 			orientationPending = p.orientation.inputForwarded()
 		}
-		if len(pending) > 0 || orientationPending {
+		if len(pending) > 0 || orientationPending || peerPartial {
 			armTimer()
 		} else {
 			disarmTimer()
