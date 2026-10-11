@@ -1,12 +1,12 @@
 ---
 id: 000324
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-24
 updated: 2026-10-10
 estimate_hours:
-card_mirror: '566714dbadda3dfb80fc8afd68c597c9d57bb06c' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'a57452d89df24a36321ed255ee41a806be9a5134' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-10T17:22:24-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "822a7291", done: "4ee62c6c"}
+actual_hours: 1.37
 ---
 
 # couch-zellij-conformance: native zellij CPR timeout on macOS runner
