@@ -650,6 +650,9 @@ var NonArtifactSources = []string{
 	"cmd/internal/broadcast/marks.go",
 	"cmd/internal/broadcast/point.go",
 	"cmd/internal/broadcast/pointer.go",
+	// #447 sticky notes: in-memory board and drawing; no artifact paths.
+	"cmd/internal/broadcast/notes.go",
+	"cmd/internal/broadcast/pointer_notes.go",
 	"cmd/internal/broadcast/guard.go",
 	"cmd/internal/broadcast/cloudflared.go",
 	"cmd/internal/broadcast/records.go",
@@ -667,6 +670,7 @@ var NonArtifactSources = []string{
 	// #395 broadcast control: phase, tap and session lifecycle; no artifact paths.
 	"cmd/internal/couchtty/console_broadcast.go",
 	"cmd/internal/couchtty/console_pointer.go",
+	"cmd/internal/couchtty/console_notes.go",
 	"cmd/internal/couchcmd/broadcast.go",
 	"cmd/internal/couchcmd/broadcast_list.go",
 	// #437 session-sync: a delivery ledger under the Couch store and sidecars
