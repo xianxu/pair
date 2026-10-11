@@ -15,7 +15,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "a95453dc", done: "1cff5ae0"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # Broadcast pointer: each viewer picks one of six colors
@@ -49,6 +49,8 @@ Every broadcast viewer's laser-pointer marks draw in the same amber (xterm 214, 
 ## Log
 
 ### 2026-10-11
+- 2026-10-11: closed — ParsePointBatch accepts color 0-5, refuses 6/-1/"3"/2.5 (point_test); each of 6 colors holds then fades monotonically on its own ladder and via blend (marks_test); two pointer streams through the real server get colors 0,1, their batches land with those colors and draw distinct marks (TestPointerStreamsGetDistinctColors); viewer pick persists across reload and works with throwing/absent storage (34 node tests); make -k test green; review verdict: SHIP
+- 2026-10-11: flow upgraded quick → full — 261 added lines in code files (limit 100); an earlier round of this close already ran the full review
 - Design (ARCH-DRY): the palette is single-sourced in Go (`marks.go`); the pointer stream's `caps` event carries it as `palette` (hex list) plus this connection's assigned `color`, so viewer.js hard-codes no colors. `PointerState` counts the colors held by live pointer streams and assigns the least-held (lowest index on ties); a stream releases its color when it ends. A viewer's own pick only overrides locally (Couch never learns picks except through batches), so assignment counts connections, not picks. `Marks` keeps a color per cell; `Add` takes the batch's color. `color` parses into `*int`, which refuses strings and non-integers outright; the range check refuses the rest.
 - Implemented. The new monotone-fade test caught two ladders that brightened mid-fade (green 29→30, vermillion 52→234); fixed with darker steps. `TestViewerPageLoadsOnlySameOrigin` banned `localStorage` outright (the view page's "keeps nothing" promise); narrowed to exactly one key, read and written only by `colorStore`, so the promise still holds for everything else. The termcmd doc-comment lint caught `claimColor` inserted between `stop`'s doc and its func.
 - Verification: `go test ./cmd/internal/broadcast/` (Go + 34 node viewer tests), `make -k test` (scrubbed env) green after the doc fix; `make test-changelog` green. Raw `go test ./...` fails only couchcmd/launcher tests on inherited session env (`'origin' does not appear to be a git repository`), untouched packages that pass under `make test`.
