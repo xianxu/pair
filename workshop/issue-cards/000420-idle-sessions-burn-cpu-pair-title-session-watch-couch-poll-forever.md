@@ -13,7 +13,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
-actual_hours: 1.04
+actual_hours: 1.13
 tracker:
     version: 1
     handoff:
@@ -27,10 +27,10 @@ tracker:
         destination: workshop/issues/000420-idle-sessions-burn-cpu-pair-title-session-watch-couch-poll-forever.md
         main_commit: 88011634fb9827f1964089946081dcc6fd4381fc
     completion:
-        token: close-0923568ef65a
+        token: close-595eae3a8c82
         repository: github.com/xianxu/pair
-        reviewed_head: 53f20aded2b8d5cd83cc0e440389cfd3bee59b1d
-        evidence_commit: d8c330448d18a1ea3b4b01c3c128c1353f008cd3
+        reviewed_head: 109e22ba4f4987500d03d0268a123c72500e9724
+        evidence_commit: fb9891fc53f859ce1dd16dbccf5df06e5cc9895e
 ---
 
 # idle sessions burn CPU: pair title / session-watch / couch poll forever
