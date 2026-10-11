@@ -39,7 +39,11 @@ Couch's idle fading, `ContextCount` and the session watcher's per-pass
 
 ## Plan
 
-- [ ]
+- [ ] Measure ledger sizes and launch counts across live scopes. Decide
+  between storing launch boundaries outside the ledger and a
+  current-launch index.
+- [ ] Pin the parse cost with a test that counts decoded boundary entries on
+  a many-launch ledger.
 
 ## Log
 
