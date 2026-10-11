@@ -50,7 +50,25 @@ learned of the landing two hours later (ops learnings kink 57).
 
 ## Plan
 
-- [ ]
+Quick flow (one close). Decisions:
+- **Bucket in the pure model.** `ActorState` keeps `remaining`, `capacity` and `refilledAt`; every event first
+  credits `floor(elapsed / RefillInterval)` (capped at capacity; the clock restarts when full). `RemainingAt(now)`
+  is the same arithmetic for listings, which have no event. `RefillInterval = 3m`: a ping-pong delivers about one
+  message per QuietInterval (30 s) per side, so an 8-burst still empties in minutes, while worker reports minutes
+  apart never drain it.
+- **Session-sync submit = a self-addressed message.** Parley shells `couch --send-to <owner>` from the operator's
+  editor, which inherits the slot's launch env, so the broker resolves the caller to the recipient's own binding
+  (`From == To`). The model treats a self-addressed admission as `OperatorSubmit`: full refill, nothing spent.
+  Residual: an agent messaging itself also refills. That is a one-agent continuation, not a cross-slot loop; the
+  two-agent ping-pong this breaker exists for is unaffected.
+- **TL slot is observable, no flag.** Couch resolves its startup cwd to a worktree root; the actor whose workspace
+  `WorktreeRoot` equals it registers with `HubAllowance = 64` (`Register` carries the allowance). A ping-pong with
+  the hub is still cut by the worker's 8. Couch started outside a checkout has no hub.
+- **Visible.** `couch --list` prints `allowance=N/CAP` from `Candidate.Capacity`.
+
+- [ ] model: bucket + self-send refill + register allowance; tests for each Done-when row
+- [ ] broker/service: register with an allowance, hub root on `messageAuthority`, listing shows remaining/capacity
+- [ ] atlas note; targeted tests, then full `make test`
 
 ## Log
 
