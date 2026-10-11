@@ -19,6 +19,8 @@ func journalTestRecord(t *testing.T, ns CouchNamespace) ThreadRecord {
 }
 
 func TestStoreJournalRecoversCrashAfterDurableIntent(t *testing.T) {
+	t.Parallel()
+
 	_, ns := newTestThreadStore(t)
 	crashing := newThreadStoreWithHooks(ns, threadStoreHooks{
 		AfterJournal: func() error { return errInjectedStoreCrash },
@@ -51,6 +53,8 @@ func TestStoreJournalRecoversCrashAfterDurableIntent(t *testing.T) {
 }
 
 func TestStoreJournalRollsForwardCrashBetweenRecordAndManifest(t *testing.T) {
+	t.Parallel()
+
 	_, ns := newTestThreadStore(t)
 	crashing := newThreadStoreWithHooks(ns, threadStoreHooks{
 		AfterTarget: func(index int) error {
@@ -81,6 +85,8 @@ func TestStoreJournalRollsForwardCrashBetweenRecordAndManifest(t *testing.T) {
 }
 
 func TestStoreJournalFailsClosedOnThirdTargetState(t *testing.T) {
+	t.Parallel()
+
 	_, ns := newTestThreadStore(t)
 	crashing := newThreadStoreWithHooks(ns, threadStoreHooks{
 		AfterJournal: func() error { return errInjectedStoreCrash },
@@ -116,6 +122,8 @@ func TestStoreJournalFailsClosedOnThirdTargetState(t *testing.T) {
 // The cutover was only ever the vehicle; the journal property is the subject,
 // so it moved to CreateThread rather than going out with the cutover.
 func TestStoreJournalPendingWorkRecoversOnTheNextOrdinaryOperation(t *testing.T) {
+	t.Parallel()
+
 	_, ns := newTestThreadStore(t)
 	crashing := newThreadStoreWithHooks(ns, threadStoreHooks{
 		AfterTarget: func(index int) error {
@@ -165,6 +173,8 @@ func TestStoreJournalPendingWorkRecoversOnTheNextOrdinaryOperation(t *testing.T)
 }
 
 func TestStoreJournalReplaysParkFinalizationAndTombstone(t *testing.T) {
+	t.Parallel()
+
 	for _, operation := range []string{"finalize", "abandon"} {
 		for _, boundary := range []string{"after journal", "after target"} {
 			t.Run(operation+"/"+boundary, func(t *testing.T) {

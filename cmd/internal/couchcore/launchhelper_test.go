@@ -37,6 +37,8 @@ func (r *observedReadCloser) Close() error {
 }
 
 func TestRunLaunchHelperExecsExactlyOnceAfterAcknowledgement(t *testing.T) {
+	t.Parallel()
+
 	ack := &observedReadCloser{Reader: bytes.NewReader([]byte{launchAckByte})}
 	var calls int
 	err := RunLaunchHelper(ack, time.Second, []string{"target", "arg"}, []string{"K=V"}, func(argv, env []string) error {
@@ -55,6 +57,8 @@ func TestRunLaunchHelperExecsExactlyOnceAfterAcknowledgement(t *testing.T) {
 }
 
 func TestRunLaunchHelperNeverExecsWithoutExactAcknowledgement(t *testing.T) {
+	t.Parallel()
+
 	for _, tt := range []struct {
 		name string
 		ack  io.Reader
@@ -77,6 +81,8 @@ func TestRunLaunchHelperNeverExecsWithoutExactAcknowledgement(t *testing.T) {
 }
 
 func TestRunLaunchHelperTimeoutClosesAcknowledgementWithoutExec(t *testing.T) {
+	t.Parallel()
+
 	reader, writer := io.Pipe()
 	t.Cleanup(func() { _ = writer.Close() })
 	calls := 0
@@ -94,6 +100,8 @@ func TestRunLaunchHelperTimeoutClosesAcknowledgementWithoutExec(t *testing.T) {
 }
 
 func TestLaunchHelperSubprocess(t *testing.T) {
+	t.Parallel()
+
 	mode := os.Getenv("PAIR_TEST_LAUNCH_HELPER_MODE")
 	if mode == "helper" {
 		ack := os.NewFile(3, "launch-ack")

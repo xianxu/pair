@@ -22,6 +22,8 @@ func recordAtCheckout(t *testing.T, root, path, tag string) ThreadRecord {
 }
 
 func TestNestedRepositoryStorageRemainsIndependentOfOuterSlot(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	f.git(f.Primary, "worktree", "add", "-b", "main-slot1", f.host(1), "main")
 	nested := filepath.Join(f.host(1), "nested")

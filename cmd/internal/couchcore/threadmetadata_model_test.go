@@ -6,6 +6,8 @@ import (
 )
 
 func TestApplyThreadMetadataPreservesIndependentFields(t *testing.T) {
+	t.Parallel()
+
 	empty := ""
 	record := ThreadRecord{
 		SchemaVersion: ThreadSchemaVersion,

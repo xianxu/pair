@@ -11,6 +11,8 @@ import (
 )
 
 func TestProvisionProcessExitAndOutput(t *testing.T) {
+	t.Parallel()
+
 	var progress bytes.Buffer
 	out, err := (OSProvisionIO{}).Run(context.Background(), ProvisionCommand{Program: "sh", Args: []string{"-c", "printf data; printf problem >&2; exit 7"}, Progress: &progress})
 	var code interface{ ExitCode() int }
@@ -23,6 +25,8 @@ func TestProvisionProcessExitAndOutput(t *testing.T) {
 }
 
 func TestProvisionProcessOutputLimits(t *testing.T) {
+	t.Parallel()
+
 	for _, stream := range []bool{false, true} {
 		t.Run(map[bool]string{false: "structured", true: "stream"}[stream], func(t *testing.T) {
 			out, err := (OSProvisionIO{}).Run(context.Background(), ProvisionCommand{Program: "sh", Args: []string{"-c", "head -c 1200000 /dev/zero; printf END"}, StreamOutput: stream, Timeout: 5 * time.Second})
@@ -38,6 +42,8 @@ func TestProvisionProcessOutputLimits(t *testing.T) {
 }
 
 func TestProvisionProcessCancellation(t *testing.T) {
+	t.Parallel()
+
 	start := time.Now()
 	_, err := (OSProvisionIO{}).Run(context.Background(), ProvisionCommand{Program: "sh", Args: []string{"-c", "trap '' TERM; sleep 30 & wait"}, Timeout: 100 * time.Millisecond})
 	if !errors.Is(err, context.DeadlineExceeded) {
@@ -49,6 +55,8 @@ func TestProvisionProcessCancellation(t *testing.T) {
 }
 
 func TestProvisionProcessStreamSerializesProgress(t *testing.T) {
+	t.Parallel()
+
 	var progress bytes.Buffer
 	out, err := (OSProvisionIO{}).Run(context.Background(), ProvisionCommand{Program: "sh", Args: []string{"-c", "(i=0; while [ $i -lt 500 ]; do printf a; i=$((i+1)); done) & i=0; while [ $i -lt 500 ]; do printf b >&2; i=$((i+1)); done; wait"}, Progress: &progress, StreamOutput: true})
 	if err != nil || len(out) != 1000 || !bytes.Equal(out, progress.Bytes()) {
@@ -67,6 +75,8 @@ func (w *provisionReadyWriter) Write(p []byte) (int, error) {
 }
 
 func TestProvisionProcessInheritedLeaseCancellation(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	lease, err := AcquireHostCreationLease(root)
 	if err != nil {

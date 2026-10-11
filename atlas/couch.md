@@ -2382,6 +2382,11 @@ enumerated.
 The property that matters: each seam has a fake, and the fakes that model
 *behaviour* rather than data are compared against the real thing by
 `conformance_live_test.go`. `PAIR_LIVE_COUCH=1` checks process/git/pty behavior.
+Wall-clock budgets (`TestAcceptanceObserveBudget`, `TestAcceptanceReportBudgetTenSlots`)
+run their scenarios in the default lane but assert the clock only under
+`make test-perf-budgets` (`PAIR_PERF_BUDGETS=1`) on a quiet host (pair#436). Most
+couchcore tests are `t.Parallel()`; ones that set process env, chdir, mutate a
+package global, signal real processes or measure wall time stay serial.
 (`make test-couch-policy-live` checked couch's policy consumer against Ariadne's
 real provider; it went with admission in `pair#170` M4, along with the weekly
 workflow that ran it.) The process check found a

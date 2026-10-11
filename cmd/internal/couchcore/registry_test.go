@@ -7,6 +7,8 @@ func registryRecord(id string, tree Worktree) ActorRecord {
 }
 
 func TestRegistryInsertKeepsEveryLegacyCoTenantEnumerable(t *testing.T) {
+	t.Parallel()
+
 	base := NewRegistry()
 	next := base.Insert(registryRecord("couch-a", "/repo"))
 	next = next.Insert(registryRecord("couch-b", "/repo"))
@@ -19,6 +21,8 @@ func TestRegistryInsertKeepsEveryLegacyCoTenantEnumerable(t *testing.T) {
 }
 
 func TestRegistryKeysFoldCaseAccordingToPlatform(t *testing.T) {
+	t.Parallel()
+
 	reg := NewRegistry().Insert(registryRecord("couch-a", "/Users/x/repo"))
 	reg = reg.Insert(registryRecord("couch-b", "/users/x/repo"))
 	got := reg.Get("/Users/x/repo")
@@ -31,6 +35,8 @@ func TestRegistryKeysFoldCaseAccordingToPlatform(t *testing.T) {
 }
 
 func TestRegistryRemoveActorLeavesCoTenant(t *testing.T) {
+	t.Parallel()
+
 	reg := NewRegistry().Insert(registryRecord("couch-a", "/repo"))
 	reg = reg.Insert(registryRecord("couch-b", "/repo"))
 	reg = reg.RemoveActor("/repo", "couch-a")
@@ -41,6 +47,8 @@ func TestRegistryRemoveActorLeavesCoTenant(t *testing.T) {
 }
 
 func TestRegistryUnregisterFreesTheDisplayKey(t *testing.T) {
+	t.Parallel()
+
 	reg := NewRegistry().Insert(registryRecord("couch-a", "/repo"))
 	if got := reg.Unregister("/repo").Get("/repo"); len(got) != 0 {
 		t.Fatalf("unregistered records = %+v", got)
@@ -48,6 +56,8 @@ func TestRegistryUnregisterFreesTheDisplayKey(t *testing.T) {
 }
 
 func TestRecordsCarryOriginalCaseWorktree(t *testing.T) {
+	t.Parallel()
+
 	w := Worktree("/Users/x/KBench")
 	got := NewRegistry().Insert(registryRecord("couch-a", w)).Records()
 	if len(got) != 1 || got[0].Args.Worktree != w {

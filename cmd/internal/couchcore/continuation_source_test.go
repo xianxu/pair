@@ -11,6 +11,8 @@ import (
 )
 
 func TestContinuationSourceLatestAcrossAgents(t *testing.T) {
+	t.Parallel()
+
 	data := t.TempDir()
 	address := validThreadRecord(t).Address
 	paths, err := artifactpath.Resolve(artifactpath.Address{DataDir: data, RepoScope: address.RepoScope, Tag: string(address.Tag)})

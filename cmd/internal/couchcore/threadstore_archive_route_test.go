@@ -9,6 +9,8 @@ import (
 )
 
 func TestArchivedListingRecoversLocalJournalThroughGlobalFacade(t *testing.T) {
+	t.Parallel()
+
 	store, repository, record := migrationFixture(t)
 	if err := store.EnrollSlotRepository(context.Background(), repository); err != nil {
 		t.Fatal(err)
@@ -29,6 +31,8 @@ func TestArchivedListingRecoversLocalJournalThroughGlobalFacade(t *testing.T) {
 }
 
 func TestArchivedListingRejectsLocalSymlinksAndUnexpectedLayout(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range []string{"symlink", "nested"} {
 		t.Run(name, func(t *testing.T) {
 			local := testLocalThreadStore(t)

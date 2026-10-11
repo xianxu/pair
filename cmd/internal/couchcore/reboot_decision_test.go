@@ -35,6 +35,8 @@ func expectedRebootPlan(slot bool, record RebootRecord, dir bool) RebootPlan {
 }
 
 func TestDecideRebootCoversEveryFactCombination(t *testing.T) {
+	t.Parallel()
+
 	for _, slot := range []bool{false, true} {
 		for _, record := range []RebootRecord{RebootRecordNone, RebootRecordReadable, RebootRecordUnreadable, RebootRecordRolledBack} {
 			for _, dir := range []bool{false, true} {
@@ -54,6 +56,8 @@ func TestDecideRebootCoversEveryFactCombination(t *testing.T) {
 // The reasons are what the operator reads on an archive-only or refused
 // reboot, so the ones the Spec words are pinned here.
 func TestDecideRebootReasons(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		facts RebootFacts
 		want  string
@@ -82,6 +86,8 @@ func TestDecideRebootReasons(t *testing.T) {
 // and refuses `unusable/unknown`, which is ignorance and not a verdict, and
 // `unusable/orphaned-server`, whose conversation is still running (#399).
 func TestRebootableStateOverEveryClassification(t *testing.T) {
+	t.Parallel()
+
 	admitted := 0
 	for _, state := range AllThreadStates() {
 		for _, reason := range append(AllThreadReasons(), "") {

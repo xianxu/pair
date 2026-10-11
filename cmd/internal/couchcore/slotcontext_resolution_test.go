@@ -39,6 +39,8 @@ func shortNameFixture(t *testing.T) (*Couch, *ThreadStore, string) {
 }
 
 func TestSlotReferenceResolvesUniquePrefixAndAlias(t *testing.T) {
+	t.Parallel()
+
 	c, store, fleet := shortNameFixture(t)
 	ctx := context.Background()
 	path, recognized, err := c.WorkspaceReferencePath(ctx, "parley:1")
@@ -63,6 +65,8 @@ func TestSlotReferenceResolvesUniquePrefixAndAlias(t *testing.T) {
 }
 
 func TestSlotReferenceOutsideRepositoryUsesPrefix(t *testing.T) {
+	t.Parallel()
+
 	c, _, fleet := shortNameFixture(t)
 	c.Slots.(*SlotCatalogFake).Errors = map[string]error{".": errors.New("not in a repository")}
 	target, id, err := c.resolveSlotInput(context.Background(), "parley:2")
@@ -72,6 +76,8 @@ func TestSlotReferenceOutsideRepositoryUsesPrefix(t *testing.T) {
 }
 
 func TestSlotReferenceRefusalsListCandidates(t *testing.T) {
+	t.Parallel()
+
 	c, _, _ := shortNameFixture(t)
 	ctx := context.Background()
 	_, _, err := c.WorkspaceReferencePath(ctx, "bra:0")
@@ -89,6 +95,8 @@ func TestSlotReferenceRefusalsListCandidates(t *testing.T) {
 }
 
 func TestExistingSiblingDirectoryBeatsPrefix(t *testing.T) {
+	t.Parallel()
+
 	c, _, fleet := shortNameFixture(t)
 	sibling := filepath.Join(fleet, "parley")
 	if err := os.MkdirAll(sibling, 0700); err != nil {

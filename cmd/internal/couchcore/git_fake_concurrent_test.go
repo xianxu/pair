@@ -8,6 +8,8 @@ import (
 )
 
 func TestFakeGitConcurrentRunContextRetainsEveryCall(t *testing.T) {
+	t.Parallel()
+
 	const callers, callsPerCaller = 16, 8
 	replies := make(map[GitCall]string, callers)
 	for i := 0; i < callers; i++ {

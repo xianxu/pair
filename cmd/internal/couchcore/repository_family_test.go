@@ -24,6 +24,8 @@ func savedRepositoryFamiliesForTest(s *ThreadStore) ([]RepositoryFamily, error) 
 }
 
 func TestResolveFamilyStartRetainsExplicitDirectory(t *testing.T) {
+	t.Parallel()
+
 	base := RepositoryFamily{RepoIdentity: "/repo/.git", PrimaryRoot: "/repo", RelativeStart: "competition/arc-agi-3"}
 	for _, relative := range []string{"", "competition/arc-agi-3"} {
 		request := base
@@ -48,6 +50,8 @@ func TestResolveFamilyStartRetainsExplicitDirectory(t *testing.T) {
 	}
 }
 func TestFamilyProjectionRejectsEscapesAndPreservesRoot(t *testing.T) {
+	t.Parallel()
+
 	for _, bad := range []string{"", "..", "../other", "sub/../other", "/absolute", "sub\\outside", "sub//child"} {
 		if _, err := ProjectFamilyPath("/repo", bad); err == nil {
 			t.Fatalf("accepted %q", bad)
@@ -68,6 +72,8 @@ func TestFamilyProjectionRejectsEscapesAndPreservesRoot(t *testing.T) {
 	}
 }
 func TestValidateFamilyPathChecksPhysicalContainment(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	os.MkdirAll(filepath.Join(root, "inside"), 0700)
 	alias := filepath.Join(t.TempDir(), "alias")
@@ -111,6 +117,8 @@ func familyStoreFixture(t *testing.T) (*ThreadStore, SlotRepository, RepositoryF
 	return s, repo, RepositoryFamily{RepoIdentity: repo.Identity.RepoIdentity, PrimaryRoot: repo.Identity.PrimaryRoot, RelativeStart: "competition/arc-agi-3"}
 }
 func TestFamilyReservationConcurrentFirstStartsAndPreview(t *testing.T) {
+	t.Parallel()
+
 	s, repo, request := familyStoreFixture(t)
 	before, err := s.PreviewRepositoryFamily(context.Background(), repo, request)
 	if err != nil || before != request {
@@ -153,6 +161,8 @@ func TestFamilyReservationConcurrentFirstStartsAndPreview(t *testing.T) {
 	}
 }
 func TestFamilyReservationJournalRecoversAndSurvivesArchive(t *testing.T) {
+	t.Parallel()
+
 	s, repo, request := familyStoreFixture(t)
 	boom := errors.New("interrupted family publication")
 	s.hooks.AfterJournal = func() error { return boom }
@@ -186,6 +196,8 @@ func TestFamilyReservationJournalRecoversAndSurvivesArchive(t *testing.T) {
 	}
 }
 func TestFamilyInferencePreservesLegacyPathsAndRefusesAmbiguity(t *testing.T) {
+	t.Parallel()
+
 	s, repo, request := familyStoreFixture(t)
 	r := validThreadRecord(t)
 	scope, _ := launcher.ResolveRepoScope(repo.Identity.PrimaryRoot)
@@ -225,6 +237,8 @@ func TestFamilyInferencePreservesLegacyPathsAndRefusesAmbiguity(t *testing.T) {
 	}
 }
 func TestFamilyManifestRejectsInvalidDescriptors(t *testing.T) {
+	t.Parallel()
+
 	s, _, family := familyStoreFixture(t)
 	for _, families := range [][]RepositoryFamily{{family, family}, {{RepoIdentity: family.RepoIdentity, PrimaryRoot: family.PrimaryRoot, RelativeStart: "../escape"}}} {
 		manifest := threadManifest{SchemaVersion: 2, Threads: []ThreadAddress{}, RepositoryFamilies: families}
@@ -238,6 +252,8 @@ func TestFamilyManifestRejectsInvalidDescriptors(t *testing.T) {
 }
 
 func TestFamilyPreviewInfersLocalWithoutGlobalStore(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	f.git(f.Primary, "worktree", "add", "-b", "main-slot1", f.host(1), "main")
 	repo, err := NewOSSlotCatalog(f).Discover(context.Background(), f.Primary)
@@ -267,6 +283,8 @@ func TestFamilyPreviewInfersLocalWithoutGlobalStore(t *testing.T) {
 	}
 }
 func TestFamilyInferenceIncludesArchivedStartingPaths(t *testing.T) {
+	t.Parallel()
+
 	s, repo, want := familyStoreFixture(t)
 	r := validThreadRecord(t)
 	scope, _ := launcher.ResolveRepoScope(repo.Identity.PrimaryRoot)
@@ -286,6 +304,8 @@ func TestFamilyInferenceIncludesArchivedStartingPaths(t *testing.T) {
 	}
 }
 func TestFamilyIdentityCanonicalizesPhysicalAliases(t *testing.T) {
+	t.Parallel()
+
 	s, repo, want := familyStoreFixture(t)
 	if _, err := s.ReserveRepositoryFamily(context.Background(), repo, want); err != nil {
 		t.Fatal(err)
@@ -302,6 +322,8 @@ func TestFamilyIdentityCanonicalizesPhysicalAliases(t *testing.T) {
 }
 
 func TestFamilyInferenceRefusesUnprojectableSameRepositoryWorktree(t *testing.T) {
+	t.Parallel()
+
 	_, repo, _ := familyStoreFixture(t)
 	r := validThreadRecord(t)
 	r.StartingPath = filepath.Join(t.TempDir(), "ordinary-worktree", "sub")
@@ -313,6 +335,8 @@ func TestFamilyInferenceRefusesUnprojectableSameRepositoryWorktree(t *testing.T)
 }
 
 func TestFamilyInferenceExcludesNestedIndependentRepository(t *testing.T) {
+	t.Parallel()
+
 	_, repo, _ := familyStoreFixture(t)
 	nested := filepath.Join(repo.Identity.PrimaryRoot, "nested")
 	scope, _ := launcher.ResolveRepoScope(nested)
@@ -327,6 +351,8 @@ func TestFamilyInferenceExcludesNestedIndependentRepository(t *testing.T) {
 }
 
 func TestCheckoutMembershipRequiresIdentityAndContainment(t *testing.T) {
+	t.Parallel()
+
 	scope, _ := launcher.ResolveRepoScope("/repo")
 	for _, tc := range []struct {
 		name, path, scope, common string
@@ -381,6 +407,8 @@ func assertFamilyManifestUnchanged(t *testing.T, s *ThreadStore, before []byte) 
 }
 
 func TestFamilyCapacityExistingReuseAndRefusal(t *testing.T) {
+	t.Parallel()
+
 	if MaxRepositoryFamilies != 4096 {
 		t.Fatalf("capacity contract changed: %d", MaxRepositoryFamilies)
 	}
@@ -403,6 +431,8 @@ func TestFamilyCapacityExistingReuseAndRefusal(t *testing.T) {
 }
 
 func TestFamilyCapacityConcurrentLastEntry(t *testing.T) {
+	t.Parallel()
+
 	s, repo, family := familyStoreFixture(t)
 	_, otherRepo, other := familyStoreFixture(t)
 	seedFamilyCapacity(t, s, 4095, nil)
@@ -443,6 +473,8 @@ func TestFamilyCapacityConcurrentLastEntry(t *testing.T) {
 }
 
 func TestFamilyCapacityRejectsPersistedOverflow(t *testing.T) {
+	t.Parallel()
+
 	s, repo, family := familyStoreFixture(t)
 	before := seedFamilyCapacity(t, s, 4097, &family)
 	if _, err := savedRepositoryFamiliesForTest(s); err == nil || !strings.Contains(err.Error(), "4096") {
@@ -455,6 +487,8 @@ func TestFamilyCapacityRejectsPersistedOverflow(t *testing.T) {
 }
 
 func TestRecordCheckoutMembershipRejectsConflictingIncarnations(t *testing.T) {
+	t.Parallel()
+
 	scope, _ := launcher.ResolveRepoScope("/repo")
 	record := ThreadRecord{Address: ThreadAddress{RepoScope: scope.Key}, StartingPath: "/repo/sub"}
 	for _, common := range []string{"", "/repo/.git"} {
@@ -471,6 +505,8 @@ func TestRecordCheckoutMembershipRejectsConflictingIncarnations(t *testing.T) {
 }
 
 func TestEnrollmentRetainsIdentityWithoutReservingFamily(t *testing.T) {
+	t.Parallel()
+
 	s, repo, _ := familyStoreFixture(t)
 	var records []ThreadRecord
 	for i := 0; i < 2; i++ {
@@ -507,6 +543,8 @@ func TestEnrollmentRetainsIdentityWithoutReservingFamily(t *testing.T) {
 }
 
 func TestEnrollmentBackfillsLegacyIdentityAtomically(t *testing.T) {
+	t.Parallel()
+
 	s, repo, _ := familyStoreFixture(t)
 	before, _ := json.Marshal(threadManifest{SchemaVersion: 2, Generation: 12, Threads: []ThreadAddress{}, SlotRepositories: []string{repo.Identity.PrimaryRoot}})
 	if err := s.withLock(func() error { return writeAtomicBytes(s.manifestPath(), before) }); err != nil {
@@ -540,6 +578,8 @@ func TestEnrollmentBackfillsLegacyIdentityAtomically(t *testing.T) {
 }
 
 func TestEnrollmentRejectsRetainedIdentityConflict(t *testing.T) {
+	t.Parallel()
+
 	for _, source := range []string{"family", "enrollment"} {
 		t.Run(source, func(t *testing.T) {
 			s, repo, family := familyStoreFixture(t)
@@ -563,6 +603,8 @@ func TestEnrollmentRejectsRetainedIdentityConflict(t *testing.T) {
 }
 
 func TestEnrollmentManifestRejectsInvalidIdentityMap(t *testing.T) {
+	t.Parallel()
+
 	for _, identityMap := range []map[string]string{{"/other": "/git"}, {"/repo": "relative"}, {"/repo": ""}, {"/repo": "/other.git"}} {
 		s, _ := newTestThreadStore(t)
 		manifest := map[string]any{"schema_version": 2, "generation": 1, "threads": []ThreadAddress{}, "slot_repositories": []string{"/repo"}, "slot_repository_identities": identityMap, "repository_families": []RepositoryFamily{{PrimaryRoot: "/repo", RepoIdentity: "/repo.git", RelativeStart: "."}}}
@@ -577,6 +619,8 @@ func TestEnrollmentManifestRejectsInvalidIdentityMap(t *testing.T) {
 }
 
 func TestFamilyReservationRejectsEnrollmentIdentityConflict(t *testing.T) {
+	t.Parallel()
+
 	s, repo, family := familyStoreFixture(t)
 	if err := s.EnrollSlotRepository(context.Background(), repo); err != nil {
 		t.Fatal(err)

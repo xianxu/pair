@@ -5,6 +5,8 @@ import (
 )
 
 func TestStoreRoundTripsRegistryAndNaming(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	s := NewStore(dir)
 
@@ -32,6 +34,8 @@ func TestStoreRoundTripsRegistryAndNaming(t *testing.T) {
 }
 
 func TestLoadOnMissingStoreIsEmptyNotError(t *testing.T) {
+	t.Parallel()
+
 	reg, names, err := NewStore(t.TempDir()).Load()
 	if err != nil {
 		t.Fatalf("first run must not error: %v", err)
@@ -42,6 +46,8 @@ func TestLoadOnMissingStoreIsEmptyNotError(t *testing.T) {
 }
 
 func TestSaveIsAtomicallyReplaceable(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	s := NewStore(dir)
 	if err := s.Save(NewRegistry(), NewNamingTable()); err != nil {

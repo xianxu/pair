@@ -7,6 +7,8 @@ import (
 )
 
 func TestThreadStorePreviewDoesNotInitialize(t *testing.T) {
+	t.Parallel()
+
 	s, _ := newTestThreadStore(t)
 	snapshot, err := s.PreviewSnapshot()
 	if err != nil || len(snapshot.Records) != 0 {
@@ -21,6 +23,8 @@ func TestThreadStorePreviewDoesNotInitialize(t *testing.T) {
 	}
 }
 func TestThreadStorePreviewDoesNotRecoverJournal(t *testing.T) {
+	t.Parallel()
+
 	s, _ := newTestThreadStore(t)
 	fail := errors.New("interrupted")
 	s.hooks.AfterJournal = func() error { return fail }
@@ -41,6 +45,8 @@ func TestThreadStorePreviewDoesNotRecoverJournal(t *testing.T) {
 }
 
 func TestSlotPreferenceRefusesSymlinkedPayload(t *testing.T) {
+	t.Parallel()
+
 	s := testLocalThreadStore(t)
 	if err := os.MkdirAll(s.root, 0700); err != nil {
 		t.Fatal(err)

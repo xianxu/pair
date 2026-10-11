@@ -22,6 +22,8 @@ func aliasCall(t *testing.T, c *Couch, args map[string]string) (any, error) {
 }
 
 func TestAliasOperationSetsReadsAndClears(t *testing.T) {
+	t.Parallel()
+
 	c, _, fleet := shortNameFixture(t)
 	got, err := aliasCall(t, c, map[string]string{"ref": "xianxu", "alias": "blog"})
 	if err != nil || got != (RepositoryAliasResult{Repository: "xianxu.dev", Alias: "blog"}) {
@@ -44,6 +46,8 @@ func TestAliasOperationSetsReadsAndClears(t *testing.T) {
 }
 
 func TestAliasOperationRefusesShadowedOrTakenNames(t *testing.T) {
+	t.Parallel()
+
 	c, _, fleet := shortNameFixture(t)
 	if err := os.MkdirAll(filepath.Join(fleet, "web"), 0700); err != nil {
 		t.Fatal(err)
@@ -62,6 +66,8 @@ func TestAliasOperationRefusesShadowedOrTakenNames(t *testing.T) {
 }
 
 func TestApplyRepositoryAliasesMatchesScopeNotPath(t *testing.T) {
+	t.Parallel()
+
 	scope := func(root string) string {
 		s, err := launcher.ResolveRepoScope(root)
 		if err != nil {
@@ -90,6 +96,8 @@ func TestApplyRepositoryAliasesMatchesScopeNotPath(t *testing.T) {
 // The shadow check looks where resolution looks: the repository's fleet root,
 // even when that is not its primary root's parent directory.
 func TestAliasShadowCheckUsesFleetRoot(t *testing.T) {
+	t.Parallel()
+
 	c, _, fleet := shortNameFixture(t)
 	elsewhere := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(elsewhere, "web"), 0700); err != nil {

@@ -6,6 +6,8 @@ import (
 )
 
 func TestThreadStoreLockSerializesIndependentHandles(t *testing.T) {
+	t.Parallel()
+
 	_, ns := newTestThreadStore(t)
 	root := NewThreadStore(ns).root
 	first, err := acquireThreadStoreLockMode(root, false)

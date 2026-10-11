@@ -31,6 +31,8 @@ func reconcileCouch(t *testing.T, f *ProvisionFixture) *Couch {
 // reuses the number, provisioning brings the slot back on its own branch, and
 // a second reconcile is a no-op.
 func TestAcceptanceDeletedSlotDirectory(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	p := NewWorkspaceProvisioner(f)
 	if _, err := p.Ensure(context.Background(), ProvisionRequest{Path: f.Primary, Slot: 1, Agent: AgentNone}); err != nil {
@@ -64,6 +66,8 @@ func TestAcceptanceDeletedSlotDirectory(t *testing.T) {
 // clone source known it converges; without one it hands off to :0 with
 // weave's own line, and the same again on a second run.
 func TestAcceptanceInterruptedSetup(t *testing.T) {
+	t.Parallel()
+
 	for _, sourceKnown := range []bool{true, false} {
 		f := newProvisionFixture(t, "tools")
 		p := NewWorkspaceProvisioner(f)
@@ -104,6 +108,8 @@ func TestAcceptanceInterruptedSetup(t *testing.T) {
 // A missing dependency clone under a valid marker converges by recompiling;
 // with no source the slot stays usable with the warning.
 func TestAcceptanceMissingDependencyUnderAValidMarker(t *testing.T) {
+	t.Parallel()
+
 	for _, sourceKnown := range []bool{true, false} {
 		f := newProvisionFixture(t)
 		f.DepSources = map[string]bool{"ariadne": true}
@@ -144,7 +150,7 @@ func TestAcceptanceObserveBudget(t *testing.T) {
 	if plan, _ := PlanSlot(PlanInput{Observation: obs}); !plan.Empty() {
 		t.Fatalf("healthy slot plans %q", SlotPlanSummary(plan, ""))
 	}
-	if elapsed > 500*time.Millisecond {
+	if elapsed > 500*time.Millisecond && perfBudgetsEnforced() {
 		t.Fatalf("healthy-slot observe took %v (budget 500 ms)", elapsed)
 	}
 }
@@ -164,6 +170,8 @@ func declareAriadne(t *testing.T, f *ProvisionFixture) {
 // into saved work before it is re-cloned; the host's own dirty file is never
 // touched; a second run is a no-op and writes no new entry.
 func TestAcceptanceDirtySlot(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	declareAriadne(t, f)
 	f.DepSources = map[string]bool{"ariadne": true}
@@ -233,6 +241,8 @@ func TestAcceptanceDirtySlot(t *testing.T) {
 // non-git ariadne/ directory with a file in it) is adopted: the foreign files
 // are moved whole into saved work, never deleted, and the slot converges.
 func TestAcceptanceForeignEnvironment(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	declareAriadne(t, f)
 	f.DepSources = map[string]bool{"ariadne": true}
@@ -279,7 +289,13 @@ func TestAcceptanceReportBudgetTenSlots(t *testing.T) {
 	}
 	mean := time.Since(start) / 10
 	t.Logf("observe+plan, mean of 10 slots: %v", mean)
-	if mean > 150*time.Millisecond {
+	if mean > 150*time.Millisecond && perfBudgetsEnforced() {
 		t.Fatalf("mean %v per slot exceeds the 150 ms budget", mean)
 	}
 }
+
+// perfBudgetsEnforced: a wall-clock budget measures the machine as much as the
+// code, so on a shared, loaded host it flakes (94-182 ms for the 150 ms budget,
+// pair#436). The default lane still runs the scenario and logs the measurement;
+// `make test-perf-budgets` (PAIR_PERF_BUDGETS=1) asserts the budget on a quiet host.
+func perfBudgetsEnforced() bool { return os.Getenv("PAIR_PERF_BUDGETS") == "1" }

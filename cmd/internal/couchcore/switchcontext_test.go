@@ -20,6 +20,8 @@ import (
 )
 
 func TestSwitchContextUsesExactOutgoingOwnerAndArchive(t *testing.T) {
+	t.Parallel()
+
 	record := verifiedResumeThread(t)
 	descriptor := &pairlifecycle.PreservedScrollback{Agent: "codex", Token: "exact-capture", Events: true}
 	record.VerifiedPark.Scrollback = descriptor
@@ -74,6 +76,8 @@ func TestSwitchContextUsesExactOutgoingOwnerAndArchive(t *testing.T) {
 }
 
 func TestSwitchContextMissingAndAmbiguousSourcesStayUnavailable(t *testing.T) {
+	t.Parallel()
+
 	record := verifiedResumeThread(t)
 	resolver := OSSwitchContextResolver{DataDir: t.TempDir(), HomeDir: t.TempDir(), Query: func(context.Context, sessioninventory.Runtime, string, string, sessioninventory.Agent) (sessioninventory.SessionQuery, error) {
 		return sessioninventory.SessionQuery{Status: sessioninventory.BindingAmbiguous, Root: &sessioninventory.Node{NativeID: "must-not-use"}}, nil
@@ -96,6 +100,8 @@ func TestSwitchContextMissingAndAmbiguousSourcesStayUnavailable(t *testing.T) {
 }
 
 func TestOrientationStatusRequiresExactReadyIdentity(t *testing.T) {
+	t.Parallel()
+
 	address := verifiedResumeThread(t).Address
 	dataDir := t.TempDir()
 	paths, _ := artifactpath.Resolve(artifactpath.Address{DataDir: dataDir, RepoScope: address.RepoScope, Tag: string(address.Tag)})
@@ -147,6 +153,8 @@ func TestOrientationStatusRequiresExactReadyIdentity(t *testing.T) {
 }
 
 func TestFreshRegistrationAcceptsReadyBeforeOrientation(t *testing.T) {
+	t.Parallel()
+
 	record := verifiedResumeThread(t)
 	paths, _ := artifactpath.Resolve(artifactpath.Address{DataDir: t.TempDir(), RepoScope: record.Address.RepoScope, Tag: string(record.Address.Tag)})
 	path, _ := paths.AgentReadyChecked("codex")
@@ -175,6 +183,8 @@ func TestFreshRegistrationAcceptsReadyBeforeOrientation(t *testing.T) {
 }
 
 func TestReadOrientationStatusRejectsReplacedIncarnation(t *testing.T) {
+	t.Parallel()
+
 	store, _, record := createControllerThread(t)
 	proc := NewFakeProcOps()
 	proc.Set(42, "pair-helper")
@@ -197,6 +207,8 @@ func TestReadOrientationStatusRejectsReplacedIncarnation(t *testing.T) {
 }
 
 func TestFreshRegistrationWaitsForOldReadyReplacement(t *testing.T) {
+	t.Parallel()
+
 	record := verifiedResumeThread(t)
 	dataDir := t.TempDir()
 	paths, _ := artifactpath.Resolve(artifactpath.Address{DataDir: dataDir, RepoScope: record.Address.RepoScope, Tag: string(record.Address.Tag)})
@@ -223,6 +235,8 @@ func TestFreshRegistrationWaitsForOldReadyReplacement(t *testing.T) {
 }
 
 func TestSwitchContextRejectsNonRegularEvidenceWithoutBlocking(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	target := filepath.Join(dir, "target")
 	if err := os.WriteFile(target, []byte("data"), 0600); err != nil {
@@ -252,6 +266,8 @@ func TestSwitchContextRejectsNonRegularEvidenceWithoutBlocking(t *testing.T) {
 }
 
 func TestOrientationCaptureHasRecoverableReaderHandoff(t *testing.T) {
+	t.Parallel()
+
 	record := verifiedResumeThread(t)
 	record.VerifiedPark.Scrollback = &pairlifecycle.PreservedScrollback{Agent: "codex", Token: "20260913T010101", Events: true}
 	root := t.TempDir()
@@ -290,6 +306,8 @@ func TestOrientationCaptureHasRecoverableReaderHandoff(t *testing.T) {
 }
 
 func TestContinuationGenerationReceiptSurvivesTargetDeath(t *testing.T) {
+	t.Parallel()
+
 	record := verifiedResumeThread(t)
 	data := t.TempDir()
 	paths, _ := artifactpath.Resolve(artifactpath.Address{DataDir: data, RepoScope: record.Address.RepoScope, Tag: string(record.Address.Tag)})
@@ -323,6 +341,8 @@ func TestContinuationGenerationReceiptSurvivesTargetDeath(t *testing.T) {
 }
 
 func TestOrientationSessionObservationHonorsCallerDeadline(t *testing.T) {
+	t.Parallel()
+
 	for _, operation := range []string{"generation", "registered", "read"} {
 		t.Run(operation, func(t *testing.T) {
 			record := verifiedResumeThread(t)
@@ -373,6 +393,8 @@ func TestOrientationSessionObservationHonorsCallerDeadline(t *testing.T) {
 // RecordedSession reads only the ready file: it never asks the session
 // observer, whose production form runs the ps/zellij ownership probe (#365).
 func TestRecordedSessionReadsReadyFileWithoutSessionObservation(t *testing.T) {
+	t.Parallel()
+
 	address := verifiedResumeThread(t).Address
 	dataDir := t.TempDir()
 	paths, _ := artifactpath.Resolve(artifactpath.Address{DataDir: dataDir, RepoScope: address.RepoScope, Tag: string(address.Tag)})

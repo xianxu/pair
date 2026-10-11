@@ -25,6 +25,8 @@ func archiveDetachFixture(t *testing.T) (*ThreadStore, *storagegc.Coordinator, A
 	return s, c, ArchiveDetachRequest{OperationID: "root-operation", Address: a.Address, RecordHash: a.RecordHash, ArchivedAt: a.ArchivedAt}
 }
 func TestArchiveDetachReceiptSurvivesEveryCrashStep(t *testing.T) {
+	t.Parallel()
+
 	for fault := -1; fault < 3; fault++ {
 		t.Run(fmt.Sprint(fault), func(t *testing.T) {
 			s, c, req := archiveDetachFixture(t)
@@ -76,6 +78,8 @@ func TestArchiveDetachReceiptSurvivesEveryCrashStep(t *testing.T) {
 	}
 }
 func TestArchiveDetachRefusesVisibleOrChangedArchive(t *testing.T) {
+	t.Parallel()
+
 	for _, kind := range []string{"visible", "hash", "time", "operation"} {
 		t.Run(kind, func(t *testing.T) {
 			s, c, req := archiveDetachFixture(t)
@@ -103,6 +107,8 @@ func TestArchiveDetachRefusesVisibleOrChangedArchive(t *testing.T) {
 }
 
 func TestArchiveDetachRejectsReadTokenAndConflictingReceipt(t *testing.T) {
+	t.Parallel()
+
 	s, c, req := archiveDetachFixture(t)
 	if err := c.WithReadLock(context.Background(), func(l *storagegc.Locked) error {
 		if err := s.DetachArchive(l, req); err == nil {
@@ -125,6 +131,8 @@ func TestArchiveDetachRejectsReadTokenAndConflictingReceipt(t *testing.T) {
 	}
 }
 func TestArchiveDetachReceiptCleanupRecoversEachStep(t *testing.T) {
+	t.Parallel()
+
 	for _, afterJournal := range []bool{false, true} {
 		t.Run(fmt.Sprint(afterJournal), func(t *testing.T) {
 			s, c, req := archiveDetachFixture(t)

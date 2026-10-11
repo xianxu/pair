@@ -10,6 +10,8 @@ import (
 func gateAddr(tag string) ThreadAddress { return ThreadAddress{RepoScope: "s", Tag: ThreadTag(tag)} }
 
 func TestGateDecision(t *testing.T) {
+	t.Parallel()
+
 	a, b := gateAddr("a"), gateAddr("b")
 	mine, stale := &gateToken{}, &gateToken{}
 	held := map[ThreadAddress]gateHold{a: {op: "relaunch", token: mine}}
@@ -36,6 +38,8 @@ func TestGateDecision(t *testing.T) {
 }
 
 func TestThreadGateRefusesNamingTheRunningOperationAndReleases(t *testing.T) {
+	t.Parallel()
+
 	var g ThreadGate
 	ctx, release, err := g.acquire(context.Background(), gateAddr("a"), "relaunch", false)
 	if err != nil {
@@ -83,6 +87,8 @@ func TestThreadGateRefusesNamingTheRunningOperationAndReleases(t *testing.T) {
 }
 
 func TestThreadGateWaitAdmitsAfterReleaseAndHonoursContext(t *testing.T) {
+	t.Parallel()
+
 	var g ThreadGate
 	_, release, _ := g.acquire(context.Background(), gateAddr("a"), "resume", false)
 	done := make(chan error, 1)
@@ -112,6 +118,8 @@ func TestThreadGateWaitAdmitsAfterReleaseAndHonoursContext(t *testing.T) {
 }
 
 func TestCouchGateIsSharedAcrossCalls(t *testing.T) {
+	t.Parallel()
+
 	c := &Couch{}
 	_, release, err := c.hold(context.Background(), gateAddr("a"), "relaunch")
 	if err != nil {

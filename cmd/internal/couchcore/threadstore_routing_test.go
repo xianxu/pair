@@ -9,6 +9,8 @@ import (
 )
 
 func TestEnrolledSlotPublicLifecycleUsesLocalAuthority(t *testing.T) {
+	t.Parallel()
+
 	s, repository, r := migrationFixture(t)
 	if err := s.EnrollSlotRepository(context.Background(), repository); err != nil {
 		t.Fatal(err)
@@ -44,6 +46,8 @@ func TestEnrolledSlotPublicLifecycleUsesLocalAuthority(t *testing.T) {
 }
 
 func TestEnrolledSlotArchiveListingIgnoresStaleGlobalCopy(t *testing.T) {
+	t.Parallel()
+
 	s, repository, r := migrationFixture(t)
 	if err := s.EnrollSlotRepository(context.Background(), repository); err != nil {
 		t.Fatal(err)

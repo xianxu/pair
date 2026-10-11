@@ -27,6 +27,8 @@ import (
 // another agent left. Neither the stale files nor the clear may pass for a
 // birth.
 func TestColdResumeMakesNoSessionProbeBeforeThePaneIsBorn(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
 	address := parked.Address
@@ -76,6 +78,8 @@ func TestColdResumeMakesNoSessionProbeBeforeThePaneIsBorn(t *testing.T) {
 // A warm reattach attaches to a live session, and its pane was born long ago, so
 // there is nothing to wait for and no baseline to take.
 func TestWarmReattachSkipsTheBirthWait(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	profile := LaunchProfile{Agent: "claude", Argv: []string{}}
 	record := validThreadRecord(t)
@@ -101,6 +105,8 @@ func TestWarmReattachSkipsTheBirthWait(t *testing.T) {
 // far) ends in the ordinary registration failure and its diagnosis, not in a
 // probe of a server that may still be coming up.
 func TestColdResumeTimesOutWhenThePaneIsNeverBorn(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	env.Couch.resumeRegistrationTimeout = 150 * time.Millisecond
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
@@ -145,6 +151,8 @@ func TestColdResumeTimesOutWhenThePaneIsNeverBorn(t *testing.T) {
 // An attached terminal cannot authorize a cold create. Refuse before releasing
 // the helper so neither a second agent nor destructive cleanup can occur.
 func TestColdResumeAgainstALiveSessionNeitherWaitsNorDeletesIt(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	env.Couch.resumeRegistrationTimeout = 150 * time.Millisecond
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
@@ -168,6 +176,8 @@ func TestColdResumeAgainstALiveSessionNeitherWaitsNorDeletesIt(t *testing.T) {
 // "not live" means a wait that may time out into a deletion; guessing "live"
 // means probing during a birth.
 func TestColdResumeRefusesToReleasePairWhenLivenessIsUnknown(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
 	env.Artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
@@ -191,6 +201,8 @@ func TestColdResumeRefusesToReleasePairWhenLivenessIsUnknown(t *testing.T) {
 // fail registration, and the cleanup would then delete the session this launch
 // had just created.
 func TestColdResumeWaitsThroughAFailedPaneObservation(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
 	address := parked.Address
@@ -229,6 +241,8 @@ func TestColdResumeWaitsThroughAFailedPaneObservation(t *testing.T) {
 // released. Without a baseline nothing could be recognised as a birth, and the
 // alternative, probing anyway, is what killed the session.
 func TestColdResumeRefusesToReleasePairWithoutAPaneBaseline(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
 	env.Artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
@@ -250,6 +264,8 @@ func TestColdResumeRefusesToReleasePairWithoutAPaneBaseline(t *testing.T) {
 
 // The real observer: the thread's own scope directory, glob and stat, no zellij.
 func TestScopedPaneSidecarsObservesTheThreadsScope(t *testing.T) {
+	t.Parallel()
+
 	dataDir := t.TempDir()
 	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
 	checker := NewScopedThreadArtifactCollisionChecker(dataDir)

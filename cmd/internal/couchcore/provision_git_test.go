@@ -150,6 +150,8 @@ func (f *ProvisionFixture) Run(ctx context.Context, c ProvisionCommand) ([]byte,
 	}
 }
 func TestProvisionHostRemoteBaselineAndRepeatReadiness(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	f.git(f.Primary, "commit", "--allow-empty", "-m", "local only")
 	dirty := filepath.Join(f.Primary, "local.txt")
@@ -197,6 +199,8 @@ func TestProvisionHostRemoteBaselineAndRepeatReadiness(t *testing.T) {
 	}
 }
 func TestProvisionHostMissingSuccessRepeatsSameOperation(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	f.FailWeave = true
 	p := NewWorkspaceProvisioner(f)
@@ -227,6 +231,8 @@ func TestProvisionHostMissingSuccessRepeatsSameOperation(t *testing.T) {
 // input, so a plain open after a weave upgrade compiles again rather than
 // repeating the remembered failure.
 func TestRememberedSetupFailureRetriesWithAnUpgradedWeave(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	f.WeaveIdentity = "v1"
 	f.FailWeave = true
@@ -273,6 +279,8 @@ func TestOSProgramIdentityChangesWhenTheProgramIsReplaced(t *testing.T) {
 // branch found at the slot's conventional place are adopted: the user's file
 // survives and the branch is reused at its own commit.
 func TestProvisionHostAdoptsForeignDirectoryAndBranch(t *testing.T) {
+	t.Parallel()
+
 	for _, collision := range []string{"directory", "branch"} {
 		t.Run(collision, func(t *testing.T) {
 			f := newProvisionFixture(t)
@@ -299,6 +307,8 @@ func TestProvisionHostAdoptsForeignDirectoryAndBranch(t *testing.T) {
 	}
 }
 func TestProvisionHostLostBranchAcknowledgment(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	once := true
 	f.AfterGit = func(c ProvisionCommand, _ []byte) error {
@@ -321,6 +331,8 @@ func TestProvisionHostLostBranchAcknowledgment(t *testing.T) {
 	}
 }
 func TestParseFetchBaseline(t *testing.T) {
+	t.Parallel()
+
 	sha := strings.Repeat("a", 40)
 	other := strings.Repeat("b", 40)
 	ref := "refs/remotes/upstream/main"
@@ -337,6 +349,8 @@ func TestParseFetchBaseline(t *testing.T) {
 }
 
 func TestProvisionGitCaptureSurvivesExternalFetch(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	once := true
 	later := ""
@@ -367,6 +381,8 @@ func TestProvisionGitCaptureSurvivesExternalFetch(t *testing.T) {
 	}
 }
 func TestProvisionGitRemoteSelection(t *testing.T) {
+	t.Parallel()
+
 	for _, mode := range []string{"missing", "ambiguous", "configured", "explicit", "local-dot", "duplicate"} {
 		t.Run(mode, func(t *testing.T) {
 			f := newProvisionFixture(t)
@@ -407,6 +423,8 @@ func TestProvisionGitRemoteSelection(t *testing.T) {
 // TestProvisionHostInvalidMarkerIsRecompiled: an invalid setup marker is a
 // broken derived file (pair#387 R3): setup runs again and rewrites it.
 func TestProvisionHostInvalidMarkerIsRecompiled(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	p := NewWorkspaceProvisioner(f)
 	req := ProvisionRequest{Path: f.Primary, Slot: 1}

@@ -10,6 +10,8 @@ import (
 )
 
 func TestProjectDetachedSessions(t *testing.T) {
+	t.Parallel()
+
 	one := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
 	two := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000002"}
 
@@ -107,6 +109,8 @@ func TestProjectDetachedSessions(t *testing.T) {
 // pins that bound directly, because a benchmark of the pure reducer cannot see
 // it -- the query lives on the refresh worker, not the keystroke path.
 func TestActionableInventoryAsksOnlyAboutDetachCandidates(t *testing.T) {
+	t.Parallel()
+
 	ns := testCouchNamespace(t)
 	store := NewThreadStore(ns)
 	profile := &LaunchProfile{Agent: "claude", Argv: []string{}}
@@ -181,6 +185,8 @@ func TestActionableInventoryAsksOnlyAboutDetachCandidates(t *testing.T) {
 
 // With no candidates at all, the refresh must not spawn the query.
 func TestActionableInventorySkipsTheQueryWithNoCandidates(t *testing.T) {
+	t.Parallel()
+
 	ns := testCouchNamespace(t)
 	store := NewThreadStore(ns)
 	seed := validThreadRecord(t)
@@ -221,6 +227,8 @@ func TestActionableInventorySkipsTheQueryWithNoCandidates(t *testing.T) {
 // tests asserted a shape nothing downstream would take. Composing the two pure
 // functions is the guard.
 func TestProjectDetachedSessionsEmitsObservationsTheProjectorAccepts(t *testing.T) {
+	t.Parallel()
+
 	address := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
 	bindings := []SessionNameBinding{{Address: address, SessionName: "pair-one", Agent: "claude"}}
 	observed, err := ProjectDetachedSessions(
@@ -252,6 +260,8 @@ func TestProjectDetachedSessionsEmitsObservationsTheProjectorAccepts(t *testing.
 // detached". Launcher's members are TestDecideLaunchRefusesAttachStateItWasNotGiven
 // and TestThePickerRefusesAttachStateItWasNotGiven.
 func TestProjectDetachedSessionsRefusesAttachStateItWasNotGiven(t *testing.T) {
+	t.Parallel()
+
 	address := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
 	bindings := []SessionNameBinding{{Address: address, SessionName: "pair-one", Agent: "claude"}}
 	observed, err := ProjectDetachedSessions(
@@ -281,6 +291,8 @@ func claimsOf(bindings []SessionNameBinding) map[string]int {
 // The rule the narrowed ask depends on: a name some OTHER thread also binds
 // proves nothing, even when the caller passed only one claimant.
 func TestProjectDetachedSessionsRefusesAContestedName(t *testing.T) {
+	t.Parallel()
+
 	address := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
 	bindings := []SessionNameBinding{{Address: address, SessionName: "pair-one", Agent: "claude"}}
 	sessions := []launcher.Session{{Name: "pair-one", State: launcher.SessionDetached}}
@@ -306,6 +318,8 @@ func TestProjectDetachedSessionsRefusesAContestedName(t *testing.T) {
 // contested, it got no detached observation, and it read session-gone
 // (pair#206 PQ-1, measured on the operator's host at 56 legacy-only bindings).
 func TestEffectiveBindingsCountsEachThreadOnceAcrossReads(t *testing.T) {
+	t.Parallel()
+
 	entry := func(scope, tag, name string) launcher.SessionNameEntry {
 		return launcher.SessionNameEntry{ScopeKey: scope, Tag: tag, SessionName: name}
 	}

@@ -15,6 +15,8 @@ import (
 //
 // A label must not contain another reason's distinctive term.
 func TestNoLabelBorrowsAnotherReasonsDefiningWord(t *testing.T) {
+	t.Parallel()
+
 	// The word that identifies each state to the operator. A label containing
 	// someone else's word is a collision even when the strings differ.
 	defining := map[ThreadReason]string{
@@ -55,6 +57,8 @@ func TestNoLabelBorrowsAnotherReasonsDefiningWord(t *testing.T) {
 }
 
 func TestEveryReasonHasADistinctOperatorLabel(t *testing.T) {
+	t.Parallel()
+
 	seen := map[string]ThreadReason{}
 	for _, reason := range AllThreadReasons() {
 		label := reason.Label()

@@ -11,6 +11,8 @@ func kinds(ms []Message) []string {
 }
 
 func TestEnqueueCollapsesKeepingTheLatestAtTheTail(t *testing.T) {
+	t.Parallel()
+
 	// Asserting identity AND position: an Enqueue that silently dropped the
 	// incoming message would leave the length unchanged and pass a
 	// length-only check.
@@ -28,6 +30,8 @@ func TestEnqueueCollapsesKeepingTheLatestAtTheTail(t *testing.T) {
 }
 
 func TestEnqueueDropsOldestNonControlAtCapacity(t *testing.T) {
+	t.Parallel()
+
 	q := []Message{{Kind: "stop", Control: true}, {Kind: "n1"}}
 	out, dropped, ok := Enqueue(q, Message{Kind: "n2"}, 2)
 	if ok {
@@ -42,6 +46,8 @@ func TestEnqueueDropsOldestNonControlAtCapacity(t *testing.T) {
 }
 
 func TestEnqueueNeverDropsControlEvenOverCapacity(t *testing.T) {
+	t.Parallel()
+
 	// Control carries stop and deadline. Dropping one to honour a capacity
 	// number would trade a real obligation for a bookkeeping one.
 	q := []Message{{Kind: "stop", Control: true}, {Kind: "deadline", Control: true}}
@@ -58,6 +64,8 @@ func TestEnqueueNeverDropsControlEvenOverCapacity(t *testing.T) {
 }
 
 func TestEnqueueUnderCapacityIsClean(t *testing.T) {
+	t.Parallel()
+
 	out, dropped, ok := Enqueue(nil, Message{Kind: "n1"}, 4)
 	if !ok || dropped.Kind != "" || len(out) != 1 {
 		t.Fatalf("out=%v dropped=%+v ok=%v", kinds(out), dropped, ok)
@@ -65,6 +73,8 @@ func TestEnqueueUnderCapacityIsClean(t *testing.T) {
 }
 
 func TestEnqueueDoesNotMutateTheInputSlice(t *testing.T) {
+	t.Parallel()
+
 	q := []Message{{Kind: "n1"}, {Kind: "n2"}}
 	_, _, _ = Enqueue(q, Message{Kind: "n3"}, 2)
 	if got := kinds(q); got[0] != "n1" || got[1] != "n2" {

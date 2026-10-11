@@ -87,6 +87,8 @@ func everyResumeShape(t *testing.T) []resumeShape {
 // admitted `creating` while resume refused it, from exactly this kind of
 // parallel derivation.
 func TestResumePreconditionsMatchDecideResumeOnAPostParkRecord(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range everyResumeShape(t) {
 		t.Run(tc.name, func(t *testing.T) {
 			precondition := CheckResumePreconditions(tc.record, tc.binding, tc.pathExists)

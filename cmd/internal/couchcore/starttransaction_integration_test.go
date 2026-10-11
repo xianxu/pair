@@ -8,6 +8,8 @@ import (
 )
 
 func TestStartTransactionIntegratesWithFakeRunnerLifecycle(t *testing.T) {
+	t.Parallel()
+
 	runner := NewFakeRunner()
 	record := admittedStartRecord(t)
 	record, err := AdvanceStartTransaction(record, StartEvent{
@@ -41,6 +43,8 @@ func TestStartTransactionIntegratesWithFakeRunnerLifecycle(t *testing.T) {
 }
 
 func TestStartTransactionIntegratesWithThreadStoreCAS(t *testing.T) {
+	t.Parallel()
+
 	store, ns := newTestThreadStore(t)
 	record := admittedStartRecord(t)
 	record.StartingPath, record.WorkingPath = ns.Dir(), ns.Dir()

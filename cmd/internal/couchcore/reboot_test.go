@@ -78,6 +78,8 @@ func workingSet(t *testing.T, store *ThreadStore) []ThreadAddress {
 }
 
 func TestRebootPrimaryParkedArchivesAndStartsFreshInOneJournal(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	old := parkedNamedPrimary(t, env)
 	result, err := dispatchReboot(env, rebootArgs(old.Address))
@@ -126,6 +128,8 @@ func (l *leakFirstClaim) Claim(address ThreadAddress) (ThreadArtifactClaim, erro
 // AllocateThreadTag has always had), which must not wedge the path: the next
 // reboot moves past the leaked address and still starts.
 func TestRebootPrimaryCrashAfterJournalRecovers(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	old := parkedNamedPrimary(t, env)
 	env.Couch.Threads.hooks.AfterJournal = func() error {
@@ -176,6 +180,8 @@ func TestRebootPrimaryCrashAfterJournalRecovers(t *testing.T) {
 // retires its record, never after: the other order is a record in the archive
 // with a live session behind it.
 func TestRebootDetachedStopsTheSessionFirst(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	old := detachedPrimary(t, env)
 	quiescedAtReplace := -1
@@ -200,6 +206,8 @@ func TestRebootDetachedStopsTheSessionFirst(t *testing.T) {
 }
 
 func TestRebootRefusesLiveBusyAndStillUnknown(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]func(t *testing.T) (*testEnv, ThreadAddress){
 		"live": func(t *testing.T) (*testEnv, ThreadAddress) {
 			env, source := switchEnvWithLiveThread(t)
@@ -241,6 +249,8 @@ func TestRebootRefusesLiveBusyAndStillUnknown(t *testing.T) {
 }
 
 func TestRebootDirectoryMissingArchivesOnly(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	record := archivableThread(t, env.Couch.Threads, "couch-0000000000000001")
 	env.Couch.Path.(*FakePathOps).Fail("/repo")
@@ -263,6 +273,8 @@ func TestRebootDirectoryMissingArchivesOnly(t *testing.T) {
 // An unreadable :0 is retired as bytes, and its session is left alone: couch
 // does not stop what it cannot identify.
 func TestRebootUnreadablePrimaryArchivesOnly(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	record := archivableThread(t, env.Couch.Threads, "couch-0000000000000001")
 	corrupt := []byte("{not a record")
@@ -311,6 +323,8 @@ func slotArchiveFiles(t *testing.T, local *ThreadStore) []string {
 }
 
 func TestRebootSlotParkedIsTodaysFreshSlot(t *testing.T) {
+	t.Parallel()
+
 	env, local := slotRecoveryOperationFixture(t)
 	old := slotRecordFixture(t, env, local)
 	result, err := dispatchReboot(env, map[string]string{"path": local.slot.WorktreeRoot, "repo-scope": old.Address.RepoScope})
@@ -332,6 +346,8 @@ func TestRebootSlotParkedIsTodaysFreshSlot(t *testing.T) {
 }
 
 func TestRebootSlotDetachedQuiescesThenStarts(t *testing.T) {
+	t.Parallel()
+
 	env, local := slotRecoveryOperationFixture(t)
 	old := slotRecordFixture(t, env, local)
 	env.Artifacts.SetPairSession(old.Address, "pair-slot-detached", true)
@@ -352,6 +368,8 @@ func TestRebootSlotDetachedQuiescesThenStarts(t *testing.T) {
 // The fresh profile resolves before anything is stopped, so an agent that
 // cannot launch leaves the running one alone.
 func TestRebootProfileFailureStopsNothing(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	old := detachedPrimary(t, env)
 	args := rebootArgs(old.Address)
@@ -373,6 +391,8 @@ func TestRebootProfileFailureStopsNothing(t *testing.T) {
 // A record holding nothing but a start whose couch died has nothing to
 // archive: retirement rolls it back, and reboot starts fresh at its path.
 func TestRebootOfARolledBackStartStartsFresh(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	// The husk a launch leaves when it dies before registering: a start claim
 	// whose couch is gone, and nothing durable besides (no profile, no name).
@@ -407,6 +427,8 @@ func TestRebootOfARolledBackStartStartsFresh(t *testing.T) {
 // a second, live primary in the same repository; the reboot then refuses with
 // the rule's words, creates nothing, and leaves that primary running.
 func TestRebootOfARolledBackStartRefusesBesideALegacyPrimary(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	env.cannedTree("/repo", "/repo/sub")
 	// The legacy co-tenant, created past the occupancy guard (no rows) as the
@@ -456,6 +478,8 @@ func TestRebootOfARolledBackStartRefusesBesideALegacyPrimary(t *testing.T) {
 // says so and names reboot; reboot then yields a live thread with a new tag,
 // and the old record is in the archive.
 func TestRebootAfterResumeFailedIsUsable(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
 	_, err := dispatchResume(env, map[string]string{"repo-scope": parked.Address.RepoScope, "tag": string(parked.Address.Tag)})
@@ -481,6 +505,8 @@ func TestRebootAfterResumeFailedIsUsable(t *testing.T) {
 // archived. A :0 tag is gone, so reboot says there is nothing to reboot; a slot
 // persists, so it starts clean. Either way the old record is archived once.
 func TestRebootAfterFailedLaunchDoesNotArchiveTwice(t *testing.T) {
+	t.Parallel()
+
 	t.Run("primary", func(t *testing.T) {
 		env := newTestEnv(t, "/repo")
 		old := parkedNamedPrimary(t, env)
@@ -520,6 +546,8 @@ func TestRebootAfterFailedLaunchDoesNotArchiveTwice(t *testing.T) {
 // only in the window between the preflight's read and retirement's, which no
 // fake seam reaches, so the shared construction is what is pinned.
 func TestRetiredResultCarriesWhatRetirementDidNotDo(t *testing.T) {
+	t.Parallel()
+
 	address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
 	got := retiredResult(address, retirement{Record: ThreadRecord{Address: address}, Unreadable: true, SessionNotStopped: true})
 	if got.Archived != address || !got.SessionNotStopped || got.Warning() == "" {

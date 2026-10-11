@@ -63,6 +63,8 @@ func dispatchSlotContinuation(env *testEnv, op, path string) (any, error) {
 // record with its retained request and starts fresh, and must refuse while the
 // request's owner is not proved stopped.
 func TestSlotRebootContinuationProtectsLiveAndUnknownOwners(t *testing.T) {
+	t.Parallel()
+
 	for _, target := range []bool{false, true} {
 		for _, unknown := range []bool{false, true} {
 			name := "source"
@@ -103,6 +105,8 @@ func TestSlotRebootContinuationProtectsLiveAndUnknownOwners(t *testing.T) {
 }
 
 func TestSlotRebootRetainsStoppedContinuationInTheArchive(t *testing.T) {
+	t.Parallel()
+
 	for _, phase := range checkpoint.AllPhases() {
 		if phase != checkpoint.Pending && phase != checkpoint.Failed {
 			continue
@@ -127,6 +131,8 @@ func TestSlotRebootRetainsStoppedContinuationInTheArchive(t *testing.T) {
 }
 
 func TestSlotOpenColdUsesContinuationGuard(t *testing.T) {
+	t.Parallel()
+
 	env, local, record := slotContinuationFixture(t, checkpoint.Failed, false)
 	// OpenSlot directly: resume routes a failed request to RetryContinuation
 	// before it reaches OpenSlot, so the guard is OpenSlot's own defence.

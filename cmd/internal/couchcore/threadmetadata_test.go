@@ -25,6 +25,8 @@ func metadataThread(scope string, tag ThreadTag, path, name string) ThreadRecord
 func metadataValue(value string) *string { return &value }
 
 func TestThreadStoreMetadataUpdateUsesRevisionCAS(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	record := metadataThread("816fc349d3faebf8", "couch-0102030405060708", "/repo/task", "old name")
 	created, err := store.CreateThread(record)
@@ -58,6 +60,8 @@ func TestThreadStoreMetadataUpdateUsesRevisionCAS(t *testing.T) {
 }
 
 func TestResolveThreadReferenceExactTagPrecedesFuzzyMatches(t *testing.T) {
+	t.Parallel()
+
 	records := []ThreadRecord{
 		metadataThread("scope-b", "work", "/repo/one", "other"),
 		metadataThread("scope-a", "work", "/other/one", "other"),
@@ -93,6 +97,8 @@ func TestResolveThreadReferenceExactTagPrecedesFuzzyMatches(t *testing.T) {
 }
 
 func TestResolveThreadReferenceScopedFuzzyMatchesAreDeterministicallyOrdered(t *testing.T) {
+	t.Parallel()
+
 	records := []ThreadRecord{
 		metadataThread("scope-b", "tag-z", "/repo/compiler-z", "unrelated"),
 		metadataThread("scope-a", "tag-b", "/repo/COMPILER-b", "unrelated"),
@@ -118,6 +124,8 @@ func TestResolveThreadReferenceScopedFuzzyMatchesAreDeterministicallyOrdered(t *
 }
 
 func TestResolveThreadReferenceReturnsDeepClones(t *testing.T) {
+	t.Parallel()
+
 	record := metadataThread("scope-a", "work", "/repo/work", "compiler")
 	record.Incarnations = []ThreadIncarnation{{
 		Identity:      "original",
@@ -141,6 +149,8 @@ func TestResolveThreadReferenceReturnsDeepClones(t *testing.T) {
 }
 
 func TestResolveThreadReferenceUsesCouchOwnedNotFoundErrors(t *testing.T) {
+	t.Parallel()
+
 	records := []ThreadRecord{metadataThread("scope-a", "work", "/repo/work", "compiler")}
 	for _, test := range []struct {
 		name string
@@ -164,6 +174,8 @@ func TestResolveThreadReferenceUsesCouchOwnedNotFoundErrors(t *testing.T) {
 }
 
 func TestThreadReferenceFieldsExactWinsAcrossTheWholeSet(t *testing.T) {
+	t.Parallel()
+
 	fields := []ThreadReferenceFields{
 		{Address: ThreadAddress{RepoScope: "scope", Tag: "work"}, Label: "unrelated", WorkingPath: "/repo/one"},
 		{Address: ThreadAddress{RepoScope: "scope", Tag: "other"}, Label: "work queue", WorkingPath: "/repo/work"},
@@ -184,6 +196,8 @@ func TestThreadReferenceFieldsExactWinsAcrossTheWholeSet(t *testing.T) {
 }
 
 func TestThreadReferenceFieldsRejectInvalidQueryBeforeMatching(t *testing.T) {
+	t.Parallel()
+
 	fields := []ThreadReferenceFields{{
 		Address:     ThreadAddress{RepoScope: "scope", Tag: "bad\x00reference"},
 		Label:       "bad\x00reference",
@@ -208,6 +222,8 @@ func threadAddresses(records []ThreadRecord) []ThreadAddress {
 // Stored names and descriptions are kept, but no longer matched (pair#363): a
 // reference resolves by tag or working path only.
 func TestThreadReferenceDoesNotMatchStoredNameOrDescription(t *testing.T) {
+	t.Parallel()
+
 	record := metadataThread("816fc349d3faebf8", "couch-0102030405060708", "/repo/task", "renamed")
 	record.Description = "described work"
 	for _, ref := range []string{"renamed", "described"} {

@@ -37,6 +37,8 @@ func projectOne(t *testing.T, record ThreadRecord, evidence map[ThreadAddress]Th
 
 // An absent persisted field is legacy layout2, independent of process defaults.
 func TestProjectionNormalizesAbsentLayoutIndependentlyOfDefault(t *testing.T) {
+	t.Parallel()
+
 	record, evidence := detachedLayoutRecord(t, "")
 	row := projectOne(t, record, evidence)
 	if row.Layout != Layout2 {
@@ -52,6 +54,8 @@ func TestProjectionNormalizesAbsentLayoutIndependentlyOfDefault(t *testing.T) {
 }
 
 func TestProjectionCarriesARecordedLayout(t *testing.T) {
+	t.Parallel()
+
 	record, evidence := detachedLayoutRecord(t, Layout3)
 	if row := projectOne(t, record, evidence); row.Layout != Layout3 {
 		t.Fatalf("row layout = %q; want Layout3", row.Layout)
@@ -61,6 +65,8 @@ func TestProjectionCarriesARecordedLayout(t *testing.T) {
 // ARCH-SECURE: an unreadable value must not become a plausible default. It
 // surfaces as LayoutUnknown, which refuses visibly against either request.
 func TestProjectionMarksUnreadableLayoutUnknown(t *testing.T) {
+	t.Parallel()
+
 	record, evidence := detachedLayoutRecord(t, "layout9")
 	row := projectOne(t, record, evidence)
 	if row.Layout != LayoutUnknown {
@@ -76,6 +82,8 @@ func TestProjectionMarksUnreadableLayoutUnknown(t *testing.T) {
 // The witness has to survive the persistence hop, or the guard reads a field
 // that park/resume silently dropped.
 func TestThreadRecordLayoutRoundTripsThroughPersistence(t *testing.T) {
+	t.Parallel()
+
 	active := time.Unix(1000, 0).UTC()
 	record := actionableTestThread("couch-0000000000000005", active)
 	record.Layout = Layout3
@@ -87,6 +95,8 @@ func TestThreadRecordLayoutRoundTripsThroughPersistence(t *testing.T) {
 // A record predating #198 carries no layout key at all; it must survive the hop
 // as empty rather than acquiring a value nothing wrote.
 func TestAbsentLayoutSurvivesPersistenceAsEmpty(t *testing.T) {
+	t.Parallel()
+
 	active := time.Unix(1000, 0).UTC()
 	record := actionableTestThread("couch-0000000000000006", active)
 	if got := fromPersistedThreadRecord(toPersistedThreadRecord(record)); got.Layout != "" {
@@ -99,6 +109,8 @@ func TestAbsentLayoutSurvivesPersistenceAsEmpty(t *testing.T) {
 // the round-trip green while silently dropping every witness on disk. This
 // decodes real bytes.
 func TestLayoutWitnessPersistsUnderItsOnDiskKey(t *testing.T) {
+	t.Parallel()
+
 	active := time.Unix(1000, 0).UTC()
 	record := actionableTestThread("couch-0000000000000007", active)
 	record.Layout = Layout3
@@ -134,6 +146,8 @@ func TestLayoutWitnessPersistsUnderItsOnDiskKey(t *testing.T) {
 // A real pre-#198 record, decoded through the production path, must load
 // cleanly and read as layout2.
 func TestPre198RecordDecodesThroughTheProductionPath(t *testing.T) {
+	t.Parallel()
+
 	active := time.Unix(1000, 0).UTC()
 	record := actionableTestThread("couch-0000000000000009", active)
 	raw, err := json.Marshal(toPersistedThreadRecord(record))
@@ -153,6 +167,8 @@ func TestPre198RecordDecodesThroughTheProductionPath(t *testing.T) {
 // construction site of its struct, or the invariant is only a comment. The
 // unreadable branch builds rows without touching the record at all.
 func TestEveryProjectedRowCarriesANormalizedLayout(t *testing.T) {
+	t.Parallel()
+
 	record, evidence := detachedLayoutRecord(t, Layout3)
 	rows := ProjectActionableThreads(ThreadProjectionInput{
 		Records:    []ThreadRecord{record},

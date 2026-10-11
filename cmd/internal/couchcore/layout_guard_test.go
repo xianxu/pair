@@ -28,6 +28,8 @@ func seedStartupDetached(t *testing.T, env *testEnv, tag ThreadTag, layout Layou
 }
 
 func TestDefaultStartInteractiveRefusesLegacyLayoutWithRemedies(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	held := seedStartupDetached(t, env, "couch-0000000000000001", "")
 
@@ -60,6 +62,8 @@ func TestDefaultStartInteractiveRefusesLegacyLayoutWithRemedies(t *testing.T) {
 // first" a real remedy rather than advice: after parking, the same store that
 // refused now starts.
 func TestStartInteractiveProceedsWhenOnlyParkedThreadsDisagree(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	env.Couch.Layout = Layout3
 	parked := seedStartupParked(t, env, "couch-0000000000000001", "/repo")
@@ -79,6 +83,8 @@ func TestStartInteractiveProceedsWhenOnlyParkedThreadsDisagree(t *testing.T) {
 }
 
 func TestStartInteractiveAcceptsAMatchingSession(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	env.Couch.Layout = Layout3
 	held := seedStartupDetached(t, env, "couch-0000000000000001", Layout3)
@@ -103,6 +109,8 @@ func TestStartInteractiveAcceptsAMatchingSession(t *testing.T) {
 // admitted run would prove nothing: that run continues into a resume, whose own
 // re-proof of detachment legitimately asks again.)
 func TestGuardAddsNoSessionEnumeration(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	env.Couch.Layout = Layout3
 	seedStartupDetached(t, env, "couch-0000000000000001", Layout2)

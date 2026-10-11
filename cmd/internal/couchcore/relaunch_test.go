@@ -83,6 +83,8 @@ func envWithLiveThread(t *testing.T) (*relaunchEnv, ThreadRecord) {
 // and resume can refuse, so a relaunch whose resume could not succeed must not
 // park -- otherwise the operator trades a working session for a cold one.
 func TestRelaunchRefusesBeforeParkingWhenTheResumeCouldNotSucceed(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name        string
 		breaks      func(*relaunchEnv, ThreadRecord)
@@ -189,6 +191,8 @@ func TestRelaunchRefusesBeforeParkingWhenTheResumeCouldNotSucceed(t *testing.T) 
 // already been sent its quit intent, the transaction is open, and `Enter` will
 // NOT recover the row because DecideResume refuses ResumeParking.
 func TestRelaunchStopsAtAFailedParkAndNamesTheRecovery(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name   string
 		breaks func(*relaunchEnv)
@@ -266,6 +270,8 @@ func TestRelaunchStopsAtAFailedParkAndNamesTheRecovery(t *testing.T) {
 // ParkResult.CleanupError with the park returning nil. Discovered by asserting
 // the opposite and watching the relaunch succeed.
 func TestRelaunchProceedsWhenOnlyPairsCleanupFailed(t *testing.T) {
+	t.Parallel()
+
 	env, live := envWithLiveThread(t)
 	env.Lifecycle.cleanupErr = errors.New("cleanup refused")
 
@@ -281,6 +287,8 @@ func TestRelaunchProceedsWhenOnlyPairsCleanupFailed(t *testing.T) {
 // say that. "relaunch failed" reads as data loss when the work is one keystroke
 // away.
 func TestRelaunchThatParksThenFailsToResumeLeavesARecoverableThread(t *testing.T) {
+	t.Parallel()
+
 	env, live := envWithLiveThread(t)
 	// The park runs to completion; the spawn that follows it does not.
 	env.Runner.FailNextStart(errors.New("exec: no such file"))
@@ -316,6 +324,8 @@ func TestRelaunchThatParksThenFailsToResumeLeavesARecoverableThread(t *testing.T
 // incarnation at the SAME address afterwards, a new process, the row still in
 // the switcher, and the conversation continued rather than restarted.
 func TestASuccessfulRelaunchKeepsTheAddressTheRowAndTheConversation(t *testing.T) {
+	t.Parallel()
+
 	env, live := envWithLiveThread(t)
 	before, err := env.Couch.Threads.GetThread(live.Address)
 	if err != nil {
@@ -371,6 +381,8 @@ func TestASuccessfulRelaunchKeepsTheAddressTheRowAndTheConversation(t *testing.T
 // before any of this code runs — which is exactly what a first attempt at this
 // test did, passing for a reason unrelated to what it claimed.
 func TestRelaunchResolvesTheSwitchersDialectThroughTheRealDispatcher(t *testing.T) {
+	t.Parallel()
+
 	env, live := envWithLiveThread(t)
 
 	result, err := DispatchOperation(OperationExecutors{
@@ -422,6 +434,8 @@ func (a chosenRestartArtifacts) ResolveEstablished(ctx context.Context, scope, t
 // pins it; the fresh-restart path #346 M2 added is gone (pair#367 smoke test).
 
 func TestCouchChosenUnknownMetadataRefusesBeforePark(t *testing.T) {
+	t.Parallel()
+
 	env, live := envWithLiveThread(t)
 	native := sessioninventorytest.NewFakeRuntime()
 	pair := sessioninventory.StorageRoot{Name: "pair-data", Path: "/pair"}

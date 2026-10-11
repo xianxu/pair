@@ -328,6 +328,8 @@ func runRecoveryLiveFixture(t *testing.T, warm bool) {
 }
 
 func TestRecoveryLiveAgentStandIn(t *testing.T) {
+	t.Parallel()
+
 	if os.Getenv("PAIR_RECOVERY_LIVE_AGENT") != "1" {
 		t.Skip("controlled Zellij only")
 	}

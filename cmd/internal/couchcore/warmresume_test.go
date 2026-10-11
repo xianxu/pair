@@ -25,6 +25,8 @@ func warmDetachedRecord(t *testing.T) ThreadRecord {
 // the warm path consumes it nowhere, so demanding it refuses a thread that
 // would reattach fine.
 func TestDecideResumeAcceptsADetachedThreadWithNoNativeBinding(t *testing.T) {
+	t.Parallel()
+
 	for _, status := range []sessioninventory.BindingStatus{
 		sessioninventory.BindingProvisional,
 		sessioninventory.BindingUnbound,
@@ -52,6 +54,8 @@ func TestDecideResumeAcceptsADetachedThreadWithNoNativeBinding(t *testing.T) {
 // the same binding states must still refuse, naming its diagnostic. Relaxing
 // the warm path must not leak into the path that really does relaunch an agent.
 func TestDecideResumeStillRefusesAColdResumeWithoutAnEstablishedBinding(t *testing.T) {
+	t.Parallel()
+
 	for status, want := range map[sessioninventory.BindingStatus]ResumeDiagnosticCode{
 		sessioninventory.BindingProvisional: ResumeBindingProvisional,
 		sessioninventory.BindingUnbound:     ResumeBindingUnbound,
@@ -81,6 +85,8 @@ func TestDecideResumeStillRefusesAColdResumeWithoutAnEstablishedBinding(t *testi
 // be sent, because a running session already has its layout and asking for a
 // different one sends Pair down a path that offers to DELETE it.
 func TestWarmReattachSendsNoResumeProfileAndNoLayout(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	profile := LaunchProfile{Agent: "claude", Argv: []string{}}
 	record := validThreadRecord(t)
@@ -135,6 +141,8 @@ func TestWarmReattachSendsNoResumeProfileAndNoLayout(t *testing.T) {
 // must not quietly gain a second -- but the refusal has to be actionable. The
 // operator used to get a diagnostic code and no next step.
 func TestStartupResumeRefusalNamesTheThreadAndTheWayForward(t *testing.T) {
+	t.Parallel()
+
 	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
 	wrapped := startupResumeRefusal(address, refuseResume(ResumeSessionGone, "the detached session is no longer running"))
 	if wrapped == nil {
@@ -163,6 +171,8 @@ func TestStartupResumeRefusalNamesTheThreadAndTheWayForward(t *testing.T) {
 // is TRUE of it: couch could not tell, rather than claiming to have found a
 // resumable thread it never read.
 func TestStartupResumeRefusalExplainsAnInternalFailureWithoutClaimingAThread(t *testing.T) {
+	t.Parallel()
+
 	plain := errors.New("store is unreadable")
 	got := startupResumeRefusal(ThreadAddress{}, plain)
 	if got == nil || !errors.Is(got, plain) {
@@ -192,6 +202,8 @@ func TestStartupResumeRefusalExplainsAnInternalFailureWithoutClaimingAThread(t *
 // Each row asserts the refusal comes BEFORE CommitStartClaim (the revision is
 // unchanged) and before any child is spawned.
 func TestWarmOnlyResumeNeverStartsAnAgent(t *testing.T) {
+	t.Parallel()
+
 	for _, tt := range []struct {
 		name  string
 		build func(t *testing.T, env *testEnv) ThreadAddress
@@ -253,6 +265,8 @@ func TestWarmOnlyResumeNeverStartsAnAgent(t *testing.T) {
 // And a thread that IS warm still reattaches under warm-only -- the flag
 // narrows what may happen, it does not change the happy path.
 func TestWarmOnlyResumeStillReattachesADetachedThread(t *testing.T) {
+	t.Parallel()
+
 	env, address := warmDetachedThread(t)
 	env.Runner.AfterAcknowledge = func(string) error {
 		env.Artifacts.SetPairSession(address, "pair-"+string(address.Tag), true)
@@ -273,6 +287,8 @@ func TestWarmOnlyResumeStillReattachesADetachedThread(t *testing.T) {
 // dispatcher dropped the argument, and the pass would then cold-start a parked
 // thread's agent -- exactly the outcome warm-only exists to prevent.
 func TestWarmOnlyReachesTheResumeThroughTheOperationTable(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "codex", Argv: []string{"--saved"}})
 	env.Artifacts.SetNativeBinding(parked.Address, "codex", sessioninventory.BindingEstablished, "native-1")
@@ -308,6 +324,8 @@ type warmSessionArtifacts struct {
 }
 
 func TestWarmInventoryAndResumeNeedNoNativeResolver(t *testing.T) {
+	t.Parallel()
+
 	for _, missing := range []bool{false, true} {
 		t.Run(map[bool]string{false: "failing-resolver", true: "missing-resolver"}[missing], func(t *testing.T) {
 			env, address := warmDetachedThread(t)
@@ -333,6 +351,8 @@ func TestWarmInventoryAndResumeNeedNoNativeResolver(t *testing.T) {
 }
 
 func TestWarmProofMatcherAcceptsOnlyExactSessionEvidence(t *testing.T) {
+	t.Parallel()
+
 	record := warmDetachedRecord(t)
 	valid := DetachedSessionObservation{Address: record.Address, SessionName: "pair-surviving", Agent: "claude"}
 	for _, tt := range []struct {
@@ -356,6 +376,8 @@ func TestWarmProofMatcherAcceptsOnlyExactSessionEvidence(t *testing.T) {
 }
 
 func TestWarmRecheckRefusesSessionReplacementAfterClaim(t *testing.T) {
+	t.Parallel()
+
 	env, address := warmDetachedThread(t)
 	calls := 0
 	env.Artifacts.DetachedSessionsHook = func([]ThreadAddress) error {

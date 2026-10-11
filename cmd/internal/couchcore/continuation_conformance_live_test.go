@@ -169,6 +169,8 @@ func TestContinuationZellijSeedTransportLive(t *testing.T) {
 }
 
 func TestContinuationZellijAgentStandIn(t *testing.T) {
+	t.Parallel()
+
 	if os.Getenv("PAIR_CONTINUATION_LIVE_HELPER") != "1" {
 		t.Skip("launched only in the controlled Zellij pane")
 	}

@@ -11,6 +11,8 @@ import (
 )
 
 func TestContinuationPublishExecuteAndReceipt(t *testing.T) {
+	t.Parallel()
+
 	env, source := switchEnvWithLiveThread(t)
 	proof := ContinuationSource{Agent: "claude", Session: "pair-exact", LaunchOrdinal: 2}
 	env.Couch.ContinuationSource = func(context.Context, ThreadAddress) (ContinuationSource, error) { return proof, nil }
@@ -63,6 +65,8 @@ func TestContinuationPublishExecuteAndReceipt(t *testing.T) {
 }
 
 func TestContinuationRejectsChangedSourceBeforePark(t *testing.T) {
+	t.Parallel()
+
 	env, source := switchEnvWithLiveThread(t)
 	env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return false, nil }
 	request := testContinuationRequest(t, source)
@@ -85,6 +89,8 @@ func TestContinuationRejectsChangedSourceBeforePark(t *testing.T) {
 }
 
 func TestContinuationRejectsChangedCheckpointDigestBeforePublication(t *testing.T) {
+	t.Parallel()
+
 	env, source := switchEnvWithLiveThread(t)
 	proof := ContinuationSource{Agent: "claude", Session: "pair-exact", LaunchOrdinal: 2, ExpectedDigest: "outdated-digest"}
 	env.Couch.ContinuationSource = func(context.Context, ThreadAddress) (ContinuationSource, error) {
@@ -104,6 +110,8 @@ func TestContinuationRejectsChangedCheckpointDigestBeforePublication(t *testing.
 }
 
 func TestContinuationConcurrentPublicationDeduplicates(t *testing.T) {
+	t.Parallel()
+
 	env, source := switchEnvWithLiveThread(t)
 	proof := ContinuationSource{Agent: "claude", Session: "pair-exact", LaunchOrdinal: 2}
 	env.Couch.ContinuationSource = func(context.Context, ThreadAddress) (ContinuationSource, error) { return proof, nil }

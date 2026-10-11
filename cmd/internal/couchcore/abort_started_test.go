@@ -11,6 +11,8 @@ import (
 )
 
 func TestAbortStartedQuiescesExactHandleAndReconcilesOwnership(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	record, handle, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
 	if err != nil {

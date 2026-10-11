@@ -15,6 +15,8 @@ import (
 // Exercise publication through real starts, then reload both Couch and its
 // stores. The fake owns process/session evidence; Git and preferences are real.
 func TestSlotPreferencesIndependentAcrossRestartResumeAndFresh(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	f := newProvisionFixture(t)
 	env := newTestEnv(t, f.Primary)

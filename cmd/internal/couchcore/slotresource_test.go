@@ -6,6 +6,8 @@ import (
 )
 
 func TestSlotResourcesFormADAG(t *testing.T) {
+	t.Parallel()
+
 	order, err := SlotResourceOrder()
 	if err != nil {
 		t.Fatal(err)
@@ -31,6 +33,8 @@ func TestSlotResourcesFormADAG(t *testing.T) {
 }
 
 func TestSlotResourceKinds(t *testing.T) {
+	t.Parallel()
+
 	for _, s := range SlotResources() {
 		if s.Removable && s.Kind != KindDerived {
 			t.Errorf("%s is removable but %s; only derived resources may be made absent", s.ID, s.Kind)
@@ -59,6 +63,8 @@ func TestSlotResourceKinds(t *testing.T) {
 }
 
 func TestSlotResourceDependentsAreTransitive(t *testing.T) {
+	t.Parallel()
+
 	got := SlotResourceDependents(ResourceHost)
 	for _, id := range []SlotResourceID{ResourceDeps, ResourceDep, ResourceSetup, ResourceAgent} {
 		if !got[id] {
@@ -76,6 +82,8 @@ func TestSlotResourceDependentsAreTransitive(t *testing.T) {
 // coverage audit: the SlotLayout method set (read by reflection, not listed)
 // and the table's Layout names are a bijection.
 func TestSlotLayoutMethodsBelongToOneResource(t *testing.T) {
+	t.Parallel()
+
 	owner := map[string]SlotResourceID{}
 	for _, s := range SlotResources() {
 		for _, m := range s.Layout {

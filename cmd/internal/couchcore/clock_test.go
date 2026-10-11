@@ -7,6 +7,8 @@ import (
 )
 
 func TestFixedClockReturnsItsTime(t *testing.T) {
+	t.Parallel()
+
 	want := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
 	if got := (FixedClock{T: want}).Now(); !got.Equal(want) {
 		t.Fatalf("Now = %v", got)
@@ -14,6 +16,8 @@ func TestFixedClockReturnsItsTime(t *testing.T) {
 }
 
 func TestFixedIDGenAdvances(t *testing.T) {
+	t.Parallel()
+
 	g := NewFixedIDGen("ah8d", "b2c1")
 	if got := g.NewID(); got != ActorID("couch-ah8d") {
 		t.Fatalf("first = %q", got)
@@ -24,6 +28,8 @@ func TestFixedIDGenAdvances(t *testing.T) {
 }
 
 func TestRandomIDGenShapeAndUniqueness(t *testing.T) {
+	t.Parallel()
+
 	g := NewRandomIDGen()
 	a, b := g.NewID(), g.NewID()
 	if !strings.HasPrefix(string(a), "couch-") || len(a) != len("couch-")+8 {

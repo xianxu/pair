@@ -30,6 +30,8 @@ func verifiedResumeThread(t *testing.T) ThreadRecord {
 }
 
 func TestDecideResumeEligibilityMatrix(t *testing.T) {
+	t.Parallel()
+
 	base := verifiedResumeThread(t)
 	established := NativeBindingResolution{Status: sessioninventory.BindingEstablished, NativeID: "native-root-1"}
 
@@ -162,6 +164,8 @@ func TestDecideResumeEligibilityMatrix(t *testing.T) {
 // with no break, and AbandonPark appends tombstones permanently, so a thread
 // once abandoned mid-park and later detached must still resume.
 func TestDecideResumeAcceptsDetachedWithoutVerifiedPark(t *testing.T) {
+	t.Parallel()
+
 	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
 	profile := &LaunchProfile{Agent: "claude", Argv: []string{}}
 	binding := NativeBindingResolution{Status: sessioninventory.BindingEstablished, NativeID: "native-1"}
@@ -263,6 +267,8 @@ func TestDecideResumeAcceptsDetachedWithoutVerifiedPark(t *testing.T) {
 // unchanged and TestDecideResumeStillRefusesAColdResumeWithoutAnEstablishedBinding
 // is what says so.
 func TestDetachedResumeDoesNotRequireAnEstablishedBinding(t *testing.T) {
+	t.Parallel()
+
 	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
 	record := ThreadRecord{
 		SchemaVersion: ThreadSchemaVersion, Address: address,
@@ -303,6 +309,8 @@ func TestDetachedResumeDoesNotRequireAnEstablishedBinding(t *testing.T) {
 // The identifiers are DERIVED from the declaration rather than listed, so the
 // guard cannot be satisfied by forgetting to add a row to it.
 func TestEveryResumeDiagnosticCodeIsProducedBySomeSite(t *testing.T) {
+	t.Parallel()
+
 	declaration, err := os.ReadFile("resume.go")
 	if err != nil {
 		t.Fatal(err)
@@ -348,6 +356,8 @@ func TestEveryResumeDiagnosticCodeIsProducedBySomeSite(t *testing.T) {
 // the row. Emitting "not running" over a live conversation is a false statement
 // about the thing the operator most needs to be true.
 func TestReAdoptionRefusalsClaimOnlyWhatWasProved(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	record := actionableTestThread("couch-00000000000000fb", time.Unix(100, 0).UTC())
 	record.LatestLaunchProfile = &LaunchProfile{Agent: "muse", Argv: []string{}}
@@ -383,6 +393,8 @@ func TestReAdoptionRefusalsClaimOnlyWhatWasProved(t *testing.T) {
 // every code needs a production entry point per code and is its own piece of
 // work; this pins the one whose unreachability was the finding.
 func TestResumeTombstonedIsReachableFromProduction(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	record := validThreadRecord(t)
 	record.StartingPath, record.WorkingPath = "/repo", "/repo/sub"

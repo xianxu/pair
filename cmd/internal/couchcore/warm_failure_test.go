@@ -110,6 +110,8 @@ func warmFailureRoutes() []warmFailureRoute {
 
 // The headline: no warm route may delete the session it was reattaching.
 func TestAFailedWarmReattachKeepsItsSession(t *testing.T) {
+	t.Parallel()
+
 	for _, route := range warmFailureRoutes() {
 		t.Run(route.name, func(t *testing.T) {
 			env, address := warmDetachedThread(t)
@@ -183,6 +185,8 @@ func TestAFailedWarmReattachKeepsItsSession(t *testing.T) {
 // The other half of the class: an OWNING start still ends the session it
 // created. pair#230 changes nothing here, and this is what proves it.
 func TestAFailedOwningStartStillQuiescesItsSession(t *testing.T) {
+	t.Parallel()
+
 	for _, route := range warmFailureRoutes() {
 		if route.name == "3-registration-timed-out" {
 			// Its injection is warm-specific: it kills a pre-existing session.
@@ -296,6 +300,8 @@ func rowFor(rows []ActionableThreadSummary, address ThreadAddress) (ActionableTh
 // relays the record couch itself built, so the shape is correct by accident and
 // the protection is invisible -- this one overwrites it.
 func TestAbortStartedReadsOwnershipFromTheRegistryNotTheCaller(t *testing.T) {
+	t.Parallel()
+
 	env, address := warmDetachedThread(t)
 
 	record, handle, err := env.Couch.ResumeContext(context.Background(), address)
@@ -329,6 +335,8 @@ func TestAbortStartedReadsOwnershipFromTheRegistryNotTheCaller(t *testing.T) {
 // describes, reached from an ordinary failure path rather than a crash, and
 // rendered in the switcher as unusable/stale-incarnation forever.
 func TestAFailedRetireStillLeavesTheRecordRecoverable(t *testing.T) {
+	t.Parallel()
+
 	env, address := warmDetachedThread(t)
 	name := "pair-" + string(address.Tag)
 	blocked := filepath.Join(t.TempDir(), "not-a-directory")
@@ -387,6 +395,8 @@ func TestAFailedRetireStillLeavesTheRecordRecoverable(t *testing.T) {
 // pending binding. The address registration may belong to an earlier launch;
 // only this selected name's absence proves that the new terminal did not commit.
 func TestSpawnRecoveryProbesTheProposedTerminal(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	reads := 0
 	env.Artifacts.BeforePairSession = func(ThreadAddress) error {

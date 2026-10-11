@@ -59,6 +59,8 @@ func assertReplaced(t *testing.T, store *ThreadStore, old ThreadRecord, oldRaw [
 }
 
 func TestReplaceThreadExpectedArchivesAndCreatesInOneJournal(t *testing.T) {
+	t.Parallel()
+
 	store, old, next := replaceFixture(t)
 	oldRaw, err := os.ReadFile(store.recordPath(old.Address))
 	if err != nil {
@@ -74,6 +76,8 @@ func TestReplaceThreadExpectedArchivesAndCreatesInOneJournal(t *testing.T) {
 // recovery the slot store's fresh replacement relies on -- so there is never a
 // moment where the path holds both records or neither.
 func TestReplaceThreadExpectedSurvivesACrashAfterTheJournal(t *testing.T) {
+	t.Parallel()
+
 	store, old, next := replaceFixture(t)
 	oldRaw, err := os.ReadFile(store.recordPath(old.Address))
 	if err != nil {
@@ -104,6 +108,8 @@ func assertNothingReplaced(t *testing.T, store *ThreadStore, old ThreadRecord, n
 }
 
 func TestReplaceThreadExpectedRefusesAStaleRevision(t *testing.T) {
+	t.Parallel()
+
 	store, old, next := replaceFixture(t)
 	summary := "moved on"
 	if _, err := store.ApplyThreadMetadata(old.Address, old.Revision, ThreadMetadataPatch{PublishedSummary: &summary}); err != nil {
@@ -120,6 +126,8 @@ func TestReplaceThreadExpectedRefusesAStaleRevision(t *testing.T) {
 }
 
 func TestReplaceThreadExpectedRefusesAnOpenParkOrStartClaim(t *testing.T) {
+	t.Parallel()
+
 	store, old, next := replaceFixture(t)
 	claimed, err := store.CommitStartClaim(old.Address, old.Revision, "repo", time.Unix(300, 0).UTC(), StartEvent{
 		Kind: StartClaimed, Nonce: "start-0123456789abcdef", Shape: StartFreshExisting,
@@ -136,6 +144,8 @@ func TestReplaceThreadExpectedRefusesAnOpenParkOrStartClaim(t *testing.T) {
 }
 
 func TestReplaceThreadExpectedRefusesLocalLayout(t *testing.T) {
+	t.Parallel()
+
 	local := testLocalThreadStore(t)
 	r := recordAtCheckout(t, local.slot.WorktreeRoot, local.slot.WorktreeRoot, "couch-0123456789abcdef")
 	created, err := local.CreateThread(r)
@@ -156,6 +166,8 @@ func TestReplaceThreadExpectedRefusesLocalLayout(t *testing.T) {
 // CreateThread would route it, and a path inside an enrolled slot checkout
 // lands on a different backend, which replace refuses.
 func TestReplaceThreadExpectedRoutesNextLikeCreateThread(t *testing.T) {
+	t.Parallel()
+
 	s, repository, _ := migrationFixture(t)
 	if err := s.EnrollSlotRepository(context.Background(), repository); err != nil {
 		t.Fatal(err)

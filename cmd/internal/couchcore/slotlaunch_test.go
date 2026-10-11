@@ -41,6 +41,8 @@ func slotLaunchFixture(t *testing.T, identities ...string) (*Couch, ThreadRecord
 }
 
 func TestPrepareTrackedWorkspaceClaimAndReadiness(t *testing.T) {
+	t.Parallel()
+
 	c, claimed := slotLaunchFixture(t)
 	calls := 0
 	c.Workspaces = slotReadinessFunc(func(ctx context.Context, r ProvisionRequest) (ProvisionResult, error) {
@@ -65,6 +67,8 @@ func TestPrepareTrackedWorkspaceClaimAndReadiness(t *testing.T) {
 }
 
 func TestPrepareTrackedWorkspaceRejectsChangesAndCancellation(t *testing.T) {
+	t.Parallel()
+
 	for _, mode := range []string{"revision", "result", "repo", "cancel", "failure"} {
 		t.Run(mode, func(t *testing.T) {
 			c, claimed := slotLaunchFixture(t)
@@ -101,6 +105,8 @@ func TestPrepareTrackedWorkspaceRejectsChangesAndCancellation(t *testing.T) {
 func ptrSlotName(s string) *string { return &s }
 
 func TestPrepareTrackedWorkspaceWarmAndPrimaryBypass(t *testing.T) {
+	t.Parallel()
+
 	c, claimed := slotLaunchFixture(t)
 	c.Workspaces = slotReadinessFunc(func(context.Context, ProvisionRequest) (ProvisionResult, error) {
 		t.Fatal("unexpected provision")
@@ -121,6 +127,8 @@ func TestPrepareTrackedWorkspaceWarmAndPrimaryBypass(t *testing.T) {
 }
 
 func TestPrepareTrackedWorkspaceUsesProvedGitIdentity(t *testing.T) {
+	t.Parallel()
+
 	// Catalog and claim carry the same proved nonconventional Git directory.
 	c, claimed := slotLaunchFixture(t, "/custom/git-common-dir")
 	c.Workspaces = slotReadinessFunc(func(context.Context, ProvisionRequest) (ProvisionResult, error) {
@@ -132,6 +140,8 @@ func TestPrepareTrackedWorkspaceUsesProvedGitIdentity(t *testing.T) {
 }
 
 func TestSlotColdResumeRechecksBindingAfterReadiness(t *testing.T) {
+	t.Parallel()
+
 	local := testLocalThreadStore(t)
 	env := newTestEnv(t, local.slot.WorktreeRoot)
 	env.Couch.Threads = local
@@ -174,6 +184,8 @@ func TestSlotColdResumeRechecksBindingAfterReadiness(t *testing.T) {
 }
 
 func TestSlotWarmResumeSkipsWorkspaceReadiness(t *testing.T) {
+	t.Parallel()
+
 	local := testLocalThreadStore(t)
 	env := newTestEnv(t, local.slot.WorktreeRoot)
 	env.Couch.Threads = local

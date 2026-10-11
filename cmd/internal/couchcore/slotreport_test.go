@@ -12,6 +12,8 @@ import (
 // record left (it lived inside the directory), yet --show of its path must
 // still report the slot's resources and the plan.
 func TestShowReportsASlotWithoutAThread(t *testing.T) {
+	t.Parallel()
+
 	s := newObservedSlot(t)
 	if err := os.RemoveAll(s.layout.Env()); err != nil {
 		t.Fatal(err)
@@ -45,6 +47,8 @@ func TestShowReportsASlotWithoutAThread(t *testing.T) {
 // built from the unresolved path or the <primary>/.git guess would misread a
 // healthy slot as registration absent and host mismatched (BR-2).
 func TestShowThroughASymlinkedFleetReadsGitsIdentity(t *testing.T) {
+	t.Parallel()
+
 	s := newObservedSlot(t)
 	os.MkdirAll(s.layout.Store(), 0o700)
 	link := filepath.Join(t.TempDir(), "fleet-link")
@@ -76,6 +80,8 @@ func TestShowThroughASymlinkedFleetReadsGitsIdentity(t *testing.T) {
 // TestShowOfAThreadOutsideASlotHasNoSlotReport keeps --show of an ordinary
 // thread as it was.
 func TestShowOfAThreadOutsideASlotHasNoSlotReport(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	created := createOperationThread(t, env.Couch)
 	result, err := dispatchTestOperation(env.Couch, "show", map[string]string{"ref": string(created.Address.Tag), "repo-scope": created.Address.RepoScope})
@@ -89,6 +95,8 @@ func TestShowOfAThreadOutsideASlotHasNoSlotReport(t *testing.T) {
 }
 
 func TestSlotAgentEvidenceTakesTheMostActiveRow(t *testing.T) {
+	t.Parallel()
+
 	rows := []ThreadSummary{{State: ThreadParked}, {State: ThreadDetached}}
 	if got := slotAgentEvidence(rows); got != AgentDetached {
 		t.Fatalf("got %s, want detached: a parked sibling must not hide a running agent", got)
@@ -99,6 +107,8 @@ func TestSlotAgentEvidenceTakesTheMostActiveRow(t *testing.T) {
 }
 
 func TestSlotPlanSummary(t *testing.T) {
+	t.Parallel()
+
 	if got := SlotPlanSummary(SlotPlan{}, ""); got != "nothing to do" {
 		t.Fatal(got)
 	}
@@ -112,6 +122,8 @@ func TestSlotPlanSummary(t *testing.T) {
 // --show when no thread matched, and is the slot report's error line when one
 // did; it is never reduced to "not a slot". One test per error source.
 func TestShowSurfacesSlotResolutionErrors(t *testing.T) {
+	t.Parallel()
+
 	const host = "/f/worktree/pair-slot1/pair"
 	boom := errors.New("discovery exploded")
 	t.Run("discover, no thread", func(t *testing.T) {

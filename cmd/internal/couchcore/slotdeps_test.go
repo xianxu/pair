@@ -42,6 +42,8 @@ func (w depsWorld) checkout(name, deps string, layer bool) string {
 }
 
 func TestDeclaredDepsTransitiveWithAbsent(t *testing.T) {
+	t.Parallel()
+
 	w := newDepsWorld(t)
 	host := w.checkout("pair", "substrate ../a https://example.invalid/a.git\ndata https://example.invalid/d.git data/d\n", false)
 	w.checkout("a", "substrate ../b\n", true)
@@ -67,6 +69,8 @@ func TestDeclaredDepsTransitiveWithAbsent(t *testing.T) {
 }
 
 func TestDeclaredDepsNoDeclaration(t *testing.T) {
+	t.Parallel()
+
 	w := newDepsWorld(t)
 	host := w.checkout("pair", "", false)
 	got, err := DeclaredDepsOf(w.env, host)
@@ -76,6 +80,8 @@ func TestDeclaredDepsNoDeclaration(t *testing.T) {
 }
 
 func TestDeclaredDepsMalformedIsAnError(t *testing.T) {
+	t.Parallel()
+
 	w := newDepsWorld(t)
 	host := w.checkout("pair", "substrate\n", false)
 	if _, err := DeclaredDepsOf(w.env, host); err == nil {
@@ -84,6 +90,8 @@ func TestDeclaredDepsMalformedIsAnError(t *testing.T) {
 }
 
 func TestDeclaredDepsPresentNonLayer(t *testing.T) {
+	t.Parallel()
+
 	w := newDepsWorld(t)
 	host := w.checkout("pair", "substrate ../ariadne\n", false)
 	w.checkout("ariadne", "", false) // half-cloned: present, no base.manifest
@@ -97,6 +105,8 @@ func TestDeclaredDepsPresentNonLayer(t *testing.T) {
 }
 
 func TestDeclaredDepsOutsideTheEnvironment(t *testing.T) {
+	t.Parallel()
+
 	w := newDepsWorld(t)
 	outside, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {

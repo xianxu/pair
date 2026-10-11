@@ -16,6 +16,8 @@ import (
 )
 
 func TestProvisionLeaseInherited(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	lease, err := AcquireHostCreationLease(root)
 	if err != nil {
@@ -53,6 +55,8 @@ func TestProvisionLeaseInherited(t *testing.T) {
 }
 
 func TestProvisionLeaseRefusesAliases(t *testing.T) {
+	t.Parallel()
+
 	for _, kind := range []string{"directory", "file", "common"} {
 		t.Run(kind, func(t *testing.T) {
 			root := t.TempDir()
@@ -129,6 +133,8 @@ func TestProvisionLeaseParentDeath(t *testing.T) {
 // 2-9ms, measured under a parallel suite). Releasing and retaking the lease
 // inside that window must not read as a peer's host creation.
 func TestProvisionLeaseOutlastsATransientForkCopy(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	lease, err := AcquireHostCreationLease(root)
 	if err != nil {

@@ -11,6 +11,8 @@ import (
 )
 
 func TestContinuationBlocksCompetingTransitions(t *testing.T) {
+	t.Parallel()
+
 	env, source := switchEnvWithLiveThread(t)
 	request := testContinuationRequest(t, source)
 	source, err := env.Couch.Threads.PublishContinuation(source.Address, source.Revision, request)
@@ -51,6 +53,8 @@ func TestContinuationBlocksCompetingTransitions(t *testing.T) {
 // request is dismissed the relaunch completes -- the real outcome, not merely
 // the absence of the guard's error.
 func TestFailedContinuationRelaunchesOnceDismissed(t *testing.T) {
+	t.Parallel()
+
 	env, live := envWithLiveThread(t)
 	failed, request := failedContinuation(t, env.Couch.Threads, live)
 	_, err := env.Couch.Relaunch(context.Background(), failed.Address)
@@ -75,6 +79,8 @@ func TestFailedContinuationRelaunchesOnceDismissed(t *testing.T) {
 // action is either driven here or exempt with a reason, so a new one cannot
 // arrive unclassified (#280).
 func TestContinuationRefusesMatchesTheGuardForEveryRowAction(t *testing.T) {
+	t.Parallel()
+
 	type drive struct {
 		args map[string]string
 	}
@@ -165,6 +171,8 @@ func TestContinuationRefusesMatchesTheGuardForEveryRowAction(t *testing.T) {
 // each driven for real, and the scan below fails when a site is added without a
 // row -- a claim of reach over a set of sites is checked against that set.
 func TestEveryRefusalARetainedRequestCausesNamesBothExits(t *testing.T) {
+	t.Parallel()
+
 	const both = "; the retained continuation is failed: on a live thread, retry-continuation re-delivers it and dismiss-continuation drops it"
 	rows := []struct {
 		site  string // the function holding the withContinuationExits call
@@ -289,6 +297,8 @@ func mustRevision(t *testing.T, c *Couch, address ThreadAddress) uint64 {
 // writer's stale handoff from coming back -- while the CURRENT session, which
 // the failed request had blocked from publishing at all, can hand off again.
 func TestPublishAfterDismissalAcceptsOnlyTheCurrentSource(t *testing.T) {
+	t.Parallel()
+
 	env, live := switchEnvWithLiveThread(t)
 	failed, request := failedContinuation(t, env.Couch.Threads, live)
 	current := ContinuationSource{Agent: "claude", Session: "pair-source", LaunchOrdinal: 3}

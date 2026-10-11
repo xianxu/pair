@@ -6,6 +6,8 @@ import (
 )
 
 func TestSlotLayoutPaths(t *testing.T) {
+	t.Parallel()
+
 	l := NewSlotLayout("/f/pair", "/f/pair/.git", 3)
 	for _, c := range []struct{ name, got, want string }{
 		{"env", l.Env(), "/f/worktree/pair-slot3"},
@@ -33,6 +35,8 @@ func TestSlotLayoutPaths(t *testing.T) {
 }
 
 func TestParseSlotPathRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	for _, n := range []int{1, 12} {
 		l := NewSlotLayout("/f/pair", "/f/pair/.git", n)
 		for _, p := range []string{l.Env(), l.Host(), l.Store(), filepath.Join(l.Host(), "cmd", "x.go"), filepath.Join(l.Env(), "ariadne")} {
@@ -59,6 +63,8 @@ func TestParseSlotPathRoundTrip(t *testing.T) {
 }
 
 func TestParseEnvNameAndRestingBranch(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		repo, name string
 		n          int

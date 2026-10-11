@@ -16,6 +16,8 @@ var (
 )
 
 func TestUncheckedProjectMilestoneHasNoClosedMetadata(t *testing.T) {
+	t.Parallel()
+
 	root := filepath.Join("..", "..", "..", "workshop", "projects")
 	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || filepath.Ext(path) != ".md" {
@@ -32,6 +34,8 @@ func TestUncheckedProjectMilestoneHasNoClosedMetadata(t *testing.T) {
 }
 
 func TestProjectMilestoneStateProblemsRejectsPrematureClose(t *testing.T) {
+	t.Parallel()
+
 	path := filepath.Join(t.TempDir(), "project.md")
 	raw := "- [ ] work [pair#9 M1]\n\n### pair#9 M1 — work\n\n**closed:** 2026-08-26\n"
 	if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {

@@ -16,6 +16,8 @@ import (
 )
 
 func TestParkWorkerBoundsAndCoalesces(t *testing.T) {
+	t.Parallel()
+
 	started := make(chan struct{})
 	release := make(chan struct{})
 	var mu sync.Mutex
@@ -80,6 +82,8 @@ func TestParkWorkerBoundsAndCoalesces(t *testing.T) {
 }
 
 func TestParkCoordinatorCoalescesStartupRecoveryAndInteractiveRetry(t *testing.T) {
+	t.Parallel()
+
 	store, _, thread := createControllerThread(t)
 	identity := ParkIdentity{
 		Nonce: "park-overlap", Address: thread.Address, PID: 42, ProcessIdentity: "pair-helper",
@@ -175,6 +179,8 @@ func (c *sequenceClock) Now() time.Time {
 }
 
 func TestParkWorkerBeginDeadlineHasZeroExternalEffectsAtOneSecond(t *testing.T) {
+	t.Parallel()
+
 	for _, test := range []struct {
 		name          string
 		elapsed       time.Duration
@@ -224,6 +230,8 @@ func TestParkWorkerBeginDeadlineHasZeroExternalEffectsAtOneSecond(t *testing.T) 
 // operation, whether or not the caller's gate hold has been released
 // (pair#205 D4, revised during M1).
 func TestACancelledParkStillRefusesOtherLifecycleOperations(t *testing.T) {
+	t.Parallel()
+
 	env, source := switchEnvWithLiveThread(t)
 	c := env.Couch
 	reached, release := make(chan struct{}), make(chan struct{})
@@ -270,6 +278,8 @@ func TestACancelledParkStillRefusesOtherLifecycleOperations(t *testing.T) {
 // parkWorker frees its address before it signals done, so a caller that has
 // seen its park finish can submit the next park on that address at once.
 func TestParkWorkerFreesTheAddressBeforeDone(t *testing.T) {
+	t.Parallel()
+
 	worker := newParkWorker(1)
 	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0123456789abcdef"}
 	done := func(context.Context) (ParkResult, error) { return ParkResult{}, nil }
@@ -286,6 +296,8 @@ func TestParkWorkerFreesTheAddressBeforeDone(t *testing.T) {
 
 // A capacity wait honours its context (pair#205).
 func TestParkWorkerCapacityWaitHonoursContext(t *testing.T) {
+	t.Parallel()
+
 	worker := newParkWorker(1)
 	release := make(chan struct{})
 	defer close(release)

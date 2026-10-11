@@ -24,6 +24,8 @@ func readFleetGolden(t *testing.T, name string) []byte {
 // TestDecodeFleetInventoryGolden decodes a trimmed capture of real
 // `sdlc fleet inventory --json` output (pair#367 Task 1.1).
 func TestDecodeFleetInventoryGolden(t *testing.T) {
+	t.Parallel()
+
 	inv, err := DecodeFleetInventory(readFleetGolden(t, "sdlc_fleet_inventory_v1.json"))
 	if err != nil {
 		t.Fatalf("decode golden: %v", err)
@@ -68,6 +70,8 @@ func TestDecodeFleetInventoryGolden(t *testing.T) {
 }
 
 func TestDecodeFleetInventoryRejectsUnsupported(t *testing.T) {
+	t.Parallel()
+
 	golden := readFleetGolden(t, "sdlc_fleet_inventory_v1.json")
 	edit := func(f func(map[string]any)) []byte {
 		var doc map[string]any
@@ -126,12 +130,16 @@ func TestDecodeFleetInventoryRejectsUnsupported(t *testing.T) {
 // A pre-#288/#289 v1 build carries schema_version 1 without the slot and claim
 // sections; reading it as "no slots" would erase every slot (pair#367).
 func TestDecodeFleetInventoryPre288IsUnsupportedNotEmpty(t *testing.T) {
+	t.Parallel()
+
 	if _, err := DecodeFleetInventory(readFleetGolden(t, "sdlc_fleet_inventory_v1_pre288.json")); !errors.Is(err, ErrFleetSchemaUnsupported) {
 		t.Fatalf("err = %v, want ErrFleetSchemaUnsupported", err)
 	}
 }
 
 func TestKnownFleetReasonGrammar(t *testing.T) {
+	t.Parallel()
+
 	for reason, want := range map[string]bool{
 		"dirty": true, "detached": true, "missing": true, "unlanded-commits": true,
 		"operation:rebase-merge": true, "open-issue:pair#000367": true, "claimed:pair#000367": true, "probe:base": true,
@@ -148,6 +156,8 @@ func TestKnownFleetReasonGrammar(t *testing.T) {
 // and use only verdicts and reasons the fake can produce. It needs network for
 // sdlc's tracker fetches; a sandboxed run still decodes (claims go stale).
 func TestFleetInventoryLiveConformance(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("live sdlc conformance is skipped in -short mode")
 	}

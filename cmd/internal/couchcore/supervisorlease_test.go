@@ -24,6 +24,8 @@ func testOwnerProc(t *testing.T, identity string) *FakeProcOps {
 }
 
 func TestSupervisorLeaseRefusesASecondOwnerWithVerifiedIdentity(t *testing.T) {
+	t.Parallel()
+
 	ns := testCouchNamespace(t)
 	proc := testOwnerProc(t, "this-process")
 	lease, err := AcquireSupervisorLease(ns, proc)
@@ -46,6 +48,8 @@ func TestSupervisorLeaseRefusesASecondOwnerWithVerifiedIdentity(t *testing.T) {
 }
 
 func TestVerifiedOwnerWithholdsStaleOrRecycledProcessMetadata(t *testing.T) {
+	t.Parallel()
+
 	ns := testCouchNamespace(t)
 	proc := testOwnerProc(t, "first-process")
 	lease, err := AcquireSupervisorLease(ns, proc)
@@ -68,6 +72,8 @@ func TestVerifiedOwnerWithholdsStaleOrRecycledProcessMetadata(t *testing.T) {
 }
 
 func TestSupervisorLeaseCloseReleasesNamespace(t *testing.T) {
+	t.Parallel()
+
 	ns := testCouchNamespace(t)
 	proc := testOwnerProc(t, "this-process")
 	first, err := AcquireSupervisorLease(ns, proc)

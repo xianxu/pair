@@ -11,6 +11,8 @@ import (
 )
 
 func TestAllocateThreadTagClaimsCryptographicOpaqueAddress(t *testing.T) {
+	t.Parallel()
+
 	store, ns := newTestThreadStore(t)
 	record, err := store.AllocateThreadTag(
 		"0123456789abcdef", ns.Dir(), time.Date(2026, 8, 26, 13, 0, 0, 0, time.UTC),
@@ -30,6 +32,8 @@ func TestAllocateThreadTagClaimsCryptographicOpaqueAddress(t *testing.T) {
 }
 
 func TestAllocateThreadTagRetriesCollisionWithoutReplacingExistingThread(t *testing.T) {
+	t.Parallel()
+
 	store, ns := newTestThreadStore(t)
 	existing := validThreadRecord(t)
 	existing.Address = ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0000000000000000"}
@@ -57,6 +61,8 @@ func TestAllocateThreadTagRetriesCollisionWithoutReplacingExistingThread(t *test
 }
 
 func TestAllocateThreadTagRetriesScopedArtifactCollision(t *testing.T) {
+	t.Parallel()
+
 	store, ns := newTestThreadStore(t)
 	checker := NewFakeThreadArtifactCollisionChecker()
 	first := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0000000000000000"}
@@ -78,6 +84,8 @@ func TestAllocateThreadTagRetriesScopedArtifactCollision(t *testing.T) {
 }
 
 func TestAllocateThreadTagReleasesMarkerWhenThreadStoreClaimLoses(t *testing.T) {
+	t.Parallel()
+
 	store, ns := newTestThreadStore(t)
 	first := validThreadRecord(t)
 	first.Address = ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0000000000000000"}
@@ -102,6 +110,8 @@ func TestAllocateThreadTagReleasesMarkerWhenThreadStoreClaimLoses(t *testing.T) 
 }
 
 func TestAllocateThreadTagFailsAfterEightCollisionsAndOnEntropyError(t *testing.T) {
+	t.Parallel()
+
 	store, ns := newTestThreadStore(t)
 	existing := validThreadRecord(t)
 	existing.Address = ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0000000000000000"}

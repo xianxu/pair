@@ -25,6 +25,8 @@ func occupiedSet(numbers ...int) map[int]bool {
 // thread wins, reusing its directory when one exists; only when every number
 // is taken does a new directory get allocated.
 func TestSelectStartSlotFillsLowestFreeNumber(t *testing.T) {
+	t.Parallel()
+
 	for _, tt := range []struct {
 		name     string
 		slots    []SlotCandidate
@@ -53,6 +55,8 @@ func TestSelectStartSlotFillsLowestFreeNumber(t *testing.T) {
 // contradicts itself (an invalid number, a duplicate, another repository's
 // slot) is still refused whole; it is not one slot's problem.
 func TestSelectStartSlotRefusesInconsistentInventory(t *testing.T) {
+	t.Parallel()
+
 	invalid := allocationCandidate(0)
 	foreign := allocationCandidate(2)
 	foreign.Identity.RepoIdentity = "/other/pair/.git"
@@ -70,6 +74,8 @@ func TestSelectStartSlotRefusesInconsistentInventory(t *testing.T) {
 // route), and any other failed slot skips only its own number. No candidate
 // error refuses the whole repository.
 func TestSelectStartSlotReconcilable(t *testing.T) {
+	t.Parallel()
+
 	leftover := allocationCandidate(1)
 	leftover.Verified = false
 	leftover.Err = fmt.Errorf("%w: only its resting branch remains", ErrSlotNeedsReconcile)

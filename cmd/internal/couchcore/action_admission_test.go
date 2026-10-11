@@ -19,6 +19,8 @@ import (
 // the agent is running in. The guard has to ask the classification, because the
 // record has nothing to say about it.
 func TestArchiveRefusesAThreadCouchHostsWithNoIncarnation(t *testing.T) {
+	t.Parallel()
+
 	env, created := registeredActorFixture(t)
 	env.Proc.Set(4242, "hosted")
 
@@ -68,6 +70,8 @@ func registeredActorFixture(t *testing.T) (*testEnv, ThreadRecord) {
 // row the operator could neither archive nor start over, while `couch --list`
 // called the same thread parked.
 func TestArchiveIgnoresADeadRegistryActor(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
 	env.Artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
@@ -93,6 +97,8 @@ func TestArchiveIgnoresADeadRegistryActor(t *testing.T) {
 // actor the OS vouches for is still live proof, through ClassifyThread's own
 // precedence rather than a short-circuit ahead of it.
 func TestALiveRegistryActorOutranksAnUnprovableOne(t *testing.T) {
+	t.Parallel()
+
 	env, created := registeredActorFixture(t)
 	env.Proc.SetUnknown(4242)
 	env.Couch.reg = env.Couch.reg.Insert(ActorRecord{
@@ -114,6 +120,8 @@ func TestALiveRegistryActorOutranksAnUnprovableOne(t *testing.T) {
 // A probe that cannot answer is not a dead actor: the agent may be running, so
 // the action must refuse as unknown rather than act on the absence of proof.
 func TestArchiveRefusesAnUnprovableRegistryActor(t *testing.T) {
+	t.Parallel()
+
 	env, created := registeredActorFixture(t)
 	env.Proc.SetUnknown(4242)
 
@@ -133,6 +141,8 @@ func TestArchiveRefusesAnUnprovableRegistryActor(t *testing.T) {
 // question. They were two hand-written lists of the same two states, which is
 // the drift the action tables exist to catch, one layer below the switcher.
 func TestStartupSelectionDerivesFromResumableState(t *testing.T) {
+	t.Parallel()
+
 	for _, state := range AllThreadStates() {
 		for _, reason := range append(AllThreadReasons(), "") {
 			if (state == ThreadUnusable) != (reason != "") {
@@ -157,6 +167,8 @@ func TestStartupSelectionDerivesFromResumableState(t *testing.T) {
 // A refusal with an empty or generic message is how "it cannot be archived"
 // became the answer for four different situations with four different fixes.
 func TestArchiveRefusalCoversEveryRefusedClassification(t *testing.T) {
+	t.Parallel()
+
 	seen := map[string]ActionableThreadState{}
 	refused := 0
 	for _, state := range AllThreadStates() {
@@ -196,6 +208,8 @@ func TestArchiveRefusalCoversEveryRefusedClassification(t *testing.T) {
 // Archiving through either strands a transaction pointing at a record the
 // working set no longer lists.
 func TestStoreArchiveGuardAsksOnlyWhatARecordProves(t *testing.T) {
+	t.Parallel()
+
 	address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0000000000000001"}
 
 	for _, state := range []IncarnationState{IncarnationLive, IncarnationCreating, IncarnationUnknown} {
@@ -244,6 +258,8 @@ func TestStoreArchiveGuardAsksOnlyWhatARecordProves(t *testing.T) {
 // immediately above. So the proof gets a transition of its own rather than a
 // widened one.
 func TestArchiveRetiresAnUnprovenIncarnationItProvedDead(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	thread := archivableThread(t, store, "couch-0000000000000001")
 	unproven, err := store.updateExistingThread(thread.Address, thread.Revision, func(record *ThreadRecord) error {
@@ -281,6 +297,8 @@ func TestArchiveRetiresAnUnprovenIncarnationItProvedDead(t *testing.T) {
 // this path no longer reaches it, so asserting that code here would pin a
 // layer this test does not exercise.
 func TestArchiveKeepsAnUnprovenIncarnationItCouldNotProveDead(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	thread := archivableThread(t, store, "couch-0000000000000001")
 	unproven, err := store.updateExistingThread(thread.Address, thread.Revision, func(record *ThreadRecord) error {
@@ -318,6 +336,8 @@ func TestArchiveKeepsAnUnprovenIncarnationItCouldNotProveDead(t *testing.T) {
 // stops meaning anything -- and clearLifecycleDebris routes by state, so a
 // widened precondition would be unobservable from there.
 func TestRetirementTransitionsTakeExactlyTheStateTheyName(t *testing.T) {
+	t.Parallel()
+
 	transitions := []struct {
 		name     string
 		accepts  IncarnationState
@@ -381,6 +401,8 @@ func TestRetirementTransitionsTakeExactlyTheStateTheyName(t *testing.T) {
 // c4cbd1fe, the M2 close); this pins them so a fourth look fails here rather
 // than costing another ~250 ms (#228) invisibly.
 func TestArchiveEvidenceCostIsBoundedByItsMaximisingShape(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name                            string
 		build                           func(t *testing.T) (*Couch, *FakeThreadArtifactCollisionChecker, ThreadAddress)

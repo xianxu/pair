@@ -3,6 +3,8 @@ package couchcore
 import "testing"
 
 func TestNamesAreFreeProse(t *testing.T) {
+	t.Parallel()
+
 	// Deliberately NOT validated with launcher.NormalizeTag: that rejects
 	// spaces and silently strips a "pair-" prefix, rules that exist for zellij
 	// session names rather than human labels.
@@ -17,6 +19,8 @@ func TestNamesAreFreeProse(t *testing.T) {
 }
 
 func TestLookupReturnsEveryCandidate(t *testing.T) {
+	t.Parallel()
+
 	// Fuzzy in, exact out: duplicates are expected and the caller
 	// disambiguates rather than the table guessing.
 	n := NewNamingTable().SetName("/a", "pair thing").SetName("/b", "pair thing")
@@ -26,6 +30,8 @@ func TestLookupReturnsEveryCandidate(t *testing.T) {
 }
 
 func TestLookupMatchesDescriptionNotJustName(t *testing.T) {
+	t.Parallel()
+
 	n := NewNamingTable().SetDescription("/repo", "reworking the composer gate")
 	if got := n.Lookup("composer"); len(got) != 1 {
 		t.Fatalf("Lookup = %v; the agent-supplied description must be searchable", got)
@@ -33,6 +39,8 @@ func TestLookupMatchesDescriptionNotJustName(t *testing.T) {
 }
 
 func TestSetNameDoesNotMutateReceiver(t *testing.T) {
+	t.Parallel()
+
 	base := NewNamingTable().SetName("/repo", "one")
 	_ = base.SetName("/repo", "two")
 	if got := base.Entry("/repo").Name; got != "one" {
@@ -41,6 +49,8 @@ func TestSetNameDoesNotMutateReceiver(t *testing.T) {
 }
 
 func TestLookupIsCaseInsensitive(t *testing.T) {
+	t.Parallel()
+
 	n := NewNamingTable().SetName("/repo", "Refactor")
 	if got := n.Lookup("refactor"); len(got) != 1 {
 		t.Fatalf("Lookup = %v", got)
@@ -48,6 +58,8 @@ func TestLookupIsCaseInsensitive(t *testing.T) {
 }
 
 func TestLookupReturnsTheOriginalCasePath(t *testing.T) {
+	t.Parallel()
+
 	// The table is keyed on the folded path, but a Worktree must always carry
 	// the original case -- it is fed to launcher.ResolveRepoScope, which
 	// hashes the raw string, and it is what gets displayed.

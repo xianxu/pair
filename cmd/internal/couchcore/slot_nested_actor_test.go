@@ -9,6 +9,8 @@ import (
 )
 
 func TestSlotOperationsIgnoreNestedIndependentHostedActor(t *testing.T) {
+	t.Parallel()
+
 	for _, registry := range []string{"Actors", "ActorRegistry"} {
 		for _, operation := range []string{"open", "fresh"} {
 			t.Run(registry+"/"+operation, func(t *testing.T) {
@@ -67,6 +69,8 @@ func TestSlotOperationsIgnoreNestedIndependentHostedActor(t *testing.T) {
 }
 
 func TestSlotHostedActorSameScopeRemainsConservative(t *testing.T) {
+	t.Parallel()
+
 	for _, location := range []string{"inside", "outside"} {
 		t.Run(location, func(t *testing.T) {
 			env, local := slotRecoveryOperationFixture(t)
@@ -90,6 +94,8 @@ func TestSlotHostedActorSameScopeRemainsConservative(t *testing.T) {
 }
 
 func TestSlotHostedActorWithoutAddressCannotProveAbsence(t *testing.T) {
+	t.Parallel()
+
 	for _, registry := range []string{"Actors", "ActorRegistry"} {
 		t.Run(registry, func(t *testing.T) {
 			env, local := slotRecoveryOperationFixture(t)

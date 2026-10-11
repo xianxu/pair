@@ -11,6 +11,8 @@ import (
 )
 
 func TestRepositoryNamesAtConversationAllocationBoundaries(t *testing.T) {
+	t.Parallel()
+
 	for _, name := range []string{"项目", "!!!", strings.Repeat("a", 255)} {
 		for _, fresh := range []bool{false, true} {
 			if fresh && len(name) == 255 {

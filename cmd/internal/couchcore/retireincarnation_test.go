@@ -14,6 +14,8 @@ import (
 // and MarkIncarnationUnknown already use, so a recycled PID cannot retire a
 // thread that is genuinely live.
 func TestThreadStoreRetireIncarnation(t *testing.T) {
+	t.Parallel()
+
 	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
 	identity := ProcessIdentity{PID: 4242, Identity: "start-token"}
 	profile := &LaunchProfile{Agent: "claude", Argv: []string{"--flag"}}
@@ -164,6 +166,8 @@ func TestThreadStoreRetireIncarnation(t *testing.T) {
 // nothing guarded -- so a post-claim rollback deleted the agent and argv needed
 // to reattach while the zellij session it names kept running.
 func TestDeleteStartKeepsARecordThatHasEverStarted(t *testing.T) {
+	t.Parallel()
+
 	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0001020304050607"}
 	profile := &LaunchProfile{Agent: "claude", Argv: []string{"--flag"}}
 

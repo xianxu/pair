@@ -8,6 +8,8 @@ import (
 // The fake's quiesce must be observable by everything that reads session state,
 // or an assertion that a session SURVIVED cannot fail (pair#230).
 func TestFakeQuiesceMakesAThreadUnresumable(t *testing.T) {
+	t.Parallel()
+
 	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0102030405060708"}
 	f := NewFakeThreadArtifactCollisionChecker()
 	f.SetDetachedSession(address, "pair-repo-one")
@@ -33,6 +35,8 @@ func TestFakeQuiesceMakesAThreadUnresumable(t *testing.T) {
 // A refused quiesce did not take effect, so the session is still there. That is
 // what the production retry loop is for.
 func TestFakeQuiesceThatFailsLeavesTheSessionAlone(t *testing.T) {
+	t.Parallel()
+
 	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0102030405060708"}
 	f := NewFakeThreadArtifactCollisionChecker()
 	f.SetDetachedSession(address, "pair-repo-one")
@@ -54,6 +58,8 @@ func TestFakeQuiesceThatFailsLeavesTheSessionAlone(t *testing.T) {
 // threads claim proves nothing -- and a fake that skipped that refusal would
 // let every fake-backed test pass on a proof production rejects (ARCH-MOCK).
 func TestFakeDetachedSessionsAppliesTheDuplicateNameRule(t *testing.T) {
+	t.Parallel()
+
 	a := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0000000000000001"}
 	b := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0000000000000002"}
 	f := NewFakeThreadArtifactCollisionChecker()

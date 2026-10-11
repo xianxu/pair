@@ -26,6 +26,8 @@ func advancePark(t *testing.T, transaction *ParkTransaction, event ParkEvent) (P
 }
 
 func TestAdvanceParkTransactionMatrix(t *testing.T) {
+	t.Parallel()
+
 	identity := testParkIdentity()
 	begin := ParkEvent{Kind: ParkBegin, Identity: identity, BaseRevision: 7, RecordRevision: 8}
 
@@ -233,6 +235,8 @@ func TestAdvanceParkTransactionMatrix(t *testing.T) {
 }
 
 func TestMonotonicLastActiveAt(t *testing.T) {
+	t.Parallel()
+
 	old := time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC)
 	forward := old.Add(time.Second)
 	if got := MonotonicLastActiveAt(old, forward); got != forward {

@@ -8,6 +8,8 @@ import (
 )
 
 func TestParseLayoutAcceptsKnownValues(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		in   string
 		want Layout
@@ -22,6 +24,8 @@ func TestParseLayoutAcceptsKnownValues(t *testing.T) {
 // An absent field is every record written before #198, and those are layout2
 // with certainty -- couch pinned layout2 from 2026-08-22 until then.
 func TestParseLayoutTreatsEmptyAsLayout2(t *testing.T) {
+	t.Parallel()
+
 	got, err := ParseLayout("")
 	if err != nil || got != Layout2 {
 		t.Fatalf("ParseLayout(%q) = %v, %v; want Layout2, nil", "", got, err)
@@ -31,6 +35,8 @@ func TestParseLayoutTreatsEmptyAsLayout2(t *testing.T) {
 // ARCH-SECURE: a hand-edited or newer-version value must not coerce to a
 // plausible default the guard would then trust.
 func TestParseLayoutRejectsUnknown(t *testing.T) {
+	t.Parallel()
+
 	if _, err := ParseLayout("layout9"); err == nil {
 		t.Fatal("ParseLayout(\"layout9\") = nil error; want a refusal")
 	}
@@ -39,6 +45,8 @@ func TestParseLayoutRejectsUnknown(t *testing.T) {
 // NormalizeLayout is the total variant for the row projection, which has no
 // error return.
 func TestNormalizeLayoutIsTotal(t *testing.T) {
+	t.Parallel()
+
 	if got := NormalizeLayout(""); got != Layout2 {
 		t.Fatalf("NormalizeLayout(\"\") = %v; want Layout2", got)
 	}
@@ -51,6 +59,8 @@ func TestNormalizeLayoutIsTotal(t *testing.T) {
 }
 
 func TestLayoutFlagIsTheOnlyFormatter(t *testing.T) {
+	t.Parallel()
+
 	if Layout2.Flag() != "--layout2" || Layout3.Flag() != "--layout3" {
 		t.Fatalf("flags = %q, %q; want --layout2, --layout3", Layout2.Flag(), Layout3.Flag())
 	}
@@ -67,6 +77,8 @@ func layoutRow(tag string, state ActionableThreadState, layout Layout) Actionabl
 // Every one of the six ActionableThreadState values is pinned here, so adding a
 // seventh without deciding its disposition fails.
 func TestBlockingSetIsExactlyTheSessionHoldingStates(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		state ActionableThreadState
 		block bool
@@ -83,6 +95,8 @@ func TestBlockingSetIsExactlyTheSessionHoldingStates(t *testing.T) {
 }
 
 func TestMatchingLayoutDoesNotConflict(t *testing.T) {
+	t.Parallel()
+
 	rows := []ActionableThreadSummary{layoutRow("a", ThreadDetached, Layout3)}
 	if got := ResolveLayoutConflicts(Layout3, rows); len(got) != 0 {
 		t.Fatalf("same layout blocked startup: %+v", got)
@@ -91,6 +105,8 @@ func TestMatchingLayoutDoesNotConflict(t *testing.T) {
 
 // LayoutUnknown cannot be proved to agree, so it conflicts with both requests.
 func TestUnknownLayoutConflictsWithEveryRequest(t *testing.T) {
+	t.Parallel()
+
 	for _, requested := range []Layout{Layout2, Layout3} {
 		rows := []ActionableThreadSummary{layoutRow("a", ThreadDetached, LayoutUnknown)}
 		if got := ResolveLayoutConflicts(requested, rows); len(got) != 1 {
@@ -102,6 +118,8 @@ func TestUnknownLayoutConflictsWithEveryRequest(t *testing.T) {
 // Pins the predicate against the wrong-but-tempting Resumable()
 // (Parked||Detached): swapping to it makes the parked row block and this fails.
 func TestBlockingSetIsNotResumable(t *testing.T) {
+	t.Parallel()
+
 	rows := []ActionableThreadSummary{
 		layoutRow("parked", ThreadParked, Layout2),
 		layoutRow("detached", ThreadDetached, Layout2),
@@ -114,6 +132,8 @@ func TestBlockingSetIsNotResumable(t *testing.T) {
 
 // The conflict carries what the refusal message has to print.
 func TestConflictCarriesLayoutAndState(t *testing.T) {
+	t.Parallel()
+
 	rows := []ActionableThreadSummary{layoutRow("brain", ThreadDetached, Layout2)}
 	got := ResolveLayoutConflicts(Layout3, rows)
 	if len(got) != 1 || got[0].Layout != Layout2 || got[0].State != ThreadDetached {
@@ -130,6 +150,8 @@ func TestConflictCarriesLayoutAndState(t *testing.T) {
 // launcher beside the parser -- but the assertion is still worth making, since
 // what matters is the round trip through ParseArgs, not the shared constant.
 func TestCouchLayoutFlagsAreWhatPairParses(t *testing.T) {
+	t.Parallel()
+
 	for _, layout := range []Layout{Layout2, Layout3} {
 		args, err := launcher.ParseArgs([]string{"resume", "couch-0102030405060708", layout.Flag()})
 		if err != nil {
@@ -144,6 +166,8 @@ func TestCouchLayoutFlagsAreWhatPairParses(t *testing.T) {
 // Flag() must be TOTAL: a Couch built by struct literal (which ~10 test files
 // do) has a zero Layout, and a partial Flag() would emit a bare "--" into argv.
 func TestFlagIsTotalOverUnsetAndUnknownLayouts(t *testing.T) {
+	t.Parallel()
+
 	for _, layout := range []Layout{"", LayoutUnknown, Layout("garbage")} {
 		if got := layout.Flag(); got != "--layout2" {
 			t.Fatalf("Layout(%q).Flag() = %q; want the --layout2 default", layout, got)
@@ -152,6 +176,8 @@ func TestFlagIsTotalOverUnsetAndUnknownLayouts(t *testing.T) {
 }
 
 func TestKnownLayoutRejectsWhatCouchCannotLaunch(t *testing.T) {
+	t.Parallel()
+
 	for _, layout := range []Layout{Layout2, Layout3} {
 		if !KnownLayout(layout) {
 			t.Fatalf("KnownLayout(%s) = false", layout)
@@ -172,6 +198,8 @@ func TestKnownLayoutRejectsWhatCouchCannotLaunch(t *testing.T) {
 // So these assert the NEGATIVE direction -- what the message must NOT offer --
 // which is the half that goes red when the remedy logic is removed.
 func TestRefusalOffersNoHostRemedyWhenNoCouchCanHostThemAll(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string][]LayoutConflict{
 		"blocking set that disagrees with itself": {
 			{Address: ThreadAddress{Tag: "brain"}, Layout: Layout2, State: ThreadLive},
@@ -211,6 +239,8 @@ func TestRefusalOffersNoHostRemedyWhenNoCouchCanHostThemAll(t *testing.T) {
 // so it needs a couch, and no couch will start. The refusal must leave the tool
 // rather than dead-end.
 func TestRefusalNamesAnOutOfToolRemedyWhenNoCouchCanStart(t *testing.T) {
+	t.Parallel()
+
 	conflicts := []LayoutConflict{
 		{Address: ThreadAddress{Tag: "brain"}, Layout: LayoutUnknown, State: ThreadDetached},
 	}
@@ -225,6 +255,8 @@ func TestRefusalNamesAnOutOfToolRemedyWhenNoCouchCanStart(t *testing.T) {
 // Mixed-but-readable is reachable, just not in one pass: the message must say
 // so rather than either offering a single host or giving up.
 func TestRefusalExplainsThePerThreadRouteWhenLayoutsDisagree(t *testing.T) {
+	t.Parallel()
+
 	conflicts := []LayoutConflict{
 		{Address: ThreadAddress{Tag: "brain"}, Layout: Layout2, State: ThreadLive},
 		{Address: ThreadAddress{Tag: "ariadne"}, Layout: Layout3, State: ThreadDetached},
@@ -238,6 +270,8 @@ func TestRefusalExplainsThePerThreadRouteWhenLayoutsDisagree(t *testing.T) {
 // The ordinary case keeps its concrete two-step remedy -- dropping to generic
 // advice everywhere would be a regression, not a fix.
 func TestRefusalKeepsTheConcreteRemedyWhenOneHostExists(t *testing.T) {
+	t.Parallel()
+
 	conflicts := []LayoutConflict{
 		{Address: ThreadAddress{Tag: "brain"}, Layout: Layout2, State: ThreadLive},
 		{Address: ThreadAddress{Tag: "pair"}, Layout: Layout2, State: ThreadDetached},
@@ -250,6 +284,8 @@ func TestRefusalKeepsTheConcreteRemedyWhenOneHostExists(t *testing.T) {
 
 // renderError already prefixes "couch: ", so the message must not repeat it.
 func TestRefusalDoesNotDoubleTheProgramPrefix(t *testing.T) {
+	t.Parallel()
+
 	conflicts := []LayoutConflict{{Address: ThreadAddress{Tag: "brain"}, Layout: Layout2, State: ThreadLive}}
 	if message := layoutConflictRefusal(Layout3, conflicts).Error(); strings.HasPrefix(message, "couch:") {
 		t.Fatalf("refusal prefixes the program name itself:\n%s", message)
@@ -260,6 +296,8 @@ func TestRefusalDoesNotDoubleTheProgramPrefix(t *testing.T) {
 // EVERY cardinality it can render. "1 thread already hold a session" shipped
 // because every fixture happened to use the plural.
 func TestRefusalReadsCorrectlyAtEveryCardinality(t *testing.T) {
+	t.Parallel()
+
 	one := []LayoutConflict{{Address: ThreadAddress{Tag: "brain"}, Layout: Layout2, State: ThreadLive}}
 	many := append(append([]LayoutConflict{}, one...),
 		LayoutConflict{Address: ThreadAddress{Tag: "pair"}, Layout: Layout2, State: ThreadDetached})
@@ -277,6 +315,8 @@ func TestRefusalReadsCorrectlyAtEveryCardinality(t *testing.T) {
 // The mirrored gap: the unreadable remedy must name every unreadable thread,
 // not just the first, or the operator is stuck again after clearing one.
 func TestUnreadableRemedyNamesEveryUnreadableThread(t *testing.T) {
+	t.Parallel()
+
 	conflicts := []LayoutConflict{
 		{Address: ThreadAddress{Tag: "brain"}, Layout: LayoutUnknown, State: ThreadDetached},
 		{Address: ThreadAddress{Tag: "tools"}, Layout: LayoutUnknown, State: ThreadLive},

@@ -29,6 +29,8 @@ func retentionStore(t *testing.T) (*ThreadStore, *storagegc.Coordinator) {
 }
 
 func TestRetentionArchiveGraceIncludesUndecodableRecords(t *testing.T) {
+	t.Parallel()
+
 	for _, corrupt := range []bool{false, true} {
 		t.Run(fmt.Sprint(corrupt), func(t *testing.T) {
 			s, c := retentionStore(t)
@@ -71,6 +73,8 @@ func TestRetentionArchiveGraceIncludesUndecodableRecords(t *testing.T) {
 }
 
 func TestRetentionSnapshotProtectsUnreadableAndBlocksPendingRecovery(t *testing.T) {
+	t.Parallel()
+
 	s, c := retentionStore(t)
 	r := archivableThread(t, s, "couch-0000000000000001")
 	if err := os.WriteFile(s.recordPath(r.Address), []byte("invalid"), 0600); err != nil {
@@ -117,6 +121,8 @@ func TestRetentionSnapshotProtectsUnreadableAndBlocksPendingRecovery(t *testing.
 }
 
 func TestRetentionArchiveAndRestoreRecoverEachJournalStep(t *testing.T) {
+	t.Parallel()
+
 	for _, operation := range []string{"archive", "restore"} {
 		for fault := -1; fault < 4; fault++ {
 			t.Run(fmt.Sprintf("%s/%d", operation, fault), func(t *testing.T) {
@@ -176,6 +182,8 @@ func TestRetentionArchiveAndRestoreRecoverEachJournalStep(t *testing.T) {
 }
 
 func TestRetentionStrictArchiveClocks(t *testing.T) {
+	t.Parallel()
+
 	for _, kind := range []string{"missing", "malformed", "unknown", "future", "replacement", "symlink"} {
 		t.Run(kind, func(t *testing.T) {
 			s, c := retentionStore(t)
@@ -237,6 +245,8 @@ func TestRetentionStrictArchiveClocks(t *testing.T) {
 }
 
 func TestRetentionPreviewDoesNotCreateStoreLock(t *testing.T) {
+	t.Parallel()
+
 	s, c := retentionStore(t)
 	if err := os.MkdirAll(s.root, 0700); err != nil {
 		t.Fatal(err)
@@ -256,6 +266,8 @@ func TestRetentionPreviewDoesNotCreateStoreLock(t *testing.T) {
 }
 
 func TestRetentionCouchConstructorAttachesCoordinator(t *testing.T) {
+	t.Parallel()
+
 	ns := testCouchNamespace(t)
 	root := filepath.Join(t.TempDir(), "pair-data")
 	artifacts := constructorLifecycleArtifacts{FakeThreadArtifactCollisionChecker: NewFakeThreadArtifactCollisionChecker(), dataDir: root}
@@ -269,6 +281,8 @@ func TestRetentionCouchConstructorAttachesCoordinator(t *testing.T) {
 }
 
 func TestRetentionReadAdapterDoesNotRegisterNamespace(t *testing.T) {
+	t.Parallel()
+
 	c, err := storagegc.NewCoordinator(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -293,6 +307,8 @@ func TestRetentionReadAdapterDoesNotRegisterNamespace(t *testing.T) {
 }
 
 func TestRetentionMembershipWaitsForRootCoordination(t *testing.T) {
+	t.Parallel()
+
 	s, c := retentionStore(t)
 	done := make(chan error, 1)
 	started := make(chan struct{})
@@ -332,6 +348,8 @@ func readTestArchiveGrace(s *ThreadStore, address ThreadAddress) (ArchiveRetenti
 }
 
 func TestRetentionExplicitResumeTouchesButBackgroundReattachDoesNot(t *testing.T) {
+	t.Parallel()
+
 	for _, background := range []bool{false, true} {
 		t.Run(fmt.Sprint(background), func(t *testing.T) {
 			env, address := warmDetachedThread(t)
@@ -382,6 +400,8 @@ func TestRetentionExplicitResumeTouchesButBackgroundReattachDoesNot(t *testing.T
 }
 
 func TestLegacyArchiveGraceOnboarding(t *testing.T) {
+	t.Parallel()
+
 	for _, malformed := range []bool{false, true} {
 		t.Run(fmt.Sprint(malformed), func(t *testing.T) {
 			s, c := retentionStore(t)
@@ -457,6 +477,8 @@ func TestLegacyArchiveGraceOnboarding(t *testing.T) {
 }
 
 func TestLegacyArchiveOnboardingJournalIdentity(t *testing.T) {
+	t.Parallel()
+
 	for _, replacement := range []bool{false, true} {
 		for fault := -1; fault < 2; fault++ {
 			t.Run(fmt.Sprintf("%v/%d", replacement, fault), func(t *testing.T) {
@@ -533,6 +555,8 @@ func TestLegacyArchiveOnboardingJournalIdentity(t *testing.T) {
 }
 
 func TestRetentionNestedStoreLocksYieldAndReleaseRoot(t *testing.T) {
+	t.Parallel()
+
 	for _, operation := range []string{"snapshot", "recover", "onboard", "detach", "forget"} {
 		t.Run(operation, func(t *testing.T) {
 			s, c := retentionStore(t)

@@ -11,6 +11,8 @@ import (
 )
 
 func TestPeekTail(t *testing.T) {
+	t.Parallel()
+
 	lines := []string{"a", "b", "c"}
 	if got := peekTail(lines, 2); !reflect.DeepEqual(got, []string{"b", "c"}) {
 		t.Fatal(got)
@@ -39,6 +41,8 @@ func peekEnv(t *testing.T) (*testEnv, ThreadRecord) {
 // TestPeekShowsTheSlotsRecentTerminal: the rendered recording's tail, capped,
 // with the envelope a coordinator searches for.
 func TestPeekShowsTheSlotsRecentTerminal(t *testing.T) {
+	t.Parallel()
+
 	env, record := peekEnv(t)
 	var asked int
 	env.Couch.SlotTerminal = func(address ThreadAddress, agent string, maxLines int) ([]string, error) {
@@ -63,6 +67,8 @@ func TestPeekShowsTheSlotsRecentTerminal(t *testing.T) {
 // TestPeekNamesEveryUnreadableSource: a failed read is named with its reason
 // and never returned as an empty answer.
 func TestPeekNamesEveryUnreadableSource(t *testing.T) {
+	t.Parallel()
+
 	env, record := peekEnv(t)
 	env.Couch.SlotTerminal = func(ThreadAddress, string, int) ([]string, error) {
 		return nil, errors.New("read raw: no such file")
@@ -102,6 +108,8 @@ func TestPeekNamesEveryUnreadableSource(t *testing.T) {
 // seconds, and the agent the recording fallback needs is on the record.
 // --transcripts resolves them once.
 func TestDefaultPeekResolvesNoTranscripts(t *testing.T) {
+	t.Parallel()
+
 	env, record := peekEnv(t)
 	resolved := 0
 	env.Couch.SwitchContext = switchContextFunc(func(_ context.Context, r ThreadRecord) (orientation.OrientationContext, error) {
@@ -136,6 +144,8 @@ func TestDefaultPeekResolvesNoTranscripts(t *testing.T) {
 
 // TestPeekIsReadOnly: peeking changes no thread record.
 func TestPeekIsReadOnly(t *testing.T) {
+	t.Parallel()
+
 	env, record := peekEnv(t)
 	env.Couch.SlotTerminal = func(ThreadAddress, string, int) ([]string, error) { return []string{"x"}, nil }
 	before, err := env.Couch.Threads.Snapshot()
@@ -164,6 +174,8 @@ func containsPrefix(list []string, prefix string) bool {
 }
 
 func TestExpandPeekReferences(t *testing.T) {
+	t.Parallel()
+
 	for raw, want := range map[string][]string{
 		"pair:3":                   {"pair:3"},
 		"pair:1:2:3,ariadne:0:1:2": {"pair:1", "pair:2", "pair:3", "ariadne:0", "ariadne:1", "ariadne:2"},
@@ -187,6 +199,8 @@ func TestExpandPeekReferences(t *testing.T) {
 // The live tail answers without touching the recording; when it fails, the
 // recording answers and the live reason is named (pair#425).
 func TestPeekPrefersTheLiveTail(t *testing.T) {
+	t.Parallel()
+
 	env, record := peekEnv(t)
 	recordingRead := false
 	env.Couch.SlotTerminal = func(ThreadAddress, string, int) ([]string, error) {
@@ -226,6 +240,8 @@ func TestPeekPrefersTheLiveTail(t *testing.T) {
 // A multi-slot peek is one snapshot in request order; a slot that does not
 // resolve reports why in its own section, through the operation dispatcher.
 func TestPeekSnapshotOverSeveralSlots(t *testing.T) {
+	t.Parallel()
+
 	env, record := peekEnv(t)
 	env.Couch.SlotTail = func(_ context.Context, address ThreadAddress, _ int) (TerminalTail, error) {
 		return TerminalTail{Lines: []string{"tail of " + string(address.Tag)}}, nil

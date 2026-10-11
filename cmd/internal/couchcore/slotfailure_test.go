@@ -22,6 +22,8 @@ const (
 )
 
 func TestClassifyConvergeError(t *testing.T) {
+	t.Parallel()
+
 	compile := PlannedStep{Step: StepCompile, Resource: ResourceSetup}
 	cases := []struct {
 		name  string
@@ -59,6 +61,8 @@ func TestClassifyConvergeError(t *testing.T) {
 // run it again; a hand-off names the repository's :0 agent; none says "fix
 // it" or a bare "retry".
 func TestReconcileAdviceText(t *testing.T) {
+	t.Parallel()
+
 	for _, class := range AllFailureClasses() {
 		f := ReconcileFailure{Resource: DepResource("ariadne"), Class: class, Cause: "cause text"}
 		if class == FailureHold {
@@ -88,6 +92,8 @@ func TestReconcileAdviceText(t *testing.T) {
 // line, run through OSProvisionIO (which folds stderr into the error), is
 // classified a hand-off with weave's own line as the cause.
 func TestSetupFailureThroughRealSeam(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	script := filepath.Join(dir, "weave")
 	body := "#!/bin/sh\necho 'compiling' 1>&2\necho '" + weaveLineMissingSubstate + "' 1>&2\nexit 1\n"
@@ -109,6 +115,8 @@ func TestSetupFailureThroughRealSeam(t *testing.T) {
 // lock is retryable, and a substrate row without a source is a hand-off
 // carrying weave's missing-substrate line.
 func TestWeaveConformance(t *testing.T) {
+	t.Parallel()
+
 	weave, err := exec.LookPath("weave")
 	if err != nil {
 		t.Skip("weave is not installed")
@@ -136,6 +144,8 @@ func TestWeaveConformance(t *testing.T) {
 // never completed (no valid marker). Stated from the final observation,
 // independently of OutcomeSeverity's rules.
 func TestReconcileOutcomeTable(t *testing.T) {
+	t.Parallel()
+
 	for _, agent := range AllEvidenceAgents() {
 		for _, p := range slotPerturbations() {
 			w := newSlotWorld()
@@ -159,6 +169,8 @@ func TestReconcileOutcomeTable(t *testing.T) {
 
 // The outcome table's named cells.
 func TestOutcomeTableNamedCells(t *testing.T) {
+	t.Parallel()
+
 	run := func(agent EvidenceAgent, ps ...perturbation) (*SlotReconcileError, []string, *SlotWorld) {
 		w := newSlotWorld()
 		w.Agent = agent

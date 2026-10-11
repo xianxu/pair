@@ -13,6 +13,8 @@ import (
 )
 
 func TestSwitchAgentPreviewAndCommitKeepExistingAddress(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return true, nil }
 	source := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
@@ -64,6 +66,8 @@ func TestSwitchAgentPreviewAndCommitKeepExistingAddress(t *testing.T) {
 }
 
 func TestSwitchAgentStalePreviewParksNothing(t *testing.T) {
+	t.Parallel()
+
 	env, source := switchEnvWithLiveThread(t)
 	args := []string{}
 	p, err := env.Couch.PrepareAgentSwitch(context.Background(), source.Address, "codex", &args)
@@ -85,6 +89,8 @@ func TestSwitchAgentStalePreviewParksNothing(t *testing.T) {
 }
 
 func TestSwitchAgentInvalidTargetArgumentsParksNothing(t *testing.T) {
+	t.Parallel()
+
 	env, source := switchEnvWithLiveThread(t)
 	args := []string{"resume", "previous-native"}
 	if _, err := env.Couch.PrepareAgentSwitch(context.Background(), source.Address, "codex", &args); err == nil {
@@ -97,6 +103,8 @@ func TestSwitchAgentInvalidTargetArgumentsParksNothing(t *testing.T) {
 }
 
 func TestFreshExistingCleanupRequiresProvedAbsence(t *testing.T) {
+	t.Parallel()
+
 	if !StartFreshExisting.OwnsSession() {
 		t.Fatal("fresh switch owns the new session")
 	}
@@ -109,6 +117,8 @@ func TestFreshExistingCleanupRequiresProvedAbsence(t *testing.T) {
 }
 
 func TestUncertainSwitchStartDoesNotChangePathDefaults(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return true, nil }
 	source := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
@@ -154,6 +164,8 @@ func switchEnvWithLiveThread(t *testing.T) (*relaunchEnv, ThreadRecord) {
 }
 
 func TestSwitchAgentRefusesForeignOrUnknownSource(t *testing.T) {
+	t.Parallel()
+
 	for _, unknown := range []bool{false, true} {
 		env, source := envWithLiveThread(t)
 		if unknown {
@@ -173,6 +185,8 @@ func (f switchContextFunc) Resolve(ctx context.Context, r ThreadRecord) (orienta
 }
 
 func TestSwitchAgentSourceChangeDuringContextLookupDoesNotParkReplacement(t *testing.T) {
+	t.Parallel()
+
 	env, source := switchEnvWithLiveThread(t)
 	args := []string{}
 	p, err := env.Couch.PrepareAgentSwitch(context.Background(), source.Address, "codex", &args)
@@ -197,6 +211,8 @@ func TestSwitchAgentSourceChangeDuringContextLookupDoesNotParkReplacement(t *tes
 }
 
 func TestSwitchAgentFailedRegistrationPreservesForeignSessionAndDefaults(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	source := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
 	env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) {
@@ -225,6 +241,8 @@ func TestSwitchAgentFailedRegistrationPreservesForeignSessionAndDefaults(t *test
 }
 
 func TestSwitchAgentForkFailureKeepsParkedSource(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	source := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
 	env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return false, nil }
@@ -242,6 +260,8 @@ func TestSwitchAgentForkFailureKeepsParkedSource(t *testing.T) {
 }
 
 func TestSwitchAgentUsesSharedStartingPathPreferenceAndPreservesOtherAgents(t *testing.T) {
+	t.Parallel()
+
 	for _, target := range []string{"claude", "codex", "agy", "muse"} {
 		t.Run(target, func(t *testing.T) {
 			env := newTestEnv(t, "/repo")
@@ -309,6 +329,8 @@ func TestSwitchAgentUsesSharedStartingPathPreferenceAndPreservesOtherAgents(t *t
 }
 
 func TestSwitchAgentSilentSourceDeathNeedsVerifiedCleanup(t *testing.T) {
+	t.Parallel()
+
 	env, source := switchEnvWithLiveThread(t)
 	args := []string{}
 	p, err := env.Couch.PrepareAgentSwitch(context.Background(), source.Address, "codex", &args)
@@ -332,6 +354,8 @@ func TestSwitchAgentSilentSourceDeathNeedsVerifiedCleanup(t *testing.T) {
 }
 
 func TestSwitchAgentPrefillAllowsEditingRememberedResumeParameters(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	source := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
 	env.Couch.RepoAgentDefault = func(_, agent string) (LaunchProfile, bool, error) {

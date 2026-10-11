@@ -109,6 +109,8 @@ func TestPtyRunnerInstallsTheSinkBeforeTheChildCanWrite(t *testing.T) {
 }
 
 func TestPtyRunnerRejectsEmptyArgv(t *testing.T) {
+	t.Parallel()
+
 	r := &PtyRunner{Size: func() ptychild.Size { return ptychild.Size{Rows: 24, Cols: 80} }}
 	if _, err := r.Start(t.TempDir(), nil, nil); err == nil {
 		t.Fatal("Start with no argv returned nil error")
@@ -116,6 +118,8 @@ func TestPtyRunnerRejectsEmptyArgv(t *testing.T) {
 }
 
 func TestPtyRunnerBlockedStartPreservesTerminalAndWaitsForAcknowledgement(t *testing.T) {
+	t.Parallel()
+
 	marker := filepath.Join(t.TempDir(), "target-ran")
 	r := &PtyRunner{
 		LaunchHelper: os.Args[0],

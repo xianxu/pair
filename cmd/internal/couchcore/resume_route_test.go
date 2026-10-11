@@ -56,6 +56,8 @@ func declaredResumeCodes(t *testing.T) map[ResumeDiagnosticCode]bool {
 }
 
 func TestResumeRebootAdviceClassifiesEveryDeclaredCode(t *testing.T) {
+	t.Parallel()
+
 	declared := declaredResumeCodes(t)
 	for code := range declared {
 		if _, ok := ResumeRebootAdvice[code]; !ok {
@@ -72,6 +74,8 @@ func TestResumeRebootAdviceClassifiesEveryDeclaredCode(t *testing.T) {
 // The Spec's split, as an independent literal: reboot is named only when the
 // transcript cannot come back; a transient refusal says to retry instead.
 func TestResumeRebootAdviceValues(t *testing.T) {
+	t.Parallel()
+
 	want := map[ResumeDiagnosticCode]bool{
 		ResumePathMissing:        true,
 		ResumeProfileMissing:     true,
@@ -108,6 +112,8 @@ func TestResumeRebootAdviceValues(t *testing.T) {
 }
 
 func TestWithRebootAdviceWrapsAndKeepsTheCode(t *testing.T) {
+	t.Parallel()
+
 	cannot := withRebootAdvice(&ResumeRefusal{Code: ResumeBindingUnbound, Diagnostic: "no conversation"})
 	if !strings.Contains(cannot.Error(), "reboot") || ResumeDiagnosticOf(cannot) != ResumeBindingUnbound {
 		t.Fatalf("unrecoverable refusal: %v (code %q)", cannot, ResumeDiagnosticOf(cannot))
@@ -145,6 +151,8 @@ func expectedResumeRoute(in ResumeRouteInput) ResumeRoute {
 }
 
 func TestChooseResumeRoute(t *testing.T) {
+	t.Parallel()
+
 	phases := append(checkpoint.AllPhases(), "")
 	for _, slot := range []bool{false, true} {
 		for _, hasRecord := range []bool{false, true} {
@@ -196,6 +204,8 @@ func writeSlotPathPreference(t *testing.T, local *ThreadStore, agent string) {
 // pressed resume -- so the agent the adoption is proved against comes from the
 // slot's own path preference, and the ledger proves it per agent.
 func TestResumeOperationOnASlotPathAdoptsALostPointer(t *testing.T) {
+	t.Parallel()
+
 	env, local := slotRecoveryOperationFixture(t)
 	writeSlotPathPreference(t, local, "claude")
 	scope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
@@ -236,6 +246,8 @@ func TestResumeOperationOnASlotPathAdoptsALostPointer(t *testing.T) {
 // -- and the refusal says a session survives, not reboot, because reboot would
 // refuse a slot with a live owner too.
 func TestResumeAdoptionWithTheWrongAgentIsNotProved(t *testing.T) {
+	t.Parallel()
+
 	t.Run("cold", func(t *testing.T) {
 		env, local := slotRecoveryOperationFixture(t)
 		writeSlotPathPreference(t, local, "codex")
@@ -287,6 +299,8 @@ func TestResumeAdoptionWithTheWrongAgentIsNotProved(t *testing.T) {
 // Resume decides from fresh evidence, not the row, so it reattaches warm --
 // today's Enter→recover-thread outcome -- and starts no new agent.
 func TestResumeReattachesASurvivorOfAnUnusablePrimary(t *testing.T) {
+	t.Parallel()
+
 	env, source := switchEnvWithLiveThread(t)
 	env.Proc.Kill(source.Incarnations[0].PID)
 	env.Artifacts.SetDetachedSession(source.Address, "pair-exact")
@@ -317,6 +331,8 @@ func TestResumeReattachesASurvivorOfAnUnusablePrimary(t *testing.T) {
 // request moves on rather than the generic resume refusing it with the
 // continuation guard.
 func TestResumeOperationRetriesAFailedContinuation(t *testing.T) {
+	t.Parallel()
+
 	f := newContinuationFixture(t)
 	f.env.Runner.FailNextStart(errors.New("fork unavailable"))
 	if _, err := f.env.Couch.Continue(context.Background(), f.source.Address, f.status.RequestID); err == nil {
@@ -345,6 +361,8 @@ func TestResumeOperationRetriesAFailedContinuation(t *testing.T) {
 // A parked :0 whose conversation no longer resolves cannot come back; resume
 // says so with its exact refusal code and points at reboot.
 func TestResumeThatCannotSucceedNamesReboot(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
 	_, err := dispatchResume(env, map[string]string{"repo-scope": parked.Address.RepoScope, "tag": string(parked.Address.Tag)})
@@ -362,6 +380,8 @@ func TestResumeThatCannotSucceedNamesReboot(t *testing.T) {
 // A start another couch is still driving is transient: the answer is to wait,
 // and reboot would be the wrong advice.
 func TestResumeTransientRefusalDoesNotNameReboot(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	record := archivableThread(t, env.Couch.Threads, "couch-0000000000000001")
 	if _, err := env.Couch.Threads.CommitStartClaim(record.Address, record.Revision, "/repo/.git", time.Unix(200, 0).UTC(), StartEvent{
@@ -387,6 +407,8 @@ func TestResumeTransientRefusalDoesNotNameReboot(t *testing.T) {
 // OpenSlot's survivor refusals are typed, so resume can tell "nothing to
 // adopt" (reboot) from "several candidates" (stop one, then retry).
 func TestOpenSlotZeroSurvivorsIsATypedRefusal(t *testing.T) {
+	t.Parallel()
+
 	env, local := slotRecoveryOperationFixture(t)
 	if _, err := env.Couch.OpenSlot(context.Background(), local.slot.WorktreeRoot, "claude"); ResumeDiagnosticOf(err) != ResumeNoSurvivor {
 		t.Fatalf("zero survivors: diagnostic %q (err %v)", ResumeDiagnosticOf(err), err)
@@ -409,6 +431,8 @@ func TestOpenSlotZeroSurvivorsIsATypedRefusal(t *testing.T) {
 // warm-only resume: routing it through RetryContinuation or RecoverThread
 // could start an agent behind the operator's back.
 func TestWarmOnlyResumeIsUnrouted(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "codex", Argv: []string{"--saved"}})
 	env.Artifacts.SetNativeBinding(parked.Address, "codex", sessioninventory.BindingEstablished, "native-1")
@@ -428,6 +452,8 @@ func TestWarmOnlyResumeIsUnrouted(t *testing.T) {
 // reboot when nothing can come back (pair#363 M1 review: OpenSlot's refusals
 // had lost their next step).
 func TestStartFormOpenOfAnEmptySlotNamesReboot(t *testing.T) {
+	t.Parallel()
+
 	env, local := slotRecoveryOperationFixture(t)
 	_, err := env.Couch.spawnManagedResolution(context.Background(), StartResolution{
 		Target: ThreadTarget{Kind: ThreadTargetSlot, Slot: *local.slot}, Action: StartOpen,

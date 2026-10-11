@@ -18,6 +18,8 @@ import (
 // lease for the whole run, so a live row at startup means THIS couch already
 // hosts it.
 func TestSelectResumableRoot(t *testing.T) {
+	t.Parallel()
+
 	want := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
 	other := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000002"}
 	row := func(address ThreadAddress, path string, state ActionableThreadState) ActionableThreadSummary {
@@ -73,6 +75,8 @@ func TestSelectResumableRoot(t *testing.T) {
 }
 
 func TestStartInteractiveResumesUniqueExactParkedRoot(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --show-toplevel"}] = "/repo"
 	env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --git-common-dir"}] = ".git"
@@ -106,6 +110,8 @@ func TestStartInteractiveResumesUniqueExactParkedRoot(t *testing.T) {
 // creates a second primary beside it. Before #363 the selector matched the
 // exact path, so this start minted a new thread.
 func TestStartInteractiveInSubdirectoryResumesTheExistingPrimary(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	env.cannedTree("/repo", "/repo/sub")
 	primary := seedStartupParked(t, env, "couch-0000000000000001", "/repo")
@@ -139,6 +145,8 @@ func TestStartInteractiveInSubdirectoryResumesTheExistingPrimary(t *testing.T) {
 }
 
 func TestStartInteractiveCreatesNewRootWithoutExactCandidate(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 
 	start, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: "/repo"})
@@ -159,6 +167,8 @@ func TestStartInteractiveCreatesNewRootWithoutExactCandidate(t *testing.T) {
 // Inverted rather than deleted, because the reversal is worth recording where
 // the superseded claim lived.
 func TestStartInteractiveResumesTheNewestOfSeveralParkedCandidates(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	// Distinct activity times, or "the newest" is decided by iteration order and
 	// the ranking this test names is never exercised.
@@ -182,6 +192,8 @@ func TestStartInteractiveResumesTheNewestOfSeveralParkedCandidates(t *testing.T)
 }
 
 func TestStartInteractiveInventoryFailureCreatesNoRoot(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	if err := os.WriteFile(env.Couch.Threads.manifestPath(), []byte("{corrupt"), 0o600); err != nil {
 		t.Fatal(err)
@@ -209,6 +221,8 @@ func (a *refusingStartupArtifacts) ResolveEstablished(ctx context.Context, scope
 }
 
 func TestStartInteractiveResumeRefusalDoesNotCreateFallbackRoot(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	parked := seedStartupParked(t, env, "couch-0000000000000001", "/repo")
 	env.Couch.Artifacts = &refusingStartupArtifacts{FakeThreadArtifactCollisionChecker: env.Artifacts}
@@ -252,6 +266,8 @@ func seedStartupParked(t *testing.T, env *testEnv, tag ThreadTag, path string, a
 // Detached rows prove their surviving session. Native binding health must not
 // prevent selection, because warm execution does not consume that binding.
 func TestStartupSelectsDetachedRowsRegardlessOfNativeBinding(t *testing.T) {
+	t.Parallel()
+
 	for _, test := range []struct {
 		name    string
 		binding func(*testEnv, ThreadAddress)
@@ -315,6 +331,8 @@ func TestStartupSelectsDetachedRowsRegardlessOfNativeBinding(t *testing.T) {
 // and that one hard-fails wherever a pty is unavailable -- which is every CI and
 // agent context, so in practice nothing covered it at all.
 func TestStartInteractiveResumesUniqueDetachedRoot(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	// This pre-witness record is layout2; reattach using that explicit layout.
 	env.Couch.Layout = Layout2
@@ -350,6 +368,8 @@ func TestStartInteractiveResumesUniqueDetachedRoot(t *testing.T) {
 // leaves nothing to adopt is a session that is gone AND a ledger that resolves
 // nothing, which is what this fixture now builds.
 func TestStartInteractiveStartsNewWhenNoSessionSurvives(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --show-toplevel"}] = "/repo"
 	env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --git-common-dir"}] = ".git"
@@ -385,6 +405,8 @@ func TestStartInteractiveStartsNewWhenNoSessionSurvives(t *testing.T) {
 // ledger answers, the row is cold-resumable, and couch's core promise applies:
 // it found a resumable thread here and will not start a second one.
 func TestStartInteractiveAdoptsAThreadWhoseConversationStillResolves(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --show-toplevel"}] = "/repo"
 	env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --git-common-dir"}] = ".git"

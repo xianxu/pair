@@ -11,6 +11,8 @@ import (
 )
 
 func TestOSSlugReaderReadsTheSuggestionUnfenced(t *testing.T) {
+	t.Parallel()
+
 	data := t.TempDir()
 	address := validThreadRecord(t).Address
 	paths, err := artifactpath.Resolve(artifactpath.Address{DataDir: data, RepoScope: address.RepoScope, Tag: string(address.Tag)})
@@ -60,6 +62,8 @@ func TestOSSlugReaderReadsTheSuggestionUnfenced(t *testing.T) {
 }
 
 func TestApplySlugsReadsLiveRowsOnly(t *testing.T) {
+	t.Parallel()
+
 	live := ActionableThreadSummary{Address: ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0000000000000001"}, State: ThreadLive}
 	parked := ActionableThreadSummary{Address: ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0000000000000002"}, State: ThreadParked, Slug: "stale"}
 	failing := ActionableThreadSummary{Address: ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0000000000000003"}, State: ThreadLive}

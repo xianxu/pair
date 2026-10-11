@@ -12,6 +12,8 @@ import (
 )
 
 func TestThreadStoreReadsStrictDefensivePathLaunchPreference(t *testing.T) {
+	t.Parallel()
+
 	store, ns := newTestThreadStore(t)
 	physicalPath := ns.Dir()
 	preference := PathLaunchPreference{
@@ -46,6 +48,8 @@ func TestThreadStoreReadsStrictDefensivePathLaunchPreference(t *testing.T) {
 }
 
 func TestThreadStoreRejectsPathLaunchPreferenceAtWrongAddress(t *testing.T) {
+	t.Parallel()
+
 	store, ns := newTestThreadStore(t)
 	preference := PathLaunchPreference{
 		SchemaVersion: PathLaunchPreferenceSchemaVersion,
@@ -73,6 +77,8 @@ func TestThreadStoreRejectsPathLaunchPreferenceAtWrongAddress(t *testing.T) {
 }
 
 func TestThreadStoreRejectsMalformedPathLaunchPreference(t *testing.T) {
+	t.Parallel()
+
 	tests := map[string]func(string) string{
 		"unknown field": func(raw string) string {
 			return strings.Replace(raw, `"revision": 1`, `"revision": 1, "unknown": true`, 1)
@@ -130,6 +136,8 @@ func newTestThreadStore(t *testing.T) (*ThreadStore, CouchNamespace) {
 }
 
 func TestThreadStoreRejectsDuplicatePersistedFields(t *testing.T) {
+	t.Parallel()
+
 	store, ns := newTestThreadStore(t)
 	record := validThreadRecord(t)
 	record.StartingPath, record.WorkingPath = ns.Dir(), ns.Dir()
@@ -152,6 +160,8 @@ func TestThreadStoreRejectsDuplicatePersistedFields(t *testing.T) {
 }
 
 func TestThreadStoreRejectsCompositeTraversalBeforeAnyPathLookup(t *testing.T) {
+	t.Parallel()
+
 	store, ns := newTestThreadStore(t)
 	record := validThreadRecord(t)
 	record.Address.RepoScope = "../outside"
@@ -167,6 +177,8 @@ func TestThreadStoreRejectsCompositeTraversalBeforeAnyPathLookup(t *testing.T) {
 }
 
 func TestThreadStoreUpdateExistingThreadUsesRevisionWithoutChangingManifest(t *testing.T) {
+	t.Parallel()
+
 	store, ns := newTestThreadStore(t)
 	record := validThreadRecord(t)
 	record.StartingPath, record.WorkingPath = ns.Dir(), ns.Dir()
@@ -216,6 +228,8 @@ func TestThreadStoreUpdateExistingThreadUsesRevisionWithoutChangingManifest(t *t
 }
 
 func TestThreadStoreUpdateMissingPreservesNotFoundContract(t *testing.T) {
+	t.Parallel()
+
 	store, _ := newTestThreadStore(t)
 	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0123456789abcdef"}
 	_, err := store.updateExistingThread(address, 1, func(*ThreadRecord) error { return nil })
@@ -225,6 +239,8 @@ func TestThreadStoreUpdateMissingPreservesNotFoundContract(t *testing.T) {
 }
 
 func TestThreadStoreReturnsDefensiveIncarnationCopies(t *testing.T) {
+	t.Parallel()
+
 	store, ns := newTestThreadStore(t)
 	record := validThreadRecord(t)
 	record.StartingPath, record.WorkingPath = ns.Dir(), ns.Dir()
@@ -249,6 +265,8 @@ func TestThreadStoreReturnsDefensiveIncarnationCopies(t *testing.T) {
 }
 
 func TestThreadStorePersistsAndDefensivelyCopiesRecoverableStartClaim(t *testing.T) {
+	t.Parallel()
+
 	store, ns := newTestThreadStore(t)
 	record := validThreadRecord(t)
 	record.StartingPath, record.WorkingPath = ns.Dir(), ns.Dir()
@@ -286,6 +304,8 @@ func TestThreadStorePersistsAndDefensivelyCopiesRecoverableStartClaim(t *testing
 }
 
 func TestThreadStorePersistsAndDefensivelyCopiesIncarnationLaunchProfile(t *testing.T) {
+	t.Parallel()
+
 	store, ns := newTestThreadStore(t)
 	record := validThreadRecord(t)
 	record.StartingPath, record.WorkingPath = ns.Dir(), ns.Dir()
@@ -319,6 +339,8 @@ func TestThreadStorePersistsAndDefensivelyCopiesIncarnationLaunchProfile(t *test
 }
 
 func TestThreadStoreRegistrationAtomicallyCommitsThreadAndPathLaunchPreference(t *testing.T) {
+	t.Parallel()
+
 	store, ns := newTestThreadStore(t)
 	record := validThreadRecord(t)
 	record.StartingPath, record.WorkingPath = ns.Dir(), ns.Dir()
@@ -364,6 +386,8 @@ func TestThreadStoreRegistrationAtomicallyCommitsThreadAndPathLaunchPreference(t
 }
 
 func TestThreadStoreRecoversInterruptedThreadAndPathPreferenceCommit(t *testing.T) {
+	t.Parallel()
+
 	store, ns := newTestThreadStore(t)
 	record := validThreadRecord(t)
 	record.StartingPath, record.WorkingPath = ns.Dir(), ns.Dir()
@@ -417,6 +441,8 @@ func TestThreadStoreRecoversInterruptedThreadAndPathPreferenceCommit(t *testing.
 }
 
 func TestThreadStoreIndependentInstancesSerializeRevisionUpdates(t *testing.T) {
+	t.Parallel()
+
 	store, ns := newTestThreadStore(t)
 	record := validThreadRecord(t)
 	record.StartingPath, record.WorkingPath = ns.Dir(), ns.Dir()
@@ -475,6 +501,8 @@ func createParkableThread(t *testing.T, store *ThreadStore, ns CouchNamespace, n
 }
 
 func TestThreadStoreParkLifecycleUsesRevisionCASAndFinalizesExactIncarnation(t *testing.T) {
+	t.Parallel()
+
 	store, ns := newTestThreadStore(t)
 	created, identity, profile := createParkableThread(t, store, ns, "park-0123456789abcdef")
 	previousActive := time.Unix(50, 0).UTC()
@@ -551,6 +579,8 @@ func TestThreadStoreParkLifecycleUsesRevisionCASAndFinalizesExactIncarnation(t *
 // name: a park conflict or an abandon must never drop the thread's occupancy of
 // its address, which is what keeps a second agent off a tree that still has one.
 func TestThreadStoreParkConflictsAndAbandonNeverReleaseOccupancy(t *testing.T) {
+	t.Parallel()
+
 	store, ns := newTestThreadStore(t)
 	created, identity, _ := createParkableThread(t, store, ns, "park-1111111111111111")
 	concurrent, err := store.updateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
@@ -605,6 +635,8 @@ func TestThreadStoreParkConflictsAndAbandonNeverReleaseOccupancy(t *testing.T) {
 }
 
 func TestThreadStoreBeginParkRequiresOneExactLiveOrUnknownIncarnation(t *testing.T) {
+	t.Parallel()
+
 	for name, mutate := range map[string]func(*ThreadRecord, *ParkIdentity){
 		"creating target": func(r *ThreadRecord, _ *ParkIdentity) {
 			r.Incarnations[0].State = IncarnationCreating
@@ -638,6 +670,8 @@ func TestThreadStoreBeginParkRequiresOneExactLiveOrUnknownIncarnation(t *testing
 }
 
 func TestThreadStoreMarksOnlyExactLiveIncarnationUnknown(t *testing.T) {
+	t.Parallel()
+
 	store, ns := newTestThreadStore(t)
 	record := validThreadRecord(t)
 	record.StartingPath, record.WorkingPath = ns.Dir(), ns.Dir()

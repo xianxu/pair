@@ -11,6 +11,8 @@ import (
 )
 
 func TestPtyRunnerObservesFirstBytesAndGeometryBeforeDelivery(t *testing.T) {
+	t.Parallel()
+
 	var mu sync.Mutex
 	var observations []terminal.Observation
 	r := &PtyRunner{

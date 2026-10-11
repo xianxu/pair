@@ -151,6 +151,8 @@ func slotLayoutMethodNames() map[string]bool {
 }
 
 func TestEverySlotStateSiteIsAResource(t *testing.T) {
+	t.Parallel()
+
 	layoutMethods := slotLayoutMethodNames()
 	var violations []string
 	for _, src := range productionGoFiles(t) {
@@ -220,6 +222,8 @@ func TestEverySlotStateSiteIsAResource(t *testing.T) {
 // TestSlotTokenAllowlistIsCurrent keeps every exemption earning its place: an
 // allowlisted literal must exist in production code and must match a token.
 func TestSlotTokenAllowlistIsCurrent(t *testing.T) {
+	t.Parallel()
+
 	seen := map[string]bool{}
 	funcs := map[string]bool{}
 	for _, src := range productionGoFiles(t) {

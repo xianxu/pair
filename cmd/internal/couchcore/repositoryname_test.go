@@ -8,6 +8,8 @@ import (
 )
 
 func TestResolveRepositoryName(t *testing.T) {
+	t.Parallel()
+
 	repos := []RepositoryName{
 		{Key: "/w/pair", Dir: "pair"},
 		{Key: "/w/pair-tools", Dir: "pair-tools"},
@@ -50,6 +52,8 @@ func TestResolveRepositoryName(t *testing.T) {
 }
 
 func TestResolveRepositoryNameExactAmbiguity(t *testing.T) {
+	t.Parallel()
+
 	// Two checkouts named parley in different fleet roots are never silently picked.
 	_, _, err := ResolveRepositoryName("parley", []RepositoryName{{Key: "/a/parley", Dir: "parley"}, {Key: "/b/parley", Dir: "parley"}})
 	if !errors.Is(err, ErrRepositoryAmbiguous) {
@@ -73,6 +77,8 @@ func TestResolveRepositoryNameExactAmbiguity(t *testing.T) {
 }
 
 func TestFormatRepositoryCandidatesBounded(t *testing.T) {
+	t.Parallel()
+
 	var repos []RepositoryName
 	for i := 0; i < 128; i++ {
 		dir := fmt.Sprintf("%03d-%s", i, strings.Repeat("x", 200))
@@ -92,6 +98,8 @@ func TestFormatRepositoryCandidatesBounded(t *testing.T) {
 }
 
 func TestValidateRepositoryAlias(t *testing.T) {
+	t.Parallel()
+
 	repos := []RepositoryName{
 		{Key: "/w/pair", Dir: "pair"},
 		{Key: "/w/xianxu.dev", Dir: "xianxu.dev", Alias: "blog"},

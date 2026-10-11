@@ -11,6 +11,8 @@ import (
 )
 
 func TestSeparateGitDirectoryEnrollmentPreservesStorageAuthority(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	common := filepath.Join(filepath.Dir(f.Primary), "external-git")
 	f.git(f.Primary, "init", "--separate-git-dir", common)
@@ -137,6 +139,8 @@ func TestSeparateGitDirectoryEnrollmentPreservesStorageAuthority(t *testing.T) {
 }
 
 func TestLegacyUnknownCommonDirectoryUsesOnlyExactCheckoutScope(t *testing.T) {
+	t.Parallel()
+
 	record := recordAtCheckout(t, "/primary/worktree/repo-slot1/repo", "/primary/worktree/repo-slot1/repo/sub", "retained")
 	record.Incarnations = []ThreadIncarnation{{RepoIdentity: "/separate/common"}}
 	if _, belongs, err := RecordCheckoutMembership(record, "", "/primary/worktree/repo-slot1/repo"); err != nil || !belongs {

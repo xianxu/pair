@@ -78,6 +78,8 @@ func newDetachFixture(t *testing.T) *detachFixture {
 }
 
 func TestCouchDetach(t *testing.T) {
+	t.Parallel()
+
 	t.Run("retires the incarnation and leaves the session alone", func(t *testing.T) {
 		f := newDetachFixture(t)
 
@@ -197,6 +199,8 @@ func TestCouchDetach(t *testing.T) {
 // TestDetachRecordsOneActivityTimeHoweverManyAttemptsItTakes is the one that
 // actually enters it, via threadStoreHooks.AfterGetThread.
 func TestCouchDetachAbsorbsAConcurrentWriteBeforeItsLoop(t *testing.T) {
+	t.Parallel()
+
 	f := newDetachFixture(t)
 
 	// Move the revision while detach is between its observation and its CAS.
@@ -237,6 +241,8 @@ func TestCouchDetachAbsorbsAConcurrentWriteBeforeItsLoop(t *testing.T) {
 // `detached · 106751d ago`, which is MaxInt64 nanoseconds rather than a duration
 // anyone computed (pair#187).
 func TestDetachRecordsWhenTheThreadWasLastActive(t *testing.T) {
+	t.Parallel()
+
 	f := newDetachFixture(t)
 	before, err := f.store.GetThread(f.address)
 	if err != nil {
@@ -267,6 +273,8 @@ func TestDetachRecordsWhenTheThreadWasLastActive(t *testing.T) {
 // for real — park at T1, relaunch, detach under a backward wall clock — and the
 // consequence is a reduced recency that mis-ranks the row in SelectResumableRoot.
 func TestDetachNeverMovesTheActivityTimeBackwards(t *testing.T) {
+	t.Parallel()
+
 	f := newDetachFixture(t)
 	// Later than the fixture's clock (Unix 100), as a park would have left it.
 	const parked = 500
@@ -300,6 +308,8 @@ func TestDetachNeverMovesTheActivityTimeBackwards(t *testing.T) {
 // threadStoreHooks.AfterGetThread now opens the read-then-CAS window that is the
 // only moment a conflict can be injected.
 func TestDetachRecordsOneActivityTimeHoweverManyAttemptsItTakes(t *testing.T) {
+	t.Parallel()
+
 	f := newDetachFixture(t)
 	first := time.Unix(1_000, 0).UTC()
 	f.couch.Clock = &sequenceClock{times: []time.Time{
@@ -364,6 +374,8 @@ func TestDetachRecordsOneActivityTimeHoweverManyAttemptsItTakes(t *testing.T) {
 // identity read then fails -- reporting that as Unknown aborted a detach at
 // the very moment its client finished leaving (#389).
 func TestExactProcessReapedBetweenProbesIsDead(t *testing.T) {
+	t.Parallel()
+
 	proc := NewFakeProcOps()
 	proc.Set(42, "client")
 	proc.ReapedOnIdentity[42] = true
@@ -383,6 +395,8 @@ func TestExactProcessReapedBetweenProbesIsDead(t *testing.T) {
 // The re-probe must not turn real uncertainty into exit: a pid still present
 // whose identity cannot be read stays Unknown.
 func TestExactProcessPresentWithoutIdentityStaysUnknown(t *testing.T) {
+	t.Parallel()
+
 	proc := NewFakeProcOps()
 	proc.Set(42, "client")
 	proc.IdentityErr[42] = true
@@ -395,6 +409,8 @@ func TestExactProcessPresentWithoutIdentityStaysUnknown(t *testing.T) {
 // Liveness is the exported door to the same observation, so it inherits the
 // re-probe rather than keeping its own copy of the two probes.
 func TestLivenessReapedBetweenProbesIsDead(t *testing.T) {
+	t.Parallel()
+
 	proc := NewFakeProcOps()
 	proc.Set(42, "client")
 	proc.ReapedOnIdentity[42] = true

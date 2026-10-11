@@ -155,6 +155,8 @@ func killAndVerifyProcess(pid int, timeout time.Duration) error {
 }
 
 func TestStoreNamespaceMustMatchCouchNamespace(t *testing.T) {
+	t.Parallel()
+
 	ns := testCouchNamespace(t)
 	other := t.TempDir()
 	_, err := New(
@@ -218,6 +220,8 @@ func (e *testEnv) cannedTree(tree, cwd string) {
 }
 
 func TestSpawnPreparedRefusesPreferenceAndDefaultDriftBeforeEffects(t *testing.T) {
+	t.Parallel()
+
 	t.Run("path preference", func(t *testing.T) {
 		env := newTestEnv(t, "/repo")
 		prepared, err := env.Couch.PrepareStart(context.Background(), StartArgs{Worktree: "/repo", Stack: "claude"})
@@ -271,6 +275,8 @@ func assertPreparedStartHadNoEffects(t *testing.T, env *testEnv) {
 }
 
 func TestSpawnStartsPairAndRecordsTheActor(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	rec, h, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
 	if err != nil {
@@ -321,6 +327,8 @@ func TestSpawnStartsPairAndRecordsTheActor(t *testing.T) {
 }
 
 func TestSpawnPersistsHelperIdentityBeforeAcknowledgingExec(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
 	env.Runner.BeforeAcknowledge = func(id string) error {
@@ -666,6 +674,8 @@ exit 0
 }
 
 func TestAwaitThreadRegistrationNeverPromotesNonEstablishedProductionEvidence(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		marker string
@@ -722,6 +732,8 @@ func TestAwaitThreadRegistrationNeverPromotesNonEstablishedProductionEvidence(t 
 }
 
 func TestAwaitThreadRegistrationEstablishedEvidenceReachesRealPromotion(t *testing.T) {
+	t.Parallel()
+
 	store, ns := newTestThreadStore(t)
 	record := createHelperRecordedThreadForTest(t, store, ns)
 	pairData := t.TempDir()
@@ -865,6 +877,8 @@ func snapshotDirectoryForTest(root string) (map[string]string, error) {
 }
 
 func TestSpawnPostAcknowledgementFailuresNeverLeaveWorkspaceWriter(t *testing.T) {
+	t.Parallel()
+
 	address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
 	tests := []struct {
 		name      string
@@ -949,6 +963,8 @@ func TestSpawnPostAcknowledgementFailuresNeverLeaveWorkspaceWriter(t *testing.T)
 }
 
 func TestSpawnAcknowledgementFailureCancelsHelperBeforeRollback(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
 	env.Artifacts.AutoEstablish(false)
@@ -966,6 +982,8 @@ func TestSpawnAcknowledgementFailureCancelsHelperBeforeRollback(t *testing.T) {
 }
 
 func TestSpawnPossiblyDeliveredAcknowledgementQuiescesBeforeRollback(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
 	env.Artifacts.AutoEstablish(false)
@@ -984,6 +1002,8 @@ func TestSpawnPossiblyDeliveredAcknowledgementQuiescesBeforeRollback(t *testing.
 }
 
 func TestSpawnRetainsOwnershipAndRetriesUntilQuiescenceIsProven(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	env.Couch.postAckRetryDelay = time.Millisecond
 	env.Artifacts.SetRegistration(ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}, RegistrationUnknown, errors.New("registration unreadable"))
@@ -1086,6 +1106,8 @@ func (h *delayedQuiescenceHandle) Wait() int {
 }
 
 func TestPostAckHandleRetriesReuseOneWaiterUntilReap(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	env.Couch.postAckQuiesceTimeout = 2 * time.Millisecond
 	env.Couch.postAckRetryDelay = time.Millisecond
@@ -1115,6 +1137,8 @@ func TestPostAckHandleRetriesReuseOneWaiterUntilReap(t *testing.T) {
 // is ownership-gated (pair#230), so a non-owning cleanup must still drive the
 // child all the way to reaped -- and must ask for no quiesce at all.
 func TestPostAckCleanupEndsItsHelperWithoutOwningTheSession(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	env.Couch.postAckQuiesceTimeout = 2 * time.Millisecond
 	env.Couch.postAckRetryDelay = time.Millisecond
@@ -1214,6 +1238,8 @@ func TestSpawnPostAckFailuresQuiesceRealPersistentDescendant(t *testing.T) {
 }
 
 func TestNewReconcilesDeadUnregisteredHelperByExactNonce(t *testing.T) {
+	t.Parallel()
+
 	ns := testCouchNamespace(t)
 	store := NewThreadStore(ns)
 	record := admittedStartRecord(t)
@@ -1241,6 +1267,8 @@ func TestNewReconcilesDeadUnregisteredHelperByExactNonce(t *testing.T) {
 }
 
 func TestNewPromotesEstablishedSurvivingHelper(t *testing.T) {
+	t.Parallel()
+
 	ns := testCouchNamespace(t)
 	store := NewThreadStore(ns)
 	record := admittedStartRecord(t)
@@ -1272,6 +1300,8 @@ func TestNewPromotesEstablishedSurvivingHelper(t *testing.T) {
 }
 
 func TestSpawnStartsInASubdirectoryButRegistersTheTree(t *testing.T) {
+	t.Parallel()
+
 	// The kbench/competition/arc-agi-3 case.
 	env := newTestEnv(t)
 	env.cannedTree("/w/kbench", "/w/kbench/competition/arc-agi-3")
@@ -1288,6 +1318,8 @@ func TestSpawnStartsInASubdirectoryButRegistersTheTree(t *testing.T) {
 }
 
 func TestSnapshotIsOnDiskWhileTheChildIsStillAlive(t *testing.T) {
+	t.Parallel()
+
 	// Couch owns the child for its lifetime, so if Save happened after Wait a
 	// second shell running `couch --list` would see nothing for the whole
 	// session -- which is most of the time.
@@ -1312,6 +1344,8 @@ func TestSnapshotIsOnDiskWhileTheChildIsStillAlive(t *testing.T) {
 }
 
 func TestSpawnFailureLeavesTheTreeFree(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	env.Runner.FailNextStart(errors.New("boom"))
 	if _, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"}); err == nil {
@@ -1323,6 +1357,8 @@ func TestSpawnFailureLeavesTheTreeFree(t *testing.T) {
 }
 
 func TestSpawnFailureDoesNotCommitLaunchPreferences(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	env.Couch.RootAgent = "codex"
 	env.Couch.RepoAgentDefault = func(_, agent string) (LaunchProfile, bool, error) {
@@ -1351,6 +1387,8 @@ func childEnvValue(env []string, key string) string {
 // folded Unknown into false -- so this now pins the exact state, not just
 // "not live" (pair#170 M4).
 func TestLivenessRejectsARecycledPID(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	rec, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
 	if got := env.Couch.Liveness(rec); got != Live {
@@ -1368,6 +1406,8 @@ func TestLivenessRejectsARecycledPID(t *testing.T) {
 }
 
 func TestResolveRefFindsActorsByOperatorName(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	rec, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
 	env.nameTree(t, "/repo", "refactor thing", "")
@@ -1384,6 +1424,8 @@ func TestResolveRefFindsActorsByOperatorName(t *testing.T) {
 // that is visible but cannot be typed back into the shared resolver makes
 // typeahead lie: it shows "pair" and returns no match for "pair".
 func TestLookupTreesMatchesTheDisplayedRepoFallback(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/w/pair")
 	env.spawn(t, StartArgs{Worktree: "/w/pair"})
 
@@ -1394,6 +1436,8 @@ func TestLookupTreesMatchesTheDisplayedRepoFallback(t *testing.T) {
 }
 
 func TestNameAndDescriptionChangeMidSession(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	env.spawn(t, StartArgs{Worktree: "/repo"})
 	env.nameTree(t, "/repo", "first", "")
@@ -1411,6 +1455,8 @@ func TestNameAndDescriptionChangeMidSession(t *testing.T) {
 }
 
 func TestNameSurvivesActorReplacement(t *testing.T) {
+	t.Parallel()
+
 	// A real lifecycle: spawn, name, the child exits, the actor is forgotten,
 	// a new one is spawned. The name must still resolve, because it hangs off
 	// the tree rather than the incarnation.
@@ -1457,6 +1503,8 @@ func TestNameSurvivesActorReplacement(t *testing.T) {
 // gets a second agent. Co-tenants from a store that predates the rule still
 // resolve, which is what TestCoTenantsAreAddressableByActorID exercises.
 func TestASecondThreadAtOnePathIsRefused(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	first, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
 	_, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"})
@@ -1487,6 +1535,8 @@ func TestASecondThreadAtOnePathIsRefused(t *testing.T) {
 // a repository whose :0 is live refuses through SpawnPrepared, names the
 // thread it found, and starts nothing.
 func TestSpawnInSubdirectoryOfALivePrimaryRefuses(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	env.cannedTree("/repo", "/repo/sub")
 	first, _ := env.spawn(t, StartArgs{Worktree: "/repo"})
@@ -1525,6 +1575,8 @@ func TestSpawnInSubdirectoryOfALivePrimaryRefuses(t *testing.T) {
 // no reboot (pair#363 Spec), so it is told to restart inside Pair instead.
 // Derived over every state the occupancy guard can hold.
 func TestPrimaryOccupiedFreshStepNamesOnlyWhatTheRowOffers(t *testing.T) {
+	t.Parallel()
+
 	for _, state := range AllThreadStates() {
 		for _, reason := range append(AllThreadReasons(), "") {
 			if (state == ThreadUnusable) != (reason != "") {
@@ -1552,6 +1604,8 @@ func TestPrimaryOccupiedFreshStepNamesOnlyWhatTheRowOffers(t *testing.T) {
 // child exists. So no non-Git row can exist, and the action table has no
 // non-Git kind; supporting such starts would be its own issue.
 func TestStartInANonGitDirectoryRefuses(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t) // no canned trees: git answers nothing for /plain
 	args := StartArgs{Cwd: "/plain"}
 	for name, start := range map[string]func() error{
@@ -1595,6 +1649,8 @@ func TestStopSignalsTheChildBeforeForgettingIt(t *testing.T) {
 }
 
 func TestStopOnADeadActorForgetsWithoutSignalling(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	rec, h := env.spawn(t, StartArgs{Worktree: "/repo"})
 	env.Runner.SetExited(h.ID(), 0)
@@ -1610,6 +1666,8 @@ func TestStopOnADeadActorForgetsWithoutSignalling(t *testing.T) {
 }
 
 func TestReplayPreservesSameTreeExactly(t *testing.T) {
+	t.Parallel()
+
 	// BR-4. Load used to set SameTree=true on every record to dodge its own
 	// re-register refusal, and the next Save persisted the lie -- after which
 	// no reader could tell which actors really used the escape hatch.
@@ -1643,6 +1701,8 @@ func TestReplayPreservesSameTreeExactly(t *testing.T) {
 }
 
 func TestUnreadableRegistryErrorsRatherThanReadingAsFirstRun(t *testing.T) {
+	t.Parallel()
+
 	// BR-5. Load discarded every ReadFile error, so an unreadable snapshot
 	// looked like a fresh install and the next Save destroyed it.
 	dir := t.TempDir()
@@ -1661,6 +1721,8 @@ func TestUnreadableRegistryErrorsRatherThanReadingAsFirstRun(t *testing.T) {
 }
 
 func TestAliveIsFalseForAnExitedChildWithoutCallingWait(t *testing.T) {
+	t.Parallel()
+
 	// BR-8. This pins the reaper in the DEFAULT suite. procutil.Alive is
 	// `kill -0`, which succeeds for a zombie, so the pre-fix implementation
 	// reported an exited-but-unreaped child as running.
@@ -1679,6 +1741,8 @@ func TestAliveIsFalseForAnExitedChildWithoutCallingWait(t *testing.T) {
 }
 
 func TestSpawnTellsTheChildWhichTreeItIs(t *testing.T) {
+	t.Parallel()
+
 	// BR-9. Without COUCH_TREE and COUCH_STORE_DIR the agent cannot publish a
 	// description, and Describe's cache has nothing to cache from.
 	env := newTestEnv(t, "/repo")
@@ -1699,6 +1763,8 @@ func TestSpawnTellsTheChildWhichTreeItIs(t *testing.T) {
 }
 
 func TestDescribePrefersTheAgentsPublishedLineOverTheOperators(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	env.spawn(t, StartArgs{Worktree: "/repo"})
 	env.nameTree(t, "/repo", "", "what the operator typed")
@@ -1711,6 +1777,8 @@ func TestDescribePrefersTheAgentsPublishedLineOverTheOperators(t *testing.T) {
 }
 
 func TestPruneKeepsRecordsWhoseLivenessIsUnknown(t *testing.T) {
+	t.Parallel()
+
 	// The smoke-test bug: a probe that could not answer read as "dead", the
 	// record was pruned, and a second agent was let onto a tree that already
 	// had a running one. Unknown must fail CLOSED.
@@ -1734,6 +1802,8 @@ func TestPruneKeepsRecordsWhoseLivenessIsUnknown(t *testing.T) {
 }
 
 func TestUnreadableIdentityIsUnknownNotDead(t *testing.T) {
+	t.Parallel()
+
 	// A process that exists but whose token cannot be read is not evidence of
 	// anything, so it must not be treated as gone.
 	env := newTestEnv(t, "/repo")
@@ -1746,6 +1816,8 @@ func TestUnreadableIdentityIsUnknownNotDead(t *testing.T) {
 }
 
 func TestStopSignalsEvenWhenLivenessIsUnknown(t *testing.T) {
+	t.Parallel()
+
 	// Refusing to signal because we could not confirm liveness would free the
 	// tree while leaving a running agent behind -- the hazard Stop closes.
 	env := newTestEnv(t, "/repo")
@@ -1762,6 +1834,8 @@ func TestStopSignalsEvenWhenLivenessIsUnknown(t *testing.T) {
 }
 
 func TestAgentPublishedDescriptionResolvesNotJustDisplays(t *testing.T) {
+	t.Parallel()
+
 	// BR-23. Display derived from the agent's published line while resolution
 	// still only searched the operator's -- half of Done-when 3.
 	env := newTestEnv(t, "/repo")
@@ -1779,6 +1853,8 @@ func TestAgentPublishedDescriptionResolvesNotJustDisplays(t *testing.T) {
 }
 
 func TestCoTenantsAreAddressableByActorID(t *testing.T) {
+	t.Parallel()
+
 	// BR-24. Co-tenants share a tree and a label, so without an ActorID branch
 	// the escape hatch creates a state couch cannot exit.
 	//
@@ -1823,6 +1899,8 @@ func TestCoTenantsAreAddressableByActorID(t *testing.T) {
 }
 
 func TestUnknownRefSaysMissingNotAmbiguous(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	_, _, err := env.Couch.ResolveRef("nothing-like-this")
 	if err == nil {
@@ -1834,6 +1912,8 @@ func TestUnknownRefSaysMissingNotAmbiguous(t *testing.T) {
 }
 
 func TestPersistedCwdIsCanonicalNotAsTyped(t *testing.T) {
+	t.Parallel()
+
 	// BR-32. StartArgs is persisted so a revival can reproduce the launch;
 	// recording the operator's relative path makes that record meaningless
 	// from any other directory.
@@ -1871,6 +1951,8 @@ func TestPersistedCwdIsCanonicalNotAsTyped(t *testing.T) {
 // returns ActionPick, which inside couch's own pty is an interactive prompt the
 // operator never asked for.
 func TestSpawnResumesAnOpaqueThreadTag(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	if _, _, err := env.Couch.Spawn(StartArgs{Cwd: "/repo"}); err != nil {
 		t.Fatalf("Spawn: %v", err)
@@ -1893,6 +1975,8 @@ func TestSpawnResumesAnOpaqueThreadTag(t *testing.T) {
 // kbench/competition/arc-agi-3/ must resume kbench's tag, because kbench is the
 // tree couch keyed the actor on.
 func TestSpawnUsesRepoScopeButKeepsRequestedSubdirectoryAsWorkingPath(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t)
 	env.Git.replies[GitCall{Dir: "/repo/sub/dir", Args: "rev-parse --show-toplevel"}] = "/repo"
 	env.Git.replies[GitCall{Dir: "/repo/sub/dir", Args: "rev-parse --git-common-dir"}] = ".git"
@@ -1927,6 +2011,8 @@ func (r *incrementingEntropy) Read(p []byte) (int, error) {
 // "." default was dead weight -- deletable with every test still green, which is
 // two mechanisms for one result and therefore neither pinned.
 func TestSpawnRefusesAnEmptyPath(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t)
 	if _, _, err := env.Couch.Spawn(StartArgs{}); err == nil {
 		t.Fatal("Spawn with no path returned nil error")
@@ -1937,6 +2023,8 @@ func TestSpawnRefusesAnEmptyPath(t *testing.T) {
 // used to treat unusable rows as debris and would start a second primary in
 // the same repository beside it; it refuses instead, naming the server.
 func TestSpawnBesideAnOrphanedPrimaryRefuses(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	first, h := env.spawn(t, StartArgs{Worktree: "/repo"})
 	// The launcher dies with couch; the session's server survives, orphaned.

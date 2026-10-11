@@ -6,6 +6,8 @@ import (
 )
 
 func TestParseWorkspaceReference(t *testing.T) {
+	t.Parallel()
+
 	for _, raw := range []string{":0", ":1", ":29", "pair:0", "my-repo:32", "my repo:2", "项目:1"} {
 		ref, matched, err := ParseWorkspaceReference(raw)
 		if err != nil || !matched || ref.String() != raw {

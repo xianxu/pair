@@ -20,6 +20,8 @@ import (
 // The token's other property, at-most-one-consumption, is not a domain
 // guarantee at all; it is the start form's armed submit, pinned in couchtty.
 func TestSpawnPreparedRefusesDriftByFingerprint(t *testing.T) {
+	t.Parallel()
+
 	t.Run("an unchanged resolution starts", func(t *testing.T) {
 		env := newTestEnv(t, "/repo")
 		prepared, err := env.Couch.PrepareStart(context.Background(), StartArgs{Worktree: "/repo"})
@@ -77,6 +79,8 @@ func TestSpawnPreparedRefusesDriftByFingerprint(t *testing.T) {
 // as ErrStartResolutionChanged it sends the reader looking for a preference
 // change that never happened.
 func TestSpawnPreparedRefusesAnEmptyFingerprintAsSuchNotAsDrift(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	_, _, err := env.Couch.SpawnPrepared(context.Background(), StartArgs{Worktree: "/repo"}, "")
 	if err == nil {

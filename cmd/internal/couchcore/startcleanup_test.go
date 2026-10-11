@@ -18,6 +18,8 @@ import "testing"
 //	?  - +        = presence unobserved / absent / present
 //	claim / rec   = a start claim / a live incarnation
 func TestDecideStartCleanupTable(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		in   StartCleanupInput
@@ -89,6 +91,8 @@ func TestDecideStartCleanupTable(t *testing.T) {
 // over every shape, including values no constant names -- an unrecognised shape
 // must answer NO, because guessing wrong in that direction kills an agent.
 func TestOnlyAnOwningShapeMayEndItsSession(t *testing.T) {
+	t.Parallel()
+
 	for _, tt := range []struct {
 		shape StartShape
 		want  bool
@@ -108,6 +112,8 @@ func TestOnlyAnOwningShapeMayEndItsSession(t *testing.T) {
 // Nothing durable is undone while the helper may still be writing. Unknown is
 // recoverable; a rolled-back claim or a retired incarnation is not.
 func TestDecideStartCleanupUndoesNothingWhileTheHelperIsUnaccountedFor(t *testing.T) {
+	t.Parallel()
+
 	forEachStartCleanupInput(t, func(t *testing.T, in StartCleanupInput) {
 		if in.HelperDead || in.Shape == StartSpawn {
 			return // a spawn's reconcile reads registration evidence, not the helper
@@ -122,6 +128,8 @@ func TestDecideStartCleanupUndoesNothingWhileTheHelperIsUnaccountedFor(t *testin
 // Retire means "hand the thread back to the session it was reattaching to", so
 // it belongs to the warm shape alone.
 func TestDecideStartCleanupRetiresOnlyOnTheWarmPath(t *testing.T) {
+	t.Parallel()
+
 	forEachStartCleanupInput(t, func(t *testing.T, in StartCleanupInput) {
 		if got := DecideStartCleanup(in); got == DurableRetire && in.Shape.OwnsSession() {
 			t.Errorf("DecideStartCleanup(%+v) = %q: an owning start has no surviving session to go back to", in, got)
@@ -148,6 +156,8 @@ func forEachStartCleanupInput(t *testing.T, check func(*testing.T, StartCleanupI
 // observation is worth making. Otherwise the shell either pays for a round trip
 // nobody reads, or skips one the decision depends on.
 func TestPresenceIsObservedExactlyWhereTheDecisionReadsIt(t *testing.T) {
+	t.Parallel()
+
 	for _, shape := range []StartShape{StartSpawn, StartColdResume, StartWarmReattach} {
 		for _, liveRecord := range []bool{false, true} {
 			for _, helperDead := range []bool{false, true} {

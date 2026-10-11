@@ -8,6 +8,8 @@ import (
 )
 
 func TestObserveSupervisorReadOnly(t *testing.T) {
+	t.Parallel()
+
 	ns := testCouchNamespace(t)
 	proc := testOwnerProc(t, "owner")
 	o, e := ObserveSupervisor(ns, proc, nil)
@@ -38,6 +40,8 @@ func TestObserveSupervisorReadOnly(t *testing.T) {
 	}
 }
 func TestObserveSupervisorRejectsSymlinksAndNonregularLocks(t *testing.T) {
+	t.Parallel()
+
 	for _, kind := range []string{"symlink", "directory", "fifo"} {
 		t.Run(kind, func(t *testing.T) {
 			ns := testCouchNamespace(t)

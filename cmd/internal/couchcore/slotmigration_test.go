@@ -26,6 +26,8 @@ func migrationFixture(t *testing.T) (*ThreadStore, SlotRepository, ThreadRecord)
 }
 
 func TestSlotMigrationPreservesAddressAndCutsOver(t *testing.T) {
+	t.Parallel()
+
 	s, repository, r := migrationFixture(t)
 	preference := PathLaunchPreference{SchemaVersion: PathLaunchPreferenceSchemaVersion, RepoIdentity: repository.Identity.RepoIdentity, PhysicalPath: r.StartingPath, LastAgent: "codex", ArgvByAgent: map[string][]string{"codex": {"--sandbox", "workspace-write"}}, Revision: 1}
 	if err := writePathLaunchPreferenceForTest(s, preference); err != nil {
@@ -61,6 +63,8 @@ func TestSlotMigrationPreservesAddressAndCutsOver(t *testing.T) {
 }
 
 func TestSlotMigrationInterruptedCutoverReplays(t *testing.T) {
+	t.Parallel()
+
 	for _, after := range []int{-1, 0, 1} {
 		t.Run(string(rune('a'+after+1)), func(t *testing.T) {
 			s, repository, r := migrationFixture(t)
@@ -94,6 +98,8 @@ func TestSlotMigrationInterruptedCutoverReplays(t *testing.T) {
 }
 
 func TestSlotMigrationRejectsAmbiguousAndConflictingRecords(t *testing.T) {
+	t.Parallel()
+
 	for _, conflict := range []bool{false, true} {
 		t.Run(map[bool]string{false: "multiple-global", true: "conflicting-local"}[conflict], func(t *testing.T) {
 			s, repository, r := migrationFixture(t)
@@ -121,6 +127,8 @@ func TestSlotMigrationRejectsAmbiguousAndConflictingRecords(t *testing.T) {
 }
 
 func TestSlotRoutingRebuildsAndMissingCurrentDoesNotInventAddress(t *testing.T) {
+	t.Parallel()
+
 	s, repository, r := migrationFixture(t)
 	if err := s.EnrollSlotRepository(context.Background(), repository); err != nil {
 		t.Fatal(err)
@@ -148,6 +156,8 @@ func TestSlotRoutingRebuildsAndMissingCurrentDoesNotInventAddress(t *testing.T) 
 }
 
 func TestSlotMigrationZeroCurrentPreservesPreferencesAndHistory(t *testing.T) {
+	t.Parallel()
+
 	s, repository, r := migrationFixture(t)
 	if err := s.ArchiveThread(r.Address); err != nil {
 		t.Fatal(err)
@@ -180,6 +190,8 @@ func TestSlotMigrationZeroCurrentPreservesPreferencesAndHistory(t *testing.T) {
 }
 
 func TestSlotMigrationLeavesPrimaryArchiveRoutable(t *testing.T) {
+	t.Parallel()
+
 	s, repository, r := migrationFixture(t)
 	primary := r
 	primary.Address.Tag = "couch-2222222222222222"
@@ -200,6 +212,8 @@ func TestSlotMigrationLeavesPrimaryArchiveRoutable(t *testing.T) {
 }
 
 func TestSlotMigrationStagingInterruptionKeepsGlobalAuthority(t *testing.T) {
+	t.Parallel()
+
 	s, repository, r := migrationFixture(t)
 	interrupted := errors.New("local target interruption")
 	s.hooks.AfterPublicationWrite = func(path string) error {
@@ -226,6 +240,8 @@ func TestSlotMigrationStagingInterruptionKeepsGlobalAuthority(t *testing.T) {
 }
 
 func TestSlotMigrationEmptyRepositoryCanEnrollBeforeCreation(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	repository, err := NewOSSlotCatalog(f).Discover(context.Background(), f.Primary)
 	if err != nil {
@@ -246,6 +262,8 @@ func TestSlotMigrationEmptyRepositoryCanEnrollBeforeCreation(t *testing.T) {
 }
 
 func TestSlotRoutingCorruptSlotLeavesPrimaryAvailable(t *testing.T) {
+	t.Parallel()
+
 	s, repository, r := migrationFixture(t)
 	primary := r
 	primary.Address.Tag = "couch-3333333333333333"
@@ -267,6 +285,8 @@ func TestSlotRoutingCorruptSlotLeavesPrimaryAvailable(t *testing.T) {
 }
 
 func TestSlotMigrationRefusesUnmatchedLocalCurrent(t *testing.T) {
+	t.Parallel()
+
 	s, repository, r := migrationFixture(t)
 	if err := s.ArchiveThread(r.Address); err != nil {
 		t.Fatal(err)
@@ -283,6 +303,8 @@ func TestSlotMigrationRefusesUnmatchedLocalCurrent(t *testing.T) {
 }
 
 func TestSlotEnrollmentRebuildsLostRootDiscoveryFromLocalAuthority(t *testing.T) {
+	t.Parallel()
+
 	s, repository, r := migrationFixture(t)
 	if err := s.EnrollSlotRepository(context.Background(), repository); err != nil {
 		t.Fatal(err)
@@ -311,6 +333,8 @@ func TestSlotEnrollmentRebuildsLostRootDiscoveryFromLocalAuthority(t *testing.T)
 }
 
 func TestSlotRoutingIncludesContainedAndUnprovisionedCWD(t *testing.T) {
+	t.Parallel()
+
 	s, repository, r := migrationFixture(t)
 	if err := s.EnrollSlotRepository(context.Background(), repository); err != nil {
 		t.Fatal(err)
@@ -340,6 +364,8 @@ func TestSlotRoutingIncludesContainedAndUnprovisionedCWD(t *testing.T) {
 }
 
 func TestSlotMigrationMovesSubdirectoryRecordAndPreference(t *testing.T) {
+	t.Parallel()
+
 	s, repository, r := migrationFixture(t)
 	sub := filepath.Join(r.StartingPath, "competition", "arc-agi-3")
 	if err := os.MkdirAll(sub, 0700); err != nil {
@@ -378,6 +404,8 @@ func TestSlotMigrationMovesSubdirectoryRecordAndPreference(t *testing.T) {
 }
 
 func TestAddresslessSlotSnapshotUsesSavedFamilyCWD(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	f.git(f.Primary, "worktree", "add", "-b", "main-slot1", f.host(1), "main")
 	repository, err := NewOSSlotCatalog(f).Discover(context.Background(), f.Primary)
@@ -404,6 +432,8 @@ func TestAddresslessSlotSnapshotUsesSavedFamilyCWD(t *testing.T) {
 }
 
 func TestSlotMigrationRetainsConflictingPreferenceSources(t *testing.T) {
+	t.Parallel()
+
 	s, repository, r := migrationFixture(t)
 	for _, path := range []string{r.StartingPath, filepath.Join(r.StartingPath, "sub")} {
 		pref := PathLaunchPreference{SchemaVersion: PathLaunchPreferenceSchemaVersion, RepoIdentity: repository.Identity.RepoIdentity, PhysicalPath: path, LastAgent: "codex", ArgvByAgent: map[string][]string{"codex": {}}, Revision: 1}
@@ -425,6 +455,8 @@ func TestSlotMigrationRetainsConflictingPreferenceSources(t *testing.T) {
 }
 
 func TestSlotSnapshotKeepsGlobalEvidenceForMissingCheckout(t *testing.T) {
+	t.Parallel()
+
 	f := newProvisionFixture(t)
 	repository, err := NewOSSlotCatalog(f).Discover(context.Background(), f.Primary)
 	if err != nil {

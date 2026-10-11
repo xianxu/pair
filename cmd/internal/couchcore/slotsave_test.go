@@ -47,6 +47,8 @@ func readManifests(t *testing.T, l SlotLayout) []SavedWorkManifest {
 }
 
 func TestSetAsideMovesTheWholeCheckoutAndCanBeRestored(t *testing.T) {
+	t.Parallel()
+
 	s := newObservedSlot(t)
 	dep := brokenDep(t, s)
 	cv := s.converger(t)
@@ -78,6 +80,8 @@ func TestSetAsideMovesTheWholeCheckoutAndCanBeRestored(t *testing.T) {
 }
 
 func TestSetAsideRefusals(t *testing.T) {
+	t.Parallel()
+
 	t.Run("entry limit", func(t *testing.T) {
 		s := newObservedSlot(t)
 		dep := brokenDep(t, s)
@@ -141,6 +145,8 @@ func TestSetAsideRefusals(t *testing.T) {
 }
 
 func TestSetAsideHostRecordsItsBranch(t *testing.T) {
+	t.Parallel()
+
 	s := newObservedSlot(t)
 	s.f.git(s.layout.Host(), "switch", "-q", "-c", "issue-work")
 	write(t, filepath.Join(s.layout.Host(), ".git"), "gitdir: /nonexistent/admin\n")
@@ -156,6 +162,8 @@ func TestSetAsideHostRecordsItsBranch(t *testing.T) {
 // TestSetAsideCrashAtTheRenameLeavesNoPartialTree: the rename seam is where a
 // crash can land; the manifest is pending, the checkout is whole in one place.
 func TestSetAsideCrashAtTheRenameLeavesNoPartialTree(t *testing.T) {
+	t.Parallel()
+
 	s := newObservedSlot(t)
 	dep := brokenDep(t, s)
 	cv := s.converger(t)
@@ -189,6 +197,8 @@ func assertNoSavedWork(t *testing.T, l SlotLayout) {
 // PlanSlot gives the same condition, through the one SetAsideHold, and a
 // checkout that recovered meanwhile is retryable, never a hand-off.
 func TestSetAsideHoldsMatchThePlan(t *testing.T) {
+	t.Parallel()
+
 	for _, agent := range AllEvidenceAgents() {
 		s := newObservedSlot(t)
 		dep := brokenDep(t, s)
@@ -218,6 +228,8 @@ func TestSetAsideHoldsMatchThePlan(t *testing.T) {
 // TestReconcileResultListsWhatItSetAside: a broken dependency is set aside and
 // re-cloned, and the result names the entry and how to restore it.
 func TestReconcileResultListsWhatItSetAside(t *testing.T) {
+	t.Parallel()
+
 	s := newObservedSlot(t)
 	dep := brokenDep(t, s)
 	s.f.DepSources = map[string]bool{fakeDep: true}
@@ -241,6 +253,8 @@ func TestReconcileResultListsWhatItSetAside(t *testing.T) {
 // without a readable manifest, by the directory's age; a symlink in saved work
 // is never followed or removed.
 func TestSavedWorkIsCollectedPastRetention(t *testing.T) {
+	t.Parallel()
+
 	s := newObservedSlot(t)
 	l := s.layout
 	now := time.Now()
@@ -291,6 +305,8 @@ func TestSavedWorkIsCollectedPastRetention(t *testing.T) {
 // TestAFailedRunStillNamesWhatItSetAside (BR-14): a run that set a checkout
 // aside and then could not converge still prints the restore.
 func TestAFailedRunStillNamesWhatItSetAside(t *testing.T) {
+	t.Parallel()
+
 	s := newObservedSlot(t)
 	brokenDep(t, s)
 	os.Remove(SetupMarkerPath(s.admin(t))) // setup never completed: a failed compile blocks
@@ -315,6 +331,8 @@ func (s failCompleteManifest) Write(path string, v any) error {
 // TestASetAsideIsReportedWhenTheMoveHappens (BR-21): the tree moved, so the
 // run reports the entry even when the bookkeeping after the move fails.
 func TestASetAsideIsReportedWhenTheMoveHappens(t *testing.T) {
+	t.Parallel()
+
 	s := newObservedSlot(t)
 	dep := brokenDep(t, s)
 	cv := s.converger(t)

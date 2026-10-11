@@ -96,6 +96,8 @@ func TestBlockedRunnerCancellationConformance(t *testing.T) {
 }
 
 func TestRunnerCancellationRejectsCanceledContextBeforeStartingHelper(t *testing.T) {
+	t.Parallel()
+
 	fake := NewFakeRunner()
 	runners := []struct {
 		name   string

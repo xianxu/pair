@@ -21,6 +21,8 @@ func selectRow(tag string, state ActionableThreadState, path string, active time
 // path created a third, which guaranteed the next startup created a fourth. Six
 // threads in one repo is what that produced.
 func TestSelectResumableRootPrefersWarmThenRecent(t *testing.T) {
+	t.Parallel()
+
 	const path = "/repo"
 	older := time.Unix(1000, 0).UTC()
 	newer := time.Unix(2000, 0).UTC()
@@ -93,6 +95,8 @@ func TestSelectResumableRootPrefersWarmThenRecent(t *testing.T) {
 // Six rows at one path is the operator's real store, and it must not be a
 // refusal: refusing is what minted a seventh thread.
 func TestSelectResumableRootHandlesACrowdedPath(t *testing.T) {
+	t.Parallel()
+
 	const path = "/repo"
 	rows := []ActionableThreadSummary{
 		selectRow("couch-1", ThreadUnusable, path, time.Unix(5000, 0).UTC()),
@@ -114,6 +118,8 @@ func TestSelectResumableRootHandlesACrowdedPath(t *testing.T) {
 // subdirectory, because since pair#363 the scope, not the path, is what a row
 // holds.
 func TestOccupancyPredicatesAgreeWhereTheyOverlap(t *testing.T) {
+	t.Parallel()
+
 	for _, state := range AllThreadStates() {
 		for _, reason := range append(AllThreadReasons(), "") {
 			if (state == ThreadUnusable) != (reason != "") {
@@ -135,6 +141,8 @@ func TestOccupancyPredicatesAgreeWhereTheyOverlap(t *testing.T) {
 // repository returns to the primary thread wherever in that repository it
 // sits; a thread in another repository scope is not this one's.
 func TestSelectResumableRootMatchesTheRepositoryNotThePath(t *testing.T) {
+	t.Parallel()
+
 	at := time.Unix(1000, 0).UTC()
 	parked := selectRow("couch-0000000000000001", ThreadParked, "/w/repo", at)
 	if address, ok := SelectResumableRoot([]ActionableThreadSummary{parked}, "scope"); !ok || address != parked.Address {
@@ -157,6 +165,8 @@ func TestSelectResumableRootMatchesTheRepositoryNotThePath(t *testing.T) {
 // subdirectory; unusable rows do not, or a corrupted record would lock its
 // repository out (resolved ambiguity 9).
 func TestScopeHoldsUsableThreadFromASubdirectory(t *testing.T) {
+	t.Parallel()
+
 	at := time.Unix(1000, 0).UTC()
 	for _, state := range []ActionableThreadState{ThreadLive, ThreadDetached, ThreadParked} {
 		row := selectRow("couch-0000000000000001", state, "/w/repo", at)

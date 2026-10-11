@@ -6,6 +6,8 @@ import (
 )
 
 func TestSlotInventoryRetainsMissingAndCorruptRows(t *testing.T) {
+	t.Parallel()
+
 	first := allocationCandidate(1).Identity
 	second := allocationCandidate(2).Identity
 	input := ThreadProjectionInput{Slots: []SlotInventoryObservation{{Identity: first}, {Identity: second, Err: errors.New("invalid JSON")}}}
@@ -28,6 +30,8 @@ func TestSlotInventoryRetainsMissingAndCorruptRows(t *testing.T) {
 }
 
 func TestSlotInventoryUsesOneStableRowAcrossConversations(t *testing.T) {
+	t.Parallel()
+
 	slot := allocationCandidate(1).Identity
 	var key ThreadRowKey
 	for _, tag := range []ThreadTag{"old", "replacement"} {
@@ -49,6 +53,8 @@ func TestSlotInventoryUsesOneStableRowAcrossConversations(t *testing.T) {
 }
 
 func TestSlotInventoryPreservesRecordedCWD(t *testing.T) {
+	t.Parallel()
+
 	slot := allocationCandidate(1).Identity
 	address := ThreadAddress{RepoScope: "scope", Tag: "current"}
 	path := slot.WorktreeRoot + "/competition/arc-agi-3"

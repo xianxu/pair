@@ -7,6 +7,8 @@ import (
 )
 
 func TestStartOperationDefaultsEmptyPathToDot(t *testing.T) {
+	t.Parallel()
+
 	cwd := NormalizePath(".")
 	env := newTestEnv(t, cwd)
 	preparedValue, err := dispatchTestOperation(env.Couch, "prepare-start", map[string]string{})
@@ -52,6 +54,8 @@ func createOperationThread(t *testing.T, c *Couch) ThreadRecord {
 // the stored fields stay, written through ApplyThreadMetadata, and a patch of
 // one field must not cross into another.
 func TestThreadMetadataPatchesDoNotCrossFields(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	created := createOperationThread(t, env.Couch)
 	name, description := "compiler", "operator context"
@@ -69,6 +73,8 @@ func TestThreadMetadataPatchesDoNotCrossFields(t *testing.T) {
 }
 
 func TestCompositeReferenceOperationsRefuseEmptyRepositoryScope(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	created := createOperationThread(t, env.Couch)
 	for _, call := range []struct {
@@ -86,6 +92,8 @@ func TestCompositeReferenceOperationsRefuseEmptyRepositoryScope(t *testing.T) {
 }
 
 func TestPublishDescriptionUsesExactCompositeContextAndDistinctField(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	created := createOperationThread(t, env.Couch)
 

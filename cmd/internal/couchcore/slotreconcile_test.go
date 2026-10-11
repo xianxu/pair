@@ -102,6 +102,8 @@ func runWorld(t *testing.T, label string, agent EvidenceAgent, ps ...perturbatio
 // agent state, in SlotWorld (agreeing with real git on the single domain,
 // TestReconcileAgreesWithRealGit).
 func TestReconcileConvergesFromEveryPerturbation(t *testing.T) {
+	t.Parallel()
+
 	domain := slotPerturbations()
 	runs := 0
 	for _, agent := range AllEvidenceAgents() {
@@ -125,6 +127,8 @@ func TestReconcileConvergesFromEveryPerturbation(t *testing.T) {
 // again, converges as an uninterrupted run does, and no checkout is set aside
 // twice.
 func TestReconcileCrashAfterEveryStep(t *testing.T) {
+	t.Parallel()
+
 	scenarios := map[string][]perturbation{
 		"deleted slot directory": {{ResourceEnv, StateAbsent, ""}, {ResourceRegistration, StateBroken, SubStale}},
 		"broken dependency":      {{DepResource(fakeDep), StateBroken, SubUnreadable}},
@@ -186,6 +190,8 @@ func (w lyingWorld) apply(ctx context.Context, s PlannedStep) error {
 }
 
 func TestReconcileNoProgressStops(t *testing.T) {
+	t.Parallel()
+
 	w := newSlotWorld()
 	w.set(perturbation{ResourceEnv, StateAbsent, ""})
 	_, err := reconcileLoop(context.Background(), lyingWorld{w}, nil)
@@ -196,6 +202,8 @@ func TestReconcileNoProgressStops(t *testing.T) {
 }
 
 func TestReconcileKeepOnFailureEndsWithAWarning(t *testing.T) {
+	t.Parallel()
+
 	w := newSlotWorld()
 	w.SourceKnown = false
 	w.set(perturbation{DepResource(fakeDep), StateAbsent, ""})
@@ -249,6 +257,8 @@ var realGitScenarioExtras = map[string][]perturbation{
 }
 
 func TestReconcileAgreesWithRealGit(t *testing.T) {
+	t.Parallel()
+
 	keys := make([]string, 0, len(realGitScenarios))
 	for k := range realGitScenarios {
 		keys = append(keys, k)

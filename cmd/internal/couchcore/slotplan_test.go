@@ -136,6 +136,8 @@ func planInvariants(t *testing.T, label string, o SlotObservation, plan SlotPlan
 }
 
 func TestPlanSlotDomain(t *testing.T) {
+	t.Parallel()
+
 	domain := slotPerturbations()
 	pairs := 0
 	for _, agent := range AllEvidenceAgents() {
@@ -171,6 +173,8 @@ func TestPlanSlotDomain(t *testing.T) {
 }
 
 func TestPlanSlotNamedCases(t *testing.T) {
+	t.Parallel()
+
 	t.Run("tools:1 interrupted setup", func(t *testing.T) {
 		o := perturb(healthyObservation(), perturbation{DepResource("ariadne"), StateAbsent, ""}, perturbation{ResourceSetup, StateAbsent, ""})
 		plan, _ := PlanSlot(PlanInput{Observation: o})

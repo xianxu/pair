@@ -6,6 +6,8 @@ import (
 )
 
 func TestResolveStartResolutionUsesLaunchProfileOracleAndOwnsValues(t *testing.T) {
+	t.Parallel()
+
 	input := validStartResolutionInput()
 	want, err := ResolveLaunchProfile(input.LaunchProfileInputs)
 	if err != nil {
@@ -26,6 +28,8 @@ func TestResolveStartResolutionUsesLaunchProfileOracleAndOwnsValues(t *testing.T
 }
 
 func TestResolveStartResolutionFingerprintCoversNormalizedAuthority(t *testing.T) {
+	t.Parallel()
+
 	base := validStartResolutionInput()
 	baseline, err := ResolveStartResolution(base)
 	if err != nil {
@@ -79,6 +83,8 @@ func TestResolveStartResolutionFingerprintCoversNormalizedAuthority(t *testing.T
 }
 
 func TestResolveStartResolutionRejectsMalformedAuthority(t *testing.T) {
+	t.Parallel()
+
 	tests := map[string]func(*StartResolutionInput){
 		"relative path":       func(in *StartResolutionInput) { in.CanonicalPath = "relative" },
 		"relative worktree":   func(in *StartResolutionInput) { in.Worktree = "relative" },

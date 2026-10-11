@@ -16,6 +16,8 @@ import (
 )
 
 func TestStorePublicationKilledPublisher(t *testing.T) {
+	t.Parallel()
+
 	for _, phase := range []string{"journal", "archive", "grace", "receipt"} {
 		t.Run(phase, func(t *testing.T) {
 			s, c := retentionStore(t)
@@ -120,6 +122,8 @@ func TestStorePublicationKilledPublisher(t *testing.T) {
 }
 
 func TestStorePublicationChild(t *testing.T) {
+	t.Parallel()
+
 	if os.Getenv("PAIR_STORE_PUBLICATION_CHILD") != "1" {
 		return
 	}
@@ -174,6 +178,8 @@ func TestStorePublicationChild(t *testing.T) {
 }
 
 func TestStorePublicationRecoveryRejectsUnsafeStage(t *testing.T) {
+	t.Parallel()
+
 	for _, kind := range []string{"symlink", "directory"} {
 		t.Run(kind, func(t *testing.T) {
 			s, _ := retentionStore(t)
@@ -207,6 +213,8 @@ func TestStorePublicationRecoveryRejectsUnsafeStage(t *testing.T) {
 }
 
 func TestRetentionJournalCancellationPreservesDurableReplay(t *testing.T) {
+	t.Parallel()
+
 	s, c, request := archiveDetachFixture(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -238,6 +246,8 @@ func TestRetentionJournalCancellationPreservesDurableReplay(t *testing.T) {
 }
 
 func TestStoreJournalReplayChecksCancellationBetweenEntries(t *testing.T) {
+	t.Parallel()
+
 	s, c, request := archiveDetachFixture(t)
 	interrupted := errors.New("journal published")
 	s.hooks.AfterJournal = func() error { return interrupted }
@@ -270,6 +280,8 @@ func TestStoreJournalReplayChecksCancellationBetweenEntries(t *testing.T) {
 }
 
 func TestStorePublicationCancellationBeforeRenameLeavesJournalAuthority(t *testing.T) {
+	t.Parallel()
+
 	s, c, request := archiveDetachFixture(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

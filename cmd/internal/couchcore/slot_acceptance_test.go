@@ -10,6 +10,8 @@ import (
 // Real Git directories plus the stateful agent/process fake exercise isolation
 // through the same preview, commit and recovery operations as the console.
 func TestSlotAcceptanceTwoSlotsRecoverIndependently(t *testing.T) {
+	t.Parallel()
+
 	env, f := managedStartFixture(t)
 	ctx := context.Background()
 	var actors []ActorRecord

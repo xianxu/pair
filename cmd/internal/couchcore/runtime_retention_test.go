@@ -11,6 +11,8 @@ import (
 )
 
 func TestCoordinatedCouchRegistersActualRootRuntime(t *testing.T) {
+	t.Parallel()
+
 	namespace := testCouchNamespace(t)
 	root := t.TempDir()
 	now := time.Now()

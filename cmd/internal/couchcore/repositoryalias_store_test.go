@@ -42,6 +42,8 @@ func aliasOf(t *testing.T, store *ThreadStore, root string) string {
 }
 
 func TestRepositoryAliasStoreLifecycle(t *testing.T) {
+	t.Parallel()
+
 	store := aliasTestStore(t, "/w/xianxu.dev", "/w/pair")
 	if got := aliasOf(t, store, "/w/xianxu.dev"); got != "" {
 		t.Fatalf("absent file: %q", got)
@@ -64,6 +66,8 @@ func TestRepositoryAliasStoreLifecycle(t *testing.T) {
 }
 
 func TestRepositoryAliasStoreRefusalLeavesFileUntouched(t *testing.T) {
+	t.Parallel()
+
 	store := aliasTestStore(t, "/w/xianxu.dev", "/w/pair")
 	if err := store.SetRepositoryAlias("/w/xianxu.dev", "blog"); err != nil {
 		t.Fatal(err)
@@ -87,6 +91,8 @@ func TestRepositoryAliasStoreRefusalLeavesFileUntouched(t *testing.T) {
 }
 
 func TestRepositoryAliasStoreDropsUnenrolledAndWithholdsShadowing(t *testing.T) {
+	t.Parallel()
+
 	store := aliasTestStore(t, "/w/xianxu.dev", "/w/pair")
 	raw := `{"schema_version":1,"aliases":{"/w/gone":"old","/w/xianxu.dev":"pair"}}`
 	if err := os.WriteFile(store.repositoryAliasPath(), []byte(raw), 0600); err != nil {
@@ -106,6 +112,8 @@ func TestRepositoryAliasStoreDropsUnenrolledAndWithholdsShadowing(t *testing.T) 
 }
 
 func TestRepositoryAliasStoreRefusesMalformedFile(t *testing.T) {
+	t.Parallel()
+
 	store := aliasTestStore(t, "/w/pair")
 	for _, raw := range []string{`{"schema_version":1,"aliases":{},"extra":1}`, `{"schema_version":2,"aliases":{}}`, `{"schema_version":1}`, `not json`} {
 		if err := os.WriteFile(store.repositoryAliasPath(), []byte(raw), 0600); err != nil {
@@ -118,6 +126,8 @@ func TestRepositoryAliasStoreRefusesMalformedFile(t *testing.T) {
 }
 
 func TestRepositoryAliasStoreSlotLocalWritesRoot(t *testing.T) {
+	t.Parallel()
+
 	global, local, _, _ := slotRetentionFixture(t)
 	if err := local.SetRepositoryAlias(local.slot.PrimaryRoot, "short"); err != nil {
 		t.Fatal(err)
@@ -131,6 +141,8 @@ func TestRepositoryAliasStoreSlotLocalWritesRoot(t *testing.T) {
 }
 
 func TestRepositoryNamesWaitsOutABusyStore(t *testing.T) {
+	t.Parallel()
+
 	store := aliasTestStore(t, "/w/xianxu.dev")
 	if err := store.SetRepositoryAlias("/w/xianxu.dev", "blog"); err != nil {
 		t.Fatal(err)

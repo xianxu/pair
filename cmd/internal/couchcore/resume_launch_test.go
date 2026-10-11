@@ -60,6 +60,8 @@ func createParkedThreadInCouch(t *testing.T, env *testEnv, profile LaunchProfile
 }
 
 func TestResumeLaunchExactProfileMatrix(t *testing.T) {
+	t.Parallel()
+
 	for _, agent := range []string{"claude", "codex", "agy", "muse"} {
 		for _, argv := range [][]string{
 			{},
@@ -123,6 +125,8 @@ func TestResumeLaunchExactProfileMatrix(t *testing.T) {
 }
 
 func TestResumeForkFailureRestoresVerifiedPark(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
 	env.Artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
@@ -150,6 +154,8 @@ func TestResumeForkFailureRestoresVerifiedPark(t *testing.T) {
 // live for the case the session CANNOT be observed -- see
 // TestResumeUnobservableSessionKeepsUnknownOccupied.
 func TestResumeAmbiguousAckRollsBackOnceItsSessionIsGone(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "codex", Argv: []string{"--saved"}})
 	env.Artifacts.SetNativeBinding(parked.Address, "codex", sessioninventory.BindingEstablished, "native-root-1")
@@ -169,6 +175,8 @@ func TestResumeAmbiguousAckRollsBackOnceItsSessionIsGone(t *testing.T) {
 // record stays occupied and Unknown. Unproven is not absent, and only an
 // observation may retire a claim.
 func TestResumeUnobservableSessionKeepsUnknownOccupied(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "codex", Argv: []string{"--saved"}})
 	env.Artifacts.SetNativeBinding(parked.Address, "codex", sessioninventory.BindingEstablished, "native-root-1")
@@ -243,6 +251,8 @@ func assertVerifiedParkRestored(t *testing.T, store *ThreadStore, parked ThreadR
 // Here the ONLY difference between admissible and refused is
 // SetDetachedSession, so that mutation reddens.
 func TestResumeContextDerivesTheDetachedProofItself(t *testing.T) {
+	t.Parallel()
+
 	for _, test := range []struct {
 		name     string
 		detached bool
@@ -295,6 +305,8 @@ func TestResumeContextDerivesTheDetachedProofItself(t *testing.T) {
 // record per resume -- brain carried two dead warm-reattach records for one
 // thread. The launch that inserts the new record reaps the dead ones.
 func TestResumeReapsTheThreadsDeadActorRecord(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	profile := LaunchProfile{Agent: "claude", Argv: []string{}}
 	parked := createParkedThreadInCouch(t, env, profile)

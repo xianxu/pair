@@ -32,6 +32,8 @@ import (
 // fixture it needs is often a record production can no longer write -- which is
 // exactly what the store's guards must be exercised against.
 func TestArbitraryLifecycleMutationHasNoDoor(t *testing.T) {
+	t.Parallel()
+
 	root := repoRootFrom(t)
 	dir := filepath.Join(root, "cmd", "internal", "couchcore")
 	entries, err := os.ReadDir(dir)

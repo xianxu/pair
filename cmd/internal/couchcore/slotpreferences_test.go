@@ -42,6 +42,8 @@ func slotPreferenceRecord(t *testing.T, env *testEnv, local *ThreadStore) Thread
 }
 
 func TestSlotPreferencePrimaryDefaultsAcrossFreshAndSwitch(t *testing.T) {
+	t.Parallel()
+
 	for _, action := range []string{"fresh", "switch"} {
 		t.Run(action, func(t *testing.T) {
 			env, local := slotRecoveryOperationFixture(t)
@@ -77,6 +79,8 @@ func TestSlotPreferencePrimaryDefaultsAcrossFreshAndSwitch(t *testing.T) {
 }
 
 func TestSlotFreshInvalidPreferencePreservesCurrent(t *testing.T) {
+	t.Parallel()
+
 	env, local := slotRecoveryOperationFixture(t)
 	r := slotPreferenceRecord(t, env, local)
 	pref := PathLaunchPreference{SchemaVersion: 1, RepoIdentity: local.slot.RepoIdentity, PhysicalPath: r.StartingPath, LastAgent: "codex", ArgvByAgent: map[string][]string{"codex": {"resume", "old-native"}}, Revision: 1}
@@ -113,6 +117,8 @@ func TestSlotFreshInvalidPreferencePreservesCurrent(t *testing.T) {
 }
 
 func TestSlotPreferenceFirstUseKeepsRootAgentAndPrimaryDefaults(t *testing.T) {
+	t.Parallel()
+
 	env, f := managedStartFixture(t)
 	env.Couch.RootAgent = "codex"
 	env.Couch.RepoAgentDefault = func(root, agent string) (LaunchProfile, bool, error) {

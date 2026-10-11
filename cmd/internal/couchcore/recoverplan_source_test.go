@@ -14,6 +14,8 @@ import (
 )
 
 func TestSDLCFleetSourceArgv(t *testing.T) {
+	t.Parallel()
+
 	fake := NewFakeFleetSDLC()
 	fake.Fleet("/fleet").AddSlot("pair:0")
 	if _, err := (SDLCFleetSource{IO: fake, Timeout: 90 * time.Second}).FleetInventory(context.Background(), "/fleet/pair"); err != nil {
@@ -33,6 +35,8 @@ func TestSDLCFleetSourceArgv(t *testing.T) {
 }
 
 func TestFakeFleetSDLCRefusesOtherCommands(t *testing.T) {
+	t.Parallel()
+
 	fake := NewFakeFleetSDLC()
 	fake.Fleet("/fleet").AddSlot("pair:0")
 	for _, c := range []ProvisionCommand{
@@ -67,6 +71,8 @@ func runFake(t *testing.T, fake *FakeFleetSDLC, vantage string) (FleetInventory,
 }
 
 func TestFakeFleetSDLCIsStateful(t *testing.T) {
+	t.Parallel()
+
 	fake := NewFakeFleetSDLC()
 	fleet := fake.Fleet("/fleet")
 	fleet.AddSlot("pair:0")
@@ -117,6 +123,8 @@ func TestFakeFleetSDLCIsStateful(t *testing.T) {
 }
 
 func TestFakeFleetSDLCFailureModes(t *testing.T) {
+	t.Parallel()
+
 	fake := NewFakeFleetSDLC()
 	fake.Fleet("/fleet").AddSlot("pair:0")
 	fake.Fail = FakeFleetExit
@@ -139,6 +147,8 @@ func TestFakeFleetSDLCFailureModes(t *testing.T) {
 // TestJudgeCheckout cases (cmd/sdlc/internal/fleet/slots_test.go at
 // 35aa7ebd7725602a88f9fb4603c60e4c86db0a64) that the fake can express.
 func TestFakeFleetSDLCVerdictsMatchSDLCPrecedence(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name    string
 		set     func(*FakeFleet)
@@ -212,6 +222,8 @@ func recoverEnv(t *testing.T, fleets map[string]string) (*testEnv, *FakeFleetSDL
 }
 
 func TestRecoverPlanRunsOneInventoryPerEnrolledFleet(t *testing.T) {
+	t.Parallel()
+
 	env, fake, _ := recoverEnv(t, map[string]string{"/fa/alpha": "/fa", "/fa/beta": "/fa", "/fb/gamma": "/fb"})
 	fake.Fleet("/fa").AddSlot("alpha:0")
 	fake.Fleet("/fa").AddSlot("beta:0")
@@ -233,6 +245,8 @@ func TestRecoverPlanRunsOneInventoryPerEnrolledFleet(t *testing.T) {
 }
 
 func TestRecoverPlanReadsAFleetOnceFromTwoVantages(t *testing.T) {
+	t.Parallel()
+
 	env, fake, catalog := recoverEnv(t, map[string]string{"/fa/alpha": "/fa", "/fa/beta": "/fa"})
 	fake.Fleet("/fa").AddSlot("alpha:0")
 	fake.Fleet("/fa").AddSlot("beta:0")
@@ -260,6 +274,8 @@ func TestRecoverPlanReadsAFleetOnceFromTwoVantages(t *testing.T) {
 }
 
 func TestRecoverPlanFailedWorkspaceProbeIsUnavailableNotEmpty(t *testing.T) {
+	t.Parallel()
+
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -283,6 +299,8 @@ func TestRecoverPlanFailedWorkspaceProbeIsUnavailableNotEmpty(t *testing.T) {
 }
 
 func TestRecoverPlanDegradesPerSource(t *testing.T) {
+	t.Parallel()
+
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -351,6 +369,8 @@ func TestRecoverPlanDegradesPerSource(t *testing.T) {
 // An unreadable layout is unknown, never missing, and its reason is recorded
 // on the fleet rather than vanishing (M1 review minors).
 func TestRecoverPlanCandidateErrorsAreRecordedNotMissing(t *testing.T) {
+	t.Parallel()
+
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

@@ -49,6 +49,8 @@ func TestFakeRunnerKillAlwaysEndsExactChild(t *testing.T) {
 }
 
 func TestFakeRunnerSetExitedEndsChildAndUnblocksWait(t *testing.T) {
+	t.Parallel()
+
 	r := NewFakeRunner()
 	h, _ := r.Start("/repo", []string{"pair"}, nil)
 
@@ -89,6 +91,8 @@ func TestFakeRunnerHandleWritesBackToRunnerOps(t *testing.T) {
 }
 
 func TestFakeRunnerRecordsArgvDirAndEnv(t *testing.T) {
+	t.Parallel()
+
 	r := NewFakeRunner()
 	h, _ := r.Start("/repo/sub", []string{"pair"}, []string{"K=V"})
 	c := r.Child(h.ID())
@@ -98,6 +102,8 @@ func TestFakeRunnerRecordsArgvDirAndEnv(t *testing.T) {
 }
 
 func TestExecRunnerPropagatesExitCode(t *testing.T) {
+	t.Parallel()
+
 	h, err := ExecRunner{}.Start(t.TempDir(), []string{"sh", "-c", "exit 3"}, nil)
 	if err != nil {
 		t.Fatalf("Start: %v", err)
@@ -147,6 +153,8 @@ func TestExecRunnerChildEnvironmentOverridesInheritedValue(t *testing.T) {
 }
 
 func TestMergeChildEnvironmentMakesSuppliedKeysUniqueAndAuthoritative(t *testing.T) {
+	t.Parallel()
+
 	got := mergeChildEnvironment(
 		[]string{"KEEP=parent", "PAIR_USE_REPO_DEFAULT=1", "DUP=parent"},
 		[]string{"PAIR_USE_REPO_DEFAULT=", "DUP=first", "DUP=last"},
@@ -189,6 +197,8 @@ func TestExecRunnerChildInheritsPairDev(t *testing.T) {
 }
 
 func TestExecRunnerBlockedStartRunsTargetOnlyAfterAcknowledgement(t *testing.T) {
+	t.Parallel()
+
 	marker := filepath.Join(t.TempDir(), "target-ran")
 	r := ExecRunner{LaunchHelper: os.Args[0]}
 	h, err := r.StartBlocked(context.Background(), t.TempDir(), []string{"sh", "-c", "printf exec > \"$PAIR_TEST_TARGET_MARKER\""}, []string{
@@ -214,6 +224,8 @@ func TestExecRunnerBlockedStartRunsTargetOnlyAfterAcknowledgement(t *testing.T) 
 }
 
 func TestExecRunnerBlockedStartCancelNeverRunsTarget(t *testing.T) {
+	t.Parallel()
+
 	marker := filepath.Join(t.TempDir(), "target-ran")
 	r := ExecRunner{LaunchHelper: os.Args[0]}
 	h, err := r.StartBlocked(context.Background(), t.TempDir(), []string{"sh", "-c", "printf exec > \"$PAIR_TEST_TARGET_MARKER\""}, []string{
@@ -238,6 +250,8 @@ func TestExecRunnerBlockedStartCancelNeverRunsTarget(t *testing.T) {
 // terminal double kept running, which hung a console test rather than failing
 // it -- the same divergence class as BR-18, at a different seam.
 func TestFakeRunnerExitEndsTheHandleAndTheTerminalTogether(t *testing.T) {
+	t.Parallel()
+
 	f := NewFakeRunner()
 	h, err := f.Start("/repo", []string{"pair"}, nil)
 	if err != nil {
@@ -264,6 +278,8 @@ func TestFakeRunnerExitEndsTheHandleAndTheTerminalTogether(t *testing.T) {
 // AutoExit models "the child ran and exited"; both halves must reflect that or
 // a CLI test that relies on it hangs.
 func TestFakeRunnerAutoExitEndsTheTerminalToo(t *testing.T) {
+	t.Parallel()
+
 	f := NewFakeRunner()
 	f.AutoExit(0)
 	h, err := f.Start("/repo", []string{"pair"}, nil)
@@ -276,6 +292,8 @@ func TestFakeRunnerAutoExitEndsTheTerminalToo(t *testing.T) {
 }
 
 func TestFakeRunnerBlockedStartDoesNotExecUntilAcknowledged(t *testing.T) {
+	t.Parallel()
+
 	f := NewFakeRunner()
 	h, err := f.StartBlocked(context.Background(), "/repo", []string{"pair", "resume", "tag"}, []string{"K=V"}, time.Second)
 	if err != nil {
@@ -298,6 +316,8 @@ func TestFakeRunnerBlockedStartDoesNotExecUntilAcknowledged(t *testing.T) {
 }
 
 func TestFakeRunnerBlockedStartCancelNeverExecs(t *testing.T) {
+	t.Parallel()
+
 	f := NewFakeRunner()
 	h, err := f.StartBlocked(context.Background(), "/repo", []string{"pair"}, nil, time.Second)
 	if err != nil {

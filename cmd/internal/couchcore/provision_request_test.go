@@ -9,6 +9,8 @@ import (
 )
 
 func TestParseProvisionRequest(t *testing.T) {
+	t.Parallel()
+
 	for _, slot := range []string{"1", "20"} {
 		r, err := ParseProvisionRequest("/fleet/repo with spaces", slot, "upstream")
 		if err != nil || r.Slot <= 0 || r.Remote != "upstream" {

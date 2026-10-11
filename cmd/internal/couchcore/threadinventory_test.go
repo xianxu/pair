@@ -3,6 +3,8 @@ package couchcore
 import "testing"
 
 func TestBuildThreadInventoryKeepsOneRowPerCompositeThreadAtSamePath(t *testing.T) {
+	t.Parallel()
+
 	first := metadataThread("816fc349d3faebf8", "couch-0000000000000001", "/repo", "first")
 	second := metadataThread("816fc349d3faebf8", "couch-0000000000000002", "/repo", "second")
 	second.Incarnations = []ThreadIncarnation{{State: IncarnationLive}}
@@ -21,6 +23,8 @@ func TestBuildThreadInventoryKeepsOneRowPerCompositeThreadAtSamePath(t *testing.
 // remains the last resort, and DisambiguateLabels keeps two rows at one path
 // distinguishable.
 func TestThreadSummaryLabelsByDirectoryNotName(t *testing.T) {
+	t.Parallel()
+
 	named := metadataThread("816fc349d3faebf8", "couch-0000000000000001", "/repo/named", "compiler")
 	unnamed := metadataThread("816fc349d3faebf8", "couch-0000000000000002", "/repo/unnamed", "")
 
@@ -35,6 +39,8 @@ func TestThreadSummaryLabelsByDirectoryNotName(t *testing.T) {
 }
 
 func TestThreadSummaryKeepsOperatorAndPublishedTextDistinct(t *testing.T) {
+	t.Parallel()
+
 	record := metadataThread("816fc349d3faebf8", "couch-0000000000000001", "/repo", "compiler")
 	row := BuildThreadInventory(ThreadProjectionInput{Records: []ThreadRecord{record}})[0]
 	if row.Description != "operator description" || row.PublishedSummary != "agent summary" || row.DisplaySummary() != "agent summary" {

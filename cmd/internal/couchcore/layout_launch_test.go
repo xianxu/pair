@@ -10,6 +10,8 @@ import (
 
 // The process default must reach both child argv and its persisted witness.
 func TestDefaultCouchIsLayout3(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	if env.Couch.Layout != Layout3 {
 		t.Fatalf("default Couch.Layout = %q; want Layout3", env.Couch.Layout)
@@ -29,6 +31,8 @@ func TestDefaultCouchIsLayout3(t *testing.T) {
 }
 
 func TestColdStartSendsCouchLayout(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	env.Couch.Layout = Layout3
 	if _, _, err := env.Couch.Spawn(StartArgs{Cwd: "/repo"}); err != nil {
@@ -43,6 +47,8 @@ func TestColdStartSendsCouchLayout(t *testing.T) {
 // The witness is what the startup guard reads, so a cold start has to leave it
 // behind or the next couch cannot tell what layout this session is in.
 func TestColdStartRecordsTheWitness(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	env.Couch.Layout = Layout3
 	record, _, err := env.Couch.Spawn(StartArgs{Cwd: "/repo"})
@@ -62,6 +68,8 @@ func TestColdStartRecordsTheWitness(t *testing.T) {
 // session to change to layout3 reaches Pair's destructive conflict path.
 // This also checks that reattachment preserves the existing layout witness.
 func TestWarmReattachSendsNoLayoutEvenInLayout3(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	env.Couch.Layout = Layout3
 	record := validThreadRecord(t)
@@ -108,6 +116,8 @@ func TestWarmReattachSendsNoLayoutEvenInLayout3(t *testing.T) {
 // It starts with no layout field at all, which is the real backfill case: every
 // thread in the operator's store predates #198.
 func TestColdResumeMigratesTheWitnessToCouchLayout(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, "/repo")
 	env.Couch.Layout = Layout3
 	profile := LaunchProfile{Agent: "claude", Argv: []string{}}

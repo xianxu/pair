@@ -6,6 +6,8 @@ import (
 )
 
 func TestFakeGitKeysOnDirNotJustArgv(t *testing.T) {
+	t.Parallel()
+
 	// Ignoring dir is what makes "was git run in the right directory" -- the
 	// only bug Resolve can have -- untestable, and it is what made an earlier
 	// symlink test vacuous.
@@ -25,6 +27,8 @@ func TestFakeGitKeysOnDirNotJustArgv(t *testing.T) {
 }
 
 func TestFakeGitRecordsOps(t *testing.T) {
+	t.Parallel()
+
 	g := NewFakeGit(map[GitCall]string{{Dir: "/a", Args: "rev-parse --show-toplevel"}: "/a"})
 	_, _ = g.Run("/a", "rev-parse", "--show-toplevel")
 	if len(g.Ops) != 1 || g.Ops[0] != "/a: rev-parse --show-toplevel" {
@@ -33,6 +37,8 @@ func TestFakeGitRecordsOps(t *testing.T) {
 }
 
 func TestFakePathOpsMapsAndErrors(t *testing.T) {
+	t.Parallel()
+
 	p := NewFakePathOps(map[string]string{"/link": "/real"})
 	got, err := p.Physical("/link")
 	if err != nil || got != "/real" {
@@ -49,6 +55,8 @@ func TestFakePathOpsMapsAndErrors(t *testing.T) {
 }
 
 func TestOSPathOpsResolvesRealSymlink(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	real, err := OSPathOps{}.Physical(dir)
 	if err != nil {

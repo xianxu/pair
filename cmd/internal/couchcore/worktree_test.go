@@ -3,6 +3,8 @@ package couchcore
 import "testing"
 
 func TestResolveWalksUpToWorktreeRoot(t *testing.T) {
+	t.Parallel()
+
 	// The kbench/competition/arc-agi-3 case: a subdirectory resolves to the
 	// tree that contains it, because the collision hazards are tree-scoped.
 	sub := "/Users/x/workspace/kbench/competition/arc-agi-3"
@@ -19,6 +21,8 @@ func TestResolveWalksUpToWorktreeRoot(t *testing.T) {
 }
 
 func TestResolveAppliesPhysicalToTheInputBeforeCallingGit(t *testing.T) {
+	t.Parallel()
+
 	// Canned only for the PHYSICAL dir: if Resolve skips Physical on the way
 	// in, git is invoked in /link/repo, finds no canned reply, and errors.
 	g := NewFakeGit(map[GitCall]string{
@@ -34,6 +38,8 @@ func TestResolveAppliesPhysicalToTheInputBeforeCallingGit(t *testing.T) {
 }
 
 func TestResolveAppliesPhysicalToGitsAnswer(t *testing.T) {
+	t.Parallel()
+
 	// git can itself report a symlinked toplevel; the stored identity must be
 	// the physical one or two spellings become two trees.
 	g := NewFakeGit(map[GitCall]string{
@@ -53,12 +59,16 @@ func TestResolveAppliesPhysicalToGitsAnswer(t *testing.T) {
 }
 
 func TestResolveErrorsOutsideARepo(t *testing.T) {
+	t.Parallel()
+
 	if _, err := Resolve("/tmp", NewFakeGit(nil), NewFakePathOps(nil)); err == nil {
 		t.Fatal("expected an error outside a git worktree")
 	}
 }
 
 func TestResolveErrorsWhenPathDoesNotResolve(t *testing.T) {
+	t.Parallel()
+
 	p := NewFakePathOps(nil)
 	p.Fail("/gone")
 	if _, err := Resolve("/gone", NewFakeGit(nil), p); err == nil {
@@ -67,6 +77,8 @@ func TestResolveErrorsWhenPathDoesNotResolve(t *testing.T) {
 }
 
 func TestWorktreeKeyFoldsAndRepoDoesNot(t *testing.T) {
+	t.Parallel()
+
 	w := Worktree("/Users/x/KBench")
 	if w.Repo() != "KBench" {
 		t.Errorf("Repo = %q; display must keep case", w.Repo())

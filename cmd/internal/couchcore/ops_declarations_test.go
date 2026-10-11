@@ -6,6 +6,8 @@ import (
 )
 
 func TestOperationDeclarationsAreClosureFreeCompleteAndOwned(t *testing.T) {
+	t.Parallel()
+
 	if _, found := reflect.TypeOf(Operation{}).FieldByName("Invoke"); found {
 		t.Fatal("Operation still embeds an execution closure")
 	}
@@ -77,6 +79,8 @@ func TestOperationDeclarationsAreClosureFreeCompleteAndOwned(t *testing.T) {
 // inverted rather than deleted, because the reversal is worth recording where
 // the superseded claim lived.
 func TestParkDetachLeaveAndResumeSurface(t *testing.T) {
+	t.Parallel()
+
 	var park, resume, leave, detach *Operation
 	for _, operation := range Operations() {
 		op := operation
