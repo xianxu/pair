@@ -1,12 +1,12 @@
 ---
 id: 000503
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: 'edb1a7337e02686117bb0894292f5841789cb2ce' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '0aad4715728e7b4899c904be9eb0c2fd0c0df409' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T15:12:48-07:00
 claimant:
     operator: Xian Xu
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "9e39e630", done: "bde13a86"}
 ---
 
 # broadcast: remove the 👽 remote-control placeholder from the terminal cast until it's built
@@ -34,8 +35,13 @@ Remove the 👽 control from the terminal cast: the status row becomes `LIVE ⏸
 
 ## Plan
 
-- [ ]
+- [x] Remove the control: `broadcast.ControlLabel`, `RenderedStatusRow.Remote`, `Console.statusRemote`, `onRemoteClick` and its click branch; `StatusGuardCols` shrinks to `LIVE ⏸ 👆` (12 → 9 columns).
+- [x] Tests: the exact-row, span and guard tests read `LIVE ⏸ 👆`; the 👽 click test goes; the shared pin-spot table (`tests/broadcast-viewer/pinspots.json`) and `TestNoteVisible` follow the narrower guard.
+- [x] Docs: README, atlas/broadcast.md, atlas/webcast.md; #407's Log notes the removal.
+- [ ] Merge main (#495 touches the same row), full suite, close.
 
 ## Log
 
 ### 2026-10-12
+- The guard width reaches the web viewer over the wire (`event: notes` carries `guard`), so the viewer needs no change; its `.mjs` fixtures carry their own guard. Only the shared pin-spot table pins the number, and Go checks it equals `StatusGuardCols`.
+- `TestNoteVisible` now derives its columns from `StatusGuardCols` rather than hard-coding a column inside the old guard.
