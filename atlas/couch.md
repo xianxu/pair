@@ -141,6 +141,7 @@ native addresses. Creation admission and launch recovery are described in
 
 Every `repo:N` reference — operation refs, the switcher filter, and
 `--send-to` — resolves its repository part with `ResolveRepositoryName`
+(except the reserved bare `hub`, below)
 (`couchcore/repositoryname.go`): exact directory name or alias, then a unique
 prefix of either, counted per repository so two repositories sharing a name
 are refused rather than picked. Misses and ambiguity list bounded candidates
@@ -182,12 +183,19 @@ Couch-launched Codex disables shell snapshots for that process so tool shells
 inherit the current slot environment instead of restoring an older slot's
 identity. The override is not persisted into saved agent arguments.
 
-`couch --actors`, `--send-to repo[:N] [--agent NAME] --message TEXT` and `--message-status ID`
+`couch --actors`, `--send-to repo[:N]|hub [--agent NAME] --message TEXT` and `--message-status ID`
 use bounded Unix stream RPC, without constructing another mutable supervisor.
 `--actors` and `--message-status` support JSON. One pending delivery per actor,
 the inbound breaker, and bounded receipt retention limit the runtime. Family selection requires fresh resting
 branch and quiet-wrapper observations; exact sends allow occupied-slot
 coordination. Quietness is never acceptance of repository work.
+
+The bare target `hub` (pair#463, `couchmessage.HubTarget`) is resolved by the
+message service, not the broker: `messageService.hubRecipient` rewrites it to
+the hub's exact slot via `hubBinding` at send time, ahead of repository-name
+and prefix resolution (a repository named `hub` stays reachable as `hub:N`),
+and refuses when Couch has no hub, the hub isn't connected, or the sender is
+the hub.
 
 **The breaker is a leaky bucket (#433).** Each actor's pure `ActorState` holds
 a burst (`InboundAllowance` 8) that regains one message per `RefillInterval`

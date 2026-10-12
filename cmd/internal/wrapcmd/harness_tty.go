@@ -18,6 +18,10 @@ type harnessTTYProfile struct {
 	composerGate       composerGatePolicy
 	recognize          composerRecognizer
 	captureSetsOverlay bool
+	// overlayHidesComposer: this harness's pickers replace the composer, so
+	// the composer returning after a picker hid it means the picker closed,
+	// however it closed (pair#464). Measured for claude only.
+	overlayHidesComposer bool
 	// orientationPromptCol and orientationRuleCellTolerant serve the
 	// orientation auto-submit gate's composer probe, which re-reads the same
 	// harness quirks the recognizer spec encodes. They live here so a harness
@@ -40,9 +44,10 @@ var harnessTTYProfiles = map[string]harnessTTYProfile{
 			altCR:   []byte{'\r'},
 			altBS:   []byte{0x15},
 		},
-		overlay:      detectClaudeOverlayOpen,
-		composerGate: composerGatePositive,
-		recognize:    claudeComposerActive,
+		overlay:              detectClaudeOverlayOpen,
+		composerGate:         composerGatePositive,
+		recognize:            claudeComposerActive,
+		overlayHidesComposer: true,
 	},
 	"codex": {
 		keymap: sendKeymap{

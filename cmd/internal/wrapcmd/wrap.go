@@ -280,6 +280,9 @@ type proxy struct {
 	// consumes pickerActive — so consumed picker bytes can never re-arm the
 	// flag from a later chunk.
 	overlayRawTail []byte
+	// overlayComposerHidden records that the screen showed no composer since
+	// pickerActive armed; see observePickerScreen. Guarded by overlayMu.
+	overlayComposerHidden bool
 	// overlayConsumeHook is a deterministic test seam invoked while an older
 	// Return owns overlayMu after consuming its overlay state.
 	overlayConsumeHook func()
@@ -525,6 +528,7 @@ func (p *proxy) output() *stdoutPump {
 			if err := p.terminal.Feed(data); err != nil {
 				p.debug("TERMINAL-feed-fail", err.Error())
 			}
+			p.observePickerScreen()
 		}
 	}
 	return p.stdoutPump
@@ -2008,6 +2012,9 @@ func (p *proxy) checkOverlayOpen(data, rolling []byte) {
 		if detection.newlyOpened {
 			p.debug("PICKER-open", p.agentBasename+": "+detection.reason)
 			p.adapt.Log(2, "overlay-detect", adapt.Fired, p.agentBasename+": "+detection.reason)
+			// The picker's frame was drawn before its signal armed the
+			// latch; read it now, or a close in the next frame goes unseen.
+			p.observePickerScreen()
 		}
 		return
 	}
@@ -2150,11 +2157,7 @@ func (p *proxy) emitPlainCR(out []byte) []byte {
 		profile = *p.ttyProfile
 	}
 	p.overlayMu.Lock()
-	overlayActive := p.pickerActive.Swap(false)
-	if overlayActive {
-		p.overlayTextTail = ""
-		p.overlayRawTail = nil
-	}
+	overlayActive := p.consumeOverlayLocked()
 	if p.overlayConsumeHook != nil {
 		p.overlayConsumeHook()
 	}
@@ -2170,6 +2173,46 @@ func (p *proxy) emitPlainCR(out []byte) []byte {
 		p.publishLifecycleObservation(TurnObservation{Kind: ObservationBareReturn})
 	}
 	return append(out, decision.bytes...)
+}
+
+// consumeOverlayLocked closes the overlay and drops its carries, so consumed
+// picker bytes can't re-arm it. The confirming Enter and the composer's return
+// both close it here. The caller holds overlayMu.
+func (p *proxy) consumeOverlayLocked() bool {
+	active := p.pickerActive.Swap(false)
+	if active {
+		p.overlayTextTail = ""
+		p.overlayRawTail = nil
+	}
+	p.overlayComposerHidden = false
+	return active
+}
+
+// observePickerScreen closes a picker the screen shows is gone (pair#464).
+// Enter is not the only way one closes: Claude Code auto-denies an unattended
+// permission prompt after two minutes, and Esc or a digit key answer it too.
+// Each left the latch armed, holding every peer message until someone pressed
+// Enter. For a harness whose pickers replace the composer, the composer coming
+// back after the picker hid it is the close. Requiring the hidden reading
+// first keeps an open OSC that arrives ahead of the picker's paint armed.
+func (p *proxy) observePickerScreen() {
+	profile := p.observationProfile()
+	if profile == nil || !profile.overlayHidesComposer || profile.recognize == nil || p.terminal == nil || !p.pickerActive.Load() {
+		return
+	}
+	p.overlayMu.Lock()
+	defer p.overlayMu.Unlock()
+	if !p.pickerActive.Load() {
+		return
+	}
+	if !profile.recognize(p.terminal.Snapshot()) {
+		p.overlayComposerHidden = true
+		return
+	}
+	if p.overlayComposerHidden {
+		p.consumeOverlayLocked()
+		p.debug("PICKER-close", p.agentBasename+": composer back on screen")
+	}
 }
 
 // translateChunk walks `data` and returns (rewritten bytes, leftover to

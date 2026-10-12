@@ -6,7 +6,7 @@ github_issue:
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
-card_mirror: 'fcb51a512d154e60941480c7d5983bd4b0e58b91' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '645952108e2fa2d72c90e06ed657768b90f9a545' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # broadcast-web: live viewer — sandboxed, script-free rebuild, scaled, join mid-cast
@@ -24,6 +24,8 @@ Implement #457's viewer contract as the live viewer page (replacing pair#454's s
 - Join mid-cast from the latest snapshot; survive segments (new document, tab switch, pause).
 - Assets resolved through the proxy's URLs (pair#459); against fixtures, a static fixture server stands in.
 - Works in desktop Chrome and iPad Safari.
+- Show the operator's hover (the `hover` record, added by pair#458) as a stand-in for `:hover` state, and the operator's sampled pointer position.
+- A note made in the viewer carries the box the viewer computed at click time (its layout equals the operator's, only scaled), not a later capture in the operator's tab (approved with #457, 10-12).
 
 ## Done when
 
