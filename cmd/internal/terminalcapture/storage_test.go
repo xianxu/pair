@@ -215,7 +215,7 @@ func TestCaptureStorageChargesFinishedLegacyActualBytes(t *testing.T) {
 
 func TestCaptureStorageOpenKeepsCompletedReservation(t *testing.T) {
 	root := t.TempDir()
-	r, err := Open(root, Config{MaxBytes: MaxSessionBytes})
+	r, err := Open(root, Config{MaxBytes: MaxSessionBytes, CloseTimeout: waitForDrain})
 	if err != nil {
 		t.Fatal(err)
 	}

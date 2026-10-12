@@ -27,6 +27,11 @@ type webcastRig struct {
 	fakes  []*webcast.FakeBrowser
 	gate   chan struct{}
 	fail   error
+	// wrap, when set, records the cast: Launch gets a recordings directory
+	// and returns wrap's Browser around each fake (#470's web notes).
+	wrap func(*webcast.FakeBrowser, *webcast.RecordOptions) webcast.Browser
+	// screen also configures the screen broadcast, on the same tunnel.
+	screen bool
 }
 
 func newWebcastRig(t *testing.T, tweak func(*webcastRig)) *webcastRig {
@@ -38,7 +43,7 @@ func newWebcastRig(t *testing.T, tweak func(*webcastRig)) *webcastRig {
 	cfg := webcast.CastConfig{
 		Host: broadcast.NewHost(broadcast.HostConfig{Tunnel: r.tunnel, ProbeTimeout: 2 * time.Second}),
 		Ping: 50 * time.Millisecond,
-		Launch: func(ctx context.Context, _ *webcast.RecordOptions) (webcast.Browser, error) {
+		Launch: func(ctx context.Context, ro *webcast.RecordOptions) (webcast.Browser, error) {
 			if r.gate != nil {
 				select {
 				case <-r.gate:
@@ -53,10 +58,21 @@ func newWebcastRig(t *testing.T, tweak func(*webcastRig)) *webcastRig {
 			}
 			f := webcast.NewFakeBrowser()
 			r.fakes = append(r.fakes, f)
+			if r.wrap != nil {
+				return r.wrap(f, ro), nil
+			}
 			return f, nil
 		},
 	}
-	r.consoleFixture = newFixtureBeforeRun(t, 24, 80, func(con *Console) { con.SetWebcast(cfg) })
+	if r.wrap != nil {
+		cfg.RecordingsDir = t.TempDir()
+	}
+	r.consoleFixture = newFixtureBeforeRun(t, 24, 80, func(con *Console) {
+		con.SetWebcast(cfg)
+		if r.screen {
+			con.SetBroadcast(broadcast.Config{Tunnel: r.tunnel, Ping: 50 * time.Millisecond})
+		}
+	})
 	r.child.Feed([]byte("child says hi"))
 	waitFor(t, "child output on screen", func() bool { return strings.Contains(r.screenText(), "child says hi") })
 	return r

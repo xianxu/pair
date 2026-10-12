@@ -133,6 +133,25 @@ func (c *Console) webcastStarted(attempt uint64, cast *webcast.Cast, err error, 
 	c.wcast.phase, c.wcast.cast, c.wcast.update = webcastRunning, cast, cast.Current()
 	c.mu.Unlock()
 	c.setNotice("Chrome is open. Press Shift+Ctrl+Alt+b or click Chrome ▶ to go live; right-click it for the viewer link.")
+	c.syncOverlay(overlayWeb, true) // the notes menu draws in it
+	notes, stopNotes := cast.Notes()
+	c.GoTracked(func() {
+		defer stopNotes()
+		for {
+			select {
+			case live, open := <-notes:
+				if !open {
+					return
+				}
+				_ = c.runTerminalCommand(c.lifetime, func() error {
+					c.applyWebNotes(cast, live)
+					return nil
+				})
+			case <-c.stop:
+				return
+			}
+		}
+	})
 	updates, unsubscribe := cast.Subscribe()
 	c.GoTracked(func() {
 		defer unsubscribe()
@@ -196,6 +215,8 @@ func (c *Console) webcastEnded(cast *webcast.Cast) {
 	byOperator := c.wcast.phase == webcastEnding
 	c.wcast = webcastState{attempt: c.wcast.attempt}
 	c.mu.Unlock()
+	c.forgetWebNotes()
+	c.syncOverlay(overlayWeb, false)
 	switch err := cast.Err(); {
 	case byOperator || err == nil:
 		c.setNotice("Chrome cast ended.")

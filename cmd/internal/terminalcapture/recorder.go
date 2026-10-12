@@ -29,8 +29,11 @@ var (
 
 // Config bounds the complete session file, including its final status record.
 // Zero selects the default 256 MiB; explicit limits range from 1 MiB to 32 GiB.
+// CloseTimeout bounds Close's drain wait; zero selects the default 2s. A test
+// whose subject is the captured content, not shutdown, waits out the drain.
 type Config struct {
-	MaxBytes int64
+	MaxBytes     int64
+	CloseTimeout time.Duration
 }
 
 // Phase describes recorder admission and shutdown. Failed is terminal even when
@@ -98,6 +101,12 @@ func Open(parent string, config ...Config) (*Recorder, error) {
 			return nil, errors.New("terminal capture byte limit must be between 1 MiB and 32 GiB")
 		}
 		opts.fileBytes = limit
+	}
+	if len(config) == 1 && config[0].CloseTimeout != 0 {
+		if config[0].CloseTimeout < 0 {
+			return nil, errors.New("terminal capture close timeout must be positive")
+		}
+		opts.closeTimeout = config[0].CloseTimeout
 	}
 
 	dir, f, err := openCaptureFile(parent, opts.fileBytes)

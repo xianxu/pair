@@ -392,3 +392,25 @@ func TestRecorderEmit(t *testing.T) {
 		t.Fatalf("stats %+v", st)
 	}
 }
+
+// A board's record names the document it was made on (#470): written while
+// that document is current, dropped (not counted as refused) once it isn't.
+func TestRecorderEmitChecksTheDocument(t *testing.T) {
+	h := newHarness(t)
+	h.page("A", "http://a/", "L1")
+	h.r.Send(Live{Tab: rec.Tab{ID: "T-A"}, Session: "A"})
+	h.settle()
+	top := h.id("A", h.fc.pages["A"].doc.backend)
+	h.r.Send(Emit{Record: &rec.Note{ID: "on", Author: rec.Author{ID: "v"}, At: rec.NoteAt{Node: top}}, Doc: 1})
+	h.r.Send(Emit{Record: &rec.Note{ID: "gone", Author: rec.Author{ID: "v"}, At: rec.NoteAt{Node: top}}, Doc: 2})
+	h.settle()
+	if got := h.kinds(); got != "head seg:live doc note" {
+		t.Fatalf("records %s", got)
+	}
+	if n := h.last("note").(*rec.Note); n.ID != "on" {
+		t.Fatalf("note %s written", n.ID)
+	}
+	if st, _ := h.r.Stats(context.Background()); len(st.Dropped) != 0 {
+		t.Fatalf("a note for a gone document is not a refusal: %+v", st.Dropped)
+	}
+}

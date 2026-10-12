@@ -105,7 +105,8 @@ to claim capacity: mismatches or unknown versions refuse admission. Each capture
 contains unredacted display data; retain the whole session directory for incidents.
 
 Shutdown restores the terminal before draining capture, with a two-second drain
-limit. A filesystem write cannot reliably be canceled; after timeout the existing
+limit (`terminalcapture.Config.CloseTimeout`; only tests whose subject is the
+captured content change it, to wait out the drain, #476). A filesystem write cannot reliably be canceled; after timeout the existing
 writer may finish only when the OS returns or the process exits. The command
 reports that failure. A late complete marker describes persisted admitted data,
 not successful command shutdown. A killed process normally has no ending marker.

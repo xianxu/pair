@@ -149,6 +149,10 @@ type Console struct {
 	replays *webcast.ReplayShares
 	// statusWebcast is the Chrome cell's span on the last drawn row.
 	statusWebcast ColumnSpan
+	// statusWebNotes is the web cast's 💭N span (#470).
+	statusWebNotes ColumnSpan
+	// overlayUsers is who needs the collaboration overlay (syncOverlay).
+	overlayUsers overlayUser
 	// pointer is the pointer link's phase (#412), under mu; pmarks is the
 	// marks state the Presenter's overlay reads, behind its own leaf lock.
 	pointer pointerPhase
