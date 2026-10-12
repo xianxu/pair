@@ -1,6 +1,6 @@
 ---
 id: 000457
-status: codecomplete
+status: done
 created: 2026-10-11
 updated: 2026-10-12
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: ffae0334f3ae699132e0b400e529cc31dcaa2491
         evidence_commit: 5df8d5913bdcd92c7ba71ccdaa210dd4dbcd693a
+        landed_commit: 8373861a9ada8f6213216c65633aec33a0add8a1
 ---
 
 # broadcast-web: recording format and component seams (contracts, fixtures, reference reducer)
