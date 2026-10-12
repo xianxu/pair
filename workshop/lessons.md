@@ -1369,3 +1369,8 @@ proof; record the surprising case so the next change starts from evidence.
   The converse is the same rule's other half: the worker never wakes itself. Its own failed attempt schedules its
   retry, or it spins (round 2's Critical). A fake must refuse the way the real seam refuses (`ErrRecipientBusy`,
   not a bare error), or the tests never exercise the path the product takes.
+- **A fixture the product identifies by command must not exec away from that command (#487).** The fake cloudflared
+  ran `exec sleep 300`, so its ps command became `sleep 300` a moment after start, and reaping (correctly) spares a
+  non-cloudflared process. The test passed only while ps beat the exec, and under load it lost. When a fake stands in
+  for a process the code checks by command, PID or identity, wait for the fixture's settled state and assert the
+  property there, not the first moment it holds. Wait on the outcome with `testwait`, never a fixed window.
