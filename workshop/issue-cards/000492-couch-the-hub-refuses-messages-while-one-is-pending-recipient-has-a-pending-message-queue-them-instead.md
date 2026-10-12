@@ -1,6 +1,6 @@
 ---
 id: 000492
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: c3e9e8158ff93055e72c940aa8a3a959e513f79b
         evidence_commit: 10ea356b8bfc4790963f068e57d7c19011735841
+        landed_commit: 19e7523d3e07bf95254fabf432e69bc2cd963449
 ---
 
 # couch: the hub refuses messages while one is pending ('recipient has a pending message'); queue them instead
