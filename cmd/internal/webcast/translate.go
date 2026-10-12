@@ -15,13 +15,22 @@ type (
 	pageAttached struct{ TargetID, SessionID string }
 	pageDetached struct{ SessionID string }
 	// contextCreated is the control's world in a page's top frame.
-	contextCreated   struct{ SessionID string; ContextID int64 }
-	contextDestroyed struct{ SessionID string; ContextID int64 }
-	contextsCleared  struct{ SessionID string }
+	contextCreated struct {
+		SessionID string
+		ContextID int64
+	}
+	contextDestroyed struct {
+		SessionID string
+		ContextID int64
+	}
+	contextsCleared struct{ SessionID string }
 	// toggleRequested: the in-page Go live / Pause control was clicked.
 	toggleRequested struct{ SessionID string }
 	// helloRequested: a new document's control asks for the current state.
-	helloRequested struct{ SessionID string; ContextID int64 }
+	helloRequested struct {
+		SessionID string
+		ContextID int64
+	}
 )
 
 type targetInfo struct {
@@ -123,6 +132,7 @@ func translateBinding(sessionID string, params json.RawMessage, targetOf func(st
 	}
 	var m struct {
 		T       string `json:"t"`
+		Title   string `json:"title"`
 		Visible bool   `json:"visible"`
 		Focused bool   `json:"focused"`
 	}
@@ -132,6 +142,8 @@ func translateBinding(sessionID string, params json.RawMessage, targetOf func(st
 	switch m.T {
 	case "vis":
 		return []any{PageReport{ID: target, Visible: m.Visible, Focused: m.Focused}}
+	case "title":
+		return []any{PageTitle{ID: target, Title: m.Title}}
 	case "toggle":
 		return []any{toggleRequested{SessionID: sessionID}}
 	case "hello":

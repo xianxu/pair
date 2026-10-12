@@ -33,6 +33,7 @@ func TestTranslateSpikeCapture(t *testing.T) {
 		{PageReport{ID: "0F72", Visible: true}},
 		{toggleRequested{SessionID: "5AF3"}},
 		{helloRequested{SessionID: "5AF3", ContextID: 4}},
+		{PageTitle{ID: "0F72", Title: "hi"}},
 		nil, // malformed payload
 		nil, // someone else's binding
 		{TargetChanged{ID: "0F72", URL: "data:text/html,<title>hi</title><p>hello", Title: "hi"}},

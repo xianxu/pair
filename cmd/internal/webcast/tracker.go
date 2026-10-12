@@ -28,14 +28,18 @@ type Tracker struct {
 }
 
 type trackedPage struct {
-	tab       Tab
-	reported  bool
-	visible   bool
-	activated uint64
+	tab Tab
+	// targetTitle is Chrome's title for the page, pageTitle the one its
+	// document reported. Chrome reports a new URL at once but a new <title>
+	// only much later, so the document's own title wins when it has one.
+	targetTitle, pageTitle string
+	reported               bool
+	visible                bool
+	activated              uint64
 }
 
 // TrackerInput is one of TargetCreated, TargetChanged, TargetDestroyed,
-// PageReport.
+// PageReport, PageTitle.
 type TrackerInput interface{ trackerInput() }
 
 // TargetCreated: a page target appeared.
@@ -53,7 +57,11 @@ type PageReport struct {
 	Visible, Focused bool
 }
 
+// PageTitle: the page's top document reported its title.
+type PageTitle struct{ ID, Title string }
+
 func (TargetCreated) trackerInput()   {}
+func (PageTitle) trackerInput()       {}
 func (TargetChanged) trackerInput()   {}
 func (TargetDestroyed) trackerInput() {}
 func (PageReport) trackerInput()      {}
@@ -68,13 +76,17 @@ func (t *Tracker) Apply(in TrackerInput) {
 	switch in := in.(type) {
 	case TargetCreated:
 		if p, ok := t.pages[in.ID]; ok {
-			p.tab.URL, p.tab.Title = in.URL, in.Title
+			p.tab.URL, p.targetTitle = in.URL, in.Title
 			return
 		}
-		t.pages[in.ID] = &trackedPage{tab: Tab(in), activated: t.seq}
+		t.pages[in.ID] = &trackedPage{tab: Tab{ID: in.ID, URL: in.URL}, targetTitle: in.Title, activated: t.seq}
 	case TargetChanged:
 		if p, ok := t.pages[in.ID]; ok {
-			p.tab.URL, p.tab.Title = in.URL, in.Title
+			p.tab.URL, p.targetTitle = in.URL, in.Title
+		}
+	case PageTitle:
+		if p, ok := t.pages[in.ID]; ok {
+			p.pageTitle = in.Title
 		}
 	case TargetDestroyed:
 		delete(t.pages, in.ID)
@@ -115,7 +127,12 @@ func (t *Tracker) Active() (Tab, bool) {
 	if best == nil {
 		return Tab{}, false
 	}
-	return best.tab, true
+	tab := best.tab
+	tab.Title = best.pageTitle
+	if tab.Title == "" {
+		tab.Title = best.targetTitle
+	}
+	return tab, true
 }
 
 // Pages is how many page targets are open.

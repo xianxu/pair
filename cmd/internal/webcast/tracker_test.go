@@ -86,6 +86,21 @@ func TestTrackerURLTitleFollowChanges(t *testing.T) {
 	if tab, _ := tr.Active(); tab.Title != "Cart" || tr.Pages() != 1 {
 		t.Fatalf("repeat create: tab %+v pages %d", tab, tr.Pages())
 	}
+	// Chrome is slow to report a new <title>; the document's own wins.
+	tr.Apply(TargetChanged{ID: "a", URL: "data:x", Title: "data:x"})
+	tr.Apply(PageTitle{ID: "a", Title: "one"})
+	if tab, _ := tr.Active(); tab.Title != "one" || tab.URL != "data:x" {
+		t.Fatalf("page title: %+v", tab)
+	}
+	tr.Apply(TargetChanged{ID: "a", URL: "data:x", Title: "data:x"})
+	if tab, _ := tr.Active(); tab.Title != "one" {
+		t.Fatalf("stale target title overrode the page's: %+v", tab)
+	}
+	// A document without a title falls back to Chrome's.
+	tr.Apply(PageTitle{ID: "a", Title: ""})
+	if tab, _ := tr.Active(); tab.Title != "data:x" {
+		t.Fatalf("fallback: %+v", tab)
+	}
 	tr.Apply(TargetChanged{ID: "gone", URL: "x"})
 	if tr.Pages() != 1 {
 		t.Fatalf("change for unknown page created one")

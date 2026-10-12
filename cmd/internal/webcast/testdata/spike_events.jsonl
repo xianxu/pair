@@ -8,6 +8,7 @@
 {"method":"Runtime.bindingCalled","params":{"name":"__couchcast","payload":"{\"t\":\"vis\",\"visible\":true,\"focused\":false}","executionContextId":2},"sessionId":"5AF3"}
 {"method":"Runtime.bindingCalled","params":{"name":"__couchcast","payload":"{\"t\":\"toggle\"}","executionContextId":2},"sessionId":"5AF3"}
 {"method":"Runtime.bindingCalled","params":{"name":"__couchcast","payload":"{\"t\":\"hello\"}","executionContextId":4},"sessionId":"5AF3"}
+{"method":"Runtime.bindingCalled","params":{"name":"__couchcast","payload":"{\"t\":\"title\",\"title\":\"hi\"}","executionContextId":4},"sessionId":"5AF3"}
 {"method":"Runtime.bindingCalled","params":{"name":"__couchcast","payload":"not json","executionContextId":2},"sessionId":"5AF3"}
 {"method":"Runtime.bindingCalled","params":{"name":"somethingElse","payload":"{\"t\":\"toggle\"}","executionContextId":2},"sessionId":"5AF3"}
 {"method":"Target.targetInfoChanged","params":{"targetInfo":{"targetId":"0F72","type":"page","url":"data:text/html,<title>hi</title><p>hello","title":"hi"}}}

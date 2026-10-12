@@ -23,6 +23,7 @@ function page({ top = true, readyState = 'complete', visible = true, focused = t
   const sent = [];
   const docListeners = {}, winListeners = {};
   const document = {
+    title: '',
     readyState,
     visibilityState: visible ? 'visible' : 'hidden',
     documentElement: new El('html'),
@@ -51,14 +52,15 @@ test('nothing runs in a subframe', () => {
   assert.equal(p.host(), undefined);
 });
 
-test('reports hello and visibility on load, then on each change', () => {
+test('reports hello, visibility and title on load, then on each change', () => {
   const p = page({ visible: true, focused: false });
+  p.document.title = 'Shop';
   p.run();
-  assert.deepEqual(p.sent, [{ t: 'hello' }, { t: 'vis', visible: true, focused: false }]);
+  assert.deepEqual(p.sent, [{ t: 'title', title: 'Shop' }, { t: 'hello' }, { t: 'vis', visible: true, focused: false }]);
   p.document.visibilityState = 'hidden';
   p.fire('doc', 'visibilitychange');
   p.fire('win', 'focus');
-  assert.deepEqual(p.sent.slice(2), [
+  assert.deepEqual(p.sent.slice(3), [
     { t: 'vis', visible: false, focused: false },
     { t: 'vis', visible: false, focused: false },
   ]);
@@ -99,4 +101,14 @@ test('at document start the control mounts on DOMContentLoaded', () => {
   p.ctx.__couchcastSet(true); // state may arrive before the button exists
   p.fire('doc', 'DOMContentLoaded');
   assert.equal(p.button().textContent, '❚❚ Pause');
+});
+
+test('title is reported when it changes, once per value', () => {
+  const p = page({ readyState: 'loading' });
+  p.run();
+  assert.deepEqual(p.sent.filter((m) => m.t === 'title'), [{ t: 'title', title: '' }]);
+  p.document.title = 'Cart';
+  p.fire('doc', 'DOMContentLoaded');
+  p.fire('win', 'load');
+  assert.deepEqual(p.sent.filter((m) => m.t === 'title').map((m) => m.title), ['', 'Cart']);
 });

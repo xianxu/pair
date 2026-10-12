@@ -5,8 +5,9 @@
 // It draws a Go live / Pause button inside a closed shadow root, so page CSS
 // can't restyle it; the host carries data-couchcast-ui so the recorder can
 // leave it out. It reports the page's visibility and focus (the cast follows
-// the active tab) and asks for the current state on load ("hello"); Couch
-// answers through __couchcastSet.
+// the active tab) and its title (Chrome reports a new <title> late), and asks
+// for the current state on load ("hello"); Couch answers through
+// __couchcastSet.
 (() => {
   if (window !== window.top || globalThis.__couchcastInstalled) return;
   globalThis.__couchcastInstalled = true;
@@ -56,11 +57,31 @@
   window.addEventListener('focus', visibility);
   window.addEventListener('blur', visibility);
 
+  let lastTitle = null;
+  const title = () => {
+    const t = document.title;
+    if (t === lastTitle) return;
+    lastTitle = t;
+    report({ t: 'title', title: t });
+  };
+  // A <title> lives in the head, which changes rarely; observing it costs
+  // nothing on a busy body.
+  let observed = null;
+  const observeTitle = () => {
+    const target = document.head || document.documentElement;
+    if (!target || target === observed || typeof MutationObserver === 'undefined') return;
+    observed = target;
+    new MutationObserver(title).observe(target, { subtree: true, childList: true, characterData: true });
+  };
+
+  const loaded = () => { mount(); observeTitle(); title(); };
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', mount);
+    document.addEventListener('DOMContentLoaded', loaded);
   } else {
-    mount();
+    loaded();
   }
+  window.addEventListener('load', title);
   report({ t: 'hello' });
   visibility();
+  title();
 })();
