@@ -53,7 +53,7 @@ Calls without a verdict (recover's reboot step) still refuse live rows.
 - [x] Couch action and confirmation (operator chose `Tab → reboot` on live rows; no new chord)
 - [x] Relaunch refusals name reboot (`withRebootHint`)
 - [x] Tests, atlas, help, README, skill
-- [ ] Live check: reboot a real slot; operator smoke test of Tab → reboot
+- [x] Live check: reboot a real slot; operator smoke test of Tab → reboot
 
 ## Log
 
@@ -63,3 +63,6 @@ Calls without a verdict (recover's reboot step) still refuse live rows.
 - Sandbox blocks pty/socket tests; ran couchtty/couchcore/couchcmd/couchmessage unsandboxed: all ok.
 
 ### 2026-10-11
+- Moved to pair:0 at 10c02586 (main merged), built couch/pair (vcs.revision verified). Operator smoke: Tab → reboot on pair:6 (live, never finished a turn) worked. Remote: `couch --reboot pair:6 --confirm` → "pair:6 reboot succeeded (tag 1-pair-42); archived 1-pair-36".
+- Sandbox: `couch --reboot` from the agent shell failed `dial unix …sock: connect: operation not permitted`; unsandboxed it worked (evidence for ariadne#334).
+- `go test ./...` (unsandboxed, PAIR_* retention env scrubbed): all ok after rewording my help line, which tripped `TestPublicHelpListsOnlyPublicSurface` with the word "start".

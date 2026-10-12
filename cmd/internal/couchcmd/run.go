@@ -1252,7 +1252,7 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "             slot verdicts with Couch's threads, with a suggested next step.")
 	fmt.Fprintln(w, "       couch --resume repo:N [--json]")
 	fmt.Fprintln(w, "       couch --reboot repo:N --confirm [--force-unknown] [--json]")
-	fmt.Fprintln(w, "             Archive the slot's conversation and start a fresh agent on the current")
+	fmt.Fprintln(w, "             Archive the slot's conversation and replace it with a fresh agent on the current")
 	fmt.Fprintln(w, "             binary. A live slot is stopped first; busy refuses, busy-unknown needs")
 	fmt.Fprintln(w, "             --force-unknown, and a dirty tree is reported, not refused.")
 	fmt.Fprintln(w, "       couch --relaunch repo:N --confirm [--same-binary] [--force-unknown] [--json]")
