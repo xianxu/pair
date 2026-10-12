@@ -1,6 +1,6 @@
 ---
 id: 000500
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 73fc04ce0c455153a07e6bdb8ee55d446695c209
         evidence_commit: 2562afe6ba272814ccb54e2ddb49568eaae07c70
+        landed_commit: 69ccc31e17f2ab5d6323392217bb6b9256a6e3b8
 ---
 
 # roll out ariadne#309 workflows (local-gates-guard, merge-check on push) to pair
