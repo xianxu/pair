@@ -45,7 +45,7 @@ Context text is the visible text a person would read: skip `script`, `style`, `t
   context must hold no script and keep the heading apart from the paragraph. Mutation-checked: either model
   reverted to `TextContent` fails it.
 - [x] Unit table `TestRenderedText`; fixture test `TestContextOfAppReportsIsRenderedText` (app-n3).
-- [ ] Merge main once #462 lands; regenerate its goldens (`app.notes.txt` et al.), check they read cleanly.
+- [x] Merge main once #462 lands; regenerate its goldens (`app.notes.txt` et al.), check they read cleanly.
 
 ## Log
 
@@ -55,3 +55,5 @@ Context text is the visible text a person would read: skip `script`, `style`, `t
   After: `Reports Week 1 0 tasks Week 2 137 tasks …`, no script.
 - Out of scope, noted: `NoteAt.Text` (the anchor's text, stored in recordings and compared in `Resolve`) still
   uses `TextContent`. Changing it would change stored anchors and their matching; Context is what agents read.
+- Merged main after #462 landed; `-update` changed only context `text:` lines in app/stress/segments notes
+  goldens (e.g. `tasksAddShip…` → `tasks Add Ship…`, `Inboxone` → `Inbox one`); no golden carries script text.
