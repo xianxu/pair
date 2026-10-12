@@ -17,6 +17,14 @@ tracker:
         source_blob: f3eea1fa0d5eca21edc9064c6e4e0c4150bedd56
         destination: workshop/issues/000463-couch-send-to-hub-a-reserved-target-the-supervisor-resolves-live-to-the-hub-slot.md
         main_commit: 425de54327f006558f857a7309f1406ae9294ee6
+started: 2026-10-12T00:15:37-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch --send-to hub: a reserved target the supervisor resolves live to the hub slot
