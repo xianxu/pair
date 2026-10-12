@@ -37,10 +37,10 @@ Find where the one-pending limit lives (per recipient, per sender pair, or the h
 
 Durable plan: `workshop/plans/000492-…-plan.md` (Tasks 1-4, then verification).
 
-- [ ] Task 1: model queue (pure `Advance`: Admit queues, Promote, Cancel, Tick expiry)
-- [ ] Task 2: exact routing resolves a busy recipient (family routing unchanged)
-- [ ] Task 3: broker queues at admission, worker promotes in order, holding on a busy wrapper
-- [ ] Task 4: CLI prints the position; skill, README, atlas
+- [x] Task 1: model queue (pure `Advance`: Admit queues, Promote, Cancel, Tick expiry)
+- [x] Task 2: exact routing resolves a busy recipient (family routing unchanged)
+- [x] Task 3: broker queues at admission, worker promotes in order, holding on a busy wrapper
+- [x] Task 4: CLI prints the position; skill, README, atlas
 
 ## Log
 
@@ -51,4 +51,14 @@ Why the limit exists: one paste at a time. `ActorState.pending` is the one deliv
 input moved its sequence. A held delivery (draft, scrolled pane, picker) can occupy the one
 slot for up to MaxHold (30 min, pair#435), so every other sender is refused meanwhile: the
 10-12 case. Keep the serialization (the protection); queue admissions behind it (the fix).
+TL (ops:0) approved the plan with one ask, recorded in the plan's Revisions: a queued
+message whose recipient disconnects or relaunches ends `cancelled` with
+"<slot> disconnected (relaunched or exited) before delivery; resend", shown by
+`--message-status`. The CLI already prints a receipt's detail under its status, so it
+needed only a test.
+Found while wiring: the wrapper's busy refusal crossed the socket as a plain string
+(`RemoteEndpoint.call`), so the admission fallback could never see it. It is now mapped
+to `ErrRecipientBusy`, as the other sentinel errors are, with a test.
+The broker applies no `Tick` in production (expiry ran on the delivery job's timer), so
+`promote` applies a Tick before reading the head; that is where `QueueWait` expiry runs.
 

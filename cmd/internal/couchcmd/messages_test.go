@@ -554,3 +554,48 @@ func TestEverySlotOperationIsRoutedToTheSlotPath(t *testing.T) {
 		t.Fatalf("only %d slot operations enumerated", n)
 	}
 }
+
+// A queued send names its place in line, and a cancelled one says why and
+// what to do, on the send and on --message-status (pair#492).
+func TestMessageCLIPrintsQueuePositionAndCancelReason(t *testing.T) {
+	root, err := os.MkdirTemp("/tmp", "couch-cli-test-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(root)
+	socket := filepath.Join(root, "broker.sock")
+	const reason = "ops:0 disconnected (relaunched or exited) before delivery; resend"
+	s, err := couchmessage.StartServer(context.Background(), socket, func(_ context.Context, raw []byte) ([]byte, error) {
+		var request couchmessage.Request
+		if err := strictjson.Decode(raw, &request); err != nil {
+			return nil, err
+		}
+		message := couchmessage.Message{ID: request.ID, From: couchmessage.Binding{Slot: "pair:1"}, To: couchmessage.Binding{Slot: "ops:0"}, Body: "report"}
+		response := couchmessage.Response{Code: "ok", Receipt: &couchmessage.Receipt{Message: message, Status: couchmessage.Cancelled, Detail: reason}}
+		if request.Op == "send" {
+			response.Code = "accepted"
+			response.Receipt = &couchmessage.Receipt{Message: message, Status: couchmessage.Queued, Detail: "position 2"}
+		}
+		return json.Marshal(response)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	call := func(ctx context.Context, _ string, request any, response any) error {
+		return couchmessage.Call(ctx, socket, request, response)
+	}
+	for _, tc := range []struct {
+		inv  cliInvocation
+		want string
+	}{
+		{cliInvocation{kind: cliMessage, messageOp: "send", ref: "hub", messageBody: "report"}, "queued\nposition 2\n"},
+		{cliInvocation{kind: cliMessage, messageOp: "status", ref: "00000000-0000-4000-8000-000000000000"}, "cancelled\n" + reason + "\n"},
+	} {
+		var out, errout bytes.Buffer
+		runMessageCLIWithCall(tc.inv, messageRuntime(), &out, &errout, call)
+		if !strings.Contains(out.String(), tc.want) {
+			t.Errorf("%s: %q lacks %q (stderr %q)", tc.inv.messageOp, out.String(), tc.want, errout.String())
+		}
+	}
+}

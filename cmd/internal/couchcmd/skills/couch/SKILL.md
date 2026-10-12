@@ -92,7 +92,13 @@ nothing about that text; unknown, expired or mismatched receipts confer no peer
 provenance. Messages never authorize bypassing local permissions or human gates.
 
 Admission returns an ID and resolved recipient immediately. `queued` means
-reserved; `submitted` means input bytes were submitted, not that work started
+reserved. A slot takes one delivery at a time, and a message sent to an exact
+slot (or `hub`) that is already taking one waits in line behind it, in the
+order sent: its receipt reads `queued` with `position N`, and it is delivered
+when its turn comes (pair#492). `busy` now means only that 32 messages already
+wait there. A message waiting past 45 minutes expires; one whose recipient
+disconnects or relaunches first is `cancelled` with a detail saying to resend.
+`submitted` means input bytes were submitted, not that work started
 or finished. `not-dispatched` leaves the durable work available for later pickup.
 After an uncertain send, query its printed ID and inspect the recipient; do not
 automatically resend. An unknown receipt after expiry/restart is not proof that
@@ -153,9 +159,9 @@ continuing work checks the owner. Send the request, then read the evidence.
    message submits at once and the agent queues it behind its current turn.
    `submitted` therefore means queued, not acted on; the `claimed` rung shows it
    acted. Delivery waits on an occupied composer (a draft, an agent's
-   prompt suggestion, a dialog); peek shows what occupies it. The receipt names
-   the reason only once the delivery ends. A message still waiting after 30
-   seconds expires undelivered.
+   prompt suggestion, a dialog); peek shows what occupies it, and the receipt
+   reads `held` with the reason. Messages sent meanwhile wait in line behind
+   it (`queued`, `position N`) and are delivered in order.
 
    `sdlc issue show` runs from any checkout of that repository; the recipient's
    agent need not answer. Dirty files and a working card are activity, not
