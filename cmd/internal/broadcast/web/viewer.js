@@ -5,7 +5,7 @@
 // pick (#446).
 
 import { noteAt, noteCell, guardedCell, parseNotes } from './notes.js';
-import { HEX_COLOR, pointerColor, colorStore, railAt, renderSwatches, noteDialog, poster, sessionLost, validName, VIEWER_NAME_KEY } from './collab.js';
+import { HEX_COLOR, pointerColor, colorStore, railAt, renderSwatches, noteDialog, poster, sessionLost, storedName } from './collab.js';
 
 export { pointerColor, colorStore, RAIL_INSET, railAt, renderSwatches } from './collab.js';
 
@@ -294,8 +294,7 @@ async function start() {
     color: () => pointer.color(),
     // The name the lock page kept (pair#495) attributes the note.
     beforeSave: () => {
-      let name = '';
-      try { name = validName(storage?.getItem(VIEWER_NAME_KEY) || ''); } catch { /* none */ }
+      const name = storedName(storage);
       return name ? { author: name } : {};
     },
   });

@@ -111,6 +111,7 @@ func newDriveCast(t *testing.T) *driveCast {
 		c.link, c.viewLink = r.con.wcast.update.DriveLink, r.con.wcast.update.Link
 		return c.link != ""
 	})
+	unlockWebCast(t, r.con)
 	return c
 }
 
@@ -123,7 +124,7 @@ func (c *driveCast) viewer(t *testing.T, name string) string {
 		if key != "" {
 			req.Header.Set(drive.SeatHeader, key)
 		}
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := castClient.Do(req)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -217,7 +218,7 @@ func TestDriveFromCouch(t *testing.T) {
 	if strings.Contains(c.notice(), c.link) {
 		t.Fatalf("the notice shows the link: %q", c.notice())
 	}
-	resp, err := http.Post(c.viewLink+"drive/hello", "application/json", strings.NewReader(`{"name":"x"}`))
+	resp, err := castClient.Post(c.viewLink+"drive/hello", "application/json", strings.NewReader(`{"name":"x"}`))
 	if err != nil {
 		t.Fatal(err)
 	}

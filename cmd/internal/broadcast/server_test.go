@@ -161,13 +161,16 @@ func TestViewerPageLoadsOnlySameOrigin(t *testing.T) {
 	}
 	viewer := string(mustAsset(t, "viewer.js"))
 	collab := string(mustAsset(t, "collab.js"))
-	// The one thing a page keeps (#446): a pointer viewer's color pick, a
-	// palette index under one key, read and written only by collab.js's
-	// colorStore over the storage viewer.js hands it.
+	// What a page keeps (#446): a pointer viewer's color pick, a palette
+	// index under one key, read and written only by collab.js's colorStore
+	// over the storage viewer.js hands it. It also reads, never writes, the
+	// name the lock page kept (pair#495), through collab.js's storedName.
 	if strings.Count(viewer, "localStorage") != 1 || strings.Contains(viewer, "getItem(") || strings.Contains(viewer, "setItem(") ||
+		!strings.Contains(viewer, "storedName(storage)") ||
 		strings.Contains(collab, "localStorage") || strings.Count(collab, "getItem(") != 1 || strings.Count(collab, "setItem(") != 1 ||
-		!strings.Contains(collab, "const COLOR_KEY = 'couch.pointerColor';") || !strings.Contains(collab, "store.get(COLOR_KEY)") || !strings.Contains(collab, "store.set(COLOR_KEY, String(i))") {
-		t.Error("the viewer may keep only the pointer color pick in localStorage")
+		!strings.Contains(collab, "const COLOR_KEY = 'couch.pointerColor';") || !strings.Contains(collab, "store.get(COLOR_KEY)") || !strings.Contains(collab, "store.set(COLOR_KEY, String(i))") ||
+		strings.Count(collab, ".get(VIEWER_NAME_KEY)") != 1 || strings.Contains(collab, ".set(VIEWER_NAME_KEY") {
+		t.Error("the viewer may keep only the pointer color pick, and read the viewer name, in localStorage")
 	}
 	notes := string(mustAsset(t, "notes.js"))
 	for name, src := range map[string]string{"viewer.js": viewer, "notes.js": notes, "collab.js": collab} {

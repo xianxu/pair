@@ -101,6 +101,12 @@ export function validName(v) {
   return [...n].length <= MAX_VIEWER_NAME && !/[\p{Cc}\p{Cf}]/u.test(n) ? n : '';
 }
 
+// storedName is the name this browser's viewer gave the lock page, as the
+// board takes it, or ''. Read through safeStorage: storage may be missing.
+export function storedName(storage) {
+  return validName(safeStorage(storage).get(VIEWER_NAME_KEY) || '');
+}
+
 // RAIL_INSET is the gap between the rail and the screen's right edge.
 export const RAIL_INSET = 6;
 

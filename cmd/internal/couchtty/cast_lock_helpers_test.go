@@ -40,3 +40,29 @@ func unlockCastLink(t *testing.T, client *http.Client, s *broadcast.Session, whi
 		t.Fatalf("unlock %s: %d", which, resp.StatusCode)
 	}
 }
+
+// unlockWebCast enters the running web cast's codes at its links, through
+// castClient: the view link, and the drive link when there is one.
+func unlockWebCast(t *testing.T, con *Console) {
+	t.Helper()
+	con.mu.Lock()
+	cast, u := con.wcast.cast, con.wcast.update
+	con.mu.Unlock()
+	for _, code := range cast.Codes() {
+		link := u.Link
+		if code.Link == broadcast.LinkDrive {
+			link = u.DriveLink
+		}
+		if link == "" {
+			continue
+		}
+		resp, err := castClient.Post(link+"unlock", "application/json", strings.NewReader(`{"code":"`+code.Code+`"}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("unlock %s: %d", code.Link, resp.StatusCode)
+		}
+	}
+}
