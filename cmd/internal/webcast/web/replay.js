@@ -428,6 +428,7 @@ export function drawMarks(doc, layer, player, fromPage) {
     const [x, y] = fromPage(box[0], box[1]);
     const pin = doc.createElement('div');
     pin.className = 'replay-note';
+    pin.dataset.note = n.note.id;
     pin.style.setProperty('--c', safeColor(n.note.author && n.note.author.color, '#ffb000'));
     pin.style.transform = `translate(${x}px, ${y}px)`;
     pin.textContent = n.note.text || '';
