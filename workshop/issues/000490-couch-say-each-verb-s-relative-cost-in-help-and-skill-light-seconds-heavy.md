@@ -15,7 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "a963276f", done: "607af38b"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # couch: say each verb's relative cost in --help and --skill (light, seconds, heavy)
@@ -48,6 +48,8 @@ Keep it to one short tag per line, plus one sentence of guidance (run heavy verb
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — make -k test green except test-review (wrong-conversation-ack-refused under load 22; passes on rerun, untouched area); go test ./... green after adding cost.go to the artifactpath inventory, except couchcore TestRetentionExplicitResume (load flake, passes alone); TMPDIR=scratch make test-changelog green. cost_test: help tags and skill bullets equal verbCosts; verbLine panics on an untagged verb. Timings measured on this machine in the Log; heavy slot ops on parley.nvim:3 per the TL, which is left parked as the pair#489 reproduction.; review verdict: SHIP
+- 2026-10-12: flow upgraded quick → full — 110 added lines in code files (limit 100)
 
 Timings: `couch` binary at ~/workspace/pair/bin (10:27 build), 1-min load 10-23 unless noted;
 each light/seconds verb run 2-3 times, a 120 s hard cap per run (perl alarm; no `timeout` here).
