@@ -247,6 +247,7 @@ type (
 	// it never comes with V.
 	Input struct {
 		Header
+		Source
 		ID      NodeID  `json:"id"`
 		V       *string `json:"v,omitempty"`
 		Checked *bool   `json:"checked,omitempty"`
@@ -256,6 +257,7 @@ type (
 	// Scroll is an element's scroll offset, or a document's viewport's.
 	Scroll struct {
 		Header
+		Source
 		ID NodeID  `json:"id"`
 		X  float64 `json:"x"`
 		Y  float64 `json:"y"`
@@ -263,6 +265,7 @@ type (
 	// Selection is the text selection; neither end clears it.
 	Selection struct {
 		Header
+		Source
 		Anchor *Pos `json:"anchor,omitempty"`
 		Focus  *Pos `json:"focus,omitempty"`
 	}
@@ -285,22 +288,26 @@ type (
 	}
 	Click struct {
 		Header
+		Source
 		ID NodeID  `json:"id"`
 		X  float64 `json:"x"`
 		Y  float64 `json:"y"`
 	}
 	Focus struct {
 		Header
+		Source
 		ID NodeID `json:"id"`
 	}
 	// Hover is the element under the operator's pointer; 0 is none.
 	Hover struct {
 		Header
+		Source
 		ID NodeID `json:"id"`
 	}
 	// Ptr is a sampled operator pointer position, in top-page CSS px.
 	Ptr struct {
 		Header
+		Source
 		X float64 `json:"x"`
 		Y float64 `json:"y"`
 	}
@@ -404,6 +411,7 @@ var kinds = map[string]struct {
 	"layout":     {func() Record { return &Layout{} }, FileEvents},
 	"hover":      {func() Record { return &Hover{} }, FileEvents},
 	"ptr":        {func() Record { return &Ptr{} }, FileEvents},
+	"ctl":        {func() Record { return &Ctl{} }, FileEvents},
 	"note":       {func() Record { return &Note{} }, FileNotes},
 	"note-state": {func() Record { return &NoteState{} }, FileNotes},
 	"stroke":     {func() Record { return &Stroke{} }, FilePointer},

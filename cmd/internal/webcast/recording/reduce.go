@@ -59,11 +59,13 @@ type State struct {
 	DocSeg int
 	Why    string
 	Live   bool
-	Tab    Tab
-	VP     Viewport
-	URL    string
-	Title  string
-	Top    *DOMNode
+	// Ended: a stop end came. The cast is over; no segment follows.
+	Ended bool
+	Tab   Tab
+	VP    Viewport
+	URL   string
+	Title string
+	Top   *DOMNode
 
 	Sheets    map[NodeID]*SheetState
 	Adopted   map[NodeID][]NodeID
@@ -83,7 +85,11 @@ type State struct {
 	Notes   []*NoteView
 	Strokes []*StrokeView
 	Frames  []*Frame
+	// Control is who drives (#466): per recording, ended by stop end.
+	Control Control
 
+	ctlSeen  bool // a ctl was applied: later ones must follow from it
+	whole    bool // reading a whole recording from its head (Validate)
 	nodes    map[NodeID]*DOMNode
 	types    map[NodeID]string // id -> type and tag, for the whole recording
 	awaitTop bool              // a seg came; its top doc hasn't
@@ -164,6 +170,13 @@ func (s *State) inSegment() error {
 }
 
 func (s *State) apply(r Record) error {
+	// After stop end the cast is over: nothing may change its state again.
+	switch r.(type) {
+	case *Seg, *Ctl:
+		if s.Ended {
+			return fmt.Errorf("a %s after stop end: the cast is over", r.Kind())
+		}
+	}
 	switch r := r.(type) {
 	case *Head:
 		if s.Head != nil {
@@ -185,6 +198,11 @@ func (s *State) apply(r Record) error {
 			return errors.New("stop without a live segment")
 		}
 		s.Live, s.awaitTop = false, false
+		if r.Why == StopEnd {
+			s.Control, s.Ended = Control{}, true
+		}
+	case *Ctl:
+		return s.applyCtl(r)
 	case *Doc:
 		return s.applyDoc(r)
 	case *Asset:
@@ -206,6 +224,9 @@ func (s *State) apply(r Record) error {
 	case *Unknown:
 	default:
 		if err := s.inSegment(); err != nil {
+			return err
+		}
+		if err := s.checkSource(r); err != nil {
 			return err
 		}
 		return s.applyInSegment(r)

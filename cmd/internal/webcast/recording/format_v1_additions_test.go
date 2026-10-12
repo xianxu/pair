@@ -134,3 +134,11 @@ func TestValidateDirReportsStrayFrameFiles(t *testing.T) {
 		}
 	}
 }
+
+// hover and ptr carry #466's attribution: a by that isn't the driver is
+// refused, as for click and focus.
+func TestHoverAndPtrAreAttributed(t *testing.T) {
+	s := newPage().reduce(t)
+	mustFail(t, s, &Hover{Source: Source{By: "viewer-1"}, ID: 0}, "driver")
+	mustFail(t, s, &Ptr{Source: Source{By: "viewer-1"}, X: 1, Y: 1}, "driver")
+}
