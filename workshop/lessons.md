@@ -1181,4 +1181,11 @@ proof; record the surprising case so the next change starts from evidence.
   containment. When a second component accepts another's format, call the owner's reader for it (`notes.Match`) and
   fall back to your own grammar only outside it; scope every combinator to a tree as the platform does; test with
   identity against an oracle the owner provides (`Resolve` with no node id), never with "contains".
+- **A "what the user sees" rule has one walker; grep for its siblings (#469 close).** Fixing note context with a new
+  `RenderedText` left #462's `spacedText` in `query/render.go`, a second visible-text walker with different
+  rules beside it in the same output. When you add a function that defines how something reads (rendered text, a
+  selector, a label), grep the codebase for every other function doing the same job (`TextContent`, `textContent`,
+  "what a reader sees") and route them through yours in the same change. And don't derive state the source doesn't
+  hold: a select's live choice isn't in the DOM, so guessing it from the `selected` attribute contradicted the
+  event beside it.
 

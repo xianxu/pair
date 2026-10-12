@@ -1,12 +1,22 @@
 ---
 id: 000469
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '040ab4f70e106aa9f06d297c2dc3e9dc09362b21' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '73cd9c1648e6826e75b994c71a4a84628d6d2f5f' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T02:35:38-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:5
+    worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
+    repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
+actual_hours: 0.66
 ---
 
 # notes: focused-context text includes script bodies and runs adjacent blocks together
@@ -26,8 +36,34 @@ Context text is the visible text a person would read: skip `script`, `style`, `t
 
 ## Plan
 
-- [ ]
+- [x] `recording.DOMNode.RenderedText()` beside `TextContent` (ARCH-DRY: one walker both models use): skip
+  non-rendered tags (script, style, template, noscript, head metadata) and elements the recording marks hidden
+  (`hidden` attribute, inline `display:none`/`visibility:hidden`, Tailwind `hidden` with no display variant);
+  space-separate HTML-default blocks, table cells, list items, `br`, and the children of a Tailwind flex/grid
+  container (blockified); collapse whitespace.
+- [x] `Structural.Context` and `FakeModel.Context` take landmark and focus text from it; the 500-rune window stays.
+- [x] Model contract: the contract page's article carries a script whose body names the anchor's text, and the
+  context must hold no script and keep the heading apart from the paragraph. Mutation-checked: either model
+  reverted to `TextContent` fails it.
+- [x] Unit table `TestRenderedText`; fixture test `TestContextOfAppReportsIsRenderedText` (app-n3).
+- [x] Merge main once #462 lands; regenerate its goldens (`app.notes.txt` et al.), check they read cleanly.
 
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — TestRenderedText (blocks/cells/li/br/flex apart, inline runs on, script/style/noscript/template/hidden attr/display:none/Tailwind hidden skipped, inherited visibility with visible override, select lists options); TestContextOfAppReportsIsRenderedText (app-n3: "Reports Week 1 0 tasks Week 2 137 tasks", no script); RunModelContract extended (script in article + heading/paragraph apart), mutation-checked by reverting each model to TextContent (both fail). BR-1: query describe now uses RenderedText (spacedText removed); goldens regenerated after merging #462, reviewed line by line. Full make -k test exit 0 and go test ./... exit 0 unsandboxed (pre-round-1); webcast + artifactpath packages green after round 1.; review verdict: SHIP
+- 2026-10-12: flow upgraded quick → full — 125 added lines in code files (limit 100); an earlier round of this close already ran the full review
+
+- Before: app-n3's context was `Reports Week 10 tasksWeek 2137 tasks…const r=document.getElementById('r');…`.
+  After: `Reports Week 1 0 tasks Week 2 137 tasks …`, no script.
+- Out of scope, noted: `NoteAt.Text` (the anchor's text, stored in recordings and compared in `Resolve`) still
+  uses `TextContent`. Changing it would change stored anchors and their matching; Context is what agents read.
+- Merged main after #462 landed; `-update` changed only context `text:` lines in app/stress/segments notes
+  goldens (e.g. `tasksAddShip…` → `tasks Add Ship…`, `Inboxone` → `Inbox one`); no golden carries script text.
+- Close round 1 (FIX-THEN-SHIP). BR-1 (Important): `query/render.go` `spacedText` was a second visible-text
+  walker (script/style only; split every text node, so `<a>A</a><a>B</a>` read "A B" and `<head>`'s title
+  labelled `head`). Fixed the class: removed it, `describe` uses `RenderedText`. #462's goldens moved only on
+  `<head>` (blog.events) and the `TestSelect` nav row is now "AB", which is how it renders. Minor: `visibility`
+  now inherits and a descendant's `visibility:visible` shows it again (test). The select half of the Minor was
+  tried and reverted: a closed select shows its live choice, which the DOM doesn't hold (the stress goldens read
+  "alpha" beside `selected [2]`), so a select lists all its options, documented on `RenderedText`.

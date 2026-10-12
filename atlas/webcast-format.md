@@ -231,8 +231,10 @@ section article dialog fieldset figure table tr ul ol dl li details menu search`
 snapping.
 
 **The context** (`notes.Context`) is `{Node, Landmark, Text, Box}`: the resolved element, its landmark, the landmark's
-whitespace-collapsed text in a 500-character window centred on the element's own text, and the landmark's box. The
-full DOM at that moment stays available through the agent queries (#462).
+rendered text (`DOMNode.RenderedText`, #469: what a person reads, unlike `textContent` it skips script, style,
+template and noscript bodies and elements the recording marks hidden, and keeps blocks, cells, list items, `br`
+and flex/grid items apart by a space) in a 500-character window centred on the element's own text, and the
+landmark's box. The full DOM at that moment stays available through the agent queries (#462).
 
 **Crops**, for a submission's anchors, in CSS px of the top page:
 1. each anchor's box padded by a margin (48 px by default);

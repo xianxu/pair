@@ -141,3 +141,19 @@ func TestAnchorDropsASelectorThatCantRoundTrip(t *testing.T) {
 		t.Errorf("anchor %+v %v: want no selector", at, err)
 	}
 }
+
+// pair#469: the app's Reports heading sits beside a table its script fills.
+// The context is what a person reads: the cells apart, the script absent.
+func TestContextOfAppReportsIsRenderedText(t *testing.T) {
+	n, st := fixtureNote(t, "app", "app-n3")
+	ctx, err := Structural{}.Context(st, n.At)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(ctx.Text, "Reports Week 1 0 tasks Week 2 137 tasks") {
+		t.Errorf("blocks run together: %q", ctx.Text)
+	}
+	if strings.Contains(ctx.Text, "getElementById") || strings.Contains(ctx.Text, "insertAdjacentHTML") {
+		t.Errorf("context carries the script body: %q", ctx.Text)
+	}
+}
