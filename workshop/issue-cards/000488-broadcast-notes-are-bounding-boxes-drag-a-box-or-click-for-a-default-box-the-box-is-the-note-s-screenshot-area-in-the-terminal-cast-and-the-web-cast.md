@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000488-broadcast-notes-are-bounding-boxes-drag-a-box-or-click-for-a-default-box-the-box-is-the-note-s-screenshot-area-in-the-terminal-cast-and-the-web-cast.md
         source_blob: 644bb4793223fa672a02aa51451a2cbeb5d80199
         destination: workshop/issues/000488-broadcast-notes-are-bounding-boxes-drag-a-box-or-click-for-a-default-box-the-box-is-the-note-s-screenshot-area-in-the-terminal-cast-and-the-web-cast.md
+        main_commit: 4efffe43cfd60a86e3f1f5a31efaecb8fcce8d03
 ---
 
 # broadcast: notes are bounding boxes — drag a box (or click for a default box); the box is the note's screenshot area, in the terminal cast and the web cast
