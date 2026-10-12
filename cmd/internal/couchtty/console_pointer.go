@@ -267,4 +267,5 @@ func (c *Console) resetPointer() {
 	}
 	c.pmarks.mu.Unlock()
 	c.forgetNotes()
+	c.forgetAnchors()
 }
