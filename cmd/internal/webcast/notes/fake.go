@@ -94,7 +94,11 @@ func (m FakeModel) Crops(st *recording.State, ats []recording.NoteAt, hints Hint
 	return []recording.Box{out}, nil
 }
 
-func (FakeModel) Live(st *recording.State) []*recording.NoteView {
+func (FakeModel) Live(st *recording.State) []*recording.NoteView { return liveNotes(st) }
+
+// liveNotes are the notes on the current document: those made since it
+// began (State.DocSeg), so a resume keeps them and a navigation clears them.
+func liveNotes(st *recording.State) []*recording.NoteView {
 	var out []*recording.NoteView
 	for _, n := range st.Notes {
 		if n.Seg >= st.DocSeg {

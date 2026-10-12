@@ -438,11 +438,16 @@ the message service and tells the hub instead.
   `dialogTitle` is the line above the options of the last selected option
   (`❯ N.`), scanned from the bottom so numbered prose never counts. Couch judges; Pair still only
   renders (tail.go).
-- **Episode:** keyed by the slot's `LastActivity`; one notice per episode once
-  admitted, a failed admission retries next tick. Not-waiting verdicts are
-  cached per (activity, settled, resting, pending), so an idle slot costs one
-  tail per episode. The map is pruned to the listing each tick and dies with
-  the service; a Couch restart re-announces a slot still waiting, once.
+- **Episode:** one judged wait, the same reason and summary (#468). A new
+  `LastActivity` re-reads the tail, but output that leaves the same wait on
+  screen is the same episode: an idle agent still prints (Claude Code's update
+  check redraws its footer every 30 min; an idle auto-compaction). A turn, the
+  operator's input or a branch change ends it by changing the wait or ending
+  it. One notice per episode once admitted, a failed admission retries next
+  tick. Not-waiting verdicts are cached per (activity, settled, resting,
+  pending), so an idle slot costs one tail per output burst. The map is pruned
+  to the listing each tick and dies with the service; a Couch restart
+  re-announces a slot still waiting, once.
 - **Delivery:** `Broker.Send` from the waiting slot's binding to the hub's
   exact slot (`messageService.hubBinding`, the connected binding in
   `messageAuthority.hub`; the registry's newest incarnation of that slot),
