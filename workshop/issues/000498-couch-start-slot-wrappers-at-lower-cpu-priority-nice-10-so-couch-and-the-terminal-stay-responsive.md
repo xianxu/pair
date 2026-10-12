@@ -1,12 +1,12 @@
 ---
 id: 000498
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: 'ba25a57db55630ad2fba552b5200602156899f02' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '23817ab9d295cf2e3ebb5c2e212cc57108a2a694' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T13:43:15-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "11dff071", done: "d9889713"}
+actual_hours: 0.50
 ---
 
 # couch: start slot wrappers at lower CPU priority (nice +10) so Couch and the terminal stay responsive
