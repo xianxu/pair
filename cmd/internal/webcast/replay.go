@@ -161,7 +161,14 @@ func (s *ReplayServer) proxy(id string) (*castassets.Proxy, error) {
 }
 
 // serveViewerFile serves one of the viewer's files; "" is its page.
+// collab.js is the terminal viewer's (broadcast.CollabJS), imported by the
+// notes module, so every server of the viewer serves it.
 func serveViewerFile(w http.ResponseWriter, r *http.Request, name string) {
+	if name == "collab.js" {
+		w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+		w.Write(broadcast.CollabJS())
+		return
+	}
 	a, ok := assets[name]
 	if !ok {
 		http.NotFound(w, r)

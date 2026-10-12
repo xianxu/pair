@@ -142,3 +142,26 @@ func held(cs []recording.Box, b recording.Box) bool {
 	}
 	return false
 }
+
+// A region note crops its region plus the margin, never snapped (#470): the
+// same region on the blog's header, where an element note goes full width.
+func TestNoteCropsARegionByHand(t *testing.T) {
+	n, st := fixtureNote(t, "blog", "blog-n1")
+	region := recording.Box{400, 200, 120, 40}
+	rn := &recording.Note{At: n.At, Region: &region}
+	cs, err := Structural{}.NoteCrops(st, []*recording.Note{rn}, nil)
+	if want := (recording.Box{400 - defaultMargin, 200 - defaultMargin, 120 + 2*defaultMargin, 40 + 2*defaultMargin}); err != nil || len(cs) != 1 || cs[0] != want {
+		t.Errorf("region crop %v (%v), want %v", cs, err, want)
+	}
+	// With the element note it overlaps, the two share one crop.
+	cs, err = Structural{}.NoteCrops(st, []*recording.Note{{At: n.At}, rn}, nil)
+	if err != nil || len(cs) != 1 || !cs[0].Contains(region) || cs[0][2] != 1280 {
+		t.Errorf("region and header crops %v (%v): want one full-width crop holding the region", cs, err)
+	}
+	// Crops is NoteCrops without regions.
+	a, _ := Structural{}.Crops(st, []recording.NoteAt{n.At}, nil)
+	b, _ := Structural{}.NoteCrops(st, []*recording.Note{{At: n.At}}, nil)
+	if len(a) != 1 || len(b) != 1 || a[0] != b[0] {
+		t.Errorf("Crops %v != NoteCrops %v", a, b)
+	}
+}

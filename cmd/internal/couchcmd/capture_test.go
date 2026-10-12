@@ -8,6 +8,7 @@ import (
 	"github.com/creack/pty"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -79,8 +80,14 @@ func readCaptureRecords(t *testing.T, dir string) []terminalcapture.Record {
 	return records
 }
 
+// waitForDrain lifts the capture's drain bound. A test whose subject is the
+// captured content, not shutdown, uses the drain as its sync point, so a loaded
+// machine can't turn the production 2s bound into a failure (#476). A hung
+// drain still fails at the test binary's timeout.
+const waitForDrain = time.Duration(math.MaxInt64)
+
 func TestCaptureHostWritePreservesPartialFailure(t *testing.T) {
-	rec, err := terminalcapture.Open(t.TempDir())
+	rec, err := terminalcapture.Open(t.TempDir(), terminalcapture.Config{CloseTimeout: waitForDrain})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +185,7 @@ func testCapturePTYBothBoundaries(t *testing.T, isolated bool) {
 	if isolated {
 		env["COUCH_ISOLATED_ROOT"] = root
 	}
-	config := consoleTraceConfig{getenv: func(k string) string { return env[k] }, root: root}
+	config := consoleTraceConfig{getenv: func(k string) string { return env[k] }, root: root, captureCloseTimeout: waitForDrain}
 	con, runner, err := consoleRunnerFor("start", slave, true, slave, slave, config)
 	if err != nil {
 		t.Fatal(err)
@@ -328,7 +335,7 @@ func TestCaptureConfiguredLimitValidationBeforeOpen(t *testing.T) {
 func TestCaptureConfiguredLimitAppliesAtComposition(t *testing.T) {
 	root := t.TempDir()
 	env := map[string]string{"COUCH_CAPTURE_DIR": filepath.Join(root, "capture"), "COUCH_CAPTURE_MAX_MIB": "1"}
-	con, runner, err := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil, consoleTraceConfig{getenv: func(k string) string { return env[k] }, root: root})
+	con, runner, err := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil, consoleTraceConfig{getenv: func(k string) string { return env[k] }, root: root, captureCloseTimeout: waitForDrain})
 	if err != nil {
 		t.Fatal(err)
 	}
