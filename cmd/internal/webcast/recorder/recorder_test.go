@@ -367,3 +367,27 @@ func TestRecorderIDMapQueries(t *testing.T) {
 		t.Fatal("a closed recorder answers nothing")
 	}
 }
+
+// Records made outside the recorder enter its queue: stamped, checked by
+// its reducer, written in order with the page's; refused ones are counted.
+func TestRecorderEmit(t *testing.T) {
+	h := newHarness(t)
+	h.page("A", "http://a/", "L1")
+	h.r.Send(Emit{Record: &rec.Note{ID: "early", Author: rec.Author{ID: "v"}, At: rec.NoteAt{Node: 1}}}) // before go-live: dropped
+	h.r.Send(Live{Tab: rec.Tab{ID: "T-A"}, Session: "A"})
+	h.settle()
+	top := h.id("A", h.fc.pages["A"].doc.backend)
+	h.r.Send(Emit{Record: &rec.Note{ID: "n1", Author: rec.Author{ID: "v"}, At: rec.NoteAt{Node: top}}})
+	h.r.Send(Emit{Record: &rec.NoteState{ID: "nobody", State: rec.NoteResolved}}) // refused: no such note
+	h.settle()
+	if got := h.kinds(); got != "head seg:live doc note" {
+		t.Fatalf("records %s", got)
+	}
+	st, err := h.r.Stats(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Dropped["note-state"] != 1 {
+		t.Fatalf("stats %+v", st)
+	}
+}

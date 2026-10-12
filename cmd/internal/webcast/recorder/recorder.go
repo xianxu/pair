@@ -101,6 +101,12 @@ type (
 	FrameAttached struct{ Session, Parent, FrameID string }
 	// Detached: a session went away.
 	Detached struct{ Session string }
+	// Emit is a record made outside the recorder (#467's ctl and injected
+	// actions, #470's notes and strokes): stamped with its arrival, applied
+	// through the recorder's reducer (refused, and counted, if invalid) and
+	// written in queue order, so the stream keeps one writer. Dropped before
+	// the first go-live: there is no recording yet.
+	Emit struct{ Record rec.Record }
 )
 
 // side-worker results and queries, internal inputs.
@@ -482,6 +488,10 @@ func (r *Recorder) handle(in stamped) {
 			r.enable(v.Session)
 			r.frameSnapshot(in.at, v.Session)
 			r.observe(v.Session, true)
+		}
+	case Emit:
+		if r.opened && v.Record != nil {
+			r.m.Emit(r.t(in.at), v.Record)
 		}
 	case Detached:
 		delete(r.parents, v.Session)

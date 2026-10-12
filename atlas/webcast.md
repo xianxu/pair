@@ -41,7 +41,8 @@ left waiting is a frozen tab. Without `Page.enable` the script never reaches the
 
 `Chrome` starts it when `LaunchOptions.Record` is set, forwards **every** CDP event to it (`Send` never blocks the
 loop), and tells it the live phase from `publish` (`Live` on the active tab, a switch when the tab changes, `Title`,
-`Pause`). It is the record stream's **single writer**; #467's injector adds its inputs to the same queue.
+`Pause`). It is the record stream's **single writer**: records made elsewhere (#467's control and injected actions, #470's notes
+and strokes) enter its queue as `recorder.Emit`, stamped on arrival and checked by its reducer.
 
 - **Pure core:** `mirror` (`mirror.go`, `observe.go`) holds CDP's DOM per session (`getDocument` pierce, whitespace
   included) and the id map (`backendNodeId` → id per session for one document, keyed by loader id, with a 50 000-node
