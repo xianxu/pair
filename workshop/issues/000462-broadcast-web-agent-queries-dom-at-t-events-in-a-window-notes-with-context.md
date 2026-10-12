@@ -47,7 +47,7 @@ Durable plan: `workshop/plans/000462-broadcast-web-agent-queries-dom-at-t-events
 - [x] Event lines (DOM runs summarized, `by` shown)
 - [x] Notes text + `query.Main` CLI (`--json`)
 - [x] Golden tests on every fixture
-- [ ] Agent check: scripted + one recorded subagent run
+- [x] Agent check: scripted + one recorded subagent run
 - [x] `couch --broadcast-web-query` wiring, usage, skill, atlas
 
 ## Log
@@ -60,4 +60,5 @@ Durable plan: `workshop/plans/000462-broadcast-web-agent-queries-dom-at-t-events
 - Seam additions, all inside #462's own package (no format change): `query.NoteView` gains `Landmark`, `URL`, `Header`, `BeforeLines` (the real surface fills them, the fake leaves them empty); `query.UserAction` now counts `seg` and `stop`, so a note's preceding actions mark a navigation, tab switch or pause instead of folding typing across it (found in the `segments` golden: `1200-5200 input … (2 changes)` across a pause).
 - Typing folds: React writes the value twice per key (the `input` property and the `value` attribute); both fold into one line per field and viewer (`4414-5116 input @73 … "Review PR 42" (19 changes)`, 19 checked against the fixture by grep). The fold key carries `by`, so two people's typing never merges.
 - Fixture selectors from fixturegen (`h1~Reports`, `img[alt*=issue tracker]`) aren't CSS; notes resolve by node id so they still work, and `Select` refuses them with the grammar if passed back.
+- Agent check, recorded run (2026-10-12): a fresh Sonnet subagent, told to use only the built `couch --broadcast-web-query` on a copy of the `app` fixture and not to read the files or source, ran the bare flag (usage) and then `notes --note app-n2`: two commands. It answered: element @108 `<button id=open-modal>` "Delete workspace…" (classes `bg-rose-600 text-white px-4 py-2 rounded-lg`, inside @106 `div.space-y-4.max-w-md`, box 256,92 174x40); t=12500, segment 2, Ana (design), resolved; before it, typing "Review PR 42" in `#draft`, search typed and cleared, checkboxes, a click on `#nav-settings`, scrolls, then focus and click on `#open-modal` at 10757/10758; fix: `bg-rose-700`/`800` for white-text contrast plus a focus ring. All correct against the fixture. It reported nothing confusing; the only remark was that the usage-only run exits 2 (the usage-error convention, kept). The scripted counterpart is `TestAgentCanTellWhatEachNoteRefersTo` (every note of every fixture).
 
