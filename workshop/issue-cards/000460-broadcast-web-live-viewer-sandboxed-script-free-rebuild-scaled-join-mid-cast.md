@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000460-broadcast-web-live-viewer-sandboxed-script-free-rebuild-scaled-join-mid-cast.md
         source_blob: 92b52563c2cbac55abd57629913f5be83a847502
         destination: workshop/issues/000460-broadcast-web-live-viewer-sandboxed-script-free-rebuild-scaled-join-mid-cast.md
+        main_commit: 8de0c3cfed827e2e698620a34a0bc9261b26d71e
 ---
 
 # broadcast-web: live viewer — sandboxed, script-free rebuild, scaled, join mid-cast
