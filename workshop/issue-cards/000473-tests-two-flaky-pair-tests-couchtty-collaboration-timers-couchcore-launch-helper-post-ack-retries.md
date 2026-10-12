@@ -1,6 +1,6 @@
 ---
 id: 000473
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 6ac70d87b1b177ea3849f16b118b8117de9f6e1f
         evidence_commit: 3265d160a07cf0d2c38434477c55dd3453763299
+        landed_commit: c5cacb8268d8b89f19de7830761514de03205554
 ---
 
 # tests: two flaky pair tests (couchtty collaboration timers; couchcore launch-helper post-ack retries)
