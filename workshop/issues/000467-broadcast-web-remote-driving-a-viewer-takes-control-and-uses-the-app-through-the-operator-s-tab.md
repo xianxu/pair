@@ -37,7 +37,8 @@ Build remote driving for internal viewers (the operator, 10-12; MVP), against th
 
 - A second person (desktop Chrome) requests control, the operator grants it, they click, type and scroll in the blog through the cast, then give control back; the operator can revoke at any time; nothing outside the page is reachable.
 - The recording attributes their actions to them; the agent queries show it.
-- The operator smoke-tested it with a second device before close.
+- The operator's two-device smoke test runs after landing, in the session the TL batches; anything it finds becomes a follow-up (see Revisions).
+- Couch tells the operator that uploads and downloads are off while a viewer drives; a JS dialog gives the driver a fixed sentence, not a 500.
 - Tests: `RunInjectorContract` over the real `TabInjector` rules; a live headless-Chrome injection test (attribution, file chooser, download, new target, stale, refused); the drive routes; the viewer's drive module (unit + live, mouse and touch); Couch's span and menu; the recorded `driven` fixture passes the coverage checks.
 
 ## Plan
@@ -53,3 +54,9 @@ Build remote driving for internal viewers (the operator, 10-12; MVP), against th
 
 - Claimed at pair:6 on the TL's dispatch (ops:0, receipt 7dd881f0 verified). Read #466's atlas sections plus the recorder, Chrome loop, server, viewer and Couch seams. No real Controller or Injector existed; the recorder never stamped `by`; `Presence` was unused in production.
 - Attribution design: hold/take the observer's queue inside the recorder-queue input that dispatches, not an arrival-time window (which would race a revoke and get a real click refused by the reducer).
+- TL approved decisions 1–7 (ops:0, 2efb3d52). It added two asks: a Couch notice and menu line that uploads and downloads are off while someone drives, and a fixed dialog sentence. The smoke test moves after landing.
+
+## Revisions
+
+- 2026-10-12 (TL, ops:0, 2efb3d52): Done when's "the operator smoke-tested it with a second device before close" becomes "after landing, in the TL's batched session; findings become follow-ups". Close and merge on SHIP after M4.
+

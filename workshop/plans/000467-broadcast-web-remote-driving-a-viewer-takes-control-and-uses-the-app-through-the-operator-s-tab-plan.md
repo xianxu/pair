@@ -33,22 +33,36 @@ headless-Chrome live tests behind `WEBCAST_LIVE_CHROME=1`).
    a seat that costs a few hundred bytes; it dies 10 s after their stream does.
 2. **With a seat, the notes and strokes author id is the seat's id** (`vN`). The notes name and color stay from
    `identityStore`. A driver's note is then attributable to the driver (fixture coverage "a note by the driver").
-3. **Control ops before the cast's first go-live are refused** with `ErrNotLive` (409 "The cast is paused."). The
+3. **Control ops before the recorder has opened are refused** with `ErrNotLive` (409 "The cast is paused."). The
    recorder drops records before its first `Live`, and a controller state that the recording never saw would part
-   the controller from the stream's reducer. After the first go-live, a pause leaves control as it is (#466: valid
-   while paused).
+   the controller from the stream's reducer. The gate reads the recorder's own fact (`Recorder.Opened()`, monotonic),
+   not Chrome's published phase: `Chrome.publish` can publish `PhaseLive` while `tellRecorder` is still waiting for
+   the cast tab's session (`chrome.go` `tellRecorder`'s early return). After opening, a pause leaves control as it
+   is (#466: valid while paused).
 4. **Touch:** a one-finger tap is a click, and a one-finger drag is down/move/up. A two-finger drag is wheel
    scrolling. On a keyboard device, hover moves are sent (coalesced, ≤ 20/s).
 5. **While anyone drives**, file choosers are intercepted in the cast tab and never shown, downloads are denied
    browser-wide, and new targets opened by the cast tab are closed. That covers the operator's own file pickers and
    downloads too while a viewer drives: one rule, no attribution guess. All three are restored when nobody drives.
+   Couch says so (TL, 10-12): a notice at each grant ("Ana is driving. Uploads and downloads are off until control
+   comes back."), and the drive menu's driver row reads "uploads and downloads off while Ana drives".
 6. **Couch UI:** a drive span right after `Chrome ⏸` (and its `💭N`): `🕹Ana` while Ana drives, `✋Bo` when Bo asks
    (`✋2` for two or more), both when both. A click opens the drive menu: a driver row (left click: revoke) and a row
    per asker (left click: grant, right click: deny). The menu reuses the notes menu's box and gesture handling,
    generalized. Revoke is also reachable when the menu is closed: Ctrl+click on the drive span revokes, in any state.
-7. **A JavaScript dialog the driver's click opens** blocks CDP input dispatch until the operator answers it. The
-   injector call keeps the recorder's 5 s CDP timeout, and the batch then fails with 500 "Something went wrong."
-   This is a known MVP limit, written in the atlas.
+7. **A JavaScript dialog** (alert, confirm, prompt, beforeunload) stops CDP input dispatch and page script until
+   the operator answers it. The driver gets a fixed sentence, not a 500 (TL, 10-12): a new `drive.ErrDialog` maps in
+   `drive.Answer` to 409 "The page is showing a dialog; the operator must answer it." The Chrome loop doesn't block
+   while the recorder's loop does, so it tracks the cast tab's open dialog (`Page.javascriptDialogOpening` /
+   `Closed`) and offers it to the recorder as a signal. The CDP tab refuses to dispatch while a dialog is open. An
+   in-flight dispatch whose dialog opens returns `ErrDialog` at once and leaves its CDP call to complete later; it
+   doesn't wait out the 5 s timeout, so the recorder's loop isn't held either.
+
+## Non-goals
+
+External (non-internal) viewers and their auth; touch dispatch into the page (touch is mapped to mouse acts); hit
+tests that descend into out-of-process iframes (`onTarget` accepts the frame owner); answering JavaScript dialogs
+or permission prompts for the driver; more than one driver; drag-and-drop of files; remote clipboard.
 
 ## Core concepts
 
@@ -114,14 +128,27 @@ headless-Chrome live tests behind `WEBCAST_LIVE_CHROME=1`).
   (3) **take**: evaluate `__couchcastTake()` in the same contexts. It returns what the observer queued during the
   dispatch (click items included; they no longer flush around the hold) and resumes sending. Those items are
   observed with `by`. Then `afterInput` writes as usual.
+  - **Every exit releases the hold.** The take is deferred, so it runs when `fn` returns, fails or is refused. It is
+    skipped only when it can't run: a dialog is open, or the context has gone. In the page, the hold expires by
+    itself: `__couchcastHold` arms a 1 s timer, and if no take arrives the observer resumes and flushes as usual.
+    Items it then sends arrive as ordinary binding reports, without `by`. A late item is never guessed into an
+    attribution. A navigation between hold and take is harmless: the new document's observer was never held, and
+    the old context's items die with it (the take on a destroyed context fails and is ignored). The fake-CDP harness
+    tests `fn` erroring, a take that fails or times out, and a dialog opening mid-dispatch. In each case the next
+    ordinary binding report is written, and the observer is not stuck.
   - **Why hold/take rather than an attribution window:** observer reports reach the loop as later CDP events. Any
     window would attribute by arrival time, and would race a revoke (the reducer then refuses the `by` and drops a
-    real click). Taking the reports synchronously inside the same queue input orders them exactly. Operator input
-    landing in the same milliseconds is the one mis-attribution left; it is written down.
+    real click). Taking the reports synchronously inside the same queue input orders them exactly.
+  - **What stays unattributed (the residual class, written in the atlas):** anything the page reports after the
+    take. That covers the `scroll` a wheel causes (scroll events fire on the next frame), page script reacting in a
+    later task or frame, and items released by a hold that expired. These are the page's own reactions, which #466
+    already leaves unattributed. The driver's direct acts (click, focus, typing as `input`, selection made by keys)
+    are taken. Operator input landing in the same milliseconds as a batch is the one mis-attribution the other way.
+    The fixture coverage asks for a driver's click and input, not a driver's scroll.
   - `mirror.Observe` gains a `by string` parameter that sets the record's `Source`.
   - **Injected into:** `drive.TabInjector` (as its `TabRunner`). It's tested with a real headless Chrome
     (`WEBCAST_LIVE_CHROME=1`) and through `recorder`'s fake-CDP harness for the hold/take ordering.
-- **`Chrome.SetDriving(driver string)`**: on the loop. When it goes non-empty it sets
+- **`Chrome.SetDriving(driver string)`** (with the dialog signal of decision 7): on the loop. When it goes non-empty it sets
   `Page.setInterceptFileChooserDialog{enabled:true}` on the cast tab's session (and on any session that becomes the
   cast tab while driving), `Browser.setDownloadBehavior{behavior:"deny"}`, and a `driving` flag. `handle` closes
   (`Target.closeTarget`) any `targetCreated` page whose `openerId` is the cast tab's while the flag is set. It pushes
@@ -135,9 +162,9 @@ headless-Chrome live tests behind `WEBCAST_LIVE_CHROME=1`).
   `?viewer=` when a controller is set, replacing `Presence` for that case. An unknown seat still streams; it just
   isn't attached.
 - **Cast wiring**: `StartCast` builds `drive.NewMemController(sink, inj, clock, drive.DefaultGrace)`. `sink` is
-  `liveGate{emitter}`: `Put` returns `drive.ErrNotLive` until the browser's published state first shows
-  `PhaseLive`, then `Emit(r, 0)`. `Chrome.publish` queues `recorder.Live` before it publishes, so a `ctl` emitted
-  after that is ordered after the recorder opens. `inj` is `drive.NewTabInjector(chrome.Recorder())`. A goroutine
+  `liveGate{rec}`: `Put` returns `drive.ErrNotLive` while `rec.Opened()` is false, else `Emit(r, 0)`. `opened`
+  is an atomic flag the loop sets when it processes the first `Live`, and it never resets. A `ctl` enqueued after
+  the flag reads true is therefore ordered after the open. `inj` is `drive.NewTabInjector(chrome.Recorder())`. A goroutine
   bounded by the cast forwards `Subscribe()` to `chrome.SetDriving`. `Cast.Close` closes the controller. `Cast`
   exposes `Drive() drive.Controller` for Couch.
 - **Couch**: `webcastStarted` subscribes `cast.Drive().Subscribe()` on a tracked goroutine and applies each state on
@@ -223,6 +250,9 @@ fixture and the atlas.
 - [ ] Fake-CDP test: a `withTab` run where the fake answers `__couchcastTake` with a click item writes
   `click{by:v1}` after the page records; the hold's item is written without `by`. A `ctl revoke` enqueued *before*
   the run makes `Page().Control` show nobody, so `TabInjector` refuses `ErrNotDriver` with no CDP input sent.
+  Release paths: `fn` errors; the take call fails; the dialog signal fires mid-dispatch (`ErrDialog`, returned
+  without waiting for the call). After each, an ordinary binding report is written, so the recorder isn't stuck.
+  `Opened()` is false before the first `Live` and true after it.
 - [ ] Commit.
 
 ### Task 5: live injection in real Chrome
@@ -245,6 +275,10 @@ fixture and the atlas.
 `tellRecorder`), `inject.js` (`__couchcastDriver`), test in `chrome_loop_test.go` (fake conn: calls issued on set,
 unset and tab switch; an opener-matched target closed, another not).
 
+- [ ] Dialog signal: the loop tracks `Page.javascriptDialogOpening`/`Closed` on the cast tab's session and exposes
+  it to the recorder (`recorder.Options.Dialog func() <-chan struct{}`, a channel closed while a dialog is open,
+  replaced when it closes). `drive.ErrDialog` and its `Answer` row are added to `drive/injector.go`/`answer.go`,
+  with an answer test.
 - [ ] Fake-conn test first, then the implementation. Commit.
 
 ### Task 7: drive routes, Attach, Cast wiring
@@ -252,12 +286,13 @@ unset and tab switch; an opener-matched target closed, another not).
 **Files:** `server_drive.go`, `server_drive_test.go` (new); `server.go` (route dispatch; events → Attach); `cast.go`
 (`liveGate`, controller lifetime, `Drive()`, forwarding to `SetDriving`); `cast_test.go`.
 
-- [ ] Server tests over `MemController` + `FakeInjector` + a `Hub`: hello → seat JSON. Events with `?viewer=` attach,
-  and dropping the stream starts grace (short test grace via config). Control request → 204; input before grant →
-  403 with the sentence; after `Grant` → 204, and the hub sees `click{by}`. Bad key → 401. Oversized → 400. 16
-  rapid inputs over budget → 429. After `Close` → 410. No controller → 404 on every drive route.
-- [ ] Cast test (FakeBrowser): before the first live, `Request` → 409 paused; after, it lands as `ctl` in the
-  recording output; a revoke while a fake injection is blocked returns at once; `SetDriving` follows grants.
+- [ ] Route tests over `MemController` + `FakeInjector` + a `Hub`. Strategy: a table that walks each error
+  `drive.Answer` maps through the real route (status and sentence exactly), plus a fuzz of bodies against
+  `ParseBatch`/`MaxBody` that may never echo input or reach the injector. Seat presence is checked by attaching and
+  detaching streams under a short grace.
+- [ ] Cast test (FakeBrowser + a recorder that hasn't opened). Strategy: interleavings. Published live with the
+  recorder not yet opened gives 409; after open, the `ctl` lands. A revoke while a fake injection blocks returns at
+  once. `SetDriving` follows the controller's states.
 - [ ] `go test ./cmd/internal/webcast/... -race`, then commit.
 - [ ] **M1 close:** `sdlc milestone-close --issue 467 --milestone M1`.
 
@@ -267,12 +302,11 @@ unset and tab switch; an opener-matched target closed, another not).
 
 **Files:** `web/drive.js`, `tests/webcast/drive.test.mjs`.
 
-- [ ] Tests first: `batcher` ordering, one in flight, move coalescing, immediate flush on click/key/text, stop and
-  surface the sentence on a non-204, and a 401 that triggers re-join. `gesture` cases: a mouse click → `click{id,
-  x, y}` with `nodeAt`/`toPage`; a mouse drag → down/move/up; a touch tap → click; a one-finger drag → down/move/up;
-  two-finger movement → wheel; hover moves throttled. `keyAct`: Enter/Tab/arrows → key acts; a printable key →
-  nothing (it arrives as text through the input element); Meta+A → key act (the server decides). `driveView`: none
-  / pending / driving / someone-else-driving from a `ctl`.
+- [ ] Tests first. `batcher`: a property test over random act sequences with a fake fetch that answers late and
+  sometimes refuses. It checks that order is preserved, at most one request is in flight, consecutive moves
+  coalesce, and a refusal stops the queue and shows the sentence (a 401 re-joins). `gesture`: replayed pointer and
+  touch traces, including malformed ones (a cancel mid-drag, a second finger landing late). `keyAct` and
+  `driveView`: tables.
 - [ ] Implement, then `node --test tests/webcast/drive.test.mjs`. Commit.
 
 ### Task 9: mount the drive UI
@@ -303,12 +337,12 @@ EventSource; `couchViewer.drive`), `web/annotate.js` (author id = seat id; mode 
 subscription, actions), `couchtty/terminal_input.go` (clicks), `couchtty/console_webcast.go` (subscribe in
 `webcastStarted`, forget on end).
 
-- [ ] Render tests: the span text for driver only / one asker / two askers / both; it sits after `💭N`. Menu layout
-  test: a driver row and asker rows; `ItemAt` maps rows to actions.
-- [ ] Console tests drive the real producer (lesson #470 BR-25): a `Cast` over `FakeBrowser` with its controller.
-  A seat requests → the span shows `✋Bo`. Clicking it opens the menu; a left click on Bo grants (the controller
-  shows Bo driving), a right click denies, and the driver row revokes. Ctrl+click on the span revokes with the menu
-  closed. Run with `-race -count=20`.
+- [ ] Render and layout: a table over control states, giving the span text and the menu rows (including the
+  driver row's "uploads and downloads off while Ana drives").
+- [ ] Console tests drive the real producer (lesson #470 BR-25), a `Cast` over `FakeBrowser` with its controller.
+  Strategy: every gesture on the span and the menu, in every control state, ends in the controller state it names.
+  Revoke works from each state, with the menu open or closed. The grant notice is shown. Run with
+  `-race -count=20`.
 - [ ] Commit. **M3 close:** `sdlc milestone-close --issue 467 --milestone M3`.
 
 ## Chunk 4 — M4: a real driven fixture, the atlas
@@ -339,3 +373,12 @@ over the recording Chrome, grace 1 s); `recording/testdata/fixtures/driven/` (re
   with `WEBCAST_LIVE_CHROME=1`. Then `sdlc close --issue 467 --verified '…'`.
 - [ ] Merge `origin/main`, `sdlc pr`, `sdlc merge --yes`. Report to ops:0; the operator's two-device smoke test is
   the TL's to schedule.
+
+## Revisions
+
+- 2026-10-12, plan-quality round 1 and the TL's approval (ops:0, 2efb3d52). PQ-1: the live gate reads
+  `Recorder.Opened()`, not Chrome's published phase. PQ-2: every exit releases the observer's hold, the hold expires
+  in the page after 1 s, and late items stay unattributed. Minors: the residual class is stated in full; tests are
+  written as strategies; non-goals added. TL asks: Couch tells the operator that uploads and downloads are off
+  while a viewer drives; a dialog gives the driver a fixed sentence (`drive.ErrDialog`) instead of a 500. The
+  smoke test moves after landing (issue Done when, Revisions).
