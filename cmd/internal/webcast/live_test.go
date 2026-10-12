@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/broadcast"
 )
 
 // The live checks drive a real Chrome: they are the conformance oracle for
@@ -203,5 +206,56 @@ func TestLiveProfileInUse(t *testing.T) {
 	}
 	if c.Err() != nil {
 		t.Fatalf("first Chrome ended: %v", c.Err())
+	}
+}
+
+// TestLiveCastEndToEnd: a real Chrome cast through the shared Host, read as
+// a viewer reads it.
+func TestLiveCastEndToEnd(t *testing.T) {
+	c := liveChrome(t)
+	h := liveHarness{c}
+	host := broadcast.NewHost(broadcast.HostConfig{Tunnel: broadcast.LocalOnly{}, ProbeTimeout: 5 * time.Second})
+	cast, err := StartCast(context.Background(), CastConfig{
+		Launch: func(context.Context) (Browser, error) { return c, nil },
+		Host:   host,
+		Ping:   time.Second,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(cast.End)
+	u := waitUpdate(t, cast, "link", func(u Update) bool { return u.Link != "" })
+	v := openSSE(t, u.Link+"events")
+	if got := v.nextState(); got != (wireState{}) {
+		t.Fatalf("join: %+v", got)
+	}
+	h.navigate(t, "secret-before-live")
+	waitState(t, c, "navigated", func(s State) bool { return s.Tab.Title == "secret-before-live" })
+	if err := cast.ToggleLive(); err != nil {
+		t.Fatal(err)
+	}
+	if got := v.nextState(); !got.Live || got.Title != "secret-before-live" {
+		t.Fatalf("live: %+v", got)
+	}
+	// While the new page loads, Chrome's own placeholder (its URL) may show
+	// as the title, as in Chrome's tab; the old page's title must never be
+	// paired with the new URL, and the stream settles on the new title.
+	h.navigate(t, "shop")
+	for {
+		got := v.nextState()
+		if strings.Contains(got.URL, "shop") && got.Title == "secret-before-live" {
+			t.Fatalf("old title with the new URL: %+v", got)
+		}
+		if got.Title == "shop" && strings.Contains(got.URL, "shop") {
+			break
+		}
+	}
+	h.clickControl(t)
+	if got := v.nextState(); got != (wireState{}) {
+		t.Fatalf("paused from the page: %+v", got)
+	}
+	cast.End()
+	if ev, _ := v.next(); ev != "end" {
+		t.Fatalf("viewer got %s, want end", ev)
 	}
 }

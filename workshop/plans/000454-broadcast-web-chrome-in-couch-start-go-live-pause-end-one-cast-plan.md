@@ -545,3 +545,20 @@ Divergences from the tasks above, all measured against Chrome 154:
     reader first.
   - **Reaping (BR-4):** `startProcess` sets `WaitDelay` and is tested with a shell whose background child keeps the
     output pipe open.
+
+### 2026-10-11 — M2 as built
+
+- **Host:** `broadcast.Host` routes by `Mountable.Owns(segment)` rather than one mount per token, since the screen
+  broadcast's server already answers two tokens (view and pointer); one mount per cast.
+- **Host fallback:** an unknown token answers like a mount does: 405 for any non-GET, 404 for GET. The existing
+  route-table test pins it.
+- **Cancel:** the last waiter to cancel an open waits for it, and for the close that follows, before returning.
+  This keeps `broadcast.Start`'s contract that a cancelled start closes what it opened. A late-succeeding open is
+  closed by the single "nobody wants it" rule.
+- **No `broadcastTunnel` extraction (Task 8):** `run.go` builds one Host from the tunnel `broadcastSettings`
+  already parsed, so the env is parsed in one place.
+- **Shared helpers:** SSE writing moved to `broadcast.EventStream` (both servers use it), and the token minter is
+  exported as `broadcast.NewToken`.
+- **Live end-to-end** (`TestLiveCastEndToEnd`): a real headless Chrome, Cast, the Host on `LocalOnly`, and an SSE
+  viewer. It found Chrome's title placeholder during loads, which is accepted and documented in atlas; the old
+  title is never paired with the new URL.

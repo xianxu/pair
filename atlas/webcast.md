@@ -53,3 +53,24 @@ left waiting is a frozen tab. Without `Page.enable` the script never reaches the
   inside it). Run it at each milestone close that touches `webcast` or `cdp`, and when Chrome's major version
   changes. Live runs are headless and never raise a window (the operator types in Couch meanwhile); real tab
   switching under windows is checked by the smoke test.
+
+## In Couch (M2)
+
+- **Key and cell:** `Shift+Ctrl+Alt+b` (`\x1b[98;8u`, or `66;8u` from a terminal reporting the shifted code;
+  `couchkeys.ActionWebcast` → `HitWebcast`) starts the cast Chrome, then toggles live. The tab bar's
+  `WebcastCell` draws `Chrome ▶` / `Chrome ⏸` **after** the screen broadcast's `LIVE ⏸ 👆 👽 💭N`, so the
+  broadcast's fixed-column indicator check never moves. Click toggles, right-click copies the link, Ctrl with
+  either button ends (macOS terminals may send Ctrl+left as a right click with the Ctrl bit).
+- **State machine:** `couchtty/console_webcast.go`, mirroring `console_broadcast.go` (off → starting → running →
+  ending, `startClaim` adoption, a bounded shutdown beside the broadcast's).
+- **Cast:** `webcast.Cast` = Browser + the stub viewer `Server` mounted on the shared `broadcast.Host`. Chrome comes
+  up first; the link opens in the background (`Update.Link` / `LinkErr`). The cast ends when its Browser does;
+  viewers get `end`, then the mount goes.
+- **Shared Host:** `broadcast.Host` (`host.go`) holds one listener, server and tunnel for every cast, opened by the
+  first mount and closed after the last, routing by the token in the first path segment (`Mountable.Owns`). A named
+  cloudflared tunnel can be claimed once, so the screen broadcast and the web cast must share it. `couchcmd` builds
+  one Host from the `COUCH_BROADCAST_*` tunnel and hands it to both. SSE writing is `broadcast.EventStream`, shared.
+- **Viewer (stub):** `webcast/web/` shows Live / Not live, and the title and URL only while live (`viewerState`),
+  set as text only. The recorder's DOM stream will replace the state events' content; the route and seams stay.
+- **Known transient:** for a moment after a navigation, the title can be Chrome's placeholder (the URL, as in
+  Chrome's own tab) until the page reports its `<title>`; it is never the previous page's title (`DocumentChanged`).
