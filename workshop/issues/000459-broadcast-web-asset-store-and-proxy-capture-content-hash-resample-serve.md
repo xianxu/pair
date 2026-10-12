@@ -43,11 +43,11 @@ Implement #457's asset store interface and the proxy:
 
 Durable plan: `workshop/plans/000459-broadcast-web-asset-store-and-proxy-capture-content-hash-resample-serve-plan.md` (single pass, one close).
 
-- [ ] CSS URL scanner (Go) + shared corpus; `image-set()` strings in the viewer's `css.js`
-- [ ] Resample (budget, bomb ceiling, WebP via golang.org/x/image)
-- [ ] `assets.Recorded` (the real Store) over `AssetWriter`; `DirWriter.Asset`
-- [ ] `assets.Proxy` + the Server's `assets/<hash>` route
-- [ ] Fixtures through the real store/proxy in the live viewer tests; no-origin check; atlas
+- [x] CSS URL scanner (Go) + shared corpus; `image-set()` strings in the viewer's `css.js`
+- [x] Resample (budget, bomb ceiling, WebP via golang.org/x/image)
+- [x] `assets.Recorded` (the real Store) over `AssetWriter`; `DirWriter.Asset`
+- [x] `assets.Proxy` + the Server's `assets/<hash>` route
+- [x] Fixtures through the real store/proxy in the live viewer tests; no-origin check; atlas
 - [ ] Full verification
 
 ## Log
@@ -58,3 +58,8 @@ Durable plan: `workshop/plans/000459-broadcast-web-asset-store-and-proxy-capture
 
 - Claimed from pair:4 (TL ops:0). #458 (unlanded, M2 closed) already captures bodies over CDP and calls `Store.Put`, and creates the store lazily at first go-live (`CastConfig.NewAssets`). Asked the TL; decisions: capture stays #458's; #459 = real Store + `assets.Proxy` bound later; whichever of #458/#459 lands second wires `proxy.Bind` and couchcmd's `NewAssets`; the store absolutizes CSS URLs at `Put` (dedup by hash makes a serve-time base ambiguous), atlas to say so; budget only (no declared size yet); live blog check after #458 merges.
 - The blog (Astro) serves WebP from its image pipeline, so resampling needs a WebP decoder: `golang.org/x/image` (Go project; v0.47.0 on 10-09), pinned v0.46.0, with a DecodeConfig pixel ceiling before any decode.
+- `golang.org/x/image` v0.46.0 needs `golang.org/x/sys` v0.48.0, so MVS bumped x/sys from v0.44.0.
+- Built: `assets.RewriteCSS` (one scanner, two directions: absolutize at Put, point at `<hash>` at serve), `Resample`, `assets.Recorded` (real store; runs `RunStoreContract` over a DirWriter, a reader-less writer and the fake), `assets.Proxy` (Server owns it, `Server.Assets().Bind(store)`), `DirWriter.Asset` (read back; shares `Recording.Asset`'s reader). The viewer's `css.js` missed plain strings in `image-set()`; fixed, and both scanners are held to `tests/webcast/css_urls.json` (each mutation-checked: dropping the image-set branch fails 4 Go cases / 2 node tests).
+- Discovery: the live viewer tests stood in for the proxy with a regex over the fixture bodies, which hid that the blog fixture's 1738×2130 screenshot is over the budget. The real store resamples it to a new hash. In production the recorder emits the store's asset record, so the tests now do the same (`throughStore` replaces each fixture asset record with the store's; canonical state holds no asset table, so pins hold).
+- Live (headless Chrome 154, `WEBCAST_LIVE_CHROME=1`): replay fidelity unchanged (blog 0.22–2.00%, 2.27% at +150 ms on frame 2; app ≤0.79%; stress ≤1.66%); boxOf 215/217; the blog viewer made 82 requests, 7 through the proxy (stylesheet, Inter woff2 and images all among them), none outside the cast (`about:invalid` is css.js's BLOCKED). Unbinding the store fails the test.
+
