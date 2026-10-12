@@ -173,7 +173,7 @@ Fidelity list, item by item:
 - It is one format from browser to agent, applied by the same code in the viewer and the CLI.
 - It had the lower page overhead on the busy stress page, the only page where overhead was measured (+1.0% vs +1.5%
   of main-thread time).
-- Its costs are known and bounded: about half a day more of build, 1.15–2.05× the gzipped bytes before a compact encoding,
+- Its costs are known and bounded: half a day to a day more of build, 1.15–2.05× the gzipped bytes before a compact encoding,
   and a replayer we harden ourselves.
 - rrweb remains the reference for the replayer's edge cases, and the fallback if replayer hardening runs long.
 - The operator decides.
