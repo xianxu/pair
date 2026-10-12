@@ -6,7 +6,7 @@ github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours: 6.17
-card_mirror: '6b46373e5745fc00afc0025e5b1b327888dcc413' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '06944d0a19f70f3b33c256045c465225d2dc0b47' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T06:23:45-07:00
 claimant:
     operator: Xian Xu
