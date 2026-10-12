@@ -169,7 +169,6 @@ func (m *Marks) Add(points [][2]int, cols, rows, c int, now time.Time) {
 	}
 }
 
-// line visits the cells from a to b (Bresenham).
 // walkStrokes visits the cells a batch's points draw: each on-grid point,
 // joined to the previous one by a line. An off-grid point is dropped before
 // any line reaches it and breaks the stroke, so a line is never longer than
@@ -193,6 +192,7 @@ func walkStrokes(points [][2]int, cols, rows int, visit func(cell)) {
 	}
 }
 
+// line visits the cells from a to b (Bresenham).
 func line(a, b [2]int, visit func(cell)) {
 	x0, y0, x1, y1 := a[0], a[1], b[0], b[1]
 	dx, dy := abs(x1-x0), -abs(y1-y0)
