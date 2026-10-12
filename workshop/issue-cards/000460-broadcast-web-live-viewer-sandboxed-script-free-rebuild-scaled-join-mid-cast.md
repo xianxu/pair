@@ -1,6 +1,6 @@
 ---
 id: 000460
-status: codecomplete
+status: done
 created: 2026-10-11
 updated: 2026-10-12
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 38b1d6ea1046a7d59ba6e2aa894afe0d4d33ff70
         evidence_commit: 1fd6dd56f1a0b7974364c153cda14da267009f43
+        landed_commit: 4c47429a2e10400d5d3fe9675ac208241192544a
 ---
 
 # broadcast-web: live viewer — sandboxed, script-free rebuild, scaled, join mid-cast
