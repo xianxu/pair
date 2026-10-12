@@ -57,7 +57,8 @@ func (f *FakeDeliveryEndpoint) Reserve(_ context.Context, id string, seq uint64)
 		return &AlreadyCommittedError{Receipt: r}
 	}
 	if f.reserved != "" || f.observation.Sequence != seq {
-		return errors.New("changed or reserved")
+		// As the real wrapper does (peerDelivery.reserve): busy, not a bare error.
+		return ErrRecipientBusy
 	}
 	f.reserved = id
 	return nil

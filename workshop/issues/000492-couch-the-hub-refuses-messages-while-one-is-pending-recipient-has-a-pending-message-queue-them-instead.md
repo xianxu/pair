@@ -72,4 +72,13 @@ its deadline); with it, the package passes under -race. Minor (untested already-
 `TestPromotionAdoptsAnAlreadyCommittedMessage`. Minor (FIFO): an attempt already in flight
 that ends busy joins the queue behind senders that arrived while it ran. Order is the order
 admissions complete, the same as two concurrent sends before this change. Kept, and stated here.
+Close review round 2 (REWORK). BR-5 Critical: promote freed its own attempt through the waking
+helper, so the worker woke itself and spun on the wrapper instead of waiting PromoteRetry. The
+rule: only paths other than the worker wake it; the worker schedules its own retry. Mutation-checked:
+TestPromotionHoldsWhileWrapperBusy fails with the self-wake and passes without it. BR-6: the fake
+wrapper's Reserve now refuses with ErrRecipientBusy, as peerDelivery.reserve does. Minor
+(lazy expiry): Status expires a queued message past QueueWait itself
+(TestQueuedMessageReadsExpiredWhileTheWorkerIsBusy). Minor (the BR-1 test goes red only at the
+package deadline): kept. A shorter bound would be a latency guess (lessons #479); the test waits
+on the delivery event, bounded by the test's deadline.
 

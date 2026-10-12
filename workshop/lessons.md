@@ -1345,3 +1345,6 @@ proof; record the surprising case so the next change starts from evidence.
   one, so a queued message sat until the test deadline. When a worker parks on a condition (a reservation, a
   pending delivery), route every release of that condition through one helper that also signals the worker, and
   test the interleaving deterministically: count the worker's blocked checks and wait on the count, never on a sleep.
+  The converse is the same rule's other half: the worker never wakes itself. Its own failed attempt schedules its
+  retry, or it spins (round 2's Critical). A fake must refuse the way the real seam refuses (`ErrRecipientBusy`,
+  not a bare error), or the tests never exercise the path the product takes.

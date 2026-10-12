@@ -342,6 +342,12 @@ func (b *Broker) Status(caller Binding, id string) (Receipt, error) {
 	if !b.caller(caller) || !ok || (r.Message.From != caller && r.Message.To != caller) {
 		return Receipt{}, errors.New("receipt unavailable for this actor")
 	}
+	// A queued message's expiry is due whether or not the worker is free to
+	// apply it: a read past QueueWait sees it expired (pair#492).
+	if a := b.actors[r.Message.To]; a != nil && r.Status == Queued && !b.now().Before(r.Message.Deadline) {
+		_ = b.apply(a, Event{Kind: Tick, At: b.now()})
+		r = b.receipts[id]
+	}
 	return r, nil
 }
 func actorCandidate(a *SlotActor, now time.Time) Candidate {
@@ -630,10 +636,10 @@ func (a *SlotActor) wakeLocked() {
 	}
 }
 
-// releaseReservationLocked ends the admission or promotion attempt id holds.
-// Every path that frees the actor wakes the worker when messages wait: an
-// attempt that blocked a promotion and then failed would otherwise strand
-// the queue (pair#492 close review).
+// releaseReservationLocked ends an admission attempt's hold on the actor.
+// Every path other than the worker's own that frees the actor wakes the
+// worker when messages wait: an attempt that blocked a promotion and then
+// failed would otherwise strand the queue (pair#492 close review).
 func (a *SlotActor) releaseReservationLocked(id string) {
 	if a.reservation != id || id == "" {
 		return
@@ -675,7 +681,11 @@ func (b *Broker) promote(ctx context.Context, a *SlotActor) bool {
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	a.releaseReservationLocked(head.ID)
+	// The worker frees its own attempt without a wake: it schedules its own
+	// retry (PromoteRetry), and a self-wake would spin on the wrapper.
+	if a.reservation == head.ID {
+		a.reservation = ""
+	}
 	var committed *AlreadyCommittedError
 	if errors.As(err, &committed) {
 		// The wrapper already holds this ID: answer with its outcome.

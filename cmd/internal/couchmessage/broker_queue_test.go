@@ -111,6 +111,15 @@ func TestPromotionHoldsWhileWrapperBusy(t *testing.T) {
 		t.Fatalf("send to a busy wrapper: %+v %v", r, err)
 	}
 	testwait.Until(t, "two refusals", func() bool { wrapper.mu.Lock(); defer wrapper.mu.Unlock(); return wrapper.refusals >= 2 })
+	// Promotion asks again at PromoteRetry's pace, not in a spin (close
+	// review BR-5): two refusals take a retry interval, so a hot loop would
+	// already show hundreds.
+	wrapper.mu.Lock()
+	refusals := wrapper.refusals
+	wrapper.mu.Unlock()
+	if refusals > 3 {
+		t.Fatalf("%d reservation attempts: promotion spins instead of waiting PromoteRetry", refusals)
+	}
 	if got, _ := b.Status(sender, "typed-over"); got.Status != Queued {
 		t.Fatalf("held message changed to %s", got.Status)
 	}
@@ -242,5 +251,36 @@ func TestPromotionAdoptsAnAlreadyCommittedMessage(t *testing.T) {
 	}
 	if r, err := b.Status(from["pair:1"], "q-pair:1"); err != nil || r.Status != Submitted {
 		t.Fatalf("adopted receipt: %+v %v", r, err)
+	}
+}
+
+// A queued message reads expired once QueueWait passes, even while the
+// worker is still inside a long held delivery (pair#492).
+func TestQueuedMessageReadsExpiredWhileTheWorkerIsBusy(t *testing.T) {
+	var mu sync.Mutex
+	now := time.Date(2026, 10, 12, 11, 0, 0, 0, time.UTC)
+	clock := func() time.Time { mu.Lock(); defer mu.Unlock(); return now }
+	b := NewBroker(context.Background(), clock, func(context.Context, Binding) (bool, error) { return true, nil })
+	defer b.Close()
+	hub, sender := brokerBinding("ops:0"), brokerBinding("pair:1")
+	fh := newFakeEndpoint(now.Add(-time.Minute))
+	if err := b.Register(hub, fh); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Register(sender, newFakeEndpoint(now.Add(-time.Minute))); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.Send(context.Background(), sender, "held", Route{Target: "ops:0"}, "first"); err != nil {
+		t.Fatal(err)
+	}
+	delivered(t, fh)
+	if _, err := b.Send(context.Background(), sender, "waiting", Route{Target: "ops:0"}, "second"); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	now = now.Add(QueueWait)
+	mu.Unlock()
+	if r, err := b.Status(sender, "waiting"); err != nil || r.Status != Expired {
+		t.Fatalf("past QueueWait: %+v %v", r, err)
 	}
 }
