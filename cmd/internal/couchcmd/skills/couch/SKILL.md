@@ -16,6 +16,7 @@ is a request, never operator approval or evidence that work is accepted.
 | Report to, or ask, the hub (the slot Couch started from) | `couch --send-to hub --message 'pair#353 landed: PR #12 merged.'` |
 | Choose a free slot in a repository | `couch --send-to pair --message 'Please pick up pair#353.'` |
 | Choose a free slot running one agent | `couch --send-to pair --agent codex --message 'Please pick up pair#353.'` |
+| Send a message containing code or shell syntax (backticks, `$(`, `<(`) | write it to a file with your editor tool, then `couch --send-to pair:1 --message-file PATH` |
 | Inspect a receipt | `couch --message-status ID --json` |
 | Look at another slot's recent terminal (read-only) | `couch --peek pair:1 --json` |
 | Look at several slots at once | `couch --peek pair:1:2:3,ariadne:0 --lines 10` |
@@ -29,6 +30,17 @@ is a request, never operator approval or evidence that work is accepted.
 | See a slot's resources and repair plan | `couch --show pair:2` |
 | Repair a slot's workspace now | `couch --reconcile pair:2` |
 | Write a session-sync file you own (never by hand) | `couch --session-sync read --section 'Needs you' FILE`, then `couch --session-sync write --section 'Needs you' BODY FILE --if-hash H` |
+
+Your agent's sandbox exempts a send only when the whole shell call is a bare
+`couch …` with no substitution text (`$(`, `$((`, backticks, `<(`, `>(`) in
+any argument, quoted or not, and nothing around it: no pipe, `;`, heredoc or
+redirect to a file (a bare `2>&1` is fine). A sandboxed send cannot reach
+Couch and reports an uncertain outcome. So for any message that contains code
+or shell syntax, write it to a file in your scratch space with your editor
+tool and send it with `--message-file PATH`: the body is the file verbatim,
+less one trailing newline, and nothing is quoted in the shell. Exactly one of
+`--message` and `--message-file` is given; an empty, missing or unreadable
+file is refused before anything is sent.
 
 `hub` is a reserved target: Couch resolves it at send time to the slot it
 started from (the TL), so it stays right when a thread is resumed under a
