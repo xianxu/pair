@@ -100,4 +100,3 @@ func TestEventLinesNameRemovedNodes(t *testing.T) {
 		t.Errorf("%v %q", err, lines)
 	}
 }
-
