@@ -42,10 +42,11 @@ flow: {kind: quick, provenance: inferred, spec: "249f658f", done: "cc4aaf89"}
 ## Plan
 
 Design: a live reboot is park-then-reboot under the reboot hold. `rebootAdmit`
-admits `live` only with an idle verdict (`require-settled`, `RebootAdmitted`),
+admits `live` only with an idle verdict (`require-settled`, `RebootAdmitted`)
+and has no effect; the fresh-profile preflight resolves; then `rebootStopLive`
 re-checks busy (`LiveRestart.ConfirmNotBusy`), parks via `ParkExpected` (park
-needs no conversation binding), reclassifies, and continues as today's parked
-reboot. Remote admission reuses `prepareLiveRestart`/`DecideLiveRestart`
+needs no conversation binding) and reclassifies; then today's parked reboot
+(`prepareRetirement`, start) runs (revised at close review, see Revisions). Remote admission reuses `prepareLiveRestart`/`DecideLiveRestart`
 (`OpReboot`: dirty only noted). The switcher sends `forced` for a live row.
 Calls without a verdict (recover's reboot step) still refuse live rows.
 
@@ -67,6 +68,7 @@ Calls without a verdict (recover's reboot step) still refuse live rows.
 - Sandbox: `couch --reboot` from the agent shell failed `dial unix …sock: connect: operation not permitted`; unsandboxed it worked (evidence for ariadne#334).
 - `go test ./...` (unsandboxed, PAIR_* retention env scrubbed): all ok after rewording my help line, which tripped `TestPublicHelpListsOnlyPublicSurface` with the word "start".
 - Close review round 1 (FIX-THEN-SHIP): BR-1 live reboot parked inside admission, before the fresh-profile preflight (ARCH-ORDER). Split into effect-free `rebootAdmit` + `rebootStopLive` run after the preflight, just before `prepareRetirement`, on both kinds; `TestLiveRebootProfileFailureStopsNothing` (mutation-checked by moving the stop back: fails). BR-2: `TestRebootLiveSlotByPath` covers the slot path, with and without the verdict (`withParkLifecycle` extracted from `envWithLiveThread`). BR-3: comment on `liveRebootArgs` naming the offer table as recover's guard. BR-4 (Codex): the core path is agent-agnostic (park + fresh profile); the live Codex case was not exercised.
+- Close review round 2: BR-5, the atlas and this plan's Design line still stated the pre-fix order. Swept every prose site stating it (atlas paragraph + predicate table, `Reboot`'s ORDER comment, `RebootAdmitted`'s comment, Design line). BR-4: added `TestWithRebootHint` covering the provisional branch too.
 - `TestOrientationSessionObservationHonorsCallerDeadline` failed once under full-package load, passed 5/5 alone and on the rerun; untouched by this diff.
 
 ## Revisions

@@ -1119,11 +1119,13 @@ admits a live row only when the call carries an idle verdict
 `prepareLiveRestart` / `DecideLiveRestart` (busy refuses, busy-unknown unless
 `--force-unknown`, a dirty tree is only noted), and the switcher's `Tab → reboot`
 on a live row sends `forced` (`liveRebootArgs`; the operator is looking, a known
-busy still refuses). Under the reboot hold, `rebootAdmit` re-checks busy
-(`LiveRestart.ConfirmNotBusy`), parks the thread with the Pair lifecycle's
-`ParkExpected` (no binding needed), reclassifies, and continues as a parked
-reboot. A call without the verdict (recover's reboot step) still refuses a live
-row.
+busy still refuses). Under the reboot hold the order is: `rebootAdmit`
+classifies and admits with no effect; the fresh-profile preflight resolves; only
+then `rebootStopLive` re-checks busy (`LiveRestart.ConfirmNotBusy`), parks the
+thread with the Pair lifecycle's `ParkExpected` (no binding needed) and
+reclassifies; then `prepareRetirement` and the start run as for a parked reboot.
+So a profile that cannot resolve leaves the live agent running (ARCH-ORDER). A
+call without the verdict (recover's reboot step) still refuses a live row.
 
 **The switcher's per-row actions are one pure table (#363 M2).**
 `menuActionItems(row)` is `menuRowActions(menuRowFactsOf(row))`
@@ -2945,7 +2947,7 @@ consumed by the guard that would otherwise re-derive one:
 |---|---|---|---|
 | switch-agent | `SwitchableState` | `PrepareAgentSwitch` | `live`, `parked`, `binding-lost`, `session-gone` |
 | archive | `ArchivableState` | `Couch.ArchiveThread` (via `classifyForAction`) | `detached`, `parked`, every unusable reason **except** `unknown` |
-| reboot | `RebootAdmitted` (`RebootableState` = `ArchivableState`, or `live` with an idle verdict, pair#456) | `Couch.Reboot` (`rebootAdmit`, then `prepareRetirement`) | archive's set, plus `live` |
+| reboot | `RebootAdmitted` (`RebootableState` = `ArchivableState`, or `live` with an idle verdict, pair#456) | `Couch.Reboot` (`rebootAdmit`; preflight; `rebootStopLive` for a live row; then `prepareRetirement`) | archive's set, plus `live` |
 | resume | `ResumableState` | `SelectResumableRoot` | `detached`, `parked` |
 
 The switcher's **offer** is written separately, in the action table

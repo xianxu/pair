@@ -54,7 +54,9 @@ func (r RebootResult) Warning() string {
 // runs before the first irreversible effect, which is quiesce: classify, read
 // the record, decide, and resolve the fresh launch profile. So a profile that
 // cannot resolve refuses with the old agent still running -- reboot never stops
-// an agent and then starts nothing. Then prepareRetirement (archive's own
+// an agent and then starts nothing. A live thread (pair#456) is admitted with
+// no effect and stopped only after the preflight (rebootStopLive). Then
+// prepareRetirement (archive's own
 // admission and quiesce), then one store journal that retires the old record
 // and publishes the fresh claimed one (:0 ReplaceThreadExpected, :1+
 // replaceSlotCurrent), then the launch. A launch failure rolls back only the

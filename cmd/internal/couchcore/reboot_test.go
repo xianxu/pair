@@ -672,3 +672,16 @@ func TestLiveRebootProfileFailureStopsNothing(t *testing.T) {
 		check(t, env, live, map[string]string{"path": live.StartingPath, "repo-scope": live.Address.RepoScope}, 5151)
 	})
 }
+
+// pair#456: both binding refusals a fresh session gets name reboot; others
+// pass through unchanged.
+func TestWithRebootHint(t *testing.T) {
+	t.Parallel()
+
+	for code, hinted := range map[ResumeDiagnosticCode]bool{ResumeBindingUnbound: true, ResumeBindingProvisional: true, ResumeBindingAmbiguous: false, ResumePathMissing: false} {
+		err := withRebootHint(refuseResume(code, "why"))
+		if ResumeDiagnosticOf(err) != code || strings.Contains(err.Error(), "couch --reboot") != hinted {
+			t.Errorf("%s: %v", code, err)
+		}
+	}
+}

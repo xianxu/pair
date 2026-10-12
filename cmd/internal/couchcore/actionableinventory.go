@@ -464,7 +464,8 @@ func RebootableState(state ActionableThreadState, reason ThreadReason) bool {
 // RebootAdmitted is reboot's whole admission (pair#456): a retirable row, or a
 // live one when the caller carries an idle verdict -- the switcher always does
 // for a live row, and remote admission (DecideLiveRestart) supplies its own.
-// The live row is parked first and then meets RebootableState.
+// The live row is parked after the fresh-profile preflight (rebootStopLive)
+// and then meets RebootableState.
 func RebootAdmitted(state ActionableThreadState, reason ThreadReason, liveVerdict bool) bool {
 	return RebootableState(state, reason) || (liveVerdict && state == ThreadLive)
 }
