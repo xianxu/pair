@@ -31,7 +31,7 @@ func TestRenderWebcastCell(t *testing.T) {
 			}
 			if tc.model.Broadcast == BroadcastLive {
 				// The screen broadcast's cells keep their fixed columns.
-				if !strings.HasPrefix(row.Body, broadcast.LiveSGR+broadcast.LiveLabel) || row.Webcast.Start <= row.Remote.End {
+				if !strings.HasPrefix(row.Body, broadcast.LiveSGR+broadcast.LiveLabel) || row.Webcast.Start <= row.Pointer.End {
 					t.Fatalf("Chrome cell moved the broadcast's: %q %+v", row.Body, row)
 				}
 			}

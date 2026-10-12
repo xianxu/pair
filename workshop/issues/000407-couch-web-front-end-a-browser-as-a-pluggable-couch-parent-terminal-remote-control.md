@@ -60,3 +60,6 @@ Open questions raised in #395's discussion:
 ### 2026-10-07
 
 - Filed from #395's design discussion.
+
+### 2026-10-12
+- #503 removed the `👽` placeholder from the terminal cast's status row (`LIVE ⏸ 👆 👽` became `LIVE ⏸ 👆`), along with `broadcast.ControlLabel`, `RenderedStatusRow.Remote`, `Console.onRemoteClick` and the column it took in `StatusGuardCols` (now 9). Building this issue brings the control back: a label and span after `👆`, its click handler, and a guard one control wider (the shared `tests/broadcast-viewer/pinspots.json` table records the guard width).

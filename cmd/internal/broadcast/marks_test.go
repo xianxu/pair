@@ -224,7 +224,7 @@ func TestMarksOverlayNeverTintsControls(t *testing.T) {
 	m := NewMarks()
 	m.Add([][2]int{{0, 7}, {StatusGuardCols - 1, 7}}, 20, 10, 0, t0) // a line across the future controls
 	m.Add([][2]int{{StatusGuardCols + 2, 7}}, 20, 10, 0, t0)
-	chrome := LiveSGR + LiveLabel + "\x1b[0m " + PointerSGR + PointerLabel + "\x1b[0m " + ControlLabel + " tabs"
+	chrome := LiveSGR + LiveLabel + "\x1b[0m " + PointerSGR + PointerLabel + "\x1b[0m tabs"
 	f := textFrame(t, 20, 8, "body", chrome)
 	o := m.Overlay(f, t0)
 	for i := range StatusGuardCols {
