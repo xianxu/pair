@@ -23,34 +23,8 @@ for (const name of fixtures) {
   });
 }
 
-// catchUp is recording.CatchUp, for the join-mid-cast checks below.
-export function catchUp(recs) {
-  let last = -1, doc = -1;
-  recs.forEach((r, i) => { if (r.k === 'seg') { last = i; if (r.why !== 'resume') doc = i; } });
-  if (last < 0) return [...recs];
-  if (doc < 0) doc = 0;
-  const out = [], kept = new Set();
-  recs.forEach((r, i) => {
-    if (i === doc && doc < last) { out.push(r); return; }
-    switch (r.k) {
-      case 'head': case 'asset': if (i < last) { out.push(r); return; } break;
-      case 'note': if (i >= doc) { kept.add(r.id); out.push(r); } return;
-      case 'note-state': if (i >= doc && kept.has(r.id)) out.push(r); return;
-      case 'stroke': if (i >= doc) out.push(r); return;
-    }
-    if (i >= last) out.push(r);
-  });
-  return out;
-}
-
-test('joining at any cut of segments rebuilds the same page', () => {
-  const recs = records('segments');
-  for (let k = 1; k <= recs.length; k++) {
-    const whole = goJSON(reduce(recs.slice(0, k)).canonical());
-    const joined = reduce([...catchUp(recs.slice(0, k))]);
-    assert.equal(goJSON(joined.canonical()), whole, `cut ${k}`);
-  }
-});
+// Joining mid-cast is checked against Go's own CatchUp in headless Chrome
+// (replay_test.go, TestLiveReplayJoinMidCast), so the rule has one source.
 
 const head = { t: 0, k: 'head', format: 'couch-webcast', v: 1, id: 'x', started: 's' };
 const seg = (n, why = 'live') => ({ t: 1, k: 'seg', seg: n, why, tab: { id: 'a', url: 'http://x/' }, vp: { w: 100, h: 50, dpr: 1 } });

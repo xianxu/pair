@@ -1147,3 +1147,8 @@ proof; record the surprising case so the next change starts from evidence.
   instance, and the "exhaustive" test compared `Confine` with the table it calls. Write the rule as one closed table
   with its reason (no Chrome/Blink binding on any platform; an input's keyboard twin is refused with its pointer
   form), and test it against a hand-written expectation plus a cited list of the bindings it must exclude.
+- **A contract changed in a fix round moves with every restatement (#460 close review).** BR-1 added a method to
+  `recording.Live`, and the atlas still described the old behaviour on the next round. When a fix changes what a
+  seam promises, grep the seam's name and its old wording across atlas, plan and doc comments, and rewrite each in
+  the same commit. The same holds for the reason a channel closed: the source records it under its lock rather than
+  leaving consumers to infer it from timing.

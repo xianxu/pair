@@ -145,9 +145,12 @@ func firstDiff(got, want string) string {
 // fixture's records, catch-up and assets as the proxy (#459) will: CSS
 // bodies with their url()s pointing at assets/<hash>. It sends the viewer's
 // own CSP, so the harness draws under the production policy.
-func fixtureServer(t *testing.T) *httptest.Server {
+func fixtureServer(t *testing.T, extra ...*recording.Recording) *httptest.Server {
 	t.Helper()
 	recs := map[string]*recording.Recording{}
+	for _, r := range extra {
+		recs[filepath.Base(r.Dir)] = r
+	}
 	for _, name := range recording.Fixtures {
 		r, err := recording.ReadDir(recording.Fixture(name))
 		if err != nil {
@@ -413,4 +416,63 @@ func assetPrefix(name string) string {
 		return "/tok/assets/"
 	}
 	return "/fx/" + name + "/assets/"
+}
+
+// URLs resolve against the document that holds them, and SVG's mixed-case
+// tags are matched: a <style> in a frame resolves its relative url()s
+// against the frame's URL, and an <feImage>'s href goes through the asset
+// table like any image.
+func TestLiveRenderResolvesPerDocument(t *testing.T) {
+	page := headlessPage(t)
+	dir := filepath.Join(t.TempDir(), "synthetic")
+	w, err := recording.NewDirWriter(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	asset := func(url string, body []byte, mime string) *recording.Asset {
+		hash, err := w.PutAsset(body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return &recording.Asset{URL: url, Hash: hash, MIME: mime, Size: int64(len(body))}
+	}
+	pic := asset("http://x/pic.png", []byte("top picture"), "image/png")
+	img := asset("http://x/sub/img.png", []byte("frame picture"), "image/png")
+	b := recording.NewBuilder("synthetic")
+	b.Add(pic).Add(img)
+	fe := b.El("feImage", []string{"href", "pic.png"})
+	fe.NS = "svg"
+	filter := b.El("filter", []string{"id", "f"}, fe)
+	filter.NS = "svg"
+	svg := b.El("svg", nil, filter)
+	svg.NS = "svg"
+	frame := b.El("iframe", nil)
+	b.Page(recording.SegLive, "http://x/", svg, frame)
+	style := b.El("style", nil, b.Txt("div{background:url(img.png)}"))
+	inner := recording.Node{ID: b.ID(), Y: recording.YDoc, C: []recording.Node{b.El("html", nil, b.El("head", nil, style), b.El("body", nil))}}
+	b.Add(&recording.Doc{Doc: inner.ID, Host: frame.ID, URL: "http://x/sub/f.html", Tree: inner})
+	for _, r := range b.Recs {
+		if err := w.Put(r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	w.Close()
+	rec, err := recording.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := fixtureServer(t, rec)
+	page.open(t, srv.URL+"/harness.html")
+	page.eval(t, `load("synthetic")`)
+	page.evalString(t, "replayTo(1e9)")
+	got := page.evalString(t, `(() => {
+		const top = document.getElementById('page').contentDocument;
+		const fe = top.getElementsByTagNameNS('http://www.w3.org/2000/svg', 'feImage')[0];
+		const style = top.querySelector('iframe').contentDocument.querySelector('style');
+		return JSON.stringify([fe.getAttribute('href'), style.textContent]);
+	})()`)
+	want := fmt.Sprintf(`["/fx/synthetic/assets/%s","div{background:url(\"/fx/synthetic/assets/%s\")}"]`, pic.Hash, img.Hash)
+	if got != want {
+		t.Fatalf("drawn %s\nwant  %s", got, want)
+	}
 }

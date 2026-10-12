@@ -214,25 +214,25 @@ func TestServerStreamsRecordsFromCatchUp(t *testing.T) {
 	}
 }
 
-// stubLive is a Live whose subscription the test ends by hand: a drop
-// (records close, Done open) or the end (Done closed).
+// stubLive is a Live whose subscription the test ends by hand, and says
+// why (ended: the fan-out's end; else a drop).
 type stubLive struct {
-	recs chan recording.Record
-	done chan struct{}
+	recs  chan recording.Record
+	ended bool
 }
 
 func (l *stubLive) Subscribe() (<-chan recording.Record, func()) { return l.recs, func() {} }
-func (l *stubLive) Done() <-chan struct{}                         { return l.done }
+func (l *stubLive) Ended(<-chan recording.Record) bool          { return l.ended }
 
 // A viewer dropped as too slow has its stream ended, so it reconnects for
 // a fresh catch-up.
 func TestServerEndsStreamOfDroppedViewer(t *testing.T) {
-	live := &stubLive{recs: make(chan recording.Record), done: make(chan struct{})}
+	live := &stubLive{recs: make(chan recording.Record)}
 	srv := httptest.NewServer(NewServer("tok", NewFakeBrowser(), time.Second, live, nil))
 	t.Cleanup(srv.Close)
 	s := openSSE(t, srv.URL+"/tok/events")
 	s.nextState()
-	close(live.recs) // dropped: Done stays open
+	close(live.recs) // dropped
 	done := make(chan struct{})
 	go func() {
 		for s.sc.Scan() {
@@ -263,12 +263,13 @@ func TestServerKeepsStreamWhenRecordsEnd(t *testing.T) {
 	sameLines(t, s.nextRecs(len(want)), want)
 	f.QuitByHand()
 	for {
-		ev, _ := s.next()
-		if ev == "end" {
+		switch ev, _ := s.next(); ev {
+		case "end":
 			return
-		}
-		if ev == "rec" {
+		case "rec":
 			t.Fatal("records again after the fan-out ended")
+		case "":
+			t.Fatal("the stream ended without end: the viewer would reconnect")
 		}
 	}
 }

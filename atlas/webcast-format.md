@@ -227,7 +227,7 @@ A viewer that joins late receives the **catch-up**, followed by the live records
 - everything from the latest `seg` on. While paused, that last part is the segment through its `stop`. Reduced, the catch-up gives the same DOM, assets,
 `DocSeg`, current-document notes and control as the whole recording. This is tested at every cut point, and at every pinned
 time of every fixture. `recording.CatchUp` is this rule; the
-live fan-out (#460) serves it. The fake hub keeps only `CatchUp(log)` at each segment, so what it holds for late
+live fan-out (#460, `recording.Hub`) serves it. The hub keeps only `CatchUp(log)` at each segment, so what it holds for late
 joiners is bounded by one segment.
 
 ## Reading rules (the reducer)
@@ -261,7 +261,7 @@ it), never a local fork.
 |---|---|---|---|---|
 | pair#458 | recorder | writes a `recording.Sink` (`DirWriter` for disk, `Tee` to also feed `Live`) | `recording.FakeRecorder` (plays a fixture into a sink, instantly or in real time) | `recording.ValidateDir` on its output; fidelity vs `frames/` |
 | pair#459 | asset store and proxy | `assets.Store` (`Put`, `Get`, `Lookup`; `Policy`) | `assets.MemStore` | `assets.RunStoreContract` |
-| pair#460 | live viewer | `recording.Live` (fan-out with catch-up); the JS viewer contract below | `recording.Hub`: the production fan-out is its own double (bounded by one segment; #458 constructs it next to its `Tee`) | `recording.RunLiveContract`; the fixtures' canonical pins |
+| pair#460 | live viewer | `recording.Live` (fan-out with catch-up; `Ended(recs)` says whether a closed subscription was the fan-out's end or a drop); the JS viewer contract below | `recording.Hub`: the production fan-out is its own double (bounded by one segment; #458 constructs it next to its `Tee`) | `recording.RunLiveContract`; the fixtures' canonical pins |
 | pair#461 | notes model | `notes.Model` (`Anchor`, `Resolve`, `Context`, `Crops`, `Live`; `notes.Hints`) | `notes.FakeModel` | `notes.RunModelContract` |
 | pair#462 | agent queries | `query.Surface` (`DOMAt`, `Events`, `Notes`) | `query.FakeSurface` | `query.RunSurfaceContract` |
 | pair#467 | input injection | `drive.Injector` (`Inject(ctx, by, Batch)`) | `drive.FakeInjector` | `drive.RunInjectorContract` |

@@ -72,9 +72,10 @@ left waiting is a frozen tab. Without `Page.enable` the script never reaches the
   cloudflared tunnel can be claimed once, so the screen broadcast and the web cast must share it. `couchcmd` builds
   one Host from the `COUCH_BROADCAST_*` tunnel and hands it to both. SSE writing is `broadcast.EventStream`, shared.
 - **Events route:** `<token>/events` streams `state` and `end` (the Browser's phase) and, when `CastConfig.Live` is
-  set, `rec`: each record line of the recording, a `recording.Hub`'s catch-up first. A closed record channel (a
-  viewer too slow to keep up, or the fan-out closing) ends the stream, and the viewer reconnects for a fresh
-  catch-up. `?viewer=ID` calls `CastConfig.Presence` for the stream's life (#466's seats). `<token>/assets/<hash>` is
+  set, `rec`: each record line of the recording, a `recording.Hub`'s catch-up first. When the record channel
+  closes, the fan-out says why (`Live.Ended`). A viewer dropped as too slow has its stream ended and reconnects for
+  a fresh catch-up. Once the fan-out has ended, the viewer keeps its page and the stream goes on with `state` and
+  `end`. `?viewer=ID` calls `CastConfig.Presence` for the stream's life (#466's seats). `<token>/assets/<hash>` is
   the asset proxy's (#459).
 - **Live viewer (#460):** `webcast/web/`, three ES modules plus the shell.
   - `model.js` is the reducer in JS: `recording.Reduce` and `State.Canonical()`, byte for byte. Node tests hold it to

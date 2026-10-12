@@ -5,9 +5,10 @@ import "sync"
 // Hub is the production fan-out of a recording to its viewers (#460): a
 // Live and the Sink that feeds it. It keeps only what a late joiner needs:
 // at each segment its log shrinks to CatchUp(log), so its memory is bounded
-// by one segment plus the assets and the current document's notes (about
-// 1.4 MB/min of segment on #453's busy stress page), and it is freed with
-// the Hub when the cast ends. It is also the fake other components test
+// by one segment plus the assets and the current document's notes, and it is
+// freed with the Hub when the cast ends. (Within a segment it grows with the
+// segment: every hover and ptr is kept until #458 makes CatchUp keep only the
+// latest of each, the TL's call of 10-12.) It is also the fake other components test
 // against: the real thing is small enough to be its own double.
 type Hub struct {
 	mu     sync.Mutex
@@ -15,13 +16,15 @@ type Hub struct {
 	subs   map[chan Record]struct{}
 	buffer int
 	closed bool
-	done   chan struct{}
+	// dropped: subscriptions closed for falling behind, until cancelled
+	// (bounded by the viewers that were dropped and haven't cancelled).
+	dropped map[<-chan Record]bool
 }
 
 // NewHub: buffer is how many records a subscriber may fall behind before
 // it is dropped.
 func NewHub(buffer int) *Hub {
-	return &Hub{subs: map[chan Record]struct{}{}, buffer: buffer, done: make(chan struct{})}
+	return &Hub{subs: map[chan Record]struct{}{}, buffer: buffer, dropped: map[<-chan Record]bool{}}
 }
 
 func (h *Hub) Put(r Record) error {
@@ -42,6 +45,7 @@ func (h *Hub) Put(r Record) error {
 		case ch <- r:
 		default:
 			delete(h.subs, ch)
+			h.dropped[ch] = true
 			close(ch)
 		}
 	}
@@ -66,6 +70,7 @@ func (h *Hub) Subscribe() (<-chan Record, func()) {
 	return ch, func() {
 		h.mu.Lock()
 		defer h.mu.Unlock()
+		delete(h.dropped, ch) // the subscriber is done asking why
 		if _, ok := h.subs[ch]; ok {
 			delete(h.subs, ch)
 			close(ch)
@@ -79,7 +84,6 @@ func (h *Hub) Close() error {
 	defer h.mu.Unlock()
 	if !h.closed {
 		h.closed = true
-		close(h.done)
 		for ch := range h.subs {
 			close(ch)
 		}
@@ -88,8 +92,13 @@ func (h *Hub) Close() error {
 	return nil
 }
 
-// Done closes when the hub does.
-func (h *Hub) Done() <-chan struct{} { return h.done }
+// Ended: recs closed because the hub did, not because it was dropped or
+// cancelled.
+func (h *Hub) Ended(recs <-chan Record) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.closed && !h.dropped[recs]
+}
 
 // Retained is how many records the hub holds for late joiners.
 func (h *Hub) Retained() int {

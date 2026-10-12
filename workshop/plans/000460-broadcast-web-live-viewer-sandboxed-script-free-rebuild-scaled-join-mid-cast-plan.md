@@ -112,3 +112,11 @@ Go side:
 - **Not done here, for the TL:** `CatchUp` keeps every `ptr`/`hover` of the segment. A latest-only rule is a format
   change (#457/#458). `image-set()` string URLs are not rewritten; the CSP's `img-src 'self'` stops them reaching
   the origin.
+
+### 2026-10-12 — close review round 2
+- `Live.Done()` becomes `Live.Ended(recs)`. The hub records why it closed each subscription (dropped, or the
+  fan-out's end) under its lock, so a drop just before `Close` still reads as a drop. Sampling `Done` after the fact
+  could not tell. The atlas restatements (`webcast.md` events route, `webcast-format.md` seams row) move with it.
+- Fixes get tests that fail without them: `TestLiveRenderResolvesPerDocument` (a synthetic recording: a frame's
+  `<style>` resolves against the frame's URL; `<feImage href>` goes through the asset table), mutation-checked.
+- The node test's JS copy of `CatchUp` is gone. Joining is checked against Go's `CatchUp` in headless Chrome.

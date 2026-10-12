@@ -215,25 +215,21 @@ func RunLiveContract(t TB, newLive func() (Sink, Live)) {
 	if n >= 20*len(recs) {
 		t.Errorf("a subscriber that didn't read got all %d records; it should have been dropped", n)
 	}
+	// A drop stays a drop, even once the fan-out has ended since: the
+	// viewer must reconnect, having missed records.
+	if live.Ended(ch) {
+		t.Errorf("a dropped subscription reads as the fan-out's end")
+	}
+	sink.Close()
+	if live.Ended(ch) {
+		t.Errorf("a subscription dropped before Close reads as the fan-out's end")
+	}
 	cancel()
 
-	// A dropped subscriber's channel closes while Done stays open, so its
-	// viewer knows to reconnect.
-	select {
-	case <-live.Done():
-		t.Errorf("Done closed though the fan-out is still open")
-	default:
-	}
-
-	// Close ends every subscription, and Done says so.
+	// Close ends every subscription, and says it was the end.
 	sink, live = newLive()
 	ch, _ = live.Subscribe()
 	sink.Close()
-	select {
-	case <-live.Done():
-	case <-time.After(time.Second):
-		t.Errorf("Done stayed open after Close")
-	}
 	select {
 	case _, open := <-drain(ch):
 		if open {
@@ -241,6 +237,9 @@ func RunLiveContract(t TB, newLive func() (Sink, Live)) {
 		}
 	case <-time.After(time.Second):
 		t.Errorf("Close didn't end the subscription")
+	}
+	if !live.Ended(ch) {
+		t.Errorf("a subscription closed by Close doesn't read as the end")
 	}
 }
 
