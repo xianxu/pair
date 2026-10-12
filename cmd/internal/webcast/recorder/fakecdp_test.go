@@ -239,7 +239,7 @@ func (p *fakePage) all(n *fnode, out *[]*fnode) {
 }
 
 func isUnder(n, root *fnode) bool {
-	for ; n != nil; n = up(n) {
+	for ; n != nil; n = fup(n) {
 		if n == root {
 			return true
 		}
@@ -247,7 +247,7 @@ func isUnder(n, root *fnode) bool {
 	return false
 }
 
-func up(n *fnode) *fnode {
+func fup(n *fnode) *fnode {
 	if n.parent != nil {
 		return n.parent
 	}

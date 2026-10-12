@@ -268,7 +268,7 @@ func TestRecorderScreenshotsAndLayout(t *testing.T) {
 	n := len(frames.frames)
 	f0 := frames.frames[0]
 	frames.mu.Unlock()
-	if n != 1 || f0.W != 500 || f0.H != 350 || f0.Scale != shotScale || f0.File != "frames/0.png" {
+	if n != 1 || f0.W != 250 || f0.H != 175 || f0.Scale != shotScale || f0.File != "frames/0.png" {
 		t.Fatalf("frames %d %+v", n, f0)
 	}
 	l := h.last("layout").(*rec.Layout)

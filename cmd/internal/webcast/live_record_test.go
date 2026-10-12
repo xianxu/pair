@@ -296,3 +296,62 @@ func TestLiveRecording(t *testing.T) {
 		}
 	}
 }
+
+// TestLiveRecordURL records a page with the real recorder for the fidelity
+// runs, in #453's scenarios at its 1280×800 viewport:
+//
+//	WEBCAST_LIVE_CHROME=1 WEBCAST_RECORD_URL=http://127.0.0.1:8801/stress.html WEBCAST_RECORD_OUT=DIR \
+//	  WEBCAST_RECORD_SCENARIO=idle WEBCAST_RECORD_SECS=7 go test ./cmd/internal/webcast -run LiveRecordURL -v
+//
+// then FIDELITY_DIR=DIR go test ./cmd/internal/webcast/recorder/internal/fidelity -run Dir -v.
+func TestLiveRecordURL(t *testing.T) {
+	url, out := os.Getenv("WEBCAST_RECORD_URL"), os.Getenv("WEBCAST_RECORD_OUT")
+	if url == "" || out == "" {
+		t.Skip("set WEBCAST_RECORD_URL and WEBCAST_RECORD_OUT")
+	}
+	secs, _ := time.ParseDuration(os.Getenv("WEBCAST_RECORD_SECS") + "s")
+	if secs <= 0 {
+		secs = 10 * time.Second
+	}
+	c := liveRecordingChrome(t, out)
+	h := liveHarness{c}
+	s := h.session(t, "")
+	if err := c.call(s, "Emulation.setDeviceMetricsOverride", map[string]any{"width": 1280, "height": 800, "deviceScaleFactor": 1, "mobile": false}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.call(s, "Page.navigate", map[string]any{"url": url}, nil); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(1500 * time.Millisecond)
+	if err := c.SetLive(true); err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now()
+	if os.Getenv("WEBCAST_RECORD_SCENARIO") == "browse" {
+		wheel := func(dy float64) {
+			if err := c.call(s, "Input.dispatchMouseEvent", map[string]any{"type": "mouseWheel", "x": 640, "y": 400, "deltaX": 0, "deltaY": dy}, nil); err != nil {
+				t.Fatal(err)
+			}
+		}
+		time.Sleep(1500 * time.Millisecond)
+		for i := 0; i < 6; i++ {
+			wheel(500)
+			time.Sleep(900 * time.Millisecond)
+		}
+		wheel(-1500)
+	}
+	time.Sleep(secs - time.Since(start))
+	stats, err := c.rec.Stats(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("recorder: %+v", stats)
+	c.Close()
+	fs, _, err := recording.ValidateDir(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if errs := recording.Errors(fs); len(errs) != 0 {
+		t.Fatalf("invalid: %v", errs)
+	}
+}

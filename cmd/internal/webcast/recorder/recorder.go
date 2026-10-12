@@ -181,7 +181,10 @@ type Recorder struct {
 	requests map[string]netReq
 	shotN    int
 	nextShot time.Time
-	err      error
+	// asked: asset URLs this recording has queued, so each is fetched once
+	// (grows with the distinct assets a cast loads).
+	asked map[string]bool
+	err   error
 }
 
 type sheetHeader struct {
@@ -214,7 +217,7 @@ func Start(opts Options) *Recorder {
 		assetQ: make(chan assetJob, sideQueue), shotQ: make(chan shotJob, 1),
 		m: newMirror(), parents: map[string]string{}, frameIDs: map[string]string{}, loader: map[string]string{},
 		contexts: map[string]map[int64]string{}, snapSeq: map[string]uint64{}, headers: map[string]sheetHeader{},
-		requests: map[string]netReq{}, dirty: map[string]bool{},
+		requests: map[string]netReq{}, dirty: map[string]bool{}, asked: map[string]bool{},
 	}
 	r.side.Add(2)
 	go r.assetWorker()
@@ -529,6 +532,10 @@ func (r *Recorder) afterInput(at time.Time) {
 		r.m.Expand = r.m.Expand[1:]
 		r.call(e.Session, "DOM.requestChildNodes", map[string]any{"nodeId": e.NodeID, "depth": -1, "pierce": true}, nil)
 	}
+	for _, ref := range r.m.Refs {
+		r.queueRef(ref)
+	}
+	r.m.Refs = r.m.Refs[:0]
 	for len(r.m.Truncated) > 0 {
 		f := r.m.Truncated[0]
 		r.m.Truncated = r.m.Truncated[1:]
@@ -892,6 +899,7 @@ func (r *Recorder) event(at time.Time, e Event) {
 		if json.Unmarshal(e.Params, &p) == nil && p.Font != nil && p.Font.Src != "" && p.Font.Family != "" {
 			f := p.Font
 			r.m.Emit(t, &rec.Font{Family: f.Family, Src: f.Src, Style: f.Style, Weight: f.Weight, Stretch: f.Stretch, Range: f.Range})
+			r.queueURL(e.Session, f.Src, "")
 		}
 	case "Network.responseReceived":
 		var p struct {

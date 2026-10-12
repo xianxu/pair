@@ -291,11 +291,17 @@ func CheckCatchUp(recs []Record, t int64) error {
 		return fmt.Errorf("the document began in segment %d, the catch-up says %d", all.DocSeg, cu.DocSeg)
 	case liveNotes(all) != liveNotes(cu):
 		return fmt.Errorf("current-document notes %q, the catch-up has %q", liveNotes(all), liveNotes(cu))
+	case all.Hover != cu.Hover || !samePtr(all.Ptr, cu.Ptr):
+		return fmt.Errorf("hover %d ptr %v, the catch-up has %d %v", all.Hover, all.Ptr, cu.Hover, cu.Ptr)
 	case !all.Control.Equal(cu.Control):
 		return fmt.Errorf("driver %q pending %v, the catch-up has %q %v",
 			all.Control.Driving(), ids(all.Control.Pending), cu.Control.Driving(), ids(cu.Control.Pending))
 	}
 	return nil
+}
+
+func samePtr(a, b *[2]float64) bool {
+	return (a == nil) == (b == nil) && (a == nil || *a == *b)
 }
 
 func sameAssets(a, b map[string]*Asset) bool {

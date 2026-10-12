@@ -4,7 +4,11 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	"image"
+	"image/color"
 	"image/png"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/assets"
@@ -17,6 +21,7 @@ import (
 
 type assetJob struct {
 	store              assets.Store
+	load               bool   // not held by Chrome: load it in the page's context
 	session, requestID string // a response seen by the Network domain
 	frameID            string // or a resource already loaded (Page.getResourceContent)
 	url, mime          string
@@ -40,11 +45,60 @@ func (r *Recorder) queueAsset(j assetJob) {
 	if _, ok := r.m.st.Assets[j.url]; ok && j.requestID == "" {
 		return // already in this recording, and not a fresh response
 	}
+	if j.requestID == "" && !j.load {
+		if r.asked[j.url] {
+			return
+		}
+		r.asked[j.url] = true
+	}
+	if j.requestID != "" {
+		r.asked[j.url] = true // its response is coming; no load needed
+	}
 	select {
 	case r.assetQ <- j:
 	default:
 		r.assetsLost++ // reported in Stats, not one line per asset
 	}
+}
+
+// queueRef queues the assets an element references, resolved against its
+// document's URL.
+func (r *Recorder) queueRef(ref Ref) {
+	if !ref.Srcset {
+		r.queueURL(ref.Session, resolveURL(ref.DocURL, ref.Raw), "")
+		return
+	}
+	for _, cand := range strings.Split(ref.Raw, ",") {
+		if f := strings.Fields(cand); len(f) > 0 {
+			r.queueURL(ref.Session, resolveURL(ref.DocURL, f[0]), "")
+		}
+	}
+}
+
+// queueURL loads an asset the recording lacks in the page's context, once.
+func (r *Recorder) queueURL(session, u, mime string) {
+	if u == "" || !strings.HasPrefix(u, "http") || r.asked[u] {
+		return
+	}
+	if _, ok := r.m.st.Assets[u]; ok {
+		return
+	}
+	r.asked[u] = true
+	r.queueAsset(assetJob{session: session, frameID: r.frameIDs[session], url: u, mime: mime, load: true})
+}
+
+// resolveURL makes a reference absolute; "" when it can't.
+func resolveURL(base, ref string) string {
+	b, err := url.Parse(base)
+	if err != nil {
+		return ""
+	}
+	u, err := b.Parse(strings.TrimSpace(ref))
+	if err != nil {
+		return ""
+	}
+	u.Fragment = ""
+	return u.String()
 }
 
 // goAssets queues the images, stylesheets and fonts a page already loaded
@@ -94,28 +148,10 @@ func (f frameResources) walk(fn func(string, []resource)) {
 func (r *Recorder) assetWorker() {
 	defer r.side.Done()
 	for j := range r.assetQ {
-		var res struct {
-			Body    string `json:"body"`    // Network.getResponseBody
-			Content string `json:"content"` // Page.getResourceContent
-			B64     bool   `json:"base64Encoded"`
-		}
-		var err error
-		if j.requestID != "" {
-			_, err = r.call(j.session, "Network.getResponseBody", map[string]any{"requestId": j.requestID}, &res)
-		} else {
-			_, err = r.call(j.session, "Page.getResourceContent", map[string]any{"frameId": j.frameID, "url": j.url}, &res)
-		}
-		text := res.Body
-		if j.requestID == "" {
-			text = res.Content
-		}
-		body := []byte(text)
-		if err == nil && res.B64 {
-			body, err = base64.StdEncoding.DecodeString(text)
-		}
+		body, mime, err := r.fetchAsset(j)
 		var a *rec.Asset
 		if err == nil {
-			a, err = j.store.Put(r.ctx, assets.Capture{URL: j.url, MIME: j.mime, Body: body})
+			a, err = j.store.Put(r.ctx, assets.Capture{URL: j.url, MIME: mime, Body: body})
 		}
 		if err != nil {
 			r.post(assetFailed{})
@@ -124,6 +160,99 @@ func (r *Recorder) assetWorker() {
 		r.post(assetDone{a})
 	}
 }
+
+// fetchAsset reads a body from Chrome: a response it just saw, a resource
+// it already holds, or, when it holds none (a font, an image from its
+// memory cache), a load in the page's own context (its cookies, its cache);
+// never from outside the browser.
+func (r *Recorder) fetchAsset(j assetJob) ([]byte, string, error) {
+	var res struct {
+		Body    string `json:"body"`    // Network.getResponseBody
+		Content string `json:"content"` // Page.getResourceContent
+		B64     bool   `json:"base64Encoded"`
+	}
+	var err error
+	text := ""
+	switch {
+	case j.requestID != "":
+		_, err = r.call(j.session, "Network.getResponseBody", map[string]any{"requestId": j.requestID}, &res)
+		text = res.Body
+	case !j.load:
+		_, err = r.call(j.session, "Page.getResourceContent", map[string]any{"frameId": j.frameID, "url": j.url}, &res)
+		text = res.Content
+	}
+	if j.requestID == "" && (j.load || err != nil) {
+		return r.loadResource(j)
+	}
+	if err != nil {
+		return nil, "", err
+	}
+	if !res.B64 {
+		return []byte(text), j.mime, nil
+	}
+	body, err := base64.StdEncoding.DecodeString(text)
+	return body, j.mime, err
+}
+
+// loadResource loads a URL in the page's context (Network.loadNetworkResource)
+// and reads its stream.
+func (r *Recorder) loadResource(j assetJob) ([]byte, string, error) {
+	var res struct {
+		Resource struct {
+			Success bool              `json:"success"`
+			Status  int               `json:"httpStatusCode"`
+			Stream  string            `json:"stream"`
+			Headers map[string]string `json:"headers"`
+		} `json:"resource"`
+	}
+	if _, err := r.call(j.session, "Network.loadNetworkResource", map[string]any{"frameId": j.frameID, "url": j.url,
+		"options": map[string]any{"disableCache": false, "includeCredentials": true}}, &res); err != nil {
+		return nil, "", err
+	}
+	if !res.Resource.Success || res.Resource.Stream == "" || res.Resource.Status >= 400 {
+		return nil, "", fmt.Errorf("load %s: status %d", j.url, res.Resource.Status)
+	}
+	defer r.call(j.session, "IO.close", map[string]any{"handle": res.Resource.Stream}, nil)
+	var body []byte
+	for {
+		var chunk struct {
+			Data string `json:"data"`
+			B64  bool   `json:"base64Encoded"`
+			EOF  bool   `json:"eof"`
+		}
+		if _, err := r.call(j.session, "IO.read", map[string]any{"handle": res.Resource.Stream, "size": 1 << 20}, &chunk); err != nil {
+			return nil, "", err
+		}
+		part := []byte(chunk.Data)
+		if chunk.B64 {
+			var err error
+			if part, err = base64.StdEncoding.DecodeString(chunk.Data); err != nil {
+				return nil, "", err
+			}
+		}
+		body = append(body, part...)
+		if chunk.EOF {
+			break
+		}
+		if len(body) > maxAssetBody {
+			return nil, "", fmt.Errorf("load %s: over %d bytes", j.url, maxAssetBody)
+		}
+	}
+	mime := j.mime
+	for k, v := range res.Resource.Headers {
+		if strings.EqualFold(k, "content-type") {
+			mime = strings.TrimSpace(strings.SplitN(v, ";", 2)[0])
+		}
+	}
+	if mime == "" {
+		mime = "application/octet-stream"
+	}
+	return body, mime, nil
+}
+
+// maxAssetBody bounds one loaded body (a page's own responses are bounded
+// by Chrome's network buffer instead).
+const maxAssetBody = 32 << 20
 
 // post queues a side worker's result.
 func (r *Recorder) post(in any) { r.enqueue(in, false) }
@@ -159,19 +288,20 @@ func (r *Recorder) shotWorker() {
 		var res struct {
 			Data string `json:"data"`
 		}
-		clip := map[string]any{"x": j.scroll[0], "y": j.scroll[1], "width": j.vp.W, "height": j.vp.H, "scale": shotScale}
-		if _, err := r.call(j.top, "Page.captureScreenshot", map[string]any{"format": "png", "clip": clip}, &res); err != nil {
+		// A screenshot shows the page as of its capture: its time is the
+		// call's midpoint, as #453's harness stamped the fixtures' frames.
+		t0 := r.opts.Now()
+		_, err := r.call(j.top, "Page.captureScreenshot", map[string]any{"format": "png"}, &res)
+		d.at = t0.Add(r.opts.Now().Sub(t0) / 2)
+		if err != nil {
 			d.failed = err
 			r.post(d)
 			continue
 		}
-		var err error
-		if d.png, err = base64.StdEncoding.DecodeString(res.Data); err == nil {
-			if cfg, err2 := png.DecodeConfig(bytes.NewReader(d.png)); err2 == nil {
-				d.w, d.h = cfg.Width, cfg.Height
-			} else {
-				err = err2
-			}
+		var full []byte
+		full, err = base64.StdEncoding.DecodeString(res.Data)
+		if err == nil {
+			d.png, d.w, d.h, err = LowRes(full)
 		}
 		if err != nil {
 			d.failed = fmt.Errorf("screenshot: %w", err)
@@ -279,4 +409,37 @@ func round2(f float64) float64 {
 		return -round2(-f)
 	}
 	return float64(int64(f*100+0.5)) / 100
+}
+
+// LowRes is a viewport screenshot halved with a 2×2 box filter: the
+// fidelity screenshots' form, as #453's harness made the fixtures' frames.
+// The viewport is captured whole and scaled here, because CDP's clip is in
+// document coordinates and offsets a scrolled page. The fidelity check
+// scales its replays the same way.
+func LowRes(full []byte) (out []byte, w, h int, err error) {
+	src, err := png.Decode(bytes.NewReader(full))
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	b := src.Bounds()
+	w, h = b.Dx()/2, b.Dy()/2
+	dst := image.NewNRGBA(image.Rect(0, 0, w, h))
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			var sum [4]uint32
+			for _, d := range [4][2]int{{0, 0}, {1, 0}, {0, 1}, {1, 1}} {
+				c := color.NRGBAModel.Convert(src.At(b.Min.X+2*x+d[0], b.Min.Y+2*y+d[1])).(color.NRGBA)
+				sum[0] += uint32(c.R)
+				sum[1] += uint32(c.G)
+				sum[2] += uint32(c.B)
+				sum[3] += uint32(c.A)
+			}
+			dst.SetNRGBA(x, y, color.NRGBA{uint8(sum[0] >> 2), uint8(sum[1] >> 2), uint8(sum[2] >> 2), uint8(sum[3] >> 2)})
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, dst); err != nil {
+		return nil, 0, 0, err
+	}
+	return buf.Bytes(), w, h, nil
 }

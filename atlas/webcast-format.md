@@ -234,8 +234,10 @@ A viewer that joins late receives the **catch-up**, followed by the live records
 - the `seg` the current document began in, as a bare record, so the document's notes keep their segment;
 - the notes, note states and strokes since then;
 - the latest `ctl` before the latest `seg`, which carries the whole control state;
-- everything from the latest `seg` on. While paused, that last part is the segment through its `stop`. Reduced, the catch-up gives the same DOM, assets,
-`DocSeg`, current-document notes and control as the whole recording. This is tested at every cut point, and at every pinned
+- everything from the latest `seg` on, except `hover` and `ptr`: of those, only the latest of each, in place (they are the
+  operator's pointer now, state rather than history; #458). While paused, that last part is the segment through its
+  `stop`. Reduced, the catch-up gives the same DOM, assets, `DocSeg`, current-document notes, control, hover and
+  pointer as the whole recording. This is tested at every cut point, and at every pinned
 time of every fixture. `recording.CatchUp` is this rule; the
 live fan-out (#460) serves it. The fake hub keeps only `CatchUp(log)` at each segment, so what it holds for late
 joiners is bounded by one segment.
@@ -425,4 +427,5 @@ recording. Seats and their keys are memory only: they end after the grace period
 
 - 2026-10-12 (#458, additive v1, approved with #457 by the operator; shapes coordinated by the TL with #460 and
   #466): `hover {id}` and `ptr {x,y}` in events.jsonl, outside Canonical; `input.secret` and the password rules;
-  `ValidateDir` also reports anything in `frames/` no frame record names (a stray `.tmp-*`).
+  `ValidateDir` also reports anything in `frames/` no frame record names (a stray `.tmp-*`). The catch-up keeps only
+  the current segment's latest `hover` and `ptr` (TL, with #460).

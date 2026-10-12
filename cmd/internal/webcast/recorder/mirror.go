@@ -112,6 +112,16 @@ type mirror struct {
 	// shell asks for them (DOM.requestChildNodes), and they come back as
 	// setChildNodes.
 	Expand []Expand
+	// Refs lists assets the recorded elements reference; the shell fetches
+	// those the recording lacks.
+	Refs []Ref
+}
+
+// Ref is an asset an element references (img src and srcset, a stylesheet
+// link, a poster), as written, with its document's URL to resolve it by.
+type Ref struct {
+	Session, DocURL, Raw string
+	Srcset               bool // Raw is a srcset: comma-separated candidates
 }
 
 // Expand names a node whose children CDP hasn't sent.
@@ -386,6 +396,7 @@ func (m *mirror) wire(s *msession, n *cnode, frames *[]frameRef) *rec.Node {
 	case 1:
 		w.Y, w.N, w.NS = rec.YEl, n.LocalName, ns(n)
 		w.A = wiredAttrs(n)
+		m.refs(s, n, w.A)
 		for _, r := range n.ShadowRoots {
 			if r.ShadowRootType != "user-agent" && !r.hidden {
 				w.SR = m.wire(s, r, frames)
@@ -420,6 +431,40 @@ func (m *mirror) wire(s *msession, n *cnode, frames *[]frameRef) *rec.Node {
 		}
 	}
 	return w
+}
+
+// refAttrs: the attributes that reference an asset, by element.
+var refAttrs = map[string][]string{"img": {"src", "srcset"}, "source": {"src", "srcset"}, "link": {"href"},
+	"video": {"poster"}, "input": {"src"}, "image": {"href", "xlink:href"}}
+
+// refs lists an element's asset references.
+func (m *mirror) refs(s *msession, n *cnode, a map[string]string) {
+	names := refAttrs[n.LocalName]
+	if len(names) == 0 || len(a) == 0 {
+		return
+	}
+	if n.LocalName == "link" && !strings.Contains(strings.ToLower(a["rel"]), "stylesheet") && !strings.Contains(strings.ToLower(a["rel"]), "icon") {
+		return
+	}
+	doc := ""
+	for p := n; p != nil; p = up(p) {
+		if p.NodeType == 9 {
+			doc = p.DocumentURL
+			break
+		}
+	}
+	for _, k := range names {
+		if v := a[k]; v != "" {
+			m.Refs = append(m.Refs, Ref{Session: s.id, DocURL: doc, Raw: v, Srcset: k == "srcset"})
+		}
+	}
+}
+
+func up(n *cnode) *cnode {
+	if n.parent != nil {
+		return n.parent
+	}
+	return n.host
 }
 
 // checkTruncated asks for a text node's full value when CDP may have cut it.
