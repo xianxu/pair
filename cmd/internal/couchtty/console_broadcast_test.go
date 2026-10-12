@@ -95,20 +95,7 @@ func openViewer(t *testing.T, s *broadcast.Session) *remoteViewer {
 	}
 	client := &http.Client{Jar: jar}
 	link := s.Link()
-	code := ""
-	for _, c := range s.Codes() {
-		if c.Link == broadcast.LinkView {
-			code = c.Code
-		}
-	}
-	unlock, err := client.Post(link+"unlock", "application/json", strings.NewReader(`{"code":"`+code+`"}`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	unlock.Body.Close()
-	if unlock.StatusCode != http.StatusOK {
-		t.Fatalf("unlock refused: %d", unlock.StatusCode)
-	}
+	unlockCastLink(t, client, s, broadcast.LinkView, link)
 	resp, err := client.Get(link + "events")
 	if err != nil {
 		t.Fatal(err)

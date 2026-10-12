@@ -1,6 +1,25 @@
 # #495 plan: a one-time code locks every cast link
 
-Status: draft. The decisions marked **[D1]..[D6]** are proposals waiting on the operator (through the hub).
+Status: decided; M1 closed. The body below is the original draft, and Revisions record each change. This summary is the current design.
+
+## Current design (supersedes the draft where they differ)
+
+- **Links and codes.** Each link has its own code: terminal `view` (4 digits), terminal `pointer` (4), web `view` (4) and web `drive` (6). Replay links stay unlocked (D4, a follow-up issue).
+- **Gate.** `Mountable.LockFor(segment)` names a link's lock, and the `Host` gate runs before any mount.
+  - Before a session: the lock page, `lock.js`, `lock.css` and `POST unlock`; everything else gets 401.
+  - With a session: the request runs under a context that revoke cancels.
+  - `GET session` is the gate's own probe (204 or 401). A page whose stream closed uses it and reloads into the lock page. There is no `event: locked`.
+- **Session.** An `HttpOnly`, `SameSite=Strict`, path-scoped cookie with no expiry (D1). Pages use same-origin credentials.
+- **Budget.** About 8 wrong tries per code, across all clients. A spent budget rotates the code and keeps the sessions.
+  - Unlock attempts are rate-limited per lock (a burst of 5, then 1/s).
+  - If the rotation fails, the lock fails closed until the operator rotates.
+  - `Rotation.Gen` orders the notifications.
+- **Lock page.** One page asks for the code and the name for every link. `URL#NNNN` pre-fills the code and is stripped from history.
+- **Couch (M3).** An operator-only presenter layer that is never tapped holds:
+  - a hover tooltip with the codes (`view 4821 · pointer 7730`);
+  - an Alt+click Codes menu with per-link rotate and "rotate all";
+  - a three-flash of a new code;
+  - the guess-rotation alert, coalesced per lock every 30 s.
 
 ## Shape
 

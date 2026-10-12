@@ -97,7 +97,7 @@ func pointerOnFixture(t *testing.T, mutate func(*broadcast.Config)) (*consoleFix
 	if link == "" || link == s.Link() {
 		t.Fatalf("pointer link %q (view %q)", link, s.Link())
 	}
-	unlockCastLink(t, s, broadcast.LinkPointer, link)
+	unlockCastLink(t, castClient, s, broadcast.LinkPointer, link)
 	waitFor(t, "active 👆 drawn", func() bool { return f.screenBg(f.pointerSpan().Start, 23) == markTint })
 	return f, s, link
 }

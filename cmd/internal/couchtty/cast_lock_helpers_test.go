@@ -21,8 +21,9 @@ var castClient = func() *http.Client {
 	return &http.Client{Jar: jar}
 }()
 
-// unlockCastLink enters s's code for which ("view" or "pointer") at link.
-func unlockCastLink(t *testing.T, s *broadcast.Session, which, link string) {
+// unlockCastLink enters s's code for which ("view" or "pointer") at link,
+// through client, whose jar then holds the session.
+func unlockCastLink(t *testing.T, client *http.Client, s *broadcast.Session, which, link string) {
 	t.Helper()
 	code := ""
 	for _, c := range s.Codes() {
@@ -30,7 +31,7 @@ func unlockCastLink(t *testing.T, s *broadcast.Session, which, link string) {
 			code = c.Code
 		}
 	}
-	resp, err := castClient.Post(link+"unlock", "application/json", strings.NewReader(`{"code":"`+code+`"}`))
+	resp, err := client.Post(link+"unlock", "application/json", strings.NewReader(`{"code":"`+code+`"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
