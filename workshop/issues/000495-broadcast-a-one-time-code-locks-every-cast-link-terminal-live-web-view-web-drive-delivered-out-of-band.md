@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
-estimate_hours:
-card_mirror: '59b078705f661d2dc4becd3878160b022ee9db7b' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 8.05
+card_mirror: 'acbec659f5f9cb872e330c525f71f1813476cb1d' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T12:59:16-07:00
 claimant:
     operator: Xian Xu
@@ -15,6 +15,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
 ---
 
 # broadcast: a one-time code locks every cast link (terminal LIVE, web view, web drive); delivered out of band
@@ -47,6 +48,38 @@ Durable plan: `workshop/plans/000495-broadcast-a-one-time-code-locks-every-cast-
 - [ ] M1 — `castlock` core + Host gate (session seam) + lock page (code + name) + unlock route; terminal LIVE and pointer links locked; revoke ends live streams; every route refuses without a session (direct `GET events` included).
 - [ ] M2 — web cast view and drive locks (6-digit drive); lock-page name replaces #470's note-dialog prompt; terminal notes gain the author; headless-Chrome tests unlock first.
 - [ ] M3 — Couch: operator-only presenter layer (never tapped); hover tooltip with codes, Alt+click Codes menu with per-link rotate and "rotate all", guess-rotation alert, the three-flash on rotation — all in that layer; atlas threat model; follow-up issue for replay links; operator smoke test on desktop and iPad.
+
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* The calibration doc is marked stale (#127), so the numbers are provisional.
+
+- **castlock core:** a greenfield Go module.
+- **Host gate:** lock page, unlock route and cookie; a greenfield Go module plus JS.
+- **Terminal LIVE and pointer wiring:** a smaller Go module.
+- **Web cast view and drive wiring, plus the name merge:** a smaller Go module.
+- **Operator-only presenter layer:** a greenfield Go module.
+- **Couch tooltip, Codes menu, flash and alert:** a TUI screen. It mirrors the notes menu, so design sits mid-range.
+- **Atlas threat model.**
+- **Reviews:** three milestone reviews.
+- **Smoke-test iteration:** one UX round.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module   design=1.0 impl=0.22
+item: greenfield-go-module   design=1.0 impl=0.24
+item: smaller-go-module      design=0.2 impl=0.16
+item: smaller-go-module      design=0.3 impl=0.2
+item: greenfield-go-module   design=0.8 impl=0.2
+item: tui-screen             design=1.2 impl=0.28
+item: atlas-docs             design=0.1 impl=0.04
+item: milestone-review       design=0.1 impl=0.14
+item: milestone-review       design=0.1 impl=0.14
+item: milestone-review       design=0.1 impl=0.14
+item: ux-rename-iteration    design=0.5 impl=0.08
+design-buffer: 0.15
+total: 8.05
+```
 
 ## Log
 
