@@ -1,11 +1,14 @@
 package webcast
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -107,6 +110,13 @@ func TestLiveViewerPage(t *testing.T) {
 	t.Logf("boxOf: %d of %d recorded boxes agree (%.1f%%)", match, sized, 100*share)
 	if share < boxAgreement {
 		t.Errorf("boxOf agrees with the tab on %.1f%% of boxes, want at least %.0f%%", 100*share, 100*boxAgreement)
+	}
+
+	if dir := os.Getenv("WEBCAST_REPLAY_SHOTS"); dir != "" {
+		var shot struct{ Data string }
+		page.call(t, page.session, "Page.captureScreenshot", map[string]any{"format": "png"}, &shot)
+		raw, _ := base64.StdEncoding.DecodeString(shot.Data)
+		os.WriteFile(filepath.Join(dir, "viewer-page.png"), raw, 0o644)
 	}
 
 	// The operator's hover and pointer.
