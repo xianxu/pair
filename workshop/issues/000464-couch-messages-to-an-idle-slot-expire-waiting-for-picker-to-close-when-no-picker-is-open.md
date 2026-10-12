@@ -15,6 +15,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "87d3ca31", done: "28fc0160"}
 ---
 
 # couch: messages to an idle slot expire 'waiting for picker to close' when no picker is open
