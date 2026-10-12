@@ -15,6 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "6c5fbfe7", done: "eeabba4d"}
 ---
 
 # broadcast-web: fidelity flake on rec-blog frame 0 — a web font bound 1 ms before the screenshot moment
