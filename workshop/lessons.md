@@ -1115,6 +1115,12 @@ proof; record the surprising case so the next change starts from evidence.
   a stated order (check everything that can fail, then the first irreversible effect), add a new effect at the
   effect boundary, keep admission effect-free, and test the earlier refusal with the agent still running —
   mutation-checked by moving the effect back.
+- **A latch needs a close for every way its condition ends (#464).** `pickerActive` armed on Claude's permission
+  OSC and cleared only on a plain Enter. Claude Code's unattended auto-deny closed the picker with no key, and the
+  stale latch held every peer message "waiting for picker to close". When a flag tracks an external state, list
+  each way that state ends (key, timeout, Esc, the other side's own decision) and clear the flag from observed
+  evidence (here, the composer returning after the picker hid it), not from the one input you happen to see.
+  Read the screen at arming too: the evidence can land before the signal that arms the flag.
 - pair#463: a new reserved name on an existing addressing surface (`couch --send-to hub`) left README and atlas
   still describing the old address grammar, and a TL-deferred Done-when clause stayed as written. When a change
   adds a form to a CLI grammar, grep every restatement of that grammar (`--help`, skill, README, atlas) in the
