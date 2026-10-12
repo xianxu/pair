@@ -1,12 +1,12 @@
 ---
 id: 000463
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '6f72f1dc7fc2a0ce7597cd93686b2a4d62614873' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '08ea701b6a198fd0611adbf953b4d63671947d3a' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T00:15:37-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "a00f3e48", done: "2343f58b"}
+actual_hours: 0.31
 ---
 
 # couch --send-to hub: a reserved target the supervisor resolves live to the hub slot
