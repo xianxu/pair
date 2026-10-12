@@ -1,6 +1,6 @@
 ---
 id: 000454
-status: codecomplete
+status: done
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours: 4.69
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: d6e06046ceb2d3ee2dd5e56d3fb5717105728e14
         evidence_commit: 3d8523e9f59fb59120447e3e4f35fee1e35b9d24
+        landed_commit: 33da9e6d99b147ff862f3de5e96a06da9b2d3845
 ---
 
 # broadcast-web: Chrome in Couch — start, go live, pause, end; one cast
