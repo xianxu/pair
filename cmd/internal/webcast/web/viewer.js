@@ -10,6 +10,7 @@
 import { Model } from './model.js';
 import { Renderer } from './render.js';
 import { mountAnnotate } from './annotate.js';
+import { replayPath, mountReplay } from './replay.js';
 
 // fit is the page box's scale and place in an area: the operator's
 // viewport, scaled to fit whole, centred.
@@ -144,14 +145,20 @@ export function mount(doc, win) {
     return a ? new URL(`assets/${a.hash}`, win.location.href).href : '';
   };
   const viewer = new URLSearchParams(win.location.search).get('viewer');
-  const v = connect({
-    open: () => new win.EventSource(viewer ? `events?viewer=${encodeURIComponent(viewer)}` : 'events'),
+  const shell = {
     renderer: (model) => new Renderer(frame, model, resolveAsset),
     show: render,
     frame: () => { layout(); drawPointer(); },
     schedule: (fn) => win.requestAnimationFrame(fn),
-    retry: (fn) => win.setTimeout(fn, 1000),
-  });
+  };
+  // A recording (#471) plays from its records; a cast follows its stream.
+  const v = replayPath(win.location.pathname)
+    ? mountReplay(doc, win, shell, (x, y) => fromPage(x, y, placed.scale, scroll()))
+    : connect({
+      ...shell,
+      open: () => new win.EventSource(viewer ? `events?viewer=${encodeURIComponent(viewer)}` : 'events'),
+      retry: (fn) => win.setTimeout(fn, 1000),
+    });
   win.addEventListener('resize', () => { layout(); drawPointer(); });
 
   // The viewer contract (atlas/webcast-format.md): the conformance check,
@@ -159,7 +166,7 @@ export function mount(doc, win) {
   win.couchViewer = {
     resolveAsset: (abs) => resolveAsset(abs) || undefined,
     canonical: () => v.renderer.canonical(),
-    ready: () => v.renderer.ready(),
+    ready: async () => { await v.loaded; return v.renderer.ready(); }, // a replay first loads its records
     boxOf: (id) => v.renderer.boxOf(id),
     nodeAt: (x, y) => v.renderer.nodeAt(x, y),
     toPage: (clientX, clientY) => {

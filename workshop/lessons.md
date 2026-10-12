@@ -1181,6 +1181,24 @@ proof; record the surprising case so the next change starts from evidence.
   containment. When a second component accepts another's format, call the owner's reader for it (`notes.Match`) and
   fall back to your own grammar only outside it; scope every combinator to a tree as the platform does; test with
   identity against an oracle the owner provides (`Resolve` with no node id), never with "contains".
+- **A fixture corpus can leave out the very case a rule exists for (#471).** The catch-up rule keeps assets from before
+  the latest segment and drops notes from earlier documents, and no fixture had either. The invariant passed on every
+  fixture while exercising nothing. When a port is held to an invariant over fixtures, list the rule's branches first,
+  then check that some input reaches each one; add a synthetic recording for any branch no fixture reaches. And look at
+  a UI once (a headless screenshot): a layout bug that only shows while paused passed every DOM check.
+- **A held port needs a corpus the owner's test regenerates (#471 close, round 1).** #458 changed `recording.CatchUp`
+  (hover and ptr: only the latest) while #471's JS port was in flight. The merge was clean and every test passed: no
+  fixture had a hover or ptr, and the record-for-record check ran only in live Chrome. When code ports another
+  package's rule, check it in as a shared corpus. It needs every branch, plus the owner's answers. The owner's test
+  must fail when its rule moves (`TestCatchUpCorpus`), and the port's test must fail until it follows. After merging
+  main, grep main's diff for the ported function's name.
+- **A "what the user sees" rule has one walker; grep for its siblings (#469 close).** Fixing note context with a new
+  `RenderedText` left #462's `spacedText` in `query/render.go`, a second visible-text walker with different
+  rules beside it in the same output. When you add a function that defines how something reads (rendered text, a
+  selector, a label), grep the codebase for every other function doing the same job (`TextContent`, `textContent`,
+  "what a reader sees") and route them through yours in the same change. And don't derive state the source doesn't
+  hold: a select's live choice isn't in the DOM, so guessing it from the `selected` attribute contradicted the
+  event beside it.
 
 - **A check made before handing a record to an asynchronous writer is re-made by the writer (#470 plan-quality).** The
   board checked a viewer's note against the current document, then emitted it outside its lock into the recorder's
@@ -1189,3 +1207,10 @@ proof; record the surprising case so the next change starts from evidence.
   writer orders the result, send the checked fact with the record (here the document's first segment) and have the
   writer apply the one statement of the rule (`recording.State.OnDoc`) at ordering time; test the race by ordering
   the competing event inside the emit.
+- **A test that asserts "at once" needs a sync point with the goroutine doing the work (#473).** Two flakes had the
+  same shape: the test read state from its own goroutine while another one was mid-step. couchtty polled the pointer
+  phase, which flips before the same Run-loop step tears the timers down; couchcore gave a fake child's reaper 2ms of
+  real time after its death to deliver. Before writing an exact assertion (`timer == nil`, `kills == 3`), name the
+  event that makes it true and wait on that event: a no-op command through the loop that owns the state, or an
+  injected clock (`Couch.after`) that ties the timeout to the fake's state. To prove a suspected window, widen it
+  with a temporary sleep in the product or fake and watch the test fail every time.

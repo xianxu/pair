@@ -52,7 +52,7 @@ func (FakeModel) Context(st *recording.State, at recording.NoteAt) (Context, err
 	if p := n.ParentElement(); p != nil {
 		land = p
 	}
-	c := Context{Node: n.ID, Landmark: land.ID, Text: trim(land.TextContent())}
+	c := Context{Node: n.ID, Landmark: land.ID, Text: trim(land.RenderedText())}
 	if b, ok := st.Boxes[land.ID]; ok {
 		c.Box = &b
 	}

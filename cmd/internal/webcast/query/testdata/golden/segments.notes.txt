@@ -6,7 +6,7 @@ note seg-n1  t=1500  segment 1  open  by Pat (product) (viewer-1)
   element:
     @1 <input id=q> {value "inv", focused}
   context: within @8 <body>
-    text: "Inboxone"
+    text: "Inbox one"
   before (10000 ms):
     0 segment 1 starts (live) on http://app.local/, viewport 1280x800@1
     800 focus @1 <input#q>

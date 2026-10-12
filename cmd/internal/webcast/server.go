@@ -14,7 +14,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
-//go:embed web/index.html web/viewer.js web/viewer.css web/model.js web/render.js web/css.js web/annotate.js web/annotate.css
+//go:embed web/index.html web/viewer.js web/viewer.css web/model.js web/render.js web/css.js web/annotate.js web/annotate.css web/replay.js web/replay.css
 var webFS embed.FS
 
 // contentSecurityPolicy: the page runs only its own script, talks only to
@@ -35,6 +35,8 @@ var assets = map[string]struct{ file, contentType string }{
 	// swatches and dialog shared with the terminal viewer.
 	"annotate.js":  {"web/annotate.js", "text/javascript; charset=utf-8"},
 	"annotate.css": {"web/annotate.css", "text/css; charset=utf-8"},
+	"replay.js":    {"web/replay.js", "text/javascript; charset=utf-8"},
+	"replay.css":   {"web/replay.css", "text/css; charset=utf-8"},
 }
 
 // endedReason is what viewers are told when the cast ends.
@@ -110,18 +112,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if s.boardAsset(w, rest) {
 		return
 	}
-	a, ok := assets[rest]
-	if !ok {
-		http.NotFound(w, r)
-		return
-	}
-	body, err := webFS.ReadFile(a.file)
-	if err != nil {
-		http.Error(w, "unavailable", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", a.contentType)
-	w.Write(body)
+	serveViewerFile(w, r, rest)
 }
 
 func (s *Server) events(w http.ResponseWriter, r *http.Request) {

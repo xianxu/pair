@@ -173,6 +173,15 @@ func (f *consoleFixture) notesTimer() bool {
 	return f.con.pnotes.timer != nil
 }
 
+// settle waits for the Run loop to finish the step in progress: commands run
+// one at a time between input chunks, so a no-op one returns only after it.
+func (f *consoleFixture) settle(t *testing.T) {
+	t.Helper()
+	if err := f.con.runTerminalCommand(f.con.lifetime, func() error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // M3: the 💭 sits on a chip of its author's color (color 0 here, the amber
 // marks use), and a flash timer runs while notes are open, stopped when
 // pointing turns off.
@@ -236,8 +245,11 @@ func TestCollaborationTimersRearmAndTearDown(t *testing.T) {
 				tm.arm(t, f, link)
 				waitFor(t, "timer armed", func() bool { return tm.timer(f) != nil })
 				end(t, f)
-				// At once, not eventually: a stale timer would clear itself
-				// when it next fires, which a wait would mistake for teardown.
+				// The phase flips before the same loop step tears the layer
+				// down, so let that step finish (#473). Then at once, not
+				// eventually: a stale timer would clear itself when it next
+				// fires, which a wait would mistake for teardown.
+				f.settle(t)
 				if tm.timer(f) != nil {
 					t.Fatal("timer still armed after the layer ended")
 				}

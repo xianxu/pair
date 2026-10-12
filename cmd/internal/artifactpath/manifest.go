@@ -715,6 +715,11 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/board/board.go",
 	"cmd/internal/webcast/board/wire.go",
 	"cmd/internal/webcast/board/writer.go",
+	// #471 replay: reads recordings under <store>/webcast/recordings (or a
+	// directory the caller names) and serves them on loopback; writes nothing.
+	"cmd/internal/couchcmd/replay.go",
+	"cmd/internal/webcast/assets/reopen.go",
+	"cmd/internal/webcast/replay.go",
 	// #462 agent queries: read a recording directory the caller names
 	// (couch --broadcast-web-query DIR) and write only to stdout.
 	"cmd/internal/webcast/query/cli.go",

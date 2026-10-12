@@ -142,6 +142,68 @@ rounds:
       recipe: milestone-review
       isolation: checkout
       blocked: true
+    - "n": 4
+      timestamp: "2026-10-12T04:02:36-07:00"
+      dispatched: "2026-10-12T03:58:47-07:00"
+      agent: claude
+      dispose:
+        - id: BR-8
+          disposition: addressed
+          note: visible() filters by each stroke's end against newest at draw time (annotate.js:113); node test replays in stream order; reverting the check turns annotate.test.mjs red (verified here).
+          round: 4
+        - id: BR-9
+          disposition: addressed
+          note: Pins reconciled per id (annotate.js:385-396); .chip exempt at :291; e2e taps the chip by touch in note mode (viewer_annotate_live_test.go:168-174). The e2e could not be executed here (Chrome fails to start in this environment); the sibling swatch rebuild is raised separately.
+          round: 4
+        - id: BR-10
+          disposition: addressed
+          note: e2e opens A's pin in B, presses Resolve, asserts the pin is gone in both viewers and a resolving note-state is in the recording (viewer_annotate_live_test.go:166-187).
+          round: 4
+        - id: BR-11
+          disposition: addressed
+          note: README.md "Pointing and notes on a web cast (#470)" covers the rail modes, the name prompt, and that notes and strokes are saved in notes.jsonl/pointer.jsonl; it matches annotate.js and the recording records.
+          round: 4
+        - id: BR-12
+          disposition: not-addressed
+          note: 'The fix is in the code (answered() and the toast, annotate.js:194-201,279), but no test fails without it: answered is internal and the e2e never triggers a refusal. Export a pure answered(say) and node-test a 409 and a rejected fetch.'
+          round: 4
+        - id: BR-13
+          disposition: addressed
+          note: poster and safeStorage now live in collab.js and both viewers use them; the CSS stays duplicated for a recorded reason (different selectors per page); existing tests cover the refactor.
+          round: 4
+        - id: BR-14
+          disposition: not-addressed
+          note: s.seg is captured at stroke start and endStroke runs at a new document (annotate.js:299,446), but no test covers a stroke spanning a navigation; add an e2e step or a node seam for it.
+          round: 4
+      findings:
+        - id: BR-15
+          severity: Important
+          title: drawRail rebuilds the swatch buttons every frame (renderSwatches at annotate.js:255), so swatch clicks are lost during activity
+          detail: '2nd finding in family pin-input-routing. Rule: nothing that takes input is recreated on the per-frame path; frame work only moves or restyles, and elements are rebuilt only when their data changes. Sweep: pins fixed, swatches violate it, mode buttons and dialog fine. schedule() runs on every record, so the swatches are replaced many times a second during a live cast, and a click spanning a replace goes to the swatches div, which has no listener. Fix: render swatches only at mount and on pick; add an e2e step that picks a swatch while a stroke fades.'
+          family: pin-input-routing
+          round: 4
+        - id: BR-16
+          severity: Minor
+          title: setMode and the cast-end handler end a stroke but leave a region drag in progress (annotate.js:266-272)
+          detail: '2nd finding in family stroke-spans-document. Rule: one endGesture() ends the stroke and the drag, and every boundary (new document, mode change, cast end, pointercancel) calls it. Also, a resync that lands on another document skips the clear (was && docSeg); the server''s ErrStale covers correctness.'
+          family: stroke-spans-document
+          round: 4
+        - id: BR-17
+          severity: Minor
+          title: The e2e checks that notes survive a pause but never a resume, though Done-when says "survive pause/resume"
+          detail: '2nd finding in family spec-path-untested. Rule: every Done-when clause gets a named assertion in the e2e. Resume is the only clause without one; put a seg record with why resume after the pause and assert both pins are still shown.'
+          family: spec-path-untested
+          round: 4
+        - id: BR-18
+          severity: Minor
+          title: identityStore checks the stored viewer id but not the stored name (annotate.js:50)
+          detail: A hand-edited name over 40 runes would be refused by the board on every note, and the name field is hidden once a name exists, so the viewer can't recover. Apply the board's name limit at read time and ask again otherwise (ARCH-SECURE).
+          family: persisted-input-parsed-at-read
+          round: 4
+      boundary: M2
+      recipe: milestone-review
+      isolation: checkout
+      blocked: true
 ---
 
 # Gate ledger — pair#470 (boundary-review)
@@ -198,15 +260,37 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-14** [Minor] `stroke-spans-document` A stroke in progress across a navigation posts its later chunks with the new seg
   Call endStroke() when onRecord sees docSeg change.
 
+## Round 4 — 2026-10-12T04:02:36-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-8 — addressed — visible() filters by each stroke's end against newest at draw time (annotate.js:113); node test replays in stream order; reverting the check turns annotate.test.mjs red (verified here).
+- BR-9 — addressed — Pins reconciled per id (annotate.js:385-396); .chip exempt at :291; e2e taps the chip by touch in note mode (viewer_annotate_live_test.go:168-174). The e2e could not be executed here (Chrome fails to start in this environment); the sibling swatch rebuild is raised separately.
+- BR-10 — addressed — e2e opens A's pin in B, presses Resolve, asserts the pin is gone in both viewers and a resolving note-state is in the recording (viewer_annotate_live_test.go:166-187).
+- BR-11 — addressed — README.md "Pointing and notes on a web cast (#470)" covers the rail modes, the name prompt, and that notes and strokes are saved in notes.jsonl/pointer.jsonl; it matches annotate.js and the recording records.
+- BR-12 — not-addressed — The fix is in the code (answered() and the toast, annotate.js:194-201,279), but no test fails without it: answered is internal and the e2e never triggers a refusal. Export a pure answered(say) and node-test a 409 and a rejected fetch.
+- BR-13 — addressed — poster and safeStorage now live in collab.js and both viewers use them; the CSS stays duplicated for a recorded reason (different selectors per page); existing tests cover the refactor.
+- BR-14 — not-addressed — s.seg is captured at stroke start and endStroke runs at a new document (annotate.js:299,446), but no test covers a stroke spanning a navigation; add an e2e step or a node seam for it.
+
+### Raised
+
+- **BR-15** [Important] `pin-input-routing` drawRail rebuilds the swatch buttons every frame (renderSwatches at annotate.js:255), so swatch clicks are lost during activity
+  2nd finding in family pin-input-routing. Rule: nothing that takes input is recreated on the per-frame path; frame work only moves or restyles, and elements are rebuilt only when their data changes. Sweep: pins fixed, swatches violate it, mode buttons and dialog fine. schedule() runs on every record, so the swatches are replaced many times a second during a live cast, and a click spanning a replace goes to the swatches div, which has no listener. Fix: render swatches only at mount and on pick; add an e2e step that picks a swatch while a stroke fades.
+- **BR-16** [Minor] `stroke-spans-document` setMode and the cast-end handler end a stroke but leave a region drag in progress (annotate.js:266-272)
+  2nd finding in family stroke-spans-document. Rule: one endGesture() ends the stroke and the drag, and every boundary (new document, mode change, cast end, pointercancel) calls it. Also, a resync that lands on another document skips the clear (was && docSeg); the server's ErrStale covers correctness.
+- **BR-17** [Minor] `spec-path-untested` The e2e checks that notes survive a pause but never a resume, though Done-when says "survive pause/resume"
+  2nd finding in family spec-path-untested. Rule: every Done-when clause gets a named assertion in the e2e. Resume is the only clause without one; put a seg record with why resume after the pause and assert both pins are still shown.
+- **BR-18** [Minor] `persisted-input-parsed-at-read` identityStore checks the stored viewer id but not the stored name (annotate.js:50)
+  A hand-edited name over 40 runes would be refused by the board on every note, and the name field is hidden once a name exists, so the viewer can't recover. Apply the board's name limit at read time and ask again otherwise (ARCH-SECURE).
+
 ## Open findings
 
 - **BR-3** [Minor] `sink-order-before-consumer-check` The Tee feeds the Hub before the board, so a viewer can act on a seg the board has not applied yet and get a spurious 409
 - **BR-4** [Minor] `untrusted-geometry-bound` A viewer-supplied note box is bounded only to 1e6 px and widens the page box in crops
 - **BR-7** [Minor] `fake-conformance` Nothing checks that board.Writer (synchronous, returns ErrStale) and recorder.Emit (asynchronous, drops silently) behave the same
-- **BR-8** [Important] `filter-on-partial-stream` strokeStore drops catch-up strokes only when a newer record arrived first; a late joiner redraws every stroke of the document
-- **BR-9** [Important] `pin-input-routing` Pin chips are rebuilt every frame and swallowed by the layer's pointerdown in point/note mode
-- **BR-10** [Important] `spec-path-untested` No test opens a pin or resolves a note from the viewer (Spec: resolved notes hide)
-- **BR-11** [Important] `readme-surface-gap` README not updated for web cast pointing and notes (rail modes, name prompt, notes and strokes recorded to disk)
 - **BR-12** [Minor] `silent-degradation` Refused or failed stroke chunk POSTs are swallowed with no viewer signal
-- **BR-13** [Minor] `shared-helper-duplication` postJSON, the storage try/catch wrapper and the sticky-note/swatch CSS are restated across both viewers
 - **BR-14** [Minor] `stroke-spans-document` A stroke in progress across a navigation posts its later chunks with the new seg
+- **BR-15** [Important] `pin-input-routing` drawRail rebuilds the swatch buttons every frame (renderSwatches at annotate.js:255), so swatch clicks are lost during activity
+- **BR-16** [Minor] `stroke-spans-document` setMode and the cast-end handler end a stroke but leave a region drag in progress (annotate.js:266-272)
+- **BR-17** [Minor] `spec-path-untested` The e2e checks that notes survive a pause but never a resume, though Done-when says "survive pause/resume"
+- **BR-18** [Minor] `persisted-input-parsed-at-read` identityStore checks the stored viewer id but not the stored name (annotate.js:50)

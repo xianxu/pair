@@ -59,7 +59,7 @@ func (s Structural) Context(st *recording.State, at recording.NoteAt) (Context, 
 	}
 	n := st.Node(id)
 	land, _ := landmark(n)
-	c := Context{Node: id, Landmark: land.ID, Text: window(land.TextContent(), n.TextContent(), contextBudget)}
+	c := Context{Node: id, Landmark: land.ID, Text: window(land.RenderedText(), n.RenderedText(), contextBudget)}
 	if b, ok := st.Boxes[land.ID]; ok {
 		c.Box = &b
 	}

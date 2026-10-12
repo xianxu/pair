@@ -266,30 +266,10 @@ func Describe(n *recording.DOMNode) string {
 		b.WriteString("." + c)
 	}
 	b.WriteString(">")
-	if t := squash(spacedText(n), describeChars); t != "" && n.N != "html" && n.N != "body" {
+	if t := squash(n.RenderedText(), describeChars); t != "" && n.N != "html" && n.N != "body" {
 		b.WriteString(" " + strconv.Quote(t))
 	}
 	return b.String()
-}
-
-// spacedText is n's text nodes joined by spaces: what a reader sees of a
-// row of cells, where textContent would run "0row-0" together.
-func spacedText(n *recording.DOMNode) string {
-	var parts []string
-	var walk func(*recording.DOMNode)
-	walk = func(n *recording.DOMNode) {
-		if n.Y == recording.YText {
-			parts = append(parts, n.V)
-		}
-		if n.Y == recording.YEl && (n.N == "script" || n.N == "style") {
-			return
-		}
-		for _, k := range n.Kids {
-			walk(k)
-		}
-	}
-	walk(n)
-	return strings.Join(parts, " ")
 }
 
 // squash collapses whitespace and trims to at most max runes.
