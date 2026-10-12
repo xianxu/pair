@@ -1,12 +1,20 @@
 ---
 id: 000465
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '84162a057c4b98849178311c128b9c260837af37' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '7e8c4b8de0a83194527ddecae43dd36cdcc849b8' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T00:27:53-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:2
+    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch: a slot blocked by a picker shows red in the tab bar, notifies the hub with the picker's text, and receipts say so
@@ -33,8 +41,18 @@ Couch reports facts; the hub and the operator decide (the operator's principle).
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000465-couch-a-slot-blocked-by-a-picker-shows-red-in-the-tab-bar-notifies-the-hub-with-the-picker-s-text-and-receipts-say-so-plan.md` (full flow: the code is over the quick-flow shell).
+
+- [ ] Merge main once #464 lands; baseline green
+- [ ] `couchmessage.ReadPicker` (one parser for kind/title/detail/options)
+- [ ] `Picker` on session frame → registry → liveness
+- [ ] Wrapper settle probe reports the picker
+- [ ] Receipt: picker = hold, `blocked by a picker: <title>`
+- [ ] Console: red chip + switcher row
+- [ ] Watcher: picker notice at ~1m, 15s tick
+- [ ] Atlas; full tests; live check; operator smoke test via ops:0
 
 ## Log
 
 ### 2026-10-12
+- Design: the wrapper reports `Picker` beside `Settled` (#421 frames). Couch paints the slot red, the #451 watcher gets a picker reason with a 1m threshold, and the wrapper's receipt treats a picker as a hold (the #435 mechanism) with detail `blocked by a picker: <title>`. A single `couchmessage.ReadPicker` parser serves both the notice and the receipt (ARCH-DRY). Waiting for #464 (picker-state fix) to land before building.
