@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000473-tests-two-flaky-pair-tests-couchtty-collaboration-timers-couchcore-launch-helper-post-ack-retries.md
         source_blob: 8f924b6218906470e3e041eb1a385de3e1485876
         destination: workshop/issues/000473-tests-two-flaky-pair-tests-couchtty-collaboration-timers-couchcore-launch-helper-post-ack-retries.md
+        main_commit: 670c398db9add1cb8f8c35354f5bd9a6cd722d9a
 ---
 
 # tests: two flaky pair tests (couchtty collaboration timers; couchcore launch-helper post-ack retries)
