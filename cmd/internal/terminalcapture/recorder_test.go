@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"sync"
@@ -28,13 +29,27 @@ func readRecords(t *testing.T, data []byte) []Record {
 	return records
 }
 
+// waitForDrain lifts Close's drain bound. A test whose subject is content or
+// ordering, not shutdown, uses the drain as its sync point, so a loaded machine
+// can't turn the production 2s bound into a failure (#476). A hung drain still
+// fails at the test binary's timeout.
+const waitForDrain = time.Duration(math.MaxInt64)
+
+var drainConfig = Config{CloseTimeout: waitForDrain}
+
+func drainOptions() options {
+	o := defaultOptions()
+	o.closeTimeout = waitForDrain
+	return o
+}
+
 func TestPrivateSessionsRoundTripAndClose(t *testing.T) {
 	parent := t.TempDir()
-	a, err := Open(parent)
+	a, err := Open(parent, drainConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := Open(parent)
+	b, err := Open(parent, drainConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +155,7 @@ func (s *faultSink) bytes() []byte {
 
 func TestConcurrentAdmissionsRemainOrdered(t *testing.T) {
 	s := &faultSink{}
-	o := defaultOptions()
+	o := drainOptions()
 	o.queueRecords = 2048
 	r := newRecorder("", s, o)
 	var wg sync.WaitGroup
@@ -171,7 +186,7 @@ func TestConcurrentAdmissionsRemainOrdered(t *testing.T) {
 func TestConcurrentRecordAndClosePreserveFinalAdmissionOrder(t *testing.T) {
 	for attempt := 0; attempt < 20; attempt++ {
 		sink := &faultSink{}
-		opts := defaultOptions()
+		opts := drainOptions()
 		// The test exercises shutdown admission, independently of overflow.
 		opts.queueRecords = 2048
 		recorder := newRecorder("", sink, opts)
@@ -198,13 +213,8 @@ func TestConcurrentRecordAndClosePreserveFinalAdmissionOrder(t *testing.T) {
 		}
 		producers.Wait()
 		for i := 0; i < cap(closed); i++ {
-			select {
-			case err := <-closed:
-				if err != nil {
-					t.Fatalf("attempt %d close: %v", attempt, err)
-				}
-			case <-time.After(time.Second):
-				t.Fatalf("attempt %d did not drain", attempt)
+			if err := <-closed; err != nil {
+				t.Fatalf("attempt %d close: %v", attempt, err)
 			}
 		}
 		recorder.Record(Record{Kind: "after-close"})
@@ -232,7 +242,7 @@ func TestQueueOverflowStopsWithoutWaitingForDisk(t *testing.T) {
 		t.Run(limit, func(t *testing.T) {
 			unblock := make(chan struct{})
 			s := &faultSink{block: unblock, started: make(chan struct{}, 1)}
-			o := defaultOptions()
+			o := drainOptions()
 			if limit == "records" {
 				o.queueRecords = 2
 			} else {
@@ -271,7 +281,7 @@ func TestQueueOverflowStopsWithoutWaitingForDisk(t *testing.T) {
 
 func TestDiskCapPreservesFinalIncompleteRecord(t *testing.T) {
 	s := &faultSink{}
-	o := defaultOptions()
+	o := drainOptions()
 	o.fileBytes = finalReserve + 1200
 	r := newRecorder("", s, o)
 	r.Record(Record{Kind: "feed", Data: bytes.Repeat([]byte("x"), 2000)})
@@ -294,7 +304,7 @@ func TestDiskFailureCannotClaimComplete(t *testing.T) {
 			if !short {
 				s.fail = errors.New("disk unavailable")
 			}
-			r := newRecorder("", s, defaultOptions())
+			r := newRecorder("", s, drainOptions())
 			r.Record(Record{Kind: "feed", Data: []byte("data")})
 			if err := r.Close(); err == nil {
 				t.Fatal("disk failure suppressed")
@@ -349,7 +359,7 @@ func TestCloseTimeoutStopsAdmissionAndWorkerEventuallyExits(t *testing.T) {
 func TestBlockedStartupBurstSurvives(t *testing.T) {
 	unblock := make(chan struct{})
 	sink := &faultSink{block: unblock, started: make(chan struct{}, 1)}
-	r := newRecorder("", sink, defaultOptions())
+	r := newRecorder("", sink, drainOptions())
 	<-sink.started
 	payload := bytes.Repeat([]byte("x"), 1024)
 	for i := 0; i < 4000; i++ {
@@ -378,7 +388,7 @@ func TestStatusNilAndConfiguration(t *testing.T) {
 		t.Fatalf("disabled=%+v", got)
 	}
 	for _, limit := range []int64{0, 1 << 20, 32 << 30} {
-		r, err := Open(t.TempDir(), Config{MaxBytes: limit})
+		r, err := Open(t.TempDir(), Config{MaxBytes: limit, CloseTimeout: waitForDrain})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -406,8 +416,27 @@ func TestStatusNilAndConfiguration(t *testing.T) {
 			t.Fatalf("accepted %d", limit)
 		}
 	}
+	if _, err := Open(parent, Config{CloseTimeout: -time.Second}); err == nil {
+		t.Fatal("accepted a negative close timeout")
+	}
 	if _, err := os.Stat(parent); !os.IsNotExist(err) {
 		t.Fatalf("invalid configuration created directory: %v", err)
+	}
+	for _, bound := range []time.Duration{0, time.Minute} {
+		r, err := Open(t.TempDir(), Config{CloseTimeout: bound})
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := bound
+		if want == 0 {
+			want = defaultOptions().closeTimeout
+		}
+		if r.opts.closeTimeout != want {
+			t.Fatalf("close timeout %v, want %v", r.opts.closeTimeout, want)
+		}
+		if err := r.Close(); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 
@@ -432,7 +461,7 @@ func TestStatusFailureWakesBeforeClose(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			unblock := make(chan struct{})
 			sink := &faultSink{block: unblock, started: make(chan struct{}, 1)}
-			opts := defaultOptions()
+			opts := drainOptions()
 			want := ErrQueueFull
 			switch kind {
 			case "queue":
@@ -526,7 +555,7 @@ func TestStatusDrainingAndTimeoutRemainFailed(t *testing.T) {
 
 func TestUsageNotificationsOnlyCrossPercentages(t *testing.T) {
 	sink := &faultSink{}
-	opts := defaultOptions()
+	opts := drainOptions()
 	opts.fileBytes = 1 << 20
 	r := newRecorder("", sink, opts)
 	// Observe each completed write independently, consuming changes as we go.
@@ -568,7 +597,7 @@ func TestUsageNotificationsOnlyCrossPercentages(t *testing.T) {
 func TestNearLimitRecordIncludesBlockedInflightCost(t *testing.T) {
 	unblock := make(chan struct{})
 	sink := &faultSink{block: unblock, started: make(chan struct{}, 1)}
-	r := newRecorder("", sink, defaultOptions())
+	r := newRecorder("", sink, drainOptions())
 	<-sink.started
 	record := Record{Kind: "endpoint-feed"}
 	r.mu.Lock()
