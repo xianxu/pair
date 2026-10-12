@@ -43,14 +43,18 @@ Design and contract only, as an additive v1 revision of `atlas/webcast-format.md
 
 Durable plan: `workshop/plans/000466-broadcast-web-remote-driving-contract-viewer-input-driver-control-attribution-in-the-format-plan.md` (single pass).
 
-- [ ] `recording`: `Source`/`by`, `ctl` + `NextControl`, reducer attribution check, catch-up keeps the latest `ctl`
-- [ ] `driven` fixture
-- [ ] `drive`: `Batch`/`Act` wire + `ParseBatch`, `Confine` policy
-- [ ] `drive.Injector` + `FakeInjector` + `RunInjectorContract`
-- [ ] `drive.Controller` + `FakeController` + `RunControllerContract`
-- [ ] atlas (format page, remote-driving section, components rows); TL review
+- [x] `recording`: `Source`/`by`, `ctl` + `NextControl`, reducer attribution check, catch-up keeps the latest `ctl`
+- [x] `driven` fixture
+- [x] `drive`: `Batch`/`Act` wire + `ParseBatch`, `Confine` policy
+- [x] `drive.Injector` + `FakeInjector` + `RunInjectorContract`
+- [x] `drive.Controller` + `FakeController` + `RunControllerContract`
+- [x] atlas (format page, remote-driving section, components rows); TL review
 
 ## Log
 
 ### 2026-10-12
 - Early asks sent to the TL and agreed (by on interaction kinds incl. #458's hover/ptr; ctl carries post-state; routes; refusals). pair:1 correction: the single writer is the recorder's queue, the id map is `Recorder.NodeOf`/`IDOf`; `input {secret:true}` for passwords.
+- TL approved the plan; asked that Revoke and leave-on-grace be unconditional: RunControllerContract checks Revoke returns while a driver's batch is mid-dispatch, and a gone driver leaves on grace (both mutation-checked).
+- Discovery: a late joiner's catch-up starts at the latest `ctl`, with no prior state to check its transition against. Rule: the first `ctl` a reader sees is its baseline (consistent in itself); later ones must equal `NextControl(prev)`; `Validate` (whole recording) stays strict from the first. Tested both ways.
+- `drive.Answer`, `SeatHeader`, `DefaultGrace` added so the atlas's reverse-channel answers are code, not prose (#463's lesson).
+- Side change: `broadcast.decodeStrict` → `DecodeStrict`, shared by both reverse channels (ARCH-DRY).
