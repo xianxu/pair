@@ -28,13 +28,13 @@ func TestWebcastSettings(t *testing.T) {
 		if err != nil || cfg.Host != host {
 			t.Fatalf("cfg %+v err %v", cfg, err)
 		}
-		if _, err := cfg.Launch(context.Background()); !errors.Is(err, webcast.ErrNoChrome) {
+		if _, err := cfg.Launch(context.Background(), nil); !errors.Is(err, webcast.ErrNoChrome) {
 			t.Fatalf("launch: %v", err)
 		}
 	})
 	t.Run("no store", func(t *testing.T) {
 		cfg, _ := webcastSettings(env(nil), "", host, noPath, none)
-		if _, err := cfg.Launch(context.Background()); err == nil || !strings.Contains(err.Error(), "store") {
+		if _, err := cfg.Launch(context.Background(), nil); err == nil || !strings.Contains(err.Error(), "store") {
 			t.Fatalf("launch: %v", err)
 		}
 	})
