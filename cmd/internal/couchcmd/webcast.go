@@ -42,6 +42,9 @@ func webcastSettings(getenv func(string) string, store string, host *broadcast.H
 			h := recording.NewHub(liveBuffer)
 			return h, h
 		}
+		// Each recorded cast is checked against its frames when it ends
+		// (#478); the report lands in the recording's fidelity/.
+		cfg.Check = fidelityHook(find, webcast.CheckFidelity)
 	}
 	cfg.Launch = func(ctx context.Context, rec *webcast.RecordOptions) (webcast.Browser, error) {
 		if store == "" {

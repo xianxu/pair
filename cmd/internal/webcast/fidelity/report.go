@@ -41,9 +41,9 @@ type Shot struct {
 	Diff float64 `json:"diff"`
 	// Offset is when the replay matched the frame best, in ms from its
 	// t: a frame over the tolerance at t is retried at Retries.
-	Offset int64 `json:"offset,omitempty"`
-	Over bool    `json:"over,omitempty"`
-	Crop string  `json:"crop,omitempty"`
+	Offset int64  `json:"offset,omitempty"`
+	Over   bool   `json:"over,omitempty"`
+	Crop   string `json:"crop,omitempty"`
 }
 
 // Report is a recording's fidelity. Shots are the frames compared, in time
