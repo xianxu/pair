@@ -1,6 +1,6 @@
 ---
 id: 000459
-status: codecomplete
+status: done
 created: 2026-10-11
 updated: 2026-10-12
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 625b9f5eeb186176ff504e18938480f40d328d38
         evidence_commit: f1c1e93095b5cb4c9df01c99724bdecd5fcebcfc
+        landed_commit: ee77fc978ffb85de6824c96730d36313a4700dc3
 ---
 
 # broadcast-web: asset store and proxy — capture, content hash, resample, serve
