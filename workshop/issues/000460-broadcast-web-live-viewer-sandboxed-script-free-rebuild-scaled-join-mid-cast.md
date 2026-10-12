@@ -1,12 +1,20 @@
 ---
 id: 000460
-status: open
+status: working
 deps: [000457]
 github_issue:
 created: 2026-10-11
-updated: 2026-10-11
+updated: 2026-10-12
 estimate_hours:
-card_mirror: '645952108e2fa2d72c90e06ed657768b90f9a545' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '9dc9993518206e425a782d4e752bdb169ba69bd3' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T00:53:33-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
 ---
 
 # broadcast-web: live viewer — sandboxed, script-free rebuild, scaled, join mid-cast
@@ -35,11 +43,18 @@ Implement #457's viewer contract as the live viewer page (replacing pair#454's s
 
 ## Plan
 
-- [ ] Sandboxed rebuild and change application
-- [ ] Scale-to-fit, URL display, mid-cast join, segments
-- [ ] Fixture replay tests with screenshot comparison
-- [ ] Smoke test
+Durable plan: `workshop/plans/000460-broadcast-web-live-viewer-sandboxed-script-free-rebuild-scaled-join-mid-cast-plan.md`.
+
+- [ ] `model.js` (JS port of the reducer + canonical) with node tests against every fixture pin
+- [ ] `render.js` (sandboxed rebuild, neutralizing, asset/CSS rewriting) + `viewer.js` shell (scale, URL, overlays, hover, pointer, `boxOf`)
+- [ ] `webcast.Hub` (real `recording.Live`), `Server` `rec` events, CSP; Go tests
+- [ ] Headless fixture replay: canonical equality and screenshot comparison with a measured, stated tolerance; join-mid-cast and segments
+- [ ] Atlas
+- [ ] Smoke test (operator; via the TL, after the recorder lands)
 
 ## Log
+
+### 2026-10-12
+- Seams confirmed by the TL (delivery 9d90bc7b): `{k:hover,id}` and `{k:ptr,x,y}` (events.jsonl, outside Canonical; #458 emits them); assets at `<cast>/assets/<hash>` (#459 mounts there); the viewer rewrites `url()`s in streamed CSS; `boxOf(id)` for wave 2's note boxes; frame sandbox `allow-same-origin` only, the shell owns input (#466's reverse channel).
 
 ### 2026-10-11
