@@ -17,16 +17,20 @@ func joinArgs(args []string) string { return strings.Join(args, " ") }
 
 // FakeChild is the fake's per-child state, modelled across calls.
 type FakeChild struct {
-	Dir       string
-	Argv      []string
-	Env       []string
-	Signals   []os.Signal
-	diesOn    map[os.Signal]int
-	alive     bool
-	code      int
-	done      chan struct{}
-	Blocked   bool
-	ExecCount int
+	Dir     string
+	Argv    []string
+	Env     []string
+	Signals []os.Signal
+	diesOn  map[os.Signal]int
+	alive   bool
+	code    int
+	done    chan struct{}
+	// exited is the direct child's own end, which can precede the group's:
+	// a Couch-launched Pair's sidecars stay in its process group (pair#489).
+	exited      chan struct{}
+	childExited bool
+	Blocked     bool
+	ExecCount   int
 
 	// terminal is the pty double. It is a real *ptychild.Child in its fake
 	// mode -- the SAME type PtyRunner hands out -- so the console cannot be
@@ -109,7 +113,7 @@ func (f *FakeRunner) start(dir string, argv, env []string, blocked bool) (Handle
 	f.children[id] = &FakeChild{
 		Dir: dir, Argv: argv, Env: env,
 		diesOn: map[os.Signal]int{},
-		alive:  true, done: make(chan struct{}),
+		alive:  true, done: make(chan struct{}), exited: make(chan struct{}),
 		Blocked:  blocked,
 		terminal: child,
 	}
@@ -119,6 +123,7 @@ func (f *FakeRunner) start(dir string, argv, env []string, blocked bool) (Handle
 		c := f.children[id]
 		c.alive, c.code = false, *f.autoExit
 		close(c.done)
+		c.endChild()
 		// The TERMINAL double ends with the child. A fake with two notions of
 		// "exited" -- one for the handle, one for its pty -- lets a console
 		// test hang forever waiting on the half that never ends, which is
@@ -166,6 +171,7 @@ func (f *FakeRunner) SetExited(id string, code int) {
 	}
 	c.alive, c.code = false, code
 	close(c.done)
+	c.endChild()
 	// End the terminal double with it. One child, one notion of "exited": a
 	// fake whose handle has exited while its pty is still running lets a
 	// console test hang forever on the half that never ends.
@@ -225,6 +231,7 @@ func (h *fakeBlockedHandle) Acknowledge() error {
 	if h.runner.autoExit != nil {
 		c.alive, c.code = false, *h.runner.autoExit
 		close(c.done)
+		c.endChild()
 		c.terminal.Exit(*h.runner.autoExit)
 	}
 	hook = h.runner.AfterAcknowledge
@@ -246,6 +253,7 @@ func (h *fakeBlockedHandle) Cancel() error {
 	c.alive = false
 	c.code = 1
 	close(c.done)
+	c.endChild()
 	c.terminal.Exit(1)
 	h.runner.Ops = append(h.runner.Ops, "cancel "+h.id)
 	h.runner.mu.Unlock()
@@ -297,6 +305,7 @@ func (h *fakeHandle) Signal(sig os.Signal) error {
 	if fatal && c.alive {
 		c.alive, c.code = false, code
 		close(c.done)
+		c.endChild()
 		c.terminal.Exit(code)
 	}
 	return nil
@@ -323,4 +332,34 @@ func (f *FakeRunner) Terminal(id string) *ptychild.Child {
 		return c.terminal
 	}
 	return nil
+}
+
+// endChild marks the direct child gone, once.
+func (c *FakeChild) endChild() {
+	if !c.childExited {
+		c.childExited = true
+		close(c.exited)
+	}
+}
+
+// SetChildExited ends the direct child while its process group lives on, the
+// way a Couch-launched Pair that died leaves its title poller (pair#489).
+func (f *FakeRunner) SetChildExited(id string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if c, ok := f.children[id]; ok {
+		c.endChild()
+	}
+}
+
+// Exited closes when the direct child has exited.
+func (h *fakeHandle) Exited() <-chan struct{} {
+	h.runner.mu.Lock()
+	defer h.runner.mu.Unlock()
+	if c, ok := h.runner.children[h.id]; ok {
+		return c.exited
+	}
+	gone := make(chan struct{})
+	close(gone)
+	return gone
 }

@@ -202,6 +202,13 @@ func (c *Console) onMenuInput(raw []byte) {
 }
 
 func (c *Console) showMenu() {
+	c.publishMu.Lock()
+	defer c.publishMu.Unlock()
+	c.showMenuPublishing()
+}
+
+// showMenuPublishing is showMenu for a caller already holding publishMu.
+func (c *Console) showMenuPublishing() {
 	c.mu.Lock()
 	state, size := cloneMenuState(c.menu), c.size
 	c.mu.Unlock()
@@ -224,6 +231,7 @@ func (c *Console) showMenu() {
 	}
 	frame, err := terminal.PanelFrame(terminal.Geometry{Cols: int(size.Cols), Rows: int(size.Rows)}, cells, cursor)
 	if err == nil {
+		c.beforePublish("panel")
 		c.traceCaptureTransition("panel-start", "", nil)
 		// Private: the switcher lists the whole fleet; a broadcast shows a
 		// placeholder instead (#395).

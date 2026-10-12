@@ -154,9 +154,7 @@ func ResolveRecipient(route Route, candidates []Candidate, families map[string]s
 		if !c.Supported {
 			return Binding{}, ErrUnsupported
 		}
-		if c.Pending {
-			return Binding{}, ErrRecipientBusy
-		}
+		// A busy recipient takes the message into its queue (pair#492).
 		if c.Remaining <= 0 {
 			return Binding{}, ErrBudgetExhausted
 		}

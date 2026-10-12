@@ -424,7 +424,9 @@ couch --reap repo:N --confirm [--json]     from a live slot: end an orphaned ser
 couch --recover repo:N [--json]               from a live slot: run the report's steps for it
 couch --relaunch repo:N --confirm [--same-binary] [--force-unknown] [--json]
                          from a live slot: restart an idle slot on the current binary, same conversation (Alt+n);
-                         refuses busy, dirty or an unchanged binary, naming the fix
+                         refuses busy, dirty or an unchanged binary, naming the fix (under couch-dev too:
+                         run make build once before a sweep); a start slowed by load is waited for, with a
+                         "still running" line every 15 s, and fails at once if Pair exits before registering
 couch --reload-context repo:N --confirm [--force-unknown] [--json]
                          from a live slot: a fresh agent conversation in an idle slot's Pair (Shift+Alt+N);
                          same busy/dirty refusals; succeeds only once the restarted wrapper reconnects
@@ -439,10 +441,18 @@ couch --send-to hub --message TEXT      send to the hub (the slot Couch started 
 couch --send-to TARGET [--agent NAME] --message-file PATH
                          any form above, the body read verbatim from PATH (less one trailing newline):
                          write a message containing code or shell syntax with an editor, never quote it
-couch --message-status ID [--json]      inspect a message receipt
+couch --message-status ID [--json]      inspect a message receipt; a send to a busy slot
+                         waits in line, in order (`queued`, `position N`) (pair#492)
 couch --skill            print the bundled agent coordination skill
 couch --adopt-store /absolute/store     preview adoption of an existing store
 ```
+
+`couch --help` ends each verb's line with its relative cost, measured on this
+machine (pair#490), and `couch --skill` lists the same tiers:
+
+Cost: light is under a second, seconds is a few seconds, heavy is tens of
+seconds of CPU (it stops or boots agents, or runs sdlc across the fleet);
+run heavy verbs one at a time, after checking uptime's load.
 
 `couch --recover-plan-from-sdlc` is the after-restart report an agent (typically
 the one in `:0`) reads before resuming work. It runs `sdlc fleet inventory --json`
@@ -519,6 +529,13 @@ production supervisor. A second launch refuses with the owner/store diagnostic.
 After a crash, rerun Couch: the kernel releases the lease, and the selected store
 and existing slots remain available. Use machine-local filesystems; shared homes
 across machines are unsupported.
+
+Couch starts each slot at nice +10, so the builds, test suites and agents a slot
+runs yield to Couch and your terminal when the machine is saturated; Couch itself
+keeps normal priority. Set `COUCH_SLOT_NICE` (0–20, `0` turns it off) before
+starting Couch to change it. A Couch that already runs nicer than that (started
+from a niced shell) passes its own niceness down instead, since only root can lower it. It applies to slots started or relaunched after
+that; running slots keep their priority until relaunched (or `renice`d by hand).
 
 **Adopt existing state before cutover.** Stop and upgrade all old Couch binaries
 first. Couch keeps the chosen store in place, along with its Pair data directory
@@ -1295,7 +1312,7 @@ public `📁...` name, `pair resume <public-name>` and `pair rename <public-name
 <new-tag>` resolve it through the ledger. The new rename target is always a bare
 tag, not a public session name.
 
-**Hacking on pair?** Use `pair-dev` instead of `pair` — same arguments, but it rebuilds the `pair` binary from source (`make build`) on launch and on every Alt+n whole-workbench reload, so the zellij-spawned `pair wrap` always matches your working tree. Shift+Alt+N restarts only the already-running wrapper's agent child. (Deployed installs run `pair`, which uses the prebuilt binary and needs no Go toolchain.) Under Couch, start it with `couch-dev` instead of `couch`: it rebuilds once and runs Couch with dev mode on, so every slot it launches rebuilds Pair the same way.
+**Hacking on pair?** Use `pair-dev` instead of `pair` — same arguments, but it rebuilds the `pair` binary from source (`make build`) on launch and on every Alt+n whole-workbench reload, so the zellij-spawned `pair wrap` always matches your working tree. Shift+Alt+N restarts only the already-running wrapper's agent child. (Deployed installs run `pair`, which uses the prebuilt binary and needs no Go toolchain.) Under Couch, start it with `couch-dev` instead of `couch`: it rebuilds once and runs Couch with dev mode on. Slots Couch launches do not rebuild Pair (a rebuild per slot slowed every launch under load), so run `make build` once before relaunching slots onto a new build.
 
 When `pair` runs and there's anything to pick — a detached Pair session owned by this repo **or** a tag from this repo used within the last 14 days — it shows an `fzf` picker. Detached rows come first, then historical rows annotated `(Nd ago, no live session)`, then a `+ new <agent> session` sentinel. A historical row whose session has prompts parked in its queue also carries an amber `[⏎ N queued]` badge, so you don't resume a session without remembering the work you queued up in it. Picking a historical row reuses the repo-local tag and any surviving draft / saved agent config (same path as `pair resume <tag>`). Override the 14-day window with `PAIR_HISTORY_DAYS`; `PAIR_DEBUG_HISTORY=1 pair` prints the scan and exits without launching.
 

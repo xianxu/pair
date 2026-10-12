@@ -7,6 +7,10 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A paint that snapshots state and then publishes it holds one lock from snapshot to commit whenever paints run on
+  more than one goroutine. Otherwise an older snapshot can publish last and stay on screen until something else
+  repaints, which on an idle screen is never. A test that polls for the new state passes in the gap before the stale
+  publish lands, so pin the interleaving with a hook rather than a load soak. (#484)
 - A bounded cache or graveyard prunes only after the update it belongs to is applied: decide what is gone from the
   structure as it now is, never between its teardown and its rebuild. #458's id map buried a re-snapshotted tree after
   forgetting it, so every live node looked removed and lost its id once the graveyard filled. Test it above the bound.
@@ -1336,3 +1340,41 @@ proof; record the surprising case so the next change starts from evidence.
   crashed the wrapper. Give each attempt its own local, close it on failure inside the loop, and hand only the
   accepted one to the defer; test the path where a retry's dial fails. Likewise, key a per-episode cache on an
   episode counter bumped at the transition, not on a reader happening to observe the gap between episodes.
+- **A launch's death is its direct child's exit, not its process group's (#489 close).** The registration wait
+  first watched `Alive` (kill(-pgid,0)), but a Couch-launched Pair's title poller stays in that group for up to its
+  30 s startup grace, so a Pair that died at birth still held the wait open. The fake's `SetExited` ended the whole
+  group and could not show it. When "did it die?" decides a wait, ask the process you started (`Handle.Exited`), keep
+  group liveness for cleanup, and give the fake a member that outlives the child.
+- **Every fixed window over load-dependent work moves with the load (#489).** Removing the 15 s registration budget
+  exposed the CLI's 2 s per-poll exchange timeout, which turned one late status answer into an "uncertain" outcome
+  while the operation went on. When fixing one stopwatch, grep the path end to end (launch, poll, report) for the
+  others; retry an idempotent read inside the outer budget instead of giving up on one slow answer.
+- **A measurement that moves a Spec's guess revises the Spec in the same commit (#490 close).** The Spec guessed
+  `--prepare` and `--reload-context` at "seconds" and light at "milliseconds"; the timings said heavy and "under a
+  second", and only the Log said so. When a Spec names expected values to be measured, append a `## Revisions`
+  entry the moment a measurement disagrees, and say in Done-when which values were reasoned rather than measured.
+- **Describe a mechanism once; every other site names it (#489 close, two rounds).** The registration wait's exit
+  signal was restated in four comments and docs, so changing it (process group → direct child) left three stale
+  copies the review found one round apart. Put the rule at its owner (`whileHelperAlive` + one atlas section) and
+  have other sites point there. A status line likewise derives what it reports from one fact (when Couch last
+  answered), not a counter that a second code path must remember to reset. And a fallback branch (the final look
+  after an exit) needs a test that fails with the branch disabled, run once with it disabled to prove it.
+- **Every path that unblocks a worker wakes it (#492 close).** The queue's worker skipped promotion while another
+  admission attempt held the actor's reservation; that attempt's failure path cleared the reservation and woke no
+  one, so a queued message sat until the test deadline. When a worker parks on a condition (a reservation, a
+  pending delivery), route every release of that condition through one helper that also signals the worker, and
+  test the interleaving deterministically: count the worker's blocked checks and wait on the count, never on a sleep.
+  The converse is the same rule's other half: the worker never wakes itself. Its own failed attempt schedules its
+  retry, or it spins (round 2's Critical). A fake must refuse the way the real seam refuses (`ErrRecipientBusy`,
+  not a bare error), or the tests never exercise the path the product takes.
+- **A fixture the product identifies by command must not exec away from that command (#487).** The fake cloudflared
+  ran `exec sleep 300`, so its ps command became `sleep 300` a moment after start, and reaping (correctly) spares a
+  non-cloudflared process. The test passed only while ps beat the exec, and under load it lost. When a fake stands in
+  for a process the code checks by command, PID or identity, wait for the fixture's settled state and assert the
+  property there, not the first moment it holds. Wait on the outcome with `testwait`, never a fixed window.
+- **A fix round that changes a behaviour rewrites every prose restatement of it (#498 close).** Round 1 changed a
+  refused `setpriority` from "cancel the launch" to "keep the inherited niceness"; the code comment, README and Design
+  moved, but the atlas, the Plan checklist and a Log line still said "cancels", and round 2 blocked on it. Before
+  re-running a close, grep the old behaviour's words (`cancel`, `refuse`, the error text) across atlas/, README,
+  the issue file and comments, and rewrite or annotate as superseded every hit in the same commit.
+

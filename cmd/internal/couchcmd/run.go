@@ -652,7 +652,7 @@ func WantsConsole(name string, hasTerminal bool) bool {
 // consoleRunner decides which Runner this invocation gets, and builds the
 // Console when it is the pty one.
 //
-// Returning (nil, ExecRunner{}) is the injected fallback for non-console typed
+// Returning (nil, ExecRunner) is the injected fallback for non-console typed
 // operations.
 func consoleRunner(name string, stdin io.Reader, stdout io.Writer, settings ...consoleTraceConfig) (*couchtty.Console, couchcore.Runner, error) {
 	inFile, _ := stdin.(*os.File)
@@ -670,14 +670,18 @@ func consoleRunner(name string, stdin io.Reader, stdout io.Writer, settings ...c
 // consoleRunner actually use it" uncovered, and forcing consoleRunner to return
 // (nil, ExecRunner) kept the whole suite green (M2 BR-24, twice).
 func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, outFile *os.File, settings ...consoleTraceConfig) (*couchtty.Console, couchcore.Runner, error) {
-	if !WantsConsole(name, hasTerminal) {
-		return nil, couchcore.ExecRunner{}, nil
-	}
-
 	getenv := os.Getenv
 	if len(settings) > 0 {
 		getenv = settings[0].getenv
 	}
+	nice, err := slotNiceSettings(getenv)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !WantsConsole(name, hasTerminal) {
+		return nil, couchcore.ExecRunner{Nice: nice}, nil
+	}
+
 	path, captureConfig, err := captureSettings(getenv)
 	if err != nil {
 		return nil, nil, err
@@ -760,6 +764,7 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 		return runtimebundle.TerminalEnvironment(root)
 	})
 	return console, &couchcore.PtyRunner{
+		Nice:        nice,
 		Environment: profile,
 		Size:        console.ChildSize,
 		Sink:        console.Deliver,
@@ -1290,63 +1295,67 @@ func usage(w io.Writer) { usageWith(w, couchkeys.Bindings()) }
 func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "couch - supervise agent actors, one per working tree")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "usage: couch [path] [--layout2|--layout3]")
-	fmt.Fprintln(w, "       couch --list")
-	fmt.Fprintln(w, "       couch --show <thread>")
-	fmt.Fprintln(w, "       couch --reconcile repo:N")
-	fmt.Fprintln(w, "       couch --peek repo:N[:M...][,repo:N...] [--lines N] [--json] [--transcripts]")
-	fmt.Fprintln(w, "             Read-only: a slot's recent terminal and where its transcripts live.")
-	fmt.Fprintln(w, "       couch --archived")
-	fmt.Fprintln(w, "       couch --recover-plan-from-sdlc")
+	verbLine(w, launchVerb, "usage: couch [path] [--layout2|--layout3]")
+	verbLine(w, "--list", "       couch --list")
+	verbLine(w, "--show", "       couch --show <thread>")
+	verbLine(w, "--reconcile", "       couch --reconcile repo:N")
+	verbLine(w, "--peek", "       couch --peek repo:N[:M...][,repo:N...] [--lines N] [--json] [--transcripts]")
+	fmt.Fprintln(w, "             Read-only: a slot's recent terminal; --transcripts adds where its transcripts\n"+
+		"             live, and costs seconds.")
+	verbLine(w, "--archived", "       couch --archived")
+	verbLine(w, "--recover-plan-from-sdlc", "       couch --recover-plan-from-sdlc")
 	fmt.Fprintln(w, "             Recovery report: one JSON row per slot joining sdlc's claims and")
 	fmt.Fprintln(w, "             slot verdicts with Couch's threads, with a suggested next step.")
-	fmt.Fprintln(w, "       couch --resume repo:N [--json]")
-	fmt.Fprintln(w, "       couch --reboot repo:N --confirm [--force-unknown] [--json]")
+	verbLine(w, "--resume", "       couch --resume repo:N [--json]")
+	verbLine(w, "--reboot", "       couch --reboot repo:N --confirm [--force-unknown] [--json]")
 	fmt.Fprintln(w, "             Archive the slot's conversation and replace it with a fresh agent on the current")
 	fmt.Fprintln(w, "             binary. A live slot is stopped first; busy refuses, busy-unknown needs")
 	fmt.Fprintln(w, "             --force-unknown, and a dirty tree is reported, not refused.")
-	fmt.Fprintln(w, "       couch --relaunch repo:N --confirm [--same-binary] [--force-unknown] [--json]")
-	fmt.Fprintln(w, "       couch --reload-context repo:N --confirm [--force-unknown] [--json]")
-	fmt.Fprintln(w, "       couch --prepare repo:N --confirm [--force-unknown] [--json]")
+	verbLine(w, "--relaunch", "       couch --relaunch repo:N --confirm [--same-binary] [--force-unknown] [--json]")
+	verbLine(w, "--reload-context", "       couch --reload-context repo:N --confirm [--force-unknown] [--json]")
+	verbLine(w, "--prepare", "       couch --prepare repo:N --confirm [--force-unknown] [--json]")
 	fmt.Fprintln(w, "             Bring an idle, clean slot on its resting branch up for new work:")
 	fmt.Fprintln(w, "             weave refresh in it, then a fresh agent conversation.")
-	fmt.Fprintln(w, "       couch --reap repo:N --confirm [--json]")
-	fmt.Fprintln(w, "       couch --recover repo:N [--json]")
+	verbLine(w, "--reap", "       couch --reap repo:N --confirm [--json]")
+	verbLine(w, "--recover", "       couch --recover repo:N [--json]")
 	fmt.Fprintln(w, "             From a live Couch slot only: run the report's step on one slot")
 	fmt.Fprintln(w, "             through the running Couch, in the background. Verify by reading")
 	fmt.Fprintln(w, "             the report again; an uncertain outcome means read it before resending.")
-	fmt.Fprintln(w, "       couch --actors [--json]")
-	fmt.Fprintln(w, "       couch --broadcast-list [--json]   the running broadcast and its viewer count, and the")
-	fmt.Fprintln(w, "             recordings shared for replay (never a link)")
-	fmt.Fprintln(w, "       couch --session-sync diff|status [--json]|write|release ... FILE")
+	verbLine(w, "--actors", "       couch --actors [--json]")
+	verbLine(w, "--broadcast-list", "       couch --broadcast-list [--json]")
+	fmt.Fprintln(w, "             The running broadcast and its viewer count, and the recordings shared for")
+	fmt.Fprintln(w, "             replay (never a link).")
+	verbLine(w, "--session-sync", "       couch --session-sync diff|status [--json]|write|release ... FILE")
 	fmt.Fprintln(w, "             The one way an agent changes a session-sync file it owns: refuses under the")
 	fmt.Fprintln(w, "             operator's lock or over unread edits, and lists owed deliveries. See couch --skill.")
-	fmt.Fprintln(w, "       couch --adopt-store <absolute-path> [--pair-data <path>] [--identity-dir <path>]")
+	verbLine(w, "--adopt-store", "       couch --adopt-store <absolute-path> [--pair-data <path>] [--identity-dir <path>]")
 	fmt.Fprintln(w, "             [--legacy-store <path>]... [--exclude-store <path>]... [--apply <digest>]")
 	fmt.Fprintln(w, "             Preview legacy stores as JSON; apply the current digest to select in place.")
 	fmt.Fprintln(w, "             Stop and upgrade old Couch supervisors first. Exclusions preserve data.")
 	fmt.Fprintln(w, "             One supervisor per OS account on local storage; a second launch refuses.")
 	fmt.Fprintln(w, "             COUCH_ISOLATED_ROOT explicitly separates diagnostic/test runtimes.")
-	fmt.Fprintln(w, "       couch --send-to repo[:N]|hub [--agent NAME] --message TEXT|--message-file PATH")
+	verbLine(w, "--send-to", "       couch --send-to repo[:N]|hub [--agent NAME] --message TEXT|--message-file PATH")
 	fmt.Fprintln(w, "             --message-file sends the file verbatim (less one trailing newline): write a")
 	fmt.Fprintln(w, "             message containing code or shell syntax with an editor, never quote it.")
-	fmt.Fprintln(w, "       couch --message-status ID [--json]")
-	fmt.Fprintln(w, "       couch "+query.Flag+" DIR dom|events|notes|link ...")
+	verbLine(w, "--message-status", "       couch --message-status ID [--json]")
+	verbLine(w, query.Flag, "       couch "+query.Flag+" DIR dom|events|notes|link ...")
 	fmt.Fprintln(w, "             Read-only: ask a broadcast-web recording for the page at t, what happened")
 	fmt.Fprintln(w, "             in a window, and every note with its element and the actions before it;")
 	fmt.Fprintln(w, "             link prints its replay link at a moment, shared by the running Couch.")
 	fmt.Fprintln(w, "             `couch "+query.Flag+"` alone prints its usage.")
-	fmt.Fprintln(w, "       couch "+replayFlag+" [ID|DIR] [--at MS] [--local]")
+	verbLine(w, replayFlag, "       couch "+replayFlag+" [ID|DIR] [--at MS] [--local]")
 	fmt.Fprintln(w, "             Replay a broadcast-web recording in the viewer: prints its link at MS (#t=MS),")
 	fmt.Fprintln(w, "             shared through the running Couch's broadcast tunnel for other devices. With")
 	fmt.Fprintln(w, "             no Couch running, no ID (the list), or --local: served on this machine only")
 	fmt.Fprintln(w, "             until Ctrl-C.")
-	fmt.Fprintln(w, "       couch "+fidelityFlag+" [ID|DIR]")
+	verbLine(w, fidelityFlag, "       couch "+fidelityFlag+" [ID|DIR]")
 	fmt.Fprintln(w, "             Check a broadcast-web recording (default: the newest) against the tab's")
 	fmt.Fprintln(w, "             screenshots in a headless Chrome; writes DIR/fidelity/report.md. Exit 3 when")
 	fmt.Fprintln(w, "             a frame is over the tolerance. Recorded casts are checked when they end.")
-	fmt.Fprintln(w, "       couch --skill")
-	fmt.Fprintln(w, "       couch --help")
+	verbLine(w, "--skill", "       couch --skill")
+	verbLine(w, "--help", "       couch --help")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, costGuidance)
 	fmt.Fprintln(w)
 	// Deliberately free of the words the public-surface test forbids: they are
 	// internal operation names, and the remedy for a refusal belongs in the
