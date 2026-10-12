@@ -10,17 +10,23 @@ import (
 	"github.com/xianxu/pair/cmd/internal/broadcast"
 )
 
-//go:embed web/index.html web/viewer.js web/viewer.css
+//go:embed web/index.html web/viewer.js web/viewer.css web/model.js web/render.js web/css.js
 var webFS embed.FS
 
 // contentSecurityPolicy: the page runs only its own script, talks only to
-// its own origin, and loads nothing else.
-const contentSecurityPolicy = "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'"
+// its own origin, and loads nothing else. The page frame inherits it, so the
+// recorded page's inline styles, the viewer's blob: stylesheets and the
+// proxied images and fonts (same origin) are allowed; its scripts are not,
+// twice over (this policy and the frame's sandbox).
+const contentSecurityPolicy = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' blob:; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"
 
 var assets = map[string]struct{ file, contentType string }{
 	"":           {"web/index.html", "text/html; charset=utf-8"},
 	"viewer.js":  {"web/viewer.js", "text/javascript; charset=utf-8"},
 	"viewer.css": {"web/viewer.css", "text/css; charset=utf-8"},
+	"model.js":   {"web/model.js", "text/javascript; charset=utf-8"},
+	"render.js":  {"web/render.js", "text/javascript; charset=utf-8"},
+	"css.js":     {"web/css.js", "text/javascript; charset=utf-8"},
 }
 
 // endedReason is what viewers are told when the cast ends.
