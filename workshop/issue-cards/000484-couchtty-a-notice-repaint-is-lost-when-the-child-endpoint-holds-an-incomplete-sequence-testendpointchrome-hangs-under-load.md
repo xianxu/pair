@@ -1,6 +1,6 @@
 ---
 id: 000484
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: be0e87d795bbc1f9546834430b89842aadb63e86
         evidence_commit: 9107e84283b7b76011f52e05db1394e34c2fa86d
+        landed_commit: cf24d728b8ce28920406cd6d9cf20076673a3ea8
 ---
 
 # couchtty: a notice repaint is lost when the child endpoint holds an incomplete sequence (TestEndpointChrome* hangs under load)
