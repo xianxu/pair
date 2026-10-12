@@ -15,6 +15,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "2850032f", done: "83c6e1bb"}
 ---
 
 # couch: group the tab bar by hub — the hub first, its slots to its right, grouped by repo
