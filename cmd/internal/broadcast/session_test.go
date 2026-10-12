@@ -28,12 +28,13 @@ func startSession(t *testing.T, ft *FakeTunnel, hub HubOptions) *Session {
 		s.Stop(nil)
 		<-s.Done()
 	})
+	unlockView(t, s)
 	return s
 }
 
 func get(t *testing.T, url string) (int, error) {
 	t.Helper()
-	c := &http.Client{Timeout: 5 * time.Second}
+	c := &http.Client{Timeout: 5 * time.Second, Jar: http.DefaultClient.Jar}
 	resp, err := c.Get(url)
 	if err != nil {
 		return 0, err

@@ -72,6 +72,7 @@ func startPointerSessionWith(t *testing.T, hub HubOptions) *pointerSession {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { s.Stop(nil); <-s.Done() })
+	unlockView(t, s)
 	p.s = s
 	return p
 }
@@ -102,7 +103,7 @@ func TestPointerLinkLifecycle(t *testing.T) {
 	if p.s.PointerLink() != "" {
 		t.Fatal("pointer link before EnablePointer")
 	}
-	link, err := p.s.EnablePointer()
+	link, err := p.enablePointer(t)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +113,7 @@ func TestPointerLinkLifecycle(t *testing.T) {
 		t.Fatalf("pointer token %q (view token %q)", ptoken, p.s.token)
 	}
 	p.s.DisablePointer()
-	again, err := p.s.EnablePointer()
+	again, err := p.enablePointer(t)
 	if err != nil || again != link {
 		t.Fatalf("re-enabled link %q, want the same %q", again, link)
 	}
@@ -123,7 +124,7 @@ func TestPointerLinkLifecycle(t *testing.T) {
 
 func TestPointerPostLands(t *testing.T) {
 	p := startPointerSession(t)
-	link, _ := p.s.EnablePointer()
+	link, _ := p.enablePointer(t)
 	p.showPointer(t)
 	if code, _ := post(t, link+"point", "application/json", tapBody); code != http.StatusNoContent {
 		t.Fatalf("POST %d", code)
@@ -149,7 +150,7 @@ func TestPointerPostDropped(t *testing.T) {
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
 			p := startPointerSession(t)
-			link, _ := p.s.EnablePointer()
+			link, _ := p.enablePointer(t)
 			p.s.Offer(c.frame(t), c.class)
 			p.s.hub.sync()
 			if code, _ := post(t, link+"point", "application/json", c.body); code != http.StatusNoContent {
@@ -164,7 +165,7 @@ func TestPointerPostDropped(t *testing.T) {
 
 func TestPointerPostWhileOff(t *testing.T) {
 	p := startPointerSession(t)
-	link, _ := p.s.EnablePointer()
+	link, _ := p.enablePointer(t)
 	p.showPointer(t)
 	p.s.DisablePointer()
 	if code, _ := post(t, link+"point", "application/json", tapBody); code != http.StatusForbidden {
@@ -183,7 +184,7 @@ func TestPointerPostWhileOff(t *testing.T) {
 // link's point, note and resolve routes reads a body.
 func TestPointerRouteTable(t *testing.T) {
 	p := startPointerSession(t)
-	plink, _ := p.s.EnablePointer()
+	plink, _ := p.enablePointer(t)
 	p.showPointer(t)
 	base := strings.TrimSuffix(p.s.Link(), p.s.token+"/")
 	vlink := p.s.Link()
@@ -233,7 +234,7 @@ func TestPointerRouteTable(t *testing.T) {
 // Rejections are fixed text: nothing from the request is echoed.
 func TestPointerPostRejects(t *testing.T) {
 	p := startPointerSession(t)
-	link, _ := p.s.EnablePointer()
+	link, _ := p.enablePointer(t)
 	p.showPointer(t)
 	const marker = "PWNED<script>"
 	cases := []struct {
@@ -263,7 +264,7 @@ func TestPointerPostRejects(t *testing.T) {
 
 func TestPointerRateLimit(t *testing.T) {
 	p := startPointerSession(t)
-	link, _ := p.s.EnablePointer()
+	link, _ := p.enablePointer(t)
 	p.showPointer(t)
 	limited := 0
 	for range PointRatePerSec + 20 {
@@ -280,7 +281,7 @@ func TestPointerRateLimit(t *testing.T) {
 // slots forever; other posts still get through after the read deadline.
 func TestPointerSlowBodyDoesNotStarve(t *testing.T) {
 	p := startPointerSession(t)
-	link, _ := p.s.EnablePointer()
+	link, _ := p.enablePointer(t)
 	p.showPointer(t)
 	for range MaxPointInFlight {
 		pr, pw := io.Pipe()
@@ -317,7 +318,7 @@ func TestPointerSlowBodyDoesNotStarve(t *testing.T) {
 // batch it judges late): no lock is held across the call.
 func TestPointerCallbackMayReenter(t *testing.T) {
 	p := startPointerSession(t)
-	link, _ := p.s.EnablePointer()
+	link, _ := p.enablePointer(t)
 	p.showPointer(t)
 	p.mu.Lock()
 	p.onHook = func(PointBatch) { p.s.DisablePointer(); _ = p.s.PointerLink() }
@@ -347,7 +348,7 @@ func readEvent(t *testing.T, r *bufio.Reader, name string) string {
 
 func TestPointerCapsEvents(t *testing.T) {
 	p := startPointerSession(t)
-	link, _ := p.s.EnablePointer()
+	link, _ := p.enablePointer(t)
 	p.showPointer(t)
 	resp, err := http.Get(link + "events")
 	if err != nil {
@@ -363,7 +364,7 @@ func TestPointerCapsEvents(t *testing.T) {
 	if got := readEvent(t, pr, "caps"); got != `{"pointer":false,"color":0,`+palette+`}` {
 		t.Fatalf("caps after off %q", got)
 	}
-	p.s.EnablePointer()
+	p.enablePointer(t)
 	if got := readEvent(t, pr, "caps"); got != `{"pointer":true,"color":0,`+palette+`}` {
 		t.Fatalf("caps after on %q", got)
 	}
@@ -385,7 +386,7 @@ func TestPointerCapsEvents(t *testing.T) {
 
 func TestPointerLinkEndsWithBroadcast(t *testing.T) {
 	p := startPointerSession(t)
-	link, _ := p.s.EnablePointer()
+	link, _ := p.enablePointer(t)
 	p.showPointer(t)
 	resp, err := http.Get(link + "events")
 	if err != nil {
@@ -402,7 +403,7 @@ func TestPointerLinkEndsWithBroadcast(t *testing.T) {
 
 func TestPointerContentTypeParsing(t *testing.T) {
 	p := startPointerSession(t)
-	link, _ := p.s.EnablePointer()
+	link, _ := p.enablePointer(t)
 	p.showPointer(t)
 	for _, ct := range []string{"Application/JSON", "application/json; charset=utf-8"} {
 		if code, _ := post(t, link+"point", ct, tapBody); code != http.StatusNoContent {
@@ -419,7 +420,7 @@ func TestPointerContentTypeParsing(t *testing.T) {
 // A body that doesn't arrive in time is a bad request, not "too large".
 func TestPointerSlowBodyIsBadRequest(t *testing.T) {
 	p := startPointerSession(t)
-	link, _ := p.s.EnablePointer()
+	link, _ := p.enablePointer(t)
 	p.showPointer(t)
 	pr, pw := io.Pipe()
 	defer pw.Close()
@@ -450,7 +451,7 @@ func TestPointerAfterStop(t *testing.T) {
 	p := startPointerSession(t)
 	p.s.Stop(nil)
 	<-p.s.Done()
-	if link, err := p.s.EnablePointer(); err == nil {
+	if link, err := p.enablePointer(t); err == nil {
 		t.Fatalf("EnablePointer after Stop minted %q", link)
 	}
 }
@@ -459,10 +460,10 @@ func TestPointerAfterStop(t *testing.T) {
 // doesn't turn the new pointing off.
 func TestPointerLateHiddenReportIgnored(t *testing.T) {
 	p := startPointerSession(t)
-	p.s.EnablePointer()
+	p.enablePointer(t)
 	stale := p.s.pointer.generation()
 	p.s.DisablePointer()
-	p.s.EnablePointer()
+	p.enablePointer(t)
 	p.s.pointerHidden(stale)
 	if on, _ := p.s.pointer.On(); !on {
 		t.Fatal("a stale watch report turned re-enabled pointing off")
@@ -484,7 +485,7 @@ func TestPointerLateHiddenReportIgnored(t *testing.T) {
 // stream ends.
 func TestPointerStreamsGetDistinctColors(t *testing.T) {
 	p := startPointerSession(t)
-	link, _ := p.s.EnablePointer()
+	link, _ := p.enablePointer(t)
 	p.showPointer(t)
 	join := func() (int, func()) {
 		t.Helper()
@@ -542,7 +543,7 @@ func TestPointerStreamsGetDistinctColors(t *testing.T) {
 }
 
 func TestClaimColorPrefersLeastHeld(t *testing.T) {
-	p := newPointerState()
+	p := newPointerState(nil)
 	for i := range PointerColors {
 		if c := p.claimColor(); c != i {
 			t.Fatalf("claim %d got color %d", i, c)

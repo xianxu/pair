@@ -1,6 +1,8 @@
 package webcast
 
 import (
+	"github.com/xianxu/pair/cmd/internal/castlock"
+
 	"embed"
 	"encoding/json"
 	"net/http"
@@ -67,8 +69,27 @@ type Server struct {
 	// viewViewers and driveViewers: the streams on each link (#467), each
 	// its own counter, so neither is derived from two reads.
 	viewViewers, driveViewers atomic.Int32
-	board        *boardRoutes // nil: no pointing or notes (WithBoard)
-	drive        *driveRoutes // nil: no remote driving (WithDrive)
+	board                     *boardRoutes // nil: no pointing or notes (WithBoard)
+	drive                     *driveRoutes // nil: no remote driving (WithDrive)
+	// viewLock and driveLock guard the two links (pair#495; WithLocks).
+	viewLock, driveLock *castlock.Lock
+}
+
+// WithLocks sets the links' code locks; call it before the server is mounted.
+func (s *Server) WithLocks(view, drive *castlock.Lock) *Server {
+	s.viewLock, s.driveLock = view, drive
+	return s
+}
+
+// LockFor is the lock guarding segment: the view link's or the drive link's.
+func (s *Server) LockFor(segment string) *castlock.Lock {
+	switch {
+	case broadcast.OwnsToken(segment, s.token):
+		return s.viewLock
+	case s.drivesUnder(segment):
+		return s.driveLock
+	}
+	return nil
 }
 
 // Presence is told that viewer id's stream opened; leave is called when it

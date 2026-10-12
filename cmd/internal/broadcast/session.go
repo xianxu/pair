@@ -1,6 +1,8 @@
 package broadcast
 
 import (
+	"github.com/xianxu/pair/cmd/internal/castlock"
+
 	"context"
 	"crypto/rand"
 	"encoding/base64"
@@ -56,18 +58,36 @@ type Config struct {
 	// Now stamps when a note was saved; nil is time.Now. Couch passes the
 	// clock it draws with, so flash timing has one source.
 	Now func() time.Time
+	// OnCodeRotated is told when a link's code rotates (pair#495): by
+	// guessing, or by RotateCode. It runs on the rotating goroutine, holding
+	// no session lock.
+	OnCodeRotated func(link string, r castlock.Rotation)
+}
+
+// The links a broadcast locks, by the label Codes reports.
+const (
+	LinkView    = "view"
+	LinkPointer = "pointer"
+)
+
+// LinkCode is one link's current code. It is a second factor, not a link:
+// Couch shows it to the operator only, never on the broadcast frame.
+type LinkCode struct {
+	Link string
+	Code string
 }
 
 // Session is one broadcast: a hub, a server on the tunnel's listener, the
 // tunnel, and the token that is the link's only credential. Everything it
 // owns dies with it; nothing is written to disk.
 type Session struct {
-	token   string
-	link    string
-	base    string // the public base URL, for the pointer link
-	cfg     Config
-	pointer *PointerState
-	hub     *Hub
+	token    string
+	link     string
+	base     string // the public base URL, for the pointer link
+	cfg      Config
+	viewLock *castlock.Lock
+	pointer  *PointerState
+	hub      *Hub
 	// startedAt and mode describe the session for Status (pair#413).
 	startedAt time.Time
 	mode      string
@@ -96,7 +116,23 @@ func Start(ctx context.Context, cfg Config) (*Session, error) {
 	// The session is built before the hub and server, which call back into
 	// it; the pointer can't be used until Start returns (no token is minted
 	// before EnablePointer).
-	s := &Session{token: token, cfg: cfg, pointer: newPointerState(), done: make(chan struct{})}
+	rotated := func(link string) func(castlock.Rotation) {
+		return func(r castlock.Rotation) {
+			if cfg.OnCodeRotated != nil {
+				cfg.OnCodeRotated(link, r)
+			}
+		}
+	}
+	// Both locks exist before their tokens are routable: the view lock before
+	// Mount, the pointer lock in the same step as its token.
+	viewLock, err := NewLinkLock(castlock.DefaultDigits, rotated(LinkView))
+	if err != nil {
+		return nil, err
+	}
+	pointer := newPointerState(func() (*castlock.Lock, error) {
+		return NewLinkLock(castlock.DefaultDigits, rotated(LinkPointer))
+	})
+	s := &Session{token: token, cfg: cfg, viewLock: viewLock, pointer: pointer, done: make(chan struct{})}
 	hubOpts := cfg.Hub
 	// The hub calls this on its own goroutine, which must not block.
 	// It records the flip generation it fired under, so a report that
@@ -106,11 +142,12 @@ func Start(ctx context.Context, cfg Config) (*Session, error) {
 		go s.pointerHidden(gen)
 	}
 	hub := NewHub(hubOpts)
-	server := NewServer(ServerOptions{Token: token, Hub: hub, Ping: cfg.Ping, Theme: cfg.Theme,
+	server := NewServer(ServerOptions{Token: token, ViewLock: viewLock, Hub: hub, Ping: cfg.Ping, Theme: cfg.Theme,
 		Pointer: s.pointer, OnPoint: s.acceptPoint, OnNote: s.acceptNote, OnResolve: s.resolveNote})
 	mount, err := host.Mount(ctx, server, token+"/")
 	if err != nil {
 		hub.Close(err)
+		viewLock.End()
 		return nil, err
 	}
 	s.link, s.base, s.hub, s.mount = mount.Base()+"/"+token+"/", mount.Base(), hub, mount
@@ -160,6 +197,31 @@ func (s *Session) Stop(reason error) {
 	})
 }
 
+// Codes is every minted link's current code, view first.
+func (s *Session) Codes() []LinkCode {
+	codes := []LinkCode{{Link: LinkView, Code: s.viewLock.Code()}}
+	if l := s.pointer.Lock(); l != nil {
+		codes = append(codes, LinkCode{Link: LinkPointer, Code: l.Code()})
+	}
+	return codes
+}
+
+// RotateCode gives link a new code and disconnects everyone who unlocked it
+// with the old one.
+func (s *Session) RotateCode(link string) error {
+	l := s.viewLock
+	if link == LinkPointer {
+		l = s.pointer.Lock()
+	} else if link != LinkView {
+		return fmt.Errorf("broadcast: no %q link", link)
+	}
+	if l == nil {
+		return fmt.Errorf("broadcast: the %s link isn't open", link)
+	}
+	_, err := l.Rotate()
+	return err
+}
+
 // Done closes once the broadcast has fully ended.
 func (s *Session) Done() <-chan struct{} { return s.done }
 
@@ -190,6 +252,11 @@ func (s *Session) watch() {
 func (s *Session) teardown() {
 	defer close(s.done)
 	s.mount.Unmount()
+	// The locks end after the mount, never before the hub's end event: ending
+	// a lock revokes its sessions, which cuts their streams, and a viewer
+	// would lose "Broadcast ended" to a bare disconnect.
+	s.viewLock.End()
+	s.pointer.endLock()
 }
 
 // NewToken mints a capability token: 32 random bytes, URL-safe. A cast's

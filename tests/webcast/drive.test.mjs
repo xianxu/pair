@@ -378,5 +378,5 @@ test('joinSeat and seatPoster: the seat, or none; the key in its header', async 
   assert.deepEqual(await post('input', { seg: 1, acts: [] }), { status: 403, text: 'Ask the operator for control first.' });
   assert.equal(req[0], 'drive/input');
   assert.equal(req[1].headers[SEAT_HEADER], seat.key);
-  assert.equal(req[1].credentials, 'omit');
+  assert.equal(req[1].credentials, 'same-origin');
 });

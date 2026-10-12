@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"image/color"
 	"net/http"
+	"net/http/cookiejar"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -84,9 +85,31 @@ type remoteViewer struct {
 	theme string
 }
 
-func openViewer(t *testing.T, link string) *remoteViewer {
+// openViewer joins s as a viewer does: it enters the view link's code
+// (pair#495), then opens the event stream with the session it got.
+func openViewer(t *testing.T, s *broadcast.Session) *remoteViewer {
 	t.Helper()
-	resp, err := http.Get(link + "events")
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := &http.Client{Jar: jar}
+	link := s.Link()
+	code := ""
+	for _, c := range s.Codes() {
+		if c.Link == broadcast.LinkView {
+			code = c.Code
+		}
+	}
+	unlock, err := client.Post(link+"unlock", "application/json", strings.NewReader(`{"code":"`+code+`"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	unlock.Body.Close()
+	if unlock.StatusCode != http.StatusOK {
+		t.Fatalf("unlock refused: %d", unlock.StatusCode)
+	}
+	resp, err := client.Get(link + "events")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +201,7 @@ func TestBroadcastKeyStartsClickStops(t *testing.T) {
 			if strings.Contains(f.screenText(), s.Link()) {
 				t.Fatal("the link is drawn on screen, where it would be broadcast")
 			}
-			v := openViewer(t, s.Link())
+			v := openViewer(t, s)
 			v.until("the composed screen", func(text string) bool {
 				return strings.Contains(text, "child says hi") && strings.Contains(text, broadcast.LiveLabel)
 			})
@@ -208,7 +231,7 @@ func TestBroadcastClickPastTheCellDoesNotStop(t *testing.T) {
 func TestBroadcastKeyToggles(t *testing.T) {
 	f := broadcastFixture(t, &broadcast.FakeTunnel{}, nil)
 	s := f.startLive(t)
-	v := openViewer(t, s.Link())
+	v := openViewer(t, s)
 	_, _ = f.stdin.Write([]byte(ctrlAltB))
 	v.waitEnd()
 	waitFor(t, "broadcast off", func() bool { return f.phase() == broadcastOff })
@@ -224,7 +247,7 @@ func TestBroadcastSwitcherPrivate(t *testing.T) {
 		t.Run(fmt.Sprintf("showSwitcher=%v", show), func(t *testing.T) {
 			f := broadcastFixture(t, &broadcast.FakeTunnel{}, func(c *broadcast.Config) { c.Hub.ShowSwitcher = show })
 			s := f.startLive(t)
-			v := openViewer(t, s.Link())
+			v := openViewer(t, s)
 			v.until("the actor view", func(text string) bool { return strings.Contains(text, "child says hi") })
 			_, _ = f.stdin.Write([]byte{0}) // Ctrl+Space opens the switcher
 			waitFor(t, "switcher open", func() bool { f.con.mu.Lock(); defer f.con.mu.Unlock(); return f.con.focus.IsPanel() })
@@ -242,7 +265,7 @@ func TestBroadcastSwitcherPrivate(t *testing.T) {
 func TestBroadcastStopsWhenIndicatorCannotBeDrawn(t *testing.T) {
 	f := broadcastFixture(t, &broadcast.FakeTunnel{}, func(c *broadcast.Config) { c.Hub.Grace = 100 * time.Millisecond })
 	s := f.startLive(t)
-	v := openViewer(t, s.Link())
+	v := openViewer(t, s)
 	// Narrower than the label: the indicator is clipped on the operator's
 	// screen, so nothing more may be streamed, and the broadcast must end.
 	f.host.SetSize(ptychild.Size{Rows: 24, Cols: uint16(len([]rune(broadcast.LiveLabel)) - 1)})
@@ -275,7 +298,7 @@ func TestBroadcastStopIsOffTheInputPath(t *testing.T) {
 	f := broadcastFixture(t, ft, nil)
 	defer close(release)
 	s := f.startLive(t)
-	v := openViewer(t, s.Link())
+	v := openViewer(t, s)
 	f.clickStatus(1)
 	v.waitEnd()
 	waitFor(t, "cell gone while the tunnel is still closing", func() bool {
@@ -296,7 +319,7 @@ func TestBroadcastStoppedOnShutdown(t *testing.T) {
 	ft := &broadcast.FakeTunnel{}
 	f := broadcastFixture(t, ft, nil)
 	s := f.startLive(t)
-	v := openViewer(t, s.Link())
+	v := openViewer(t, s)
 	f.con.Stop()
 	select {
 	case <-f.done:
@@ -386,7 +409,7 @@ func TestBroadcastSendsOperatorTheme(t *testing.T) {
 		f.con.routeInputEvent(terminal.InputEvent{Event: ev, Reply: true})
 	}
 	s := f.startLive(t)
-	v := openViewer(t, s.Link())
+	v := openViewer(t, s)
 	v.until("a frame", func(string) bool { return true })
 	var theme broadcast.Theme
 	if err := json.Unmarshal([]byte(v.theme), &theme); err != nil {

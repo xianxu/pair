@@ -17,7 +17,7 @@ import (
 func notesOn(t *testing.T) (*pointerSession, string) {
 	t.Helper()
 	p := startPointerSession(t)
-	link, err := p.s.EnablePointer()
+	link, err := p.enablePointer(t)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func TestNoteScreenChanged(t *testing.T) {
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
 			p := startPointerSession(t)
-			link, _ := p.s.EnablePointer()
+			link, _ := p.enablePointer(t)
 			p.s.Offer(c.frame(t), c.class)
 			p.s.hub.sync()
 			code, body := post(t, link+"note", "application/json", c.body)
@@ -204,7 +204,7 @@ func TestNotesClearedWhenPointingTurnsOff(t *testing.T) {
 			if len(calls) != len(before)+1 || len(last.notes) != 0 || last.version <= before[len(before)-1].version {
 				t.Fatalf("OnNotes after off: %+v", calls)
 			}
-			p.s.EnablePointer()
+			p.enablePointer(t)
 			if notes, _ := p.s.Notes(); len(notes) != 0 {
 				t.Fatal("re-enabled pointing brought notes back")
 			}
@@ -225,7 +225,7 @@ func TestNotesDoNotDeadlockWithPointerWatch(t *testing.T) {
 	go func() {
 		defer close(done)
 		for i := 0; i < 40; i++ {
-			link, _ := p.s.EnablePointer()
+			link, _ := p.enablePointer(t)
 			p.showPointer(t)
 			post(t, link+"note", "application/json", noteBody((i%10)*2, 1, i%PointerColors, "x"))
 			// Hide the marker: the watch turns pointing off after its grace.

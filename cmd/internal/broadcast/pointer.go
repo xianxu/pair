@@ -1,6 +1,8 @@
 package broadcast
 
 import (
+	"github.com/xianxu/pair/cmd/internal/castlock"
+
 	"crypto/subtle"
 	"sync"
 	"time"
@@ -14,8 +16,12 @@ import (
 // critical section, so "off" and "no notes" are one state. mu is a leaf lock:
 // nothing called while holding it takes mu or waits on another goroutine.
 type PointerState struct {
-	mu      sync.Mutex
-	token   string
+	mu    sync.Mutex
+	token string
+	// lock is the pointer link's code lock (pair#495), minted with token in
+	// one step so the link is never routable unlocked; newLock makes it.
+	lock    *castlock.Lock
+	newLock func() (*castlock.Lock, error)
 	on      bool
 	gen     uint64 // bumped on every flip; a late watch report names the gen it saw
 	stopped bool   // the broadcast ended: pointing can't be turned on again
@@ -34,8 +40,8 @@ type PointerState struct {
 	noteLimit    *RateLimit
 }
 
-func newPointerState() *PointerState {
-	return &PointerState{limit: NewRateLimit(PointRatePerSec, PointRatePerSec), changed: make(chan struct{}),
+func newPointerState(newLock func() (*castlock.Lock, error)) *PointerState {
+	return &PointerState{newLock: newLock, limit: NewRateLimit(PointRatePerSec, PointRatePerSec), changed: make(chan struct{}),
 		inFlight: make(chan struct{}, MaxPointInFlight), notesChanged: make(chan struct{}),
 		noteLimit: NewRateLimit(NoteRatePerSec, NoteBurst)}
 }
@@ -91,7 +97,13 @@ func (p *PointerState) set(on bool, mint func() (string, error)) (string, bool, 
 		if err != nil {
 			return "", false, err
 		}
-		p.token = token
+		var lock *castlock.Lock
+		if p.newLock != nil {
+			if lock, err = p.newLock(); err != nil {
+				return "", false, err
+			}
+		}
+		p.token, p.lock = token, lock
 	}
 	if p.on == on {
 		return p.token, false, nil
@@ -164,4 +176,21 @@ func (p *PointerState) stop() {
 	p.mu.Lock()
 	p.stopped = true
 	p.mu.Unlock()
+}
+
+// endLock retires the pointer link's lock, if it was minted.
+func (p *PointerState) endLock() {
+	if l := p.Lock(); l != nil {
+		l.End()
+	}
+}
+
+// Lock is the pointer link's code lock; nil before the link is minted.
+func (p *PointerState) Lock() *castlock.Lock {
+	if p == nil {
+		return nil
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.lock
 }

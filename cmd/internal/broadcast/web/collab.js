@@ -55,8 +55,9 @@ export function safeStorage(storage) {
 }
 
 // poster makes a page's one request function: same origin, a relative
-// route from routes, no credentials, no referrer, plus any headers (a
-// remote-driving seat's key, #467). It resolves to the status and the
+// route from routes, the link's session cookie (same-origin credentials,
+// pair#495), no referrer, plus any headers (a remote-driving seat's key,
+// #467). It resolves to the status and the
 // response text (a refusal sentence the page shows).
 export function poster(fetchFn, routes, headers = {}) {
   return (route, body) => {
@@ -67,11 +68,24 @@ export function poster(fetchFn, routes, headers = {}) {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-      credentials: 'omit',
+      credentials: 'same-origin',
       referrerPolicy: 'no-referrer',
       cache: 'no-store',
     }).then(async (r) => ({ status: r.status, text: await r.text() }));
   };
+}
+
+// sessionLost asks the link whether this page's session still holds
+// (pair#495): the gate answers `session` with 204 for a live session and 401
+// once the code was rotated. Anything else -- the network, the cast gone --
+// is not a lost session, so the caller's own retry handles it.
+export async function sessionLost(fetchFn) {
+  try {
+    const r = await fetchFn('session', { credentials: 'same-origin', cache: 'no-store', referrerPolicy: 'no-referrer' });
+    return r.status === 401;
+  } catch {
+    return false;
+  }
 }
 
 // RAIL_INSET is the gap between the rail and the screen's right edge.

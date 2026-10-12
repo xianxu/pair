@@ -49,8 +49,11 @@ is the current one, for late joiners.
 `broadcast.Server` is read-only by construction:
 - **GET only:** every other method gets 405, and no request body is read.
 - **Token gate:** everything lives under `/<token>/`, and the token is
-  compared in constant time. Only five assets and `events` are served; any
-  other path, or a wrong token, gets 404.
+  compared in constant time. Only the page's fixed assets (`assets` in
+  `server.go`) and `events` are served; any other path, or a wrong token,
+  gets 404.
+- **Code lock (#495):** see [Code lock](#code-lock-495) below. Before a
+  session the Host serves the lock page instead of any of the above.
 - **Headers on every response:** `Cache-Control: no-store`,
   `Referrer-Policy: no-referrer` (the token is in the path), `nosniff`, and a
   CSP that confines the page to its own origin. Scripts are strict. Inline
@@ -61,6 +64,43 @@ is the current one, for late joiners.
   - `event: end` carries `{reason}`.
   - A `: ping` every 15s keeps Cloudflare from closing an idle stream (it does
     at 100s). A failed ping ends that viewer, which frees its slot.
+
+## Code lock (#495)
+
+Every cast link is locked behind a short numeric code, delivered out of band:
+the operator says it on the call.
+
+- **Core.** `castlock.Lock` holds one link's code and its wrong-try budget
+  (8 per code, counted across every client), plus the sessions it issued.
+  - **Spent budget:** the code rotates and the existing sessions are kept.
+  - **Operator rotation** (`Session.RotateCode`): revokes every session and
+    closes the generation's `Revoked` channel.
+  - **Ordering:** one mutex orders unlocks and rotations.
+- **Gate.** `Mountable.LockFor(segment)` names a link's lock, and the
+  `Host` gate (`lockgate.go`) runs before any mount sees a request.
+  - **Without a session:** `GET /<token>/` gets the lock page, plus
+    `lock.js`, `lock.css` and `POST unlock`. Everything else gets `401 locked`.
+  - **With a session:** the request reaches the mount under a context that
+    is cancelled on revoke, so live streams end with the session.
+  - **`GET session`:** the gate's own probe, `204` for a live session and
+    `401` otherwise. A page whose stream closed uses it to return to the
+    lock page.
+- **Session cookie.** It is `HttpOnly`, `SameSite=Strict`, scoped to
+  `/<token>/` and has no expiry. It is `Secure` on https links.
+  - The page's own fetches send it with same-origin credentials.
+  - **Trade-off:** a viewer who re-opens the link from a chat app
+    (cross-site) is asked for the code again.
+- **Unlock attempts** are rate-limited per lock (a burst of 5, then 1/s),
+  so a guesser can force at most about one rotation every 8 seconds.
+- **Terminal broadcast.** Each link has its own 4-digit code:
+  - `view`: the lock exists before `Mount`;
+  - `pointer`: the lock is minted with the pointer token.
+  - Both locks end in `teardown`, after the hub's `end` event, so viewers
+    still see why the broadcast ended.
+- **Lock page** (`web/lock.*`): asks for the code and the viewer's name; the
+  name is stored as `couch.viewerName`.
+  - `URL#NNNN` pre-fills the code, and the page strips it from history at
+    once.
 
 The page (`web/`), a vendored `@xterm/xterm` 6.0.0 with `@xterm/addon-unicode11`
 (Unicode 11 widths, so emoji are two columns as in Couch; #412),

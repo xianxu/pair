@@ -7,7 +7,7 @@ import (
 
 func onPointer(t *testing.T) *PointerState {
 	t.Helper()
-	p := newPointerState()
+	p := newPointerState(nil)
 	if _, _, err := p.set(true, func() (string, error) { return "tok", nil }); err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestPointerNotesAddResolve(t *testing.T) {
 }
 
 func TestPointerNotesRefusedWhileOff(t *testing.T) {
-	p := newPointerState()
+	p := newPointerState(nil)
 	if _, err := p.addNote(Note{Text: "a"}, p.generation()); err != ErrPointerOff {
 		t.Fatalf("add before on: %v", err)
 	}
