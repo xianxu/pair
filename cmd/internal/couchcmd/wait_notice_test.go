@@ -172,7 +172,7 @@ func (e tailEndpoint) Tail(context.Context, int) (couchmessage.Tail, error) {
 type hubInbox struct {
 	tailEndpoint
 	got      *[]couchmessage.Message
-	refuse   *int // admissions to refuse before accepting
+	refuse   *int            // admissions to refuse before accepting
 	admitted map[string]bool // reservations accepted, less those released undelivered
 }
 

@@ -1,12 +1,20 @@
 ---
 id: 000480
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: 'abddf571615f7b00ea5d209d8bad29bec5de96fb' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'fe16364d2d46d772efcad9d6e7f2ea51b4e1d103' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T05:53:20-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:5
+    worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
+    repository: github.com/xianxu/pair
 ---
 
 # tests: inject clocks or sync points where tests race a real timer or sleep as sync (idle floor, stdin ESC flush, wait-notice ticks, ttyio partial write, ...)
