@@ -1239,3 +1239,10 @@ proof; record the surprising case so the next change starts from evidence.
   shared file table, and one missing ES module kills the whole module graph. Serve a page's files from one table both
   servers use, and test the closure: walk the imports from the entry module and fetch each from that table. After a
   merge that brings a second consumer of shared files, run the live (browser) suites, not only the unit ones.
+
+- **A snapshot of a running page is not a fresh load (#478).** The fidelity replay started the blog's entry fade
+  when it drew the go-live snapshot, but the tab had finished it seconds before the cast went live, so the first
+  frame scored 2.15% for no render fault. When a replay or viewer draws a state captured mid-life (a segment that
+  isn't a navigation, a catch-up), ask what the browser's own clocks (animations, transitions) were doing at
+  capture, and settle them to the likeliest phase. Look at the worst moment's crop before tuning a tolerance: the
+  picture named the cause where the number couldn't.

@@ -287,7 +287,8 @@ func TestLiveRecording(t *testing.T) {
 //	WEBCAST_LIVE_CHROME=1 WEBCAST_RECORD_URL=stress WEBCAST_RECORD_OUT=DIR \
 //	  WEBCAST_RECORD_SCENARIO=idle WEBCAST_RECORD_SECS=7 go test ./cmd/internal/webcast -run LiveRecordURL -v
 //
-// then FIDELITY_DIR=DIR go test ./cmd/internal/webcast/recorder/internal/fidelity -run Dir -v.
+// then couch --broadcast-web-fidelity DIR (or FIDELITY_DIR=DIR WEBCAST_LIVE_CHROME=1 go test
+// ./cmd/internal/webcast -run LiveFidelityFixtures -v).
 // The URL "stress" serves #453's stress page from testdata/stress, its
 // cross-origin frame from a second origin.
 func TestLiveRecordURL(t *testing.T) {

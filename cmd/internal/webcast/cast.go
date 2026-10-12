@@ -33,6 +33,11 @@ type CastConfig struct {
 	// NewAssets makes a recording's asset store (#459), persisting bodies
 	// through the recording's DirWriter; nil records no assets.
 	NewAssets func(recording.AssetWriter) castassets.Served
+	// Check, when set, runs once a recorded cast has ended, if its
+	// recording has frames: the fidelity check (#478; couchcmd wires
+	// CheckFidelity). It runs in the background, after the cast is done;
+	// its summary, or its error, goes to Logf.
+	Check func(ctx context.Context, dir string) (summary string, err error)
 	// Logf reports a recording's problems to the operator: one that can't
 	// be opened or written, a resync, and at its end what it lost.
 	Logf func(format string, args ...any)
@@ -67,6 +72,11 @@ type Cast struct {
 	// isn't recorded. The recorder closes it with the recording (it is one
 	// of the recording's sinks), the cast when the browser has ended.
 	board *board.Board
+	// recDir is the recording's directory ("" when not recording); check
+	// and logf run the fidelity check on it once the cast has ended.
+	recDir string
+	check  func(context.Context, string) (string, error)
+	logf   func(string, ...any)
 	// server and token: for tests.
 	server *Server
 	token  string
@@ -80,6 +90,7 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 	var ro *RecordOptions
 	var bd *board.Board
 	var b Browser // set once launched; the board's requests come after
+	var recDir string
 	// The cast's asset proxy exists before Chrome does: the recording (and
 	// its store, bound here) can open at a go-live before the Server is up.
 	proxy := castassets.NewProxy()
@@ -97,6 +108,7 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 		})
 		bd.Logf = cfg.Logf
 		id := recordingID(time.Now())
+		recDir = filepath.Join(cfg.RecordingsDir, id)
 		ro = &RecordOptions{ID: id, Out: recordingOutput(cfg, liveSink, bd, id, proxy), Logf: cfg.Logf}
 	}
 	b, err := cfg.Launch(ctx, ro)
@@ -118,7 +130,8 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 		return nil, err
 	}
 	mountCtx, cancel := context.WithCancel(context.Background())
-	c := &Cast{browser: b, pub: newPublisher(Update{State: b.State()}), cancel: cancel, done: make(chan struct{}), liveSink: liveSink, board: bd}
+	c := &Cast{browser: b, pub: newPublisher(Update{State: b.State()}), cancel: cancel, done: make(chan struct{}), liveSink: liveSink,
+		board: bd, recDir: recDir, check: cfg.Check, logf: cfg.Logf}
 	srv := NewServer(token, b, cfg.Ping, live, cfg.Presence).WithBoard(bd)
 	srv.proxy = proxy
 	c.server, c.token = srv, token
@@ -225,6 +238,31 @@ func (c *Cast) run(ctx context.Context, host *broadcast.Host, srv *Server, token
 		mount.Unmount()
 	}
 	c.pub.finish(Update{State: c.browser.State()})
+	c.checkRecording()
+}
+
+// checkRecording starts the fidelity check on the cast's recording, if it
+// has frames to check: the recorder closed it before the browser ended.
+func (c *Cast) checkRecording() {
+	if c.check == nil || c.recDir == "" {
+		return
+	}
+	if _, err := os.Stat(filepath.Join(c.recDir, recording.FileFrames)); err != nil {
+		return // never live, or no frame kept
+	}
+	logf := c.logf
+	if logf == nil {
+		logf = func(string, ...any) {}
+	}
+	go func() {
+		summary, err := c.check(context.Background(), c.recDir)
+		switch {
+		case err != nil:
+			logf("fidelity check: %v", err)
+		case summary != "":
+			logf("%s", summary)
+		}
+	}()
 }
 
 // Notes delivers the open notes viewers left on the current page (#470),
