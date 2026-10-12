@@ -135,13 +135,6 @@ export class Replayer {
     await until(t);
     this.at = Math.max(this.at, t);
     for (const a of this.deps.animations()) a.pause();
-    // The window's records were drawn without waiting on what they load: the
-    // phase is held at t, then their images, fonts and stylesheets load
-    // before the capture. A loaded run otherwise captured the blog's avatar
-    // before it arrived (6.75% on frame 0, #480). An animation the loaded
-    // styles start is held at its start.
-    await this.settle();
-    for (const a of this.deps.animations()) if (a.playState !== 'paused') a.pause();
     const m = this.model;
     return { live: m.seg > 0 && m.live, vp: { w: m.vp.w, h: m.vp.h }, canonical: goJSON(this.renderer.canonical()) };
   }

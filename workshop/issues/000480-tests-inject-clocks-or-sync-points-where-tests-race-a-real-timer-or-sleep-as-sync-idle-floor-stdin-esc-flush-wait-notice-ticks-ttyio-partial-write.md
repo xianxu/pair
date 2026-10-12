@@ -64,8 +64,10 @@ Every cause below was proven by widening its window with a temporary sleep (the 
 - **broadcast pointer slow body**: a 100 ms sleep before expecting 429, then a 7 s poll for recovery; now waits for `len(inFlight) == MaxPointInFlight`, then for the read deadline to free all slots, then expects 204.
 - **hostty SIGWINCH**: a 200 ms sleep before counting wakes (n==0 if the watcher ran late; n==2 if signals were still arriving while the test drained). Now: wait for a pending wake, `Close` (joins the watcher; a blocking send would hang it), then exactly one buffered wake.
 
-Two more found by TL's runs (pair:6) and added to this issue:
+One more found by TL's runs (pair:6), added to this issue:
 
 - **couchcore `TestOrientationSessionObservationHonorsCallerDeadline`**: the 20 ms caller context could run out while the reader was still reading the ready file, before it asked the session observer (`observed=false`). Widened (30 ms before the call) → reproduced, 2 of 3 subtests. Fix: the `spendableBudget` context from the registration test (a distant deadline the test spends), spent inside the observer, so the deadline the reader must honor lapses only once the observer holds it.
-- **webcast `TestLiveFidelityFixtures` rec-blog frame 0 at 6.75%**: reproduced at that exact score in 1 of 20 runs with 4 concurrent Chromes (plain CPU load: 0 of 12). The worst crop showed the replay without the avatar image and the scrollbar. Frame 0 (t=147) is replayed entirely inside the real-time window, and `replayAt` captured right after `until(t)` without waiting for the assets those records loaded. Product fix in `web/replayer.js`: pause the animations at t, then `settle()` (assets + paint), then pause anything the loaded styles started. `tests/webcast/replayer.test.mjs` pins the order (ready after the pause, at t). After the fix: 40 of 40 clean under the same load, and all live fixtures unchanged (rec-stress's known gap still over).
 
+## Revisions
+
+- 2026-10-12: TL moved the rec-blog fidelity flake (`TestLiveFidelityFixtures`, frame 0 at 6.75%) to pair#482. A replayer fix was drafted here and reverted. Findings were sent to TL for #482: reproduced 1 of 20 with 4 concurrent Chromes (plain CPU load 0 of 12); the worst crop showed the replay without the avatar image and the scrollbar; capturing after pausing at t and then `settle()` gave 40 of 40 clean.
