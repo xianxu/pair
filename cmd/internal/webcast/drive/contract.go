@@ -63,7 +63,9 @@ func RunInjectorContract(t recording.TB, newInjector func(page []recording.Recor
 	at := func(b recording.Box) (float64, float64) { return b[0] + b[2]/2, b[1] + b[3]/2 }
 	qx, qy := at(qBox)
 	sx, sy := at(saveBox)
-	click := func(id recording.NodeID, x, y float64) Act { return Act{A: ActClick, ID: id, X: x, Y: y, Button: ButtonLeft, Count: 1} }
+	click := func(id recording.NodeID, x, y float64) Act {
+		return Act{A: ActClick, ID: id, X: x, Y: y, Button: ButtonLeft, Count: 1}
+	}
 
 	// Paused: nothing reaches the page.
 	{
