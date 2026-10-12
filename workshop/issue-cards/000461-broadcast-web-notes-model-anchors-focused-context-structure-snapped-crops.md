@@ -13,7 +13,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
-actual_hours: 1.00
+actual_hours: 1.01
 tracker:
     version: 1
     handoff:
@@ -27,10 +27,10 @@ tracker:
         destination: workshop/issues/000461-broadcast-web-notes-model-anchors-focused-context-structure-snapped-crops.md
         main_commit: cf766cbcf1f0a2dd0391489865155a2dbba9aaea
     completion:
-        token: close-c1cd40840595
+        token: close-fa99181bb6fc
         repository: github.com/xianxu/pair
-        reviewed_head: 62293ee2868491c4e9e7b401407ab777a0cd5779
-        evidence_commit: dcf37fb1082f5ef5dd049e429d75e67a3523bc43
+        reviewed_head: e3ca1a7bfeb789cc14ca1c42c46f036325e9152b
+        evidence_commit: 34064507881b807b519a2e7c88d628d8fbc88694
 ---
 
 # broadcast-web: notes model — anchors, focused context, structure-snapped crops
