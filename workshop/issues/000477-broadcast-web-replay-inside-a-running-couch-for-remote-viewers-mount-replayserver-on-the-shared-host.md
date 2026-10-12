@@ -1,12 +1,20 @@
 ---
 id: 000477
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '58fc829c824e7583843d2f12e501bc644c54e7a8' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '277f4c9c15a67b10219e623b56443c8280929893' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T05:09:29-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
 ---
 
 # broadcast-web: replay inside a running Couch, for remote viewers (mount ReplayServer on the shared Host)
