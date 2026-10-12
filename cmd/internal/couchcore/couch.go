@@ -195,6 +195,7 @@ func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOp
 		postAckRetryDelay:         100 * time.Millisecond,
 		resumeRegistrationTimeout: pairRegistrationTimeout,
 		sleep:                     time.Sleep,
+		after:                     time.After,
 	}
 	if err := result.reconcileInterruptedStarts(); err != nil {
 		return nil, fmt.Errorf("reconcile interrupted starts: %w", err)
