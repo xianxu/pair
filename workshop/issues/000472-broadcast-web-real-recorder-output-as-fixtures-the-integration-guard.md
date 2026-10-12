@@ -15,7 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "e905b066", done: "1986943c"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # broadcast-web: real recorder output as fixtures (the integration guard)
@@ -51,6 +51,8 @@ Quick flow (fixturegen gains one small mode; the rest is tests and data).
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — Real-recorder fixtures rec-stress/rec-app/rec-blog/rec-segments (0 dropped/desync) beside the prototype ones; every component test runs on them with observer lag 0; recorder frame-time clamp fixed, segment clamp pinned for navigate/resume/tab (mutation-checked); recording.FrameTimes shared offset rule (unit-tested); WEBCAST_LIVE_CHROME=1 LiveReplay + JoinMidCast green on all 9 fixtures; fidelity rec-stress 0.05/1.31 rec-app 0/0.41 rec-blog 0.06/3.07 rec-segments 0/0; make -k test exit 0 (pre-round-2), go test webcast/... + recorder -race green after. Retirement #474 (trigger #470/#471 landed); stylesheet gap #475.; review verdict: SHIP
+- 2026-10-12: flow upgraded quick → full — 107 added lines in code files (limit 100)
 - Recorded with the #458 recorder (headless Chrome 154): stress idle 5 s, app 22 s, blog browse 12 s, segments 10 s; 0 dropped, 0 desync, every run validates. Screenshots every 2 s keep the four at 3.3 MB (budget 9 MB while both sets coexist).
 - The guard found four things the prototype fixtures hid:
   - **Recorder bug, fixed:** `shotDone` clamped a frame's `t` to the stream's latest record, and it runs after the layout capture, so on a busy page frames were stamped 43–87 ms after their pixels (probe: midpoint 2117 → stamped 2160; 4369 → 4456). The format says a frame's `t` is the capture's midpoint. Now the frame keeps it (never before its segment) and only the layout record takes the stream's time. `TestRecorderFrameKeepsItsCaptureTime` fails on the old clamp (mutation-checked). rec-stress frames went from 4.2% off at 0 ms to 1.2%.
