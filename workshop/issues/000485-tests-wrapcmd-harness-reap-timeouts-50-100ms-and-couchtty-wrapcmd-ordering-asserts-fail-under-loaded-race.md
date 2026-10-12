@@ -23,6 +23,7 @@ Found by the #479 soak (200 `-race` runs per touched package under parallel load
 - couchtty `TestCouchParentCaptureStableAcrossChildMouseModes` (console_mouse_test.go:438, 4 of ~128 runs): "child changed parent capture". The asserted host write holds the full first paint, so the snapshot boundary isn't what the test assumes.
 - couchtty `TestCouchProductionSoak` (terminal_soak_test.go:341, 2 of ~128): "console exit1: couch: terminal: terminal: presenter unavailable" after the assertions completed, during shutdown.
 - wrapcmd `TestOrientationSerializedInputScheduler/overlay-after-paste` (orientation_test.go:82, 1 of 200): wanted cancel, got submitted; an overlay admitted after the paste raced the submit.
+- couchcore `TestRecoveryObservationDeadlineCancelsBlockingObserver/30ms` (recovery_execute_test.go:485): "blocked observer did not stop exactly once: context deadline exceeded calls0" in a loaded parallel run after #479's merge of main; passes alone.
 
 Same family as #480: a test races a timer it doesn't own, or asserts an order the product doesn't guarantee.
 
