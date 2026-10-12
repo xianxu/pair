@@ -1,12 +1,21 @@
 ---
 id: 000476
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: 'd09385318677eeb0e41a95532e13546efbffafed' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'b5106c2590966ec149ca96045aecd87e3a10f647' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T03:57:00-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:5
+    worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
+    repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "c15c62bb", done: "c9efc146"}
 ---
 
 # tests: two more flaky pair tests on real-time windows (couchcore retention nested locks; couchcmd capture PTY boundaries)
