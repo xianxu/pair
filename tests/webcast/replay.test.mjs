@@ -105,12 +105,29 @@ test('timeline: segments, a pause as a gap, a tab switch with none, notes', () =
   assert.deepEqual(tl.notes.map((n) => [n.t, n.id]), [[1500, 'seg-n1'], [5500, 'seg-n2']]);
 });
 
-test('timeline: who drove when, and the acts they caused', () => {
-  const tl = timeline(records('driven'));
-  assert.deepEqual(tl.drives.map((d) => [d.t0, d.t1, d.driver.name]), [[1500, 6500, 'Ana'], [7000, 7500, 'Bo'], [8500, 9000, 'Cy']]);
-  assert.deepEqual(tl.acts.map((a) => [a.t, a.by]), [[2000, 'v1'], [2000, 'v1'], [2400, 'v1'], [5500, 'v1'], [6000, 'v1'], [7200, 'v2']]);
-  assert.deepEqual(tl.gaps, [{ t0: 3500, t1: 5000 }]);
-  assert.equal(tl.notes.length, 1);
+test('timeline: who drove when, and the acts they caused (from the recorded fixture\'s own ctl records)', () => {
+  const recs = records('rec-driven');
+  const tl = timeline(recs);
+  // The spans the ctl records state: each from the record that made a
+  // viewer the driver to the one that ended it.
+  const want = [];
+  let cur = null;
+  for (const r of recs) {
+    if (r.k !== 'ctl') continue;
+    const d = r.driver || null;
+    if (cur && (!d || d.id !== cur.id)) { want.push([cur.t0, r.t, cur.name]); cur = null; }
+    if (d && !cur) cur = { id: d.id, name: d.name, t0: r.t };
+  }
+  assert.ok(want.length >= 2, 'the fixture drives twice');
+  assert.deepEqual(tl.drives.map((d) => [d.t0, d.t1, d.driver.name]), want);
+  // Every act carries a driver's by, inside one of the driver's spans.
+  const acts = recs.filter((r) => r.by);
+  assert.deepEqual(tl.acts.map((a) => [a.t, a.by]), acts.map((r) => [r.t, r.by]));
+  assert.ok(acts.some((r) => r.k === 'click') && acts.some((r) => r.k === 'input'));
+  for (const a of acts) assert.ok(want.some(([t0, t1]) => a.t >= t0 && a.t <= t1), `act at ${a.t} outside a drive`);
+  const stops = recs.filter((r) => r.k === 'stop' && r.why === 'pause');
+  assert.equal(tl.gaps.length, stops.length);
+  assert.equal(tl.notes.length, recs.filter((r) => r.k === 'note').length);
 });
 
 test('placer: monotonic, inverse on segments, a long gap squeezed, a gap seeks to its end', () => {

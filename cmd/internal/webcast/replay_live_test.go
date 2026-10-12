@@ -173,19 +173,40 @@ func TestLiveReplayServerMarks(t *testing.T) {
 	}
 }
 
-// Who drove is on the timeline, by name.
+// Who drove is on the timeline, by name: one band per span the recorded
+// fixture's ctl records state, and a gap per pause (lesson #474: from the
+// data).
 func TestLiveReplayServerDrivers(t *testing.T) {
+	r, err := recording.ReadDir(recording.Fixture("rec-driven"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var want []string
+	driving, pauses := "", 0
+	for _, rec := range r.Records {
+		switch x := rec.(type) {
+		case *recording.Ctl:
+			if d := x.Driving(); d != "" && d != driving {
+				want = append(want, x.Driver.Name+" drove")
+			}
+			driving = x.Driving()
+		case *recording.Stop:
+			if x.Why == recording.StopPause {
+				pauses++
+			}
+		}
+	}
 	page := headlessPage(t)
 	srv := replayServer(t)
-	page.openReplay(t, srv.URL+"/tok/r/driven/")
+	page.openReplay(t, srv.URL+"/tok/r/rec-driven/")
 	var titles []string
 	json.Unmarshal(page.eval(t, `[...document.querySelectorAll('.replay-drive')].map((e) => e.title)`), &titles)
-	if want := []string{"Ana drove", "Bo drove", "Cy drove"}; !slices.Equal(titles, want) {
+	if len(want) < 2 || !slices.Equal(titles, want) {
 		t.Errorf("drive bands %v, want %v", titles, want)
 	}
 	var gaps int
 	json.Unmarshal(page.eval(t, `document.querySelectorAll('.replay-gap').length`), &gaps)
-	if gaps != 1 {
-		t.Errorf("%d gaps, want the one pause", gaps)
+	if gaps != pauses {
+		t.Errorf("%d gaps, want %d", gaps, pauses)
 	}
 }

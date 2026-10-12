@@ -348,7 +348,7 @@ it), never a local fork.
 | pair#467 | driving control and the reverse channel | `drive.Controller` (seats, request/grant/deny/revoke/release, input) | `drive.MemController` | `drive.RunControllerContract` |
 
 Hand-written recordings for tests: `recording.Builder` (ids from one counter, `Page` for a segment and its document),
-`recording.ContractRecording`, `query.ContractRecording`, `recording.DrivenRecording` (viewers driving).
+`recording.ContractRecording`, `query.ContractRecording`, `recording.DrivenRecording` (viewers driving: the drive contracts' page, no longer a fixture).
 
 **Records, bodies and frames.** A `Sink` carries records only, and `Tee` fans them out to the recording directory and
 the live fan-out. An asset body is stored once: the asset store (#459) decides what to keep and persists it through
@@ -445,7 +445,7 @@ case.
 | `rec-app` (22 s, 0.5 MB) | #453's React + Tailwind app, `app` scenario, by the recorder | Typing (with the caret's `selection` after each key), clicks, focus, a modal, Tailwind's runtime `<style>` over CDP's 10k text cut, and a cross-document navigation (a second segment). A note is resolved. |
 | `rec-blog` (12 s, 1.9 MB) | The operator's blog post `ariadne-1-building-blocks-of-ai-coding` (Astro + Tailwind, `npm run dev`), `browse` scenario, by the recorder | Images, the Inter woff2 font, stylesheets, page scrolling, layout, and the giscus cross-origin iframe |
 | `rec-segments` (10 s, 0.3 MB) | #453's reports page, by the recorder | A same-document navigation, a pause with an edit, a resume, a new tab (the cast follows it, at that tab's own viewport), and a cross-document navigation there |
-| `driven` (hand-made) | `fixturegen -driven` (`recording.DrivenRecording`) | Viewers request and are granted control. A driver's attributed clicks, typing and scroll, interleaved with the operator's own click. Driving continues through a pause, a resume and a navigation. Release, revoke, deny and leave. A note by the driver. |
+| `rec-driven` | the real recorder and remote driving (#467): `TestRecordFixtures/driven` over `serveDriven`'s two pages, through MemController and TabInjector, then `fixturegen -recorded … -name rec-driven` | Ana asks, is granted, clicks and types (`by`). The operator clicks while she drives. Her click follows a link (a navigation while driving). A pause and resume. A release, a deny (Bo), a second grant and a revoke, and a leave (Cy). A note by the driver, from fixturegen's spec. |
 
 Gaps the prototype's recordings showed, closed by the recorder (#458):
 - **Clicks:** the prototype's polled observer lost the click that navigates; the recorder's observer reports clicks
@@ -597,12 +597,16 @@ it dispatches, so a batch overtaken by a revoke is refused there (`ErrNotDriver`
 drives, live and segment, `Confine`, then per act a hit test (`onTarget`: the element at the point is the aimed one
 or inside it, or an out-of-process frame's owner holding it) and the dispatch. The fake injector is the same rules
 over a reduced page. The real tab is the recorder (`Recorder.WithTab`). A batch is one queue input:
-- **Hold.** The recorder holds the in-page observer (`__couchcastHold`, in every observer context of the cast tab)
-  and records what it had pending without `by`.
+- **Hold.** The recorder holds the in-page observer (`__couchcastHold(by)`, in every observer context of the cast
+  tab) and records what it had pending without `by`. During the hold the observer tags everything it sends with
+  `by`, through the binding and in order. A click goes at once, so one that follows a link is recorded before its
+  document goes (a take can't reach a document that has gone).
 - **Dispatch.** CDP input (`cdpAct`: `Input.dispatchMouseEvent`/`dispatchKeyEvent` with editing commands for the
   A/Z/Y chords, `insertText`, `imeSetComposition`). Hit tests use `DOM.getNodeForLocation`, without user-agent
   shadow DOM: an input's inner editor isn't a recorded node.
-- **Take.** `__couchcastTake` returns what the observer queued meanwhile, recorded with `by`.
+- **Take.** `__couchcastTake` sends what is still coalesced, tagged, and ends the hold. The recorder accepts a
+  binding's `by` only as the reducer does: it must be the driver when the report is ordered. A revoke between a
+  batch and its reports therefore drops those reports (counted).
 
 What a driver holds down (a button, keys) is `TabInjector`'s to end. It lets go before another driver's input,
 before input on another page, when the driver's batch is refused, and on every control change (`drive.Releaser`,
@@ -646,3 +650,8 @@ recording. Seats and their keys are memory only: they end after the grace period
   a reserved author id; `notes.Model.NoteCrops` brings region notes to crops.
 - 2026-10-12 (#478, additive): `fidelity/` in the recording directory, the fidelity check's report. No record kind
   or field changes; frames are as #457 defined them.
+- 2026-10-12 (#467, additive, as built): no record kind changes. `by` is stamped by the recorder from the
+  observer's tagged reports during a driver's batch. `ctl` records come from the real controller through the
+  recorder's queue, gated on the recording having opened. The hand-written `driven` fixture is replaced by
+  `rec-driven`, a recorded driven session. Two links: a view link (no drive routes) and a drive link (its own
+  token).

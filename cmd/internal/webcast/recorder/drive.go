@@ -43,13 +43,13 @@ func (r *Recorder) withTab(ctx context.Context, by string, fn func(drive.Tab) er
 	}
 	contexts := r.castContexts()
 	for _, c := range contexts {
-		if items, ok := r.observerCall(c, "__couchcastHold"); ok {
+		if items, ok := r.observerCall(c, "__couchcastHold", by); ok {
 			r.observeItems(r.t(r.opts.Now()), c.session, c.id, items, "")
 		}
 	}
 	defer func() {
 		for _, c := range contexts {
-			if items, ok := r.observerCall(c, "__couchcastTake"); ok {
+			if items, ok := r.observerCall(c, "__couchcastTake", ""); ok {
 				r.observeItems(r.t(r.opts.Now()), c.session, c.id, items, by)
 			}
 		}
@@ -95,13 +95,14 @@ func (r *Recorder) underTop(session string) bool {
 
 // observerCall evaluates the observer's hold or take in one context and
 // returns its items; false when it can't (a dialog, a context gone).
-func (r *Recorder) observerCall(c worldContext, fn string) ([]Item, bool) {
+func (r *Recorder) observerCall(c worldContext, fn, arg string) ([]Item, bool) {
 	var res struct {
 		Result struct {
 			Value string `json:"value"`
 		} `json:"result"`
 	}
-	params := map[string]any{"expression": "globalThis." + fn + " ? globalThis." + fn + "() : '[]'", "contextId": c.id, "returnByValue": true}
+	quoted, _ := json.Marshal(arg)
+	params := map[string]any{"expression": "globalThis." + fn + " ? globalThis." + fn + "(" + string(quoted) + ") : '[]'", "contextId": c.id, "returnByValue": true}
 	if err := r.inputCall(c.session, "Runtime.evaluate", params, &res); err != nil {
 		return nil, false
 	}

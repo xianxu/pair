@@ -1,0 +1,19 @@
+$ couch --broadcast-web-query <fixtures>/rec-driven events --from 0 --to 3000
+0 recording live started 2026-10-12T09:30:31.853144-07:00
+0 segment 1 starts (live) on http://127.0.0.1:59767/, viewport 1280x800@1
+0 document http://127.0.0.1:59767/
+13 input @12 <input#q> value ""
+13 scroll @1 #document to 0,0
+13 selection cleared
+33 layout boxes for 11 nodes
+821 control request Ana (v1) → the operator drives; asking: Ana (v1)
+1422 control grant Ana (v1) → Ana (v1) drives
+2032 ? hover
+2032 ? ptr
+2033 focus @12 <input#q> by Ana (v1)
+2033 click @12 <input#q> at 178,122 by Ana (v1)
+2064 selection @7 <body>:3 … @7 <body>:3
+2064 layout boxes for 11 nodes
+2188-2493 input @12 <input#q> value "invoice 42" by Ana (v1) (3 changes)
+2600 pointer stroke by Ana (v1) (4 points)
+3000 note rec-driven-n1 by Ana (v1) on @12 <input#q>: "Searching by number works; can it take a range?"

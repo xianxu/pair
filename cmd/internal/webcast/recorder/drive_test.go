@@ -248,3 +248,24 @@ func jsonString(v any) (string, error) {
 	b, err := json.Marshal(v)
 	return string(b), err
 }
+
+// A held document that goes (the driver's click followed a link) sends its
+// items with the hold's by, as it unloads: the click that navigated is
+// recorded, attributed (#467). A by that isn't the driver is refused.
+func TestHeldDocumentSendsAttributedItems(t *testing.T) {
+	h, _, _, _ := drivenHarness(t, nil)
+	send := func(by string) {
+		payload, _ := jsonString(map[string]any{"t": "obs", "by": by, "items": []any{map[string]any{"k": "click", "p": []int{1, 2, 0}, "x": 1, "y": 1}}})
+		h.send("A", "Runtime.bindingCalled", map[string]any{"name": "__couchcast", "payload": payload, "executionContextId": 7})
+		h.settle()
+	}
+	send("v1")
+	if c := h.last("click").(*rec.Click); c.By != "v1" {
+		t.Fatalf("the navigating click: by %q", c.By)
+	}
+	n := h.count("click")
+	send("v9")
+	if h.count("click") != n {
+		t.Fatal("a by that isn't the driver was written")
+	}
+}

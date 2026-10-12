@@ -515,12 +515,15 @@ func TestRecordFixtures(t *testing.T) {
 		{"app", app + "/app.html", "app", 22 * time.Second},
 		{"blog", os.Getenv("WEBCAST_BLOG_URL"), "browse", 12 * time.Second},
 		{"segments", app + "/app2.html", "segments", 9 * time.Second},
+		{"driven", "driven", "driven", 16 * time.Second},
 	} {
 		t.Run(r.name, func(t *testing.T) {
 			url := r.url
 			switch {
 			case url == "stress":
 				url = serveStress(t)
+			case url == "driven":
+				url = serveDriven(t)
 			case !strings.HasPrefix(url, "http"):
 				t.Skip("no source for this run")
 			}

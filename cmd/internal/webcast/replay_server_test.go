@@ -145,7 +145,7 @@ func TestReplayServerListsNothingYet(t *testing.T) {
 }
 
 func TestListRecordingsReadsHeadAndEnd(t *testing.T) {
-	got, err := ListRecordings(replayRoot(t, "segments", "driven"))
+	got, err := ListRecordings(replayRoot(t, "segments", "rec-driven"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,8 +156,13 @@ func TestListRecordingsReadsHeadAndEnd(t *testing.T) {
 	if l := byID["segments"]; l.Duration.Milliseconds() != 9000 || l.Notes != 2 || l.Started == "" {
 		t.Errorf("segments: %+v", l)
 	}
-	if l := byID["driven"]; l.Duration.Milliseconds() != 9500 {
-		t.Errorf("driven: %+v", l)
+	// The recorded fixture's length is its last record's time.
+	r, err := recording.ReadDir(recording.Fixture("rec-driven"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l := byID["rec-driven"]; l.Duration.Milliseconds() != r.Records[len(r.Records)-1].Time() {
+		t.Errorf("rec-driven: %+v, want %d ms", l, r.Records[len(r.Records)-1].Time())
 	}
 }
 

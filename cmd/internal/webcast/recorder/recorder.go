@@ -1081,11 +1081,15 @@ func (r *Recorder) binding(at time.Time, e Event) {
 	var msg struct {
 		T     string `json:"t"`
 		Items []Item `json:"items"`
+		// By: items a held observer sent during the hold (#467), whose
+		// injected input they followed. The reducer refuses a by that
+		// isn't the driver.
+		By string `json:"by"`
 	}
 	if json.Unmarshal([]byte(p.Payload), &msg) != nil || msg.T != "obs" {
 		return
 	}
-	r.observeItems(r.t(at), e.Session, p.Context, msg.Items, "")
+	r.observeItems(r.t(at), e.Session, p.Context, msg.Items, msg.By)
 }
 
 // observeItems records an observer's reports from one context: by is the

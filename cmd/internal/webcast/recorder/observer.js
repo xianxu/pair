@@ -18,11 +18,14 @@
 // page that isn't cast pays only idle listeners.
 //
 // Remote driving (#467) holds it around a viewer's injected input:
-// __couchcastHold returns what is pending (the operator's or the page's)
-// and stops sending; __couchcastTake returns what came meanwhile (the
-// driver's) and resumes. The recorder calls both inside one queue input,
-// so attribution is exact. A hold no take ends expires after HOLD_MAX and
-// the observer resumes sending as usual: it can never stay held.
+// __couchcastHold(by) returns what is pending (the operator's or the
+// page's) and starts the hold; everything the observer sends during it
+// carries by (a click at once, before a navigation can take its document),
+// and __couchcastTake sends what is still coalesced, tagged, and ends it.
+// Every driven item goes through the binding, so they keep their order.
+// The recorder calls both inside one queue input. A hold no take ends
+// expires after HOLD_MAX: what comes after is sent as usual, unattributed.
+// It can never stay held.
 (() => {
   if (globalThis.__couchcastRecInstalled) return;
   globalThis.__couchcastRecInstalled = true;
@@ -31,8 +34,8 @@
   const PTR_EVERY = 250; // ms between pointer samples (a few per second)
   const SCAN_EVERY = 250; // ms between scans for values set by script
   const HOLD_MAX = 1000; // ms a hold lasts without a take
-  const send = (items) => {
-    try { __couchcast(JSON.stringify({ t: 'obs', items })); } catch (_) { /* binding gone */ }
+  const send = (items, by) => {
+    try { __couchcast(JSON.stringify(by ? { t: 'obs', items, by } : { t: 'obs', items })); } catch (_) { /* binding gone */ }
   };
 
   let on = false;
@@ -41,6 +44,7 @@
   const scrolls = new Map(); // target -> true, coalesced per frame
   let selDirty = false;
   let held = null; // the hold's expiry timer while held
+  let heldBy = ''; // whose input the hold is around
 
   const isControlUI = (n) => n && n.nodeType === 1 && n.hasAttribute && n.hasAttribute('data-couchcast-ui');
 
@@ -74,7 +78,9 @@
     scheduled = false;
     if (!on) { pending = []; scrolls.clear(); selDirty = false; return; }
     collect();
-    if (pending.length && !held) { const items = pending; pending = []; send(items); }
+    // While held, what goes is sent at once, tagged with whose input the
+    // hold is around: a click that navigates must leave before its document.
+    if (pending.length) { const items = pending; pending = []; send(items, held ? heldBy : ''); }
   };
   const schedule = () => {
     if (scheduled) return;
@@ -212,16 +218,25 @@
     if (held) clearTimeout(held);
     held = null;
   };
-  globalThis.__couchcastHold = () => {
+  globalThis.__couchcastHold = (by) => {
     const out = take();
     release();
+    heldBy = typeof by === 'string' ? by : '';
     held = setTimeout(() => { held = null; schedule(); }, HOLD_MAX);
     return out;
   };
+  // The take sends what is left through the binding, after anything the
+  // hold already sent, so the driver's items arrive in the order they
+  // happened, all tagged; it returns nothing.
   globalThis.__couchcastTake = () => {
-    const out = take();
+    if (on) {
+      collect();
+      if (pending.length) send(pending.splice(0), heldBy);
+    } else {
+      pending = [];
+    }
     release();
-    return out;
+    return '[]';
   };
 
   globalThis.__couchcastRec = (v, sync) => {

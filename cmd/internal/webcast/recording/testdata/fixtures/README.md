@@ -11,7 +11,7 @@ Recordings in the format of `atlas/webcast-format.md`, for every wave-1 componen
 | `rec-app` | the real recorder, #453's app, `app` scenario | 22 s, 11 frames |
 | `rec-blog` | the real recorder, the operator's blog, `/2026/10/ariadne-1-building-blocks-of-ai-coding` on `npm run dev`, `browse` scenario | 12 s, 6 frames |
 | `rec-segments` | the real recorder, #453's `app2.html`: a same-document navigation, a pause with an edit, a resume, a new tab, a navigation there | 10 s, 5 frames |
-| `driven` | hand-made by `fixturegen -driven` from `recording.DrivenRecording()` (#466): viewers request, are granted, click and type (attributed `by`), drive through a pause, a resume and a navigation; release, revoke, deny, leave | 9.5 s, no frames |
+| `rec-driven` | the real recorder and remote driving (#467): `driven` scenario over `serveDriven`'s two pages through MemController and TabInjector; Ana asks, is granted, clicks and types (`by`), the operator clicks, Ana follows a link (a navigation while driving), a pause and resume, Ana releases; Bo is denied; Ana is granted and revoked; Cy asks and leaves. A note by the driver (fixturegen's spec) | 21 s, 9 frames |
 
 Each directory has:
 - the record files;

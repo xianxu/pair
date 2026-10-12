@@ -458,3 +458,15 @@ over the recording Chrome, grace 1 s); `recording/testdata/fixtures/driven/` (re
   - **`couch --broadcast-list`.** It lists every link out by kind: `screen`, `web view` and `web drive`, each with
     its state and viewers, and the drive link also with who drives and how many ask (`couchmessage.ShareStatus`,
     `Console.Shares`, `Server.Viewers` by link). It never prints a token.
+- 2026-10-12, M4 as built:
+  - **The fixture.** It is named `rec-driven` (the `rec-*` convention for recorder output, #474), not `driven`.
+    The hand-written `driven` is removed, along with `fixturegen -driven` and its query goldens.
+    `DrivenRecording` stays, as the drive contracts' page.
+  - **What the recording found.** It caught a real gap in the hold/take design: a driver's click that follows a
+    link was lost, because its document went before the take, and a `pagehide` send from the held page never
+    arrives. Now, during a hold, the observer tags everything it sends with the hold's `by` and sends through the
+    binding, in order; a click goes at once. The take sends the coalesced rest, tagged. The trade, written in the
+    atlas: a revoke ordered between a batch and its reports drops them (counted). `TestLiveDriveNavigation` pins
+    it.
+  - **Consumers derive from the data** (lesson #474): the query attribution test, the replay timeline test, the
+    replay listing duration and the live replay drivers test read `rec-driven`'s own records.
