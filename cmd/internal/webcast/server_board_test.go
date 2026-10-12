@@ -175,3 +175,39 @@ func TestBoardRoutesNeedABoard(t *testing.T) {
 		t.Errorf("POST under another token: %d", code)
 	}
 }
+
+// The notes module's GETs: collab.js always (the terminal viewer's file),
+// palette.json only when the cast takes notes, so the viewer mounts the
+// module only then.
+func TestBoardAssets(t *testing.T) {
+	plain := httptest.NewServer(NewServer("tok", NewFakeBrowser(), time.Second, nil, nil))
+	t.Cleanup(plain.Close)
+	c := newBoardCast(t)
+	get := func(url string) (int, string, string) {
+		resp, err := http.Get(url)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return resp.StatusCode, resp.Header.Get("Content-Type"), string(b)
+	}
+	if code, _, _ := get(plain.URL + "/tok/palette.json"); code != 404 {
+		t.Errorf("palette.json without a board: %d", code)
+	}
+	code, ctype, body := get(c.url + "palette.json")
+	var palette []string
+	if code != 200 || ctype != "application/json" || json.Unmarshal([]byte(body), &palette) != nil || len(palette) != 6 {
+		t.Errorf("palette.json: %d %s %s", code, ctype, body)
+	}
+	for _, base := range []string{plain.URL + "/tok/", c.url} {
+		if code, ctype, body := get(base + "collab.js"); code != 200 || !strings.HasPrefix(ctype, "text/javascript") || !strings.Contains(body, "export function noteDialog") {
+			t.Errorf("collab.js at %s: %d %s", base, code, ctype)
+		}
+	}
+	for _, f := range []string{"annotate.js", "annotate.css"} {
+		if code, _, _ := get(c.url + f); code != 200 {
+			t.Errorf("%s: %d", f, code)
+		}
+	}
+}

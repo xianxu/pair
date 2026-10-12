@@ -14,7 +14,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
-//go:embed web/index.html web/viewer.js web/viewer.css web/model.js web/render.js web/css.js
+//go:embed web/index.html web/viewer.js web/viewer.css web/model.js web/render.js web/css.js web/annotate.js web/annotate.css
 var webFS embed.FS
 
 // contentSecurityPolicy: the page runs only its own script, talks only to
@@ -31,6 +31,10 @@ var assets = map[string]struct{ file, contentType string }{
 	"model.js":   {"web/model.js", "text/javascript; charset=utf-8"},
 	"render.js":  {"web/render.js", "text/javascript; charset=utf-8"},
 	"css.js":     {"web/css.js", "text/javascript; charset=utf-8"},
+	// Pointing and notes (#470): this package's module and style, and the
+	// swatches and dialog shared with the terminal viewer.
+	"annotate.js":  {"web/annotate.js", "text/javascript; charset=utf-8"},
+	"annotate.css": {"web/annotate.css", "text/css; charset=utf-8"},
 }
 
 // endedReason is what viewers are told when the cast ends.
@@ -101,6 +105,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if hash, ok := strings.CutPrefix(rest, "assets/"); ok {
 		s.proxy.Serve(w, r, hash)
+		return
+	}
+	if s.boardAsset(w, rest) {
 		return
 	}
 	a, ok := assets[rest]

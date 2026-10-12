@@ -1,0 +1,432 @@
+// Pointing and notes in the web cast viewer (#470). A viewer picks a color
+// on the swatch rail, draws strokes everyone sees, and leaves notes pinned on
+// an element (a tap) or a dragged region. Strokes and notes are recording
+// records: a viewer posts them (stroke, note, note-state), Couch's board
+// checks and anchors them, and they come back to every viewer in the record
+// stream, so this module draws what the model holds, never its own guess.
+// Its own stroke is drawn as it is made and its echo skipped.
+//
+// The pure helpers are exported for the node tests; mountAnnotate is the
+// shell, called once by viewer.js. It owns its own elements (rail, mode
+// buttons, strokes canvas, pins, dialog), so the viewer's page stays as it
+// is, and note text is only ever set as textContent. collab.js is the
+// terminal viewer's (served from broadcast.CollabJS; the file here is a
+// symlink, for the node tests).
+
+import { HEX_COLOR, pointerColor, colorStore, railAt, renderSwatches, noteDialog } from './collab.js';
+
+// CHUNK_MS is how often a stroke in progress is posted; MAX_POINTS caps a
+// chunk (the board's bound).
+export const CHUNK_MS = 50;
+export const MAX_POINTS = 64;
+// FADE_MS: a stroke fades out over this long after its last point.
+export const FADE_MS = 1500;
+// MIN_REGION: a drag smaller than this (CSS px of the page, either side) is
+// a tap.
+export const MIN_REGION = 8;
+
+const ID_KEY = 'couch.viewerId';
+const NAME_KEY = 'couch.viewerName';
+const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+
+// randomID is 12 hex digits from the browser's CSPRNG.
+export function randomID(crypto) {
+  const b = new Uint8Array(6);
+  crypto.getRandomValues(b);
+  return [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+}
+
+// identityStore is who this viewer says they are: an id made once per
+// browser and a name asked once. It is attribution, not authentication
+// (atlas, Notes and pointer). Storage can be missing or throw; the page then
+// keeps the identity for this visit only.
+export function identityStore(storage, crypto) {
+  const get = (k) => { try { return storage ? storage.getItem(k) : null; } catch { return null; } };
+  const set = (k, v) => { try { storage?.setItem(k, v); } catch { /* this visit only */ } };
+  let id = get(ID_KEY);
+  if (!ID_RE.test(id || '') || id === 'operator') {
+    id = 'w' + randomID(crypto);
+    set(ID_KEY, id);
+  }
+  let name = get(NAME_KEY) || '';
+  return {
+    id: () => id,
+    name: () => name,
+    setName(v) { name = v; set(NAME_KEY, v); },
+    viewer: () => ({ id, name }),
+  };
+}
+
+// chunker collects one stroke's points ([x, y] in page px, at ms) and cuts
+// them into posts: each at most MAX_POINTS, every point [x, y, ms after the
+// chunk's first].
+export function chunker() {
+  let pending = [];
+  return {
+    add(x, y, at) {
+      const last = pending.at(-1);
+      if (last && last[0] === x && last[1] === y) return;
+      pending.push([x, y, at]);
+    },
+    take() {
+      const out = [];
+      for (let i = 0; i < pending.length; i += MAX_POINTS) {
+        const part = pending.slice(i, i + MAX_POINTS), t0 = part[0][2];
+        out.push(part.map(([x, y, at]) => [round(x), round(y), Math.max(0, Math.round(at - t0))]));
+      }
+      pending = [];
+      return out;
+    },
+  };
+}
+
+const round = (v) => Math.round(v * 10) / 10;
+
+// strokeStore keeps the strokes to draw: chunks joined by record id, each
+// with the time it last grew here. A stroke behind the stream (a reconnect's
+// catch-up) is never drawn: only one whose record time is within FADE_MS of
+// the newest record time. Own strokes are added locally (local), and their
+// echoes are skipped.
+export function strokeStore() {
+  const strokes = new Map(); // id -> {color, pts: [[x, y]], last}
+  let newest = 0;
+  return {
+    seen(t) { newest = Math.max(newest, t); },
+    record(r, now, ownPrefix) {
+      if (ownPrefix && r.id.startsWith(ownPrefix)) return;
+      const end = r.t + Math.max(0, ...r.pts.map((p) => p[2]));
+      if (newest - end > FADE_MS) return;
+      this.extend(r.id, r.color, r.pts, now);
+    },
+    local(id, color, pts, now) { this.extend(id, color, pts, now); },
+    extend(id, color, pts, now) {
+      const s = strokes.get(id) || { color, pts: [], last: now };
+      for (const p of pts) s.pts.push([p[0], p[1]]);
+      s.last = now;
+      strokes.set(id, s);
+    },
+    // visible is every stroke still showing at now, with its opacity; the
+    // ones faded out are dropped.
+    visible(now) {
+      const out = [];
+      for (const [id, s] of strokes) {
+        const age = now - s.last;
+        if (age >= FADE_MS) { strokes.delete(id); continue; }
+        out.push({ id, color: s.color, pts: s.pts, alpha: 1 - age / FADE_MS });
+      }
+      return out;
+    },
+    clear() { strokes.clear(); },
+    get size() { return strokes.size; },
+  };
+}
+
+// liveNotes are the open notes on the current document: since it began
+// (docSeg), so a resume keeps them and a navigation clears them.
+export function liveNotes(model) {
+  if (!model || !model.docSeg) return [];
+  return model.notes.filter((n) => n.seg >= model.docSeg && n.state === 'open').map((n) => n.note);
+}
+
+// noteBox is where a note shows, in page px: its region; else its element's
+// box now (boxOf), while the element is drawn; else the box it was made on.
+export function noteBox(note, boxOf) {
+  if (note.region) return note.region;
+  const b = note.at && note.at.node ? boxOf(note.at.node) : null;
+  return b || (note.at && note.at.box) || null;
+}
+
+// regionOf is the region two page points span, or null for a tap.
+export function regionOf(a, b) {
+  const x = Math.min(a[0], b[0]), y = Math.min(a[1], b[1]);
+  const w = Math.abs(a[0] - b[0]), h = Math.abs(a[1] - b[1]);
+  return w < MIN_REGION && h < MIN_REGION ? null : [round(x), round(y), round(Math.max(w, 1)), round(Math.max(h, 1))];
+}
+
+// noteDraft is a new note's anchor, the payload the dialog posts: the
+// segment shown, the element, its box as drawn here, and the region.
+export function noteDraft(seg, node, box, region) {
+  const d = { seg, node, box: box.map(round) };
+  if (region) d.region = region;
+  return d;
+}
+
+// NOTE_ROUTES is every request this module makes besides palette.json.
+const NOTE_ROUTES = ['stroke', 'note', 'note-state'];
+
+function postJSON(win, route, body) {
+  if (!NOTE_ROUTES.includes(route)) return Promise.reject(new Error('unknown route'));
+  return win.fetch(route, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    credentials: 'omit', referrerPolicy: 'no-referrer', cache: 'no-store',
+  }).then(async (r) => ({ status: r.status, text: await r.text() }));
+}
+
+export const MODE_TIPS = {
+  point: 'Point: draw on the page for everyone. Click again to stop.',
+  note: 'Note: tap an element or drag a region to leave a note. Click again to stop.',
+};
+
+// mountAnnotate adds pointing and notes to the viewer. v is the viewer's
+// surface (couchViewer: boxOf, nodeAt, toPage, fromPage, onRecord, model).
+// It mounts only when the cast takes notes (palette.json answers).
+export async function mountAnnotate(doc, win, v) {
+  let palette;
+  try {
+    const r = await win.fetch('palette.json', { credentials: 'omit', cache: 'no-store' });
+    palette = r.ok ? await r.json() : null;
+  } catch { palette = null; }
+  if (!Array.isArray(palette) || !palette.length || !palette.every((c) => typeof c === 'string' && HEX_COLOR.test(c))) return null;
+
+  let storage = null;
+  try { storage = win.localStorage; } catch { /* no storage: nothing remembered */ }
+  const who = identityStore(storage, win.crypto);
+  const colors = colorStore(storage);
+  let picked = colors.get();
+  const color = () => pointerColor(picked, 0, palette.length);
+  const post = (route, body) => postJSON(win, route, body);
+  const el = (tag, cls, parent) => { const e = doc.createElement(tag); if (cls) e.className = cls; parent?.append(e); return e; };
+
+  const box = doc.getElementById('box'), stage = doc.getElementById('stage');
+  const layer = el('div', 'annotate', box);
+  const canvas = el('canvas', 'strokes', layer);
+  const pins = el('div', 'pins', layer);
+  const rail = el('div', 'annotate-rail', doc.body);
+  const swatches = el('div', 'swatches', rail);
+  swatches.setAttribute('role', 'group');
+  swatches.setAttribute('aria-label', 'Pointer color');
+  const modeButtons = {};
+  for (const [mode, glyph] of [['point', '✏️'], ['note', '💭']]) {
+    const b = el('button', 'mode', rail);
+    b.type = 'button';
+    b.textContent = glyph;
+    b.title = MODE_TIPS[mode];
+    b.setAttribute('aria-label', MODE_TIPS[mode]);
+    b.addEventListener('click', () => setMode(mode === state.mode ? 'watch' : mode));
+    modeButtons[mode] = b;
+  }
+
+  // The dialog: collab.js's, with a name field the first time.
+  const dlg = el('div', 'note-dialog hidden', doc.body);
+  dlg.setAttribute('role', 'dialog');
+  dlg.setAttribute('aria-modal', 'true');
+  dlg.setAttribute('aria-label', 'Note');
+  const author = el('div', 'note-author', dlg);
+  const text = el('div', 'note-text', dlg);
+  const name = el('input', 'note-name', dlg);
+  name.placeholder = 'Your name';
+  name.maxLength = 40;
+  name.setAttribute('aria-label', 'Your name');
+  const input = el('textarea', 'note-input', dlg);
+  input.rows = 5;
+  input.setAttribute('aria-label', 'Note text');
+  const meta = el('div', 'note-meta', dlg);
+  const msg = el('span', 'note-msg', meta);
+  msg.setAttribute('role', 'status');
+  const count = el('span', 'note-count', meta);
+  const buttons = el('div', 'note-buttons', dlg);
+  const mk = (label) => { const b = el('button', '', buttons); b.type = 'button'; b.textContent = label; return b; };
+  const resolve = mk('Resolve'), cancel = mk('Cancel'), save = mk('Save');
+  const dialog = noteDialog({ root: dlg, text, input, count, msg, save, cancel, resolve }, {
+    post,
+    color,
+    resolveRequest: (id) => ['note-state', { viewer: who.viewer(), id, state: 'resolved' }],
+    beforeSave: () => {
+      const n = name.value.trim();
+      if (!who.name() && !n) { msg.textContent = 'Add your name first.'; name.focus?.(); return null; }
+      if (n && n !== who.name()) who.setName(n);
+      return { viewer: who.viewer() };
+    },
+  });
+
+  const state = { mode: 'watch', drag: null, stroke: null, timer: null };
+  const strokes = strokeStore();
+  let docSeg = 0;
+
+  const drawRail = () => {
+    renderSwatches(swatches, palette, color(), (i) => { picked = i; colors.set(i); drawRail(); }, (tag) => doc.createElement(tag));
+    for (const [m, b] of Object.entries(modeButtons)) {
+      b.classList.toggle('on', state.mode === m);
+      b.setAttribute('aria-pressed', String(state.mode === m));
+    }
+    const r = box.getBoundingClientRect();
+    const at = railAt(r.width ? r : stage.getBoundingClientRect(), win.innerWidth);
+    rail.style.top = `${at.top}px`;
+    rail.style.right = `${at.right}px`;
+    rail.hidden = !(v.model && v.model.seg > 0 && !v.model.ended);
+  };
+  function setMode(m) {
+    endStroke();
+    state.mode = m;
+    layer.classList.toggle('point', m === 'point');
+    layer.classList.toggle('note', m === 'note');
+    drawRail();
+  }
+
+  // Own strokes: drawn at once, posted every CHUNK_MS.
+  const flush = () => {
+    const s = state.stroke;
+    if (!s) return;
+    for (const pts of s.chunks.take()) {
+      post('stroke', { viewer: who.viewer(), seg: v.model.seg, id: s.id, color: s.color, pts }).catch(() => {});
+    }
+  };
+  function endStroke() {
+    if (state.timer !== null) win.clearInterval(state.timer);
+    state.timer = null;
+    flush();
+    state.stroke = null;
+  }
+  const pagePoint = (e) => v.toPage(e.clientX, e.clientY);
+
+  layer.addEventListener('pointerdown', (e) => {
+    if (state.mode === 'watch' || !(v.model && v.model.seg > 0) || dialog.open) return;
+    e.preventDefault();
+    layer.setPointerCapture?.(e.pointerId);
+    const p = pagePoint(e);
+    if (state.mode === 'point') {
+      endStroke();
+      const id = randomID(win.crypto);
+      state.stroke = { id, full: `${who.id()}.${id}`, color: color(), chunks: chunker() };
+      state.stroke.chunks.add(p[0], p[1], win.performance.now());
+      strokes.local(state.stroke.full, palette[color()], [p], win.performance.now());
+      state.timer = win.setInterval(flush, CHUNK_MS);
+      schedule();
+    } else {
+      state.drag = { from: p, to: p };
+      drawDrag();
+    }
+  });
+  layer.addEventListener('pointermove', (e) => {
+    const p = pagePoint(e);
+    if (state.stroke) {
+      state.stroke.chunks.add(p[0], p[1], win.performance.now());
+      strokes.local(state.stroke.full, palette[state.stroke.color], [p], win.performance.now());
+      schedule();
+    } else if (state.drag) {
+      state.drag.to = p;
+      drawDrag();
+    }
+  });
+  const up = () => {
+    if (state.stroke) endStroke();
+    if (!state.drag) return;
+    const { from, to } = state.drag;
+    state.drag = null;
+    drawDrag();
+    const region = regionOf(from, to);
+    const at = region ? [region[0] + region[2] / 2, region[1] + region[3] / 2] : from;
+    const node = v.nodeAt(at[0], at[1]);
+    const b = node && v.boxOf(node);
+    if (!node || !b) return;
+    openDraft(noteDraft(v.model.seg, node, b, region));
+  };
+  layer.addEventListener('pointerup', up);
+  layer.addEventListener('pointercancel', () => { state.drag = null; drawDrag(); endStroke(); });
+
+  function openDraft(payload) {
+    name.value = who.name();
+    name.hidden = !!who.name();
+    author.textContent = '';
+    dialog.draft(payload);
+  }
+
+  // The drag outline, while a region is being drawn.
+  const dragBox = el('div', 'drag-region', layer);
+  function drawDrag() {
+    const d = state.drag && regionOf(state.drag.from, state.drag.to);
+    dragBox.hidden = !d;
+    if (d) place(dragBox, d);
+  }
+
+  // place puts an element over a page-px box, in the box element's client
+  // px (fromPage gives the window's).
+  const place = (e, b) => {
+    const r = box.getBoundingClientRect();
+    const [x0, y0] = v.fromPage(b[0], b[1]), [x1, y1] = v.fromPage(b[0] + b[2], b[1] + b[3]);
+    Object.assign(e.style, { left: `${x0 - r.left}px`, top: `${y0 - r.top}px`, width: `${x1 - x0}px`, height: `${y1 - y0}px` });
+  };
+
+  function drawPins() {
+    const notes = liveNotes(v.model);
+    pins.replaceChildren(...notes.map((n) => {
+      const b = noteBox(n, (id) => v.boxOf(id));
+      const pin = doc.createElement('div');
+      pin.className = n.region ? 'pin region' : 'pin';
+      pin.dataset.note = n.id;
+      if (!b) { pin.hidden = true; return pin; }
+      place(pin, b);
+      const c = n.author && HEX_COLOR.test(n.author.color || '') ? n.author.color : '#888888';
+      pin.style.setProperty('--pin', c);
+      const chip = doc.createElement('button');
+      chip.type = 'button';
+      chip.className = 'chip';
+      chip.textContent = '💭';
+      const who = n.author && n.author.name ? n.author.name : 'A viewer';
+      chip.title = `${who}: ${n.text}`;
+      chip.setAttribute('aria-label', `Note from ${who}`);
+      chip.addEventListener('click', (e) => {
+        e.stopPropagation();
+        author.textContent = who;
+        name.hidden = true;
+        dialog.view({ id: n.id, text: n.text }, { resolvable: true });
+      });
+      pin.append(chip);
+      return pin;
+    }));
+    dialog.update({ notes: notes.map((n) => ({ id: n.id })) });
+  }
+
+  function drawStrokes(now) {
+    const r = box.getBoundingClientRect(), dpr = win.devicePixelRatio || 1;
+    const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+    const g = canvas.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, r.width, r.height);
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+    g.lineWidth = 4;
+    for (const s of strokes.visible(now)) {
+      g.globalAlpha = s.alpha;
+      g.strokeStyle = s.color;
+      g.beginPath();
+      s.pts.forEach(([x, y], i) => {
+        const [cx, cy] = v.fromPage(x, y);
+        if (i === 0) g.moveTo(cx - r.left, cy - r.top); else g.lineTo(cx - r.left, cy - r.top);
+      });
+      if (s.pts.length === 1) { const [cx, cy] = v.fromPage(s.pts[0][0], s.pts[0][1]); g.lineTo(cx - r.left + 0.1, cy - r.top); }
+      g.stroke();
+    }
+    g.globalAlpha = 1;
+  }
+
+  // One redraw per frame at most; two frames out, so the viewer has drawn
+  // the record that asked for it before boxOf reads the page. Strokes keep
+  // it going until they have faded.
+  let queued = false;
+  function schedule() {
+    if (queued) return;
+    queued = true;
+    win.requestAnimationFrame(() => win.requestAnimationFrame(() => {
+      queued = false;
+      const now = win.performance.now();
+      drawRail();
+      drawPins();
+      drawStrokes(now);
+      if (strokes.size) schedule();
+    }));
+  }
+
+  v.onRecord((r, model) => {
+    strokes.seen(r.t);
+    if (model.docSeg !== docSeg) { docSeg = model.docSeg; strokes.clear(); }
+    if (r.k === 'stroke') strokes.record(r, win.performance.now(), `${who.id()}.`);
+    if (r.k === 'stop' && r.why === 'end') { setMode('watch'); dialog.close(); }
+    schedule();
+  });
+  win.addEventListener('resize', schedule);
+  setMode('watch');
+  schedule();
+  return { setMode, dialog, strokes, who };
+}

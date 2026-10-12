@@ -9,6 +9,7 @@
 
 import { Model } from './model.js';
 import { Renderer } from './render.js';
+import { mountAnnotate } from './annotate.js';
 
 // fit is the page box's scale and place in an area: the operator's
 // viewport, scaled to fit whole, centred.
@@ -165,8 +166,16 @@ export function mount(doc, win) {
       const r = box.getBoundingClientRect();
       return toPage(clientX, clientY, r, placed.scale, scroll());
     },
+    // fromPage is toPage's inverse: where a top-page point shows in the
+    // window (#470's pins and strokes).
+    fromPage: (x, y) => {
+      const r = box.getBoundingClientRect(), [px, py] = fromPage(x, y, placed.scale, scroll());
+      return [r.left + px, r.top + py];
+    },
     onRecord: v.onRecord,
   };
+  // Pointing and notes (#470), when the cast takes them.
+  mountAnnotate(doc, win, { ...win.couchViewer, get model() { return v.model; } });
   return v;
 }
 
