@@ -278,6 +278,35 @@ rounds:
       recipe: milestone-review
       isolation: checkout
       blocked: true
+    - "n": 7
+      timestamp: "2026-10-12T04:33:45-07:00"
+      dispatched: "2026-10-12T04:31:21-07:00"
+      agent: claude
+      dispose:
+        - id: BR-21
+          disposition: addressed
+          note: Stable webMenuIDs plus one []webItem; mutating to non-stable ids fails TestWebNotesMenuSourceAndStableIDs (a "text b").
+          round: 7
+        - id: BR-22
+          disposition: addressed
+          note: Unconditional SetOverlay(nil) on detach fails TestWebNotesMenuOutlivesTheScreenBroadcast; removing the hover reset fails TestWebNotesMenuSourceAndStableIDs.
+          round: 7
+        - id: BR-23
+          disposition: addressed
+          note: syncOverlay and applyWebNotes comments state loop confinement; verified every caller runs via runTerminalCommand.
+          round: 7
+      findings:
+        - id: BR-24
+          severity: Minor
+          title: The webMenuIDs prune declared in the BR-21 plan revision has no test
+          detail: 'This is the 4th finding in family spec-path-untested. The rule is already in the plan: every behavior a Revision declares names a test that fails without it. Here the rule wasn''t applied to one clause, "pruned each delivery". Removing the prune loop in applyWebNotes fails no test. Fix by applying the rule to that clause: deliver [a], then [], and assert webMenuIDs is empty.'
+          family: spec-path-untested
+          round: 7
+      boundary: M3
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 5a1350e86eb97b15d057fee651d6949e9e129bb7
+      blocked: false
 ---
 
 # Gate ledger — pair#470 (boundary-review)
@@ -386,6 +415,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-23** [Minor] `shared-state-loop-confinement` syncOverlay and applyWebNotes are correct only because every caller runs on the terminal loop, and nothing says so
   syncOverlay works out the desired overlay under c.mu but calls SetOverlay after unlocking. applyWebNotes checks the cast is current under c.mu, then writes pnotes. Callers on two goroutines could apply out of order. A comment saying both run on the loop (or one lock held across both steps) would make this explicit (ARCH-ORDER).
 
+## Round 7 — 2026-10-12T04:33:45-07:00 (claude) — passed
+
+### Disposed
+
+- BR-21 — addressed — Stable webMenuIDs plus one []webItem; mutating to non-stable ids fails TestWebNotesMenuSourceAndStableIDs (a "text b").
+- BR-22 — addressed — Unconditional SetOverlay(nil) on detach fails TestWebNotesMenuOutlivesTheScreenBroadcast; removing the hover reset fails TestWebNotesMenuSourceAndStableIDs.
+- BR-23 — addressed — syncOverlay and applyWebNotes comments state loop confinement; verified every caller runs via runTerminalCommand.
+
+### Raised
+
+- **BR-24** [Minor] `spec-path-untested` The webMenuIDs prune declared in the BR-21 plan revision has no test
+  This is the 4th finding in family spec-path-untested. The rule is already in the plan: every behavior a Revision declares names a test that fails without it. Here the rule wasn't applied to one clause, "pruned each delivery". Removing the prune loop in applyWebNotes fails no test. Fix by applying the rule to that clause: deliver [a], then [], and assert webMenuIDs is empty.
+
 ## Open findings
 
 - **BR-3** [Minor] `sink-order-before-consumer-check` The Tee feeds the Hub before the board, so a viewer can act on a seg the board has not applied yet and get a spurious 409
@@ -396,6 +438,4 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-16** [Minor] `stroke-spans-document` setMode and the cast-end handler end a stroke but leave a region drag in progress (annotate.js:266-272)
 - **BR-19** [Minor] `persisted-input-parsed-at-read` validName rejects fewer characters than the board's nameText, and setName stores a name without checking it
 - **BR-20** [Minor] `shared-helper-duplication` strokesAt has no production caller and restates replay.js drawMarks's stroke-at-t and note-box logic with different semantics
-- **BR-21** [Important] `hit-by-stable-identity` Web notes menu: a click acts on the latest list by position, not on the note that was drawn
-- **BR-22** [Important] `spec-path-untested` The overlay sharing (syncOverlay) and menu source switching declared in the M3 Revision have no tests
-- **BR-23** [Minor] `shared-state-loop-confinement` syncOverlay and applyWebNotes are correct only because every caller runs on the terminal loop, and nothing says so
+- **BR-24** [Minor] `spec-path-untested` The webMenuIDs prune declared in the BR-21 plan revision has no test

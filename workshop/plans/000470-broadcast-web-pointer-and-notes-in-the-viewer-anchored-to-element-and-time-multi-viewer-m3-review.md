@@ -112,3 +112,107 @@ findings:
     detail: |
       syncOverlay works out the desired overlay under c.mu but calls SetOverlay after unlocking. applyWebNotes checks the cast is current under c.mu, then writes pnotes. Callers on two goroutines could apply out of order. A comment saying both run on the loop (or one lock held across both steps) would make this explicit (ARCH-ORDER).
 ```
+
+---
+
+## Re-review — 2026-10-12T04:33:44-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 470 — broadcast-web: pointer and notes in the viewer — anchored to element and time, multi-viewer |
+| repo | pair |
+| issue file | workshop/issues/000470-broadcast-web-pointer-and-notes-in-the-viewer-anchored-to-element-and-time-multi-viewer.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | 871c6f47865114d9e5697a0e1211bd6aa3447781..5a1350e86eb97b15d057fee651d6949e9e129bb7 |
+| command | sdlc milestone-close --issue 470 --milestone M3 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-12T04:33:44-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Focus on the last commit (fixes for BR-21..23) and M3 code.
+
+I'm generating the embedded runtime assets so the couchtty tests compile. Then I'll run the web-notes tests and mutation checks for the BR-21 and BR-22 fixes.
+
+Now the mutation checks. Mutant 1 makes detach remove the overlay unconditionally.
+
+All three mutants fail, so the BR-21 and BR-22 fixes are pinned by tests. Next I'm checking BR-23's claim that every caller runs on the terminal loop.
+
+Prior findings look addressed. I'm running the whole couchtty package to check for regressions.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+**Summary.** I found nothing that blocks shipping M3. All three prior findings are fixed, and I checked the two behavior fixes by mutation rather than trusting the commit messages:
+
+- **BR-21:** web notes now keep a stable menu id, so a click acts on the note that was drawn.
+- **BR-22:** the shared overlay and the source switch now have tests.
+- **BR-23:** each function now carries a comment saying it runs on the terminal loop.
+
+The whole `couchtty` package passes, and so does `tests/webcast/annotate.test.mjs`. I had to generate the runtime-bundle assets first, because the checkout doesn't ship them. One Minor gap is left: one sentence in the BR-21 plan revision still has no test.
+
+**1. Strengths**
+- **One menu with a source.** The screen broadcast and the web cast share one notes menu, which shows one list at a time (`notesSource`, `menuNotesLocked`, `screenHoverLocked` in `console_notes.go`). A web-notes source never makes a screen note's 💭 glow.
+- **Shared overlay.** `syncOverlay` (`console_pointer.go:59`) installs the overlay for two users, the screen broadcast and the web cast, and removes it only when neither needs it.
+- **Stable ids, one list.** `webMenuIDLocked` gives each note one id while it is open. Lookups go through a single `[]webItem` by `menuID` instead of three parallel slices kept in step by position (the BR-21 recommendation).
+- **Late deliveries dropped.** `applyWebNotes` checks that the cast is still current before writing, so a delivery that arrives after the cast ends is ignored.
+- **End-to-end test.** `TestWebNotesInCouch` drives the whole path: a real POST to `/note`, the 💭N count on the status row, a click that copies, a right click that resolves, and a check that the operator's note-state record lands in the recording.
+
+**2. Critical:** none.
+
+**3. Important:** none.
+
+**4. Minor**
+- **Pruning has no test** (family `spec-path-untested`). The plan's second M3 revision (M3 review, BR-21/22) says the id map is "pruned each delivery". With the prune loop in `applyWebNotes` (`console_notes.go`) removed, no test fails, and the map would grow with every note resolved during a cast.
+- **Atlas omits stable ids.** It describes the menu but not that web items keep one id while open. The plan's first M3 revision still says "ID = position + 1"; the BR-21 revision supersedes it, which is acceptable in an append-only log.
+
+**5. Test coverage notes.** Mutation runs in this disposable checkout:
+
+| Mutant | Result |
+|---|---|
+| detach removes the overlay unconditionally | `TestWebNotesMenuOutlivesTheScreenBroadcast` FAILS |
+| no hover reset when the source switches | `TestWebNotesMenuSourceAndStableIDs` FAILS (`hover 1`) |
+| ids not stable (map size + 1, roughly positional) | `TestWebNotesMenuSourceAndStableIDs` FAILS (`a "text b"`) |
+
+`TestWebNotesMenuSourceAndStableIDs` checks the same two lookups the click handler uses (`noteTextLocked` and `resolverLocked`), but it doesn't send a real mouse event. That is acceptable, because `routeNotesMenu` takes the id straight from the drawn menu.
+
+**6. Architecture**
+- **ARCH-DRY: pass.** It reuses `NotesMenu`, `RenderNotesMenu` and `broadcast.Note`, with no second menu.
+- **ARCH-PURE: pass.** `webMenuNotes` is pure and tested directly, with the id assignment injected.
+- **ARCH-PURPOSE: pass.** M3 delivers what it promised: 💭N after the Chrome cell, the menu, copy, and resolve as the operator.
+- **ARCH-MOCK: pass.** The tests use `FakeBrowser` plus the reference `board.Writer` behind the same `Emit` seam.
+- **ARCH-CONSTRAINTS: pass.** The lists are small and bounded per cast by the board's limits.
+- **ARCH-SECURE: pass.** Author names reach the terminal only after the board's predicate rejects control and format characters. The JS `validName` now uses the same predicate, and the dialog rejects a name that fails it.
+- **ARCH-ORDER: pass.** All shared state is written on the terminal loop, deliveries are tagged with their cast, and menu ids are stable.
+- **ARCH-FUNERAL: pass, with the Minor above.** The id map is pruned on each delivery and cleared by `forgetWebNotes`. `webNext` only grows, which is harmless.
+
+**7. Plan revisions:** none needed. Optionally, point the "pruned each delivery" clause at a test once one exists.
+
+```findings
+dispose:
+  - id: BR-21
+    disposition: addressed
+    note: |
+      Stable webMenuIDs plus one []webItem; mutating to non-stable ids fails TestWebNotesMenuSourceAndStableIDs (a "text b").
+  - id: BR-22
+    disposition: addressed
+    note: |
+      Unconditional SetOverlay(nil) on detach fails TestWebNotesMenuOutlivesTheScreenBroadcast; removing the hover reset fails TestWebNotesMenuSourceAndStableIDs.
+  - id: BR-23
+    disposition: addressed
+    note: |
+      syncOverlay and applyWebNotes comments state loop confinement; verified every caller runs via runTerminalCommand.
+findings:
+  - id: new
+    severity: Minor
+    family: spec-path-untested
+    title: |
+      The webMenuIDs prune declared in the BR-21 plan revision has no test
+    detail: |
+      This is the 4th finding in family spec-path-untested. The rule is already in the plan: every behavior a Revision declares names a test that fails without it. Here the rule wasn't applied to one clause, "pruned each delivery". Removing the prune loop in applyWebNotes fails no test. Fix by applying the rule to that clause: deliver [a], then [], and assert webMenuIDs is empty.
+```
