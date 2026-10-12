@@ -358,6 +358,47 @@ rounds:
       recipe: milestone-review
       isolation: checkout
       blocked: true
+    - "n": 9
+      timestamp: "2026-10-12T05:01:11-07:00"
+      dispatched: "2026-10-12T04:53:51-07:00"
+      agent: claude
+      dispose:
+        - id: BR-25
+          disposition: addressed
+          note: The test drives notes through the board and makes its state changes on the terminal loop; -race -count=20 on TestWebNotes passes 20 of 20 (it failed 10 of 20 before).
+          round: 9
+        - id: BR-24
+          disposition: addressed
+          note: 'Mutation check: removing the prune loop at console_notes.go:431-435 fails TestWebNotesMenuSourceAndStableIDs ("menu ids kept for 2 notes, want only b''s"), and restoring it passes.'
+          round: 9
+        - id: BR-3
+          disposition: not-addressed
+          note: Order is correct at cast.go:149-157, but still no test pins dir, board, hub; unchanged this round.
+          round: 9
+        - id: BR-4
+          disposition: not-addressed
+          note: Still bounded only by maxCoord=1e6 (board/wire.go:25); deferred to wave 3 and unchanged.
+          round: 9
+        - id: BR-7
+          disposition: not-addressed
+          note: Still no shared contract run over board.Writer and recorder.Emit; unchanged.
+          round: 9
+        - id: BR-12
+          disposition: not-addressed
+          note: answered()/toast exists (annotate.js:298), but nothing tests a 409 or a rejected fetch; unchanged.
+          round: 9
+        - id: BR-14
+          disposition: not-addressed
+          note: Code correct (annotate.js:506-512 calls endGesture on a docSeg change), but no test covers a stroke across a navigation; unchanged.
+          round: 9
+        - id: BR-16
+          disposition: not-addressed
+          note: Code correct (setMode calls endGesture at annotate.js:372), but no test covers a drag across a mode change or the cast's end; unchanged.
+          round: 9
+      recipe: milestone-review
+      isolation: checkout
+      reviewed: 484950d804bed5bc2b3ce97417acea0297295d7e
+      blocked: false
 ---
 
 # Gate ledger — pair#470 (boundary-review)
@@ -498,6 +539,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-25** [Important] `shared-state-loop-confinement` TestWebNotesMenuSourceAndStableIDs fails about half the time under -race: it writes web-menu state off the terminal loop while the cast's delivery goroutine also writes it
   This is the 2nd finding in family shared-state-loop-confinement. Rule: web-menu state is written only on the terminal loop, by its single producer (applyWebNotes from the cast.Notes loop), and tests included. The test sets c.pnotes.webItems directly at console_webnotes_test.go:173 and :199, while console_webcast.go:136-147 delivers the board's first snapshot ([]) concurrently. settleMenuLocked then closes the menu. Measured: 10 of 20 runs fail with -count=20 -race and 0 of 50 without -race. make test-race runs this package. Fix: drive the notes through the board (r.note), wait for delivery, and resolve through the board, or wait for the first delivery and then inject via run(applyWebNotes).
 
+## Round 9 — 2026-10-12T05:01:11-07:00 (claude) — passed
+
+### Disposed
+
+- BR-25 — addressed — The test drives notes through the board and makes its state changes on the terminal loop; -race -count=20 on TestWebNotes passes 20 of 20 (it failed 10 of 20 before).
+- BR-24 — addressed — Mutation check: removing the prune loop at console_notes.go:431-435 fails TestWebNotesMenuSourceAndStableIDs ("menu ids kept for 2 notes, want only b's"), and restoring it passes.
+- BR-3 — not-addressed — Order is correct at cast.go:149-157, but still no test pins dir, board, hub; unchanged this round.
+- BR-4 — not-addressed — Still bounded only by maxCoord=1e6 (board/wire.go:25); deferred to wave 3 and unchanged.
+- BR-7 — not-addressed — Still no shared contract run over board.Writer and recorder.Emit; unchanged.
+- BR-12 — not-addressed — answered()/toast exists (annotate.js:298), but nothing tests a 409 or a rejected fetch; unchanged.
+- BR-14 — not-addressed — Code correct (annotate.js:506-512 calls endGesture on a docSeg change), but no test covers a stroke across a navigation; unchanged.
+- BR-16 — not-addressed — Code correct (setMode calls endGesture at annotate.js:372), but no test covers a drag across a mode change or the cast's end; unchanged.
+
 ## Open findings
 
 - **BR-3** [Minor] `sink-order-before-consumer-check` The Tee feeds the Hub before the board, so a viewer can act on a seg the board has not applied yet and get a spurious 409
@@ -506,5 +560,3 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-12** [Minor] `silent-degradation` Refused or failed stroke chunk POSTs are swallowed with no viewer signal
 - **BR-14** [Minor] `stroke-spans-document` A stroke in progress across a navigation posts its later chunks with the new seg
 - **BR-16** [Minor] `stroke-spans-document` setMode and the cast-end handler end a stroke but leave a region drag in progress (annotate.js:266-272)
-- **BR-24** [Minor] `spec-path-untested` The webMenuIDs prune declared in the BR-21 plan revision has no test
-- **BR-25** [Important] `shared-state-loop-confinement` TestWebNotesMenuSourceAndStableIDs fails about half the time under -race: it writes web-menu state off the terminal loop while the cast's delivery goroutine also writes it

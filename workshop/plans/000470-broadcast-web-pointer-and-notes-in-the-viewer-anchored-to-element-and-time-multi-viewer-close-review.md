@@ -110,3 +110,112 @@ findings:
     detail: |
       This is the 2nd finding in family shared-state-loop-confinement. Rule: web-menu state is written only on the terminal loop, by its single producer (applyWebNotes from the cast.Notes loop), and tests included. The test sets c.pnotes.webItems directly at console_webnotes_test.go:173 and :199, while console_webcast.go:136-147 delivers the board's first snapshot ([]) concurrently. settleMenuLocked then closes the menu. Measured: 10 of 20 runs fail with -count=20 -race and 0 of 50 without -race. make test-race runs this package. Fix: drive the notes through the board (r.note), wait for delivery, and resolve through the board, or wait for the first delivery and then inject via run(applyWebNotes).
 ```
+
+---
+
+## Re-review — 2026-10-12T05:01:10-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 470 — broadcast-web: pointer and notes in the viewer — anchored to element and time, multi-viewer |
+| repo | pair |
+| issue file | workshop/issues/000470-broadcast-web-pointer-and-notes-in-the-viewer-anchored-to-element-and-time-multi-viewer.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 1da5c76c60b687fc25a90cb1dc9f1268daa9172e..484950d804bed5bc2b3ce97417acea0297295d7e |
+| command | sdlc close --issue 470 |
+| reviewer | claude |
+| isolation | checkout |
+| timestamp | 2026-10-12T05:01:10-07:00 |
+| verdict | SHIP |
+
+## Review
+
+The last commit is the one addressing BR-24/BR-25. Let me see it.
+
+Generating the runtime bundle so the couchtty tests can build, then running the race test for BR-25.
+
+BR-25 passes 20/20 under -race. Now I'll revert the prune loop to check that BR-24's test goes red.
+
+BR-24 confirmed: removing the prune makes the test fail. Next I'm checking the older open Minor findings (BR-3/4/7/12/14/16) at head.
+
+Every open Minor is unchanged in the latest commit, so its prior disposition stands. Last step: the full suites.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+Round 9 fixes both findings that were blocking or tied to the latest change. **BR-25 is fixed.** The test now sends notes through the board, waits for them to arrive, resolves a note with a real `POST note-state`, and makes every state change on the terminal loop. It passed 20 of 20 runs with `-count=20 -race`; last round it failed 10 of 20. **BR-24 is fixed.** I deleted the prune loop in `applyWebNotes` (`console_notes.go:431-435`), and `TestWebNotesMenuSourceAndStableIDs` failed with "menu ids kept for 2 notes, want only b's". Putting the loop back made it pass. The six older open findings (BR-3, 4, 7, 12, 14, 16) are all Minor and none blocks. This round's commit changed only a test and docs, so their earlier dispositions still apply. Nothing blocks SHIP, and I found nothing new.
+
+1. **Strengths**
+   - `console_webnotes_test.go:159-237` now drives the real producer: notes go through the board with `r.note` and are resolved over HTTP, so the test checks the same path production uses, not hand-set state. It runs reliably under the race detector.
+   - The prune is now covered by a test that a mutation proves: the `kept != 1` assertion goes red when the loop is removed.
+   - The code for BR-3, 12, 14 and 16 is correct as written:
+     - `cast.go:149-157` feeds the board before the live hub.
+     - `annotate.js:298` routes every refused or failed POST through `answered()` to a toast.
+     - `endGesture()` (`annotate.js:397`) is called on a mode change, a new document (`:512`), the cast's end (via `setMode`) and `pointercancel`.
+   - These pass at head:
+     - `go test -race` on `webcast/...` and `broadcast/...`
+     - the issue's couchtty web-notes tests
+     - all 131 node tests in `tests/webcast` and `tests/broadcast-viewer`
+
+2. **Critical:** none.
+
+3. **Important:** none.
+
+4. **Minor:** these are carried over and still open, as listed in the dispose block. BR-3, 12, 14 and 16 have correct code but no test that fails without it. BR-4 is deferred to wave 3, and BR-7 was declined with a reason.
+
+5. **Test coverage notes**
+   - Mutation check for BR-24: red without the prune, green with it.
+   - BR-25: 20 of 20 race runs pass.
+   - In the full couchtty `-race` run, 4 tests failed: `TestNotificationPTYConformance`, `TestCouchPressureControl`, `TestCouchPressureTrailingPTYOutput` and `TestCouchProductionSoak`. None of their files is in this diff. The first three failed with `operation not permitted` (a `/tmp` mkdir and a pty spawn), which points to this review environment, not the change. The soak test's output did not include its failure reason.
+   - The JS gesture and toast handling still has no unit test. A pure `gesture(state, event)` reducer would close BR-12, 14 and 16 together.
+
+6. **Architecture**
+   - **ARCH-DRY:** pass.
+   - **ARCH-PURE:** pass for the Go code. The JS gesture logic still lives in the shell (BR-12, 14, 16).
+   - **ARCH-PURPOSE:** pass. All the Plan items are delivered.
+   - **ARCH-MOCK:** flag, Minor, BR-7 still open. Nothing checks that `board.Writer` and `recorder.Emit` behave the same.
+   - **ARCH-CONSTRAINTS:** pass.
+   - **ARCH-SECURE:** flag, Minor, BR-4 still open (the viewer-supplied box is bounded only to 1e6 px).
+   - **ARCH-ORDER:** pass. Web-menu state now changes only on the terminal loop, and the test follows that rule.
+   - **ARCH-FUNERAL:** pass. `webMenuIDs` is pruned on each delivery and cleared by `forgetWebNotes`.
+
+7. **Plan revisions:** none needed.
+
+```findings
+dispose:
+  - id: BR-25
+    disposition: addressed
+    note: |
+      The test drives notes through the board and makes its state changes on the terminal loop; -race -count=20 on TestWebNotes passes 20 of 20 (it failed 10 of 20 before).
+  - id: BR-24
+    disposition: addressed
+    note: |
+      Mutation check: removing the prune loop at console_notes.go:431-435 fails TestWebNotesMenuSourceAndStableIDs ("menu ids kept for 2 notes, want only b's"), and restoring it passes.
+  - id: BR-3
+    disposition: not-addressed
+    note: |
+      Order is correct at cast.go:149-157, but still no test pins dir, board, hub; unchanged this round.
+  - id: BR-4
+    disposition: not-addressed
+    note: |
+      Still bounded only by maxCoord=1e6 (board/wire.go:25); deferred to wave 3 and unchanged.
+  - id: BR-7
+    disposition: not-addressed
+    note: |
+      Still no shared contract run over board.Writer and recorder.Emit; unchanged.
+  - id: BR-12
+    disposition: not-addressed
+    note: |
+      answered()/toast exists (annotate.js:298), but nothing tests a 409 or a rejected fetch; unchanged.
+  - id: BR-14
+    disposition: not-addressed
+    note: |
+      Code correct (annotate.js:506-512 calls endGesture on a docSeg change), but no test covers a stroke across a navigation; unchanged.
+  - id: BR-16
+    disposition: not-addressed
+    note: |
+      Code correct (setMode calls endGesture at annotate.js:372), but no test covers a drag across a mode change or the cast's end; unchanged.
+```
