@@ -1,12 +1,12 @@
 ---
 id: 000499
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '568c67f60c11184344bf8433c5556837da5cd2a3' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'ff01bfb724337a4569e23966b5115733632fa07c' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T15:11:40-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "e03b774e", done: "604cca88"}
+actual_hours: 0.84
 ---
 
 # broadcast-web: viewers can still draw and leave notes while the cast is paused; disable every viewer action while paused
