@@ -13,7 +13,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
-actual_hours: 0.96
+actual_hours: 1.00
 tracker:
     version: 1
     handoff:
@@ -27,10 +27,10 @@ tracker:
         destination: workshop/issues/000492-couch-the-hub-refuses-messages-while-one-is-pending-recipient-has-a-pending-message-queue-them-instead.md
         main_commit: 6b9268293427dd6b251ea9a3b7ae04f7ee20d200
     completion:
-        token: close-a5ad2b5cb052
+        token: close-800b69cee735
         repository: github.com/xianxu/pair
-        reviewed_head: 8ec985d3f259f0ca2f2bf7d75ba6648bff4f180d
-        evidence_commit: 241176b146019b20aef20e67d24db6561313ea53
+        reviewed_head: c3e9e8158ff93055e72c940aa8a3a959e513f79b
+        evidence_commit: 10ea356b8bfc4790963f068e57d7c19011735841
 ---
 
 # couch: the hub refuses messages while one is pending ('recipient has a pending message'); queue them instead
