@@ -49,6 +49,9 @@ func NewReplayServer(token, root string) *ReplayServer {
 // element, no traversal.
 var recordingID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
 
+// ValidRecordingID says whether id can name a recording directory.
+func ValidRecordingID(id string) bool { return recordingID.MatchString(id) }
+
 // ReplayLink is the URL of a recording at t ms: base is the server's
 // <scheme>://<host>/<token>.
 func ReplayLink(base, id string, t int64) string {
