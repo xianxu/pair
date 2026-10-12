@@ -1,6 +1,6 @@
 # #495 plan: a one-time code locks every cast link
 
-Status: decided; M1 and M2 built (M2 closing). The body below is the original draft, and Revisions record each change. This summary is the current design.
+Status: decided; M1 and M2 closed; M3 in progress. The body below is the original draft, and Revisions record each change. This summary is the current design.
 
 ## Current design (supersedes the draft where they differ)
 
@@ -26,6 +26,10 @@ Status: decided; M1 and M2 built (M2 closing). The body below is the original dr
   - the guess-rotation alert, coalesced per lock every 30 s.
 
 - **Tests.** The headless-Chrome viewer tests (`viewer_live_test` and its siblings) serve `Server` directly, not through the Host gate, so they stay unlocked. `TestLiveLockPage` covers the locked path end to end in Chrome, replacing the plan's "update them to unlock first". Node tests cover each viewer's relock on a lost session.
+
+## Original draft (superseded)
+
+> **Note:** Everything from here to Revisions is the draft as first proposed, kept for its history. Where it differs from **Current design** above, the summary and Revisions win; for example, it still describes inline codes, `Host.Lock`, `event: locked`, `sessionFrom(r)`, Lax cookies and a per-client budget.
 
 ## Shape
 
