@@ -24,7 +24,7 @@ import (
 
 func replayServer(t *testing.T) *httptest.Server {
 	t.Helper()
-	srv := httptest.NewServer(NewReplayServer("tok", replayRoot(t, recording.Fixtures...)))
+	srv := httptest.NewServer(NewReplayServer("tok", replayRoot(t, recording.Fixtures()...)))
 	t.Cleanup(srv.Close)
 	return srv
 }
@@ -55,7 +55,7 @@ func TestLiveReplayServerSeeks(t *testing.T) {
 	page := headlessPage(t)
 	srv := replayServer(t)
 	page.call(t, page.session, "Network.enable", map[string]any{}, nil)
-	for _, name := range recording.Fixtures {
+	for _, name := range recording.Fixtures() {
 		t.Run(name, func(t *testing.T) {
 			rec, err := recording.ReadDir(recording.Fixture(name))
 			if err != nil {
@@ -115,17 +115,27 @@ func catchUpIndexes(recs []recording.Record, at int64) []int {
 	return idx
 }
 
-// Notes are pinned while open on their document, strokes drawn for their
-// moment, against the reducer's notes and strokes at each time.
+// Notes are pinned while open on their document and placeable, strokes
+// drawn for their moment, against the reducer's notes and strokes at each
+// time.
 func TestLiveReplayServerMarks(t *testing.T) {
 	page := headlessPage(t)
 	srv := replayServer(t)
-	rec, err := recording.ReadDir(recording.Fixture("app"))
+	rec, err := recording.ReadDir(recording.Fixture("rec-app"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	page.openReplay(t, srv.URL+"/tok/r/app/#t=0")
-	for _, at := range []int64{5900, 6100, 12200, 12400, 12600, 13900, 14100, 16000, 18700, 19100} {
+	page.openReplay(t, srv.URL+"/tok/r/rec-app/#t=0")
+	// Just before and after each mark appears, changes, or its document
+	// goes: read from the recording, so a re-recorded fixture keeps them.
+	var times []int64
+	for _, r := range rec.Records {
+		switch r.(type) {
+		case *recording.Note, *recording.NoteState, *recording.Stroke, *recording.Seg:
+			times = append(times, r.Time()-100, r.Time()+100)
+		}
+	}
+	for _, at := range times {
 		page.eval(t, fmt.Sprintf("location.hash = '#t=%d'", at))
 		page.evalString(t, drawnJS)
 		var got struct {
@@ -142,7 +152,10 @@ func TestLiveReplayServerMarks(t *testing.T) {
 		}
 		var notes []string
 		for _, n := range st.Notes {
-			if n.Seg >= st.DocSeg && n.State == recording.NoteOpen {
+			// A pin needs a place: its element, else the box the note
+			// carried (drawMarks).
+			placed := st.Node(n.At.Node) != nil || n.At.Box != nil || n.Region != nil
+			if n.Seg >= st.DocSeg && n.State == recording.NoteOpen && placed {
 				notes = append(notes, n.ID)
 			}
 		}

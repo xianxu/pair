@@ -12,7 +12,7 @@ func TestFakeModelMeetsTheModelContract(t *testing.T) {
 
 // Every fixture note resolves, at its own moment, to the element it names.
 func TestFakeModelOnFixtures(t *testing.T) {
-	for _, name := range recording.Fixtures {
+	for _, name := range recording.Fixtures() {
 		r, err := recording.ReadDir(recording.Fixture(name))
 		if err != nil {
 			t.Fatal(err)

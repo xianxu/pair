@@ -49,7 +49,7 @@ document.getElementById('chk').checked = true;
 func serveRec(t *testing.T) (main, other string) {
 	t.Helper()
 	big := ".x{color:red}\n" + strings.Repeat("/* padding to pass the 10k cut */\n", 400) + ".tail{color:blue}"
-	png, err := os.ReadFile(filepath.Join("recording", "testdata", "fixtures", "app", "frames", "0.png"))
+	png, err := os.ReadFile(filepath.Join("recording", "testdata", "fixtures", "rec-app", "frames", "0.png"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -32,12 +32,12 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 	}
 	b.call(t, b.session, "Emulation.setTouchEmulationEnabled", map[string]any{"enabled": true, "maxTouchPoints": 5}, nil)
 
-	rec, err := recording.ReadDir(recording.Fixture("blog"))
+	rec, err := recording.ReadDir(recording.Fixture("rec-blog"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	store, rec := throughStore(t, rec)
-	const at = 10041 // as TestLiveViewerPage: the scroll is still, layout known
+	const at = 8284 // as TestLiveViewerPage: the scroll is still, layout known
 	hub, mem := recording.NewHub(4096), &recording.MemSink{}
 	var w *board.Writer
 	bd := board.New(notes.Structural{}, func(r recording.Record, doc int) error { return w.Emit(r, doc) })

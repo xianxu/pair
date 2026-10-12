@@ -48,7 +48,7 @@ func TestPageOverlaysObserverState(t *testing.T) {
 // Script and style bodies, the head, and SVG internals fold to one line;
 // a closed shadow root and a cross-origin frame's document are shown.
 func TestPageFoldsNoiseAndShowsHiddenTrees(t *testing.T) {
-	page := pageAt(t, "stress", 3000, "")
+	page := pageAt(t, "rec-stress", 3000, "")
 	for _, want := range []string{"#shadow-root (closed)", "#document http", " elements inside)", "<head> (title "} {
 		if !strings.Contains(page, want) {
 			t.Errorf("want %q in the stress page", want)
@@ -62,13 +62,13 @@ func TestPageFoldsNoiseAndShowsHiddenTrees(t *testing.T) {
 			t.Errorf("a line over 400 characters: %.80s…", line)
 		}
 	}
-	if svg := pageAt(t, "stress", 3000, "svg"); !strings.Contains(svg, "<text") {
+	if svg := pageAt(t, "rec-stress", 3000, "svg"); !strings.Contains(svg, "<text") {
 		t.Errorf("a selected svg is shown whole:\n%s", svg)
 	}
 }
 
 func TestPageKeepsToItsBudget(t *testing.T) {
-	r, err := recording.ReadDir(recording.Fixture("blog"))
+	r, err := recording.ReadDir(recording.Fixture("rec-blog"))
 	if err != nil {
 		t.Fatal(err)
 	}
