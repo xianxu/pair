@@ -5,6 +5,17 @@ created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
 github_issue:
+tracker:
+    version: 1
+    handoff:
+        token: move-470c307baccf
+        repository: github.com/xianxu/pair
+        source_branch: refs/heads/main-slot3
+        source_base: c3411a21fc20c27ea0b5f987f40764314744d5eb
+        source_head: c3411a21fc20c27ea0b5f987f40764314744d5eb
+        source_path: workshop/issues/000458-broadcast-web-recorder-cdp-dom-stream-per-frame-plus-isolated-world-observer.md
+        source_blob: 1406ecf0ff25136ac89709501ff800e27acd2e92
+        destination: workshop/issues/000458-broadcast-web-recorder-cdp-dom-stream-per-frame-plus-isolated-world-observer.md
 ---
 
 # broadcast-web: recorder — CDP DOM stream per frame plus isolated-world observer
