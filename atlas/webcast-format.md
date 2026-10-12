@@ -29,7 +29,7 @@ family into files. Splitting and merging are pure functions of `k`:
 
 ```
 <recording>/
-  events.jsonl         head, seg, stop, doc, DOM changes, observer state, context, assets, layout
+  events.jsonl         head, seg, stop, doc, DOM changes, observer state, context, control, assets, layout
   notes.jsonl          note, note-state
   pointer.jsonl        stroke
   assets/<hash>        captured bodies (images resampled; CSS and fonts exact), named by content hash
@@ -65,7 +65,7 @@ A cast is a sequence of **live segments** with gaps where it was paused (project
 |---|---|---|
 | `seg` | `seg` (1, 2, …), `why`, `tab` `{id,url,title}`, `vp` `{w,h,dpr}` | A segment starts. **All DOM state is dropped**: documents, nodes, sheets, form values, scroll, selection, focus, layout. The asset table and the notes are kept. `why` is `live` (first go-live), `resume` (going live again on **the same document** as before the pause), `navigate` (a new top document, including one loaded while paused), or `tab` (the operator switched tabs). The current document began at the latest segment that isn't a `resume`. |
 | `doc` | `doc`, `url`, `tree`, optional `host` | A full snapshot of one document. `tree` is a `doc` node, and `doc` is its id. Without `host` it is the top document; exactly one comes right after each `seg`, before any change. With `host` (an `iframe` element's id) it is that frame's document, replacing whatever the frame showed before. Cross-origin frames come the same way: the recorder stitches them by their owner element. |
-| `stop` | `why`: `pause` or `end` | The segment ends. The state is frozen as it was. |
+| `stop` | `why`: `pause` or `end` | The segment ends. The state is frozen as it was. `end` is final: no `seg` or `ctl` follows it (#466). |
 
 A cross-document navigation of the top document is a new segment (`why: navigate`): "each new document starts with a
 full snapshot" (project, step 4). A same-document navigation (`pushState`) is a `nav` record within the segment.
@@ -143,6 +143,7 @@ servers (Principle 4).
 ## Observer state
 
 These records cover state that CDP's DOM domain doesn't report. The recorder's isolated-world observer reads it (#453).
+Each may carry `by` (see Attribution and control).
 
 | Kind | Fields | Meaning |
 |---|---|---|
@@ -160,6 +161,8 @@ These records cover state that CDP's DOM domain doesn't report. The recorder's i
 | `click` | `id`, `x`, `y` | A click on element `id`, at page coordinates. |
 | `focus` | `id` | Focus moved to `id`; `0` is none. |
 | `layout` | `boxes` `{id: [x,y,w,h]}` | Layout boxes of rendered nodes, replacing the previous set. The recorder captures them (`DOMSnapshot`) when a note is made and with each `frame`, not continuously. The notes model needs them for focused context and crops; a box is as of its record's `t`. |
+
+`click` and `focus` may carry `by` (see Attribution and control).
 
 **Coordinates:** every coordinate in the format is in **CSS pixels of the top document's page** (scroll-independent). This
 covers `click`, layout boxes, note boxes, pointer strokes and crops. Something in an iframe is mapped into the
@@ -179,6 +182,40 @@ rule (#461): the notes "on" the current document are those since the document be
 resume keeps them and a navigation clears them. The shape is meant to be
 shared with the terminal notes of pair#455. `author` and `text` stay the same; `at` is where a DOM note and a grid note differ.
 
+## Attribution and control (#466)
+
+A viewer the operator grants control to uses the cast tab through the cast (Remote driving, below). The recording
+says who did what.
+
+- **`by`:** an interaction record may carry `by`, a viewer id: the viewer whose injected input caused it. These are
+  `click`, `input`, `focus`, `scroll` and `selection`, plus #458's `hover` and `ptr`. In Go it is the embedded
+  `recording.Source`, and a new interaction kind embeds it too. If there is no `by`, the operator did it (or the page's
+  own script). The recorder stamps `by` on what its observer reports while it dispatches that viewer's input. The
+  operator's own input stays unattributed even while a viewer drives. **A `by` that isn't the current driver is an
+  error.**
+- **`ctl`:** a control change, in `events.jsonl`, valid anywhere after `head` (paused too):
+
+  ```json
+  {"t":7000,"k":"ctl","op":"grant","who":{"id":"v2","name":"Bo"},"driver":{"id":"v2","name":"Bo"},"pending":[{"id":"v3","name":"Cy"}]}
+  ```
+
+  | `op` | Allowed when | After it |
+  |---|---|---|
+  | `request` | `who` neither drives nor has asked | `who` is pending |
+  | `grant` | `who` is pending | `who` drives; a previous driver doesn't |
+  | `deny` | `who` is pending | `who` isn't pending |
+  | `revoke` | `who` drives | nobody drives (the operator) |
+  | `release` | `who` drives, or is pending (withdraws) | `who` neither drives nor asks |
+  | `leave` | `who` drives or is pending | the same; the viewer's seat expired |
+
+  `driver` (absent: the operator) and `pending` are the **control state after** the change. The reducer recomputes
+  them with `recording.NextControl`, the one transition function, and refuses a record that states anything else. A
+  record must change something. **The first `ctl` a reader sees is its baseline:** a late joiner's catch-up starts at
+  the latest one, so a first `ctl` is taken as stated if it is consistent in itself (`who` where its op puts it, no
+  viewer twice). `Validate` reads whole recordings and holds the first one to the rule too.
+- **Lifetime:** control is per recording, not per segment. It survives pause, resume and navigation (a driver's click
+  on a link keeps them driving on the new document). It ends at `stop` `end`, which is final: no `seg` or `ctl` follows it. `State.Control` is the state at t.
+
 ## Joining mid-cast
 
 A viewer that joins late receives the **catch-up**, followed by the live records. The catch-up is:
@@ -186,8 +223,9 @@ A viewer that joins late receives the **catch-up**, followed by the live records
 - every `asset` record so far;
 - the `seg` the current document began in, as a bare record, so the document's notes keep their segment;
 - the notes, note states and strokes since then;
+- the latest `ctl` before the latest `seg`, which carries the whole control state;
 - everything from the latest `seg` on. While paused, that last part is the segment through its `stop`. Reduced, the catch-up gives the same DOM, assets,
-`DocSeg` and current-document notes as the whole recording. This is tested at every cut point, and at every pinned
+`DocSeg`, current-document notes and control as the whole recording. This is tested at every cut point, and at every pinned
 time of every fixture. `recording.CatchUp` is this rule; the
 live fan-out (#460) serves it. The fake hub keeps only `CatchUp(log)` at each segment, so what it holds for late
 joiners is bounded by one segment.
@@ -196,7 +234,7 @@ joiners is bounded by one segment.
 
 `recording.Reduce(records, t)` gives the state at time t: documents and node trees, sheets and adoptions, fonts,
 the asset table, form values, scroll, selection, focus, layout, URL, title, viewport, the segment, live or paused,
-and the notes. A record that references a node that doesn't exist is an **error**, not something to skip: the
+the notes, and who drives (`Control`). A record that references a node that doesn't exist is an **error**, not something to skip: the
 recorder must not emit one, and the validator reports it with its line. `State.Canonical()` is a deterministic
 serialization of the state. The viewer's conformance check compares it with what the viewer rebuilt.
 
@@ -226,9 +264,11 @@ it), never a local fork.
 | pair#460 | live viewer | `recording.Live` (fan-out with catch-up); the JS viewer contract below | `recording.FakeHub` | `recording.RunLiveContract`; the fixtures' canonical pins |
 | pair#461 | notes model | `notes.Model` (`Anchor`, `Resolve`, `Context`, `Crops`, `Live`; `notes.Hints`) | `notes.FakeModel` | `notes.RunModelContract` |
 | pair#462 | agent queries | `query.Surface` (`DOMAt`, `Events`, `Notes`) | `query.FakeSurface` | `query.RunSurfaceContract` |
+| pair#467 | input injection | `drive.Injector` (`Inject(ctx, by, Batch)`) | `drive.FakeInjector` | `drive.RunInjectorContract` |
+| pair#467 | driving control and the reverse channel | `drive.Controller` (seats, request/grant/deny/revoke/release, input) | `drive.FakeController` | `drive.RunControllerContract` |
 
 Hand-written recordings for tests: `recording.Builder` (ids from one counter, `Page` for a segment and its document),
-`recording.ContractRecording`, `query.ContractRecording`.
+`recording.ContractRecording`, `query.ContractRecording`, `recording.DrivenRecording` (viewers driving).
 
 **Records, bodies and frames.** A `Sink` carries records only, and `Tee` fans them out to the recording directory and
 the live fan-out. An asset body is stored once: the asset store (#459) decides what to keep and persists it through
@@ -245,7 +285,10 @@ same records out, and `Server.events` sends them as `rec` events. The route, the
 **The JS viewer contract (#460).** The viewer applies records to a sandboxed frame without `allow-scripts`:
 - `apply(record)` applies one record;
 - `resolveAsset(absURL)` returns the proxy URL for an asset, or nothing;
-- `canonical()` exports the rebuilt DOM in `State.Canonical()`'s shape.
+- `canonical()` exports the rebuilt DOM in `State.Canonical()`'s shape;
+- `boxOf(id)` gives an element's box from the viewer's own unscaled layout, in top-page CSS px;
+- `toPage(clientX, clientY)` maps a point on the scaled viewer to top-page CSS px, and `nodeAt(pageX, pageY)` gives
+  the id of the innermost element there (#466: the target of a driver's act).
 
 Conformance means that, for every fixture at each pinned time (its `frame` times), `canonical()` equals the reducer's
 `State.Canonical()`, and the render is within tolerance of `frames/<n>.png`. The fixture pins each expected state by
@@ -268,7 +311,101 @@ regenerated one can't silently lose a case.
 | `app` (22 s, 0.5 MB) | #453's React + Tailwind app | Typing, clicks, focus, a modal, Tailwind's runtime `<style>` over CDP's 10k text cut, and a cross-document navigation (a second segment). A note is resolved. |
 | `blog` (12 s, 2 MB) | The operator's blog post `ariadne-1-building-blocks-of-ai-coding` (Astro + Tailwind, `npm run dev`) | Images, the Inter woff2 font, stylesheets, page scrolling, layout, and the giscus cross-origin iframe |
 | `segments` (hand-made) | `fixturegen -segments` | Pause and resume with ids kept, an edit while paused, a tab switch, a same-document navigation; notes span the resume and clear on the switch |
+| `driven` (hand-made) | `fixturegen -driven` (`recording.DrivenRecording`) | Viewers request and are granted control. A driver's attributed clicks, typing and scroll, interleaved with the operator's own click. Driving continues through a pause, a resume and a navigation. Release, revoke, deny and leave. A note by the driver. |
 
 Gaps found while recording, for #458:
 - **Clicks:** the prototype's polled observer lost the click that navigates, so clicks must be reported synchronously.
 - **Layout:** `DOMSnapshot` on the top session leaves out out-of-process frames, so each frame session needs its own capture.
+
+## Remote driving (#466)
+
+A viewer uses the app through the operator's tab: one driver at a time; a viewer requests control, the operator grants
+it (and can revoke it at any moment), and the driver gives it back. Internal viewers only in the MVP (project, Remote
+driving). Package `cmd/internal/webcast/drive` is the contract; #467 builds the HTTP routes, the CDP injector and the
+UI against it.
+
+**Seats.** Anyone with the viewer link can watch. Driving needs a seat and a grant:
+- `POST <cast>/drive/hello` `{"name":"Ana"}` returns `{"viewer":"v3","key":"<64 hex>","name":"Ana"}`, from
+  `Controller.Join`. The key stays in the shell and authenticates the seat's requests (header
+  `drive.SeatHeader`, `X-Couch-Seat: <key>`).
+- The shell then opens the record stream as `<cast>/events?viewer=v3`. The events route calls `Controller.Attach` for
+  the stream's life.
+- A seat with no stream for the grace period (`drive.DefaultGrace`, 10 s) leaves. If it drove or asked, a `ctl leave` hands control back.
+
+Seats are memory only; they die with the cast.
+
+**Control.** `POST <cast>/drive/control` `{"op":"request"}` or `{"op":"release"}`, with the seat key. The operator
+grants, denies and revokes from Couch (`Controller.Grant`, `Deny`, `Revoke`). `Revoke` never waits on a viewer: it
+takes control back in any state, including mid-batch, and does nothing when nobody drives. Every change is a `ctl`
+record. Viewers learn the state from the `ctl` records in their stream, and Couch from `Controller.Subscribe`.
+
+**Input.** `POST <cast>/drive/input`, with the seat key and a `drive.Batch`:
+
+```json
+{"seg":3,"acts":[{"a":"click","id":412,"x":530,"y":1210},{"a":"text","v":"invoice"},{"a":"key","type":"down","key":"Enter"}]}
+```
+
+- **Acts:** `down`, `up`, `move` and `click` (`count` 2 is a double click), `wheel` (`dx`, `dy`), `key` (`type`
+  `down`/`up`, `key`, `code`, `mods`), `text` (inserted at the focus: typing as values), and `ime` (a composition, `v` and
+  `sel`).
+- **Targets:** pointer coordinates are top-page CSS px (the viewer's `toPage`). `id` is the element the viewer's
+  `nodeAt` found there; `down`, `click` and `wheel` need it. `seg` is the segment the viewer was showing.
+- **Parsing:** `drive.ParseBatch` is strict: no unknown fields, at most 8 KiB, 64 acts and 1,000 runes of text. Its
+  errors never echo the input.
+- **Answers:** `drive.Answer(err)` is the one mapping from the error to the status and the sentence the shell shows:
+  - 204 when injected;
+  - 401 `Join the cast again.` (`ErrNoSeat`);
+  - 403 `Ask the operator for control first.` (`ErrNotDriver`);
+  - 409 `The page changed. Try again.` (`ErrStale`: the element isn't at that point in the tab any more; the acts
+    before it stand);
+  - 409 `The cast is paused.` (`ErrNotLive`, also a batch for a gone segment);
+  - 409 `Control has already changed.` (a control op the state doesn't allow);
+  - 422 `That isn't allowed while driving.` (`ErrRefused`);
+  - 400 on a malformed or oversized body;
+  - 410 once the cast has ended.
+
+  The sentences are fixed and never echo the request.
+- **Limits:** a rate and in-flight budget per seat, as the pointer routes have (`broadcast`'s `RateLimit`, 4 in flight).
+
+**Confinement** (`drive.Confine`, every act, before anything is dispatched). What the page alone handles is allowed;
+what Chrome or the operator's machine would handle is not:
+- Only the left button, with no modifiers. The right button opens Chrome's context menu; middle and modified clicks
+  open tabs or windows or download; Ctrl+wheel zooms.
+- Keys: only the chords in `drive`'s closed chord table (a key with an exact set of modifiers). A chord is there only
+  if no Chrome or Blink binding for it, on any platform, acts outside the page's document (history, a new tab or
+  window, the clipboard, browser UI, DevTools, zoom). Escape's harmless bindings were reviewed and stay: Chrome closes
+  find, stops loading and leaves fullscreen. That means the editing and navigation keys, plain or with
+  Shift where that only extends a selection (not Shift+Delete, which is cut, and not Shift+Escape, Chrome's task
+  manager); printable characters, plain or with Shift; Ctrl or Meta with A (select all) and Z (undo, with Shift redo);
+  and Ctrl+Y (not Meta+Y, History on macOS). **The activation keys, Enter and Space, take no modifier.** They are a
+  click's keyboard form, and Blink takes the navigation policy from the activating event's modifiers: Ctrl or Meta opens
+  a new tab, and Shift opens a new window. So every modifier refused on the pointer is refused on them too. A soft
+  newline (Shift+Enter in a chat box) is lost; that is the price. `TestConfineAllowsExactlyTheseChords` walks every
+  key against all 16 modifier sets. It compares them with an expectation written by hand, not derived from the table,
+  plus a cited list of Chrome and Blink bindings.
+- `code`, when given, must name `key`'s own key, so an injector can't be led to another (key `a` with code `KeyW`).
+  The injector dispatches from `key` alone; `code` only fills the DOM event's `code`.
+- No clipboard keys: copy and cut would write the operator's clipboard, and paste would read it.
+- No Alt (back and forward), no function keys, and no other accelerator (closing the tab, the address bar, DevTools).
+
+While a viewer drives, the injector (#467) also intercepts file choosers (`Page.setInterceptFileChooserDialog`, then
+cancels them), denies downloads (`Browser.setDownloadBehavior`), and closes any target the cast tab opens (a new
+window or tab). Permission prompts and JavaScript dialogs appear only to the operator, who answers them.
+
+**One writer.** The record stream has one writer, the recorder's goroutine (#458). The Chrome loop forwards CDP
+events and live/pause/tab inputs into its FIFO queue. Control changes and injections are inputs to the same queue, so
+`ctl` records, injected input and the DOM changes it causes are ordered together, and `by` is stamped in queue order.
+The injector follows that stream: it sees every record, `ctl` included, in order. A fake is fed as a
+`recording.Sink`, and `FakeController` over `FakeInjector` composes through `recording.Tee`.
+The injector hit-tests with `DOM.getNodeForLocation` and the recorder's id map (`Recorder.IDOf(session,
+backendNodeId)` and `Recorder.NodeOf(id)`, requests with a reply on that goroutine). It rechecks that `by` drives when
+it dispatches, so a batch overtaken by a revoke is refused there (`ErrNotDriver`, checked by
+`RunInjectorContract`). Passwords follow #458's rule: typing into a
+`type=password` field records `input {secret:true}`, never the value.
+
+**The operator sees who drives:** Couch's `Chrome ⏸` indicator names the driver and any pending request, from
+`Controller.Subscribe`. An in-page banner ("Ana is driving") is injected the same way as the Go-live control (#454),
+in an isolated world and kept out of the recording.
+
+**Lifecycle (ARCH-FUNERAL).** A `ctl` record is about 100 bytes per human control action, and lives as long as its
+recording. Seats and their keys are memory only: they end after the grace period without a stream, or with the cast.

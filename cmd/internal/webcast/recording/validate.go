@@ -38,6 +38,7 @@ func Validate(files map[string][]byte) ([]Finding, *State) {
 		return findings, NewState()
 	}
 	s := NewState()
+	s.whole = true
 	for _, l := range Merge(located) {
 		if !Known(l.Kind()) {
 			add(Finding{File: l.File, Line: l.Line, Warning: true, Msg: fmt.Sprintf("unknown kind %q (ignored)", l.Kind())})
