@@ -15,6 +15,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "65cf7447", done: "dc6b205d"}
 ---
 
 # tests: gate wall-clock perf budgets out of the default suite (terminal tail 250ms, slot-git render 100ms, broadcast marks)
