@@ -50,9 +50,10 @@ func NewRecorded(w recording.AssetWriter, p Policy) *Recorded {
 	return s
 }
 
-// Put stores c and binds its URL. The recorder calls it from one worker,
-// so a URL's bindings follow its captures; concurrent Puts of one URL bind
-// in the order they finish.
+// Put stores c and binds its URL. Its caller is #458's recorder (through
+// CastConfig.NewAssets, wired when #458 lands), from one worker, so a URL's
+// bindings follow its captures; concurrent Puts of one URL bind in the
+// order they finish.
 func (s *Recorded) Put(ctx context.Context, c Capture) (*recording.Asset, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err

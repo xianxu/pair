@@ -67,8 +67,9 @@ func NewServer(token string, b Browser, ping time.Duration, live recording.Live,
 	return &Server{token: token, browser: b, live: live, presence: presence, ping: ping, maxViewers: broadcast.DefaultMaxViewers, proxy: castassets.NewProxy()}
 }
 
-// Assets is the cast's asset proxy; the cast binds the recording's store to
-// it when the recording opens.
+// Assets is the cast's asset proxy. The cast is to bind the recording's
+// store to it when the recording opens; that wiring lands with #458's
+// recorder, and until then the proxy answers 404.
 func (s *Server) Assets() *castassets.Proxy { return s.proxy }
 
 // Owns is the Host's routing: this cast answers only its token.
