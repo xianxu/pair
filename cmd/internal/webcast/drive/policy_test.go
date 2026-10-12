@@ -2,6 +2,7 @@ package drive
 
 import (
 	"errors"
+	"slices"
 	"testing"
 )
 
@@ -35,6 +36,9 @@ func TestConfine(t *testing.T) {
 		{"select all", key("a", ModMeta), true},
 		{"undo", key("z", ModCtrl), true},
 		{"redo", key("z", ModMeta, ModShift), true},
+		{"shift+delete (cut on Windows and Linux)", key("Delete", ModShift), false},
+		{"shift+backspace", key("Backspace", ModShift), false},
+		{"ctrl+tab (next tab)", key("Tab", ModCtrl), false},
 		{"ctrl+y redo", key("y", ModCtrl), true},
 		{"meta+y (History on macOS)", key("y", ModMeta), false},
 		{"shift+escape (task manager)", key("Escape", ModShift), false},
@@ -70,6 +74,41 @@ func TestConfine(t *testing.T) {
 		}
 		if !c.ok && !errors.Is(err, ErrRefused) {
 			t.Errorf("%s: got %v, want ErrRefused", c.name, err)
+		}
+	}
+}
+
+// Every key a driver could name, against every modifier set: Confine
+// allows exactly the table's chords, and none of Chrome's or Blink's known
+// bindings.
+func TestConfineIsExactlyTheChordTable(t *testing.T) {
+	mods := []string{ModCtrl, ModMeta, ModShift, ModAlt}
+	keys := append(slices.Clone(namedKeys), "a", "z", "y", "c", "v", "x", "w", "l", "t", "q", "1", " ", "/", "F12", "Insert", "BrowserBack")
+	for _, k := range keys {
+		for set := 0; set < 1<<len(mods); set++ {
+			var ms []string
+			for i, m := range mods {
+				if set&(1<<i) != 0 {
+					ms = append(ms, m)
+				}
+			}
+			want := chordAllowed(k, ms)
+			got := Confine(Act{A: ActKey, Type: KeyDown, Key: k, Mods: ms}) == nil
+			if got != want {
+				t.Errorf("%q %v: Confine allows %v, the table %v", k, ms, got, want)
+			}
+		}
+	}
+	// Chrome and Blink bindings (any platform) that must stay out.
+	for _, b := range [][]string{
+		{"Delete", ModShift}, {"Insert", ModShift}, {"Insert", ModCtrl}, {"c", ModMeta}, {"c", ModCtrl}, {"x", ModCtrl},
+		{"v", ModMeta}, {"v", ModCtrl, ModShift}, {"y", ModMeta}, {"Escape", ModShift}, {"Tab", ModCtrl},
+		{"PageUp", ModCtrl}, {"PageDown", ModMeta}, {"w", ModMeta}, {"t", ModCtrl}, {"l", ModMeta}, {"q", ModMeta},
+		{"ArrowLeft", ModAlt}, {"ArrowLeft", ModMeta}, {"Home", ModAlt}, {"F12"}, {"F5"}, {"i", ModMeta, ModAlt},
+		{"a", ModMeta, ModShift}, {"Enter", ModAlt}, {"1", ModCtrl}, {"BrowserBack"},
+	} {
+		if Confine(Act{A: ActKey, Type: KeyDown, Key: b[0], Mods: b[1:]}) == nil {
+			t.Errorf("a Chrome or Blink binding passes: %v", b)
 		}
 	}
 }

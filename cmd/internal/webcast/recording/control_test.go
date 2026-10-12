@@ -144,6 +144,11 @@ func TestCtlAppliesWhilePausedAndStopEndEndsControl(t *testing.T) {
 	if _, err := Reduce(b.Recs, 8); err == nil || !strings.Contains(err.Error(), "the cast is over") {
 		t.Fatalf("a segment after stop end reduced: %v", err)
 	}
+	b.Recs = b.Recs[:len(b.Recs)-1]
+	b.Add(&Ctl{Op: CtlRequest, Who: bo, Control: Control{Pending: []Author{bo}}})
+	if _, err := Reduce(b.Recs, 8); err == nil || !strings.Contains(err.Error(), "the cast is over") {
+		t.Fatalf("a ctl after stop end reduced: %v", err)
+	}
 }
 
 func TestCtlRefusesADriverWithoutAnID(t *testing.T) {

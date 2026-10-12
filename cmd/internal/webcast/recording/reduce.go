@@ -164,6 +164,13 @@ func (s *State) inSegment() error {
 }
 
 func (s *State) apply(r Record) error {
+	// After stop end the cast is over: nothing may change its state again.
+	switch r.(type) {
+	case *Seg, *Ctl:
+		if s.Ended {
+			return fmt.Errorf("a %s after stop end: the cast is over", r.Kind())
+		}
+	}
 	switch r := r.(type) {
 	case *Head:
 		if s.Head != nil {
@@ -171,9 +178,6 @@ func (s *State) apply(r Record) error {
 		}
 		s.Head = r
 	case *Seg:
-		if s.Ended {
-			return errors.New("a segment after stop end: the cast is over")
-		}
 		if r.Seg <= s.Seg {
 			return fmt.Errorf("segment %d after segment %d", r.Seg, s.Seg)
 		}

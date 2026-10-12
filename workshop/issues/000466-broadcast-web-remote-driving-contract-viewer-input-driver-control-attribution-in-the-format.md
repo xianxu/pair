@@ -59,3 +59,4 @@ Durable plan: `workshop/plans/000466-broadcast-web-remote-driving-contract-viewe
 - `drive.Answer`, `SeatHeader`, `DefaultGrace` added so the atlas's reverse-channel answers are code, not prose (#463's lesson).
 - Side change: `broadcast.decodeStrict` → `DecodeStrict`, shared by both reverse channels (ARCH-DRY).
 - Close review round 1 (FIX-THEN-SHIP): fixed BR-1 (injector follows the stream, typed ErrNotDriver, revoke step + composed fakes), BR-2/BR-3 (Confine: Meta+Y, Shift+Escape, Code), and minors (empty driver id, stop end final, ime sel, label chars, driver-note coverage). Grace-timer injection left advisory (see plan Revisions).
+- Close review round 2: BR-9 Shift+Delete (Cut). Fixed the rule, not the instance: Confine keys are a closed chord table (key x exact modifiers) with a test walking every key x 16 modifier sets plus a list of known Chrome/Blink bindings. Also: no seg or ctl after stop end (one guard in State.apply).

@@ -65,7 +65,7 @@ A cast is a sequence of **live segments** with gaps where it was paused (project
 |---|---|---|
 | `seg` | `seg` (1, 2, …), `why`, `tab` `{id,url,title}`, `vp` `{w,h,dpr}` | A segment starts. **All DOM state is dropped**: documents, nodes, sheets, form values, scroll, selection, focus, layout. The asset table and the notes are kept. `why` is `live` (first go-live), `resume` (going live again on **the same document** as before the pause), `navigate` (a new top document, including one loaded while paused), or `tab` (the operator switched tabs). The current document began at the latest segment that isn't a `resume`. |
 | `doc` | `doc`, `url`, `tree`, optional `host` | A full snapshot of one document. `tree` is a `doc` node, and `doc` is its id. Without `host` it is the top document; exactly one comes right after each `seg`, before any change. With `host` (an `iframe` element's id) it is that frame's document, replacing whatever the frame showed before. Cross-origin frames come the same way: the recorder stitches them by their owner element. |
-| `stop` | `why`: `pause` or `end` | The segment ends. The state is frozen as it was. `end` is final: no `seg` follows it (#466). |
+| `stop` | `why`: `pause` or `end` | The segment ends. The state is frozen as it was. `end` is final: no `seg` or `ctl` follows it (#466). |
 
 A cross-document navigation of the top document is a new segment (`why: navigate`): "each new document starts with a
 full snapshot" (project, step 4). A same-document navigation (`pushState`) is a `nav` record within the segment.
@@ -214,7 +214,7 @@ says who did what.
   the latest one, so a first `ctl` is taken as stated if it is consistent in itself (`who` where its op puts it, no
   viewer twice). `Validate` reads whole recordings and holds the first one to the rule too.
 - **Lifetime:** control is per recording, not per segment. It survives pause, resume and navigation (a driver's click
-  on a link keeps them driving on the new document). It ends at `stop` `end`, which is final. `State.Control` is the state at t.
+  on a link keeps them driving on the new document). It ends at `stop` `end`, which is final: no `seg` or `ctl` follows it. `State.Control` is the state at t.
 
 ## Joining mid-cast
 
@@ -371,9 +371,12 @@ record. Viewers learn the state from the `ctl` records in their stream, and Couc
 what Chrome or the operator's machine would handle is not:
 - Only the left button, with no modifiers. The right button opens Chrome's context menu; middle and modified clicks
   open tabs or windows or download; Ctrl+wheel zooms.
-- The named editing keys and printable characters, with Shift, but not Shift+Escape (Chrome's task manager).
-- Ctrl or Meta only for select all, undo and redo (Shift+Z), and Enter. Y is allowed with Ctrl only: Meta+Y opens
-  History on macOS.
+- Keys: only the chords in `drive`'s closed chord table (a key with an exact set of modifiers). A chord is there only
+  if no Chrome or Blink binding handles it on any platform. That means the editing and navigation keys, plain or with
+  Shift where that only extends a selection (not Shift+Delete, which is cut, and not Shift+Escape, Chrome's task
+  manager); Enter with Ctrl or Meta; printable characters, plain or with Shift; Ctrl or Meta with A (select all) and Z
+  (undo, with Shift redo); and Ctrl+Y (not Meta+Y, History on macOS). `TestConfineIsExactlyTheChordTable` walks every
+  key against all 16 modifier sets, plus a list of known Chrome and Blink bindings.
 - `code`, when given, must name `key`'s own key, so an injector can't be led to another (key `a` with code `KeyW`).
   The injector dispatches from `key` alone; `code` only fills the DOM event's `code`.
 - No clipboard keys: copy and cut would write the operator's clipboard, and paste would read it.

@@ -14,9 +14,73 @@ import (
 // nothing from a batch with one.
 var ErrRefused = errors.New("drive: not allowed while driving")
 
+// Chords: the closed table of what a driver may press, as key x exact
+// modifier set ("" none; modifiers in the order ctrl, meta, shift). A chord is
+// here only if no Chrome or Blink binding handles it on any platform Couch
+// runs viewers' casts from (macOS, Linux, Windows); everything else is
+// refused. Known bindings kept out: Shift+Delete and Shift+Insert (cut,
+// paste), Ctrl/Meta+C/X/V (clipboard), Meta+Y (History), Shift+Escape (task
+// manager), Ctrl+Tab and Ctrl+PageUp/PageDown (tabs), Alt+anything (back,
+// forward, menus), F-keys (reload, devtools, fullscreen).
+var chords = map[string][]string{
+	"Enter":      {"", "shift", "ctrl", "meta"},
+	"Tab":        {"", "shift"},
+	"Escape":     {""},
+	"Backspace":  {""},
+	"Delete":     {""},
+	"ArrowUp":    {"", "shift"},
+	"ArrowDown":  {"", "shift"},
+	"ArrowLeft":  {"", "shift"},
+	"ArrowRight": {"", "shift"},
+	"Home":       {"", "shift"},
+	"End":        {"", "shift"},
+	"PageUp":     {"", "shift"},
+	"PageDown":   {"", "shift"},
+}
+
+// printableChords: any printable character takes these; a few letters take
+// more (select all, undo, redo).
+var (
+	printableChords = []string{"", "shift"}
+	letterChords    = map[string][]string{
+		"a": {"ctrl", "meta"},
+		"z": {"ctrl", "meta", "ctrl+shift", "meta+shift"},
+		"y": {"ctrl"},
+	}
+)
+
 // namedKeys a driver may press: editing and moving around the page.
-var namedKeys = []string{"Enter", "Tab", "Escape", "Backspace", "Delete", "ArrowUp", "ArrowDown", "ArrowLeft",
-	"ArrowRight", "Home", "End", "PageUp", "PageDown"}
+var namedKeys = func() []string {
+	out := make([]string, 0, len(chords))
+	for k := range chords {
+		out = append(out, k)
+	}
+	slices.Sort(out)
+	return out
+}()
+
+// chordOf is a modifier set in the table's form.
+func chordOf(mods []string) string {
+	var out []string
+	for _, m := range []string{ModCtrl, ModMeta, ModShift, ModAlt} {
+		if slices.Contains(mods, m) {
+			out = append(out, m)
+		}
+	}
+	return strings.Join(out, "+")
+}
+
+// chordAllowed: key with mods is in the table.
+func chordAllowed(key string, mods []string) bool {
+	chord := chordOf(mods)
+	if allowed, ok := chords[key]; ok {
+		return slices.Contains(allowed, chord)
+	}
+	if utf8.RuneCountInString(key) != 1 || !unicode.IsPrint([]rune(key)[0]) {
+		return false
+	}
+	return slices.Contains(printableChords, chord) || slices.Contains(letterChords[strings.ToLower(key)], chord)
+}
 
 // Confine is the allow-list every act passes before it reaches the cast tab
 // (#466). The rule: what the page alone handles is allowed; anything Chrome
@@ -24,14 +88,10 @@ var namedKeys = []string{"Enter", "Tab", "Escape", "Backspace", "Delete", "Arrow
 //   - Pointer: the left button only, no modifiers (right opens Chrome's
 //     context menu, middle and modified clicks open tabs or windows or
 //     download, Ctrl+wheel zooms).
-//   - Keys: the named editing keys and printable characters, with Shift
-//     (not Shift+Escape: Chrome's task manager). Ctrl or Meta only for
-//     select all (A), undo and redo (Z, Shift+Z), Ctrl+Y redo (Meta+Y opens
-//     History on macOS) and Enter. No clipboard keys (copy and cut write
-//     the operator's clipboard, paste reads it), no Alt (back and forward),
-//     no function keys, no other accelerator (closing the tab, the address
-//     bar, devtools). Code, when given, must name Key's own key, so an
-//     injector that reads it can't be led to another (key "a", code "KeyW").
+//   - Keys: only the chords in the table above (key x exact modifiers),
+//     each one no Chrome or Blink binding handles. Code, when given, must
+//     name Key's own key, so an injector that reads it can't be led to
+//     another (key "a", code "KeyW").
 //   - Text and composition: no control characters.
 func Confine(a Act) error {
 	refuse := func(what string) error { return fmt.Errorf("%w: %s", ErrRefused, what) }
@@ -44,28 +104,11 @@ func Confine(a Act) error {
 			return refuse("no modifiers with the pointer")
 		}
 	case ActKey:
-		has := func(m string) bool { return slices.Contains(a.Mods, m) }
-		if has(ModAlt) {
-			return refuse("no Alt")
+		if !chordAllowed(a.Key, a.Mods) {
+			return refuse("that key or shortcut")
 		}
-		printable := utf8.RuneCountInString(a.Key) == 1 && unicode.IsPrint([]rune(a.Key)[0])
-		if !printable && !slices.Contains(namedKeys, a.Key) {
-			return refuse("that key")
-		}
-		ctrl, meta, shift := has(ModCtrl), has(ModMeta), has(ModShift)
-		if shift && a.Key == "Escape" {
-			return refuse("that shortcut")
-		}
-		if ctrl || meta {
-			switch k := strings.ToLower(a.Key); {
-			case k == "z":
-			case (k == "a" || k == "enter") && !shift:
-			case k == "y" && ctrl && !meta && !shift:
-			default:
-				return refuse("that shortcut")
-			}
-		}
-		if !codeFits(a.Key, a.Code, ctrl || meta) {
+		modified := slices.Contains(a.Mods, ModCtrl) || slices.Contains(a.Mods, ModMeta)
+		if !codeFits(a.Key, a.Code, modified) {
 			return refuse("a code that isn't the key's")
 		}
 	case ActText, ActIME:
