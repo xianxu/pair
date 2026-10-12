@@ -1,12 +1,12 @@
 ---
 id: 000478
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '6a464aa06a5d36292c4e994d008ba0d03eed3589' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '05a89ae76c0a4d39bce565e9e4f851b5e8d7e4f6' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T04:00:08-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 0.70
 ---
 
 # broadcast-web: fidelity check for live casts — sparse tab screenshots vs replay renders, with a report
