@@ -59,3 +59,55 @@ dispose:
     note: |
       recorder.go:1084-1086 now says observeItems drops the tag and keeps the act, matching lines 1099-1104; the reducer wording left at mirror_test.go:279 is accurate for Mirror.Observe.
 ```
+
+---
+
+## Re-review — 2026-10-12T10:24:32-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 467 — broadcast-web: remote driving — a viewer takes control and uses the app through the operator's tab |
+| repo | pair |
+| issue file | workshop/issues/000467-broadcast-web-remote-driving-a-viewer-takes-control-and-uses-the-app-through-the-operator-s-tab.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 08737bb9664478e3af86b5a0c06bfcb0b3f01a4d..d449b8c0501e1a0d6876ed1ae8c2a9adc20a8bbd |
+| command | sdlc close --issue 467 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-12T10:24:32-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Checking the one conflict resolution in the window. The full build needs generated runtime assets, so next I'm looking for how those are made so I can compile and test `couchcmd`.
+
+Simplest path: stub the embedded assets in this disposable checkout so `couchcmd` compiles.
+
+`couchcmd` passes vet and tests. Last step: confirm the two plan-file changes only record review results and don't change scope.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+**Summary.** This window is small. The only code change is the conflict fix in `cmd/internal/couchcmd/message_service.go`. Everything else is tracker data: the close-gate ledger, the close-review record, and the issue file's frontmatter and Log. The base commit `08737bb96` had raw conflict markers committed at `message_service.go:376-380`, so `couchcmd` would not compile there. Head removes the markers and keeps both sides: `service.SetShares(console.Shares)` from this branch (#467 M3) and `service.SetBlockedView(console.SetBlockedThreads)` from main (#465). Both methods exist, at `message_service.go:903` and `:863`. Both are plain setters called before the wait watcher starts, so their order doesn't matter. `go vet ./cmd/internal/couchcmd/` is clean and `go test ./cmd/internal/couchcmd/` passes (39.7s). To compile, I had to put temporary stub files in the generated, gitignored `runtimebundle/assets` and removed them afterwards. That is a checkout limitation, not a defect. The issue file only moves `status` to `codecomplete` and adds `actual_hours`, the card hash and a close Log line. `## Spec`, `## Revisions` and `## Done when` are untouched, so there is no change of scope.
+
+There are no open prior findings. The 35 already disposed (BR-1 to BR-35) are not re-raised.
+
+1. **Strengths**
+   - The conflict fix keeps both sides' intent: the share kinds from M3 and the blocked-thread view from #465 are both wired up (`message_service.go:375-377`).
+   - The head also fixes a base commit that would not compile.
+   - The ledger and review record match the round-13 dispositions exactly.
+2. **Critical findings:** none.
+3. **Important findings:** none.
+4. **Minor findings:** none in the window. Conflict markers remain in `workshop/history/plans/000255-...-plan-gate.md`, but that file is outside this window and not from this issue.
+5. **Test coverage notes:** the `couchcmd` tests pass at head, with stubbed generated assets. The fix is a one-line wiring change, and each setter is already covered by its own feature's tests.
+6. **Architectural notes (interdiff only)**
+   - ARCH-DRY: pass. The fix adds no logic.
+   - ARCH-PURE: pass. It only wires setters in the existing IO shell.
+   - ARCH-PURPOSE: pass. Both features stay connected and nothing is dropped.
+7. **Plan revision recommendations:** none.
+
+```findings
+```

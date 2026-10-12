@@ -484,6 +484,14 @@ rounds:
       isolation: fenced
       reviewed: c41a80bfc389da293b32e0ed9fac409ee3c12cf2
       blocked: false
+    - "n": 14
+      timestamp: "2026-10-12T10:24:33-07:00"
+      dispatched: "2026-10-12T10:23:01-07:00"
+      agent: claude
+      recipe: fix-review
+      isolation: fenced
+      blocked: true
+      protocol_error: no valid findings block
 ---
 
 # Gate ledger — pair#467 (boundary-review)
@@ -673,6 +681,10 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-3 — addressed — limits() now sweeps only keys idle past seatIdle and gives overflow keys a zero budget instead of clearing; forget() removes refused keys; Revisions line 392 records it; server_drive_test.go:266-289 pins the sweep.
 - BR-6 — withdrawn — Still the only test hook in loopState, nil in production and recorded in Revisions (plan line 394); no action needed unless more hooks are added.
 - BR-35 — addressed — recorder.go:1084-1086 now says observeItems drops the tag and keeps the act, matching lines 1099-1104; the reducer wording left at mirror_test.go:279 is accurate for Mirror.Observe.
+
+## Round 14 — 2026-10-12T10:24:33-07:00 (claude) — BLOCKED
+
+**Protocol error:** no valid findings block — this round contributed no findings.
 
 ## Open findings
 
