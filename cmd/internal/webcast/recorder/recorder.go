@@ -1082,8 +1082,8 @@ func (r *Recorder) binding(at time.Time, e Event) {
 		T     string `json:"t"`
 		Items []Item `json:"items"`
 		// By: items a held observer sent during the hold (#467), whose
-		// injected input they followed. The reducer refuses a by that
-		// isn't the driver.
+		// injected input they followed. observeItems drops the tag (and
+		// keeps the act) when control has moved by the time it is ordered.
 		By string `json:"by"`
 	}
 	if json.Unmarshal([]byte(p.Payload), &msg) != nil || msg.T != "obs" {
