@@ -17,6 +17,14 @@ tracker:
         source_blob: eaaca14100def300ab676233fff70404c55b94f5
         destination: workshop/issues/000469-notes-focused-context-text-includes-script-bodies-and-runs-adjacent-blocks-together.md
         main_commit: fcd5f683d8ec5c4b07a53ea4fdbf5062d16448cd
+started: 2026-10-12T02:35:38-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:5
+    worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
+    repository: github.com/xianxu/pair
 ---
 
 # notes: focused-context text includes script bodies and runs adjacent blocks together
