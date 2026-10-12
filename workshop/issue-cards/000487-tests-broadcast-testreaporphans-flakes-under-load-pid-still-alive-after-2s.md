@@ -1,6 +1,6 @@
 ---
 id: 000487
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 391d0219603083b5f25cc13781b1b28f46422960
         evidence_commit: 239b9f0fc14d3d9e7062ea563f88ba38e9406d40
+        landed_commit: ceae598fad5d327578708b27d86a9bbdca9e2cc1
 ---
 
 # tests: broadcast TestReapOrphans flakes under load (pid still alive after 2s)
