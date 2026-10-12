@@ -17,6 +17,14 @@ tracker:
         source_blob: 78cdea040d7a9fce982e4a60e2604befdd8c7e52
         destination: workshop/issues/000487-tests-broadcast-testreaporphans-flakes-under-load-pid-still-alive-after-2s.md
         main_commit: a4587018c9c05c11c21361ebd54484505308b751
+started: 2026-10-12T13:10:07-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # tests: broadcast TestReapOrphans flakes under load (pid still alive after 2s)
