@@ -53,10 +53,15 @@ func TestReplayServerRoutes(t *testing.T) {
 	if res.StatusCode != 200 || !strings.Contains(body, `id="timeline"`) || !strings.Contains(res.Header.Get("Content-Security-Policy"), "default-src 'none'") {
 		t.Fatalf("viewer page %d", res.StatusCode)
 	}
-	for _, m := range []string{"viewer.js", "replay.js", "model.js", "render.js", "css.js", "viewer.css", "replay.css"} {
+	for _, m := range []string{"viewer.js", "replay.js", "model.js", "render.js", "css.js", "viewer.css", "replay.css", "replayer.js", "fidelity.js"} {
 		if res, _ := replayGet(t, s, http.MethodGet, "/tok/r/segments/"+m); res.StatusCode != 200 {
 			t.Errorf("%s: %d", m, res.StatusCode)
 		}
+	}
+	// The fidelity check's page (#478), under the viewer's CSP.
+	res, body = replayGet(t, s, http.MethodGet, "/tok/r/segments/fidelity.html")
+	if res.StatusCode != 200 || !strings.Contains(body, `src="fidelity.js"`) || !strings.Contains(res.Header.Get("Content-Security-Policy"), "default-src 'none'") {
+		t.Fatalf("fidelity page %d", res.StatusCode)
 	}
 
 	rec, err := recording.ReadDir(recording.Fixture("blog"))

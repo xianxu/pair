@@ -42,6 +42,7 @@ import (
 	pairterminal "github.com/xianxu/pair/cmd/internal/terminal"
 	"github.com/xianxu/pair/cmd/internal/terminalcapture"
 	"github.com/xianxu/pair/cmd/internal/threadactivity"
+	"github.com/xianxu/pair/cmd/internal/webcast"
 	"github.com/xianxu/pair/cmd/internal/webcast/query"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
@@ -292,6 +293,20 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		return runReplay(ctx, invocation.args, prepared.StoreDir(), stdout, stderr)
+	}
+	if invocation.kind == cliWebFidelity {
+		// Reads a recording in the store (or a named directory) and writes
+		// its fidelity/ report; it runs nothing of Couch's.
+		prepared, lease, err := prepareRuntime(rt, false)
+		if err != nil {
+			fmt.Fprintln(stderr, "couch:", err)
+			return 1
+		}
+		defer lease.Close()
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		find := func() (string, error) { return webcast.FindChrome(rt.Getenv, exec.LookPath, fileExists) }
+		return runFidelity(ctx, invocation.args, prepared.StoreDir(), find, webcast.CheckFidelity, stdout, stderr)
 	}
 	if invocation.kind == cliAdopt {
 		return runAdoptionCLI(invocation, rt, stdout, stderr)
@@ -1303,6 +1318,10 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "       couch "+replayFlag+" [ID|DIR] [--at MS]")
 	fmt.Fprintln(w, "             Replay broadcast-web recordings in the viewer, served on this machine only")
 	fmt.Fprintln(w, "             until Ctrl-C. Prints the link: the recordings, or one at MS (#t=MS).")
+	fmt.Fprintln(w, "       couch "+fidelityFlag+" [ID|DIR]")
+	fmt.Fprintln(w, "             Check a broadcast-web recording (default: the newest) against the tab's")
+	fmt.Fprintln(w, "             screenshots in a headless Chrome; writes DIR/fidelity/report.md. Exit 3 when")
+	fmt.Fprintln(w, "             a frame is over the tolerance. Recorded casts are checked when they end.")
 	fmt.Fprintln(w, "       couch --skill")
 	fmt.Fprintln(w, "       couch --help")
 	fmt.Fprintln(w)

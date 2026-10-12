@@ -22,6 +22,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/cdp"
 	castassets "github.com/xianxu/pair/cmd/internal/webcast/assets"
+	"github.com/xianxu/pair/cmd/internal/webcast/fidelity"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
@@ -43,12 +44,6 @@ const (
 	renderTolerance = 0.03
 )
 
-// realTimeWindow is how much of the timeline before a frame is replayed in
-// real time, so transitions running at the frame are in the tab's phase
-// (their timing isn't recorded: the fidelity list's "animations and
-// transitions"). Tailwind's longest common duration is 1s.
-const realTimeWindow = 1000
-
 // observerLag is how late a fixture's scroll and input records can trail
 // the tab: up to 150ms for #453's prototype, whose observer polls every
 // 100ms and flushes every 50ms; 0 for #458's recorder, which reports
@@ -60,23 +55,18 @@ func observerLag(name string) int64 {
 	return 0
 }
 
-// captureSkew: a frame's t is its screenshot call's midpoint, but the
-// pixels are a compositor frame from inside the call (40–90ms on a busy
-// page), so a change in its first half may not be in them yet. Measured on
-// rec-app frame 5: 77% off at t (a modal closing), 0.4% at t-50 (#472).
-const captureSkew = 50
-
 // knownGaps are frames that differ for a filed reason, by fixture and frame
 // index. One that comes within tolerance fails, so its entry goes.
 var knownGaps = map[string]map[int]string{
 	"rec-stress": {0: "pair#475: stress.css binds after the segment's first screenshot, which shows it applied"},
 }
 
-// frameOffsets are where a frame's pixels may be instead of its t: its own,
-// captureSkew before (every recorder's screenshot), and observerLag after
-// (the prototype's). recording.FrameTimes keeps those in the frame's segment.
+// frameOffsets are where a frame's pixels may be instead of its t: the
+// product check's (its own, fidelity.CaptureSkew before), and observerLag
+// after (the prototype's). recording.FrameTimes keeps those in the frame's
+// segment.
 func frameOffsets(name string) []int64 {
-	offs := []int64{0, -captureSkew}
+	offs := slices.Clone(fidelity.Offsets)
 	if lag := observerLag(name); lag > 0 {
 		offs = append(offs, lag)
 	}
@@ -408,7 +398,7 @@ func (p *chromePage) evalString(t *testing.T, expr string) string {
 func (p *chromePage) renderDiff(t *testing.T, rec *recording.Recording, name string, f *recording.Frame, at int64) float64 {
 	t.Helper()
 	p.eval(t, fmt.Sprintf("load(%q)", name))
-	p.evalString(t, fmt.Sprintf("replayAt(%d, %d)", at, realTimeWindow))
+	p.evalString(t, fmt.Sprintf("replayAt(%d, %d)", at, ReplayWindow))
 	return p.compare(t, filepath.Join(rec.Dir, f.File), f)
 }
 
