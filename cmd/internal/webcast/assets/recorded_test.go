@@ -154,8 +154,8 @@ func TestRecordedWaitHonoursContext(t *testing.T) {
 func TestRecordedFirstTypeWins(t *testing.T) {
 	s := NewRecorded(&memWriter{}, DefaultPolicy)
 	a := put(t, s, "http://x/a.woff2", "font/woff2", "same bytes")
-	put(t, s, "http://x/a.html", "text/html", "same bytes")
-	if typ, _ := s.TypeOf(a.Hash); typ != "font/woff2" {
-		t.Errorf("a body's type moved to a later label: %s", typ)
+	b := put(t, s, "http://x/a.html", "text/html", "same bytes")
+	if typ, _ := s.TypeOf(a.Hash); typ != "font/woff2" || b.MIME != typ {
+		t.Errorf("a body's type moved to a later label: served as %s, recorded as %s", typ, b.MIME)
 	}
 }

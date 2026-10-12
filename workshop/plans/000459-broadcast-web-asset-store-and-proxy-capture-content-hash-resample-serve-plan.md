@@ -79,7 +79,7 @@ untrusted input), rejected: it needs a live tab per image and puts the store on 
     directory (the existing recording lifecycle, atlas/webcast-format.md). Growth per distinct body: an image is at
     most `MaxPixels` (≈1920×1080, under ~1 MB as JPEG q85); CSS and fonts as served. The in-memory maps die with the
     cast.
-- **Proxy** — `NewProxy()`, `Bind(Store)`, `Serve(w, r, hash)`. 404 when unbound, for an invalid or unknown hash, or a
+- **Proxy** — `NewProxy()`, `Bind(Served)` (round 1; was `Bind(Store)`), `Serve(w, r, hash)`. 404 when unbound, for an invalid or unknown hash, or a
   MIME outside the allow-list (images, `text/css`, fonts), so a recorded page can't get script or HTML served from
   the viewer's origin. CSS bodies are rewritten at serve time (bindings change as assets arrive, so `Cache-Control:
   no-store` stays); other bodies are immutable by hash (`private, max-age=31536000, immutable`). Every asset response

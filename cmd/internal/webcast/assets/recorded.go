@@ -121,8 +121,10 @@ func (s *Recorded) store(c Capture) (*recording.Asset, error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.types[hash]; !ok {
-		s.types[hash] = typ // the same bytes under another label keep the first
+	if first, ok := s.types[hash]; ok {
+		typ = first // the same bytes under another label keep the first, in the record too
+	} else {
+		s.types[hash] = typ
 	}
 	if s.bodies != nil {
 		s.bodies[hash] = bytes.Clone(body)
