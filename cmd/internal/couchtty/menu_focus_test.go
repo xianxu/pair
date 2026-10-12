@@ -200,7 +200,7 @@ func TestMenuFocusPreservesNormalExactSearchAndLabels(t *testing.T) {
 	rows[1].Name = "target"
 	state = focusSpace(NewMenuState(rows, rows[0].Address))
 	var label string
-	for _, entry := range PresentThreads(rows, nil) {
+	for _, entry := range PresentThreads(rows, nil, "") {
 		if entry.Row.Address == rows[1].Address {
 			label = entry.Label
 		}
