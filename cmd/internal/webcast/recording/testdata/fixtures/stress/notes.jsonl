@@ -1,0 +1,3 @@
+{"t":3000,"k":"note","id":"stress-n1","author":{"id":"viewer-1","name":"Pat (product)","color":"#e8590c"},"text":"This box flickers through colours; is that on purpose?","at":{"node":1268,"sel":"#cij","text":"CSS-in-JS (insertRule)","box":[950,219.78,340,28.89]}}
+{"t":4500,"k":"note","id":"stress-n2","author":{"id":"viewer-2","name":"Ana (design)","color":"#1c7ed6"},"text":"Closed shadow root: the badge should match the open one.","at":{"node":1254,"sel":"#closed","box":[932,174,340,16.89]}}
+{"t":6000,"k":"note-state","id":"stress-n2","state":"resolved"}
