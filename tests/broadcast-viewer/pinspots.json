@@ -1,0 +1,15 @@
+{
+  "_": "Whether a terminal note's box has a spot for its pin (#488): Go's pinSpots and the viewer's boxHasPin both run these cases (notes_test.go, notes.test.mjs). guard is the controls' width the cases assume; Go checks it is StatusGuardCols.",
+  "guard": 12,
+  "cases": [
+    { "name": "an open box", "box": [3, 3, 10, 2], "cols": 80, "rows": 24, "has": true },
+    { "name": "past the controls", "box": [0, 23, 14, 1], "cols": 80, "rows": 24, "has": true },
+    { "name": "only the controls", "box": [0, 23, 12, 1], "cols": 80, "rows": 24, "has": false },
+    { "name": "the row above the controls", "box": [0, 22, 12, 2], "cols": 80, "rows": 24, "has": true },
+    { "name": "too narrow for the pin", "box": [79, 3, 1, 1], "cols": 80, "rows": 24, "has": false },
+    { "name": "the last two columns", "box": [78, 3, 2, 1], "cols": 80, "rows": 24, "has": true },
+    { "name": "past the right edge", "box": [79, 3, 2, 1], "cols": 80, "rows": 24, "has": false },
+    { "name": "past the bottom", "box": [3, 23, 4, 2], "cols": 80, "rows": 24, "has": false },
+    { "name": "a whole small grid", "box": [0, 0, 20, 3], "cols": 20, "rows": 3, "has": true }
+  ]
+}

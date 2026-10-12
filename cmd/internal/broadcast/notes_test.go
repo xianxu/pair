@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"image/color"
 	"math/rand"
+	"os"
 	"strings"
 	"testing"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -82,6 +84,34 @@ func TestNoteBoardPlacesThePin(t *testing.T) {
 	}
 	if _, err := g.Add(Note{Box: CellBox{0, 23, StatusGuardCols, 1}, Text: "g"}, 80, 24); err != ErrNoteOverlap {
 		t.Errorf("a box with only the controls for its pin: %v, want ErrNoteOverlap", err)
+	}
+}
+
+// The viewer's boxHasPin runs the same table (notes.test.mjs).
+func TestPinSpotsCaseTable(t *testing.T) {
+	raw, err := os.ReadFile("../../../tests/broadcast-viewer/pinspots.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var table struct {
+		Guard int
+		Cases []struct {
+			Name       string
+			Box        [4]int
+			Cols, Rows int
+			Has        bool
+		}
+	}
+	if err := json.Unmarshal(raw, &table); err != nil {
+		t.Fatal(err)
+	}
+	if table.Guard != StatusGuardCols {
+		t.Fatalf("the table assumes controls %d wide; they are %d", table.Guard, StatusGuardCols)
+	}
+	for _, c := range table.Cases {
+		if got := len(pinSpots(CellBox{c.Box[0], c.Box[1], c.Box[2], c.Box[3]}, c.Cols, c.Rows)) > 0; got != c.Has {
+			t.Errorf("%s: %v, want %v", c.Name, got, c.Has)
+		}
 	}
 }
 
@@ -197,6 +227,10 @@ var noteRefusals = []string{
 	`{"cols":80,"rows":24,"box":[3,-4,10,3],"color":0,"text":"hi"}`,
 	`{"cols":80,"rows":24,"box":[0,23,4,1],"color":0,"text":"hi"}`, // only the controls: nowhere for the pin
 	`{"cols":80,"rows":24,"box":[3,4,9999999999,3],"color":0,"text":"hi"}`,
+	`{"cols":80,"rows":24,"box":[1,0,9223372036854775807,1],"color":0,"text":"hi"}`, // Col+W overflows (BR-10)
+	`{"cols":80,"rows":24,"box":[0,1,2,9223372036854775807],"color":0,"text":"hi"}`,
+	`{"cols":80,"rows":24,"box":[9223372036854775807,0,2,1],"color":0,"text":"hi"}`,
+	`{"cols":80,"rows":24,"box":[-9223372036854775808,0,2,1],"color":0,"text":"hi"}`,
 	`{"cols":0,"rows":24,"box":[0,0,2,1],"color":0,"text":"hi"}`,
 	`{"cols":80,"rows":24,"box":[3,4,10,3],"color":0,"text":""}`,
 	`{"cols":80,"rows":24,"box":[3,4,10,3],"color":0}`,
@@ -209,6 +243,23 @@ var noteRefusals = []string{
 	`{"cols":80,"rows":24,"box":[3,4,10,3],"color":0,"te`, // truncated
 	`[]`,
 	``,
+}
+
+// Every refusal is quick: no box makes the parser loop over more than the
+// grid (BR-10's overflow spun pinSpots for ~9e18 iterations).
+func TestParseNoteRefusesQuickly(t *testing.T) {
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for _, body := range noteRefusals {
+			ParseNote([]byte(body))
+		}
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("ParseNote did not return on the refusal bodies")
+	}
 }
 
 func TestParseNoteRefusals(t *testing.T) {
@@ -255,11 +306,14 @@ func FuzzParseNote(f *testing.F) {
 			}
 			t.Fatalf("unexpected error %v", err)
 		}
+		// The bounds, stated without adding the request's own numbers.
 		b := n.Box
-		if b.Col < 0 || b.Row < 0 || b.W < 2 || b.H < 1 || b.Col+b.W > req.Cols || b.Row+b.H > req.Rows || n.Color < 0 || n.Color >= PointerColors {
+		if req.Cols < 1 || req.Rows < 1 || req.Cols > 1000 || req.Rows > 1000 ||
+			b.Col < 0 || b.Row < 0 || b.W < 2 || b.H < 1 || b.Col >= req.Cols || b.Row >= req.Rows ||
+			b.W > req.Cols-b.Col || b.H > req.Rows-b.Row || n.Color < 0 || n.Color >= PointerColors {
 			t.Fatalf("accepted out-of-range %+v", n)
 		}
-		if b.Row+b.H == req.Rows && b.H == 1 && b.Col+b.W-2 < StatusGuardCols {
+		if b.Row == req.Rows-1 && b.H == 1 && b.Col+b.W-2 < StatusGuardCols {
 			t.Fatalf("accepted a box with nowhere for its pin but the controls %+v", n)
 		}
 		if n.Text == "" || len(n.Text) > MaxNoteBytes || !utf8.ValidString(n.Text) {

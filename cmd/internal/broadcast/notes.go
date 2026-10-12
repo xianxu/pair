@@ -72,16 +72,22 @@ func (b *CellBox) UnmarshalJSON(raw []byte) error {
 }
 
 // within reports whether b is a box of at least the pin's two cells on a
-// cols×rows grid.
+// cols×rows grid. It compares by subtraction, never adding b's own
+// (untrusted) sizes, so no box can overflow its way in (#488 BR-10).
 func (b CellBox) within(cols, rows int) bool {
-	return b.Col >= 0 && b.Row >= 0 && b.W >= 2 && b.H >= 1 && b.Col+b.W <= cols && b.Row+b.H <= rows
+	return b.Col >= 0 && b.Row >= 0 && b.Col < cols && b.Row < rows &&
+		b.W >= 2 && b.H >= 1 && b.W <= cols-b.Col && b.H <= rows-b.Row
 }
 
 // pinSpots is where a box's pin may go, best first: the top-right corner
 // inside the box (the operator's choice, #488), then leftward along the
 // top row, then the rows below; only spots where NoteGlyph is visible (on
-// the grid, off the broadcast's controls).
+// the grid, off the broadcast's controls). A box not within the grid has
+// none, so the loops below only ever run over the grid.
 func pinSpots(b CellBox, cols, rows int) []cell {
+	if !b.within(cols, rows) {
+		return nil
+	}
 	var out []cell
 	for row := b.Row; row < b.Row+b.H; row++ {
 		for col := b.Col + b.W - 2; col >= b.Col; col-- {
@@ -198,11 +204,14 @@ func ParseNote(body []byte) (NoteRequest, error) {
 		if v == nil {
 			return NoteRequest{}, ErrNoteShape
 		}
+		if *v < 0 || *v > maxPointGrid { // bounded before any arithmetic
+			return NoteRequest{}, ErrNoteRange
+		}
 		box[i] = *v
 	}
 	cols, rows := *raw.Cols, *raw.Rows
 	n := Note{Box: CellBox{box[0], box[1], box[2], box[3]}, Color: *raw.Color, Text: *raw.Text}
-	if cols < 1 || rows < 1 || cols > maxPointGrid || rows > maxPointGrid || !n.Box.within(cols, rows) ||
+	if cols < 1 || rows < 1 || cols > maxPointGrid || rows > maxPointGrid ||
 		len(pinSpots(n.Box, cols, rows)) == 0 || n.Color < 0 || n.Color >= PointerColors {
 		return NoteRequest{}, ErrNoteRange
 	}

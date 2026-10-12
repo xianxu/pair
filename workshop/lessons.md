@@ -13,6 +13,10 @@ representative evidence, not an exhaustive index.
 - Retiring a class, function or field: grep every consumer, including env-gated live tests (`WEBCAST_LIVE_CHROME`,
   skipped in the default suite) and the atlas index, and run the gated ones once. A skipped test still asserts the
   old shape and is green only because it never ran. (#488 BR-7)
+- Bound every untrusted integer before any arithmetic on it, and compare by subtraction (`w <= cols-col`), never by
+  adding the request's own numbers: `col+w <= cols` wraps at 2^63 and lets a box through that then drives a loop
+  for ~9e18 iterations. A fuzz oracle that restates the parser's addition shares the bug, so state its bounds
+  independently. Pin a refusal table with a deadline. (#488 BR-10)
 - A bounded cache or graveyard prunes only after the update it belongs to is applied: decide what is gone from the
   structure as it now is, never between its teardown and its rebuild. #458's id map buried a re-snapshotted tree after
   forgetting it, so every live node looked removed and lost its id once the graveyard filled. Test it above the bound.

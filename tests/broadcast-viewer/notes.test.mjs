@@ -2,6 +2,7 @@
 // cap, list parsing, and the dialog. Run by TestViewerNode via `node --test`.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { noteAt, boxHasPin, noteBytes, noteVisible, parseNotes, noteDialog, MAX_NOTE_BYTES } from '../../cmd/internal/broadcast/web/notes.js';
 
 const list = { guard: 12, notes: [{ id: 1, col: 10, row: 5, color: 0, text: 'a' }, { id: 2, col: 78, row: 2, color: 1, text: 'b' }] };
@@ -22,12 +23,11 @@ test('a hidden note is not hit', () => {
   assert.ok(noteVisible({ col: 12, row: 5 }, 80, 6, 12));
 });
 
-test('a box has a pin spot unless only the controls are under it (Couch places the pin)', () => {
-  assert.ok(boxHasPin([3, 3, 10, 2], 80, 24, 12));
-  assert.ok(boxHasPin([0, 23, 14, 1], 80, 24, 12)); // past the controls
-  assert.ok(!boxHasPin([0, 23, 12, 1], 80, 24, 12)); // only the controls
-  assert.ok(boxHasPin([0, 22, 12, 2], 80, 24, 12)); // the row above
-  assert.ok(!boxHasPin([79, 3, 1, 1], 80, 24, 12)); // too narrow for the 💭
+test('a box has a pin spot as Couch decides (the shared case table)', () => {
+  const table = JSON.parse(readFileSync(new URL('./pinspots.json', import.meta.url), 'utf8'));
+  for (const c of table.cases) {
+    assert.equal(boxHasPin(c.box, c.cols, c.rows, table.guard), c.has, c.name);
+  }
 });
 
 test('the byte cap counts UTF-8 like Couch', () => {

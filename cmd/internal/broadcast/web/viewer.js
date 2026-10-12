@@ -402,9 +402,11 @@ export function pointerMode(term, stage, deps = {}) {
   const modeButton = deps.modeButton || { show() {}, hide() {} };
   const dragBox = deps.dragBox || { show() {}, hide() {} };
   let mode = 'point';
-  let gesture = null; // a note's box being drawn: {from, to, pointerType}
   let on = false;
-  let stroke = null;
+  // drag is what the pointer is doing, one of: null; {kind: 'stroke', last,
+  // pending} (pointer mode, its points posted every 50ms by timer); {kind:
+  // 'box', from, to, pointerType} (comment mode, a note's box being drawn).
+  let drag = null;
   let timer = null;
   let palette = [];
   let assigned = 0;
@@ -435,36 +437,34 @@ export function pointerMode(term, stage, deps = {}) {
   const screen = () => stage.querySelector('.xterm-screen');
   const post = (down, points) => send({ cols: term.cols, rows: term.rows, down, color: color(), points });
   const flush = (down) => {
-    if (!stroke) {
+    if (drag?.kind !== 'stroke') {
       return;
     }
-    for (const chunk of chunkStroke(stroke.last, stroke.pending)) {
+    for (const chunk of chunkStroke(drag.last, drag.pending)) {
       post(down, chunk);
     }
-    if (stroke.pending.length) {
-      stroke.last = stroke.pending[stroke.pending.length - 1];
+    if (drag.pending.length) {
+      drag.last = drag.pending[drag.pending.length - 1];
     }
-    stroke.pending = [];
+    drag.pending = [];
   };
   const cell = (e) => {
     const el = screen();
     return el ? cellAt(e.clientX, e.clientY, el.getBoundingClientRect(), term.cols, term.rows) : null;
   };
   const boxOf = (g) => gestureBox(g.from, g.to, { x: 0, y: 0, w: term.cols, h: term.rows }, { min: dragMin('cells', g.pointerType), cells: true });
-  const endBox = () => {
-    gesture = null;
-    dragBox.hide();
-  };
+  // end ends whatever the pointer is doing: a stroke's last points are
+  // posted, a box being drawn is dropped.
   const end = () => {
-    endBox();
-    if (stroke) {
-      flush(false);
+    if (drag?.kind === 'box') {
+      dragBox.hide();
     }
+    flush(false);
     if (timer !== null) {
       stop(timer);
     }
     timer = null;
-    stroke = null;
+    drag = null;
   };
   stage.addEventListener('pointerdown', (e) => {
     const c = cell(e);
@@ -485,40 +485,35 @@ export function pointerMode(term, stage, deps = {}) {
     stage.setPointerCapture?.(e.pointerId);
     end();
     if (mode === 'comment') {
-      gesture = { from: c, to: c, pointerType: e.pointerType };
-      dragBox.show(boxOf(gesture));
+      drag = { kind: 'box', from: c, to: c, pointerType: e.pointerType };
+      dragBox.show(boxOf(drag));
       return;
     }
-    stroke = { last: null, pending: [c] };
+    drag = { kind: 'stroke', last: null, pending: [c] };
     flush(true);
     timer = every(() => flush(true), 50);
   });
   stage.addEventListener('pointermove', (e) => {
-    if (gesture) {
-      const c = cell(e);
+    const c = cell(e);
+    if (drag?.kind === 'box') {
       if (c) {
-        gesture.to = c;
-        dragBox.show(boxOf(gesture));
+        drag.to = c;
+        dragBox.show(boxOf(drag));
       }
       return;
     }
-    if (!stroke) {
+    if (drag?.kind !== 'stroke') {
       return;
     }
-    const c = cell(e);
-    const tail = stroke.pending[stroke.pending.length - 1] || stroke.last;
+    const tail = drag.pending[drag.pending.length - 1] || drag.last;
     if (c && !(tail && tail[0] === c[0] && tail[1] === c[1])) {
-      stroke.pending.push(c);
+      drag.pending.push(c);
     }
   });
   stage.addEventListener('pointerup', () => {
-    if (!gesture) {
-      end();
-      return;
-    }
-    const box = boxOf(gesture);
-    endBox();
-    if (boxHasPin(box, term.cols, term.rows, notes().guard)) {
+    const box = drag?.kind === 'box' ? boxOf(drag) : null;
+    end();
+    if (box && boxHasPin(box, term.cols, term.rows, notes().guard)) {
       dialog.draft({ cols: term.cols, rows: term.rows, box });
     }
   });
