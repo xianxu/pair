@@ -275,3 +275,11 @@ boxes are in the cast's own units.
   - `Note.On` records the grid each note was placed on.
 - **Agent pane:** it names the agent. "Near the prompt" is left to the text under the box, which shows the prompt
   or message itself.
+
+### 2026-10-12: smoke-test nit (TL relaying the operator)
+- The operator's smoke test passed in both casts ("works well").
+- Nit folded in before close: the terminal cast viewer shows both mode buttons at once, 👆 and 💭 (`#modes`), with
+  the current one pressed, as the web cast's rail does. This replaces the single toggle button.
+- `pointerMode`'s `modes.show(current, pick)` replaces `modeButton.show(mode, toggle, tip)`.
+- Picking another mode ends a gesture in progress.
+- No second smoke test is needed (TL).

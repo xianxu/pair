@@ -965,8 +965,9 @@ broadcast ends every link. `👽` is reserved for remote control and does
 nothing yet.
 
 **Sticky notes (#447).** People on the pointer link can also leave a short
-plain-text note on part of the screen: the button under the color swatches
-switches between pointing (👆) and placing notes (💭); hover a control for
+plain-text note on part of the screen: the two buttons under the color
+swatches pick pointing (👆) or placing notes (💭), the current one
+highlighted, as on the web cast; hover a control for
 what it does. In 💭 mode, drag a box around what the note is about, or tap for
 a small box around that spot (on a phone, drag a little further than a tap).
 Couch outlines the box in its author's color, on your screen and every

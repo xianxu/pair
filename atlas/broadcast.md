@@ -277,8 +277,9 @@ and it is kept narrow.
   screen's right edge, vertically centered; `fit()` docks it to the drawn
   screen (`railAt`). It sits outside `#stage`, and only its buttons take
   pointer events, so a swatch tap never starts a stroke and a point anywhere
-  else reaches the screen. The mode button (`#mode`, 👆/💭, #447) sits below the swatches. There is
-  no hint bar (#447 M3): the swatches and the mode button explain themselves
+  else reaches the screen. The mode buttons (`#modes`: `#mode-point` 👆 and `#mode-comment` 💭, both shown,
+  the current one pressed, as the web cast's; #447, #488) sit below the swatches. There is
+  no hint bar (#447 M3): the swatches and the mode buttons explain themselves
   in tooltips (`title`, `MODE_TIPS`), so the screen keeps the whole window;
   touch devices show no tooltips.
 - **Server timeouts:** `ReadHeaderTimeout` 10s, `IdleTimeout` 60s, 8 KB

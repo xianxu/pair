@@ -273,7 +273,7 @@ async function start() {
     // Blocked site data: picks aren't remembered.
   }
   const swatches = document.getElementById('swatches');
-  const modeButton = document.getElementById('mode');
+  const modes = document.getElementById('modes');
   let notes = { guard: 0, notes: [] };
   let pointer = null;
   const byId = (id) => document.getElementById(id);
@@ -285,15 +285,19 @@ async function start() {
     notes: () => notes,
     dialog,
     dragBox: screenBox(stage, term),
-    modeButton: {
-      show: (mode, toggle, tip) => {
-        modeButton.textContent = mode === 'comment' ? '💭' : '👆';
-        modeButton.title = tip;
-        modeButton.setAttribute('aria-label', tip);
-        modeButton.onclick = toggle;
-        modeButton.classList.remove('hidden');
+    modes: {
+      show: (current, pick) => {
+        for (const m of ['point', 'comment']) {
+          const b = byId(`mode-${m}`);
+          b.title = MODE_TIPS[m];
+          b.setAttribute('aria-label', MODE_TIPS[m]);
+          b.setAttribute('aria-pressed', String(m === current));
+          b.classList.toggle('on', m === current);
+          b.onclick = () => pick(m);
+        }
+        modes.classList.remove('hidden');
       },
-      hide: () => modeButton.classList.add('hidden'),
+      hide: () => modes.classList.add('hidden'),
     },
     store: colorStore(storage),
     swatches: {
@@ -373,12 +377,13 @@ function postPoint(body) {
   postJSON('point', body).catch(() => {});
 }
 
-// MODE_TIPS explain the mode button on hover (#447 M3): the page has no hint
-// bar, so the screen keeps the whole window. Touch devices show no tooltips;
-// the icons stand alone there.
+// MODE_TIPS explain the mode buttons on hover (#447 M3): the page has no
+// hint bar, so the screen keeps the whole window. Touch devices show no
+// tooltips; the icons stand alone there. Both buttons show at once, the
+// current one pressed, as the web cast's do (#488).
 export const MODE_TIPS = {
-  point: 'Pointer mode: tap or drag to point. Click for comment mode.',
-  comment: 'Comment mode: drag a box, or tap for a small one, to leave a note. Click for pointer mode.',
+  point: 'Pointer mode: tap or drag to point.',
+  comment: 'Comment mode: drag a box, or tap for a small one, to leave a note.',
 };
 
 // pointerMode routes the viewer's taps. A tap on a 💭 opens that note, on
@@ -387,7 +392,7 @@ export const MODE_TIPS = {
 // (flushed every 50ms), and comment mode, where a drag draws a note's box
 // and a tap gives it the default box (collab.js's gestureBox, #488), then a
 // draft opens. deps: notes() → {guard, notes}, dialog (noteDialog),
-// modeButton {show(mode, toggle, tip), hide()}, store (colorStore), swatches
+// modes {show(current, pick(mode)), hide()} (the 👆 and 💭 buttons), store (colorStore), swatches
 // {show(palette, current, pick), hide()}, dragBox {show(box), hide()} (the
 // outline while a box is drawn), and for tests post(body), every(fn, ms) →
 // id, stop(id).
@@ -399,7 +404,7 @@ export function pointerMode(term, stage, deps = {}) {
   const swatches = deps.swatches || { show() {}, hide() {} };
   const notes = deps.notes || (() => ({ guard: 0, notes: [] }));
   const dialog = deps.dialog || { draft() {}, view() {}, close() {} };
-  const modeButton = deps.modeButton || { show() {}, hide() {} };
+  const modes = deps.modes || { show() {}, hide() {} };
   const dragBox = deps.dragBox || { show() {}, hide() {} };
   let mode = 'point';
   let on = false;
@@ -414,12 +419,13 @@ export function pointerMode(term, stage, deps = {}) {
   const color = () => pointerColor(picked, assigned, palette.length);
   const drawMode = () => {
     if (on) {
-      modeButton.show(mode, () => {
-        mode = mode === 'point' ? 'comment' : 'point';
+      modes.show(mode, (m) => {
+        if (m !== mode) end(); // a gesture belongs to the mode it began in
+        mode = m;
         drawMode();
-      }, MODE_TIPS[mode]);
+      });
     } else {
-      modeButton.hide();
+      modes.hide();
     }
     stage.classList.toggle('comment', on && mode === 'comment');
   };

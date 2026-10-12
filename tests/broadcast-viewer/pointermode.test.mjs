@@ -3,7 +3,7 @@
 // end a stroke.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { pointerMode, pointerColor, colorStore, renderSwatches } from '../../cmd/internal/broadcast/web/viewer.js';
+import { pointerMode, pointerColor, colorStore, renderSwatches, MODE_TIPS } from '../../cmd/internal/broadcast/web/viewer.js';
 
 function fakes() {
   const listeners = {};
@@ -208,7 +208,7 @@ function noteFakes() {
   const calls = [];
   const boxes = [];
   let shownMode = null;
-  let shownTip = null;
+  let picker = null;
   let toggle = null;
   const list = { guard: 12, notes: [{ id: 7, col: 10, row: 5, box: [4, 5, 8, 2], color: 0, text: 'hi' }] };
   const mode = pointerMode({ cols: 80, rows: 24 }, stage, {
@@ -221,12 +221,12 @@ function noteFakes() {
       view: (note, opts) => calls.push(['view', note.id, opts]),
       close: () => calls.push(['close']),
     },
-    modeButton: { show: (m, t, tip) => { shownMode = m; toggle = t; shownTip = tip; }, hide: () => { shownMode = null; } },
+    modes: { show: (m, pick) => { shownMode = m; toggle = () => pick(m === 'point' ? 'comment' : 'point'); picker = pick; }, hide: () => { shownMode = null; } },
     dragBox: { show: (b) => boxes.push(b), hide: () => boxes.push(null) },
   });
   const at = (col, row) => ({ clientX: col * 10 + 5, clientY: row * 10 + 5, pointerId: 1, preventDefault() {} });
   const fire = (name, e) => listeners[name](e);
-  return { mode, classes, posts, calls, boxes, fire, at, shownMode: () => shownMode, shownTip: () => shownTip, toggle: () => toggle() };
+  return { mode, classes, posts, calls, boxes, fire, at, shownMode: () => shownMode, pick: (m) => picker(m), toggle: () => toggle() };
 }
 
 test('a view page opens a 💭 read-only and posts nothing', () => {
@@ -256,7 +256,7 @@ test('comment mode: a tap drafts the default box, a drag the box drawn (#488)', 
   f.toggle();
   assert.equal(f.shownMode(), 'comment');
   assert.ok(f.classes.has('comment'));
-  assert.match(f.shownTip(), /drag a box/, 'the mode button explains itself in its tooltip');
+  assert.match(MODE_TIPS.comment, /drag a box/, 'each mode button explains itself in its tooltip');
   const tap = (col, row, pointerType = 'mouse') => {
     f.fire('pointerdown', { ...f.at(col, row), pointerType });
     f.fire('pointerup', { ...f.at(col, row), pointerType });
@@ -321,4 +321,27 @@ test('turning pointing off resets to pointer mode and closes the dialog', () => 
   assert.ok(!f.classes.has('comment'));
   f.mode.setOn(true);
   assert.equal(f.shownMode(), 'point');
+});
+
+// Both mode buttons show at once (#488, as the web cast's): a pick selects
+// a mode, picking the current one changes nothing, and a stroke in progress
+// ends when the mode changes under it.
+test('the 👆 and 💭 buttons pick a mode directly', () => {
+  const f = noteFakes();
+  f.mode.setOn(true);
+  assert.equal(f.shownMode(), 'point');
+  f.pick('point');
+  assert.equal(f.shownMode(), 'point', 'picking the current mode keeps it');
+  f.fire('pointerdown', { ...f.at(3, 3), pointerType: 'mouse' });
+  f.pick('comment');
+  assert.equal(f.shownMode(), 'comment');
+  assert.ok(f.classes.has('comment'));
+  const posted = f.posts.length, drafts = f.calls.length;
+  f.fire('pointermove', { ...f.at(6, 4), pointerType: 'mouse' });
+  f.fire('pointerup', { ...f.at(6, 4), pointerType: 'mouse' });
+  assert.equal(f.posts.length, posted, 'the stroke ended with the mode: no more points');
+  assert.equal(f.calls.length, drafts, 'nor did the stroke become a note');
+  f.pick('point');
+  assert.ok(!f.classes.has('comment'));
+  assert.ok(MODE_TIPS.point && MODE_TIPS.comment && !/Click for/.test(MODE_TIPS.point + MODE_TIPS.comment), 'tips describe a mode, not a toggle');
 });

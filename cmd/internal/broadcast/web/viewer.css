@@ -140,7 +140,16 @@ html, body {
 }
 /* Mode switch (#447): one button below the swatches in the rail, 👆 for
    pointing and 💭 for comments. Only the button takes pointer events. */
-#mode {
+#modes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+}
+#modes.hidden {
+  display: none;
+}
+#modes button {
   width: 30px;
   height: 30px;
   padding: 0;
@@ -152,8 +161,9 @@ html, body {
   cursor: pointer;
   pointer-events: auto;
 }
-#mode.hidden {
-  display: none;
+#modes button.on {
+  background: rgba(40, 40, 40, 0.85);
+  box-shadow: 0 0 0 2px #fff inset;
 }
 #stage.pointer.comment {
   cursor: cell;
