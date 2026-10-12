@@ -77,6 +77,7 @@ Durable plan: `workshop/plans/000465-couch-a-slot-blocked-by-a-picker-shows-red-
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — Operator smoke test passed 10-12 in parley.nvim:3 (red tab set and cleared; one hub notice waiting 1 min behind a picker; held receipt blocked by a picker delivered on close). Full make -k test after merging main green except a pre-existing main artifactpath gap from #479, fixed here. Round 1 fixes: BR-5 nil-conn crash with regression test that panicked before the fix; per-episode picker title with test; couchmessage, wrapcmd, couchcmd, couchtty all pass.; review verdict: SHIP
 - Design: the wrapper reports `Picker` beside `Settled` (#421 frames). Couch paints the slot red, the #451 watcher gets a picker reason with a 1m threshold, and the wrapper's receipt treats a picker as a hold (the #435 mechanism) with detail `blocked by a picker: <title>`. A single `couchmessage.ReadPicker` parser serves both the notice and the receipt (ARCH-DRY). Waiting for #464 (picker-state fix) to land before building.
 - ops:0 approved the design with two asks, folded into the plan's Revisions: unrecognised wording → kind `picker`, and the options in a notice are one capped line.
 - #464 landed (PR #255); merged main. Its BR-2 (an expiry reason the sender can act on) was descoped to here; `blocked by a picker: <title>` covers it.
