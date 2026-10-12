@@ -1405,3 +1405,8 @@ proof; record the surprising case so the next change starts from evidence.
   pen, swatches and 💭 but left the note dialog's Save and Resolve live, including on a pin opened during the pause;
   only the server's refusal caught them. Before a mode turns user actions off, enumerate every control that posts
   (rail, dialog, pins, keyboard), gate them at one place, and put each in the test.
+
+## A count or abbreviation must be anchored to a drawn member of its own group (pair#491)
+- **What went wrong:** the tab bar's narrow-width collapse hid every numbered slot of a group, including its first member when the group had no `:0`. The `+N` then sat after the previous repository's chip and read as its count.
+- **Rule:** when compressing a run of related items into a summary (`+N`, `:N`, `…`), keep the run's first item drawn so the summary has an owner on screen; test a run that lacks its usual leader.
+- **And:** state a value handed across a package boundary at startup (here the hub root) is tested where it is set *and* where a lazy rebuild could drop it.

@@ -26,7 +26,7 @@ func TestPresentThreadsSlotGlyphScope(t *testing.T) {
 		loner.StartingPath:   dirty("main"),
 	}
 	glyphs := map[couchcore.ThreadAddress]string{}
-	for _, p := range PresentThreads([]couchcore.ActionableThreadSummary{two, loner, one, second, primary}, git) {
+	for _, p := range PresentThreads([]couchcore.ActionableThreadSummary{two, loner, one, second, primary}, git, "") {
 		glyphs[p.Row.Address] = p.Glyph
 	}
 	want := map[couchcore.ThreadAddress]string{
@@ -44,7 +44,7 @@ func TestPresentThreadsSlotGlyphScope(t *testing.T) {
 	// The resting branch is the slot's own: main-slot1 checked out in :2 is
 	// issue work there, not rest.
 	git[two.StartingPath] = couchcore.SlotGitStatus{Branch: "main-slot1"}
-	for _, p := range PresentThreads([]couchcore.ActionableThreadSummary{two}, git) {
+	for _, p := range PresentThreads([]couchcore.ActionableThreadSummary{two}, git, "") {
 		if p.Glyph != "" {
 			t.Fatalf(":2 on main-slot1 glyph = %q", p.Glyph)
 		}
