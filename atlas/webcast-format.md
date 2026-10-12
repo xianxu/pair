@@ -281,9 +281,11 @@ regenerated one can't silently lose a case.
 | `blog` (12 s, 2 MB) | The operator's blog post `ariadne-1-building-blocks-of-ai-coding` (Astro + Tailwind, `npm run dev`) | Images, the Inter woff2 font, stylesheets, page scrolling, layout, and the giscus cross-origin iframe |
 | `segments` (hand-made) | `fixturegen -segments` | Pause and resume with ids kept, an edit while paused, a tab switch, a same-document navigation; notes span the resume and clear on the switch |
 
-Gaps found while recording, for #458:
-- **Clicks:** the prototype's polled observer lost the click that navigates, so clicks must be reported synchronously.
-- **Layout:** `DOMSnapshot` on the top session leaves out out-of-process frames, so each frame session needs its own capture.
+Gaps found while recording, closed by the recorder (#458):
+- **Clicks:** the prototype's polled observer lost the click that navigates; the recorder's observer reports clicks
+  synchronously (`TestLiveRecording` holds a click before its `seg navigate`).
+- **Layout:** `DOMSnapshot` on the top session leaves out out-of-process frames; the recorder captures each frame
+  session's own and maps its boxes into the top page.
 
 ## Revisions
 
