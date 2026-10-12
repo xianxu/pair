@@ -48,6 +48,7 @@ ariadne#336 adds a constitution rule: every agent in a Couch slot reports each i
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — make -k test and go test ./... green; TestMessageSendToHubReachesTheHubSlot, TestMessageSendToHubRefusalsNameTheReason (all three refusals) and TestMessageHubTargetIsReservedAheadOfRepositoryNames pass; README/atlas/skill document the target; live --send-to hub check deferred by TL (ops:0) to ariadne#336 Done-when after the next batched Couch restart.; review verdict: SHIP
 - Filed from ariadne#336 (ariadne:1), dispatched by the TL (ops:0). ariadne#336 stays open with a dep on this issue, and closes with its live check once this ships.
 - Rewriting happens in the service, not `couchmessage.ResolveRecipient`: the hub is the service's knowledge (`authority.hub`), and a rewrite to an exact `repo:N` keeps the broker's admission, allowance and receipt rules unchanged (ARCH-DRY: one delivery path).
 - Verified: `make -k test` green, `go test ./...` green, new hub tests pass. The live Done-when is deferred: the supervisor resolves `hub`, so it needs a Couch restart onto this build. The TL (ops:0) batches restarts and moved the live check to ariadne#336's Done-when.
