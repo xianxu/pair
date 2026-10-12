@@ -174,6 +174,8 @@ type Console struct {
 	// pnotes is the sticky notes the overlay and status row read (#447),
 	// behind its own leaf lock.
 	pnotes pointerNotes
+	// anchors resolves the notes' anchors (#488).
+	anchors noteAnchors
 	// statusPointer and statusRemote are the 👆 and 👽 spans on the last
 	// drawn row.
 	statusPointer ColumnSpan

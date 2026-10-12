@@ -975,10 +975,14 @@ Right-click `LIVE ⏸` to copy the view-only link again. Stopping the
 broadcast ends every link. `👽` is reserved for remote control and does
 nothing yet.
 
-**Sticky notes (#447).** People on the pointer link can also pin a short
-plain-text note to a spot on the screen: the button under the color swatches
-switches between pointing (👆) and placing notes (💭); hover a control for
-what it does. Couch draws a `💭` there, on your screen and every viewer's, on a
+**Sticky notes (#447).** People on the pointer link can also leave a short
+plain-text note on part of the screen: the two buttons under the color
+swatches pick pointing (👆) or placing notes (💭), the current one
+highlighted, as on the web cast; hover a control for
+what it does. In 💭 mode, drag a box around what the note is about, or tap for
+a small box around that spot (on a phone, drag a little further than a tap).
+Couch outlines the box in its author's color, on your screen and every
+viewer's, and draws a `💭` inside its top-right corner, on a
 chip of its author's color inside a soft glow that flashes when the note
 arrives and every 15 seconds until it is resolved, and the status row shows
 the open count after the controls (`LIVE ⏸ 👆 👽 💭2`). Click `💭2` to list the
@@ -988,7 +992,7 @@ right-clicking one copies it and resolves it, and `×` or
 another click on `💭2` closes the box (Shift- or Option-drag selects text in it,
 as anywhere in Couch). On a viewer's page, anyone on either link can tap a `💭`
 to read it, and anyone on the pointer link can resolve it; you resolve one by
-right-clicking it in the box. A note stays on the cell where it was placed, whatever scrolls
+right-clicking it in the box. A note stays where it was placed, whatever scrolls
 underneath. Turning pointing off deletes every note, as it clears the marks,
 and stopping the broadcast ends them too; nothing is saved to disk.
 
@@ -1042,10 +1046,12 @@ the binary to choose another (Couch refuses to start if it doesn't exist).
 **Pointing and notes on a web cast (#470).** Anyone with the viewer link can point
 and leave notes; there is no separate pointer link. On the viewer's page, the rail at
 the right edge has the six pointer colors, ✏️ (point: draw on the page, everyone sees
-the stroke fade after a moment) and 💭 (note: tap an element, or drag a region, then
-write). The first note asks for a name; the page remembers it and the color in this
-browser. A note pins to its element (or region) for everyone, follows it as the page
-scrolls, stays through a pause, and leaves the page when the cast moves to another
+the stroke fade after a moment) and 💭 (note: drag a box around what the note is
+about, or tap for a small box around that spot, then write; on a phone, drag a little
+further than a tap). The first note asks for a name; the page remembers it and the color in this
+browser. Every note is its box: everyone sees it outlined in the author's color with
+the 💭 inside its top-right corner, and the box is the part of the page a submission
+shows the agent. It follows the page as it scrolls, stays through a pause, and leaves the page when the cast moves to another
 page; anyone can tap a pin to read it and resolve it. In Couch the open notes show as
 `💭N` after the Chrome cell (`Chrome ⏸ 💭2`); click it for the same notes box the screen
 broadcast uses, with each note's author: click one to copy its text, right-click to copy

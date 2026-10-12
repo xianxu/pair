@@ -7,6 +7,25 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A change to what a user does (a gesture, a control, what a pin shows) updates README's how-to paragraph in the same
+  commit as the atlas. The atlas is the agent's map and README is the operator's; grep README for the old verbs
+  ("tap", "drag", "pin") before closing. (#488 BR-1)
+- Retiring a class, function or field: grep every consumer, including env-gated live tests (`WEBCAST_LIVE_CHROME`,
+  skipped in the default suite) and the atlas index, and run the gated ones once. A skipped test still asserts the
+  old shape and is green only because it never ran. (#488 BR-7)
+  The grep covers comments and test names too, and in the singular as well as the plural ("mode button"), in the
+  same commit that retires the thing. (#488 close)
+- Bound every untrusted integer before any arithmetic on it, and compare by subtraction (`w <= cols-col`), never by
+  adding the request's own numbers: `col+w <= cols` wraps at 2^63 and lets a box through that then drives a loop
+  for ~9e18 iterations. A fuzz oracle that restates the parser's addition shares the bug, so state its bounds
+  independently. Pin a refusal table with a deadline. (#488 BR-10)
+- An async job carries the exact observation it was made from (the frame, its endpoint, the session), and is
+  checked against what is in view when it applies. Never re-read "latest" mutable state at apply time, and key
+  dedup sets by every identity that can repeat (ids restart per session). (#488 BR-15, BR-16)
+- Decide under a leaf lock, act after releasing it: starting a worker (`GoTracked`) takes other locks and can run
+  inline. (#488 BR-17)
+- Context gathered for the agent (file names, headings, layout) stays off the viewers' wire unless a page needs it.
+  Tag it `json:"-"` and test that the wire lacks it. (#488 BR-18)
 - A paint that snapshots state and then publishes it holds one lock from snapshot to commit whenever paints run on
   more than one goroutine. Otherwise an older snapshot can publish last and stay on screen until something else
   repaints, which on an idle screen is never. A test that polls for the new state passes in the gap before the stale
@@ -1378,3 +1397,7 @@ proof; record the surprising case so the next change starts from evidence.
   re-running a close, grep the old behaviour's words (`cancel`, `refuse`, the error text) across atlas/, README,
   the issue file and comments, and rewrite or annotate as superseded every hit in the same commit.
 
+- **A file read while it is written has a torn tail (#493 close).** Making the recording's writer unbuffered let
+  readers see records mid-cast, and with that the reader's strict decode (any bad line fails the whole recording)
+  became a live hazard: a replay racing a write could fail outright. When a writer's output becomes readable while
+  open, the reader takes complete lines only and leaves torn-tail detection to the validator of a finished file.

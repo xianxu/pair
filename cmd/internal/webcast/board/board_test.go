@@ -66,7 +66,7 @@ func (r *rig) seg() int { return r.bd.st.Seg }
 var ana = Viewer{ID: "ana", Name: "Ana"}
 
 func (r *rig) note(node recording.NodeID, color int) (string, error) {
-	return r.bd.Note(NoteIn{Viewer: ana, Seg: r.seg(), Node: node, Box: recording.Box{10, 20, 30, 40}, Color: color, Text: "hi"})
+	return r.bd.Note(NoteIn{Viewer: ana, Seg: r.seg(), Node: node, Box: recording.Box{10, 20, 30, 40}, Region: recording.Box{12, 22, 20, 10}, Color: color, Text: "hi"})
 }
 
 func (r *rig) kinds(k string) []recording.Record {
@@ -106,14 +106,24 @@ func TestNoteIsAnchoredWithTheViewersBox(t *testing.T) {
 	}
 }
 
-func TestRegionNoteKeepsItsRegion(t *testing.T) {
+func TestNoteKeepsItsBoxOnThePage(t *testing.T) {
 	r := newRig(t).page(recording.SegLive)
 	reg := recording.Box{5, 6, 70, 80}
-	if _, err := r.bd.Note(NoteIn{Viewer: ana, Seg: 1, Node: r.p2.ID, Box: recording.Box{1, 2, 3, 4}, Region: &reg, Color: 0, Text: "here"}); err != nil {
+	if _, err := r.bd.Note(NoteIn{Viewer: ana, Seg: 1, Node: r.p2.ID, Box: recording.Box{1, 2, 3, 4}, Region: reg, Color: 0, Text: "here"}); err != nil {
 		t.Fatal(err)
 	}
 	if n := r.kinds("note")[0].(*recording.Note); n.Region == nil || *n.Region != reg {
 		t.Errorf("region %v", n.Region)
+	}
+	// A box over the page's edge is cut to it (#470 BR-4); one off it is refused.
+	if _, err := r.bd.Note(NoteIn{Viewer: ana, Seg: 1, Node: r.p2.ID, Box: recording.Box{1, 2, 3, 4}, Region: recording.Box{-50, -50, 100, 100}, Color: 0, Text: "edge"}); err != nil {
+		t.Fatal(err)
+	}
+	if n := r.kinds("note")[1].(*recording.Note); n.Region == nil || *n.Region != (recording.Box{0, 0, 50, 50}) {
+		t.Errorf("clamped region %v, want [0 0 50 50]", n.Region)
+	}
+	if _, err := r.bd.Note(NoteIn{Viewer: ana, Seg: 1, Node: r.p2.ID, Box: recording.Box{1, 2, 3, 4}, Region: recording.Box{-500, 0, 100, 100}, Color: 0, Text: "off"}); !errors.Is(err, ErrStale) {
+		t.Errorf("a box off the page: %v, want ErrStale", err)
 	}
 }
 
@@ -133,7 +143,7 @@ func TestRefusals(t *testing.T) {
 	if _, err := r.note(r.p2.ID, 0); !errors.Is(err, ErrStale) {
 		t.Errorf("a removed node: %v", err)
 	}
-	if _, err := r.bd.Note(NoteIn{Viewer: ana, Seg: 2, Node: r.p1.ID, Color: 0, Text: "x"}); !errors.Is(err, ErrStale) {
+	if _, err := r.bd.Note(NoteIn{Viewer: ana, Seg: 2, Node: r.p1.ID, Region: recording.Box{1, 1, 10, 10}, Color: 0, Text: "x"}); !errors.Is(err, ErrStale) {
 		t.Errorf("a segment that hasn't begun: %v", err)
 	}
 	if err := r.bd.SetState(StateIn{Viewer: ana, ID: "nope", State: recording.NoteResolved}); !errors.Is(err, ErrUnknown) {
@@ -166,14 +176,14 @@ func TestDocumentRules(t *testing.T) {
 	if got := len(r.bd.Live()); got != 2 {
 		t.Errorf("live notes after a resume: %d, want 2", got)
 	}
-	if _, err := r.bd.Note(NoteIn{Viewer: ana, Seg: 1, Node: r.p1.ID, Color: 0, Text: "x"}); err != nil {
+	if _, err := r.bd.Note(NoteIn{Viewer: ana, Seg: 1, Node: r.p1.ID, Region: recording.Box{1, 1, 10, 10}, Color: 0, Text: "x"}); err != nil {
 		t.Errorf("a viewer one resume behind is on the same document: %v", err)
 	}
 	r.page(recording.SegNavigate)
 	if got := len(r.bd.Live()); got != 0 {
 		t.Errorf("live notes after a navigation: %d, want 0", got)
 	}
-	if _, err := r.bd.Note(NoteIn{Viewer: ana, Seg: 2, Node: r.p1.ID, Color: 0, Text: "x"}); !errors.Is(err, ErrStale) {
+	if _, err := r.bd.Note(NoteIn{Viewer: ana, Seg: 2, Node: r.p1.ID, Region: recording.Box{1, 1, 10, 10}, Color: 0, Text: "x"}); !errors.Is(err, ErrStale) {
 		t.Errorf("a note made on the old document: %v", err)
 	}
 }
@@ -378,7 +388,7 @@ func TestBoardOverTheSegmentsFixture(t *testing.T) {
 			if q == nil {
 				t.Fatal("no input on the page")
 			}
-			if id, err = r.bd.Note(NoteIn{Viewer: ana, Seg: 1, Node: q.ID, Box: recording.Box{1, 1, 1, 1}, Color: 0, Text: "mine"}); err != nil {
+			if id, err = r.bd.Note(NoteIn{Viewer: ana, Seg: 1, Node: q.ID, Box: recording.Box{1, 1, 1, 1}, Region: recording.Box{1, 1, 1, 1}, Color: 0, Text: "mine"}); err != nil {
 				t.Fatal(err)
 			}
 		}

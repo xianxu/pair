@@ -65,7 +65,7 @@ func post(t *testing.T, url, contentType, body string) (int, string) {
 }
 
 func noteBody(seg int, node recording.NodeID, color int) string {
-	return fmt.Sprintf(`{"viewer":{"id":"ana","name":"Ana"},"seg":%d,"node":%d,"box":[1,2,3,4],"color":%d,"text":"hi"}`, seg, node, color)
+	return fmt.Sprintf(`{"viewer":{"id":"ana","name":"Ana"},"seg":%d,"node":%d,"box":[1,2,3,4],"region":[1,2,30,40],"color":%d,"text":"hi"}`, seg, node, color)
 }
 
 // A note posted by one viewer reaches another's stream as a rec.

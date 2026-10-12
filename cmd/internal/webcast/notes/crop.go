@@ -6,59 +6,43 @@ import (
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
-// defaultMargin is the space around the notes in a crop, in CSS px.
-const defaultMargin = 48
+// defaultMargin is the space around a note's box in its crop, in CSS px.
+const defaultMargin = 16
 
 const unbounded = 1e9
 
-// crops computes a submission's screenshot regions; see Structural.NoteCrops.
-// resolve finds an anchor's element now, for its landmark. A region note
-// crops its region, padded but not snapped: the viewer cropped it by hand.
-func crops(st *recording.State, ns []*recording.Note, margin float64, hints Hints,
+// noteCrops computes a submission's screenshot regions (#488): each note's
+// box (see noteBox) plus the margin, crops that overlap merged into one,
+// each clipped to the page. Clipping never cuts a note's own box. resolve
+// finds an older note's element now, for its layout box.
+func noteCrops(st *recording.State, ns []*recording.Note, margin float64,
 	resolve func(*recording.State, recording.NoteAt) (recording.NodeID, bool)) ([]recording.Box, error) {
 	var out []recording.Box
 	page := pageBox(st)
 	for _, n := range ns {
-		if n.Region != nil {
-			page = page.Union(*n.Region)
-			out = append(out, pad(*n.Region, margin))
-			continue
-		}
-		id, live := resolve(st, n.At)
-		b, err := anchorBox(st, n.At, id)
+		b, err := noteBox(st, n, resolve)
 		if err != nil {
 			return nil, err
 		}
-		page = page.Union(b) // clipping never cuts a note's own box
-		c := pad(b, margin)
-		if live {
-			if land, ok := landmark(st.Node(id)); ok {
-				if lb, ok := st.Boxes[land.ID]; ok {
-					c = snap(c, lb, snapHeight(st))
-				}
-			}
-		}
-		out = append(out, c)
+		page = page.Union(b)
+		out = append(out, pad(b, margin))
 	}
-	out = cluster(out, margin)
+	out = merge(out)
 	for i := range out {
 		out[i] = clip(out[i], page)
-		if hints != nil {
-			if h, ok := hints.Crop(st.URL, out[i]); ok {
-				out[i] = h
-			}
-		}
 	}
 	return out, nil
 }
 
-// anchorsOnly wraps anchors as notes without regions, for Crops.
-func anchorsOnly(ats []recording.NoteAt) []*recording.Note {
-	ns := make([]*recording.Note, len(ats))
-	for i, at := range ats {
-		ns[i] = &recording.Note{At: at}
+// noteBox is the area a note is about: its region, which every note made
+// since #488 has; an older one's anchor box (anchorBox).
+func noteBox(st *recording.State, n *recording.Note,
+	resolve func(*recording.State, recording.NoteAt) (recording.NodeID, bool)) (recording.Box, error) {
+	if n.Region != nil {
+		return *n.Region, nil
 	}
-	return ns
+	id, _ := resolve(st, n.At)
+	return anchorBox(st, n.At, id)
 }
 
 // anchorBox is the box a note was made on: its own (a viewer-made note's box
@@ -78,34 +62,14 @@ func pad(b recording.Box, m float64) recording.Box {
 	return recording.Box{b[0] - m, b[1] - m, b[2] + 2*m, b[3] + 2*m}
 }
 
-// snap widens c to its landmark per axis: always across (a header or nav
-// goes full width), and down only when the landmark is at most maxH tall
-// (otherwise the height stays the notes plus margin).
-func snap(c, land recording.Box, maxH float64) recording.Box {
-	u := c.Union(land)
-	if land[3] > maxH {
-		u[1], u[3] = c[1], c[3]
-	}
-	return u
-}
-
-// snapHeight is the tallest landmark a crop snaps to vertically: half the
-// viewport.
-func snapHeight(st *recording.State) float64 {
-	if st.VP.H > 0 {
-		return float64(st.VP.H) / 2
-	}
-	return 400
-}
-
-// cluster merges crops at most margin apart, repeatedly, so notes near
-// each other share a crop and notes far apart get one each.
-func cluster(cs []recording.Box, margin float64) []recording.Box {
+// merge joins crops that overlap, repeatedly, so overlapping notes share
+// one image and the rest get one each.
+func merge(cs []recording.Box) []recording.Box {
 	for merged := true; merged; {
 		merged = false
 		for i := 0; i < len(cs) && !merged; i++ {
 			for j := i + 1; j < len(cs); j++ {
-				if gap(cs[i], cs[j]) <= margin {
+				if gap(cs[i], cs[j]) < 0 {
 					cs[i] = cs[i].Union(cs[j])
 					cs = append(cs[:j], cs[j+1:]...)
 					merged = true
@@ -140,6 +104,14 @@ func pageBox(st *recording.State) recording.Box {
 		w = unbounded
 	}
 	return recording.Box{0, 0, w, unbounded}
+}
+
+// ClampToPage is a viewer's note box kept on the page (#488): the part of
+// b inside the page (pageBox, widened to the viewport). false when none of
+// it is: there is nothing there to note.
+func ClampToPage(st *recording.State, b recording.Box) (recording.Box, bool) {
+	c := clip(b, pageBox(st).Union(recording.Box{0, 0, float64(st.VP.W), float64(st.VP.H)}))
+	return c, c[2] > 0 && c[3] > 0
 }
 
 // clip keeps c on the page.

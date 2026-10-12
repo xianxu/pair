@@ -120,12 +120,17 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 	if noted == nil || !within(st.Node(noted.At.Node), target) {
 		t.Fatalf("A's note %+v: want it on the link %d or inside it", noted, target)
 	}
-	nb, ok := st.Boxes[noted.At.Node] // the operator's layout of the element
-	if !ok {
-		nb = tb
+	// A tap's note is the default box (#488): a tenth of the page shown each
+	// way, centred on the tap; its pin is that box.
+	if noted.Region == nil {
+		t.Fatalf("A's tapped note has no box: %+v", noted)
+	}
+	nb := *noted.Region
+	if c := [2]float64{nb[0] + nb[2]/2, nb[1] + nb[3]/2}; math.Abs(c[0]-(tb[0]+tb[2]/2)) > 1 || math.Abs(c[1]-(tb[1]+tb[3]/2)) > 1 {
+		t.Errorf("A's default box %v is not centred on the tap %v", nb, c)
 	}
 	wantPin := clientOf(t, b, nb[0], nb[1])
-	waitEval(t, b, "A's note pinned on its element in B", fmt.Sprintf(`(() => {
+	waitEval(t, b, "A's note pinned as its box in B", fmt.Sprintf(`(() => {
 		const p = document.querySelector('.pin[data-note=%q]');
 		if (!p || p.hidden) return 'none';
 		const r = p.getBoundingClientRect();
@@ -143,13 +148,16 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 	}
 	touch(t, b, "touchEnd", r1)
 	fillAndSave(t, b, "Bo", "Too much space here.")
-	waitEval(t, a, "B's region in A", `(() => document.querySelector('.pin.region:not([hidden])') ? 'shown' : 'none')()`, "shown")
 	var region *recording.Note
 	for _, r := range mem.Records() {
 		if n, ok := r.(*recording.Note); ok && n.Author.Name == "Bo" {
 			region = n
 		}
 	}
+	if region == nil || region.Region == nil || region.Region[2] < 100 {
+		t.Fatalf("B's dragged note %+v: want its dragged box", region)
+	}
+	waitEval(t, a, "B's box in A", fmt.Sprintf(`(() => { const p = document.querySelector('.pin[data-note=%q]'); return p && !p.hidden ? 'shown' : 'none'; })()`, region.ID), "shown")
 
 	// B, still in note mode, taps A's pin by touch and resolves it: the pin
 	// goes in both viewers, and the recording says so.
@@ -229,7 +237,7 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 	switch {
 	case ana == nil || bo == nil:
 		t.Fatalf("notes by %v", byName)
-	case ana.At.Sel == "" || ana.Region != nil:
+	case ana.At.Sel == "" || ana.At.Kind != recording.AnchorElement || len(ana.At.Path) == 0 || ana.Region == nil: // a tap has the default box (#488)
 		t.Errorf("A's note anchor %+v", ana.Note)
 	case bo.Region == nil:
 		t.Errorf("B's note has no region")
