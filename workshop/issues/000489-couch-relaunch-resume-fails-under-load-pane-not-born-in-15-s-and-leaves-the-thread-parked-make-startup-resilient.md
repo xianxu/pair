@@ -15,6 +15,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "b5eb0429", done: "f4ca745b"}
 ---
 
 # couch: relaunch/resume fails under load (pane not born in 15 s) and leaves the thread parked; make startup resilient
