@@ -219,3 +219,96 @@ dispose:
     note: |
       Code correct (setMode calls endGesture at annotate.js:372), but no test covers a drag across a mode change or the cast's end; unchanged.
 ```
+
+---
+
+## Re-review — 2026-10-12T05:13:07-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 470 — broadcast-web: pointer and notes in the viewer — anchored to element and time, multi-viewer |
+| repo | pair |
+| issue file | workshop/issues/000470-broadcast-web-pointer-and-notes-in-the-viewer-anchored-to-element-and-time-multi-viewer.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | a9b2fd7d491a1a8dcd571bd63c7fd7424aff81df..2df0a13ad488f1edd8c0e2bb4e3d9c0190b3d512 |
+| command | sdlc close --issue 470 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-12T05:13:07-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Tests pass. Next I'll revert the collab.js fix to check that the new test fails without it.
+
+The new test fails without the fix, and the checkout is restored. Last step: check whether the issue file's Spec, Revisions or Done-when changed in this window.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+This window has one code fix and some bookkeeping. The fix: the notes module `annotate.js` imports `./collab.js`, but only the live server served that file. The replay server (#471) serves the viewer from the shared `serveViewerFile` table, so the import 404'd there and the replay page's whole module graph failed to load. `collab.js` now lives in `serveViewerFile` (`cmd/internal/webcast/replay.go:166-171`), which both servers use. The live server reaches it through `server.go:112-115` and the replay server through `replay.go:97`. `boardAsset` now only serves `palette.json`, and its gating (only when the cast has a board) is unchanged.
+
+I checked the fix by reverting it in the checkout. With it removed, both `TestViewerImportsAreServed` and `TestBoardAssets` fail with a 404 on `collab.js`. With it restored, `go test ./cmd/internal/webcast/ ./cmd/internal/broadcast/` passes, and the checkout is clean again.
+
+Nothing changed scope. The issue file only records the close (status, actual hours, a Log line, and a note about what the merge exposed). `## Spec`, `## Revisions` and `## Done when` are untouched. Moving the #472 lesson in `lessons.md` changes its position only, not its text. There were no conflict resolutions listed for this window.
+
+**Strengths**
+- `TestViewerImportsAreServed` (`server_board_test.go:216-241`) follows the actual imports, starting from `viewer.js` and fetching each module through the shared table. It tests the whole class of bug ("a module only one server serves"), not just `collab.js`. It also checks that the walk actually reached `annotate.js`, `collab.js` and `replay.js`, so a regex that silently matches nothing can't make it pass.
+- One function serves both servers, so there is one place to get this right (ARCH-DRY).
+- The lesson at `lessons.md:1237` describes the general rule and the process gap behind it: run the live browser suites after a merge.
+
+**Critical:** none.
+
+**Important:** none.
+
+**Minor**
+- The test's import regex only matches `import … from './x.js'` at the start of a line. It would not follow `export {…} from './x.js'`, side-effect `import './x.js'`, or dynamic `import()`. None of these appear in `webcast/web` today, but the terminal viewer already re-exports with `export … from`. If someone adds that form, the walk would quietly stop following it.
+- `collab.js` is handled as an `if` branch ahead of the `assets` map, because it comes from a different embedded filesystem. It works, but it's a second lookup path beside the table. A table entry backed by a function would match the lesson's "one table" wording more closely.
+
+**Test coverage notes:** The fix has a regression test that fails without it (checked above). The six open Minors are untouched by this window: `annotate.js`, `cast.go` and `board/` have no changes here.
+
+**Architecture**
+- **ARCH-DRY:** pass. Both servers serve files through one function; the separate `collab.js` branch is the Minor above.
+- **ARCH-PURE:** pass. The change is plain HTTP serving; the test calls the handler directly with `httptest`, with no mocks.
+- **ARCH-PURPOSE:** pass. The fix covers the class: one shared table plus a test over every import, rather than just patching the replay route.
+
+**Plan revisions:** none needed.
+
+```findings
+dispose:
+  - id: BR-3
+    disposition: not-addressed
+    note: |
+      Untouched by this window (cast.go unchanged); no test pins the order dir, board, hub.
+  - id: BR-4
+    disposition: not-addressed
+    note: |
+      Untouched by this window; still bounded only by maxCoord 1e6, deferred to wave 3.
+  - id: BR-7
+    disposition: not-addressed
+    note: |
+      Untouched by this window; no shared contract over board.Writer and recorder.Emit.
+  - id: BR-12
+    disposition: not-addressed
+    note: |
+      Untouched by this window; nothing tests a 409 or a rejected stroke chunk POST.
+  - id: BR-14
+    disposition: not-addressed
+    note: |
+      Untouched by this window; no test covers a stroke across a navigation.
+  - id: BR-16
+    disposition: not-addressed
+    note: |
+      Untouched by this window; no test covers a drag across a mode change or the cast's end.
+findings:
+  - id: new
+    severity: Minor
+    family: spec-path-untested
+    title: |
+      TestViewerImportsAreServed's regex follows only line-leading import-from, not export-from, side-effect or dynamic imports
+    detail: |
+      This is the 5th finding in family spec-path-untested. Rule: a test that walks the served-file closure parses every ES module reference form (import from, export from, bare import, import()). None of the other forms appear in webcast/web today, so the measured prevalence is 0 of 6 modules, but the terminal viewer already uses export from (broadcast/web/viewer.js:10). Widen the regex or fail on an unrecognised './*.js' reference.
+```

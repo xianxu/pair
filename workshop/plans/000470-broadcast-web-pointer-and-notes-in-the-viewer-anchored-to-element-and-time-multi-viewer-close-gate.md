@@ -399,6 +399,46 @@ rounds:
       isolation: checkout
       reviewed: 484950d804bed5bc2b3ce97417acea0297295d7e
       blocked: false
+    - "n": 10
+      timestamp: "2026-10-12T05:13:07-07:00"
+      dispatched: "2026-10-12T05:10:52-07:00"
+      agent: claude
+      dispose:
+        - id: BR-3
+          disposition: not-addressed
+          note: Untouched by this window (cast.go unchanged); no test pins the order dir, board, hub.
+          round: 10
+        - id: BR-4
+          disposition: not-addressed
+          note: Untouched by this window; still bounded only by maxCoord 1e6, deferred to wave 3.
+          round: 10
+        - id: BR-7
+          disposition: not-addressed
+          note: Untouched by this window; no shared contract over board.Writer and recorder.Emit.
+          round: 10
+        - id: BR-12
+          disposition: not-addressed
+          note: Untouched by this window; nothing tests a 409 or a rejected stroke chunk POST.
+          round: 10
+        - id: BR-14
+          disposition: not-addressed
+          note: Untouched by this window; no test covers a stroke across a navigation.
+          round: 10
+        - id: BR-16
+          disposition: not-addressed
+          note: Untouched by this window; no test covers a drag across a mode change or the cast's end.
+          round: 10
+      findings:
+        - id: BR-26
+          severity: Minor
+          title: TestViewerImportsAreServed's regex follows only line-leading import-from, not export-from, side-effect or dynamic imports
+          detail: 'This is the 5th finding in family spec-path-untested. Rule: a test that walks the served-file closure parses every ES module reference form (import from, export from, bare import, import()). None of the other forms appear in webcast/web today, so the measured prevalence is 0 of 6 modules, but the terminal viewer already uses export from (broadcast/web/viewer.js:10). Widen the regex or fail on an unrecognised ''./*.js'' reference.'
+          family: spec-path-untested
+          round: 10
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 2df0a13ad488f1edd8c0e2bb4e3d9c0190b3d512
+      blocked: false
 ---
 
 # Gate ledger — pair#470 (boundary-review)
@@ -552,6 +592,22 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-14 — not-addressed — Code correct (annotate.js:506-512 calls endGesture on a docSeg change), but no test covers a stroke across a navigation; unchanged.
 - BR-16 — not-addressed — Code correct (setMode calls endGesture at annotate.js:372), but no test covers a drag across a mode change or the cast's end; unchanged.
 
+## Round 10 — 2026-10-12T05:13:07-07:00 (claude) — passed
+
+### Disposed
+
+- BR-3 — not-addressed — Untouched by this window (cast.go unchanged); no test pins the order dir, board, hub.
+- BR-4 — not-addressed — Untouched by this window; still bounded only by maxCoord 1e6, deferred to wave 3.
+- BR-7 — not-addressed — Untouched by this window; no shared contract over board.Writer and recorder.Emit.
+- BR-12 — not-addressed — Untouched by this window; nothing tests a 409 or a rejected stroke chunk POST.
+- BR-14 — not-addressed — Untouched by this window; no test covers a stroke across a navigation.
+- BR-16 — not-addressed — Untouched by this window; no test covers a drag across a mode change or the cast's end.
+
+### Raised
+
+- **BR-26** [Minor] `spec-path-untested` TestViewerImportsAreServed's regex follows only line-leading import-from, not export-from, side-effect or dynamic imports
+  This is the 5th finding in family spec-path-untested. Rule: a test that walks the served-file closure parses every ES module reference form (import from, export from, bare import, import()). None of the other forms appear in webcast/web today, so the measured prevalence is 0 of 6 modules, but the terminal viewer already uses export from (broadcast/web/viewer.js:10). Widen the regex or fail on an unrecognised './*.js' reference.
+
 ## Open findings
 
 - **BR-3** [Minor] `sink-order-before-consumer-check` The Tee feeds the Hub before the board, so a viewer can act on a seg the board has not applied yet and get a spurious 409
@@ -560,3 +616,4 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-12** [Minor] `silent-degradation` Refused or failed stroke chunk POSTs are swallowed with no viewer signal
 - **BR-14** [Minor] `stroke-spans-document` A stroke in progress across a navigation posts its later chunks with the new seg
 - **BR-16** [Minor] `stroke-spans-document` setMode and the cast-end handler end a stroke but leave a region drag in progress (annotate.js:266-272)
+- **BR-26** [Minor] `spec-path-untested` TestViewerImportsAreServed's regex follows only line-leading import-from, not export-from, side-effect or dynamic imports
