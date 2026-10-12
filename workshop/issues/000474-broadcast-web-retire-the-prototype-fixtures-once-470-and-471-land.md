@@ -52,6 +52,7 @@ prototype ones (`stress`, `app`, `blog`), so the components being built on the p
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — prototype stress/app/blog fixtures, goldens, record-mjs.patch and fixturegen -raw removed; every webcast test runs on rec-*/segments/driven; fixtures 3.3MB under 4.5MB budget; go test ./cmd/internal/webcast/... green; live WEBCAST_LIVE_CHROME replay/join/viewer/annotate/marks/fidelity green (marks 3/3 after BR-1 fix; rec-blog fidelity frame0 flaked once 6.75%, 3/3 reruns 0.17%, check unchanged from main); new TestEventLinesFoldCaret mutation-checked; make -k test unsandboxed green except couchcore TestOrientationSessionObservationHonorsCallerDeadline/generation load flake (20/20 in isolation); artifactpath fixed after; review verdict: SHIP
 - TL's go (ops:0) after #470 (PR #269) and #471 landed. Kept the hand-written `driven` and `segments` fixtures.
 - Skipped the optional rename of `rec-*` to bare names: `rec-segments` would collide with the hand-made `segments`,
   and the rename churns every golden for no reader's benefit.
