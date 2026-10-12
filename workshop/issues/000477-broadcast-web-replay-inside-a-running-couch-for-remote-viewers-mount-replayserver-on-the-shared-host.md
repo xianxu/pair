@@ -5,8 +5,8 @@ deps: [pair#470]
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
-estimate_hours:
-card_mirror: '277f4c9c15a67b10219e623b56443c8280929893' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 1.9
+card_mirror: '8ee1d31b75cedc1f7f4f6e1d132216c6a7fdd06e' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T05:09:29-07:00
 claimant:
     operator: Xian Xu
@@ -47,7 +47,7 @@ item: smaller-go-module design=0.10 impl=0.20
 item: smaller-go-module design=0.10 impl=0.20
 item: atlas-docs design=0.03 impl=0.07
 item: milestone-review design=0.05 impl=0.20
-total: 1.90
+total: 2.09
 ```
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* Items in order: `ReplayShares` state machine (greenfield); scoped `ReplayServer` + length advisory; broker op + Couch wiring; both CLIs' share-and-poll; M2 drawing with #470's modules + live check; atlas/skill; two milestone reviews.
