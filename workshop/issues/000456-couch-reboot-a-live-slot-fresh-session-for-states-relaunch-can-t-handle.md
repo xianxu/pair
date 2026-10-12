@@ -15,6 +15,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "249f658f", done: "cc4aaf89"}
 ---
 
 # couch: reboot a live slot (fresh session), for states relaunch can't handle
