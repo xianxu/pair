@@ -1246,3 +1246,9 @@ proof; record the surprising case so the next change starts from evidence.
   isn't a navigation, a catch-up), ask what the browser's own clocks (animations, transitions) were doing at
   capture, and settle them to the likeliest phase. Look at the worst moment's crop before tuning a tolerance: the
   picture named the cause where the number couldn't.
+- **A test moved to another fixture keeps its old fixture's moments unless they come from the data (#474).** The
+  replay marks test moved from the prototype's `app` to `rec-app` and kept sampling `app`'s note times, so it still
+  passed but checked nothing about the new notes. Derive sample moments (and any content a test reads) from the
+  fixture's own records; re-deriving then surfaced a case the old fixture never had (an open note whose element was
+  removed). After retiring a data source, also sweep the tools that only produced it (`fixturegen -raw`) and any
+  inventory that lists them.
