@@ -194,6 +194,19 @@ rounds:
       isolation: fenced
       reviewed: 70309982bc57dc87c258ea217dc5d032f6e027b6
       blocked: false
+    - "n": 6
+      timestamp: "2026-10-12T07:03:32-07:00"
+      dispatched: "2026-10-12T07:01:19-07:00"
+      agent: claude
+      dispose:
+        - id: BR-15
+          disposition: not-addressed
+          note: 'At head, replay.js:482 still passes win.devicePixelRatio once, at mount, while annotate.js:484 reads it on every paint; no later commit touches it. Minor and non-blocking: pass a getter, or read it inside draw.'
+          round: 6
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 9b9a11d67fefd9568ef15fe89bebb4428e2ddf05
+      blocked: false
 ---
 
 # Gate ledger — pair#477 (boundary-review)
@@ -271,6 +284,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - **BR-15** [Minor] `captured-environment-value` replayMarks reads devicePixelRatio once, at mount, so the stroke canvas goes stale after a zoom or a move to another display
   replay.js:482 passes win.devicePixelRatio as a fixed value; the live viewer reads it on every draw (annotate.js:484). Fix: pass a getter, or read it inside draw.
+
+## Round 6 — 2026-10-12T07:03:32-07:00 (claude) — passed
+
+### Disposed
+
+- BR-15 — not-addressed — At head, replay.js:482 still passes win.devicePixelRatio once, at mount, while annotate.js:484 reads it on every paint; no later commit touches it. Minor and non-blocking: pass a getter, or read it inside draw.
 
 ## Open findings
 
