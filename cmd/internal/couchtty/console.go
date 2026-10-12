@@ -76,7 +76,10 @@ type Console struct {
 	// publishHook runs inside publishMu, inside a site's snapshot-to-commit span
 	// (chrome, panel, select, resize); tests use it to park a paint there while
 	// another tries to overtake it.
-	publishHook      func(site string)
+	publishHook func(site string)
+	// codes is what the operator-only layer shows of cast link codes
+	// (pair#495); its mutex is a leaf.
+	codes            castCodes
 	terminalCommands chan terminalCommand
 	terminalFailure  error
 	// exitFailure is teardown's one classification of why the terminal failed
@@ -293,6 +296,8 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 	if s, err := host.Size(); err == nil {
 		c.size = s
 	}
+	// Cast link codes draw on the operator's screen only (pair#495).
+	c.terminalError(c.installCodesLayer())
 	return c
 }
 

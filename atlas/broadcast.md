@@ -101,6 +101,45 @@ the operator says it on the call.
   name is stored as `couch.viewerName`.
   - `URL#NNNN` pre-fills the code, and the page strips it from history at
     once.
+- **Couch.** Every link's codes reach the operator through the presenter's
+  operator-only layer (`terminal.OperatorLayer`), which is applied after the
+  tap takes its frame, so no broadcast frame carries a code.
+  `console_castcodes.go` draws three things there:
+  - **Hover tooltip:** hovering LIVE (or its 👆) or the Chrome cell shows that
+    cast's codes, for example `view 4821 · pointer 7730`.
+  - **Codes menu:** Alt+click on the cell opens it. It rotates one link's
+    code or "rotate all", and a rotation disconnects that link's viewers.
+  - **Flash:** a new code flashes three times.
+  - **Notices:** the status row and the notice line are broadcast, so a
+    notice says that a code changed and never what it is.
+    - A guess-rotation notice is coalesced per link every 30 s.
+    - Rotations apply in `Gen` order.
+  - When #501 lands, the tooltips move to the cells' link controls: LIVE's
+    👆, and Chrome's 👆 (view) and 👽 (drive).
+- **Registry.** `broadcast.LinkLocks` is one per cast: a lock per link token,
+  minted with the token (`Mint`), routed by `LockFor`, listed by `Codes`, and
+  rotated and ended together. A new link is one `Mint`.
+
+### Threat model
+
+- **What the code protects against:** a cast link that leaked.
+  - A link pasted in a chat log, kept in browser history or a proxy log, or
+    fetched by a chat app's link preview is still only half the credential.
+  - The code travels out of band: said on the call.
+  - A `#code` fragment is never sent to a server, and preview fetchers don't
+    run the page's script.
+  - Guessing is bounded by the per-code budget and the per-lock rate.
+  - Rotating a code revokes every session that used it.
+- **What it does not protect against:**
+  - a viewer who has the code: they can share what they see, or pass on
+    both link and code;
+  - a stolen session cookie, which stays good until rotation or the cast's
+    end (it is `HttpOnly` and scoped to the link's path);
+  - anyone who can read the operator's screen, including the operator's own
+    local diagnostic capture.
+- **LIVE viewers see the tab bar**, but never the codes: these draw only in
+  the operator-only layer.
+- **Replay share links** are not locked yet (a follow-up to #495).
 
 The page (`web/`), a vendored `@xterm/xterm` 6.0.0 with `@xterm/addon-unicode11`
 (Unicode 11 widths, so emoji are two columns as in Couch; #412),

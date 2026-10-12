@@ -131,6 +131,11 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 	if c.routeNotesMenu(event.Raw) {
 		return
 	}
+	// Cast link codes (pair#495): the Codes menu, Alt+click on a cast cell,
+	// and the hover tooltip (which never takes the event).
+	if c.routeCastCodes(event.Raw) {
+		return
+	}
 	// Release/motion always visit the presenter, including over panels and
 	// chrome, so its gesture owner can cancel or clip them consistently.
 	if _, ok := event.Event.(uv.MouseReleaseEvent); ok {

@@ -1,6 +1,8 @@
 package couchtty
 
 import (
+	"github.com/xianxu/pair/cmd/internal/castlock"
+
 	"context"
 	"errors"
 	"fmt"
@@ -56,6 +58,8 @@ func (c *Console) SetWebcast(cfg webcast.CastConfig) {
 		msg := "Chrome cast: " + fmt.Sprintf(format, args...)
 		c.GoTracked(func() { c.setNotice(msg) })
 	}
+	// Its links' codes (pair#495).
+	cfg.OnCodeRotated = func(link string, r castlock.Rotation) { c.onCodeRotated(castWeb, link, r) }
 	c.webcastCfg = &cfg
 }
 
@@ -237,6 +241,7 @@ func (c *Console) webcastEnded(cast *webcast.Cast) {
 	byOperator := c.wcast.phase == webcastEnding
 	c.wcast = webcastState{attempt: c.wcast.attempt}
 	c.mu.Unlock()
+	c.forgetCastCodes(castWeb)
 	c.forgetWebNotes()
 	c.forgetDrive()
 	c.syncOverlay(overlayWeb, false)

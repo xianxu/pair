@@ -1,6 +1,8 @@
 package couchtty
 
 import (
+	"github.com/xianxu/pair/cmd/internal/castlock"
+
 	"context"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"sync/atomic"
@@ -155,6 +157,10 @@ func (c *Console) startBroadcast(cfg broadcast.Config) {
 	if cfg.Now == nil {
 		cfg.Now = c.now
 	}
+	// Its links' codes (pair#495).
+	if cfg.OnCodeRotated == nil {
+		cfg.OnCodeRotated = func(link string, r castlock.Rotation) { c.onCodeRotated(castScreen, link, r) }
+	}
 	ctx, cancel := context.WithCancel(c.lifetime)
 	c.mu.Lock()
 	c.bcast = broadcastState{phase: broadcastStarting, attempt: c.bcast.attempt + 1, cancel: cancel}
@@ -258,6 +264,7 @@ func (c *Console) broadcastEnded(s *broadcast.Session) {
 	byOperator := c.bcast.phase == broadcastStopping
 	c.bcast = broadcastState{attempt: c.bcast.attempt}
 	c.mu.Unlock()
+	c.forgetCastCodes(castScreen)
 	if !byOperator {
 		c.detachBroadcastScreen()
 		c.setNotice("Broadcast ended: " + broadcast.EndReason(s.Err()) + ".")
