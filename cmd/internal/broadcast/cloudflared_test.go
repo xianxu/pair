@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // shortDir is a directory this test creates and removes, short enough for a
@@ -217,7 +218,7 @@ func TestCloudflaredCloseStopsTunnel(t *testing.T) {
 	if d := time.Since(start); d > 3*time.Second {
 		t.Fatalf("Close took %v", d)
 	}
-	waitDead(t, strconv.Itoa(child), 2*time.Second)
+	waitDead(t, strconv.Itoa(child))
 	select {
 	case <-h.Exited():
 	default:
@@ -265,9 +266,15 @@ func TestNamedTunnelIsExclusive(t *testing.T) {
 
 // startOrphan runs a process named cloudflared in its own group, standing in
 // for a tunnel whose owner and guard are gone.
+//
+// The shell must not exec its sleep (#487): exec rewrites the command to
+// `sleep 300`, and reaping rightly spares a process that isn't cloudflared, so
+// whether the orphan died hung on ps winning a race against the exec, which
+// it loses under load. Waiting for the sleep child pins the fixture's settled
+// state, and a fixture that exec'd away never gets one.
 func startOrphan(t *testing.T) int {
 	t.Helper()
-	bin, _ := fakeCloudflared(t, `exec sleep 300`)
+	bin, _ := fakeCloudflared(t, `sleep 300`)
 	cmd := exec.Command(bin)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
@@ -275,12 +282,12 @@ func startOrphan(t *testing.T) int {
 	}
 	go cmd.Wait()
 	t.Cleanup(func() { _ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) })
-	deadline := time.Now().Add(5 * time.Second)
-	for !strings.Contains(procutil.Command(strconv.Itoa(cmd.Process.Pid)), "cloudflared") {
-		if time.Now().After(deadline) {
-			t.Fatal("orphan never showed its command")
-		}
-		time.Sleep(20 * time.Millisecond)
+	pid := strconv.Itoa(cmd.Process.Pid)
+	testwait.Until(t, "the orphan's sleep child (did the fixture exec away?)", func() bool {
+		return len(procutil.ProcessChildren()[pid]) != 0
+	})
+	if !strings.Contains(procutil.Command(pid), "cloudflared") {
+		t.Fatalf("orphan's settled command isn't cloudflared: %q", procutil.Command(pid))
 	}
 	return cmd.Process.Pid
 }
@@ -321,7 +328,7 @@ func TestReapOrphans(t *testing.T) {
 		owner, ownerID := deadPID(t)
 		rec := writeRecord(t, records, "named-x.json", recordData{Owner: owner, OwnerID: ownerID, Tunnel: orphan, TunnelID: identity(orphan), PrivateDir: private})
 		ReapOrphans(records, runDir)
-		waitDead(t, strconv.Itoa(orphan), 2*time.Second)
+		waitDead(t, strconv.Itoa(orphan))
 		for _, p := range []string{rec, private} {
 			if _, err := os.Stat(p); !os.IsNotExist(err) {
 				t.Fatalf("%s survived reaping", p)

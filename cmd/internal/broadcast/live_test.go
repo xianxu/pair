@@ -65,7 +65,7 @@ func liveRoundTrip(t *testing.T, named *NamedTunnel) {
 	case <-time.After(15 * time.Second):
 		t.Fatal("teardown did not finish")
 	}
-	waitDead(t, strconv.Itoa(child), 5*time.Second)
+	waitDead(t, strconv.Itoa(child))
 	if resp, err := client.Get(s.Link()); err == nil {
 		resp.Body.Close()
 		if resp.StatusCode == http.StatusOK {
