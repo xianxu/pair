@@ -11,9 +11,16 @@ import (
 // OSRuntime reads real file mtimes and the native session inventory. The
 // inventory is built per thread over its own scope directory, the way
 // couchcore's switch context does, because bindings live under the scope.
-type OSRuntime struct{ Home string }
+// Its ledger cache spans every probe (#507): a ledger is decoded again only
+// when it changes.
+type OSRuntime struct {
+	Home     string
+	launches *sessioninventory.OwnerLaunchCache
+}
 
-func NewOSRuntime(home string) OSRuntime { return OSRuntime{Home: home} }
+func NewOSRuntime(home string) OSRuntime {
+	return OSRuntime{Home: home, launches: sessioninventory.NewOwnerLaunchCache()}
+}
 
 func (OSRuntime) ModTime(path string) (time.Time, bool) {
 	info, err := os.Stat(path)
@@ -26,7 +33,7 @@ func (OSRuntime) ModTime(path string) (time.Time, bool) {
 // SessionActivity is the established root transcript's last activity, or false
 // when the thread has no exact established binding. ctx bounds the query.
 func (r OSRuntime) SessionActivity(ctx context.Context, t Thread) (time.Time, bool) {
-	runtime := sessioninventory.NewOSRuntime(r.Home, t.ScopeDir)
+	runtime := sessioninventory.NewOSRuntime(r.Home, t.ScopeDir).WithOwnerLaunchCache(r.launches)
 	query, err := sessioninventory.QuerySessionContext(ctx, runtime, t.Scope, t.Tag, sessioninventory.Agent(t.Agent))
 	if err != nil || ctx.Err() != nil {
 		return time.Time{}, false
