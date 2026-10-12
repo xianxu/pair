@@ -15,6 +15,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "e6ce3ae1", done: "17982254"}
 ---
 
 # broadcast-web: notes model — anchors, focused context, structure-snapped crops
