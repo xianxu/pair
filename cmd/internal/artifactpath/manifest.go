@@ -716,6 +716,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/recording/fake.go",
 	"cmd/internal/webcast/recording/files.go",
 	"cmd/internal/webcast/recording/fixture.go",
+	"cmd/internal/webcast/recording/hub.go",
 	"cmd/internal/webcast/recording/internal/fixturegen/cdpconv.go",
 	"cmd/internal/webcast/recording/internal/fixturegen/main.go",
 	"cmd/internal/webcast/recording/internal/fixturegen/notes.go",

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
+	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
 // CastConfig starts a Cast.
@@ -15,6 +16,11 @@ type CastConfig struct {
 	Host *broadcast.Host
 	// Ping is the viewers' keepalive; zero is broadcast.DefaultPing.
 	Ping time.Duration
+	// Live is the recording's fan-out to viewers (fed by the recorder,
+	// #458); nil serves the cast's state only.
+	Live recording.Live
+	// Presence, when set, is told which viewers are watching (#466).
+	Presence Presence
 }
 
 // Update is what Couch shows of a cast: the browser's state and the viewer
@@ -48,7 +54,7 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 	}
 	mountCtx, cancel := context.WithCancel(context.Background())
 	c := &Cast{browser: b, pub: newPublisher(Update{State: b.State()}), cancel: cancel, done: make(chan struct{})}
-	go c.run(mountCtx, cfg.Host, NewServer(token, b, cfg.Ping), token)
+	go c.run(mountCtx, cfg.Host, NewServer(token, b, cfg.Ping, cfg.Live, cfg.Presence), token)
 	return c, nil
 }
 

@@ -6,8 +6,8 @@ import (
 	"time"
 )
 
-func TestFakeHubMeetsTheLiveContract(t *testing.T) {
-	RunLiveContract(t, func() (Sink, Live) { h := NewFakeHub(64); return h, h })
+func TestHubMeetsTheLiveContract(t *testing.T) {
+	RunLiveContract(t, func() (Sink, Live) { h := NewHub(64); return h, h })
 }
 
 func TestContractRecordingIsValid(t *testing.T) {
@@ -16,8 +16,8 @@ func TestContractRecordingIsValid(t *testing.T) {
 	}
 }
 
-func TestFakeHubIsBoundedBySegment(t *testing.T) {
-	h := NewFakeHub(8)
+func TestHubIsBoundedBySegment(t *testing.T) {
+	h := NewHub(8)
 	recs := ContractRecording(500)
 	for _, r := range recs {
 		h.Put(r)
