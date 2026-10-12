@@ -345,7 +345,7 @@ it), never a local fork.
 | pair#470 | viewers' strokes and notes | `board.Board` (a `Sink` following the stream; `Stroke`, `Note`, `SetState`, `Live`, `Subscribe`) writing through an `Emit` (the recorder's queue via `webcast.Emitter`) | `board.Writer`, the reference single writer | board tests over fixtures; `Board viewer` below |
 | pair#462 | agent queries | `query.Surface` (`DOMAt`, `Events`, `Notes`); real: `query.Querier`, CLI `couch --broadcast-web-query` (below) | `query.FakeSurface` | `query.RunSurfaceContract` |
 | pair#467 | input injection | `drive.Injector` (`Inject(ctx, by, Batch)`) | `drive.FakeInjector` | `drive.RunInjectorContract` |
-| pair#467 | driving control and the reverse channel | `drive.Controller` (seats, request/grant/deny/revoke/release, input) | `drive.FakeController` | `drive.RunControllerContract` |
+| pair#467 | driving control and the reverse channel | `drive.Controller` (seats, request/grant/deny/revoke/release, input) | `drive.MemController` | `drive.RunControllerContract` |
 
 Hand-written recordings for tests: `recording.Builder` (ids from one counter, `Page` for a segment and its document),
 `recording.ContractRecording`, `query.ContractRecording`, `recording.DrivenRecording` (viewers driving).
@@ -580,7 +580,7 @@ window or tab). Permission prompts and JavaScript dialogs appear only to the ope
 events and live/pause/tab inputs into its FIFO queue. Control changes and injections are inputs to the same queue, so
 `ctl` records, injected input and the DOM changes it causes are ordered together, and `by` is stamped in queue order.
 The injector follows that stream: it sees every record, `ctl` included, in order. A fake is fed as a
-`recording.Sink`, and `FakeController` over `FakeInjector` composes through `recording.Tee`.
+`recording.Sink`, and `MemController` over `FakeInjector` composes through `recording.Tee`.
 The injector hit-tests with `DOM.getNodeForLocation` and the recorder's id map (`Recorder.IDOf(session,
 backendNodeId)` and `Recorder.NodeOf(id)`, requests with a reply on that goroutine). It rechecks that `by` drives when
 it dispatches, so a batch overtaken by a revoke is refused there (`ErrNotDriver`, checked by

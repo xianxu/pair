@@ -17,11 +17,13 @@ import (
 // MaxName bounds a viewer's label, in runes.
 const MaxName = 40
 
-// FakeController is the stateful fake of Controller: seats in memory, the
-// control state machine (recording.NextControl), ctl records into a sink at
-// the clock's time, and grace timers. Seats die after grace without a stream,
-// or at Close: nothing outlives the cast.
-type FakeController struct {
+// MemController is the Controller (#467): seats in memory, the control
+// state machine (recording.NextControl), ctl records into a sink at the
+// clock's time, and grace timers. In a cast the sink is the recorder's
+// queue, the stream's one writer; a change the sink refuses (the recorder
+// hasn't opened: ErrNotLive) leaves control as it was. Seats die after
+// grace without a stream, or at Close: nothing outlives the cast.
+type MemController struct {
 	mu      sync.Mutex
 	sink    recording.Sink
 	inj     Injector
@@ -41,14 +43,14 @@ type seat struct {
 	timer   *time.Timer
 }
 
-// NewFakeController: ctl records go to sink at clock(), the driver's input
+// NewMemController: ctl records go to sink at clock(), the driver's input
 // to inj; a seat with no stream leaves after grace.
-func NewFakeController(sink recording.Sink, inj Injector, clock func() int64, grace time.Duration) *FakeController {
-	return &FakeController{sink: sink, inj: inj, clock: clock, grace: grace,
+func NewMemController(sink recording.Sink, inj Injector, clock func() int64, grace time.Duration) *MemController {
+	return &MemController{sink: sink, inj: inj, clock: clock, grace: grace,
 		seats: map[string]*seat{}, keys: map[string]string{}, subs: map[chan recording.Control]struct{}{}}
 }
 
-func (f *FakeController) Join(name string) (Seat, error) {
+func (f *MemController) Join(name string) (Seat, error) {
 	key := make([]byte, 32)
 	if _, err := rand.Read(key); err != nil {
 		return Seat{}, err
@@ -85,7 +87,7 @@ func label(name string, n int) string {
 	return name
 }
 
-func (f *FakeController) Attach(viewer string) (func(), error) {
+func (f *MemController) Attach(viewer string) (func(), error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	s := f.seats[viewer]
@@ -113,7 +115,7 @@ func (f *FakeController) Attach(viewer string) (func(), error) {
 }
 
 // idleLocked starts s's grace period; when it ends with no stream, s leaves.
-func (f *FakeController) idleLocked(s *seat) {
+func (f *MemController) idleLocked(s *seat) {
 	s.timer = time.AfterFunc(f.grace, func() {
 		f.mu.Lock()
 		defer f.mu.Unlock()
@@ -128,7 +130,7 @@ func (f *FakeController) idleLocked(s *seat) {
 	})
 }
 
-func (f *FakeController) involvedLocked(id string) bool {
+func (f *MemController) involvedLocked(id string) bool {
 	if f.control.Driving() == id {
 		return true
 	}
@@ -141,7 +143,7 @@ func (f *FakeController) involvedLocked(id string) bool {
 }
 
 // changeLocked applies op, puts its ctl record, and tells subscribers.
-func (f *FakeController) changeLocked(op string, who recording.Author) error {
+func (f *MemController) changeLocked(op string, who recording.Author) error {
 	if f.closed {
 		return ErrClosed
 	}
@@ -170,17 +172,17 @@ func offer(ch chan recording.Control, c recording.Control) {
 	ch <- c
 }
 
-func (f *FakeController) bySeat(key string) (*seat, error) {
+func (f *MemController) bySeat(key string) (*seat, error) {
 	if s := f.seats[f.keys[key]]; s != nil && key != "" {
 		return s, nil
 	}
 	return nil, ErrNoSeat
 }
 
-func (f *FakeController) Request(key string) error { return f.viewerOp(key, recording.CtlRequest) }
-func (f *FakeController) Release(key string) error { return f.viewerOp(key, recording.CtlRelease) }
+func (f *MemController) Request(key string) error { return f.viewerOp(key, recording.CtlRequest) }
+func (f *MemController) Release(key string) error { return f.viewerOp(key, recording.CtlRelease) }
 
-func (f *FakeController) viewerOp(key, op string) error {
+func (f *MemController) viewerOp(key, op string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	s, err := f.bySeat(key)
@@ -194,7 +196,7 @@ func (f *FakeController) viewerOp(key, op string) error {
 // Revoke never waits on a batch. A batch overtaken by a revoke is refused
 // where it is dispatched: its records would name a viewer who no longer
 // drives.
-func (f *FakeController) Input(ctx context.Context, key string, b Batch) error {
+func (f *MemController) Input(ctx context.Context, key string, b Batch) error {
 	f.mu.Lock()
 	s, err := f.bySeat(key)
 	if err == nil && f.control.Driving() != s.Viewer.ID {
@@ -207,10 +209,10 @@ func (f *FakeController) Input(ctx context.Context, key string, b Batch) error {
 	return f.inj.Inject(ctx, s.Viewer.ID, b)
 }
 
-func (f *FakeController) Grant(viewer string) error { return f.operatorOp(viewer, recording.CtlGrant) }
-func (f *FakeController) Deny(viewer string) error  { return f.operatorOp(viewer, recording.CtlDeny) }
+func (f *MemController) Grant(viewer string) error { return f.operatorOp(viewer, recording.CtlGrant) }
+func (f *MemController) Deny(viewer string) error  { return f.operatorOp(viewer, recording.CtlDeny) }
 
-func (f *FakeController) operatorOp(viewer, op string) error {
+func (f *MemController) operatorOp(viewer, op string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	s := f.seats[viewer]
@@ -220,7 +222,7 @@ func (f *FakeController) operatorOp(viewer, op string) error {
 	return f.changeLocked(op, s.Viewer)
 }
 
-func (f *FakeController) Revoke() error {
+func (f *MemController) Revoke() error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.control.Driver == nil || f.closed {
@@ -229,13 +231,13 @@ func (f *FakeController) Revoke() error {
 	return f.changeLocked(recording.CtlRevoke, *f.control.Driver)
 }
 
-func (f *FakeController) Control() recording.Control {
+func (f *MemController) Control() recording.Control {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.control
 }
 
-func (f *FakeController) Subscribe() (<-chan recording.Control, func()) {
+func (f *MemController) Subscribe() (<-chan recording.Control, func()) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	ch := make(chan recording.Control, 1)
@@ -255,7 +257,7 @@ func (f *FakeController) Subscribe() (<-chan recording.Control, func()) {
 	}
 }
 
-func (f *FakeController) Close() error {
+func (f *MemController) Close() error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.closed {
