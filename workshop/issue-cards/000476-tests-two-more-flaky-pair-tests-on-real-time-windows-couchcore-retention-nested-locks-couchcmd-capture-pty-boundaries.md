@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000476-tests-two-more-flaky-pair-tests-on-real-time-windows-couchcore-retention-nested-locks-couchcmd-capture-pty-boundaries.md
         source_blob: 819f10f88f7247e1436b245315dcfcc18a7a1424
         destination: workshop/issues/000476-tests-two-more-flaky-pair-tests-on-real-time-windows-couchcore-retention-nested-locks-couchcmd-capture-pty-boundaries.md
+        main_commit: 8382f9756d36cd7221d353d89c5edf70d9d5c0e4
 ---
 
 # tests: two more flaky pair tests on real-time windows (couchcore retention nested locks; couchcmd capture PTY boundaries)
