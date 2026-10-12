@@ -50,6 +50,10 @@ delivery waits "for picker to close" until someone presses Enter in the pane.
       never went hidden (OSC ahead of the paint) doesn't clear; agents without
       the flag keep the Enter-only rule.
 - [ ] Live check: a peer message to an idle slot showing a suggestion submits.
+      Deferred to the TL (ops:0, 2026-10-12): after the next batched pair:0
+      build, Couch restart and slot relaunch, the TL messages a relaunched slot
+      that had a picker auto-denied, or the closest repro. The replayed-screen
+      tests are this close's verification.
 
 ## Log
 
