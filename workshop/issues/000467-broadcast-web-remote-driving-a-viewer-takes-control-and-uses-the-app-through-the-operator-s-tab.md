@@ -5,8 +5,8 @@ deps: [000466, 000458, 000460]
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
-estimate_hours:
-card_mirror: '56b70ba3c86c078b5824fe3a98694b860f93723d' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 6.17
+card_mirror: 'b3ce5b18eaf59c4cc8243ceca5f562446cfc5a20' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T06:23:45-07:00
 claimant:
     operator: Xian Xu
@@ -40,6 +40,36 @@ Build remote driving for internal viewers (the operator, 10-12; MVP), against th
 - The operator's two-device smoke test runs after landing, in the session the TL batches; anything it finds becomes a follow-up (see Revisions).
 - Couch tells the operator that uploads and downloads are off while a viewer drives; a JS dialog gives the driver a fixed sentence, not a 500.
 - Tests: `RunInjectorContract` over the real `TabInjector` rules; a live headless-Chrome injection test (attribution, file chooser, download, new target, stale, refused); the drive routes; the viewer's drive module (unit + live, mouse and touch); Couch's span and menu; the recorded `driven` fixture passes the coverage checks.
+
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module      design=0.04 impl=0.2
+item: smaller-go-module      design=0.02 impl=0.1
+item: smaller-go-module      design=0.06 impl=0.25
+item: greenfield-go-module   design=0.1 impl=0.35
+item: smaller-go-module      design=0.04 impl=0.25
+item: greenfield-go-module   design=0.1 impl=0.3
+item: greenfield-go-module   design=0.1 impl=0.32
+item: smaller-go-module      design=0.06 impl=0.25
+item: tui-screen             design=0.2 impl=0.45
+item: tui-screen             design=0.15 impl=0.4
+item: cross-cutting-refactor design=0.1 impl=0.4
+item: atlas-docs             design=0.1 impl=0.08
+item: milestone-review       design=0.0 impl=0.4
+item: milestone-review       design=0.0 impl=0.4
+item: milestone-review       design=0.0 impl=0.4
+item: milestone-review       design=0.0 impl=0.4
+design-buffer: 0.15
+total: 6.17
+```
+
+Items, in order: `Tab`/`TabInjector` + fake tab; `MemController` rename; observer hold/take + `Observe(by)`;
+`Recorder.WithTab` + `cdpAct`; live headless injection test; `Chrome.SetDriving` guards, dialog signal, banner; drive
+routes + Attach + Cast wiring; `drive.js` pure parts; shell mount + live test (mouse, touch, keyboard); Couch span +
+menu + notice; recorded `driven` fixture + consumers deriving from data; atlas; four milestone reviews.
 
 ## Plan
 
