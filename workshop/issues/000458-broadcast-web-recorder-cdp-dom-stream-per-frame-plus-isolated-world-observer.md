@@ -1,12 +1,12 @@
 ---
 id: 000458
-status: working
+status: codecomplete
 deps: [000457]
 github_issue:
 created: 2026-10-11
 updated: 2026-10-12
 estimate_hours: 4.12
-card_mirror: '927ac96d02e7601d5fdbfbd4b47662c279132738' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '448f82e3133f31320b4077997c8e1a0486b05e44' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T00:53:17-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 1.97
 ---
 
 # broadcast-web: recorder — CDP DOM stream per frame plus isolated-world observer
