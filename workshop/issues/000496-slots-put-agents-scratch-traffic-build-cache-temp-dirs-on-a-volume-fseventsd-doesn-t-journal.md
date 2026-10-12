@@ -39,22 +39,23 @@ Keep the churn where nothing watches it:
 
 ## Plan
 
-Design (draft, pending operator review):
-- **Mechanism: an operator-owned session environment file, read by the pair launcher.** `$XDG_CONFIG_HOME/pair/env` (default `~/.config/pair/env`), `KEY=VALUE` lines (comments and blanks allowed). The launcher applies it next to its existing `PAIR_*` exports (`launcher/createflow.go:745`), so every pair session inherits it: Couch slots (Couch to `pair resume` to launcher) and hand-started `pair` alike. Pair stays free of knowledge about volumes, Go, or Claude (agent-agnostic, no hardcoded paths); the operator's shell profile is untouched. `PAIR_*`/`COUCH_*` keys are refused, because the launcher owns those. A missing file is a no-op. A malformed line fails the launch loudly with file:line (ARCH-SECURE: parse to typed pairs at the boundary).
-- Pure parser `ParseSessionEnv([]byte) ([]EnvPair, error)` with unit tests; a thin IO read in the launcher (ARCH-PURE). Couch needs no change, since `mergeChildEnvironment` passes inherited keys through.
-- **Operator's file content** (outside the repo, approval required):
-  `GOCACHE=/Volumes/AgentScratch/go-build`, `TMPDIR=/Volumes/AgentScratch/tmp`, `GOTMPDIR=/Volumes/AgentScratch/tmp`, `CLAUDE_CODE_TMPDIR=/Volumes/AgentScratch/tmp`. The last one should move Claude Code's sandbox temp area (today `/private/tmp/claude-501/...`); this needs live verification.
-- **Claude sandbox:** sandboxed commands get Claude's own `TMPDIR`, and writes outside the allowlist are denied. That needs `sandbox.filesystem.allowWrite: ["/Volumes/AgentScratch"]` in `~/.claude/settings.json`, which the operator edits.
-- **Lifecycle (ARCH-FUNERAL):** Go's cache trims itself (entries unused for 5 days). Leaked temp dirs have no sweep; the volume quota bounds them, and the documented teardown is deleting the volume. An optional periodic sweep stays a separate decision.
-- Constraints (ARCH-CONSTRAINTS): the file is read once per launch (a few lines; startup path). ARCH-ORDER: holds no state between events, because the file is read once at launch. ARCH-MOCK: N/A, no external dependency.
+Configuration, not code (operator, 10-12). Each tool already has a per-user setting that isn't the shell profile:
+- Go: `go env -w GOCACHE=… GOTMPDIR=…` (Go's own `~/Library/Application Support/go/env`), which covers every Go invocation: slots, hand-started pair, and the operator's own terminal.
+- Claude Code: `~/.claude/settings.json`, with `env.CLAUDE_CODE_TMPDIR` (the sandbox replaces `TMPDIR` per command, so this is what moves test temp roots) plus `sandbox.filesystem.allowWrite` for the volume.
+- Volume: case-insensitive APFS in container disk3, 200 GB quota, `.fseventsd/no_log`, `mdutil -i off`, Time Machine exclusion. Lifecycle (ARCH-FUNERAL): Go trims its cache itself; leaked temp dirs are bounded by the quota; teardown deletes the volume.
+- Other agents (Codex etc.) need their own temp-dir equivalent; the runbook lists it.
 
 Steps:
-- [ ] Parser + tests; launcher wiring + test that the env reaches the child exports
-- [ ] atlas: setup / teardown runbook (volume, `no_log`, `mdutil`, env file, sandbox allowWrite)
-- [ ] (approved) create the volume, `no_log`, `mdutil -i off`, env file, sandbox allowWrite
-- [ ] Relaunch slots; verify `go env GOCACHE` and `TMPDIR` inside a slot, sandboxed and not
-- [ ] Measure fseventsd after a multi-slot workload; compare with the baseline in Log
+- [ ] (approved) create the volume; `no_log`; remount; `mdutil -i off`; tmutil exclusion; dirs
+- [ ] (approved) `go env -w`; Claude settings `env` + `allowWrite`
+- [ ] Verify in a fresh session: `go env GOCACHE`, sandboxed and unsandboxed `TMPDIR`, a test run writing to the volume
+- [ ] atlas runbook: setup and teardown
+- [ ] Measure fseventsd after a multi-slot workload, compared with the baseline
 - [ ] (approved) remove the old 92 GB cache
+
+## Revisions
+
+- 2026-10-12 13:55: dropped the pair `~/.config/pair/env` launcher channel. Reason: each tool's own per-user config covers every session (including outside pair), and Claude's sandbox overrides an inherited `TMPDIR` anyway, so a pair channel adds a surface that does nothing extra (Simplicity First). Delta: no code; the repo change is the atlas runbook only.
 
 ## Log
 
