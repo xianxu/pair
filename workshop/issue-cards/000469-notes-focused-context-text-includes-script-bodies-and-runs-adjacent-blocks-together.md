@@ -1,6 +1,6 @@
 ---
 id: 000469
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 9a8b36a714da56bebd08ea85f4aa14920697b151
         evidence_commit: 7b816d01af882f0610a6b210c39feef8c5e2ecf3
+        landed_commit: e5ff7d9ce796be4253c602ead96d33c9aa741809
 ---
 
 # notes: focused-context text includes script bodies and runs adjacent blocks together
