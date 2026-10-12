@@ -51,6 +51,7 @@ Replace each real timer or sleep with the event or count it stands for: an injec
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — 14 tests (12 listed + TL's orientation deadline + split-shortcut) now wait on events/counts/injected timers; each window proven by widening (old fails, new passes); 200x -race soak per touched test with all packages concurrent: green (1 soak failure found+fixed, re-soaked 200x); make -k test exit 0 + go test ./... exit 0; no-atlas: new seams (loopTimer, registrationDeadline, BirthClock) are test hooks defaulting to wall clock, no new surface; review verdict: SHIP
 
 Every cause below was proven by widening its window with a temporary sleep (the old test failed every run), and the fix was rerun with the same widening and passed. None of these races was in the product; three product seams were added so tests can cause the event themselves (ARCH-MOCK: the seam is the production timer with an injectable source, nil = wall clock).
 
