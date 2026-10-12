@@ -1,6 +1,6 @@
 ---
 id: 000491
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 0134f9dbd86e2b809da5c33d14953f9e59a61ff0
         evidence_commit: b5f494614524efda933da25633974bb6caf2501f
+        landed_commit: fc02a296e2d7accdb1913f70a23b6f34030827e1
 ---
 
 # couch: group the tab bar by hub — the hub first, its slots to its right, grouped by repo
