@@ -23,6 +23,9 @@ import (
 // that a terminal exists.
 type PtyRunner struct {
 	LaunchHelper string
+	// Nice is the niceness a blocked start's process group runs at; 0 leaves
+	// it at Couch's own (#498).
+	Nice int
 	// Environment prepares the advertised terminal profile once at the composition root.
 	Environment func() ([]string, error)
 	// Observer is installed before the child's first output can be parsed.
@@ -58,7 +61,7 @@ func (r *PtyRunner) Start(dir string, argv, env []string) (Handle, error) {
 }
 
 func (r *PtyRunner) StartBlocked(ctx context.Context, dir string, argv, env []string, timeout time.Duration) (BlockedHandle, error) {
-	return startBlockedChild(ctx, r.start, r.LaunchHelper, dir, argv, env, timeout)
+	return startBlockedChild(ctx, r.start, r.LaunchHelper, r.Nice, dir, argv, env, timeout)
 }
 
 func (r *PtyRunner) start(dir string, argv, env []string, extraFiles []*os.File) (Handle, error) {
