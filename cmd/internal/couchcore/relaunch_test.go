@@ -27,8 +27,6 @@ type relaunchEnv struct {
 func envWithLiveThread(t *testing.T) (*relaunchEnv, ThreadRecord) {
 	t.Helper()
 	env := newTestEnv(t, "/repo")
-	now := env.Now
-
 	record := validThreadRecord(t)
 	record.StartingPath, record.WorkingPath = "/repo", "/repo"
 	record.Reservation = false
@@ -42,12 +40,20 @@ func envWithLiveThread(t *testing.T) (*relaunchEnv, ThreadRecord) {
 		t.Fatal(err)
 	}
 
+	return withParkLifecycle(t, env, live, 42, "pair-helper"), live
+}
+
+// withParkLifecycle wires a park that completes for one live thread (its
+// helper pid and identity), plus a Runner that publishes resumed sessions.
+func withParkLifecycle(t *testing.T, env *testEnv, live ThreadRecord, pid int, identity string) *relaunchEnv {
+	t.Helper()
+	now := env.Now
 	model := pairlifecycletest.New(now)
 	model.SetSession("pair-exact", true)
 	lifecycle := &fakeControllerLifecycle{model: model, store: env.Couch.Threads}
 	env.Artifacts.SetPairSession(live.Address, "pair-exact", true)
 	env.Artifacts.SetNativeBinding(live.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
-	env.Proc.Set(42, "pair-helper")
+	env.Proc.Set(pid, identity)
 
 	// A park that completes: the trigger delivers the completion and the exact
 	// child dies, which is what the real Pair does.
@@ -57,7 +63,7 @@ func envWithLiveThread(t *testing.T) (*relaunchEnv, ThreadRecord) {
 		}
 		completion := successCompletion(lifecycle.lastRequest, now)
 		lifecycle.completion = &completion
-		env.Proc.Kill(42)
+		env.Proc.Kill(pid)
 		if err := model.CommitCompletion(lifecycle.lastRequest, pairlifecycle.CleanupResult{
 			Outcome: pairlifecycle.CompletionSuccess, CompletedAt: now,
 		}); err != nil {
@@ -76,7 +82,7 @@ func envWithLiveThread(t *testing.T) (*relaunchEnv, ThreadRecord) {
 		Nonce:             func() (string, error) { return "park-relaunch-0123", nil },
 		CompletionTimeout: time.Second, PollInterval: time.Millisecond,
 	}
-	return &relaunchEnv{testEnv: env, Lifecycle: lifecycle, model: model}, live
+	return &relaunchEnv{testEnv: env, Lifecycle: lifecycle, model: model}
 }
 
 // The property that makes relaunch safe to offer at all. Park is destructive

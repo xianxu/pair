@@ -313,7 +313,7 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			return c.SwitchAgent(ctx, SwitchAgentRequest{Address: address, Agent: a["agent"], Argv: *argv, AcceptedFingerprint: a["fingerprint"]})
 		case "reboot":
 			if path := a["path"]; path != "" {
-				return c.Reboot(ctx, RebootTarget{Path: path, Agent: a["agent"]})
+				return c.Reboot(ctx, RebootTarget{Path: path, Agent: a["agent"], RequireSettled: a[requireSettledArg]})
 			}
 			// Exact-tag addressing reaches unreadable records too: an
 			// unreadable :0 is the case reboot archives on its own.
@@ -321,7 +321,7 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			if err != nil {
 				return nil, err
 			}
-			return c.Reboot(ctx, RebootTarget{Address: address, Agent: a["agent"]})
+			return c.Reboot(ctx, RebootTarget{Address: address, Agent: a["agent"], RequireSettled: a[requireSettledArg]})
 		case "reap":
 			if path := a["path"]; path != "" {
 				return c.Reap(ctx, ReapTarget{Path: path})

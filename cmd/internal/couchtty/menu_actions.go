@@ -112,6 +112,11 @@ func menuRowActions(f menuRowFacts) []string {
 				items = append(items, "retry-continuation", "dismiss-continuation")
 			}
 		}
+		// Reboot (pair#456) is the way out when relaunch has no conversation
+		// to resume. Not under a failed request: its guard would refuse.
+		if f.Phase == menuPhaseLive {
+			items = append(items, "reboot")
+		}
 		if f.Kind == menuRowPrimary && f.AliasOffered {
 			items = append(items, "alias")
 		}

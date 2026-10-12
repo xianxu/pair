@@ -317,6 +317,12 @@ couch --reload-context pair:3 --confirm
   the current binary, keeping the conversation. **`--reload-context`** is
   Shift+Alt+N: a fresh agent conversation in the same Pair, with no new
   binary. Both work only from a live Couch slot and return a receipt.
+- **`--reboot` on a live slot** (pair#456) is the way out when relaunch
+  refuses `resume-binding-unbound` or `resume-binding-provisional` (a session
+  that never finished a turn, or an old-wrapper Codex slot): it stops the slot
+  and starts a fresh agent on the current binary, discarding the conversation.
+  It shares relaunch's `busy`/`busy-unknown` (`--force-unknown`) refusals; a
+  dirty tree is only noted. The console's form is `Tab → reboot`.
 - **Refusals name the fix:**
   - `busy`: a turn is open, the composer holds text, or input is recent.
     Retry later.

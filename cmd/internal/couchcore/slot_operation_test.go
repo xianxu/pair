@@ -514,3 +514,44 @@ func TestRequireSettledProducerToConsumer(t *testing.T) {
 		}
 	}
 }
+
+// pair#456: reboot of a LIVE slot takes the live admission, not the offer
+// table: busy refuses, unknown needs --force-unknown, a dirty tree is only
+// noted, and the call keeps reboot's slot dialect plus admission's verdict.
+func TestPrepareSlotOperationRebootLive(t *testing.T) {
+	t.Parallel()
+
+	env, address, created := liveSlotFixture(t)
+	ctx := context.Background()
+	idle := LiveRestartFacts{Live: true, Session: true, SettledKnown: true, Settled: true, GitKnown: true, Dirty: true}
+	probe := &fakeLiveRestartProbe{facts: idle}
+	env.Couch.LiveRestart = probe
+	call, note, err := env.Couch.PrepareSlotOperation(ctx, OpReboot, address, LiveRestartOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if call.Name != OpReboot || call.Args["path"] != created.StartingPath || call.Args[requireSettledArg] != settledKnownValue {
+		t.Fatalf("call = %+v (probe asked %v)", call, probe.asked)
+	}
+	if !strings.Contains(note, "uncommitted changes") {
+		t.Fatalf("dirty tree not reported: %q", note)
+	}
+	busy := idle
+	busy.Settled = false
+	probe.facts = busy
+	if _, _, err := env.Couch.PrepareSlotOperation(ctx, OpReboot, address, LiveRestartOptions{}); slotOperationCode(err) != LiveRestartBusy {
+		t.Fatalf("busy: %v", err)
+	}
+	unknown := idle
+	unknown.SettledKnown = false
+	probe.facts = unknown
+	if _, _, err := env.Couch.PrepareSlotOperation(ctx, OpReboot, address, LiveRestartOptions{}); slotOperationCode(err) != LiveRestartBusyUnknown {
+		t.Fatalf("unknown: %v", err)
+	}
+	if call, _, err := env.Couch.PrepareSlotOperation(ctx, OpReboot, address, LiveRestartOptions{ForceUnknown: true}); err != nil || call.Args[requireSettledArg] != settledForcedValue {
+		t.Fatalf("forced: %+v %v", call.Args, err)
+	}
+	if !SlotOperationTakesForceUnknown(OpReboot) {
+		t.Fatal("--force-unknown not accepted for reboot")
+	}
+}

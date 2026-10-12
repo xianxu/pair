@@ -404,7 +404,9 @@ couch --session-sync read|write|diff|status ... FILE
                          lists owed deliveries (see couch --skill)
 couch --recover-plan-from-sdlc   per-slot recovery report (JSON), see below
 couch --resume repo:N [--json]   from a live slot: resume that slot's agent
-couch --reboot repo:N --confirm [--json]   from a live slot: archive and replace it
+couch --reboot repo:N --confirm [--force-unknown] [--json]
+                         from a live slot: archive and replace it with a fresh agent on the current binary;
+                         a live target is stopped first unless busy (busy-unknown needs --force-unknown)
 couch --reap repo:N --confirm [--json]     from a live slot: end an orphaned server's tree
 couch --recover repo:N [--json]               from a live slot: run the report's steps for it
 couch --relaunch repo:N --confirm [--same-binary] [--force-unknown] [--json]
@@ -987,7 +989,9 @@ steps the recovery report computes for that row (resume; reap then resume for an
 orphaned server; or reboot), asks for confirmation when they include reap or
 reboot, and refuses with the report's hold when there is no safe step.
 `Tab → reboot` archives a conversation that will not come back
-and starts a fresh agent in its place (see below). The archived record can be
+and starts a fresh agent in its place (see below). On a live row it stops the
+running agent first (a known-busy one refuses): the way out when relaunch has no
+conversation to resume, such as a session that never finished a turn. The archived record can be
 restored by moving the file back from `threadstore/archive/` and re-adding its
 address to the manifest. `couch --archived` lists what has been retired. `Escape` clears
 the filter or returns to an attached actor;
