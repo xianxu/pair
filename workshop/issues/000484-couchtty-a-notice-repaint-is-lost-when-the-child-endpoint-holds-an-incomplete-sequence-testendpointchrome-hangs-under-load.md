@@ -6,7 +6,7 @@ github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: 'd5d4d362d538fac87b418c83d47059975fffbba8' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '5d5b1c7b0fc16b50c4d079836f735569ba3aa974' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T10:28:32-07:00
 claimant:
     operator: Xian Xu
@@ -16,7 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "b00bd64d", done: "75e14700"}
-actual_hours: 1.02
+actual_hours: 1.03
 ---
 
 # couchtty: a notice repaint is lost when the child endpoint holds an incomplete sequence (TestEndpointChrome* hangs under load)
