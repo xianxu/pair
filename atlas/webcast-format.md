@@ -236,18 +236,28 @@ same records out, and `Server.events` sends them as `rec` events. The route, the
 - `resolveAsset(absURL)` returns the proxy URL for an asset, or nothing;
 - `canonical()` exports the rebuilt DOM in `State.Canonical()`'s shape.
 
-Conformance means that, for every fixture at each of its `frame` times, `canonical()` equals the Go golden
-(`testdata/fixtures/<name>/canonical/<t>.json`), and the render is within tolerance of `frames/<n>.png`.
+Conformance means that, for every fixture at each pinned time (its `frame` times), `canonical()` equals the reducer's
+`State.Canonical()`, and the render is within tolerance of `frames/<n>.png`. The fixture pins each expected state by
+hash (`canonical.sha256`). The expected value itself is printed on demand
+(`fixturegen -canonical <fixture> -at <t>`), so the reducer stays its only source.
 
 ## Fixtures
 
-The fixtures were recorded by #453's prototype recorder (branch `453-recorder-prototypes`, mode B, headless Chrome) and
-converted to this format by `recording/internal/fixturegen`, with a few notes and strokes added on known elements. The table is filled when they
-are checked in.
+The fixtures are in `cmd/internal/webcast/recording/testdata/fixtures/`; their README says how to regenerate them, and
+what they leave out. The three real ones were recorded by #453's prototype recorder (branch `453-recorder-prototypes`,
+mode B, headless Chrome 154). For #457 the recorder was patched to add layout boxes, click and focus capture, and asset
+bodies. `recording/internal/fixturegen` converted them to this format. The converter applies everything it emits to a
+reducer, so a fixture validates by construction. It counts every record the reducer refuses (none in these runs). A few
+notes and strokes are placed on known elements. `TestFixtureCoverage` holds each fixture to the cases below, so a
+regenerated one can't silently lose a case.
 
 | Fixture | Page | Covers |
 |---|---|---|
-| `stress` | #453's stress page | busy re-renders, cross-origin iframe, open and closed shadow roots, `insertRule`, `adoptedStyleSheets`, form values set by script, inner scroll, SVG, `<template>`, `<details>`, FontFace font |
-| `app` | #453's React + Tailwind app | typing, clicks, focus, a modal, Tailwind's runtime `<style>` over 10k characters, a cross-document navigation (a second segment) |
-| `blog` | the operator's blog (xianxu.dev, `npm run dev`) | a real Astro + Tailwind page: the Inter variable font, images, scrolling |
-| `segments` | hand-written | pause and resume, a tab switch, id stability across resume, catch-up |
+| `stress` (7 s, 1.5 MB) | #453's stress page | Busy re-renders (3,000 inserts, 1,000 `kids`), a cross-origin iframe, open and closed shadow roots, `insertRule` (owned sheets), `adoptedStyleSheets`, checkbox and select state set by script, inner scroll, SVG, `<template>`, a FontFace font (its file is left out: a macOS system font) |
+| `app` (22 s, 0.5 MB) | #453's React + Tailwind app | Typing, clicks, focus, a modal, Tailwind's runtime `<style>` over CDP's 10k text cut, and a cross-document navigation (a second segment). A note is resolved. |
+| `blog` (12 s, 2 MB) | The operator's blog post `ariadne-1-building-blocks-of-ai-coding` (Astro + Tailwind, `npm run dev`) | Images, the Inter woff2 font, stylesheets, page scrolling, layout, and the giscus cross-origin iframe |
+| `segments` (hand-made) | `fixturegen -segments` | Pause and resume with ids kept, an edit while paused, a tab switch, a same-document navigation; notes span the resume and clear on the switch |
+
+Gaps found while recording, for #458:
+- **Clicks:** the prototype's polled observer lost the click that navigates, so clicks must be reported synchronously.
+- **Layout:** `DOMSnapshot` on the top session leaves out out-of-process frames, so each frame session needs its own capture.

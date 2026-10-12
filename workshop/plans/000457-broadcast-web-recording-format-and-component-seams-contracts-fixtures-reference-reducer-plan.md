@@ -173,3 +173,12 @@
 - [ ] Tell the TL (ops:0) the format page is ready for the operator's review; fold in the review as a `## Revisions` entry.
 - [ ] Full `make test` (memory: default `make -k test`, scratchpad TMPDIR for test-changelog, then `go test ./...`).
 - [ ] `sdlc close`, then merge main, `sdlc pr`, `sdlc merge --yes`, report to ops:0.
+
+## Revisions
+
+### 2026-10-11 23:5x — during implementation
+- **Goldens become pins.** The plan had `canonical/<t>.json` goldens per fixture. At the stress page's size that is megabytes of JSON, and a second copy of what the reducer already computes. Instead each fixture keeps `canonical.sha256` (t → hash of `State.Canonical()`), and `fixturegen -canonical DIR -at T` prints the expected value on demand (ARCH-DRY: the reducer is its only source). The viewer conformance check compares against that output.
+- **Resume means "same document".** `seg.why: resume` is going live again on the document shown before the pause; a different document (navigated while paused) is `navigate`. `State.DocSeg` records where the current document began. `CatchUp` and the notes model's `Live` carry a document's notes across a resume. That is what "notes clear on reload", together with "pause/resume continues from the tab's state", requires.
+- **Contract suites take `recording.TB`**, not `*testing.T`, so product packages don't import `testing`.
+- **Fixture coverage is asserted** (`TestFixtureCoverage`), and the fixtures have a size budget (4.5 MB; 4.0 MB used). A regenerated fixture therefore can't silently lose a case or grow without notice.
+- **Stress fixture:** the FontFace font's body (Apple Chancery, a macOS system font) is excluded from the repository; the `font` record stays.

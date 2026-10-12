@@ -2,7 +2,8 @@
 
 `couch broadcast-web` casts a Chrome tab from Couch as a DOM stream (project: ops
 `teams/devinfra/projects/couch-broadcast-web/project.md`). This file maps the browser-control component;
-the recorder, asset proxy and DOM viewer come later and plug into the same seam.
+the recorder, asset proxy and DOM viewer come later and plug into the same seam. The recording format, its reducer and the wave-1 seams are in
+[webcast-format.md](webcast-format.md), which also names where the recorder plugs in here.
 
 ## Layers
 

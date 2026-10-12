@@ -48,12 +48,12 @@ Write the format as an atlas page (`atlas/webcast-format.md`).
 Durable plan: `workshop/plans/000457-broadcast-web-recording-format-and-component-seams-contracts-fixtures-reference-reducer-plan.md`. Format spec: `atlas/webcast-format.md`.
 
 - [x] Format and node-id scheme (atlas page)
-- [ ] Records and codec
-- [ ] Reference reducer and canonical state
-- [ ] Validator, directory layout, catch-up
-- [ ] Recorder-side seams and fakes (Sink, Live, FakeHub, FakeRecorder, live contract)
-- [ ] assets / notes / query interfaces with fakes and contract suites
-- [ ] Fixtures from #453's prototype and the blog (fixturegen), goldens
+- [x] Records and codec
+- [x] Reference reducer and canonical state
+- [x] Validator, directory layout, catch-up
+- [x] Recorder-side seams and fakes (Sink, Live, FakeHub, FakeRecorder, live contract)
+- [x] assets / notes / query interfaces with fakes and contract suites
+- [x] Fixtures from #453's prototype and the blog (fixturegen), canonical pins
 - [ ] Operator review of the format; close
 
 ## Log
@@ -62,3 +62,9 @@ Durable plan: `workshop/plans/000457-broadcast-web-recording-format-and-componen
 - Claimed at pair:3 from the TL's dispatch (ops:0). #454 landed meanwhile (PR #252); merged main, so the seam names `webcast.LaunchOptions`/`Server.events` directly.
 - #453's prototype runs were gitignored, so fixtures are re-recorded: prototype B in the scratchpad, extended with layout (`DOMSnapshot`), click/focus capture, `frameNavigated` and asset bodies. Chrome 154 headless. Blog page: `/2026/10/ariadne-1-building-blocks-of-ai-coding` on the dev server.
 - Found for #458: the prototype's 100ms observer poll loses a click that navigates (the page unloads first); `DOMSnapshot.captureSnapshot` on the top session leaves out OOPIF documents (layout for cross-origin frames needs a per-session capture).
+- `change-code` inferred the quick flow (design under 500 lines). The code is far past the shell's 100 lines, so close runs the full review. Pinning the flow is the operator's call, so I left it.
+- Built: `recording` (records and codec, a strict atomic reducer, Canonical, Validate/ValidateDir, CatchUp, DirWriter/ReadDir, Builder, Sink/Live, MemSink/FakeHub/FakeRecorder, RunLiveContract), and `assets`/`notes`/`query` (interface, fake, contract suite each). The live contract was mutation-checked: registering a subscriber outside the catch-up lock fails it.
+- Fixtures: the converter emits only what a live reducer accepts. 0 records dropped across 9.6k raw lines; regeneration is byte-identical. Sizes: stress 1.5 MB, blog 2.0 MB, app 0.5 MB.
+- Plan revisions (goldens → pins; resume = same document): see the plan's Revisions.
+- Not done here, by design: the fidelity render of fixtures against `frames/` belongs to the viewer (#460) and the recorder (#458). Both now have reference screenshots and pins to test against.
+
