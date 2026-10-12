@@ -1279,3 +1279,9 @@ proof; record the surprising case so the next change starts from evidence.
   fixture's own records; re-deriving then surfaced a case the old fixture never had (an open note whose element was
   removed). After retiring a data source, also sweep the tools that only produced it (`fixturegen -raw`) and any
   inventory that lists them.
+- **A capture at t waits for every asset bound by t, not one kind (#482).** The fidelity replay captured right after
+  the real-time window and waited only for a held paint's stylesheets. A font and an avatar that arrived 1 ms before
+  rec-blog's first frame were still loading in about 1 run in 8 under load. The diagnosis named the font, a second
+  slot's crops named the image, and both were one cause. When a capture flakes, look at the worst crop before fixing
+  a cause. Wait on the general readiness (sheets, fonts, images, bounded) after stopping the clocks at t, and pin it
+  with an asset bound just before the moment, which fails deterministically, not with a soak.
