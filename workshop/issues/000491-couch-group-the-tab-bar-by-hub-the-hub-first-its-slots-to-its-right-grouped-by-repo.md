@@ -47,7 +47,7 @@ Durable plan: `workshop/plans/000491-couch-group-the-tab-bar-by-hub-the-hub-firs
 - [x] `PresentThreads`: sections (hub row, then members grouped by repo), `hubOf` membership = the single hub today, `Hub` flag
 - [x] Tab bar: hub leftmost of its section, no marking, ` │ ` between sections; switcher: hub first line, its section indented one level; `[…]` stays the active marker
 - [x] Narrow widths: collapse `:N` into `+N`, then whole groups; red/hub/active/bell never collapsed
-- [ ] Atlas, README, skill; full suite; live check; operator smoke test via ops:0
+- [x] Atlas, README, skill; full suite; live check; operator smoke test via ops:0
 
 ## Log
 
@@ -60,3 +60,4 @@ Durable plan: `workshop/plans/000491-couch-group-the-tab-bar-by-hub-the-hub-firs
 - Mutation checks: the hub group split in `chipGroups`, the red keep in `chipKept`, the kept-chip fold loop, and the +2 indent each fail a #491 test when reverted. A redundant `!a.Hub` reset (the hub already forms its own group) survived its mutation and was removed.
 - The hub root is `hubWorktree`'s value, the same one `isHub` already matches against slot `WorktreeRoot`s in production, so its form matches the rows' paths.
 - Full suite: `make -k test` (retention env scrubbed, default TMPDIR) exits 0, 102 Go packages ok, no FAIL lines. Built and verified; waiting for the operator smoke test in the next batched Couch restart (with #488, #489), per ops:0.
+- Operator smoke test passed (TL relay: tab bar and switcher look right). Full suite green again on a59916070 after merging main (#488, #493).
