@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -31,6 +33,12 @@ const (
 	// (pair#435). The recipient takes one message at a time, so a pane left
 	// scrolled up blocks other senders for at most this long.
 	MaxHold = 30 * time.Minute
+	// A recipient takes one delivery at a time; messages sent meanwhile wait
+	// behind it in order (pair#492). MaxQueued bounds the line. QueueWait
+	// bounds a wait: past a full hold and its delivery, inside ReceiptLifetime
+	// so the expiry stays readable.
+	MaxQueued = 32
+	QueueWait = 45 * time.Minute
 )
 
 // Binding identifies one wrapper incarnation in one verified checkout. Slot is
@@ -121,12 +129,15 @@ var (
 )
 
 type ActorState struct {
-	binding                    Binding
-	connected                  bool
-	remaining, capacity        int
-	refilledAt                 time.Time
-	pending                    Message
-	phase                      Status
+	binding             Binding
+	connected           bool
+	remaining, capacity int
+	refilledAt          time.Time
+	pending             Message
+	phase               Status
+	// queue waits behind pending, oldest first. A queued message's Deadline is
+	// its latest promotion; Promote replaces it with the paste-by.
+	queue                      []Message
 	registeredAt, lastActivity time.Time
 }
 
@@ -135,8 +146,17 @@ func (s ActorState) Connected() bool          { return s.connected }
 func (s ActorState) Remaining() int           { return s.remaining }
 func (s ActorState) Capacity() int            { return s.capacity }
 func (s ActorState) Pending() (Message, bool) { return s.pending, s.pending.ID != "" }
-func (s ActorState) LastActivity() time.Time  { return s.lastActivity }
-func (s ActorState) RegisteredAt() time.Time  { return s.registeredAt }
+func (s ActorState) Queued() int              { return len(s.queue) }
+
+// QueueHead is the next message to promote.
+func (s ActorState) QueueHead() (Message, bool) {
+	if len(s.queue) == 0 {
+		return Message{}, false
+	}
+	return s.queue[0], true
+}
+func (s ActorState) LastActivity() time.Time { return s.lastActivity }
+func (s ActorState) RegisteredAt() time.Time { return s.registeredAt }
 
 // RemainingAt is the allowance at now, crediting refills no event has applied.
 func (s ActorState) RemainingAt(now time.Time) int { return s.refill(now).remaining }
@@ -168,6 +188,11 @@ const (
 	// or Delivering) to the sender's view of a delivery in flight.
 	DeliveryProgress EventKind = "delivery-progress"
 	Tick             EventKind = "tick"
+	// Promote makes the queue's head (Message.ID names it) the delivery once
+	// the recipient's wrapper reserved it (pair#492).
+	Promote EventKind = "promote"
+	// Cancel ends one queued message (Message.ID) with Detail.
+	Cancel EventKind = "cancel"
 )
 
 type Event struct {
@@ -191,8 +216,38 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 		return fail(errors.New("event observation time is required"))
 	}
 	var effects []Effect
-	emit := func(status Status, detail string) {
-		effects = append(effects, Effect{Receipt: Receipt{Message: s.pending, Status: status, Detail: boundedReceiptDetail(detail), RetainUntil: e.At.Add(ReceiptLifetime)}})
+	emitFor := func(m Message, status Status, detail string) {
+		effects = append(effects, Effect{Receipt: Receipt{Message: m, Status: status, Detail: boundedReceiptDetail(detail), RetainUntil: e.At.Add(ReceiptLifetime)}})
+	}
+	emit := func(status Status, detail string) { emitFor(s.pending, status, detail) }
+	// positions re-reports each queued message's place from index from on.
+	positions := func(from int) {
+		for i := from; i < len(s.queue); i++ {
+			emitFor(s.queue[i], Queued, "position "+strconv.Itoa(i+1))
+		}
+	}
+	// dequeue ends queued messages for which end returns true.
+	dequeue := func(end func(Message) bool, status Status, detail string) {
+		kept := s.queue[:0:0]
+		first := -1
+		for _, m := range s.queue {
+			if end(m) {
+				emitFor(m, status, detail)
+				if first < 0 {
+					first = len(kept)
+				}
+				continue
+			}
+			kept = append(kept, m)
+		}
+		s.queue = kept
+		if first >= 0 {
+			positions(first)
+		}
+	}
+	// A recipient going away ends its line in words a sender can act on.
+	leave := func() {
+		dequeue(func(Message) bool { return true }, Cancelled, s.binding.Slot+" disconnected (relaunched or exited) before delivery; resend")
 	}
 	finish := func(status Status, detail string) {
 		if s.pending.ID != "" {
@@ -222,6 +277,7 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 		}
 		if s.binding != e.Binding {
 			interrupt("wrapper incarnation replaced")
+			leave()
 			allowance := e.Allowance
 			if allowance <= 0 {
 				allowance = InboundAllowance
@@ -240,6 +296,7 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 	}
 	if e.Kind == Disconnect {
 		interrupt("wrapper disconnected")
+		leave()
 		s.connected = false
 		return s, effects, nil
 	}
@@ -251,6 +308,7 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 			}
 			finish(status, "delivery deadline elapsed")
 		}
+		dequeue(func(m Message) bool { return !e.At.Before(m.Deadline) }, Expired, "waited in the queue past "+QueueWait.String()+"; resend if still needed")
 		return s, effects, nil
 	}
 	if !s.connected {
@@ -270,11 +328,17 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 		if !validMessageID(m.ID) || m.To != s.binding || m.From.Validate() != nil || ValidateBody(m.Body) != nil || !m.Deadline.After(e.At) {
 			return fail(errors.New("invalid message admission"))
 		}
-		if s.pending.ID != "" {
-			if m == s.pending {
+		if m.ID == s.pending.ID {
+			return s, nil, nil
+		}
+		for _, q := range s.queue {
+			if q.ID == m.ID {
 				return s, nil, nil
 			}
-			return fail(ErrRecipientBusy)
+		}
+		busy := s.pending.ID != "" || len(s.queue) > 0
+		if busy && len(s.queue) >= MaxQueued {
+			return fail(fmt.Errorf("%w: %d messages already wait", ErrRecipientBusy, MaxQueued))
 		}
 		// A self-addressed message comes from inside the recipient's own
 		// session: the operator's session-sync submit (parley.nvim#313). It
@@ -286,9 +350,31 @@ func Advance(s ActorState, e Event) (ActorState, []Effect, error) {
 		} else {
 			s.remaining--
 		}
+		if busy {
+			m.Deadline = e.At.Add(QueueWait)
+			s.queue = append(slices.Clip(s.queue), m)
+			positions(len(s.queue) - 1)
+			break
+		}
 		s.pending = m
 		s.phase = Queued
 		emit(Queued, "")
+	case Promote:
+		head, ok := s.QueueHead()
+		if s.pending.ID != "" || !ok || head.ID != e.Message.ID {
+			return fail(errors.New("promotion is not of the queue's head behind an idle recipient"))
+		}
+		if !e.At.Before(head.Deadline) {
+			return fail(errors.New("queued message expired before promotion"))
+		}
+		s.queue = s.queue[1:]
+		head.Deadline = e.At.Add(PasteTimeout)
+		s.pending = head
+		s.phase = Queued
+		emit(Queued, "")
+		positions(0)
+	case Cancel:
+		dequeue(func(m Message) bool { return m.ID == e.Message.ID }, Cancelled, e.Detail)
 	case DeliveryStarted:
 		if s.pending.ID == "" || e.Message != s.pending {
 			return s, nil, nil
