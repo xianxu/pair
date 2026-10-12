@@ -1,12 +1,20 @@
 ---
 id: 000466
-status: open
+status: working
 deps: [000457]
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '4e8d7a6863519a3a28fed2b90f85eabf360c485f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '4a4b0130f7d74944de2387af2814e6c6dd77a6e5' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T00:53:57-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
 ---
 
 # broadcast-web: remote-driving contract — viewer input, driver control, attribution in the format
