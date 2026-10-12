@@ -1,6 +1,6 @@
 ---
 id: 000453
-status: codecomplete
+status: done
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: e2313925a654d41f67f5dcc265dc8aa121d37e6b
         evidence_commit: 89f6ae15cd13e7359bdd59266a2693ebc41a13c5
+        landed_commit: af80c95b4bc17031a7bd3ff3fc13a688a9465652
 ---
 
 # broadcast-web: decide the recorder base by prototype (rrweb vs our own on CDP)
