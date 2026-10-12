@@ -154,8 +154,11 @@ func (t *cdpTab) At(x, y float64) (rec.NodeID, error) {
 	var res struct {
 		BackendNodeID int `json:"backendNodeId"`
 	}
+	// Not into user-agent shadow DOM: an <input>'s inner editor isn't a
+	// node the recording has (measured: every click on an input read as
+	// stale).
 	err := t.r.inputCall(t.r.top, "DOM.getNodeForLocation", map[string]any{
-		"x": int(x - s[0]), "y": int(y - s[1]), "includeUserAgentShadowDOM": true, "ignorePointerEventsNone": true,
+		"x": int(x - s[0]), "y": int(y - s[1]), "includeUserAgentShadowDOM": false, "ignorePointerEventsNone": true,
 	}, &res)
 	if errors.Is(err, drive.ErrDialog) {
 		return 0, err

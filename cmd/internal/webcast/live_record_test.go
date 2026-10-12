@@ -144,6 +144,9 @@ func (h liveHarness) eval(t *testing.T, expr string, out any) {
 			(*p)[k] = f
 		}
 	}
+	if p, ok := out.(*string); ok {
+		*p, _ = r.Result.Value.(string)
+	}
 }
 
 // center scrolls an element into view (headless Chrome's window is 800×600)

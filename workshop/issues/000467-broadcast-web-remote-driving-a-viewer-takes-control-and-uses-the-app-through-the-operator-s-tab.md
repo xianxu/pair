@@ -86,6 +86,11 @@ menu + notice; recorded `driven` fixture + consumers deriving from data; atlas; 
 - Claimed at pair:6 on the TL's dispatch (ops:0, receipt 7dd881f0 verified). Read #466's atlas sections plus the recorder, Chrome loop, server, viewer and Couch seams. No real Controller or Injector existed; the recorder never stamped `by`; `Presence` was unused in production.
 - Attribution design: hold/take the observer's queue inside the recorder-queue input that dispatches, not an arrival-time window (which would race a revoke and get a real click refused by the reducer).
 - TL approved decisions 1–7 (ops:0, 2efb3d52). It added two asks: a Couch notice and menu line that uploads and downloads are off while someone drives, and a fixed dialog sentence. The smoke test moves after landing.
+- M1 built: `drive.Tab`/`TabInjector` (the rules once, fake and real), `MemController` (renamed fake), observer hold/take + `Observe(by)`, `Recorder.WithTab`/`Opened`/dialog signal, `cdpAct`, `Chrome.SetDriving` (downloads deny, file-chooser intercept on every page session, opener-matched new targets closed before the tracker sees them, banner), drive routes + `admitBody` shared with the board, `liveGate`, `Cast.Drive()`.
+- Deviation from plan: the file-chooser intercept goes on every page session (and every page attached while driving), not just the cast tab — decision 5's "one rule"; the cast tab is the only one input reaches anyway. `castTab` reads the tracker's active tab while live rather than `recTab` (which is only set with a recorder).
+- Live (real headless Chrome) caught a bug the fakes couldn't: `DOM.getNodeForLocation` with `includeUserAgentShadowDOM:true` returns an `<input>`'s inner editor, which the recording doesn't have, so every click on an input read as stale. Now false.
+- Live confirms the dialog residual: an alert opened by the driver's click returns ErrDialog in < 3 s; the click itself is released by the expired hold after the operator answers, without `by` (documented class). Download deny: the request reaches the server once, and the transfer is denied by the CDP setting (asserted in the loop test; no download dir to read in headless).
+- Verified: `go test ./cmd/internal/webcast/... -race` green; `WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast` green (135 s, all live suites); `TestLiveDrive` 3/3; FuzzDriveInput 20 s.
 
 ## Revisions
 
