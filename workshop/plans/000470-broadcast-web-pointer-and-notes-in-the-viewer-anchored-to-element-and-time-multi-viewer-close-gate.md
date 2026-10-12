@@ -307,6 +307,57 @@ rounds:
       isolation: fenced
       reviewed: 5a1350e86eb97b15d057fee651d6949e9e129bb7
       blocked: false
+    - "n": 8
+      timestamp: "2026-10-12T04:52:15-07:00"
+      dispatched: "2026-10-12T04:44:50-07:00"
+      agent: claude
+      dispose:
+        - id: BR-3
+          disposition: not-addressed
+          note: The order (dir, board, hub) in recordingOutput is still correct, but still no test pins it.
+          round: 8
+        - id: BR-4
+          disposition: not-addressed
+          note: Still bounded only by 1e6 px. Deferred to wave 3, where NoteCrops gets its first production caller.
+          round: 8
+        - id: BR-7
+          disposition: not-addressed
+          note: No shared conformance contract between board.Writer and the recorder's Emit path yet.
+          round: 8
+        - id: BR-12
+          disposition: not-addressed
+          note: answered() and the toast exist but are untested. Unchanged since round 5.
+          round: 8
+        - id: BR-14
+          disposition: not-addressed
+          note: endGesture runs on a docSeg change, but no test covers a stroke that spans a navigation.
+          round: 8
+        - id: BR-16
+          disposition: not-addressed
+          note: endGesture covers every boundary, but no test drives a drag across a mode change or the cast's end.
+          round: 8
+        - id: BR-19
+          disposition: addressed
+          note: validName uses /[\p{Cc}\p{Cf}]/u (annotate.js:63), the board's nameText predicate. beforeSave checks it before setName. The node test covers U+2067, U+061C, U+180E, U+FFF9, U+E0041 and U+0085, which the old class let through. Tests pass.
+          round: 8
+        - id: BR-20
+          disposition: addressed
+          note: 'The atlas now says the live viewer draws with liveNotes, pinLayer and paintStrokes. strokesAt is the at-t counterpart, and #477 converges drawMarks onto it. This is prose-only and correct against annotate.js.'
+          round: 8
+        - id: BR-24
+          disposition: not-addressed
+          note: The prune loop in applyWebNotes (console_notes.go:431-435) is still untested. Removing it fails no test.
+          round: 8
+      findings:
+        - id: BR-25
+          severity: Important
+          title: 'TestWebNotesMenuSourceAndStableIDs fails about half the time under -race: it writes web-menu state off the terminal loop while the cast''s delivery goroutine also writes it'
+          detail: 'This is the 2nd finding in family shared-state-loop-confinement. Rule: web-menu state is written only on the terminal loop, by its single producer (applyWebNotes from the cast.Notes loop), and tests included. The test sets c.pnotes.webItems directly at console_webnotes_test.go:173 and :199, while console_webcast.go:136-147 delivers the board''s first snapshot ([]) concurrently. settleMenuLocked then closes the menu. Measured: 10 of 20 runs fail with -count=20 -race and 0 of 50 without -race. make test-race runs this package. Fix: drive the notes through the board (r.note), wait for delivery, and resolve through the board, or wait for the first delivery and then inject via run(applyWebNotes).'
+          family: shared-state-loop-confinement
+          round: 8
+      recipe: milestone-review
+      isolation: checkout
+      blocked: true
 ---
 
 # Gate ledger — pair#470 (boundary-review)
@@ -428,6 +479,25 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-24** [Minor] `spec-path-untested` The webMenuIDs prune declared in the BR-21 plan revision has no test
   This is the 4th finding in family spec-path-untested. The rule is already in the plan: every behavior a Revision declares names a test that fails without it. Here the rule wasn't applied to one clause, "pruned each delivery". Removing the prune loop in applyWebNotes fails no test. Fix by applying the rule to that clause: deliver [a], then [], and assert webMenuIDs is empty.
 
+## Round 8 — 2026-10-12T04:52:15-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-3 — not-addressed — The order (dir, board, hub) in recordingOutput is still correct, but still no test pins it.
+- BR-4 — not-addressed — Still bounded only by 1e6 px. Deferred to wave 3, where NoteCrops gets its first production caller.
+- BR-7 — not-addressed — No shared conformance contract between board.Writer and the recorder's Emit path yet.
+- BR-12 — not-addressed — answered() and the toast exist but are untested. Unchanged since round 5.
+- BR-14 — not-addressed — endGesture runs on a docSeg change, but no test covers a stroke that spans a navigation.
+- BR-16 — not-addressed — endGesture covers every boundary, but no test drives a drag across a mode change or the cast's end.
+- BR-19 — addressed — validName uses /[\p{Cc}\p{Cf}]/u (annotate.js:63), the board's nameText predicate. beforeSave checks it before setName. The node test covers U+2067, U+061C, U+180E, U+FFF9, U+E0041 and U+0085, which the old class let through. Tests pass.
+- BR-20 — addressed — The atlas now says the live viewer draws with liveNotes, pinLayer and paintStrokes. strokesAt is the at-t counterpart, and #477 converges drawMarks onto it. This is prose-only and correct against annotate.js.
+- BR-24 — not-addressed — The prune loop in applyWebNotes (console_notes.go:431-435) is still untested. Removing it fails no test.
+
+### Raised
+
+- **BR-25** [Important] `shared-state-loop-confinement` TestWebNotesMenuSourceAndStableIDs fails about half the time under -race: it writes web-menu state off the terminal loop while the cast's delivery goroutine also writes it
+  This is the 2nd finding in family shared-state-loop-confinement. Rule: web-menu state is written only on the terminal loop, by its single producer (applyWebNotes from the cast.Notes loop), and tests included. The test sets c.pnotes.webItems directly at console_webnotes_test.go:173 and :199, while console_webcast.go:136-147 delivers the board's first snapshot ([]) concurrently. settleMenuLocked then closes the menu. Measured: 10 of 20 runs fail with -count=20 -race and 0 of 50 without -race. make test-race runs this package. Fix: drive the notes through the board (r.note), wait for delivery, and resolve through the board, or wait for the first delivery and then inject via run(applyWebNotes).
+
 ## Open findings
 
 - **BR-3** [Minor] `sink-order-before-consumer-check` The Tee feeds the Hub before the board, so a viewer can act on a seg the board has not applied yet and get a spurious 409
@@ -436,6 +506,5 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-12** [Minor] `silent-degradation` Refused or failed stroke chunk POSTs are swallowed with no viewer signal
 - **BR-14** [Minor] `stroke-spans-document` A stroke in progress across a navigation posts its later chunks with the new seg
 - **BR-16** [Minor] `stroke-spans-document` setMode and the cast-end handler end a stroke but leave a region drag in progress (annotate.js:266-272)
-- **BR-19** [Minor] `persisted-input-parsed-at-read` validName rejects fewer characters than the board's nameText, and setName stores a name without checking it
-- **BR-20** [Minor] `shared-helper-duplication` strokesAt has no production caller and restates replay.js drawMarks's stroke-at-t and note-box logic with different semantics
 - **BR-24** [Minor] `spec-path-untested` The webMenuIDs prune declared in the BR-21 plan revision has no test
+- **BR-25** [Important] `shared-state-loop-confinement` TestWebNotesMenuSourceAndStableIDs fails about half the time under -race: it writes web-menu state off the terminal loop while the cast's delivery goroutine also writes it

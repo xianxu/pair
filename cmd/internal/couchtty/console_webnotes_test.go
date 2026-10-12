@@ -159,50 +159,81 @@ func TestWebNotesMenuOutlivesTheScreenBroadcast(t *testing.T) {
 // One menu, two sources: a click on the other 💭N switches it, and the
 // hover never glows a screen note while the menu shows web notes. A web
 // note keeps its menu id while open, so a click on a row drawn before the
-// list changed acts on that row's note or on nothing, never on another.
+// list changed acts on that row's note or on nothing, never on another; a
+// resolved note's id is dropped. Notes arrive through the board, and the
+// one state the test sets (the screen notes, the hover) is set on the
+// terminal loop, as the console's own writers do.
 func TestWebNotesMenuSourceAndStableIDs(t *testing.T) {
 	r := newWebNotesCast(t, false)
 	c := r.con
-	live := func(ids ...string) []board.LiveNote {
-		var out []board.LiveNote
-		for _, id := range ids {
-			out = append(out, board.LiveNote{ID: id, Text: "text " + id})
-		}
-		return out
-	}
-	c.pnotes.mu.Lock()
-	c.pnotes.notes = []broadcast.Note{{ID: 1, Text: "screen"}}
-	c.pnotes.webItems, c.pnotes.web = webMenuNotes(live("a", "b"), c.webMenuIDLocked)
-	idA, idB := c.pnotes.webItems[0].menuID, c.pnotes.webItems[1].menuID
-	c.pnotes.mu.Unlock()
 	run := func(fn func()) {
-		_ = c.runTerminalCommand(c.lifetime, func() error { fn(); return nil })
+		if err := c.runTerminalCommand(c.lifetime, func() error { fn(); return nil }); err != nil {
+			t.Fatal(err)
+		}
 	}
-	run(func() { c.toggleNotesMenu(screenNotes) })
+	r.note(t, "Ana", "text a")
+	r.note(t, "Bo", "text b")
+	var a, b webItem
+	waitFor(t, "both web notes delivered", func() bool {
+		c.pnotes.mu.Lock()
+		defer c.pnotes.mu.Unlock()
+		if len(c.pnotes.webItems) != 2 {
+			return false
+		}
+		a, b = c.pnotes.webItems[0], c.pnotes.webItems[1]
+		return true
+	})
+	run(func() {
+		c.pnotes.mu.Lock()
+		c.pnotes.notes = []broadcast.Note{{ID: 1, Text: "screen"}}
+		c.pnotes.mu.Unlock()
+		c.toggleNotesMenu(screenNotes)
+		c.pnotes.mu.Lock()
+		c.pnotes.hover = 1
+		c.pnotes.mu.Unlock()
+	})
 	c.pnotes.mu.Lock()
-	c.pnotes.hover = 1
 	src, hover := c.pnotes.source, c.screenHoverLocked()
 	c.pnotes.mu.Unlock()
 	if src != screenNotes || hover != 1 {
 		t.Fatalf("screen menu: source %d hover %d", src, hover)
 	}
 	run(func() { c.toggleNotesMenu(webNotes) })
-	c.pnotes.mu.Lock()
-	open, src, hover := c.pnotes.menuOpen, c.pnotes.source, c.pnotes.hover
-	c.pnotes.hover = idA
-	glow := c.screenHoverLocked()
-	c.pnotes.mu.Unlock()
-	if !open || src != webNotes || hover != 0 || glow != 0 {
-		t.Fatalf("switched to web: open %v source %d hover %d, screen glow %d", open, src, hover, glow)
+	var glow int
+	run(func() {
+		c.pnotes.mu.Lock()
+		open, src, hover := c.pnotes.menuOpen, c.pnotes.source, c.pnotes.hover
+		c.pnotes.hover = a.menuID
+		glow = c.screenHoverLocked()
+		c.pnotes.mu.Unlock()
+		if !open || src != webNotes || hover != 0 {
+			t.Errorf("switched to web: open %v source %d hover %d", open, src, hover)
+		}
+	})
+	if glow != 0 {
+		t.Fatalf("a web hover glows screen note %d", glow)
 	}
-	// The list changes under a drawn menu: a is resolved elsewhere.
+	// A viewer resolves a under the open menu.
+	body := fmt.Sprintf(`{"viewer":{"id":"v-cy"},"id":%q,"state":"resolved"}`, a.noteID)
+	resp, err := http.Post(r.link+"note-state", "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	waitFor(t, "a's resolve delivered", func() bool {
+		c.pnotes.mu.Lock()
+		defer c.pnotes.mu.Unlock()
+		return len(c.pnotes.webItems) == 1
+	})
 	c.pnotes.mu.Lock()
-	c.pnotes.webItems, c.pnotes.web = webMenuNotes(live("b"), c.webMenuIDLocked)
-	textA, resolveA, textB := c.noteTextLocked(idA), c.resolverLocked(idA), c.noteTextLocked(idB)
-	newB := c.pnotes.webItems[0].menuID
+	textA, resolveA, textB := c.noteTextLocked(a.menuID), c.resolverLocked(a.menuID), c.noteTextLocked(b.menuID)
+	idB, kept := c.pnotes.webItems[0].menuID, len(c.pnotes.webMenuIDs)
 	c.pnotes.mu.Unlock()
-	if textA != "" || resolveA != nil || textB != "text b" || newB != idB {
-		t.Fatalf("after a's resolve: a %q %v, b %q (id %d, was %d)", textA, resolveA != nil, textB, newB, idB)
+	if textA != "" || resolveA != nil || textB != "text b" || idB != b.menuID {
+		t.Fatalf("after a's resolve: a %q %v, b %q (id %d, was %d)", textA, resolveA != nil, textB, idB, b.menuID)
+	}
+	if kept != 1 {
+		t.Fatalf("menu ids kept for %d notes, want only b's", kept)
 	}
 }
 

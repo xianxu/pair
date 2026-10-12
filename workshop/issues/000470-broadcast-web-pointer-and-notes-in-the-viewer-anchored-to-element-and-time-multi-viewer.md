@@ -135,3 +135,9 @@ Durable plan: `workshop/plans/000470-broadcast-web-pointer-and-notes-in-the-view
   couchtty suite green (unsandboxed: pty children).
 - M3 review round 1: BR-21 positional menu ids → stable per-note menu ids; BR-22 tests for the shared overlay and the
   source switch (three mutants killed); loop confinement of `syncOverlay`/`applyWebNotes` stated in their comments.
+- Close review round 1: BR-25 `TestWebNotesMenuSourceAndStableIDs` raced the cast's first delivery (10/20 under
+  -race). It now posts and resolves through the board and makes its one direct change on the terminal loop; 20/20
+  under -race; positional-id and prune mutants fail it (the prune was BR-24, untested before).
+- Full suite before close: `make -k test` green but `tests/workbench-route-nvim-test.sh` (passes alone 2/2; no Lua
+  touched); `test-changelog` green; `go test ./...` green but termcmd `TestNoDeclarationCarriesTwoStackedGodocs`
+  (flags `couchcmd/webcast.go`, identical to main: arrived with #471) and the couchcore deadline test (known on main).

@@ -1223,3 +1223,8 @@ proof; record the surprising case so the next change starts from evidence.
   with "no document", and took the first record it saw for a navigation, ending the user's stroke after one chunk (4 of
   6 runs). A late joiner of a stream initializes from the model's current values, not from zero; and a flaky e2e is a
   bug to root-cause with state dumps from both sides, not a retry.
+- **A test writes loop-owned state on the loop, or through the real producer (#470 close, BR-25).** A Couch test set
+  the web-notes menu state directly while the cast's delivery goroutine wrote its first snapshot, failing 10 of 20
+  runs under `-race` and 0 of 50 without. When state has a single-writer rule, the test drives the real producer (post
+  through the board, wait for delivery) and makes any other change inside `runTerminalCommand`; run the new test with
+  `-race -count=20` before calling it done.
