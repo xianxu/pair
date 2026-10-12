@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
@@ -16,6 +15,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // coldResumeRig is a running Console over a test Couch whose only thread is a
@@ -97,7 +97,7 @@ func newColdResumeRig(t *testing.T) *coldResumeRig {
 		_ = reader.Close()
 		select {
 		case <-done:
-		case <-time.After(3 * time.Second):
+		case <-testwait.After(t):
 			t.Error("Console did not stop")
 		}
 	})
@@ -121,7 +121,7 @@ func (r *coldResumeRig) awaitResumeAndAttach(t *testing.T) couchcore.OperationCa
 			if d.call.Name == "attach" {
 				return resume
 			}
-		case <-time.After(10 * time.Second):
+		case <-testwait.After(t):
 			t.Fatalf("no resume and attach: %s", r.host.Written())
 		}
 	}

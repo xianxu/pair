@@ -421,7 +421,7 @@ func TestTerminalModelResizeTransactionsAreExclusiveUntilResolved(t *testing.T) 
 				second.Abort()
 			case err := <-secondErr:
 				t.Fatal(err)
-			case <-time.After(time.Second):
+			case <-testwait.After(t):
 				t.Fatal("second resize remained blocked after first transaction resolved")
 			}
 		})
@@ -775,7 +775,7 @@ func TestTerminalModelDrainsRepliesAndClosesDeterministically(t *testing.T) {
 		if err != nil {
 			t.Fatalf("reply-producing Feed: %v", err)
 		}
-	case <-time.After(2 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("reply-producing Feed blocked; emulator replies are not being drained")
 	}
 
@@ -786,7 +786,7 @@ func TestTerminalModelDrainsRepliesAndClosesDeterministically(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Close: %v", err)
 		}
-	case <-time.After(2 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("Close blocked waiting for reply drainer")
 	}
 
@@ -851,7 +851,7 @@ func TestTerminalModelConcurrentCloseIsIdempotent(t *testing.T) {
 	}()
 	select {
 	case <-done:
-	case <-time.After(2 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("concurrent Close calls blocked")
 	}
 	close(errs)
@@ -888,7 +888,7 @@ func TestTerminalModelConcurrentCloseWaitsForSharedResult(t *testing.T) {
 	go func() { firstClose <- model.Close() }()
 	select {
 	case <-shutdownStarted:
-	case <-time.After(time.Second):
+	case <-testwait.After(t):
 		t.Fatal("Close did not reach coupled reply closer")
 	}
 
@@ -940,7 +940,7 @@ func TestTerminalModelConcurrentCloseWaitsForSharedResult(t *testing.T) {
 		if !errors.Is(err, shutdownErr) {
 			t.Errorf("first Close = %v, want stored shutdown error", err)
 		}
-	case <-time.After(time.Second):
+	case <-testwait.After(t):
 		t.Fatal("first Close did not complete after release")
 	}
 	for range followers {
@@ -949,7 +949,7 @@ func TestTerminalModelConcurrentCloseWaitsForSharedResult(t *testing.T) {
 			if !errors.Is(err, shutdownErr) {
 				t.Errorf("follower Close = %v, want stored shutdown error", err)
 			}
-		case <-time.After(time.Second):
+		case <-testwait.After(t):
 			t.Fatal("follower Close did not complete after release")
 		}
 	}
@@ -1018,7 +1018,7 @@ func TestTerminalModelConcurrentAPICompletesUnderDeadline(t *testing.T) {
 	}()
 	select {
 	case <-done:
-	case <-time.After(3 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("concurrent terminal API blocked")
 	}
 	close(unexpected)

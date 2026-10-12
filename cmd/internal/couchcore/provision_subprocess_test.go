@@ -8,6 +8,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestProvisionProcessExitAndOutput(t *testing.T) {
@@ -93,7 +95,7 @@ func TestProvisionProcessInheritedLeaseCancellation(t *testing.T) {
 	}()
 	select {
 	case <-progress.ready:
-	case <-time.After(5 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("child failed to start")
 	}
 	lease.Close()
@@ -109,7 +111,7 @@ func TestProvisionProcessInheritedLeaseCancellation(t *testing.T) {
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("error=%v", err)
 		}
-	case <-time.After(5 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("child failed to stop")
 	}
 	next, err := AcquireHostCreationLease(root)

@@ -18,6 +18,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // The helper is the real watcher command in a child process. TestMain normally
@@ -109,7 +110,7 @@ func TestDetachBeforeFirstTurnAuthorizesRelaunch(t *testing.T) {
 				write(stop, "stop")
 				select {
 				case <-wrapDone:
-				case <-time.After(5 * time.Second):
+				case <-testwait.After(t):
 					t.Error("fixture wrap did not stop")
 				}
 				if raw, e := os.ReadFile(watcherPID); e == nil {

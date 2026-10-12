@@ -17,6 +17,7 @@ import (
 
 	term "github.com/xianxu/pair/cmd/internal/terminal"
 	"github.com/xianxu/pair/cmd/internal/terminalcapture"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 	"github.com/xianxu/pair/cmd/internal/ttyio"
 )
 
@@ -238,7 +239,7 @@ func testCapturePTYBothBoundaries(t *testing.T, isolated bool) {
 	con.Stop()
 	select {
 	case <-done:
-	case <-time.After(5 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("console failed to stop")
 	}
 	if err := con.CloseCapture(); err != nil {
@@ -247,7 +248,7 @@ func testCapturePTYBothBoundaries(t *testing.T, isolated bool) {
 	cancelRead()
 	select {
 	case <-readDone:
-	case <-time.After(time.Second):
+	case <-testwait.After(t):
 		t.Fatal("capture reader failed to join")
 	}
 	dirs, err := filepath.Glob(filepath.Join(env["COUCH_CAPTURE_DIR"], "session-*"))

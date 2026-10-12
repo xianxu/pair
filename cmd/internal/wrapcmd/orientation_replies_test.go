@@ -27,7 +27,7 @@ func TestOrientationTerminalRepliesDoNotCancel(t *testing.T) {
 		if state.Phase != orientation.DeliverySubmitted {
 			t.Fatal(state)
 		}
-	case <-time.After(time.Second):
+	case <-testwait.After(t):
 		t.Fatal("no delivery")
 	}
 	w.Close()
@@ -126,7 +126,7 @@ func TestOrientationDueSubmitSurvivesPrioritizedInput(t *testing.T) {
 				close(reader.closed)
 				select {
 				case <-done:
-				case <-time.After(time.Second):
+				case <-testwait.After(t):
 					t.Error("input scheduler did not stop")
 				}
 			})
@@ -134,13 +134,13 @@ func TestOrientationDueSubmitSurvivesPrioritizedInput(t *testing.T) {
 			p.handleChunk([]byte("\x1b[6n"+claudeLiveComposerPaint()), &rolling)
 			select {
 			case <-consumed:
-			case <-time.After(time.Second):
+			case <-testwait.After(t):
 				t.Fatal("settle timer not consumed")
 			}
 			reader.reply <- []byte(tc.input)
 			select {
 			case <-reader.queued:
-			case <-time.After(time.Second):
+			case <-testwait.After(t):
 				t.Fatal("reply not queued")
 			}
 			close(release)
@@ -149,7 +149,7 @@ func TestOrientationDueSubmitSurvivesPrioritizedInput(t *testing.T) {
 				if state.Phase != tc.want {
 					t.Fatalf("state %#v want %s", state, tc.want)
 				}
-			case <-time.After(time.Second):
+			case <-testwait.After(t):
 				t.Fatal("consumed settle event was lost after prioritized input")
 			}
 			if !waitFor(t, func() bool { return bytes.Contains(out.Bytes(), []byte(tc.input)) }) {

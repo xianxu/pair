@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // pair#428 Spec 1: only real keystrokes count as operator input for a
@@ -187,7 +188,7 @@ func peerLoopFixture(t *testing.T) (*harnessSessionFake, *peerDelivery, io.Write
 		writer.Close()
 		select {
 		case <-done:
-		case <-time.After(time.Second):
+		case <-testwait.After(t):
 			t.Error("stdin owner did not exit")
 		}
 	})
@@ -345,7 +346,7 @@ func TestPeerDeliveryWaitsForComposerInView(t *testing.T) {
 		t.Helper()
 		select {
 		case <-probes:
-		case <-time.After(time.Second):
+		case <-testwait.After(t):
 			t.Fatal("no viewport probe")
 		}
 		waitFor(t, func() bool { d.mu.Lock(); defer d.mu.Unlock(); return !d.view.checking })

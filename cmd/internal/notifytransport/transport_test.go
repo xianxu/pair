@@ -1,6 +1,7 @@
 package notifytransport
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -8,8 +9,11 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func testNamespace(t *testing.T) string {
@@ -51,7 +55,7 @@ func receive(t *testing.T, b *Broker, want string) {
 		if got != want {
 			t.Fatalf("message=%q want=%q", got, want)
 		}
-	case <-time.After(time.Second):
+	case <-testwait.After(t):
 		t.Fatal("no broker message")
 	}
 }
@@ -133,7 +137,7 @@ func TestBrokerRejectsOversizeAndDiagnosesQueueOverflow(t *testing.T) {
 		if err == nil {
 			t.Fatal("missing oversized diagnostic")
 		}
-	case <-time.After(time.Second):
+	case <-testwait.After(t):
 		t.Fatal("no oversized diagnostic")
 	}
 	if len(b.Messages()) != 0 {
@@ -146,7 +150,7 @@ func TestBrokerRejectsOversizeAndDiagnosesQueueOverflow(t *testing.T) {
 	}
 	select {
 	case <-b.Diagnostics():
-	case <-time.After(time.Second):
+	case <-testwait.After(t):
 		t.Fatal("no overflow diagnostic")
 	}
 	if len(b.Messages()) != 32 {
@@ -338,6 +342,12 @@ func TestSendToUnavailableReaderIsBounded(t *testing.T) {
 	if sendErr == nil {
 		t.Fatal("unread socket never backpressured")
 	}
+	// Returning at all is the bound (a hang meets the test deadline); the error
+	// names which refusal: darwin's datagram queue answers ENOBUFS at once,
+	// a blocking queue waits out SendTimeout's write deadline (#479).
+	if !errors.Is(sendErr, syscall.ENOBUFS) && !errors.Is(sendErr, os.ErrDeadlineExceeded) {
+		t.Fatalf("Send to a full socket = %v, want ENOBUFS or the write deadline", sendErr)
+	}
 }
 
 func TestConcurrentStartsKeepOnePublishedOwner(t *testing.T) {
@@ -434,7 +444,7 @@ func TestBrokerRejectsInvalidDatagramsWithoutPoisoningNext(t *testing.T) {
 		}
 		select {
 		case <-b.Diagnostics():
-		case <-time.After(time.Second):
+		case <-testwait.After(t):
 			t.Fatalf("missing rejection: %q", raw)
 		}
 	}

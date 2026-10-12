@@ -17,6 +17,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 type fakeControllerLifecycle struct {
@@ -918,7 +919,7 @@ func TestParkCoordinatorConstructorDoesNotQueryPairSession(t *testing.T) {
 	case <-queryEntered:
 	case err := <-recoveryDone:
 		t.Fatalf("recovery returned before querying Pair session: %v", err)
-	case <-time.After(10 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("recovery did not query Pair session")
 	}
 	close(releaseQuery)

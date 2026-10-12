@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func peerTestMessage(now time.Time) couchmessage.Message {
@@ -238,7 +239,7 @@ func TestPeerDeliveryUsesStdinOwnerAndDoesNotSubmitAfterTyping(t *testing.T) {
 		writer.Close()
 		select {
 		case <-done:
-		case <-time.After(time.Second):
+		case <-testwait.After(t):
 			t.Error("stdin owner did not exit")
 		}
 	}()

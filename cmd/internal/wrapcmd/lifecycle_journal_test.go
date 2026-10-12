@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func lifecycleJSONLine(t *testing.T, launch uint64, offset int64) []byte {
@@ -293,7 +294,7 @@ func TestMasterPumpForwardsPTYWhileLifecycleJournalIOIsBlocked(t *testing.T) {
 	}()
 	select {
 	case <-entered:
-	case <-time.After(time.Second):
+	case <-testwait.After(t):
 		t.Fatal("production journal worker did not enter injected IO")
 	}
 	if _, err := writer.Write([]byte("still-forwarded")); err != nil {

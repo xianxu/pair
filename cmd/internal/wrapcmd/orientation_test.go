@@ -9,6 +9,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/readiness"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 	"io"
 	"os"
 	"path/filepath"
@@ -70,7 +71,7 @@ func TestOrientationSerializedInputScheduler(t *testing.T) {
 			var state orientation.DeliveryState
 			select {
 			case state = <-states:
-			case <-time.After(time.Second):
+			case <-testwait.After(t):
 				t.Fatal("no status")
 			}
 			if action == "submit" {
@@ -88,7 +89,7 @@ func TestOrientationSerializedInputScheduler(t *testing.T) {
 			writer.Close()
 			select {
 			case <-done:
-			case <-time.After(time.Second):
+			case <-testwait.After(t):
 				t.Fatal("input owner did not stop")
 			}
 		})
@@ -115,7 +116,7 @@ func TestOrientationPartialWriteNeverRetries(t *testing.T) {
 		if s.Phase != orientation.DeliveryIndeterminate {
 			t.Fatal(s)
 		}
-	case <-time.After(time.Second):
+	case <-testwait.After(t):
 		t.Fatal("no state")
 	}
 	p.handleChunk([]byte(claudeLiveComposerPaint()), &rolling)
@@ -185,7 +186,7 @@ func TestOrientationCapturedComposersWithoutReturnRemap(t *testing.T) {
 				if state.Phase != orientation.DeliverySubmitted {
 					t.Fatalf("state %#v", state)
 				}
-			case <-time.After(time.Second):
+			case <-testwait.After(t):
 				t.Fatal("captured composer did not submit")
 			}
 			w.Close()
@@ -411,7 +412,7 @@ func TestOrientationDeclinesCapturedMenusAndNonCodingMode(t *testing.T) {
 				if state.Phase == orientation.DeliverySubmitted {
 					t.Errorf("submitted into captured menu/mode %s", path)
 				}
-			case <-time.After(time.Second):
+			case <-testwait.After(t):
 				t.Error("no timeout status")
 			}
 			w.Close()
@@ -455,7 +456,7 @@ func TestOrientationSubmitFailureAndLaterInput(t *testing.T) {
 			var state orientation.DeliveryState
 			select {
 			case state = <-states:
-			case <-time.After(time.Second):
+			case <-testwait.After(t):
 				t.Fatal("no result")
 			}
 			want := orientation.DeliverySubmitted

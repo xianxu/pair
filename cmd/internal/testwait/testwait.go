@@ -19,8 +19,11 @@ const margin = 10 * time.Second
 // left). With no deadline (-timeout 0) it never fires. Use it as the guard
 // case of a select on the awaited event.
 func After(t *testing.T) <-chan time.Time {
-	at, ok := giveUp(t)
-	if !ok {
+	return afterAt(giveUp(t))
+}
+
+func afterAt(at time.Time, bounded bool) <-chan time.Time {
+	if !bounded {
 		return nil
 	}
 	return time.After(time.Until(at))
@@ -31,6 +34,10 @@ func After(t *testing.T) <-chan time.Time {
 func Wait(t *testing.T, cond func() bool) bool {
 	t.Helper()
 	at, bounded := giveUp(t)
+	return waitUntil(at, bounded, cond)
+}
+
+func waitUntil(at time.Time, bounded bool, cond func() bool) bool {
 	for !cond() {
 		if bounded && !time.Now().Before(at) {
 			return false

@@ -142,7 +142,7 @@ func TestOrientationAgyLongPromptSurvivesPostPasteFooterChange(t *testing.T) {
 		if state.Phase != orientation.DeliverySubmitted {
 			t.Fatalf("postpaste state %#v", state)
 		}
-	case <-time.After(time.Second):
+	case <-testwait.After(t):
 		t.Fatal("no submission")
 	}
 	w.Close()

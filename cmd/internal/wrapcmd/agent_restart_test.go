@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -116,7 +117,7 @@ func TestSIGUSR2ReExecsWrapperWithoutReplacingPaneProcess(t *testing.T) {
 	}
 	select {
 	case <-done:
-	case <-time.After(3 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("wrapper did not finish old child")
 	}
 }

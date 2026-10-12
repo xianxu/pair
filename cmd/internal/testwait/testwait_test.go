@@ -40,3 +40,21 @@ func TestWaitReturnsOnceTheEventHolds(t *testing.T) {
 		t.Fatal("After fired before a ready event")
 	}
 }
+
+func TestGiveUpPathsFailAndUnboundedNeverFires(t *testing.T) {
+	calls := 0
+	if waitUntil(time.Now().Add(-time.Second), true, func() bool { calls++; return false }) {
+		t.Fatal("waitUntil held past its give-up time")
+	}
+	if calls != 1 {
+		t.Fatalf("cond polled %d times past the give-up time, want 1", calls)
+	}
+	if ch := afterAt(time.Time{}, false); ch != nil {
+		t.Fatal("After without a test deadline returned a channel that can fire")
+	}
+	select {
+	case <-afterAt(time.Now().Add(-time.Second), true):
+	case <-time.After(time.Minute):
+		t.Fatal("After did not fire at a past give-up time")
+	}
+}

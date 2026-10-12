@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/notifyosc"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestNotificationOutputEveryBoundary(t *testing.T) {
@@ -301,7 +302,7 @@ func TestNotificationBrokerClosedWhileMasterLives(t *testing.T) {
 		reader.Close()
 		select {
 		case <-done:
-		case <-time.After(time.Second):
+		case <-testwait.After(t):
 			t.Error("master loop did not join")
 		}
 	})
@@ -310,7 +311,7 @@ func TestNotificationBrokerClosedWhileMasterLives(t *testing.T) {
 	}
 	select {
 	case <-delivered:
-	case <-time.After(time.Second):
+	case <-testwait.After(t):
 		t.Fatal("hook not delivered")
 	}
 	if err := broker.Close(); err != nil {
@@ -320,7 +321,7 @@ func TestNotificationBrokerClosedWhileMasterLives(t *testing.T) {
 	writer.Close()
 	select {
 	case <-done:
-	case <-time.After(time.Second):
+	case <-testwait.After(t):
 		t.Fatal("closed broker blocked output")
 	}
 	if !bytes.Contains(out.Bytes(), []byte("after broker close")) {
@@ -403,14 +404,14 @@ func TestNotificationOutputFailureStopsRealPTYAndJoinsReader(t *testing.T) {
 				_ = master.Close()
 				select {
 				case <-done:
-				case <-time.After(3 * time.Second):
+				case <-testwait.After(t):
 					t.Error("master reader failed to join after cleanup")
 				}
 				_ = cmd.Wait()
 			})
 			select {
 			case <-done:
-			case <-time.After(3 * time.Second):
+			case <-testwait.After(t):
 				t.Fatal("output failure did not stop master/reader")
 			}
 			if !errors.Is(p.stdoutPump.failure, io.ErrClosedPipe) || writer.Len() != 3 {

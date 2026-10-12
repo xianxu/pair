@@ -42,7 +42,11 @@ Design (agreed with the TL, 2026-10-12): one shared helper, `cmd/internal/testwa
 ## Done when
 
 - No test in the list fails because an awaited event arrived late; each site either waits on its event or injects the clock it asserts.
-- The touched packages pass 200 runs under `-race` and parallel load.
+- The listed sites' tests pass 200 runs under `-race` and parallel load (scoped; see Revisions).
+
+## Revisions
+
+- 2026-10-12: Done-when scoped to the listed sites, by the TL's call. The soak's second line ("touched packages pass 200 runs") isn't met by tests outside the list, which belong to other families. couchcmd, couchcore, couchsingleton, launcher, terminalqualify and testwait passed 200/200. wrapcmd passed 197/200. couchtty passed 120/128 before the soak was stopped. None of the remaining failures is a listed site or a late event: a lost notice repaint (`TestEndpointChrome*`, a product bug) → #484; real 50/100 ms product timeouts in the wrapcmd harness tests, plus ordering/state asserts (mouse parent-capture, the soak's shutdown "presenter unavailable", orientation overlay-after-paste) → #485. The second Done-when line now reads: the listed sites' tests pass the soak.
 
 ## Plan
 
@@ -52,7 +56,7 @@ Design (agreed with the TL, 2026-10-12): one shared helper, `cmd/internal/testwa
 - [x] Other listed select guards: couchcore actionableinventory, couchcmd run, wrapcmd overlay/terminal_model/composer, terminalqualify candidate.
 - [x] wrapcmd `waitFor`/`waitForStdoutBatch`: deadline-bounded; couchcore supervisorlease: `testwait.Wait`.
 - [x] Ceilings: launchhelper, harness_tty_live, notifytransport ×2, couchsingleton evidence, terminal_pressure, launcher ×2, each asserting the outcome instead.
-- [ ] 200 `-race` runs of the touched tests under parallel load; full `make -k test`.
+- [x] 200 `-race` runs of the touched tests under parallel load; full `make -k test`. The listed sites are clean; out-of-list failures went to #484/#485 (see Revisions).
 
 ## Log
 
@@ -63,3 +67,5 @@ Design (agreed with the TL, 2026-10-12): one shared helper, `cmd/internal/testwa
 - Ceilings, where the bound is the subject, now assert the outcome that proves it instead of a stopwatch: `ErrThreadStoreBusy` (couchsingleton, "refused, didn't wait out the 1 s publication context"), "lock timed out" (notifytransport Start), the product's "timed out" errors (launchhelper, harness_tty_live), and the ending signal (launcher). No product clock seam was needed: each product bound already leaves an observable outcome.
 - Absence windows (`case <-time.After(N):` with an empty body) are left alone: load makes them less sensitive, never falsely red.
 - The soak found three races the stopwatches had hidden. (1) `TestCancelledHandoffKillsAChildThatIgnoresSIGTERM` cancelled at 50 ms, before `sh` set its TERM trap under load, so the child died by SIGTERM and the escalation went untested (the old 1.5 s ceiling passed it). It now cancels once the trap has been set. (2) `TestOrientationLiveStartupFrames` armed a real 20 ms readiness deadline for ready frames too; ready frames lost to it under load (25 of 40 early soak runs). Only not-ready frames arm it now. (3) `TestOrientationUnsolicitedReplyAndReplyWithInputCancel` painted the composer before the stdin reader admitted the input, so the paste could win. It now paints once the input has reached the child.
+- Close round 1 (FIX-THEN-SHIP). BR-1, Important: the touched files still held fatal 1-3 s `time.After` guards of the same class. Fixed the class, not just the files the review named: every positive select guard (`case <-time.After(N):` followed by `t.Fatal`/`t.Error`) in all touched packages now uses `testwait.After(t)` (79 more across wrapcmd, terminalqualify, notifytransport, couchcore, couchcmd). Untouched packages (broadcast, webcast, termcmd, couchmessage, …) are filed in #485. Minor: `TestSendToUnavailableReaderIsBounded` asserted no outcome after its stopwatch went; it now asserts the refusal (darwin answers ENOBUFS at once, measured; a blocking queue would hit the write deadline). Minor: testwait's give-up paths (`waitUntil` past its time, `afterAt` unbounded or past) now have unit tests.
+

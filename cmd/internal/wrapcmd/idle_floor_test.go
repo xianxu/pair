@@ -8,6 +8,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // The idle floor's master-loop behaviour (#171). These rows enter through the
@@ -125,7 +127,7 @@ func newIdleFloorHarness(t *testing.T, agent, mode string, idle time.Duration) *
 		_ = writer.Close()
 		select {
 		case <-h.done:
-		case <-time.After(time.Second):
+		case <-testwait.After(t):
 			t.Error("masterPump did not exit")
 		}
 		_ = reader.Close()
@@ -515,7 +517,7 @@ func TestSyncIdleTimerDoesNotRestartAnArmedDeadlineWithinTheSameEpoch(t *testing
 	}
 	select {
 	case <-p.idleTimer.Expired():
-	case <-time.After(500 * time.Millisecond):
+	case <-testwait.After(t):
 		t.Fatal("a non-output observation restarted an already-expired deadline")
 	}
 }

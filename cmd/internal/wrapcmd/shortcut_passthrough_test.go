@@ -10,6 +10,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
@@ -42,7 +43,7 @@ func TestConsoleWrapperShortcutPassthrough(t *testing.T) {
 		_ = writer.Close()
 		select {
 		case <-done:
-		case <-time.After(3 * time.Second):
+		case <-testwait.After(t):
 			t.Error("Console did not stop")
 		}
 	})
@@ -188,7 +189,7 @@ func TestReservedShortcutPrefixProgressBeforeTimeout(t *testing.T) {
 					_ = reader.Close()
 					select {
 					case <-done:
-					case <-time.After(time.Second):
+					case <-testwait.After(t):
 						t.Error("prefix fixture did not stop")
 					}
 				})

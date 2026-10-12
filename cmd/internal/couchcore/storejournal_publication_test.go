@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/storagegc"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestStorePublicationKilledPublisher(t *testing.T) {
@@ -64,7 +65,7 @@ func TestStorePublicationKilledPublisher(t *testing.T) {
 					killed = true
 					t.Fatalf("child did not stage: %q %s", line, stderr.String())
 				}
-			case <-time.After(10 * time.Second):
+			case <-testwait.After(t):
 				t.Fatal("publisher did not reach stage barrier")
 			}
 			if _, err := os.Stat(target); !errors.Is(err, os.ErrNotExist) {

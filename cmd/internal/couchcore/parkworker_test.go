@@ -13,6 +13,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestParkWorkerBoundsAndCoalesces(t *testing.T) {
@@ -128,7 +129,7 @@ func TestParkCoordinatorCoalescesStartupRecoveryAndInteractiveRetry(t *testing.T
 	}()
 	select {
 	case <-triggerEntered:
-	case <-time.After(10 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("startup recovery did not reach the exact trigger")
 	}
 	retryDone := make(chan outcome, 1)

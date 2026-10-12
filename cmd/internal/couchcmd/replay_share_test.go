@@ -16,6 +16,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 	"github.com/xianxu/pair/cmd/internal/webcast"
 	"github.com/xianxu/pair/cmd/internal/webcast/query"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
@@ -139,7 +140,7 @@ func TestRunReplayFallsBackToLoopback(t *testing.T) {
 			if !strings.HasPrefix(link, "http://127.0.0.1:") || !strings.HasSuffix(link, "/r/rec-1/#t=0") {
 				t.Errorf("%q: link %q", c.args, link)
 			}
-		case <-time.After(10 * time.Second):
+		case <-testwait.After(t):
 			t.Fatalf("%q: no link", c.args)
 		}
 		cancel()

@@ -7,7 +7,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	vt "github.com/charmbracelet/x/vt"
 
@@ -100,12 +99,12 @@ func TestCandidateCloseJoinsActiveExecution(t *testing.T) {
 	close(release)
 	select {
 	case <-closed:
-	case <-time.After(time.Second):
+	case <-testwait.After(t):
 		t.Fatal("Close did not join")
 	}
 	select {
 	case <-done:
-	case <-time.After(time.Second):
+	case <-testwait.After(t):
 		t.Fatal("Execute did not join")
 	}
 }
@@ -151,7 +150,7 @@ func TestCandidateCancellationUnblocksReplyPipe(t *testing.T) {
 		if !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
-	case <-time.After(time.Second):
+	case <-testwait.After(t):
 		t.Fatal("blocked reply writer leaked")
 	}
 	if err := c.Close(); err != nil {

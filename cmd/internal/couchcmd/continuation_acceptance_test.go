@@ -27,6 +27,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 const continuationPublicationFixtureEnv = "PAIR249_PUBLICATION_FIXTURE"
@@ -501,7 +502,7 @@ func completeContinuationAcceptance(t *testing.T, rt testRT, c *couchcore.Couch,
 		_ = inputReader.Close()
 		select {
 		case <-done:
-		case <-time.After(3 * time.Second):
+		case <-testwait.After(t):
 			t.Error("Console did not stop")
 		}
 	}()

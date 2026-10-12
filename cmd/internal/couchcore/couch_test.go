@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 type testEnv struct {
@@ -570,7 +571,7 @@ exit 0
 		}
 		select {
 		case <-spawnDone:
-		case <-time.After(15 * time.Second):
+		case <-testwait.After(t):
 			t.Error("composed Couch spawn goroutine did not exit during cleanup")
 		}
 	})
@@ -1053,7 +1054,7 @@ func TestSpawnRetainsOwnershipAndRetriesUntilQuiescenceIsProven(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "zellij absence unobservable") {
 			t.Fatalf("Spawn retry result = %v", err)
 		}
-	case <-time.After(10 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("Spawn did not return after quiescence proof")
 	}
 }
