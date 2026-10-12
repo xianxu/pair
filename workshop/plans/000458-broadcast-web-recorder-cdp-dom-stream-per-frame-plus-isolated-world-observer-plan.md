@@ -123,3 +123,11 @@ what is recorded. Nothing runs in the page's main world (no measured gap needs i
   touches every wave-1 component's tests at once, so it goes through the TL after this lands (ARCH-DRY: until then
   `cdpconv.go` and the mirror both map CDP to records; `cdpconv` is a frozen reference over the prototype's log).
 - Layout on note creation (#461 asks for it through the recorder later).
+
+## Room for remote driving (#466/#467; TL, 10-12)
+
+- Observer-made records may later carry an optional `by` (viewer id; absent = operator). Nothing here refuses it.
+- The recorder's goroutine is the record stream's single writer. #467's control records and injections enter its
+  queue as inputs, ordered with the DOM events (told the TL; the Chrome loop forwards, it doesn't write records).
+- The id map is exposed both ways: `Recorder.IDOf(session, backendNodeId)` and `Recorder.NodeOf(id)`, answered on
+  the recorder goroutine (a request input with a reply), backed by the pure mirror's own accessors.
