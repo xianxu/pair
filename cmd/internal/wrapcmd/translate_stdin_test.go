@@ -197,9 +197,9 @@ func TestTranslateStdin_ContinuationBeatsTimer(t *testing.T) {
 	if !bytes.Equal(out.Bytes(), []byte{'\r'}) {
 		t.Fatalf("got %q, want %q (Alt+Enter chord)", out.Bytes(), "\r")
 	}
-	if armed, _ := flush.state(); armed {
-		t.Fatal("the chord-completing chunk left the flush armed")
-	}
+	// The loop writes the chord before it disarms the flush; a flush left
+	// armed would hang here until the binary's timeout.
+	await(func() bool { armed, _ := flush.state(); return !armed })
 	_ = w.Close()
 	<-done
 }

@@ -1253,3 +1253,12 @@ proof; record the surprising case so the next change starts from evidence.
   isn't a navigation, a catch-up), ask what the browser's own clocks (animations, transitions) were doing at
   capture, and settle them to the likeliest phase. Look at the worst moment's crop before tuning a tolerance: the
   picture named the cause where the number couldn't.
+
+- **A test races a timer it doesn't own; give it the timer (#480).** Thirteen tests raced real 15ms-3s timers or
+  slept before asserting. Where the timer is the subject, the product takes it through a seam whose nil is the wall
+  clock (`loopTimer` for wrap's idle floor and ESC flush, `Couch.registrationDeadline`, `LaunchOptions.BirthClock`),
+  and the test advances or spends it. Where it isn't, wait on the event a sleep stood for (admissions counted at
+  Reserve, a semaphore's `len`, `Close` joining a watcher). A causal oracle on the test's own timestamps is not a
+  substitute: it fails when the loop, not the writer, stalls. And read the product's order before asserting a second
+  effect after a first: the stdin loop writes a chord before disarming its flush, so "disarmed" is its own wait (the
+  soak caught one in 200).
