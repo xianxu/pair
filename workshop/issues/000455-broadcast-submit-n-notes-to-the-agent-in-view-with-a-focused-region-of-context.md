@@ -6,7 +6,7 @@ github_issue:
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours:
-card_mirror: '13734011fdcd095ced0bdb717bde39565b9411bc' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '94875329b9ccbb26acb0559c03a749fd5448d039' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # broadcast: submit 💭N notes to the agent in view, with a focused region of context
@@ -21,6 +21,7 @@ Experimental; the operator shapes it in the slot.
 
 - **Submit:** from the 💭N box (a button or row action) and a hotkey, send the open notes to the agent in view (the slot pane focused in Couch), each with its context. Submitted notes resolve on every screen, as right-click does today.
 - **Focused context, not the whole screen** (the operator, 10-11): a full screenshot carries too much; by hand the operator crops to the area that matters. Each note carries only a region around its anchor: the cells near it (a few rows and columns, the line it sits on, the enclosing block when one is detectable), as text with style marks where they matter, not pixels; plus the note's author, time and text, and a way for the agent to ask for more (e.g. the slot's tail at that time via `couch --peek`).
+- **Screenshot crop (the operator, 10-11):** alongside the text, an image of the bounding box of the submitted notes plus a generous margin, rendered from the screen's cells; notes far apart become one crop per cluster. It shows what text loses (layout, color, alignment).
 - **Region notes (to try):** let a note be a dragged rectangle as well as a point, so the author picks the region, as a screenshot crop does.
 - **Combined submission (later, shared with broadcast-web):** Shift+Ctrl+Alt+Return from the draft nvim sends the draft's text together with the pending notes.
 - The format is expected to change with use; keep it in one place so both terminal and web submissions can share its shape.
