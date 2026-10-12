@@ -101,6 +101,14 @@ func TestTrackerURLTitleFollowChanges(t *testing.T) {
 	if tab, _ := tr.Active(); tab.Title != "data:x" {
 		t.Fatalf("fallback: %+v", tab)
 	}
+	// A new document whose script can't run (chrome://, an error page)
+	// never reports a title; it must not keep the previous document's.
+	tr.Apply(PageTitle{ID: "a", Title: "one"})
+	tr.Apply(DocumentChanged{ID: "a"})
+	tr.Apply(TargetChanged{ID: "a", URL: "chrome://newtab/", Title: "New Tab"})
+	if tab, _ := tr.Active(); tab.Title != "New Tab" {
+		t.Fatalf("stale page title after a new document: %+v", tab)
+	}
 	tr.Apply(TargetChanged{ID: "gone", URL: "x"})
 	if tr.Pages() != 1 {
 		t.Fatalf("change for unknown page created one")

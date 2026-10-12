@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -37,12 +38,14 @@ const (
 	// callTimeout bounds each CDP command; a page mid-navigation can leave
 	// one unanswered.
 	callTimeout = 5 * time.Second
-	// closeWait is how long Close waits for Chrome to exit before killing it.
-	closeWait = 5 * time.Second
 	// stderrTail is how much of Chrome's output is kept to explain a failed
 	// launch. In memory only.
 	stderrTail = 8 << 10
 )
+
+// closeWait is how long Close waits for Chrome to exit before killing it. A
+// var so tests can shorten it.
+var closeWait = 5 * time.Second
 
 // noPagesGrace: on macOS, closing Chrome's last window leaves it running
 // windowless. Once every page has been gone this long, the cast ends and
@@ -59,7 +62,7 @@ var ErrProfileInUse = errors.New("webcast: the cast Chrome profile is already in
 // so their order is the order they're handled in.
 type Chrome struct {
 	opts   LaunchOptions
-	cmd    *exec.Cmd
+	proc   process
 	conn   *cdp.Conn
 	output *tail
 	pub    *publisher[State]
@@ -147,23 +150,16 @@ func Launch(ctx context.Context, opts LaunchOptions) (*Chrome, error) {
 		outR.Close()
 		return nil, fmt.Errorf("webcast: start Chrome: %w", err)
 	}
-	loopCtx, cancel := context.WithCancel(context.Background())
-	c := &Chrome{
-		opts: opts, cmd: cmd, conn: cdp.New(outR, cmdW), output: output,
-		pub:      newPublisher(State{}),
-		requests: make(chan func(*loopState)),
-		exited:   make(chan struct{}),
-		ready:    make(chan struct{}),
-		done:     make(chan struct{}),
-		ctx:      loopCtx, cancel: cancel,
-	}
+	// Chrome's helpers inherit its output pipe and can outlive it; WaitDelay
+	// stops Wait (and so Close) from waiting on them forever.
+	cmd.WaitDelay = 2 * time.Second
+	proc := &osProcess{cmd: cmd, exited: make(chan struct{})}
 	go func() {
 		cmd.Wait()
 		outR.Close()
-		close(c.exited)
+		close(proc.exited)
 	}()
-	go c.run()
-
+	c := start(cdp.New(outR, cmdW), proc, output, opts)
 	timer := time.NewTimer(opts.StartTimeout)
 	defer timer.Stop()
 	select {
@@ -180,19 +176,54 @@ func Launch(ctx context.Context, opts LaunchOptions) (*Chrome, error) {
 	}
 }
 
-// profileInUseExit is Chrome's exit status when another Chrome holds the
-// profile's lock (RESULT_CODE_PROFILE_IN_USE).
-const profileInUseExit = 21
+// start runs the loop over an open connection to a started process.
+func start(conn *cdp.Conn, proc process, output *tail, opts LaunchOptions) *Chrome {
+	loopCtx, cancel := context.WithCancel(context.Background())
+	c := &Chrome{
+		opts: opts, proc: proc, conn: conn, output: output,
+		pub:      newPublisher(State{}),
+		requests: make(chan func(*loopState)),
+		ready:    make(chan struct{}),
+		done:     make(chan struct{}),
+		ctx:      loopCtx, cancel: cancel,
+	}
+	go c.run()
+	return c
+}
 
-// launchError explains a Chrome that ended before its first page. A windowed
-// Chrome hands a launch on a profile in use to the running one and exits; a
-// headless one exits with profileInUseExit.
+// process is the Chrome process as the loop sees it.
+type process interface {
+	Kill()
+	// Exited closes once the process has been reaped.
+	Exited() <-chan struct{}
+	// ExitCode is valid once Exited has closed.
+	ExitCode() int
+}
+
+type osProcess struct {
+	cmd    *exec.Cmd
+	exited chan struct{}
+}
+
+func (p *osProcess) Kill()                   { p.cmd.Process.Kill() }
+func (p *osProcess) Exited() <-chan struct{} { return p.exited }
+func (p *osProcess) ExitCode() int           { return p.cmd.ProcessState.ExitCode() }
+
+// launchError explains a Chrome that ended before its first page.
 func (c *Chrome) launchError() error {
-	out := c.output.String()
-	if strings.Contains(out, "Opening in existing browser session") || c.cmd.ProcessState.ExitCode() == profileInUseExit {
+	if profileInUse(c.output.String()) {
 		return fmt.Errorf("%w (%s)", ErrProfileInUse, c.opts.ProfileDir)
 	}
-	return fmt.Errorf("webcast: Chrome exited before opening a page: %v%s", c.err, c.output.quote())
+	return fmt.Errorf("webcast: Chrome exited before opening a page: %v", c.err)
+}
+
+// profileInUse reads Chrome's output for another Chrome holding the profile:
+// a windowed Chrome hands the launch over and says so; a headless one fails
+// to take the profile's lock (measured, Chrome 154). Other failures to set
+// up the lock exit with the same status, so the status alone says nothing.
+func profileInUse(output string) bool {
+	return strings.Contains(output, "Opening in existing browser session") ||
+		strings.Contains(output, "SingletonLock: File exists")
 }
 
 func (c *Chrome) State() State                      { return c.pub.get() }
@@ -219,10 +250,13 @@ func (c *Chrome) do(fn func(*loopState)) bool {
 }
 
 func (c *Chrome) SetLive(live bool) error {
-	if !c.do(func(s *loopState) { c.setLive(s, live) }) {
+	var err error
+	ran := make(chan struct{})
+	if !c.do(func(s *loopState) { err = c.setLive(s, live); close(ran) }) {
 		return ErrEnded
 	}
-	return nil
+	<-ran
+	return err
 }
 
 func (c *Chrome) Close() error {
@@ -262,8 +296,8 @@ loop:
 			}
 		case <-s.killAt:
 			s.killAt = nil
-			c.cmd.Process.Kill()
-		case <-c.exited:
+			c.proc.Kill()
+		case <-c.proc.Exited():
 			break loop
 		}
 		c.publish(s)
@@ -345,9 +379,9 @@ func (c *Chrome) goSetControl(session string, contextID int64, live bool) {
 	c.goCall(session, "Runtime.evaluate", map[string]any{"expression": expr, "contextId": contextID}, nil)
 }
 
-func (c *Chrome) setLive(s *loopState, live bool) {
+func (c *Chrome) setLive(s *loopState, live bool) error {
 	if s.ending != notEnding {
-		return
+		return ErrEnded
 	}
 	s.phase = PhaseIdle
 	if live {
@@ -356,6 +390,7 @@ func (c *Chrome) setLive(s *loopState, live bool) {
 	for session, ctx := range s.contexts {
 		c.goSetControl(session, ctx, live)
 	}
+	return nil
 }
 
 // beginClose asks Chrome to close, and kills it if it hasn't after closeWait.
@@ -393,29 +428,40 @@ func (c *Chrome) publish(s *loopState) {
 // finish runs once the pipe is gone or Chrome exited: it makes sure the
 // process is reaped, every call has returned, and says why it ended.
 func (c *Chrome) finish(s *loopState) {
+	// Read before our own Close, which would mask it.
+	connErr := c.conn.Err()
 	c.conn.Close()
 	select {
-	case <-c.exited:
+	case <-c.proc.Exited():
 	case <-time.After(closeWait):
-		c.cmd.Process.Kill()
-		<-c.exited
+		c.proc.Kill()
+		<-c.proc.Exited()
 	}
 	c.cancel()
 	c.work.Wait()
-	switch s.ending {
-	case endRequested:
-		c.err = nil
-	case endLastWindow:
-		c.err = ErrClosedByOperator
-	default:
-		if code := c.cmd.ProcessState.ExitCode(); code != 0 {
-			c.err = fmt.Errorf("webcast: Chrome exited with status %d%s", code, c.output.quote())
-		} else {
-			c.err = ErrClosedByOperator
-		}
-	}
+	c.err = endError(s.ending, connErr, c.proc.ExitCode(), c.output.quote())
 	c.pub.finish(State{Phase: PhaseEnded})
 	close(c.done)
+}
+
+// endError says why a Chrome ended. A cause the loop chose wins; otherwise a
+// failed connection is the reason, then a failing exit status, and a clean
+// exit nobody asked for is the operator quitting Chrome. The pipe closing
+// because Chrome exited is not a connection failure.
+func endError(cause endCause, connErr error, exitCode int, output string) error {
+	switch cause {
+	case endRequested:
+		return nil
+	case endLastWindow:
+		return ErrClosedByOperator
+	}
+	if connErr != nil && !errors.Is(connErr, io.EOF) && !errors.Is(connErr, cdp.ErrClosed) {
+		return fmt.Errorf("webcast: lost Chrome: %w", connErr)
+	}
+	if exitCode != 0 {
+		return fmt.Errorf("webcast: Chrome exited with status %d%s", exitCode, output)
+	}
+	return ErrClosedByOperator
 }
 
 // tail keeps the last max bytes written to it.

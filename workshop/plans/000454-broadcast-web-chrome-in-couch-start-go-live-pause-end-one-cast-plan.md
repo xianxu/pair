@@ -508,3 +508,30 @@ the `broadcast.Endpoint` extraction (Task 6 and the Core concepts row) with:
 - more than one cast Chrome;
 - remote driving;
 - privacy masking.
+
+### 2026-10-11 — M1 as built (live findings and the M1 review)
+
+Divergences from the tasks above, all measured against Chrome 154:
+- **Attach:** browser-level `Target.setAutoAttach{waitForDebuggerOnStart, flatten, filter: page}` replaces the
+  per-target `attachToTarget`. It covers the already-open page too, and holds each new page until `goSetup` releases
+  it with `Runtime.runIfWaitingForDebugger`, always, even when setup failed. Setup after attach had raced the first
+  navigation. `Launch` returns once the first page's control is set up, not when the page appears.
+- **Titles:** `Target.targetInfoChanged` brings a new `<title>` only much later, so the script reports
+  `document.title` and the Tracker gains `PageTitle`. A main-frame `Page.frameNavigated` (`DocumentChanged`) clears
+  it, so an uninjectable new document doesn't keep the old title (BR-5).
+- **Setup steps:** `Page.enable` is required; without it the script never reaches the next document.
+- **Naming:** `publisher[T]` (`publish.go`) is what Task 3 called `latest[T]`.
+- **LaunchOptions:** gained `StartURL` and `Headless` (tests only); the planned `Stderr` became an internal 8 KiB
+  tail.
+- **Process seam:** the process sits behind a small `process` interface, so the run loop is tested against a
+  scripted CDP peer and a fake process (`chrome_loop_test.go`, BR-3). The tests cover per-page setup and release,
+  the page toggle, last-window grace and its cancel, end-cause precedence, kill after `closeWait`, SetLive while
+  ending, and exit reasons. Each was mutation-checked.
+- **End reason:** `endError` (pure) decides the reason: a cause the loop chose, then a failed connection (BR-2), then
+  a failing status, then the operator. `SetLive` while ending returns `ErrEnded`. `cmd.WaitDelay` bounds `Wait` when
+  helpers hold the output pipe (BR-4).
+- **Profile in use** is read from Chrome's output (`SingletonLock: File exists`, or the windowed handoff message),
+  not from exit status 21, which other lock-setup failures share (BR-6).
+- **Live harness:** headless, and never raises a window (operator instruction: don't take focus from Couch). Tab
+  switching is emulated by focus; real switching under windows moves to the smoke test. The node tests live in
+  `tests/webcast/`.

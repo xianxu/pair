@@ -152,8 +152,8 @@ func TestLiveClose(t *testing.T) {
 	if c.Err() != nil || c.State().Phase != PhaseEnded {
 		t.Fatalf("err %v state %+v", c.Err(), c.State())
 	}
-	if !c.cmd.ProcessState.Exited() {
-		t.Fatalf("process state %v", c.cmd.ProcessState)
+	if !c.proc.(*osProcess).cmd.ProcessState.Exited() {
+		t.Fatalf("process state %v", c.proc.(*osProcess).cmd.ProcessState)
 	}
 }
 
@@ -163,11 +163,11 @@ func TestLiveChromeExitsWhenPipeCloses(t *testing.T) {
 	c := liveChrome(t)
 	c.conn.Close()
 	select {
-	case <-c.exited:
+	case <-c.proc.Exited():
 	case <-time.After(closeWait - time.Second):
 		t.Fatal("Chrome still running after its pipe closed")
 	}
-	if ws, ok := c.cmd.ProcessState.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
+	if ws, ok := c.proc.(*osProcess).cmd.ProcessState.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
 		t.Fatalf("Chrome was killed (%v), not exited", ws.Signal())
 	}
 }

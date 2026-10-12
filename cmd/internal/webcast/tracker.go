@@ -39,7 +39,7 @@ type trackedPage struct {
 }
 
 // TrackerInput is one of TargetCreated, TargetChanged, TargetDestroyed,
-// PageReport, PageTitle.
+// PageReport, PageTitle, DocumentChanged.
 type TrackerInput interface{ trackerInput() }
 
 // TargetCreated: a page target appeared.
@@ -57,11 +57,16 @@ type PageReport struct {
 	Visible, Focused bool
 }
 
+// DocumentChanged: the page committed a new top-level document, whose title
+// is unknown until it reports one.
+type DocumentChanged struct{ ID string }
+
 // PageTitle: the page's top document reported its title.
 type PageTitle struct{ ID, Title string }
 
 func (TargetCreated) trackerInput()   {}
 func (PageTitle) trackerInput()       {}
+func (DocumentChanged) trackerInput() {}
 func (TargetChanged) trackerInput()   {}
 func (TargetDestroyed) trackerInput() {}
 func (PageReport) trackerInput()      {}
@@ -88,6 +93,10 @@ func (t *Tracker) Apply(in TrackerInput) {
 		if p, ok := t.pages[in.ID]; ok {
 			p.pageTitle = in.Title
 		}
+	case DocumentChanged:
+		if p, ok := t.pages[in.ID]; ok {
+			p.pageTitle = ""
+		}
 	case TargetDestroyed:
 		delete(t.pages, in.ID)
 	case PageReport:
@@ -109,15 +118,21 @@ func (t *Tracker) Apply(in TrackerInput) {
 
 // Active is the cast tab; false only when no page is open.
 func (t *Tracker) Active() (Tab, bool) {
+	// Ties (pages whose activation was withdrawn) break by id, so the
+	// answer doesn't depend on map order.
+	later := func(p, than *trackedPage) bool {
+		return than == nil || p.activated > than.activated ||
+			(p.activated == than.activated && p.tab.ID > than.tab.ID)
+	}
 	var best, fallback *trackedPage
 	for _, p := range t.pages {
-		if fallback == nil || p.activated > fallback.activated {
+		if later(p, fallback) {
 			fallback = p
 		}
 		if p.reported && !p.visible {
 			continue
 		}
-		if best == nil || p.activated > best.activated {
+		if later(p, best) {
 			best = p
 		}
 	}

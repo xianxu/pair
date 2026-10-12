@@ -1087,3 +1087,11 @@ proof; record the surprising case so the next change starts from evidence.
   concepts bullets (1.5s, 10 steps, 11 repaints) and a README sentence ("resolved from a viewer's page") stating the
   old behavior. Before committing a constant or capability change, grep the old number and the verb across README,
   atlas and the plan, and rewrite each hit; state tests in terms of the constants so tuning can't stale them.
+- **An exit status is not a diagnosis (#454 M1 review).** Chrome exits 21 both when another Chrome holds the profile
+  and when it merely can't create its lock directory (as in a sandbox), so mapping 21 to "profile in use" sent a
+  sandboxed run down the wrong path. When classifying a child's failure, match the evidence that names the cause
+  (its message), quote the output otherwise, and test with a look-alike failure.
+- **A loop's terminal reason is a pure function of what it observed (#454 M1 review).** The Chrome loop called every
+  unrequested end "closed by operator", hiding a broken connection. Collect the facts (who asked, the connection's
+  error, the exit status) and derive the reason in one pure function with a precedence table, then test each row and
+  drive the loop itself through a scripted peer so the facts are the real ones.

@@ -111,6 +111,22 @@ func translate(sessionID, method string, params json.RawMessage, targetOf func(s
 		return []any{contextDestroyed{SessionID: sessionID, ContextID: p.ID}}
 	case "Runtime.executionContextsCleared":
 		return []any{contextsCleared{SessionID: sessionID}}
+	case "Page.frameNavigated":
+		// Cross-document navigations only; a same-document one (pushState)
+		// keeps its document and its title.
+		var p struct {
+			Frame struct {
+				ID       string `json:"id"`
+				ParentID string `json:"parentId"`
+			} `json:"frame"`
+		}
+		if json.Unmarshal(params, &p) != nil || p.Frame.ParentID != "" {
+			return nil
+		}
+		if target, ok := targetOf(sessionID); ok && p.Frame.ID == target {
+			return []any{DocumentChanged{ID: target}}
+		}
+		return nil
 	case "Runtime.bindingCalled":
 		return translateBinding(sessionID, params, targetOf)
 	}

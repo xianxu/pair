@@ -17,3 +17,5 @@
 {"method":"Target.detachedFromTarget","params":{"sessionId":"5AF3","targetId":"0F72"}}
 {"method":"Target.targetDestroyed","params":{"targetId":"0F72"}}
 {"method":"Page.frameNavigated","params":{"frame":{"id":"0F72"}},"sessionId":"5AF3"}
+{"method":"Page.frameNavigated","params":{"frame":{"id":"SUB","parentId":"0F72"}},"sessionId":"5AF3"}
+{"method":"Page.domContentEventFired","params":{},"sessionId":"5AF3"}

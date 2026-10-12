@@ -41,6 +41,8 @@ func TestTranslateSpikeCapture(t *testing.T) {
 		{contextsCleared{SessionID: "5AF3"}},
 		{pageDetached{SessionID: "5AF3"}},
 		{TargetDestroyed{ID: "0F72"}},
+		{DocumentChanged{ID: "0F72"}},
+		nil, // a subframe's navigation
 		nil, // unhandled method
 	}
 	sc := bufio.NewScanner(f)
