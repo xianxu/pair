@@ -25,6 +25,19 @@ type Tap func(Frame, FrameClass)
 // not the frame, so an overlay never reaches the parent's scrollback.
 type Overlay func(f Frame, class FrameClass) Frame
 
+// OperatorLayer draws what only the operator's own terminal shows, over the
+// overlay: a cast link's code (pair#495). It is applied after the tap's frame
+// is taken, so no tapped frame -- nothing a broadcast sends -- ever carries
+// it. It follows Overlay's rules: Presenter goroutine, no blocking, f not
+// modified in place, leaf locks only.
+type OperatorLayer func(f Frame, class FrameClass) Frame
+
+// SetOperatorLayer installs, or with nil removes, the operator-only layer,
+// ordered with paints.
+func (p *Presenter) SetOperatorLayer(ctx context.Context, l OperatorLayer) error {
+	return p.call(ctx, func(context.Context) error { p.operatorLayer = l; return nil })
+}
+
 // SetOverlay installs, or with nil removes, the overlay, ordered with paints.
 func (p *Presenter) SetOverlay(ctx context.Context, o Overlay) error {
 	return p.call(ctx, func(context.Context) error { p.overlay = o; return nil })

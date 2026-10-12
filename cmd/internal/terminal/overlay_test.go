@@ -167,3 +167,33 @@ func TestOverlayNeverReachesScrollback(t *testing.T) {
 		t.Fatal("overlay missing from the visible screen")
 	}
 }
+
+// pair#495: the operator-only layer reaches the operator's terminal and the
+// presented frame, but never the tap -- a broadcast must not carry it -- while
+// the ordinary overlay still reaches both.
+func TestOperatorLayerNeverReachesTheTap(t *testing.T) {
+	ctx := context.Background()
+	p, parent, e, r := tappedPresenter(t)
+	public := &tintOverlay{col: 1, row: 0, on: true}
+	private := &tintOverlay{col: 2, row: 1, on: true}
+	if err := p.SetOverlay(ctx, public.apply); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.SetOperatorLayer(ctx, private.apply); err != nil {
+		t.Fatal(err)
+	}
+	selectPresenter(t, p, e)
+	tapped := r.last(t).frame
+	if got := tapped.Cells[1*8+2].Style.Bg; got == overlayTint {
+		t.Fatal("the operator-only layer reached the tap")
+	}
+	if got := tapped.Cells[0*8+1].Style.Bg; got != overlayTint {
+		t.Fatal("the overlay no longer reaches the tap")
+	}
+	if got := presented(t, p).Cells[1*8+2].Style.Bg; got != overlayTint {
+		t.Fatal("the operator's frame lacks the operator-only layer")
+	}
+	if !strings.Contains(string(parent.Bytes()), "\x1b[48;5;214m") {
+		t.Fatal("the layer never reached the operator's terminal")
+	}
+}
