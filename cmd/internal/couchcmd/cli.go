@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/webcast/query"
 )
 
 type cliKind uint8
@@ -27,6 +28,9 @@ const (
 	cliAdopt
 	cliHelp
 	cliSessionSync
+	// cliWebQuery is couch broadcast-web's agent queries (#462); args holds
+	// the argv after the flag, which query.Main parses.
+	cliWebQuery
 )
 
 type adoptionArgs struct {
@@ -94,6 +98,8 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 		switch args[0] {
 		case "--adopt-store":
 			return parseAdoptionCLI(args)
+		case query.Flag:
+			return cliInvocation{kind: cliWebQuery, args: args[1:]}, nil
 		case "--session-sync":
 			return parseSessionSyncCLI(args)
 		case "--actors", "--send-to", "--message-status", "--skill", "--broadcast-list":

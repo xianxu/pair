@@ -74,6 +74,32 @@ func uniqueStep(root, e *recording.DOMNode) string {
 	return ""
 }
 
+// Match is what an anchor selector names in st, by this file's rules, and
+// whether sel is in the anchor grammar at all. Other readers of a note's
+// selector (the agent queries, #462) match through it, so the grammar keeps
+// one definition.
+func Match(st *recording.State, sel string) ([]*recording.DOMNode, bool) {
+	if !isAnchor(sel) {
+		return nil, false
+	}
+	return matchSelector(st, sel), true
+}
+
+// isAnchor reports whether sel is made of this file's steps and separators.
+func isAnchor(sel string) bool {
+	if sel == "" {
+		return false
+	}
+	for _, part := range strings.Split(sel, deepSep) {
+		for _, step := range strings.Split(part, childSep) {
+			if !stepRe.MatchString(step) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 // matchSelector is every element of st's top document that sel names, in
 // document order. A selector outside the subset matches nothing.
 func matchSelector(st *recording.State, sel string) []*recording.DOMNode {

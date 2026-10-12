@@ -1,0 +1,10 @@
+$ couch --broadcast-web-query <fixtures>/segments dom --at 1500
+t=1500  segment 1 (live)  http://app.local/  viewport 1280x800@1
+@10 #document http://app.local/
+  @9 <html>
+    @7 <head>
+    @8 <body>
+      @6 <h1> Inbox
+      @1 <input id=q> {value "inv", focused}
+      @4 <ul id=list>
+        @3 <li> one

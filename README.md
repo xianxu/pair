@@ -398,6 +398,9 @@ couch --peek repo:N[:M...][,repo:N...] [--lines N] [--json] [--transcripts]
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
 couch --broadcast-list [--json]   the running broadcast and its viewer count (never the link)
+couch --broadcast-web-query DIR dom|events|notes ...
+                         read-only: a broadcast-web recording's page at t, what happened in a window,
+                         and every note with its element and the actions before it (pair#462)
 couch --session-sync read|write|diff|status ... FILE
                          the one way an agent changes a session-sync file it owns: refuses under the
                          operator's lock or when the section changed since `read` (write --if-hash), and
@@ -857,6 +860,12 @@ running and how many viewers are watching: its state, start time, mode and
 viewer count. It never prints the link or its token, because the token is the
 broadcast's only credential.
 
+`couch --broadcast-web-query DIR dom|events|notes` reads a broadcast-web
+recording directory for a coding agent: the page at a moment, what happened
+in a window, and every note with its element, focused context and the actions
+just before it. It needs no running Couch; `couch --broadcast-web-query` alone
+prints its usage. See [atlas/webcast-format.md](atlas/webcast-format.md#agent-queries-462).
+
 Broadcasts reach viewers through [`cloudflared`](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/)
 (`brew install cloudflared`):
 
@@ -922,9 +931,20 @@ is cast (`Chrome ⏸`). The same three pause and resume it, and the browser stay
 open while paused. Right-click the cell to copy the viewer link; `Ctrl`+click
 (left or right) ends the cast and closes Chrome. Closing Chrome yourself ends the
 cast too. The cast follows whichever tab is active, including tabs opened later.
-Viewers see only whether the cast is live and, while it is, the page's title and
-URL; nothing you do while paused reaches them. The page itself (its DOM) is cast
-once the recorder lands. The web cast shares the screen broadcast's tunnel
+Viewers' page shows whether the cast is live and, while it is, the page's title
+and URL; nothing you do while paused reaches them.
+
+**Recording (#458).** From the first time you go live, the cast tab is recorded
+to `<couch store>/webcast/recordings/<id>/` (the format is in
+`atlas/webcast-format.md`): the page's DOM and every change to it, in every frame,
+plus form values (what you type, except passwords, which are never recorded),
+clicks, scrolling, the selection, focus, the element under your pointer and a
+sampled pointer position, the page's images, stylesheets and fonts, and a small
+screenshot every few seconds. The same records go to the viewers' event stream,
+for the DOM viewer to render. Nothing is recorded while paused; resuming starts
+a new segment. A recording is kept until you delete its directory. If a
+recording can't be written, or loses something, Couch says so in its notice
+line. The web cast shares the screen broadcast's tunnel
 (`COUCH_BROADCAST_TUNNEL`), so both can run at once on one named tunnel. Chrome
 is found in the usual macOS locations or on `PATH`; set `COUCH_WEBCAST_CHROME` to
 the binary to choose another (Couch refuses to start if it doesn't exist).

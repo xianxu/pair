@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 )
 
 // DOMNode is a node of the reduced DOM. Its fields are read-only to
@@ -75,11 +76,15 @@ type State struct {
 	Selection *Selection
 	Focus     NodeID
 	LastClick *Click
-	Boxes     map[NodeID]Box
-	BoxesT    int64
-	Notes     []*NoteView
-	Strokes   []*StrokeView
-	Frames    []*Frame
+	// Hover is the element under the operator's pointer (0: none); Ptr is
+	// the last sampled pointer position. Neither is in Canonical.
+	Hover   NodeID
+	Ptr     *[2]float64
+	Boxes   map[NodeID]Box
+	BoxesT  int64
+	Notes   []*NoteView
+	Strokes []*StrokeView
+	Frames  []*Frame
 	// Control is who drives (#466): per recording, ended by stop end.
 	Control Control
 
@@ -99,6 +104,7 @@ func NewState() *State {
 
 func (s *State) resetDOM() {
 	s.Top, s.Selection, s.Focus, s.LastClick, s.Fonts = nil, nil, 0, nil, nil
+	s.Hover, s.Ptr = 0, nil
 	s.nodes = map[NodeID]*DOMNode{}
 	s.Sheets = map[NodeID]*SheetState{}
 	s.Adopted = map[NodeID][]NodeID{}
@@ -318,6 +324,9 @@ func (s *State) applyInSegment(r Record) error {
 		if err != nil {
 			return err
 		}
+		if n.N == "input" && passwordWithValue(withAttr(n.A, r.Name, r.V)) {
+			return fmt.Errorf("element %d would be a password input with a value attribute; a password is never recorded", r.ID)
+		}
 		if r.V == nil {
 			delete(n.A, r.Name)
 		} else {
@@ -377,8 +386,12 @@ func (s *State) applyInSegment(r Record) error {
 	case *Font:
 		s.Fonts = append(s.Fonts, r)
 	case *Input:
-		if _, err := s.element(r.ID); err != nil {
+		el, err := s.element(r.ID)
+		if err != nil {
 			return err
+		}
+		if isPassword(el.N, el.A) && r.V != nil && *r.V != "" {
+			return fmt.Errorf("element %d is a password input: its value is never recorded (secret instead)", r.ID)
 		}
 		s.Inputs[r.ID] = r
 	case *Scroll:
@@ -413,6 +426,13 @@ func (s *State) applyInSegment(r Record) error {
 			return fmt.Errorf("node %d is unknown", r.ID)
 		}
 		s.Focus = r.ID
+	case *Hover:
+		if r.ID != 0 && s.nodes[r.ID] == nil {
+			return fmt.Errorf("node %d is unknown", r.ID)
+		}
+		s.Hover = r.ID
+	case *Ptr:
+		s.Ptr = &[2]float64{r.X, r.Y}
 	case *Layout:
 		for id := range r.Boxes {
 			if s.nodes[id] == nil {
@@ -478,6 +498,9 @@ func (s *State) checkNew(n *Node, replacing ...*DOMNode) error {
 		}
 		if err := s.claim(n.ID, signature(n)); err != nil {
 			return err
+		}
+		if n.Y == YEl && n.N == "input" && passwordWithValue(n.A) {
+			return fmt.Errorf("node %d is a password input with a value attribute; a password is never recorded", n.ID)
 		}
 		for _, sub := range []*Node{n.SR, n.TC} {
 			if sub != nil {
@@ -617,6 +640,9 @@ func (s *State) forget(n *DOMNode) {
 	if s.Focus == n.ID {
 		s.Focus = 0
 	}
+	if s.Hover == n.ID {
+		s.Hover = 0
+	}
 	for _, sub := range []*DOMNode{n.Shadow, n.Content, n.Frame} {
 		if sub != nil {
 			s.forget(sub)
@@ -625,4 +651,30 @@ func (s *State) forget(n *DOMNode) {
 	for _, k := range n.Kids {
 		s.forget(k)
 	}
+}
+
+// isPassword: an input element whose type is password (any case).
+func isPassword(tag string, a map[string]string) bool {
+	return tag == "input" && strings.EqualFold(strings.TrimSpace(a["type"]), "password")
+}
+
+// passwordWithValue: an input's attributes make it a password input with a
+// non-empty value attribute.
+func passwordWithValue(a map[string]string) bool {
+	return isPassword("input", a) && a["value"] != ""
+}
+
+// withAttr is a's attributes with one set (v nil: removed), without
+// changing a.
+func withAttr(a map[string]string, name string, v *string) map[string]string {
+	out := make(map[string]string, len(a)+1)
+	for k, val := range a {
+		out[k] = val
+	}
+	if v == nil {
+		delete(out, name)
+	} else {
+		out[name] = *v
+	}
+	return out
 }

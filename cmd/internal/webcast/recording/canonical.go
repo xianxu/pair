@@ -64,6 +64,7 @@ type canonInput struct {
 	V       *string `json:"v,omitempty"`
 	Checked *bool   `json:"checked,omitempty"`
 	Sel     []int   `json:"sel,omitempty"`
+	Secret  bool    `json:"secret,omitempty"`
 }
 
 func (s *State) canonNode(n *DOMNode) *canonNode {
@@ -72,7 +73,7 @@ func (s *State) canonNode(n *DOMNode) *canonNode {
 		c.V = &n.V
 	}
 	if in := s.Inputs[n.ID]; in != nil {
-		c.Input = &canonInput{V: in.V, Checked: in.Checked, Sel: in.Sel}
+		c.Input = &canonInput{V: in.V, Checked: in.Checked, Sel: in.Sel, Secret: in.Secret}
 	}
 	if sc, ok := s.Scrolls[n.ID]; ok {
 		c.Scroll = &sc

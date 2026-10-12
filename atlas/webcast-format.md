@@ -136,8 +136,15 @@ servers (Principle 4).
 - DOM attributes keep the page's own URLs, because an agent wants to see the real ones. The viewer resolves an attribute value
   (`src`, each `srcset` candidate, `href` of a stylesheet link, `poster`) against its document's URL, looks the absolute URL up in the asset table, and
   loads `assets/<hash>` through the proxy. A URL with no entry loads nothing. It is never fetched from the origin.
-- CSS bodies (`text/css` assets) and `sheet` text have absolute `url()`s; the proxy rewrites them for viewers at
-  serve time (#459).
+- CSS bodies (`text/css` assets) and `sheet` text have absolute URLs: in `url()`, `@import` strings and plain strings
+  inside `image-set()`. The asset store makes a body's URLs absolute against the stylesheet's own URL when it is
+  stored (`assets.Recorded.Put`), so a body shared by URLs in different directories means one thing; the recorder
+  does the same for `sheet` text. CSS is otherwise exact. At serve time the proxy (`assets.Proxy`) points each URL
+  that has an asset at `<hash>` (relative to `assets/`) and leaves the rest absolute, for the viewer to resolve when
+  the asset arrives (#459).
+- Images over the budget (`assets.Policy.MaxPixels`, about one 1920×1080 frame) are resampled, aspect kept: JPEG when
+  opaque, PNG with transparency, so the asset's `mime` can differ from the page's. SVG, GIF (mostly animations) and formats
+  the store can't decode (AVIF) are kept exact. A header claiming over 64 MP is refused unread.
 - Assets outlive segments: the table is per recording, and a later `asset` record for the same URL rebinds it.
 
 ## Observer state
@@ -147,7 +154,7 @@ Each may carry `by` (see Attribution and control).
 
 | Kind | Fields | Meaning |
 |---|---|---|
-| `input` | `id`, one or more of `v` (value), `checked`, `sel` (selected option indexes) | A form control's current state: a property, not an attribute. It is set by the user or by script; typing is recorded as values, not keystrokes. |
+| `input` | `id`, one or more of `v` (value), `checked`, `sel` (selected option indexes), `secret` | A form control's current state: a property, not an attribute. It is set by the user or by script; typing is recorded as values, not keystrokes. `secret: true` (never with `v`) says a password control holds a value that is not recorded. |
 | `scroll` | `id`, `x`, `y` | Scroll offset of an element, or of a document's viewport when `id` is a document. |
 | `selection` | `anchor` `[id,offset]`, `focus` `[id,offset]` | The text selection. A record with neither field clears it. |
 
@@ -160,9 +167,20 @@ Each may carry `by` (see Attribution and control).
 | `vp` | `w`, `h`, `dpr` | The viewport changed mid-segment (CSS px; device pixel ratio). |
 | `click` | `id`, `x`, `y` | A click on element `id`, at page coordinates. |
 | `focus` | `id` | Focus moved to `id`; `0` is none. |
+| `hover` | `id` | The element under the operator's pointer; `0` is none. A hover menu or tooltip is CSS `:hover` state the DOM doesn't hold, so a viewer shows it from this. Cleared when the element goes. |
+| `ptr` | `x`, `y` | A sampled operator pointer position (on movement, at most a few per second). |
 | `layout` | `boxes` `{id: [x,y,w,h]}` | Layout boxes of rendered nodes, replacing the previous set. The recorder captures them (`DOMSnapshot`) when a note is made and with each `frame`, not continuously. The notes model needs them for focused context and crops; a box is as of its record's `t`. |
 
-`click` and `focus` may carry `by` (see Attribution and control).
+**Passwords are never recorded.** A password input's value appears neither in an `input` record (`secret` instead)
+nor as its `value` attribute (the recorder drops it). The reducer refuses a non-empty `v` on an `input type=password`,
+`secret` with `v`, and any record that would leave a password input with a non-empty `value` attribute; so the
+validator catches a recorder that leaks one. A value typed while the control was `type=text` was on screen and stays
+recorded when a script flips it to `password`.
+
+`hover` and `ptr` are tracked by the reducer (`State.Hover`, `State.Ptr`, reset by `seg`) but are not in
+`State.Canonical()`: they are the operator's context, not the page's. `query.UserAction` (#462) doesn't list them;
+whether a note's "what the user did just before" should include hovering is #462's call (raised with the TL by #458). Like `click` and `focus`, they may carry `by`
+(see Attribution and control).
 
 **Coordinates:** every coordinate in the format is in **CSS pixels of the top document's page** (scroll-independent). This
 covers `click`, layout boxes, note boxes, pointer strokes and crops. Something in an iframe is mapped into the
@@ -175,7 +193,7 @@ top page by the recorder. The viewport position at time t is the top document's 
 | `note` | notes | `id` (string), `author` `{id,name,color}`, `text`, `at` `{node,sel,text,box}`, optional `region` `[x,y,w,h]` | A note anchored on an element at its `t`. `at.node` is the element's id. `at.sel` is a stable CSS selector. `at.text` is the element's text, trimmed to 200 characters. `at.box` is its box. `region` is set for a dragged region. |
 | `note-state` | notes | `id`, `state`: `open` or `resolved` | A note was resolved or reopened. |
 | `stroke` | pointer | `id`, `author`, `color`, `pts` `[[x,y,dt],…]` | One pointer stroke; `dt` is ms after the record's `t`. |
-| `frame` | frames/index | `file`, `w`, `h`, `scale` | A screenshot of the real tab at `t` (the fidelity check). Not in the live stream. |
+| `frame` | frames/index | `file`, `w`, `h`, `scale` | A screenshot of the real tab at `t` (the fidelity check), `w`×`h` image pixels; `scale` is image pixels per CSS pixel, the one source of that mapping for every consumer: 0.5 (the viewport at half its CSS size) whatever the device pixel ratio, except under a ratio of 0.5, where a screenshot isn't upsampled and `scale` is the ratio. `t` is the capture's midpoint. Not in the live stream. |
 
 Notes stay in the recording after a reload. That live notes clear on reload (project, Direction) is the notes model's
 rule (#461): the notes "on" the current document are those since the document began (`State.DocSeg`), so a pause and
@@ -269,8 +287,10 @@ A viewer that joins late receives the **catch-up**, followed by the live records
 - the `seg` the current document began in, as a bare record, so the document's notes keep their segment;
 - the notes, note states and strokes since then;
 - the latest `ctl` before the latest `seg`, which carries the whole control state;
-- everything from the latest `seg` on. While paused, that last part is the segment through its `stop`. Reduced, the catch-up gives the same DOM, assets,
-`DocSeg`, current-document notes and control as the whole recording. This is tested at every cut point, and at every pinned
+- everything from the latest `seg` on, except `hover` and `ptr`: of those, only the latest of each, in place (they are the
+  operator's pointer now, state rather than history; #458). While paused, that last part is the segment through its
+  `stop`. Reduced, the catch-up gives the same DOM, assets, `DocSeg`, current-document notes, control, hover and
+  pointer as the whole recording. This is tested at every cut point, and at every pinned
 time of every fixture. `recording.CatchUp` is this rule; the
 live fan-out (#460, `recording.Hub`) serves it. The hub keeps only `CatchUp(log)` at each segment, so what it holds for late
 joiners is bounded by one segment.
@@ -308,7 +328,7 @@ it), never a local fork.
 | pair#459 | asset store and proxy | `assets.Store` (`Put`, `Get`, `Lookup`; `Policy`) | `assets.MemStore` | `assets.RunStoreContract` |
 | pair#460 | live viewer | `recording.Live` (fan-out with catch-up; `Ended(recs)` says whether a closed subscription was the fan-out's end or a drop); the JS viewer contract below | `recording.Hub`: the production fan-out is its own double (bounded by one segment; #458 constructs it next to its `Tee`) | `recording.RunLiveContract`; the fixtures' canonical pins |
 | pair#461 | notes model | `notes.Model` (`Anchor`, `Resolve`, `Context`, `Crops`, `Live`; `notes.Hints`); real: `notes.Structural` | `notes.FakeModel` | `notes.RunModelContract` |
-| pair#462 | agent queries | `query.Surface` (`DOMAt`, `Events`, `Notes`) | `query.FakeSurface` | `query.RunSurfaceContract` |
+| pair#462 | agent queries | `query.Surface` (`DOMAt`, `Events`, `Notes`); real: `query.Querier`, CLI `couch --broadcast-web-query` (below) | `query.FakeSurface` | `query.RunSurfaceContract` |
 | pair#467 | input injection | `drive.Injector` (`Inject(ctx, by, Batch)`) | `drive.FakeInjector` | `drive.RunInjectorContract` |
 | pair#467 | driving control and the reverse channel | `drive.Controller` (seats, request/grant/deny/revoke/release, input) | `drive.FakeController` | `drive.RunControllerContract` |
 
@@ -338,8 +358,9 @@ same records out, and `Server.events` sends them as `rec` events. The route, the
   the target of a driver's act (#466). `toPage(clientX, clientY)` maps a point in the viewer's window to top-page CSS px.
 - `onRecord(fn)` sees each accepted record and the model, so another component (#467's control state) can follow the
   stream without touching the apply path.
-The viewer rewrites `url()`s in streamed CSS (`sheet` records, `<style>` text, `style=`) through `resolveAsset`. The
-proxy rewrites only the CSS bodies it serves.
+The viewer rewrites `url()`s and `image-set()` strings in streamed CSS (`sheet` records, `<style>` text, `style=`)
+through `resolveAsset`. The proxy rewrites only the CSS bodies it serves. Both find the same URL spans:
+`tests/webcast/css_urls.json` is the shared corpus (`css.js` and `assets.RewriteCSS`).
 
 Conformance means that, for every fixture at each pinned time (its `frame` times), `canonical()` equals the reducer's
 `State.Canonical()`, and the render is within tolerance of `frames/<n>.png`. The fixture pins each expected state by
@@ -364,9 +385,41 @@ regenerated one can't silently lose a case.
 | `segments` (hand-made) | `fixturegen -segments` | Pause and resume with ids kept, an edit while paused, a tab switch, a same-document navigation; notes span the resume and clear on the switch |
 | `driven` (hand-made) | `fixturegen -driven` (`recording.DrivenRecording`) | Viewers request and are granted control. A driver's attributed clicks, typing and scroll, interleaved with the operator's own click. Driving continues through a pause, a resume and a navigation. Release, revoke, deny and leave. A note by the driver. |
 
-Gaps found while recording, for #458:
-- **Clicks:** the prototype's polled observer lost the click that navigates, so clicks must be reported synchronously.
-- **Layout:** `DOMSnapshot` on the top session leaves out out-of-process frames, so each frame session needs its own capture.
+Gaps found while recording, closed by the recorder (#458):
+- **Clicks:** the prototype's polled observer lost the click that navigates; the recorder's observer reports clicks
+  synchronously (`TestLiveRecording` holds a click before its `seg navigate`).
+- **Layout:** `DOMSnapshot` on the top session leaves out out-of-process frames; the recorder captures each frame
+  session's own and maps its boxes into the top page.
+
+## Agent queries (#462)
+
+`couch --broadcast-web-query DIR dom|events|notes` is what a coding agent runs on a recording. It reads the
+directory (`recording.ReadDir`), needs no running Couch, and prints text sized for an agent's context, or
+`--json` for structure. Package `cmd/internal/webcast/query`: `Querier` is the real `Surface`, one pass of the
+reference reducer with nothing indexed beside the records; `Main` is the CLI; the text renderers are pure.
+
+| Query | Answers | Text | `--json` |
+|---|---|---|---|
+| `dom [--at T] [--sel S] [--max-lines N]` | the page at T (default: the end) | a header (t, segment, live/paused, URL, viewport, title, driver), then one line per element `@id <tag attrs>` with form state, focus and scroll overlaid | `{t,seg,live,url,title,vp,control,matches}`, nodes in the format's `Node` shape plus `frame`, `state`, `focused`, `scroll` |
+| `events --from T1 --to T2` | what happened in the window | one line per record with its time, targets named as they were then, `by <viewer>` on a driver's acts; a run of more than 3 DOM, style, asset or layout records is one line (counts by kind, most-touched elements); a field typed a key at a time is one line with its final value | the records, as JSON lines |
+| `notes [--note ID] [--before MS]` | every note | author, time, segment, state now (resolved or open), text, anchor, the element as of the note, the notes model's context, and the user's actions in the `--before` ms (default 10000) before it, including segment starts and stops | `{note,state,seg,url,element,context,landmark,before}` |
+
+- **Node ids are the handle.** Every element in every answer is `@N`; `--sel @N` shows one. A note's own
+  selector is matched by the notes model's reader (`notes.Match`), so it names what the note names; anything
+  else is read as a CSS subset scoped as CSS is, per tree, with `>>>` to step into a host's shadow root, frame or
+  template. The grammar's one statement is `query.SelectorGrammar`, which the bare command's usage and every
+  refusal print; a selector outside it is refused, never matched loosely.
+- **Budgets:** a page stops at 300 lines (`--max-lines`) with a line saying how many more; a note's element at
+  20 lines and its preceding actions at the latest 20; attribute values at 80 characters and text at 200.
+  Script and style bodies, a document's head and SVG internals fold to one line each. The text shows the
+  attributes an agent reads structure by (id, class, role, aria-*, form and link attributes); `--json`
+  keeps them all.
+- **The notes model** is `notes.Model` behind its interface; `Main` constructs #461's `notes.Structural`, and
+  the contract and golden tests pin what it gives. Selectors accept the model's own anchors (`:nth-of-type`,
+  `>>>`), so a note's selector pastes into `--sel`.
+- **Tests:** `RunSurfaceContract` on the `Querier`; golden answers for every fixture in
+  `query/testdata/golden/` (`go test ./cmd/internal/webcast/query -run Golden -update`, then review the diff);
+  a scripted agent check that each note's answer names its element, time and the action before it.
 
 ## Remote driving (#466)
 
@@ -460,3 +513,12 @@ in an isolated world and kept out of the recording.
 
 **Lifecycle (ARCH-FUNERAL).** A `ctl` record is about 100 bytes per human control action, and lives as long as its
 recording. Seats and their keys are memory only: they end after the grace period without a stream, or with the cast.
+## Revisions
+
+- 2026-10-12 (#458, additive v1, approved with #457 by the operator; shapes coordinated by the TL with #460 and
+  #466): `hover {id}` and `ptr {x,y}` in events.jsonl, outside Canonical; `input.secret` and the password rules;
+  `ValidateDir` also reports anything in `frames/` no frame record names (a stray `.tmp-*`). The catch-up keeps only
+  the current segment's latest `hover` and `ptr` (TL, with #460).
+- 2026-10-12 (#459, TL ops:0): the asset store, not the recorder, makes stored CSS bodies' URLs absolute (at
+  `Put`, against the capture URL); `image-set()` plain strings are URLs to both the proxy and the viewer; the
+  resample policy is written down under Assets. Additive: no record kind or field changes.

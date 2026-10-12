@@ -2,8 +2,10 @@ package webcast
 
 import "errors"
 
-// Browser is the browser-control seam: one cast Chrome. Couch's UI, the stub
-// stream and (later) the recorder use only this; no CDP type crosses it.
+// Browser is the browser-control seam: one cast Chrome. Couch's UI, the Cast
+// and its Server use only this; no CDP type crosses it. The recorder (#458)
+// is not a client of it: it is part of the real Browser (Chrome), on the CDP
+// side, fed the loop's CDP events and live phase (LaunchOptions.Record).
 type Browser interface {
 	// State is the current state.
 	State() State
