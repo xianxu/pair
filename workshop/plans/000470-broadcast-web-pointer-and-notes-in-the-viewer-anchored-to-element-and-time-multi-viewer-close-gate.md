@@ -439,6 +439,43 @@ rounds:
       isolation: fenced
       reviewed: 2df0a13ad488f1edd8c0e2bb4e3d9c0190b3d512
       blocked: false
+    - "n": 11
+      timestamp: "2026-10-12T05:45:09-07:00"
+      dispatched: "2026-10-12T05:43:42-07:00"
+      agent: claude
+      dispose:
+        - id: BR-3
+          disposition: not-addressed
+          note: cast.go:166-172 puts the board before the live sink in the Tee, but no test pins the order; still Minor.
+          round: 11
+        - id: BR-4
+          disposition: not-addressed
+          note: board/wire.go:25 still bounds coordinates to maxCoord 1e6, with no clamp to the element or page box; deferred to wave 3.
+          round: 11
+        - id: BR-7
+          disposition: not-addressed
+          note: There is still no shared contract test run over both board.Writer and recorder.Emit.
+          round: 11
+        - id: BR-12
+          disposition: not-addressed
+          note: annotate.js:385 now sends stroke posts through answered() (toast on non-204 or network failure), but no test covers a refused stroke chunk.
+          round: 11
+        - id: BR-14
+          disposition: not-addressed
+          note: onRecord now calls endGesture() when docSeg changes (annotate.js:506-512), but no test drives a stroke across a navigation.
+          round: 11
+        - id: BR-16
+          disposition: not-addressed
+          note: endGesture() exists and is called from setMode, cast end, pointercancel and a document change (annotate.js:372,397,447,512), but no regression test exercises it.
+          round: 11
+        - id: BR-26
+          disposition: not-addressed
+          note: server_board_test.go:220 still matches only line-leading import-from; export-from, bare and dynamic imports are not followed.
+          round: 11
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 6c98f0479540ed28a6433911c36752be42e35255
+      blocked: false
 ---
 
 # Gate ledger — pair#470 (boundary-review)
@@ -607,6 +644,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - **BR-26** [Minor] `spec-path-untested` TestViewerImportsAreServed's regex follows only line-leading import-from, not export-from, side-effect or dynamic imports
   This is the 5th finding in family spec-path-untested. Rule: a test that walks the served-file closure parses every ES module reference form (import from, export from, bare import, import()). None of the other forms appear in webcast/web today, so the measured prevalence is 0 of 6 modules, but the terminal viewer already uses export from (broadcast/web/viewer.js:10). Widen the regex or fail on an unrecognised './*.js' reference.
+
+## Round 11 — 2026-10-12T05:45:09-07:00 (claude) — passed
+
+### Disposed
+
+- BR-3 — not-addressed — cast.go:166-172 puts the board before the live sink in the Tee, but no test pins the order; still Minor.
+- BR-4 — not-addressed — board/wire.go:25 still bounds coordinates to maxCoord 1e6, with no clamp to the element or page box; deferred to wave 3.
+- BR-7 — not-addressed — There is still no shared contract test run over both board.Writer and recorder.Emit.
+- BR-12 — not-addressed — annotate.js:385 now sends stroke posts through answered() (toast on non-204 or network failure), but no test covers a refused stroke chunk.
+- BR-14 — not-addressed — onRecord now calls endGesture() when docSeg changes (annotate.js:506-512), but no test drives a stroke across a navigation.
+- BR-16 — not-addressed — endGesture() exists and is called from setMode, cast end, pointercancel and a document change (annotate.js:372,397,447,512), but no regression test exercises it.
+- BR-26 — not-addressed — server_board_test.go:220 still matches only line-leading import-from; export-from, bare and dynamic imports are not followed.
 
 ## Open findings
 

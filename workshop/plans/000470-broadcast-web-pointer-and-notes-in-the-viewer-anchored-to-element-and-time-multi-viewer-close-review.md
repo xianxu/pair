@@ -312,3 +312,101 @@ findings:
     detail: |
       This is the 5th finding in family spec-path-untested. Rule: a test that walks the served-file closure parses every ES module reference form (import from, export from, bare import, import()). None of the other forms appear in webcast/web today, so the measured prevalence is 0 of 6 modules, but the terminal viewer already uses export from (broadcast/web/viewer.js:10). Widen the regex or fail on an unrecognised './*.js' reference.
 ```
+
+---
+
+## Re-review — 2026-10-12T05:45:09-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 470 — broadcast-web: pointer and notes in the viewer — anchored to element and time, multi-viewer |
+| repo | pair |
+| issue file | workshop/issues/000470-broadcast-web-pointer-and-notes-in-the-viewer-anchored-to-element-and-time-multi-viewer.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 6a8597f15e6d7921954ae4b0416cd5b96a48138a..6c98f0479540ed28a6433911c36752be42e35255 |
+| command | sdlc close --issue 470 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-12T05:45:09-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Interdiff is just the merge-conflict resolution; it builds and webcast tests pass. Now checking whether the open findings were fixed at head.
+
+Wrapping up: the interdiff is only the conflict resolution, so I'm confirming the issue's Spec wasn't touched, then writing the verdict.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+This window contains only the merge-conflict resolution against main (#478 fidelity work). It adds no fixes and no scope. Base `6a8597f1` had conflict markers committed in three files. Head resolves all three and keeps both sides:
+
+- **`cast.go`**: the `Cast` struct has `board` from #470 and `recDir`/`check`/`logf` from #478. `StartCast` sets `recDir` and builds `recordingOutput(cfg, liveSink, bd, id, proxy)`, and `Cast{...}` sets `board: bd, recDir:, check:, logf:` (`cmd/internal/webcast/cast.go:91-134`). `NewServer(...).WithBoard(bd)` is kept.
+- **`server.go`**: the `//go:embed` list and the `assets` table are a union of both sides: annotate.js/css from #470, replayer.js, fidelity.html and fidelity.js from #478.
+- **`atlas/webcast-format.md`**: both changelog entries are kept.
+
+The `lessons.md` change only moves the #478 lesson below the #470 lessons. The issue file changed only in close metadata; `## Spec`, `## Revisions` and `## Done when` are untouched, so the scope did not change.
+
+What I checked:
+- No conflict markers remain in tracked non-workshop files at head.
+- `go vet ./cmd/internal/webcast/...` is clean.
+- `go test ./cmd/internal/webcast/...` passes in all 10 packages.
+- `go build ./...` fails only on `runtimebundle`'s missing embed. That directory is gitignored (`.gitignore:127`), so the failure comes from this checkout's environment, not the diff.
+- fidelity.js imports replayer.js; replayer.js imports model.js, render.js and replay.js. All of these are in the merged `assets` table, so the fidelity page's import closure is served.
+
+1. **Strengths**
+   - The resolution keeps both sides' intent exactly, with no dropped field, sink or served file (`cast.go:133-135`, `server.go:17,30-44`).
+   - `recordingOutput` still puts the board in the Tee before the live fan-out (`cast.go:166-172`), which keeps the BR-3 ordering intact through the merge.
+   - The `assets` table now has a single list covering both features' files, consistent with the "one served-file table" lesson.
+
+2. **Critical findings:** none.
+
+3. **Important findings:** none.
+
+4. **Minor findings:** none new.
+
+5. **Test coverage notes**
+   - The existing webcast suites pass after the merge.
+   - The open Minor findings BR-3, BR-12, BR-14 and BR-16 have code fixes at head but no regression test. The tests that would show them are: a stroke POST refused with a visible toast, a navigation or mode change in the middle of a gesture, and the order of sinks in the Tee.
+
+6. **Architectural notes**
+   - **ARCH-DRY:** pass. The resolution merges the embed list and the asset table without duplicating either.
+   - **ARCH-PURE:** pass. No logic moved into IO code.
+   - **ARCH-PURPOSE:** pass. Both features stay fully wired after the merge.
+
+7. **Plan revision recommendations:** none.
+
+```findings
+dispose:
+  - id: BR-3
+    disposition: not-addressed
+    note: |
+      cast.go:166-172 puts the board before the live sink in the Tee, but no test pins the order; still Minor.
+  - id: BR-4
+    disposition: not-addressed
+    note: |
+      board/wire.go:25 still bounds coordinates to maxCoord 1e6, with no clamp to the element or page box; deferred to wave 3.
+  - id: BR-7
+    disposition: not-addressed
+    note: |
+      There is still no shared contract test run over both board.Writer and recorder.Emit.
+  - id: BR-12
+    disposition: not-addressed
+    note: |
+      annotate.js:385 now sends stroke posts through answered() (toast on non-204 or network failure), but no test covers a refused stroke chunk.
+  - id: BR-14
+    disposition: not-addressed
+    note: |
+      onRecord now calls endGesture() when docSeg changes (annotate.js:506-512), but no test drives a stroke across a navigation.
+  - id: BR-16
+    disposition: not-addressed
+    note: |
+      endGesture() exists and is called from setMode, cast end, pointercancel and a document change (annotate.js:372,397,447,512), but no regression test exercises it.
+  - id: BR-26
+    disposition: not-addressed
+    note: |
+      server_board_test.go:220 still matches only line-leading import-from; export-from, bare and dynamic imports are not followed.
+```
