@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000499-broadcast-web-viewers-can-still-draw-and-leave-notes-while-the-cast-is-paused-disable-every-viewer-action-while-paused.md
         source_blob: 9d95d7d7de606106393956b42733913d260d974b
         destination: workshop/issues/000499-broadcast-web-viewers-can-still-draw-and-leave-notes-while-the-cast-is-paused-disable-every-viewer-action-while-paused.md
+        main_commit: 397bb75290cba221c4337242c349c7b1e28e6a34
 ---
 
 # broadcast-web: viewers can still draw and leave notes while the cast is paused; disable every viewer action while paused
