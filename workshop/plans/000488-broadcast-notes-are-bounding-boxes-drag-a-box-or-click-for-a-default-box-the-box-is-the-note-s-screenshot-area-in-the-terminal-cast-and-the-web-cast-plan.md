@@ -179,3 +179,14 @@ boxes are in the cast's own units.
   (chips plus LIVE controls). Is "status line" that row's right side (LIVE ⏸ 👆 💭), or
   the nvim statusline of the minimized draft? The plan treats the nvim statusline as part
   of the draft pane, and the LIVE controls as `tab bar › controls`.
+
+## Revisions
+
+### 2026-10-12: hub answers (TL, ops:0)
+- A: tint only the box's edge cells (background, author color), keep the text.
+- B: touch needs a longer drag: 2 cells (terminal) / 16 px (web); mouse stays 1 cell / 8 px.
+- C: pin at the top-right corner inside the box, both casts.
+- D: on Couch's bottom row, the chip span is `tab bar › tabs: …`; the LIVE/Chrome
+  controls span is `status line › …`. The draft's nvim statusline is part of its pane
+  (`pane … › draft nvim › statusline`).
+- Crops: box + 16 px margin; structure snapping and per-URL `Hints` retired (TL tells pair:2).
