@@ -1,6 +1,6 @@
 ---
 id: 000458
-status: codecomplete
+status: done
 created: 2026-10-11
 updated: 2026-10-12
 estimate_hours: 4.12
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 1f2b5b5d61fbd39465827b527eaf37ba51079d73
         evidence_commit: 489bffa98c0ffa866e3ed0b36819d12699d9e4c3
+        landed_commit: 2f04a1f2c79f9c3b286443e115113c822b1ab1f4
 ---
 
 # broadcast-web: recorder — CDP DOM stream per frame plus isolated-world observer
