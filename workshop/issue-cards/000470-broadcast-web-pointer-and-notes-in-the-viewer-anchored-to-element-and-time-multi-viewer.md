@@ -13,7 +13,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
-actual_hours: 1.82
+actual_hours: 1.96
 tracker:
     version: 1
     handoff:
@@ -27,10 +27,10 @@ tracker:
         destination: workshop/issues/000470-broadcast-web-pointer-and-notes-in-the-viewer-anchored-to-element-and-time-multi-viewer.md
         main_commit: 39b04f31c51a906f21acb0ee6403a299f813cce9
     completion:
-        token: close-5e99075a6eef
+        token: close-8260eb6b4903
         repository: github.com/xianxu/pair
-        reviewed_head: 484950d804bed5bc2b3ce97417acea0297295d7e
-        evidence_commit: 058823d834566f5aa2f14ef3d90f128274c5e646
+        reviewed_head: 2df0a13ad488f1edd8c0e2bb4e3d9c0190b3d512
+        evidence_commit: 418ae27833647011272335851639f5a358b7b850
 ---
 
 # broadcast-web: pointer and notes in the viewer — anchored to element and time, multi-viewer
