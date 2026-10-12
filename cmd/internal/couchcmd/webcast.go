@@ -31,9 +31,9 @@ func webcastSettings(getenv func(string) string, store string, host *broadcast.H
 	cfg := webcast.CastConfig{Host: host}
 	if store != "" {
 		cfg.RecordingsDir = filepath.Join(store, "webcast", "recordings")
-		// The viewers' fan-out (#460 renames the hub and may replace it).
+		// The viewers' fan-out (#460's hub), one per cast.
 		cfg.NewLive = func() (recording.Sink, recording.Live) {
-			h := recording.NewFakeHub(liveBuffer)
+			h := recording.NewHub(liveBuffer)
 			return h, h
 		}
 	}

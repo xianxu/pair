@@ -38,6 +38,8 @@ type CastConfig struct {
 	Host *broadcast.Host
 	// Ping is the viewers' keepalive; zero is broadcast.DefaultPing.
 	Ping time.Duration
+	// Presence, when set, is told which viewers are watching (#466).
+	Presence Presence
 }
 
 // Update is what Couch shows of a cast: the browser's state and the viewer
@@ -91,8 +93,7 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 	}
 	mountCtx, cancel := context.WithCancel(context.Background())
 	c := &Cast{browser: b, pub: newPublisher(Update{State: b.State()}), cancel: cancel, done: make(chan struct{}), liveSink: liveSink}
-	srv := NewServer(token, b, cfg.Ping)
-	srv.live = live
+	srv := NewServer(token, b, cfg.Ping, live, cfg.Presence)
 	c.server, c.token = srv, token
 	go c.run(mountCtx, cfg.Host, srv, token)
 	return c, nil

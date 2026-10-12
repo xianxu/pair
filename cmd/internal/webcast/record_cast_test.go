@@ -28,7 +28,7 @@ func TestCastRecordsToDirAndViewers(t *testing.T) {
 		RecordingsDir: dir,
 		Logf:          func(format string, args ...any) { logged = append(logged, fmt.Sprintf(format, args...)) },
 		NewLive: func() (recording.Sink, recording.Live) {
-			h := recording.NewFakeHub(256)
+			h := recording.NewHub(256)
 			return h, h
 		},
 	})

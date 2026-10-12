@@ -214,11 +214,17 @@ type waitWatcher struct {
 	seen map[couchmessage.Binding]waitEpisode
 }
 
-// waitEpisode: an episode is the quiet since one LastActivity. notified holds
-// for the whole episode; judgedNot only for the exact facts it judged.
+// waitEpisode: an episode is one judged wait — the same reason and the same
+// words on screen. Output alone doesn't end it (pair#468): an idle agent
+// still prints (Claude Code's update check redraws its footer every 30 min),
+// and that moves LastActivity without a turn. A turn, the operator's input or
+// a branch change ends it by changing what the slot waits on, or by making it
+// not wait at all. notified holds for the whole episode (judged is the notice
+// it sent); judgedNot only for the exact facts it judged.
 type waitEpisode struct {
 	key       waitKey
 	notified  bool
+	judged    string
 	judgedNot bool
 }
 
@@ -328,6 +334,11 @@ func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 			w.seen[b] = waitEpisode{key: key, judgedNot: true}
 			continue
 		}
+		judged := string(reason) + "\x00" + summary
+		if ep, ok := w.seen[b]; ok && ep.notified && ep.judged == judged {
+			w.seen[b] = waitEpisode{key: key, notified: true, judged: judged} // output without a turn
+			continue
+		}
 		id, err := w.newID()
 		if err != nil {
 			continue
@@ -338,7 +349,7 @@ func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 		if _, err := w.svc.broker.Send(ctx, b, id, couchmessage.Route{Target: hub.Slot}, body); err != nil {
 			continue // hub busy or out of allowance: retried next tick
 		}
-		w.seen[b] = waitEpisode{key: key, notified: true}
+		w.seen[b] = waitEpisode{key: key, notified: true, judged: judged}
 	}
 	for b := range w.seen {
 		if !listed[b] {

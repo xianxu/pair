@@ -15,8 +15,16 @@ import (
 // when the subscriber falls behind: a slow viewer is dropped, never allowed
 // to hold the recorder back. A dropped viewer reconnects and gets a fresh
 // catch-up. cancel is idempotent. Its Sink refuses frames (ErrNotLive).
+//
+// Ended says why a subscription's channel closed, as the fan-out saw it:
+// true when the fan-out ended (its Sink closed; the subscriber has every
+// record there will be), false when the subscriber was dropped or
+// cancelled (a dropped viewer reconnects for a fresh catch-up). The fan-out
+// records the reason when it closes the channel, so a drop just before the
+// end still reads as a drop.
 type Live interface {
 	Subscribe() (recs <-chan Record, cancel func())
+	Ended(recs <-chan Record) bool
 }
 
 // ErrClosed: a record was put after Close.
@@ -68,92 +76,16 @@ func (m *MemSink) Closed() bool {
 	return m.closed
 }
 
-// FakeHub is the stateful fake of Live, and a Sink. It keeps only what a
-// late joiner needs: at each segment its log shrinks to CatchUp(log), so it
-// is bounded by one segment plus the assets and the document's notes.
-type FakeHub struct {
-	mu     sync.Mutex
-	log    []Record
-	subs   map[chan Record]struct{}
-	buffer int
-	closed bool
-}
+// FakeHub was Hub's name while it was only the fake of Live (#457).
+//
+// Deprecated: use Hub, which is the production fan-out (#460). Kept for
+// branches written against #457's name.
+type FakeHub = Hub
 
-// NewFakeHub: buffer is how many records a subscriber may fall behind
-// before it is dropped.
-func NewFakeHub(buffer int) *FakeHub {
-	return &FakeHub{subs: map[chan Record]struct{}{}, buffer: buffer}
-}
-
-func (h *FakeHub) Put(r Record) error {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.closed {
-		return ErrClosed
-	}
-	if _, ok := r.(*Frame); ok {
-		return ErrNotLive
-	}
-	if _, ok := r.(*Seg); ok {
-		h.log = CatchUp(h.log)
-	}
-	h.log = append(h.log, r)
-	for ch := range h.subs {
-		select {
-		case ch <- r:
-		default:
-			delete(h.subs, ch)
-			close(ch)
-		}
-	}
-	return nil
-}
-
-// Subscribe takes the catch-up and registers under one lock, so no record
-// falls between them.
-func (h *FakeHub) Subscribe() (<-chan Record, func()) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	cu := CatchUp(h.log)
-	ch := make(chan Record, len(cu)+h.buffer)
-	for _, r := range cu {
-		ch <- r
-	}
-	if h.closed {
-		close(ch)
-		return ch, func() {}
-	}
-	h.subs[ch] = struct{}{}
-	return ch, func() {
-		h.mu.Lock()
-		defer h.mu.Unlock()
-		if _, ok := h.subs[ch]; ok {
-			delete(h.subs, ch)
-			close(ch)
-		}
-	}
-}
-
-// Close ends every subscription; later puts fail.
-func (h *FakeHub) Close() error {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if !h.closed {
-		h.closed = true
-		for ch := range h.subs {
-			close(ch)
-		}
-		h.subs = nil
-	}
-	return nil
-}
-
-// Retained is how many records the hub holds for late joiners.
-func (h *FakeHub) Retained() int {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	return len(h.log)
-}
+// NewFakeHub is NewHub's old name.
+//
+// Deprecated: use NewHub.
+func NewFakeHub(buffer int) *Hub { return NewHub(buffer) }
 
 // FakeRecorder stands in for the recorder (#458): it plays a recording into
 // a sink. Speed 0 is instant; 1 is real time, by the records' t.
