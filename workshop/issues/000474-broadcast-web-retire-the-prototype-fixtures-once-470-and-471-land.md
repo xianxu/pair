@@ -1,12 +1,12 @@
 ---
 id: 000474
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: 'af2d03b5b143a20f0fcde079d2df01bd782cc6ac' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '1b0f44268a06b46838d18c740b76f60fcdb80a0d' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T05:47:19-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "b6474e38", done: "329bc4e8"}
+actual_hours: 0.53
 ---
 
 # broadcast-web: retire the prototype fixtures once #470 and #471 land
