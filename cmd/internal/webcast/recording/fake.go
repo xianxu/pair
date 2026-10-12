@@ -15,8 +15,14 @@ import (
 // when the subscriber falls behind: a slow viewer is dropped, never allowed
 // to hold the recorder back. A dropped viewer reconnects and gets a fresh
 // catch-up. cancel is idempotent. Its Sink refuses frames (ErrNotLive).
+//
+// Done closes when the fan-out has ended (its Sink closed). It tells the two
+// endings of a subscription apart: a subscription that closes while Done is
+// open was dropped, and its viewer should reconnect; one that closes with
+// Done closed has everything there will be.
 type Live interface {
 	Subscribe() (recs <-chan Record, cancel func())
+	Done() <-chan struct{}
 }
 
 // ErrClosed: a record was put after Close.

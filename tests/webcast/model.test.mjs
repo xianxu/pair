@@ -88,7 +88,9 @@ test('hover and pointer are tracked outside the canonical', () => {
   assert.equal(m.hover, 3);
   assert.deepEqual(m.ptr, { x: 10, y: 20, t: 2 });
   assert.equal(goJSON(m.canonical()), before);
-  assert.throws(() => m.apply({ t: 3, k: 'hover', id: 99 }), /unknown/);
+  m.apply({ t: 3, k: 'hover', id: 99 }); // a node never sent: no refusal, no hover
+  assert.equal(m.hover, 0);
+  m.apply({ t: 3, k: 'hover', id: 3 });
   m.apply({ t: 3, k: 'rm', id: 3 });
   assert.equal(m.hover, 0, 'removing the hovered node clears hover');
 });

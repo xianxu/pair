@@ -117,7 +117,7 @@ export class Renderer {
       case 'text': {
         const n = this.dom.get(r.id);
         if (!n) return;
-        n.data = this.textFor(m.node(r.id), this.parentTag(n.parentNode));
+        n.data = this.textFor(m.node(r.id), this.parentTag(n.parentNode), n.ownerDocument);
         const owner = this.ids.get(n.parentNode);
         if (owner && m.ownedSheet(owner) !== undefined) this.drawSheetOwner(owner);
         return;
@@ -129,7 +129,7 @@ export class Renderer {
       }
       case 'sheet':
         if (r.owner) this.drawSheetOwner(r.owner);
-        else for (const sheet of (this.constructed.get(r.id) || new Map()).values()) this.fillSheet(sheet, r.id);
+        else for (const [doc, sheet] of this.constructed.get(r.id) || new Map()) this.fillSheet(sheet, r.id, doc);
         return;
       case 'adopt': return this.drawAdopt(r.id);
       case 'font': return this.drawFont(r);
@@ -230,7 +230,7 @@ export class Renderer {
     let node;
     switch (n.y) {
       case 'doctype': node = doc.implementation.createDocumentType(n.n || 'html', '', ''); break;
-      case 'text': node = doc.createTextNode(this.textFor(this.model.node(n.id) || n, parentTag)); break;
+      case 'text': node = doc.createTextNode(this.textFor(this.model.node(n.id) || n, parentTag, doc)); break;
       case 'comment': node = doc.createComment(n.v || ''); break;
       case 'el': node = this.element(n, doc); break;
       default: node = doc.createDocumentFragment(); break; // unreachable for well-formed trees
@@ -281,15 +281,15 @@ export class Renderer {
     this.dirty = true;
   }
 
-  textFor(n, parentTag) {
+  textFor(n, parentTag, doc) {
     const v = n.v || '';
     if (parentTag !== 'style') return v;
-    return this.css(v, this.model.url, `text:${n.id}`, () => this.redrawText(n.id));
+    return this.css(v, this.docURL(doc), `text:${n.id}`, () => this.redrawText(n.id));
   }
 
   redrawText(id) {
     const node = this.dom.get(id), n = this.model.node(id);
-    if (node && n) node.data = this.textFor(n, this.parentTag(node.parentNode));
+    if (node && n) node.data = this.textFor(n, this.parentTag(node.parentNode), node.ownerDocument);
   }
 
   // css rewrites a stylesheet's text for the frame; URLs whose asset hasn't
@@ -366,7 +366,7 @@ export class Renderer {
     const key = `sheet:${id}`, redraw = () => this.drawSheetOwner(id);
     if (el.localName === 'style') {
       if (owned === undefined) return;
-      const text = this.css(owned, this.model.url, key, redraw);
+      const text = this.css(owned, this.docURL(el.ownerDocument), key, redraw);
       const texts = [...el.childNodes].filter((c) => c.nodeType === 3);
       if (texts.length === 0) el.appendChild(el.ownerDocument.createTextNode(text)); // untracked: no id
       else texts.forEach((t, i) => { t.data = i === 0 ? text : ''; });
@@ -375,7 +375,7 @@ export class Renderer {
     if (el.localName !== 'link') return;
     const rel = (n.a && n.a.rel || '').toLowerCase().split(/\s+/);
     if (!rel.includes('stylesheet')) return;
-    if (owned !== undefined) return this.setLinkCSS(id, el, this.css(owned, this.model.url, key, redraw));
+    if (owned !== undefined) return this.setLinkCSS(id, el, this.css(owned, this.docURL(el.ownerDocument), key, redraw));
     const href = n.a && n.a.href;
     const abs = href && resolveURL(href, this.docURL(el.ownerDocument));
     const proxied = abs && this.asset(abs, key, redraw);
@@ -400,11 +400,13 @@ export class Renderer {
     el.setAttribute('href', url);
   }
 
-  // fillSheet sets a constructed sheet's text.
-  fillSheet(sheet, id) {
+  // fillSheet sets a constructed sheet's text, for the document it is
+  // adopted in. (Its url()s are absolute by the format; the base is for a
+  // page that broke that.)
+  fillSheet(sheet, id, doc) {
     const sh = this.model.sheets.get(id);
     if (!sh) return;
-    try { sheet.replaceSync(this.css(sh.text, this.model.url, `csheet:${id}`, () => this.fillSheet(sheet, id))); } catch (e) { this.warn(e); }
+    try { sheet.replaceSync(this.css(sh.text, this.docURL(doc), `csheet:${id}`, () => this.fillSheet(sheet, id, doc))); } catch (e) { this.warn(e); }
   }
 
   constructedSheet(id, doc) {
@@ -413,7 +415,7 @@ export class Renderer {
     if (!per.has(doc)) {
       const s = new doc.defaultView.CSSStyleSheet();
       per.set(doc, s);
-      this.fillSheet(s, id);
+      this.fillSheet(s, id, doc);
     }
     return per.get(doc);
   }
@@ -588,9 +590,11 @@ export class Renderer {
   }
 }
 
+// isURLAttr: tags compare in lower case, as URL_ATTRS lists them (an SVG
+// localName keeps its case: feImage).
 function isURLAttr(tag, name) {
   const tags = URL_ATTRS[name === 'xlink:href' ? 'href' : name];
-  return !!tags && tags.includes(tag);
+  return !!tags && tags.includes(tag.toLowerCase());
 }
 
 // setAttr sets (or, for undefined, removes) an attribute, with the XML

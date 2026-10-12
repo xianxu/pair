@@ -156,7 +156,12 @@ func viewerServer(t *testing.T, rec *recording.Recording, live recording.Live) *
 		}
 		viewer.ServeHTTP(w, r)
 	}))
-	t.Cleanup(srv.Close)
+	t.Cleanup(func() {
+		// A viewer's stream outlives the fan-out (it waits for end), so
+		// Chrome's connection is cut before the server closes.
+		srv.CloseClientConnections()
+		srv.Close()
+	})
 	return srv
 }
 

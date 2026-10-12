@@ -137,13 +137,15 @@ export function mount(doc, win) {
     doc.body.classList.toggle('paused', s.page && !s.live);
     doc.title = s.title ? `${s.title} · Couch web cast` : 'Couch web cast';
   };
+  // resolveAsset: the asset proxy's URL for an absolute URL, or ''.
+  const resolveAsset = (abs) => {
+    const a = v.model.assets.get(abs);
+    return a ? new URL(`assets/${a.hash}`, win.location.href).href : '';
+  };
   const viewer = new URLSearchParams(win.location.search).get('viewer');
   const v = connect({
     open: () => new win.EventSource(viewer ? `events?viewer=${encodeURIComponent(viewer)}` : 'events'),
-    renderer: (model) => new Renderer(frame, model, (abs) => {
-      const a = model.assets.get(abs);
-      return a ? new URL(`assets/${a.hash}`, win.location.href).href : '';
-    }),
+    renderer: (model) => new Renderer(frame, model, resolveAsset),
     show: render,
     frame: () => { layout(); drawPointer(); },
     schedule: (fn) => win.requestAnimationFrame(fn),
@@ -154,7 +156,7 @@ export function mount(doc, win) {
   // The viewer contract (atlas/webcast-format.md): the conformance check,
   // wave 2's notes and #466's remote driving use it.
   win.couchViewer = {
-    resolveAsset: (abs) => { const a = v.model.assets.get(abs); return a ? new URL(`assets/${a.hash}`, win.location.href).href : undefined; },
+    resolveAsset: (abs) => resolveAsset(abs) || undefined,
     canonical: () => v.renderer.canonical(),
     ready: () => v.renderer.ready(),
     boxOf: (id) => v.renderer.boxOf(id),

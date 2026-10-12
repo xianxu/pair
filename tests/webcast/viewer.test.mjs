@@ -119,3 +119,13 @@ test('view: ended wins; a page wins over the browser state', () => {
   assert.equal(view({ seg: 1, live: true }, null, true).status, 'Cast ended');
   assert.equal(view(null, null, false).status, 'Connecting…');
 });
+
+test('a hover on a node this viewer lacks never forces a resync', () => {
+  const h = harness();
+  for (const r of [head, seg(1), doc(1, 1)]) h.rec(r);
+  const es = h.es();
+  h.rec({ t: 2, k: 'hover', id: 999 });
+  assert.equal(es.closed, false);
+  assert.equal(h.retries.length, 0);
+  assert.equal(h.v.model.hover, 0);
+});

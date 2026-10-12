@@ -209,19 +209,30 @@ func TestServerStreamsRecordsFromCatchUp(t *testing.T) {
 		}
 		sameLines(t, s.nextRecs(len(recs)-cut), recs[cut:])
 		hub.Close()
+		s.resp.Body.Close() // the stream outlives the fan-out; the viewer leaves
 		srv.Close()
 	}
 }
 
-// A closed fan-out (or a viewer dropped as too slow) ends the stream, so
-// the viewer reconnects for a fresh catch-up.
-func TestServerEndsStreamWhenRecordsClose(t *testing.T) {
-	hub := recording.NewHub(8)
-	srv := httptest.NewServer(NewServer("tok", NewFakeBrowser(), time.Second, hub, nil))
+// stubLive is a Live whose subscription the test ends by hand: a drop
+// (records close, Done open) or the end (Done closed).
+type stubLive struct {
+	recs chan recording.Record
+	done chan struct{}
+}
+
+func (l *stubLive) Subscribe() (<-chan recording.Record, func()) { return l.recs, func() {} }
+func (l *stubLive) Done() <-chan struct{}                         { return l.done }
+
+// A viewer dropped as too slow has its stream ended, so it reconnects for
+// a fresh catch-up.
+func TestServerEndsStreamOfDroppedViewer(t *testing.T) {
+	live := &stubLive{recs: make(chan recording.Record), done: make(chan struct{})}
+	srv := httptest.NewServer(NewServer("tok", NewFakeBrowser(), time.Second, live, nil))
 	t.Cleanup(srv.Close)
 	s := openSSE(t, srv.URL+"/tok/events")
 	s.nextState()
-	hub.Close()
+	close(live.recs) // dropped: Done stays open
 	done := make(chan struct{})
 	go func() {
 		for s.sc.Scan() {
@@ -231,7 +242,34 @@ func TestServerEndsStreamWhenRecordsClose(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(5 * time.Second):
-		t.Fatal("the stream stayed open after the fan-out closed")
+		t.Fatal("a dropped viewer's stream stayed open")
+	}
+}
+
+// A closed fan-out leaves the viewer with what it has: no reconnect loop,
+// and the stream still says when the cast ends.
+func TestServerKeepsStreamWhenRecordsEnd(t *testing.T) {
+	hub := recording.NewHub(64)
+	recs := recording.ContractRecording(2)
+	for _, r := range recs {
+		hub.Put(r)
+	}
+	hub.Close()
+	f := NewFakeBrowser()
+	srv := httptest.NewServer(NewServer("tok", f, time.Second, hub, nil))
+	t.Cleanup(srv.Close)
+	s := openSSE(t, srv.URL+"/tok/events")
+	want := recording.CatchUp(recs)
+	sameLines(t, s.nextRecs(len(want)), want)
+	f.QuitByHand()
+	for {
+		ev, _ := s.next()
+		if ev == "end" {
+			return
+		}
+		if ev == "rec" {
+			t.Fatal("records again after the fan-out ended")
+		}
 	}
 }
 

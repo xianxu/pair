@@ -15,12 +15,13 @@ type Hub struct {
 	subs   map[chan Record]struct{}
 	buffer int
 	closed bool
+	done   chan struct{}
 }
 
 // NewHub: buffer is how many records a subscriber may fall behind before
 // it is dropped.
 func NewHub(buffer int) *Hub {
-	return &Hub{subs: map[chan Record]struct{}{}, buffer: buffer}
+	return &Hub{subs: map[chan Record]struct{}{}, buffer: buffer, done: make(chan struct{})}
 }
 
 func (h *Hub) Put(r Record) error {
@@ -78,6 +79,7 @@ func (h *Hub) Close() error {
 	defer h.mu.Unlock()
 	if !h.closed {
 		h.closed = true
+		close(h.done)
 		for ch := range h.subs {
 			close(ch)
 		}
@@ -85,6 +87,9 @@ func (h *Hub) Close() error {
 	}
 	return nil
 }
+
+// Done closes when the hub does.
+func (h *Hub) Done() <-chan struct{} { return h.done }
 
 // Retained is how many records the hub holds for late joiners.
 func (h *Hub) Retained() int {

@@ -238,8 +238,10 @@ export class Model {
         if (r.id && !this.nodes.has(r.id)) fail(`node ${r.id} is unknown`);
         this.focus = r.id || 0; return;
       case 'hover':
-        if (r.id && !this.nodes.has(r.id)) fail(`node ${r.id} is unknown`);
-        this.hover = r.id || 0; return;
+        // Drawn only, outside the canonical state: a hover on a node this
+        // viewer doesn't have (one the recorder never sent) clears the hover
+        // rather than forcing a resync.
+        this.hover = this.nodes.has(r.id) ? r.id : 0; return;
       case 'ptr': this.ptr = { x: r.x, y: r.y, t: r.t }; return;
       case 'layout': {
         const boxes = r.boxes || {};

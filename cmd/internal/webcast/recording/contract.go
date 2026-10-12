@@ -166,10 +166,23 @@ func RunLiveContract(t TB, newLive func() (Sink, Live)) {
 	}
 	cancel()
 
-	// Close ends every subscription.
+	// A dropped subscriber's channel closes while Done stays open, so its
+	// viewer knows to reconnect.
+	select {
+	case <-live.Done():
+		t.Errorf("Done closed though the fan-out is still open")
+	default:
+	}
+
+	// Close ends every subscription, and Done says so.
 	sink, live = newLive()
 	ch, _ = live.Subscribe()
 	sink.Close()
+	select {
+	case <-live.Done():
+	case <-time.After(time.Second):
+		t.Errorf("Done stayed open after Close")
+	}
 	select {
 	case _, open := <-drain(ch):
 		if open {

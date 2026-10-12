@@ -115,11 +115,14 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	}
 	states, cancel := s.browser.Subscribe()
 	defer cancel()
-	// A closed record channel (a viewer too slow to keep up is dropped, or
-	// the fan-out closed) ends the stream: the viewer reconnects and gets a
-	// fresh catch-up.
+	// A record channel that closes while the fan-out runs means this viewer
+	// was dropped (too slow): the stream ends, and the viewer reconnects for
+	// a fresh catch-up. Once the fan-out has ended (Done), the viewer keeps
+	// what it has and the stream goes on with state and end.
 	var recs <-chan recording.Record
+	var recsDone <-chan struct{}
 	if s.live != nil {
+		recsDone = s.live.Done()
 		var unsubscribe func()
 		recs, unsubscribe = s.live.Subscribe()
 		defer unsubscribe()
@@ -148,7 +151,13 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 			last = &next
 		case rec, open := <-recs:
 			if !open {
-				return
+				select {
+				case <-recsDone:
+					recs = nil
+					continue
+				default:
+					return
+				}
 			}
 			line, err := recording.Encode(rec)
 			if err != nil {
