@@ -46,11 +46,11 @@ Implement #457's viewer contract as the live viewer page (replacing pair#454's s
 
 Durable plan: `workshop/plans/000460-broadcast-web-live-viewer-sandboxed-script-free-rebuild-scaled-join-mid-cast-plan.md`.
 
-- [ ] `model.js` (JS port of the reducer + canonical) with node tests against every fixture pin
-- [ ] `render.js` (sandboxed rebuild, neutralizing, asset/CSS rewriting) + `viewer.js` shell (scale, URL, overlays, hover, pointer, `boxOf`)
-- [ ] `webcast.Hub` (real `recording.Live`), `Server` `rec` events, CSP; Go tests
-- [ ] Headless fixture replay: canonical equality and screenshot comparison with a measured, stated tolerance; join-mid-cast and segments
-- [ ] Atlas
+- [x] `model.js` (JS port of the reducer + canonical) with node tests against every fixture pin
+- [x] `render.js` (sandboxed rebuild, neutralizing, asset/CSS rewriting) + `viewer.js` shell (scale, URL, overlays, hover, pointer, `boxOf`)
+- [x] `recording.Hub` (FakeHub promoted, TL decision), `Server` `rec` events + Presence, CSP; Go tests
+- [x] Headless fixture replay: canonical equality and screenshot comparison with a measured, stated tolerance; join-mid-cast and segments
+- [x] Atlas
 - [ ] Smoke test (operator; via the TL, after the recorder lands)
 
 ## Log
@@ -58,5 +58,12 @@ Durable plan: `workshop/plans/000460-broadcast-web-live-viewer-sandboxed-script-
 ### 2026-10-12
 - Seams confirmed by the TL (delivery 9d90bc7b): `{k:hover,id}` and `{k:ptr,x,y}` (events.jsonl, outside Canonical; #458 emits them); assets at `<cast>/assets/<hash>` (#459 mounts there); the viewer rewrites `url()`s in streamed CSS; `boxOf(id)` for wave 2's note boxes; frame sandbox `allow-same-origin` only, the shell owns input (#466's reverse channel).
 - #466 additions (delivery d44edcc4): `?viewer=ID` presence hook on `events`; shell `nodeAt`/`toPage`; `ctl` rendering waits for #467 (hook left). Folded into the plan's Revisions.
+- `model.js` matched every fixture pin's hash on the first run: the JS port of `Reduce`/`Canonical` emits Go's exact bytes (one-space indent, HTML-escaped `<>&`).
+- Renderer bugs found by the headless replay, each fixed at the cause: Chrome's `Document.replaceChildren` checks a new doctype against the root it is about to drop (empty first, then append); a frame window keeps its scroll across documents (reset per segment); `scroll-behavior: smooth` animated replayed scrolls behind the tab (scroll `instant`); a scroll applied before images and fonts loaded was clamped and never re-applied (the renderer re-flushes on load events and `loadingdone`).
+- Render fidelity (`replay_test.go`, `WEBCAST_LIVE_CHROME=1`): canonical equal to the reducer at every pin of all four fixtures; renders 0.2–2.3% of pixels off `frames/` (tolerance 3%, pixel = a channel off by >48/255). Two timing effects are the fixtures', not the viewer's, and the test models them instead of loosening the tolerance: transitions (the last 1 s before a frame is replayed in real time, then animations pause) and the prototype's polled observer (scroll records trail the tab by up to 150 ms; blog t=5810 is 12.9% at t, 2.3% at +150 ms). Set `fixtureObserverLag` to 0 once #458's recordings replace the fixtures.
+- `boxOf` against the tab's own layout boxes (`viewer_live_test.go`, blog at t=10041): 45% at first. Causes: entry animations mid-flight when measured (the test finishes them), and an image the tab never loaded (lazy, below the fold) drawn as broken with 72px of alt text. Now an image with nothing to load is drawn as unloaded (no alt; alt returns with the asset). Result: 215 of 217. Out: Astro's dev toolbar (its shadow content was never recorded) and one SVG shape whose stroke adds 2.02px (DOMSnapshot boxes include half the stroke; SVG shapes get 2px).
+- Recorder gaps passed to the TL for #458: blog's `astro-dev-toolbar` shadow root recorded empty; scroll records lag up to ~150 ms.
+- TL decision (delivery a3360305): `recording.FakeHub` promoted to `recording.Hub`, the production fan-out, with `FakeHub`/`NewFakeHub` kept as deprecated aliases for the parallel wave-1 branches; #458 constructs it next to its `Tee`.
+- No README/CHANGELOG entry: until #458 feeds the Hub, viewers still see only the live state, as the README says.
 
 ### 2026-10-11
