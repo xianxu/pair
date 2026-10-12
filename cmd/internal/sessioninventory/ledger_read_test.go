@@ -112,3 +112,44 @@ func TestRecoverPairBindingsReadsALedgerLargerThanTheOldWholeFileCap(t *testing.
 		t.Fatalf("a %d-row ledger over 64 MiB was diagnosed unreadable: %#v", rows, inventory.Diagnostics)
 	}
 }
+
+// cachingRuntime is a fake that keeps an OwnerLaunchCache, as Couch's idle
+// fading runtime does (#507).
+type cachingRuntime struct {
+	*sessioninventorytest.FakeRuntime
+	cache *sessioninventory.OwnerLaunchCache
+}
+
+func (r cachingRuntime) OwnerLaunchCache() *sessioninventory.OwnerLaunchCache { return r.cache }
+
+// A runtime with an OwnerLaunchCache reads an unchanged ledger once (#507),
+// and reads it again once it grows.
+func TestQuerySessionCachesTheLedgerUntilItChanges(t *testing.T) {
+	t.Parallel()
+	fake := sessioninventorytest.NewFakeRuntime()
+	runtime := cachingRuntime{FakeRuntime: fake, cache: sessioninventory.NewOwnerLaunchCache()}
+	pairRoot := sessioninventory.StorageRoot{Name: "pair-data", Path: "/pair/scope"}
+	fake.SetPairDataRoot(pairRoot)
+	ledger := sessioninventory.Artifact{StorageRoot: pairRoot.Name, RelativePath: "ledger-work.jsonl"}
+	fake.PutFile(sessioninventory.FileEntry{Artifact: ledger, MutationToken: "ctime:1"}, []byte(v1Launch))
+	reads := func() int { return fake.OperationCount(sessioninventorytest.OperationReadAt, ledger.StorageRoot+":"+ledger.RelativePath) }
+	query := func() sessioninventory.SessionQuery {
+		t.Helper()
+		q, err := sessioninventory.QuerySession(runtime, "scope", "work", sessioninventory.AgentCodex)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return q
+	}
+	if q := query(); q.Status != sessioninventory.BindingProvisional {
+		t.Fatalf("first query %#v", q)
+	}
+	first := reads()
+	if q := query(); q.Status != sessioninventory.BindingProvisional || reads() != first {
+		t.Fatalf("an unchanged ledger was read again: %d -> %d reads (%#v)", first, reads(), q)
+	}
+	fake.AppendFile(ledger, []byte(`{"v":1,"kind":"binding","scope_key":"scope","tag":"work","agent":"codex","launch_ordinal":1,"root_native_id":"019d1111-1111-7111-8111-111111111111"}`+"\n"), "ctime:2")
+	if q := query(); reads() == first || !hasDiagnostic(q.Diagnostics, sessioninventory.DiagnosticBindingStale) {
+		t.Fatalf("a grown ledger was not read again: %d reads, %#v", reads(), q)
+	}
+}

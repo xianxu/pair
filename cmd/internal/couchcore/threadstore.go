@@ -309,6 +309,54 @@ func (s *ThreadStore) GetThread(address ThreadAddress) (ThreadRecord, error) {
 	return result, err
 }
 
+// getThreadStamped is GetThread plus the record file's stamp, taken under the
+// store lock before the read (#507): the record is never newer than its
+// stamp, so a caller that finds the same stamp later may reuse the record.
+func (s *ThreadStore) getThreadStamped(address ThreadAddress) (ThreadRecord, recordStamp, error) {
+	if err := validateThreadAddress(address); err != nil {
+		return ThreadRecord{}, recordStamp{}, err
+	}
+	backend, routeErr := s.storeForAddress(address)
+	if routeErr != nil {
+		return ThreadRecord{}, recordStamp{}, routeErr
+	}
+	if backend != s {
+		return backend.getThreadStamped(address)
+	}
+	var result ThreadRecord
+	var stamp recordStamp
+	err := s.withLock(func() error {
+		path := s.recordPath(address)
+		info, statErr := os.Lstat(path)
+		record, err := s.readThreadLocked(address)
+		if err != nil {
+			return err
+		}
+		if statErr == nil {
+			stamp = recordStamp{path: path, info: info}
+		}
+		result = cloneThreadRecord(record)
+		return nil
+	})
+	return result, stamp, err
+}
+
+// recordStamp is one record file as last read. Records are replaced by
+// rename (durablefile.WriteAtomic), so every write is a new file.
+type recordStamp struct {
+	path string
+	info os.FileInfo
+}
+
+// current reports whether the file at path is still the one stamped.
+func (r recordStamp) current() bool {
+	if r.info == nil {
+		return false
+	}
+	info, err := os.Lstat(r.path)
+	return err == nil && os.SameFile(info, r.info) && info.Size() == r.info.Size() && info.ModTime().Equal(r.info.ModTime())
+}
+
 func (s *ThreadStore) GetPathLaunchPreference(repoIdentity, physicalPath string) (PathLaunchPreference, bool, error) {
 	return s.getPathLaunchPreference(repoIdentity, physicalPath, "")
 }
