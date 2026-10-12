@@ -44,6 +44,9 @@ they reached disk only when the cast ended. Fix (quick flow):
   a note and a stroke POSTed on the viewer routes, then — without closing — `ReadDir` (replay's reader) holds both
   and `query.Run DIR notes` lists the note. Red before the fix (0 records on disk), green after.
 - [x] atlas/webcast-format.md: the unbuffered append rule.
+- [x] TL: don't rely on memory for live strokes. `TestLiveStrokeReachesDiskWhileLive` (WEBCAST_LIVE_CHROME, real
+  headless Chrome): Board → `Chrome.Emit` → the real recorder (OnDoc check) → `Tee(DirWriter, board)` as
+  `recordingOutput` wires it; a stroke during live segment 1 is in pointer.jsonl while the cast runs.
 
 ## Log
 
@@ -58,3 +61,8 @@ they reached disk only when the cast ended. Fix (quick flow):
   own strokes draw locally, so a solo test can "see" a stroke the server refused. Asked the TL whether strokes were
   drawn while live at 12:0x; if so, a second cause sits before the Tee (Board `pageLocked` refusal or the
   recorder's `OnDoc` drop, deliberately uncounted per #470's TestRecorderEmitChecksTheDocument).
+- **No second cause (TL's check):** TestLiveStrokeReachesDiskWhileLive passes through the real recorder; with
+  dir.go restored to the pre-fix buffered writer (db118ad89~1) BOTH e2e tests fail (cast test: 0 records while live;
+  live Chrome: empty pointer.jsonl after 10 s, recorder dropped nothing). So a live stroke is recorded, and the
+  buffer was the whole cause. Paused strokes being accepted at all is #499.
+- make -k test exit 0 on db118ad89+.
