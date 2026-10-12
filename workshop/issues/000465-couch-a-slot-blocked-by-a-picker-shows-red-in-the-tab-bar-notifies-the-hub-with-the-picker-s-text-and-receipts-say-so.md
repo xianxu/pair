@@ -72,7 +72,7 @@ Durable plan: `workshop/plans/000465-couch-a-slot-blocked-by-a-picker-shows-red-
 - [x] Receipt: picker = hold, `blocked by a picker: <title>`
 - [x] Console: red chip + switcher row
 - [x] Watcher: picker notice at ~1m, 15s tick
-- [ ] Atlas; full tests; live check; operator smoke test via ops:0
+- [x] Atlas; full tests; live check; operator smoke test via ops:0
 
 ## Log
 
@@ -91,3 +91,5 @@ Durable plan: `workshop/plans/000465-couch-a-slot-blocked-by-a-picker-shows-red-
 - Verification: `make -k test` (only failure was the artifactpath inventory for the two new sources, now added) and `go test ./... -count=1` exit 0 (unsandboxed, five-var scrub).
 - Second main merge (#468's repeated-notice fix, plus #457, #461 and #466). The atlas conflict was resolved onto #468's episode rule. That exposed a gap: a repainting picker (the auto-deny countdown) keeps `LastActivity` fresh, so measured by quiet it never reached 1m. The registry now records `PickerSince`, the wrapper's `LastActivity` on the frame that opened the picker, and the watcher measures from it. Episodes stay keyed on `LastActivity`, because the broker stamps its own receive time and the two never compare equal. #468's same-wait rule stops a repaint from re-notifying. Test: `TestPickerNoticeCountsFromOpeningThroughRepaints`, mutation-checked.
 - `TestPostAckHandleRetriesReuseOneWaiterUntilReap` (couchcore, which this branch doesn't touch) failed once in the package run and passed 8/8 when re-run alone: a load flake.
+- Operator smoke test passed (10-12, parley.nvim:3, run from pair:0 at b46bf223, reported by ops:0): the slot's tab turned red behind a picker and cleared when it closed (operator); the hub got one notice `waiting 1 min behind a picker: (question) ...`, and a held message's receipt read `blocked by a picker: ...` and delivered when the picker closed (TL).
+- Moved to pair:5 for the close (pair:2 had moved on). Merged main again: one conflict in `message_service.go`, where main's `SetReplay` (#477) and this branch's `SetBlockedView` were added at the same spots; both kept.
