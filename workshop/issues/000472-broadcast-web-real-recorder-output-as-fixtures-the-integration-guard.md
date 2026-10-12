@@ -6,7 +6,7 @@ github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '59603b31bc71733f925a4b5292611bd4ae7c2047' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f9f84a02ccbe78dfe9c1ca3521d826e547c68785' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T03:13:51-07:00
 claimant:
     operator: Xian Xu
@@ -16,7 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
-actual_hours: 1.10
+actual_hours: 1.25
 ---
 
 # broadcast-web: real recorder output as fixtures (the integration guard)
