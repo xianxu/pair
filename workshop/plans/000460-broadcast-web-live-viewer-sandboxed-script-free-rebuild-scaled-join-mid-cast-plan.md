@@ -87,3 +87,15 @@ Go side:
 - `blob:` stylesheet URLs: created per `<link>`/owned sheet in a viewer tab, revoked on replace/remove and die with the
   tab.
 - Nothing durable is created by the viewer.
+
+## Revisions
+
+### 2026-10-12 — #466's remote-driving seams (TL, delivery d44edcc4)
+- **Presence:** the `events` route takes an optional `?viewer=ID` and calls `CastConfig.Presence(id) (leave func())`
+  for the stream's life (nil: no hook). The seat logic (grace period, control returning to the operator) is #467's.
+- **Shell contract gains** `nodeAt(pageX, pageY) → id` (the frame's `elementFromPoint` after page→client mapping,
+  descending into same-origin child frames and open/closed shadow roots we hold) and `toPage(clientX, clientY)` (shell
+  client px → top-page CSS px: undo the stage offset and scale, add the frame's scroll). Node-tested math; Chrome-tested
+  hit-testing.
+- **`ctl` records:** not rendered now (#467). The model ignores unknown kinds as the reducer does; the shell exposes an
+  `onRecord` hook so #467 renders who's driving without touching the apply path. `POST /TOKEN/drive/*` is #467's.

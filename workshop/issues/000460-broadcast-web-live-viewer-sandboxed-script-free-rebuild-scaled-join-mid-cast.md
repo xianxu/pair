@@ -56,5 +56,6 @@ Durable plan: `workshop/plans/000460-broadcast-web-live-viewer-sandboxed-script-
 
 ### 2026-10-12
 - Seams confirmed by the TL (delivery 9d90bc7b): `{k:hover,id}` and `{k:ptr,x,y}` (events.jsonl, outside Canonical; #458 emits them); assets at `<cast>/assets/<hash>` (#459 mounts there); the viewer rewrites `url()`s in streamed CSS; `boxOf(id)` for wave 2's note boxes; frame sandbox `allow-same-origin` only, the shell owns input (#466's reverse channel).
+- #466 additions (delivery d44edcc4): `?viewer=ID` presence hook on `events`; shell `nodeAt`/`toPage`; `ctl` rendering waits for #467 (hook left). Folded into the plan's Revisions.
 
 ### 2026-10-11
