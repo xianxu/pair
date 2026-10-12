@@ -240,3 +240,15 @@ boxes are in the cast's own units.
 - The shared gesture helper is `collab.js` `gestureBox(from, to, view, {min, cells})`, with `dragMin(unit,
   pointerType)` and `boxCentre(b)`. Its tests are in `tests/broadcast-viewer/notebox.test.mjs`. The name changed
   under M1's BR-4 to avoid a clash with annotate's display `noteBox`. Read "noteBox" above as `gestureBox`.
+
+### 2026-10-12: M2 as built
+- The wire is `{cols, rows, box:[col,row,w,h], color, text}`. Each box component is bounded (0..1000) before
+  any arithmetic, and `within` compares by subtraction (BR-10).
+- Boxes off the grid, or narrower than 2 cells, are refused.
+- `NoteBoard.Add(n, cols, rows)` places the pin. It is the first of `pinSpots` (top-right inside the box, then
+  leftward, then the rows below, never on the controls) that no open pin covers. A box with no free spot is
+  refused with `ErrNoteOverlap`, so there is no separate "move out of the guard" step.
+- `DrawNotes` tints the edge (`noteOutline` = 0.55) through the glow's tint merge.
+- `NoteCrop(n, cols, rows, margin)`.
+- The viewer's `boxHasPin` and Go's `pinSpots` share `tests/broadcast-viewer/pinspots.json`.
+- `pointerMode` holds one tagged `drag` state.
