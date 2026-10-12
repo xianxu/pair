@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/broadcast"
+	"github.com/xianxu/pair/cmd/internal/webcast"
 	"image/color"
 	"io"
 	"os"
@@ -139,6 +140,12 @@ type Console struct {
 	// running broadcast's state (console_broadcast.go). Both under mu.
 	broadcastCfg *broadcast.Config
 	bcast        broadcastState
+	// webcastCfg is nil when web casting is not configured; wcast is the
+	// cast Chrome's state (console_webcast.go). Both under mu.
+	webcastCfg *webcast.CastConfig
+	wcast      webcastState
+	// statusWebcast is the Chrome cell's span on the last drawn row.
+	statusWebcast ColumnSpan
 	// pointer is the pointer link's phase (#412), under mu; pmarks is the
 	// marks state the Presenter's overlay reads, behind its own leaf lock.
 	pointer pointerPhase
@@ -977,6 +984,7 @@ func (c *Console) teardown(restore func() error) error {
 	// Viewers are told before the presenter goes, and the tunnel is closed
 	// rather than left running (#395).
 	c.endBroadcastForShutdown()
+	c.endWebcastForShutdown()
 	// Contextual readers retain their fd lease until after the input pump joins
 	// and Presenter has restored the parent terminal. Plain fixture pipes need
 	// explicit close to interrupt Read.
@@ -1830,6 +1838,7 @@ func (c *Console) hitHandlers() map[InterceptorHit]func() {
 		HitDetach:     c.onDetachHotkey,
 		HitRelaunch:   c.onRelaunchHotkey,
 		HitBroadcast:  c.toggleBroadcast,
+		HitWebcast:    c.toggleWebcast,
 		// HitMouse carries coordinates, which func() cannot, so it is dispatched
 		// from processInput with the payload rather than through this table. The
 		// entry is the CONSOLE's handler for it -- a real call, not a placeholder

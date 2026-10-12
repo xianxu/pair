@@ -1,0 +1,268 @@
+package cdp
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"sync"
+)
+
+var (
+	// ErrBacklog fails a Conn whose consumer stopped reading Events: the
+	// reader never blocks on the consumer (that would deadlock a consumer
+	// making a synchronous Call from its event loop), so a stuck consumer
+	// must fail loudly rather than grow memory without bound.
+	ErrBacklog = fmt.Errorf("%w: event backlog exceeded; consumer is not reading events", ErrProtocol)
+	ErrClosed  = errors.New("cdp: connection closed")
+)
+
+// maxQueuedEvents is a var so tests can trip the backlog cheaply.
+var maxQueuedEvents = 4096
+
+// Event is a CDP event; SessionID names the target session in flatten mode
+// and is empty for browser-level events.
+type Event struct {
+	SessionID string
+	Method    string
+	Params    json.RawMessage
+}
+
+// Conn multiplexes Calls and Events over one pipe pair. One reader goroutine
+// routes replies by id and queues events; one pump goroutine hands queued
+// events to the consumer in arrival order.
+type Conn struct {
+	w   io.WriteCloser
+	wmu sync.Mutex
+
+	mu        sync.Mutex
+	nextID    int64
+	pending   map[int64]chan Message
+	queue     []Event
+	maxQueued int
+	err       error
+
+	signal    chan struct{} // reader → pump: queue grew
+	done      chan struct{} // closed on the first failure
+	closed    chan struct{} // closed by Close; releases a pump blocked on a gone consumer
+	closeOnce sync.Once
+	closeErr  error
+	events    chan Event
+}
+
+// New starts a Conn reading frames from r (Chrome's fd 4) and writing
+// commands to w (Chrome's fd 3). The reader goroutine exits only when r
+// returns an error, which for a real pipe means Chrome closed its end.
+func New(r io.Reader, w io.WriteCloser) *Conn {
+	c := &Conn{
+		w:         w,
+		pending:   map[int64]chan Message{},
+		maxQueued: maxQueuedEvents,
+		signal:    make(chan struct{}, 1),
+		done:      make(chan struct{}),
+		closed:    make(chan struct{}),
+		events:    make(chan Event),
+	}
+	go c.read(r, newFrameReader(r, maxFrame))
+	go c.pump()
+	return c
+}
+
+// Call sends method (on sessionID when non-empty) and waits for its reply,
+// decoding the result into result when both are non-nil. An error reply is
+// returned as *Error.
+func (c *Conn) Call(ctx context.Context, sessionID, method string, params, result any) error {
+	m := Message{Method: method, SessionID: sessionID}
+	if params != nil {
+		raw, err := json.Marshal(params)
+		if err != nil {
+			return fmt.Errorf("cdp: %s: encode params: %w", method, err)
+		}
+		m.Params = raw
+	}
+	ch := make(chan Message, 1)
+	c.mu.Lock()
+	if c.err != nil {
+		err := c.err
+		c.mu.Unlock()
+		return fmt.Errorf("cdp: %s: %w", method, err)
+	}
+	c.nextID++
+	m.ID = c.nextID
+	c.pending[m.ID] = ch
+	c.mu.Unlock()
+
+	frame, err := encode(m)
+	if err != nil {
+		c.forget(m.ID)
+		return fmt.Errorf("cdp: %s: encode: %w", method, err)
+	}
+	c.wmu.Lock()
+	_, err = c.w.Write(frame)
+	c.wmu.Unlock()
+	if err != nil {
+		c.forget(m.ID)
+		c.fail(fmt.Errorf("cdp: write: %w", err))
+		return fmt.Errorf("cdp: %s: %w", method, c.Err())
+	}
+
+	select {
+	case reply := <-ch:
+		return decodeReply(method, reply, result)
+	case <-ctx.Done():
+		c.forget(m.ID)
+		return ctx.Err()
+	case <-c.done:
+		// A reply routed just before the failure still wins.
+		select {
+		case reply := <-ch:
+			return decodeReply(method, reply, result)
+		default:
+		}
+		c.forget(m.ID)
+		return fmt.Errorf("cdp: %s: %w", method, c.Err())
+	}
+}
+
+func decodeReply(method string, reply Message, result any) error {
+	if reply.Error != nil {
+		return reply.Error
+	}
+	if result != nil && len(reply.Result) > 0 {
+		if err := json.Unmarshal(reply.Result, result); err != nil {
+			return fmt.Errorf("cdp: %s: decode result: %w", method, err)
+		}
+	}
+	return nil
+}
+
+func (c *Conn) forget(id int64) {
+	c.mu.Lock()
+	delete(c.pending, id)
+	c.mu.Unlock()
+}
+
+// Events delivers events in arrival order. The channel closes once the Conn
+// is done and every queued event has been delivered, so ranging over it
+// terminates; after Close, still-queued events are dropped instead. A
+// consumer that stops reading must Close, or the pump stays blocked on it.
+func (c *Conn) Events() <-chan Event { return c.events }
+
+// Done is closed when the Conn fails or is closed.
+func (c *Conn) Done() <-chan struct{} { return c.done }
+
+// Err is nil while the Conn runs, then the first failure. Failures from what
+// the peer sent (oversized, malformed, a backlog) are ErrProtocol; the pipe
+// ending is a read error wrapping io.EOF (or the pipe's own close error), and
+// our Close is ErrClosed.
+func (c *Conn) Err() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.err
+}
+
+// Close closes the command pipe and ends the Conn; it is idempotent. Chrome
+// exits when its command pipe closes, which in turn ends the reader.
+func (c *Conn) Close() error {
+	c.closeOnce.Do(func() {
+		close(c.closed)
+		c.fail(ErrClosed)
+		c.closeErr = c.w.Close()
+	})
+	return c.closeErr
+}
+
+func (c *Conn) fail(err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.err != nil {
+		return
+	}
+	c.err = err
+	close(c.done)
+}
+
+// read routes frames until the pipe ends. After a failure that leaves the
+// pipe open (oversized or malformed) it keeps reading and discarding bytes,
+// so the peer never blocks writing and sees its command pipe close instead.
+func (c *Conn) read(r io.Reader, fr *frameReader) {
+	for {
+		frame, err := fr.next()
+		if err != nil {
+			if errors.Is(err, ErrFrameTooLarge) {
+				c.fail(err)
+				io.Copy(io.Discard, r)
+			} else {
+				c.fail(fmt.Errorf("cdp: read: %w", err))
+			}
+			return
+		}
+		var m Message
+		if err := json.Unmarshal(frame, &m); err != nil {
+			c.fail(fmt.Errorf("%w: malformed message: %v", ErrProtocol, err))
+			io.Copy(io.Discard, r)
+			return
+		}
+		c.dispatch(m)
+	}
+}
+
+// dispatch routes one message. Once the Conn is done the reader keeps
+// draining, so Chrome never blocks writing, but delivers nothing.
+func (c *Conn) dispatch(m Message) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.err != nil {
+		return
+	}
+	if m.ID != 0 {
+		// Unknown ids are replies to cancelled Calls.
+		if ch, ok := c.pending[m.ID]; ok {
+			delete(c.pending, m.ID)
+			ch <- m
+		}
+		return
+	}
+	if m.Method == "" {
+		return
+	}
+	if len(c.queue) >= c.maxQueued {
+		c.err = ErrBacklog
+		close(c.done)
+		return
+	}
+	c.queue = append(c.queue, Event{SessionID: m.SessionID, Method: m.Method, Params: m.Params})
+	select {
+	case c.signal <- struct{}{}:
+	default:
+	}
+}
+
+func (c *Conn) pump() {
+	defer close(c.events)
+	for {
+		c.mu.Lock()
+		if len(c.queue) == 0 {
+			finished := c.err != nil
+			c.mu.Unlock()
+			if finished {
+				return
+			}
+			select {
+			case <-c.signal:
+			case <-c.done:
+			}
+			continue
+		}
+		ev := c.queue[0]
+		c.queue[0] = Event{}
+		c.queue = c.queue[1:]
+		c.mu.Unlock()
+		select {
+		case c.events <- ev:
+		case <-c.closed:
+			return
+		}
+	}
+}

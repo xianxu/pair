@@ -910,6 +910,24 @@ right-clicking it in the box. A note stays on the cell where it was placed, what
 underneath. Turning pointing off deletes every note, as it clears the marks,
 and stopping the broadcast ends them too; nothing is saved to disk.
 
+**Web cast (#454).** `Shift+Ctrl+Alt+b` opens a dedicated Chrome for casting
+a web app: a normal window with its own profile (kept at
+`<couch store>/webcast/chrome-profile`, so your logins to the app survive; delete
+the directory to reset it), on a blank page. Browse as usual (a local dev
+server, an agent's mock, anything). While it runs the tab bar shows
+`Chrome ▶`; press `Shift+Ctrl+Alt+b` again, click `Chrome ▶`, or press the
+**Go live** button Couch puts at the bottom right of the page, and the active tab
+is cast (`Chrome ⏸`). The same three pause and resume it, and the browser stays
+open while paused. Right-click the cell to copy the viewer link; `Ctrl`+click
+(left or right) ends the cast and closes Chrome. Closing Chrome yourself ends the
+cast too. The cast follows whichever tab is active, including tabs opened later.
+Viewers see only whether the cast is live and, while it is, the page's title and
+URL; nothing you do while paused reaches them. The page itself (its DOM) is cast
+once the recorder lands. The web cast shares the screen broadcast's tunnel
+(`COUCH_BROADCAST_TUNNEL`), so both can run at once on one named tunnel. Chrome
+is found in the usual macOS locations or on `PATH`; set `COUCH_WEBCAST_CHROME` to
+the binary to choose another (Couch refuses to start if it doesn't exist).
+
 With an empty root filter, **Space** toggles the **normal view** and **focus view**.
 Focus view shows only live threads with a published summary, in normal-view
 order, as `label ◆ summary`. Tag a thread with `! …` in its Pair draft. An empty

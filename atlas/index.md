@@ -113,5 +113,6 @@
 
 - [Terminal ownership](terminal.md) — Shared endpoint, presenter, profile, transport and qualification boundaries.
 - [Couch broadcast](broadcast.md) — view-only streaming of the composed Couch screen: Presenter tap, LIVE-gated hub, switcher privacy (#395).
+- [Couch broadcast-web](webcast.md) — the cast Chrome (#454): CDP over the debugging pipe, the `Browser` seam and its fake, active-tab inference, the isolated-world in-page control.
 
 - [Opt-in Couch live capture](couch-live-capture.md) — opt-in display-boundary recording and replay evidence for #379.

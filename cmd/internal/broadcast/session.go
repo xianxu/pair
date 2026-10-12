@@ -24,6 +24,9 @@ const (
 
 // Config starts a Session.
 type Config struct {
+	// Host is the endpoint shared with other casts; nil makes a private one
+	// on Tunnel.
+	Host   *Host
 	Tunnel Tunnel
 	Hub    HubOptions
 	// Ping is the SSE keepalive interval; zero means DefaultPing.
@@ -68,8 +71,7 @@ type Session struct {
 	// startedAt and mode describe the session for Status (pair#413).
 	startedAt time.Time
 	mode      string
-	srv       *http.Server
-	handle    Handle
+	mount     *Mount
 
 	stopOnce sync.Once
 	reason   error
@@ -80,19 +82,16 @@ type Session struct {
 // abandons the start; whatever was opened, including a tunnel that finishes
 // opening after the cancel, is closed.
 func Start(ctx context.Context, cfg Config) (*Session, error) {
-	if cfg.Tunnel == nil {
-		return nil, errors.New("broadcast: no tunnel configured")
+	host := cfg.Host
+	if host == nil {
+		if cfg.Tunnel == nil {
+			return nil, errors.New("broadcast: no tunnel configured")
+		}
+		host = NewHost(HostConfig{Tunnel: cfg.Tunnel, ProbeTimeout: cfg.ProbeTimeout, Resolve: cfg.Resolve})
 	}
-	if cfg.ProbeTimeout <= 0 {
-		cfg.ProbeTimeout = DefaultProbeTimeout
-	}
-	token, err := newToken()
+	token, err := NewToken()
 	if err != nil {
 		return nil, err
-	}
-	l, err := cfg.Tunnel.Listen()
-	if err != nil {
-		return nil, fmt.Errorf("broadcast: listen: %w", err)
 	}
 	// The session is built before the hub and server, which call back into
 	// it; the pointer can't be used until Start returns (no token is minted
@@ -107,45 +106,16 @@ func Start(ctx context.Context, cfg Config) (*Session, error) {
 		go s.pointerHidden(gen)
 	}
 	hub := NewHub(hubOpts)
-	srv := &http.Server{
-		Handler: NewServer(ServerOptions{Token: token, Hub: hub, Ping: cfg.Ping, Theme: cfg.Theme,
-			Pointer: s.pointer, OnPoint: s.acceptPoint, OnNote: s.acceptNote, OnResolve: s.resolveNote}),
-		// Bounds on what an internet client can hold open: headers must
-		// arrive promptly, and the one body (the pointer POST) gets its own
-		// read deadline in its handler. No server-wide ReadTimeout: it would
-		// also time out the disconnect watch on long-lived event streams.
-		ReadHeaderTimeout: 10 * time.Second,
-		IdleTimeout:       60 * time.Second,
-		MaxHeaderBytes:    8 << 10,
-	}
-	served := make(chan error, 1)
-	go func() { served <- srv.Serve(l) }()
-	abandon := func(handle Handle, err error) (*Session, error) {
+	server := NewServer(ServerOptions{Token: token, Hub: hub, Ping: cfg.Ping, Theme: cfg.Theme,
+		Pointer: s.pointer, OnPoint: s.acceptPoint, OnNote: s.acceptNote, OnResolve: s.resolveNote})
+	mount, err := host.Mount(ctx, server, token+"/")
+	if err != nil {
 		hub.Close(err)
-		srv.Close()
-		if handle != nil {
-			handle.Close()
-		}
 		return nil, err
 	}
-	handle, err := cfg.Tunnel.Open(ctx, l)
-	if err != nil {
-		return abandon(nil, err)
-	}
-	if err := ctx.Err(); err != nil {
-		return abandon(handle, err)
-	}
-	link := handle.URL() + "/" + token + "/"
-	if err := probe(ctx, link, cfg.ProbeTimeout, cfg.Resolve, handle.Exited()); err != nil {
-		return abandon(handle, err)
-	}
-	mode := ModeTunnel
-	if _, local := cfg.Tunnel.(LocalOnly); local {
-		mode = ModeLocalOnly
-	}
-	s.link, s.base, s.hub, s.srv, s.handle = link, handle.URL(), hub, srv, handle
-	s.startedAt, s.mode = time.Now(), mode
-	go s.watch(served)
+	s.link, s.base, s.hub, s.mount = mount.Base()+"/"+token+"/", mount.Base(), hub, mount
+	s.startedAt, s.mode = time.Now(), mount.Mode()
+	go s.watch()
 	return s, nil
 }
 
@@ -203,34 +173,28 @@ func (s *Session) Err() error {
 	}
 }
 
-// watch ends the session when any part it owns ends on its own: the hub
-// (indicator hidden), the tunnel, or the HTTP server. Serve returns
-// ErrServerClosed after our own teardown, which by then is a no-op Stop.
-func (s *Session) watch(served <-chan error) {
+// watch ends the session when the hub ends (indicator hidden) or the Host
+// lost its tunnel or server.
+func (s *Session) watch() {
 	select {
 	case <-s.hub.Done():
 		s.Stop(s.hub.Err())
-	case <-s.handle.Exited():
-		s.Stop(ErrTunnelExited)
-	case err := <-served:
-		if !errors.Is(err, http.ErrServerClosed) {
-			s.Stop(fmt.Errorf("%w: %v", ErrServerFailed, err))
-		}
+	case <-s.mount.Exited():
+		s.Stop(s.mount.Err())
 	}
 }
 
+// teardown unmounts; the hub is closed, so every event stream is already
+// returning. If this was the Host's last mount, it returns once the listener
+// and tunnel are closed.
 func (s *Session) teardown() {
 	defer close(s.done)
-	ctx, cancel := context.WithTimeout(context.Background(), shutdownBudget)
-	defer cancel()
-	// The hub is closed, so every event stream is already returning.
-	if err := s.srv.Shutdown(ctx); err != nil {
-		s.srv.Close()
-	}
-	s.handle.Close()
+	s.mount.Unmount()
 }
 
-func newToken() (string, error) {
+// NewToken mints a capability token: 32 random bytes, URL-safe. A cast's
+// link carries it and it is the link's only credential.
+func NewToken() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
 		return "", fmt.Errorf("broadcast: token: %w", err)
@@ -353,7 +317,7 @@ func resolvingDialer(resolve func(context.Context, string) ([]string, error)) fu
 // EnablePointer turns pointing on (#412), minting the pointer link on first
 // use; it returns the link, the same one on every later call.
 func (s *Session) EnablePointer() (string, error) {
-	token, changed, err := s.pointer.set(true, newToken)
+	token, changed, err := s.pointer.set(true, NewToken)
 	if err != nil {
 		return "", err
 	}

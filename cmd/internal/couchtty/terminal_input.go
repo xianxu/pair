@@ -138,6 +138,26 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 		return
 	}
 	hit, _, _, ok := mouseinput.ParsePrefix(event.Raw)
+	// The Chrome cell (#454): click toggles live, right-click copies the
+	// viewer link, Ctrl with either button ends the cast (a macOS terminal
+	// may turn Ctrl+left into a right click, keeping the Ctrl bit).
+	if ok && !hit.Release {
+		button := mouseinput.BaseButton(hit.Button)
+		c.mu.Lock()
+		rows, cell := int(c.size.Rows), c.statusWebcast
+		c.mu.Unlock()
+		if (button == 0 || button == 2) && hit.Y == rows && cell.Contains(hit.X-1) {
+			switch {
+			case hit.Button&mouseinput.ModCtrl != 0:
+				c.endWebcast()
+			case button == 2:
+				c.copyWebcastLink()
+			default:
+				c.toggleWebcast()
+			}
+			return
+		}
+	}
 	// The pointer controls take left and right clicks on the status row
 	// (#412); a right click anywhere else keeps going to the child.
 	if ok && !hit.Release && (hit.Button == 0 || hit.Button == 2) {

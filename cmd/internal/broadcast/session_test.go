@@ -49,7 +49,7 @@ func TestSessionLinkServesViewer(t *testing.T) {
 	a := startSession(t, ft, HubOptions{})
 	b := startSession(t, ft, HubOptions{})
 	for _, s := range []*Session{a, b} {
-		if !strings.HasPrefix(s.Link(), s.handle.URL()+"/") || !strings.HasSuffix(s.Link(), "/") {
+		if !strings.HasPrefix(s.Link(), s.mount.Base()+"/") || !strings.HasSuffix(s.Link(), "/") {
 			t.Fatalf("link %q", s.Link())
 		}
 		if code, err := get(t, s.Link()); err != nil || code != http.StatusOK {
