@@ -374,9 +374,13 @@ what Chrome or the operator's machine would handle is not:
 - Keys: only the chords in `drive`'s closed chord table (a key with an exact set of modifiers). A chord is there only
   if no Chrome or Blink binding handles it on any platform. That means the editing and navigation keys, plain or with
   Shift where that only extends a selection (not Shift+Delete, which is cut, and not Shift+Escape, Chrome's task
-  manager); Enter with Ctrl or Meta; printable characters, plain or with Shift; Ctrl or Meta with A (select all) and Z
-  (undo, with Shift redo); and Ctrl+Y (not Meta+Y, History on macOS). `TestConfineIsExactlyTheChordTable` walks every
-  key against all 16 modifier sets, plus a list of known Chrome and Blink bindings.
+  manager); printable characters, plain or with Shift; Ctrl or Meta with A (select all) and Z (undo, with Shift redo);
+  and Ctrl+Y (not Meta+Y, History on macOS). **The activation keys, Enter and Space, take no modifier.** They are a
+  click's keyboard form, and Blink takes the navigation policy from the activating event's modifiers: Ctrl or Meta opens
+  a new tab, and Shift opens a new window. So every modifier refused on the pointer is refused on them too. A soft
+  newline (Shift+Enter in a chat box) is lost; that is the price. `TestConfineAllowsExactlyTheseChords` walks every
+  key against all 16 modifier sets. It compares them with an expectation written by hand, not derived from the table,
+  plus a cited list of Chrome and Blink bindings.
 - `code`, when given, must name `key`'s own key, so an injector can't be led to another (key `a` with code `KeyW`).
   The injector dispatches from `key` alone; `code` only fills the DOM event's `code`.
 - No clipboard keys: copy and cut would write the operator's clipboard, and paste would read it.

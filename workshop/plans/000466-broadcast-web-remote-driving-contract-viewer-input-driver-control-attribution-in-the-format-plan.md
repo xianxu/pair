@@ -173,7 +173,7 @@ records and injections enter that queue. The id map is `Recorder.NodeOf(id) → 
   revokes and then injects as the old driver; `TestFakesCompose` wires `FakeController` over `FakeInjector` with
   `recording.Tee`.
 - **Confine** (BR-2, BR-3):
-  - Ctrl/Meta+Enter is allowed (page-handled).
+  - Ctrl/Meta+Enter was allowed here, and round 3 removed it.
   - Meta+Y is refused (History on macOS); Y works with Ctrl only.
   - Shift+Escape is refused (Chrome's task manager).
   - Shift goes with Ctrl/Meta only on Z.
@@ -186,3 +186,14 @@ records and injections enter that queue. The id map is `Recorder.NodeOf(id) → 
   - fixture coverage checks for a note by the driver.
 - **Advisory left open:** the fake's grace timers are real `time.AfterFunc` (no injectable timer). #467's real
   controller runs on the recorder's queue with its own timer inputs, and that is where ordering gets tested.
+
+### 2026-10-12: close review rounds 2–3, the confinement rule
+- **Keys are a closed chord table** (key x exact modifiers). A chord is allowed only if no Chrome or Blink binding
+  handles it on any platform. This replaces the round-1 per-key exceptions.
+  - Shift+Delete (cut) and Shift+Backspace are out.
+  - The activation keys, Enter and Space, take no modifier: Blink applies a modified activation's navigation policy
+    (a new tab or window), so they are keyboard twins of the modified clicks already refused. Ctrl/Meta+Enter,
+    Shift+Enter and Shift+Space are out.
+- **The exhaustive test compares `Confine` with a hand-written expectation** and a cited list of bindings (Chrome's
+  accelerator table, Blink's editing bindings and activation rules), not with the table it calls.
+- **End is final:** no `seg` or `ctl` after `stop end` (one guard in `State.apply`).

@@ -22,8 +22,14 @@ var ErrRefused = errors.New("drive: not allowed while driving")
 // paste), Ctrl/Meta+C/X/V (clipboard), Meta+Y (History), Shift+Escape (task
 // manager), Ctrl+Tab and Ctrl+PageUp/PageDown (tabs), Alt+anything (back,
 // forward, menus), F-keys (reload, devtools, fullscreen).
+//
+// The activation keys, Enter and Space, take no modifier at all: they are a
+// click's keyboard form, and Blink takes the navigation policy from the
+// activating event's modifiers (Ctrl/Meta opens a new tab, Shift a new
+// window), so every modifier the pointer is refused is refused here too.
 var chords = map[string][]string{
-	"Enter":      {"", "shift", "ctrl", "meta"},
+	"Enter":      {""},
+	" ":          {""},
 	"Tab":        {"", "shift"},
 	"Escape":     {""},
 	"Backspace":  {""},
@@ -53,7 +59,9 @@ var (
 var namedKeys = func() []string {
 	out := make([]string, 0, len(chords))
 	for k := range chords {
-		out = append(out, k)
+		if k != " " { // Space is a printable key with its own row
+			out = append(out, k)
+		}
 	}
 	slices.Sort(out)
 	return out
