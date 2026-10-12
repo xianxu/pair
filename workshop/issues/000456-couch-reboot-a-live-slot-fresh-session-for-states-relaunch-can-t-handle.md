@@ -15,7 +15,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "249f658f", done: "cc4aaf89"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # couch: reboot a live slot (fresh session), for states relaunch can't handle
@@ -59,6 +59,8 @@ Calls without a verdict (recover's reboot step) still refuse live rows.
 ## Log
 
 ### 2026-10-11
+- 2026-10-11: closed — go test couchcore/couchtty/couchcmd/couchmessage ok unsandboxed (one load-flaky orientation deadline test, untouched, passes alone + rerun); review fixes: TestLiveRebootProfileFailureStopsNothing (mutation-checked), TestRebootLiveSlotByPath, TestWithRebootHint; prose order swept; operator smoke Tab→reboot on pair:6 passed; live couch --reboot pair:6 --confirm succeeded (archived 1-pair-36, new 1-pair-42) (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
+- 2026-10-11: flow upgraded quick → full — 160 added lines in code files (limit 100); an earlier round of this close already ran the full review
 - Operator chose `Tab → reboot` on live rows (no new key) over Alt+Shift+N (Pair's reload-context in an actor pane) or Ctrl+Alt+r.
 - `TestActionOfferedImpliesPermitted` caught the live offer against `RebootableState`; the fix was a named whole-admission predicate (`RebootAdmitted`), not widening archive's rule (ARCH-DRY: archive must still refuse live).
 - Sandbox blocks pty/socket tests; ran couchtty/couchcore/couchcmd/couchmessage unsandboxed: all ok.
