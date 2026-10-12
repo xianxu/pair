@@ -11,12 +11,13 @@ import (
 )
 
 // Remote driving (#467): a driver's batch runs as one input of the queue,
-// so what it causes is ordered with everything else the stream holds, and
-// attributed exactly. The run holds the observer in every context of the
-// cast tab (what it had pending is the operator's or the page's: recorded
-// without by), dispatches, then takes what the observer queued meanwhile
-// (the driver's: recorded with by). Every exit takes; a hold the take
-// can't reach (a dialog, a context gone) expires in the page.
+// so its input is ordered with everything else the stream holds. The run
+// holds the observer in every context of the cast tab (what it had pending
+// is the operator's or the page's: recorded without by), dispatches, then
+// takes. During the hold the observer tags what it sends with by, through
+// the binding, in order (a click at once, before a navigation can take its
+// document); the take sends the rest, tagged. Every exit takes; a hold the
+// take can't reach (a dialog, a context gone) expires in the page.
 
 var _ drive.TabRunner = (*Recorder)(nil)
 
@@ -48,10 +49,11 @@ func (r *Recorder) withTab(ctx context.Context, by string, fn func(drive.Tab) er
 		}
 	}
 	defer func() {
+		// The take sends the rest through the binding, tagged, and returns
+		// nothing: the driver's reports all arrive as ordered binding
+		// events. A failed take is the hold's to expire.
 		for _, c := range contexts {
-			if items, ok := r.observerCall(c, "__couchcastTake", ""); ok {
-				r.observeItems(r.t(r.opts.Now()), c.session, c.id, items, by)
-			}
+			r.observerCall(c, "__couchcastTake", "")
 		}
 	}()
 	return fn(&cdpTab{r: r})

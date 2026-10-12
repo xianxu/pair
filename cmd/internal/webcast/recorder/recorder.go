@@ -1096,6 +1096,12 @@ func (r *Recorder) binding(at time.Time, e Event) {
 // viewer whose injected input they follow, "" for anyone else's (#467).
 func (r *Recorder) observeItems(t int64, session string, context int64, items []Item, by string) {
 	frame := r.contexts[session][context]
+	if by != "" && r.m.State().Control.Driving() != by {
+		// A tagged report ordered after control moved (a revoke between the
+		// batch and its reports): what the page received is kept, without
+		// an attribution the stream can no longer state (#467).
+		by = ""
+	}
 	for _, it := range items {
 		if it.K == "hello" {
 			// A new document's observer: switch it on.

@@ -13,12 +13,17 @@ import (
 	rec "github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
-// driveTab is a fake cast tab's answers to a driven run: what the observer
-// holds and takes, the node at every point, and the input it got.
+// driveTab is a fake cast tab's answers to a driven run, as observer.js
+// gives them: the hold returns what was pending (the operator's); the take
+// returns nothing and sends what the dispatch caused through the binding,
+// tagged with the hold's by (send). Also the node at every point, and the
+// input it got.
 type driveTab struct {
 	mu       sync.Mutex
 	held     []map[string]any // pending at the hold (the operator's)
-	taken    []map[string]any // queued during the dispatch (the driver's)
+	taken    []map[string]any // what the dispatch caused (the driver's)
+	heldBy   string
+	send     func(payload string) // a bindingCalled from the page
 	hit      int              // backendNodeId at any point
 	takeFail bool
 	block    chan struct{} // while set, input calls wait on it
@@ -36,13 +41,21 @@ func (d *driveTab) more(session, method string, params map[string]any, p *fakePa
 		case strings.Contains(expr, "__couchcastHold"):
 			d.evals = append(d.evals, "hold")
 			items, d.held = d.held, nil
+			if i := strings.Index(expr, `__couchcastHold("`); i >= 0 {
+				rest := expr[i+len(`__couchcastHold("`):]
+				d.heldBy = rest[:strings.Index(rest, `"`)]
+			}
 		case strings.Contains(expr, "__couchcastTake"):
 			d.evals = append(d.evals, "take")
 			if d.takeFail {
 				d.mu.Unlock()
 				return nil, errors.New("Cannot find context with specified id"), true
 			}
-			items, d.taken = d.taken, nil
+			if len(d.taken) > 0 && d.send != nil {
+				payload, _ := jsonString(map[string]any{"t": "obs", "by": d.heldBy, "items": d.taken})
+				d.send(payload)
+			}
+			d.taken = nil
 		default:
 			d.mu.Unlock()
 			return nil, nil, false
@@ -90,6 +103,9 @@ func drivenHarness(t *testing.T, dialog chan struct{}) (*harness, *driveTab, *fa
 	}
 	h.r = Start(opts)
 	t.Cleanup(func() { h.r.Close() })
+	d.send = func(payload string) {
+		h.r.Send(Event{Session: "A", Method: "Runtime.bindingCalled", Params: raw(map[string]any{"name": "__couchcast", "payload": payload, "executionContextId": 7})})
+	}
 	p := h.page("A", "http://a/", "L1")
 	btn := p.el("button")
 	p.insert(p.body(), nil, btn)
@@ -137,8 +153,8 @@ func clickOn(h *harness, id rec.NodeID) drive.Batch {
 }
 
 // The driver's click: what the observer had pending before is recorded
-// without by, what came during the dispatch with the driver's by, in that
-// order, and the input reached the tab.
+// without by, what the dispatch caused (sent tagged through the binding)
+// with the driver's by, in that order, and the input reached the tab.
 func TestWithTabAttributesExactly(t *testing.T) {
 	h, d, _, btn := drivenHarness(t, nil)
 	d.held = []map[string]any{{"k": "hover", "p": []int{1, 2, 0}}}
@@ -249,9 +265,10 @@ func jsonString(v any) (string, error) {
 	return string(b), err
 }
 
-// A held document that goes (the driver's click followed a link) sends its
-// items with the hold's by, as it unloads: the click that navigated is
-// recorded, attributed (#467). A by that isn't the driver is refused.
+// A held observer's tagged report (a click sent at once, before its
+// document goes) is recorded with its by (#467); one ordered after control
+// moved (a revoke between the batch and its reports) keeps the act, without
+// the attribution.
 func TestHeldDocumentSendsAttributedItems(t *testing.T) {
 	h, _, _, _ := drivenHarness(t, nil)
 	send := func(by string) {
@@ -264,8 +281,9 @@ func TestHeldDocumentSendsAttributedItems(t *testing.T) {
 		t.Fatalf("the navigating click: by %q", c.By)
 	}
 	n := h.count("click")
-	send("v9")
-	if h.count("click") != n {
-		t.Fatal("a by that isn't the driver was written")
+	ctl(h, rec.CtlRevoke)
+	send("v1")
+	if h.count("click") != n+1 || h.last("click").(*rec.Click).By != "" {
+		t.Fatalf("a click reported after the revoke: %d clicks, by %q", h.count("click"), h.last("click").(*rec.Click).By)
 	}
 }

@@ -470,3 +470,16 @@ over the recording Chrome, grace 1 s); `recording/testdata/fixtures/driven/` (re
     it.
   - **Consumers derive from the data** (lesson #474): the query attribution test, the replay timeline test, the
     replay listing duration and the live replay drivers test read `rec-driven`'s own records.
+- 2026-10-12, M4 review round 1:
+  - **BR-30.** A tagged report ordered after a revoke keeps its act and loses the attribution (written without
+    `by`); it is no longer dropped.
+  - **BR-31.** The recorder's fake tab answers as `observer.js` does: the hold returns the pending items; the take
+    returns `[]` and sends the dispatch's items as a tagged `bindingCalled`. The recorder's dead take-items branch
+    is removed. The live suite (`TestLiveDrive`, `TestLiveDriveNavigation`, the recorded fixture) holds the real
+    script to the same shapes end to end.
+  - **Task 4, step 3, as built.** "Take returns the observer's items, observed with `by`" is now "the take sends
+    them tagged through the binding". Every driven report is a binding event, in order.
+  - **Task 11, as built.** The driver's note comes from fixturegen's notes spec (author `v1`, while Ana drives), as
+    every recorded fixture's notes do, not from a board post during the run.
+  - The fixtures README frame count is read from `frames/index.jsonl`, and the `-driven` usage line is gone from
+    fixturegen's doc.

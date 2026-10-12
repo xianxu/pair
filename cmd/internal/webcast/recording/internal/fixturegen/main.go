@@ -2,7 +2,6 @@
 //
 //	go run ./cmd/internal/webcast/recording/internal/fixturegen -recorded RUN -name NAME -out DIR
 //	go run ./cmd/internal/webcast/recording/internal/fixturegen -segments -out DIR
-//	go run ./cmd/internal/webcast/recording/internal/fixturegen -driven -out DIR
 //	go run ./cmd/internal/webcast/recording/internal/fixturegen -canonical DIR -at T
 //
 // -recorded takes a run of the real recorder (#458), whose records need no

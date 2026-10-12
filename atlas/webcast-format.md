@@ -604,9 +604,9 @@ over a reduced page. The real tab is the recorder (`Recorder.WithTab`). A batch 
 - **Dispatch.** CDP input (`cdpAct`: `Input.dispatchMouseEvent`/`dispatchKeyEvent` with editing commands for the
   A/Z/Y chords, `insertText`, `imeSetComposition`). Hit tests use `DOM.getNodeForLocation`, without user-agent
   shadow DOM: an input's inner editor isn't a recorded node.
-- **Take.** `__couchcastTake` sends what is still coalesced, tagged, and ends the hold. The recorder accepts a
-  binding's `by` only as the reducer does: it must be the driver when the report is ordered. A revoke between a
-  batch and its reports therefore drops those reports (counted).
+- **Take.** `__couchcastTake` sends what is still coalesced, tagged, and returns nothing; it ends the hold. A
+  tagged report ordered after control moved (a revoke between a batch and its reports) keeps the act and loses the
+  attribution: the recorder writes it without `by`, since the stream can't state a driver who no longer drives.
 
 What a driver holds down (a button, keys) is `TabInjector`'s to end. It lets go before another driver's input,
 before input on another page, when the driver's batch is refused, and on every control change (`drive.Releaser`,
