@@ -15,6 +15,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "726046fc", done: "382f68cf"}
 ---
 
 # broadcast-web: fidelity check for live casts — sparse tab screenshots vs replay renders, with a report
