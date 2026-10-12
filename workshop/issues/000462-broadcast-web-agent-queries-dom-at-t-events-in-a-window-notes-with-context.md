@@ -15,6 +15,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "825a7141", done: "03943cf9"}
 ---
 
 # broadcast-web: agent queries — DOM at t, events in a window, notes with context
