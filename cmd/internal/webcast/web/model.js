@@ -2,7 +2,9 @@
 // (recording.State.Apply) and of State.Canonical(). It holds no DOM; the
 // renderer draws what this model accepted. Where the two disagree the Go
 // package is right: the node tests hold this port to every fixture's pinned
-// canonical hash, so a drift is a red test.
+// canonical hash, so a drift is a red test. Control (ctl records, a
+// record's driver attribution, #466) is not modelled: it draws nothing, so
+// the viewer accepts it as it comes, and #467 follows it through onRecord.
 
 export const VERSION = 1;
 
@@ -64,6 +66,7 @@ export class Model {
     this.head = null;
     this.t = 0;
     this.seg = 0; this.docSeg = 0; this.why = ''; this.live = false;
+    this.ended = false; // a stop end came: the cast is over
     this.tab = { id: '', url: '' }; this.vp = { w: 0, h: 0, dpr: 0 };
     this.url = ''; this.title = '';
     this.assets = new Map(); // absolute URL -> asset record
@@ -99,6 +102,7 @@ export class Model {
   inSegment() { if (!this.live || !this.top) fail('no live segment with a top document (a change outside seg … stop)'); }
 
   applyKind(r) {
+    if ((r.k === 'seg' || r.k === 'ctl') && this.ended) fail(`a ${r.k} after stop end: the cast is over`);
     switch (r.k) {
       case 'head':
         if (this.head) fail('a second head');
@@ -112,7 +116,9 @@ export class Model {
         return;
       case 'stop':
         if (!this.live) fail('stop without a live segment');
-        this.live = false; this.awaitTop = false; return;
+        this.live = false; this.awaitTop = false;
+        if (r.why === 'end') this.ended = true;
+        return;
       case 'doc': return this.applyDoc(r);
       case 'asset': this.assets.set(r.url, r); return;
       case 'note': this.notes.push({ note: r, state: 'open', seg: this.seg }); return;

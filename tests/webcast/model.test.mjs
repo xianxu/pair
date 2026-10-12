@@ -98,3 +98,11 @@ test('hover and pointer are tracked outside the canonical', () => {
 test('goJSON escapes as Go does', () => {
   assert.equal(goJSON({ a: '<b>&\u2028' }), '{\n "a": "\\u003cb\\u003e\\u0026\\u2028"\n}');
 });
+
+test('stop end is final: a seg or ctl after it is refused, as the reducer does', () => {
+  const m = reduce([head, seg(1), doc, { t: 2, k: 'stop', why: 'end' }]);
+  assert.throws(() => m.apply({ ...seg(2), t: 3 }), /cast is over/);
+  assert.throws(() => m.apply({ t: 3, k: 'ctl', act: 'grant' }), /cast is over/);
+  const paused = reduce([head, seg(1), doc, { t: 2, k: 'stop', why: 'pause' }]);
+  paused.apply({ ...seg(2, 'resume'), t: 3 });
+});

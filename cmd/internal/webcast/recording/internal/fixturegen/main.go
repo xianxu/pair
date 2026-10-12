@@ -2,6 +2,7 @@
 //
 //	go run ./cmd/internal/webcast/recording/internal/fixturegen -raw RUN -name NAME -out DIR
 //	go run ./cmd/internal/webcast/recording/internal/fixturegen -segments -out DIR
+//	go run ./cmd/internal/webcast/recording/internal/fixturegen -driven -out DIR
 //	go run ./cmd/internal/webcast/recording/internal/fixturegen -canonical DIR -at T
 //
 // RUN is a run directory of #453's prototype recorder (branch
@@ -35,6 +36,7 @@ func main() {
 	name := flag.String("name", "", "fixture name (selects the notes spec)")
 	out := flag.String("out", "", "fixture directory to (re)write")
 	segments := flag.Bool("segments", false, "write the hand-made segments fixture")
+	driven := flag.Bool("driven", false, "write the hand-made driven fixture (recording.DrivenRecording)")
 	canonical := flag.String("canonical", "", "print this fixture's canonical state at -at")
 	at := flag.Int64("at", 0, "time for -canonical, ms")
 	flag.Parse()
@@ -44,6 +46,8 @@ func main() {
 		err = printCanonical(*canonical, *at)
 	case *segments && *out != "":
 		err = write(*out, segmentsFixture(), nil, nil, nil)
+	case *driven && *out != "":
+		err = write(*out, rec.DrivenRecording(), nil, nil, nil)
 	case *raw != "" && *name != "" && *out != "":
 		err = convert(*raw, *name, *out)
 	default:

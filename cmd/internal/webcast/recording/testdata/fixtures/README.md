@@ -9,6 +9,7 @@ Recordings in the format of `atlas/webcast-format.md`, for every wave-1 componen
 | `app` | #453's React + Tailwind app, `app` scenario (typing, clicks, a modal, a cross-document navigation) | 22 s, 11 frames |
 | `blog` | the operator's blog, `/2026/10/ariadne-1-building-blocks-of-ai-coding` on `npm run dev`, `browse` scenario | 12 s, 6 frames |
 | `segments` | hand-made by `fixturegen -segments`: pause, resume with ids kept, a tab switch | 9 s, no frames |
+| `driven` | hand-made by `fixturegen -driven` from `recording.DrivenRecording()` (#466): viewers request, are granted, click and type (attributed `by`), drive through a pause, a resume and a navigation; release, revoke, deny, leave | 9.5 s, no frames |
 
 Each directory has:
 - the record files;

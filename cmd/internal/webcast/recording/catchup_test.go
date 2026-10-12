@@ -74,3 +74,22 @@ func TestCatchUpWhilePaused(t *testing.T) {
 		t.Fatalf("paused catch-up: %v live=%v", err, cu.Live)
 	}
 }
+
+func TestCatchUpCarriesControl(t *testing.T) {
+	recs := DrivenRecording()
+	for cut := 1; cut <= len(recs); cut++ {
+		if err := CheckCatchUp(recs[:cut], recs[cut-1].Time()); err != nil {
+			t.Fatalf("cut %d (%s at %d): %v", cut, recs[cut-1].Kind(), recs[cut-1].Time(), err)
+		}
+	}
+	// The catch-up keeps one ctl from before the latest segment, not all.
+	var before int
+	for _, r := range CatchUp(recs[:len(recs)-1]) {
+		if _, ok := r.(*Ctl); ok && r.Time() < 5600 {
+			before++
+		}
+	}
+	if before != 1 {
+		t.Errorf("the catch-up carries %d ctl records from before the latest segment, want 1", before)
+	}
+}

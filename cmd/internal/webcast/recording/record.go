@@ -245,6 +245,7 @@ type (
 	// Input is a form control's state (properties, not attributes).
 	Input struct {
 		Header
+		Source
 		ID      NodeID  `json:"id"`
 		V       *string `json:"v,omitempty"`
 		Checked *bool   `json:"checked,omitempty"`
@@ -253,6 +254,7 @@ type (
 	// Scroll is an element's scroll offset, or a document's viewport's.
 	Scroll struct {
 		Header
+		Source
 		ID NodeID  `json:"id"`
 		X  float64 `json:"x"`
 		Y  float64 `json:"y"`
@@ -260,6 +262,7 @@ type (
 	// Selection is the text selection; neither end clears it.
 	Selection struct {
 		Header
+		Source
 		Anchor *Pos `json:"anchor,omitempty"`
 		Focus  *Pos `json:"focus,omitempty"`
 	}
@@ -282,12 +285,14 @@ type (
 	}
 	Click struct {
 		Header
+		Source
 		ID NodeID  `json:"id"`
 		X  float64 `json:"x"`
 		Y  float64 `json:"y"`
 	}
 	Focus struct {
 		Header
+		Source
 		ID NodeID `json:"id"`
 	}
 	// Layout replaces the known layout boxes.
@@ -388,6 +393,7 @@ var kinds = map[string]struct {
 	"click":      {func() Record { return &Click{} }, FileEvents},
 	"focus":      {func() Record { return &Focus{} }, FileEvents},
 	"layout":     {func() Record { return &Layout{} }, FileEvents},
+	"ctl":        {func() Record { return &Ctl{} }, FileEvents},
 	"note":       {func() Record { return &Note{} }, FileNotes},
 	"note-state": {func() Record { return &NoteState{} }, FileNotes},
 	"stroke":     {func() Record { return &Stroke{} }, FilePointer},
