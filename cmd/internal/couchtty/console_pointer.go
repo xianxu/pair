@@ -53,7 +53,9 @@ const (
 )
 
 // syncOverlay records whether user needs the overlay and installs it while
-// anyone does, removing it when nobody does.
+// anyone does, removing it when nobody does. Every caller runs on the
+// terminal loop (broadcast attach and detach, web cast start and end), so
+// the SetOverlay after unlocking follows the record it was computed from.
 func (c *Console) syncOverlay(user overlayUser, on bool) {
 	c.mu.Lock()
 	if on {

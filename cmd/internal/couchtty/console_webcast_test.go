@@ -28,6 +28,8 @@ type webcastRig struct {
 	// wrap, when set, records the cast: Launch gets a recordings directory
 	// and returns wrap's Browser around each fake (#470's web notes).
 	wrap func(*webcast.FakeBrowser, *webcast.RecordOptions) webcast.Browser
+	// screen also configures the screen broadcast, on the same tunnel.
+	screen bool
 }
 
 func newWebcastRig(t *testing.T, tweak func(*webcastRig)) *webcastRig {
@@ -63,7 +65,12 @@ func newWebcastRig(t *testing.T, tweak func(*webcastRig)) *webcastRig {
 	if r.wrap != nil {
 		cfg.RecordingsDir = t.TempDir()
 	}
-	r.consoleFixture = newFixtureBeforeRun(t, 24, 80, func(con *Console) { con.SetWebcast(cfg) })
+	r.consoleFixture = newFixtureBeforeRun(t, 24, 80, func(con *Console) {
+		con.SetWebcast(cfg)
+		if r.screen {
+			con.SetBroadcast(broadcast.Config{Tunnel: r.tunnel, Ping: 50 * time.Millisecond})
+		}
+	})
 	r.child.Feed([]byte("child says hi"))
 	waitFor(t, "child output on screen", func() bool { return strings.Contains(r.screenText(), "child says hi") })
 	return r

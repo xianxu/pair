@@ -36,14 +36,24 @@ type pointerNotes struct {
 	menu     NotesMenu
 	hover    int
 	pressed  bool
-	// The web cast's notes (#470), as the cast last delivered them: the
-	// menu's items (ID is the position + 1, Text "name: text"), and per item
-	// the note's id and plain text. source is which list the menu shows.
-	webCast  *webcast.Cast
-	web      []broadcast.Note
-	webIDs   []string
-	webTexts []string
-	source   notesSource
+	// The web cast's notes (#470), as the cast last delivered them. Each
+	// note keeps one menu id while it is open (webMenuIDs, from webNext), so
+	// a click on a drawn row acts on that note even if the list changed
+	// since the draw. web is the menu's items (Text "name: text").
+	webCast    *webcast.Cast
+	webItems   []webItem
+	web        []broadcast.Note
+	webMenuIDs map[string]int
+	webNext    int
+	source     notesSource
+}
+
+// webItem is one web note in the menu: its menu id, its note id and its
+// plain text (what a click copies).
+type webItem struct {
+	menuID int
+	noteID string
+	text   string
 }
 
 // notesSource is the list the notes menu shows: the screen broadcast's
@@ -272,8 +282,8 @@ func (c *Console) refreshNotes() {
 // Callers hold pnotes.mu.
 func (c *Console) noteTextLocked(id int) string {
 	if c.pnotes.source == webNotes {
-		if id >= 1 && id <= len(c.pnotes.webTexts) {
-			return c.pnotes.webTexts[id-1]
+		if it, ok := c.webItemLocked(id); ok {
+			return it.text
 		}
 		return ""
 	}
@@ -380,11 +390,11 @@ func (c *Console) pnotesSource() notesSource {
 func (c *Console) resolverLocked(id int) func() error {
 	if c.pnotes.source == webNotes {
 		cast := c.pnotes.webCast
-		if cast == nil || id < 1 || id > len(c.pnotes.webIDs) {
+		it, ok := c.webItemLocked(id)
+		if cast == nil || !ok {
 			return nil
 		}
-		noteID := c.pnotes.webIDs[id-1]
-		return func() error { return cast.ResolveNote(noteID) }
+		return func() error { return cast.ResolveNote(it.noteID) }
 	}
 	s := c.pnotes.session
 	if s == nil {
@@ -393,8 +403,21 @@ func (c *Console) resolverLocked(id int) func() error {
 	return func() error { return s.ResolveNote(id) }
 }
 
+// webItemLocked is the web note drawn with menu id id, if it is still
+// open. Callers hold pnotes.mu.
+func (c *Console) webItemLocked(id int) (webItem, bool) {
+	for _, it := range c.pnotes.webItems {
+		if it.menuID == id {
+			return it, true
+		}
+	}
+	return webItem{}, false
+}
+
 // applyWebNotes takes the web cast's open notes (#470) for its 💭N and the
-// menu; a delivery from a cast that has since ended is dropped.
+// menu; a delivery from a cast that has since ended is dropped. It runs on
+// the terminal loop, as webcastEnded does, so the current-cast check and the
+// write can't be overtaken by the cast ending.
 func (c *Console) applyWebNotes(cast *webcast.Cast, live []board.LiveNote) {
 	c.mu.Lock()
 	current := c.wcast.cast == cast
@@ -402,19 +425,39 @@ func (c *Console) applyWebNotes(cast *webcast.Cast, live []board.LiveNote) {
 	if !current {
 		return
 	}
-	items, ids, texts := webMenuNotes(live)
 	c.pnotes.mu.Lock()
-	c.pnotes.webCast, c.pnotes.web, c.pnotes.webIDs, c.pnotes.webTexts = cast, items, ids, texts
+	c.pnotes.webCast = cast
+	c.pnotes.webItems, c.pnotes.web = webMenuNotes(live, c.webMenuIDLocked)
+	for noteID, id := range c.pnotes.webMenuIDs {
+		if _, open := c.webItemLocked(id); !open {
+			delete(c.pnotes.webMenuIDs, noteID)
+		}
+	}
 	c.settleMenuLocked()
 	c.pnotes.mu.Unlock()
 	c.repaint()
 	c.terminalError(c.presenter.Refresh(c.lifetime))
 }
 
+// webMenuIDLocked is a note's menu id, assigned once while it is open;
+// ids of notes no longer open are dropped by the next delivery (the map
+// holds the open notes only). Callers hold pnotes.mu.
+func (c *Console) webMenuIDLocked(noteID string) int {
+	if id, ok := c.pnotes.webMenuIDs[noteID]; ok {
+		return id
+	}
+	if c.pnotes.webMenuIDs == nil {
+		c.pnotes.webMenuIDs = map[string]int{}
+	}
+	c.pnotes.webNext++
+	c.pnotes.webMenuIDs[noteID] = c.pnotes.webNext
+	return c.pnotes.webNext
+}
+
 // forgetWebNotes drops the web cast's notes when it ends.
 func (c *Console) forgetWebNotes() {
 	c.pnotes.mu.Lock()
-	c.pnotes.webCast, c.pnotes.web, c.pnotes.webIDs, c.pnotes.webTexts = nil, nil, nil, nil
+	c.pnotes.webCast, c.pnotes.webItems, c.pnotes.web, c.pnotes.webMenuIDs = nil, nil, nil, nil
 	c.settleMenuLocked()
 	c.pnotes.mu.Unlock()
 }
@@ -426,12 +469,14 @@ func (c *Console) webNoteCount() int {
 	return len(c.pnotes.web)
 }
 
-// webMenuNotes maps the web cast's notes onto the menu's items: ID is the
-// position + 1, the color the palette index (the same palette, #446), and
-// the text shows its author. ids and texts are each item's note id and
-// plain text (what a click copies).
-func webMenuNotes(live []board.LiveNote) (items []broadcast.Note, ids, texts []string) {
-	for i, n := range live {
+// webMenuNotes maps the web cast's notes onto the menu: each item's id is
+// the note's stable menu id (menuID), its color the palette index (the same
+// palette, #446), and its text shows the author; the items keep the note id
+// and plain text. menuID is also asked to forget nothing: the caller prunes.
+func webMenuNotes(live []board.LiveNote, menuID func(noteID string) int) ([]webItem, []broadcast.Note) {
+	var items []webItem
+	var notes []broadcast.Note
+	for _, n := range live {
 		color := n.Color
 		if color < 0 || color >= broadcast.PointerColors {
 			color = 0
@@ -440,8 +485,9 @@ func webMenuNotes(live []board.LiveNote) (items []broadcast.Note, ids, texts []s
 		if n.Author.Name != "" {
 			text = n.Author.Name + ": " + n.Text
 		}
-		items = append(items, broadcast.Note{ID: i + 1, Color: color, Text: text})
-		ids, texts = append(ids, n.ID), append(texts, n.Text)
+		id := menuID(n.ID)
+		items = append(items, webItem{menuID: id, noteID: n.ID, text: n.Text})
+		notes = append(notes, broadcast.Note{ID: id, Color: color, Text: text})
 	}
-	return items, ids, texts
+	return items, notes
 }

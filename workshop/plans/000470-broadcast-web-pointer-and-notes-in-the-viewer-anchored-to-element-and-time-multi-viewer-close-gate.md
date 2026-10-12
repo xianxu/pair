@@ -251,6 +251,33 @@ rounds:
       isolation: checkout
       reviewed: 98d5a7a19abf7d2e5a71756108716e64c8061187
       blocked: false
+    - "n": 6
+      timestamp: "2026-10-12T04:26:53-07:00"
+      dispatched: "2026-10-12T04:21:52-07:00"
+      agent: claude
+      findings:
+        - id: BR-21
+          severity: Important
+          title: 'Web notes menu: a click acts on the latest list by position, not on the note that was drawn'
+          detail: 'webMenuNotes gives items ID i+1 (console_notes.go:443). routeNotesMenu takes the id from the last drawn menu (ItemAt, :328) but looks it up in the latest list (webTexts[id-1] :276, webIDs[id-1] :386). If a viewer''s resolve arrives between the draw and the click, a right click copies and resolves a different note for everyone (ARCH-ORDER: an observation used as lasting authority to act). Fix: a stable map from note id to menu id in pnotes, assigned once and pruned, with lookups by that id and one []webItem instead of three parallel slices; this also fixes the hover jumping to another note. Test: deliver [a,b] and draw, deliver [b] without redrawing, right-click a''s row, and b must stay open.'
+          family: hit-by-stable-identity
+          round: 6
+        - id: BR-22
+          severity: Important
+          title: The overlay sharing (syncOverlay) and menu source switching declared in the M3 Revision have no tests
+          detail: "3rd finding in this family. Rule to fix: every behavior a plan Revision declares gets a named test that fails without it, and each Revision bullet points to its test when the milestone closes. Evidence: with syncOverlay(overlayScreen,false) in detachBroadcastScreen replaced by an unconditional SetOverlay(nil), the couchtty suite failed exactly the same four PTY tests (unrelated: PTY spawn isn't permitted here) as the unmodified tree, so the mutation survived. Needed: a screen broadcast and a web cast together, stop the broadcast, and the web menu still draws; a click on the screen \U0001F4ADN while the web menu is open switches the source with the hover reset."
+          family: spec-path-untested
+          round: 6
+        - id: BR-23
+          severity: Minor
+          title: syncOverlay and applyWebNotes are correct only because every caller runs on the terminal loop, and nothing says so
+          detail: syncOverlay works out the desired overlay under c.mu but calls SetOverlay after unlocking. applyWebNotes checks the cast is current under c.mu, then writes pnotes. Callers on two goroutines could apply out of order. A comment saying both run on the loop (or one lock held across both steps) would make this explicit (ARCH-ORDER).
+          family: shared-state-loop-confinement
+          round: 6
+      boundary: M3
+      recipe: milestone-review
+      isolation: checkout
+      blocked: true
 ---
 
 # Gate ledger — pair#470 (boundary-review)
@@ -348,6 +375,17 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-20** [Minor] `shared-helper-duplication` strokesAt has no production caller and restates replay.js drawMarks's stroke-at-t and note-box logic with different semantics
   2nd finding in this family. Rule: one implementation for each drawing-at-t concept. strokesAt (annotate.js:167) joins chunks by id and fades over FADE_MS. drawMarks (replay.js:458-470) works per chunk with STROKE_FADE. noteBox puts the region first, drawMarks puts it last. The atlas wrongly says the live viewer draws with strokesAt. Either have drawMarks call noteBox/strokesAt now, or correct the atlas and record the convergence in #477.
 
+## Round 6 — 2026-10-12T04:26:53-07:00 (claude) — BLOCKED
+
+### Raised
+
+- **BR-21** [Important] `hit-by-stable-identity` Web notes menu: a click acts on the latest list by position, not on the note that was drawn
+  webMenuNotes gives items ID i+1 (console_notes.go:443). routeNotesMenu takes the id from the last drawn menu (ItemAt, :328) but looks it up in the latest list (webTexts[id-1] :276, webIDs[id-1] :386). If a viewer's resolve arrives between the draw and the click, a right click copies and resolves a different note for everyone (ARCH-ORDER: an observation used as lasting authority to act). Fix: a stable map from note id to menu id in pnotes, assigned once and pruned, with lookups by that id and one []webItem instead of three parallel slices; this also fixes the hover jumping to another note. Test: deliver [a,b] and draw, deliver [b] without redrawing, right-click a's row, and b must stay open.
+- **BR-22** [Important] `spec-path-untested` The overlay sharing (syncOverlay) and menu source switching declared in the M3 Revision have no tests
+  3rd finding in this family. Rule to fix: every behavior a plan Revision declares gets a named test that fails without it, and each Revision bullet points to its test when the milestone closes. Evidence: with syncOverlay(overlayScreen,false) in detachBroadcastScreen replaced by an unconditional SetOverlay(nil), the couchtty suite failed exactly the same four PTY tests (unrelated: PTY spawn isn't permitted here) as the unmodified tree, so the mutation survived. Needed: a screen broadcast and a web cast together, stop the broadcast, and the web menu still draws; a click on the screen 💭N while the web menu is open switches the source with the hover reset.
+- **BR-23** [Minor] `shared-state-loop-confinement` syncOverlay and applyWebNotes are correct only because every caller runs on the terminal loop, and nothing says so
+  syncOverlay works out the desired overlay under c.mu but calls SetOverlay after unlocking. applyWebNotes checks the cast is current under c.mu, then writes pnotes. Callers on two goroutines could apply out of order. A comment saying both run on the loop (or one lock held across both steps) would make this explicit (ARCH-ORDER).
+
 ## Open findings
 
 - **BR-3** [Minor] `sink-order-before-consumer-check` The Tee feeds the Hub before the board, so a viewer can act on a seg the board has not applied yet and get a spurious 409
@@ -358,3 +396,6 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-16** [Minor] `stroke-spans-document` setMode and the cast-end handler end a stroke but leave a region drag in progress (annotate.js:266-272)
 - **BR-19** [Minor] `persisted-input-parsed-at-read` validName rejects fewer characters than the board's nameText, and setName stores a name without checking it
 - **BR-20** [Minor] `shared-helper-duplication` strokesAt has no production caller and restates replay.js drawMarks's stroke-at-t and note-box logic with different semantics
+- **BR-21** [Important] `hit-by-stable-identity` Web notes menu: a click acts on the latest list by position, not on the note that was drawn
+- **BR-22** [Important] `spec-path-untested` The overlay sharing (syncOverlay) and menu source switching declared in the M3 Revision have no tests
+- **BR-23** [Minor] `shared-state-loop-confinement` syncOverlay and applyWebNotes are correct only because every caller runs on the terminal loop, and nothing says so

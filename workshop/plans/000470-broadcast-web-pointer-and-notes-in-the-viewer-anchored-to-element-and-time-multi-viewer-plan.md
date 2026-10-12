@@ -157,3 +157,9 @@ viewer shell ──POST <cast>/stroke|note|note-state──▶ webcast.Server �
   installed while either the screen broadcast or a web cast needs it (`syncOverlay`), so the menu draws for a web cast
   alone. For #477 the viewer's drawing is exported pure over the model at t (`strokesAt`, `paintStrokes`, `pinLayer`,
   `liveNotes`).
+- 2026-10-12 (M3 review, BR-21/22). A web note keeps one menu id while it is open (`webMenuIDs`, pruned each
+  delivery), so a click on a row drawn before the list changed acts on that note or on nothing. Tests per declared
+  behavior: the source switch and stable ids → `TestWebNotesMenuSourceAndStableIDs`; the shared overlay →
+  `TestWebNotesMenuOutlivesTheScreenBroadcast`; 💭N on the row → `TestStatusRowWebNotes`; copy and resolve →
+  `TestWebNotesInCouch`. Each fails with its rule mutated (detach removing the overlay unconditionally; no hover reset;
+  positional ids).

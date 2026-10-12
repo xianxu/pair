@@ -132,3 +132,5 @@ Durable plan: `workshop/plans/000470-broadcast-web-pointer-and-notes-in-the-view
   Found while testing: the overlay the menu draws in existed only during a screen broadcast, so the web menu opened
   invisibly; `syncOverlay` installs it while either user needs it (without it `TestWebNotesInCouch` fails at "menu open").
   couchtty suite green (unsandboxed: pty children).
+- M3 review round 1: BR-21 positional menu ids → stable per-note menu ids; BR-22 tests for the shared overlay and the
+  source switch (three mutants killed); loop confinement of `syncOverlay`/`applyWebNotes` stated in their comments.

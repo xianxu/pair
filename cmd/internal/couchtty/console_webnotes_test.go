@@ -22,13 +22,21 @@ type recordedFake struct {
 
 func (r *recordedFake) Emit(rec recording.Record, doc int) error { return r.w.Emit(rec, doc) }
 
-// The operator sees viewers' web notes in Couch (#470): 💭N after the
-// Chrome cell; a click opens #447's notes menu with them (author and text);
-// a click copies one; a right click copies and resolves it, for viewers too.
-func TestWebNotesInCouch(t *testing.T) {
+// webNotesCast is a console with a recorded web cast showing a page, and
+// a way to post a viewer's note over the cast link.
+type webNotesCast struct {
+	*webcastRig
+	mem  *recording.MemSink
+	link string
+	p    recording.Node
+}
+
+func newWebNotesCast(t *testing.T, screen bool) *webNotesCast {
+	t.Helper()
 	var rf *recordedFake
 	var ro *webcast.RecordOptions
 	r := newWebcastRig(t, func(r *webcastRig) {
+		r.screen = screen
 		r.wrap = func(f *webcast.FakeBrowser, o *webcast.RecordOptions) webcast.Browser {
 			ro, rf = o, &recordedFake{FakeBrowser: f}
 			return rf
@@ -41,25 +49,29 @@ func TestWebNotesInCouch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mem := &recording.MemSink{}
-	rf.w = board.NewWriter(recording.Tee(o.Sink, mem), nil)
+	c := &webNotesCast{webcastRig: r, mem: &recording.MemSink{}}
+	rf.w = board.NewWriter(recording.Tee(o.Sink, c.mem), nil)
 	b := recording.NewBuilder("rec")
-	p := b.El("p", []string{"id", "p"}, b.Txt("Hello"))
-	b.Page(recording.SegLive, "http://app/", p)
+	c.p = b.El("p", []string{"id", "p"}, b.Txt("Hello"))
+	b.Page(recording.SegLive, "http://app/", c.p)
 	for _, rec := range b.Recs {
 		if err := rf.w.Put(rec); err != nil {
 			t.Fatal(err)
 		}
 	}
-	var link string
 	waitFor(t, "link", func() bool {
 		r.con.mu.Lock()
 		defer r.con.mu.Unlock()
-		link = r.con.wcast.update.Link
-		return link != ""
+		c.link = r.con.wcast.update.Link
+		return c.link != ""
 	})
-	body := fmt.Sprintf(`{"viewer":{"id":"ana","name":"Ana"},"seg":1,"node":%d,"box":[1,2,3,4],"color":2,"text":"fix the header"}`, p.ID)
-	resp, err := http.Post(link+"note", "application/json", strings.NewReader(body))
+	return c
+}
+
+func (c *webNotesCast) note(t *testing.T, name, text string) {
+	t.Helper()
+	body := fmt.Sprintf(`{"viewer":{"id":"v-%s","name":%q},"seg":1,"node":%d,"box":[1,2,3,4],"color":2,"text":%q}`, name, name, c.p.ID, text)
+	resp, err := http.Post(c.link+"note", "application/json", strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,14 +79,28 @@ func TestWebNotesInCouch(t *testing.T) {
 	if resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("note: %d", resp.StatusCode)
 	}
-	waitFor(t, "Chrome ▶ 💭1", func() bool { return strings.Contains(r.lastRow(), WebcastIdleLabel+" "+broadcast.NoteGlyph+"1") })
+}
+
+func (c *webNotesCast) webSpan(t *testing.T) ColumnSpan {
+	t.Helper()
 	var span ColumnSpan
 	waitFor(t, "the web notes span", func() bool {
-		r.con.mu.Lock()
-		defer r.con.mu.Unlock()
-		span = r.con.statusWebNotes
+		c.con.mu.Lock()
+		defer c.con.mu.Unlock()
+		span = c.con.statusWebNotes
 		return span != ColumnSpan{}
 	})
+	return span
+}
+
+// The operator sees viewers' web notes in Couch (#470): 💭N after the
+// Chrome cell; a click opens #447's notes menu with them (author and text);
+// a click copies one; a right click copies and resolves it, for viewers too.
+func TestWebNotesInCouch(t *testing.T) {
+	r := newWebNotesCast(t, false)
+	r.note(t, "Ana", "fix the header")
+	waitFor(t, "Chrome ▶ 💭1", func() bool { return strings.Contains(r.lastRow(), WebcastIdleLabel+" "+broadcast.NoteGlyph+"1") })
+	span := r.webSpan(t)
 	if r.notesSpan() != (ColumnSpan{}) {
 		t.Fatal("the screen broadcast's 💭N must not show for web notes")
 	}
@@ -97,7 +123,7 @@ func TestWebNotesInCouch(t *testing.T) {
 	}
 	// The resolve is in the recording, as the operator's.
 	resolved := false
-	for _, rec := range mem.Records() {
+	for _, rec := range r.mem.Records() {
 		if s, ok := rec.(*recording.NoteState); ok && s.State == recording.NoteResolved {
 			resolved = true
 		}
@@ -107,14 +133,96 @@ func TestWebNotesInCouch(t *testing.T) {
 	}
 }
 
+// The overlay the menu draws in is shared (syncOverlay): stopping the
+// screen broadcast leaves it for the web cast, whose menu still draws; the
+// web cast's end removes it.
+func TestWebNotesMenuOutlivesTheScreenBroadcast(t *testing.T) {
+	r := newWebNotesCast(t, true)
+	_, _ = r.stdin.Write([]byte(ctrlAltB))
+	waitFor(t, "broadcast live", func() bool { return r.phase() == broadcastLive })
+	r.note(t, "Ana", "still here")
+	_, _ = r.stdin.Write([]byte(ctrlAltB))
+	waitFor(t, "broadcast off", func() bool { return r.phase() == broadcastOff })
+	r.clickStatus(r.webSpan(t).Start + 1)
+	waitFor(t, "the web menu drawn after the broadcast stopped", func() bool {
+		open, m, _ := r.notesMenu()
+		return open && m.Open() && strings.Contains(r.screenText(), "Ana: still here")
+	})
+	r.clickCell(t, 16) // Ctrl+click ends the cast
+	waitFor(t, "cast ended, overlay released", func() bool {
+		r.con.mu.Lock()
+		defer r.con.mu.Unlock()
+		return r.con.wcast.phase == webcastOff && r.con.overlayUsers == 0
+	})
+}
+
+// One menu, two sources: a click on the other 💭N switches it, and the
+// hover never glows a screen note while the menu shows web notes. A web
+// note keeps its menu id while open, so a click on a row drawn before the
+// list changed acts on that row's note or on nothing, never on another.
+func TestWebNotesMenuSourceAndStableIDs(t *testing.T) {
+	r := newWebNotesCast(t, false)
+	c := r.con
+	live := func(ids ...string) []board.LiveNote {
+		var out []board.LiveNote
+		for _, id := range ids {
+			out = append(out, board.LiveNote{ID: id, Text: "text " + id})
+		}
+		return out
+	}
+	c.pnotes.mu.Lock()
+	c.pnotes.notes = []broadcast.Note{{ID: 1, Text: "screen"}}
+	c.pnotes.webItems, c.pnotes.web = webMenuNotes(live("a", "b"), c.webMenuIDLocked)
+	idA, idB := c.pnotes.webItems[0].menuID, c.pnotes.webItems[1].menuID
+	c.pnotes.mu.Unlock()
+	run := func(fn func()) {
+		_ = c.runTerminalCommand(c.lifetime, func() error { fn(); return nil })
+	}
+	run(func() { c.toggleNotesMenu(screenNotes) })
+	c.pnotes.mu.Lock()
+	c.pnotes.hover = 1
+	src, hover := c.pnotes.source, c.screenHoverLocked()
+	c.pnotes.mu.Unlock()
+	if src != screenNotes || hover != 1 {
+		t.Fatalf("screen menu: source %d hover %d", src, hover)
+	}
+	run(func() { c.toggleNotesMenu(webNotes) })
+	c.pnotes.mu.Lock()
+	open, src, hover := c.pnotes.menuOpen, c.pnotes.source, c.pnotes.hover
+	c.pnotes.hover = idA
+	glow := c.screenHoverLocked()
+	c.pnotes.mu.Unlock()
+	if !open || src != webNotes || hover != 0 || glow != 0 {
+		t.Fatalf("switched to web: open %v source %d hover %d, screen glow %d", open, src, hover, glow)
+	}
+	// The list changes under a drawn menu: a is resolved elsewhere.
+	c.pnotes.mu.Lock()
+	c.pnotes.webItems, c.pnotes.web = webMenuNotes(live("b"), c.webMenuIDLocked)
+	textA, resolveA, textB := c.noteTextLocked(idA), c.resolverLocked(idA), c.noteTextLocked(idB)
+	newB := c.pnotes.webItems[0].menuID
+	c.pnotes.mu.Unlock()
+	if textA != "" || resolveA != nil || textB != "text b" || newB != idB {
+		t.Fatalf("after a's resolve: a %q %v, b %q (id %d, was %d)", textA, resolveA != nil, textB, newB, idB)
+	}
+}
+
 func TestWebMenuNotes(t *testing.T) {
-	items, ids, texts := webMenuNotes([]board.LiveNote{
+	ids := map[string]int{"n1": 7}
+	next := 10
+	items, notes := webMenuNotes([]board.LiveNote{
 		{ID: "n1", Author: recording.Author{Name: "Ana"}, Text: "one", Color: 3},
 		{ID: "n2", Text: "two", Color: -1},
+	}, func(id string) int {
+		if v, ok := ids[id]; ok {
+			return v
+		}
+		next++
+		ids[id] = next
+		return next
 	})
-	want := []broadcast.Note{{ID: 1, Color: 3, Text: "Ana: one"}, {ID: 2, Color: 0, Text: "two"}}
-	if fmt.Sprint(items) != fmt.Sprint(want) || fmt.Sprint(ids) != "[n1 n2]" || fmt.Sprint(texts) != "[one two]" {
-		t.Errorf("items %v ids %v texts %v", items, ids, texts)
+	want := []broadcast.Note{{ID: 7, Color: 3, Text: "Ana: one"}, {ID: 11, Color: 0, Text: "two"}}
+	if fmt.Sprint(notes) != fmt.Sprint(want) || fmt.Sprint(items) != "[{7 n1 one} {11 n2 two}]" {
+		t.Errorf("items %v notes %v", items, notes)
 	}
 }
 
