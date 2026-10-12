@@ -1,0 +1,49 @@
+// Package query is couch broadcast-web's agent queries (#462): what an agent
+// asks of a recording. The page at time t, what happened in a window, and
+// every note with its element, its focused context and what the user did
+// just before.
+//
+// #457 defines the seam: Surface, its stateful fake FakeSurface, and
+// RunSurfaceContract, which the real surface (a Couch CLI) runs as well.
+package query
+
+import (
+	"github.com/xianxu/pair/cmd/internal/webcast/notes"
+	"github.com/xianxu/pair/cmd/internal/webcast/recording"
+)
+
+// NoteView is a note as an agent reads it.
+type NoteView struct {
+	Note *recording.NoteView
+	// Element is the note's element at the note's time, as compact text;
+	// empty when it was already gone.
+	Element string
+	// Context is the notes model's focused context.
+	Context notes.Context
+	// Before is what the user did in the window before the note: clicks,
+	// form input, focus, navigation, scrolling, selection.
+	Before []recording.Record
+}
+
+// Surface answers an agent's questions about one recording. Times are ms
+// since the recording started.
+type Surface interface {
+	// DOMAt is the page at t as compact readable text, under selector when
+	// it is not empty.
+	DOMAt(t int64, selector string) (string, error)
+	// Events are the records with t1 <= t <= t2, in order.
+	Events(t1, t2 int64) ([]recording.Record, error)
+	// Notes are every note, in order, with the user's actions in the
+	// before ms preceding each.
+	Notes(before int64) ([]NoteView, error)
+}
+
+// UserAction reports whether a record is something the user (or the page
+// acting on its own) did, as opposed to a DOM change.
+func UserAction(r recording.Record) bool {
+	switch r.(type) {
+	case *recording.Click, *recording.Input, *recording.Focus, *recording.Nav, *recording.Scroll, *recording.Selection:
+		return true
+	}
+	return false
+}
