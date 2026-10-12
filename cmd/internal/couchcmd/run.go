@@ -674,12 +674,8 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 	if len(settings) > 0 {
 		getenv = settings[0].getenv
 	}
-	nice, err := slotNiceSettings(getenv)
-	if err != nil {
-		return nil, nil, err
-	}
 	if !WantsConsole(name, hasTerminal) {
-		return nil, couchcore.ExecRunner{Nice: nice}, nil
+		return nil, couchcore.ExecRunner{}, nil
 	}
 
 	path, captureConfig, err := captureSettings(getenv)
@@ -764,7 +760,6 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 		return runtimebundle.TerminalEnvironment(root)
 	})
 	return console, &couchcore.PtyRunner{
-		Nice:        nice,
 		Environment: profile,
 		Size:        console.ChildSize,
 		Sink:        console.Deliver,

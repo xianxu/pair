@@ -76,6 +76,7 @@ type Broker struct {
 	now          func() time.Time
 	resting      func(context.Context, Binding) (bool, error)
 	restingView  func(Binding) (resting, known bool)
+	niceView     func(Binding) (NiceFacts, bool)
 	families     func(context.Context) (map[string]string, error)
 	actors       map[Binding]*SlotActor
 	receipts     map[string]Receipt
@@ -98,6 +99,29 @@ func (b *Broker) SetFamilies(families func(context.Context) (map[string]string, 
 // resting state unknown. Call before the broker serves requests.
 func (b *Broker) SetRestingView(view func(Binding) (resting, known bool)) {
 	b.restingView = view
+}
+
+// SetNiceView installs the slot renicer's facts (#502), read by listings
+// from memory; nil leaves them out. It may come after the broker serves:
+// listings read it under the broker's lock.
+func (b *Broker) SetNiceView(view func(Binding) (NiceFacts, bool)) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.niceView = view
+}
+
+// Connected is every connected slot's binding: who the renicer looks at.
+func (b *Broker) Connected() []Binding {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	var out []Binding
+	for _, a := range b.actors {
+		if a.state.Connected() {
+			out = append(out, a.binding)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Slot < out[j].Slot })
+	return out
 }
 
 // readFamilies runs outside the broker lock: the source may do store IO.
@@ -423,6 +447,11 @@ func (b *Broker) Actors(parent context.Context, caller Binding) ([]Candidate, er
 			c.Resting, restingKnown = b.restingView(a.binding)
 		}
 		c.Known = !c.LastActivity.IsZero() && !a.observedAt.IsZero() && restingKnown
+		if b.niceView != nil {
+			if facts, ok := b.niceView(a.binding); ok {
+				c.Nice = &facts
+			}
+		}
 		rows = append(rows, c)
 	}
 	b.mu.Unlock()

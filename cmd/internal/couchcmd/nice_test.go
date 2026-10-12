@@ -1,10 +1,10 @@
 package couchcmd
 
 import (
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"strings"
 	"testing"
-
-	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"time"
 )
 
 func TestSlotNiceSettings(t *testing.T) {
@@ -21,32 +21,33 @@ func TestSlotNiceSettings(t *testing.T) {
 	}
 }
 
-// Both production runners carry the configured niceness; a fake never does,
-// because only the real runners reach the kernel.
-func TestConsoleRunnerCarriesSlotNiceness(t *testing.T) {
-	env := map[string]string{"COUCH_SLOT_NICE": "7"}
-	config := consoleTraceConfig{getenv: func(k string) string { return env[k] }, root: t.TempDir()}
-	_, runner, err := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil, config)
-	if err != nil {
-		t.Fatal(err)
+// The renicer's interval (#502): a duration of at least a second.
+func TestReniceInterval(t *testing.T) {
+	for raw, want := range map[string]time.Duration{"": defaultReniceInterval, "1s": time.Second, "30s": 30 * time.Second} {
+		got, err := reniceInterval(func(string) string { return raw })
+		if err != nil || got != want {
+			t.Errorf("COUCH_RENICE_INTERVAL=%q = %v, %v; want %v", raw, got, err, want)
+		}
 	}
-	if pty, ok := runner.(*couchcore.PtyRunner); !ok || pty.Nice != 7 {
-		t.Fatalf("console runner = %#v, want a PtyRunner at nice 7", runner)
+	for _, raw := range []string{"0", "500ms", "-1s", "2h", "soon"} {
+		if _, err := reniceInterval(func(string) string { return raw }); err == nil || !strings.Contains(err.Error(), "COUCH_RENICE_INTERVAL") {
+			t.Errorf("COUCH_RENICE_INTERVAL=%q accepted or unnamed: %v", raw, err)
+		}
 	}
-	_, runner, err = consoleRunnerFor("start", strings.NewReader(""), false, nil, nil, config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if exec, ok := runner.(couchcore.ExecRunner); !ok || exec.Nice != 7 {
-		t.Fatalf("fallback runner = %#v, want an ExecRunner at nice 7", runner)
-	}
-	delete(env, "COUCH_SLOT_NICE")
-	_, runner, _ = consoleRunnerFor("start", strings.NewReader(""), false, nil, nil, config)
-	if exec, ok := runner.(couchcore.ExecRunner); !ok || exec.Nice != defaultSlotNice {
-		t.Fatalf("default runner = %#v, want an ExecRunner at nice %d", runner, defaultSlotNice)
-	}
-	env["COUCH_SLOT_NICE"] = "loud"
-	if _, _, err := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil, config); err == nil {
-		t.Fatal("an invalid COUCH_SLOT_NICE built a runner")
+}
+
+func TestNiceColumn(t *testing.T) {
+	for _, c := range []struct {
+		f    *couchmessage.NiceFacts
+		want string
+	}{
+		{nil, ""},
+		{&couchmessage.NiceFacts{}, "\tnice=?"},
+		{&couchmessage.NiceFacts{Confirmed: true, Lowered: 1, AtLevel: 2}, "\tnice=0 lowered=3"},
+		{&couchmessage.NiceFacts{Confirmed: true, AgentNice: 10, Denied: 1}, "\tnice=10 lowered=0 denied=1"},
+	} {
+		if got := niceColumn(c.f); got != c.want {
+			t.Errorf("niceColumn(%+v) = %q, want %q", c.f, got, c.want)
+		}
 	}
 }

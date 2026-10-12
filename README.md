@@ -530,12 +530,18 @@ After a crash, rerun Couch: the kernel releases the lease, and the selected stor
 and existing slots remain available. Use machine-local filesystems; shared homes
 across machines are unsupported.
 
-Couch starts each slot at nice +10, so the builds, test suites and agents a slot
-runs yield to Couch and your terminal when the machine is saturated; Couch itself
-keeps normal priority. Set `COUCH_SLOT_NICE` (0–20, `0` turns it off) before
-starting Couch to change it. A Couch that already runs nicer than that (started
-from a niced shell) passes its own niceness down instead, since only root can lower it. It applies to slots started or relaunched after
-that; running slots keep their priority until relaunched (or `renice`d by hand).
+Couch keeps the interactive layer at normal priority and lowers the work: every
+5 seconds it lowers whatever each slot's agent has started (Bash commands,
+builds, test suites, MCP servers) to nice +10. The agent itself, the pair
+wrapper, zellij and Couch are never touched. A command runs at normal priority
+for its first few seconds at most, and the UI stays responsive while work runs
+low when the machine is saturated. Set `COUCH_SLOT_NICE` (0–20, `0` turns it off)
+before starting Couch to change the level, and `COUCH_RENICE_INTERVAL` (a
+duration, at least `1s`) to change how often it looks. `couch --actors` shows
+each slot's agent niceness and how many of its processes run low. A slot whose
+agent itself runs below normal (started under the earlier whole-slot nice) gets
+one notice; only root can raise a priority again, so relaunch the slot to restore
+it.
 
 **Adopt existing state before cutover.** Stop and upgrade all old Couch binaries
 first. Couch keeps the chosen store in place, along with its Pair data directory

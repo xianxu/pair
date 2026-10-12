@@ -2379,13 +2379,30 @@ starts no child. The creating record then gains one
 internal `pair-launch-helper`, which cannot exec Pair until Couch durably adds
 the helper's PID/process-start identity and sends one acknowledgement byte over
 an inherited close-on-exec descriptor. EOF, cancellation, or timeout exits the
-helper without starting any workspace writer. While the helper is parked,
-`startBlockedChild` lowers its process group to the runner's `Nice`
-(`COUCH_SLOT_NICE`, default 10, #498), so Pair and everything a slot forks
-inherit it and yield to Couch and the terminal. A Couch already nicer than the
-setting gets EACCES/EPERM (only root lowers niceness) and its slots keep the
-niceness they inherited; any other `setpriority` error cancels the launch before
-exec. Fakes carry no niceness: only the real runners reach the kernel.
+helper without starting any workspace writer. The target starts at Couch's own
+priority. #498's whole-group nice at launch was replaced by the slot renicer
+(#502, below).
+
+**Slot renicer (#502).** It keeps Couch, the pair wrapper, zellij and the agent at normal priority, and lowers only
+what an agent spawns.
+- **Each pass** (`couchcmd/renicer.go`, every `COUCH_RENICE_INTERVAL`, default 5 s; one goroutine on the message
+  service's lifetime, so passes never overlap):
+  1. reads the broker's connected bindings (`Broker.Connected`: the wrapper's pid and start identity);
+  2. reads each slot's agent-pid file (`Paths.AgentPID()`, through the hardened pid-file reader);
+  3. takes one `procutil.Table()` snapshot (one `sysctl kern.proc.all`, now with `Nice`);
+  4. asks `couchcore.PlanRenice`.
+- **The plan is pure.** A slot is confirmed only when the same snapshot shows the agent's parent is the wrapper
+  and the wrapper's identity is the binding's. It never goes by a process name. Only confirmed slots lower
+  anything: the agent's strict descendants below the level. The agent, the wrappers, and Couch and its ancestors
+  are never lowered.
+- **Applying it:** each process is identity-checked again (`procutil.Identity`), then
+  `setpriority(PRIO_PROCESS, pid, COUCH_SLOT_NICE)`. A process that has exited (ESRCH) is skipped. A refusal
+  (EPERM/EACCES) is counted and that pid is never asked again. `COUCH_SLOT_NICE=0` only reports.
+- **Facts:** per binding (`couchmessage.NiceFacts`: confirmed, agent nice, lowered, at level, denied), read by
+  `couch --actors` through `Broker.SetNiceView`. A confirmed agent found below normal gets one notice: relaunch
+  the slot to restore its priority.
+- **Lifetime:** facts, refusals and notices go with their binding, so nothing durable is created.
+- **Cost:** 0.44 ms per pass over 1,425 processes (`BenchmarkReniceScan`), about 0.009% of a core at 5 s.
 
 After acknowledgement, Pair changes the same composite address claim from
 `reserved` to `established`; that is the registration oracle, not PID liveness

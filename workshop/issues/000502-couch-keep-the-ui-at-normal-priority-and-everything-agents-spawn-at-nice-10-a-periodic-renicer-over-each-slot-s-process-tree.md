@@ -45,15 +45,25 @@ Operator rule: changes to the live machine (applying the renicer to running slot
 ## Plan
 
 Durable plan: `workshop/plans/000502-…-plan.md` (same slug). Single pass (no milestones):
-- [ ] procutil.Table reads Nice
-- [ ] couchcore.PlanRenice (pure) + table tests incl. the name decoy
-- [ ] couchcmd renicer loop behind a procSource seam (stateful fake, live conformance on own tree)
-- [ ] #498 launch nice removed; COUCH_SLOT_NICE is the renicer's level
-- [ ] --actors facts + one notice; atlas/README
-- [ ] scan cost measured, in the Log
+- [x] procutil.Table reads Nice
+- [x] couchcore.PlanRenice (pure) + table tests incl. the name decoy
+- [x] couchcmd renicer loop behind a procSource seam (stateful fake, live conformance on own tree)
+- [x] #498 launch nice removed; COUCH_SLOT_NICE is the renicer's level
+- [x] --actors facts + one notice; atlas/README
+- [x] scan cost measured, in the Log
 - [ ] live verification on one slot after the operator's OK (via TL)
 
 ## Log
 
 ### 2026-10-12
 - Claimed at pair:3 after the TL unclaimed pair:5's filing slip. Plan sent to the hub before building.
+- Built.
+  - `PlanRenice` is pure. The renicer loop sits behind `procSource`, with a stateful fake.
+  - #498's launch nice is gone.
+  - `--actors` shows `nice=N lowered=N [denied=N]`. A low agent gets one notice ("relaunch the slot to restore its
+    priority").
+- **Scan cost** (`BenchmarkReniceScan`, this machine, 1,425 processes):
+  - 0.42–0.45 ms per pass (one `sysctl kern.proc.all` plus the plan);
+  - at 5 s, 12 passes a minute ≈ 5.3 ms of CPU a minute ≈ 0.009% of one core;
+  - each newly lowered process adds one identity sysctl plus one setpriority.
+- **Sandbox:** the agent sandbox refuses `setpriority` (EPERM). The real-seam tests skip there and pass unsandboxed.

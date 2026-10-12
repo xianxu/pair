@@ -101,7 +101,7 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 			if a.Alias != "" {
 				slot += " (" + a.Alias + ")"
 			}
-			fmt.Fprintf(stdout, "%s\t%s\t%s\tallowance=%d/%d\n", slot, a.Binding.Agent, messageActorAvailability(a, now), a.Remaining, a.Capacity)
+			fmt.Fprintf(stdout, "%s\t%s\t%s\tallowance=%d/%d%s\n", slot, a.Binding.Agent, messageActorAvailability(a, now), a.Remaining, a.Capacity, niceColumn(a.Nice))
 		}
 	} else if result.Receipt != nil {
 		receipt := result.Receipt
@@ -368,4 +368,20 @@ func messageActorAvailability(a couchmessage.Candidate, now time.Time) string {
 	default:
 		return "available"
 	}
+}
+
+// niceColumn is a listing's renicer facts (#502): the agent's niceness and
+// how many of its descendants are low; nothing before the renicer looked.
+func niceColumn(f *couchmessage.NiceFacts) string {
+	switch {
+	case f == nil:
+		return ""
+	case !f.Confirmed:
+		return "\tnice=?"
+	}
+	s := fmt.Sprintf("\tnice=%d lowered=%d", f.AgentNice, f.Lowered+f.AtLevel)
+	if f.Denied > 0 {
+		s += fmt.Sprintf(" denied=%d", f.Denied)
+	}
+	return s
 }

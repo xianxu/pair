@@ -58,9 +58,6 @@ type Handle interface {
 
 type ExecRunner struct {
 	LaunchHelper string
-	// Nice is the niceness a blocked start's process group runs at; 0 leaves
-	// it at Couch's own (#498).
-	Nice int
 }
 
 var _ Runner = ExecRunner{}
@@ -74,7 +71,7 @@ func (ExecRunner) Start(dir string, argv, env []string) (Handle, error) {
 }
 
 func (r ExecRunner) StartBlocked(ctx context.Context, dir string, argv, env []string, timeout time.Duration) (BlockedHandle, error) {
-	return startBlockedChild(ctx, startExecChild, r.LaunchHelper, r.Nice, dir, argv, env, timeout)
+	return startBlockedChild(ctx, startExecChild, r.LaunchHelper, dir, argv, env, timeout)
 }
 
 func startExecChild(dir string, argv, env []string, extraFiles []*os.File) (Handle, error) {
