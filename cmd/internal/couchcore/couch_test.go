@@ -1097,6 +1097,20 @@ func (h *delayedQuiescenceHandle) Signal(sig os.Signal) error {
 	}
 	return nil
 }
+
+// after is the cleanup's clock for this child (#473): a wait gives up at once
+// while the child lives, and once a KILL has ended it the wait lasts until its
+// reap is delivered, however late the scheduler runs the waiter. The bound
+// only turns a cleanup that never takes the reap into a failure, not a hang.
+func (h *delayedQuiescenceHandle) after(time.Duration) <-chan time.Time {
+	if h.Alive() {
+		fired := make(chan time.Time, 1)
+		fired <- time.Now()
+		return fired
+	}
+	return time.After(10 * time.Second)
+}
+
 func (h *delayedQuiescenceHandle) Wait() int {
 	h.mu.Lock()
 	h.waits++
@@ -1109,9 +1123,9 @@ func TestPostAckHandleRetriesReuseOneWaiterUntilReap(t *testing.T) {
 	t.Parallel()
 
 	env := newTestEnv(t, "/repo")
-	env.Couch.postAckQuiesceTimeout = 2 * time.Millisecond
 	env.Couch.postAckRetryDelay = time.Millisecond
 	h := newDelayedQuiescenceHandle()
+	env.Couch.after = h.after
 	address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
 
 	record := validThreadRecord(t)
@@ -1140,9 +1154,9 @@ func TestPostAckCleanupEndsItsHelperWithoutOwningTheSession(t *testing.T) {
 	t.Parallel()
 
 	env := newTestEnv(t, "/repo")
-	env.Couch.postAckQuiesceTimeout = 2 * time.Millisecond
 	env.Couch.postAckRetryDelay = time.Millisecond
 	h := newDelayedQuiescenceHandle()
+	env.Couch.after = h.after
 	address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
 	env.Artifacts.SetDetachedSession(address, "pair-couch-0102030405060708")
 

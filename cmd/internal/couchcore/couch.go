@@ -81,6 +81,9 @@ type Couch struct {
 	postAckRetryDelay         time.Duration
 	resumeRegistrationTimeout time.Duration
 	sleep                     func(time.Duration)
+	// after is the post-ack cleanup's timeout source (time.After when nil),
+	// so a test decides when a wait for the child gives up (#473).
+	after func(time.Duration) <-chan time.Time
 
 	// threadGate admits one lifecycle operation per thread (pair#205); see
 	// threadgate.go. A pointer, so a copied Couch cannot split the gate.
@@ -921,7 +924,7 @@ func (c *Couch) quiescePostAckStart(address ThreadAddress, h Handle, shape Start
 		firstErr = terminal.Terminal().Close()
 	}
 	handleQuiet := false
-	handleCleanup := newHandleCleanup(h)
+	handleCleanup := newHandleCleanup(h, c.after)
 	for {
 		if !handleQuiet {
 			if err := handleCleanup.attempt(c.postAckQuiesceTimeout); err != nil {
@@ -962,13 +965,17 @@ func (c *Couch) sleepPostAckRetry() {
 type handleCleanup struct {
 	h            Handle
 	waited       chan int
+	after        func(time.Duration) <-chan time.Time
 	directReaped bool
 }
 
-func newHandleCleanup(h Handle) *handleCleanup {
+func newHandleCleanup(h Handle, after func(time.Duration) <-chan time.Time) *handleCleanup {
+	if after == nil {
+		after = time.After
+	}
 	waited := make(chan int, 1)
 	go func() { waited <- h.Wait() }()
-	return &handleCleanup{h: h, waited: waited}
+	return &handleCleanup{h: h, waited: waited, after: after}
 }
 
 func (q *handleCleanup) attempt(timeout time.Duration) error {
@@ -979,7 +986,7 @@ func (q *handleCleanup) attempt(timeout time.Duration) error {
 	select {
 	case <-q.waited:
 		q.directReaped = true
-	case <-time.After(timeout):
+	case <-q.after(timeout):
 	}
 	// TERM may reap the direct Pair client while a TERM-resistant sidecar or
 	// child remains in its owned process group. KILL is therefore unconditional:
@@ -989,7 +996,7 @@ func (q *handleCleanup) attempt(timeout time.Duration) error {
 		select {
 		case <-q.waited:
 			q.directReaped = true
-		case <-time.After(timeout):
+		case <-q.after(timeout):
 			return errors.Join(termErr, killErr, errors.New("timed out waiting for killed child"))
 		}
 	}
