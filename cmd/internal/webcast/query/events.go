@@ -61,6 +61,20 @@ func fold(items []said) []string {
 	return out
 }
 
+// unreadable is the error for a record the reducer refuses: the recording
+// can't answer past it.
+func unreadable(i int, r recording.Record, err error) error {
+	return fmt.Errorf("query: the recording doesn't read: record %d (%s at t=%d): %w", i, r.Kind(), r.Time(), err)
+}
+
+// checkWindow refuses a window that ends before it starts.
+func checkWindow(t1, t2 int64) error {
+	if t2 < t1 {
+		return fmt.Errorf("query: window %d..%d is empty", t1, t2)
+	}
+	return nil
+}
+
 // shortRun is the longest run of DOM changes written out one per line; a
 // longer one is folded into a single summary line.
 const shortRun = 3
@@ -322,6 +336,9 @@ func (u *run) summary() string {
 // consecutive DOM, style, asset or layout records is one summary line. The
 // records before t1 are read too, so every target is named as it was.
 func EventLines(recs []recording.Record, t1, t2 int64) ([]string, error) {
+	if err := checkWindow(t1, t2); err != nil {
+		return nil, err
+	}
 	n := newNarrator()
 	var out []said
 	var cur *run
@@ -361,7 +378,7 @@ func EventLines(recs []recording.Record, t1, t2 int64) ([]string, error) {
 			out = append(out, n.say(r))
 		}
 		if err := n.apply(r); err != nil {
-			return nil, fmt.Errorf("query: the recording doesn't read: record %d (%s at t=%d): %w", i, r.Kind(), r.Time(), err)
+			return nil, unreadable(i, r, err)
 		}
 	}
 	flush()

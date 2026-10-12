@@ -20,6 +20,7 @@ func ContractRecording() (recs []recording.Record, save recording.NodeID) {
 	b.At(9000).Add(&recording.Scroll{ID: b.Recs[2].(*recording.Doc).Doc, Y: 100})
 	b.At(10000).Add(&recording.Note{ID: "n1", Author: recording.Author{ID: "pm"}, Text: "Save stays disabled",
 		At: recording.NoteAt{Node: btn.ID, Sel: "#save", Text: "Save"}})
+	b.At(11000).Add(&recording.NoteState{ID: "n1", State: recording.NoteResolved})
 	return b.Recs, btn.ID
 }
 
@@ -67,6 +68,10 @@ func RunSurfaceContract(t recording.TB, newSurface func(recs []recording.Record)
 	n := ns[0]
 	if n.Note.ID != "n1" || n.Note.T != 10000 || !strings.Contains(n.Element, "Save") || n.Context.Node != save {
 		t.Errorf("note view %+v", n)
+	}
+	// An agent asks whether a note is settled now, not as it was made.
+	if n.Note.State != recording.NoteResolved {
+		t.Errorf("a note resolved after it was made reads %q, want its final state", n.Note.State)
 	}
 	var before []string
 	for _, r := range n.Before {

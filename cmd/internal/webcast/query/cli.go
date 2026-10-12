@@ -6,6 +6,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/notes"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
@@ -96,6 +97,9 @@ func parseArgs(argv []string) (args, error) {
 			}
 		}
 	}
+	if a.json && a.maxLines > 0 {
+		return a, fmt.Errorf("--json answers in full; --max-lines budgets the text")
+	}
 	if a.verb == "events" && (!a.fromSet || !a.toSet) {
 		return a, fmt.Errorf("events needs --from and --to")
 	}
@@ -121,11 +125,30 @@ func Main(argv []string, stdout, stderr io.Writer) int {
 	}
 	q := New(rec.Records, notes.Structural{})
 	q.PageLines = a.maxLines
-	if err := answer(q, a, stdout); err != nil {
+	out := scrubber{stdout}
+	if err := answer(q, a, out); err != nil {
 		fmt.Fprintf(stderr, "couch: %s: %s\n", Flag, strings.TrimPrefix(err.Error(), "query: "))
 		return 1
 	}
 	return 0
+}
+
+// scrubber replaces control characters (other than newline and tab) with
+// U+FFFD on the way out. Every answer quotes the recorded page, and an
+// escape sequence in a page's text must not reach the agent's terminal.
+type scrubber struct{ w io.Writer }
+
+func (s scrubber) Write(p []byte) (int, error) {
+	clean := strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) && r != '\n' && r != '\t' {
+			return unicode.ReplacementChar
+		}
+		return r
+	}, string(p))
+	if _, err := io.WriteString(s.w, clean); err != nil {
+		return 0, err
+	}
+	return len(p), nil
 }
 
 func answer(q *Querier, a args, w io.Writer) error {
@@ -157,9 +180,6 @@ func answer(q *Querier, a args, w io.Writer) error {
 				fmt.Fprintf(w, "%s\n", line)
 			}
 			return nil
-		}
-		if a.to < a.from {
-			return fmt.Errorf("window %d..%d is empty", a.from, a.to)
 		}
 		lines, err := EventLines(q.recs, a.from, a.to)
 		if err != nil {

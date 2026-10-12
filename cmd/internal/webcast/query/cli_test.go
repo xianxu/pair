@@ -30,6 +30,8 @@ func TestMainRefusesBadArguments(t *testing.T) {
 		{dir, "dom", "--json", "--json"},
 		{dir, "notes", "--before"},
 		{dir, "dom", "--max-lines", "0"},
+		{dir, "dom", "--json", "--max-lines", "5"},
+		{dir, "events", "--from", "0", "--to", "1", "--max-lines", "5", "--json"},
 	} {
 		code, _, errOut := runMain(argv...)
 		if code != 2 || !strings.Contains(errOut, "usage:") {
@@ -107,5 +109,40 @@ func TestMainJSON(t *testing.T) {
 	}
 	if code != 0 || json.Unmarshal([]byte(out), &ns) != nil || len(ns) != 3 || ns[1].State != "resolved" || ns[1].Context.Node != 108 || len(ns[1].Before) == 0 {
 		t.Errorf("notes --json: %d %s", code, out)
+	}
+}
+
+// Recorded text is the page's: a control sequence in it reaches the
+// agent's terminal as U+FFFD, never as an escape.
+func TestMainScrubsControlCharacters(t *testing.T) {
+	b := recording.NewBuilder("esc")
+	b.Page(recording.SegLive, "http://app/", b.El("p", []string{"title", "a\x1b]0;pwned\x07b"}, b.Txt("x\x1b[2Jy")))
+	b.At(5).Add(&recording.Note{ID: "n\x1b", Author: recording.Author{ID: "v1", Name: "Eve\x1b[31m"}, Text: "t", At: recording.NoteAt{Node: 1}})
+	dir := filepath.Join(t.TempDir(), "rec")
+	w, err := recording.NewDirWriter(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range b.Recs {
+		if err := w.Put(r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{"dom", "notes"} {
+		code, out, errOut := runMain(dir, q)
+		if code != 0 || strings.ContainsRune(out, 0x1b) || strings.ContainsRune(out, 0x07) || !strings.Contains(out, "\uFFFD") {
+			t.Errorf("%s: exit %d %q %q", q, code, out, errOut)
+		}
+	}
+}
+
+// When matches outrun the budget, the answer says how many were left out.
+func TestDOMSaysWhenMatchesAreCut(t *testing.T) {
+	code, out, _ := runMain(recording.Fixture("stress"), "dom", "--at", "3000", "--sel", "td", "--max-lines", "4")
+	if code != 0 || !strings.Contains(out, "more matches; narrow the selector") {
+		t.Errorf("exit %d:\n%s", code, out)
 	}
 }

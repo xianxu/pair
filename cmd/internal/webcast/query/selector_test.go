@@ -46,12 +46,17 @@ func TestSelect(t *testing.T) {
 		{"[name]", `<input>`},
 		{"input[type='text']", `<input>`},
 		{".top.main", `<nav.top.main> "A B"`},
-		{"#card span", `<span.badge> "in shadow"`}, // through a closed shadow root
-		{".badge", `<span.badge> "in shadow"|<i.badge>`},
+		{"#card span", ``},                             // a space doesn't cross into a shadow root
+		{"#card > span", ``},                           // nor does >
+		{"#card >>> span", `<span.badge> "in shadow"`}, // >>> does, closed or open
+		{"x-card>>>.badge", `<span.badge> "in shadow"`},
+		{"#tpl >>> i", `<i.badge>`}, // into a template's content
+		{".badge", ``},              // a selector starts in the top document
+		{"body >>> span", ``},       // >>> enters only the host's own tree
 		{"*:nth-child(3)", `<x-card#card>`},
 		{"a:nth-of-type(2)", `<a.link.active> "B"`},
 		{"form > input:nth-of-type(1)", `<input>`},
-		{"#card >>> span:nth-of-type(1)", `<span.badge> "in shadow"`},
+		{"#card >>> span:nth-of-type(1)", `<span.badge> "in shadow"`}, // a note's selector, matched by notes.Match
 	} {
 		got, err := Select(st, c.sel)
 		if err != nil {
@@ -84,18 +89,20 @@ func TestSelectByNodeID(t *testing.T) {
 // loosely: an agent's :hover or ~ must not silently mean something else.
 func TestSelectRefusesWhatItCantRead(t *testing.T) {
 	st := selectPage(t)
-	for _, sel := range []string{"", "a:hover", "h1~Reports", "a + b", "a >", "> a", "a >> b", ">>> a", "a >>>", "a:nth-of-type(x)", "[x", "[a~=b]", ":nth-child(0)", "#", "@x", "a[=b]"} {
+	for _, sel := range []string{"", "a:hover", "h1~Reports", "a + b", "a >", "> a", "a >> b", ">>> a", "a >>>", "a > >>> b", "a >>> > b", "a:nth-of-type(x)", "[x", "[a~=b]", ":nth-child(0)", "#", "@x", "a[=b]"} {
 		if _, err := Select(st, sel); err == nil || !strings.Contains(err.Error(), "selectors are") {
 			t.Errorf("%q: %v, want a refusal naming the grammar", sel, err)
 		}
 	}
 }
 
-// Every notes model's anchors (the fake's id or child-index path, the real
-// model's stable selectors with :nth-of-type and >>>) select their own
-// element: a note's selector works with --sel.
+// A note's selector pastes into --sel and names the note's element. For
+// the real model the oracle is its own Resolve: an anchor it resolves to
+// exactly one element (no node id to fall back on) must select exactly that
+// element, so an ambiguous match can't pass. The fake's child-index paths
+// are unique by construction within the top document.
 func TestModelSelectorsSelectTheirElement(t *testing.T) {
-	for _, name := range []string{"app", "stress"} {
+	for _, name := range []string{"app", "stress", "blog"} {
 		r, err := recording.ReadDir(recording.Fixture(name))
 		if err != nil {
 			t.Fatal(err)
@@ -104,32 +111,64 @@ func TestModelSelectorsSelectTheirElement(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, model := range []notes.Model{notes.FakeModel{}, notes.Structural{}} {
-			checked := 0
-			walkAll(st.Top, func(n *recording.DOMNode) {
-				if n.Y != recording.YEl {
-					return
-				}
-				at, err := model.Anchor(st, n.ID)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if at.Sel == "" {
-					return // the model found no selector that round-trips
-				}
+		unique, checked := 0, 0
+		walkAll(st.Top, func(n *recording.DOMNode) {
+			if n.Y != recording.YEl {
+				return
+			}
+			at, err := notes.Structural{}.Anchor(st, n.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if at.Sel != "" {
 				got, err := Select(st, at.Sel)
 				if err != nil {
-					t.Errorf("%s %T %s: %v", name, model, at.Sel, err)
-					return
+					t.Fatalf("%s %s: %v", name, at.Sel, err)
 				}
-				if !slices.Contains(got, n) {
-					t.Errorf("%s %T %s: %d matches, none @%d", name, model, at.Sel, len(got), n.ID)
+				resolved, ok := notes.Structural{}.Resolve(st, recording.NoteAt{Node: -1, Sel: at.Sel})
+				switch {
+				case ok && resolved == n.ID:
+					if len(got) != 1 || got[0] != n {
+						t.Errorf("%s %s: %d matches, want exactly @%d", name, at.Sel, len(got), n.ID)
+					}
+					unique++
+				case !slices.Contains(got, n):
+					t.Errorf("%s %s: %d matches, none @%d", name, at.Sel, len(got), n.ID)
 				}
-				checked++
-			})
-			if checked < 30 {
-				t.Errorf("%s %T: checked %d elements only", name, model, checked)
 			}
+			if fake, _ := (notes.FakeModel{}).Anchor(st, n.ID); treeOf(n) == st.Top && fake.Sel[0] != '#' {
+				if got, err := Select(st, fake.Sel); err != nil || len(got) != 1 || got[0] != n {
+					t.Errorf("%s fake %s: %v %d matches, want exactly @%d", name, fake.Sel, err, len(got), n.ID)
+				}
+			}
+			checked++
+		})
+		if checked < 30 || unique < checked/2 {
+			t.Errorf("%s: %d elements, %d with a unique anchor", name, checked, unique)
+		}
+	}
+}
+
+// The review's probes: anchors that a boundary-crossing reading made
+// ambiguous name one element.
+func TestAnchorsInsideOtherTreesAreExact(t *testing.T) {
+	for _, c := range []struct {
+		fixture, sel string
+		at           int64
+	}{
+		{"stress", "html:nth-of-type(1)", 3000},
+		{"blog", "astro-dev-toolbar >>> style:nth-of-type(1)", 2500},
+	} {
+		r, err := recording.ReadDir(recording.Fixture(c.fixture))
+		if err != nil {
+			t.Fatal(err)
+		}
+		st, err := recording.Reduce(r.Records, c.at)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, err := Select(st, c.sel); err != nil || len(got) != 1 {
+			t.Errorf("%s %q: %v, %d matches, want 1", c.fixture, c.sel, err, len(got))
 		}
 	}
 }

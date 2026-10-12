@@ -1157,3 +1157,10 @@ proof; record the surprising case so the next change starts from evidence.
   the same commit. The same holds for a retracted figure (a size bound, a measurement): grep its distinctive wording
   ("1.4 MB") and correct every hit, the plan included, in the fix that retracts it. And the reason a channel closed
   is recorded by the source under its lock, not inferred by consumers from timing.
+- **A string two components read has one reader of record (#462 close, round 1).** The agent queries' CSS matcher
+  also read the notes model's anchor selectors, by its own rules: `>>>` as a plain descendant and `>` crossing shadow
+  and frame boundaries, so an anchor named 6 elements where the model named one, and the test only asked for
+  containment. When a second component accepts another's format, call the owner's reader for it (`notes.Match`) and
+  fall back to your own grammar only outside it; scope every combinator to a tree as the platform does; test with
+  identity against an oracle the owner provides (`Resolve` with no node id), never with "contains".
+

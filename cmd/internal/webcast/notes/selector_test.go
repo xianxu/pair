@@ -74,3 +74,29 @@ func TestSelectorRoundTripOnFixtures(t *testing.T) {
 		}
 	}
 }
+
+// Match answers for the anchor grammar only: anything else is "not mine",
+// so a caller with a wider grammar can fall back to it (#462).
+func TestMatchKnowsItsGrammar(t *testing.T) {
+	r, err := recording.ReadDir(recording.Fixture("stress"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := recording.Reduce(r.Records, 3000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, sel := range []string{"#closed", `[data-testid="x"]`, "html:nth-of-type(1) > body:nth-of-type(1)", "#closed >>> span:nth-of-type(1)"} {
+		if _, ok := Match(st, sel); !ok {
+			t.Errorf("%q is an anchor", sel)
+		}
+	}
+	for _, sel := range []string{"", "span", ".pill", "a b", "html > body", "#closed span"} {
+		if _, ok := Match(st, sel); ok {
+			t.Errorf("%q is not an anchor", sel)
+		}
+	}
+	if got, _ := Match(st, "html:nth-of-type(1)"); len(got) != 1 || got[0].Parent != st.Top {
+		t.Errorf("a path starts at the top document's root element: %d matches", len(got))
+	}
+}

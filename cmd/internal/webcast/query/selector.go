@@ -5,17 +5,21 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/xianxu/pair/cmd/internal/webcast/notes"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
 // SelectorGrammar is what Select understands, for its errors and --help.
-const SelectorGrammar = "@ID (a recording node id), or CSS: tag, #id, .class, [attr], [attr=v], [attr*=v], " +
-	":nth-child(n), :nth-of-type(n), joined by a space (descendant), > (child) or >>> (into a shadow root, " +
-	"frame or template, as a note's selector writes it)"
+const SelectorGrammar = "@ID (a recording node id), a note's selector as written, or CSS: tag, #id, .class, [attr], " +
+	"[attr=v], [attr*=v], :nth-child(n), :nth-of-type(n), joined by a space (descendant) or > (child) within one " +
+	"document, and >>> to go into a shadow root, frame or template"
 
 // Select finds the elements a selector matches in the state at its moment,
-// in document order. It searches every document: shadow roots, template
-// contents and iframe documents included. A selector it can't parse is an
+// in document order. A note's selector is matched by the notes model's own
+// rules (notes.Match), so it names what the note names; failing that, it is
+// CSS scoped as CSS is: a selector starts in the top document, a space and
+// > stay within one tree, and >>> steps from a host into its shadow root,
+// frame document or template content. A selector it can't parse is an
 // error naming the grammar, never a silent mismatch.
 func Select(st *recording.State, sel string) ([]*recording.DOMNode, error) {
 	sel = strings.TrimSpace(sel)
@@ -29,18 +33,25 @@ func Select(st *recording.State, sel string) ([]*recording.DOMNode, error) {
 		}
 		return nil, nil
 	}
+	if st.Top == nil {
+		return nil, nil
+	}
+	// An anchor's reading is narrower than CSS's (a leading tag step is its
+	// tree's top level, not anywhere), so its matches are among CSS's; when
+	// it names nothing, the text was meant as CSS.
+	if found, ok := notes.Match(st, sel); ok && len(found) > 0 {
+		return found, nil
+	}
 	steps, err := parseSelector(sel)
 	if err != nil {
 		return nil, err
 	}
 	var out []*recording.DOMNode
-	if st.Top != nil {
-		walkAll(st.Top, func(n *recording.DOMNode) {
-			if n.Y == recording.YEl && matches(n, steps, len(steps)-1) {
-				out = append(out, n)
-			}
-		})
-	}
+	walkAll(st.Top, func(n *recording.DOMNode) {
+		if n.Y == recording.YEl && matches(st.Top, n, steps, len(steps)-1) {
+			out = append(out, n)
+		}
+	})
 	return out, nil
 }
 
@@ -59,30 +70,56 @@ func walkAll(n *recording.DOMNode, visit func(*recording.DOMNode)) {
 }
 
 // step is one compound selector and the combinator joining it to the step
-// before it (' ' or '>'; unused on the first).
+// before it: ' ', '>' or deep ('D', >>>); unused on the first.
 type step struct {
 	comb  byte
 	tag   string
 	conds []func(*recording.DOMNode) bool
 }
 
-func matches(n *recording.DOMNode, steps []step, i int) bool {
+// deep is the >>> combinator's mark in step.comb.
+const deep = 'D'
+
+// matches reports whether n matches steps[:i+1], read right to left with
+// each combinator scoped to a tree; the first step's tree is top's.
+func matches(top, n *recording.DOMNode, steps []step, i int) bool {
 	if !steps[i].match(n) {
 		return false
 	}
 	if i == 0 {
-		return true
+		return treeOf(n) == top
 	}
-	if steps[i].comb == '>' {
-		p := n.ParentElement()
-		return p != nil && matches(p, steps, i-1)
+	switch steps[i].comb {
+	case '>':
+		p := treeParent(n)
+		return p != nil && matches(top, p, steps, i-1)
+	case deep:
+		h := treeOf(n).Host
+		return h != nil && matches(top, h, steps, i-1)
 	}
-	for p := n.ParentElement(); p != nil; p = p.ParentElement() {
-		if matches(p, steps, i-1) {
+	for p := treeParent(n); p != nil; p = treeParent(p) {
+		if matches(top, p, steps, i-1) {
 			return true
 		}
 	}
 	return false
+}
+
+// treeParent is n's parent element within its own tree, or nil.
+func treeParent(n *recording.DOMNode) *recording.DOMNode {
+	if n.Parent != nil && n.Parent.Y == recording.YEl {
+		return n.Parent
+	}
+	return nil
+}
+
+// treeOf is the parentless node n hangs in: a document, a shadow root or a
+// template's content. Its Host leads out of it.
+func treeOf(n *recording.DOMNode) *recording.DOMNode {
+	for n.Parent != nil {
+		n = n.Parent
+	}
+	return n
 }
 
 func (s step) match(n *recording.DOMNode) bool {
@@ -108,7 +145,6 @@ func parseSelector(sel string) ([]step, error) {
 	cur := step{comb: ' '}
 	empty := true
 	pending := byte(0) // a combinator seen since the last compound
-	deep := false      // that combinator was >>>
 	finish := func() {
 		if !empty {
 			steps = append(steps, cur)
@@ -119,16 +155,15 @@ func parseSelector(sel string) ([]step, error) {
 		c := sel[i]
 		switch {
 		case strings.HasPrefix(sel[i:], ">>>"):
-			// The notes model's deep step (#461): the rest is inside the
-			// host's shadow root, frame or template. Descendant matching
-			// already crosses those, so it reads as a descendant.
+			// Into the host's shadow root, frame or template: what follows
+			// is anywhere in that one tree.
 			if !empty {
 				finish()
 			}
-			if pending == '>' || len(steps) == 0 {
+			if pending == '>' || pending == deep || len(steps) == 0 {
 				return bad("a >>> with nothing before it")
 			}
-			pending, deep = ' ', true
+			pending = deep
 			i += 3
 			continue
 		case c == ' ' || c == '>':
@@ -136,7 +171,7 @@ func parseSelector(sel string) ([]step, error) {
 				finish()
 			}
 			if c == '>' {
-				if pending == '>' || len(steps) == 0 {
+				if pending == '>' || pending == deep || len(steps) == 0 {
 					return bad("a > with nothing before it")
 				}
 				pending = '>'
@@ -200,11 +235,11 @@ func parseSelector(sel string) ([]step, error) {
 			if empty && pending != 0 {
 				cur.comb = pending
 			}
-			empty, pending, deep = false, 0, false
+			empty, pending = false, 0
 		}
 	}
 	finish()
-	if pending == '>' || deep {
+	if pending == '>' || pending == deep {
 		return bad("a combinator with nothing after it")
 	}
 	return steps, nil

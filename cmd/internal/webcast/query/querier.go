@@ -48,13 +48,14 @@ func (q *Querier) DOMAt(t int64, selector string) (string, error) {
 	if selector != "" {
 		fmt.Fprintf(&b, "%d match(es) for %s\n", len(roots), selector)
 	}
-	for _, r := range roots {
+	for i, r := range roots {
+		if budget <= 0 {
+			fmt.Fprintf(&b, "… %d more matches; narrow the selector\n", len(roots)-i)
+			break
+		}
 		page := Page(st, r, budget)
 		budget -= strings.Count(page, "\n")
 		b.WriteString(page)
-		if budget <= 0 {
-			break
-		}
 	}
 	return b.String(), nil
 }
@@ -114,8 +115,8 @@ func viewport(v recording.Viewport) string {
 }
 
 func (q *Querier) Events(t1, t2 int64) ([]recording.Record, error) {
-	if t2 < t1 {
-		return nil, fmt.Errorf("query: window %d..%d is empty", t1, t2)
+	if err := checkWindow(t1, t2); err != nil {
+		return nil, err
 	}
 	var out []recording.Record
 	for _, r := range q.recs {
@@ -146,7 +147,7 @@ func (q *Querier) Notes(before int64) ([]NoteView, error) {
 			words[i] = nar.say(r)
 		}
 		if err := nar.apply(r); err != nil {
-			return nil, fmt.Errorf("query: the recording doesn't read: record %d (%s at t=%d): %w", i, r.Kind(), r.Time(), err)
+			return nil, unreadable(i, r, err)
 		}
 		n, ok := r.(*recording.Note)
 		if !ok {
