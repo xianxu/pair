@@ -20,6 +20,7 @@ const (
 	sayNotDriver = "Ask the operator for control first."
 	sayStale     = "The page changed. Try again."
 	sayNotLive   = "The cast is paused."
+	sayDialog    = "The page is showing a dialog; the operator must answer it."
 	sayRefused   = "That isn't allowed while driving."
 	sayControl   = "Control has already changed."
 	sayBad       = "That request isn't valid."
@@ -40,6 +41,8 @@ func Answer(err error) (int, string) {
 		return http.StatusConflict, sayStale
 	case errors.Is(err, ErrNotLive):
 		return http.StatusConflict, sayNotLive
+	case errors.Is(err, ErrDialog):
+		return http.StatusConflict, sayDialog
 	case errors.Is(err, ErrRefused):
 		return http.StatusUnprocessableEntity, sayRefused
 	case errors.Is(err, ErrControlOp):

@@ -23,6 +23,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/assets"
@@ -77,6 +78,10 @@ type Options struct {
 	MaxQueue int
 	Now      func() time.Time
 	Logf     func(format string, args ...any)
+	// Dialog, when set, is a channel closed while the cast tab shows a
+	// JavaScript dialog (#467): input and the page's script are stopped
+	// until the operator answers it, so a driver's dispatch gives up.
+	Dialog func() <-chan struct{}
 }
 
 // Inputs. The Browser sends them in the order they happened.
@@ -175,22 +180,24 @@ type Recorder struct {
 	shotQ  chan shotJob
 
 	// Owned by the loop.
-	m        *mirror
-	sink     rec.Sink
-	frames   FrameWriter
-	assets   assets.Store
-	t0       time.Time
-	opened   bool
-	live     bool
-	seg      int
-	segT     int64  // when the current segment started
-	top      string // the cast page's session
-	tab      rec.Tab
-	parents  map[string]string // frame session -> parent session
-	frameIDs map[string]string // session -> its main frame id
-	loader   map[string]string // session -> its main frame's loader id
-	contexts map[string]map[int64]string
-	snapSeq  map[string]uint64 // session -> reply number of its last snapshot
+	m      *mirror
+	sink   rec.Sink
+	frames FrameWriter
+	assets assets.Store
+	t0     time.Time
+	opened bool
+	// openedFlag is opened for other goroutines (Opened).
+	openedFlag atomic.Bool
+	live       bool
+	seg        int
+	segT       int64  // when the current segment started
+	top        string // the cast page's session
+	tab        rec.Tab
+	parents    map[string]string // frame session -> parent session
+	frameIDs   map[string]string // session -> its main frame id
+	loader     map[string]string // session -> its main frame's loader id
+	contexts   map[string]map[int64]string
+	snapSeq    map[string]uint64 // session -> reply number of its last snapshot
 	// dirty: sessions to snapshot again after this input (a resync, a
 	// document update, a desync).
 	dirty    map[string]bool
@@ -627,6 +634,7 @@ func (r *Recorder) goLive(at time.Time, l Live) {
 			return
 		}
 		r.sink, r.frames, r.assets, r.t0, r.opened = o.Sink, o.Frames, o.Assets, at, true
+		r.openedFlag.Store(true)
 		r.m.Emit(0, &rec.Head{Format: rec.Format, V: rec.Version, ID: r.opts.ID, Started: at.Format(time.RFC3339Nano)})
 	}
 	if r.live && l.Session == r.top {
