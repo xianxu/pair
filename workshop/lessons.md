@@ -11,6 +11,10 @@ representative evidence, not an exhaustive index.
   #457's catch-up kept a document's notes but dropped the segment they were counted from, so a derived view
   (notes on the current document) emptied while the raw state matched. Assert equivalence on the derived views
   consumers read, not only on the raw state. (#457 BR-1)
+- A generator and its parser are one contract: never store an output the parser can't read back. Check the round trip
+  at the point of emission (#461's `Anchor` drops a selector that doesn't find its own element), not only by
+  restricting inputs, which misses the cases nobody foresaw. When a fix changes behaviour, grep every prose restatement
+  (doc comments, atlas, plan) and update them in the same commit. (#461 BR-1, seam-doc-drift)
 - A seam's record channel carries one kind of thing. Name the single writer of every side artifact (bodies,
   screenshots), and make each consumer refuse what it must never receive, with a contract test that checks it.
   (#457 BR-4)
@@ -1133,6 +1137,10 @@ proof; record the surprising case so the next change starts from evidence.
   still describing the old address grammar, and a TL-deferred Done-when clause stayed as written. When a change
   adds a form to a CLI grammar, grep every restatement of that grammar (`--help`, skill, README, atlas) in the
   same commit; when scope moves elsewhere, amend `## Done when` and `## Plan` in the commit that moves it.
+- **A new Go source file joins the artifact inventory in the same commit (#460).** Moving `FakeHub` into a new
+  `recording/hub.go` failed `TestProductionArtifactReferencesAreExactlyClassified`, which only `make test` runs (the
+  package's own tests passed). When a change adds a production `.go` file, classify it in
+  `cmd/internal/artifactpath/manifest.go` and run `go test ./cmd/internal/artifactpath` before the close.
 - **A state record a reader can start from mid-stream needs a baseline rule (#466).** `ctl` records carry the control
   state after them so a late joiner's catch-up keeps only the latest one, but the reducer checked each against the
   previous state, so the catch-up didn't reduce. When a record is meant to be self-contained for some readers and a
@@ -1143,3 +1151,9 @@ proof; record the surprising case so the next change starts from evidence.
   instance, and the "exhaustive" test compared `Confine` with the table it calls. Write the rule as one closed table
   with its reason (no Chrome/Blink binding on any platform; an input's keyboard twin is refused with its pointer
   form), and test it against a hand-written expectation plus a cited list of the bindings it must exclude.
+- **A contract changed in a fix round moves with every restatement (#460 close review).** BR-1 added a method to
+  `recording.Live`, and the atlas still described the old behaviour on the next round. When a fix changes what a
+  seam promises, grep the seam's name and its old wording across atlas, plan and doc comments, and rewrite each in
+  the same commit. The same holds for a retracted figure (a size bound, a measurement): grep its distinctive wording
+  ("1.4 MB") and correct every hit, the plan included, in the fix that retracts it. And the reason a channel closed
+  is recorded by the source under its lock, not inferred by consumers from timing.

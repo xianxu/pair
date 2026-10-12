@@ -283,7 +283,11 @@ func TestWaitNoticeDialogNotifiesTheHubOncePerEpisode(t *testing.T) {
 	if m.From != w.worker || m.To != w.hub || !strings.HasPrefix(m.Body, "slot pair:2 waiting 1") || !strings.Contains(m.Body, "on a prompt: Do you want to proceed?") {
 		t.Fatalf("notice %+v", m)
 	}
-	// The slot works again, then waits again: a new episode, one more notice.
+	// The slot works again, then waits on a new prompt: a new episode, one
+	// more notice.
+	w.mu.Lock()
+	w.screen = claudeSelectionTail
+	w.mu.Unlock()
 	w.client.Update(couchmessage.Observation{LastActivity: time.Now().Add(time.Second), Sequence: 2})
 	deadline := time.Now().Add(3 * time.Second)
 	for len(w.tickAt(11*time.Minute)) != 2 {
@@ -391,5 +395,52 @@ func TestDialogTitleIgnoresNumberedProse(t *testing.T) {
 		if got := dialogTitle(c.tail); got != c.want {
 			t.Errorf("dialogTitle(%q) = %q, want %q", c.tail, got, c.want)
 		}
+	}
+}
+
+// pair#468 Done-when: a slot idle off its resting branch for an hour, whose
+// wrapper still reports output every 30 minutes (Claude Code's update check
+// redraws its footer) with nothing new on screen, is one episode: one
+// notice. A turn that leaves new words on screen is a new one.
+func TestWaitNoticeOutputWithoutATurnKeepsTheEpisode(t *testing.T) {
+	w := newWaitRig(t, true, false, claudeDoneTail)
+	start := time.Now()
+	if got := w.tickAt(11 * time.Minute); len(got) != 1 {
+		t.Fatalf("first notice: %+v", got)
+	}
+	for _, at := range []time.Duration{30 * time.Minute, 60 * time.Minute} {
+		w.client.Update(couchmessage.Observation{LastActivity: start.Add(at), Sequence: uint64(at / time.Minute)})
+		w.waitObserved(start.Add(at))
+		for _, after := range []time.Duration{11 * time.Minute, 15 * time.Minute} {
+			if got := w.tickAt(at + after); len(got) != 1 {
+				t.Fatalf("output at +%v without a turn re-notified: %d notices %+v", at, len(got), got)
+			}
+		}
+	}
+	w.mu.Lock()
+	w.screen = claudeQuestionTail
+	w.mu.Unlock()
+	w.client.Update(couchmessage.Observation{LastActivity: start.Add(70 * time.Minute), Sequence: 100})
+	w.waitObserved(start.Add(70 * time.Minute))
+	if got := w.tickAt(81 * time.Minute); len(got) != 2 || !strings.Contains(got[1].Body, "after asking") {
+		t.Fatalf("a turn with new words on screen must notify again: %+v", got)
+	}
+}
+
+// waitObserved waits until the worker's pushed activity reaches at.
+func (w *waitRig) waitObserved(at time.Time) {
+	w.t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		rows, _ := w.s.broker.Actors(context.Background(), w.hub)
+		for _, r := range rows {
+			if r.Binding == w.worker && !r.LastActivity.Before(at) {
+				return
+			}
+		}
+		if time.Now().After(deadline) {
+			w.t.Fatalf("the worker's activity never reached %v", at)
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }

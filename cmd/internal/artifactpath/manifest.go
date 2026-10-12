@@ -696,6 +696,11 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/notes/contract.go",
 	"cmd/internal/webcast/notes/fake.go",
 	"cmd/internal/webcast/notes/model.go",
+	// #461 notes model: pure over the reducer's state; writes nothing.
+	"cmd/internal/webcast/notes/crop.go",
+	"cmd/internal/webcast/notes/landmark.go",
+	"cmd/internal/webcast/notes/selector.go",
+	"cmd/internal/webcast/notes/structural.go",
 	// #462 agent queries: read a recording directory the caller names
 	// (couch --broadcast-web-query DIR) and write only to stdout.
 	"cmd/internal/webcast/query/cli.go",
@@ -718,6 +723,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/recording/fake.go",
 	"cmd/internal/webcast/recording/files.go",
 	"cmd/internal/webcast/recording/fixture.go",
+	"cmd/internal/webcast/recording/hub.go",
 	"cmd/internal/webcast/recording/internal/fixturegen/cdpconv.go",
 	"cmd/internal/webcast/recording/internal/fixturegen/main.go",
 	"cmd/internal/webcast/recording/internal/fixturegen/notes.go",

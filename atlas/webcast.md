@@ -2,7 +2,7 @@
 
 `couch broadcast-web` casts a Chrome tab from Couch as a DOM stream (project: ops
 `teams/devinfra/projects/couch-broadcast-web/project.md`). This file maps the browser-control component;
-the recorder, asset proxy and DOM viewer come later and plug into the same seam. The recording format, its reducer and the wave-1 seams are in
+the recorder and asset proxy plug into the same seam, and the live viewer (#460) is mapped below. The recording format, its reducer and the wave-1 seams are in
 [webcast-format.md](webcast-format.md), which also names where the recorder plugs in here.
 
 ## Layers
@@ -64,14 +64,39 @@ left waiting is a frozen tab. Without `Page.enable` the script never reaches the
   either button ends (macOS terminals may send Ctrl+left as a right click with the Ctrl bit).
 - **State machine:** `couchtty/console_webcast.go`, mirroring `console_broadcast.go` (off → starting → running →
   ending, `startClaim` adoption, a bounded shutdown beside the broadcast's).
-- **Cast:** `webcast.Cast` = Browser + the stub viewer `Server` mounted on the shared `broadcast.Host`. Chrome comes
+- **Cast:** `webcast.Cast` = Browser + the viewer `Server` mounted on the shared `broadcast.Host`. Chrome comes
   up first; the link opens in the background (`Update.Link` / `LinkErr`). The cast ends when its Browser does;
   viewers get `end`, then the mount goes.
 - **Shared Host:** `broadcast.Host` (`host.go`) holds one listener, server and tunnel for every cast, opened by the
   first mount and closed after the last, routing by the token in the first path segment (`Mountable.Owns`). A named
   cloudflared tunnel can be claimed once, so the screen broadcast and the web cast must share it. `couchcmd` builds
   one Host from the `COUCH_BROADCAST_*` tunnel and hands it to both. SSE writing is `broadcast.EventStream`, shared.
-- **Viewer (stub):** `webcast/web/` shows Live / Not live, and the title and URL only while live (`viewerState`),
-  set as text only. The recorder's DOM stream will replace the state events' content; the route and seams stay.
+- **Events route:** `<token>/events` streams `state` and `end` (the Browser's phase) and, when `CastConfig.Live` is
+  set, `rec`: each record line of the recording, a `recording.Hub`'s catch-up first. When the record channel
+  closes, the fan-out says why (`Live.Ended`). A viewer dropped as too slow has its stream ended and reconnects for
+  a fresh catch-up. Once the fan-out has ended, the viewer keeps its page and the stream goes on with `state` and
+  `end`. `?viewer=ID` calls `CastConfig.Presence` for the stream's life (#466's seats). `<token>/assets/<hash>` is
+  the asset proxy's (#459).
+- **Live viewer (#460):** `webcast/web/`, three ES modules plus the shell.
+  - `model.js` is the reducer in JS: `recording.Reduce` and `State.Canonical()`, byte for byte. Node tests hold it to
+    every fixture's pinned hash.
+  - `render.js` draws what the model accepted into the page frame, an iframe with `sandbox="allow-same-origin"`
+    (no `allow-scripts`). It never sets `on*` attributes, gives nested frames no `src`, and sends every URL through
+    `resolveAsset`; a URL with no asset loads nothing. An image with nothing to load is drawn as not yet loaded (no
+    alt text), as a lazy image is in the tab.
+  - `css.js` rewrites streamed CSS (`url()`s through the asset table, `:hover` to the stand-in class).
+  - `viewer.js` is the shell. It lays the page out once at the operator's viewport and scales it to fit (never
+    relayout), shows the title and URL as text, and shows Paused and Cast-ended states. The operator's `hover` is
+    drawn by putting the stand-in class on the hovered element and its ancestors, and the sampled `ptr` is a dot
+    over the frame. A record the model refuses resyncs: the shell reconnects for a fresh catch-up.
+  - The frame takes no input; the shell's overlay does (wave 2's notes, #466/#467's remote driving).
+  - The contract is on `window.couchViewer`: `canonical`, `ready`, `resolveAsset`, `boxOf`, `nodeAt`, `toPage`
+    and `onRecord`.
+- **Viewer fidelity:** `replay_test.go` replays every fixture in headless Chrome (`WEBCAST_LIVE_CHROME=1`).
+  - The drawn page's canonical equals the reducer's at every pin, and a join at any pin draws the same page.
+  - Renders are within 3% of `frames/` (measured 0.2–2.3%). The last second before each frame is replayed in real
+    time so transitions are in phase, and the fixtures' polled observer gets 150 ms of slack.
+  - `viewer_live_test.go` drives the real page through `Server` and a `Hub` at tablet width: scaling, URL, hover,
+    pointer, and `boxOf` against the tab's own layout boxes (215 of 217 on blog).
 - **Known transient:** for a moment after a navigation, the title can be Chrome's placeholder (the URL, as in
   Chrome's own tab) until the page reports its `<title>`; it is never the previous page's title (`DocumentChanged`).

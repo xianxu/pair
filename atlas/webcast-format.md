@@ -182,6 +182,51 @@ rule (#461): the notes "on" the current document are those since the document be
 resume keeps them and a navigation clears them. The shape is meant to be
 shared with the terminal notes of pair#455. `author` and `text` stay the same; `at` is where a DOM note and a grid note differ.
 
+## The notes model (#461)
+
+`notes.Structural` is the real `notes.Model` (`cmd/internal/webcast/notes`), pure over the reducer's state at a
+moment. It runs `notes.RunModelContract` like the fake.
+
+**A note** is `recording.Note`: `id`, `author` `{id,name,color}`, `text`, `t`, and the anchor `at`. A terminal note
+(pair#455) keeps `author`, `text` and `t` and replaces `at` with a grid position, so both submissions share
+everything but the anchor.
+
+**The anchor** `at` is `{node, sel, text, box}`:
+- `sel` is a stable selector in a small CSS subset, made and matched in one file (`selector.go`): `#id` for an id
+  that is unique and doesn't look generated (no `:`, no run of 4+ digits), `[data-testid="…"]` (also `data-test`,
+  `data-cy`), else `tag:nth-of-type(k)` steps joined by ` > ` from the nearest such ancestor or the tree's root
+  element. Inside a shadow root, an iframe's document or a template's content it is the host's selector, ` >>> `,
+  then the path inside (our deep combinator, not CSS). A test-attribute value with a quote or `>` isn't used, and
+  `Anchor` drops any selector that doesn't find its own element, so a stored selector always round-trips.
+- `Resolve` keeps the node while it lives (ids are never reused); after a re-render it takes the selector's match
+  whose text is the anchor's, else the only match. Several matches with nothing to tell them apart don't resolve.
+  A selector outside the subset matches nothing, and such a note resolves by its node id alone.
+- `box` is taken as given when the note carries one (a viewer computes it at click time); otherwise the latest
+  `layout` box is used.
+
+**The landmark** is the nearest meaningful container at or above the element, through shadow hosts and frame owners
+and below the top document's `body`. Meaningful means a sectioning or grouping tag (`header nav main aside footer form
+section article dialog fieldset figure table tr ul ol dl li details menu search`), an ARIA role of the same kinds,
+`aria-modal="true"`, or a layout box recognized by class on an element with element children: a `card`, `panel`,
+`modal`, `dialog`, `popover`, `toolbar`, `navbar`, `sidebar`, `drawer` or `tile` class, or Tailwind's `rounded*` with
+`border` or `shadow*`. With none, the landmark is the parent element (at most `body`), used for text but not for
+snapping.
+
+**The context** (`notes.Context`) is `{Node, Landmark, Text, Box}`: the resolved element, its landmark, the landmark's
+whitespace-collapsed text in a 500-character window centred on the element's own text, and the landmark's box. The
+full DOM at that moment stays available through the agent queries (#462).
+
+**Crops**, for a submission's anchors, in CSS px of the top page:
+1. each anchor's box padded by a margin (48 px by default);
+2. snapped to its meaningful landmark per axis: always across (a header or nav bar goes full width), and down only
+   when the landmark is at most half the viewport tall; otherwise the height stays the note plus its margin (the rule
+   #455 uses for a pane);
+3. clustered: crops at most a margin apart merge, until none do, so far-apart notes get a crop each;
+4. clipped to the page (the root element's box), widened to hold every note's own box;
+5. offered to `notes.Hints` (per app or URL), whose crop replaces the default when it returns true.
+
+Region notes (`region`) are not in `Crops` yet: `Crops` takes anchors, which carry no region.
+
 ## Attribution and control (#466)
 
 A viewer the operator grants control to uses the cast tab through the cast (Remote driving, below). The recording
@@ -227,7 +272,7 @@ A viewer that joins late receives the **catch-up**, followed by the live records
 - everything from the latest `seg` on. While paused, that last part is the segment through its `stop`. Reduced, the catch-up gives the same DOM, assets,
 `DocSeg`, current-document notes and control as the whole recording. This is tested at every cut point, and at every pinned
 time of every fixture. `recording.CatchUp` is this rule; the
-live fan-out (#460) serves it. The fake hub keeps only `CatchUp(log)` at each segment, so what it holds for late
+live fan-out (#460, `recording.Hub`) serves it. The hub keeps only `CatchUp(log)` at each segment, so what it holds for late
 joiners is bounded by one segment.
 
 ## Reading rules (the reducer)
@@ -261,8 +306,8 @@ it), never a local fork.
 |---|---|---|---|---|
 | pair#458 | recorder | writes a `recording.Sink` (`DirWriter` for disk, `Tee` to also feed `Live`) | `recording.FakeRecorder` (plays a fixture into a sink, instantly or in real time) | `recording.ValidateDir` on its output; fidelity vs `frames/` |
 | pair#459 | asset store and proxy | `assets.Store` (`Put`, `Get`, `Lookup`; `Policy`) | `assets.MemStore` | `assets.RunStoreContract` |
-| pair#460 | live viewer | `recording.Live` (fan-out with catch-up); the JS viewer contract below | `recording.FakeHub` | `recording.RunLiveContract`; the fixtures' canonical pins |
-| pair#461 | notes model | `notes.Model` (`Anchor`, `Resolve`, `Context`, `Crops`, `Live`; `notes.Hints`) | `notes.FakeModel` | `notes.RunModelContract` |
+| pair#460 | live viewer | `recording.Live` (fan-out with catch-up; `Ended(recs)` says whether a closed subscription was the fan-out's end or a drop); the JS viewer contract below | `recording.Hub`: the production fan-out is its own double (bounded by one segment; #458 constructs it next to its `Tee`) | `recording.RunLiveContract`; the fixtures' canonical pins |
+| pair#461 | notes model | `notes.Model` (`Anchor`, `Resolve`, `Context`, `Crops`, `Live`; `notes.Hints`); real: `notes.Structural` | `notes.FakeModel` | `notes.RunModelContract` |
 | pair#462 | agent queries | `query.Surface` (`DOMAt`, `Events`, `Notes`); real: `query.Querier`, CLI `couch --broadcast-web-query` (below) | `query.FakeSurface` | `query.RunSurfaceContract` |
 | pair#467 | input injection | `drive.Injector` (`Inject(ctx, by, Batch)`) | `drive.FakeInjector` | `drive.RunInjectorContract` |
 | pair#467 | driving control and the reverse channel | `drive.Controller` (seats, request/grant/deny/revoke/release, input) | `drive.FakeController` | `drive.RunControllerContract` |
@@ -282,13 +327,19 @@ live phase, so it feeds the active tab's CDP events to the recorder while `Phase
 and a tab switch from `Tracker.Active` emits a new `seg`. `CastConfig` gains the `recording.Live` that fans the
 same records out, and `Server.events` sends them as `rec` events. The route, the token and the shared `broadcast.Host` stay.
 
-**The JS viewer contract (#460).** The viewer applies records to a sandboxed frame without `allow-scripts`:
-- `apply(record)` applies one record;
-- `resolveAsset(absURL)` returns the proxy URL for an asset, or nothing;
-- `canonical()` exports the rebuilt DOM in `State.Canonical()`'s shape;
-- `boxOf(id)` gives an element's box from the viewer's own unscaled layout, in top-page CSS px;
-- `toPage(clientX, clientY)` maps a point on the scaled viewer to top-page CSS px, and `nodeAt(pageX, pageY)` gives
-  the id of the innermost element there (#466: the target of a driver's act).
+**The JS viewer contract (#460).** The viewer applies records to a sandboxed frame without `allow-scripts`
+(`webcast/web/`: `model.js` applies, `render.js` draws). On `window.couchViewer`:
+- `resolveAsset(absURL)` returns the proxy URL for an asset (`<cast>/assets/<hash>`), or nothing;
+- `canonical()` exports the rebuilt DOM in `State.Canonical()`'s shape (tree and ids from the drawn DOM, values from
+  the model), and `ready()` resolves once its stylesheets, fonts and images have loaded;
+- `boxOf(id)` is a node's box in top-page CSS px from the viewer's own unscaled layout. A note made in the viewer
+  carries this box from click time.
+- `nodeAt(pageX, pageY)` is the id of the innermost drawn element at a top-page point (into frames and shadow roots):
+  the target of a driver's act (#466). `toPage(clientX, clientY)` maps a point in the viewer's window to top-page CSS px.
+- `onRecord(fn)` sees each accepted record and the model, so another component (#467's control state) can follow the
+  stream without touching the apply path.
+The viewer rewrites `url()`s in streamed CSS (`sheet` records, `<style>` text, `style=`) through `resolveAsset`. The
+proxy rewrites only the CSS bodies it serves.
 
 Conformance means that, for every fixture at each pinned time (its `frame` times), `canonical()` equals the reducer's
 `State.Canonical()`, and the render is within tolerance of `frames/<n>.png`. The fixture pins each expected state by
