@@ -83,3 +83,14 @@ Status: draft. The decisions marked **[D1]..[D6]** are proposals waiting on the 
 
 - Replay share links **[D4]** (proposed follow-up issue).
 - Per-viewer kick.
+
+## Revisions
+
+- 2026-10-12, operator answers via the hub.
+  - **D3:** LIVE and the terminal pointer link each get their own code.
+  - **D5:** no codes inline in the tab bar.
+    - Hovering a cast cell shows its codes as a tooltip: `view 4821 · pointer 7730` on LIVE, `view 5512 · drive 903114` on Chrome.
+    - Rotation moves to a per-cell codes menu, with one item per link plus "rotate all".
+  - **Finding sent back:** overlays, the status row and the notice line all reach the LIVE tap, so the tooltip and the menu would show codes to terminal viewers.
+  - **Proposed:** an operator-only presenter layer that is never tapped, and Alt+click to open the codes menu. Awaiting confirmation.
+  - D1, D2, D4 and D6 are still pending.
