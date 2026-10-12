@@ -1342,3 +1342,7 @@ proof; record the surprising case so the next change starts from evidence.
   crashed the wrapper. Give each attempt its own local, close it on failure inside the loop, and hand only the
   accepted one to the defer; test the path where a retry's dial fails. Likewise, key a per-episode cache on an
   episode counter bumped at the transition, not on a reader happening to observe the gap between episodes.
+- **A measurement that moves a Spec's guess revises the Spec in the same commit (#490 close).** The Spec guessed
+  `--prepare` and `--reload-context` at "seconds" and light at "milliseconds"; the timings said heavy and "under a
+  second", and only the Log said so. When a Spec names expected values to be measured, append a `## Revisions`
+  entry the moment a measurement disagrees, and say in Done-when which values were reasoned rather than measured.

@@ -61,6 +61,16 @@ complete. Exact addressing also permits useful clarification to occupied slots.
 There is no availability command, reply command, automatic provisioning, disk
 queue, or cross-supervisor delivery.
 
+## What each verb costs
+
+- **light:** `--help`, `--skill`, `--actors`, `--send-to`, `--message-status`, `--peek` (its --transcripts option costs seconds), `--broadcast-list`, `--session-sync`, `--archived`, `--adopt-store`, `--broadcast-web-query`, `--broadcast-web-replay` (then serves until stopped)
+- **seconds:** `--list`, `--show`, `--reconcile`, `--reap`, `--broadcast-web-fidelity` (a headless Chrome)
+- **heavy:** `couch` (launch), `--recover-plan-from-sdlc`, `--resume`, `--reboot`, `--relaunch`, `--reload-context`, `--prepare`, `--recover`
+
+Cost: light is under a second, seconds is a few seconds, heavy is tens of
+seconds of CPU (it stops or boots agents, or runs sdlc across the fleet);
+run heavy verbs one at a time, after checking uptime's load.
+
 ## Sending and receiving
 
 For work, first record the issue or other artifact in its owning repository and

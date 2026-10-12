@@ -823,6 +823,8 @@ var NonArtifactSources = []string{
 	// #451 waiting notices: reads the operator's mute list in the Couch
 	// store; writes nothing.
 	"cmd/internal/couchcmd/wait_notice.go",
+	// #490 verb costs: help text only; no artifact paths.
+	"cmd/internal/couchcmd/cost.go",
 	"cmd/internal/terminal/endpoint_input.go",
 	"cmd/internal/terminal/history.go",
 	"cmd/internal/terminal/history_render.go",
