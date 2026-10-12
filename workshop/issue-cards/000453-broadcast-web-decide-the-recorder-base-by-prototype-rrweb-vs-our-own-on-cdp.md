@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000453-broadcast-web-decide-the-recorder-base-by-prototype-rrweb-vs-our-own-on-cdp.md
         source_blob: 9f275f388fe42d86bd32078e9bd84973d5517780
         destination: workshop/issues/000453-broadcast-web-decide-the-recorder-base-by-prototype-rrweb-vs-our-own-on-cdp.md
+        main_commit: e5616980b25f1161c00b6ff08f6ec3ee309798c8
 ---
 
 # broadcast-web: decide the recorder base by prototype (rrweb vs our own on CDP)
