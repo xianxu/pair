@@ -1,12 +1,20 @@
 ---
 id: 000498
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '93fca5815b4e8415f60dc045091dd4576e8fb881' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'ba25a57db55630ad2fba552b5200602156899f02' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T13:43:15-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch: start slot wrappers at lower CPU priority (nice +10) so Couch and the terminal stay responsive
@@ -27,7 +35,20 @@ Couch starts each slot wrapper at nice +10 (configurable, default on); children 
 
 ## Plan
 
-- [ ]
+Design: every slot launch goes through `Runner.StartBlocked`, which starts `pair-launch-helper` in its own process
+group and holds it before exec until Couch acknowledges. A `couchcore.NicedRunner` decorator lowers that group's
+priority (`setpriority(PRIO_PGRP, pid, n)`) inside that blocked window, so the target and everything it forks inherit
+it with no race and no change to the helper, argv or process identity. Couch's own process is untouched.
+`COUCH_SLOT_NICE` (0–20, default 10, 0 = off) is parsed once at composition; a bad value refuses to start.
+The `taskpolicy` QoS clamp is left out: the Spec makes it opt-in after measurement, and measuring it needs load this
+item may not generate.
+
+- [ ] `couchcore.NicedRunner` + unit tests (fake seam: order before return, failure cancels the launch) and a real
+      helper test (the exec'd target reads its own niceness through `ps`).
+- [ ] `COUCH_SLOT_NICE` parsing + wiring in `NewCouchWith`; tests for default/off/invalid.
+- [ ] README + atlas/couch.md.
+- [ ] Propose to the hub: relaunching the live Couch on the new build, then verify slot niceness by ps and a light
+      couch verb's latency under the existing load; renicing running slots only if the operator wants it.
 
 ## Log
 
