@@ -15,7 +15,7 @@ func TestDecideLiveRestartExhaustive(t *testing.T) {
 	stale := BinaryFacts{RunningSHA: "same", OnDiskSHA: "same"}
 	bools := []bool{false, true}
 	checks := 0
-	for _, op := range []string{OpRelaunch, OpReloadContext, OpPrepare} {
+	for _, op := range []string{OpRelaunch, OpReloadContext, OpPrepare, OpReboot} {
 		for _, live := range bools {
 			for _, session := range bools {
 				for _, known := range bools {
@@ -39,6 +39,8 @@ func TestDecideLiveRestartExhaustive(t *testing.T) {
 												want = LiveRestartBusyUnknown
 											case session && known && !settled:
 												want = LiveRestartBusy
+											case op == OpReboot:
+												// pair#456: reboot changes no files, so the tree only notes.
 											case !gitKnown || dirty:
 												want = LiveRestartDirty
 											case op == OpPrepare && !resting:
@@ -54,6 +56,9 @@ func TestDecideLiveRestartExhaustive(t *testing.T) {
 											if got.Code != "" && got.Detail == "" {
 												t.Fatalf("refusal without a reason: %+v", got)
 											}
+											if op == OpReboot && got.Code == "" && (!gitKnown || dirty) && !strings.Contains(got.Note, "reboot leaves") {
+												t.Fatalf("reboot of an unclean tree not reported: %+v", got)
+											}
 											if (!session || !known) && force && live && got.Code != LiveRestartBusyUnknown && !strings.Contains(got.Note, "--force-unknown") {
 												t.Fatalf("forced unknown not recorded: %+v", got)
 											}
@@ -67,7 +72,7 @@ func TestDecideLiveRestartExhaustive(t *testing.T) {
 			}
 		}
 	}
-	if checks != 3*2*2*2*2*2*2*2*2*3 {
+	if checks != 4*2*2*2*2*2*2*2*2*3 {
 		t.Fatalf("enumeration incomplete: %d", checks)
 	}
 }

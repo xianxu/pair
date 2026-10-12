@@ -37,7 +37,11 @@ func TestActionOfferedImpliesPermitted(t *testing.T) {
 	}{
 		{"switch-agent", couchcore.SwitchableState},
 		{"resume", resumeAdmitted},
-		{"reboot", couchcore.RebootableState},
+		// The switcher's live reboot carries its idle verdict
+		// (TestLiveRebootDispatchCarriesTheIdleVerdict), pair#456.
+		{"reboot", func(s couchcore.ActionableThreadState, r couchcore.ThreadReason) bool {
+			return couchcore.RebootAdmitted(s, r, true)
+		}},
 	}
 	everOffered := make([]bool, len(actions))
 	// The domain is the action table's own (everyMenuRowShape): derived from

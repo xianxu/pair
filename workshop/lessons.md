@@ -1109,3 +1109,9 @@ proof; record the surprising case so the next change starts from evidence.
   page had more lagging moments, and "lowest overhead" measured on only one page. When a recommendation restates a
   measurement, quote the range from the table and name the scope it was measured on; don't round toward the
   option being recommended.
+- **A new irreversible step joins the operation's ORDER, it doesn't ride admission (#456 close review).** Live
+  reboot parked the agent inside `rebootAdmit`, ahead of the fresh-profile preflight, so an unlaunchable agent
+  stopped the running one and started nothing while the error said "nothing was stopped". When an operation has
+  a stated order (check everything that can fail, then the first irreversible effect), add a new effect at the
+  effect boundary, keep admission effect-free, and test the earlier refusal with the agent still running —
+  mutation-checked by moving the effect back.

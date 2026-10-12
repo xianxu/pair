@@ -462,8 +462,8 @@ func (c *Couch) resolveRepoIdentity(ctx context.Context, workingPath string) (st
 // primary thread that refused a second start: the next step its switcher row
 // can reach. Reboot is offered exactly where it is permitted
 // (RebootableState; the switcher's table asserts offer equals permission), so
-// that is the test. A live :0 offers no reboot (pair#363 Spec) -- Pair's own
-// restart chord is its fresh agent.
+// that is the test. A live :0 also offers reboot since pair#456, but Pair's
+// own restart chord is its cheaper fresh agent, so that is what it is told.
 func primaryFreshStep(held ActionableThreadSummary) string {
 	if RebootableState(held.State, held.Reason) {
 		return "ctrl-space, select it, Tab → reboot"

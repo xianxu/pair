@@ -1346,6 +1346,11 @@ func confirmationMenuItems(state MenuState, frame MenuFrame) []string {
 			break
 		}
 		item += " — archives this conversation, starts a fresh agent"
+		if thread.Live() {
+			// Parked first, then rebooted (pair#456): the conversation is not
+			// resumed, which is the whole point and the whole cost.
+			item += "; stops its running agent first"
+		}
 		if thread.Detached() {
 			// A detached row's agent is RUNNING behind a session couch does
 			// not host, and reboot stops that session before archiving
