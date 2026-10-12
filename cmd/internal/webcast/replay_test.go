@@ -43,12 +43,6 @@ const (
 	renderTolerance = 0.03
 )
 
-// realTimeWindow is how much of the timeline before a frame is replayed in
-// real time, so transitions running at the frame are in the tab's phase
-// (their timing isn't recorded: the fidelity list's "animations and
-// transitions"). Tailwind's longest common duration is 1s.
-const realTimeWindow = 1000
-
 // fixtureObserverLag: #453's prototype observer polls every 100ms and
 // flushes every 50ms, so a fixture's scroll and input records can trail the
 // tab by up to 150ms. #458's recorder reports synchronously; when its
@@ -375,7 +369,7 @@ func (p *chromePage) evalString(t *testing.T, expr string) string {
 func (p *chromePage) renderDiff(t *testing.T, rec *recording.Recording, name string, f *recording.Frame, at int64) float64 {
 	t.Helper()
 	p.eval(t, fmt.Sprintf("load(%q)", name))
-	p.evalString(t, fmt.Sprintf("replayAt(%d, %d)", at, realTimeWindow))
+	p.evalString(t, fmt.Sprintf("replayAt(%d, %d)", at, ReplayWindow))
 	return p.compare(t, filepath.Join(rec.Dir, f.File), f)
 }
 

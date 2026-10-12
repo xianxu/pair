@@ -1,3 +1,8 @@
+// Package fidelity scores a recording against the real tab (project
+// Principle 6, #478): the share of pixels where the replay of a moment
+// differs from the tab's screenshot of it (frames/), a tolerance, and a
+// report with the worst moments side by side. Pure: the replay itself is
+// webcast.CheckFidelity's, in a headless Chrome.
 package fidelity
 
 import (
@@ -41,7 +46,6 @@ func DiffImages(a, b image.Image) (float64, error) {
 	if ra.Dx() != rb.Dx() || ra.Dy() != rb.Dy() {
 		return 1, fmt.Errorf("sizes differ: %v vs %v", ra.Size(), rb.Size())
 	}
-	limit := maxYIQDelta * Threshold * Threshold
 	mask := ControlCorner(ra.Dx(), ra.Dy())
 	diff, n := 0, 0
 	for y := 0; y < ra.Dy(); y++ {
@@ -50,13 +54,16 @@ func DiffImages(a, b image.Image) (float64, error) {
 				continue
 			}
 			n++
-			if yiqDelta(a.At(ra.Min.X+x, ra.Min.Y+y), b.At(rb.Min.X+x, rb.Min.Y+y)) > limit {
+			if Differs(a.At(ra.Min.X+x, ra.Min.Y+y), b.At(rb.Min.X+x, rb.Min.Y+y)) {
 				diff++
 			}
 		}
 	}
 	return float64(diff) / float64(n), nil
 }
+
+// Differs is the per-pixel test: the YIQ distance is over Threshold.
+func Differs(c1, c2 color.Color) bool { return yiqDelta(c1, c2) > maxYIQDelta*Threshold*Threshold }
 
 // yiqDelta is pixelmatch's color distance, blending alpha over white.
 func yiqDelta(c1, c2 color.Color) float64 {
