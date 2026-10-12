@@ -1,6 +1,6 @@
 ---
 id: 000475
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: accf2497abaa2d6aa292ec0b0ce5508d4fd4f3e4
         evidence_commit: 10efe4ad34d04e61f06d4a2520e9e494930d2451
+        landed_commit: 9852120c64a67731990d1a4ed55871b4feee63a9
 ---
 
 # broadcast-web: a segment's linked stylesheets bind after its first paint (viewers see the page unstyled)
