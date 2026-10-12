@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000466-broadcast-web-remote-driving-contract-viewer-input-driver-control-attribution-in-the-format.md
         source_blob: 5f96ccf5c870d86954a81f1a6a84464d953e9a9d
         destination: workshop/issues/000466-broadcast-web-remote-driving-contract-viewer-input-driver-control-attribution-in-the-format.md
+        main_commit: 72e8fe8eb9463db4a423994eb2f2ad7281f3b66a
 ---
 
 # broadcast-web: remote-driving contract — viewer input, driver control, attribution in the format
