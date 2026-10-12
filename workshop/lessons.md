@@ -1279,3 +1279,10 @@ proof; record the surprising case so the next change starts from evidence.
   fixture's own records; re-deriving then surfaced a case the old fixture never had (an open note whose element was
   removed). After retiring a data source, also sweep the tools that only produced it (`fixturegen -raw`) and any
   inventory that lists them.
+- **A stopwatch ceiling hides the race it was meant to catch (#479).** `elapsed > 1.5s` passed a TERM-deaf-child
+  test whose cancel landed before `sh` set its trap, so the child died by SIGTERM and SIGKILL escalation was never
+  exercised; only asserting *how* the child ended (its signal) exposed it under load. Where a test's subject is a
+  bound, assert the outcome that proves it (the product's own timeout error, the ending signal, the busy refusal),
+  not the wall-clock time; where the subject is an event, wait on it with `testwait` (bounded by the test's
+  deadline, not a latency guess). A short real deadline the test arms for every case is the same bug: arm it only
+  where the timeout is the subject.
