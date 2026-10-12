@@ -15,6 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "a963276f", done: "607af38b"}
 ---
 
 # couch: say each verb's relative cost in --help and --skill (light, seconds, heavy)
