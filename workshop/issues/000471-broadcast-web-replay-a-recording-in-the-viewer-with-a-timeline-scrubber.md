@@ -15,7 +15,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "cb2ab542", done: "da4898b1"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # broadcast-web: replay a recording in the viewer with a timeline scrubber
@@ -53,6 +53,8 @@ Durable plan: `workshop/plans/000471-broadcast-web-replay-a-recording-in-the-vie
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — node 62/62 (replay.test.mjs: JS catchUp equals Go answers at every cut of the shared corpus tests/webcast/catchup_corpus.json, which TestCatchUpCorpus keeps true to recording.CatchUp and requires every special-cased kind incl. hover/ptr; mutation removing the hover/ptr port fails it; catch-up invariant at every boundary cut of every fixture; Player reaches every pin forward/backward/shuffled); go test webcast/..., couchcmd, artifactpath green; WEBCAST_LIVE_CHROME=1 live suite green incl. TestLiveReplayServer{Seeks,Marks,Drivers} and #460/#458 checks; couch --broadcast-web-replay <fixture> --at 1500 served end to end; make -k test / go test ./...: only TestCapturePTYBothBoundaries drain timeout under full-suite load (couchcmd alone passes; untouched code). Operator smoke test of a real recording is TL-scheduled.; review verdict: SHIP
+- 2026-10-12: flow upgraded quick → full — 1058 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 - TL decisions (ops:0): recordings go in `<store>/webcast/recordings/<id>/` (#458); the loopback CLI is the entry point now, and the Host mount is a follow-up the TL files. #470 (pair:6) edits viewer.js, index.html and viewer.css too, so my edits there stay small and additive, and whoever lands second merges.
 - The seek rule is the catch-up rule (`recording.CatchUp`), ported to JS so scrubbing doesn't round-trip; the port is held to Go's by its invariant and by a live parity check (ARCH-DRY).
