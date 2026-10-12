@@ -13,7 +13,7 @@ import (
 
 // Fixtures are the checked-in recordings wave-1 components test against
 // (atlas/webcast-format.md, Fixtures).
-var Fixtures = []string{"stress", "app", "blog", "segments"}
+var Fixtures = []string{"stress", "app", "blog", "segments", "driven"}
 
 // Fixture is the directory of a checked-in fixture, for tests in any
 // package.

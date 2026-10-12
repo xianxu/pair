@@ -111,7 +111,7 @@ func ParseNote(body []byte) (NoteRequest, error) {
 		Text  *string `json:"text"`
 	}
 	// The decoder would turn invalid UTF-8 into U+FFFD; refuse it instead.
-	if !utf8.Valid(body) || !decodeStrict(body, &raw) {
+	if !utf8.Valid(body) || !DecodeStrict(body, &raw) {
 		return NoteRequest{}, ErrNoteShape
 	}
 	if raw.Cols == nil || raw.Rows == nil || raw.Col == nil || raw.Row == nil || raw.Color == nil || raw.Text == nil {
@@ -134,14 +134,14 @@ func ParseResolve(body []byte) (int, error) {
 	var raw struct {
 		ID *int `json:"id"`
 	}
-	if !decodeStrict(body, &raw) || raw.ID == nil || *raw.ID < 1 {
+	if !DecodeStrict(body, &raw) || raw.ID == nil || *raw.ID < 1 {
 		return 0, ErrNoteShape
 	}
 	return *raw.ID, nil
 }
 
-// decodeStrict decodes exactly one JSON object with no unknown fields.
-func decodeStrict(body []byte, v any) bool {
+// DecodeStrict decodes exactly one JSON object with no unknown fields.
+func DecodeStrict(body []byte, v any) bool {
 	dec := json.NewDecoder(bytes.NewReader(body))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {

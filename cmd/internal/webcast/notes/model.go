@@ -15,7 +15,7 @@ import "github.com/xianxu/pair/cmd/internal/webcast/recording"
 type Context struct {
 	Node recording.NodeID
 	// Landmark is the nearest meaningful ancestor (an ARIA landmark, a
-	// role, a card or form, a layout box); Node itself when none is closer.
+	// role, a card or form, a layout box); with none, the parent element.
 	Landmark recording.NodeID
 	// Text is the landmark's text, trimmed to a budget.
 	Text string

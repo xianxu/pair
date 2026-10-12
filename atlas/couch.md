@@ -458,8 +458,11 @@ report it. `waitWatcher` (`couchcmd/wait_notice.go`) ticks every 15s
   `behind a picker` after `pickerNoticeAfter` (1m), not the general threshold.
   `pickerSummary` quotes `(kind) detail — title [options]`. The title and
   detail are bounded at 200 bytes each, and the options share one line bounded
-  at 160 bytes. Its episode is the same `LastActivity` episode, so the general
-  path never repeats it.
+  at 160 bytes. Its wait runs from `SlotLiveness.PickerSince`, the
+  wrapper's `LastActivity` on the frame that opened it, because a picker that
+  repaints (the auto-deny countdown) is never quiet. Episodes stay keyed by
+  `LastActivity`, so the general path never repeats it, and a repaint re-reads
+  the tail but finds the same wait (#468).
 - **`couchmessage.ReadPicker` (`picker.go`):** the one reader of a picker's
   text, shared by this notice and the wrapper's held receipt. It anchors on
   the bottom-most selected option (`❯ N.`), so numbered prose never counts.
@@ -469,11 +472,16 @@ report it. `waitWatcher` (`couchcmd/wait_notice.go`) ticks every 15s
   a permission prompt (with `Detail`, e.g. `Bash command: <command>` from
   between its dashed rules), an `Enter to select` footer is a question, and
   anything else is plain `picker`.
-- **Episode:** keyed by the slot's `LastActivity`; one notice per episode once
-  admitted, a failed admission retries next tick. Not-waiting verdicts are
-  cached per (activity, settled, resting, pending, picker), so an idle slot costs one
-  tail per episode. The map is pruned to the listing each tick and dies with
-  the service; a Couch restart re-announces a slot still waiting, once.
+- **Episode:** one judged wait, the same reason and summary (#468). A new
+  `LastActivity` re-reads the tail, but output that leaves the same wait on
+  screen is the same episode: an idle agent still prints (Claude Code's update
+  check redraws its footer every 30 min; an idle auto-compaction). A turn, the
+  operator's input or a branch change ends it by changing the wait or ending
+  it. One notice per episode once admitted, a failed admission retries next
+  tick. Not-waiting verdicts are cached per (activity, settled, resting,
+  pending, picker), so an idle slot costs one tail per output burst. The map is pruned
+  to the listing each tick and dies with the service; a Couch restart
+  re-announces a slot still waiting, once.
 - **Delivery:** `Broker.Send` from the waiting slot's binding to the hub's
   exact slot (`messageService.hubBinding`, the connected binding in
   `messageAuthority.hub`; the registry's newest incarnation of that slot),

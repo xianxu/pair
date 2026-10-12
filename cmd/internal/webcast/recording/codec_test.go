@@ -32,6 +32,9 @@ func sample() []Record {
 		&Title{V: "T"},
 		&VP{Viewport: Viewport{W: 800, H: 600, DPR: 2}},
 		&Click{ID: 3, X: 1, Y: 2},
+		&Ctl{Op: CtlRequest, Who: Author{ID: "v1", Name: "Ana"}, Control: Control{Pending: []Author{{ID: "v1", Name: "Ana"}}}},
+		&Ctl{Op: CtlGrant, Who: Author{ID: "v1", Name: "Ana"}, Control: Control{Driver: &Author{ID: "v1", Name: "Ana"}}},
+		&Click{Source: Source{By: "v1"}, ID: 3, X: 1, Y: 2},
 		&Focus{ID: 3},
 		&Layout{Boxes: map[NodeID]Box{3: box}},
 		&Note{ID: "n1", Author: Author{ID: "a"}, Text: "hi", At: NoteAt{Node: 3, Box: &box}},
@@ -73,6 +76,22 @@ func TestEncodeSetsKindAndEnvelopeFirst(t *testing.T) {
 	}
 	if got, want := string(line), `{"t":7,"k":"rm","id":3}`; got != want {
 		t.Errorf("got %s, want %s", got, want)
+	}
+}
+
+func TestAttributionEncodesOnlyWhenSet(t *testing.T) {
+	for _, c := range []struct {
+		r    Record
+		want string
+	}{
+		{&Click{ID: 3, X: 1, Y: 2}, `{"t":0,"k":"click","id":3,"x":1,"y":2}`},
+		{&Click{Source: Source{By: "v1"}, ID: 3, X: 1, Y: 2}, `{"t":0,"k":"click","by":"v1","id":3,"x":1,"y":2}`},
+		{&Ctl{Op: CtlRevoke, Who: Author{ID: "v1"}}, `{"t":0,"k":"ctl","op":"revoke","who":{"id":"v1"}}`},
+	} {
+		line, err := Encode(c.r)
+		if err != nil || string(line) != c.want {
+			t.Errorf("got %s %v, want %s", line, err, c.want)
+		}
 	}
 }
 

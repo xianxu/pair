@@ -1,6 +1,7 @@
 package couchcmd
 
 import (
+	"context"
 	"os"
 	"strings"
 	"sync"
@@ -130,5 +131,45 @@ func TestBlockedThreadsReachTheConsoleView(t *testing.T) {
 	w.reportPicker(false)
 	if len(last()) != 0 {
 		t.Fatalf("view after the picker closed: %v", last())
+	}
+}
+
+// A picker that repaints (Claude Code's auto-deny countdown) keeps the slot's
+// LastActivity fresh; its wait still runs from when it opened.
+func TestPickerNoticeCountsFromOpeningThroughRepaints(t *testing.T) {
+	w := newWaitRig(t, false, true, recordedPermissionTail)
+	w.reportPicker(true)
+	w.repaint(65*time.Second, 2)
+	if got := w.tickAt(70 * time.Second); len(got) != 1 || !strings.Contains(got[0].Body, "behind a picker") {
+		t.Fatalf("a repainting picker went unreported: %+v", got)
+	}
+	// The countdown repaints again: the same wait, no second notice (#468).
+	w.repaint(80*time.Second, 3)
+	if got := w.tickAt(85 * time.Second); len(got) != 1 {
+		t.Fatalf("a repaint re-notified the picker: %+v", got)
+	}
+}
+
+// repaint has the worker's wrapper report output at offset past now and waits
+// until the broker lists it.
+func (w *waitRig) repaint(offset time.Duration, seq uint64) {
+	w.t.Helper()
+	repaint := time.Now().Add(offset)
+	w.client.Update(couchmessage.Observation{LastActivity: repaint, Sequence: seq})
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		rows, err := w.s.broker.Actors(context.Background(), w.hub)
+		if err != nil {
+			w.t.Fatal(err)
+		}
+		for _, r := range rows {
+			if r.Binding == w.worker && !r.LastActivity.Before(repaint) {
+				return
+			}
+		}
+		if time.Now().After(deadline) {
+			w.t.Fatal("the repaint never reached the broker")
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }

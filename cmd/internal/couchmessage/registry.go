@@ -54,10 +54,12 @@ type registrySession struct {
 	build   *BuildIdentity
 	settled *bool
 	// picker is the hello-v3 self-report (pair#465): nil until one says.
-	picker  *bool
-	phase   AdmissionPhase
-	pane    PaneHandle // Admitting/Admitted: the pane the admission checked
-	attempt int        // failed admissions since the last event that reset it
+	// pickerSince is the wrapper's LastActivity on the frame that opened it.
+	picker      *bool
+	pickerSince time.Time
+	phase       AdmissionPhase
+	pane        PaneHandle // Admitting/Admitted: the pane the admission checked
+	attempt     int        // failed admissions since the last event that reset it
 }
 
 type RegistryEventKind int
@@ -231,6 +233,12 @@ func (r *Registry) Advance(e RegistryEvent) ([]RegistryEffect, error) {
 		}
 		if s.build != nil && e.Picker != nil {
 			v := *e.Picker
+			switch {
+			case !v:
+				s.pickerSince = time.Time{}
+			case s.picker == nil || !*s.picker:
+				s.pickerSince = e.Observation.LastActivity
+			}
 			s.picker = &v
 		}
 		if s.phase == Admitted {
@@ -348,6 +356,9 @@ type SlotLiveness struct {
 	Settled *bool
 	// Picker: an input-holding picker is up (pair#465); nil is unknown.
 	Picker *bool
+	// PickerSince is when the picker opened, on the wrapper's clock: its
+	// LastActivity on the frame that first reported it. Zero while closed.
+	PickerSince time.Time
 	// Session is the admitted connection. A SIGUSR2 re-exec keeps the binding
 	// byte-identical (PID, start time, nonce), so a new token is the evidence
 	// that the wrapper restarted (pair#421 reload-context).
@@ -370,7 +381,7 @@ func (r *Registry) Liveness() map[string]SlotLiveness {
 			ambiguous[slot] = true
 			continue
 		}
-		out[slot] = SlotLiveness{Binding: s.binding, Build: s.build, Settled: s.settled, Picker: s.picker, Session: t}
+		out[slot] = SlotLiveness{Binding: s.binding, Build: s.build, Settled: s.settled, Picker: s.picker, PickerSince: s.pickerSince, Session: t}
 	}
 	for slot := range ambiguous {
 		delete(out, slot)

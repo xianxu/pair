@@ -19,7 +19,7 @@ import (
 
 // waitFacts is what Couch already holds in memory about one slot.
 type waitFacts struct {
-	Quiet   time.Duration // since the wrapper's last output or keystroke
+	Quiet   time.Duration // since the wrapper's last output or keystroke; behind a picker, since it opened
 	Settled *bool         // the wrapper's #421 self-report; nil is unknown
 	Resting bool          // on its resting branch
 	Pending bool          // a message to it is in flight
@@ -236,11 +236,17 @@ type waitWatcher struct {
 	seen map[couchmessage.Binding]waitEpisode
 }
 
-// waitEpisode: an episode is the quiet since one LastActivity. notified holds
-// for the whole episode; judgedNot only for the exact facts it judged.
+// waitEpisode: an episode is one judged wait — the same reason and the same
+// words on screen. Output alone doesn't end it (pair#468): an idle agent
+// still prints (Claude Code's update check redraws its footer every 30 min),
+// and that moves LastActivity without a turn. A turn, the operator's input or
+// a branch change ends it by changing what the slot waits on, or by making it
+// not wait at all. notified holds for the whole episode (judged is the notice
+// it sent); judgedNot only for the exact facts it judged.
 type waitEpisode struct {
 	key       waitKey
 	notified  bool
+	judged    string
 	judgedNot bool
 }
 
@@ -314,11 +320,20 @@ func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 		if b == hub || !row.Known {
 			continue
 		}
-		f := waitFacts{Quiet: now.Sub(row.LastActivity), Resting: row.Resting, Pending: row.Pending}
+		since := row.LastActivity
+		f := waitFacts{Resting: row.Resting, Pending: row.Pending}
 		if live, ok := liveness[b.Slot]; ok && live.Binding == b {
 			f.Settled = live.Settled
 			f.Picker = live.Picker != nil && *live.Picker
+			// A picker can repaint (Claude Code's auto-deny countdown), so
+			// the slot is never quiet behind it: its wait runs from when it
+			// opened. The episode stays keyed by LastActivity; a repaint
+			// re-reads the tail and #468's same-wait rule keeps it one notice.
+			if f.Picker && !live.PickerSince.IsZero() {
+				since = live.PickerSince
+			}
 		}
+		f.Quiet = now.Sub(since)
 		if !needsTail(f, w.threshold) {
 			continue
 		}
@@ -351,6 +366,11 @@ func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 			w.seen[b] = waitEpisode{key: key, judgedNot: true}
 			continue
 		}
+		judged := string(reason) + "\x00" + summary
+		if ep, ok := w.seen[b]; ok && ep.notified && ep.judged == judged {
+			w.seen[b] = waitEpisode{key: key, notified: true, judged: judged} // output without a turn
+			continue
+		}
 		id, err := w.newID()
 		if err != nil {
 			continue
@@ -361,7 +381,7 @@ func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 		if _, err := w.svc.broker.Send(ctx, b, id, couchmessage.Route{Target: hub.Slot}, body); err != nil {
 			continue // hub busy or out of allowance: retried next tick
 		}
-		w.seen[b] = waitEpisode{key: key, notified: true}
+		w.seen[b] = waitEpisode{key: key, notified: true, judged: judged}
 	}
 	for b := range w.seen {
 		if !listed[b] {
