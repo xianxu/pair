@@ -29,15 +29,15 @@ Decided with the operator, 10-12:
 1. **Locked first:** a cast link opens a lock screen asking for the code; it combines the code with the name prompt #470's viewer already shows on a viewer's first note, asking both at once.
 2. **The server enforces it:** entering the right code issues a session token; without it the server sends nothing (no record or event stream, no assets, no note/stroke/drive routes). The lock screen is never just a cover over streaming content.
 3. **`URL#NNNN`:** the code may ride in the URL fragment for convenience (browsers never send fragments; link-preview bots don't run the page's script); the page reads it and submits it like typed entry.
-4. **Guessing:** about 5 wrong tries per client, then the code rotates; an alert in Couch when that happens. 4 digits for view links; consider 6 for the drive link (it controls the operator's browser).
+4. **Guessing:** one budget per code (about 8 wrong tries across all clients; a client can't be identified behind the tunnel), then the code rotates and Couch alerts; existing sessions survive a guess-rotation. Unlock attempts are rate-limited per lock. 4 digits for view and pointer links, 6 for the drive link.
 5. **Separate codes per link:** view and drive codes differ; the view code never grants driving. The terminal LIVE link has its own.
 6. **Rotation:** random per new cast; clicking the code in Couch's tab bar rotates it, which cuts off everyone holding the old one (sessions revoked); the operator announces the new one out of band.
-7. **Display:** the code beside its cell: `LIVE ⏸ 4821`, `Chrome ⏸ 4821` (the drive code in the drive menu, or on Alt+right-click copy). Note: the tab bar is itself what LIVE casts, so terminal viewers can see the code; acceptable (they're already viewers), document it.
+7. **Display:** no codes inline in the tab bar. Hovering a cast cell shows its codes as a tooltip (`view 4821 · pointer 7730` on LIVE, `view 5512 · drive 903114` on Chrome); Alt+click on the cell opens a Codes menu (one rotate item per link, plus rotate all); on rotation the new code flashes three times. All of these draw in an operator-only presenter layer that the LIVE broadcast never carries. One lock page asks for the code and the viewer's name for every link; terminal notes gain the author.
 8. Atlas: the threat model in one paragraph (what the code protects against: leaked links, previews, history; what it doesn't: a viewer who already has the code).
 
 ## Done when
 
-- Every cast link is locked until the right code; the server refuses streams and routes without a session; wrong-code limits and rotation work, with the Couch alert; view and drive codes are separate; clicking the code rotates it and disconnects existing viewers.
+- Every cast link (terminal LIVE, terminal pointer, web view, web drive) is locked until the right code; the server refuses streams and routes without a session; the per-code wrong-try budget rotates with a Couch alert; codes are separate per link; rotating from the Codes menu disconnects that link's viewers; codes show only in the operator-only layer (tooltip, menu, flash), never in the broadcast frame; the lock page's name attributes notes on every link. Replay links are a filed follow-up.
 - Tests for each guard (including a direct stream request without a session); the operator smoke-tested it on desktop and iPad.
 
 ## Plan

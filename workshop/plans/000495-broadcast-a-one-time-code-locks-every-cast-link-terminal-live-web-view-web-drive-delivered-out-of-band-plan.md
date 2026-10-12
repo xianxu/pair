@@ -113,3 +113,25 @@ Status: draft. The decisions marked **[D1]..[D6]** are proposals waiting on the 
   - **(a)** The operator-only presenter layer, never in the tapped frame. It carries everything that shows a code: the hover tooltip, the codes menu, and the rotation flash. The flash appears three times in that layer, not in the broadcast tab bar, which resolves the round-2 flag.
   - **(b)** Alt+click on a cast cell opens the Codes menu. The operator may change the gesture at the smoke test.
   - Only D1 (the session cookie) is still open.
+- 2026-10-12, plan-quality round 1.
+  - **PQ-1 (lock registration is atomic with the mount).** There is no `Host.Lock` call.
+    - `Mountable` gains `LockFor(segment string) *castlock.Lock`, which the Host asks on every request after `Owns`.
+    - Locks are created with their link's token, before `Host.Mount`, and live inside the mount. So the gate never sees an owned but unlocked token, and the locks end with the mount (`Unmount`, or `End()` at cast stop).
+    - `nil` means unlocked. Only the replay-share mount returns it (D4 follow-up).
+    - A table test asserts which mounts gate, and that the first request after `Mount` (the reachability probe) already meets the lock.
+  - **PQ-2.** Spec items 4 and 7 and Done-when are rewritten to the decided answers.
+  - **PQ-3 (overload, ARCH-CONSTRAINTS).**
+    - Anyone holding a link can spend the budget and force rotations. That locks out new joiners until the operator says the new code. Existing sessions are unaffected.
+    - The bound is the per-lock unlock rate limit (`broadcast.NewRateLimit`, about 1 attempt per second with a burst of 5), so at most one forced rotation per about 8 s. Rotation notices coalesce into one per lock per 30 s ("rotated N times").
+    - This is an accepted trade-off. The operator's remedy is to stop the cast.
+  - **PQ-4 (test strategy).**
+    - **castlock:** a seeded random sequence of unlock (right or wrong code), rotate, revoke and validate operations, checked after every step against invariants stated independently of the implementation:
+      - a revoked session is never valid;
+      - a session issued under one lock never validates on another (so the view code never opens drive);
+      - at most `budget` wrong tries per code generation;
+      - sessions never exceed their cap.
+    - **Fuzzing:** go-fuzz targets for the unlock body decoder and the code parser.
+    - **Gate:** a table over every route of every mount, each requested with no session, an invalid session, and a revoked session.
+  - **PQ-5.** The cookie (if D1 is confirmed) is `SameSite=Lax`, not Strict.
+    - Strict is not sent on a link opened from a chat app, so a returning viewer would see the lock again.
+    - Lax is safe here because every state-changing route is a POST requiring a JSON content type, and Lax cookies don't ride cross-site POSTs. To be raised with the hub as part of D1.
