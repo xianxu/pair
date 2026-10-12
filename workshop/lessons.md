@@ -1182,3 +1182,10 @@ proof; record the surprising case so the next change starts from evidence.
   fall back to your own grammar only outside it; scope every combinator to a tree as the platform does; test with
   identity against an oracle the owner provides (`Resolve` with no node id), never with "contains".
 
+- **A check made before handing a record to an asynchronous writer is re-made by the writer (#470 plan-quality).** The
+  board checked a viewer's note against the current document, then emitted it outside its lock into the recorder's
+  queue; a navigation ordered in between would have filed the note on the new page, because the reducer gives a note
+  the segment current when it is *reduced*. When a reader of a stream validates against state and a different
+  writer orders the result, send the checked fact with the record (here the document's first segment) and have the
+  writer apply the one statement of the rule (`recording.State.OnDoc`) at ordering time; test the race by ordering
+  the competing event inside the emit.
