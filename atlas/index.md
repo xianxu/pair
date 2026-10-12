@@ -23,6 +23,12 @@
   a PTY or exec `ps` (an agent sandbox), because the suite then fails in ~150
   places that look like code bugs (pair#450). A refusal it does not probe still
   fails as an ordinary test; add the probe there.
+- `cmd/internal/testwait` — how a Go test waits for an event: bounded by the
+  test's own deadline minus a margin (`After` for a select guard, `Until`/`Wait`
+  to poll), never by a guess at how fast the event comes, so a loaded `-race`
+  run stays green and a lost event still fails naming what it waited for
+  (pair#479). Where a test's subject is a bound, assert the outcome that proves
+  it (the product's timeout error, a child's ending signal), not elapsed time.
 - `probes/` — committed probe drivers that exercise real binaries end to end.
   `make test-smoke` runs **every** directory under `probes/`, so a new probe is
   covered by existing it rather than by remembering to add a line. A probe earns
