@@ -15,7 +15,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "51261daf", done: "e4ee71b2"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # broadcast-web: live viewer — sandboxed, script-free rebuild, scaled, join mid-cast
@@ -62,6 +62,8 @@ Durable plan: `workshop/plans/000460-broadcast-web-live-viewer-sandboxed-script-
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — node: model.js equals the Go reducer canonical hash at every pin of all 5 fixtures, stop-end finality; css + shell tests incl. hover-on-unknown never resyncs. Go: Hub passes RunLiveContract incl. Ended (drop before Close stays a drop; mutation-checked); events route ends a dropped stream, keeps an ended one on state/end (mutation-checked); Presence; CSP. Headless Chrome (WEBCAST_LIVE_CHROME=1): drawn canonical = reducer at every pin of all 5 fixtures; renders 0.2-2.3% pixels off frames (tolerance 3%); join-mid-cast equal at every pin; per-document URL resolution + feImage (mutation-checked); real viewer page via Server+Hub at 1024px: scaled, URL, hover+pointer+nodeAt+toPage, boxOf = tab layout boxes 215/217. All webcast Go/node/live suites green after the fixes. Smoke test moved to TL follow-up after #458 (Revisions).; review verdict: SHIP
+- 2026-10-12: flow upgraded quick → full — 1496 added lines in code files (limit 100); an earlier round of this close already ran the full review
 - Seams confirmed by the TL (delivery 9d90bc7b): `{k:hover,id}` and `{k:ptr,x,y}` (events.jsonl, outside Canonical; #458 emits them); assets at `<cast>/assets/<hash>` (#459 mounts there); the viewer rewrites `url()`s in streamed CSS; `boxOf(id)` for wave 2's note boxes; frame sandbox `allow-same-origin` only, the shell owns input (#466's reverse channel).
 - #466 additions (delivery d44edcc4): `?viewer=ID` presence hook on `events`; shell `nodeAt`/`toPage`; `ctl` rendering waits for #467 (hook left). Folded into the plan's Revisions.
 - `model.js` matched every fixture pin's hash on the first run: the JS port of `Reduce`/`Canonical` emits Go's exact bytes (one-space indent, HTML-escaped `<>&`).
