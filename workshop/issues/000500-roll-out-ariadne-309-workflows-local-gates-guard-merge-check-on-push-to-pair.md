@@ -15,7 +15,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "a6c706f9", done: "355ddeb4"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # roll out ariadne#309 workflows (local-gates-guard, merge-check on push) to pair
@@ -42,5 +42,7 @@ edits: the guard's content is ariadne's, and a local-gates change is its own ope
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — Both workflow files cmp byte-identical to ariadne's .github/workflows copies (the weave seed source) and parse as YAML; committed exactly as seeded. No Go/Lua/shell touched, so make test is unaffected. --no-atlas: CI workflow rollout from the base layer, no pair surface or flow changed.; review verdict: SHIP
+- 2026-10-12: flow upgraded quick → full — 152 added lines in code files (limit 100)
 - Seeded at 14:31 by sdlc's catch-up of pair-slot6/ariadne; `cmp` against ../ariadne/.github/workflows: both
   identical. The guard isn't on pair's main yet, so this PR isn't blocked by it.
