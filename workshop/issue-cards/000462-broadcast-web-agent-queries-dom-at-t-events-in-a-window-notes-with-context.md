@@ -1,6 +1,6 @@
 ---
 id: 000462
-status: codecomplete
+status: done
 created: 2026-10-11
 updated: 2026-10-12
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 9104b656d7c7646abeef5d67929baf6454a695a2
         evidence_commit: f146f9b7834c3e46e69ff0bc630c86c46258d511
+        landed_commit: dde10a1433b41896b0ca1436922d038e0bcf1257
 ---
 
 # broadcast-web: agent queries — DOM at t, events in a window, notes with context
