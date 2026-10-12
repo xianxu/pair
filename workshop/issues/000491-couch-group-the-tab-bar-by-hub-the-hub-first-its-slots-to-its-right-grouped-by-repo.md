@@ -15,7 +15,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "2850032f", done: "83c6e1bb"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # couch: group the tab bar by hub — the hub first, its slots to its right, grouped by repo
@@ -52,6 +52,8 @@ Durable plan: `workshop/plans/000491-couch-group-the-tab-bar-by-hub-the-hub-firs
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — Operator smoke test passed 2026-10-12 in the batched Couch restart on pair:0 (bin/couch built from c8770843a): tab bar leads with the hub, slots grouped by repo, switcher shows the hub first with the rest indented (TL relay: tab bar and switcher look right). Full make -k test green on a59916070 (branch + origin/main with #488, #493): exit 0, 102 Go packages ok. Round-1 review fixes (0134f9dbd) touch couchtty and couchcmd only; both packages green, each fix mutation-checked (reverting it fails its new test).; review verdict: SHIP
+- 2026-10-12: flow upgraded quick → full — 235 added lines in code files (limit 100); an earlier round of this close already ran the full review
 - Design: repository grouping (`pair :1 :2`) already exists in `RenderStatusRow`, ordered by `PresentThreads`, the one order source for the tab bar and the switcher. New: the hub (couchcmd's `hubWorktree`) goes to the Console, `PresentThreads` puts its group first, and the row brackets it. Conflict: `[…]` already marks the active chip; proposed reverse video for active. Broadcast/Chrome/capture cells lead today (#395 requires it), not at the end as the Spec says; they stay put. Sent the layout and narrow-width design to ops:0 before building.
 - Operator review: the hub's repo is not grouped with it; the hub is a standalone section header (`[ops]  ariadne  :1  :2 … [ops:1]  ariadne:3  :4 …`). Hub as a concept: designated slots, slots assigned to one hub, a new slot inherits the hub of the slot it was started from. Build only the implicit singleton hub now, with membership as a function so designation and assignment slot in later. Plan Revisions updated.
 - Operator, second review: no special hub marking. The hub is leftmost in its section on the tab bar (a separator between sections, none with one hub) and the first line in the switcher, with its section's slots and their notifications indented one level. `[…]` stays the active marker.
