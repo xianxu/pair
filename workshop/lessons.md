@@ -1115,3 +1115,7 @@ proof; record the surprising case so the next change starts from evidence.
   a stated order (check everything that can fail, then the first irreversible effect), add a new effect at the
   effect boundary, keep admission effect-free, and test the earlier refusal with the agent still running —
   mutation-checked by moving the effect back.
+- pair#463: a new reserved name on an existing addressing surface (`couch --send-to hub`) left README and atlas
+  still describing the old address grammar, and a TL-deferred Done-when clause stayed as written. When a change
+  adds a form to a CLI grammar, grep every restatement of that grammar (`--help`, skill, README, atlas) in the
+  same commit; when scope moves elsewhere, amend `## Done when` and `## Plan` in the commit that moves it.

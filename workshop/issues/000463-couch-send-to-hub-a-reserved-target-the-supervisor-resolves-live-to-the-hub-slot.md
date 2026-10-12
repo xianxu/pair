@@ -42,7 +42,7 @@ ariadne#336 adds a constitution rule: every agent in a Couch slot reports each i
 ## Plan
 
 - [x] `messageService.handle` rewrites a send to `couchmessage.HubTarget` to the hub's exact slot via `hubBinding()` before the broker's repository-name routing (`hubRecipient`); three refusals: no hub (`refused`), hub not connected (`unavailable`), sender is the hub (`refused`).
-- [x] Tests: `TestMessageSendToHubReachesTheHubSlot`, `TestMessageSendToHubRefusalsNameTheReason` (message_service_test.go).
+- [x] Tests: `TestMessageSendToHubReachesTheHubSlot`, `TestMessageSendToHubRefusalsNameTheReason`, `TestMessageHubTargetIsReservedAheadOfRepositoryNames` (message_service_test.go).
 - [x] `couch --skill` table row + reservation paragraph; `--help` usage line.
 - [x] Live check deferred by the TL to ariadne#336's Done-when (ariadne:1 runs it after the next batched Couch restart).
 
