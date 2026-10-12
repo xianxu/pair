@@ -193,14 +193,11 @@ func fixtureServer(t *testing.T, extra ...*recording.Recording) *httptest.Server
 		proxies[name].Bind(store)
 	}
 	mux := http.NewServeMux()
+	// The viewer's files as its servers serve them: one table, so the
+	// harness reaches every module the replay imports (#477: replay.js
+	// draws with annotate.js, which imports collab.js).
 	mux.HandleFunc("/web/", func(w http.ResponseWriter, r *http.Request) {
-		body, err := webFS.ReadFile("web/" + strings.TrimPrefix(r.URL.Path, "/web/"))
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "text/javascript")
-		w.Write(body)
+		serveViewerFile(w, r, strings.TrimPrefix(r.URL.Path, "/web/"))
 	})
 	for _, f := range []string{"harness.html", "harness.js"} {
 		mux.HandleFunc("/"+f, func(w http.ResponseWriter, r *http.Request) {

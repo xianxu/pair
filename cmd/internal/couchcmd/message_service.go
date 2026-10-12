@@ -146,6 +146,11 @@ type messageService struct {
 	// broadcastStatus answers broadcast-status (pair#413). Installed after the
 	// service is serving, so it is an atomic pointer; nil answers unsupported.
 	broadcastStatus atomic.Pointer[func() (couchmessage.BroadcastStatus, bool)]
+	// replay answers replay-share and replay-status (pair#477), like
+	// broadcastStatus; nil answers them unsupported.
+	replay atomic.Pointer[func(op, id string) couchmessage.ReplayShare]
+	// replays lists the shared recordings for broadcast-status; nil lists none.
+	replays atomic.Pointer[func() []string]
 	// deliveries records each landed delivery for session-sync owed events
 	// (pair#437); nil records nothing.
 	deliveries atomic.Pointer[deliveryRecorder]
@@ -357,6 +362,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	probe.service.Store(service)
 	console.SetMessageBroker(service.broker)
 	service.SetBroadcastStatus(console.BroadcastStatus)
+	service.SetReplay(console.ReplayShare, console.SharedReplays)
 	service.recordDeliveries(namespace)
 	watcher := newWaitWatcher(service, threshold, namespace)
 	service.workers.Add(1)
@@ -655,6 +661,8 @@ func (s *messageService) handle(ctx context.Context, request couchmessage.Reques
 		return s.handleSlotOperation(ctx, request)
 	case request.Op == "broadcast-status":
 		return s.handleBroadcastStatus(request)
+	case couchmessage.IsReplayOp(request.Op):
+		return s.handleReplay(request)
 	case request.Op == "tail":
 		return s.handleTail(ctx, request)
 	}
@@ -717,11 +725,31 @@ func (s *messageService) handleBroadcastStatus(request couchmessage.Request) cou
 	if status == nil {
 		return couchmessage.Response{Code: "unsupported", Error: "this Couch reports no broadcast status"}
 	}
+	var replays []string
+	if list := s.replays.Load(); list != nil {
+		replays = (*list)()
+	}
 	snapshot, running := (*status)()
 	if !running {
-		return couchmessage.Response{Code: "ok"}
+		return couchmessage.Response{Code: "ok", Replays: replays}
 	}
-	return couchmessage.Response{Code: "ok", Broadcast: &snapshot}
+	return couchmessage.Response{Code: "ok", Broadcast: &snapshot, Replays: replays}
+}
+
+// handleReplay answers the operator's or an agent's replay request
+// (pair#477). Like broadcast-status it needs no slot identity: the broker
+// socket lives in the operator-only store, as the recordings do, and a
+// request never waits on the tunnel: it starts a share or reads one.
+func (s *messageService) handleReplay(request couchmessage.Request) couchmessage.Response {
+	if err := couchmessage.ValidateRequest(request); err != nil {
+		return couchmessage.Response{Code: "invalid-request", Error: err.Error()}
+	}
+	replay := s.replay.Load()
+	if replay == nil {
+		return couchmessage.Response{Code: "unsupported", Error: "this Couch shares no replays"}
+	}
+	share := (*replay)(request.Op, request.Target)
+	return couchmessage.Response{Code: "ok", Replay: &share}
 }
 
 // handleTail answers a peek's tail read (pair#425) from the connected
@@ -812,6 +840,13 @@ func (s *messageService) tailBinding(ctx context.Context, request couchmessage.R
 		return matches[0], "", nil
 	}
 	return couchmessage.Binding{}, "ambiguous", fmt.Errorf("%d wrappers are connected for this thread", len(matches))
+}
+
+// SetReplay installs the console's replay shares: the requests, and the
+// listing broadcast-status carries.
+func (s *messageService) SetReplay(replay func(op, id string) couchmessage.ReplayShare, list func() []string) {
+	s.replay.Store(&replay)
+	s.replays.Store(&list)
 }
 
 // SetBroadcastStatus installs the console's broadcast snapshot.

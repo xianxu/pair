@@ -720,6 +720,9 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcmd/replay.go",
 	"cmd/internal/webcast/assets/reopen.go",
 	"cmd/internal/webcast/replay.go",
+	// #477 replay shares: mount recordings on the broadcast Host, in memory
+	// for Couch's run; reads recordings, writes nothing.
+	"cmd/internal/webcast/shares.go",
 	// #478 fidelity check: reads a recording and writes its report into the
 	// recording's own fidelity/ (removed with the recording, which the
 	// operator deletes), plus a throwaway Chrome profile under the OS temp

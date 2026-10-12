@@ -414,8 +414,9 @@ when their data changes; each frame only places them. For replay (#477), the dra
 `liveNotes(model)`, `strokesAt(model, t)` (chunks joined by id, the points drawn by t, fading 1.5 s after the last),
 `paintStrokes(canvas, strokes, toClient, rect, dpr)` and `pinLayer(doc, container, open).draw(notes, boxOf, place)`.
 The live viewer draws with `liveNotes`, `pinLayer` and `paintStrokes` (its strokes fade on arrival time, `strokeStore`);
-`strokesAt` is the at-t counterpart. #471's replay draws marks with its own `drawMarks` today (per chunk, region last);
-#477 converges it onto these. In replay mode the notes module doesn't mount (the replay server
+`strokesAt` is the at-t counterpart. The replay draws with exactly these (#477, `replayMarks` in `replay.js`), so a
+note's pin follows `noteBox` (its region first, then its element, then the box it carried) live and in replay alike.
+In replay mode the notes module doesn't mount (the replay server
 serves no `palette.json`).
 
 The viewer rewrites `url()`s and `image-set()` strings in streamed CSS (`sheet` records, `<style>` text, `style=`)
@@ -471,10 +472,16 @@ directory does. At most 10 crops at most the frame's size plus two small text fi
 
 ## Agent queries (#462)
 
-`couch --broadcast-web-query DIR dom|events|notes` is what a coding agent runs on a recording. It reads the
-directory (`recording.ReadDir`), needs no running Couch, and prints text sized for an agent's context, or
-`--json` for structure. Package `cmd/internal/webcast/query`: `Querier` is the real `Surface`, one pass of the
-reference reducer with nothing indexed beside the records; `Main` is the CLI; the text renderers are pure.
+`couch --broadcast-web-query DIR dom|events|notes|link` is what a coding agent runs on a recording.
+
+- **The queries** (`dom`, `events`, `notes`) read the directory (`recording.ReadDir`) and need no running Couch.
+  They print text sized for an agent's context, or `--json` for structure.
+- **`link [--at T]`** is the one verb that asks the running Couch. It shares the recording through the broadcast
+  tunnel (#477, [webcast.md](webcast.md#replay-471)) and prints its replay link at T (default 0) on stdout. With no
+  Couch it refuses, and names `couch --broadcast-web-replay DIR`.
+- **Package `cmd/internal/webcast/query`:** `Querier` is the real `Surface`, one pass of the reference reducer with
+  nothing indexed beside the records. `Run` is the CLI, and couchcmd hands it the `Linker` that `link` calls. The
+  text renderers are pure.
 
 | Query | Answers | Text | `--json` |
 |---|---|---|---|

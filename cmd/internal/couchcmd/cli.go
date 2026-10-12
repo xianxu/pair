@@ -29,7 +29,7 @@ const (
 	cliHelp
 	cliSessionSync
 	// cliWebQuery is couch broadcast-web's agent queries (#462); args holds
-	// the argv after the flag, which query.Main parses.
+	// the argv after the flag, which query.Run parses.
 	cliWebQuery
 	// cliWebReplay serves broadcast-web recordings for replay (#471); args
 	// holds the argv after the flag.

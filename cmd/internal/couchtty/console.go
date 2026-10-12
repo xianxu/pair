@@ -144,6 +144,9 @@ type Console struct {
 	// cast Chrome's state (console_webcast.go). Both under mu.
 	webcastCfg *webcast.CastConfig
 	wcast      webcastState
+	// replays are the recordings shared for replay on the Host (#477); nil
+	// when Couch has no store. Set before Run, closed at teardown.
+	replays *webcast.ReplayShares
 	// statusWebcast is the Chrome cell's span on the last drawn row.
 	statusWebcast ColumnSpan
 	// statusWebNotes is the web cast's 💭N span (#470).
@@ -989,6 +992,9 @@ func (c *Console) teardown(restore func() error) error {
 	// rather than left running (#395).
 	c.endBroadcastForShutdown()
 	c.endWebcastForShutdown()
+	if c.replays != nil {
+		c.replays.Close()
+	}
 	// Contextual readers retain their fd lease until after the input pump joins
 	// and Presenter has restored the parent terminal. Plain fixture pipes need
 	// explicit close to interrupt Read.

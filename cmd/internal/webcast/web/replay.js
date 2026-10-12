@@ -7,6 +7,7 @@
 // and who drove.
 
 import { Model } from './model.js';
+import { strokesAt, paintStrokes, pinLayer, liveNotes } from './annotate.js';
 
 // catchUp is recording.CatchUp (catchup.go), record for record: head and
 // the assets before the latest seg, the bare seg the current document began
@@ -346,12 +347,6 @@ export function clock(ms) {
 // safeColor keeps a viewer-chosen color only when it is a plain hex color.
 const safeColor = (c, dflt) => (/^#[0-9a-fA-F]{3,8}$/.test(c || '') ? c : dflt);
 
-// PIN_ROOM is the height a note's pin needs above its element.
-const PIN_ROOM = 24;
-
-// STROKE_FADE is how long a replayed stroke stays after its last point.
-export const STROKE_FADE = 1500;
-
 // timelineBar builds the bar into el: play/pause, speed, the track (live
 // segments, pauses as gaps, who drove, notes and strokes as ticks, the
 // playhead) and the time. Names and texts are recorded input: only ever
@@ -431,59 +426,64 @@ export function timelineBar(doc, el, player, on) {
   };
 }
 
-// drawMarks draws the notes open on the current document at their element
-// (its box as drawn, else the box the note carried) and the strokes being
-// drawn at the playhead, into layer over the scaled page. fromPage maps a
-// top-page point to the layer's px. #470's live notes and pointer UI is to
-// replace this once both have landed.
-export function drawMarks(doc, layer, player, fromPage) {
-  layer.replaceChildren();
-  const m = player.model, t = player.t;
-  if (!m || !(m.seg > 0)) return;
-  for (const n of m.notes) {
-    if (n.seg < m.docSeg || n.state !== 'open') continue;
-    const at = n.note.at || {};
-    const box = (at.node && player.renderer.boxOf(at.node)) || at.box || n.note.region;
-    if (!box) continue;
-    // Above the element, or below it when there is no room above.
-    const [x, top] = fromPage(box[0], box[1]);
-    const below = top < PIN_ROOM;
-    const y = below ? fromPage(box[0], box[1] + box[3])[1] : top;
-    const pin = doc.createElement('div');
-    pin.className = below ? 'replay-note below' : 'replay-note';
-    pin.dataset.note = n.note.id;
-    pin.style.setProperty('--c', safeColor(n.note.author && n.note.author.color, '#ffb000'));
-    pin.style.transform = `translate(${x}px, ${y}px)`;
-    pin.textContent = n.note.text || '';
-    pin.title = `${(n.note.author && n.note.author.name) || ''}: ${n.note.text || ''}`;
-    layer.appendChild(pin);
-  }
-  const NS = 'http://www.w3.org/2000/svg';
-  const svg = doc.createElementNS(NS, 'svg');
-  svg.setAttribute('class', 'replay-strokes');
-  for (const s of m.strokes) {
-    if (s.seg < m.docSeg) continue;
-    const r = s.stroke, since = t - r.t, dur = r.pts.length ? r.pts[r.pts.length - 1][2] || 0 : 0;
-    if (since < 0 || since > dur + STROKE_FADE) continue;
-    const pts = r.pts.filter((p) => (p[2] || 0) <= since).map((p) => fromPage(p[0], p[1]).join(',')).join(' ');
-    if (!pts) continue;
-    const line = doc.createElementNS(NS, 'polyline');
-    line.setAttribute('points', pts);
-    line.setAttribute('stroke', safeColor(r.color || (r.author && r.author.color), '#ff3b30'));
-    line.setAttribute('opacity', String(since > dur ? 1 - (since - dur) / STROKE_FADE : 1));
-    svg.appendChild(line);
-  }
-  layer.appendChild(svg);
+// replayMarks draws a recording's notes and strokes at the playhead with
+// the live viewer's own modules (#470, #477): liveNotes' pins (a tap opens
+// the note, read-only) and strokesAt's strokes, painted on a canvas. layer
+// covers the page box; fromPage maps a top-page point to its px. It returns
+// draw(player), for each frame.
+export function replayMarks(doc, layer, fromPage, dpr) {
+  const canvas = doc.createElement('canvas');
+  canvas.className = 'strokes';
+  const pins = doc.createElement('div');
+  pins.className = 'pins';
+  const card = doc.createElement('div');
+  card.className = 'replay-note-card';
+  card.setAttribute('role', 'status');
+  card.hidden = true;
+  layer.append(canvas, pins, card);
+  // place puts an element over a page-px box.
+  const place = (e, b) => {
+    const [x0, y0] = fromPage(b[0], b[1]), [x1, y1] = fromPage(b[0] + b[2], b[1] + b[3]);
+    Object.assign(e.style, { left: `${x0}px`, top: `${y0}px`, width: `${x1 - x0}px`, height: `${y1 - y0}px` });
+  };
+  let shown = null; // the note the card shows, while it is pinned
+  // placeCard puts the card under its pin, or hides it when the pin is gone.
+  // A tap places it at once: a paused replay draws no frame for it.
+  const placeCard = () => {
+    const pin = shown && pins.querySelector(`.pin[data-note="${CSS.escape(shown)}"]`);
+    if (!pin || pin.hidden) { shown = null; card.hidden = true; return; }
+    const r = pin.getBoundingClientRect(), l = layer.getBoundingClientRect();
+    Object.assign(card.style, { left: `${r.left - l.left}px`, top: `${r.bottom - l.top + 4}px` });
+    card.hidden = false;
+  };
+  const pinned = pinLayer(doc, pins, (n, by) => {
+    if (shown === n.id) { shown = null; card.hidden = true; return; }
+    shown = n.id;
+    card.textContent = `${by}: ${n.text}`;
+    card.dataset.note = n.id;
+    placeCard();
+  });
+  return (player) => {
+    const m = player.model, t = player.t;
+    const notes = liveNotes(m);
+    pinned.draw(notes, (id) => player.renderer.boxOf(id), place);
+    placeCard();
+    const strokes = strokesAt(m, t);
+    canvas.dataset.strokes = strokes.map((x) => x.id).join(' ');
+    paintStrokes(canvas, strokes, fromPage, { left: 0, top: 0, width: layer.clientWidth, height: layer.clientHeight }, dpr);
+  };
 }
 
 // mountReplay is the shell's replay branch: the source, its bar in
-// #timeline, its marks in #overlay, and #t= kept in the location. deps are
-// the shell's (renderer, show, frame, schedule); fromPage maps a top-page
-// point to the overlay's px at the current scale and scroll.
+// #timeline, its notes and strokes over the page box, and #t= kept in the
+// location. deps are the shell's (renderer, show, frame, schedule);
+// fromPage maps a top-page point to the box's px at the current scale and
+// scroll.
 export function mountReplay(doc, win, deps, fromPage) {
   const layer = doc.createElement('div');
-  layer.className = 'replay-layer';
-  doc.getElementById('overlay').appendChild(layer);
+  layer.className = 'annotate replay-marks';
+  doc.getElementById('box').appendChild(layer);
+  const marks = replayMarks(doc, layer, fromPage, win.devicePixelRatio || 1);
   const v = replaySource({
     ...deps,
     fetchRecords: async () => {
@@ -491,12 +491,16 @@ export function mountReplay(doc, win, deps, fromPage) {
       if (!res.ok) throw new Error(`records: ${res.status}`);
       return (await res.text()).split('\n').filter(Boolean).map((l) => JSON.parse(l));
     },
-    frame: () => { deps.frame(); if (v.player) drawMarks(doc, layer, v.player, fromPage); },
+    frame: () => { deps.frame(); if (v.player) marks(v.player); },
     now: () => win.performance.now(),
     hash: () => win.location.hash,
     setHash: (h) => { if (win.location.hash !== h) win.history.replaceState(null, '', h); },
     ui: (player, on) => timelineBar(doc, doc.getElementById('timeline'), player, on),
   });
   win.addEventListener('hashchange', v.onHash);
+  // Every event that moves the page box redraws the marks over it, paused
+  // or not: the shell's own resize handler lays out the page only, and runs
+  // after this one, so the redraw waits for the next frame.
+  win.addEventListener('resize', () => deps.schedule(() => { if (v.player) marks(v.player); }));
   return v;
 }

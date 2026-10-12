@@ -5,6 +5,8 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -304,5 +306,37 @@ func TestWebcastNotConfigured(t *testing.T) {
 	waitFor(t, "notice", func() bool { return strings.Contains(f.notice(), "Web casting is not configured") })
 	if strings.Contains(f.lastRow(), WebcastIdleLabel) {
 		t.Fatal("cell drawn")
+	}
+}
+
+// A replay share becoming ready is a notice (#477): the operator sees what
+// the tunnel serves, whoever asked for it, and the notice never carries
+// the link. With the tunnel off it says the link is this machine's only.
+func TestReplayShareReadyIsANotice(t *testing.T) {
+	for _, c := range []struct {
+		tunnel broadcast.Tunnel
+		want   string
+	}{
+		{&broadcast.FakeTunnel{}, "Replay of rec-1 shared through the broadcast tunnel until Couch exits (1 shared)."},
+		{broadcast.LocalOnly{}, "Replay of rec-1 shared on this machine only (the tunnel is off) until Couch exits (1 shared)."},
+	} {
+		root := t.TempDir()
+		if err := os.Mkdir(filepath.Join(root, "rec-1"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		shares := webcast.NewReplayShares(broadcast.NewHost(broadcast.HostConfig{Tunnel: c.tunnel, ProbeTimeout: 2 * time.Second}), root)
+		f := newFixtureBeforeRun(t, 24, 120, func(con *Console) { con.SetReplayShares(shares) })
+		if got := f.con.ReplayShare("replay-share", "rec-1"); got.State != "opening" {
+			t.Fatalf("share: %+v", got)
+		}
+		waitFor(t, "ready notice", func() bool { return strings.Contains(f.notice(), c.want) })
+		st := f.con.ReplayShare("replay-status", "rec-1")
+		if token := strings.TrimPrefix(st.Base[strings.LastIndex(st.Base, "/"):], "/"); token == "" || strings.Contains(f.notice(), token) {
+			t.Fatalf("notice %q carries the link %q", f.notice(), st.Base)
+		}
+		if got := f.con.SharedReplays(); len(got) != 1 || got[0] != "rec-1" {
+			t.Fatalf("shared %q", got)
+		}
+		shares.Close()
 	}
 }

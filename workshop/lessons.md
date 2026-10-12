@@ -1260,6 +1260,20 @@ proof; record the surprising case so the next change starts from evidence.
   capture, and settle them to the likeliest phase. Look at the worst moment's crop before tuning a tolerance: the
   picture named the cause where the number couldn't.
 
+- **A surface that lets an agent open something public needs the operator to see it, and every surface gets swept
+  (#477).** `query link` let an agent open the broadcast tunnel with nothing shown to the operator. Round 1 fixed that
+  (a notice, and the ids in `--broadcast-list`), but left the README saying the listing never had more, and pinned
+  the listing with a test while the notice had none. When an action can be taken by an agent and is visible to people
+  outside the machine, ask, at design time, how the operator learns it happened. When you add a verb, flag, output
+  line or JSON key, grep its name across the README (synopsis and prose), `couch --help`, the atlas, SKILL.md and the
+  Usage text in the same commit. Give each behavior a fix adds its own test that fails without it.
+
+- **A paused view draws no frames, so every event that changes what it shows must draw (#477 M2).** The replay
+  redraws its marks once per frame, and a paused replay (how every `#t=` link opens) has none. A tap's note card
+  and a resize waited for a frame that never came. When a view redraws on a loop, list what changes its output
+  besides the loop (input, resize, a seek) and draw from each. Test with the loop stopped, after a fixed number of
+  frames, not by polling: a poll can be satisfied by a later, unrelated redraw (the first resize test passed with
+  the fix removed).
 - **A test races a timer it doesn't own; give it the timer (#480).** Thirteen tests raced real 15ms-3s timers or
   slept before asserting. Where the timer is the subject, the product takes it through a seam whose nil is the wall
   clock (`loopTimer` for wrap's idle floor and ESC flush, `Couch.registrationDeadline`, `LaunchOptions.BirthClock`),
