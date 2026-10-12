@@ -15,7 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "3df9d70f", done: "b5c21435"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # broadcast-web: a segment's linked stylesheets bind after its first paint (viewers see the page unstyled)
@@ -72,6 +72,8 @@ replay both.
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — make -k test green (rc=0, after merging main incl. #478). Round-1 fixes: WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast/... all ok incl. new TestLiveRenderHoldHandOff (fake timers: take-over, stale deadline, seg during hold, owner deadline, failed sheet, overlay stays on top; mutation frame-after-held fails it) and TestLiveRenderHoldsPaintUntilStylesheetsBind (mutation no-op holdPaint fails it). rec-stress frame 0: 21.24% held at 84ms, 3.61% at release 103ms (24.45% unstyled before), known gap per TL with 4% ceiling. node --test tests/webcast 81/81. Pre-existing flake: #478 fidelity rec-blog frame 0 6.75% intermittently on main too (1/8 vs 2/8). (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
+- 2026-10-12: flow upgraded quick → full — 219 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 - Built the hold; rec-stress frame 0 then went from 24.45% unstyled to blank at 84 ms (held, first segment) and 3.55%
   at the release (103 ms). The rest is photo.png: bytes recorded at 152 ms, image not render-blocking; 2.2% at 152.
