@@ -1,6 +1,6 @@
 ---
 id: 000479
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -21,6 +21,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: d3e54be349829f1b38e0b8ec71d6c0901530b6a6
         evidence_commit: a8ba4aa9e97a0f6c0c77593f54bcc16fd66320c4
+        landed_commit: c3f67ed899e9c439b2c38e4baef836f17dac96ac
 ---
 
 # tests: replace short real-time hang guards with event waits (couchtty waitUpTo 250/500ms, ~47 sites, and siblings)
