@@ -436,6 +436,9 @@ couch --send-to repo:N --message TEXT   send to an exact live slot
 couch --send-to repo --message TEXT     select an eligible slot in that family
 couch --send-to repo --agent NAME --message TEXT   ...running that agent
 couch --send-to hub --message TEXT      send to the hub (the slot Couch started from), resolved at send time
+couch --send-to TARGET [--agent NAME] --message-file PATH
+                         any form above, the body read verbatim from PATH (less one trailing newline):
+                         write a message containing code or shell syntax with an editor, never quote it
 couch --message-status ID [--json]      inspect a message receipt
 couch --skill            print the bundled agent coordination skill
 couch --adopt-store /absolute/store     preview adoption of an existing store
