@@ -185,6 +185,9 @@ type Console struct {
 	activityResults  chan activityResult
 	activitySchedule RefreshSchedule
 	activityInterval time.Duration
+	// blockedUpdates carries the latest picker set (pair#465); see
+	// SetBlockedThreads.
+	blockedUpdates chan map[couchcore.ThreadAddress]bool
 	// paletteFG and paletteBG record which of the host terminal's colour
 	// replies have arrived (pair#247); the palette is Known once both have.
 	paletteFG, paletteBG bool
@@ -252,6 +255,7 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		activityRequests:    make(chan struct{}, 1),
 		activityResults:     make(chan activityResult, 1),
 		activityInterval:    defaultActivityInterval,
+		blockedUpdates:      make(chan map[couchcore.ThreadAddress]bool, 1),
 		now:                 time.Now,
 		orientationResults:  make(chan orientationWatchResult, 8),
 		continuationResults: make(chan continuationScanResult, 1),
@@ -922,6 +926,11 @@ func (c *Console) Run() (code int) {
 			c.advanceActivity(RefreshScheduleEvent{Kind: RefreshRequested})
 		case result := <-c.activityResults:
 			c.finishActivity(result)
+		case blocked := <-c.blockedUpdates:
+			c.mu.Lock()
+			c.menu, _ = ReduceMenu(c.menu, MenuEvent{Kind: MenuEventBlocked, Blocked: blocked})
+			c.mu.Unlock()
+			c.repaintVisible()
 		case result := <-c.orientationResults:
 			c.finishOrientation(result)
 		case result := <-c.continuationResults:

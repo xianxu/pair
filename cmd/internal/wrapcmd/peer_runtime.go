@@ -183,6 +183,7 @@ func (p *proxy) startPeerRuntime(executable string) (*peerRuntime, error) {
 	session.Update(initial)
 	r := &peerRuntime{cancel: stop, server: server, delivery: d}
 	p.peer = d
+	p.pickerSink = session
 	r.workers.Add(1)
 	go func() {
 		defer r.workers.Done()

@@ -265,6 +265,17 @@ content sha256, vcs revision and dirty bit, via
     plain `hello`.
   - Only a hello-v2 session may put `Settled` on activity and submit frames.
     A legacy session that does is ended as malformed.
+  - `hello-v3` (pair#465) is hello-v2 that may also put `Picker` on those
+    frames. The client tries v3, then v2, then plain hello, each on an old
+    broker's ack-less close (`SessionClient.session`). A v2 session claiming
+    `Picker` is ended as malformed, so a new wrapper never breaks a Couch that
+    hasn't been restarted yet.
+- **`Picker` (pair#465):** whether an input-holding picker is up: the
+  wrapper's `pickerActive` latch (closed by Enter or by the composer coming
+  back, pair#464). Unlike `Settled`, it is not gated on quiet. `setPickerLocked`
+  reports each change under `overlayMu` the moment the latch flips, because a
+  picker's own repaints (Claude Code's auto-deny countdown) keep output
+  flowing. `SlotLiveness.Picker` holds it, and nil means unknown.
 - **Field placement:** neither `Binding` (the actor key) nor `Observation`
   (which also crosses the delivery endpoint) carries the new fields.
 - **Reading it:** the registry keeps the newest admitted incarnation's claims,
@@ -377,7 +388,13 @@ still-booting Claude.
   Waits that can't judge the hold (input settling, forwarded input) leave
   it as it is, so typing a draft doesn't spend the clock.
   Other waits (paste mode, an unrecognized composer, a booting slot) keep the
-  clock running. While held the wrapper's receipt is `held` with the reason;
+  clock running. A picker that is up before the paste is a hold too
+  (pair#465): the detail is `blocked by a picker: <title>`, where the title
+  comes from `couchmessage.ReadPicker` over the wrapper's own tail and is read
+  once per picker. The check runs ahead of the transient waits, so a
+  repainting picker keeps its reason. The message is delivered when the picker
+  closes, or expires with "held past 30m0s, blocked by a picker: …".
+  While held the wrapper's receipt is `held` with the reason;
   `RemoteEndpoint.Deliver` hands each interim receipt to the broker
   (`DeliveryProgress`), so the sender's `couch` status reads `held` too.
 
@@ -421,8 +438,8 @@ there is no reply protocol or availability toggle.
 ### Waiting notices to the hub (#451)
 
 A slot that waits for someone sends nothing, so delivery robustness can't
-report it. `waitWatcher` (`couchcmd/wait_notice.go`) ticks once a minute on
-the message service and tells the hub instead.
+report it. `waitWatcher` (`couchcmd/wait_notice.go`) ticks every 15s
+(`waitTick`) on the message service and tells the hub instead.
 - **Inputs are memory:** the broker listing (`LastActivity`, `Pending`, the
   slot-git resting view) and the registry's `Settled` (#421). A slot quiet past
   the threshold (`COUCH_WAIT_NOTICE_AFTER`, at least 1m, default 10m; any
@@ -435,12 +452,26 @@ the message service and tells the hub instead.
   in flight. Settled on the resting branch after a normal ending is not.
   `lastProseLine` reads above the composer prompt (`❯`/`›`) and skips chrome
   paragraphs (`✻` summary, `※` recap, all-faint runs, separators);
-  `dialogTitle` is the line above the options of the last selected option
-  (`❯ N.`), scanned from the bottom so numbered prose never counts. Couch judges; Pair still only
-  renders (tail.go).
+  `dialogTitle` is `couchmessage.ReadPicker`'s title. Couch judges; Pair
+  still only renders (tail.go).
+- **Behind a picker (pair#465):** a slot whose wrapper reports `Picker` waits
+  `behind a picker` after `pickerNoticeAfter` (1m), not the general threshold.
+  `pickerSummary` quotes `(kind) detail — title [options]`. The title and
+  detail are bounded at 200 bytes each, and the options share one line bounded
+  at 160 bytes. Its episode is the same `LastActivity` episode, so the general
+  path never repeats it.
+- **`couchmessage.ReadPicker` (`picker.go`):** the one reader of a picker's
+  text, shared by this notice and the wrapper's held receipt. It anchors on
+  the bottom-most selected option (`❯ N.`), so numbered prose never counts.
+  Options are the block around it (past a rule when an option follows), and
+  the title is the line above the first option, or the paragraph above it.
+  Kind comes from the wording only: `Do you want to…`/`Would you like to…` is
+  a permission prompt (with `Detail`, e.g. `Bash command: <command>` from
+  between its dashed rules), an `Enter to select` footer is a question, and
+  anything else is plain `picker`.
 - **Episode:** keyed by the slot's `LastActivity`; one notice per episode once
   admitted, a failed admission retries next tick. Not-waiting verdicts are
-  cached per (activity, settled, resting, pending), so an idle slot costs one
+  cached per (activity, settled, resting, pending, picker), so an idle slot costs one
   tail per episode. The map is pruned to the listing each tick and dies with
   the service; a Couch restart re-announces a slot still waiting, once.
 - **Delivery:** `Broker.Send` from the waiting slot's binding to the hub's
@@ -867,6 +898,22 @@ and `MenuState.Palette`; the tab bar reads the same two through
 `statusModelLocked`, which fills `StatusActor.Idle` and `StatusModel.Palette`.
 A thread with no activity entry is unfaded. Each slot glyph fades from its own
 base colour (`slotGlyphBase`).
+
+### Slots behind a picker draw red (pair#465)
+
+A live thread whose wrapper reports `Picker` draws in the terminal's red
+(`blockedSGR`, `\x1b[31m`; not the broadcast's LIVE red) in both views, and on
+the active chip too. Precedence: placeholder > red > bell/attention > idle fading.
+- **Data path:** after every registry step, `messageService.publishBlocked`
+  derives the set of `ThreadAddress`es from liveness. When the set changes, it
+  hands it to `Console.SetBlockedThreads` under a mutex shared with
+  `SetBlockedView`, so a stale set never overtakes a newer one.
+- **Console side:** the setter never blocks; it is a latest-wins channel of
+  one. `Console.Run` reduces `MenuEventBlocked` into `MenuState.Blocked` and
+  repaints. `statusModelLocked` fills `StatusActor.Blocked`, and the switcher
+  reads `MenuState.Blocked`.
+- **Timing:** red appears within the session's one-second frame pacing and
+  clears the same way.
 
 The data: activity is `threadactivity.Latest`, the one definition the title
 poller's heat ramp also uses. It is the newest of the bound agent transcript's

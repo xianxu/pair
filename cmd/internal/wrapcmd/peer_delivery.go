@@ -77,6 +77,9 @@ type peerDelivery struct {
 	// tailProbe renders the agent pane's tail (pair#425); nil without a
 	// terminal model, and then a tail request says so.
 	tailProbe func(lines int) couchmessage.Tail
+	// pickerTitle is the title of the picker holding the current message
+	// (pair#465), "" until read; dispatch clears it once the latch is down.
+	pickerTitle string
 }
 
 type peerSessionSink interface {
@@ -406,6 +409,9 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 		return
 	}
 	d.chargeWaitLocked()
+	if !p.pickerActive.Load() {
+		d.pickerTitle = ""
+	}
 	// Only a full composer reading opens or closes an operator hold; a wait
 	// that can't judge it (input settling, forwarded input) leaves it as is.
 	judged, operatorHold := false, false
@@ -430,6 +436,12 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 		event.Kind = couchmessage.PeerOperatorInput
 	case p.pickerActive.Load() && d.current.Status == couchmessage.Delivering:
 		event.Kind = couchmessage.PeerOverlayObserved
+	case p.pickerActive.Load():
+		// A picker holds the message like the operator's draft (pair#465):
+		// held, the paste-by clock stopped, delivered when it closes.
+		judged, operatorHold = true, true
+		d.current.Detail = d.pickerHoldDetailLocked(p.agentTail)
+		return
 	case !p.automaticInputAvailable(automaticInputPeer):
 		d.current.Detail = "waiting for previous automatic input to clear"
 		return
@@ -450,10 +462,6 @@ func (p *proxy) dispatchPeer(out io.Writer) {
 	default:
 		if d.image {
 			d.current.Detail = "waiting for image input to clear"
-			return
-		}
-		if p.pickerActive.Load() {
-			d.current.Detail = "waiting for picker to close"
 			return
 		}
 		if p.terminal == nil {
@@ -617,6 +625,26 @@ func (d *peerDelivery) waitSummaryLocked() string {
 		details[i] = fmt.Sprintf("%s (%s)", detail, d.waits[detail].Round(time.Second))
 	}
 	return strings.Join(details, " | ")
+}
+
+// pickerTailLines is enough screen for a picker and its title.
+const pickerTailLines = 60
+
+// pickerHoldDetailLocked (d.mu held) names the picker holding the message by
+// its title, read once per picker: the title, once the screen shows one, is
+// kept until the latch closes.
+func (d *peerDelivery) pickerHoldDetailLocked(tail func(int) couchmessage.Tail) string {
+	if d.pickerTitle == "" {
+		d.pickerTitle = couchmessage.ReadPicker(tail(pickerTailLines).Lines).Title
+	}
+	return pickerHoldDetail(d.pickerTitle)
+}
+
+func pickerHoldDetail(title string) string {
+	if title == "" {
+		return "blocked by a picker"
+	}
+	return "blocked by a picker: " + title
 }
 
 // operatorHoldLocked (d.mu held) opens or closes the operator hold as this dispatch

@@ -23,6 +23,7 @@ type waitFacts struct {
 	Settled *bool         // the wrapper's #421 self-report; nil is unknown
 	Resting bool          // on its resting branch
 	Pending bool          // a message to it is in flight
+	Picker  bool          // its wrapper reports an input-holding picker up (pair#465)
 }
 
 type waitReason string
@@ -31,11 +32,21 @@ const (
 	waitPrompt   waitReason = "on a prompt"
 	waitQuestion waitReason = "after asking"
 	waitIdle     waitReason = "idle off its resting branch"
+	waitPicker   waitReason = "behind a picker"
 )
 
+// pickerNoticeAfter is how long a slot sits behind a picker before the hub
+// hears of it (pair#465): a picker holds the slot outright, so it does not
+// wait out the general threshold.
+const pickerNoticeAfter = time.Minute
+
 // needsTail reports whether the slot can be waiting at all, before any IO:
-// quiet past the threshold, with a Settled claim to judge by.
+// behind a picker past pickerNoticeAfter, or quiet past the threshold with a
+// Settled claim to judge by.
 func needsTail(f waitFacts, threshold time.Duration) bool {
+	if f.Picker {
+		return f.Quiet >= pickerNoticeAfter
+	}
 	return f.Quiet >= threshold && f.Settled != nil
 }
 
@@ -47,6 +58,9 @@ func needsTail(f waitFacts, threshold time.Duration) bool {
 func classifyWait(f waitFacts, threshold time.Duration, tail []string) (waitReason, string, bool) {
 	if !needsTail(f, threshold) {
 		return "", "", false
+	}
+	if f.Picker {
+		return waitPicker, pickerSummary(couchmessage.ReadPicker(tail)), true
 	}
 	prose := lastProseLine(tail)
 	switch {
@@ -63,46 +77,20 @@ func classifyWait(f waitFacts, threshold time.Duration, tail []string) (waitReas
 	return "", "", false
 }
 
-var (
-	tailMarkup = regexp.MustCompile(`‹(/?dim|/?rev|cursor)›`)
-	dimRun     = regexp.MustCompile(`‹dim›.*?(‹/dim›|$)`)
-	// A dialog's options are numbered; its cursor glyph marks the selected one.
-	selectedOption = regexp.MustCompile(`^[❯›>]\s*\d+\.\s`)
-	optionLine     = regexp.MustCompile(`^[❯›>]?\s*\d+\.\s`)
-	separatorRe    = regexp.MustCompile(`^[─━\-═]+$`)
-)
+// dimRun is a faint run in tail markup.
+var dimRun = regexp.MustCompile(`‹dim›.*?(‹/dim›|$)`)
 
-// stripTailMarkup renders one tail line (tail.go's grammar) as plain text,
-// without a dialog box's side borders.
-func stripTailMarkup(line string) string {
-	const escaped = "\x00"
-	line = strings.ReplaceAll(line, "‹‹", escaped)
-	line = tailMarkup.ReplaceAllString(line, "")
-	return strings.Trim(strings.ReplaceAll(line, escaped, "‹"), " \t│┃")
-}
+// stripTailMarkup renders one tail line as plain text (couchmessage owns the
+// grammar).
+func stripTailMarkup(line string) string { return couchmessage.StripTailMarkup(line) }
 
 // dimOnly reports a line whose only text is faint: agent chrome.
 func dimOnly(line string) bool {
 	return stripTailMarkup(dimRun.ReplaceAllString(line, "")) == ""
 }
 
-// dialogTitle is the line above the options of the screen's last dialog (its
-// selected option, scanned from the bottom, so a numbered list earlier in the
-// agent's prose is never taken for one), or "" without a dialog.
-func dialogTitle(tail []string) string {
-	for i := len(tail) - 1; i >= 0; i-- {
-		if !selectedOption.MatchString(stripTailMarkup(tail[i])) {
-			continue
-		}
-		for j := i - 1; j >= 0; j-- {
-			if t := stripTailMarkup(tail[j]); t != "" && !optionLine.MatchString(t) {
-				return t
-			}
-		}
-		return ""
-	}
-	return ""
-}
+// dialogTitle is the title of the screen's last picker, or "" without one.
+func dialogTitle(tail []string) string { return couchmessage.ReadPicker(tail).Title }
 
 // lastProseLine is the agent's last line of prose above its composer: chrome
 // paragraphs (a turn summary ✻, a recap ※, all-faint runs, separators) are
@@ -134,7 +122,7 @@ func lastProseLine(tail []string) string {
 	}
 	for _, raw := range tail[:end] {
 		t := stripTailMarkup(raw)
-		if t == "" || separatorRe.MatchString(t) {
+		if t == "" || couchmessage.TailRule.MatchString(t) {
 			flush()
 			continue
 		}
@@ -148,18 +136,48 @@ func isQuestion(line string) bool {
 	return strings.HasSuffix(strings.TrimRight(line, " *_`)\"'"), "?")
 }
 
-// maxWaitSummary bounds the quoted screen line in a notice.
-const maxWaitSummary = 200
+// maxWaitSummary bounds the quoted screen line in a notice, and each of a
+// picker's title and detail; maxPickerOptions bounds its options' one line.
+const (
+	maxWaitSummary   = 200
+	maxPickerOptions = 160
+)
+
+// pickerSummary is what a picker notice quotes: kind, detail, title, then the
+// options on one line (pair#465). Each part has its own bound, so a long
+// command never pushes out the question.
+func pickerSummary(p couchmessage.Picker) string {
+	if p.Kind == "" {
+		return "(picker text not recognized)"
+	}
+	out := "(" + p.Kind + ") "
+	if p.Detail != "" {
+		out += truncateBytes(p.Detail, maxWaitSummary) + " — "
+	}
+	out += truncateBytes(p.Title, maxWaitSummary)
+	if len(p.Options) > 0 {
+		out += " [" + truncateBytes(strings.Join(p.Options, " | "), maxPickerOptions) + "]"
+	}
+	return out
+}
+
+// truncateBytes cuts s to at most n bytes on a rune boundary, marking the cut.
+func truncateBytes(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	cut := n
+	for cut > 0 && !utf8RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut] + "…"
+}
 
 // waitNoticeBody puts the slot and reason first: a truncated send keeps its
 // head (pair#211).
 func waitNoticeBody(slot string, quiet time.Duration, reason waitReason, summary, optOutPath string) string {
-	if len(summary) > maxWaitSummary {
-		cut := maxWaitSummary
-		for cut > 0 && !utf8RuneStart(summary[cut]) {
-			cut--
-		}
-		summary = summary[:cut] + "…"
+	if reason != waitPicker {
+		summary = truncateBytes(summary, maxWaitSummary) // pickerSummary bounds its own parts
 	}
 	if summary == "" {
 		summary = "(no text on screen)"
@@ -198,6 +216,10 @@ func waitNoticeThreshold(getenv func(string) string) (time.Duration, error) {
 	return 0, fmt.Errorf("COUCH_WAIT_NOTICE_AFTER=%q: want a Go duration of at least 1m (e.g. 10m), or unset it", v)
 }
 
+// waitTick is the watcher's pace: a tick reads memory only, and a picker
+// notice lands within a tick of pickerNoticeAfter (pair#465).
+const waitTick = 15 * time.Second
+
 // waitTailLines is enough screen for a dialog or a turn's last paragraph.
 const waitTailLines = 60
 
@@ -223,8 +245,8 @@ type waitEpisode struct {
 }
 
 type waitKey struct {
-	activity                  time.Time
-	settled, resting, pending bool
+	activity                          time.Time
+	settled, resting, pending, picker bool
 }
 
 func newWaitWatcher(svc *messageService, threshold time.Duration, storeDir string) *waitWatcher {
@@ -295,11 +317,12 @@ func (w *waitWatcher) tick(ctx context.Context, now time.Time) {
 		f := waitFacts{Quiet: now.Sub(row.LastActivity), Resting: row.Resting, Pending: row.Pending}
 		if live, ok := liveness[b.Slot]; ok && live.Binding == b {
 			f.Settled = live.Settled
+			f.Picker = live.Picker != nil && *live.Picker
 		}
 		if !needsTail(f, w.threshold) {
 			continue
 		}
-		key := waitKey{activity: row.LastActivity, settled: *f.Settled, resting: f.Resting, pending: f.Pending}
+		key := waitKey{activity: row.LastActivity, settled: f.Settled != nil && *f.Settled, resting: f.Resting, pending: f.Pending, picker: f.Picker}
 		if ep, ok := w.seen[b]; ok && ((ep.notified && ep.key.activity == key.activity) || (ep.judgedNot && ep.key == key)) {
 			continue
 		}

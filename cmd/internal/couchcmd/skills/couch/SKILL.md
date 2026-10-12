@@ -91,7 +91,11 @@ someone, Couch sends the TL one message from that slot, once per waiting
 episode: `slot repo:N waiting M min <reason>: <screen line> (…)`. The reasons
 are `on a prompt` (a dialog, a draft or anything else holding the screen),
 `after asking` (its turn ended with a question) and `idle off its resting
-branch`. Couch writes the notice under the slot's sender identity; the slot's
+branch`. A slot behind a picker (a permission prompt or a question) is
+reported after about a minute instead, as `behind a picker`, quoting the
+picker's kind, command, title and options. Its tab in Couch draws red while the
+picker is up, and a message sent to it reads `held`, `blocked by a picker:
+<title>`, until the picker closes. Couch writes the notice under the slot's sender identity; the slot's
 agent did not write it and does not know it was sent. Peek the slot and unblock
 it, or tell the operator. The slot's next activity ends the episode. To mute a slot, add its `repo:N` on its own line to the
 `wait-notice-off` file the notice names.

@@ -63,3 +63,22 @@ func TestRenderStatusRowFadeYieldsToSelectionNotificationAndPlaceholder(t *testi
 		}
 	}
 }
+
+// pair#465: a thread behind a picker draws red, over attention and idle
+// fading, and on the active chip too; only a placeholder outranks it.
+func TestRenderStatusRowBlockedIsRed(t *testing.T) {
+	for name, tc := range map[string]struct {
+		actor StatusActor
+		want  string
+	}{
+		"blocked":             {StatusActor{Label: "pair", Blocked: true}, blockedSGR + "pair\x1b[0m"},
+		"blocked over bell":   {StatusActor{Label: "pair", Blocked: true, Bell: true}, blockedSGR + "pair\x1b[0m"},
+		"blocked over fading": {StatusActor{Label: "pair", Blocked: true, Idle: IdleStale}, blockedSGR + "pair\x1b[0m"},
+		"blocked and active":  {StatusActor{Label: "pair", Blocked: true, Active: true}, blockedSGR + "[pair\x1b[0m" + blockedSGR + "]\x1b[0m"},
+		"placeholder wins":    {StatusActor{Label: "pair", Blocked: true, Placeholder: true}, placeholderSGR + "pair\x1b[0m"},
+	} {
+		if got := RenderStatusRow(80, StatusModel{Palette: darkTrueColor, Actors: []StatusActor{tc.actor}}).Body; got != tc.want {
+			t.Errorf("%s: body = %q, want %q", name, got, tc.want)
+		}
+	}
+}

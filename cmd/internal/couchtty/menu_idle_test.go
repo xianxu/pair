@@ -109,3 +109,20 @@ func TestSwitcherNonLiveRowKeepsItsAgeRamp(t *testing.T) {
 		t.Fatalf("parked row lost its age ramp or gained a fade: %q", line)
 	}
 }
+
+// pair#465: a live row behind a picker draws red over idle fading and
+// attention, as its tab-bar chip does.
+func TestSwitcherBlockedRowIsRed(t *testing.T) {
+	state, one := idleMenuState(t)
+	state.Activity = map[couchcore.ThreadAddress]time.Time{one.Address: idleNow.Add(-5 * 24 * time.Hour)}
+	state.Attention = map[couchcore.ThreadAddress][]AttentionMessage{one.Address: {{}}}
+	state.Blocked = map[couchcore.ThreadAddress]bool{one.Address: true}
+	line := menuLineContaining(t, RenderMenu(state, 100, 16, idleNow, true), "pair:1±*")
+	if !strings.HasPrefix(line, blockedSGR) {
+		t.Fatalf("blocked row is not red: %q", line)
+	}
+	state.Blocked = nil
+	if line := menuLineContaining(t, RenderMenu(state, 100, 16, idleNow, true), "pair:1±*"); strings.HasPrefix(line, blockedSGR) {
+		t.Fatalf("red outlived the picker: %q", line)
+	}
+}

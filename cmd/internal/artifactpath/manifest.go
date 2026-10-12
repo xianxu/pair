@@ -625,6 +625,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchmessage/session_transport.go",
 	// #367 M2 slot-operation receipts.
 	"cmd/internal/couchmessage/operation.go",
+	// pair#465 picker text reader over a tail; reads memory, names no file.
+	"cmd/internal/couchmessage/picker.go",
 	"cmd/internal/couchidentity/identity.go",
 	"cmd/internal/couchidentity/session.go",
 	"cmd/internal/couchidentity/store.go",
@@ -951,6 +953,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/reserve.go",
 	"cmd/internal/couchtty/idle_shade.go",
 	"cmd/internal/couchtty/console_activity.go",
+	"cmd/internal/couchtty/console_blocked.go",
 	"cmd/internal/couchtty/console_palette.go",
 	"cmd/internal/couchtty/switchrule.go",
 	"cmd/internal/couchtty/trace.go",

@@ -201,6 +201,9 @@ type MenuState struct {
 	// operator's input or its agent's work. A thread with no entry has not been
 	// probed yet and draws unfaded. Display evidence only.
 	Activity map[couchcore.ThreadAddress]time.Time
+	// Blocked is the live threads whose agent is behind an input-holding
+	// picker, as their wrappers report it (pair#465). Replaced whole.
+	Blocked map[couchcore.ThreadAddress]bool
 	// Palette is what the host terminal reported about its colours, which idle
 	// fading blends toward (pair#247). One copy, read by both renderers.
 	Palette Palette
@@ -266,6 +269,8 @@ const (
 	MenuEventActivity
 	// MenuEventPalette records a colour the host terminal reported (pair#247).
 	MenuEventPalette
+	// MenuEventBlocked replaces the set of threads behind a picker (pair#465).
+	MenuEventBlocked
 )
 
 type MenuEvent struct {
@@ -307,6 +312,8 @@ type MenuEvent struct {
 	// like SlotGit: the threads observed and the threads whose probe failed.
 	Activity       map[couchcore.ThreadAddress]time.Time
 	ActivityFailed map[couchcore.ThreadAddress]bool
+	// Blocked is the whole set of threads behind a picker (pair#465).
+	Blocked map[couchcore.ThreadAddress]bool
 	// Palette is the host terminal's colours as known after one reply.
 	Palette Palette
 }
@@ -434,6 +441,10 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 	}
 	if event.Kind == MenuEventActivity {
 		next.Activity = mergeObservations(next.Activity, event.Activity, event.ActivityFailed)
+		return next, nil
+	}
+	if event.Kind == MenuEventBlocked {
+		next.Blocked = event.Blocked
 		return next, nil
 	}
 	if event.Kind == MenuEventPalette {
@@ -2022,6 +2033,12 @@ func cloneMenuState(state MenuState) MenuState {
 		next.Activity = make(map[couchcore.ThreadAddress]time.Time, len(state.Activity))
 		for address, at := range state.Activity {
 			next.Activity[address] = at
+		}
+	}
+	if state.Blocked != nil {
+		next.Blocked = make(map[couchcore.ThreadAddress]bool, len(state.Blocked))
+		for address, blocked := range state.Blocked {
+			next.Blocked[address] = blocked
 		}
 	}
 	if state.Attention != nil {

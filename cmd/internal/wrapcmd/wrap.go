@@ -280,6 +280,9 @@ type proxy struct {
 	// consumes pickerActive — so consumed picker bytes can never re-arm the
 	// flag from a later chunk.
 	overlayRawTail []byte
+	// pickerSink hears every change of pickerActive (pair#465); set with
+	// p.peer, before the pumps start, and nil outside Couch.
+	pickerSink interface{ Picker(bool) }
 	// overlayComposerHidden records that the screen showed no composer since
 	// pickerActive armed; see observePickerScreen. Guarded by overlayMu.
 	overlayComposerHidden bool
@@ -1298,7 +1301,7 @@ func (p *proxy) armCapture() {
 	}
 	if p.ttyProfile != nil && p.ttyProfile.captureSetsOverlay {
 		p.overlayMu.Lock()
-		wasActive := p.pickerActive.Swap(true)
+		wasActive := p.setPickerLocked(true)
 		p.overlayMu.Unlock()
 		if !wasActive {
 			p.debug("PICKER-open", "codex: image capture")
@@ -2029,7 +2032,7 @@ func (p *proxy) detectOverlayOpen(data, rolling []byte) overlayDetection {
 
 	open, reason := p.observationProfile().overlay(p, data, rolling)
 	if open {
-		wasActive := p.pickerActive.Swap(true)
+		wasActive := p.setPickerLocked(true)
 		return overlayDetection{
 			open:        true,
 			newlyOpened: !wasActive,
@@ -2179,13 +2182,26 @@ func (p *proxy) emitPlainCR(out []byte) []byte {
 // picker bytes can't re-arm it. The confirming Enter and the composer's return
 // both close it here. The caller holds overlayMu.
 func (p *proxy) consumeOverlayLocked() bool {
-	active := p.pickerActive.Swap(false)
+	active := p.setPickerLocked(false)
 	if active {
 		p.overlayTextTail = ""
 		p.overlayRawTail = nil
 	}
 	p.overlayComposerHidden = false
 	return active
+}
+
+// setPickerLocked sets the picker latch and reports a change to Couch at
+// once (pair#465): a picker's own repaints, such as Claude Code's auto-deny
+// countdown, keep output flowing, so the quiet-gated settle check would never
+// say it. The sink only records and wakes its sender. Caller holds overlayMu,
+// which orders the reports as the latch changed.
+func (p *proxy) setPickerLocked(open bool) (was bool) {
+	was = p.pickerActive.Swap(open)
+	if was != open && p.pickerSink != nil {
+		p.pickerSink.Picker(open)
+	}
+	return was
 }
 
 // observePickerScreen closes a picker the screen shows is gone (pair#464).

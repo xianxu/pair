@@ -65,16 +65,27 @@ Items in order: issue/plan; `ReadPicker` parser; `Picker` on frame/registry/live
 
 Durable plan: `workshop/plans/000465-couch-a-slot-blocked-by-a-picker-shows-red-in-the-tab-bar-notifies-the-hub-with-the-picker-s-text-and-receipts-say-so-plan.md` (full flow: the code is over the quick-flow shell).
 
-- [ ] Merge main once #464 lands; baseline green
-- [ ] `couchmessage.ReadPicker` (one parser for kind/title/detail/options)
-- [ ] `Picker` on session frame → registry → liveness
-- [ ] Wrapper settle probe reports the picker
-- [ ] Receipt: picker = hold, `blocked by a picker: <title>`
-- [ ] Console: red chip + switcher row
-- [ ] Watcher: picker notice at ~1m, 15s tick
+- [x] Merge main once #464 lands; baseline green
+- [x] `couchmessage.ReadPicker` (one parser for kind/title/detail/options)
+- [x] `Picker` on session frame → registry → liveness
+- [x] Wrapper reports the picker (at the latch flip, not quiet-gated: see Log)
+- [x] Receipt: picker = hold, `blocked by a picker: <title>`
+- [x] Console: red chip + switcher row
+- [x] Watcher: picker notice at ~1m, 15s tick
 - [ ] Atlas; full tests; live check; operator smoke test via ops:0
 
 ## Log
 
 ### 2026-10-12
 - Design: the wrapper reports `Picker` beside `Settled` (#421 frames). Couch paints the slot red, the #451 watcher gets a picker reason with a 1m threshold, and the wrapper's receipt treats a picker as a hold (the #435 mechanism) with detail `blocked by a picker: <title>`. A single `couchmessage.ReadPicker` parser serves both the notice and the receipt (ARCH-DRY). Waiting for #464 (picker-state fix) to land before building.
+- ops:0 approved the design with two asks, folded into the plan's Revisions: unrecognised wording → kind `picker`, and the options in a notice are one capped line.
+- #464 landed (PR #255); merged main. Its BR-2 (an expiry reason the sender can act on) was descoped to here; `blocked by a picker: <title>` covers it.
+- Plan review advisories, all addressed:
+  - The picker hold sets `judged`/`operatorHold`, so the receipt really goes `held`.
+  - The title is read once per picker.
+  - The Kind tests follow the revision.
+  - Mid-episode picker test added.
+  - The quiet-gating gap was real: the recorded auto-deny countdown repaints every second, so the 3s settle check would never have reported the picker. `Picker` is therefore reported at the latch flip (`setPickerLocked`, under `overlayMu`), not by the settle probe.
+- Version skew: session frames decode strictly, so a new wrapper sending `Picker` would break an unrestarted Couch's session. Added `hello-v3` with a v3 → v2 → hello fallback (ARCH: Couch restarts are batched). Mutation-checked: making v2 sessions send `Picker` fails `TestNegotiationNewWrapperV2BrokerKeepsSettled`.
+- Fixtures: `ReadPicker` is built against #464's recorded 2.1.296 screens (a permission prompt with no box, the command between `╌` rules, and an AskUserQuestion picker with descriptions and an option past a rule). #451's boxed fixture still parses.
+- Verification: `make -k test` (only failure was the artifactpath inventory for the two new sources, now added) and `go test ./... -count=1` exit 0 (unsandboxed, five-var scrub).
