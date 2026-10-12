@@ -42,6 +42,9 @@ type StatusActor struct {
 	// Blocked: the thread's agent is behind an input-holding picker (pair#465).
 	// It draws red even on the active chip, so the operator sees it at a glance.
 	Blocked bool
+	// Hub: the hub slot (pair#491), which leads its section. It carries no mark
+	// of its own; a later hub starts a new section after a separator.
+	Hub bool
 	// Placeholder marks a thread the reattach pass has not attached yet
 	// (pair#206). It is drawn greyed, and it records NO chip span, so a click on
 	// it resolves to no actor: unclickable by construction, not by a check at
@@ -293,24 +296,26 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		appendText(badge, "\x1b[1;7m")
 	}
 	var chips []ChipSpan
-	previousGroup := ""
-	for _, a := range m.Actors {
-		label := rowtext.Sanitize(a.Label)
-		if a.GroupKey != "" && a.GroupKey == previousGroup && a.SlotNumber > 0 {
-			label = ":" + strconv.Itoa(a.SlotNumber)
-		}
-		previousGroup = a.GroupKey
-		// The glyph is its own segment so it can carry its own colour; clipping
-		// still runs through the one appendText, segment by segment.
-		tail := ""
-		if a.Placeholder && a.Loading {
-			tail = " " + spinnerGlyph(m.Spinner)
-		}
-		if a.Active {
-			label, tail = "["+label, tail+"]"
-		}
+	lead := 0
+	if used > 0 {
+		lead = 2
+	}
+	for _, cell := range fitChips(m.Actors, width-used-lead) {
 		if used > 0 {
-			appendText("  ", "")
+			gap := "  "
+			if cell.section {
+				gap = sectionGap
+			}
+			appendText(gap, "")
+		}
+		if cell.actor < 0 {
+			appendText(cell.label, "")
+			continue
+		}
+		a := m.Actors[cell.actor]
+		label, tail := cell.label, chipTail(a, m.Spinner)
+		if a.Active {
+			label = "[" + label
 		}
 		// Recorded from the SAME appendText that clips, so a chip the width
 		// dropped contributes no span and a chip the width truncated contributes
@@ -416,4 +421,134 @@ func broadcastLabel(c BroadcastCell) string {
 func spinnerGlyph(phase uint8) string {
 	frames := [...]string{"◐", "◓", "◑", "◒"}
 	return frames[int(phase)%len(frames)]
+}
+
+// sectionGap separates one hub's section from the next (pair#491).
+const sectionGap = " │ "
+
+// chipCell is one cell of the actor run: an actor drawn with label, or, with
+// actor -1, a count of slots folded away for width (pair#491).
+type chipCell struct {
+	actor   int
+	label   string
+	section bool
+}
+
+// chipTail is what follows a chip's label and glyph: the loading spinner, and
+// the active chip's closing bracket.
+func chipTail(a StatusActor, spinner uint8) string {
+	tail := ""
+	if a.Placeholder && a.Loading {
+		tail = " " + spinnerGlyph(spinner)
+	}
+	if a.Active {
+		tail += "]"
+	}
+	return tail
+}
+
+// chipKept is a chip that width never folds away: the hub, which leads its
+// section, and every chip asking to be seen (active, red, belled).
+func chipKept(a StatusActor) bool { return a.Hub || a.Active || a.Blocked || a.Bell }
+
+// fitChips lays the actors out in budget columns (pair#491). In full, a
+// group's first drawn member shows its label and later slots show `:N`. When
+// that is too wide, groups fold their numbered slots into a `+N` count, from
+// the right (`pair  :2  +1`). If a kept chip still lies past the edge, whole
+// groups fold, from the right, into one trailing count until it is in view; a
+// kept chip whose group leader folded shows its full label. Otherwise the
+// drawer clips as before, so a plain tab cut short stays clickable.
+func fitChips(actors []StatusActor, budget int) []chipCell {
+	groups := chipGroups(actors)
+	collapsed := make([]bool, len(groups))
+	folded := make([]bool, len(groups))
+	cells := layoutChips(actors, groups, collapsed, folded)
+	for g := len(groups) - 1; g >= 0 && chipsWidth(actors, cells, len(cells)) > budget; g-- {
+		collapsed[g] = true
+		cells = layoutChips(actors, groups, collapsed, folded)
+	}
+	for g := len(groups) - 1; g >= 0 && keptEnd(actors, cells) > budget; g-- {
+		folded[g] = true
+		cells = layoutChips(actors, groups, collapsed, folded)
+	}
+	return cells
+}
+
+// keptEnd is the column where the last kept chip ends, 0 with none.
+func keptEnd(actors []StatusActor, cells []chipCell) int {
+	end := 0
+	for i, cell := range cells {
+		if cell.actor >= 0 && chipKept(actors[cell.actor]) {
+			end = chipsWidth(actors, cells, i+1)
+		}
+	}
+	return end
+}
+
+// chipGroups splits the actors into runs of one repository; a hub is a run of
+// its own, so its repository's slots are never drawn as its `:N`.
+func chipGroups(actors []StatusActor) [][2]int {
+	var groups [][2]int
+	for i, a := range actors {
+		if i == 0 || a.Hub || actors[i-1].Hub || a.GroupKey == "" || a.GroupKey != actors[i-1].GroupKey {
+			groups = append(groups, [2]int{i, i})
+		}
+		groups[len(groups)-1][1] = i + 1
+	}
+	return groups
+}
+
+func layoutChips(actors []StatusActor, groups [][2]int, collapsed, folded []bool) []chipCell {
+	var cells []chipCell
+	hidden := 0
+	for g, span := range groups {
+		count, previous := 0, false
+		for i := span[0]; i < span[1]; i++ {
+			a := actors[i]
+			if !chipKept(a) && (folded[g] || collapsed[g] && a.SlotNumber > 0) {
+				if folded[g] {
+					hidden++
+				} else {
+					count++
+				}
+				continue
+			}
+			label := rowtext.Sanitize(a.Label)
+			if previous && a.SlotNumber > 0 {
+				label = ":" + strconv.Itoa(a.SlotNumber)
+			}
+			previous = true
+			cells = append(cells, chipCell{actor: i, label: label, section: a.Hub && len(cells) > 0})
+		}
+		if count > 0 {
+			cells = append(cells, chipCell{actor: -1, label: "+" + strconv.Itoa(count)})
+		}
+	}
+	if hidden > 0 {
+		cells = append(cells, chipCell{actor: -1, label: "+" + strconv.Itoa(hidden)})
+	}
+	return cells
+}
+
+// chipsWidth is the columns the first n cells take, gaps included, as drawn.
+func chipsWidth(actors []StatusActor, cells []chipCell, n int) int {
+	total := 0
+	for i, cell := range cells[:n] {
+		if i > 0 {
+			gap := "  "
+			if cell.section {
+				gap = sectionGap
+			}
+			total += textwidth.Width(gap)
+		}
+		total += textwidth.Width(cell.label)
+		if cell.actor >= 0 {
+			a := actors[cell.actor]
+			if a.Active {
+				total++
+			}
+			total += textwidth.Width(a.Glyph) + textwidth.Width(chipTail(a, 0))
+		}
+	}
+	return total
 }

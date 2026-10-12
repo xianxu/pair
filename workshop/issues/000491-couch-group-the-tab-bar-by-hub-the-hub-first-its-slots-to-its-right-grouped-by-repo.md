@@ -43,10 +43,10 @@ The operator's sketch: `[ops]  ariadne  :1  :2  blog  pair  :1  :2  [ops:1] …`
 
 Durable plan: `workshop/plans/000491-couch-group-the-tab-bar-by-hub-the-hub-first-its-slots-to-its-right-grouped-by-repo-plan.md`.
 
-- [ ] Hub root reaches the Console (`SetHub` → `MenuState.Hub`)
-- [ ] `PresentThreads`: sections (hub row, then members grouped by repo), `hubOf` membership = the single hub today, `Hub` flag
-- [ ] Tab bar: hub leftmost of its section, no marking, ` │ ` between sections; switcher: hub first line, its section indented one level; `[…]` stays the active marker
-- [ ] Narrow widths: collapse `:N` into `+N`, then whole groups; red/hub/active/bell never collapsed
+- [x] Hub root reaches the Console (`SetHub` → `MenuState.Hub`)
+- [x] `PresentThreads`: sections (hub row, then members grouped by repo), `hubOf` membership = the single hub today, `Hub` flag
+- [x] Tab bar: hub leftmost of its section, no marking, ` │ ` between sections; switcher: hub first line, its section indented one level; `[…]` stays the active marker
+- [x] Narrow widths: collapse `:N` into `+N`, then whole groups; red/hub/active/bell never collapsed
 - [ ] Atlas, README, skill; full suite; live check; operator smoke test via ops:0
 
 ## Log
@@ -55,3 +55,7 @@ Durable plan: `workshop/plans/000491-couch-group-the-tab-bar-by-hub-the-hub-firs
 - Design: repository grouping (`pair :1 :2`) already exists in `RenderStatusRow`, ordered by `PresentThreads`, the one order source for the tab bar and the switcher. New: the hub (couchcmd's `hubWorktree`) goes to the Console, `PresentThreads` puts its group first, and the row brackets it. Conflict: `[…]` already marks the active chip; proposed reverse video for active. Broadcast/Chrome/capture cells lead today (#395 requires it), not at the end as the Spec says; they stay put. Sent the layout and narrow-width design to ops:0 before building.
 - Operator review: the hub's repo is not grouped with it; the hub is a standalone section header (`[ops]  ariadne  :1  :2 … [ops:1]  ariadne:3  :4 …`). Hub as a concept: designated slots, slots assigned to one hub, a new slot inherits the hub of the slot it was started from. Build only the implicit singleton hub now, with membership as a function so designation and assignment slot in later. Plan Revisions updated.
 - Operator, second review: no special hub marking. The hub is leftmost in its section on the tab bar (a separator between sections, none with one hub) and the first line in the switcher, with its section's slots and their notifications indented one level. `[…]` stays the active marker.
+- Build: `Console.SetHub` → `MenuEventHub` → `MenuState.Hub`. The event re-sorts the installed inventory through a new allowlisted installer, `reorderMenuInventory`; the inventory-reader guard refused a direct read in `ReduceMenu`. `PresentThreads(rows, git, hub)` ends in `hubSection`: hub row first, the rest +2 indent. Membership is "every row belongs to the one hub" inside `hubSection` rather than a separate `hubOf` function, which nothing would vary yet.
+- Narrow widths: the plan's step 3 folded plain tabs into `+N` too, which broke `TestAChipClippedToOneColumnIsStillClickable` (a cut-short tab must stay clickable). Narrowed: whole groups fold only while a kept chip (hub, active, red, bell) lies past the edge. `+N` draws unstyled, because the width test measures SGR bytes.
+- Mutation checks: the hub group split in `chipGroups`, the red keep in `chipKept`, the kept-chip fold loop, and the +2 indent each fail a #491 test when reverted. A redundant `!a.Hub` reset (the hub already forms its own group) survived its mutation and was removed.
+- The hub root is `hubWorktree`'s value, the same one `isHub` already matches against slot `WorktreeRoot`s in production, so its form matches the rows' paths.

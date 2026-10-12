@@ -865,6 +865,37 @@ Key files: `couchtty/thread_presentation.go`, `console_presentation.go`,
 `menu_reattach.go`, `menu_render.go`, and `reserve.go`. Rendered examples are in
 `couchtty/testdata/slots_grouped_*.txt`.
 
+### The hub leads its section (pair#491)
+
+The hub is the slot Couch started from (`hubWorktree`, pair#463). It is marked
+by position only.
+- **Tab bar:** the hub is drawn first, then every other slot grouped by
+  repository: `ops  ariadne  :1  :2  blog  pair  :1  :2`. The hub stands alone,
+  so its repository's other slots stay in their alphabetical group (`ops:1`).
+  `[…]` still marks the active chip.
+- **Switcher:** the hub is the first line. Every other row, and the message
+  lines under it, sits one indent level (2 spaces) deeper.
+- **Data path:** couchcmd hands the root to `Console.SetHub` at startup. It is
+  reduced as `MenuEventHub` into `MenuState.Hub`, which re-sorts the installed
+  inventory (`reorderMenuInventory`). `PresentThreads(rows, git, hub)` puts the
+  hub row first, flags it `Hub` and adds the indent (`hubSection`). That one
+  order serves the switcher, the tab bar and clicks.
+- **Several hubs:** not built. The intended model:
+  - a hub is a designated slot;
+  - each slot is assigned to one hub;
+  - a new slot inherits the hub of the slot it was started from.
+
+  `hubSection` would become one section per hub. The renderer already starts
+  a section at each `Hub` chip after the first, behind a ` │ ` separator.
+- **Narrow widths:** `fitChips` (`reserve.go`, pure) lays out the actor cells.
+  - It first collapses each repository's numbered slots into a `+N` count,
+    groups giving way from the right.
+  - If a *kept* chip (hub, active, red or belled) still lies past the edge,
+    whole groups fold, from the right, into one trailing `+N` until it is in
+    view. A kept chip whose group leader folded shows its full label.
+  - Otherwise the row clips as before, so a cut-short plain tab stays clickable.
+  - A `+N` cell has no chip span: clicking it does nothing.
+
 ### Checkout quick-status glyph (#317, #339)
 
 Each checkout, including standalone repositories and `:0`, carries a glyph after its label in

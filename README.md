@@ -774,6 +774,17 @@ their thread. The focused tab, the selected switcher row, and a thread with a
 pending notification never fade. If the terminal doesn't report its colours,
 both idle levels use the same theme grey; `NO_COLOR` turns fading off.
 
+A thread whose agent is waiting on a picker (a permission prompt or a question)
+shows red in the tabs and the switcher until the picker closes, even when it's
+the focused tab, and never fades.
+
+The tab bar starts with the hub, the checkout you started Couch from, and then
+lists every other slot grouped by repository:
+`ops  ariadne  :1  :2  blog  pair  :1  :2`. In the switcher the hub is the first line and the rest sit indented
+under it. When the tabs don't fit, a repository's numbered slots fold into a
+count (`pair  +2`), starting from the right. A red, belled or focused tab is
+never folded away, and the switcher always lists everything.
+
 Each numbered slot keeps its Couch metadata in its environment's `.couch/`
 directory. Opening it resumes its conversation; **Start fresh** replaces the
 conversation in the same slot after confirming its managed sessions are stopped.

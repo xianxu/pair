@@ -375,6 +375,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	service.SetBroadcastStatus(console.BroadcastStatus)
 	service.SetShares(console.Shares)
 	service.SetBlockedView(console.SetBlockedThreads)
+	console.SetHub(service.authority.hub)
 	service.SetReplay(console.ReplayShare, console.SharedReplays)
 	service.recordDeliveries(namespace)
 	watcher := newWaitWatcher(service, threshold, namespace)
