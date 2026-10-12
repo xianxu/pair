@@ -1,21 +1,22 @@
 ---
 id: 000454
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-11
 updated: 2026-10-11
 estimate_hours: 4.69
-card_mirror: '8036005b121ecb59e324522b9cbfc82711814909' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '52edf1aea8ded518bdc911840f56bfd0b1ed2f47' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-11T20:08:38-07:00
 claimant:
     operator: Xian Xu
     machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: MacBook Pro
-    workspace: pair:1
-    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:0
+    worktree: /Users/xianxu/workspace/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 0.05
 ---
 
 # broadcast-web: Chrome in Couch — start, go live, pause, end; one cast
