@@ -1264,3 +1264,9 @@ proof; record the surprising case so the next change starts from evidence.
   order inside the component, or give the component its own stacking context; never set a z-index the host doesn't
   know about. And keep a lifecycle in one state value (`pair.hold = null | {owner, drawn, cancel}`), not in flags,
   an inline style and a shared object; inject its clock so a test can drive each ordering.
+- **A test moved to another fixture keeps its old fixture's moments unless they come from the data (#474).** The
+  replay marks test moved from the prototype's `app` to `rec-app` and kept sampling `app`'s note times, so it still
+  passed but checked nothing about the new notes. Derive sample moments (and any content a test reads) from the
+  fixture's own records; re-deriving then surfaced a case the old fixture never had (an open note whose element was
+  removed). After retiring a data source, also sweep the tools that only produced it (`fixturegen -raw`) and any
+  inventory that lists them.

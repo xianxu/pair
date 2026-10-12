@@ -28,14 +28,14 @@ func TestLiveFidelityFixtures(t *testing.T) {
 	dirs := strings.Split(os.Getenv("FIDELITY_DIR"), ",")
 	if dirs[0] == "" {
 		dirs = nil
-		for _, name := range recording.Fixtures { // the hand-made ones have no frames
+		for _, name := range recording.Fixtures() { // the hand-made ones have no frames
 			if _, err := os.Stat(filepath.Join(recording.Fixture(name), recording.FileFrames)); err == nil {
 				dirs = append(dirs, copyRecording(t, recording.Fixture(name), name))
 			}
 		}
 	}
 	for _, dir := range dirs {
-		rep, err := checkFidelity(context.Background(), bin, dir, frameOffsets(filepath.Base(dir)))
+		rep, err := CheckFidelity(context.Background(), bin, dir)
 		if err != nil {
 			t.Fatalf("%s: %v", dir, err)
 		}
@@ -84,7 +84,7 @@ func TestLiveFidelityFixtures(t *testing.T) {
 // the tolerance, and the report shows them side by side.
 func TestLiveFidelityCatchesBrokenRender(t *testing.T) {
 	bin := liveFidelityChrome(t)
-	dir := copyRecording(t, recording.Fixture("blog"), "blog-unstyled")
+	dir := copyRecording(t, recording.Fixture("rec-blog"), "blog-unstyled")
 	unstyle(t, dir)
 	rep, err := CheckFidelity(context.Background(), bin, dir)
 	if err != nil {

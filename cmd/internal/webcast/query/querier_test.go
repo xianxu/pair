@@ -14,7 +14,7 @@ func TestQuerierMeetsTheSurfaceContract(t *testing.T) {
 
 // Every query answers on every fixture, at every pinned moment.
 func TestQuerierOnFixtures(t *testing.T) {
-	for _, name := range recording.Fixtures {
+	for _, name := range recording.Fixtures() {
 		r, err := recording.ReadDir(recording.Fixture(name))
 		if err != nil {
 			t.Fatal(err)
@@ -47,9 +47,9 @@ func TestQuerierOnFixtures(t *testing.T) {
 }
 
 // A note is reported with its state now, not as it was made: the app
-// fixture resolves app-n2 after making it.
+// fixture resolves rec-app-n2 after making it.
 func TestNotesCarryTheirFinalState(t *testing.T) {
-	r, err := recording.ReadDir(recording.Fixture("app"))
+	r, err := recording.ReadDir(recording.Fixture("rec-app"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestNotesCarryTheirFinalState(t *testing.T) {
 	}
 	for _, n := range ns {
 		want := recording.NoteOpen
-		if n.Note.ID == "app-n2" {
+		if n.Note.ID == "rec-app-n2" {
 			want = recording.NoteResolved
 		}
 		if n.Note.State != want {

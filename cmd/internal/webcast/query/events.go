@@ -12,10 +12,14 @@ import (
 // said is one record in words at its time. Records with the same non-empty
 // key in a row fold into one line: a field typed a keystroke at a time is
 // one value, not one line per key. The key carries the viewer, so one
-// person's typing never folds into another's.
+// person's typing never folds into another's. A collapsed caret after a
+// typed value is that typing's own cursor (the recorder reports one per
+// key), so it folds into the value instead of splitting it.
 type said struct {
 	t, t0 int64
 	key   string
+	caret bool   // a collapsed caret, by by
+	by    string
 	text  string
 	n     int
 }
@@ -34,6 +38,10 @@ func (n *narrator) say(r recording.Record) said {
 		if r.Name == "value" {
 			s.key = fmt.Sprintf("value %d ", r.ID)
 		}
+	case *recording.Selection:
+		if r.Anchor != nil && r.Focus != nil && *r.Anchor == *r.Focus {
+			s.caret, s.by = true, r.By
+		}
 	}
 	return s
 }
@@ -43,6 +51,9 @@ func (n *narrator) say(r recording.Record) said {
 func fold(items []said) []string {
 	var merged []said
 	for _, it := range items {
+		if k := len(merged) - 1; k >= 0 && it.caret && typedBy(merged[k].key, it.by) {
+			continue
+		}
 		if k := len(merged) - 1; k >= 0 && it.key != "" && merged[k].key == it.key {
 			it.t0, it.n = merged[k].t0, merged[k].n+1
 			merged[k] = it
@@ -59,6 +70,11 @@ func fold(items []said) []string {
 		}
 	}
 	return out
+}
+
+// typedBy says whether key is a typed value's, by the person by is.
+func typedBy(key, by string) bool {
+	return strings.HasPrefix(key, "value ") && strings.HasSuffix(key, " "+by)
 }
 
 // unreadable is the error for a record the reducer refuses: the recording

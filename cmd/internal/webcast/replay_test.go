@@ -44,17 +44,6 @@ const (
 	renderTolerance = 0.03
 )
 
-// observerLag is how late a fixture's scroll and input records can trail
-// the tab: up to 150ms for #453's prototype, whose observer polls every
-// 100ms and flushes every 50ms; 0 for #458's recorder, which reports
-// synchronously (#472).
-func observerLag(name string) int64 {
-	if slices.Contains(recording.PrototypeFixtures, name) {
-		return 150
-	}
-	return 0
-}
-
 // knownGaps are frames that differ for a filed reason, by fixture and frame
 // index, and the most they may differ at their best time, so a gap guards
 // what does work. One that comes within tolerance fails, so its entry goes.
@@ -68,23 +57,11 @@ type knownGap struct {
 	most float64
 }
 
-// frameOffsets are where a frame's pixels may be instead of its t: the
-// product check's (its own, fidelity.CaptureSkew before), and observerLag
-// after (the prototype's). recording.FrameTimes keeps those in the frame's
-// segment.
-func frameOffsets(name string) []int64 {
-	offs := slices.Clone(fidelity.Offsets)
-	if lag := observerLag(name); lag > 0 {
-		offs = append(offs, lag)
-	}
-	return offs
-}
-
 func TestLiveReplayFixtures(t *testing.T) {
 	page := headlessPage(t)
 	srv := fixtureServer(t)
 	page.open(t, srv.URL+"/harness.html")
-	for _, name := range recording.Fixtures {
+	for _, name := range recording.Fixtures() {
 		t.Run(name, func(t *testing.T) {
 			rec, err := recording.ReadDir(recording.Fixture(name))
 			if err != nil {
@@ -112,7 +89,7 @@ func TestLiveReplayFixtures(t *testing.T) {
 					}
 					return false
 				}
-				ok := try(frameOffsets(name))
+				ok := try(fidelity.Offsets)
 				// The viewer holds the previous paint until a new document's
 				// stylesheets bind (#475), so it shows the tab's page late
 				// when their bytes were recorded after the screenshot
@@ -146,7 +123,7 @@ func TestLiveReplayJoinMidCast(t *testing.T) {
 	page := headlessPage(t)
 	srv := fixtureServer(t)
 	page.open(t, srv.URL+"/harness.html")
-	for _, name := range recording.Fixtures {
+	for _, name := range recording.Fixtures() {
 		rec, err := recording.ReadDir(recording.Fixture(name))
 		if err != nil {
 			t.Fatal(err)
@@ -201,7 +178,7 @@ func fixtureServer(t *testing.T, extra ...*recording.Recording) *httptest.Server
 	for _, r := range extra {
 		recs[filepath.Base(r.Dir)] = r
 	}
-	for _, name := range recording.Fixtures {
+	for _, name := range recording.Fixtures() {
 		r, err := recording.ReadDir(recording.Fixture(name))
 		if err != nil {
 			t.Fatal(err)

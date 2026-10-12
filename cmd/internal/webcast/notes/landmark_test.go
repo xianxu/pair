@@ -12,12 +12,12 @@ func TestLandmarkOnFixtures(t *testing.T) {
 		fixture, note, want string // want: tag[.class]
 		meaningful          bool
 	}{
-		{"blog", "blog-n1", "header", true}, // a heading's landmark is its header
-		{"blog", "blog-n2", "li", true},     // an image in a list item
-		{"blog", "blog-n3", "ol", true},     // a list is its own landmark
-		{"stress", "stress-n1", "section.side", true},
-		{"stress", "stress-n2", "section.side", true}, // a closed shadow host
-		{"app", "app-n3", "body", false},              // nothing meaningful: the parent, not snapped to
+		{"rec-blog", "rec-blog-n1", "header", true}, // a heading's landmark is its header
+		{"rec-blog", "rec-blog-n2", "li", true},     // an image in a list item
+		{"rec-blog", "rec-blog-n3", "ol", true},     // a list is its own landmark
+		{"rec-stress", "rec-stress-n1", "section.side", true},
+		{"rec-stress", "rec-stress-n2", "section.side", true}, // a closed shadow host
+		{"rec-app", "rec-app-n3", "body", false},              // nothing meaningful: the parent, not snapped to
 	} {
 		n, st := fixtureNote(t, c.fixture, c.note)
 		land, ok := landmark(st.Node(n.At.Node))

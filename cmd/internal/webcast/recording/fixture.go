@@ -12,14 +12,22 @@ import (
 )
 
 // Fixtures are the checked-in recordings wave-1 components test against
-// (atlas/webcast-format.md, Fixtures). The rec-* ones are the real
-// recorder's (#472); stress, app and blog are #453's prototype's, and
-// retire once the components built on them have landed.
-var Fixtures = []string{"stress", "app", "blog", "segments", "driven", "rec-stress", "rec-app", "rec-blog", "rec-segments"}
-
-// PrototypeFixtures are the fixtures #453's prototype recorded, whose
-// polled observer reports scroll and input up to 150ms late.
-var PrototypeFixtures = []string{"stress", "app", "blog"}
+// (atlas/webcast-format.md, Fixtures): every directory under
+// testdata/fixtures with a pin file, sorted, as tests/webcast/fixtures.mjs
+// finds them, so adding or removing one needs no list kept in step.
+func Fixtures() []string {
+	es, err := os.ReadDir(filepath.Dir(Fixture("x")))
+	if err != nil {
+		panic(err) // a test helper: the source tree is always there
+	}
+	var names []string
+	for _, e := range es {
+		if _, err := os.Stat(filepath.Join(Fixture(e.Name()), PinFile)); e.IsDir() && err == nil {
+			names = append(names, e.Name())
+		}
+	}
+	return names
+}
 
 // Fixture is the directory of a checked-in fixture, for tests in any
 // package.
