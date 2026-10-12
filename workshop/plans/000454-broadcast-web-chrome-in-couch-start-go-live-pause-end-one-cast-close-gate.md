@@ -179,6 +179,82 @@ rounds:
       isolation: checkout
       reviewed: 6c86576ebc04593f77579108ec0e4aa33dc9dfd7
       blocked: false
+    - "n": 5
+      timestamp: "2026-10-11T21:46:48-07:00"
+      dispatched: "2026-10-11T21:38:05-07:00"
+      agent: claude
+      findings:
+        - id: BR-14
+          severity: Important
+          title: Host.Mount cancel racing open completion leaves the Host open with no mounts or waiters (tunnel leaked)
+          detail: 'host.go:113-130 — open() wins mu with waiting==1 and sets attempt=nil, then the cancelled waiter decrements waiting to 0 with last=false and returns; reproduced 1/300 with OpenDelay≈ctx timeout. Rule: every loss of interest (open done, waiter cancel, Unmount) runs one "nobody wants it" helper that closes the Host; add the planned gate seam that holds open() after start() so the test can cancel at that point and assert Opens−Closes==0. 2nd finding in this family.'
+          family: state-machine-untested-sequences
+          round: 5
+        - id: BR-15
+          severity: Minor
+          title: webcast.Server.Owns compares the token with == instead of the shared constant-time ownsToken
+          detail: webcast/server.go:47; plan PQ-1 specifies a constant-time compare per mount and broadcast.Server already uses ownsToken. Export it and use it in both.
+          family: capability-token-compare
+          round: 5
+      boundary: M2
+      recipe: milestone-review
+      isolation: checkout
+      blocked: true
+    - "n": 6
+      timestamp: "2026-10-11T21:54:26-07:00"
+      dispatched: "2026-10-11T21:49:21-07:00"
+      agent: claude
+      dispose:
+        - id: BR-14
+          disposition: addressed
+          note: releaseIfUnwantedLocked is the single release path; TestHostLastWaiterGivingUpAfterTheOpenCloses fails 3/3 against pre-fix host.go (Opens 1 Closes 0) and passes at head.
+          round: 6
+        - id: BR-15
+          disposition: addressed
+          note: OwnsToken exported (host.go:355) and used by broadcast.Server (server.go:87,115) and webcast.Server.Owns (webcast/server.go:49).
+          round: 6
+      findings:
+        - id: BR-16
+          severity: Important
+          title: A Mount arriving during an abandoned open joins it and returns another caller's context.Canceled
+          detail: 'host.go:102 counts a new arrival on any hostOpening attempt, including one releaseIfUnwantedLocked already cancelled (:160). Reproduced: a tunnel that takes 100ms to wind down after cancel (as cloudflared''s SIGTERM grace does) makes a background-context Mount fail with "context canceled". 4th in family. Rule: a Mount''s error must come from its own request, never from an attempt another caller abandoned. Mark abandoned attempts (flag or hostAbandoning state), have Mount wait uncounted and reopen, add FakeTunnel.CancelDelay plus a regression test.'
+          family: failure-cause-misattributed
+          round: 6
+        - id: BR-17
+          severity: Minor
+          title: BR-14 regression test drives abandonWait directly instead of through Mount via a gate seam
+          detail: 'host_test.go:255 bumps h.waiting by hand and calls abandonWait, so a Mount ctx.Done branch that stopped calling it would be caught only by the probabilistic stress loop. 3rd in family. Rule: Host sequence tests reach a state through public events with an injected ordering seam (hold open() after start()), not by mutating fields.'
+          family: state-machine-untested-sequences
+          round: 6
+      boundary: M2
+      recipe: milestone-review
+      isolation: checkout
+      blocked: true
+    - "n": 7
+      timestamp: "2026-10-11T22:05:53-07:00"
+      dispatched: "2026-10-11T21:57:16-07:00"
+      agent: claude
+      dispose:
+        - id: BR-16
+          disposition: addressed
+          note: attempt.abandoned makes the attempt unjoinable (host.go:107,165); reverting the guard turns TestHostMountAfterAnAbandonedOpenSucceeds red with "context canceled".
+          round: 7
+        - id: BR-17
+          disposition: not-addressed
+          note: host_test.go:259-266 still mutates h.waiting and calls abandonWait directly; no gate seam drives it through Mount.
+          round: 7
+      findings:
+        - id: BR-18
+          severity: Minor
+          title: Late-cancel and failing-open tunnel behaviours are test-local wrappers, not settings on the shared FakeTunnel
+          detail: 'lateCancelTunnel (host_test.go:294) and failingTunnel (:123) model cloudflared behaviour BR-16 depends on, but only in broadcast tests; webcast/couch tests on FakeTunnel cannot exercise it. Rule: every dependency behaviour a test relies on is a FakeTunnel setting (CancelDelay, FailOpens), covered by the live conformance check.'
+          family: fake-fidelity
+          round: 7
+      boundary: M2
+      recipe: milestone-review
+      isolation: checkout
+      reviewed: c0bccd94e72b8c68bc77a9895326ee77ac9772e4
+      blocked: false
 ---
 
 # Gate ledger — pair#454 (boundary-review)
@@ -248,6 +324,43 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-12 — addressed — endError accepts only cdp.ErrProtocol; with the deny-list restored, TestEndError rows fail every time and the closeReader loop subtest fails on some runs.
 - BR-13 — addressed — Chrome.exited field removed (chrome.go:69-73); package builds and vets clean.
 
+## Round 5 — 2026-10-11T21:46:48-07:00 (claude) — BLOCKED
+
+### Raised
+
+- **BR-14** [Important] `state-machine-untested-sequences` Host.Mount cancel racing open completion leaves the Host open with no mounts or waiters (tunnel leaked)
+  host.go:113-130 — open() wins mu with waiting==1 and sets attempt=nil, then the cancelled waiter decrements waiting to 0 with last=false and returns; reproduced 1/300 with OpenDelay≈ctx timeout. Rule: every loss of interest (open done, waiter cancel, Unmount) runs one "nobody wants it" helper that closes the Host; add the planned gate seam that holds open() after start() so the test can cancel at that point and assert Opens−Closes==0. 2nd finding in this family.
+- **BR-15** [Minor] `capability-token-compare` webcast.Server.Owns compares the token with == instead of the shared constant-time ownsToken
+  webcast/server.go:47; plan PQ-1 specifies a constant-time compare per mount and broadcast.Server already uses ownsToken. Export it and use it in both.
+
+## Round 6 — 2026-10-11T21:54:26-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-14 — addressed — releaseIfUnwantedLocked is the single release path; TestHostLastWaiterGivingUpAfterTheOpenCloses fails 3/3 against pre-fix host.go (Opens 1 Closes 0) and passes at head.
+- BR-15 — addressed — OwnsToken exported (host.go:355) and used by broadcast.Server (server.go:87,115) and webcast.Server.Owns (webcast/server.go:49).
+
+### Raised
+
+- **BR-16** [Important] `failure-cause-misattributed` A Mount arriving during an abandoned open joins it and returns another caller's context.Canceled
+  host.go:102 counts a new arrival on any hostOpening attempt, including one releaseIfUnwantedLocked already cancelled (:160). Reproduced: a tunnel that takes 100ms to wind down after cancel (as cloudflared's SIGTERM grace does) makes a background-context Mount fail with "context canceled". 4th in family. Rule: a Mount's error must come from its own request, never from an attempt another caller abandoned. Mark abandoned attempts (flag or hostAbandoning state), have Mount wait uncounted and reopen, add FakeTunnel.CancelDelay plus a regression test.
+- **BR-17** [Minor] `state-machine-untested-sequences` BR-14 regression test drives abandonWait directly instead of through Mount via a gate seam
+  host_test.go:255 bumps h.waiting by hand and calls abandonWait, so a Mount ctx.Done branch that stopped calling it would be caught only by the probabilistic stress loop. 3rd in family. Rule: Host sequence tests reach a state through public events with an injected ordering seam (hold open() after start()), not by mutating fields.
+
+## Round 7 — 2026-10-11T22:05:53-07:00 (claude) — passed
+
+### Disposed
+
+- BR-16 — addressed — attempt.abandoned makes the attempt unjoinable (host.go:107,165); reverting the guard turns TestHostMountAfterAnAbandonedOpenSucceeds red with "context canceled".
+- BR-17 — not-addressed — host_test.go:259-266 still mutates h.waiting and calls abandonWait directly; no gate seam drives it through Mount.
+
+### Raised
+
+- **BR-18** [Minor] `fake-fidelity` Late-cancel and failing-open tunnel behaviours are test-local wrappers, not settings on the shared FakeTunnel
+  lateCancelTunnel (host_test.go:294) and failingTunnel (:123) model cloudflared behaviour BR-16 depends on, but only in broadcast tests; webcast/couch tests on FakeTunnel cannot exercise it. Rule: every dependency behaviour a test relies on is a FakeTunnel setting (CancelDelay, FailOpens), covered by the live conformance check.
+
 ## Open findings
 
 - **BR-7** [Minor] `nondeterministic-tie-break` Tracker.Active picks among equal activated values by map iteration order, so the published tab can flip
+- **BR-17** [Minor] `state-machine-untested-sequences` BR-14 regression test drives abandonWait directly instead of through Mount via a gate seam
+- **BR-18** [Minor] `fake-fidelity` Late-cancel and failing-open tunnel behaviours are test-local wrappers, not settings on the shared FakeTunnel

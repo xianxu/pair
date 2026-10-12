@@ -77,11 +77,12 @@ Durable plan: `workshop/plans/000454-broadcast-web-chrome-in-couch-start-go-live
 
 - [x] Key decoding check (Shift+Ctrl+Alt+B vs Ctrl+Alt+b): distinct; see Log
 - [x] M1 — browser-control component: `cdp` pipe client; `webcast` State/Tracker/translate; Browser seam + FakeBrowser; in-page control (isolated world); real Chrome; conformance suite run against fake and live Chrome
-- [ ] M2 — Couch integration and stub stream: shared `broadcast.Host` (one tunnel, casts mounted by token); webcast viewer server + page; Cast; Shift+Ctrl+Alt+B, `Chrome ▶/⏸` cell with click / right-click / Ctrl+click; launcher wiring; README + atlas; operator smoke test
+- [x] M2 — Couch integration and stub stream: shared `broadcast.Host` (one tunnel, casts mounted by token); webcast viewer server + page; Cast; Shift+Ctrl+Alt+B, `Chrome ▶/⏸` cell with click / right-click / Ctrl+click; launcher wiring; README + atlas; operator smoke test
 
 ## Log
 
 ### 2026-10-11
+- 2026-10-11: closed M2 — broadcast + webcast -race green; Host tests -count=3 green; BR-16 regression (late-cancel tunnel) mutation-checked; BR-14 fixes kept; make -k test exit 0 at f2a41a3b+guards; review verdict: SHIP
 - 2026-10-11: closed M1 — go test -race -count=10 webcast + -count=5 cdp green; mutation-checked WaitDelay/ErrProtocol class/drain (all caught); WEBCAST_LIVE_CHROME=1 live suite green unsandboxed (headless Chrome 154); review verdict: SHIP
 
 - **Key decoding check: passed.** Couch pushes kitty flags 3; measured through `terminal.Decoder` + `productKey`: Ctrl+Alt+b → `\x1b[98;7u`, Shift+Ctrl+Alt+B → `\x1b[98;8u` (also `66;8u`, `98;8:1u`, `98:66;8u` canonicalise distinctly). Legacy `ESC ^B` was never a broadcast binding (#395). Operator's Ghostty config binds nothing on ctrl+alt+shift. Real-terminal confirmation goes in the smoke test.
