@@ -1,12 +1,20 @@
 ---
 id: 000478
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '8837b07abcdb2cf0059bd9e1a2b7e6667119056d' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '6a464aa06a5d36292c4e994d008ba0d03eed3589' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T04:00:08-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
 ---
 
 # broadcast-web: fidelity check for live casts — sparse tab screenshots vs replay renders, with a report
