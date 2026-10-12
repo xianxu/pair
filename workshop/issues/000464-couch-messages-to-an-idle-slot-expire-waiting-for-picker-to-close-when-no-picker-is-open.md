@@ -40,11 +40,11 @@ through the wrapper clears. A picker that closes any other way (Claude Code's
 unattended auto-deny, Esc, a digit key) leaves it armed for good, and peer
 delivery waits "for picker to close" until someone presses Enter in the pane.
 
-- [ ] Profile flag `overlayHidesComposer` (claude): its pickers replace the
+- [x] Profile flag `overlayHidesComposer` (claude): its pickers replace the
       composer. While the latch is armed, each terminal feed reads the
       recognizer; once the composer has been seen hidden, its return means the
       picker closed, and the latch clears (same consume as Enter: tails reset).
-- [ ] Tests: the recorded pair:3 screens (permission prompt with auto-deny
+- [x] Tests: the recorded pair:3 screens (permission prompt with auto-deny
       countdown → idle composer with a faint suggestion) clear the latch and
       read deliverable; a picker still on screen stays armed; a composer that
       never went hidden (OSC ahead of the paint) doesn't clear; agents without
@@ -61,3 +61,13 @@ delivery waits "for picker to close" until someone presses Enter in the pane.
   unattended session". It auto-denied with no Enter, so the latch stayed
   armed. The dim suggestion was a red herring: `peerPlaceholder` already reads
   faint ghost text as an empty composer.
+- Fix (`wrap.go`): `observePickerScreen` runs on every terminal feed while the
+  latch is armed, and once at arming. The picker's frame lands before its
+  OSC, so without the arming read a picker closing in the very next frame
+  went unseen. The end-to-end test caught that. `consumeOverlayLocked` is now
+  the one way the overlay ends, for the Enter and the screen alike (ARCH-DRY).
+- Fixtures: four screens re-rendered from the pair:3 recording, the #438 way
+  (README). Round trip checked: each re-render reads the same text, cursor,
+  recognizer and composer state as the live replay.
+- Mutation-checked (`peer_picker_test.go`): dropping the feed hook, the arming
+  read, the hidden-first rule or the profile flag each fails a test.
