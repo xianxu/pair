@@ -263,7 +263,7 @@ it), never a local fork.
 | pair#459 | asset store and proxy | `assets.Store` (`Put`, `Get`, `Lookup`; `Policy`) | `assets.MemStore` | `assets.RunStoreContract` |
 | pair#460 | live viewer | `recording.Live` (fan-out with catch-up); the JS viewer contract below | `recording.FakeHub` | `recording.RunLiveContract`; the fixtures' canonical pins |
 | pair#461 | notes model | `notes.Model` (`Anchor`, `Resolve`, `Context`, `Crops`, `Live`; `notes.Hints`) | `notes.FakeModel` | `notes.RunModelContract` |
-| pair#462 | agent queries | `query.Surface` (`DOMAt`, `Events`, `Notes`) | `query.FakeSurface` | `query.RunSurfaceContract` |
+| pair#462 | agent queries | `query.Surface` (`DOMAt`, `Events`, `Notes`); real: `query.Querier`, CLI `couch --broadcast-web-query` (below) | `query.FakeSurface` | `query.RunSurfaceContract` |
 | pair#467 | input injection | `drive.Injector` (`Inject(ctx, by, Batch)`) | `drive.FakeInjector` | `drive.RunInjectorContract` |
 | pair#467 | driving control and the reverse channel | `drive.Controller` (seats, request/grant/deny/revoke/release, input) | `drive.FakeController` | `drive.RunControllerContract` |
 
@@ -316,6 +316,34 @@ regenerated one can't silently lose a case.
 Gaps found while recording, for #458:
 - **Clicks:** the prototype's polled observer lost the click that navigates, so clicks must be reported synchronously.
 - **Layout:** `DOMSnapshot` on the top session leaves out out-of-process frames, so each frame session needs its own capture.
+
+## Agent queries (#462)
+
+`couch --broadcast-web-query DIR dom|events|notes` is what a coding agent runs on a recording. It reads the
+directory (`recording.ReadDir`), needs no running Couch, and prints text sized for an agent's context, or
+`--json` for structure. Package `cmd/internal/webcast/query`: `Querier` is the real `Surface`, one pass of the
+reference reducer with nothing indexed beside the records; `Main` is the CLI; the text renderers are pure.
+
+| Query | Answers | Text | `--json` |
+|---|---|---|---|
+| `dom [--at T] [--sel S] [--max-lines N]` | the page at T (default: the end) | a header (t, segment, live/paused, URL, viewport, title, driver), then one line per element `@id <tag attrs>` with form state, focus and scroll overlaid | `{t,seg,live,url,title,vp,control,matches}`, nodes in the format's `Node` shape plus `frame`, `state`, `focused`, `scroll` |
+| `events --from T1 --to T2` | what happened in the window | one line per record with its time, targets named as they were then, `by <viewer>` on a driver's acts; a run of more than 3 DOM, style, asset or layout records is one line (counts by kind, most-touched elements); a field typed a key at a time is one line with its final value | the records, as JSON lines |
+| `notes [--note ID] [--before MS]` | every note | author, time, segment, state now (resolved or open), text, anchor, the element as of the note, the notes model's context, and the user's actions in the `--before` ms (default 10000) before it, including segment starts and stops | `{note,state,seg,url,element,context,landmark,before}` |
+
+- **Node ids are the handle.** Every element in every answer is `@N`; `--sel @N` shows one. Selectors are a
+  subset of CSS (tag, `#id`, `.class`, `[attr]`, `[attr=v]`, `[attr*=v]`, `:nth-child(n)`, descendant and
+  child) searched through shadow roots, template contents and iframe documents. Anything else is refused with
+  the grammar, never matched loosely.
+- **Budgets:** a page stops at 300 lines (`--max-lines`) with a line saying how many more; a note's element at
+  20 lines and its preceding actions at the latest 20; attribute values at 80 characters and text at 200.
+  Script and style bodies, a document's head and SVG internals fold to one line each. The text shows the
+  attributes an agent reads structure by (id, class, role, aria-*, form and link attributes); `--json`
+  keeps them all.
+- **The notes model** is `notes.Model` behind its interface. `Main` constructs `notes.FakeModel` until
+  #461's real model lands; swapping it changes the context and landmark lines, which the golden files show.
+- **Tests:** `RunSurfaceContract` on the `Querier`; golden answers for every fixture in
+  `query/testdata/golden/` (`go test ./cmd/internal/webcast/query -run Golden -update`, then review the diff);
+  a scripted agent check that each note's answer names its element, time and the action before it.
 
 ## Remote driving (#466)
 
