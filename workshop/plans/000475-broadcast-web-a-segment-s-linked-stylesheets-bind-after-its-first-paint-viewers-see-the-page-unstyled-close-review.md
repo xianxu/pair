@@ -243,3 +243,66 @@ findings:
     detail: |
       This is the 2nd finding in family ondirty-wiring-sweep. Rule: every shell source that owns a renderer routes onDirty to its full paint pipeline (flush plus deps.frame), not flush alone. Enumeration: connect (viewer.js:64, done), replaySource (replay.js:319, missing; wrap deps.renderer to set r.onDirty = draw), inBrowser/harness (default flush is enough).
 ```
+
+---
+
+## Re-review — 2026-10-12T06:24:43-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 475 — broadcast-web: a segment's linked stylesheets bind after its first paint (viewers see the page unstyled) |
+| repo | pair |
+| issue file | workshop/issues/000475-broadcast-web-a-segment-s-linked-stylesheets-bind-after-its-first-paint-viewers-see-the-page-unstyled.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 919257f147d78b3d4f10ebfabe7a068bad4b320e..f01d0fd8b550d801211c739f1faf1e68ecd43637 |
+| command | sdlc close --issue 475 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-12T06:24:43-07:00 |
+| verdict | SHIP |
+
+## Review
+
+I'm checking the two open findings against the code now. BR-8's fix is in the window; next I'm checking whether BR-6's deadline was already at base.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+This fix window has one code change: `replaySource` now sets each renderer's `onDirty` to `draw`. That finishes the `ondirty-wiring-sweep` list. `connect` was already wired at `viewer.js:65`, the replay source is now wired at `replay.js:322`, and the in-browser and harness renderers keep the default flush. The change is correct. `Player` builds its renderer through `deps.renderer(this.model)` (`replay.js:182`), and the wrapper passes the model through unchanged. `draw` is only scheduled, so it can't run before `player` and `ui` are assigned, and the `queued` guard merges repeated redraws into one. The rest of the window is not a scope change. The `lessons.md` hunk moves the #475 lesson with its text unchanged, which looks like the merge with main. The issue file changes only the status (codecomplete), the flow (quick → full), `actual_hours` and the log, and `## Spec` and `## Done when` are untouched. Both open findings are Minor and stay open only because neither has a regression test. Neither blocks the gate.
+
+1. **Strengths**
+   - `replay.js:319-323`: the fix wraps the injected renderer factory rather than reaching into `Player`. Every renderer `Player` builds after a seek or segment change gets `onDirty`, not just the first one. That covers the whole rule, not one site.
+   - The comment says why the redraw takes the whole `draw` path: the marks and layout have to move too, as `connect()` routes it to its paint.
+   - All 88 tests pass under `node --test tests/webcast/*.test.mjs`. The directory form, `node --test tests/webcast`, errors in this checkout, which is an invocation issue and not a test failure.
+
+2. **Critical:** none.
+
+3. **Important:** none.
+
+4. **Minor**
+   - **BR-8:** the fix is right, but no test fails without it. `tests/webcast/replay.test.mjs:292` already builds `replaySource` with injected deps. A cheap test would give it a fake renderer and a recording `schedule`, call `r.onDirty()`, and assert that `frame` is called once more.
+   - **BR-6:** `render.js` is not in this window. The `HOLD_MS` race in `bound()` (`render.js:516-524`) was there at base, but a stalled load still has no test proving the deadline.
+
+5. **Test coverage:** neither change has a test that fails without it (see the two Minor items above).
+
+6. **Architecture**
+   - ARCH-DRY: pass. The one-line wrapper copies nothing.
+   - ARCH-PURE: pass. The wiring is in the thin source shell, and `draw` is the existing injected pipeline.
+   - ARCH-PURPOSE: pass. The `ondirty-wiring-sweep` list is now complete.
+
+7. **Plan revisions:** none.
+
+```findings
+dispose:
+  - id: BR-6
+    disposition: not-addressed
+    note: |
+      render.js not in this window; the HOLD_MS race in bound() is present but still no fake-timer test with a never-settling load proves it.
+  - id: BR-8
+    disposition: not-addressed
+    note: |
+      replay.js:322 wraps deps.renderer so r.onDirty = draw (correct, and it closes the sweep: connect, replaySource), but no regression test; a replaySource test in replay.test.mjs calling r.onDirty() and asserting frame() runs would pin it.
+```

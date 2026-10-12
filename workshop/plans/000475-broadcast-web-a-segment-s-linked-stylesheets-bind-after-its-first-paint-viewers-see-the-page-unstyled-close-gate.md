@@ -94,6 +94,23 @@ rounds:
       isolation: fenced
       reviewed: 1bf1ad67f346172322c50295bf11c216959094ff
       blocked: false
+    - "n": 3
+      timestamp: "2026-10-12T06:24:43-07:00"
+      dispatched: "2026-10-12T06:23:52-07:00"
+      agent: claude
+      dispose:
+        - id: BR-6
+          disposition: not-addressed
+          note: render.js not in this window; the HOLD_MS race in bound() is present but still no fake-timer test with a never-settling load proves it.
+          round: 3
+        - id: BR-8
+          disposition: not-addressed
+          note: 'replay.js:322 wraps deps.renderer so r.onDirty = draw (correct, and it closes the sweep: connect, replaySource), but no regression test; a replaySource test in replay.test.mjs calling r.onDirty() and asserting frame() runs would pin it.'
+          round: 3
+      recipe: fix-review
+      isolation: fenced
+      reviewed: f01d0fd8b550d801211c739f1faf1e68ecd43637
+      blocked: false
 ---
 
 # Gate ledger — pair#475 (boundary-review)
@@ -133,6 +150,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - **BR-8** [Minor] `ondirty-wiring-sweep` replaySource never routes onDirty to its draw pipeline, so a paused replay's marks stay at the pre-release layout
   This is the 2nd finding in family ondirty-wiring-sweep. Rule: every shell source that owns a renderer routes onDirty to its full paint pipeline (flush plus deps.frame), not flush alone. Enumeration: connect (viewer.js:64, done), replaySource (replay.js:319, missing; wrap deps.renderer to set r.onDirty = draw), inBrowser/harness (default flush is enough).
+
+## Round 3 — 2026-10-12T06:24:43-07:00 (claude) — passed
+
+### Disposed
+
+- BR-6 — not-addressed — render.js not in this window; the HOLD_MS race in bound() is present but still no fake-timer test with a never-settling load proves it.
+- BR-8 — not-addressed — replay.js:322 wraps deps.renderer so r.onDirty = draw (correct, and it closes the sweep: connect, replaySource), but no regression test; a replaySource test in replay.test.mjs calling r.onDirty() and asserting frame() runs would pin it.
 
 ## Open findings
 
