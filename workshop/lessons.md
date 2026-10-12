@@ -17,6 +17,13 @@ representative evidence, not an exhaustive index.
   adding the request's own numbers: `col+w <= cols` wraps at 2^63 and lets a box through that then drives a loop
   for ~9e18 iterations. A fuzz oracle that restates the parser's addition shares the bug, so state its bounds
   independently. Pin a refusal table with a deadline. (#488 BR-10)
+- An async job carries the exact observation it was made from (the frame, its endpoint, the session), and is
+  checked against what is in view when it applies. Never re-read "latest" mutable state at apply time, and key
+  dedup sets by every identity that can repeat (ids restart per session). (#488 BR-15, BR-16)
+- Decide under a leaf lock, act after releasing it: starting a worker (`GoTracked`) takes other locks and can run
+  inline. (#488 BR-17)
+- Context gathered for the agent (file names, headings, layout) stays off the viewers' wire unless a page needs it.
+  Tag it `json:"-"` and test that the wire lacks it. (#488 BR-18)
 - A bounded cache or graveyard prunes only after the update it belongs to is applied: decide what is gone from the
   structure as it now is, never between its teardown and its rebuild. #458's id map buried a re-snapshotted tree after
   forgetting it, so every live node looked removed and lost its id once the graveyard filled. Test it above the bound.

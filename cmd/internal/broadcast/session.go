@@ -416,8 +416,8 @@ func (s *Session) acceptNote(req NoteRequest) error {
 
 // SetNoteAnchor replaces open note id's anchor (#488: the operator's
 // program finished resolving it). A note resolved or cleared since is gone,
-// and the anchor is dropped: ids are never reused, so it can't land on
-// another note. It reports whether the note was there.
+// and the anchor is dropped: a session never reuses an id, so it can't land
+// on another note. It reports whether the note was there.
 func (s *Session) SetNoteAnchor(id int, a NoteAnchor) bool {
 	changed := s.pointer.setNoteAnchor(id, a)
 	if changed {

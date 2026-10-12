@@ -266,3 +266,51 @@ func TestNotesNeedAPointerCapability(t *testing.T) {
 		}
 	}
 }
+
+// The anchor (#488): AnchorNote answers as the note opens, SetNoteAnchor
+// refines it, and neither reaches a page; a refinement for a note that is
+// gone, or never was, is dropped.
+func TestNoteAnchorLifecycle(t *testing.T) {
+	p, link := notesOn(t)
+	var asked []Note
+	p.s.cfg.AnchorNote = func(n Note, cols, rows int) NoteAnchor {
+		asked = append(asked, n)
+		return NoteAnchor{Kind: AnchorScreen, Path: []string{"pane pair:3"}, Text: fmt.Sprintf("%dx%d", cols, rows)}
+	}
+	vs := stream(t, p.s.Link())
+	notesEvent(t, vs)
+	if code, body := post(t, link+"note", "application/json", noteBody(3, 1, 0, "a")); code != http.StatusNoContent {
+		t.Fatalf("POST note %d %q", code, body)
+	}
+	raw := readEvent(t, vs, "notes")
+	if strings.Contains(raw, "anchor") || strings.Contains(raw, "pane pair:3") {
+		t.Fatalf("the anchor reached a page: %s", raw)
+	}
+	notes, _ := p.s.Notes()
+	if len(asked) != 1 || len(notes) != 1 || notes[0].Anchor == nil || notes[0].Anchor.Text != "40x4" || notes[0].On != (terminal.Geometry{Cols: 40, Rows: 4}) {
+		t.Fatalf("asked %+v, notes %+v", asked, notes)
+	}
+	id := notes[0].ID
+	if !p.s.SetNoteAnchor(id, NoteAnchor{Kind: AnchorPane, Path: []string{"pane pair:3", "agent"}}) {
+		t.Fatal("refining an open note's anchor")
+	}
+	if notes, _ := p.s.Notes(); notes[0].Anchor.Kind != AnchorPane {
+		t.Fatalf("refined anchor %+v", notes[0].Anchor)
+	}
+	if raw := readEvent(t, vs, "notes"); strings.Contains(raw, "anchor") {
+		t.Fatalf("a refined anchor reached a page: %s", raw)
+	}
+	if p.s.SetNoteAnchor(id+100, NoteAnchor{Kind: AnchorPane}) {
+		t.Error("an unknown id took an anchor")
+	}
+	p.s.ResolveNote(id)
+	if p.s.SetNoteAnchor(id, NoteAnchor{Kind: AnchorPane}) {
+		t.Error("a resolved note took an anchor")
+	}
+	post(t, link+"note", "application/json", noteBody(9, 1, 0, "b"))
+	notes, _ = p.s.Notes()
+	p.s.DisablePointer()
+	if p.s.SetNoteAnchor(notes[0].ID, NoteAnchor{Kind: AnchorPane}) {
+		t.Error("a note cleared by pointing off took an anchor")
+	}
+}

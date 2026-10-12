@@ -10,6 +10,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
+	"github.com/xianxu/pair/cmd/internal/reviewcmd"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 )
 
@@ -49,6 +50,11 @@ func TestNotePanesRolesFilesAndFloatingFirst(t *testing.T) {
 }
 
 func TestReviewFile(t *testing.T) {
+	// The command reviewcmd spawns the pane with, read back.
+	spawned := strings.Join([]string{"nvim", "-u", "/home/p/" + reviewcmd.ReviewScript, "/docs/spawned.md"}, " ")
+	if got := reviewFile(spawned); got != "/docs/spawned.md" {
+		t.Errorf("reviewcmd's own command: %q", got)
+	}
 	for cmd, want := range map[string]string{
 		"nvim -u /home/p/nvim/review.lua /docs/a.md":          "/docs/a.md",
 		"nvim -u /home/p/nvim/review.lua /docs/with space.md": "/docs/with space.md",

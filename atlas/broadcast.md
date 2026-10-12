@@ -458,8 +458,11 @@ web cast's element anchor (`recording.NoteAt` kind/path), so #455's and #483's s
 - **Pane path (asynchronous):** `queueAnchors` (from `applyNotes`) queues each such note once. The single-flight
   `resolveAnchors` makes one `PaneRects` query per slot per pass, and `Session.SetNoteAnchor(id, a)` applies the
   result.
-  - **Dropped results:** a note resolved or cleared since (ids are never reused), or a geometry-epoch change
-    since the note opened.
+  - **Dropped results:**
+    - a note resolved or cleared since (a session never reuses an id; `tried` is keyed by session and id);
+    - another slot in view or a resize since the job's frame (endpoint and geometry epoch).
+  - **Each job carries its exact frame.** The anchor is computed from that frame, and a job is made only while
+    the text under the box is still the note's.
   - **Failures:** a failed or timed-out query (2 s) leaves the opening anchor, with no retry.
   - **Tests:** `console_noteanchor_test.go` covers completion order, a resize mid-pass, a resolve mid-pass, two
     notes per pass, and a note opened mid-pass.

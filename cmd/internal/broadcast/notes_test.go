@@ -516,3 +516,19 @@ func TestDrawNotesWidensUsedColumns(t *testing.T) {
 		t.Fatal("input row metadata mutated")
 	}
 }
+
+func TestNoteBoardSetAnchor(t *testing.T) {
+	var b NoteBoard
+	n, _ := b.Add(Note{Box: CellBox{1, 1, 2, 1}, Text: "a"}, 80, 24)
+	before := b.List()
+	if !b.SetAnchor(n.ID, NoteAnchor{Kind: AnchorPane}) || b.SetAnchor(n.ID+1, NoteAnchor{}) {
+		t.Fatal("SetAnchor sets an open note's anchor only")
+	}
+	if before[0].Anchor != nil {
+		t.Fatal("a listed snapshot changed under its reader")
+	}
+	b.Resolve(n.ID)
+	if b.SetAnchor(n.ID, NoteAnchor{}) {
+		t.Fatal("a resolved note took an anchor")
+	}
+}

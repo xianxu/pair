@@ -20,14 +20,18 @@ import (
 // asks once per pass, after every note it serves opened, so the answer is
 // fresh for them, and sets each note's anchor through the session.
 //
-// Ordering (ARCH-ORDER). A resolved anchor applies only to the note it was
-// asked for: the session drops it once the note is resolved or pointing
-// turned off (ids are never reused). It is dropped here when the screen's
-// geometry changed since the note opened (a resize mid-pass: the pane
-// layout no longer matches the box) or the slot in view isn't the note's.
-// A note opened during a pass waits for the next pass. A failed or timed
-// out query leaves the anchor as it opened, kind AnchorScreen; nothing is
-// retried.
+// Ordering (ARCH-ORDER). A job carries the exact observation it was made
+// from: the session, the note as it opened, the slot in view and the frame
+// then, whose text under the box must still be the note's (else the screen
+// moved between the note opening and the queueing, and the job is not
+// made). A resolved anchor applies only to that note of that session: the
+// session drops it once the note is resolved or pointing turned off (a
+// session never reuses an id; a new broadcast is a new session, so tried
+// is keyed by both). It is dropped here when the screen in view is no
+// longer that frame's endpoint and geometry (a slot switch or a resize
+// mid-pass: the panes no longer match the box). A note opened during a
+// pass waits for the next pass. A failed or timed out query leaves the
+// anchor as it opened, kind AnchorScreen; nothing is retried.
 
 // paneRectsTimeout bounds one pane query: about 3× list-panes' measured cost.
 const paneRectsTimeout = 2 * time.Second
@@ -46,8 +50,15 @@ type noteAnchors struct {
 	pending []anchorJob
 	running bool
 	// tried is the open notes already queued, so a note is asked about
-	// once; it keeps only ids still open (pruned on every snapshot).
-	tried map[int]bool
+	// once; it keeps only the latest session's open notes (pruned on
+	// every snapshot).
+	tried map[triedNote]bool
+}
+
+// triedNote is one note of one session.
+type triedNote struct {
+	session anchorSetter
+	id      int
 }
 
 // anchorJob is one note waiting for its pane path: the note as it opened,
@@ -57,7 +68,7 @@ type anchorJob struct {
 	note    broadcast.Note
 	slot    couchcore.ThreadAddress
 	layout  ScreenLayout
-	epoch   uint64
+	frame   terminal.Frame
 }
 
 // anchorSetter is where a resolved anchor goes: the broadcast session.
@@ -125,35 +136,49 @@ func (c *Console) queueAnchors(s *broadcast.Session, notes []broadcast.Note) {
 	c.mu.Lock()
 	l, slot := c.noteLayoutLocked()
 	c.mu.Unlock()
+	if c.queueAnchorJobs(s, notes, l, slot) {
+		c.GoTracked(c.resolveAnchors)
+	}
+}
+
+// queueAnchorJobs queues each of the session's open notes still waiting
+// for a pane path, once, against the frame in view, and reports whether
+// the caller must start the resolver (it wasn't running). It takes no lock
+// but anchors.mu, and starts nothing itself.
+func (c *Console) queueAnchorJobs(s anchorSetter, notes []broadcast.Note, l ScreenLayout, slot couchcore.ThreadAddress) bool {
 	c.anchors.mu.Lock()
 	defer c.anchors.mu.Unlock()
-	open := make(map[int]bool, len(notes))
+	open := make(map[triedNote]bool, len(notes))
 	for _, n := range notes {
-		open[n.ID] = true
+		open[triedNote{s, n.ID}] = true
 	}
-	for id := range c.anchors.tried {
-		if !open[id] {
-			delete(c.anchors.tried, id)
+	for k := range c.anchors.tried {
+		if !open[k] {
+			delete(c.anchors.tried, k)
 		}
 	}
 	if c.anchors.rects == nil || slot == (couchcore.ThreadAddress{}) {
-		return
+		return false
 	}
+	f := c.anchors.frame
 	for _, n := range notes {
-		if n.Anchor == nil || n.Anchor.Kind != broadcast.AnchorScreen || c.anchors.tried[n.ID] ||
-			len(n.Anchor.Path) == 0 || n.Anchor.Path[0] != "pane "+l.Slot {
+		k := triedNote{s, n.ID}
+		if n.Anchor == nil || n.Anchor.Kind != broadcast.AnchorScreen || c.anchors.tried[k] ||
+			len(n.Anchor.Path) == 0 || n.Anchor.Path[0] != "pane "+l.Slot ||
+			f.Geometry != n.On || TextUnder(f, n.Box) != n.Anchor.Text {
 			continue
 		}
 		if c.anchors.tried == nil {
-			c.anchors.tried = map[int]bool{}
+			c.anchors.tried = map[triedNote]bool{}
 		}
-		c.anchors.tried[n.ID] = true
-		c.anchors.pending = append(c.anchors.pending, anchorJob{session: s, note: n, slot: slot, layout: l, epoch: c.anchors.frame.GeometryEpoch})
+		c.anchors.tried[k] = true
+		c.anchors.pending = append(c.anchors.pending, anchorJob{session: s, note: n, slot: slot, layout: l, frame: f})
 	}
-	if len(c.anchors.pending) > 0 && !c.anchors.running {
-		c.anchors.running = true
-		c.GoTracked(c.resolveAnchors)
+	if len(c.anchors.pending) == 0 || c.anchors.running {
+		return false
 	}
+	c.anchors.running = true
+	return true
 }
 
 // resolveAnchors is the resolver: one pass per batch of waiting notes, one
@@ -185,14 +210,14 @@ func (c *Console) resolveAnchors() {
 				continue
 			}
 			c.anchors.mu.Lock()
-			f := c.anchors.frame
+			now := c.anchors.frame
 			c.anchors.mu.Unlock()
-			if f.GeometryEpoch != j.epoch || f.Geometry != j.note.On {
-				continue // resized since: the panes no longer match the box
+			if now.EndpointID != j.frame.EndpointID || now.GeometryEpoch != j.frame.GeometryEpoch || now.Geometry != j.frame.Geometry {
+				continue // another slot in view, or resized: the panes no longer match the box
 			}
 			l := j.layout
 			l.Panes = ps
-			a := AnchorFor(j.note.Box, f, l)
+			a := AnchorFor(j.note.Box, j.frame, l)
 			if a.Kind != broadcast.AnchorPane || !strings.HasPrefix(strings.Join(a.Path, "\x00"), strings.Join(j.note.Anchor.Path, "\x00")) {
 				continue
 			}

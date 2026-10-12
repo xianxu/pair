@@ -65,7 +65,7 @@ type anchorRig struct {
 func newAnchorRig(t *testing.T) *anchorRig {
 	t.Helper()
 	f, l := anchorScreen()
-	f.GeometryEpoch = 7
+	f.GeometryEpoch, f.EndpointID = 7, "pair:3"
 	panes := l.Panes
 	r := &anchorRig{c: &Console{lifetime: context.Background()}, s: &fakeSession{open: map[int]bool{}, set: map[int]broadcast.NoteAnchor{}},
 		layout: &paneLayout{panes: panes}, frame: f}
@@ -83,7 +83,7 @@ func (r *anchorRig) open(id int, box broadcast.CellBox) {
 	a := AnchorFor(box, r.frame, l)
 	n.Anchor = &a
 	r.s.open[id] = true
-	r.c.anchors.pending = append(r.c.anchors.pending, anchorJob{session: r.s, note: n, slot: couchcore.ThreadAddress{RepoScope: "pair", Tag: "3"}, layout: l, epoch: r.frame.GeometryEpoch})
+	r.c.anchors.pending = append(r.c.anchors.pending, anchorJob{session: r.s, note: n, slot: couchcore.ThreadAddress{RepoScope: "pair", Tag: "3"}, layout: l, frame: r.frame})
 }
 
 func (r *anchorRig) path(id int) string {
@@ -138,6 +138,19 @@ func TestResolverOrdering(t *testing.T) {
 		r.c.resolveAnchors()
 		if got := r.path(1); got != "" {
 			t.Errorf("an answer for the old layout applied: %q", got)
+		}
+	})
+	t.Run("a slot switch during the pass drops the answer", func(t *testing.T) {
+		r := newAnchorRig(t)
+		r.open(1, cb(0, 6, 20, 2))
+		r.layout.during = func() {
+			g, _ := anchorScreen() // another slot, same size and epoch
+			g.GeometryEpoch, g.EndpointID = 7, "pair:1"
+			r.c.keepNoteFrame(g)
+		}
+		r.c.resolveAnchors()
+		if got := r.path(1); got != "" {
+			t.Errorf("an answer for the slot no longer in view applied: %q", got)
 		}
 	})
 	t.Run("a failed query leaves the anchor as it opened, without a retry", func(t *testing.T) {
@@ -202,4 +215,38 @@ func (p *paneLayout) count() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.queries
+}
+
+// A new broadcast is a new session whose ids start again: its note 1 is
+// queued though the last session's note 1 was (BR-15). A note whose text
+// under the box changed before it was queued is not (the screen moved).
+func TestQueueAnchorJobsPerSession(t *testing.T) {
+	r := newAnchorRig(t)
+	_, l := anchorScreen()
+	l.Panes = nil
+	note := func(id int, box broadcast.CellBox) broadcast.Note {
+		a := AnchorFor(box, r.frame, l)
+		return broadcast.Note{ID: id, Box: box, On: r.frame.Geometry, Anchor: &a}
+	}
+	slot := couchcore.ThreadAddress{RepoScope: "pair", Tag: "3"}
+	first, second := &fakeSession{}, &fakeSession{}
+	if !r.c.queueAnchorJobs(first, []broadcast.Note{note(1, cb(0, 0, 24, 3))}, l, slot) {
+		t.Fatal("the first job must start the resolver")
+	}
+	if r.c.queueAnchorJobs(first, []broadcast.Note{note(1, cb(0, 0, 24, 3))}, l, slot) || len(r.c.anchors.pending) != 1 {
+		t.Fatalf("a note is queued once: %d jobs", len(r.c.anchors.pending))
+	}
+	r.c.queueAnchorJobs(second, []broadcast.Note{note(1, cb(0, 6, 20, 2))}, l, slot)
+	if len(r.c.anchors.pending) != 2 || r.c.anchors.pending[1].session != second {
+		t.Fatalf("the next session's note 1 must be queued: %d jobs", len(r.c.anchors.pending))
+	}
+	if len(r.c.anchors.tried) != 1 {
+		t.Errorf("tried keeps only the latest session's open notes: %v", r.c.anchors.tried)
+	}
+	moved := note(2, cb(0, 0, 24, 3))
+	moved.Anchor.Text = "what was there before"
+	r.c.queueAnchorJobs(second, []broadcast.Note{note(1, cb(0, 6, 20, 2)), moved}, l, slot)
+	if len(r.c.anchors.pending) != 2 {
+		t.Errorf("a note whose screen moved was queued")
+	}
 }

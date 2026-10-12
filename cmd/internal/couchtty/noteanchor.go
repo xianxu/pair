@@ -12,8 +12,8 @@ import (
 // A terminal note's anchor (#488): Couch knows its own screen exactly, so a
 // note's box resolves to where it is on it and what it covers, the
 // terminal's counterpart of the web cast's element anchor. Pure: the screen
-// is a frame and a ScreenLayout; noteanchor_resolve.go is the shell that
-// gathers the pane layout from zellij.
+// is a frame and a ScreenLayout; console_noteanchor.go is the shell that
+// gathers the pane layout (through PaneRects).
 
 // maxAnchorText bounds the text under a box an anchor carries, in bytes.
 const maxAnchorText = 1024

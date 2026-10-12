@@ -14,6 +14,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/cmd/internal/reviewcmd"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 )
@@ -113,9 +114,10 @@ func notePanes(panes []zellijpane.Pane, terminalIDs []string, draft string, read
 }
 
 // reviewFile is the file a review pane's nvim was opened on: what follows
-// review.lua in `nvim -u …/review.lua FILE` (reviewcmd.SpawnReviewPane).
+// the review script in `nvim -u …/nvim/review.lua FILE`
+// (reviewcmd.SpawnReviewPane, reviewcmd.ReviewScript).
 func reviewFile(command string) string {
-	const marker = "/nvim/review.lua "
+	marker := "/" + reviewcmd.ReviewScript + " "
 	i := strings.Index(command, marker)
 	if i < 0 {
 		return ""

@@ -50,8 +50,10 @@ type Note struct {
 	Color int     `json:"color"`
 	Text  string  `json:"text"`
 	// Anchor is what the box is on (#488), from the operator's program
-	// (Config.AnchorNote); nil when it gives none. A page never sends it.
-	Anchor *NoteAnchor `json:"anchor,omitempty"`
+	// (Config.AnchorNote); nil when it gives none. It is the agent's
+	// context (file names, a heading off screen), never on the pages'
+	// wire: a page neither sends nor receives it.
+	Anchor *NoteAnchor `json:"-"`
 	// On is the grid the note was placed on (NoteBoard.Add): a box means
 	// the screen of that size.
 	On terminal.Geometry `json:"-"`
