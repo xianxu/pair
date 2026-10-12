@@ -1,12 +1,20 @@
 ---
 id: 000482
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '18129e25c037053fde6cd2ef65d1671b24542165' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '720e0369bd754ea475cd93ccf0746d0b4b58a4ef' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T06:43:46-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # broadcast-web: fidelity flake on rec-blog frame 0 — a web font bound 1 ms before the screenshot moment
@@ -26,8 +34,14 @@ Find whether the replay at a frame time can be judged before fonts bound before 
 
 ## Plan
 
-- [ ]
+- [x] Pin it: a live test with a font and an image bound 1 ms before the moment (`TestLiveReplayAtLoadsAssetsBoundJustBefore`), and a fake-deps unit test of the capture's order (pause at t → wait for the loads → pause what they started).
+- [x] Fix `Replayer.replayAt`: after the window, pause at t, `settle()` (the renderer's bounded `ready`: sheets, fonts, images), pause anything newly started.
+- [x] Check the other fixtures; atlas line in `atlas/webcast.md`.
+- [x] 100 runs of rec-blog under load (4 concurrent Chromes + 4 CPU burners).
 
 ## Log
 
 ### 2026-10-12
+- **Cause (measured):** `replayAt` captured right after `until(t)`. It waited only for a held paint's stylesheets (#475), never for assets fed during the real-time window. rec-blog frame 0 (t=147) replays entirely inside that window. The Inter font's asset arrives at 146, and the avatar image and the giscus sheet arrive just before it, so whether the capture saw them depended on load and decode speed under load. pair:5 independently saw the 6.75% frame as the missing avatar and scrollbar, not the font. Both are the same cause. The pinning test fails 3 of 3 on main (`Late:loading img:false`) and passes with the fix.
+- **Fix:** pause the animations at t, then `settle()` (the renderer's `ready`, bounded at 5 s), then pause only the animations the loads started. Fonts, images and sheets bound by t are all covered. A font-only `document.fonts` wait would have missed the avatar.
+- **Other fixtures:** no other asset or font is bound within 150 ms before a frame. The first frames of rec-app, rec-segments and rec-stress (56, 101, 84 ms) also replay entirely in the window, so the fix covers them too. rec-stress's known gap is different: photo.png's bytes arrive after the frame.

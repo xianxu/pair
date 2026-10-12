@@ -109,6 +109,9 @@ what the viewer's renderer draws at the same moments.
     seek rule), so it replays at most one segment.
   - A segment that isn't a navigation snapshots a document that was already running, so its animations are
     finished, not started: on the live blog cast this took the first frame from 2.15% to 0.10%.
+  - The capture at t stops the animations at t, then waits (bounded, `ready`) for the fonts, images and stylesheets
+    bound by t to load (#482). The tab painted with bytes it had; an asset bound 1 ms before a frame was still
+    loading in the replay, which flaked rec-blog's first frame to 6.75%.
 - **When it runs:**
   - `CastConfig.Check` runs once a recorded cast with frames has ended, in the background. couchcmd wires
     `CheckFidelity` with one check at a time per Couch, and the summary line goes to the operator's notice.
