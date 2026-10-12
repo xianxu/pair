@@ -24,14 +24,9 @@ type noteSpec struct {
 	resolveT int64 // when nonzero, a note-state resolves it then
 }
 
-// excluded are asset URLs left out of a fixture. The stress page's late
-// font is a copy of a macOS system font (Apple Chancery), which the repo
-// must not redistribute; its font record stays, unbound.
-var excluded = map[string][]string{"stress": {"/assets/late.ttf"}}
-
 var specs = map[string][]noteSpec{
-	// The real recorder's runs (#472): #453's pages again, at the moments
-	// their scenarios reach those elements.
+	// The real recorder's runs (#472): #453's pages, at the moments their
+	// scenarios reach those elements.
 	"rec-stress": {
 		{t: 2000, sel: "#cij", author: pm, text: "This box flickers through colours; is that on purpose?"},
 		{t: 3000, sel: "#closed", author: design, text: "Closed shadow root: the badge should match the open one.", resolveT: 4500},
@@ -49,20 +44,6 @@ var specs = map[string][]noteSpec{
 	"rec-segments": {
 		{t: 1500, sel: "h1", author: pm, text: "Reports needs a date range."},
 		{t: 4200, sel: "td~Week 3", author: design, text: "Week 3 looks low; is that a gap in the data?"},
-	},
-	"stress": {
-		{t: 3000, sel: "#cij", author: pm, text: "This box flickers through colours; is that on purpose?"},
-		{t: 4500, sel: "#closed", author: design, text: "Closed shadow root: the badge should match the open one.", resolveT: 6000},
-	},
-	"app": {
-		{t: 6000, sel: "#search", author: pm, text: "Search should ignore case."},
-		{t: 12500, sel: "#open-modal", author: design, text: "The modal button needs more contrast.", resolveT: 14000},
-		{t: 19000, sel: "h1~Reports", author: pm, text: "Reports needs a date range."},
-	},
-	"blog": {
-		{t: 2500, sel: "h1", author: pm, text: "Title wraps awkwardly at this width."},
-		{t: 6000, sel: "img[alt*=issue tracker]", author: design, text: "This screenshot is too small to read."},
-		{t: 8000, sel: "ol", author: pm, text: "This list reads better as a table."},
 	},
 }
 

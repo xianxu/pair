@@ -39,12 +39,6 @@ const ReplayWindow = 1000
 // recording through a ReplayServer on loopback and needs Chrome at
 // chromeBin; the Chrome and its profile are gone when it returns.
 func CheckFidelity(ctx context.Context, chromeBin, dir string) (fidelity.Report, error) {
-	return checkFidelity(ctx, chromeBin, dir, fidelity.Offsets)
-}
-
-// checkFidelity compares each frame at offsets (fidelity.Offsets; the
-// tests add the prototype fixtures' observer lag, as #472's do).
-func checkFidelity(ctx context.Context, chromeBin, dir string, offsets []int64) (fidelity.Report, error) {
 	abs, err := filepath.Abs(dir)
 	if err == nil {
 		abs, err = filepath.EvalSymlinks(abs)
@@ -93,7 +87,7 @@ func checkFidelity(ctx context.Context, chromeBin, dir string, offsets []int64) 
 		}
 		// The moments to compare at, kept in the frame's own segment (#472's
 		// one rule): t first.
-		times := recording.FrameTimes(rec.Records, f.T, offsets)
+		times := recording.FrameTimes(rec.Records, f.T, fidelity.Offsets)
 		shot, got, live, err := b.score(ctx, f, tab, times)
 		if err != nil {
 			return fidelity.Report{}, fmt.Errorf("fidelity: %s at t=%d: %w", f.File, f.T, err)

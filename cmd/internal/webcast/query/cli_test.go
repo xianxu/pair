@@ -18,7 +18,7 @@ func runMain(argv ...string) (code int, out, errOut string) {
 }
 
 func TestMainRefusesBadArguments(t *testing.T) {
-	dir := recording.Fixture("app")
+	dir := recording.Fixture("rec-app")
 	for _, argv := range [][]string{
 		{},
 		{dir},
@@ -41,7 +41,7 @@ func TestMainRefusesBadArguments(t *testing.T) {
 }
 
 func TestMainFailsWhereTheRecordingCantAnswer(t *testing.T) {
-	dir := recording.Fixture("app")
+	dir := recording.Fixture("rec-app")
 	broken := t.TempDir()
 	data, err := os.ReadFile(filepath.Join(dir, recording.FileEvents))
 	if err != nil {
@@ -73,7 +73,7 @@ func TestMainFailsWhereTheRecordingCantAnswer(t *testing.T) {
 
 // --json answers decode, and carry what the text leaves out.
 func TestMainJSON(t *testing.T) {
-	dir := recording.Fixture("app")
+	dir := recording.Fixture("rec-app")
 	code, out, errOut := runMain(dir, "dom", "--at", "6000", "--sel", "#search", "--json")
 	var dom struct {
 		T       int64
@@ -88,7 +88,7 @@ func TestMainJSON(t *testing.T) {
 		t.Errorf("dom --json: %d %s %s", code, out, errOut)
 	}
 
-	code, out, _ = runMain(dir, "events", "--from", "6000", "--to", "6400", "--json")
+	code, out, _ = runMain(dir, "events", "--from", "4780", "--to", "4920", "--json")
 	ls := strings.Split(strings.TrimSpace(out), "\n")
 	for _, l := range ls {
 		if _, err := recording.Decode([]byte(l)); err != nil || code != 0 {
@@ -107,7 +107,7 @@ func TestMainJSON(t *testing.T) {
 		Context struct{ Node, Landmark int64 }
 		Before  []map[string]any
 	}
-	if code != 0 || json.Unmarshal([]byte(out), &ns) != nil || len(ns) != 3 || ns[1].State != "resolved" || ns[1].Context.Node != 108 || len(ns[1].Before) == 0 {
+	if code != 0 || json.Unmarshal([]byte(out), &ns) != nil || len(ns) != 3 || ns[1].State != "resolved" || ns[1].Context.Node != 233 || len(ns[1].Before) == 0 {
 		t.Errorf("notes --json: %d %s", code, out)
 	}
 }
@@ -141,7 +141,7 @@ func TestMainScrubsControlCharacters(t *testing.T) {
 
 // When matches outrun the budget, the answer says how many were left out.
 func TestDOMSaysWhenMatchesAreCut(t *testing.T) {
-	code, out, _ := runMain(recording.Fixture("stress"), "dom", "--at", "3000", "--sel", "td", "--max-lines", "4")
+	code, out, _ := runMain(recording.Fixture("rec-stress"), "dom", "--at", "3000", "--sel", "td", "--max-lines", "4")
 	if code != 0 || !strings.Contains(out, "more matches; narrow the selector") {
 		t.Errorf("exit %d:\n%s", code, out)
 	}

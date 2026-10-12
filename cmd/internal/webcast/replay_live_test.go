@@ -24,7 +24,7 @@ import (
 
 func replayServer(t *testing.T) *httptest.Server {
 	t.Helper()
-	srv := httptest.NewServer(NewReplayServer("tok", replayRoot(t, recording.Fixtures...)))
+	srv := httptest.NewServer(NewReplayServer("tok", replayRoot(t, recording.Fixtures()...)))
 	t.Cleanup(srv.Close)
 	return srv
 }
@@ -55,7 +55,7 @@ func TestLiveReplayServerSeeks(t *testing.T) {
 	page := headlessPage(t)
 	srv := replayServer(t)
 	page.call(t, page.session, "Network.enable", map[string]any{}, nil)
-	for _, name := range recording.Fixtures {
+	for _, name := range recording.Fixtures() {
 		t.Run(name, func(t *testing.T) {
 			rec, err := recording.ReadDir(recording.Fixture(name))
 			if err != nil {
@@ -120,11 +120,11 @@ func catchUpIndexes(recs []recording.Record, at int64) []int {
 func TestLiveReplayServerMarks(t *testing.T) {
 	page := headlessPage(t)
 	srv := replayServer(t)
-	rec, err := recording.ReadDir(recording.Fixture("app"))
+	rec, err := recording.ReadDir(recording.Fixture("rec-app"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	page.openReplay(t, srv.URL+"/tok/r/app/#t=0")
+	page.openReplay(t, srv.URL+"/tok/r/rec-app/#t=0")
 	for _, at := range []int64{5900, 6100, 12200, 12400, 12600, 13900, 14100, 16000, 18700, 19100} {
 		page.eval(t, fmt.Sprintf("location.hash = '#t=%d'", at))
 		page.evalString(t, drawnJS)

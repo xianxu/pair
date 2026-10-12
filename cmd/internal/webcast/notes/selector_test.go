@@ -57,7 +57,7 @@ func TestSelectorSteps(t *testing.T) {
 // Every element of the real fixtures, through shadow roots and frames,
 // matches its own selector and nothing else.
 func TestSelectorRoundTripOnFixtures(t *testing.T) {
-	for _, name := range []string{"stress", "app", "blog"} {
+	for _, name := range []string{"rec-stress", "rec-app", "rec-blog"} {
 		st := fixtureEnd(t, name)
 		deep := 0
 		walkElements(st.Top, func(n *recording.DOMNode) {
@@ -69,8 +69,8 @@ func TestSelectorRoundTripOnFixtures(t *testing.T) {
 				t.Errorf("%s: %q of node %d matches %d elements", name, sel, n.ID, len(m))
 			}
 		})
-		if name == "stress" && deep == 0 {
-			t.Errorf("stress has shadow roots and a frame; no element inside them was checked")
+		if name == "rec-stress" && deep == 0 {
+			t.Errorf("rec-stress has shadow roots and a frame; no element inside them was checked")
 		}
 	}
 }
@@ -78,7 +78,7 @@ func TestSelectorRoundTripOnFixtures(t *testing.T) {
 // Match answers for the anchor grammar only: anything else is "not mine",
 // so a caller with a wider grammar can fall back to it (#462).
 func TestMatchKnowsItsGrammar(t *testing.T) {
-	r, err := recording.ReadDir(recording.Fixture("stress"))
+	r, err := recording.ReadDir(recording.Fixture("rec-stress"))
 	if err != nil {
 		t.Fatal(err)
 	}
