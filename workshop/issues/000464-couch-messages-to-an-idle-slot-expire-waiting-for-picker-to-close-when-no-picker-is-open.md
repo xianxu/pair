@@ -58,6 +58,7 @@ delivery waits "for picker to close" until someone presses Enter in the pane.
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — Replayed-screen tests (cmd/internal/wrapcmd/peer_picker_test.go) over screens re-rendered from pair:3's recording plus a recorded question picker: the auto-denied permission prompt closes the latch, a picker on screen keeps it, an OSC ahead of the paint keeps it, a question picker's free-text row keeps it, profiles without overlayHidesComposer keep Enter-only, and a peer message to the idle suggestion screen after the auto-deny is submitted. Each part of the fix mutation-checked. Full make -k test green (exit 0, 242 packages ok). Plan's live-check item left open on purpose: deferred to the TL (ops:0) per their instruction, after the next pair:0 build + Couch restart + slot relaunch. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
 - Measured on pair:3's recording (`scrollback-1-pair-7-claude.raw`): one
   `777;notify;Claude Code;Claude needs your permission` at 23:45 for a Bash
   prompt ("Dangerous rm operation…"), whose screen read "Claude Code will
