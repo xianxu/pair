@@ -11,6 +11,10 @@ representative evidence, not an exhaustive index.
   #457's catch-up kept a document's notes but dropped the segment they were counted from, so a derived view
   (notes on the current document) emptied while the raw state matched. Assert equivalence on the derived views
   consumers read, not only on the raw state. (#457 BR-1)
+- A generator and its parser are one contract: never store an output the parser can't read back. Check the round trip
+  at the point of emission (#461's `Anchor` drops a selector that doesn't find its own element), not only by
+  restricting inputs, which misses the cases nobody foresaw. When a fix changes behaviour, grep every prose restatement
+  (doc comments, atlas, plan) and update them in the same commit. (#461 BR-1, seam-doc-drift)
 - A seam's record channel carries one kind of thing. Name the single writer of every side artifact (bodies,
   screenshots), and make each consumer refuse what it must never receive, with a contract test that checks it.
   (#457 BR-4)
