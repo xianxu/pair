@@ -11,15 +11,21 @@ const defaultMargin = 48
 
 const unbounded = 1e9
 
-// crops computes a submission's screenshot regions; see Structural.Crops.
-// resolve finds an anchor's element now, for its landmark.
-func crops(st *recording.State, ats []recording.NoteAt, margin float64, hints Hints,
+// crops computes a submission's screenshot regions; see Structural.NoteCrops.
+// resolve finds an anchor's element now, for its landmark. A region note
+// crops its region, padded but not snapped: the viewer cropped it by hand.
+func crops(st *recording.State, ns []*recording.Note, margin float64, hints Hints,
 	resolve func(*recording.State, recording.NoteAt) (recording.NodeID, bool)) ([]recording.Box, error) {
 	var out []recording.Box
 	page := pageBox(st)
-	for _, at := range ats {
-		id, live := resolve(st, at)
-		b, err := anchorBox(st, at, id)
+	for _, n := range ns {
+		if n.Region != nil {
+			page = page.Union(*n.Region)
+			out = append(out, pad(*n.Region, margin))
+			continue
+		}
+		id, live := resolve(st, n.At)
+		b, err := anchorBox(st, n.At, id)
 		if err != nil {
 			return nil, err
 		}
@@ -44,6 +50,15 @@ func crops(st *recording.State, ats []recording.NoteAt, margin float64, hints Hi
 		}
 	}
 	return out, nil
+}
+
+// anchorsOnly wraps anchors as notes without regions, for Crops.
+func anchorsOnly(ats []recording.NoteAt) []*recording.Note {
+	ns := make([]*recording.Note, len(ats))
+	for i, at := range ats {
+		ns[i] = &recording.Note{At: at}
+	}
+	return ns
 }
 
 // anchorBox is the box a note was made on: its own (a viewer-made note's box

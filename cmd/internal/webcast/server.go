@@ -36,10 +36,12 @@ var assets = map[string]struct{ file, contentType string }{
 // endedReason is what viewers are told when the cast ends.
 const endedReason = "ended"
 
-// Server is the viewer endpoint: GET only, under the cast's token, serving
+// Server is the viewer endpoint, under the cast's token, serving
 // the viewer and an event stream of the cast's state ("state", "end") and,
 // with a Live, of its recording ("rec": each record line, the catch-up
 // first, #460), and the recording's asset bodies at assets/<hash> (#459).
+// With a board (WithBoard) it also takes viewers' strokes and notes by POST
+// (#470); everything else is GET only.
 type Server struct {
 	token      string
 	browser    Browser
@@ -49,6 +51,7 @@ type Server struct {
 	ping       time.Duration
 	maxViewers int32
 	viewers    atomic.Int32
+	board      *boardRoutes // nil: no pointing or notes (WithBoard)
 }
 
 // Presence is told that viewer id's stream opened; leave is called when it
@@ -77,12 +80,17 @@ func (s *Server) Owns(segment string) bool { return broadcast.OwnsToken(segment,
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	broadcast.SetSecurityHeaders(w.Header(), contentSecurityPolicy)
+	segment, rest, ok := strings.Cut(strings.TrimPrefix(r.URL.Path, "/"), "/")
+	// The only routes that read a body are the board's POSTs (#470); every
+	// other path is GET-only and never reads one.
+	if r.Method == http.MethodPost && ok && s.Owns(segment) && s.boardRoute(w, r, rest) {
+		return
+	}
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", http.MethodGet)
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	segment, rest, ok := strings.Cut(strings.TrimPrefix(r.URL.Path, "/"), "/")
 	if !ok || !s.Owns(segment) {
 		http.NotFound(w, r)
 		return

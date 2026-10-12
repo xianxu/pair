@@ -60,20 +60,29 @@ func (FakeModel) Context(st *recording.State, at recording.NoteAt) (Context, err
 }
 
 func (m FakeModel) Crops(st *recording.State, ats []recording.NoteAt, hints Hints) ([]recording.Box, error) {
+	return m.NoteCrops(st, anchorsOnly(ats), hints)
+}
+
+// NoteCrops is one crop around every note's box (a region note's region),
+// plus the margin.
+func (m FakeModel) NoteCrops(st *recording.State, ns []*recording.Note, hints Hints) ([]recording.Box, error) {
 	margin := m.Margin
 	if margin == 0 {
 		margin = 24
 	}
 	var crop *recording.Box
-	for _, at := range ats {
-		b := at.Box
+	for _, n := range ns {
+		b := n.Region
 		if b == nil {
-			if lb, ok := st.Boxes[at.Node]; ok {
+			b = n.At.Box
+		}
+		if b == nil {
+			if lb, ok := st.Boxes[n.At.Node]; ok {
 				b = &lb
 			}
 		}
 		if b == nil {
-			return nil, fmt.Errorf("notes: no box for node %d", at.Node)
+			return nil, fmt.Errorf("notes: no box for node %d", n.At.Node)
 		}
 		if crop == nil {
 			crop = b

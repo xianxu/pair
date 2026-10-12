@@ -67,11 +67,15 @@ func (s Structural) Context(st *recording.State, at recording.NoteAt) (Context, 
 }
 
 func (s Structural) Crops(st *recording.State, ats []recording.NoteAt, hints Hints) ([]recording.Box, error) {
+	return s.NoteCrops(st, anchorsOnly(ats), hints)
+}
+
+func (s Structural) NoteCrops(st *recording.State, ns []*recording.Note, hints Hints) ([]recording.Box, error) {
 	m := s.Margin
 	if m == 0 {
 		m = defaultMargin
 	}
-	return crops(st, ats, m, hints, s.Resolve)
+	return crops(st, ns, m, hints, s.Resolve)
 }
 
 func (Structural) Live(st *recording.State) []*recording.NoteView { return liveNotes(st) }

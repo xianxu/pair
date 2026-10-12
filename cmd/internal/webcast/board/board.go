@@ -1,0 +1,315 @@
+// Package board is the web cast's collaboration layer (#470): viewers'
+// pointer strokes and notes, checked and turned into recording records.
+//
+// A Board follows the cast's record stream as a recording.Sink, so it knows
+// the page every viewer is looking at. A request is checked against that
+// state, anchored by the notes model (notes.Model.Anchor, with the viewer's
+// own box), and handed to an Emit: the stream's one writer (the recorder's
+// queue, #458), which stamps t and re-checks the document when it orders the
+// record (OnDoc). Every viewer then sees the record in the live stream, and
+// the recording keeps it.
+//
+// Pure: ParseStroke, ParseNote, ParseNoteState, OnDoc. Stateful: Board, and
+// Writer, the reference writer that tests use in place of the recorder.
+// atlas/webcast-format.md, "Notes and pointer", is the prose.
+package board
+
+import (
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
+	"slices"
+	"sync"
+
+	"github.com/xianxu/pair/cmd/internal/broadcast"
+	"github.com/xianxu/pair/cmd/internal/webcast/notes"
+	"github.com/xianxu/pair/cmd/internal/webcast/recording"
+)
+
+var (
+	// ErrEnded: the cast is over (stop end).
+	ErrEnded = errors.New("board: the cast has ended")
+	// ErrNotLive: no page has been cast yet.
+	ErrNotLive = errors.New("board: the cast hasn't shown a page yet")
+	// ErrStale: the viewer was showing another document, or the element is
+	// gone.
+	ErrStale = errors.New("board: the page changed")
+	// ErrColorFull: the color already has broadcast.MaxNotesPerColor open
+	// notes on this page.
+	ErrColorFull = errors.New("board: too many notes in one color")
+	// ErrUnknown: no such note on this page.
+	ErrUnknown = errors.New("board: no such note")
+	// ErrClosed: the board was closed.
+	ErrClosed = errors.New("board: closed")
+)
+
+// Emit writes r into the stream if the document that began at segment doc
+// is still current when the writer orders r (OnDoc), stamping its t; else
+// it drops r. A writer that knows at once may return ErrStale for a drop;
+// an asynchronous one (the recorder's queue) returns nil and drops later.
+type Emit func(r recording.Record, doc int) error
+
+// OnDoc is the writer's check, its one statement: the document that began
+// at segment doc is still the current one, and the cast hasn't ended.
+func OnDoc(st *recording.State, doc int) bool {
+	return st.Seg > 0 && st.DocSeg == doc && !st.Ended
+}
+
+// LiveNote is an open note on the current document, for Couch.
+type LiveNote struct {
+	ID     string
+	Author recording.Author
+	Text   string
+	// Color is the note's palette index (broadcast.PointerPalette), or -1
+	// for a color outside it.
+	Color int
+	T     int64
+}
+
+// pending is a note emitted and not yet seen back: it counts toward its
+// color's limit until then.
+type pending struct {
+	doc   int
+	color int
+}
+
+// Board checks viewers' requests against the stream it follows. mu is a
+// leaf lock: Emit and subscribers are never called while it is held.
+type Board struct {
+	model   notes.Model
+	emit    Emit
+	palette []string
+	newID   func() string
+
+	mu      sync.Mutex
+	st      *recording.State
+	broken  error // the stream refused a record: the board can't trust its state
+	pending map[string]pending
+	subs    map[chan []LiveNote]struct{}
+	last    []LiveNote
+	closed  bool
+}
+
+// New makes a board that anchors notes with model and writes through emit.
+func New(model notes.Model, emit Emit) *Board {
+	return &Board{model: model, emit: emit, palette: broadcast.PointerPalette(), newID: randomID,
+		st: recording.NewState(), pending: map[string]pending{}, subs: map[chan []LiveNote]struct{}{}}
+}
+
+func randomID() string {
+	var b [8]byte
+	_, _ = rand.Read(b[:])
+	return hex.EncodeToString(b[:])
+}
+
+// Put follows the stream: every record the writer wrote, in order.
+func (b *Board) Put(r recording.Record) error {
+	b.mu.Lock()
+	if b.closed {
+		b.mu.Unlock()
+		return ErrClosed
+	}
+	if b.broken != nil {
+		b.mu.Unlock()
+		return b.broken
+	}
+	if err := b.st.Apply(r); err != nil {
+		b.broken = err
+		b.mu.Unlock()
+		return err
+	}
+	if n, ok := r.(*recording.Note); ok {
+		delete(b.pending, n.ID)
+	}
+	for id, p := range b.pending {
+		if p.doc != b.st.DocSeg {
+			delete(b.pending, id) // dropped by the writer, or on a page that's gone
+		}
+	}
+	b.refreshLocked()
+	b.mu.Unlock()
+	return nil
+}
+
+// Close ends every subscription; later requests fail with ErrClosed.
+func (b *Board) Close() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if !b.closed {
+		b.closed = true
+		for ch := range b.subs {
+			close(ch)
+		}
+		b.subs = nil
+	}
+	return nil
+}
+
+// Stroke writes one chunk of a viewer's stroke. Its record id is the
+// viewer's id and the stroke's, so two viewers' strokes never join.
+func (b *Board) Stroke(in StrokeIn) error {
+	b.mu.Lock()
+	doc, err := b.pageLocked(in.Seg)
+	b.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	return b.emit(&recording.Stroke{ID: in.Viewer.ID + "." + in.ID, Author: b.author(in.Viewer, in.Color),
+		Color: b.palette[in.Color], Pts: in.Pts}, doc)
+}
+
+// Note writes a viewer's new note and returns its id. The anchor is the
+// notes model's for the element now, with the viewer's box.
+func (b *Board) Note(in NoteIn) (string, error) {
+	b.mu.Lock()
+	doc, err := b.pageLocked(in.Seg)
+	if err != nil {
+		b.mu.Unlock()
+		return "", err
+	}
+	if b.st.Node(in.Node) == nil {
+		b.mu.Unlock()
+		return "", ErrStale
+	}
+	if b.openLocked(in.Color) >= broadcast.MaxNotesPerColor {
+		b.mu.Unlock()
+		return "", ErrColorFull
+	}
+	at, err := b.model.Anchor(b.st, in.Node)
+	if err != nil {
+		b.mu.Unlock()
+		return "", ErrStale // not an element: nothing to pin a note on
+	}
+	box := in.Box
+	at.Box = &box
+	id := b.newID()
+	b.pending[id] = pending{doc: doc, color: in.Color}
+	b.mu.Unlock()
+
+	n := &recording.Note{ID: id, Author: b.author(in.Viewer, in.Color), Text: in.Text, At: at, Region: in.Region}
+	if err := b.emit(n, doc); err != nil {
+		b.mu.Lock()
+		delete(b.pending, id)
+		b.mu.Unlock()
+		return "", err
+	}
+	return id, nil
+}
+
+// SetState resolves or reopens a note on the current document. Anyone may;
+// setting the state a note already has does nothing.
+func (b *Board) SetState(in StateIn) error {
+	b.mu.Lock()
+	doc, err := b.pageLocked(b.st.DocSeg)
+	if err != nil {
+		b.mu.Unlock()
+		return err
+	}
+	var cur *recording.NoteView
+	for _, n := range b.model.Live(b.st) {
+		if n.ID == in.ID {
+			cur = n
+		}
+	}
+	b.mu.Unlock()
+	switch {
+	case cur == nil:
+		return ErrUnknown
+	case cur.State == in.State:
+		return nil
+	}
+	return b.emit(&recording.NoteState{ID: in.ID, State: in.State}, doc)
+}
+
+// Live is the open notes on the current document, oldest first.
+func (b *Board) Live() []LiveNote {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return slices.Clone(b.last)
+}
+
+// Subscribe delivers the open notes whenever they change, starting with
+// the current ones. The channel holds one value and never blocks the
+// board: a slow reader gets the latest. It closes at Close.
+func (b *Board) Subscribe() (<-chan []LiveNote, func()) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	ch := make(chan []LiveNote, 1)
+	ch <- slices.Clone(b.last)
+	if b.closed {
+		close(ch)
+		return ch, func() {}
+	}
+	b.subs[ch] = struct{}{}
+	return ch, func() {
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		if _, ok := b.subs[ch]; ok {
+			delete(b.subs, ch)
+			close(ch)
+		}
+	}
+}
+
+// pageLocked admits a request made on segment seg: the cast is on a page,
+// hasn't ended, and seg is within the current document (a resume keeps the
+// document, so a viewer a pause behind is still on it). It returns the
+// document's first segment, for the writer's check.
+func (b *Board) pageLocked(seg int) (int, error) {
+	switch {
+	case b.closed:
+		return 0, ErrClosed
+	case b.broken != nil:
+		return 0, ErrStale
+	case b.st.Ended:
+		return 0, ErrEnded
+	case b.st.Seg == 0:
+		return 0, ErrNotLive
+	case seg < b.st.DocSeg || seg > b.st.Seg:
+		return 0, ErrStale
+	}
+	return b.st.DocSeg, nil
+}
+
+// openLocked counts a color's open notes on this page, pending included.
+func (b *Board) openLocked(color int) int {
+	n := 0
+	for _, l := range b.last {
+		if l.Color == color {
+			n++
+		}
+	}
+	for _, p := range b.pending {
+		if p.color == color {
+			n++
+		}
+	}
+	return n
+}
+
+func (b *Board) author(v Viewer, color int) recording.Author {
+	return recording.Author{ID: v.ID, Name: v.Name, Color: b.palette[color]}
+}
+
+// refreshLocked recomputes the open notes and, when they changed, delivers
+// them. Only the board sends on a subscription, and it empties the one-slot
+// buffer first, so the send never blocks under the lock.
+func (b *Board) refreshLocked() {
+	var open []LiveNote
+	for _, n := range b.model.Live(b.st) {
+		if n.State == recording.NoteOpen {
+			open = append(open, LiveNote{ID: n.ID, Author: n.Author, Text: n.Text, Color: slices.Index(b.palette, n.Author.Color), T: n.T})
+		}
+	}
+	if slices.Equal(open, b.last) {
+		return
+	}
+	b.last = open
+	for ch := range b.subs {
+		select { // keep only the latest: drop a value nobody read yet
+		case <-ch:
+		default:
+		}
+		ch <- slices.Clone(open)
+	}
+}
