@@ -99,7 +99,7 @@ func (c *webNotesCast) webSpan(t *testing.T) ColumnSpan {
 func TestWebNotesInCouch(t *testing.T) {
 	r := newWebNotesCast(t, false)
 	r.note(t, "Ana", "fix the header")
-	waitFor(t, "Chrome ▶ 💭1", func() bool { return strings.Contains(r.lastRow(), WebcastIdleLabel+" "+broadcast.NoteGlyph+"1") })
+	waitFor(t, "Chrome ▶ 💭1", func() bool { return strings.Contains(r.lastRow(), WebcastIdleLabel+webcastButtons+" "+broadcast.NoteGlyph+"1") })
 	span := r.webSpan(t)
 	if r.notesSpan() != (ColumnSpan{}) {
 		t.Fatal("the screen broadcast's 💭N must not show for web notes")
@@ -261,8 +261,8 @@ func TestWebMenuNotes(t *testing.T) {
 func TestStatusRowWebNotes(t *testing.T) {
 	row := RenderStatusRow(80, StatusModel{Webcast: WebcastLive, WebNotes: 3})
 	plain := ansi.Strip(row.Body)
-	if !strings.Contains(plain, WebcastLiveLabel+" "+broadcast.NoteGlyph+"3") || row.WebNotes == (ColumnSpan{}) || row.Notes != (ColumnSpan{}) ||
-		row.WebNotes != (ColumnSpan{Start: 9, End: 12}) { // after `Chrome ⏸ `; 💭 is two columns
+	if !strings.Contains(plain, WebcastLiveLabel+webcastButtons+" "+broadcast.NoteGlyph+"3") || row.WebNotes == (ColumnSpan{}) || row.Notes != (ColumnSpan{}) ||
+		row.WebNotes != (ColumnSpan{Start: 17, End: 20}) { // after `Chrome ⏸ ↗ 👆 👽 `; 👆 👽 💭 are two columns each
 		t.Errorf("row %q spans %+v %+v", row.Body, row.WebNotes, row.Notes)
 	}
 	if row := RenderStatusRow(80, StatusModel{Webcast: WebcastOff, WebNotes: 3}); row.WebNotes != (ColumnSpan{}) {

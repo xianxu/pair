@@ -55,7 +55,7 @@ func TestRenderWebcastFocusButtonAndLiveStyle(t *testing.T) {
 				t.Fatalf("cell %v: span %d %+v in %+v (%q)", cell, i, s, spans, row.Body)
 			}
 		}
-		want := " " + WebcastFocusLabel + " " + broadcast.PointerLabel + " " + broadcast.ControlLabel + " " + broadcast.NoteGlyph + "2"
+		want := webcastButtons + " " + broadcast.NoteGlyph + "2"
 		if !strings.Contains(row.Body, want) {
 			t.Fatalf("group drawn as %q", row.Body)
 		}
@@ -74,3 +74,6 @@ func TestRenderWebcastFocusButtonAndLiveStyle(t *testing.T) {
 		t.Fatalf("idle cell styled: %q", idle.Body)
 	}
 }
+
+// webcastButtons is the Chrome group's ↗ 👆 👽 run after the cell (#501).
+const webcastButtons = " " + WebcastFocusLabel + " " + broadcast.PointerLabel + " " + broadcast.ControlLabel
