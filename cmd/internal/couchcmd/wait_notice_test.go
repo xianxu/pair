@@ -165,20 +165,43 @@ func (e tailEndpoint) Tail(context.Context, int) (couchmessage.Tail, error) {
 
 // The hub itself sits on a dialog, so a watcher that forgot to skip it would
 // notify itself in every test.
+//
+// The broker admits a notice inside the watcher's tick (Reserve runs on the
+// Send path) but delivers it later, on the recipient's actor; admitted holds
+// those notices, so a test waits for exactly them to land.
 type hubInbox struct {
 	tailEndpoint
-	got    *[]couchmessage.Message
-	refuse *int // admissions to refuse before accepting
+	got      *[]couchmessage.Message
+	refuse   *int // admissions to refuse before accepting
+	admitted map[string]bool // reservations accepted, less those released undelivered
 }
 
-func (e hubInbox) Reserve(ctx context.Context, _ string, _ uint64) error {
+func (e hubInbox) Reserve(ctx context.Context, id string, _ uint64) error {
 	e.tailEndpoint.mu.Lock()
 	defer e.tailEndpoint.mu.Unlock()
 	if *e.refuse > 0 {
 		*e.refuse--
 		return couchmessage.ErrRecipientBusy
 	}
-	return ctx.Err()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	e.admitted[id] = true
+	return nil
+}
+
+// Release follows every delivery and every refusal too; only an admission
+// that never delivered is given back.
+func (e hubInbox) Release(_ context.Context, id string) error {
+	e.tailEndpoint.mu.Lock()
+	defer e.tailEndpoint.mu.Unlock()
+	for _, m := range *e.got {
+		if m.ID == id {
+			return nil
+		}
+	}
+	delete(e.admitted, id)
+	return nil
 }
 
 func (e hubInbox) Deliver(ctx context.Context, m couchmessage.Message, _ func(couchmessage.Receipt)) (couchmessage.Receipt, error) {
@@ -197,17 +220,18 @@ type waitRig struct {
 	screen      []string
 	delivered   []couchmessage.Message
 	refuse      int
+	admitted    map[string]bool
 }
 
 // newWaitRig runs hub pair:1 and a hello-v2 worker pair:2 showing screen.
 func newWaitRig(t *testing.T, settled, resting bool, screen []string) *waitRig {
-	w := &waitRig{serviceRig: newServiceRig(t), screen: screen}
+	w := &waitRig{serviceRig: newServiceRig(t), screen: screen, admitted: map[string]bool{}}
 	w.world.hub = "/repo1"
 	w.restart(nil)
 	w.hub = w.world.add(1)
 	w.worker = w.world.add(2)
 	hubScreen := claudePermissionTail
-	w.world.endpoints[w.hub] = hubInbox{tailEndpoint: tailEndpoint{lines: &hubScreen, mu: &w.mu}, got: &w.delivered, refuse: &w.refuse}
+	w.world.endpoints[w.hub] = hubInbox{tailEndpoint: tailEndpoint{lines: &hubScreen, mu: &w.mu}, got: &w.delivered, refuse: &w.refuse, admitted: w.admitted}
 	w.world.endpoints[w.worker] = tailEndpoint{lines: &w.screen, mu: &w.mu}
 	w.serviceRig.mu.Lock()
 	w.slotGit["/repo1"] = couchcore.SlotGitStatus{Branch: "main-slot1"}
@@ -258,13 +282,21 @@ func (w *waitRig) waitSettled(b couchmessage.Binding, want bool) {
 }
 
 // tickAt runs one watcher pass at offset past now and returns every notice
-// the hub has received, after giving deliveries time to land.
+// the hub has received, once every notice the pass admitted has landed. The
+// pass admits synchronously, so a notice it wrongly sent is counted before
+// tickAt starts waiting; a delivery that never lands is the test binary's
+// timeout, not a wall-clock window here.
 func (w *waitRig) tickAt(offset time.Duration) []couchmessage.Message {
 	w.watcher.tick(context.Background(), time.Now().Add(offset))
-	time.Sleep(150 * time.Millisecond)
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return append([]couchmessage.Message(nil), w.delivered...)
+	for {
+		w.mu.Lock()
+		if len(w.delivered) >= len(w.admitted) {
+			defer w.mu.Unlock()
+			return append([]couchmessage.Message(nil), w.delivered...)
+		}
+		w.mu.Unlock()
+		time.Sleep(time.Millisecond)
+	}
 }
 
 // #451 Done-when 1: a permission dialog left past the threshold produces
