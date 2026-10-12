@@ -1,6 +1,6 @@
 ---
 id: 000498
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 1d042f8a4552ef596fb9b5abf3defbfe149a7a76
         evidence_commit: e3a1a03c1f4d749b0315d625b1e48c6bb6fa30b5
+        landed_commit: 78435f8d6ca0a5e0bc66f55bf4bea83ddabc15a6
 ---
 
 # couch: start slot wrappers at lower CPU priority (nice +10) so Couch and the terminal stay responsive
