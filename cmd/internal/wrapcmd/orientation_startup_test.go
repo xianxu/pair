@@ -3,6 +3,7 @@ package wrapcmd
 import (
 	"bytes"
 	"github.com/xianxu/pair/cmd/internal/orientation"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 	"io"
 	"os"
 	"testing"
@@ -30,7 +31,12 @@ func TestOrientationLiveStartupFrames(t *testing.T) {
 			p.orientation = newOrientationDelivery(orientation.Request{SchemaVersion: 1, Tag: "t", Agent: tc.agent, Attempt: "n", Body: "read context"})
 			states := make(chan orientation.DeliveryState, 1)
 			p.orientation.publish = func(s orientation.DeliveryState) { states <- s }
-			p.orientation.deadlineAfter = 20 * time.Millisecond
+			// Only a frame that never readies waits out the deadline; a ready
+			// frame racing it under load would read as a timeout (#479).
+			p.orientation.deadlineAfter = time.Hour
+			if !tc.ready {
+				p.orientation.deadlineAfter = 20 * time.Millisecond
+			}
 			p.orientation.settleAfter = time.Millisecond
 			if err := p.configureHarnessTTY(false, 120, 38); err != nil {
 				t.Fatal(err)
@@ -46,7 +52,7 @@ func TestOrientationLiveStartupFrames(t *testing.T) {
 			var state orientation.DeliveryState
 			select {
 			case state = <-states:
-			case <-time.After(time.Second):
+			case <-testwait.After(t):
 				t.Fatal("no state")
 			}
 			w.Close()

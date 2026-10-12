@@ -3,10 +3,14 @@ package launcher
 import (
 	"context"
 	"errors"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // #288: the birth watch ends a zellij client hung on a dead-at-birth server by
@@ -33,11 +37,23 @@ func TestCancelledHandoffEndsAndReapsTheChild(t *testing.T) {
 
 func TestCancelledHandoffKillsAChildThatIgnoresSIGTERM(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	cmd := killOnCancel(exec.CommandContext(ctx, "sh", "-c", `trap "" TERM; exec sleep 60`))
+	defer cancel()
+	// Cancel only once the trap is set: a TERM that beats it ends the child
+	// by SIGTERM and never exercises the escalation (a loaded run did).
+	trapped := filepath.Join(t.TempDir(), "trapped")
+	cmd := killOnCancel(exec.CommandContext(ctx, "sh", "-c", `trap "" TERM; : > "$1"; exec sleep 60`, "sh", trapped))
 	cmd.WaitDelay = 200 * time.Millisecond
-	time.AfterFunc(50*time.Millisecond, cancel)
-	if _, err := runBlockingHandoff(cmd); err != nil {
-		t.Fatalf("handoff error = %v", err)
+	handoff := make(chan error, 1)
+	go func() { _, err := runBlockingHandoff(cmd); handoff <- err }()
+	testwait.Until(t, "the child to set its TERM trap", func() bool { _, err := os.Stat(trapped); return err == nil })
+	cancel()
+	select {
+	case err := <-handoff:
+		if err != nil {
+			t.Fatalf("handoff error = %v", err)
+		}
+	case <-testwait.After(t):
+		t.Fatal("the handoff never returned from a TERM-deaf child")
 	}
 	if sig := endingSignal(cmd); sig != syscall.SIGKILL {
 		t.Fatalf("a TERM-deaf child ended by %v; WaitDelay should escalate to SIGKILL", sig)

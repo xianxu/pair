@@ -3,6 +3,7 @@ package wrapcmd
 import (
 	"bytes"
 	"github.com/xianxu/pair/cmd/internal/orientation"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 	"io"
 	"testing"
 	"time"
@@ -47,13 +48,19 @@ func TestOrientationUnsolicitedReplyAndReplyWithInputCancel(t *testing.T) {
 			var rolling []byte
 			p.handleChunk([]byte("\x1b[c"), &rolling)
 			w.Write([]byte(input))
+			// The input reaches the child only after the reader admitted it:
+			// paint the composer once it has, or a slow reader lets the paste
+			// win (a lone ESC waits out its flush first) (#479).
+			if !waitFor(t, func() bool { return bytes.Contains(out.Bytes(), []byte(input)) }) {
+				t.Fatalf("input %q never reached the child: %q", input, out.Bytes())
+			}
 			p.handleChunk([]byte(claudeLiveComposerPaint()), &rolling)
 			select {
 			case state := <-states:
 				if state.Phase != orientation.DeliveryCancelled {
 					t.Fatal(state)
 				}
-			case <-time.After(time.Second):
+			case <-testwait.After(t):
 				t.Fatal("no cancellation")
 			}
 			w.Close()
