@@ -1,6 +1,6 @@
 ---
 id: 000482
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: e3615fff8d824914a6339db22ae989b3c33ecbda
         evidence_commit: 1839f5e1c941c4d8c8529ddc5327bfb507d814a9
+        landed_commit: 808d3a3dab6f1dd82f6f82e8cdaa1aab70e60292
 ---
 
 # broadcast-web: fidelity flake on rec-blog frame 0 — a web font bound 1 ms before the screenshot moment
