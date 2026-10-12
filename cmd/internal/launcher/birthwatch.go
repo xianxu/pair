@@ -21,8 +21,8 @@ import (
 // zellij whether the session is alive. Measured with probes/zellijbirthrace,
 // launch to pane, end to end from `pair resume`: 0.6-1.3 s idle, 1.5-2.9 s
 // with every core saturated, 0.4-0.5 s with a cold zellij cache. 10 s is 3.4x
-// the loaded worst case. Couch's registration wait is a 2-minute hang ceiling
-// that ends early when Pair's process group exits (pair#489).
+// the loaded worst case. Couch's own registration wait is described at
+// couchcore's whileHelperAlive (pair#489).
 const birthBound = 10 * time.Second
 
 // maxProbeWait caps the backoff between probes zellij does not answer. Each

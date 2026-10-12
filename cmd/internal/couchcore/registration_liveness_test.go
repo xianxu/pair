@@ -97,3 +97,44 @@ func TestColdResumeFailsAtOnceWhenPairExitsBeforeRegistering(t *testing.T) {
 		t.Fatalf("thread not left parked and resumable: occupied=%v park=%v", hasOccupiedIncarnation(after), after.VerifiedPark)
 	}
 }
+
+// The exit can be seen before the wait has looked at all, and registration
+// already written still counts (close review BR-7). The pane cannot be observed
+// until the exit has cancelled the wait, so only the final look after the exit
+// can see it: without that look this resume fails.
+func TestColdResumeRegistrationWrittenBeforeTheExitStillCounts(t *testing.T) {
+	t.Parallel()
+
+	env := newTestEnv(t, "/repo")
+	env.Couch.resumeRegistrationTimeout = time.Hour
+	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
+	address := parked.Address
+	env.Artifacts.SetNativeBinding(address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+	var mu sync.Mutex
+	var watch context.Context // the exit watch's context, under the deadline
+	env.Couch.registrationDeadline = func(parent context.Context, d time.Duration) (context.Context, context.CancelFunc) {
+		mu.Lock()
+		watch = parent
+		mu.Unlock()
+		return context.WithTimeout(parent, d)
+	}
+	env.Runner.AfterAcknowledge = func(id string) error {
+		// Pair registers, then exits, before Couch's wait has looked.
+		env.Artifacts.SetPaneSidecar(address, "claude")
+		env.Artifacts.SetPairSession(address, continuationChildSession(t, env.Runner, id), true)
+		env.Runner.SetChildExited(id)
+		return nil
+	}
+	env.Artifacts.PaneSidecarsHook = func(ThreadAddress) error {
+		mu.Lock()
+		defer mu.Unlock()
+		if watch != nil && watch.Err() == nil {
+			return errors.New("not observable until the exit has ended the wait")
+		}
+		return nil
+	}
+
+	if _, _, err := env.Couch.Resume(address); err != nil {
+		t.Fatalf("a Pair that registered before exiting was failed: %v", err)
+	}
+}

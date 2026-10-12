@@ -1349,3 +1349,9 @@ proof; record the surprising case so the next change starts from evidence.
   `--prepare` and `--reload-context` at "seconds" and light at "milliseconds"; the timings said heavy and "under a
   second", and only the Log said so. When a Spec names expected values to be measured, append a `## Revisions`
   entry the moment a measurement disagrees, and say in Done-when which values were reasoned rather than measured.
+- **Describe a mechanism once; every other site names it (#489 close, two rounds).** The registration wait's exit
+  signal was restated in four comments and docs, so changing it (process group → direct child) left three stale
+  copies the review found one round apart. Put the rule at its owner (`whileHelperAlive` + one atlas section) and
+  have other sites point there. A status line likewise derives what it reports from one fact (when Couch last
+  answered), not a counter that a second code path must remember to reset. And a fallback branch (the final look
+  after an exit) needs a test that fails with the branch disabled, run once with it disabled to prove it.

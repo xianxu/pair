@@ -264,19 +264,23 @@ func exchangeSlotOperation(inv cliInvocation, op string, rt Runtime, call messag
 	status := callerIdentity(rt, "operation-status")
 	status.ID = admit.ID
 	start := clock.now()
-	timeouts := 0 // status polls that timed out since the last progress line
+	// Every status line derives staleness from when Couch last answered, so
+	// a status repeated from before timed-out polls says so, and stops saying
+	// so once an answer arrives.
+	lastAnswer := start
+	stale := func() string {
+		if age := clock.now().Sub(lastAnswer); age > 2*slotOperationPollInterval {
+			return fmt.Sprintf(" (last answer %s ago; status polls are timing out)", age.Round(time.Second))
+		}
+		return ""
+	}
 	for told := start; !receipt.Status.Terminal(); {
 		if clock.now().Sub(start) >= slotOperationPollBudget {
-			return uncertain(fmt.Sprintf("still %s after %s", receipt.Status, slotOperationPollBudget))
+			return uncertain(fmt.Sprintf("still %s after %s%s", receipt.Status, slotOperationPollBudget, stale()))
 		}
 		if clock.now().Sub(told) >= slotOperationProgressEvery {
 			told = clock.now()
-			late := ""
-			if timeouts > 0 {
-				late = fmt.Sprintf(" (last answer before %d timed-out status polls)", timeouts)
-			}
-			fmt.Fprintf(progress, "couch: %s %s still %s after %s%s\n", inv.ref, op, receipt.Status, told.Sub(start).Round(time.Second), late)
-			timeouts = 0
+			fmt.Fprintf(progress, "couch: %s %s still %s after %s%s\n", inv.ref, op, receipt.Status, told.Sub(start).Round(time.Second), stale())
 		}
 		clock.sleep(slotOperationPollInterval)
 		result, err := exchange(status)
@@ -285,7 +289,6 @@ func exchangeSlotOperation(inv cliInvocation, op string, rt Runtime, call messag
 			// A status read is idempotent, and a Couch busy launching under
 			// load can answer one late (pair#489: runs ended uncertain at 12 s
 			// and 24 s). Ask again; only the poll budget gives up.
-			timeouts++
 			continue
 		case err != nil:
 			return uncertain(err.Error())
@@ -294,7 +297,7 @@ func exchangeSlotOperation(inv cliInvocation, op string, rt Runtime, call messag
 		case result.Operation.Status == couchmessage.ReceiptUnknown:
 			return uncertain("Couch no longer holds this request (it may have restarted)")
 		}
-		receipt = *result.Operation
+		receipt, lastAnswer = *result.Operation, clock.now()
 	}
 	return receipt, nil
 }

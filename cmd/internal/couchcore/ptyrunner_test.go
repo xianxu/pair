@@ -149,3 +149,35 @@ func TestPtyRunnerBlockedStartPreservesTerminalAndWaitsForAcknowledgement(t *tes
 		t.Fatalf("target marker = %q, %v", raw, err)
 	}
 }
+
+// Live conformance for FakeRunner.SetChildExited (pair#489): on both real
+// runners, Exited closes when the direct child exits while a member it left
+// in its process group lives on, and Alive still answers for that group. The
+// registration wait keys on the first; cleanup keys on the second.
+func TestRealRunnersExitedPrecedesTheGroup(t *testing.T) {
+	// The survivor ignores SIGHUP, which a pty session sends when its leader exits.
+	argv := []string{"sh", "-c", `(trap "" HUP; exec sleep 30) & exit 0`}
+	for name, start := range map[string]func() (Handle, error){
+		"exec": func() (Handle, error) { return ExecRunner{}.Start(t.TempDir(), argv, nil) },
+		"pty": func() (Handle, error) {
+			r := &PtyRunner{Size: func() ptychild.Size { return ptychild.Size{Rows: 24, Cols: 80} }}
+			return r.Start(t.TempDir(), argv, nil)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h, err := start()
+			if err != nil {
+				t.Fatalf("Start: %v", err)
+			}
+			defer func() { _ = h.Signal(os.Kill) }()
+			select {
+			case <-h.Exited():
+			case <-time.After(20 * time.Second):
+				t.Fatal("Exited never closed after the direct child exited")
+			}
+			if !h.Alive() {
+				t.Fatal("Alive = false while the backgrounded group member still runs")
+			}
+		})
+	}
+}

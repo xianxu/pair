@@ -44,8 +44,8 @@ Investigate, then fix at the root:
 Root cause: one fixed 15 s window (`pairRegistrationTimeout`) covers ALL of Pair's startup, including PAIR_DEV's
 `make build`. Both scale with load, and at load ~200 their sum (~20 s measured) passes 15 s. Fix (quick flow):
 
-- [x] Registration waits on Pair, not a stopwatch: the wait ends at registration, at the helper's process group
-  exiting (a dead launch fails at once, named "Pair exited before registering"), or at a 2 min hang ceiling. The
+- [x] Registration waits on Pair, not a stopwatch: the wait ends at registration, at the helper's direct child
+  exiting (see Revisions; a dead launch fails at once, named "Pair exited before registering"), or at a 2 min hang ceiling. The
   existing post-ack cleanup stays the one failure path (kills the group, rolls back to parked): a clean state.
   Late starts inside the ceiling are adopted by the same wait.
 - [x] Couch-launched Pair skips `dev_rebuild`; relaunch's binary-freshness gate applies under PAIR_DEV too
@@ -103,9 +103,19 @@ Root cause: one fixed 15 s window (`pairRegistrationTimeout`) covers ALL of Pair
   Handle interface and the watch's only signal; the fake gained `SetChildExited` (group outlives child) and the exit
   test uses it. BR-2: stale atlas cold-resume bullet rewritten. Minors: the adopt-late test counts looks instead of
   wall clock and asserts the armed deadline (replacing the constant pin); the progress line names timed-out polls.
+- **Close review round 2 (FIX-THEN-SHIP):** BR-6 swept by rule: the exit signal is described at `whileHelperAlive`
+  and atlas/couch.md's pair#489 section only; couch.go, birthwatch.go and architecture.md now point there, and the
+  Plan line was revised (Revisions). BR-7: TestColdResumeRegistrationWrittenBeforeTheExitStillCounts makes the pane
+  unobservable until the exit cancels the wait; it FAILS with the final look disabled (run once, `if false &&`) and
+  passes with it. Minors: status lines derive staleness from the last answer's time (progress and budget messages,
+  and the note clears once Couch answers); live conformance TestRealRunnersExitedPrecedesTheGroup (exec + pty:
+  Exited closes while a HUP-immune group member keeps Alive true); the couchtty stub's Exited is a closed channel.
 
 ## Revisions
 
 - 2026-10-12 10:35 (TL, ops:0): no real machine load (the one 200-spinner run froze the operator's Couch for a
   minute). The Done-when's "synthetic load matching ~200" line is satisfied by an injected-delay test plus the 10:27
   evidence (all five resumes succeeded at load ~10).
+- 2026-10-12 (close review BR-1/BR-6): the exit signal is the helper's DIRECT child (`Handle.Exited`), not its
+  process group; the Plan line now says so. The signal is described once, at `whileHelperAlive` and atlas/couch.md's
+  pair#489 section; every other site names it rather than restating it.

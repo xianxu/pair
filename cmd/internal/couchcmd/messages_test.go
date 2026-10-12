@@ -419,9 +419,11 @@ func TestSlotOperationCLIReportsProgressWhileRunning(t *testing.T) {
 }
 
 // After status polls time out, the progress line says its status is the last
-// answer received, not a fresh one (close review).
+// answer received, and stops saying so once Couch answers again; the budget
+// message says the same (close review).
 func TestSlotOperationCLIProgressNamesTimedOutPolls(t *testing.T) {
 	quiet := int(20 * time.Second / slotOperationPollInterval)
+	answered := int(40 * time.Second / slotOperationPollInterval)
 	script := func(n int, r couchmessage.Request) (couchmessage.Response, error) {
 		switch {
 		case n == 0:
@@ -430,12 +432,27 @@ func TestSlotOperationCLIProgressNamesTimedOutPolls(t *testing.T) {
 			return receiptResponse("ok", couchmessage.ReceiptRunning), nil
 		case n <= quiet:
 			return couchmessage.Response{}, context.DeadlineExceeded
+		case n <= answered:
+			return receiptResponse("ok", couchmessage.ReceiptRunning), nil
 		}
 		return receiptResponse("ok", couchmessage.ReceiptSucceeded), nil
 	}
 	run := runSlotScript(t, cliInvocation{kind: cliMessage, messageOp: "resume", ref: "pair:1"}, messageRuntime(), script)
-	if run.code != 0 || !strings.Contains(run.stderr, "still running after 15s (last answer before ") || !strings.Contains(run.stderr, " timed-out status polls)") {
+	lines := strings.Split(strings.TrimSpace(run.stderr), "\n")
+	if run.code != 0 || len(lines) != 2 ||
+		!strings.Contains(lines[0], "still running after 15s (last answer ") || !strings.Contains(lines[0], " ago; status polls are timing out)") ||
+		lines[1] != "couch: pair:1 resume still running after 30s" {
 		t.Fatalf("exit %d, stderr %q", run.code, run.stderr)
+	}
+
+	timedOut := runSlotScript(t, cliInvocation{kind: cliMessage, messageOp: "resume", ref: "pair:1"}, messageRuntime(), func(n int, r couchmessage.Request) (couchmessage.Response, error) {
+		if n == 0 {
+			return receiptResponse("accepted", couchmessage.ReceiptQueued), nil
+		}
+		return couchmessage.Response{}, context.DeadlineExceeded
+	})
+	if timedOut.code != 1 || !strings.Contains(timedOut.stderr, "still queued after 5m0s (last answer ") {
+		t.Fatalf("budget message hides the timeouts: %q", timedOut.stderr)
 	}
 }
 

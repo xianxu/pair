@@ -385,13 +385,20 @@ func TestRefusedRelaunchKeepsItsConfirmationAndSaysWhy(t *testing.T) {
 // stubHandle is only ever asked for its ID here.
 type stubHandle struct{ id string }
 
-func (s stubHandle) ID() string              { return s.id }
-func (s stubHandle) PID() int                { return 0 }
-func (s stubHandle) Identity() string        { return "" }
-func (s stubHandle) Alive() bool             { return true }
-func (s stubHandle) Signal(os.Signal) error  { return nil }
-func (s stubHandle) Wait() int               { return 0 }
-func (s stubHandle) Exited() <-chan struct{} { return nil }
+func (s stubHandle) ID() string             { return s.id }
+func (s stubHandle) PID() int               { return 0 }
+func (s stubHandle) Identity() string       { return "" }
+func (s stubHandle) Alive() bool            { return true }
+func (s stubHandle) Signal(os.Signal) error { return nil }
+func (s stubHandle) Wait() int              { return 0 }
+
+// Exited reports the stub's child as already gone: a nil channel would block
+// any waiter forever.
+func (s stubHandle) Exited() <-chan struct{} {
+	gone := make(chan struct{})
+	close(gone)
+	return gone
+}
 
 // The expectedExits bridge marks the child a lifecycle operation deliberately
 // ended, so its exit does not raise a spurious notice. Relaunch has ALREADY

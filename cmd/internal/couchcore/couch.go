@@ -393,9 +393,8 @@ func (c *Couch) resolveStartProfile(args StartArgs, canonicalPath string, tree W
 // It used to be 15s, ~1.7x a calm registration (8.85s, #215). Startup scales
 // with load: at load ~200, PAIR_DEV's no-op `make build` alone took 9.6s and
 // launch-to-pane 9-11s, so five relaunches failed with nothing wrong but the
-// clock. A dead launch is now caught by its process group exiting
-// (whileHelperAlive), at once, so this only has to catch a launch that is alive
-// and stuck. 2 minutes is ~6x the worst loaded start measured, and leaves room
+// clock. whileHelperAlive owns how a dead launch ends the wait early (see
+// there), so this only has to catch a launch that is alive and stuck. 2 minutes is ~6x the worst loaded start measured, and leaves room
 // inside the CLI's 5-minute poll (slotOperationPollBudget).
 //
 // The work inside the window must still stay BOUNDED (ARCH-CONSTRAINTS): #215
