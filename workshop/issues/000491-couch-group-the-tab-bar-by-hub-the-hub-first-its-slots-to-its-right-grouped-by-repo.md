@@ -1,12 +1,20 @@
 ---
 id: 000491
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '64f4a461e11756084393b600d61b777d3fe34475' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '70696d29f10a2e207c80fa47d00a3bda730eb48f' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T10:32:12-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:5
+    worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch: group the tab bar by hub — the hub first, its slots to its right, grouped by repo
@@ -32,8 +40,15 @@ The operator's sketch: `[ops]  ariadne  :1  :2  blog  pair  :1  :2  [ops:1] …`
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000491-couch-group-the-tab-bar-by-hub-the-hub-first-its-slots-to-its-right-grouped-by-repo-plan.md`.
+
+- [ ] Hub root reaches the Console (`SetHub` → `MenuState.Hub`)
+- [ ] `PresentThreads`: hub's group first, hub row first, `Hub` flag
+- [ ] Row: hub bracketed; active chip marked without brackets (decision pending)
+- [ ] Narrow widths: collapse `:N` into `+N`, then whole groups; red/hub/active/bell never collapsed
+- [ ] Atlas, README, skill; full suite; live check; operator smoke test via ops:0
 
 ## Log
 
 ### 2026-10-12
+- Design: repository grouping (`pair :1 :2`) already exists in `RenderStatusRow`, ordered by `PresentThreads`, the one order source for the tab bar and the switcher. New: the hub (couchcmd's `hubWorktree`) goes to the Console, `PresentThreads` puts its group first, and the row brackets it. Conflict: `[…]` already marks the active chip; proposed reverse video for active. Broadcast/Chrome/capture cells lead today (#395 requires it), not at the end as the Spec says; they stay put. Sent the layout and narrow-width design to ops:0 before building.
