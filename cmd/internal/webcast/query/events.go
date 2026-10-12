@@ -11,7 +11,8 @@ import (
 
 // said is one record in words at its time. Records with the same non-empty
 // key in a row fold into one line: a field typed a keystroke at a time is
-// one value, not one line per key.
+// one value, not one line per key. The key carries the viewer, so one
+// person's typing never folds into another's.
 type said struct {
 	t, t0 int64
 	key   string
@@ -21,8 +22,18 @@ type said struct {
 
 func (n *narrator) say(r recording.Record) said {
 	s := said{t: r.Time(), t0: r.Time(), text: n.line(r), n: 1}
-	if in, ok := r.(*recording.Input); ok {
-		s.key = fmt.Sprintf("input %d %s", in.ID, in.By)
+	// A typed value often lands twice per key, as the property and as the
+	// framework's value attribute; both are the one value being typed.
+	switch r := r.(type) {
+	case *recording.Input:
+		s.key = fmt.Sprintf("input %d %s", r.ID, r.By)
+		if r.V != nil && r.Checked == nil && r.Sel == nil {
+			s.key = fmt.Sprintf("value %d %s", r.ID, r.By)
+		}
+	case *recording.Attr:
+		if r.Name == "value" {
+			s.key = fmt.Sprintf("value %d ", r.ID)
+		}
 	}
 	return s
 }

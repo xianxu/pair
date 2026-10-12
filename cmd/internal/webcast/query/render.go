@@ -63,7 +63,7 @@ func (p *pageWriter) emit(depth int, s string) {
 func (p *pageWriter) node(n *recording.DOMNode, depth int) {
 	switch n.Y {
 	case recording.YDoc:
-		p.emit(depth, fmt.Sprintf("@%d #document %s", n.ID, n.URL))
+		p.emit(depth, fmt.Sprintf("@%d #document %s%s", n.ID, n.URL, p.stateText(n)))
 		p.kids(n, depth+1)
 	case recording.YShadow:
 		p.emit(depth, fmt.Sprintf("@%d #shadow-root (%s)", n.ID, n.Mode))
@@ -96,7 +96,10 @@ func (p *pageWriter) element(n *recording.DOMNode, depth int) {
 		p.emit(depth, line)
 		return
 	case n.N == "head" && n != p.root:
-		p.emit(depth, line+" "+headSummary(n))
+		if sum := headSummary(n); sum != "" {
+			line += " " + sum
+		}
+		p.emit(depth, line)
 		return
 	case n.N == "svg" && n != p.root:
 		p.emit(depth, line+fmt.Sprintf(" (%d elements inside)", countElements(n)-1))
@@ -212,6 +215,9 @@ func headSummary(n *recording.DOMNode) string {
 	}
 	for _, t := range tags {
 		parts = append(parts, fmt.Sprintf("%d %s", counts[t], t))
+	}
+	if len(parts) == 0 {
+		return ""
 	}
 	return "(" + strings.Join(parts, "; ") + ")"
 }

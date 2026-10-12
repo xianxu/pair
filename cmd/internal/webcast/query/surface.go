@@ -21,7 +21,8 @@ type NoteView struct {
 	// Context is the notes model's focused context.
 	Context notes.Context
 	// Before is what the user did in the window before the note: clicks,
-	// form input, focus, navigation, scrolling, selection.
+	// form input, focus, navigation, scrolling, selection, and segment
+	// starts and stops (UserAction).
 	Before []recording.Record
 	// Landmark describes Context.Landmark in one line, as of the note's
 	// time (Describe); URL and Header are the page's at that time. The
@@ -46,10 +47,13 @@ type Surface interface {
 }
 
 // UserAction reports whether a record is something the user (or the page
-// acting on its own) did, as opposed to a DOM change.
+// acting on its own) did, as opposed to a DOM change. A segment's start and
+// stop count too (a navigation, a tab switch, a pause and resume), so the
+// actions before a note never run across a page change unmarked (#462).
 func UserAction(r recording.Record) bool {
 	switch r.(type) {
-	case *recording.Click, *recording.Input, *recording.Focus, *recording.Nav, *recording.Scroll, *recording.Selection:
+	case *recording.Click, *recording.Input, *recording.Focus, *recording.Nav, *recording.Scroll, *recording.Selection,
+		*recording.Seg, *recording.Stop:
 		return true
 	}
 	return false

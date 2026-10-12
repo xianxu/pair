@@ -1,0 +1,65 @@
+$ couch --broadcast-web-query <fixtures>/stress notes
+note stress-n1  t=3000  segment 2  open  by Pat (product) (viewer-1)
+  "This box flickers through colours; is that on purpose?"
+  on @1268  selector #cij  box 950,219.78 340x28.89
+  page: t=3000  segment 2 (live)  http://127.0.0.1:8801/stress.html  viewport 1280x800@1  title "broadcast-web stress"
+  element:
+    @1268 <div class="box cij-5" id=cij> CSS-in-JS (insertRule)
+  context: within @1250 <section.side> "CSS-in-JS (insertRule) adoptedStyleShee…"
+    text: "CSS-in-JS (insertRule) adoptedStyleSheets alphabetagamma scroll line 0scroll line 1scroll line 2scroll line 3scroll line 4scroll line 5scroll line 6scroll line 7scroll line 8scroll line 9scroll line 1"
+  before (10000 ms):
+    … 41 earlier actions
+    2128 input @1277 <input#chk> unchecked
+    2129 input @1279 <select#sel> "alpha beta gamma" selected [2]
+    2130 input @1287 <input#rng> value "35"
+    2130 input @1289 <textarea#ta> value "line 5\nnext 10"
+    2140 input @1454 <input#fi> value "frame 4"
+    2325 scroll @1292 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,77
+    2523 scroll @1292 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,84
+    2524 input @1276 <input#txt> value "tick 6"
+    2525 input @1277 <input#chk> checked
+    2526 input @1279 <select#sel> "alpha beta gamma" selected [0]
+    2526 input @1287 <input#rng> value "42"
+    2528 input @1289 <textarea#ta> value "line 6\nnext 12"
+    2640 input @1454 <input#fi> value "frame 5"
+    2723 scroll @1292 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,91
+    2922 scroll @1292 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,98
+    2923 input @1276 <input#txt> value "tick 7"
+    2924 input @1277 <input#chk> unchecked
+    2924 input @1279 <select#sel> "alpha beta gamma" selected [1]
+    2925 input @1287 <input#rng> value "49"
+    2926 input @1289 <textarea#ta> value "line 7\nnext 14"
+
+note stress-n2  t=4500  segment 2  resolved  by Ana (design) (viewer-2)
+  "Closed shadow root: the badge should match the open one."
+  on @1254  selector #closed  box 932,174 340x16.89
+  page: t=4500  segment 2 (live)  http://127.0.0.1:8801/stress.html  viewport 1280x800@1  title "broadcast-web stress"
+  element:
+    @1254 <x-closed id=closed>
+      @1255 #shadow-root (closed)
+        @1256 <style> (69 chars)
+        @1258 <span> closed 14
+  context: within @1250 <section.side> "CSS-in-JS (insertRule) adoptedStyleShee…"
+    text: "CSS-in-JS (insertRule) adoptedStyleSheets alphabetagamma scroll line 0scroll line 1scroll line 2scroll line 3scroll line 4scroll line 5scroll line 6scroll line 7scroll line 8scroll line 9scroll line 1"
+  before (10000 ms):
+    … 66 earlier actions
+    3324 input @1279 <select#sel> "alpha beta gamma" selected [2]
+    3325 input @1287 <input#rng> value "56"
+    3325 input @1289 <textarea#ta> value "line 8\nnext 16"
+    3523 scroll @1292 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,119
+    3640 input @1454 <input#fi> value "frame 7"
+    3723 scroll @1292 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,126
+    3724 input @1276 <input#txt> value "tick 9"
+    3724 input @1277 <input#chk> unchecked
+    3725 input @1279 <select#sel> "alpha beta gamma" selected [0]
+    3726 input @1287 <input#rng> value "63"
+    3728 input @1289 <textarea#ta> value "line 9\nnext 18"
+    3922 scroll @1292 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,133
+    4123 scroll @1292 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,140
+    4123 input @1276 <input#txt> value "tick 10"
+    4124 input @1277 <input#chk> checked
+    4125 input @1279 <select#sel> "alpha beta gamma" selected [1]
+    4125 input @1287 <input#rng> value "70"
+    4126 input @1289 <textarea#ta> value "line 10\nnext 20"
+    4140 input @1454 <input#fi> value "frame 8"
+    4323 scroll @1292 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,147
