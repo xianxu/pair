@@ -202,9 +202,10 @@ func TestIdleFloorStaysSilentWhenTheIntervalIsZero(t *testing.T) {
 
 func TestIdleFloorStaysSilentWhileTheAgentIsProducingOutput(t *testing.T) {
 	// Output pushes the deadline out, so a working pane is never alerted on.
-	// Twenty chunks 15ms apart on the floor's clock span five floors; a chunk
-	// on stdout means the loop step that read it, and bumped the deadline,
-	// is done.
+	// Twenty chunks 15ms apart on the floor's clock span five floors. A chunk
+	// on stdout means the loop has read it; its bump follows in that same
+	// loop step, so it lands before the loop reads the next chunk, and the
+	// clock advances at most one 15ms step past any bump.
 	h := newIdleFloorHarness(t, "claude", "marker", 60*time.Millisecond)
 	h.proxy.publishLifecycleObservation(TurnObservation{Kind: ObservationUserSubmission})
 	h.armed(1)

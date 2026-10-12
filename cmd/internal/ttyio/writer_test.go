@@ -41,6 +41,7 @@ func TestFileBlockedWritePreservesConcurrentReadAndFlags(t *testing.T) {
 		err  error
 	}
 	read := make(chan result, 1)
+	started := time.Now() // before either goroutine can poll
 	go func() { buf := make([]byte, 16); n, e := transport.Read(buf); read <- result{string(buf[:n]), e} }()
 	// Cancel once the write has made progress, not at a fixed deadline: a
 	// writer goroutine scheduled late would otherwise meet an expired context
@@ -61,7 +62,6 @@ func TestFileBlockedWritePreservesConcurrentReadAndFlags(t *testing.T) {
 	for !readable(t, slave) {
 		time.Sleep(time.Millisecond)
 	}
-	progressed := time.Now()
 	if _, err = slave.Write([]byte("reader-alive")); err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestFileBlockedWritePreservesConcurrentReadAndFlags(t *testing.T) {
 	}
 	// The reader and the writer each sleep a poll slice per wakeup, so the
 	// count scales with the time they were held, however long that was.
-	if limit := 2*uint64(time.Since(progressed)/pollSlice) + 10; transport.PollWaits() > limit {
+	if limit := 2*uint64(time.Since(started)/pollSlice) + 4; transport.PollWaits() > limit {
 		t.Fatalf("busy poll: %d waits, at most %d expected", transport.PollWaits(), limit)
 	}
 	if err = transport.Close(); err != nil {
@@ -279,8 +279,10 @@ func TestFileCancelDuringHostStallReturnsPromptlyWithExactPrefix(t *testing.T) {
 	for out.PollWaits() == 0 { // the write is blocked on the full host
 		time.Sleep(time.Millisecond)
 	}
-	before := out.PollWaits()
+	// Cancel first, then count: any wait that began before the count is in
+	// it, so at most the one the writer was entering can follow.
 	cancel()
+	before := out.PollWaits()
 	r := <-done
 	if !errors.Is(r.err, context.Canceled) || r.n <= 0 {
 		t.Fatalf("accepted %d: %v, want a partial prefix and cancellation", r.n, r.err)
