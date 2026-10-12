@@ -62,6 +62,7 @@ item may not generate.
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — Full suite earlier (scrubbed env, sandbox off): make -k test shell/lua green, test-changelog rc=0, go test ./... green. After round-1 fixes: couchcore, couchcmd, artifactpath, cmd/couch re-run green; round 2 is prose only. Tests: a real blocked launch whose grandchild reads the configured nice via ps; a setting below Couch own niceness launches at the inherited one (fails without the fix); COUCH_SLOT_NICE parse/wiring with injected env. Live ps + couch --actors latency follow the operator batched restart per Done-when (hub-owned); baseline 0.01-0.02s at load 7-16.; review verdict: SHIP
 - Design revision before code landed: a `NicedRunner` decorator in `NewCouchWith` would also have wrapped test
   `FakeRunner`s, whose fake PIDs (1000+i) can name real process groups, so tests could renice unrelated processes on
   the machine. Niceness is a field of the two real runners instead; a fake has no path to the kernel (ARCH-MOCK).
