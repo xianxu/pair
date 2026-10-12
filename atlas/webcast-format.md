@@ -345,10 +345,10 @@ it), never a local fork.
 | pair#470 | viewers' strokes and notes | `board.Board` (a `Sink` following the stream; `Stroke`, `Note`, `SetState`, `Live`, `Subscribe`) writing through an `Emit` (the recorder's queue via `webcast.Emitter`) | `board.Writer`, the reference single writer | board tests over fixtures; `Board viewer` below |
 | pair#462 | agent queries | `query.Surface` (`DOMAt`, `Events`, `Notes`); real: `query.Querier`, CLI `couch --broadcast-web-query` (below) | `query.FakeSurface` | `query.RunSurfaceContract` |
 | pair#467 | input injection | `drive.Injector` (`Inject(ctx, by, Batch)`) | `drive.FakeInjector` | `drive.RunInjectorContract` |
-| pair#467 | driving control and the reverse channel | `drive.Controller` (seats, request/grant/deny/revoke/release, input) | `drive.FakeController` | `drive.RunControllerContract` |
+| pair#467 | driving control and the reverse channel | `drive.Controller` (seats, request/grant/deny/revoke/release, input) | `drive.MemController` | `drive.RunControllerContract` |
 
 Hand-written recordings for tests: `recording.Builder` (ids from one counter, `Page` for a segment and its document),
-`recording.ContractRecording`, `query.ContractRecording`, `recording.DrivenRecording` (viewers driving).
+`recording.ContractRecording`, `query.ContractRecording`, `recording.DrivenRecording` (viewers driving: the drive contracts' page, no longer a fixture).
 
 **Records, bodies and frames.** A `Sink` carries records only, and `Tee` fans them out to the recording directory and
 the live fan-out. An asset body is stored once: the asset store (#459) decides what to keep and persists it through
@@ -446,7 +446,7 @@ case.
 | `rec-app` (22 s, 0.5 MB) | #453's React + Tailwind app, `app` scenario, by the recorder | Typing (with the caret's `selection` after each key), clicks, focus, a modal, Tailwind's runtime `<style>` over CDP's 10k text cut, and a cross-document navigation (a second segment). A note is resolved. |
 | `rec-blog` (12 s, 1.9 MB) | The operator's blog post `ariadne-1-building-blocks-of-ai-coding` (Astro + Tailwind, `npm run dev`), `browse` scenario, by the recorder | Images, the Inter woff2 font, stylesheets, page scrolling, layout, and the giscus cross-origin iframe |
 | `rec-segments` (10 s, 0.3 MB) | #453's reports page, by the recorder | A same-document navigation, a pause with an edit, a resume, a new tab (the cast follows it, at that tab's own viewport), and a cross-document navigation there |
-| `driven` (hand-made) | `fixturegen -driven` (`recording.DrivenRecording`) | Viewers request and are granted control. A driver's attributed clicks, typing and scroll, interleaved with the operator's own click. Driving continues through a pause, a resume and a navigation. Release, revoke, deny and leave. A note by the driver. |
+| `rec-driven` | the real recorder and remote driving (#467): `TestRecordFixtures/driven` over `serveDriven`'s two pages, through MemController and TabInjector, then `fixturegen -recorded … -name rec-driven` | Ana asks, is granted, clicks and types (`by`). The operator clicks while she drives. Her click follows a link (a navigation while driving). A pause and resume. A release, a deny (Bo), a second grant and a revoke, and a leave (Cy). A note by the driver, from fixturegen's spec. |
 
 Gaps the prototype's recordings showed, closed by the recorder (#458):
 - **Clicks:** the prototype's polled observer lost the click that navigates; the recorder's observer reports clicks
@@ -515,7 +515,13 @@ it (and can revoke it at any moment), and the driver gives it back. Internal vie
 driving). Package `cmd/internal/webcast/drive` is the contract; #467 builds the HTTP routes, the CDP injector and the
 UI against it.
 
-**Seats.** Anyone with the viewer link can watch. Driving needs a seat and a grant:
+**Two links (operator, 10-12, #467).** The view link (the cast's token) is for watching, pointing and notes. The
+drive link (its own token, `Server.DriveToken`, `Update.DriveLink`) serves the same viewer plus the drive routes
+below, which answer 404 under the view link. A stream holds a seat only under the drive link. Couch copies the view
+link with a right-click on the Chrome cell and the drive link with Alt+right-click. `couch --broadcast-list` lists
+each share by kind (`screen`, `web view`, `web drive`), never with its token.
+
+**Seats.** Anyone with the drive link can watch and take a seat; driving needs a grant:
 - `POST <cast>/drive/hello` `{"name":"Ana"}` returns `{"viewer":"v3","key":"<64 hex>","name":"Ana"}`, from
   `Controller.Join`. The key stays in the shell and authenticates the seat's requests (header
   `drive.SeatHeader`, `X-Couch-Seat: <key>`).
@@ -587,12 +593,49 @@ window or tab). Permission prompts and JavaScript dialogs appear only to the ope
 events and live/pause/tab inputs into its FIFO queue. Control changes and injections are inputs to the same queue, so
 `ctl` records, injected input and the DOM changes it causes are ordered together, and `by` is stamped in queue order.
 The injector follows that stream: it sees every record, `ctl` included, in order. A fake is fed as a
-`recording.Sink`, and `FakeController` over `FakeInjector` composes through `recording.Tee`.
+`recording.Sink`, and `MemController` over `FakeInjector` composes through `recording.Tee`.
 The injector hit-tests with `DOM.getNodeForLocation` and the recorder's id map (`Recorder.IDOf(session,
 backendNodeId)` and `Recorder.NodeOf(id)`, requests with a reply on that goroutine). It rechecks that `by` drives when
 it dispatches, so a batch overtaken by a revoke is refused there (`ErrNotDriver`, checked by
 `RunInjectorContract`). Passwords follow #458's rule: typing into a
 `type=password` field records `input {secret:true}`, never the value.
+
+**As built (#467).** The injector's rules are stated once, in `drive.TabInjector`, over a `drive.Tab` seam: who
+drives, live and segment, `Confine`, then per act a hit test (`onTarget`: the element at the point is the aimed one
+or inside it, or an out-of-process frame's owner holding it) and the dispatch. The fake injector is the same rules
+over a reduced page. The real tab is the recorder (`Recorder.WithTab`). A batch is one queue input:
+- **Hold.** The recorder holds the in-page observer (`__couchcastHold(by)`, in every observer context of the cast
+  tab) and records what it had pending without `by`. During the hold the observer tags everything it sends with
+  `by`, through the binding and in order. A click goes at once, so one that follows a link is recorded before its
+  document goes (a take can't reach a document that has gone).
+- **Dispatch.** CDP input (`cdpAct`: `Input.dispatchMouseEvent`/`dispatchKeyEvent` with editing commands for the
+  A/Z/Y chords, `insertText`, `imeSetComposition`). Hit tests use `DOM.getNodeForLocation`, without user-agent
+  shadow DOM: an input's inner editor isn't a recorded node.
+- **Take.** `__couchcastTake` sends what is still coalesced, tagged, and returns nothing; it ends the hold. A
+  tagged report ordered after control moved (a revoke between a batch and its reports) keeps the act and loses the
+  attribution: the recorder writes it without `by`, since the stream can't state a driver who no longer drives.
+
+What a driver holds down (a button, keys) is `TabInjector`'s to end. It lets go before another driver's input,
+before input on another page, when the driver's batch is refused, and on every control change (`drive.Releaser`,
+naming the outgoing driver).
+
+Every exit takes. A hold no take ends expires in the page after 1 s, and what it then sends has no `by`. What stays
+unattributed is whatever the page reports after the take: the scroll a wheel causes on the next frame, page script
+reacting later, and the items of a hold a dialog interrupted. A JavaScript dialog the driver opens returns
+`drive.ErrDialog` (409, "The page is showing a dialog; the operator must answer it.") at once; the Chrome loop
+signals the dialog to the recorder, and the stopped CDP call finishes on its own.
+
+The controller is `drive.MemController`. In a cast (`Cast.Drive()`), its sink is `liveGate`: control records go into
+the recorder's queue once `Recorder.Opened()`, and are refused before (409 paused). The gate asks the recorder, not
+Chrome's published phase. While anyone drives, `Chrome.SetDriving`:
+- denies downloads browser-wide;
+- intercepts file choosers on every page session, including pages opened later;
+- closes a page the cast tab opens before the tracker can follow it;
+- names the driver on the in-page control.
+
+All of it is undone when nobody drives. The routes share the board's admission (`admitBody`). Budgets: per seat for
+control (2/s) and input (30/s), 4 in flight; per cast for hello (2/s, burst 8). An events stream with
+`?viewer=<seat>` holds its seat.
 
 **The operator sees who drives:** Couch's `Chrome ⏸` indicator names the driver and any pending request, from
 `Controller.Subscribe`. An in-page banner ("Ana is driving") is injected the same way as the Go-live control (#454),
@@ -614,3 +657,8 @@ recording. Seats and their keys are memory only: they end after the grace period
   a reserved author id; `notes.Model.NoteCrops` brings region notes to crops.
 - 2026-10-12 (#478, additive): `fidelity/` in the recording directory, the fidelity check's report. No record kind
   or field changes; frames are as #457 defined them.
+- 2026-10-12 (#467, additive, as built): no record kind changes. `by` is stamped by the recorder from the
+  observer's tagged reports during a driver's batch. `ctl` records come from the real controller through the
+  recorder's queue, gated on the recording having opened. The hand-written `driven` fixture is replaced by
+  `rec-driven`, a recorded driven session. Two links: a view link (no drive routes) and a drive link (its own
+  token).

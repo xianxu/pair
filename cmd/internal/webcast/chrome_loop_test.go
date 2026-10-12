@@ -190,13 +190,13 @@ func TestChromePageControlToggles(t *testing.T) {
 	p.send(`{"method":"Runtime.bindingCalled","sessionId":"S1","params":{"name":"__couchcast","payload":"{\"t\":\"toggle\"}","executionContextId":7}}`)
 	waitState(t, c, "live from the page", func(s State) bool { return s.Phase == PhaseLive })
 	m := p.expect("S1", "Runtime.evaluate")
-	if !strings.Contains(string(m.Params), `"contextId":7`) || !strings.Contains(string(m.Params), "(true)") {
+	if !strings.Contains(string(m.Params), `"contextId":7`) || !strings.Contains(string(m.Params), "(true, ") {
 		t.Fatalf("control not told it's live: %s", m.Params)
 	}
 	if err := c.SetLive(false); err != nil {
 		t.Fatal(err)
 	}
-	if m := p.expect("S1", "Runtime.evaluate"); !strings.Contains(string(m.Params), "(false)") {
+	if m := p.expect("S1", "Runtime.evaluate"); !strings.Contains(string(m.Params), "(false, ") {
 		t.Fatalf("control not told it's paused: %s", m.Params)
 	}
 }
@@ -370,4 +370,154 @@ func TestStartProcessReapsDespiteInheritedOutput(t *testing.T) {
 	if !reaped || p.ExitCode() != 0 {
 		t.Fatalf("reaped %v code %d", reaped, p.ExitCode())
 	}
+}
+
+// While a viewer drives (#467): downloads denied, file choosers
+// intercepted (on pages open now and ones that open later), a page the
+// cast tab opens closed before the cast follows it, the control shows the
+// driver, and the cast tab's dialog is signalled; all undone after.
+func TestChromeWhileDriving(t *testing.T) {
+	c, p := startPeer(t, nil)
+	p.openPage("T1", "S1")
+	p.expect("S1", "Runtime.runIfWaitingForDebugger")
+	p.send(`{"method":"Runtime.executionContextCreated","sessionId":"S1","params":{"context":{"id":7,"name":"couchcast","auxData":{"frameId":"T1"}}}}`)
+	if err := c.SetLive(true); err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, c, "live", func(s State) bool { return s.Phase == PhaseLive && s.Tab.ID == "T1" })
+	if err := c.SetDriving("Ana"); err != nil {
+		t.Fatal(err)
+	}
+	expectParams := func(session, method, want string) {
+		t.Helper()
+		if m := p.expect(session, method); !strings.Contains(string(m.Params), want) {
+			t.Fatalf("%s: %s, want %s", method, m.Params, want)
+		}
+	}
+	p.expectAll(
+		"|Browser.setDownloadBehavior|\"behavior\":\"deny\"",
+		"S1|Page.setInterceptFileChooserDialog|\"enabled\":true")
+	// A page opened while driving is intercepted before it runs.
+	p.send(`{"method":"Target.attachedToTarget","params":{"sessionId":"S9","targetInfo":{"targetId":"T9","type":"page","url":"about:blank"},"waitingForDebugger":true}}`)
+	expectParams("S9", "Page.setInterceptFileChooserDialog", `"enabled":true`)
+	p.expect("S9", "Runtime.runIfWaitingForDebugger")
+	// The cast tab's dialog.
+	p.send(`{"method":"Page.javascriptDialogOpening","sessionId":"S1","params":{"type":"alert","message":"hi"}}`)
+	waitClosed(t, c.dialogs.signal, true)
+	p.send(`{"method":"Page.javascriptDialogClosed","sessionId":"S1","params":{"result":true}}`)
+	waitClosed(t, c.dialogs.signal, false)
+	// The cast tab opens a tab: closed, never followed. Another opener's
+	// isn't touched.
+	p.send(`{"method":"Target.targetCreated","params":{"targetInfo":{"targetId":"T2","type":"page","url":"https://x/","title":"","openerId":"T1"}}}`)
+	expectParams("", "Target.closeTarget", `"targetId":"T2"`)
+	p.send(`{"method":"Target.targetCreated","params":{"targetInfo":{"targetId":"T3","type":"page","url":"https://y/","title":"","openerId":"T9"}}}`)
+	p.never("Target.closeTarget", 100*time.Millisecond)
+	waitState(t, c, "the closed tab never cast", func(s State) bool { return s.Tab.ID != "T2" })
+	if err := c.SetDriving(""); err != nil {
+		t.Fatal(err)
+	}
+	p.expectAll(
+		"|Browser.setDownloadBehavior|\"behavior\":\"default\"",
+		"S1|Page.setInterceptFileChooserDialog|\"enabled\":false",
+		"S9|Page.setInterceptFileChooserDialog|\"enabled\":false")
+}
+
+// waitClosed waits until the signal's channel is closed (want) or open.
+func waitClosed(t *testing.T, signal func() <-chan struct{}, want bool) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		select {
+		case <-signal():
+			if want {
+				return
+			}
+		default:
+			if !want {
+				return
+			}
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("dialog signal never became %v", want)
+}
+
+// expectAll waits for commands in any order, each "session|method|params
+// substring", skipping others.
+func (p *peer) expectAll(wants ...string) {
+	p.t.Helper()
+	left := map[string]bool{}
+	for _, w := range wants {
+		left[w] = true
+	}
+	deadline := time.After(5 * time.Second)
+	for len(left) > 0 {
+		select {
+		case m := <-p.calls:
+			for w := range left {
+				f := strings.SplitN(w, "|", 3)
+				if m.SessionID == f[0] && m.Method == f[1] && strings.Contains(string(m.Params), f[2]) {
+					delete(left, w)
+					break
+				}
+			}
+		case <-deadline:
+			p.t.Fatalf("never got %v", left)
+		}
+	}
+}
+
+// The dialog the recorder's dispatch waits on is the cast tab's, whatever
+// happened first (#467 BR-1): one opened while paused counts once live;
+// another tab's dialog, opening or closing, never does; switching to a tab
+// with a dialog does; the cast tab going away clears it. A page the cast
+// tab opens while paused, with someone driving, is closed too.
+func TestChromeCastTabDialog(t *testing.T) {
+	c, p := startPeer(t, nil)
+	p.openPage("T1", "S1")
+	p.expect("S1", "Runtime.runIfWaitingForDebugger")
+	vis := func(session string, ctx int, visible bool) {
+		p.send(fmt.Sprintf(`{"method":"Runtime.bindingCalled","sessionId":%q,"params":{"name":"__couchcast","payload":"{\"t\":\"vis\",\"visible\":%t,\"focused\":%t}","executionContextId":%d}}`, session, visible, visible, ctx))
+	}
+	p.send(`{"method":"Runtime.executionContextCreated","sessionId":"S1","params":{"context":{"id":7,"name":"couchcast","auxData":{"frameId":"T1"}}}}`)
+	dialog := func(session, method string) {
+		p.send(fmt.Sprintf(`{"method":"Page.javascriptDialog%s","sessionId":%q,"params":{}}`, method, session))
+	}
+	dialog("S1", "Opening") // paused
+	if err := c.SetLive(true); err != nil {
+		t.Fatal(err)
+	}
+	waitClosed(t, c.dialogs.signal, true)
+	p.openPage("T2", "S2")
+	p.expect("S2", "Runtime.runIfWaitingForDebugger")
+	p.send(`{"method":"Runtime.executionContextCreated","sessionId":"S2","params":{"context":{"id":8,"name":"couchcast","auxData":{"frameId":"T2"}}}}`)
+	vis("S1", 7, true)
+	vis("S2", 8, false)
+	waitState(t, c, "T1 cast", func(s State) bool { return s.Tab.ID == "T1" })
+	dialog("S2", "Opening")
+	dialog("S2", "Closed")
+	time.Sleep(50 * time.Millisecond)
+	waitClosed(t, c.dialogs.signal, true) // T1's still open
+	dialog("S1", "Closed")
+	waitClosed(t, c.dialogs.signal, false)
+	dialog("S2", "Opening")
+	time.Sleep(50 * time.Millisecond)
+	waitClosed(t, c.dialogs.signal, false) // not the cast tab's
+	vis("S1", 7, false)
+	vis("S2", 8, true)
+	waitState(t, c, "T2 cast", func(s State) bool { return s.Tab.ID == "T2" })
+	waitClosed(t, c.dialogs.signal, true)
+	p.send(`{"method":"Target.detachedFromTarget","params":{"sessionId":"S2","targetId":"T2"}}`)
+	p.send(`{"method":"Target.targetDestroyed","params":{"targetId":"T2"}}`)
+	waitClosed(t, c.dialogs.signal, false)
+
+	if err := c.SetLive(false); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SetDriving("Ana"); err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, c, "T1 active, paused", func(s State) bool { return s.Tab.ID == "T1" && s.Phase == PhaseIdle })
+	p.send(`{"method":"Target.targetCreated","params":{"targetInfo":{"targetId":"T4","type":"page","url":"https://x/","title":"","openerId":"T1"}}}`)
+	p.expectAll(`|Target.closeTarget|"targetId":"T4"`)
 }

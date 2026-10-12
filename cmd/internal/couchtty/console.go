@@ -151,6 +151,8 @@ type Console struct {
 	statusWebcast ColumnSpan
 	// statusWebNotes is the web cast's 💭N span (#470).
 	statusWebNotes ColumnSpan
+	// statusWebDrive is remote driving's span (#467).
+	statusWebDrive ColumnSpan
 	// overlayUsers is who needs the collaboration overlay (syncOverlay).
 	overlayUsers overlayUser
 	// pointer is the pointer link's phase (#412), under mu; pmarks is the

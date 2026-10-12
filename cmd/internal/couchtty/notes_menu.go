@@ -82,13 +82,19 @@ func (m NotesMenu) CloseAt(x, y int) bool {
 // the whole text), and says how many more there are. With no notes, or no
 // room, there is no menu.
 func RenderNotesMenu(notes []broadcast.Note, cols, rows int) NotesMenu {
+	return RenderTitledMenu("Notes", notes, cols, rows)
+}
+
+// RenderTitledMenu is the menu box with its title: the notes menu's, or remote
+// driving's (#467), whose items are its driver and askers.
+func RenderTitledMenu(title string, notes []broadcast.Note, cols, rows int) NotesMenu {
 	w := min(notesMenuMaxWidth, cols-2)
 	maxH := rows - 3
 	textW := w - 5 // a space, the two-cell chip, a space … a space
 	if len(notes) == 0 || textW < 4 || maxH < 2 {
 		return NotesMenu{}
 	}
-	lines := []notesMenuLine{{text: " Notes"}}
+	lines := []notesMenuLine{{text: " " + title}}
 	var items []notesMenuItem
 	shown := 0
 	for _, n := range notes {

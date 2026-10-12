@@ -9,7 +9,8 @@
 
 import { Model } from './model.js';
 import { Renderer } from './render.js';
-import { mountAnnotate } from './annotate.js';
+import { mountAnnotate, identityStore } from './annotate.js';
+import { joinSeat, mountDrive } from './drive.js';
 import { replayPath, mountReplay } from './replay.js';
 
 // fit is the page box's scale and place in an area: the operator's
@@ -116,7 +117,7 @@ export function mount(doc, win) {
   const scroll = () => { const w = frame().contentWindow; return w ? [w.scrollX, w.scrollY] : [0, 0]; };
 
   const layout = () => {
-    const m = v.model, vp = m && m.seg > 0 ? m.vp : null;
+    const m = v && v.model, vp = m && m.seg > 0 ? m.vp : null;
     box.hidden = !vp;
     if (!vp) return;
     placed = fit(stage.clientWidth, stage.clientHeight, vp);
@@ -127,7 +128,7 @@ export function mount(doc, win) {
     Object.assign(box.style, { width: `${placed.w}px`, height: `${placed.h}px`, left: `${placed.left}px`, top: `${placed.top}px` });
   };
   const drawPointer = () => {
-    const p = v.model && v.model.live && v.model.ptr;
+    const p = v && v.model && v.model.live && v.model.ptr;
     pointer.hidden = !p;
     if (!p) return;
     const [x, y] = fromPage(p.x, p.y, placed.scale, scroll());
@@ -148,21 +149,34 @@ export function mount(doc, win) {
     const a = v.model.assets.get(abs);
     return a ? new URL(`assets/${a.hash}`, win.location.href).href : '';
   };
-  const viewer = new URLSearchParams(win.location.search).get('viewer');
   const shell = {
     renderer: (model) => new Renderer(frame(), model, resolveAsset),
     show: render,
     frame: () => { layout(); drawPointer(); },
     schedule: (fn) => win.requestAnimationFrame(fn),
   };
-  // A recording (#471) plays from its records; a cast follows its stream.
-  const v = replayPath(win.location.pathname)
-    ? mountReplay(doc, win, shell, (x, y) => fromPage(x, y, placed.scale, scroll()))
-    : connect({
-      ...shell,
-      open: () => new win.EventSource(viewer ? `events?viewer=${encodeURIComponent(viewer)}` : 'events'),
-      retry: (fn) => win.setTimeout(fn, 1000),
+  // A recording (#471) plays from its records; a cast follows its stream,
+  // as the seat this viewer takes for remote driving (#467) when the cast
+  // offers one: the stream holds the seat. A ?viewer= names the stream
+  // without a seat (tests).
+  let v = null, seat = null;
+  let started;
+  if (replayPath(win.location.pathname)) {
+    v = mountReplay(doc, win, shell, (x, y) => fromPage(x, y, placed.scale, scroll()));
+    started = Promise.resolve();
+  } else {
+    let storage = null;
+    try { storage = win.localStorage; } catch { /* none */ }
+    started = joinSeat((url, init) => win.fetch(url, init), identityStore(storage, win.crypto).name()).then((s) => {
+      seat = s;
+      const viewer = seat ? seat.viewer : new URLSearchParams(win.location.search).get('viewer');
+      v = connect({
+        ...shell,
+        open: () => new win.EventSource(viewer ? `events?viewer=${encodeURIComponent(viewer)}` : 'events'),
+        retry: (fn) => win.setTimeout(fn, 1000),
+      });
     });
+  }
   win.addEventListener('resize', () => { layout(); drawPointer(); });
 
   // The viewer contract (atlas/webcast-format.md): the conformance check,
@@ -170,7 +184,7 @@ export function mount(doc, win) {
   win.couchViewer = {
     resolveAsset: (abs) => resolveAsset(abs) || undefined,
     canonical: () => v.renderer.canonical(),
-    ready: async () => { await v.loaded; return v.renderer.ready(); }, // a replay first loads its records
+    ready: async () => { await started; await v.loaded; return v.renderer.ready(); }, // a replay first loads its records
     boxOf: (id) => v.renderer.boxOf(id),
     nodeAt: (x, y) => v.renderer.nodeAt(x, y),
     toPage: (clientX, clientY) => {
@@ -183,11 +197,18 @@ export function mount(doc, win) {
       const r = box.getBoundingClientRect(), [px, py] = fromPage(x, y, placed.scale, scroll());
       return [r.left + px, r.top + py];
     },
-    onRecord: v.onRecord,
+    // onRecord(fn): fn(r, model) for every record applied, from the stream
+    // once it opens (registered before its first record arrives).
+    onRecord: (fn) => { started.then(() => v.onRecord(fn)); },
   };
-  // Pointing and notes (#470), when the cast takes them.
-  mountAnnotate(doc, win, { ...win.couchViewer, get model() { return v.model; } }).then((a) => { win.couchViewer.annotate = a; });
-  return v;
+  const surface = { ...win.couchViewer, get model() { return v.model; }, get seat() { return seat; }, get annotate() { return win.couchViewer.annotate; } };
+  started.then(() => {
+    // Pointing and notes (#470), when the cast takes them; remote driving
+    // (#467), when it offers a seat.
+    mountAnnotate(doc, win, surface).then((a) => { win.couchViewer.annotate = a; });
+    win.couchViewer.drive = mountDrive(doc, win, surface, seat);
+  });
+  return started.then(() => v);
 }
 
 if (typeof document !== 'undefined' && document.getElementById('page')) mount(document, window);

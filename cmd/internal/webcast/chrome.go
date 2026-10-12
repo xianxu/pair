@@ -3,6 +3,7 @@ package webcast
 import (
 	"context"
 	_ "embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -95,6 +96,9 @@ type Chrome struct {
 	// forwards every CDP event and the live phase to it; it is the record
 	// stream's single writer (#466/#467 add their inputs to its queue).
 	rec *recorder.Recorder
+	// dialogs: the cast tab's JavaScript dialog, for the recorder's
+	// dispatch (#467), read off the loop.
+	dialogs dialogSignal
 }
 
 // Emit is Emitter's: it queues r for the recorder and never blocks.
@@ -127,10 +131,17 @@ type loopState struct {
 	// recTab is what the recorder was last told is cast ("" when not live)
 	// and recTitle its title.
 	recTab, recTitle string
-	hadPage          bool
-	noPages          <-chan time.Time
-	ending           endCause
-	killAt           <-chan time.Time
+	// driver is who drives the cast tab (#467), "" for nobody; dialogs
+	// are the page sessions showing a JavaScript dialog.
+	driver  string
+	dialogs map[string]bool
+	// tap sees every event first: the live tests' window on what Chrome
+	// said (nil in production).
+	tap     func(cdp.Event)
+	hadPage bool
+	noPages <-chan time.Time
+	ending  endCause
+	killAt  <-chan time.Time
 }
 
 // Launch starts Chrome and returns once its first page is open with its
@@ -209,7 +220,7 @@ func start(conn *cdp.Conn, proc process, output *tail, opts LaunchOptions) *Chro
 	}
 	if opts.Record != nil {
 		c.rec = recorder.Start(recorder.Options{ID: opts.Record.ID, Call: conn, Out: opts.Record.Out,
-			ShotEvery: opts.Record.ShotEvery, Logf: opts.Record.Logf})
+			ShotEvery: opts.Record.ShotEvery, Logf: opts.Record.Logf, Dialog: c.dialogs.signal})
 	}
 	go c.run()
 	return c
@@ -311,7 +322,7 @@ func (c *Chrome) Close() error {
 }
 
 func (c *Chrome) run() {
-	s := &loopState{phase: PhaseIdle, sessions: map[string]string{}, contexts: map[string]int64{}, frames: map[string]bool{}}
+	s := &loopState{phase: PhaseIdle, sessions: map[string]string{}, contexts: map[string]int64{}, frames: map[string]bool{}, dialogs: map[string]bool{}}
 	events := c.conn.Events()
 	// Every off-loop call starts on this goroutine, before finish waits for
 	// them all.
@@ -351,6 +362,9 @@ loop:
 }
 
 func (c *Chrome) handle(s *loopState, ev cdp.Event) {
+	if s.tap != nil {
+		s.tap(ev)
+	}
 	if c.rec != nil {
 		c.rec.Send(recorder.Event{Session: ev.SessionID, Method: ev.Method, Params: ev.Params, Seq: ev.Seq})
 	}
@@ -361,6 +375,9 @@ func (c *Chrome) handle(s *loopState, ev cdp.Event) {
 	for _, in := range translate(ev.SessionID, ev.Method, ev.Params, targetOf) {
 		switch in := in.(type) {
 		case TargetCreated:
+			if c.closeOpened(s, in) {
+				continue
+			}
 			s.tracker.Apply(in)
 			s.hadPage, s.noPages = true, nil
 		case TargetDestroyed:
@@ -372,13 +389,14 @@ func (c *Chrome) handle(s *loopState, ev cdp.Event) {
 			s.tracker.Apply(in)
 		case pageAttached:
 			s.sessions[in.SessionID] = in.TargetID
-			c.goSetup(in.SessionID)
+			c.goSetup(in.SessionID, s.driver != "")
 		case frameAttached:
 			s.frames[in.SessionID] = true
 			c.goSetupFrame(in)
 		case pageDetached:
 			delete(s.sessions, in.SessionID)
 			delete(s.contexts, in.SessionID)
+			delete(s.dialogs, in.SessionID)
 			delete(s.frames, in.SessionID)
 			if c.rec != nil {
 				c.rec.Send(recorder.Detached{Session: in.SessionID})
@@ -394,7 +412,11 @@ func (c *Chrome) handle(s *loopState, ev cdp.Event) {
 		case toggleRequested:
 			c.setLive(s, s.phase != PhaseLive)
 		case helloRequested:
-			c.goSetControl(in.SessionID, in.ContextID, s.phase == PhaseLive)
+			c.goSetControl(in.SessionID, in.ContextID, s.phase == PhaseLive, s.driver)
+		case dialogOpened:
+			s.dialogs[in.SessionID] = true
+		case dialogClosed:
+			delete(s.dialogs, in.SessionID)
 		}
 	}
 }
@@ -404,13 +426,19 @@ func (c *Chrome) handle(s *loopState, ev cdp.Event) {
 // page is released at the end whatever happened, since a page left waiting
 // is a frozen tab. The binding comes before the script, so the script's
 // first report has somewhere to go.
-func (c *Chrome) goSetup(session string) {
+func (c *Chrome) goSetup(session string, driving bool) {
 	c.work.Go(func() {
 		defer c.call(session, "Runtime.runIfWaitingForDebugger", nil, nil)
-		for _, step := range []struct {
+		type step struct {
 			method string
 			params any
-		}{
+		}
+		var extra []step
+		if driving {
+			// A page opened while a viewer drives shows no file chooser.
+			extra = append(extra, step{"Page.setInterceptFileChooserDialog", map[string]any{"enabled": true}})
+		}
+		for _, step := range append([]step{
 			{"Runtime.addBinding", map[string]any{"name": bindingName, "executionContextName": worldName}},
 			{"Runtime.enable", nil},
 			// Without the Page domain, the script runs in the current
@@ -421,7 +449,7 @@ func (c *Chrome) goSetup(session string) {
 			// Out-of-process iframes get sessions of their own, held until
 			// goSetupFrame releases them.
 			{"Target.setAutoAttach", frameAutoAttach},
-		} {
+		}, extra...) {
 			if c.call(session, step.method, step.params, nil) != nil {
 				// The page closed mid-setup; nothing else depends on it.
 				return
@@ -465,8 +493,9 @@ func (c *Chrome) goSetupFrame(f frameAttached) {
 
 // goSetControl shows live or idle on one page's control. A failure means the
 // document went away; the next one asks with hello.
-func (c *Chrome) goSetControl(session string, contextID int64, live bool) {
-	expr := fmt.Sprintf("globalThis.__couchcastSet && globalThis.__couchcastSet(%t)", live)
+func (c *Chrome) goSetControl(session string, contextID int64, live bool, driver string) {
+	name, _ := json.Marshal(driver)
+	expr := fmt.Sprintf("globalThis.__couchcastSet && globalThis.__couchcastSet(%t, %s)", live, name)
 	c.goCall(session, "Runtime.evaluate", map[string]any{"expression": expr, "contextId": contextID}, nil)
 }
 
@@ -479,7 +508,7 @@ func (c *Chrome) setLive(s *loopState, live bool) error {
 		s.phase = PhaseLive
 	}
 	for session, ctx := range s.contexts {
-		c.goSetControl(session, ctx, live)
+		c.goSetControl(session, ctx, live, s.driver)
 	}
 	return nil
 }
@@ -511,6 +540,9 @@ func (c *Chrome) publish(s *loopState) {
 	}
 	tab, ok := s.tracker.Active()
 	c.tellRecorder(s, tab, ok)
+	// The cast tab's dialog, for a driver's dispatch: recomputed after
+	// every input, so a dialog, a tab switch or a closed tab all count.
+	c.dialogs.set(s.dialogs[sessionOf(s, castTab(s))])
 	next := State{Phase: s.phase, Tab: tab, HasTab: ok}
 	if next != c.pub.get() {
 		c.pub.publish(next)

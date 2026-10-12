@@ -46,6 +46,9 @@ type pointerNotes struct {
 	webMenuIDs map[string]int
 	webNext    int
 	source     notesSource
+	// drive is remote driving's control (#467) as the cast last delivered
+	// it, and its menu rows.
+	drive driveState
 }
 
 // webItem is one web note in the menu: its menu id, its note id and its
@@ -63,12 +66,17 @@ type notesSource uint8
 const (
 	screenNotes notesSource = iota
 	webNotes
+	// driveMenu is remote driving's menu (#467): the driver and who asks.
+	driveMenu
 )
 
 // menuNotesLocked is the open menu's list. Callers hold pnotes.mu.
 func (c *Console) menuNotesLocked() []broadcast.Note {
-	if c.pnotes.source == webNotes {
+	switch c.pnotes.source {
+	case webNotes:
 		return c.pnotes.web
+	case driveMenu:
+		return c.pnotes.drive.items
 	}
 	return c.pnotes.notes
 }
@@ -242,7 +250,11 @@ func (c *Console) menuOverlay(f terminal.Frame, class terminal.FrameClass) termi
 		c.pnotes.menu = NotesMenu{}
 		return f
 	}
-	c.pnotes.menu = RenderNotesMenu(c.menuNotesLocked(), f.Geometry.Cols, f.Geometry.Rows)
+	title := "Notes"
+	if c.pnotes.source == driveMenu {
+		title = "Remote driving"
+	}
+	c.pnotes.menu = RenderTitledMenu(title, c.menuNotesLocked(), f.Geometry.Cols, f.Geometry.Rows)
 	return c.pnotes.menu.Draw(f, c.pnotes.hover, c.drawStyleLocked())
 }
 
@@ -343,6 +355,20 @@ func (c *Console) routeNotesMenu(raw []byte) bool {
 		c.pnotes.mu.Unlock()
 		if changed {
 			c.refreshNotes()
+		}
+	case c.pnotes.source == driveMenu && (hit.Button == 0 || hit.Button == 2):
+		// Remote driving's rows act (#467): a left click on the driver
+		// takes control back, on an asker lets them drive; a right click
+		// turns an asker down (and takes control back from the driver too).
+		c.pnotes.pressed = true
+		closing := menu.CloseAt(x, y)
+		act := c.driveActionLocked(id, hit.Button == 2)
+		c.pnotes.mu.Unlock()
+		switch {
+		case closing:
+			c.toggleNotesMenu(driveMenu)
+		case act != nil:
+			act()
 		}
 	case hit.Button == 0:
 		c.pnotes.pressed = true

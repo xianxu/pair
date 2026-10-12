@@ -10,6 +10,9 @@ import (
 var (
 	pm     = rec.Author{ID: "viewer-1", Name: "Pat (product)", Color: "#e8590c"}
 	design = rec.Author{ID: "viewer-2", Name: "Ana (design)", Color: "#1c7ed6"}
+	// driver is rec-driven's driver (#467): her seat's id, v1, so her note
+	// is attributable to the driver.
+	driver = rec.Author{ID: "v1", Name: "Ana", Color: "#2f9e44"}
 )
 
 // noteSpec places a note (and a stroke around its element) on a fixture:
@@ -40,6 +43,12 @@ var specs = map[string][]noteSpec{
 		{t: 2500, sel: "h1", author: pm, text: "Title wraps awkwardly at this width."},
 		{t: 6000, sel: "img[alt*=issue tracker]", author: design, text: "This screenshot is too small to read."},
 		{t: 8000, sel: "ol", author: pm, text: "This list reads better as a table."},
+	},
+	// A recorded remote-driving session (#467): Ana drives from 1.4 s to
+	// 7.9 s and from 9.9 s to 11 s.
+	"rec-driven": {
+		{t: 3000, sel: "#q", author: driver, text: "Searching by number works; can it take a range?"},
+		{t: 6800, sel: "#approve", author: pm, text: "Approve should ask for a reason.", resolveT: 8200},
 	},
 	"rec-segments": {
 		{t: 1500, sel: "h1", author: pm, text: "Reports needs a date range."},

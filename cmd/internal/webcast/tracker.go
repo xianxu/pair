@@ -42,8 +42,9 @@ type trackedPage struct {
 // PageReport, PageTitle, DocumentChanged.
 type TrackerInput interface{ trackerInput() }
 
-// TargetCreated: a page target appeared.
-type TargetCreated struct{ ID, URL, Title string }
+// TargetCreated: a page target appeared. Opener is the page that opened it
+// (a link to a new tab, window.open), if any.
+type TargetCreated struct{ ID, URL, Title, Opener string }
 
 // TargetChanged: a page's URL or title changed.
 type TargetChanged struct{ ID, URL, Title string }

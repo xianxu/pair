@@ -19,6 +19,7 @@ func TestAnswer(t *testing.T) {
 		{ErrNotDriver, http.StatusForbidden},
 		{fmt.Errorf("x: %w", ErrStale), http.StatusConflict},
 		{ErrNotLive, http.StatusConflict},
+		{fmt.Errorf("dispatch: %w", ErrDialog), http.StatusConflict},
 		{fmt.Errorf("%w: paste", ErrRefused), http.StatusUnprocessableEntity},
 		{fmt.Errorf("%w: twice", recording.ErrControl), http.StatusConflict},
 		{ErrBatchLimit, http.StatusBadRequest},
@@ -32,5 +33,13 @@ func TestAnswer(t *testing.T) {
 		if c.err != nil && (say == "" || say == c.err.Error()) {
 			t.Errorf("%v: says %q", c.err, say)
 		}
+	}
+}
+
+// The driver is told why a dialog stops their input, in the sentence the
+// TL fixed (#467), not a bare failure.
+func TestAnswerDialog(t *testing.T) {
+	if _, say := Answer(ErrDialog); say != "The page is showing a dialog; the operator must answer it." {
+		t.Fatalf("says %q", say)
 	}
 }

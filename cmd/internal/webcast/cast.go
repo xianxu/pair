@@ -12,6 +12,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/broadcast"
 	castassets "github.com/xianxu/pair/cmd/internal/webcast/assets"
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
+	"github.com/xianxu/pair/cmd/internal/webcast/drive"
 	"github.com/xianxu/pair/cmd/internal/webcast/notes"
 	"github.com/xianxu/pair/cmd/internal/webcast/recorder"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
@@ -47,14 +48,20 @@ type CastConfig struct {
 	Ping time.Duration
 	// Presence, when set, is told which viewers are watching (#466).
 	Presence Presence
+	// DriveGrace is how long a remote-driving seat outlives its last
+	// stream (#467); zero is drive.DefaultGrace.
+	DriveGrace time.Duration
 }
 
 // Update is what Couch shows of a cast: the browser's state and the viewer
 // link. Link is "" until it answers; LinkErr says why there is none.
 type Update struct {
-	State   State
-	Link    string
-	LinkErr error
+	State State
+	Link  string
+	// DriveLink is the drive link (#467): the same viewer, offering a seat
+	// to drive. "" until the link answers, or when the cast can't be driven.
+	DriveLink string
+	LinkErr   error
 }
 
 // Cast is one web cast: a Browser, served to viewers under a token on the
@@ -72,14 +79,22 @@ type Cast struct {
 	// isn't recorded. The recorder closes it with the recording (it is one
 	// of the recording's sinks), the cast when the browser has ended.
 	board *board.Board
+	// drive is remote driving's controller (#467); nil when the browser
+	// can't be driven (not recording, or a fake). Closed when the browser
+	// has ended.
+	drive drive.Controller
 	// recDir is the recording's directory ("" when not recording); check
 	// and logf run the fidelity check on it once the cast has ended.
 	recDir string
 	check  func(context.Context, string) (string, error)
 	logf   func(string, ...any)
-	// server and token: for tests.
-	server *Server
-	token  string
+	// server and token: for tests. driveToken is the drive link's (#467),
+	// "" when the cast can't be driven.
+	server     *Server
+	token      string
+	driveToken string
+	// driveOff says why the cast can't be driven ("" when it can).
+	driveOff string
 }
 
 // StartCast launches the browser and returns once it runs; the viewer link
@@ -132,9 +147,32 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 	mountCtx, cancel := context.WithCancel(context.Background())
 	c := &Cast{browser: b, pub: newPublisher(Update{State: b.State()}), cancel: cancel, done: make(chan struct{}), liveSink: liveSink,
 		board: bd, recDir: recDir, check: cfg.Check, logf: cfg.Logf}
-	srv := NewServer(token, b, cfg.Ping, live, cfg.Presence).WithBoard(bd)
+	if d, ok := b.(Driven); ok && ro != nil {
+		grace := cfg.DriveGrace
+		if grace <= 0 {
+			grace = drive.DefaultGrace
+		}
+		// The recorder stamps each control record's time as it orders it.
+		c.drive = drive.NewMemController(liveGate{d}, drive.NewTabInjector(d), func() int64 { return 0 }, grace)
+		go followDriving(c.drive, d)
+	}
+	var driveToken string
+	if c.drive != nil {
+		if driveToken, err = broadcast.NewToken(); err != nil {
+			// Driving is off for this cast; the operator is told why.
+			c.drive.Close()
+			c.drive = nil
+			c.driveOff = "couldn't make the drive link: " + err.Error()
+			if cfg.Logf != nil {
+				cfg.Logf("remote driving is off: %s", c.driveOff)
+			}
+		}
+	} else {
+		c.driveOff = "the cast isn't recorded"
+	}
+	srv := NewServer(token, b, cfg.Ping, live, cfg.Presence).WithBoard(bd).WithDrive(c.drive, driveToken)
 	srv.proxy = proxy
-	c.server, c.token = srv, token
+	c.server, c.token, c.driveToken = srv, token, driveToken
 	go c.run(mountCtx, cfg.Host, srv, token)
 	return c, nil
 }
@@ -215,10 +253,13 @@ func (c *Cast) run(ctx context.Context, host *broadcast.Host, srv *Server, token
 			} else {
 				mount, lost = r.m, r.m.Exited()
 				cur.Link = r.m.Base() + "/" + token + "/"
+				if c.driveToken != "" {
+					cur.DriveLink = r.m.Base() + "/" + c.driveToken + "/"
+				}
 			}
 		case <-lost:
 			lost = nil
-			cur.Link, cur.LinkErr = "", mount.Err()
+			cur.Link, cur.DriveLink, cur.LinkErr = "", "", mount.Err()
 		}
 		c.pub.publish(cur)
 	}
@@ -228,6 +269,9 @@ func (c *Cast) run(ctx context.Context, host *broadcast.Host, srv *Server, token
 	}
 	if c.board != nil {
 		c.board.Close()
+	}
+	if c.drive != nil {
+		c.drive.Close()
 	}
 	if mounted != nil {
 		if r := <-mounted; r.m != nil {
@@ -316,3 +360,14 @@ func (c *Cast) Err() error {
 		return nil
 	}
 }
+
+// Drive is the cast's remote-driving controller (#467): Couch grants,
+// denies and revokes through it and shows its state. nil when the cast
+// can't be driven.
+func (c *Cast) Drive() drive.Controller { return c.drive }
+
+// Viewers is how many viewers are on the cast's links, by link (#467).
+func (c *Cast) Viewers() (view, drive int) { return c.server.Viewers() }
+
+// DriveOff says why the cast can't be driven, or "" when it can (#467).
+func (c *Cast) DriveOff() string { return c.driveOff }

@@ -32,6 +32,29 @@ func TestFormatBroadcastStatus(t *testing.T) {
 	}
 }
 
+// Every link out, by kind (pair#467): the screen broadcast as before, the
+// web cast's view and drive links with who drives and how many ask; a
+// viewer-chosen name is sanitized; never a link.
+func TestFormatShares(t *testing.T) {
+	at := time.Date(2026, 10, 8, 14, 2, 11, 0, time.Local)
+	screen := &couchmessage.BroadcastStatus{State: "live", StartedAt: at, Mode: "tunnel", Viewers: 2}
+	got := formatShares(screen, []couchmessage.ShareStatus{
+		{Kind: couchmessage.ShareScreen, State: "live", Viewers: 2},
+		{Kind: couchmessage.ShareWebView, State: "live", Viewers: 1},
+		{Kind: couchmessage.ShareWebDrive, State: "live", Viewers: 3, Driver: "Ana\x1b[2J", Asking: 1},
+	})
+	want := "screen: live since 14:02:11 (tunnel) — 2 viewers\nweb view: live — 1 viewer\nweb drive: live — 3 viewers; Ana driving; 1 asking"
+	if got != want {
+		t.Errorf("got %q\nwant %q", got, want)
+	}
+	if got := formatShares(nil, nil); got != "no broadcast" {
+		t.Errorf("nothing out: %q", got)
+	}
+	if got := formatShares(nil, []couchmessage.ShareStatus{{Kind: couchmessage.ShareWebView, State: "idle"}}); got != "web view: idle — 0 viewers" {
+		t.Errorf("a web cast alone: %q", got)
+	}
+}
+
 func TestParseBroadcastListForms(t *testing.T) {
 	for _, args := range [][]string{{"--broadcast-list"}, {"--broadcast-list", "--json"}} {
 		inv, err := ParseCLI(args, nil)

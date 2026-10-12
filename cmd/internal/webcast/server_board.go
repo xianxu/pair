@@ -143,18 +143,26 @@ func (b *boardRoutes) allowNote(now time.Time) bool {
 // route's budget, then a body that arrives promptly and within max. The
 // caller defers release. On false the response is written.
 func (b *boardRoutes) admit(w http.ResponseWriter, r *http.Request, allow func(*boardRoutes, time.Time) bool, max int64) ([]byte, func(), bool) {
+	return admitBody(w, r, b.inFlight, func(now time.Time) bool { return allow(b, now) }, max)
+}
+
+// admitBody is the body-reading routes' one admission (the board's, #470;
+// remote driving's, #467): a JSON content type, a slot in inFlight, the
+// budget allow, then a body that arrives promptly and within max. The
+// caller defers release. On false the response is written.
+func admitBody(w http.ResponseWriter, r *http.Request, inFlight chan struct{}, allow func(time.Time) bool, max int64) ([]byte, func(), bool) {
 	if mt, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || mt != "application/json" {
 		http.Error(w, "unsupported content type", http.StatusUnsupportedMediaType)
 		return nil, nil, false
 	}
 	select {
-	case b.inFlight <- struct{}{}:
+	case inFlight <- struct{}{}:
 	default:
 		http.Error(w, refuseBusy, http.StatusTooManyRequests)
 		return nil, nil, false
 	}
-	release := func() { <-b.inFlight }
-	if !allow(b, time.Now()) {
+	release := func() { <-inFlight }
+	if !allow(time.Now()) {
 		release()
 		http.Error(w, refuseBusy, http.StatusTooManyRequests)
 		return nil, nil, false

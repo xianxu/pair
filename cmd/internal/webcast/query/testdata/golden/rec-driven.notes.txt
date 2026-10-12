@@ -1,0 +1,49 @@
+$ couch --broadcast-web-query <fixtures>/rec-driven notes
+note rec-driven-n1  t=3000  segment 1  open  by Ana (v1)
+  "Searching by number works; can it take a range?"
+  on @12  selector #q  box 24,103.88 308x38
+  page: t=3000  segment 1 (live)  http://127.0.0.1:59767/  viewport 1280x800@1  title "Invoices"  driven by Ana (v1)
+  element:
+    @12 <input id=q placeholder="Search invoices"> {value "invoice 42", focused}
+  context: within @7 <body>
+    text: "Invoices Save Open invoice 42 Invoice 41 Invoice 42 Invoice 43"
+  before (10000 ms):
+    0 segment 1 starts (live) on http://127.0.0.1:59767/, viewport 1280x800@1
+    13 input @12 <input#q> value ""
+    13 scroll @1 #document to 0,0
+    13 selection cleared
+    2033 focus @12 <input#q> by Ana (v1)
+    2033 click @12 <input#q> at 178,122 by Ana (v1)
+    2064 selection @7 <body>:3 … @7 <body>:3
+    2188-2493 input @12 <input#q> value "invoice 42" by Ana (v1) (3 changes)
+
+note rec-driven-n2  t=6800  segment 3  resolved  by Pat (product) (viewer-1)
+  "Approve should ask for a reason."
+  on @45  selector #approve  box 374.7,104.88 65.66x36
+  page: t=6800  segment 3 (live)  http://127.0.0.1:59767/detail  viewport 1280x800@1  title "Invoice 42"  driven by Ana (v1)
+  element:
+    @45 <button id=approve> Approve
+  context: within @36 <body>
+    text: "Invoice 42 Note Approve"
+  before (10000 ms):
+    … 1 earlier actions
+    13 input @12 <input#q> value ""
+    13 scroll @1 #document to 0,0
+    13 selection cleared
+    2033 focus @12 <input#q> by Ana (v1)
+    2033 click @12 <input#q> at 178,122 by Ana (v1)
+    2064 selection @7 <body>:3 … @7 <body>:3
+    2188-2493 input @12 <input#q> value "invoice 42" by Ana (v1) (3 changes)
+    3298 focus @14 <button#save> "Save"
+    3298 click @14 <button#save> "Save" at 359,122
+    4114 focus @18 <a#next> "Open invoice 42" by Ana (v1)
+    4114 click @18 <a#next> "Open invoice 42" at 81,166 by Ana (v1)
+    4127 segment 2 starts (navigate) on http://127.0.0.1:59767/detail, viewport 1280x800@1
+    4147 input @43 <input#memo> value ""
+    4147 scroll @30 #document to 0,0
+    4147 selection cleared
+    5630 stop (pause)
+    6332 segment 3 starts (resume) on http://127.0.0.1:59767/detail, viewport 1280x800@1
+    6347 input @43 <input#memo> value ""
+    6347 scroll @30 #document to 0,0
+    6347 selection cleared

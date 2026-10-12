@@ -397,8 +397,8 @@ couch --peek repo:N[:M...][,repo:N...] [--lines N] [--json] [--transcripts]
                                            read-only: slots' recent terminal (live, with dim/reverse/cursor marks); --transcripts adds log paths
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
-couch --broadcast-list [--json]   the running broadcast and its viewer count, and the recordings shared
-                         for replay (pair#477); never a link
+couch --broadcast-list [--json]   every link out by kind (screen, web view, web drive) and its viewers, and the
+                         recordings shared for replay (pair#477); never a link
 couch --broadcast-web-query DIR dom|events|notes|link ...
                          read-only: a broadcast-web recording's page at t, what happened in a window,
                          and every note with its element and the actions before it (pair#462); link
@@ -868,13 +868,15 @@ lists the whole fleet, is replaced for viewers by a placeholder unless
 `COUCH_BROADCAST_SWITCHER=show`. Nothing is recorded at either end; the link
 dies with the broadcast.
 
-`couch --broadcast-list [--json]`, from any shell, reports whether a broadcast is
-running and how many viewers are watching: its state, start time, mode and
-viewer count. It never prints the link or its token, because the token is the
-broadcast's only credential. While recordings are shared for replay through the
-tunnel (see `--broadcast-web-replay` below), it adds a line naming them,
-`replays shared until Couch exits: <id>, …`, and `--json` adds a `replays` list
-of their ids. A notice in Couch says so each time one is shared.
+`couch --broadcast-list [--json]`, from any shell, lists every link out by kind.
+- **`screen`** is the screen broadcast: its state, start time, mode and viewer count.
+- **`web view`** is the web cast's view link: its state and viewers.
+- **`web drive`** is the web cast's drive link: its state and viewers, and who drives and how many ask.
+
+It never prints a link or its token, because the token is the link's only credential. While recordings are shared
+for replay through the tunnel (see `--broadcast-web-replay` below), it adds a line naming them, `replays shared
+until Couch exits: <id>, …`, and `--json` adds a `replays` list of their ids. A notice in Couch says so each time
+one is shared.
 
 `couch --broadcast-web-query DIR dom|events|notes|link` reads a broadcast-web
 recording directory for a coding agent: the page at a moment, what happened
@@ -970,11 +972,29 @@ server, an agent's mock, anything). While it runs the tab bar shows
 `Chrome ▶`; press `Shift+Ctrl+Alt+b` again, click `Chrome ▶`, or press the
 **Go live** button Couch puts at the bottom right of the page, and the active tab
 is cast (`Chrome ⏸`). The same three pause and resume it, and the browser stays
-open while paused. Right-click the cell to copy the viewer link; `Ctrl`+click
+open while paused. Right-click the cell to copy the **view link** (watch, point, leave
+notes); `Alt` (Option)+right-click copies the **drive link** (below); `Ctrl`+click
 (left or right) ends the cast and closes Chrome. Closing Chrome yourself ends the
 cast too. The cast follows whichever tab is active, including tabs opened later.
 Viewers' page shows whether the cast is live and, while it is, the page's title
 and URL; nothing you do while paused reaches them.
+
+**Remote driving (#467).** A viewer who opens the **drive link** sees **Ask to drive**. The tab bar then shows
+`✋Ana` after the Chrome cell (`✋2` for more), and Couch says so. Click it for the drive menu:
+- **Grant.** Click the asker to let them drive. They use the page through their viewer with mouse, touch and
+  keyboard, and the tab bar shows `🕹Ana`.
+- **Deny.** Right-click an asker to say no.
+- **Take back.** Click the driver's row to take control back. `Ctrl`+click on the span takes it back at any time,
+  menu open or not.
+
+While anyone drives:
+- Uploads and downloads are off in the cast tab, yours too, and Couch says so.
+- A tab the page opens is closed.
+- Only page keys reach the tab: no clipboard, browser shortcuts or new windows.
+- A banner in your tab names the driver.
+- The recording attributes their actions to them (`by`).
+
+The view link never offers driving.
 
 **Recording (#458).** From the first time you go live, the cast tab is recorded
 to `<couch store>/webcast/recordings/<id>/` (the format is in

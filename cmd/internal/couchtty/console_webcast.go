@@ -152,6 +152,28 @@ func (c *Console) webcastStarted(attempt uint64, cast *webcast.Cast, err error, 
 			}
 		}
 	})
+	if ctrl := cast.Drive(); ctrl != nil {
+		// Remote driving (#467): who drives and who asks, for the tab bar
+		// and the drive menu. The channel closes with the cast.
+		states, stopStates := ctrl.Subscribe()
+		c.GoTracked(func() {
+			defer stopStates()
+			for {
+				select {
+				case st, open := <-states:
+					if !open {
+						return
+					}
+					_ = c.runTerminalCommand(c.lifetime, func() error {
+						c.applyDrive(cast, st)
+						return nil
+					})
+				case <-c.stop:
+					return
+				}
+			}
+		})
+	}
 	updates, unsubscribe := cast.Subscribe()
 	c.GoTracked(func() {
 		defer unsubscribe()
@@ -216,6 +238,7 @@ func (c *Console) webcastEnded(cast *webcast.Cast) {
 	c.wcast = webcastState{attempt: c.wcast.attempt}
 	c.mu.Unlock()
 	c.forgetWebNotes()
+	c.forgetDrive()
 	c.syncOverlay(overlayWeb, false)
 	switch err := cast.Err(); {
 	case byOperator || err == nil:
@@ -237,11 +260,33 @@ func (c *Console) copyWebcastLink() {
 	case !running:
 	case u.Link != "":
 		c.copyLink(u.Link)
-		c.setNotice("Chrome cast viewer link copied.")
+		c.setNotice("Chrome cast view link copied (watch, point, notes). Alt+right-click for the drive link.")
 	case u.LinkErr != nil:
 		c.setNotice("Chrome cast viewer link unavailable: " + u.LinkErr.Error())
 	default:
 		c.setNotice("Chrome cast viewer link is not ready yet.")
+	}
+}
+
+// copyWebcastDriveLink is an Alt+right-click on the Chrome cell (#467):
+// the drive link, whose viewers can ask to drive the cast tab (the
+// operator still grants). Like the view link, never in the notice.
+func (c *Console) copyWebcastDriveLink() {
+	// One snapshot: the cast can end between two reads.
+	c.mu.Lock()
+	u, running, cast := c.wcast.update, c.wcast.phase == webcastRunning, c.wcast.cast
+	c.mu.Unlock()
+	switch {
+	case !running:
+	case u.DriveLink != "":
+		c.copyLink(u.DriveLink)
+		c.setNotice("Chrome cast drive link copied: its viewers can ask to drive; you grant.")
+	case u.LinkErr != nil:
+		c.setNotice("Chrome cast drive link unavailable: " + u.LinkErr.Error())
+	case u.Link != "" && cast != nil && cast.DriveOff() != "":
+		c.setNotice("This cast can't be driven: " + cast.DriveOff() + ".")
+	default:
+		c.setNotice("Chrome cast drive link is not ready yet.")
 	}
 }
 

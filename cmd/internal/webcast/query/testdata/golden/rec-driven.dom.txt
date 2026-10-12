@@ -1,0 +1,15 @@
+$ couch --broadcast-web-query <fixtures>/rec-driven dom --at 3000
+t=3000  segment 1 (live)  http://127.0.0.1:59767/  viewport 1280x800@1  title "Invoices"  driven by Ana (v1)
+@1 #document http://127.0.0.1:59767/ {scrolled 0,0}
+  @3 <html>
+    @4 <head> (title "Invoices")
+    @7 <body>
+      @9 <h1> Invoices
+      @12 <input id=q placeholder="Search invoices"> {value "invoice 42", focused}
+      @14 <button id=save> Save
+      @17 <p>
+        @18 <a href=/detail id=next> Open invoice 42
+      @21 <ul>
+        @22 <li> Invoice 41
+        @24 <li> Invoice 42
+        @26 <li> Invoice 43

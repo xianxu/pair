@@ -100,6 +100,9 @@ type StatusModel struct {
 	// WebNotes is the web cast's open notes (#470), drawn as 💭N after the
 	// Chrome cell; a click opens the notes menu with them.
 	WebNotes int
+	// WebDrive is remote driving's span (#467), after them: who drives
+	// (🕹Ana) and who asks (✋Bo); a click opens the drive menu.
+	WebDrive string
 	// Spinner is the loading placeholder's spinner frame (pair#206).
 	Spinner uint8
 	// Palette is what the host terminal told couch about its colours, which
@@ -170,6 +173,8 @@ type RenderedStatusRow struct {
 	Webcast ColumnSpan
 	// WebNotes is the web cast's 💭N span (#470).
 	WebNotes ColumnSpan
+	// WebDrive is remote driving's span (#467).
+	WebDrive ColumnSpan
 }
 
 // ColumnToActor maps a ZERO-BASED column on the drawn row to the actor whose
@@ -252,7 +257,7 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 			}
 		}
 	}
-	var webcastSpan, webNotesSpan ColumnSpan
+	var webcastSpan, webNotesSpan, webDriveSpan ColumnSpan
 	if label, sgr := webcastLabel(m.Webcast); label != "" {
 		if used > 0 {
 			appendText(" ", "")
@@ -268,6 +273,14 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 			appendText(broadcast.NoteGlyph+strconv.Itoa(m.WebNotes), "")
 			if used > start {
 				webNotesSpan = ColumnSpan{Start: start, End: used}
+			}
+		}
+		if m.WebDrive != "" {
+			appendText(" ", "")
+			start := used
+			appendText(rowtext.Sanitize(m.WebDrive), webDriveSGR)
+			if used > start {
+				webDriveSpan = ColumnSpan{Start: start, End: used}
 			}
 		}
 	}
@@ -342,7 +355,7 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		}
 		appendText(n, "")
 	}
-	return RenderedStatusRow{Body: row.String(), Chips: chips, Control: control, Pointer: pointer, Remote: remote, Notes: notes, Webcast: webcastSpan, WebNotes: webNotesSpan}
+	return RenderedStatusRow{Body: row.String(), Chips: chips, Control: control, Pointer: pointer, Remote: remote, Notes: notes, Webcast: webcastSpan, WebNotes: webNotesSpan, WebDrive: webDriveSpan}
 }
 
 // WebcastCell is the cast Chrome's state on the tab bar (#454).
@@ -363,6 +376,8 @@ const (
 	WebcastIdleLabel = "Chrome ▶"
 	WebcastLiveLabel = "Chrome ⏸"
 	webcastLiveSGR   = "\x1b[1;31m"
+	// webDriveSGR: someone else's hands on the operator's tab, in bold.
+	webDriveSGR = "\x1b[1m"
 )
 
 func webcastLabel(c WebcastCell) (string, string) {

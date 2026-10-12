@@ -23,6 +23,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/assets"
@@ -77,6 +78,10 @@ type Options struct {
 	MaxQueue int
 	Now      func() time.Time
 	Logf     func(format string, args ...any)
+	// Dialog, when set, is a channel closed while the cast tab shows a
+	// JavaScript dialog (#467): input and the page's script are stopped
+	// until the operator answers it, so a driver's dispatch gives up.
+	Dialog func() <-chan struct{}
 }
 
 // Inputs. The Browser sends them in the order they happened.
@@ -175,22 +180,24 @@ type Recorder struct {
 	shotQ  chan shotJob
 
 	// Owned by the loop.
-	m        *mirror
-	sink     rec.Sink
-	frames   FrameWriter
-	assets   assets.Store
-	t0       time.Time
-	opened   bool
-	live     bool
-	seg      int
-	segT     int64  // when the current segment started
-	top      string // the cast page's session
-	tab      rec.Tab
-	parents  map[string]string // frame session -> parent session
-	frameIDs map[string]string // session -> its main frame id
-	loader   map[string]string // session -> its main frame's loader id
-	contexts map[string]map[int64]string
-	snapSeq  map[string]uint64 // session -> reply number of its last snapshot
+	m      *mirror
+	sink   rec.Sink
+	frames FrameWriter
+	assets assets.Store
+	t0     time.Time
+	opened bool
+	// openedFlag is opened for other goroutines (Opened).
+	openedFlag atomic.Bool
+	live       bool
+	seg        int
+	segT       int64  // when the current segment started
+	top        string // the cast page's session
+	tab        rec.Tab
+	parents    map[string]string // frame session -> parent session
+	frameIDs   map[string]string // session -> its main frame id
+	loader     map[string]string // session -> its main frame's loader id
+	contexts   map[string]map[int64]string
+	snapSeq    map[string]uint64 // session -> reply number of its last snapshot
 	// dirty: sessions to snapshot again after this input (a resync, a
 	// document update, a desync).
 	dirty    map[string]bool
@@ -627,6 +634,7 @@ func (r *Recorder) goLive(at time.Time, l Live) {
 			return
 		}
 		r.sink, r.frames, r.assets, r.t0, r.opened = o.Sink, o.Frames, o.Assets, at, true
+		r.openedFlag.Store(true)
 		r.m.Emit(0, &rec.Head{Format: rec.Format, V: rec.Version, ID: r.opts.ID, Started: at.Format(time.RFC3339Nano)})
 	}
 	if r.live && l.Session == r.top {
@@ -1073,21 +1081,36 @@ func (r *Recorder) binding(at time.Time, e Event) {
 	var msg struct {
 		T     string `json:"t"`
 		Items []Item `json:"items"`
+		// By: items a held observer sent during the hold (#467), whose
+		// injected input they followed. observeItems drops the tag (and
+		// keeps the act) when control has moved by the time it is ordered.
+		By string `json:"by"`
 	}
 	if json.Unmarshal([]byte(p.Payload), &msg) != nil || msg.T != "obs" {
 		return
 	}
-	frame := r.contexts[e.Session][p.Context]
-	t := r.t(at)
-	for _, it := range msg.Items {
+	r.observeItems(r.t(at), e.Session, p.Context, msg.Items, msg.By)
+}
+
+// observeItems records an observer's reports from one context: by is the
+// viewer whose injected input they follow, "" for anyone else's (#467).
+func (r *Recorder) observeItems(t int64, session string, context int64, items []Item, by string) {
+	frame := r.contexts[session][context]
+	if by != "" && r.m.State().Control.Driving() != by {
+		// A tagged report ordered after control moved (a revoke between the
+		// batch and its reports): what the page received is kept, without
+		// an attribution the stream can no longer state (#467).
+		by = ""
+	}
+	for _, it := range items {
 		if it.K == "hello" {
 			// A new document's observer: switch it on.
-			r.call(e.Session, "Runtime.evaluate", map[string]any{"expression": "globalThis.__couchcastRec(true, true)", "contextId": p.Context}, nil)
+			r.call(session, "Runtime.evaluate", map[string]any{"expression": "globalThis.__couchcastRec(true, true)", "contextId": context}, nil)
 			continue
 		}
 		off := r.m.TopScroll()
-		if (it.K == "click" || it.K == "ptr") && !(e.Session == r.top && frame == r.frameIDs[r.top]) {
-			o, ok := r.frameOffset(e.Session, frame, 0)
+		if (it.K == "click" || it.K == "ptr") && !(session == r.top && frame == r.frameIDs[r.top]) {
+			o, ok := r.frameOffset(session, frame, 0)
 			if !ok {
 				continue
 			}
@@ -1095,7 +1118,7 @@ func (r *Recorder) binding(at time.Time, e Event) {
 		}
 		// A stale report (racing a change) is counted by the mirror; it
 		// needs no resync: the DOM events carry the change.
-		r.m.Observe(t, e.Session, frame, it, off)
+		r.m.Observe(t, session, frame, it, off, by)
 	}
 }
 

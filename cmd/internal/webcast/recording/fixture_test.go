@@ -97,7 +97,7 @@ func TestFixtureCoverage(t *testing.T) {
 			{"a same-document navigation", func(c *coverage) bool { return c.kinds["nav"] > 0 }},
 			{"a cross-document navigation", func(c *coverage) bool { return c.navigateSegs > 0 }},
 		},
-		"driven": {
+		"rec-driven": {
 			{"grant, release, revoke, deny and leave", func(c *coverage) bool {
 				return c.ctl[CtlGrant] > 0 && c.ctl[CtlRelease] > 0 && c.ctl[CtlRevoke] > 0 && c.ctl[CtlDeny] > 0 && c.ctl[CtlLeave] > 0
 			}},

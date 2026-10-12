@@ -13,7 +13,7 @@
 // terminal viewer's (served from broadcast.CollabJS; the file here is a
 // symlink, for the node tests).
 
-import { HEX_COLOR, pointerColor, colorStore, safeStorage, poster, railAt, renderSwatches, noteDialog } from './collab.js';
+import { HEX_COLOR, pointerColor, colorStore, safeStorage, poster, sayer, railAt, renderSwatches, noteDialog } from './collab.js';
 
 // CHUNK_MS is how often a stroke in progress is posted; MAX_POINTS caps a
 // chunk (the board's bound).
@@ -55,6 +55,9 @@ export function identityStore(storage, crypto) {
     id: () => id,
     name: () => name,
     setName(v) { name = v; store.set(NAME_KEY, v); },
+    // adopt is this visit's id, not remembered: a remote-driving seat's
+    // (#467), so a driver's notes are attributable to the driver.
+    adopt(v) { if (ID_RE.test(v) && v !== 'operator') id = v; },
     viewer: () => ({ id, name }),
   };
 }
@@ -272,6 +275,7 @@ export async function mountAnnotate(doc, win, v) {
   let storage = null;
   try { storage = win.localStorage; } catch { /* no storage: nothing remembered */ }
   const who = identityStore(storage, win.crypto);
+  if (v.seat) who.adopt(v.seat.viewer);
   const colors = colorStore(storage);
   let picked = colors.get();
   const color = () => pointerColor(picked, 0, palette.length);
@@ -286,16 +290,7 @@ export async function mountAnnotate(doc, win, v) {
   const swatches = el('div', 'swatches', rail);
   // A refusal of a request no dialog is open for (a stroke) shows here for
   // a moment: every refused post is seen.
-  const toast = el('div', 'annotate-msg', doc.body);
-  toast.setAttribute('role', 'status');
-  toast.hidden = true;
-  let toastTimer = null;
-  const say = (text) => {
-    toast.textContent = text;
-    toast.hidden = false;
-    if (toastTimer !== null) win.clearTimeout(toastTimer);
-    toastTimer = win.setTimeout(() => { toast.hidden = true; }, 3000);
-  };
+  const say = sayer(doc, win);
   const answered = (req) => req.then((r) => { if (r.status !== 204) say((r.text || '').trim() || "That didn't work."); })
     .catch(() => say("Couldn't reach the cast."));
   swatches.setAttribute('role', 'group');

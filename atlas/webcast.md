@@ -153,6 +153,25 @@ what the viewer's renderer draws at the same moments.
   `WebcastCell` draws `Chrome ▶` / `Chrome ⏸` **after** the screen broadcast's `LIVE ⏸ 👆 👽 💭N`, so the
   broadcast's fixed-column indicator check never moves. Click toggles, right-click copies the link, Ctrl with
   either button ends (macOS terminals may send Ctrl+left as a right click with the Ctrl bit).
+- **Remote driving (#467, `couchtty/console_drive.go`):**
+  - **The span.** After the Chrome cell and its `💭N` comes a span: `🕹Ana` while Ana drives, `✋Bo` when Bo asks
+    (`✋2` for more). It follows `Cast.Drive().Subscribe()`.
+  - **The drive menu.** A click on the span opens it: the notes menu's box and gesture router, as a third source,
+    titled "Remote driving".
+    - On the driver's row, "uploads and downloads off while Ana drives", any click takes control back.
+    - On an asker's row, a left click grants and a right click denies.
+  - **Revoke.** Ctrl with either button on the span revokes, from any state, with the menu open or closed.
+  - **Two links.** Right-click on the Chrome cell copies the view link (watch, point, notes);
+    Alt (Option)+right-click copies the drive link, the only one that offers a seat. Shift+click is the
+    terminal's own selection. `couch --broadcast-list` lists `screen`, `web view` and `web drive` shares
+    (`Console.Shares`, `couchmessage.ShareStatus`), the drive one with who drives and how many ask.
+  - **Failures.** A control change that fails says why (`driveFailure`): a race, the cast ended, not recording
+    yet, or a failure with its cause.
+  - **Notices.** Couch says when someone asks, what a grant turns off ("Uploads and downloads are off until control
+    comes back"), and when control is back.
+  - **The banner.** The in-page control in the operator's tab names the driver.
+  - **Tests.** `webcast.FakeDriven` is the Driven fake: the fake injector as the recorder, `Open`, `HoldBatches`.
+    `TestDriveFromCouch` drives it through the cast's real HTTP routes.
 - **State machine:** `couchtty/console_webcast.go`, mirroring `console_broadcast.go` (off → starting → running →
   ending, `startClaim` adoption, a bounded shutdown beside the broadcast's).
 - **Cast:** `webcast.Cast` = Browser + the viewer `Server` mounted on the shared `broadcast.Host`. Chrome comes
@@ -166,7 +185,7 @@ what the viewer's renderer draws at the same moments.
   set, `rec`: each record line of the recording, a `recording.Hub`'s catch-up first. When the record channel
   closes, the fan-out says why (`Live.Ended`). A viewer dropped as too slow has its stream ended and reconnects for
   a fresh catch-up. Once the fan-out has ended, the viewer keeps its page and the stream goes on with `state` and
-  `end`. `?viewer=ID` calls `CastConfig.Presence` for the stream's life (#466's seats). `<token>/assets/<hash>` is
+  `end`. `?viewer=ID` calls `CastConfig.Presence` for the stream's life, and with a controller holds that remote-driving seat (`Controller.Attach`, #467). `<token>/assets/<hash>` is
   the asset proxy's (#459, below).
 - **Asset store and proxy (#459):** `webcast/assets/`. The recorder (#458) captures bodies over CDP and calls
   `Store.Put`; `assets.Recorded` is the real store: dedup by content hash (a repeated body is processed once),
@@ -204,7 +223,42 @@ what the viewer's renderer draws at the same moments.
     over the frame. A record the model refuses resyncs: the shell reconnects for a fresh catch-up.
   - The frame takes no input; the shell's overlay does (wave 2's notes, #466/#467's remote driving).
   - The contract is on `window.couchViewer`: `canonical`, `ready`, `resolveAsset`, `boxOf`, `nodeAt`, `toPage`
-    and `onRecord`.
+    and `onRecord`; `annotate` and `drive` once mounted.
+  - **Remote driving (`drive.js`, #467):**
+    - **Seat.** The shell takes a seat before it opens the stream (`drive/hello`, the name from `identityStore`).
+      The stream then opens with `?viewer=<seat>`, so it holds the seat, and notes and strokes are authored by the
+      seat's id (`identityStore.adopt`). A 404 means no driving: the stream opens without a seat and nothing
+      mounts.
+    - **Control.** A bar button cycles Ask to drive → Cancel request → Give back control, and a note says who
+      drives. Both follow the latest `ctl` record.
+    - **Input.** While this viewer drives and the cast is live, a capture layer over the page takes pointer and
+      touch (`gestures`):
+      - a press that doesn't move 4 px is a click (or a double click); further is a drag: down, moves, up;
+      - one finger works like the mouse, and two fingers scroll (wheel acts);
+      - a mouse with no button hovers, at most every 50 ms.
+    - **Keyboard.** A hidden textarea holds the keyboard focus, so an iPad raises its keyboard. Named keys and
+      Ctrl/Meta chords go as key acts (`keyAct`); typing goes as text, and compositions as ime.
+    - **Batches.** `batcher` is the one gate to the wire:
+      - acts go in order, one request in flight, 40 ms apart;
+      - moves and wheels coalesce;
+      - coordinates are clamped, text is cut by runes and bytes, and a body stays under 8 KiB;
+      - each act carries the segment it was made on, and a batch never mixes segments, so an act from a page that
+        has gone is refused rather than played into the new one.
+
+      A refusal drops the queue and shows the server's sentence (a 401 offers Rejoin). `driveView` holds every
+      shell state (none, asking, driving, paused, other, lost), and the shell only paints it.
+    - **Letting go.** The cast tab, not the shell, ends what a driver holds (`drive.TabInjector` tracks a held
+      button and keys). It releases them in these cases:
+      - before another driver's input;
+      - before input on another page;
+      - when the driver's own batch is refused;
+      - on every control change, through `drive.Releaser`: `MemController` calls it off its lock and names the
+        outgoing driver, so a late release never ends the next driver's press.
+
+      The shell resets its gestures and keys when control ends.
+    - Pointing and notes wait while this viewer drives.
+    - `viewer_drive_live_test.go` drives two headless viewers, one by mouse and one by touch, through a real
+      `Server` and `MemController`.
 - **Viewer fidelity:** `replay_test.go` replays every fixture in headless Chrome (`WEBCAST_LIVE_CHROME=1`).
   - The drawn page's canonical equals the reducer's at every pin, and a join at any pin draws the same page.
   - Renders are within 3% of `frames/` (measured 0.2–2.3%). The last second before each frame is replayed in real

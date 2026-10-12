@@ -110,26 +110,57 @@ func TestEventLinesFoldCaret(t *testing.T) {
 	}
 }
 
-// Who did what: a driver's acts say so, by name; the operator's don't.
+// Who did what: a driver's acts say so, by name; the operator's don't. The
+// moments come from the recorded fixture's own records (lesson #474).
 func TestEventLinesAttribute(t *testing.T) {
-	r, err := recording.ReadDir(recording.Fixture("driven"))
+	r, err := recording.ReadDir(recording.Fixture("rec-driven"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	lines, err := EventLines(r.Records, 0, 99999)
+	lines, err := EventLines(r.Records, 0, r.Records[len(r.Records)-1].Time())
 	if err != nil {
 		t.Fatal(err)
 	}
-	all := strings.Join(lines, "\n")
-	for _, want := range []string{
-		`2400 input @1 <input#q> value "invoice" by Ana (v1)`,
-		`3000 click @3 <button#save> "Save" at 370,30` + "\n",
-		`7000 control grant Bo (v2) → Bo (v2) drives`,
-		`7200 click @14 <p> "Page two" at 20,20 by Bo (v2)`,
-	} {
-		if !strings.Contains(all, want) {
-			t.Errorf("want %q in\n%s", want, all)
+	at := func(t0 int64, kind string) []string {
+		var out []string
+		for _, l := range lines {
+			if strings.HasPrefix(l, fmt.Sprintf("%d ", t0)) && strings.Contains(l, kind) {
+				out = append(out, l)
+			}
 		}
+		return out
+	}
+	var driverInput, driverClick, operatorClick, grant bool
+	driving := ""
+	for _, rec := range r.Records {
+		switch x := rec.(type) {
+		case *recording.Ctl:
+			driving = x.Driving()
+			if x.Op == recording.CtlGrant {
+				for _, l := range at(x.T, "control grant") {
+					grant = grant || strings.Contains(l, fmt.Sprintf("control grant %s (%s) → %s (%s) drives", x.Who.Name, x.Who.ID, x.Who.Name, x.Who.ID))
+				}
+			}
+		case *recording.Input:
+			if x.By != "" {
+				for _, l := range at(x.T, " input @") {
+					driverInput = driverInput || strings.Contains(l, " by Ana (v1)")
+				}
+			}
+		case *recording.Click:
+			for _, l := range at(x.T, fmt.Sprintf("click @%d ", x.ID)) {
+				switch {
+				case x.By != "":
+					driverClick = driverClick || strings.HasSuffix(l, " by Ana (v1)")
+				case driving != "":
+					operatorClick = operatorClick || !strings.Contains(l, " by ")
+				}
+			}
+		}
+	}
+	if !driverInput || !driverClick || !operatorClick || !grant {
+		t.Errorf("attribution: driver input %v, driver click %v, operator click while driving %v, grant %v\n%s",
+			driverInput, driverClick, operatorClick, grant, strings.Join(lines, "\n"))
 	}
 }
 

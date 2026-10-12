@@ -155,6 +155,8 @@ type messageService struct {
 	// broadcastStatus answers broadcast-status (pair#413). Installed after the
 	// service is serving, so it is an atomic pointer; nil answers unsupported.
 	broadcastStatus atomic.Pointer[func() (couchmessage.BroadcastStatus, bool)]
+	// shares answers broadcast-status's list of every link out (pair#467).
+	shares atomic.Pointer[func() []couchmessage.ShareStatus]
 	// replay answers replay-share and replay-status (pair#477), like
 	// broadcastStatus; nil answers them unsupported.
 	replay atomic.Pointer[func(op, id string) couchmessage.ReplayShare]
@@ -371,6 +373,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	probe.service.Store(service)
 	console.SetMessageBroker(service.broker)
 	service.SetBroadcastStatus(console.BroadcastStatus)
+	service.SetShares(console.Shares)
 	service.SetBlockedView(console.SetBlockedThreads)
 	service.SetReplay(console.ReplayShare, console.SharedReplays)
 	service.recordDeliveries(namespace)
@@ -736,15 +739,17 @@ func (s *messageService) handleBroadcastStatus(request couchmessage.Request) cou
 	if status == nil {
 		return couchmessage.Response{Code: "unsupported", Error: "this Couch reports no broadcast status"}
 	}
-	var replays []string
+	resp := couchmessage.Response{Code: "ok"}
+	if snapshot, running := (*status)(); running {
+		resp.Broadcast = &snapshot
+	}
+	if shares := s.shares.Load(); shares != nil {
+		resp.Shares = (*shares)()
+	}
 	if list := s.replays.Load(); list != nil {
-		replays = (*list)()
+		resp.Replays = (*list)()
 	}
-	snapshot, running := (*status)()
-	if !running {
-		return couchmessage.Response{Code: "ok", Replays: replays}
-	}
-	return couchmessage.Response{Code: "ok", Broadcast: &snapshot, Replays: replays}
+	return resp
 }
 
 // handleReplay answers the operator's or an agent's replay request
@@ -892,6 +897,11 @@ func (s *messageService) SetReplay(replay func(op, id string) couchmessage.Repla
 // SetBroadcastStatus installs the console's broadcast snapshot.
 func (s *messageService) SetBroadcastStatus(status func() (couchmessage.BroadcastStatus, bool)) {
 	s.broadcastStatus.Store(&status)
+}
+
+// SetShares installs the console's list of links out (pair#467).
+func (s *messageService) SetShares(shares func() []couchmessage.ShareStatus) {
+	s.shares.Store(&shares)
 }
 
 // handleSlotOperation authenticates a slot operation's caller by Couch's own

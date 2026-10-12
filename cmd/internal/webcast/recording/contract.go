@@ -42,7 +42,9 @@ func ContractRecording(changes int) []Record {
 // request and a grant, the driver's attributed clicks and typing, a pause and
 // a resume and a navigation while driving, a release, a second driver
 // revoked, a denied request, a viewer leaving, and the end. The input of the
-// drive package's contracts, and handy for any component that reads control.
+// drive package's contracts (its pages are built to test against), and
+// handy for any component that reads control. It is no longer a fixture:
+// rec-driven, a real driven session (#467), replaced it.
 func DrivenRecording() []Record {
 	ana, bo, cy := Author{ID: "v1", Name: "Ana", Color: "#e5484d"}, Author{ID: "v2", Name: "Bo", Color: "#3e63dd"}, Author{ID: "v3", Name: "Cy"}
 	var c Control

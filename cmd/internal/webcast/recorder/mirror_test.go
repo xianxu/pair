@@ -172,7 +172,7 @@ func TestObserveResolvesPaths(t *testing.T) {
 	path := func(ix ...int) *[]int { return &ix }
 	must := func(it Item) {
 		t.Helper()
-		if err := m.Observe(5, sess, p.frameID, it, [2]float64{0, 100}); err != nil {
+		if err := m.Observe(5, sess, p.frameID, it, [2]float64{0, 100}, ""); err != nil {
 			t.Fatalf("%s: %v", it.K, err)
 		}
 	}
@@ -207,7 +207,7 @@ func TestObserveResolvesPaths(t *testing.T) {
 	}
 	// Stale or malformed paths name nothing.
 	for _, bad := range [][]int{{9}, {1, 2, 0, 0, 0}, {-2}, {1, 2, 0, shadowStep}} {
-		if err := m.Observe(6, sess, p.frameID, Item{K: "click", P: &bad}, [2]float64{}); err != errStale {
+		if err := m.Observe(6, sess, p.frameID, Item{K: "click", P: &bad}, [2]float64{}, ""); err != errStale {
 			t.Errorf("path %v: %v", bad, err)
 		}
 	}
@@ -272,5 +272,46 @@ func TestMirrorExpandsNodesSentWithoutChildren(t *testing.T) {
 	sr := m.State().Node(hostID).Shadow
 	if sr == nil || len(sr.Kids) != 2 || sr.Kids[0].N != "div" {
 		t.Fatalf("shadow root %+v", sr)
+	}
+}
+
+// A report that follows a driver's injected input carries by (#467); one
+// naming a viewer who doesn't drive is refused by the reducer and counted.
+func TestObserveAttributesTheDriver(t *testing.T) {
+	p := newFakePage("http://x/")
+	btn := p.el("button")
+	p.insert(p.body(), nil, btn)
+	p.take()
+	m := start(t, p)
+	m.take()
+	ana := rec.Author{ID: "v1", Name: "Ana"}
+	for _, op := range []string{rec.CtlRequest, rec.CtlGrant} {
+		next, err := rec.NextControl(m.State().Control, op, ana)
+		if err != nil {
+			t.Fatal(err)
+		}
+		m.Emit(5, &rec.Ctl{Op: op, Who: ana, Control: next})
+	}
+	m.take()
+	click := Item{K: "click", P: &[]int{1, 2, 0}, X: 3, Y: 4}
+	if err := m.Observe(6, sess, p.frameID, click, [2]float64{}, "v1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Observe(7, sess, p.frameID, Item{K: "focus", P: &[]int{1, 2, 0}}, [2]float64{}, ""); err != nil {
+		t.Fatal(err)
+	}
+	m.Observe(8, sess, p.frameID, click, [2]float64{}, "v2")
+	recs := m.take()
+	if len(recs) != 2 {
+		t.Fatalf("records %d, want the driver's click and the operator's focus", len(recs))
+	}
+	if c := recs[0].(*rec.Click); c.By != "v1" {
+		t.Errorf("the driver's click by %q", c.By)
+	}
+	if f := recs[1].(*rec.Focus); f.By != "" {
+		t.Errorf("the operator's focus by %q", f.By)
+	}
+	if m.Dropped["click"] != 1 {
+		t.Errorf("a non-driver's click: dropped %d, want 1", m.Dropped["click"])
 	}
 }

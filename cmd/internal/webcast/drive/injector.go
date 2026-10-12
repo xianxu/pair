@@ -38,6 +38,9 @@ var (
 	// ErrStale: the element the viewer aimed at isn't at that point in the
 	// tab any more.
 	ErrStale = errors.New("drive: the page changed")
+	// ErrDialog: the cast tab is showing a JavaScript dialog, which stops
+	// input and the page's script until the operator answers it (#467).
+	ErrDialog = errors.New("drive: the page is showing a dialog")
 )
 
 // confineAll checks a whole batch before anything is dispatched.
