@@ -102,3 +102,11 @@
 
 - [ ] `make -k test` (holds the machine lock), `go test ./...`, `TMPDIR=<scratch> make test-changelog`.
 - [ ] Live: after landing, `make build` on pair:0 is the operator's step (a running Couch keeps the old broker until restart), so the live check is the hub's after a Couch restart: three slots send to `hub` while it is mid-turn, and all three arrive in order.
+
+## Revisions
+
+- 2026-10-12, TL approval (ops:0): a queued message cancelled because the recipient
+  disconnected or relaunched ends with a receipt a sender can act on:
+  `Cancelled`, detail `<slot> disconnected (relaunched or exited) before delivery; resend`.
+  It never vanishes. `couch --message-status` (text form) prints the detail after the
+  status. Task 1 asserts the detail; Task 4 asserts the CLI line.
