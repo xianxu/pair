@@ -86,6 +86,17 @@ Root cause: one fixed 15 s window (`pairRegistrationTimeout`) covers ALL of Pair
   with registration already written; the exit cancelled the wait before its first look. Rule: an exit ends the wait,
   then one bounded final look (`exitedFinalLook`, 1 s: nothing more can arrive) decides, so registration already
   written still counts and a dead launch still fails promptly.
+- **Live evidence from TL (pair:1 timing parley.nvim:3, load 11–17):** relaunches succeeded at 15.1 s and 22.3 s;
+  runs 3 and 4 ended *uncertain* at 12 s and 24 s (CLI context deadline), and run 4 left the slot parked; a resume
+  then failed: `claim 3.6s, prepare 0.7s, record 1.0s, registration 15.0s`, pane not born, PAIR_DEV rebuilt every run.
+  Second fixed window found: every status poll had a 2 s exchange timeout (`AdmissionTimeout`), so ONE late answer
+  from a Couch busy launching ended the CLI uncertain while the operation went on. Folded in (same rule): a timed-out
+  status poll is asked again; only the 5 min poll budget gives up. Dial errors, an unavailable caller, an unknown
+  receipt stay immediately uncertain. Test: "per-call timeouts mid-poll are retried" / "timeouts until the budget
+  are uncertain" (TestSlotOperationCLIPollLoop).
+- parley.nvim:3 inspected: parked, no live actor, no Pair/zellij process with its cwd: the old cleanup left a clean
+  state. Not resumed yet: the fix lives in the Couch process, so the resume is the live check after Couch restarts
+  onto this build.
 
 ## Revisions
 

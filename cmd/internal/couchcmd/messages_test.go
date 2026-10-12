@@ -354,12 +354,25 @@ func TestSlotOperationCLIPollLoop(t *testing.T) {
 			return couchmessage.Response{}, errors.New("dial unix broker.sock: connect: no such file or directory")
 		}, 1, "", uncertainLine, 2},
 		{"an unavailable caller mid-poll (Couch restarted) is uncertain", admitThen(couchmessage.Response{Code: "unavailable", Error: "no binding"}), 1, "", uncertainLine, 2},
-		{"a per-call timeout mid-poll is uncertain", func(n int, r couchmessage.Request) (couchmessage.Response, error) {
+		// pair#489: a status read is idempotent, so a poll Couch answers late
+		// is asked again; only the budget turns persistent timeouts uncertain.
+		{"per-call timeouts mid-poll are retried", func(n int, r couchmessage.Request) (couchmessage.Response, error) {
+			switch n {
+			case 0:
+				return receiptResponse("accepted", couchmessage.ReceiptQueued), nil
+			case 1:
+				return couchmessage.Response{}, context.DeadlineExceeded
+			case 2:
+				return couchmessage.Response{}, os.ErrDeadlineExceeded
+			}
+			return succeeded, nil
+		}, 0, "pair:1 resume succeeded (tag t9)", "", 4},
+		{"timeouts until the budget are uncertain", func(n int, r couchmessage.Request) (couchmessage.Response, error) {
 			if n == 0 {
 				return receiptResponse("accepted", couchmessage.ReceiptQueued), nil
 			}
 			return couchmessage.Response{}, context.DeadlineExceeded
-		}, 1, "", uncertainLine, 2},
+		}, 1, "", uncertainLine, 0},
 		{"an admission transport error is uncertain and names the request", func(int, couchmessage.Request) (couchmessage.Response, error) {
 			return couchmessage.Response{}, context.DeadlineExceeded
 		}, 1, "", uncertainLine, 1},

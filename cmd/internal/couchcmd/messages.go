@@ -275,6 +275,11 @@ func exchangeSlotOperation(inv cliInvocation, op string, rt Runtime, call messag
 		clock.sleep(slotOperationPollInterval)
 		result, err := exchange(status)
 		switch {
+		case errors.Is(err, context.DeadlineExceeded) || errors.Is(err, os.ErrDeadlineExceeded):
+			// A status read is idempotent, and a Couch busy launching under
+			// load can answer one late (pair#489: runs ended uncertain at 12 s
+			// and 24 s). Ask again; only the poll budget gives up.
+			continue
 		case err != nil:
 			return uncertain(err.Error())
 		case result.Code != "ok" || result.Operation == nil:
