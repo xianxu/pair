@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000455-broadcast-submit-n-notes-to-the-agent-in-view-with-a-focused-region-of-context.md
         source_blob: 144ad3a566870f7dd2381820577b47b10df245f6
         destination: workshop/issues/000455-broadcast-submit-n-notes-to-the-agent-in-view-with-a-focused-region-of-context.md
+        main_commit: 073ad125786bfc7a3b58e19006bc4c95881c5848
 ---
 
 # broadcast: submit 💭N notes to the agent in view, with a focused region of context
