@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { Model, goJSON } from '../../cmd/internal/webcast/web/model.js';
-import { catchUp, timeline, placer, parseMoment, momentHash, Player, GAP_SHARE } from '../../cmd/internal/webcast/web/replay.js';
+import { catchUp, timeline, placer, parseMoment, momentHash, Player, GAP_SHARE, replaySource, replayPath, clock } from '../../cmd/internal/webcast/web/replay.js';
 import { fixtures, records, pins } from './fixtures.mjs';
 
 const sha = (s) => createHash('sha256').update(s).digest('hex');
@@ -217,4 +217,97 @@ test('a record the model refuses stops the player in error, keeping what it drew
   assert.equal(goJSON(p.model.canonical()), before);
   p.seek(0);
   assert.equal(goJSON(p.model.canonical()), before, 'stays in error');
+});
+
+// The source behind the shell, with fakes for the page: frames run when
+// the test says, the clock is the test's.
+function source(recs, hash = '') {
+  const h = { shown: [], hashes: [], frames: 0, queue: [], clock: 0, hash, on: null, updates: 0 };
+  h.v = replaySource({
+    fetchRecords: async () => recs,
+    renderer: fakeRenderer({ renderers: 0, revoked: 0 }),
+    show: (v) => h.shown.push(v),
+    frame: () => h.frames++,
+    schedule: (fn) => h.queue.push(fn),
+    now: () => h.clock,
+    hash: () => h.hash,
+    setHash: (x) => { h.hash = x; h.hashes.push(x); },
+    ui: (player, on) => { h.on = on; return { update: () => h.updates++ }; },
+  });
+  h.paint = () => { const q = h.queue.splice(0); for (const fn of q) fn(); };
+  return h;
+}
+
+test('replay opens at #t=, paused, and draws one frame', async () => {
+  const h = source(records('segments'), '#t=5500');
+  const p = await h.v.loaded;
+  assert.equal(p.t, 5500);
+  assert.equal(p.playing, false);
+  h.paint();
+  assert.equal(h.frames, 1);
+  assert.equal(h.updates, 1);
+  assert.deepEqual(h.shown.at(-1), { title: 'http://app.local/', url: 'http://app.local/', page: true, status: 'Replay', live: true });
+  assert.equal(h.v.model, p.model);
+});
+
+test('without #t= replay opens at the start; a bad #t= too', async () => {
+  for (const hash of ['', '#t=x']) assert.equal((await source(records('segments'), hash).v.loaded).t, 0);
+});
+
+test('a seek moves the playhead and the link; a pause in the recording shows as paused', async () => {
+  const h = source(records('segments'));
+  await h.v.loaded;
+  h.on.seek(3000);
+  assert.equal(h.hash, '#t=3000');
+  h.paint();
+  assert.equal(h.shown.at(-1).status, 'Replay · paused');
+  assert.equal(h.shown.at(-1).live, false);
+  h.hash = '#t=7500';
+  h.v.onHash();
+  assert.equal(h.v.player.t, 7500);
+});
+
+test('play runs on frames by the clock; pausing writes the link', async () => {
+  const h = source(records('segments'));
+  await h.v.loaded;
+  h.on.toggle();
+  h.paint(); // first frame: no time has passed
+  assert.equal(h.v.player.t, 0);
+  h.clock = 1000;
+  h.paint();
+  assert.equal(h.v.player.t, 1000);
+  h.on.speed(4);
+  h.clock = 1250;
+  h.paint();
+  assert.equal(h.v.player.t, 2000);
+  h.on.toggle();
+  assert.equal(h.hash, '#t=2000');
+  h.paint();
+  assert.equal(h.queue.length, 0, 'no frames while paused');
+});
+
+test('playing to the end stops and writes the link', async () => {
+  const h = source(records('segments'), '#t=8900');
+  await h.v.loaded;
+  h.on.toggle();
+  h.paint();
+  h.clock = 1000;
+  h.paint();
+  assert.equal(h.v.player.playing, false);
+  assert.equal(h.hash, '#t=9000');
+});
+
+test('an unreadable recording says so', async () => {
+  const shown = [];
+  const v = replaySource({ fetchRecords: async () => { throw new Error('404'); }, show: (x) => shown.push(x), renderer: () => ({}), schedule() {}, frame() {}, now: () => 0, hash: () => '', setHash() {}, ui() {} });
+  await assert.rejects(v.loaded);
+  assert.equal(shown.at(-1).status, 'Recording unavailable');
+});
+
+test('replayPath and clock', () => {
+  assert.equal(replayPath('/tok/r/20261011T231955-7f3a/'), true);
+  assert.equal(replayPath('/tok/'), false);
+  assert.equal(replayPath('/tok/r/a/b/'), false);
+  assert.equal(clock(61500), '1:01.5');
+  assert.equal(clock(0), '0:00.0');
 });

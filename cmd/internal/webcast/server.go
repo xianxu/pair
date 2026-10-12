@@ -14,7 +14,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
-//go:embed web/index.html web/viewer.js web/viewer.css web/model.js web/render.js web/css.js
+//go:embed web/index.html web/viewer.js web/viewer.css web/model.js web/render.js web/css.js web/replay.js web/replay.css
 var webFS embed.FS
 
 // contentSecurityPolicy: the page runs only its own script, talks only to
@@ -31,6 +31,8 @@ var assets = map[string]struct{ file, contentType string }{
 	"model.js":   {"web/model.js", "text/javascript; charset=utf-8"},
 	"render.js":  {"web/render.js", "text/javascript; charset=utf-8"},
 	"css.js":     {"web/css.js", "text/javascript; charset=utf-8"},
+	"replay.js":  {"web/replay.js", "text/javascript; charset=utf-8"},
+	"replay.css": {"web/replay.css", "text/css; charset=utf-8"},
 }
 
 // endedReason is what viewers are told when the cast ends.

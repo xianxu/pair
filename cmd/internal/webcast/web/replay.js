@@ -241,3 +241,238 @@ export class Player {
 
   setSpeed(s) { if (SPEEDS.includes(s)) this.speed = s; }
 }
+
+// replayPath says whether the viewer was opened on a recording
+// (<token>/r/<id>/) rather than a live cast.
+export const replayPath = (pathname) => /\/r\/[^/]+\/$/.test(pathname || '');
+
+// replaySource plays a recording behind the surface connect() returns
+// (model, renderer, onRecord), so the shell lays out and draws it as it
+// does a live cast. deps:
+//   fetchRecords()    the recording's merged records (a promise)
+//   renderer(model)   the renderer drawing that model
+//   show(view)        renders the bar's status, title and URL
+//   frame()           called after the page is drawn (once per frame)
+//   schedule(fn)      runs fn before the next paint
+//   now()             a clock in ms (performance.now)
+//   hash(), setHash(h) the location's #t= (setHash replaces, no history)
+//   ui(player, on)    builds the timeline bar; on.seek(t), on.toggle(),
+//                     on.speed(s); returns {update()}
+export function replaySource(deps) {
+  const hooks = [];
+  let player = null, ui = null, last = null, queued = false;
+  const v = {
+    get model() { return player ? player.model : null; },
+    get renderer() { return player ? player.renderer : { flush() {}, canonical: () => null, ready: async () => {}, boxOf: () => null, nodeAt: () => 0 }; },
+    get player() { return player; },
+    onRecord: (fn) => hooks.push(fn),
+  };
+  const show = () => {
+    if (!player) return;
+    const m = player.model;
+    const page = { title: m.title || m.url || '', url: m.url || '', page: m.seg > 0 };
+    if (player.error) return deps.show({ ...page, status: 'Recording error', live: false });
+    // live is the recorded moment's: a pause in the recording looks as it
+    // did to live viewers.
+    deps.show({ ...page, status: m.seg > 0 && !m.live ? 'Replay · paused' : 'Replay', live: m.live });
+  };
+  const draw = () => {
+    if (queued) return;
+    queued = true;
+    deps.schedule(() => {
+      queued = false;
+      if (player.playing) {
+        const now = deps.now();
+        player.tick(last === null ? 0 : now - last);
+        last = now;
+        if (!player.playing) mark();
+      }
+      player.renderer.flush();
+      show();
+      ui.update();
+      deps.frame();
+      if (player.playing) draw();
+      else last = null;
+    });
+  };
+  const mark = () => deps.setHash(momentHash(player.t));
+  const seek = (t) => { player.seek(t); if (player.error) console.warn('couch viewer: recording refused:', player.error); mark(); draw(); };
+  v.loaded = (async () => {
+    let recs;
+    try { recs = await deps.fetchRecords(); } catch (err) {
+      deps.show({ status: 'Recording unavailable', live: false, title: '', url: '', page: false });
+      throw err;
+    }
+    player = new Player(recs, { renderer: deps.renderer, onRecord: (r, m) => { for (const fn of hooks) fn(r, m); } });
+    ui = deps.ui(player, {
+      seek,
+      toggle: () => { if (player.playing) { player.pause(); mark(); } else { player.play(); last = null; } draw(); },
+      speed: (s) => { player.setSpeed(s); draw(); },
+    });
+    const at = parseMoment(deps.hash());
+    player.seek(at === null ? 0 : at);
+    draw();
+    return player;
+  })();
+  v.onHash = () => { const at = parseMoment(deps.hash()); if (player && at !== null && at !== Math.round(player.t)) seek(at); };
+  return v;
+}
+
+// ---- the page: the timeline bar and the marks over the page ----
+
+// clock formats ms as m:ss.d.
+export function clock(ms) {
+  const s = Math.max(0, ms) / 1000, m = Math.floor(s / 60);
+  return `${m}:${(s - m * 60).toFixed(1).padStart(4, '0')}`;
+}
+
+// safeColor keeps a viewer-chosen color only when it is a plain hex color.
+const safeColor = (c, dflt) => (/^#[0-9a-fA-F]{3,8}$/.test(c || '') ? c : dflt);
+
+// STROKE_FADE is how long a replayed stroke stays after its last point.
+export const STROKE_FADE = 1500;
+
+// timelineBar builds the bar into el: play/pause, speed, the track (live
+// segments, pauses as gaps, who drove, notes and strokes as ticks, the
+// playhead) and the time. Names and texts are recorded input: only ever
+// text and titles. It returns {update()} for each frame.
+export function timelineBar(doc, el, player, on) {
+  const mk = (tag, cls, parent) => { const e = doc.createElement(tag); if (cls) e.className = cls; if (parent) parent.appendChild(e); return e; };
+  el.replaceChildren();
+  el.hidden = false;
+  const play = mk('button', 'replay-play', el);
+  play.type = 'button';
+  play.addEventListener('click', () => on.toggle());
+  const speed = mk('select', 'replay-speed', el);
+  speed.setAttribute('aria-label', 'Speed');
+  for (const s of SPEEDS) { const o = mk('option', '', speed); o.value = String(s); o.textContent = `${s}×`; }
+  speed.value = String(player.speed);
+  speed.addEventListener('change', () => on.speed(Number(speed.value)));
+  const track = mk('div', 'replay-track', el);
+  track.tabIndex = 0;
+  track.setAttribute('role', 'slider');
+  track.setAttribute('aria-label', 'Recording time');
+  const time = mk('span', 'replay-time', el);
+  const tl = player.tl;
+  let place = null, width = 0;
+  const marks = [];
+  const at = (e, t0, t1) => marks.push({ e, t0, t1 });
+  for (const s of tl.segs) { const e = mk('div', 'replay-seg', track); e.title = `Segment ${s.seg} (${s.why})`; at(e, s.t0, s.t1); }
+  for (const g of tl.gaps) { const e = mk('div', 'replay-gap', track); e.title = `Paused ${clock(g.t1 - g.t0)}`; at(e, g.t0, g.t1); }
+  for (const d of tl.drives) {
+    const e = mk('div', 'replay-drive', track);
+    e.style.background = safeColor(d.driver.color, '#8e8e93');
+    e.title = `${d.driver.name || d.driver.id} drove`;
+    at(e, d.t0, d.t1);
+  }
+  for (const n of tl.notes) {
+    const e = mk('div', 'replay-tick replay-tick-note', track);
+    e.style.background = safeColor(n.author && n.author.color, '#ffb000');
+    e.title = `${clock(n.t)} ${(n.author && n.author.name) || ''}: ${n.text}`;
+    e.addEventListener('pointerdown', (ev) => { ev.stopPropagation(); on.seek(n.t); });
+    at(e, n.t, n.t);
+  }
+  for (const s of tl.strokes) {
+    const e = mk('div', 'replay-tick replay-tick-stroke', track);
+    e.style.background = safeColor(s.color, '#ff3b30');
+    e.title = `${clock(s.t)} stroke`;
+    at(e, s.t, s.t);
+  }
+  const head = mk('div', 'replay-head', track);
+  const relayout = () => {
+    width = track.clientWidth;
+    place = placer(tl, width);
+    for (const m of marks) {
+      const x0 = place.xAt(m.t0), x1 = place.xAt(m.t1);
+      m.e.style.left = `${x0}px`;
+      if (m.t1 > m.t0) m.e.style.width = `${Math.max(1, x1 - x0)}px`;
+    }
+  };
+  const seekAt = (e) => on.seek(place.timeAt(e.clientX - track.getBoundingClientRect().left));
+  track.addEventListener('pointerdown', (e) => { track.setPointerCapture(e.pointerId); seekAt(e); });
+  track.addEventListener('pointermove', (e) => { if (track.hasPointerCapture(e.pointerId)) seekAt(e); });
+  track.addEventListener('keydown', (e) => {
+    const step = { ArrowLeft: -1000, ArrowRight: 1000, Home: -Infinity, End: Infinity }[e.key];
+    if (step !== undefined) { e.preventDefault(); on.seek(player.t + step); }
+  });
+  doc.addEventListener('keydown', (e) => {
+    if (e.key === ' ' && e.target === doc.body) { e.preventDefault(); on.toggle(); }
+  });
+  doc.defaultView.addEventListener('resize', relayout);
+  relayout();
+  return {
+    update() {
+      if (track.clientWidth !== width) relayout();
+      play.textContent = player.playing ? 'Pause' : 'Play';
+      head.style.left = `${place.xAt(player.t)}px`;
+      track.setAttribute('aria-valuenow', String(Math.round(player.t)));
+      time.textContent = `${clock(player.t)} / ${clock(player.end)}`;
+    },
+  };
+}
+
+// drawMarks draws the notes open on the current document at their element
+// (its box as drawn, else the box the note carried) and the strokes being
+// drawn at the playhead, into layer over the scaled page. fromPage maps a
+// top-page point to the layer's px. #470's live notes and pointer UI is to
+// replace this once both have landed.
+export function drawMarks(doc, layer, player, fromPage) {
+  layer.replaceChildren();
+  const m = player.model, t = player.t;
+  if (!m || !(m.seg > 0)) return;
+  for (const n of m.notes) {
+    if (n.seg < m.docSeg || n.state !== 'open') continue;
+    const at = n.note.at || {};
+    const box = (at.node && player.renderer.boxOf(at.node)) || at.box || n.note.region;
+    if (!box) continue;
+    const [x, y] = fromPage(box[0], box[1]);
+    const pin = doc.createElement('div');
+    pin.className = 'replay-note';
+    pin.style.setProperty('--c', safeColor(n.note.author && n.note.author.color, '#ffb000'));
+    pin.style.transform = `translate(${x}px, ${y}px)`;
+    pin.textContent = n.note.text || '';
+    pin.title = `${(n.note.author && n.note.author.name) || ''}: ${n.note.text || ''}`;
+    layer.appendChild(pin);
+  }
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = doc.createElementNS(NS, 'svg');
+  svg.setAttribute('class', 'replay-strokes');
+  for (const s of m.strokes) {
+    if (s.seg < m.docSeg) continue;
+    const r = s.stroke, since = t - r.t, dur = r.pts.length ? r.pts[r.pts.length - 1][2] || 0 : 0;
+    if (since < 0 || since > dur + STROKE_FADE) continue;
+    const pts = r.pts.filter((p) => (p[2] || 0) <= since).map((p) => fromPage(p[0], p[1]).join(',')).join(' ');
+    if (!pts) continue;
+    const line = doc.createElementNS(NS, 'polyline');
+    line.setAttribute('points', pts);
+    line.setAttribute('stroke', safeColor(r.color || (r.author && r.author.color), '#ff3b30'));
+    line.setAttribute('opacity', String(since > dur ? 1 - (since - dur) / STROKE_FADE : 1));
+    svg.appendChild(line);
+  }
+  layer.appendChild(svg);
+}
+
+// mountReplay is the shell's replay branch: the source, its bar in
+// #timeline, its marks in #overlay, and #t= kept in the location. deps are
+// the shell's (renderer, show, frame, schedule); fromPage maps a top-page
+// point to the overlay's px at the current scale and scroll.
+export function mountReplay(doc, win, deps, fromPage) {
+  const layer = doc.createElement('div');
+  layer.className = 'replay-layer';
+  doc.getElementById('overlay').appendChild(layer);
+  const v = replaySource({
+    ...deps,
+    fetchRecords: async () => {
+      const res = await win.fetch('records');
+      if (!res.ok) throw new Error(`records: ${res.status}`);
+      return (await res.text()).split('\n').filter(Boolean).map((l) => JSON.parse(l));
+    },
+    frame: () => { deps.frame(); if (v.player) drawMarks(doc, layer, v.player, fromPage); },
+    now: () => win.performance.now(),
+    hash: () => win.location.hash,
+    setHash: (h) => { if (win.location.hash !== h) win.history.replaceState(null, '', h); },
+    ui: (player, on) => timelineBar(doc, doc.getElementById('timeline'), player, on),
+  });
+  win.addEventListener('hashchange', v.onHash);
+  return v;
+}
