@@ -329,6 +329,9 @@ export function clock(ms) {
 // safeColor keeps a viewer-chosen color only when it is a plain hex color.
 const safeColor = (c, dflt) => (/^#[0-9a-fA-F]{3,8}$/.test(c || '') ? c : dflt);
 
+// PIN_ROOM is the height a note's pin needs above its element.
+const PIN_ROOM = 24;
+
 // STROKE_FADE is how long a replayed stroke stays after its last point.
 export const STROKE_FADE = 1500;
 
@@ -399,14 +402,14 @@ export function timelineBar(doc, el, player, on) {
     if (e.key === ' ' && e.target === doc.body) { e.preventDefault(); on.toggle(); }
   });
   doc.defaultView.addEventListener('resize', relayout);
-  relayout();
   return {
     update() {
-      if (track.clientWidth !== width) relayout();
+      // The labels first: their width sets the track's.
       play.textContent = player.playing ? 'Pause' : 'Play';
+      time.textContent = `${clock(player.t)} / ${clock(player.end)}`;
+      if (!place || track.clientWidth !== width) relayout();
       head.style.left = `${place.xAt(player.t)}px`;
       track.setAttribute('aria-valuenow', String(Math.round(player.t)));
-      time.textContent = `${clock(player.t)} / ${clock(player.end)}`;
     },
   };
 }
@@ -425,9 +428,12 @@ export function drawMarks(doc, layer, player, fromPage) {
     const at = n.note.at || {};
     const box = (at.node && player.renderer.boxOf(at.node)) || at.box || n.note.region;
     if (!box) continue;
-    const [x, y] = fromPage(box[0], box[1]);
+    // Above the element, or below it when there is no room above.
+    const [x, top] = fromPage(box[0], box[1]);
+    const below = top < PIN_ROOM;
+    const y = below ? fromPage(box[0], box[1] + box[3])[1] : top;
     const pin = doc.createElement('div');
-    pin.className = 'replay-note';
+    pin.className = below ? 'replay-note below' : 'replay-note';
     pin.dataset.note = n.note.id;
     pin.style.setProperty('--c', safeColor(n.note.author && n.note.author.color, '#ffb000'));
     pin.style.transform = `translate(${x}px, ${y}px)`;
