@@ -57,7 +57,7 @@ func TestLiveFidelityFixtures(t *testing.T) {
 		for i, f := range rec.Frames {
 			switch gap, known := knownGaps[name][i]; {
 			case known && !over[f.File]:
-				t.Errorf("%s frame %d is within tolerance now: drop its known gap (%s)", name, i, gap)
+				t.Errorf("%s frame %d is within tolerance now: drop its known gap (%s)", name, i, gap.why)
 			case !known && over[f.File]:
 				t.Errorf("%s: %s over the %g%% tolerance: %s (report in %s)", name, f.File, fidelity.Tolerance, rep.Summary(), filepath.Join(dir, fidelity.ReportDir))
 			}
