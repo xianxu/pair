@@ -5,8 +5,8 @@ deps: [000457]
 github_issue:
 created: 2026-10-11
 updated: 2026-10-12
-estimate_hours:
-card_mirror: 'a943dd52cf71c3371c28b52b9c262c0069845771' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 4.12
+card_mirror: '927ac96d02e7601d5fdbfbd4b47662c279132738' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T00:53:17-07:00
 claimant:
     operator: Xian Xu
@@ -40,6 +40,29 @@ Implement #457's recorder interface on real Chrome, through pair#454's browser-c
 
 - Casting the blog and #453's stress page produces recordings that #457's validator accepts and its reducer rebuilds; fidelity against tab screenshots (reuse #453's harness) at least matches #453's own-on-CDP prototype.
 - Unit tests against fakes; a live check against headless Chrome.
+
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module      design=0.1 impl=0.2
+item: greenfield-go-module   design=0.5 impl=0.32
+item: greenfield-go-module   design=0.4 impl=0.32
+item: smaller-go-module      design=0.2 impl=0.2
+item: greenfield-go-module   design=0.3 impl=0.32
+item: real-api-discovery     design=0.0 impl=0.24
+item: atlas-docs             design=0.1 impl=0.08
+item: milestone-review       design=0.0 impl=0.2
+item: milestone-review       design=0.0 impl=0.2
+item: milestone-review       design=0.0 impl=0.2
+design-buffer: 0.15
+total: 4.12
+```
+
+Items in order: M1 format additions; the pure mirror; observer + Recorder shell; Chrome loop/Cast plug-in and CDP sequence numbers; the fidelity tool; CDP discovery; atlas; three milestone reviews.
+
+> *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*
 
 ## Plan
 
