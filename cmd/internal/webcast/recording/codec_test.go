@@ -37,6 +37,8 @@ func sample() []Record {
 		&Note{ID: "n1", Author: Author{ID: "a"}, Text: "hi", At: NoteAt{Node: 3, Box: &box}},
 		&NoteState{ID: "n1", State: NoteResolved},
 		&Stroke{ID: "s1", Author: Author{ID: "a"}, Pts: [][3]float64{{1, 2, 0}}},
+		&Hover{ID: 3},
+		&Ptr{X: 1.5, Y: 2},
 		&Frame{File: "frames/0.png", W: 640, H: 400, Scale: 0.5},
 		&Stop{Why: StopEnd},
 	}
@@ -88,13 +90,13 @@ func TestAttrRemovalEncodesNull(t *testing.T) {
 }
 
 func TestUnknownKindIsKeptVerbatim(t *testing.T) {
-	line := []byte(`{"t":3,"k":"hover","id":9,"extra":[1,2]}`)
+	line := []byte(`{"t":3,"k":"wiggle","id":9,"extra":[1,2]}`)
 	r, err := Decode(line)
 	if err != nil {
 		t.Fatal(err)
 	}
 	u, ok := r.(*Unknown)
-	if !ok || u.Kind() != "hover" || u.Time() != 3 {
+	if !ok || u.Kind() != "wiggle" || u.Time() != 3 {
 		t.Fatalf("got %#v", r)
 	}
 	out, _ := Encode(r)
@@ -112,7 +114,7 @@ func TestDecodeNeedsEnvelope(t *testing.T) {
 }
 
 func TestFileOf(t *testing.T) {
-	for k, want := range map[string]string{"attr": FileEvents, "note": FileNotes, "note-state": FileNotes, "stroke": FilePointer, "frame": FileFrames, "hover": FileEvents} {
+	for k, want := range map[string]string{"attr": FileEvents, "note": FileNotes, "note-state": FileNotes, "stroke": FilePointer, "frame": FileFrames, "hover": FileEvents, "wiggle": FileEvents} {
 		if got := FileOf(k); got != want {
 			t.Errorf("FileOf(%q) = %q, want %q", k, got, want)
 		}

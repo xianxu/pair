@@ -216,7 +216,9 @@ func (r *Recording) Asset(hash string) ([]byte, error) {
 
 // ValidateDir validates a recording directory: its records (Validate), then
 // that every asset record's body is stored and hashes to its name, that
-// assets/ holds nothing else, and that every frame's screenshot exists.
+// assets/ holds nothing else, that every frame's screenshot exists, and that
+// frames/ holds nothing but the index and those screenshots (a stray .tmp-*
+// from a crash is reported in either directory).
 func ValidateDir(dir string) ([]Finding, *State, error) {
 	rec, err := ReadDir(dir)
 	if err != nil {
@@ -248,6 +250,19 @@ func ValidateDir(dir string) ([]Finding, *State, error) {
 	for _, e := range entries {
 		if !ValidHash(e.Name()) {
 			findings = append(findings, Finding{File: filepath.Join("assets", e.Name()), Msg: "not a content hash"})
+		}
+	}
+	named := map[string]bool{}
+	for _, f := range rec.Frames {
+		named[f.File] = true
+	}
+	shots, err := os.ReadDir(filepath.Join(dir, "frames"))
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, nil, err
+	}
+	for _, e := range shots {
+		if name := "frames/" + e.Name(); name != FileFrames && !named[name] {
+			findings = append(findings, Finding{File: name, Msg: "not a frame's screenshot (no frame record names it)"})
 		}
 	}
 	for _, f := range rec.Frames {

@@ -146,7 +146,7 @@ These records cover state that CDP's DOM domain doesn't report. The recorder's i
 
 | Kind | Fields | Meaning |
 |---|---|---|
-| `input` | `id`, one or more of `v` (value), `checked`, `sel` (selected option indexes) | A form control's current state: a property, not an attribute. It is set by the user or by script; typing is recorded as values, not keystrokes. |
+| `input` | `id`, one or more of `v` (value), `checked`, `sel` (selected option indexes), `secret` | A form control's current state: a property, not an attribute. It is set by the user or by script; typing is recorded as values, not keystrokes. `secret: true` (never with `v`) says a password control holds a value that is not recorded. |
 | `scroll` | `id`, `x`, `y` | Scroll offset of an element, or of a document's viewport when `id` is a document. |
 | `selection` | `anchor` `[id,offset]`, `focus` `[id,offset]` | The text selection. A record with neither field clears it. |
 
@@ -159,7 +159,19 @@ These records cover state that CDP's DOM domain doesn't report. The recorder's i
 | `vp` | `w`, `h`, `dpr` | The viewport changed mid-segment (CSS px; device pixel ratio). |
 | `click` | `id`, `x`, `y` | A click on element `id`, at page coordinates. |
 | `focus` | `id` | Focus moved to `id`; `0` is none. |
+| `hover` | `id` | The element under the operator's pointer; `0` is none. A hover menu or tooltip is CSS `:hover` state the DOM doesn't hold, so a viewer shows it from this. Cleared when the element goes. |
+| `ptr` | `x`, `y` | A sampled operator pointer position (on movement, at most a few per second). |
 | `layout` | `boxes` `{id: [x,y,w,h]}` | Layout boxes of rendered nodes, replacing the previous set. The recorder captures them (`DOMSnapshot`) when a note is made and with each `frame`, not continuously. The notes model needs them for focused context and crops; a box is as of its record's `t`. |
+
+**Passwords are never recorded.** A password input's value appears neither in an `input` record (`secret` instead)
+nor as its `value` attribute (the recorder drops it). The reducer refuses a non-empty `v` on an `input type=password`,
+`secret` with `v`, and any record that would leave a password input with a non-empty `value` attribute; so the
+validator catches a recorder that leaks one. A value typed while the control was `type=text` was on screen and stays
+recorded when a script flips it to `password`.
+
+`hover` and `ptr` are tracked by the reducer (`State.Hover`, `State.Ptr`, reset by `seg`) but are not in
+`State.Canonical()`: they are the operator's context, not the page's. Records the observer makes may later carry an
+optional `by` (the viewer driving, #466; absent = the operator).
 
 **Coordinates:** every coordinate in the format is in **CSS pixels of the top document's page** (scroll-independent). This
 covers `click`, layout boxes, note boxes, pointer strokes and crops. Something in an iframe is mapped into the
@@ -272,3 +284,9 @@ regenerated one can't silently lose a case.
 Gaps found while recording, for #458:
 - **Clicks:** the prototype's polled observer lost the click that navigates, so clicks must be reported synchronously.
 - **Layout:** `DOMSnapshot` on the top session leaves out out-of-process frames, so each frame session needs its own capture.
+
+## Revisions
+
+- 2026-10-12 (#458, additive v1, approved with #457 by the operator; shapes coordinated by the TL with #460 and
+  #466): `hover {id}` and `ptr {x,y}` in events.jsonl, outside Canonical; `input.secret` and the password rules;
+  `ValidateDir` also reports anything in `frames/` no frame record names (a stray `.tmp-*`).

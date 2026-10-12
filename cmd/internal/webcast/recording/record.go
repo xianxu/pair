@@ -243,12 +243,15 @@ type Orig struct {
 // Observer state.
 type (
 	// Input is a form control's state (properties, not attributes).
+	// Secret says a password control has a value that is never recorded;
+	// it never comes with V.
 	Input struct {
 		Header
 		ID      NodeID  `json:"id"`
 		V       *string `json:"v,omitempty"`
 		Checked *bool   `json:"checked,omitempty"`
 		Sel     []int   `json:"sel,omitempty"`
+		Secret  bool    `json:"secret,omitempty"`
 	}
 	// Scroll is an element's scroll offset, or a document's viewport's.
 	Scroll struct {
@@ -289,6 +292,17 @@ type (
 	Focus struct {
 		Header
 		ID NodeID `json:"id"`
+	}
+	// Hover is the element under the operator's pointer; 0 is none.
+	Hover struct {
+		Header
+		ID NodeID `json:"id"`
+	}
+	// Ptr is a sampled operator pointer position, in top-page CSS px.
+	Ptr struct {
+		Header
+		X float64 `json:"x"`
+		Y float64 `json:"y"`
 	}
 	// Layout replaces the known layout boxes.
 	Layout struct {
@@ -388,6 +402,8 @@ var kinds = map[string]struct {
 	"click":      {func() Record { return &Click{} }, FileEvents},
 	"focus":      {func() Record { return &Focus{} }, FileEvents},
 	"layout":     {func() Record { return &Layout{} }, FileEvents},
+	"hover":      {func() Record { return &Hover{} }, FileEvents},
+	"ptr":        {func() Record { return &Ptr{} }, FileEvents},
 	"note":       {func() Record { return &Note{} }, FileNotes},
 	"note-state": {func() Record { return &NoteState{} }, FileNotes},
 	"stroke":     {func() Record { return &Stroke{} }, FilePointer},
@@ -417,6 +433,8 @@ func (*VP) Kind() string        { return "vp" }
 func (*Click) Kind() string     { return "click" }
 func (*Focus) Kind() string     { return "focus" }
 func (*Layout) Kind() string    { return "layout" }
+func (*Hover) Kind() string     { return "hover" }
+func (*Ptr) Kind() string       { return "ptr" }
 func (*Note) Kind() string      { return "note" }
 func (*NoteState) Kind() string { return "note-state" }
 func (*Stroke) Kind() string    { return "stroke" }
@@ -460,7 +478,11 @@ func (r *Asset) check() error {
 	return errors.Join(need(r.URL != "", "url"), need(ValidHash(r.Hash), "hash (64 lowercase hex)"), need(r.MIME != "", "mime"))
 }
 func (r *Input) check() error {
-	return errors.Join(need(r.ID > 0, "id"), need(r.V != nil || r.Checked != nil || r.Sel != nil, "v, checked or sel"))
+	err := errors.Join(need(r.ID > 0, "id"), need(r.V != nil || r.Checked != nil || r.Sel != nil || r.Secret, "v, checked, sel or secret"))
+	if r.Secret && r.V != nil {
+		err = errors.Join(err, errors.New("secret comes without v"))
+	}
+	return err
 }
 func (r *Scroll) check() error    { return need(r.ID > 0, "id") }
 func (r *Selection) check() error { return nil }
@@ -470,6 +492,8 @@ func (r *VP) check() error        { return need(r.W > 0 && r.H > 0, "w, h") }
 func (r *Click) check() error     { return need(r.ID > 0, "id") }
 func (r *Focus) check() error     { return nil }
 func (r *Layout) check() error    { return nil }
+func (r *Hover) check() error     { return need(r.ID >= 0, "id") }
+func (r *Ptr) check() error       { return nil }
 func (r *Note) check() error {
 	return errors.Join(need(r.ID != "", "id"), need(r.Author.ID != "", "author.id"), need(r.At.Node > 0 || r.Region != nil, "at.node or region"))
 }
