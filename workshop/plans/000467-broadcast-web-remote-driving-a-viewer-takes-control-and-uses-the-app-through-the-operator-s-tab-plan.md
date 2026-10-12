@@ -382,3 +382,17 @@ over the recording Chrome, grace 1 s); `recording/testdata/fixtures/driven/` (re
   written as strategies; non-goals added. TL asks: Couch tells the operator that uploads and downloads are off
   while a viewer drives; a dialog gives the driver a fixed sentence (`drive.ErrDialog`) instead of a 500. The
   smoke test moves after landing (issue Done when, Revisions).
+- 2026-10-12, M1 as built and M1 review round 1:
+  - File choosers are intercepted on every page session, and on each page attached while driving, not only the cast
+    tab. This is decision 5's one rule; input reaches only the cast tab anyway.
+  - The guards and the dialog signal follow the active tab in every phase (`castTab`), since control survives a
+    pause. BR-1: the dialog signal is a per-session set, recomputed after every loop input, so a dialog opened
+    while paused, another tab's dialog, a tab switch and a closed tab all come out right.
+  - Route budgets: there's no `maxViewers`×2 hello cap. Seats waiting for a stream are bounded by the hello rate
+    times the grace period. The per-seat table drops keys the controller refuses and sweeps keys idle past a
+    minute once full (BR-3), instead of pruning on leave.
+  - BR-2: the live test asserts the file chooser through a test-only loop event tap. Downloads are checked against
+    a positive control (the operator's download lands, the driver's doesn't), and the restore is checked as
+    well.
+  - The plan's "revoke between hold and take" recorder test is structurally impossible: both are inside one
+    queue input. `TestWithTabSeesARevokeQueuedFirst` covers the ordering that exists.

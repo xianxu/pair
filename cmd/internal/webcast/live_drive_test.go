@@ -8,10 +8,12 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/cdp"
 	"github.com/xianxu/pair/cmd/internal/webcast/drive"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
@@ -71,6 +73,36 @@ func TestLiveDrive(t *testing.T) {
 		t.Fatal(err)
 	}
 	time.Sleep(time.Second)
+	var events sync.Map // method -> count
+	c.do(func(s *loopState) {
+		s.tap = func(ev cdp.Event) {
+			n, _ := events.LoadOrStore(ev.Method, new(atomic.Int32))
+			n.(*atomic.Int32).Add(1)
+		}
+	})
+	seen := func(method string) int32 {
+		if n, ok := events.Load(method); ok {
+			return n.(*atomic.Int32).Load()
+		}
+		return 0
+	}
+	// The download's positive control: with downloads allowed into a
+	// directory, the operator's click lands a file there.
+	downloadDir := t.TempDir()
+	if err := c.call("", "Browser.setDownloadBehavior", map[string]any{"behavior": "allow", "downloadPath": downloadDir}, nil); err != nil {
+		t.Fatal(err)
+	}
+	files := func() int { m, _ := filepath.Glob(filepath.Join(downloadDir, "*")); return len(m) }
+	{
+		x, y := h.center(t, "#dl")
+		h.mouse(t, "mousePressed", x, y)
+		h.mouse(t, "mouseReleased", x, y)
+	}
+	for deadline := time.Now().Add(10 * time.Second); files() == 0; time.Sleep(50 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("the positive control: the operator's download never landed")
+		}
+	}
 	ctrl := drive.NewMemController(liveGate{c}, drive.NewTabInjector(c), func() int64 { return 0 }, time.Minute)
 	defer ctrl.Close()
 	go followDriving(ctrl, c)
@@ -165,12 +197,22 @@ func TestLiveDrive(t *testing.T) {
 	if st := c.State(); !strings.HasPrefix(st.Tab.URL, base) || strings.HasSuffix(st.Tab.URL, "/popped") {
 		t.Fatalf("the cast followed the new tab: %+v", st.Tab)
 	}
-	// A file chooser opens nothing; a download is denied.
+	// A file chooser is intercepted (never shown); a download is denied.
 	if err := input(click("file")); err != nil {
 		t.Fatalf("file: %v", err)
 	}
+	for deadline := time.Now().Add(5 * time.Second); seen("Page.fileChooserOpened") == 0; time.Sleep(20 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("the file chooser wasn't intercepted")
+		}
+	}
+	before := files()
 	if err := input(click("dl")); err != nil {
 		t.Fatalf("download: %v", err)
+	}
+	time.Sleep(2 * time.Second)
+	if files() != before {
+		t.Fatalf("a driver's download landed: %d files, was %d", files(), before)
 	}
 	// A dialog: the driver is told at once, and the operator answers it.
 	start := time.Now()
@@ -195,6 +237,31 @@ func TestLiveDrive(t *testing.T) {
 		t.Fatalf("after a revoke: %v", err)
 	}
 	t.Logf("download requests reaching the server: %d (deny cancels the transfer)", downloads.Load())
+	// Restored: with nobody driving, the operator's file chooser isn't
+	// intercepted.
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(20 * time.Millisecond) {
+		var driving string
+		ran := make(chan struct{})
+		c.do(func(s *loopState) { driving = s.driver; close(ran) })
+		<-ran
+		if driving == "" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("Chrome still thinks someone drives")
+		}
+	}
+	time.Sleep(300 * time.Millisecond) // the intercept-off calls land
+	choosers := seen("Page.fileChooserOpened")
+	{
+		x, y := h.center(t, "#file")
+		h.mouse(t, "mousePressed", x, y)
+		h.mouse(t, "mouseReleased", x, y)
+	}
+	time.Sleep(time.Second)
+	if seen("Page.fileChooserOpened") != choosers {
+		t.Fatal("the file chooser is still intercepted after driving")
+	}
 
 	time.Sleep(500 * time.Millisecond)
 	c.SetLive(false)
@@ -212,10 +279,15 @@ func TestLiveDrive(t *testing.T) {
 		t.Fatal(err)
 	}
 	var clicks, typed, unattributedAfterGrant int
+	driving := false
 	for _, rec := range r.Records {
 		switch x := rec.(type) {
+		case *recording.Ctl:
+			driving = x.Driving() == seat.Viewer.ID
 		case *recording.Click:
 			switch {
+			case !driving:
+				// the operator's, before the grant or after the revoke
 			case x.By == seat.Viewer.ID:
 				clicks++
 			case x.ID == ids["alert"]:

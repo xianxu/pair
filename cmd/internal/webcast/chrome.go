@@ -131,8 +131,13 @@ type loopState struct {
 	// recTab is what the recorder was last told is cast ("" when not live)
 	// and recTitle its title.
 	recTab, recTitle string
-	// driver is who drives the cast tab (#467), "" for nobody.
+	// driver is who drives the cast tab (#467), "" for nobody; dialogs
+	// are the page sessions showing a JavaScript dialog.
 	driver  string
+	dialogs map[string]bool
+	// tap sees every event first: the live tests' window on what Chrome
+	// said (nil in production).
+	tap func(cdp.Event)
 	hadPage bool
 	noPages <-chan time.Time
 	ending  endCause
@@ -317,7 +322,7 @@ func (c *Chrome) Close() error {
 }
 
 func (c *Chrome) run() {
-	s := &loopState{phase: PhaseIdle, sessions: map[string]string{}, contexts: map[string]int64{}, frames: map[string]bool{}}
+	s := &loopState{phase: PhaseIdle, sessions: map[string]string{}, contexts: map[string]int64{}, frames: map[string]bool{}, dialogs: map[string]bool{}}
 	events := c.conn.Events()
 	// Every off-loop call starts on this goroutine, before finish waits for
 	// them all.
@@ -357,6 +362,9 @@ loop:
 }
 
 func (c *Chrome) handle(s *loopState, ev cdp.Event) {
+	if s.tap != nil {
+		s.tap(ev)
+	}
 	if c.rec != nil {
 		c.rec.Send(recorder.Event{Session: ev.SessionID, Method: ev.Method, Params: ev.Params, Seq: ev.Seq})
 	}
@@ -388,6 +396,7 @@ func (c *Chrome) handle(s *loopState, ev cdp.Event) {
 		case pageDetached:
 			delete(s.sessions, in.SessionID)
 			delete(s.contexts, in.SessionID)
+			delete(s.dialogs, in.SessionID)
 			delete(s.frames, in.SessionID)
 			if c.rec != nil {
 				c.rec.Send(recorder.Detached{Session: in.SessionID})
@@ -405,11 +414,9 @@ func (c *Chrome) handle(s *loopState, ev cdp.Event) {
 		case helloRequested:
 			c.goSetControl(in.SessionID, in.ContextID, s.phase == PhaseLive, s.driver)
 		case dialogOpened:
-			if t := castTab(s); t != "" && in.SessionID == sessionOf(s, t) {
-				c.dialogs.open()
-			}
+			s.dialogs[in.SessionID] = true
 		case dialogClosed:
-			c.dialogs.closed()
+			delete(s.dialogs, in.SessionID)
 		}
 	}
 }
@@ -533,6 +540,9 @@ func (c *Chrome) publish(s *loopState) {
 	}
 	tab, ok := s.tracker.Active()
 	c.tellRecorder(s, tab, ok)
+	// The cast tab's dialog, for a driver's dispatch: recomputed after
+	// every input, so a dialog, a tab switch or a closed tab all count.
+	c.dialogs.set(s.dialogs[sessionOf(s, castTab(s))])
 	next := State{Phase: s.phase, Tab: tab, HasTab: ok}
 	if next != c.pub.get() {
 		c.pub.publish(next)

@@ -19,8 +19,10 @@ import (
 // Budgets: hello per cast (a seat with no stream leaves after the grace
 // period, so seats waiting for one are bounded by this rate times it, plus
 // the burst; streams by the viewer cap). Control and input per seat, with
-// four requests in flight each; the per-seat table is bounded (cleared
-// past maxSeatLimits) and drops a seat the controller no longer knows.
+// four requests in flight each. The per-seat table drops a key the
+// controller no longer knows when it is used, and, once it holds
+// maxSeatLimits keys, every key idle past seatIdle (a seat's grace has
+// long ended by then): bounded by live seats plus a minute of unknown keys.
 const (
 	helloRatePerSec   = 2
 	helloBurst        = 8
@@ -32,6 +34,7 @@ const (
 	maxHelloBody      = 512
 	maxControlBody    = 128
 	maxSeatLimits     = 256
+	seatIdle          = time.Minute
 )
 
 type driveRoutes struct {
@@ -43,6 +46,7 @@ type driveRoutes struct {
 }
 
 type seatLimits struct {
+	used     time.Time
 	inFlight chan struct{}
 	control  *broadcast.RateLimit
 	input    *broadcast.RateLimit
@@ -148,13 +152,24 @@ func (d *driveRoutes) allowHello(now time.Time) bool {
 func (d *driveRoutes) limits(key string) *seatLimits {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	now := time.Now()
 	if l := d.seats[key]; l != nil {
+		l.used = now
 		return l
 	}
 	if len(d.seats) >= maxSeatLimits {
-		d.seats = map[string]*seatLimits{} // a burst of unknown keys: start over
+		for k, l := range d.seats {
+			if now.Sub(l.used) > seatIdle {
+				delete(d.seats, k)
+			}
+		}
+		if len(d.seats) >= maxSeatLimits {
+			// A minute's burst of keys: the newest goes unbudgeted
+			// rather than growing the table; refused at once.
+			return &seatLimits{used: now, inFlight: make(chan struct{}), control: broadcast.NewRateLimit(0, 0), input: broadcast.NewRateLimit(0, 0)}
+		}
 	}
-	l := &seatLimits{inFlight: make(chan struct{}, seatInFlight),
+	l := &seatLimits{used: now, inFlight: make(chan struct{}, seatInFlight),
 		control: broadcast.NewRateLimit(controlRatePerSec, controlBurst),
 		input:   broadcast.NewRateLimit(inputRatePerSec, inputBurst)}
 	d.seats[key] = l

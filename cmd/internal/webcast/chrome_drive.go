@@ -69,29 +69,26 @@ func (d *dialogSignal) signal() <-chan struct{} {
 	return d.ch
 }
 
-func (d *dialogSignal) open() {
+// set makes the signal say whether the cast tab shows a dialog.
+func (d *dialogSignal) set(on bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.ch == nil {
 		d.ch = make(chan struct{})
 	}
-	if !d.on {
-		d.on = true
+	switch {
+	case on && !d.on:
 		close(d.ch)
+	case !on && d.on:
+		d.ch = make(chan struct{})
 	}
+	d.on = on
 }
 
-func (d *dialogSignal) closed() {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	if d.on {
-		d.on, d.ch = false, make(chan struct{})
-	}
-}
-
-// castTab is the tab being cast: the active one while live, else "".
+// castTab is the tab cast (or to be cast, while paused): the active one.
+// The guards follow it in every phase, since control survives a pause.
 func castTab(s *loopState) string {
-	if tab, ok := s.tracker.Active(); ok && s.phase == PhaseLive {
+	if tab, ok := s.tracker.Active(); ok {
 		return tab.ID
 	}
 	return ""

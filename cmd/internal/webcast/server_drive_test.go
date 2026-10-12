@@ -3,6 +3,7 @@ package webcast
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -237,4 +238,27 @@ func FuzzDriveInput(f *testing.F) {
 			t.Fatalf("an invalid body reached the page: %q", body)
 		}
 	})
+}
+
+// The per-seat table is bounded: a flood of unknown keys never grows it
+// past maxSeatLimits (they leave as the controller refuses them), and a
+// seat already budgeted keeps working through it.
+func TestDriveSeatTableBounded(t *testing.T) {
+	f := newDriveFixture(t, time.Minute)
+	_, key := f.hello(t, "Ana")
+	if code, _ := f.post("control", key, `{"op":"request"}`); code != http.StatusNoContent {
+		t.Fatal(code)
+	}
+	for i := 0; i < 3*maxSeatLimits; i++ {
+		f.post("control", strings.Repeat("f", 60)+fmt.Sprintf("%04d", i), `{"op":"request"}`)
+	}
+	f.srv.drive.mu.Lock()
+	n := len(f.srv.drive.seats)
+	f.srv.drive.mu.Unlock()
+	if n > maxSeatLimits {
+		t.Fatalf("the table grew to %d", n)
+	}
+	if code, _ := f.post("control", key, `{"op":"release"}`); code != http.StatusNoContent {
+		t.Fatalf("a budgeted seat after the flood: %d", code)
+	}
 }

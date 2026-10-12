@@ -466,3 +466,58 @@ func (p *peer) expectAll(wants ...string) {
 		}
 	}
 }
+
+// The dialog the recorder's dispatch waits on is the cast tab's, whatever
+// happened first (#467 BR-1): one opened while paused counts once live;
+// another tab's dialog, opening or closing, never does; switching to a tab
+// with a dialog does; the cast tab going away clears it. A page the cast
+// tab opens while paused, with someone driving, is closed too.
+func TestChromeCastTabDialog(t *testing.T) {
+	c, p := startPeer(t, nil)
+	p.openPage("T1", "S1")
+	p.expect("S1", "Runtime.runIfWaitingForDebugger")
+	vis := func(session string, ctx int, visible bool) {
+		p.send(fmt.Sprintf(`{"method":"Runtime.bindingCalled","sessionId":%q,"params":{"name":"__couchcast","payload":"{\"t\":\"vis\",\"visible\":%t,\"focused\":%t}","executionContextId":%d}}`, session, visible, visible, ctx))
+	}
+	p.send(`{"method":"Runtime.executionContextCreated","sessionId":"S1","params":{"context":{"id":7,"name":"couchcast","auxData":{"frameId":"T1"}}}}`)
+	dialog := func(session, method string) {
+		p.send(fmt.Sprintf(`{"method":"Page.javascriptDialog%s","sessionId":%q,"params":{}}`, method, session))
+	}
+	dialog("S1", "Opening") // paused
+	if err := c.SetLive(true); err != nil {
+		t.Fatal(err)
+	}
+	waitClosed(t, c.dialogs.signal, true)
+	p.openPage("T2", "S2")
+	p.expect("S2", "Runtime.runIfWaitingForDebugger")
+	p.send(`{"method":"Runtime.executionContextCreated","sessionId":"S2","params":{"context":{"id":8,"name":"couchcast","auxData":{"frameId":"T2"}}}}`)
+	vis("S1", 7, true)
+	vis("S2", 8, false)
+	waitState(t, c, "T1 cast", func(s State) bool { return s.Tab.ID == "T1" })
+	dialog("S2", "Opening")
+	dialog("S2", "Closed")
+	time.Sleep(50 * time.Millisecond)
+	waitClosed(t, c.dialogs.signal, true) // T1's still open
+	dialog("S1", "Closed")
+	waitClosed(t, c.dialogs.signal, false)
+	dialog("S2", "Opening")
+	time.Sleep(50 * time.Millisecond)
+	waitClosed(t, c.dialogs.signal, false) // not the cast tab's
+	vis("S1", 7, false)
+	vis("S2", 8, true)
+	waitState(t, c, "T2 cast", func(s State) bool { return s.Tab.ID == "T2" })
+	waitClosed(t, c.dialogs.signal, true)
+	p.send(`{"method":"Target.detachedFromTarget","params":{"sessionId":"S2","targetId":"T2"}}`)
+	p.send(`{"method":"Target.targetDestroyed","params":{"targetId":"T2"}}`)
+	waitClosed(t, c.dialogs.signal, false)
+
+	if err := c.SetLive(false); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SetDriving("Ana"); err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, c, "T1 active, paused", func(s State) bool { return s.Tab.ID == "T1" && s.Phase == PhaseIdle })
+	p.send(`{"method":"Target.targetCreated","params":{"targetInfo":{"targetId":"T4","type":"page","url":"https://x/","title":"","openerId":"T1"}}}`)
+	p.expectAll(`|Target.closeTarget|"targetId":"T4"`)
+}
