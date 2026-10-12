@@ -1,12 +1,20 @@
 ---
 id: 000481
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: 'c51b335300fb91db0de7c222afa3711942160b3e' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'a1e62a3caf06b2572cee64658d71fb71d8f5c545' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T07:50:39-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
 ---
 
 # tests: gate wall-clock perf budgets out of the default suite (terminal tail 250ms, slot-git render 100ms, broadcast marks)
@@ -32,8 +40,23 @@ Split each test into two parts. The behaviour (the tail is right, the render doe
 
 ## Plan
 
-- [ ] Split each listed test: behaviour stays in the default suite without a wall-clock check; the budget moves behind `PAIR_PERF_BUDGETS`.
-- [ ] Run the default suite and the `PAIR_PERF_BUDGETS=1` run; both pass.
+The TL's rule (2026-10-12): each test asserts its outcome. A performance check stays only where performance is the
+subject, measured so that load can't fake it: a count of operations, or a budget run in isolation
+(`make test-perf-budgets`).
+
+- [ ] **One switch.** `cmd/internal/perfbudget`: `Check(t, what, elapsed, budget)` logs every time and fails only when
+  `PAIR_PERF_BUDGETS=1`. couchcore's `perfBudgetsEnforced` routes through it (ARCH-DRY).
+- [ ] **Terminal tail** (perf is the subject): the default suite asserts the 200 lines; the 250 ms budget runs through
+  `perfbudget.Check` and is added to `make test-perf-budgets`.
+- [ ] **Slot-git render behind a hung probe** (the outcome is "doesn't wait"): render in a goroutine while the probe
+  is held, and fail if it doesn't return before the gate opens (a hang guard, not a budget). Drop the 100 ms.
+- [ ] **Marks** (the cost is the subject, an operation count): extract the stroke walk into
+  `walkStrokes(points, cols, rows, put)`. The worst-case batch's walk stays within the grid-bounded count. A huge
+  coordinate walks no line. The cap holds. No clock.
+- [ ] **Hub offers** (the outcome is "never blocks"): 10k offers finish while the hub loop is stalled (a hang guard).
+  Drop the 1 s.
+- [ ] The default suite and `make test-perf-budgets` both pass. The waitUpTo windows belong to #479, which is in
+  flight on another slot, so they're left alone.
 
 ## Log
 
