@@ -59,6 +59,7 @@ The prototypes stay out of the product tree (a `prototypes/broadcast-web-recorde
 ## Log
 
 ### 2026-10-11 — prototypes, measurements, recommendation
+- 2026-10-11: closed — Prototype A (rrweb 2.1.6 over CDP) and B (own on CDP + isolated-world observer) recorded and replayed the stress page, an own React+Tailwind app, Wikipedia, HN and GitHub in one headless session; fidelity by pixelmatch vs real-tab screenshots every 2s; volume, overhead (2 runs per mode), gaps, agent fit and estimates are in the Log. Prototype code is on the unmerged branch 453-recorder-prototypes (afe773a4, pushed); the product diff is the issue file only. Project Log summary: ops commit 2dc3159.; review verdict: SHIP
 
 **Setup.** Chrome 154, headless (`--headless=new`, own `--user-data-dir`, `--site-per-process`), 1280×800, driven
 over CDP from Node. Both recorders ran **in the same session** on each page, so both replays are scored against the

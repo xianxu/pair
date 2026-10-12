@@ -92,3 +92,85 @@ findings:
     detail: |
       The measurements can't be re-run. Push an unmerged scratch branch and name it in the Log.
 ```
+
+---
+
+## Re-review — 2026-10-11T20:43:58-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 453 — broadcast-web: decide the recorder base by prototype (rrweb vs our own on CDP) |
+| repo | pair |
+| issue file | workshop/issues/000453-broadcast-web-decide-the-recorder-base-by-prototype-rrweb-vs-our-own-on-cdp.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 1e941c926f0c345c15fdfbf4b28963967a77385b..e2313925a654d41f67f5dcc265dc8aa121d37e6b |
+| command | sdlc close --issue 453 |
+| reviewer | claude |
+| isolation | checkout |
+| timestamp | 2026-10-11T20:43:58-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Both fixes from the previous round check out: the prototype branch exists and is pushed, and an ops commit exists. Next I'm checking the ops Log entry itself.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+All four findings from the previous round are fixed, and I checked each one against its source, not the commit messages. The prototype branch `453-recorder-prototypes` exists locally and on origin (`afe773a4`). It holds `prototypes/broadcast-web-recorder/` with a README, and nothing from it is merged. The ops project Log entry is commit `2dc3159` on ops `main`, and its numbers match this issue's tables. The gzip ratios work out to 31/27 = 1.148, 1398/947 = 1.476, 3273/2009 = 1.629 and 999/487 = 2.051. The B estimate parts now add up: 3 + 2.5–3 + 1.5 = 7–7.5d. The closed-root gap for form values is now in section 3's list for B. Outside the issue file, the window only adds the close-gate and close-review artifacts under `workshop/plans/`, so there's no product code, atlas or README surface to check. All three Done-when clauses are met. One new Minor finding remains: an estimate-gap claim brought in by the previous round's fix.
+
+1. **Strengths**
+   - The re-run can be reproduced. The pushed branch has the harness (`fidelity.mjs`, `record.mjs`, `lib/shot.mjs`) and both replayers.
+   - The scoped claims are now accurate:
+     - "median fidelity equalled or beat A's on every page" matches all five median rows.
+     - The overhead claim says it was measured only on the stress page.
+   - The ops summary repeats only numbers that are in the issue tables, and it says that B lags at more moments on HN.
+   - The fidelity list item by item records honestly where B needed the isolated world and where it is pure CDP.
+
+2. **Critical findings:** none.
+
+3. **Important findings:** none.
+
+4. **Minor findings**
+   - The recommendation's "about half a day more of build" understates the gap. A is 6–7d and B is 7–7.5d, so the gap is 0.5–1d (0.75d at the midpoints). This is the 2nd finding in family `summary-claim-exceeds-data`. The rule that covers every instance: each comparison figure in the summary must be computed from the table ranges it cites, endpoints included, and not rounded to the favourable end. The only remaining instance in the window is the "about half a day" figure. The other summary claims I checked against their tables, and they hold: 1.15–2.05×, +1.0% vs +1.5%, ~6–7d / ~7–7.5d, and the median claims.
+
+5. **Test coverage notes:** none. This is a research issue with no product code. The evidence is the pushed harness plus the tables.
+
+6. **Architectural notes**
+   - ARCH-DRY: pass. There is no code in the window.
+   - ARCH-PURE: pass. Nothing applies.
+   - ARCH-PURPOSE: pass. The purpose was a decision made from evidence, and all of it is delivered: both prototypes, five pages, all five comparison points, a recommendation left to the operator, and a summary in the project Log.
+   - For the Recorder work that follows: B's 10k-character text truncation and the closed-root form values (via `DOM.resolveNode`) should be listed explicitly as items in that issue's plan.
+
+7. **Plan revision recommendations:** none.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      ops commit 2dc3159 on main adds the "2026-10-11 — pair#453 recorder base: prototypes compared" entry; this issue's Log points to it, and its numbers match the issue tables.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Ratios now exact (1.15/1.48/1.63/2.05, checked); fidelity claim scoped to medians with the HN lag disclosed; overhead scoped to the stress page; B estimate 7–7.5d matches its parts. One residual from the new wording is raised separately.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Section 3's B gaps now list form values inside closed shadow roots, with the fix (DOM.resolveNode or a main-world hook).
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Branch 453-recorder-prototypes (afe773a4) is on origin with prototypes/broadcast-web-recorder/ and a README; the Log names it.
+findings:
+  - id: new
+    severity: Minor
+    family: summary-claim-exceeds-data
+    title: |
+      "about half a day more of build" understates the A/B estimate gap (6–7d vs 7–7.5d is 0.5–1d)
+    detail: |
+      This is the 2nd finding in family summary-claim-exceeds-data. The rule: each comparison figure in the summary is computed from the cited table ranges, endpoints included, not rounded to the favourable end. Instances in the window: 1, this phrase in the Recommendation; all other summary figures were checked and match. Fix: write "half a day to a day more".
+```
