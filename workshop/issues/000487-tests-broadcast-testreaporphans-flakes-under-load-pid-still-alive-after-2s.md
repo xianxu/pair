@@ -1,12 +1,12 @@
 ---
 id: 000487
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '6471c45fb9c4b3086c599ce202303631f99ad17c' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'a88a3786a0656ad210846731fab9748c56fba583' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T13:10:07-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "efc89ad3", done: "9e38085a"}
+actual_hours: 0.42
 ---
 
 # tests: broadcast TestReapOrphans flakes under load (pid still alive after 2s)
