@@ -16,9 +16,11 @@ var ErrRefused = errors.New("drive: not allowed while driving")
 
 // Chords: the closed table of what a driver may press, as key x exact
 // modifier set ("" none; modifiers in the order ctrl, meta, shift). A chord is
-// here only if no Chrome or Blink binding handles it on any platform Couch
-// runs viewers' casts from (macOS, Linux, Windows); everything else is
-// refused. Known bindings kept out: Shift+Delete and Shift+Insert (cut,
+// here only if no Chrome or Blink binding for it, on any platform (macOS,
+// Linux, Windows), has an effect outside the page's document: history
+// navigation, a new tab or window, the clipboard, browser UI, devtools or
+// zoom. Everything else is refused. Reviewed harmless bindings stay:
+// Escape (Chrome closes find, stops loading, leaves fullscreen). Known bindings kept out: Shift+Delete and Shift+Insert (cut,
 // paste), Ctrl/Meta+C/X/V (clipboard), Meta+Y (History), Shift+Escape (task
 // manager), Ctrl+Tab and Ctrl+PageUp/PageDown (tabs), Alt+anything (back,
 // forward, menus), F-keys (reload, devtools, fullscreen).

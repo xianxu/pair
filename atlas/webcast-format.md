@@ -372,7 +372,9 @@ what Chrome or the operator's machine would handle is not:
 - Only the left button, with no modifiers. The right button opens Chrome's context menu; middle and modified clicks
   open tabs or windows or download; Ctrl+wheel zooms.
 - Keys: only the chords in `drive`'s closed chord table (a key with an exact set of modifiers). A chord is there only
-  if no Chrome or Blink binding handles it on any platform. That means the editing and navigation keys, plain or with
+  if no Chrome or Blink binding for it, on any platform, acts outside the page's document (history, a new tab or
+  window, the clipboard, browser UI, DevTools, zoom). Escape's harmless bindings were reviewed and stay: Chrome closes
+  find, stops loading and leaves fullscreen. That means the editing and navigation keys, plain or with
   Shift where that only extends a selection (not Shift+Delete, which is cut, and not Shift+Escape, Chrome's task
   manager); printable characters, plain or with Shift; Ctrl or Meta with A (select all) and Z (undo, with Shift redo);
   and Ctrl+Y (not Meta+Y, History on macOS). **The activation keys, Enter and Space, take no modifier.** They are a
