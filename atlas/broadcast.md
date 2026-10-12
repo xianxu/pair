@@ -139,7 +139,7 @@ the operator says it on the call.
     local diagnostic capture.
 - **LIVE viewers see the tab bar**, but never the codes: these draw only in
   the operator-only layer.
-- **Replay share links** are not locked yet (a follow-up to #495).
+- **Replay share links** are not locked yet (pair#509).
 
 The page (`web/`), a vendored `@xterm/xterm` 6.0.0 with `@xterm/addon-unicode11`
 (Unicode 11 widths, so emoji are two columns as in Couch; #412),

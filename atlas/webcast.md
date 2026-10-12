@@ -302,7 +302,7 @@ the budget.
   - The note dialog asks only when no name is stored.
   - Terminal notes carry it as `author`, and Couch's notes menu shows
     `name: text`.
-- **Not locked.** Replay share links (#477) are a follow-up; their
+- **Not locked.** Replay share links (#477) are a follow-up (pair#509); their
   `LockFor` is nil.
 
 ## Replay (#471)
