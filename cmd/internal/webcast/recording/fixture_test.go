@@ -5,13 +5,14 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
 var updatePins = flag.Bool("update-pins", false, "rewrite the fixtures' canonical.sha256 (after a deliberate reducer change)")
 
 func TestFixturesValidateAndReduce(t *testing.T) {
-	for _, name := range Fixtures {
+	for _, name := range Fixtures() {
 		t.Run(name, func(t *testing.T) {
 			dir := Fixture(name)
 			fs, _, err := ValidateDir(dir)
@@ -57,7 +58,9 @@ func TestFixtureCoverage(t *testing.T) {
 		ok   func(c *coverage) bool
 	}
 	want := map[string][]check{
-		"stress": {
+		// #453's stress page from testdata/stress, which leaves out the late
+		// FontFace font (a macOS system font), so the page never loads one.
+		"rec-stress": {
 			{"a cross-origin iframe document", func(c *coverage) bool { return c.frameDocs > 0 }},
 			{"a closed shadow root", func(c *coverage) bool { return c.closed > 0 }},
 			{"an open shadow root", func(c *coverage) bool { return c.open > 0 }},
@@ -67,17 +70,16 @@ func TestFixtureCoverage(t *testing.T) {
 			{"inner scroll", func(c *coverage) bool { return c.elementScroll > 0 }},
 			{"svg", func(c *coverage) bool { return c.svg > 0 }},
 			{"template content", func(c *coverage) bool { return c.templates > 0 }},
-			{"a FontFace font", func(c *coverage) bool { return c.kinds["font"] > 0 }},
 			{"busy re-renders", func(c *coverage) bool { return c.kinds["kids"] > 100 && c.kinds["ins"] > 1000 }},
 		},
-		"app": {
+		"rec-app": {
 			{"typing", func(c *coverage) bool { return c.kinds["input"] > 0 }},
 			{"clicks and focus", func(c *coverage) bool { return c.kinds["click"] > 0 && c.kinds["focus"] > 0 }},
 			{"a text node over CDP's 10k cut", func(c *coverage) bool { return c.longText }},
 			{"a cross-document navigation", func(c *coverage) bool { return c.navigateSegs > 0 }},
 			{"a resolved note", func(c *coverage) bool { return c.kinds["note-state"] > 0 }},
 		},
-		"blog": {
+		"rec-blog": {
 			{"images", func(c *coverage) bool { return c.mimes["image/png"] > 0 }},
 			{"a web font", func(c *coverage) bool { return c.mimes["font/woff2"] > 0 }},
 			{"stylesheets", func(c *coverage) bool { return c.mimes["text/css"] > 0 }},
@@ -88,6 +90,12 @@ func TestFixtureCoverage(t *testing.T) {
 			{"a pause and a resume", func(c *coverage) bool { return c.kinds["stop"] > 1 && c.resumeSegs > 0 }},
 			{"a tab switch", func(c *coverage) bool { return c.tabSegs > 0 }},
 			{"a same-document navigation", func(c *coverage) bool { return c.kinds["nav"] > 0 }},
+		},
+		"rec-segments": {
+			{"a pause and a resume", func(c *coverage) bool { return c.kinds["stop"] > 1 && c.resumeSegs > 0 }},
+			{"a tab switch", func(c *coverage) bool { return c.tabSegs > 0 }},
+			{"a same-document navigation", func(c *coverage) bool { return c.kinds["nav"] > 0 }},
+			{"a cross-document navigation", func(c *coverage) bool { return c.navigateSegs > 0 }},
 		},
 		"driven": {
 			{"grant, release, revoke, deny and leave", func(c *coverage) bool {
@@ -100,7 +108,15 @@ func TestFixtureCoverage(t *testing.T) {
 			{"a note by the driver", func(c *coverage) bool { return c.driverNotes > 0 }},
 		},
 	}
-	for _, name := range Fixtures {
+	for name := range want {
+		if !slices.Contains(Fixtures(), name) {
+			t.Errorf("%s: coverage checks for no fixture", name)
+		}
+	}
+	for _, name := range Fixtures() {
+		if want[name] == nil {
+			t.Errorf("%s: no coverage checks", name)
+		}
 		r, err := ReadDir(Fixture(name))
 		if err != nil {
 			t.Fatal(err)
@@ -231,4 +247,36 @@ func measure(r *Recording) *coverage {
 		}
 	}
 	return c
+}
+
+// An offset from a frame's time never leaves its segment: not into the
+// previous page, nor across a resume. A pause keeps its segment's page.
+func TestFrameTimesStayInTheFramesSegment(t *testing.T) {
+	b := NewBuilder("r")
+	b.Page(SegLive, "http://a/", b.El("p", nil))
+	b.At(1000).Add(&Stop{Why: StopPause})
+	b.At(1500)
+	b.Page(SegResume, "http://a/", b.El("p", nil))
+	b.At(3000)
+	b.Page(SegNavigate, "http://b/", b.El("p", nil))
+	b.At(4000).Add(&Stop{Why: StopEnd})
+	offs := []int64{0, -50, 150}
+	for _, c := range []struct {
+		t    int64
+		want []int64
+	}{
+		{500, []int64{500, 450, 650}},
+		{960, []int64{960, 910, 1110}},    // into the pause: the same page, frozen
+		{1400, []int64{1400, 1350}},       // 1550 is after the resume
+		{1500, []int64{1500, 1650}},       // 1450 is before it
+		{3020, []int64{3020, 3170}},       // 2970 is the previous page
+		{4100, []int64{4100, 4050, 4250}}, // after the end: the last page
+	} {
+		if got := FrameTimes(b.Recs, c.t, offs); !slices.Equal(got, c.want) {
+			t.Errorf("t=%d: %v, want %v", c.t, got, c.want)
+		}
+	}
+	if got := FrameTimes(nil, 100, offs); got != nil {
+		t.Errorf("before any segment: %v, want none", got)
+	}
 }

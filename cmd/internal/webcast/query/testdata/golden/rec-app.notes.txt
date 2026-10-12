@@ -1,0 +1,83 @@
+$ couch --broadcast-web-query <fixtures>/rec-app notes
+note rec-app-n1  t=6000  segment 1  open  by Pat (product) (viewer-1)
+  "Search should ignore case."
+  on @72  selector #search  box 256,150 992x42
+  page: t=6000  segment 1 (live)  http://127.0.0.1:62199/app.html  viewport 1280x800@1  title "TaskPilot"
+  element:
+    @72 <input class="w-full border rounded-lg px-3 py-2" id=search placeholder=Search value=fix> {value "fix", focused}
+  context: within @35 <main.flex-1.p-8.…> "tasks Add Fix billing webhook"
+    text: "tasks Add Fix billing webhook"
+  before (10000 ms):
+    0 segment 1 starts (live) on http://127.0.0.1:62199/app.html, viewport 1280x800@1
+    32 scroll @1 #document to 0,0
+    32 selection cleared
+    2015 focus @29 <button#nav-tasks.block.w-full.…> "tasks"
+    2015 click @29 <button#nav-tasks.block.w-full.…> "tasks" at 112,136
+    2264 input @69 <input#draft.flex-1.border.…> value ""
+    2264 input @72 <input#search.w-full.border.…> value ""
+    2264 input @75 <input> unchecked
+    2264 input @79 <input> checked
+    2264 input @83 <input> unchecked
+    2264 input @87 <input> unchecked
+    2833 focus @69 <input#draft.flex-1.border.…>
+    2833 click @69 <input#draft.flex-1.border.…> at 717,113
+    2847-3514 input @69 <input#draft.flex-1.border.…> value "Review PR 42" (12 changes)
+    4784 focus @72 <input#search.w-full.border.…>
+    4784 click @72 <input#search.w-full.border.…> at 752,171
+    4797-4917 input @72 <input#search.w-full.border.…> value "fix" (3 changes)
+
+note rec-app-n2  t=9800  segment 1  resolved  by Ana (design) (viewer-2)
+  "The modal's close button needs more contrast."
+  on @233  selector #close-modal
+  page: t=9800  segment 1 (live)  http://127.0.0.1:62199/app.html  viewport 1280x800@1  title "TaskPilot"
+  element:
+    @233 <button class="bg-slate-200 px-4 py-2 rounded-lg" id=close-modal> Cancel
+  context: within @228 <div.bg-white.rounded-2xl.…> "Are you sure? This cannot be undone. Ca…"
+    text: "Are you sure? This cannot be undone. Cancel"
+  before (10000 ms):
+    … 9 earlier actions
+    2264 input @83 <input> unchecked
+    2264 input @87 <input> unchecked
+    2833 focus @69 <input#draft.flex-1.border.…>
+    2833 click @69 <input#draft.flex-1.border.…> at 717,113
+    2847-3514 input @69 <input#draft.flex-1.border.…> value "Review PR 42" (12 changes)
+    4784 focus @72 <input#search.w-full.border.…>
+    4784 click @72 <input#search.w-full.border.…> at 752,171
+    4797-6681 input @72 <input#search.w-full.border.…> value "" (6 changes)
+    6765 input @91 <input> unchecked
+    6765 input @96 <input> unchecked
+    6765 input @99 <input> unchecked
+    6782 focus @91 <input>
+    6782 click @91 <input> at 278,232
+    6797 input @91 <input> checked
+    7599 focus @31 <button#nav-settings.block.w-full.…> "settings"
+    7599 click @31 <button#nav-settings.block.w-full.…> "settings" at 112,184
+    8430 scroll @1 #document to 0,400
+    9232 scroll @1 #document to 0,92
+    9232 focus @104 <button#open-modal.bg-rose-600.text-white.…> "Delete workspace…"
+    9232 click @104 <button#open-modal.bg-rose-600.text-white.…> "Delete workspace…" at 342,112
+
+note rec-app-n3  t=19000  segment 2  open  by Pat (product) (viewer-1)
+  "Reports needs a date range."
+  on @271  selector h1~Reports  box 40,40 1200x36
+  page: t=19000  segment 2 (live)  http://127.0.0.1:62199/app2.html  viewport 1280x800@1  title "TaskPilot reports"
+  element:
+    @271 <h1 class="text-3xl font-bold text-indigo-700 mb-4"> Reports
+  context: within @270 <body.bg-white.p-10>
+    text: "Reports Week 1 0 tasks Week 2 137 tasks Week 3 274 tasks Week 4 411 tasks Week 5 48 tasks Week 6 185 tasks Week 7 322 tasks Week 8 459 tasks Week 9 96 tasks Week 10 233 tasks Week 11 370 tasks Week 12 7 tasks Week 13 144 tasks Week 14 281 tasks Week 15 418 tasks"
+  before (10000 ms):
+    9232 scroll @1 #document to 0,92
+    9232 focus @104 <button#open-modal.bg-rose-600.text-white.…> "Delete workspace…"
+    9232 click @104 <button#open-modal.bg-rose-600.text-white.…> "Delete workspace…" at 342,112
+    10748 focus @233 <button#close-modal.bg-slate-200.px-4.…> "Cancel"
+    10748 click @233 <button#close-modal.bg-slate-200.px-4.…> "Cancel" at 512,530
+    10775 focus none
+    11564 scroll @1 #document to 0,68
+    11570 focus @27 <button#nav-dashboard.block.w-full.…> "dashboard"
+    11570 click @27 <button#nav-dashboard.block.w-full.…> "dashboard" at 112,88
+    11582 scroll @1 #document to 0,0
+    14095 focus @33 <a#next-doc.block.mt-8.…> "Reports (new page)"
+    14095 click @33 <a#next-doc.block.mt-8.…> "Reports (new page)" at 112,248
+    14107 segment 2 starts (navigate) on http://127.0.0.1:62199/app2.html, viewport 1280x800@1
+    14133 scroll @259 #document to 0,0
+    14133 selection cleared

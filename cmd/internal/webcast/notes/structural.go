@@ -59,7 +59,7 @@ func (s Structural) Context(st *recording.State, at recording.NoteAt) (Context, 
 	}
 	n := st.Node(id)
 	land, _ := landmark(n)
-	c := Context{Node: id, Landmark: land.ID, Text: window(land.TextContent(), n.TextContent(), contextBudget)}
+	c := Context{Node: id, Landmark: land.ID, Text: window(land.RenderedText(), n.RenderedText(), contextBudget)}
 	if b, ok := st.Boxes[land.ID]; ok {
 		c.Box = &b
 	}
@@ -67,11 +67,15 @@ func (s Structural) Context(st *recording.State, at recording.NoteAt) (Context, 
 }
 
 func (s Structural) Crops(st *recording.State, ats []recording.NoteAt, hints Hints) ([]recording.Box, error) {
+	return s.NoteCrops(st, anchorsOnly(ats), hints)
+}
+
+func (s Structural) NoteCrops(st *recording.State, ns []*recording.Note, hints Hints) ([]recording.Box, error) {
 	m := s.Margin
 	if m == 0 {
 		m = defaultMargin
 	}
-	return crops(st, ats, m, hints, s.Resolve)
+	return crops(st, ns, m, hints, s.Resolve)
 }
 
 func (Structural) Live(st *recording.State) []*recording.NoteView { return liveNotes(st) }

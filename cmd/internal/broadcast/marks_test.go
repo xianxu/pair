@@ -2,6 +2,7 @@ package broadcast
 
 import (
 	"image/color"
+	"slices"
 	"sort"
 	"testing"
 	"time"
@@ -241,7 +242,8 @@ func TestMarksOverlayNeverTintsControls(t *testing.T) {
 
 // BR-2: Add stays cheap at the worst case, a full batch of far-apart points
 // on a big grid with the cap already full, because it runs under the lock the
-// paint path takes.
+// paint path takes. The cost is counted, not timed (pair#481): the walk
+// visits at most one grid span per point, and the marks stay within the cap.
 func TestMarksAddWorstCaseIsCheap(t *testing.T) {
 	m := NewMarks()
 	cols, rows := 300, 100
@@ -249,31 +251,31 @@ func TestMarksAddWorstCaseIsCheap(t *testing.T) {
 	for i := range 64 {
 		points = append(points, [2]int{(i * 97) % cols, (i * 31) % (rows - 1)})
 	}
-	for i := range 10 {
+	visits := 0
+	walkStrokes(points, cols, rows, func(cell) { visits++ })
+	if bound := len(points) * (max(cols, rows) + 1); visits > bound || visits < len(points) {
+		t.Fatalf("the worst batch walks %d cells; bound %d", visits, bound)
+	}
+	for i := range 30 {
 		m.Add(points, cols, rows, 0, t0.Add(time.Duration(i)*time.Millisecond))
-	}
-	start := time.Now()
-	for i := range 20 {
-		m.Add(points, cols, rows, 0, t0.Add(time.Duration(20+i)*time.Millisecond))
-	}
-	if per := time.Since(start) / 20; per > 20*time.Millisecond {
-		t.Fatalf("Add took %v per batch at the cap", per)
-	}
-	if n := len(m.cells); n > cols*rows/8 {
-		t.Fatalf("%d cells marked, cap %d", n, cols*rows/8)
+		if n := len(m.cells); n > cols*rows/8 {
+			t.Fatalf("batch %d: %d cells marked, cap %d", i, n, cols*rows/8)
+		}
 	}
 }
 
 // Add's cost holds without trusting its caller: an off-grid point is dropped
 // before any line is drawn to it, so a huge coordinate can't make it walk a
-// huge line.
+// huge line: the walk visits only the two on-grid points.
 func TestMarksAddIgnoresHugeCoordinates(t *testing.T) {
-	m := NewMarks()
-	start := time.Now()
-	m.Add([][2]int{{0, 0}, {1 << 30, 1 << 30}, {2, 0}}, 20, 10, 0, t0)
-	if d := time.Since(start); d > 50*time.Millisecond {
-		t.Fatalf("Add took %v on a huge coordinate", d)
+	huge := [][2]int{{0, 0}, {1 << 30, 1 << 30}, {2, 0}}
+	var walked []cell
+	walkStrokes(huge, 20, 10, func(c cell) { walked = append(walked, c) })
+	if want := []cell{{0, 0}, {2, 0}}; !slices.Equal(walked, want) {
+		t.Fatalf("walked %v, want %v", walked, want)
 	}
+	m := NewMarks()
+	m.Add(huge, 20, 10, 0, t0)
 	for _, c := range markedCells(m) {
 		if c[0] >= 20 || c[1] >= 9 {
 			t.Fatalf("marked %v", c)

@@ -5,6 +5,8 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestStdoutBatcherAccumulatesAndFlushes(t *testing.T) {
@@ -93,13 +95,13 @@ func TestMasterPumpFlushesStdoutOnTick(t *testing.T) {
 	if _, err := writer.Write([]byte("tick")); err != nil {
 		t.Fatal(err)
 	}
-	waitForStdoutBatch(t, 250*time.Millisecond, func() bool {
+	waitForStdoutBatch(t, func() bool {
 		return string(out.Bytes()) == "tick"
 	})
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)
 	}
-	waitForStdoutBatch(t, 250*time.Millisecond, func() bool {
+	waitForStdoutBatch(t, func() bool {
 		select {
 		case <-done:
 			return true
@@ -139,7 +141,7 @@ func TestMasterPumpFlushesStdoutOnEOF(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	waitForStdoutBatch(t, 250*time.Millisecond, func() bool {
+	waitForStdoutBatch(t, func() bool {
 		select {
 		case <-done:
 			return out.String() == "eof"
@@ -149,14 +151,7 @@ func TestMasterPumpFlushesStdoutOnEOF(t *testing.T) {
 	})
 }
 
-func waitForStdoutBatch(t *testing.T, timeout time.Duration, ok func() bool) {
+func waitForStdoutBatch(t *testing.T, ok func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if ok() {
-			return
-		}
-		time.Sleep(time.Millisecond)
-	}
-	t.Fatalf("condition not met within %s", timeout)
+	testwait.Until(t, "the stdout batch condition", ok)
 }

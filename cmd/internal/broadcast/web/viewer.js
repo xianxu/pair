@@ -4,7 +4,10 @@
 // posts points and sticky notes (#447) and remembers its viewer's color
 // pick (#446).
 
-import { noteAt, noteCell, guardedCell, parseNotes, noteDialog } from './notes.js';
+import { noteAt, noteCell, guardedCell, parseNotes } from './notes.js';
+import { HEX_COLOR, pointerColor, colorStore, railAt, renderSwatches, noteDialog, poster } from './collab.js';
+
+export { pointerColor, colorStore, RAIL_INSET, railAt, renderSwatches } from './collab.js';
 
 export const MIN_FONT = 4;
 export const MAX_FONT = 64;
@@ -31,7 +34,6 @@ const ANSI_NAMES = [
   'brightBlack', 'brightRed', 'brightGreen', 'brightYellow',
   'brightBlue', 'brightMagenta', 'brightCyan', 'brightWhite',
 ];
-const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
 // xtermTheme maps the operator's palette onto xterm.js theme keys. Only
 // well-formed #rrggbb values pass; anything else (unknown, or not a colour)
@@ -89,69 +91,6 @@ export function chunkStroke(last, points) {
     i += part.length;
   }
   return chunks;
-}
-
-// Pointer colors (#446). Couch sends the palette and this stream's assigned
-// color in `caps`; the page keeps no colors of its own and posts only an
-// index. A viewer's pick is remembered in this browser.
-const COLOR_KEY = 'couch.pointerColor';
-
-// pointerColor is the color a page posts: the viewer's pick when it is in
-// the palette, else the one Couch assigned.
-export function pointerColor(picked, assigned, size) {
-  return Number.isInteger(picked) && picked >= 0 && picked < size ? picked : assigned;
-}
-
-// colorStore remembers the pick. Storage can be missing or throw (a private
-// window, blocked site data); the page then works without remembering.
-export function colorStore(storage) {
-  return {
-    get() {
-      try {
-        const v = storage ? storage.getItem(COLOR_KEY) : null;
-        return /^[0-9]$/.test(v || '') ? Number(v) : null;
-      } catch {
-        return null;
-      }
-    },
-    set(i) {
-      try {
-        storage?.setItem(COLOR_KEY, String(i));
-      } catch {
-        // Not remembered; the pick still holds for this page.
-      }
-    },
-  };
-}
-
-// RAIL_INSET is the gap between the rail and the screen's right edge.
-export const RAIL_INSET = 6;
-
-// railAt docks the rail (#449) to the drawn screen: its right edge
-// RAIL_INSET inside the screen's, its middle on the screen's (the CSS
-// translates it up by half its height). rect is the screen's client rect;
-// viewW the window's width.
-export function railAt(rect, viewW) {
-  return {
-    top: rect.top + rect.height / 2,
-    right: Math.max(0, viewW - rect.right) + RAIL_INSET,
-  };
-}
-
-// renderSwatches draws one button per palette color into el, marking the
-// current one. make(tag) creates an element.
-export function renderSwatches(el, palette, current, pick, make) {
-  el.replaceChildren(...palette.map((hex, i) => {
-    const b = make('button');
-    b.type = 'button';
-    b.className = i === current ? 'swatch on' : 'swatch';
-    b.style.background = hex;
-    b.setAttribute('aria-label', `Pointer color ${i + 1}`);
-    b.title = `Pointer color ${i + 1}`;
-    b.setAttribute('aria-pressed', String(i === current));
-    b.addEventListener('click', () => pick(i));
-    return b;
-  }));
 }
 
 // Backoff for a connection closed for good (the server refused it or is
@@ -407,22 +346,8 @@ async function start() {
 // stream (#412, #447).
 const POST_ROUTES = ['point', 'note', 'resolve'];
 
-// postJSON is the page's one request function: same origin, a relative
-// route from POST_ROUTES, no credentials, no referrer. It resolves to the
-// status and the response text (a refusal sentence, for the note dialog).
-function postJSON(route, body) {
-  if (!POST_ROUTES.includes(route)) {
-    return Promise.reject(new Error('unknown route'));
-  }
-  return fetch(route, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    credentials: 'omit',
-    referrerPolicy: 'no-referrer',
-    cache: 'no-store',
-  }).then(async (r) => ({ status: r.status, text: await r.text() }));
-}
+// postJSON is the page's one request function (collab.js's poster).
+const postJSON = poster((url, init) => fetch(url, init), POST_ROUTES);
 
 function postPoint(body) {
   postJSON('point', body).catch(() => {});
@@ -530,7 +455,7 @@ export function pointerMode(term, stage, deps = {}) {
     if (mode === 'comment') {
       const at = noteCell(c, term.cols);
       if (!guardedCell(at[0], at[1], term.rows, notes().guard)) {
-        dialog.draft(at, { cols: term.cols, rows: term.rows });
+        dialog.draft({ cols: term.cols, rows: term.rows, col: at[0], row: at[1] });
       }
       return;
     }

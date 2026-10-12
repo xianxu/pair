@@ -1181,4 +1181,133 @@ proof; record the surprising case so the next change starts from evidence.
   containment. When a second component accepts another's format, call the owner's reader for it (`notes.Match`) and
   fall back to your own grammar only outside it; scope every combinator to a tree as the platform does; test with
   identity against an oracle the owner provides (`Resolve` with no node id), never with "contains".
+- **A fixture corpus can leave out the very case a rule exists for (#471).** The catch-up rule keeps assets from before
+  the latest segment and drops notes from earlier documents, and no fixture had either. The invariant passed on every
+  fixture while exercising nothing. When a port is held to an invariant over fixtures, list the rule's branches first,
+  then check that some input reaches each one; add a synthetic recording for any branch no fixture reaches. And look at
+  a UI once (a headless screenshot): a layout bug that only shows while paused passed every DOM check.
+- **A held port needs a corpus the owner's test regenerates (#471 close, round 1).** #458 changed `recording.CatchUp`
+  (hover and ptr: only the latest) while #471's JS port was in flight. The merge was clean and every test passed: no
+  fixture had a hover or ptr, and the record-for-record check ran only in live Chrome. When code ports another
+  package's rule, check it in as a shared corpus. It needs every branch, plus the owner's answers. The owner's test
+  must fail when its rule moves (`TestCatchUpCorpus`), and the port's test must fail until it follows. After merging
+  main, grep main's diff for the ported function's name.
+- **A "what the user sees" rule has one walker; grep for its siblings (#469 close).** Fixing note context with a new
+  `RenderedText` left #462's `spacedText` in `query/render.go`, a second visible-text walker with different
+  rules beside it in the same output. When you add a function that defines how something reads (rendered text, a
+  selector, a label), grep the codebase for every other function doing the same job (`TextContent`, `textContent`,
+  "what a reader sees") and route them through yours in the same change. And don't derive state the source doesn't
+  hold: a select's live choice isn't in the DOM, so guessing it from the `selected` attribute contradicted the
+  event beside it.
 
+- **A check made before handing a record to an asynchronous writer is re-made by the writer (#470 plan-quality).** The
+  board checked a viewer's note against the current document, then emitted it outside its lock into the recorder's
+  queue; a navigation ordered in between would have filed the note on the new page, because the reducer gives a note
+  the segment current when it is *reduced*. When a reader of a stream validates against state and a different
+  writer orders the result, send the checked fact with the record (here the document's first segment) and have the
+  writer apply the one statement of the rule (`recording.State.OnDoc`) at ordering time; test the race by ordering
+  the competing event inside the emit.
+- **Fixtures that share an accident hide every reader that depends on it (#472).** The prototype's fixtures were all
+  1280×800 with frames taken while the stream was quiet, so the replay harness and the fidelity tool hard-coded the
+  viewport, and the recorder's clamp of a frame's time to the stream's (43–87 ms late on a busy page, against the
+  format's "midpoint") never showed. When a reader takes a value the recording carries (a viewport, a time), read it
+  from the record, not from what the fixtures happen to share; and when a clamp keeps one stream monotonic, apply it
+  only to that stream's records, never to a timestamp another file defines. Add a fixture that varies the shared thing.
+- **A test that asserts "at once" needs a sync point with the goroutine doing the work (#473).** Two flakes had the
+  same shape: the test read state from its own goroutine while another one was mid-step. couchtty polled the pointer
+  phase, which flips before the same Run-loop step tears the timers down; couchcore gave a fake child's reaper 2ms of
+  real time after its death to deliver. Before writing an exact assertion (`timer == nil`, `kills == 3`), name the
+  event that makes it true and wait on that event: a no-op command through the loop that owns the state, or an
+  injected clock (`Couch.after`) that ties the timeout to the fake's state. To prove a suspected window, widen it
+  with a temporary sleep in the product or fake and watch the test fail every time.
+- **A flag that marks setup done must die with what it set up (#475).** `openDoc` guarded its load listener with a
+  property on the document, but `document.open()` erases the document's listeners and keeps its properties, so only
+  the first page a frame ever drew redrew on loads, and the replay's numbers depended on test order. When a guard
+  says "already done", check that every operation that undoes the work also clears the guard; prefer re-doing an
+  idempotent setup each time over a flag. And when a render number changes only with run order, diff the same
+  capture twice before suspecting the change under test (Chrome throttles a hidden frame's rendering too).
+- **A production bound a test inherits is a real-time window too (#476).** `TestCapturePTYBothBoundaries` never named
+  a duration. It failed because `Recorder.Close`'s production 2s drain bound is the default it ran with. And the
+  retention lock test timed a whole call, file I/O included, to prove it "didn't block", although the held lock
+  already proved that. Before asserting on a call that has a bound (a drain, a deadline, a poll), ask whether the
+  bound is the test's subject. If not, lift it through a config seam (`Config.CloseTimeout`) and wait on the event.
+  If the state the test holds already proves the property, wait with no window and let the binary's timeout catch
+  a hang.
+- **Nothing that takes input is rebuilt on the per-frame path (#470 M2, two review rounds).** The notes UI redrew its
+  pins and then its swatches with `replaceChildren` every animation frame, so a tap that spanned a frame landed on a
+  removed element. Frame work only moves and restyles; elements are created and removed when their data changes (keep
+  them in a map by id). Test with a human-length press (100 ms): a back-to-back synthetic press and release fits in one
+  frame and lets the per-frame mutant pass.
+- **An async mount starts from the state it mounts into (#470 M2).** The notes module mounted after a fetch, began
+  with "no document", and took the first record it saw for a navigation, ending the user's stroke after one chunk (4 of
+  6 runs). A late joiner of a stream initializes from the model's current values, not from zero; and a flaky e2e is a
+  bug to root-cause with state dumps from both sides, not a retry.
+- **A test writes loop-owned state on the loop, or through the real producer (#470 close, BR-25).** A Couch test set
+  the web-notes menu state directly while the cast's delivery goroutine wrote its first snapshot, failing 10 of 20
+  runs under `-race` and 0 of 50 without. When state has a single-writer rule, the test drives the real producer (post
+  through the board, wait for delivery) and makes any other change inside `runTerminalCommand`; run the new test with
+  `-race -count=20` before calling it done.
+- **Every server of a page serves every module the page imports (#470 meets #471).** The notes module imported
+  `collab.js`, which only the live server served; the replay server, landed meanwhile, served the same viewer from the
+  shared file table, and one missing ES module kills the whole module graph. Serve a page's files from one table both
+  servers use, and test the closure: walk the imports from the entry module and fetch each from that table. After a
+  merge that brings a second consumer of shared files, run the live (browser) suites, not only the unit ones.
+
+- **A snapshot of a running page is not a fresh load (#478).** The fidelity replay started the blog's entry fade
+  when it drew the go-live snapshot, but the tab had finished it seconds before the cast went live, so the first
+  frame scored 2.15% for no render fault. When a replay or viewer draws a state captured mid-life (a segment that
+  isn't a navigation, a catch-up), ask what the browser's own clocks (animations, transitions) were doing at
+  capture, and settle them to the likeliest phase. Look at the worst moment's crop before tuning a tolerance: the
+  picture named the cause where the number couldn't.
+
+- **A surface that lets an agent open something public needs the operator to see it, and every surface gets swept
+  (#477).** `query link` let an agent open the broadcast tunnel with nothing shown to the operator. Round 1 fixed that
+  (a notice, and the ids in `--broadcast-list`), but left the README saying the listing never had more, and pinned
+  the listing with a test while the notice had none. When an action can be taken by an agent and is visible to people
+  outside the machine, ask, at design time, how the operator learns it happened. When you add a verb, flag, output
+  line or JSON key, grep its name across the README (synopsis and prose), `couch --help`, the atlas, SKILL.md and the
+  Usage text in the same commit. Give each behavior a fix adds its own test that fails without it.
+
+- **A paused view draws no frames, so every event that changes what it shows must draw (#477 M2).** The replay
+  redraws its marks once per frame, and a paused replay (how every `#t=` link opens) has none. A tap's note card
+  and a resize waited for a frame that never came. When a view redraws on a loop, list what changes its output
+  besides the loop (input, resize, a seek) and draw from each. Test with the loop stopped, after a fixed number of
+  frames, not by polling: a poll can be satisfied by a later, unrelated redraw (the first resize test passed with
+  the fix removed).
+- **A test races a timer it doesn't own; give it the timer (#480).** Thirteen tests raced real 15ms-3s timers or
+  slept before asserting. Where the timer is the subject, the product takes it through a seam whose nil is the wall
+  clock (`loopTimer` for wrap's idle floor and ESC flush, `Couch.registrationDeadline`, `LaunchOptions.BirthClock`),
+  and the test advances or spends it. Where it isn't, wait on the event a sleep stood for (admissions counted at
+  Reserve, a semaphore's `len`, `Close` joining a watcher). A causal oracle on the test's own timestamps is not a
+  substitute: it fails when the loop, not the writer, stalls. And read the product's order before asserting a second
+  effect after a first: the stdin loop writes a chord before disarming its flush, so "disarmed" is its own wait (the
+  soak caught one in 200).
+- **A component that stacks its own elements must not reach past them (#475 close, round 1).** A `z-index` on the
+  held frame lifted it over the shell's overlay, which sits beside it with `z-index: auto`. Order layers by document
+  order inside the component, or give the component its own stacking context; never set a z-index the host doesn't
+  know about. And keep a lifecycle in one state value (`pair.hold = null | {owner, drawn, cancel}`), not in flags,
+  an inline style and a shared object; inject its clock so a test can drive each ordering.
+- **A test moved to another fixture keeps its old fixture's moments unless they come from the data (#474).** The
+  replay marks test moved from the prototype's `app` to `rec-app` and kept sampling `app`'s note times, so it still
+  passed but checked nothing about the new notes. Derive sample moments (and any content a test reads) from the
+  fixture's own records; re-deriving then surfaced a case the old fixture never had (an open note whose element was
+  removed). After retiring a data source, also sweep the tools that only produced it (`fixturegen -raw`) and any
+  inventory that lists them.
+- **A stopwatch ceiling hides the race it was meant to catch (#479).** `elapsed > 1.5s` passed a TERM-deaf-child
+  test whose cancel landed before `sh` set its trap, so the child died by SIGTERM and SIGKILL escalation was never
+  exercised; only asserting *how* the child ended (its signal) exposed it under load. Where a test's subject is a
+  bound, assert the outcome that proves it (the product's own timeout error, the ending signal, the busy refusal),
+  not the wall-clock time; where the subject is an event, wait on it with `testwait` (bounded by the test's
+  deadline, not a latency guess). A short real deadline the test arms for every case is the same bug: arm it only
+  where the timeout is the subject.
+- **A capture at t waits for every asset bound by t, not one kind (#482).** The fidelity replay captured right after
+  the real-time window and waited only for a held paint's stylesheets. A font and an avatar that arrived 1 ms before
+  rec-blog's first frame were still loading in about 1 run in 8 under load. The diagnosis named the font, a second
+  slot's crops named the image, and both were one cause. When a capture flakes, look at the worst crop before fixing
+  a cause. Wait on the general readiness (sheets, fonts, images, bounded) after stopping the clocks at t, and pin it
+  with an asset bound just before the moment, which fails deterministically, not with a soak.
+- **A new input path inherits the channel's validation; apply its policy to the whole input, not its edges (#486
+  close).** `--message-file` stripped one trailing newline, then a trailing CRLF, and each round found the next CR:
+  the broker refuses every control byte but `\n` and `\t`, so a CRLF file fails wherever its CRs sit, with an error
+  that doesn't name the file. When an input source feeds an existing validator, read that validator first and decide
+  one rule for the whole input (normalize it, or refuse it with the source named), not a fix at the site a reviewer saw.

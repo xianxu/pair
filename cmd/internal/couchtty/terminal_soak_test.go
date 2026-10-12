@@ -18,6 +18,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/terminal"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 	"golang.org/x/term"
 )
 
@@ -133,8 +134,16 @@ func TestCouchProductionSoak(t *testing.T) {
 	// Drain the emulator's reply pipe, as newVTHost does: couch now asks the
 	// terminal for its colours (pair#247), the emulator answers like a real
 	// terminal, and an unread answer wedges its Write.
-	go func() { _, _ = io.Copy(io.Discard, host.em) }()
-	t.Cleanup(func() { host.em.Close() })
+	drain := make(chan struct{})
+	go func() { _, _ = io.Copy(io.Discard, host.em); close(drain) }()
+	t.Cleanup(func() {
+		// Close the pipe, not Emulator.closed, while Read is still running;
+		// join the reader before touching Emulator.closed (as the pressure
+		// test does), or -race reports Close against Read.
+		_ = host.em.InputPipe().(io.Closer).Close()
+		<-drain
+		host.em.Close()
+	})
 	reader, input := io.Pipe()
 	con := New(host, reader)
 	var diagnostics bytes.Buffer
@@ -146,7 +155,7 @@ func TestCouchProductionSoak(t *testing.T) {
 		input.Close()
 		select {
 		case <-done:
-		case <-time.After(5 * time.Second):
+		case <-testwait.After(t):
 			t.Error("console did not join")
 		}
 		for _, c := range children {
@@ -188,7 +197,7 @@ func TestCouchProductionSoak(t *testing.T) {
 	}
 	wait := func(label string, predicate func() bool) {
 		t.Helper()
-		deadline := time.Now().Add(5 * time.Second)
+		deadline := time.Now().Add(testwait.Budget(t))
 		for time.Now().Before(deadline) {
 			if predicate() {
 				return
@@ -331,7 +340,7 @@ func TestCouchProductionSoak(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("console exit%d: %s; presenter failure: %v", code, diagnostics.String(), con.presenter.Failure())
 		}
-	case <-time.After(5 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("console shutdown timeout")
 	}
 	var memory runtime.MemStats

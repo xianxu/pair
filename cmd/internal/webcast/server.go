@@ -14,7 +14,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
-//go:embed web/index.html web/viewer.js web/viewer.css web/model.js web/render.js web/css.js
+//go:embed web/index.html web/viewer.js web/viewer.css web/model.js web/render.js web/css.js web/annotate.js web/annotate.css web/replay.js web/replay.css web/replayer.js web/fidelity.html web/fidelity.js
 var webFS embed.FS
 
 // contentSecurityPolicy: the page runs only its own script, talks only to
@@ -31,15 +31,27 @@ var assets = map[string]struct{ file, contentType string }{
 	"model.js":   {"web/model.js", "text/javascript; charset=utf-8"},
 	"render.js":  {"web/render.js", "text/javascript; charset=utf-8"},
 	"css.js":     {"web/css.js", "text/javascript; charset=utf-8"},
+	// Pointing and notes (#470): this package's module and style, and the
+	// swatches and dialog shared with the terminal viewer.
+	"annotate.js":  {"web/annotate.js", "text/javascript; charset=utf-8"},
+	"annotate.css": {"web/annotate.css", "text/css; charset=utf-8"},
+	"replay.js":    {"web/replay.js", "text/javascript; charset=utf-8"},
+	"replay.css":   {"web/replay.css", "text/css; charset=utf-8"},
+	// The fidelity check's page (#478): the replay unscaled, no shell.
+	"replayer.js":   {"web/replayer.js", "text/javascript; charset=utf-8"},
+	"fidelity.html": {"web/fidelity.html", "text/html; charset=utf-8"},
+	"fidelity.js":   {"web/fidelity.js", "text/javascript; charset=utf-8"},
 }
 
 // endedReason is what viewers are told when the cast ends.
 const endedReason = "ended"
 
-// Server is the viewer endpoint: GET only, under the cast's token, serving
+// Server is the viewer endpoint, under the cast's token, serving
 // the viewer and an event stream of the cast's state ("state", "end") and,
 // with a Live, of its recording ("rec": each record line, the catch-up
 // first, #460), and the recording's asset bodies at assets/<hash> (#459).
+// With a board (WithBoard) it also takes viewers' strokes and notes by POST
+// (#470); everything else is GET only.
 type Server struct {
 	token      string
 	browser    Browser
@@ -49,6 +61,7 @@ type Server struct {
 	ping       time.Duration
 	maxViewers int32
 	viewers    atomic.Int32
+	board      *boardRoutes // nil: no pointing or notes (WithBoard)
 }
 
 // Presence is told that viewer id's stream opened; leave is called when it
@@ -77,12 +90,17 @@ func (s *Server) Owns(segment string) bool { return broadcast.OwnsToken(segment,
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	broadcast.SetSecurityHeaders(w.Header(), contentSecurityPolicy)
+	segment, rest, ok := strings.Cut(strings.TrimPrefix(r.URL.Path, "/"), "/")
+	// The only routes that read a body are the board's POSTs (#470); every
+	// other path is GET-only and never reads one.
+	if r.Method == http.MethodPost && ok && s.Owns(segment) && s.boardRoute(w, r, rest) {
+		return
+	}
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", http.MethodGet)
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	segment, rest, ok := strings.Cut(strings.TrimPrefix(r.URL.Path, "/"), "/")
 	if !ok || !s.Owns(segment) {
 		http.NotFound(w, r)
 		return
@@ -95,18 +113,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.proxy.Serve(w, r, hash)
 		return
 	}
-	a, ok := assets[rest]
-	if !ok {
-		http.NotFound(w, r)
+	if s.boardAsset(w, rest) {
 		return
 	}
-	body, err := webFS.ReadFile(a.file)
-	if err != nil {
-		http.Error(w, "unavailable", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", a.contentType)
-	w.Write(body)
+	serveViewerFile(w, r, rest)
 }
 
 func (s *Server) events(w http.ResponseWriter, r *http.Request) {

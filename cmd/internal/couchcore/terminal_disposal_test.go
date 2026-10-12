@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestFailedUnacceptedPTYCleanupCancelsBlockedPublication(t *testing.T) {
@@ -30,7 +31,7 @@ func TestFailedUnacceptedPTYCleanupCancelsBlockedPublication(t *testing.T) {
 	defer child.Close()
 	select {
 	case <-entered:
-	case <-time.After(2 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("real PTY did not enter blocked delivery")
 	}
 	// A failed warm attachment owns the client, never the existing session.
@@ -45,7 +46,7 @@ func TestFailedUnacceptedPTYCleanupCancelsBlockedPublication(t *testing.T) {
 		if err != nil {
 			t.Logf("cleanup retained OS signal diagnostics after proven disposal: %v", err)
 		}
-	case <-time.After(3 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("cleanup waited on final UI acknowledgement instead of canceling unaccepted publication")
 	}
 	if _, err := child.Endpoint().Snapshot(time.Now()); !errors.Is(err, os.ErrClosed) {

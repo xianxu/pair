@@ -6,12 +6,12 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/xianxu/pair/cmd/internal/ansi"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestConsoleMenuOperationFailureUsesExactReducerOrigin(t *testing.T) {
@@ -41,7 +41,7 @@ func TestConsoleMenuOperationFailureUsesExactReducerOrigin(t *testing.T) {
 	f.con.mu.Unlock()
 	f.con.dispatchMenuEffects(effects)
 
-	waitUpTo(t, 250*time.Millisecond, "operation failure to enter reducer", func() bool {
+	waitFor(t, "operation failure to enter reducer", func() bool {
 		got := f.con.menuSnapshot()
 		return got.InFlight.Operation == "" && got.Notice == want.Notice && reflect.DeepEqual(got.Frames, want.Frames)
 	})
@@ -94,7 +94,7 @@ func TestConsoleMenuStartAttachesBeforeSuccessfulRestoration(t *testing.T) {
 	f.con.mu.Unlock()
 	f.con.dispatchMenuEffects(effects)
 
-	waitUpTo(t, 250*time.Millisecond, "started terminal attach and reducer completion", func() bool {
+	waitFor(t, "started terminal attach and reducer completion", func() bool {
 		f.con.mu.Lock()
 		defer f.con.mu.Unlock()
 		_, attached := f.con.panes[start.Handle.ID()]
@@ -129,7 +129,7 @@ func TestConsoleMenuResumeLandsOnExactReturnedHandle(t *testing.T) {
 	f.host.Reset()
 	f.con.dispatchMenuEffects(effects)
 
-	waitUpTo(t, 250*time.Millisecond, "exact resumed handle landing", func() bool {
+	waitFor(t, "exact resumed handle landing", func() bool {
 		f.con.mu.Lock()
 		active, focus, inflight := f.con.active, f.con.focus, f.con.menu.InFlight.Operation
 		f.con.mu.Unlock()
@@ -190,7 +190,7 @@ func TestConsoleRefreshFailureKeepsCommittedMutationVisiblyPending(t *testing.T)
 	f.host.Reset()
 	f.con.refreshResults <- menuRefreshResult{generation: 1, err: errors.New("store unavailable")}
 
-	waitUpTo(t, 250*time.Millisecond, "failed refresh pending banner", func() bool {
+	waitFor(t, "failed refresh pending banner", func() bool {
 		state := f.con.menuSnapshot()
 		screen := string(ansi.Strip([]byte(f.screenText())))
 		return state.ProjectionPending && strings.Contains(screen, "error: thread inventory unavailable: store unavailable; refresh pending")
@@ -224,7 +224,7 @@ func TestConsolePreMutationRefreshCannotAuthorizeCommittedProjection(t *testing.
 	select {
 	case <-con.refreshRequests:
 		con.advanceMenuRefresh(RefreshScheduleEvent{Kind: RefreshRequested})
-	case <-time.After(250 * time.Millisecond):
+	case <-testwait.After(t):
 		t.Fatal("successful mutation did not request its post-mutation refresh")
 	}
 	con.finishMenuRefresh(menuRefreshResult{generation: 1, inventory: menuThreads()})
@@ -236,7 +236,7 @@ func TestConsolePreMutationRefreshCannotAuthorizeCommittedProjection(t *testing.
 	select {
 	case result := <-con.refreshResults:
 		con.finishMenuRefresh(result)
-	case <-time.After(250 * time.Millisecond):
+	case <-testwait.After(t):
 		t.Fatal("post-mutation refresh did not finish")
 	}
 	if got := con.menuSnapshot(); !got.ProjectionPending || got.Notice.Text != "thread inventory unavailable: follow-up failed" {
@@ -308,11 +308,11 @@ func TestConsoleMenuAttachRefusalPaintsLocalErrorBanner(t *testing.T) {
 	f.host.Reset()
 	f.con.dispatchMenuEffects(effects)
 
-	waitUpTo(t, 250*time.Millisecond, "attach refusal completion", func() bool {
+	waitFor(t, "attach refusal completion", func() bool {
 		return f.con.menuSnapshot().InFlight.Operation == ""
 	})
 	// Reducer completion precedes its paint; wait for the observable result.
-	waitUpTo(t, time.Second, "attach refusal banner", func() bool {
+	waitFor(t, "attach refusal banner", func() bool {
 		screen := string(ansi.Strip([]byte(f.screenText())))
 		return strings.Contains(screen, "start thread\nerror: thread ") && strings.Contains(screen, "already attached")
 	})

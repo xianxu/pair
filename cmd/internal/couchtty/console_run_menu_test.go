@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
@@ -29,7 +30,7 @@ func liveMenuFixture(t *testing.T) *consoleFixture {
 			LastActiveAt: time.Now(),
 		}}, nil
 	})
-	waitUpTo(t, 250*time.Millisecond, "live menu inventory", func() bool {
+	waitFor(t, "live menu inventory", func() bool {
 		return f.con.menuSnapshot().InventoryReady && len(f.con.menuSnapshot().Inventory) == 1
 	})
 	return f
@@ -39,7 +40,7 @@ func TestConsoleRunHierarchicalMenuControls(t *testing.T) {
 	f := liveMenuFixture(t)
 	f.host.Reset()
 	_, _ = f.stdin.Write([]byte{0})
-	waitUpTo(t, 250*time.Millisecond, "hierarchical root menu", func() bool {
+	waitFor(t, "hierarchical root menu", func() bool {
 		written := f.host.Written()
 		return strings.Contains(written, "threads") && strings.Contains(written, "root")
 	})
@@ -49,7 +50,7 @@ func TestConsoleRunHierarchicalMenuControls(t *testing.T) {
 
 	f.host.Reset()
 	_, _ = f.stdin.Write([]byte{'\t'})
-	waitUpTo(t, 250*time.Millisecond, "thread action frame", func() bool {
+	waitFor(t, "thread action frame", func() bool {
 		screen := f.screenText()
 		return strings.Contains(screen, "threads › root › actions") && strings.Contains(screen, "switch coding agent")
 	})
@@ -61,7 +62,7 @@ func TestConsoleRunHierarchicalMenuControls(t *testing.T) {
 	_, _ = f.stdin.Write([]byte("\x1b"))
 	waitFor(t, "back to root", func() bool { return f.con.menuSnapshot().CurrentFrame().Kind == MenuFrameRoot })
 	_, _ = f.stdin.Write([]byte{0})
-	waitUpTo(t, 250*time.Millisecond, "start form", func() bool {
+	waitFor(t, "start form", func() bool {
 		return strings.Contains(f.screenText(), "start thread") && strings.Contains(f.screenText(), "path")
 	})
 	// The panel only: the status row's tab legitimately names the thread.
@@ -74,13 +75,13 @@ func TestConsoleRunHierarchicalMenuControls(t *testing.T) {
 func TestConsoleRunStartPathOwnsCursorOnHighlightedPathRow(t *testing.T) {
 	f := liveMenuFixture(t)
 	_, _ = f.stdin.Write([]byte{0})
-	waitUpTo(t, 250*time.Millisecond, "hierarchical root menu", func() bool {
+	waitFor(t, "hierarchical root menu", func() bool {
 		return strings.Contains(f.host.Written(), "threads")
 	})
 
 	f.host.Reset()
 	_, _ = f.stdin.Write([]byte{0})
-	waitUpTo(t, 250*time.Millisecond, "start path cursor", func() bool {
+	waitFor(t, "start path cursor", func() bool {
 		f.screen.mu.Lock()
 		defer f.screen.mu.Unlock()
 		pos := f.screen.em.CursorPosition()
@@ -105,16 +106,16 @@ func TestConsoleRunStartPathCompletionNavigatesFakeFilesystem(t *testing.T) {
 	close(reader.release)
 
 	_, _ = f.stdin.Write([]byte{0})
-	waitUpTo(t, 250*time.Millisecond, "root menu", func() bool {
+	waitFor(t, "root menu", func() bool {
 		return strings.Contains(f.screenText(), "threads")
 	})
 	_, _ = f.stdin.Write([]byte{0})
-	waitUpTo(t, 250*time.Millisecond, "start form", func() bool {
+	waitFor(t, "start form", func() bool {
 		return strings.Contains(f.screenText(), "start thread")
 	})
 	f.host.Reset()
 	_, _ = f.stdin.Write([]byte("s\t"))
-	waitUpTo(t, 250*time.Millisecond, "directory candidates", func() bool {
+	waitFor(t, "directory candidates", func() bool {
 		screen := f.screenText()
 		return strings.Contains(screen, "sample/") && strings.Contains(screen, "src/") && !strings.Contains(screen, "notes.txt")
 	})
@@ -127,7 +128,7 @@ func TestConsoleRunStartPathCompletionNavigatesFakeFilesystem(t *testing.T) {
 		t.Fatal("completion did not reach filesystem seam")
 	}
 	_, _ = f.stdin.Write([]byte("\t\r"))
-	waitUpTo(t, 250*time.Millisecond, "accepted cycled candidate", func() bool {
+	waitFor(t, "accepted cycled candidate", func() bool {
 		return f.con.menuSnapshot().CurrentFrame().Path == "src/"
 	})
 }
@@ -135,7 +136,7 @@ func TestConsoleRunStartPathCompletionNavigatesFakeFilesystem(t *testing.T) {
 func TestConsoleRunMenuOwnsInputAndBackgroundPainting(t *testing.T) {
 	f := liveMenuFixture(t)
 	_, _ = f.stdin.Write([]byte{0})
-	waitUpTo(t, 250*time.Millisecond, "root menu", func() bool {
+	waitFor(t, "root menu", func() bool {
 		return strings.Contains(f.screenText(), "threads")
 	})
 	f.host.Reset()
@@ -154,7 +155,7 @@ func TestConsoleRunMenuOwnsInputAndBackgroundPainting(t *testing.T) {
 	// asserts stays hidden. The subject here is ownership and painting, not
 	// mouse, so the target moves rather than the assertion.
 	_, _ = f.stdin.Write([]byte("\x1b[<0;12;1M\x1b[<0;13;1Mz"))
-	waitUpTo(t, 250*time.Millisecond, "local filter input", func() bool {
+	waitFor(t, "local filter input", func() bool {
 		return f.con.menuSnapshot().CurrentFrame().Filter == "z"
 	})
 	if strings.Contains(f.host.Written(), "background output must stay hidden") {
@@ -168,13 +169,13 @@ func TestConsoleRunMenuOwnsInputAndBackgroundPainting(t *testing.T) {
 func TestConsoleRunRootEscapeClearsFilterThenReplaysActor(t *testing.T) {
 	f := liveMenuFixture(t)
 	_, _ = f.stdin.Write([]byte{0})
-	waitUpTo(t, 250*time.Millisecond, "root menu", func() bool {
+	waitFor(t, "root menu", func() bool {
 		return strings.Contains(f.screenText(), "threads")
 	})
 	_, _ = f.stdin.Write([]byte("zz"))
 	waitFor(t, "root filter text", func() bool { return f.con.menuSnapshot().CurrentFrame().Filter == "zz" })
 	_, _ = f.stdin.Write([]byte("\x1b"))
-	waitUpTo(t, 250*time.Millisecond, "root filter clear", func() bool {
+	waitFor(t, "root filter clear", func() bool {
 		state := f.con.menuSnapshot()
 		f.con.mu.Lock()
 		focus := f.con.focus
@@ -185,7 +186,7 @@ func TestConsoleRunRootEscapeClearsFilterThenReplaysActor(t *testing.T) {
 	f.host.Reset()
 	f.child.Feed([]byte("progress while switcher was open"))
 	_, _ = f.stdin.Write([]byte("\x1b"))
-	waitUpTo(t, 250*time.Millisecond, "actor replay", func() bool {
+	waitFor(t, "actor replay", func() bool {
 		f.con.mu.Lock()
 		focus := f.con.focus
 		f.con.mu.Unlock()
@@ -208,18 +209,18 @@ func lastConsoleScreen(written string) string {
 func TestConsoleRunHorizontalArrowsNavigateSingleSurfaceHierarchy(t *testing.T) {
 	f := liveMenuFixture(t)
 	_, _ = f.stdin.Write([]byte{0})
-	waitUpTo(t, 250*time.Millisecond, "thread root", func() bool {
+	waitFor(t, "thread root", func() bool {
 		return strings.Contains(f.host.Written(), "threads")
 	})
 
 	f.host.Reset()
 	_, _ = f.stdin.Write([]byte("\x1b[C"))
-	waitUpTo(t, 250*time.Millisecond, "Right to actions", func() bool {
+	waitFor(t, "Right to actions", func() bool {
 		return strings.Contains(f.screenText(), "threads › root › actions")
 	})
 	f.host.Reset()
 	_, _ = f.stdin.Write([]byte("\x1b[D"))
-	waitUpTo(t, 250*time.Millisecond, "Left to root", func() bool {
+	waitFor(t, "Left to root", func() bool {
 		return strings.Contains(f.screenText(), "root") && !strings.Contains(f.screenText(), "actions")
 	})
 
@@ -227,7 +228,7 @@ func TestConsoleRunHorizontalArrowsNavigateSingleSurfaceHierarchy(t *testing.T) 
 	// The action list is detach, relaunch, park, … so park is two Downs from
 	// the top before descending into its confirmation.
 	_, _ = f.stdin.Write([]byte("\x1bOC\x1b[B\x1b[B\x1bOC"))
-	waitUpTo(t, 250*time.Millisecond, "SS3 Right to park confirmation", func() bool {
+	waitFor(t, "SS3 Right to park confirmation", func() bool {
 		return strings.Contains(f.screenText(), "threads › root › park") && strings.Contains(f.screenText(), "cancel")
 	})
 }
@@ -239,7 +240,7 @@ func TestConsoleRunMenuAltXOnThePanelOpensLeaveConfirmation(t *testing.T) {
 	f := liveMenuFixture(t)
 	f.host.Reset()
 	_, _ = f.stdin.Write([]byte("\x00\x1bx"))
-	waitUpTo(t, 250*time.Millisecond, "leave confirmation", func() bool {
+	waitFor(t, "leave confirmation", func() bool {
 		screen := f.screenText()
 		return strings.Contains(screen, "threads › leave couch") && strings.Contains(screen, "cancel") &&
 			// The destructive whole-couch action names its cost where the
@@ -271,12 +272,12 @@ func TestConsoleRunConfirmedLeaveCarriesItsDispositionAndExits(t *testing.T) {
 	_, _ = f.stdin.Write([]byte("\x00\x1bx\x1b[B\r"))
 	select {
 	case <-called:
-	case <-time.After(250 * time.Millisecond):
+	case <-testwait.After(t):
 		t.Fatal("confirmed leave was not dispatched")
 	}
 	select {
 	case <-f.done:
-	case <-time.After(250 * time.Millisecond):
+	case <-testwait.After(t):
 		t.Fatal("successful leave did not exit Console.Run")
 	}
 }
@@ -291,7 +292,7 @@ func TestConsoleRunPaintsAndAnimatesProgressWhileOperationBlocks(t *testing.T) {
 	})
 
 	_, _ = f.stdin.Write([]byte{0})
-	waitUpTo(t, 250*time.Millisecond, "root menu", func() bool {
+	waitFor(t, "root menu", func() bool {
 		return strings.Contains(f.screenText(), "threads")
 	})
 	f.host.Reset()
@@ -301,16 +302,16 @@ func TestConsoleRunPaintsAndAnimatesProgressWhileOperationBlocks(t *testing.T) {
 		if !strings.Contains(screen, "◐ parking root…") {
 			t.Fatalf("dispatcher started before phase-zero progress paint: %q", screen)
 		}
-	case <-time.After(250 * time.Millisecond):
+	case <-testwait.After(t):
 		t.Fatal("park operation did not start")
 	}
-	waitUpTo(t, 500*time.Millisecond, "animated operation progress", func() bool {
+	waitFor(t, "animated operation progress", func() bool {
 		screen := f.screenText()
 		return strings.Contains(screen, "◓ parking root…") || strings.Contains(screen, "◑ parking root…") || strings.Contains(screen, "◒ parking root…")
 	})
 
 	_, _ = f.stdin.Write([]byte("x"))
-	waitUpTo(t, 250*time.Millisecond, "responsive navigation during operation", func() bool {
+	waitFor(t, "responsive navigation during operation", func() bool {
 		screen := f.screenText()
 		return strings.Contains(screen, "filter: x") && strings.Contains(screen, "parking root…")
 	})
@@ -340,7 +341,7 @@ func twoThreadMenuFixture(t *testing.T) (*consoleFixture, couchcore.ThreadAddres
 			{Address: two, WorkingPath: "/repo/two", Name: "two", State: couchcore.ThreadLive, LastActiveAt: time.Now()},
 		}, nil
 	})
-	waitUpTo(t, 250*time.Millisecond, "two-thread inventory", func() bool {
+	waitFor(t, "two-thread inventory", func() bool {
 		return f.con.menuSnapshot().InventoryReady && len(f.con.menuSnapshot().Inventory) == 2
 	})
 	return f, one, two
@@ -365,11 +366,11 @@ func TestConsoleRunNotificationHopThenPreviousReturnsHome(t *testing.T) {
 
 	// ctrl-space opens the switcher focused on the paged actor; Return switches.
 	_, _ = f.stdin.Write([]byte("\x00"))
-	waitUpTo(t, 250*time.Millisecond, "switcher focused on the paged actor", func() bool {
+	waitFor(t, "switcher focused on the paged actor", func() bool {
 		return f.con.menuSnapshot().CurrentFrame().SelectedAddress == two
 	})
 	_, _ = f.stdin.Write([]byte("\r"))
-	waitUpTo(t, time.Second, "the notification hop to land", func() bool {
+	waitFor(t, "the notification hop to land", func() bool {
 		f.con.mu.Lock()
 		defer f.con.mu.Unlock()
 		return f.con.active == "c2"
@@ -378,7 +379,7 @@ func TestConsoleRunNotificationHopThenPreviousReturnsHome(t *testing.T) {
 	// ctrl+backspace must return to one -- which only holds if the arrival was
 	// derived as a notification hop, so it never became `previous`.
 	_, _ = f.stdin.Write([]byte("\x08"))
-	waitUpTo(t, time.Second, "ctrl+backspace to return home", func() bool {
+	waitFor(t, "ctrl+backspace to return home", func() bool {
 		f.con.mu.Lock()
 		defer f.con.mu.Unlock()
 		return f.con.active == "c1"
@@ -408,7 +409,7 @@ func TestConsoleRunOrdinarySwitchAdvancesPrevious(t *testing.T) {
 	// on the thread being left, and Enter selected c1. Failed 2-3 runs in 10
 	// under -race. Panel focus happens only in onHotkey, so it is the signal
 	// that the chord actually landed.
-	waitUpTo(t, 250*time.Millisecond, "ctrl-space to open the switcher", func() bool {
+	waitFor(t, "ctrl-space to open the switcher", func() bool {
 		f.con.mu.Lock()
 		defer f.con.mu.Unlock()
 		return f.con.focus.IsPanel()
@@ -417,7 +418,7 @@ func TestConsoleRunOrdinarySwitchAdvancesPrevious(t *testing.T) {
 	f.con.menu.Frames[0].SelectedAddress = two
 	f.con.mu.Unlock()
 	_, _ = f.stdin.Write([]byte("\r"))
-	waitUpTo(t, time.Second, "the ordinary switch to land", func() bool {
+	waitFor(t, "the ordinary switch to land", func() bool {
 		f.con.mu.Lock()
 		defer f.con.mu.Unlock()
 		return f.con.active == "c2"
@@ -466,7 +467,7 @@ func TestConsoleRunAltDOnThePanelDetachesEveryThreadAndLeaves(t *testing.T) {
 		return nil, nil
 	})
 	_, _ = f.stdin.Write([]byte("\x00"))
-	waitUpTo(t, 250*time.Millisecond, "the switcher", func() bool {
+	waitFor(t, "the switcher", func() bool {
 		return strings.Contains(f.host.Written(), "threads")
 	})
 
@@ -478,7 +479,7 @@ func TestConsoleRunAltDOnThePanelDetachesEveryThreadAndLeaves(t *testing.T) {
 		if len(args) != 1 || args["mode"] != string(couchcore.LeaveDetach) {
 			t.Fatalf("leave args = %+v, want only mode=detach", args)
 		}
-	case <-time.After(500 * time.Millisecond):
+	case <-testwait.After(t):
 		t.Fatalf("alt+d in the switcher dispatched nothing; screen: %q", f.screenText())
 	}
 	if screen := f.screenText(); strings.Contains(screen, "cancel") {
@@ -486,7 +487,7 @@ func TestConsoleRunAltDOnThePanelDetachesEveryThreadAndLeaves(t *testing.T) {
 	}
 	select {
 	case <-f.done:
-	case <-time.After(500 * time.Millisecond):
+	case <-testwait.After(t):
 		t.Fatal("leave did not exit Console.Run")
 	}
 }
@@ -515,18 +516,18 @@ func TestConsoleRunLeavesFromASwitcherWithNothingLive(t *testing.T) {
 			Address: address, WorkingPath: "/root", State: state, LastActiveAt: time.Now(),
 		}}, nil
 	})
-	waitUpTo(t, 250*time.Millisecond, "live inventory", func() bool {
+	waitFor(t, "live inventory", func() bool {
 		return f.con.menuSnapshot().InventoryReady && len(f.con.menuSnapshot().Inventory) == 1
 	})
 
 	// Open the switcher, then lose the last live actor behind it.
 	_, _ = f.stdin.Write([]byte{0})
-	waitUpTo(t, 250*time.Millisecond, "the switcher", func() bool {
+	waitFor(t, "the switcher", func() bool {
 		return strings.Contains(f.screenText(), "threads")
 	})
 	live.Store(false)
 	f.child.Exit(0)
-	waitUpTo(t, 500*time.Millisecond, "the detached row", func() bool {
+	waitFor(t, "the detached row", func() bool {
 		snapshot := f.con.menuSnapshot()
 		return len(snapshot.Inventory) == 1 && !snapshot.Inventory[0].Live()
 	})
@@ -547,12 +548,12 @@ func TestConsoleRunLeavesFromASwitcherWithNothingLive(t *testing.T) {
 		if name != "leave" {
 			t.Fatalf("alt+d in an empty switcher dispatched %q, want leave", name)
 		}
-	case <-time.After(500 * time.Millisecond):
+	case <-testwait.After(t):
 		t.Fatalf("alt+d in an empty switcher dispatched nothing; screen: %q", f.screenText())
 	}
 	select {
 	case <-f.done:
-	case <-time.After(500 * time.Millisecond):
+	case <-testwait.After(t):
 		t.Fatal("leave did not exit Console.Run")
 	}
 }
@@ -580,10 +581,10 @@ func TestConsoleRunMenuDetachOnTheLastActorStaysInTheSwitcher(t *testing.T) {
 		if name != "detach" {
 			t.Fatalf("alt+d dispatched %q, want detach", name)
 		}
-	case <-time.After(500 * time.Millisecond):
+	case <-testwait.After(t):
 		t.Fatal("alt+d dispatched nothing")
 	}
-	waitUpTo(t, 500*time.Millisecond, "the switcher", func() bool {
+	waitFor(t, "the switcher", func() bool {
 		f.con.mu.Lock()
 		defer f.con.mu.Unlock()
 		return f.con.focus.IsPanel()

@@ -11,6 +11,8 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
 	castassets "github.com/xianxu/pair/cmd/internal/webcast/assets"
+	"github.com/xianxu/pair/cmd/internal/webcast/board"
+	"github.com/xianxu/pair/cmd/internal/webcast/notes"
 	"github.com/xianxu/pair/cmd/internal/webcast/recorder"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
@@ -31,6 +33,11 @@ type CastConfig struct {
 	// NewAssets makes a recording's asset store (#459), persisting bodies
 	// through the recording's DirWriter; nil records no assets.
 	NewAssets func(recording.AssetWriter) castassets.Served
+	// Check, when set, runs once a recorded cast has ended, if its
+	// recording has frames: the fidelity check (#478; couchcmd wires
+	// CheckFidelity). It runs in the background, after the cast is done;
+	// its summary, or its error, goes to Logf.
+	Check func(ctx context.Context, dir string) (summary string, err error)
 	// Logf reports a recording's problems to the operator: one that can't
 	// be opened or written, a resync, and at its end what it lost.
 	Logf func(format string, args ...any)
@@ -61,6 +68,15 @@ type Cast struct {
 	// recording ends, and the cast does when the browser has (a cast never
 	// live). Closing twice is a no-op.
 	liveSink recording.Sink
+	// board takes viewers' strokes and notes (#470); nil when the cast
+	// isn't recorded. The recorder closes it with the recording (it is one
+	// of the recording's sinks), the cast when the browser has ended.
+	board *board.Board
+	// recDir is the recording's directory ("" when not recording); check
+	// and logf run the fidelity check on it once the cast has ended.
+	recDir string
+	check  func(context.Context, string) (string, error)
+	logf   func(string, ...any)
 	// server and token: for tests.
 	server *Server
 	token  string
@@ -72,6 +88,9 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 	var live recording.Live
 	var liveSink recording.Sink
 	var ro *RecordOptions
+	var bd *board.Board
+	var b Browser // set once launched; the board's requests come after
+	var recDir string
 	// The cast's asset proxy exists before Chrome does: the recording (and
 	// its store, bound here) can open at a go-live before the Server is up.
 	proxy := castassets.NewProxy()
@@ -79,11 +98,24 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 		if cfg.NewLive != nil {
 			liveSink, live = cfg.NewLive()
 		}
+		// Viewers' strokes and notes go into the recorder's queue and the
+		// board follows the recording, so it sees what viewers see.
+		bd = board.New(notes.Structural{}, func(r recording.Record, doc int) error {
+			if e, ok := b.(Emitter); ok {
+				return e.Emit(r, doc)
+			}
+			return ErrNotRecording
+		})
+		bd.Logf = cfg.Logf
 		id := recordingID(time.Now())
-		ro = &RecordOptions{ID: id, Out: recordingOutput(cfg, liveSink, id, proxy), Logf: cfg.Logf}
+		recDir = filepath.Join(cfg.RecordingsDir, id)
+		ro = &RecordOptions{ID: id, Out: recordingOutput(cfg, liveSink, bd, id, proxy), Logf: cfg.Logf}
 	}
 	b, err := cfg.Launch(ctx, ro)
 	if err != nil {
+		if bd != nil {
+			bd.Close()
+		}
 		if liveSink != nil {
 			liveSink.Close()
 		}
@@ -92,11 +124,15 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 	token, err := broadcast.NewToken()
 	if err != nil {
 		b.Close()
+		if bd != nil {
+			bd.Close()
+		}
 		return nil, err
 	}
 	mountCtx, cancel := context.WithCancel(context.Background())
-	c := &Cast{browser: b, pub: newPublisher(Update{State: b.State()}), cancel: cancel, done: make(chan struct{}), liveSink: liveSink}
-	srv := NewServer(token, b, cfg.Ping, live, cfg.Presence)
+	c := &Cast{browser: b, pub: newPublisher(Update{State: b.State()}), cancel: cancel, done: make(chan struct{}), liveSink: liveSink,
+		board: bd, recDir: recDir, check: cfg.Check, logf: cfg.Logf}
+	srv := NewServer(token, b, cfg.Ping, live, cfg.Presence).WithBoard(bd)
 	srv.proxy = proxy
 	c.server, c.token = srv, token
 	go c.run(mountCtx, cfg.Host, srv, token)
@@ -111,9 +147,9 @@ func recordingID(at time.Time) string {
 }
 
 // recordingOutput opens a recording at the first go-live: a DirWriter at
-// <dir>/<id>, teed into the viewers' fan-out when there is one. The
-// recorder closes both when the recording ends.
-func recordingOutput(cfg CastConfig, live recording.Sink, id string, proxy *castassets.Proxy) recorder.Output {
+// <dir>/<id>, teed into the viewers' fan-out when there is one and the
+// board (#470). The recorder closes them all when the recording ends.
+func recordingOutput(cfg CastConfig, live recording.Sink, bd *board.Board, id string, proxy *castassets.Proxy) recorder.Output {
 	return func() (recorder.Opened, error) {
 		if err := os.MkdirAll(cfg.RecordingsDir, 0o700); err != nil {
 			return recorder.Opened{}, fmt.Errorf("webcast: recordings dir: %w", err)
@@ -123,8 +159,17 @@ func recordingOutput(cfg CastConfig, live recording.Sink, id string, proxy *cast
 			return recorder.Opened{}, fmt.Errorf("webcast: recording: %w", err)
 		}
 		o := recorder.Opened{Sink: w, Frames: w}
+		// The board before the viewers' fan-out: a viewer acts on what it
+		// was shown, which the board must already know.
+		sinks := []recording.Sink{w}
+		if bd != nil {
+			sinks = append(sinks, bd)
+		}
 		if live != nil {
-			o.Sink = recording.Tee(w, live)
+			sinks = append(sinks, live)
+		}
+		if len(sinks) > 1 {
+			o.Sink = recording.Tee(sinks...)
 		}
 		if cfg.NewAssets != nil {
 			store := cfg.NewAssets(w)
@@ -181,6 +226,9 @@ func (c *Cast) run(ctx context.Context, host *broadcast.Host, srv *Server, token
 	if c.liveSink != nil {
 		c.liveSink.Close()
 	}
+	if c.board != nil {
+		c.board.Close()
+	}
 	if mounted != nil {
 		if r := <-mounted; r.m != nil {
 			mount = r.m
@@ -190,6 +238,52 @@ func (c *Cast) run(ctx context.Context, host *broadcast.Host, srv *Server, token
 		mount.Unmount()
 	}
 	c.pub.finish(Update{State: c.browser.State()})
+	c.checkRecording()
+}
+
+// checkRecording starts the fidelity check on the cast's recording, if it
+// has frames to check: the recorder closed it before the browser ended.
+func (c *Cast) checkRecording() {
+	if c.check == nil || c.recDir == "" {
+		return
+	}
+	if _, err := os.Stat(filepath.Join(c.recDir, recording.FileFrames)); err != nil {
+		return // never live, or no frame kept
+	}
+	logf := c.logf
+	if logf == nil {
+		logf = func(string, ...any) {}
+	}
+	go func() {
+		summary, err := c.check(context.Background(), c.recDir)
+		switch {
+		case err != nil:
+			logf("fidelity check: %v", err)
+		case summary != "":
+			logf("%s", summary)
+		}
+	}()
+}
+
+// Notes delivers the open notes viewers left on the current page (#470),
+// whenever they change, for Couch's 💭N. A cast that isn't recorded has
+// none: its channel holds one empty value and closes.
+func (c *Cast) Notes() (<-chan []board.LiveNote, func()) {
+	if c.board == nil {
+		ch := make(chan []board.LiveNote, 1)
+		ch <- nil
+		close(ch)
+		return ch, func() {}
+	}
+	return c.board.Subscribe()
+}
+
+// ResolveNote resolves a note as the operator.
+func (c *Cast) ResolveNote(id string) error {
+	if c.board == nil {
+		return board.ErrUnknown
+	}
+	return c.board.SetState(board.StateIn{Viewer: board.Viewer{ID: board.Operator}, ID: id, State: recording.NoteResolved})
 }
 
 // Current is the latest Update.

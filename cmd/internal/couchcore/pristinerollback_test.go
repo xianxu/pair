@@ -5,7 +5,8 @@ import (
 	"errors"
 	"io"
 	"testing"
-	"time"
+
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // AllocateThreadTag claims the Pair artifact AND persists a pristine
@@ -167,7 +168,7 @@ func TestRepoIdentityResolutionIsBoundedEvenWithAnUncancelledContext(t *testing.
 		if err == nil {
 			t.Fatal("a git that never answers returned a repository identity")
 		}
-	case <-time.After(repoIdentityTimeout + 2*time.Second):
+	case <-testwait.After(t):
 		t.Fatal("identity resolution never returned: the seam carries a context but sets no deadline, " +
 			"so a hung git hangs the start form and a CLI launch forever")
 	}

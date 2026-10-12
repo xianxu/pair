@@ -8,6 +8,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestProvisionProcessExitAndOutput(t *testing.T) {
@@ -44,13 +46,13 @@ func TestProvisionProcessOutputLimits(t *testing.T) {
 func TestProvisionProcessCancellation(t *testing.T) {
 	t.Parallel()
 
-	start := time.Now()
-	_, err := (OSProvisionIO{}).Run(context.Background(), ProvisionCommand{Program: "sh", Args: []string{"-c", "trap '' TERM; sleep 30 & wait"}, Timeout: 100 * time.Millisecond})
+	// A TERM-deaf child that would outlive the test: Run returning at all is
+	// the bounded stop. Two bounds stand behind it, the group SIGKILL and
+	// WaitDelay; only losing both hangs into the binary timeout. The error
+	// names the deadline that ended it, with no stopwatch (#479).
+	_, err := (OSProvisionIO{}).Run(context.Background(), ProvisionCommand{Program: "sh", Args: []string{"-c", "trap '' TERM; sleep 3600 & wait"}, Timeout: 100 * time.Millisecond})
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("error=%v", err)
-	}
-	if time.Since(start) > 5*time.Second {
-		t.Fatal("cancellation exceeded bounded stop")
 	}
 }
 
@@ -93,7 +95,7 @@ func TestProvisionProcessInheritedLeaseCancellation(t *testing.T) {
 	}()
 	select {
 	case <-progress.ready:
-	case <-time.After(5 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("child failed to start")
 	}
 	lease.Close()
@@ -109,7 +111,7 @@ func TestProvisionProcessInheritedLeaseCancellation(t *testing.T) {
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("error=%v", err)
 		}
-	case <-time.After(5 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("child failed to stop")
 	}
 	next, err := AcquireHostCreationLease(root)

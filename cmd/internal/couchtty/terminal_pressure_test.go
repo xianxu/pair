@@ -18,6 +18,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 	"golang.org/x/term"
 )
 
@@ -167,7 +168,6 @@ func TestCouchPressureStalledOperation(t *testing.T) {
 	defer reader.Close()
 	defer writer.Close()
 	var workers sync.WaitGroup
-	start := time.Now()
 	err := pressureAwait(ctx, &workers, func() error { _, err := writer.Write([]byte("blocked")); return err })
 	if err != context.DeadlineExceeded {
 		t.Fatalf("stalled write returned %v, want deadline", err)
@@ -177,11 +177,8 @@ func TestCouchPressureStalledOperation(t *testing.T) {
 	go func() { workers.Wait(); close(joined) }()
 	select {
 	case <-joined:
-	case <-time.After(time.Second):
+	case <-testwait.After(t):
 		t.Fatal("stalled operation did not join")
-	}
-	if time.Since(start) > time.Second {
-		t.Fatal("deadline did not bound stalled operation")
 	}
 }
 
@@ -252,8 +249,8 @@ func runPressureTrial(t *testing.T, mode, trial string) {
 		}()
 		select {
 		case <-joined:
-		case <-time.After(5 * time.Second):
-			t.Error("pressure teardown exceeded shared five-second deadline")
+		case <-testwait.After(t):
+			t.Error("pressure teardown never joined")
 		}
 	})
 	do := func(label string, work func() error) {

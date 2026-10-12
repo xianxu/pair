@@ -183,8 +183,10 @@ Couch-launched Codex disables shell snapshots for that process so tool shells
 inherit the current slot environment instead of restoring an older slot's
 identity. The override is not persisted into saved agent arguments.
 
-`couch --actors`, `--send-to repo[:N]|hub [--agent NAME] --message TEXT` and `--message-status ID`
+`couch --actors`, `--send-to repo[:N]|hub [--agent NAME] --message TEXT|--message-file PATH` and `--message-status ID`
 use bounded Unix stream RPC, without constructing another mutable supervisor.
+`--message-file` (pair#486) reads the body from a file at send time, so an agent writes a message
+containing shell syntax with its editor and the call stays a bare `couch …` its sandbox exempts.
 `--actors` and `--message-status` support JSON. One pending delivery per actor,
 the inbound breaker, and bounded receipt retention limit the runtime. Family selection requires fresh resting
 branch and quiet-wrapper observations; exact sends allow occupied-slot
@@ -2626,9 +2628,13 @@ enumerated.
 The property that matters: each seam has a fake, and the fakes that model
 *behaviour* rather than data are compared against the real thing by
 `conformance_live_test.go`. `PAIR_LIVE_COUCH=1` checks process/git/pty behavior.
-Wall-clock budgets (`TestAcceptanceObserveBudget`, `TestAcceptanceReportBudgetTenSlots`)
-run their scenarios in the default lane but assert the clock only under
-`make test-perf-budgets` (`PAIR_PERF_BUDGETS=1`) on a quiet host (pair#436). Most
+**Wall-clock budgets (pair#436, pair#481).** A default-lane test asserts its outcome, not a time. "Doesn't block" or
+"doesn't wait" is a hang guard around the work while its dependency is held, and a cost that can be counted is
+counted (an operation count, as the broadcast marks' stroke walk does). A real budget stays only where speed is the
+test's subject. It goes through `perfbudget.Check` (`cmd/internal/perfbudget`), which logs every run and fails only
+under `PAIR_PERF_BUDGETS=1`. `make test-perf-budgets` runs each such test on its own on a quiet host, and its recipe
+is the list of them (couchcore's observe and ten-slot report budgets, and wrapcmd's terminal tail): add a new budget
+there, not here. Most
 couchcore tests are `t.Parallel()`; ones that set process env, chdir, mutate a
 package global, signal real processes or measure wall time stay serial. Its `TestMain` defaults
 `-test.parallel` to 3x GOMAXPROCS (the tests mostly wait on subprocesses); an explicit flag wins.

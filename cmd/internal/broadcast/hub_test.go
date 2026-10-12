@@ -280,17 +280,24 @@ func TestHubSlowViewerResyncs(t *testing.T) {
 func TestHubOfferNeverBlocks(t *testing.T) {
 	h, _ := testHub(t, HubOptions{})
 	release := make(chan struct{})
+	defer close(release) // the loop resumes when the test ends, pass or fail
 	stalled := make(chan struct{})
 	go h.do(func() { close(stalled); <-release })
 	<-stalled
 	f := live(t, "x")
-	start := time.Now()
-	for range 10000 {
-		h.Offer(f, terminal.FramePublic)
-	}
-	close(release)
-	if d := time.Since(start); d > time.Second {
-		t.Fatalf("10k offers against a stalled hub took %v", d)
+	// The loop stays stalled until every offer has returned: finishing at
+	// all is the outcome. The guard bounds a hang, not a time (pair#481).
+	offered := make(chan struct{})
+	go func() {
+		for range 10000 {
+			h.Offer(f, terminal.FramePublic)
+		}
+		close(offered)
+	}()
+	select {
+	case <-offered:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Offer blocked on a stalled hub")
 	}
 }
 

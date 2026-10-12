@@ -323,8 +323,13 @@ type proxy struct {
 	// its deadline is reset by every output chunk, while the watchdog/grace
 	// deadlines are set only by reducer transitions. Arming is still owned by
 	// lifecycle state — see syncIdleTimer.
-	idleTimer            *time.Timer
-	idleTimerToken       uint64
+	idleTimer      loopTimer
+	idleTimerToken uint64
+	// newIdleTimer makes the floor's timer, stopped; nil is the wall clock.
+	// Tests inject a manual one so expiry is an event they cause (#480).
+	newIdleTimer func() loopTimer
+	// newStdinFlushTimer is the same seam for the held-ESC flush.
+	newStdinFlushTimer   func() loopTimer
 	codexWorkingRendered bool
 	lifecycleJournalPath string
 	lifecycleJournal     lifecycleJournalAdvancer
@@ -1550,19 +1555,14 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 
 	// Timer for flushing pending. Starts in a stopped+drained state so
 	// the select can wait on it without an immediate spurious fire.
-	flushTimer := time.NewTimer(time.Hour)
-	if !flushTimer.Stop() {
-		<-flushTimer.C
+	var flushTimer loopTimer = stoppedWallTimer()
+	if p.newStdinFlushTimer != nil {
+		flushTimer = p.newStdinFlushTimer()
 	}
 	timerArmed := false
 	armTimer := func() {
 		if timerArmed {
-			if !flushTimer.Stop() {
-				select {
-				case <-flushTimer.C:
-				default:
-				}
-			}
+			drainStop(flushTimer)
 		}
 		flushTimer.Reset(flushAfter)
 		timerArmed = true
@@ -1571,12 +1571,7 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 		if !timerArmed {
 			return
 		}
-		if !flushTimer.Stop() {
-			select {
-			case <-flushTimer.C:
-			default:
-			}
-		}
+		drainStop(flushTimer)
 		timerArmed = false
 	}
 
@@ -1659,7 +1654,7 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 			continue
 		case <-held.timerC():
 			continue
-		case <-flushTimer.C:
+		case <-flushTimer.Expired():
 			p.cancelIncompleteOrientationReply(out, settleTimer)
 			if p.peer != nil {
 				p.peer.flushPartialInput()
@@ -3162,9 +3157,9 @@ func (p *proxy) masterPump() {
 	// The idle floor's timer is owned by the main goroutine. It starts stopped
 	// and is armed by syncIdleTimer from lifecycle state — no turn is open at
 	// startup, so there is nothing to put a floor under yet (#171).
-	idleTimer := time.NewTimer(time.Hour)
-	if !idleTimer.Stop() {
-		<-idleTimer.C
+	var idleTimer loopTimer = stoppedWallTimer()
+	if p.newIdleTimer != nil {
+		idleTimer = p.newIdleTimer()
 	}
 	p.idleTimer = idleTimer
 	defer func() {
@@ -3285,7 +3280,7 @@ func (p *proxy) masterPump() {
 			// Output — and only output — pushes the floor's deadline out; the
 			// alert it emits claims byte-silence.
 			p.bumpIdleDeadline()
-		case <-idleTimer.C:
+		case <-idleTimer.Expired():
 			// p.idleTimerToken is read HERE, before applyIdleExpiry's drain can
 			// advance it onto a newly opened turn (BR-2).
 			p.applyIdleExpiry(p.idleTimerToken)

@@ -1,0 +1,580 @@
+{
+ "about": "The catch-up rule's shared corpus (#471): every branch of recording.CatchUp, and Go's answer at every cut (kept[i-1] are the indexes CatchUp keeps of records[0..i]). Regenerate kept with: go test ./cmd/internal/webcast -run CatchUpCorpus -update-catchup",
+ "records": [
+  {
+   "t": 0,
+   "k": "head",
+   "format": "couch-webcast",
+   "v": 1,
+   "id": "syn",
+   "started": "s"
+  },
+  {
+   "t": 0,
+   "k": "seg",
+   "seg": 1,
+   "why": "live",
+   "tab": {
+    "id": "t",
+    "url": "http://x/"
+   },
+   "vp": {
+    "w": 800,
+    "h": 600,
+    "dpr": 1
+   }
+  },
+  {
+   "t": 0,
+   "k": "doc",
+   "doc": 10,
+   "url": "http://x/",
+   "tree": {
+    "id": 10,
+    "y": "doc",
+    "c": [
+     {
+      "id": 11,
+      "y": "el",
+      "n": "html",
+      "c": [
+       {
+        "id": 12,
+        "y": "el",
+        "n": "body",
+        "c": [
+         {
+          "id": 13,
+          "y": "el",
+          "n": "img",
+          "a": {
+           "src": "pic.png"
+          }
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "t": 5,
+   "k": "asset",
+   "url": "http://x/pic.png",
+   "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "mime": "image/png",
+   "size": 1
+  },
+  {
+   "t": 5,
+   "k": "hover",
+   "id": 13
+  },
+  {
+   "t": 5,
+   "k": "ptr",
+   "x": 1,
+   "y": 2
+  },
+  {
+   "t": 6,
+   "k": "note",
+   "id": "n1",
+   "author": {
+    "id": "v1",
+    "name": "Ana"
+   },
+   "text": "old",
+   "at": {
+    "node": 13
+   }
+  },
+  {
+   "t": 7,
+   "k": "note-state",
+   "id": "n1",
+   "state": "resolved"
+  },
+  {
+   "t": 8,
+   "k": "ctl",
+   "op": "request",
+   "who": {
+    "id": "v1",
+    "name": "Ana"
+   },
+   "pending": [
+    {
+     "id": "v1",
+     "name": "Ana"
+    }
+   ]
+  },
+  {
+   "t": 9,
+   "k": "ctl",
+   "op": "grant",
+   "who": {
+    "id": "v1",
+    "name": "Ana"
+   },
+   "driver": {
+    "id": "v1",
+    "name": "Ana"
+   }
+  },
+  {
+   "t": 10,
+   "k": "stop",
+   "why": "pause"
+  },
+  {
+   "t": 20,
+   "k": "seg",
+   "seg": 2,
+   "why": "navigate",
+   "tab": {
+    "id": "t",
+    "url": "http://x/2"
+   },
+   "vp": {
+    "w": 800,
+    "h": 600,
+    "dpr": 1
+   }
+  },
+  {
+   "t": 20,
+   "k": "doc",
+   "doc": 20,
+   "url": "http://x/2",
+   "tree": {
+    "id": 20,
+    "y": "doc",
+    "c": [
+     {
+      "id": 21,
+      "y": "el",
+      "n": "html",
+      "c": [
+       {
+        "id": 22,
+        "y": "el",
+        "n": "body",
+        "c": [
+         {
+          "id": 23,
+          "y": "el",
+          "n": "img",
+          "a": {
+           "src": "pic.png"
+          }
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "t": 21,
+   "k": "asset",
+   "url": "http://x/pic.png",
+   "hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+   "mime": "image/png",
+   "size": 1
+  },
+  {
+   "t": 22,
+   "k": "note",
+   "id": "n2",
+   "author": {
+    "id": "v1",
+    "name": "Ana"
+   },
+   "text": "new",
+   "at": {
+    "node": 23
+   }
+  },
+  {
+   "t": 23,
+   "k": "stroke",
+   "id": "s1",
+   "author": {
+    "id": "v1",
+    "name": "Ana"
+   },
+   "color": "#f00",
+   "pts": [
+    [
+     1,
+     1,
+     0
+    ],
+    [
+     2,
+     2,
+     40
+    ]
+   ]
+  },
+  {
+   "t": 24,
+   "k": "stop",
+   "why": "pause"
+  },
+  {
+   "t": 30,
+   "k": "seg",
+   "seg": 3,
+   "why": "resume",
+   "tab": {
+    "id": "t",
+    "url": "http://x/2"
+   },
+   "vp": {
+    "w": 800,
+    "h": 600,
+    "dpr": 1
+   }
+  },
+  {
+   "t": 30,
+   "k": "doc",
+   "doc": 20,
+   "url": "http://x/2",
+   "tree": {
+    "id": 20,
+    "y": "doc",
+    "c": [
+     {
+      "id": 21,
+      "y": "el",
+      "n": "html",
+      "c": [
+       {
+        "id": 22,
+        "y": "el",
+        "n": "body",
+        "c": [
+         {
+          "id": 23,
+          "y": "el",
+          "n": "img",
+          "a": {
+           "src": "pic.png"
+          }
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "t": 31,
+   "k": "hover",
+   "id": 23,
+   "by": "v1"
+  },
+  {
+   "t": 31,
+   "k": "ptr",
+   "x": 10,
+   "y": 20
+  },
+  {
+   "t": 32,
+   "k": "note-state",
+   "id": "n2",
+   "state": "resolved"
+  },
+  {
+   "t": 33,
+   "k": "hover",
+   "id": 22
+  },
+  {
+   "t": 34,
+   "k": "ptr",
+   "x": 11,
+   "y": 21
+  },
+  {
+   "t": 35,
+   "k": "attr",
+   "id": 23,
+   "name": "alt",
+   "v": "x"
+  },
+  {
+   "t": 36,
+   "k": "stop",
+   "why": "end"
+  }
+ ],
+ "kept": [
+  [
+   0
+  ],
+  [
+   0,
+   1
+  ],
+  [
+   0,
+   1,
+   2
+  ],
+  [
+   0,
+   1,
+   2,
+   3
+  ],
+  [
+   0,
+   1,
+   2,
+   3,
+   4
+  ],
+  [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5
+  ],
+  [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7
+  ],
+  [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8
+  ],
+  [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9
+  ],
+  [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9,
+   10
+  ],
+  [
+   0,
+   3,
+   9,
+   11
+  ],
+  [
+   0,
+   3,
+   9,
+   11,
+   12
+  ],
+  [
+   0,
+   3,
+   9,
+   11,
+   12,
+   13
+  ],
+  [
+   0,
+   3,
+   9,
+   11,
+   12,
+   13,
+   14
+  ],
+  [
+   0,
+   3,
+   9,
+   11,
+   12,
+   13,
+   14,
+   15
+  ],
+  [
+   0,
+   3,
+   9,
+   11,
+   12,
+   13,
+   14,
+   15,
+   16
+  ],
+  [
+   0,
+   3,
+   9,
+   11,
+   13,
+   14,
+   15,
+   17
+  ],
+  [
+   0,
+   3,
+   9,
+   11,
+   13,
+   14,
+   15,
+   17,
+   18
+  ],
+  [
+   0,
+   3,
+   9,
+   11,
+   13,
+   14,
+   15,
+   17,
+   18,
+   19
+  ],
+  [
+   0,
+   3,
+   9,
+   11,
+   13,
+   14,
+   15,
+   17,
+   18,
+   19,
+   20
+  ],
+  [
+   0,
+   3,
+   9,
+   11,
+   13,
+   14,
+   15,
+   17,
+   18,
+   19,
+   20,
+   21
+  ],
+  [
+   0,
+   3,
+   9,
+   11,
+   13,
+   14,
+   15,
+   17,
+   18,
+   20,
+   21,
+   22
+  ],
+  [
+   0,
+   3,
+   9,
+   11,
+   13,
+   14,
+   15,
+   17,
+   18,
+   21,
+   22,
+   23
+  ],
+  [
+   0,
+   3,
+   9,
+   11,
+   13,
+   14,
+   15,
+   17,
+   18,
+   21,
+   22,
+   23,
+   24
+  ],
+  [
+   0,
+   3,
+   9,
+   11,
+   13,
+   14,
+   15,
+   17,
+   18,
+   21,
+   22,
+   23,
+   24,
+   25
+  ]
+ ]
+}

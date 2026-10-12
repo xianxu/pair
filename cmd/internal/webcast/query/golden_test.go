@@ -18,7 +18,7 @@ var update = flag.Bool("update", false, "rewrite the golden files")
 // `go test ./cmd/internal/webcast/query -run Golden -update` rewrites them;
 // review the diff, it is what agents read.
 func TestGolden(t *testing.T) {
-	for _, name := range recording.Fixtures {
+	for _, name := range recording.Fixtures() {
 		dir := recording.Fixture(name)
 		r, err := recording.ReadDir(dir)
 		if err != nil {

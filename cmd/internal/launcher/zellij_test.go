@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func TestZellijSnapshotQueryFailuresDiscardAllSessions(t *testing.T) {
@@ -93,7 +94,7 @@ esac
 				got, err = (ZellijSource{Path: path}).SnapshotContext(ctx)
 				close(done)
 			}()
-			limit := time.After(3 * time.Second)
+			limit := testwait.After(t)
 			tick := time.NewTicker(time.Millisecond)
 			defer tick.Stop()
 			for {

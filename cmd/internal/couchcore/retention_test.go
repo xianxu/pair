@@ -12,6 +12,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 func retentionStore(t *testing.T) (*ThreadStore, *storagegc.Coordinator) {
@@ -336,7 +337,7 @@ func TestRetentionMembershipWaitsForRootCoordination(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-	case <-time.After(3 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("mutation did not resume")
 	}
 }
@@ -593,15 +594,13 @@ func TestRetentionNestedStoreLocksYieldAndReleaseRoot(t *testing.T) {
 			defer cancel()
 			done := make(chan error, 1)
 			go func() { done <- c.WithLock(ctx, func(held *storagegc.Locked) error { return call(ctx, held) }) }()
-			select {
-			case err := <-done:
-				if !errors.Is(err, storagegc.ErrCoordinatorBusy) && !errors.Is(err, context.DeadlineExceeded) {
-					t.Errorf("contention error = %v", err)
-				}
-			case <-time.After(150 * time.Millisecond):
-				lock.Close()
-				<-done
-				t.Fatal("maintenance blocked on nested Couch lock past its deadline")
+			// The nested lock stays held until the call returns, so returning
+			// at all proves it yielded instead of waiting on the lock; how long
+			// the work around it takes is the machine's business (#476). A
+			// blocking acquire hangs here, and the test binary's timeout dumps
+			// the goroutine parked in flock.
+			if err := <-done; !errors.Is(err, storagegc.ErrCoordinatorBusy) && !errors.Is(err, context.DeadlineExceeded) {
+				t.Errorf("contention error = %v", err)
 			}
 			if err := c.TryWithLock(context.Background(), func(*storagegc.Locked) error { return nil }); err != nil {
 				t.Fatalf("maintenance retained root lock: %v", err)

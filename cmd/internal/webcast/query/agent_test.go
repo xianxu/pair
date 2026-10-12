@@ -14,7 +14,7 @@ import (
 // target. The expectations are the fixtures' own records, found here
 // independently of the query code.
 func TestAgentCanTellWhatEachNoteRefersTo(t *testing.T) {
-	for _, name := range recording.Fixtures {
+	for _, name := range recording.Fixtures() {
 		dir := recording.Fixture(name)
 		r, err := recording.ReadDir(dir)
 		if err != nil {
@@ -56,6 +56,22 @@ func TestAgentCanTellWhatEachNoteRefersTo(t *testing.T) {
 					want = fmt.Sprintf("input @%d", a.ID)
 				case *recording.Scroll:
 					want = fmt.Sprintf("scroll @%d", a.ID)
+				case *recording.Selection:
+					// The real recorder reports selection (#472). A caret
+					// after typing folds into the typed value's line.
+					if a.Anchor != nil && a.Focus != nil && *a.Anchor == *a.Focus && typedJustBefore(r.Records[:j], a.By) {
+						continue
+					}
+					switch {
+					case a.Anchor != nil:
+						want = fmt.Sprintf("selection @%d", a.Anchor[0])
+					case a.Focus != nil:
+						want = "selection ? … "
+					default:
+						want = "selection cleared"
+					}
+				case *recording.Nav:
+					want = "navigate (same document) to " + a.URL
 				case *recording.Seg:
 					want = fmt.Sprintf("segment %d starts (%s) on %s", a.Seg, a.Why, a.Tab.URL)
 				case *recording.Stop:
@@ -70,6 +86,23 @@ func TestAgentCanTellWhatEachNoteRefersTo(t *testing.T) {
 			}
 		}
 	}
+}
+
+// typedJustBefore says whether the last record of recs that isn't a value
+// attribute is a typed value by by.
+func typedJustBefore(recs []recording.Record, by string) bool {
+	for j := len(recs) - 1; j >= 0; j-- {
+		switch a := recs[j].(type) {
+		case *recording.Attr:
+			if a.Name == "value" {
+				continue
+			}
+		case *recording.Input:
+			return a.V != nil && a.By == by
+		}
+		return false
+	}
+	return false
 }
 
 func lastLine(s string) string {

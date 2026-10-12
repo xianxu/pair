@@ -14,33 +14,15 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
-// waitFor polls until cond holds. ONE helper for the package, with the
-// deadline as a parameter -- three near-identical pollers is how they drift
-// apart on the thing that matters (how long is long enough).
+// waitFor waits for cond with no performance window: the test's own deadline
+// bounds it (#479), so a late event under a loaded -race run still passes
+// and a lost one fails naming what it waited for.
 func waitFor(t *testing.T, what string, cond func() bool) {
 	t.Helper()
-	waitUpTo(t, 3*time.Second, what, cond)
-}
-
-// waitLong is for REAL applications: nvim takes over a second to draw its first
-// screen, where a fake child answers in microseconds.
-func waitLong(t *testing.T, what string, cond func() bool) {
-	t.Helper()
-	waitUpTo(t, 15*time.Second, what, cond)
-}
-
-func waitUpTo(t *testing.T, d time.Duration, what string, cond func() bool) {
-	t.Helper()
-	deadline := time.Now().Add(d)
-	for time.Now().Before(deadline) {
-		if cond() {
-			return
-		}
-		time.Sleep(2 * time.Millisecond)
-	}
-	t.Fatalf("timed out waiting for %s", what)
+	testwait.Until(t, what, cond)
 }
 
 type consoleFixture struct {
@@ -97,7 +79,7 @@ func newFixtureBeforeRun(t *testing.T, rows, cols uint16, beforeRun func(*Consol
 		// cleanup wait safely when the test already consumed its exit code.
 		select {
 		case <-f.done:
-		case <-time.After(3 * time.Second):
+		case <-testwait.After(t):
 			t.Error("console fixture did not finish teardown")
 		}
 	})
@@ -228,7 +210,7 @@ func TestActiveChildExitFocusesPanelRecordsCauseAndForgetsActor(t *testing.T) {
 		if got.tree != "brain" || got.id != "c1" {
 			t.Fatalf("forgot %+v, want brain/c1", got)
 		}
-	case <-time.After(time.Second):
+	case <-testwait.After(t):
 		t.Fatal("actor forget did not finish")
 	}
 	if got := f.host.Written(); !strings.Contains(got, "brain") || !strings.Contains(got, "7") {
@@ -256,7 +238,7 @@ func TestFinalQueuedOutputIsWrittenBeforeLastChildExit(t *testing.T) {
 	f.child.Exit(0)
 	select {
 	case <-f.done:
-	case <-time.After(3 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("console did not exit")
 	}
 	if got := f.host.Written(); !strings.Contains(got, "final output") {
@@ -430,7 +412,7 @@ func TestConsoleRestoresTheTerminalWhenTheChildExits(t *testing.T) {
 		if code != 3 {
 			t.Fatalf("Run() = %d, want the child's code 3", code)
 		}
-	case <-time.After(3 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("Run() did not return after the child exited")
 	}
 	assertConsoleRestored(t, f)
@@ -446,7 +428,7 @@ func TestConsoleRestoresTheTerminalOnTeardownMidStream(t *testing.T) {
 	f.con.Stop()
 	select {
 	case <-f.done:
-	case <-time.After(3 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("Run() did not return after Stop")
 	}
 	assertConsoleRestored(t, f)
@@ -463,7 +445,7 @@ func TestConsoleRevokesChildMouseModeBeforeReturningToShell(t *testing.T) {
 	f.con.Stop()
 	select {
 	case <-f.done:
-	case <-time.After(3 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("Run() did not return after Stop")
 	}
 	written := f.host.Written()
@@ -488,7 +470,7 @@ func TestConsoleRestoresTheTerminalOnTerminationSignal(t *testing.T) {
 				if code != 0 {
 					t.Fatalf("Run() = %d after %v, want 0", code, sig)
 				}
-			case <-time.After(3 * time.Second):
+			case <-testwait.After(t):
 				t.Fatalf("Run() did not return after %v", sig)
 			}
 			assertConsoleRestored(t, f)
@@ -860,7 +842,7 @@ func TestConsoleReportsWhatLeaveDid(t *testing.T) {
 	f.con.Stop()
 	select {
 	case <-f.done:
-	case <-time.After(time.Second):
+	case <-testwait.After(t):
 		t.Fatal("Run did not stop")
 	}
 	got := out.String()

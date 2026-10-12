@@ -132,6 +132,82 @@ func TestMessageCLINoFreeRefusalAndUncertainSend(t *testing.T) {
 	}
 }
 
+// --message-file (pair#486) sends the file verbatim, less one trailing
+// newline: shell syntax an agent could not quote reaches the broker intact.
+func TestMessageCLISendsAMessageFileVerbatim(t *testing.T) {
+	body := "Ran `go test`, $(date) and $((1+2)); diff <(a) >(b) 'q' \"dq\"\n\ttabbed\nlast line\n"
+	path := filepath.Join(t.TempDir(), "message.md")
+	if err := os.WriteFile(path, []byte(body+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	inv, err := ParseCLI([]string{"--send-to", "pair:1", "--message-file", path}, couchcore.Operations())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sent couchmessage.Request
+	call := func(_ context.Context, _ string, request, response any) error {
+		sent = request.(couchmessage.Request)
+		*(response.(*couchmessage.Response)) = couchmessage.Response{Code: "accepted", Receipt: &couchmessage.Receipt{Message: couchmessage.Message{ID: sent.ID, Body: sent.Body}, Status: "queued"}}
+		return nil
+	}
+	var out, errout bytes.Buffer
+	if code := runMessageCLIWithCall(inv, messageRuntime(), &out, &errout, call); code != 0 {
+		t.Fatalf("exit %d: %s", code, errout.String())
+	}
+	if sent.Body != body || sent.Target != "pair:1" {
+		t.Fatalf("sent %q to %q, want %q", sent.Body, sent.Target, body)
+	}
+}
+
+// A message file the send cannot use is refused before any RPC.
+func TestMessageCLIRefusesAnUnusableMessageFile(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, content string, mode os.FileMode) string {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte(content), mode); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	for name, path := range map[string]string{
+		"empty":      write("empty.md", "", 0o600),
+		"newline":    write("newline.md", "\n", 0o600),
+		"whitespace": write("blank.md", "  \n\t\n", 0o600),
+		"missing":    filepath.Join(dir, "missing.md"),
+		"directory":  dir,
+		"unreadable": write("unreadable.md", "work", 0o000),
+		"oversized":  write("big.md", strings.Repeat("x", couchmessage.MaxBodyBytes+1), 0o600),
+	} {
+		called := false
+		call := func(context.Context, string, any, any) error { called = true; return nil }
+		var out, errout bytes.Buffer
+		inv := cliInvocation{kind: cliMessage, messageOp: "send", ref: "pair", messageFile: path}
+		if code := runMessageCLIWithCall(inv, messageRuntime(), &out, &errout, call); code != 1 || called || !strings.Contains(errout.String(), "--message-file") {
+			t.Errorf("%s: exit %d called %v stderr %q", name, code, called, errout.String())
+		}
+	}
+	// The limit is the broker's: a file at it, plus the trailing newline, is sent.
+	var sent string
+	call := func(_ context.Context, _ string, request, response any) error {
+		sent = request.(couchmessage.Request).Body
+		*(response.(*couchmessage.Response)) = couchmessage.Response{Code: "not-dispatched"}
+		return nil
+	}
+	var out, errout bytes.Buffer
+	full := strings.Repeat("x", couchmessage.MaxBodyBytes)
+	inv := cliInvocation{kind: cliMessage, messageOp: "send", ref: "pair", messageFile: write("full.md", full+"\n", 0o600)}
+	if code := runMessageCLIWithCall(inv, messageRuntime(), &out, &errout, call); code != 0 || sent != full {
+		t.Fatalf("full file: exit %d sent %d bytes: %s", code, len(sent), errout.String())
+	}
+	// An editor that ends lines with CRLF ends the file with one newline too.
+	out.Reset()
+	errout.Reset()
+	inv.messageFile = write("crlf.md", "work\r\n", 0o600)
+	if code := runMessageCLIWithCall(inv, messageRuntime(), &out, &errout, call); code != 0 || sent != "work" {
+		t.Fatalf("CRLF file: exit %d sent %q: %s", code, sent, errout.String())
+	}
+}
+
 func TestMessageCLIRejectsMissingContextBeforeRPC(t *testing.T) {
 	var out, errout bytes.Buffer
 	called := false

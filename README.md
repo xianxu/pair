@@ -397,10 +397,20 @@ couch --peek repo:N[:M...][,repo:N...] [--lines N] [--json] [--transcripts]
                                            read-only: slots' recent terminal (live, with dim/reverse/cursor marks); --transcripts adds log paths
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
-couch --broadcast-list [--json]   the running broadcast and its viewer count (never the link)
-couch --broadcast-web-query DIR dom|events|notes ...
+couch --broadcast-list [--json]   the running broadcast and its viewer count, and the recordings shared
+                         for replay (pair#477); never a link
+couch --broadcast-web-query DIR dom|events|notes|link ...
                          read-only: a broadcast-web recording's page at t, what happened in a window,
-                         and every note with its element and the actions before it (pair#462)
+                         and every note with its element and the actions before it (pair#462); link
+                         prints its shared replay link at a moment (pair#477)
+couch --broadcast-web-replay [ID|DIR] [--at MS] [--local]
+                         replay broadcast-web recordings in the viewer with a timeline scrubber; prints the
+                         link (#t=MS opens at a moment) (pair#471). A recording is shared through the running
+                         Couch's tunnel for other devices (pair#477); else, or --local, served on this
+                         machine only until Ctrl-C
+couch --broadcast-web-fidelity [ID|DIR]
+                         check a recording (default: the newest) against the tab's screenshots in a headless
+                         Chrome; writes DIR/fidelity/report.md; exit 3 when a frame is over tolerance (pair#478)
 couch --session-sync read|write|diff|status ... FILE
                          the one way an agent changes a session-sync file it owns: refuses under the
                          operator's lock or when the section changed since `read` (write --if-hash), and
@@ -426,6 +436,9 @@ couch --send-to repo:N --message TEXT   send to an exact live slot
 couch --send-to repo --message TEXT     select an eligible slot in that family
 couch --send-to repo --agent NAME --message TEXT   ...running that agent
 couch --send-to hub --message TEXT      send to the hub (the slot Couch started from), resolved at send time
+couch --send-to TARGET [--agent NAME] --message-file PATH
+                         any form above, the body read verbatim from PATH (less one trailing newline):
+                         write a message containing code or shell syntax with an editor, never quote it
 couch --message-status ID [--json]      inspect a message receipt
 couch --skill            print the bundled agent coordination skill
 couch --adopt-store /absolute/store     preview adoption of an existing store
@@ -858,13 +871,42 @@ dies with the broadcast.
 `couch --broadcast-list [--json]`, from any shell, reports whether a broadcast is
 running and how many viewers are watching: its state, start time, mode and
 viewer count. It never prints the link or its token, because the token is the
-broadcast's only credential.
+broadcast's only credential. While recordings are shared for replay through the
+tunnel (see `--broadcast-web-replay` below), it adds a line naming them,
+`replays shared until Couch exits: <id>, …`, and `--json` adds a `replays` list
+of their ids. A notice in Couch says so each time one is shared.
 
-`couch --broadcast-web-query DIR dom|events|notes` reads a broadcast-web
+`couch --broadcast-web-query DIR dom|events|notes|link` reads a broadcast-web
 recording directory for a coding agent: the page at a moment, what happened
 in a window, and every note with its element, focused context and the actions
-just before it. It needs no running Couch; `couch --broadcast-web-query` alone
-prints its usage. See [atlas/webcast-format.md](atlas/webcast-format.md#agent-queries-462).
+just before it. These need no running Couch. `link [--at MS]` is the exception:
+it asks the running Couch to share the recording and prints its replay link
+alone on stdout (any note goes to stderr), and with no Couch it refuses.
+`couch --broadcast-web-query` alone prints its usage. See [atlas/webcast-format.md](atlas/webcast-format.md#agent-queries-462).
+
+`couch --broadcast-web-replay [ID|DIR] [--at MS]` plays recordings in the
+viewer: play, pause, speed, and a timeline that shows pauses as gaps, notes,
+strokes and who drove. With no argument it lists the recordings in Couch's
+store; an ID or a recording directory opens that one, and `--at MS` prints a
+`#t=MS` link to that moment. While Couch runs, a recording in its store is
+shared through Couch's broadcast tunnel under its own token, so the link opens
+on another device and grants only that recording; it stays shared until Couch
+exits. Otherwise, and with `--local` or no argument (the list), it serves on
+this machine only, until Ctrl-C. `couch --broadcast-web-query DIR link --at MS`
+prints the shared link for an agent.
+
+`couch --broadcast-web-fidelity [ID|DIR]` checks a recording against the real
+tab. During a cast the recorder keeps sparse low-res screenshots of the tab
+(`frames/`, never streamed to viewers). The check replays the recording at each
+of those moments in a headless Chrome, with the viewer's own renderer, and
+compares the pixels. It writes `fidelity/report.md` (with `report.json` and the
+worst moments side by side) into the recording and prints the median and the
+max. With no argument it checks the newest recording in Couch's store. It exits
+0 when every frame is within the tolerance (3% of pixels), 3 when some frame is
+over it, and 1 on an error. Each recorded cast is also checked by itself when it
+ends, and the result shows as a notice. See
+[atlas/webcast.md](atlas/webcast.md#the-fidelity-check-478).
+See [atlas/webcast.md](atlas/webcast.md#replay-471).
 
 Broadcasts reach viewers through [`cloudflared`](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/)
 (`brew install cloudflared`):
@@ -948,6 +990,22 @@ line. The web cast shares the screen broadcast's tunnel
 (`COUCH_BROADCAST_TUNNEL`), so both can run at once on one named tunnel. Chrome
 is found in the usual macOS locations or on `PATH`; set `COUCH_WEBCAST_CHROME` to
 the binary to choose another (Couch refuses to start if it doesn't exist).
+
+**Pointing and notes on a web cast (#470).** Anyone with the viewer link can point
+and leave notes; there is no separate pointer link. On the viewer's page, the rail at
+the right edge has the six pointer colors, ✏️ (point: draw on the page, everyone sees
+the stroke fade after a moment) and 💭 (note: tap an element, or drag a region, then
+write). The first note asks for a name; the page remembers it and the color in this
+browser. A note pins to its element (or region) for everyone, follows it as the page
+scrolls, stays through a pause, and leaves the page when the cast moves to another
+page; anyone can tap a pin to read it and resolve it. In Couch the open notes show as
+`💭N` after the Chrome cell (`Chrome ⏸ 💭2`); click it for the same notes box the screen
+broadcast uses, with each note's author: click one to copy its text, right-click to copy
+and resolve it. Unlike the screen broadcast's
+notes, these are part of the recording: notes and strokes, with their authors, are
+saved in `notes.jsonl` and `pointer.jsonl`, and `couch --broadcast-web-query DIR
+notes` lists them. The name a viewer gives is theirs to choose: it attributes, it
+doesn't authenticate.
 
 With an empty root filter, **Space** toggles the **normal view** and **focus view**.
 Focus view shows only live threads with a published summary, in normal-view

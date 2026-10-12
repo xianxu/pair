@@ -123,7 +123,7 @@ func ParseNote(body []byte) (NoteRequest, error) {
 		n.Color < 0 || n.Color >= PointerColors || !NoteVisible(n, cols, rows) {
 		return NoteRequest{}, ErrNoteRange
 	}
-	if !plainText(n.Text) {
+	if !PlainText(n.Text) {
 		return NoteRequest{}, ErrNoteText
 	}
 	return NoteRequest{Cols: cols, Rows: rows, Note: n}, nil
@@ -151,10 +151,10 @@ func DecodeStrict(body []byte, v any) bool {
 	return err == io.EOF
 }
 
-// plainText is 1..MaxNoteBytes of valid UTF-8 with no control characters
+// PlainText is 1..MaxNoteBytes of valid UTF-8 with no control characters
 // but newline and tab, and no format characters (bidi overrides, zero-width
 // marks), so a note can't show text other than what it holds.
-func plainText(s string) bool {
+func PlainText(s string) bool {
 	if s == "" || len(s) > MaxNoteBytes || !utf8.ValidString(s) {
 		return false
 	}

@@ -16,6 +16,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // This crosses the real inventory, keyboard reducer, operation table, resume
@@ -75,7 +76,7 @@ func TestSwitcherWarmReattachWithoutNativeBindingReachesTerminal(t *testing.T) {
 		_ = reader.Close()
 		select {
 		case <-done:
-		case <-time.After(3 * time.Second):
+		case <-testwait.After(t):
 			t.Error("Console did not stop")
 		}
 	})
@@ -109,7 +110,7 @@ func TestSwitcherWarmReattachWithoutNativeBindingReachesTerminal(t *testing.T) {
 			if result.call.Name == "attach" {
 				goto attached
 			}
-		case <-time.After(3 * time.Second):
+		case <-testwait.After(t):
 			t.Fatalf("switcher did not attach: %s", host.Written())
 		}
 	}
@@ -204,7 +205,7 @@ func TestSwitcherWarmSelectionCannotColdResumeAfterPark(t *testing.T) {
 
 func waitWarmAcceptance(t *testing.T, what string, ready func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(testwait.Budget(t))
 	for time.Now().Before(deadline) {
 		if ready() {
 			return

@@ -1,0 +1,15 @@
+$ couch --broadcast-web-query <fixtures>/rec-app events --from 3000 --to 6000
+3020-3514 input @69 <input#draft.flex-1.border.…> value "Review PR 42" (18 changes)
+4492 layout boxes for 30 nodes
+4781 ? hover
+4781 ? ptr
+4784 focus @72 <input#search.w-full.border.…>
+4784 click @72 <input#search.w-full.border.…> at 752,171
+4785 attr @72 <input#search.w-full.border.…> value="f"
+4785 remove @82 <li.flex.items-center.…> "Design pricing page"
+4785 remove @86 <li.flex.items-center.…> "Write launch email"
+4797-4847 attr @72 <input#search.w-full.border.…> value="fi" (2 changes)
+4847 remove @74 <li.flex.items-center.…> "Ship onboarding flow"
+4848-4917 input @72 <input#search.w-full.border.…> value "fix" (3 changes)
+5600 pointer stroke by Pat (product) (viewer-1) (4 points)
+6000 note rec-app-n1 by Pat (product) (viewer-1) on @72 <input#search.w-full.border.…>: "Search should ignore case."

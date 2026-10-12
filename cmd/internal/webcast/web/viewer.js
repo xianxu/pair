@@ -9,6 +9,8 @@
 
 import { Model } from './model.js';
 import { Renderer } from './render.js';
+import { mountAnnotate } from './annotate.js';
+import { replayPath, mountReplay } from './replay.js';
 
 // fit is the page box's scale and place in an area: the operator's
 // viewport, scaled to fit whole, centred.
@@ -106,18 +108,22 @@ export function connect(deps) {
 // pointer, and the viewer contract on window.couchViewer.
 export function mount(doc, win) {
   const $ = (id) => doc.getElementById(id);
-  const frame = $('page'), box = $('box'), stage = $('stage'), pointer = $('pointer');
+  const box = $('box'), stage = $('stage'), pointer = $('pointer');
+  // #page is the frame with the current document; the renderer swaps it
+  // with a sibling holding the previous paint (#475), so look it up.
+  const frame = () => $('page');
   let placed = { scale: 1, left: 0, top: 0 };
-  const scroll = () => { const w = frame.contentWindow; return w ? [w.scrollX, w.scrollY] : [0, 0]; };
+  const scroll = () => { const w = frame().contentWindow; return w ? [w.scrollX, w.scrollY] : [0, 0]; };
 
   const layout = () => {
     const m = v.model, vp = m && m.seg > 0 ? m.vp : null;
     box.hidden = !vp;
     if (!vp) return;
     placed = fit(stage.clientWidth, stage.clientHeight, vp);
-    frame.style.width = `${vp.w}px`;
-    frame.style.height = `${vp.h}px`;
-    frame.style.transform = `scale(${placed.scale})`;
+    const f = frame();
+    f.style.width = `${vp.w}px`;
+    f.style.height = `${vp.h}px`;
+    f.style.transform = `scale(${placed.scale})`;
     Object.assign(box.style, { width: `${placed.w}px`, height: `${placed.h}px`, left: `${placed.left}px`, top: `${placed.top}px` });
   };
   const drawPointer = () => {
@@ -143,14 +149,20 @@ export function mount(doc, win) {
     return a ? new URL(`assets/${a.hash}`, win.location.href).href : '';
   };
   const viewer = new URLSearchParams(win.location.search).get('viewer');
-  const v = connect({
-    open: () => new win.EventSource(viewer ? `events?viewer=${encodeURIComponent(viewer)}` : 'events'),
-    renderer: (model) => new Renderer(frame, model, resolveAsset),
+  const shell = {
+    renderer: (model) => new Renderer(frame(), model, resolveAsset),
     show: render,
     frame: () => { layout(); drawPointer(); },
     schedule: (fn) => win.requestAnimationFrame(fn),
-    retry: (fn) => win.setTimeout(fn, 1000),
-  });
+  };
+  // A recording (#471) plays from its records; a cast follows its stream.
+  const v = replayPath(win.location.pathname)
+    ? mountReplay(doc, win, shell, (x, y) => fromPage(x, y, placed.scale, scroll()))
+    : connect({
+      ...shell,
+      open: () => new win.EventSource(viewer ? `events?viewer=${encodeURIComponent(viewer)}` : 'events'),
+      retry: (fn) => win.setTimeout(fn, 1000),
+    });
   win.addEventListener('resize', () => { layout(); drawPointer(); });
 
   // The viewer contract (atlas/webcast-format.md): the conformance check,
@@ -158,15 +170,23 @@ export function mount(doc, win) {
   win.couchViewer = {
     resolveAsset: (abs) => resolveAsset(abs) || undefined,
     canonical: () => v.renderer.canonical(),
-    ready: () => v.renderer.ready(),
+    ready: async () => { await v.loaded; return v.renderer.ready(); }, // a replay first loads its records
     boxOf: (id) => v.renderer.boxOf(id),
     nodeAt: (x, y) => v.renderer.nodeAt(x, y),
     toPage: (clientX, clientY) => {
       const r = box.getBoundingClientRect();
       return toPage(clientX, clientY, r, placed.scale, scroll());
     },
+    // fromPage is toPage's inverse: where a top-page point shows in the
+    // window (#470's pins and strokes).
+    fromPage: (x, y) => {
+      const r = box.getBoundingClientRect(), [px, py] = fromPage(x, y, placed.scale, scroll());
+      return [r.left + px, r.top + py];
+    },
     onRecord: v.onRecord,
   };
+  // Pointing and notes (#470), when the cast takes them.
+  mountAnnotate(doc, win, { ...win.couchViewer, get model() { return v.model; } }).then((a) => { win.couchViewer.annotate = a; });
   return v;
 }
 

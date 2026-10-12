@@ -1,0 +1,82 @@
+$ couch --broadcast-web-query <fixtures>/rec-stress events --from 0 --to 2000
+0 recording live started 2026-10-12T03:34:39.159078-07:00
+0 segment 1 starts (live) on http://127.0.0.1:62201/stress.html, viewport 1280x800@1
+0 document http://127.0.0.1:62201/stress.html
+0 constructed stylesheet @1434 (0 chars)
+0 adopted stylesheets of @1 #document: 1
+0 frame document http://localhost:62200/frame.html in @1248 <iframe#xo>
+31 constructed stylesheet @1434 (47 chars)
+44 input @1272 <input#txt> value "tick 3"
+44 input @1273 <input#chk> unchecked
+44 input @1275 <select#sel> "alpha beta gamma" selected [0]
+44 input @1283 <input#rng> value "21"
+44 input @1285 <textarea#ta> value "line 3\nnext 6"
+44 scroll @1 #document to 0,0
+44 scroll @1288 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,49
+44 stylesheet of @11 <style#cssinjs> (210 chars)
+44 selection cleared
+45 replace the children of @1424 (1 nodes)
+61 input @1448 <input#fi> value "frame 3"
+61 scroll @1435 #document to 0,0
+61 selection cleared
+103 dom changes until 123: 21 ins, 21 rm, 17 attr, 1 asset; on @241 <td> "287.1" ×4, @613 <td> "128.5" ×4, @709 <td> "390.8" ×4, 32 more elements
+128 scroll @1288 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,56
+152 dom changes until 212: 21 ins, 21 rm, 18 attr, 1 asset, 1 layout; on @697 <td> "333.7" ×4, @1117 <td> "783.7" ×4, @19 <span#clock> "1.6" ×2, 34 more elements
+261 input @1272 <input#txt> value "tick 4"
+261 input @1273 <input#chk> checked
+261 input @1275 <select#sel> "alpha beta gamma" selected [1]
+261 input @1283 <input#rng> value "28"
+261 input @1285 <textarea#ta> value "line 4\nnext 8"
+261 dom changes until 312: 25 ins, 24 rm, 19 attr; on @157 <td> "410.1" ×4, @1105 <td> "589.8" ×4, @19 <span#clock> "1.7" ×2, 39 more elements
+328 scroll @1288 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,63
+411 dom changes until 527: 124 ins, 124 rm, 21 attr, 17 kids, 1 sheet; on @43 <tbody#tb> "0 row-0-g2 236.4 0 err 1 row-1-g2 953.4…" ×200, @19 <span#clock> "1.8" ×4, @637 <td> "698.5" ×4, 58 more elements
+527 scroll @1288 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,70
+527 selection cleared
+529 dom changes until 712: 83 kids, 44 ins, 44 rm, 38 attr, 1 sheet; on @2136 <td> "254.0" ×6, @19 <span#clock> "2.0" ×4, @1905 <td> "867.3" ×4, 153 more elements
+728 scroll @1288 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,77
+761 input @1272 <input#txt> value "tick 5"
+761 input @1273 <input#chk> unchecked
+761 input @1275 <select#sel> "alpha beta gamma" selected [2]
+761 input @1283 <input#rng> value "35"
+761 input @1285 <textarea#ta> value "line 5\nnext 10"
+761 attr @1413 <rect#bar> width="137"
+761 remove @1414 <text#svgt> "svg 8"
+761 insert @2792 text "svg 9" under @1414 <text#svgt>
+770 input @1448 <input#fi> value "frame 4"
+811 dom changes until 912: 44 ins, 44 rm, 37 attr; on @1795 <td> "124.7" ×6, @2235 <td> "393.7" ×6, @19 <span#clock> "2.2" ×4, 66 more elements
+927 scroll @1288 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,84
+1011 input @1272 <input#txt> value "tick 6"
+1011 input @1273 <input#chk> checked
+1011 input @1275 <select#sel> "alpha beta gamma" selected [0]
+1011 input @1283 <input#rng> value "42"
+1011 input @1285 <textarea#ta> value "line 6\nnext 12"
+1011 dom changes until 1112: 44 ins, 44 rm, 39 attr, 1 sheet; on @1850 <td> "420.0" ×6, @19 <span#clock> "2.4" ×4, @1707 <td> "846.5" ×4, 66 more elements
+1127 scroll @1288 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,91
+1211 dom changes until 1261: 25 ins, 24 rm, 18 attr; on @1795 <td> "377.5" ×4, @2609 <td> "520.9" ×4, @2741 <td> "278.7" ×4, 37 more elements
+1269 input @1448 <input#fi> value "frame 5"
+1311 dom changes until 1312: 21 ins, 21 rm, 17 attr, 1 sheet; on @1861 <td> "440.7" ×6, @2499 <td> "115.5" ×4, @19 <span#clock> "2.7" ×2, 32 more elements
+1327 scroll @1288 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,98
+1411 dom changes until 1411: 21 ins, 21 rm, 16 attr; on @1652 <td> "336.6" ×4, @1707 <td> "421.2" ×4, @1729 <td> "449.6" ×4, 30 more elements
+1511 input @1272 <input#txt> value "tick 7"
+1511 input @1273 <input#chk> unchecked
+1511 input @1275 <select#sel> "alpha beta gamma" selected [1]
+1511 input @1283 <input#rng> value "49"
+1511 input @1285 <textarea#ta> value "line 7\nnext 14"
+1512 dom changes until 1525: 105 ins, 105 rm, 45 kids, 4 attr, 1 sheet; on @43 <tbody#tb> "0 row-0-g3 897.6 0 ok 1 row-1-g3 27.8 0…" ×200, @19 <span#clock> "2.9" ×2, @1254 <span> "closed 9" ×2, 53 more elements
+1528 scroll @1288 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,105
+1531 dom changes until 1542: 55 kids; on @2994 <tr> ×1, @2995 <tr> ×1, @2996 <tr> ×1, 52 more elements
+1600 pointer stroke by Pat (product) (viewer-1) (4 points)
+1611 dom changes until 1712: 42 ins, 42 rm, 38 attr; on @3366 <td> "988.8" ×6, @19 <span#clock> "3.0" ×4, @3344 <td> "148.3" ×4, 70 more elements
+1727 scroll @1288 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,112
+1761 input @1272 <input#txt> value "tick 8"
+1761 input @1273 <input#chk> checked
+1761 input @1275 <select#sel> "alpha beta gamma" selected [2]
+1761 input @1283 <input#rng> value "56"
+1761 input @1285 <textarea#ta> value "line 8\nnext 16"
+1761 attr @1413 <rect#bar> width="189"
+1761 remove @1414 <text#svgt> "svg 12"
+1761 insert @4196 text "svg 13" under @1414 <text#svgt>
+1771 input @1448 <input#fi> value "frame 6"
+1811 dom changes until 1911: 44 ins, 44 rm, 33 attr; on @4015 <td> "722.2" ×6, @19 <span#clock> "3.2" ×4, @3134 <td> "767.8" ×4, 60 more elements
+1927 scroll @1288 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,119
+2000 note rec-stress-n1 by Pat (product) (viewer-1) on @1264 <div#cij.box.cij-6> "CSS-in-JS (insertRule)": "This box flickers through colours; is that on purpose?"

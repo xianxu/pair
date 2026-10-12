@@ -160,14 +160,17 @@ func TestViewerPageLoadsOnlySameOrigin(t *testing.T) {
 		t.Error("the page has a hint bar")
 	}
 	viewer := string(mustAsset(t, "viewer.js"))
+	collab := string(mustAsset(t, "collab.js"))
 	// The one thing a page keeps (#446): a pointer viewer's color pick, a
-	// palette index under one key, read and written only by colorStore.
-	if strings.Count(viewer, "localStorage") != 1 || strings.Count(viewer, "getItem(") != 1 || strings.Count(viewer, "setItem(") != 1 ||
-		!strings.Contains(viewer, "const COLOR_KEY = 'couch.pointerColor';") || !strings.Contains(viewer, "getItem(COLOR_KEY)") || !strings.Contains(viewer, "setItem(COLOR_KEY, String(i))") {
-		t.Error("viewer.js may keep only the pointer color pick in localStorage")
+	// palette index under one key, read and written only by collab.js's
+	// colorStore over the storage viewer.js hands it.
+	if strings.Count(viewer, "localStorage") != 1 || strings.Contains(viewer, "getItem(") || strings.Contains(viewer, "setItem(") ||
+		strings.Contains(collab, "localStorage") || strings.Count(collab, "getItem(") != 1 || strings.Count(collab, "setItem(") != 1 ||
+		!strings.Contains(collab, "const COLOR_KEY = 'couch.pointerColor';") || !strings.Contains(collab, "store.get(COLOR_KEY)") || !strings.Contains(collab, "store.set(COLOR_KEY, String(i))") {
+		t.Error("the viewer may keep only the pointer color pick in localStorage")
 	}
 	notes := string(mustAsset(t, "notes.js"))
-	for name, src := range map[string]string{"viewer.js": viewer, "notes.js": notes} {
+	for name, src := range map[string]string{"viewer.js": viewer, "notes.js": notes, "collab.js": collab} {
 		for _, api := range []string{"sessionStorage", "indexedDB", "caches", "serviceWorker", "document.cookie", "XMLHttpRequest", "WebSocket", "sendBeacon", "EventSource(\"http", "EventSource('http", "innerHTML", "outerHTML", "insertAdjacentHTML", "document.write"} {
 			if strings.Contains(src, api) {
 				t.Errorf("%s uses %s", name, api)
@@ -178,13 +181,16 @@ func TestViewerPageLoadsOnlySameOrigin(t *testing.T) {
 		t.Error("notes.js makes no request and keeps nothing; viewer.js's postJSON does the posting")
 	}
 	// Exactly one request function besides the page's own assets and stream:
-	// postJSON, to a relative route from a fixed list (the pointer POST,
-	// #412, and the note routes, #447), without credentials.
-	if n := strings.Count(viewer, "fetch("); n != 1 {
+	// postJSON, collab.js's poster, to a relative route from a fixed list (the
+	// pointer POST, #412, and the note routes, #447), without credentials.
+	if n := strings.Count(viewer, "fetch("); n != 1 || !strings.Contains(viewer, "const postJSON = poster((url, init) => fetch(url, init), POST_ROUTES);") {
 		t.Errorf("viewer.js has %d fetch calls, want exactly postJSON's", n)
 	}
-	if !strings.Contains(viewer, "const POST_ROUTES = ['point', 'note', 'resolve'];") || !strings.Contains(viewer, "if (!POST_ROUTES.includes(route)) {") ||
-		!strings.Contains(viewer, "return fetch(route, {") || !strings.Contains(viewer, "credentials: 'omit'") {
+	if n := strings.Count(collab, "fetchFn("); n != 1 || strings.Count(collab, "fetch(") != 0 {
+		t.Errorf("collab.js requests only through poster's fetchFn")
+	}
+	if !strings.Contains(viewer, "const POST_ROUTES = ['point', 'note', 'resolve'];") || !strings.Contains(collab, "if (!routes.includes(route)) {") ||
+		!strings.Contains(collab, "return fetchFn(route, {") || !strings.Contains(collab, "credentials: 'omit'") {
 		t.Error("postJSON must target a relative route from POST_ROUTES and omit credentials")
 	}
 }

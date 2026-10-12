@@ -201,9 +201,7 @@ func (c *Console) broadcastStarted(attempt uint64, s *broadcast.Session, err err
 	// reaches viewers; Activate comes after, so the grace watch starts with
 	// the indicator already on screen.
 	// The overlay goes in with the tap, so viewers see marks and notes too.
-	if err := c.presenter.SetOverlay(c.lifetime, c.screenOverlay); err != nil {
-		c.terminalError(err)
-	}
+	c.syncOverlay(overlayScreen, true)
 	if err := c.presenter.SetTap(c.lifetime, s.Offer); err != nil {
 		// Adopted, so ours to stop.
 		s.Stop(nil)
@@ -291,6 +289,6 @@ func (c *Console) endBroadcastForShutdown() {
 // frames tapped, no marks drawn, the pointer forgotten (#412).
 func (c *Console) detachBroadcastScreen() {
 	c.terminalError(c.presenter.SetTap(c.lifetime, nil))
-	c.terminalError(c.presenter.SetOverlay(c.lifetime, nil))
+	c.syncOverlay(overlayScreen, false)
 	c.resetPointer()
 }

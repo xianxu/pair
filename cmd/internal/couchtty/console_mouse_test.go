@@ -12,6 +12,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // newMouseFixture drives REAL bytes through Run's input loop with a status row
@@ -81,7 +82,7 @@ func newMouseFixtureWithDone(t *testing.T, setup ...func(*Console)) (*Console, *
 		_ = writer.Close()
 		select {
 		case <-done:
-		case <-time.After(3 * time.Second):
+		case <-testwait.After(t):
 			t.Error("mouse console teardown timed out")
 		}
 		_ = first.Close()
@@ -123,7 +124,7 @@ func TestClickOnAChipDispatchesTheSwitchOperation(t *testing.T) {
 		if got.call.Args["tag"] != string(menuAddress("two").Tag) {
 			t.Fatalf("switched to %q, want the clicked chip's thread", got.call.Args["tag"])
 		}
-	case <-timeoutAfter():
+	case <-testwait.After(t):
 		t.Fatal("a click on a chip dispatched nothing")
 	}
 }
@@ -146,7 +147,7 @@ func TestClickOnBareRowSpaceDoesNothing(t *testing.T) {
 	select {
 	case got := <-calls:
 		t.Fatalf("a click on empty row space dispatched %q", got.call.Name)
-	case <-timeoutAfter():
+	case <-time.After(400 * time.Millisecond):
 	}
 }
 
@@ -181,8 +182,6 @@ func TestChildWithoutTrackingReceivesNoMouseBytes(t *testing.T) {
 	}
 }
 
-func timeoutAfter() <-chan time.Time { return time.After(400 * time.Millisecond) }
-
 // The behaviour this issue's commit message headlines, and which the plan calls
 // "not optional" — and it shipped unpinned. A click is ALWAYS a manual switch,
 // so ctrl+backspace undoes it even when the clicked actor was paging. Enter on a
@@ -210,7 +209,7 @@ func TestClickIsAManualSwitch(t *testing.T) {
 	var got dispatched
 	select {
 	case got = <-calls:
-	case <-timeoutAfter():
+	case <-testwait.After(t):
 		t.Fatal("the click dispatched nothing")
 	}
 
@@ -275,7 +274,7 @@ func TestTeardownDisablesMouseTracking(t *testing.T) {
 	con.Stop()
 	select {
 	case <-done:
-	case <-time.After(3 * time.Second):
+	case <-testwait.After(t):
 		t.Fatal("Console did not complete teardown")
 	}
 	if !strings.Contains(host.Written(), "\x1b[?1003l") {
@@ -319,7 +318,7 @@ func TestClickInTheSwitcherTakesTheReturnPath(t *testing.T) {
 		if got.call.Args["tag"] != string(extent.Thread.Tag) {
 			t.Fatalf("switched to %q, want the clicked row's thread %q", got.call.Args["tag"], extent.Thread.Tag)
 		}
-	case <-timeoutAfter():
+	case <-testwait.After(t):
 		t.Fatal("a click in the switcher dispatched nothing")
 	}
 }

@@ -216,7 +216,7 @@ function noteFakes() {
     stop() {},
     notes: () => list,
     dialog: {
-      draft: (cell, grid) => calls.push(['draft', cell, grid]),
+      draft: (payload) => calls.push(['draft', payload]),
       view: (note, opts) => calls.push(['view', note.id, opts]),
       close: () => calls.push(['close']),
     },
@@ -256,7 +256,7 @@ test('comment mode drafts on an empty cell without posting', () => {
   assert.ok(f.classes.has('comment'));
   assert.match(f.shownTip(), /leave a note/, 'the mode button explains itself in its tooltip');
   f.fire('pointerdown', f.at(79, 3));
-  assert.deepEqual(f.calls.at(-1), ['draft', [78, 3], { cols: 80, rows: 24 }]);
+  assert.deepEqual(f.calls.at(-1), ['draft', { cols: 80, rows: 24, col: 78, row: 3 }]);
   f.fire('pointerdown', f.at(10, 5));
   assert.deepEqual(f.calls.at(-1), ['view', 7, { resolvable: true }], 'a 💭 opens rather than drafts');
   const n = f.calls.length;

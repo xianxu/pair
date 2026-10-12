@@ -9,7 +9,6 @@ import (
 	"sort"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 )
@@ -144,7 +143,7 @@ func TestConsoleCompletionReaderErrorStaysLocalToCurrentPath(t *testing.T) {
 	f.con.menu, f.con.menuReady = state, true
 	f.con.mu.Unlock()
 	f.con.dispatchMenuEffects(effects)
-	waitUpTo(t, 250*time.Millisecond, "completion error", func() bool {
+	waitFor(t, "completion error", func() bool {
 		got := f.con.menuSnapshot()
 		return got.CurrentFrame().Path == "x" && got.Notice.Level == MenuNoticeError && strings.Contains(got.Notice.Text, want.Error())
 	})
@@ -161,7 +160,7 @@ func TestConsoleCompletionCancellationPreservesJoinedTerminalFailure(t *testing.
 	f.con.menu, f.con.menuReady = state, true
 	f.con.mu.Unlock()
 	f.con.dispatchMenuEffects(effects)
-	waitUpTo(t, 250*time.Millisecond, "joined terminal error", func() bool {
+	waitFor(t, "joined terminal error", func() bool {
 		return strings.Contains(f.con.menuSnapshot().Notice.Text, want.Error())
 	})
 }

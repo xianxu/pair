@@ -45,7 +45,7 @@ func TestSelect(t *testing.T) {
 		{`a[aria-label*="to B"]`, `<a.link.active> "B"`},
 		{"[name]", `<input>`},
 		{"input[type='text']", `<input>`},
-		{".top.main", `<nav.top.main> "A B"`},
+		{".top.main", `<nav.top.main> "AB"`},           // adjacent inline links render run together
 		{"#card span", ``},                             // a space doesn't cross into a shadow root
 		{"#card > span", ``},                           // nor does >
 		{"#card >>> span", `<span.badge> "in shadow"`}, // >>> does, closed or open
@@ -102,7 +102,7 @@ func TestSelectRefusesWhatItCantRead(t *testing.T) {
 // element, so an ambiguous match can't pass. The fake's child-index paths
 // are unique by construction within the top document.
 func TestModelSelectorsSelectTheirElement(t *testing.T) {
-	for _, name := range []string{"app", "stress", "blog"} {
+	for _, name := range []string{"rec-app", "rec-stress", "rec-blog"} {
 		r, err := recording.ReadDir(recording.Fixture(name))
 		if err != nil {
 			t.Fatal(err)
@@ -156,8 +156,8 @@ func TestAnchorsInsideOtherTreesAreExact(t *testing.T) {
 		fixture, sel string
 		at           int64
 	}{
-		{"stress", "html:nth-of-type(1)", 3000},
-		{"blog", "astro-dev-toolbar >>> style:nth-of-type(1)", 2500},
+		{"rec-stress", "html:nth-of-type(1)", 3000},
+		{"rec-blog", "astro-dev-toolbar >>> style:nth-of-type(1)", 2500},
 	} {
 		r, err := recording.ReadDir(recording.Fixture(c.fixture))
 		if err != nil {

@@ -7,7 +7,8 @@ import (
 )
 
 // contractPage is an article page with layout: a header with a nav, an
-// article with a heading and two paragraphs, and a footer far below.
+// article with a heading, two paragraphs and a script, and a footer far
+// below.
 type contractPage struct {
 	b                     *recording.Builder
 	nav, h1, p1, p2, foot recording.Node
@@ -23,7 +24,8 @@ func newContractPage() *contractPage {
 	c.p2 = b.El("p", nil, b.Txt(strings.Repeat("The second paragraph is long. ", 12)))
 	c.foot = b.El("p", []string{"id", "foot"}, b.Txt("Footer"))
 	header := b.El("header", nil, c.nav)
-	article := b.El("article", nil, c.h1, c.p1, c.p2)
+	script := b.El("script", nil, b.Txt("render('first paragraph')"))
+	article := b.El("article", nil, c.h1, c.p1, c.p2, script)
 	footer := b.El("footer", nil, c.foot)
 	b.Page(recording.SegLive, "http://blog/post", header, b.El("main", nil, article), footer)
 	c.boxes = map[recording.NodeID]recording.Box{
@@ -83,6 +85,9 @@ func RunModelContract(t recording.TB, newModel func() Model) {
 	if strings.Contains(ctx.Text, "Footer") {
 		t.Errorf("context must be focused, not the whole page: %q", ctx.Text)
 	}
+	if strings.Contains(ctx.Text, "render(") || strings.Contains(ctx.Text, "paragraph.The") {
+		t.Errorf("context text must be what a person reads (no script, blocks apart): %q", ctx.Text)
+	}
 
 	foot, _ := m.Anchor(st, c.foot.ID)
 	for _, set := range [][]recording.NoteAt{{at}, {at, foot}} {
@@ -103,6 +108,18 @@ func RunModelContract(t recording.TB, newModel func() Model) {
 	hint := recording.Box{1, 2, 3, 4}
 	if crops, _ := m.Crops(st, []recording.NoteAt{at}, fixedHint(hint)); !containsBox(crops, hint) {
 		t.Errorf("a hint's crop must be used: %v", crops)
+	}
+
+	// A region note (#470): its crop holds the region and is not widened to
+	// its element (or the element's landmark); element notes keep theirs.
+	region := recording.Box{c.boxes[c.foot.ID][0] + 4, c.boxes[c.foot.ID][1] + 2, 30, 10}
+	rn := &recording.Note{At: recording.NoteAt{Node: c.foot.ID}, Region: &region}
+	crops, err := m.NoteCrops(st, []*recording.Note{{At: at}, rn}, nil)
+	if err != nil || !holds(crops, region) || !holds(crops, *at.Box) {
+		t.Errorf("note crops %v (%v) must hold the region %v and the element note's box %v", crops, err, region, *at.Box)
+	}
+	if crops, err := m.NoteCrops(st, []*recording.Note{rn}, nil); err != nil || len(crops) != 1 || crops[0][2] >= c.boxes[c.foot.ID][2] {
+		t.Errorf("a region note crops its region, not its element: %v (%v)", crops, err)
 	}
 
 	// The element goes: its anchor no longer resolves.
@@ -133,6 +150,15 @@ func RunModelContract(t recording.TB, newModel func() Model) {
 type fixedHint recording.Box
 
 func (h fixedHint) Crop(string, recording.Box) (recording.Box, bool) { return recording.Box(h), true }
+
+func holds(bs []recording.Box, b recording.Box) bool {
+	for _, x := range bs {
+		if x.Contains(b) {
+			return true
+		}
+	}
+	return false
+}
 
 func containsBox(bs []recording.Box, b recording.Box) bool {
 	for _, x := range bs {

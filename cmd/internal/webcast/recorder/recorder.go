@@ -105,8 +105,14 @@ type (
 	// actions, #470's notes and strokes): stamped with its arrival, applied
 	// through the recorder's reducer (refused, and counted, if invalid) and
 	// written in queue order, so the stream keeps one writer. Dropped before
-	// the first go-live: there is no recording yet.
-	Emit struct{ Record rec.Record }
+	// the first go-live: there is no recording yet. Doc, when set, is the
+	// document a viewer made the record on (#470's board): dropped unless
+	// that document is still current here (rec.State.OnDoc), so a note
+	// overtaken by a navigation isn't filed on the new page.
+	Emit struct {
+		Record rec.Record
+		Doc    int
+	}
 )
 
 // emittable: the kinds made outside the recorder. Everything else (the
@@ -177,6 +183,7 @@ type Recorder struct {
 	opened   bool
 	live     bool
 	seg      int
+	segT     int64  // when the current segment started
 	top      string // the cast page's session
 	tab      rec.Tab
 	parents  map[string]string // frame session -> parent session
@@ -497,6 +504,8 @@ func (r *Recorder) handle(in stamped) {
 	case Emit:
 		switch {
 		case !r.opened || v.Record == nil:
+		case v.Doc > 0 && !r.m.State().OnDoc(v.Doc):
+			// The viewer's document has gone: nobody is on that page now.
 		case !emittable[v.Record.Kind()]:
 			// A page record from outside would part the mirror from its
 			// reducer: refused, and counted.
@@ -675,6 +684,7 @@ func (r *Recorder) snapshotTop(at time.Time, why string) {
 	if err := r.m.Seg(r.t(at), seg, r.top, root, key); err != nil {
 		r.opts.Logf("%v", err)
 	}
+	r.segT = r.m.st.T
 }
 
 // document snapshots a session's document and names it.
@@ -719,6 +729,7 @@ func (r *Recorder) resnapshot(at time.Time, session string) bool {
 		if err := r.m.Seg(r.t(at), seg, session, root, key); err != nil {
 			r.opts.Logf("%v", err)
 		}
+		r.segT = r.m.st.T
 		r.observe(session, true)
 		r.goAssets()
 		r.nextShot = time.Time{}

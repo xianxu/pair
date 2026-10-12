@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/webcast"
 )
 
@@ -132,6 +133,25 @@ func (c *Console) webcastStarted(attempt uint64, cast *webcast.Cast, err error, 
 	c.wcast.phase, c.wcast.cast, c.wcast.update = webcastRunning, cast, cast.Current()
 	c.mu.Unlock()
 	c.setNotice("Chrome is open. Press Shift+Ctrl+Alt+b or click Chrome ▶ to go live; right-click it for the viewer link.")
+	c.syncOverlay(overlayWeb, true) // the notes menu draws in it
+	notes, stopNotes := cast.Notes()
+	c.GoTracked(func() {
+		defer stopNotes()
+		for {
+			select {
+			case live, open := <-notes:
+				if !open {
+					return
+				}
+				_ = c.runTerminalCommand(c.lifetime, func() error {
+					c.applyWebNotes(cast, live)
+					return nil
+				})
+			case <-c.stop:
+				return
+			}
+		}
+	})
 	updates, unsubscribe := cast.Subscribe()
 	c.GoTracked(func() {
 		defer unsubscribe()
@@ -195,6 +215,8 @@ func (c *Console) webcastEnded(cast *webcast.Cast) {
 	byOperator := c.wcast.phase == webcastEnding
 	c.wcast = webcastState{attempt: c.wcast.attempt}
 	c.mu.Unlock()
+	c.forgetWebNotes()
+	c.syncOverlay(overlayWeb, false)
 	switch err := cast.Err(); {
 	case byOperator || err == nil:
 		c.setNotice("Chrome cast ended.")
@@ -244,4 +266,48 @@ func (c *Console) endWebcastForShutdown() {
 		case <-time.After(webcastShutdownWait):
 		}
 	}
+}
+
+// SetReplayShares gives the console the replay shares (#477): it answers
+// replay-share and replay-status with them, and closes them at teardown.
+// Call before Run.
+//
+// A share becoming ready is a notice: a recording is now served through
+// the tunnel, maybe at an agent's request. The notice never carries the
+// link, which a screen broadcast would draw to its viewers.
+func (c *Console) SetReplayShares(s *webcast.ReplayShares) {
+	s.OnReady(func(id string, st webcast.ShareStatus) {
+		msg := fmt.Sprintf("Replay of %s shared through the broadcast tunnel until Couch exits (%d shared).", id, len(s.Shared()))
+		if st.Local {
+			msg = fmt.Sprintf("Replay of %s shared on this machine only (the tunnel is off) until Couch exits (%d shared).", id, len(s.Shared()))
+		}
+		c.GoTracked(func() { c.setNotice(msg) })
+	})
+	c.replays = s
+}
+
+// SharedReplays is the recordings shared for replay, for --broadcast-list.
+func (c *Console) SharedReplays() []string {
+	if c.replays == nil {
+		return nil
+	}
+	return c.replays.Shared()
+}
+
+// ReplayShare answers a replay request: replay-share asks for the
+// recording to be shared, replay-status reads where its share is.
+func (c *Console) ReplayShare(op, id string) couchmessage.ReplayShare {
+	if c.replays == nil {
+		return couchmessage.ReplayShare{State: string(webcast.ShareFailed), Error: "this Couch has no recordings store"}
+	}
+	read := c.replays.Status
+	if op == "replay-share" {
+		read = c.replays.Share
+	}
+	st := read(id)
+	out := couchmessage.ReplayShare{State: string(st.State), Base: st.Base, Local: st.Local}
+	if st.Err != nil {
+		out.Error = st.Err.Error()
+	}
+	return out
 }

@@ -8,13 +8,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchmessage"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // TestSlotOperationSocketAcceptance is report step → socket → Couch, end to
@@ -85,7 +85,7 @@ func TestSlotOperationSocketAcceptance(t *testing.T) {
 		_ = reader.Close()
 		select {
 		case <-done:
-		case <-time.After(3 * time.Second):
+		case <-testwait.After(t):
 			t.Error("Console did not stop")
 		}
 	})
@@ -145,7 +145,7 @@ func TestSlotOperationSocketAcceptance(t *testing.T) {
 					t.Fatalf("attach call %+v: %v", d.call, d.err)
 				}
 			}
-		case <-time.After(3 * time.Second):
+		case <-testwait.After(t):
 			t.Fatalf("dispatched only %v", seen)
 		}
 	}
