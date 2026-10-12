@@ -8,14 +8,14 @@
 .annotate .strokes { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .annotate .pins { position: absolute; inset: 0; pointer-events: none; }
 
-/* A pin: the note's element (or region) box, its 💭 chip at the top right in
-   the author's color. Only the chip takes input, so pins never block a
-   stroke or a new note elsewhere. */
-.pin { position: absolute; box-sizing: border-box; pointer-events: none; }
+/* A pin: the note's box (#488) outlined in the author's color, its 💭 chip
+   inside the top-right corner. Only the chip takes input, so pins never
+   block a stroke or a new note elsewhere. */
+.pin { position: absolute; box-sizing: border-box; pointer-events: none; border: 2px dashed var(--pin); border-radius: 4px; background: color-mix(in srgb, var(--pin) 10%, transparent); }
 .pin[hidden] { display: none; }
-.pin.region { border: 2px dashed var(--pin); border-radius: 4px; background: color-mix(in srgb, var(--pin) 10%, transparent); }
+.pin.thin .chip { right: -12px; top: -12px; }
 .pin .chip {
-  position: absolute; right: -12px; top: -12px; width: 26px; height: 26px; padding: 0;
+  position: absolute; right: 2px; top: 2px; width: 26px; height: 26px; padding: 0;
   border: 2px solid var(--pin); border-radius: 50%; background: #fff; font-size: 14px; line-height: 22px;
   box-shadow: 0 1px 4px rgba(0,0,0,.35); cursor: pointer; pointer-events: auto;
 }

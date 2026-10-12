@@ -62,6 +62,9 @@ func RunModelContract(t recording.TB, newModel func() Model) {
 	if at.Node != c.p1.ID || at.Sel == "" || !strings.Contains(at.Text, "first paragraph") {
 		t.Errorf("anchor %+v", at)
 	}
+	if at.Kind != recording.AnchorElement || len(at.Path) == 0 || !strings.HasPrefix(at.Path[len(at.Path)-1], "p") {
+		t.Errorf("anchor kind %q path %q: want an element path ending at the p", at.Kind, at.Path)
+	}
 	if at.Box == nil || *at.Box != c.boxes[c.p1.ID] {
 		t.Errorf("anchor box %v, want %v", at.Box, c.boxes[c.p1.ID])
 	}
@@ -89,37 +92,24 @@ func RunModelContract(t recording.TB, newModel func() Model) {
 		t.Errorf("context text must be what a person reads (no script, blocks apart): %q", ctx.Text)
 	}
 
+	// Crops (#488): a note's box plus a small margin, never snapped to its
+	// element or the element's landmark; boxes that overlap share a crop,
+	// boxes far apart get one each. An older note without a box crops the
+	// box it was made on.
 	foot, _ := m.Anchor(st, c.foot.ID)
-	for _, set := range [][]recording.NoteAt{{at}, {at, foot}} {
-		crops, err := m.Crops(st, set, nil)
-		if err != nil || len(crops) == 0 {
-			t.Fatalf("crops: %v %v", crops, err)
-		}
-		for _, a := range set {
-			held := false
-			for _, cr := range crops {
-				held = held || cr.Contains(*a.Box)
-			}
-			if !held {
-				t.Errorf("no crop holds the box %v of node %d (crops %v)", *a.Box, a.Node, crops)
-			}
-		}
-	}
-	hint := recording.Box{1, 2, 3, 4}
-	if crops, _ := m.Crops(st, []recording.NoteAt{at}, fixedHint(hint)); !containsBox(crops, hint) {
-		t.Errorf("a hint's crop must be used: %v", crops)
-	}
-
-	// A region note (#470): its crop holds the region and is not widened to
-	// its element (or the element's landmark); element notes keep theirs.
 	region := recording.Box{c.boxes[c.foot.ID][0] + 4, c.boxes[c.foot.ID][1] + 2, 30, 10}
-	rn := &recording.Note{At: recording.NoteAt{Node: c.foot.ID}, Region: &region}
-	crops, err := m.NoteCrops(st, []*recording.Note{{At: at}, rn}, nil)
-	if err != nil || !holds(crops, region) || !holds(crops, *at.Box) {
-		t.Errorf("note crops %v (%v) must hold the region %v and the element note's box %v", crops, err, region, *at.Box)
+	rn := &recording.Note{At: foot, Region: &region}
+	crops, err := m.NoteCrops(st, []*recording.Note{rn})
+	if err != nil || len(crops) != 1 || !crops[0].Contains(region) || crops[0][2] > region[2]+40 || crops[0][3] > region[3]+40 {
+		t.Errorf("a note crops its box plus a small margin, not its element: %v (%v)", crops, err)
 	}
-	if crops, err := m.NoteCrops(st, []*recording.Note{rn}, nil); err != nil || len(crops) != 1 || crops[0][2] >= c.boxes[c.foot.ID][2] {
-		t.Errorf("a region note crops its region, not its element: %v (%v)", crops, err)
+	near := recording.Box{region[0] + 20, region[1] + 5, 30, 10}
+	if crops, err := m.NoteCrops(st, []*recording.Note{rn, {At: foot, Region: &near}}); err != nil || len(crops) != 1 || !crops[0].Contains(region) || !crops[0].Contains(near) {
+		t.Errorf("overlapping boxes share one crop: %v (%v)", crops, err)
+	}
+	crops, err = m.NoteCrops(st, []*recording.Note{{At: at}, rn})
+	if err != nil || len(crops) != 2 || !holds(crops, region) || !holds(crops, *at.Box) {
+		t.Errorf("an older note's crop holds its box; boxes far apart get a crop each: %v (%v)", crops, err)
 	}
 
 	// The element goes: its anchor no longer resolves.
@@ -147,22 +137,9 @@ func RunModelContract(t recording.TB, newModel func() Model) {
 	}
 }
 
-type fixedHint recording.Box
-
-func (h fixedHint) Crop(string, recording.Box) (recording.Box, bool) { return recording.Box(h), true }
-
 func holds(bs []recording.Box, b recording.Box) bool {
 	for _, x := range bs {
 		if x.Contains(b) {
-			return true
-		}
-	}
-	return false
-}
-
-func containsBox(bs []recording.Box, b recording.Box) bool {
-	for _, x := range bs {
-		if x == b {
 			return true
 		}
 	}

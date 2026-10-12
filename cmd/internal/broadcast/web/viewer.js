@@ -4,8 +4,8 @@
 // posts points and sticky notes (#447) and remembers its viewer's color
 // pick (#446).
 
-import { noteAt, noteCell, guardedCell, parseNotes } from './notes.js';
-import { HEX_COLOR, pointerColor, colorStore, railAt, renderSwatches, noteDialog, poster } from './collab.js';
+import { noteAt, boxHasPin, parseNotes } from './notes.js';
+import { HEX_COLOR, pointerColor, colorStore, railAt, renderSwatches, noteDialog, poster, gestureBox, dragMin } from './collab.js';
 
 export { pointerColor, colorStore, RAIL_INSET, railAt, renderSwatches } from './collab.js';
 
@@ -273,7 +273,7 @@ async function start() {
     // Blocked site data: picks aren't remembered.
   }
   const swatches = document.getElementById('swatches');
-  const modeButton = document.getElementById('mode');
+  const modes = document.getElementById('modes');
   let notes = { guard: 0, notes: [] };
   let pointer = null;
   const byId = (id) => document.getElementById(id);
@@ -284,15 +284,20 @@ async function start() {
   pointer = pointerMode(term, stage, {
     notes: () => notes,
     dialog,
-    modeButton: {
-      show: (mode, toggle, tip) => {
-        modeButton.textContent = mode === 'comment' ? '💭' : '👆';
-        modeButton.title = tip;
-        modeButton.setAttribute('aria-label', tip);
-        modeButton.onclick = toggle;
-        modeButton.classList.remove('hidden');
+    dragBox: screenBox(stage, term),
+    modes: {
+      show: (current, pick) => {
+        for (const m of ['point', 'comment']) {
+          const b = byId(`mode-${m}`);
+          b.title = MODE_TIPS[m];
+          b.setAttribute('aria-label', MODE_TIPS[m]);
+          b.setAttribute('aria-pressed', String(m === current));
+          b.classList.toggle('on', m === current);
+          b.onclick = () => pick(m);
+        }
+        modes.classList.remove('hidden');
       },
-      hide: () => modeButton.classList.add('hidden'),
+      hide: () => modes.classList.add('hidden'),
     },
     store: colorStore(storage),
     swatches: {
@@ -342,6 +347,25 @@ async function start() {
   fit();
 }
 
+// screenBox is the dashed outline of a note's box while it is drawn, over
+// the screen's cells (Couch outlines the saved box in the frame).
+function screenBox(stage, term) {
+  const el = document.createElement('div');
+  el.className = 'drag-box hidden';
+  stage.append(el);
+  return {
+    show(b) {
+      const screen = stage.querySelector('.xterm-screen');
+      if (!screen) return;
+      const r = screen.getBoundingClientRect();
+      const cw = r.width / term.cols, ch = r.height / term.rows;
+      Object.assign(el.style, { left: `${r.left + b[0] * cw}px`, top: `${r.top + b[1] * ch}px`, width: `${b[2] * cw}px`, height: `${b[3] * ch}px` });
+      el.classList.remove('hidden');
+    },
+    hide: () => el.classList.add('hidden'),
+  };
+}
+
 // POST_ROUTES is every request this page makes besides its own assets and
 // stream (#412, #447).
 const POST_ROUTES = ['point', 'note', 'resolve'];
@@ -353,22 +377,25 @@ function postPoint(body) {
   postJSON('point', body).catch(() => {});
 }
 
-// MODE_TIPS explain the mode button on hover (#447 M3): the page has no hint
-// bar, so the screen keeps the whole window. Touch devices show no tooltips;
-// the icons stand alone there.
+// MODE_TIPS explain the mode buttons on hover (#447 M3): the page has no
+// hint bar, so the screen keeps the whole window. Touch devices show no
+// tooltips; the icons stand alone there. Both buttons show at once, the
+// current one pressed, as the web cast's do (#488).
 export const MODE_TIPS = {
-  point: 'Pointer mode: tap or drag to point. Click for comment mode.',
-  comment: 'Comment mode: tap the screen to leave a note. Click for pointer mode.',
+  point: 'Pointer mode: tap or drag to point.',
+  comment: 'Comment mode: drag a box, or tap for a small one, to leave a note.',
 };
 
 // pointerMode routes the viewer's taps. A tap on a 💭 opens that note, on
-// any page (#447). While the broadcast says pointing is on, the mode button
-// switches between pointer mode, where taps and drags become point batches
-// (flushed every 50ms), and comment mode, where a tap on an empty cell opens
-// a draft. deps: notes() → {guard, notes}, dialog (noteDialog), modeButton
-// {show(mode, toggle, tip), hide()}, store (colorStore), swatches
-// {show(palette, current, pick), hide()}, and for tests post(body),
-// every(fn, ms) → id, stop(id).
+// any page (#447). While the broadcast says pointing is on, the mode buttons
+// pick between pointer mode, where taps and drags become point batches
+// (flushed every 50ms), and comment mode, where a drag draws a note's box
+// and a tap gives it the default box (collab.js's gestureBox, #488), then a
+// draft opens. deps: notes() → {guard, notes}, dialog (noteDialog),
+// modes {show(current, pick(mode)), hide()} (the 👆 and 💭 buttons), store (colorStore), swatches
+// {show(palette, current, pick), hide()}, dragBox {show(box), hide()} (the
+// outline while a box is drawn), and for tests post(body), every(fn, ms) →
+// id, stop(id).
 export function pointerMode(term, stage, deps = {}) {
   const send = deps.post || postPoint;
   const every = deps.every || ((fn, ms) => setInterval(fn, ms));
@@ -377,10 +404,14 @@ export function pointerMode(term, stage, deps = {}) {
   const swatches = deps.swatches || { show() {}, hide() {} };
   const notes = deps.notes || (() => ({ guard: 0, notes: [] }));
   const dialog = deps.dialog || { draft() {}, view() {}, close() {} };
-  const modeButton = deps.modeButton || { show() {}, hide() {} };
+  const modes = deps.modes || { show() {}, hide() {} };
+  const dragBox = deps.dragBox || { show() {}, hide() {} };
   let mode = 'point';
   let on = false;
-  let stroke = null;
+  // drag is what the pointer is doing, one of: null; {kind: 'stroke', last,
+  // pending} (pointer mode, its points posted every 50ms by timer); {kind:
+  // 'box', from, to, pointerType} (comment mode, a note's box being drawn).
+  let drag = null;
   let timer = null;
   let palette = [];
   let assigned = 0;
@@ -388,12 +419,13 @@ export function pointerMode(term, stage, deps = {}) {
   const color = () => pointerColor(picked, assigned, palette.length);
   const drawMode = () => {
     if (on) {
-      modeButton.show(mode, () => {
-        mode = mode === 'point' ? 'comment' : 'point';
+      modes.show(mode, (m) => {
+        if (m !== mode) end(); // a gesture belongs to the mode it began in
+        mode = m;
         drawMode();
-      }, MODE_TIPS[mode]);
+      });
     } else {
-      modeButton.hide();
+      modes.hide();
     }
     stage.classList.toggle('comment', on && mode === 'comment');
   };
@@ -411,30 +443,34 @@ export function pointerMode(term, stage, deps = {}) {
   const screen = () => stage.querySelector('.xterm-screen');
   const post = (down, points) => send({ cols: term.cols, rows: term.rows, down, color: color(), points });
   const flush = (down) => {
-    if (!stroke) {
+    if (drag?.kind !== 'stroke') {
       return;
     }
-    for (const chunk of chunkStroke(stroke.last, stroke.pending)) {
+    for (const chunk of chunkStroke(drag.last, drag.pending)) {
       post(down, chunk);
     }
-    if (stroke.pending.length) {
-      stroke.last = stroke.pending[stroke.pending.length - 1];
+    if (drag.pending.length) {
+      drag.last = drag.pending[drag.pending.length - 1];
     }
-    stroke.pending = [];
+    drag.pending = [];
   };
   const cell = (e) => {
     const el = screen();
     return el ? cellAt(e.clientX, e.clientY, el.getBoundingClientRect(), term.cols, term.rows) : null;
   };
+  const boxOf = (g) => gestureBox(g.from, g.to, { x: 0, y: 0, w: term.cols, h: term.rows }, { min: dragMin('cells', g.pointerType), cells: true });
+  // end ends whatever the pointer is doing: a stroke's last points are
+  // posted, a box being drawn is dropped.
   const end = () => {
-    if (stroke) {
-      flush(false);
+    if (drag?.kind === 'box') {
+      dragBox.hide();
     }
+    flush(false);
     if (timer !== null) {
       stop(timer);
     }
     timer = null;
-    stroke = null;
+    drag = null;
   };
   stage.addEventListener('pointerdown', (e) => {
     const c = cell(e);
@@ -452,30 +488,41 @@ export function pointerMode(term, stage, deps = {}) {
       return;
     }
     e.preventDefault();
-    if (mode === 'comment') {
-      const at = noteCell(c, term.cols);
-      if (!guardedCell(at[0], at[1], term.rows, notes().guard)) {
-        dialog.draft({ cols: term.cols, rows: term.rows, col: at[0], row: at[1] });
-      }
-      return;
-    }
     stage.setPointerCapture?.(e.pointerId);
     end();
-    stroke = { last: null, pending: [c] };
+    if (mode === 'comment') {
+      drag = { kind: 'box', from: c, to: c, pointerType: e.pointerType };
+      dragBox.show(boxOf(drag));
+      return;
+    }
+    drag = { kind: 'stroke', last: null, pending: [c] };
     flush(true);
     timer = every(() => flush(true), 50);
   });
   stage.addEventListener('pointermove', (e) => {
-    if (!stroke) {
+    const c = cell(e);
+    if (drag?.kind === 'box') {
+      if (c) {
+        drag.to = c;
+        dragBox.show(boxOf(drag));
+      }
       return;
     }
-    const c = cell(e);
-    const tail = stroke.pending[stroke.pending.length - 1] || stroke.last;
+    if (drag?.kind !== 'stroke') {
+      return;
+    }
+    const tail = drag.pending[drag.pending.length - 1] || drag.last;
     if (c && !(tail && tail[0] === c[0] && tail[1] === c[1])) {
-      stroke.pending.push(c);
+      drag.pending.push(c);
     }
   });
-  stage.addEventListener('pointerup', end);
+  stage.addEventListener('pointerup', () => {
+    const box = drag?.kind === 'box' ? boxOf(drag) : null;
+    end();
+    if (box && boxHasPin(box, term.cols, term.rows, notes().guard)) {
+      dialog.draft({ cols: term.cols, rows: term.rows, box });
+    }
+  });
   stage.addEventListener('pointercancel', end);
   return {
     setOn(value) {

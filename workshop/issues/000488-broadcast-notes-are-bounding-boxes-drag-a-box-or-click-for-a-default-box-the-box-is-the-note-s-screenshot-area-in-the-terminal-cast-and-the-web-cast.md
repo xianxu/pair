@@ -1,12 +1,22 @@
 ---
 id: 000488
-status: open
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
-estimate_hours:
-card_mirror: '00457b972e6f06bd059761c599e7eee14c8aa61a' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 6.56
+card_mirror: '2d598955d1599e30634cf9a2812f6907df6323f0' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T10:40:32-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
+flow: {kind: full, provenance: inferred}
+actual_hours: 2.93
 ---
 
 # broadcast: notes are bounding boxes — drag a box (or click for a default box); the box is the note's screenshot area, in the terminal cast and the web cast
@@ -34,8 +44,78 @@ One mechanism for both casts (the terminal viewer and the web viewer already sha
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000488-…-plan.md` (same slug).
+
+- [x] M1 — shared `noteBox` (collab.js) + web cast: always-region with default box, BR-4 clamp, outlined pins, NoteAt kind/path, NoteCrops = padded box (snap + Hints retired, hub-coordinated with #483)
+- [x] M2 — terminal boxes: wire `box` + derived pin, viewer drag, DrawNotes outline, `NoteCrop` seam for #455
+- [x] M3 — terminal anchor: pure `AnchorFor` + async fresh list-panes resolver behind an injected PaneRects seam (stateful fake, live conformance) + nvim view.json
+- [x] Operator smoke test in both casts (passed 10-12, TL relay)
+
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*
+
+**Derivation:**
+- **Design:** v2 ranges with the ×0.2 spec-quality discount. The durable plan settles every
+  decision (two plan-quality rounds plus the hub's answers to A–D).
+- **Undiscounted design:** `issue-spec` (the reading and planning already spent since the
+  claim) and `ux-rename-iteration` (the operator's smoke test in both casts).
+- **Implementation:** 40% of the v2 ranges (v3.1). The two node-tested viewer items, the
+  async resolver and the crops refactor are picked at the upper end.
+- **Familiarity 1.1:** the codebase is familiar; Couch's frame overlay and the zellij seam are
+  partly new.
+- **Design buffer +15%:** there is a thorough plan doc.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.1
+item: issue-spec               design=0.8 impl=0.0
+item: smaller-go-module        design=0.05 impl=0.16
+item: smaller-go-module        design=0.05 impl=0.2
+item: smaller-go-module        design=0.05 impl=0.2
+item: cross-cutting-refactor   design=0.1 impl=0.24
+item: tui-screen               design=0.2 impl=0.32
+item: smaller-go-module        design=0.05 impl=0.2
+item: smaller-go-module        design=0.05 impl=0.16
+item: greenfield-go-module     design=0.2 impl=0.32
+item: greenfield-go-module     design=0.3 impl=0.4
+item: lua-neovim               design=0.1 impl=0.16
+item: atlas-docs               design=0.05 impl=0.12
+item: milestone-review         design=0.1 impl=0.16
+item: milestone-review         design=0.1 impl=0.16
+item: milestone-review         design=0.1 impl=0.16
+item: ux-rename-iteration      design=0.5 impl=0.08
+design-buffer: 0.15
+total: 6.56
+```
+
+Items in order:
+1. spec
+2. collab `noteBox`
+3. web annotate
+4. board parse/clamp + NoteAt
+5. NoteCrops simplification
+6. terminal viewer drag
+7. broadcast box wire + pin
+8. DrawNotes outline
+9. `AnchorFor`
+10. async resolver + PaneRects seam/fake/conformance
+11. nvim view.json
+12. atlas
+13–15. three milestone reviews
+16. smoke test
+
+## Revisions
+
+- 2026-10-12, after the operator's smoke test passed in both casts: the terminal viewer shows both mode buttons
+  (👆, 💭) at once, the current one pressed, as the web cast does, instead of one toggle button. This is the
+  operator's nit, relayed by the TL. No second smoke test is needed.
 
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — operator smoke-tested both casts on pair:0 build 1310e0b30 (TL relay: works well); smoke nit (both mode buttons) folded in with node test (71/71) + broadcast pkg green; full make -k test + go test ./... green after inventory fix (aad0b6fa4); M1-M3 SHIP; live Chrome annotate + live zellij conformance PASS; review verdict: FIX-THEN-SHIP
+- 2026-10-12: closed M3 — BR-15..19 fixed with tests: two-session queue test, slot-switch + resize mid-pass drop, queue decides under lock and starts after, TestNoteAnchorLifecycle (wire has no anchor; refine; drop on unknown/resolved/off), NoteBoard.SetAnchor snapshot test; reviewcmd.ReviewScript shared + round trip; prose-name sweep clean; broadcast pkg + couchtty notes/anchor suites green; live zellij conformance PASS; review verdict: SHIP
+- 2026-10-12: closed M2 — BR-10 fixed: box ints bounded at parse + overflow-safe within(), refusal table with 5s deadline, FuzzParseNote 20s clean w/ independent oracle; pinspots.json run by Go+node; pointerMode single tagged drag state; broadcast pkg green, node 70/70; review verdict: SHIP
+- 2026-10-12: closed M1 — go test webcast/... broadcast/... green; node 165/165; WEBCAST_LIVE_CHROME=1 TestAnnotateLiveTwoViewers + live replay tests PASS (real Chrome, mouse tap default box + touch drag box); BR-7 + snapping wording swept; review verdict: SHIP
+- Claimed from pair:3 (TL dispatch). Plan drafted; sent to hub for UI choices A–D before building.
