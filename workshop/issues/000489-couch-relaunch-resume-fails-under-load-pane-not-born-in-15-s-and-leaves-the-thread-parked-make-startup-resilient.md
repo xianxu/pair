@@ -15,7 +15,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "b5eb0429", done: "f4ca745b"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # couch: relaunch/resume fails under load (pane not born in 15 s) and leaves the thread parked; make startup resilient
@@ -60,6 +60,8 @@ Root cause: one fixed 15 s window (`pairRegistrationTimeout`) covers ALL of Pair
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — make -k test exit 0 on HEAD 646773eb (after merging origin/main through 397bb752, incl. #492). Round-2 fixes: exit signal described once (whileHelperAlive + atlas couch.md pair#489), BR-7 red test TestColdResumeRegistrationWrittenBeforeTheExitStillCounts fails with the final look disabled; staleness from last answer; live conformance TestRealRunnersExitedPrecedesTheGroup (exec+pty). Injected-delay tests: TestColdResumeAdoptsALateStart, TestColdResumeFailsAtOnceWhenPairExitsBeforeRegistering (direct child dies, group lives; named failure; thread left parked, unoccupied), TestCreateRebuildsOnlyOutsideCouch, CLI progress/timeout tests. Cause measured: 08:40 steps (registration 15.0s, pane never born); zellij log; one synthetic run (make build 9.6s + launch-to-pane 9.3-11.1s at load ~200); TL live runs at load 11-17 (uncertain at 12s/24s from the 2s poll timeout, fixed). Real-load Done-when line replaced per TL revision. Live check: resume parked parley.nvim:3 after Couch restarts onto this build. (done-when: contract moved since change-code; judged by the close review); review verdict: SHIP
+- 2026-10-12: flow upgraded quick → full — 171 added lines in code files (limit 100); an earlier round of this close already ran the full review
 - **08:3x measured (ops:0 transcript, pair:0 resume 08:40):** `claim 4.0s, checkout 61ms, prepare 1.4s, spawn 81ms,
   record+baseline 2.0s, ack 0s, registration 15.0s`, pane never born, no session live. Couch's own steps before the
   window took ~7.5 s (not in the budget); the remote job's prepare (inventory) took 9–16 s, also outside it.
