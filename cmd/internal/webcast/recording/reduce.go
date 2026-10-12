@@ -78,7 +78,11 @@ type State struct {
 	Notes     []*NoteView
 	Strokes   []*StrokeView
 	Frames    []*Frame
+	// Control is who drives (#466): per recording, ended by stop end.
+	Control Control
 
+	ctlSeen  bool // a ctl was applied: later ones must follow from it
+	whole    bool // reading a whole recording from its head (Validate)
 	nodes    map[NodeID]*DOMNode
 	types    map[NodeID]string // id -> type and tag, for the whole recording
 	awaitTop bool              // a seg came; its top doc hasn't
@@ -179,6 +183,11 @@ func (s *State) apply(r Record) error {
 			return errors.New("stop without a live segment")
 		}
 		s.Live, s.awaitTop = false, false
+		if r.Why == StopEnd {
+			s.Control = Control{}
+		}
+	case *Ctl:
+		return s.applyCtl(r)
 	case *Doc:
 		return s.applyDoc(r)
 	case *Asset:
@@ -200,6 +209,9 @@ func (s *State) apply(r Record) error {
 	case *Unknown:
 	default:
 		if err := s.inSegment(); err != nil {
+			return err
+		}
+		if err := s.checkSource(r); err != nil {
 			return err
 		}
 		return s.applyInSegment(r)
