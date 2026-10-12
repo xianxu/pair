@@ -43,10 +43,24 @@ Replace each real timer or sleep with the event or count it stands for: an injec
 
 ## Plan
 
-- [ ] Per test, prove the window by widening it with a temporary sleep; record the cause in the Log.
-- [ ] Replace each real timer or sleep with an injected clock/timer, an existing counter, or a state signal; fix product code if the race is there.
+- [x] Per test, prove the window by widening it with a temporary sleep; record the cause in the Log.
+- [x] Replace each real timer or sleep with an injected clock/timer, an existing counter, or a state signal; fix product code if the race is there.
 - [ ] 200 `-race` runs of each touched test under parallel load; full `make -k test`.
 
 ## Log
 
 ### 2026-10-12
+
+Every cause below was proven by widening its window with a temporary sleep (the old test failed every run), and the fix was rerun with the same widening and passed. None of these races was in the product; three product seams were added so tests can cause the event themselves (ARCH-MOCK: the seam is the production timer with an injectable source, nil = wall clock).
+
+- **couchcmd wait-notice `tickAt`** (17 callers): the broker admits a notice inside `tick` (Reserve runs on the Send path) but delivers it later on the hub's actor goroutine; the 150 ms sleep raced that delivery. Widened: 200 ms in the fake hub's `Deliver` → 4 tests failed. Fix: the fake hub records admitted IDs at Reserve (less refusals released undelivered; Release follows every delivery too) and `tickAt` waits until deliveries reach that count. A wrongly sent notice is counted synchronously, so "no notice" assertions stay exact.
+- **ttyio writer** (4 tests): the 80 ms deadline expired before a late writer goroutine wrote a byte (widened 100 ms → "expected known partial progress"); the 3 s stall test bounded elapsed at 4 s; the cancel test bounded elapsed at 1 s; `drainUntilQuiet` could stop early if the reader stalled past its 300 ms quiet window. Fixes: cancel after the slave is observably readable (poll POLLIN; x/sys has no portable FIONREAD) and bound busy polling as `2*held/pollSlice+10` (busy-poll mutant: 7570 waits, caught); drop the elapsed upper bound (a deadline-ignoring write hangs on the stalled host → binary timeout); measure cancel promptness as ≤1 poll wait after cancel; drain exactly the accepted byte count, then check EAGAIN. The transient-stall test gives the caller no deadline (a transport-imposed one, #383, still fails it). `pollSlice` named in writer.go.
+- **wrapcmd idle floor**: the alert test waited 400 ms for an alert to show up (widened 450 ms in the sink → 0 notifications); the output test's 15 ms writes against a 60 ms floor were raced by the scheduler (widened 200 ms gaps → false alert). A causal check on write timestamps was tried and rejected: it fails when the loop, not the writer, stalls. Fix: `proxy.newIdleTimer` (a `loopTimer` seam; `wallTimer` in production) and a `manualTimer` the test advances; the output test syncs on each chunk reaching stdout (the bump happens in the same loop step that queues the chunk). Mutant (no `bumpIdleDeadline`) fails.
+- **wrapcmd held-ESC flush** (`translate_stdin_test` ×2, `translate_test` split shortcut): same seam, `proxy.newStdinFlushTimer`. The split-shortcut race could never fail (a flushed ESC then `j` gives the same bytes); it only meant the test sometimes didn't exercise the reassembly path it names. Now it always does.
+- **couchcore registration phase**: two windows. (1) The fault fired only within 200 ms of birth; widened (210 ms stall in the first check) → "last ownership check: none". (2) The 150 ms budget had to hold a completed poll; the same widening gave "0 ownership polls". Fix: the fault lasts until the post-ack cleanup's first `Couch.after` call (its TERM wait, which runs before the cleanup reads the session; failing forever hangs the cleanup, measured), and a new `Couch.registrationDeadline` seam lets the test spend the budget on the second check, so exactly one poll precedes it (`1 ownership polls` asserted).
+- **couchcore never-turned refusal**: "under 200 ms" meant "before the registration wait"; now asserted by the wait never taking its budget from `registrationDeadline`.
+- **launcher pane birth**: "returns within 1 s with the 10 s bound" → new `LaunchOptions.BirthClock`; a stopped clock means the bound can't lapse, so returning at all proves the watch ended with its client.
+- **couchmessage broker actors**: the 100 ms latency inferred "no Observe probe"; the blocking endpoint now counts Observe calls.
+- **broadcast pointer slow body**: a 100 ms sleep before expecting 429, then a 7 s poll for recovery; now waits for `len(inFlight) == MaxPointInFlight`, then for the read deadline to free all slots, then expects 204.
+- **hostty SIGWINCH**: a 200 ms sleep before counting wakes (n==0 if the watcher ran late; n==2 if signals were still arriving while the test drained). Now: wait for a pending wake, `Close` (joins the watcher; a blocking send would hang it), then exactly one buffered wake.
+
