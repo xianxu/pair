@@ -117,7 +117,9 @@ func catchUpIndexes(recs []recording.Record, at int64) []int {
 }
 
 // Notes are pinned while open on their document, strokes drawn for their
-// moment, against the reducer's notes and strokes at each time.
+// moment, against the reducer's notes and strokes at each time. The replay
+// draws them with the live viewer's modules (#470's annotate.js, #477):
+// liveNotes' pins, and strokesAt's strokes painted on a canvas.
 func TestLiveReplayServerMarks(t *testing.T) {
 	page := headlessPage(t)
 	srv := replayServer(t)
@@ -126,17 +128,26 @@ func TestLiveReplayServerMarks(t *testing.T) {
 		t.Fatal(err)
 	}
 	page.openReplay(t, srv.URL+"/tok/r/app/#t=0")
+	painted := 0
 	for _, at := range []int64{5900, 6100, 12200, 12400, 12600, 13900, 14100, 16000, 18700, 19100} {
 		page.eval(t, fmt.Sprintf("location.hash = '#t=%d'", at))
 		page.evalString(t, drawnJS)
 		var got struct {
 			Notes   []string
-			Strokes int
+			Strokes string
+			Inked   bool
 		}
-		json.Unmarshal(page.eval(t, `({
-			notes: [...document.querySelectorAll('.replay-note')].map((e) => e.dataset.note).sort(),
-			strokes: document.querySelectorAll('.replay-strokes polyline').length,
-		})`), &got)
+		json.Unmarshal(page.eval(t, `(() => {
+			const c = document.querySelector('.replay-marks canvas.strokes');
+			const px = c.getContext('2d').getImageData(0, 0, c.width || 1, c.height || 1).data;
+			let inked = false;
+			for (let i = 3; i < px.length; i += 4) if (px[i]) { inked = true; break; }
+			return {
+				notes: [...document.querySelectorAll('.replay-marks .pin:not([hidden])')].map((e) => e.dataset.note).sort(),
+				strokes: c.dataset.strokes || '',
+				inked,
+			};
+		})()`), &got)
 		st, err := recording.Reduce(rec.Records, at)
 		if err != nil {
 			t.Fatal(err)
@@ -148,16 +159,51 @@ func TestLiveReplayServerMarks(t *testing.T) {
 			}
 		}
 		sort.Strings(notes)
-		strokes := 0
+		// A stroke shows from its first point through FADE_MS after the last
+		// point drawn by now, its chunks joined by id.
+		end := map[string]int64{}
 		for _, s := range st.Strokes {
-			since := at - s.T
-			if s.Seg >= st.DocSeg && since >= 0 && since <= int64(s.Pts[len(s.Pts)-1][2])+1500 {
-				strokes++
+			if s.Seg < st.DocSeg || s.T > at {
+				continue
+			}
+			for _, p := range s.Pts {
+				if pt := s.T + int64(p[2]); pt <= at && pt >= end[s.ID] {
+					end[s.ID] = pt
+				}
 			}
 		}
-		if !slices.Equal(got.Notes, notes) || got.Strokes != strokes {
-			t.Errorf("t=%d: drew notes %v and %d strokes; the reducer has %v and %d", at, got.Notes, got.Strokes, notes, strokes)
+		var strokes []string
+		for id, e := range end {
+			if at-e < 1500 {
+				strokes = append(strokes, id)
+			}
 		}
+		sort.Strings(strokes)
+		gotStrokes := strings.Fields(got.Strokes)
+		sort.Strings(gotStrokes)
+		if !slices.Equal(got.Notes, notes) || !slices.Equal(gotStrokes, strokes) || got.Inked != (len(strokes) > 0) {
+			t.Errorf("t=%d: drew notes %v and strokes %v (inked %v); the reducer has %v and %v", at, got.Notes, gotStrokes, got.Inked, notes, strokes)
+		}
+		if got.Inked {
+			painted++
+		}
+	}
+	if painted == 0 {
+		t.Fatal("no moment painted a stroke: the fixture's strokes are never checked")
+	}
+	// A pin's tap opens its note, read-only.
+	page.eval(t, "location.hash = '#t=19100'")
+	page.evalString(t, drawnJS)
+	var card struct{ Note, Text string }
+	json.Unmarshal(page.eval(t, `(() => {
+		const chip = document.querySelector('.replay-marks .pin:not([hidden]) .chip');
+		if (!chip) return {};
+		chip.click();
+		const c = document.querySelector('.replay-note-card');
+		return { note: c.hidden ? '' : c.dataset.note, text: c.textContent };
+	})()`), &card)
+	if card.Note == "" || !strings.Contains(card.Text, ": ") {
+		t.Errorf("tapping a pin: %+v", card)
 	}
 }
 

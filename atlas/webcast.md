@@ -236,9 +236,16 @@ instead of the event stream.
   Click or drag seeks, and so do ←/→, Home/End and Space.
 - **`#t=` links:** `#t=<ms>` opens at that moment, paused. A seek or a pause rewrites the hash
   (`history.replaceState`), and `hashchange` seeks. `webcast.ReplayLink(base, id, t)` builds a link.
-- **Marks over the page:** each note open on the current document shows as a pin at its element (`boxOf`, else the
-  box it carried). A stroke shows from its `t` through its last point, plus a 1.5 s fade. #470's live notes and pointer
-  UI should replace this once both have landed.
+- **Marks over the page (#477):** `replayMarks` draws with the live viewer's own modules (#470's `annotate.js`), in an
+  `.annotate` layer over `#box`, like the live viewer's:
+  - **notes:** `liveNotes(model)` drawn by `pinLayer`. Each pin is at its region, else its element (`boxOf`), else the
+    box it carried. A tap shows the note read-only, in a card (`.replay-note-card`, text only).
+  - **strokes:** `strokesAt(model, t)`, the points drawn by t with chunks joined by id, fading over `FADE_MS` after
+    the last point. They're painted on a canvas by `paintStrokes`.
+
+  The replay has no `palette.json`, so `mountAnnotate`'s posting UI never mounts there. Every server of the viewer
+  serves its files from one table (`serveViewerFile`), the fidelity harness included: `replay.js` now imports
+  `annotate.js`, which imports `collab.js`.
 - **Server:** `webcast.ReplayServer(token, root)`, a `broadcast.Mountable` with the viewer's CSP. It serves:
   - `<token>/`: the listing, newest first, from each recording's head line and last line;
   - `r/<id>/`: the viewer;

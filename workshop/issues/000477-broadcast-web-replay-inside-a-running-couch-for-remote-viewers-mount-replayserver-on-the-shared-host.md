@@ -74,3 +74,10 @@ Durable plan: `workshop/plans/000477-broadcast-web-replay-inside-a-running-couch
   the test while `Write` cleared it. It failed under `-race`.
 - Live: `WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run 'LiveReplayShare|LiveReplayServerSeeks'` passes.
   A real Chrome opens a share's link through a LocalOnly Host and seeks with `#t=`.
+- M2: merged origin/main (#470, PR #269). Replay's own `drawMarks` (an SVG of strokes, and note text pinned
+  inline) is replaced by `replayMarks`, which uses #470's `liveNotes`/`pinLayer` and `strokesAt`/`paintStrokes`.
+  A pin's tap opens the note read-only. `TestLiveReplayServerMarks` now compares the pins and the canvas's
+  stroke ids with the reducer at ten moments, and checks that the canvas has ink exactly when strokes show and
+  that a tap opens a note. Main's fidelity harness served `/web/` straight from `webFS`, so `collab.js` 404'd once
+  `replay.js` imported `annotate.js`. It now goes through `serveViewerFile`, the one table (ARCH-DRY). All
+  `TestLive*` webcast tests pass with `WEBCAST_LIVE_CHROME=1`, and the node tests pass 88/88.
