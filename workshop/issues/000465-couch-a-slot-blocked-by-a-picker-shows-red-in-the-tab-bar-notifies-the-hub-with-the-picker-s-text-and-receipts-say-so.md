@@ -15,6 +15,7 @@ claimant:
     workspace: pair:2
     worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "1d5e52dd", done: "f3cb2a8f"}
 ---
 
 # couch: a slot blocked by a picker shows red in the tab bar, notifies the hub with the picker's text, and receipts say so
