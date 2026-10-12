@@ -443,22 +443,27 @@ export function replayMarks(doc, layer, fromPage, dpr) {
     Object.assign(e.style, { left: `${x0}px`, top: `${y0}px`, width: `${x1 - x0}px`, height: `${y1 - y0}px` });
   };
   let shown = null; // the note the card shows, while it is pinned
+  // placeCard puts the card under its pin, or hides it when the pin is gone.
+  // A tap places it at once: a paused replay draws no frame for it.
+  const placeCard = () => {
+    const pin = shown && pins.querySelector(`.pin[data-note="${CSS.escape(shown)}"]`);
+    if (!pin || pin.hidden) { shown = null; card.hidden = true; return; }
+    const r = pin.getBoundingClientRect(), l = layer.getBoundingClientRect();
+    Object.assign(card.style, { left: `${r.left - l.left}px`, top: `${r.bottom - l.top + 4}px` });
+    card.hidden = false;
+  };
   const pinned = pinLayer(doc, pins, (n, by) => {
     if (shown === n.id) { shown = null; card.hidden = true; return; }
     shown = n.id;
     card.textContent = `${by}: ${n.text}`;
     card.dataset.note = n.id;
-    card.hidden = false;
+    placeCard();
   });
   return (player) => {
     const m = player.model, t = player.t;
     const notes = liveNotes(m);
     pinned.draw(notes, (id) => player.renderer.boxOf(id), place);
-    const pin = shown && pins.querySelector(`.pin[data-note="${CSS.escape(shown)}"]`);
-    if (!pin || pin.hidden) { shown = null; card.hidden = true; } else {
-      const r = pin.getBoundingClientRect(), l = layer.getBoundingClientRect();
-      Object.assign(card.style, { left: `${r.left - l.left}px`, top: `${r.bottom - l.top + 4}px` });
-    }
+    placeCard();
     const strokes = strokesAt(m, t);
     canvas.dataset.strokes = strokes.map((x) => x.id).join(' ');
     paintStrokes(canvas, strokes, fromPage, { left: 0, top: 0, width: layer.clientWidth, height: layer.clientHeight }, dpr);
@@ -489,5 +494,9 @@ export function mountReplay(doc, win, deps, fromPage) {
     ui: (player, on) => timelineBar(doc, doc.getElementById('timeline'), player, on),
   });
   win.addEventListener('hashchange', v.onHash);
+  // Every event that moves the page box redraws the marks over it, paused
+  // or not: the shell's own resize handler lays out the page only, and runs
+  // after this one, so the redraw waits for the next frame.
+  win.addEventListener('resize', () => deps.schedule(() => { if (v.player) marks(v.player); }));
   return v;
 }

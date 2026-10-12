@@ -194,16 +194,38 @@ func TestLiveReplayServerMarks(t *testing.T) {
 	// A pin's tap opens its note, read-only.
 	page.eval(t, "location.hash = '#t=19100'")
 	page.evalString(t, drawnJS)
-	var card struct{ Note, Text string }
+	// The replay is paused, so no frame follows the tap: the card is placed
+	// under its pin by the tap itself.
+	var card struct {
+		Note, Text string
+		DX, DY     float64
+	}
 	json.Unmarshal(page.eval(t, `(() => {
 		const chip = document.querySelector('.replay-marks .pin:not([hidden]) .chip');
 		if (!chip) return {};
 		chip.click();
 		const c = document.querySelector('.replay-note-card');
-		return { note: c.hidden ? '' : c.dataset.note, text: c.textContent };
+		const pin = chip.parentElement.getBoundingClientRect(), r = c.getBoundingClientRect();
+		return { note: c.hidden ? '' : c.dataset.note, text: c.textContent, dx: r.left - pin.left, dy: r.top - pin.bottom };
 	})()`), &card)
-	if card.Note == "" || !strings.Contains(card.Text, ": ") {
-		t.Errorf("tapping a pin: %+v", card)
+	if card.Note == "" || !strings.Contains(card.Text, ": ") || card.DX != 0 || card.DY != 4 {
+		t.Errorf("tapping a pin: %+v, want the card 4px under its pin", card)
+	}
+	// A resize while paused redraws the marks: the strokes canvas follows the
+	// box rather than stretching to it.
+	page.eval(t, "location.hash = '#t=12400'")
+	page.evalString(t, drawnJS)
+	page.call(t, page.session, "Emulation.setDeviceMetricsOverride", map[string]any{"width": 900, "height": 700, "deviceScaleFactor": 1, "mobile": false}, nil)
+	defer page.call(t, page.session, "Emulation.clearDeviceMetricsOverride", map[string]any{}, nil)
+	// The window's resize event, then two frames: the shell lays out, and
+	// the marks follow. Nothing else draws while paused.
+	resized := page.evalString(t, `(async () => {
+		await new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok)));
+		const c = document.querySelector('.replay-marks canvas.strokes'), l = c.parentElement;
+		return [c.width, Math.round(l.clientWidth * devicePixelRatio), c.height, Math.round(l.clientHeight * devicePixelRatio)].join(' ');
+	})()`)
+	if f := strings.Fields(resized); len(f) != 4 || f[0] != f[1] || f[2] != f[3] {
+		t.Fatalf("after a resize while paused, the strokes canvas (width height) vs the box: %s", resized)
 	}
 }
 

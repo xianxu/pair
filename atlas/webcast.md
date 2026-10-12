@@ -239,7 +239,8 @@ instead of the event stream.
 - **Marks over the page (#477):** `replayMarks` draws with the live viewer's own modules (#470's `annotate.js`), in an
   `.annotate` layer over `#box`, like the live viewer's:
   - **notes:** `liveNotes(model)` drawn by `pinLayer`. Each pin is at its region, else its element (`boxOf`), else the
-    box it carried. A tap shows the note read-only, in a card (`.replay-note-card`, text only).
+    box it carried. A tap shows the note read-only, in a card under its pin (`.replay-note-card`, text
+    only). The tap places it at once, and a resize redraws the marks, because a paused replay draws no frame.
   - **strokes:** `strokesAt(model, t)`, the points drawn by t with chunks joined by id, fading over `FADE_MS` after
     the last point. They're painted on a canvas by `paintStrokes`.
 

@@ -1261,3 +1261,10 @@ proof; record the surprising case so the next change starts from evidence.
   outside the machine, ask, at design time, how the operator learns it happened. When you add a verb, flag, output
   line or JSON key, grep its name across the README (synopsis and prose), `couch --help`, the atlas, SKILL.md and the
   Usage text in the same commit. Give each behavior a fix adds its own test that fails without it.
+
+- **A paused view draws no frames, so every event that changes what it shows must draw (#477 M2).** The replay
+  redraws its marks once per frame, and a paused replay (how every `#t=` link opens) has none. A tap's note card
+  and a resize waited for a frame that never came. When a view redraws on a loop, list what changes its output
+  besides the loop (input, resize, a seek) and draw from each. Test with the loop stopped, after a fixed number of
+  frames, not by polling: a poll can be satisfied by a later, unrelated redraw (the first resize test passed with
+  the fix removed).

@@ -414,8 +414,9 @@ when their data changes; each frame only places them. For replay (#477), the dra
 `liveNotes(model)`, `strokesAt(model, t)` (chunks joined by id, the points drawn by t, fading 1.5 s after the last),
 `paintStrokes(canvas, strokes, toClient, rect, dpr)` and `pinLayer(doc, container, open).draw(notes, boxOf, place)`.
 The live viewer draws with `liveNotes`, `pinLayer` and `paintStrokes` (its strokes fade on arrival time, `strokeStore`);
-`strokesAt` is the at-t counterpart. #471's replay draws marks with its own `drawMarks` today (per chunk, region last);
-#477 converges it onto these. In replay mode the notes module doesn't mount (the replay server
+`strokesAt` is the at-t counterpart. The replay draws with exactly these (#477, `replayMarks` in `replay.js`), so a
+note's pin follows `noteBox` (its region first, then its element, then the box it carried) live and in replay alike.
+In replay mode the notes module doesn't mount (the replay server
 serves no `palette.json`).
 
 The viewer rewrites `url()`s and `image-set()` strings in streamed CSS (`sheet` records, `<style>` text, `style=`)
