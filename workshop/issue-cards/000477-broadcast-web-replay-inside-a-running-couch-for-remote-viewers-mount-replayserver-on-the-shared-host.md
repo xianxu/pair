@@ -1,6 +1,6 @@
 ---
 id: 000477
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours: 2.09
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 763ec0464fdac28feb9c6db35c2f8ed7797a6416
         evidence_commit: dc0dd6ddc3941717f56600634fae4bb65f1b5ad4
+        landed_commit: 4f244c9901ac34edbb6f31dbc1118d9918fb58e6
 ---
 
 # broadcast-web: replay inside a running Couch, for remote viewers (mount ReplayServer on the shared Host)
