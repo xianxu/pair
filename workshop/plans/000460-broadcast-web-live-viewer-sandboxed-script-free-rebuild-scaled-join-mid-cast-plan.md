@@ -99,3 +99,16 @@ Go side:
   hit-testing.
 - **`ctl` records:** not rendered now (#467). The model ignores unknown kinds as the reducer does; the shell exposes an
   `onRecord` hook so #467 renders who's driving without touching the apply path. `POST /TOKEN/drive/*` is #467's.
+
+### 2026-10-12 — as built, after the close review (round 1)
+- **Fan-out:** no `webcast.Hub`. The TL promoted `recording.FakeHub` to `recording.Hub` (deprecated alias kept), and
+  `Server.events` encodes each record per viewer. That is cheap next to the SSE write, and sharing encoded bytes would
+  double the Hub's memory per segment. `recording.Live` gained `Done()`, so the route ends a dropped viewer's stream
+  but keeps an ended fan-out's viewers on state/end (BR-1). This is an additive seam change, made under the TL's
+  one-writer grant for that file.
+- **CSP** also allows `data:` in `img-src` and `font-src`: inline data URLs in recorded CSS and attributes, which
+  fetch nothing.
+- **Records outside Canonical** (hover) never refuse in the viewer, so they never force a resync (BR-2).
+- **Not done here, for the TL:** `CatchUp` keeps every `ptr`/`hover` of the segment. A latest-only rule is a format
+  change (#457/#458). `image-set()` string URLs are not rewritten; the CSP's `img-src 'self'` stops them reaching
+  the origin.
