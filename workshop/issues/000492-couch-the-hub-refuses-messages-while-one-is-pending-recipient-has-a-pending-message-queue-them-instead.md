@@ -1,12 +1,12 @@
 ---
 id: 000492
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '2cb7e780e8a24826f9b4522a52b246c6af6868bf' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '865e978a4a0d295e908fcdd997a76bfe21ddff53' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T11:23:48-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 0.96
 ---
 
 # couch: the hub refuses messages while one is pending ('recipient has a pending message'); queue them instead
