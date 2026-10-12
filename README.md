@@ -444,6 +444,12 @@ couch --skill            print the bundled agent coordination skill
 couch --adopt-store /absolute/store     preview adoption of an existing store
 ```
 
+`couch --help` ends each verb's line with its relative cost, measured on a
+loaded machine (pair#490): `[light]` is under a second, `[seconds]` a few
+seconds, and `[heavy]` tens of seconds of CPU, since it stops or boots agents or
+runs sdlc across the fleet. Run heavy verbs one at a time, after checking
+`uptime`. `couch --skill` lists the same tiers.
+
 `couch --recover-plan-from-sdlc` is the after-restart report an agent (typically
 the one in `:0`) reads before resuming work. It runs `sdlc fleet inventory --json`
 once per fleet of the repositories Couch has enrolled (this machine's claims,

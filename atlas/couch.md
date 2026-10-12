@@ -437,6 +437,12 @@ outside Couch. Loading or installing it is explicit; runtime does not change
 agent configuration. Ordinary messages carry follow-up context in their body;
 there is no reply protocol or availability toggle.
 
+Every public verb has a relative cost, `light`, `seconds` or `heavy`, in one
+table (`couchcmd/cost.go`, pair#490, from timings in that issue's Log).
+`couch --help` renders it at the end of each verb's line through `verbLine`,
+which panics on an untagged verb; the skill's "What each verb costs" section
+lists the same tiers, and `cost_test.go` keeps both equal to the table.
+
 ### Waiting notices to the hub (#451)
 
 A slot that waits for someone sends nothing, so delivery robustness can't
