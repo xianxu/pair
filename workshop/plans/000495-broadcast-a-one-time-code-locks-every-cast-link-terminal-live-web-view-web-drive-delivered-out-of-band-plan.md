@@ -1,10 +1,14 @@
 # #495 plan: a one-time code locks every cast link
 
-Status: decided; M1 closed. The body below is the original draft, and Revisions record each change. This summary is the current design.
+Status: decided; M1 and M2 built (M2 closing). The body below is the original draft, and Revisions record each change. This summary is the current design.
 
 ## Current design (supersedes the draft where they differ)
 
-- **Links and codes.** Each link has its own code: terminal `view` (4 digits), terminal `pointer` (4), web `view` (4) and web `drive` (6). Replay links stay unlocked (D4, a follow-up issue).
+- **Links and codes.** Each link token has its own code:
+  - terminal `view` (4 digits) and `pointer` (4);
+  - web `view` (4), web `pointer` (4) once pair:5 splits it out after #503, and web `drive` (6).
+  - Replay links stay unlocked (D4, a follow-up issue).
+- **Registry (M3 first step).** `broadcast.LinkLocks` is one registry per cast (label + token → lock), with `LockFor`, `Codes`, `Rotate` and `End`. A new link is one `Add`.
 - **Gate.** `Mountable.LockFor(segment)` names a link's lock, and the `Host` gate runs before any mount.
   - Before a session: the lock page, `lock.js`, `lock.css` and `POST unlock`; everything else gets 401.
   - With a session: the request runs under a context that revoke cancels.
@@ -16,10 +20,12 @@ Status: decided; M1 closed. The body below is the original draft, and Revisions 
   - `Rotation.Gen` orders the notifications.
 - **Lock page.** One page asks for the code and the name for every link. `URL#NNNN` pre-fills the code and is stripped from history.
 - **Couch (M3).** An operator-only presenter layer that is never tapped holds:
-  - a hover tooltip with the codes (`view 4821 · pointer 7730`);
+  - a hover tooltip with the codes. It hangs on the link controls: LIVE's 👆 (terminal codes), and Chrome's 👆 (view) and 👽 (drive) from #501. Until #501 lands, it hangs on the Chrome cell;
   - an Alt+click Codes menu with per-link rotate and "rotate all";
   - a three-flash of a new code;
   - the guess-rotation alert, coalesced per lock every 30 s.
+
+- **Tests.** The headless-Chrome viewer tests (`viewer_live_test` and its siblings) serve `Server` directly, not through the Host gate, so they stay unlocked. `TestLiveLockPage` covers the locked path end to end in Chrome, replacing the plan's "update them to unlock first". Node tests cover each viewer's relock on a lost session.
 
 ## Shape
 
