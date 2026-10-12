@@ -1213,3 +1213,9 @@ proof; record the surprising case so the next change starts from evidence.
   event that makes it true and wait on that event: a no-op command through the loop that owns the state, or an
   injected clock (`Couch.after`) that ties the timeout to the fake's state. To prove a suspected window, widen it
   with a temporary sleep in the product or fake and watch the test fail every time.
+- **A flag that marks setup done must die with what it set up (#475).** `openDoc` guarded its load listener with a
+  property on the document, but `document.open()` erases the document's listeners and keeps its properties, so only
+  the first page a frame ever drew redrew on loads, and the replay's numbers depended on test order. When a guard
+  says "already done", check that every operation that undoes the work also clears the guard; prefer re-doing an
+  idempotent setup each time over a flag. And when a render number changes only with run order, diff the same
+  capture twice before suspecting the change under test (Chrome throttles a hidden frame's rendering too).

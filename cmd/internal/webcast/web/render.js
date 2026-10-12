@@ -44,6 +44,7 @@ export class Renderer {
     this.frame = frame;
     this.model = model;
     this.resolveAsset = resolveAsset;
+    this.holding = false;
     this.reset();
   }
 
@@ -71,8 +72,7 @@ export class Renderer {
   apply(r) {
     const m = this.model;
     switch (r.k) {
-      case 'head': this.reset(); this.openDoc(this.topDoc); return;
-      case 'seg': this.reset(); this.openDoc(this.topDoc); return;
+      case 'head': case 'seg': this.reset(); this.holdPaint(); this.openDoc(this.topDoc); return;
       case 'doc': return this.drawDoc(r);
       case 'ins': {
         const p = this.dom.get(r.p);
@@ -143,6 +143,7 @@ export class Renderer {
   // inserted after a scroll record can clamp it), the selection and hover.
   flush() {
     this.dirty = false;
+    this.checkHold();
     for (const [id, [x, y]] of this.model.scrolls) {
       const n = this.dom.get(id);
       if (!n) continue;
@@ -172,13 +173,13 @@ export class Renderer {
     try { doc.fonts.clear(); } catch {}
     doc.adoptedStyleSheets = [this.viewerSheet(doc)];
     // An image, stylesheet or font arriving changes the layout, and a
-    // scroll applied to the shorter page was clamped: draw again.
-    if (!doc.__couchLoads) {
-      Object.defineProperty(doc, '__couchLoads', { value: true });
-      const changed = () => { this.dirty = true; this.onDirty(); };
-      doc.addEventListener('load', changed, true);
-      doc.fonts.addEventListener('loadingdone', changed);
-    }
+    // scroll applied to the shorter page was clamped: draw again, through
+    // whichever renderer draws this frame now. doc.open() erased the
+    // document's listeners (#475); doc.fonts keeps its own.
+    const changed = () => { const r = doc.__couchRenderer; r.dirty = true; r.onDirty(); };
+    doc.addEventListener('load', changed, true);
+    if (!doc.__couchRenderer) doc.fonts.addEventListener('loadingdone', changed);
+    doc.__couchRenderer = this;
   }
 
   // onDirty is called when the drawing needs a flush outside a record
@@ -196,7 +197,7 @@ export class Renderer {
 
   drawDoc(r) {
     let doc;
-    if (!r.host) doc = this.topDoc;
+    if (!r.host) { doc = this.topDoc; this.topDrawn = true; }
     else {
       const host = this.dom.get(r.host);
       doc = host && host.contentDocument;
@@ -210,6 +211,7 @@ export class Renderer {
       try { doc.appendChild(this.build(k, doc, '')); } catch (e) { this.warn(e); }
     }
     this.afterInsert(r.doc);
+    this.checkHold();
   }
 
   // docURL is the URL a document's relative URLs resolve against.
@@ -336,7 +338,7 @@ export class Renderer {
     if (v !== undefined) {
       const base = this.docURL(el.ownerDocument);
       if (lower === 'style') out = this.css(v, base, key, redraw);
-      else if (lower === 'srcset') out = rewriteSrcset(v, base, (abs) => this.asset(abs, key, redraw));
+      else if (lower === 'srcset') out = rewriteSrcset(v, base, (abs) => this.asset(abs, key, redraw)) || undefined; // no candidate yet: none, as with src
       else if (isURLAttr(tag, lower)) {
         if (/^\s*#/.test(v)) out = v; // a fragment in this document (SVG <use href="#x">)
         else {
@@ -397,6 +399,9 @@ export class Renderer {
     if (text === null) { this.blobs.delete(id); el.removeAttribute('href'); return; }
     const url = URL.createObjectURL(new Blob([text], { type: 'text/css' }));
     this.blobs.set(id, { url, token: old && old.token });
+    const bound = () => this.checkHold();
+    el.addEventListener('load', bound, { once: true });
+    el.addEventListener('error', bound, { once: true });
     el.setAttribute('href', url);
   }
 
@@ -444,6 +449,72 @@ export class Renderer {
       this.fontFaces.push(face);
       face.load().catch(() => {});
     } catch (e) { this.warn(e); }
+  }
+
+  // ---- paint holding (#475) ----
+  //
+  // A browser keeps showing the old page until a new document's
+  // render-blocking stylesheets have loaded, and the recording says when
+  // their bytes arrived, which can be after the document did. So the
+  // renderer draws a new top document into a second frame, under the first,
+  // which keeps the previous paint on top until the document's stylesheets
+  // are bound, or HOLD_MS after the hold began; then the first is hidden.
+  // (The new one is never hidden itself: Chrome throttles a hidden frame's
+  // rendering, which starts its animations late.) #page is always the frame
+  // with the current document (what canonical(), boxOf() and the shell's
+  // layout read); its sibling holds the previous paint.
+
+  // holdPaint begins a hold for the top document about to be drawn, with
+  // its own deadline. A document replacing one still held keeps the
+  // previous paint; a renderer that takes over a hold in flight (a resync,
+  // a seek) keeps drawing under the held paint and owns the release.
+  holdPaint() {
+    this.topDrawn = false;
+    const pair = framePair(this.frame);
+    const other = pair.frames.find((f) => f !== this.frame);
+    if (other.style.zIndex !== HELD) {
+      Object.assign(this.frame.style, { zIndex: HELD });
+      Object.assign(other.style, { zIndex: '', visibility: '' });
+      other.id = this.frame.id;
+      this.frame.removeAttribute('id');
+      this.frame = other;
+    }
+    pair.owner = this;
+    this.holding = true;
+    clearTimeout(this.holdTimer);
+    this.holdTimer = setTimeout(() => this.release(), HOLD_MS);
+  }
+
+  // checkHold releases the hold once the document is drawn and every
+  // stylesheet that blocks its rendering is bound.
+  checkHold() {
+    if (this.holding && this.topDrawn && blockingSheets(this.topDoc).every((l) => l.sheet)) this.release();
+  }
+
+  // bound resolves once the stylesheets whose bytes have arrived are bound
+  // (the proxy fetch and the sheet's load), so a capture shows what a
+  // viewer shows once the stylesheet it already has applies.
+  async bound() {
+    while (this.loads.size) await Promise.allSettled([...this.loads]);
+    const waits = blockingSheets(this.topDoc).filter((l) => !l.sheet && l.getAttribute('href'))
+      .map((l) => new Promise((ok) => { l.addEventListener('load', ok, { once: true }); l.addEventListener('error', ok, { once: true }); }));
+    await Promise.race([Promise.allSettled(waits), new Promise((ok) => setTimeout(ok, HOLD_MS))]);
+    this.checkHold();
+  }
+
+  release() {
+    if (!this.holding) return;
+    this.holding = false;
+    clearTimeout(this.holdTimer);
+    const pair = framePair(this.frame);
+    if (pair.owner !== this) return; // a later renderer took the frames over
+    for (const f of pair.frames) {
+      if (f === this.frame) continue;
+      Object.assign(f.style, { zIndex: '', visibility: 'hidden' });
+      try { f.contentDocument.replaceChildren(); } catch {} // nothing runs in the hidden one
+    }
+    this.dirty = true;
+    this.onDirty();
   }
 
   // ---- observer state ----
@@ -588,6 +659,45 @@ export class Renderer {
     for (let n = el; n; n = n.parentNode || n.host) if (this.ids.has(n)) return this.ids.get(n);
     return 0;
   }
+}
+
+// HOLD_MS is the longest a new document's paint waits for its stylesheets:
+// a stylesheet that never arrives (over the asset budget, a failed fetch)
+// leaves the page drawn without it.
+export const HOLD_MS = 500;
+
+// HELD is the z-index that keeps the previous paint over the new document.
+const HELD = '1';
+
+// framePair is the page frame and its sibling holding the previous paint,
+// created beside it the first time, both placed at the box's origin and
+// opaque: a tab's canvas is white unless the page paints it, a frame's
+// transparent, and the held paint must cover the new document.
+function framePair(frame) {
+  if (!frame.__couchPair) {
+    const back = frame.cloneNode(false);
+    back.removeAttribute('id');
+    back.style.visibility = 'hidden';
+    for (const f of [frame, back]) Object.assign(f.style, { position: 'absolute', left: '0', top: '0', background: '#fff' });
+    frame.after(back);
+    const pair = { frames: [frame, back], owner: null };
+    for (const f of pair.frames) Object.defineProperty(f, '__couchPair', { value: pair });
+  }
+  return frame.__couchPair;
+}
+
+// blockingSheets are a document's render-blocking stylesheets, as a
+// browser counts them: <link rel=stylesheet>, not alternate or disabled,
+// whose media matches.
+function blockingSheets(doc) {
+  if (!doc) return [];
+  const win = doc.defaultView;
+  return [...doc.querySelectorAll('link[rel~=stylesheet i]')].filter((l) => {
+    const rel = (l.getAttribute('rel') || '').toLowerCase().split(/\s+/);
+    if (rel.includes('alternate') || l.hasAttribute('disabled')) return false;
+    const media = l.getAttribute('media');
+    return !media || !win || win.matchMedia(media).matches;
+  });
 }
 
 // isURLAttr: tags compare in lower case, as URL_ATTRS lists them (an SVG

@@ -3,17 +3,22 @@
 // replay_test.go to read canonical() and capture the frame. Assets resolve
 // to the fixture server's assets/<hash>, as the proxy (#459) serves them.
 import { Model, goJSON } from '/web/model.js';
-import { Renderer } from '/web/render.js';
+import { Renderer, HOLD_MS } from '/web/render.js';
 
-const frame = document.getElementById('page');
+// #page is the frame with the current document (#475: its sibling holds
+// the previous paint while a new document's stylesheets bind).
+const page = () => document.getElementById('page');
 let fx, recs, next, model, renderer;
 
 const fresh = () => {
   model = new Model();
-  renderer = new Renderer(frame, model, (abs) => {
+  renderer = new Renderer(page(), model, (abs) => {
     const a = model.assets.get(abs);
     return a ? `/fx/${fx}/assets/${a.hash}` : '';
   });
+  // As the shell does: a redraw outside a record (a held paint released, a
+  // stylesheet or image loaded) flushes before the next paint.
+  renderer.onDirty = () => requestAnimationFrame(() => renderer.flush());
 };
 
 async function fetchRecords(url) {
@@ -27,8 +32,8 @@ function feed(r) {
   model.apply(r);
   renderer.apply(r);
   if (model.seg > 0) {
-    frame.style.width = `${model.vp.w}px`;
-    frame.style.height = `${model.vp.h}px`;
+    page().style.width = `${model.vp.w}px`;
+    page().style.height = `${model.vp.h}px`;
   }
 }
 
@@ -43,6 +48,7 @@ async function settle() {
 // load starts a fixture's replay from its first record.
 window.load = async (name) => {
   fx = name;
+  for (const f of document.querySelectorAll('body > iframe')) f.contentDocument.replaceChildren(); // a fresh viewer holds no paint
   recs = await fetchRecords(`/fx/${name}/records`);
   next = 0;
   fresh();
@@ -65,7 +71,7 @@ window.join = async (name, t, until) => {
   return settle();
 };
 
-const frameDocs = () => [frame.contentDocument, ...[...frame.contentDocument.querySelectorAll('iframe')].map((f) => f.contentDocument).filter(Boolean)];
+const frameDocs = () => [page().contentDocument, ...[...page().contentDocument.querySelectorAll('iframe')].map((f) => f.contentDocument).filter(Boolean)];
 
 // replayAt draws the page as the real tab looked at t: records up to
 // t - window at once (their transitions finished), then the last window in
@@ -85,8 +91,29 @@ window.replayAt = async (t, windowMs) => {
     renderer.flush();
   }
   await until(t);
+  if (renderer.holding) { await renderer.bound(); renderer.flush(); } // the viewer swaps in the page as soon as its stylesheets apply, and redraws (onDirty)
   for (const d of frameDocs()) for (const a of d.getAnimations()) a.pause();
   return goJSON(renderer.canonical());
+};
+
+// releaseAt is when a viewer that drew a fixture up to t shows that
+// moment's document (#475): t itself, or when the paint held over t is
+// released, the stylesheets bound or HOLD_MS after its segment began.
+window.releaseAt = async (name, t) => {
+  await window.load(name);
+  let began = 0;
+  const step = async () => {
+    const r = recs[next++];
+    if (r.k === 'seg' || r.k === 'head') began = r.t;
+    feed(r);
+    renderer.flush();
+    if (renderer.holding) await renderer.bound();
+    return r.t;
+  };
+  while (next < recs.length && recs[next].t <= t) await step();
+  let at = t;
+  while (renderer.holding && next < recs.length && recs[next].t < began + HOLD_MS) at = await step();
+  return renderer.holding ? Math.max(at, began + HOLD_MS) : at;
 };
 
 window.boxOf = (id) => renderer.boxOf(id);

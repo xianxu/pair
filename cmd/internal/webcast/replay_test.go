@@ -67,9 +67,16 @@ func observerLag(name string) int64 {
 const captureSkew = 50
 
 // knownGaps are frames that differ for a filed reason, by fixture and frame
-// index. One that comes within tolerance fails, so its entry goes.
-var knownGaps = map[string]map[int]string{
-	"rec-stress": {0: "pair#475: stress.css binds after the segment's first screenshot, which shows it applied"},
+// index, and the most they may differ at their best time, so a gap guards
+// what does work. One that comes within tolerance fails, so its entry goes.
+var knownGaps = map[string]map[int]knownGap{
+	// Unstyled, it is 24% off (#475 before the hold).
+	"rec-stress": {0: {"photo.png's bytes are recorded at 152ms, after the screenshot at 84 had it, and an image does not block rendering (#475: non-blocking asset lag)", 0.04}},
+}
+
+type knownGap struct {
+	why  string
+	most float64
 }
 
 // frameOffsets are where a frame's pixels may be instead of its t: its own,
@@ -103,20 +110,38 @@ func TestLiveReplayFixtures(t *testing.T) {
 			}
 			for i, f := range rec.Frames {
 				var tried []string
-				ok := false
-				for _, at := range recording.FrameTimes(rec.Records, f.T, frameOffsets(name)) {
-					diff := page.renderDiff(t, rec, name, f, at)
-					tried = append(tried, fmt.Sprintf("%.2f%% at %+dms", 100*diff, at-f.T))
-					if ok = diff <= renderTolerance; ok {
-						break
+				best := 1.0
+				try := func(offs []int64) bool {
+					for _, at := range recording.FrameTimes(rec.Records, f.T, offs) {
+						diff := page.renderDiff(t, rec, name, f, at)
+						tried = append(tried, fmt.Sprintf("%.2f%% at %+dms", 100*diff, at-f.T))
+						best = min(best, diff)
+						if diff <= renderTolerance {
+							return true
+						}
+					}
+					return false
+				}
+				ok := try(frameOffsets(name))
+				// The viewer holds the previous paint until a new document's
+				// stylesheets bind (#475), so it shows the tab's page late
+				// when their bytes were recorded after the screenshot
+				// (rec-stress frame 0 at 84ms, stress.css at 103): the frame
+				// may be where that hold releases. Asked only now: replaying
+				// ahead warms the asset cache, which shifts transitions.
+				if !ok {
+					if held := page.evalInt(t, fmt.Sprintf("releaseAt(%q, %d)", name, f.T)) - f.T; held > 0 {
+						ok = try([]int64{held})
 					}
 				}
 				t.Logf("frame %d (t=%d): %s", i, f.T, strings.Join(tried, ", "))
 				switch gap, known := knownGaps[name][i]; {
 				case ok && known:
-					t.Errorf("frame %d (t=%d) is within tolerance now: drop its known gap (%s)", i, f.T, gap)
-				case !ok && known:
-					t.Logf("frame %d: known gap, %s", i, gap)
+					t.Errorf("frame %d (t=%d) is within tolerance now: drop its known gap (%s)", i, f.T, gap.why)
+				case known && best > gap.most:
+					t.Errorf("frame %d (t=%d): %s of pixels differ, over its known gap's %.0f%% (%s)", i, f.T, strings.Join(tried, ", "), 100*gap.most, gap.why)
+				case known:
+					t.Logf("frame %d: known gap, %s", i, gap.why)
 				case !ok:
 					t.Errorf("frame %d (t=%d): %s of pixels differ, over the %.0f%% tolerance", i, f.T, strings.Join(tried, ", "), 100*renderTolerance)
 				}
@@ -394,6 +419,15 @@ func (p *chromePage) eval(t *testing.T, expr string) json.RawMessage {
 	return res.Result.Value
 }
 
+func (p *chromePage) evalInt(t *testing.T, expr string) int64 {
+	t.Helper()
+	var n float64
+	if err := json.Unmarshal(p.eval(t, expr), &n); err != nil {
+		t.Fatalf("%s: not a number: %v", expr, err)
+	}
+	return int64(n)
+}
+
 func (p *chromePage) evalString(t *testing.T, expr string) string {
 	t.Helper()
 	var s string
@@ -466,6 +500,83 @@ func pixelDiff(a, b image.Image) float64 {
 func far(a, b uint32) bool {
 	d := int(a>>8) - int(b>>8)
 	return d > pixelThreshold || -d > pixelThreshold
+}
+
+// A new document's paint is held until its stylesheets bind (#475): the
+// previous paint stays on top while a linked stylesheet's bytes are still
+// to come, a print-only one blocks nothing, and one that never arrives
+// lets the page through after HOLD_MS. #page holds the new document all
+// along.
+func TestLiveRenderHoldsPaintUntilStylesheetsBind(t *testing.T) {
+	page := headlessPage(t)
+	dir := filepath.Join(t.TempDir(), "held")
+	w, err := recording.NewDirWriter(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	css := []byte("p{color:rgb(0,0,255)}")
+	hash, err := w.PutAsset(css)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := recording.NewBuilder("held")
+	b.Page(recording.SegLive, "http://x/a", b.El("p", nil, b.Txt("A")), b.El("img", []string{"alt", "pic", "srcset", "none.png 1x, none2.png 2x"}))
+	doc := func(url, text string, links ...[]string) {
+		b.Add(&recording.Seg{Seg: b.NextSeg(), Why: recording.SegNavigate, Tab: recording.Tab{ID: "tab1", URL: url}, VP: recording.Viewport{W: 1280, H: 800, DPR: 1}})
+		var head []recording.Node
+		for _, l := range links {
+			head = append(head, b.El("link", l))
+		}
+		b.Snapshot(url, b.El("html", nil, b.El("head", nil, head...), b.El("body", nil, b.El("p", nil, b.Txt(text)))))
+	}
+	b.At(1000)
+	doc("http://x/b", "B", []string{"rel", "stylesheet", "href", "b.css"}, []string{"rel", "stylesheet", "media", "print", "href", "p.css"})
+	b.At(1100).Add(&recording.Asset{URL: "http://x/b.css", Hash: hash, MIME: "text/css", Size: int64(len(css))})
+	b.At(2000)
+	doc("http://x/c", "C", []string{"rel", "stylesheet", "href", "never.css"})
+	for _, r := range b.Recs {
+		if err := w.Put(r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	w.Close()
+	rec, err := recording.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := fixtureServer(t, rec)
+	page.open(t, srv.URL+"/harness.html")
+	page.eval(t, `load("held")`)
+	// shown is the text on top at the page's corner; current, #page's.
+	const shown = `(() => { const f = document.elementFromPoint(5, 5); return f.contentDocument.body ? f.contentDocument.body.textContent : ''; })()`
+	const current = `document.getElementById('page').contentDocument.body.textContent`
+	check := func(at, wantShown, wantCurrent string) {
+		t.Helper()
+		if got := page.evalString(t, shown); got != wantShown {
+			t.Errorf("%s: shows %q, want %q", at, got, wantShown)
+		}
+		if got := page.evalString(t, current); got != wantCurrent {
+			t.Errorf("%s: #page has %q, want %q", at, got, wantCurrent)
+		}
+	}
+	page.evalString(t, "replayTo(0)")
+	check("t=0", "A", "A")
+	// An image none of whose candidates has arrived is one not loaded yet,
+	// not a broken one: no srcset left to fail, so no alt text.
+	if got := page.evalString(t, `(() => { const i = document.getElementById('page').contentDocument.querySelector('img'); return [...i.attributes].map((a) => a.name).join(' '); })()`); got != "" {
+		t.Errorf("an image with no candidate yet has attributes %q, want none", got)
+	}
+	page.evalString(t, "replayTo(1000)")
+	check("b.css not arrived", "A", "B")
+	page.evalString(t, "replayTo(1100)")
+	check("b.css bound", "B", "B")
+	if got := page.evalString(t, `getComputedStyle(document.getElementById('page').contentDocument.querySelector('p')).color`); got != "rgb(0, 0, 255)" {
+		t.Errorf("b.css bound: p is %s, want b.css's blue", got)
+	}
+	page.evalString(t, "replayTo(2000)")
+	check("never.css pending", "B", "C")
+	page.eval(t, "new Promise((ok) => setTimeout(ok, 700))") // HOLD_MS is 500
+	check("past the deadline", "C", "C")
 }
 
 // URLs resolve against the document that holds them, and SVG's mixed-case
