@@ -6,7 +6,7 @@ note rec-stress-n1  t=2000  segment 1  open  by Pat (product) (viewer-1)
   element:
     @1264 <div class="box cij-6" id=cij> CSS-in-JS (insertRule)
   context: within @1246 <section.side> "CSS-in-JS (insertRule) adoptedStyleShee…"
-    text: "CSS-in-JS (insertRule) adoptedStyleSheets alphabetagamma scroll line 0scroll line 1scroll line 2scroll line 3scroll line 4scroll line 5scroll line 6scroll line 7scroll line 8scroll line 9scroll line 10scroll line 11scroll line 12scroll line 13scroll line 14scroll line 15scroll line 16scroll line 17scroll line 18scroll line 19scroll line 20scroll line 21scroll line 22scroll line 23scroll line 24scroll line 25scroll line 26scroll line 27scroll line 28scroll line 29scroll line 30scroll line 31scrol"
+    text: "CSS-in-JS (insertRule) adoptedStyleSheets alpha beta gamma scroll line 0 scroll line 1 scroll line 2 scroll line 3 scroll line 4 scroll line 5 scroll line 6 scroll line 7 scroll line 8 scroll line 9 scroll line 10 scroll line 11 scroll line 12 scroll line 13 scroll line 14 scroll line 15 scroll line 16 scroll line 17 scroll line 18 scroll line 19 scroll line 20 scroll line 21 scroll line 22 scroll line 23 scroll line 24 scroll line 25 scroll line 26 scroll line 27 scroll line 28 scroll line 29 s"
   before (10000 ms):
     … 31 earlier actions
     1011 input @1275 <select#sel> "alpha beta gamma" selected [0]
@@ -40,7 +40,7 @@ note rec-stress-n2  t=3000  segment 1  resolved  by Ana (design) (viewer-2)
         @1252 <style> (69 chars)
         @1254 <span> closed 14
   context: within @1246 <section.side> "CSS-in-JS (insertRule) adoptedStyleShee…"
-    text: "CSS-in-JS (insertRule) adoptedStyleSheets alphabetagamma scroll line 0scroll line 1scroll line 2scroll line 3scroll line 4scroll line 5scroll line 6scroll line 7scroll line 8scroll line 9scroll line 10scroll line 11scroll line 12scroll line 13scroll line 14scroll line 15scroll line 16scroll line 17scroll line 18scroll line 19scroll line 20scroll line 21scroll line 22scroll line 23scroll line 24scroll line 25scroll line 26scroll line 27scroll line 28scroll line 29scroll line 30scroll line 31scrol"
+    text: "CSS-in-JS (insertRule) adoptedStyleSheets alpha beta gamma scroll line 0 scroll line 1 scroll line 2 scroll line 3 scroll line 4 scroll line 5 scroll line 6 scroll line 7 scroll line 8 scroll line 9 scroll line 10 scroll line 11 scroll line 12 scroll line 13 scroll line 14 scroll line 15 scroll line 16 scroll line 17 scroll line 18 scroll line 19 scroll line 20 scroll line 21 scroll line 22 scroll line 23 scroll line 24 scroll line 25 scroll line 26 scroll line 27 scroll line 28 scroll line 29 s"
   before (10000 ms):
     … 49 earlier actions
     1771 input @1448 <input#fi> value "frame 6"

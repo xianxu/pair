@@ -6,7 +6,7 @@ note rec-app-n1  t=6000  segment 1  open  by Pat (product) (viewer-1)
   element:
     @72 <input class="w-full border rounded-lg px-3 py-2" id=search placeholder=Search value=fix> {value "fix", focused}
   context: within @35 <main.flex-1.p-8.…> "tasks Add Fix billing webhook"
-    text: "tasksAddFix billing webhook"
+    text: "tasks Add Fix billing webhook"
   before (10000 ms):
     … 25 earlier actions
     3214 input @69 <input#draft.flex-1.border.…> value "Review "
@@ -37,7 +37,7 @@ note rec-app-n2  t=9800  segment 1  resolved  by Ana (design) (viewer-2)
   element:
     @233 <button class="bg-slate-200 px-4 py-2 rounded-lg" id=close-modal> Cancel
   context: within @228 <div.bg-white.rounded-2xl.…> "Are you sure? This cannot be undone. Ca…"
-    text: "Are you sure?This cannot be undone.Cancel"
+    text: "Are you sure? This cannot be undone. Cancel"
   before (10000 ms):
     … 43 earlier actions
     4917 input @72 <input#search.w-full.border.…> value "fix"
@@ -68,7 +68,7 @@ note rec-app-n3  t=19000  segment 2  open  by Pat (product) (viewer-1)
   element:
     @271 <h1 class="text-3xl font-bold text-indigo-700 mb-4"> Reports
   context: within @270 <body.bg-white.p-10>
-    text: "Reports Week 10 tasksWeek 2137 tasksWeek 3274 tasksWeek 4411 tasksWeek 548 tasksWeek 6185 tasksWeek 7322 tasksWeek 8459 tasksWeek 996 tasksWeek 10233 tasksWeek 11370 tasksWeek 127 tasksWeek 13144 tasksWeek 14281 tasksWeek 15418 tasks const r=document.getElementById('r');for(let i=0;i<15;i++){r.insertAdjacentHTML('beforeend',`<tr class=\"${i%2?'bg-slate-50':''}\"><td class=\"p-2 border\">Week ${i+1}</td><td class=\"p-2 border\">${(i*137)%500} tasks</td></tr>`);}"
+    text: "Reports Week 1 0 tasks Week 2 137 tasks Week 3 274 tasks Week 4 411 tasks Week 5 48 tasks Week 6 185 tasks Week 7 322 tasks Week 8 459 tasks Week 9 96 tasks Week 10 233 tasks Week 11 370 tasks Week 12 7 tasks Week 13 144 tasks Week 14 281 tasks Week 15 418 tasks"
   before (10000 ms):
     9232 scroll @1 #document to 0,92
     9232 focus @104 <button#open-modal.bg-rose-600.text-white.…> "Delete workspace…"
