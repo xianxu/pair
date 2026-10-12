@@ -1,6 +1,6 @@
 ---
 id: 000488
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours: 6.56
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 6b42e6edfd93f18ed25b7fb52ca8cacaca78667c
         evidence_commit: 5fee7dde26d2c3621c8d2fc1b2b136a84b491e7f
+        landed_commit: 99329f7118ce4f1e1ea653ecb756b7be4c53de2d
 ---
 
 # broadcast: notes are bounding boxes — drag a box (or click for a default box); the box is the note's screenshot area, in the terminal cast and the web cast
