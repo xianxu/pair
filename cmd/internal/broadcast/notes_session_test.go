@@ -26,7 +26,7 @@ func notesOn(t *testing.T) (*pointerSession, string) {
 }
 
 func noteBody(col, row, color int, text string) string {
-	return fmt.Sprintf(`{"cols":40,"rows":4,"col":%d,"row":%d,"color":%d,"text":%q}`, col, row, color, text)
+	return fmt.Sprintf(`{"cols":40,"rows":4,"box":[%d,%d,2,1],"color":%d,"text":%q}`, col, row, color, text)
 }
 
 // notesEvent reads the next notes event from a stream.
@@ -126,7 +126,7 @@ func TestNoteScreenChanged(t *testing.T) {
 		class terminal.FrameClass
 		body  string
 	}{
-		"other grid":     {func(t *testing.T) terminal.Frame { return livePointer(t, "x") }, terminal.FramePublic, `{"cols":80,"rows":24,"col":3,"row":1,"color":0,"text":"x"}`},
+		"other grid":     {func(t *testing.T) terminal.Frame { return livePointer(t, "x") }, terminal.FramePublic, `{"cols":80,"rows":24,"box":[3,1,2,1],"color":0,"text":"x"}`},
 		"private screen": {func(t *testing.T) terminal.Frame { return livePointer(t, "x") }, terminal.FramePrivate, noteBody(3, 1, 0, "x")},
 		"marker hidden":  {func(t *testing.T) terminal.Frame { return live(t, "x") }, terminal.FramePublic, noteBody(3, 1, 0, "x")},
 	}

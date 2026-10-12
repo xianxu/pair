@@ -1,6 +1,6 @@
-// Sticky notes on the broadcast viewer (#447). Couch draws each note's 💭
-// into the screen itself; this page only keeps the list (event: notes), turns
-// a tap on a 💭 into "open this note"; the dialog that owns a draft until
+// Sticky notes on the broadcast viewer (#447). Couch draws each note's box
+// and 💭 into the screen itself (#488); this page only keeps the list (event:
+// notes), turns a tap on a 💭 into "open this note"; the dialog that owns a draft until
 // Save is collab.js's noteDialog, shared with the web cast (#470).
 
 // guardedCell reports whether a cell is on the broadcast's controls (the
@@ -20,13 +20,19 @@ export function noteAt(list, col, row, cols, rows) {
   return list.notes.find((n) => noteVisible(n, cols, rows, list.guard) && n.row === row && (n.col === col || n.col + 1 === col)) || null;
 }
 
-// noteCell is where a tap places a note: the 💭 is two cells wide, so a tap
-// on the last column places it one to the left.
-export function noteCell(cell, cols) {
-  return [Math.min(cell[0], cols - 2), cell[1]];
+// boxHasPin mirrors Couch's pinSpots: a box [col, row, w, h] has somewhere
+// inside it for the 💭, off the controls. Couch places the pin.
+export function boxHasPin(box, cols, rows, guard) {
+  for (let row = box[1]; row < box[1] + box[3]; row++) {
+    for (let col = box[0] + box[2] - 2; col >= box[0]; col--) {
+      if (noteVisible({ col, row }, cols, rows, guard)) return true;
+    }
+  }
+  return false;
 }
 
 const isInt = (v) => Number.isInteger(v) && v >= 0;
+const isBox = (b) => Array.isArray(b) && b.length === 4 && b.every(isInt) && b[2] >= 1 && b[3] >= 1;
 
 // parseNotes keeps only well-formed entries of a notes event.
 export function parseNotes(data) {
@@ -34,8 +40,8 @@ export function parseNotes(data) {
   if (!data || typeof data !== 'object' || !isInt(data.guard) || !Array.isArray(data.notes)) {
     return empty;
   }
-  const notes = data.notes.filter((n) => n && isInt(n.id) && isInt(n.col) && isInt(n.row) && isInt(n.color) && typeof n.text === 'string');
-  return { guard: data.guard, notes: notes.map(({ id, col, row, color, text }) => ({ id, col, row, color, text })) };
+  const notes = data.notes.filter((n) => n && isInt(n.id) && isInt(n.col) && isInt(n.row) && isBox(n.box) && isInt(n.color) && typeof n.text === 'string');
+  return { guard: data.guard, notes: notes.map(({ id, col, row, box, color, text }) => ({ id, col, row, box: [...box], color, text })) };
 }
 
 export { MAX_NOTE_BYTES, noteBytes, noteDialog } from './collab.js';

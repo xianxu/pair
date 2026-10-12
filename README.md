@@ -947,10 +947,13 @@ Right-click `LIVE ⏸` to copy the view-only link again. Stopping the
 broadcast ends every link. `👽` is reserved for remote control and does
 nothing yet.
 
-**Sticky notes (#447).** People on the pointer link can also pin a short
-plain-text note to a spot on the screen: the button under the color swatches
+**Sticky notes (#447).** People on the pointer link can also leave a short
+plain-text note on part of the screen: the button under the color swatches
 switches between pointing (👆) and placing notes (💭); hover a control for
-what it does. Couch draws a `💭` there, on your screen and every viewer's, on a
+what it does. In 💭 mode, drag a box around what the note is about, or tap for
+a small box around that spot (on a phone, drag a little further than a tap).
+Couch outlines the box in its author's color, on your screen and every
+viewer's, and draws a `💭` inside its top-right corner, on a
 chip of its author's color inside a soft glow that flashes when the note
 arrives and every 15 seconds until it is resolved, and the status row shows
 the open count after the controls (`LIVE ⏸ 👆 👽 💭2`). Click `💭2` to list the
@@ -960,7 +963,7 @@ right-clicking one copies it and resolves it, and `×` or
 another click on `💭2` closes the box (Shift- or Option-drag selects text in it,
 as anywhere in Couch). On a viewer's page, anyone on either link can tap a `💭`
 to read it, and anyone on the pointer link can resolve it; you resolve one by
-right-clicking it in the box. A note stays on the cell where it was placed, whatever scrolls
+right-clicking it in the box. A note stays where it was placed, whatever scrolls
 underneath. Turning pointing off deletes every note, as it clears the marks,
 and stopping the broadcast ends them too; nothing is saved to disk.
 

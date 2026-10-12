@@ -206,10 +206,11 @@ function noteFakes() {
   };
   const posts = [];
   const calls = [];
+  const boxes = [];
   let shownMode = null;
   let shownTip = null;
   let toggle = null;
-  const list = { guard: 12, notes: [{ id: 7, col: 10, row: 5, color: 0, text: 'hi' }] };
+  const list = { guard: 12, notes: [{ id: 7, col: 10, row: 5, box: [4, 5, 8, 2], color: 0, text: 'hi' }] };
   const mode = pointerMode({ cols: 80, rows: 24 }, stage, {
     post: (b) => posts.push(b),
     every: () => 1,
@@ -221,10 +222,11 @@ function noteFakes() {
       close: () => calls.push(['close']),
     },
     modeButton: { show: (m, t, tip) => { shownMode = m; toggle = t; shownTip = tip; }, hide: () => { shownMode = null; } },
+    dragBox: { show: (b) => boxes.push(b), hide: () => boxes.push(null) },
   });
   const at = (col, row) => ({ clientX: col * 10 + 5, clientY: row * 10 + 5, pointerId: 1, preventDefault() {} });
   const fire = (name, e) => listeners[name](e);
-  return { mode, classes, posts, calls, fire, at, shownMode: () => shownMode, shownTip: () => shownTip, toggle: () => toggle() };
+  return { mode, classes, posts, calls, boxes, fire, at, shownMode: () => shownMode, shownTip: () => shownTip, toggle: () => toggle() };
 }
 
 test('a view page opens a 💭 read-only and posts nothing', () => {
@@ -248,21 +250,65 @@ test('pointer mode: a 💭 opens resolvable and is not pointed at', () => {
   assert.equal(f.posts.length, 1, 'elsewhere it still points');
 });
 
-test('comment mode drafts on an empty cell without posting', () => {
+test('comment mode: a tap drafts the default box, a drag the box drawn (#488)', () => {
   const f = noteFakes();
   f.mode.setOn(true);
   f.toggle();
   assert.equal(f.shownMode(), 'comment');
   assert.ok(f.classes.has('comment'));
-  assert.match(f.shownTip(), /leave a note/, 'the mode button explains itself in its tooltip');
-  f.fire('pointerdown', f.at(79, 3));
-  assert.deepEqual(f.calls.at(-1), ['draft', { cols: 80, rows: 24, col: 78, row: 3 }]);
+  assert.match(f.shownTip(), /drag a box/, 'the mode button explains itself in its tooltip');
+  const tap = (col, row, pointerType = 'mouse') => {
+    f.fire('pointerdown', { ...f.at(col, row), pointerType });
+    f.fire('pointerup', { ...f.at(col, row), pointerType });
+  };
+  tap(40, 12);
+  assert.deepEqual(f.calls.at(-1), ['draft', { cols: 80, rows: 24, box: [36, 11, 8, 2] }], 'a tenth of 80×24, centred');
+  tap(79, 3);
+  assert.deepEqual(f.calls.at(-1), ['draft', { cols: 80, rows: 24, box: [72, 2, 8, 2] }], 'shifted to stay on the screen');
+  f.fire('pointerdown', { ...f.at(20, 4), pointerType: 'mouse' });
+  f.fire('pointermove', { ...f.at(25, 6), pointerType: 'mouse' });
+  assert.deepEqual(f.boxes.at(-1), [20, 4, 6, 3], 'the outline follows the drag');
+  f.fire('pointermove', { clientX: 5000, clientY: 5000, pointerId: 1, preventDefault() {} }); // off the screen: the box stays
+  f.fire('pointerup', { ...f.at(30, 9), pointerType: 'mouse' });
+  assert.deepEqual(f.calls.at(-1), ['draft', { cols: 80, rows: 24, box: [20, 4, 6, 3] }]);
+  assert.equal(f.boxes.at(-1), null, 'the outline goes when the box is drafted');
   f.fire('pointerdown', f.at(10, 5));
   assert.deepEqual(f.calls.at(-1), ['view', 7, { resolvable: true }], 'a 💭 opens rather than drafts');
   const n = f.calls.length;
-  f.fire('pointerdown', f.at(3, 23));
-  assert.equal(f.calls.length, n, 'no draft on the guarded controls');
+  f.fire('pointerdown', { ...f.at(1, 23), pointerType: 'mouse' });
+  f.fire('pointermove', { ...f.at(3, 23), pointerType: 'mouse' });
+  f.fire('pointerup', { ...f.at(3, 23), pointerType: 'mouse' });
+  assert.equal(f.calls.length, n, 'no draft for a box with only the controls under it');
   assert.equal(f.posts.length, 0, 'comment mode never posts a point or a note');
+});
+
+test('comment mode by touch: a finger needs a longer drag than a mouse', () => {
+  const f = noteFakes();
+  f.mode.setOn(true);
+  f.toggle();
+  const drag = (pointerType) => {
+    f.fire('pointerdown', { ...f.at(40, 12), pointerType });
+    f.fire('pointermove', { ...f.at(41, 12), pointerType });
+    f.fire('pointerup', { ...f.at(41, 12), pointerType });
+    return f.calls.at(-1)[1].box;
+  };
+  assert.deepEqual(drag('mouse'), [40, 12, 2, 1], 'a one-cell mouse drag is a box');
+  assert.deepEqual(drag('touch'), [36, 11, 8, 2], 'a one-cell finger wobble is a tap');
+});
+
+test('a cancelled pointer or pointing turned off drops the box being drawn', () => {
+  const f = noteFakes();
+  f.mode.setOn(true);
+  f.toggle();
+  f.fire('pointerdown', { ...f.at(20, 4), pointerType: 'mouse' });
+  f.fire('pointercancel', {});
+  assert.equal(f.boxes.at(-1), null);
+  const n = f.calls.length;
+  f.fire('pointerup', { ...f.at(25, 6), pointerType: 'mouse' });
+  assert.equal(f.calls.length, n, 'no draft after a cancel');
+  f.fire('pointerdown', { ...f.at(20, 4), pointerType: 'mouse' });
+  f.mode.setOn(false);
+  assert.equal(f.boxes.at(-1), null);
 });
 
 test('turning pointing off resets to pointer mode and closes the dialog', () => {

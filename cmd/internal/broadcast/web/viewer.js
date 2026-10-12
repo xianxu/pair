@@ -4,8 +4,8 @@
 // posts points and sticky notes (#447) and remembers its viewer's color
 // pick (#446).
 
-import { noteAt, noteCell, guardedCell, parseNotes } from './notes.js';
-import { HEX_COLOR, pointerColor, colorStore, railAt, renderSwatches, noteDialog, poster } from './collab.js';
+import { noteAt, boxHasPin, parseNotes } from './notes.js';
+import { HEX_COLOR, pointerColor, colorStore, railAt, renderSwatches, noteDialog, poster, gestureBox, dragMin } from './collab.js';
 
 export { pointerColor, colorStore, RAIL_INSET, railAt, renderSwatches } from './collab.js';
 
@@ -284,6 +284,7 @@ async function start() {
   pointer = pointerMode(term, stage, {
     notes: () => notes,
     dialog,
+    dragBox: screenBox(stage, term),
     modeButton: {
       show: (mode, toggle, tip) => {
         modeButton.textContent = mode === 'comment' ? '💭' : '👆';
@@ -342,6 +343,25 @@ async function start() {
   fit();
 }
 
+// screenBox is the dashed outline of a note's box while it is drawn, over
+// the screen's cells (Couch outlines the saved box in the frame).
+function screenBox(stage, term) {
+  const el = document.createElement('div');
+  el.className = 'drag-box hidden';
+  stage.append(el);
+  return {
+    show(b) {
+      const screen = stage.querySelector('.xterm-screen');
+      if (!screen) return;
+      const r = screen.getBoundingClientRect();
+      const cw = r.width / term.cols, ch = r.height / term.rows;
+      Object.assign(el.style, { left: `${r.left + b[0] * cw}px`, top: `${r.top + b[1] * ch}px`, width: `${b[2] * cw}px`, height: `${b[3] * ch}px` });
+      el.classList.remove('hidden');
+    },
+    hide: () => el.classList.add('hidden'),
+  };
+}
+
 // POST_ROUTES is every request this page makes besides its own assets and
 // stream (#412, #447).
 const POST_ROUTES = ['point', 'note', 'resolve'];
@@ -358,17 +378,19 @@ function postPoint(body) {
 // the icons stand alone there.
 export const MODE_TIPS = {
   point: 'Pointer mode: tap or drag to point. Click for comment mode.',
-  comment: 'Comment mode: tap the screen to leave a note. Click for pointer mode.',
+  comment: 'Comment mode: drag a box, or tap for a small one, to leave a note. Click for pointer mode.',
 };
 
 // pointerMode routes the viewer's taps. A tap on a 💭 opens that note, on
 // any page (#447). While the broadcast says pointing is on, the mode button
 // switches between pointer mode, where taps and drags become point batches
-// (flushed every 50ms), and comment mode, where a tap on an empty cell opens
-// a draft. deps: notes() → {guard, notes}, dialog (noteDialog), modeButton
-// {show(mode, toggle, tip), hide()}, store (colorStore), swatches
-// {show(palette, current, pick), hide()}, and for tests post(body),
-// every(fn, ms) → id, stop(id).
+// (flushed every 50ms), and comment mode, where a drag draws a note's box
+// and a tap gives it the default box (collab.js's gestureBox, #488), then a
+// draft opens. deps: notes() → {guard, notes}, dialog (noteDialog),
+// modeButton {show(mode, toggle, tip), hide()}, store (colorStore), swatches
+// {show(palette, current, pick), hide()}, dragBox {show(box), hide()} (the
+// outline while a box is drawn), and for tests post(body), every(fn, ms) →
+// id, stop(id).
 export function pointerMode(term, stage, deps = {}) {
   const send = deps.post || postPoint;
   const every = deps.every || ((fn, ms) => setInterval(fn, ms));
@@ -378,7 +400,9 @@ export function pointerMode(term, stage, deps = {}) {
   const notes = deps.notes || (() => ({ guard: 0, notes: [] }));
   const dialog = deps.dialog || { draft() {}, view() {}, close() {} };
   const modeButton = deps.modeButton || { show() {}, hide() {} };
+  const dragBox = deps.dragBox || { show() {}, hide() {} };
   let mode = 'point';
+  let gesture = null; // a note's box being drawn: {from, to, pointerType}
   let on = false;
   let stroke = null;
   let timer = null;
@@ -426,7 +450,13 @@ export function pointerMode(term, stage, deps = {}) {
     const el = screen();
     return el ? cellAt(e.clientX, e.clientY, el.getBoundingClientRect(), term.cols, term.rows) : null;
   };
+  const boxOf = (g) => gestureBox(g.from, g.to, { x: 0, y: 0, w: term.cols, h: term.rows }, { min: dragMin('cells', g.pointerType), cells: true });
+  const endBox = () => {
+    gesture = null;
+    dragBox.hide();
+  };
   const end = () => {
+    endBox();
     if (stroke) {
       flush(false);
     }
@@ -452,20 +482,26 @@ export function pointerMode(term, stage, deps = {}) {
       return;
     }
     e.preventDefault();
-    if (mode === 'comment') {
-      const at = noteCell(c, term.cols);
-      if (!guardedCell(at[0], at[1], term.rows, notes().guard)) {
-        dialog.draft({ cols: term.cols, rows: term.rows, col: at[0], row: at[1] });
-      }
-      return;
-    }
     stage.setPointerCapture?.(e.pointerId);
     end();
+    if (mode === 'comment') {
+      gesture = { from: c, to: c, pointerType: e.pointerType };
+      dragBox.show(boxOf(gesture));
+      return;
+    }
     stroke = { last: null, pending: [c] };
     flush(true);
     timer = every(() => flush(true), 50);
   });
   stage.addEventListener('pointermove', (e) => {
+    if (gesture) {
+      const c = cell(e);
+      if (c) {
+        gesture.to = c;
+        dragBox.show(boxOf(gesture));
+      }
+      return;
+    }
     if (!stroke) {
       return;
     }
@@ -475,7 +511,17 @@ export function pointerMode(term, stage, deps = {}) {
       stroke.pending.push(c);
     }
   });
-  stage.addEventListener('pointerup', end);
+  stage.addEventListener('pointerup', () => {
+    if (!gesture) {
+      end();
+      return;
+    }
+    const box = boxOf(gesture);
+    endBox();
+    if (boxHasPin(box, term.cols, term.rows, notes().guard)) {
+      dialog.draft({ cols: term.cols, rows: term.rows, box });
+    }
+  });
   stage.addEventListener('pointercancel', end);
   return {
     setOn(value) {

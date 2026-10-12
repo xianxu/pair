@@ -158,6 +158,18 @@ html, body {
 #stage.pointer.comment {
   cursor: cell;
 }
+/* A note's box while it is drawn (#488): the page's own outline, until
+   Couch draws the saved box into the screen. */
+.drag-box {
+  position: fixed;
+  box-sizing: border-box;
+  border: 2px dashed #ddd;
+  background: rgba(127, 127, 127, 0.15);
+  pointer-events: none;
+}
+.drag-box.hidden {
+  display: none;
+}
 /* The sticky note (#447): one fixed-size dialog in a sticky-note yellow,
    centered over the screen; a draft shows the text box, a viewed note its
    text, which is set only as textContent. */

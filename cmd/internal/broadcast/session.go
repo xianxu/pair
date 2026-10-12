@@ -397,7 +397,7 @@ func (s *Session) acceptNote(req NoteRequest) error {
 		return ErrScreenChanged
 	}
 	req.Note.At = s.now()
-	if _, err := s.pointer.addNote(req.Note, gen); err != nil {
+	if _, err := s.pointer.addNote(req.Note, req.Cols, req.Rows, gen); err != nil {
 		return err
 	}
 	s.notesChanged()

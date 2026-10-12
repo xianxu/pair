@@ -331,19 +331,29 @@ table.
 
 ## Sticky notes (#447)
 
-Notes are the pointer link's second collaboration layer: a viewer pins a
-plain-text note to a screen cell and Couch draws `💭` (`NoteGlyph`) there.
-A note stays at its cell whatever scrolls underneath (no anchoring). Notes live
+Notes are the pointer link's second collaboration layer. A viewer leaves a
+plain-text note on a box of the screen (#488): a drag draws the box, and a tap
+gets the default box (`collab.js` `gestureBox`, shared with the web cast). Couch
+outlines the box and draws `💭` (`NoteGlyph`) inside its top-right corner. The box
+is what a submission crops (#455, `NoteCrop`). A note stays where it was placed,
+whatever scrolls underneath (no anchoring). Notes live
 in memory and are deleted whenever pointing turns off (click or the 👆-hidden
 watch) or the broadcast ends.
 
-- **Model** (`notes.go`, pure): `Note{ID, Col, Row, Color, Text}`. `NoteBoard`
-  holds the limits: 8 open notes per pointer color, no two notes sharing a cell.
+- **Model** (`notes.go`, pure): `Note{ID, Col, Row, Box, Color, Text}`.
+  - `Box` is a `CellBox` `[col,row,w,h]` on the grid, at least the pin's two cells wide.
+  - `Col, Row` is the pin. `NoteBoard.Add(n, cols, rows)` places it: the first of `pinSpots` (top-right inside
+    the box, then leftward, then the rows below, never on the controls) that no open pin covers.
+  - `NoteBoard` holds the limits: 8 open notes per pointer color, no two pins sharing a cell. A box with no free
+    spot is refused.
+  - `NoteCrop(n, cols, rows, margin)` is the box plus margin cells, kept on the grid: the seam #455 crops through.
   `ParseNote` is strict like `ParsePointBatch`: 1–1024 bytes of valid UTF-8, no
   control characters except `\n`/`\t`, no format characters (bidi, zero-width);
-  the cell must leave room for the glyph's second column and sit off the
-  controls (`NoteVisible`, which reuses the marks' `guarded`). `DrawNotes` puts
-  the glyph on two cells, blanks any wide character it cuts in half (keeping
+  the request is `{cols, rows, box, color, text}` (a page never sends the
+  pin), and the box must be on the grid with a pin spot off the controls
+  (`NoteVisible`, which reuses the marks' `guarded`). `DrawNotes` tints the
+  box's edge cells in the author's color (`noteOutline`, through the glow's
+  tint merge; text kept, controls never), puts the glyph on two cells, blanks any wide character it cuts in half (keeping
   its style), and widens the row's used columns, since the renderer draws text
   only that far. `FuzzParseNote`; a property test over random wide rows.
 - **Chip, glow, flash** (`notehalo.go`, M3): the 💭's cells get its author's
@@ -364,7 +374,7 @@ watch) or the broadcast ends.
   timer from `NoteNextChange` and stops it on pointer-off and broadcast end.
 - **State** (`pointer_notes.go`): the board lives inside `PointerState`, under
   its one lock, so a flip to off and the clear are one critical section.
-  `notesVersion` only increases. `addNote(n, gen)` refuses unless pointing is on
+  `notesVersion` only increases. `addNote(n, cols, rows, gen)` refuses unless pointing is on
   and hasn't flipped since `gen`, which `Session.acceptNote` reads before its
   unlocked screen check (`landsNow`: same grid, public frame, 👆 shown).
   Nothing called under `p.mu` takes it or waits on another goroutine.
@@ -405,9 +415,13 @@ watch) or the broadcast ends.
   (`parseNotes`) and hit-tests a tap against both cells of each visible 💭
   (`noteAt`, using the event's `guard`), so a tap on a 💭 opens it on any page:
   read-only on a view link, with Resolve on a pointer link. `pointerMode`
-  routes taps: 💭 → open; pointing off → nothing; comment mode → a draft at
-  the tapped cell (`noteCell` moves a last-column tap one left; none on the
-  controls); pointer mode → a stroke. Turning pointing off resets to pointer
+  routes taps:
+  - 💭 → open.
+  - Pointing off → nothing.
+  - Comment mode → a box gesture. A dashed `.drag-box` follows the drag, and on release a draft with
+    `gestureBox`'s box opens. A finger needs 2 cells and a mouse 1. A box with only the controls under it
+    (`boxHasPin`) gets no draft.
+  - Pointer mode → a stroke. Turning pointing off resets to pointer
   mode and closes the dialog. `noteDialog` is one fixed-size sticky note: the
   draft exists only in its text box until Save (a byte counter mirrors the
   1 KB cap), a refusal shows Couch's sentence, and a viewed note that leaves

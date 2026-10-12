@@ -70,7 +70,7 @@ func newWebNotesCast(t *testing.T, screen bool) *webNotesCast {
 
 func (c *webNotesCast) note(t *testing.T, name, text string) {
 	t.Helper()
-	body := fmt.Sprintf(`{"viewer":{"id":"v-%s","name":%q},"seg":1,"node":%d,"box":[1,2,3,4],"color":2,"text":%q}`, name, name, c.p.ID, text)
+	body := fmt.Sprintf(`{"viewer":{"id":"v-%s","name":%q},"seg":1,"node":%d,"box":[1,2,3,4],"region":[1,2,30,40],"color":2,"text":%q}`, name, name, c.p.ID, text)
 	resp, err := http.Post(c.link+"note", "application/json", strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)

@@ -23,15 +23,16 @@ func (p *PointerState) Notes() ([]Note, uint64, <-chan struct{}) {
 	return p.board.List(), p.notesVersion, p.notesChanged
 }
 
-// addNote opens n if pointing is on and hasn't flipped since gen, the
-// generation the caller read before checking the screen.
-func (p *PointerState) addNote(n Note, gen uint64) (Note, error) {
+// addNote opens n, placed on a cols×rows grid, if pointing is on and
+// hasn't flipped since gen, the generation the caller read before checking
+// the screen.
+func (p *PointerState) addNote(n Note, cols, rows int, gen uint64) (Note, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if !p.on || p.gen != gen {
 		return Note{}, ErrPointerOff
 	}
-	n, err := p.board.Add(n)
+	n, err := p.board.Add(n, cols, rows)
 	if err != nil {
 		return Note{}, err
 	}
