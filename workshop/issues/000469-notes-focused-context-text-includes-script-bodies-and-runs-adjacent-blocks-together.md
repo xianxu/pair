@@ -15,6 +15,7 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "5d5f1410", done: "5a291be4"}
 ---
 
 # notes: focused-context text includes script bodies and runs adjacent blocks together
