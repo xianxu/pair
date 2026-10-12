@@ -27,7 +27,9 @@ func TestPaletteTint(t *testing.T) {
 }
 
 func TestNoteGlowGeometry(t *testing.T) {
-	g := noteGlow(Note{Col: 10, Row: 5}, 80, 24, 0)
+	// Half way through a flash both rings show, so the full shape is visible.
+	const half = 0.5
+	g := noteGlow(Note{Col: 10, Row: 5}, 80, 24, half)
 	if _, in := g[cell{10, 5}]; in {
 		t.Fatal("the chip is not part of the glow")
 	}
@@ -39,13 +41,25 @@ func TestNoteGlowGeometry(t *testing.T) {
 		{7, 3}: noteGlowFar, {14, 7}: noteGlowFar, // dx 3, dy 2: (1.5)²+4 = 6.25, on the edge
 	}
 	for c, tv := range want {
-		if got, in := g[c]; !in || got != tv {
+		if got, in := g[c]; !in || got != tv*(1-half) {
 			t.Errorf("%v: %v %v, want %v", c, got, in, tv)
 		}
 	}
 	for _, c := range []cell{{4, 5}, {17, 5}, {6, 3}, {15, 7}, {10, 2}, {10, 8}} {
 		if _, in := g[c]; in {
 			t.Errorf("%v is outside the round glow", c)
+		}
+	}
+	// At rest only the inner ring shows, in one light shade.
+	rest := noteGlow(Note{Col: 10, Row: 5}, 80, 24, 0)
+	for c, tv := range rest {
+		if _, inShape := g[c]; !inShape || tv != noteGlowNear {
+			t.Errorf("%v at %v at rest; want %v", c, tv, noteGlowNear)
+		}
+	}
+	for c, tv := range want {
+		if _, in := rest[c]; in != (tv == noteGlowNear) {
+			t.Errorf("%v at rest: shown %v; only the inner ring shows", c, in)
 		}
 	}
 	// Flashing: every glow cell at the full color.
@@ -57,7 +71,7 @@ func TestNoteGlowGeometry(t *testing.T) {
 }
 
 func TestNoteGlowStaysOffTheControlsAndTheGrid(t *testing.T) {
-	g := noteGlow(Note{Col: StatusGuardCols - 1, Row: 21}, 30, 24, 0)
+	g := noteGlow(Note{Col: StatusGuardCols - 1, Row: 21}, 30, 24, 1) // a flash: the whole glow
 	for c := range g {
 		if guarded(c, 24) || c.col < 0 || c.row >= 24 {
 			t.Fatalf("glow on %v", c)

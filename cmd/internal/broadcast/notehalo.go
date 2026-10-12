@@ -26,10 +26,12 @@ const (
 )
 
 // Resting glow, as how far each ring is weakened toward the background
-// (paletteTint's t): the ring next to the chip, and the outer ring.
+// (paletteTint's t): the ring next to the chip keeps one very light shade,
+// and the outer ring fades out entirely, so a quiet note is a small, faint
+// halo and only a flash spreads the full glow (the operator's smoke).
 const (
-	noteGlowNear = 0.7
-	noteGlowFar  = 0.88
+	noteGlowNear = 0.9
+	noteGlowFar  = 1.0
 )
 
 // NoteStyle is what drawing notes needs besides the notes: the operator's
@@ -80,8 +82,8 @@ func noteFlash(at, now time.Time) float64 {
 }
 
 // noteGlow is the glow around n on a cols×rows grid: each cell's t (0 is the
-// full color), given the flash level. The chip's own two cells are not in
-// it, nor are cells off the grid or on the broadcast's controls.
+// full color), given the flash level. A cell faded all the way out is not
+// in it (the outer ring at rest), nor are the chip's own two cells, nor are cells off the grid or on the broadcast's controls.
 func noteGlow(n Note, cols, rows int, flash float64) map[cell]float64 {
 	out := map[cell]float64{}
 	const reach = 2 // whole rows inside noteGlowRows
@@ -104,7 +106,9 @@ func noteGlow(n Note, cols, rows int, flash float64) map[cell]float64 {
 			if d2 <= 1.5*1.5 {
 				rest = noteGlowNear
 			}
-			out[c] = rest * (1 - flash)
+			if t := rest * (1 - flash); t < 1 {
+				out[c] = t
+			}
 		}
 	}
 	return out

@@ -131,3 +131,4 @@ Revision (2026-10-11, operator smoke): the second block of items is the scope re
 - 2026-10-11 — operator smoke of M3/M4 on pair:0 ("the animation is not smooth, needs more steps", "no need to stay full for 1 second … maybe just stay full glow for 300ms", "the most faded color, can fade more", "operator can resolve one with right click. which also copies"):
   - Flash: hold 1.5s → 300ms; fade 500ms in 25 steps (20ms) instead of 10; resting glow fainter (inner ring t 0.5 → 0.7, outer 0.75 → 0.88).
   - Terminal menu: a right click on an item copies its text and resolves it (`Session.ResolveNote`), reversing the earlier read-and-copy-only default.
+- 2026-10-11 — operator: "the resting quiet state should just have one shade (the inner one sized, and very light tint)". At rest only the inner ring shows, at t 0.9; the outer ring fades out to nothing (t 1, not drawn) and appears only during a flash.

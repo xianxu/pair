@@ -354,7 +354,7 @@ watch) or the broadcast ends.
   console's clock via `Config.Now`, not sent to pages) and, for every open
   note together, on one shared beat every `NoteFlashEvery` (15s), holding
   `NoteFlashHold` (300ms) then stepping down over `NoteFlashFade` (500ms, 20ms
-  steps) to a faint rest. One beat bounds the repaints at about 26 per beat
+  steps) to rest, where only the inner ring keeps one very light shade. One beat bounds the repaints at about 26 per beat
   plus 26 per arrival, whatever the number of notes. `NoteStyle.Hover`
   holds a note at full glow. `paletteTint(c, t, bg, blend)` is the one place a
   pointer color is weakened, for marks and notes alike (blend into the real
