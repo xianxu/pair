@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000494-broadcast-web-the-operator-annotates-in-the-cast-chrome-itself-pointer-strokes-and-notes-injected-overlay.md
         source_blob: 80e81c3614e92b6a90c54ecec49763ee2dbacfea
         destination: workshop/issues/000494-broadcast-web-the-operator-annotates-in-the-cast-chrome-itself-pointer-strokes-and-notes-injected-overlay.md
+        main_commit: 4bb9e4b21b889115f63a097cd1b61803a12dfefe
 ---
 
 # broadcast-web: the operator annotates in the cast Chrome itself (pointer strokes and notes, injected overlay)
