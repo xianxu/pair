@@ -388,6 +388,81 @@ rounds:
       isolation: fenced
       reviewed: 0204724cbeb2faaf5d4ef387e3a6fd1f2cc6cd8d
       blocked: false
+    - "n": 11
+      timestamp: "2026-10-12T09:42:06-07:00"
+      dispatched: "2026-10-12T09:38:44-07:00"
+      agent: claude
+      findings:
+        - id: BR-30
+          severity: Important
+          title: A driven report whose by loses the race to a revoke is dropped whole, erasing a real click
+          detail: recorder.go:1092 passes msg.By into observeItems; mirror.emit refuses and drops the record when by is no longer the driver. Reports now arrive as later bindingCalled events, so a revoke enqueued mid-batch (controller drops its lock before Inject) erases acts the page really received, the outcome the plan's hold/take rationale rejected. Record them with by="" (the expired-hold residual class), add a fake-CDP test (Emit revoke, then a tagged binding click, assert it is written unattributed), and update the atlas Take bullet and plan.
+          family: uncertain-attribution-degrades
+          round: 11
+        - id: BR-31
+          severity: Important
+          title: The recorder's fake driveTab still returns items from __couchcastTake; the real observer.js returns '[]'
+          detail: '2nd in family. drive_test.go:39-45 models the old protocol, so TestWithTabAttributesExactly tests an ordering production never produces, and drive.go:52''s take-items branch is dead in production. Rule: a fake''s protocol answers change in the same commit as the real script, enforced by a live check of hold/take return shapes. Re-model driveTab (take returns [], driver items arrive as tagged bindingCalled), and delete the dead branch or label it as backward compatibility.'
+          family: live-conformance-unasserted
+          round: 11
+        - id: BR-32
+          severity: Minor
+          title: fixturegen main.go:5 still documents the removed -driven flag
+          detail: '2nd in family. Rule: removing a flag also removes its usage and doc lines; grep the flag name before committing.'
+          family: dead-code
+          round: 11
+        - id: BR-33
+          severity: Minor
+          title: Driver's note comes from the fixturegen spec, not the board as Task 11 states; the M4 revision omits it, and WithTab step 3 still describes take returning items
+          detail: '4th in family. Rule: at milestone close, walk each checklist line and Integration-point bullet of the milestone and record every mechanism change in the as-built revision, as one step.'
+          family: plan-drift-unrecorded
+          round: 11
+        - id: BR-34
+          severity: Minor
+          title: fixtures README says rec-driven has 9 frames; frames/index.jsonl has 8
+          family: fixture-doc-matches-data
+          round: 11
+      boundary: M4
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
+    - "n": 12
+      timestamp: "2026-10-12T09:46:21-07:00"
+      dispatched: "2026-10-12T09:44:49-07:00"
+      agent: claude
+      dispose:
+        - id: BR-30
+          disposition: addressed
+          note: recorder.go:1099 downgrades by to "" when it is no longer the driver; TestHeldDocumentSendsAttributedItems goes red with the guard disabled (verified), green with it.
+          round: 12
+        - id: BR-31
+          disposition: addressed
+          note: driveTab take now returns nothing and sends a tagged bindingCalled (drive_test.go:44-58); the take-items branch in drive.go is removed; live suite covers real shapes per plan revision.
+          round: 12
+        - id: BR-32
+          disposition: addressed
+          note: fixturegen main.go usage line and flag removed; grep finds no remaining -driven reference.
+          round: 12
+        - id: BR-33
+          disposition: addressed
+          note: Plan revision "M4 review round 1" records Task 4 step 3 (take sends tagged via binding) and Task 11 (note from fixturegen spec, author v1).
+          round: 12
+        - id: BR-34
+          disposition: addressed
+          note: README now says 8 frames, matching frames/index.jsonl (8 lines).
+          round: 12
+      findings:
+        - id: BR-35
+          severity: Minor
+          title: recorder.go:1084-1086 comment says the reducer refuses a non-driver by; observeItems now downgrades it first
+          detail: 'Stale after BR-30. Rule (5th in family): a change in behavior updates every comment or doc that describes that behavior. Grep the old wording before committing.'
+          family: plan-drift-unrecorded
+          round: 12
+      boundary: M4
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: f95c0c3302d253f8eae9f45f0ad1b546d23aac19
+      blocked: false
 ---
 
 # Gate ledger — pair#467 (boundary-review)
@@ -541,7 +616,37 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-26 — addressed — TestDriveFailure (console_drive_test.go:320-336) pins every branch exactly; the operator-side switch remains a distinct per-audience sentence table, acceptable for a Minor.
 - BR-29 — addressed — console_webcast.go:275-276 reads update, phase and cast in one locked snapshot; wcastCast deleted, so no second read remains.
 
+## Round 11 — 2026-10-12T09:42:06-07:00 (claude) — BLOCKED
+
+### Raised
+
+- **BR-30** [Important] `uncertain-attribution-degrades` A driven report whose by loses the race to a revoke is dropped whole, erasing a real click
+  recorder.go:1092 passes msg.By into observeItems; mirror.emit refuses and drops the record when by is no longer the driver. Reports now arrive as later bindingCalled events, so a revoke enqueued mid-batch (controller drops its lock before Inject) erases acts the page really received, the outcome the plan's hold/take rationale rejected. Record them with by="" (the expired-hold residual class), add a fake-CDP test (Emit revoke, then a tagged binding click, assert it is written unattributed), and update the atlas Take bullet and plan.
+- **BR-31** [Important] `live-conformance-unasserted` The recorder's fake driveTab still returns items from __couchcastTake; the real observer.js returns '[]'
+  2nd in family. drive_test.go:39-45 models the old protocol, so TestWithTabAttributesExactly tests an ordering production never produces, and drive.go:52's take-items branch is dead in production. Rule: a fake's protocol answers change in the same commit as the real script, enforced by a live check of hold/take return shapes. Re-model driveTab (take returns [], driver items arrive as tagged bindingCalled), and delete the dead branch or label it as backward compatibility.
+- **BR-32** [Minor] `dead-code` fixturegen main.go:5 still documents the removed -driven flag
+  2nd in family. Rule: removing a flag also removes its usage and doc lines; grep the flag name before committing.
+- **BR-33** [Minor] `plan-drift-unrecorded` Driver's note comes from the fixturegen spec, not the board as Task 11 states; the M4 revision omits it, and WithTab step 3 still describes take returning items
+  4th in family. Rule: at milestone close, walk each checklist line and Integration-point bullet of the milestone and record every mechanism change in the as-built revision, as one step.
+- **BR-34** [Minor] `fixture-doc-matches-data` fixtures README says rec-driven has 9 frames; frames/index.jsonl has 8
+
+## Round 12 — 2026-10-12T09:46:21-07:00 (claude) — passed
+
+### Disposed
+
+- BR-30 — addressed — recorder.go:1099 downgrades by to "" when it is no longer the driver; TestHeldDocumentSendsAttributedItems goes red with the guard disabled (verified), green with it.
+- BR-31 — addressed — driveTab take now returns nothing and sends a tagged bindingCalled (drive_test.go:44-58); the take-items branch in drive.go is removed; live suite covers real shapes per plan revision.
+- BR-32 — addressed — fixturegen main.go usage line and flag removed; grep finds no remaining -driven reference.
+- BR-33 — addressed — Plan revision "M4 review round 1" records Task 4 step 3 (take sends tagged via binding) and Task 11 (note from fixturegen spec, author v1).
+- BR-34 — addressed — README now says 8 frames, matching frames/index.jsonl (8 lines).
+
+### Raised
+
+- **BR-35** [Minor] `plan-drift-unrecorded` recorder.go:1084-1086 comment says the reducer refuses a non-driver by; observeItems now downgrades it first
+  Stale after BR-30. Rule (5th in family): a change in behavior updates every comment or doc that describes that behavior. Grep the old wording before committing.
+
 ## Open findings
 
 - **BR-3** [Minor] `residue-bound-on-writer` Per-seat rate buckets are reset wholesale at 256 instead of pruned when a seat leaves, as planned
 - **BR-6** [Minor] `test-hook-in-production-state` loopState.tap is a test-only event hook carried in the production loop struct
+- **BR-35** [Minor] `plan-drift-unrecorded` recorder.go:1084-1086 comment says the reducer refuses a non-driver by; observeItems now downgrades it first

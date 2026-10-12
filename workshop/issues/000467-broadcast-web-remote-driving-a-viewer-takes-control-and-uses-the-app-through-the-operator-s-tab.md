@@ -77,11 +77,12 @@ menu + notice; recorded `driven` fixture + consumers deriving from data; atlas; 
 - [x] M1 — the Go core: `Tab`/`TabInjector`, `MemController`, observer hold/take + `by`, `Recorder.WithTab` (CDP), `Chrome.SetDriving` guards + banner, drive routes + Attach + Cast wiring
 - [x] M2 — the viewer shell: `drive.js` (seat, ask/give back, pointer/touch/keyboard capture, batches), notes authored by the seat
 - [x] M3 — Couch: drive span after `Chrome ⏸`, drive menu (grant/deny/revoke), Ctrl+click revoke
-- [ ] M4 — a real recorded `driven` fixture replacing the hand-written one; consumers derive from data; atlas
+- [x] M4 — a real recorded `driven` fixture replacing the hand-written one; consumers derive from data; atlas
 
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed M4 — recorder tests -race green incl. revoke-then-tagged-click kept unattributed and the observer.js-shaped fake; go test ./cmd/internal/webcast/... green; WEBCAST_LIVE_CHROME=1 LiveDriveNavigation, LiveDrive, DriveLive, LiveReplayServerDrivers green; rec-driven fixture coverage/budget green; review verdict: SHIP
 - 2026-10-12: closed M3 — couchtty TestDriveFromCouch/TestWebcast -race green; copyWebcastDriveLink takes one snapshot (BR-29); all prior M3 evidence stands; review verdict: SHIP
 - 2026-10-12: closed M2 — node tests green (drive.js 16); go test -race ./cmd/internal/webcast/... green incl. release tests (revoke, transfer, refusal, page change, late release names its hold, auto-repeat once); WEBCAST_LIVE_CHROME=1 DriveLive/LiveDrive/AnnotateLive green; atlas: letting go + per-act segments; review verdict: SHIP
 - 2026-10-12: closed M1 — go test ./cmd/internal/webcast/... -race green; WEBCAST_LIVE_CHROME=1 full webcast live suite green (135s); TestLiveDrive 3/3 real headless Chrome incl. intercepted file chooser via event tap, download deny vs positive control, restore; TestChromeCastTabDialog for BR-1; FuzzDriveInput 20s; review verdict: SHIP
