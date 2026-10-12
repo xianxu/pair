@@ -714,3 +714,28 @@ func TestMessageSendToHubRefusalsNameTheReason(t *testing.T) {
 		}
 	})
 }
+
+// pair#463: `hub` is reserved ahead of repository names; a repository named
+// hub keeps its slots reachable as hub:N.
+func TestMessageHubTargetIsReservedAheadOfRepositoryNames(t *testing.T) {
+	r := newServiceRig(t)
+	r.world.hub = "/repo1"
+	r.restart(nil)
+	hub, worker := r.connect(1), r.connect(2)
+	other := r.world.add(3)
+	r.world.set(other, func(s *worldSlot) {
+		slot := "hub:3"
+		s.binding.Slot, s.workspace.Address = slot, &slot
+	})
+	other.Slot = "hub:3"
+	r.attach(other, "h3")
+	r.wrapper(other)
+	r.waitConnected(other, true)
+	for target, want := range map[string]couchmessage.Binding{couchmessage.HubTarget: hub, "hub:3": other} {
+		send := callerRequest(worker, "send")
+		send.ID, send.Target, send.Body = "id-"+target, target, "report"
+		if resp := r.s.handle(context.Background(), send); resp.Code != "accepted" || resp.Receipt == nil || resp.Receipt.Message.To != want {
+			t.Fatalf("send to %s: %+v", target, resp)
+		}
+	}
+}

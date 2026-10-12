@@ -34,7 +34,7 @@ ariadne#336 adds a constitution rule: every agent in a Couch slot reports each i
 
 ## Done when
 
-- `couch --send-to hub --message …` from a non-hub slot delivers to the hub slot, verified live in a running Couch.
+- `couch --send-to hub --message …` from a non-hub slot delivers to the hub slot: covered by a service test here; the live check in a running Couch is delivered by ariadne#336's Done-when (see Revisions).
 - Each of the three refusals is covered by a test and names its reason.
 - `couch --skill` documents the target and the reservation.
 

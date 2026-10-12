@@ -34,8 +34,9 @@ is a request, never operator approval or evidence that work is accepted.
 started from (the TL), so it stays right when a thread is resumed under a
 different Couch. It is refused, with the reason, when Couch started outside a
 checkout, when the hub slot isn't connected, or when you are the hub. It is
-reserved ahead of repository names: a repository named `hub` is reached as
-`hub:N`, never as the bare family.
+reserved ahead of repository names and prefixes: a repository named `hub`
+(or one `hub` would prefix, such as `hubble`) is reached by its exact or full
+name, `hub:N`, never by the bare `hub`.
 
 Exact addresses include `repo:0`. The `repo` part may be the directory name,
 the repository's alias, or a unique prefix of either (`parley:1` reaches
