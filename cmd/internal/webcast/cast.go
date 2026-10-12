@@ -93,6 +93,8 @@ type Cast struct {
 	server     *Server
 	token      string
 	driveToken string
+	// driveOff says why the cast can't be driven ("" when it can).
+	driveOff string
 }
 
 // StartCast launches the browser and returns once it runs; the viewer link
@@ -157,9 +159,16 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 	var driveToken string
 	if c.drive != nil {
 		if driveToken, err = broadcast.NewToken(); err != nil {
+			// Driving is off for this cast; the operator is told why.
 			c.drive.Close()
 			c.drive = nil
+			c.driveOff = "couldn't make the drive link: " + err.Error()
+			if cfg.Logf != nil {
+				cfg.Logf("remote driving is off: %s", c.driveOff)
+			}
 		}
+	} else {
+		c.driveOff = "the cast isn't recorded"
 	}
 	srv := NewServer(token, b, cfg.Ping, live, cfg.Presence).WithBoard(bd).WithDrive(c.drive, driveToken)
 	srv.proxy = proxy
@@ -359,3 +368,6 @@ func (c *Cast) Drive() drive.Controller { return c.drive }
 
 // Viewers is how many viewers are on the cast's links, by link (#467).
 func (c *Cast) Viewers() (view, drive int) { return c.server.Viewers() }
+
+// DriveOff says why the cast can't be driven, or "" when it can (#467).
+func (c *Cast) DriveOff() string { return c.driveOff }

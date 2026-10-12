@@ -1275,3 +1275,7 @@ proof; record the surprising case so the next change starts from evidence.
   `includeUserAgentShadowDOM` returns an `<input>`'s inner editor, which no recording has, so every click on an
   input read as stale. The fake injector hit-tests its own boxes and could never show it. A seam that maps between
   a browser's ids and a model's ids needs one live run before its fake is trusted.
+- **A user-facing gesture, flag, notice or output format lands with its README line (#467 M3).** The drive span, the
+  Ctrl+click take-back, the Alt+right-click drive link and the new `--broadcast-list` shares reached the atlas but
+  not the README, which still described the old flag output and "the viewer link". The atlas maps code for agents;
+  the README is what the operator reads. Update both in the commit that adds the surface, not at close.

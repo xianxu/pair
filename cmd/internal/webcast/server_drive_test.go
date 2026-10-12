@@ -322,6 +322,9 @@ func TestDriveOnlyUnderTheDriveLink(t *testing.T) {
 	}
 	defer resp.Body.Close()
 	time.Sleep(300 * time.Millisecond) // past the grace: a view stream holds no seat
+	if view, drive := f.srv.Viewers(); view != 1 || drive != 0 {
+		t.Fatalf("viewers by link: view %d drive %d", view, drive)
+	}
 	if err := f.ctrl.Request(key); err != drive.ErrNoSeat {
 		t.Fatalf("a seat held by a view-link stream: %v", err)
 	}

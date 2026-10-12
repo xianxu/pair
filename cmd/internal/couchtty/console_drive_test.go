@@ -315,3 +315,22 @@ func TestDriveFromCouch(t *testing.T) {
 		return c.con.statusWebDrive == ColumnSpan{} && c.con.wcast.phase == webcastOff
 	})
 }
+
+// Every class of control failure says what it is (the operator's side of
+// drive.Answer's table).
+func TestDriveFailure(t *testing.T) {
+	for _, tc := range []struct {
+		err  error
+		want string
+	}{
+		{drive.ErrNoSeat, "Remote driving: that changed meanwhile."},
+		{fmt.Errorf("x: %w", drive.ErrControlOp), "Remote driving: that changed meanwhile."},
+		{drive.ErrClosed, "Remote driving: the cast has ended."},
+		{drive.ErrNotLive, "Remote driving: go live first; control changes once the cast is recording."},
+		{errors.New("disk full"), "Remote driving failed, control is unchanged: disk full"},
+	} {
+		if got := driveFailure(tc.err); got != tc.want {
+			t.Errorf("%v: %q, want %q", tc.err, got, tc.want)
+		}
+	}
+}

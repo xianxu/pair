@@ -281,8 +281,8 @@ func (c *Console) copyWebcastDriveLink() {
 		c.setNotice("Chrome cast drive link copied: its viewers can ask to drive; you grant.")
 	case u.LinkErr != nil:
 		c.setNotice("Chrome cast drive link unavailable: " + u.LinkErr.Error())
-	case u.Link != "":
-		c.setNotice("This cast can't be driven (it isn't recorded).")
+	case u.Link != "" && c.wcastCast() != nil && c.wcastCast().DriveOff() != "":
+		c.setNotice("This cast can't be driven: " + c.wcastCast().DriveOff() + ".")
 	default:
 		c.setNotice("Chrome cast drive link is not ready yet.")
 	}
@@ -309,4 +309,11 @@ func (c *Console) endWebcastForShutdown() {
 		case <-time.After(webcastShutdownWait):
 		}
 	}
+}
+
+// wcastCast is the running cast, or nil.
+func (c *Console) wcastCast() *webcast.Cast {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.wcast.cast
 }

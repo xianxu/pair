@@ -64,8 +64,9 @@ type Server struct {
 	ping       time.Duration
 	maxViewers int32
 	viewers    atomic.Int32
-	// driveViewers: of viewers, those on the drive link (#467).
-	driveViewers atomic.Int32
+	// viewViewers and driveViewers: the streams on each link (#467), each
+	// its own counter, so neither is derived from two reads.
+	viewViewers, driveViewers atomic.Int32
 	board        *boardRoutes // nil: no pointing or notes (WithBoard)
 	drive        *driveRoutes // nil: no remote driving (WithDrive)
 }
@@ -148,10 +149,12 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, driveLink bool) 
 		return
 	}
 	defer s.viewers.Add(-1)
+	byLink := &s.viewViewers
 	if driveLink {
-		s.driveViewers.Add(1)
-		defer s.driveViewers.Add(-1)
+		byLink = &s.driveViewers
 	}
+	byLink.Add(1)
+	defer byLink.Add(-1)
 	if id != "" && s.presence != nil {
 		defer s.presence(id)()
 	}
@@ -225,6 +228,5 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, driveLink bool) 
 // Viewers is how many streams are open, by link: the view link's and the
 // drive link's (#467, `couch --broadcast-list`).
 func (s *Server) Viewers() (view, drive int) {
-	d := int(s.driveViewers.Load())
-	return int(s.viewers.Load()) - d, d
+	return int(s.viewViewers.Load()), int(s.driveViewers.Load())
 }

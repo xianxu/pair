@@ -112,7 +112,7 @@ func TestCastDriving(t *testing.T) {
 // A cast that can't be driven (not recorded) has no controller.
 func TestCastWithoutDriving(t *testing.T) {
 	c, _ := startCast(t, &broadcast.FakeTunnel{})
-	if c.Drive() != nil {
-		t.Fatal("an unrecorded cast has a controller")
+	if c.Drive() != nil || c.DriveOff() != "the cast isn't recorded" {
+		t.Fatalf("an unrecorded cast: controller %v, off %q", c.Drive(), c.DriveOff())
 	}
 }
