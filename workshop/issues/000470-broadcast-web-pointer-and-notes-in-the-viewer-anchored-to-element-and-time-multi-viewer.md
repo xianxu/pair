@@ -80,6 +80,7 @@ Durable plan: `workshop/plans/000470-broadcast-web-pointer-and-notes-in-the-view
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed M2 — WEBCAST_LIVE_CHROME=1 TestAnnotateLiveTwoViewers 4/4 after round-2 fixes (stroke spans drag, swatch pick held 100ms during fade, element pin within 2px, touch region, touch chip -> Resolve hides in both, pause and resume keep, navigation clears, recording reduces); mutations killed: docSeg start, chip exemption, per-frame rail; node webcast 8/8 annotate + all; broadcast green; review verdict: FIX-THEN-SHIP
 - 2026-10-12: closed M1 — go test ./cmd/internal/webcast/... ./cmd/internal/broadcast/... ./cmd/internal/artifactpath green; board -race + fuzz; mutation checks; cast-level note to notes.jsonl + resolve; review round-1 fixes in HEAD; review verdict: FIX-THEN-SHIP
 
 - TL approved the seams (1f98c952): self-chosen viewer id + name (attribution, not authentication; #467 swaps in

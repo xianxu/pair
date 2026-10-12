@@ -300,3 +300,122 @@ findings:
     detail: |
       A hand-edited name over 40 runes would be refused by the board on every note, and the name field is hidden once a name exists, so the viewer can't recover. Apply the board's name limit at read time and ask again otherwise (ARCH-SECURE).
 ```
+
+---
+
+## Re-review — 2026-10-12T04:15:45-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 470 — broadcast-web: pointer and notes in the viewer — anchored to element and time, multi-viewer |
+| repo | pair |
+| issue file | workshop/issues/000470-broadcast-web-pointer-and-notes-in-the-viewer-anchored-to-element-and-time-multi-viewer.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 2fd4139b2dc4ebc4177ca872c1f9a0648e88b66d..98d5a7a19abf7d2e5a71756108716e64c8061187 |
+| command | sdlc milestone-close --issue 470 --milestone M2 |
+| reviewer | claude |
+| isolation | checkout |
+| timestamp | 2026-10-12T04:15:45-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+Checking the board's name rules against the new client-side `validName`, then running the tests.
+
+Chrome won't launch in this checkout, so the live e2e can't run here. Checking which commit added the stroke-refusal toast (BR-12) and whether any test covers it.
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: medium
+```
+
+This round fixed the Important finding. The rail now has a `renderRail` that runs only on a pick or a mode change, and a `placeRail` that runs every frame (annotate.js:355-368). Swatches are no longer recreated on the per-frame path, and a new e2e step holds a swatch click across frames. The resume e2e step (BR-17) and the stored-name check (BR-18) also landed, and node and Go tests pass. What stays open is the same thing round 2 asked for: BR-12, BR-14 and BR-16 have code fixes but no test that fails without them. The reason is structural. `answered` and the gesture state (`stroke`/`drag`/`timer`) live inside `mountAnnotate`, so neither node nor the e2e reaches them. All three are Minor and don't block. I also found two new Minor issues: `validName` restates the board's name rule incompletely, and `strokesAt` has no production caller and duplicates `replay.js`. Confidence is medium because the headless Chrome e2e (`WEBCAST_LIVE_CHROME=1`) could not start here (`Target.createTarget: cdp: read: EOF`). So I could not run BR-15/BR-17 against a revert. Those two are judged by reading the code and the test steps.
+
+**1. Strengths**
+- The rail split is clean: `schedule()` → `placeRail()` only moves the rail (annotate.js:495). `renderSwatches` is now reachable only from `setMode` and a pick (annotate.js:356, 374).
+- `endGesture()` is now the single exit for any gesture (annotate.js:395-398). Mode change, cast end (through `setMode`), pointercancel and a new document all call it. The resync guard `model.docSeg && model.docSeg !== docSeg` (annotate.js:504) also correctly handles a resync that lands on a different document.
+- `pinLayer` and `paintStrokes` are now real shared functions that the live viewer uses (annotate.js:190-249, 470-483), and pin chips remain stable across frames.
+- The resume e2e step re-puts the original top-document snapshot under a `why:"resume"` seg and asserts the pin survives in both viewers. That is a meaningful check of `liveNotes`'s `docSeg` semantics.
+- `validName` plus its node test pins the over-40-runes case, and `identityStore` applies it at read time (annotate.js:53).
+
+**2. Critical findings**
+None.
+
+**3. Important findings**
+None new.
+
+**4. Minor findings**
+- **`validName` vs the board's rule.** `validName`'s character class (annotate.js:66) is a hand-picked subset of the board's `nameText`, which rejects all of `unicode.IsControl || unicode.Cf` (board/wire.go:203-208). I confirmed in node that U+2066-2069 (bidi isolates), U+061C, U+180E, U+FFF9 and the U+E00xx tag characters all pass `validName`, while the board rejects them. Separately, `setName` (annotate.js:57) stores a typed name without checking it. After the first refusal the name field is hidden in later drafts, and the name survives reloads, so the viewer is stuck. Fix: use `/[\p{Cc}\p{Cf}]/u`, run `setName` through `validName`, and add U+2067 to the test vector.
+- **`strokesAt` duplicates `replay.js`.** `strokesAt` (annotate.js:167) has no production caller. It restates `replay.js` `drawMarks`'s stroke-at-t logic (replay.js:458-470) with different semantics: it joins chunks by id where replay works per chunk, and it uses `FADE_MS` where replay uses `STROKE_FADE`. `noteBox` (region first) and `drawMarks` (node box, then `at.box`, then region) also fall back in a different order. The atlas line "the same functions the live viewer draws with" is wrong for `strokesAt`; the live viewer uses `strokeStore.visible`. #477 owns the convergence, so either have `drawMarks` call `noteBox`/`strokesAt` now, or correct the atlas sentence and note the duplication in #477.
+
+**5. Test coverage notes**
+- Ran `node --test tests/webcast/annotate.test.mjs tests/broadcast-viewer/*.test.mjs`: 68/68 pass.
+- Ran `go test ./cmd/internal/webcast/... ./cmd/internal/broadcast/...`: all pass.
+- The live Chrome e2e could not launch in this checkout, so I made no revert-goes-red check for BR-15/BR-17.
+- The BR-15 swatch step relies on the stroke still fading when `slowClick` runs (about 200 ms after release, within `FADE_MS` = 1500 ms). Nothing asserts that frames are actually being drawn at that moment. Asserting `strokes.size > 0` just before the click would turn that timing assumption into a check.
+- Still no test reaches the stroke-refusal toast, a stroke that spans a navigation, or a drag cut off by a mode change.
+
+**6. Architectural notes**
+- **ARCH-DRY: flag.** See the `strokesAt`/`drawMarks` and `noteBox` duplication above. `collab.js` sharing is otherwise good.
+- **ARCH-PURE: flag (minor).** `answered` and the gesture transitions are logic trapped in the shell. That is exactly why BR-12/14/16 have no tests.
+- **ARCH-PURPOSE: pass.** M2's scope is delivered, and the replay convergence is explicitly assigned to #477.
+- **ARCH-MOCK: pass.** The e2e uses the real `Server`/`Board`/`Writer` with `FakeBrowser`.
+- **ARCH-CONSTRAINTS: pass.**
+  - The per-frame work is now placement only: `placeRail`, `pinLayer.draw` moves, and a cheap `dialog.update`.
+  - The rAF loop stops once strokes fade.
+- **ARCH-SECURE: flag (minor).** `validName` does not match the board's rule (above). Note text still reaches the page only as `textContent`, and author colors are checked against `HEX_COLOR`.
+- **ARCH-ORDER: flag (minor).**
+  - **What improved:** `endGesture` gives every boundary a single exit.
+  - **What's still wrong:** `{mode, drag, stroke, timer}` is still a set of separate fields with no written list of legal combinations, inside an untestable closure.
+  - **Rule that covers BR-14/16:** gesture state changes go through a pure `gesture(state, event) → {state, effects}`, where `event` is down/move/up/cancel/mode/newDoc/end. `mountAnnotate` only carries out the effects, and node tests drive sequences such as "stroke, then a new document" and "drag, then a mode change".
+- **ARCH-FUNERAL: pass.**
+  - The stroke interval is cleared in `endStroke`.
+  - Pin elements are removed when their note leaves the live set.
+  - Nothing durable is new this round.
+
+**7. Plan revision recommendations**
+- Add a `## Revisions` entry: "Replay entry points (`strokesAt`, `paintStrokes`, `pinLayer`, `noteBox`) are exported for #477. `replay.js` `drawMarks` still has its own stroke and note-box logic until #477 converges it." The atlas sentence should then say that only `paintStrokes`/`pinLayer`/`liveNotes` are shared with the live viewer.
+
+```findings
+dispose:
+  - id: BR-12
+    disposition: not-addressed
+    note: |
+      Unchanged since round 2: answered() and the toast exist (annotate.js:292-299,383) but nothing tests them. Rule for BR-12/14/16 together: move the shell's decisions into pure exports, answered(say) and a gesture(state, event) reducer, and node-test a 409, a rejected fetch, a stroke across a new document and a drag across a mode change.
+  - id: BR-14
+    disposition: not-addressed
+    note: |
+      The code is right (onRecord calls endGesture on a docSeg change, annotate.js:504-511, and a trailing chunk is answered ErrStale) but no test covers a stroke spanning a navigation; this gets the gesture-reducer test noted on BR-12.
+  - id: BR-15
+    disposition: addressed
+    note: |
+      renderRail runs only on a pick or mode change and placeRail per frame (annotate.js:355-368,495); the e2e slowClick step at viewer_annotate_live_test.go:102-105 would lose the click on old code. Chrome could not launch here, so this was judged from the code, not a revert run.
+  - id: BR-16
+    disposition: not-addressed
+    note: |
+      endGesture covers mode change, cast end, pointercancel and a new document, and the resync guard is fixed (annotate.js:395-398,445,504-513), but no test drives a drag across a mode change or the cast's end.
+  - id: BR-17
+    disposition: addressed
+    note: |
+      The e2e puts a seg with why resume plus the top-document snapshot and asserts the pin is still shown in both viewers (viewer_annotate_live_test.go, after the pause step).
+  - id: BR-18
+    disposition: addressed
+    note: |
+      validName is applied at read (annotate.js:53) and node-tested for 41 runes; a separate gap in its character class is raised as a new finding.
+findings:
+  - id: new
+    severity: Minor
+    family: persisted-input-parsed-at-read
+    title: |
+      validName rejects fewer characters than the board's nameText, and setName stores a name without checking it
+    detail: |
+      2nd finding in this family. Rule: a client copy of a board check uses the same predicate, here /[\p{Cc}\p{Cf}]/u plus the rune count, on every path that writes the value (read and setName). Checked in node: U+2067, U+061C, U+180E, U+FFF9 and U+E0041 pass validName (annotate.js:66) and are refused by board/wire.go:203-208. A typed bidi-isolate name is then stored, refused on every note, and its field is hidden. Add U+2067 to the node test.
+  - id: new
+    severity: Minor
+    family: shared-helper-duplication
+    title: |
+      strokesAt has no production caller and restates replay.js drawMarks's stroke-at-t and note-box logic with different semantics
+    detail: |
+      2nd finding in this family. Rule: one implementation for each drawing-at-t concept. strokesAt (annotate.js:167) joins chunks by id and fades over FADE_MS. drawMarks (replay.js:458-470) works per chunk with STROKE_FADE. noteBox puts the region first, drawMarks puts it last. The atlas wrongly says the live viewer draws with strokesAt. Either have drawMarks call noteBox/strokesAt now, or correct the atlas and record the convergence in #477.
+```

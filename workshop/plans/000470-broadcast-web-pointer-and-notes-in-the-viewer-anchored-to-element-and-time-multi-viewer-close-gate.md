@@ -204,6 +204,53 @@ rounds:
       recipe: milestone-review
       isolation: checkout
       blocked: true
+    - "n": 5
+      timestamp: "2026-10-12T04:15:45-07:00"
+      dispatched: "2026-10-12T04:12:45-07:00"
+      agent: claude
+      dispose:
+        - id: BR-12
+          disposition: not-addressed
+          note: 'Unchanged since round 2: answered() and the toast exist (annotate.js:292-299,383) but nothing tests them. Rule for BR-12/14/16 together: move the shell''s decisions into pure exports, answered(say) and a gesture(state, event) reducer, and node-test a 409, a rejected fetch, a stroke across a new document and a drag across a mode change.'
+          round: 5
+        - id: BR-14
+          disposition: not-addressed
+          note: The code is right (onRecord calls endGesture on a docSeg change, annotate.js:504-511, and a trailing chunk is answered ErrStale) but no test covers a stroke spanning a navigation; this gets the gesture-reducer test noted on BR-12.
+          round: 5
+        - id: BR-15
+          disposition: addressed
+          note: renderRail runs only on a pick or mode change and placeRail per frame (annotate.js:355-368,495); the e2e slowClick step at viewer_annotate_live_test.go:102-105 would lose the click on old code. Chrome could not launch here, so this was judged from the code, not a revert run.
+          round: 5
+        - id: BR-16
+          disposition: not-addressed
+          note: endGesture covers mode change, cast end, pointercancel and a new document, and the resync guard is fixed (annotate.js:395-398,445,504-513), but no test drives a drag across a mode change or the cast's end.
+          round: 5
+        - id: BR-17
+          disposition: addressed
+          note: The e2e puts a seg with why resume plus the top-document snapshot and asserts the pin is still shown in both viewers (viewer_annotate_live_test.go, after the pause step).
+          round: 5
+        - id: BR-18
+          disposition: addressed
+          note: validName is applied at read (annotate.js:53) and node-tested for 41 runes; a separate gap in its character class is raised as a new finding.
+          round: 5
+      findings:
+        - id: BR-19
+          severity: Minor
+          title: validName rejects fewer characters than the board's nameText, and setName stores a name without checking it
+          detail: '2nd finding in this family. Rule: a client copy of a board check uses the same predicate, here /[\p{Cc}\p{Cf}]/u plus the rune count, on every path that writes the value (read and setName). Checked in node: U+2067, U+061C, U+180E, U+FFF9 and U+E0041 pass validName (annotate.js:66) and are refused by board/wire.go:203-208. A typed bidi-isolate name is then stored, refused on every note, and its field is hidden. Add U+2067 to the node test.'
+          family: persisted-input-parsed-at-read
+          round: 5
+        - id: BR-20
+          severity: Minor
+          title: strokesAt has no production caller and restates replay.js drawMarks's stroke-at-t and note-box logic with different semantics
+          detail: '2nd finding in this family. Rule: one implementation for each drawing-at-t concept. strokesAt (annotate.js:167) joins chunks by id and fades over FADE_MS. drawMarks (replay.js:458-470) works per chunk with STROKE_FADE. noteBox puts the region first, drawMarks puts it last. The atlas wrongly says the live viewer draws with strokesAt. Either have drawMarks call noteBox/strokesAt now, or correct the atlas and record the convergence in #477.'
+          family: shared-helper-duplication
+          round: 5
+      boundary: M2
+      recipe: milestone-review
+      isolation: checkout
+      reviewed: 98d5a7a19abf7d2e5a71756108716e64c8061187
+      blocked: false
 ---
 
 # Gate ledger — pair#470 (boundary-review)
@@ -283,6 +330,24 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-18** [Minor] `persisted-input-parsed-at-read` identityStore checks the stored viewer id but not the stored name (annotate.js:50)
   A hand-edited name over 40 runes would be refused by the board on every note, and the name field is hidden once a name exists, so the viewer can't recover. Apply the board's name limit at read time and ask again otherwise (ARCH-SECURE).
 
+## Round 5 — 2026-10-12T04:15:45-07:00 (claude) — passed
+
+### Disposed
+
+- BR-12 — not-addressed — Unchanged since round 2: answered() and the toast exist (annotate.js:292-299,383) but nothing tests them. Rule for BR-12/14/16 together: move the shell's decisions into pure exports, answered(say) and a gesture(state, event) reducer, and node-test a 409, a rejected fetch, a stroke across a new document and a drag across a mode change.
+- BR-14 — not-addressed — The code is right (onRecord calls endGesture on a docSeg change, annotate.js:504-511, and a trailing chunk is answered ErrStale) but no test covers a stroke spanning a navigation; this gets the gesture-reducer test noted on BR-12.
+- BR-15 — addressed — renderRail runs only on a pick or mode change and placeRail per frame (annotate.js:355-368,495); the e2e slowClick step at viewer_annotate_live_test.go:102-105 would lose the click on old code. Chrome could not launch here, so this was judged from the code, not a revert run.
+- BR-16 — not-addressed — endGesture covers mode change, cast end, pointercancel and a new document, and the resync guard is fixed (annotate.js:395-398,445,504-513), but no test drives a drag across a mode change or the cast's end.
+- BR-17 — addressed — The e2e puts a seg with why resume plus the top-document snapshot and asserts the pin is still shown in both viewers (viewer_annotate_live_test.go, after the pause step).
+- BR-18 — addressed — validName is applied at read (annotate.js:53) and node-tested for 41 runes; a separate gap in its character class is raised as a new finding.
+
+### Raised
+
+- **BR-19** [Minor] `persisted-input-parsed-at-read` validName rejects fewer characters than the board's nameText, and setName stores a name without checking it
+  2nd finding in this family. Rule: a client copy of a board check uses the same predicate, here /[\p{Cc}\p{Cf}]/u plus the rune count, on every path that writes the value (read and setName). Checked in node: U+2067, U+061C, U+180E, U+FFF9 and U+E0041 pass validName (annotate.js:66) and are refused by board/wire.go:203-208. A typed bidi-isolate name is then stored, refused on every note, and its field is hidden. Add U+2067 to the node test.
+- **BR-20** [Minor] `shared-helper-duplication` strokesAt has no production caller and restates replay.js drawMarks's stroke-at-t and note-box logic with different semantics
+  2nd finding in this family. Rule: one implementation for each drawing-at-t concept. strokesAt (annotate.js:167) joins chunks by id and fades over FADE_MS. drawMarks (replay.js:458-470) works per chunk with STROKE_FADE. noteBox puts the region first, drawMarks puts it last. The atlas wrongly says the live viewer draws with strokesAt. Either have drawMarks call noteBox/strokesAt now, or correct the atlas and record the convergence in #477.
+
 ## Open findings
 
 - **BR-3** [Minor] `sink-order-before-consumer-check` The Tee feeds the Hub before the board, so a viewer can act on a seg the board has not applied yet and get a spurious 409
@@ -290,7 +355,6 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-7** [Minor] `fake-conformance` Nothing checks that board.Writer (synchronous, returns ErrStale) and recorder.Emit (asynchronous, drops silently) behave the same
 - **BR-12** [Minor] `silent-degradation` Refused or failed stroke chunk POSTs are swallowed with no viewer signal
 - **BR-14** [Minor] `stroke-spans-document` A stroke in progress across a navigation posts its later chunks with the new seg
-- **BR-15** [Important] `pin-input-routing` drawRail rebuilds the swatch buttons every frame (renderSwatches at annotate.js:255), so swatch clicks are lost during activity
 - **BR-16** [Minor] `stroke-spans-document` setMode and the cast-end handler end a stroke but leave a region drag in progress (annotate.js:266-272)
-- **BR-17** [Minor] `spec-path-untested` The e2e checks that notes survive a pause but never a resume, though Done-when says "survive pause/resume"
-- **BR-18** [Minor] `persisted-input-parsed-at-read` identityStore checks the stored viewer id but not the stored name (annotate.js:50)
+- **BR-19** [Minor] `persisted-input-parsed-at-read` validName rejects fewer characters than the board's nameText, and setName stores a name without checking it
+- **BR-20** [Minor] `shared-helper-duplication` strokesAt has no production caller and restates replay.js drawMarks's stroke-at-t and note-box logic with different semantics
