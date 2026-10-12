@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // TestHelperGuardProcess is not a test: re-executed by the guard tests, it
@@ -89,30 +90,20 @@ func startGuard(t *testing.T, guardArgs []string, script string) *guardRun {
 
 func waitFile(t *testing.T, path string) string {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		if b, err := os.ReadFile(path); err == nil && len(strings.TrimSpace(string(b))) > 0 {
-			return strings.TrimSpace(string(b))
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("%s never written", path)
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
+	var got string
+	testwait.Until(t, path+" written", func() bool {
+		b, err := os.ReadFile(path)
+		got = strings.TrimSpace(string(b))
+		return err == nil && got != ""
+	})
+	return got
 }
 
 // waitDead waits for pid to exit, bounded by the test's deadline rather than a
-// wall-clock window a loaded machine can outlast (#487). The second of margin
-// lets the failure name the pid instead of the test binary's timeout panic.
+// wall-clock window a loaded machine can outlast (#487).
 func waitDead(t *testing.T, pid string) {
 	t.Helper()
-	deadline, bounded := t.Deadline()
-	for procutil.Alive(pid) {
-		if bounded && time.Until(deadline) < time.Second {
-			t.Fatalf("pid %s still alive at the test deadline", pid)
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
+	testwait.Until(t, "pid "+pid+" to exit", func() bool { return !procutil.Alive(pid) })
 }
 
 func TestGuardStopsGroupWhenOwnerGoes(t *testing.T) {

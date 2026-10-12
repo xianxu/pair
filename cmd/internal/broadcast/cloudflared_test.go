@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/procutil"
+	"github.com/xianxu/pair/cmd/internal/testwait"
 )
 
 // shortDir is a directory this test creates and removes, short enough for a
@@ -282,13 +283,9 @@ func startOrphan(t *testing.T) int {
 	go cmd.Wait()
 	t.Cleanup(func() { _ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) })
 	pid := strconv.Itoa(cmd.Process.Pid)
-	deadline, bounded := t.Deadline()
-	for len(procutil.ProcessChildren()[pid]) == 0 {
-		if bounded && time.Until(deadline) < time.Second {
-			t.Fatal("orphan never started its sleep child; did the fixture exec away?")
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
+	testwait.Until(t, "the orphan's sleep child (did the fixture exec away?)", func() bool {
+		return len(procutil.ProcessChildren()[pid]) != 0
+	})
 	if !strings.Contains(procutil.Command(pid), "cloudflared") {
 		t.Fatalf("orphan's settled command isn't cloudflared: %q", procutil.Command(pid))
 	}
