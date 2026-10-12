@@ -6,10 +6,10 @@
 // state, anchored by the notes model (notes.Model.Anchor, with the viewer's
 // own box), and handed to an Emit: the stream's one writer (the recorder's
 // queue, #458), which stamps t and re-checks the document when it orders the
-// record (OnDoc). Every viewer then sees the record in the live stream, and
+// record (recording.State.OnDoc). Every viewer then sees the record in the live stream, and
 // the recording keeps it.
 //
-// Pure: ParseStroke, ParseNote, ParseNoteState, OnDoc. Stateful: Board, and
+// Pure: ParseStroke, ParseNote, ParseNoteState. Stateful: Board, and
 // Writer, the reference writer that tests use in place of the recorder.
 // atlas/webcast-format.md, "Notes and pointer", is the prose.
 package board
@@ -44,16 +44,10 @@ var (
 )
 
 // Emit writes r into the stream if the document that began at segment doc
-// is still current when the writer orders r (OnDoc), stamping its t; else
-// it drops r. A writer that knows at once may return ErrStale for a drop;
+// is still current when the writer orders r (recording.State.OnDoc), stamping
+// its t; else it drops r. A writer that knows at once may return ErrStale for a drop;
 // an asynchronous one (the recorder's queue) returns nil and drops later.
 type Emit func(r recording.Record, doc int) error
-
-// OnDoc is the writer's check, its one statement: the document that began
-// at segment doc is still the current one, and the cast hasn't ended.
-func OnDoc(st *recording.State, doc int) bool {
-	return st.Seg > 0 && st.DocSeg == doc && !st.Ended
-}
 
 // LiveNote is an open note on the current document, for Couch.
 type LiveNote struct {
@@ -83,7 +77,7 @@ type Board struct {
 
 	mu      sync.Mutex
 	st      *recording.State
-	broken  error // the stream refused a record: the board can't trust its state
+	broken  error // the board's reducer refused a record: it can't trust its state
 	pending map[string]pending
 	subs    map[chan []LiveNote]struct{}
 	last    []LiveNote
@@ -111,12 +105,15 @@ func (b *Board) Put(r recording.Record) error {
 	}
 	if b.broken != nil {
 		b.mu.Unlock()
-		return b.broken
+		return nil
 	}
 	if err := b.st.Apply(r); err != nil {
+		// The writer applied r to its own reducer first, so this can't
+		// happen short of a bug; it must not fail the recording the board
+		// rides on, so the board stops taking requests instead.
 		b.broken = err
 		b.mu.Unlock()
-		return err
+		return nil
 	}
 	if n, ok := r.(*recording.Note); ok {
 		delete(b.pending, n.ID)
@@ -131,7 +128,8 @@ func (b *Board) Put(r recording.Record) error {
 	return nil
 }
 
-// Close ends every subscription; later requests fail with ErrClosed.
+// Close ends every subscription; later requests fail with ErrClosed. The
+// writer closes it with the recording (it is one of the Tee's sinks).
 func (b *Board) Close() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()

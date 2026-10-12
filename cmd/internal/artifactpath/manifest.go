@@ -682,6 +682,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/fake.go",
 	"cmd/internal/webcast/publish.go",
 	"cmd/internal/webcast/server.go",
+	// #470: the board's POST routes; they write only through the board.
+	"cmd/internal/webcast/server_board.go",
 	"cmd/internal/webcast/state.go",
 	"cmd/internal/webcast/stream.go",
 	"cmd/internal/webcast/tracker.go",
@@ -708,6 +710,11 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/notes/landmark.go",
 	"cmd/internal/webcast/notes/selector.go",
 	"cmd/internal/webcast/notes/structural.go",
+	// #470 board: viewers' strokes and notes become records through the
+	// cast's recorder (its Emit); the board writes no files itself.
+	"cmd/internal/webcast/board/board.go",
+	"cmd/internal/webcast/board/wire.go",
+	"cmd/internal/webcast/board/writer.go",
 	// #462 agent queries: read a recording directory the caller names
 	// (couch --broadcast-web-query DIR) and write only to stdout.
 	"cmd/internal/webcast/query/cli.go",

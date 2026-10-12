@@ -8,10 +8,10 @@ import (
 
 // Writer is the reference single writer: the recorder's records (Put) and a
 // board's (Emit) go through it, in order, into one sink. It stamps a board's
-// records with the clock (never before the last record) and applies OnDoc
-// as it orders them, so a record checked against a document a navigation has
-// since replaced is dropped. The recorder's queue does the same (#458);
-// tests and fakes use this.
+// records with the clock (never before the last record) and checks
+// recording.State.OnDoc as it orders them, so a record checked against a
+// document a navigation has since replaced is dropped. The recorder's queue
+// does the same (recorder.Emit's Doc); tests and fakes use this.
 type Writer struct {
 	mu   sync.Mutex
 	st   *recording.State
@@ -37,7 +37,7 @@ func (w *Writer) Put(r recording.Record) error {
 func (w *Writer) Emit(r recording.Record, doc int) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if !OnDoc(w.st, doc) {
+	if !w.st.OnDoc(doc) {
 		return ErrStale
 	}
 	t := w.st.T

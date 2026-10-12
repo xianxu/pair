@@ -1,6 +1,10 @@
 package webcast
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/xianxu/pair/cmd/internal/webcast/recording"
+)
 
 // Browser is the browser-control seam: one cast Chrome. Couch's UI, the Cast
 // and its Server use only this; no CDP type crosses it. The recorder (#458)
@@ -31,4 +35,15 @@ var (
 	ErrEnded = errors.New("webcast: Chrome has closed")
 	// ErrClosedByOperator: Chrome was quit, or its last window closed, by hand.
 	ErrClosedByOperator = errors.New("webcast: Chrome closed")
+	// ErrNotRecording: the cast isn't recorded, so there is no stream to
+	// write into.
+	ErrNotRecording = errors.New("webcast: the cast isn't recorded")
 )
+
+// Emitter is a Browser that records: Emit passes a record made outside the
+// recorder (#470's board; #467's control) into the record stream's one
+// writer. doc is the document the record was made on, 0 for none; the
+// writer drops the record if that document has gone (recording.State.OnDoc).
+type Emitter interface {
+	Emit(r recording.Record, doc int) error
+}

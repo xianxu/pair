@@ -97,6 +97,15 @@ type Chrome struct {
 	rec *recorder.Recorder
 }
 
+// Emit is Emitter's: it queues r for the recorder and never blocks.
+func (c *Chrome) Emit(r rec.Record, doc int) error {
+	if c.rec == nil {
+		return ErrNotRecording
+	}
+	c.rec.Send(recorder.Emit{Record: r, Doc: doc})
+	return nil
+}
+
 // endCause is why the loop is closing Chrome, once it is.
 type endCause uint8
 

@@ -73,7 +73,7 @@ v2 ranges.
 
 Durable plan: `workshop/plans/000470-broadcast-web-pointer-and-notes-in-the-viewer-anchored-to-element-and-time-multi-viewer-plan.md`.
 
-- [ ] M1 — Go: `notes.Model.NoteCrops` (region crops); `board` package (wire, Board as a Sink with an emit func, rules); `POST <cast>/stroke|note|note-state` with admission; `CastConfig.Board`; atlas
+- [x] M1 — Go: `notes.Model.NoteCrops` (region crops); `board` package (wire, Board as a Sink with an emit func, rules); `POST <cast>/stroke|note|note-state` with admission; `CastConfig.Board`; atlas
 - [ ] M2 — Viewer: `collab.js` shared with the terminal viewer; `annotate.js`; mode button, swatch rail, strokes canvas, pins, note dialog, touch; headless two-viewer e2e on the blog fixture
 - [ ] M3 — Couch: `💭N` after `Chrome ⏸`, #447's notes menu for web notes (copy, resolve)
 
@@ -89,3 +89,9 @@ Durable plan: `workshop/plans/000470-broadcast-web-pointer-and-notes-in-the-view
   on a page a navigation brought in between. Fix: the emit seam carries the checked document and the writer
   re-checks at ordering time with one rule (`board.OnDoc`); pending entries end on emit error or a new document.
   `operator` reserved; deps gains #458.
+- M1 built. #458 landed mid-milestone (TL, 110c6da0): merged main; `recorder.Emit` gained `Doc` and drops a record
+  whose document has gone (the PQ-1 rule now has one statement, `recording.State.OnDoc`, used by the recorder and
+  `board.Writer`); `Chrome.Emit` (`webcast.Emitter`) forwards into the queue; `StartCast` makes the board for a
+  recorded cast and tees it into the recording beside the directory and the Hub; `Cast.Notes`/`ResolveNote` for
+  Couch. `Board.Put` never fails the recording's Tee (a divergence stops the board instead). Mutation checks: pending
+  not counted → 40 of 40 concurrent notes land; pending not ended at a new document → the silent-drop test fails.

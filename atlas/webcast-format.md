@@ -192,8 +192,13 @@ top page by the recorder. The viewport position at time t is the top document's 
 |---|---|---|---|
 | `note` | notes | `id` (string), `author` `{id,name,color}`, `text`, `at` `{node,sel,text,box}`, optional `region` `[x,y,w,h]` | A note anchored on an element at its `t`. `at.node` is the element's id. `at.sel` is a stable CSS selector. `at.text` is the element's text, trimmed to 200 characters. `at.box` is its box. `region` is set for a dragged region. |
 | `note-state` | notes | `id`, `state`: `open` or `resolved` | A note was resolved or reopened. |
-| `stroke` | pointer | `id`, `author`, `color`, `pts` `[[x,y,dt],…]` | One pointer stroke; `dt` is ms after the record's `t`. |
+| `stroke` | pointer | `id`, `author`, `color`, `pts` `[[x,y,dt],…]` | One pointer stroke, or one chunk of it; `dt` is ms after the record's `t`. A live stroke streams as several records sharing an `id` (#470: one per viewer POST, about every 50 ms), each continuing it. |
 | `frame` | frames/index | `file`, `w`, `h`, `scale` | A screenshot of the real tab at `t` (the fidelity check), `w`×`h` image pixels; `scale` is image pixels per CSS pixel, the one source of that mapping for every consumer: 0.5 (the viewport at half its CSS size) whatever the device pixel ratio, except under a ratio of 0.5, where a screenshot isn't upsampled and `scale` is the ratio. `t` is the capture's midpoint. Not in the live stream. |
+
+**Who wrote it (#470).** A viewer's note or stroke carries the `author` the viewer's own shell names: an id it
+generated once per browser and a name it asked for once, with the color of the swatch it picked. This is
+**attribution, not authentication**: anyone with the cast link can write as any id (one always-on link for internal
+viewers, TL 10-12). Remote driving (#467) swaps in seat identity. The id `operator` is reserved for Couch.
 
 Notes stay in the recording after a reload. That live notes clear on reload (project, Direction) is the notes model's
 rule (#461): the notes "on" the current document are those since the document began (`State.DocSeg`), so a pause and
@@ -243,7 +248,9 @@ full DOM at that moment stays available through the agent queries (#462).
 4. clipped to the page (the root element's box), widened to hold every note's own box;
 5. offered to `notes.Hints` (per app or URL), whose crop replaces the default when it returns true.
 
-Region notes (`region`) are not in `Crops` yet: `Crops` takes anchors, which carry no region.
+**Region notes** reach crops through `NoteCrops(st, notes, hints)` (#470), which takes notes instead of anchors: a
+region note's crop is its region plus the margin, not snapped (the viewer drew it by hand); an element note's is as
+above; clustering, clipping and hints apply to both. `Crops(st, anchors, hints)` is `NoteCrops` without regions.
 
 ## Attribution and control (#466)
 
@@ -310,6 +317,9 @@ serialization of the state. The viewer's conformance check compares it with what
   minute: about 1.4 MB/min gzipped on #453's busy stress page, before compact encoding. Assets are deduplicated by hash, and images are
   resampled to a resolution budget (#459). A retention sweep comes with the first upload or listing feature. It is not
   part of the format.
+- **Viewers' notes and strokes** (#470) grow `notes.jsonl` and `pointer.jsonl` per viewer action, bounded by the
+  board routes' budgets (strokes at most 60 a second cast-wide, 64 points each; notes 2 a second), and go with the
+  recording's directory.
 - **The reducer** holds one recording's state in memory, and `Reduce(records, t)` replays from the first record. Seeking from
   the latest `seg` before t (an index of segment offsets) is a later optimization. The index would be derived from the records,
   never stored as a second truth.
@@ -327,7 +337,8 @@ it), never a local fork.
 | pair#458 | recorder | writes a `recording.Sink` (`DirWriter` for disk, `Tee` to also feed `Live`) | `recording.FakeRecorder` (plays a fixture into a sink, instantly or in real time) | `recording.ValidateDir` on its output; fidelity vs `frames/` |
 | pair#459 | asset store and proxy | `assets.Store` (`Put`, `Get`, `Lookup`; `Policy`) | `assets.MemStore` | `assets.RunStoreContract` |
 | pair#460 | live viewer | `recording.Live` (fan-out with catch-up; `Ended(recs)` says whether a closed subscription was the fan-out's end or a drop); the JS viewer contract below | `recording.Hub`: the production fan-out is its own double (bounded by one segment; #458 constructs it next to its `Tee`) | `recording.RunLiveContract`; the fixtures' canonical pins |
-| pair#461 | notes model | `notes.Model` (`Anchor`, `Resolve`, `Context`, `Crops`, `Live`; `notes.Hints`); real: `notes.Structural` | `notes.FakeModel` | `notes.RunModelContract` |
+| pair#461 | notes model | `notes.Model` (`Anchor`, `Resolve`, `Context`, `Crops`, `NoteCrops`, `Live`; `notes.Hints`); real: `notes.Structural` | `notes.FakeModel` | `notes.RunModelContract` |
+| pair#470 | viewers' strokes and notes | `board.Board` (a `Sink` following the stream; `Stroke`, `Note`, `SetState`, `Live`, `Subscribe`) writing through an `Emit` (the recorder's queue via `webcast.Emitter`) | `board.Writer`, the reference single writer | board tests over fixtures; `Board viewer` below |
 | pair#462 | agent queries | `query.Surface` (`DOMAt`, `Events`, `Notes`); real: `query.Querier`, CLI `couch --broadcast-web-query` (below) | `query.FakeSurface` | `query.RunSurfaceContract` |
 | pair#467 | input injection | `drive.Injector` (`Inject(ctx, by, Batch)`) | `drive.FakeInjector` | `drive.RunInjectorContract` |
 | pair#467 | driving control and the reverse channel | `drive.Controller` (seats, request/grant/deny/revoke/release, input) | `drive.FakeController` | `drive.RunControllerContract` |
@@ -346,6 +357,24 @@ adds `LaunchOptions.Sink recording.Sink` to `webcast.Chrome`. The Chrome loop al
 live phase, so it feeds the active tab's CDP events to the recorder while `PhaseLive`. Go-live emits `seg`, pause emits `stop`,
 and a tab switch from `Tracker.Active` emits a new `seg`. `CastConfig` gains the `recording.Live` that fans the
 same records out, and `Server.events` sends them as `rec` events. The route, the token and the shared `broadcast.Host` stay.
+
+**Viewers' strokes and notes (#470).** `POST <cast>/stroke`, `/note` and `/note-state` are the only routes that read
+a body (`webcast/server_board.go`), admitted like the terminal pointer routes: a JSON content type, 4 in flight, a
+budget per cast (strokes 60/s, notes and states 2/s with a burst of 5), a prompt body within 8 KiB. Bodies are parsed
+strictly by `board.Parse*` (each names its `viewer` `{id,name}` and the `seg` it was made on; a note its `node`, the
+`box` from `couchViewer.boxOf`, an optional `region`, a palette `color` and plain text of at most 1,024 bytes). The
+`board.Board` follows the recording as one of its sinks (the recorder's `Tee`, beside the directory and the Hub) and
+checks each request against that state: the cast is on a page and hasn't ended, the `seg` is within the current
+document (a resume keeps it), the node is a live element, a color has at most 8 open notes on the page (notes emitted
+and not yet seen back count). It anchors a note with `notes.Model.Anchor` and the viewer's box, and hands the record to
+the cast's recorder (`webcast.Emitter`, `recorder.Emit{Record, Doc}`), which stamps `t` and writes it **only if the
+document the board checked is still current when it orders it** (`recording.State.OnDoc`), so a navigation between the
+check and the write can't file a note on the new page. Answers are fixed sentences (`boardAnswer`): 204; 409 "The page
+changed. Try again.", "This color already has 8 notes. Resolve one first.", "That note is gone.", "The cast isn't
+showing a page yet."; 410 "The cast has ended."; 429 "Too many requests. Wait a moment."; 400 "That isn't valid.".
+Notes are allowed while paused. Couch follows the open notes with `Cast.Notes` and resolves as the operator with
+`Cast.ResolveNote`. Lifecycle: the board lives with the cast (the recorder closes it with the recording); its pending
+entries end when their record is seen, the emit fails, or a new document begins.
 
 **The JS viewer contract (#460).** The viewer applies records to a sandboxed frame without `allow-scripts`
 (`webcast/web/`: `model.js` applies, `render.js` draws). On `window.couchViewer`:
@@ -522,3 +551,6 @@ recording. Seats and their keys are memory only: they end after the grace period
 - 2026-10-12 (#459, TL ops:0): the asset store, not the recorder, makes stored CSS bodies' URLs absolute (at
   `Put`, against the capture URL); `image-set()` plain strings are URLs to both the proxy and the viewer; the
   resample policy is written down under Assets. Additive: no record kind or field changes.
+- 2026-10-12 (#470, TL ops:0, additive): a live stroke may stream as several `stroke` records sharing one `id`, each
+  continuing it; the note and stroke `author` is the viewer's self-asserted identity (attribution only); `operator` is
+  a reserved author id; `notes.Model.NoteCrops` brings region notes to crops.
