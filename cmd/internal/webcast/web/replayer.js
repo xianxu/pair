@@ -169,7 +169,7 @@ export class Replayer {
     // The tab painted t with the assets whose bytes it had (#482): a font
     // or image bound just before t is still loading in the viewer, so the
     // clocks stop at t, the loads finish (ready's bound), and anything the
-    // loads started stops at its start.
+    // loads started is paused too, a frame or two after its start.
     for (const a of this.deps.animations()) a.pause();
     const canonical = await this.settle();
     for (const a of this.deps.animations()) if (a.playState !== 'paused') a.pause();
