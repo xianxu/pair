@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000491-couch-group-the-tab-bar-by-hub-the-hub-first-its-slots-to-its-right-grouped-by-repo.md
         source_blob: 2aea2354f5e953c82d82696c4c01e6e16b640c1c
         destination: workshop/issues/000491-couch-group-the-tab-bar-by-hub-the-hub-first-its-slots-to-its-right-grouped-by-repo.md
+        main_commit: 618ba11e4ace65761025cb35aa3119ab5ea40226
 ---
 
 # couch: group the tab bar by hub — the hub first, its slots to its right, grouped by repo
