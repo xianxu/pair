@@ -13,14 +13,14 @@ claimant:
     workspace: pair:5
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
-actual_hours: 0.86
+actual_hours: 0.88
 tracker:
     version: 1
     completion:
-        token: close-4a96bdbf5e3e
+        token: close-ed7c056e7587
         repository: github.com/xianxu/pair
-        reviewed_head: 1fc4a3fbff3cf5e41eeee0c0e94a90748b3a4452
-        evidence_commit: c2145c926f22abc76944958337f65ccc6ba24f16
+        reviewed_head: 8e94173bce9deb53ae2ff5e0548ce5640c968a50
+        evidence_commit: 8981af5ccfee20296f05c0f33b0bd42f4df96e8e
 ---
 
 # tests: inject clocks or sync points where tests race a real timer or sleep as sync (idle floor, stdin ESC flush, wait-notice ticks, ttyio partial write, ...)
