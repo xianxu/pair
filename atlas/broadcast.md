@@ -428,6 +428,10 @@ shell:
 
 With no broadcast it prints `no broadcast`.
 
+While recordings are shared for replay (pair#477, [webcast.md](webcast.md#replay-471)), a second line names them:
+`replays shared until Couch exits: <id>, …`. `--json` adds `replays`. The ids come from `Response.Replays`, which
+`broadcast-status` fills from the console's `SharedReplays`. It never carries a share's link.
+
 **It never prints the link or its token** (operator decision: the token is the
 broadcast's only credential). `broadcast.Status` and
 `couchmessage.BroadcastStatus` have no field that could carry either, and

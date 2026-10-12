@@ -109,6 +109,9 @@ what the viewer's renderer draws at the same moments.
     seek rule), so it replays at most one segment.
   - A segment that isn't a navigation snapshots a document that was already running, so its animations are
     finished, not started: on the live blog cast this took the first frame from 2.15% to 0.10%.
+  - The capture at t stops the animations at t, then waits (bounded, `ready`) for the fonts, images and stylesheets
+    bound by t to load (#482). The tab painted with bytes it had; an asset bound 1 ms before a frame was still
+    loading in the replay, which flaked rec-blog's first frame to 6.75%.
 - **When it runs:**
   - `CastConfig.Check` runs once a recorded cast with frames has ended, in the background. couchcmd wires
     `CheckFidelity` with one check at a time per Couch, and the summary line goes to the operator's notice.
@@ -246,9 +249,17 @@ instead of the event stream.
   Click or drag seeks, and so do ←/→, Home/End and Space.
 - **`#t=` links:** `#t=<ms>` opens at that moment, paused. A seek or a pause rewrites the hash
   (`history.replaceState`), and `hashchange` seeks. `webcast.ReplayLink(base, id, t)` builds a link.
-- **Marks over the page:** each note open on the current document shows as a pin at its element (`boxOf`, else the
-  box it carried). A stroke shows from its `t` through its last point, plus a 1.5 s fade. #470's live notes and pointer
-  UI should replace this once both have landed.
+- **Marks over the page (#477):** `replayMarks` draws with the live viewer's own modules (#470's `annotate.js`), in an
+  `.annotate` layer over `#box`, like the live viewer's:
+  - **notes:** `liveNotes(model)` drawn by `pinLayer`. Each pin is at its region, else its element (`boxOf`), else the
+    box it carried. A tap shows the note read-only, in a card under its pin (`.replay-note-card`, text
+    only). The tap places it at once, and a resize redraws the marks, because a paused replay draws no frame.
+  - **strokes:** `strokesAt(model, t)`, the points drawn by t with chunks joined by id, fading over `FADE_MS` after
+    the last point. They're painted on a canvas by `paintStrokes`.
+
+  The replay has no `palette.json`, so `mountAnnotate`'s posting UI never mounts there. Every server of the viewer
+  serves its files from one table (`serveViewerFile`), the fidelity harness included: `replay.js` now imports
+  `annotate.js`, which imports `collab.js`.
 - **Server:** `webcast.ReplayServer(token, root)`, a `broadcast.Mountable` with the viewer's CSP. It serves:
   - `<token>/`: the listing, newest first, from each recording's head line and last line;
   - `r/<id>/`: the viewer;
@@ -258,16 +269,39 @@ instead of the event stream.
     from the asset records.
 
   An id is one path element (`ValidRecordingID`) naming a real directory directly under the root, never a symlink.
-- **Entry point:** `couch --broadcast-web-replay [ID|DIR] [--at MS]` (`couchcmd/replay.go`).
-  - It reads the store a running Couch uses (`<store>/webcast/recordings`, where #458 records), or the named directory.
-  - It serves on `127.0.0.1` under a fresh token until SIGINT or SIGTERM, and prints the link.
-  - It writes nothing (ARCH-FUNERAL: the listener and token die with the process).
-  - Mounting the replay on the shared `broadcast.Host` inside a running Couch, for remote viewers, is the TL's
-    follow-up after #458.
+  `NewRecordingServer(token, root, id)` is scoped to one recording: no listing, every other id not found.
+  The listing's length is `unknown` when the events file's last line is torn (its `{"t":N,` envelope doesn't parse).
+- **Replay shares (#477):** `webcast.ReplayShares`, made in `couchcmd/run.go` beside the shared `broadcast.Host` and
+  held by the console, mounts each recording asked for on the Host, under its own token, as a `NewRecordingServer`.
+  A link grants the one recording it names (the cast token model).
+  - **States:** `opening → ready | failed`, `ready → lost` when the tunnel dies, and `failed | lost → opening` with a
+    new token on the next `Share`. `Close` (console teardown) abandons opens, unmounts every share, and so closes the
+    tunnel.
+  - **Lifecycle:** shares live in memory until Couch exits, one per recording asked for. The tunnel stays open while any
+    share is mounted. There's no expiry or unshare verb yet.
+  - **The operator sees each one:** a notice when a share is ready (`OnReady`; it never carries the link), and
+    `couch --broadcast-list` lists the shared recordings (`Shared`, in `broadcast-status`'s `Replays`). An agent's
+    `query link` can't open the tunnel unseen.
+  - **The broker ops** are `replay-share` (start it) and `replay-status` (read it). They need no slot identity, like
+    `broadcast-status`, because the socket is in the operator-only store. They never wait on the tunnel: the socket gives
+    each exchange 2 s, and an open takes up to the Host's 30 s probe. So the CLI asks, then polls every 300 ms, up to
+    45 s.
+- **Entry point:** `couch --broadcast-web-replay [ID|DIR] [--at MS] [--local]` (`couchcmd/replay.go`).
+  - **A recording in Couch's store, with a Couch running:** it asks for the share (`shareReplay`), prints the public
+    link and exits.
+  - **No Couch, an older Couch, a DIR outside the store, no ID (the listing), or `--local`:** it serves on `127.0.0.1`
+    under a fresh token until SIGINT or SIGTERM, and says so on stderr. It writes nothing (ARCH-FUNERAL: the listener
+    and token die with the process).
+  - **For agents:** `couch --broadcast-web-query DIR link [--at MS]` prints the shared link through the same
+    `shareReplay`. The query package takes it as a `query.Linker`. With no Couch it refuses and names the replay CLI.
+    It never serves itself.
 - **Tests:**
   - `tests/webcast/replay.test.mjs`: the seek rule, timeline, placer, `#t=`, `Player` and `replaySource`, with fakes.
   - `replay_server_test.go`: the routes and confinement to the root.
   - `couchcmd/replay_test.go`: the CLI.
+  - `shares_test.go`: the share states on a `FakeTunnel` Host.
+  - `couchcmd/replay_share_test.go`: share-and-poll against a scripted broker, the loopback fallbacks, `query link`,
+    and the whole chain: CLI → broker handler → console → shares → Host.
   - `replay_live_test.go` (`WEBCAST_LIVE_CHROME=1`): a `#t=` link and shuffled scrubbing draw the reducer's canonical
     state at every pin of every fixture; JS `catchUp` takes the records Go's does; notes and strokes match the reducer
     at their moments; drive bands; nothing is requested outside the server.

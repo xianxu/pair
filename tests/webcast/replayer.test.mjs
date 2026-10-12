@@ -115,6 +115,24 @@ test('a moment shortly after the last continues it: paused animations resume at 
   assert.equal(clock() - before, 150, 'only the 150 ms since the last moment run');
 });
 
+test('the capture waits for the loads bound by t, with the clocks stopped at t (#482)', async () => {
+  const { deps, log } = fake();
+  const order = [];
+  const started = { playState: 'running', pause() { this.playState = 'paused'; order.push('pause started'); } };
+  let readies = 0; // the second is the capture's, whose loads start an animation
+  deps.renderer = (model) => ({
+    apply() {}, flush() {}, canonical: () => model.canonical(),
+    ready: async () => { order.push(`ready after ${log.anims.map(([k]) => k).join(',')}`); readies++; },
+  });
+  const animations = deps.animations;
+  deps.animations = () => (readies === 2 ? [...animations(), started] : animations());
+  const r = new Replayer(recs, (h) => `assets/${h}`, deps);
+  await r.replayAt(recs[recs.length - 1].t, 1000);
+  // settle before the window, then the capture's: after the pause at t.
+  assert.deepEqual(order, ['ready after ', 'ready after finish,pause', 'pause started']);
+  assert.deepEqual(log.anims.map(([k]) => k), ['finish', 'pause'], 'a paused animation is not paused again');
+});
+
 test('a moment before the last seeks through the catch-up, one segment at most', async () => {
   let shorter = false;
   for (const name of fixtures) {

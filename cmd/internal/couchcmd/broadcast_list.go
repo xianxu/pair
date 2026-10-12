@@ -28,11 +28,7 @@ func runBroadcastListCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer
 		return 1
 	}
 	switch {
-	// A couch older than this command refuses the identity-free request with
-	// its generic identity check (or, older still, the unknown-op error).
-	case result.Code == "invalid-request" && (strings.Contains(result.Error, "unknown message operation") ||
-		strings.Contains(result.Error, "requires the calling conversation identity")),
-		result.Code == "unsupported":
+	case predatesOp(result):
 		fmt.Fprintln(stderr, "couch: the running Couch predates `couch --broadcast-list`; restart Couch to use it")
 		return 1
 	case result.Code != "ok":
@@ -42,13 +38,17 @@ func runBroadcastListCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer
 	if inv.jsonOutput {
 		if err := json.NewEncoder(stdout).Encode(struct {
 			Broadcast *couchmessage.BroadcastStatus `json:"broadcast"`
-		}{result.Broadcast}); err != nil {
+			Replays   []string                      `json:"replays,omitempty"`
+		}{result.Broadcast, result.Replays}); err != nil {
 			fmt.Fprintln(stderr, "couch:", err)
 			return 1
 		}
 		return 0
 	}
 	fmt.Fprintln(stdout, formatBroadcastStatus(result.Broadcast))
+	if line := formatSharedReplays(result.Replays); line != "" {
+		fmt.Fprintln(stdout, line)
+	}
 	return 0
 }
 
@@ -65,4 +65,23 @@ func formatBroadcastStatus(status *couchmessage.BroadcastStatus) string {
 		return fmt.Sprintf("%s — %s", status.State, viewers)
 	}
 	return fmt.Sprintf("%s since %s (%s) — %s", status.State, status.StartedAt.Local().Format("15:04:05"), status.Mode, viewers)
+}
+
+// formatSharedReplays is the listing's line for the recordings shared for
+// replay through the tunnel (pair#477); "" when there are none.
+func formatSharedReplays(ids []string) string {
+	if len(ids) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("replays shared until Couch exits: %s", strings.Join(ids, ", "))
+}
+
+// predatesOp says a running Couch answered an identity-free request (an
+// operator's query from any shell) as one older than its op: refused by its
+// generic identity check, or, older still, as an unknown op, or answered
+// unsupported.
+func predatesOp(result couchmessage.Response) bool {
+	return result.Code == "invalid-request" && (strings.Contains(result.Error, "unknown message operation") ||
+		strings.Contains(result.Error, "requires the calling conversation identity")) ||
+		result.Code == "unsupported"
 }

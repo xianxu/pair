@@ -193,14 +193,11 @@ func fixtureServer(t *testing.T, extra ...*recording.Recording) *httptest.Server
 		proxies[name].Bind(store)
 	}
 	mux := http.NewServeMux()
+	// The viewer's files as its servers serve them: one table, so the
+	// harness reaches every module the replay imports (#477: replay.js
+	// draws with annotate.js, which imports collab.js).
 	mux.HandleFunc("/web/", func(w http.ResponseWriter, r *http.Request) {
-		body, err := webFS.ReadFile("web/" + strings.TrimPrefix(r.URL.Path, "/web/"))
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "text/javascript")
-		w.Write(body)
+		serveViewerFile(w, r, strings.TrimPrefix(r.URL.Path, "/web/"))
 	})
 	for _, f := range []string{"harness.html", "harness.js"} {
 		mux.HandleFunc("/"+f, func(w http.ResponseWriter, r *http.Request) {
@@ -544,6 +541,64 @@ func TestLiveRenderHoldsPaintUntilStylesheetsBind(t *testing.T) {
 	check("never.css pending", "B", "C")
 	page.eval(t, "new Promise((ok) => setTimeout(ok, 700))") // HOLD_MS is 500
 	check("past the deadline", "C", "C")
+}
+
+// A frame's moment is drawn with every asset bound at or before it (#482):
+// rec-blog's Inter font and avatar arrived 1 ms before its first frame, and
+// the replay captured before the viewer had loaded them. The tab painted
+// with them, so replayAt returns only once they have loaded (bounded).
+func TestLiveReplayAtLoadsAssetsBoundJustBefore(t *testing.T) {
+	page := headlessPage(t)
+	dir := filepath.Join(t.TempDir(), "late")
+	w, err := recording.NewDirWriter(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	font, err := os.ReadFile(filepath.Join(recording.Fixture("rec-blog"), "assets", "3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	img := image.NewRGBA(image.Rect(0, 0, 1200, 1200))
+	for i := range img.Pix {
+		img.Pix[i] = byte(i * 7)
+	}
+	var pic bytes.Buffer
+	if err := png.Encode(&pic, img); err != nil {
+		t.Fatal(err)
+	}
+	fontHash, err := w.PutAsset(font)
+	if err != nil {
+		t.Fatal(err)
+	}
+	picHash, err := w.PutAsset(pic.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := recording.NewBuilder("late")
+	b.Page(recording.SegLive, "http://x/a", b.El("p", []string{"style", "font-family:Late"}, b.Txt("Aa")), b.El("img", []string{"src", "pic.png"}))
+	b.Add(&recording.Font{Family: "Late", Src: "http://x/late.woff2", Weight: "100 900"})
+	b.At(99)
+	b.Add(&recording.Asset{URL: "http://x/late.woff2", Hash: fontHash, MIME: "font/woff2", Size: int64(len(font))})
+	b.Add(&recording.Asset{URL: "http://x/pic.png", Hash: picHash, MIME: "image/png", Size: int64(pic.Len())})
+	for _, r := range b.Recs {
+		if err := w.Put(r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	w.Close()
+	rec, err := recording.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := fixtureServer(t, rec)
+	page.open(t, srv.URL+"/harness.html")
+	page.eval(t, `load("late")`)
+	page.evalString(t, fmt.Sprintf("replayAt(100, %d)", ReplayWindow))
+	const state = `(() => { const d = document.getElementById('page').contentDocument, i = d.querySelector('img');
+		return [...d.fonts].map((f) => f.family + ':' + f.status).join(' ') + ' img:' + (i.complete && i.naturalWidth > 0); })()`
+	if got := page.evalString(t, state); got != "Late:loaded img:true" {
+		t.Errorf("at t=100, with the font and image bound at 99: %s, want both loaded", got)
+	}
 }
 
 // A paint hold is one state on the frame pair (#475), handed between
