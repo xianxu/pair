@@ -1345,3 +1345,7 @@ proof; record the surprising case so the next change starts from evidence.
   exposed the CLI's 2 s per-poll exchange timeout, which turned one late status answer into an "uncertain" outcome
   while the operation went on. When fixing one stopwatch, grep the path end to end (launch, poll, report) for the
   others; retry an idempotent read inside the outer budget instead of giving up on one slow answer.
+- **A measurement that moves a Spec's guess revises the Spec in the same commit (#490 close).** The Spec guessed
+  `--prepare` and `--reload-context` at "seconds" and light at "milliseconds"; the timings said heavy and "under a
+  second", and only the Log said so. When a Spec names expected values to be measured, append a `## Revisions`
+  entry the moment a measurement disagrees, and say in Done-when which values were reasoned rather than measured.
