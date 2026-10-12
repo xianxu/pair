@@ -1,12 +1,12 @@
 ---
 id: 000500
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '76964e34d7844c6375aabf863a5dac0fc5f3aa3f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '9a4d9e87146e8b8e838253530b9747a5bf1459ef' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T14:32:41-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 0.01
 ---
 
 # roll out ariadne#309 workflows (local-gates-guard, merge-check on push) to pair
