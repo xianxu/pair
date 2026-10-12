@@ -353,9 +353,9 @@ watch) or the broadcast ends.
   It flashes at full color on arrival (`Note.At`, stamped at save with the
   console's clock via `Config.Now`, not sent to pages) and, for every open
   note together, on one shared beat every `NoteFlashEvery` (15s), holding
-  `NoteFlashHold` then stepping down over `NoteFlashFade`. One beat bounds the
-  repaints at about 11 per beat plus 11 per arrival, whatever the number of
-  notes. `NoteStyle.Hover`
+  `NoteFlashHold` (300ms) then stepping down over `NoteFlashFade` (500ms, 20ms
+  steps) to a faint rest. One beat bounds the repaints at about 26 per beat
+  plus 26 per arrival, whatever the number of notes. `NoteStyle.Hover`
   holds a note at full glow. `paletteTint(c, t, bg, blend)` is the one place a
   pointer color is weakened, for marks and notes alike (blend into the real
   background with truecolor, else the color's 256-colour ladder; `blendable`
@@ -397,7 +397,8 @@ watch) or the broadcast ends.
   box it takes press, motion, wheel and a press's release, so nothing there
   reaches a child that tracks the mouse. Motion over an item sets
   `NoteStyle.Hover` (row highlight; its 💭 held at full glow), a click copies
-  the note's text (OSC 52, "Note copied."), `×` or another `💭N` click closes
+  the note's text (OSC 52, "Note copied."), a right click copies and resolves
+  it (`Session.ResolveNote`, as a viewer's Resolve), `×` or another `💭N` click closes
   it. It closes when the last note goes, pointing turns off or the broadcast
   ends (`settleMenuLocked`, `forgetNotes`). Esc is not taken: agents use it.
 - **Viewer page** (`web/notes.js`): keeps the list from `event: notes`

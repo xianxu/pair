@@ -224,8 +224,20 @@ func (c *Console) refreshNotes() {
 	c.scheduleNotes()
 }
 
+// noteTextLocked is the text of the held note id, or "" when it is gone.
+// Callers hold pnotes.mu.
+func (c *Console) noteTextLocked(id int) string {
+	for _, n := range c.pnotes.notes {
+		if n.ID == id {
+			return n.Text
+		}
+	}
+	return ""
+}
+
 // routeNotesMenu takes the mouse while it is over the open menu: motion
-// hovers an item, a click copies it or closes the menu, and nothing over the
+// hovers an item, a click copies it or closes the menu, a right click
+// copies and resolves it, and nothing over the
 // menu reaches the child -- a press's release included. It reports whether
 // it took the event. Motion outside the menu clears the hover and goes on.
 func (c *Console) routeNotesMenu(raw []byte) bool {
@@ -274,12 +286,7 @@ func (c *Console) routeNotesMenu(raw []byte) bool {
 		}
 	case hit.Button == 0:
 		c.pnotes.pressed = true
-		text := ""
-		for _, n := range c.pnotes.notes {
-			if n.ID == id {
-				text = n.Text
-			}
-		}
+		text := c.noteTextLocked(id)
 		closing := menu.CloseAt(x, y)
 		c.pnotes.mu.Unlock()
 		switch {
@@ -288,6 +295,21 @@ func (c *Console) routeNotesMenu(raw []byte) bool {
 		case text != "":
 			c.copyLink(text)
 			c.setNotice("Note copied.")
+		}
+	case hit.Button == 2:
+		// A right click resolves the note, copying it first so resolving
+		// never loses its text. The session reports the emptied slot back
+		// through onNotes, like a viewer's Resolve.
+		c.pnotes.pressed = true
+		text, s := c.noteTextLocked(id), c.pnotes.session
+		c.pnotes.mu.Unlock()
+		if text != "" && s != nil {
+			c.copyLink(text)
+			if err := s.ResolveNote(id); err != nil {
+				c.setNotice("Couldn't resolve the note.")
+			} else {
+				c.setNotice("Note copied and resolved.")
+			}
 		}
 	default: // wheel, other buttons: the menu's, not the child's
 		c.pnotes.pressed = hit.Button < 64

@@ -71,6 +71,8 @@ func TestNoteGlowStaysOffTheControlsAndTheGrid(t *testing.T) {
 // beat0 is the start of a shared beat (Unix seconds divisible by 15).
 var beat0 = time.Unix(1500, 0)
 
+const ms = time.Millisecond
+
 func flashName(f float64) string {
 	switch f {
 	case 1:
@@ -87,8 +89,8 @@ func TestNoteFlashTiming(t *testing.T) {
 		phase time.Duration
 		want  string
 	}{
-		{0, "full"}, {1400 * time.Millisecond, "full"}, {1600 * time.Millisecond, "fading"},
-		{1950 * time.Millisecond, "fading"}, {2100 * time.Millisecond, "rest"}, {14 * time.Second, "rest"},
+		{0, "full"}, {NoteFlashHold - ms, "full"}, {NoteFlashHold + ms, "fading"},
+		{NoteFlashHold + NoteFlashFade - ms, "fading"}, {NoteFlashHold + NoteFlashFade, "rest"}, {14 * time.Second, "rest"},
 		{15 * time.Second, "full"},
 	}
 	for _, c := range beat {
@@ -102,7 +104,7 @@ func TestNoteFlashTiming(t *testing.T) {
 		age  time.Duration
 		want string
 	}{
-		{0, "full"}, {1400 * time.Millisecond, "full"}, {1600 * time.Millisecond, "fading"}, {2100 * time.Millisecond, "rest"},
+		{0, "full"}, {NoteFlashHold - ms, "full"}, {NoteFlashHold + ms, "fading"}, {NoteFlashHold + NoteFlashFade, "rest"},
 		{10 * time.Second, "full"}, // the next shared beat
 	}
 	for _, c := range arrival {
@@ -116,8 +118,8 @@ func TestNoteNextChange(t *testing.T) {
 	old := []Note{{ID: 1, At: beat0.Add(-time.Hour)}}
 	for _, c := range []struct{ phase, want time.Duration }{
 		{0, NoteFlashHold},
-		{time.Second, 500 * time.Millisecond},
-		{1600 * time.Millisecond, 50 * time.Millisecond},
+		{NoteFlashHold - 100*ms, 100 * ms},
+		{NoteFlashHold + 3*ms, noteFadeStep - 3*ms},
 		{3 * time.Second, 12 * time.Second},
 	} {
 		if d, ok := NoteNextChange(old, beat0.Add(c.phase), 0); !ok || d != c.want {
@@ -159,7 +161,7 @@ func TestNoteFlashRepaintsDontGrowWithNotes(t *testing.T) {
 		many = append(many, Note{ID: i + 1, At: beat0.Add(-time.Hour - time.Duration(i)*time.Second)})
 	}
 	one, all := count(many[:1]), count(many)
-	if one != all || all > 13 {
+	if one != all || all > noteFadeSteps+3 {
 		t.Fatalf("repaints per beat: one note %d, 48 notes %d", one, all)
 	}
 }

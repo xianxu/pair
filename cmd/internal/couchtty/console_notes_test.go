@@ -226,7 +226,7 @@ func TestCollaborationTimersRearmAndTearDown(t *testing.T) {
 			tm.arm(t, f, link)
 			var first *time.Timer
 			waitFor(t, "timer armed", func() bool { first = tm.timer(f); return first != nil })
-			// The first step comes at the end of the hold (1.5s); the timer
+			// The first step comes at the end of the hold (NoteFlashHold); the timer
 			// that fires arms the next one.
 			waitFor(t, "timer re-armed", func() bool { next := tm.timer(f); return next != nil && next != first })
 		})
@@ -356,6 +356,27 @@ func TestNotesMenuToggles(t *testing.T) {
 	openMenuWith(t, f, link, 10)
 	f.clickStatus(f.notesSpan().Start + 1)
 	waitFor(t, "closed by a second click", func() bool { open, m, _ := f.notesMenu(); return !open && !m.Open() })
+}
+
+// A right click on an item copies it and resolves it, for every viewer too;
+// it never reaches the child.
+func TestNotesMenuRightClickResolves(t *testing.T) {
+	f, s, link := pointerOnFixture(t, nil)
+	f.child.Feed([]byte("\x1b[?1003;1006h"))
+	waitFor(t, "child tracks the mouse", func() bool { return f.child.Endpoint().Modes().Tracking != 0 })
+	openMenuWith(t, f, link, 10)
+	_, m, _ := f.notesMenu()
+	item := m.items[0]
+	text, _ := s.Notes()
+	f.mouse(2, m.X+8, item.Top, false)
+	f.mouse(2, m.X+8, item.Top, true)
+	waitFor(t, "copied", func() bool { return copies(f, text[0].Text) == 1 })
+	waitFor(t, "resolved on the session", func() bool { notes, _ := s.Notes(); return len(notes) == 0 })
+	waitFor(t, "notice", func() bool { return strings.Contains(f.notice(), "Note copied and resolved") })
+	waitFor(t, "menu closed with no notes left", func() bool { open, mm, _ := f.notesMenu(); return !open && !mm.Open() })
+	if f.childGot(fmt.Sprintf("\x1b[<2;%d;%d", m.X+9, item.Top+1)) {
+		t.Fatal("the right click reached the child")
+	}
 }
 
 // Every way the menu's world ends closes it, layout included (M4 review).

@@ -899,7 +899,8 @@ chip of its author's color inside a soft glow that flashes when the note
 arrives and every 15 seconds until it is resolved, and the status row shows
 the open count after the controls (`LIVE ⏸ 👆 👽 💭2`). Click `💭2` to list the
 notes in a box over your screen: hovering one highlights it and makes its `💭`
-glow so you can tell which is which, clicking one copies its text, and `×` or
+glow so you can tell which is which, clicking one copies its text,
+right-clicking one copies it and resolves it, and `×` or
 another click on `💭2` closes the box (Shift- or Option-drag selects text in it,
 as anywhere in Couch). Notes are resolved from a viewer's page: anyone on either
 link can tap a `💭` to read it, and anyone on the pointer link can resolve it. A note stays on the cell where it was placed, whatever scrolls

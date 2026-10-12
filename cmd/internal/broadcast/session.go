@@ -441,6 +441,10 @@ func (s *Session) acceptNote(req NoteRequest) error {
 }
 
 // resolveNote removes a note; an unknown id is already resolved.
+// ResolveNote resolves note id for the operator (the terminal's notes menu),
+// as a viewer's Resolve does.
+func (s *Session) ResolveNote(id int) error { return s.resolveNote(id) }
+
 func (s *Session) resolveNote(id int) error {
 	changed, err := s.pointer.resolveNote(id)
 	if changed {

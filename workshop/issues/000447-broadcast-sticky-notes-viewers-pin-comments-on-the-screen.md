@@ -67,7 +67,7 @@ Depends on pair#446 (colors) and pair#449 (swatch column at the right edge) land
 - Notes are never drawn on the guarded control cells or on a private frame, are hidden when their cell is off the grid, and are gone when pointing turns off or the broadcast ends (tests).
 - (M3) A 💭 sits on a chip of its author's pointer color with a round glow (about 5 rows by 10 columns, stronger near the chip) that blends into the operator's background, or uses the 256-color ladders without truecolor; the glow never covers the controls; it flashes at full color on arrival and every 15s until resolved (tests on the pure styling and the timing).
 - (M3) The viewer page has no hint bar: the screen uses the whole window, and the rail controls carry their explanation as tooltips.
-- (M4) Clicking `💭N` opens a notes menu over the screen listing each note with its color; hovering an item highlights it and makes its 💭 glow; clicking an item copies its text and says so; clicking `💭N` or the menu's close mark closes it; the menu closes when the last note goes or pointing turns off; mouse events over the open menu never reach the child (tests).
+- (M4) Clicking `💭N` opens a notes menu over the screen listing each note with its color; hovering an item highlights it and makes its 💭 glow; clicking an item copies its text and says so; right-clicking an item copies and resolves it; clicking `💭N` or the menu's close mark closes it; the menu closes when the last note goes or pointing turns off; mouse events over the open menu never reach the child (tests).
 
 ## Plan
 
@@ -77,7 +77,7 @@ Durable plan: `workshop/plans/000447-broadcast-sticky-notes-viewers-pin-comments
 - [x] M1 — Notes in Couch: note board and strict parsing, `note`/`resolve` routes, `notes` event to every stream, session checks, 💭 overlay and `💭N` in the tab bar.
 - [x] M2 — The viewer page: tap routing, comment mode, the sticky-note dialog and the mode switch below the swatches; live check with two viewers and a view-only one.
 - [x] M3 — Visibility: each 💭 on a chip of its author's color with a soft round glow, flashing on arrival and every 15s until resolved; the viewer's hint bar becomes tooltips on the rail controls.
-- [x] M4 — Notes in the terminal: click `💭N` to open a notes menu over the screen; hovering an item highlights it and makes its 💭 glow; clicking copies the text; read and copy only.
+- [x] M4 — Notes in the terminal: click `💭N` to open a notes menu over the screen; hovering an item highlights it and makes its 💭 glow; clicking copies the text; right-click copies and resolves.
 
 ## Estimate
 
@@ -128,3 +128,6 @@ Revision (2026-10-11, operator smoke): the second block of items is the scope re
   - Visibility reverses "no tint": the 💭's two cells get its author's color as a chip, with a radial glow around it blended into the background, an arrival flash, and a flash every 15s until resolved (staggered naturally by each note's age). Notes now record when they were saved (not sent on the wire).
   - Rule 8 is lifted for reading and copying: `💭N` opens a notes menu drawn over the screen (viewers see it, as they see everything the operator sees). Hover highlights an item and makes its 💭 glow; a click copies the note's text (OSC 52, as links are copied). Read and copy only: no Resolve from the terminal (operator didn't ask for it; the default). The menu does not take Esc, which agents use; it closes by clicking `💭N` or its close mark. Free-form selection works with the terminal's own selection override (Shift- or Option-drag).
   - The viewer's hint bar goes: its text moves into tooltips on the swatches and the mode button, so the screen gets the whole window. Touch devices show no tooltips; the icons stand alone there.
+- 2026-10-11 — operator smoke of M3/M4 on pair:0 ("the animation is not smooth, needs more steps", "no need to stay full for 1 second … maybe just stay full glow for 300ms", "the most faded color, can fade more", "operator can resolve one with right click. which also copies"):
+  - Flash: hold 1.5s → 300ms; fade 500ms in 25 steps (20ms) instead of 10; resting glow fainter (inner ring t 0.5 → 0.7, outer 0.75 → 0.88).
+  - Terminal menu: a right click on an item copies its text and resolves it (`Session.ResolveNote`), reversing the earlier read-and-copy-only default.

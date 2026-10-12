@@ -9,15 +9,16 @@ import (
 // (#447 M3): on a full screen a bare emoji is easy to miss. The glow flashes
 // at full color when the note is saved, and every open note flashes together
 // on one shared beat every NoteFlashEvery until it is resolved. One beat for
-// all notes bounds the repaints the flashes cost: about 11 per beat plus 11
+// all notes bounds the repaints the flashes cost: about 26 per beat plus 26
 // per arrival (saves are rate limited), whatever the number of notes, where
-// per-note phases would cost 11 per note per beat (about 35 repaints a second
-// to every viewer at the 48-note limit).
+// per-note phases would cost 26 per note per beat. The flash is brief and
+// finely stepped (20ms steps), and the resting glow faint: the operator found
+// a 1.5s hold, 50ms steps and a stronger rest too obtrusive and choppy.
 const (
 	NoteFlashEvery = 15 * time.Second
-	NoteFlashHold  = 1500 * time.Millisecond
+	NoteFlashHold  = 300 * time.Millisecond
 	NoteFlashFade  = 500 * time.Millisecond
-	noteFadeSteps  = 10
+	noteFadeSteps  = 25
 	noteFadeStep   = NoteFlashFade / noteFadeSteps
 	// The glow's reach in rows; columns reach twice as far, because a cell
 	// is about twice as tall as it is wide.
@@ -27,8 +28,8 @@ const (
 // Resting glow, as how far each ring is weakened toward the background
 // (paletteTint's t): the ring next to the chip, and the outer ring.
 const (
-	noteGlowNear = 0.5
-	noteGlowFar  = 0.75
+	noteGlowNear = 0.7
+	noteGlowFar  = 0.88
 )
 
 // NoteStyle is what drawing notes needs besides the notes: the operator's
