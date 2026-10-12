@@ -8,6 +8,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 )
 
 // Tolerance is the share of a frame's pixels, in %, the replay may differ
@@ -33,6 +34,10 @@ const minWorst = 3
 
 // tmpPrefix names a report being written, beside the recording's files.
 const tmpPrefix = ".fidelity-"
+
+// staleWrite is the age past which a report's temporary directory is a
+// crashed write's, not one in progress.
+const staleWrite = time.Minute
 
 // ReportDir is where a recording's report goes, beside its frames/.
 const ReportDir = "fidelity"
@@ -153,9 +158,11 @@ func Write(dir string, r Report, crops [][]byte) error {
 		return fmt.Errorf("fidelity: %d crops for %d worst moments", len(crops), len(r.Worst))
 	}
 	// A write a crash cut short leaves its temporary directory; the next
-	// one sweeps it.
-	if stale, _ := filepath.Glob(filepath.Join(dir, tmpPrefix+"*")); len(stale) > 0 {
-		for _, d := range stale {
+	// one sweeps it. A write takes milliseconds, so one older than
+	// staleWrite isn't another check's write in progress.
+	stale, _ := filepath.Glob(filepath.Join(dir, tmpPrefix+"*"))
+	for _, d := range stale {
+		if info, err := os.Stat(d); err == nil && time.Since(info.ModTime()) > staleWrite {
 			os.RemoveAll(d)
 		}
 	}

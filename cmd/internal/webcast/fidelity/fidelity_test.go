@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func fill(w, h int, at func(x, y int) color.Color) *image.NRGBA {
@@ -208,7 +209,14 @@ func TestReportFiles(t *testing.T) {
 		}
 	}
 	// A write a crash cut short is swept by the next one.
-	if err := os.Mkdir(filepath.Join(dir, ".fidelity-crashed"), 0o700); err != nil {
+	crashed, busy := filepath.Join(dir, ".fidelity-crashed"), filepath.Join(dir, ".fidelity-busy")
+	for _, d := range []string{crashed, busy} {
+		if err := os.Mkdir(d, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	old := time.Now().Add(-2 * staleWrite)
+	if err := os.Chtimes(crashed, old, old); err != nil {
 		t.Fatal(err)
 	}
 	// A second run replaces the first: no stale crop survives.
@@ -219,8 +227,9 @@ func TestReportFiles(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, ReportDir, "worst-2.png")); !os.IsNotExist(err) {
 		t.Errorf("a stale crop survived a rerun: %v", err)
 	}
-	if left, _ := filepath.Glob(filepath.Join(dir, ".fidelity-*")); len(left) != 0 {
-		t.Errorf("temporary directories left: %v", left)
+	// The crashed write is swept; another check's write in progress isn't.
+	if left, _ := filepath.Glob(filepath.Join(dir, ".fidelity-*")); len(left) != 1 || left[0] != busy {
+		t.Errorf("temporary directories left: %v, want only %s", left, busy)
 	}
 	if err := Write(dir, small, nil); err == nil {
 		t.Error("crops must match the worst shots")
