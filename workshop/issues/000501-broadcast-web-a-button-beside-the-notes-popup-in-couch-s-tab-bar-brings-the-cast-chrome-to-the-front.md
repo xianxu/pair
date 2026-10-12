@@ -55,3 +55,6 @@ The operator (10-12): during a web cast they move between Couch and the cast Chr
 - Implemented: `Browser.Focus` (Chrome: `Target.activateTarget` on the cast tab + `activateProcess` by PID; fake counts). `↗` cell after the Chrome label; Chrome ⏸ in `broadcast.LiveSGR`.
 - JXA activation script checked with a nonexistent PID (unsandboxed, exit 0, nothing raised). Real activation is the operator's smoke test: macOS 14+ cooperative activation may ignore a background request, in which case `Target.activateTarget` alone has to do it.
 - `WEBCAST_LIVE_CHROME=1` live conformance (headless, now with Focus) passes: real Chrome accepts `Target.activateTarget`.
+- Revision 4 (👽 lit while driving) was built and committed (11693274c) before the TL's hold arrived; reverted (5abd567cf) so the smoke test sees the current design. Cherry-pick 11693274c if the TL confirms.
+- Full suite at c728c46a3 (unsandboxed, five-var scrub): `make -k test` shell/Lua targets pass; `TMPDIR=<scratchpad> make test-changelog` passes; `go test ./... -count=1` exit 0 (100 packages ok, including artifactpath once the two activators were inventoried). The make run's Go failures were the old-layout web-notes tests (moved) and a deliberate mutation check of `TestWebcastLinkButtons` (it fails with the 👽 click disconnected).
+- Ready for the operator's smoke test (after #491's, per the TL).
