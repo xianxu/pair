@@ -81,8 +81,11 @@ left waiting is a frozen tab. Without `Page.enable` the script never reaches the
   `Store.Put`; `assets.Recorded` is the real store: dedup by content hash (a repeated body is processed once),
   images resampled to `Policy.MaxPixels` (`image.go`, WebP through `golang.org/x/image`), CSS URLs made absolute
   (`css.go`'s `RewriteCSS`), bodies written through the recording's `DirWriter` and read back from disk.
-  `assets.Proxy` serves `<token>/assets/<hash>`: the `Server` owns one (`Server.Assets()`), and the cast binds the
-  recording's store to it when the recording opens (first go-live); until then it answers 404. It serves only
+  Image decodes are admitted one at a time process-wide (about 256 MB at the 64 MP ceiling), and a body that arrives
+  twice is decoded once. `assets.Proxy` serves `<token>/assets/<hash>`: the `Server` owns one (`Server.Assets()`),
+  and the cast binds the recording's store to it when the recording opens (first go-live); until then it answers
+  404. `Bind` takes an `assets.Served` (a store that knows each body's MIME, as `Recorded` does), so the wiring keeps
+  the concrete store, not the `Store` interface. It serves only
   images, stylesheets and fonts (a body a page labelled HTML or script is never served from the viewer's origin),
   rewrites a stylesheet's URLs to `<hash>` at serve time (not cached; bindings change), and marks other bodies
   immutable. The live viewer tests play the fixtures' assets through `Recorded` + `Proxy` (`throughStore`) and

@@ -1157,3 +1157,9 @@ proof; record the surprising case so the next change starts from evidence.
   the same commit. The same holds for a retracted figure (a size bound, a measurement): grep its distinctive wording
   ("1.4 MB") and correct every hit, the plan included, in the fix that retracts it. And the reason a channel closed
   is recorded by the source under its lock, not inferred by consumers from timing.
+- **A shared corpus has to include the cases where the implementations differ (#459 close review).** The Go and JS
+  CSS scanners were "held to one corpus", but the corpus left out comments, strings and name boundaries, exactly where
+  a regex and a tokenizer part ways. When two implementations share a test corpus, write the cases each one's
+  technique gets wrong first, and run the corpus against the old version to see it fail. And a per-call resource
+  (an image decode at a header-checked ceiling) needs a bound on concurrent calls too, not just on each call.
+

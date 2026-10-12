@@ -176,3 +176,7 @@ untrusted input), rejected: it needs a live tab per image and puts the store on 
   which allocates every frame and so escapes the 64 MP bomb ceiling (a ceiling per frame, not per file).
 - 2026-10-12: the live tests replay the store's asset records in place of the fixture's (`throughStore`), as the
   recorder emits them: the blog fixture's 1738×2130 screenshot is over the budget and comes back under a new hash.
+- 2026-10-12 (close review round 1): `css.js` now lexes as the Go scanner does (comments and other strings passed
+  over whole, names start at a boundary, quoted values unescaped), and the corpus holds the cases where they used to
+  differ. Image decodes take a process-wide slot (one at a time; ~256 MB at the ceiling) and re-check the store
+  after waiting. `Proxy.Bind` takes `Served` (Store + `TypeOf`) instead of any Store. First MIME wins per hash.

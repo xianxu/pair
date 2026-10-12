@@ -22,12 +22,13 @@ import (
 // is immutable under its hash.
 type Proxy struct {
 	mu    sync.RWMutex
-	store Store
+	store Served
 }
 
-// Typed is a store that knows each body's MIME (Recorded). The proxy serves
-// only what it can type.
-type Typed interface {
+// Served is a store the proxy can serve from: it knows each body's MIME
+// (Recorded does; the fake MemStore doesn't, and so can't be bound).
+type Served interface {
+	Store
 	TypeOf(hash string) (string, bool)
 }
 
@@ -38,7 +39,7 @@ const assetPolicy = "default-src 'none'; img-src 'self' data:; font-src 'self' d
 func NewProxy() *Proxy { return &Proxy{} }
 
 // Bind sets the store bodies are served from.
-func (p *Proxy) Bind(s Store) {
+func (p *Proxy) Bind(s Served) {
 	p.mu.Lock()
 	p.store = s
 	p.mu.Unlock()
@@ -49,12 +50,11 @@ func (p *Proxy) Serve(w http.ResponseWriter, r *http.Request, hash string) {
 	p.mu.RLock()
 	s := p.store
 	p.mu.RUnlock()
-	typed, _ := s.(Typed)
-	if s == nil || typed == nil || !recording.ValidHash(hash) {
+	if s == nil || !recording.ValidHash(hash) {
 		http.NotFound(w, r)
 		return
 	}
-	typ, ok := typed.TypeOf(hash)
+	typ, ok := s.TypeOf(hash)
 	if !ok || !servable(typ) {
 		http.NotFound(w, r)
 		return

@@ -50,18 +50,29 @@ func NewRecorded(w recording.AssetWriter, p Policy) *Recorded {
 	return s
 }
 
+// Put stores c and binds its URL. The recorder calls it from one worker,
+// so a URL's bindings follow its captures; concurrent Puts of one URL bind
+// in the order they finish.
 func (s *Recorded) Put(ctx context.Context, c Capture) (*recording.Asset, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	src := recording.HashOf(c.Body)
-	key := src + " " + c.MIME
+	key := recording.HashOf(c.Body) + " " + c.MIME
 	if c.isCSS() {
 		key += " " + c.URL // absolutizing depends on where it was loaded from
 	}
-	s.mu.Lock()
-	stored, ok := s.done[key]
-	s.mu.Unlock()
+	stored, ok := s.stored(key)
+	if !ok && isImage(c) {
+		// One decode at a time (decoding); a body that arrived twice is
+		// decoded once, by whichever got here first.
+		select {
+		case decoding <- struct{}{}:
+			defer func() { <-decoding }()
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+		stored, ok = s.stored(key)
+	}
 	if !ok {
 		var err error
 		if stored, err = s.store(c); err != nil {
@@ -77,6 +88,19 @@ func (s *Recorded) Put(ctx context.Context, c Capture) (*recording.Asset, error)
 	return clone(&a), nil
 }
 
+// decoding admits one image decode at a time, process-wide (every cast's
+// store): at the bomb ceiling (64 MP) a decode holds about 256 MB of
+// source pixels, plus a result within the budget (about 8 MB at 1920×1080).
+// Concurrent decodes would multiply that.
+var decoding = make(chan struct{}, 1)
+
+func (s *Recorded) stored(key string) (*recording.Asset, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	a, ok := s.done[key]
+	return a, ok
+}
+
 // store makes and persists the stored form of one capture; the slow part
 // (decode, scale, encode) runs outside the lock.
 func (s *Recorded) store(c Capture) (*recording.Asset, error) {
@@ -85,7 +109,7 @@ func (s *Recorded) store(c Capture) (*recording.Asset, error) {
 	switch {
 	case c.isCSS():
 		body = []byte(RewriteCSS(string(c.Body), c.URL, func(abs string) string { return abs }))
-	case strings.HasPrefix(baseType(c.MIME), "image/"):
+	case isImage(c):
 		var err error
 		if body, typ, orig, err = Resample(c.Body, c.MIME, s.policy.MaxPixels); err != nil {
 			return nil, err
@@ -97,7 +121,9 @@ func (s *Recorded) store(c Capture) (*recording.Asset, error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.types[hash] = typ
+	if _, ok := s.types[hash]; !ok {
+		s.types[hash] = typ // the same bytes under another label keep the first
+	}
 	if s.bodies != nil {
 		s.bodies[hash] = bytes.Clone(body)
 	}
@@ -150,3 +176,5 @@ func clone(a *recording.Asset) *recording.Asset {
 }
 
 func (c Capture) isCSS() bool { return baseType(c.MIME) == "text/css" }
+
+func isImage(c Capture) bool { return strings.HasPrefix(baseType(c.MIME), "image/") }

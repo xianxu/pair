@@ -3,18 +3,22 @@ package assets
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"image"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
 // memWriter is an AssetWriter that can't read back, counting writes.
-type memWriter struct{ puts int }
+type memWriter struct{ puts atomic.Int32 }
 
 func (m *memWriter) PutAsset(body []byte) (string, error) {
-	m.puts++
+	m.puts.Add(1)
 	return recording.HashOf(body), nil
 }
 
@@ -48,8 +52,8 @@ func TestRecordedResamplesOncePerBody(t *testing.T) {
 		t.Fatal(err)
 	}
 	b, _ := s.Put(ctx, Capture{URL: "http://x/copy.png", MIME: "image/png", Body: big})
-	if a.Hash != b.Hash || w.puts != 1 || b.URL != "http://x/copy.png" {
-		t.Errorf("the same body under two URLs is stored once: %+v %+v puts=%d", a, b, w.puts)
+	if a.Hash != b.Hash || w.puts.Load() != 1 || b.URL != "http://x/copy.png" {
+		t.Errorf("the same body under two URLs is stored once: %+v %+v puts=%d", a, b, w.puts.Load())
 	}
 	if a.MIME != "image/jpeg" || a.Orig == nil || a.Orig.W != 400 {
 		t.Errorf("binding %+v", a)
@@ -95,5 +99,63 @@ func TestRecordedRefusesBomb(t *testing.T) {
 	}
 	if _, ok := s.Lookup("http://x/b.png"); ok {
 		t.Errorf("a refused body must not be bound")
+	}
+}
+
+// TestRecordedDecodesOneAtATime: concurrent captures of one image are
+// decoded once (the decode slot is process-wide, and the store is checked
+// again after waiting for it).
+func TestRecordedDecodesOneAtATime(t *testing.T) {
+	w := &memWriter{}
+	s := NewRecorded(w, Policy{MaxPixels: 100 * 100})
+	big := encodePNG(t, noisy(400, 300, true))
+	var wg sync.WaitGroup
+	hashes := make([]string, 8)
+	for i := range hashes {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			a, err := s.Put(context.Background(), Capture{URL: fmt.Sprintf("http://x/%d.png", i), MIME: "image/png", Body: big})
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			hashes[i] = a.Hash
+		}()
+	}
+	wg.Wait()
+	if n := w.puts.Load(); n != 1 {
+		t.Errorf("one body decoded and stored %d times", n)
+	}
+	for _, h := range hashes {
+		if h != hashes[0] {
+			t.Errorf("hashes differ: %q", hashes)
+		}
+	}
+}
+
+// TestRecordedWaitHonoursContext: a capture waiting for the decode slot
+// gives up with its context.
+func TestRecordedWaitHonoursContext(t *testing.T) {
+	decoding <- struct{}{}
+	defer func() { <-decoding }()
+	s := NewRecorded(&memWriter{}, Policy{MaxPixels: 10})
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if _, err := s.Put(ctx, Capture{URL: "http://x/a.png", MIME: "image/png", Body: encodePNG(t, noisy(40, 30, true))}); err == nil {
+		t.Errorf("a Put waiting for the decode slot must end with its context")
+	}
+	// A font needs no decode and doesn't wait.
+	if _, err := s.Put(context.Background(), Capture{URL: "http://x/f.woff2", MIME: "font/woff2", Body: []byte("f")}); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestRecordedFirstTypeWins(t *testing.T) {
+	s := NewRecorded(&memWriter{}, DefaultPolicy)
+	a := put(t, s, "http://x/a.woff2", "font/woff2", "same bytes")
+	put(t, s, "http://x/a.html", "text/html", "same bytes")
+	if typ, _ := s.TypeOf(a.Hash); typ != "font/woff2" {
+		t.Errorf("a body's type moved to a later label: %s", typ)
 	}
 }
