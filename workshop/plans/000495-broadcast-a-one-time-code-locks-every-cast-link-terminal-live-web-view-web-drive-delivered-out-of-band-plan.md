@@ -109,3 +109,7 @@ Status: draft. The decisions marked **[D1]..[D6]** are proposals waiting on the 
     - first, the `castlock` core (independent of both holds);
     - then the Host gate behind the session seam;
     - then the lock page, with the name field.
+- 2026-10-12, the D5 follow-ups are answered.
+  - **(a)** The operator-only presenter layer, never in the tapped frame. It carries everything that shows a code: the hover tooltip, the codes menu, and the rotation flash. The flash appears three times in that layer, not in the broadcast tab bar, which resolves the round-2 flag.
+  - **(b)** Alt+click on a cast cell opens the Codes menu. The operator may change the gesture at the smoke test.
+  - Only D1 (the session cookie) is still open.

@@ -46,7 +46,7 @@ Durable plan: `workshop/plans/000495-broadcast-a-one-time-code-locks-every-cast-
 
 - [ ] M1 — `castlock` core + Host gate (session seam) + lock page (code + name) + unlock route; terminal LIVE and pointer links locked; revoke ends live streams; every route refuses without a session (direct `GET events` included).
 - [ ] M2 — web cast view and drive locks (6-digit drive); lock-page name replaces #470's note-dialog prompt; terminal notes gain the author; headless-Chrome tests unlock first.
-- [ ] M3 — Couch: hover tooltip with codes, codes menu with per-link rotate and "rotate all", guess-rotation alert, the three-flash on rotation; atlas threat model; follow-up issue for replay links; operator smoke test on desktop and iPad.
+- [ ] M3 — Couch: operator-only presenter layer (never tapped); hover tooltip with codes, Alt+click Codes menu with per-link rotate and "rotate all", guess-rotation alert, the three-flash on rotation — all in that layer; atlas threat model; follow-up issue for replay links; operator smoke test on desktop and iPad.
 
 ## Log
 
