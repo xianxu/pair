@@ -463,6 +463,27 @@ rounds:
       isolation: fenced
       reviewed: f95c0c3302d253f8eae9f45f0ad1b546d23aac19
       blocked: false
+    - "n": 13
+      timestamp: "2026-10-12T10:10:43-07:00"
+      dispatched: "2026-10-12T10:09:08-07:00"
+      agent: claude
+      dispose:
+        - id: BR-3
+          disposition: addressed
+          note: limits() now sweeps only keys idle past seatIdle and gives overflow keys a zero budget instead of clearing; forget() removes refused keys; Revisions line 392 records it; server_drive_test.go:266-289 pins the sweep.
+          round: 13
+        - id: BR-6
+          disposition: withdrawn
+          note: Still the only test hook in loopState, nil in production and recorded in Revisions (plan line 394); no action needed unless more hooks are added.
+          round: 13
+        - id: BR-35
+          disposition: addressed
+          note: recorder.go:1084-1086 now says observeItems drops the tag and keeps the act, matching lines 1099-1104; the reducer wording left at mirror_test.go:279 is accurate for Mirror.Observe.
+          round: 13
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: c41a80bfc389da293b32e0ed9fac409ee3c12cf2
+      blocked: false
 ---
 
 # Gate ledger — pair#467 (boundary-review)
@@ -645,8 +666,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-35** [Minor] `plan-drift-unrecorded` recorder.go:1084-1086 comment says the reducer refuses a non-driver by; observeItems now downgrades it first
   Stale after BR-30. Rule (5th in family): a change in behavior updates every comment or doc that describes that behavior. Grep the old wording before committing.
 
+## Round 13 — 2026-10-12T10:10:43-07:00 (claude) — passed
+
+### Disposed
+
+- BR-3 — addressed — limits() now sweeps only keys idle past seatIdle and gives overflow keys a zero budget instead of clearing; forget() removes refused keys; Revisions line 392 records it; server_drive_test.go:266-289 pins the sweep.
+- BR-6 — withdrawn — Still the only test hook in loopState, nil in production and recorded in Revisions (plan line 394); no action needed unless more hooks are added.
+- BR-35 — addressed — recorder.go:1084-1086 now says observeItems drops the tag and keeps the act, matching lines 1099-1104; the reducer wording left at mirror_test.go:279 is accurate for Mirror.Observe.
+
 ## Open findings
 
-- **BR-3** [Minor] `residue-bound-on-writer` Per-seat rate buckets are reset wholesale at 256 instead of pruned when a seat leaves, as planned
-- **BR-6** [Minor] `test-hook-in-production-state` loopState.tap is a test-only event hook carried in the production loop struct
-- **BR-35** [Minor] `plan-drift-unrecorded` recorder.go:1084-1086 comment says the reducer refuses a non-driver by; observeItems now downgrades it first
+(none — every finding has been disposed)
