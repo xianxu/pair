@@ -123,7 +123,7 @@ func runMessageCLIWithCall(inv cliInvocation, rt Runtime, stdout, stderr io.Writ
 }
 
 // readMessageFile is --message-file's body (pair#486): the file verbatim,
-// less one trailing newline, so an agent writes a message with its editor and
+// less one trailing newline (LF or CRLF), so an agent writes a message with its editor and
 // sends it without quoting it in a shell. The read is bounded just past the
 // broker's body limit, which validation then refuses with the rest.
 func readMessageFile(path string) (string, error) {
@@ -136,7 +136,12 @@ func readMessageFile(path string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("--message-file: %w", err)
 	}
-	body := strings.TrimSuffix(string(data), "\n")
+	body := string(data)
+	if b, ok := strings.CutSuffix(body, "\r\n"); ok {
+		body = b
+	} else {
+		body = strings.TrimSuffix(body, "\n")
+	}
 	if strings.TrimSpace(body) == "" {
 		return "", fmt.Errorf("--message-file %s is empty", path)
 	}

@@ -199,6 +199,13 @@ func TestMessageCLIRefusesAnUnusableMessageFile(t *testing.T) {
 	if code := runMessageCLIWithCall(inv, messageRuntime(), &out, &errout, call); code != 0 || sent != full {
 		t.Fatalf("full file: exit %d sent %d bytes: %s", code, len(sent), errout.String())
 	}
+	// An editor that ends lines with CRLF ends the file with one newline too.
+	out.Reset()
+	errout.Reset()
+	inv.messageFile = write("crlf.md", "work\r\n", 0o600)
+	if code := runMessageCLIWithCall(inv, messageRuntime(), &out, &errout, call); code != 0 || sent != "work" {
+		t.Fatalf("CRLF file: exit %d sent %q: %s", code, sent, errout.String())
+	}
 }
 
 func TestMessageCLIRejectsMissingContextBeforeRPC(t *testing.T) {
