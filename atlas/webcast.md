@@ -62,6 +62,10 @@ loop), and tells it the live phase from `publish` (`Live` on the active tab, a s
 - **Where recordings go:** `CastConfig.RecordingsDir` (`<couch store>/webcast/recordings/<id>/`), opened at the first
   go-live, teed into `CastConfig.NewLive`'s hub, whose records `Server` streams as `rec` events after the `state`
   ones. Kept until the operator deletes the directory.
+- **Fidelity:** `recorder/internal/fidelity` (a development tool) replays a recording at each screenshot in headless
+  Chrome and diffs the pixels; `TestLiveRecordURL` records any URL for it (#458's numbers are in its issue Log).
+  Screenshots are the viewport halved (`recorder.LowRes`), the form #453's fixtures use. Assets Chrome no longer holds
+  are loaded in the page's context (`Network.loadNetworkResource`), never from outside the browser.
 - **Live check:** `TestLiveRecording` (`live_record_test.go`) casts a page with re-renders, open and closed roots, an
   out-of-process iframe, insertRule, a >10k `<style>`, a password, a click that navigates, pause and resume; the
   recording must validate, drop nothing, and hold each case.

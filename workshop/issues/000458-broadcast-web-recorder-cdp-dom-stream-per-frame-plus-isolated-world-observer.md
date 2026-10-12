@@ -75,6 +75,25 @@ Durable plan: `workshop/plans/000458-broadcast-web-recorder-cdp-dom-stream-per-f
 
 ## Log
 
+### 2026-10-12 — M3 fidelity (median / max % of pixels differing from the real tab)
+
+Tool: `recorder/internal/fidelity` renders the reduced state at each screenshot's time in headless Chrome (assets through
+`Fetch` from the recording, nothing from the origin), viewport halved by a 2×2 box filter as #453's harness made the
+fixtures' frames, pixelmatch threshold 0.1, offsets −600…+200 ms in 50 ms steps, the control's corner masked. The
+same tool measures #457's fixtures (#453's prototype recordings) as the baseline.
+
+| Page | This recorder | #453 prototype (fixture), same tool | #453's own report |
+|---|---|---|---|
+| stress (idle 7 s) | 0.05 / 0.20 and 0.04 / 0.21 (two runs) | 0.65 / 0.75 | 0.3 / 1.8 |
+| blog post (browse 12 s) | 0.06 / 2.97 | 0.11 / 2.94 | — |
+| app | not re-recorded (the fixture's scenario scripts #453's own app) | 0.00 / 0.41 | — |
+
+Found on the way: CDP's screenshot clip is in document coordinates (a scrolled page's clip was offset), so the recorder
+now captures the viewport and halves it (`recorder.LowRes`), stamped at the capture's midpoint. Assets the page loaded
+before go-live that Chrome no longer holds (the Inter woff2, a memory-cached avatar) are loaded in the page's context
+(`Network.loadNetworkResource`), as are images the DOM references. Both recordings: 0 dropped, 0 desync, 0 lost.
+The blog's max (2.97) is its first shot, the same in the baseline (2.94): the page settling at go-live.
+
 
 
 - 2026-10-12: closed M2 — review round 2: BR-19 Critical fixed (bury after the update), each finding now has a regression test that fails when its fix is reverted (mutation-checked: graveyard, unknown sibling, unknown frame, DOM-only bound, Close losses, unreadable tab stop, one frame doc per seg, frame offsets OOP + nested in-process, Logf reaches recorder); non-DOM events bounded and counted; go test -race -count=5 webcast/... cdp green; WEBCAST_LIVE_CHROME=1 -run Live green; review verdict: FIX-THEN-SHIP
