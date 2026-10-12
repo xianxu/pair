@@ -271,8 +271,9 @@ func (c *Console) copyWebcastLink() {
 // the drive link, whose viewers can ask to drive the cast tab (the
 // operator still grants). Like the view link, never in the notice.
 func (c *Console) copyWebcastDriveLink() {
+	// One snapshot: the cast can end between two reads.
 	c.mu.Lock()
-	u, running := c.wcast.update, c.wcast.phase == webcastRunning
+	u, running, cast := c.wcast.update, c.wcast.phase == webcastRunning, c.wcast.cast
 	c.mu.Unlock()
 	switch {
 	case !running:
@@ -281,8 +282,8 @@ func (c *Console) copyWebcastDriveLink() {
 		c.setNotice("Chrome cast drive link copied: its viewers can ask to drive; you grant.")
 	case u.LinkErr != nil:
 		c.setNotice("Chrome cast drive link unavailable: " + u.LinkErr.Error())
-	case u.Link != "" && c.wcastCast() != nil && c.wcastCast().DriveOff() != "":
-		c.setNotice("This cast can't be driven: " + c.wcastCast().DriveOff() + ".")
+	case u.Link != "" && cast != nil && cast.DriveOff() != "":
+		c.setNotice("This cast can't be driven: " + cast.DriveOff() + ".")
 	default:
 		c.setNotice("Chrome cast drive link is not ready yet.")
 	}
@@ -309,11 +310,4 @@ func (c *Console) endWebcastForShutdown() {
 		case <-time.After(webcastShutdownWait):
 		}
 	}
-}
-
-// wcastCast is the running cast, or nil.
-func (c *Console) wcastCast() *webcast.Cast {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.wcast.cast
 }
