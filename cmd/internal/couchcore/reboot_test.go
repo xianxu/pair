@@ -557,3 +557,50 @@ func TestRetiredResultCarriesWhatRetirementDidNotDo(t *testing.T) {
 		t.Fatalf("rolled-back retirement = %+v", got)
 	}
 }
+
+// pair#456: a live thread whose conversation never bound -- relaunch refuses
+// it and names reboot; reboot with admission's verdict parks it and starts a
+// fresh agent; a busy re-check refuses before anything stops.
+func TestRebootLiveUnboundThread(t *testing.T) {
+	t.Parallel()
+
+	setup := func(t *testing.T) (*relaunchEnv, ThreadRecord, *fakeLiveRestartProbe) {
+		env, live := switchEnvWithLiveThread(t)
+		env.Artifacts.SetNativeBinding(live.Address, "claude", sessioninventory.BindingUnbound, "")
+		probe := &fakeLiveRestartProbe{}
+		env.Couch.LiveRestart = probe
+		return env, live, probe
+	}
+	env, live, probe := setup(t)
+	if _, err := env.Couch.Relaunch(context.Background(), live.Address); ResumeDiagnosticOf(err) != ResumeBindingUnbound || !strings.Contains(err.Error(), "reboot") {
+		t.Fatalf("relaunch refusal does not name reboot: %v", err)
+	}
+	args := rebootArgs(live.Address)
+	args[requireSettledArg] = settledForcedValue
+	result, err := dispatchReboot(env.testEnv, args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	started, ok := result.Started()
+	if !ok || started.Record.Thread == live.Address || result.Archived != live.Address {
+		t.Fatalf("result %+v", result)
+	}
+	if len(probe.busyChecks) != 1 || probe.busyChecks[0] != live.Address || !probe.forced[0] {
+		t.Fatalf("busy re-check %v forced %v", probe.busyChecks, probe.forced)
+	}
+	if env.Proc.Exists(42) == Live {
+		t.Fatal("the old Pair is still running")
+	}
+	assertArchivedOnce(t, env.Couch.Threads, live.Address, "")
+
+	env, live, probe = setup(t)
+	probe.busyErr = &SlotOperationError{Code: LiveRestartBusy, Detail: "turn open"}
+	args = rebootArgs(live.Address)
+	args[requireSettledArg] = settledKnownValue
+	if _, err := dispatchReboot(env.testEnv, args); slotOperationCode(err) != LiveRestartBusy {
+		t.Fatalf("busy: %v", err)
+	}
+	if current, err := env.Couch.Threads.GetThread(live.Address); err != nil || current.Park != nil || current.VerifiedPark != nil || len(env.Runner.Ops) != 0 {
+		t.Fatalf("a refused reboot acted: %+v %v ops %v", current, err, env.Runner.Ops)
+	}
+}

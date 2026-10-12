@@ -139,7 +139,7 @@ func (c *Couch) Relaunch(ctx context.Context, address ThreadAddress) (RelaunchRe
 		return refused, fmt.Errorf("relaunch %s: could not resolve its native session binding: %w", address.Tag, bindingErr)
 	}
 	if err := CheckResumePreconditions(thread, binding, pathExists); err != nil {
-		return refused, err
+		return refused, withRebootHint(err)
 	}
 
 	// Only now is anything destroyed.
@@ -161,4 +161,17 @@ func (c *Couch) Relaunch(ctx context.Context, address ThreadAddress) (RelaunchRe
 			address.Tag, err)
 	}
 	return RelaunchResult{Outcome: Relaunched, Record: record, Handle: handle}, nil
+}
+
+// withRebootHint names reboot on the refusals only a fresh session gets past
+// (pair#456): a conversation never bound, or one a pre-hello-v2 wrapper left
+// provisional, has nothing a relaunch can resume.
+func withRebootHint(err error) error {
+	var refusal *ResumeRefusal
+	if !errors.As(err, &refusal) || (refusal.Code != ResumeBindingUnbound && refusal.Code != ResumeBindingProvisional) {
+		return err
+	}
+	hinted := *refusal
+	hinted.Diagnostic += "; or reboot it into a fresh session, discarding this conversation (Tab → reboot, or couch --reboot <repo:N> --confirm)"
+	return &hinted
 }

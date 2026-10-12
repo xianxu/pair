@@ -128,10 +128,12 @@ func expectedRowActions(s menuRowShape) []string {
 			}
 			return []string{"detach", "retry-continuation", "dismiss-continuation", "park", "alias", "add-slot"}
 		}
+		// Reboot (pair#456): a fresh session where relaunch has nothing to
+		// resume. Not under a failed request, whose guard would refuse it.
 		if s.slot {
-			return []string{"detach", "relaunch", "park", "switch-agent"}
+			return []string{"detach", "relaunch", "park", "switch-agent", "reboot"}
 		}
-		return []string{"detach", "relaunch", "park", "switch-agent", "alias", "add-slot"}
+		return []string{"detach", "relaunch", "park", "switch-agent", "reboot", "alias", "add-slot"}
 	case couchcore.ThreadParked, couchcore.ThreadDetached:
 		// A stopped :0 still offers add slot: a new slot needs nothing from
 		// :0's agent (pair#402).
@@ -338,6 +340,8 @@ func TestRebootConfirmationNamesItsCost(t *testing.T) {
 		{couchcore.ThreadParked, "", " — archives this conversation, starts a fresh agent"},
 		// "may survive": #274's measurement, quiesce reaps by SIGHUP.
 		{couchcore.ThreadDetached, "", " — archives this conversation, starts a fresh agent, stops its session; its running agent may survive"},
+		// pair#456: a live row parks first; the conversation is not resumed.
+		{couchcore.ThreadLive, "", " — archives this conversation, starts a fresh agent; stops its running agent first"},
 		{couchcore.ThreadUnusable, couchcore.ReasonPathMissing, " — checkout missing: archives the record only; restore the checkout to start here again"},
 	} {
 		row := base
@@ -356,13 +360,13 @@ func TestRebootConfirmationNamesItsCost(t *testing.T) {
 func TestConfirmationRechecksTheOfferForEveryAction(t *testing.T) {
 	row := couchcore.ActionableThreadSummary{Address: menuAddress("couch-primary"), WorkingPath: "/w/p", State: couchcore.ThreadParked}
 	state := openRebootConfirmation(t, row)
-	live := row
-	live.State = couchcore.ThreadLive
-	state.Inventory = []couchcore.ActionableThreadSummary{live}
+	busy := row
+	busy.State = couchcore.ThreadBusy
+	state.Inventory = []couchcore.ActionableThreadSummary{busy}
 	state, _ = reduceConfirmationKey(state, PanelKey{Kind: KeyDown})
 	next, effects := reduceConfirmationKey(state, PanelKey{Kind: KeyEnter})
 	if len(effects) != 0 || next.CurrentFrame().Kind == MenuFrameConfirmation {
-		t.Fatalf("a reboot confirmation on a now-live row dispatched %+v / frame %+v", effects, next.CurrentFrame())
+		t.Fatalf("a reboot confirmation on a now-busy row dispatched %+v / frame %+v", effects, next.CurrentFrame())
 	}
 	refreshed := reconcileMenuFrames(state, []couchcore.ActionableThreadSummary{row})
 	if refreshed.CurrentFrame().Kind == MenuFrameConfirmation {
@@ -649,5 +653,23 @@ func TestOperationProgressUpdatesOnlyItsOwnNotice(t *testing.T) {
 	state.Notice.Level = MenuNoticeError
 	if done := updateOperationProgress(state, 7, "late"); done.Notice.Text != state.Notice.Text {
 		t.Fatalf("progress overwrote a finished notice: %q", done.Notice.Text)
+	}
+}
+
+// pair#456: the switcher's reboot of a live row carries the forced idle
+// verdict (the operator is looking and confirmed; a known busy still refuses),
+// and a stopped row's carries none, so no other route admits a live thread.
+func TestLiveRebootDispatchCarriesTheIdleVerdict(t *testing.T) {
+	for _, tc := range []struct {
+		state couchcore.ActionableThreadState
+		want  string
+	}{{couchcore.ThreadLive, "forced"}, {couchcore.ThreadParked, ""}} {
+		row := couchcore.ActionableThreadSummary{Address: menuAddress("couch-primary"), WorkingPath: "/w/p", State: tc.state}
+		state := openRebootConfirmation(t, row)
+		state, _ = reduceConfirmationKey(state, PanelKey{Kind: KeyDown})
+		_, effects := reduceConfirmationKey(state, PanelKey{Kind: KeyEnter})
+		if len(effects) != 1 || effects[0].Operation != "reboot" || effects[0].Args["require-settled"] != tc.want {
+			t.Fatalf("%s: effects %+v, want require-settled %q", tc.state, effects, tc.want)
+		}
 	}
 }

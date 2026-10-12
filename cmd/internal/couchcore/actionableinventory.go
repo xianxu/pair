@@ -461,6 +461,14 @@ func RebootableState(state ActionableThreadState, reason ThreadReason) bool {
 	return ArchivableState(state, reason)
 }
 
+// RebootAdmitted is reboot's whole admission (pair#456): a retirable row, or a
+// live one when the caller carries an idle verdict -- the switcher always does
+// for a live row, and remote admission (DecideLiveRestart) supplies its own.
+// The live row is parked first and then meets RebootableState.
+func RebootAdmitted(state ActionableThreadState, reason ThreadReason, liveVerdict bool) bool {
+	return RebootableState(state, reason) || (liveVerdict && state == ThreadLive)
+}
+
 // ResumableState is resume's admission rule over the classification.
 //
 // It reads no reason, and that is a property of ClassifyThread rather than an

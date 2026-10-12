@@ -23,6 +23,10 @@ const (
 	// rules plus the resting branch, and no effect. The CLI runs the refresh
 	// and then reload-context itself.
 	OpPrepare = "prepare"
+	// OpReboot of a live slot (pair#456) shares the live admission: busy
+	// refuses, busy-unknown unless forced, and a dirty tree is only noted,
+	// because reboot changes no files.
+	OpReboot = "reboot"
 )
 
 // LiveRestartFacts is everything the admission rule reads, gathered by a
@@ -104,6 +108,12 @@ func DecideLiveRestart(op string, f LiveRestartFacts, o LiveRestartOptions) Live
 		return refuse(LiveRestartBusy, "the agent has a turn open, the composer holds text, or input was seen in the last few seconds")
 	}
 	switch {
+	case op == OpReboot:
+		if !f.GitKnown {
+			notes = append(notes, "the checkout's status could not be read; reboot leaves the tree as it is")
+		} else if f.Dirty {
+			notes = append(notes, "the checkout has uncommitted changes; reboot leaves them")
+		}
 	case !f.GitKnown:
 		return refuse(LiveRestartDirty, "the checkout's status could not be read")
 	case f.Dirty:
@@ -242,10 +252,11 @@ func (c *Couch) ReloadContext(ctx context.Context, address ThreadAddress, forced
 	return ReloadContextResult{Address: address}, nil
 }
 
-// prepareLiveRestart admits relaunch, reload-context or prepare on a live row.
+// prepareLiveRestart admits relaunch, reload-context, prepare or reboot on a
+// live row.
 // The row is addressed by its thread (repo scope + exact tag), the dialect
-// their dispatch reads, never by the slot path; prepare's call also carries
-// the checkout, for the CLI's refresh.
+// their dispatch reads; prepare's call also carries the checkout, for the
+// CLI's refresh, and reboot takes ActorOperationArgs, its own dialect.
 func (c *Couch) prepareLiveRestart(ctx context.Context, op, target string, row ActionableThreadSummary, path, resting string, opts LiveRestartOptions) (OperationCall, string, error) {
 	if c.LiveRestart == nil {
 		return OperationCall{}, "", &SlotOperationError{Code: LiveRestartUnavailable, Detail: "this Couch cannot observe live slots"}
@@ -264,6 +275,9 @@ func (c *Couch) prepareLiveRestart(ctx context.Context, op, target string, row A
 		return OperationCall{}, "", &SlotOperationError{Code: d.Code, Detail: detail}
 	}
 	args := map[string]string{"repo-scope": row.Address.RepoScope, "tag": string(row.Address.Tag)}
+	if op == OpReboot {
+		args = ActorOperationArgs(row, op)
+	}
 	args[requireSettledArg] = settledKnownValue
 	if d.Forced {
 		args[requireSettledArg] = settledForcedValue

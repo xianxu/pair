@@ -1110,6 +1110,21 @@ and `CreateThread` use. Fresh records start without the stored name and
 description; the archived record keeps them. Both kinds report the retirement
 half through one `retiredResult`, including a session left unstopped.
 
+**Reboot of a live row (pair#456).** Relaunch needs a conversation to resume, so
+a live session that never finished a turn (`resume-binding-unbound`) or an
+old-wrapper Codex slot stuck `resume-binding-provisional` has no relaunch; those
+refusals now name reboot (`withRebootHint`, `relaunch.go`). `RebootAdmitted`
+admits a live row only when the call carries an idle verdict
+(`require-settled`): remote `couch --reboot repo:N --confirm` gets it from
+`prepareLiveRestart` / `DecideLiveRestart` (busy refuses, busy-unknown unless
+`--force-unknown`, a dirty tree is only noted), and the switcher's `Tab → reboot`
+on a live row sends `forced` (`liveRebootArgs`; the operator is looking, a known
+busy still refuses). Under the reboot hold, `rebootAdmit` re-checks busy
+(`LiveRestart.ConfirmNotBusy`), parks the thread with the Pair lifecycle's
+`ParkExpected` (no binding needed), reclassifies, and continues as a parked
+reboot. A call without the verdict (recover's reboot step) still refuses a live
+row.
+
 **The switcher's per-row actions are one pure table (#363 M2).**
 `menuActionItems(row)` is `menuRowActions(menuRowFactsOf(row))`
 (`couchtty/menu_actions.go`): `menuRowFacts` reduces a row to its kind (`:0`
@@ -2930,7 +2945,7 @@ consumed by the guard that would otherwise re-derive one:
 |---|---|---|---|
 | switch-agent | `SwitchableState` | `PrepareAgentSwitch` | `live`, `parked`, `binding-lost`, `session-gone` |
 | archive | `ArchivableState` | `Couch.ArchiveThread` (via `classifyForAction`) | `detached`, `parked`, every unusable reason **except** `unknown` |
-| reboot | `RebootableState` (= `ArchivableState`) | `Couch.Reboot` (`rebootAdmit`, then `prepareRetirement`) | same as archive |
+| reboot | `RebootAdmitted` (`RebootableState` = `ArchivableState`, or `live` with an idle verdict, pair#456) | `Couch.Reboot` (`rebootAdmit`, then `prepareRetirement`) | archive's set, plus `live` |
 | resume | `ResumableState` | `SelectResumableRoot` | `detached`, `parked` |
 
 The switcher's **offer** is written separately, in the action table
