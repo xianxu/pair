@@ -15,6 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "11dff071", done: "d9889713"}
 ---
 
 # couch: start slot wrappers at lower CPU priority (nice +10) so Couch and the terminal stay responsive
