@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000463-couch-send-to-hub-a-reserved-target-the-supervisor-resolves-live-to-the-hub-slot.md
         source_blob: f3eea1fa0d5eca21edc9064c6e4e0c4150bedd56
         destination: workshop/issues/000463-couch-send-to-hub-a-reserved-target-the-supervisor-resolves-live-to-the-hub-slot.md
+        main_commit: 425de54327f006558f857a7309f1406ae9294ee6
 ---
 
 # couch --send-to hub: a reserved target the supervisor resolves live to the hub slot
