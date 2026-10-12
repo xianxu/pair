@@ -1,10 +1,19 @@
 ---
 id: 000467
-status: working
+status: codecomplete
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours: 6.17
 github_issue:
+started: 2026-10-12T06:23:45-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
+actual_hours: 3.16
 tracker:
     version: 1
     handoff:
@@ -17,14 +26,11 @@ tracker:
         source_blob: 1eacf75a14e7a317160387ace5fa798022fe8316
         destination: workshop/issues/000467-broadcast-web-remote-driving-a-viewer-takes-control-and-uses-the-app-through-the-operator-s-tab.md
         main_commit: 8b076419caa5cc3ea0d459b390b53d89f2136e2b
-started: 2026-10-12T06:23:45-07:00
-claimant:
-    operator: Xian Xu
-    machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: Xian’s MacBook Pro
-    workspace: pair:6
-    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
-    repository: github.com/xianxu/pair
+    completion:
+        token: close-7b6e02df54b7
+        repository: github.com/xianxu/pair
+        reviewed_head: c41a80bfc389da293b32e0ed9fac409ee3c12cf2
+        evidence_commit: de751625a78a2d09a4fc722fb2e95f21be517686
 ---
 
 # broadcast-web: remote driving — a viewer takes control and uses the app through the operator's tab
