@@ -35,6 +35,23 @@ pair#471 (PR #266) replays recordings via `couch --broadcast-web-replay`, on loo
 - A replay link opened from another device plays a real recording through the tunnel, seeks, and shows notes.
 - The length advisory fixed; tests; the operator's smoke test, scheduled by the TL.
 
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module design=0.20 impl=0.35
+item: smaller-go-module design=0.05 impl=0.10
+item: smaller-go-module design=0.10 impl=0.15
+item: smaller-go-module design=0.10 impl=0.20
+item: smaller-go-module design=0.10 impl=0.20
+item: atlas-docs design=0.03 impl=0.07
+item: milestone-review design=0.05 impl=0.20
+total: 1.90
+```
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* Items in order: `ReplayShares` state machine (greenfield); scoped `ReplayServer` + length advisory; broker op + Couch wiring; both CLIs' share-and-poll; M2 drawing with #470's modules + live check; atlas/skill; two milestone reviews.
+
 ## Plan
 
 Durable plan: `workshop/plans/000477-broadcast-web-replay-inside-a-running-couch-for-remote-viewers-mount-replayserver-on-the-shared-host-plan.md`.
