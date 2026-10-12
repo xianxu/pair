@@ -11,6 +11,8 @@
 // The pure parts (batcher, gestures, keyAct, driveView) are exported for the
 // node tests; mountDrive is the shell, called by viewer.js.
 
+import { poster, sayer } from './collab.js';
+
 export const SEAT_HEADER = 'X-Couch-Seat';
 // FLUSH_MS: moves and wheels wait this long to coalesce; anything else is
 // sent at once (behind the request in flight).
@@ -21,6 +23,23 @@ export const HOVER_MS = 50;
 export const DRAG_PX = 4;
 export const MAX_ACTS = 64;
 export const MAX_TEXT = 1000;
+// The wire's limits (drive.ParseBatch, the input route's budget): a body
+// of at most MAX_BODY bytes, coordinates in [0, MAX_COORD], and requests
+// spaced PACE_MS apart (25/s, under the seat's 30/s).
+export const MAX_BODY = 8 << 10;
+export const MAX_COORD = 1 << 20;
+export const PACE_MS = 40;
+// TEXT_BYTES bounds one text act's encoded size, so a batch always fits.
+const TEXT_BYTES = 2048;
+const utf8 = new TextEncoder();
+const bytes = (v) => utf8.encode(JSON.stringify(v)).length;
+// runeBytes is one character's size inside a JSON string.
+const runeBytes = (r) => {
+  const c = r.codePointAt(0);
+  if (r === '"' || r === '\\') return 2;
+  if (c < 0x20) return 6;
+  return c < 0x80 ? 1 : c < 0x800 ? 2 : c < 0x10000 ? 3 : 4;
+};
 
 // joinSeat asks for a seat: {viewer, key, name}, or null when the cast
 // can't be driven (404) or doesn't answer.
@@ -42,32 +61,68 @@ export async function joinSeat(fetchFn, name) {
 
 // seatPoster posts to a drive route with the seat's key: {status, text}.
 export function seatPoster(fetchFn, key) {
-  return (route, body) => fetchFn(`drive/${route}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', [SEAT_HEADER]: key },
-    body: JSON.stringify(body),
-    credentials: 'omit', referrerPolicy: 'no-referrer', cache: 'no-store',
-  }).then(async (r) => ({ status: r.status, text: (await r.text()).trim() }));
+  const post = poster(fetchFn, DRIVE_ROUTES, { [SEAT_HEADER]: key });
+  return (route, body) => post(`drive/${route}`, body).then((r) => ({ status: r.status, text: r.text.trim() }));
+}
+const DRIVE_ROUTES = ['drive/control', 'drive/input'];
+
+// wireAct is a as the wire takes it: coordinates within [0, MAX_COORD] (a
+// drag captured past the frame's left or top edge goes negative).
+export function wireAct(a) {
+  const out = { ...a };
+  for (const k of ['x', 'y']) if (k in out) out[k] = Math.min(MAX_COORD, Math.max(0, out[k]));
+  return out;
 }
 
-// batcher sends acts in order, one request in flight. Consecutive moves
-// (same button) coalesce into the latest, and consecutive wheels on one
-// element add up; they wait FLUSH_MS for company, anything else goes at
-// once. A batch carries at most MAX_ACTS acts and the segment seg() says
-// at the moment it is sent. A refusal (anything but 204) drops what is
-// queued, since the acts after a refused one would land on a page the
-// driver didn't see, and is reported with the server's sentence.
+// splitText cuts a text act's value into pieces of at most MAX_TEXT runes
+// and TEXT_BYTES encoded bytes, never inside a character.
+export function splitText(v) {
+  const out = [];
+  let cur = '', n = 0, size = 0;
+  for (const r of v) {
+    const c = runeBytes(r);
+    if (cur && (n + 1 > MAX_TEXT || size + c > TEXT_BYTES)) { out.push(cur); cur = ''; n = 0; size = 0; }
+    cur += r; n++; size += c;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
+// batcher is the one gate to the wire: it sends acts in order, one request
+// in flight, only as the server takes them (wireAct's coordinates, text in
+// splitText's pieces, a body under MAX_BODY, requests PACE_MS apart).
+// Consecutive moves (same button) coalesce into the latest, and consecutive
+// wheels on one element add up; they wait FLUSH_MS for company, anything
+// else goes as soon as the pace allows. A batch carries at most MAX_ACTS
+// acts and the segment seg() says when it is sent. A refusal (anything but
+// 204) drops what is queued, since the acts after a refused one would land
+// on a page the driver didn't see, and is reported with the server's
+// sentence.
 //   deps: send(batch) → Promise<{status, text}>, seg(), later(fn, ms),
-//   refused(status, text)
+//   now() → ms, refused(status, text)
 export function batcher(deps) {
   let queue = [];
-  let inFlight = false, timer = null, stopped = false;
+  let inFlight = false, timer = null, stopped = false, last = -Infinity;
+  const take = () => {
+    const batch = { seg: deps.seg(), acts: [] };
+    let size = bytes(batch);
+    while (queue.length && batch.acts.length < MAX_ACTS) {
+      const add = bytes(queue[0]) + (batch.acts.length ? 1 : 0); // and its comma
+      if (batch.acts.length && size + add > MAX_BODY) break;
+      batch.acts.push(queue.shift());
+      size += add;
+    }
+    return batch;
+  };
+  const fire = () => { timer = null; go(); };
   const go = () => {
-    timer = null;
     if (inFlight || stopped || !queue.length) return;
-    const acts = queue.splice(0, MAX_ACTS);
+    const wait = last + PACE_MS - deps.now();
+    if (wait > 0) { if (timer === null) timer = deps.later(fire, wait); return; }
+    last = deps.now();
+    const batch = take();
     inFlight = true;
-    deps.send({ seg: deps.seg(), acts }).then((r) => r, () => ({ status: 0, text: "Couldn't reach the cast." })).then((r) => {
+    deps.send(batch).then((r) => r, () => ({ status: 0, text: "Couldn't reach the cast." })).then((r) => {
       inFlight = false;
       if (r.status !== 204) {
         queue = [];
@@ -77,18 +132,18 @@ export function batcher(deps) {
       if (queue.length) go();
     });
   };
-  const soon = () => { if (timer === null && !inFlight) timer = deps.later(go, FLUSH_MS); };
+  const soon = () => { if (timer === null && !inFlight) timer = deps.later(fire, FLUSH_MS); };
   return {
-    push(a) {
+    push(act) {
       if (stopped) return;
-      const last = queue.at(-1);
-      if (a.a === 'move' && last && last.a === 'move' && (last.button || '') === (a.button || '')) {
+      const a = wireAct(act);
+      const prev = queue.at(-1);
+      if (a.a === 'move' && prev && prev.a === 'move' && (prev.button || '') === (a.button || '')) {
         queue[queue.length - 1] = a;
-      } else if (a.a === 'wheel' && last && last.a === 'wheel' && last.id === a.id) {
-        queue[queue.length - 1] = { ...a, dx: last.dx + a.dx, dy: last.dy + a.dy };
-      } else if (a.a === 'text' && [...a.v].length > MAX_TEXT) {
-        const runes = [...a.v];
-        for (let i = 0; i < runes.length; i += MAX_TEXT) queue.push({ a: 'text', v: runes.slice(i, i + MAX_TEXT).join('') });
+      } else if (a.a === 'wheel' && prev && prev.a === 'wheel' && prev.id === a.id) {
+        queue[queue.length - 1] = { ...a, dx: prev.dx + a.dx, dy: prev.dy + a.dy };
+      } else if (a.a === 'text') {
+        for (const v of splitText(a.v)) queue.push({ a: 'text', v });
       } else {
         queue.push(a);
       }
@@ -109,7 +164,8 @@ const round = (v) => Math.round(v * 10) / 10;
 // with one finger; two fingers scroll (wheel acts by the move of their
 // middle). A mouse moving with no button down hovers (moves, at most every
 // HOVER_MS). Events are plain objects with pointerId, pointerType, clientX,
-// clientY, button, detail, timeStamp.
+// clientY, button, buttons, detail, timeStamp. Coordinates may leave the
+// frame (the pointer is captured); the batcher clamps them for the wire.
 //   deps: toPage(cx, cy) → [x, y], nodeAt(x, y) → id, emit(act)
 export function gestures(deps) {
   const touches = new Map(); // pointerId -> {x, y} (client)
@@ -162,7 +218,7 @@ export function gestures(deps) {
         deps.emit({ a: 'move', button: 'left', ...pt(p) });
         return;
       }
-      if (e.pointerType === 'mouse' && e.timeStamp - lastHover >= HOVER_MS) {
+      if (e.pointerType === 'mouse' && !e.buttons && e.timeStamp - lastHover >= HOVER_MS) {
         lastHover = e.timeStamp;
         deps.emit({ a: 'move', ...pt(p) });
       }
@@ -219,6 +275,26 @@ export function keyAct(e, type) {
   return a;
 }
 
+// keyTracker pairs key acts: keyAct's down, and an up for every key sent
+// down, with the modifiers held at release (Meta may already be up: Meta+A's
+// A then goes up plain). A key never sent down sends no up.
+export function keyTracker() {
+  const downs = new Set();
+  const id = (e) => e.code || e.key;
+  return {
+    down(e) {
+      const a = keyAct(e, 'down');
+      if (a) downs.add(id(e));
+      return a;
+    },
+    up(e) {
+      if (!downs.delete(id(e))) return null;
+      return keyAct(e, 'up') || { a: 'key', type: 'up', key: e.key, ...(e.code ? { code: e.code } : {}) };
+    },
+    clear: () => downs.clear(),
+  };
+}
+
 // driveView is this viewer's place in control, from the latest ctl record
 // (null: none yet) and its own viewer id.
 //   state: 'none' (may ask), 'asking', 'driving', or 'other' (someone else
@@ -244,16 +320,7 @@ export function mountDrive(doc, win, v, seat) {
   button.type = 'button';
   const note = el('span', 'drive-note', bar);
   note.setAttribute('role', 'status');
-  const toast = el('div', 'annotate-msg', doc.body);
-  toast.setAttribute('role', 'status');
-  toast.hidden = true;
-  let toastTimer = null;
-  const say = (text) => {
-    toast.textContent = text;
-    toast.hidden = false;
-    if (toastTimer !== null) win.clearTimeout(toastTimer);
-    toastTimer = win.setTimeout(() => { toast.hidden = true; }, 3000);
-  };
+  const say = sayer(doc, win);
   const box = doc.getElementById('box');
   const layer = el('div', 'drive', box);
   // The keyboard's target: focused while driving, so keys, typing, IME and
@@ -264,7 +331,8 @@ export function mountDrive(doc, win, v, seat) {
   keys.setAttribute('autocomplete', 'off');
   keys.spellcheck = false;
 
-  let ctl = null, view = driveView(null, seat.viewer), batch = null, composing = false;
+  let ctl = null, view = driveView(null, seat.viewer), batch = null, composing = false, lost = false;
+  const tracked = keyTracker();
   const send = (a) => { if (batch) batch.push(a); };
   const g = gestures({ toPage: (x, y) => v.toPage(x, y), nodeAt: (x, y) => v.nodeAt(x, y), emit: send });
 
@@ -272,12 +340,19 @@ export function mountDrive(doc, win, v, seat) {
     say(text || "That didn't work.");
     if (status === 401) offerRejoin();
   };
-  const offerRejoin = () => {
-    button.textContent = 'Rejoin';
-    button.onclick = () => win.location.reload();
-  };
+  // A lost seat (401) can't be repaired in place: the stream holds the
+  // seat, so rejoining reopens the page.
+  const offerRejoin = () => { lost = true; render(); };
   const render = () => {
     view = driveView(ctl, seat.viewer);
+    if (lost) {
+      button.textContent = 'Rejoin';
+      button.onclick = () => win.location.reload();
+      note.textContent = '';
+      layer.classList.remove('on');
+      if (batch) { batch.stop(); batch = null; }
+      return;
+    }
     const driving = view.state === 'driving' && !!(v.model && v.model.live);
     button.textContent = view.button;
     button.onclick = () => control(view.state === 'driving' || view.state === 'asking' ? 'release' : 'request');
@@ -286,11 +361,12 @@ export function mountDrive(doc, win, v, seat) {
     layer.classList.toggle('on', driving);
     doc.body.classList.toggle('driving', view.state === 'driving');
     if (view.state === 'driving' && !batch) {
-      batch = batcher({ send: (b) => post('input', b), seg: () => v.model.seg, later: (fn, ms) => win.setTimeout(fn, ms), refused });
+      batch = batcher({ send: (b) => post('input', b), seg: () => v.model.seg, later: (fn, ms) => win.setTimeout(fn, ms), now: () => win.performance.now(), refused });
       v.annotate?.setMode('watch'); // pointing and notes wait while driving
     } else if (view.state !== 'driving' && batch) {
       batch.stop();
       batch = null;
+      tracked.clear();
       keys.blur();
     }
   };
@@ -318,14 +394,13 @@ export function mountDrive(doc, win, v, seat) {
   listen('contextmenu', () => {});
 
   keys.addEventListener('keydown', (e) => {
-    if (!batch) return;
-    const a = keyAct(e, 'down');
+    const a = batch && tracked.down(e);
     if (!a) return;
     e.preventDefault(); // sent by name: the textarea mustn't type it too
     send(a);
   });
   keys.addEventListener('keyup', (e) => {
-    const a = batch && keyAct(e, 'up');
+    const a = batch && tracked.up(e);
     if (a) send(a);
   });
   keys.addEventListener('compositionstart', () => { composing = true; });

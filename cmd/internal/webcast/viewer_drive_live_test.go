@@ -9,16 +9,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/xianxu/pair/cmd/internal/webcast/board"
 	"github.com/xianxu/pair/cmd/internal/webcast/drive"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
-// spyInjector takes every batch that reaches it, by viewer.
+// spyInjector notes every batch that reaches it, by viewer, and passes it
+// to the injector under it (the fake's rules: driver, segment, Confine,
+// stale target).
 type spyInjector struct {
 	mu   sync.Mutex
 	got  []spyBatch
-	fail error
+	next drive.Injector
 }
 
 type spyBatch struct {
@@ -26,11 +27,11 @@ type spyBatch struct {
 	b  drive.Batch
 }
 
-func (s *spyInjector) Inject(_ context.Context, by string, b drive.Batch) error {
+func (s *spyInjector) Inject(ctx context.Context, by string, b drive.Batch) error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.got = append(s.got, spyBatch{by, b})
-	return s.fail
+	s.mu.Unlock()
+	return s.next.Inject(ctx, by, b)
 }
 
 // acts are every act that reached the injector from by, in order.
@@ -46,36 +47,35 @@ func (s *spyInjector) acts(by string) []drive.Act {
 	return out
 }
 
-// writerSink puts a controller's ctl records through the stream's writer,
-// stamped after the page (the recorder stamps them in a cast).
-type writerSink struct {
-	w  *board.Writer
-	mu sync.Mutex
-	t  int64
+// serialSink makes one writer of several: the controller's ctl records and
+// the injector's caused records arrive from different goroutines, as they
+// enter the recorder's one queue in a cast.
+type serialSink struct {
+	mu   sync.Mutex
+	sink recording.Sink
 }
 
-func (s *writerSink) Put(r recording.Record) error {
+func (s *serialSink) Put(r recording.Record) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.t++
-	r.SetTime(s.t)
-	return s.w.Put(r)
+	return s.sink.Put(r)
 }
-func (*writerSink) Close() error { return nil }
+func (s *serialSink) Close() error { return nil }
 
 // Two viewers drive the blog cast (#467) in two headless Chromes: the real
-// viewer page, served by Server with a controller, its ctl records through
-// one writer into the stream the viewers watch. Viewer A (mouse) asks, is
-// granted, clicks a link and types; B (touch, an iPad's input) asks, the
-// grant moves to B, and B's tap is a click; a revoke takes B's layer away;
-// A asks again and gives control back with the button.
+// viewer page, served by Server with a MemController over the fake
+// injector (the rules production runs, over the fixture's page), its ctl
+// records and the injector's into the stream the viewers watch. Viewer A
+// (mouse, desktop width) asks, is granted, clicks a link and types; B
+// (touch at an iPad's portrait size) asks, the grant moves to B, and B's tap
+// is a click; a revoke takes B's layer away; A asks again and gives control
+// back with the button.
 //
 //	WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run DriveLive -v
 func TestDriveLiveTwoViewers(t *testing.T) {
 	a, b := headlessPage(t), headlessPage(t)
-	for _, p := range []*chromePage{a, b} {
-		p.call(t, p.session, "Emulation.setDeviceMetricsOverride", map[string]any{"width": 1024, "height": 700, "deviceScaleFactor": 1, "mobile": false}, nil)
-	}
+	a.call(t, a.session, "Emulation.setDeviceMetricsOverride", map[string]any{"width": 1280, "height": 800, "deviceScaleFactor": 1, "mobile": false}, nil)
+	b.call(t, b.session, "Emulation.setDeviceMetricsOverride", map[string]any{"width": 768, "height": 1024, "deviceScaleFactor": 2, "mobile": true}, nil)
 	b.call(t, b.session, "Emulation.setTouchEmulationEnabled", map[string]any{"enabled": true, "maxTouchPoints": 5}, nil)
 
 	rec, err := recording.ReadDir(recording.Fixture("rec-blog"))
@@ -85,16 +85,22 @@ func TestDriveLiveTwoViewers(t *testing.T) {
 	store, rec := throughStore(t, rec)
 	const at = 8284 // as TestLiveViewerPage: the scroll is still, layout known
 	hub, mem := recording.NewHub(4096), &recording.MemSink{}
-	w := board.NewWriter(recording.Tee(mem, hub), nil)
+	stream := &serialSink{sink: recording.Tee(mem, hub)}
+	var page []recording.Record
 	for _, r := range rec.Records {
 		if r.Time() <= at {
-			if err := w.Put(r); err != nil {
+			page = append(page, r)
+			if err := stream.Put(r); err != nil {
 				t.Fatal(err)
 			}
 		}
 	}
-	spy := &spyInjector{}
-	ctrl := drive.NewMemController(&writerSink{w: w, t: at}, spy, func() int64 { return 0 }, time.Minute)
+	inj, err := drive.NewFakeInjector(page, stream)
+	if err != nil {
+		t.Fatal(err)
+	}
+	spy := &spyInjector{next: inj}
+	ctrl := drive.NewMemController(&serialSink{sink: recording.Tee(stream, inj)}, spy, func() int64 { return inj.Page().T + 1 }, time.Minute)
 	t.Cleanup(func() { ctrl.Close() })
 	viewer := NewServer("tok", NewFakeBrowser(), time.Second, hub, nil).WithDrive(ctrl)
 	viewer.Assets().Bind(store)
@@ -159,6 +165,15 @@ func TestDriveLiveTwoViewers(t *testing.T) {
 	}
 	if text.A != drive.ActText || text.V != "invoice" || enter.A != drive.ActKey || enter.Key != "Enter" || enter.Type != drive.KeyDown {
 		t.Errorf("A's typing: %+v %+v", text, enter)
+	}
+	clicked := false
+	for _, r := range mem.Records() {
+		if c, ok := r.(*recording.Click); ok && c.By == ana && c.ID == target {
+			clicked = true
+		}
+	}
+	if !clicked {
+		t.Error("A's click isn't in the stream, attributed: the injector's rules refused it")
 	}
 	if b.evalString(t, layerOn) != "off" {
 		t.Error("B's layer takes input while A drives")

@@ -1,7 +1,7 @@
 // Remote driving in the web cast viewer (#467): the pure helpers.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { batcher, gestures, keyAct, driveView, joinSeat, seatPoster, FLUSH_MS, MAX_ACTS, MAX_TEXT, DRAG_PX, HOVER_MS, SEAT_HEADER } from '../../cmd/internal/webcast/web/drive.js';
+import { batcher, gestures, keyAct, keyTracker, driveView, joinSeat, seatPoster, wireAct, splitText, FLUSH_MS, MAX_ACTS, MAX_TEXT, MAX_BODY, MAX_COORD, PACE_MS, DRAG_PX, HOVER_MS, SEAT_HEADER } from '../../cmd/internal/webcast/web/drive.js';
 
 // A seeded random source, so a failing sequence can be replayed.
 function rng(seed) {
@@ -29,12 +29,22 @@ function fakeServer(rand, refuseRate) {
   };
 }
 
-// The timers a batcher uses, run by hand.
+// The timers and clock a batcher uses, run by hand: fire advances time to
+// the timers due and runs them.
 function clock() {
   const timers = [];
+  let t = 1000;
   return {
-    later: (fn, ms) => { timers.push({ fn, ms }); return timers.length; },
-    fire() { const ts = timers.splice(0); for (const t of ts) t.fn(); return ts.length; },
+    later: (fn, ms) => { timers.push({ fn, at: t + ms }); return timers.length; },
+    now: () => t,
+    advance(ms) { t += ms; },
+    fire() {
+      if (!timers.length) return 0;
+      t = Math.max(t, ...timers.map((x) => x.at));
+      const ts = timers.splice(0);
+      for (const x of ts) x.fn();
+      return ts.length;
+    },
   };
 }
 
@@ -47,7 +57,7 @@ test('batcher, property: order kept, one request in flight, moves coalesce, a re
     const c = clock();
     const refusals = [];
     let n = 0;
-    const b = batcher({ send: (x) => server.send(x), seg: () => 7, later: c.later, refused: (s, t) => refusals.push([s, t]) });
+    const b = batcher({ send: (x) => server.send(x), seg: () => 7, later: c.later, now: c.now, refused: (s, t) => refusals.push([s, t]) });
     const pushed = [];
     for (let i = 0; i < 60; i++) {
       const r = rand();
@@ -90,25 +100,69 @@ test('batcher, property: order kept, one request in flight, moves coalesce, a re
   }
 });
 
+test('batcher, property: every request is one the wire takes — body under MAX_BODY, coordinates in range, paced', async () => {
+  const enc = new TextEncoder();
+  for (let seed = 1; seed <= 100; seed++) {
+    const rand = rng(seed);
+    const c = clock();
+    const sent = [];
+    const b = batcher({ send: (x) => { sent.push({ x, at: c.now() }); return Promise.resolve({ status: 204 }); }, seg: () => 3, later: c.later, now: c.now, refused: () => assert.fail('refused') });
+    for (let i = 0; i < 80; i++) {
+      const r = rand();
+      const coord = () => (rand() - 0.3) * 4000; // some off the frame's left or top
+      if (r < 0.3) b.push({ a: 'text', v: (rand() < 0.5 ? 'é"\\\n' : 'あ').repeat(Math.floor(rand() * 3000)) || 'x' });
+      else if (r < 0.6) b.push({ a: 'click', id: 2, x: coord(), y: coord() });
+      else b.push({ a: 'move', button: 'left', x: coord(), y: coord() });
+      if (rand() < 0.5) c.advance(Math.floor(rand() * 30));
+      await tick();
+    }
+    for (let guard = 0; guard < 2000 && b.pending(); guard++) { c.fire(); await tick(); }
+    assert.equal(b.pending(), 0, `seed ${seed}: stuck`);
+    for (let i = 0; i < sent.length; i++) {
+      const body = JSON.stringify(sent[i].x);
+      assert.ok(enc.encode(body).length <= MAX_BODY, `seed ${seed}: a ${enc.encode(body).length}-byte body`);
+      for (const a of sent[i].x.acts) {
+        for (const k of ['x', 'y']) if (k in a) assert.ok(a[k] >= 0 && a[k] <= MAX_COORD, `seed ${seed}: ${k}=${a[k]}`);
+        if (a.a === 'text') assert.ok([...a.v].length <= MAX_TEXT);
+      }
+      if (i > 0) assert.ok(sent[i].at - sent[i - 1].at >= PACE_MS, `seed ${seed}: requests ${sent[i].at - sent[i - 1].at} ms apart`);
+    }
+  }
+});
+
+test('splitText and wireAct', () => {
+  assert.deepEqual(splitText('abc'), ['abc']);
+  const big = 'あ'.repeat(1500);
+  const parts = splitText(big);
+  assert.equal(parts.join(''), big);
+  assert.ok(parts.every((p) => new TextEncoder().encode(JSON.stringify(p)).length <= 2048 + 2));
+  assert.ok(splitText('😀'.repeat(MAX_TEXT + 1)).every((p) => !p.includes('\uFFFD')));
+  assert.deepEqual(wireAct({ a: 'move', x: -40, y: MAX_COORD * 2 }), { a: 'move', x: 0, y: MAX_COORD });
+  assert.deepEqual(wireAct({ a: 'text', v: 'x' }), { a: 'text', v: 'x' });
+});
+
 test('batcher: moves wait FLUSH_MS, a click goes at once; wheels on one element add up; long text splits', async () => {
   const sent = [];
   const c = clock();
-  const b = batcher({ send: (x) => { sent.push(x); return Promise.resolve({ status: 204 }); }, seg: () => 1, later: c.later, refused: () => {} });
+  const b = batcher({ send: (x) => { sent.push(x); return Promise.resolve({ status: 204 }); }, seg: () => 1, later: c.later, now: c.now, refused: () => {} });
+  c.advance(PACE_MS);
   b.push({ a: 'move', x: 1, y: 1 });
   b.push({ a: 'move', x: 2, y: 2 });
   assert.equal(sent.length, 0);
   assert.equal(c.fire(), 1);
   assert.deepEqual(sent[0].acts, [{ a: 'move', x: 2, y: 2 }]);
   await tick();
+  c.advance(PACE_MS);
   b.push({ a: 'wheel', id: 4, x: 1, y: 1, dx: 0, dy: 5 });
   b.push({ a: 'wheel', id: 4, x: 1, y: 1, dx: 1, dy: 5 });
   b.push({ a: 'click', id: 2, x: 0, y: 0 });
   assert.deepEqual(sent[1].acts, [{ a: 'wheel', id: 4, x: 1, y: 1, dx: 1, dy: 10 }, { a: 'click', id: 2, x: 0, y: 0 }]);
   await tick();
+  c.advance(PACE_MS);
   b.push({ a: 'text', v: 'é'.repeat(MAX_TEXT + 3) });
-  await tick(); await tick();
-  const texts = sent.slice(2).flatMap((x) => x.acts).map((a) => [...a.v].length);
-  assert.deepEqual(texts, [MAX_TEXT, 3]);
+  for (let i = 0; i < 5; i++) { c.fire(); await tick(); }
+  const texts = sent.slice(2).flatMap((x) => x.acts).map((a) => a.v).join('');
+  assert.equal(texts, 'é'.repeat(MAX_TEXT + 3));
   assert.equal(FLUSH_MS, 50);
 });
 
@@ -117,13 +171,14 @@ test('batcher: a refusal drops the queue and reports the sentence; a failed fetc
   const refused = [];
   let answer = { status: 401, text: 'Join the cast again.' };
   const sent = [];
-  const b = batcher({ send: (x) => { sent.push(x); return answer instanceof Error ? Promise.reject(answer) : Promise.resolve(answer); }, seg: () => 1, later: c.later, refused: (s, t) => refused.push([s, t]) });
+  const b = batcher({ send: (x) => { sent.push(x); return answer instanceof Error ? Promise.reject(answer) : Promise.resolve(answer); }, seg: () => 1, later: c.later, now: c.now, refused: (s, t) => refused.push([s, t]) });
   b.push({ a: 'click', id: 1, x: 0, y: 0 });
   b.push({ a: 'text', v: 'queued behind' });
   await tick(); await tick();
   assert.deepEqual(refused, [[401, 'Join the cast again.']]);
   assert.equal(b.pending(), 0);
   answer = new Error('offline');
+  c.advance(PACE_MS);
   b.push({ a: 'text', v: 'x' });
   await tick(); await tick();
   assert.deepEqual(refused[1], [0, "Couldn't reach the cast."]);
@@ -140,7 +195,7 @@ const deps = (out) => ({
   nodeAt: (x, y) => (x < 10 && y < 10 ? 0 : 9),
   emit: (a) => out.push(a),
 });
-const ev = (o) => ({ pointerId: 1, pointerType: 'mouse', button: 0, detail: 1, timeStamp: 0, clientX: 0, clientY: 0, ...o });
+const ev = (o) => ({ pointerId: 1, pointerType: 'mouse', button: 0, buttons: 0, detail: 1, timeStamp: 0, clientX: 0, clientY: 0, ...o });
 
 test('gestures: a mouse click, a double click, a drag, a press on nothing', () => {
   const out = [];
@@ -163,6 +218,7 @@ test('gestures: a mouse click, a double click, a drag, a press on nothing', () =
   assert.deepEqual(out.at(-1), { a: 'up', button: 'left', x: 160, y: 120 });
   out.length = 0;
   g.down(ev({ clientX: 1, clientY: 1 })); // nothing there
+  g.move(ev({ clientX: 30, clientY: 30, buttons: 1, timeStamp: 500 })); // held: no hover
   g.up(ev({ clientX: 1, clientY: 1 }));
   g.down(ev({ clientX: 50, clientY: 60, button: 2 })); // right button: nothing
   g.up(ev({ clientX: 50, clientY: 60, button: 2 }));
@@ -211,6 +267,34 @@ test('gestures, touch traces: a tap, a one-finger drag, two fingers scroll, a ca
   // Malformed: an up and a move for a finger never down.
   g.up(t(5, 1, 1)); g.move(t(6, 50, 50));
   assert.deepEqual(out, []);
+});
+
+test('gestures: a drag captured past the frame\'s edge ends with an up the wire takes', async () => {
+  const out = [];
+  const g = gestures(deps(out));
+  g.down(ev({ clientX: 50, clientY: 50 }));
+  g.move(ev({ clientX: -50, clientY: 50, buttons: 1 }));
+  g.up(ev({ clientX: -60, clientY: 50 }));
+  assert.deepEqual(out.map((a) => a.a), ['down', 'move', 'up']);
+  const sent = [];
+  const c = clock();
+  const b = batcher({ send: (x) => { sent.push(x); return Promise.resolve({ status: 204 }); }, seg: () => 1, later: c.later, now: c.now, refused: () => assert.fail() });
+  for (const a of out) b.push(a);
+  for (let i = 0; i < 10; i++) { c.fire(); await tick(); }
+  assert.deepEqual(sent.flatMap((x) => x.acts).filter((a) => a.a === 'up'), [{ a: 'up', button: 'left', x: 0, y: 100 }]);
+});
+
+test('keyTracker: every key sent down is sent up, also after its modifier is released', () => {
+  const k = (o) => ({ key: 'a', code: 'KeyA', ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, isComposing: false, ...o });
+  const tr = keyTracker();
+  assert.deepEqual(tr.down(k({ metaKey: true })), { a: 'key', type: 'down', key: 'a', code: 'KeyA', mods: ['meta'] });
+  assert.deepEqual(tr.up(k({})), { a: 'key', type: 'up', key: 'a', code: 'KeyA' }, 'Meta released first');
+  assert.equal(tr.up(k({})), null, 'one up per down');
+  assert.equal(tr.down(k({})), null, 'typing');
+  assert.equal(tr.up(k({})), null);
+  tr.down(k({ key: 'Enter', code: 'Enter' }));
+  tr.clear();
+  assert.equal(tr.up(k({ key: 'Enter', code: 'Enter' })), null);
 });
 
 test('gestures: a wheel over the frame is in page px', () => {

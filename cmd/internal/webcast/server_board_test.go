@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -235,7 +236,23 @@ func TestViewerImportsAreServed(t *testing.T) {
 			}
 		}
 	}
-	if !seen["annotate.js"] || !seen["collab.js"] || !seen["replay.js"] {
+	if !seen["annotate.js"] || !seen["collab.js"] || !seen["replay.js"] || !seen["drive.js"] {
 		t.Errorf("the walk missed modules: %v", seen)
+	}
+	// And every stylesheet the page links (#467's drive.css).
+	page := httptest.NewRecorder()
+	serveViewerFile(page, httptest.NewRequest("GET", "/", nil), "")
+	links := regexp.MustCompile(`<link rel="stylesheet" href="([A-Za-z0-9_-]+\.css)">`).FindAllStringSubmatch(page.Body.String(), -1)
+	var sheets []string
+	for _, m := range links {
+		sheets = append(sheets, m[1])
+		rec := httptest.NewRecorder()
+		serveViewerFile(rec, httptest.NewRequest("GET", "/"+m[1], nil), m[1])
+		if rec.Code != 200 || !strings.HasPrefix(rec.Header().Get("Content-Type"), "text/css") {
+			t.Errorf("%s: %d %s", m[1], rec.Code, rec.Header().Get("Content-Type"))
+		}
+	}
+	if !slices.Contains(sheets, "drive.css") || !slices.Contains(sheets, "annotate.css") {
+		t.Errorf("the page's stylesheets: %v", sheets)
 	}
 }

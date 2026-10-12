@@ -396,3 +396,27 @@ over the recording Chrome, grace 1 s); `recording/testdata/fixtures/driven/` (re
     well.
   - The plan's "revoke between hold and take" recorder test is structurally impossible: both are inside one
     queue input. `TestWithTabSeesARevokeQueuedFirst` covers the ordering that exists.
+- 2026-10-12, M2 as built and the M2 review round 1. Rule (review family `plan-drift-unrecorded`, second time): a
+  Task's named files, fixtures and doubles are contract, and any deviation gets a line here in the milestone's
+  closing commit.
+  - **Button labels.** The button reads "Cancel request" while asking, not "Waiting… (cancel)", and the bar note says
+    "Waiting for the operator…".
+  - **Lost seat.** A 401 offers Rejoin, which reloads the page: the stream holds the seat, so a new seat needs a new
+    stream.
+  - **Live test (BR-9).** `TestDriveLiveTwoViewers` runs MemController over the fake injector (the production rules
+    over the fixture's page) through a spy that only notes the batches. It asserts the driver's click lands in the
+    stream with `by`. A is at desktop width (1280×800); B is touch at an iPad's portrait size (768×1024, DPR 2).
+  - **The wire gate (BR-7, BR-8, and the pacing Minor).** One gate decides what a viewer may send: `batcher`,
+    through `wireAct` and `splitText`:
+    - coordinates are clamped to [0, 2^20], so a drag captured past the frame's edge still ends with an up;
+    - a text act is cut to ≤ 1000 runes and ≤ 2 KiB encoded;
+    - a body stays ≤ 8 KiB;
+    - requests are spaced 40 ms apart (25/s, under the seat's 30/s).
+
+    A seeded property test checks every sent body against those rules.
+  - **Minors.**
+    - Key ups are paired (`keyTracker`: an up for every down, also after its modifier is released).
+    - There's no hover while a button is held.
+    - The toast and the request options come from collab.js (`sayer`, `poster`'s headers).
+    - The page's stylesheets are walked by the served-files test.
+    - Rejoin stays shown until the page reloads.

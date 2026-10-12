@@ -55,16 +55,17 @@ export function safeStorage(storage) {
 }
 
 // poster makes a page's one request function: same origin, a relative
-// route from routes, no credentials, no referrer. It resolves to the status
-// and the response text (a refusal sentence the page shows).
-export function poster(fetchFn, routes) {
+// route from routes, no credentials, no referrer, plus any headers (a
+// remote-driving seat's key, #467). It resolves to the status and the
+// response text (a refusal sentence the page shows).
+export function poster(fetchFn, routes, headers = {}) {
   return (route, body) => {
     if (!routes.includes(route)) {
       return Promise.reject(new Error('unknown route'));
     }
     return fetchFn(route, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       credentials: 'omit',
       referrerPolicy: 'no-referrer',
@@ -225,5 +226,25 @@ export function noteDialog(els, deps) {
     get open() {
       return state !== null;
     },
+  };
+}
+
+// sayer is a page's one status toast: a sentence shown for a moment (a
+// refused request no dialog is open for). Every module of the page shares
+// the one element, so two never overlap.
+export function sayer(doc, win) {
+  let toast = doc.querySelector('.annotate-msg');
+  if (!toast) {
+    toast = doc.createElement('div');
+    toast.className = 'annotate-msg';
+    toast.setAttribute('role', 'status');
+    toast.hidden = true;
+    doc.body.append(toast);
+  }
+  return (text) => {
+    toast.textContent = text;
+    toast.hidden = false;
+    if (toast.couchTimer) win.clearTimeout(toast.couchTimer);
+    toast.couchTimer = win.setTimeout(() => { toast.hidden = true; }, 3000);
   };
 }
