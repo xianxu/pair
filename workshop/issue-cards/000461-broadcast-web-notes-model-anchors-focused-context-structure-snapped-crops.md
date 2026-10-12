@@ -1,6 +1,6 @@
 ---
 id: 000461
-status: codecomplete
+status: done
 created: 2026-10-11
 updated: 2026-10-12
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: e3ca1a7bfeb789cc14ca1c42c46f036325e9152b
         evidence_commit: 34064507881b807b519a2e7c88d628d8fbc88694
+        landed_commit: 70ae1b191a36a4075edd7dd7fa610b4b247d7754
 ---
 
 # broadcast-web: notes model — anchors, focused context, structure-snapped crops
