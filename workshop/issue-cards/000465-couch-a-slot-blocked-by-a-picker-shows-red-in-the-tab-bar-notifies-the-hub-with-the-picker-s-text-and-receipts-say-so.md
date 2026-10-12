@@ -1,6 +1,6 @@
 ---
 id: 000465
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours: 3.66
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: f37e7e65678c4bcde17ae39c1d729ba5ec8901ea
         evidence_commit: d8f3c67a7c29187821bbf73f7be13d9a8ec16e90
+        landed_commit: cf0e88e880dc0daef69ca4747c078521ac57aef7
 ---
 
 # couch: a slot blocked by a picker shows red in the tab bar, notifies the hub with the picker's text, and receipts say so
