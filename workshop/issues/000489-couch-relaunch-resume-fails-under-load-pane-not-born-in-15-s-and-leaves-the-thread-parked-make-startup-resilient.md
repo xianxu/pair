@@ -1,12 +1,20 @@
 ---
 id: 000489
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '86dcc3e03f89078bb7760f78c41cc52e093c810f' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '354ee80bc31c1d55eebfc232a943c774b8b46abf' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T10:28:10-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch: relaunch/resume fails under load (pane not born in 15 s) and leaves the thread parked; make startup resilient
@@ -32,8 +40,40 @@ Investigate, then fix at the root:
 
 ## Plan
 
-- [ ]
+Root cause: one fixed 15 s window (`pairRegistrationTimeout`) covers ALL of Pair's startup, including PAIR_DEV's
+`make build`. Both scale with load, and at load ~200 their sum (~20 s measured) passes 15 s. Fix (quick flow):
+
+- [ ] Registration waits on Pair, not a stopwatch: the wait ends at registration, at the helper's process group
+  exiting (a dead launch fails at once, named "Pair exited before registering"), or at a 2 min hang ceiling. The
+  existing post-ack cleanup stays the one failure path (kills the group, rolls back to parked): a clean state.
+  Late starts inside the ceiling are adopted by the same wait.
+- [ ] Couch-launched Pair skips `dev_rebuild`; relaunch's binary-freshness gate applies under PAIR_DEV too
+  (refuses the binary already running: "run make build in <checkout>"), so a sweep builds once, by hand.
+- [ ] CLI progress: `couch --resume/--relaunch` prints a "still running" line every 15 s while it polls.
+- [ ] Pacing: no load check (load average misreads, see memory); each CLI call waits for its launch, so a sequential
+  sweep paces itself by real launch time.
+- [ ] Tests: late registration past the old window succeeds (injected delay); helper exits before registering →
+  fast, named failure + clean rollback; DevRebuild skipped for Couch-launched Pair; freshness under PAIR_DEV; CLI
+  progress line.
 
 ## Log
 
 ### 2026-10-12
+- **08:3x measured (ops:0 transcript, pair:0 resume 08:40):** `claim 4.0s, checkout 61ms, prepare 1.4s, spawn 81ms,
+  record+baseline 2.0s, ack 0s, registration 15.0s`, pane never born, no session live. Couch's own steps before the
+  window took ~7.5 s (not in the budget); the remote job's prepare (inventory) took 9–16 s, also outside it.
+- **zellij log 08:32–08:38:** only three new servers started (08:32:26 pair:2 OK, 08:36:53, 08:37:52); the other
+  failed relaunches never reached zellij: Couch's deadline ended Pair while it was still before its zellij launch
+  (dev_rebuild + startup).
+- **Synthetic run (one, 90 s, 200 self-bounded spinners; TL then forbade real load — injected delay from here):**
+  no-op `make build` 9.6 s (1.0 s at load ~12); `pair resume` → pane birth (probes/zellijbirthrace, no rebuild)
+  9.3–11.1 s (0.9–1.1 s at load ~12). Sum ≈ 20 s > 15 s: the budget, not a launch bug. All three trials were born.
+- 10:27, load ~10: TL's `couch --resume` of the same five slots all succeeded (corroborates).
+- Residual risk noted, not changed: Pair's own birth watch probes zellij at 10 s and aborts only on proof of death
+  (session not listed); birth at 11.1 s still passed in the loaded run.
+
+## Revisions
+
+- 2026-10-12 10:35 (TL, ops:0): no real machine load (the one 200-spinner run froze the operator's Couch for a
+  minute). The Done-when's "synthetic load matching ~200" line is satisfied by an injected-delay test plus the 10:27
+  evidence (all five resumes succeeded at load ~10).
