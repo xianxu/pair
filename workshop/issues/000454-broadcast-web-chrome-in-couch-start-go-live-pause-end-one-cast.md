@@ -82,6 +82,7 @@ Durable plan: `workshop/plans/000454-broadcast-web-chrome-in-couch-start-go-live
 ## Log
 
 ### 2026-10-11
+- 2026-10-11: closed — Operator smoke test in Couch at d6e06046 passed all steps (relayed by TL ops:0): Shift+Ctrl+Alt+B opens Chrome and toggles live/pause; right-click copies link, viewer follows navigation and tab switches incl. new tabs; pause hides URL; in-page Go live resumes; Ctrl+click ends; hand-quit clears the cell. make -k test exit 0; live Chrome suite (headless) 3/3; M1 and M2 closed SHIP.; review verdict: SHIP
 - 2026-10-11: closed M2 — broadcast + webcast -race green; Host tests -count=3 green; BR-16 regression (late-cancel tunnel) mutation-checked; BR-14 fixes kept; make -k test exit 0 at f2a41a3b+guards; review verdict: SHIP
 - 2026-10-11: closed M1 — go test -race -count=10 webcast + -count=5 cdp green; mutation-checked WaitDelay/ErrProtocol class/drain (all caught); WEBCAST_LIVE_CHROME=1 live suite green unsandboxed (headless Chrome 154); review verdict: SHIP
 

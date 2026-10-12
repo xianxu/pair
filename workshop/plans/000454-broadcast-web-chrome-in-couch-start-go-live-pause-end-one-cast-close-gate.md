@@ -255,6 +255,27 @@ rounds:
       isolation: checkout
       reviewed: c0bccd94e72b8c68bc77a9895326ee77ac9772e4
       blocked: false
+    - "n": 8
+      timestamp: "2026-10-11T23:18:41-07:00"
+      dispatched: "2026-10-11T23:11:08-07:00"
+      agent: claude
+      dispose:
+        - id: BR-7
+          disposition: not-addressed
+          note: 'Tie-break still untested: replacing it with false at tracker.go:124-125 leaves go test -count=20 ./cmd/internal/webcast green.'
+          round: 8
+        - id: BR-17
+          disposition: not-addressed
+          note: host_test.go:260-266 still sets h.waiting and calls abandonWait directly; no code change since round 7.
+          round: 8
+        - id: BR-18
+          disposition: not-addressed
+          note: failingTunnel (host_test.go:123) and lateCancelTunnel (:294) are still test-local; FakeTunnel has only OpenDelay.
+          round: 8
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: d6e06046ceb2d3ee2dd5e56d3fb5717105728e14
+      blocked: false
 ---
 
 # Gate ledger — pair#454 (boundary-review)
@@ -358,6 +379,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - **BR-18** [Minor] `fake-fidelity` Late-cancel and failing-open tunnel behaviours are test-local wrappers, not settings on the shared FakeTunnel
   lateCancelTunnel (host_test.go:294) and failingTunnel (:123) model cloudflared behaviour BR-16 depends on, but only in broadcast tests; webcast/couch tests on FakeTunnel cannot exercise it. Rule: every dependency behaviour a test relies on is a FakeTunnel setting (CancelDelay, FailOpens), covered by the live conformance check.
+
+## Round 8 — 2026-10-11T23:18:41-07:00 (claude) — passed
+
+### Disposed
+
+- BR-7 — not-addressed — Tie-break still untested: replacing it with false at tracker.go:124-125 leaves go test -count=20 ./cmd/internal/webcast green.
+- BR-17 — not-addressed — host_test.go:260-266 still sets h.waiting and calls abandonWait directly; no code change since round 7.
+- BR-18 — not-addressed — failingTunnel (host_test.go:123) and lateCancelTunnel (:294) are still test-local; FakeTunnel has only OpenDelay.
 
 ## Open findings
 
