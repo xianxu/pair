@@ -1026,8 +1026,11 @@ func (r *Recorder) binding(at time.Time, e Event) {
 }
 
 // frameOffset maps a frame's viewport origin into top-page coordinates: its
-// owner iframe's content box in the parent frame's viewport, plus that
-// frame's offset, up to the top.
+// owner iframe's content box, plus the offset of the viewport that box is in,
+// up to the top. DOM.getBoxModel gives a box in its session's local root
+// viewport (the session's main frame) however deeply the owner is nested in
+// in-process frames, so an in-process frame adds its session's main-frame
+// offset, and an out-of-process frame's goes through its parent session.
 func (r *Recorder) frameOffset(session, frameID string, depth int) ([2]float64, bool) {
 	if depth > 8 {
 		return [2]float64{}, false

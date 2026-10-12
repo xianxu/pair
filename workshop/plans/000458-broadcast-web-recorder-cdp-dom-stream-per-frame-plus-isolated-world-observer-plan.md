@@ -192,3 +192,10 @@ cases, each with a sequence test that injects the interleaving through the fake 
 - 2026-10-12 — plan-quality round 1: the seam stated and wired (PQ-1); `FrameWriter` lives in package recorder (PQ-2);
   ordering by CDP message sequence (PQ-3); adversarial tests per risky function (PQ-4); latency budget and side
   workers (PQ-5); id-map bound (PQ-6); type-flip leak accepted (PQ-7). TL: `Source` embedded later in hover/ptr.
+- 2026-10-12 — M2 as built (boundary review BR-18): `CastConfig.Launch` is `func(ctx, *RecordOptions)`, carrying
+  `recorder.Output`, which returns `Opened{Sink, Frames, Assets}` (the store comes with the recording, since #459's
+  persists through its DirWriter): `CastConfig.NewAssets func(AssetWriter) Store`, not `CastConfig.Assets`. The
+  viewers' hub is `CastConfig.NewLive` (per cast). A cast tab that vanishes while live is neither paused nor
+  ended at once: the next page becomes the cast tab (`seg tab`), or Chrome ends (`stop end`). Snapshots go through a
+  per-session dirty set, so a resync, a document update and a desync after one input cost one snapshot. Problems
+  reach the console notice (`CastConfig.Logf`); per-item losses are counted in `Stats` and summarized at the end.
