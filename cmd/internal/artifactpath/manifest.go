@@ -779,10 +779,22 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/drive/controller.go",
 	"cmd/internal/webcast/drive/controller_contract.go",
 	"cmd/internal/webcast/drive/doc.go",
-	"cmd/internal/webcast/drive/fake_controller.go",
+	"cmd/internal/webcast/drive/controller_mem.go",
 	"cmd/internal/webcast/drive/fake_injector.go",
 	"cmd/internal/webcast/drive/injector.go",
 	"cmd/internal/webcast/drive/policy.go",
+	"cmd/internal/webcast/drive/tab.go",
+	// #467 remote driving built: the drive routes, the cast's controller
+	// and Chrome's guards, the recorder's injection, Couch's drive span and
+	// menu. Seats and control are memory only; what driving causes goes
+	// into the recording through the recorder's one writer. No paths.
+	"cmd/internal/couchtty/console_drive.go",
+	"cmd/internal/webcast/cast_drive.go",
+	"cmd/internal/webcast/chrome_drive.go",
+	"cmd/internal/webcast/fake_drive.go",
+	"cmd/internal/webcast/server_drive.go",
+	"cmd/internal/webcast/recorder/drive.go",
+	"cmd/internal/webcast/recorder/drive_cdp.go",
 	"cmd/internal/ptychild/publication.go",
 	"cmd/internal/ptychild/terminal.go",
 	"cmd/internal/runtimebundle/terminal.go",
