@@ -58,11 +58,12 @@ total: 2.09
 Durable plan: `workshop/plans/000477-broadcast-web-replay-inside-a-running-couch-for-remote-viewers-mount-replayserver-on-the-shared-host-plan.md`.
 
 - [x] M1 — replay shares (one token per recording) on the shared Host; broker op `replay-share`; `couch --broadcast-web-replay ID` prints the public link while Couch runs (loopback fallback, `--local`); `--broadcast-web-query DIR link`; length-unknown advisory; atlas + skill
-- [ ] M2 — after #470 lands: merge main; replay draws notes and strokes with #470's modules; live check
+- [x] M2 — after #470 lands: merge main; replay draws notes and strokes with #470's modules; live check
 
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed M2 — review round fixes: card placed on tap + resize redraw (each mutation-checked: removing either fails TestLiveReplayServerMarks); atlas webcast-format/webcast updated; all TestLiveReplay* pass; make -k test exit 0 before these JS/test/doc-only changes; node 88/88; review verdict: SHIP
 - 2026-10-12: closed M1 — round 2 fixes 7f856ae6: docs swept (README synopsis+prose, couch --help, atlas broadcast.md/webcast.md/webcast-format.md, SKILL); notice Local-aware with TestReplayShareReadyIsANotice; touched packages green unsandboxed; live Chrome share test passes; review verdict: SHIP
 
 - M1 built. `webcast.ReplayShares` mounts one `NewRecordingServer` per recording on the shared Host. The broker ops

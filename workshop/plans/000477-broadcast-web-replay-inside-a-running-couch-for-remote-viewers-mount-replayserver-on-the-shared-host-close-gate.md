@@ -138,6 +138,62 @@ rounds:
       isolation: fenced
       reviewed: 7f856ae6f6e73f1c6c8e0478d2be8d3420566801
       blocked: false
+    - "n": 4
+      timestamp: "2026-10-12T06:53:53-07:00"
+      dispatched: "2026-10-12T06:51:30-07:00"
+      agent: claude
+      findings:
+        - id: BR-12
+          severity: Important
+          title: Replay note card is positioned only on a frame; a tap while paused shows it at the box's top-left or at the previous pin
+          detail: 'replay.js:446-461 sets card text and visibility in the pinLayer tap handler, but left/top are set only inside draw(player), which runs from deps.frame(). replaySource.draw schedules frames only while playing, after a seek, or on a bar change, so on a paused replay (how a t= link opens) the card stays unplaced until the next frame. Fix: call a placeCard helper from the tap handler too, or request a frame. Make the live test assert the card sits next to the tapped pin.'
+          family: ui-event-without-redraw
+          round: 4
+        - id: BR-13
+          severity: Important
+          title: atlas/webcast-format.md:417 still describes the drawMarks path M2 removed
+          detail: 'This is the 3rd finding in the family. Rule: when a milestone removes or renames a symbol, or completes work the atlas describes as today or to replace, search atlas/ and README.md for the old symbol names and the issue number, and rewrite every hit in the same commit (for M2: drawMarks, STROKE_FADE, replay-layer, replay-strokes, and 477 converges). The passage should also note that note placement now follows noteBox (region first).'
+          family: atlas-surface-not-updated
+          round: 4
+        - id: BR-14
+          severity: Minor
+          title: Window resize while paused leaves replay strokes stretched and pins misplaced until the next frame
+          detail: The resize handler runs layout() and drawPointer() but not the marks. The old SVG layer had the same gap.
+          family: ui-event-without-redraw
+          round: 4
+      boundary: M2
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
+    - "n": 5
+      timestamp: "2026-10-12T07:00:57-07:00"
+      dispatched: "2026-10-12T06:58:39-07:00"
+      agent: claude
+      dispose:
+        - id: BR-12
+          disposition: addressed
+          note: 'replay.js:455-461 now calls placeCard from the pinLayer tap handler; replay_live_test.go measures the card in the same step as the click (dx 0, dy 4), which fails if left/top are unset. Read, not run: Chrome could not start here.'
+          round: 5
+        - id: BR-13
+          disposition: addressed
+          note: atlas/webcast-format.md:417 rewritten (replayMarks, noteBox region first); atlas/webcast.md:239 updated. A grep of atlas, README and cmd finds no drawMarks, STROKE_FADE, replay-layer, replay-strokes, PIN_ROOM or "converges".
+          round: 5
+        - id: BR-14
+          disposition: addressed
+          note: replay.js:500 redraws the marks on the frame after a resize; the live test checks the canvas size against the box after exactly two frames, with the replay paused.
+          round: 5
+      findings:
+        - id: BR-15
+          severity: Minor
+          title: replayMarks reads devicePixelRatio once, at mount, so the stroke canvas goes stale after a zoom or a move to another display
+          detail: 'replay.js:482 passes win.devicePixelRatio as a fixed value; the live viewer reads it on every draw (annotate.js:484). Fix: pass a getter, or read it inside draw.'
+          family: captured-environment-value
+          round: 5
+      boundary: M2
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 70309982bc57dc87c258ea217dc5d032f6e027b6
+      blocked: false
 ---
 
 # Gate ledger — pair#477 (boundary-review)
@@ -192,6 +248,30 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-10 — addressed — TestReplayShareReadyIsANotice (console_webcast_test.go:299) goes red when setNotice is removed; verified by revert in the review checkout.
 - BR-11 — addressed — console_webcast.go:258-262 branches on ShareStatus.Local passed via OnReady; the LocalOnly test case goes red when the branch is disabled.
 
+## Round 4 — 2026-10-12T06:53:53-07:00 (claude) — BLOCKED
+
+### Raised
+
+- **BR-12** [Important] `ui-event-without-redraw` Replay note card is positioned only on a frame; a tap while paused shows it at the box's top-left or at the previous pin
+  replay.js:446-461 sets card text and visibility in the pinLayer tap handler, but left/top are set only inside draw(player), which runs from deps.frame(). replaySource.draw schedules frames only while playing, after a seek, or on a bar change, so on a paused replay (how a t= link opens) the card stays unplaced until the next frame. Fix: call a placeCard helper from the tap handler too, or request a frame. Make the live test assert the card sits next to the tapped pin.
+- **BR-13** [Important] `atlas-surface-not-updated` atlas/webcast-format.md:417 still describes the drawMarks path M2 removed
+  This is the 3rd finding in the family. Rule: when a milestone removes or renames a symbol, or completes work the atlas describes as today or to replace, search atlas/ and README.md for the old symbol names and the issue number, and rewrite every hit in the same commit (for M2: drawMarks, STROKE_FADE, replay-layer, replay-strokes, and 477 converges). The passage should also note that note placement now follows noteBox (region first).
+- **BR-14** [Minor] `ui-event-without-redraw` Window resize while paused leaves replay strokes stretched and pins misplaced until the next frame
+  The resize handler runs layout() and drawPointer() but not the marks. The old SVG layer had the same gap.
+
+## Round 5 — 2026-10-12T07:00:57-07:00 (claude) — passed
+
+### Disposed
+
+- BR-12 — addressed — replay.js:455-461 now calls placeCard from the pinLayer tap handler; replay_live_test.go measures the card in the same step as the click (dx 0, dy 4), which fails if left/top are unset. Read, not run: Chrome could not start here.
+- BR-13 — addressed — atlas/webcast-format.md:417 rewritten (replayMarks, noteBox region first); atlas/webcast.md:239 updated. A grep of atlas, README and cmd finds no drawMarks, STROKE_FADE, replay-layer, replay-strokes, PIN_ROOM or "converges".
+- BR-14 — addressed — replay.js:500 redraws the marks on the frame after a resize; the live test checks the canvas size against the box after exactly two frames, with the replay paused.
+
+### Raised
+
+- **BR-15** [Minor] `captured-environment-value` replayMarks reads devicePixelRatio once, at mount, so the stroke canvas goes stale after a zoom or a move to another display
+  replay.js:482 passes win.devicePixelRatio as a fixed value; the live viewer reads it on every draw (annotate.js:484). Fix: pass a getter, or read it inside draw.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-15** [Minor] `captured-environment-value` replayMarks reads devicePixelRatio once, at mount, so the stroke canvas goes stale after a zoom or a move to another display
