@@ -15,7 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "b4dd6b99", done: "4efa8f08"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # couch: the hub refuses messages while one is pending ('recipient has a pending message'); queue them instead
@@ -45,6 +45,8 @@ Durable plan: `workshop/plans/000492-…-plan.md` (Tasks 1-4, then verification)
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — Round 3: BR-5 fixed by rule (the worker never wakes itself; promote frees its own attempt plainly and schedules PromoteRetry), mutation-checked in TestPromotionHoldsWhileWrapperBusy (fails with the self-wake). BR-6: FakeDeliveryEndpoint.Reserve refuses ErrRecipientBusy like peerDelivery.reserve. Lazy-expiry minor fixed in Status with a test; deadline-red minor kept per lessons #479. couchcmd, wrapcmd, couchmessage green (couchmessage -race).; review verdict: SHIP
+- 2026-10-12: flow upgraded quick → full — 322 added lines in code files (limit 100); an earlier round of this close already ran the full review
 Why the limit exists: one paste at a time. `ActorState.pending` is the one delivery
 (model.go), `routing.go` refuses an exact target that is `Pending`, and the wrapper's
 `reserve` (wrapcmd/peer_delivery.go) admits one reservation and refuses when the operator's
