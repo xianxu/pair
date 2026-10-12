@@ -8,10 +8,15 @@ import (
 )
 
 // blockingEndpoint never answers Observe: a listing that probed it would hang
-// until its context ended.
-type blockingEndpoint struct{ *FakeDeliveryEndpoint }
+// until its context ended. observes counts the probes, so a test asserts none
+// ran instead of timing the listing (#480).
+type blockingEndpoint struct {
+	*FakeDeliveryEndpoint
+	observes *atomic.Int64
+}
 
-func (blockingEndpoint) Observe(ctx context.Context) (Observation, error) {
+func (e blockingEndpoint) Observe(ctx context.Context) (Observation, error) {
+	e.observes.Add(1)
 	<-ctx.Done()
 	return Observation{}, ctx.Err()
 }
@@ -21,7 +26,7 @@ func TestActorsReadsMemoryWithoutProbing(t *testing.T) {
 	var nanos atomic.Int64
 	nanos.Store(base.UnixNano())
 	now := func() time.Time { return time.Unix(0, nanos.Load()) }
-	restingProbes := atomic.Int64{}
+	restingProbes, observes := atomic.Int64{}, atomic.Int64{}
 	b := NewBroker(context.Background(), now, func(_ context.Context, v Binding) (bool, error) {
 		restingProbes.Add(1)
 		return v.Slot != "pair:2", nil
@@ -36,7 +41,7 @@ func TestActorsReadsMemoryWithoutProbing(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, v := range slots {
-		if err := b.Register(v, blockingEndpoint{newFakeEndpoint(base)}); err != nil {
+		if err := b.Register(v, blockingEndpoint{newFakeEndpoint(base), &observes}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -49,13 +54,12 @@ func TestActorsReadsMemoryWithoutProbing(t *testing.T) {
 	probesBefore := restingProbes.Load()
 	listing := func() map[string]Candidate {
 		t.Helper()
-		start := time.Now()
 		rows, err := b.Actors(context.Background(), from)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if elapsed := time.Since(start); elapsed > 100*time.Millisecond {
-			t.Fatalf("listing probed: took %v", elapsed)
+		if n := observes.Load(); n != 0 {
+			t.Fatalf("listing probed %d endpoints", n)
 		}
 		out := map[string]Candidate{}
 		for _, r := range rows {

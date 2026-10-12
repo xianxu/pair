@@ -45,10 +45,16 @@ func TestResumeRefusesAThreadThatNeverTookATurn(t *testing.T) {
 	t.Parallel()
 
 	env, parked := neverTurnedThread(t)
-	start := time.Now()
+	// "At once" is "before the registration wait", observed where the wait
+	// takes its budget rather than timed against it (#480).
+	waited := false
+	env.Couch.registrationDeadline = func(ctx context.Context, d time.Duration) (context.Context, context.CancelFunc) {
+		waited = true
+		return context.WithTimeout(ctx, d)
+	}
 	_, _, err := env.Couch.ResumeContext(context.Background(), parked.Address)
-	if took := time.Since(start); took > 200*time.Millisecond {
-		t.Fatalf("refusal took %s (the registration budget is 300ms): %v", took, err)
+	if waited {
+		t.Fatalf("the refusal waited on the registration budget: %v", err)
 	}
 	if ResumeDiagnosticOf(err) != ResumeBindingUnbound {
 		t.Fatalf("resume = %v, want the unbound refusal", err)

@@ -41,8 +41,12 @@ func TestFileBlockedWritePreservesConcurrentReadAndFlags(t *testing.T) {
 		err  error
 	}
 	read := make(chan result, 1)
+	started := time.Now() // before either goroutine can poll
 	go func() { buf := make([]byte, 16); n, e := transport.Read(buf); read <- result{string(buf[:n]), e} }()
-	ctx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
+	// Cancel once the write has made progress, not at a fixed deadline: a
+	// writer goroutine scheduled late would otherwise meet an expired context
+	// before writing a byte (#480).
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	written := make(chan error, 1)
 	go func() {
@@ -53,27 +57,25 @@ func TestFileBlockedWritePreservesConcurrentReadAndFlags(t *testing.T) {
 		}
 		written <- e
 	}()
+	// Nothing reads the slave, so bytes queued there are progress the 1 MiB
+	// write can never finish past.
+	for !readable(t, slave) {
+		time.Sleep(time.Millisecond)
+	}
 	if _, err = slave.Write([]byte("reader-alive")); err != nil {
 		t.Fatal(err)
 	}
-	select {
-	case got := <-read:
-		if got.err != nil || got.data != "reader-alive" {
-			t.Fatalf("%+v", got)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("reader starved by writer")
+	if got := <-read; got.err != nil || got.data != "reader-alive" {
+		t.Fatalf("%+v", got)
 	}
-	select {
-	case err = <-written:
-		if !errors.Is(err, context.DeadlineExceeded) {
-			t.Fatalf("write: %v", err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("write did not cancel")
+	cancel()
+	if err = <-written; !errors.Is(err, context.Canceled) {
+		t.Fatalf("write: %v", err)
 	}
-	if transport.PollWaits() > 100 {
-		t.Fatalf("busy poll: %d", transport.PollWaits())
+	// The reader and the writer each sleep a poll slice per wakeup, so the
+	// count scales with the time they were held, however long that was.
+	if limit := 2*uint64(time.Since(started)/pollSlice) + 4; transport.PollWaits() > limit {
+		t.Fatalf("busy poll: %d waits, at most %d expected", transport.PollWaits(), limit)
 	}
 	if err = transport.Close(); err != nil {
 		t.Fatal(err)
@@ -176,39 +178,52 @@ func patterned(n int) []byte {
 // support os.File read deadlines.
 type host struct{ f *File }
 
-// drainUntilQuiet reads the host side until it has been silent for quiet. It
-// reports with t.Error, so it is safe on a goroutine.
-func (h host) drainUntilQuiet(t *testing.T, quiet time.Duration) []byte {
-	var got []byte
+// drainExactly reads the host side until it holds want bytes, then checks
+// that nothing more is queued. The write under test has returned (or will
+// finish within want), so its every accepted byte is already in the kernel:
+// no quiet window has to guess when it ends. It reports with t.Error, so it is
+// safe on a goroutine.
+func (h host) drainExactly(t *testing.T, want int) []byte {
+	got := make([]byte, 0, want)
 	buf := make([]byte, 64<<10)
-	for {
-		ctx, cancel := context.WithTimeout(context.Background(), quiet)
-		n, err := h.f.ReadContext(ctx, buf)
-		cancel()
+	for len(got) < want {
+		n, err := h.f.ReadContext(context.Background(), buf[:min(len(buf), want-len(got))])
 		got = append(got, buf[:n]...)
 		if err != nil {
-			if !errors.Is(err, context.DeadlineExceeded) {
-				t.Error(err)
-			}
+			t.Error(err)
 			return got
 		}
 	}
+	if n, err := unix.Read(h.f.input, buf); n > 0 || !errors.Is(err, unix.EAGAIN) {
+		t.Errorf("host has %d more bytes queued past the %d written (%v)", max(n, 0), want, err)
+	}
+	return got
+}
+
+// readable reports whether bytes wait unread on f.
+func readable(t *testing.T, f *os.File) bool {
+	t.Helper()
+	fds := []unix.PollFd{{Fd: int32(f.Fd()), Events: unix.POLLIN}}
+	n, err := unix.Poll(fds, 0)
+	if err != nil && !errors.Is(err, unix.EINTR) {
+		t.Fatal(err)
+	}
+	return n > 0 && fds[0].Revents&unix.POLLIN != 0
 }
 
 // The caller's deadline is the only one: a host that stalls past two seconds
-// and resumes inside the caller's budget receives the whole write once.
+// and resumes receives the whole write once. The caller sets no deadline, so a
+// transport that imposed its own (#383) fails the write.
 func TestFileWriteSurvivesTransientHostStallWithinCallerDeadline(t *testing.T) {
 	master, out := stalledOutput(t)
 	payload := patterned(256 << 10)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 	drained := make(chan []byte, 1)
 	go func() {
 		time.Sleep(2500 * time.Millisecond)
-		drained <- master.drainUntilQuiet(t, 300*time.Millisecond)
+		drained <- master.drainExactly(t, len(payload))
 	}()
 	start := time.Now()
-	n, err := out.WriteContext(ctx, payload)
+	n, err := out.WriteContext(context.Background(), payload)
 	elapsed := time.Since(start)
 	got := <-drained
 	if err != nil || n != len(payload) {
@@ -223,7 +238,9 @@ func TestFileWriteSurvivesTransientHostStallWithinCallerDeadline(t *testing.T) {
 }
 
 // A stall that outlasts the caller's deadline fails at that deadline, not
-// earlier, and the accepted count is exactly what reached the host.
+// earlier, and the accepted count is exactly what reached the host. A write
+// that outlived its deadline would block on the stalled host until the test
+// binary's timeout.
 func TestFilePersistentStallFailsAtCallerDeadlineWithExactPrefix(t *testing.T) {
 	master, out := stalledOutput(t)
 	payload := patterned(256 << 10)
@@ -235,29 +252,45 @@ func TestFilePersistentStallFailsAtCallerDeadlineWithExactPrefix(t *testing.T) {
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("err = %v, want deadline", err)
 	}
-	if elapsed < 2900*time.Millisecond || elapsed > 4*time.Second {
-		t.Fatalf("failed after %s, want the caller's 3s deadline", elapsed)
+	if elapsed < 2900*time.Millisecond {
+		t.Fatalf("failed after %s, before the caller's 3s deadline", elapsed)
 	}
 	if n <= 0 || n >= len(payload) {
 		t.Fatalf("accepted %d/%d, want a partial prefix", n, len(payload))
 	}
-	if got := master.drainUntilQuiet(t, 300*time.Millisecond); !bytes.Equal(got, payload[:n]) {
+	if got := master.drainExactly(t, n); !bytes.Equal(got, payload[:n]) {
 		t.Fatalf("host received %d bytes, write reported %d", len(got), n)
 	}
 }
 
-// Cancellation stays responsive mid-stall and keeps the same accounting.
+// Cancellation mid-stall returns at the write's next wakeup and keeps the same
+// accounting. Prompt is counted in poll waits, not wall time: a writer that
+// kept waiting after the cancel would poll again (or never return).
 func TestFileCancelDuringHostStallReturnsPromptlyWithExactPrefix(t *testing.T) {
 	master, out := stalledOutput(t)
 	payload := patterned(256 << 10)
 	ctx, cancel := context.WithCancel(context.Background())
-	time.AfterFunc(200*time.Millisecond, cancel)
-	start := time.Now()
-	n, err := out.WriteContext(ctx, payload)
-	if elapsed := time.Since(start); !errors.Is(err, context.Canceled) || elapsed > time.Second {
-		t.Fatalf("err = %v after %s, want prompt cancellation", err, elapsed)
+	type result struct {
+		n   int
+		err error
 	}
-	if got := master.drainUntilQuiet(t, 300*time.Millisecond); !bytes.Equal(got, payload[:n]) {
-		t.Fatalf("host received %d bytes, write reported %d", len(got), n)
+	done := make(chan result, 1)
+	go func() { n, err := out.WriteContext(ctx, payload); done <- result{n, err} }()
+	for out.PollWaits() == 0 { // the write is blocked on the full host
+		time.Sleep(time.Millisecond)
+	}
+	// Cancel first, then count: any wait that began before the count is in
+	// it, so at most the one the writer was entering can follow.
+	cancel()
+	before := out.PollWaits()
+	r := <-done
+	if !errors.Is(r.err, context.Canceled) || r.n <= 0 {
+		t.Fatalf("accepted %d: %v, want a partial prefix and cancellation", r.n, r.err)
+	}
+	if after := out.PollWaits(); after > before+1 {
+		t.Fatalf("write waited %d more times after the cancel", after-before)
+	}
+	if got := master.drainExactly(t, r.n); !bytes.Equal(got, payload[:r.n]) {
+		t.Fatalf("host received %d bytes, write reported %d", len(got), r.n)
 	}
 }
