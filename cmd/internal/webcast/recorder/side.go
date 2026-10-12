@@ -36,17 +36,20 @@ type shotJob struct {
 	scroll   [2]float64
 }
 
-// Asset ownership: one URL-keyed owner decides whether a body is fetched,
-// whatever order the sources arrive in.
-//   - A Network response always fetches (it is the body the page got),
-//     and takes the URL from a reference still waiting.
-//   - A resource Chrome already held at a segment's start fetches once.
+// Asset ownership: a URL's body is fetched once per recording, by the first
+// source to claim it, whatever order the sources arrive in.
+//   - A Network response (the body the page got) claims its URL, and takes
+//     it from a reference still waiting.
+//   - A resource Chrome already held at a segment's start claims its URL.
 //   - A reference (an element's src, a FontFace font's src) waits
-//     refSettle: if no response or resource has claimed its URL by then, it
-//     is loaded in the page's context. Only what the page loaded eagerly is
-//     referenced this way: never srcset candidates (the browser's choice
-//     isn't known) or lazy images (not loaded yet; a response comes when
-//     they are).
+//     refSettle, so responses claim first; if nothing has claimed its URL by
+//     then, it is loaded in the page's context. Only what the page loaded
+//     eagerly is referenced: never an image with a srcset or in a <picture>
+//     (the browser's choice isn't known) or a lazy one (not loaded yet; a
+//     response comes when it is).
+//
+// A body that changes under one URL within a recording keeps its first
+// capture (a dev server busts caches with new URLs).
 var refSettle = 2 * time.Second // a var so tests can shorten it
 
 // owned: a URL's body has been, or is being, fetched in this recording.
@@ -66,11 +69,7 @@ func (r *Recorder) queueAsset(j assetJob) {
 		return
 	}
 	j.store = r.assets
-	switch {
-	case j.requestID != "":
-		r.owned[j.url] = true // a response: always fetched
-		delete(r.pending, j.url)
-	case !r.own(j.url):
+	if !r.own(j.url) {
 		return
 	}
 	select {
@@ -84,7 +83,7 @@ func (r *Recorder) queueAsset(j assetJob) {
 // queueRef notes the asset an element references, to load after refSettle
 // if nothing else brings it.
 func (r *Recorder) queueRef(ref Ref, now time.Time) {
-	if ref.Srcset || ref.Lazy {
+	if ref.Srcset || ref.Lazy || ref.Chosen {
 		return
 	}
 	r.queueURL(ref.Session, resolveURL(ref.DocURL, ref.Raw), now)
@@ -464,19 +463,18 @@ func LowRes(full []byte, dpr float64) (out []byte, w, h int, err error) {
 	b := src.Bounds()
 	rgba := image.NewNRGBA(image.Rect(0, 0, b.Dx(), b.Dy()))
 	draw.Draw(rgba, rgba.Bounds(), src, b.Min, draw.Src)
-	if dpr <= 0 {
-		dpr = 1
-	}
-	f := 2 * dpr // device pixels per output pixel
+	// Device pixels per output pixel: half the CSS size, but never less
+	// than one source pixel each (a DPR under 0.5 is not upsampled).
+	f := max(2*dpr, 1)
 	w, h = int(float64(b.Dx())/f), int(float64(b.Dy())/f)
 	if w == 0 || h == 0 {
 		return nil, 0, 0, fmt.Errorf("screenshot %dx%d is too small", b.Dx(), b.Dy())
 	}
 	dst := image.NewNRGBA(image.Rect(0, 0, w, h))
 	for y := 0; y < h; y++ {
-		y0, y1 := int(float64(y)*f), int(float64(y+1)*f)
+		y0, y1 := int(float64(y)*f), min(max(int(float64(y+1)*f), int(float64(y)*f)+1), b.Dy())
 		for x := 0; x < w; x++ {
-			x0, x1 := int(float64(x)*f), int(float64(x+1)*f)
+			x0, x1 := int(float64(x)*f), min(max(int(float64(x+1)*f), int(float64(x)*f)+1), b.Dx())
 			var sum [4]int
 			n := 0
 			for sy := y0; sy < y1; sy++ {
@@ -492,7 +490,7 @@ func LowRes(full []byte, dpr float64) (out []byte, w, h int, err error) {
 			}
 			o := dst.Pix[y*dst.Stride+x*4:]
 			for c := 0; c < 4; c++ {
-				o[c] = uint8(sum[c] / n)
+				o[c] = uint8(sum[c] / max(n, 1))
 			}
 		}
 	}

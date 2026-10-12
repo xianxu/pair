@@ -123,6 +123,9 @@ type Ref struct {
 	Session, DocURL, Raw string
 	Srcset               bool // Raw is a srcset: comma-separated candidates
 	Lazy                 bool // a loading=lazy image: maybe never loaded
+	// Chosen: an image whose source the browser picks (it has a srcset, or
+	// sits in a <picture>), so its src may not be what it loaded.
+	Chosen bool
 }
 
 // Expand names a node whose children CDP hasn't sent.
@@ -457,7 +460,8 @@ func (m *mirror) refs(s *msession, n *cnode, a map[string]string) {
 	for _, k := range names {
 		if v := a[k]; v != "" {
 			m.Refs = append(m.Refs, Ref{Session: s.id, DocURL: doc, Raw: v, Srcset: k == "srcset",
-				Lazy: strings.EqualFold(a["loading"], "lazy")})
+				Lazy:   strings.EqualFold(a["loading"], "lazy"),
+				Chosen: a["srcset"] != "" || n.LocalName == "source" || (n.parent != nil && n.parent.LocalName == "picture")})
 		}
 	}
 }

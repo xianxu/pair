@@ -76,19 +76,20 @@ func Run(ctx context.Context, chromeBin, dir string) (Report, error) {
 	}
 	defer b.close()
 	var rep Report
+	var shots []Shot
 	for _, f := range r.Frames {
 		want, err := os.ReadFile(filepath.Join(dir, f.File))
 		if err != nil {
 			return rep, err
 		}
-		best := Shot{File: f.File, T: f.T, Diff: 101}
+		var tries []Try
 		for _, off := range Offsets {
 			st, err := rec.Reduce(r.Records, f.T+off)
 			if err != nil {
 				return rep, err
 			}
 			if st.Top == nil || !st.Live {
-				continue
+				continue // nothing live to replay at this moment
 			}
 			got, err := b.shoot(ctx, r, st, f)
 			if err != nil {
@@ -98,25 +99,54 @@ func Run(ctx context.Context, chromeBin, dir string) (Report, error) {
 			if err != nil {
 				return rep, fmt.Errorf("%s: %w", f.File, err)
 			}
-			if d*100 < best.Diff {
-				best.Diff, best.Offset = d*100, off
-				if out := os.Getenv("FIDELITY_OUT"); out != "" {
-					// The best replay of each shot, for looking at.
-					name := strings.ReplaceAll(filepath.Base(dir)+"-"+f.File, "/", "-")
-					os.WriteFile(filepath.Join(out, name), got, 0o600)
-				}
+			tries = append(tries, Try{Offset: off, Diff: d * 100})
+			if out := os.Getenv("FIDELITY_OUT"); out != "" && d*100 <= Pick(f.File, f.T, tries).Diff {
+				// The best replay of each shot so far, for looking at.
+				name := strings.ReplaceAll(filepath.Base(dir)+"-"+f.File, "/", "-")
+				os.WriteFile(filepath.Join(out, name), got, 0o600)
 			}
 		}
-		if best.Diff > 100 {
-			// No live replay near this shot (taken as a segment ended):
-			// nothing to compare, and not a 100% miss.
+		shots = append(shots, Pick(f.File, f.T, tries))
+	}
+	rep = Summarize(shots)
+	if len(rep.Shots) == 0 {
+		return rep, errors.New("fidelity: no shot has a live replay")
+	}
+	return rep, nil
+}
+
+// Try is one replay of a shot: at an offset from its time, with the % of
+// pixels that differ.
+type Try struct {
+	Offset int64
+	Diff   float64
+}
+
+// Pick is a shot's result: its best try; a shot with no try (nothing live
+// near it) has Diff -1.
+func Pick(file string, t int64, tries []Try) Shot {
+	s := Shot{File: file, T: t, Diff: -1}
+	for _, tr := range tries {
+		if s.Diff < 0 || tr.Diff < s.Diff {
+			s.Diff, s.Offset = tr.Diff, tr.Offset
+		}
+	}
+	return s
+}
+
+// Summarize is a report over picked shots: the shots without a try are
+// counted as skipped, never scored, and the rest give the median and max.
+func Summarize(shots []Shot) Report {
+	var rep Report
+	for _, s := range shots {
+		if s.Diff < 0 {
 			rep.Skipped++
 			continue
 		}
-		rep.Shots = append(rep.Shots, best)
+		rep.Shots = append(rep.Shots, s)
 	}
 	if len(rep.Shots) == 0 {
-		return rep, errors.New("fidelity: no shot has a live replay")
+		return rep
 	}
 	ds := make([]float64, len(rep.Shots))
 	for i, s := range rep.Shots {
@@ -124,7 +154,7 @@ func Run(ctx context.Context, chromeBin, dir string) (Report, error) {
 	}
 	sort.Float64s(ds)
 	rep.Median, rep.Max = ds[len(ds)/2], ds[len(ds)-1]
-	return rep, nil
+	return rep
 }
 
 // browser is a headless Chrome on its debugging pipe, one page attached.

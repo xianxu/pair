@@ -365,7 +365,10 @@ func TestRecorderLoadsAssetsChromeDoesntHold(t *testing.T) {
 	old := refSettle
 	refSettle = 20 * time.Millisecond
 	t.Cleanup(func() { refSettle = old })
-	a.insert(a.body(), nil, a.el("img", "src", "../avatar.png", "srcset", "/x1.png 1x, /x2.png 2x"))
+	a.insert(a.body(), nil, a.el("img", "src", "../chosen.png", "srcset", "/x1.png 1x, /x2.png 2x"))
+	pic := a.el("picture")
+	a.insert(a.body(), nil, pic)
+	a.insert(pic, nil, a.el("img", "src", "/in-picture.png"))
 	a.insert(a.body(), nil, a.el("img", "src", "/below-the-fold.png", "loading", "lazy"))
 	a.insert(a.body(), nil, a.el("img", "src", "data:image/png;base64,AAAA"))
 	a.insert(a.body(), nil, a.el("img", "src", "/avatar.png")) // the same asset twice
@@ -416,8 +419,9 @@ func TestRecorderLoadsAssetsChromeDoesntHold(t *testing.T) {
 		t.Errorf("avatar loaded %d times", loads["http://a/avatar.png"])
 	}
 	for u := range loads {
-		if strings.HasPrefix(u, "data:") || strings.Contains(u, "x1.png") || strings.Contains(u, "below-the-fold") {
-			t.Errorf("%s was loaded: a srcset candidate, a lazy image or data: never is", u)
+		if strings.HasPrefix(u, "data:") || strings.Contains(u, "x1.png") || strings.Contains(u, "below-the-fold") ||
+			strings.Contains(u, "chosen") || strings.Contains(u, "in-picture") {
+			t.Errorf("%s was loaded: data:, srcset, lazy and browser-chosen images never are", u)
 		}
 	}
 }
@@ -510,4 +514,60 @@ func TestRecorderScreenshotAtDPR2(t *testing.T) {
 		t.Fatalf("frame %+v, want 500×350 at scale 0.5", *f)
 	}
 	h.mustValidate()
+}
+
+// A response that comes after a reference already loaded its URL fetches
+// nothing: one fetch per URL per recording.
+func TestRecorderLateResponseDoesntRefetch(t *testing.T) {
+	old := refSettle
+	refSettle = 10 * time.Millisecond
+	t.Cleanup(func() { refSettle = old })
+	store := assets.NewMemStore()
+	h := &harness{t: t, fc: newFakeChrome(), out: &memOut{}}
+	h.r = Start(Options{ID: "t", Call: h.fc, ShotEvery: -1,
+		Out: func() (Opened, error) { return Opened{Sink: &h.out.sink, Assets: store}, nil }})
+	t.Cleanup(func() { h.r.Close() })
+	a := h.page("A", "http://a/", "L1")
+	var mu sync.Mutex
+	calls := map[string]int{}
+	h.fc.more = func(session, method string, pm map[string]any, p *fakePage) (any, error, bool) {
+		mu.Lock()
+		defer mu.Unlock()
+		calls[method]++
+		switch method {
+		case "Network.loadNetworkResource":
+			return map[string]any{"resource": map[string]any{"success": true, "httpStatusCode": 200, "stream": "s"}}, nil, true
+		case "IO.read":
+			return map[string]any{"data": "x", "eof": true}, nil, true
+		case "Network.getResponseBody":
+			return map[string]any{"body": "x"}, nil, true
+		}
+		return nil, nil, false
+	}
+	h.r.Send(Live{Tab: rec.Tab{ID: a.frameID}, Session: "A"})
+	h.settle()
+	a.insert(a.body(), nil, a.el("img", "src", "/late.png"))
+	h.events("A", a)
+	waitFor(t, func() bool { h.settle(); return h.count("asset") == 1 }, "the referenced load")
+	h.send("A", "Network.responseReceived", map[string]any{"requestId": "r", "type": "Image", "response": map[string]any{"url": "http://a/late.png"}})
+	h.send("A", "Network.loadingFinished", map[string]any{"requestId": "r"})
+	time.Sleep(50 * time.Millisecond)
+	h.settle()
+	mu.Lock()
+	defer mu.Unlock()
+	if calls["Network.getResponseBody"] != 0 || h.count("asset") != 1 {
+		t.Fatalf("the late response fetched again: %v, %d assets", calls, h.count("asset"))
+	}
+}
+
+// LowRes never divides by zero or reads past the image, whatever the DPR.
+func TestLowResAnyDPR(t *testing.T) {
+	var img bytes.Buffer
+	png.Encode(&img, image.NewRGBA(image.Rect(0, 0, 101, 61)))
+	for _, dpr := range []float64{0, 0.1, 0.25, 0.5, 1, 1.5, 2, 3} {
+		out, w, h, err := LowRes(img.Bytes(), dpr)
+		if err != nil || len(out) == 0 || w < 1 || h < 1 || w > 101 || h > 61 {
+			t.Errorf("dpr %v: %dx%d %v", dpr, w, h, err)
+		}
+	}
 }

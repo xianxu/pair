@@ -64,8 +64,14 @@ loop), and tells it the live phase from `publish` (`Live` on the active tab, a s
   ones. Kept until the operator deletes the directory.
 - **Fidelity:** `recorder/internal/fidelity` (a development tool) replays a recording at each screenshot in headless
   Chrome and diffs the pixels; `TestLiveRecordURL` records any URL for it (#458's numbers are in its issue Log).
-  Screenshots are the viewport halved (`recorder.LowRes`), the form #453's fixtures use. Assets Chrome no longer holds
-  are loaded in the page's context (`Network.loadNetworkResource`), never from outside the browser.
+  Screenshots are the viewport at half its CSS size whatever the DPR (`recorder.LowRes`), the form #453's fixtures
+  use.
+- **Asset capture** (the recorder's; #459 stores, absolutizes CSS and serves): raw bodies to `assets.Store.Put`, one
+  fetch per URL per recording, by the first source to claim it. A Network response claims its URL; so does a resource
+  Chrome holds at a segment's start (`Page.getResourceContent`, else a load in the page's context with
+  `Network.loadNetworkResource`, never from outside the browser). An element's `src` or a FontFace font's `src` waits
+  2 s so responses claim first, then is loaded the same way if nothing did. Images whose source the browser chooses
+  (a srcset, a `<picture>`) and lazy images are never loaded from references.
 - **Live check:** `TestLiveRecording` (`live_record_test.go`) casts a page with re-renders, open and closed roots, an
   out-of-process iframe, insertRule, a >10k `<style>`, a password, a click that navigates, pause and resume; the
   recording must validate, drop nothing, and hold each case.

@@ -185,7 +185,7 @@ top page by the recorder. The viewport position at time t is the top document's 
 | `note` | notes | `id` (string), `author` `{id,name,color}`, `text`, `at` `{node,sel,text,box}`, optional `region` `[x,y,w,h]` | A note anchored on an element at its `t`. `at.node` is the element's id. `at.sel` is a stable CSS selector. `at.text` is the element's text, trimmed to 200 characters. `at.box` is its box. `region` is set for a dragged region. |
 | `note-state` | notes | `id`, `state`: `open` or `resolved` | A note was resolved or reopened. |
 | `stroke` | pointer | `id`, `author`, `color`, `pts` `[[x,y,dt],…]` | One pointer stroke; `dt` is ms after the record's `t`. |
-| `frame` | frames/index | `file`, `w`, `h`, `scale` | A screenshot of the real tab at `t` (the fidelity check). Not in the live stream. |
+| `frame` | frames/index | `file`, `w`, `h`, `scale` | A screenshot of the real tab at `t` (the fidelity check), `w`×`h` image pixels; `scale` is image pixels per CSS pixel (0.5: the viewport at half its CSS size, whatever the device pixel ratio). `t` is the capture's midpoint. Not in the live stream. |
 
 Notes stay in the recording after a reload. That live notes clear on reload (project, Direction) is the notes model's
 rule (#461): the notes "on" the current document are those since the document began (`State.DocSeg`), so a pause and

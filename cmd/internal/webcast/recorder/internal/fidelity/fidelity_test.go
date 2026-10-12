@@ -131,3 +131,19 @@ func chrome(t *testing.T) string {
 	}
 	return bin
 }
+
+func TestPickAndSummarize(t *testing.T) {
+	a := Pick("a", 1, []Try{{-200, 3}, {0, 1}, {200, 2}})
+	none := Pick("b", 2, nil)
+	c := Pick("c", 3, []Try{{0, 5}})
+	if a.Diff != 1 || a.Offset != 0 || none.Diff != -1 {
+		t.Fatalf("pick: %+v %+v", a, none)
+	}
+	rep := Summarize([]Shot{a, none, c})
+	if rep.Skipped != 1 || len(rep.Shots) != 2 || rep.Max != 5 || rep.Median != 5 {
+		t.Fatalf("summary %+v", rep)
+	}
+	if got := Summarize([]Shot{none}); got.Skipped != 1 || len(got.Shots) != 0 {
+		t.Fatalf("all skipped: %+v", got)
+	}
+}
