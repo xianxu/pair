@@ -66,7 +66,8 @@ and strokes) enter its queue as `recorder.Emit`, stamped on arrival and checked 
 - **Fidelity:** `recorder/internal/fidelity` (a development tool) replays a recording at each screenshot in headless
   Chrome and diffs the pixels; `TestLiveRecordURL` records any URL for it (#458's numbers are in its issue Log).
   Screenshots are the viewport at half its CSS size whatever the DPR (`recorder.LowRes`), the form #453's fixtures
-  use. A frame's `t` is its screenshot call's midpoint (never before its segment); the layout boxes captured after it
+  use. A frame's `t` is its screenshot call's midpoint, but never before its segment: a call that straddles a navigation
+  is stamped at the new segment's start, though its pixels may show either page. The layout boxes captured after it
   take the stream's time, which records may have moved past meanwhile (#472).
 - **Asset capture** (the recorder's; #459 stores, absolutizes CSS and serves): raw bodies to `assets.Store.Put`, one
   fetch per URL per recording, by the first source to claim it. A Network response claims its URL; so does a resource
