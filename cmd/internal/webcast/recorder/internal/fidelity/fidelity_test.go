@@ -94,8 +94,8 @@ func TestDiff(t *testing.T) {
 	}
 }
 
-// The fidelity of #457's fixtures (recorded by #453's prototype) under this
-// renderer: the baseline the recorder's own recordings are compared with.
+// The fidelity of the fixtures under this renderer: #457's (recorded by
+// #453's prototype), the baseline, and the recorder's own rec-* (#472).
 //
 //	FIDELITY_CHROME=1 go test ./cmd/internal/webcast/recorder/internal/fidelity -run Fixtures -v
 //	FIDELITY_DIR=<recording> go test ./cmd/internal/webcast/recorder/internal/fidelity -run Dir -v
@@ -103,7 +103,7 @@ func TestFidelityFixtures(t *testing.T) {
 	if os.Getenv("FIDELITY_CHROME") == "" {
 		t.Skip("set FIDELITY_CHROME=1 to replay in a real Chrome")
 	}
-	for _, name := range []string{"stress", "app", "blog"} {
+	for _, name := range []string{"stress", "app", "blog", "rec-stress", "rec-app", "rec-blog", "rec-segments"} {
 		rep, err := Run(context.Background(), chrome(t), rec.Fixture(name))
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)

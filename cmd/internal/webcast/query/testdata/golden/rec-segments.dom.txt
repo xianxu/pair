@@ -1,0 +1,55 @@
+$ couch --broadcast-web-query <fixtures>/rec-segments dom --at 1500
+t=1500  segment 1 (live)  http://127.0.0.1:62199/app2.html#week-3  viewport 1280x800@1  title "TaskPilot reports"
+@1 #document http://127.0.0.1:62199/app2.html {scrolled 0,0}
+  @3 <html>
+    @4 <head> (title "TaskPilot reports"; 1 meta; 1 script; 1 style)
+    @12 <body class="bg-white p-10">
+      @13 <h1 class="text-3xl font-bold text-indigo-700 mb-4"> Reports
+      @16 <table class="w-full text-left border">
+        @17 <tbody id=r>
+          @18 <tr class>
+            @19 <td class="p-2 border"> Week 1
+            @21 <td class="p-2 border"> 0 tasks
+          @23 <tr class=bg-slate-50>
+            @24 <td class="p-2 border"> Week 2
+            @26 <td class="p-2 border"> 137 tasks
+          @28 <tr class>
+            @29 <td class="p-2 border"> Week 3
+            @31 <td class="p-2 border"> 274 tasks
+          @33 <tr class=bg-slate-50>
+            @34 <td class="p-2 border"> Week 4
+            @36 <td class="p-2 border"> 411 tasks
+          @38 <tr class>
+            @39 <td class="p-2 border"> Week 5
+            @41 <td class="p-2 border"> 48 tasks
+          @43 <tr class=bg-slate-50>
+            @44 <td class="p-2 border"> Week 6
+            @46 <td class="p-2 border"> 185 tasks
+          @48 <tr class>
+            @49 <td class="p-2 border"> Week 7
+            @51 <td class="p-2 border"> 322 tasks
+          @53 <tr class=bg-slate-50>
+            @54 <td class="p-2 border"> Week 8
+            @56 <td class="p-2 border"> 459 tasks
+          @58 <tr class>
+            @59 <td class="p-2 border"> Week 9
+            @61 <td class="p-2 border"> 96 tasks
+          @63 <tr class=bg-slate-50>
+            @64 <td class="p-2 border"> Week 10
+            @66 <td class="p-2 border"> 233 tasks
+          @68 <tr class>
+            @69 <td class="p-2 border"> Week 11
+            @71 <td class="p-2 border"> 370 tasks
+          @73 <tr class=bg-slate-50>
+            @74 <td class="p-2 border"> Week 12
+            @76 <td class="p-2 border"> 7 tasks
+          @78 <tr class>
+            @79 <td class="p-2 border"> Week 13
+            @81 <td class="p-2 border"> 144 tasks
+          @83 <tr class=bg-slate-50>
+            @84 <td class="p-2 border"> Week 14
+            @86 <td class="p-2 border"> 281 tasks
+          @88 <tr class>
+            @89 <td class="p-2 border"> Week 15
+            @91 <td class="p-2 border"> 418 tasks
+      @94 <script> (225 chars)

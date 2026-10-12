@@ -1,0 +1,35 @@
+$ couch --broadcast-web-query <fixtures>/rec-segments notes
+note rec-segments-n1  t=1500  segment 1  open  by Pat (product) (viewer-1)
+  "Reports needs a date range."
+  on @13  selector h1  box 40,40 1200x36
+  page: t=1500  segment 1 (live)  http://127.0.0.1:62199/app2.html#week-3  viewport 1280x800@1  title "TaskPilot reports"
+  element:
+    @13 <h1 class="text-3xl font-bold text-indigo-700 mb-4"> Reports
+  context: within @12 <body.bg-white.p-10>
+    text: "Reports Week 10 tasksWeek 2137 tasksWeek 3274 tasksWeek 4411 tasksWeek 548 tasksWeek 6185 tasksWeek 7322 tasksWeek 8459 tasksWeek 996 tasksWeek 10233 tasksWeek 11370 tasksWeek 127 tasksWeek 13144 tasksWeek 14281 tasksWeek 15418 tasks const r=document.getElementById('r');for(let i=0;i<15;i++){r.insertAdjacentHTML('beforeend',`<tr class=\"${i%2?'bg-slate-50':''}\"><td class=\"p-2 border\">Week ${i+1}</td><td class=\"p-2 border\">${(i*137)%500} tasks</td></tr>`);}"
+  before (10000 ms):
+    0 segment 1 starts (live) on http://127.0.0.1:62199/app2.html, viewport 1280x800@1
+    75 scroll @1 #document to 0,0
+    75 selection cleared
+    1003 navigate (same document) to http://127.0.0.1:62199/app2.html#week-3
+
+note rec-segments-n2  t=4200  segment 3  open  by Ana (design) (viewer-2)
+  "Week 3 looks low; is that a gap in the data?"
+  on @126  selector td~Week 3  box 40.5,174.5 317.09x41
+  page: t=4200  segment 3 (live)  http://127.0.0.1:62199/app2.html?tab=2  viewport 756x469@1  title "TaskPilot reports"
+  element:
+    @126 <td class="p-2 border"> Week 3
+  context: within @125 <tr> "Week 3 274 tasks"
+    text: "Week 3274 tasks"
+  before (10000 ms):
+    0 segment 1 starts (live) on http://127.0.0.1:62199/app2.html, viewport 1280x800@1
+    75 scroll @1 #document to 0,0
+    75 selection cleared
+    1003 navigate (same document) to http://127.0.0.1:62199/app2.html#week-3
+    2004 stop (pause)
+    2705 segment 2 starts (resume) on http://127.0.0.1:62199/app2.html#week-3, viewport 1280x800@1
+    2723 scroll @1 #document to 0,0
+    2723 selection cleared
+    3715 segment 3 starts (tab) on http://127.0.0.1:62199/app2.html?tab=2, viewport 756x469@1
+    3805 scroll @98 #document to 0,0
+    3805 selection cleared

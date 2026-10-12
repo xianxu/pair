@@ -12,8 +12,14 @@ import (
 )
 
 // Fixtures are the checked-in recordings wave-1 components test against
-// (atlas/webcast-format.md, Fixtures).
-var Fixtures = []string{"stress", "app", "blog", "segments", "driven"}
+// (atlas/webcast-format.md, Fixtures). The rec-* ones are the real
+// recorder's (#472); stress, app and blog are #453's prototype's, and
+// retire once the components built on them have landed.
+var Fixtures = []string{"stress", "app", "blog", "segments", "driven", "rec-stress", "rec-app", "rec-blog", "rec-segments"}
+
+// PrototypeFixtures are the fixtures #453's prototype recorded, whose
+// polled observer reports scroll and input up to 150ms late.
+var PrototypeFixtures = []string{"stress", "app", "blog"}
 
 // Fixture is the directory of a checked-in fixture, for tests in any
 // package.

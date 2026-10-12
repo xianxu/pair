@@ -66,7 +66,8 @@ and strokes) enter its queue as `recorder.Emit`, stamped on arrival and checked 
 - **Fidelity:** `recorder/internal/fidelity` (a development tool) replays a recording at each screenshot in headless
   Chrome and diffs the pixels; `TestLiveRecordURL` records any URL for it (#458's numbers are in its issue Log).
   Screenshots are the viewport at half its CSS size whatever the DPR (`recorder.LowRes`), the form #453's fixtures
-  use.
+  use. A frame's `t` is its screenshot call's midpoint (never before its segment); the layout boxes captured after it
+  take the stream's time, which records may have moved past meanwhile (#472).
 - **Asset capture** (the recorder's; #459 stores, absolutizes CSS and serves): raw bodies to `assets.Store.Put`, one
   fetch per URL per recording, by the first source to claim it. A Network response claims its URL; so does a resource
   Chrome holds at a segment's start (`Page.getResourceContent`, else a load in the page's context with
@@ -150,7 +151,11 @@ and strokes) enter its queue as `recorder.Emit`, stamped on arrival and checked 
 - **Viewer fidelity:** `replay_test.go` replays every fixture in headless Chrome (`WEBCAST_LIVE_CHROME=1`).
   - The drawn page's canonical equals the reducer's at every pin, and a join at any pin draws the same page.
   - Renders are within 3% of `frames/` (measured 0.2–2.3%). The last second before each frame is replayed in real
-    time so transitions are in phase, and the fixtures' polled observer gets 150 ms of slack.
+    time so transitions are in phase. The prototype's fixtures' polled observer gets 150 ms of slack; the recorder's
+    get none (#472). A frame may also be compared 50 ms before its `t`: its pixels are a compositor frame from inside
+    the screenshot call. `knownGaps` lists frames that differ for a filed reason (#475), and fails once one passes.
+  - The harness sizes the drawn page to the segment's viewport, as `viewer.js` does, so a tab switch to a
+    different-sized tab compares at that size.
   - `viewer_live_test.go` drives the real page through `Server` and a `Hub` at tablet width: scaling, URL, hover,
     pointer, and `boxOf` against the tab's own layout boxes (215 of 217 on blog).
 - **Known transient:** for a moment after a navigation, the title can be Chrome's placeholder (the URL, as in

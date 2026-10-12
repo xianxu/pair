@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -570,4 +571,53 @@ func TestLowResAnyDPR(t *testing.T) {
 			t.Errorf("dpr %v: %dx%d %v", dpr, w, h, err)
 		}
 	}
+}
+
+// A frame is at its capture's midpoint even when records arrive while the
+// layout is captured after it: only the layout record takes the stream's
+// later time (#472, where the clamp put a busy page's frames up to ~90ms
+// after their pixels).
+func TestRecorderFrameKeepsItsCaptureTime(t *testing.T) {
+	var ms atomic.Int64
+	base := time.Unix(1000, 0)
+	now := func() time.Time { return base.Add(time.Duration(ms.Load()) * time.Millisecond) }
+	frames := &frameRecorder{}
+	h := &harness{t: t, fc: newFakeChrome(), out: &memOut{}}
+	h.r = Start(Options{ID: "t", Call: h.fc, ShotEvery: time.Hour, Now: now,
+		Out: func() (Opened, error) { return Opened{Sink: &h.out.sink, Frames: frames}, nil }})
+	t.Cleanup(func() { h.r.Close() })
+	a := h.page("A", "http://a/", "L1")
+	var img bytes.Buffer
+	png.Encode(&img, image.NewRGBA(image.Rect(0, 0, 100, 80)))
+	h.fc.more = func(session, method string, pm map[string]any, p *fakePage) (any, error, bool) {
+		switch method {
+		case "Page.captureScreenshot":
+			// The recording opened at 0 and the call runs 0..120:
+			// midpoint 60.
+			defer ms.Store(120)
+			return map[string]any{"data": base64.StdEncoding.EncodeToString(img.Bytes())}, nil, true
+		case "DOMSnapshot.captureSnapshot":
+			// The page changes while the layout is captured.
+			ms.Store(300)
+			a.insert(a.body(), nil, a.el("p"))
+			h.events("A", a)
+			return map[string]any{"strings": []string{}, "documents": []any{}}, nil, true
+		}
+		return nil, nil, false
+	}
+	h.r.Send(Live{Tab: rec.Tab{ID: a.frameID}, Session: "A"})
+	waitFor(t, func() bool { h.settle(); return h.count("layout") == 1 }, "a screenshot's layout")
+	frames.mu.Lock()
+	f := frames.frames[0]
+	frames.mu.Unlock()
+	if f.T != 60 {
+		t.Errorf("frame at %d, want the capture's midpoint 60", f.T)
+	}
+	if l := h.last("layout"); l.Time() != 300 {
+		t.Errorf("layout at %d, want the stream's 300", l.Time())
+	}
+	if h.count("ins") != 1 {
+		t.Fatalf("the change during the capture is missing: %s", h.kinds())
+	}
+	h.mustValidate()
 }

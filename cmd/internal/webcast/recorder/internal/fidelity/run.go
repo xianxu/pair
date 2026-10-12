@@ -82,6 +82,10 @@ func Run(ctx context.Context, chromeBin, dir string) (Report, error) {
 		if err != nil {
 			return rep, err
 		}
+		own, err := rec.Reduce(r.Records, f.T)
+		if err != nil {
+			return rep, err
+		}
 		var tries []Try
 		for _, off := range Offsets {
 			st, err := rec.Reduce(r.Records, f.T+off)
@@ -90,6 +94,9 @@ func Run(ctx context.Context, chromeBin, dir string) (Report, error) {
 			}
 			if st.Top == nil || !st.Live {
 				continue // nothing live to replay at this moment
+			}
+			if st.Seg != own.Seg {
+				continue // another segment's page (and maybe viewport), not this shot's (#472)
 			}
 			got, err := b.shoot(ctx, r, st, f)
 			if err != nil {

@@ -1,0 +1,87 @@
+$ couch --broadcast-web-query <fixtures>/rec-app notes
+note rec-app-n1  t=6000  segment 1  open  by Pat (product) (viewer-1)
+  "Search should ignore case."
+  on @72  selector #search  box 256,150 992x42
+  page: t=6000  segment 1 (live)  http://127.0.0.1:62199/app.html  viewport 1280x800@1  title "TaskPilot"
+  element:
+    @72 <input class="w-full border rounded-lg px-3 py-2" id=search placeholder=Search value=fix> {value "fix", focused}
+  context: within @35 <main.flex-1.p-8.…> "tasks Add Fix billing webhook"
+    text: "tasksAddFix billing webhook"
+  before (10000 ms):
+    … 25 earlier actions
+    3214 input @69 <input#draft.flex-1.border.…> value "Review "
+    3214 selection @68 <form.flex.gap-2> "Add":0 … @68 <form.flex.gap-2> "Add":0
+    3281 input @69 <input#draft.flex-1.border.…> value "Review P"
+    3281 selection @68 <form.flex.gap-2> "Add":0 … @68 <form.flex.gap-2> "Add":0
+    3330 input @69 <input#draft.flex-1.border.…> value "Review PR"
+    3330 selection @68 <form.flex.gap-2> "Add":0 … @68 <form.flex.gap-2> "Add":0
+    3397 input @69 <input#draft.flex-1.border.…> value "Review PR "
+    3397 selection @68 <form.flex.gap-2> "Add":0 … @68 <form.flex.gap-2> "Add":0
+    3463 input @69 <input#draft.flex-1.border.…> value "Review PR 4"
+    3463 selection @68 <form.flex.gap-2> "Add":0 … @68 <form.flex.gap-2> "Add":0
+    3514 input @69 <input#draft.flex-1.border.…> value "Review PR 42"
+    3531 selection @68 <form.flex.gap-2> "Add":0 … @68 <form.flex.gap-2> "Add":0
+    4784 focus @72 <input#search.w-full.border.…>
+    4784 click @72 <input#search.w-full.border.…> at 752,171
+    4797 input @72 <input#search.w-full.border.…> value "f"
+    4814 selection @66 <div.space-y-4> "Add Ship onboarding flow Fix billing we…":1 … @66 <div.space-y-4> "Add Ship onboarding flow Fix billing we…":1
+    4848 input @72 <input#search.w-full.border.…> value "fi"
+    4848 selection @66 <div.space-y-4> "Add Fix billing webhook":1 … @66 <div.space-y-4> "Add Fix billing webhook":1
+    4917 input @72 <input#search.w-full.border.…> value "fix"
+    4917 selection @66 <div.space-y-4> "Add Fix billing webhook":1 … @66 <div.space-y-4> "Add Fix billing webhook":1
+
+note rec-app-n2  t=9800  segment 1  resolved  by Ana (design) (viewer-2)
+  "The modal's close button needs more contrast."
+  on @233  selector #close-modal
+  page: t=9800  segment 1 (live)  http://127.0.0.1:62199/app.html  viewport 1280x800@1  title "TaskPilot"
+  element:
+    @233 <button class="bg-slate-200 px-4 py-2 rounded-lg" id=close-modal> Cancel
+  context: within @228 <div.bg-white.rounded-2xl.…> "Are you sure? This cannot be undone. Ca…"
+    text: "Are you sure?This cannot be undone.Cancel"
+  before (10000 ms):
+    … 43 earlier actions
+    4917 input @72 <input#search.w-full.border.…> value "fix"
+    4917 selection @66 <div.space-y-4> "Add Fix billing webhook":1 … @66 <div.space-y-4> "Add Fix billing webhook":1
+    6481 input @72 <input#search.w-full.border.…> value "fi"
+    6498 selection @66 <div.space-y-4> "Add Fix billing webhook":1 … @66 <div.space-y-4> "Add Fix billing webhook":1
+    6581 input @72 <input#search.w-full.border.…> value "f"
+    6598 selection @66 <div.space-y-4> "Add Ship onboarding flow Fix billing we…":1 … @66 <div.space-y-4> "Add Ship onboarding flow Fix billing we…":1
+    6681 input @72 <input#search.w-full.border.…> value ""
+    6697 selection @66 <div.space-y-4> "Add Ship onboarding flow Fix billing we…":1 … @66 <div.space-y-4> "Add Ship onboarding flow Fix billing we…":1
+    6765 input @91 <input> unchecked
+    6765 input @96 <input> unchecked
+    6765 input @99 <input> unchecked
+    6782 focus @91 <input>
+    6782 click @91 <input> at 278,232
+    6797 input @91 <input> checked
+    7599 focus @31 <button#nav-settings.block.w-full.…> "settings"
+    7599 click @31 <button#nav-settings.block.w-full.…> "settings" at 112,184
+    8430 scroll @1 #document to 0,400
+    9232 scroll @1 #document to 0,92
+    9232 focus @104 <button#open-modal.bg-rose-600.text-white.…> "Delete workspace…"
+    9232 click @104 <button#open-modal.bg-rose-600.text-white.…> "Delete workspace…" at 342,112
+
+note rec-app-n3  t=19000  segment 2  open  by Pat (product) (viewer-1)
+  "Reports needs a date range."
+  on @271  selector h1~Reports  box 40,40 1200x36
+  page: t=19000  segment 2 (live)  http://127.0.0.1:62199/app2.html  viewport 1280x800@1  title "TaskPilot reports"
+  element:
+    @271 <h1 class="text-3xl font-bold text-indigo-700 mb-4"> Reports
+  context: within @270 <body.bg-white.p-10>
+    text: "Reports Week 10 tasksWeek 2137 tasksWeek 3274 tasksWeek 4411 tasksWeek 548 tasksWeek 6185 tasksWeek 7322 tasksWeek 8459 tasksWeek 996 tasksWeek 10233 tasksWeek 11370 tasksWeek 127 tasksWeek 13144 tasksWeek 14281 tasksWeek 15418 tasks const r=document.getElementById('r');for(let i=0;i<15;i++){r.insertAdjacentHTML('beforeend',`<tr class=\"${i%2?'bg-slate-50':''}\"><td class=\"p-2 border\">Week ${i+1}</td><td class=\"p-2 border\">${(i*137)%500} tasks</td></tr>`);}"
+  before (10000 ms):
+    9232 scroll @1 #document to 0,92
+    9232 focus @104 <button#open-modal.bg-rose-600.text-white.…> "Delete workspace…"
+    9232 click @104 <button#open-modal.bg-rose-600.text-white.…> "Delete workspace…" at 342,112
+    10748 focus @233 <button#close-modal.bg-slate-200.px-4.…> "Cancel"
+    10748 click @233 <button#close-modal.bg-slate-200.px-4.…> "Cancel" at 512,530
+    10775 focus none
+    11564 scroll @1 #document to 0,68
+    11570 focus @27 <button#nav-dashboard.block.w-full.…> "dashboard"
+    11570 click @27 <button#nav-dashboard.block.w-full.…> "dashboard" at 112,88
+    11582 scroll @1 #document to 0,0
+    14095 focus @33 <a#next-doc.block.mt-8.…> "Reports (new page)"
+    14095 click @33 <a#next-doc.block.mt-8.…> "Reports (new page)" at 112,248
+    14107 segment 2 starts (navigate) on http://127.0.0.1:62199/app2.html, viewport 1280x800@1
+    14133 scroll @259 #document to 0,0
+    14133 selection cleared

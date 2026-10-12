@@ -1,0 +1,65 @@
+$ couch --broadcast-web-query <fixtures>/rec-stress notes
+note rec-stress-n1  t=2000  segment 1  open  by Pat (product) (viewer-1)
+  "This box flickers through colours; is that on purpose?"
+  on @1264  selector #cij  box 950,219.78 340x28.89
+  page: t=2000  segment 1 (live)  http://127.0.0.1:62201/stress.html  viewport 1280x800@1  title "broadcast-web stress"
+  element:
+    @1264 <div class="box cij-6" id=cij> CSS-in-JS (insertRule)
+  context: within @1246 <section.side> "CSS-in-JS (insertRule) adoptedStyleShee…"
+    text: "CSS-in-JS (insertRule) adoptedStyleSheets alphabetagamma scroll line 0scroll line 1scroll line 2scroll line 3scroll line 4scroll line 5scroll line 6scroll line 7scroll line 8scroll line 9scroll line 10scroll line 11scroll line 12scroll line 13scroll line 14scroll line 15scroll line 16scroll line 17scroll line 18scroll line 19scroll line 20scroll line 21scroll line 22scroll line 23scroll line 24scroll line 25scroll line 26scroll line 27scroll line 28scroll line 29scroll line 30scroll line 31scrol"
+  before (10000 ms):
+    … 31 earlier actions
+    1011 input @1275 <select#sel> "alpha beta gamma" selected [0]
+    1011 input @1283 <input#rng> value "42"
+    1011 input @1285 <textarea#ta> value "line 6\nnext 12"
+    1127 scroll @1288 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,91
+    1269 input @1448 <input#fi> value "frame 5"
+    1327 scroll @1288 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,98
+    1511 input @1272 <input#txt> value "tick 7"
+    1511 input @1273 <input#chk> unchecked
+    1511 input @1275 <select#sel> "alpha beta gamma" selected [1]
+    1511 input @1283 <input#rng> value "49"
+    1511 input @1285 <textarea#ta> value "line 7\nnext 14"
+    1528 scroll @1288 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,105
+    1727 scroll @1288 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,112
+    1761 input @1272 <input#txt> value "tick 8"
+    1761 input @1273 <input#chk> checked
+    1761 input @1275 <select#sel> "alpha beta gamma" selected [2]
+    1761 input @1283 <input#rng> value "56"
+    1761 input @1285 <textarea#ta> value "line 8\nnext 16"
+    1771 input @1448 <input#fi> value "frame 6"
+    1927 scroll @1288 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,119
+
+note rec-stress-n2  t=3000  segment 1  resolved  by Ana (design) (viewer-2)
+  "Closed shadow root: the badge should match the open one."
+  on @1250  selector #closed  box 932,174 340x16.89
+  page: t=3000  segment 1 (live)  http://127.0.0.1:62201/stress.html  viewport 1280x800@1  title "broadcast-web stress"
+  element:
+    @1250 <x-closed id=closed>
+      @1251 #shadow-root (closed)
+        @1252 <style> (69 chars)
+        @1254 <span> closed 14
+  context: within @1246 <section.side> "CSS-in-JS (insertRule) adoptedStyleShee…"
+    text: "CSS-in-JS (insertRule) adoptedStyleSheets alphabetagamma scroll line 0scroll line 1scroll line 2scroll line 3scroll line 4scroll line 5scroll line 6scroll line 7scroll line 8scroll line 9scroll line 10scroll line 11scroll line 12scroll line 13scroll line 14scroll line 15scroll line 16scroll line 17scroll line 18scroll line 19scroll line 20scroll line 21scroll line 22scroll line 23scroll line 24scroll line 25scroll line 26scroll line 27scroll line 28scroll line 29scroll line 30scroll line 31scrol"
+  before (10000 ms):
+    … 49 earlier actions
+    1771 input @1448 <input#fi> value "frame 6"
+    1927 scroll @1288 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,119
+    2131 scroll @1288 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,126
+    2260 input @1272 <input#txt> value "tick 9"
+    2260 input @1273 <input#chk> unchecked
+    2260 input @1275 <select#sel> "alpha beta gamma" selected [0]
+    2260 input @1283 <input#rng> value "63"
+    2260 input @1285 <textarea#ta> value "line 9\nnext 18"
+    2269 input @1448 <input#fi> value "frame 7"
+    2327 scroll @1288 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,133
+    2528 scroll @1288 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,140
+    2528 selection cleared
+    2727 scroll @1288 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,147
+    2760 input @1272 <input#txt> value "tick 10"
+    2760 input @1273 <input#chk> checked
+    2760 input @1275 <select#sel> "alpha beta gamma" selected [1]
+    2760 input @1283 <input#rng> value "70"
+    2760 input @1285 <textarea#ta> value "line 10\nnext 20"
+    2769 input @1448 <input#fi> value "frame 8"
+    2928 scroll @1288 <div#scroller> "scroll line 0 scroll line 1 scroll line…" to 0,154

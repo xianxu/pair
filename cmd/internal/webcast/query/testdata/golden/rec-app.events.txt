@@ -1,0 +1,37 @@
+$ couch --broadcast-web-query <fixtures>/rec-app events --from 3000 --to 6000
+3020-3030 input @69 <input#draft.flex-1.border.…> value "Revi" (2 changes)
+3030 selection @68 <form.flex.gap-2> "Add":0 … @68 <form.flex.gap-2> "Add":0
+3081-3098 input @69 <input#draft.flex-1.border.…> value "Revie" (2 changes)
+3098 selection @68 <form.flex.gap-2> "Add":0 … @68 <form.flex.gap-2> "Add":0
+3143-3148 input @69 <input#draft.flex-1.border.…> value "Review" (2 changes)
+3148 selection @68 <form.flex.gap-2> "Add":0 … @68 <form.flex.gap-2> "Add":0
+3204-3214 input @69 <input#draft.flex-1.border.…> value "Review " (2 changes)
+3214 selection @68 <form.flex.gap-2> "Add":0 … @68 <form.flex.gap-2> "Add":0
+3265-3281 input @69 <input#draft.flex-1.border.…> value "Review P" (2 changes)
+3281 selection @68 <form.flex.gap-2> "Add":0 … @68 <form.flex.gap-2> "Add":0
+3327-3330 input @69 <input#draft.flex-1.border.…> value "Review PR" (2 changes)
+3330 selection @68 <form.flex.gap-2> "Add":0 … @68 <form.flex.gap-2> "Add":0
+3388-3397 input @69 <input#draft.flex-1.border.…> value "Review PR " (2 changes)
+3397 selection @68 <form.flex.gap-2> "Add":0 … @68 <form.flex.gap-2> "Add":0
+3450-3463 input @69 <input#draft.flex-1.border.…> value "Review PR 4" (2 changes)
+3463 selection @68 <form.flex.gap-2> "Add":0 … @68 <form.flex.gap-2> "Add":0
+3513-3514 input @69 <input#draft.flex-1.border.…> value "Review PR 42" (2 changes)
+3531 selection @68 <form.flex.gap-2> "Add":0 … @68 <form.flex.gap-2> "Add":0
+4492 layout boxes for 30 nodes
+4781 ? hover
+4781 ? ptr
+4784 focus @72 <input#search.w-full.border.…>
+4784 click @72 <input#search.w-full.border.…> at 752,171
+4785 attr @72 <input#search.w-full.border.…> value="f"
+4785 remove @82 <li.flex.items-center.…> "Design pricing page"
+4785 remove @86 <li.flex.items-center.…> "Write launch email"
+4797 input @72 <input#search.w-full.border.…> value "f"
+4814 selection @66 <div.space-y-4> "Add Ship onboarding flow Fix billing we…":1 … @66 <div.space-y-4> "Add Ship onboarding flow Fix billing we…":1
+4847 attr @72 <input#search.w-full.border.…> value="fi"
+4847 remove @74 <li.flex.items-center.…> "Ship onboarding flow"
+4848 input @72 <input#search.w-full.border.…> value "fi"
+4848 selection @66 <div.space-y-4> "Add Fix billing webhook":1 … @66 <div.space-y-4> "Add Fix billing webhook":1
+4911-4917 input @72 <input#search.w-full.border.…> value "fix" (2 changes)
+4917 selection @66 <div.space-y-4> "Add Fix billing webhook":1 … @66 <div.space-y-4> "Add Fix billing webhook":1
+5600 pointer stroke by Pat (product) (viewer-1) (4 points)
+6000 note rec-app-n1 by Pat (product) (viewer-1) on @72 <input#search.w-full.border.…>: "Search should ignore case."

@@ -5,6 +5,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -100,7 +101,18 @@ func TestFixtureCoverage(t *testing.T) {
 			{"a note by the driver", func(c *coverage) bool { return c.driverNotes > 0 }},
 		},
 	}
+	// The real recorder's fixtures (#472) cover what the prototype's did, on
+	// the same pages, but for the stress page's late font: testdata/stress
+	// leaves it out (a macOS system font), so its FontFace never loads.
+	want["rec-stress"] = slices.DeleteFunc(slices.Clone(want["stress"]), func(c check) bool { return c.what == "a FontFace font" })
+	want["rec-app"] = want["app"]
+	want["rec-blog"] = want["blog"]
+	want["rec-segments"] = append(slices.Clone(want["segments"]),
+		check{"a cross-document navigation", func(c *coverage) bool { return c.navigateSegs > 0 }})
 	for _, name := range Fixtures {
+		if want[name] == nil {
+			t.Errorf("%s: no coverage checks", name)
+		}
 		r, err := ReadDir(Fixture(name))
 		if err != nil {
 			t.Fatal(err)
@@ -125,7 +137,9 @@ func TestFixturesStayWithinTheirBudget(t *testing.T) {
 		}
 		return nil
 	})
-	if budget := int64(4_500_000); total > budget {
+	// 9 MB while the prototype's fixtures and the real recorder's coexist
+	// (#472); back to 4.5 MB when the prototype's retire.
+	if budget := int64(9_000_000); total > budget {
 		t.Fatalf("fixtures are %d bytes, over the %d budget; trim a run before adding to it", total, budget)
 	}
 }
