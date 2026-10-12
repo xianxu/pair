@@ -120,6 +120,83 @@ rounds:
       isolation: fenced
       reviewed: e137bb9d7e2e419d3505a519f4e8719ad06f4a75
       blocked: false
+    - "n": 4
+      timestamp: "2026-10-12T16:13:52-07:00"
+      dispatched: "2026-10-12T16:10:46-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: The "Current design" summary was added, but it already contradicts the latest revision (four codes vs the web cast's three links), and the Couch Display/Click rotation/Documented trade-off sections and the M3 bullets still state the replaced design.
+          round: 4
+      findings:
+        - id: BR-10
+          severity: Important
+          title: Web viewer's reload into the lock page (viewer.js:99-106) has no node test; only the env-gated Chrome test covers it
+          detail: 'The terminal viewer''s twin is tested in connect.test.mjs. Add a viewer.test.mjs case with the fake EventSource at readyState 2 and an injected sessionLost: true calls relock, false shows Disconnected, and neither runs after an end event.'
+          family: behavior-without-default-test
+          round: 4
+        - id: BR-11
+          severity: Minor
+          title: Plan M2 says the Chrome live tests were "updated to unlock first", but they bypass the Host; TestLiveLockPage replaces them, which the plan does not record
+          detail: 'Repeat in this family. The rule: when an implementation substitutes for a plan item, the milestone bullet is rewritten in the same commit, not left for a Revisions entry. Same sweep: atlas/broadcast.md:82 and the Current design''s pre-session list omit collab.js.'
+          family: spec-moves-with-decisions
+          round: 4
+        - id: BR-12
+          severity: Minor
+          title: README web-cast sections (e.g. line 1021, "Anyone with the viewer link can point") don't mention the code lock
+          detail: Acceptable to defer while the operator can't see a code (M3), but the M3 close must update the README for codes, the lock page and the drive code.
+          family: docs-gate-surface
+          round: 4
+      boundary: M2
+      recipe: milestone-review
+      isolation: fenced
+      blocked: true
+    - "n": 5
+      timestamp: "2026-10-12T16:19:26-07:00"
+      dispatched: "2026-10-12T16:14:34-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: The Current-design summary helps, but the body still states replaced decisions (event locked, inline Chrome code display, click-span rotation, trade-off, M3 bullets); the M3 bullets are the next build list and still describe the old design. Strict is correct (lockgate.go:123), so that site is resolved.
+          round: 5
+        - id: BR-10
+          disposition: addressed
+          note: tests/webcast/viewer.test.mjs adds sessionLost true/false/ended/reconnecting cases; reverting viewer.js to base makes the relock case fail (1 of 14).
+          round: 5
+        - id: BR-11
+          disposition: not-addressed
+          note: The summary's Tests bullet records the substitution, but the M2 milestone bullet still says "updated to unlock first", and atlas/broadcast.md:82 plus the summary's pre-session list still omit collab.js (served pre-session at lockgate.go:37).
+          round: 5
+        - id: BR-12
+          disposition: not-addressed
+          note: Still deferred on its own terms to the M3 close; the README has no code-lock text yet.
+          round: 5
+      findings:
+        - id: BR-13
+          severity: Minor
+          title: Terminal viewer's note author (viewer.js beforeSave, collab.js storedName) has only a source-grep test, no behavioral one
+          detail: '2nd in family. Rule: any page-side path that changes what a page POSTs is covered by a node test driving it through injected deps; a Go grep of the asset text is not a behavioral test. Add a node test: storedName over a fake storage (valid, invalid, missing storage) and the dialog''s beforeSave adding author only when a name is stored.'
+          family: behavior-without-default-test
+          round: 5
+        - id: BR-14
+          severity: Minor
+          title: The 40-char viewer-name bound is restated in collab.js, notes.go and lock.html maxlength with no parity test
+          detail: TestNoteAuthorRoundTripsOnTheBoardRule pins board.MaxNameRunes to broadcast only. If they drift, pages send names that ParseNote refuses as ErrNoteText. Pin MAX_VIEWER_NAME and maxlength from Go by reading the embedded assets, as server_test already does for keys. Note that maxlength counts UTF-16 units.
+          family: restated-constant-unpinned
+          round: 5
+        - id: BR-15
+          severity: Minor
+          title: TestCastBrowserFirstThenLink now passes on the lock page's 200 and no longer proves the viewer page is served
+          detail: cast_test.go:57 fetches u.Link without unlockCast, so the 200 is the lock page. Unlock first and assert the viewer page's marker, or assert the lock page explicitly and rename the test.
+          family: test-asserts-weaker-than-name
+          round: 5
+      boundary: M2
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 7eb6a1dc1b90e0b88f9b8099ade5f7dcb8fbb73a
+      blocked: false
 ---
 
 # Gate ledger — pair#495 (boundary-review)
@@ -168,7 +245,45 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-8 — addressed — A spent code that cannot rotate now fails closed, and a mint failure is Failed (500). Both tests went red when I reverted the fix. The rotation error still goes unreported, which is harmless on Go 1.26, where crypto/rand cannot fail.
 - BR-9 — addressed — Tests use a package-level castClient in both packages, and no DefaultClient.Jar remains in cmd/. I could not run couchtty here because its generated runtimebundle assets are missing.
 
+## Round 4 — 2026-10-12T16:13:52-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — not-addressed — The "Current design" summary was added, but it already contradicts the latest revision (four codes vs the web cast's three links), and the Couch Display/Click rotation/Documented trade-off sections and the M3 bullets still state the replaced design.
+
+### Raised
+
+- **BR-10** [Important] `behavior-without-default-test` Web viewer's reload into the lock page (viewer.js:99-106) has no node test; only the env-gated Chrome test covers it
+  The terminal viewer's twin is tested in connect.test.mjs. Add a viewer.test.mjs case with the fake EventSource at readyState 2 and an injected sessionLost: true calls relock, false shows Disconnected, and neither runs after an end event.
+- **BR-11** [Minor] `spec-moves-with-decisions` Plan M2 says the Chrome live tests were "updated to unlock first", but they bypass the Host; TestLiveLockPage replaces them, which the plan does not record
+  Repeat in this family. The rule: when an implementation substitutes for a plan item, the milestone bullet is rewritten in the same commit, not left for a Revisions entry. Same sweep: atlas/broadcast.md:82 and the Current design's pre-session list omit collab.js.
+- **BR-12** [Minor] `docs-gate-surface` README web-cast sections (e.g. line 1021, "Anyone with the viewer link can point") don't mention the code lock
+  Acceptable to defer while the operator can't see a code (M3), but the M3 close must update the README for codes, the lock page and the drive code.
+
+## Round 5 — 2026-10-12T16:19:26-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — not-addressed — The Current-design summary helps, but the body still states replaced decisions (event locked, inline Chrome code display, click-span rotation, trade-off, M3 bullets); the M3 bullets are the next build list and still describe the old design. Strict is correct (lockgate.go:123), so that site is resolved.
+- BR-10 — addressed — tests/webcast/viewer.test.mjs adds sessionLost true/false/ended/reconnecting cases; reverting viewer.js to base makes the relock case fail (1 of 14).
+- BR-11 — not-addressed — The summary's Tests bullet records the substitution, but the M2 milestone bullet still says "updated to unlock first", and atlas/broadcast.md:82 plus the summary's pre-session list still omit collab.js (served pre-session at lockgate.go:37).
+- BR-12 — not-addressed — Still deferred on its own terms to the M3 close; the README has no code-lock text yet.
+
+### Raised
+
+- **BR-13** [Minor] `behavior-without-default-test` Terminal viewer's note author (viewer.js beforeSave, collab.js storedName) has only a source-grep test, no behavioral one
+  2nd in family. Rule: any page-side path that changes what a page POSTs is covered by a node test driving it through injected deps; a Go grep of the asset text is not a behavioral test. Add a node test: storedName over a fake storage (valid, invalid, missing storage) and the dialog's beforeSave adding author only when a name is stored.
+- **BR-14** [Minor] `restated-constant-unpinned` The 40-char viewer-name bound is restated in collab.js, notes.go and lock.html maxlength with no parity test
+  TestNoteAuthorRoundTripsOnTheBoardRule pins board.MaxNameRunes to broadcast only. If they drift, pages send names that ParseNote refuses as ErrNoteText. Pin MAX_VIEWER_NAME and maxlength from Go by reading the embedded assets, as server_test already does for keys. Note that maxlength counts UTF-16 units.
+- **BR-15** [Minor] `test-asserts-weaker-than-name` TestCastBrowserFirstThenLink now passes on the lock page's 200 and no longer proves the viewer page is served
+  cast_test.go:57 fetches u.Link without unlockCast, so the 200 is the lock page. Unlock first and assert the viewer page's marker, or assert the lock page explicitly and rename the test.
+
 ## Open findings
 
 - **BR-1** [Minor] `spec-moves-with-decisions` Durable plan body still shows the replaced inline-code, click-span, and Strict-cookie design
 - **BR-6** [Minor] `spec-moves-with-decisions` The plan still says revoke sends event: locked and that a sessionFrom(r) seam exists; the code does neither
+- **BR-11** [Minor] `spec-moves-with-decisions` Plan M2 says the Chrome live tests were "updated to unlock first", but they bypass the Host; TestLiveLockPage replaces them, which the plan does not record
+- **BR-12** [Minor] `docs-gate-surface` README web-cast sections (e.g. line 1021, "Anyone with the viewer link can point") don't mention the code lock
+- **BR-13** [Minor] `behavior-without-default-test` Terminal viewer's note author (viewer.js beforeSave, collab.js storedName) has only a source-grep test, no behavioral one
+- **BR-14** [Minor] `restated-constant-unpinned` The 40-char viewer-name bound is restated in collab.js, notes.go and lock.html maxlength with no parity test
+- **BR-15** [Minor] `test-asserts-weaker-than-name` TestCastBrowserFirstThenLink now passes on the lock page's 200 and no longer proves the viewer page is served
