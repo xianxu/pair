@@ -1,12 +1,20 @@
 ---
 id: 000493
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: 'd816e8ccba32f0cdd1b97437efa90b6396a990d7' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'f20b77cda8d8e82f9e64c2ac8000146cce0f780b' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T14:31:06-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
 ---
 
 # broadcast-web: notes and strokes aren't recorded (live viewers see them; replay and queries don't)
@@ -26,8 +34,26 @@ Reproduce with a live cast (headless, real recorder, real Board), find where not
 
 ## Plan
 
-- [ ]
+Root cause: `recording.DirWriter` buffered each record file (4 KiB `bufio.Writer`), flushed only when full or at
+`Close`. events.jsonl fills its buffer constantly; a cast's few notes (~500 B each) never filled notes.jsonl's, so
+they reached disk only when the cast ended. Fix (quick flow):
+
+- [x] `DirWriter.Put` appends each record in one unbuffered write (also crash-safe: whole lines, no lost tail).
+- [x] E2E test `TestCastBoardNotesAndStrokesReachDiskWhileLive`: real cast (`StartCast`, its `DirWriter`, the Board),
+  a note and a stroke POSTed on the viewer routes, then — without closing — `ReadDir` (replay's reader) holds both
+  and `query.Run DIR notes` lists the note. Red before the fix (0 records on disk), green after.
+- [x] atlas/webcast-format.md: the unbuffered append rule.
 
 ## Log
 
 ### 2026-10-12
+- **The recording was not missing the notes, they were late:** 20261012T120120-7bc7 now holds 6 note lines
+  (12:03:08, 12:03:30, 12:07:50, 13:25:46 + resolve, 13:26:38) and 15 stroke chunks (13:26:23). notes.jsonl and
+  pointer.jsonl were last written 14:29, when the cast ended (`stop why=end`). events.jsonl has no note/stroke by
+  design (per-kind files: `FileOf`). So at 12:0x the operator read a notes.jsonl still in the buffer.
+- Segments: 1 live 12:02:17–12:04:42, 2 live 12:07:31–13:25:41 (pause), 3 from 13:26:42. The 13:26:23 strokes were
+  drawn while paused; no stroke from a live segment is in the file. Every Board record goes Board → `Chrome.Emit`
+  → recorder (`OnDoc` check) → `Tee(DirWriter, board, live)`, so what other viewers saw was also Put; a viewer's
+  own strokes draw locally, so a solo test can "see" a stroke the server refused. Asked the TL whether strokes were
+  drawn while live at 12:0x; if so, a second cause sits before the Tee (Board `pageLocked` refusal or the
+  recorder's `OnDoc` drop, deliberately uncounted per #470's TestRecorderEmitChecksTheDocument).

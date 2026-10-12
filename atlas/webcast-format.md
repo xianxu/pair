@@ -355,6 +355,9 @@ the live fan-out. An asset body is stored once: the asset store (#459) decides w
 the recording's `recording.AssetWriter` (its `DirWriter`, the one writer of `assets/<hash>`, which writes atomically). Only the
 asset record goes through the Sink. Screenshots go to `DirWriter.PutFrame`. A `Live` refuses frames
 (`ErrNotLive`), because pixels never reach viewers; `RunLiveContract` checks this.
+`DirWriter.Put` appends each record to its file in one write, unbuffered (pair#493): a recording is read while it is
+written (the live replay, `--broadcast-web-query`), and per-file buffers held a cast's few notes until it stopped.
+`TestCastBoardNotesAndStrokesReachDiskWhileLive` reads a live cast's directory without closing it.
 
 **Seam into `webcast.Cast` (#454).** Today `webcast.Server.events` streams the Browser's `state` (the stub). The recorder (#458)
 adds `LaunchOptions.Sink recording.Sink` to `webcast.Chrome`. The Chrome loop already owns every page session and the

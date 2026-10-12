@@ -1,7 +1,6 @@
 package recording
 
 import (
-	"bufio"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -58,11 +57,17 @@ var frameFile = regexp.MustCompile(`^frames/[0-9]+\.png$`)
 
 // DirWriter writes a recording directory: records to their files, asset
 // bodies under assets/, screenshots under frames/. Safe for one writer.
+//
+// Each record reaches its file as it is put, in one append (pair#493). A
+// recording is read while it is still being written -- the live replay, the
+// notes query -- and per-file buffers held a cast's few notes (well under a
+// buffer's size) until the cast stopped, two hours later; a crash would have
+// lost every file's tail. The rate is low (a 2.5 h cast: ~3,500 records), so
+// a write per record costs nothing that matters.
 type DirWriter struct {
 	dir   string
 	mu    sync.Mutex
-	files map[string]*bufio.Writer
-	osf   map[string]*os.File
+	files map[string]*os.File
 }
 
 // NewDirWriter creates dir (it must not exist yet: a recording is written
@@ -76,7 +81,7 @@ func NewDirWriter(dir string) (*DirWriter, error) {
 			return nil, err
 		}
 	}
-	return &DirWriter{dir: dir, files: map[string]*bufio.Writer{}, osf: map[string]*os.File{}}, nil
+	return &DirWriter{dir: dir, files: map[string]*os.File{}}, nil
 }
 
 // Put appends a record to the file its kind lives in.
@@ -88,17 +93,17 @@ func (w *DirWriter) Put(r Record) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	name := FileOf(r.Kind())
-	bw := w.files[name]
-	if bw == nil {
-		f, err := os.OpenFile(filepath.Join(w.dir, name), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
-		if err != nil {
+	f := w.files[name]
+	if f == nil {
+		var err error
+		if f, err = os.OpenFile(filepath.Join(w.dir, name), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600); err != nil {
 			return err
 		}
-		w.osf[name], bw = f, bufio.NewWriter(f)
-		w.files[name] = bw
+		w.files[name] = f
 	}
-	bw.Write(line)
-	return bw.WriteByte('\n')
+	// One write per line, so a reader (or a crash) sees whole lines only.
+	_, err = f.Write(append(line, '\n'))
+	return err
 }
 
 // AssetWriter persists asset bodies by content hash. DirWriter is the one
@@ -157,15 +162,15 @@ func writeFileAtomic(path string, body []byte) error {
 	return nil
 }
 
-// Close flushes and closes every file.
+// Close closes every file.
 func (w *DirWriter) Close() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	var errs []error
-	for name, bw := range w.files {
-		errs = append(errs, bw.Flush(), w.osf[name].Close())
+	for _, f := range w.files {
+		errs = append(errs, f.Close())
 	}
-	w.files, w.osf = map[string]*bufio.Writer{}, map[string]*os.File{}
+	w.files = map[string]*os.File{}
 	return errors.Join(errs...)
 }
 
