@@ -1378,3 +1378,7 @@ proof; record the surprising case so the next change starts from evidence.
   re-running a close, grep the old behaviour's words (`cancel`, `refuse`, the error text) across atlas/, README,
   the issue file and comments, and rewrite or annotate as superseded every hit in the same commit.
 
+- **A file read while it is written has a torn tail (#493 close).** Making the recording's writer unbuffered let
+  readers see records mid-cast, and with that the reader's strict decode (any bad line fails the whole recording)
+  became a live hazard: a replay racing a write could fail outright. When a writer's output becomes readable while
+  open, the reader takes complete lines only and leaves torn-tail detection to the validator of a finished file.

@@ -26,18 +26,24 @@ type emittingBrowser struct {
 
 func (e *emittingBrowser) Emit(r recording.Record, doc int) error { return e.w.Emit(r, doc) }
 
-// A recorded cast takes viewers' notes (#470): the board follows the
-// recording through its Tee, a posted note reaches the directory and the
-// viewers' stream, Couch sees it in Notes, and the operator resolves it.
-func TestCastBoardRecordsNotes(t *testing.T) {
-	dir := t.TempDir()
-	eb := &emittingBrowser{FakeBrowser: NewFakeBrowser()}
-	var ro *RecordOptions
+// recordedBoardCast is a recorded cast with a board, its viewer routes served, and
+// the recording's one writer reachable once it opens.
+type recordedBoardCast struct {
+	c    *Cast
+	eb   *emittingBrowser
+	ro   *RecordOptions
+	dir  string
+	base string
+}
+
+func startRecordedBoardCast(t *testing.T) *recordedBoardCast {
+	t.Helper()
+	bc := &recordedBoardCast{dir: t.TempDir(), eb: &emittingBrowser{FakeBrowser: NewFakeBrowser()}}
 	c, err := StartCast(context.Background(), CastConfig{
-		Launch:        func(_ context.Context, r *RecordOptions) (Browser, error) { ro = r; return eb, nil },
+		Launch:        func(_ context.Context, r *RecordOptions) (Browser, error) { bc.ro = r; return bc.eb, nil },
 		Host:          broadcast.NewHost(broadcast.HostConfig{Tunnel: &broadcast.FakeTunnel{}, ProbeTimeout: 2 * time.Second}),
 		Ping:          time.Second,
-		RecordingsDir: dir,
+		RecordingsDir: bc.dir,
 		NewLive: func() (recording.Sink, recording.Live) {
 			h := recording.NewHub(256)
 			return h, h
@@ -49,24 +55,41 @@ func TestCastBoardRecordsNotes(t *testing.T) {
 	t.Cleanup(c.End)
 	srv := httptest.NewServer(c.server)
 	t.Cleanup(srv.Close)
-	base := srv.URL + "/" + c.token + "/"
-	if code, text := post(t, base+"note", "application/json", noteBody(1, 5, 0)); code != http.StatusConflict || text != refuseNotLive {
-		t.Fatalf("a note before the recording opens: %d %q", code, text)
-	}
+	bc.c, bc.base = c, srv.URL+"/"+c.token+"/"
+	return bc
+}
 
-	o, err := ro.Out()
+// open opens the recording (the first go-live) and writes a live page with
+// one element, which it returns.
+func (bc *recordedBoardCast) open(t *testing.T) recording.Node {
+	t.Helper()
+	o, err := bc.ro.Out()
 	if err != nil {
 		t.Fatal(err)
 	}
-	eb.w = board.NewWriter(o.Sink, nil)
+	bc.eb.w = board.NewWriter(o.Sink, nil)
 	b := recording.NewBuilder("rec")
 	p := b.El("p", []string{"id", "p"}, b.Txt("Hello"))
 	b.Page(recording.SegLive, "http://app/", p)
 	for _, r := range b.Recs {
-		if err := eb.w.Put(r); err != nil {
+		if err := bc.eb.w.Put(r); err != nil {
 			t.Fatal(err)
 		}
 	}
+	return p
+}
+
+// A recorded cast takes viewers' notes (#470): the board follows the
+// recording through its Tee, a posted note reaches the directory and the
+// viewers' stream, Couch sees it in Notes, and the operator resolves it.
+func TestCastBoardRecordsNotes(t *testing.T) {
+	bc := startRecordedBoardCast(t)
+	c, eb, dir, base := bc.c, bc.eb, bc.dir, bc.base
+	if code, text := post(t, base+"note", "application/json", noteBody(1, 5, 0)); code != http.StatusConflict || text != refuseNotLive {
+		t.Fatalf("a note before the recording opens: %d %q", code, text)
+	}
+
+	p := bc.open(t)
 	notes, cancel := c.Notes()
 	defer cancel()
 	<-notes
@@ -104,40 +127,10 @@ func TestCastBoardRecordsNotes(t *testing.T) {
 // here closes the recording: the reads below are what a replay and a query
 // make mid-cast.
 func TestCastBoardNotesAndStrokesReachDiskWhileLive(t *testing.T) {
-	dir := t.TempDir()
-	eb := &emittingBrowser{FakeBrowser: NewFakeBrowser()}
-	var ro *RecordOptions
-	c, err := StartCast(context.Background(), CastConfig{
-		Launch:        func(_ context.Context, r *RecordOptions) (Browser, error) { ro = r; return eb, nil },
-		Host:          broadcast.NewHost(broadcast.HostConfig{Tunnel: &broadcast.FakeTunnel{}, ProbeTimeout: 2 * time.Second}),
-		Ping:          time.Second,
-		RecordingsDir: dir,
-		NewLive: func() (recording.Sink, recording.Live) {
-			h := recording.NewHub(256)
-			return h, h
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(c.End)
-	srv := httptest.NewServer(c.server)
-	t.Cleanup(srv.Close)
-	base := srv.URL + "/" + c.token + "/"
-	o, err := ro.Out()
-	if err != nil {
-		t.Fatal(err)
-	}
-	eb.w = board.NewWriter(o.Sink, nil)
+	bc := startRecordedBoardCast(t)
+	c, eb, dir, base := bc.c, bc.eb, bc.dir, bc.base
 	t.Cleanup(func() { eb.w.Close() })
-	b := recording.NewBuilder("rec")
-	p := b.El("p", []string{"id", "p"}, b.Txt("Hello"))
-	b.Page(recording.SegLive, "http://app/", p)
-	for _, r := range b.Recs {
-		if err := eb.w.Put(r); err != nil {
-			t.Fatal(err)
-		}
-	}
+	p := bc.open(t)
 	notes, cancel := c.Notes()
 	defer cancel()
 	<-notes

@@ -66,3 +66,9 @@ they reached disk only when the cast ended. Fix (quick flow):
   live Chrome: empty pointer.jsonl after 10 s, recorder dropped nothing). So a live stroke is recorded, and the
   buffer was the whole cause. Paused strokes being accepted at all is #499.
 - make -k test exit 0 on db118ad89+.
+- **Close review round 1 (FIX-THEN-SHIP):** BR-1 (right): a reader racing a write can see a half-written last line,
+  and `ReadDir` failed the whole recording on it — now a live hazard. `ReadDir` decodes complete lines only
+  (`completeLines`); `Files` keeps raw bytes so `ValidateDir` still flags a torn tail on an ended recording. The
+  three "whole lines only" claims corrected (Put, DirWriter doc, atlas). Tests: TestReadDirDecodesCompleteLinesOnly
+  (fails with `completeLines` removed), TestDirWriterRecordIsOnDiskBeforeClose (owning-layer pin). Minor: the two
+  cast tests share `startRecordedBoardCast`/`open`. Done-when 2 (operator's next live cast) is the pending live check.

@@ -1,6 +1,7 @@
 package recording
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -62,8 +63,9 @@ var frameFile = regexp.MustCompile(`^frames/[0-9]+\.png$`)
 // recording is read while it is still being written -- the live replay, the
 // notes query -- and per-file buffers held a cast's few notes (well under a
 // buffer's size) until the cast stopped, two hours later; a crash would have
-// lost every file's tail. The rate is low (a 2.5 h cast: ~3,500 records), so
-// a write per record costs nothing that matters.
+// lost every buffered tail. The rate is low (a 2.5 h cast: ~3,500 records), so
+// a write per record costs nothing that matters. A concurrent reader can still
+// see a line half written; ReadDir decodes complete lines only.
 type DirWriter struct {
 	dir   string
 	mu    sync.Mutex
@@ -101,7 +103,8 @@ func (w *DirWriter) Put(r Record) error {
 		}
 		w.files[name] = f
 	}
-	// One write per line, so a reader (or a crash) sees whole lines only.
+	// The line and its newline in one write, so a line is never left
+	// unterminated between two Puts.
 	_, err = f.Write(append(line, '\n'))
 	return err
 }
@@ -198,7 +201,11 @@ func ReadDir(dir string) (*Recording, error) {
 	}
 	located := map[string][]Located{}
 	for name, data := range rec.Files {
-		ls, bad := DecodeFile(name, data)
+		// A recording is read while it is written (pair#493), and a reader can
+		// race a write: decode complete lines only. Files keeps the bytes as
+		// they are, so ValidateDir still reports a torn tail on a recording
+		// that has ended.
+		ls, bad := DecodeFile(name, completeLines(data))
 		if len(bad) > 0 {
 			return nil, errors.New(bad[0].String())
 		}
@@ -209,6 +216,11 @@ func ReadDir(dir string) (*Recording, error) {
 		rec.Frames = append(rec.Frames, l.Record.(*Frame))
 	}
 	return rec, nil
+}
+
+// completeLines is data up to and including its last newline.
+func completeLines(data []byte) []byte {
+	return data[:bytes.LastIndexByte(data, '\n')+1]
 }
 
 // Asset reads a stored body by hash.
