@@ -15,6 +15,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "1d1a40ca", done: "1809e283"}
 ---
 
 # broadcast-web: remote-driving contract — viewer input, driver control, attribution in the format
