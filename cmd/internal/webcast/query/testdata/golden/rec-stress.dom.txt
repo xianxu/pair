@@ -1,0 +1,303 @@
+$ couch --broadcast-web-query <fixtures>/rec-stress dom --at 2000
+t=2000  segment 1 (live)  http://127.0.0.1:62201/stress.html  viewport 1280x800@1  title "broadcast-web stress"
+@1 #document http://127.0.0.1:62201/stress.html {scrolled 0,0}
+  @3 <html>
+    @4 <head> (title "broadcast-web stress"; 1 link; 1 meta; 1 style)
+    @14 <body>
+      @16 <header>
+        @17 <h1>
+          Stress
+          @19 <span id=clock> 3.4
+        @21 <span class=spin>
+        @23 <span class=late> Late font: The quick brown fox
+      @26 <main>
+        @28 <section class=grid>
+          @30 <table>
+            @31 <thead>
+              @32 <tr>
+                @33 <th> id
+                @35 <th> name
+                @37 <th> value
+                @39 <th> delta
+                @41 <th> state
+            @43 <tbody id=tb>
+              @2949 <tr>
+                @3053 <td> 0
+                @3055 <td> row-0-g4
+                @3057 <td> 262.1
+                @3059 <td class=d> 0
+                @3061 <td>
+                  @3062 <span class=pill> warn
+              @2950 <tr>
+                @3064 <td> 1
+                @3066 <td> row-1-g4
+                @3068 <td> 766.7
+                @3070 <td class=d> 0
+                @3072 <td>
+                  @3073 <span class=pill> err
+              @2951 <tr>
+                @3075 <td> 2
+                @3077 <td> row-2-g4
+                @3079 <td> 434.8
+                @3081 <td class=d> 0
+                @3083 <td>
+                  @3084 <span class=pill> ok
+              @2952 <tr>
+                @3086 <td> 3
+                @3088 <td> row-3-g4
+                @3090 <td> 818.9
+                @3092 <td class=d> 0
+                @3094 <td>
+                  @3095 <span class=pill> warn
+              @2953 <tr>
+                @3097 <td> 4
+                @3099 <td> row-4-g4
+                @3101 <td> 240.8
+                @3103 <td class=d> 0
+                @3105 <td>
+                  @3106 <span class=pill> err
+              @2954 <tr>
+                @3108 <td> 5
+                @3110 <td> row-5-g4
+                @3112 <td> 210.5
+                @3114 <td class=d> 0
+                @3116 <td>
+                  @3117 <span class=pill> ok
+              @2955 <tr>
+                @3119 <td> 6
+                @3121 <td> row-6-g4
+                @3123 <td> 401.3
+                @3125 <td class=d> 0
+                @3127 <td>
+                  @3128 <span class=pill> warn
+              @2956 <tr>
+                @3130 <td> 7
+                @3132 <td> row-7-g4
+                @3134 <td> 292.8
+                @3136 <td class=d> 0
+                @3138 <td>
+                  @3139 <span class=pill> err
+              @2957 <tr>
+                @3141 <td> 8
+                @3143 <td> row-8-g4
+                @3145 <td> 830.9
+                @3147 <td class=d> 0
+                @3149 <td>
+                  @3150 <span class=pill> ok
+              @2958 <tr>
+                @3153 <td> 9
+                @3155 <td> row-9-g4
+                @3157 <td> 69.8
+                @3159 <td class=d> 0
+                @3161 <td>
+                  @3162 <span class=pill> warn
+              @2959 <tr>
+                @3164 <td> 10
+                @3166 <td> row-10-g4
+                @3168 <td> 701.4
+                @3170 <td class=d> 0
+                @3172 <td>
+                  @3173 <span class=pill> err
+              @2960 <tr>
+                @3175 <td> 11
+                @3177 <td> row-11-g4
+                @3179 <td> 816.1
+                @3181 <td class=d> 0
+                @3183 <td>
+                  @3184 <span class=pill> ok
+              @2961 <tr>
+                @3186 <td> 12
+                @3188 <td> row-12-g4
+                @3190 <td> 473.8
+                @3192 <td class=d> 0
+                @3194 <td>
+                  @3195 <span class=pill> warn
+              @2962 <tr>
+                @3197 <td> 13
+                @3199 <td> row-13-g4
+                @3201 <td> 282.0
+                @3203 <td class=d> 0
+                @3205 <td>
+                  @3206 <span class=pill> err
+              @2963 <tr>
+                @3208 <td> 14
+                @3210 <td> row-14-g4
+                @3212 <td> 665.9
+                @3214 <td class=d> 0
+                @3216 <td>
+                  @3217 <span class=pill> ok
+              @2964 <tr>
+                @3219 <td> 15
+                @3221 <td> row-15-g4
+                @3223 <td> 397.6
+                @3225 <td class=d> 0
+                @3227 <td>
+                  @3228 <span class=pill> warn
+              @2965 <tr>
+                @3230 <td> 16
+                @3232 <td> row-16-g4
+                @3234 <td> 620.1
+                @3236 <td class=d> 0
+                @3238 <td>
+                  @3239 <span class=pill> err
+              @2966 <tr>
+                @3241 <td> 17
+                @3243 <td> row-17-g4
+                @3245 <td> 249.6
+                @3247 <td class=d> 0
+                @3249 <td>
+                  @3250 <span class=pill> ok
+              @2967 <tr>
+                @3252 <td> 18
+                @3254 <td> row-18-g4
+                @3256 <td> 213.0
+                @3258 <td class=d> 0
+                @3260 <td>
+                  @3261 <span class=pill> warn
+              @2968 <tr>
+                @3263 <td> 19
+                @3265 <td> row-19-g4
+                @3267 <td> 668.7
+                @3269 <td class=d> 0
+                @3271 <td>
+                  @3272 <span class=pill> err
+              @2969 <tr>
+                @3274 <td> 20
+                @3276 <td> row-20-g4
+                @3278 <td> 967.0
+                @3280 <td class=d> 0
+                @3282 <td>
+                  @3283 <span class=pill> ok
+              @2970 <tr>
+                @3285 <td> 21
+                @3287 <td> row-21-g4
+                @3289 <td> 156.7
+                @3291 <td class=d> 0
+                @3293 <td>
+                  @3294 <span class=pill> warn
+              @2971 <tr>
+                @3296 <td> 22
+                @3298 <td> row-22-g4
+                @3300 <td> 96.6
+                @3302 <td class=d> 0
+                @3304 <td>
+                  @3305 <span class=pill> err
+              @2972 <tr>
+                @3307 <td> 23
+                @3309 <td> row-23-g4
+                @3311 <td> 71.4
+                @3313 <td class=d> 0
+                @3315 <td>
+                  @3316 <span class=pill> ok
+              @2973 <tr>
+                @3318 <td> 24
+                @3320 <td> row-24-g4
+                @3322 <td> 656.9
+                @3324 <td class=d> 0
+                @3326 <td>
+                  @3327 <span class=pill> warn
+              @2974 <tr>
+                @3329 <td> 25
+                @3331 <td> row-25-g4
+                @3333 <td> 203.2
+                @3335 <td class=d> 0
+                @3337 <td>
+                  @3338 <span class=pill> err
+              @2975 <tr>
+                @3340 <td> 26
+                @3342 <td> row-26-g4
+                @3344 <td> 829.7
+                @3346 <td class=d> 0
+                @3348 <td>
+                  @3349 <span class=pill> ok
+              @2976 <tr>
+                @3351 <td> 27
+                @3353 <td> row-27-g4
+                @3355 <td> 48.2
+                @3357 <td class=d> 0
+                @3359 <td>
+                  @3360 <span class=pill> warn
+              @2977 <tr>
+                @3362 <td> 28
+                @3364 <td> row-28-g4
+                @3366 <td> 985.6
+                @3368 <td class=d> 0
+                @3370 <td>
+                  @3371 <span class=pill> err
+              @2978 <tr>
+                @3373 <td> 29
+                @3375 <td> row-29-g4
+                @3377 <td> 658.2
+                @3379 <td class=d> 0
+                @3381 <td>
+                  @3382 <span class=pill> ok
+              @2979 <tr>
+                @3384 <td> 30
+                @3386 <td> row-30-g4
+                @3388 <td> 17.1
+                @3390 <td class=d> 0
+                @3392 <td>
+                  @3393 <span class=pill> warn
+              @2980 <tr>
+                @3395 <td> 31
+                @3397 <td> row-31-g4
+                @3399 <td> 784.5
+                @3401 <td class=d> 0
+                @3403 <td>
+                  @3404 <span class=pill> err
+              @2981 <tr>
+                @3406 <td> 32
+                @3408 <td> row-32-g4
+                @3410 <td> 387.8
+                @3412 <td class=d> 0
+                @3414 <td>
+                  @3415 <span class=pill> ok
+              @2982 <tr>
+                @3417 <td> 33
+                @3419 <td> row-33-g4
+                @3421 <td> 472.9
+                @3423 <td class=d> 0
+                @3425 <td>
+                  @3426 <span class=pill> warn
+              @2983 <tr>
+                @3428 <td> 34
+                @3430 <td> row-34-g4
+                @3432 <td> 297.7
+                @3434 <td class=d> 0
+                @3436 <td>
+                  @3437 <span class=pill> err
+              @2984 <tr>
+                @3439 <td> 35
+                @3441 <td> row-35-g4
+                @3443 <td> 834.8
+                @3445 <td class=d> 0
+                @3447 <td>
+                  @3448 <span class=pill> ok
+              @2985 <tr>
+                @3450 <td> 36
+                @3452 <td> row-36-g4
+                @3454 <td> 189.4
+                @3456 <td class=d> 0
+                @3458 <td>
+                  @3459 <span class=pill> warn
+              @2986 <tr>
+                @3461 <td> 37
+                @3463 <td> row-37-g4
+                @3465 <td> 239.5
+                @3467 <td class=d> 0
+                @3469 <td>
+                  @3470 <span class=pill> err
+              @2987 <tr>
+                @3472 <td> 38
+                @3474 <td> row-38-g4
+                @3476 <td> 564.8
+                @3478 <td class=d> 0
+                @3480 <td>
+                  @3481 <span class=pill> ok
+              @2988 <tr>
+                @3483 <td> 39
+                @3485 <td> row-39-g4
+                @3487 <td> 589.8
+                @3489 <td class=d> 0
+                @3491 <td>
+… 527 more lines; narrow it with a selector (--sel)
