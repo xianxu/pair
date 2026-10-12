@@ -13,7 +13,7 @@ claimant:
     workspace: pair:4
     worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
     repository: github.com/xianxu/pair
-actual_hours: 1.54
+actual_hours: 1.87
 tracker:
     version: 1
     handoff:
@@ -27,10 +27,10 @@ tracker:
         destination: workshop/issues/000477-broadcast-web-replay-inside-a-running-couch-for-remote-viewers-mount-replayserver-on-the-shared-host.md
         main_commit: 7420b66dc8cb168957c169e58670a6753072edae
     completion:
-        token: close-f10bbe1bdad7
+        token: close-f1609670dc95
         repository: github.com/xianxu/pair
-        reviewed_head: 9b9a11d67fefd9568ef15fe89bebb4428e2ddf05
-        evidence_commit: 8cda7c6adba4819c43e47b68f3e0ea2a1f195d94
+        reviewed_head: 763ec0464fdac28feb9c6db35c2f8ed7797a6416
+        evidence_commit: dc0dd6ddc3941717f56600634fae4bb65f1b5ad4
 ---
 
 # broadcast-web: replay inside a running Couch, for remote viewers (mount ReplayServer on the shared Host)
