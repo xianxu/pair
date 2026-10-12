@@ -100,14 +100,23 @@ func TestSlotGitRenderNeverBlocksOnSlowProbe(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("no probe started")
 	}
-	// A pass is stuck in git. The console must still render and take keys.
-	start := time.Now()
-	f.con.mu.Lock()
-	row := RenderStatusRow(100, f.con.statusModelLocked()).Body
-	f.con.mu.Unlock()
-	_ = RenderMenu(f.con.menuSnapshot(), 100, 24, time.Now(), false)
-	if elapsed := time.Since(start); elapsed > 100*time.Millisecond {
-		t.Fatalf("render took %v behind a hung probe", elapsed)
+	// A pass is stuck in git, held by the gate until the end of the test. The
+	// console must still render and take keys: the render returning at all
+	// while the gate is shut is the outcome, so the guard is a hang bound,
+	// not a time budget (pair#481).
+	rendered := make(chan string, 1)
+	go func() {
+		f.con.mu.Lock()
+		row := RenderStatusRow(100, f.con.statusModelLocked()).Body
+		f.con.mu.Unlock()
+		_ = RenderMenu(f.con.menuSnapshot(), 100, 24, time.Now(), false)
+		rendered <- row
+	}()
+	var row string
+	select {
+	case row = <-rendered:
+	case <-time.After(10 * time.Second):
+		t.Fatal("render waited on the hung probe")
 	}
 	if strings.Contains(row, "*") {
 		t.Fatalf("glyph before any observation: %q", row)

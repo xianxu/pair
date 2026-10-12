@@ -128,32 +128,15 @@ func (m *Marks) Add(points [][2]int, cols, rows, c int, now time.Time) {
 	}
 	limit := max(1, cols*rows/8)
 	var batch []cell
-	put := func(c cell) {
+	walkStrokes(points, cols, rows, func(c cell) {
 		if c.col >= 0 && c.col < cols && c.row >= 0 && c.row < rows && !guarded(c, rows) {
 			batch = append(batch, c)
-		}
-	}
-	// An off-grid point is dropped before any line reaches it, so a line is
-	// never longer than the grid, whatever the caller passed.
-	onGrid := func(p [2]int) bool { return p[0] >= 0 && p[0] < cols && p[1] >= 0 && p[1] < rows }
-	var prev *[2]int
-	for i := range points {
-		p := points[i]
-		if !onGrid(p) {
-			prev = nil
-			continue
-		}
-		if prev == nil {
-			put(cell{p[0], p[1]})
-		} else {
-			line(*prev, p, put)
 		}
 		// Keep only the cap's worth, the latest, as the batch grows.
 		if len(batch) > 2*limit {
 			batch = append(batch[:0], batch[len(batch)-limit:]...)
 		}
-		prev = &points[i]
-	}
+	})
 	if len(batch) > limit {
 		batch = batch[len(batch)-limit:]
 	}
@@ -183,6 +166,29 @@ func (m *Marks) Add(points [][2]int, cols, rows, c int, now time.Time) {
 		for _, a := range all[:excess] {
 			delete(m.cells, a.c)
 		}
+	}
+}
+
+// walkStrokes visits the cells a batch's points draw: each on-grid point,
+// joined to the previous one by a line. An off-grid point is dropped before
+// any line reaches it and breaks the stroke, so a line is never longer than
+// the grid, whatever the caller passed: the walk is at most one grid span
+// per point.
+func walkStrokes(points [][2]int, cols, rows int, visit func(cell)) {
+	onGrid := func(p [2]int) bool { return p[0] >= 0 && p[0] < cols && p[1] >= 0 && p[1] < rows }
+	var prev *[2]int
+	for i := range points {
+		p := points[i]
+		if !onGrid(p) {
+			prev = nil
+			continue
+		}
+		if prev == nil {
+			visit(cell{p[0], p[1]})
+		} else {
+			line(*prev, p, visit)
+		}
+		prev = &points[i]
 	}
 }
 
