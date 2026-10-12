@@ -190,3 +190,48 @@ boxes are in the cast's own units.
   controls span is `status line › …`. The draft's nvim statusline is part of its pane
   (`pane … › draft nvim › statusline`).
 - Crops: box + 16 px margin; structure snapping and per-URL `Hints` retired (TL tells pair:2).
+
+### 2026-10-12: plan-quality round 1 (PQ-1 + minors)
+- **PQ-1, pane rects (supersedes the M3 "cached list-panes, 300 ms" design):** `list-panes --json`
+  costs ~590 ms on zellij 0.44.3 (measured in #220, `layoutcmd.go:55`), and a cache refreshed
+  on slot switch or resize misses changes inside the session (review pane, terminal split,
+  draft minimize). So there is **no cache**; the anchor resolves **asynchronously and fresh**:
+  - On accept, the note lands at once with the frame-only anchor. That anchor is captured
+    from the frame at accept time: the text under the box; the bottom-row tab bar or status
+    line (pure, no zellij); else `Kind: "screen"`.
+  - A single-flight resolver in couchtty takes the notes that are waiting. Each pass runs
+    **one** list-panes, issued after every note it serves arrived, so the result is fresh
+    for them. It fills the pane path and calls `notesChanged`.
+  - The budget is 2 s per pass (about 3× the measured cost). On timeout or error the
+    anchor stays frame-only and is marked partial.
+  - **ORDER:** the anchor is applied by note ID within the same pointer generation. A
+    result for a note that was resolved, cleared, or flipped off since then is dropped.
+    Notes that arrive during a pass queue for the next pass, never the stale one. The
+    geometry epoch is rechecked at apply: a resize during the pass means the result is
+    dropped and the anchor stays frame-only. Tests use an injected resolver with
+    controlled completion order: resolve-before-complete, a flip mid-pass, a resize
+    mid-pass, and two notes in one pass.
+  - **Seam:** couchtty never calls zellij. couchcmd injects
+    `PaneRects func(ctx, couchcore.ThreadAddress) ([]PaneRect, error)` into the Console, built
+    like `shortcutFocusProbe` (`couchcmd/shortcut_focus.go`): `PairSessionContext` → binding
+    name → `zellij --session <name> action list-panes --json --geometry` →
+    `zellijpane.Parse` → `RoleForPaneWith` plus the terminal registry.
+  - **Fake:** a stateful layout fake (panes added, resized, removed between calls), behind
+    that function type.
+  - **Conformance:** a live check, skipped without zellij, that starts a throwaway
+    session, runs the real command, and asserts that `zellijpane.Parse` yields geometry
+    for every pane.
+- **Non-goals:**
+  - Building the #455 or #483 submission. This issue only exposes the box, the anchor
+    and the crop through the seams.
+  - Persisting terminal notes or anchors. They stay in memory, as today.
+  - Couch's 💭N menu showing boxes.
+- **Untrusted parsers:**
+  - Fuzz `broadcast.ParseNote` and `board.ParseNote`, seeded with truncated, negative,
+    oversized, NaN and off-grid boxes.
+  - Fuzz the `view.json` reader with malformed, huge and wrong-typed input.
+  - Every rejection must be an error, never a clamped fabrication of a missing field.
+- **Pin in the guard:** the pin cell is the box's top-right. If that lands on a guarded
+  cell (the LIVE controls), the pin moves within the box to the nearest unguarded cell,
+  first left and then down. Only a box with no unguarded 2-cell spot is refused. This is
+  table-tested.
