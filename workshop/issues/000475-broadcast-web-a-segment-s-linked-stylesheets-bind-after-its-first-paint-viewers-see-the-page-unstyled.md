@@ -15,6 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "3df9d70f", done: "b5c21435"}
 ---
 
 # broadcast-web: a segment's linked stylesheets bind after its first paint (viewers see the page unstyled)
