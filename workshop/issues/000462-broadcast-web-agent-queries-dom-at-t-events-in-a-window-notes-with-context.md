@@ -41,15 +41,23 @@ Implement #457's query surface as a CLI agents use on a recording (built on the 
 
 Durable plan: `workshop/plans/000462-broadcast-web-agent-queries-dom-at-t-events-in-a-window-notes-with-context-plan.md`. Single pass, one close.
 
-- [ ] Querier (real `query.Surface`) passes `RunSurfaceContract`
-- [ ] Selector subset + `@id`
-- [ ] Compact page text (state overlay, budgets)
-- [ ] Event lines (DOM runs summarized, `by` shown)
-- [ ] Notes text + `query.Main` CLI (`--json`)
-- [ ] Golden tests on every fixture
+- [x] Querier (real `query.Surface`) passes `RunSurfaceContract`
+- [x] Selector subset + `@id`
+- [x] Compact page text (state overlay, budgets)
+- [x] Event lines (DOM runs summarized, `by` shown)
+- [x] Notes text + `query.Main` CLI (`--json`)
+- [x] Golden tests on every fixture
 - [ ] Agent check: scripted + one recorded subagent run
-- [ ] `couch --broadcast-web-query` wiring, usage, skill, atlas
+- [x] `couch --broadcast-web-query` wiring, usage, skill, atlas
 
 ## Log
 
 ### 2026-10-11
+
+### 2026-10-12
+- Command: `couch --broadcast-web-query DIR dom|events|notes` (closed form in couchcmd, parsed by `query.Main`; no Couch runtime needed). Name follows the product (`couch broadcast-web`) and the `--broadcast-list` sibling.
+- Notes go through `notes.FakeModel` until #461 lands: one line in `query.Main`. Its context/landmark lines change then; the golden files show it.
+- Seam additions, all inside #462's own package (no format change): `query.NoteView` gains `Landmark`, `URL`, `Header`, `BeforeLines` (the real surface fills them, the fake leaves them empty); `query.UserAction` now counts `seg` and `stop`, so a note's preceding actions mark a navigation, tab switch or pause instead of folding typing across it (found in the `segments` golden: `1200-5200 input … (2 changes)` across a pause).
+- Typing folds: React writes the value twice per key (the `input` property and the `value` attribute); both fold into one line per field and viewer (`4414-5116 input @73 … "Review PR 42" (19 changes)`, 19 checked against the fixture by grep). The fold key carries `by`, so two people's typing never merges.
+- Fixture selectors from fixturegen (`h1~Reports`, `img[alt*=issue tracker]`) aren't CSS; notes resolve by node id so they still work, and `Select` refuses them with the grammar if passed back.
+
