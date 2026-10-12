@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000472-broadcast-web-real-recorder-output-as-fixtures-the-integration-guard.md
         source_blob: 3b35b4b5c0f3ff23a6ccd37dd2fa5b43c571bf1f
         destination: workshop/issues/000472-broadcast-web-real-recorder-output-as-fixtures-the-integration-guard.md
+        main_commit: cc9b620f44dc4d2df8023902e62b12b6063489ab
 ---
 
 # broadcast-web: real recorder output as fixtures (the integration guard)
