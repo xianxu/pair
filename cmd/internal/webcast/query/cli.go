@@ -119,8 +119,7 @@ func Main(argv []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "couch: %s: %s holds no records\n", Flag, a.dir)
 		return 1
 	}
-	// The notes model is #461's; its fake answers until that lands.
-	q := New(rec.Records, notes.FakeModel{})
+	q := New(rec.Records, notes.Structural{})
 	q.PageLines = a.maxLines
 	if err := answer(q, a, stdout); err != nil {
 		fmt.Fprintf(stderr, "couch: %s: %s\n", Flag, strings.TrimPrefix(err.Error(), "query: "))

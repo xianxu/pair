@@ -1,6 +1,7 @@
 package query
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -48,6 +49,9 @@ func TestSelect(t *testing.T) {
 		{"#card span", `<span.badge> "in shadow"`}, // through a closed shadow root
 		{".badge", `<span.badge> "in shadow"|<i.badge>`},
 		{"*:nth-child(3)", `<x-card#card>`},
+		{"a:nth-of-type(2)", `<a.link.active> "B"`},
+		{"form > input:nth-of-type(1)", `<input>`},
+		{"#card >>> span:nth-of-type(1)", `<span.badge> "in shadow"`},
 	} {
 		got, err := Select(st, c.sel)
 		if err != nil {
@@ -80,44 +84,52 @@ func TestSelectByNodeID(t *testing.T) {
 // loosely: an agent's :hover or ~ must not silently mean something else.
 func TestSelectRefusesWhatItCantRead(t *testing.T) {
 	st := selectPage(t)
-	for _, sel := range []string{"", "a:hover", "h1~Reports", "a + b", "a >", "> a", "a >> b", "[x", "[a~=b]", ":nth-child(0)", "#", "@x", "a[=b]"} {
+	for _, sel := range []string{"", "a:hover", "h1~Reports", "a + b", "a >", "> a", "a >> b", ">>> a", "a >>>", "a:nth-of-type(x)", "[x", "[a~=b]", ":nth-child(0)", "#", "@x", "a[=b]"} {
 		if _, err := Select(st, sel); err == nil || !strings.Contains(err.Error(), "selectors are") {
 			t.Errorf("%q: %v, want a refusal naming the grammar", sel, err)
 		}
 	}
 }
 
-// The fake notes model's anchors (an id, or a child-index path) select
-// their own element: a note's selector works with --sel.
+// Every notes model's anchors (the fake's id or child-index path, the real
+// model's stable selectors with :nth-of-type and >>>) select their own
+// element: a note's selector works with --sel.
 func TestModelSelectorsSelectTheirElement(t *testing.T) {
-	r, err := recording.ReadDir(recording.Fixture("app"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	st, err := recording.Reduce(r.Records, 12500)
-	if err != nil {
-		t.Fatal(err)
-	}
-	checked := 0
-	walkAll(st.Top, func(n *recording.DOMNode) {
-		if n.Y != recording.YEl || st.Top.Kids == nil {
-			return
-		}
-		at, err := notes.FakeModel{}.Anchor(st, n.ID)
+	for _, name := range []string{"app", "stress"} {
+		r, err := recording.ReadDir(recording.Fixture(name))
 		if err != nil {
 			t.Fatal(err)
 		}
-		got, err := Select(st, at.Sel)
+		st, err := recording.Reduce(r.Records, 3000)
 		if err != nil {
-			t.Errorf("%s: %v", at.Sel, err)
-			return
+			t.Fatal(err)
 		}
-		if len(got) == 0 || (at.Sel[0] != '#' && (len(got) != 1 || got[0] != n)) {
-			t.Errorf("%s: %d matches, want @%d", at.Sel, len(got), n.ID)
+		for _, model := range []notes.Model{notes.FakeModel{}, notes.Structural{}} {
+			checked := 0
+			walkAll(st.Top, func(n *recording.DOMNode) {
+				if n.Y != recording.YEl {
+					return
+				}
+				at, err := model.Anchor(st, n.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if at.Sel == "" {
+					return // the model found no selector that round-trips
+				}
+				got, err := Select(st, at.Sel)
+				if err != nil {
+					t.Errorf("%s %T %s: %v", name, model, at.Sel, err)
+					return
+				}
+				if !slices.Contains(got, n) {
+					t.Errorf("%s %T %s: %d matches, none @%d", name, model, at.Sel, len(got), n.ID)
+				}
+				checked++
+			})
+			if checked < 30 {
+				t.Errorf("%s %T: checked %d elements only", name, model, checked)
+			}
 		}
-		checked++
-	})
-	if checked < 50 {
-		t.Errorf("checked %d elements only", checked)
 	}
 }

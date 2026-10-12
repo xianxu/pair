@@ -63,3 +63,8 @@
 - Output size on `stress` (9k records): budgets are the defence; the golden files make any regression visible in the diff.
 - The selector grammar is a subset: an agent's real CSS (`:hover`, `~`, `+`) is refused with the grammar, never silently mismatched.
 - The fixture notes carry selectors from fixturegen that aren't CSS (`h1~Reports`, `img[alt*=issue tracker]`); notes resolve by node id first, so they still work; `Select` reports those as unsupported if an agent passes them back.
+
+## Revisions
+
+- 2026-10-12: #461 landed on main mid-issue. `Main` now constructs `notes.Structural` instead of the fake (the planned one-line swap), and `Select` also reads the real model's anchor grammar (`:nth-of-type(n)`, the `>>>` deep step), so a note's selector works with `--sel`; `TestModelSelectorsSelectTheirElement` checks both models' anchors on two fixtures.
+

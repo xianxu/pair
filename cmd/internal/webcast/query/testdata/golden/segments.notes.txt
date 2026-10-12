@@ -18,8 +18,8 @@ note seg-n2  t=5500  segment 2  open  by Ana (design) (viewer-2)
   page: t=5500  segment 2 (live)  http://app.local/  viewport 1280x800@1
   element:
     @13 <li> two
-  context: within @4 <ul#list> "one two"
-    text: "onetwo"
+  context: within @13 <li> "two"
+    text: "two"
   before (10000 ms):
     0 segment 1 starts (live) on http://app.local/, viewport 1280x800@1
     800 focus @1 <input#q>

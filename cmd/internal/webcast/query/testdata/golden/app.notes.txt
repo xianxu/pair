@@ -5,8 +5,8 @@ note app-n1  t=6000  segment 2  open  by Pat (product) (viewer-1)
   page: t=6000  segment 2 (live)  http://127.0.0.1:8801/app.html  viewport 1280x800@1  title "TaskPilot"
   element:
     @76 <input class="w-full border rounded-lg px-3 py-2" id=search placeholder=Search value> {value ""}
-  context: within @70 <div.space-y-4> "Add Ship onboarding flow Fix billing we…"
-    text: "AddShip onboarding flowFix billing webhookDesign pricing pageWrite launch email"
+  context: within @39 <main.flex-1.p-8.…> "tasks Add Ship onboarding flow Fix bill…"
+    text: "tasksAddShip onboarding flowFix billing webhookDesign pricing pageWrite launch email"
   before (10000 ms):
     12 segment 1 starts (live) on about:blank, viewport 1280x800@1
     224 segment 2 starts (navigate) on http://127.0.0.1:8801/app.html, viewport 1280x800@1
@@ -28,8 +28,8 @@ note app-n2  t=12500  segment 2  resolved  by Ana (design) (viewer-2)
   page: t=12500  segment 2 (live)  http://127.0.0.1:8801/app.html  viewport 1280x800@1  title "TaskPilot"
   element:
     @108 <button class="bg-rose-600 text-white px-4 py-2 rounded-lg" id=open-modal> {focused} Delete workspace…
-  context: within @106 <div.space-y-4.max-w-md> "Delete workspace… Setting row 0 : lorem…"
-    text: "Delete workspace…Setting row 0: lorem ipsum dolor sit amet.Setting row 1: lorem ipsum dolor sit amet.Setting row 2: lorem ipsum dolor sit amet.Setting row 3: lorem ipsum dolor sit amet.Setting row 4: "
+  context: within @39 <main.flex-1.p-8.…> "settings Delete workspace… Setting row …"
+    text: "settingsDelete workspace…Setting row 0: lorem ipsum dolor sit amet.Setting row 1: lorem ipsum dolor sit amet.Setting row 2: lorem ipsum dolor sit amet.Setting row 3: lorem ipsum dolor sit amet.Setting row 4: lorem ipsum dolor sit amet.Setting row 5: lorem ipsum dolor sit amet.Setting row 6: lorem ipsum dolor sit amet.Setting row 7: lorem ipsum dolor sit amet.Setting row 8: lorem ipsum dolor sit amet.Setting row 9: lorem ipsum dolor sit amet.Setting row 10: lorem ipsum dolor sit amet.Setting row "
   before (10000 ms):
     … 7 earlier actions
     3622 input @91 <input> unchecked
@@ -60,7 +60,7 @@ note app-n3  t=19000  segment 3  open  by Pat (product) (viewer-1)
   element:
     @277 <h1 class="text-3xl font-bold text-indigo-700 mb-4"> Reports
   context: within @274 <body.bg-white.p-10>
-    text: "Reports Week 10 tasksWeek 2137 tasksWeek 3274 tasksWeek 4411 tasksWeek 548 tasksWeek 6185 tasksWeek 7322 tasksWeek 8459 tasksWeek 996 tasksWeek 10233 tasksWeek 11370 tasksWeek 127 tasksWeek 13144 task"
+    text: "Reports Week 10 tasksWeek 2137 tasksWeek 3274 tasksWeek 4411 tasksWeek 548 tasksWeek 6185 tasksWeek 7322 tasksWeek 8459 tasksWeek 996 tasksWeek 10233 tasksWeek 11370 tasksWeek 127 tasksWeek 13144 tasksWeek 14281 tasksWeek 15418 tasks const r=document.getElementById('r');for(let i=0;i<15;i++){r.insertAdjacentHTML('beforeend',`<tr class=\"${i%2?'bg-slate-50':''}\"><td class=\"p-2 border\">Week ${i+1}</td><td class=\"p-2 border\">${(i*137)%500} tasks</td></tr>`);}"
   before (10000 ms):
     9125 focus @35 <button#nav-settings.block.w-full.…> "settings"
     9126 click @35 <button#nav-settings.block.w-full.…> "settings" at 112,184

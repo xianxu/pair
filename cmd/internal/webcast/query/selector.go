@@ -10,7 +10,8 @@ import (
 
 // SelectorGrammar is what Select understands, for its errors and --help.
 const SelectorGrammar = "@ID (a recording node id), or CSS: tag, #id, .class, [attr], [attr=v], [attr*=v], " +
-	":nth-child(n), joined by a space (descendant) or > (child)"
+	":nth-child(n), :nth-of-type(n), joined by a space (descendant), > (child) or >>> (into a shadow root, " +
+	"frame or template, as a note's selector writes it)"
 
 // Select finds the elements a selector matches in the state at its moment,
 // in document order. It searches every document: shadow roots, template
@@ -107,6 +108,7 @@ func parseSelector(sel string) ([]step, error) {
 	cur := step{comb: ' '}
 	empty := true
 	pending := byte(0) // a combinator seen since the last compound
+	deep := false      // that combinator was >>>
 	finish := func() {
 		if !empty {
 			steps = append(steps, cur)
@@ -116,6 +118,19 @@ func parseSelector(sel string) ([]step, error) {
 	for i := 0; i < len(sel); {
 		c := sel[i]
 		switch {
+		case strings.HasPrefix(sel[i:], ">>>"):
+			// The notes model's deep step (#461): the rest is inside the
+			// host's shadow root, frame or template. Descendant matching
+			// already crosses those, so it reads as a descendant.
+			if !empty {
+				finish()
+			}
+			if pending == '>' || len(steps) == 0 {
+				return bad("a >>> with nothing before it")
+			}
+			pending, deep = ' ', true
+			i += 3
+			continue
 		case c == ' ' || c == '>':
 			if !empty {
 				finish()
@@ -153,15 +168,22 @@ func parseSelector(sel string) ([]step, error) {
 			i += end + 1
 		case c == ':':
 			rest := sel[i:]
-			if !strings.HasPrefix(rest, ":nth-child(") {
-				return bad("only :nth-child(n) of the pseudo-classes")
+			pseudo := ""
+			for _, p := range []string{":nth-child(", ":nth-of-type("} {
+				if strings.HasPrefix(rest, p) {
+					pseudo = p
+				}
+			}
+			if pseudo == "" {
+				return bad("only :nth-child(n) and :nth-of-type(n) of the pseudo-classes")
 			}
 			end := strings.IndexByte(rest, ')')
-			k, err := strconv.Atoi(strings.TrimSpace(rest[len(":nth-child("):max(end, len(":nth-child("))]))
+			k, err := strconv.Atoi(strings.TrimSpace(rest[len(pseudo):max(end, len(pseudo))]))
 			if end < 0 || err != nil || k < 1 {
-				return bad(":nth-child takes a positive integer")
+				return bad(pseudo + "n) takes a positive integer")
 			}
-			cur.conds = append(cur.conds, func(e *recording.DOMNode) bool { return childIndex(e) == k })
+			ofType := pseudo == ":nth-of-type("
+			cur.conds = append(cur.conds, func(e *recording.DOMNode) bool { return childIndex(e, ofType) == k })
 			i += end + 1
 		default:
 			name, n := ident(sel[i:])
@@ -178,12 +200,12 @@ func parseSelector(sel string) ([]step, error) {
 			if empty && pending != 0 {
 				cur.comb = pending
 			}
-			empty, pending = false, 0
+			empty, pending, deep = false, 0, false
 		}
 	}
 	finish()
-	if pending == '>' {
-		return bad("a > with nothing after it")
+	if pending == '>' || deep {
+		return bad("a combinator with nothing after it")
 	}
 	return steps, nil
 }
@@ -240,14 +262,15 @@ func hasClass(list, name string) bool {
 }
 
 // childIndex is an element's 1-based position among its parent's element
-// children (0 when it has no parent node).
-func childIndex(e *recording.DOMNode) int {
+// children, or among those of its own tag when ofType (0 when it has no
+// parent node).
+func childIndex(e *recording.DOMNode, ofType bool) int {
 	if e.Parent == nil {
 		return 0
 	}
 	i := 0
 	for _, k := range e.Parent.Kids {
-		if k.Y == recording.YEl {
+		if k.Y == recording.YEl && (!ofType || k.N == e.N) {
 			i++
 		}
 		if k == e {

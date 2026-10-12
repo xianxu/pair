@@ -383,15 +383,17 @@ reference reducer with nothing indexed beside the records; `Main` is the CLI; th
 
 - **Node ids are the handle.** Every element in every answer is `@N`; `--sel @N` shows one. Selectors are a
   subset of CSS (tag, `#id`, `.class`, `[attr]`, `[attr=v]`, `[attr*=v]`, `:nth-child(n)`, descendant and
-  child) searched through shadow roots, template contents and iframe documents. Anything else is refused with
+  child, plus the notes model's `:nth-of-type` and `>>>`) searched through shadow roots, template contents and
+  iframe documents. Anything else is refused with
   the grammar, never matched loosely.
 - **Budgets:** a page stops at 300 lines (`--max-lines`) with a line saying how many more; a note's element at
   20 lines and its preceding actions at the latest 20; attribute values at 80 characters and text at 200.
   Script and style bodies, a document's head and SVG internals fold to one line each. The text shows the
   attributes an agent reads structure by (id, class, role, aria-*, form and link attributes); `--json`
   keeps them all.
-- **The notes model** is `notes.Model` behind its interface. `Main` constructs `notes.FakeModel` until
-  #461's real model lands; swapping it changes the context and landmark lines, which the golden files show.
+- **The notes model** is `notes.Model` behind its interface; `Main` constructs #461's `notes.Structural`, and
+  the contract and golden tests pin what it gives. Selectors accept the model's own anchors (`:nth-of-type`,
+  `>>>`), so a note's selector pastes into `--sel`.
 - **Tests:** `RunSurfaceContract` on the `Querier`; golden answers for every fixture in
   `query/testdata/golden/` (`go test ./cmd/internal/webcast/query -run Golden -update`, then review the diff);
   a scripted agent check that each note's answer names its element, time and the action before it.

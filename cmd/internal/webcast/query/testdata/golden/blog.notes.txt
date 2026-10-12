@@ -6,7 +6,7 @@ note blog-n1  t=2500  segment 2  open  by Pat (product) (viewer-1)
   element:
     @218 <h1 class="px-4 sm:px-6 max-w-3xl mx-auto text-3xl md:text-4xl font-bold leading-tighter t…"> Building Blocks of AI Coding
   context: within @195 <header.intersect-once.intersect-quarter.…> "Oct 2, 2026 · 9 min read Building Block…"
-    text: "Oct 2, 2026 · 9 min read Building Blocks of AI Coding AI coding is all the rage; what are the basic building blocks? How should we think about its future? This is the first installment of a series of "
+    text: "Oct 2, 2026 · 9 min read Building Blocks of AI Coding AI coding is all the rage; what are the basic building blocks? How should we think about its future? This is the first installment of a series of 5 posts."
   before (10000 ms):
     11 segment 1 starts (live) on about:blank, viewport 1280x800@1
     51 segment 2 starts (navigate) on http://localhost:4321/2026/10/ariadne-1-building-blocks-of-ai-coding, viewport 1280x800@1
@@ -20,7 +20,8 @@ note blog-n2  t=6000  segment 2  open  by Ana (design) (viewer-2)
   page: t=6000  segment 2 (live)  http://localhost:4321/2026/10/ariadne-1-building-blocks-of-ai-coding  viewport 1280x800@1  title "Building Blocks of AI Coding — Xian Xu"
   element:
     @392 <img alt="The issue tracker in Neovim, listing open and in-progress issues" src=/assets/images/2026-10-03-issue-tracker.png>
-  context: within @391 <p>
+  context: within @384 <li> "And then, to manage those local text fi…"
+    text: "And then, to manage those local text files, I used AI to make tools for me, e.g. a neovim plugin to list all open issue files, to open one of them nicely formatted, and to jump to interlinked issue IDs, among other things. While I still use those today, I find I tend to just ask the agent about the state of things, and to do things for me. But this is consistent with my philosophy that the human operator must always have a firm grasp of the state of the system they are working on. The details th"
   before (10000 ms):
     11 segment 1 starts (live) on about:blank, viewport 1280x800@1
     51 segment 2 starts (navigate) on http://localhost:4321/2026/10/ariadne-1-building-blocks-of-ai-coding, viewport 1280x800@1
@@ -58,8 +59,8 @@ note blog-n3  t=8000  segment 2  open  by Pat (product) (viewer-1)
         @283 <code> pair
         , the coding environment I use daily. (TKTK)
     … 4 more lines; narrow it with a selector (--sel)
-  context: within @230 <div.mx-auto.px-6.…> "In the previous post , I announced Parl…"
-    text: "In the previous post, I announced Parley the app, which is constructed 100% with agentic coding. I didn’t even know the Neovim programming environment, or lua the programming language of that environm"
+  context: within @254 <ol> "the 5-month journey of building the wor…"
+    text: "the 5-month journey of building the workflow that created Parley. (this post) reflection on how to leverage AI in software product development. a sneak peek of couch. couch and pair, the coding environment I use daily. (TKTK) ariadne, the skills and binaries that supported my workflow. (TKTK) and lastly, where to go from here. (TKTK)"
   before (10000 ms):
     11 segment 1 starts (live) on about:blank, viewport 1280x800@1
     51 segment 2 starts (navigate) on http://localhost:4321/2026/10/ariadne-1-building-blocks-of-ai-coding, viewport 1280x800@1
