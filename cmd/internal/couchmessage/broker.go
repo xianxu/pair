@@ -535,17 +535,22 @@ func (b *Broker) admit(ctx context.Context, from Binding, id string, route Route
 		if a.reservation == id {
 			a.reservation = ""
 		}
-		// A busy wrapper (the operator typing, a delivery releasing) holds an
-		// exact message in the queue; the worker promotes it when it settles.
-		if !family && errors.Is(err, ErrRecipientBusy) && b.actors[to] == a && b.caller(to) && b.caller(from) {
-			receipt, qerr := b.enqueueLocked(a, from, id, route, body)
-			b.mu.Unlock()
-			return receipt, qerr
-		}
 		b.mu.Unlock()
+		// Free any wrapper reservation this attempt holds before the message
+		// can be queued: the worker reserves the same ID when it promotes it.
 		releaseCtx, releaseCancel := context.WithTimeout(ctx, AdmissionTimeout)
 		_ = a.endpoint.Release(releaseCtx, id)
 		releaseCancel()
+		// A busy wrapper (the operator typing, a delivery releasing) holds an
+		// exact message in the queue; the worker promotes it when it settles.
+		if !family && errors.Is(err, ErrRecipientBusy) {
+			b.mu.Lock()
+			defer b.mu.Unlock()
+			if b.actors[to] != a || !b.caller(to) || !b.caller(from) {
+				return Receipt{}, ErrUnavailable
+			}
+			return b.enqueueLocked(a, from, id, route, body)
+		}
 		if !family {
 			return Receipt{}, err
 		}
