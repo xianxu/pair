@@ -891,6 +891,23 @@ Right-click `LIVE ⏸` to copy the view-only link again. Stopping the
 broadcast ends every link. `👽` is reserved for remote control and does
 nothing yet.
 
+**Sticky notes (#447).** People on the pointer link can also pin a short
+plain-text note to a spot on the screen: the button under the color swatches
+switches between pointing (👆) and placing notes (💭); hover a control for
+what it does. Couch draws a `💭` there, on your screen and every viewer's, on a
+chip of its author's color inside a soft glow that flashes when the note
+arrives and every 15 seconds until it is resolved, and the status row shows
+the open count after the controls (`LIVE ⏸ 👆 👽 💭2`). Click `💭2` to list the
+notes in a box over your screen: hovering one highlights it and makes its `💭`
+glow so you can tell which is which, clicking one copies its text,
+right-clicking one copies it and resolves it, and `×` or
+another click on `💭2` closes the box (Shift- or Option-drag selects text in it,
+as anywhere in Couch). On a viewer's page, anyone on either link can tap a `💭`
+to read it, and anyone on the pointer link can resolve it; you resolve one by
+right-clicking it in the box. A note stays on the cell where it was placed, whatever scrolls
+underneath. Turning pointing off deletes every note, as it clears the marks,
+and stopping the broadcast ends them too; nothing is saved to disk.
+
 With an empty root filter, **Space** toggles the **normal view** and **focus view**.
 Focus view shows only live threads with a published summary, in normal-view
 order, as `label ◆ summary`. Tag a thread with `! …` in its Pair draft. An empty

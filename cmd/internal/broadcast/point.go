@@ -1,10 +1,8 @@
 package broadcast
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
-	"io"
 	"time"
 )
 
@@ -49,13 +47,7 @@ func ParsePointBatch(body []byte) (PointBatch, error) {
 		Color  *int             `json:"color"` // *int refuses strings and fractions
 		Points *[][]json.Number `json:"points"`
 	}
-	dec := json.NewDecoder(bytes.NewReader(body))
-	dec.DisallowUnknownFields()
-	dec.UseNumber()
-	if err := dec.Decode(&raw); err != nil {
-		return PointBatch{}, ErrPointShape
-	}
-	if _, err := dec.Token(); err != io.EOF {
+	if !decodeStrict(body, &raw) {
 		return PointBatch{}, ErrPointShape
 	}
 	if raw.Cols == nil || raw.Rows == nil || raw.Down == nil || raw.Points == nil || len(*raw.Points) == 0 {

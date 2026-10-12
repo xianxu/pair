@@ -109,3 +109,35 @@ test('a theme event reaches the renderer', () => {
   h.es().emit('theme', { foreground: '#eeeeee' });
   assert.deepEqual(h.theme, { foreground: '#eeeeee' });
 });
+
+test('a notes event reaches its handler, and is harmless without one (#447)', () => {
+  const h = harness();
+  h.es().emit('notes', { guard: 12, notes: [] });
+  let got = null;
+  const g = { ...h.deps, notes: (n) => { got = n; } };
+  connect(g);
+  h.es().emit('notes', { guard: 12, notes: [{ id: 1 }] });
+  assert.deepEqual(got, { guard: 12, notes: [{ id: 1 }] });
+});
+
+test('end clears pointing and notes whatever order the stream sent them in (#447 BR-8)', () => {
+  const h = harness();
+  const got = { caps: [], notes: [] };
+  const g = { ...h.deps, caps: (c) => got.caps.push(c), notes: (n) => got.notes.push(n) };
+  connect(g);
+  h.es().emit('caps', { pointer: true, color: 0, palette: [] });
+  h.es().emit('notes', { guard: 12, notes: [{ id: 1 }] });
+  h.es().emit('end', { reason: 'the operator stopped broadcasting' });
+  assert.equal(got.caps.at(-1).pointer, false);
+  assert.deepEqual(got.notes.at(-1), { guard: 0, notes: [] });
+});
+
+test('a view page, which never hears caps, gets none at its end', () => {
+  const h = harness();
+  const got = { caps: [], notes: [] };
+  connect({ ...h.deps, caps: (c) => got.caps.push(c), notes: (n) => got.notes.push(n) });
+  h.es().emit('notes', { guard: 12, notes: [{ id: 1 }] });
+  h.es().emit('end', { reason: 'x' });
+  assert.equal(got.caps.length, 0, 'no made-up caps on a view page');
+  assert.deepEqual(got.notes.at(-1), { guard: 0, notes: [] });
+});

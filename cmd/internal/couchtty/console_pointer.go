@@ -34,8 +34,16 @@ type pointerMarks struct {
 	timer *time.Timer
 }
 
-// overlay draws the marks on a public frame; a private frame (the switcher)
-// is never marked. It runs on the Presenter goroutine.
+// screenOverlay draws what the collaboration layer adds to a public frame:
+// sticky notes, marks over them, and the notes menu over everything. A
+// private frame (the switcher) gets none of it. It runs on the Presenter
+// goroutine.
+func (c *Console) screenOverlay(f terminal.Frame, class terminal.FrameClass) terminal.Frame {
+	return c.menuOverlay(c.markOverlay(c.noteOverlay(f, class), class), class)
+}
+
+// markOverlay draws the marks on a public frame; a private frame (the
+// switcher) is never marked. It runs on the Presenter goroutine.
 func (c *Console) markOverlay(f terminal.Frame, class terminal.FrameClass) terminal.Frame {
 	if class != terminal.FramePublic {
 		return f
@@ -85,6 +93,7 @@ func (c *Console) onPointerClick(right bool) {
 	c.mu.Lock()
 	c.pointer = pointerOn
 	c.mu.Unlock()
+	c.resyncNotes(s)
 	c.copyLink(link)
 	// The notice never contains the link: it would be drawn into the frames
 	// being broadcast.
@@ -121,7 +130,10 @@ func (c *Console) pointerOff(notice string) {
 	if c.pointer == pointerOn {
 		c.pointer = pointerOff
 	}
+	s := c.bcast.session
 	c.mu.Unlock()
+	// The session already emptied its board; take that, notes and version.
+	c.resyncNotes(s)
 	c.clearMarks()
 	c.setNotice(notice)
 }
@@ -166,7 +178,7 @@ func (c *Console) applyPoints(b broadcast.PointBatch) {
 	}
 	// Fade into the operator's real background when the terminal can show
 	// it (truecolor, and the background reported by OSC 11).
-	c.pmarks.marks.SetBlend(palette.BG, palette.Known && palette.TrueColor && !palette.NoColor)
+	c.pmarks.marks.SetBlend(palette.BG, blendable(palette))
 	c.pmarks.marks.Add(b.Points, b.Cols, b.Rows, b.Color, now)
 	c.pmarks.mu.Unlock()
 	c.refreshMarks()
@@ -224,4 +236,5 @@ func (c *Console) resetPointer() {
 		c.pmarks.timer = nil
 	}
 	c.pmarks.mu.Unlock()
+	c.forgetNotes()
 }

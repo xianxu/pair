@@ -14,9 +14,12 @@
 <body>
 <main id="stage"><div id="term"></div></main>
 <div id="status" role="status">Connecting…</div>
-<div id="rail"><div id="swatches" class="hidden" role="group" aria-label="Pointer color"></div></div>
-<div id="controls">
-<div id="hint" class="hidden" role="status"></div>
+<div id="rail"><div id="swatches" class="hidden" role="group" aria-label="Pointer color"></div><button id="mode" class="hidden" type="button"></button></div>
+<div id="note" class="hidden" role="dialog" aria-modal="true" aria-label="Sticky note">
+<div id="note-text"></div>
+<textarea id="note-input" rows="6" aria-label="Note text"></textarea>
+<div id="note-meta"><span id="note-msg" role="status"></span><span id="note-count"></span></div>
+<div id="note-buttons"><button id="note-resolve" type="button">Resolve</button><button id="note-cancel" type="button">Cancel</button><button id="note-save" type="button">Save</button></div>
 </div>
 </body>
 </html>

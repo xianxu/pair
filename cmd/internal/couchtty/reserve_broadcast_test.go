@@ -160,3 +160,49 @@ func TestStatusGuardMatchesDrawnControls(t *testing.T) {
 		t.Fatalf("controls end at %d, guard is %d", r.Remote.End, broadcast.StatusGuardCols)
 	}
 }
+
+// #447: while live, open sticky notes show as 💭N right after 👽; none, or
+// not live, draws nothing, and the controls' spans don't move.
+func TestStatusRowNoteCount(t *testing.T) {
+	strip := func(m StatusModel, cols int) string {
+		return string(ansi.Strip([]byte(RenderStatusRow(cols, m).Body)))
+	}
+	live := StatusModel{Broadcast: BroadcastLive, Pointer: PointerOn, Notes: 3, Actors: []StatusActor{{Label: "ariadne"}}}
+	want := broadcast.LiveLabel + " " + broadcast.PointerLabel + " " + broadcast.ControlLabel + " " + broadcast.NoteGlyph + "3  ariadne"
+	if got := strip(live, 80); got != want {
+		t.Fatalf("row %q, want %q", got, want)
+	}
+	r := RenderStatusRow(80, live)
+	base := RenderStatusRow(80, StatusModel{Broadcast: BroadcastLive, Pointer: PointerOn})
+	if r.Pointer != base.Pointer || r.Remote != base.Remote || r.Control != base.Control {
+		t.Fatal("the count moved the controls")
+	}
+	if !broadcast.PointerShown(rowFrame(t, 80, r.Body)) {
+		t.Fatal("the count broke the pointer check")
+	}
+	none := live
+	none.Notes = 0
+	if strings.Contains(strip(none, 80), broadcast.NoteGlyph) {
+		t.Fatal("no notes drew a count")
+	}
+	off := live
+	off.Broadcast = BroadcastOff
+	if strings.Contains(strip(off, 80), broadcast.NoteGlyph) {
+		t.Fatal("a count drawn while not live")
+	}
+	narrow := strip(live, broadcast.StatusGuardCols+2)
+	if textwidth.Width(narrow) > broadcast.StatusGuardCols+2 {
+		t.Fatalf("count not clipped: %q", narrow)
+	}
+}
+
+// M4: the 💭N count is a click target spanning exactly its cells.
+func TestStatusRowNotesSpan(t *testing.T) {
+	r := RenderStatusRow(80, StatusModel{Broadcast: BroadcastLive, Pointer: PointerOn, Notes: 12})
+	if r.Notes.Start != r.Remote.End+1 || r.Notes.End-r.Notes.Start != textwidth.Width(broadcast.NoteGlyph+"12") {
+		t.Fatalf("notes span %+v after remote %+v", r.Notes, r.Remote)
+	}
+	if RenderStatusRow(80, StatusModel{Broadcast: BroadcastLive}).Notes != (ColumnSpan{}) {
+		t.Fatal("no notes, no span")
+	}
+}

@@ -35,6 +35,10 @@ type ServerOptions struct {
 	// pointing is on; it decides whether the batch lands.
 	Pointer *PointerState
 	OnPoint func(PointBatch)
+	// OnNote and OnResolve decide whether a well-formed note or resolve
+	// request lands (#447); their errors map to fixed refusal text.
+	OnNote    func(NoteRequest) error
+	OnResolve func(id int) error
 }
 
 type asset struct{ file, contentType string }
@@ -43,6 +47,7 @@ type asset struct{ file, contentType string }
 var assets = map[string]asset{
 	"":           {"web/index.html", "text/html; charset=utf-8"},
 	"viewer.js":  {"web/viewer.js", "text/javascript; charset=utf-8"},
+	"notes.js":   {"web/notes.js", "text/javascript; charset=utf-8"},
 	"viewer.css": {"web/viewer.css", "text/css; charset=utf-8"},
 	"xterm.js":   {"web/vendor/xterm/xterm.js", "text/javascript; charset=utf-8"},
 	"xterm.css":  {"web/vendor/xterm/xterm.css", "text/css; charset=utf-8"},
@@ -78,11 +83,20 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.Set("X-Content-Type-Options", "nosniff")
 	segment, rest, ok := splitPath(r.URL.Path)
 	pointer := ok && s.opts.Pointer.Match(segment)
-	// The one route that reads a body: POST /<pointer-token>/point. Every
-	// other path is GET-only and never reads one (#395).
-	if r.Method == http.MethodPost && pointer && rest == "point" {
-		s.point(w, r)
-		return
+	// The only routes that read a body: POST /<pointer-token>/point, note
+	// and resolve. Every other path is GET-only and never reads one (#395).
+	if r.Method == http.MethodPost && pointer {
+		switch rest {
+		case "point":
+			s.point(w, r)
+			return
+		case "note":
+			s.note(w, r)
+			return
+		case "resolve":
+			s.resolve(w, r)
+			return
+		}
 	}
 	if r.Method != http.MethodGet {
 		h.Set("Allow", http.MethodGet)
@@ -130,39 +144,67 @@ type wireCaps struct {
 	Palette []string `json:"palette"`
 }
 
-// point takes one batch from a pointer page. Only well-formed input is
-// considered; its errors are fixed text, never the request.
-func (s *Server) point(w http.ResponseWriter, r *http.Request) {
+// Refusals a pointer page may show its viewer: a closed set of fixed
+// sentences that never echo the request.
+const (
+	refusePointerOff = "Pointing is off."
+	refuseBusy       = "Too many requests. Wait a moment."
+	refuseColorFull  = "This color already has 8 notes. Resolve one first."
+	refuseOverlap    = "A note is already there."
+	refuseScreen     = "The screen changed. Try again."
+	refuseNote       = "That note isn't valid."
+)
+
+// readPointerBody admits one POST from a pointer page and reads its body:
+// pointing on, a JSON content type, an in-flight slot, the route's rate
+// budget, then a body that arrives promptly and within max. The caller
+// defers release: the slot is held while the request is read and handled.
+// On false the response is written.
+func (s *Server) readPointerBody(w http.ResponseWriter, r *http.Request, allow func(time.Time) bool, max int64) ([]byte, func(), bool) {
 	if on, _ := s.opts.Pointer.On(); !on {
-		http.Error(w, "pointing is off", http.StatusForbidden)
-		return
+		http.Error(w, refusePointerOff, http.StatusForbidden)
+		return nil, nil, false
 	}
 	if mt, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || mt != "application/json" {
 		http.Error(w, "unsupported content type", http.StatusUnsupportedMediaType)
-		return
+		return nil, nil, false
 	}
 	if !s.opts.Pointer.enter() {
-		http.Error(w, "too many requests", http.StatusTooManyRequests)
-		return
+		http.Error(w, refuseBusy, http.StatusTooManyRequests)
+		return nil, nil, false
 	}
-	defer s.opts.Pointer.leave()
-	if !s.opts.Pointer.allow(time.Now()) {
-		http.Error(w, "too many requests", http.StatusTooManyRequests)
-		return
+	release := s.opts.Pointer.leave
+	if !allow(time.Now()) {
+		release()
+		http.Error(w, refuseBusy, http.StatusTooManyRequests)
+		return nil, nil, false
 	}
 	// A body must arrive promptly; a client trickling one doesn't get to
 	// hold a slot.
 	_ = http.NewResponseController(w).SetReadDeadline(time.Now().Add(pointReadBudget))
-	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, MaxPointBody))
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, max))
 	var tooLarge *http.MaxBytesError
 	switch {
 	case errors.As(err, &tooLarge):
+		release()
 		http.Error(w, "request too large", http.StatusRequestEntityTooLarge)
-		return
+		return nil, nil, false
 	case err != nil:
+		release()
 		http.Error(w, "bad request", http.StatusBadRequest)
+		return nil, nil, false
+	}
+	return body, release, true
+}
+
+// point takes one batch from a pointer page. Only well-formed input is
+// considered; its errors are fixed text, never the request.
+func (s *Server) point(w http.ResponseWriter, r *http.Request) {
+	body, release, ok := s.readPointerBody(w, r, s.opts.Pointer.allow, MaxPointBody)
+	if !ok {
 		return
 	}
+	defer release()
 	batch, err := ParsePointBatch(body)
 	if err != nil {
 		http.Error(w, "bad point batch", http.StatusBadRequest)
@@ -174,6 +216,69 @@ func (s *Server) point(w http.ResponseWriter, r *http.Request) {
 	// Accepted or dropped (stale grid, private screen), the page is told the
 	// same: whether a point landed isn't its business.
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// note opens one sticky note (#447). Unlike a point, its author is told
+// whether it was saved, and why not.
+func (s *Server) note(w http.ResponseWriter, r *http.Request) {
+	if s.opts.OnNote == nil {
+		http.NotFound(w, r)
+		return
+	}
+	body, release, ok := s.readPointerBody(w, r, s.opts.Pointer.allowNote, MaxNoteBody)
+	if !ok {
+		return
+	}
+	defer release()
+	n, err := ParseNote(body)
+	if err == nil {
+		err = s.opts.OnNote(n)
+	}
+	refuseNoteErr(w, err)
+}
+
+// resolve removes one note; an unknown id is already resolved.
+func (s *Server) resolve(w http.ResponseWriter, r *http.Request) {
+	if s.opts.OnResolve == nil {
+		http.NotFound(w, r)
+		return
+	}
+	body, release, ok := s.readPointerBody(w, r, s.opts.Pointer.allowNote, MaxNoteBody)
+	if !ok {
+		return
+	}
+	defer release()
+	id, err := ParseResolve(body)
+	if err == nil {
+		err = s.opts.OnResolve(id)
+	}
+	refuseNoteErr(w, err)
+}
+
+// refuseNoteErr answers a note or resolve request: 204, or a fixed refusal.
+func refuseNoteErr(w http.ResponseWriter, err error) {
+	switch {
+	case err == nil:
+		w.WriteHeader(http.StatusNoContent)
+	case errors.Is(err, ErrPointerOff):
+		http.Error(w, refusePointerOff, http.StatusForbidden)
+	case errors.Is(err, ErrNoteColorFull):
+		http.Error(w, refuseColorFull, http.StatusConflict)
+	case errors.Is(err, ErrNoteOverlap):
+		http.Error(w, refuseOverlap, http.StatusConflict)
+	case errors.Is(err, ErrScreenChanged):
+		http.Error(w, refuseScreen, http.StatusConflict)
+	default:
+		http.Error(w, refuseNote, http.StatusBadRequest)
+	}
+}
+
+// wireNotes is the notes event: every open note, and the width of the
+// broadcast's controls on the last row, which no note covers. The viewer
+// uses it for hit-testing instead of hardcoding it.
+type wireNotes struct {
+	Guard int    `json:"guard"`
+	Notes []Note `json:"notes"`
 }
 
 type wireFrame struct {
@@ -235,6 +340,18 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, pointer bool) {
 	if pointer && !sendCaps() {
 		return
 	}
+	// Every page, view and pointer alike, sees the notes (#447): the list
+	// on join, and again after every change.
+	var notesChanged <-chan struct{}
+	sendNotes := func() bool {
+		notes, _, changed := s.opts.Pointer.Notes()
+		notesChanged = changed
+		data, _ := json.Marshal(wireNotes{Guard: StatusGuardCols, Notes: notes})
+		return send("event: notes\ndata: " + string(data) + "\n\n")
+	}
+	if s.opts.Pointer != nil && !sendNotes() {
+		return
+	}
 	ping := time.NewTicker(s.opts.Ping)
 	defer ping.Stop()
 	for {
@@ -251,6 +368,10 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, pointer bool) {
 			}
 		case <-capsChanged:
 			if !sendCaps() {
+				return
+			}
+		case <-notesChanged:
+			if !sendNotes() {
 				return
 			}
 		case <-ping.C:

@@ -148,6 +148,13 @@ func (c *Console) startBroadcast(cfg broadcast.Config) {
 	if cfg.OnPointerOff == nil {
 		cfg.OnPointerOff = c.pointerOffByWatch
 	}
+	// Sticky notes (#447).
+	if cfg.OnNotes == nil {
+		cfg.OnNotes = c.onNotes
+	}
+	if cfg.Now == nil {
+		cfg.Now = c.now
+	}
 	ctx, cancel := context.WithCancel(c.lifetime)
 	c.mu.Lock()
 	c.bcast = broadcastState{phase: broadcastStarting, attempt: c.bcast.attempt + 1, cancel: cancel}
@@ -193,8 +200,8 @@ func (c *Console) broadcastStarted(attempt uint64, s *broadcast.Session, err err
 	// The tap goes in before the chrome shows LIVE, so the first LIVE frame
 	// reaches viewers; Activate comes after, so the grace watch starts with
 	// the indicator already on screen.
-	// The marks overlay goes in with the tap, so viewers see marks too.
-	if err := c.presenter.SetOverlay(c.lifetime, c.markOverlay); err != nil {
+	// The overlay goes in with the tap, so viewers see marks and notes too.
+	if err := c.presenter.SetOverlay(c.lifetime, c.screenOverlay); err != nil {
 		c.terminalError(err)
 	}
 	if err := c.presenter.SetTap(c.lifetime, s.Offer); err != nil {

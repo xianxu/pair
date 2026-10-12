@@ -236,7 +236,7 @@ and it is kept narrow.
   again restores the same link. Its mutex is a leaf: callbacks run after it is
   released.
 - **Routes:** `/<pointer-token>/…` serves the same page and stream as the view
-  link, plus `POST /<pointer-token>/point`, the only route that reads a body.
+  link, plus `POST /<pointer-token>/point` (and the note routes below), the only routes that read a body.
   Everything else is GET-only, as in #395: the view link answers a POST with
   405.
 - **The POST**, in order:
@@ -277,8 +277,10 @@ and it is kept narrow.
   screen's right edge, vertically centered; `fit()` docks it to the drawn
   screen (`railAt`). It sits outside `#stage`, and only its buttons take
   pointer events, so a swatch tap never starts a stroke and a point anywhere
-  else reaches the screen. #447's mode icon joins the column. The hint stays in
-  the band below the screen.
+  else reaches the screen. The mode button (`#mode`, 👆/💭, #447) sits below the swatches. There is
+  no hint bar (#447 M3): the swatches and the mode button explain themselves
+  in tooltips (`title`, `MODE_TIPS`), so the screen keeps the whole window;
+  touch devices show no tooltips.
 - **Server timeouts:** `ReadHeaderTimeout` 10s, `IdleTimeout` 60s, 8 KB
   headers, and a read deadline only in the POST handler. There is no
   server-wide `ReadTimeout`: it would also time out the disconnect watch on
@@ -326,6 +328,94 @@ table.
   timer, and is never held across a call into the Presenter, the session or
   the loop. `TestPointerStressNoDeadlock` paints, posts and toggles together
   under `-race`.
+
+## Sticky notes (#447)
+
+Notes are the pointer link's second collaboration layer: a viewer pins a
+plain-text note to a screen cell and Couch draws `💭` (`NoteGlyph`) there.
+A note stays at its cell whatever scrolls underneath (no anchoring). Notes live
+in memory and are deleted whenever pointing turns off (click or the 👆-hidden
+watch) or the broadcast ends.
+
+- **Model** (`notes.go`, pure): `Note{ID, Col, Row, Color, Text}`. `NoteBoard`
+  holds the limits: 8 open notes per pointer color, no two notes sharing a cell.
+  `ParseNote` is strict like `ParsePointBatch`: 1–1024 bytes of valid UTF-8, no
+  control characters except `\n`/`\t`, no format characters (bidi, zero-width);
+  the cell must leave room for the glyph's second column and sit off the
+  controls (`NoteVisible`, which reuses the marks' `guarded`). `DrawNotes` puts
+  the glyph on two cells, blanks any wide character it cuts in half (keeping
+  its style), and widens the row's used columns, since the renderer draws text
+  only that far. `FuzzParseNote`; a property test over random wide rows.
+- **Chip, glow, flash** (`notehalo.go`, M3): the 💭's cells get its author's
+  color as a chip; a round glow around it (rows ±2, columns scaled by the 2:1
+  cell aspect, stronger in the inner ring) tints backgrounds only, never the
+  controls or another note's chip, the stronger glow winning where two meet.
+  It flashes at full color on arrival (`Note.At`, stamped at save with the
+  console's clock via `Config.Now`, not sent to pages) and, for every open
+  note together, on one shared beat every `NoteFlashEvery` (15s), holding
+  `NoteFlashHold` (300ms) then stepping down over `NoteFlashFade` (500ms, 20ms
+  steps) to rest, where only the inner ring keeps one very light shade. One beat bounds the repaints at about 26 per beat
+  plus 26 per arrival, whatever the number of notes. `NoteStyle.Hover`
+  holds a note at full glow. `paletteTint(c, t, bg, blend)` is the one place a
+  pointer color is weakened, for marks and notes alike (blend into the real
+  background with truecolor, else the color's 256-colour ladder; `blendable`
+  is the one predicate for that), and
+  `tintCell` tints both halves of a wide character. The console arms one
+  timer from `NoteNextChange` and stops it on pointer-off and broadcast end.
+- **State** (`pointer_notes.go`): the board lives inside `PointerState`, under
+  its one lock, so a flip to off and the clear are one critical section.
+  `notesVersion` only increases. `addNote(n, gen)` refuses unless pointing is on
+  and hasn't flipped since `gen`, which `Session.acceptNote` reads before its
+  unlocked screen check (`landsNow`: same grid, public frame, 👆 shown).
+  Nothing called under `p.mu` takes it or waits on another goroutine.
+- **Routes:** `POST /<pointer-token>/note` and `/resolve` share `point`'s
+  admission (`readPointerBody`: pointing on, JSON, in-flight slot, the route's
+  rate budget, then a prompt body), with their own budget (2/s, burst 5) and an
+  8 KB body cap. A refusal is one of a closed set of sentences
+  (`refuse*` in `server.go`) that the viewer shows as-is. Resolving an unknown
+  id answers 204. The view link still reads no body.
+- **Stream:** every page, view and pointer alike, gets
+  `event: notes` (`{"guard":StatusGuardCols,"notes":[…]}`) on join and after
+  each change, so a view-only viewer can open and read notes.
+- **Couch side** (`couchtty/console_notes.go`): `Config.OnNotes` delivers
+  `(session, notes, version)`; `onNotes` hands it to the Run loop without
+  waiting (a 👆 click runs there and reports the emptied board). `applyNotes`
+  keeps it only from the live session while pointing is on and only if newer;
+  every pointer-phase change resyncs from `Session.Notes()`. One snapshot under
+  the leaf lock `pointerNotes.mu` feeds both `screenOverlay` (notes, then marks,
+  public frames only) and the status row's `💭N` count after `👽`
+  (`StatusModel.Notes`, outside the guarded columns).
+- **Notes menu** (`couchtty/notes_menu.go` pure, `console_notes.go`, M4): a left
+  click on `💭N` (`RenderedStatusRow.Notes`) toggles a box over the bottom right,
+  above the status row (`RenderNotesMenu`: width ≤ 48, each note a chip of its
+  author's color via `broadcast.NoteChipColor` plus its text wrapped to ≤ 3
+  rows with `…`, "+k more" when they don't fit, a `×` close mark). It is drawn
+  last in `screenOverlay` (`menuOverlay`, after the marks), so viewers see it.
+  Its layout on the frame now on screen is the only thing the mouse is
+  hit-tested against, and it is cleared on any frame that doesn't show the
+  menu (a private panel), so a hidden menu takes no clicks. `routeNotesMenu` runs first in `routeMouseEvent`: over the open
+  box it takes press, motion, wheel and a press's release, so nothing there
+  reaches a child that tracks the mouse. Motion over an item sets
+  `NoteStyle.Hover` (row highlight; its 💭 held at full glow), a click copies
+  the note's text (OSC 52, "Note copied."), a right click copies and resolves
+  it (`Session.ResolveNote`, as a viewer's Resolve), `×` or another `💭N` click closes
+  it. It closes when the last note goes, pointing turns off or the broadcast
+  ends (`settleMenuLocked`, `forgetNotes`). Esc is not taken: agents use it.
+- **Viewer page** (`web/notes.js`): keeps the list from `event: notes`
+  (`parseNotes`) and hit-tests a tap against both cells of each visible 💭
+  (`noteAt`, using the event's `guard`), so a tap on a 💭 opens it on any page:
+  read-only on a view link, with Resolve on a pointer link. `pointerMode`
+  routes taps: 💭 → open; pointing off → nothing; comment mode → a draft at
+  the tapped cell (`noteCell` moves a last-column tap one left; none on the
+  controls); pointer mode → a stroke. Turning pointing off resets to pointer
+  mode and closes the dialog. `noteDialog` is one fixed-size sticky note: the
+  draft exists only in its text box until Save (a byte counter mirrors the
+  1 KB cap), a refusal shows Couch's sentence, and a viewed note that leaves
+  the list closes. Text is only ever set as `textContent`. All requests go
+  through `viewer.js`'s single `postJSON` (`POST_ROUTES`: point, note,
+  resolve); the page test pins that and bans HTML sinks in both scripts.
+  `BROADCAST_MANUAL_POINTER=1` makes `TestManualViewerServer` serve a pointer
+  link that draws notes, for checking the page in a real browser.
 
 ## Listing (`couch --broadcast-list`, pair#413)
 

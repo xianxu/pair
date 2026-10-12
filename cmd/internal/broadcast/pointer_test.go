@@ -22,6 +22,19 @@ type pointerSession struct {
 	got    []PointBatch
 	offs   int
 	onHook func(PointBatch)
+	// notes records each OnNotes delivery (#447).
+	notes []notesCall
+}
+
+type notesCall struct {
+	notes   []Note
+	version uint64
+}
+
+func (p *pointerSession) notesCalls() []notesCall {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]notesCall(nil), p.notes...)
 }
 
 func (p *pointerSession) batches() []PointBatch {
@@ -32,8 +45,18 @@ func (p *pointerSession) batches() []PointBatch {
 
 func startPointerSession(t *testing.T) *pointerSession {
 	t.Helper()
+	return startPointerSessionWith(t, HubOptions{})
+}
+
+func startPointerSessionWith(t *testing.T, hub HubOptions) *pointerSession {
+	t.Helper()
 	p := &pointerSession{}
-	s, err := Start(context.Background(), Config{Tunnel: &FakeTunnel{}, Ping: 20 * time.Millisecond,
+	s, err := Start(context.Background(), Config{Tunnel: &FakeTunnel{}, Ping: 20 * time.Millisecond, Hub: hub,
+		OnNotes: func(_ *Session, notes []Note, version uint64) {
+			p.mu.Lock()
+			p.notes = append(p.notes, notesCall{notes, version})
+			p.mu.Unlock()
+		},
 		OnPoints: func(b PointBatch) {
 			p.mu.Lock()
 			p.got = append(p.got, b)
@@ -157,7 +180,7 @@ func TestPointerPostWhileOff(t *testing.T) {
 }
 
 // Every method on every route for every token: only POST to the pointer
-// link's point route reads a body.
+// link's point, note and resolve routes reads a body.
 func TestPointerRouteTable(t *testing.T) {
 	p := startPointerSession(t)
 	plink, _ := p.s.EnablePointer()
@@ -175,6 +198,11 @@ func TestPointerRouteTable(t *testing.T) {
 	}
 	rows = append(rows,
 		row{http.MethodPost, vlink + "point", 405},
+		row{http.MethodPost, vlink + "note", 405},
+		row{http.MethodPost, vlink + "resolve", 405},
+		row{http.MethodPost, wrong + "note", 405},
+		row{http.MethodGet, plink + "note", 404},
+		row{http.MethodGet, plink + "resolve", 404},
 		row{http.MethodPost, wrong + "point", 405},
 		row{http.MethodPost, plink, 405},
 		row{http.MethodPost, plink + "events", 405},

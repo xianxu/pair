@@ -1019,6 +1019,16 @@ proof; record the surprising case so the next change starts from evidence.
 - **A privacy test that bans an API gets narrowed, not deleted (#446).** The viewer test forbade
   `localStorage` because a view link keeps nothing; the color pick needs one key. Pin the exception exactly:
   one key, one reader and one writer, so a later "just remember this too" still fails the test.
+- **A callback a verb triggers can run on the caller's own loop (#447).** `Config.OnNotes` looked like a
+  request-goroutine callback, so the console's handler waited on the Run loop, but a 👆 click runs on that loop
+  and `DisablePointer` now reports the emptied board: a deadlock no plan review caught, found by the first console
+  test that clicked. Before a callback waits on a loop, list every caller of the function that fires it, the
+  operator's own input path included, and hand off without waiting when one of them is that loop.
+- **An overlay that writes text must widen the row's used columns (#447).** The renderer draws a row's text only
+  up to `RowMetadata.UsedColumns` and treats the rest as blank tail, so a 💭 on an empty row vanished while marks
+  (background only) showed. A frame edit that adds content past the old text updates the metadata too.
+- **A user-visible addition to the tab bar is a README change (#447).** The M1 review blocked on it; grep the
+  README for the row's current spelling (`LIVE ⏸ 👆 👽`) whenever the row gains a cell.
 - **Rule out the host before bisecting a "regression" (#450).** Four workers called `test-review` a regression since
   #436 and the issue asked for a bisect, but the failure reproduced at #436's own merge: they ran the suite inside the
   agent sandbox, which refuses unix sockets and PTYs, while #436 was verified outside it. Before bisecting, rerun the
@@ -1042,3 +1052,38 @@ proof; record the surprising case so the next change starts from evidence.
   as long as the default is plausible. Validate env knobs before taking resources and refuse the start, naming the
   variable and the accepted form.
 
+- **A stream's end resets everything the stream gave the page, not just the screen (#447 M2 review).** The
+  viewer's `end` handler reset the terminal and left notes tappable, Resolve live and comment mode drafting on a
+  dead broadcast, because the server's `select` sends end, caps and notes in no fixed order. When a stream feeds
+  several derived states, its terminal event puts each back to that page variant's join state through the same
+  handlers that set them — never replaying an event the variant doesn't receive (a view page never hears caps) —
+  and a test pins each variant.
+- **An async answer names the request it answers (#447 M2 review).** The note dialog applied a save's 204 to
+  whatever dialog was open when it arrived, so cancel-then-new-draft lost the new text. Tag each open with a
+  generation and drop answers from an older one.
+- **Test a timer's teardown at once, not eventually (#447 M3 review).** A stale self-rescheduling timer clears
+  itself when it next fires, so `waitFor(timer == nil)` passed with the teardown deleted; only an immediate
+  assertion after the teardown step caught it. For every timer the console arms, test that it re-arms after firing
+  and is gone *immediately* after each way its owner ends, and mutation-check both (drop the reschedule, drop the
+  stop).
+- **State the envelope at the bound, not per unit (#447 M3 review).** "About 11 repaints per note per 15s" hid
+  35 repaints a second to every viewer at the 48-note limit. When a cost scales with a capped count, write the
+  total at the cap, and prefer a design (one shared beat) whose cost doesn't scale at all.
+- **A "never reaches the child" test needs a child that asks (#447 M4).** Couch forwards mouse reports only to a
+  child that requested tracking, so asserting "no report reached the child" with a default fixture child passes
+  whatever the routing does. Feed the child its tracking mode first, and pair the negative assertion with a
+  positive control (a click outside the menu that does arrive).
+- **A hit region lives and dies with its drawing (#447 M4 review).** The notes menu kept its click area from the
+  last frame it drew, so under the switcher (a private frame, where it isn't drawn) it still took clicks and copied
+  a note nobody could see. Record a hit-test layout only from the frame actually shown and clear it on every frame
+  that doesn't show the thing; test it by covering the thing and clicking where it was.
+- **Test the wiring, not the state field (#447 M4 review).** `TestNotesMenuOpenHoverCopy` asserted `pnotes.hover`
+  was set, so dropping the hover from the drawing style left every test green. For each behavior a Done-when
+  claims, assert its visible effect through the console (the drawn cells), with a control that differs only by the
+  input, and mutation-check by deleting the wiring line. When the visible path can't show a difference (the
+  presenter dropping a stray drag), assert the routing decision directly and say why.
+- **A tuning change sweeps every sentence that states the old value (#447 close review).** Smoke tuning changed the
+  flash constants and added right-click resolve; the commits updated atlas and Revisions but left the plan's Core
+  concepts bullets (1.5s, 10 steps, 11 repaints) and a README sentence ("resolved from a viewer's page") stating the
+  old behavior. Before committing a constant or capability change, grep the old number and the verb across README,
+  atlas and the plan, and rewrite each hit; state tests in terms of the constants so tuning can't stale them.

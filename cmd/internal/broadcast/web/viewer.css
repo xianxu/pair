@@ -77,41 +77,18 @@ html, body {
   filter: grayscale(1);
 }
 /* Pointer links (#412): the screen takes taps and drags instead of scrolling
-   or zooming, and a hint says whether pointing is on. */
+   or zooming. There is no hint bar (#447 M3): the rail's controls explain
+   themselves in tooltips, and the screen keeps the whole window. */
 #stage.pointer {
   touch-action: none;
   cursor: crosshair;
-}
-#hint {
-  margin-left: auto;
-  padding: 4px 10px;
-  border-radius: 4px;
-  font: 13px/1.4 system-ui, sans-serif;
-  background: var(--status-bg);
-  color: var(--status-fg);
-}
-#hint.hidden {
-  display: none;
-}
-/* The hint lives in one band below the screen; viewer.js lifts the stage
-   above the band's height, so it covers no cell someone may want to point
-   at, at any width. */
-#controls {
-  position: fixed;
-  left: 8px;
-  right: 8px;
-  bottom: 6px;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
 }
 /* The rail (#449) is a column overlaid on the screen's right edge, centered
    on its height; viewer.js docks it to the drawn screen (railAt). It sits
    outside #stage, so a tap on a swatch never starts a stroke, and only the
    buttons take pointer events: a point or drag over the rest of the rail,
    backing included, falls through to the screen. Pointer colors are its
-   first group; #447's mode icon joins the column. */
+   first group; #447's mode button sits below them. */
 #rail {
   position: fixed;
   transform: translateY(-50%);
@@ -160,4 +137,101 @@ html, body {
     width: 14px;
     height: 14px;
   }
+}
+/* Mode switch (#447): one button below the swatches in the rail, 👆 for
+   pointing and 💭 for comments. Only the button takes pointer events. */
+#mode {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  font-size: 16px;
+  line-height: 30px;
+  background: rgba(40, 40, 40, 0.45);
+  cursor: pointer;
+  pointer-events: auto;
+}
+#mode.hidden {
+  display: none;
+}
+#stage.pointer.comment {
+  cursor: cell;
+}
+/* The sticky note (#447): one fixed-size dialog in a sticky-note yellow,
+   centered over the screen; a draft shows the text box, a viewed note its
+   text, which is set only as textContent. */
+#note {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  box-sizing: border-box;
+  width: min(280px, calc(100vw - 32px));
+  height: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 4px;
+  background: #fff59d;
+  color: #2b2b2b;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  font: 14px/1.4 system-ui, sans-serif;
+  z-index: 10;
+}
+#note.hidden,
+#note .hidden,
+#note.draft #note-text,
+#note.view #note-input,
+#note.view #note-count {
+  display: none;
+}
+#note-text {
+  flex: 1;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+#note-input {
+  flex: 1;
+  resize: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+#note-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 1.2em;
+  font-size: 12px;
+}
+#note-msg {
+  color: #8a1c00;
+}
+#note-count {
+  margin-left: auto;
+  opacity: 0.6;
+}
+#note-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+#note-buttons button {
+  padding: 4px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.55);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+#note-buttons button:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
