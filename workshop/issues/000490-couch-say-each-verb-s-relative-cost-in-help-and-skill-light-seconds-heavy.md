@@ -1,12 +1,20 @@
 ---
 id: 000490
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '01884db062fc4c711d3abf14471c6337ff8f6aa1' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '4e6ac637170820561a39ced1fe3f928a429f2d15' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T10:29:00-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: MacBook Pro
+    workspace: pair:1
+    worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
+    repository: github.com/xianxu/pair
 ---
 
 # couch: say each verb's relative cost in --help and --skill (light, seconds, heavy)
@@ -30,8 +38,39 @@ Keep it to one short tag per line, plus one sentence of guidance (run heavy verb
 
 ## Plan
 
-- [ ]
+- [x] Measure every public verb on this machine (load noted per batch); record the timings below.
+- [x] One cost table (`couchcmd/cost.go`, `verbCosts`) — `couch --help` renders each verb line through `verbLine`, which panics on an untagged verb (ARCH-DRY: one source, two surfaces).
+- [x] Skill section "What each verb costs": one bullet per tier plus the guidance sentence.
+- [x] `cost_test.go`: help tags and skill bullets both equal the table; the guidance sentence is on both.
+- [x] README + atlas lines for the new help format.
 
 ## Log
 
 ### 2026-10-12
+
+Timings: `couch` binary at ~/workspace/pair/bin (10:27 build), 1-min load 10-23 unless noted;
+each light/seconds verb run 2-3 times, a 120 s hard cap per run (perl alarm; no `timeout` here).
+- **light** (under 1 s): --help 7-9 ms, --skill 7-9 ms, --actors 10-12 ms, --message-status 12 ms,
+  --broadcast-list 10-11 ms, --session-sync read --all / status 9-11 ms, --adopt-store preview 10 ms,
+  --broadcast-web-query notes/dom/events 13-28 ms (rec-blog, rec-stress fixtures),
+  --broadcast-web-replay prints its link in 35 ms and then serves until stopped,
+  --peek one slot 0.22 s, three slots 0.19-0.58 s, --archived 0.30-0.71 s (median 0.37).
+  --send-to is the same socket admission as --message-status (returns `queued` at once).
+- **seconds**: --list 1.13-1.99 s (median 1.31), --peek --transcripts 5.1-6.4 s (median 5.2),
+  --show 8.9-9.8 s (median 9.5), --broadcast-web-fidelity 9.7-11.7 s (median 10.5, load 67-89; a headless Chrome).
+  --reconcile not run (it repairs a workspace): it computes the plan --show prints, so it is at least --show.
+  --reap not run (no orphaned server to reap); tagged seconds: it ends a process tree and waits for it.
+- **heavy**: --recover-plan-from-sdlc 22.3 s and 56.8 s (runs `sdlc fleet inventory` per fleet).
+  On parley.nvim:3 (the TL's scratch slot; one at a time, load 10-17 before each):
+  --relaunch --same-binary 15.1 s and 22.3 s succeeded; then 24.0 s and 11.6 s ended `uncertain`
+  (the CLI's context deadline), and the last left the slot parked (pair#489's failure at load 11-17,
+  not just 200; every receipt warned "PAIR_DEV is set, so the relaunch rebuilds pair itself").
+  --resume then failed after 34.8 s: pane not born in 15 s, no Pair session live
+  (claim 3.6 s, prepare 0.7 s, record+baseline 1.0 s, registration 15.0 s).
+  --reload-context and --prepare were refused `not-live` on the parked slot; the TL kept it parked as
+  #489's reproduction, so they are tagged heavy from the shared path (both stop the agent and boot a
+  fresh one in its wrapper; --prepare also runs weave refresh). --reboot = relaunch's start plus a
+  fresh session (TL: not timed). --recover runs a resume or reboot. The bare `couch` launch boots the
+  supervisor and its slots' wrappers.
+- Tiers: light < 1 s; seconds 1-15 s; heavy >= 15 s or boots/stops agents.
+
