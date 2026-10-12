@@ -76,3 +76,10 @@ prototype ones (`stress`, `app`, `blog`), so the components being built on the p
   once scored 6.75% in `TestLiveFidelityFixtures` (1 of 4 runs; 0.17% max on the other 3). Its check is unchanged
   from main, so a pre-existing flake, reported to the TL.
 - termcmd `TestNoDeclarationCarriesTwoStackedGodocs` passes: #478's `575368d8` fixed `couchcmd/webcast.go`'s godoc.
+- Close review round 1 (FIX-THEN-SHIP): BR-1 `TestLiveReplayServerMarks` still sampled the prototype app's note
+  times. Fixed the class: its sample times now come from the recording's own note, note-state, stroke and segment
+  records (±100 ms), so a re-recording can't stale them. That surfaced a case the prototype never had: `rec-app-n2`'s
+  element (the modal's Cancel) is removed while the note is open, and the note carried no box, so the replay has
+  nowhere to pin it (`drawMarks`' rule). The test's expectation now applies that rule. Minor: `recorder/mirror.go`'s
+  reference to the deleted `cdpconv.go` now points at git history. Also dropped the retired converter from
+  `artifactpath`'s inventory (full suite).
