@@ -1,12 +1,12 @@
 ---
 id: 000480
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: 'fe16364d2d46d772efcad9d6e7f2ea51b4e1d103' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'fa12913d79a474ffbd0431637227c4590f324e7c' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T05:53:20-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "0d487d66", done: "44b95c2e"}
+actual_hours: 0.86
 ---
 
 # tests: inject clocks or sync points where tests race a real timer or sleep as sync (idle floor, stdin ESC flush, wait-notice ticks, ttyio partial write, ...)
