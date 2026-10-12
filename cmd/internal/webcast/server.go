@@ -2,12 +2,15 @@ package webcast
 
 import (
 	"embed"
+	"encoding/json"
 	"net/http"
+	"regexp"
 	"strings"
 	"sync/atomic"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
+	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
 //go:embed web/index.html web/viewer.js web/viewer.css web/model.js web/render.js web/css.js
@@ -32,23 +35,34 @@ var assets = map[string]struct{ file, contentType string }{
 // endedReason is what viewers are told when the cast ends.
 const endedReason = "ended"
 
-// Server is the stub viewer endpoint (#454): GET only, under the cast's
-// token, serving the page and an event stream of the cast's state. The
-// recorder's DOM stream replaces the state events' content later; the route
-// and the seam stay.
+// Server is the viewer endpoint: GET only, under the cast's token, serving
+// the viewer and an event stream of the cast's state ("state", "end") and,
+// with a Live, of its recording ("rec": each record line, the catch-up
+// first, #460).
 type Server struct {
 	token      string
 	browser    Browser
+	live       recording.Live
+	presence   Presence
 	ping       time.Duration
 	maxViewers int32
 	viewers    atomic.Int32
 }
 
-func NewServer(token string, b Browser, ping time.Duration) *Server {
+// Presence is told that viewer id's stream opened; leave is called when it
+// closes. It is how remote driving (#466, #467) knows who is watching.
+type Presence func(id string) (leave func())
+
+// viewerID is the shape of an events stream's ?viewer=.
+var viewerID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
+
+// NewServer serves b's state and, when live is set, its records. presence
+// may be nil.
+func NewServer(token string, b Browser, ping time.Duration, live recording.Live, presence Presence) *Server {
 	if ping <= 0 {
 		ping = broadcast.DefaultPing
 	}
-	return &Server{token: token, browser: b, ping: ping, maxViewers: broadcast.DefaultMaxViewers}
+	return &Server{token: token, browser: b, live: live, presence: presence, ping: ping, maxViewers: broadcast.DefaultMaxViewers}
 }
 
 // Owns is the Host's routing: this cast answers only its token.
@@ -85,14 +99,31 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) events(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get("viewer")
+	if id != "" && !viewerID.MatchString(id) {
+		http.Error(w, "bad viewer id", http.StatusBadRequest)
+		return
+	}
 	if s.viewers.Add(1) > s.maxViewers {
 		s.viewers.Add(-1)
 		http.Error(w, "too many viewers", http.StatusServiceUnavailable)
 		return
 	}
 	defer s.viewers.Add(-1)
+	if id != "" && s.presence != nil {
+		defer s.presence(id)()
+	}
 	states, cancel := s.browser.Subscribe()
 	defer cancel()
+	// A closed record channel (a viewer too slow to keep up is dropped, or
+	// the fan-out closed) ends the stream: the viewer reconnects and gets a
+	// fresh catch-up.
+	var recs <-chan recording.Record
+	if s.live != nil {
+		var unsubscribe func()
+		recs, unsubscribe = s.live.Subscribe()
+		defer unsubscribe()
+	}
 	stream := broadcast.OpenEventStream(w, s.ping)
 	if stream == nil {
 		return
@@ -115,6 +146,17 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			last = &next
+		case rec, open := <-recs:
+			if !open {
+				return
+			}
+			line, err := recording.Encode(rec)
+			if err != nil {
+				continue // a record the recorder built can always encode
+			}
+			if !stream.Event("rec", json.RawMessage(line)) {
+				return
+			}
 		case <-ping.C:
 			if !stream.Comment("ping") {
 				return

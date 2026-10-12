@@ -35,7 +35,7 @@ const URL_ATTRS = {
 };
 // Attributes dropped from the drawing: fetch, navigate or submit, or carry
 // integrity a rewritten body would fail.
-const DROP = new Set(['srcdoc', 'integrity', 'crossorigin', 'loading', 'ping', 'action', 'formaction', 'http-equiv', 'autofocus', 'autoplay', 'manifest', 'data']);
+const DROP = new Set(['srcdoc', 'integrity', 'crossorigin', 'ping', 'action', 'formaction', 'http-equiv', 'autofocus', 'autoplay', 'manifest', 'data']);
 
 export class Renderer {
   // frame is the page iframe; resolveAsset(absURL) returns a URL to load
@@ -171,7 +171,19 @@ export class Renderer {
     doc.defaultView?.scrollTo({ left: 0, top: 0, behavior: 'instant' }); // a window keeps its scroll across documents; a segment starts at the top
     try { doc.fonts.clear(); } catch {}
     doc.adoptedStyleSheets = [this.viewerSheet(doc)];
+    // An image, stylesheet or font arriving changes the layout, and a
+    // scroll applied to the shorter page was clamped: draw again.
+    if (!doc.__couchLoads) {
+      Object.defineProperty(doc, '__couchLoads', { value: true });
+      const changed = () => { this.dirty = true; this.onDirty(); };
+      doc.addEventListener('load', changed, true);
+      doc.fonts.addEventListener('loadingdone', changed);
+    }
   }
+
+  // onDirty is called when the drawing needs a flush outside a record
+  // (the shell schedules one).
+  onDirty() {}
 
   viewerSheet(doc) {
     if (!doc.__couchSheet) {
@@ -335,7 +347,12 @@ export class Renderer {
       }
     }
     if (lower === 'class' && this.hovered.includes(el)) out = `${v || ''} ${HOVER}`.trim();
+    // An image with nothing to load is drawn as one the tab hasn't loaded
+    // yet (a lazy image below the fold: an empty box), not as a broken one
+    // showing its alt text; the alt returns with the asset.
+    if (tag === 'img' && lower === 'alt' && !el.hasAttribute('src') && !el.hasAttribute('srcset')) out = undefined;
     setAttr(el, name, out);
+    if (tag === 'img' && (lower === 'src' || lower === 'srcset') && n.a && 'alt' in n.a) this.drawAttr(el, n, 'alt');
   }
 
   // ---- styles ----

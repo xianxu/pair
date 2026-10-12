@@ -7,8 +7,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/webcast/recording"
 )
 
 // sse reads one event stream: each next() is the next (event, data) pair.
@@ -74,7 +77,7 @@ func (s *sse) nextState() wireState {
 func TestServerStreamsStateAndEnd(t *testing.T) {
 	f := NewFakeBrowser()
 	f.Navigate("https://app/inbox", "Inbox")
-	srv := httptest.NewServer(NewServer("tok", f, time.Second))
+	srv := httptest.NewServer(NewServer("tok", f, time.Second, nil, nil))
 	t.Cleanup(srv.Close)
 	s := openSSE(t, srv.URL+"/tok/events")
 	if got := s.nextState(); got != (wireState{}) {
@@ -99,7 +102,7 @@ func TestServerStreamsStateAndEnd(t *testing.T) {
 }
 
 func TestServerRoutes(t *testing.T) {
-	srv := httptest.NewServer(NewServer("tok", NewFakeBrowser(), time.Second))
+	srv := httptest.NewServer(NewServer("tok", NewFakeBrowser(), time.Second, nil, nil))
 	t.Cleanup(srv.Close)
 	for _, r := range []struct {
 		method, path string
@@ -108,6 +111,9 @@ func TestServerRoutes(t *testing.T) {
 		{"GET", "/tok/", 200},
 		{"GET", "/tok/viewer.js", 200},
 		{"GET", "/tok/viewer.css", 200},
+		{"GET", "/tok/model.js", 200},
+		{"GET", "/tok/render.js", 200},
+		{"GET", "/tok/css.js", 200},
 		{"GET", "/tok/nope", 404},
 		{"GET", "/other/", 404},
 		{"GET", "/", 404},
@@ -133,7 +139,7 @@ func TestServerRoutes(t *testing.T) {
 }
 
 func TestServerCapsViewers(t *testing.T) {
-	s := NewServer("tok", NewFakeBrowser(), time.Second)
+	s := NewServer("tok", NewFakeBrowser(), time.Second, nil, nil)
 	s.maxViewers = 2
 	srv := httptest.NewServer(s)
 	t.Cleanup(srv.Close)
@@ -147,5 +153,158 @@ func TestServerCapsViewers(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("third viewer: %d", resp.StatusCode)
+	}
+}
+
+// nextRecs reads n rec events, skipping state events.
+func (s *sse) nextRecs(n int) []recording.Record {
+	s.t.Helper()
+	var out []recording.Record
+	for len(out) < n {
+		ev, data := s.next()
+		if ev == "state" {
+			continue
+		}
+		if ev != "rec" {
+			s.t.Fatalf("got %s %s, want rec", ev, data)
+		}
+		r, err := recording.Decode([]byte(data))
+		if err != nil {
+			s.t.Fatalf("rec %q: %v", data, err)
+		}
+		out = append(out, r)
+	}
+	return out
+}
+
+func sameLines(t *testing.T, got, want []recording.Record) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("got %d records, want %d", len(got), len(want))
+	}
+	for i := range want {
+		g, _ := recording.Encode(got[i])
+		w, _ := recording.Encode(want[i])
+		if string(g) != string(w) {
+			t.Fatalf("record %d: got %s, want %s", i, g, w)
+		}
+	}
+}
+
+// A viewer joining mid-cast gets the catch-up, then every record as it
+// comes, across a pause, a resume and a navigation.
+func TestServerStreamsRecordsFromCatchUp(t *testing.T) {
+	recs := recording.ContractRecording(10)
+	for _, cut := range []int{1, len(recs) / 2, len(recs) - 2} {
+		hub := recording.NewHub(len(recs))
+		for _, r := range recs[:cut] {
+			hub.Put(r)
+		}
+		srv := httptest.NewServer(NewServer("tok", NewFakeBrowser(), time.Second, hub, nil))
+		s := openSSE(t, srv.URL+"/tok/events")
+		want := recording.CatchUp(recs[:cut])
+		sameLines(t, s.nextRecs(len(want)), want)
+		for _, r := range recs[cut:] {
+			hub.Put(r)
+		}
+		sameLines(t, s.nextRecs(len(recs)-cut), recs[cut:])
+		hub.Close()
+		srv.Close()
+	}
+}
+
+// A closed fan-out (or a viewer dropped as too slow) ends the stream, so
+// the viewer reconnects for a fresh catch-up.
+func TestServerEndsStreamWhenRecordsClose(t *testing.T) {
+	hub := recording.NewHub(8)
+	srv := httptest.NewServer(NewServer("tok", NewFakeBrowser(), time.Second, hub, nil))
+	t.Cleanup(srv.Close)
+	s := openSSE(t, srv.URL+"/tok/events")
+	s.nextState()
+	hub.Close()
+	done := make(chan struct{})
+	go func() {
+		for s.sc.Scan() {
+		}
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the stream stayed open after the fan-out closed")
+	}
+}
+
+func TestServerPresence(t *testing.T) {
+	var mu sync.Mutex
+	var log []string
+	presence := func(id string) func() {
+		mu.Lock()
+		defer mu.Unlock()
+		log = append(log, "join "+id)
+		return func() {
+			mu.Lock()
+			defer mu.Unlock()
+			log = append(log, "leave "+id)
+		}
+	}
+	srv := httptest.NewServer(NewServer("tok", NewFakeBrowser(), time.Second, nil, presence))
+	t.Cleanup(srv.Close)
+	ctx, cancel := context.WithCancel(context.Background())
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/tok/events?viewer=v-1", nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bufio.NewReader(resp.Body).ReadString('\n')
+	cancel()
+	resp.Body.Close()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		mu.Lock()
+		got := strings.Join(log, ",")
+		mu.Unlock()
+		if got == "join v-1,leave v-1" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("presence: %q", got)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	// No id: no seat. A malformed id is refused before anything opens.
+	for path, want := range map[string]int{"/tok/events?viewer=a%20b": 400, "/tok/events?viewer=" + strings.Repeat("x", 65): 400} {
+		resp, err := http.Get(srv.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != want {
+			t.Errorf("%s: %d, want %d", path, resp.StatusCode, want)
+		}
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(log) != 2 {
+		t.Errorf("a refused stream reached presence: %v", log)
+	}
+}
+
+// The page frame inherits the viewer's policy: the recorded page's styles
+// may load, its scripts may not.
+func TestServerPolicyKeepsScriptsOut(t *testing.T) {
+	script := ""
+	for _, d := range strings.Split(contentSecurityPolicy, ";") {
+		if f := strings.Fields(d); len(f) > 0 && f[0] == "script-src" {
+			script = strings.Join(f[1:], " ")
+		}
+	}
+	if script != "'self'" {
+		t.Fatalf("script-src %q, want only 'self'", script)
+	}
+	for _, want := range []string{"style-src 'self' 'unsafe-inline' blob:", "img-src 'self'", "font-src 'self'"} {
+		if !strings.Contains(contentSecurityPolicy, want) {
+			t.Errorf("policy lacks %q", want)
+		}
 	}
 }

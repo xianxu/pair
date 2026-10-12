@@ -238,7 +238,7 @@ func serveFixtureAsset(w http.ResponseWriter, r *http.Request, rec *recording.Re
 		body = cssURL.ReplaceAllFunc(body, func(m []byte) []byte {
 			u := string(cssURL.FindSubmatch(m)[1])
 			if a := table[u]; a != nil {
-				return []byte(`url("/fx/` + name + `/assets/` + a.Hash + `")`)
+				return []byte(`url("` + assetPrefix(name) + a.Hash + `")`)
 			}
 			return m
 		})
@@ -404,4 +404,13 @@ func pixelDiff(a, b image.Image) float64 {
 func far(a, b uint32) bool {
 	d := int(a>>8) - int(b>>8)
 	return d > pixelThreshold || -d > pixelThreshold
+}
+
+// assetPrefix is where a fixture's assets are served: under the harness's
+// /fx/<name>/, or, for the viewer page (name ""), the cast's assets/.
+func assetPrefix(name string) string {
+	if name == "" {
+		return "/tok/assets/"
+	}
+	return "/fx/" + name + "/assets/"
 }
