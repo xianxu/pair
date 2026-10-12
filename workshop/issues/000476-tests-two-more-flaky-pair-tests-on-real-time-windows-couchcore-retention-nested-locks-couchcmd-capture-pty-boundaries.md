@@ -1,12 +1,12 @@
 ---
 id: 000476
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: 'b5106c2590966ec149ca96045aecd87e3a10f647' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '728a24a20d4dbd45a1ec0636c0591493f5b0c476' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T03:57:00-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
     repository: github.com/xianxu/pair
 flow: {kind: quick, provenance: inferred, spec: "c15c62bb", done: "c9efc146"}
+actual_hours: 0.16
 ---
 
 # tests: two more flaky pair tests on real-time windows (couchcore retention nested locks; couchcmd capture PTY boundaries)
