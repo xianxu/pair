@@ -108,18 +108,22 @@ export function connect(deps) {
 // pointer, and the viewer contract on window.couchViewer.
 export function mount(doc, win) {
   const $ = (id) => doc.getElementById(id);
-  const frame = $('page'), box = $('box'), stage = $('stage'), pointer = $('pointer');
+  const box = $('box'), stage = $('stage'), pointer = $('pointer');
+  // #page is the frame with the current document; the renderer swaps it
+  // with a sibling holding the previous paint (#475), so look it up.
+  const frame = () => $('page');
   let placed = { scale: 1, left: 0, top: 0 };
-  const scroll = () => { const w = frame.contentWindow; return w ? [w.scrollX, w.scrollY] : [0, 0]; };
+  const scroll = () => { const w = frame().contentWindow; return w ? [w.scrollX, w.scrollY] : [0, 0]; };
 
   const layout = () => {
     const m = v.model, vp = m && m.seg > 0 ? m.vp : null;
     box.hidden = !vp;
     if (!vp) return;
     placed = fit(stage.clientWidth, stage.clientHeight, vp);
-    frame.style.width = `${vp.w}px`;
-    frame.style.height = `${vp.h}px`;
-    frame.style.transform = `scale(${placed.scale})`;
+    const f = frame();
+    f.style.width = `${vp.w}px`;
+    f.style.height = `${vp.h}px`;
+    f.style.transform = `scale(${placed.scale})`;
     Object.assign(box.style, { width: `${placed.w}px`, height: `${placed.h}px`, left: `${placed.left}px`, top: `${placed.top}px` });
   };
   const drawPointer = () => {
@@ -146,7 +150,7 @@ export function mount(doc, win) {
   };
   const viewer = new URLSearchParams(win.location.search).get('viewer');
   const shell = {
-    renderer: (model) => new Renderer(frame, model, resolveAsset),
+    renderer: (model) => new Renderer(frame(), model, resolveAsset),
     show: render,
     frame: () => { layout(); drawPointer(); },
     schedule: (fn) => win.requestAnimationFrame(fn),

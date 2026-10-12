@@ -37,6 +37,9 @@ window.join = async (name, t, until) => {
 // replayAt draws the page as the real tab looked at t (Replayer.replayAt).
 window.replayAt = async (t, windowMs) => (await replayer.replayAt(t, windowMs)).canonical;
 
+// releaseAt is when the viewer shows the document at t (Replayer.releaseAt).
+window.releaseAt = async (name, t) => { await window.load(name); return replayer.releaseAt(t); };
+
 window.boxOf = (id) => replayer.renderer.boxOf(id);
 window.nodeAt = (x, y) => replayer.renderer.nodeAt(x, y);
 window.harnessReady = true;

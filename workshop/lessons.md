@@ -1220,6 +1220,12 @@ proof; record the surprising case so the next change starts from evidence.
   event that makes it true and wait on that event: a no-op command through the loop that owns the state, or an
   injected clock (`Couch.after`) that ties the timeout to the fake's state. To prove a suspected window, widen it
   with a temporary sleep in the product or fake and watch the test fail every time.
+- **A flag that marks setup done must die with what it set up (#475).** `openDoc` guarded its load listener with a
+  property on the document, but `document.open()` erases the document's listeners and keeps its properties, so only
+  the first page a frame ever drew redrew on loads, and the replay's numbers depended on test order. When a guard
+  says "already done", check that every operation that undoes the work also clears the guard; prefer re-doing an
+  idempotent setup each time over a flag. And when a render number changes only with run order, diff the same
+  capture twice before suspecting the change under test (Chrome throttles a hidden frame's rendering too).
 - **A production bound a test inherits is a real-time window too (#476).** `TestCapturePTYBothBoundaries` never named
   a duration. It failed because `Recorder.Close`'s production 2s drain bound is the default it ran with. And the
   retention lock test timed a whole call, file I/O included, to prove it "didn't block", although the held lock
@@ -1253,6 +1259,11 @@ proof; record the surprising case so the next change starts from evidence.
   isn't a navigation, a catch-up), ask what the browser's own clocks (animations, transitions) were doing at
   capture, and settle them to the likeliest phase. Look at the worst moment's crop before tuning a tolerance: the
   picture named the cause where the number couldn't.
+- **A component that stacks its own elements must not reach past them (#475 close, round 1).** A `z-index` on the
+  held frame lifted it over the shell's overlay, which sits beside it with `z-index: auto`. Order layers by document
+  order inside the component, or give the component its own stacking context; never set a z-index the host doesn't
+  know about. And keep a lifecycle in one state value (`pair.hold = null | {owner, drawn, cancel}`), not in flags,
+  an inline style and a shared object; inject its clock so a test can drive each ordering.
 - **A test moved to another fixture keeps its old fixture's moments unless they come from the data (#474).** The
   replay marks test moved from the prototype's `app` to `rec-app` and kept sampling `app`'s note times, so it still
   passed but checked nothing about the new notes. Derive sample moments (and any content a test reads) from the

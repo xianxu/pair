@@ -186,6 +186,14 @@ what the viewer's renderer draws at the same moments.
     (no `allow-scripts`). It never sets `on*` attributes, gives nested frames no `src`, and sends every URL through
     `resolveAsset`; a URL with no asset loads nothing. An image with nothing to load is drawn as not yet loaded (no
     alt text), as a lazy image is in the tab.
+  - Paint holding (#475): as a browser's render-blocking CSS does, the renderer draws a new top document into a
+    second frame placed before the first in document order, so the first, keeping the previous paint, covers it (and
+    the shell's overlay covers both), until the new document's `<link rel=stylesheet>`s (media matching, not alternate
+    or disabled) are bound or have failed, or `HOLD_MS` (500 ms) has passed. `#page` is always the frame with the
+    current document. The hold is one state on the frame pair (`null` or `{owner, drawn, cancel}`); a renderer that
+    starts a hold while one is in flight (a resync, a seek) takes it over. A renderer dirty outside a record flushes
+    itself before the next paint (`onDirty`), unless the shell replaces that. So the recording keeps
+    when bytes arrived, and the viewer, live or replaying, never draws an unstyled page the tab never showed.
   - `css.js` rewrites streamed CSS (`url()`s through the asset table, `:hover` to the stand-in class).
   - `viewer.js` is the shell. It lays the page out once at the operator's viewport and scales it to fit (never
     relayout), shows the title and URL as text, and shows Paused and Cast-ended states. The operator's `hover` is
@@ -200,7 +208,9 @@ what the viewer's renderer draws at the same moments.
     time so transitions are in phase. The recorder reports synchronously, so no fixture gets
     observer slack (#472, #474). Any fixture's frame may also be compared 50 ms before its `t`: its pixels are a compositor frame from
     inside the screenshot call. Offsets never leave the frame's own live segment (`recording.FrameTimes`, shared with the
-    fidelity tool). `knownGaps` lists frames that differ for a filed reason (#475), and fails once one passes.
+    fidelity tool). A frame whose own times fail is tried where the viewer's paint hold over it releases
+    (`releaseAt`). `knownGaps` lists frames that differ for a filed reason, each with a ceiling on its best try, and
+    fails once one passes or goes over its ceiling (rec-stress frame 0: an image recorded 68 ms after the screenshot).
   - The harness sizes the drawn page to the segment's viewport, as `viewer.js` does, so a tab switch to a
     different-sized tab compares at that size.
   - `viewer_live_test.go` drives the real page through `Server` and a `Hub` at tablet width: scaling, URL, hover,
