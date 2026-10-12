@@ -857,7 +857,12 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	rt.RecordOuterTTY(chosenTag, PresentedByCouch(env, chosenTag))
 	rt.CmuxRename(chosenTag, session)
 	rt.SpawnTitlePoller(chosenTag, agent, session, titlepoller.NewSessionEnv(dataDir, scope.Key))
-	rt.DevRebuild(opts.PairHome)
+	// A Couch launch never rebuilds (pair#489): the rebuild ran inside Couch's
+	// registration wait, once per slot, and at load ~200 its no-op alone took
+	// 9.6s. A sweep builds once by hand; relaunch's freshness gate says so.
+	if !env.CouchHosted() {
+		rt.DevRebuild(opts.PairHome)
+	}
 
 	configDir := filepath.Join(opts.PairHome, "zellij")
 	layout := filepath.Join(opts.PairHome, "zellij", "layouts", LayoutAssetBasename(layoutResolution.Mode))

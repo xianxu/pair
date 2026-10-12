@@ -221,7 +221,10 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	if deadline == nil {
 		deadline = context.WithTimeout
 	}
-	registrationContext, cancelRegistration := deadline(ctx, registrationTimeout)
+	// The exit watch sits under the deadline, so the deadline's own
+	// cancellation reaches the wait loops directly.
+	registrationContext, stopExitWatch := whileHelperAlive(ctx, h)
+	registrationContext, cancelRegistration := deadline(registrationContext, registrationTimeout)
 	if in.Fresh {
 		err = c.awaitFreshRegistration(registrationContext, thread.Address, in.Args.Stack, in.Nonce)
 		if err == nil {
@@ -233,10 +236,14 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		err = c.awaitThreadRegistration(registrationContext, thread.Address)
 	}
 	cancelRegistration()
+	exited := stopExitWatch()
 	steps.mark("registration")
 	if err != nil {
-		cause := fmt.Errorf("await Pair registration %+v: %w [steps: %s]%s", thread.Address, err, steps,
-			c.diagnoseRegistrationFailure(err, thread.Address, registrationTimeout))
+		diagnosis := c.diagnoseRegistrationFailure(err, thread.Address, registrationTimeout)
+		if exited {
+			diagnosis = " (Pair exited before registering -- look at the launch: its stderr and the zellij log)"
+		}
+		cause := fmt.Errorf("await Pair registration %+v: %w [steps: %s]%s", thread.Address, err, steps, diagnosis)
 		return ActorRecord{}, h, c.failTrackedPostAckStart(shape, thread, in.Nonce, h, cause)
 	}
 	// The layout witness rides this transaction, and only at a cold boundary:
@@ -417,6 +424,40 @@ func (c *Couch) awaitResumeRegistration(ctx context.Context, address ThreadAddre
 			return wait
 		case <-ticker.C:
 		}
+	}
+}
+
+// helperExitPoll is how often a registration wait checks that the launched
+// Pair's process group is still there: one kill(-pgid, 0) per tick.
+const helperExitPoll = 100 * time.Millisecond
+
+// whileHelperAlive ends ctx as soon as the launched Pair's process group has
+// gone (pair#489). A slow start is still a live one, so the registration wait
+// can be a hang ceiling instead of a latency guess: the dead launch it used to
+// catch by timing out now ends here, at once. stop joins the watcher and
+// reports whether the exit is what ended the wait.
+func whileHelperAlive(ctx context.Context, h Handle) (context.Context, func() bool) {
+	ctx, cancel := context.WithCancelCause(ctx)
+	errExited := errors.New("Pair exited before registering")
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(helperExitPoll)
+		defer ticker.Stop()
+		for h.Alive() {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+		cancel(errExited)
+	}()
+	return ctx, func() bool {
+		exited := errors.Is(context.Cause(ctx), errExited)
+		cancel(nil)
+		<-done
+		return exited
 	}
 }
 

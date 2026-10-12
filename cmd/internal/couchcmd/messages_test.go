@@ -382,6 +382,29 @@ func TestSlotOperationCLIPollLoop(t *testing.T) {
 	}
 }
 
+// pair#489: a start slowed by load can take minutes, so the CLI says it is
+// still running every 15 s instead of sitting silent until the receipt lands.
+func TestSlotOperationCLIReportsProgressWhileRunning(t *testing.T) {
+	polls := int(40 * time.Second / slotOperationPollInterval)
+	statuses := []couchmessage.Response{}
+	for range polls {
+		statuses = append(statuses, receiptResponse("ok", couchmessage.ReceiptRunning))
+	}
+	statuses = append(statuses, receiptResponse("ok", couchmessage.ReceiptSucceeded))
+	run := runSlotScript(t, cliInvocation{kind: cliMessage, messageOp: "resume", ref: "pair:1"}, messageRuntime(), admitThen(statuses...))
+	if run.code != 0 {
+		t.Fatalf("exit %d: %q %q", run.code, run.stdout, run.stderr)
+	}
+	for _, want := range []string{"couch: pair:1 resume still running after 15s\n", "couch: pair:1 resume still running after 30s\n"} {
+		if !strings.Contains(run.stderr, want) {
+			t.Fatalf("stderr %q lacks %q", run.stderr, want)
+		}
+	}
+	if n := strings.Count(run.stderr, "still running"); n != 2 {
+		t.Fatalf("%d progress lines over ~40s, want 2: %q", n, run.stderr)
+	}
+}
+
 // The admission and every poll carry the caller's identity, one request ID,
 // and a fresh per-call context: the 6th poll, past the 2 s a single
 // invocation-wide context allowed, still succeeds.

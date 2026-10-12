@@ -675,9 +675,9 @@ names the first thing to fix:
 
 **Freshness.** The stale-binary refusal names the fix: `make build in
 <checkout>`, where the checkout is bin/pair's parent and pair:0 in practice.
-It is skipped under `PAIR_DEV`, which slots inherit from Couch's environment
-(`mergeChildEnvironment`), because the relaunch's `dev_rebuild` rebuilds
-anyway. `--same-binary` also overrides it. When the binary is newer but
+It applies under `PAIR_DEV` too: a Couch-launched Pair never runs
+`dev_rebuild` (pair#489), so a relaunch sweep builds once, by hand, and each
+relaunch is judged on the binary on disk. `--same-binary` overrides it. When the binary is newer but
 behind its checkout's HEAD, or was built from a dirty tree, the note says so
 without refusing.
 
@@ -2036,6 +2036,17 @@ Before that it asked every live pair session, **measured at 1.49 s** on a
 of two sessions: the detached proof and its re-proof. `pair resume`'s launcher
 and couch's registration poll read liveness only (`SessionLive`). See
 `cmd/probes/reattachcost` for before and after.
+
+**Registration waits on Pair, not a stopwatch (`pair#489`).** Every launch
+(spawn, cold resume, fresh, warm) waits for registration under
+`whileHelperAlive`: the wait ends at registration, when the helper's process
+group exits (a dead launch fails at once: "Pair exited before registering"), or
+at `pairRegistrationTimeout`, a 2-minute hang ceiling. Startup scales with load
+(at load ~200, launch-to-pane took 9-11 s and PAIR_DEV's no-op `make build`
+9.6 s, so the old fixed 15 s failed five relaunches), so a slow start is waited
+for, and adopted, instead of failed. Any failure takes the same post-ack cleanup
+(the helper's group is ended, the thread rolls back to parked). The CLI prints
+"still running" every 15 s while it polls the receipt.
 
 **A cold resume's registration waits for the pane's birth first (`pair#287`).**
 A cold resume starts a new zellij server, and zellij 0.45.1 panics when a

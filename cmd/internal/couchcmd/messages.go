@@ -174,6 +174,9 @@ const (
 	slotOperationPollInterval = 500 * time.Millisecond
 	// Covers the operation plus a restart's readiness wait (pair#427).
 	slotOperationPollBudget = 5 * time.Minute
+	// slotOperationProgressEvery paces the "still running" line, so a start
+	// slowed by load reads as progress, not a hang (pair#489).
+	slotOperationProgressEvery = 15 * time.Second
 )
 
 // slotPollClock is the poll loop's time: the budget is measured on now and
@@ -187,7 +190,7 @@ type slotPollClock struct {
 // runSlotOperationCLI admits resume/reboot <slot> through the running Couch
 // and polls its receipt (exchangeSlotOperation), then reports it.
 func runSlotOperationCLI(inv cliInvocation, rt Runtime, stdout, stderr io.Writer, call messageCall, clock slotPollClock) int {
-	receipt, err := exchangeSlotOperation(inv, inv.messageOp, rt, call, clock)
+	receipt, err := exchangeSlotOperation(inv, inv.messageOp, rt, call, clock, stderr)
 	var uncertain *slotOperationUncertain
 	switch {
 	case errors.As(err, &uncertain):
@@ -217,7 +220,7 @@ func (e *slotOperationUncertain) Error() string {
 // admission any lost or unreadable outcome (dial failure, timeout, an
 // unavailable caller after a Couch restart, a receipt no longer held) is a
 // *slotOperationUncertain: the report, not the receipt, is the evidence.
-func exchangeSlotOperation(inv cliInvocation, op string, rt Runtime, call messageCall, clock slotPollClock) (couchmessage.OperationReceipt, error) {
+func exchangeSlotOperation(inv cliInvocation, op string, rt Runtime, call messageCall, clock slotPollClock, progress io.Writer) (couchmessage.OperationReceipt, error) {
 	var none couchmessage.OperationReceipt
 	namespace := rt.Getenv("COUCH_STORE_DIR")
 	if namespace == "" {
@@ -260,9 +263,14 @@ func exchangeSlotOperation(inv cliInvocation, op string, rt Runtime, call messag
 	receipt := *result.Operation
 	status := callerIdentity(rt, "operation-status")
 	status.ID = admit.ID
-	for start := clock.now(); !receipt.Status.Terminal(); {
+	start := clock.now()
+	for told := start; !receipt.Status.Terminal(); {
 		if clock.now().Sub(start) >= slotOperationPollBudget {
 			return uncertain(fmt.Sprintf("still %s after %s", receipt.Status, slotOperationPollBudget))
+		}
+		if clock.now().Sub(told) >= slotOperationProgressEvery {
+			told = clock.now()
+			fmt.Fprintf(progress, "couch: %s %s still %s after %s\n", inv.ref, op, receipt.Status, told.Sub(start).Round(time.Second))
 		}
 		clock.sleep(slotOperationPollInterval)
 		result, err := exchange(status)
