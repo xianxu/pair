@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"mime"
 	"strings"
 	"sync"
 
@@ -86,7 +85,7 @@ func (s *Recorded) store(c Capture) (*recording.Asset, error) {
 	switch {
 	case c.isCSS():
 		body = []byte(RewriteCSS(string(c.Body), c.URL, func(abs string) string { return abs }))
-	case strings.HasPrefix(c.baseMIME(), "image/"):
+	case strings.HasPrefix(baseType(c.MIME), "image/"):
 		var err error
 		if body, typ, orig, err = Resample(c.Body, c.MIME, s.policy.MaxPixels); err != nil {
 			return nil, err
@@ -150,12 +149,4 @@ func clone(a *recording.Asset) *recording.Asset {
 	return &c
 }
 
-func (c Capture) baseMIME() string {
-	t, _, err := mime.ParseMediaType(c.MIME)
-	if err != nil {
-		return strings.ToLower(strings.TrimSpace(c.MIME))
-	}
-	return t
-}
-
-func (c Capture) isCSS() bool { return c.baseMIME() == "text/css" }
+func (c Capture) isCSS() bool { return baseType(c.MIME) == "text/css" }
