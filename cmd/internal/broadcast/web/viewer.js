@@ -5,7 +5,7 @@
 // pick (#446).
 
 import { noteAt, noteCell, guardedCell, parseNotes } from './notes.js';
-import { HEX_COLOR, pointerColor, colorStore, railAt, renderSwatches, noteDialog } from './collab.js';
+import { HEX_COLOR, pointerColor, colorStore, railAt, renderSwatches, noteDialog, poster } from './collab.js';
 
 export { pointerColor, colorStore, RAIL_INSET, railAt, renderSwatches } from './collab.js';
 
@@ -346,22 +346,8 @@ async function start() {
 // stream (#412, #447).
 const POST_ROUTES = ['point', 'note', 'resolve'];
 
-// postJSON is the page's one request function: same origin, a relative
-// route from POST_ROUTES, no credentials, no referrer. It resolves to the
-// status and the response text (a refusal sentence, for the note dialog).
-function postJSON(route, body) {
-  if (!POST_ROUTES.includes(route)) {
-    return Promise.reject(new Error('unknown route'));
-  }
-  return fetch(route, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    credentials: 'omit',
-    referrerPolicy: 'no-referrer',
-    cache: 'no-store',
-  }).then(async (r) => ({ status: r.status, text: await r.text() }));
-}
+// postJSON is the page's one request function (collab.js's poster).
+const postJSON = poster((url, init) => fetch(url, init), POST_ROUTES);
 
 function postPoint(body) {
   postJSON('point', body).catch(() => {});

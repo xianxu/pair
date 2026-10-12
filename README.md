@@ -949,6 +949,19 @@ line. The web cast shares the screen broadcast's tunnel
 is found in the usual macOS locations or on `PATH`; set `COUCH_WEBCAST_CHROME` to
 the binary to choose another (Couch refuses to start if it doesn't exist).
 
+**Pointing and notes on a web cast (#470).** Anyone with the viewer link can point
+and leave notes; there is no separate pointer link. On the viewer's page, the rail at
+the right edge has the six pointer colors, ✏️ (point: draw on the page, everyone sees
+the stroke fade after a moment) and 💭 (note: tap an element, or drag a region, then
+write). The first note asks for a name; the page remembers it and the color in this
+browser. A note pins to its element (or region) for everyone, follows it as the page
+scrolls, stays through a pause, and leaves the page when the cast moves to another
+page; anyone can tap a pin to read it and resolve it. Unlike the screen broadcast's
+notes, these are part of the recording: notes and strokes, with their authors, are
+saved in `notes.jsonl` and `pointer.jsonl`, and `couch --broadcast-web-query DIR
+notes` lists them. The name a viewer gives is theirs to choose: it attributes, it
+doesn't authenticate.
+
 With an empty root filter, **Space** toggles the **normal view** and **focus view**.
 Focus view shows only live threads with a published summary, in normal-view
 order, as `label ◆ summary`. Tag a thread with `! …` in its Pair draft. An empty

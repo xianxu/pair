@@ -20,22 +20,56 @@ export function pointerColor(picked, assigned, size) {
 // colorStore remembers the pick. Storage can be missing or throw (a private
 // window, blocked site data); the page then works without remembering.
 export function colorStore(storage) {
+  const store = safeStorage(storage);
   return {
     get() {
+      const v = store.get(COLOR_KEY);
+      return /^[0-9]$/.test(v || '') ? Number(v) : null;
+    },
+    set(i) {
+      store.set(COLOR_KEY, String(i)); // if not remembered, the pick still holds for this page
+    },
+  };
+}
+
+// safeStorage is the pages' one way to keep anything: storage can be
+// missing or throw (a private window, blocked site data), and the page then
+// works without remembering.
+export function safeStorage(storage) {
+  return {
+    get(key) {
       try {
-        const v = storage ? storage.getItem(COLOR_KEY) : null;
-        return /^[0-9]$/.test(v || '') ? Number(v) : null;
+        return storage ? storage.getItem(key) : null;
       } catch {
         return null;
       }
     },
-    set(i) {
+    set(key, value) {
       try {
-        storage?.setItem(COLOR_KEY, String(i));
+        storage?.setItem(key, value);
       } catch {
-        // Not remembered; the pick still holds for this page.
+        // Not remembered.
       }
     },
+  };
+}
+
+// poster makes a page's one request function: same origin, a relative
+// route from routes, no credentials, no referrer. It resolves to the status
+// and the response text (a refusal sentence the page shows).
+export function poster(fetchFn, routes) {
+  return (route, body) => {
+    if (!routes.includes(route)) {
+      return Promise.reject(new Error('unknown route'));
+    }
+    return fetchFn(route, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      credentials: 'omit',
+      referrerPolicy: 'no-referrer',
+      cache: 'no-store',
+    }).then(async (r) => ({ status: r.status, text: await r.text() }));
   };
 }
 

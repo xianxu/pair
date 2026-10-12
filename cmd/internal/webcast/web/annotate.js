@@ -13,7 +13,7 @@
 // terminal viewer's (served from broadcast.CollabJS; the file here is a
 // symlink, for the node tests).
 
-import { HEX_COLOR, pointerColor, colorStore, railAt, renderSwatches, noteDialog } from './collab.js';
+import { HEX_COLOR, pointerColor, colorStore, safeStorage, poster, railAt, renderSwatches, noteDialog } from './collab.js';
 
 // CHUNK_MS is how often a stroke in progress is posted; MAX_POINTS caps a
 // chunk (the board's bound).
@@ -41,18 +41,17 @@ export function randomID(crypto) {
 // (atlas, Notes and pointer). Storage can be missing or throw; the page then
 // keeps the identity for this visit only.
 export function identityStore(storage, crypto) {
-  const get = (k) => { try { return storage ? storage.getItem(k) : null; } catch { return null; } };
-  const set = (k, v) => { try { storage?.setItem(k, v); } catch { /* this visit only */ } };
-  let id = get(ID_KEY);
+  const store = safeStorage(storage);
+  let id = store.get(ID_KEY);
   if (!ID_RE.test(id || '') || id === 'operator') {
     id = 'w' + randomID(crypto);
-    set(ID_KEY, id);
+    store.set(ID_KEY, id);
   }
-  let name = get(NAME_KEY) || '';
+  let name = store.get(NAME_KEY) || '';
   return {
     id: () => id,
     name: () => name,
-    setName(v) { name = v; set(NAME_KEY, v); },
+    setName(v) { name = v; store.set(NAME_KEY, v); },
     viewer: () => ({ id, name }),
   };
 }
@@ -83,35 +82,35 @@ export function chunker() {
 const round = (v) => Math.round(v * 10) / 10;
 
 // strokeStore keeps the strokes to draw: chunks joined by record id, each
-// with the time it last grew here. A stroke behind the stream (a reconnect's
-// catch-up) is never drawn: only one whose record time is within FADE_MS of
-// the newest record time. Own strokes are added locally (local), and their
-// echoes are skipped.
+// with the time it last grew here and its end on the recording's clock. A
+// stroke behind the stream (a reconnect's catch-up replays the document's
+// strokes oldest first) is never drawn: at draw time, only a stroke whose
+// end is within FADE_MS of the newest record time shows. Own strokes are
+// added locally (local), and their echoes are skipped.
 export function strokeStore() {
-  const strokes = new Map(); // id -> {color, pts: [[x, y]], last}
+  const strokes = new Map(); // id -> {color, pts: [[x, y]], last, end}
   let newest = 0;
+  const extend = (id, color, pts, now, end) => {
+    const s = strokes.get(id) || { color, pts: [], last: now, end };
+    for (const p of pts) s.pts.push([p[0], p[1]]);
+    s.last = now;
+    if (end !== undefined) s.end = Math.max(s.end ?? end, end);
+    strokes.set(id, s);
+  };
   return {
     seen(t) { newest = Math.max(newest, t); },
     record(r, now, ownPrefix) {
       if (ownPrefix && r.id.startsWith(ownPrefix)) return;
-      const end = r.t + Math.max(0, ...r.pts.map((p) => p[2]));
-      if (newest - end > FADE_MS) return;
-      this.extend(r.id, r.color, r.pts, now);
+      extend(r.id, r.color, r.pts, now, r.t + Math.max(0, ...r.pts.map((p) => p[2])));
     },
-    local(id, color, pts, now) { this.extend(id, color, pts, now); },
-    extend(id, color, pts, now) {
-      const s = strokes.get(id) || { color, pts: [], last: now };
-      for (const p of pts) s.pts.push([p[0], p[1]]);
-      s.last = now;
-      strokes.set(id, s);
-    },
+    local(id, color, pts, now) { extend(id, color, pts, now, undefined); },
     // visible is every stroke still showing at now, with its opacity; the
-    // ones faded out are dropped.
+    // ones faded out, or behind the stream, are dropped.
     visible(now) {
       const out = [];
       for (const [id, s] of strokes) {
         const age = now - s.last;
-        if (age >= FADE_MS) { strokes.delete(id); continue; }
+        if (age >= FADE_MS || (s.end !== undefined && newest - s.end > FADE_MS)) { strokes.delete(id); continue; }
         out.push({ id, color: s.color, pts: s.pts, alpha: 1 - age / FADE_MS });
       }
       return out;
@@ -151,16 +150,9 @@ export function noteDraft(seg, node, box, region) {
   return d;
 }
 
-// NOTE_ROUTES is every request this module makes besides palette.json.
+// NOTE_ROUTES is every request this module makes besides palette.json
+// (collab.js's poster sends them).
 const NOTE_ROUTES = ['stroke', 'note', 'note-state'];
-
-function postJSON(win, route, body) {
-  if (!NOTE_ROUTES.includes(route)) return Promise.reject(new Error('unknown route'));
-  return win.fetch(route, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-    credentials: 'omit', referrerPolicy: 'no-referrer', cache: 'no-store',
-  }).then(async (r) => ({ status: r.status, text: await r.text() }));
-}
 
 export const MODE_TIPS = {
   point: 'Point: draw on the page for everyone. Click again to stop.',
@@ -184,7 +176,7 @@ export async function mountAnnotate(doc, win, v) {
   const colors = colorStore(storage);
   let picked = colors.get();
   const color = () => pointerColor(picked, 0, palette.length);
-  const post = (route, body) => postJSON(win, route, body);
+  const post = poster((url, init) => win.fetch(url, init), NOTE_ROUTES);
   const el = (tag, cls, parent) => { const e = doc.createElement(tag); if (cls) e.className = cls; parent?.append(e); return e; };
 
   const box = doc.getElementById('box'), stage = doc.getElementById('stage');
@@ -193,6 +185,20 @@ export async function mountAnnotate(doc, win, v) {
   const pins = el('div', 'pins', layer);
   const rail = el('div', 'annotate-rail', doc.body);
   const swatches = el('div', 'swatches', rail);
+  // A refusal of a request no dialog is open for (a stroke) shows here for
+  // a moment: every refused post is seen.
+  const toast = el('div', 'annotate-msg', doc.body);
+  toast.setAttribute('role', 'status');
+  toast.hidden = true;
+  let toastTimer = null;
+  const say = (text) => {
+    toast.textContent = text;
+    toast.hidden = false;
+    if (toastTimer !== null) win.clearTimeout(toastTimer);
+    toastTimer = win.setTimeout(() => { toast.hidden = true; }, 3000);
+  };
+  const answered = (req) => req.then((r) => { if (r.status !== 204) say((r.text || '').trim() || "That didn't work."); })
+    .catch(() => say("Couldn't reach the cast."));
   swatches.setAttribute('role', 'group');
   swatches.setAttribute('aria-label', 'Pointer color');
   const modeButtons = {};
@@ -241,7 +247,9 @@ export async function mountAnnotate(doc, win, v) {
 
   const state = { mode: 'watch', drag: null, stroke: null, timer: null };
   const strokes = strokeStore();
-  let docSeg = 0;
+  // The document now: the module mounts after the catch-up may have been
+  // applied, so it starts from the model's, not from nothing.
+  let docSeg = v.model ? v.model.docSeg : 0;
 
   const drawRail = () => {
     renderSwatches(swatches, palette, color(), (i) => { picked = i; colors.set(i); drawRail(); }, (tag) => doc.createElement(tag));
@@ -268,7 +276,7 @@ export async function mountAnnotate(doc, win, v) {
     const s = state.stroke;
     if (!s) return;
     for (const pts of s.chunks.take()) {
-      post('stroke', { viewer: who.viewer(), seg: v.model.seg, id: s.id, color: s.color, pts }).catch(() => {});
+      answered(post('stroke', { viewer: who.viewer(), seg: s.seg, id: s.id, color: s.color, pts }));
     }
   };
   function endStroke() {
@@ -280,6 +288,7 @@ export async function mountAnnotate(doc, win, v) {
   const pagePoint = (e) => v.toPage(e.clientX, e.clientY);
 
   layer.addEventListener('pointerdown', (e) => {
+    if (e.target.closest && e.target.closest('.chip')) return; // a pin's chip opens its note, in any mode
     if (state.mode === 'watch' || !(v.model && v.model.seg > 0) || dialog.open) return;
     e.preventDefault();
     layer.setPointerCapture?.(e.pointerId);
@@ -287,7 +296,7 @@ export async function mountAnnotate(doc, win, v) {
     if (state.mode === 'point') {
       endStroke();
       const id = randomID(win.crypto);
-      state.stroke = { id, full: `${who.id()}.${id}`, color: color(), chunks: chunker() };
+      state.stroke = { id, full: `${who.id()}.${id}`, color: color(), seg: v.model.seg, chunks: chunker() };
       state.stroke.chunks.add(p[0], p[1], win.performance.now());
       strokes.local(state.stroke.full, palette[color()], [p], win.performance.now());
       state.timer = win.setInterval(flush, CHUNK_MS);
@@ -347,33 +356,42 @@ export async function mountAnnotate(doc, win, v) {
     Object.assign(e.style, { left: `${x0 - r.left}px`, top: `${y0 - r.top}px`, width: `${x1 - x0}px`, height: `${y1 - y0}px` });
   };
 
+  // Pins are kept per note and only moved each frame, so a chip being
+  // tapped is never replaced under the finger.
+  const pinEls = new Map(); // note id -> element
+  function makePin(n) {
+    const pin = doc.createElement('div');
+    pin.className = n.region ? 'pin region' : 'pin';
+    pin.dataset.note = n.id;
+    const c = n.author && HEX_COLOR.test(n.author.color || '') ? n.author.color : '#888888';
+    pin.style.setProperty('--pin', c);
+    const chip = doc.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip';
+    chip.textContent = '💭';
+    const by = n.author && n.author.name ? n.author.name : 'A viewer';
+    chip.title = `${by}: ${n.text}`;
+    chip.setAttribute('aria-label', `Note from ${by}`);
+    chip.addEventListener('click', (e) => {
+      e.stopPropagation();
+      author.textContent = by;
+      name.hidden = true;
+      dialog.view({ id: n.id, text: n.text }, { resolvable: true });
+    });
+    pin.append(chip);
+    pins.append(pin);
+    return pin;
+  }
   function drawPins() {
-    const notes = liveNotes(v.model);
-    pins.replaceChildren(...notes.map((n) => {
+    const notes = liveNotes(v.model), ids = new Set(notes.map((n) => n.id));
+    for (const [id, pin] of pinEls) if (!ids.has(id)) { pin.remove(); pinEls.delete(id); }
+    for (const n of notes) {
+      const pin = pinEls.get(n.id) || makePin(n);
+      pinEls.set(n.id, pin);
       const b = noteBox(n, (id) => v.boxOf(id));
-      const pin = doc.createElement('div');
-      pin.className = n.region ? 'pin region' : 'pin';
-      pin.dataset.note = n.id;
-      if (!b) { pin.hidden = true; return pin; }
-      place(pin, b);
-      const c = n.author && HEX_COLOR.test(n.author.color || '') ? n.author.color : '#888888';
-      pin.style.setProperty('--pin', c);
-      const chip = doc.createElement('button');
-      chip.type = 'button';
-      chip.className = 'chip';
-      chip.textContent = '💭';
-      const who = n.author && n.author.name ? n.author.name : 'A viewer';
-      chip.title = `${who}: ${n.text}`;
-      chip.setAttribute('aria-label', `Note from ${who}`);
-      chip.addEventListener('click', (e) => {
-        e.stopPropagation();
-        author.textContent = who;
-        name.hidden = true;
-        dialog.view({ id: n.id, text: n.text }, { resolvable: true });
-      });
-      pin.append(chip);
-      return pin;
-    }));
+      pin.hidden = !b;
+      if (b) place(pin, b);
+    }
     dialog.update({ notes: notes.map((n) => ({ id: n.id })) });
   }
 
@@ -420,7 +438,13 @@ export async function mountAnnotate(doc, win, v) {
 
   v.onRecord((r, model) => {
     strokes.seen(r.t);
-    if (model.docSeg !== docSeg) { docSeg = model.docSeg; strokes.clear(); }
+    if (model.docSeg !== docSeg) {
+      // A new document: a stroke doesn't span documents. (A resync's fresh
+      // model passes through 0 on its way back to the same document.)
+      const was = docSeg;
+      docSeg = model.docSeg;
+      if (was && docSeg) { strokes.clear(); endStroke(); }
+    }
     if (r.k === 'stroke') strokes.record(r, win.performance.now(), `${who.id()}.`);
     if (r.k === 'stop' && r.why === 'end') { setMode('watch'); dialog.close(); }
     schedule();

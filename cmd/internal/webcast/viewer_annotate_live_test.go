@@ -84,6 +84,21 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 		const px = c.getContext('2d').getImageData(Math.round((%g - r.left) * d), Math.round((%g - r.top) * d), 1, 1).data;
 		return px[3] > 0 ? 'drawn' : 'blank';
 	})()`, mid[0], mid[1]), "drawn")
+	// The posted stroke spans the whole drag: one stroke, every move in it
+	// (the first echo must not end it).
+	time.Sleep(200 * time.Millisecond)
+	ids, maxX := map[string]bool{}, 0.0
+	for _, r := range mem.Records() {
+		if s, ok := r.(*recording.Stroke); ok && s.T > at-1 && s.Author.Color != "" {
+			ids[s.ID] = true
+			for _, p := range s.Pts {
+				maxX = math.Max(maxX, p[0])
+			}
+		}
+	}
+	if len(ids) != 1 || maxX < tb[0]+tb[2]-15 {
+		t.Errorf("A's stroke: %d stroke ids, reaching x=%.1f of %.1f", len(ids), maxX, tb[0]+tb[2]-5)
+	}
 	clickButton(t, a, `.annotate-rail .mode:nth-of-type(1)`) // back to watching
 
 	// A notes the target: 💭, a click on it, a name and text, Save.
@@ -148,6 +163,29 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 	for _, p := range []*chromePage{a, b} {
 		waitEval(t, p, "notes while paused", pins, "2")
 	}
+	// B, still in note mode, taps A's pin by touch and resolves it: the pin
+	// goes in both viewers, and the recording says so.
+	var chip [2]float64
+	if err := json.Unmarshal(b.eval(t, fmt.Sprintf(`(() => { const r = document.querySelector('.pin[data-note=%q] .chip').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; })()`, noted.ID)), &chip); err != nil {
+		t.Fatal(err)
+	}
+	touch(t, b, "touchStart", chip)
+	touch(t, b, "touchEnd", chip)
+	waitEval(t, b, "A's note open in B", `(() => { const d = document.querySelector('.note-dialog'); return d.classList.contains('view') && !d.classList.contains('hidden') ? d.querySelector('.note-text').textContent : 'closed'; })()`, "This link is hard to see.")
+	b.eval(t, `(() => { [...document.querySelectorAll('.note-buttons button')].find((x) => x.textContent === 'Resolve').click(); return ''; })()`)
+	for _, p := range []*chromePage{a, b} {
+		waitEval(t, p, "the resolved note gone", pins, "1")
+	}
+	resolved := false
+	for _, r := range mem.Records() {
+		if ns, ok := r.(*recording.NoteState); ok && ns.ID == noted.ID && ns.State == recording.NoteResolved {
+			resolved = true
+		}
+	}
+	if !resolved {
+		t.Errorf("no note-state resolving A's note in the recording")
+	}
+
 	seg := st.Seg + 1
 	w.Put(decode(t, fmt.Sprintf(`{"t":%d,"k":"seg","seg":%d,"why":"navigate","tab":{"id":"tab1","url":"http://other/"},"vp":{"w":1280,"h":800,"dpr":1}}`, at+200, seg)))
 	w.Put(decode(t, fmt.Sprintf(`{"t":%d,"k":"doc","doc":9000001,"url":"http://other/","tree":{"id":9000001,"y":"doc","c":[{"id":9000002,"y":"el","n":"html","c":[{"id":9000003,"y":"el","n":"head"},{"id":9000004,"y":"el","n":"body"}]}]}}`, at+200)))

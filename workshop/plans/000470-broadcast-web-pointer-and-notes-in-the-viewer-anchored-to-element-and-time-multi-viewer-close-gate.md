@@ -91,6 +91,57 @@ rounds:
       isolation: checkout
       reviewed: b9e409c6697e10ab4f30010b3ea0be541955f2d6
       blocked: false
+    - "n": 3
+      timestamp: "2026-10-12T03:46:27-07:00"
+      dispatched: "2026-10-12T03:42:42-07:00"
+      agent: claude
+      findings:
+        - id: BR-8
+          severity: Important
+          title: strokeStore drops catch-up strokes only when a newer record arrived first; a late joiner redraws every stroke of the document
+          detail: 'annotate.js:94-99 compares each stroke with the running newest time at arrival; CatchUp replays the document''s strokes oldest-first, so each passes. Reproduced: catch-up strokes at t=1000 and t=31000 then a record at t=61000 leave both drawn. The node test seeds seen(60000) before the old stroke, an order a real catch-up never has. Fix: keep each stroke''s end time and filter in visible() at draw time; test in stream order.'
+          family: filter-on-partial-stream
+          round: 3
+        - id: BR-9
+          severity: Important
+          title: Pin chips are rebuilt every frame and swallowed by the layer's pointerdown in point/note mode
+          detail: 'drawPins replaceChildren()s every frame while strokes are visible, so a tap spanning a rebuild loses its click. In point/note mode a chip pointerdown bubbles to the layer handler, which captures the pointer and starts a stroke or region draft instead of opening the note. Fix: ignore pointerdown targets inside .chip; rebuild pins only when the live set changes.'
+          family: pin-input-routing
+          round: 3
+        - id: BR-10
+          severity: Important
+          title: 'No test opens a pin or resolves a note from the viewer (Spec: resolved notes hide)'
+          detail: The e2e never taps a chip or presses Resolve; the viewer's note-state request and the pin disappearing in both viewers are unverified. Extend TestAnnotateLiveTwoViewers to cover this.
+          family: spec-path-untested
+          round: 3
+        - id: BR-11
+          severity: Important
+          title: README not updated for web cast pointing and notes (rail modes, name prompt, notes and strokes recorded to disk)
+          detail: 'README''s #447 paragraph says terminal notes are never saved to disk; web cast notes are recording records. Add the viewer surface, or state in the plan that M3 adds it.'
+          family: readme-surface-gap
+          round: 3
+        - id: BR-12
+          severity: Minor
+          title: Refused or failed stroke chunk POSTs are swallowed with no viewer signal
+          detail: '2nd finding in family silent-degradation. The rule: every viewer POST answered with something other than 204 produces at least one visible signal. The note dialog follows it; annotate.js:271 (.catch(()=>{}), non-204 ignored) is the remaining exception. Prevalence in this diff: 1 of 3 POST paths.'
+          family: silent-degradation
+          round: 3
+        - id: BR-13
+          severity: Minor
+          title: postJSON, the storage try/catch wrapper and the sticky-note/swatch CSS are restated across both viewers
+          detail: annotate.js:157 duplicates broadcast/web/viewer.js:352; identityStore repeats colorStore's guards; annotate.css restates viewer.css's dialog and swatch styles (ARCH-DRY).
+          family: shared-helper-duplication
+          round: 3
+        - id: BR-14
+          severity: Minor
+          title: A stroke in progress across a navigation posts its later chunks with the new seg
+          detail: Call endStroke() when onRecord sees docSeg change.
+          family: stroke-spans-document
+          round: 3
+      boundary: M2
+      recipe: milestone-review
+      isolation: checkout
+      blocked: true
 ---
 
 # Gate ledger — pair#470 (boundary-review)
@@ -128,8 +179,34 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-6 — addressed — The atlas stroke row now says the id is the viewer id, a dot, then the shell's stroke id.
 - BR-7 — not-addressed — Declined with a reason; the gap remains: tests on board.Writer see 409 for a navigation race where production answers 204 and drops silently.
 
+## Round 3 — 2026-10-12T03:46:27-07:00 (claude) — BLOCKED
+
+### Raised
+
+- **BR-8** [Important] `filter-on-partial-stream` strokeStore drops catch-up strokes only when a newer record arrived first; a late joiner redraws every stroke of the document
+  annotate.js:94-99 compares each stroke with the running newest time at arrival; CatchUp replays the document's strokes oldest-first, so each passes. Reproduced: catch-up strokes at t=1000 and t=31000 then a record at t=61000 leave both drawn. The node test seeds seen(60000) before the old stroke, an order a real catch-up never has. Fix: keep each stroke's end time and filter in visible() at draw time; test in stream order.
+- **BR-9** [Important] `pin-input-routing` Pin chips are rebuilt every frame and swallowed by the layer's pointerdown in point/note mode
+  drawPins replaceChildren()s every frame while strokes are visible, so a tap spanning a rebuild loses its click. In point/note mode a chip pointerdown bubbles to the layer handler, which captures the pointer and starts a stroke or region draft instead of opening the note. Fix: ignore pointerdown targets inside .chip; rebuild pins only when the live set changes.
+- **BR-10** [Important] `spec-path-untested` No test opens a pin or resolves a note from the viewer (Spec: resolved notes hide)
+  The e2e never taps a chip or presses Resolve; the viewer's note-state request and the pin disappearing in both viewers are unverified. Extend TestAnnotateLiveTwoViewers to cover this.
+- **BR-11** [Important] `readme-surface-gap` README not updated for web cast pointing and notes (rail modes, name prompt, notes and strokes recorded to disk)
+  README's #447 paragraph says terminal notes are never saved to disk; web cast notes are recording records. Add the viewer surface, or state in the plan that M3 adds it.
+- **BR-12** [Minor] `silent-degradation` Refused or failed stroke chunk POSTs are swallowed with no viewer signal
+  2nd finding in family silent-degradation. The rule: every viewer POST answered with something other than 204 produces at least one visible signal. The note dialog follows it; annotate.js:271 (.catch(()=>{}), non-204 ignored) is the remaining exception. Prevalence in this diff: 1 of 3 POST paths.
+- **BR-13** [Minor] `shared-helper-duplication` postJSON, the storage try/catch wrapper and the sticky-note/swatch CSS are restated across both viewers
+  annotate.js:157 duplicates broadcast/web/viewer.js:352; identityStore repeats colorStore's guards; annotate.css restates viewer.css's dialog and swatch styles (ARCH-DRY).
+- **BR-14** [Minor] `stroke-spans-document` A stroke in progress across a navigation posts its later chunks with the new seg
+  Call endStroke() when onRecord sees docSeg change.
+
 ## Open findings
 
 - **BR-3** [Minor] `sink-order-before-consumer-check` The Tee feeds the Hub before the board, so a viewer can act on a seg the board has not applied yet and get a spurious 409
 - **BR-4** [Minor] `untrusted-geometry-bound` A viewer-supplied note box is bounded only to 1e6 px and widens the page box in crops
 - **BR-7** [Minor] `fake-conformance` Nothing checks that board.Writer (synchronous, returns ErrStale) and recorder.Emit (asynchronous, drops silently) behave the same
+- **BR-8** [Important] `filter-on-partial-stream` strokeStore drops catch-up strokes only when a newer record arrived first; a late joiner redraws every stroke of the document
+- **BR-9** [Important] `pin-input-routing` Pin chips are rebuilt every frame and swallowed by the layer's pointerdown in point/note mode
+- **BR-10** [Important] `spec-path-untested` No test opens a pin or resolves a note from the viewer (Spec: resolved notes hide)
+- **BR-11** [Important] `readme-surface-gap` README not updated for web cast pointing and notes (rail modes, name prompt, notes and strokes recorded to disk)
+- **BR-12** [Minor] `silent-degradation` Refused or failed stroke chunk POSTs are swallowed with no viewer signal
+- **BR-13** [Minor] `shared-helper-duplication` postJSON, the storage try/catch wrapper and the sticky-note/swatch CSS are restated across both viewers
+- **BR-14** [Minor] `stroke-spans-document` A stroke in progress across a navigation posts its later chunks with the new seg

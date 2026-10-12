@@ -175,7 +175,7 @@ export function mount(doc, win) {
     onRecord: v.onRecord,
   };
   // Pointing and notes (#470), when the cast takes them.
-  mountAnnotate(doc, win, { ...win.couchViewer, get model() { return v.model; } });
+  mountAnnotate(doc, win, { ...win.couchViewer, get model() { return v.model; } }).then((a) => { win.couchViewer.annotate = a; });
   return v;
 }
 

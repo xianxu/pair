@@ -107,3 +107,15 @@ Durable plan: `workshop/plans/000470-broadcast-web-pointer-and-notes-in-the-view
   `couchViewer.fromPage` (TL b33316a8: #471 edits the same files). `TestAnnotateLiveTwoViewers` (headless, two
   Chromes, B by emulated touch): A's stroke on B's canvas, A's note pinned on its element in B within 2 px, B's region in
   A, both kept while paused, cleared by a navigation, recording reduces with both authors. Chrome needs the sandbox off.
+- M2 review round 1: BR-8 catch-up strokes are filtered at draw time against each stroke's end (node test replays a
+  catch-up in stream order); BR-9 pins are reconciled per note id (moved, not rebuilt) and a chip's pointerdown is
+  exempt from the layer in every mode (mutation: without it B can't open A's note, e2e fails); BR-10 the e2e taps A's
+  pin by touch in B, resolves it, and both viewers drop it, the recording holds the note-state; BR-11 README paragraph.
+  Minors: refused stroke posts show a 3 s message (every refused post is seen); `poster` and `safeStorage` moved to
+  collab.js for both viewers (terminal policy test follows); a stroke ends at a new document. Not shared: the dialog and
+  swatch CSS (the two pages style different selectors; sharing would need a third stylesheet served by both).
+- **Found by the e2e, not the review:** the notes module mounts after `palette.json` answers, so it began with
+  `docSeg = 0`, and the first record it saw (often its own stroke's echo) looked like a new document and ended the
+  stroke after one chunk (4 of 6 runs; B got 3 of 9 points). It now starts from the model's document, and a resync's
+  pass through 0 is not a new document. The e2e asserts the posted stroke spans the whole drag; mutation (start from 0)
+  fails it. 8 of 8 runs green after.

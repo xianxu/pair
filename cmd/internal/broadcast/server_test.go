@@ -166,7 +166,7 @@ func TestViewerPageLoadsOnlySameOrigin(t *testing.T) {
 	// colorStore over the storage viewer.js hands it.
 	if strings.Count(viewer, "localStorage") != 1 || strings.Contains(viewer, "getItem(") || strings.Contains(viewer, "setItem(") ||
 		strings.Contains(collab, "localStorage") || strings.Count(collab, "getItem(") != 1 || strings.Count(collab, "setItem(") != 1 ||
-		!strings.Contains(collab, "const COLOR_KEY = 'couch.pointerColor';") || !strings.Contains(collab, "getItem(COLOR_KEY)") || !strings.Contains(collab, "setItem(COLOR_KEY, String(i))") {
+		!strings.Contains(collab, "const COLOR_KEY = 'couch.pointerColor';") || !strings.Contains(collab, "store.get(COLOR_KEY)") || !strings.Contains(collab, "store.set(COLOR_KEY, String(i))") {
 		t.Error("the viewer may keep only the pointer color pick in localStorage")
 	}
 	notes := string(mustAsset(t, "notes.js"))
@@ -177,17 +177,20 @@ func TestViewerPageLoadsOnlySameOrigin(t *testing.T) {
 			}
 		}
 	}
-	if strings.Contains(notes, "fetch(") || strings.Contains(notes, "localStorage") || strings.Contains(collab, "fetch(") {
-		t.Error("notes.js and collab.js make no request and keep nothing; viewer.js's postJSON does the posting")
+	if strings.Contains(notes, "fetch(") || strings.Contains(notes, "localStorage") {
+		t.Error("notes.js makes no request and keeps nothing; viewer.js's postJSON does the posting")
 	}
 	// Exactly one request function besides the page's own assets and stream:
-	// postJSON, to a relative route from a fixed list (the pointer POST,
-	// #412, and the note routes, #447), without credentials.
-	if n := strings.Count(viewer, "fetch("); n != 1 {
+	// postJSON, collab.js's poster, to a relative route from a fixed list (the
+	// pointer POST, #412, and the note routes, #447), without credentials.
+	if n := strings.Count(viewer, "fetch("); n != 1 || !strings.Contains(viewer, "const postJSON = poster((url, init) => fetch(url, init), POST_ROUTES);") {
 		t.Errorf("viewer.js has %d fetch calls, want exactly postJSON's", n)
 	}
-	if !strings.Contains(viewer, "const POST_ROUTES = ['point', 'note', 'resolve'];") || !strings.Contains(viewer, "if (!POST_ROUTES.includes(route)) {") ||
-		!strings.Contains(viewer, "return fetch(route, {") || !strings.Contains(viewer, "credentials: 'omit'") {
+	if n := strings.Count(collab, "fetchFn("); n != 1 || strings.Count(collab, "fetch(") != 0 {
+		t.Errorf("collab.js requests only through poster's fetchFn")
+	}
+	if !strings.Contains(viewer, "const POST_ROUTES = ['point', 'note', 'resolve'];") || !strings.Contains(collab, "if (!routes.includes(route)) {") ||
+		!strings.Contains(collab, "return fetchFn(route, {") || !strings.Contains(collab, "credentials: 'omit'") {
 		t.Error("postJSON must target a relative route from POST_ROUTES and omit credentials")
 	}
 }

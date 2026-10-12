@@ -46,10 +46,16 @@ test('strokes: chunks join by id, fade out, catch-up and own echoes are not draw
   assert.equal(vis[0].alpha, 1);
   assert.ok(s.visible(150 + FADE_MS / 2)[0].alpha < 0.6);
   assert.equal(s.visible(150 + FADE_MS).length, 0);
-  // A stroke from a reconnect's catch-up, long before the newest record.
-  s.seen(60000);
-  s.record({ id: 'bo.2', t: 5000, color: '#f00', pts: [[1, 1, 0]] }, 200);
-  assert.equal(s.size, 0);
+  // A reconnect's catch-up, in stream order: the document's strokes oldest
+  // first, then the records after them. Neither old stroke is drawn.
+  s.seen(1000); s.record({ id: 'bo.2', t: 1000, color: '#f00', pts: [[1, 1, 0]] }, 200);
+  s.seen(31000); s.record({ id: 'bo.3', t: 31000, color: '#f00', pts: [[1, 1, 0]] }, 200);
+  s.seen(61000);
+  assert.equal(s.visible(200).length, 0);
+  // A live stroke at the newest time is.
+  s.seen(61010); s.record({ id: 'bo.4', t: 61010, color: '#f00', pts: [[1, 1, 0]] }, 300);
+  assert.deepEqual(s.visible(300).map((x) => x.id), ['bo.4']);
+  s.clear();
   // Own echo.
   s.record({ id: 'me.3', t: 60000, color: '#f00', pts: [[1, 1, 0]] }, 200, 'me.');
   assert.equal(s.size, 0);
