@@ -46,7 +46,7 @@ Quick flow (fixturegen gains one small mode; the rest is tests and data).
 - [x] Size: trim runs; raise the fixture budget only by what both sets need while they coexist, and say it drops at retirement.
 - [x] Driven stays hand-written until #467 exists.
 - [x] File the retirement of the prototype fixtures, triggered by #470 and #471 landing (TL calls it): #474.
-- [ ] Verify: `go test ./cmd/internal/webcast/...`, `WEBCAST_LIVE_CHROME=1 -run LiveReplay` on all fixtures, node viewer tests, full `make -k test`.
+- [x] Verify: `go test ./cmd/internal/webcast/...`, `WEBCAST_LIVE_CHROME=1 -run LiveReplay` on all fixtures, node viewer tests, full `make -k test`.
 
 ## Log
 
