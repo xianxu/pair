@@ -354,12 +354,25 @@ func TestSlotOperationCLIPollLoop(t *testing.T) {
 			return couchmessage.Response{}, errors.New("dial unix broker.sock: connect: no such file or directory")
 		}, 1, "", uncertainLine, 2},
 		{"an unavailable caller mid-poll (Couch restarted) is uncertain", admitThen(couchmessage.Response{Code: "unavailable", Error: "no binding"}), 1, "", uncertainLine, 2},
-		{"a per-call timeout mid-poll is uncertain", func(n int, r couchmessage.Request) (couchmessage.Response, error) {
+		// pair#489: a status read is idempotent, so a poll Couch answers late
+		// is asked again; only the budget turns persistent timeouts uncertain.
+		{"per-call timeouts mid-poll are retried", func(n int, r couchmessage.Request) (couchmessage.Response, error) {
+			switch n {
+			case 0:
+				return receiptResponse("accepted", couchmessage.ReceiptQueued), nil
+			case 1:
+				return couchmessage.Response{}, context.DeadlineExceeded
+			case 2:
+				return couchmessage.Response{}, os.ErrDeadlineExceeded
+			}
+			return succeeded, nil
+		}, 0, "pair:1 resume succeeded (tag t9)", "", 4},
+		{"timeouts until the budget are uncertain", func(n int, r couchmessage.Request) (couchmessage.Response, error) {
 			if n == 0 {
 				return receiptResponse("accepted", couchmessage.ReceiptQueued), nil
 			}
 			return couchmessage.Response{}, context.DeadlineExceeded
-		}, 1, "", uncertainLine, 2},
+		}, 1, "", uncertainLine, 0},
 		{"an admission transport error is uncertain and names the request", func(int, couchmessage.Request) (couchmessage.Response, error) {
 			return couchmessage.Response{}, context.DeadlineExceeded
 		}, 1, "", uncertainLine, 1},
@@ -379,6 +392,67 @@ func TestSlotOperationCLIPollLoop(t *testing.T) {
 				t.Fatalf("%d calls ran on an expired or overlong context", run.contextFaults)
 			}
 		})
+	}
+}
+
+// pair#489: a start slowed by load can take minutes, so the CLI says it is
+// still running every 15 s instead of sitting silent until the receipt lands.
+func TestSlotOperationCLIReportsProgressWhileRunning(t *testing.T) {
+	polls := int(40 * time.Second / slotOperationPollInterval)
+	statuses := []couchmessage.Response{}
+	for range polls {
+		statuses = append(statuses, receiptResponse("ok", couchmessage.ReceiptRunning))
+	}
+	statuses = append(statuses, receiptResponse("ok", couchmessage.ReceiptSucceeded))
+	run := runSlotScript(t, cliInvocation{kind: cliMessage, messageOp: "resume", ref: "pair:1"}, messageRuntime(), admitThen(statuses...))
+	if run.code != 0 {
+		t.Fatalf("exit %d: %q %q", run.code, run.stdout, run.stderr)
+	}
+	for _, want := range []string{"couch: pair:1 resume still running after 15s\n", "couch: pair:1 resume still running after 30s\n"} {
+		if !strings.Contains(run.stderr, want) {
+			t.Fatalf("stderr %q lacks %q", run.stderr, want)
+		}
+	}
+	if n := strings.Count(run.stderr, "still running"); n != 2 {
+		t.Fatalf("%d progress lines over ~40s, want 2: %q", n, run.stderr)
+	}
+}
+
+// After status polls time out, the progress line says its status is the last
+// answer received, and stops saying so once Couch answers again; the budget
+// message says the same (close review).
+func TestSlotOperationCLIProgressNamesTimedOutPolls(t *testing.T) {
+	quiet := int(20 * time.Second / slotOperationPollInterval)
+	answered := int(40 * time.Second / slotOperationPollInterval)
+	script := func(n int, r couchmessage.Request) (couchmessage.Response, error) {
+		switch {
+		case n == 0:
+			return receiptResponse("accepted", couchmessage.ReceiptQueued), nil
+		case n == 1:
+			return receiptResponse("ok", couchmessage.ReceiptRunning), nil
+		case n <= quiet:
+			return couchmessage.Response{}, context.DeadlineExceeded
+		case n <= answered:
+			return receiptResponse("ok", couchmessage.ReceiptRunning), nil
+		}
+		return receiptResponse("ok", couchmessage.ReceiptSucceeded), nil
+	}
+	run := runSlotScript(t, cliInvocation{kind: cliMessage, messageOp: "resume", ref: "pair:1"}, messageRuntime(), script)
+	lines := strings.Split(strings.TrimSpace(run.stderr), "\n")
+	if run.code != 0 || len(lines) != 2 ||
+		!strings.Contains(lines[0], "still running after 15s (last answer ") || !strings.Contains(lines[0], " ago; status polls are timing out)") ||
+		lines[1] != "couch: pair:1 resume still running after 30s" {
+		t.Fatalf("exit %d, stderr %q", run.code, run.stderr)
+	}
+
+	timedOut := runSlotScript(t, cliInvocation{kind: cliMessage, messageOp: "resume", ref: "pair:1"}, messageRuntime(), func(n int, r couchmessage.Request) (couchmessage.Response, error) {
+		if n == 0 {
+			return receiptResponse("accepted", couchmessage.ReceiptQueued), nil
+		}
+		return couchmessage.Response{}, context.DeadlineExceeded
+	})
+	if timedOut.code != 1 || !strings.Contains(timedOut.stderr, "still queued after 5m0s (last answer ") {
+		t.Fatalf("budget message hides the timeouts: %q", timedOut.stderr)
 	}
 }
 

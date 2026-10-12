@@ -59,7 +59,7 @@ func (p *liveRestartProbe) LiveRestartFacts(ctx context.Context, op string, row 
 // resolves it — the binary `pair resume` will exec, since slots inherit
 // Couch's environment (couchcore.mergeChildEnvironment).
 func (p *liveRestartProbe) binaryFacts(ctx context.Context, live couchmessage.SlotLiveness) couchcore.BinaryFacts {
-	b := couchcore.BinaryFacts{DevRebuild: p.getenv("PAIR_DEV") != ""}
+	b := couchcore.BinaryFacts{}
 	if live.Build != nil {
 		b.RunningSHA = live.Build.SHA256
 	}

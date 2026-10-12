@@ -69,9 +69,11 @@ func TestLiveRestartProbeBinaryFacts(t *testing.T) {
 	if got != want {
 		t.Fatalf("got %+v\nwant %+v", got, want)
 	}
+	// PAIR_DEV changes nothing (pair#489): a Couch-launched Pair no longer
+	// rebuilds itself, so a relaunch is judged on the binary on disk.
 	env["PAIR_DEV"] = "1"
-	if !p.binaryFacts(context.Background(), running).DevRebuild {
-		t.Fatal("PAIR_DEV not seen")
+	if again := p.binaryFacts(context.Background(), running); again != want {
+		t.Fatalf("PAIR_DEV changed the facts: %+v", again)
 	}
 	// A legacy wrapper (no build) and a binary outside a git checkout.
 	p.git = fakeProbeGit{}

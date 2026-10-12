@@ -221,22 +221,41 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	if deadline == nil {
 		deadline = context.WithTimeout
 	}
-	registrationContext, cancelRegistration := deadline(ctx, registrationTimeout)
-	if in.Fresh {
-		err = c.awaitFreshRegistration(registrationContext, thread.Address, in.Args.Stack, in.Nonce)
-		if err == nil {
-			err = c.awaitResumeRegistration(registrationContext, thread.Address, nil)
+	// The exit watch sits under the deadline, so the deadline's own
+	// cancellation reaches the wait loops directly.
+	registrationContext, stopExitWatch := whileHelperAlive(ctx, h)
+	registrationContext, cancelRegistration := deadline(registrationContext, registrationTimeout)
+	await := func(ctx context.Context) error {
+		switch {
+		case in.Fresh:
+			if err := c.awaitFreshRegistration(ctx, thread.Address, in.Args.Stack, in.Nonce); err != nil {
+				return err
+			}
+			return c.awaitResumeRegistration(ctx, thread.Address, nil)
+		case in.Resume:
+			return c.awaitResumeRegistration(ctx, thread.Address, birth)
 		}
-	} else if in.Resume {
-		err = c.awaitResumeRegistration(registrationContext, thread.Address, birth)
-	} else {
-		err = c.awaitThreadRegistration(registrationContext, thread.Address)
+		return c.awaitThreadRegistration(ctx, thread.Address)
 	}
+	err = await(registrationContext)
 	cancelRegistration()
+	exited := stopExitWatch()
+	if exited {
+		// The exit can be seen before the wait's first look: registration
+		// already written still counts, so look once more before failing.
+		final, cancelFinal := context.WithTimeout(ctx, exitedFinalLook)
+		if await(final) == nil {
+			err, exited = nil, false
+		}
+		cancelFinal()
+	}
 	steps.mark("registration")
 	if err != nil {
-		cause := fmt.Errorf("await Pair registration %+v: %w [steps: %s]%s", thread.Address, err, steps,
-			c.diagnoseRegistrationFailure(err, thread.Address, registrationTimeout))
+		diagnosis := c.diagnoseRegistrationFailure(err, thread.Address, registrationTimeout)
+		if exited {
+			diagnosis = " (Pair exited before registering -- look at the launch: its stderr and the zellij log)"
+		}
+		cause := fmt.Errorf("await Pair registration %+v: %w [steps: %s]%s", thread.Address, err, steps, diagnosis)
 		return ActorRecord{}, h, c.failTrackedPostAckStart(shape, thread, in.Nonce, h, cause)
 	}
 	// The layout witness rides this transaction, and only at a cold boundary:
@@ -417,6 +436,40 @@ func (c *Couch) awaitResumeRegistration(ctx context.Context, address ThreadAddre
 			return wait
 		case <-ticker.C:
 		}
+	}
+}
+
+// exitedFinalLook bounds the registration check made after the helper has
+// exited. Nothing more can arrive, so it covers only the observation itself and
+// keeps a dead launch's failure prompt.
+const exitedFinalLook = time.Second
+
+// whileHelperAlive ends ctx as soon as the launched Pair has exited (pair#489).
+// A slow start is still a live one, so the registration wait can be a hang
+// ceiling instead of a latency guess: the dead launch it used to catch by
+// timing out now ends here, at once. stop joins the watcher and reports
+// whether the exit is what ended the wait.
+func whileHelperAlive(ctx context.Context, h Handle) (context.Context, func() bool) {
+	ctx, cancel := context.WithCancelCause(ctx)
+	errExited := errors.New("Pair exited before registering")
+	// The DIRECT child's exit, not group liveness (Alive): a Couch-launched
+	// Pair's sidecars stay in its group -- the title poller for up to its 30 s
+	// startup grace -- after Pair itself has died.
+	exited := h.Exited()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		select {
+		case <-ctx.Done():
+		case <-exited:
+			cancel(errExited)
+		}
+	}()
+	return ctx, func() bool {
+		gone := errors.Is(context.Cause(ctx), errExited)
+		cancel(nil)
+		<-done
+		return gone
 	}
 }
 
