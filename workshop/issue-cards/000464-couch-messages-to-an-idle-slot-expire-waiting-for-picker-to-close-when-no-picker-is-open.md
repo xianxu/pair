@@ -1,6 +1,6 @@
 ---
 id: 000464
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: ae4e297f1eabb62c974344517709a4b0f27419b3
         evidence_commit: 3458c78418ad1d21cefdc5d2a70999a32c5c5ad2
+        landed_commit: 6282139e9638bd55233145955a708f0aff47da32
 ---
 
 # couch: messages to an idle slot expire 'waiting for picker to close' when no picker is open
