@@ -1,12 +1,20 @@
 ---
 id: 000499
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '3feb82ea1dfbfe7b975503bf47334cdce86ec8d7' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '568c67f60c11184344bf8433c5556837da5cd2a3' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T15:11:40-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:6
+    worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
+    repository: github.com/xianxu/pair
 ---
 
 # broadcast-web: viewers can still draw and leave notes while the cast is paused; disable every viewer action while paused
@@ -30,8 +38,23 @@ While a cast is paused, every viewer action is disabled:
 
 ## Plan
 
-- [ ]
+One rule at two layers, plus the viewer (quick flow):
+
+- [x] Board admission: `pageLocked` refuses while `!State.Live` with `ErrPaused`; the routes answer 409 "The cast is
+  paused." (`refusePaused`). Covers stroke, note and note-state.
+- [x] Writer admission: `recording.State.OnDoc` requires the segment live (`Live && DocSeg == doc`), so a request the
+  board admitted just before the pause and queued after the `stop` is dropped by the recorder (and by the reference
+  `board.Writer`) — one rule for both writers (ARCH-DRY).
+- [x] Viewer (annotate.js): `paused()`; a `stop` puts the pen down (watch mode), the rail's buttons are disabled and
+  say "The cast is paused." (CSS greys them), a `seg` re-enables them; pointerdown is ignored while paused.
+- [x] Terminal broadcast: no paused state exists (no pause anywhere in cmd/internal/broadcast), so nothing to do.
+- [x] atlas/webcast-format.md (#470's decision revised) and README.
+- [x] Tests: TestDocumentRules (note/stroke/note-state → ErrPaused; after resume only the pre-pause note, no strokes),
+  TestRecorderEmitDropsARecordDuringAPause (fails with the old OnDoc), TestBoardRoutesRefuseWhilePaused (409 + the
+  sentence on all three routes), TestAnnotateLiveTwoViewers (WEBCAST_LIVE_CHROME: every rail button disabled while
+  paused, none after resume; fails with the disable line removed).
 
 ## Log
 
 ### 2026-10-12
+- The 12:01 recording showed the bug: strokes at 13:26:23 were filed during the pause 13:25:41–13:26:42 (#493 Log).

@@ -414,3 +414,23 @@ func TestRecorderEmitChecksTheDocument(t *testing.T) {
 		t.Fatalf("a note for a gone document is not a refusal: %+v", st.Dropped)
 	}
 }
+
+// A board record that reaches the recorder during a pause is dropped, even on
+// the current document (pair#499: viewers do nothing while paused). The board
+// refuses requests while paused, but one it admitted just before the pause
+// can still be queued after the stop.
+func TestRecorderEmitDropsARecordDuringAPause(t *testing.T) {
+	h := newHarness(t)
+	h.page("A", "http://a/", "L1")
+	h.r.Send(Live{Tab: rec.Tab{ID: "T-A"}, Session: "A"})
+	h.settle()
+	top := h.id("A", h.fc.pages["A"].doc.backend)
+	h.r.Send(Pause{})
+	h.r.Send(Emit{Record: &rec.Note{ID: "paused", Author: rec.Author{ID: "v"}, At: rec.NoteAt{Node: top}}, Doc: 1})
+	h.r.Send(Emit{Record: &rec.Stroke{ID: "v.s", Author: rec.Author{ID: "v"}, Pts: [][3]float64{{1, 2, 0}}}, Doc: 1})
+	h.r.Send(Live{Tab: rec.Tab{ID: "T-A"}, Session: "A"}) // resume, same document
+	h.settle()
+	if got := h.kinds(); strings.Contains(got, "note") || strings.Contains(got, "stroke") {
+		t.Fatalf("records from the pause were written: %s", got)
+	}
+}

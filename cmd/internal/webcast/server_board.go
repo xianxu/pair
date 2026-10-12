@@ -34,6 +34,7 @@ const (
 	refuseStale     = "The page changed. Try again."
 	refuseEnded     = "The cast has ended."
 	refuseNotLive   = "The cast isn't showing a page yet."
+	refusePaused    = "The cast is paused."
 	refuseUnknown   = "That note is gone."
 	refuseInvalid   = "That isn't valid."
 	refuseBroken    = "Notes aren't working in this cast."
@@ -195,6 +196,8 @@ func boardAnswer(err error) (int, string) {
 		return http.StatusConflict, refuseStale
 	case errors.Is(err, board.ErrNotLive):
 		return http.StatusConflict, refuseNotLive
+	case errors.Is(err, board.ErrPaused):
+		return http.StatusConflict, refusePaused
 	case errors.Is(err, board.ErrUnknown):
 		return http.StatusConflict, refuseUnknown
 	case errors.Is(err, board.ErrEnded), errors.Is(err, board.ErrClosed):

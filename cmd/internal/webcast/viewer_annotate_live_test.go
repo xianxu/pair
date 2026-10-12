@@ -21,7 +21,8 @@ import (
 // over the blog fixture, every record through one writer (as the recorder's
 // queue is). Viewer A uses a mouse, viewer B touch (an iPad's input). A's
 // stroke shows on B's canvas; A's note pins on its element in B within 2 px;
-// B's dragged region shows in A; both stay while paused and clear on a
+// B's dragged region shows in A; both stay while paused (when the rail's
+// controls are disabled, pair#499) and clear on a
 // navigation; the recording holds the notes and the stroke and reduces.
 //
 //	WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast -run AnnotateLive -v
@@ -191,12 +192,17 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 		}
 	}
 
-	// Paused: the notes stay. A navigation: they clear in both.
+	// Paused: the notes stay, and viewers do nothing: every control on the
+	// rail is disabled until the resume (pair#499). A navigation: the notes
+	// clear in both.
+	railOff := `(() => String([...document.querySelectorAll('.annotate-rail button')].every((b) => b.disabled)))()`
+	railAnyOff := `(() => String([...document.querySelectorAll('.annotate-rail button')].some((b) => b.disabled)))()`
 	pins := fmt.Sprintf(`(() => String([%q, %q].filter((id) => { const p = document.querySelector('.pin[data-note="' + id + '"]'); return p && !p.hidden; }).length))()`, noted.ID, region.ID)
 	w.Put(decode(t, fmt.Sprintf(`{"t":%d,"k":"stop","why":"pause"}`, at+100)))
 	time.Sleep(300 * time.Millisecond)
 	for _, p := range []*chromePage{a, b} {
 		waitEval(t, p, "notes while paused", pins, "1")
+		waitEval(t, p, "the rail disabled while paused", railOff, "true")
 	}
 	// Resume (the same document, ids kept): the notes stay.
 	w.Put(decode(t, fmt.Sprintf(`{"t":%d,"k":"seg","seg":%d,"why":"resume","tab":{"id":"tab1","url":%q},"vp":{"w":1280,"h":800,"dpr":1}}`, at+150, st.Seg+1, st.URL)))
@@ -214,6 +220,7 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 	}
 	for _, p := range []*chromePage{a, b} {
 		waitEval(t, p, "notes after a resume", pins, "1")
+		waitEval(t, p, "the rail enabled after a resume", railAnyOff, "false")
 	}
 
 	seg := st.Seg + 2
