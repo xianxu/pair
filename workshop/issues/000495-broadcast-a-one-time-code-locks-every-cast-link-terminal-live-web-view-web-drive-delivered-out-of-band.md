@@ -1,12 +1,20 @@
 ---
 id: 000495
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '4099207e5613f51e822ecb757cfa54b04f6a225c' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '59b078705f661d2dc4becd3878160b022ee9db7b' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T12:59:16-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:4
+    worktree: /Users/xianxu/workspace/worktree/pair-slot4/pair
+    repository: github.com/xianxu/pair
 ---
 
 # broadcast: a one-time code locks every cast link (terminal LIVE, web view, web drive); delivered out of band
@@ -34,7 +42,11 @@ Decided with the operator, 10-12:
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000495-broadcast-a-one-time-code-locks-every-cast-link-terminal-live-web-view-web-drive-delivered-out-of-band-plan.md` (decisions D1–D6 and their answers are under Revisions).
+
+- [ ] M1 — `castlock` core + Host gate (session seam) + lock page (code + name) + unlock route; terminal LIVE and pointer links locked; revoke ends live streams; every route refuses without a session (direct `GET events` included).
+- [ ] M2 — web cast view and drive locks (6-digit drive); lock-page name replaces #470's note-dialog prompt; terminal notes gain the author; headless-Chrome tests unlock first.
+- [ ] M3 — Couch: hover tooltip with codes, codes menu with per-link rotate and "rotate all", guess-rotation alert, the three-flash on rotation; atlas threat model; follow-up issue for replay links; operator smoke test on desktop and iPad.
 
 ## Log
 

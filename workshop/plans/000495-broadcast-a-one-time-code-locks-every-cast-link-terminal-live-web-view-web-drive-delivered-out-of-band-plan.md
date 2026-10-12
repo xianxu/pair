@@ -94,3 +94,18 @@ Status: draft. The decisions marked **[D1]..[D6]** are proposals waiting on the 
   - **Finding sent back:** overlays, the status row and the notice line all reach the LIVE tap, so the tooltip and the menu would show codes to terminal viewers.
   - **Proposed:** an operator-only presenter layer that is never tapped, and Alt+click to open the codes menu. Awaiting confirmation.
   - D1, D2, D4 and D6 are still pending.
+- 2026-10-12, operator answers via the hub (round 2).
+  - **D2: yes.** One budget per code, about 8 wrong tries, then rotate and alert.
+    - On any rotation, the new code flashes inline in the tab bar three times, then returns to the hover tooltip.
+    - **Flag:** the flash is broadcast on LIVE. If the operator-only layer lands, the flash should draw there; otherwise terminal viewers see the pointer or drive code during the flash.
+  - **D3:** confirmed.
+  - **D4:** replay links are read-only and lower severity, so a follow-up issue, not now.
+  - **D6:** one lock page asks for the code and the name for **every** link. Terminal notes (pointer link) gain an author from the lock page's name.
+  - **D1:** on hold until the operator confirms the path-scoped HttpOnly SameSite=Strict session cookie with no expiry.
+    - The gate reads the session through one seam (`sessionFrom(r)`), so the transport is one function.
+    - The page-side `credentials` change waits for the confirmation.
+  - **D5 follow-ups** (operator-only layer; Alt+click for the codes menu) are not answered yet. The Couch work in M3 waits for them.
+  - Build order under the holds:
+    - first, the `castlock` core (independent of both holds);
+    - then the Host gate behind the session seam;
+    - then the lock page, with the name field.
