@@ -12,6 +12,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/broadcast"
 	castassets "github.com/xianxu/pair/cmd/internal/webcast/assets"
 	"github.com/xianxu/pair/cmd/internal/webcast/board"
+	"github.com/xianxu/pair/cmd/internal/webcast/drive"
 	"github.com/xianxu/pair/cmd/internal/webcast/notes"
 	"github.com/xianxu/pair/cmd/internal/webcast/recorder"
 	"github.com/xianxu/pair/cmd/internal/webcast/recording"
@@ -47,6 +48,9 @@ type CastConfig struct {
 	Ping time.Duration
 	// Presence, when set, is told which viewers are watching (#466).
 	Presence Presence
+	// DriveGrace is how long a remote-driving seat outlives its last
+	// stream (#467); zero is drive.DefaultGrace.
+	DriveGrace time.Duration
 }
 
 // Update is what Couch shows of a cast: the browser's state and the viewer
@@ -72,6 +76,10 @@ type Cast struct {
 	// isn't recorded. The recorder closes it with the recording (it is one
 	// of the recording's sinks), the cast when the browser has ended.
 	board *board.Board
+	// drive is remote driving's controller (#467); nil when the browser
+	// can't be driven (not recording, or a fake). Closed when the browser
+	// has ended.
+	drive drive.Controller
 	// recDir is the recording's directory ("" when not recording); check
 	// and logf run the fidelity check on it once the cast has ended.
 	recDir string
@@ -132,7 +140,16 @@ func StartCast(ctx context.Context, cfg CastConfig) (*Cast, error) {
 	mountCtx, cancel := context.WithCancel(context.Background())
 	c := &Cast{browser: b, pub: newPublisher(Update{State: b.State()}), cancel: cancel, done: make(chan struct{}), liveSink: liveSink,
 		board: bd, recDir: recDir, check: cfg.Check, logf: cfg.Logf}
-	srv := NewServer(token, b, cfg.Ping, live, cfg.Presence).WithBoard(bd)
+	if d, ok := b.(Driven); ok && ro != nil {
+		grace := cfg.DriveGrace
+		if grace <= 0 {
+			grace = drive.DefaultGrace
+		}
+		// The recorder stamps each control record's time as it orders it.
+		c.drive = drive.NewMemController(liveGate{d}, drive.NewTabInjector(d), func() int64 { return 0 }, grace)
+		go followDriving(c.drive, d)
+	}
+	srv := NewServer(token, b, cfg.Ping, live, cfg.Presence).WithBoard(bd).WithDrive(c.drive)
 	srv.proxy = proxy
 	c.server, c.token = srv, token
 	go c.run(mountCtx, cfg.Host, srv, token)
@@ -229,6 +246,9 @@ func (c *Cast) run(ctx context.Context, host *broadcast.Host, srv *Server, token
 	if c.board != nil {
 		c.board.Close()
 	}
+	if c.drive != nil {
+		c.drive.Close()
+	}
 	if mounted != nil {
 		if r := <-mounted; r.m != nil {
 			mount = r.m
@@ -316,3 +336,8 @@ func (c *Cast) Err() error {
 		return nil
 	}
 }
+
+// Drive is the cast's remote-driving controller (#467): Couch grants,
+// denies and revokes through it and shows its state. nil when the cast
+// can't be driven.
+func (c *Cast) Drive() drive.Controller { return c.drive }

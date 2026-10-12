@@ -62,6 +62,7 @@ type Server struct {
 	maxViewers int32
 	viewers    atomic.Int32
 	board      *boardRoutes // nil: no pointing or notes (WithBoard)
+	drive      *driveRoutes // nil: no remote driving (WithDrive)
 }
 
 // Presence is told that viewer id's stream opened; leave is called when it
@@ -91,9 +92,10 @@ func (s *Server) Owns(segment string) bool { return broadcast.OwnsToken(segment,
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	broadcast.SetSecurityHeaders(w.Header(), contentSecurityPolicy)
 	segment, rest, ok := strings.Cut(strings.TrimPrefix(r.URL.Path, "/"), "/")
-	// The only routes that read a body are the board's POSTs (#470); every
+	// The only routes that read a body are the board's (#470) and remote
+	// driving's (#467) POSTs; every
 	// other path is GET-only and never reads one.
-	if r.Method == http.MethodPost && ok && s.Owns(segment) && s.boardRoute(w, r, rest) {
+	if r.Method == http.MethodPost && ok && s.Owns(segment) && (s.boardRoute(w, r, rest) || s.driveRoute(w, r, rest)) {
 		return
 	}
 	if r.Method != http.MethodGet {
@@ -133,6 +135,13 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	defer s.viewers.Add(-1)
 	if id != "" && s.presence != nil {
 		defer s.presence(id)()
+	}
+	// A seat's stream keeps the seat (#467). An id that is no seat still
+	// watches: watching needs none.
+	if id != "" && s.drive != nil {
+		if detach, err := s.drive.ctrl.Attach(id); err == nil {
+			defer detach()
+		}
 	}
 	states, cancel := s.browser.Subscribe()
 	defer cancel()
