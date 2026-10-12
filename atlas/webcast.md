@@ -76,7 +76,17 @@ left waiting is a frozen tab. Without `Page.enable` the script never reaches the
   closes, the fan-out says why (`Live.Ended`). A viewer dropped as too slow has its stream ended and reconnects for
   a fresh catch-up. Once the fan-out has ended, the viewer keeps its page and the stream goes on with `state` and
   `end`. `?viewer=ID` calls `CastConfig.Presence` for the stream's life (#466's seats). `<token>/assets/<hash>` is
-  the asset proxy's (#459).
+  the asset proxy's (#459, below).
+- **Asset store and proxy (#459):** `webcast/assets/`. The recorder (#458) captures bodies over CDP and calls
+  `Store.Put`; `assets.Recorded` is the real store: dedup by content hash (a repeated body is processed once),
+  images resampled to `Policy.MaxPixels` (`image.go`, WebP through `golang.org/x/image`), CSS URLs made absolute
+  (`css.go`'s `RewriteCSS`), bodies written through the recording's `DirWriter` and read back from disk.
+  `assets.Proxy` serves `<token>/assets/<hash>`: the `Server` owns one (`Server.Assets()`), and the cast binds the
+  recording's store to it when the recording opens (first go-live); until then it answers 404. It serves only
+  images, stylesheets and fonts (a body a page labelled HTML or script is never served from the viewer's origin),
+  rewrites a stylesheet's URLs to `<hash>` at serve time (not cached; bindings change), and marks other bodies
+  immutable. The live viewer tests play the fixtures' assets through `Recorded` + `Proxy` (`throughStore`) and
+  check the viewer requests nothing outside the cast.
 - **Live viewer (#460):** `webcast/web/`, three ES modules plus the shell.
   - `model.js` is the reducer in JS: `recording.Reduce` and `State.Canonical()`, byte for byte. Node tests hold it to
     every fixture's pinned hash.

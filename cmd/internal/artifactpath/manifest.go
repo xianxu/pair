@@ -693,6 +693,13 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/assets/contract.go",
 	"cmd/internal/webcast/assets/fake.go",
 	"cmd/internal/webcast/assets/store.go",
+	// #459 asset store and proxy: Recorded writes bodies only through the
+	// recording's DirWriter (assets/<hash> in the recording directory, removed
+	// with it); css.go and image.go are pure; Proxy serves over HTTP.
+	"cmd/internal/webcast/assets/css.go",
+	"cmd/internal/webcast/assets/image.go",
+	"cmd/internal/webcast/assets/proxy.go",
+	"cmd/internal/webcast/assets/recorded.go",
 	"cmd/internal/webcast/notes/contract.go",
 	"cmd/internal/webcast/notes/fake.go",
 	"cmd/internal/webcast/notes/model.go",
