@@ -94,7 +94,7 @@ func TestResampleExact(t *testing.T) {
 	}{
 		{"within budget", "image/png", small},
 		{"svg", "image/svg+xml", svg},
-		{"animated gif", "image/gif", anim.Bytes()},
+		{"gif", "image/gif", anim.Bytes()},
 		{"undecodable", "image/avif", []byte("not an image I can read")},
 	} {
 		out, mime, orig, err := Resample(c.body, c.mime, 1000*1000)

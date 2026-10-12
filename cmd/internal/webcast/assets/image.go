@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"image"
-	"image/gif"
+	_ "image/gif" // the decoder registers itself
 	"image/jpeg"
 	"image/png"
 	"math"
@@ -27,8 +27,7 @@ const jpegQuality = 85
 // ratio: an opaque one is stored as JPEG, one with transparency as PNG, and
 // orig describes what it was. A body it doesn't change comes back as it
 // was, with a nil orig: an image within the budget, one that isn't a raster
-// it can decode (SVG, AVIF), and an animated GIF (one frame would lose the
-// animation). An image claiming more than bombPixels is refused.
+// it can decode (SVG, AVIF), and a GIF. An image claiming more than bombPixels is refused.
 func Resample(body []byte, mime string, maxPixels int) (out []byte, outMIME string, orig *recording.Orig, err error) {
 	cfg, format, err := image.DecodeConfig(bytes.NewReader(body))
 	if err != nil {
@@ -42,10 +41,9 @@ func Resample(body []byte, mime string, maxPixels int) (out []byte, outMIME stri
 		return body, mime, nil, nil
 	}
 	if format == "gif" {
-		g, err := gif.DecodeAll(bytes.NewReader(body))
-		if err != nil || len(g.Image) > 1 {
-			return body, mime, nil, nil
-		}
+		// Mostly animations, which one frame would lose; and telling needs
+		// every frame decoded, past the bomb ceiling's reach. Kept exact.
+		return body, mime, nil, nil
 	}
 	src, _, err := image.Decode(bytes.NewReader(body))
 	if err != nil {

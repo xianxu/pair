@@ -143,8 +143,8 @@ servers (Principle 4).
   that has an asset at `<hash>` (relative to `assets/`) and leaves the rest absolute, for the viewer to resolve when
   the asset arrives (#459).
 - Images over the budget (`assets.Policy.MaxPixels`, about one 1920×1080 frame) are resampled, aspect kept: JPEG when
-  opaque, PNG with transparency, so the asset's `mime` can differ from the page's. SVG, animated GIF and formats the
-  store can't decode (AVIF) are kept exact. A header claiming over 64 MP is refused unread.
+  opaque, PNG with transparency, so the asset's `mime` can differ from the page's. SVG, GIF (mostly animations) and formats
+  the store can't decode (AVIF) are kept exact. A header claiming over 64 MP is refused unread.
 - Assets outlive segments: the table is per recording, and a later `asset` record for the same URL rebinds it.
 
 ## Observer state

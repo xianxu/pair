@@ -169,3 +169,10 @@ untrusted input), rejected: it needs a live tab per image and puts the store on 
 
 - [ ] `go test ./cmd/internal/artifactpath ./cmd/internal/webcast/...`, then the full suite per the repo routine
   (`make -k test`, scratchpad-TMPDIR `test-changelog`, `go test ./...`).
+
+## Revisions
+
+- 2026-10-12: every GIF is kept exact, not only animated ones. Telling an animated GIF apart meant `gif.DecodeAll`,
+  which allocates every frame and so escapes the 64 MP bomb ceiling (a ceiling per frame, not per file).
+- 2026-10-12: the live tests replay the store's asset records in place of the fixture's (`throughStore`), as the
+  recorder emits them: the blog fixture's 1738×2130 screenshot is over the budget and comes back under a new hash.
