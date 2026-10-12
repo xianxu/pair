@@ -56,7 +56,12 @@ export function connect(deps) {
   const hooks = [];
   const v = { model: null, renderer: null, onRecord: (fn) => hooks.push(fn) };
   let es, state = null, ended = false, queued = false;
-  const fresh = () => { v.model = new Model(); v.renderer = deps.renderer(v.model); v.renderer.onDirty = paint; };
+  const fresh = () => {
+    if (v.renderer && v.renderer.revokeAll) v.renderer.revokeAll(); // the old drawing's blob: stylesheets
+    v.model = new Model();
+    v.renderer = deps.renderer(v.model);
+    v.renderer.onDirty = paint;
+  };
   const show = () => deps.show(view(v.model, state, ended));
   const paint = () => {
     if (queued) return;

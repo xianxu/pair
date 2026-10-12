@@ -13,10 +13,10 @@ class FakeEventSource {
 }
 
 function harness() {
-  const h = { shown: [], sources: [], drawn: [], retries: [], frames: 0, flushes: 0 };
+  const h = { shown: [], sources: [], drawn: [], retries: [], frames: 0, flushes: 0, revoked: 0 };
   h.v = connect({
     open: () => { const es = new FakeEventSource(); h.sources.push(es); return es; },
-    renderer: (model) => ({ model, apply: (r) => h.drawn.push(r.k), flush: () => h.flushes++ }),
+    renderer: (model) => ({ model, apply: (r) => h.drawn.push(r.k), flush: () => h.flushes++, revokeAll: () => h.revoked++ }),
     show: (v) => h.shown.push(v),
     frame: () => h.frames++,
     schedule: (fn) => fn(),
@@ -66,6 +66,7 @@ test("a reconnect's catch-up starts from a fresh model", () => {
   for (const r of [head, seg(1), doc(1, 1)]) h.rec(r); // EventSource reconnected: catch-up again
   assert.notEqual(h.v.model, first);
   assert.equal(h.v.model.seg, 1);
+  assert.equal(h.revoked, 1, "the old drawing's blob: URLs are released");
 });
 
 test('a refused record resyncs: the stream closes and reopens after a back-off', () => {
