@@ -237,8 +237,8 @@ and below the top document's `body`. Meaningful means a sectioning or grouping t
 section article dialog fieldset figure table tr ul ol dl li details menu search`), an ARIA role of the same kinds,
 `aria-modal="true"`, or a layout box recognized by class on an element with element children: a `card`, `panel`,
 `modal`, `dialog`, `popover`, `toolbar`, `navbar`, `sidebar`, `drawer` or `tile` class, or Tailwind's `rounded*` with
-`border` or `shadow*`. With none, the landmark is the parent element (at most `body`), used for text but not for
-snapping.
+`border` or `shadow*`. With none, the landmark is the parent element (at most `body`), used for the context's text but
+not named in an anchor's path.
 
 **The context** (`notes.Context`) is `{Node, Landmark, Text, Box}`: the resolved element, its landmark, the landmark's
 rendered text (`DOMNode.RenderedText`, #469: what a person reads, unlike `textContent` it skips script, style,

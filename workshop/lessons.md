@@ -10,6 +10,9 @@ representative evidence, not an exhaustive index.
 - A change to what a user does (a gesture, a control, what a pin shows) updates README's how-to paragraph in the same
   commit as the atlas. The atlas is the agent's map and README is the operator's; grep README for the old verbs
   ("tap", "drag", "pin") before closing. (#488 BR-1)
+- Retiring a class, function or field: grep every consumer, including env-gated live tests (`WEBCAST_LIVE_CHROME`,
+  skipped in the default suite) and the atlas index, and run the gated ones once. A skipped test still asserts the
+  old shape and is green only because it never ran. (#488 BR-7)
 - A bounded cache or graveyard prunes only after the update it belongs to is applied: decide what is gone from the
   structure as it now is, never between its teardown and its rebuild. #458's id map buried a re-snapshotted tree after
   forgetting it, so every live node looked removed and lost its id once the graveyard filled. Test it above the bound.

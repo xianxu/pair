@@ -54,7 +54,7 @@ const contextBudget = 500
 // landmark is the nearest meaningful container at or above n (through
 // shadow hosts and frame owners), below the top document's body. With none,
 // it is n's parent element (body at most) and meaningful is false: good for
-// text, not for snapping a crop to.
+// text, not a step of an anchor's path.
 func landmark(n *recording.DOMNode) (land *recording.DOMNode, meaningful bool) {
 	for e := n; e != nil; e = e.ParentElement() {
 		if (e.N == "body" || e.N == "html") && treeRoot(e).Host == nil {
