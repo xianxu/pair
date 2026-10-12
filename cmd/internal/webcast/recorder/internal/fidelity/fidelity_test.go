@@ -39,7 +39,7 @@ func TestRenderIsStaticAndKeepsState(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := Render(st)
-	for _, want := range []string{`<template shadowrootmode="closed">`, `closed root`, `value="typed"`, `h1{color:red}</style>`,
+	for _, want := range []string{`<template shadowrootmode="open">`, `closed root`, `value="typed"`, `h1{color:red}</style>`,
 		`srcdoc="`, `in frame`, `<option data-fidelity-rid`, `selected`} {
 		if !strings.Contains(out, want) {
 			t.Errorf("render lacks %s:\n%s", want, out)

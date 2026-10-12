@@ -323,15 +323,32 @@ func (b *browser) shoot(ctx context.Context, r *rec.Recording, st *rec.State, f 
 	case <-time.After(10 * time.Second):
 		return nil, errors.New("the replay didn't load")
 	}
-	// Scroll offsets, then a moment for fonts and images.
+	// Scroll offsets, then a moment for fonts and images. Elements are found
+	// in the document, its srcdoc frames and their shadow roots (rendered
+	// open); a frame document's scroll is its iframe window's.
 	var js strings.Builder
-	js.WriteString("(() => {")
+	js.WriteString(`(() => {
+const find = (root, rid) => {
+  const e = root.querySelector('[` + RIDAttr + `="' + rid + '"]');
+  if (e) return e;
+  for (const n of root.querySelectorAll('*')) {
+    const sub = (n.shadowRoot && find(n.shadowRoot, rid)) || (n.tagName === 'IFRAME' && n.contentDocument && find(n.contentDocument, rid));
+    if (sub) return sub;
+  }
+  return null;
+};
+const to = (target, x, y) => target && target.scrollTo({left: x, top: y, behavior: 'instant'});
+`)
 	for id, xy := range st.Scrolls {
-		if id == st.Top.ID {
-			fmt.Fprintf(&js, "window.scrollTo({left: %g, top: %g, behavior: 'instant'});", xy[0], xy[1])
-			continue
+		n := st.Node(id)
+		switch {
+		case id == st.Top.ID:
+			fmt.Fprintf(&js, "to(window, %g, %g);", xy[0], xy[1])
+		case n != nil && n.Y == rec.YDoc && n.Host != nil:
+			fmt.Fprintf(&js, "{const f = find(document, %d); to(f && f.contentWindow, %g, %g);}", n.Host.ID, xy[0], xy[1])
+		default:
+			fmt.Fprintf(&js, "to(find(document, %d), %g, %g);", id, xy[0], xy[1])
 		}
-		fmt.Fprintf(&js, "{const e = document.querySelector('[%s=\"%d\"]'); if (e) { e.scrollTo({left: %g, top: %g, behavior: 'instant'}); }}", RIDAttr, id, xy[0], xy[1])
 	}
 	js.WriteString("return [window.scrollX, window.scrollY]; })()")
 	if err := b.call(ctx, b.session, "Runtime.evaluate", map[string]any{"expression": js.String(), "returnByValue": true}, nil); err != nil {
@@ -348,7 +365,13 @@ func (b *browser) shoot(ctx context.Context, r *rec.Recording, st *rec.State, f 
 	if err != nil {
 		return nil, err
 	}
-	low, _, _, err := recorder.LowRes(full, 1) // the replay runs at DPR 1
+	// The replay runs at DPR 1; it is scaled as the frame was (Frame.Scale
+	// is image px per CSS px), so the two are the same size.
+	scale := f.Scale
+	if scale <= 0 {
+		scale = 0.5
+	}
+	low, _, _, err := recorder.LowRes(full, 1/(2*scale))
 	return low, err
 }
 

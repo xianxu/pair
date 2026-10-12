@@ -127,7 +127,9 @@ func (r *renderer) node(n *rec.DOMNode, doc *rec.DOMNode) {
 		return
 	}
 	if n.Shadow != nil {
-		fmt.Fprintf(&r.b, "<template shadowrootmode=\"%s\">", n.Shadow.Mode)
+		// Open whatever the page's mode: it draws the same, and the replay
+		// can then reach its scrollers.
+		r.b.WriteString("<template shadowrootmode=\"open\">")
 		for _, k := range n.Shadow.Kids {
 			r.node(k, doc)
 		}
