@@ -109,7 +109,7 @@ export const MAX_NOTE_BYTES = 1024;
 
 // Note boxes (#488): every note is a box on the screen, the area a
 // submission crops. A drag draws it; a tap gets the default box, a tenth
-// of the screen each way, centred on the tap. Both casts call noteBox in
+// of the screen each way, centred on the tap. Both casts call gestureBox in
 // their own units: the terminal in cells (cells: true; a drag covers the
 // cells it touched, and a box is at least the pin's two cells), the web
 // cast in top-page CSS px. view is the screen shown, {x, y, w, h}; min is
@@ -124,7 +124,7 @@ export function dragMin(unit, pointerType) {
   return DRAG_MIN[unit][pointerType === 'touch' ? 'touch' : 'mouse'];
 }
 
-export function noteBox(from, to, view, { min, cells = false }) {
+export function gestureBox(from, to, view, { min, cells = false }) {
   const tap = Math.abs(to[0] - from[0]) < min && Math.abs(to[1] - from[1]) < min;
   const minW = cells ? 2 : 1, minH = 1;
   const axis = (a, b, origin, size, least) => {

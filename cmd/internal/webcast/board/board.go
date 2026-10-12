@@ -31,8 +31,8 @@ var (
 	ErrEnded = errors.New("board: the cast has ended")
 	// ErrNotLive: no page has been cast yet.
 	ErrNotLive = errors.New("board: the cast hasn't shown a page yet")
-	// ErrStale: the viewer was showing another document, or the element is
-	// gone.
+	// ErrStale: the viewer was showing another document, the element is
+	// gone, or a note's box is off the page.
 	ErrStale = errors.New("board: the page changed")
 	// ErrColorFull: the color already has broadcast.MaxNotesPerColor open
 	// notes on this page.

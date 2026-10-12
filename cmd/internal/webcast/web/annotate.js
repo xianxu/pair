@@ -13,7 +13,7 @@
 // terminal viewer's (served from broadcast.CollabJS; the file here is a
 // symlink, for the node tests).
 
-import { HEX_COLOR, pointerColor, colorStore, safeStorage, poster, sayer, railAt, renderSwatches, noteDialog, noteBox as boxOfGesture, dragMin, boxCentre } from './collab.js';
+import { HEX_COLOR, pointerColor, colorStore, safeStorage, poster, sayer, railAt, renderSwatches, noteDialog, gestureBox, dragMin, boxCentre } from './collab.js';
 
 // CHUNK_MS is how often a stroke in progress is posted; MAX_POINTS caps a
 // chunk (the board's bound).
@@ -151,7 +151,7 @@ export function noteBox(note, boxOf) {
 // for a tap the default box; view is the page shown, pointerType the
 // pointer's (a finger must drag further).
 export function regionOf(a, b, view, pointerType) {
-  return boxOfGesture(a, b, view, { min: dragMin('px', pointerType) });
+  return gestureBox(a, b, view, { min: dragMin('px', pointerType) });
 }
 
 // noteDraft is a new note's payload, what the dialog posts: the segment

@@ -205,8 +205,8 @@ Notes stay in the recording after a reload. That live notes clear on reload (pro
 rule (#461): the notes "on" the current document are those since the document began (`State.DocSeg`), so a pause and
 resume keeps them and a navigation clears them. The shape is shared with the terminal's notes (#455, #488). `author`
 and `text` stay the same. Both carry a box, in their own units: page px here, cells on the terminal. Both carry an
-anchor read as `{kind, path, text}`: here `kind: element` and the containers' path, on the terminal Couch's layout
-path (`broadcast.NoteAnchor`, atlas/broadcast.md).
+anchor read as `{kind, path, text}`: here `kind: element` and the containers' path; on the terminal, Couch's layout
+path, which #488 M3 adds (atlas/broadcast.md).
 
 ## The notes model (#461)
 
@@ -405,7 +405,7 @@ swatch rail with ✏️ and 💭 mode buttons docked to the page box, a strokes 
 swatches and the dialog are `collab.js`, shared with the terminal viewer (`broadcast.CollabJS`; the file in
 `webcast/web/` is a symlink for the node tests). Point mode posts a stroke's points every 50 ms and draws them at once
 (its echo is skipped); others' strokes fade 1.5 s after their last point, and a reconnect's catch-up strokes (more than
-1.5 s behind the newest record) are not drawn. Note mode (#488) has one gesture rule, `collab.js`'s `noteBox`, shared with
+1.5 s behind the newest record) are not drawn. Note mode (#488) has one gesture rule, `collab.js`'s `gestureBox`, shared with
 the terminal viewer:
 - A drag of 8 px or more draws the note's box; a finger needs 16 px (`DRAG_MIN`).
 - A tap gets the default box: a tenth of the page shown each way, centred on the tap. It is shifted, not shrunk,

@@ -7,6 +7,9 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A change to what a user does (a gesture, a control, what a pin shows) updates README's how-to paragraph in the same
+  commit as the atlas. The atlas is the agent's map and README is the operator's; grep README for the old verbs
+  ("tap", "drag", "pin") before closing. (#488 BR-1)
 - A bounded cache or graveyard prunes only after the update it belongs to is applied: decide what is gone from the
   structure as it now is, never between its teardown and its rebuild. #458's id map buried a re-snapshotted tree after
   forgetting it, so every live node looked removed and lost its id once the graveyard filled. Test it above the bound.
