@@ -484,7 +484,7 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 	// Labels are disambiguated against the WHOLE inventory, not the filtered
 	// view: a name that is unique only because the filter hid its twin would
 	// change as the operator types.
-	presentations := PresentThreads(menuRows(state), state.SlotGit)
+	presentations := PresentThreads(menuRows(state), state.SlotGit, state.Hub)
 	labels := make(map[couchcore.ThreadRowKey]ThreadPresentation, len(presentations))
 	for _, entry := range presentations {
 		labels[menuRowKey(entry.Row)] = entry
