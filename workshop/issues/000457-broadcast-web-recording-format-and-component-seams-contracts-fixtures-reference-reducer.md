@@ -15,6 +15,7 @@ claimant:
     workspace: pair:3
     worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "dd2b405e", done: "0231b5e5"}
 ---
 
 # broadcast-web: recording format and component seams (contracts, fixtures, reference reducer)
