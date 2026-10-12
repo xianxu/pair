@@ -1,6 +1,6 @@
 ---
 id: 000467
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours: 6.17
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: d449b8c0501e1a0d6876ed1ae8c2a9adc20a8bbd
         evidence_commit: 3c2caa0b7ff07fbe85f2ef61e3e9c7efd7cc1566
+        landed_commit: d4a79262aef78f0464f0f0a196fd31dafb4a1cd6
 ---
 
 # broadcast-web: remote driving — a viewer takes control and uses the app through the operator's tab
