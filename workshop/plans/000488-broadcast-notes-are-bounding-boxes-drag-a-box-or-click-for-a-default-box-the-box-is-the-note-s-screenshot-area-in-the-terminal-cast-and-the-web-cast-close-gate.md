@@ -126,6 +126,68 @@ rounds:
       isolation: checkout
       reviewed: 9bfeae3c25ebc4e24fdcc359c19d1e0bd87997a6
       blocked: false
+    - "n": 4
+      timestamp: "2026-10-12T12:21:50-07:00"
+      dispatched: "2026-10-12T12:17:49-07:00"
+      agent: claude
+      findings:
+        - id: BR-10
+          severity: Critical
+          title: 'ParseNote box check overflows: box [1,0,MaxInt64,1] passes within() and pinSpots spins ~9e18 iterations (viewer-triggered CPU hang)'
+          detail: 'cmd/internal/broadcast/notes.go within() adds untrusted Col+W / Row+H without overflow guards; Col+W reaching 2^63 wraps negative and passes, then pinSpots starts at Col+W-2 which wraps to about MaxInt. Reproduced: ParseNote on that body still running after 3s. Fix: compare by subtraction (W <= cols-Col, H <= rows-Row) after range-checking Col/Row, or cap each component at maxPointGrid first; add the body to noteRefusals with a deadline, and rewrite the FuzzParseNote oracle so it doesn''t repeat the same overflowing addition.'
+          family: bound-untrusted-ints-before-arithmetic
+          round: 4
+        - id: BR-11
+          severity: Minor
+          title: notes.js boxHasPin hand-mirrors Go pinSpots with no shared case table
+          detail: A shared table of cases run by both Go and node tests would catch the two drifting apart (ARCH-DRY).
+          family: cross-language-mirror-unpinned
+          round: 4
+        - id: BR-12
+          severity: Minor
+          title: pointerMode keeps gesture and stroke as two nullable fields, exclusive only because end() runs first
+          detail: Collapse them into one tagged drag state (ARCH-ORDER).
+          family: state-as-nullable-constellation
+          round: 4
+      boundary: M2
+      recipe: milestone-review
+      isolation: checkout
+      blocked: true
+    - "n": 5
+      timestamp: "2026-10-12T12:36:54-07:00"
+      dispatched: "2026-10-12T12:25:24-07:00"
+      agent: claude
+      dispose:
+        - id: BR-10
+          disposition: addressed
+          note: Per-component bound in ParseNote plus a subtraction-based within(); reverting both makes TestParseNoteRefusesQuickly fail at its 5 s deadline; FuzzParseNote now states its bounds without addition.
+          round: 5
+        - id: BR-11
+          disposition: addressed
+          note: tests/broadcast-viewer/pinspots.json is run by TestPinSpotsCaseTable (Go, which also checks guard == StatusGuardCols) and by notes.test.mjs (boxHasPin).
+          round: 5
+        - id: BR-12
+          disposition: addressed
+          note: viewer.js pointerMode has one tagged drag state (stroke or box), cleared only by end(); cancel and pointing-off are covered in pointermode.test.mjs.
+          round: 5
+      findings:
+        - id: BR-13
+          severity: Minor
+          title: pinSpots builds the full spot list (about 1M cells) just so ParseNote can check that one exists
+          detail: A 1000x1000 request allocates roughly 16-32 MB in ParseNote before landsNow rejects the mismatched grid. Use an early-exit hasPinSpot in the parser, and stop at the first free spot in Add (ARCH-CONSTRAINTS).
+          family: untrusted-size-drives-work
+          round: 5
+        - id: BR-14
+          severity: Minor
+          title: The plan says the terminal box is clamped to the grid; the code refuses it with ErrNoteRange
+          detail: 'This is the 2nd finding in family plan-names-match-code. The rule: every M-close adds an "as built" Revisions entry that reconciles each Design bullet the milestone touched. Add "M2 as built: off-grid boxes are refused; the pin is placed by NoteBoard.Add via pinSpots."'
+          family: plan-names-match-code
+          round: 5
+      boundary: M2
+      recipe: milestone-review
+      isolation: checkout
+      reviewed: f622966e2e280698d0a8a3b0d75d8afec3ec38a8
+      blocked: false
 ---
 
 # Gate ledger — pair#488 (boundary-review)
@@ -181,8 +243,36 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-9** [Minor] `plan-names-match-code` The plan still names the shared helper noteBox and its test file notes.test.mjs; the code has gestureBox and notebox.test.mjs
   Plan lines 32, 41, 55, 102 and 149 say noteBox(from, to, view, min). The code's collab.js:127 is gestureBox(from, to, view, {min, cells}) plus dragMin and boxCentre, renamed under BR-4. Add a Revisions entry so M2 builds against the real name.
 
+## Round 4 — 2026-10-12T12:21:50-07:00 (claude) — BLOCKED
+
+### Raised
+
+- **BR-10** [Critical] `bound-untrusted-ints-before-arithmetic` ParseNote box check overflows: box [1,0,MaxInt64,1] passes within() and pinSpots spins ~9e18 iterations (viewer-triggered CPU hang)
+  cmd/internal/broadcast/notes.go within() adds untrusted Col+W / Row+H without overflow guards; Col+W reaching 2^63 wraps negative and passes, then pinSpots starts at Col+W-2 which wraps to about MaxInt. Reproduced: ParseNote on that body still running after 3s. Fix: compare by subtraction (W <= cols-Col, H <= rows-Row) after range-checking Col/Row, or cap each component at maxPointGrid first; add the body to noteRefusals with a deadline, and rewrite the FuzzParseNote oracle so it doesn't repeat the same overflowing addition.
+- **BR-11** [Minor] `cross-language-mirror-unpinned` notes.js boxHasPin hand-mirrors Go pinSpots with no shared case table
+  A shared table of cases run by both Go and node tests would catch the two drifting apart (ARCH-DRY).
+- **BR-12** [Minor] `state-as-nullable-constellation` pointerMode keeps gesture and stroke as two nullable fields, exclusive only because end() runs first
+  Collapse them into one tagged drag state (ARCH-ORDER).
+
+## Round 5 — 2026-10-12T12:36:54-07:00 (claude) — passed
+
+### Disposed
+
+- BR-10 — addressed — Per-component bound in ParseNote plus a subtraction-based within(); reverting both makes TestParseNoteRefusesQuickly fail at its 5 s deadline; FuzzParseNote now states its bounds without addition.
+- BR-11 — addressed — tests/broadcast-viewer/pinspots.json is run by TestPinSpotsCaseTable (Go, which also checks guard == StatusGuardCols) and by notes.test.mjs (boxHasPin).
+- BR-12 — addressed — viewer.js pointerMode has one tagged drag state (stroke or box), cleared only by end(); cancel and pointing-off are covered in pointermode.test.mjs.
+
+### Raised
+
+- **BR-13** [Minor] `untrusted-size-drives-work` pinSpots builds the full spot list (about 1M cells) just so ParseNote can check that one exists
+  A 1000x1000 request allocates roughly 16-32 MB in ParseNote before landsNow rejects the mismatched grid. Use an early-exit hasPinSpot in the parser, and stop at the first free spot in Add (ARCH-CONSTRAINTS).
+- **BR-14** [Minor] `plan-names-match-code` The plan says the terminal box is clamped to the grid; the code refuses it with ErrNoteRange
+  This is the 2nd finding in family plan-names-match-code. The rule: every M-close adds an "as built" Revisions entry that reconciles each Design bullet the milestone touched. Add "M2 as built: off-grid boxes are refused; the pin is placed by NoteBoard.Add via pinSpots."
+
 ## Open findings
 
 - **BR-2** [Minor] `docs-describe-unbuilt-surface` Atlas and record.go doc comment reference broadcast.NoteAnchor and terminal cell boxes, which do not exist until M2/M3
 - **BR-5** [Minor] `ui-chip-fit` 26 px pin chip now sits inside the box and spills well outside thin boxes (e.g. a 12x1 px drag)
 - **BR-9** [Minor] `plan-names-match-code` The plan still names the shared helper noteBox and its test file notes.test.mjs; the code has gestureBox and notebox.test.mjs
+- **BR-13** [Minor] `untrusted-size-drives-work` pinSpots builds the full spot list (about 1M cells) just so ParseNote can check that one exists
+- **BR-14** [Minor] `plan-names-match-code` The plan says the terminal box is clamped to the grid; the code refuses it with ErrNoteRange
