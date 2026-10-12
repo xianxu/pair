@@ -34,7 +34,9 @@ bound. Either way a viewer never draws an unstyled page that the tab never showe
 
 ## Plan
 
-- [ ]
+- [ ] TL picks the side (recorder holds back, or viewer holds the previous paint).
+- [ ] Test first: rec-stress frame 0 within tolerance; drop its `knownGaps` entry.
+- [ ] Implement, with a recorder or viewer unit test for a stylesheet bound after the segment's snapshot.
 
 ## Log
 

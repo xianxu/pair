@@ -35,7 +35,10 @@ prototype ones (`stress`, `app`, `blog`), so the components being built on the p
 
 ## Plan
 
-- [ ]
+- [ ] Wait for the TL's go (after #470 and #471 land).
+- [ ] Move every test naming `stress`/`app`/`blog` to its `rec-*` twin; delete the prototype fixtures, goldens and `record-mjs.patch`.
+- [ ] Drop `PrototypeFixtures` and the 150 ms branch; single-source the harness's viewport sizing and the fixture-name lists.
+- [ ] Budget back to 4.5 MB; README and atlas rows; `go test ./cmd/internal/webcast/...` and the live replay.
 
 ## Log
 
