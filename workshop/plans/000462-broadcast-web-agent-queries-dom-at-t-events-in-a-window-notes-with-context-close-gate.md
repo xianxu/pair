@@ -102,6 +102,27 @@ rounds:
       recipe: milestone-review
       isolation: fenced
       blocked: true
+    - "n": 3
+      timestamp: "2026-10-12T02:50:49-07:00"
+      dispatched: "2026-10-12T02:49:50-07:00"
+      agent: claude
+      dispose:
+        - id: BR-8
+          disposition: addressed
+          note: atlas/webcast-format.md:384-388 now describes tree-scoped CSS with >>> as the only crossing and names query.SelectorGrammar (selector.go:12-15) as the single statement, which cli.go:25 and both refusal errors print.
+          round: 3
+        - id: BR-9
+          disposition: addressed
+          note: fake.go:54 guards the empty case, and contract.go:83-94 adds the empty recording to RunSurfaceContract for both surfaces; removing the guard makes TestFakeSurfaceMeetsTheSurfaceContract panic (verified, then restored).
+          round: 3
+        - id: BR-10
+          disposition: addressed
+          note: The matchSelector comment now sits directly above matchSelector (notes/selector.go:103-104), and Match's godoc starts "Match is".
+          round: 3
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 9104b656d7c7646abeef5d67929baf6454a695a2
+      blocked: false
 ---
 
 # Gate ledger — pair#462 (boundary-review)
@@ -143,8 +164,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   Brought in by the BR-3 fix and reproduced. This is the 2nd finding in this family. Rule: any input the real surface accepts, the fake must answer the same way, and RunSurfaceContract is the list of those inputs, so add the empty recording there rather than only guarding the fake.
 - **BR-10** [Minor] `misplaced-doc-comment` The matchSelector doc comment now sits above Match in notes/selector.go, so godoc for Match starts "matchSelector is"
 
+## Round 3 — 2026-10-12T02:50:49-07:00 (claude) — passed
+
+### Disposed
+
+- BR-8 — addressed — atlas/webcast-format.md:384-388 now describes tree-scoped CSS with >>> as the only crossing and names query.SelectorGrammar (selector.go:12-15) as the single statement, which cli.go:25 and both refusal errors print.
+- BR-9 — addressed — fake.go:54 guards the empty case, and contract.go:83-94 adds the empty recording to RunSurfaceContract for both surfaces; removing the guard makes TestFakeSurfaceMeetsTheSurfaceContract panic (verified, then restored).
+- BR-10 — addressed — The matchSelector comment now sits directly above matchSelector (notes/selector.go:103-104), and Match's godoc starts "Match is".
+
 ## Open findings
 
-- **BR-8** [Important] `doc-restates-changed-semantics` The atlas still says selectors search through shadow roots, frames and templates; after round 1 only >>> crosses trees
-- **BR-9** [Minor] `fake-real-contract-gap` FakeSurface.Notes panics on an empty recording (fake.go:54 indexes Records[len-1]); Querier.Notes returns nil
-- **BR-10** [Minor] `misplaced-doc-comment` The matchSelector doc comment now sits above Match in notes/selector.go, so godoc for Match starts "matchSelector is"
+(none — every finding has been disposed)

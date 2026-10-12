@@ -243,3 +243,79 @@ findings:
     title: |
       The matchSelector doc comment now sits above Match in notes/selector.go, so godoc for Match starts "matchSelector is"
 ```
+
+---
+
+## Re-review — 2026-10-12T02:50:49-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 462 — broadcast-web: agent queries — DOM at t, events in a window, notes with context |
+| repo | pair |
+| issue file | workshop/issues/000462-broadcast-web-agent-queries-dom-at-t-events-in-a-window-notes-with-context.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 8a5e1c8626b7f2557391fa933007c9da6e95e9c5..9104b656d7c7646abeef5d67929baf6454a695a2 |
+| command | sdlc close --issue 462 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-12T02:50:49-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Focus on the last round's fix commit first.
+
+I'm wrapping up. All three open findings check out as fixed, and I'm writing the verdict now.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+Round 2 fixes all three open findings, and I found nothing new. BR-9 is fixed through its rule, not just at the one site: `RunSurfaceContract` now feeds an empty recording to both surfaces. I removed the fake's guard and the contract test failed (`TestFakeSurfaceMeetsTheSurfaceContract` panics), then put it back. The atlas no longer keeps its own copy of the selector grammar. It describes the per-tree reading and points to `query.SelectorGrammar`, which is the same text the usage message and every refusal print. The `Match` doc comment is back in place. `go test` passes for `./cmd/internal/webcast/...`. I could not run `couchcmd` tests in this checkout: its setup fails because the generated `runtimebundle/assets/` directory is gitignored. That is a property of the environment, not of this diff.
+
+1. **Strengths**
+   - `cmd/internal/webcast/query/contract.go:83-94`: the empty-recording checks sit in the shared contract, so the fake and the `Querier` are held to the same answer for that input.
+   - `cmd/internal/webcast/query/selector.go:12-15`: the grammar is stated once, and `cli.go:25` and both refusal paths read that one constant.
+   - `selector.go:42`: a note's anchor goes through `notes.Match`, so the anchor grammar is defined only once (from round 1, still sound).
+   - `atlas/webcast-format.md:384-388` now matches what the code does: tree-scoped combinators, with `>>>` as the only way into another tree.
+
+2. **Critical findings:** none.
+
+3. **Important findings:** none.
+
+4. **Minor findings:** none new.
+
+5. **Test coverage notes**
+   - Removing the BR-9 fix makes the contract test fail, so it is regression evidence.
+   - The `query` and `notes` packages pass.
+   - `couchcmd` (which holds `broadcast_list_test.go` and the CLI dispatch for `query.Flag`) could not be built here because the generated assets are missing. The operator should run it in a full checkout before merging.
+
+6. **Architectural notes for upcoming work**
+   - **ARCH-DRY:** pass. The grammar lives in one constant and anchors are matched in one place.
+   - **ARCH-PURE:** pass. Selecting, rendering and folding events are pure functions over `recording.State`, and only `Main` does IO.
+   - **ARCH-PURPOSE:** pass. The atlas, usage text and refusals all derive from `SelectorGrammar`. README and SKILL.md don't restate the grammar.
+   - **ARCH-MOCK:** pass. `FakeSurface` is a stateful fake built on the reference reducer, and both surfaces run the same contract. It still accepts only `#id` selectors, but that is documented and the contract only uses `#id`.
+   - **ARCH-CONSTRAINTS:** pass. Line, attribute and text budgets are enforced, and round 1 pinned them.
+   - **ARCH-SECURE:** pass. Recorded text is quoted before it reaches the terminal (BR-6), and a selector it can't parse is refused, not matched loosely.
+   - **ARCH-ORDER:** pass. This is a read-only query layer and keeps no state between calls. Each answer is reduced fresh from the records.
+   - **ARCH-FUNERAL:** pass. It writes nothing durable except the golden testdata, and that changes only through `-update`.
+
+7. **Plan revision recommendations:** none.
+
+```findings
+dispose:
+  - id: BR-8
+    disposition: addressed
+    note: |
+      atlas/webcast-format.md:384-388 now describes tree-scoped CSS with >>> as the only crossing and names query.SelectorGrammar (selector.go:12-15) as the single statement, which cli.go:25 and both refusal errors print.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      fake.go:54 guards the empty case, and contract.go:83-94 adds the empty recording to RunSurfaceContract for both surfaces; removing the guard makes TestFakeSurfaceMeetsTheSurfaceContract panic (verified, then restored).
+  - id: BR-10
+    disposition: addressed
+    note: |
+      The matchSelector comment now sits directly above matchSelector (notes/selector.go:103-104), and Match's godoc starts "Match is".
+```

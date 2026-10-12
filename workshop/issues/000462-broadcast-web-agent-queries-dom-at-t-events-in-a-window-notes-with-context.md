@@ -15,7 +15,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
-flow: {kind: quick, provenance: inferred, spec: "825a7141", done: "03943cf9"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # broadcast-web: agent queries — DOM at t, events in a window, notes with context
@@ -55,6 +55,8 @@ Durable plan: `workshop/plans/000462-broadcast-web-agent-queries-dom-at-t-events
 ### 2026-10-11
 
 ### 2026-10-12
+- 2026-10-12: closed — make -k test green before merging main; after the merge and both review rounds: go test ./cmd/internal/webcast/... ./cmd/internal/couchcmd ./cmd/internal/artifactpath ok (TestCapturePTYBothBoundaries flaked once under load; passes alone here and on origin/main). RunSurfaceContract (final note state, empty recording) passes on Querier and FakeSurface; golden dom/events/notes on all 5 fixtures; agent check on every fixture note; anchors select exactly their element per Structural.Resolve; mutation checks bite; recorded subagent run in Log.; review verdict: SHIP
+- 2026-10-12: flow upgraded quick → full — 1693 added lines in code files (limit 100); an earlier round of this close already ran the full review
 - Command: `couch --broadcast-web-query DIR dom|events|notes` (closed form in couchcmd, parsed by `query.Main`; no Couch runtime needed). Name follows the product (`couch broadcast-web`) and the `--broadcast-list` sibling.
 - Notes went through `notes.FakeModel` until #461 landed mid-issue; `query.Main` now uses `notes.Structural` (plan Revisions). The golden diff showed two #461 issues in its context text, reported to the TL rather than patched here: the landmark text includes `<script>` bodies (`app` fixture, app-n3) and runs adjacent blocks' words together (`tasksAddShip`).
 - Seam additions, all inside #462's own package (no format change): `query.NoteView` gains `Landmark`, `URL`, `Header`, `BeforeLines` (the real surface fills them, the fake leaves them empty); `query.UserAction` now counts `seg` and `stop`, so a note's preceding actions mark a navigation, tab switch or pause instead of folding typing across it (found in the `segments` golden: `1200-5200 input … (2 changes)` across a pause).
