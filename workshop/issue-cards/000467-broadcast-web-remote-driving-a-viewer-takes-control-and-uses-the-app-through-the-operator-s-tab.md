@@ -27,10 +27,10 @@ tracker:
         destination: workshop/issues/000467-broadcast-web-remote-driving-a-viewer-takes-control-and-uses-the-app-through-the-operator-s-tab.md
         main_commit: 8b076419caa5cc3ea0d459b390b53d89f2136e2b
     completion:
-        token: close-7b6e02df54b7
+        token: close-4ceb3034cdef
         repository: github.com/xianxu/pair
-        reviewed_head: c41a80bfc389da293b32e0ed9fac409ee3c12cf2
-        evidence_commit: de751625a78a2d09a4fc722fb2e95f21be517686
+        reviewed_head: d449b8c0501e1a0d6876ed1ae8c2a9adc20a8bbd
+        evidence_commit: 3c2caa0b7ff07fbe85f2ef61e3e9c7efd7cc1566
 ---
 
 # broadcast-web: remote driving — a viewer takes control and uses the app through the operator's tab
