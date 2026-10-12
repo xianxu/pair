@@ -92,6 +92,31 @@ rounds:
       isolation: fenced
       reviewed: 8962e0777022f69014a7512cc676181e952b0336
       blocked: false
+    - "n": 3
+      timestamp: "2026-10-12T05:07:08-07:00"
+      dispatched: "2026-10-12T05:05:17-07:00"
+      agent: claude
+      dispose:
+        - id: BR-3
+          disposition: not-addressed
+          note: Untouched in this window; headless.open has no test that fails without the conn.Done() select. Minor, non-blocking.
+          round: 3
+        - id: BR-5
+          disposition: not-addressed
+          note: replay_test.go headlessPage still repeats launchHeadless's pipe/exec sequence. Minor, non-blocking.
+          round: 3
+        - id: BR-7
+          disposition: not-addressed
+          note: The end-of-cast check still runs on context.Background in an untracked goroutine. Minor, non-blocking.
+          round: 3
+        - id: BR-8
+          disposition: addressed
+          note: report.go sweeps only dirs older than staleWrite (1 min); TestReportFiles keeps a fresh busy dir and removes an aged one, and would fail under the old sweep-all code.
+          round: 3
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 5f85ad2640e59a1bc7eb20f6ca83df0016821a75
+      blocked: false
 ---
 
 # Gate ledger — pair#478 (boundary-review)
@@ -130,9 +155,17 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-8** [Minor] `sweep-claims-unowned-work` fidelity.Write sweeps every .fidelity-* dir, including one a concurrent check of the same recording is still writing
   report.go:157-161 deletes all .fidelity-* dirs before MkdirTemp. If the end-of-cast check and a manual couch --broadcast-web-fidelity run on one recording at once, the second deletes the first one's in-progress dir and the first Write fails. Fix: sweep only dirs older than some age, or take a lock file in the recording dir.
 
+## Round 3 — 2026-10-12T05:07:08-07:00 (claude) — passed
+
+### Disposed
+
+- BR-3 — not-addressed — Untouched in this window; headless.open has no test that fails without the conn.Done() select. Minor, non-blocking.
+- BR-5 — not-addressed — replay_test.go headlessPage still repeats launchHeadless's pipe/exec sequence. Minor, non-blocking.
+- BR-7 — not-addressed — The end-of-cast check still runs on context.Background in an untracked goroutine. Minor, non-blocking.
+- BR-8 — addressed — report.go sweeps only dirs older than staleWrite (1 min); TestReportFiles keeps a fresh busy dir and removes an aged one, and would fail under the old sweep-all code.
+
 ## Open findings
 
 - **BR-3** [Minor] `fail-fast-on-dead-peer` headless.open polls for 30 s after Chrome has died instead of failing on the closed CDP connection
 - **BR-5** [Minor] `shared-helper-duplication` replay_test.go headlessPage repeats the launchHeadless pipe/launch sequence now in product code
 - **BR-7** [Minor] `unbounded-task-extent` The end-of-cast check goroutine runs on context.Background with no cancellation path
-- **BR-8** [Minor] `sweep-claims-unowned-work` fidelity.Write sweeps every .fidelity-* dir, including one a concurrent check of the same recording is still writing

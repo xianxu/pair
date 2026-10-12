@@ -243,3 +243,76 @@ findings:
     detail: |
       report.go:157-161 deletes all .fidelity-* dirs before MkdirTemp. If the end-of-cast check and a manual couch --broadcast-web-fidelity run on one recording at once, the second deletes the first one's in-progress dir and the first Write fails. Fix: sweep only dirs older than some age, or take a lock file in the recording dir.
 ```
+
+---
+
+## Re-review — 2026-10-12T05:07:08-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 478 — broadcast-web: fidelity check for live casts — sparse tab screenshots vs replay renders, with a report |
+| repo | pair |
+| issue file | workshop/issues/000478-broadcast-web-fidelity-check-for-live-casts-sparse-tab-screenshots-vs-replay-renders-with-a-report.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 632ac60b1ebb6dbead99f2d033eef8a0e3809047..5f85ad2640e59a1bc7eb20f6ca83df0016821a75 |
+| command | sdlc close --issue 478 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-12T05:07:08-07:00 |
+| verdict | SHIP |
+
+## Review
+
+Prior findings checked against the diff; now checking `FrameTimes` and the caller of `score`, then running the tests.
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+**Verdict: SHIP.** This round fixes BR-8, and a test now pins that fix. The merge resolution keeps the intent of both sides. Main's #472 rule for frame offsets (`recording.FrameTimes`, a 50 ms capture skew, `knownGaps`) moves out of the deleted dev tool and into the product check. The branch's Replayer-based harness and its tab-switch viewport sizing survive. No conflict markers are left anywhere in `cmd`, `atlas` or `README.md`. BR-3, BR-5 and BR-7 are still open, but all three are Minor and don't block. One limit on the evidence: `go vet` and `go test ./cmd/internal/webcast/...` pass, but the live Chrome tests (`WEBCAST_LIVE_CHROME=1`) fail here because Chrome exits on start (`cdp: read: EOF`) in this sandbox. Every live test, the replay ones included, fails the same way, so it's the environment, not this window. That means the live fidelity and replay results after the merge were not checked by me.
+
+1. **Strengths**
+   - `report.go:169-176`: the temp-dir sweep now only removes a dir older than `staleWrite`. `TestReportFiles` checks both cases: an old ("crashed") dir is swept and a fresh ("busy") dir survives. Under the old sweep-everything code the busy dir would be deleted and the test would fail, so the test does catch the bug.
+   - `fidelity_check.go:96`: the product check now uses `recording.FrameTimes`, the same rule as the replay conformance test. `replay_test.go:64-73` builds its offsets from `fidelity.Offsets` instead of keeping its own `captureSkew`. That leaves one source for the skew rule (ARCH-DRY pass).
+   - `score` returns early when `times[0] != f.T`. This matches `FrameTimes`: offset 0 is always first, and nothing comes back when no segment has started.
+   - The tab-switch viewport sizing from main's `harness.js` `feed()` is kept: `replayer.js:76` calls `deps.layout(vp)` on `seg`/`vp` records.
+   - The plan's `## Revisions` entry records why Retries became Offsets. That change comes from the conflict resolution and is what #472 asked for, so it isn't a scope change.
+
+2. **Critical findings:** none.
+
+3. **Important findings:** none.
+
+4. **Minor findings**
+   - The tests bullet at `atlas/webcast.md:124` still says the live test checks "every fixture within the tolerance". The test now allows the frames listed in `knownGaps`.
+   - `checkFidelity` silently counts every frame as skipped if the offsets passed in don't start with 0. Only internal code calls it, and both callers start with 0 today.
+
+5. **Test coverage notes:** the unit tests pass. The age-based sweep is covered. I couldn't run the knownGaps logic in the live test or the narrowed offsets against the rec-* fixtures here, because Chrome won't run in this sandbox.
+
+6. **Architecture**
+   - **ARCH-DRY:** pass. One offset rule, shared via `FrameTimes` and `fidelity.Offsets`. BR-5's duplicated Chrome launch is still open.
+   - **ARCH-PURE:** pass. `FrameTimes` is pure and the age check is a small piece of IO.
+   - **ARCH-PURPOSE:** pass. Both consumers of the offset rule (the replay test and the product check) take it from one source, and the deleted dev tool's use of it moved into the product check.
+
+7. **Plan revision recommendations:** none.
+
+```findings
+dispose:
+  - id: BR-3
+    disposition: not-addressed
+    note: |
+      Untouched in this window; headless.open has no test that fails without the conn.Done() select. Minor, non-blocking.
+  - id: BR-5
+    disposition: not-addressed
+    note: |
+      replay_test.go headlessPage still repeats launchHeadless's pipe/exec sequence. Minor, non-blocking.
+  - id: BR-7
+    disposition: not-addressed
+    note: |
+      The end-of-cast check still runs on context.Background in an untracked goroutine. Minor, non-blocking.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      report.go sweeps only dirs older than staleWrite (1 min); TestReportFiles keeps a fresh busy dir and removes an aged one, and would fail under the old sweep-all code.
+```
