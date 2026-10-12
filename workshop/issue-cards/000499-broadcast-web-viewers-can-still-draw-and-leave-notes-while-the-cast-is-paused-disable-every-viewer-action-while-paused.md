@@ -1,6 +1,6 @@
 ---
 id: 000499
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 366152fc9adb5d7f317f19861053053147f3038f
         evidence_commit: e18dd0dd79477045a21da4eaa6515f67b4d1a754
+        landed_commit: 378ef4c5026eadb1f0bc4d0972606f09b74f0250
 ---
 
 # broadcast-web: viewers can still draw and leave notes while the cast is paused; disable every viewer action while paused
