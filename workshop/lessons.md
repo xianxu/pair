@@ -7,6 +7,10 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A paint that snapshots state and then publishes it holds one lock from snapshot to commit whenever paints run on
+  more than one goroutine. Otherwise an older snapshot can publish last and stay on screen until something else
+  repaints, which on an idle screen is never. A test that polls for the new state passes in the gap before the stale
+  publish lands, so pin the interleaving with a hook rather than a load soak. (#484)
 - A bounded cache or graveyard prunes only after the update it belongs to is applied: decide what is gone from the
   structure as it now is, never between its teardown and its rebuild. #458's id map buried a re-snapshotted tree after
   forgetting it, so every live node looked removed and lost its id once the graveyard filled. Test it above the bound.

@@ -115,6 +115,31 @@ func (c *Console) commitChrome(row RenderedStatusRow) {
 	}
 }
 
+// publishSelectionPublishing presents pane's endpoint with a status row that
+// already marks it active. The caller holds publishMu.
+func (c *Console) publishSelectionPublishing(ctx context.Context, pane *pane) error {
+	c.mu.Lock()
+	size, model := c.size, c.statusModelLocked()
+	c.mu.Unlock()
+	for i := range model.Actors {
+		model.Actors[i].Active = model.Actors[i].Thread == pane.thread
+	}
+	row := RenderStatusRow(int(size.Cols), model)
+	cells, err := terminal.StyledRows(row.Body, int(size.Cols), 1)
+	if err != nil {
+		return err
+	}
+	c.traceCaptureTransition("select-start", pane.child.Endpoint().ID(), nil)
+	err = c.presenter.Select(ctx, pane.child.Endpoint(), terminal.Geometry{Cols: int(size.Cols), Rows: int(size.Rows)}, cells)
+	c.traceCaptureTransition("select-end", pane.child.Endpoint().ID(), err)
+	if err != nil {
+		c.traceTerminal("select", err)
+		return err
+	}
+	c.commitChrome(row)
+	return nil
+}
+
 func (c *Console) selectActor(id string, force bool, how arrival) (bool, error) {
 	return c.selectActorContext(c.lifetime, id, force, how)
 }
@@ -126,36 +151,25 @@ func (c *Console) selectActorContext(ctx context.Context, id string, force bool,
 	if err := ctx.Err(); err != nil {
 		return false, err
 	}
+	// The presenter's selection and the console's focus change as one step
+	// under publishMu: a paint between them would read the old focus and
+	// re-panel over the endpoint just selected (pair#484).
+	c.publishMu.Lock()
 	c.mu.Lock()
 	pane := c.panes[id]
 	already := c.focus == FocusActor(id) && c.active == id && !force
-	size := c.size
 	c.mu.Unlock()
 	if pane == nil {
+		c.publishMu.Unlock()
 		return false, fmt.Errorf("terminal %q is not attached", id)
 	}
 	if !already {
-		c.mu.Lock()
-		model := c.statusModelLocked()
-		c.mu.Unlock()
-		for i := range model.Actors {
-			model.Actors[i].Active = model.Actors[i].Thread == pane.thread
-		}
-		row := RenderStatusRow(int(size.Cols), model)
-		cells, err := terminal.StyledRows(row.Body, int(size.Cols), 1)
-		if err != nil {
+		if err := c.publishSelectionPublishing(ctx, pane); err != nil {
+			c.publishMu.Unlock()
 			return false, err
 		}
-		c.traceCaptureTransition("select-start", pane.child.Endpoint().ID(), nil)
-		err = c.presenter.Select(ctx, pane.child.Endpoint(), terminal.Geometry{Cols: int(size.Cols), Rows: int(size.Rows)}, cells)
-		c.traceCaptureTransition("select-end", pane.child.Endpoint().ID(), err)
-		if err != nil {
-			c.traceTerminal("select", err)
-			return false, err
-		}
-		c.commitChrome(row)
-
 	}
+	c.beforePublish("select")
 	c.mu.Lock()
 	c.active, c.focus = id, FocusActor(id)
 	c.menu.ActiveAddress = pane.thread
@@ -163,6 +177,7 @@ func (c *Console) selectActorContext(ctx context.Context, id string, force bool,
 	c.attention.Acknowledge(c.attention.Capture(pane.thread))
 	c.syncAttentionLocked()
 	c.mu.Unlock()
+	c.publishMu.Unlock()
 	c.traceTerminal("select", nil)
 	// Selection changes the status model; updating chrome preserves the admitted
 	// endpoint and any gesture when this was a same-actor acknowledgment.
