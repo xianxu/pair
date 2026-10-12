@@ -36,7 +36,15 @@ The operator (10-12): during a web cast they move between Couch and the cast Chr
 
 ## Plan
 
-- [ ]
+- [ ] `webcast.Browser` gains `Focus() error`: the real Chrome, on its loop, sends `Target.activateTarget` for the cast (active) tab, which makes it the window's tab and raises the window inside Chrome, then activates the Chrome process by PID (macOS: `NSRunningApplication` through `osascript -l JavaScript`, since the cast Chrome shares a bundle id with the operator's own Chrome, so `open -a` could pick the wrong one). The OS activator is set only by `Launch` for a windowed Chrome, so headless and scripted-pipe tests can't take focus. `FakeBrowser` counts focuses. `Cast.Focus` forwards.
+- [ ] Tab bar: a `↗` cell right after the Chrome label (`Chrome ⏸ ↗ 💭2`), with its own span, which a click on it focuses. Placed before 💭N so its column doesn't move with the note count.
+- [ ] Revision 1: the Chrome ⏸ cell is drawn in `broadcast.LiveSGR` (the LIVE cell's style). Test that the screen broadcast's `IndicatorShown` still doesn't read it as LIVE.
+- [ ] Tests: the reserve row (cell, span, style), the console click → `FakeBrowser` focus, and the Chrome loop sending `Target.activateTarget` for the active tab.
+
+## Revisions
+
+- 2026-10-12 (TL, operator request): the Chrome ⏸ / Chrome ▶ cell gets the same style as the screen broadcast's LIVE ⏸ cell (colours, emphasis, spacing), so the two cast indicators look like one family. Applied to Chrome ⏸ (red background, the terminal's own foreground, no bold; the spacing already matches). Chrome ▶ stays plain: the screen broadcast draws nothing while it isn't live, so it has no idle look to copy, and a red ▶ would claim a cast that isn't happening. Raised with the hub.
+- 2026-10-12: "Also reachable from the Chrome cell's menu": the Chrome cell has no menu (click toggles live, right-click copies the link, Ctrl+click ends), so the button is the only way in. Not adding a menu for one item.
 
 ## Log
 
