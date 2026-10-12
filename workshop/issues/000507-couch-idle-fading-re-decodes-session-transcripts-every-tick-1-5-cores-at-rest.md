@@ -48,3 +48,10 @@ Live Couch (pid 31713, build c8770843) burns 1.25-1.8 cores with no cast running
 ## Log
 
 ### 2026-10-12
+- Before (live Couch pid 31713, build c8770843, no cast): **12.45 s of CPU per 10 s wall**.
+- Harness on the operator's real store, 22 live threads (throwaway env-gated test, not committed; it builds the production probe and `Couch.ContinuationRequests` over the store's records):
+  - before: activity pass 8.0-8.4 s CPU; continuation scan 94-131 ms per tick (every 500 ms).
+  - after: activity pass cold 8.6 s (first parse, once per ledger), warm **0.34 s**; continuation scan cold 94 ms, warm **27 µs**.
+  - pprof found a second walk in the warm pass: `resampleArtifact` listed the whole native session store (`~/.claude/projects`) to re-stat one transcript, a pair#420 site that was missed. Now `StatFile`.
+- Live after-measurement needs a Couch built from this branch: pending (pair:0 holds #501 for the operator's smoke test).
+- Mutation checks: each new test fails with its cache disabled, with the ledger cache never invalidated, and with the old `resampleArtifact`.

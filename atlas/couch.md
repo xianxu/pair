@@ -922,6 +922,17 @@ and `MenuState.Palette`; the tab bar reads the same two through
 A thread with no activity entry is unfaded. Each slot glyph fades from its own
 base colour (`slotGlyphBase`).
 
+**Cost at rest (#507).** A pass probes every live thread (every 60 s, and on a
+switch or a landed inventory). The probe's runtime
+(`threadactivity.NewOSRuntime`) keeps one `sessioninventory.OwnerLaunchCache`
+for Couch's lifetime, so a thread's multi-megabyte ledger is decoded again only
+when its fingerprint changes (a launch or a binding). Likewise the continuation
+watch, which asks every hosted thread every 500 ms, reuses a thread's status
+while its record file is the one it read (`Couch.ContinuationRequests`,
+`recordStamp`; records are replaced by rename). Measured on the operator's store,
+22 live threads: a warm activity pass 0.34 s of CPU (was 8.6 s), a warm
+continuation scan 27 µs (was ~100 ms).
+
 ### Slots behind a picker draw red (pair#465)
 
 A live thread whose wrapper reports `Picker` draws in the terminal's red
