@@ -667,6 +667,10 @@ var NonArtifactSources = []string{
 	// #454 shared cast endpoint and its event stream; in memory, no paths.
 	"cmd/internal/broadcast/host.go",
 	"cmd/internal/broadcast/sse.go",
+	// #495 code lock on cast links: codes and sessions in memory, the gate
+	// in the Host; no artifact paths.
+	"cmd/internal/broadcast/lockgate.go",
+	"cmd/internal/castlock/castlock.go",
 	// #454 web cast: a CDP client over Chrome's pipe, and Couch's control of
 	// the cast Chrome. Its profile lives in Couch's store
 	// (<store>/webcast/chrome-profile), like the broadcast's run records; no
