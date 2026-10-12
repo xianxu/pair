@@ -15,6 +15,7 @@ claimant:
     workspace: pair:6
     worktree: /Users/xianxu/workspace/worktree/pair-slot6/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "a6c706f9", done: "355ddeb4"}
 ---
 
 # roll out ariadne#309 workflows (local-gates-guard, merge-check on push) to pair
