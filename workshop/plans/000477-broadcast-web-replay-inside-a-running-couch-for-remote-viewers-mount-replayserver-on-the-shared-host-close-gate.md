@@ -207,6 +207,30 @@ rounds:
       isolation: fenced
       reviewed: 9b9a11d67fefd9568ef15fe89bebb4428e2ddf05
       blocked: false
+    - "n": 7
+      timestamp: "2026-10-12T07:22:31-07:00"
+      dispatched: "2026-10-12T07:20:07-07:00"
+      agent: claude
+      dispose:
+        - id: BR-15
+          disposition: not-addressed
+          note: replay.js is not in this window; replay.js:482 still passes win.devicePixelRatio once, at mount, while annotate.js reads it on every paint. Minor, non-blocking.
+          round: 7
+      findings:
+        - id: BR-16
+          severity: Critical
+          title: 'Merge with main leaves four #477 tests on the retired "blog" fixture; go test ./cmd/internal/webcast fails at head'
+          detail: 'Main''s #474 (bb95a35af) deleted the app/blog/stress fixtures. The resolution moved only replay_live_test.go to rec-app; shares_test.go:62,171,244 and replay_server_test.go:235 still call replayRoot/sharesOn with "blog", and os.CopyFS fails with "stat .: no such file or directory" (TestReplaySharesShareOneRecordingPerToken, TestReplaySharesCloseWhileOpening, TestReplaySharesSharedAndOnReady, TestRecordingServerServesOnlyItsRecording). Rule: when a merge brings in a retired name, sweep the whole tree for it (grep -rnE ''(Fixture|replayRoot|sharesOn)\([^)]*"(app|blog|stress)"'' cmd), not just the files that conflicted. Fix: switch to rec-blog, including the /r/blog/ URL paths at shares_test.go:77,81 and replay_server_test.go:242-243.'
+          family: merge-sweep-retired-references
+          round: 7
+        - id: BR-17
+          severity: Minor
+          title: 'lessons.md: the moved #477 bullets have no blank line before the #480 bullet'
+          family: doc-formatting
+          round: 7
+      recipe: fix-review
+      isolation: fenced
+      blocked: true
 ---
 
 # Gate ledger — pair#477 (boundary-review)
@@ -291,6 +315,20 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - BR-15 — not-addressed — At head, replay.js:482 still passes win.devicePixelRatio once, at mount, while annotate.js:484 reads it on every paint; no later commit touches it. Minor and non-blocking: pass a getter, or read it inside draw.
 
+## Round 7 — 2026-10-12T07:22:31-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-15 — not-addressed — replay.js is not in this window; replay.js:482 still passes win.devicePixelRatio once, at mount, while annotate.js reads it on every paint. Minor, non-blocking.
+
+### Raised
+
+- **BR-16** [Critical] `merge-sweep-retired-references` Merge with main leaves four #477 tests on the retired "blog" fixture; go test ./cmd/internal/webcast fails at head
+  Main's #474 (bb95a35af) deleted the app/blog/stress fixtures. The resolution moved only replay_live_test.go to rec-app; shares_test.go:62,171,244 and replay_server_test.go:235 still call replayRoot/sharesOn with "blog", and os.CopyFS fails with "stat .: no such file or directory" (TestReplaySharesShareOneRecordingPerToken, TestReplaySharesCloseWhileOpening, TestReplaySharesSharedAndOnReady, TestRecordingServerServesOnlyItsRecording). Rule: when a merge brings in a retired name, sweep the whole tree for it (grep -rnE '(Fixture|replayRoot|sharesOn)\([^)]*"(app|blog|stress)"' cmd), not just the files that conflicted. Fix: switch to rec-blog, including the /r/blog/ URL paths at shares_test.go:77,81 and replay_server_test.go:242-243.
+- **BR-17** [Minor] `doc-formatting` lessons.md: the moved #477 bullets have no blank line before the #480 bullet
+
 ## Open findings
 
 - **BR-15** [Minor] `captured-environment-value` replayMarks reads devicePixelRatio once, at mount, so the stroke canvas goes stale after a zoom or a move to another display
+- **BR-16** [Critical] `merge-sweep-retired-references` Merge with main leaves four #477 tests on the retired "blog" fixture; go test ./cmd/internal/webcast fails at head
+- **BR-17** [Minor] `doc-formatting` lessons.md: the moved #477 bullets have no blank line before the #480 bullet

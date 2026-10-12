@@ -59,7 +59,7 @@ func shareGet(t *testing.T, url string) (int, string) {
 // same tunnel.
 func TestReplaySharesShareOneRecordingPerToken(t *testing.T) {
 	f := &broadcast.FakeTunnel{OpenDelay: 50 * time.Millisecond}
-	s := sharesOn(t, f, "segments", "blog")
+	s := sharesOn(t, f, "segments", "rec-blog")
 	if st := s.Share("segments"); st.State != ShareOpening {
 		t.Fatalf("first Share: %+v", st)
 	}
@@ -74,11 +74,11 @@ func TestReplaySharesShareOneRecordingPerToken(t *testing.T) {
 	if code, body := shareGet(t, a.Base+"/r/segments/records"); code != 200 || !strings.Contains(body, `"k":"head"`) {
 		t.Fatalf("records %d %.80s", code, body)
 	}
-	b := awaitShare(t, s, "blog")
+	b := awaitShare(t, s, "rec-blog")
 	if b.State != ShareReady || b.Base == a.Base {
 		t.Fatalf("blog: %+v (segments %s)", b, a.Base)
 	}
-	for _, u := range []string{a.Base + "/r/blog/", a.Base + "/", b.Base + "/r/segments/records"} {
+	for _, u := range []string{a.Base + "/r/rec-blog/", a.Base + "/", b.Base + "/r/segments/records"} {
 		if code, _ := shareGet(t, u); code != 404 {
 			t.Errorf("%s: %d, want 404", u, code)
 		}
@@ -168,10 +168,10 @@ func TestReplaySharesFailures(t *testing.T) {
 func TestReplaySharesCloseWhileOpening(t *testing.T) {
 	f := &broadcast.FakeTunnel{OpenDelay: 150 * time.Millisecond, IgnoreCancel: true}
 	h := broadcast.NewHost(broadcast.HostConfig{Tunnel: f, ProbeTimeout: 2 * time.Second})
-	s := NewReplayShares(h, replayRoot(t, "segments", "blog"))
+	s := NewReplayShares(h, replayRoot(t, "segments", "rec-blog"))
 	before := runtime.NumGoroutine()
 	s.Share("segments")
-	s.Share("blog")
+	s.Share("rec-blog")
 	time.Sleep(20 * time.Millisecond) // both mounts are waiting on the open
 	s.Close()
 	if st := f.Stats(); st.Opens != st.Closes {
@@ -241,15 +241,15 @@ func TestReplaySharesMountCompletingAfterClose(t *testing.T) {
 // Shared lists the ready shares, and OnReady says when each becomes so.
 func TestReplaySharesSharedAndOnReady(t *testing.T) {
 	f := &broadcast.FakeTunnel{}
-	s := sharesOn(t, f, "segments", "blog")
+	s := sharesOn(t, f, "segments", "rec-blog")
 	var mu sync.Mutex
 	var ready []string
 	s.OnReady(func(id string, _ ShareStatus) { mu.Lock(); ready = append(ready, id); mu.Unlock() })
 	awaitShare(t, s, "segments")
-	awaitShare(t, s, "blog")
+	awaitShare(t, s, "rec-blog")
 	mu.Lock()
 	defer mu.Unlock()
-	if strings.Join(s.Shared(), ",") != "blog,segments" || len(ready) != 2 {
+	if strings.Join(s.Shared(), ",") != "rec-blog,segments" || len(ready) != 2 {
 		t.Fatalf("shared %q, ready %q", s.Shared(), ready)
 	}
 }

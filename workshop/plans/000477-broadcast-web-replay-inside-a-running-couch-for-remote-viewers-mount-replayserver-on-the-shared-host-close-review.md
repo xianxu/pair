@@ -64,3 +64,90 @@ dispose:
     note: |
       At head, replay.js:482 still passes win.devicePixelRatio once, at mount, while annotate.js:484 reads it on every paint; no later commit touches it. Minor and non-blocking: pass a getter, or read it inside draw.
 ```
+
+---
+
+## Re-review — 2026-10-12T07:22:30-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 477 — broadcast-web: replay inside a running Couch, for remote viewers (mount ReplayServer on the shared Host) |
+| repo | pair |
+| issue file | workshop/issues/000477-broadcast-web-replay-inside-a-running-couch-for-remote-viewers-mount-replayserver-on-the-shared-host.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | ab270639baac60b954b18c4684c00983a2f426a4..d159ddfaa3d8fed112faee674cb6ce8eaa9ceefa |
+| command | sdlc close --issue 477 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-12T07:22:30-07:00 |
+| verdict | REWORK |
+
+## Review
+
+Checking a failing test that's outside the review window, to see whether the interdiff is to blame.
+
+I've finished reviewing. The merged head fails four Go tests, which blocks shipping.
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+This window is the post-close interdiff, which merges main into the #477 branch. It touches one test file (whose conflict was resolved by hand), two workshop ledger/review files, and a reordering in `lessons.md`. The hand-resolved conflict in `cmd/internal/webcast/replay_live_test.go` is good: it keeps both sides' intent. The merge still leaves the head broken. Main's #474 (`bb95a35af`) retired the old prototype fixtures `app`, `blog` and `stress`. The resolution moved only `replay_live_test.go` to the new fixtures (`rec-app`). Three other #477 test sites still copy the deleted `blog` fixture, so `go test ./cmd/internal/webcast/` fails at the pinned head:
+
+```
+--- FAIL: TestRecordingServerServesOnlyItsRecording   replay_server_test.go:235: stat .: no such file or directory
+--- FAIL: TestReplaySharesShareOneRecordingPerToken   shares_test.go:62:        stat .: no such file or directory
+--- FAIL: TestReplaySharesCloseWhileOpening           shares_test.go:171:       stat .: no such file or directory
+--- FAIL: TestReplaySharesSharedAndOnReady            shares_test.go:244:       stat .: no such file or directory
+FAIL	github.com/xianxu/pair/cmd/internal/webcast
+```
+
+`replayRoot` (`replay_server_test.go:18-27`) runs `os.CopyFS` on `recording.Fixture("blog")`, and that directory no longer exists on main. The other `webcast/...` subpackages pass. BR-15 is still not fixed: `replay.js` is not in this window.
+
+1. **Strengths**
+   - `replay_live_test.go:130-140`: the resolution takes main's approach. Check times come from the `rec-app` recording's own Note/NoteState/Stroke/Seg records, so a re-recorded fixture keeps working. The branch's checks for painted strokes, card placement and resize while paused are all kept.
+   - `replay_live_test.go:203-213`: the old hard-coded `#t=19100` (tap) and `#t=12400` (resize) are now derived (`withNote`, `withNote+1`). The test fails loudly (`no moment shows a note`) instead of silently checking nothing if a fixture loses its notes. This follows the PURPOSE lens.
+   - The comment at `:167-168` now names `noteBox` instead of the removed `drawMarks`, which matches BR-13's correction.
+
+2. **Critical findings**
+   - `cmd/internal/webcast/shares_test.go:62,171,244` and `replay_server_test.go:235` still use the `blog` fixture that main's #474 deleted, so four tests fail at head. The rule: when a merge brings in a retired name, grep every use of that name across the tree in the same resolution, not just the files that conflicted textually. The sweep is `grep -rnE '(Fixture|replayRoot|sharesOn)\([^)]*"(app|blog|stress)"' cmd`, which today finds exactly these four. Fix: switch them to `rec-blog`, including the URL paths at `shares_test.go:77,81` and `replay_server_test.go:242-243`. Then confirm `go test ./cmd/internal/webcast/...` passes.
+
+3. **Important findings:** none.
+
+4. **Minor findings**
+   - `workshop/lessons.md`: the moved #477 bullets now sit directly before the #480 bullet with no blank line between them, unlike the neighbouring entries.
+   - BR-15 is still open (see the disposition below).
+
+5. **Test coverage notes**
+   - I ran `go vet` and `go test ./cmd/internal/webcast/...`. The only failures are the four above, all caused by the missing fixture.
+   - I did not run the live Chrome test `TestLiveReplayServerMarks` (it needs `WEBCAST_LIVE_CHROME=1`). I read the resolved file and it compiles under vet. Using `withNote+1` for the resize check is fine: the canvas-versus-box check doesn't depend on which moment is showing.
+
+6. **Architectural notes**
+   - **ARCH-DRY: pass.** The resolution adds no duplicated logic.
+   - **ARCH-PURE: pass.** The window changes only tests and docs.
+   - **ARCH-PURPOSE: flag.** The conflict resolution fixed the one file that conflicted, not every reference to the retired fixtures (the Critical finding above).
+
+7. **Plan revision recommendations:** none.
+
+```findings
+dispose:
+  - id: BR-15
+    disposition: not-addressed
+    note: |
+      replay.js is not in this window; replay.js:482 still passes win.devicePixelRatio once, at mount, while annotate.js reads it on every paint. Minor, non-blocking.
+findings:
+  - id: new
+    severity: Critical
+    family: merge-sweep-retired-references
+    title: |
+      Merge with main leaves four #477 tests on the retired "blog" fixture; go test ./cmd/internal/webcast fails at head
+    detail: |
+      Main's #474 (bb95a35af) deleted the app/blog/stress fixtures. The resolution moved only replay_live_test.go to rec-app; shares_test.go:62,171,244 and replay_server_test.go:235 still call replayRoot/sharesOn with "blog", and os.CopyFS fails with "stat .: no such file or directory" (TestReplaySharesShareOneRecordingPerToken, TestReplaySharesCloseWhileOpening, TestReplaySharesSharedAndOnReady, TestRecordingServerServesOnlyItsRecording). Rule: when a merge brings in a retired name, sweep the whole tree for it (grep -rnE '(Fixture|replayRoot|sharesOn)\([^)]*"(app|blog|stress)"' cmd), not just the files that conflicted. Fix: switch to rec-blog, including the /r/blog/ URL paths at shares_test.go:77,81 and replay_server_test.go:242-243.
+  - id: new
+    severity: Minor
+    family: doc-formatting
+    title: |
+      lessons.md: the moved #477 bullets have no blank line before the #480 bullet
+```

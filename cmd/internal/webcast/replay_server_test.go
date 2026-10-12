@@ -232,15 +232,15 @@ func TestListRecordingsTornLastLineIsUnknown(t *testing.T) {
 // A server scoped to one recording (a replay share, #477) serves that one
 // and nothing else: no listing, no other recording, no way out of it.
 func TestRecordingServerServesOnlyItsRecording(t *testing.T) {
-	root := replayRoot(t, "segments", "blog")
+	root := replayRoot(t, "segments", "rec-blog")
 	s := NewRecordingServer("tok", root, "segments")
 	for _, p := range []string{"/tok/r/segments/", "/tok/r/segments/records", "/tok/r/segments/viewer.js"} {
 		if res, _ := replayGet(t, s, http.MethodGet, p); res.StatusCode != 200 {
 			t.Errorf("%s: %d", p, res.StatusCode)
 		}
 	}
-	for _, p := range []string{"/tok/", "/tok", "/tok/r/", "/tok/r/blog/", "/tok/r/blog/records", "/tok/r/../r/blog/",
-		"/tok/r/segments%2F..%2Fblog/records", "/tok/r/segments/../blog/records", "/other/r/segments/", "/tok/r/Segments/"} {
+	for _, p := range []string{"/tok/", "/tok", "/tok/r/", "/tok/r/rec-blog/", "/tok/r/rec-blog/records", "/tok/r/../r/rec-blog/",
+		"/tok/r/segments%2F..%2Frec-blog/records", "/tok/r/segments/../rec-blog/records", "/other/r/segments/", "/tok/r/Segments/"} {
 		if res, body := replayGet(t, s, http.MethodGet, p); res.StatusCode != 404 {
 			t.Errorf("%s: %d %.80s", p, res.StatusCode, body)
 		}
