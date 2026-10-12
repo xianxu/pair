@@ -62,6 +62,7 @@ subject, measured so that load can't fake it: a count of operations, or a budget
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — review BR-1: atlas/couch.md now states the rule (outcome, hang guard, op count, isolated budget via perfbudget.Check) and names the make target recipe as the single list; prior evidence: make -k test green but the godoc lint fixed in 5b, make test-perf-budgets passes in isolation, touched packages green; review verdict: SHIP
 
 - Done. Every listed test now asserts its outcome:
   - **Tail:** the 200 lines, with the budget through `perfbudget.Check` and added to `make test-perf-budgets`.
