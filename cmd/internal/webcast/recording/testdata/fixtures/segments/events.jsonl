@@ -1,0 +1,15 @@
+{"t":0,"k":"head","format":"couch-webcast","v":1,"id":"segments","started":"2026-10-11T00:00:00Z"}
+{"t":0,"k":"seg","seg":1,"why":"live","tab":{"id":"tab1","url":"http://app.local/"},"vp":{"w":1280,"h":800,"dpr":1}}
+{"t":0,"k":"doc","doc":10,"url":"http://app.local/","tree":{"id":10,"y":"doc","c":[{"id":11,"y":"doctype","n":"html"},{"id":9,"y":"el","n":"html","c":[{"id":7,"y":"el","n":"head"},{"id":8,"y":"el","n":"body","c":[{"id":6,"y":"el","n":"h1","c":[{"id":5,"y":"text","v":"Inbox"}]},{"id":1,"y":"el","n":"input","a":{"id":"q"}},{"id":4,"y":"el","n":"ul","a":{"id":"list"},"c":[{"id":3,"y":"el","n":"li","c":[{"id":2,"y":"text","v":"one"}]}]}]}]}]}}
+{"t":500,"k":"layout","boxes":{"1":[16,60,200,24],"4":[16,100,600,40]}}
+{"t":800,"k":"focus","id":1}
+{"t":1200,"k":"input","id":1,"v":"inv"}
+{"t":2000,"k":"stop","why":"pause"}
+{"t":5000,"k":"seg","seg":2,"why":"resume","tab":{"id":"tab1","url":"http://app.local/"},"vp":{"w":1280,"h":800,"dpr":1}}
+{"t":5000,"k":"doc","doc":14,"url":"http://app.local/","tree":{"id":14,"y":"doc","c":[{"id":15,"y":"doctype","n":"html"},{"id":9,"y":"el","n":"html","c":[{"id":7,"y":"el","n":"head"},{"id":8,"y":"el","n":"body","c":[{"id":6,"y":"el","n":"h1","c":[{"id":5,"y":"text","v":"Inbox"}]},{"id":1,"y":"el","n":"input","a":{"id":"q"}},{"id":4,"y":"el","n":"ul","a":{"id":"list"},"c":[{"id":3,"y":"el","n":"li","c":[{"id":2,"y":"text","v":"one"}]},{"id":13,"y":"el","n":"li","c":[{"id":12,"y":"text","v":"two"}]}]}]}]}]}}
+{"t":5200,"k":"input","id":1,"v":"invoice"}
+{"t":7000,"k":"seg","seg":3,"why":"tab","tab":{"id":"tab2","url":"http://app.local/settings","title":"Settings"},"vp":{"w":1280,"h":800,"dpr":1}}
+{"t":7000,"k":"doc","doc":21,"url":"http://app.local/settings","tree":{"id":21,"y":"doc","c":[{"id":22,"y":"doctype","n":"html"},{"id":20,"y":"el","n":"html","c":[{"id":18,"y":"el","n":"head"},{"id":19,"y":"el","n":"body","c":[{"id":17,"y":"el","n":"p","c":[{"id":16,"y":"text","v":"Settings"}]}]}]}]}}
+{"t":7500,"k":"title","v":"Settings"}
+{"t":8000,"k":"nav","url":"http://app.local/settings#privacy"}
+{"t":9000,"k":"stop","why":"end"}
