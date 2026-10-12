@@ -1,0 +1,11 @@
+$ couch --broadcast-web-query <fixtures>/driven events --from 0 --to 2600
+0 recording driven started 2026-10-11T00:00:00Z
+0 segment 1 starts (live) on http://app.local/, viewport 1280x800@1
+0 document http://app.local/
+100 layout boxes for 3 nodes
+1000 control request Ana (v1) → the operator drives; asking: Ana (v1)
+1500 control grant Ana (v1) → Ana (v1) drives
+2000 click @1 <input#q> at 100,30 by Ana (v1)
+2000 focus @1 <input#q> by Ana (v1)
+2400 input @1 <input#q> value "invoice" by Ana (v1)
+2600 note drv-n1 by Ana (v1) on @1 <input#q>: "Search should keep my query."

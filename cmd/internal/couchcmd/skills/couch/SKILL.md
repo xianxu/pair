@@ -350,6 +350,24 @@ couch --reload-context pair:3 --confirm
   afterwards. A reload-context `failed` with code `unconfirmed` means the
   signal landed but no restart was seen; peek before retrying.
 
+## Reading a broadcast-web recording
+
+When you're given a broadcast-web recording (a directory with `events.jsonl`
+and `notes.jsonl`), ask it through `couch --broadcast-web-query DIR …` rather
+than reading the JSON lines; the answers are sized for your context:
+
+- `notes [--note ID] [--before MS]`: each note with who wrote it and when,
+  its element as of that moment, the context around it, and the user's
+  actions just before it (a driver's actions say `by <viewer>`).
+- `dom [--at T] [--sel SELECTOR]`: the page at time T (ms since the recording
+  started; default the end), every element named `@N`. Pass `--sel @N` to
+  see one element whole; `--json` for every attribute.
+- `events --from T1 --to T2`: what happened in a window, re-renders folded
+  into one line each.
+
+Start with `notes`, then drill into `dom --at <note t> --sel @N` and the
+`events` before it.
+
 ## Setup and qualification
 
 In an existing conversation, run `couch --skill` and read its complete output.

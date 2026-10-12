@@ -701,8 +701,15 @@ var NonArtifactSources = []string{
 	"cmd/internal/webcast/notes/landmark.go",
 	"cmd/internal/webcast/notes/selector.go",
 	"cmd/internal/webcast/notes/structural.go",
+	// #462 agent queries: read a recording directory the caller names
+	// (couch --broadcast-web-query DIR) and write only to stdout.
+	"cmd/internal/webcast/query/cli.go",
 	"cmd/internal/webcast/query/contract.go",
+	"cmd/internal/webcast/query/events.go",
 	"cmd/internal/webcast/query/fake.go",
+	"cmd/internal/webcast/query/querier.go",
+	"cmd/internal/webcast/query/render.go",
+	"cmd/internal/webcast/query/selector.go",
 	"cmd/internal/webcast/query/surface.go",
 	"cmd/internal/webcast/recording/builder.go",
 	"cmd/internal/webcast/recording/canonical.go",

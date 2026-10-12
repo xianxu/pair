@@ -42,6 +42,7 @@ import (
 	pairterminal "github.com/xianxu/pair/cmd/internal/terminal"
 	"github.com/xianxu/pair/cmd/internal/terminalcapture"
 	"github.com/xianxu/pair/cmd/internal/threadactivity"
+	"github.com/xianxu/pair/cmd/internal/webcast/query"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
@@ -274,6 +275,10 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 	if invocation.kind == cliSkill {
 		fmt.Fprint(stdout, couchSkill)
 		return 0
+	}
+	if invocation.kind == cliWebQuery {
+		// A pure read of a recording directory: no Couch runtime needed.
+		return query.Main(invocation.args, stdout, stderr)
 	}
 	if invocation.kind == cliAdopt {
 		return runAdoptionCLI(invocation, rt, stdout, stderr)
@@ -1278,6 +1283,10 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "             COUCH_ISOLATED_ROOT explicitly separates diagnostic/test runtimes.")
 	fmt.Fprintln(w, "       couch --send-to repo[:N]|hub [--agent NAME] --message TEXT")
 	fmt.Fprintln(w, "       couch --message-status ID [--json]")
+	fmt.Fprintln(w, "       couch "+query.Flag+" DIR dom|events|notes ...")
+	fmt.Fprintln(w, "             Read-only: ask a broadcast-web recording for the page at t, what happened")
+	fmt.Fprintln(w, "             in a window, and every note with its element and the actions before it.")
+	fmt.Fprintln(w, "             `couch "+query.Flag+"` alone prints its usage.")
 	fmt.Fprintln(w, "       couch --skill")
 	fmt.Fprintln(w, "       couch --help")
 	fmt.Fprintln(w)
