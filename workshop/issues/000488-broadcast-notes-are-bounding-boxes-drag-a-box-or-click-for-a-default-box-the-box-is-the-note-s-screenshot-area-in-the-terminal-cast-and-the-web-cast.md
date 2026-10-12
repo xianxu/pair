@@ -1,12 +1,20 @@
 ---
 id: 000488
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '00457b972e6f06bd059761c599e7eee14c8aa61a' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'd6504b76741ec18828bf5ac29914b2faa1028978' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-10-12T10:40:32-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:3
+    worktree: /Users/xianxu/workspace/worktree/pair-slot3/pair
+    repository: github.com/xianxu/pair
 ---
 
 # broadcast: notes are bounding boxes — drag a box (or click for a default box); the box is the note's screenshot area, in the terminal cast and the web cast
@@ -34,8 +42,14 @@ One mechanism for both casts (the terminal viewer and the web viewer already sha
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000488-…-plan.md` (same slug).
+
+- [ ] M1 — shared `noteBox` (collab.js) + web cast: always-region with default box, BR-4 clamp, outlined pins, NoteAt kind/path, NoteCrops = padded box (snap + Hints retired, hub-coordinated with #483)
+- [ ] M2 — terminal boxes: wire `box` + derived pin, viewer drag, DrawNotes outline, `NoteCrop` seam for #455
+- [ ] M3 — terminal anchor: pure `AnchorFor` + list-panes rect cache (fake) + nvim view.json
+- [ ] Operator smoke test in both casts
 
 ## Log
 
 ### 2026-10-12
+- Claimed from pair:3 (TL dispatch). Plan drafted; sent to hub for UI choices A–D before building.
