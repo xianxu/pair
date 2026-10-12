@@ -15,6 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "b4dd6b99", done: "4efa8f08"}
 ---
 
 # couch: the hub refuses messages while one is pending ('recipient has a pending message'); queue them instead
