@@ -23,6 +23,13 @@ type NoteView struct {
 	// Before is what the user did in the window before the note: clicks,
 	// form input, focus, navigation, scrolling, selection.
 	Before []recording.Record
+	// Landmark describes Context.Landmark in one line, as of the note's
+	// time (Describe); URL and Header are the page's at that time. The
+	// real surface fills them; the fake leaves them empty.
+	Landmark, URL, Header string
+	// BeforeLines are Before in words, one per record with its time,
+	// targets named as they were (the real surface only).
+	BeforeLines []string
 }
 
 // Surface answers an agent's questions about one recording. Times are ms
