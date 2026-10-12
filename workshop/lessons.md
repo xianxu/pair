@@ -1207,3 +1207,10 @@ proof; record the surprising case so the next change starts from evidence.
   event that makes it true and wait on that event: a no-op command through the loop that owns the state, or an
   injected clock (`Couch.after`) that ties the timeout to the fake's state. To prove a suspected window, widen it
   with a temporary sleep in the product or fake and watch the test fail every time.
+
+- **A snapshot of a running page is not a fresh load (#478).** The fidelity replay started the blog's entry fade
+  when it drew the go-live snapshot, but the tab had finished it seconds before the cast went live, so the first
+  frame scored 2.15% for no render fault. When a replay or viewer draws a state captured mid-life (a segment that
+  isn't a navigation, a catch-up), ask what the browser's own clocks (animations, transitions) were doing at
+  capture, and settle them to the likeliest phase. Look at the worst moment's crop before tuning a tolerance: the
+  picture named the cause where the number couldn't.

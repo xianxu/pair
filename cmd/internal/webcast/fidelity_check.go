@@ -291,8 +291,12 @@ func (h *headless) open(ctx context.Context, url string) error {
 // score replays f's moment and diffs it with the tab's frame; over the
 // tolerance, it tries fidelity.Retries and keeps the best. It returns the
 // shot and its replay; live is false when nothing live was drawn at t.
-func (h *headless) score(ctx context.Context, f *recording.Frame, tab []byte) (fidelity.Shot, []byte, bool, error) {
+func (h *headless) score(ctx context.Context, f *recording.Frame, tabPNG []byte) (fidelity.Shot, []byte, bool, error) {
 	shot := fidelity.Shot{File: f.File, T: f.T}
+	tab, err := png.Decode(bytes.NewReader(tabPNG))
+	if err != nil {
+		return shot, nil, false, fmt.Errorf("the tab's frame: %w", err)
+	}
 	var best []byte
 	for _, off := range append([]int64{0}, fidelity.Retries...) {
 		got, live, err := h.replayFrame(ctx, f, f.T+off)
@@ -305,7 +309,11 @@ func (h *headless) score(ctx context.Context, f *recording.Frame, tab []byte) (f
 			}
 			continue
 		}
-		d, err := fidelity.Diff(tab, got)
+		img, err := png.Decode(bytes.NewReader(got))
+		if err != nil {
+			return shot, nil, false, err
+		}
+		d, err := fidelity.DiffImages(tab, img)
 		if err != nil {
 			d = 1 // a replay at another size differs everywhere
 		}
