@@ -37,7 +37,10 @@ pair#471 (PR #266) replays recordings via `couch --broadcast-web-replay`, on loo
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000477-broadcast-web-replay-inside-a-running-couch-for-remote-viewers-mount-replayserver-on-the-shared-host-plan.md`.
+
+- [ ] M1 — replay shares (one token per recording) on the shared Host; broker op `replay-share`; `couch --broadcast-web-replay ID` prints the public link while Couch runs (loopback fallback, `--local`); `--broadcast-web-query DIR link`; length-unknown advisory; atlas + skill
+- [ ] M2 — after #470 lands: merge main; replay draws notes and strokes with #470's modules; live check
 
 ## Log
 
