@@ -53,7 +53,7 @@ type ReplayShares struct {
 	// onReady tells the operator a recording is now public (set before the
 	// first Share); mounted is a test seam between a mount completing and
 	// its share recording it.
-	onReady func(id string)
+	onReady func(id string, st ShareStatus)
 	mounted func()
 
 	mu     sync.Mutex
@@ -74,7 +74,7 @@ func NewReplayShares(host *broadcast.Host, root string) *ReplayShares {
 
 // OnReady makes f be called, outside the lock, each time a share becomes
 // ready: the operator sees what the tunnel serves. Call before Share.
-func (s *ReplayShares) OnReady(f func(id string)) { s.onReady = f }
+func (s *ReplayShares) OnReady(f func(id string, st ShareStatus)) { s.onReady = f }
 
 // Shared is the recordings whose shares are ready, sorted.
 func (s *ReplayShares) Shared() []string {
@@ -161,9 +161,10 @@ func (s *ReplayShares) mount(sh *share, id, token string) {
 		return
 	}
 	sh.status, sh.mount = ShareStatus{State: ShareReady, Base: m.Base() + "/" + token, Local: m.Mode() == broadcast.ModeLocalOnly}, m
+	ready := sh.status
 	s.mu.Unlock()
 	if s.onReady != nil {
-		s.onReady(id)
+		s.onReady(id, ready)
 	}
 	select {
 	case <-m.Exited():

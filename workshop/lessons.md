@@ -1220,3 +1220,11 @@ proof; record the surprising case so the next change starts from evidence.
   isn't a navigation, a catch-up), ask what the browser's own clocks (animations, transitions) were doing at
   capture, and settle them to the likeliest phase. Look at the worst moment's crop before tuning a tolerance: the
   picture named the cause where the number couldn't.
+
+- **A surface that lets an agent open something public needs the operator to see it, and every surface gets swept
+  (#477).** `query link` let an agent open the broadcast tunnel with nothing shown to the operator. Round 1 fixed that
+  (a notice, and the ids in `--broadcast-list`), but left the README saying the listing never had more, and pinned
+  the listing with a test while the notice had none. When an action can be taken by an agent and is visible to people
+  outside the machine, ask, at design time, how the operator learns it happened. When you add a verb, flag, output
+  line or JSON key, grep its name across the README (synopsis and prose), `couch --help`, the atlas, SKILL.md and the
+  Usage text in the same commit. Give each behavior a fix adds its own test that fails without it.

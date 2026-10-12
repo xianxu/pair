@@ -220,7 +220,7 @@ func TestReplaySharesMountCompletingAfterClose(t *testing.T) {
 	entered, release := make(chan struct{}), make(chan struct{})
 	s.mounted = func() { close(entered); <-release }
 	var ready []string
-	s.OnReady(func(id string) { ready = append(ready, id) })
+	s.OnReady(func(id string, _ ShareStatus) { ready = append(ready, id) })
 	s.Share("segments")
 	<-entered // mounted: the tunnel is open and the share is about to be ready
 	closed := make(chan struct{})
@@ -244,7 +244,7 @@ func TestReplaySharesSharedAndOnReady(t *testing.T) {
 	s := sharesOn(t, f, "segments", "blog")
 	var mu sync.Mutex
 	var ready []string
-	s.OnReady(func(id string) { mu.Lock(); ready = append(ready, id); mu.Unlock() })
+	s.OnReady(func(id string, _ ShareStatus) { mu.Lock(); ready = append(ready, id); mu.Unlock() })
 	awaitShare(t, s, "segments")
 	awaitShare(t, s, "blog")
 	mu.Lock()

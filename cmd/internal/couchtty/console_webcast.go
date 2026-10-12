@@ -255,8 +255,11 @@ func (c *Console) endWebcastForShutdown() {
 // the tunnel, maybe at an agent's request. The notice never carries the
 // link, which a screen broadcast would draw to its viewers.
 func (c *Console) SetReplayShares(s *webcast.ReplayShares) {
-	s.OnReady(func(id string) {
+	s.OnReady(func(id string, st webcast.ShareStatus) {
 		msg := fmt.Sprintf("Replay of %s shared through the broadcast tunnel until Couch exits (%d shared).", id, len(s.Shared()))
+		if st.Local {
+			msg = fmt.Sprintf("Replay of %s shared on this machine only (the tunnel is off) until Couch exits (%d shared).", id, len(s.Shared()))
+		}
 		c.GoTracked(func() { c.setNotice(msg) })
 	})
 	c.replays = s

@@ -397,7 +397,8 @@ couch --peek repo:N[:M...][,repo:N...] [--lines N] [--json] [--transcripts]
                                            read-only: slots' recent terminal (live, with dim/reverse/cursor marks); --transcripts adds log paths
 couch --archived         threads removed from couch, with their records kept
 couch --actors [--json]  live peer-message receivers in this Couch namespace
-couch --broadcast-list [--json]   the running broadcast and its viewer count (never the link)
+couch --broadcast-list [--json]   the running broadcast and its viewer count, and the recordings shared
+                         for replay (pair#477); never a link
 couch --broadcast-web-query DIR dom|events|notes|link ...
                          read-only: a broadcast-web recording's page at t, what happened in a window,
                          and every note with its element and the actions before it (pair#462); link
@@ -867,13 +868,18 @@ dies with the broadcast.
 `couch --broadcast-list [--json]`, from any shell, reports whether a broadcast is
 running and how many viewers are watching: its state, start time, mode and
 viewer count. It never prints the link or its token, because the token is the
-broadcast's only credential.
+broadcast's only credential. While recordings are shared for replay through the
+tunnel (see `--broadcast-web-replay` below), it adds a line naming them,
+`replays shared until Couch exits: <id>, …`, and `--json` adds a `replays` list
+of their ids. A notice in Couch says so each time one is shared.
 
-`couch --broadcast-web-query DIR dom|events|notes` reads a broadcast-web
+`couch --broadcast-web-query DIR dom|events|notes|link` reads a broadcast-web
 recording directory for a coding agent: the page at a moment, what happened
 in a window, and every note with its element, focused context and the actions
-just before it. It needs no running Couch; `couch --broadcast-web-query` alone
-prints its usage. See [atlas/webcast-format.md](atlas/webcast-format.md#agent-queries-462).
+just before it. These need no running Couch. `link [--at MS]` is the exception:
+it asks the running Couch to share the recording and prints its replay link
+alone on stdout (any note goes to stderr), and with no Couch it refuses.
+`couch --broadcast-web-query` alone prints its usage. See [atlas/webcast-format.md](atlas/webcast-format.md#agent-queries-462).
 
 `couch --broadcast-web-replay [ID|DIR] [--at MS]` plays recordings in the
 viewer: play, pause, speed, and a timeline that shows pauses as gaps, notes,
