@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -206,5 +207,49 @@ func waitGoroutines(t *testing.T, want int) {
 			t.Fatalf("%d goroutines, want at most %d", runtime.NumGoroutine(), want)
 		}
 		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// A mount that completes just after Close is unmounted at once: nobody
+// serves it, and the tunnel it held closes. The seam holds the mount
+// between completing and being recorded until Close has begun.
+func TestReplaySharesMountCompletingAfterClose(t *testing.T) {
+	f := &broadcast.FakeTunnel{}
+	h := broadcast.NewHost(broadcast.HostConfig{Tunnel: f, ProbeTimeout: 2 * time.Second})
+	s := NewReplayShares(h, replayRoot(t, "segments"))
+	entered, release := make(chan struct{}), make(chan struct{})
+	s.mounted = func() { close(entered); <-release }
+	var ready []string
+	s.OnReady(func(id string) { ready = append(ready, id) })
+	s.Share("segments")
+	<-entered // mounted: the tunnel is open and the share is about to be ready
+	closed := make(chan struct{})
+	go func() { s.Close(); close(closed) }()
+	for s.Status("segments").State != ShareClosed {
+		time.Sleep(time.Millisecond)
+	}
+	close(release)
+	<-closed
+	if st := f.Stats(); st.Opens != 1 || st.Closes != 1 {
+		t.Fatalf("tunnel %+v: the late mount was left open", st)
+	}
+	if len(ready) != 0 || len(s.Shared()) != 0 {
+		t.Fatalf("a share after Close was reported: %q %q", ready, s.Shared())
+	}
+}
+
+// Shared lists the ready shares, and OnReady says when each becomes so.
+func TestReplaySharesSharedAndOnReady(t *testing.T) {
+	f := &broadcast.FakeTunnel{}
+	s := sharesOn(t, f, "segments", "blog")
+	var mu sync.Mutex
+	var ready []string
+	s.OnReady(func(id string) { mu.Lock(); ready = append(ready, id); mu.Unlock() })
+	awaitShare(t, s, "segments")
+	awaitShare(t, s, "blog")
+	mu.Lock()
+	defer mu.Unlock()
+	if strings.Join(s.Shared(), ",") != "blog,segments" || len(ready) != 2 {
+		t.Fatalf("shared %q, ready %q", s.Shared(), ready)
 	}
 }

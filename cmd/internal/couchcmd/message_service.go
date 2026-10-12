@@ -149,6 +149,8 @@ type messageService struct {
 	// replay answers replay-share and replay-status (pair#477), like
 	// broadcastStatus; nil answers them unsupported.
 	replay atomic.Pointer[func(op, id string) couchmessage.ReplayShare]
+	// replays lists the shared recordings for broadcast-status; nil lists none.
+	replays atomic.Pointer[func() []string]
 	// deliveries records each landed delivery for session-sync owed events
 	// (pair#437); nil records nothing.
 	deliveries atomic.Pointer[deliveryRecorder]
@@ -360,7 +362,7 @@ func startMessageService(console *couchtty.Console, c *couchcore.Couch) (*messag
 	probe.service.Store(service)
 	console.SetMessageBroker(service.broker)
 	service.SetBroadcastStatus(console.BroadcastStatus)
-	service.SetReplay(console.ReplayShare)
+	service.SetReplay(console.ReplayShare, console.SharedReplays)
 	service.recordDeliveries(namespace)
 	watcher := newWaitWatcher(service, threshold, namespace)
 	service.workers.Add(1)
@@ -723,11 +725,15 @@ func (s *messageService) handleBroadcastStatus(request couchmessage.Request) cou
 	if status == nil {
 		return couchmessage.Response{Code: "unsupported", Error: "this Couch reports no broadcast status"}
 	}
+	var replays []string
+	if list := s.replays.Load(); list != nil {
+		replays = (*list)()
+	}
 	snapshot, running := (*status)()
 	if !running {
-		return couchmessage.Response{Code: "ok"}
+		return couchmessage.Response{Code: "ok", Replays: replays}
 	}
-	return couchmessage.Response{Code: "ok", Broadcast: &snapshot}
+	return couchmessage.Response{Code: "ok", Broadcast: &snapshot, Replays: replays}
 }
 
 // handleReplay answers the operator's or an agent's replay request
@@ -836,9 +842,11 @@ func (s *messageService) tailBinding(ctx context.Context, request couchmessage.R
 	return couchmessage.Binding{}, "ambiguous", fmt.Errorf("%d wrappers are connected for this thread", len(matches))
 }
 
-// SetReplay installs the console's replay shares.
-func (s *messageService) SetReplay(replay func(op, id string) couchmessage.ReplayShare) {
+// SetReplay installs the console's replay shares: the requests, and the
+// listing broadcast-status carries.
+func (s *messageService) SetReplay(replay func(op, id string) couchmessage.ReplayShare, list func() []string) {
 	s.replay.Store(&replay)
+	s.replays.Store(&list)
 }
 
 // SetBroadcastStatus installs the console's broadcast snapshot.

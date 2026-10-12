@@ -3,6 +3,7 @@ package webcast
 import (
 	"context"
 	"errors"
+	"sort"
 	"sync"
 
 	"github.com/xianxu/pair/cmd/internal/broadcast"
@@ -49,6 +50,11 @@ type ReplayShares struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
+	// onReady tells the operator a recording is now public (set before the
+	// first Share); mounted is a test seam between a mount completing and
+	// its share recording it.
+	onReady func(id string)
+	mounted func()
 
 	mu     sync.Mutex
 	closed bool
@@ -64,6 +70,24 @@ type share struct {
 func NewReplayShares(host *broadcast.Host, root string) *ReplayShares {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &ReplayShares{host: host, root: root, ctx: ctx, cancel: cancel, shares: map[string]*share{}}
+}
+
+// OnReady makes f be called, outside the lock, each time a share becomes
+// ready: the operator sees what the tunnel serves. Call before Share.
+func (s *ReplayShares) OnReady(f func(id string)) { s.onReady = f }
+
+// Shared is the recordings whose shares are ready, sorted.
+func (s *ReplayShares) Shared() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var ids []string
+	for id, sh := range s.shares {
+		if sh.status.State == ShareReady {
+			ids = append(ids, id)
+		}
+	}
+	sort.Strings(ids)
+	return ids
 }
 
 var (
@@ -120,6 +144,9 @@ func (s *ReplayShares) mount(sh *share, id, token string) {
 	defer s.wg.Done()
 	// Ready once its viewer page answers through the link.
 	m, err := s.host.Mount(s.ctx, NewRecordingServer(token, s.root, id), token+"/r/"+id+"/")
+	if s.mounted != nil {
+		s.mounted()
+	}
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
@@ -135,6 +162,9 @@ func (s *ReplayShares) mount(sh *share, id, token string) {
 	}
 	sh.status, sh.mount = ShareStatus{State: ShareReady, Base: m.Base() + "/" + token, Local: m.Mode() == broadcast.ModeLocalOnly}, m
 	s.mu.Unlock()
+	if s.onReady != nil {
+		s.onReady(id)
+	}
 	select {
 	case <-m.Exited():
 		s.mu.Lock()

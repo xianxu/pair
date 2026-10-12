@@ -250,7 +250,25 @@ func (c *Console) endWebcastForShutdown() {
 // SetReplayShares gives the console the replay shares (#477): it answers
 // replay-share and replay-status with them, and closes them at teardown.
 // Call before Run.
-func (c *Console) SetReplayShares(s *webcast.ReplayShares) { c.replays = s }
+//
+// A share becoming ready is a notice: a recording is now served through
+// the tunnel, maybe at an agent's request. The notice never carries the
+// link, which a screen broadcast would draw to its viewers.
+func (c *Console) SetReplayShares(s *webcast.ReplayShares) {
+	s.OnReady(func(id string) {
+		msg := fmt.Sprintf("Replay of %s shared through the broadcast tunnel until Couch exits (%d shared).", id, len(s.Shared()))
+		c.GoTracked(func() { c.setNotice(msg) })
+	})
+	c.replays = s
+}
+
+// SharedReplays is the recordings shared for replay, for --broadcast-list.
+func (c *Console) SharedReplays() []string {
+	if c.replays == nil {
+		return nil
+	}
+	return c.replays.Shared()
+}
 
 // ReplayShare answers a replay request: replay-share asks for the
 // recording to be shared, replay-status reads where its share is.

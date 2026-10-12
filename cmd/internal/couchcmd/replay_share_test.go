@@ -125,7 +125,7 @@ func TestRunReplayFallsBackToLoopback(t *testing.T) {
 		call messageCall
 		note string
 	}{
-		{[]string{"rec-1"}, noCouch, "No running Couch"},
+		{[]string{"rec-1"}, noCouch, "no running Couch answered"},
 		{[]string{"rec-1", "--local"}, func(context.Context, string, any, any) error { t.Error("--local asked Couch"); return nil }, ""},
 	} {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -158,16 +158,16 @@ func TestQueryLink(t *testing.T) {
 	storeFn := func() (string, error) { return store, nil }
 	b := &fakeBroker{answers: []couchmessage.Response{replayAnswer("opening", ""), replayAnswer("ready", "https://cast.example/tok")}}
 	var out, errs bytes.Buffer
-	if code := query.Run([]string{dir, "link", "--at", "250"}, replayLinker(storeFn, b.call, testClock()), &out, &errs); code != 0 || strings.TrimSpace(out.String()) != "https://cast.example/tok/r/rec-1/#t=250" {
+	if code := query.Run([]string{dir, "link", "--at", "250"}, replayLinker(storeFn, b.call, testClock(), &errs), &out, &errs); code != 0 || strings.TrimSpace(out.String()) != "https://cast.example/tok/r/rec-1/#t=250" {
 		t.Fatalf("%d %q %s", code, out.String(), errs.String())
 	}
 	out.Reset()
-	if code := query.Run([]string{dir, "link"}, replayLinker(storeFn, noCouch, testClock()), &out, &errs); code != 1 || out.Len() != 0 ||
+	if code := query.Run([]string{dir, "link"}, replayLinker(storeFn, noCouch, testClock(), &errs), &out, &errs); code != 1 || out.Len() != 0 ||
 		!strings.Contains(errs.String(), "no running Couch") || !strings.Contains(errs.String(), replayFlag+" "+dir) {
 		t.Fatalf("no Couch: %d %q %s", code, out.String(), errs.String())
 	}
 	errs.Reset()
-	if code := query.Run([]string{dir, "link", "--json"}, replayLinker(storeFn, noCouch, testClock()), io.Discard, &errs); code != 2 {
+	if code := query.Run([]string{dir, "link", "--json"}, replayLinker(storeFn, noCouch, testClock(), &errs), io.Discard, &errs); code != 2 {
 		t.Fatalf("link --json: %d %s", code, errs.String())
 	}
 }
@@ -206,6 +206,7 @@ func TestReplayShareThroughTheBroker(t *testing.T) {
 	console := testConsole()
 	console.SetReplayShares(shares)
 	s := &messageService{}
+	s.SetBroadcastStatus(func() (couchmessage.BroadcastStatus, bool) { return couchmessage.BroadcastStatus{}, false })
 	call := func(ctx context.Context, _ string, req, res any) error {
 		raw, _ := json.Marshal(req)
 		var r couchmessage.Request
@@ -218,11 +219,16 @@ func TestReplayShareThroughTheBroker(t *testing.T) {
 	if _, err := shareReplay(context.Background(), store, recordingsDir(store), "segments", 0, call, testClock()); !errors.Is(err, errCouchPredatesReplay) {
 		t.Fatalf("no provider installed: %v", err)
 	}
-	s.SetReplay(console.ReplayShare)
+	s.SetReplay(console.ReplayShare, console.SharedReplays)
 	clock := slotPollClock{now: time.Now, sleep: time.Sleep}
 	link, err := shareReplay(context.Background(), store, recordingsDir(store), "segments", 4200, call, clock)
 	if err != nil || !strings.HasSuffix(link.url, "/r/segments/#t=4200") || link.local {
 		t.Fatalf("%+v %v", link, err)
+	}
+	// The operator can see what the tunnel serves: broadcast-status lists
+	// the shared recording (never its link).
+	if got := s.handle(context.Background(), couchmessage.Request{Op: "broadcast-status"}); strings.Join(got.Replays, ",") != "segments" {
+		t.Fatalf("broadcast-status replays %q", got.Replays)
 	}
 	res, err := http.Get(strings.TrimSuffix(link.url, "#t=4200") + "records")
 	if err != nil {
@@ -238,8 +244,38 @@ func TestReplayShareThroughTheBroker(t *testing.T) {
 	}
 	// A Couch with no store shares nothing, and says why.
 	bare := testConsole()
-	s.SetReplay(bare.ReplayShare)
+	s.SetReplay(bare.ReplayShare, bare.SharedReplays)
 	if _, err := shareReplay(context.Background(), store, recordingsDir(store), "segments", 0, call, clock); err == nil || !strings.Contains(err.Error(), "no recordings store") {
 		t.Fatalf("no store: %v", err)
+	}
+}
+
+// A Couch whose tunnel is off shares a link that works on its machine
+// only: both CLIs print the link alone on stdout and say so on stderr.
+func TestReplayLinkTunnelOff(t *testing.T) {
+	store := replayStore(t)
+	local := func() *fakeBroker {
+		return &fakeBroker{answers: []couchmessage.Response{{Code: "ok", Replay: &couchmessage.ReplayShare{State: "ready", Base: "http://127.0.0.1:9/tok", Local: true}}}}
+	}
+	var out, errs bytes.Buffer
+	if code := runReplay(context.Background(), []string{"rec-1"}, store, local().call, testClock(), &out, &errs); code != 0 ||
+		strings.TrimSpace(out.String()) != "http://127.0.0.1:9/tok/r/rec-1/#t=0" || !strings.Contains(errs.String(), "this machine only") {
+		t.Fatalf("replay: %d %q %q", code, out.String(), errs.String())
+	}
+	out.Reset()
+	errs.Reset()
+	dir := filepath.Join(recordingsDir(store), "rec-1")
+	if code := query.Run([]string{dir, "link"}, replayLinker(func() (string, error) { return store, nil }, local().call, testClock(), &errs), &out, &errs); code != 0 ||
+		strings.TrimSpace(out.String()) != "http://127.0.0.1:9/tok/r/rec-1/#t=0" || !strings.Contains(errs.String(), "this machine only") {
+		t.Fatalf("query link: %d %q %q", code, out.String(), errs.String())
+	}
+}
+
+func TestFormatSharedReplays(t *testing.T) {
+	if got := formatSharedReplays(nil); got != "" {
+		t.Errorf("none: %q", got)
+	}
+	if got := formatSharedReplays([]string{"a", "b"}); got != "replays shared until Couch exits: a, b" {
+		t.Errorf("%q", got)
 	}
 }

@@ -46,6 +46,9 @@ type Response struct {
 	TailThread *TailThread `json:",omitempty"`
 	// Replay answers replay-share and replay-status (pair#477).
 	Replay *ReplayShare `json:",omitempty"`
+	// Replays answers broadcast-status too: the recordings shared for
+	// replay through the tunnel (pair#477), by id, never their links.
+	Replays []string `json:",omitempty"`
 }
 
 // ReplayShare is a recording's replay share in the running Couch (pair#477):

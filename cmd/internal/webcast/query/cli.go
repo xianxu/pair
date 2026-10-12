@@ -20,9 +20,10 @@ const Usage = `couch ` + Flag + ` DIR dom [--at T] [--sel SELECTOR] [--max-lines
 couch ` + Flag + ` DIR events --from T1 --to T2 [--max-lines N] [--json]
 couch ` + Flag + ` DIR notes [--note ID] [--before MS] [--json]
 couch ` + Flag + ` DIR link [--at T]
-  DIR is a recording directory. link prints its replay link at T (default 0),
-  shared through the running Couch's broadcast tunnel: point a reviewer at a moment. Times are ms since the recording started; --at defaults
-  to its end, --before (the actions shown before each note) to 10000. Every element is
+  DIR is a recording directory. Times are ms since the recording started; --at defaults
+  to its end (link's to 0), --before (the actions shown before each note) to 10000.
+  link prints the recording's replay link at --at, shared through the running Couch's
+  broadcast tunnel, to point a person at a moment. Every element is
   named @N, its node id: pass --sel @N to see it.
   Selectors: ` + SelectorGrammar + `.
 `
@@ -113,15 +114,9 @@ func parseArgs(argv []string) (args, error) {
 // running Couch to share it (#477). The queries themselves need no Couch.
 type Linker func(dir string, at int64) (string, error)
 
-// Main runs one query with no Couch to link through.
-func Main(argv []string, stdout, stderr io.Writer) int {
-	return Run(argv, func(string, int64) (string, error) {
-		return "", fmt.Errorf("no Couch to share the recording through")
-	}, stdout, stderr)
-}
-
 // Run runs one query: argv is what follows the couch flag. It exits 2 on a
-// usage error and 1 when the recording can't answer.
+// usage error and 1 when the recording can't answer. link asks link; nil
+// refuses it.
 func Run(argv []string, link Linker, stdout, stderr io.Writer) int {
 	a, err := parseArgs(argv)
 	if err != nil {
@@ -129,6 +124,9 @@ func Run(argv []string, link Linker, stdout, stderr io.Writer) int {
 		return 2
 	}
 	if a.verb == "link" {
+		if link == nil {
+			link = func(string, int64) (string, error) { return "", fmt.Errorf("no Couch to share the recording through") }
+		}
 		url, err := link(a.dir, a.at)
 		if err != nil {
 			fmt.Fprintf(stderr, "couch: %s: %v\n", Flag, err)

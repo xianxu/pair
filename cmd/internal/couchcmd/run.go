@@ -288,7 +288,7 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 			lease.Close()
 			return prepared.StoreDir(), nil
 		}
-		return query.Run(invocation.args, replayLinker(store, couchmessage.Call, slotPollClock{now: time.Now, sleep: time.Sleep}), stdout, stderr)
+		return query.Run(invocation.args, replayLinker(store, couchmessage.Call, slotPollClock{now: time.Now, sleep: time.Sleep}, stderr), stdout, stderr)
 	}
 	if invocation.kind == cliWebReplay {
 		// Reads recordings in the store a running Couch records to, and

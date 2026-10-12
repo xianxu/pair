@@ -420,10 +420,16 @@ directory does. At most 10 crops at most the frame's size plus two small text fi
 
 ## Agent queries (#462)
 
-`couch --broadcast-web-query DIR dom|events|notes` is what a coding agent runs on a recording. It reads the
-directory (`recording.ReadDir`), needs no running Couch, and prints text sized for an agent's context, or
-`--json` for structure. Package `cmd/internal/webcast/query`: `Querier` is the real `Surface`, one pass of the
-reference reducer with nothing indexed beside the records; `Main` is the CLI; the text renderers are pure.
+`couch --broadcast-web-query DIR dom|events|notes|link` is what a coding agent runs on a recording.
+
+- **The queries** (`dom`, `events`, `notes`) read the directory (`recording.ReadDir`) and need no running Couch.
+  They print text sized for an agent's context, or `--json` for structure.
+- **`link [--at T]`** is the one verb that asks the running Couch. It shares the recording through the broadcast
+  tunnel (#477, [webcast.md](webcast.md#replay-471)) and prints its replay link at T (default 0) on stdout. With no
+  Couch it refuses, and names `couch --broadcast-web-replay DIR`.
+- **Package `cmd/internal/webcast/query`:** `Querier` is the real `Surface`, one pass of the reference reducer with
+  nothing indexed beside the records. `Run` is the CLI, and couchcmd hands it the `Linker` that `link` calls. The
+  text renderers are pure.
 
 | Query | Answers | Text | `--json` |
 |---|---|---|---|

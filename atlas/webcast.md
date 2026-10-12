@@ -258,6 +258,9 @@ instead of the event stream.
     tunnel.
   - **Lifecycle:** shares live in memory until Couch exits, one per recording asked for. The tunnel stays open while any
     share is mounted. There's no expiry or unshare verb yet.
+  - **The operator sees each one:** a notice when a share is ready (`OnReady`; it never carries the link), and
+    `couch --broadcast-list` lists the shared recordings (`Shared`, in `broadcast-status`'s `Replays`). An agent's
+    `query link` can't open the tunnel unseen.
   - **The broker ops** are `replay-share` (start it) and `replay-status` (read it). They need no slot identity, like
     `broadcast-status`, because the socket is in the operator-only store. They never wait on the tunnel: the socket gives
     each exchange 2 s, and an open takes up to the Host's 30 s probe. So the CLI asks, then polls every 300 ms, up to
