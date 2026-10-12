@@ -188,6 +188,102 @@ rounds:
       isolation: checkout
       reviewed: f622966e2e280698d0a8a3b0d75d8afec3ec38a8
       blocked: false
+    - "n": 6
+      timestamp: "2026-10-12T12:55:39-07:00"
+      dispatched: "2026-10-12T12:48:35-07:00"
+      agent: claude
+      findings:
+        - id: BR-15
+          severity: Critical
+          title: Resolver's tried set is keyed by note id only; ids restart per broadcast session, so reused ids never get a pane path
+          detail: console_noteanchor.go:134-151. A new Session builds a new PointerState and NoteBoard (nextID 0). tried is pruned only in queueAnchors, which applyNotes skips once pointing is off or the broadcast ends. In a second broadcast, note 1 stays kind screen. Key tried by (session, id) or reset it on session change, and add a two-session test. Fix the "ids are never reused" claims in the atlas and SetNoteAnchor.
+          family: identity-scoped-to-owner
+          round: 6
+        - id: BR-16
+          severity: Important
+          title: Resolver uses the live frame at resolve time; a slot switch mid-pass goes undetected and draft lines come from another slot
+          detail: 'This is the 2nd finding in this family. Rule: a job carries the exact observation it was made from (here the frame and its EndpointID), never a re-read of mutable "latest" state. GeometryEpoch is per endpoint and slots resize together, so the epoch and geometry check passes across a slot switch. The header comment claims a slot check that happens only at queue time. Capture the frame in anchorJob, check EndpointID, and add a slot-switch-mid-pass test.'
+          family: state-as-nullable-constellation
+          round: 6
+        - id: BR-17
+          severity: Important
+          title: queueAnchors calls GoTracked while holding anchors.mu; GoTracked takes c.mu and, when not started, runs resolveAnchors inline (self-deadlock)
+          detail: console_noteanchor.go:153-155 against console.go:2139. This breaks the documented leaf-lock rule. It is latent today because the inline path needs !started with a live broadcast. Decide the start under the lock, unlock, then call GoTracked.
+          family: leaf-lock-held-across-calls
+          round: 6
+        - id: BR-18
+          severity: Important
+          title: Note.Anchor (file names, an on-disk Markdown heading, text under the box) now goes out on every page's notes event
+          detail: notes.go json tag "anchor,omitempty" and server.go:346 wireNotes. The spec says the anchor is for the agent's context, and no page reads it. sectionOf can publish a heading that is not on screen to view-only viewers. Exclude it from the wire (json:"-" or a wire struct), keep it in Session.Notes(), and add a test that the wire has no anchor.
+          family: operator-context-on-public-wire
+          round: 6
+        - id: BR-19
+          severity: Important
+          title: Session.SetNoteAnchor, NoteBoard.SetAnchor and Config.AnchorNote have no broadcast-package tests; drop paths are tested only through a fake that restates them
+          detail: 'This is the 2nd finding in family glue-untested. Rule: each exported state-changing seam method a milestone adds gets an own-package test of its refuse and drop paths (here: after resolve, after a flip to off, and on an unknown id), not only through a caller''s fake.'
+          family: glue-untested
+          round: 6
+        - id: BR-20
+          severity: Minor
+          title: noteanchor.go header names noteanchor_resolve.go (nonexistent); the plan's Design still names noteanchor_io.go, AnchorFor(box, l, frame) and view.json fuzzing
+          detail: 'This is the 3rd finding in family plan-names-match-code. Rule: every file or identifier named in prose (plan, atlas, doc comment) must exist at the pinned head. Enforce it with a grep of the diff''s backticked names against the tree at each boundary, rather than fixing instances. Prevalence: 3 findings across M1-M3.'
+          family: plan-names-match-code
+          round: 6
+        - id: BR-21
+          severity: Minor
+          title: reviewFile restates SpawnReviewPane's argv format ("/nvim/review.lua" followed by the file) with no shared constant or cross-test
+          detail: note_panes.go:117. If reviewcmd's command changes, review anchors silently lose their file. Share the marker constant, or add a test that builds SpawnReviewPane's argv and parses it back (ARCH-DRY).
+          family: cross-component-format-unpinned
+          round: 6
+      boundary: M3
+      recipe: milestone-review
+      isolation: checkout
+      blocked: true
+    - "n": 7
+      timestamp: "2026-10-12T13:23:29-07:00"
+      dispatched: "2026-10-12T12:59:34-07:00"
+      agent: claude
+      dispose:
+        - id: BR-15
+          disposition: addressed
+          note: tried is keyed by triedNote{session,id}; reverting the key to id-only turns TestQueueAnchorJobsPerSession red; atlas and SetNoteAnchor wording corrected.
+          round: 7
+        - id: BR-16
+          disposition: addressed
+          note: anchorJob carries frame; apply checks EndpointID/epoch/geometry against it; removing the EndpointID check turns the slot-switch subtest red.
+          round: 7
+        - id: BR-17
+          disposition: addressed
+          note: queueAnchorJobs decides under anchors.mu and returns a bool; queueAnchors calls GoTracked after unlock; calling GoTracked under the lock deadlocks TestQueueAnchorJobsPerSession (20s timeout).
+          round: 7
+        - id: BR-18
+          disposition: addressed
+          note: Note.Anchor is json:"-"; restoring the omitempty tag turns TestNoteAnchorLifecycle red (anchor shows up in the notes event).
+          round: 7
+        - id: BR-19
+          disposition: addressed
+          note: 'TestNoteAnchorLifecycle (session: unknown id, resolved, pointing off) and TestNoteBoardSetAnchor (board) cover the refuse and drop paths in their own packages.'
+          round: 7
+        - id: BR-20
+          disposition: not-addressed
+          note: noteanchor.go header fixed, but plan Design lines 65/76 still name noteanchor_io.go and the AnchorFor(box,l,frame) order; as-built adds no mapping and says tried is pruned to open ids; anchorJob comment says it carries a geometry epoch.
+          round: 7
+        - id: BR-21
+          disposition: addressed
+          note: reviewcmd.ReviewScript is shared by RunOpen and reviewFile; TestReviewFile parses a command built from the constant.
+          round: 7
+      findings:
+        - id: BR-22
+          severity: Minor
+          title: tried keeps a pointer to an ended broadcast Session until the next broadcast's first notes snapshot
+          detail: console_noteanchor.go:155 prunes only in queueAnchorJobs, which applyNotes skips once the broadcast ends. Size is bounded by that session's open notes; clear tried (and pending) when the broadcast ends, or accept it and note the bound in the plan.
+          family: residue-outlives-owner
+          round: 7
+      boundary: M3
+      recipe: milestone-review
+      isolation: checkout
+      reviewed: e1dac86e0588bac2b5d38bc86c73f866f89e602e
+      blocked: false
 ---
 
 # Gate ledger — pair#488 (boundary-review)
@@ -269,6 +365,42 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-14** [Minor] `plan-names-match-code` The plan says the terminal box is clamped to the grid; the code refuses it with ErrNoteRange
   This is the 2nd finding in family plan-names-match-code. The rule: every M-close adds an "as built" Revisions entry that reconciles each Design bullet the milestone touched. Add "M2 as built: off-grid boxes are refused; the pin is placed by NoteBoard.Add via pinSpots."
 
+## Round 6 — 2026-10-12T12:55:39-07:00 (claude) — BLOCKED
+
+### Raised
+
+- **BR-15** [Critical] `identity-scoped-to-owner` Resolver's tried set is keyed by note id only; ids restart per broadcast session, so reused ids never get a pane path
+  console_noteanchor.go:134-151. A new Session builds a new PointerState and NoteBoard (nextID 0). tried is pruned only in queueAnchors, which applyNotes skips once pointing is off or the broadcast ends. In a second broadcast, note 1 stays kind screen. Key tried by (session, id) or reset it on session change, and add a two-session test. Fix the "ids are never reused" claims in the atlas and SetNoteAnchor.
+- **BR-16** [Important] `state-as-nullable-constellation` Resolver uses the live frame at resolve time; a slot switch mid-pass goes undetected and draft lines come from another slot
+  This is the 2nd finding in this family. Rule: a job carries the exact observation it was made from (here the frame and its EndpointID), never a re-read of mutable "latest" state. GeometryEpoch is per endpoint and slots resize together, so the epoch and geometry check passes across a slot switch. The header comment claims a slot check that happens only at queue time. Capture the frame in anchorJob, check EndpointID, and add a slot-switch-mid-pass test.
+- **BR-17** [Important] `leaf-lock-held-across-calls` queueAnchors calls GoTracked while holding anchors.mu; GoTracked takes c.mu and, when not started, runs resolveAnchors inline (self-deadlock)
+  console_noteanchor.go:153-155 against console.go:2139. This breaks the documented leaf-lock rule. It is latent today because the inline path needs !started with a live broadcast. Decide the start under the lock, unlock, then call GoTracked.
+- **BR-18** [Important] `operator-context-on-public-wire` Note.Anchor (file names, an on-disk Markdown heading, text under the box) now goes out on every page's notes event
+  notes.go json tag "anchor,omitempty" and server.go:346 wireNotes. The spec says the anchor is for the agent's context, and no page reads it. sectionOf can publish a heading that is not on screen to view-only viewers. Exclude it from the wire (json:"-" or a wire struct), keep it in Session.Notes(), and add a test that the wire has no anchor.
+- **BR-19** [Important] `glue-untested` Session.SetNoteAnchor, NoteBoard.SetAnchor and Config.AnchorNote have no broadcast-package tests; drop paths are tested only through a fake that restates them
+  This is the 2nd finding in family glue-untested. Rule: each exported state-changing seam method a milestone adds gets an own-package test of its refuse and drop paths (here: after resolve, after a flip to off, and on an unknown id), not only through a caller's fake.
+- **BR-20** [Minor] `plan-names-match-code` noteanchor.go header names noteanchor_resolve.go (nonexistent); the plan's Design still names noteanchor_io.go, AnchorFor(box, l, frame) and view.json fuzzing
+  This is the 3rd finding in family plan-names-match-code. Rule: every file or identifier named in prose (plan, atlas, doc comment) must exist at the pinned head. Enforce it with a grep of the diff's backticked names against the tree at each boundary, rather than fixing instances. Prevalence: 3 findings across M1-M3.
+- **BR-21** [Minor] `cross-component-format-unpinned` reviewFile restates SpawnReviewPane's argv format ("/nvim/review.lua" followed by the file) with no shared constant or cross-test
+  note_panes.go:117. If reviewcmd's command changes, review anchors silently lose their file. Share the marker constant, or add a test that builds SpawnReviewPane's argv and parses it back (ARCH-DRY).
+
+## Round 7 — 2026-10-12T13:23:29-07:00 (claude) — passed
+
+### Disposed
+
+- BR-15 — addressed — tried is keyed by triedNote{session,id}; reverting the key to id-only turns TestQueueAnchorJobsPerSession red; atlas and SetNoteAnchor wording corrected.
+- BR-16 — addressed — anchorJob carries frame; apply checks EndpointID/epoch/geometry against it; removing the EndpointID check turns the slot-switch subtest red.
+- BR-17 — addressed — queueAnchorJobs decides under anchors.mu and returns a bool; queueAnchors calls GoTracked after unlock; calling GoTracked under the lock deadlocks TestQueueAnchorJobsPerSession (20s timeout).
+- BR-18 — addressed — Note.Anchor is json:"-"; restoring the omitempty tag turns TestNoteAnchorLifecycle red (anchor shows up in the notes event).
+- BR-19 — addressed — TestNoteAnchorLifecycle (session: unknown id, resolved, pointing off) and TestNoteBoardSetAnchor (board) cover the refuse and drop paths in their own packages.
+- BR-20 — not-addressed — noteanchor.go header fixed, but plan Design lines 65/76 still name noteanchor_io.go and the AnchorFor(box,l,frame) order; as-built adds no mapping and says tried is pruned to open ids; anchorJob comment says it carries a geometry epoch.
+- BR-21 — addressed — reviewcmd.ReviewScript is shared by RunOpen and reviewFile; TestReviewFile parses a command built from the constant.
+
+### Raised
+
+- **BR-22** [Minor] `residue-outlives-owner` tried keeps a pointer to an ended broadcast Session until the next broadcast's first notes snapshot
+  console_noteanchor.go:155 prunes only in queueAnchorJobs, which applyNotes skips once the broadcast ends. Size is bounded by that session's open notes; clear tried (and pending) when the broadcast ends, or accept it and note the bound in the plan.
+
 ## Open findings
 
 - **BR-2** [Minor] `docs-describe-unbuilt-surface` Atlas and record.go doc comment reference broadcast.NoteAnchor and terminal cell boxes, which do not exist until M2/M3
@@ -276,3 +408,5 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-9** [Minor] `plan-names-match-code` The plan still names the shared helper noteBox and its test file notes.test.mjs; the code has gestureBox and notebox.test.mjs
 - **BR-13** [Minor] `untrusted-size-drives-work` pinSpots builds the full spot list (about 1M cells) just so ParseNote can check that one exists
 - **BR-14** [Minor] `plan-names-match-code` The plan says the terminal box is clamped to the grid; the code refuses it with ErrNoteRange
+- **BR-20** [Minor] `plan-names-match-code` noteanchor.go header names noteanchor_resolve.go (nonexistent); the plan's Design still names noteanchor_io.go, AnchorFor(box, l, frame) and view.json fuzzing
+- **BR-22** [Minor] `residue-outlives-owner` tried keeps a pointer to an ended broadcast Session until the next broadcast's first notes snapshot

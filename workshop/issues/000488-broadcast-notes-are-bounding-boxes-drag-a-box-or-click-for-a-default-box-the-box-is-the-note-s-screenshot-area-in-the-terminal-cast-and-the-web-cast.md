@@ -47,7 +47,7 @@ Durable plan: `workshop/plans/000488-…-plan.md` (same slug).
 
 - [x] M1 — shared `noteBox` (collab.js) + web cast: always-region with default box, BR-4 clamp, outlined pins, NoteAt kind/path, NoteCrops = padded box (snap + Hints retired, hub-coordinated with #483)
 - [x] M2 — terminal boxes: wire `box` + derived pin, viewer drag, DrawNotes outline, `NoteCrop` seam for #455
-- [ ] M3 — terminal anchor: pure `AnchorFor` + async fresh list-panes resolver behind an injected PaneRects seam (stateful fake, live conformance) + nvim view.json
+- [x] M3 — terminal anchor: pure `AnchorFor` + async fresh list-panes resolver behind an injected PaneRects seam (stateful fake, live conformance) + nvim view.json
 - [ ] Operator smoke test in both casts
 
 ## Estimate
@@ -107,6 +107,7 @@ Items in order:
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed M3 — BR-15..19 fixed with tests: two-session queue test, slot-switch + resize mid-pass drop, queue decides under lock and starts after, TestNoteAnchorLifecycle (wire has no anchor; refine; drop on unknown/resolved/off), NoteBoard.SetAnchor snapshot test; reviewcmd.ReviewScript shared + round trip; prose-name sweep clean; broadcast pkg + couchtty notes/anchor suites green; live zellij conformance PASS; review verdict: SHIP
 - 2026-10-12: closed M2 — BR-10 fixed: box ints bounded at parse + overflow-safe within(), refusal table with 5s deadline, FuzzParseNote 20s clean w/ independent oracle; pinspots.json run by Go+node; pointerMode single tagged drag state; broadcast pkg green, node 70/70; review verdict: SHIP
 - 2026-10-12: closed M1 — go test webcast/... broadcast/... green; node 165/165; WEBCAST_LIVE_CHROME=1 TestAnnotateLiveTwoViewers + live replay tests PASS (real Chrome, mouse tap default box + touch drag box); BR-7 + snapping wording swept; review verdict: SHIP
 - Claimed from pair:3 (TL dispatch). Plan drafted; sent to hub for UI choices A–D before building.
