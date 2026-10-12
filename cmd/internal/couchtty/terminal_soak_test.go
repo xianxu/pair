@@ -134,8 +134,16 @@ func TestCouchProductionSoak(t *testing.T) {
 	// Drain the emulator's reply pipe, as newVTHost does: couch now asks the
 	// terminal for its colours (pair#247), the emulator answers like a real
 	// terminal, and an unread answer wedges its Write.
-	go func() { _, _ = io.Copy(io.Discard, host.em) }()
-	t.Cleanup(func() { host.em.Close() })
+	drain := make(chan struct{})
+	go func() { _, _ = io.Copy(io.Discard, host.em); close(drain) }()
+	t.Cleanup(func() {
+		// Close the pipe, not Emulator.closed, while Read is still running;
+		// join the reader before touching Emulator.closed (as the pressure
+		// test does), or -race reports Close against Read.
+		_ = host.em.InputPipe().(io.Closer).Close()
+		<-drain
+		host.em.Close()
+	})
 	reader, input := io.Pipe()
 	con := New(host, reader)
 	var diagnostics bytes.Buffer
