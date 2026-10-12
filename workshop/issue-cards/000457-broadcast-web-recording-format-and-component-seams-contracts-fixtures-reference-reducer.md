@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000457-broadcast-web-recording-format-and-component-seams-contracts-fixtures-reference-reducer.md
         source_blob: e9d970d08c5ab9ea7a3a031dee017c8a72da29aa
         destination: workshop/issues/000457-broadcast-web-recording-format-and-component-seams-contracts-fixtures-reference-reducer.md
+        main_commit: c3411a21fc20c27ea0b5f987f40764314744d5eb
 ---
 
 # broadcast-web: recording format and component seams (contracts, fixtures, reference reducer)
