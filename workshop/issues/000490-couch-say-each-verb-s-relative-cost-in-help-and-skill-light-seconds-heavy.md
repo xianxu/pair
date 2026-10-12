@@ -1,12 +1,12 @@
 ---
 id: 000490
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
-card_mirror: '4e6ac637170820561a39ced1fe3f928a429f2d15' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '09b1bd345b5ff37442ba14d320ca352c1dbdd075' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-10-12T10:29:00-07:00
 claimant:
     operator: Xian Xu
@@ -16,6 +16,7 @@ claimant:
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
 flow: {kind: full, provenance: inferred}
+actual_hours: 0.81
 ---
 
 # couch: say each verb's relative cost in --help and --skill (light, seconds, heavy)
