@@ -21,9 +21,9 @@ started: 2026-10-12T00:27:53-07:00
 claimant:
     operator: Xian Xu
     machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: MacBook Pro
-    workspace: pair:2
-    worktree: /Users/xianxu/workspace/worktree/pair-slot2/pair
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:0
+    worktree: /Users/xianxu/workspace/pair
     repository: github.com/xianxu/pair
 ---
 
