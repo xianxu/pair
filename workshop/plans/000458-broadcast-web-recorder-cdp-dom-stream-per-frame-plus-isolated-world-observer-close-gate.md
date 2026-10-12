@@ -320,6 +320,105 @@ rounds:
       recipe: milestone-review
       isolation: checkout
       blocked: true
+    - "n": 6
+      timestamp: "2026-10-12T02:38:46-07:00"
+      dispatched: "2026-10-12T02:36:18-07:00"
+      agent: claude
+      dispose:
+        - id: BR-23
+          disposition: addressed
+          note: DPR-aware LowRes + measured scale; TestRecorderScreenshotAtDPR2 fails on the old code. The fix introduced a new crash for dpr<0.5, raised separately.
+          round: 6
+        - id: BR-24
+          disposition: not-addressed
+          note: Ordering fixed and tested in both orders, but the src of an img with srcset (or inside picture) is still loaded with credentials (the test pins avatar.png), and a response arriving after refSettle still double-fetches.
+          round: 6
+        - id: BR-25
+          disposition: addressed
+          note: testdata/stress committed and served by serveStress; the plan Revision covers LowRes and recorder-side loading.
+          round: 6
+        - id: BR-26
+          disposition: not-addressed
+          note: Skipped counter present in run.go:110, but no test; extract shot selection as a pure fn and test it.
+          round: 6
+        - id: BR-27
+          disposition: addressed
+          note: Typed Pix loops in LowRes.
+          round: 6
+        - id: BR-28
+          disposition: addressed
+          note: fail() cleanup on early errors; duplication justified in a comment at run.go:131.
+          round: 6
+        - id: BR-29
+          disposition: addressed
+          note: TestLiveRecordURL now errors on Losses() or Desync.
+          round: 6
+        - id: BR-30
+          disposition: not-addressed
+          note: 'No change: replay scroll still targets only the top document and querySelector in it.'
+          round: 6
+        - id: BR-31
+          disposition: not-addressed
+          note: delete(owned) on drop is present, but no test fills the queue and checks a later sighting retries.
+          round: 6
+      findings:
+        - id: BR-32
+          severity: Critical
+          title: LowRes panics (integer divide by zero) for DPR < 0.5, crashing the process from shotWorker
+          detail: 'This is the 2nd finding in family css-px-contract. Rule: the device-px to frame-px mapping must hold for every DPR Chrome reports (browser zoom 25-500% times display DPR); every output pixel covers at least one source pixel. side.go LowRes with f=2*dpr<1 yields x0==x1, so n==0 and sum/n panics; reproduced at dpr 0.33 and 0.25. vp.DPR is the page''s devicePixelRatio, which browser zoom lowers. Clamp f>=1 (or x1>=x0+1), keep scale measured, and add a LowRes table test over fractional and sub-1 DPRs.'
+          family: css-px-contract
+          round: 6
+        - id: BR-33
+          severity: Minor
+          title: Atlas doesn't state frame.scale's meaning or the asset URL-ownership/settle/no-srcset rule
+          detail: 'This is the 2nd finding in family readme-user-surface. Rule: every contract stated in a plan Revision that a consumer reads (record fields, recorder policy) is also in the atlas page for that surface. webcast-format.md:188 lists scale without units; webcast.md:67-68 omits the ownership rule.'
+          family: readme-user-surface
+          round: 6
+      boundary: M3
+      recipe: milestone-review
+      isolation: checkout
+      blocked: true
+    - "n": 7
+      timestamp: "2026-10-12T02:45:24-07:00"
+      dispatched: "2026-10-12T02:43:23-07:00"
+      agent: claude
+      dispose:
+        - id: BR-24
+          disposition: addressed
+          note: own() is the single URL claimer, refs settle 2s, Chosen/srcset/lazy skipped; both orders tested and late-response test goes red on revert.
+          round: 7
+        - id: BR-26
+          disposition: addressed
+          note: Pick returns Diff -1 with no tries, Summarize counts it skipped; TestPickAndSummarize pins it.
+          round: 7
+        - id: BR-30
+          disposition: not-addressed
+          note: run.go:330-335 still restores scroll only via top-document querySelector.
+          round: 7
+        - id: BR-31
+          disposition: not-addressed
+          note: side.go:76 deletes owned on drop, but no test fills assetQ to pin the retry.
+          round: 7
+        - id: BR-32
+          disposition: addressed
+          note: f=max(2*dpr,1) plus clamped bounds; TestLowResAnyDPR panics on revert.
+          round: 7
+        - id: BR-33
+          disposition: addressed
+          note: webcast-format.md:188 states scale units; webcast.md:69-74 states the ownership, settle and no-srcset rule.
+          round: 7
+      findings:
+        - id: BR-34
+          severity: Minor
+          title: Below DPR 0.5, frame.scale is the DPR, but the atlas and the fidelity replay still assume 0.5
+          detail: '3rd in family. The rule: Frame.Scale is the single source for the CSS-px to frame-px mapping, and every consumer reads it. Today webcast-format.md:188 says 0.5 whatever the DPR. fidelity run.go:351 always replays at LowRes(full,1), so a cast recorded at DPR under 0.5 has a different image size and DiffImages makes Run fail. Size the replay from f.Scale and correct the atlas.'
+          family: css-px-contract
+          round: 7
+      boundary: M3
+      recipe: milestone-review
+      isolation: fenced
+      reviewed: 8c5a8aba0e2ce469802f0c99132cf27114ce9e80
+      blocked: false
 ---
 
 # Gate ledger — pair#458 (boundary-review)
@@ -430,6 +529,43 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-30** [Minor] `fidelity-scroll-scope` fidelity replay restores scroll only in the top document; srcdoc iframes and shadow-root scrollers stay at 0
 - **BR-31** [Minor] `asset-retry-after-drop` A queue-full drop in queueAsset leaves asked[url] set, so the asset is never retried in that recording
 
+## Round 6 — 2026-10-12T02:38:46-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-23 — addressed — DPR-aware LowRes + measured scale; TestRecorderScreenshotAtDPR2 fails on the old code. The fix introduced a new crash for dpr<0.5, raised separately.
+- BR-24 — not-addressed — Ordering fixed and tested in both orders, but the src of an img with srcset (or inside picture) is still loaded with credentials (the test pins avatar.png), and a response arriving after refSettle still double-fetches.
+- BR-25 — addressed — testdata/stress committed and served by serveStress; the plan Revision covers LowRes and recorder-side loading.
+- BR-26 — not-addressed — Skipped counter present in run.go:110, but no test; extract shot selection as a pure fn and test it.
+- BR-27 — addressed — Typed Pix loops in LowRes.
+- BR-28 — addressed — fail() cleanup on early errors; duplication justified in a comment at run.go:131.
+- BR-29 — addressed — TestLiveRecordURL now errors on Losses() or Desync.
+- BR-30 — not-addressed — No change: replay scroll still targets only the top document and querySelector in it.
+- BR-31 — not-addressed — delete(owned) on drop is present, but no test fills the queue and checks a later sighting retries.
+
+### Raised
+
+- **BR-32** [Critical] `css-px-contract` LowRes panics (integer divide by zero) for DPR < 0.5, crashing the process from shotWorker
+  This is the 2nd finding in family css-px-contract. Rule: the device-px to frame-px mapping must hold for every DPR Chrome reports (browser zoom 25-500% times display DPR); every output pixel covers at least one source pixel. side.go LowRes with f=2*dpr<1 yields x0==x1, so n==0 and sum/n panics; reproduced at dpr 0.33 and 0.25. vp.DPR is the page's devicePixelRatio, which browser zoom lowers. Clamp f>=1 (or x1>=x0+1), keep scale measured, and add a LowRes table test over fractional and sub-1 DPRs.
+- **BR-33** [Minor] `readme-user-surface` Atlas doesn't state frame.scale's meaning or the asset URL-ownership/settle/no-srcset rule
+  This is the 2nd finding in family readme-user-surface. Rule: every contract stated in a plan Revision that a consumer reads (record fields, recorder policy) is also in the atlas page for that surface. webcast-format.md:188 lists scale without units; webcast.md:67-68 omits the ownership rule.
+
+## Round 7 — 2026-10-12T02:45:24-07:00 (claude) — passed
+
+### Disposed
+
+- BR-24 — addressed — own() is the single URL claimer, refs settle 2s, Chosen/srcset/lazy skipped; both orders tested and late-response test goes red on revert.
+- BR-26 — addressed — Pick returns Diff -1 with no tries, Summarize counts it skipped; TestPickAndSummarize pins it.
+- BR-30 — not-addressed — run.go:330-335 still restores scroll only via top-document querySelector.
+- BR-31 — not-addressed — side.go:76 deletes owned on drop, but no test fills assetQ to pin the retry.
+- BR-32 — addressed — f=max(2*dpr,1) plus clamped bounds; TestLowResAnyDPR panics on revert.
+- BR-33 — addressed — webcast-format.md:188 states scale units; webcast.md:69-74 states the ownership, settle and no-srcset rule.
+
+### Raised
+
+- **BR-34** [Minor] `css-px-contract` Below DPR 0.5, frame.scale is the DPR, but the atlas and the fidelity replay still assume 0.5
+  3rd in family. The rule: Frame.Scale is the single source for the CSS-px to frame-px mapping, and every consumer reads it. Today webcast-format.md:188 says 0.5 whatever the DPR. fidelity run.go:351 always replays at LowRes(full,1), so a cast recorded at DPR under 0.5 has a different image size and DiffImages makes Run fail. Size the replay from f.Scale and correct the atlas.
+
 ## Open findings
 
 - **BR-1** [Minor] `hot-path-allocation` withAttr copies the attribute map on every attr record, even for elements that aren't inputs (reduce.go:306)
@@ -438,12 +574,6 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-14** [Minor] `id-map-bound` PQ-6 bound not held: setChildNodes and Resnapshot forget nodes without burying them, so their ids are never pruned
 - **BR-21** [Minor] `comment-code-drift` Send and Options.MaxQueue docs still say only DOM events are dropped and that overflow resyncs
 - **BR-22** [Minor] `order-test-oracle` The graveyard test's setChildNodes step checks only divs[0], which is never pruned, so the bury-order fix there is unpinned
-- **BR-23** [Important] `css-px-contract` frame.scale is the constant 0.5 but LowRes halves device pixels, so DPR 2 casts record wrong scale and break the fidelity diff
-- **BR-24** [Important] `asset-record-dedupe-source` Asset fetch dedupe depends on arrival order: DOM-ref loads race Network responses (double fetch and Put), and every srcset candidate and lazy image is loaded with credentials
-- **BR-25** [Important] `plan-drift` M3 promised a stress page served from testdata; none is committed, and recorder-side asset loading and LowRes have no Revisions entry
-- **BR-26** [Minor] `sentinel-as-evidence` fidelity.Run reports a shot with no live replay as Diff 101 and includes it in median and max
-- **BR-27** [Minor] `hot-path-allocation` LowRes does per-pixel src.At plus color-model Convert (millions of boxed calls per shot); use typed Pix buffers
-- **BR-28** [Minor] `shared-chrome-launch` fidelity launch duplicates webcast's Chrome launch and leaks the profile dir and pipes on early errors
-- **BR-29** [Minor] `test-asserts-claimed-numbers` TestLiveRecordURL logs Stats but doesn't assert the 0 dropped, desync and lost figures the Log reports
 - **BR-30** [Minor] `fidelity-scroll-scope` fidelity replay restores scroll only in the top document; srcdoc iframes and shadow-root scrollers stay at 0
 - **BR-31** [Minor] `asset-retry-after-drop` A queue-full drop in queueAsset leaves asked[url] set, so the asset is never retried in that recording
+- **BR-34** [Minor] `css-px-contract` Below DPR 0.5, frame.scale is the DPR, but the atlas and the fidelity replay still assume 0.5

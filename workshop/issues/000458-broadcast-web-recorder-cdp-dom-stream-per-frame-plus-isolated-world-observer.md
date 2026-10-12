@@ -72,11 +72,12 @@ Durable plan: `workshop/plans/000458-broadcast-web-recorder-cdp-dom-stream-per-f
 
 - [x] M1 — format: `hover {id}`, `ptr {x,y}` (TL-coordinated shapes, outside Canonical), `input.secret` and the password rules in reducer + validator; `ValidateDir` reports strays in `frames/` (#457 advisory); format page Revisions
 - [x] M2 — recorder: pure mirror (CDP DOM per session → records, path-resolved observer reports), isolated-world observer (sync clicks), Recorder shell, Chrome loop (iframe auto-attach) and Cast plug-in; unit tests on a stateful fake CDP page
-- [ ] M3 — live headless checks (stress page, blog) + fidelity tool vs `frames/`, compared with #453's own-on-CDP numbers; atlas
+- [x] M3 — live headless checks (stress page, blog) + fidelity tool vs `frames/`, compared with #453's own-on-CDP numbers; atlas
 
 ## Log
 
 ### 2026-10-12 — M3 fidelity (median / max % of pixels differing from the real tab)
+- 2026-10-12: closed M3 — round 3: BR-32 LowRes clamps to >=1 source px per output px (TestLowResAnyDPR 0..3); BR-24 one fetch per URL per recording, first claimant wins incl. responses (TestRecorderLateResponseDoesntRefetch, both-order test), srcset/picture/lazy images never loaded from refs; atlas states frame.scale and the ownership rule; fidelity Pick/Summarize pure + tested; stress from testdata 0.10/0.12; go test webcast/... green; live suite green; review verdict: SHIP
 
 Tool: `recorder/internal/fidelity` renders the reduced state at each screenshot's time in headless Chrome (assets through
 `Fetch` from the recording, nothing from the origin), viewport halved by a 2×2 box filter as #453's harness made the
