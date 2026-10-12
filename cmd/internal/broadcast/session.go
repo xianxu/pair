@@ -53,6 +53,12 @@ type Config struct {
 	// turned off. Versions only increase, so a receiver keeps the newest. It
 	// is called on the changing goroutine, holding no session lock.
 	OnNotes func(s *Session, notes []Note, version uint64)
+	// AnchorNote says what a note placed on a cols×rows grid is about
+	// (#488): the operator's program knows its own screen. It is called as
+	// the note is accepted, before it opens, and must answer from memory
+	// (a request's goroutine waits on it); a slower answer comes later
+	// through SetNoteAnchor. nil leaves notes without an anchor.
+	AnchorNote func(n Note, cols, rows int) NoteAnchor
 	// Now stamps when a note was saved; nil is time.Now. Couch passes the
 	// clock it draws with, so flash timing has one source.
 	Now func() time.Time
@@ -397,11 +403,27 @@ func (s *Session) acceptNote(req NoteRequest) error {
 		return ErrScreenChanged
 	}
 	req.Note.At = s.now()
+	if s.cfg.AnchorNote != nil {
+		a := s.cfg.AnchorNote(req.Note, req.Cols, req.Rows)
+		req.Note.Anchor = &a
+	}
 	if _, err := s.pointer.addNote(req.Note, req.Cols, req.Rows, gen); err != nil {
 		return err
 	}
 	s.notesChanged()
 	return nil
+}
+
+// SetNoteAnchor replaces open note id's anchor (#488: the operator's
+// program finished resolving it). A note resolved or cleared since is gone,
+// and the anchor is dropped: ids are never reused, so it can't land on
+// another note. It reports whether the note was there.
+func (s *Session) SetNoteAnchor(id int, a NoteAnchor) bool {
+	changed := s.pointer.setNoteAnchor(id, a)
+	if changed {
+		s.notesChanged()
+	}
+	return changed
 }
 
 // ResolveNote resolves note id for the operator (the terminal's notes menu),

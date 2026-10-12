@@ -43,14 +43,40 @@ var (
 // box, the 💭's chip and its glow are drawn in it. At is when it was saved,
 // which sets its flash phase; it isn't sent to pages.
 type Note struct {
-	ID    int       `json:"id"`
-	Col   int       `json:"col"`
-	Row   int       `json:"row"`
-	Box   CellBox   `json:"box"`
-	Color int       `json:"color"`
-	Text  string    `json:"text"`
-	At    time.Time `json:"-"`
+	ID    int     `json:"id"`
+	Col   int     `json:"col"`
+	Row   int     `json:"row"`
+	Box   CellBox `json:"box"`
+	Color int     `json:"color"`
+	Text  string  `json:"text"`
+	// Anchor is what the box is on (#488), from the operator's program
+	// (Config.AnchorNote); nil when it gives none. A page never sends it.
+	Anchor *NoteAnchor `json:"anchor,omitempty"`
+	// On is the grid the note was placed on (NoteBoard.Add): a box means
+	// the screen of that size.
+	On terminal.Geometry `json:"-"`
+	At time.Time         `json:"-"`
 }
+
+// NoteAnchor is what a terminal note is about, in the shape the web cast's
+// anchors share (#488, recording.NoteAt's kind and path): Kind is where on
+// Couch's screen the box's centre is (AnchorTabBar, AnchorStatusLine,
+// AnchorPane, or AnchorScreen when the pane isn't known), Path the steps
+// down to it (e.g. "pane pair:3", "draft nvim", "notes.md, lines 12–18"),
+// and Text the screen's text under the box.
+type NoteAnchor struct {
+	Kind string   `json:"kind"`
+	Path []string `json:"path,omitempty"`
+	Text string   `json:"text,omitempty"`
+}
+
+// Anchor kinds.
+const (
+	AnchorTabBar     = "tabbar"
+	AnchorStatusLine = "status"
+	AnchorPane       = "pane"
+	AnchorScreen     = "screen"
+)
 
 // CellBox is a box of the screen in cells: its top-left cell and its size.
 // On the wire it is [col, row, w, h], like the web cast's region.
@@ -137,6 +163,7 @@ func (b *NoteBoard) Add(n Note, cols, rows int) (Note, error) {
 	if !placed {
 		return Note{}, ErrNoteOverlap
 	}
+	n.On = terminal.Geometry{Cols: cols, Rows: rows}
 	b.nextID++
 	n.ID = b.nextID
 	b.notes = append(b.notes, n)
@@ -159,6 +186,17 @@ func (b *NoteBoard) Resolve(id int) bool {
 	for i, n := range b.notes {
 		if n.ID == id {
 			b.notes = append(b.notes[:i], b.notes[i+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
+// SetAnchor replaces open note id's anchor, reporting whether it is open.
+func (b *NoteBoard) SetAnchor(id int, a NoteAnchor) bool {
+	for i := range b.notes {
+		if b.notes[i].ID == id {
+			b.notes[i].Anchor = &a
 			return true
 		}
 	}

@@ -895,6 +895,7 @@ func dispatchInitialAttach(console *couchtty.Console, start couchcore.StartResul
 func wireResolver(console *couchtty.Console, c *couchcore.Couch) {
 	artifacts, _ := c.Artifacts.(shortcutFocusArtifacts)
 	console.SetShortcutFocusProbe(shortcutFocusProbe(artifacts, queryShortcutClients))
+	console.SetPaneRects(paneRectsOf(artifacts, queryPaneGeometry, readNoteFile))
 	console.SetContinuationProvider(c.ContinuationRequests)
 	console.SetActionableProvider(func(ctx context.Context, observations []couchcore.LiveTTYObservation) ([]couchcore.ActionableThreadSummary, error) {
 		select {

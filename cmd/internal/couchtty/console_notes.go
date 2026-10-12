@@ -126,6 +126,7 @@ func (c *Console) applyNotes(s *broadcast.Session, notes []broadcast.Note, versi
 	c.pnotes.mu.Unlock()
 	c.repaint()
 	c.scheduleNotes()
+	c.queueAnchors(s, notes)
 }
 
 // settleMenuLocked keeps the menu consistent with the notes: closed with
@@ -234,6 +235,7 @@ func (c *Console) noteOverlay(f terminal.Frame, class terminal.FrameClass) termi
 	if class != terminal.FramePublic {
 		return f
 	}
+	c.keepNoteFrame(f)
 	c.pnotes.mu.Lock()
 	defer c.pnotes.mu.Unlock()
 	return broadcast.DrawNotes(f, c.pnotes.notes, c.drawStyleLocked())

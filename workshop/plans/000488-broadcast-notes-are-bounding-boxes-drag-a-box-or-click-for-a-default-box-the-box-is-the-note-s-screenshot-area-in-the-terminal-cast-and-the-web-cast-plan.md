@@ -252,3 +252,26 @@ boxes are in the cast's own units.
 - `NoteCrop(n, cols, rows, margin)`.
 - The viewer's `boxHasPin` and Go's `pinSpots` share `tests/broadcast-viewer/pinspots.json`.
 - `pointerMode` holds one tagged `drag` state.
+
+### 2026-10-12: M3 as built (supersedes the nvim view.json)
+- **No nvim side channel and no new durable artifact.**
+  - A draft or review pane's file comes from Couch's knowledge: `Paths.Draft()` for the draft, and for review the
+    argument after `/nvim/review.lua` in the pane's command.
+  - The lines come from finding the rows under the box in that file on disk (`locate`), plus the Markdown section
+    above (`sectionOf`).
+  - Why:
+    - The view.json would have needed a new artifact family (manifest, retention and binding plumbing), a nvim
+      writer on scroll, and a staleness story.
+    - The disk lookup is pure and gives the review pane's "section" for free.
+    - It costs nothing on screen unless a note is placed.
+  - Trade-off: an unsaved draft's new text names the file without lines.
+  - ARCH-FUNERAL is now trivially satisfied: M3 creates nothing durable. The resolver's `tried` set is pruned to
+    open ids on every snapshot.
+- **Seam:** `couchtty.PaneRects` (`SetPaneRects`); couchcmd's `paneRectsOf` and its live conformance check
+  `TestNotePanesZellijConformance`.
+- **The broadcast side:**
+  - `Config.AnchorNote` gives the synchronous frame-only anchor.
+  - `Session.SetNoteAnchor` refines the anchor by id.
+  - `Note.On` records the grid each note was placed on.
+- **Agent pane:** it names the agent. "Near the prompt" is left to the text under the box, which shows the prompt
+  or message itself.
