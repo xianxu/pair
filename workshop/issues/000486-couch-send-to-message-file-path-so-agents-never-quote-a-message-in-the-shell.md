@@ -15,6 +15,7 @@ claimant:
     workspace: pair:1
     worktree: /Users/xianxu/workspace/worktree/pair-slot1/pair
     repository: github.com/xianxu/pair
+flow: {kind: quick, provenance: inferred, spec: "1fd560c9", done: "c349bbf2"}
 ---
 
 # couch --send-to: --message-file PATH, so agents never quote a message in the shell
