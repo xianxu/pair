@@ -306,3 +306,65 @@ dispose:
     note: |
       replay.js:322 wraps deps.renderer so r.onDirty = draw (correct, and it closes the sweep: connect, replaySource), but no regression test; a replaySource test in replay.test.mjs calling r.onDirty() and asserting frame() runs would pin it.
 ```
+
+---
+
+## Re-review — 2026-10-12T06:41:02-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 475 — broadcast-web: a segment's linked stylesheets bind after its first paint (viewers see the page unstyled) |
+| repo | pair |
+| issue file | workshop/issues/000475-broadcast-web-a-segment-s-linked-stylesheets-bind-after-its-first-paint-viewers-see-the-page-unstyled.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | c8384831682ced590e63634096a4f480c68eed75..accf2497abaa2d6aa292ec0b0ce5508d4fd4f3e4 |
+| command | sdlc close --issue 475 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-12T06:41:02-07:00 |
+| verdict | SHIP |
+
+## Review
+
+I checked the window. Its only code change is the merge-conflict fix in `replay_test.go`, which compiles and passes `go vet`. Neither open finding has a regression test yet. Writing up the verdict now.
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+Since the round-3 SHIP, this window adds no fixes. It holds the merge of main (#474, which retired the prototype fixtures) into #475 and the gate/review bookkeeping. The only code change is the conflict fix in `cmd/internal/webcast/replay_test.go`. Main's side swapped the per-fixture `frameOffsets(name)` for the shared `fidelity.Offsets`. #475's side added three things: the `try` closure with `best` tracking, the `releaseAt` held-paint retry, and the `knownGap.most` ceiling switch. The resolution at `replay_test.go:80-114` keeps all of it. It calls `try(fidelity.Offsets)`, keeps the held retry and keeps the three-way known-gap switch. All conflict markers are gone, `frameOffsets` has no callers left, and `go vet ./cmd/internal/webcast/` is clean. The `lessons.md` hunk only moves the #475 lesson to a new position; the text is the same. Spec and Done-when are unchanged. BR-6 and BR-8 are both Minor and still have no regression test, so they stay `not-addressed`. They don't block the gate.
+
+1. **Strengths**
+   - The conflict fix at `replay_test.go:92` takes main's single source of offsets (`fidelity.Offsets`, also used at `fidelity_check.go:90`). It doesn't bring back the retired per-fixture helper.
+   - The #475 known-gap ceiling (`case known && best > gap.most`) survives the merge, so the fix from BR-7 is still there.
+   - `knownGaps` lists only `rec-stress`, which still exists after #474 retired the prototypes. No dead fixture keys are left.
+
+2. **Critical:** none.
+
+3. **Important:** none.
+
+4. **Minor**
+   - BR-6 and BR-8 are still open, for the same reasons as last round. A search of `tests/webcast/` finds no test that exercises `onDirty` or a load that never settles in `bound()`.
+
+5. **Test coverage:** this window adds no behaviour, so it needs no new test. I couldn't run the live replay test here because it needs a headless browser. It compiles, and its logic is a straight union of both sides.
+
+6. **Architecture (applied to this window only)**
+   - **ARCH-DRY:** pass. The fix keeps the one shared offset list rather than a per-fixture copy.
+   - **ARCH-PURE:** pass. Nothing new mixes logic with IO; the change is only to test glue.
+   - **ARCH-PURPOSE:** pass. Both the #474 and #475 intents are kept, and nothing is deferred.
+
+7. **Plan revisions:** none.
+
+```findings
+dispose:
+  - id: BR-6
+    disposition: not-addressed
+    note: |
+      No change in this window; still no fake-timer test with a never-settling load proving bound() releases at HOLD_MS.
+  - id: BR-8
+    disposition: not-addressed
+    note: |
+      No change in this window; replay.js still sets r.onDirty = draw, but no replay.test.mjs test calls r.onDirty() and asserts frame() runs.
+```

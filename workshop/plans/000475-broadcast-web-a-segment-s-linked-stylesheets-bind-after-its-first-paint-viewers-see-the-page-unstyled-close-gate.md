@@ -111,6 +111,23 @@ rounds:
       isolation: fenced
       reviewed: f01d0fd8b550d801211c739f1faf1e68ecd43637
       blocked: false
+    - "n": 4
+      timestamp: "2026-10-12T06:41:02-07:00"
+      dispatched: "2026-10-12T06:40:25-07:00"
+      agent: claude
+      dispose:
+        - id: BR-6
+          disposition: not-addressed
+          note: No change in this window; still no fake-timer test with a never-settling load proving bound() releases at HOLD_MS.
+          round: 4
+        - id: BR-8
+          disposition: not-addressed
+          note: No change in this window; replay.js still sets r.onDirty = draw, but no replay.test.mjs test calls r.onDirty() and asserts frame() runs.
+          round: 4
+      recipe: fix-review
+      isolation: fenced
+      reviewed: accf2497abaa2d6aa292ec0b0ce5508d4fd4f3e4
+      blocked: false
 ---
 
 # Gate ledger — pair#475 (boundary-review)
@@ -157,6 +174,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - BR-6 — not-addressed — render.js not in this window; the HOLD_MS race in bound() is present but still no fake-timer test with a never-settling load proves it.
 - BR-8 — not-addressed — replay.js:322 wraps deps.renderer so r.onDirty = draw (correct, and it closes the sweep: connect, replaySource), but no regression test; a replaySource test in replay.test.mjs calling r.onDirty() and asserting frame() runs would pin it.
+
+## Round 4 — 2026-10-12T06:41:02-07:00 (claude) — passed
+
+### Disposed
+
+- BR-6 — not-addressed — No change in this window; still no fake-timer test with a never-settling load proving bound() releases at HOLD_MS.
+- BR-8 — not-addressed — No change in this window; replay.js still sets r.onDirty = draw, but no replay.test.mjs test calls r.onDirty() and asserts frame() runs.
 
 ## Open findings
 
