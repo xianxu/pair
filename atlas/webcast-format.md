@@ -404,7 +404,13 @@ swatches and the dialog are `collab.js`, shared with the terminal viewer (`broad
 drag of 8 px or more is a region, anchored on the element at its centre. Pins are the model's live notes (since
 `docSeg`, open), placed each frame on the element's box as drawn (`boxOf`; else the box it was made on; a region at its
 region) with a 💭 chip in the author's color that opens the note with Resolve. The identity (`couch.viewerId`, made once;
-`couch.viewerName`, asked in the first draft) is kept in localStorage behind try/catch.
+`couch.viewerName`, asked in the first draft) is kept in localStorage behind try/catch, and a stored name is read by
+the board's rules (else asked again). Controls that take input (swatches, mode buttons, pin chips) are rebuilt only
+when their data changes; each frame only places them. For replay (#477), the drawing is pure over the model at t:
+`liveNotes(model)`, `strokesAt(model, t)` (chunks joined by id, the points drawn by t, fading 1.5 s after the last),
+`paintStrokes(canvas, strokes, toClient, rect, dpr)` and `pinLayer(doc, container, open).draw(notes, boxOf, place)`,
+the same functions the live viewer draws with. In replay mode the notes module doesn't mount (the replay server
+serves no `palette.json`).
 
 The viewer rewrites `url()`s and `image-set()` strings in streamed CSS (`sheet` records, `<style>` text, `style=`)
 through `resolveAsset`. The proxy rewrites only the CSS bodies it serves. Both find the same URL spans:

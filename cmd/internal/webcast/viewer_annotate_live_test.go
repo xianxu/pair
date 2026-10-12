@@ -99,6 +99,10 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 	if len(ids) != 1 || maxX < tb[0]+tb[2]-15 {
 		t.Errorf("A's stroke: %d stroke ids, reaching x=%.1f of %.1f", len(ids), maxX, tb[0]+tb[2]-5)
 	}
+	// A picks another color while the stroke is still fading (frames are
+	// being drawn): the pick holds.
+	slowClick(t, a, `.annotate-rail .swatch:nth-of-type(4)`) // a human click spans frames
+	waitEval(t, a, "the picked color", `(() => String([...document.querySelectorAll('.annotate-rail .swatch')].findIndex((b) => b.classList.contains('on'))))()`, "3")
 	clickButton(t, a, `.annotate-rail .mode:nth-of-type(1)`) // back to watching
 
 	// A notes the target: 💭, a click on it, a name and text, Save.
@@ -147,6 +151,29 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 		}
 	}
 
+	// B, still in note mode, taps A's pin by touch and resolves it: the pin
+	// goes in both viewers, and the recording says so.
+	var chip [2]float64
+	if err := json.Unmarshal(b.eval(t, fmt.Sprintf(`(() => { const r = document.querySelector('.pin[data-note=%q] .chip').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; })()`, noted.ID)), &chip); err != nil {
+		t.Fatal(err)
+	}
+	touch(t, b, "touchStart", chip)
+	touch(t, b, "touchEnd", chip)
+	waitEval(t, b, "A's note open in B", `(() => { const d = document.querySelector('.note-dialog'); return d.classList.contains('view') && !d.classList.contains('hidden') ? d.querySelector('.note-text').textContent : 'closed'; })()`, "This link is hard to see.")
+	b.eval(t, `(() => { [...document.querySelectorAll('.note-buttons button')].find((x) => x.textContent === 'Resolve').click(); return ''; })()`)
+	for _, p := range []*chromePage{a, b} {
+		waitEval(t, p, "the resolved note gone", fmt.Sprintf(`(() => document.querySelector('.pin[data-note="%s"]') ? 'shown' : 'gone')()`, noted.ID), "gone")
+	}
+	resolved := false
+	for _, r := range mem.Records() {
+		if ns, ok := r.(*recording.NoteState); ok && ns.ID == noted.ID && ns.State == recording.NoteResolved {
+			resolved = true
+		}
+	}
+	if !resolved {
+		t.Errorf("no note-state resolving A's note in the recording")
+	}
+
 	if dir := os.Getenv("WEBCAST_REPLAY_SHOTS"); dir != "" {
 		for name, p := range map[string]*chromePage{"annotate-a.png": a, "annotate-b.png": b} {
 			var shot struct{ Data string }
@@ -161,32 +188,27 @@ func TestAnnotateLiveTwoViewers(t *testing.T) {
 	w.Put(decode(t, fmt.Sprintf(`{"t":%d,"k":"stop","why":"pause"}`, at+100)))
 	time.Sleep(300 * time.Millisecond)
 	for _, p := range []*chromePage{a, b} {
-		waitEval(t, p, "notes while paused", pins, "2")
+		waitEval(t, p, "notes while paused", pins, "1")
 	}
-	// B, still in note mode, taps A's pin by touch and resolves it: the pin
-	// goes in both viewers, and the recording says so.
-	var chip [2]float64
-	if err := json.Unmarshal(b.eval(t, fmt.Sprintf(`(() => { const r = document.querySelector('.pin[data-note=%q] .chip').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; })()`, noted.ID)), &chip); err != nil {
-		t.Fatal(err)
-	}
-	touch(t, b, "touchStart", chip)
-	touch(t, b, "touchEnd", chip)
-	waitEval(t, b, "A's note open in B", `(() => { const d = document.querySelector('.note-dialog'); return d.classList.contains('view') && !d.classList.contains('hidden') ? d.querySelector('.note-text').textContent : 'closed'; })()`, "This link is hard to see.")
-	b.eval(t, `(() => { [...document.querySelectorAll('.note-buttons button')].find((x) => x.textContent === 'Resolve').click(); return ''; })()`)
-	for _, p := range []*chromePage{a, b} {
-		waitEval(t, p, "the resolved note gone", pins, "1")
-	}
-	resolved := false
-	for _, r := range mem.Records() {
-		if ns, ok := r.(*recording.NoteState); ok && ns.ID == noted.ID && ns.State == recording.NoteResolved {
-			resolved = true
+	// Resume (the same document, ids kept): the notes stay.
+	w.Put(decode(t, fmt.Sprintf(`{"t":%d,"k":"seg","seg":%d,"why":"resume","tab":{"id":"tab1","url":%q},"vp":{"w":1280,"h":800,"dpr":1}}`, at+150, st.Seg+1, st.URL)))
+	var top recording.Record // the top document as first snapshotted: A's link is in it
+	for _, r := range rec.Records {
+		if d, ok := r.(*recording.Doc); ok && d.Host == 0 && r.Time() <= at {
+			top = r
 		}
 	}
-	if !resolved {
-		t.Errorf("no note-state resolving A's note in the recording")
+	line, _ := recording.Encode(top)
+	snap := decode(t, string(line))
+	snap.SetTime(at + 150)
+	if err := w.Put(snap); err != nil {
+		t.Fatalf("resume snapshot: %v", err)
+	}
+	for _, p := range []*chromePage{a, b} {
+		waitEval(t, p, "notes after a resume", pins, "1")
 	}
 
-	seg := st.Seg + 1
+	seg := st.Seg + 2
 	w.Put(decode(t, fmt.Sprintf(`{"t":%d,"k":"seg","seg":%d,"why":"navigate","tab":{"id":"tab1","url":"http://other/"},"vp":{"w":1280,"h":800,"dpr":1}}`, at+200, seg)))
 	w.Put(decode(t, fmt.Sprintf(`{"t":%d,"k":"doc","doc":9000001,"url":"http://other/","tree":{"id":9000001,"y":"doc","c":[{"id":9000002,"y":"el","n":"html","c":[{"id":9000003,"y":"el","n":"head"},{"id":9000004,"y":"el","n":"body"}]}]}}`, at+200)))
 	for _, p := range []*chromePage{a, b} {
@@ -235,13 +257,19 @@ func clientOf(t *testing.T, p *chromePage, x, y float64) [2]float64 {
 	return xy
 }
 
-func clickButton(t *testing.T, p *chromePage, sel string) {
+func clickButton(t *testing.T, p *chromePage, sel string) { clickHeld(t, p, sel, 0) }
+
+// slowClick holds the press for 100 ms, as a person does.
+func slowClick(t *testing.T, p *chromePage, sel string) { clickHeld(t, p, sel, 100*time.Millisecond) }
+
+func clickHeld(t *testing.T, p *chromePage, sel string, hold time.Duration) {
 	t.Helper()
 	var xy [2]float64
 	if err := json.Unmarshal(p.eval(t, fmt.Sprintf(`(() => { const r = document.querySelector(%q).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; })()`, sel)), &xy); err != nil {
 		t.Fatal(err)
 	}
 	mouse(t, p, "mousePressed", xy)
+	time.Sleep(hold)
 	mouse(t, p, "mouseReleased", xy)
 }
 

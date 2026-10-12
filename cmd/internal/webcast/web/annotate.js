@@ -25,6 +25,7 @@ export const FADE_MS = 1500;
 // a tap.
 export const MIN_REGION = 8;
 
+const MAX_NAME = 40;
 const ID_KEY = 'couch.viewerId';
 const NAME_KEY = 'couch.viewerName';
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
@@ -47,13 +48,22 @@ export function identityStore(storage, crypto) {
     id = 'w' + randomID(crypto);
     store.set(ID_KEY, id);
   }
-  let name = store.get(NAME_KEY) || '';
+  // A stored name is read by the board's rules (plain, one line, at most
+  // 40 characters); anything else is asked for again.
+  let name = validName(store.get(NAME_KEY) || '');
   return {
     id: () => id,
     name: () => name,
     setName(v) { name = v; store.set(NAME_KEY, v); },
     viewer: () => ({ id, name }),
   };
+}
+
+// validName is a name the board takes, trimmed, or '' for none.
+export function validName(v) {
+  const n = String(v).trim();
+  // eslint-disable-next-line no-control-regex
+  return [...n].length <= MAX_NAME && !/[\u0000-\u001f\u007f-\u009f\u00ad\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff]/.test(n) ? n : '';
 }
 
 // chunker collects one stroke's points ([x, y] in page px, at ms) and cuts
@@ -148,6 +158,94 @@ export function noteDraft(seg, node, box, region) {
   const d = { seg, node, box: box.map(round) };
   if (region) d.region = region;
   return d;
+}
+
+// strokesAt is what a reader at moment t of a recording shows of its
+// strokes (#477's replay calls this with the model at t): the current
+// document's strokes, chunks joined by id, the points drawn by t, each
+// fading over FADE_MS after its last point. Pure.
+export function strokesAt(model, t) {
+  if (!model || !model.docSeg) return [];
+  const byId = new Map();
+  for (const { stroke: r, seg } of model.strokes) {
+    if (seg < model.docSeg || r.t > t) continue;
+    const s = byId.get(r.id) || { id: r.id, color: r.color, pts: [], end: r.t };
+    for (const p of r.pts) {
+      if (r.t + p[2] > t) break;
+      s.pts.push([p[0], p[1]]);
+      s.end = Math.max(s.end, r.t + p[2]);
+    }
+    byId.set(r.id, s);
+  }
+  const out = [];
+  for (const s of byId.values()) {
+    if (!s.pts.length || t - s.end >= FADE_MS) continue;
+    out.push({ id: s.id, color: s.color, pts: s.pts, alpha: 1 - (t - s.end) / FADE_MS });
+  }
+  return out;
+}
+
+// paintStrokes draws strokes ({color, pts, alpha}) on a canvas covering
+// rect (client px), mapping page px with toClient. Live and replay share it.
+export function paintStrokes(canvas, list, toClient, rect, dpr) {
+  const w = Math.round(rect.width * dpr), h = Math.round(rect.height * dpr);
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+  const g = canvas.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, rect.width, rect.height);
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
+  g.lineWidth = 4;
+  for (const s of list) {
+    g.globalAlpha = s.alpha;
+    g.strokeStyle = s.color;
+    g.beginPath();
+    s.pts.forEach(([x, y], i) => {
+      const [cx, cy] = toClient(x, y);
+      if (i === 0) g.moveTo(cx - rect.left, cy - rect.top); else g.lineTo(cx - rect.left, cy - rect.top);
+    });
+    if (s.pts.length === 1) { const [cx, cy] = toClient(s.pts[0][0], s.pts[0][1]); g.lineTo(cx - rect.left + 0.1, cy - rect.top); }
+    g.stroke();
+  }
+  g.globalAlpha = 1;
+}
+
+// pinLayer keeps one pin per note in container: draw(notes, boxOf, place)
+// adds and removes pins only when the set changes and otherwise moves them,
+// so a chip being tapped is never replaced under the finger. open(note,
+// author) is a tap on a pin's chip. Live and replay share it.
+export function pinLayer(doc, container, open) {
+  const els = new Map(); // note id -> element
+  const make = (n) => {
+    const pin = doc.createElement('div');
+    pin.className = n.region ? 'pin region' : 'pin';
+    pin.dataset.note = n.id;
+    pin.style.setProperty('--pin', n.author && HEX_COLOR.test(n.author.color || '') ? n.author.color : '#888888');
+    const chip = doc.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip';
+    chip.textContent = '💭';
+    const by = n.author && n.author.name ? n.author.name : 'A viewer';
+    chip.title = `${by}: ${n.text}`;
+    chip.setAttribute('aria-label', `Note from ${by}`);
+    chip.addEventListener('click', (e) => { e.stopPropagation(); open(n, by); });
+    pin.append(chip);
+    container.append(pin);
+    return pin;
+  };
+  return {
+    draw(notes, boxOf, place) {
+      const ids = new Set(notes.map((n) => n.id));
+      for (const [id, pin] of els) if (!ids.has(id)) { pin.remove(); els.delete(id); }
+      for (const n of notes) {
+        const pin = els.get(n.id) || make(n);
+        els.set(n.id, pin);
+        const b = noteBox(n, boxOf);
+        pin.hidden = !b;
+        if (b) place(pin, b);
+      }
+    },
+  };
 }
 
 // NOTE_ROUTES is every request this module makes besides palette.json
@@ -251,12 +349,17 @@ export async function mountAnnotate(doc, win, v) {
   // applied, so it starts from the model's, not from nothing.
   let docSeg = v.model ? v.model.docSeg : 0;
 
-  const drawRail = () => {
-    renderSwatches(swatches, palette, color(), (i) => { picked = i; colors.set(i); drawRail(); }, (tag) => doc.createElement(tag));
+  // The rail's controls are rendered only when their state changes (a pick,
+  // a mode); each frame only places the rail, so nothing that takes input is
+  // replaced under a click.
+  const renderRail = () => {
+    renderSwatches(swatches, palette, color(), (i) => { picked = i; colors.set(i); renderRail(); }, (tag) => doc.createElement(tag));
     for (const [m, b] of Object.entries(modeButtons)) {
       b.classList.toggle('on', state.mode === m);
       b.setAttribute('aria-pressed', String(state.mode === m));
     }
+  };
+  const placeRail = () => {
     const r = box.getBoundingClientRect();
     const at = railAt(r.width ? r : stage.getBoundingClientRect(), win.innerWidth);
     rail.style.top = `${at.top}px`;
@@ -264,11 +367,12 @@ export async function mountAnnotate(doc, win, v) {
     rail.hidden = !(v.model && v.model.seg > 0 && !v.model.ended);
   };
   function setMode(m) {
-    endStroke();
+    endGesture();
     state.mode = m;
     layer.classList.toggle('point', m === 'point');
     layer.classList.toggle('note', m === 'note');
-    drawRail();
+    renderRail();
+    placeRail();
   }
 
   // Own strokes: drawn at once, posted every CHUNK_MS.
@@ -284,6 +388,13 @@ export async function mountAnnotate(doc, win, v) {
     state.timer = null;
     flush();
     state.stroke = null;
+  }
+  // endGesture ends whatever the pointer is doing: a stroke or a region
+  // drag. Every boundary calls it: a mode change, a new document, the cast's
+  // end, a cancelled pointer.
+  function endGesture() {
+    endStroke();
+    if (state.drag) { state.drag = null; drawDrag(); }
   }
   const pagePoint = (e) => v.toPage(e.clientX, e.clientY);
 
@@ -331,7 +442,7 @@ export async function mountAnnotate(doc, win, v) {
     openDraft(noteDraft(v.model.seg, node, b, region));
   };
   layer.addEventListener('pointerup', up);
-  layer.addEventListener('pointercancel', () => { state.drag = null; drawDrag(); endStroke(); });
+  layer.addEventListener('pointercancel', () => endGesture());
 
   function openDraft(payload) {
     name.value = who.name();
@@ -356,67 +467,19 @@ export async function mountAnnotate(doc, win, v) {
     Object.assign(e.style, { left: `${x0 - r.left}px`, top: `${y0 - r.top}px`, width: `${x1 - x0}px`, height: `${y1 - y0}px` });
   };
 
-  // Pins are kept per note and only moved each frame, so a chip being
-  // tapped is never replaced under the finger.
-  const pinEls = new Map(); // note id -> element
-  function makePin(n) {
-    const pin = doc.createElement('div');
-    pin.className = n.region ? 'pin region' : 'pin';
-    pin.dataset.note = n.id;
-    const c = n.author && HEX_COLOR.test(n.author.color || '') ? n.author.color : '#888888';
-    pin.style.setProperty('--pin', c);
-    const chip = doc.createElement('button');
-    chip.type = 'button';
-    chip.className = 'chip';
-    chip.textContent = '💭';
-    const by = n.author && n.author.name ? n.author.name : 'A viewer';
-    chip.title = `${by}: ${n.text}`;
-    chip.setAttribute('aria-label', `Note from ${by}`);
-    chip.addEventListener('click', (e) => {
-      e.stopPropagation();
-      author.textContent = by;
-      name.hidden = true;
-      dialog.view({ id: n.id, text: n.text }, { resolvable: true });
-    });
-    pin.append(chip);
-    pins.append(pin);
-    return pin;
-  }
+  const pinned = pinLayer(doc, pins, (n, by) => {
+    author.textContent = by;
+    name.hidden = true;
+    dialog.view({ id: n.id, text: n.text }, { resolvable: true });
+  });
   function drawPins() {
-    const notes = liveNotes(v.model), ids = new Set(notes.map((n) => n.id));
-    for (const [id, pin] of pinEls) if (!ids.has(id)) { pin.remove(); pinEls.delete(id); }
-    for (const n of notes) {
-      const pin = pinEls.get(n.id) || makePin(n);
-      pinEls.set(n.id, pin);
-      const b = noteBox(n, (id) => v.boxOf(id));
-      pin.hidden = !b;
-      if (b) place(pin, b);
-    }
+    const notes = liveNotes(v.model);
+    pinned.draw(notes, (id) => v.boxOf(id), place);
     dialog.update({ notes: notes.map((n) => ({ id: n.id })) });
   }
 
   function drawStrokes(now) {
-    const r = box.getBoundingClientRect(), dpr = win.devicePixelRatio || 1;
-    const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
-    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
-    const g = canvas.getContext('2d');
-    g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    g.clearRect(0, 0, r.width, r.height);
-    g.lineCap = 'round';
-    g.lineJoin = 'round';
-    g.lineWidth = 4;
-    for (const s of strokes.visible(now)) {
-      g.globalAlpha = s.alpha;
-      g.strokeStyle = s.color;
-      g.beginPath();
-      s.pts.forEach(([x, y], i) => {
-        const [cx, cy] = v.fromPage(x, y);
-        if (i === 0) g.moveTo(cx - r.left, cy - r.top); else g.lineTo(cx - r.left, cy - r.top);
-      });
-      if (s.pts.length === 1) { const [cx, cy] = v.fromPage(s.pts[0][0], s.pts[0][1]); g.lineTo(cx - r.left + 0.1, cy - r.top); }
-      g.stroke();
-    }
-    g.globalAlpha = 1;
+    paintStrokes(canvas, strokes.visible(now), (x, y) => v.fromPage(x, y), box.getBoundingClientRect(), win.devicePixelRatio || 1);
   }
 
   // One redraw per frame at most; two frames out, so the viewer has drawn
@@ -429,7 +492,7 @@ export async function mountAnnotate(doc, win, v) {
     win.requestAnimationFrame(() => win.requestAnimationFrame(() => {
       queued = false;
       const now = win.performance.now();
-      drawRail();
+      placeRail();
       drawPins();
       drawStrokes(now);
       if (strokes.size) schedule();
@@ -438,15 +501,16 @@ export async function mountAnnotate(doc, win, v) {
 
   v.onRecord((r, model) => {
     strokes.seen(r.t);
-    if (model.docSeg !== docSeg) {
+    if (model.docSeg && model.docSeg !== docSeg) {
       // A new document: a stroke doesn't span documents. (A resync's fresh
-      // model passes through 0 on its way back to the same document.)
+      // model passes through 0, which is no document; landing back on the
+      // same one changes nothing.)
       const was = docSeg;
       docSeg = model.docSeg;
-      if (was && docSeg) { strokes.clear(); endStroke(); }
+      if (was) { strokes.clear(); endGesture(); }
     }
     if (r.k === 'stroke') strokes.record(r, win.performance.now(), `${who.id()}.`);
-    if (r.k === 'stop' && r.why === 'end') { setMode('watch'); dialog.close(); }
+    if (r.k === 'stop' && r.why === 'end') { setMode('watch'); dialog.close(); } // setMode ends the gesture
     schedule();
   });
   win.addEventListener('resize', schedule);

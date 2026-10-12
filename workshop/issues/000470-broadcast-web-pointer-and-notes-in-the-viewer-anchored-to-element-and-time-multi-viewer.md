@@ -119,3 +119,11 @@ Durable plan: `workshop/plans/000470-broadcast-web-pointer-and-notes-in-the-view
   stroke after one chunk (4 of 6 runs; B got 3 of 9 points). It now starts from the model's document, and a resync's
   pass through 0 is not a new document. The e2e asserts the posted stroke spans the whole drag; mutation (start from 0)
   fails it. 8 of 8 runs green after.
+- Merged main (#471 replay, TL 5c746f93): viewer.js/index.html/server.go conflicts were both-sides additive. For #477
+  the drawing is exported pure over the model at t: `strokesAt`, `paintStrokes`, `pinLayer`, `liveNotes`.
+- M2 review round 2: BR-15 (swatches rebuilt every frame; class of BR-9) → the rule "nothing that takes input is
+  rebuilt on the per-frame path": `renderRail` on a pick or mode change, `placeRail` per frame; pins via `pinLayer`.
+  The e2e picks a swatch with a 100 ms press while a stroke fades (a back-to-back CDP click fit in one frame and let the
+  per-frame mutant survive; with the held press the mutant fails 2/2). Minors: one `endGesture()` (stroke and drag) at
+  every boundary; a resync landing on another document clears strokes; the e2e asserts notes survive a resume (the
+  top document re-snapshotted with ids kept); a stored name is validated at read (`validName`).

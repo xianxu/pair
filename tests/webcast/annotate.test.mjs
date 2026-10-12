@@ -1,7 +1,7 @@
 // Pointing and notes in the web cast viewer (#470): the pure helpers.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { identityStore, chunker, strokeStore, liveNotes, noteBox, regionOf, noteDraft, MAX_POINTS, FADE_MS } from '../../cmd/internal/webcast/web/annotate.js';
+import { identityStore, validName, strokesAt, chunker, strokeStore, liveNotes, noteBox, regionOf, noteDraft, MAX_POINTS, FADE_MS } from '../../cmd/internal/webcast/web/annotate.js';
 
 const crypto = { getRandomValues: (b) => { b.fill(0xab); return b; } };
 const memStorage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), m }; };
@@ -87,4 +87,31 @@ test('a drag is a region; a small one is a tap', () => {
   assert.deepEqual(regionOf([10, 10], [60, 12]), [10, 10, 50, 2]);
   assert.deepEqual(noteDraft(3, 7, [1.234, 2, 3, 4], null), { seg: 3, node: 7, box: [1.2, 2, 3, 4] });
   assert.deepEqual(noteDraft(3, 7, [1, 2, 3, 4], [5, 6, 7, 8]), { seg: 3, node: 7, box: [1, 2, 3, 4], region: [5, 6, 7, 8] });
+});
+
+test('a stored name is read by the board\'s rules, else asked again', () => {
+  assert.equal(validName('  Ana  '), 'Ana');
+  assert.equal(validName('x'.repeat(40)), 'x'.repeat(40));
+  assert.equal(validName('x'.repeat(41)), '');
+  assert.equal(validName('A\nB'), '');
+  assert.equal(validName('A\u202eB'), '');
+  const s = memStorage();
+  s.setItem('couch.viewerName', 'n'.repeat(80));
+  assert.equal(identityStore(s, crypto).name(), '');
+});
+
+test('strokesAt: what a reader at t shows, for replay', () => {
+  const st = (id, t, seg, pts) => ({ stroke: { id, t, color: '#f00', pts }, seg });
+  const model = { docSeg: 2, strokes: [
+    st('old', 100, 1, [[0, 0, 0]]),             // an earlier document
+    st('a', 1000, 2, [[1, 1, 0], [2, 2, 100]]),
+    st('a', 1150, 2, [[3, 3, 0]]),              // a's next chunk
+    st('b', 5000, 2, [[9, 9, 0]]),              // later
+  ] };
+  assert.deepEqual(strokesAt(model, 1050).map((s) => [s.id, s.pts.length]), [['a', 1]]); // only the points drawn by t
+  const at = strokesAt(model, 1200);
+  assert.deepEqual(at.map((s) => [s.id, s.pts.length, s.alpha.toFixed(2)]), [['a', 3, '0.97']]);
+  assert.equal(strokesAt(model, 1150 + FADE_MS).length, 0);
+  assert.deepEqual(strokesAt(model, 5000).map((s) => s.id), ['b']);
+  assert.deepEqual(strokesAt({ docSeg: 0, strokes: [] }, 1), []);
 });
