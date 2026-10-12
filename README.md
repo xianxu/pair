@@ -441,7 +441,8 @@ couch --send-to hub --message TEXT      send to the hub (the slot Couch started 
 couch --send-to TARGET [--agent NAME] --message-file PATH
                          any form above, the body read verbatim from PATH (less one trailing newline):
                          write a message containing code or shell syntax with an editor, never quote it
-couch --message-status ID [--json]      inspect a message receipt
+couch --message-status ID [--json]      inspect a message receipt; a send to a busy slot
+                         waits in line, in order (`queued`, `position N`) (pair#492)
 couch --skill            print the bundled agent coordination skill
 couch --adopt-store /absolute/store     preview adoption of an existing store
 ```

@@ -256,3 +256,21 @@ func TestRemoteEndpointCollectsOutcomeAfterInputDeadline(t *testing.T) {
 		})
 	}
 }
+
+// A wrapper's busy refusal crosses the socket as ErrRecipientBusy, so the
+// broker queues the message rather than refusing its sender (pair#492).
+func TestRemoteEndpointBusyReservationIsRecipientBusy(t *testing.T) {
+	m := endpointMessage()
+	socket := transportSocket(t)
+	s, err := StartServer(context.Background(), socket, func(context.Context, []byte) ([]byte, error) {
+		return json.Marshal(EndpointResponse{Error: ErrRecipientBusy.Error()})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	e := RemoteEndpoint{Binding: m.To, socket: socket}
+	if err := e.Reserve(context.Background(), m.ID, 1); !errors.Is(err, ErrRecipientBusy) {
+		t.Fatalf("reserve: %v", err)
+	}
+}

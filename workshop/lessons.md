@@ -7,6 +7,10 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A paint that snapshots state and then publishes it holds one lock from snapshot to commit whenever paints run on
+  more than one goroutine. Otherwise an older snapshot can publish last and stay on screen until something else
+  repaints, which on an idle screen is never. A test that polls for the new state passes in the gap before the stale
+  publish lands, so pin the interleaving with a hook rather than a load soak. (#484)
 - A bounded cache or graveyard prunes only after the update it belongs to is applied: decide what is gone from the
   structure as it now is, never between its teardown and its rebuild. #458's id map buried a re-snapshotted tree after
   forgetting it, so every live node looked removed and lost its id once the graveyard filled. Test it above the bound.
@@ -1355,3 +1359,11 @@ proof; record the surprising case so the next change starts from evidence.
   have other sites point there. A status line likewise derives what it reports from one fact (when Couch last
   answered), not a counter that a second code path must remember to reset. And a fallback branch (the final look
   after an exit) needs a test that fails with the branch disabled, run once with it disabled to prove it.
+- **Every path that unblocks a worker wakes it (#492 close).** The queue's worker skipped promotion while another
+  admission attempt held the actor's reservation; that attempt's failure path cleared the reservation and woke no
+  one, so a queued message sat until the test deadline. When a worker parks on a condition (a reservation, a
+  pending delivery), route every release of that condition through one helper that also signals the worker, and
+  test the interleaving deterministically: count the worker's blocked checks and wait on the count, never on a sleep.
+  The converse is the same rule's other half: the worker never wakes itself. Its own failed attempt schedules its
+  retry, or it spins (round 2's Critical). A fake must refuse the way the real seam refuses (`ErrRecipientBusy`,
+  not a bare error), or the tests never exercise the path the product takes.

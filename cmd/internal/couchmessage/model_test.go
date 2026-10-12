@@ -43,8 +43,9 @@ func TestAdmissionAndTerminalTransitions(t *testing.T) {
 	}
 	other := m
 	other.ID = "m2"
-	if _, _, err := Advance(s, Event{Kind: Admit, Binding: b, Message: other, At: now}); !errors.Is(err, ErrRecipientBusy) {
-		t.Fatalf("busy: %v", err)
+	// A second message waits behind the delivery (pair#492).
+	if q, fx, err := Advance(s, Event{Kind: Admit, Binding: b, Message: other, At: now}); err != nil || q.Queued() != 1 || fx[0].Receipt.Detail != "position 1" {
+		t.Fatalf("queue behind delivery: %v %+v", err, fx)
 	}
 	s, _ = advance(t, s, Event{Kind: DeliveryStarted, Binding: b, Message: m, At: now})
 	s, fx = advance(t, s, Event{Kind: DeliveryFinished, Binding: b, Message: m, Status: Submitted, At: now})
