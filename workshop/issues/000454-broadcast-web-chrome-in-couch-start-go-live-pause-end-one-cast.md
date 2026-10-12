@@ -76,12 +76,13 @@ Items, in order: cdp pipe client; tab tracker + translate; real Chrome + inject.
 Durable plan: `workshop/plans/000454-broadcast-web-chrome-in-couch-start-go-live-pause-end-one-cast-plan.md`.
 
 - [x] Key decoding check (Shift+Ctrl+Alt+B vs Ctrl+Alt+b): distinct; see Log
-- [ ] M1 — browser-control component: `cdp` pipe client; `webcast` State/Tracker/translate; Browser seam + FakeBrowser; in-page control (isolated world); real Chrome; conformance suite run against fake and live Chrome
+- [x] M1 — browser-control component: `cdp` pipe client; `webcast` State/Tracker/translate; Browser seam + FakeBrowser; in-page control (isolated world); real Chrome; conformance suite run against fake and live Chrome
 - [ ] M2 — Couch integration and stub stream: shared `broadcast.Host` (one tunnel, casts mounted by token); webcast viewer server + page; Cast; Shift+Ctrl+Alt+B, `Chrome ▶/⏸` cell with click / right-click / Ctrl+click; launcher wiring; README + atlas; operator smoke test
 
 ## Log
 
 ### 2026-10-11
+- 2026-10-11: closed M1 — go test -race -count=10 webcast + -count=5 cdp green; mutation-checked WaitDelay/ErrProtocol class/drain (all caught); WEBCAST_LIVE_CHROME=1 live suite green unsandboxed (headless Chrome 154); review verdict: SHIP
 
 - **Key decoding check: passed.** Couch pushes kitty flags 3; measured through `terminal.Decoder` + `productKey`: Ctrl+Alt+b → `\x1b[98;7u`, Shift+Ctrl+Alt+B → `\x1b[98;8u` (also `66;8u`, `98;8:1u`, `98:66;8u` canonicalise distinctly). Legacy `ESC ^B` was never a broadcast binding (#395). Operator's Ghostty config binds nothing on ctrl+alt+shift. Real-terminal confirmation goes in the smoke test.
 - **CDP spike (Chrome 154):** `--remote-debugging-pipe` works; isolated-world binding invisible to the page's main world; `runImmediately` injects into the current document; URL/title from `Target.targetInfoChanged`; closing the pipe makes Chrome exit (owner death collects it — ARCH-FUNERAL). Chrome can't launch inside the agent sandbox (exit 21); live checks run unsandboxed.
