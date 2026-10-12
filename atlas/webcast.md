@@ -193,7 +193,26 @@ what the viewer's renderer draws at the same moments.
     over the frame. A record the model refuses resyncs: the shell reconnects for a fresh catch-up.
   - The frame takes no input; the shell's overlay does (wave 2's notes, #466/#467's remote driving).
   - The contract is on `window.couchViewer`: `canonical`, `ready`, `resolveAsset`, `boxOf`, `nodeAt`, `toPage`
-    and `onRecord`.
+    and `onRecord`; `annotate` and `drive` once mounted.
+  - **Remote driving (`drive.js`, #467):**
+    - **Seat.** The shell takes a seat before it opens the stream (`drive/hello`, the name from `identityStore`).
+      The stream then opens with `?viewer=<seat>`, so it holds the seat, and notes and strokes are authored by the
+      seat's id (`identityStore.adopt`). A 404 means no driving: the stream opens without a seat and nothing
+      mounts.
+    - **Control.** A bar button cycles Ask to drive → Cancel request → Give back control, and a note says who
+      drives. Both follow the latest `ctl` record.
+    - **Input.** While this viewer drives and the cast is live, a capture layer over the page takes pointer and
+      touch (`gestures`):
+      - a press that doesn't move 4 px is a click (or a double click); further is a drag: down, moves, up;
+      - one finger works like the mouse, and two fingers scroll (wheel acts);
+      - a mouse with no button hovers, at most every 50 ms.
+    - **Keyboard.** A hidden textarea holds the keyboard focus, so an iPad raises its keyboard. Named keys and
+      Ctrl/Meta chords go as key acts (`keyAct`); typing goes as text, and compositions as ime.
+    - **Batches.** `batcher` keeps acts in order with one request in flight, coalesces moves and wheels, and
+      drops its queue at a refusal, showing the server's sentence (a 401 offers Rejoin).
+    - Pointing and notes wait while this viewer drives.
+    - `viewer_drive_live_test.go` drives two headless viewers, one by mouse and one by touch, through a real
+      `Server` and `MemController`.
 - **Viewer fidelity:** `replay_test.go` replays every fixture in headless Chrome (`WEBCAST_LIVE_CHROME=1`).
   - The drawn page's canonical equals the reducer's at every pin, and a join at any pin draws the same page.
   - Renders are within 3% of `frames/` (measured 0.2–2.3%). The last second before each frame is replayed in real

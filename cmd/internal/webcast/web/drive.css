@@ -1,0 +1,13 @@
+/* Remote driving (#467): drive.js's elements. The layer covers the scaled
+   page and takes input only while this viewer drives (and the cast is
+   live); the keys textarea holds the keyboard focus then, out of sight but
+   focusable, so an iPad raises its keyboard. */
+.drive { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+.drive.on { pointer-events: auto; touch-action: none; cursor: default; box-shadow: 0 0 0 3px #1565c0 inset; }
+.drive-keys { position: fixed; left: 0; bottom: 0; width: 1px; height: 1px; padding: 0; border: 0; opacity: 0; resize: none; font-size: 16px; pointer-events: none; }
+.drive-button { flex: none; padding: 3px 12px; border: 1px solid rgba(127,127,127,.4); border-radius: 999px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.drive-button.on { background: #1565c0; border-color: #1565c0; color: #fff; }
+.drive-note { flex: none; color: var(--muted); }
+.drive-note:empty { display: none; }
+/* Pointing and notes wait while this viewer drives. */
+body.driving .annotate-rail .mode { display: none; }

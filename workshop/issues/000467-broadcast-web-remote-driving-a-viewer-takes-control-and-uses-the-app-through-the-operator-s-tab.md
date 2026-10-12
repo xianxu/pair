@@ -92,6 +92,7 @@ menu + notice; recorded `driven` fixture + consumers deriving from data; atlas; 
 - Live (real headless Chrome) caught a bug the fakes couldn't: `DOM.getNodeForLocation` with `includeUserAgentShadowDOM:true` returns an `<input>`'s inner editor, which the recording doesn't have, so every click on an input read as stale. Now false.
 - Live confirms the dialog residual: an alert opened by the driver's click returns ErrDialog in < 3 s; the click itself is released by the expired hold after the operator answers, without `by` (documented class). Download deny: the request reaches the server once, and the transfer is denied by the CDP setting (asserted in the loop test; no download dir to read in headless).
 - Verified: `go test ./cmd/internal/webcast/... -race` green; `WEBCAST_LIVE_CHROME=1 go test ./cmd/internal/webcast` green (135 s, all live suites); `TestLiveDrive` 3/3; FuzzDriveInput 20 s.
+- M2 built: `drive.js` (`joinSeat`, `seatPoster`, `batcher`, `gestures`, `keyAct`, `driveView`, `mountDrive`), `drive.css`; `viewer.js` takes the seat before the stream (the stream holds it) and mounts annotate and drive after; `identityStore.adopt` makes notes authored by the seat; the in-page control's banner names the driver (inject test). Verified: node tests all green (drive 10, inject 8, …); `TestDriveLiveTwoViewers` 5/5 (mouse click/typing/Enter, touch tap, grant transfer, revoke, give back); full live suite green (224 s).
 
 ## Revisions
 

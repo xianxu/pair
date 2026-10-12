@@ -55,6 +55,9 @@ export function identityStore(storage, crypto) {
     id: () => id,
     name: () => name,
     setName(v) { name = v; store.set(NAME_KEY, v); },
+    // adopt is this visit's id, not remembered: a remote-driving seat's
+    // (#467), so a driver's notes are attributable to the driver.
+    adopt(v) { if (ID_RE.test(v) && v !== 'operator') id = v; },
     viewer: () => ({ id, name }),
   };
 }
@@ -272,6 +275,7 @@ export async function mountAnnotate(doc, win, v) {
   let storage = null;
   try { storage = win.localStorage; } catch { /* no storage: nothing remembered */ }
   const who = identityStore(storage, win.crypto);
+  if (v.seat) who.adopt(v.seat.viewer);
   const colors = colorStore(storage);
   let picked = colors.get();
   const color = () => pointerColor(picked, 0, palette.length);

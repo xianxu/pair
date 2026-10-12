@@ -112,3 +112,17 @@ test('title is reported when it changes, once per value', () => {
   p.fire('win', 'load');
   assert.deepEqual(p.sent.filter((m) => m.t === 'title').map((m) => m.title), ['', 'Cart']);
 });
+
+test('the control names who drives (#467), as text, and clears when nobody does', () => {
+  const p = page();
+  p.run();
+  const banner = () => p.host().shadow.children.find((c) => c.tag === 'div');
+  p.ctx.__couchcastSet(true, 'Ana <b>');
+  assert.equal(banner().textContent, 'Ana <b> is driving');
+  assert.equal(banner().hidden, false);
+  assert.equal(p.button().textContent, '❚❚ Pause');
+  p.ctx.__couchcastSet(true, '');
+  assert.equal(banner().hidden, true);
+  p.ctx.__couchcastSet(false); // an old caller: nobody drives
+  assert.equal(banner().hidden, true);
+});
