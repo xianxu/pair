@@ -1133,3 +1133,7 @@ proof; record the surprising case so the next change starts from evidence.
   still describing the old address grammar, and a TL-deferred Done-when clause stayed as written. When a change
   adds a form to a CLI grammar, grep every restatement of that grammar (`--help`, skill, README, atlas) in the
   same commit; when scope moves elsewhere, amend `## Done when` and `## Plan` in the commit that moves it.
+- **A new Go source file joins the artifact inventory in the same commit (#460).** Moving `FakeHub` into a new
+  `recording/hub.go` failed `TestProductionArtifactReferencesAreExactlyClassified`, which only `make test` runs (the
+  package's own tests passed). When a change adds a production `.go` file, classify it in
+  `cmd/internal/artifactpath/manifest.go` and run `go test ./cmd/internal/artifactpath` before the close.
