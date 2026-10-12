@@ -1099,3 +1099,8 @@ proof; record the surprising case so the next change starts from evidence.
   "connection failures" still let `os.ErrClosed` (our reaper closing the read end) and EPIPE through as "lost Chrome"
   — a deny-list of transport errors is never complete. Mark the class you mean where it originates (`cdp.ErrProtocol`
   for what the peer *sent*) and allow-list it; a pipe closing is what every ending looks like, including your own.
+- **Reference counts release through one function (#454 M2 review).** The shared Host checked "nobody wants it"
+  inline at open completion and at Unmount, and a cancelled waiter had its own `last` test; the waiter's test
+  missed the interleaving where the open completed first, leaking a tunnel 1 time in 300. Every way interest ends
+  (an open completing, a waiter giving up, an unmount) calls one `releaseIfUnwanted`; test the exact losing state by
+  constructing it, plus a stress loop at the timing that reproduces it.

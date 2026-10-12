@@ -84,7 +84,7 @@ func SetSecurityHeaders(h http.Header, csp string) {
 // Owns reports whether segment is one of this broadcast's tokens, for the
 // Host's routing.
 func (s *Server) Owns(segment string) bool {
-	return ownsToken(segment, s.opts.Token) || s.opts.Pointer.Match(segment)
+	return OwnsToken(segment, s.opts.Token) || s.opts.Pointer.Match(segment)
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -112,7 +112,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	view := ok && ownsToken(segment, s.opts.Token)
+	view := ok && OwnsToken(segment, s.opts.Token)
 	if !view && !pointer {
 		http.NotFound(w, r)
 		return

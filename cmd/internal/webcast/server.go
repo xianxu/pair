@@ -46,7 +46,7 @@ func NewServer(token string, b Browser, ping time.Duration) *Server {
 }
 
 // Owns is the Host's routing: this cast answers only its token.
-func (s *Server) Owns(segment string) bool { return segment == s.token && s.token != "" }
+func (s *Server) Owns(segment string) bool { return broadcast.OwnsToken(segment, s.token) }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	broadcast.SetSecurityHeaders(w.Header(), contentSecurityPolicy)

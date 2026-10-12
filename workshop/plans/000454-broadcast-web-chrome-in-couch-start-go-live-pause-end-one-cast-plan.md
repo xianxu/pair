@@ -562,3 +562,6 @@ Divergences from the tasks above, all measured against Chrome 154:
 - **Live end-to-end** (`TestLiveCastEndToEnd`): a real headless Chrome, Cast, the Host on `LocalOnly`, and an SSE
   viewer. It found Chrome's title placeholder during loads, which is accepted and documented in atlas; the old
   title is never paired with the new URL.
+- **M2 review (BR-14):** every loss of interest in the Host now goes through `releaseIfUnwantedLocked`: an open
+  completing, a waiter abandoning (`abandonWait`), or an Unmount. The cancel/complete race could leak a tunnel 1 in
+  300 times. `OwnsToken` is exported and used by both casts (a constant-time compare).

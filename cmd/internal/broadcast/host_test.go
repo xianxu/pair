@@ -249,3 +249,40 @@ func waitFor(t *testing.T, ok func() bool) {
 		time.Sleep(5 * time.Millisecond)
 	}
 }
+
+// BR-14: an open completes with one waiter still counted, and that waiter
+// then gives up. Nothing is mounted and nobody waits, so the Host must close.
+func TestHostLastWaiterGivingUpAfterTheOpenCloses(t *testing.T) {
+	f := &FakeTunnel{}
+	h := NewHost(HostConfig{Tunnel: f, ProbeTimeout: time.Second})
+	a := mount(t, h, "aa")
+	h.mu.Lock()
+	h.waiting++ // a waiter registered during the open, not yet woken
+	h.mu.Unlock()
+	a.Unmount() // the waiter keeps the Host open
+	if s := f.Stats(); s.Closes != 0 {
+		t.Fatalf("closed under a waiter: %+v", s)
+	}
+	h.abandonWait(true)
+	if s := f.Stats(); s.Opens != s.Closes {
+		t.Fatalf("tunnel left open: %+v", s)
+	}
+}
+
+// The reviewer's reproduction: cancels landing around the open's completion
+// never leave a tunnel open.
+func TestHostCancelRacingOpenNeverLeaks(t *testing.T) {
+	f := &FakeTunnel{OpenDelay: 2 * time.Millisecond, IgnoreCancel: true}
+	h := NewHost(HostConfig{Tunnel: f, ProbeTimeout: time.Second})
+	for i := range 300 {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(1+i%4)*time.Millisecond)
+		m, err := h.Mount(ctx, tokenHandler("aa"), "aa/")
+		cancel()
+		if err == nil {
+			m.Unmount()
+		}
+		if s := f.Stats(); s.Opens != s.Closes {
+			t.Fatalf("iteration %d: tunnel left open: %+v", i, s)
+		}
+	}
+}

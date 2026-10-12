@@ -99,15 +99,15 @@ func (h *Host) Mount(ctx context.Context, m Mountable, probePath string) (*Mount
 		case hostClosed:
 			h.beginOpenLocked()
 		}
-		a, opening := h.attempt, h.state == hostOpening
-		if opening {
+		a, counted := h.attempt, h.state == hostOpening
+		if counted {
 			h.waiting++
 		}
 		h.mu.Unlock()
 		select {
 		case <-a.done:
 			h.mu.Lock()
-			if opening {
+			if counted {
 				h.waiting--
 				if a.err != nil {
 					h.mu.Unlock()
@@ -115,36 +115,52 @@ func (h *Host) Mount(ctx context.Context, m Mountable, probePath string) (*Mount
 				}
 			}
 		case <-ctx.Done():
-			h.mu.Lock()
-			last := false
-			if opening {
-				h.waiting--
-				last = h.waiting == 0 && len(h.mounts) == 0 && h.attempt == a
-			}
-			h.mu.Unlock()
-			if last {
-				// The last one waiting abandons the open, and returns only
-				// once whatever it opened is closed again: a tunnel that
-				// finishes opening after the cancel included.
-				a.cancel()
-				h.settle(a)
-			}
+			h.abandonWait(counted)
 			return nil, ctx.Err()
 		}
 	}
 }
 
-// settle waits for attempt a, and for the close that follows it if the open
-// completed with nobody left to serve.
-func (h *Host) settle(a *hostAttempt) {
-	<-a.done
+// abandonWait is a waiter giving up. If it was the last interest in the
+// Host, it returns only once whatever was opened is closed again: an open
+// that completed meanwhile, or a tunnel that finishes opening after the
+// cancel.
+func (h *Host) abandonWait(counted bool) {
 	h.mu.Lock()
-	next := h.attempt
-	closing := h.state == hostClosing && len(h.mounts) == 0
-	h.mu.Unlock()
-	if closing && next != nil {
-		<-next.done
+	if counted {
+		h.waiting--
 	}
+	a := h.releaseIfUnwantedLocked()
+	h.mu.Unlock()
+	for a != nil {
+		<-a.done
+		// An abandoned open that completed anyway is closed by open's own
+		// release; wait for that close too.
+		h.mu.Lock()
+		a = nil
+		if h.state == hostClosing && h.waiting == 0 && len(h.mounts) == 0 {
+			a = h.attempt
+		}
+		h.mu.Unlock()
+	}
+}
+
+// releaseIfUnwantedLocked is the one rule for every loss of interest (an
+// open completing, a waiter abandoning, an Unmount): with nothing mounted and
+// nobody waiting, an open Host closes and an opening one is abandoned. It
+// returns the attempt to wait on, if any.
+func (h *Host) releaseIfUnwantedLocked() *hostAttempt {
+	if h.waiting > 0 || len(h.mounts) > 0 {
+		return nil
+	}
+	switch h.state {
+	case hostOpen:
+		return h.beginCloseLocked()
+	case hostOpening:
+		h.attempt.cancel()
+		return h.attempt
+	}
+	return nil
 }
 
 func (h *Host) beginOpenLocked() {
@@ -172,10 +188,8 @@ func (h *Host) open(ctx context.Context, a *hostAttempt) {
 		h.mode = ModeLocalOnly
 	}
 	go h.watch(h.gen, served, handle)
-	// Everyone who wanted it gave up while it opened.
-	if h.waiting == 0 && len(h.mounts) == 0 {
-		h.beginCloseLocked()
-	}
+	// Everyone who wanted it may have given up while it opened.
+	h.releaseIfUnwantedLocked()
 }
 
 // start opens the listener, server and tunnel; whatever it opened is closed
@@ -329,18 +343,16 @@ func (mt *Mount) Unmount() {
 		return
 	}
 	delete(h.mounts, mt)
-	var closing *hostAttempt
-	if len(h.mounts) == 0 && h.waiting == 0 && h.state == hostOpen {
-		closing = h.beginCloseLocked()
-	}
+	closing := h.releaseIfUnwantedLocked()
 	h.mu.Unlock()
 	if closing != nil {
 		<-closing.done
 	}
 }
 
-// ownsToken reports whether segment is token, in constant time.
-func ownsToken(segment, token string) bool {
+// OwnsToken reports whether segment is token, in constant time: every cast
+// answers its tokens this way.
+func OwnsToken(segment, token string) bool {
 	return token != "" && subtle.ConstantTimeCompare([]byte(segment), []byte(token)) == 1
 }
 
