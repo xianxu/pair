@@ -158,6 +158,23 @@ rounds:
       isolation: fenced
       reviewed: 8e761007bb68939ffc431b150b68fcdf91fa6f55
       blocked: false
+    - "n": 5
+      timestamp: "2026-10-12T01:53:09-07:00"
+      dispatched: "2026-10-12T01:52:34-07:00"
+      agent: claude
+      dispose:
+        - id: BR-7
+          disposition: not-addressed
+          note: Unchanged in this window; grace timers still use real time.AfterFunc, deferred to issue 467 per plan Revisions; Minor, non-blocking.
+          round: 5
+        - id: BR-12
+          disposition: not-addressed
+          note: Fixed at the cited sites (policy.go:17-23, atlas:374-377), but the old absolute rule remains at policy.go:102 (Confine doc), plan.md:191-192 (Revisions) and lessons.md:1144; reword those to reference the chord-table rule. Minor, non-blocking.
+          round: 5
+      recipe: fix-review
+      isolation: fenced
+      reviewed: 38a1369bc124dc3c505d338861971a3574531ec5
+      blocked: false
 ---
 
 # Gate ledger — pair#466 (boundary-review)
@@ -225,6 +242,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - **BR-12** [Minor] `confinement-allowlist` Chord table states an absolute rule (no Chrome/Blink binding at all) that plain Escape already breaks
   5th in family. Chrome's accelerator table binds Escape to close-find/stop-loading and it exits fullscreen; the effects are harmless but the stated rule (policy.go:17-20, atlas) is false. Restate the rule as "no binding whose effect lands outside the page's document (history navigation, new tab/window, clipboard, browser UI, devtools, zoom)" and list Escape as a reviewed harmless binding, so future rounds check against a rule that can be met.
+
+## Round 5 — 2026-10-12T01:53:09-07:00 (claude) — passed
+
+### Disposed
+
+- BR-7 — not-addressed — Unchanged in this window; grace timers still use real time.AfterFunc, deferred to issue 467 per plan Revisions; Minor, non-blocking.
+- BR-12 — not-addressed — Fixed at the cited sites (policy.go:17-23, atlas:374-377), but the old absolute rule remains at policy.go:102 (Confine doc), plan.md:191-192 (Revisions) and lessons.md:1144; reword those to reference the chord-table rule. Minor, non-blocking.
 
 ## Open findings
 

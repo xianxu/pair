@@ -54,6 +54,7 @@ Durable plan: `workshop/plans/000466-broadcast-web-remote-driving-contract-viewe
 ## Log
 
 ### 2026-10-12
+- 2026-10-12: closed — post-close delta is the close advisory only: policy.go doc comment and atlas restate the confinement rule as defended (effects outside the document; Escape reviewed harmless); no code change, go build + drive tests green (fixed-then-ship); review verdict: SHIP
 - 2026-10-12: closed — go test ./... green unsandboxed before review; make -k test only failure artifactpath inventory, fixed c4e3747c; rounds 1-3 fixed (BR-1..3, BR-9, BR-11): injector follows the stream with typed ErrNotDriver; Confine is a closed chord table, activation keys take no modifier, test compares with a hand-written chord set plus cited Chrome/Blink bindings (mutation-checked); no seg/ctl after stop end; webcast/... broadcast artifactpath green; grace-timer injection advisory left (plan Revisions); TL approved (Done when); review verdict: SHIP
 - 2026-10-12: flow upgraded quick → full — 1678 added lines in code files (limit 100); an earlier round of this close already ran the full review
 - Early asks sent to the TL and agreed (by on interaction kinds incl. #458's hover/ptr; ctl carries post-state; routes; refusals). pair:1 correction: the single writer is the recorder's queue, the id map is `Recorder.NodeOf`/`IDOf`; `input {secret:true}` for passwords.

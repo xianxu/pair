@@ -450,3 +450,68 @@ findings:
     detail: |
       5th in family. Chrome's accelerator table binds Escape to close-find/stop-loading and it exits fullscreen; the effects are harmless but the stated rule (policy.go:17-20, atlas) is false. Restate the rule as "no binding whose effect lands outside the page's document (history navigation, new tab/window, clipboard, browser UI, devtools, zoom)" and list Escape as a reviewed harmless binding, so future rounds check against a rule that can be met.
 ```
+
+---
+
+## Re-review — 2026-10-12T01:53:09-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 466 — broadcast-web: remote-driving contract — viewer input, driver control, attribution in the format |
+| repo | pair |
+| issue file | workshop/issues/000466-broadcast-web-remote-driving-contract-viewer-input-driver-control-attribution-in-the-format.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 84a1b2ad7189f9c505089e950cc42c11ec233e92..38a1369bc124dc3c505d338861971a3574531ec5 |
+| command | sdlc close --issue 466 |
+| reviewer | claude |
+| isolation | fenced |
+| timestamp | 2026-10-12T01:53:09-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+This window only fixes prose: the chord-table comment in `cmd/internal/webcast/drive/policy.go:17-23` and its atlas twin at `atlas/webcast-format.md:374-377`, plus updates to the gate and review ledgers. No behavior changed, so the fix needs no regression test. The issue file only records the close, `actual_hours` and the switch from quick to full flow. `## Spec`, `## Revisions` and `## Done when` are unchanged, so scope did not change. BR-12 is fixed at the two places it named: the rule now covers only effects outside the page's document, and Escape is listed as a reviewed harmless binding. Three other places still state the old absolute rule, so I dispose BR-12 `not-addressed` (Minor, non-blocking). BR-7 is untouched and is still deferred. The window introduces no Critical or Important defect.
+
+1. **Strengths**
+   - The restated rule can actually be met and is testable. It lists the outside-the-document effect classes (history, tab or window, clipboard, browser UI, DevTools, zoom). It also names Escape as a reviewed exception instead of leaving the rule silently false.
+   - The atlas and the code comment were changed together and say the same thing.
+
+2. **Critical:** none.
+
+3. **Important:** none.
+
+4. **Minor**
+   - BR-12 is fixed only where it was cited (ARCH-PURPOSE). The old absolute wording ("no Chrome or Blink binding handles it") is still in three places:
+     - the `Confine` doc comment, `policy.go:102`
+     - the plan Revisions, plan.md:191-192
+     - `workshop/lessons.md:1144`
+
+     Reword all three to point at the rule in the chord-table comment instead of restating it.
+   - `policy.go:23` was not reflowed and is well over the comment width of the lines around it. `gofmt` is clean, so this is cosmetic only.
+
+5. **Test coverage:** this is a prose change, so no new test is needed. The existing tests `TestConfine` and `TestConfineAllowsExactlyTheseChords` already pin Escape as `{""}`, and Shift+Escape as refused.
+
+6. **Architecture**
+   - **ARCH-DRY:** flag (Minor). The rule is written out in five places (chord-table comment, `Confine` doc, atlas, plan, lessons), and three of them have drifted. One authoritative statement plus references would stop this from recurring.
+   - **ARCH-PURE:** pass. Only comments changed.
+   - **ARCH-PURPOSE:** flag (Minor). The fix covers the named instance, not the whole class (see BR-12 below).
+
+7. **Plan revisions:** amend the Revisions bullet at plan.md:191 to the new rule: no binding whose effect lands outside the page's document, with Escape as a reviewed harmless binding.
+
+```findings
+dispose:
+  - id: BR-7
+    disposition: not-addressed
+    note: |
+      Unchanged in this window; grace timers still use real time.AfterFunc, deferred to issue 467 per plan Revisions; Minor, non-blocking.
+  - id: BR-12
+    disposition: not-addressed
+    note: |
+      Fixed at the cited sites (policy.go:17-23, atlas:374-377), but the old absolute rule remains at policy.go:102 (Confine doc), plan.md:191-192 (Revisions) and lessons.md:1144; reword those to reference the chord-table rule. Minor, non-blocking.
+```
