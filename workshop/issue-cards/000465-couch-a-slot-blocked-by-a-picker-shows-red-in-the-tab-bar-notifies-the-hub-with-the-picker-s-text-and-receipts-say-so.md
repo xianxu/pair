@@ -1,10 +1,19 @@
 ---
 id: 000465
-status: working
+status: codecomplete
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours: 3.66
 github_issue:
+started: 2026-10-12T00:27:53-07:00
+claimant:
+    operator: Xian Xu
+    machine: 4716879978a7b90f6b583da1716fd0e9
+    machine_name: Xian’s MacBook Pro
+    workspace: pair:5
+    worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
+    repository: github.com/xianxu/pair
+actual_hours: 7.57
 tracker:
     version: 1
     handoff:
@@ -17,14 +26,11 @@ tracker:
         source_blob: d753b8d8e4efc7a55a18d769b0927510f218ba71
         destination: workshop/issues/000465-couch-a-slot-blocked-by-a-picker-shows-red-in-the-tab-bar-notifies-the-hub-with-the-picker-s-text-and-receipts-say-so.md
         main_commit: 449fc17c389ce3065787595176bd5e216b6f2c5f
-started: 2026-10-12T00:27:53-07:00
-claimant:
-    operator: Xian Xu
-    machine: 4716879978a7b90f6b583da1716fd0e9
-    machine_name: Xian’s MacBook Pro
-    workspace: pair:5
-    worktree: /Users/xianxu/workspace/worktree/pair-slot5/pair
-    repository: github.com/xianxu/pair
+    completion:
+        token: close-d78ef6bdbccb
+        repository: github.com/xianxu/pair
+        reviewed_head: f37e7e65678c4bcde17ae39c1d729ba5ec8901ea
+        evidence_commit: d8f3c67a7c29187821bbf73f7be13d9a8ec16e90
 ---
 
 # couch: a slot blocked by a picker shows red in the tab bar, notifies the hub with the picker's text, and receipts say so
