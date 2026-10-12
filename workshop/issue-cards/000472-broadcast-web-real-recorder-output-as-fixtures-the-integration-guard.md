@@ -1,6 +1,6 @@
 ---
 id: 000472
-status: codecomplete
+status: done
 created: 2026-10-12
 updated: 2026-10-12
 estimate_hours:
@@ -31,6 +31,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: dc6d4f1d146c33aa663bd5d656a2567b6fabe033
         evidence_commit: 8b55dd01f07928bb868505ed3cdd65e489d12d8d
+        landed_commit: 312e76b72f5317617709638c2e2166d28798e347
 ---
 
 # broadcast-web: real recorder output as fixtures (the integration guard)
